@@ -18,7 +18,7 @@ export type FlatEntry =
   | { kind: "header"; hunk: number; text: string }
   | { kind: "row"; hunk: number; row: DiffRow };
 
-/// Deletions and the insertions that replace them line up; a longer side pads the other.
+/** Deletions and the insertions that replace them line up; a longer side pads the other. */
 export function pairRows(rows: readonly DiffRow[]): SidePair[] {
   const pairs: SidePair[] = [];
   let deletes: SideCell[] = [];
@@ -70,4 +70,26 @@ export function flatten(hunks: readonly Hunk[]): FlatEntry[] {
     }
   });
   return entries;
+}
+
+export interface Segment {
+  text: string;
+  changed: boolean;
+}
+
+/** Spans are UTF-16 offsets, which is exactly what `String.prototype.slice` indexes by. */
+export function segments(text: string, spans: readonly [number, number][]): Segment[] {
+  if (spans.length === 0) return [{ text, changed: false }];
+
+  const out: Segment[] = [];
+  let at = 0;
+  for (const [from, to] of spans) {
+    const start = Math.max(at, Math.min(from, text.length));
+    const end = Math.max(start, Math.min(to, text.length));
+    if (start > at) out.push({ text: text.slice(at, start), changed: false });
+    if (end > start) out.push({ text: text.slice(start, end), changed: true });
+    at = end;
+  }
+  if (at < text.length) out.push({ text: text.slice(at), changed: false });
+  return out;
 }

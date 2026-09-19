@@ -3,10 +3,12 @@ use serde::{Deserialize, Serialize};
 mod eol;
 mod language;
 mod text;
+mod words;
 
 pub use eol::{EolInfo, LineEnding, detect_line_ending, normalize_line_endings};
 pub use language::language_for_path;
 pub use text::{MAX_TEXT_BYTES, diff_bytes, diff_text};
+pub use words::{Spans, block_is_comparable, inline_spans};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, specta::Type, Deserialize)]
 #[serde(rename_all = "camelCase")]
