@@ -1,0 +1,11 @@
+---
+source: crates/graph_engine/tests/lanes.rs
+expression: "render(&nodes, &out)"
+---
+*  m  lane=0 colour=0
+      [0->0 0->1]
+● |  a  lane=0 colour=0
+      [0->0 1->1]
+| ●  b  lane=1 colour=1
+      [0->0 1->0]
+o  r  lane=0 colour=0

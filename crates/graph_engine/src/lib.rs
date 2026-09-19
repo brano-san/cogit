@@ -7,6 +7,10 @@
 //! The algorithm is specified in `doc/07-graph-rendering.md` section 3 and is
 //! implemented in M4.
 
+mod lanes;
+
+pub use lanes::layout;
+
 use serde::Serialize;
 
 /// Number of distinct lane colours. Chosen to stay distinguishable under the common
@@ -79,6 +83,11 @@ pub struct LayoutCursor {
     pub active: Vec<Option<String>>,
     /// Colour of each active lane, parallel to `active`.
     pub lane_colors: Vec<u8>,
+    /// For each lane, the lanes at the previous row that feed into it.
+    ///
+    /// A list rather than a single index because two children of the same parent both
+    /// draw a line into its lane; with one origin per lane one of them would vanish.
+    pub origins: Vec<Vec<u16>>,
     /// Monotonic counter feeding new lane colours.
     pub next_color: u8,
     /// Index of the next row to emit, continuing across chunks.
