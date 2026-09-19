@@ -1,20 +1,12 @@
-// Integration tests are test code by definition, but `allow-unwrap-in-tests` in
-// clippy.toml only covers the bodies of `#[test]` functions — helpers beside them are
-// still linted. Panicking is how a test reports failure, so allow it for the file.
+// clippy.toml's allow-unwrap-in-tests does not reach helpers beside `#[test]` fns.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-
-//! Fixtures whose point is the *content* of files rather than the shape of history,
-//! plus the environment isolation everything else depends on.
 
 use test_fixtures::{crlf_files, empty, filemode_change, renames, unicode_paths, with_stashes};
 
 #[test]
 fn the_developer_global_config_is_invisible_to_fixtures() {
-    // The single most valuable test in this crate. Without isolation, a developer with
-    // `core.autocrlf=true` gets different fixtures than one without, and "green on my
-    // machine, red on yours" becomes unfixable.
+    // Without isolation a developer with `core.autocrlf=true` gets different fixtures.
     let f = empty().unwrap();
-    // An error here means there is no global scope at all, which is equally desirable.
     if let Ok(listing) = f.git(&["config", "--global", "--list"]) {
         assert!(
             listing.trim().is_empty(),
@@ -48,7 +40,6 @@ fn lf_file_has_no_carriage_returns() {
 
 #[test]
 fn mixed_file_contains_both_endings() {
-    // Mixed endings are a real-world source of phantom diffs, so the fixture has one.
     let f = crlf_files().unwrap();
     let blob = f.git(&["cat-file", "-p", "HEAD:mixed.txt"]).unwrap();
     assert!(blob.contains("\r\n"), "expected a CRLF line");
@@ -70,8 +61,6 @@ fn rename_is_reported_as_a_rename() {
 
 #[test]
 fn filemode_change_sets_the_executable_bit() {
-    // Git on Windows does not track the executable bit in the working tree, so the
-    // fixture has to set it in the index. The tree is where the truth lives.
     let f = filemode_change().unwrap();
     let entry = f.git(&["ls-tree", "HEAD", "--", "script.sh"]).unwrap();
     assert!(
@@ -82,7 +71,6 @@ fn filemode_change_sets_the_executable_bit() {
 
 #[test]
 fn filemode_change_keeps_the_content_identical() {
-    // Only the mode changed; a diff engine must show that and nothing else.
     let f = filemode_change().unwrap();
     let before = f.git(&["cat-file", "-p", "HEAD~1:script.sh"]).unwrap();
     let after = f.git(&["cat-file", "-p", "HEAD:script.sh"]).unwrap();

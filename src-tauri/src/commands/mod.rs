@@ -1,34 +1,17 @@
-//! Tauri IPC commands.
-//!
-//! Command bodies stay thin (INV-09): fetch state, call a crate, map the error.
-//! Any logic beyond that belongs in `crates/*`.
-//!
-//! Every command must also be listed in `doc/04-ipc-contract.md` section 4.
-
 use app_state::{DEFAULT_CHUNK_SIZE, GraphChunk, RepoId, RepoSummary};
 use git_engine::GitError;
 use serde::Serialize;
 use std::path::PathBuf;
 
-/// Static facts about the running application, shown in the status bar and in bug reports.
-///
-/// `rename_all = "camelCase"` is mandatory on every DTO: specta follows serde for field
-/// names, and mixing `snake_case` and `camelCase` across the IPC boundary is a constant
-/// source of silent `undefined` reads in the UI.
+/// specta follows serde, so a DTO without `camelCase` reads `undefined` in the UI.
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AppInfo {
     pub version: String,
-    /// Absolute path of the current log file, so the user can open it from the UI.
     pub log_path: String,
-    /// Whether this is a debug build. The UI shows developer affordances only then.
     pub debug_build: bool,
 }
 
-/// Returns application metadata.
-///
-/// This is the walking-skeleton command: it proves the whole
-/// Rust → specta → TypeScript → Svelte chain is wired correctly.
 #[tauri::command]
 #[specta::specta]
 pub fn app_info(state: tauri::State<'_, crate::AppContext>) -> AppInfo {
@@ -39,19 +22,12 @@ pub fn app_info(state: tauri::State<'_, crate::AppContext>) -> AppInfo {
     }
 }
 
-/// Opens the repository containing `path` and returns what the UI needs to render it.
-///
-/// # Errors
-/// Returns [`GitError`] if the path encloses no repository or its refs cannot be read.
 #[tauri::command]
 #[specta::specta]
 pub async fn open_repository(
     state: tauri::State<'_, crate::AppContext>,
     path: String,
 ) -> Result<RepoSummary, GitError> {
-    // `gix` reads the ref store synchronously, so this belongs off the async runtime
-    // (doc/01-architecture.md section 3). The Arc is cloned first because the Tauri
-    // state guard cannot be held across the await.
     let app_state = state.state.clone();
     let path = PathBuf::from(path);
 
@@ -70,16 +46,7 @@ pub async fn open_repository(
     Ok(summary)
 }
 
-/// Streams the commit graph of an open repository into `on_chunk`.
-///
-/// A channel rather than a returned array: a repository with 50 000 commits would
-/// freeze the webview for seconds if serialised in one go ([INV-02]).
-///
-/// Cancellation is implicit — when the UI drops the channel, `send` fails and the walk
-/// stops. That is exactly what should happen when the user switches repository.
-///
-/// # Errors
-/// Returns [`GitError`] if the repository is unknown or cannot be read.
+/// A channel rather than a return value (INV-02); dropping it cancels the walk.
 #[tauri::command]
 #[specta::specta]
 pub async fn load_commits(
@@ -94,7 +61,6 @@ pub async fn load_commits(
         let mut sent = 0_usize;
         let result = app_state.stream_graph(repo, DEFAULT_CHUNK_SIZE, |chunk| {
             sent += chunk.commits.len();
-            // A closed channel means the UI walked away; stop rather than keep reading.
             on_chunk.send(chunk).is_ok()
         });
         result.map(|()| sent)

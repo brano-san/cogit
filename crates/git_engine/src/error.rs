@@ -1,36 +1,21 @@
-//! Error types.
-//!
-//! The central rule (INV-05): when the `git` CLI fails, the user sees exactly what Git
-//! said. `stderr` carries the pull-request link, the pre-receive hook message and the
-//! reason a push was rejected — replacing it with "Push failed" destroys the only
-//! information worth having.
+//! INV-05: when the `git` CLI fails the user sees exactly what Git said — `stderr`
+//! carries the pre-receive message and the reason a push was rejected.
 
 use serde::Serialize;
 
-/// Streams are capped so a runaway command cannot exhaust memory. When the cap is hit,
-/// the truncation is stated explicitly rather than hidden.
 pub const MAX_STREAM_BYTES: usize = 1024 * 1024;
 
-/// A `git` CLI invocation that exited with a non-zero status.
-///
-/// Every field is carried to the UI verbatim.
 #[derive(Debug, Clone, thiserror::Error, Serialize, specta::Type)]
 #[error("Command `{command}` failed (exit code {exit_code:?})")]
 #[serde(rename_all = "camelCase")]
 pub struct GitCommandError {
-    /// The full command line as it would have been typed, for the "Copy Output" action.
     pub command: String,
-    /// `None` when the process was terminated by a signal instead of exiting.
     pub exit_code: Option<i32>,
     pub stdout: String,
     pub stderr: String,
 }
 
 impl GitCommandError {
-    /// Truncates a captured stream to [`MAX_STREAM_BYTES`], marking the cut explicitly.
-    ///
-    /// Truncation is visible to the user by design: a silently shortened error message
-    /// is worse than a long one.
     #[must_use]
     pub fn cap_stream(stream: String) -> String {
         if stream.len() <= MAX_STREAM_BYTES {
@@ -48,10 +33,6 @@ impl GitCommandError {
     }
 }
 
-/// Everything that can go wrong while talking to a repository.
-///
-/// Variants are distinct so the UI can react differently: a CLI failure opens the
-/// Git Error Dialog with raw output, everything else becomes a toast.
 #[derive(Debug, thiserror::Error, Serialize, specta::Type)]
 #[serde(tag = "kind", content = "data", rename_all = "camelCase")]
 pub enum GitError {
@@ -99,7 +80,6 @@ mod tests {
 
     #[test]
     fn truncation_never_splits_a_character() {
-        // A multi-byte character straddling the cap must not produce invalid UTF-8.
         let input = "я".repeat(MAX_STREAM_BYTES);
         let capped = GitCommandError::cap_stream(input);
         assert!(capped.is_char_boundary(capped.len()));

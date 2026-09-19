@@ -1,14 +1,7 @@
 <script lang="ts">
-  /**
-   * A 1px divider with a 5px grab zone (doc/05-ui-layout.md section 2).
-   *
-   * Reports movement as a **fraction of its container**, so the caller never stores
-   * pixels. Double-click resets; arrow keys resize from the keyboard.
-   */
+  /** Reports movement as a fraction of its container, never pixels. */
   interface Props {
-    /** `vertical` divides left from right; `horizontal` divides top from bottom. */
     direction: "vertical" | "horizontal";
-    /** Current fraction held by the first pane, for assistive technology. */
     value: number;
     label: string;
     onchange: (deltaFraction: number) => void;
@@ -29,7 +22,6 @@
   }
 
   function onpointerdown(event: PointerEvent) {
-    // Capture so the drag keeps working when the cursor leaves the 5px zone.
     element.setPointerCapture(event.pointerId);
     dragging = true;
     event.preventDefault();
@@ -66,12 +58,6 @@
   }
 </script>
 
-<!--
-  A focusable `separator` is a genuine ARIA widget — the window-splitter pattern, which
-  takes aria-valuenow and arrow keys. Svelte treats every separator as non-interactive,
-  so these two rules are false positives here; dropping the tabindex instead would make
-  the layout unadjustable from the keyboard.
--->
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div

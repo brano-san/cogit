@@ -1,37 +1,22 @@
-//! Repository states that need their own banner in the UI.
-//!
-//! Each variant is detected from marker files inside `.git`. See
-//! `doc/03-git-semantics.md` section 4 — every variant must be covered by a test
-//! proving Cogit does not panic on it (INV-07).
+//! Variants are detected from marker files in `.git`; none of them may panic (INV-07).
 
 use serde::Serialize;
 
-/// What the repository is in the middle of.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(tag = "kind")]
 pub enum RepoState {
-    /// Nothing in progress.
     Clean,
-    /// HEAD points at a commit rather than a branch.
     DetachedHead { oid: String },
-    /// `.git/MERGE_HEAD` exists.
     Merging,
-    /// `.git/rebase-merge/` or `.git/rebase-apply/` exists.
     Rebasing,
-    /// `.git/CHERRY_PICK_HEAD` exists.
     CherryPicking,
-    /// `.git/REVERT_HEAD` exists.
     Reverting,
-    /// `.git/BISECT_LOG` exists.
     Bisecting,
-    /// Initialised but without any commit yet.
     Empty,
-    /// No working tree.
     Bare,
 }
 
 impl RepoState {
-    /// Whether the state offers `Continue` / `Abort` actions in the banner.
     #[must_use]
     pub fn is_interrupted_operation(&self) -> bool {
         matches!(
@@ -44,7 +29,6 @@ impl RepoState {
         )
     }
 
-    /// Whether committing makes sense in this state.
     #[must_use]
     pub fn allows_commit(&self) -> bool {
         !matches!(self, Self::Bare | Self::Bisecting)
@@ -65,7 +49,6 @@ mod tests {
 
     #[test]
     fn detached_head_still_allows_committing() {
-        // Committing on a detached HEAD is legitimate; the banner warns, it does not block.
         let state = RepoState::DetachedHead {
             oid: "4ec4813".to_owned(),
         };

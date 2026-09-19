@@ -1,19 +1,9 @@
-//! Block and word-level diffing, plus syntactic three-way merge.
-//!
-//! Pipeline and rules: `doc/08-diff-engine.md`.
-//!
-//! **Before writing any `imara-diff` code, open docs.rs for the exact version in
-//! `Cargo.lock`.** The 0.2 API shares almost nothing with the 0.1 examples that
-//! dominate search results and model training data.
-
 use serde::Serialize;
 
 mod eol;
 
 pub use eol::{EolInfo, LineEnding, detect_line_ending, normalize_line_endings};
 
-/// Line-level diff algorithm. Histogram is the default: it produces noticeably more
-/// readable blocks on real code than Myers, and matches `git diff --histogram`.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, specta::Type)]
 pub enum Algorithm {
     #[default]
@@ -21,7 +11,6 @@ pub enum Algorithm {
     Myers,
 }
 
-/// How whitespace differences are treated.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, specta::Type)]
 pub enum Whitespace {
     #[default]
@@ -36,7 +25,6 @@ pub struct DiffOptions {
     pub context_lines: u32,
     pub ignore_whitespace: Whitespace,
     pub ignore_blank_lines: bool,
-    /// Enables the `similar`-based intra-line pass.
     pub word_diff: bool,
 }
 
@@ -52,7 +40,6 @@ impl Default for DiffOptions {
     }
 }
 
-/// One rendered row of a diff.
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(tag = "kind")]
 pub enum DiffRow {
@@ -61,8 +48,6 @@ pub enum DiffRow {
         new: u32,
         text: String,
     },
-    /// `inline` holds byte ranges within `text`, not character indices — the frontend
-    /// must convert them for CodeMirror. Multi-byte text makes this an easy bug.
     Delete {
         old: u32,
         text: String,
@@ -84,25 +69,20 @@ pub struct Hunk {
     pub old_lines: u32,
     pub new_start: u32,
     pub new_lines: u32,
-    /// Unified-diff header. Reused when generating patches for partial staging.
     pub header: String,
     pub rows: Vec<DiffRow>,
 }
 
-/// Result of diffing one file.
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(tag = "kind")]
 pub enum FileDiff {
     Text {
         hunks: Vec<Hunk>,
         eol: EolInfo,
-        /// Set when the file could not be decoded cleanly. The user must be told.
         lossy_encoding: bool,
         /// Language hint for Lezer. Highlighting itself is a frontend concern (INV-01).
         language: Option<String>,
     },
-    /// Only the line endings differ. Shown with a dedicated notice rather than as
-    /// a whole-file change.
     EolOnly {
         from: LineEnding,
         to: LineEnding,

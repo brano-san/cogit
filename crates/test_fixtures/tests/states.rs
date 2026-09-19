@@ -1,12 +1,5 @@
-// Integration tests are test code by definition, but `allow-unwrap-in-tests` in
-// clippy.toml only covers the bodies of `#[test]` functions — helpers beside them are
-// still linted. Panicking is how a test reports failure, so allow it for the file.
+// clippy.toml's allow-unwrap-in-tests does not reach helpers beside `#[test]` fns.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-
-//! Repository states that Cogit must survive without panicking (INV-07).
-//!
-//! Every state here needs a banner in the UI, so the fixture has to reproduce the exact
-//! marker files Git leaves behind — see `doc/03-git-semantics.md` section 4.
 
 use test_fixtures::{bare, conflicted, detached_head, empty};
 
@@ -19,8 +12,6 @@ fn empty_repository_has_no_commits() {
 
 #[test]
 fn empty_repository_has_an_unborn_head() {
-    // HEAD points at a branch that does not exist yet. Resolving it must fail, and
-    // that failure is what Cogit has to handle gracefully rather than crash on.
     let f = empty().unwrap();
     assert!(
         f.oid("HEAD").is_err(),
@@ -49,7 +40,6 @@ fn bare_repository_still_carries_its_history() {
 
 #[test]
 fn bare_fixture_reports_itself_as_the_git_directory() {
-    // There is no `.git` subdirectory in a bare repository; the root *is* the git dir.
     let f = bare().unwrap();
     assert_eq!(f.git_dir(), f.path());
 }
@@ -91,8 +81,6 @@ fn conflicted_has_unmerged_paths() {
 
 #[test]
 fn conflicted_index_holds_all_three_stages() {
-    // Base, ours and theirs live in the index as stages 1, 2 and 3. The three-way
-    // merge viewer in M7 reads exactly these.
     let f = conflicted().unwrap();
     let stages = f.git(&["ls-files", "-u"]).unwrap();
     for stage in ["1", "2", "3"] {

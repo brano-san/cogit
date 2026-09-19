@@ -31,7 +31,6 @@ describe("visibleRange", () => {
   });
 
   it("never starts before the first row", () => {
-    // A buffer at the top of the list would otherwise index negatively.
     const { start } = visibleRange(0, 220, rowHeight, 1000, 10);
     expect(start).toBe(0);
   });
@@ -53,7 +52,6 @@ describe("visibleRange", () => {
   });
 
   it("survives a scroll position beyond the content", () => {
-    // Browsers can report an overscrolled position during momentum scrolling.
     const { start, end } = visibleRange(rowHeight * 5000, 220, rowHeight, 100, 5);
     expect(start).toBeLessThanOrEqual(end);
     expect(end).toBeLessThanOrEqual(100);
@@ -77,7 +75,6 @@ describe("rowY", () => {
   });
 
   it("shifts with the scroll position", () => {
-    // The canvas only covers the viewport, so rows are drawn in viewport space.
     expect(rowY(10, GRAPH.rowHeight * 10)).toBe(GRAPH.rowHeight / 2);
   });
 });
@@ -89,7 +86,6 @@ describe("gutterWidth", () => {
   });
 
   it("never eats more than a quarter of the panel", () => {
-    // A repository with fifty parallel branches must not squeeze out the messages.
     expect(gutterWidth(50, 400)).toBeLessThanOrEqual(100);
   });
 });
@@ -122,7 +118,6 @@ describe("hitTest", () => {
 
 describe("canvasPixelSize", () => {
   it("scales the backing store by the device pixel ratio", () => {
-    // Without this the lines are blurred on a HiDPI display.
     expect(canvasPixelSize(300, 200, 2)).toEqual({ width: 600, height: 400 });
   });
 
@@ -148,8 +143,6 @@ describe("row offset for the Working Tree header", () => {
   });
 
   it("reports the header row itself as no commit", () => {
-    // Clicking the Working Tree row must not select a commit that happens to sit at
-    // the same index minus one.
     expect(toCommitRow(0)).toBeNull();
   });
 

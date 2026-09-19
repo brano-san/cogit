@@ -3,8 +3,6 @@
 // still linted. Panicking is how a test reports failure, so allow it for the file.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-//! Tags, as shown on the ref capsules of the commit graph.
-
 use git_engine::RepoHandle;
 use test_fixtures::Fixture;
 
@@ -19,8 +17,6 @@ fn tagged() -> Fixture {
 
 #[test]
 fn lists_every_tag() {
-    // The fixture must be bound: a temporary would delete its directory at the end of
-    // this statement, leaving the handle pointing at nothing.
     let f = tagged();
     let repo = RepoHandle::open(f.path()).unwrap();
     let names: Vec<String> = repo.tags().unwrap().into_iter().map(|t| t.name).collect();
@@ -48,8 +44,6 @@ fn a_lightweight_tag_points_straight_at_its_commit() {
 
 #[test]
 fn an_annotated_tag_resolves_to_the_commit_it_marks() {
-    // The ref points at a tag object; the graph needs the commit behind it, otherwise
-    // the capsule would attach to no row at all.
     let f = tagged();
     let repo = RepoHandle::open(f.path()).unwrap();
     let tag = repo

@@ -1,19 +1,5 @@
-//! Lane allocation: turning a commit list into columns and curves.
-//!
-//! The algorithm is the classic "active lanes" sweep used by `git log --graph` and by
-//! every graphical client. It is specified in `doc/07-graph-rendering.md` section 3.
-//!
-//! Edges are emitted **per row band** — each one joins row `r-1` to row `r` — rather
-//! than spanning from a commit to a distant parent. That is what makes the layout
-//! streamable: a chunk can be drawn without knowing where its parents will land.
-
 use crate::{CommitNode, EdgeKind, GraphEdge, GraphLayout, LaneAssignment, LayoutCursor, NodeKind};
 
-/// Places a chunk of commits into lanes, continuing from `cursor`.
-///
-/// `commits` must already be in the order they will be drawn, newest first. The cursor
-/// carries lane occupancy, colours and the row counter across chunks, which is what
-/// keeps a branch the same colour while the user scrolls.
 #[must_use]
 pub fn layout(commits: &[CommitNode], cursor: &mut LayoutCursor) -> GraphLayout {
     let mut out = GraphLayout::default();
@@ -24,13 +10,11 @@ pub fn layout(commits: &[CommitNode], cursor: &mut LayoutCursor) -> GraphLayout 
 
         emit_band(node, commit_lane, row, cursor, &mut out.edges);
 
-        // Every line that was waiting for this commit ends here.
         for lane in 0..cursor.active.len() {
             if cursor.active[lane].as_deref() == Some(node.oid.as_str()) {
                 cursor.active[lane] = None;
                 cursor.origins[lane].clear();
             } else if cursor.active[lane].is_some() {
-                // Lines that merely pass through continue straight down.
                 cursor.origins[lane].clear();
                 cursor.origins[lane].push(lane_index(lane));
             }
@@ -62,8 +46,6 @@ fn node_kind(node: &CommitNode) -> NodeKind {
     }
 }
 
-/// Lane indices are small by construction; a repository needing more than 65 535
-/// simultaneous branches is not a case worth carrying a wider type for.
 #[expect(
     clippy::cast_possible_truncation,
     reason = "lane count is bounded in practice"
@@ -76,10 +58,7 @@ fn widest(cursor: &LayoutCursor) -> u16 {
     lane_index(cursor.active.len().saturating_sub(1))
 }
 
-/// Picks the column for a commit, creating one if nothing was expecting it.
 fn choose_lane(node: &CommitNode, cursor: &mut LayoutCursor) -> usize {
-    // Reuse the leftmost lane already waiting for this commit, so merges close towards
-    // the mainline instead of drifting right.
     if let Some(lane) = cursor
         .active
         .iter()
@@ -95,7 +74,6 @@ fn choose_lane(node: &CommitNode, cursor: &mut LayoutCursor) -> usize {
     lane
 }
 
-/// Emits the curves joining the previous row to this one.
 fn emit_band(
     node: &CommitNode,
     commit_lane: usize,
@@ -118,7 +96,6 @@ fn emit_band(
             EdgeKind::Merge
         };
 
-        // A lane can be fed by more than one line when two children share a parent.
         for &from_lane in &cursor.origins[lane] {
             edges.push(GraphEdge {
                 from_row: row - 1,
@@ -132,7 +109,6 @@ fn emit_band(
     }
 }
 
-/// Reserves a lane for each parent, so the sweep knows where to expect them.
 fn place_parents(node: &CommitNode, commit_lane: usize, cursor: &mut LayoutCursor) {
     for (index, parent) in node.parents.iter().enumerate() {
         if let Some(existing) = cursor
@@ -140,7 +116,6 @@ fn place_parents(node: &CommitNode, commit_lane: usize, cursor: &mut LayoutCurso
             .iter()
             .position(|slot| slot.as_deref() == Some(parent.as_str()))
         {
-            // Another child already reserved this parent; both lines converge on it.
             cursor.origins[existing].push(lane_index(commit_lane));
             continue;
         }
@@ -170,7 +145,6 @@ fn grow_to(cursor: &mut LayoutCursor, len: usize) {
     }
 }
 
-/// Drops empty lanes on the right so the graph does not creep sideways for ever.
 fn trim_trailing_free_lanes(cursor: &mut LayoutCursor) {
     while cursor.active.last().is_some_and(Option::is_none) {
         cursor.active.pop();

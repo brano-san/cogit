@@ -19,7 +19,6 @@ describe("headLabel", () => {
   });
 
   it("marks an unborn branch rather than pretending it exists", () => {
-    // A fresh repository must not read as if it were on a normal branch.
     const head: Head = { kind: "unborn", name: "main" };
     expect(headLabel(head)).toBe("main (unborn)");
   });
@@ -48,7 +47,6 @@ describe("splitBranches", () => {
   });
 
   it("preserves the order the backend supplied", () => {
-    // The backend sorts; re-sorting here would be a second source of truth.
     const all = [branch("a", "local"), branch("b", "local"), branch("c", "local")];
     expect(splitBranches(all).local.map((b) => b.name)).toEqual(["a", "b", "c"]);
   });
@@ -66,7 +64,6 @@ describe("shortOid", () => {
 
 describe("formatCommitDate", () => {
   it("renders the time the author saw, not the reader's", () => {
-    // 2026-01-01T00:00:00Z written by someone at UTC+3 is 03:00 for them.
     expect(formatCommitDate(1_767_225_600, 180)).toBe("2026-01-01 03:00");
   });
 
@@ -115,8 +112,6 @@ describe("refLabels", () => {
   });
 
   it("orders labels HEAD first, then local, remote and tags", () => {
-    // The capsule row is truncated when space runs out, so the most important
-    // label has to be the one that survives.
     const kinds = refLabels(branches, tags, head)
       .get("a".repeat(40))
       ?.map((l) => l.kind);

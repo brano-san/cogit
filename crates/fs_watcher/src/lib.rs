@@ -7,11 +7,8 @@
 use serde::Serialize;
 use std::path::Path;
 
-/// Debounce window. Long enough to collapse a burst from one Git command, short enough
-/// that the UI still feels immediate.
 pub const DEBOUNCE_MS: u64 = 100;
 
-/// Paths inside `.git` that are worth watching, relative to the git directory.
 pub const WATCHED_GIT_PATHS: &[&str] = &[
     "HEAD",
     "index",
@@ -23,7 +20,6 @@ pub const WATCHED_GIT_PATHS: &[&str] = &[
     "rebase-apply",
 ];
 
-/// Directory names never worth watching, regardless of where they appear.
 pub const EXCLUDED_DIRS: &[&str] = &[
     "objects",
     "target",
@@ -34,7 +30,6 @@ pub const EXCLUDED_DIRS: &[&str] = &[
     "__pycache__",
 ];
 
-/// What changed, so the UI can refresh one panel instead of everything.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
 pub enum ChangeKind {
     Head,
@@ -48,7 +43,6 @@ pub enum ChangeKind {
 #[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct RepoChanged {
     pub kind: ChangeKind,
-    /// Repository-relative path, using `/` on every platform.
     pub path: String,
 }
 
@@ -58,10 +52,6 @@ pub enum WatchError {
     Start { path: String, source: notify::Error },
 }
 
-/// Whether a path should be ignored outright.
-///
-/// Applied before any `.gitignore` handling, because these directories are expensive
-/// even to enumerate.
 #[must_use]
 pub fn is_excluded(path: &Path) -> bool {
     path.components().any(|component| {
@@ -72,9 +62,6 @@ pub fn is_excluded(path: &Path) -> bool {
     })
 }
 
-/// Classifies a path inside the git directory into a [`ChangeKind`].
-///
-/// Returns `None` for paths that carry no useful signal.
 #[must_use]
 pub fn classify_git_path(relative: &str) -> Option<ChangeKind> {
     let normalized = relative.replace('\\', "/");
@@ -132,7 +119,6 @@ mod tests {
 
     #[test]
     fn stash_is_distinguished_from_ordinary_refs() {
-        // Both live under refs/, but they refresh different panels.
         assert_eq!(classify_git_path("refs/stash"), Some(ChangeKind::Stash));
         assert_eq!(classify_git_path("refs/heads/main"), Some(ChangeKind::Refs));
     }

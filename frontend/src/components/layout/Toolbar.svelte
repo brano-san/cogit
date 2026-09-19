@@ -1,20 +1,13 @@
 <script lang="ts">
-  /**
-   * Top action bar (doc/05-ui-layout.md section 3.1).
-   *
-   * Actions that do not apply are disabled rather than hidden, so buttons never move
-   * under the cursor as repository state changes.
-   */
+  /** Inapplicable actions are disabled, not hidden, so buttons never move under the cursor. */
   interface Action {
     id: string;
     label: string;
     icon: string;
     shortcut?: string;
-    /** Opens a native context menu instead of firing directly. */
     hasMenu?: boolean;
   }
 
-  /** Groups are separated by a 1px rule. */
   const GROUPS: Action[][] = [
     [
       { id: "pull", label: "Pull", icon: "⭳", shortcut: "Ctrl+Shift+U", hasMenu: true },
@@ -34,13 +27,11 @@
   ];
 
   interface Props {
-    /** Label of the operation currently running, if any. */
     busy?: string;
   }
 
   let { busy }: Props = $props();
 
-  // Every action is inert until its module lands; see doc/00-roadmap.md.
   const enabled = false;
 </script>
 

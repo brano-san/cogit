@@ -3,11 +3,8 @@
 // still linted. Panicking is how a test reports failure, so allow it for the file.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-//! Streaming the commit graph: history plus lane placement, chunk by chunk.
-
 use app_state::{AppState, GraphChunk, RepoId};
 
-/// Opens a fixture and collects every chunk the stream produces.
 fn stream(state: &AppState, repo: RepoId, chunk_size: usize) -> Vec<GraphChunk> {
     let mut chunks = Vec::new();
     state
@@ -48,7 +45,6 @@ fn the_stream_ends_with_a_chunk_marked_last() {
 
 #[test]
 fn an_empty_repository_still_reports_completion() {
-    // Otherwise the panel would spin for ever on a freshly created repository.
     let f = test_fixtures::empty().unwrap();
     let state = AppState::new();
     let repo = state.open_repository(f.path()).unwrap().repo;
@@ -88,7 +84,6 @@ fn a_merge_keeps_its_two_lanes_within_one_chunk() {
 
 #[test]
 fn refusing_a_chunk_stops_the_stream() {
-    // The UI abandons a load when the user switches repository mid-scroll.
     let f = test_fixtures::linear(40).unwrap();
     let state = AppState::new();
     let repo = state.open_repository(f.path()).unwrap().repo;

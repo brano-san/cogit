@@ -1,10 +1,4 @@
-/**
- * Geometry shared by the virtualized commit list and the canvas that draws under it.
- *
- * Pure so it can be tested without a DOM, and single-sourced so the two layers cannot
- * drift apart — lines sliding relative to their rows is the main risk in this panel
- * (doc/12-risks.md, R-03).
- */
+/** Single-sourced so the list and the canvas cannot drift apart (doc/12-risks.md, R-03). */
 
 export const GRAPH = {
   rowHeight: 22,
@@ -13,7 +7,6 @@ export const GRAPH = {
   nodeRadius: 3.5,
   mergeRadius: 4.5,
   lineWidth: 1.5,
-  /** The graph must not squeeze out the commit messages. */
   maxGutterFraction: 0.25,
 } as const;
 
@@ -22,7 +15,6 @@ export interface VisibleRange {
   end: number;
 }
 
-/** Half-open range of rows worth rendering, clamped to the list. */
 export function visibleRange(
   scrollTop: number,
   viewportHeight: number,
@@ -44,7 +36,6 @@ export function laneX(lane: number): number {
   return GRAPH.leftPad + GRAPH.laneWidth * lane;
 }
 
-/** Vertical centre of a row in viewport space; the canvas only covers what is visible. */
 export function rowY(row: number, scrollTop: number): number {
   return row * GRAPH.rowHeight + GRAPH.rowHeight / 2 - scrollTop;
 }
@@ -59,12 +50,7 @@ export interface GraphHit {
   lane: number;
 }
 
-/**
- * Which row and lane a point falls on.
- *
- * Arithmetic rather than `getImageData`: reading pixels back is orders of magnitude
- * slower and would depend on antialiasing.
- */
+/** Arithmetic, not `getImageData`: pixel readback is far slower and antialiasing-dependent. */
 export function hitTest(
   x: number,
   y: number,
@@ -83,11 +69,7 @@ export function hitTest(
   return { row, lane };
 }
 
-/**
- * Backing-store size for a canvas of the given CSS size.
- *
- * Rounded up: a fractional ratio would otherwise leave the last row a pixel short.
- */
+/** Rounded up: a fractional ratio leaves the last row a pixel short. */
 export function canvasPixelSize(cssWidth: number, cssHeight: number, dpr: number) {
   const ratio = dpr > 0 ? dpr : 1;
   return {
@@ -96,17 +78,13 @@ export function canvasPixelSize(cssWidth: number, cssHeight: number, dpr: number
   };
 }
 
-/**
- * Rows the list renders before the first commit — currently the `Working Tree / Index`
- * row. Kept here so the list, the canvas and hit testing all shift by the same amount.
- */
+/** Rows before the first commit; list, canvas and hit testing all shift by this. */
 export const HEADER_ROWS = 1;
 
 export function toListRow(commitRow: number): number {
   return commitRow + HEADER_ROWS;
 }
 
-/** `null` for the header itself, which is not a commit. */
 export function toCommitRow(listRow: number): number | null {
   const row = listRow - HEADER_ROWS;
   return row >= 0 ? row : null;

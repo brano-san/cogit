@@ -3,20 +3,12 @@
 // still linted. Panicking is how a test reports failure, so allow it for the file.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-//! Structural checks for the generated repository shapes.
-//!
-//! Every shape is verified with the **system `git`**, not with our own helpers: the
-//! point of a fixture is to match how Git really behaves, so asking Git is the only
-//! answer worth trusting.
-
 use test_fixtures::{branched, diamond, octopus, two_roots};
 
-/// Number of parents of a revision, as Git reports them.
 fn parent_count(fixture: &test_fixtures::Fixture, rev: &str) -> usize {
     let line = fixture
         .git(&["rev-list", "--parents", "-n", "1", rev])
         .unwrap();
-    // `rev-list --parents` prints "<commit> <parent>..." — subtract the commit itself.
     line.split_whitespace().count() - 1
 }
 
@@ -27,15 +19,12 @@ fn count(fixture: &test_fixtures::Fixture, args: &[&str]) -> usize {
 #[test]
 fn branched_leaves_the_side_branch_unmerged() {
     let f = branched().unwrap();
-    // The branch exists...
     let branches = f.git(&["branch", "--format=%(refname:short)"]).unwrap();
     assert!(
         branches.contains("dev"),
         "expected a dev branch, got: {branches}"
     );
-    // ...and was never merged, so main has no merge commits.
     assert_eq!(count(&f, &["rev-list", "--merges", "--count", "main"]), 0);
-    // dev really diverged: it holds commits main does not.
     assert!(count(&f, &["rev-list", "--count", "main..dev"]) > 0);
 }
 
@@ -53,7 +42,6 @@ fn diamond_merge_joins_two_parents() {
 
 #[test]
 fn diamond_parents_share_a_single_merge_base() {
-    // What makes it a diamond rather than two unrelated lines.
     let f = diamond().unwrap();
     let base = f.git(&["merge-base", "HEAD^1", "HEAD^2"]).unwrap();
     assert!(
@@ -78,7 +66,6 @@ fn two_roots_has_two_parentless_commits() {
 #[test]
 fn two_roots_histories_never_meet() {
     let f = two_roots().unwrap();
-    // No merge base means the histories are genuinely independent.
     let out = f.git(&["merge-base", "main", "orphan"]);
     assert!(
         out.is_err(),

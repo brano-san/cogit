@@ -1,14 +1,8 @@
-//! Walking commit history for the graph panel.
-//!
-//! Streaming rather than paging: a cursor able to resume a topological walk would have
-//! to serialise the whole frontier, which is more state than the UI needs.
-
 use crate::{GitError, RepoHandle, Result};
 use gix::revision::walk::Sorting;
 use gix::traverse::commit::simple::CommitTimeOrder;
 use serde::Serialize;
 
-/// One row of the commit graph.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CommitRow {
@@ -30,12 +24,6 @@ pub struct CommitRow {
 const SECONDS_PER_MINUTE: i32 = 60;
 
 impl RepoHandle {
-    /// Walks history from every branch tip, newest first, in chunks.
-    ///
-    /// `on_chunk` returning `false` stops the walk; an empty repository yields no chunk.
-    ///
-    /// # Errors
-    /// Returns an error if the ref store or the object database cannot be read.
     pub fn stream_commits(
         &self,
         chunk_size: usize,
@@ -50,7 +38,6 @@ impl RepoHandle {
         let walk = self
             .repo
             .rev_walk(tips)
-            // The order `git log` uses by default, and the one the graph expects.
             .sorting(Sorting::ByCommitTime(CommitTimeOrder::NewestFirst))
             .all()
             .map_err(|err| GitError::Internal(format!("cannot walk history: {err}")))?;
@@ -60,7 +47,6 @@ impl RepoHandle {
             let info = match info {
                 Ok(info) => info,
                 Err(err) => {
-                    // One damaged object must not hide the rest of the history.
                     tracing::warn!(error = %err, "skipping an unreadable commit");
                     continue;
                 }
@@ -81,8 +67,6 @@ impl RepoHandle {
         Ok(())
     }
 
-    /// Tips the walk starts from: every branch, plus HEAD so a detached checkout is
-    /// not lost.
     fn graph_tips(&self) -> Result<Vec<gix::ObjectId>> {
         let platform = self
             .repo
@@ -143,7 +127,6 @@ fn collect_tips<'a>(
     tips: &mut Vec<gix::ObjectId>,
 ) {
     for reference in references.flatten() {
-        // Symbolic refs such as `origin/HEAD` add no tip of their own.
         if let Some(id) = reference.try_id() {
             tips.push(id.detach());
         }
