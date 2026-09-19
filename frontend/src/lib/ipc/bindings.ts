@@ -11,6 +11,13 @@ export const commands = {
 	 *  Rust → specta → TypeScript → Svelte chain is wired correctly.
 	 */
 	appInfo: () => __TAURI_INVOKE<AppInfo>("app_info"),
+	/**
+	 *  Opens the repository containing `path` and returns what the UI needs to render it.
+	 * 
+	 *  # Errors
+	 *  Returns [`GitError`] if the path encloses no repository or its refs cannot be read.
+	 */
+	openRepository: (path: string) => typedError<RepoSummary, GitError>(__TAURI_INVOKE("open_repository", { path })),
 };
 
 /* Types */
@@ -28,4 +35,78 @@ export type AppInfo = {
 	/**  Whether this is a debug build. The UI shows developer affordances only then. */
 	debugBuild: boolean,
 };
+
+export type Branch = {
+	/**  Short form shown in the UI, such as `main` or `origin/main`. */
+	name: string,
+	/**  Full ref name, such as `refs/heads/main`. */
+	fullName: string,
+	kind: BranchKind,
+	/**  Commit the branch points at, as hex. */
+	oid: string,
+	isHead: boolean,
+};
+
+export type BranchKind = "local" | "remote";
+
+/**
+ *  A `git` CLI invocation that exited with a non-zero status.
+ * 
+ *  Every field is carried to the UI verbatim.
+ */
+export type GitCommandError = {
+	/**  The full command line as it would have been typed, for the "Copy Output" action. */
+	command: string,
+	/**  `None` when the process was terminated by a signal instead of exiting. */
+	exitCode: number | null,
+	stdout: string,
+	stderr: string,
+};
+
+/**
+ *  Everything that can go wrong while talking to a repository.
+ * 
+ *  Variants are distinct so the UI can react differently: a CLI failure opens the
+ *  Git Error Dialog with raw output, everything else becomes a toast.
+ */
+export type GitError = { kind: "command"; data: GitCommandError } | { kind: "repoNotFound"; data: string } | { kind: "repoBusy"; data: string } | { kind: "invalidState"; data: string } | { kind: "io"; data: string } | { kind: "internal"; data: string };
+
+/**
+ *  Where HEAD points.
+ * 
+ *  The three variants are not decoration: a client that assumes "HEAD is a branch"
+ *  crashes on a freshly initialised repository and on any detached checkout (INV-07).
+ */
+export type Head = 
+/**  The normal case: HEAD follows a branch that has at least one commit. */
+{ kind: "branch"; name: string; oid: string } | 
+/**  HEAD names a commit directly. */
+{ kind: "detached"; oid: string } | 
+/**  The branch exists in name only — no commit has been made yet. */
+{ kind: "unborn"; name: string };
+
+/**  Opaque handle for a repository. Paths never cross the IPC boundary. */
+export type RepoId = number;
+
+/**  What the UI needs to show a repository the moment it is opened. */
+export type RepoSummary = {
+	repo: RepoId,
+	/**  Absolute path, with `/` separators so the UI never sees a backslash. */
+	root: string,
+	/**  Folder name, used as the label in the repository tree. */
+	name: string,
+	isBare: boolean,
+	head: Head,
+	branches: Branch[],
+};
+
+/* Tauri Specta runtime */
+async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {
+    try {
+        return { status: "ok", data: await result };
+    } catch (e) {
+        if (e instanceof Error) throw e;
+        return { status: "error", error: e as any };
+    }
+}
 

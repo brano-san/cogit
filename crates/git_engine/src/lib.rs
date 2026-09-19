@@ -12,9 +12,11 @@
 //! - `submodule`— `.gitmodules` parsing
 
 mod error;
+mod repo;
 mod state;
 
 pub use error::{GitCommandError, GitError};
+pub use repo::{Branch, BranchKind, Head, RepoHandle};
 pub use state::RepoState;
 
 /// Result alias used throughout the crate.

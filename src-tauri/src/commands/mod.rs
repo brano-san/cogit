@@ -5,7 +5,10 @@
 //!
 //! Every command must also be listed in `doc/04-ipc-contract.md` section 4.
 
+use app_state::RepoSummary;
+use git_engine::GitError;
 use serde::Serialize;
+use std::path::PathBuf;
 
 /// Static facts about the running application, shown in the status bar and in bug reports.
 ///
@@ -34,4 +37,35 @@ pub fn app_info(state: tauri::State<'_, crate::AppContext>) -> AppInfo {
         log_path: state.log_path.display().to_string(),
         debug_build: cfg!(debug_assertions),
     }
+}
+
+/// Opens the repository containing `path` and returns what the UI needs to render it.
+///
+/// # Errors
+/// Returns [`GitError`] if the path encloses no repository or its refs cannot be read.
+#[tauri::command]
+#[specta::specta]
+pub async fn open_repository(
+    state: tauri::State<'_, crate::AppContext>,
+    path: String,
+) -> Result<RepoSummary, GitError> {
+    // `gix` reads the ref store synchronously, so this belongs off the async runtime
+    // (doc/01-architecture.md section 3). The Arc is cloned first because the Tauri
+    // state guard cannot be held across the await.
+    let app_state = state.state.clone();
+    let path = PathBuf::from(path);
+
+    let started = std::time::Instant::now();
+    let summary = tokio::task::spawn_blocking(move || app_state.open_repository(&path))
+        .await
+        .map_err(|err| GitError::Internal(format!("open_repository task failed: {err}")))??;
+
+    tracing::info!(
+        repo = summary.repo.0,
+        name = %summary.name,
+        branches = summary.branches.len(),
+        elapsed_ms = started.elapsed().as_millis(),
+        "repository opened"
+    );
+    Ok(summary)
 }

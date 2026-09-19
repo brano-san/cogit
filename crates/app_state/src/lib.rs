@@ -6,7 +6,7 @@
 use parking_lot::RwLock;
 use serde::Serialize;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use tokio::sync::broadcast;
@@ -49,6 +49,20 @@ pub struct OpenRepo {
     pub display_name: String,
 }
 
+/// What the UI needs to show a repository the moment it is opened.
+#[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoSummary {
+    pub repo: RepoId,
+    /// Absolute path, with `/` separators so the UI never sees a backslash.
+    pub root: String,
+    /// Folder name, used as the label in the repository tree.
+    pub name: String,
+    pub is_bare: bool,
+    pub head: git_engine::Head,
+    pub branches: Vec<git_engine::Branch>,
+}
+
 /// Application-wide state, shared across every window.
 #[derive(Debug)]
 pub struct AppState {
@@ -83,6 +97,53 @@ impl AppState {
     /// Publishes an event. Having no subscribers is not an error — at startup there are none.
     pub fn emit(&self, event: AppEvent) {
         let _ = self.events.send(event);
+    }
+
+    /// Opens the repository containing `path` and registers it.
+    ///
+    /// Blocking by design: `gix` reads the ref store synchronously. The Tauri layer
+    /// wraps this in `spawn_blocking` so the runtime is never stalled
+    /// (`doc/01-architecture.md` section 3).
+    ///
+    /// # Errors
+    /// Propagates [`git_engine::GitError`] when the path encloses no repository or the
+    /// ref store cannot be read. Nothing is registered in that case.
+    pub fn open_repository(&self, path: &Path) -> Result<RepoSummary, git_engine::GitError> {
+        let handle = git_engine::RepoHandle::open(path)?;
+        let root = handle.root().to_path_buf();
+        let head = handle.head()?;
+        let branches = handle.branches()?;
+
+        let name = root.file_name().map_or_else(
+            || root.display().to_string(),
+            |n| n.to_string_lossy().into_owned(),
+        );
+
+        // Discovery collapses any path inside a project onto its root, so the same
+        // repository opened from two different folders must reuse one entry.
+        let id = self
+            .find_by_root(&root)
+            .unwrap_or_else(|| self.register(root.clone(), name.clone()));
+
+        Ok(RepoSummary {
+            repo: id,
+            // IPC paths always use `/`, on every platform.
+            root: root.to_string_lossy().replace('\\', "/"),
+            name,
+            is_bare: handle.is_bare(),
+            head,
+            branches,
+        })
+    }
+
+    /// Finds an already open repository by its canonical root.
+    #[must_use]
+    pub fn find_by_root(&self, root: &Path) -> Option<RepoId> {
+        self.repos
+            .read()
+            .values()
+            .find(|r| r.root == root)
+            .map(|r| r.id)
     }
 
     /// Registers a repository and returns its handle.
