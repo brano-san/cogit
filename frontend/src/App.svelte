@@ -2,6 +2,7 @@
   import { open as openFolderDialog } from "@tauri-apps/plugin-dialog";
 
   import BranchList from "$components/branch-tree/BranchList.svelte";
+  import DiffView from "$components/diff/DiffView.svelte";
   import FileList from "$components/file-list/FileList.svelte";
   import CommitList from "$components/graph/CommitList.svelte";
   import Panel from "$components/layout/Panel.svelte";
@@ -12,6 +13,7 @@
   import { formatCommitDate, shortOid } from "$lib/format";
   import { getAppInfo, type AppInfo } from "$lib/ipc";
   import { commit } from "$stores/commit.svelte";
+  import { diff } from "$stores/diff.svelte";
   import { graph } from "$stores/graph.svelte";
   import { layout } from "$stores/layout.svelte";
   import { repository } from "$stores/repository.svelte";
@@ -28,10 +30,22 @@
   const repo = $derived(repository.current);
   const details = $derived(commit.details);
 
+  $effect(() => {
+    void commit.oid;
+    diff.clear();
+  });
+
+  function openDiff(path: string) {
+    const id = repository.current?.repo;
+    const oid = commit.oid;
+    if (id && oid) void diff.load(id, oid, path);
+  }
+
   async function pickRepository() {
     const picked = await openFolderDialog({ directory: true, title: "Open Repository" });
     if (typeof picked !== "string") return;
     commit.clear();
+    diff.clear();
     await repository.open(picked);
     const opened = repository.current;
     if (opened) {
@@ -105,7 +119,7 @@
         />
         <div class="pane grow">
           <Panel title="Files" count={commit.files.length}>
-            <FileList files={commit.files} />
+            <FileList files={commit.files} selected={diff.path} onselect={openDiff} />
           </Panel>
         </div>
       </div>
@@ -120,6 +134,11 @@
 
       <div class="pane grow">
         <Panel title="Diff">
+          {#if diff.error}
+            <p class="error detail">{diff.error.message}</p>
+          {:else if diff.diff && diff.path}
+            <DiffView diff={diff.diff} path={diff.path} />
+          {:else}
           <div class="detail">
             {#if repository.error}
               <p class="error">{repository.error.message}</p>
@@ -146,7 +165,7 @@
                     : details.parents.map(shortOid).join(", ")}
                 </dd>
               </dl>
-              <p class="muted">Side-by-side diffs arrive in M7.</p>
+              <p class="muted">Select a file to see the diff.</p>
             {:else if repo}
               <dl>
                 <dt>Repository</dt>
@@ -163,6 +182,7 @@
               <p class="muted">Open a repository to begin.</p>
             {/if}
           </div>
+          {/if}
         </Panel>
       </div>
     </div>
