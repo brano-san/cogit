@@ -33,7 +33,10 @@ pub struct AppContext {
 
 /// The single registry of IPC commands and events.
 fn specta_builder() -> Builder<tauri::Wry> {
-    Builder::<tauri::Wry>::new().commands(collect_commands![commands::app_info])
+    Builder::<tauri::Wry>::new().commands(collect_commands![
+        commands::app_info,
+        commands::open_repository
+    ])
 }
 
 /// Writes `bindings.ts` from the command registry.

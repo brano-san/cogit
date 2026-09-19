@@ -32,3 +32,8 @@ Thumbs.db
 # `tauri icon` regenerates mobile assets; Cogit is desktop-only.
 src-tauri/icons/android/
 src-tauri/icons/ios/
+
+# Stray downloads land here when a shell helper resolves its temp dir to an empty
+# string: `cd ""` succeeds, so the fallback never runs and curl writes to the repo
+# root. The project has no HTML at the top level, so this catches them.
+/*.html

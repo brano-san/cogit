@@ -16,6 +16,7 @@ pub const MAX_STREAM_BYTES: usize = 1024 * 1024;
 /// Every field is carried to the UI verbatim.
 #[derive(Debug, Clone, thiserror::Error, Serialize, specta::Type)]
 #[error("Command `{command}` failed (exit code {exit_code:?})")]
+#[serde(rename_all = "camelCase")]
 pub struct GitCommandError {
     /// The full command line as it would have been typed, for the "Copy Output" action.
     pub command: String,
@@ -52,7 +53,7 @@ impl GitCommandError {
 /// Variants are distinct so the UI can react differently: a CLI failure opens the
 /// Git Error Dialog with raw output, everything else becomes a toast.
 #[derive(Debug, thiserror::Error, Serialize, specta::Type)]
-#[serde(tag = "kind", content = "data")]
+#[serde(tag = "kind", content = "data", rename_all = "camelCase")]
 pub enum GitError {
     #[error(transparent)]
     Command(#[from] GitCommandError),
