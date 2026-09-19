@@ -8,6 +8,8 @@ export const commands = {
 	openRepository: (path: string) => typedError<RepoSummary, GitError>(__TAURI_INVOKE("open_repository", { path })),
 	/**  A channel rather than a return value (INV-02); dropping it cancels the walk. */
 	loadCommits: (repo: RepoId, onChunk: Channel<GraphChunk>) => typedError<null, GitError>(__TAURI_INVOKE("load_commits", { repo, onChunk })),
+	commitDetails: (repo: RepoId, rev: string) => typedError<CommitDetails, GitError>(__TAURI_INVOKE("commit_details", { repo, rev })),
+	commitFiles: (repo: RepoId, rev: string) => typedError<FileEntry[], GitError>(__TAURI_INVOKE("commit_files", { repo, rev })),
 };
 
 /* Types */
@@ -28,6 +30,15 @@ export type Branch = {
 
 export type BranchKind = "local" | "remote";
 
+export type CommitDetails = {
+	oid: string,
+	parents: string[],
+	summary: string,
+	body: string,
+	author: Signature,
+	committer: Signature,
+};
+
 export type CommitRow = {
 	oid: string,
 	/**  Git order: the first parent is the mainline, which lane allocation relies on. */
@@ -46,6 +57,14 @@ export type CommitRow = {
 };
 
 export type EdgeKind = "direct" | "merge" | "crossing";
+
+export type FileEntry = {
+	path: string,
+	oldPath: string | null,
+	status: FileStatus,
+};
+
+export type FileStatus = "added" | "modified" | "deleted" | "renamed" | "copied";
 
 export type GitCommandError = {
 	command: string,
@@ -104,6 +123,13 @@ export type RepoSummary = {
 	branches: Branch[],
 	tags: Tag[],
 	status: RepoStatus,
+};
+
+export type Signature = {
+	name: string,
+	email: string,
+	timestamp: number,
+	tzOffsetMinutes: number,
 };
 
 export type Tag = {

@@ -1,6 +1,4 @@
-// Integration tests are test code by definition, but `allow-unwrap-in-tests` in
-// clippy.toml only covers the bodies of `#[test]` functions — helpers beside them are
-// still linted. Panicking is how a test reports failure, so allow it for the file.
+// clippy.toml's allow-unwrap-in-tests does not reach helpers beside `#[test]` fns.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use app_state::AppState;

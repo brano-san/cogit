@@ -89,9 +89,43 @@ pub enum CogitError {
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
 | `load_commits` | `repo, channel: Channel<GraphChunk>` | `()` | M4 |
-| `commit_details` | `repo, oid` | `CommitDetails` | M4 |
-| `commit_files` | `repo, oid` | `Vec<FileEntry>` | M6 |
+| `commit_details` | `repo, rev: String` | `CommitDetails` | M4 |
+| `commit_files` | `repo, rev: String` | `Vec<FileEntry>` | M6 |
 | `search_commits` | `repo, query: CommitQuery, channel` | `()` | M4 |
+
+`rev` — любая ревизия в понимании `git rev-parse` (`HEAD`, `HEAD~2`, полный или сокращённый OID),
+а не только OID: панель деталей использует то же поле, что и будущая строка перехода.
+
+```rust
+pub struct CommitDetails {
+    pub oid: String,
+    pub parents: Vec<String>,   // порядок Git: первый родитель — mainline
+    pub summary: String,        // первая строка сообщения
+    pub body: String,           // остальное, без хвостового перевода строки
+    pub author: Signature,
+    pub committer: Signature,
+}
+
+pub struct Signature {
+    pub name: String,
+    pub email: String,
+    pub timestamp: i64,         // секунды Unix, в TS — number
+    pub tz_offset_minutes: i32,
+}
+
+pub struct FileEntry {
+    pub path: String,             // относительно корня, всегда через `/`
+    pub old_path: Option<String>, // заполнен только для Renamed и Copied
+    pub status: FileStatus,
+}
+
+pub enum FileStatus { Added, Modified, Deleted, Renamed, Copied }
+```
+
+`commit_files` сравнивает коммит **с первым родителем**, как это делает `git show`.
+Корневой коммит сравнивается с пустым деревом, поэтому все его файлы — `Added`.
+Отслеживание переименований включено явно (`track_rewrites`), а не берётся из конфига
+репозитория: результат не должен зависеть от настроек пользователя.
 
 ### Ссылки
 
