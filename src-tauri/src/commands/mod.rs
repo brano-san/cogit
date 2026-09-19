@@ -1,5 +1,6 @@
 use app_state::{DEFAULT_CHUNK_SIZE, GraphChunk, RepoId, RepoSummary};
-use git_engine::{CommitDetails, FileEntry, GitError};
+use diff_engine::{DiffOptions, FileDiff};
+use git_engine::{CommitDetails, DiffSpec, FileEntry, GitError};
 use serde::Serialize;
 use std::path::PathBuf;
 
@@ -111,4 +112,31 @@ pub async fn commit_files(
         "commit files listed"
     );
     Ok(files)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn diff_file(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    spec: DiffSpec,
+    path: String,
+    options: DiffOptions,
+) -> Result<FileDiff, GitError> {
+    let app_state = state.state.clone();
+    let started = std::time::Instant::now();
+    let logged = path.clone();
+
+    let diff =
+        tokio::task::spawn_blocking(move || app_state.diff_file(repo, &spec, &path, &options))
+            .await
+            .map_err(|err| GitError::Internal(format!("diff_file task failed: {err}")))??;
+
+    tracing::debug!(
+        repo = repo.0,
+        path = %logged,
+        elapsed_ms = started.elapsed().as_millis(),
+        "file diff computed"
+    );
+    Ok(diff)
 }

@@ -1,12 +1,14 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 mod eol;
+mod language;
 mod text;
 
 pub use eol::{EolInfo, LineEnding, detect_line_ending, normalize_line_endings};
+pub use language::language_for_path;
 pub use text::{MAX_TEXT_BYTES, diff_bytes, diff_text};
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, specta::Type, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Algorithm {
     #[default]
@@ -14,7 +16,7 @@ pub enum Algorithm {
     Myers,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, specta::Type, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Whitespace {
     #[default]
@@ -23,7 +25,7 @@ pub enum Whitespace {
     All,
 }
 
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, specta::Type, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DiffOptions {
     pub algorithm: Algorithm,
@@ -46,7 +48,11 @@ impl Default for DiffOptions {
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
-#[serde(tag = "kind", rename_all = "camelCase")]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum DiffRow {
     Context {
         old: u32,
@@ -80,7 +86,11 @@ pub struct Hunk {
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
-#[serde(tag = "kind", rename_all = "camelCase")]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum FileDiff {
     Text {
         hunks: Vec<Hunk>,
@@ -94,15 +104,20 @@ pub enum FileDiff {
         to: LineEnding,
     },
     Binary {
+        #[specta(type = specta_typescript::Number)]
         old_size: u64,
+        #[specta(type = specta_typescript::Number)]
         new_size: u64,
     },
     Image {
+        #[specta(type = specta_typescript::Number)]
         old_size: u64,
+        #[specta(type = specta_typescript::Number)]
         new_size: u64,
         mime: String,
     },
     TooLarge {
+        #[specta(type = specta_typescript::Number)]
         size: u64,
     },
     Unchanged,

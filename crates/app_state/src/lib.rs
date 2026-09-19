@@ -198,6 +198,31 @@ impl AppState {
         self.handle(repo)?.commit_files(rev)
     }
 
+    pub fn diff_file(
+        &self,
+        repo: RepoId,
+        spec: &git_engine::DiffSpec,
+        path: &str,
+        options: &diff_engine::DiffOptions,
+    ) -> Result<diff_engine::FileDiff, git_engine::GitError> {
+        let (old, new) = self.handle(repo)?.diff_sides(spec, path)?;
+        if old.is_none() && new.is_none() {
+            return Err(git_engine::GitError::InvalidState(format!(
+                "{path} is absent from both sides of the diff"
+            )));
+        }
+
+        let mut diff = diff_engine::diff_bytes(
+            old.as_deref().unwrap_or_default(),
+            new.as_deref().unwrap_or_default(),
+            options,
+        );
+        if let diff_engine::FileDiff::Text { language, .. } = &mut diff {
+            *language = diff_engine::language_for_path(path);
+        }
+        Ok(diff)
+    }
+
     fn handle(&self, repo: RepoId) -> Result<git_engine::RepoHandle, git_engine::GitError> {
         let open = self
             .get(repo)
