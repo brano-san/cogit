@@ -17,6 +17,7 @@ thiserror.workspace = true
 tracing.workspace = true
 serde.workspace = true
 specta.workspace = true
+specta-typescript.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

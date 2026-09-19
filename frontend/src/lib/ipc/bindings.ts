@@ -10,9 +10,12 @@ export const commands = {
 	loadCommits: (repo: RepoId, onChunk: Channel<GraphChunk>) => typedError<null, GitError>(__TAURI_INVOKE("load_commits", { repo, onChunk })),
 	commitDetails: (repo: RepoId, rev: string) => typedError<CommitDetails, GitError>(__TAURI_INVOKE("commit_details", { repo, rev })),
 	commitFiles: (repo: RepoId, rev: string) => typedError<FileEntry[], GitError>(__TAURI_INVOKE("commit_files", { repo, rev })),
+	diffFile: (repo: RepoId, spec: DiffSpec, path: string, options: DiffOptions) => typedError<FileDiff, GitError>(__TAURI_INVOKE("diff_file", { repo, spec, path, options })),
 };
 
 /* Types */
+export type Algorithm = "histogram" | "myers";
+
 /**  specta follows serde, so a DTO without `camelCase` reads `undefined` in the UI. */
 export type AppInfo = {
 	version: string,
@@ -56,7 +59,29 @@ export type CommitRow = {
 	tzOffsetMinutes: number,
 };
 
+export type DiffOptions = {
+	algorithm: Algorithm,
+	contextLines: number,
+	ignoreWhitespace: Whitespace,
+	ignoreBlankLines: boolean,
+	wordDiff: boolean,
+};
+
+export type DiffRow = { kind: "context"; old: number; new: number; text: string } | { kind: "delete"; old: number; text: string; inline: ([number, number])[] } | { kind: "insert"; new: number; text: string; inline: ([number, number])[] } | { kind: "collapsed"; count: number };
+
+export type DiffSpec = { kind: "commitVsParent"; oid: string } | { kind: "commitVsCommit"; a: string; b: string };
+
 export type EdgeKind = "direct" | "merge" | "crossing";
+
+export type EolInfo = {
+	old: LineEnding,
+	new: LineEnding,
+	normalized: boolean,
+};
+
+export type FileDiff = { kind: "text"; hunks: Hunk[]; eol: EolInfo; lossyEncoding: boolean; 
+/**  Language hint for Lezer. Highlighting itself is a frontend concern (INV-01). */
+language: string | null } | { kind: "eolOnly"; from: LineEnding; to: LineEnding } | { kind: "binary"; oldSize: number; newSize: number } | { kind: "image"; oldSize: number; newSize: number; mime: string } | { kind: "tooLarge"; size: number } | { kind: "unchanged" };
 
 export type FileEntry = {
 	path: string,
@@ -96,12 +121,23 @@ export type GraphEdge = {
 /**  Assuming "HEAD is a branch" crashes on an unborn or detached checkout (INV-07). */
 export type Head = { kind: "branch"; name: string; oid: string } | { kind: "detached"; oid: string } | { kind: "unborn"; name: string };
 
+export type Hunk = {
+	oldStart: number,
+	oldLines: number,
+	newStart: number,
+	newLines: number,
+	header: string,
+	rows: DiffRow[],
+};
+
 export type LaneAssignment = {
 	row: number,
 	lane: number,
 	color: number,
 	kind: NodeKind,
 };
+
+export type LineEnding = "lf" | "crlf" | "cr" | "mixed" | "none";
 
 export type NodeKind = "normal" | "merge" | "root" | "workingTree";
 
@@ -138,6 +174,8 @@ export type Tag = {
 	oid: string,
 	isAnnotated: boolean,
 };
+
+export type Whitespace = "none" | "trailing" | "all";
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

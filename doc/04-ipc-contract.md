@@ -140,12 +140,43 @@ pub enum FileStatus { Added, Modified, Deleted, Renamed, Copied }
 
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
-| `diff_file` | `repo, spec: DiffSpec` | `FileDiff` | M7 |
+| `diff_file` | `repo, spec: DiffSpec, path, options: DiffOptions` | `FileDiff` | M7 |
 | `diff_working_tree` | `repo, path` | `FileDiff` | M7 |
 | `merge_conflict` | `repo, path` | `ThreeWayDiff` | M7 |
 
 `DiffSpec` описывает, что с чем сравнивается: `WorkTreeVsIndex`, `IndexVsHead`,
 `CommitVsParent { oid }`, `CommitVsCommit { a, b }`, `StashVsParent { index }`.
+Реализованы `CommitVsParent` и `CommitVsCommit`; остальные приходят с M5 и M6.
+
+`FileDiff` — размеченное объединение по полю `kind`: `text`, `eolOnly`, `binary`,
+`image`, `tooLarge`, `unchanged`. Вариант `text` несёт ханки, сведения об окончаниях
+строк, флаг `lossyEncoding` и подсказку грамматики для Lezer.
+
+```rust
+pub struct Hunk {
+    pub old_start: u32,   // 1-based; 0, когда старой стороны нет
+    pub old_lines: u32,
+    pub new_start: u32,
+    pub new_lines: u32,
+    pub header: String,   // "@@ -7,7 +7,7 @@"
+    pub rows: Vec<DiffRow>,
+}
+
+pub enum DiffRow {
+    Context { old: u32, new: u32, text: String },
+    Delete  { old: u32, text: String, inline: Vec<(u32, u32)> },
+    Insert  { new: u32, text: String, inline: Vec<(u32, u32)> },
+    Collapsed { count: u32 },
+}
+```
+
+Нумерация строк в `DiffRow` — 1-based и относится к той стороне, к которой принадлежит
+строка. Текст приходит **без** завершающего перевода строки: он одинаков для всех строк
+и только мешает отрисовке.
+
+`rename_all_fields = "camelCase"` обязателен на enum-ах со структурными вариантами:
+`rename_all` переименовывает только имена вариантов, а поля внутри них утекают в
+snake_case и читаются на фронтенде как `undefined`.
 
 ### Мутации
 
