@@ -26,6 +26,7 @@ pub struct CommitNode {
 
 /// What kind of dot to draw for a row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub enum NodeKind {
     Normal,
     Merge,
@@ -35,6 +36,7 @@ pub enum NodeKind {
 
 /// How an edge between two rows is drawn.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub enum EdgeKind {
     /// Straight continuation within one lane.
     Direct,
@@ -46,6 +48,7 @@ pub enum EdgeKind {
 
 /// Placement of one commit row.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub struct LaneAssignment {
     pub row: u32,
     pub lane: u16,
@@ -55,6 +58,7 @@ pub struct LaneAssignment {
 
 /// A curve between two rows, in row/lane space. Pixel coordinates are the frontend's job.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub struct GraphEdge {
     pub from_row: u32,
     pub from_lane: u16,
@@ -66,6 +70,7 @@ pub struct GraphEdge {
 
 /// Layout of one chunk of history.
 #[derive(Debug, Clone, Default, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub struct GraphLayout {
     pub lanes: Vec<LaneAssignment>,
     pub edges: Vec<GraphEdge>,

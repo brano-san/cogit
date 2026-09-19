@@ -35,7 +35,8 @@ pub struct AppContext {
 fn specta_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new().commands(collect_commands![
         commands::app_info,
-        commands::open_repository
+        commands::open_repository,
+        commands::load_commits
     ])
 }
 

@@ -1794,6 +1794,7 @@ dependencies = [
  "parking_lot",
  "serde",
  "specta",
+ "specta-typescript",
  "test_fixtures",
  "thiserror 2.0.20",
  "tokio",

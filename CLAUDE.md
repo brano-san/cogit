@@ -47,6 +47,13 @@ examples that appear everywhere online.
 The full invariant registry (INV-01 … INV-12) is in `doc/01-architecture.md`. Violating
 one means editing that document with a justification — not making a local exception.
 
+## Comments
+
+Write clean, self-documenting code. Do NOT write trivial or obvious comments explaining
+what the code does line by line. Add comments ONLY for non-obvious edge cases,
+architectural trade-offs, or safety invariants. Keep docstrings concise — one or two
+lines; the reasoning belongs in `doc/`.
+
 ## Code style and safety
 
 - `thiserror` inside crates, `anyhow` only at application entry points.

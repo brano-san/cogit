@@ -2,12 +2,14 @@
   import { open as openFolderDialog } from "@tauri-apps/plugin-dialog";
 
   import BranchList from "$components/branch-tree/BranchList.svelte";
+  import CommitList from "$components/graph/CommitList.svelte";
   import Panel from "$components/layout/Panel.svelte";
   import Splitter from "$components/layout/Splitter.svelte";
   import StatusBar from "$components/layout/StatusBar.svelte";
   import Toolbar from "$components/layout/Toolbar.svelte";
   import RepositoryList from "$components/repo-tree/RepositoryList.svelte";
   import { getAppInfo, type AppInfo } from "$lib/ipc";
+  import { graph } from "$stores/graph.svelte";
   import { layout } from "$stores/layout.svelte";
   import { repository } from "$stores/repository.svelte";
 
@@ -30,8 +32,13 @@
 
   async function pickRepository() {
     const picked = await openFolderDialog({ directory: true, title: "Open Repository" });
-    if (typeof picked === "string") {
-      await repository.open(picked);
+    if (typeof picked !== "string") return;
+    await repository.open(picked);
+    const opened = repository.current;
+    if (opened) {
+      void graph.load(opened.repo);
+    } else {
+      graph.clear();
     }
   }
 </script>
@@ -82,7 +89,13 @@
     <div class="right-area">
       <div class="top-row" style:flex="0 0 {fractions.topRow * 100}%">
         <div class="pane" style:flex="0 0 {fractions.graph * 100}%">
-          <Panel title="Graph &amp; History" empty="The commit DAG is built in M4." />
+          <Panel title="Graph &amp; History" count={graph.rows.length}>
+            {#if repo}
+              <CommitList />
+            {:else}
+              <p class="note">Open a repository to see its history.</p>
+            {/if}
+          </Panel>
         </div>
         <Splitter
           direction="vertical"
@@ -136,7 +149,7 @@
   <StatusBar
     repository={repo?.name ?? "No repository"}
     branch={repo ? repository.headLabel : undefined}
-    summary={repo ? `${repo.branches.length} refs` : "Milestone B"}
+    summary={repo ? `${graph.rows.length} commits · ${repo.branches.length} refs` : "Milestone C"}
     version={info?.version}
     status={repository.error ? "Error" : repository.busy ? "Working…" : "Ready"}
   />

@@ -48,7 +48,8 @@ pub struct Branch {
 /// Holds a live `gix::Repository`, so it must not be cached across mutations performed
 /// by the CLI — reopen instead. See `doc/01-architecture.md` section 6.
 pub struct RepoHandle {
-    repo: gix::Repository,
+    /// Visible to the crate so sibling modules such as `history` can read through it.
+    pub(crate) repo: gix::Repository,
     root: PathBuf,
 }
 

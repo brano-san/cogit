@@ -1,0 +1,81 @@
+import {
+  CogitError,
+  loadCommits,
+  type CommitRow,
+  type GraphEdge,
+  type LaneAssignment,
+  type RepoId,
+} from "$lib/ipc";
+
+/** A commit paired with where the backend placed it. */
+export interface GraphRow {
+  commit: CommitRow;
+  lane: LaneAssignment;
+}
+
+class GraphStore {
+  /**
+   * `$state.raw` rather than deep state: 50 000 commits would otherwise become 50 000
+   * reactive proxies. Chunks replace the array instead of mutating it.
+   */
+  rows = $state.raw<GraphRow[]>([]);
+  edges = $state.raw<GraphEdge[]>([]);
+  maxLane = $state(0);
+  loading = $state(false);
+  complete = $state(false);
+  error = $state<CogitError | null>(null);
+
+  /**
+   * Discriminates concurrent loads. A chunk from a superseded stream is dropped rather
+   * than mixed into the current repository's graph.
+   */
+  #generation = 0;
+
+  async load(repo: RepoId): Promise<void> {
+    const generation = ++this.#generation;
+    this.rows = [];
+    this.edges = [];
+    this.maxLane = 0;
+    this.error = null;
+    this.complete = false;
+    this.loading = true;
+
+    try {
+      await loadCommits(repo, (chunk) => {
+        if (generation !== this.#generation) return;
+
+        if (chunk.commits.length > 0) {
+          const incoming = chunk.commits.map((commit, index) => ({
+            commit,
+            lane: chunk.lanes[index]!,
+          }));
+          this.rows = [...this.rows, ...incoming];
+          this.edges = [...this.edges, ...chunk.edges];
+        }
+        this.maxLane = Math.max(this.maxLane, chunk.maxLane);
+        if (chunk.isLast) this.complete = true;
+      });
+    } catch (err) {
+      if (generation === this.#generation) {
+        this.error =
+          err instanceof CogitError
+            ? err
+            : new CogitError({ kind: "internal", data: String(err) });
+      }
+    } finally {
+      if (generation === this.#generation) this.loading = false;
+    }
+  }
+
+  clear(): void {
+    this.#generation += 1;
+    this.rows = [];
+    this.edges = [];
+    this.maxLane = 0;
+    this.loading = false;
+    this.complete = false;
+    this.error = null;
+  }
+}
+
+export const graph = new GraphStore();
