@@ -33,7 +33,7 @@
 | # | Модуль | Статус | Зависит от | Документ |
 |---|---|---|---|---|
 | M0 | Костяк, тулчейн, workspace | `DONE` | — | [M0](modules/M0-skeleton.md) |
-| M9 | Тестовые фикстуры (начато: билдер + `linear`) | `WIP` | M0 | [M9](modules/M9-fixtures.md) |
+| M9 | Тестовые фикстуры | `DONE` | M0 | [M9](modules/M9-fixtures.md) |
 | M1 | Ядро Git и системный бэкенд | `TODO` | M0, M9 | [M1](modules/M1-core.md) |
 | M3 | Дерево репозиториев и сабмодули | `TODO` | M1, M2 | [M3](modules/M3-repo-tree.md) |
 | M4 | Граф истории и визуальный Rebase | `TODO` | M1, M2, M9 | [M4](modules/M4-graph.md) |

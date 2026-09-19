@@ -168,7 +168,27 @@ cargo deny check
 7. Новые решения записаны в [12-risks.md](12-risks.md)
 8. Изменения IPC отражены в [04-ipc-contract.md](04-ipc-contract.md)
 
-## 10. Антипаттерны
+## 10. Ловушка: `allow-unwrap-in-tests` покрывает не весь тестовый код
+
+В `clippy.toml` выставлено `allow-unwrap-in-tests = true`, но действует оно **только внутри
+тел функций, помеченных `#[test]`**. Вспомогательная функция, лежащая рядом в том же файле
+`tests/*.rs` и вызываемая из теста, для clippy остаётся обычным кодом — и `unwrap_used`
+в ней срабатывает.
+
+Поэтому каждый файл в `crates/*/tests/` начинается с явного разрешения:
+
+```rust
+// Integration tests are test code by definition, but `allow-unwrap-in-tests` in
+// clippy.toml only covers the bodies of `#[test]` functions — helpers beside them are
+// still linted. Panicking is how a test reports failure, so allow it for the file.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+```
+
+Отдельно: `print_stdout` запрещён по всему воркспейсу ради [INV-04](01-architecture.md#inv-04),
+поэтому измерительным харнессам, которые обязаны печатать числа, нужен
+`#![allow(clippy::print_stdout)]` с пояснением.
+
+## 11. Антипаттерны
 
 | Антипаттерн | Почему плохо |
 |---|---|

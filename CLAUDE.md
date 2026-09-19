@@ -123,9 +123,10 @@ chore: pin gix to 0.87 and enable the status feature
 refactor(m7): split hunk assembly out of the diff pipeline
 ```
 
-**One line only. No body.** Imperative, under ~72 characters, no trailing period.
-Reasoning belongs in `doc/`, not in the commit log — `doc/12-risks.md` records every
-decision taken against the original spec.
+**One line only. No body, no trailers** — no `Co-Authored-By`, no `Signed-off-by`.
+Imperative, under ~72 characters, no trailing period. Reasoning belongs in `doc/`,
+not in the commit log — `doc/12-risks.md` records every decision taken against the
+original spec.
 
 Propose the commit name at the end of each step of work, before committing.
 
