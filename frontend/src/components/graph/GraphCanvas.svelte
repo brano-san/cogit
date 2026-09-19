@@ -10,9 +10,11 @@
     height: number;
     firstRow: number;
     lastRow: number;
+    /** Rows the list draws above the first commit; edges and nodes shift by it. */
+    rowOffset: number;
   }
 
-  let { edges, nodes, scrollTop, width, height, firstRow, lastRow }: Props = $props();
+  let { edges, nodes, scrollTop, width, height, firstRow, lastRow, rowOffset }: Props = $props();
 
   let canvas: HTMLCanvasElement | undefined = $state();
   let dpr = $state(typeof window === "undefined" ? 1 : window.devicePixelRatio);
@@ -65,9 +67,9 @@
 
     for (const edge of band) {
       const x1 = laneX(edge.fromLane);
-      const y1 = rowY(edge.fromRow, scrollTop);
+      const y1 = rowY(edge.fromRow + rowOffset, scrollTop);
       const x2 = laneX(edge.toLane);
-      const y2 = rowY(edge.toRow, scrollTop);
+      const y2 = rowY(edge.toRow + rowOffset, scrollTop);
 
       context.strokeStyle = laneColor(edge.color);
       context.beginPath();
@@ -91,7 +93,7 @@
 
     for (const node of nodes) {
       const x = laneX(node.lane);
-      const y = rowY(node.row, scrollTop);
+      const y = rowY(node.row + rowOffset, scrollTop);
       context.fillStyle = laneColor(node.color);
       context.beginPath();
       if (node.root) {
@@ -119,7 +121,7 @@
 
   $effect(() => {
     // Touch every input so the effect reruns when any of them changes.
-    void [edges, nodes, scrollTop, width, height, dpr];
+    void [edges, nodes, scrollTop, width, height, dpr, rowOffset];
     schedule();
     return () => cancelAnimationFrame(frame);
   });

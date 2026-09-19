@@ -1,8 +1,16 @@
 <script lang="ts">
   import GraphCanvas from "$components/graph/GraphCanvas.svelte";
-  import { formatCommitDate, shortOid } from "$lib/format";
-  import { GRAPH, gutterWidth, hitTest, visibleRange } from "$lib/graph-geometry";
+  import { formatCommitDate, refLabels, shortOid } from "$lib/format";
+  import {
+    GRAPH,
+    HEADER_ROWS,
+    gutterWidth,
+    hitTest,
+    toCommitRow,
+    visibleRange,
+  } from "$lib/graph-geometry";
   import { graph } from "$stores/graph.svelte";
+  import { repository } from "$stores/repository.svelte";
 
   /** Rows rendered beyond the viewport so a fast scroll does not show blanks. */
   const BUFFER_ROWS = 10;
@@ -13,28 +21,50 @@
   let viewportWidth = $state(0);
   let selected = $state<string | null>(null);
 
-  const total = $derived(graph.rows.length);
+  const commitCount = $derived(graph.rows.length);
+  const listRows = $derived(commitCount + HEADER_ROWS);
   const range = $derived(
-    visibleRange(scrollTop, viewportHeight, GRAPH.rowHeight, total, BUFFER_ROWS),
+    visibleRange(scrollTop, viewportHeight, GRAPH.rowHeight, listRows, BUFFER_ROWS),
   );
   const gutter = $derived(gutterWidth(graph.maxLane, viewportWidth || 600));
 
-  const visible = $derived(
-    graph.rows.slice(range.start, range.end).map((row, offset) => ({
-      row,
-      index: range.start + offset,
-    })),
+  const labels = $derived(
+    refLabels(
+      repository.current?.branches ?? [],
+      repository.current?.tags ?? [],
+      repository.current?.head,
+    ),
   );
 
-  const nodes = $derived(
-    visible.map(({ row }) => ({
-      row: row.lane.row,
-      lane: row.lane.lane,
-      color: row.lane.color,
-      merge: row.lane.kind === "merge",
-      root: row.lane.kind === "root",
-    })),
-  );
+  const status = $derived(repository.current?.status);
+  const headerLabel = $derived.by(() => {
+    if (!status) return "Working Tree";
+    const parts: string[] = [];
+    if (status.staged > 0) parts.push(`${status.staged} staged`);
+    if (status.unstaged > 0) parts.push(`${status.unstaged} modified`);
+    if (status.untracked > 0) parts.push(`${status.untracked} untracked`);
+    if (status.conflicted > 0) parts.push(`${status.conflicted} conflicted`);
+    return parts.length > 0 ? `Working Tree (${parts.join(", ")})` : "Working Tree — clean";
+  });
+
+  const visible = $derived.by(() => {
+    const from = Math.max(range.start, HEADER_ROWS);
+    const rows = [];
+    for (let listRow = from; listRow < range.end; listRow++) {
+      const commitRow = toCommitRow(listRow);
+      const entry = commitRow === null ? undefined : graph.rows[commitRow];
+      if (entry) rows.push({ listRow, entry });
+    }
+    return rows;
+  });
+
+  const nodes = $derived(visible.map(({ entry }) => ({
+    row: entry.lane.row,
+    lane: entry.lane.lane,
+    color: entry.lane.color,
+    merge: entry.lane.kind === "merge",
+    root: entry.lane.kind === "root",
+  })));
 
   function onscroll() {
     if (scroller) scrollTop = scroller.scrollTop;
@@ -43,8 +73,10 @@
   function onclick(event: MouseEvent) {
     if (!scroller) return;
     const box = scroller.getBoundingClientRect();
-    const hit = hitTest(event.clientX - box.left, event.clientY - box.top, scrollTop, total);
-    if (hit) selected = graph.rows[hit.row]?.commit.oid ?? null;
+    const hit = hitTest(event.clientX - box.left, event.clientY - box.top, scrollTop, listRows);
+    if (!hit) return;
+    const commitRow = toCommitRow(hit.row);
+    selected = commitRow === null ? null : (graph.rows[commitRow]?.commit.oid ?? null);
   }
 
   $effect(() => {
@@ -61,8 +93,8 @@
 
 {#if graph.error}
   <p class="message error">{graph.error.message}</p>
-{:else if total === 0}
-  <p class="message">{graph.loading ? "Reading history…" : "No commits yet."}</p>
+{:else if commitCount === 0 && !graph.loading}
+  <p class="message">No commits yet.</p>
 {:else}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div class="scroll" bind:this={scroller} {onscroll} {onclick}>
@@ -73,25 +105,39 @@
         {scrollTop}
         width={gutter}
         height={viewportHeight}
-        firstRow={range.start}
+        firstRow={Math.max(range.start - HEADER_ROWS, 0)}
         lastRow={range.end}
+        rowOffset={HEADER_ROWS}
       />
     </div>
 
-    <div class="rows" style:height="{total * GRAPH.rowHeight}px">
-      {#each visible as item (item.row.commit.oid)}
+    <div class="rows" style:height="{listRows * GRAPH.rowHeight}px">
+      {#if range.start === 0}
+        <div class="row header" style:top="0px" style:padding-left="{gutter}px">
+          <span class="summary truncate">{headerLabel}</span>
+          {#if graph.loading}<span class="date">loading…</span>{/if}
+        </div>
+      {/if}
+
+      {#each visible as item (item.entry.commit.oid)}
         <div
           class="row"
-          class:selected={selected === item.row.commit.oid}
-          style:top="{item.index * GRAPH.rowHeight}px"
+          class:selected={selected === item.entry.commit.oid}
+          style:top="{item.listRow * GRAPH.rowHeight}px"
           style:padding-left="{gutter}px"
         >
-          <span class="summary truncate">{item.row.commit.summary}</span>
-          <span class="author truncate">{item.row.commit.authorName}</span>
+          {#each labels.get(item.entry.commit.oid) ?? [] as label (label.text)}
+            <span class="capsule {label.kind}">{label.text}</span>
+          {/each}
+          <span class="summary truncate">{item.entry.commit.summary}</span>
+          <span class="author truncate">{item.entry.commit.authorName}</span>
           <span class="date tabular"
-            >{formatCommitDate(item.row.commit.timestamp, item.row.commit.tzOffsetMinutes)}</span
+            >{formatCommitDate(
+              item.entry.commit.timestamp,
+              item.entry.commit.tzOffsetMinutes,
+            )}</span
           >
-          <span class="oid mono tabular">{shortOid(item.row.commit.oid)}</span>
+          <span class="oid mono tabular">{shortOid(item.entry.commit.oid)}</span>
         </div>
       {/each}
     </div>
@@ -124,7 +170,7 @@
     right: 0;
     display: flex;
     align-items: center;
-    gap: var(--sp-4);
+    gap: var(--sp-3);
     height: 22px;
     padding-right: var(--sp-5);
     font-size: var(--fs-dense);
@@ -137,6 +183,45 @@
 
   .row.selected {
     background: var(--state-selected);
+  }
+
+  .row.header .summary {
+    color: var(--status-modify);
+  }
+
+  .capsule {
+    flex: 0 0 auto;
+    height: 16px;
+    padding: 0 var(--sp-3);
+    border: 1px solid;
+    border-radius: var(--r-md);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    line-height: 14px;
+  }
+
+  .capsule.head {
+    color: var(--c-bg-window);
+    background: var(--status-ref);
+    border-color: var(--status-ref);
+  }
+
+  .capsule.local {
+    color: var(--status-ref);
+    background: var(--c-branch-bg);
+    border-color: var(--status-ref);
+  }
+
+  .capsule.remote {
+    color: var(--text-secondary);
+    background: transparent;
+    border-color: var(--field-border);
+  }
+
+  .capsule.tag {
+    color: var(--status-stash);
+    background: var(--c-stash-bg);
+    border-color: var(--status-stash);
   }
 
   .summary {

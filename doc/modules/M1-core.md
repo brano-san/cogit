@@ -12,8 +12,8 @@
 - [x] `RepoManager::open(path)` — обнаружение репозитория через `gix::discover`
 - [x] `head()` — текущая ветка, detached-состояние, пустой репозиторий
 - [x] `branches()` — локальные и удалённые (upstream и ahead/behind — отдельной задачей)
-- [ ] `tags()` — lightweight и annotated, с разыменованием
-- [ ] `status()` — три сравнения: HEAD ↔ index ↔ worktree
+- [x] `tags()` — lightweight и annotated, с разыменованием
+- [x] `status()` — три сравнения: HEAD ↔ index ↔ worktree (счётчики; списки файлов — M6)
 - [ ] `commit_range(cursor, limit)` — итератор истории в топологическом порядке
 - [ ] `commit_details(oid)` — автор, коммиттер, даты, сообщение, родители
 - [ ] `submodules()` — разбор `.gitmodules` с рекурсией

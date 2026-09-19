@@ -166,6 +166,20 @@ export type NodeKind = "normal" | "merge" | "root" | "workingTree";
 /**  Opaque handle for a repository. Paths never cross the IPC boundary. */
 export type RepoId = number;
 
+/**
+ *  Counts behind the `Working Tree / Index` row of the graph.
+ * 
+ *  A file changed both before and after `git add` is counted in `staged` **and**
+ *  `unstaged`: Git tracks the index and the working tree separately, and collapsing
+ *  them would hide half of what is going on.
+ */
+export type RepoStatus = {
+	staged: number,
+	unstaged: number,
+	untracked: number,
+	conflicted: number,
+};
+
 /**  What the UI needs to show a repository the moment it is opened. */
 export type RepoSummary = {
 	repo: RepoId,
@@ -176,6 +190,17 @@ export type RepoSummary = {
 	isBare: boolean,
 	head: Head,
 	branches: Branch[],
+	tags: Tag[],
+	/**  Snapshot at open time; live updates arrive with the filesystem watcher (M1 T1.6). */
+	status: RepoStatus,
+};
+
+export type Tag = {
+	name: string,
+	fullName: string,
+	/**  Commit the tag marks, with annotated tags already peeled. */
+	oid: string,
+	isAnnotated: boolean,
 };
 
 /* Tauri Specta runtime */

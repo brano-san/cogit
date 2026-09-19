@@ -7,6 +7,9 @@ import {
   laneX,
   rowY,
   visibleRange,
+  HEADER_ROWS,
+  toCommitRow,
+  toListRow,
 } from "./graph-geometry";
 
 describe("visibleRange", () => {
@@ -130,5 +133,29 @@ describe("canvasPixelSize", () => {
 
   it("treats a missing ratio as 1", () => {
     expect(canvasPixelSize(300, 200, 0)).toEqual({ width: 300, height: 200 });
+  });
+});
+
+describe("row offset for the Working Tree header", () => {
+  it("shifts a commit row down past the header", () => {
+    expect(toListRow(0)).toBe(HEADER_ROWS);
+    expect(toListRow(7)).toBe(7 + HEADER_ROWS);
+  });
+
+  it("maps a list row back to its commit", () => {
+    expect(toCommitRow(HEADER_ROWS)).toBe(0);
+    expect(toCommitRow(HEADER_ROWS + 7)).toBe(7);
+  });
+
+  it("reports the header row itself as no commit", () => {
+    // Clicking the Working Tree row must not select a commit that happens to sit at
+    // the same index minus one.
+    expect(toCommitRow(0)).toBeNull();
+  });
+
+  it("round-trips", () => {
+    for (const row of [0, 1, 42, 9999]) {
+      expect(toCommitRow(toListRow(row))).toBe(row);
+    }
   });
 });

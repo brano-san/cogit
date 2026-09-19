@@ -43,6 +43,29 @@ pub struct Branch {
     pub is_head: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct Tag {
+    pub name: String,
+    pub full_name: String,
+    /// Commit the tag marks, with annotated tags already peeled.
+    pub oid: String,
+    pub is_annotated: bool,
+}
+
+/// Open options that ignore `GIT_*` variables inherited from the environment.
+///
+/// By default `gix` honours `GIT_DIR`, `GIT_INDEX_FILE`, `GIT_WORK_TREE` and friends,
+/// which is right for a hook but wrong for a client: launched from a Git hook or from a
+/// shell where someone exported `GIT_INDEX_FILE`, Cogit would silently read a different
+/// repository than the one the user picked. Only the `GIT_` prefix is denied, so the
+/// user's global configuration and identity still apply. See doc/12-risks.md (R-22).
+fn env_free() -> gix::open::Options {
+    let mut options = gix::open::Options::default();
+    options.permissions.env.git_prefix = gix::sec::Permission::Deny;
+    options
+}
+
 /// An opened repository.
 ///
 /// Holds a live `gix::Repository`, so it must not be cached across mutations performed
@@ -70,7 +93,7 @@ impl RepoHandle {
     /// # Errors
     /// Returns [`GitError::RepoNotFound`] when no repository encloses the path.
     pub fn open(path: &Path) -> Result<Self> {
-        let repo = gix::discover(path)
+        let repo = gix::discover_opts(path, gix::discover::upwards::Options::default(), env_free())
             .map_err(|err| GitError::RepoNotFound(format!("{}: {err}", path.display())))?;
         // A bare repository has no working tree; its git dir stands in as the root.
         let root = repo
@@ -160,6 +183,42 @@ impl RepoHandle {
 
         branches.sort_by(|a, b| a.name.cmp(&b.name));
         Ok(branches)
+    }
+
+    /// Lists tags, sorted by name, with annotated tags peeled to their commit.
+    ///
+    /// # Errors
+    /// Returns an error if the ref store cannot be enumerated.
+    pub fn tags(&self) -> Result<Vec<Tag>> {
+        let platform = self
+            .repo
+            .references()
+            .map_err(|err| GitError::Internal(format!("cannot read references: {err}")))?;
+        let refs = platform
+            .tags()
+            .map_err(|err| GitError::Internal(format!("cannot list tags: {err}")))?;
+
+        let mut tags = Vec::new();
+        for reference in refs.flatten() {
+            let full_name = reference.name().as_bstr().to_string();
+            let name = reference.name().shorten().to_string();
+            // An annotated tag points at a tag object, so the direct target differs from
+            // the peeled one. That difference is exactly what distinguishes the two kinds.
+            let direct = reference.try_id().map(|id| id.detach());
+            let Ok(peeled) = reference.into_fully_peeled_id() else {
+                tracing::warn!(tag = %name, "skipping a tag that does not peel to an object");
+                continue;
+            };
+            let peeled = peeled.detach();
+            tags.push(Tag {
+                name,
+                full_name,
+                oid: peeled.to_string(),
+                is_annotated: direct != Some(peeled),
+            });
+        }
+        tags.sort_by(|a, b| a.name.cmp(&b.name));
+        Ok(tags)
     }
 }
 

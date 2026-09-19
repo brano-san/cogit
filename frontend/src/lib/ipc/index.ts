@@ -24,7 +24,9 @@ export type {
   Head,
   LaneAssignment,
   RepoId,
+  RepoStatus,
   RepoSummary,
+  Tag,
 } from "./bindings";
 
 /**
