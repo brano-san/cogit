@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+# Cogit pre-commit checks. Enable once per clone:
+#   git config core.hooksPath .githooks
+#
+# The hook fixes what it can (formatting, lint auto-fixes, generated bindings)
+# and re-stages the result. It only ever touches files that are already staged.
+#
+# Bypass deliberately with `git commit --no-verify`.
+# Skip only the auto-fixing with COGIT_HOOK_NO_FIX=1.
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+say()  { printf '\033[36m[pre-commit]\033[0m %s\n' "$1"; }
+warn() { printf '\033[33m[pre-commit]\033[0m %s\n' "$1"; }
+fixed(){ printf '\033[32m[pre-commit]\033[0m %s\n' "$1"; }
+fail() { printf '\033[31m[pre-commit] %s\033[0m\n' "$1" >&2; exit 1; }
+
+BINDINGS=frontend/src/lib/ipc/bindings.ts
+
+# --- locate the toolchain ----------------------------------------------------
+# GUI Git clients (SmartGit, Fork, IntelliJ, VS Code) run hooks with the environment
+# they were launched with, so anything installed afterwards is missing from PATH.
+# A hook that trusts the caller's PATH works in the terminal and fails in the GUI,
+# which is the worst of both worlds — so find the tools ourselves.
+add_path() {
+  if [ -d "$1" ]; then
+    case ":$PATH:" in
+      *":$1:"*) ;;
+      *) PATH="$1:$PATH" ;;
+    esac
+  fi
+}
+
+add_path "$HOME/.cargo/bin"
+add_path "${CARGO_HOME:-}/bin"
+add_path "/c/Program Files/LLVM/bin"          # lld-link, required by .cargo/config.toml
+add_path "/c/Program Files/nodejs"
+add_path "/usr/local/bin"
+export PATH
+
+need() {
+  command -v "$1" >/dev/null 2>&1 || fail "$1 not found in PATH.
+               Install the toolchain as described in doc/10-toolchain-setup.md.
+               If it is installed, your Git client was started before it was —
+               restart the client so it picks up the current PATH."
+}
+
+# --- what is being committed -------------------------------------------------
+mapfile -d '' -t STAGED < <(git diff --cached --name-only --diff-filter=ACMR -z)
+if [ ${#STAGED[@]} -eq 0 ]; then
+  say "nothing staged"
+  exit 0
+fi
+
+# A here-string, not a pipe: `grep -q` exits on its first match, which would
+# SIGPIPE the writer, and `pipefail` would then report the whole test as failed.
+has() { grep -qE "$1" <<<"$(printf '%s\n' "${STAGED[@]}")"; }
+if has '\.rs$|Cargo\.(toml|lock)$';     then RUST=1; else RUST=0; fi
+if has '^frontend/.*\.(ts|js|svelte)$'; then WEB=1;  else WEB=0;  fi
+
+# --- may we rewrite files? ---------------------------------------------------
+# A file that is staged *and* dirty in the worktree was partially staged with
+# `git add -p`. Re-staging it after a rewrite would sweep in the very hunks the
+# author deliberately held back, so auto-fixing is disabled for this commit.
+mapfile -d '' -t PARTIAL < <(git diff --name-only -z -- "${STAGED[@]}")
+
+FIX=1
+if [ "${COGIT_HOOK_NO_FIX:-0}" = "1" ]; then FIX=0; fi
+if [ ${#PARTIAL[@]} -gt 0 ]; then
+  FIX=0
+  warn "partially staged, so nothing will be rewritten automatically:"
+  printf '               %s\n' "${PARTIAL[@]}"
+  warn "commit them whole, or run the fixes yourself and stage the result."
+fi
+
+# Re-stages every staged path that the fixers changed, and reports them.
+restage_changed() {
+  local label=$1 changed=0 f
+  for f in "${STAGED[@]}"; do
+    if [ -e "$f" ] && ! git diff --quiet -- "$f"; then
+      git add -- "$f"
+      if [ "$changed" -eq 0 ]; then
+        fixed "$label rewrote and re-staged:"
+        changed=1
+      fi
+      printf '               %s\n' "$f"
+    fi
+  done
+  return 0
+}
+
+# --- rust --------------------------------------------------------------------
+if [ "$RUST" = "1" ]; then
+  need cargo
+  if [ "$FIX" = "1" ]; then
+    say "cargo fmt"
+    cargo fmt --all
+    restage_changed "cargo fmt"
+
+    say "cargo clippy --fix"
+    # Only machine-applicable suggestions are applied. A bad fix cannot slip
+    # through: the verifying clippy run below still has to pass.
+    if cargo clippy --fix --allow-staged --workspace --all-targets --quiet 2>/dev/null; then
+      restage_changed "cargo clippy --fix"
+    else
+      warn "clippy could not auto-fix; the report below is authoritative"
+    fi
+  else
+    say "cargo fmt --check"
+    cargo fmt --all --check || fail "formatting issues; run: cargo fmt --all"
+  fi
+
+  say "cargo clippy"
+  cargo clippy --workspace --all-targets -- -D warnings || fail "clippy found problems"
+
+  say "cargo test"
+  cargo test --workspace || fail "tests failed"
+
+  # IPC bindings are generated, never hand-written (INV-10).
+  say "IPC bindings"
+  cargo run -q -p cogit --bin export-bindings || fail "could not export IPC bindings"
+  if ! git diff --quiet -- "$BINDINGS"; then
+    if [ "$FIX" = "1" ]; then
+      git add -- "$BINDINGS"
+      fixed "regenerated and staged $BINDINGS"
+    else
+      fail "$BINDINGS is stale; it was just regenerated — review and stage it"
+    fi
+  fi
+fi
+
+# --- frontend ----------------------------------------------------------------
+if [ "$WEB" = "1" ]; then
+  need npm
+  say "svelte-check"
+  npm --prefix frontend run --silent check || fail "type check failed"
+fi
+
+say "ok"

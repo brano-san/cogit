@@ -1,0 +1,35 @@
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # Patch bumps are safe to batch; majors are reviewed one at a time.
+      patch-updates:
+        update-types: ["patch"]
+    ignore:
+      # These crates carry breaking changes in minor releases and are upgraded
+      # as dedicated tasks with a full test run. See doc/12-risks.md (R-02).
+      - dependency-name: "gix"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "imara-diff"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "keyring"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: npm
+    directory: "/frontend"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    ignore:
+      # Pinned to 6.x until svelte-check supports TypeScript 7 (doc/12-risks.md, D-03).
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly

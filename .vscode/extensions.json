@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "rust-lang.rust-analyzer",
+    "tauri-apps.tauri-vscode",
+    "svelte.svelte-vscode",
+    "tamasfe.even-better-toml",
+    "dbaeumer.vscode-eslint",
+    "editorconfig.editorconfig"
+  ]
+}

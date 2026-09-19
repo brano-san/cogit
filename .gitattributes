@@ -1,0 +1,38 @@
+# Line endings are normalized here, not left to each developer's `core.autocrlf`.
+# A project whose own invariant INV-08 is about line endings cannot be careless with
+# its own. See doc/03-git-semantics.md section 5.
+
+# Everything is LF in the repository and in the working tree. Modern editors on
+# Windows handle LF without complaint, and this keeps diffs free of phantom changes.
+* text=auto eol=lf
+
+# Shell scripts must keep LF no matter what. With CRLF the kernel reads the shebang
+# as `/usr/bin/env bash\r` and reports "bad interpreter: No such file or directory".
+*.sh        text eol=lf
+.githooks/* text eol=lf
+
+# Windows-native scripts are the exception: cmd.exe wants CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Generated, but committed so `npm run check` works without a Rust build.
+frontend/src/lib/ipc/bindings.ts linguist-generated=true
+
+# Lockfiles: collapse them in review, they are noise to read but must stay committed.
+Cargo.lock        linguist-generated=true
+package-lock.json linguist-generated=true
+
+# Binary assets — never diff or merge these as text.
+*.png   binary
+*.ico   binary
+*.icns  binary
+*.jpg   binary
+*.webp  binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.pdb   binary
+
+# Keep documentation and specs out of language statistics; this is a Rust project.
+doc/** linguist-documentation=true

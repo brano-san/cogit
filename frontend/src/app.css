@@ -1,0 +1,205 @@
+/*
+ * Cogit design tokens. Single source of truth: doc/06-design-system.md.
+ *
+ * Two layers: primitives (the palette) and semantics (the role). Components use only
+ * the semantic layer, because a role survives a palette change and `--c-bg-hover` does not.
+ * A literal colour inside a component is a review blocker.
+ */
+
+:root {
+  /* ---- primitives: surfaces ---- */
+  --c-bg-window: #0f1115;
+  --c-bg-panel: #16191f;
+  --c-bg-elevated: #1a1e26;
+  --c-bg-hover: #1e222b;
+  --c-bg-active: #242b38;
+  --c-bg-inset: #0c0e12;
+
+  /* ---- primitives: borders ---- */
+  --c-border: #262b35;
+  --c-border-strong: #323945;
+
+  /* ---- primitives: text ---- */
+  --c-text: #e6edf3;
+  --c-text-muted: #7d8590;
+  --c-text-code: #d1d7e0;
+  --c-text-inverse: #0f1115;
+
+  /* ---- primitives: git status accents ---- */
+  --c-added: #22c55e;
+  --c-modified: #f59e0b;
+  --c-deleted: #ef4444;
+  --c-branch: #38bdf8;
+  --c-stash: #a855f7;
+
+  --c-added-bg: rgba(34, 197, 94, 0.12);
+  --c-modified-bg: rgba(245, 158, 11, 0.12);
+  --c-deleted-bg: rgba(239, 68, 68, 0.12);
+  --c-branch-bg: rgba(56, 189, 248, 0.12);
+  --c-stash-bg: rgba(168, 85, 247, 0.12);
+
+  /* ---- primitives: graph lanes (distinguishable under common colour blindness) ---- */
+  --c-lane-1: #38bdf8;
+  --c-lane-2: #22c55e;
+  --c-lane-3: #f59e0b;
+  --c-lane-4: #a855f7;
+  --c-lane-5: #ec4899;
+  --c-lane-6: #14b8a6;
+  --c-lane-7: #eab308;
+  --c-lane-8: #f97316;
+
+  /* ---- semantic layer: the only tokens components may use ---- */
+  --surface-base: var(--c-bg-window);
+  --surface-panel: var(--c-bg-panel);
+  --surface-raised: var(--c-bg-elevated);
+  --surface-input: var(--c-bg-inset);
+  --state-hover: var(--c-bg-hover);
+  --state-selected: var(--c-bg-active);
+  --state-focus-ring: var(--c-branch);
+
+  --divider: var(--c-border);
+  --field-border: var(--c-border-strong);
+
+  --text-primary: var(--c-text);
+  --text-secondary: var(--c-text-muted);
+  --text-code: var(--c-text-code);
+
+  --status-add: var(--c-added);
+  --status-modify: var(--c-modified);
+  --status-delete: var(--c-deleted);
+  --status-ref: var(--c-branch);
+  --status-stash: var(--c-stash);
+
+  /* ---- typography ---- */
+  --font-ui: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", Consolas, "SF Mono", ui-monospace, monospace;
+
+  --fs-ui: 13px;
+  --fs-dense: 12px;
+  --fs-header: 11px;
+  --fs-code: 12.5px;
+  --fs-status: 11.5px;
+
+  --lh-ui: 20px;
+  --lh-dense: 18px;
+  --lh-code: 18px;
+
+  /* ---- spacing (4px base) ---- */
+  --sp-1: 2px;
+  --sp-2: 4px;
+  --sp-3: 6px;
+  --sp-4: 8px;
+  --sp-5: 12px;
+  --sp-6: 16px;
+  --sp-7: 24px;
+  --sp-8: 32px;
+
+  /* ---- heights ---- */
+  --h-row: 24px;
+  --h-row-dense: 22px;
+  --h-toolbar: 40px;
+  --h-menubar: 28px;
+  --h-statusbar: 24px;
+  --h-panel-hdr: 28px;
+  --h-input: 26px;
+
+  /* ---- radii: nothing above 6px, a dense UI with big radii reads as mushy ---- */
+  --r-sm: 3px;
+  --r-md: 4px;
+  --r-lg: 6px;
+
+  --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.45);
+
+  /* ---- motion: anything over 150ms feels like lag in a developer tool ---- */
+  --t-fast: 80ms;
+  --t-medium: 120ms;
+  --t-dialog: 140ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-fast: 0ms;
+    --t-medium: 0ms;
+    --t-dialog: 0ms;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  background: var(--surface-base);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+  -webkit-font-smoothing: antialiased;
+  /* A Git client is not a web page: text selection is opt-in, per element. */
+  user-select: none;
+  cursor: default;
+}
+
+#app {
+  height: 100%;
+}
+
+/* Keyboard focus must always be visible; `outline: none` makes the app unusable
+   without a mouse. */
+:focus-visible {
+  outline: 1px solid var(--state-focus-ring);
+  outline-offset: -1px;
+}
+
+/* Numeric columns must not jitter when values update. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--fs-code);
+  color: var(--text-code);
+}
+
+.muted {
+  color: var(--text-secondary);
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- scrollbars ---- */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--c-border-strong);
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+  background-clip: content-box;
+}

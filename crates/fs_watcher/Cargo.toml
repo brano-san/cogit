@@ -1,0 +1,26 @@
+[package]
+name = "fs_watcher"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Debounced, filtered filesystem watching for Git repositories."
+
+[dependencies]
+notify.workspace = true
+notify-debouncer-mini.workspace = true
+ignore.workspace = true
+crossbeam-channel.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+serde.workspace = true
+specta.workspace = true
+
+[dev-dependencies]
+test_fixtures.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

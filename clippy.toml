@@ -1,0 +1,5 @@
+# `unwrap` and `expect` are denied workspace-wide (INV-07) but are fine in tests,
+# where a panic is the reporting mechanism.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true

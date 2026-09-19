@@ -1,0 +1,22 @@
+[package]
+name = "graph_engine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Commit DAG topology and lane allocation. Deliberately free of any gix dependency."
+
+[dependencies]
+rayon.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+serde.workspace = true
+specta.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+
+[lints]
+workspace = true

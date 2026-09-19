@@ -1,0 +1,13 @@
+target/
+node_modules/
+frontend/dist/
+src-tauri/gen/
+Cargo.lock
+package-lock.json
+*.svg
+*.png
+*.jpg
+*.ico
+*.woff
+*.woff2
+**/snapshots/*.snap
