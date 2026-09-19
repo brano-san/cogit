@@ -8,7 +8,6 @@ describe("clampFraction", () => {
   });
 
   it("stops a pane from collapsing to nothing", () => {
-    // Dragging a splitter to the edge must not make a panel unrecoverable.
     expect(clampFraction(0)).toBeGreaterThan(0);
     expect(clampFraction(-3)).toBeGreaterThan(0);
   });

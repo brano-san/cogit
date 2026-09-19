@@ -51,8 +51,14 @@ one means editing that document with a justification — not making a local exce
 
 Write clean, self-documenting code. Do NOT write trivial or obvious comments explaining
 what the code does line by line. Add comments ONLY for non-obvious edge cases,
-architectural trade-offs, or safety invariants. Keep docstrings concise — one or two
-lines; the reasoning belongs in `doc/`.
+architectural trade-offs, or safety invariants.
+
+**Hard ceiling: comments must stay under 5% of a file's lines.** Docstrings are one line
+and only where the name does not already say it. Reasoning belongs in `doc/`, not here.
+
+```sh
+cm=$(grep -cE '^[[:space:]]*(//|/*|*)' FILE); tot=$(grep -c '' FILE); echo $((cm*100/tot))%
+```
 
 ## Code style and safety
 

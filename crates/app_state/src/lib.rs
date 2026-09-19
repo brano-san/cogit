@@ -1,8 +1,3 @@
-//! Open repositories, the event bus, credentials and the undo journal.
-//!
-//! The only crate in Cogit holding mutable global state. Everything else is pure
-//! functions and short-lived handles.
-
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -11,16 +6,13 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use tokio::sync::broadcast;
 
-/// Event bus capacity. A slow subscriber lags rather than blocking the sender.
 const EVENT_CHANNEL_CAPACITY: usize = 256;
 
-/// Opaque handle for a repository. Paths never cross the IPC boundary.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, specta::Type,
 )]
 pub struct RepoId(pub u32);
 
-/// Events pushed to the UI without it asking.
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(tag = "type", content = "payload")]
 pub enum AppEvent {
@@ -51,45 +43,32 @@ pub struct OpenRepo {
     pub display_name: String,
 }
 
-/// What the UI needs to show a repository the moment it is opened.
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RepoSummary {
     pub repo: RepoId,
-    /// Absolute path, with `/` separators so the UI never sees a backslash.
     pub root: String,
-    /// Folder name, used as the label in the repository tree.
     pub name: String,
     pub is_bare: bool,
     pub head: git_engine::Head,
     pub branches: Vec<git_engine::Branch>,
     pub tags: Vec<git_engine::Tag>,
-    /// Snapshot at open time; live updates arrive with the filesystem watcher (M1 T1.6).
     pub status: git_engine::RepoStatus,
 }
 
-/// One instalment of the commit graph.
-///
-/// Commits arrive together with their lane placement so the UI never has to compute
-/// layout itself — that would mean shipping the whole graph into the webview
-/// ([INV-02](../../doc/01-architecture.md)).
+/// Commits arrive with their lane placement so the UI never computes layout (INV-02).
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GraphChunk {
     pub commits: Vec<git_engine::CommitRow>,
     pub lanes: Vec<graph_engine::LaneAssignment>,
     pub edges: Vec<graph_engine::GraphEdge>,
-    /// Widest lane used so far, for sizing the graph gutter.
     pub max_lane: u16,
-    /// Set on the final, empty chunk. Without it the panel would spin for ever.
     pub is_last: bool,
 }
 
-/// How many commits travel together. Small enough that the first screen appears at
-/// once, large enough that the IPC overhead stays negligible.
 pub const DEFAULT_CHUNK_SIZE: usize = 200;
 
-/// Application-wide state, shared across every window.
 #[derive(Debug)]
 pub struct AppState {
     repos: RwLock<HashMap<RepoId, OpenRepo>>,
@@ -114,26 +93,16 @@ impl AppState {
         }
     }
 
-    /// Subscribes to the event bus. Dropping the receiver is safe.
     #[must_use]
     pub fn subscribe(&self) -> broadcast::Receiver<AppEvent> {
         self.events.subscribe()
     }
 
-    /// Publishes an event. Having no subscribers is not an error — at startup there are none.
     pub fn emit(&self, event: AppEvent) {
         let _ = self.events.send(event);
     }
 
-    /// Opens the repository containing `path` and registers it.
-    ///
-    /// Blocking by design: `gix` reads the ref store synchronously. The Tauri layer
-    /// wraps this in `spawn_blocking` so the runtime is never stalled
-    /// (`doc/01-architecture.md` section 3).
-    ///
-    /// # Errors
-    /// Propagates [`git_engine::GitError`] when the path encloses no repository or the
-    /// ref store cannot be read. Nothing is registered in that case.
+    /// Blocking by design; the Tauri layer wraps it in `spawn_blocking`.
     pub fn open_repository(&self, path: &Path) -> Result<RepoSummary, git_engine::GitError> {
         let handle = git_engine::RepoHandle::open(path)?;
         let root = handle.root().to_path_buf();
@@ -147,15 +116,12 @@ impl AppState {
             |n| n.to_string_lossy().into_owned(),
         );
 
-        // Discovery collapses any path inside a project onto its root, so the same
-        // repository opened from two different folders must reuse one entry.
         let id = self
             .find_by_root(&root)
             .unwrap_or_else(|| self.register(root.clone(), name.clone()));
 
         Ok(RepoSummary {
             repo: id,
-            // IPC paths always use `/`, on every platform.
             root: root.to_string_lossy().replace('\\', "/"),
             name,
             is_bare: handle.is_bare(),
@@ -166,17 +132,7 @@ impl AppState {
         })
     }
 
-    /// Streams the commit graph of an open repository, chunk by chunk.
-    ///
-    /// Blocking, like [`Self::open_repository`]: the Tauri layer runs it inside
-    /// `spawn_blocking` and forwards each chunk down a `tauri::ipc::Channel`.
-    ///
-    /// `on_chunk` returning `false` abandons the walk. In that case no final chunk is
-    /// sent — a cancelled stream must not look like a finished one.
-    ///
-    /// # Errors
-    /// Returns [`git_engine::GitError::RepoNotFound`] for an unknown id, or whatever
-    /// reading the repository produced.
+    /// `on_chunk` returning `false` abandons the walk; no final chunk is sent.
     pub fn stream_graph(
         &self,
         repo: RepoId,
@@ -188,8 +144,6 @@ impl AppState {
             .ok_or_else(|| git_engine::GitError::RepoNotFound(format!("id {}", repo.0)))?;
         let handle = git_engine::RepoHandle::open(&open.root)?;
 
-        // The cursor carries lane occupancy and colours between chunks, which is what
-        // stops branches changing colour as the user scrolls.
         let mut cursor = graph_engine::LayoutCursor::default();
         let mut cancelled = false;
         let mut max_lane = 0_u16;
@@ -228,7 +182,6 @@ impl AppState {
         Ok(())
     }
 
-    /// Finds an already open repository by its canonical root.
     #[must_use]
     pub fn find_by_root(&self, root: &Path) -> Option<RepoId> {
         self.repos
@@ -238,10 +191,8 @@ impl AppState {
             .map(|r| r.id)
     }
 
-    /// Registers a repository and returns its handle.
     pub fn register(&self, root: PathBuf, display_name: String) -> RepoId {
         let id = RepoId(self.next_repo_id.fetch_add(1, Ordering::Relaxed));
-        // The guard is dropped before emitting so no lock is held across the send.
         self.repos.write().insert(
             id,
             OpenRepo {
@@ -275,7 +226,6 @@ impl AppState {
     }
 }
 
-/// Convenience alias for the shared handle placed into Tauri via `.manage()`.
 pub type SharedState = Arc<AppState>;
 
 #[cfg(test)]
@@ -310,7 +260,6 @@ mod tests {
 
     #[test]
     fn emitting_without_subscribers_is_not_an_error() {
-        // At startup nothing is listening yet; this must not panic or fail.
         let state = AppState::new();
         state.emit(AppEvent::OperationStarted {
             id: 1,

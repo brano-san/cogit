@@ -10,7 +10,6 @@
     height: number;
     firstRow: number;
     lastRow: number;
-    /** Rows the list draws above the first commit; edges and nodes shift by it. */
     rowOffset: number;
   }
 
@@ -20,12 +19,7 @@
   let dpr = $state(typeof window === "undefined" ? 1 : window.devicePixelRatio);
   let frame = 0;
 
-  /**
-   * Edges bucketed by their upper row.
-   *
-   * Scanning the whole array each frame would be O(commits) per frame; at 50 000
-   * commits that alone misses the frame budget.
-   */
+  /** Bucketed by upper row: rescanning every edge each frame misses the frame budget. */
   const edgesByRow = $derived.by(() => {
     const index = new Map<number, GraphEdge[]>();
     for (const edge of edges) {
@@ -36,7 +30,6 @@
     return index;
   });
 
-  /** Lane colours live in CSS so the palette stays in one place. */
   function laneColor(index: number): string {
     const styles = getComputedStyle(document.documentElement);
     return styles.getPropertyValue(`--c-lane-${(index % 8) + 1}`).trim() || "#38bdf8";
@@ -55,8 +48,6 @@
     context.clearRect(0, 0, width, height);
     context.lineWidth = GRAPH.lineWidth;
 
-    // Edges first, then nodes: otherwise lines are drawn across the dots.
-    // Within edges, crossings go underneath so active branches stay legible.
     const band: GraphEdge[] = [];
     for (let row = firstRow - 1; row <= lastRow; row++) {
       const bucket = edgesByRow.get(row);
@@ -73,7 +64,6 @@
 
       context.strokeStyle = laneColor(edge.color);
       context.beginPath();
-      // Half-pixel offset keeps a 1px line on one pixel instead of smeared across two.
       context.moveTo(x1 + 0.5, y1 + 0.5);
       if (x1 === x2) {
         context.lineTo(x2 + 0.5, y2 + 0.5);
@@ -113,21 +103,17 @@
   }
 
   function schedule() {
-    // Drawing straight from a scroll handler desynchronises the canvas from the DOM;
-    // one draw per frame keeps them together (doc/07-graph-rendering.md).
     cancelAnimationFrame(frame);
     frame = requestAnimationFrame(draw);
   }
 
   $effect(() => {
-    // Touch every input so the effect reruns when any of them changes.
     void [edges, nodes, scrollTop, width, height, dpr, rowOffset];
     schedule();
     return () => cancelAnimationFrame(frame);
   });
 
   $effect(() => {
-    // Moving the window to a monitor with a different scaling changes the ratio.
     const query = window.matchMedia(`(resolution: ${dpr}dppx)`);
     const onChange = () => {
       dpr = window.devicePixelRatio;

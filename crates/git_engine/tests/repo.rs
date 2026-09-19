@@ -1,12 +1,5 @@
-// Integration tests are test code by definition, but `allow-unwrap-in-tests` in
-// clippy.toml only covers the bodies of `#[test]` functions — helpers beside them are
-// still linted. Panicking is how a test reports failure, so allow it for the file.
+// clippy.toml's allow-unwrap-in-tests does not reach helpers beside `#[test]` fns.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-
-//! Reading a repository through `gix`: discovery, HEAD and branches.
-//!
-//! Every state a real repository can be in must be answered without panicking (INV-07),
-//! so each fixture from M9 that represents a state has a test here.
 
 use git_engine::{BranchKind, Head, RepoHandle};
 
@@ -22,7 +15,6 @@ fn open_discovers_the_repository_from_its_root() {
 
 #[test]
 fn open_discovers_the_repository_from_a_subdirectory() {
-    // Users open a project by pointing at any folder inside it, not at the .git parent.
     let f = test_fixtures::unicode_paths().unwrap();
     let nested = f.path().join("каталог");
     let repo = RepoHandle::open(&nested).unwrap();
@@ -64,7 +56,6 @@ fn head_reports_a_detached_state() {
 
 #[test]
 fn head_reports_an_unborn_branch_in_an_empty_repository() {
-    // The case that makes naive clients crash on a freshly created repository.
     let f = test_fixtures::empty().unwrap();
     let repo = RepoHandle::open(f.path()).unwrap();
     match repo.head().unwrap() {
@@ -89,8 +80,6 @@ fn branches_lists_every_local_branch() {
 
 #[test]
 fn branches_come_back_sorted_by_name() {
-    // The UI renders this list directly, so the order has to be stable rather than
-    // whatever order the ref backend happens to return.
     let f = test_fixtures::branched().unwrap();
     let repo = RepoHandle::open(f.path()).unwrap();
     let names: Vec<String> = repo
@@ -133,8 +122,6 @@ fn branches_carry_the_commit_they_point_at() {
 
 #[test]
 fn branches_of_an_empty_repository_are_empty_not_an_error() {
-    // An unborn branch is not a branch yet; returning an error here would make the UI
-    // show a failure for a perfectly normal repository.
     let f = test_fixtures::empty().unwrap();
     let repo = RepoHandle::open(f.path()).unwrap();
     assert!(repo.branches().unwrap().is_empty());
@@ -157,12 +144,8 @@ fn reading_a_conflicted_repository_does_not_panic() {
     assert!(repo.branches().is_ok());
 }
 
-/// Regression guard for R-22.
-///
-/// `gix` honours `GIT_INDEX_FILE` by default, which is correct for a hook and wrong for
-/// a client. Without the guard, Cogit launched from a hook reads a different repository
-/// than the user opened. `Command::env` sets the variable for the child only, which is
-/// the one way to test this without the unsafe, racy `std::env::set_var`.
+/// Regression guard for R-22: `gix` honours `GIT_INDEX_FILE`, so Cogit launched from
+/// a hook would read a different repository than the user opened.
 #[test]
 fn an_inherited_git_index_file_is_ignored() {
     let f = test_fixtures::linear(3).unwrap();

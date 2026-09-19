@@ -7,17 +7,13 @@ import {
   type RepoId,
 } from "$lib/ipc";
 
-/** A commit paired with where the backend placed it. */
 export interface GraphRow {
   commit: CommitRow;
   lane: LaneAssignment;
 }
 
 class GraphStore {
-  /**
-   * `$state.raw` rather than deep state: 50 000 commits would otherwise become 50 000
-   * reactive proxies. Chunks replace the array instead of mutating it.
-   */
+  /** `$state.raw`: 50 000 commits would otherwise become 50 000 reactive proxies. */
   rows = $state.raw<GraphRow[]>([]);
   edges = $state.raw<GraphEdge[]>([]);
   maxLane = $state(0);
@@ -25,10 +21,7 @@ class GraphStore {
   complete = $state(false);
   error = $state<CogitError | null>(null);
 
-  /**
-   * Discriminates concurrent loads. A chunk from a superseded stream is dropped rather
-   * than mixed into the current repository's graph.
-   */
+  /** Discriminates concurrent loads; chunks from a superseded stream are dropped. */
   #generation = 0;
 
   async load(repo: RepoId): Promise<void> {

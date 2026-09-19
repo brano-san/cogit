@@ -1,10 +1,3 @@
-/**
- * The repository currently shown in the window.
- *
- * M3 replaces this with a list of repositories and grouping; for the vertical slice one
- * open repository is enough to prove the chain end to end.
- */
-
 import { headLabel, splitBranches } from "$lib/format";
 import { CogitError, openRepository, type RepoSummary } from "$lib/ipc";
 
@@ -14,7 +7,6 @@ class RepositoryStore {
   error = $state<CogitError | null>(null);
   busy = $state(false);
 
-  /** Branches split for the References panel, which shows them under separate headings. */
   get localBranches() {
     return splitBranches(this.current?.branches ?? []).local;
   }
@@ -23,7 +15,6 @@ class RepositoryStore {
     return splitBranches(this.current?.branches ?? []).remote;
   }
 
-  /** Short description of HEAD for the status bar. */
   get headLabel(): string {
     return headLabel(this.current?.head);
   }
@@ -34,8 +25,6 @@ class RepositoryStore {
     try {
       this.current = await openRepository(path);
     } catch (err) {
-      // Anything that is not a CogitError is a bug in the bridge, not a Git failure —
-      // wrap it rather than swallowing it, so it still reaches the user.
       this.error =
         err instanceof CogitError
           ? err

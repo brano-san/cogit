@@ -3,8 +3,6 @@
 // still linted. Panicking is how a test reports failure, so allow it for the file.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-//! Working tree status: what the `Working Tree / Index` row of the graph reports.
-
 use git_engine::RepoHandle;
 use test_fixtures::Fixture;
 
@@ -58,8 +56,6 @@ fn a_modified_tracked_file_is_counted_as_unstaged() {
 
 #[test]
 fn a_file_changed_both_before_and_after_staging_counts_twice() {
-    // Git tracks the index and the working tree separately, and so must the row:
-    // the file has something staged *and* something not.
     let f = test_fixtures::linear(2).unwrap();
     f.write_file("file0.txt", "staged version\n").unwrap();
     f.git(&["add", "--", "file0.txt"]).unwrap();
@@ -99,8 +95,6 @@ fn an_empty_repository_has_a_status() {
 
 #[test]
 fn a_bare_repository_reports_a_clean_empty_status() {
-    // There is no working tree to compare against; erroring here would break the
-    // graph panel for a perfectly valid repository.
     let f = test_fixtures::bare().unwrap();
     assert!(status_of(&f).is_clean());
 }

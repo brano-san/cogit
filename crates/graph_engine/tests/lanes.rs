@@ -3,16 +3,8 @@
 // still linted. Panicking is how a test reports failure, so allow it for the file.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-//! Lane allocation for the commit graph.
-//!
-//! Snapshots are ASCII drawings rather than dumps of the structures: a regression in
-//! graph layout has to be visible to a human reading the diff, which a list of numbers
-//! is not (`doc/09-testing.md` section 5).
-
 use graph_engine::{CommitNode, GraphLayout, LayoutCursor, NodeKind, layout};
 
-/// Builds commits from a compact description: `("a", &["b", "c"])` is commit `a` with
-/// parents `b` and `c`. Order is the topological order the graph will be drawn in.
 fn commits(spec: &[(&str, &[&str])]) -> Vec<CommitNode> {
     spec.iter()
         .map(|(oid, parents)| CommitNode {
@@ -22,7 +14,6 @@ fn commits(spec: &[(&str, &[&str])]) -> Vec<CommitNode> {
         .collect()
 }
 
-/// Draws the layout the way `git log --graph` would, so a snapshot diff is readable.
 fn render(nodes: &[CommitNode], out: &GraphLayout) -> String {
     let width = usize::from(out.max_lane) + 1;
     let mut text = String::new();
@@ -31,7 +22,6 @@ fn render(nodes: &[CommitNode], out: &GraphLayout) -> String {
         let row_u32 = u32::try_from(row).unwrap();
         let placement = out.lanes.iter().find(|l| l.row == row_u32).unwrap();
 
-        // Everything drawn at this row: the node itself plus any line arriving here.
         let mut occupied = vec![false; width];
         occupied[usize::from(placement.lane)] = true;
         for edge in out.edges.iter().filter(|e| e.to_row == row_u32) {
@@ -64,7 +54,6 @@ fn render(nodes: &[CommitNode], out: &GraphLayout) -> String {
             placement.color
         ));
 
-        // The band below this row, showing which lines change lane.
         let band: Vec<String> = out
             .edges
             .iter()
@@ -99,7 +88,6 @@ fn linear_history_stays_in_a_single_lane() {
 
 #[test]
 fn the_first_parent_keeps_the_lane_of_its_child() {
-    // Keeps mainline history vertical instead of zig-zagging across lanes.
     let (_, out) = run(&[("m", &["a", "b"]), ("a", &["r"]), ("b", &["r"]), ("r", &[])]);
     let merge_lane = out.lanes[0].lane;
     let first_parent_lane = out.lanes[1].lane;
@@ -122,7 +110,6 @@ fn a_commit_with_two_parents_is_marked_as_a_merge() {
 fn a_diamond_widens_to_two_lanes_and_comes_back() {
     let (_, out) = run(&[("m", &["a", "b"]), ("a", &["r"]), ("b", &["r"]), ("r", &[])]);
     assert_eq!(out.max_lane, 1, "a diamond needs exactly two lanes");
-    // The shared root returns to the mainline lane.
     assert_eq!(out.lanes[3].lane, 0);
 }
 
@@ -136,15 +123,12 @@ fn an_octopus_merge_gathers_three_parents() {
         ("r", &[]),
     ]);
     assert_eq!(out.lanes[0].kind, NodeKind::Merge);
-    // Three lines leave the merge downwards.
     let leaving = out.edges.iter().filter(|e| e.from_row == 0).count();
     assert_eq!(leaving, 3);
 }
 
 #[test]
 fn independent_roots_are_never_joined() {
-    // They may well share a lane once the first one ends — `git log --graph` does the
-    // same. What must not happen is an edge implying one descends from the other.
     let (_, out) = run(&[("a", &[]), ("b", &[])]);
     assert!(
         out.edges.is_empty(),
@@ -155,7 +139,6 @@ fn independent_roots_are_never_joined() {
 
 #[test]
 fn a_lane_is_reused_once_its_branch_has_ended() {
-    // Without reuse the graph creeps rightwards forever on a busy repository.
     let (_, out) = run(&[
         ("m", &["a", "b"]),
         ("a", &["r"]),
@@ -172,8 +155,6 @@ fn a_lane_is_reused_once_its_branch_has_ended() {
 
 #[test]
 fn colours_survive_the_chunk_boundary() {
-    // The graph streams in chunks; a branch that changes colour mid-scroll is a bug
-    // the user sees immediately (doc/07-graph-rendering.md).
     let all = commits(&[("m", &["a", "b"]), ("a", &["r"]), ("b", &["r"]), ("r", &[])]);
     let mut whole = LayoutCursor::default();
     let reference = layout(&all, &mut whole);
@@ -211,8 +192,6 @@ fn an_empty_chunk_produces_an_empty_layout() {
     assert!(out.edges.is_empty());
 }
 
-// --- snapshots ---------------------------------------------------------------
-
 #[test]
 fn snapshot_diamond() {
     let (nodes, out) = run(&[("m", &["a", "b"]), ("a", &["r"]), ("b", &["r"]), ("r", &[])]);
@@ -239,7 +218,6 @@ fn snapshot_two_roots() {
 
 #[test]
 fn snapshot_nested_branches() {
-    // Several branches open and close, exercising lane reuse and crossings.
     let (nodes, out) = run(&[
         ("h", &["g", "f"]),
         ("g", &["e"]),

@@ -1,8 +1,4 @@
-//! Line ending detection and normalization (INV-08).
-//!
-//! Without this, a typical Windows checkout shows every line of every file as changed.
-//! The original ending is preserved so the status bar can report it and so patches
-//! generated for partial staging can be written back correctly.
+//! Without normalization a Windows checkout shows every line of every file as changed (INV-08).
 
 use serde::Serialize;
 
@@ -11,10 +7,7 @@ pub enum LineEnding {
     Lf,
     Crlf,
     Cr,
-    /// More than one style in the same file — a frequent source of phantom diffs,
-    /// so it is surfaced rather than silently normalized away.
     Mixed,
-    /// No line break at all (single-line or empty file).
     None,
 }
 
@@ -22,11 +15,9 @@ pub enum LineEnding {
 pub struct EolInfo {
     pub old: LineEnding,
     pub new: LineEnding,
-    /// True when the comparison was performed on normalized text.
     pub normalized: bool,
 }
 
-/// Detects which line ending style a text uses.
 #[must_use]
 pub fn detect_line_ending(text: &str) -> LineEnding {
     let bytes = text.as_bytes();
@@ -58,10 +49,6 @@ pub fn detect_line_ending(text: &str) -> LineEnding {
     }
 }
 
-/// Converts every line ending to `\n`.
-///
-/// Returns a borrowed string when nothing needs changing, so the common LF case costs
-/// no allocation.
 #[must_use]
 pub fn normalize_line_endings(text: &str) -> std::borrow::Cow<'_, str> {
     if !text.contains('\r') {

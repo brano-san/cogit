@@ -3,12 +3,9 @@
 // still linted. Panicking is how a test reports failure, so allow it for the file.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-//! Walking history for the commit graph.
-
 use git_engine::{CommitRow, RepoHandle};
 use test_fixtures::Fixture;
 
-/// Collects the whole walk, remembering how it was chunked.
 fn walk(repo: &RepoHandle, chunk_size: usize) -> (Vec<CommitRow>, Vec<usize>) {
     let mut all = Vec::new();
     let mut sizes = Vec::new();
@@ -91,7 +88,6 @@ fn the_summary_is_only_the_first_line() {
 
 #[test]
 fn history_of_branches_not_reachable_from_head_is_included() {
-    // The graph panel shows every branch, not just the checked-out one.
     let f = test_fixtures::branched().unwrap();
     let (commits, _) = walk(&open(&f), 100);
     let dev_tip = f.oid("dev").unwrap();
@@ -112,7 +108,6 @@ fn chunks_are_no_larger_than_requested() {
 
 #[test]
 fn returning_false_stops_the_walk_early() {
-    // Cancellation is how the UI abandons a load when the user switches repository.
     let f = test_fixtures::linear(50).unwrap();
     let repo = open(&f);
     let mut seen = 0;
@@ -142,7 +137,6 @@ fn a_repository_with_two_roots_walks_both() {
 
 #[test]
 fn every_commit_appears_exactly_once() {
-    // A diamond reaches the root by two routes; the walk must not emit it twice.
     let f = test_fixtures::diamond().unwrap();
     let (commits, _) = walk(&open(&f), 100);
     let mut oids: Vec<&str> = commits.iter().map(|c| c.oid.as_str()).collect();

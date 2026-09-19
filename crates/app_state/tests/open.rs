@@ -3,8 +3,6 @@
 // still linted. Panicking is how a test reports failure, so allow it for the file.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-//! Opening repositories through the application state.
-
 use app_state::AppState;
 use git_engine::Head;
 
@@ -44,8 +42,6 @@ fn the_summary_names_the_repository_after_its_folder() {
 
 #[test]
 fn opening_the_same_repository_twice_reuses_one_entry() {
-    // Users double-click a project in the recent list; a second entry for the same
-    // path would show the repository twice in the tree.
     let f = test_fixtures::linear(1).unwrap();
     let state = AppState::new();
     let first = state.open_repository(f.path()).unwrap();

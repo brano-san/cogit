@@ -1,20 +1,10 @@
-//! Programmatic generation of temporary Git repositories for tests.
-//!
-//! Fixtures are built with the **system `git`**, not with `gix`: tests must check our
-//! code against how Git actually behaves, not against what `gix` believes about it.
-//!
-//! Full inventory of required shapes: `doc/09-testing.md` section 4.
-
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use tempfile::TempDir;
 
-/// Fixed identity so commit OIDs are reproducible across machines.
 pub const AUTHOR_NAME: &str = "Cogit Fixture";
 pub const AUTHOR_EMAIL: &str = "fixture@cogit.test";
-/// Fixed timestamp (2026-01-01T00:00:00Z) — snapshot tests depend on stable OIDs.
 pub const BASE_TIMESTAMP: i64 = 1_767_225_600;
-/// Spacing between successive commit timestamps.
 const STEP_SECONDS: i64 = 60;
 
 #[derive(Debug, thiserror::Error)]
@@ -31,19 +21,13 @@ pub enum FixtureError {
 
 pub type Result<T> = std::result::Result<T, FixtureError>;
 
-/// A temporary repository. The directory is removed when this value is dropped,
-/// including when a test panics.
 #[derive(Debug)]
 pub struct Fixture {
     dir: TempDir,
-    /// Extra directories kept alive for the lifetime of the fixture — a submodule
-    /// source or a linked worktree lives outside the repository but must not be
-    /// cleaned up before it.
     _aux: Vec<TempDir>,
 }
 
 impl Fixture {
-    /// Creates an empty initialised repository with a hermetic environment.
     pub fn init() -> Result<Self> {
         let dir = TempDir::new()?;
         let fixture = Self {
@@ -52,8 +36,6 @@ impl Fixture {
         };
         fixture.git(&["init", "--initial-branch=main"])?;
 
-        // Written as a file rather than through four `git config` calls: each call is
-        // a process launch, and on Windows those dominate fixture setup time.
         std::fs::write(
             fixture.git_dir().join("config"),
             format!(
@@ -81,9 +63,6 @@ impl Fixture {
         self.dir.path()
     }
 
-    /// Location of the Git directory.
-    ///
-    /// A bare repository has no `.git` subdirectory — the root itself is the git dir.
     #[must_use]
     pub fn git_dir(&self) -> PathBuf {
         let nested = self.dir.path().join(".git");
@@ -94,15 +73,10 @@ impl Fixture {
         }
     }
 
-    /// Runs `git` in the fixture. Use for commands that do not create a commit.
     pub fn git(&self, args: &[&str]) -> Result<String> {
         self.run(args, None)
     }
 
-    /// Runs a `git` command that creates a commit, pinning its timestamp.
-    ///
-    /// `index` positions the commit on the fixed timeline, so repeated runs of the same
-    /// fixture produce byte-identical objects and therefore identical OIDs.
     pub fn git_at(&self, index: i64, args: &[&str]) -> Result<String> {
         self.run(args, Some(index))
     }
@@ -111,7 +85,6 @@ impl Fixture {
         run_git(self.dir.path(), args, date_index)
     }
 
-    /// Writes a file and commits it with a deterministic timestamp.
     pub fn commit_file(&self, index: i64, name: &str, contents: &str) -> Result<String> {
         let target = self.dir.path().join(name);
         if let Some(parent) = target.parent() {
@@ -123,13 +96,11 @@ impl Fixture {
         self.oid("HEAD")
     }
 
-    /// Commits whatever is already staged, with a deterministic timestamp.
     pub fn commit_staged(&self, index: i64, message: &str) -> Result<String> {
         self.git_at(index, &["commit", "-m", message])?;
         self.oid("HEAD")
     }
 
-    /// Writes a file into the working tree without staging or committing it.
     pub fn write_file(&self, name: &str, contents: &str) -> Result<()> {
         let target = self.dir.path().join(name);
         if let Some(parent) = target.parent() {
@@ -139,7 +110,6 @@ impl Fixture {
         Ok(())
     }
 
-    /// Creates a merge commit with a deterministic timestamp.
     pub fn merge(&self, index: i64, refs: &[&str], message: &str) -> Result<String> {
         let mut args = vec!["merge", "--no-edit", "-m", message];
         args.extend_from_slice(refs);
@@ -152,28 +122,19 @@ impl Fixture {
         self.oid("HEAD")
     }
 
-    /// Resolves a revision to a full OID.
     pub fn oid(&self, rev: &str) -> Result<String> {
         Ok(self.git(&["rev-parse", rev])?.trim().to_owned())
     }
 
-    /// Surrenders the temporary directory so another fixture can keep it alive.
     fn into_temp_dir(self) -> TempDir {
         self.dir
     }
 
-    /// Path in the form Git wants for a local URL: forward slashes on every platform.
     fn url_path(&self) -> String {
         self.dir.path().to_string_lossy().replace('\\', "/")
     }
 }
 
-/// Variables through which an outer Git run reaches into any `git` it spawns.
-///
-/// Git sets these for its hooks. If a fixture inherits them, `current_dir` is ignored
-/// and every command lands in the **caller's** repository — a fixture running from a
-/// pre-commit hook would commit into the real project. They are cleared, not overridden,
-/// so an unset variable stays unset.
 const AMBIENT_GIT_VARS: &[&str] = &[
     "GIT_DIR",
     "GIT_WORK_TREE",
@@ -185,18 +146,12 @@ const AMBIENT_GIT_VARS: &[&str] = &[
     "GIT_PREFIX",
     "GIT_NAMESPACE",
     "GIT_CEILING_DIRECTORIES",
-    // `-c key=value` reaches subprocesses through this one.
     "GIT_CONFIG_PARAMETERS",
     "GIT_CONFIG_COUNT",
-    // Nothing interactive may open while tests run.
     "GIT_EDITOR",
     "GIT_SEQUENCE_EDITOR",
 ];
 
-/// Builds a fully isolated `git` invocation.
-///
-/// The single place where isolation is configured, so it cannot drift between the
-/// plain and the stdin-fed call sites.
 fn git_command(cwd: &Path) -> Command {
     let mut cmd = Command::new("git");
     cmd.current_dir(cwd)
@@ -219,8 +174,6 @@ fn git_command(cwd: &Path) -> Command {
     cmd
 }
 
-/// The single place that launches `git`, so environment isolation cannot drift between
-/// call sites. Free-standing because some fixtures run `git` outside any one repository.
 fn run_git(cwd: &Path, args: &[&str], date_index: Option<i64>) -> Result<String> {
     let mut cmd = git_command(cwd);
     cmd.args(args);
@@ -242,17 +195,14 @@ fn run_git(cwd: &Path, args: &[&str], date_index: Option<i64>) -> Result<String>
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
-/// An initialised repository with no commits at all.
 pub fn empty() -> Result<Fixture> {
     Fixture::init()
 }
 
-/// A bare repository: history without a working tree.
 pub fn bare() -> Result<Fixture> {
     let source = linear(3)?;
     let dir = TempDir::new()?;
     let src = source.path().to_string_lossy().into_owned();
-    // Cloning rather than `init --bare` keeps the deterministic history from `linear`.
     run_git(dir.path(), &["clone", "--bare", "--", &src, "."], None)?;
     Ok(Fixture {
         dir,
@@ -260,14 +210,12 @@ pub fn bare() -> Result<Fixture> {
     })
 }
 
-/// HEAD pointing straight at a commit instead of a branch.
 pub fn detached_head() -> Result<Fixture> {
     let f = linear(3)?;
     f.git(&["switch", "--detach", "HEAD~1"])?;
     Ok(f)
 }
 
-/// A merge stopped halfway by a conflict, with all three stages left in the index.
 pub fn conflicted() -> Result<Fixture> {
     let f = Fixture::init()?;
     f.commit_file(0, "conflict.txt", "original line\n")?;
@@ -278,8 +226,6 @@ pub fn conflicted() -> Result<Fixture> {
     f.git(&["switch", "main"])?;
     f.commit_file(2, "conflict.txt", "changed by main\n")?;
 
-    // This merge is *expected* to fail — an unfinished merge is the whole point of the
-    // fixture, so a non-zero exit here is success, not an error to propagate.
     let _ = f.git_at(3, &["merge", "--no-edit", "dev"]);
     Ok(f)
 }
@@ -295,10 +241,8 @@ pub fn crlf_files() -> Result<Fixture> {
     Ok(f)
 }
 
-/// A commit that renames a file without touching its content.
 pub fn renames() -> Result<Fixture> {
     let f = Fixture::init()?;
-    // Enough content that rename detection is unambiguous rather than a coin flip.
     let body = (0..20).map(|i| format!("line {i}\n")).collect::<String>();
     f.commit_file(0, "old-name.txt", &body)?;
     f.git(&["mv", "old-name.txt", "new-name.txt"])?;
@@ -306,18 +250,14 @@ pub fn renames() -> Result<Fixture> {
     Ok(f)
 }
 
-/// A commit whose only change is the executable bit.
 pub fn filemode_change() -> Result<Fixture> {
     let f = Fixture::init()?;
     f.commit_file(0, "script.sh", "#!/bin/sh\necho hello\n")?;
-    // Windows does not carry the executable bit in the working tree, so the mode is
-    // set directly in the index. This is also how Git itself records the change.
     f.git(&["update-index", "--chmod=+x", "script.sh"])?;
     f.commit_staged(1, "make script.sh executable")?;
     Ok(f)
 }
 
-/// Paths that break naive path handling: non-ASCII, spaces, nesting.
 pub fn unicode_paths() -> Result<Fixture> {
     let f = Fixture::init()?;
     f.commit_file(0, "файл.txt", "кириллица в содержимом\n")?;
@@ -326,37 +266,26 @@ pub fn unicode_paths() -> Result<Fixture> {
     Ok(f)
 }
 
-/// `n` stashes on top of a small history, working tree left clean.
 pub fn with_stashes(n: i64) -> Result<Fixture> {
     let f = linear(2)?;
     for i in 0..n {
         f.write_file("work-in-progress.txt", &format!("unfinished work {i}\n"))?;
-        // `-u` is required: the file is untracked, and a plain stash would skip it
-        // and then fail with "no local changes to save".
         f.git_at(10 + i, &["stash", "push", "-u", "-m", &format!("wip {i}")])?;
     }
     Ok(f)
 }
 
-/// A long linear history, built for benchmarking rather than for reading.
-///
-/// Every commit touches the same single file, so the tree stays tiny and checking out
-/// 10 000 commits costs nothing.
 pub fn stress(n: i64) -> Result<Fixture> {
     let f = Fixture::init()?;
-    // A loop of `git commit` would launch two processes per commit; at ten thousand
-    // commits that is minutes on Windows. fast-import does the whole history in one.
     run_git_stdin(
         f.path(),
         &["fast-import", "--quiet"],
         &fast_import_stream(n),
     )?;
-    // fast-import writes objects and refs but leaves the working tree empty.
     f.git(&["reset", "--hard", "main"])?;
     Ok(f)
 }
 
-/// Builds a fast-import stream for `n` linear commits.
 fn fast_import_stream(n: i64) -> String {
     let mut stream = String::new();
     for i in 0..n {
@@ -373,7 +302,6 @@ fn fast_import_stream(n: i64) -> String {
             "committer {AUTHOR_NAME} <{AUTHOR_EMAIL}> {stamp} +0000\n"
         ));
         stream.push_str(&format!("data {}\n{message}\n", message.len()));
-        // `from` must follow the commit message, per the fast-import grammar.
         if i > 0 {
             stream.push_str(&format!("from :{i}\n"));
         }
@@ -383,7 +311,6 @@ fn fast_import_stream(n: i64) -> String {
     stream
 }
 
-/// Runs `git` with something fed to its standard input.
 fn run_git_stdin(cwd: &Path, args: &[&str], input: &str) -> Result<String> {
     use std::io::Write as _;
     use std::process::Stdio;
@@ -397,8 +324,6 @@ fn run_git_stdin(cwd: &Path, args: &[&str], input: &str) -> Result<String> {
 
     if let Some(mut stdin) = child.stdin.take() {
         stdin.write_all(input.as_bytes())?;
-        // Dropping the handle closes the pipe, which is how fast-import learns the
-        // stream has ended; without it the child waits forever.
     }
 
     let output = child.wait_with_output()?;
@@ -412,7 +337,6 @@ fn run_git_stdin(cwd: &Path, args: &[&str], input: &str) -> Result<String> {
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
-/// A parent repository with an initialised submodule at `vendor/lib`.
 pub fn with_submodule() -> Result<Fixture> {
     let source = linear(2)?;
     let source_url = source.url_path();
@@ -420,9 +344,6 @@ pub fn with_submodule() -> Result<Fixture> {
     let mut f = Fixture::init()?;
     f.commit_file(0, "README.md", "parent repository\n")?;
 
-    // Git 2.38 and later refuse submodules over `file://` by default, as a fix for
-    // CVE-2022-39253. The allowance is scoped to this single command rather than
-    // written into the repository config, so the fixture stays representative.
     f.git(&[
         "-c",
         "protocol.file.allow=always",
@@ -434,29 +355,23 @@ pub fn with_submodule() -> Result<Fixture> {
     ])?;
     f.commit_staged(1, "add vendor/lib submodule")?;
 
-    // The submodule was cloned from this directory and still refers to it.
     f._aux.push(source.into_temp_dir());
     Ok(f)
 }
 
-/// A repository with one linked worktree on its own branch.
 pub fn with_worktree() -> Result<Fixture> {
     let mut f = linear(3)?;
     let aux = TempDir::new()?;
-    // `worktree add` insists the target does not exist yet, so point at a child of
-    // the temporary directory rather than the directory itself.
     let target = aux
         .path()
         .join("linked")
         .to_string_lossy()
         .replace('\\', "/");
-    // Git forbids two checkouts of the same branch, so the worktree gets its own.
     f.git(&["worktree", "add", "-b", "feature-wt", &target])?;
     f._aux.push(aux);
     Ok(f)
 }
 
-/// A repository with `n` commits in a single line.
 pub fn linear(n: i64) -> Result<Fixture> {
     let fixture = Fixture::init()?;
     for i in 0..n {
@@ -465,7 +380,6 @@ pub fn linear(n: i64) -> Result<Fixture> {
     Ok(fixture)
 }
 
-/// `main` with a `dev` branch that diverged and was never merged.
 pub fn branched() -> Result<Fixture> {
     let f = Fixture::init()?;
     f.commit_file(0, "base.txt", "base\n")?;
@@ -479,7 +393,6 @@ pub fn branched() -> Result<Fixture> {
     Ok(f)
 }
 
-/// The classic diamond: history splits in two and merges back.
 pub fn diamond() -> Result<Fixture> {
     let f = Fixture::init()?;
     f.commit_file(0, "base.txt", "base\n")?;
@@ -494,7 +407,6 @@ pub fn diamond() -> Result<Fixture> {
     Ok(f)
 }
 
-/// A single merge commit joining `main` and two side branches — three parents.
 pub fn octopus() -> Result<Fixture> {
     let f = Fixture::init()?;
     f.commit_file(0, "base.txt", "base\n")?;
@@ -514,15 +426,12 @@ pub fn octopus() -> Result<Fixture> {
     Ok(f)
 }
 
-/// Two histories with no common ancestor, as produced by an orphan branch.
 pub fn two_roots() -> Result<Fixture> {
     let f = Fixture::init()?;
     f.commit_file(0, "main.txt", "main history\n")?;
     f.commit_file(1, "main-2.txt", "more main\n")?;
 
     f.git(&["switch", "--orphan", "orphan"])?;
-    // An orphan branch keeps the old index; clearing it makes the new root genuinely
-    // independent instead of a copy of main with no parent.
     f.git(&["rm", "-rf", "--cached", "--ignore-unmatch", "."])?;
     f.commit_file(2, "orphan.txt", "unrelated history\n")?;
 
@@ -549,7 +458,6 @@ mod tests {
 
     #[test]
     fn commit_oids_are_deterministic() {
-        // Snapshot tests of the graph depend on this holding across runs and machines.
         let a = linear(3).unwrap().oid("HEAD").unwrap();
         let b = linear(3).unwrap().oid("HEAD").unwrap();
         assert_eq!(a, b);

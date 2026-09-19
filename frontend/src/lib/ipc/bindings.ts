@@ -4,65 +4,30 @@ import { invoke as __TAURI_INVOKE, Channel } from "@tauri-apps/api/core";
 
 /** Commands */
 export const commands = {
-	/**
-	 *  Returns application metadata.
-	 * 
-	 *  This is the walking-skeleton command: it proves the whole
-	 *  Rust → specta → TypeScript → Svelte chain is wired correctly.
-	 */
 	appInfo: () => __TAURI_INVOKE<AppInfo>("app_info"),
-	/**
-	 *  Opens the repository containing `path` and returns what the UI needs to render it.
-	 * 
-	 *  # Errors
-	 *  Returns [`GitError`] if the path encloses no repository or its refs cannot be read.
-	 */
 	openRepository: (path: string) => typedError<RepoSummary, GitError>(__TAURI_INVOKE("open_repository", { path })),
-	/**
-	 *  Streams the commit graph of an open repository into `on_chunk`.
-	 * 
-	 *  A channel rather than a returned array: a repository with 50 000 commits would
-	 *  freeze the webview for seconds if serialised in one go ([INV-02]).
-	 * 
-	 *  Cancellation is implicit — when the UI drops the channel, `send` fails and the walk
-	 *  stops. That is exactly what should happen when the user switches repository.
-	 * 
-	 *  # Errors
-	 *  Returns [`GitError`] if the repository is unknown or cannot be read.
-	 */
+	/**  A channel rather than a return value (INV-02); dropping it cancels the walk. */
 	loadCommits: (repo: RepoId, onChunk: Channel<GraphChunk>) => typedError<null, GitError>(__TAURI_INVOKE("load_commits", { repo, onChunk })),
 };
 
 /* Types */
-/**
- *  Static facts about the running application, shown in the status bar and in bug reports.
- * 
- *  `rename_all = "camelCase"` is mandatory on every DTO: specta follows serde for field
- *  names, and mixing `snake_case` and `camelCase` across the IPC boundary is a constant
- *  source of silent `undefined` reads in the UI.
- */
+/**  specta follows serde, so a DTO without `camelCase` reads `undefined` in the UI. */
 export type AppInfo = {
 	version: string,
-	/**  Absolute path of the current log file, so the user can open it from the UI. */
 	logPath: string,
-	/**  Whether this is a debug build. The UI shows developer affordances only then. */
 	debugBuild: boolean,
 };
 
 export type Branch = {
-	/**  Short form shown in the UI, such as `main` or `origin/main`. */
 	name: string,
-	/**  Full ref name, such as `refs/heads/main`. */
 	fullName: string,
 	kind: BranchKind,
-	/**  Commit the branch points at, as hex. */
 	oid: string,
 	isHead: boolean,
 };
 
 export type BranchKind = "local" | "remote";
 
-/**  One row of the commit graph. */
 export type CommitRow = {
 	oid: string,
 	/**  Git order: the first parent is the mainline, which lane allocation relies on. */
@@ -80,55 +45,26 @@ export type CommitRow = {
 	tzOffsetMinutes: number,
 };
 
-/**  How an edge between two rows is drawn. */
-export type EdgeKind = 
-/**  Straight continuation within one lane. */
-"direct" | 
-/**  Into a merge commit. */
-"merge" | 
-/**  Passing through without touching this row. */
-"crossing";
+export type EdgeKind = "direct" | "merge" | "crossing";
 
-/**
- *  A `git` CLI invocation that exited with a non-zero status.
- * 
- *  Every field is carried to the UI verbatim.
- */
 export type GitCommandError = {
-	/**  The full command line as it would have been typed, for the "Copy Output" action. */
 	command: string,
-	/**  `None` when the process was terminated by a signal instead of exiting. */
 	exitCode: number | null,
 	stdout: string,
 	stderr: string,
 };
 
-/**
- *  Everything that can go wrong while talking to a repository.
- * 
- *  Variants are distinct so the UI can react differently: a CLI failure opens the
- *  Git Error Dialog with raw output, everything else becomes a toast.
- */
 export type GitError = { kind: "command"; data: GitCommandError } | { kind: "repoNotFound"; data: string } | { kind: "repoBusy"; data: string } | { kind: "invalidState"; data: string } | { kind: "io"; data: string } | { kind: "internal"; data: string };
 
-/**
- *  One instalment of the commit graph.
- * 
- *  Commits arrive together with their lane placement so the UI never has to compute
- *  layout itself — that would mean shipping the whole graph into the webview
- *  ([INV-02](../../doc/01-architecture.md)).
- */
+/**  Commits arrive with their lane placement so the UI never computes layout (INV-02). */
 export type GraphChunk = {
 	commits: CommitRow[],
 	lanes: LaneAssignment[],
 	edges: GraphEdge[],
-	/**  Widest lane used so far, for sizing the graph gutter. */
 	maxLane: number,
-	/**  Set on the final, empty chunk. Without it the panel would spin for ever. */
 	isLast: boolean,
 };
 
-/**  A curve between two rows, in row/lane space. Pixel coordinates are the frontend's job. */
 export type GraphEdge = {
 	fromRow: number,
 	fromLane: number,
@@ -138,21 +74,9 @@ export type GraphEdge = {
 	kind: EdgeKind,
 };
 
-/**
- *  Where HEAD points.
- * 
- *  The three variants are not decoration: a client that assumes "HEAD is a branch"
- *  crashes on a freshly initialised repository and on any detached checkout (INV-07).
- */
-export type Head = 
-/**  The normal case: HEAD follows a branch that has at least one commit. */
-{ kind: "branch"; name: string; oid: string } | 
-/**  HEAD names a commit directly. */
-{ kind: "detached"; oid: string } | 
-/**  The branch exists in name only — no commit has been made yet. */
-{ kind: "unborn"; name: string };
+/**  Assuming "HEAD is a branch" crashes on an unborn or detached checkout (INV-07). */
+export type Head = { kind: "branch"; name: string; oid: string } | { kind: "detached"; oid: string } | { kind: "unborn"; name: string };
 
-/**  Placement of one commit row. */
 export type LaneAssignment = {
 	row: number,
 	lane: number,
@@ -160,19 +84,10 @@ export type LaneAssignment = {
 	kind: NodeKind,
 };
 
-/**  What kind of dot to draw for a row. */
 export type NodeKind = "normal" | "merge" | "root" | "workingTree";
 
-/**  Opaque handle for a repository. Paths never cross the IPC boundary. */
 export type RepoId = number;
 
-/**
- *  Counts behind the `Working Tree / Index` row of the graph.
- * 
- *  A file changed both before and after `git add` is counted in `staged` **and**
- *  `unstaged`: Git tracks the index and the working tree separately, and collapsing
- *  them would hide half of what is going on.
- */
 export type RepoStatus = {
 	staged: number,
 	unstaged: number,
@@ -180,25 +95,20 @@ export type RepoStatus = {
 	conflicted: number,
 };
 
-/**  What the UI needs to show a repository the moment it is opened. */
 export type RepoSummary = {
 	repo: RepoId,
-	/**  Absolute path, with `/` separators so the UI never sees a backslash. */
 	root: string,
-	/**  Folder name, used as the label in the repository tree. */
 	name: string,
 	isBare: boolean,
 	head: Head,
 	branches: Branch[],
 	tags: Tag[],
-	/**  Snapshot at open time; live updates arrive with the filesystem watcher (M1 T1.6). */
 	status: RepoStatus,
 };
 
 export type Tag = {
 	name: string,
 	fullName: string,
-	/**  Commit the tag marks, with annotated tags already peeled. */
 	oid: string,
 	isAnnotated: boolean,
 };

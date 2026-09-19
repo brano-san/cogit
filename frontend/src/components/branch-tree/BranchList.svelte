@@ -16,8 +16,6 @@
       <div class="row" class:head={branch.isHead} title={branch.fullName}>
         <span class="marker" aria-hidden="true">{branch.isHead ? "▸" : ""}</span>
         <span class="name truncate">{branch.name}</span>
-        <!-- Seven characters is not unique in a large repository; the backend will
-             shorten properly in M4. Here it is only a visual hint. -->
         <span class="oid mono tabular">{branch.oid.slice(0, 7)}</span>
       </div>
     {/each}

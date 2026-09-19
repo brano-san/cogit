@@ -1,12 +1,7 @@
-// Integration tests are test code by definition, but `allow-unwrap-in-tests` in
-// clippy.toml only covers the bodies of `#[test]` functions — helpers beside them are
-// still linted. Panicking is how a test reports failure, so allow it for the file.
+// clippy.toml's allow-unwrap-in-tests does not reach helpers beside `#[test]` fns.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-// The timing harness exists to print numbers; `print_stdout` is denied workspace-wide
-// so that production code logs through `tracing` (INV-04), which does not apply here.
+// The harness exists to print numbers; `print_stdout` is denied for production (INV-04).
 #![allow(clippy::print_stdout)]
-
-//! The large fixture used for performance work.
 
 use test_fixtures::stress;
 
@@ -26,7 +21,6 @@ fn stress_history_is_linear() {
 
 #[test]
 fn stress_checks_out_a_working_tree() {
-    // Benchmarks for `status` and diffing need real files on disk, not just objects.
     let f = stress(50).unwrap();
     assert!(
         f.path().join("data.txt").is_file(),
@@ -36,8 +30,6 @@ fn stress_checks_out_a_working_tree() {
 
 #[test]
 fn stress_fixtures_do_not_share_state() {
-    // The plan originally called for one cached instance reused by every test, which
-    // would have made tests depend on each other's mutations. Each call is its own.
     let a = stress(20).unwrap();
     let b = stress(20).unwrap();
     assert_ne!(a.path(), b.path());
@@ -61,14 +53,6 @@ fn stress_history_is_deterministic() {
     assert_eq!(a, b, "snapshot tests depend on stable OIDs");
 }
 
-/// Measurement harness, not an assertion.
-///
-/// Budgets in `doc/modules/M9-fixtures.md` are set from these numbers rather than
-/// guessed. Run on demand:
-///
-/// ```sh
-/// cargo test -p test_fixtures --test stress -- --ignored --nocapture
-/// ```
 #[test]
 #[ignore = "measurement, not a check"]
 fn report_fixture_timings() {
