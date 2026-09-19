@@ -2,22 +2,19 @@
   import { open as openFolderDialog } from "@tauri-apps/plugin-dialog";
 
   import BranchList from "$components/branch-tree/BranchList.svelte";
+  import FileList from "$components/file-list/FileList.svelte";
   import CommitList from "$components/graph/CommitList.svelte";
   import Panel from "$components/layout/Panel.svelte";
   import Splitter from "$components/layout/Splitter.svelte";
   import StatusBar from "$components/layout/StatusBar.svelte";
   import Toolbar from "$components/layout/Toolbar.svelte";
   import RepositoryList from "$components/repo-tree/RepositoryList.svelte";
+  import { formatCommitDate, shortOid } from "$lib/format";
   import { getAppInfo, type AppInfo } from "$lib/ipc";
+  import { commit } from "$stores/commit.svelte";
   import { graph } from "$stores/graph.svelte";
   import { layout } from "$stores/layout.svelte";
   import { repository } from "$stores/repository.svelte";
-
-  /**
-   * Milestone B (doc/00-roadmap.md): one thin slice all the way through —
-   * `gix` → Tauri command → generated bindings → panel. The remaining panels stay
-   * empty until their own modules land.
-   */
 
   let info = $state<AppInfo | null>(null);
 
@@ -29,10 +26,12 @@
 
   const fractions = $derived(layout.fractions);
   const repo = $derived(repository.current);
+  const details = $derived(commit.details);
 
   async function pickRepository() {
     const picked = await openFolderDialog({ directory: true, title: "Open Repository" });
     if (typeof picked !== "string") return;
+    commit.clear();
     await repository.open(picked);
     const opened = repository.current;
     if (opened) {
@@ -105,7 +104,9 @@
           onreset={() => layout.resetOne("graph")}
         />
         <div class="pane grow">
-          <Panel title="Files" count={0} empty="Changed files appear in M6." />
+          <Panel title="Files" count={commit.files.length}>
+            <FileList files={commit.files} />
+          </Panel>
         </div>
       </div>
 
@@ -125,6 +126,27 @@
               {#if repository.error.isCommandFailure && repository.error.detail.kind === "command"}
                 <pre class="raw">{repository.error.detail.data.stderr}</pre>
               {/if}
+            {:else if commit.error}
+              <p class="error">{commit.error.message}</p>
+            {:else if details}
+              <p class="subject">{details.summary}</p>
+              {#if details.body}<pre class="body">{details.body}</pre>{/if}
+              <dl>
+                <dt>Commit</dt>
+                <dd class="mono">{details.oid}</dd>
+                <dt>Author</dt>
+                <dd>
+                  {details.author.name} &lt;{details.author.email}&gt; ·
+                  {formatCommitDate(details.author.timestamp, details.author.tzOffsetMinutes)}
+                </dd>
+                <dt>Parents</dt>
+                <dd class="mono tabular">
+                  {details.parents.length === 0
+                    ? "none (root commit)"
+                    : details.parents.map(shortOid).join(", ")}
+                </dd>
+              </dl>
+              <p class="muted">Side-by-side diffs arrive in M7.</p>
             {:else if repo}
               <dl>
                 <dt>Repository</dt>
@@ -136,7 +158,7 @@
                   {repository.localBranches.length} local, {repository.remoteBranches.length} remote
                 </dd>
               </dl>
-              <p class="muted">Side-by-side diffs arrive in M7.</p>
+              <p class="muted">Select a commit to see what it changed.</p>
             {:else}
               <p class="muted">Open a repository to begin.</p>
             {/if}
@@ -229,6 +251,18 @@
     font-size: var(--fs-code);
     white-space: pre;
     overflow: auto;
+  }
+
+  .subject {
+    margin: 0 0 var(--sp-4);
+    font-weight: 600;
+  }
+
+  .body {
+    margin: 0 0 var(--sp-5);
+    font-family: inherit;
+    white-space: pre-wrap;
+    color: var(--text-secondary);
   }
 
   dl {

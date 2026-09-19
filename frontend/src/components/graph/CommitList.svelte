@@ -9,6 +9,7 @@
     toCommitRow,
     visibleRange,
   } from "$lib/graph-geometry";
+  import { commit as selection } from "$stores/commit.svelte";
   import { graph } from "$stores/graph.svelte";
   import { repository } from "$stores/repository.svelte";
 
@@ -19,7 +20,6 @@
   let scrollTop = $state(0);
   let viewportHeight = $state(0);
   let viewportWidth = $state(0);
-  let selected = $state<string | null>(null);
 
   const commitCount = $derived(graph.rows.length);
   const listRows = $derived(commitCount + HEADER_ROWS);
@@ -75,8 +75,10 @@
     const box = scroller.getBoundingClientRect();
     const hit = hitTest(event.clientX - box.left, event.clientY - box.top, scrollTop, listRows);
     if (!hit) return;
+    const repo = repository.current?.repo;
+    if (!repo) return;
     const commitRow = toCommitRow(hit.row);
-    selected = commitRow === null ? null : (graph.rows[commitRow]?.commit.oid ?? null);
+    void selection.select(repo, commitRow === null ? null : (graph.rows[commitRow]?.commit.oid ?? null));
   }
 
   $effect(() => {
@@ -122,7 +124,7 @@
       {#each visible as item (item.entry.commit.oid)}
         <div
           class="row"
-          class:selected={selected === item.entry.commit.oid}
+          class:selected={selection.oid === item.entry.commit.oid}
           style:top="{item.listRow * GRAPH.rowHeight}px"
           style:padding-left="{gutter}px"
         >
