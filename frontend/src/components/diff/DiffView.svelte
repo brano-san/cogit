@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { flatten, pairRows, type FlatEntry, type SideCell } from "$lib/diff-rows";
+  import { flatten, pairRows, segments, type FlatEntry, type SideCell } from "$lib/diff-rows";
   import { visibleRange } from "$lib/graph-geometry";
   import type { FileDiff, Hunk } from "$lib/ipc";
 
@@ -47,6 +47,10 @@
   function sign(cell: SideCell | null): string {
     if (!cell) return "";
     return cell.kind === "delete" ? "−" : cell.kind === "insert" ? "+" : " ";
+  }
+
+  function cells(cell: SideCell | null) {
+    return cell ? segments(cell.text, cell.inline) : [];
   }
 
   function jump(delta: number) {
@@ -124,11 +128,19 @@
               {:else if entry.row.kind === "delete"}
                 <span class="num">{entry.row.old}</span>
                 <span class="num"></span>
-                <span class="code mono del">−{entry.row.text}</span>
+                <span class="code mono del"
+                  >−{#each segments(entry.row.text, entry.row.inline) as part, i (i)}<span
+                      class:word={part.changed}>{part.text}</span
+                    >{/each}</span
+                >
               {:else if entry.row.kind === "insert"}
                 <span class="num"></span>
                 <span class="num">{entry.row.new}</span>
-                <span class="code mono add">+{entry.row.text}</span>
+                <span class="code mono add"
+                  >+{#each segments(entry.row.text, entry.row.inline) as part, i (i)}<span
+                      class:word={part.changed}>{part.text}</span
+                    >{/each}</span
+                >
               {/if}
             </div>
           {/each}
@@ -140,11 +152,15 @@
               {:else if entry.pair}
                 <span class="num">{entry.pair.left?.line ?? ""}</span>
                 <span class="code mono side" class:del={entry.pair.left?.kind === "delete"}
-                  >{sign(entry.pair.left)}{entry.pair.left?.text ?? ""}</span
+                  >{sign(entry.pair.left)}{#each cells(entry.pair.left) as part, i (i)}<span
+                      class:word={part.changed}>{part.text}</span
+                    >{/each}</span
                 >
                 <span class="num">{entry.pair.right?.line ?? ""}</span>
                 <span class="code mono side" class:add={entry.pair.right?.kind === "insert"}
-                  >{sign(entry.pair.right)}{entry.pair.right?.text ?? ""}</span
+                  >{sign(entry.pair.right)}{#each cells(entry.pair.right) as part, i (i)}<span
+                      class:word={part.changed}>{part.text}</span
+                    >{/each}</span
                 >
               {/if}
             </div>
@@ -245,6 +261,12 @@
 
   .side {
     flex: 1 1 50%;
+  }
+
+  .word {
+    border-radius: 2px;
+    background: rgb(255 255 255 / 14%);
+    font-weight: 600;
   }
 
   .code.del {

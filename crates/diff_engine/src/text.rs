@@ -1,6 +1,6 @@
 use crate::{
-    Algorithm, DiffOptions, DiffRow, EolInfo, FileDiff, Hunk, Whitespace, detect_line_ending,
-    normalize_line_endings,
+    Algorithm, DiffOptions, DiffRow, EolInfo, FileDiff, Hunk, Whitespace, block_is_comparable,
+    detect_line_ending, inline_spans, normalize_line_endings,
 };
 use imara_diff::{Diff, InternedInput, Interner, Token, sources::lines};
 use std::borrow::Cow;
@@ -86,7 +86,7 @@ pub fn diff_text(old: &str, new: &str, options: &DiffOptions) -> FileDiff {
     let context = options.context_lines as usize;
     let hunks = group(&changes, context)
         .iter()
-        .map(|group| build(group, &old_lines, &new_lines, context))
+        .map(|group| build(group, &old_lines, &new_lines, options))
         .collect();
 
     FileDiff::Text {
@@ -150,9 +150,9 @@ fn build(
     group: &[imara_diff::Hunk],
     old_lines: &[&str],
     new_lines: &[&str],
-    context: usize,
+    options: &DiffOptions,
 ) -> Hunk {
-    let context = context as u32;
+    let context = options.context_lines;
     let first = &group[0];
     let last = &group[group.len() - 1];
 
@@ -175,18 +175,36 @@ fn build(
             old_at += 1;
             new_at += 1;
         }
-        for index in change.before.clone() {
+        let deleted: Vec<String> = change.before.clone().map(|i| text(old_lines, i)).collect();
+        let inserted: Vec<String> = change.after.clone().map(|i| text(new_lines, i)).collect();
+        let words = if options.word_diff && block_is_comparable(deleted.len(), inserted.len()) {
+            deleted
+                .iter()
+                .zip(inserted.iter())
+                .map(|(old, new)| inline_spans(old, new))
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        for (offset, index) in change.before.clone().enumerate() {
             rows.push(DiffRow::Delete {
                 old: index + 1,
-                text: text(old_lines, index),
-                inline: Vec::new(),
+                text: deleted[offset].clone(),
+                inline: words
+                    .get(offset)
+                    .map(|(old, _)| old.clone())
+                    .unwrap_or_default(),
             });
         }
-        for index in change.after.clone() {
+        for (offset, index) in change.after.clone().enumerate() {
             rows.push(DiffRow::Insert {
                 new: index + 1,
-                text: text(new_lines, index),
-                inline: Vec::new(),
+                text: inserted[offset].clone(),
+                inline: words
+                    .get(offset)
+                    .map(|(_, new)| new.clone())
+                    .unwrap_or_default(),
             });
         }
         old_at = change.before.end;
