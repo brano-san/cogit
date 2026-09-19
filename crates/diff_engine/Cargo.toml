@@ -1,0 +1,25 @@
+[package]
+name = "diff_engine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Block and word-level diffing, plus syntactic three-way merge."
+
+[dependencies]
+imara-diff.workspace = true
+similar.workspace = true
+tree-sitter.workspace = true
+rayon.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+serde.workspace = true
+specta.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+
+[lints]
+workspace = true

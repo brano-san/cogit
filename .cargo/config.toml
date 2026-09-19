@@ -1,0 +1,17 @@
+# Build acceleration. See doc/10-toolchain-setup.md section 5.
+# Cargo profiles live in the workspace Cargo.toml, not here.
+
+[build]
+# sccache caches third-party crate builds across branches and clean rebuilds.
+# Our own crates still use incremental compilation, which sccache leaves alone.
+rustc-wrapper = "sccache"
+
+[target.x86_64-pc-windows-msvc]
+# lld-link ships with LLVM, not with Visual Studio (doc/12-risks.md, D-02).
+# If linking ever fails, drop this line to fall back to MSVC link.exe.
+linker = "lld-link.exe"
+
+[target.x86_64-unknown-linux-gnu]
+# Not yet verified by an actual build; validate on first Linux build.
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]

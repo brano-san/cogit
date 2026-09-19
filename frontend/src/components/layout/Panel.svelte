@@ -1,0 +1,89 @@
+<script lang="ts">
+  import type { Snippet } from "svelte";
+
+  /** A titled work surface. Every panel in the grid uses this shell. */
+  interface Props {
+    title: string;
+    /** Optional count shown next to the title, e.g. "FILES (23)". */
+    count?: number;
+    /** Controls placed at the right of the header, such as a filter field. */
+    actions?: Snippet;
+    children?: Snippet;
+    /** Shown when `children` has nothing to display. */
+    empty?: string;
+  }
+
+  let { title, count, actions, children, empty }: Props = $props();
+</script>
+
+<section class="panel">
+  <header class="panel-header">
+    <h2 class="panel-title">
+      {title}{#if count !== undefined}&nbsp;({count}){/if}
+    </h2>
+    {#if actions}
+      <div class="panel-actions">{@render actions()}</div>
+    {/if}
+  </header>
+
+  <div class="panel-body">
+    {#if children}
+      {@render children()}
+    {:else if empty}
+      <p class="panel-empty">{empty}</p>
+    {/if}
+  </div>
+</section>
+
+<style>
+  .panel {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    background: var(--surface-panel);
+    overflow: hidden;
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-4);
+    height: var(--h-panel-hdr);
+    flex: 0 0 var(--h-panel-hdr);
+    padding: 0 var(--sp-5);
+    background: var(--surface-raised);
+    border-bottom: 1px solid var(--divider);
+  }
+
+  .panel-title {
+    margin: 0;
+    font-size: var(--fs-header);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  .panel-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+  }
+
+  .panel-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .panel-empty {
+    margin: 0;
+    padding: var(--sp-7) var(--sp-5);
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: var(--fs-dense);
+  }
+</style>

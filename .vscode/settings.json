@@ -1,0 +1,7 @@
+{
+  "rust-analyzer.check.command": "clippy",
+  "rust-analyzer.cargo.allTargets": true,
+  "files.eol": "\n",
+  "[rust]": { "editor.formatOnSave": true },
+  "[svelte]": { "editor.defaultFormatter": "svelte.svelte-vscode" }
+}

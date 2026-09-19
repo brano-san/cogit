@@ -1,0 +1,136 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "src-tauri"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+license = "MIT"
+repository = "https://github.com/brano-san/cogit"
+publish = false
+
+# Single source of truth for dependency versions (INV-11).
+# Crates reference these with `{ workspace = true }`.
+# Versions verified against crates.io on 2026-09-19.
+[workspace.dependencies]
+
+# --- async / parallelism ---
+tokio = { version = "1.53", features = [
+  "rt-multi-thread",
+  "process",
+  "sync",
+  "fs",
+  "time",
+  "io-util",
+  "macros",
+] }
+rayon = "1.12"
+crossbeam-channel = "0.5"
+parking_lot = "0.12"
+futures = "0.3"
+
+# --- errors ---
+thiserror = "2.0"
+anyhow = "1.0"
+
+# --- serialization / typed IPC ---
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+# The Tauri v2 line of specta/tauri-specta is still tagged `rc` after two years, but it
+# is the de-facto standard for typed Tauri IPC. Versions are pinned exactly because
+# breaking changes land between rc releases. See doc/12-risks.md (D-07).
+specta = { version = "=2.0.0-rc.25", features = ["derive", "function"] }
+specta-typescript = "0.0.12"
+
+# --- tauri (only src-tauri consumes these; listed here for a single source of versions) ---
+tauri = { version = "2.11", features = ["specta"] }
+tauri-build = "2.6"
+tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
+tauri-plugin-opener = "2.5"
+tauri-plugin-dialog = "2.7"
+tauri-plugin-store = "2.4"
+tauri-plugin-clipboard-manager = "2.3"
+tauri-plugin-window-state = "2.4"
+
+# --- logging ---
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+tracing-appender = "0.2"
+file-rotate = "0.8"
+
+# --- git ---
+# Default features omit everything we need; see doc/02-tech-stack.md and doc/12-risks.md (D-05).
+# Network features are deliberately absent: all network work goes through the system `git`.
+gix = { version = "0.87", default-features = false, features = [
+  "max-performance-safe",
+  "sha1",             # mandatory: gix-hash refuses to build without sha1 or sha256
+  "auto-chain-error", # full error chains in Display, which INV-05 depends on
+  "status",
+  "blame",
+  "blob-diff",
+  "dirwalk",
+  "excludes",
+  "attributes",
+  "index",
+  "revision",
+  "mailmap",
+  "parallel",
+] }
+
+# --- diff ---
+# `inline` is NOT a default feature of `similar` but is required for word diff (D-04).
+imara-diff = "0.2"
+similar = { version = "3.2", features = ["text", "inline", "unicode"] }
+tree-sitter = "0.27"
+
+# --- filesystem watching ---
+notify = "8.2"
+# Keep default features: they select the macOS backend. `crossbeam-channel` is the
+# bridge to the rayon/OS-thread side described in doc/01-architecture.md section 3.
+notify-debouncer-mini = { version = "0.7", features = ["crossbeam-channel"] }
+ignore = "0.4"
+
+# --- system ---
+keyring = "4.2"
+directories = "6.0"
+
+# --- dev / testing ---
+insta = "1.48"
+tempfile = "3.27"
+
+# --- internal crates ---
+app_state = { path = "crates/app_state" }
+diff_engine = { path = "crates/diff_engine" }
+fs_watcher = { path = "crates/fs_watcher" }
+git_engine = { path = "crates/git_engine" }
+graph_engine = { path = "crates/graph_engine" }
+test_fixtures = { path = "crates/test_fixtures" }
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+# INV-07: no panics on Git paths. `clippy.toml` relaxes these inside tests.
+unwrap_used = "deny"
+expect_used = "deny"
+# INV-04: all logging goes through `tracing`.
+print_stdout = "deny"
+print_stderr = "deny"
+dbg_macro = "deny"
+todo = "warn"
+
+# Dependencies are optimized even in dev builds: `gix` and the diff engines are
+# unusably slow otherwise. Our own crates stay unoptimized for fast rebuilds.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+opt-level = 2
+debug = false
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+strip = true
