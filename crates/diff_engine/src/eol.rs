@@ -3,6 +3,7 @@
 use serde::Serialize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub enum LineEnding {
     Lf,
     Crlf,
@@ -12,6 +13,7 @@ pub enum LineEnding {
 }
 
 #[derive(Debug, Clone, Copy, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub struct EolInfo {
     pub old: LineEnding,
     pub new: LineEnding,

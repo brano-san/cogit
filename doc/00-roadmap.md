@@ -40,7 +40,7 @@
 | M2 | Макет, многооконность, меню | `WIP` (сетка панелей и сплиттеры готовы) | M0 | [M2](modules/M2-layout.md) |
 | M5 | Дерево ссылок и управление состоянием | `TODO` | M1, M2 | [M5](modules/M5-references.md) |
 | M6 | Список файлов, стейджинг, Hunk Staging | `WIP` (таблица файлов коммита готова) | M1, M2, M7 | [M6](modules/M6-staging.md) |
-| M7 | Движок Diff, подсветка, 3-Way Merge | `TODO` | M0, M9 | [M7](modules/M7-diff.md) |
+| M7 | Движок Diff, подсветка, 3-Way Merge | `WIP` (блочный diff и ханки готовы) | M0, M9 | [M7](modules/M7-diff.md) |
 | M8 | Инструменты продуктивности | `TODO` | M1–M7 | [M8](modules/M8-tools.md) |
 | M10 | Управление хуками и пресеты | `TODO` | M1, M2, M3 | [M10](modules/M10-hooks.md) |
 | M11 | Commit Debugger — граф во время операции | `TODO` | M4, M5, M6 | [M11](modules/M11-commit-debugger.md) |

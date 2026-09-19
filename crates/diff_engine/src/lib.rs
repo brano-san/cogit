@@ -1,10 +1,13 @@
 use serde::Serialize;
 
 mod eol;
+mod text;
 
 pub use eol::{EolInfo, LineEnding, detect_line_ending, normalize_line_endings};
+pub use text::{MAX_TEXT_BYTES, diff_bytes, diff_text};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub enum Algorithm {
     #[default]
     Histogram,
@@ -12,6 +15,7 @@ pub enum Algorithm {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub enum Whitespace {
     #[default]
     None,
@@ -20,6 +24,7 @@ pub enum Whitespace {
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub struct DiffOptions {
     pub algorithm: Algorithm,
     pub context_lines: u32,
@@ -41,7 +46,7 @@ impl Default for DiffOptions {
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
-#[serde(tag = "kind")]
+#[serde(tag = "kind", rename_all = "camelCase")]
 pub enum DiffRow {
     Context {
         old: u32,
@@ -64,6 +69,7 @@ pub enum DiffRow {
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub struct Hunk {
     pub old_start: u32,
     pub old_lines: u32,
@@ -74,7 +80,7 @@ pub struct Hunk {
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
-#[serde(tag = "kind")]
+#[serde(tag = "kind", rename_all = "camelCase")]
 pub enum FileDiff {
     Text {
         hunks: Vec<Hunk>,
@@ -103,6 +109,7 @@ pub enum FileDiff {
 }
 
 #[derive(Debug, thiserror::Error, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub enum DiffError {
     #[error("failed to decode {path}")]
     Decode { path: String },
