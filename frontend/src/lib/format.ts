@@ -40,3 +40,23 @@ export function splitBranches(branches: Branch[]): { local: Branch[]; remote: Br
     remote: branches.filter((b) => b.kind === "remote"),
   };
 }
+
+/** Abbreviated object id for display. Uniqueness is the backend's problem, not this one. */
+export function shortOid(oid: string): string {
+  return oid.slice(0, SHORT_OID);
+}
+
+/**
+ * Renders a commit time in the author's own timezone.
+ *
+ * Their offset rather than the reader's: a commit made at 9am in Berlin should read as
+ * 9am, and using the reader's clock would also make the output machine-dependent.
+ */
+export function formatCommitDate(timestamp: number, offsetMinutes: number): string {
+  const shifted = new Date((timestamp + offsetMinutes * 60) * 1000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}` +
+    ` ${pad(shifted.getUTCHours())}:${pad(shifted.getUTCMinutes())}`
+  );
+}

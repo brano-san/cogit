@@ -4,7 +4,7 @@
 //! functions and short-lived handles.
 
 use parking_lot::RwLock;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -15,7 +15,9 @@ use tokio::sync::broadcast;
 const EVENT_CHANNEL_CAPACITY: usize = 256;
 
 /// Opaque handle for a repository. Paths never cross the IPC boundary.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, specta::Type)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, specta::Type,
+)]
 pub struct RepoId(pub u32);
 
 /// Events pushed to the UI without it asking.
@@ -62,6 +64,27 @@ pub struct RepoSummary {
     pub head: git_engine::Head,
     pub branches: Vec<git_engine::Branch>,
 }
+
+/// One instalment of the commit graph.
+///
+/// Commits arrive together with their lane placement so the UI never has to compute
+/// layout itself — that would mean shipping the whole graph into the webview
+/// ([INV-02](../../doc/01-architecture.md)).
+#[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct GraphChunk {
+    pub commits: Vec<git_engine::CommitRow>,
+    pub lanes: Vec<graph_engine::LaneAssignment>,
+    pub edges: Vec<graph_engine::GraphEdge>,
+    /// Widest lane used so far, for sizing the graph gutter.
+    pub max_lane: u16,
+    /// Set on the final, empty chunk. Without it the panel would spin for ever.
+    pub is_last: bool,
+}
+
+/// How many commits travel together. Small enough that the first screen appears at
+/// once, large enough that the IPC overhead stays negligible.
+pub const DEFAULT_CHUNK_SIZE: usize = 200;
 
 /// Application-wide state, shared across every window.
 #[derive(Debug)]
@@ -134,6 +157,68 @@ impl AppState {
             head,
             branches,
         })
+    }
+
+    /// Streams the commit graph of an open repository, chunk by chunk.
+    ///
+    /// Blocking, like [`Self::open_repository`]: the Tauri layer runs it inside
+    /// `spawn_blocking` and forwards each chunk down a `tauri::ipc::Channel`.
+    ///
+    /// `on_chunk` returning `false` abandons the walk. In that case no final chunk is
+    /// sent — a cancelled stream must not look like a finished one.
+    ///
+    /// # Errors
+    /// Returns [`git_engine::GitError::RepoNotFound`] for an unknown id, or whatever
+    /// reading the repository produced.
+    pub fn stream_graph(
+        &self,
+        repo: RepoId,
+        chunk_size: usize,
+        mut on_chunk: impl FnMut(GraphChunk) -> bool,
+    ) -> Result<(), git_engine::GitError> {
+        let open = self
+            .get(repo)
+            .ok_or_else(|| git_engine::GitError::RepoNotFound(format!("id {}", repo.0)))?;
+        let handle = git_engine::RepoHandle::open(&open.root)?;
+
+        // The cursor carries lane occupancy and colours between chunks, which is what
+        // stops branches changing colour as the user scrolls.
+        let mut cursor = graph_engine::LayoutCursor::default();
+        let mut cancelled = false;
+        let mut max_lane = 0_u16;
+
+        handle.stream_commits(chunk_size, |commits| {
+            let nodes: Vec<graph_engine::CommitNode> = commits
+                .iter()
+                .map(|c| graph_engine::CommitNode {
+                    oid: c.oid.clone(),
+                    parents: c.parents.clone(),
+                })
+                .collect();
+            let placed = graph_engine::layout(&nodes, &mut cursor);
+            max_lane = max_lane.max(placed.max_lane);
+
+            let keep = on_chunk(GraphChunk {
+                commits,
+                lanes: placed.lanes,
+                edges: placed.edges,
+                max_lane,
+                is_last: false,
+            });
+            cancelled = !keep;
+            keep
+        })?;
+
+        if !cancelled {
+            on_chunk(GraphChunk {
+                commits: Vec::new(),
+                lanes: Vec::new(),
+                edges: Vec::new(),
+                max_lane,
+                is_last: true,
+            });
+        }
+        Ok(())
     }
 
     /// Finds an already open repository by its canonical root.

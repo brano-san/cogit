@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { headLabel, splitBranches } from "./format";
+import { formatCommitDate, headLabel, shortOid, splitBranches } from "./format";
 import type { Branch, Head } from "./ipc";
 
 function branch(name: string, kind: Branch["kind"], isHead = false): Branch {
@@ -50,5 +50,30 @@ describe("splitBranches", () => {
     // The backend sorts; re-sorting here would be a second source of truth.
     const all = [branch("a", "local"), branch("b", "local"), branch("c", "local")];
     expect(splitBranches(all).local.map((b) => b.name)).toEqual(["a", "b", "c"]);
+  });
+});
+
+describe("shortOid", () => {
+  it("shortens to seven characters", () => {
+    expect(shortOid("4ec48139abcdef0123456789abcdef0123456789")).toBe("4ec4813");
+  });
+
+  it("leaves an already short value alone", () => {
+    expect(shortOid("abc")).toBe("abc");
+  });
+});
+
+describe("formatCommitDate", () => {
+  it("renders the time the author saw, not the reader's", () => {
+    // 2026-01-01T00:00:00Z written by someone at UTC+3 is 03:00 for them.
+    expect(formatCommitDate(1_767_225_600, 180)).toBe("2026-01-01 03:00");
+  });
+
+  it("handles negative offsets", () => {
+    expect(formatCommitDate(1_767_225_600, -300)).toBe("2025-12-31 19:00");
+  });
+
+  it("treats a zero offset as UTC", () => {
+    expect(formatCommitDate(1_767_225_600, 0)).toBe("2026-01-01 00:00");
   });
 });

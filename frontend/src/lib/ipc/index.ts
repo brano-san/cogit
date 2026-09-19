@@ -8,10 +8,24 @@
  * be edited by hand (INV-10).
  */
 
-import { commands } from "./bindings";
-import type { GitError } from "./bindings";
+import { Channel } from "@tauri-apps/api/core";
 
-export type { AppInfo, Branch, BranchKind, GitError, Head, RepoSummary } from "./bindings";
+import { commands } from "./bindings";
+import type { GitError, GraphChunk, RepoId } from "./bindings";
+
+export type {
+  AppInfo,
+  Branch,
+  BranchKind,
+  CommitRow,
+  GitError,
+  GraphChunk,
+  GraphEdge,
+  Head,
+  LaneAssignment,
+  RepoId,
+  RepoSummary,
+} from "./bindings";
 
 /**
  * A backend failure that keeps its structure.
@@ -68,4 +82,18 @@ export async function openRepository(path: string) {
     throw new CogitError(result.error);
   }
   return result.data;
+}
+
+/**
+ * Streams the commit graph, calling `onChunk` for each instalment.
+ *
+ * @throws {CogitError} when the backend reports a failure.
+ */
+export async function loadCommits(repo: RepoId, onChunk: (chunk: GraphChunk) => void) {
+  const channel = new Channel<GraphChunk>();
+  channel.onmessage = onChunk;
+  const result = await commands.loadCommits(repo, channel);
+  if (result.status === "error") {
+    throw new CogitError(result.error);
+  }
 }

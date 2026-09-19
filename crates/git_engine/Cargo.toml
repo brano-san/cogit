@@ -16,6 +16,8 @@ thiserror.workspace = true
 tracing.workspace = true
 serde.workspace = true
 specta.workspace = true
+# Type-level only: `Number` overrides an i64 field to a plain TypeScript number.
+specta-typescript.workspace = true
 
 [dev-dependencies]
 test_fixtures.workspace = true

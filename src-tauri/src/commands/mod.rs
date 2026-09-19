@@ -5,7 +5,7 @@
 //!
 //! Every command must also be listed in `doc/04-ipc-contract.md` section 4.
 
-use app_state::RepoSummary;
+use app_state::{DEFAULT_CHUNK_SIZE, GraphChunk, RepoId, RepoSummary};
 use git_engine::GitError;
 use serde::Serialize;
 use std::path::PathBuf;
@@ -68,4 +68,45 @@ pub async fn open_repository(
         "repository opened"
     );
     Ok(summary)
+}
+
+/// Streams the commit graph of an open repository into `on_chunk`.
+///
+/// A channel rather than a returned array: a repository with 50 000 commits would
+/// freeze the webview for seconds if serialised in one go ([INV-02]).
+///
+/// Cancellation is implicit — when the UI drops the channel, `send` fails and the walk
+/// stops. That is exactly what should happen when the user switches repository.
+///
+/// # Errors
+/// Returns [`GitError`] if the repository is unknown or cannot be read.
+#[tauri::command]
+#[specta::specta]
+pub async fn load_commits(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    on_chunk: tauri::ipc::Channel<GraphChunk>,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    let started = std::time::Instant::now();
+
+    let sent = tokio::task::spawn_blocking(move || {
+        let mut sent = 0_usize;
+        let result = app_state.stream_graph(repo, DEFAULT_CHUNK_SIZE, |chunk| {
+            sent += chunk.commits.len();
+            // A closed channel means the UI walked away; stop rather than keep reading.
+            on_chunk.send(chunk).is_ok()
+        });
+        result.map(|()| sent)
+    })
+    .await
+    .map_err(|err| GitError::Internal(format!("load_commits task failed: {err}")))??;
+
+    tracing::info!(
+        repo = repo.0,
+        commits = sent,
+        elapsed_ms = started.elapsed().as_millis(),
+        "commit graph streamed"
+    );
+    Ok(())
 }
