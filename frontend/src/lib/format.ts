@@ -5,7 +5,7 @@
  * split `doc/09-testing.md` asks for: logic and formatting are tested, markup is not.
  */
 
-import type { Branch, Head } from "./ipc";
+import type { Branch, Head, Tag } from "./ipc";
 
 /** How many hex characters to show when a full OID would not fit. */
 const SHORT_OID = 7;
@@ -59,4 +59,44 @@ export function formatCommitDate(timestamp: number, offsetMinutes: number): stri
     `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}` +
     ` ${pad(shifted.getUTCHours())}:${pad(shifted.getUTCMinutes())}`
   );
+}
+
+export type RefKind = "head" | "local" | "remote" | "tag";
+
+export interface RefLabel {
+  text: string;
+  kind: RefKind;
+}
+
+/** Drawn left to right; the row truncates from the right, so importance decides order. */
+const REF_ORDER: Record<RefKind, number> = { head: 0, local: 1, remote: 2, tag: 3 };
+
+/** Groups refs by the commit they point at, for the capsules on each graph row. */
+export function refLabels(
+  branches: Branch[],
+  tags: Tag[],
+  head: Head | null | undefined,
+): Map<string, RefLabel[]> {
+  const headBranch = head?.kind === "branch" ? head.name : null;
+  const byOid = new Map<string, RefLabel[]>();
+
+  const add = (oid: string, label: RefLabel) => {
+    const existing = byOid.get(oid);
+    if (existing) existing.push(label);
+    else byOid.set(oid, [label]);
+  };
+
+  for (const branch of branches) {
+    const kind: RefKind =
+      branch.kind === "remote" ? "remote" : branch.name === headBranch ? "head" : "local";
+    add(branch.oid, { text: branch.name, kind });
+  }
+  for (const tag of tags) {
+    add(tag.oid, { text: tag.name, kind: "tag" });
+  }
+
+  for (const labels of byOid.values()) {
+    labels.sort((a, b) => REF_ORDER[a.kind] - REF_ORDER[b.kind]);
+  }
+  return byOid;
 }

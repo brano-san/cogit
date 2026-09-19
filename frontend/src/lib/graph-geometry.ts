@@ -95,3 +95,19 @@ export function canvasPixelSize(cssWidth: number, cssHeight: number, dpr: number
     height: Math.ceil(cssHeight * ratio),
   };
 }
+
+/**
+ * Rows the list renders before the first commit — currently the `Working Tree / Index`
+ * row. Kept here so the list, the canvas and hit testing all shift by the same amount.
+ */
+export const HEADER_ROWS = 1;
+
+export function toListRow(commitRow: number): number {
+  return commitRow + HEADER_ROWS;
+}
+
+/** `null` for the header itself, which is not a commit. */
+export function toCommitRow(listRow: number): number | null {
+  const row = listRow - HEADER_ROWS;
+  return row >= 0 ? row : null;
+}

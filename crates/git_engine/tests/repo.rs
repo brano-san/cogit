@@ -156,3 +156,29 @@ fn reading_a_conflicted_repository_does_not_panic() {
     assert!(repo.head().is_ok());
     assert!(repo.branches().is_ok());
 }
+
+/// Regression guard for R-22.
+///
+/// `gix` honours `GIT_INDEX_FILE` by default, which is correct for a hook and wrong for
+/// a client. Without the guard, Cogit launched from a hook reads a different repository
+/// than the user opened. `Command::env` sets the variable for the child only, which is
+/// the one way to test this without the unsafe, racy `std::env::set_var`.
+#[test]
+fn an_inherited_git_index_file_is_ignored() {
+    let f = test_fixtures::linear(3).unwrap();
+    let other = test_fixtures::linear(1).unwrap();
+
+    let status = std::process::Command::new(env!("CARGO_BIN_EXE_probe-status"))
+        .arg(f.path())
+        .env("GIT_INDEX_FILE", other.git_dir().join("index"))
+        .env("GIT_DIR", other.git_dir())
+        .output()
+        .unwrap();
+
+    let out = String::from_utf8_lossy(&status.stdout);
+    assert_eq!(
+        out.trim(),
+        "clean",
+        "a foreign GIT_INDEX_FILE leaked in: {out}"
+    );
+}

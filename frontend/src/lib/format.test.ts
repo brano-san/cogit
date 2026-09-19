@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { formatCommitDate, headLabel, shortOid, splitBranches } from "./format";
+import { formatCommitDate, headLabel, refLabels, shortOid, splitBranches } from "./format";
+import type { Tag } from "./ipc";
 import type { Branch, Head } from "./ipc";
 
 function branch(name: string, kind: Branch["kind"], isHead = false): Branch {
@@ -75,5 +76,62 @@ describe("formatCommitDate", () => {
 
   it("treats a zero offset as UTC", () => {
     expect(formatCommitDate(1_767_225_600, 0)).toBe("2026-01-01 00:00");
+  });
+});
+
+describe("refLabels", () => {
+  const head: Head = { kind: "branch", name: "main", oid: "a".repeat(40) };
+  const branches: Branch[] = [
+    { name: "main", fullName: "refs/heads/main", kind: "local", oid: "a".repeat(40), isHead: true },
+    { name: "dev", fullName: "refs/heads/dev", kind: "local", oid: "b".repeat(40), isHead: false },
+    {
+      name: "origin/main",
+      fullName: "refs/remotes/origin/main",
+      kind: "remote",
+      oid: "a".repeat(40),
+      isHead: false,
+    },
+  ];
+  const tags: Tag[] = [
+    { name: "v1.0", fullName: "refs/tags/v1.0", oid: "a".repeat(40), isAnnotated: false },
+  ];
+
+  it("groups every ref by the commit it points at", () => {
+    const map = refLabels(branches, tags, head);
+    expect(map.get("a".repeat(40))?.length).toBe(3);
+    expect(map.get("b".repeat(40))?.length).toBe(1);
+  });
+
+  it("marks the checked-out branch so it can be drawn as HEAD", () => {
+    const map = refLabels(branches, tags, head);
+    const main = map.get("a".repeat(40))?.find((l) => l.text === "main");
+    expect(main?.kind).toBe("head");
+  });
+
+  it("keeps remote branches apart from local ones", () => {
+    const map = refLabels(branches, tags, head);
+    const remote = map.get("a".repeat(40))?.find((l) => l.text === "origin/main");
+    expect(remote?.kind).toBe("remote");
+  });
+
+  it("orders labels HEAD first, then local, remote and tags", () => {
+    // The capsule row is truncated when space runs out, so the most important
+    // label has to be the one that survives.
+    const kinds = refLabels(branches, tags, head)
+      .get("a".repeat(40))
+      ?.map((l) => l.kind);
+    expect(kinds).toEqual(["head", "remote", "tag"]);
+  });
+
+  it("returns nothing for a commit with no refs", () => {
+    expect(refLabels(branches, tags, head).get("c".repeat(40))).toBeUndefined();
+  });
+
+  it("does not mark anything as HEAD when the head is detached", () => {
+    const detached: Head = { kind: "detached", oid: "a".repeat(40) };
+    const kinds = refLabels(branches, tags, detached)
+      .get("a".repeat(40))
+      ?.map((l) => l.kind);
+    expect(kinds).not.toContain("head");
   });
 });

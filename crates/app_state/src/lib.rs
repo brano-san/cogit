@@ -63,6 +63,9 @@ pub struct RepoSummary {
     pub is_bare: bool,
     pub head: git_engine::Head,
     pub branches: Vec<git_engine::Branch>,
+    pub tags: Vec<git_engine::Tag>,
+    /// Snapshot at open time; live updates arrive with the filesystem watcher (M1 T1.6).
+    pub status: git_engine::RepoStatus,
 }
 
 /// One instalment of the commit graph.
@@ -136,6 +139,8 @@ impl AppState {
         let root = handle.root().to_path_buf();
         let head = handle.head()?;
         let branches = handle.branches()?;
+        let tags = handle.tags()?;
+        let status = handle.status()?;
 
         let name = root.file_name().map_or_else(
             || root.display().to_string(),
@@ -156,6 +161,8 @@ impl AppState {
             is_bare: handle.is_bare(),
             head,
             branches,
+            tags,
+            status,
         })
     }
 
