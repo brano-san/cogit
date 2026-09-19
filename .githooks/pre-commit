@@ -135,6 +135,15 @@ if [ "$WEB" = "1" ]; then
   need npm
   say "svelte-check"
   npm --prefix frontend run --silent check || fail "type check failed"
+
+  # An unbalanced <!-- leaves the comment body rendering as visible text, which
+  # svelte-check accepts as a valid text node.
+  say "comment balance"
+  for f in $(git ls-files "*.svelte"); do
+    if [ "$(grep -c "<!--" "$f")" != "$(grep -c -- "-->" "$f")" ]; then
+      fail "$f has unbalanced HTML comment markers"
+    fi
+  done
 fi
 
 say "ok"
