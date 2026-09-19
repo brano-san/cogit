@@ -36,7 +36,7 @@
 | M9 | Тестовые фикстуры | `DONE` | M0 | [M9](modules/M9-fixtures.md) |
 | M1 | Ядро Git и системный бэкенд | `WIP` (чтение repo/HEAD/веток готово) | M0, M9 | [M1](modules/M1-core.md) |
 | M3 | Дерево репозиториев и сабмодули | `TODO` | M1, M2 | [M3](modules/M3-repo-tree.md) |
-| M4 | Граф истории и визуальный Rebase | `WIP` (алгоритм дорожек готов) | M1, M2, M9 | [M4](modules/M4-graph.md) |
+| M4 | Граф истории и визуальный Rebase | `WIP` (граф рисуется, стриминг работает) | M1, M2, M9 | [M4](modules/M4-graph.md) |
 | M2 | Макет, многооконность, меню | `WIP` (сетка панелей и сплиттеры готовы) | M0 | [M2](modules/M2-layout.md) |
 | M5 | Дерево ссылок и управление состоянием | `TODO` | M1, M2 | [M5](modules/M5-references.md) |
 | M6 | Список файлов, стейджинг, Hunk Staging | `TODO` | M1, M2, M7 | [M6](modules/M6-staging.md) |
