@@ -182,6 +182,29 @@ impl AppState {
         Ok(())
     }
 
+    pub fn commit_details(
+        &self,
+        repo: RepoId,
+        rev: &str,
+    ) -> Result<git_engine::CommitDetails, git_engine::GitError> {
+        self.handle(repo)?.commit_details(rev)
+    }
+
+    pub fn commit_files(
+        &self,
+        repo: RepoId,
+        rev: &str,
+    ) -> Result<Vec<git_engine::FileEntry>, git_engine::GitError> {
+        self.handle(repo)?.commit_files(rev)
+    }
+
+    fn handle(&self, repo: RepoId) -> Result<git_engine::RepoHandle, git_engine::GitError> {
+        let open = self
+            .get(repo)
+            .ok_or_else(|| git_engine::GitError::RepoNotFound(format!("id {}", repo.0)))?;
+        git_engine::RepoHandle::open(&open.root)
+    }
+
     #[must_use]
     pub fn find_by_root(&self, root: &Path) -> Option<RepoId> {
         self.repos

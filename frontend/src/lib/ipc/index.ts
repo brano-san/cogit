@@ -7,7 +7,10 @@ export type {
   AppInfo,
   Branch,
   BranchKind,
+  CommitDetails,
   CommitRow,
+  FileEntry,
+  FileStatus,
   GitError,
   GraphChunk,
   GraphEdge,
@@ -16,6 +19,7 @@ export type {
   RepoId,
   RepoStatus,
   RepoSummary,
+  Signature,
   Tag,
 } from "./bindings";
 
@@ -70,4 +74,19 @@ export async function loadCommits(repo: RepoId, onChunk: (chunk: GraphChunk) => 
   if (result.status === "error") {
     throw new CogitError(result.error);
   }
+}
+
+export async function commitDetails(repo: RepoId, rev: string) {
+  return unwrap(await commands.commitDetails(repo, rev));
+}
+
+export async function commitFiles(repo: RepoId, rev: string) {
+  return unwrap(await commands.commitFiles(repo, rev));
+}
+
+function unwrap<T>(result: { status: "ok"; data: T } | { status: "error"; error: GitError }): T {
+  if (result.status === "error") {
+    throw new CogitError(result.error);
+  }
+  return result.data;
 }

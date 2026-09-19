@@ -1,5 +1,5 @@
 use app_state::{DEFAULT_CHUNK_SIZE, GraphChunk, RepoId, RepoSummary};
-use git_engine::GitError;
+use git_engine::{CommitDetails, FileEntry, GitError};
 use serde::Serialize;
 use std::path::PathBuf;
 
@@ -75,4 +75,40 @@ pub async fn load_commits(
         "commit graph streamed"
     );
     Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn commit_details(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    rev: String,
+) -> Result<CommitDetails, GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.commit_details(repo, &rev))
+        .await
+        .map_err(|err| GitError::Internal(format!("commit_details task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn commit_files(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    rev: String,
+) -> Result<Vec<FileEntry>, GitError> {
+    let app_state = state.state.clone();
+    let started = std::time::Instant::now();
+
+    let files = tokio::task::spawn_blocking(move || app_state.commit_files(repo, &rev))
+        .await
+        .map_err(|err| GitError::Internal(format!("commit_files task failed: {err}")))??;
+
+    tracing::debug!(
+        repo = repo.0,
+        files = files.len(),
+        elapsed_ms = started.elapsed().as_millis(),
+        "commit files listed"
+    );
+    Ok(files)
 }
