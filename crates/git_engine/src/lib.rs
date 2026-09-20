@@ -4,6 +4,7 @@ mod commit;
 mod commit_write;
 mod error;
 mod history;
+mod operations;
 mod repo;
 mod runner;
 mod search;
@@ -11,6 +12,7 @@ mod staging;
 mod stash;
 mod state;
 mod status;
+mod tags;
 mod worktree;
 
 pub use blobs::{DiffSides, DiffSpec};
@@ -22,8 +24,10 @@ pub use history::CommitRow;
 pub use repo::{Branch, BranchKind, Head, RepoHandle, Tag};
 pub use runner::{CommandSink, GitOutput};
 pub use search::CommitQuery;
+pub use stash::{StashEntry, StashOptions};
 pub use state::RepoState;
 pub use status::RepoStatus;
+pub use tags::TagRequest;
 pub use worktree::WorktreeFiles;
 
 pub type Result<T> = std::result::Result<T, GitError>;

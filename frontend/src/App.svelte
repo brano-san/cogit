@@ -10,18 +10,28 @@
   import Panel from "$components/layout/Panel.svelte";
   import GitErrorDialog from "$components/layout/GitErrorDialog.svelte";
   import OutputPanel from "$components/layout/OutputPanel.svelte";
+  import StateBanner from "$components/layout/StateBanner.svelte";
   import Splitter from "$components/layout/Splitter.svelte";
   import StatusBar from "$components/layout/StatusBar.svelte";
   import Toolbar from "$components/layout/Toolbar.svelte";
+  import StashList from "$components/branch-tree/StashList.svelte";
+  import TagList from "$components/branch-tree/TagList.svelte";
   import RepositoryList from "$components/repo-tree/RepositoryList.svelte";
   import { formatCommitDate, shortOid } from "$lib/format";
+  import { stateBanner, type BannerAction } from "$lib/repo-state";
   import {
     checkout,
     deleteBranch,
+    abortOperation,
+    continueOperation,
+    createBranch,
+    createTag,
+    deleteTag,
     getAppInfo,
     onRepoChanged,
     type AppInfo,
     type Branch,
+    type Tag,
   } from "$lib/ipc";
   import { commit } from "$stores/commit.svelte";
   import { worktree } from "$stores/worktree.svelte";
@@ -29,6 +39,7 @@
   import { errors } from "$stores/errors.svelte";
   import { output } from "$stores/output.svelte";
   import { safety } from "$stores/safety.svelte";
+  import { stashes } from "$stores/stashes.svelte";
   import { graph } from "$stores/graph.svelte";
   import { layout } from "$stores/layout.svelte";
   import { repository } from "$stores/repository.svelte";
@@ -44,6 +55,8 @@
   const fractions = $derived(layout.fractions);
   const repo = $derived(repository.current);
   const details = $derived(commit.details);
+  const banner = $derived(repo ? stateBanner(repo.state, repo.indexLock) : null);
+  const tracked = $derived(repository.localBranches.find((b) => b.isHead));
 
   const onWorkingTree = $derived(repo !== undefined && repo !== null && commit.oid === null);
 
@@ -69,7 +82,9 @@
   async function afterMutation(paths: string[] = []) {
     diff.dropIfAffected(paths);
     await repository.refreshStatus();
+    const id = repository.current?.repo;
     await Promise.all([
+      id ? stashes.refresh(id) : Promise.resolve(),
       output.refreshProblems(),
       safety.refresh(),
       output.open ? output.refresh() : Promise.resolve(),
@@ -88,10 +103,12 @@
     const unlisten = onRepoChanged((change) => {
       const id = repository.current?.repo;
       if (!id || id.valueOf() !== change.repo.valueOf()) return;
-      void repository.refresh();
+      // Only a ref move needs the full re-read; an index or worktree change moves counters.
+      const movedRefs = change.kind === "head" || change.kind === "refs";
+      void (movedRefs ? repository.refresh() : repository.refreshStatus());
       if (commit.oid === null) void worktree.load(id);
       void afterMutation();
-      if (change.kind === "head" || change.kind === "refs") void graph.load(id, graph.query);
+      if (movedRefs) void graph.load(id, graph.query);
     });
     return () => {
       void unlisten.then((stop) => stop());
@@ -196,6 +213,116 @@
     await afterRefChange();
   }
 
+  async function tagHead() {
+    const id = repository.current?.repo;
+    if (!id) return;
+    const name = window.prompt("Tag name for the current commit:");
+    if (!name) return;
+    const message = window.prompt("Message (leave empty for a lightweight tag):", "");
+    try {
+      await createTag(id, {
+        name,
+        target: null,
+        message: message ? message : null,
+        force: false,
+      });
+    } catch (err) {
+      errors.report(err as never);
+      return;
+    }
+    await afterRefChange();
+  }
+
+  async function removeTag(tag: Tag) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    const confirmed = await ask(`Delete tag ${tag.name}? Undo can bring it back.`, {
+      title: "Delete tag",
+      kind: "warning",
+    });
+    if (!confirmed) return;
+    try {
+      await deleteTag(id, tag.name);
+    } catch (err) {
+      errors.report(err as never);
+      return;
+    }
+    await afterRefChange();
+  }
+
+  async function checkoutTag(tag: Tag) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    try {
+      await checkout(id, { kind: "commit", oid: tag.oid });
+    } catch (err) {
+      errors.report(err as never);
+      return;
+    }
+    await afterRefChange();
+  }
+
+  async function stashAll() {
+    const id = repository.current?.repo;
+    if (!id) return;
+    const message = window.prompt("Stash message:", "");
+    if (message === null) return;
+    try {
+      await stashes.push(id, message, true);
+    } catch (err) {
+      errors.report(err as never);
+      return;
+    }
+    await afterRefChange();
+  }
+
+  async function applyStash(index: number, pop: boolean) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    try {
+      await stashes.apply(id, index, pop);
+    } catch (err) {
+      errors.report(err as never);
+      return;
+    }
+    await afterRefChange();
+  }
+
+  async function dropStash(index: number) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    const confirmed = await ask(`Drop stash@{${index}}? Undo can bring it back.`, {
+      title: "Drop stash",
+      kind: "warning",
+    });
+    if (!confirmed) return;
+    try {
+      await stashes.drop(id, index);
+    } catch (err) {
+      errors.report(err as never);
+      return;
+    }
+    await afterMutation();
+  }
+
+  async function runBannerAction(action: BannerAction) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    try {
+      if (action === "abort") await abortOperation(id);
+      if (action === "continue") await continueOperation(id);
+      if (action === "createBranch") {
+        const name = window.prompt("Name for the new branch at this commit:");
+        if (!name) return;
+        await createBranch(id, name, null, true);
+      }
+    } catch (err) {
+      errors.report(err as never);
+      return;
+    }
+    await afterRefChange();
+  }
+
   function openDiff(path: string) {
     const id = repository.current?.repo;
     const oid = commit.oid;
@@ -218,6 +345,7 @@
     commit.clear();
     diff.clear();
     worktree.clear();
+    stashes.clear();
     await repository.open(picked);
     const opened = repository.current;
     if (opened) {
@@ -236,7 +364,12 @@
     busy={repository.busy ? "Opening repository…" : undefined}
     undoable={safety.last?.description}
     onundo={undo}
+    handlers={{ stash: stashAll, tag: tagHead }}
   />
+
+  {#if banner}
+    <StateBanner {banner} busy={repository.busy} onaction={runBannerAction} />
+  {/if}
 
   <div class="workspace">
     <div class="left-column" style:flex="0 0 {fractions.leftColumn * 100}%">
@@ -273,6 +406,8 @@
                 branches={repository.remoteBranches}
                 oncheckout={switchTo}
               />
+              <TagList tags={repo.tags} oncheckout={checkoutTag} ondelete={removeTag} />
+              <StashList stashes={stashes.entries} onapply={applyStash} ondrop={dropStash} />
             {/if}
           {/if}
         </Panel>
@@ -429,6 +564,9 @@
   <StatusBar
     repository={repo?.name ?? "No repository"}
     branch={repo ? repository.headLabel : undefined}
+    upstream={tracked?.upstream ?? undefined}
+    ahead={tracked?.ahead ?? 0}
+    behind={tracked?.behind ?? 0}
     summary={repo ? `${graph.rows.length} commits · ${repo.branches.length} refs` : "Milestone C"}
     version={info?.version}
     status={repository.error ? "Error" : repository.busy ? "Working…" : "Ready"}

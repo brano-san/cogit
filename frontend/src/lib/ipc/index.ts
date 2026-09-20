@@ -11,6 +11,8 @@ import type {
   GraphChunk,
   RepoChanged,
   RepoId,
+  StashOptions,
+  TagRequest,
 } from "./bindings";
 
 export type {
@@ -40,11 +42,15 @@ export type {
   LineEnding,
   RepoChanged,
   RepoId,
+  RepoState,
   RepoStatus,
   RepoSummary,
   SafetyEntry,
   Signature,
+  StashEntry,
+  StashOptions,
   Tag,
+  TagRequest,
   Whitespace,
   WorktreeFiles,
 } from "./bindings";
@@ -196,6 +202,38 @@ export async function safetyLog() {
 
 export async function undoLast(repo: RepoId) {
   return unwrap(await commands.undoLast(repo));
+}
+
+export async function createTag(repo: RepoId, request: TagRequest) {
+  return unwrap(await commands.createTag(repo, request));
+}
+
+export async function deleteTag(repo: RepoId, name: string) {
+  return unwrap(await commands.deleteTag(repo, name));
+}
+
+export async function listStashes(repo: RepoId) {
+  return unwrap(await commands.stashes(repo));
+}
+
+export async function stashPush(repo: RepoId, options: StashOptions) {
+  return unwrap(await commands.stashPush(repo, options));
+}
+
+export async function stashApply(repo: RepoId, index: number, pop: boolean) {
+  return unwrap(await commands.stashApply(repo, index, pop));
+}
+
+export async function stashDrop(repo: RepoId, index: number) {
+  return unwrap(await commands.stashDrop(repo, index));
+}
+
+export async function abortOperation(repo: RepoId) {
+  return unwrap(await commands.abortOperation(repo));
+}
+
+export async function continueOperation(repo: RepoId) {
+  return unwrap(await commands.continueOperation(repo));
 }
 
 export async function commandProblems() {

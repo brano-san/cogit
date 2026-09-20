@@ -4,7 +4,7 @@ use git_engine::{
     CheckoutTarget, CommitDetails, CommitQuery, CommitRequest, DiffSpec, FileEntry, GitError,
     WorktreeFiles,
 };
-use git_engine::{GitOutput, RepoStatus};
+use git_engine::{GitOutput, RepoStatus, StashEntry, StashOptions, TagRequest};
 use serde::Serialize;
 use std::path::PathBuf;
 
@@ -292,4 +292,103 @@ pub async fn repo_status(
     tokio::task::spawn_blocking(move || app_state.repo_status(repo))
         .await
         .map_err(|err| GitError::Internal(format!("repo_status task failed: {err}")))?
+}
+
+macro_rules! repo_command {
+    ($name:ident) => {
+        #[tauri::command]
+        #[specta::specta]
+        pub async fn $name(
+            state: tauri::State<'_, crate::AppContext>,
+            repo: RepoId,
+        ) -> Result<(), GitError> {
+            let app_state = state.state.clone();
+            tokio::task::spawn_blocking(move || app_state.$name(repo))
+                .await
+                .map_err(|err| {
+                    GitError::Internal(format!(concat!(stringify!($name), " task failed: {}"), err))
+                })?
+        }
+    };
+}
+
+repo_command!(abort_operation);
+repo_command!(continue_operation);
+
+#[tauri::command]
+#[specta::specta]
+pub async fn stashes(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<Vec<StashEntry>, GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.stashes(repo))
+        .await
+        .map_err(|err| GitError::Internal(format!("stashes task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn stash_push(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    options: StashOptions,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.stash_push(repo, &options))
+        .await
+        .map_err(|err| GitError::Internal(format!("stash_push task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn stash_apply(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    index: u32,
+    pop: bool,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.stash_apply(repo, index, pop))
+        .await
+        .map_err(|err| GitError::Internal(format!("stash_apply task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn stash_drop(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    index: u32,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.stash_drop(repo, index))
+        .await
+        .map_err(|err| GitError::Internal(format!("stash_drop task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn create_tag(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    request: TagRequest,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.create_tag(repo, &request))
+        .await
+        .map_err(|err| GitError::Internal(format!("create_tag task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_tag(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    name: String,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.delete_tag(repo, &name))
+        .await
+        .map_err(|err| GitError::Internal(format!("delete_tag task failed: {err}")))?
 }

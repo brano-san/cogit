@@ -182,3 +182,12 @@ fn the_duration_is_measured() {
 
     assert!(out.duration_ms < 60_000);
 }
+
+#[test]
+fn no_command_can_block_waiting_for_an_editor() {
+    let f = test_fixtures::linear(1).unwrap();
+    let repo = open(&f);
+
+    assert_eq!(echo_env(&repo, "GIT_EDITOR"), "true");
+    assert_eq!(echo_env(&repo, "GIT_SEQUENCE_EDITOR"), "true");
+}

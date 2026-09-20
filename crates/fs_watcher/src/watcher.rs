@@ -3,11 +3,17 @@ use notify::RecursiveMode;
 use notify_debouncer_mini::{DebounceEventResult, Debouncer, new_debouncer};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
+use std::time::{Duration, Instant};
+
+/// Our own writes arrive one debounce after the command finished, so the window has to
+/// outlive it (doc/12-risks.md, R-25).
+pub const DEFAULT_QUIET: Duration = Duration::from_millis(DEBOUNCE_MS * 4);
 
 pub struct RepoWatcher {
     paused: Arc<AtomicBool>,
+    quiet_until: Arc<Mutex<Option<Instant>>>,
     /// Dropping the debouncer stops the background thread, so it has to be held.
     _debouncer: Debouncer<notify::RecommendedWatcher>,
 }
@@ -19,10 +25,12 @@ impl RepoWatcher {
         on_change: impl Fn(RepoChanged) + Send + 'static,
     ) -> Result<Self, WatchError> {
         let paused = Arc::new(AtomicBool::new(false));
+        let quiet_until = Arc::new(Mutex::new(None));
         let route = Route {
             root: root.to_path_buf(),
             git_dir: git_dir.to_path_buf(),
             paused: Arc::clone(&paused),
+            quiet_until: Arc::clone(&quiet_until),
         };
 
         let mut debouncer = new_debouncer(
@@ -43,9 +51,7 @@ impl RepoWatcher {
             source,
         })?;
 
-        // The worktree is watched recursively because edits can happen anywhere in it;
-        // the noise INV-06 warns about is filtered when routing, not by narrowing the
-        // watch. `.git` is watched separately so `objects` can be skipped entirely.
+        // The INV-06 noise is filtered when routing, not by narrowing the watch.
         watch(&mut debouncer, root, RecursiveMode::Recursive)?;
         watch(&mut debouncer, git_dir, RecursiveMode::NonRecursive)?;
         for name in crate::WATCHED_GIT_PATHS {
@@ -57,12 +63,21 @@ impl RepoWatcher {
 
         Ok(Self {
             paused,
+            quiet_until,
             _debouncer: debouncer,
         })
     }
 
-    /// Cogit's own mutations arrive as filesystem events too; reacting to them would
-    /// reload the UI on top of the reload the mutation already triggered.
+    /// Only ever extends: a second mutation must not cut the first one's window short.
+    pub fn quiet_for(&self, duration: Duration) {
+        let until = Instant::now() + duration;
+        if let Ok(mut slot) = self.quiet_until.lock()
+            && slot.is_none_or(|current| current < until)
+        {
+            *slot = Some(until);
+        }
+    }
+
     pub fn pause(&self) {
         self.paused.store(true, Ordering::Relaxed);
     }
@@ -84,11 +99,20 @@ struct Route {
     root: PathBuf,
     git_dir: PathBuf,
     paused: Arc<AtomicBool>,
+    quiet_until: Arc<Mutex<Option<Instant>>>,
 }
 
 impl Route {
+    fn is_quiet(&self) -> bool {
+        self.quiet_until
+            .lock()
+            .ok()
+            .and_then(|slot| *slot)
+            .is_some_and(|until| Instant::now() < until)
+    }
+
     fn classify(&self, path: &Path) -> Option<RepoChanged> {
-        if self.paused.load(Ordering::Relaxed) {
+        if self.paused.load(Ordering::Relaxed) || self.is_quiet() {
             return None;
         }
 

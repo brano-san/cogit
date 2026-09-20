@@ -161,3 +161,50 @@ fn a_missing_repository_fails_instead_of_panicking() {
 
     assert!(result.is_err());
 }
+
+#[test]
+fn events_inside_a_quiet_window_are_dropped() {
+    let harness = start();
+    harness.watcher.quiet_for(Duration::from_millis(700));
+
+    std::fs::write(harness.root.join("ours.txt"), "written by Cogit\n").unwrap();
+
+    assert!(
+        collect(&harness).is_empty(),
+        "our own writes arrive debounced, after the command has already finished"
+    );
+}
+
+#[test]
+fn events_after_the_quiet_window_still_arrive() {
+    let harness = start();
+    harness.watcher.quiet_for(Duration::from_millis(150));
+    std::thread::sleep(Duration::from_millis(400));
+    while harness.events.try_recv().is_ok() {}
+
+    std::fs::write(harness.root.join("theirs.txt"), "written in a terminal\n").unwrap();
+
+    assert!(!collect(&harness).is_empty());
+}
+
+#[test]
+fn a_later_quiet_window_extends_an_earlier_one() {
+    let harness = start();
+    harness.watcher.quiet_for(Duration::from_millis(200));
+    harness.watcher.quiet_for(Duration::from_millis(900));
+
+    std::fs::write(harness.root.join("ours.txt"), "second mutation\n").unwrap();
+
+    assert!(collect(&harness).is_empty());
+}
+
+#[test]
+fn a_shorter_window_does_not_cut_a_longer_one_short() {
+    let harness = start();
+    harness.watcher.quiet_for(Duration::from_millis(900));
+    harness.watcher.quiet_for(Duration::from_millis(50));
+
+    std::fs::write(harness.root.join("ours.txt"), "still ours\n").unwrap();
+
+    assert!(collect(&harness).is_empty());
+}

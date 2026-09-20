@@ -266,6 +266,55 @@ pub fn unicode_paths() -> Result<Fixture> {
     Ok(f)
 }
 
+/// A clone with an `origin` that has moved on: two commits ahead locally, one behind.
+pub fn with_remote() -> Result<Fixture> {
+    let f = linear(2)?;
+    let remote = f.dir.path().join("origin.git");
+    run_git(
+        f.path(),
+        &[
+            "init",
+            "--bare",
+            "--initial-branch=main",
+            &remote.to_string_lossy(),
+        ],
+        None,
+    )?;
+    f.git(&["remote", "add", "origin", &remote.to_string_lossy()])?;
+    f.git(&["push", "--set-upstream", "origin", "main"])?;
+
+    // The remote moves on through a second clone, so `origin/main` is genuinely ahead.
+    let other = f.dir.path().join("other");
+    run_git(
+        f.dir.path(),
+        &["clone", &remote.to_string_lossy(), &other.to_string_lossy()],
+        None,
+    )?;
+    std::fs::write(
+        other.join("from-remote.txt"),
+        "remote work
+",
+    )?;
+    run_git(&other, &["add", "--", "from-remote.txt"], None)?;
+    run_git(&other, &["commit", "-m", "remote commit"], Some(30))?;
+    run_git(&other, &["push"], None)?;
+
+    f.commit_file(
+        20,
+        "local-a.txt",
+        "local a
+",
+    )?;
+    f.commit_file(
+        21,
+        "local-b.txt",
+        "local b
+",
+    )?;
+    f.git(&["fetch", "origin"])?;
+    Ok(f)
+}
+
 pub fn with_stashes(n: i64) -> Result<Fixture> {
     let f = linear(2)?;
     for i in 0..n {
