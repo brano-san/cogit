@@ -255,6 +255,7 @@ fn build(
                     .map(|(old, _)| old.clone())
                     .unwrap_or_default(),
                 moved: false,
+                move_id: None,
                 no_newline: open.old && index as usize + 1 == old_lines.len(),
             });
         }
@@ -267,6 +268,7 @@ fn build(
                     .map(|(_, new)| new.clone())
                     .unwrap_or_default(),
                 moved: false,
+                move_id: None,
                 no_newline: open.new && index as usize + 1 == new_lines.len(),
             });
         }
