@@ -67,8 +67,13 @@ pub fn diff_text(old: &str, new: &str, options: &DiffOptions) -> FileDiff {
     let old_lines: Vec<&str> = lines(&old_text).collect();
     let new_lines: Vec<&str> = lines(&new_text).collect();
 
-    let old_keys: Vec<Cow<'_, str>> = old_lines.iter().map(|l| key(l, options)).collect();
-    let new_keys: Vec<Cow<'_, str>> = new_lines.iter().map(|l| key(l, options)).collect();
+    let open = OpenEnd {
+        old: lacks_final_newline(&old_text),
+        new: lacks_final_newline(&new_text),
+    };
+
+    let old_keys: Vec<Cow<'_, str>> = open.keys(&old_lines, true, options);
+    let new_keys: Vec<Cow<'_, str>> = open.keys(&new_lines, false, options);
 
     let mut interner = Interner::new(old_keys.len() + new_keys.len());
     let before: Vec<Token> = old_keys
@@ -100,7 +105,7 @@ pub fn diff_text(old: &str, new: &str, options: &DiffOptions) -> FileDiff {
     let context = options.context_lines as usize;
     let hunks = group(&changes, context)
         .iter()
-        .map(|group| build(group, &old_lines, &new_lines, options))
+        .map(|group| build(group, &old_lines, &new_lines, options, open))
         .collect();
 
     FileDiff::Text {
@@ -120,6 +125,45 @@ fn algorithm(algorithm: Algorithm) -> imara_diff::Algorithm {
         Algorithm::Histogram => imara_diff::Algorithm::Histogram,
         Algorithm::Myers => imara_diff::Algorithm::Myers,
     }
+}
+
+/// Which side of the comparison ends without a final newline.
+#[derive(Debug, Clone, Copy)]
+struct OpenEnd {
+    old: bool,
+    new: bool,
+}
+
+/// A line the file ends on without a newline is not the same line as the same text with
+/// one — git prints `\ No newline at end of file` for exactly that difference. Marking the
+/// key is what makes the diff see it; the sentinel holds a NUL, which cannot appear in
+/// text that got this far, because `diff_bytes` calls such content binary.
+const OPEN_END: &str = "\u{0}no-final-newline";
+
+impl OpenEnd {
+    fn side(self, old: bool) -> bool {
+        if old { self.old } else { self.new }
+    }
+
+    fn keys<'a>(self, lines: &[&'a str], old: bool, options: &DiffOptions) -> Vec<Cow<'a, str>> {
+        let last = lines.len().saturating_sub(1);
+        lines
+            .iter()
+            .enumerate()
+            .map(|(index, line)| {
+                let body = key(line, options);
+                if self.side(old) && index == last {
+                    Cow::Owned(format!("{body}{OPEN_END}"))
+                } else {
+                    body
+                }
+            })
+            .collect()
+    }
+}
+
+fn lacks_final_newline(text: &str) -> bool {
+    !text.is_empty() && !text.ends_with('\n')
 }
 
 fn key<'a>(line: &'a str, options: &DiffOptions) -> Cow<'a, str> {
@@ -165,6 +209,7 @@ fn build(
     old_lines: &[&str],
     new_lines: &[&str],
     options: &DiffOptions,
+    open: OpenEnd,
 ) -> Hunk {
     let context = options.context_lines;
     let first = &group[0];
@@ -210,6 +255,7 @@ fn build(
                     .map(|(old, _)| old.clone())
                     .unwrap_or_default(),
                 moved: false,
+                no_newline: open.old && index as usize + 1 == old_lines.len(),
             });
         }
         for (offset, index) in change.after.clone().enumerate() {
@@ -221,6 +267,7 @@ fn build(
                     .map(|(_, new)| new.clone())
                     .unwrap_or_default(),
                 moved: false,
+                no_newline: open.new && index as usize + 1 == new_lines.len(),
             });
         }
         old_at = change.before.end;

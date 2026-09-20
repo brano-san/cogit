@@ -79,6 +79,10 @@ pub enum DiffRow {
         inline: Vec<(u32, u32)>,
         #[serde(default)]
         moved: bool,
+        /// The file ends on this row without a final newline; a unified diff prints
+        /// `\ No newline at end of file` underneath it.
+        #[serde(default)]
+        no_newline: bool,
     },
     Insert {
         new: u32,
@@ -86,6 +90,8 @@ pub enum DiffRow {
         inline: Vec<(u32, u32)>,
         #[serde(default)]
         moved: bool,
+        #[serde(default)]
+        no_newline: bool,
     },
     Collapsed {
         count: u32,
