@@ -175,6 +175,7 @@ pub enum FileStatus { Added, Modified, Deleted, Renamed, Copied }
 | `diff_files` | `repo, spec: DiffSpec, paths: string[], options: DiffOptions, request` | `DiffBatch` | M7 |
 | `diff_working_tree` | `repo, path` | `FileDiff` | M7 |
 | `merge_conflict` | `repo, path` | `ThreeWayDiff` | M7 |
+| `file_before` | `repo, oid, path` | `string \| null` | M8 |
 
 `diff_files` — та же работа, что `diff_file`, но сразу по всем файлам коммита: чтение
 объектов последовательное, само сравнение параллельное через `rayon` внутри

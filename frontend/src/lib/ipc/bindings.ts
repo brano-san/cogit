@@ -127,6 +127,8 @@ export const commands = {
 	installPreset: (repo: RepoId, id: string) => typedError<null, GitError>(__TAURI_INVOKE("install_preset", { repo, id })),
 	/**  Every file of a commit in one round trip, diffed in parallel (doc/08-diff-engine.md §9). */
 	diffFiles: (repo: RepoId, spec: DiffSpec, paths: string[], options: DiffOptions, request: number) => typedError<DiffBatch, GitError>(__TAURI_INVOKE("diff_files", { repo, spec, paths, options, request })),
+	/**  The file as it was before a commit. `None` means there was no such file to open. */
+	fileBefore: (repo: RepoId, oid: string, path: string) => typedError<string | null, GitError>(__TAURI_INVOKE("file_before", { repo, oid, path })),
 };
 
 /** Events */

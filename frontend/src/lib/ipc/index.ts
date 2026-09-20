@@ -583,3 +583,8 @@ export async function diffFiles(
 ) {
   return unwrap(await commands.diffFiles(repo, spec, paths, options, request));
 }
+
+/** The file as it was before a commit; `null` when there was no such file to open. */
+export async function fileBefore(repo: RepoId, oid: string, path: string) {
+  return unwrap(await commands.fileBefore(repo, oid, path));
+}
