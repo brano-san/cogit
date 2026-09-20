@@ -59,6 +59,19 @@ pub struct RepoSummary {
 }
 
 /// Commits arrive with their lane placement so the UI never computes layout (INV-02).
+/// One row of the repository tree: enough to draw it without opening every repository.
+#[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoOverview {
+    pub repo: RepoId,
+    pub name: String,
+    pub root: String,
+    pub branch: Option<String>,
+    pub ahead: u32,
+    pub behind: u32,
+    pub dirty: bool,
+}
+
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GraphChunk {
@@ -772,6 +785,91 @@ impl AppState {
         limit: u32,
     ) -> Result<Vec<git_engine::CommitRow>, git_engine::GitError> {
         self.handle(repo)?.lost_commits(limit as usize)
+    }
+
+    /// Sorted by name so the tree does not reshuffle when a repository is reopened.
+    #[must_use]
+    pub fn overviews(&self) -> Vec<RepoOverview> {
+        let mut rows: Vec<RepoOverview> = self
+            .list()
+            .into_iter()
+            .map(|open| self.overview_of(&open))
+            .collect();
+        rows.sort_by(|a, b| a.name.cmp(&b.name));
+        rows
+    }
+
+    pub fn close_repository(&self, repo: RepoId) -> bool {
+        self.watchers.write().remove(&repo);
+        self.safety.write().retain(|entry| entry.repo != repo);
+        let removed = self.unregister(repo);
+        if removed {
+            self.emit(AppEvent::RepoClosed { repo });
+        }
+        removed
+    }
+
+    fn overview_of(&self, open: &OpenRepo) -> RepoOverview {
+        let mut row = RepoOverview {
+            repo: open.id,
+            name: open.display_name.clone(),
+            root: open.root.to_string_lossy().replace('\\', "/"),
+            branch: None,
+            ahead: 0,
+            behind: 0,
+            dirty: false,
+        };
+
+        let Ok(handle) = git_engine::RepoHandle::open(&open.root) else {
+            return row;
+        };
+        if let Ok(git_engine::Head::Branch { name, .. }) = handle.head() {
+            row.branch = Some(name);
+        }
+        if let Ok(branches) = handle.branches()
+            && let Some(current) = branches.into_iter().find(|b| b.is_head)
+        {
+            row.ahead = current.ahead;
+            row.behind = current.behind;
+        }
+        if let Ok(status) = handle.status() {
+            row.dirty = !status.is_clean();
+        }
+        row
+    }
+
+    pub fn submodules(
+        &self,
+        repo: RepoId,
+    ) -> Result<Vec<git_engine::Submodule>, git_engine::GitError> {
+        self.handle(repo)?.submodules()
+    }
+
+    pub fn update_submodule(
+        &self,
+        repo: RepoId,
+        path: &str,
+        init: bool,
+    ) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
+        self.handle(repo)?.update_submodule(path, init)
+    }
+
+    /// Builds the patch and applies it in one step: the two halves must never drift
+    /// apart, and a half-applied selection is exactly the damage R-04 warns about.
+    pub fn stage_selection(
+        &self,
+        repo: RepoId,
+        request: &diff_engine::PatchRequest,
+        reverse: bool,
+    ) -> Result<(), git_engine::GitError> {
+        let Some(patch) = diff_engine::build_patch(request) else {
+            return Err(git_engine::GitError::InvalidState(
+                "nothing selected".to_owned(),
+            ));
+        };
+        self.quiet(repo);
+        self.handle(repo)?.apply_patch(&patch, reverse)
     }
 
     fn handle(&self, repo: RepoId) -> Result<git_engine::RepoHandle, git_engine::GitError> {

@@ -1,4 +1,11 @@
-import { CogitError, diffFile, type DiffSpec, type FileDiff, type RepoId } from "$lib/ipc";
+import {
+  CogitError,
+  diffFile,
+  type DiffSpec,
+  type FileDiff,
+  type Hunk,
+  type RepoId,
+} from "$lib/ipc";
 
 class DiffStore {
   path = $state<string | null>(null);
@@ -6,6 +13,16 @@ class DiffStore {
   diff = $state.raw<FileDiff | null>(null);
   loading = $state(false);
   error = $state<CogitError | null>(null);
+  /** The side the shown diff came from, which decides whether it can be staged. */
+  spec = $state.raw<DiffSpec | null>(null);
+
+  get hunks(): Hunk[] {
+    return this.diff?.kind === "text" ? this.diff.hunks : [];
+  }
+
+  get stageable(): boolean {
+    return this.spec?.kind === "workTreeVsIndex" || this.spec?.kind === "indexVsHead";
+  }
 
   /** Clicking down the file list outruns the backend; stale diffs lose. */
   #generation = 0;
@@ -13,6 +30,7 @@ class DiffStore {
   async load(repo: RepoId, spec: DiffSpec, path: string): Promise<void> {
     const generation = ++this.#generation;
     this.path = path;
+    this.spec = spec;
     this.error = null;
     this.loading = true;
 
@@ -37,6 +55,7 @@ class DiffStore {
   clear(): void {
     this.#generation += 1;
     this.path = null;
+    this.spec = null;
     this.diff = null;
     this.loading = false;
     this.error = null;

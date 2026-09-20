@@ -1,3 +1,4 @@
+mod apply;
 mod blobs;
 mod branches;
 mod commit;
@@ -16,6 +17,7 @@ mod staging;
 mod stash;
 mod state;
 mod status;
+mod submodules;
 mod tags;
 mod worktree;
 
@@ -34,6 +36,7 @@ pub use search::CommitQuery;
 pub use stash::{StashEntry, StashOptions};
 pub use state::RepoState;
 pub use status::RepoStatus;
+pub use submodules::{Submodule, SubmoduleState};
 pub use tags::TagRequest;
 pub use worktree::WorktreeFiles;
 

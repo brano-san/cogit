@@ -77,6 +77,11 @@ impl Fixture {
         self.run(args, None)
     }
 
+    /// Runs a command inside a nested repository, such as a submodule checkout.
+    pub fn git_in(&self, cwd: &Path, args: &[&str]) -> Result<String> {
+        run_git(cwd, args, None)
+    }
+
     pub fn git_at(&self, index: i64, args: &[&str]) -> Result<String> {
         self.run(args, Some(index))
     }

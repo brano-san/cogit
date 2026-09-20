@@ -45,6 +45,11 @@ export const commands = {
 	revert: (repo: RepoId, commits: string[]) => typedError<null, GitError>(__TAURI_INVOKE("revert", { repo, commits })),
 	reflog: (repo: RepoId, limit: number) => typedError<ReflogEntry[], GitError>(__TAURI_INVOKE("reflog", { repo, limit })),
 	lostCommits: (repo: RepoId, limit: number) => typedError<CommitRow[], GitError>(__TAURI_INVOKE("lost_commits", { repo, limit })),
+	repositories: () => __TAURI_INVOKE<RepoOverview[]>("repositories"),
+	closeRepository: (repo: RepoId) => __TAURI_INVOKE<boolean>("close_repository", { repo }),
+	submodules: (repo: RepoId) => typedError<Submodule[], GitError>(__TAURI_INVOKE("submodules", { repo })),
+	updateSubmodule: (repo: RepoId, path: string, init: boolean) => typedError<null, GitError>(__TAURI_INVOKE("update_submodule", { repo, path, init })),
+	stageSelection: (repo: RepoId, request: PatchRequest, reverse: boolean) => typedError<null, GitError>(__TAURI_INVOKE("stage_selection", { repo, request, reverse })),
 };
 
 /** Events */
@@ -165,7 +170,6 @@ export type GitOutput = {
 	durationMs: number,
 };
 
-/**  Commits arrive with their lane placement so the UI never computes layout (INV-02). */
 export type GraphChunk = {
 	commits: CommitRow[],
 	lanes: LaneAssignment[],
@@ -213,6 +217,15 @@ export type MergeOptions = {
 
 export type NodeKind = "normal" | "merge" | "root" | "workingTree";
 
+export type PatchRequest = {
+	path: string,
+	hunks: Hunk[],
+	selectedDeletes: number[],
+	selectedInserts: number[],
+	lineEnding: LineEnding,
+	noTrailingNewline: boolean,
+};
+
 export type RebaseOptions = {
 	onto: string,
 	autostash: boolean,
@@ -241,6 +254,20 @@ export type RepoChanged = {
 };
 
 export type RepoId = number;
+
+/**
+ *  Commits arrive with their lane placement so the UI never computes layout (INV-02).
+ *  One row of the repository tree: enough to draw it without opening every repository.
+ */
+export type RepoOverview = {
+	repo: RepoId,
+	name: string,
+	root: string,
+	branch: string | null,
+	ahead: number,
+	behind: number,
+	dirty: boolean,
+};
 
 export type RepoState = { kind: "clean" } | { kind: "detachedHead"; oid: string } | { kind: "merging" } | { kind: "rebasing" } | { kind: "cherryPicking" } | { kind: "reverting" } | { kind: "bisecting" } | { kind: "empty" } | { kind: "bare" };
 
@@ -291,6 +318,19 @@ export type StashOptions = {
 	includeUntracked: boolean,
 	keepIndex: boolean,
 };
+
+export type Submodule = {
+	name: string,
+	path: string,
+	url: string,
+	recorded: string,
+	checkedOut: string | null,
+	state: SubmoduleState,
+};
+
+export type SubmoduleState = "notInitialised" | "inSync" | 
+/**  Checked out on something other than the commit the parent records. */
+"diverged";
 
 export type Tag = {
 	name: string,

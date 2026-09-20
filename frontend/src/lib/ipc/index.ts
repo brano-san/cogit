@@ -10,6 +10,7 @@ import type {
   GitError,
   GraphChunk,
   MergeOptions,
+  PatchRequest,
   RebaseOptions,
   RepoChanged,
   RepoId,
@@ -43,10 +44,12 @@ export type {
   LaneAssignment,
   LineEnding,
   MergeOptions,
+  PatchRequest,
   RebaseOptions,
   ReflogEntry,
   RepoChanged,
   RepoId,
+  RepoOverview,
   RepoState,
   RepoStatus,
   RepoSummary,
@@ -54,6 +57,8 @@ export type {
   Signature,
   StashEntry,
   StashOptions,
+  Submodule,
+  SubmoduleState,
   Tag,
   TagRequest,
   Whitespace,
@@ -207,6 +212,26 @@ export async function safetyLog() {
 
 export async function undoLast(repo: RepoId) {
   return unwrap(await commands.undoLast(repo));
+}
+
+export async function stageSelection(repo: RepoId, request: PatchRequest, reverse: boolean) {
+  return unwrap(await commands.stageSelection(repo, request, reverse));
+}
+
+export async function listSubmodules(repo: RepoId) {
+  return unwrap(await commands.submodules(repo));
+}
+
+export async function updateSubmodule(repo: RepoId, path: string, init: boolean) {
+  return unwrap(await commands.updateSubmodule(repo, path, init));
+}
+
+export async function listRepositories() {
+  return await commands.repositories();
+}
+
+export async function closeRepository(repo: RepoId) {
+  return await commands.closeRepository(repo);
 }
 
 export async function readReflog(repo: RepoId, limit = 100) {

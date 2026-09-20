@@ -203,3 +203,47 @@ body {
   background: var(--text-secondary);
   background-clip: content-box;
 }
+
+/* Lezer token classes. Colour only — a background here would fight the diff fill (T7.6). */
+.tok-keyword,
+.tok-modifier,
+.tok-controlKeyword,
+.tok-operatorKeyword {
+  color: var(--c-lane-5, #c792ea);
+}
+
+.tok-string,
+.tok-string2,
+.tok-special {
+  color: var(--c-lane-3, #c3e88d);
+}
+
+.tok-comment,
+.tok-lineComment,
+.tok-blockComment,
+.tok-docComment {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.tok-number,
+.tok-bool,
+.tok-atom {
+  color: var(--c-lane-6, #f78c6c);
+}
+
+.tok-typeName,
+.tok-className,
+.tok-namespace {
+  color: var(--c-lane-2, #ffcb6b);
+}
+
+.tok-function,
+.tok-macroName {
+  color: var(--c-lane-1, #82aaff);
+}
+
+.tok-propertyName,
+.tok-attributeName {
+  color: var(--c-lane-4, #89ddff);
+}

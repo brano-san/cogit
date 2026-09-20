@@ -18,6 +18,7 @@
   import StashList from "$components/branch-tree/StashList.svelte";
   import TagList from "$components/branch-tree/TagList.svelte";
   import RepositoryList from "$components/repo-tree/RepositoryList.svelte";
+  import SubmoduleList from "$components/repo-tree/SubmoduleList.svelte";
   import { formatCommitDate, shortOid } from "$lib/format";
   import { stateBanner, type BannerAction } from "$lib/repo-state";
   import {
@@ -31,6 +32,7 @@
     getAppInfo,
     cherryPick,
     mergeInto,
+    stageSelection,
     onRepoChanged,
     revertCommits,
     rebaseOnto,
@@ -48,6 +50,7 @@
   import { recovery } from "$stores/recovery.svelte";
   import { safety } from "$stores/safety.svelte";
   import { stashes } from "$stores/stashes.svelte";
+  import { submodules } from "$stores/submodules.svelte";
   import { graph } from "$stores/graph.svelte";
   import { layout } from "$stores/layout.svelte";
   import { repository } from "$stores/repository.svelte";
@@ -57,6 +60,10 @@
   $effect(() => {
     getAppInfo().then((result) => {
       info = result;
+    });
+    void repository.restore().then(() => {
+      const first = repository.openRepos[0];
+      if (first) void activate(first.root);
     });
   });
 
@@ -95,6 +102,7 @@
       id ? stashes.refresh(id) : Promise.resolve(),
       id ? network.refresh(id) : Promise.resolve(),
       id ? recovery.refresh(id) : Promise.resolve(),
+      id ? submodules.refresh(id) : Promise.resolve(),
       output.refreshProblems(),
       safety.refresh(),
       output.open ? output.refresh() : Promise.resolve(),
@@ -221,6 +229,45 @@
       return;
     }
     await afterRefChange();
+  }
+
+  async function stageLines(selected: ReadonlySet<string>, reverse: boolean) {
+    const id = repository.current?.repo;
+    const path = diff.path;
+    if (!id || !path) return;
+    const { splitSelection } = await import("$lib/selection");
+    const { deletes, inserts } = splitSelection(selected);
+
+    try {
+      await stageSelection(
+        id,
+        {
+          path,
+          hunks: diff.hunks,
+          selectedDeletes: deletes,
+          selectedInserts: inserts,
+          lineEnding: diff.diff?.kind === "text" ? diff.diff.eol.old : "lf",
+          noTrailingNewline: false,
+        },
+        reverse,
+      );
+    } catch (err) {
+      errors.report(err as never);
+      return;
+    }
+    await worktree.load(id);
+    await afterMutation([path]);
+  }
+
+  async function refreshSubmodule(module: import("$lib/ipc").Submodule) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    try {
+      await submodules.update(id, module.path, module.state === "notInitialised");
+    } catch (err) {
+      errors.report(err as never);
+    }
+    await afterMutation();
   }
 
   async function recoverCommit(lost: import("$lib/ipc").CommitRow) {
@@ -432,23 +479,36 @@
     if (id) void diff.load(id, { kind: "workTreeVsIndex" }, path);
   }
 
-  async function pickRepository() {
-    const picked = await openFolderDialog({ directory: true, title: "Open Repository" });
-    if (typeof picked !== "string") return;
+  async function activate(root: string) {
     commit.clear();
     diff.clear();
     worktree.clear();
     stashes.clear();
     network.clear();
     recovery.clear();
-    await repository.open(picked);
+    submodules.clear();
+    await repository.open(root);
     const opened = repository.current;
     if (opened) {
       void graph.load(opened.repo);
-      void afterMutation();
+      await repository.refreshList();
+      await afterMutation();
     } else {
       graph.clear();
     }
+  }
+
+  async function closeOne(entry: import("$lib/ipc").RepoOverview) {
+    await repository.closeOne(entry.repo);
+    const next = repository.openRepos[0];
+    if (next) await activate(next.root);
+    else graph.clear();
+  }
+
+  async function pickRepository() {
+    const picked = await openFolderDialog({ directory: true, title: "Open Repository" });
+    if (typeof picked !== "string") return;
+    await activate(picked);
   }
 </script>
 
@@ -475,8 +535,17 @@
   <div class="workspace">
     <div class="left-column" style:flex="0 0 {fractions.leftColumn * 100}%">
       <div class="pane" style:flex="0 0 {fractions.repositories * 100}%">
-        <Panel title="Repositories" count={repo ? 1 : 0}>
-          <RepositoryList onopen={pickRepository} />
+        <Panel title="Repositories" count={repository.openRepos.length}>
+          <RepositoryList
+            onopen={pickRepository}
+            onselect={(entry) => void activate(entry.root)}
+            onclose={(entry) => void closeOne(entry)}
+          />
+          <SubmoduleList
+            modules={submodules.entries}
+            onopen={(module) => void activate(`${repo?.root ?? ""}/${module.path}`)}
+            onupdate={(module) => void refreshSubmodule(module)}
+          />
         </Panel>
       </div>
       <Splitter
@@ -606,7 +675,12 @@
           {#if diff.error}
             <p class="error detail">{diff.error.message}</p>
           {:else if diff.diff && diff.path}
-            <DiffView diff={diff.diff} path={diff.path} />
+            <DiffView
+              diff={diff.diff}
+              path={diff.path}
+              stageable={diff.stageable}
+              onstage={(selected, reverse) => void stageLines(selected, reverse)}
+            />
           {:else}
           <div class="detail">
             {#if repository.error}

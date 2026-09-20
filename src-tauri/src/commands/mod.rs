@@ -1,10 +1,10 @@
-use app_state::{DEFAULT_CHUNK_SIZE, GraphChunk, RepoId, RepoSummary, SafetyEntry};
-use diff_engine::{DiffOptions, FileDiff};
-use git_engine::CommitRow;
+use app_state::{DEFAULT_CHUNK_SIZE, GraphChunk, RepoId, RepoOverview, RepoSummary, SafetyEntry};
+use diff_engine::{DiffOptions, FileDiff, PatchRequest};
 use git_engine::{
     CheckoutTarget, CommitDetails, CommitQuery, CommitRequest, DiffSpec, FileEntry, GitError,
     WorktreeFiles,
 };
+use git_engine::{CommitRow, Submodule};
 use git_engine::{
     GitOutput, MergeOptions, RebaseOptions, ReflogEntry, RepoStatus, StashEntry, StashOptions,
     TagRequest,
@@ -538,4 +538,56 @@ pub async fn lost_commits(
     tokio::task::spawn_blocking(move || app_state.lost_commits(repo, limit))
         .await
         .map_err(|err| GitError::Internal(format!("lost_commits task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn repositories(state: tauri::State<'_, crate::AppContext>) -> Vec<RepoOverview> {
+    state.state.overviews()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn close_repository(state: tauri::State<'_, crate::AppContext>, repo: RepoId) -> bool {
+    state.state.close_repository(repo)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn submodules(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<Vec<Submodule>, GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.submodules(repo))
+        .await
+        .map_err(|err| GitError::Internal(format!("submodules task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn update_submodule(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    path: String,
+    init: bool,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.update_submodule(repo, &path, init))
+        .await
+        .map_err(|err| GitError::Internal(format!("update_submodule task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn stage_selection(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    request: PatchRequest,
+    reverse: bool,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.stage_selection(repo, &request, reverse))
+        .await
+        .map_err(|err| GitError::Internal(format!("stage_selection task failed: {err}")))?
 }
