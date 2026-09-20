@@ -504,3 +504,11 @@ export async function popupContextMenu(items: ContextItem[], x: number, y: numbe
 export async function openCompareWindow(url: string, title: string) {
   return unwrap(await commands.openCompareWindow(url, title));
 }
+
+export async function commitTemplate(repo: RepoId) {
+  return unwrap(await commands.commitTemplate(repo));
+}
+
+export async function stageMode(repo: RepoId, path: string, executable: boolean) {
+  return unwrap(await commands.stageMode(repo, path, executable));
+}

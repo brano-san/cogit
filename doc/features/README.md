@@ -104,5 +104,11 @@
 | F-098 | Нативное контекстное меню | [F-098-context-menu.md](F-098-context-menu.md) |
 | F-099 | Отдельное окно сравнения | [F-099-compare-window.md](F-099-compare-window.md) |
 | F-100 | Клавиатура в графе | [F-100-graph-keyboard.md](F-100-graph-keyboard.md) |
+| F-101 | Мультивыбор файлов | [F-101-file-multi-select.md](F-101-file-multi-select.md) |
+| F-102 | Предупреждение при amend опубликованного | [F-102-amend-warning.md](F-102-amend-warning.md) |
+| F-103 | Шаблон сообщения коммита | [F-103-commit-template.md](F-103-commit-template.md) |
+| F-104 | Стейджинг только смены прав | [F-104-stage-mode-only.md](F-104-stage-mode-only.md) |
+| F-105 | Капсулы ссылок не ломают строку | [F-105-ref-capsules.md](F-105-ref-capsules.md) |
+| F-106 | Строка Working Tree кликабельна | [F-106-working-tree-row.md](F-106-working-tree-row.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.

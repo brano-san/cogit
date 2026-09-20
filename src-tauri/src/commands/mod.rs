@@ -983,3 +983,29 @@ pub fn open_compare_window(
         .map(drop)
         .map_err(|err| GitError::Internal(format!("cannot open the compare window: {err}")))
 }
+
+#[tauri::command]
+#[specta::specta]
+pub async fn commit_template(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<Option<String>, GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.commit_template(repo))
+        .await
+        .map_err(|err| GitError::Internal(format!("commit_template task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn stage_mode(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    path: String,
+    executable: bool,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.stage_mode(repo, &path, executable))
+        .await
+        .map_err(|err| GitError::Internal(format!("stage_mode task failed: {err}")))?
+}

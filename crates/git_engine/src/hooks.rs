@@ -404,3 +404,21 @@ impl RepoHandle {
         }
     }
 }
+
+impl RepoHandle {
+    /// `commit.template` as text, or `None` when it is unset or points nowhere.
+    pub fn commit_template(&self) -> Result<Option<String>> {
+        let Some(configured) = self.repo.config_snapshot().string("commit.template") else {
+            return Ok(None);
+        };
+
+        let raw = configured.to_string();
+        let path = std::path::Path::new(&raw);
+        let resolved = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            self.root().join(path)
+        };
+        Ok(std::fs::read_to_string(resolved).ok())
+    }
+}

@@ -122,7 +122,9 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::overlap_window,
             commands::bypass_log,
             commands::popup_context_menu,
-            commands::open_compare_window
+            commands::open_compare_window,
+            commands::commit_template,
+            commands::stage_mode
         ])
 }
 

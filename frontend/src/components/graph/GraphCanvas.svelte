@@ -12,9 +12,21 @@
     firstRow: number;
     lastRow: number;
     rowOffset: number;
+    /** The lane HEAD sits in, for the dashed edge from the working-tree row (T4.5). */
+    headLane?: number | null;
   }
 
-  let { edges, nodes, scrollTop, width, height, firstRow, lastRow, rowOffset }: Props = $props();
+  let {
+    edges,
+    nodes,
+    scrollTop,
+    width,
+    height,
+    firstRow,
+    lastRow,
+    rowOffset,
+    headLane = null,
+  }: Props = $props();
 
   let canvas: HTMLCanvasElement | undefined = $state();
   let dpr = $state(typeof window === "undefined" ? 1 : window.devicePixelRatio);
@@ -69,6 +81,18 @@
       context.stroke();
     }
 
+    if (headLane !== null && firstRow === 0) {
+      const x = laneX(headLane);
+      context.save();
+      context.setLineDash([3, 3]);
+      context.strokeStyle = laneColor(0);
+      context.beginPath();
+      context.moveTo(x + 0.5, rowY(0, scrollTop) + 0.5);
+      context.lineTo(x + 0.5, rowY(rowOffset, scrollTop) + 0.5);
+      context.stroke();
+      context.restore();
+    }
+
     for (const node of nodes) {
       const x = laneX(node.lane);
       const y = rowY(node.row + rowOffset, scrollTop);
@@ -97,7 +121,7 @@
 
   $effect(() => {
     // The theme and the lane width change what is painted without changing the data.
-    void [edges, nodes, scrollTop, width, height, dpr, rowOffset];
+    void [edges, nodes, scrollTop, width, height, dpr, rowOffset, headLane];
     void [settings.current.theme, settings.current.laneWidth];
     schedule();
     return () => cancelAnimationFrame(frame);

@@ -64,6 +64,8 @@
     mergeInto,
     stageSelection,
     onMenuCommand,
+    commitTemplate,
+    stageMode,
     onOperationChanged,
     openCompareWindow,
     popupContextMenu,
@@ -136,6 +138,7 @@
   let rebasePlan = $state.raw<import("$lib/ipc").TodoEntry[]>([]);
   let rebaseBusy = $state(false);
   let rebasePaused = $state(false);
+  let template = $state<string | null>(null);
   let splitOpen = $state(false);
   let splitPublished = $state(false);
   let splitBusy = $state(false);
@@ -221,6 +224,7 @@
       output.refreshProblems(),
       safety.refresh(),
       refreshProgress(),
+      loadTemplate(),
       output.open ? output.refresh() : Promise.resolve(),
     ]);
   }
@@ -544,6 +548,16 @@ Log: ${info?.logPath ?? ""}`),
   async function commitStaged(message: string, amend: boolean, noVerify: boolean) {
     const id = repository.current?.repo;
     if (!id) return;
+
+    if (amend && (await isPublished(id, "HEAD").catch(() => false))) {
+      const go = await ask(
+        "This commit is already on a remote. Amending it gives it a new id, so the branch " +
+          "will need a force-push and anyone who pulled it will have to reset. Continue?",
+        { title: "Amend a published commit", kind: "warning" },
+      );
+      if (!go) return;
+    }
+
     if (scope.paths) {
       const listed = scope.paths.join("\n");
       const confirmed = await ask(
@@ -1118,6 +1132,27 @@ Log: ${info?.logPath ?? ""}`),
     await activate(picked);
   }
 
+  /** Seeds an empty draft from `commit.template`, the way `git commit` would. */
+  /** Stages only the executable bit, leaving the edits in the working tree (T6.4). */
+  async function stageModeOnly(paths: string[]) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    for (const path of paths) {
+      const file = worktree.unstaged.find((entry) => entry.path === path);
+      if (!file?.modeChange) continue;
+      await stageMode(id, path, file.modeChange === "executable").catch((err) =>
+        errors.report(err as never),
+      );
+    }
+    await afterMutation(paths);
+  }
+
+  async function loadTemplate() {
+    const id = repository.current?.repo;
+    if (!id) return;
+    template = (await commitTemplate(id).catch(() => null)) ?? null;
+  }
+
   async function closeCurrent() {
     const id = repository.current?.repo;
     if (!id) return;
@@ -1308,6 +1343,7 @@ Log: ${info?.logPath ?? ""}`),
               <CommitList
                 ondrop={onCommitDrop}
                 oncontext={(oid, x, y) => void commitContext(oid, x, y)}
+                onref={(text) => (refFilter = text)}
               />
             {:else}
               <p class="note">Open a repository to see its history.</p>
@@ -1345,6 +1381,7 @@ Log: ${info?.logPath ?? ""}`),
                     onselect: openWorktreeDiff,
                     actions: [
                       { label: "Stage", title: "Stage", run: stage },
+                      { label: "+x", title: "Stage only the mode change", run: stageModeOnly },
                       { label: "Discard", title: "Discard changes", run: discard },
                       { label: "Ignore", title: "Add to .gitignore", run: ignore },
                       { label: "Delete", title: "Delete from disk", run: deleteFromDisk },
@@ -1358,6 +1395,7 @@ Log: ${info?.logPath ?? ""}`),
               />
               <CommitBox
                 {scope}
+                {template}
                 stagedCount={worktree.staged.length}
                 busy={worktree.loading}
                 draftKey={`cogit:draft:${repo?.root ?? ""}`}

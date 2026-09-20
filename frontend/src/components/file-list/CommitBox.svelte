@@ -7,10 +7,13 @@
     stagedCount: number;
     busy?: boolean;
     draftKey: string;
+    /** `commit.template` from the config; seeds an empty draft, never overwrites one. */
+    template?: string | null;
     oncommit: (message: string, amend: boolean, noVerify: boolean) => void;
   }
 
-  let { scope, stagedCount, busy = false, draftKey, oncommit }: Props = $props();
+  let { scope, stagedCount, busy = false, draftKey, template = null, oncommit }: Props =
+    $props();
 
   let message = $state("");
   let amend = $state(false);
@@ -39,9 +42,9 @@
   // than the cost of one key per repository in browser storage.
   $effect(() => {
     try {
-      message = localStorage.getItem(draftKey) ?? "";
+      message = localStorage.getItem(draftKey) ?? template ?? "";
     } catch {
-      message = "";
+      message = template ?? "";
     }
   });
 

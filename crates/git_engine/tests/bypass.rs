@@ -107,3 +107,45 @@ fn a_commit_that_fails_is_not_recorded_as_a_bypass() {
     assert!(repo.commit(&request("nothing is staged", true)).is_err());
     assert!(repo.bypass_log().unwrap().is_empty());
 }
+
+#[test]
+fn a_repository_without_a_template_offers_none() {
+    let f = test_fixtures::linear(1).unwrap();
+    assert!(open(&f).commit_template().unwrap().is_none());
+}
+
+#[test]
+fn a_configured_template_is_read() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::write(f.path().join(".gitmessage"), "type(scope): \n\nWhy:\n").unwrap();
+    f.git(&["config", "commit.template", ".gitmessage"])
+        .unwrap();
+
+    assert_eq!(
+        open(&f).commit_template().unwrap().as_deref(),
+        Some("type(scope): \n\nWhy:\n")
+    );
+}
+
+#[test]
+fn a_template_pointing_at_a_missing_file_is_not_an_error() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&["config", "commit.template", "nowhere.txt"])
+        .unwrap();
+
+    assert!(open(&f).commit_template().unwrap().is_none());
+}
+
+#[test]
+fn a_template_path_is_resolved_against_the_repository_root() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::create_dir_all(f.path().join("etc")).unwrap();
+    std::fs::write(f.path().join("etc/msg.txt"), "from etc\n").unwrap();
+    f.git(&["config", "commit.template", "etc/msg.txt"])
+        .unwrap();
+
+    assert_eq!(
+        open(&f).commit_template().unwrap().as_deref(),
+        Some("from etc\n")
+    );
+}

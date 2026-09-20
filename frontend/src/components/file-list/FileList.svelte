@@ -2,6 +2,7 @@
   import { fileName, matchesMask, sortFiles, statusBadge, statusLabel } from "$lib/files";
   import type { SortKey } from "$lib/files";
   import { GRAPH, visibleRange } from "$lib/graph-geometry";
+  import { applyClick, EMPTY_SELECTION, type FileSelection } from "$lib/multi-select";
   import type { FileEntry } from "$lib/ipc";
 
   interface Action {
@@ -30,6 +31,14 @@
   }
 
   let { sections, selected = null, empty, onselect, onopen, onmask }: Props = $props();
+
+  let marked = $state.raw<FileSelection>(EMPTY_SELECTION);
+
+
+  /** The paths an action applies to: the marked set when the clicked file is in it. */
+  function scopeOf(path: string): string[] {
+    return marked.paths.has(path) && marked.paths.size > 1 ? [...marked.paths] : [path];
+  }
 
   const BUFFER_ROWS = 10;
 
@@ -79,6 +88,8 @@
   const range = $derived(
     visibleRange(scrollTop, viewportHeight, GRAPH.rowHeight, shown.length, BUFFER_ROWS),
   );
+  const order = $derived(shown.filter((row) => row.kind === "file").map((row) => row.file.path));
+
   const visible = $derived(
     shown.slice(range.start, range.end).map((row, index) => ({ row, at: range.start + index })),
   );
@@ -145,9 +156,23 @@
               type="button"
               class="row {file.status}"
               class:selected={selected === file.path}
+              class:marked={marked.paths.has(file.path)}
               style:top="{item.at * GRAPH.rowHeight}px"
               title={file.oldPath ? `${file.oldPath} → ${file.path}` : file.path}
-              onclick={() => (item.row.kind === "file" ? (item.row.open ?? onselect)?.(file.path) : undefined)}
+              onclick={(event) => {
+                marked = applyClick(marked, file.path, order, {
+                  ctrl: event.ctrlKey || event.metaKey,
+                  shift: event.shiftKey,
+                });
+                if (!event.ctrlKey && !event.metaKey && !event.shiftKey) {
+                  if (item.row.kind === "file") (item.row.open ?? onselect)?.(file.path);
+                }
+              }}
+              onkeydown={(event) => {
+                if (event.key !== " ") return;
+                event.preventDefault();
+                marked = applyClick(marked, file.path, order, { ctrl: true, shift: false });
+              }}
               ondblclick={() => onopen?.(file.path)}
             >
               <span class="badge" aria-label={statusLabel(file.status)}>{statusBadge(file.status)}</span>
@@ -173,10 +198,10 @@
                   title={action.title}
                   onclick={(event) => {
                     event.stopPropagation();
-                    action.run([file.path]);
+                    action.run(scopeOf(file.path));
                   }}
                   onkeydown={(event) => {
-                    if (event.key === "Enter") action.run([file.path]);
+                    if (event.key === "Enter") action.run(scopeOf(file.path));
                   }}>{action.label}</span
                 >
               {/each}
@@ -252,6 +277,10 @@
 
   .row:hover {
     background: var(--state-hover);
+  }
+
+  .row.marked {
+    box-shadow: inset 2px 0 0 var(--status-ref);
   }
 
   .row.selected {

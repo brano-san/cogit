@@ -92,3 +92,12 @@ export function relativeDate(timestamp: number, _offsetMinutes: number, now: num
   }
   return "just now";
 }
+
+/** A commit with ten refs must not stretch the row; the rest go into a tooltip (T4.6). */
+export function capsules(
+  labels: readonly RefLabel[],
+  room: number,
+): { shown: RefLabel[]; hidden: RefLabel[] } {
+  if (labels.length <= room) return { shown: [...labels], hidden: [] };
+  return { shown: labels.slice(0, Math.max(room, 0)), hidden: labels.slice(Math.max(room, 0)) };
+}

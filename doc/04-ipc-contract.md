@@ -260,6 +260,11 @@ snake_case и читаются на фронтенде как `undefined`.
 | `bypass_log` | `repo` | `Vec<Bypass>` | M10 |
 | `popup_context_menu` | `items: Vec<ContextItem>, x, y` | `()` | M2 |
 | `open_compare_window` | `url, title` | `()` | M2 |
+| `commit_template` | `repo` | `Option<String>` | M6 |
+| `stage_mode` | `repo, path, executable` | `()` | M6 |
+
+`stage_mode` перерегистрирует запись индекса через `update-index --cacheinfo` с тем же
+блобом: `--chmod` перечитал бы файл и затянул в индекс ещё и правки содержимого.
 
 Обе последние — **синхронные** команды: на Windows и меню, и создание окна обязаны
 выполняться в главном потоке. Выбранный пункт контекстного меню возвращается тем же
