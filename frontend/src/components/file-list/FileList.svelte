@@ -47,6 +47,12 @@
   $effect(() => {
     onmask?.(mask);
   });
+  const SORTS: { key: SortKey; label: string }[] = [
+    { key: "path", label: "Path" },
+    { key: "name", label: "Name" },
+    { key: "status", label: "Status" },
+  ];
+
   let sort = $state<SortKey>("path");
   let scroller: HTMLDivElement | undefined = $state();
   let scrollTop = $state(0);
@@ -118,11 +124,16 @@
       placeholder="Filter, e.g. *.rs"
       aria-label="Filter files by mask"
     />
-    <select class="sort" bind:value={sort} aria-label="Sort files">
-      <option value="path">Path</option>
-      <option value="name">Name</option>
-      <option value="status">Status</option>
-    </select>
+    <div class="sort" role="group" aria-label="Sort files">
+      {#each SORTS as option (option.key)}
+        <button
+          type="button"
+          class:active={sort === option.key}
+          title="Sort by {option.label.toLowerCase()}"
+          onclick={() => (sort = option.key)}>{option.label}</button
+        >
+      {/each}
+    </div>
   </div>
 
   {#if total === 0}
@@ -234,8 +245,7 @@
     min-width: 0;
   }
 
-  .mask,
-  .sort {
+  .mask {
     height: 20px;
     padding: 0 var(--sp-3);
     background: var(--surface-input);
@@ -243,6 +253,40 @@
     border: 1px solid var(--field-border);
     border-radius: var(--r-sm);
     font-size: var(--fs-dense);
+  }
+
+  /* All three choices stay visible: a dropdown hides the two the user is not on. */
+  .sort {
+    display: flex;
+    flex: 0 0 auto;
+    border: 1px solid var(--field-border);
+    border-radius: var(--r-sm);
+    overflow: hidden;
+  }
+
+  .sort button {
+    height: 20px;
+    padding: 0 var(--sp-4);
+    background: var(--surface-input);
+    color: var(--text-secondary);
+    border: 0;
+    border-left: 1px solid var(--field-border);
+    font: inherit;
+    font-size: var(--fs-dense);
+    cursor: default;
+  }
+
+  .sort button:first-child {
+    border-left: 0;
+  }
+
+  .sort button:hover {
+    color: var(--text-primary);
+  }
+
+  .sort button.active {
+    background: var(--state-selected);
+    color: var(--text-primary);
   }
 
   .scroll {

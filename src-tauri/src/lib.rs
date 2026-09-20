@@ -106,6 +106,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::find_object,
             commands::set_menu_state,
             commands::report_timing,
+            commands::scan_for_repositories,
             commands::has_token,
             commands::store_token,
             commands::forget_token,

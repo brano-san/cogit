@@ -68,6 +68,11 @@ export const commands = {
 	 */
 	reportTiming: (label: string, ms: number, detail: string) => __TAURI_INVOKE<void>("report_timing", { label, ms, detail }),
 	/**
+	 *  A folder can hold hundreds of repositories, so hits stream in as they are found and
+	 *  dropping the channel stops the walk.
+	 */
+	scanForRepositories: (path: string, maxDepth: number, onFound: Channel<ScanHit>) => typedError<number, GitError>(__TAURI_INVOKE("scan_for_repositories", { path, maxDepth, onFound })),
+	/**
 	 *  Reports only whether a token exists. Reading one back would put it in the webview,
 	 *  where every dependency could see it.
 	 */
@@ -503,6 +508,14 @@ export type SafetyEntry = {
 	description: string,
 	undoable: boolean,
 	recovery: Recovery,
+};
+
+/**  One hit from a folder scan. Paths cross IPC as strings, like every other path. */
+export type ScanHit = {
+	root: string,
+	name: string,
+	bare: boolean,
+	alreadyOpen: boolean,
 };
 
 export type Signature = {

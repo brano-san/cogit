@@ -85,6 +85,16 @@ pub struct RepoSummary {
     pub index_lock: Option<String>,
 }
 
+/// One hit from a folder scan. Paths cross IPC as strings, like every other path.
+#[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanHit {
+    pub root: String,
+    pub name: String,
+    pub bare: bool,
+    pub already_open: bool,
+}
+
 /// Commits arrive with their lane placement so the UI never computes layout (INV-02).
 /// One row of the repository tree: enough to draw it without opening every repository.
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -245,6 +255,29 @@ impl AppState {
 
     pub fn emit(&self, event: AppEvent) {
         let _ = self.events.send(event);
+    }
+
+    /// Repositories already open are marked, so the dialog can grey them out instead of
+    /// offering to open them twice.
+    pub fn scan_for_repositories(
+        &self,
+        root: &Path,
+        max_depth: usize,
+        mut on_found: impl FnMut(ScanHit) -> bool + Send,
+    ) {
+        let options = git_engine::discover::ScanOptions { max_depth };
+        let mut wanted = true;
+        git_engine::discover::scan(root, &options, |found| {
+            if !wanted {
+                return;
+            }
+            wanted = on_found(ScanHit {
+                root: found.path.display().to_string(),
+                name: found.name,
+                bare: found.bare,
+                already_open: self.find_by_root(&found.path).is_some(),
+            });
+        });
     }
 
     /// Blocking by design; the Tauri layer wraps it in `spawn_blocking`.

@@ -6,20 +6,26 @@
     /** Only the folder dialog changes the label; selecting a repository must not (R-35). */
     opening?: boolean;
     onopen: () => void;
+    onscan: () => void;
     onselect: (entry: RepoOverview) => void;
     onclose: (entry: RepoOverview) => void;
   }
 
-  let { opening = false, onopen, onselect, onclose }: Props = $props();
+  let { opening = false, onopen, onscan, onselect, onclose }: Props = $props();
 
   const active = $derived(repository.current?.repo);
   const entries = $derived(repository.openRepos);
 </script>
 
 <div class="wrapper">
-  <button type="button" class="open" onclick={onopen} disabled={repository.busy}>
-    {opening ? "Opening…" : "Open Repository…"}
-  </button>
+  <div class="actions">
+    <button type="button" class="open" onclick={onopen} disabled={repository.busy}>
+      {opening ? "Opening…" : "Open Repository…"}
+    </button>
+    <button type="button" class="open scan" onclick={onscan} disabled={repository.busy}>
+      Scan Folder…
+    </button>
+  </div>
 
   {#if entries.length === 0}
     {#if repository.error}
@@ -75,10 +81,15 @@
     padding: var(--sp-4) 0;
   }
 
-  .open {
-    display: block;
-    width: calc(100% - var(--sp-5) * 2);
+  .actions {
+    display: flex;
+    gap: var(--sp-3);
     margin: 0 var(--sp-5) var(--sp-4);
+  }
+
+  .open {
+    flex: 1 1 auto;
+    min-width: 0;
     height: var(--h-input);
     background: var(--surface-input);
     color: var(--text-primary);
@@ -90,6 +101,10 @@
 
   .open:not(:disabled):hover {
     border-color: var(--status-ref);
+  }
+
+  .scan {
+    flex: 0 0 auto;
   }
 
   .row {

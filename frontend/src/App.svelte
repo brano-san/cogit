@@ -29,6 +29,7 @@
   import StashList from "$components/branch-tree/StashList.svelte";
   import TagList from "$components/branch-tree/TagList.svelte";
   import RepositoryList from "$components/repo-tree/RepositoryList.svelte";
+  import ScanDialog from "$components/repo-tree/ScanDialog.svelte";
   import SubmoduleList from "$components/repo-tree/SubmoduleList.svelte";
   import { shortOid } from "$lib/format";
   import { checkedIds, disabledIds, type PaletteCommand } from "$lib/palette";
@@ -65,6 +66,7 @@
     mergeInto,
     stageSelection,
     onMenuCommand,
+    openRepository,
     reportTiming,
     commitTemplate,
     stageMode,
@@ -99,6 +101,7 @@
   import { settings } from "$stores/settings.svelte";
   import { layout } from "$stores/layout.svelte";
   import { repository } from "$stores/repository.svelte";
+  import { scan } from "$stores/scan.svelte";
 
   /** Settings the open diff was computed with: changing one has to re-run it. */
   const REDIFF: readonly (keyof Settings)[] = [
@@ -123,6 +126,7 @@
   let running = $state.raw<Map<number, string>>(new Map());
   let info = $state<AppInfo | null>(null);
   let opening = $state(false);
+  let scanOpen = $state(false);
   let paletteOpen = $state(false);
   let settingsOpen = $state(false);
   let finderOpen = $state(false);
@@ -381,6 +385,15 @@ Log: ${info?.logPath ?? ""}`),
         synonyms: ["merge request", "pr", "mr"],
         unavailable: prUrl ? undefined : "No GitHub, GitLab or Bitbucket remote",
         run: () => void openPullRequest(),
+      },
+      {
+        id: "scan",
+        title: "Scan Folder for Repositories",
+        synonyms: ["discover", "find repositories", "import"],
+        run: () => {
+          scanOpen = true;
+          void browseForScan();
+        },
       },
       {
         id: "reveal-log",
@@ -1147,6 +1160,31 @@ Log: ${info?.logPath ?? ""}`),
     await afterMutation();
   }
 
+  async function browseForScan() {
+    const picked = await openFolderDialog({ directory: true, title: "Scan Folder" });
+    if (typeof picked !== "string") return;
+    const watch = measure("scan-folder");
+    await scan.run(picked, 6);
+    watch.stop(`${scan.hits.length} repositories`);
+  }
+
+  /** Opens every chosen hit, then activates the first so the window is not left empty. */
+  async function openScanned(roots: string[]) {
+    opening = true;
+    try {
+      for (const root of roots) {
+        await openRepository(root).catch((err) => errors.report(err as never));
+      }
+      await repository.refreshList();
+      const first = roots[0];
+      if (first) await activate(first);
+    } finally {
+      opening = false;
+      scanOpen = false;
+      scan.clear();
+    }
+  }
+
   /** The profile log is the answer to "why was that slow?": it has to be reachable. */
   async function revealLog() {
     const path = info?.logPath;
@@ -1274,6 +1312,10 @@ Log: ${info?.logPath ?? ""}`),
         <Panel title="Repositories" count={repository.openRepos.length}>
           <RepositoryList
             {opening}
+            onscan={() => {
+              scanOpen = true;
+              void browseForScan();
+            }}
             onopen={pickRepository}
             onselect={(entry) => void activate(entry.root)}
             onclose={(entry) => void closeOne(entry)}
@@ -1699,6 +1741,18 @@ Log: ${info?.logPath ?? ""}`),
       onchange={(key, next) => void changeSetting(key, next)}
       onreset={() => void settings.reset()}
       onclose={() => (settingsOpen = false)}
+    />
+  {/if}
+
+  {#if scanOpen}
+    <ScanDialog
+      busy={opening}
+      onbrowse={() => void browseForScan()}
+      onopen={(roots) => void openScanned(roots)}
+      onclose={() => {
+        scanOpen = false;
+        scan.clear();
+      }}
     />
   {/if}
 

@@ -76,6 +76,31 @@ pub async fn open_repository(
     Ok(summary)
 }
 
+/// A folder can hold hundreds of repositories, so hits stream in as they are found and
+/// dropping the channel stops the walk.
+#[tauri::command]
+#[specta::specta]
+pub async fn scan_for_repositories(
+    state: tauri::State<'_, crate::AppContext>,
+    path: String,
+    max_depth: u32,
+    on_found: tauri::ipc::Channel<app_state::ScanHit>,
+) -> Result<u32, GitError> {
+    let app_state = state.state.clone();
+    let path = PathBuf::from(path);
+    let depth = max_depth.clamp(1, 12) as usize;
+
+    blocking("scan_for_repositories", move || {
+        let mut found = 0_u32;
+        app_state.scan_for_repositories(&path, depth, |hit| {
+            found += 1;
+            on_found.send(hit).is_ok()
+        });
+        Ok(found)
+    })
+    .await
+}
+
 /// A channel rather than a return value (INV-02); dropping it cancels the walk.
 #[tauri::command]
 #[specta::specta]
