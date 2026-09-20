@@ -7,9 +7,13 @@
   import ConflictView from "$components/diff/ConflictView.svelte";
   import ImageDiff from "$components/diff/ImageDiff.svelte";
   import CommitBox from "$components/file-list/CommitBox.svelte";
+  import SplitOffDialog from "$components/file-list/SplitOffDialog.svelte";
   import FileList from "$components/file-list/FileList.svelte";
   import CommitList from "$components/graph/CommitList.svelte";
   import GraphFilter from "$components/graph/GraphFilter.svelte";
+  import RebaseEditor from "$components/graph/RebaseEditor.svelte";
+  import RebaseProgressView from "$components/graph/RebaseProgressView.svelte";
+  import DropMenu from "$components/layout/DropMenu.svelte";
   import Panel from "$components/layout/Panel.svelte";
   import CommandPalette from "$components/layout/CommandPalette.svelte";
   import SettingsPanel from "$components/layout/SettingsPanel.svelte";
@@ -30,6 +34,8 @@
   import { disabledIds, type PaletteCommand } from "$lib/palette";
   import { pullRequestUrl } from "$lib/pull-request";
   import { commitScope } from "$lib/commit-scope";
+  import { dropActions, type DropAction, type DragPayload } from "$lib/drop-target";
+  import { moveEntry } from "$lib/rebase-plan";
   import { stateBanner, type BannerAction } from "$lib/repo-state";
   import { PANELS, type PanelId } from "$lib/perspectives";
   import type { Settings } from "$lib/settings";
@@ -46,6 +52,12 @@
     cherryPick,
     deleteUntracked,
     findObject,
+    interactiveRebase,
+    isPublished,
+    rebaseProgress,
+    rebaseTodo,
+    rollbackTo,
+    splitOff,
     mergeInto,
     stageSelection,
     onMenuCommand,
@@ -56,6 +68,7 @@
     skipOperation,
     type AppInfo,
     type Branch,
+    type RepoId,
     type Tag,
   } from "$lib/ipc";
   import { blame } from "$stores/blame.svelte";
@@ -102,6 +115,22 @@
   let finderResults = $state.raw<import("$lib/ipc").Found[]>([]);
   let finderToken = 0;
   let recentCommands = $state<string[]>([]);
+  let dropMenu = $state.raw<{
+    actions: DropAction[];
+    source: DragPayload;
+    target: DragPayload;
+    x: number;
+    y: number;
+  } | null>(null);
+  let progress = $state.raw<import("$lib/ipc").RebaseProgress | null>(null);
+  let rebaseOpen = $state(false);
+  let rebaseBase = $state("");
+  let rebasePlan = $state.raw<import("$lib/ipc").TodoEntry[]>([]);
+  let rebaseBusy = $state(false);
+  let splitOpen = $state(false);
+  let splitPublished = $state(false);
+  let splitBusy = $state(false);
+  const pointer = { x: 0, y: 0 };
   let refFilter = $state("");
   let fileMask = $state("");
 
@@ -164,6 +193,12 @@
   $effect(() => errors.report(hooks.error));
 
   /** One place after every mutation: the reactive version fired on each loading toggle. */
+  /** Refreshed with the rest of the state, so the stack follows Continue and Abort. */
+  async function refreshProgress() {
+    const id = repository.current?.repo;
+    progress = id ? await rebaseProgress(id).catch(() => null) : null;
+  }
+
   async function afterMutation(paths: string[] = []) {
     diff.dropIfAffected(paths);
     await repository.refreshStatus();
@@ -176,6 +211,7 @@
       id ? conflicts.refresh(id) : Promise.resolve(),
       output.refreshProblems(),
       safety.refresh(),
+      refreshProgress(),
       output.open ? output.refresh() : Promise.resolve(),
     ]);
   }
@@ -201,6 +237,27 @@
         run: () => void undo(),
       },
       { id: "output", title: "Toggle Output Panel", shortcut: "Ctrl+Shift+7", run: () => output.toggle() },
+      {
+        id: "rebase-i",
+        title: "Rebase Commits After This One…",
+        synonyms: ["interactive rebase", "squash", "reorder"],
+        unavailable: commit.oid ? undefined : "Select a commit first",
+        run: () => void openRebase(),
+      },
+      {
+        id: "split-off",
+        title: "Split Off Files…",
+        synonyms: ["split commit", "surgery"],
+        unavailable: commit.oid ? undefined : "Select a commit first",
+        run: () => void openSplit(),
+      },
+      {
+        id: "rollback",
+        title: "Roll Back Tree To This Commit",
+        synonyms: ["restore", "revert files"],
+        unavailable: commit.oid ? undefined : "Select a commit first",
+        run: () => void rollbackFiles([]),
+      },
       {
         id: "close",
         title: "Close Repository",
@@ -819,6 +876,197 @@ Log: ${info?.logPath ?? ""}`),
     else graph.clear();
   }
 
+  /** Restores a past version into the working tree; HEAD stays where it is. */
+  async function rollbackFiles(paths: string[]) {
+    const id = repository.current?.repo;
+    const rev = commit.oid;
+    if (!id || !rev) return;
+    const what = paths.length > 0 ? paths.join(", ") : "every file";
+    const go = await ask(`Restore ${what} as it was in ${shortOid(rev)}?`, {
+      title: "Roll back",
+      kind: "warning",
+    });
+    if (!go) return;
+    try {
+      await rollbackTo(id, rev, paths);
+    } catch (err) {
+      errors.report(err as never);
+    }
+    await afterMutation(paths);
+  }
+
+  /** Opens the plan editor for everything after the selected commit. */
+  /** A drop never acts on its own: the user picks from the menu it opens. */
+  function onBranchDrop(sourceName: string, target: Branch) {
+    const source = repository.localBranches.find((b) => b.name === sourceName);
+    if (!source) return;
+    const canFastForward = target.isHead && source.oid !== target.oid;
+    const payload = { kind: "branch" as const, id: sourceName };
+    const onto = { kind: "branch" as const, id: target.name };
+    const actions = dropActions(payload, onto, canFastForward);
+    if (actions.length === 0) return;
+    dropMenu = { actions, source: payload, target: onto, x: pointer.x, y: pointer.y };
+  }
+
+  async function runDropAction(action: DropAction) {
+    const menu = dropMenu;
+    dropMenu = null;
+    const id = repository.current?.repo;
+    if (!menu || !id) return;
+
+    if (menu.source.kind === "commit") {
+      await replan(action, menu.source.id, menu.target.id);
+      return;
+    }
+
+    if (action.destructive) {
+      const go = await ask(`${action.title}. This rewrites history. Continue?`, {
+        title: "Rewrite history",
+        kind: "warning",
+      });
+      if (!go) return;
+    }
+
+    try {
+      if (action.id === "merge") {
+        await mergeInto(id, {
+          source: menu.source.id,
+          noFastForward: false,
+          squash: false,
+          message: null,
+        });
+      } else if (action.id === "rebase") {
+        await rebaseOnto(id, { onto: menu.target.id, autostash: true });
+      } else if (action.id === "fastForward") {
+        await mergeInto(id, {
+          source: menu.source.id,
+          noFastForward: false,
+          squash: false,
+          message: null,
+        });
+      }
+    } catch (err) {
+      errors.report(err as never);
+    }
+    await afterRefChange();
+  }
+
+  function onCommitDrop(sourceOid: string, targetOid: string) {
+    const source = { kind: "commit" as const, id: sourceOid };
+    const target = { kind: "commit" as const, id: targetOid };
+    const actions = dropActions(source, target, false);
+    if (actions.length === 0) return;
+    dropMenu = { actions, source, target, x: pointer.x, y: pointer.y };
+  }
+
+  /** Squash and reorder are both one interactive rebase with a two-line plan. */
+  async function replan(action: DropAction, source: string, target: string) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    const base = await mergeBaseOf(id, source, target);
+    if (base === null) return;
+
+    let plan;
+    try {
+      plan = await rebaseTodo(id, base);
+    } catch (err) {
+      errors.report(err as never);
+      return;
+    }
+
+    const from = plan.findIndex((entry) => entry.oid === source);
+    const onto = plan.findIndex((entry) => entry.oid === target);
+    if (from < 0 || onto < 0) {
+      errors.message("Both commits have to be on the current branch above their common parent.");
+      return;
+    }
+
+    let moved = moveEntry(plan, from, onto < from ? onto + 1 : onto);
+    if (action.id === "squash") {
+      moved = moved.map((entry) =>
+        entry.oid === source ? { ...entry, action: "squash" as const } : entry,
+      );
+    }
+
+    rebaseBase = base;
+    rebasePlan = moved;
+    splitPublished = await isPublished(id, base).catch(() => false);
+    rebaseOpen = true;
+  }
+
+  /** The parent of the older of the two, so the plan covers both. */
+  async function mergeBaseOf(id: RepoId, a: string, b: string): Promise<string | null> {
+    try {
+      const plan = await rebaseTodo(id, `${a}^`);
+      if (plan.some((entry) => entry.oid === b)) return `${a}^`;
+      return `${b}^`;
+    } catch {
+      errors.message("Both commits have to be on the current branch.");
+      return null;
+    }
+  }
+
+  async function openRebase() {
+    const id = repository.current?.repo;
+    const rev = commit.oid;
+    if (!id || !rev) return;
+    try {
+      rebasePlan = await rebaseTodo(id, rev);
+    } catch (err) {
+      errors.report(err as never);
+      return;
+    }
+    if (rebasePlan.length === 0) {
+      errors.message("This commit is the tip; there is nothing after it to rebase.");
+      return;
+    }
+    rebaseBase = rev;
+    splitPublished = await isPublished(id, rev).catch(() => false);
+    rebaseOpen = true;
+  }
+
+  async function runRebase() {
+    const id = repository.current?.repo;
+    if (!id) return;
+    rebaseBusy = true;
+    try {
+      await interactiveRebase(id, rebaseBase, rebasePlan);
+      rebaseOpen = false;
+      commit.clear();
+    } catch (err) {
+      errors.report(err as never);
+    } finally {
+      rebaseBusy = false;
+    }
+    await afterRefChange();
+  }
+
+  async function openSplit() {
+    const id = repository.current?.repo;
+    const rev = commit.oid;
+    if (!id || !rev) return;
+    splitPublished = await isPublished(id, rev).catch(() => false);
+    splitOpen = true;
+  }
+
+  async function runSplit(paths: string[], message: string, splitFirst: boolean) {
+    const id = repository.current?.repo;
+    const rev = commit.oid;
+    if (!id || !rev) return;
+    splitBusy = true;
+    try {
+      await splitOff(id, rev, paths, message, splitFirst);
+      splitOpen = false;
+      await repository.refresh();
+      commit.clear();
+    } catch (err) {
+      errors.report(err as never);
+    } finally {
+      splitBusy = false;
+    }
+    await afterMutation();
+  }
+
   async function pickRepository() {
     const picked = await openFolderDialog({ directory: true, title: "Open Repository" });
     if (typeof picked !== "string") return;
@@ -848,7 +1096,13 @@ Log: ${info?.logPath ?? ""}`),
   });
 </script>
 
-<svelte:window {onkeydown} />
+<svelte:window
+  {onkeydown}
+  ondragover={(event) => {
+    pointer.x = event.clientX;
+    pointer.y = event.clientY;
+  }}
+/>
 
 <div class="app">
   <Toolbar
@@ -937,6 +1191,7 @@ Log: ${info?.logPath ?? ""}`),
                 ondelete={removeBranch}
                 onmerge={mergeBranch}
                 onrebase={rebaseOntoBranch}
+                ondrop={onBranchDrop}
                 filter={refFilter}
               />
               <BranchList
@@ -989,7 +1244,14 @@ Log: ${info?.logPath ?? ""}`),
               {/if}
             {/snippet}
             {#if repo}
-              <CommitList />
+              {#if progress}
+                <RebaseProgressView
+                  {progress}
+                  changes={worktree.total}
+                  staged={worktree.staged.length}
+                />
+              {/if}
+              <CommitList ondrop={onCommitDrop} />
             {:else}
               <p class="note">Open a repository to see its history.</p>
             {/if}
@@ -1153,6 +1415,9 @@ Log: ${info?.logPath ?? ""}`),
                   >Cherry-pick</button
                 >
                 <button type="button" onclick={() => void replaySelected("revert")}>Revert</button>
+                <button type="button" onclick={() => void openSplit()}>Split Off…</button>
+                <button type="button" onclick={() => void openRebase()}>Rebase…</button>
+                <button type="button" onclick={() => void rollbackFiles([])}>Roll Back Tree</button>
               </div>
             {:else if repo}
               <dl>
@@ -1198,6 +1463,39 @@ Log: ${info?.logPath ?? ""}`),
       recent={recentCommands}
       onrun={runCommand}
       onclose={() => (paletteOpen = false)}
+    />
+  {/if}
+
+  {#if dropMenu}
+    <DropMenu
+      actions={dropMenu.actions}
+      x={dropMenu.x}
+      y={dropMenu.y}
+      onpick={(action) => void runDropAction(action)}
+      onclose={() => (dropMenu = null)}
+    />
+  {/if}
+
+  {#if rebaseOpen}
+    <RebaseEditor
+      base={rebaseBase}
+      plan={rebasePlan}
+      published={splitPublished}
+      busy={rebaseBusy}
+      onplan={(next) => (rebasePlan = next)}
+      onrun={() => void runRebase()}
+      onclose={() => (rebaseOpen = false)}
+    />
+  {/if}
+
+  {#if splitOpen && commit.oid}
+    <SplitOffDialog
+      oid={commit.oid}
+      changed={commit.files.map((file) => file.path)}
+      published={splitPublished}
+      busy={splitBusy}
+      onsplit={(paths, message, first) => void runSplit(paths, message, first)}
+      onclose={() => (splitOpen = false)}
     />
   {/if}
 

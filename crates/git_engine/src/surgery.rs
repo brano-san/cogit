@@ -1,0 +1,203 @@
+use crate::{GitError, RepoHandle, Result};
+
+impl RepoHandle {
+    /// Without moving HEAD: the user stays on their branch, not in detached HEAD.
+    pub fn rollback_to(&self, rev: &str, paths: &[String]) -> Result<()> {
+        if rev.trim().is_empty() {
+            return Err(GitError::InvalidState("no revision given".to_owned()));
+        }
+
+        let source = format!("--source={rev}");
+        let mut args = vec!["restore", source.as_str(), "--"];
+        if paths.is_empty() {
+            args.push(".");
+        } else {
+            args.extend(paths.iter().map(String::as_str));
+        }
+        self.run_git(&args).map(drop)
+    }
+
+    /// Splits `rev` in two. History from `rev` on is rewritten, so the caller warns first.
+    pub fn split_off(
+        &self,
+        rev: &str,
+        paths: &[String],
+        message: &str,
+        split_first: bool,
+    ) -> Result<()> {
+        let target = self.rev_parse(rev)?;
+        let parent = self.only_parent(&target)?;
+        let branch = self.current_branch()?;
+        self.check_clean()?;
+        self.check_subset(&target, paths)?;
+
+        let original = self.rev_parse("HEAD")?;
+        self.run_git(&["update-ref", "ORIG_HEAD", &original])?;
+
+        match self.rewrite(&target, &parent, paths, message, split_first, &branch) {
+            Ok(()) => Ok(()),
+            Err(err) => {
+                self.recover(&branch, &original);
+                Err(err)
+            }
+        }
+    }
+
+    fn rewrite(
+        &self,
+        target: &str,
+        parent: &str,
+        paths: &[String],
+        message: &str,
+        split_first: bool,
+        branch: &str,
+    ) -> Result<()> {
+        self.run_git(&["checkout", "--detach", parent])?;
+
+        if split_first {
+            self.materialise(target, paths)?;
+            self.commit_with(&["-m", message])?;
+            self.reset_tree_to(target)?;
+            self.commit_with(&["-C", target])?;
+        } else {
+            self.reset_tree_to(target)?;
+            self.materialise(parent, paths)?;
+            self.commit_with(&["-C", target])?;
+            self.reset_tree_to(target)?;
+            self.commit_with(&["-m", message])?;
+        }
+
+        let tip = self.rev_parse("HEAD")?;
+        self.run_git(&["rebase", "--onto", &tip, target, branch])
+            .map(drop)
+    }
+
+    fn reset_tree_to(&self, rev: &str) -> Result<()> {
+        self.run_git(&["read-tree", "-u", "--reset", rev]).map(drop)
+    }
+
+    /// Brings just `paths` to their state in `rev`, deleting the ones absent from it.
+    fn materialise(&self, rev: &str, paths: &[String]) -> Result<()> {
+        let mut listing = vec!["ls-tree", "-r", "--name-only", rev, "--"];
+        listing.extend(paths.iter().map(String::as_str));
+        let present: Vec<String> = self
+            .run_git(&listing)?
+            .stdout
+            .lines()
+            .map(str::to_owned)
+            .collect();
+
+        if !present.is_empty() {
+            let mut args = vec!["checkout", rev, "--"];
+            args.extend(present.iter().map(String::as_str));
+            self.run_git(&args)?;
+        }
+
+        let removed: Vec<&String> = paths.iter().filter(|p| !present.contains(p)).collect();
+        if !removed.is_empty() {
+            let mut args = vec!["rm", "-f", "--ignore-unmatch", "--"];
+            args.extend(removed.iter().map(|p| p.as_str()));
+            self.run_git(&args)?;
+        }
+        Ok(())
+    }
+
+    /// `--no-verify`: hooks belong to the user's own commits, not to a mechanical rewrite.
+    fn commit_with(&self, extra: &[&str]) -> Result<()> {
+        let mut args = vec!["commit", "--no-verify"];
+        args.extend(extra);
+        self.run_git(&args).map(drop)
+    }
+
+    /// A failed rewrite must not leave the user detached in the middle of a rebase.
+    fn recover(&self, branch: &str, original: &str) {
+        let _ = self.run_git(&["rebase", "--abort"]);
+        let _ = self.run_git(&["checkout", "--force", branch]);
+        let _ = self.run_git(&["reset", "--hard", original]);
+    }
+
+    fn rev_parse(&self, rev: &str) -> Result<String> {
+        Ok(self
+            .run_git_reading(&["rev-parse", "--verify", &format!("{rev}^{{commit}}")])?
+            .stdout
+            .trim()
+            .to_owned())
+    }
+
+    fn only_parent(&self, target: &str) -> Result<String> {
+        let line = self
+            .run_git_reading(&["rev-list", "--parents", "-n", "1", target])?
+            .stdout;
+        let mut parts = line.split_whitespace().skip(1);
+        let first = parts.next().ok_or_else(|| {
+            GitError::InvalidState("a root commit cannot be split off".to_owned())
+        })?;
+        if parts.next().is_some() {
+            return Err(GitError::InvalidState(
+                "a merge commit cannot be split off".to_owned(),
+            ));
+        }
+        Ok(first.to_owned())
+    }
+
+    fn current_branch(&self) -> Result<String> {
+        match self.head()? {
+            crate::Head::Branch { name, .. } => Ok(name),
+            _ => Err(GitError::InvalidState(
+                "splitting a commit needs a branch to move; HEAD is not on one".to_owned(),
+            )),
+        }
+    }
+
+    fn check_clean(&self) -> Result<()> {
+        let status = self.status()?;
+        if status.staged > 0 || status.unstaged > 0 {
+            return Err(GitError::InvalidState(
+                "commit or stash your changes first: splitting a commit rewrites the branch"
+                    .to_owned(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// The split has to leave something behind, or it is not a split.
+    fn check_subset(&self, target: &str, paths: &[String]) -> Result<()> {
+        if paths.is_empty() {
+            return Err(GitError::InvalidState("no files chosen".to_owned()));
+        }
+
+        let touched: Vec<String> = self
+            .run_git_reading(&["diff-tree", "--no-commit-id", "--name-only", "-r", target])?
+            .stdout
+            .lines()
+            .map(str::to_owned)
+            .collect();
+
+        if let Some(stranger) = paths.iter().find(|path| !touched.contains(path)) {
+            return Err(GitError::InvalidState(format!(
+                "{stranger} is not one of the files this commit changed"
+            )));
+        }
+        if paths.len() >= touched.len() {
+            return Err(GitError::InvalidState(
+                "leave at least one file in the original commit".to_owned(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+impl RepoHandle {
+    /// True when rewriting the commit will cost a force-push and divergence for others.
+    pub fn is_published(&self, rev: &str) -> Result<bool> {
+        let oid = self.rev_parse(rev)?;
+        let containing = self.run_git_reading(&[
+            "for-each-ref",
+            "--format=%(refname)",
+            "--contains",
+            &oid,
+            "refs/remotes/",
+        ])?;
+        Ok(!containing.stdout.trim().is_empty())
+    }
+}

@@ -2,6 +2,7 @@
   import { settings } from "$stores/settings.svelte";
   import GraphCanvas from "$components/graph/GraphCanvas.svelte";
   import { refLabels, shortOid } from "$lib/format";
+  import { DRAG_TYPE, parseDrag, serialiseDrag } from "$lib/drop-target";
   import {
     GRAPH,
     HEADER_ROWS,
@@ -13,6 +14,15 @@
   import { commit as selection } from "$stores/commit.svelte";
   import { graph } from "$stores/graph.svelte";
   import { repository } from "$stores/repository.svelte";
+
+  interface Props {
+    /** A commit was dropped on another commit; the caller offers squash or reorder. */
+    ondrop?: (source: string, target: string) => void;
+  }
+
+  let { ondrop }: Props = $props();
+
+  let over = $state<string | null>(null);
 
   /** Rows rendered beyond the viewport so a fast scroll does not show blanks. */
   const BUFFER_ROWS = 10;
@@ -126,8 +136,30 @@
         <div
           class="row"
           class:selected={selection.oid === item.entry.commit.oid}
+          class:over={over === item.entry.commit.oid}
           style:top="{item.listRow * GRAPH.rowHeight}px"
           style:padding-left="{gutter}px"
+          role="listitem"
+          draggable={ondrop !== undefined}
+          ondragstart={(event) =>
+            event.dataTransfer?.setData(
+              DRAG_TYPE,
+              serialiseDrag({ kind: "commit", id: item.entry.commit.oid }),
+            )}
+          ondragover={(event) => {
+            if (ondrop) {
+              event.preventDefault();
+              over = item.entry.commit.oid;
+            }
+          }}
+          ondragleave={() => (over = null)}
+          ondrop={(event) => {
+            over = null;
+            const payload = parseDrag(event.dataTransfer?.getData(DRAG_TYPE) ?? "");
+            if (payload?.kind === "commit" && payload.id !== item.entry.commit.oid) {
+              ondrop?.(payload.id, item.entry.commit.oid);
+            }
+          }}
         >
           {#each labels.get(item.entry.commit.oid) ?? [] as label (label.text)}
             <span class="capsule {label.kind}">{label.text}</span>
@@ -182,6 +214,10 @@
 
   .row:hover {
     background: var(--state-hover);
+  }
+
+  .row.over {
+    box-shadow: inset 0 0 0 1px var(--status-ref);
   }
 
   .row.selected {

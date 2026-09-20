@@ -91,5 +91,10 @@
 | F-085 | Включение хука без удаления | [F-085-hook-toggle.md](F-085-hook-toggle.md) |
 | F-086 | Подключение командных хуков | [F-086-hook-adopt.md](F-086-hook-adopt.md) |
 | F-087 | Пробный запуск хука | [F-087-hook-dry-run.md](F-087-hook-dry-run.md) |
+| F-088 | Rollback-To | [F-088-rollback-to.md](F-088-rollback-to.md) |
+| F-089 | Split-Off Files | [F-089-split-off.md](F-089-split-off.md) |
+| F-090 | Визуальный interactive rebase | [F-090-interactive-rebase.md](F-090-interactive-rebase.md) |
+| F-091 | Перетаскивание в графе | [F-091-graph-drag-drop.md](F-091-graph-drag-drop.md) |
+| F-092 | Стек незавершённого rebase | [F-092-rebase-stack.md](F-092-rebase-stack.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.

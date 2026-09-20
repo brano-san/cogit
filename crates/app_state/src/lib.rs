@@ -14,6 +14,10 @@ use tokio::sync::broadcast;
 
 const EVENT_CHANNEL_CAPACITY: usize = 256;
 
+fn short(rev: &str) -> &str {
+    &rev[..rev.len().min(7)]
+}
+
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, specta::Type,
 )]
@@ -690,6 +694,101 @@ impl AppState {
                 name: name.to_owned(),
                 oid,
             }),
+        );
+        Ok(())
+    }
+
+    /// Stashes first when the tree is dirty: restoring a past version must not quietly
+    /// overwrite work in progress (doc/modules/M12-commit-surgery.md).
+    pub fn rollback_to(
+        &self,
+        repo: RepoId,
+        rev: &str,
+        paths: &[String],
+    ) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
+        let handle = self.handle(repo)?;
+        let label = if paths.is_empty() {
+            "the working tree".to_owned()
+        } else {
+            paths.join(", ")
+        };
+        let stashed = handle
+            .stash_paths(paths, &format!("cogit: before rollback of {label}"))
+            .unwrap_or(None);
+
+        handle.rollback_to(rev, paths)?;
+        self.record(
+            repo,
+            format!("Roll back {label} to {}", short(rev)),
+            stashed.map_or(Recovery::None, |oid| Recovery::Stash { oid }),
+        );
+        Ok(())
+    }
+
+    pub fn rebase_progress(
+        &self,
+        repo: RepoId,
+    ) -> Result<Option<git_engine::RebaseProgress>, git_engine::GitError> {
+        self.handle(repo)?.rebase_progress()
+    }
+
+    pub fn rebase_todo(
+        &self,
+        repo: RepoId,
+        base: &str,
+    ) -> Result<Vec<git_engine::TodoEntry>, git_engine::GitError> {
+        self.handle(repo)?.rebase_todo(base)
+    }
+
+    pub fn interactive_rebase(
+        &self,
+        repo: RepoId,
+        base: &str,
+        plan: &[git_engine::TodoEntry],
+    ) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
+        let handle = self.handle(repo)?;
+        let before = handle.head()?;
+        handle.interactive_rebase(base, plan)?;
+
+        let recovery = match before {
+            git_engine::Head::Branch { name, oid } => Recovery::Branch { name, oid },
+            _ => Recovery::None,
+        };
+        self.record(
+            repo,
+            format!("Interactive rebase onto {}", short(base)),
+            recovery,
+        );
+        Ok(())
+    }
+
+    pub fn is_published(&self, repo: RepoId, rev: &str) -> Result<bool, git_engine::GitError> {
+        self.handle(repo)?.is_published(rev)
+    }
+
+    pub fn split_off(
+        &self,
+        repo: RepoId,
+        rev: &str,
+        paths: &[String],
+        message: &str,
+        split_first: bool,
+    ) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
+        let handle = self.handle(repo)?;
+        let before = handle.head()?;
+        handle.split_off(rev, paths, message, split_first)?;
+
+        let recovery = match before {
+            git_engine::Head::Branch { name, oid } => Recovery::Branch { name, oid },
+            _ => Recovery::None,
+        };
+        self.record(
+            repo,
+            format!("Split {} off {}", paths.join(", "), short(rev)),
+            recovery,
         );
         Ok(())
     }

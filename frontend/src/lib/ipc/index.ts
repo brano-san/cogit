@@ -17,6 +17,7 @@ import type {
   RepoId,
   StashOptions,
   TagRequest,
+  TodoEntry,
 } from "./bindings";
 
 export type {
@@ -56,6 +57,8 @@ export type {
   MergeOptions,
   PatchRequest,
   RebaseOptions,
+  RebaseProgress,
+  RebaseStep,
   ReflogEntry,
   RepoChanged,
   RepoId,
@@ -71,6 +74,8 @@ export type {
   SubmoduleState,
   Tag,
   TagRequest,
+  TodoAction,
+  TodoEntry,
   Whitespace,
   WorktreeFiles,
 } from "./bindings";
@@ -435,4 +440,34 @@ export async function useHooksPath(repo: RepoId, path: string) {
 
 export async function runHook(repo: RepoId, name: string) {
   return unwrap(await commands.runHook(repo, name));
+}
+
+export async function rollbackTo(repo: RepoId, rev: string, paths: string[]) {
+  return unwrap(await commands.rollbackTo(repo, rev, paths));
+}
+
+export async function isPublished(repo: RepoId, rev: string) {
+  return unwrap(await commands.isPublished(repo, rev));
+}
+
+export async function splitOff(
+  repo: RepoId,
+  rev: string,
+  paths: string[],
+  message: string,
+  splitFirst: boolean,
+) {
+  return unwrap(await commands.splitOff(repo, rev, paths, message, splitFirst));
+}
+
+export async function rebaseTodo(repo: RepoId, base: string) {
+  return unwrap(await commands.rebaseTodo(repo, base));
+}
+
+export async function interactiveRebase(repo: RepoId, base: string, plan: TodoEntry[]) {
+  return unwrap(await commands.interactiveRebase(repo, base, plan));
+}
+
+export async function rebaseProgress(repo: RepoId) {
+  return unwrap(await commands.rebaseProgress(repo));
 }

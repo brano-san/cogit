@@ -245,6 +245,21 @@ snake_case и читаются на фронтенде как `undefined`.
 | `set_hook_enabled` | `repo, name, enabled` | `()` | M10 |
 | `use_hooks_path` | `repo, path` | `()` | M10 |
 | `run_hook` | `repo, name` | `HookRun` | M10 |
+
+### Хирургия коммитов и rebase
+
+| Команда | Вход | Выход | Модуль |
+|---|---|---|---|
+| `rollback_to` | `repo, rev, paths` | `()` | M12 |
+| `split_off` | `repo, rev, paths, message, splitFirst` | `()` | M12 |
+| `is_published` | `repo, rev` | `bool` | M12 |
+| `rebase_todo` | `repo, base` | `Vec<TodoEntry>` | M4 |
+| `interactive_rebase` | `repo, base, plan: Vec<TodoEntry>` | `()` | M4 |
+| `rebase_progress` | `repo` | `Option<RebaseProgress>` | M11 |
+
+`TodoEntry` — `{ oid, action: pick|reword|edit|squash|fixup|drop, message }`.
+Сообщение для `reword` уезжает в план строкой `exec git commit --amend`, чтобы редактор
+не открывался: терминала, в котором он мог бы открыться, у приложения нет.
 | `has_token` | `host` | `bool` | M1 |
 | `store_token` / `forget_token` | `host[, token]` | `()` | M1 |
 

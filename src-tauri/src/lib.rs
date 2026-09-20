@@ -102,7 +102,13 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::write_hook,
             commands::set_hook_enabled,
             commands::use_hooks_path,
-            commands::run_hook
+            commands::run_hook,
+            commands::rollback_to,
+            commands::is_published,
+            commands::split_off,
+            commands::rebase_todo,
+            commands::interactive_rebase,
+            commands::rebase_progress
         ])
 }
 
