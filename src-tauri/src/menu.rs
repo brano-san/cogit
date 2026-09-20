@@ -1,0 +1,167 @@
+use std::collections::HashMap;
+use std::sync::Mutex;
+
+use tauri::menu::{Menu, MenuItem, MenuItemBuilder, PredefinedMenuItem, Submenu, SubmenuBuilder};
+use tauri::{AppHandle, Manager, Runtime};
+
+/// Item ids are the palette command ids: one place decides what an action is called and
+/// when it is available, and both the menu and the palette read it.
+const REPOSITORY: &[Entry] = &[
+    Entry::Item("open", "Open Repository…", Some("CmdOrCtrl+O")),
+    Entry::Item("close", "Close Repository", Some("CmdOrCtrl+W")),
+    Entry::Separator,
+    Entry::Item("refresh", "Refresh", Some("F5")),
+    Entry::Separator,
+    Entry::Item("settings", "Settings…", Some("CmdOrCtrl+,")),
+];
+
+const VIEW: &[Entry] = &[
+    Entry::Item("output", "Output", Some("CmdOrCtrl+Shift+7")),
+    Entry::Item("maximize-panel", "Maximise Panel", Some("Shift+F11")),
+    Entry::Separator,
+    Entry::Item("panel-repositories", "Repositories Panel", None),
+    Entry::Item("panel-refs", "References Panel", None),
+    Entry::Item("panel-graph", "Graph Panel", None),
+    Entry::Item("panel-files", "Files Panel", None),
+    Entry::Item("panel-diff", "Diff Panel", None),
+    Entry::Separator,
+    Entry::Item("perspective-main", "Perspective: Main", None),
+    Entry::Item("perspective-review", "Perspective: Review", None),
+    Entry::Item("reset-layout", "Reset Perspective", None),
+];
+
+const REMOTE: &[Entry] = &[
+    Entry::Item("fetch", "Fetch", Some("CmdOrCtrl+Shift+F")),
+    Entry::Item("pull", "Pull", Some("CmdOrCtrl+Shift+U")),
+    Entry::Item("push", "Push", Some("CmdOrCtrl+Shift+O")),
+    Entry::Separator,
+    Entry::Item("pr", "Create Pull Request", None),
+];
+
+const LOCAL: &[Entry] = &[
+    Entry::Item("commit", "Commit…", Some("CmdOrCtrl+Return")),
+    Entry::Item("stash", "Stash All", None),
+    Entry::Separator,
+    Entry::Item("undo", "Undo Last Operation", None),
+    Entry::Item("abort", "Abort Operation In Progress", None),
+];
+
+const BRANCH: &[Entry] = &[
+    Entry::Item("branch", "New Branch…", None),
+    Entry::Item("tag", "Create Tag", None),
+];
+
+const QUERY: &[Entry] = &[
+    Entry::Item("find", "Find Object…", Some("CmdOrCtrl+P")),
+    Entry::Item("palette", "Find Command…", Some("CmdOrCtrl+Shift+P")),
+    Entry::Separator,
+    Entry::Item("blame", "Blame This File", None),
+];
+
+const TOOLS: &[Entry] = &[
+    Entry::Item("hooks", "Manage Hooks…", None),
+    Entry::Separator,
+    Entry::Item("copy-pr", "Copy Pull Request Link", None),
+];
+
+const HELP: &[Entry] = &[Entry::Item("about", "About Cogit", None)];
+
+enum Entry {
+    Item(&'static str, &'static str, Option<&'static str>),
+    Separator,
+}
+
+/// The items by id, so a state change can enable or disable one without walking the tree:
+/// `Menu::get` only looks at the top level.
+#[derive(Default)]
+pub struct MenuItems<R: Runtime> {
+    items: Mutex<HashMap<String, MenuItem<R>>>,
+}
+
+impl<R: Runtime> MenuItems<R> {
+    pub fn set_enabled(&self, disabled: &[String]) {
+        let Ok(items) = self.items.lock() else { return };
+        for (id, item) in items.iter() {
+            if let Err(err) = item.set_enabled(!disabled.contains(id)) {
+                tracing::error!(error = ?err, id, context = "failed to update a menu item");
+            }
+        }
+    }
+}
+
+fn submenu<R: Runtime>(
+    app: &AppHandle<R>,
+    title: &str,
+    entries: &[Entry],
+    collected: &mut HashMap<String, MenuItem<R>>,
+) -> tauri::Result<Submenu<R>> {
+    let mut builder = SubmenuBuilder::new(app, title);
+    for entry in entries {
+        match entry {
+            Entry::Separator => builder = builder.separator(),
+            Entry::Item(id, label, accelerator) => {
+                let mut item = MenuItemBuilder::with_id(*id, *label);
+                if let Some(keys) = accelerator {
+                    item = item.accelerator(*keys);
+                }
+                let item = item.build(app)?;
+                builder = builder.item(&item);
+                collected.insert((*id).to_owned(), item);
+            }
+        }
+    }
+    builder.build()
+}
+
+pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
+    let mut collected = HashMap::new();
+    let mut section = |title: &str, entries: &[Entry]| submenu(app, title, entries, &mut collected);
+
+    let repository = section("Repository", REPOSITORY)?;
+    let view = section("View", VIEW)?;
+    let remote = section("Remote", REMOTE)?;
+    let local = section("Local", LOCAL)?;
+    let branch = section("Branch", BRANCH)?;
+    let query = section("Query", QUERY)?;
+    let tools = section("Tools", TOOLS)?;
+    let help = section("Help", HELP)?;
+
+    // Edit and Window are the OS's own items: the webview needs real clipboard entries
+    // for Ctrl+C to work inside an input, and muda gives them native behaviour.
+    let edit = SubmenuBuilder::new(app, "Edit")
+        .undo()
+        .redo()
+        .separator()
+        .cut()
+        .copy()
+        .paste()
+        .select_all()
+        .build()?;
+    let window = SubmenuBuilder::new(app, "Window")
+        .minimize()
+        .maximize()
+        .separator()
+        .item(&PredefinedMenuItem::close_window(app, Some("Close"))?)
+        .build()?;
+
+    let menu = Menu::with_items(
+        app,
+        &[
+            &repository,
+            &edit,
+            &view,
+            &remote,
+            &local,
+            &branch,
+            &query,
+            &tools,
+            &window,
+            &help,
+        ],
+    )?;
+
+    app.manage(MenuItems {
+        items: Mutex::new(collected),
+    });
+    Ok(menu)
+}

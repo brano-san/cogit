@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fuzzyScore, rankCommands, type PaletteCommand } from "./palette";
+import { disabledIds, fuzzyScore, rankCommands, type PaletteCommand } from "./palette";
 
 function cmd(id: string, title: string, extra: Partial<PaletteCommand> = {}): PaletteCommand {
   return { id, title, run: () => {}, ...extra };
@@ -73,5 +73,28 @@ describe("rankCommands", () => {
 
   it("handles an empty command list", () => {
     expect(rankCommands([], "anything", [])).toEqual([]);
+  });
+});
+
+describe("disabledIds", () => {
+  const cmd = (id: string, unavailable?: string): PaletteCommand => ({
+    id,
+    title: id,
+    unavailable,
+    run: () => {},
+  });
+
+  it("names the commands that cannot run", () => {
+    expect(disabledIds([cmd("push", "No remote"), cmd("open")])).toEqual(["push"]);
+  });
+
+  it("is empty when everything is available", () => {
+    expect(disabledIds([cmd("open"), cmd("fetch")])).toEqual([]);
+  });
+
+  it("is stable in order so the menu is not rebuilt for a reshuffle", () => {
+    const one = disabledIds([cmd("b", "x"), cmd("a", "x")]);
+    const two = disabledIds([cmd("a", "x"), cmd("b", "x")]);
+    expect(one).toEqual(two);
   });
 });

@@ -52,3 +52,9 @@ export function pullRequestUrl(
     }
   }
 }
+
+/** The key a token is stored under. SSH has none: the agent already authenticates it. */
+export function authHost(url: string | null | undefined): string | null {
+  const match = url?.match(/^https?:\/\/(?:[^@/]+@)?([\w.-]+)(?::\d+)?(?:\/|$)/);
+  return match?.[1] ?? null;
+}

@@ -60,10 +60,26 @@ export const commands = {
 	resolveConflict: (repo: RepoId, path: string, side: ConflictSide) => typedError<null, GitError>(__TAURI_INVOKE("resolve_conflict", { repo, path, side })),
 	resolveConflictText: (repo: RepoId, path: string, text: string) => typedError<null, GitError>(__TAURI_INVOKE("resolve_conflict_text", { repo, path, text })),
 	findObject: (repo: RepoId, query: string, limit: number) => typedError<Found[], GitError>(__TAURI_INVOKE("find_object", { repo, query, limit })),
+	/**  Not `async`: touching menu items off the main thread deadlocks on Windows. */
+	setMenuState: (disabled: string[]) => __TAURI_INVOKE<void>("set_menu_state", { disabled }),
+	/**
+	 *  Reports only whether a token exists. Reading one back would put it in the webview,
+	 *  where every dependency could see it.
+	 */
+	hasToken: (host: string) => typedError<boolean, GitError>(__TAURI_INVOKE("has_token", { host })),
+	storeToken: (host: string, token: string) => typedError<null, GitError>(__TAURI_INVOKE("store_token", { host, token })),
+	forgetToken: (host: string) => typedError<null, GitError>(__TAURI_INVOKE("forget_token", { host })),
+	listHooks: (repo: RepoId) => typedError<HookOverview, GitError>(__TAURI_INVOKE("list_hooks", { repo })),
+	readHook: (repo: RepoId, name: string) => typedError<string, GitError>(__TAURI_INVOKE("read_hook", { repo, name })),
+	writeHook: (repo: RepoId, name: string, body: string) => typedError<null, GitError>(__TAURI_INVOKE("write_hook", { repo, name, body })),
+	setHookEnabled: (repo: RepoId, name: string, enabled: boolean) => typedError<null, GitError>(__TAURI_INVOKE("set_hook_enabled", { repo, name, enabled })),
+	useHooksPath: (repo: RepoId, path: string) => typedError<null, GitError>(__TAURI_INVOKE("use_hooks_path", { repo, path })),
+	runHook: (repo: RepoId, name: string) => typedError<HookRun, GitError>(__TAURI_INVOKE("run_hook", { repo, name })),
 };
 
 /** Events */
 export const events = {
+	menuCommand: makeEvent<MenuCommand>("menu-command"),
 	repoChanged: makeEvent<RepoChanged>("repo-changed"),
 };
 
@@ -241,6 +257,40 @@ export type GraphEdge = {
 /**  Assuming "HEAD is a branch" crashes on an unborn or detached checkout (INV-07). */
 export type Head = { kind: "branch"; name: string; oid: string } | { kind: "detached"; oid: string } | { kind: "unborn"; name: string };
 
+export type Hook = {
+	name: string,
+	description: string,
+	state: HookState,
+	source: HookSource | null,
+	executable: boolean,
+	size: number,
+};
+
+export type HookOverview = {
+	/**  Where Git will actually look right now. */
+	activeDir: string,
+	source: HookSource,
+	/**  `core.hooksPath` exactly as configured, so the UI can show what to fix. */
+	configuredPath: string | null,
+	/**  A versioned hook directory sitting in the tree that nothing points at yet. */
+	availablePath: string | null,
+	hooks: Hook[],
+};
+
+export type HookRun = {
+	name: string,
+	exitCode: number | null,
+	stdout: string,
+	stderr: string,
+	durationMs: number,
+	/**  Over the budget in doc/modules/M10-hooks.md, where a hook starts costing the commit. */
+	slow: boolean,
+};
+
+export type HookSource = "gitHooks" | "hooksPath";
+
+export type HookState = "missing" | "enabled" | "disabled";
+
 export type Hunk = {
 	oldStart: number,
 	oldLines: number,
@@ -258,6 +308,12 @@ export type LaneAssignment = {
 };
 
 export type LineEnding = "lf" | "crlf" | "cr" | "mixed" | "none";
+
+/**
+ *  A native menu item was chosen. The payload is the palette command id, so the frontend
+ *  runs the same code path the palette would.
+ */
+export type MenuCommand = string;
 
 export type MergeOptions = {
 	source: string,

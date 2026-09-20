@@ -1,72 +1,83 @@
-/** Fractions, not pixels: a layout saved on a 4K monitor is unusable on a laptop. */
+import {
+  clampFraction,
+  DEFAULT_LAYOUT,
+  DEFAULT_PERSPECTIVES,
+  isVisible,
+  mergePerspectives,
+  toggleHidden,
+  type LayoutFractions,
+  type PanelId,
+  type Perspective,
+  type PerspectiveId,
+} from "$lib/perspectives";
 
 const STORAGE_KEY = "cogit.layout.v1";
 
-const MIN_FRACTION = 0.12;
-const MAX_FRACTION = 1 - MIN_FRACTION;
-
-export interface LayoutFractions {
-  leftColumn: number;
-  repositories: number;
-  topRow: number;
-  graph: number;
-}
-
-export const DEFAULT_LAYOUT: LayoutFractions = {
-  leftColumn: 0.24,
-  repositories: 0.45,
-  topRow: 0.55,
-  graph: 0.68,
-};
-
-export function clampFraction(value: number): number {
-  if (!Number.isFinite(value)) return MIN_FRACTION;
-  return Math.min(MAX_FRACTION, Math.max(MIN_FRACTION, value));
-}
-
-function load(): LayoutFractions {
+function stored(): unknown {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...DEFAULT_LAYOUT };
-    const parsed = JSON.parse(raw) as Partial<LayoutFractions>;
-    return {
-      leftColumn: clampFraction(parsed.leftColumn ?? DEFAULT_LAYOUT.leftColumn),
-      repositories: clampFraction(parsed.repositories ?? DEFAULT_LAYOUT.repositories),
-      topRow: clampFraction(parsed.topRow ?? DEFAULT_LAYOUT.topRow),
-      graph: clampFraction(parsed.graph ?? DEFAULT_LAYOUT.graph),
-    };
+    return raw === null ? null : (JSON.parse(raw) as unknown);
   } catch {
-    return { ...DEFAULT_LAYOUT };
+    return null;
   }
 }
 
 class LayoutStore {
-  fractions = $state<LayoutFractions>(load());
+  #perspectives = $state<Record<PerspectiveId, Perspective>>(mergePerspectives(stored()));
+  active = $state<PerspectiveId>("main");
+  maximized = $state<PanelId | null>(null);
+
+  get fractions(): LayoutFractions {
+    return this.#perspectives[this.active].fractions;
+  }
+
+  get hidden(): readonly PanelId[] {
+    return this.#perspectives[this.active].hidden;
+  }
+
+  visible(panel: PanelId): boolean {
+    return isVisible(this.#perspectives[this.active], this.maximized, panel);
+  }
 
   nudge(key: keyof LayoutFractions, delta: number): void {
-    this.fractions[key] = clampFraction(this.fractions[key] + delta);
-    this.persist();
+    this.set(key, this.fractions[key] + delta);
   }
 
   set(key: keyof LayoutFractions, value: number): void {
-    this.fractions[key] = clampFraction(value);
+    this.#perspectives[this.active].fractions[key] = clampFraction(value);
+    this.persist();
+  }
+
+  /** Switching keeps each perspective's own sizes; that is the point of having them. */
+  switch(id: PerspectiveId): void {
+    this.maximized = null;
+    this.active = id;
+  }
+
+  toggleMaximized(panel: PanelId): void {
+    this.maximized = this.maximized === panel ? null : panel;
+  }
+
+  togglePanel(panel: PanelId): void {
+    this.#perspectives[this.active].hidden = toggleHidden(this.hidden, panel);
     this.persist();
   }
 
   reset(): void {
-    this.fractions = { ...DEFAULT_LAYOUT };
+    this.#perspectives[this.active] = structuredClone(DEFAULT_PERSPECTIVES[this.active]);
+    this.maximized = null;
     this.persist();
   }
 
   resetOne(key: keyof LayoutFractions): void {
-    this.fractions[key] = DEFAULT_LAYOUT[key];
-    this.persist();
+    this.set(key, DEFAULT_LAYOUT[key]);
   }
 
   private persist(): void {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.fractions));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.#perspectives));
     } catch {
+      // A blocked localStorage costs the layout on restart, nothing more.
     }
   }
 }

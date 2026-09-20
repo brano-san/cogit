@@ -1,3 +1,9 @@
+mod credentials;
+
+pub use credentials::{
+    KeyringStore, MemoryStore, SecretError, SecretStore, host_of, platform_store,
+};
+
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -128,7 +134,6 @@ pub fn is_warning(entry: &git_engine::GitOutput) -> bool {
     entry.exit_code == Some(0) && !entry.stderr.trim().is_empty()
 }
 
-#[derive(Debug)]
 pub struct AppState {
     repos: RwLock<HashMap<RepoId, OpenRepo>>,
     next_repo_id: AtomicU32,
@@ -137,6 +142,15 @@ pub struct AppState {
     journal: Arc<RwLock<std::collections::VecDeque<git_engine::GitOutput>>>,
     safety: RwLock<Vec<SafetyEntry>>,
     next_entry_id: AtomicU32,
+    secrets: Box<dyn SecretStore>,
+}
+
+impl std::fmt::Debug for AppState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AppState")
+            .field("repos", &self.repos)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Default for AppState {
@@ -159,7 +173,31 @@ impl AppState {
             ))),
             safety: RwLock::new(Vec::new()),
             next_entry_id: AtomicU32::new(1),
+            secrets: platform_store(),
         }
+    }
+
+    /// Tests and a machine without a credential store share this constructor.
+    #[must_use]
+    pub fn with_secrets(secrets: Box<dyn SecretStore>) -> Self {
+        Self {
+            secrets,
+            ..Self::new()
+        }
+    }
+
+    /// Only ever answers whether a token exists: the value must not reach the webview.
+    #[must_use]
+    pub fn has_token(&self, host: &str) -> bool {
+        self.secrets.get(host).is_some()
+    }
+
+    pub fn store_token(&self, host: &str, token: &str) -> Result<(), SecretError> {
+        self.secrets.set(host, token)
+    }
+
+    pub fn forget_token(&self, host: &str) -> Result<(), SecretError> {
+        self.secrets.delete(host)
     }
 
     #[must_use]
@@ -656,6 +694,51 @@ impl AppState {
         Ok(())
     }
 
+    pub fn hooks(&self, repo: RepoId) -> Result<git_engine::HookOverview, git_engine::GitError> {
+        self.handle(repo)?.hooks()
+    }
+
+    pub fn read_hook(&self, repo: RepoId, name: &str) -> Result<String, git_engine::GitError> {
+        self.handle(repo)?.read_hook(name)
+    }
+
+    pub fn write_hook(
+        &self,
+        repo: RepoId,
+        name: &str,
+        body: &str,
+    ) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
+        self.handle(repo)?.write_hook(name, body)
+    }
+
+    pub fn set_hook_enabled(
+        &self,
+        repo: RepoId,
+        name: &str,
+        enabled: bool,
+    ) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
+        self.handle(repo)?.set_hook_enabled(name, enabled)
+    }
+
+    /// Wires a versioned hook directory up. Never automatic: a hooks path inside the tree
+    /// turns repository content into code that runs on commit (doc/modules/M10-hooks.md).
+    pub fn use_hooks_path(&self, repo: RepoId, path: &str) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
+        self.handle(repo)?
+            .run_git(&["config", "core.hooksPath", path])
+            .map(drop)
+    }
+
+    pub fn run_hook(
+        &self,
+        repo: RepoId,
+        name: &str,
+    ) -> Result<git_engine::HookRun, git_engine::GitError> {
+        self.handle(repo)?.run_hook(name)
+    }
+
     pub fn remotes(&self, repo: RepoId) -> Result<Vec<String>, git_engine::GitError> {
         self.handle(repo)?.remotes()
     }
@@ -667,7 +750,9 @@ impl AppState {
         on_line: impl FnMut(&str),
     ) -> Result<(), git_engine::GitError> {
         self.quiet(repo);
-        self.handle(repo)?.fetch(remote, on_line)
+        let handle = self.handle(repo)?;
+        let token = self.token_for(&handle, remote);
+        handle.fetch(remote, token.as_deref(), on_line)
     }
 
     pub fn pull(
@@ -678,7 +763,9 @@ impl AppState {
         on_line: impl FnMut(&str),
     ) -> Result<(), git_engine::GitError> {
         self.quiet(repo);
-        self.handle(repo)?.pull(remote, ff_only, on_line)
+        let handle = self.handle(repo)?;
+        let token = self.token_for(&handle, remote);
+        handle.pull(remote, ff_only, token.as_deref(), on_line)
     }
 
     pub fn push(
@@ -689,7 +776,19 @@ impl AppState {
         on_line: impl FnMut(&str),
     ) -> Result<(), git_engine::GitError> {
         self.quiet(repo);
-        self.handle(repo)?.push(remote, None, force, on_line)
+        let handle = self.handle(repo)?;
+        let token = self.token_for(&handle, remote);
+        handle.push(remote, None, force, token.as_deref(), on_line)
+    }
+
+    /// Only for an HTTP remote: SSH already authenticates through the agent, and handing
+    /// a token to an unknown host would leak it.
+    fn token_for(&self, handle: &git_engine::RepoHandle, remote: &str) -> Option<String> {
+        let url = handle.remote_url(remote)?;
+        if !git_engine::wants_auth(&url) {
+            return None;
+        }
+        self.secrets.get(&host_of(&url)?)
     }
 
     pub fn merge(

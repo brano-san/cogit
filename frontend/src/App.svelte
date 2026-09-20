@@ -13,6 +13,7 @@
   import Panel from "$components/layout/Panel.svelte";
   import CommandPalette from "$components/layout/CommandPalette.svelte";
   import SettingsPanel from "$components/layout/SettingsPanel.svelte";
+  import HooksPanel from "$components/layout/HooksPanel.svelte";
   import FindObject from "$components/layout/FindObject.svelte";
   import GitErrorDialog from "$components/layout/GitErrorDialog.svelte";
   import OutputPanel from "$components/layout/OutputPanel.svelte";
@@ -26,10 +27,11 @@
   import RepositoryList from "$components/repo-tree/RepositoryList.svelte";
   import SubmoduleList from "$components/repo-tree/SubmoduleList.svelte";
   import { shortOid } from "$lib/format";
-  import type { PaletteCommand } from "$lib/palette";
+  import { disabledIds, type PaletteCommand } from "$lib/palette";
   import { pullRequestUrl } from "$lib/pull-request";
   import { commitScope } from "$lib/commit-scope";
   import { stateBanner, type BannerAction } from "$lib/repo-state";
+  import { PANELS, type PanelId } from "$lib/perspectives";
   import type { Settings } from "$lib/settings";
   import {
     checkout,
@@ -46,7 +48,9 @@
     findObject,
     mergeInto,
     stageSelection,
+    onMenuCommand,
     onRepoChanged,
+    setMenuState,
     revertCommits,
     rebaseOnto,
     skipOperation,
@@ -67,6 +71,7 @@
   import { stashes } from "$stores/stashes.svelte";
   import { submodules } from "$stores/submodules.svelte";
   import { graph } from "$stores/graph.svelte";
+  import { hooks } from "$stores/hooks.svelte";
   import { settings } from "$stores/settings.svelte";
   import { layout } from "$stores/layout.svelte";
   import { repository } from "$stores/repository.svelte";
@@ -79,6 +84,16 @@
     "detectMoves",
   ];
 
+  const PANEL_TITLES: Record<PanelId, string> = {
+    repositories: "Repositories",
+    refs: "References",
+    graph: "Graph",
+    files: "Files",
+    diff: "Diff",
+  };
+
+  /** Maximising acts on the panel the pointer last entered; there is no focus ring yet. */
+  let focused = $state<PanelId>("graph");
   let info = $state<AppInfo | null>(null);
   let paletteOpen = $state(false);
   let settingsOpen = $state(false);
@@ -104,6 +119,15 @@
   });
 
   const fractions = $derived(layout.fractions);
+  const shown = $derived({
+    repositories: layout.visible("repositories"),
+    refs: layout.visible("refs"),
+    graph: layout.visible("graph"),
+    files: layout.visible("files"),
+    diff: layout.visible("diff"),
+  });
+  const leftColumn = $derived(shown.repositories || shown.refs);
+  const topRow = $derived(shown.graph || shown.files);
   const repo = $derived(repository.current);
   const details = $derived(commit.details);
   const banner = $derived(repo ? stateBanner(repo.state, repo.indexLock) : null);
@@ -137,6 +161,7 @@
   $effect(() => errors.report(diff.error));
   $effect(() => errors.report(graph.error));
   $effect(() => errors.report(blame.error));
+  $effect(() => errors.report(hooks.error));
 
   /** One place after every mutation: the reactive version fired on each loading toggle. */
   async function afterMutation(paths: string[] = []) {
@@ -176,6 +201,66 @@
         run: () => void undo(),
       },
       { id: "output", title: "Toggle Output Panel", shortcut: "Ctrl+Shift+7", run: () => output.toggle() },
+      {
+        id: "close",
+        title: "Close Repository",
+        shortcut: "Ctrl+W",
+        unavailable: noRepo,
+        run: () => void closeCurrent(),
+      },
+      { id: "refresh", title: "Refresh", shortcut: "F5", unavailable: noRepo, run: () => void repository.refresh() },
+      {
+        id: "branch",
+        title: "New Branch…",
+        unavailable: noRepo,
+        run: () => void runBannerAction("createBranch"),
+      },
+      { id: "reset-layout", title: "Reset Perspective", run: () => layout.reset() },
+      {
+        id: "hooks",
+        title: "Manage Hooks…",
+        synonyms: ["pre-commit", "git hooks"],
+        unavailable: noRepo,
+        run: () => {
+          const id = repository.current?.repo;
+          if (id) void hooks.show(id);
+        },
+      },
+      {
+        id: "perspective-main",
+        title: "Perspective: Main",
+        run: () => layout.switch("main"),
+      },
+      {
+        id: "perspective-review",
+        title: "Perspective: Review",
+        run: () => layout.switch("review"),
+      },
+      {
+        id: "maximize-panel",
+        title: "Maximise Panel",
+        shortcut: "Shift+F11",
+        synonyms: ["zoom", "full screen panel"],
+        run: () => layout.toggleMaximized(focused),
+      },
+      ...PANELS.map((panel) => ({
+        id: `panel-${panel}`,
+        title: `Toggle ${PANEL_TITLES[panel]} Panel`,
+        run: () => layout.togglePanel(panel),
+      })),
+      {
+        id: "palette",
+        title: "Find Command",
+        shortcut: "Ctrl+Shift+P",
+        run: () => (paletteOpen = true),
+      },
+      {
+        id: "about",
+        title: "About Cogit",
+        run: () => window.alert(`Cogit ${info?.version ?? ""}
+
+Log: ${info?.logPath ?? ""}`),
+      },
       {
         id: "settings",
         title: "Settings",
@@ -268,22 +353,13 @@
     command.run();
   }
 
+  // Accords that appear in the native menu are owned by it: handling them here too
+  // would run the command twice for one keypress.
   function onkeydown(event: KeyboardEvent) {
-    if (event.ctrlKey && event.shiftKey && event.key === "&") {
-      event.preventDefault();
-      output.toggle();
-    }
-    if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "p") {
-      event.preventDefault();
-      paletteOpen = !paletteOpen;
-    }
-    if (event.ctrlKey && !event.shiftKey && event.key.toLowerCase() === "p") {
-      event.preventDefault();
-      finderOpen = !finderOpen;
-    }
-    if (event.ctrlKey && event.key === ",") {
-      event.preventDefault();
-      settingsOpen = !settingsOpen;
+    if (event.key === "Escape") {
+      settingsOpen = false;
+      paletteOpen = false;
+      finderOpen = false;
     }
   }
 
@@ -748,6 +824,28 @@
     if (typeof picked !== "string") return;
     await activate(picked);
   }
+
+  async function closeCurrent() {
+    const id = repository.current?.repo;
+    if (!id) return;
+    commit.clear();
+    diff.clear();
+    blame.clear();
+    await repository.closeOne(id);
+  }
+
+  $effect(() => {
+    const pending = onMenuCommand((id) => {
+      const command = palette.find((entry) => entry.id === id);
+      if (command && !command.unavailable) runCommand(command);
+    });
+    return () => void pending.then((unlisten) => unlisten());
+  });
+
+  // The native menu is not reactive, so the derived availability is pushed to it.
+  $effect(() => {
+    void setMenuState(disabledIds(palette)).catch(() => {});
+  });
 </script>
 
 <svelte:window {onkeydown} />
@@ -771,8 +869,20 @@
   {/if}
 
   <div class="workspace">
-    <div class="left-column" style:flex="0 0 {fractions.leftColumn * 100}%">
-      <div class="pane" style:flex="0 0 {fractions.repositories * 100}%">
+    {#if leftColumn}
+    <div
+      class="left-column"
+      style:flex={shown.diff || topRow ? `0 0 ${fractions.leftColumn * 100}%` : "1 1 auto"}
+    >
+      {#if shown.repositories}
+      <div
+        class="pane"
+        class:grow={!shown.refs}
+        style:flex={shown.refs ? `0 0 ${fractions.repositories * 100}%` : undefined}
+        role="region"
+        aria-label={PANEL_TITLES.repositories}
+        onpointerenter={() => (focused = "repositories")}
+      >
         <Panel title="Repositories" count={repository.openRepos.length}>
           <RepositoryList
             onopen={pickRepository}
@@ -786,6 +896,8 @@
           />
         </Panel>
       </div>
+      {/if}
+      {#if shown.repositories && shown.refs}
       <Splitter
         direction="horizontal"
         value={fractions.repositories}
@@ -793,7 +905,11 @@
         onchange={(d) => layout.nudge("repositories", d)}
         onreset={() => layout.resetOne("repositories")}
       />
-      <div class="pane grow">
+      {/if}
+      {#if shown.refs}
+      <div class="pane grow" role="region"
+        aria-label={PANEL_TITLES.refs}
+        onpointerenter={() => (focused = "refs")}>
         <Panel
           title="References"
           count={repo?.branches.length}
@@ -836,8 +952,11 @@
           {/if}
         </Panel>
       </div>
+      {/if}
     </div>
+    {/if}
 
+    {#if leftColumn && (topRow || shown.diff)}
     <Splitter
       direction="vertical"
       value={fractions.leftColumn}
@@ -845,10 +964,24 @@
       onchange={(d) => layout.nudge("leftColumn", d)}
       onreset={() => layout.resetOne("leftColumn")}
     />
+    {/if}
 
+    {#if topRow || shown.diff}
     <div class="right-area">
-      <div class="top-row" style:flex="0 0 {fractions.topRow * 100}%">
-        <div class="pane" style:flex="0 0 {fractions.graph * 100}%">
+      {#if topRow}
+      <div
+        class="top-row"
+        style:flex={shown.diff ? `0 0 ${fractions.topRow * 100}%` : "1 1 auto"}
+      >
+        {#if shown.graph}
+        <div
+          class="pane"
+          class:grow={!shown.files}
+          style:flex={shown.files ? `0 0 ${fractions.graph * 100}%` : undefined}
+          role="region"
+        aria-label={PANEL_TITLES.graph}
+        onpointerenter={() => (focused = "graph")}
+        >
           <Panel title="Graph &amp; History" count={graph.rows.length}>
             {#snippet actions()}
               {#if repo}
@@ -862,6 +995,8 @@
             {/if}
           </Panel>
         </div>
+        {/if}
+        {#if shown.graph && shown.files}
         <Splitter
           direction="vertical"
           value={fractions.graph}
@@ -869,7 +1004,11 @@
           onchange={(d) => layout.nudge("graph", d)}
           onreset={() => layout.resetOne("graph")}
         />
-        <div class="pane grow">
+        {/if}
+        {#if shown.files}
+        <div class="pane grow" role="region"
+        aria-label={PANEL_TITLES.files}
+        onpointerenter={() => (focused = "files")}>
           <Panel title="Files" count={onWorkingTree ? worktree.total : commit.files.length}>
             <div class="files">
             {#if onWorkingTree}
@@ -915,8 +1054,11 @@
             </div>
           </Panel>
         </div>
+        {/if}
       </div>
+      {/if}
 
+      {#if topRow && shown.diff}
       <Splitter
         direction="horizontal"
         value={fractions.topRow}
@@ -924,8 +1066,12 @@
         onchange={(d) => layout.nudge("topRow", d)}
         onreset={() => layout.resetOne("topRow")}
       />
+      {/if}
 
-      <div class="pane grow">
+      {#if shown.diff}
+      <div class="pane grow" role="region"
+        aria-label={PANEL_TITLES.diff}
+        onpointerenter={() => (focused = "diff")}>
         <Panel title="Diff">
           {#if conflicts.path}
             <ConflictView
@@ -1027,7 +1173,9 @@
           {/if}
         </Panel>
       </div>
+      {/if}
     </div>
+    {/if}
   </div>
 
   {#if output.open}
@@ -1053,9 +1201,46 @@
     />
   {/if}
 
+  {#if hooks.open}
+    <HooksPanel
+      overview={hooks.overview}
+      editing={hooks.editing}
+      body={hooks.body}
+      onedit={(name) => {
+        const id = repository.current?.repo;
+        if (id) void hooks.edit(id, name);
+      }}
+      onbody={(text) => (hooks.body = text)}
+      onsave={() => {
+        const id = repository.current?.repo;
+        if (id) void hooks.save(id);
+      }}
+      oncancel={() => (hooks.editing = null)}
+      ontoggle={(name, enabled) => {
+        const id = repository.current?.repo;
+        if (id) void hooks.toggle(id, name, enabled);
+      }}
+      onadopt={(path) => {
+        const id = repository.current?.repo;
+        if (id) void hooks.adopt(id, path);
+      }}
+      onrun={(name) => {
+        const id = repository.current?.repo;
+        if (id) void hooks.dryRun(id, name);
+      }}
+      lastRun={hooks.lastRun}
+      running={hooks.running}
+      onclose={() => hooks.close()}
+    />
+  {/if}
+
   {#if settingsOpen}
     <SettingsPanel
       value={settings.current}
+      tokenHost={network.tokenHost}
+      tokenStored={network.tokenStored}
+      onstoretoken={(token) => void network.storeToken(token)}
+      onforgettoken={() => void network.forgetToken()}
       onchange={(key, next) => void changeSetting(key, next)}
       onreset={() => void settings.reset()}
       onclose={() => (settingsOpen = false)}
