@@ -76,7 +76,9 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::close_repository,
             commands::submodules,
             commands::update_submodule,
-            commands::stage_selection
+            commands::stage_selection,
+            commands::blame,
+            commands::remote_url
         ])
 }
 

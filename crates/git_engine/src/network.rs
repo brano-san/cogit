@@ -14,6 +14,14 @@ impl RepoHandle {
         Ok(names)
     }
 
+    pub fn remote_url(&self, name: &str) -> Option<String> {
+        self.repo
+            .find_remote(name)
+            .ok()?
+            .url(gix::remote::Direction::Push)
+            .map(|url| url.to_bstring().to_string())
+    }
+
     pub fn fetch(&self, remote: &str, on_line: impl FnMut(&str)) -> Result<()> {
         self.run_streaming(&["fetch", "--progress", "--prune", remote], on_line)
     }

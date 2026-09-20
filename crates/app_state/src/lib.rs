@@ -322,14 +322,13 @@ impl AppState {
             )));
         }
 
-        let mut diff = diff_engine::diff_bytes(
-            old.as_deref().unwrap_or_default(),
-            new.as_deref().unwrap_or_default(),
-            options,
-        );
+        let old_bytes = old.as_deref().unwrap_or_default();
+        let mut diff =
+            diff_engine::diff_bytes(old_bytes, new.as_deref().unwrap_or_default(), options);
         if let diff_engine::FileDiff::Text { language, .. } = &mut diff {
             *language = diff_engine::language_for_path(path);
         }
+        diff_engine::with_hunk_context(&mut diff, &String::from_utf8_lossy(old_bytes));
         Ok(diff)
     }
 
@@ -870,6 +869,23 @@ impl AppState {
         };
         self.quiet(repo);
         self.handle(repo)?.apply_patch(&patch, reverse)
+    }
+
+    pub fn blame(
+        &self,
+        repo: RepoId,
+        path: &str,
+        rev: &str,
+    ) -> Result<Vec<git_engine::BlameLine>, git_engine::GitError> {
+        self.handle(repo)?.blame(path, rev)
+    }
+
+    pub fn remote_url(
+        &self,
+        repo: RepoId,
+        name: &str,
+    ) -> Result<Option<String>, git_engine::GitError> {
+        Ok(self.handle(repo)?.remote_url(name))
     }
 
     fn handle(&self, repo: RepoId) -> Result<git_engine::RepoHandle, git_engine::GitError> {
