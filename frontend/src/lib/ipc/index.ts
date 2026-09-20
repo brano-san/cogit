@@ -45,6 +45,11 @@ export type {
   GraphChunk,
   GraphEdge,
   Head,
+  Hook,
+  HookOverview,
+  HookRun,
+  HookSource,
+  HookState,
   Hunk,
   LaneAssignment,
   LineEnding,
@@ -385,4 +390,49 @@ function unwrap<T>(result: { status: "ok"; data: T } | { status: "error"; error:
     throw new CogitError(result.error);
   }
   return result.data;
+}
+
+/** Fires when a native menu item is chosen; the payload is a palette command id. */
+export async function onMenuCommand(handler: (id: string) => void) {
+  return await events.menuCommand.listen((event) => handler(event.payload));
+}
+
+export async function setMenuState(disabled: string[]) {
+  return await commands.setMenuState(disabled);
+}
+
+export async function hasToken(host: string) {
+  return unwrap(await commands.hasToken(host));
+}
+
+export async function storeToken(host: string, token: string) {
+  return unwrap(await commands.storeToken(host, token));
+}
+
+export async function forgetToken(host: string) {
+  return unwrap(await commands.forgetToken(host));
+}
+
+export async function listHooks(repo: RepoId) {
+  return unwrap(await commands.listHooks(repo));
+}
+
+export async function readHook(repo: RepoId, name: string) {
+  return unwrap(await commands.readHook(repo, name));
+}
+
+export async function writeHook(repo: RepoId, name: string, body: string) {
+  return unwrap(await commands.writeHook(repo, name, body));
+}
+
+export async function setHookEnabled(repo: RepoId, name: string, enabled: boolean) {
+  return unwrap(await commands.setHookEnabled(repo, name, enabled));
+}
+
+export async function useHooksPath(repo: RepoId, path: string) {
+  return unwrap(await commands.useHooksPath(repo, path));
+}
+
+export async function runHook(repo: RepoId, name: string) {
+  return unwrap(await commands.runHook(repo, name));
 }

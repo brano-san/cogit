@@ -42,7 +42,7 @@
 | M6 | Список файлов, стейджинг, Hunk Staging | `WIP` (таблица файлов коммита готова) | M1, M2, M7 | [M6](modules/M6-staging.md) |
 | M7 | Движок Diff, подсветка, 3-Way Merge | `WIP` (diff, ханки, перемещённые блоки, разрешение конфликтов) | M0, M9 | [M7](modules/M7-diff.md) |
 | M8 | Инструменты продуктивности | `WIP` (палитра, поиск объекта, blame, PR, настройки) | M1–M7 | [M8](modules/M8-tools.md) |
-| M10 | Управление хуками и пресеты | `TODO` | M1, M2, M3 | [M10](modules/M10-hooks.md) |
+| M10 | Управление хуками и пресеты | `WIP` (инспектор и пробный запуск) | M1, M2, M3 | [M10](modules/M10-hooks.md) |
 | M11 | Commit Debugger — граф во время операции | `TODO` | M4, M5, M6 | [M11](modules/M11-commit-debugger.md) |
 | M12 | Хирургия коммитов: Split-Off, Rollback-To | `TODO` | M1, M4, M6 | [M12](modules/M12-commit-surgery.md) |
 | M13 | Commit Overlap — анализ пересечений | `TODO` | M1, M4 | [M13](modules/M13-commit-overlap.md) |

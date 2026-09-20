@@ -234,6 +234,22 @@ snake_case и читаются на фронтенде как `undefined`.
 | `app_info` | — | `AppInfo { version, git_version, log_path }` | M0 |
 | `command_log` | `limit` | `Vec<CommandLogEntry>` | M2 |
 | `open_in_explorer` / `open_in_terminal` | `path` | `()` | M3 |
+| `set_menu_state` | `disabled: Vec<String>` | `()` | M2 |
+
+### Хуки и учётные данные
+
+| Команда | Вход | Выход | Модуль |
+|---|---|---|---|
+| `list_hooks` | `repo` | `HookOverview` | M10 |
+| `read_hook` / `write_hook` | `repo, name[, body]` | `String` / `()` | M10 |
+| `set_hook_enabled` | `repo, name, enabled` | `()` | M10 |
+| `use_hooks_path` | `repo, path` | `()` | M10 |
+| `run_hook` | `repo, name` | `HookRun` | M10 |
+| `has_token` | `host` | `bool` | M1 |
+| `store_token` / `forget_token` | `host[, token]` | `()` | M1 |
+
+Токен **никогда** не возвращается наружу: `has_token` отвечает только «есть или нет»,
+чтобы секрет не попадал в webview.
 
 ## 5. Стриминг истории
 
@@ -278,6 +294,7 @@ pub struct GraphChunk {
 | `repo-opened` / `repo-closed` | `{ repo: RepoId }` | Изменился состав открытых репозиториев |
 | `operation-started` / `operation-finished` | `{ id, label, result }` | Для спиннера в тулбаре |
 | `git-command-logged` | `CommandLogEntry` | Для панели Output |
+| `menu-command` | `String` (id команды палитры) | Выбран пункт нативного меню |
 
 `ChangeKind`: `Head` · `Index` · `Refs` · `WorkingTree` · `Stash` · `Config`.
 UI обновляет **только** соответствующую панель — не перезагружает всё.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clampFraction, DEFAULT_LAYOUT } from "./layout.svelte";
+import { clampFraction, DEFAULT_LAYOUT } from "$lib/perspectives";
 
 describe("clampFraction", () => {
   it("leaves sensible values untouched", () => {

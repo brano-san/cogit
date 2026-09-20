@@ -1,0 +1,223 @@
+// clippy.toml's allow-unwrap-in-tests does not reach helpers beside `#[test]` fns.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
+use git_engine::{HookSource, HookState, RepoHandle};
+use std::path::Path;
+
+fn open(f: &test_fixtures::Fixture) -> RepoHandle {
+    RepoHandle::open(f.path()).unwrap()
+}
+
+fn write_hook(dir: &Path, name: &str, body: &str) {
+    std::fs::create_dir_all(dir).unwrap();
+    std::fs::write(dir.join(name), body).unwrap();
+}
+
+#[test]
+fn every_git_hook_is_listed_even_when_the_repository_has_none() {
+    let f = test_fixtures::linear(1).unwrap();
+
+    let overview = open(&f).hooks().unwrap();
+
+    assert!(overview.hooks.len() >= 10, "{}", overview.hooks.len());
+    assert!(
+        overview
+            .hooks
+            .iter()
+            .all(|hook| hook.state == HookState::Missing)
+    );
+}
+
+#[test]
+fn every_hook_carries_a_description_of_when_it_runs() {
+    let f = test_fixtures::linear(1).unwrap();
+
+    assert!(
+        open(&f)
+            .hooks()
+            .unwrap()
+            .hooks
+            .iter()
+            .all(|hook| !hook.description.is_empty())
+    );
+}
+
+#[test]
+fn a_hook_in_the_git_directory_is_found() {
+    let f = test_fixtures::linear(1).unwrap();
+    write_hook(
+        &f.path().join(".git/hooks"),
+        "pre-commit",
+        "#!/bin/sh\nexit 0\n",
+    );
+
+    let overview = open(&f).hooks().unwrap();
+    let hook = overview
+        .hooks
+        .iter()
+        .find(|hook| hook.name == "pre-commit")
+        .unwrap();
+
+    assert_eq!(hook.state, HookState::Enabled);
+    assert_eq!(hook.source, Some(HookSource::GitHooks));
+}
+
+#[test]
+fn the_sample_hooks_git_installs_are_not_counted_as_present() {
+    let f = test_fixtures::linear(1).unwrap();
+    write_hook(
+        &f.path().join(".git/hooks"),
+        "pre-commit.sample",
+        "#!/bin/sh\n",
+    );
+
+    let overview = open(&f).hooks().unwrap();
+    let hook = overview
+        .hooks
+        .iter()
+        .find(|hook| hook.name == "pre-commit")
+        .unwrap();
+
+    assert_eq!(hook.state, HookState::Missing);
+}
+
+#[test]
+fn a_configured_hooks_path_wins_over_the_git_directory() {
+    let f = test_fixtures::linear(1).unwrap();
+    write_hook(&f.path().join(".git/hooks"), "pre-commit", "#!/bin/sh\n");
+    write_hook(&f.path().join(".githooks"), "pre-commit", "#!/bin/sh\n");
+    f.git(&["config", "core.hooksPath", ".githooks"]).unwrap();
+
+    let overview = open(&f).hooks().unwrap();
+    let hook = overview
+        .hooks
+        .iter()
+        .find(|hook| hook.name == "pre-commit")
+        .unwrap();
+
+    assert_eq!(hook.source, Some(HookSource::HooksPath));
+    assert_eq!(overview.configured_path.as_deref(), Some(".githooks"));
+}
+
+#[test]
+fn an_unconfigured_hooks_directory_in_the_tree_is_reported_as_available() {
+    let f = test_fixtures::linear(1).unwrap();
+    write_hook(&f.path().join(".githooks"), "pre-commit", "#!/bin/sh\n");
+
+    let overview = open(&f).hooks().unwrap();
+
+    assert!(overview.configured_path.is_none());
+    assert_eq!(overview.available_path.as_deref(), Some(".githooks"));
+}
+
+#[test]
+fn a_disabled_hook_is_listed_as_disabled_rather_than_missing() {
+    let f = test_fixtures::linear(1).unwrap();
+    write_hook(
+        &f.path().join(".git/hooks"),
+        "pre-commit.disabled",
+        "#!/bin/sh\n",
+    );
+
+    let overview = open(&f).hooks().unwrap();
+    let hook = overview
+        .hooks
+        .iter()
+        .find(|hook| hook.name == "pre-commit")
+        .unwrap();
+
+    assert_eq!(hook.state, HookState::Disabled);
+}
+
+#[test]
+fn disabling_a_hook_keeps_its_body() {
+    let f = test_fixtures::linear(1).unwrap();
+    let body = "#!/bin/sh\necho hello\n";
+    write_hook(&f.path().join(".git/hooks"), "pre-commit", body);
+    let repo = open(&f);
+
+    repo.set_hook_enabled("pre-commit", false).unwrap();
+
+    assert_eq!(repo.read_hook("pre-commit").unwrap(), body);
+    assert!(!f.path().join(".git/hooks/pre-commit").exists());
+}
+
+#[test]
+fn enabling_a_disabled_hook_brings_it_back() {
+    let f = test_fixtures::linear(1).unwrap();
+    write_hook(
+        &f.path().join(".git/hooks"),
+        "pre-commit.disabled",
+        "#!/bin/sh\n",
+    );
+    let repo = open(&f);
+
+    repo.set_hook_enabled("pre-commit", true).unwrap();
+
+    assert!(f.path().join(".git/hooks/pre-commit").exists());
+}
+
+#[test]
+fn writing_a_hook_normalises_crlf_so_the_shebang_works() {
+    let f = test_fixtures::linear(1).unwrap();
+    let repo = open(&f);
+
+    repo.write_hook("pre-commit", "#!/bin/sh\r\nexit 0\r\n")
+        .unwrap();
+
+    let written = std::fs::read(f.path().join(".git/hooks/pre-commit")).unwrap();
+    assert!(!written.contains(&b'\r'), "{written:?}");
+}
+
+#[test]
+fn a_written_hook_is_executable() {
+    let f = test_fixtures::linear(1).unwrap();
+    let repo = open(&f);
+
+    repo.write_hook("pre-commit", "#!/bin/sh\nexit 0\n")
+        .unwrap();
+
+    let hook = repo
+        .hooks()
+        .unwrap()
+        .hooks
+        .into_iter()
+        .find(|hook| hook.name == "pre-commit")
+        .unwrap();
+    assert!(hook.executable);
+}
+
+#[test]
+fn reading_a_hook_that_does_not_exist_is_a_typed_error() {
+    let f = test_fixtures::linear(1).unwrap();
+    assert!(open(&f).read_hook("pre-commit").is_err());
+}
+
+#[test]
+fn a_name_that_is_not_a_git_hook_is_refused() {
+    let f = test_fixtures::linear(1).unwrap();
+    let repo = open(&f);
+
+    assert!(repo.write_hook("../../evil.sh", "#!/bin/sh\n").is_err());
+    assert!(repo.read_hook("not-a-hook").is_err());
+}
+
+#[test]
+fn listing_hooks_spawns_no_process() {
+    use std::sync::{Arc, Mutex};
+
+    let f = test_fixtures::linear(1).unwrap();
+    let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+    let sink = Arc::clone(&log);
+    let repo = RepoHandle::open(f.path()).unwrap().with_journal(Arc::new(
+        move |out: git_engine::GitOutput| {
+            if let Ok(mut entries) = sink.lock() {
+                entries.push(out.command);
+            }
+        },
+    ));
+
+    repo.hooks().unwrap();
+
+    assert!(log.lock().unwrap().is_empty());
+}

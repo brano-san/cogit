@@ -56,7 +56,7 @@ impl RepoHandle {
     }
 
     fn spawn(&self, args: &[&str], reading: bool) -> Result<GitOutput> {
-        let command = format!("git {}", args.join(" "));
+        let command = redact_command(args);
         let started = std::time::Instant::now();
 
         tracing::info!(command = %command, "running git");
@@ -104,8 +104,7 @@ impl RepoHandle {
     }
 }
 
-/// Without it every `git` call flashes a console window and pays for creating it
-/// (doc/12-risks.md, R-24).
+/// Without it every `git` call flashes a console window and pays for it (R-24).
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
@@ -129,4 +128,35 @@ fn base_command(root: &Path, reading: bool) -> Command {
         command.env_remove(variable);
     }
     command
+}
+
+const HIDDEN: &str = "<redacted>";
+
+/// This string reaches the journal, the log file and the error dialog (INV-05).
+pub fn redact_command(args: &[&str]) -> String {
+    let parts: Vec<String> = args.iter().map(|arg| redact_arg(arg)).collect();
+    format!("git {}", parts.join(" "))
+}
+
+fn redact_arg(arg: &str) -> String {
+    if let Some((key, _)) = arg.split_once('=')
+        && key.eq_ignore_ascii_case("http.extraheader")
+    {
+        return format!("{key}={HIDDEN}");
+    }
+    redact_url(arg)
+}
+
+/// Only `scheme://user:secret@host` counts: a refspec and an SSH path also carry colons.
+fn redact_url(arg: &str) -> String {
+    let Some((scheme, rest)) = arg.split_once("://") else {
+        return arg.to_owned();
+    };
+    let Some((authority, tail)) = rest.split_once('@') else {
+        return arg.to_owned();
+    };
+    let Some((user, _)) = authority.split_once(':') else {
+        return arg.to_owned();
+    };
+    format!("{scheme}://{user}:{HIDDEN}@{tail}")
 }

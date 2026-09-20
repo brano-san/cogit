@@ -1,5 +1,6 @@
 mod commands;
 mod logging;
+mod menu;
 
 use app_state::AppState;
 use specta_typescript::Typescript;
@@ -23,6 +24,11 @@ pub struct RepoChanged {
     pub kind: fs_watcher::ChangeKind,
 }
 
+/// A native menu item was chosen. The payload is the palette command id, so the frontend
+/// runs the same code path the palette would.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
+pub struct MenuCommand(pub String);
+
 #[derive(Debug)]
 pub struct AppContext {
     pub state: Arc<AppState>,
@@ -31,7 +37,7 @@ pub struct AppContext {
 
 fn specta_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new()
-        .events(collect_events![RepoChanged])
+        .events(collect_events![RepoChanged, MenuCommand])
         .commands(collect_commands![
             commands::app_info,
             commands::open_repository,
@@ -86,7 +92,17 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::conflict_text,
             commands::resolve_conflict,
             commands::resolve_conflict_text,
-            commands::find_object
+            commands::find_object,
+            commands::set_menu_state,
+            commands::has_token,
+            commands::store_token,
+            commands::forget_token,
+            commands::list_hooks,
+            commands::read_hook,
+            commands::write_hook,
+            commands::set_hook_enabled,
+            commands::use_hooks_path,
+            commands::run_hook
         ])
 }
 
@@ -132,6 +148,11 @@ pub fn run() -> anyhow::Result<()> {
 
             specta_builder.mount_events(app);
             forward_repo_changes(app.handle().clone(), &state);
+
+            app.set_menu(menu::build(app.handle())?)?;
+            app.on_menu_event(|app, event| {
+                let _ = MenuCommand(event.id().0.clone()).emit(app);
+            });
 
             if let Some(window) = app.get_webview_window("main") {
                 window.show()?;

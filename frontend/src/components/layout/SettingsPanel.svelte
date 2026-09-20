@@ -3,12 +3,28 @@
 
   interface Props {
     value: Settings;
+    /** The host of the current remote, or null when it is SSH or there is none. */
+    tokenHost: string | null;
+    tokenStored: boolean;
+    onstoretoken: (token: string) => void;
+    onforgettoken: () => void;
     onchange: <K extends keyof Settings>(key: K, next: Settings[K]) => void;
     onreset: () => void;
     onclose: () => void;
   }
 
-  let { value, onchange, onreset, onclose }: Props = $props();
+  let {
+    value,
+    tokenHost,
+    tokenStored,
+    onstoretoken,
+    onforgettoken,
+    onchange,
+    onreset,
+    onclose,
+  }: Props = $props();
+
+  let token = $state("");
 
   const THEMES = [
     ["dark", "Dark"],
@@ -158,6 +174,44 @@
           <output>{value.laneWidth}px</output>
         </span>
       </label>
+    </section>
+
+    <section>
+      <h3>Credentials</h3>
+
+      {#if tokenHost === null}
+        <p class="hint">
+          This repository authenticates over SSH or has no remote, so no token is needed.
+        </p>
+      {:else if tokenStored}
+        <div class="row">
+          <span>{tokenHost}</span>
+          <span class="stored">A token is stored.</span>
+          <button type="button" onclick={onforgettoken}>Forget</button>
+        </div>
+      {:else}
+        <label class="row">
+          <span>{tokenHost}</span>
+          <input
+            type="password"
+            class="text"
+            bind:value={token}
+            placeholder="Personal access token"
+            autocomplete="off"
+          />
+        </label>
+        <div class="row">
+          <span></span>
+          <button
+            type="button"
+            disabled={token.trim() === ""}
+            onclick={() => {
+              onstoretoken(token.trim());
+              token = "";
+            }}>Store in the OS keychain</button
+          >
+        </div>
+      {/if}
     </section>
 
     <section>
@@ -315,6 +369,21 @@
     font-family: var(--font-mono);
     font-size: var(--fs-header);
     text-align: right;
+  }
+
+  .hint,
+  .stored {
+    flex: 1 1 auto;
+    color: var(--text-secondary);
+    font-size: var(--fs-dense);
+  }
+
+  .hint {
+    margin: 0;
+  }
+
+  button:disabled {
+    opacity: 0.5;
   }
 
   .restart {

@@ -64,3 +64,11 @@ export function rankCommands(
 
   return scored.map((entry) => entry.command);
 }
+
+/** Sorted so the native menu only updates when the set really changed. */
+export function disabledIds(commands: readonly PaletteCommand[]): string[] {
+  return commands
+    .filter((command) => command.unavailable !== undefined)
+    .map((command) => command.id)
+    .sort();
+}

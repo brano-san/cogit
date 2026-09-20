@@ -82,5 +82,14 @@
 | F-076 | Подсветка перемещённых блоков | [F-076-moved-blocks.md](F-076-moved-blocks.md) |
 | F-077 | Поиск объекта по Ctrl+P | [F-077-find-object.md](F-077-find-object.md) |
 | F-078 | Настройки | [F-078-settings.md](F-078-settings.md) |
+| F-079 | Нативное меню | [F-079-native-menu.md](F-079-native-menu.md) |
+| F-080 | Перспективы | [F-080-perspectives.md](F-080-perspectives.md) |
+| F-081 | Скрытие панелей и Shift+F11 | [F-081-panel-visibility.md](F-081-panel-visibility.md) |
+| F-082 | Токен в хранилище ОС | [F-082-token-storage.md](F-082-token-storage.md) |
+| F-083 | Секреты не попадают в журнал | [F-083-secret-redaction.md](F-083-secret-redaction.md) |
+| F-084 | Инспектор хуков | [F-084-hook-inspector.md](F-084-hook-inspector.md) |
+| F-085 | Включение хука без удаления | [F-085-hook-toggle.md](F-085-hook-toggle.md) |
+| F-086 | Подключение командных хуков | [F-086-hook-adopt.md](F-086-hook-adopt.md) |
+| F-087 | Пробный запуск хука | [F-087-hook-dry-run.md](F-087-hook-dry-run.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.

@@ -711,3 +711,128 @@ pub async fn find_object(
         .await
         .map_err(|err| GitError::Internal(format!("find_object task failed: {err}")))?
 }
+
+/// Not `async`: touching menu items off the main thread deadlocks on Windows.
+#[tauri::command]
+#[specta::specta]
+pub fn set_menu_state(
+    items: tauri::State<'_, crate::menu::MenuItems<tauri::Wry>>,
+    disabled: Vec<String>,
+) {
+    items.set_enabled(&disabled);
+}
+
+/// Reports only whether a token exists. Reading one back would put it in the webview,
+/// where every dependency could see it.
+#[tauri::command]
+#[specta::specta]
+pub async fn has_token(
+    state: tauri::State<'_, crate::AppContext>,
+    host: String,
+) -> Result<bool, GitError> {
+    Ok(state.state.has_token(&host))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn store_token(
+    state: tauri::State<'_, crate::AppContext>,
+    host: String,
+    token: String,
+) -> Result<(), GitError> {
+    state
+        .state
+        .store_token(&host, &token)
+        .map_err(|err| GitError::InvalidState(err.to_string()))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn forget_token(
+    state: tauri::State<'_, crate::AppContext>,
+    host: String,
+) -> Result<(), GitError> {
+    state
+        .state
+        .forget_token(&host)
+        .map_err(|err| GitError::InvalidState(err.to_string()))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn list_hooks(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<git_engine::HookOverview, GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.hooks(repo))
+        .await
+        .map_err(|err| GitError::Internal(format!("list_hooks task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn read_hook(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    name: String,
+) -> Result<String, GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.read_hook(repo, &name))
+        .await
+        .map_err(|err| GitError::Internal(format!("read_hook task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn write_hook(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    name: String,
+    body: String,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.write_hook(repo, &name, &body))
+        .await
+        .map_err(|err| GitError::Internal(format!("write_hook task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn set_hook_enabled(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    name: String,
+    enabled: bool,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.set_hook_enabled(repo, &name, enabled))
+        .await
+        .map_err(|err| GitError::Internal(format!("set_hook_enabled task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn use_hooks_path(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    path: String,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.use_hooks_path(repo, &path))
+        .await
+        .map_err(|err| GitError::Internal(format!("use_hooks_path task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn run_hook(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    name: String,
+) -> Result<git_engine::HookRun, GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.run_hook(repo, &name))
+        .await
+        .map_err(|err| GitError::Internal(format!("run_hook task failed: {err}")))?
+}

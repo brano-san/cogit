@@ -32,7 +32,7 @@ fn fetch_brings_the_remote_tracking_branch_up_to_date() {
     let repo = open(&f);
     let (_, on_line) = collector();
 
-    repo.fetch("origin", on_line).unwrap();
+    repo.fetch("origin", None, on_line).unwrap();
 
     assert!(
         repo.branches()
@@ -51,7 +51,7 @@ fn fetch_reports_what_git_says_while_it_runs() {
     let repo = open(&f);
     let (lines, on_line) = collector();
 
-    repo.fetch("origin", on_line).unwrap();
+    repo.fetch("origin", None, on_line).unwrap();
 
     assert!(
         seen(&lines).iter().any(|l| !l.trim().is_empty()),
@@ -65,7 +65,7 @@ fn fetching_an_unknown_remote_reports_gits_own_words() {
     let repo = open(&f);
     let (_, on_line) = collector();
 
-    let err = repo.fetch("nowhere", on_line).unwrap_err();
+    let err = repo.fetch("nowhere", None, on_line).unwrap_err();
 
     match err {
         git_engine::GitError::Command(details) => {
@@ -84,7 +84,7 @@ fn push_sends_local_commits_to_the_remote() {
     let local = f.oid("HEAD").unwrap();
     let (_, on_line) = collector();
 
-    repo.push("origin", None, false, on_line).unwrap();
+    repo.push("origin", None, false, None, on_line).unwrap();
 
     f.git(&["fetch", "origin"]).unwrap();
     assert_eq!(f.oid("refs/remotes/origin/main").unwrap(), local);
@@ -96,7 +96,7 @@ fn a_rejected_push_reports_the_reason_in_full() {
     let repo = open(&f);
     let (_, on_line) = collector();
 
-    let err = repo.push("origin", None, false, on_line).unwrap_err();
+    let err = repo.push("origin", None, false, None, on_line).unwrap_err();
 
     match err {
         git_engine::GitError::Command(details) => {
@@ -117,7 +117,7 @@ fn a_forced_push_overwrites_the_remote() {
     let local = f.oid("HEAD").unwrap();
     let (_, on_line) = collector();
 
-    repo.push("origin", None, true, on_line).unwrap();
+    repo.push("origin", None, true, None, on_line).unwrap();
 
     f.git(&["fetch", "origin"]).unwrap();
     assert_eq!(f.oid("refs/remotes/origin/main").unwrap(), local);
@@ -130,7 +130,7 @@ fn pull_fast_forwards_when_nothing_is_local() {
     let repo = open(&f);
     let (_, on_line) = collector();
 
-    repo.pull("origin", true, on_line).unwrap();
+    repo.pull("origin", true, None, on_line).unwrap();
 
     assert_eq!(
         f.oid("HEAD").unwrap(),
@@ -144,7 +144,7 @@ fn a_pull_that_cannot_fast_forward_is_refused_rather_than_merging_silently() {
     let repo = open(&f);
     let (_, on_line) = collector();
 
-    let err = repo.pull("origin", true, on_line);
+    let err = repo.pull("origin", true, None, on_line);
 
     assert!(
         err.is_err(),
@@ -169,4 +169,46 @@ fn the_remote_list_is_read_without_spawning_a_process() {
 
     assert_eq!(remotes, vec!["origin".to_owned()]);
     assert!(seen(&log).is_empty());
+}
+
+#[test]
+fn a_token_reaches_git_as_a_header_but_not_the_journal() {
+    let f = test_fixtures::with_remote().unwrap();
+    let log: Lines = Arc::new(Mutex::new(Vec::new()));
+    let sink = Arc::clone(&log);
+    let repo = RepoHandle::open(f.path()).unwrap().with_journal(Arc::new(
+        move |out: git_engine::GitOutput| {
+            if let Ok(mut entries) = sink.lock() {
+                entries.push(out.command);
+            }
+        },
+    ));
+
+    repo.fetch("origin", Some("s3cr3t"), |_| {}).unwrap();
+
+    let lines = seen(&log).join("\n");
+    assert!(lines.contains("http.extraHeader="), "{lines}");
+    assert!(!lines.contains("s3cr3t"), "{lines}");
+    assert!(
+        !lines.contains(&git_engine::auth_header("s3cr3t")),
+        "{lines}"
+    );
+}
+
+#[test]
+fn no_token_means_no_extra_argument() {
+    let f = test_fixtures::with_remote().unwrap();
+    let log: Lines = Arc::new(Mutex::new(Vec::new()));
+    let sink = Arc::clone(&log);
+    let repo = RepoHandle::open(f.path()).unwrap().with_journal(Arc::new(
+        move |out: git_engine::GitOutput| {
+            if let Ok(mut entries) = sink.lock() {
+                entries.push(out.command);
+            }
+        },
+    ));
+
+    repo.fetch("origin", None, |_| {}).unwrap();
+
+    assert!(!seen(&log).join("\n").contains("http.extraHeader"));
 }
