@@ -30,5 +30,7 @@
 | F-024 | Коммит | [F-024-commit.md](F-024-commit.md) |
 | F-025 | Amend и no-verify | [F-025-commit-amend.md](F-025-commit-amend.md) |
 | F-026 | Черновик сообщения | [F-026-commit-draft.md](F-026-commit-draft.md) |
+| F-027 | Диалог ошибки Git | [F-027-git-error-dialog.md](F-027-git-error-dialog.md) |
+| F-028 | Копирование и ссылки в ошибке | [F-028-error-copy-and-links.md](F-028-error-copy-and-links.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.
