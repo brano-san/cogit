@@ -5,9 +5,9 @@
 # binary in one pool, which turns 165 s into about 15 s on this machine.
 
 [profile.default]
-# Half the cores, not all of them. Each test spawns `git` processes of its own, so a pool
-# the width of the CPU turns into hundreds of processes and the desktop stops responding.
-test-threads = 8
+# Not the width of the CPU. Each test spawns `git` processes of its own, so a pool that
+# wide turns into hundreds of processes and the desktop stops responding (R-57).
+test-threads = 12
 # The fixtures create temporary repositories and spawn git; a hung process must not hang
 # the commit.
 slow-timeout = { period = "30s", terminate-after = 4 }
