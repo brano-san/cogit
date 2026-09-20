@@ -136,6 +136,7 @@
 | F-130 | Управление upstream | [F-130-upstream.md](F-130-upstream.md) |
 | F-131 | Удаление удалённой ветки | [F-131-delete-remote-branch.md](F-131-delete-remote-branch.md) |
 | F-132 | Автостэш при переключении | [F-132-autostash-checkout.md](F-132-autostash-checkout.md) |
+| F-133 | Журнал безопасности списком | [F-133-safety-journal.md](F-133-safety-journal.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.
 

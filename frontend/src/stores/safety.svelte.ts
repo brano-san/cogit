@@ -1,4 +1,4 @@
-import { safetyLog, undoLast, type RepoId, type SafetyEntry } from "$lib/ipc";
+import { safetyLog, undoEntry, undoLast, type RepoId, type SafetyEntry } from "$lib/ipc";
 
 class SafetyStore {
   entries = $state.raw<SafetyEntry[]>([]);
@@ -15,6 +15,17 @@ class SafetyStore {
     const entry = await undoLast(repo);
     await this.refresh();
     return entry;
+  }
+
+  /** Undoing an older entry is allowed: each recovery restores its own thing (T5.7). */
+  async undoOne(repo: RepoId, id: number): Promise<SafetyEntry> {
+    const entry = await undoEntry(repo, id);
+    await this.refresh();
+    return entry;
+  }
+
+  get forRepo(): (repo: RepoId) => SafetyEntry[] {
+    return (repo) => this.entries.filter((entry) => entry.repo === repo);
   }
 }
 

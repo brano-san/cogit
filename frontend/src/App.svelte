@@ -3,6 +3,7 @@
 
   import DiffPanel from "$components/panels/DiffPanel.svelte";
   import ReferencesPanel from "$components/panels/ReferencesPanel.svelte";
+  import SafetyJournal from "$components/layout/SafetyJournal.svelte";
   import RepositoriesPanel from "$components/panels/RepositoriesPanel.svelte";
   import GraphPanel from "$components/panels/GraphPanel.svelte";
   import FilesPanel from "$components/panels/FilesPanel.svelte";
@@ -130,6 +131,8 @@
   let info = $state<AppInfo | null>(null);
   let opening = $state(false);
   let scanOpen = $state(false);
+  let journalOpen = $state(false);
+  let journalBusy = $state(false);
   let prompt = $state.raw<{
     title: string;
     label: string;
@@ -406,6 +409,16 @@ Log: ${info?.logPath ?? ""}`),
         run: () => {
           scanOpen = true;
           void browseForScan();
+        },
+      },
+      {
+        id: "journal",
+        title: "Safety Journal",
+        synonyms: ["undo history", "recover", "what did I just do"],
+        unavailable: noRepo,
+        run: () => {
+          journalOpen = true;
+          void safety.refresh();
         },
       },
       {
@@ -1435,6 +1448,22 @@ Log: ${info?.logPath ?? ""}`),
     await revealItemInDir(path).catch(() => errors.report({ kind: "internal", data: path } as never));
   }
 
+  /** The journal stays open: undoing one entry rarely means undoing only one. */
+  async function undoEntry(entry: import("$lib/ipc").SafetyEntry) {
+    const id = repo?.repo;
+    if (!id) return;
+    journalBusy = true;
+    try {
+      await safety.undoOne(id, entry.id);
+      await repository.refresh();
+      await afterMutation();
+    } catch (err) {
+      errors.report(err as never);
+    } finally {
+      journalBusy = false;
+    }
+  }
+
   async function pickRepository() {
     const picked = await openFolderDialog({ directory: true, title: "Open Repository" });
     if (typeof picked !== "string") return;
@@ -1892,6 +1921,15 @@ Log: ${info?.logPath ?? ""}`),
       onforgettoken={() => void network.forgetToken()}
       onapply={(next, keys) => void applySettings(next, keys)}
       onclose={() => (settingsOpen = false)}
+    />
+  {/if}
+
+  {#if journalOpen}
+    <SafetyJournal
+      entries={repo ? safety.entries.filter((entry) => entry.repo === repo.repo) : []}
+      busy={journalBusy}
+      onundo={(entry) => void undoEntry(entry)}
+      onclose={() => (journalOpen = false)}
     />
   {/if}
 

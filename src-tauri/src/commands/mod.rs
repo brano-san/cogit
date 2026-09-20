@@ -377,6 +377,21 @@ pub fn safety_log(state: tauri::State<'_, crate::AppContext>) -> Vec<SafetyEntry
     state.state.safety_log()
 }
 
+/// Any entry from the journal, not only the newest (T5.7).
+#[tauri::command]
+#[specta::specta]
+pub async fn undo_entry(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    id: u32,
+) -> Result<SafetyEntry, GitError> {
+    let app_state = state.state.clone();
+    let entry = blocking("undo_entry", move || app_state.undo_entry(repo, id)).await?;
+
+    tracing::info!(repo = repo.0, entry = %entry.description, "operation undone");
+    Ok(entry)
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn undo_last(

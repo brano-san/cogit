@@ -63,6 +63,8 @@ export const commands = {
 	renameBranch: (repo: RepoId, from: string, to: string, force: boolean) => typedError<null, GitError>(__TAURI_INVOKE("rename_branch", { repo, from, to, force })),
 	setUpstream: (repo: RepoId, branch: string, upstream: string | null) => typedError<null, GitError>(__TAURI_INVOKE("set_upstream", { repo, branch, upstream })),
 	deleteRemoteBranch: (repo: RepoId, remote: string, branch: string) => typedError<null, GitError>(__TAURI_INVOKE("delete_remote_branch", { repo, remote, branch })),
+	/**  Any entry from the journal, not only the newest (T5.7). */
+	undoEntry: (repo: RepoId, id: number) => typedError<SafetyEntry, GitError>(__TAURI_INVOKE("undo_entry", { repo, id })),
 	/**  Not `async`: touching menu items off the main thread deadlocks on Windows. */
 	setMenuState: (disabled: string[], checked: string[]) => __TAURI_INVOKE<void>("set_menu_state", { disabled, checked }),
 	reportTiming: (label: string, ms: number, detail: string) => __TAURI_INVOKE<void>("report_timing", { label, ms, detail }),
