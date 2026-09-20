@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use tauri::menu::{Menu, MenuItem, MenuItemBuilder, PredefinedMenuItem, Submenu, SubmenuBuilder};
+use tauri::menu::{
+    CheckMenuItem, CheckMenuItemBuilder, Menu, MenuItem, MenuItemBuilder, PredefinedMenuItem,
+    Submenu, SubmenuBuilder,
+};
 use tauri::{AppHandle, Manager, Runtime};
 
 /// Item ids are the palette command ids: one place decides what an action is called and
@@ -16,19 +19,23 @@ const REPOSITORY: &[Entry] = &[
 ];
 
 const VIEW: &[Entry] = &[
-    Entry::Item("output", "Output", Some("CmdOrCtrl+Shift+7")),
-    Entry::Item("maximize-panel", "Maximise Panel", Some("Shift+F11")),
+    Entry::Check("output", "Output", Some("CmdOrCtrl+Shift+7")),
+    Entry::Check("maximize-panel", "Maximise Panel", Some("Shift+F11")),
     Entry::Separator,
-    Entry::Item("panel-repositories", "Repositories Panel", None),
-    Entry::Item("panel-refs", "References Panel", None),
-    Entry::Item("panel-graph", "Graph Panel", None),
-    Entry::Item("panel-files", "Files Panel", None),
-    Entry::Item("panel-diff", "Diff Panel", None),
+    Entry::Check(
+        "panel-repositories",
+        "Repositories Panel",
+        Some("CmdOrCtrl+1"),
+    ),
+    Entry::Check("panel-refs", "References Panel", Some("CmdOrCtrl+2")),
+    Entry::Check("panel-graph", "Graph Panel", Some("CmdOrCtrl+3")),
+    Entry::Check("panel-files", "Files Panel", Some("CmdOrCtrl+4")),
+    Entry::Check("panel-diff", "Diff Panel", Some("CmdOrCtrl+5")),
     Entry::Separator,
-    Entry::Item("overlap", "Commit Overlap Column", None),
+    Entry::Check("overlap", "Commit Overlap Column", None),
     Entry::Separator,
-    Entry::Item("perspective-main", "Perspective: Main", None),
-    Entry::Item("perspective-review", "Perspective: Review", None),
+    Entry::Check("perspective-main", "Perspective: Main", None),
+    Entry::Check("perspective-review", "Perspective: Review", None),
     Entry::Item("reset-layout", "Reset Perspective", None),
 ];
 
@@ -74,32 +81,51 @@ const HELP: &[Entry] = &[Entry::Item("about", "About Cogit", None)];
 
 enum Entry {
     Item(&'static str, &'static str, Option<&'static str>),
+    /// A toggle. muda flips the tick itself on click, so the frontend always writes the
+    /// authoritative state back through `set_menu_state` afterwards.
+    Check(&'static str, &'static str, Option<&'static str>),
     Separator,
 }
 
 /// The items by id, so a state change can enable or disable one without walking the tree:
 /// `Menu::get` only looks at the top level.
-#[derive(Default)]
 pub struct MenuItems<R: Runtime> {
     items: Mutex<HashMap<String, MenuItem<R>>>,
+    checks: Mutex<HashMap<String, CheckMenuItem<R>>>,
 }
 
 impl<R: Runtime> MenuItems<R> {
-    pub fn set_enabled(&self, disabled: &[String]) {
-        let Ok(items) = self.items.lock() else { return };
-        for (id, item) in items.iter() {
-            if let Err(err) = item.set_enabled(!disabled.contains(id)) {
-                tracing::error!(error = ?err, id, context = "failed to update a menu item");
+    pub fn apply(&self, disabled: &[String], checked: &[String]) {
+        if let Ok(items) = self.items.lock() {
+            for (id, item) in items.iter() {
+                report(id, item.set_enabled(!disabled.contains(id)));
+            }
+        }
+        if let Ok(checks) = self.checks.lock() {
+            for (id, item) in checks.iter() {
+                report(id, item.set_enabled(!disabled.contains(id)));
+                report(id, item.set_checked(checked.contains(id)));
             }
         }
     }
+}
+
+fn report(id: &str, result: tauri::Result<()>) {
+    if let Err(err) = result {
+        tracing::error!(error = ?err, id, context = "failed to update a menu item");
+    }
+}
+
+struct Collected<R: Runtime> {
+    items: HashMap<String, MenuItem<R>>,
+    checks: HashMap<String, CheckMenuItem<R>>,
 }
 
 fn submenu<R: Runtime>(
     app: &AppHandle<R>,
     title: &str,
     entries: &[Entry],
-    collected: &mut HashMap<String, MenuItem<R>>,
+    collected: &mut Collected<R>,
 ) -> tauri::Result<Submenu<R>> {
     let mut builder = SubmenuBuilder::new(app, title);
     for entry in entries {
@@ -112,7 +138,16 @@ fn submenu<R: Runtime>(
                 }
                 let item = item.build(app)?;
                 builder = builder.item(&item);
-                collected.insert((*id).to_owned(), item);
+                collected.items.insert((*id).to_owned(), item);
+            }
+            Entry::Check(id, label, accelerator) => {
+                let mut item = CheckMenuItemBuilder::with_id(*id, *label);
+                if let Some(keys) = accelerator {
+                    item = item.accelerator(*keys);
+                }
+                let item = item.build(app)?;
+                builder = builder.item(&item);
+                collected.checks.insert((*id).to_owned(), item);
             }
         }
     }
@@ -120,7 +155,10 @@ fn submenu<R: Runtime>(
 }
 
 pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
-    let mut collected = HashMap::new();
+    let mut collected = Collected {
+        items: HashMap::new(),
+        checks: HashMap::new(),
+    };
     let mut section = |title: &str, entries: &[Entry]| submenu(app, title, entries, &mut collected);
 
     let repository = section("Repository", REPOSITORY)?;
@@ -167,7 +205,8 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     )?;
 
     app.manage(MenuItems {
-        items: Mutex::new(collected),
+        items: Mutex::new(collected.items),
+        checks: Mutex::new(collected.checks),
     });
     Ok(menu)
 }

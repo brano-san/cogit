@@ -115,5 +115,8 @@
 | F-109 | Копирование одним действием | [F-109-copy-actions.md](F-109-copy-actions.md) |
 | F-110 | Разворот скрытых строк | [F-110-hunk-expand.md](F-110-hunk-expand.md) |
 | F-111 | Точная дата в тултипе | [F-111-exact-date-tooltip.md](F-111-exact-date-tooltip.md) |
+| F-112 | Один индикатор активности | [F-112-single-activity.md](F-112-single-activity.md) |
+| F-113 | Галочки в меню View | [F-113-view-checkmarks.md](F-113-view-checkmarks.md) |
+| F-114 | Шорткаты панелей | [F-114-panel-shortcuts.md](F-114-panel-shortcuts.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.

@@ -410,8 +410,8 @@ export async function onMenuCommand(handler: (id: string) => void) {
   return await events.menuCommand.listen((event) => handler(event.payload));
 }
 
-export async function setMenuState(disabled: string[]) {
-  return await commands.setMenuState(disabled);
+export async function setMenuState(disabled: string[], checked: string[]) {
+  return await commands.setMenuState(disabled, checked);
 }
 
 export async function hasToken(host: string) {

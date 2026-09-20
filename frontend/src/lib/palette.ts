@@ -1,3 +1,5 @@
+import type { PanelId, PerspectiveId } from "./perspectives";
+
 export interface PaletteCommand {
   id: string;
   title: string;
@@ -71,4 +73,22 @@ export function disabledIds(commands: readonly PaletteCommand[]): string[] {
     .filter((command) => command.unavailable !== undefined)
     .map((command) => command.id)
     .sort();
+}
+
+export interface ToggleState {
+  panels: readonly PanelId[];
+  output: boolean;
+  maximized: boolean;
+  overlap: boolean;
+  perspective: PerspectiveId;
+}
+
+/** Sorted, like `disabledIds`: the native menu only needs writing when the set changed. */
+export function checkedIds(state: ToggleState): string[] {
+  const ids = state.panels.map((panel) => `panel-${panel}`);
+  if (state.output) ids.push("output");
+  if (state.maximized) ids.push("maximize-panel");
+  if (state.overlap) ids.push("overlap");
+  ids.push(`perspective-${state.perspective}`);
+  return ids.sort();
 }
