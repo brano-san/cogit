@@ -15,6 +15,8 @@
     toCommitRow,
     visibleRange,
   } from "$lib/graph-geometry";
+  import { measurer } from "$lib/timing";
+  import { reportTiming, type RepoId } from "$lib/ipc";
   import { commit as selection } from "$stores/commit.svelte";
   import { graph } from "$stores/graph.svelte";
   import { repository } from "$stores/repository.svelte";
@@ -29,6 +31,15 @@
   let { ondrop, oncontext, onref }: Props = $props();
 
   let over = $state<string | null>(null);
+
+  /** Answers "why did the panel below take so long?" in the log the user sends back. */
+  const measure = measurer((label, ms, detail) => void reportTiming(label, ms, detail));
+
+  async function pick(repo: RepoId, oid: string | null) {
+    const watch = measure("select-commit");
+    await selection.select(repo, oid);
+    watch.stop(`${selection.files.length} files`);
+  }
 
   /** Enough for HEAD plus its upstream plus a tag; the rest fold into a `+N` capsule. */
   const CAPSULE_ROOM = 3;
@@ -110,7 +121,7 @@
     event.preventDefault();
     const row = graph.rows[target];
     if (!row) return;
-    void selection.select(id, row.commit.oid);
+    void pick(id, row.commit.oid);
 
     const offset = scrollRowIntoView(
       target + HEADER_ROWS,
@@ -133,7 +144,7 @@
     const repo = repository.current?.repo;
     if (!repo) return;
     const commitRow = toCommitRow(hit.row);
-    void selection.select(repo, commitRow === null ? null : (graph.rows[commitRow]?.commit.oid ?? null));
+    void pick(repo, commitRow === null ? null : (graph.rows[commitRow]?.commit.oid ?? null));
   }
 
   $effect(() => {
@@ -220,7 +231,7 @@
           oncontextmenu={(event) => {
             if (!oncontext) return;
             event.preventDefault();
-            void selection.select(repository.current?.repo ?? 0, item.entry.commit.oid);
+            void pick(repository.current?.repo ?? (0 as unknown as RepoId), item.entry.commit.oid);
             oncontext(item.entry.commit.oid, event.clientX, event.clientY);
           }}
           ondrop={(event) => {

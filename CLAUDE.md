@@ -17,6 +17,7 @@ Cogit is a desktop Git client: Rust workspace + Tauri v2 + Svelte 5.
 | `doc/12-risks.md` | Before deviating from the spec — record the decision there |
 | `doc/features/` | One file per user-visible feature, one sentence each — add one whenever you ship a feature |
 | `doc/13-distribution.md` | Release builds, installers, what the end user's machine needs |
+| `doc/14-profiling.md` | Anything about speed — how the profile log is written and read |
 
 ## Verify APIs before writing code
 
