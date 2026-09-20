@@ -68,6 +68,23 @@ export const commands = {
 	/**  The three parts of a stash, read without applying it (T5.2). */
 	stashContents: (repo: RepoId, index: number) => typedError<StashContents, GitError>(__TAURI_INVOKE("stash_contents", { repo, index })),
 	stashSelection: (repo: RepoId, paths: string[], message: string) => typedError<null, GitError>(__TAURI_INVOKE("stash_selection", { repo, paths, message })),
+	worktrees: (repo: RepoId) => typedError<WorktreeEntry[], GitError>(__TAURI_INVOKE("worktrees", { repo })),
+	worktreeHolding: (repo: RepoId, branch: string) => typedError<{
+	path: string,
+	/**  `None` when the worktree is on a detached HEAD. */
+	branch: string | null,
+	head: string,
+	isMain: boolean,
+	/**  The worktree this handle was opened on. */
+	isCurrent: boolean,
+	/**  The reason git was given, or an empty string when it was locked without one. */
+	locked: string | null,
+	missing: boolean,
+	dirty: boolean,
+} | null, GitError>(__TAURI_INVOKE("worktree_holding", { repo, branch })),
+	addWorktree: (repo: RepoId, path: string, branch: string, create: boolean) => typedError<null, GitError>(__TAURI_INVOKE("add_worktree", { repo, path, branch, create })),
+	removeWorktree: (repo: RepoId, path: string, force: boolean) => typedError<null, GitError>(__TAURI_INVOKE("remove_worktree", { repo, path, force })),
+	pruneWorktrees: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("prune_worktrees", { repo })),
 	/**  The terminals this platform can offer, for the settings dropdown. */
 	terminalChoices: () => __TAURI_INVOKE<TerminalChoice[]>("terminal_choices"),
 	/**
@@ -635,6 +652,24 @@ export type TodoEntry = {
 };
 
 export type Whitespace = "none" | "trailing" | "all";
+
+/**
+ *  One checkout of the repository. The main one cannot be removed; a linked one can be
+ *  locked, or left behind when its folder is deleted (M3 T3.5).
+ */
+export type WorktreeEntry = {
+	path: string,
+	/**  `None` when the worktree is on a detached HEAD. */
+	branch: string | null,
+	head: string,
+	isMain: boolean,
+	/**  The worktree this handle was opened on. */
+	isCurrent: boolean,
+	/**  The reason git was given, or an empty string when it was locked without one. */
+	locked: string | null,
+	missing: boolean,
+	dirty: boolean,
+};
 
 export type WorktreeFiles = {
 	staged: FileEntry[],

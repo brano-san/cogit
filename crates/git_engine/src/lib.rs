@@ -31,6 +31,7 @@ mod submodules;
 mod surgery;
 mod tags;
 mod worktree;
+mod worktrees;
 
 pub use blame::BlameLine;
 pub use blobs::{DiffSides, DiffSpec};
@@ -59,5 +60,6 @@ pub use status::RepoStatus;
 pub use submodules::{Submodule, SubmoduleState};
 pub use tags::TagRequest;
 pub use worktree::{WorktreeFiles, WorktreeView};
+pub use worktrees::WorktreeEntry;
 
 pub type Result<T> = std::result::Result<T, GitError>;

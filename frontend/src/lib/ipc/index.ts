@@ -73,6 +73,7 @@ export type {
   ReflogEntry,
   ScanHit,
   StashContents,
+  WorktreeEntry,
   RepoChanged,
   RepoId,
   RepoOverview,
@@ -270,6 +271,26 @@ export async function commandLog() {
 
 export async function safetyLog() {
   return await commands.safetyLog();
+}
+
+export async function listWorktrees(repo: RepoId) {
+  return unwrap(await commands.worktrees(repo));
+}
+
+export async function worktreeHolding(repo: RepoId, branch: string) {
+  return unwrap(await commands.worktreeHolding(repo, branch));
+}
+
+export async function addWorktree(repo: RepoId, path: string, branch: string, create: boolean) {
+  return unwrap(await commands.addWorktree(repo, path, branch, create));
+}
+
+export async function removeWorktree(repo: RepoId, path: string, force: boolean) {
+  return unwrap(await commands.removeWorktree(repo, path, force));
+}
+
+export async function pruneWorktrees(repo: RepoId) {
+  return unwrap(await commands.pruneWorktrees(repo));
 }
 
 export async function terminalChoices() {

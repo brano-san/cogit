@@ -144,6 +144,9 @@
 | F-138 | Фильтр и пропавшие репозитории | [F-138-repo-filter.md](F-138-repo-filter.md) |
 | F-139 | Мультивыбор репозиториев | [F-139-repo-multiselect.md](F-139-repo-multiselect.md) |
 | F-140 | Fetch All | [F-140-fetch-all.md](F-140-fetch-all.md) |
+| F-141 | Worktree в дереве репозиториев | [F-141-worktree-list.md](F-141-worktree-list.md) |
+| F-142 | Добавление и удаление worktree | [F-142-worktree-manage.md](F-142-worktree-manage.md) |
+| F-143 | Переключение вместо already checked out | [F-143-worktree-switch.md](F-143-worktree-switch.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.
 
