@@ -3,6 +3,7 @@
 
   import BranchList from "$components/branch-tree/BranchList.svelte";
   import DiffView from "$components/diff/DiffView.svelte";
+  import CommitBox from "$components/file-list/CommitBox.svelte";
   import FileList from "$components/file-list/FileList.svelte";
   import CommitList from "$components/graph/CommitList.svelte";
   import GraphFilter from "$components/graph/GraphFilter.svelte";
@@ -71,6 +72,15 @@
       kind: "warning",
     });
     if (confirmed) void worktree.discard(id, paths);
+  }
+
+  async function commitStaged(message: string, amend: boolean, noVerify: boolean) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    await worktree.commit(id, message, amend, noVerify);
+    if (worktree.error) return;
+    await repository.refresh();
+    void graph.load(id, graph.query);
   }
 
   function openDiff(path: string) {
@@ -163,6 +173,7 @@
         />
         <div class="pane grow">
           <Panel title="Files" count={onWorkingTree ? worktree.total : commit.files.length}>
+            <div class="files">
             {#if onWorkingTree}
               <FileList
                 sections={[
@@ -183,6 +194,12 @@
                 empty="The working tree is clean."
                 selected={diff.path}
               />
+              <CommitBox
+                stagedCount={worktree.staged.length}
+                busy={worktree.loading}
+                draftKey={`cogit:draft:${repo?.root ?? ""}`}
+                oncommit={commitStaged}
+              />
             {:else}
               <FileList
                 sections={[{ files: commit.files }]}
@@ -191,6 +208,7 @@
                 onselect={openDiff}
               />
             {/if}
+            </div>
           </Panel>
         </div>
       </div>
@@ -312,6 +330,13 @@
 
   .grow {
     flex: 1 1 0;
+  }
+
+  .files {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
   }
 
   .note {
