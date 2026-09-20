@@ -165,6 +165,19 @@ pub fn is_warning(entry: &git_engine::GitOutput) -> bool {
     entry.exit_code == Some(0) && !entry.stderr.trim().is_empty()
 }
 
+/// The journal is a ring: the oldest entry makes room for the newest. Free-standing so the
+/// bound can be proven with a capacity of three instead of five hundred git processes.
+pub fn record(
+    log: &mut std::collections::VecDeque<git_engine::GitOutput>,
+    capacity: usize,
+    entry: git_engine::GitOutput,
+) {
+    while log.len() >= capacity.max(1) {
+        log.pop_front();
+    }
+    log.push_back(entry);
+}
+
 pub struct AppState {
     repos: RwLock<HashMap<RepoId, OpenRepo>>,
     next_repo_id: AtomicU32,
@@ -648,13 +661,7 @@ impl AppState {
 
     fn command_sink(&self) -> git_engine::CommandSink {
         let journal = Arc::clone(&self.journal);
-        Arc::new(move |entry| {
-            let mut log = journal.write();
-            if log.len() == JOURNAL_CAPACITY {
-                log.pop_front();
-            }
-            log.push_back(entry);
-        })
+        Arc::new(move |entry| record(&mut journal.write(), JOURNAL_CAPACITY, entry))
     }
 
     /// Newest first, like the Output panel.

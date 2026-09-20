@@ -507,38 +507,206 @@ pub fn with_worktree() -> Result<Fixture> {
     Ok(f)
 }
 
+/// Built with `fast-import`: the previous loop spawned two `git` processes per commit, and
+/// three hundred tests pay for this fixture (R-56). The shape is pinned by `tests/linear.rs`.
 pub fn linear(n: i64) -> Result<Fixture> {
     let fixture = Fixture::init()?;
-    for i in 0..n {
-        fixture.commit_file(i, &format!("file{i}.txt"), &format!("content {i}\n"))?;
+    if n <= 0 {
+        return Ok(fixture);
     }
+
+    run_git_stdin(
+        fixture.path(),
+        &["fast-import", "--quiet"],
+        &linear_import_stream(n),
+    )?;
+    fixture.git(&["reset", "--hard", "main"])?;
     Ok(fixture)
+}
+
+fn linear_import_stream(n: i64) -> String {
+    let mut stream = String::new();
+    for i in 0..n {
+        let message = format!("commit {i}");
+        let content = format!("content {i}\n");
+        let stamp = BASE_TIMESTAMP + i * STEP_SECONDS;
+
+        stream.push_str("commit refs/heads/main\n");
+        stream.push_str(&format!("mark :{}\n", i + 1));
+        stream.push_str(&format!(
+            "author {AUTHOR_NAME} <{AUTHOR_EMAIL}> {stamp} +0000\n"
+        ));
+        stream.push_str(&format!(
+            "committer {AUTHOR_NAME} <{AUTHOR_EMAIL}> {stamp} +0000\n"
+        ));
+        stream.push_str(&format!("data {}\n{message}\n", message.len()));
+        if i > 0 {
+            stream.push_str(&format!("from :{i}\n"));
+        }
+        stream.push_str(&format!("M 100644 inline file{i}.txt\n"));
+        stream.push_str(&format!("data {}\n{content}", content.len()));
+    }
+    stream
+}
+
+/// One commit in a `fast-import` stream. Building a shape this way costs one process
+/// instead of two per commit, and the shapes are used in hundreds of tests (R-56).
+struct ImportCommit<'a> {
+    mark: i64,
+    index: i64,
+    message: &'a str,
+    /// `None` starts a new root.
+    from: Option<i64>,
+    merge: Option<i64>,
+    files: &'a [(&'a str, &'a str)],
+}
+
+fn import_commit(stream: &mut String, branch: &str, commit: &ImportCommit<'_>) {
+    let stamp = BASE_TIMESTAMP + commit.index * STEP_SECONDS;
+    stream.push_str(&format!("commit refs/heads/{branch}\n"));
+    stream.push_str(&format!("mark :{}\n", commit.mark));
+    stream.push_str(&format!(
+        "author {AUTHOR_NAME} <{AUTHOR_EMAIL}> {stamp} +0000\n"
+    ));
+    stream.push_str(&format!(
+        "committer {AUTHOR_NAME} <{AUTHOR_EMAIL}> {stamp} +0000\n"
+    ));
+    stream.push_str(&format!(
+        "data {}\n{}\n",
+        commit.message.len(),
+        commit.message
+    ));
+    if let Some(from) = commit.from {
+        stream.push_str(&format!("from :{from}\n"));
+    }
+    if let Some(merge) = commit.merge {
+        stream.push_str(&format!("merge :{merge}\n"));
+    }
+    for (name, contents) in commit.files {
+        stream.push_str(&format!("M 100644 inline {name}\n"));
+        stream.push_str(&format!("data {}\n{contents}", contents.len()));
+    }
 }
 
 pub fn branched() -> Result<Fixture> {
     let f = Fixture::init()?;
-    f.commit_file(0, "base.txt", "base\n")?;
-    f.commit_file(1, "main-1.txt", "main one\n")?;
+    let mut stream = String::new();
 
-    f.git(&["switch", "-c", "dev", "HEAD~1"])?;
-    f.commit_file(2, "dev-1.txt", "dev one\n")?;
-    f.commit_file(3, "dev-2.txt", "dev two\n")?;
+    let base = ImportCommit {
+        mark: 1,
+        index: 0,
+        message: "commit 0",
+        from: None,
+        merge: None,
+        files: &[("base.txt", "base\n")],
+    };
+    import_commit(&mut stream, "main", &base);
+    import_commit(
+        &mut stream,
+        "main",
+        &ImportCommit {
+            mark: 2,
+            index: 1,
+            message: "commit 1",
+            from: Some(1),
+            merge: None,
+            files: &[("main-1.txt", "main one\n")],
+        },
+    );
+    // dev leaves main one commit back, from the base.
+    import_commit(
+        &mut stream,
+        "dev",
+        &ImportCommit {
+            mark: 3,
+            index: 2,
+            message: "commit 2",
+            from: Some(1),
+            merge: None,
+            files: &[("dev-1.txt", "dev one\n")],
+        },
+    );
+    import_commit(
+        &mut stream,
+        "dev",
+        &ImportCommit {
+            mark: 4,
+            index: 3,
+            message: "commit 3",
+            from: Some(3),
+            merge: None,
+            files: &[("dev-2.txt", "dev two\n")],
+        },
+    );
 
-    f.git(&["switch", "main"])?;
+    run_git_stdin(f.path(), &["fast-import", "--quiet"], &stream)?;
+    f.git(&["reset", "--hard", "main"])?;
     Ok(f)
 }
 
 pub fn diamond() -> Result<Fixture> {
     let f = Fixture::init()?;
-    f.commit_file(0, "base.txt", "base\n")?;
+    let mut stream = String::new();
 
-    f.git(&["switch", "-c", "dev"])?;
-    f.commit_file(1, "dev.txt", "from dev\n")?;
+    import_commit(
+        &mut stream,
+        "main",
+        &ImportCommit {
+            mark: 1,
+            index: 0,
+            message: "commit 0",
+            from: None,
+            merge: None,
+            files: &[("base.txt", "base\n")],
+        },
+    );
+    import_commit(
+        &mut stream,
+        "dev",
+        &ImportCommit {
+            mark: 2,
+            index: 1,
+            message: "commit 1",
+            from: Some(1),
+            merge: None,
+            files: &[("dev.txt", "from dev\n")],
+        },
+    );
+    import_commit(
+        &mut stream,
+        "main",
+        &ImportCommit {
+            mark: 3,
+            index: 2,
+            message: "commit 2",
+            from: Some(1),
+            merge: None,
+            files: &[("main.txt", "from main\n")],
+        },
+    );
+    // `from` is the first parent and `merge` the second: the lane algorithm reads the
+    // first parent as the mainline.
+    import_commit(
+        &mut stream,
+        "main",
+        &ImportCommit {
+            mark: 4,
+            index: 3,
+            message: "merge dev into main",
+            from: Some(3),
+            merge: Some(2),
+            // fast-import does not merge trees; the result has to be stated. Here that is
+            // simply both sides, because the two branches touch different files.
+            files: &[(
+                "dev.txt",
+                "from dev
+",
+            )],
+        },
+    );
 
-    f.git(&["switch", "main"])?;
-    f.commit_file(2, "main.txt", "from main\n")?;
-
-    f.merge(3, &["dev"], "merge dev into main")?;
+    run_git_stdin(f.path(), &["fast-import", "--quiet"], &stream)?;
+    f.git(&["reset", "--hard", "main"])?;
     Ok(f)
 }
 

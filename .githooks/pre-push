@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# Everything the pre-commit hook leaves out, because it costs more than a commit should:
+# the whole test suite across every crate, and the tests that assert a duration.
+#
+# Bypass deliberately with `git push --no-verify`.
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+say()  { printf '\033[36m[pre-push]\033[0m %s\n' "$1"; }
+warn() { printf '\033[33m[pre-push]\033[0m %s\n' "$1"; }
+fail() { printf '\033[31m[pre-push] %s\033[0m\n' "$1" >&2; exit 1; }
+
+add_path() {
+  if [ -d "$1" ]; then
+    case ":$PATH:" in
+      *":$1:"*) ;;
+      *) PATH="$1:$PATH" ;;
+    esac
+  fi
+}
+
+add_path "$HOME/.cargo/bin"
+add_path "${CARGO_HOME:-}/bin"
+add_path "/c/Program Files/LLVM/bin"
+add_path "/c/Program Files/nodejs"
+add_path "/usr/local/bin"
+export PATH
+
+command -v cargo >/dev/null 2>&1 || fail "cargo not found; see doc/10-toolchain-setup.md"
+
+# Nothing to push means nothing to verify: a delete or an already-current branch.
+if ! read -r _local_ref _local_oid _remote_ref _remote_oid; then
+  say "nothing to push"
+  exit 0
+fi
+
+say "cargo clippy"
+cargo clippy --workspace --all-targets -- -D warnings || fail "clippy found problems"
+
+# Timing tests run here and nowhere else: `.config/nextest.toml` gives them the machine to
+# themselves, which is the only way their numbers mean anything.
+say "cargo test (whole workspace, timing tests included)"
+if command -v cargo-nextest >/dev/null 2>&1; then
+  cargo nextest run --workspace || fail "tests failed"
+else
+  warn "cargo-nextest is not installed; falling back to the slower runner"
+  cargo test --workspace || fail "tests failed"
+fi
+
+if command -v npm >/dev/null 2>&1; then
+  say "svelte-check"
+  npm --prefix frontend run --silent check || fail "type check failed"
+
+  say "vitest"
+  npm --prefix frontend run --silent test || fail "frontend tests failed"
+else
+  warn "npm not found; the frontend was not verified"
+fi
+
+say "ok"

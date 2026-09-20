@@ -106,7 +106,8 @@ fn chunks_are_no_larger_than_requested() {
 
 #[test]
 fn returning_false_stops_the_walk_early() {
-    let f = test_fixtures::linear(50).unwrap();
+    // Two more than the chunk: enough to prove the walk stopped, cheap enough to run often.
+    let f = test_fixtures::linear(12).unwrap();
     let repo = open(&f);
     let mut seen = 0;
     repo.stream_commits(10, |chunk| {

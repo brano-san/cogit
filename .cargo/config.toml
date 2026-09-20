@@ -2,6 +2,10 @@
 # Cargo profiles live in the workspace Cargo.toml, not here.
 
 [build]
+# Not every core: rustc plus lld on 32 jobs eats the machine alive, and the desktop stops
+# responding long before the build finishes. Sixteen keeps it usable (R-57).
+jobs = 16
+
 # sccache caches third-party crate builds across branches and clean rebuilds.
 # Our own crates still use incremental compilation, which sccache leaves alone.
 rustc-wrapper = "sccache"

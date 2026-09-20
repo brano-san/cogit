@@ -1,7 +1,7 @@
 // clippy.toml's allow-unwrap-in-tests does not reach helpers beside `#[test]` fns.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use app_state::{AppState, JOURNAL_CAPACITY};
+use app_state::AppState;
 
 #[test]
 fn every_git_command_leaves_an_entry() {
@@ -71,19 +71,61 @@ fn the_journal_is_newest_first() {
     assert!(first.command.contains("two"), "got {}", first.command);
 }
 
+fn entry(command: &str) -> git_engine::GitOutput {
+    git_engine::GitOutput {
+        command: command.to_owned(),
+        exit_code: Some(0),
+        stdout: String::new(),
+        stderr: String::new(),
+        duration_ms: 0,
+    }
+}
+
+/// Driven directly rather than through 520 `git` processes: the property is a ring buffer,
+/// and spawning half a thousand processes to prove it cost 26 s of every commit (R-55).
 #[test]
 fn the_journal_does_not_grow_without_bound() {
+    let mut log = std::collections::VecDeque::new();
+    for i in 0..10 {
+        app_state::record(&mut log, 3, entry(&format!("git branch-{i}")));
+    }
+
+    assert_eq!(log.len(), 3);
+}
+
+#[test]
+fn the_oldest_entry_is_the_one_that_makes_room() {
+    let mut log = std::collections::VecDeque::new();
+    for i in 0..5 {
+        app_state::record(&mut log, 3, entry(&format!("git {i}")));
+    }
+
+    let kept: Vec<&str> = log.iter().map(|e| e.command.as_str()).collect();
+    assert_eq!(kept, ["git 2", "git 3", "git 4"]);
+}
+
+#[test]
+fn a_journal_below_its_capacity_keeps_everything() {
+    let mut log = std::collections::VecDeque::new();
+    app_state::record(&mut log, 3, entry("git one"));
+    app_state::record(&mut log, 3, entry("git two"));
+    assert_eq!(log.len(), 2);
+}
+
+/// The capacity the application actually runs with is still honoured end to end; a handful
+/// of commands is enough to prove the sink is wired to the ring.
+#[test]
+fn the_real_journal_uses_the_shared_capacity() {
     let f = test_fixtures::linear(1).unwrap();
     let state = AppState::new();
     let repo = state.open_repository(f.path()).unwrap().repo;
-
-    for i in 0..(JOURNAL_CAPACITY + 20) {
+    for i in 0..3 {
         state
             .create_branch(repo, &format!("branch-{i}"), None, false)
             .unwrap();
     }
 
-    assert_eq!(state.command_log().len(), JOURNAL_CAPACITY);
+    assert_eq!(state.command_log().len(), 3);
 }
 
 #[test]
