@@ -649,3 +649,14 @@ export async function diffFiles(
 export async function fileBefore(repo: RepoId, oid: string, path: string) {
   return unwrap(await commands.fileBefore(repo, oid, path));
 }
+
+/** Every commit that changed lines `from..=to` of a file, newest first. */
+export async function investigate(
+  repo: RepoId,
+  path: string,
+  from: number,
+  to: number,
+  limit: number,
+) {
+  return unwrap(await commands.investigate(repo, path, from, to, limit));
+}

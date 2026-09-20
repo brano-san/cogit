@@ -1,4 +1,4 @@
-use crate::{CommitQuery, RepoHandle, Result};
+use crate::{CommitQuery, GitError, RepoHandle, Result};
 use serde::Serialize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
@@ -108,4 +108,123 @@ impl RepoHandle {
         }
         Ok(paths)
     }
+}
+
+/// One edit to the fragment under investigation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct InvestigationStep {
+    pub oid: String,
+    pub summary: String,
+    pub author: String,
+    pub email: String,
+    #[specta(type = specta_typescript::Number)]
+    pub timestamp: i64,
+    /// The path the file had at this commit, which a rename changes under the range.
+    pub path: String,
+    /// The unified diff of this edit, restricted to the range.
+    pub diff: String,
+}
+
+/// Starts a record. A diff line can never begin with it: diff bodies start with `diff`,
+/// `---`, `+++`, `@@`, a space, `+`, `-` or a backslash.
+const STEP: &str = "<<cogit-step>>";
+
+impl RepoHandle {
+    /// Every commit that changed lines `from..=to` of `path`, newest first, each with the
+    /// diff of that one edit.
+    ///
+    /// `git log -L` traces the range through edits and follows it across renames, which is
+    /// why this one read goes through the CLI rather than `gix` (R-104).
+    pub fn investigate(
+        &self,
+        path: &str,
+        from: u32,
+        to: u32,
+        limit: usize,
+    ) -> Result<Vec<InvestigationStep>> {
+        if from == 0 {
+            return Err(GitError::InvalidState("line numbers start at 1".to_owned()));
+        }
+        if to < from {
+            return Err(GitError::InvalidState(format!(
+                "range {from},{to} ends before it starts"
+            )));
+        }
+
+        let range = format!("{from},{to}:{path}");
+        let count = format!("-{}", limit.clamp(1, 1000));
+        let output = self.run_git_reading(&[
+            "log",
+            "-L",
+            &range,
+            &count,
+            "--no-color",
+            &format!("--format={STEP}%H%x09%an%x09%ae%x09%at%x09%s"),
+        ])?;
+
+        Ok(parse_investigation(&output.stdout))
+    }
+}
+
+fn parse_investigation(stdout: &str) -> Vec<InvestigationStep> {
+    let mut steps: Vec<InvestigationStep> = Vec::new();
+
+    for line in stdout.lines() {
+        if let Some(header) = line.strip_prefix(STEP) {
+            if let Some(step) = header_to_step(header) {
+                steps.push(step);
+            }
+            continue;
+        }
+        let Some(step) = steps.last_mut() else {
+            continue;
+        };
+        if step.path.is_empty()
+            && let Some(path) = path_of(line)
+        {
+            step.path = path;
+        }
+        step.diff.push_str(line);
+        step.diff.push('\n');
+    }
+
+    for step in &mut steps {
+        let trimmed = step.diff.trim_matches('\n').to_owned();
+        step.diff = trimmed;
+    }
+    steps
+}
+
+fn header_to_step(header: &str) -> Option<InvestigationStep> {
+    let mut fields = header.splitn(5, '\t');
+    let oid = fields.next()?.to_owned();
+    let author = fields.next()?.to_owned();
+    let email = fields.next()?.to_owned();
+    let timestamp = fields.next()?.parse().ok()?;
+    let summary = fields.next().unwrap_or_default().to_owned();
+
+    Some(InvestigationStep {
+        oid,
+        summary,
+        author,
+        email,
+        timestamp,
+        path: String::new(),
+        diff: String::new(),
+    })
+}
+
+/// The path this commit knew the file by. `+++ b/…` names it, except where the commit
+/// deleted the file and the old name is all there is.
+fn path_of(line: &str) -> Option<String> {
+    for (prefix, marker) in [("+++ ", "b/"), ("--- ", "a/")] {
+        if let Some(rest) = line.strip_prefix(prefix) {
+            if rest == "/dev/null" {
+                continue;
+            }
+            return Some(rest.strip_prefix(marker).unwrap_or(rest).to_owned());
+        }
+    }
+    None
 }

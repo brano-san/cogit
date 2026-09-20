@@ -1337,6 +1337,35 @@ pub async fn diff_files(
     Ok(batch)
 }
 
+/// The history of one fragment: every commit that changed it, newest first, with the diff
+/// of each edit and the path the file had at the time.
+#[tauri::command]
+#[specta::specta]
+pub async fn investigate(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    path: String,
+    from: u32,
+    to: u32,
+    limit: u32,
+) -> Result<Vec<git_engine::InvestigationStep>, GitError> {
+    let app_state = state.state.clone();
+    let started = std::time::Instant::now();
+
+    let steps = blocking("investigate", move || {
+        app_state.investigate(repo, &path, from, to, limit)
+    })
+    .await?;
+
+    tracing::debug!(
+        repo = repo.0,
+        steps = steps.len(),
+        elapsed_ms = started.elapsed().as_millis(),
+        "fragment traced"
+    );
+    Ok(steps)
+}
+
 /// The file as it was before a commit. `None` means there was no such file to open.
 #[tauri::command]
 #[specta::specta]
