@@ -40,11 +40,18 @@ pub fn diff_one(path: &str, old: &[u8], new: &[u8], options: &DiffOptions) -> Fi
 /// it and stalls IPC along with everything else ([INV-01](doc/01-architecture.md)).
 #[must_use]
 pub fn diff_many(files: Vec<FileInput>, options: &DiffOptions) -> Vec<FileDiffEntry> {
-    files
+    let mut entries: Vec<FileDiffEntry> = files
         .into_par_iter()
         .map(|file| FileDiffEntry {
             diff: diff_one(&file.path, &file.old, &file.new, options),
             path: file.path,
         })
-        .collect()
+        .collect();
+
+    // Sequential, and only once the parallel pass is done: a block that left one file for
+    // another is invisible from inside either of them.
+    if options.detect_moves {
+        crate::link_moves_across_files(&mut entries);
+    }
+    entries
 }
