@@ -32,7 +32,10 @@ fn specta_builder() -> Builder<tauri::Wry> {
         commands::stage_paths,
         commands::unstage_paths,
         commands::discard_paths,
-        commands::commit
+        commands::commit,
+        commands::checkout,
+        commands::create_branch,
+        commands::delete_branch
     ])
 }
 

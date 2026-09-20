@@ -1,7 +1,8 @@
 use app_state::{DEFAULT_CHUNK_SIZE, GraphChunk, RepoId, RepoSummary};
 use diff_engine::{DiffOptions, FileDiff};
 use git_engine::{
-    CommitDetails, CommitQuery, CommitRequest, DiffSpec, FileEntry, GitError, WorktreeFiles,
+    CheckoutTarget, CommitDetails, CommitQuery, CommitRequest, DiffSpec, FileEntry, GitError,
+    WorktreeFiles,
 };
 use serde::Serialize;
 use std::path::PathBuf;
@@ -193,4 +194,50 @@ pub async fn commit(
 
     tracing::info!(repo = repo.0, oid = %oid, "commit created");
     Ok(oid)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn checkout(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    target: CheckoutTarget,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.checkout(repo, &target))
+        .await
+        .map_err(|err| GitError::Internal(format!("checkout task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn create_branch(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    name: String,
+    start: Option<String>,
+    // Not `switch`: specta puts the parameter name straight into the generated TypeScript,
+    // where a reserved word is a syntax error.
+    switch_to: bool,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || {
+        app_state.create_branch(repo, &name, start.as_deref(), switch_to)
+    })
+    .await
+    .map_err(|err| GitError::Internal(format!("create_branch task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_branch(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    name: String,
+    force: bool,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.delete_branch(repo, &name, force))
+        .await
+        .map_err(|err| GitError::Internal(format!("delete_branch task failed: {err}")))?
 }

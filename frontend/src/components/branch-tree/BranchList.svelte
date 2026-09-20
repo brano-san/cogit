@@ -4,9 +4,11 @@
   interface Props {
     title: string;
     branches: Branch[];
+    oncheckout?: (branch: Branch) => void;
+    ondelete?: (branch: Branch) => void;
   }
 
-  let { title, branches }: Props = $props();
+  let { title, branches, oncheckout, ondelete }: Props = $props();
 </script>
 
 {#if branches.length > 0}
@@ -17,6 +19,26 @@
         <span class="marker" aria-hidden="true">{branch.isHead ? "▸" : ""}</span>
         <span class="name truncate">{branch.name}</span>
         <span class="oid mono tabular">{branch.oid.slice(0, 7)}</span>
+        {#if !branch.isHead}
+          <span
+            class="act"
+            role="button"
+            tabindex="-1"
+            title="Check out {branch.name}"
+            onclick={() => oncheckout?.(branch)}
+            onkeydown={(event) => event.key === "Enter" && oncheckout?.(branch)}>Checkout</span
+          >
+          {#if branch.kind === "local"}
+            <span
+              class="act"
+              role="button"
+              tabindex="-1"
+              title="Delete {branch.name}"
+              onclick={() => ondelete?.(branch)}
+              onkeydown={(event) => event.key === "Enter" && ondelete?.(branch)}>Delete</span
+            >
+          {/if}
+        {/if}
       </div>
     {/each}
   </div>
@@ -46,6 +68,25 @@
     position: relative;
     cursor: default;
     transition: background var(--t-fast) var(--ease-out);
+  }
+
+  .act {
+    flex: 0 0 auto;
+    padding: 0 var(--sp-3);
+    color: var(--text-secondary);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0;
+    cursor: default;
+  }
+
+  .row:hover .act {
+    opacity: 1;
+  }
+
+  .act:hover {
+    color: var(--status-ref);
   }
 
   .row:hover {

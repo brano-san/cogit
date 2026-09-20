@@ -33,5 +33,7 @@
 | F-027 | Диалог ошибки Git | [F-027-git-error-dialog.md](F-027-git-error-dialog.md) |
 | F-028 | Копирование и ссылки в ошибке | [F-028-error-copy-and-links.md](F-028-error-copy-and-links.md) |
 | F-029 | Diff рабочего дерева | [F-029-worktree-diff.md](F-029-worktree-diff.md) |
+| F-030 | Переключение ветки | [F-030-checkout.md](F-030-checkout.md) |
+| F-031 | Удаление ветки | [F-031-delete-branch.md](F-031-delete-branch.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.

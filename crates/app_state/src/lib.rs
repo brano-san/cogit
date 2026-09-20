@@ -293,6 +293,33 @@ impl AppState {
         self.handle(repo)?.commit(request)
     }
 
+    pub fn checkout(
+        &self,
+        repo: RepoId,
+        target: &git_engine::CheckoutTarget,
+    ) -> Result<(), git_engine::GitError> {
+        self.handle(repo)?.checkout(target)
+    }
+
+    pub fn create_branch(
+        &self,
+        repo: RepoId,
+        name: &str,
+        start: Option<&str>,
+        switch: bool,
+    ) -> Result<(), git_engine::GitError> {
+        self.handle(repo)?.create_branch(name, start, switch)
+    }
+
+    pub fn delete_branch(
+        &self,
+        repo: RepoId,
+        name: &str,
+        force: bool,
+    ) -> Result<(), git_engine::GitError> {
+        self.handle(repo)?.delete_branch(name, force)
+    }
+
     fn handle(&self, repo: RepoId) -> Result<git_engine::RepoHandle, git_engine::GitError> {
         let open = self
             .get(repo)

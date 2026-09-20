@@ -16,6 +16,9 @@ export const commands = {
 	unstagePaths: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("unstage_paths", { repo, paths })),
 	discardPaths: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("discard_paths", { repo, paths })),
 	commit: (repo: RepoId, request: CommitRequest) => typedError<string, GitError>(__TAURI_INVOKE("commit", { repo, request })),
+	checkout: (repo: RepoId, target: CheckoutTarget) => typedError<null, GitError>(__TAURI_INVOKE("checkout", { repo, target })),
+	createBranch: (repo: RepoId, name: string, start: string | null, switchTo: boolean) => typedError<null, GitError>(__TAURI_INVOKE("create_branch", { repo, name, start, switchTo })),
+	deleteBranch: (repo: RepoId, name: string, force: boolean) => typedError<null, GitError>(__TAURI_INVOKE("delete_branch", { repo, name, force })),
 };
 
 /* Types */
@@ -37,6 +40,8 @@ export type Branch = {
 };
 
 export type BranchKind = "local" | "remote";
+
+export type CheckoutTarget = { kind: "branch"; name: string } | { kind: "commit"; oid: string };
 
 export type CommitDetails = {
 	oid: string,

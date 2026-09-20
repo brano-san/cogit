@@ -14,7 +14,7 @@
   import Toolbar from "$components/layout/Toolbar.svelte";
   import RepositoryList from "$components/repo-tree/RepositoryList.svelte";
   import { formatCommitDate, shortOid } from "$lib/format";
-  import { getAppInfo, type AppInfo } from "$lib/ipc";
+  import { checkout, deleteBranch, getAppInfo, type AppInfo, type Branch } from "$lib/ipc";
   import { commit } from "$stores/commit.svelte";
   import { worktree } from "$stores/worktree.svelte";
   import { diff } from "$stores/diff.svelte";
@@ -93,6 +93,45 @@
     void graph.load(id, graph.query);
   }
 
+  async function afterRefChange() {
+    const id = repository.current?.repo;
+    if (!id) return;
+    commit.clear();
+    diff.clear();
+    await repository.refresh();
+    await worktree.load(id);
+    void graph.load(id, graph.query);
+  }
+
+  async function switchTo(branch: Branch) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    try {
+      await checkout(id, { kind: "branch", name: branch.name });
+    } catch (err) {
+      errors.report(err as never);
+      return;
+    }
+    await afterRefChange();
+  }
+
+  async function removeBranch(branch: Branch) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    const confirmed = await ask(`Delete branch ${branch.name}?`, {
+      title: "Delete branch",
+      kind: "warning",
+    });
+    if (!confirmed) return;
+    try {
+      await deleteBranch(id, branch.name, false);
+    } catch (err) {
+      errors.report(err as never);
+      return;
+    }
+    await afterRefChange();
+  }
+
   function openDiff(path: string) {
     const id = repository.current?.repo;
     const oid = commit.oid;
@@ -152,8 +191,17 @@
             {#if repo.branches.length === 0}
               <p class="note">No branches yet — the first commit creates one.</p>
             {:else}
-              <BranchList title="Local Branches" branches={repository.localBranches} />
-              <BranchList title="Remote" branches={repository.remoteBranches} />
+              <BranchList
+                title="Local Branches"
+                branches={repository.localBranches}
+                oncheckout={switchTo}
+                ondelete={removeBranch}
+              />
+              <BranchList
+                title="Remote"
+                branches={repository.remoteBranches}
+                oncheckout={switchTo}
+              />
             {/if}
           {/if}
         </Panel>
