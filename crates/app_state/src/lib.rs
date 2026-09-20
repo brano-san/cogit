@@ -773,6 +773,33 @@ impl AppState {
         self.handle(repo)?.stashes()
     }
 
+    /// Only the named paths, leaving everything else in the working tree (T5.3).
+    pub fn stash_selection(
+        &self,
+        repo: RepoId,
+        paths: &[String],
+        message: &str,
+    ) -> Result<(), git_engine::GitError> {
+        if paths.is_empty() {
+            return Err(git_engine::GitError::InvalidState(
+                "no paths given; refusing to stash the whole repository".to_owned(),
+            ));
+        }
+        self.quiet(repo);
+        let handle = self.handle(repo)?;
+        self.tracked("Stashing selection", || {
+            handle.stash_paths(paths, message).map(drop)
+        })
+    }
+
+    pub fn stash_contents(
+        &self,
+        repo: RepoId,
+        index: u32,
+    ) -> Result<git_engine::StashContents, git_engine::GitError> {
+        self.handle(repo)?.stash_contents(index)
+    }
+
     pub fn stash_push(
         &self,
         repo: RepoId,

@@ -65,6 +65,7 @@
     splitOff,
     mergeInto,
     stageSelection,
+    stashSelection,
     onMenuCommand,
     openRepository,
     reportTiming,
@@ -104,6 +105,7 @@
   import { filesView } from "$stores/files-view.svelte";
   import { scan } from "$stores/scan.svelte";
   import { refs } from "$stores/refs.svelte";
+  import { stashView } from "$stores/stash-view.svelte";
   import { buildRefTree, visibleTips, type RefNode } from "$lib/ref-nodes";
 
   /** Settings the open diff was computed with: changing one has to re-run it. */
@@ -131,6 +133,7 @@
   let info = $state<AppInfo | null>(null);
   let opening = $state(false);
   let scanOpen = $state(false);
+  let markedFiles = $state.raw<string[]>([]);
   let journalOpen = $state(false);
   let journalBusy = $state(false);
   let prompt = $state.raw<{
@@ -265,7 +268,22 @@
       { id: "fetch", title: "Fetch", unavailable: noRepo ?? noRemote, run: () => void runNetwork("fetch") },
       { id: "pull", title: "Pull", unavailable: noRepo ?? noRemote, run: () => void runNetwork("pull") },
       { id: "push", title: "Push", unavailable: noRepo ?? noRemote, run: () => void runNetwork("push") },
-      { id: "stash", title: "Stash All", synonyms: ["shelve"], unavailable: noRepo, run: () => void stashAll() },
+      {
+        id: "stash",
+        title: "Stash All",
+        shortcut: "Ctrl+S",
+        synonyms: ["shelve"],
+        unavailable: noRepo,
+        run: stashAll,
+      },
+      {
+        id: "stash-selection",
+        title: "Stash Selection",
+        shortcut: "Ctrl+Alt+S",
+        synonyms: ["shelve some"],
+        unavailable: noRepo ?? (markedFiles.length > 0 ? undefined : "No file is ticked"),
+        run: stashSelected,
+      },
       { id: "tag", title: "Create Tag", unavailable: noRepo, run: () => void tagHead() },
       { id: "commit", title: "Commit Staged", unavailable: noRepo ?? nothingStaged, run: () => {} },
       {
@@ -675,12 +693,31 @@ Log: ${info?.logPath ?? ""}`),
     watch.stop(`${graph.rows.length} commits`);
   }
 
-  /** A click on the text selects the ref and centres the graph on its tip. */
+  /** A click on the text selects the ref and centres the graph on its tip. A stash is not
+      a commit the user chose, so it takes over the Files panel instead (T5.2). */
   function selectRef(node: RefNode) {
     const id = repo?.repo;
-    if (!id || !node.oid) return;
+    if (!id) return;
+
+    if (node.kind === "stash") {
+      commit.clear();
+      diff.clear();
+      void stashView.select(id, Number(node.id.slice("stash:".length)));
+      return;
+    }
+
+    stashView.clear();
+    if (!node.oid) return;
     void commit.select(id, node.oid);
     graph.requestReveal(node.oid);
+  }
+
+  /** One side of a stash part against the commit it was taken from. */
+  function openStashDiff(part: "worktree" | "index" | "untracked", path: string) {
+    const id = repo?.repo;
+    const spec = stashView.spec(part);
+    if (!id || !spec) return;
+    void diff.load(id, spec, path);
   }
 
   function activateRef(node: RefNode) {
@@ -943,18 +980,41 @@ Log: ${info?.logPath ?? ""}`),
     await afterRefChange();
   }
 
-  async function stashAll() {
+  function stashAll() {
     const id = repository.current?.repo;
     if (!id) return;
-    const message = window.prompt("Stash message:", "");
-    if (message === null) return;
-    try {
-      await stashes.push(id, message, true);
-    } catch (err) {
-      errors.report(err as never);
-      return;
-    }
-    await afterRefChange();
+    prompt = {
+      title: "Stash everything",
+      label: "Message",
+      value: "",
+      confirm: "Stash",
+      run: (message) => {
+        prompt = null;
+        void stashes
+          .push(id, message, true)
+          .then(() => afterRefChange())
+          .catch((err) => errors.report(err as never));
+      },
+    };
+  }
+
+  /** Only the ticked rows; everything else stays in the working tree (T5.3). */
+  function stashSelected() {
+    const id = repository.current?.repo;
+    if (!id || markedFiles.length === 0) return;
+    const paths = [...markedFiles];
+    prompt = {
+      title: `Stash ${paths.length} file(s)`,
+      label: "Message",
+      value: "",
+      confirm: "Stash",
+      run: (message) => {
+        prompt = null;
+        void stashSelection(id, paths, message)
+          .then(() => afterRefChange())
+          .catch((err) => errors.report(err as never));
+      },
+    };
   }
 
   async function applyStash(index: number, pop: boolean) {
@@ -1050,6 +1110,7 @@ Log: ${info?.logPath ?? ""}`),
     recovery.clear();
     submodules.clear();
     conflicts.clear();
+    stashView.clear();
     refs.clear();
     const watch = measure("open-repository");
     await repository.open(root);
@@ -1718,8 +1779,10 @@ Log: ${info?.logPath ?? ""}`),
               onopenworktree={openWorktreeDiff}
               onopenstaged={openStagedDiff}
               onopencommit={openDiff}
+              onopenstash={openStashDiff}
               onopenwindow={openInWindow}
               onmask={(mask) => (fileMask = mask)}
+              onmarked={(paths) => (markedFiles = paths)}
               {stage}
               stagemode={stageModeOnly}
               {unstage}

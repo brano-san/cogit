@@ -51,7 +51,12 @@ const REMOTE: &[Entry] = &[
 
 const LOCAL: &[Entry] = &[
     Entry::Item("commit", "Commit…", Some("CmdOrCtrl+Return")),
-    Entry::Item("stash", "Stash All", None),
+    Entry::Item("stash", "Stash All", Some("CmdOrCtrl+S")),
+    Entry::Item(
+        "stash-selection",
+        "Stash Selection",
+        Some("CmdOrCtrl+Alt+S"),
+    ),
     Entry::Separator,
     Entry::Item("undo", "Undo Last Operation", None),
     Entry::Item("journal", "Safety Journal…", None),

@@ -5,6 +5,7 @@
   import { diff } from "$stores/diff.svelte";
   import { filesView } from "$stores/files-view.svelte";
   import { layout } from "$stores/layout.svelte";
+  import { stashView } from "$stores/stash-view.svelte";
   import { worktree } from "$stores/worktree.svelte";
 
   /** Two lists in one place: the working tree while nothing is selected, and the files a
@@ -15,8 +16,11 @@
     onopenworktree: (path: string) => void;
     onopenstaged: (path: string) => void;
     onopencommit: (path: string) => void;
+    /** A stash file names which of the three parts it came from. */
+    onopenstash: (part: "worktree" | "index" | "untracked", path: string) => void;
     onopenwindow: (path: string) => void;
     onmask: (mask: string) => void;
+    onmarked: (paths: string[]) => void;
     stage: (paths: string[]) => void;
     stagemode: (paths: string[]) => void;
     unstage: (paths: string[]) => void;
@@ -31,8 +35,10 @@
     onopenworktree,
     onopenstaged,
     onopencommit,
+    onopenstash,
     onopenwindow,
     onmask,
+    onmarked,
     stage,
     stagemode,
     unstage,
@@ -45,7 +51,27 @@
 </script>
 
 <div class="files">
-  {#if onWorkingTree}
+  {#if stashView.contents}
+    {@const parts = stashView.contents}
+    <FileList
+      sections={[
+        {
+          title: "Working tree",
+          files: parts.worktree,
+          onselect: (path) => onopenstash("worktree", path),
+        },
+        { title: "Index", files: parts.index, onselect: (path) => onopenstash("index", path) },
+        {
+          title: "Untracked",
+          files: parts.untracked,
+          onselect: (path) => onopenstash("untracked", path),
+        },
+      ]}
+      empty="This stash is empty."
+      selected={diff.path}
+      onopen={onopenwindow}
+    />
+  {:else if onWorkingTree}
     <FileList
       view={filesView.current}
       onview={onviewchange}
@@ -76,6 +102,7 @@
       selected={diff.path}
       onopen={onopenwindow}
       {onmask}
+      {onmarked}
     />
   {:else}
     <FileList

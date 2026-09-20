@@ -43,6 +43,8 @@
     onopen?: (path: string) => void;
     /** Reported upward so Commit What You See knows what is hidden (T6.8). */
     onmask?: (mask: string) => void;
+    /** The ticked rows, for actions that live outside the list — stashing a selection. */
+    onmarked?: (paths: string[]) => void;
   }
 
   let {
@@ -57,6 +59,7 @@
     onselect,
     onopen,
     onmask,
+    onmarked,
   }: Props = $props();
 
   const SORTS: { key: SortKey; label: string }[] = [
@@ -71,6 +74,10 @@
 
   $effect(() => {
     onmask?.(mask);
+  });
+
+  $effect(() => {
+    onmarked?.([...marked.paths]);
   });
 
   const active = $derived(view ?? DEFAULT_VIEW);

@@ -377,6 +377,36 @@ pub fn safety_log(state: tauri::State<'_, crate::AppContext>) -> Vec<SafetyEntry
     state.state.safety_log()
 }
 
+#[tauri::command]
+#[specta::specta]
+pub async fn stash_selection(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    paths: Vec<String>,
+    message: String,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    blocking("stash_selection", move || {
+        app_state.stash_selection(repo, &paths, &message)
+    })
+    .await
+}
+
+/// The three parts of a stash, read without applying it (T5.2).
+#[tauri::command]
+#[specta::specta]
+pub async fn stash_contents(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    index: u32,
+) -> Result<git_engine::StashContents, GitError> {
+    let app_state = state.state.clone();
+    blocking("stash_contents", move || {
+        app_state.stash_contents(repo, index)
+    })
+    .await
+}
+
 /// Any entry from the journal, not only the newest (T5.7).
 #[tauri::command]
 #[specta::specta]

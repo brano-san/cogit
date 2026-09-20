@@ -65,6 +65,9 @@ export const commands = {
 	deleteRemoteBranch: (repo: RepoId, remote: string, branch: string) => typedError<null, GitError>(__TAURI_INVOKE("delete_remote_branch", { repo, remote, branch })),
 	/**  Any entry from the journal, not only the newest (T5.7). */
 	undoEntry: (repo: RepoId, id: number) => typedError<SafetyEntry, GitError>(__TAURI_INVOKE("undo_entry", { repo, id })),
+	/**  The three parts of a stash, read without applying it (T5.2). */
+	stashContents: (repo: RepoId, index: number) => typedError<StashContents, GitError>(__TAURI_INVOKE("stash_contents", { repo, index })),
+	stashSelection: (repo: RepoId, paths: string[], message: string) => typedError<null, GitError>(__TAURI_INVOKE("stash_selection", { repo, paths, message })),
 	/**  Not `async`: touching menu items off the main thread deadlocks on Windows. */
 	setMenuState: (disabled: string[], checked: string[]) => __TAURI_INVOKE<void>("set_menu_state", { disabled, checked }),
 	reportTiming: (label: string, ms: number, detail: string) => __TAURI_INVOKE<void>("report_timing", { label, ms, detail }),
@@ -550,6 +553,21 @@ export type Signature = {
 	email: string,
 	timestamp: number,
 	tzOffsetMinutes: number,
+};
+
+/**
+ *  The three things `git stash` puts away, each readable without touching the working tree.
+ *  A stash is a commit: `^1` is HEAD at the time, `^2` the index, `^3` the untracked files.
+ */
+export type StashContents = {
+	worktree: FileEntry[],
+	index: FileEntry[],
+	untracked: FileEntry[],
+	/**  Revisions the caller hands back to `diff_file` as `CommitVsCommit`. */
+	base: string,
+	worktreeRev: string,
+	indexRev: string,
+	untrackedRev: string | null,
 };
 
 export type StashEntry = {

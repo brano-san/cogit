@@ -126,8 +126,19 @@ impl RepoHandle {
             None => self.repo.empty_tree(),
         };
 
+        self.files_between_trees(&parent_tree, &tree, similarity)
+    }
+
+    /// The same tree diff the commit view uses, reachable from anything holding two trees —
+    /// a stash keeps three of them (T5.2).
+    pub(crate) fn files_between_trees(
+        &self,
+        before: &gix::Tree<'_>,
+        after: &gix::Tree<'_>,
+        similarity: u32,
+    ) -> Result<Vec<FileEntry>> {
         let mut files = Vec::new();
-        parent_tree
+        before
             .changes()
             .map_err(|err| GitError::Internal(format!("cannot start a tree diff: {err}")))?
             .options(|options| {
@@ -139,7 +150,7 @@ impl RepoHandle {
                     track_empty: false,
                 }));
             })
-            .for_each_to_obtain_tree(&tree, |change| {
+            .for_each_to_obtain_tree(after, |change| {
                 if let Some(entry) = to_entry(&change) {
                     files.push(entry);
                 }
@@ -149,6 +160,14 @@ impl RepoHandle {
 
         files.sort_by(|a, b| a.path.cmp(&b.path));
         Ok(files)
+    }
+
+    pub(crate) fn tree_of(&self, oid: gix::ObjectId) -> Result<gix::Tree<'_>> {
+        self.repo
+            .find_commit(oid)
+            .map_err(|err| GitError::Internal(format!("cannot read commit {oid}: {err}")))?
+            .tree()
+            .map_err(|err| GitError::Internal(format!("cannot read tree of {oid}: {err}")))
     }
 
     fn find_commit(&self, rev: &str) -> Result<gix::Commit<'_>> {
