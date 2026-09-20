@@ -14,6 +14,8 @@
     title?: string;
     files: readonly FileEntry[];
     actions?: readonly Action[];
+    /** Each section can open its own side of the diff. */
+    onselect?: (path: string) => void;
   }
 
   interface Props {
@@ -35,7 +37,12 @@
 
   type Row =
     | { kind: "header"; title: string; paths: string[]; actions: readonly Action[] }
-    | { kind: "file"; file: FileEntry; actions: readonly Action[] };
+    | {
+        kind: "file";
+        file: FileEntry;
+        actions: readonly Action[];
+        open?: (path: string) => void;
+      };
 
   const total = $derived(sections.reduce((n, s) => n + s.files.length, 0));
   const shown = $derived.by(() => {
@@ -55,7 +62,9 @@
           actions,
         });
       }
-      for (const file of kept) rows.push({ kind: "file", file, actions });
+      for (const file of kept) {
+        rows.push({ kind: "file", file, actions, open: section.onselect });
+      }
     }
     return rows;
   });
@@ -130,7 +139,7 @@
               class:selected={selected === file.path}
               style:top="{item.at * GRAPH.rowHeight}px"
               title={file.oldPath ? `${file.oldPath} → ${file.path}` : file.path}
-              onclick={() => onselect?.(file.path)}
+              onclick={() => (item.row.kind === "file" ? (item.row.open ?? onselect)?.(file.path) : undefined)}
             >
               <span class="badge" aria-label={statusLabel(file.status)}>{statusBadge(file.status)}</span>
               <span class="name truncate">{fileName(file.path)}</span>

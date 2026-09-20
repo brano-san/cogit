@@ -167,7 +167,8 @@ pub enum FileStatus { Added, Modified, Deleted, Renamed, Copied }
 
 `DiffSpec` описывает, что с чем сравнивается: `WorkTreeVsIndex`, `IndexVsHead`,
 `CommitVsParent { oid }`, `CommitVsCommit { a, b }`, `StashVsParent { index }`.
-Реализованы `CommitVsParent` и `CommitVsCommit`; остальные приходят с M5 и M6.
+Реализованы `CommitVsParent`, `CommitVsCommit`, `WorkTreeVsIndex` и `IndexVsHead`;
+`StashVsParent` придёт с M5.
 
 `FileDiff` — размеченное объединение по полю `kind`: `text`, `eolOnly`, `binary`,
 `image`, `tooLarge`, `unchanged`. Вариант `text` несёт ханки, сведения об окончаниях

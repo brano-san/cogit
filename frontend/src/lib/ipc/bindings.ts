@@ -84,7 +84,7 @@ export type DiffOptions = {
 
 export type DiffRow = { kind: "context"; old: number; new: number; text: string } | { kind: "delete"; old: number; text: string; inline: ([number, number])[] } | { kind: "insert"; new: number; text: string; inline: ([number, number])[] } | { kind: "collapsed"; count: number };
 
-export type DiffSpec = { kind: "commitVsParent"; oid: string } | { kind: "commitVsCommit"; a: string; b: string };
+export type DiffSpec = { kind: "commitVsParent"; oid: string } | { kind: "commitVsCommit"; a: string; b: string } | { kind: "workTreeVsIndex" } | { kind: "indexVsHead" };
 
 export type EdgeKind = "direct" | "merge" | "crossing";
 
