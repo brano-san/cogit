@@ -209,6 +209,7 @@ export type BlameLine = {
 	oid: string,
 	summary: string,
 	author: string,
+	email: string,
 	timestamp: number,
 };
 
