@@ -1128,21 +1128,24 @@ pub async fn diff_files(
     spec: DiffSpec,
     paths: Vec<String>,
     options: DiffOptions,
-) -> Result<Vec<diff_engine::FileDiffEntry>, GitError> {
+    request: u32,
+) -> Result<app_state::DiffBatch, GitError> {
     let app_state = state.state.clone();
     let started = std::time::Instant::now();
     let requested = paths.len();
 
-    let diffs = blocking("diff_files", move || {
-        app_state.diff_files(repo, &spec, &paths, &options)
+    let batch = blocking("diff_files", move || {
+        app_state.diff_files(repo, &spec, &paths, &options, request)
     })
     .await?;
 
     tracing::debug!(
         repo = repo.0,
         files = requested,
+        request,
+        superseded = matches!(batch, app_state::DiffBatch::Superseded),
         elapsed_ms = started.elapsed().as_millis(),
         "commit files diffed"
     );
-    Ok(diffs)
+    Ok(batch)
 }

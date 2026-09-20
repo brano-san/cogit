@@ -572,12 +572,14 @@ export async function installPreset(repo: RepoId, id: string) {
 
 // ─── everything below this line belongs to the diff-merge branch; master appends above ───
 
-/** Every file of a commit in one round trip. Answers in the order the paths were given. */
+/** Every file of a commit in one round trip. Answers in the order the paths were given.
+    `request` must rise with every selection: an older one comes back `superseded`. */
 export async function diffFiles(
   repo: RepoId,
   spec: DiffSpec,
   paths: string[],
   options: DiffOptions,
+  request: number,
 ) {
-  return unwrap(await commands.diffFiles(repo, spec, paths, options));
+  return unwrap(await commands.diffFiles(repo, spec, paths, options, request));
 }

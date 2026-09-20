@@ -172,15 +172,23 @@ pub enum FileStatus { Added, Modified, Deleted, Renamed, Copied }
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
 | `diff_file` | `repo, spec: DiffSpec, path, options: DiffOptions` | `FileDiff` | M7 |
-| `diff_files` | `repo, spec: DiffSpec, paths: string[], options: DiffOptions` | `FileDiffEntry[]` | M7 |
+| `diff_files` | `repo, spec: DiffSpec, paths: string[], options: DiffOptions, request` | `DiffBatch` | M7 |
 | `diff_working_tree` | `repo, path` | `FileDiff` | M7 |
 | `merge_conflict` | `repo, path` | `ThreeWayDiff` | M7 |
 
 `diff_files` — та же работа, что `diff_file`, но сразу по всем файлам коммита: чтение
 объектов последовательное, само сравнение параллельное через `rayon` внутри
 `spawn_blocking` ([INV-01](01-architecture.md), [§9 08-diff-engine.md](08-diff-engine.md)).
-Ответ — `FileDiffEntry { path, diff }` **в порядке запроса**, не отсортированный. Путь,
-которого нет ни на одной стороне, даёт ошибку на всю пачку, а не тихо выпадает из ответа.
+
+`DiffBatch` — объединение по `kind`: `ready` со списком `FileDiffEntry { path, diff }`
+**в порядке запроса**, либо `superseded`. Путь, которого нет ни на одной стороне, даёт
+ошибку на всю пачку, а не тихо выпадает из ответа.
+
+`request` — номер, который фронтенд обязан увеличивать при каждой смене выбранного
+коммита. Пачка с номером меньше уже виденного не считается вовсе, а запущенная проверяет
+между файлами, не пришёл ли номер новее, и в этом случае бросает работу и отвечает
+`superseded` ([R-102](12-risks.md)). Ответ `superseded` — не ошибка: он означает, что
+пользователь уже смотрит на другой коммит, и его надо молча игнорировать.
 
 `DiffSpec` описывает, что с чем сравнивается: `WorkTreeVsIndex`, `IndexVsHead`,
 `CommitVsParent { oid }`, `CommitVsCommit { a, b }`, `StashVsParent { index }`.
