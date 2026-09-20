@@ -1,0 +1,31 @@
+# Test runner configuration. See doc/09-testing.md section 6.
+#
+# `cargo test` runs one test binary at a time; this workspace has eighty of them and most
+# of the time goes on spawning `git`, not on computing. nextest runs every test from every
+# binary in one pool, which turns 165 s into about 15 s on this machine.
+
+[profile.default]
+# Half the cores, not all of them. Each test spawns `git` processes of its own, so a pool
+# the width of the CPU turns into hundreds of processes and the desktop stops responding.
+test-threads = 8
+# The fixtures create temporary repositories and spawn git; a hung process must not hang
+# the commit.
+slow-timeout = { period = "30s", terminate-after = 4 }
+failure-output = "immediate-final"
+fail-fast = false
+
+# Tests that assert a duration cannot share the machine with thirty others: the number they
+# measure stops being about the code. They run one at a time, and the pre-commit hook skips
+# them entirely (doc/09-testing.md).
+[test-groups]
+timing = { max-threads = 1 }
+
+[[profile.default.overrides]]
+filter = "binary(mutation_speed) | binary(performance) | binary(selection_speed) | test(/budget/) | test(one_enormous_line_does_not_hang_the_engine)"
+test-group = "timing"
+threads-required = "num-cpus"
+
+# The hook's profile: correctness only, and nothing that measures time.
+[profile.quick]
+fail-fast = true
+failure-output = "immediate-final"

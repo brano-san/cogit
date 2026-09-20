@@ -207,7 +207,7 @@ fn results_arrive_in_chunks_of_the_requested_size() {
 
 #[test]
 fn returning_false_stops_the_walk() {
-    let f = test_fixtures::linear(20).unwrap();
+    let f = test_fixtures::linear(5).unwrap();
     let repo = open(&f);
 
     let mut seen = 0;

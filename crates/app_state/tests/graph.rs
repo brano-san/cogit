@@ -82,7 +82,8 @@ fn a_merge_keeps_its_two_lanes_within_one_chunk() {
 
 #[test]
 fn refusing_a_chunk_stops_the_stream() {
-    let f = test_fixtures::linear(40).unwrap();
+    // Two more than the chunk, so the first chunk cannot also be the last one.
+    let f = test_fixtures::linear(12).unwrap();
     let state = AppState::new();
     let repo = state.open_repository(f.path()).unwrap().repo;
 

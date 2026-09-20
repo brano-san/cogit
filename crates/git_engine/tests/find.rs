@@ -114,8 +114,9 @@ fn refs_are_listed_before_commits() {
 
 #[test]
 fn the_limit_is_respected() {
-    let f = test_fixtures::linear(20).unwrap();
-    assert!(open(&f).find("commit", 5).unwrap().len() <= 5);
+    // More matches than the limit is the whole point; three spare is as good as fifteen.
+    let f = test_fixtures::linear(8).unwrap();
+    assert_eq!(open(&f).find("commit", 5).unwrap().len(), 5);
 }
 
 #[test]

@@ -30,6 +30,9 @@ fn the_reflog_is_newest_first() {
 #[test]
 fn each_entry_says_what_moved_head() {
     let f = test_fixtures::branched().unwrap();
+    // The shape fixtures are built with `fast-import`, which writes no reflog at all. A
+    // real switch is what this test is about, so it performs one (R-56).
+    f.git(&["switch", "dev"]).unwrap();
 
     let entries = open(&f).reflog(50).unwrap();
 
