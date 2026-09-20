@@ -119,3 +119,36 @@ describe("refMenu", () => {
     expect(menu.find((entry) => entry.id === "checkout")?.enabled).toBe(false);
   });
 });
+
+describe("branchMenu · управление веткой", () => {
+  const ids = (items: ReturnType<typeof branchMenu>) =>
+    items.filter((entry) => !entry.separator).map((entry) => entry.id);
+
+  it("offers to rename any branch, checked out or not", () => {
+    expect(ids(branchMenu({ isHead: true, hasUpstream: true }))).toContain("rename-branch");
+    expect(ids(branchMenu({ isHead: false, hasUpstream: false }))).toContain("rename-branch");
+  });
+
+  it("offers to set the upstream", () => {
+    expect(ids(branchMenu({ isHead: false, hasUpstream: false }))).toContain("set-upstream");
+  });
+
+  it("only offers to clear an upstream that exists", () => {
+    const without = branchMenu({ isHead: false, hasUpstream: false });
+    expect(without.find((entry) => entry.id === "clear-upstream")?.enabled).toBe(false);
+    const with_ = branchMenu({ isHead: false, hasUpstream: true });
+    expect(with_.find((entry) => entry.id === "clear-upstream")?.enabled).toBe(true);
+  });
+
+  it("offers to delete a remote branch only on a remote one", () => {
+    const local = refMenu({ kind: "local", isHead: false, hasUpstream: true });
+    const remote = refMenu({ kind: "remote", isHead: false, hasUpstream: false });
+    expect(local.map((e) => e.id)).not.toContain("delete-remote-branch");
+    expect(remote.map((e) => e.id)).toContain("delete-remote-branch");
+  });
+
+  it("does not offer to check out a remote branch as if it were local", () => {
+    const remote = refMenu({ kind: "remote", isHead: false, hasUpstream: false });
+    expect(remote.find((entry) => entry.id === "delete-branch")).toBeUndefined();
+  });
+});

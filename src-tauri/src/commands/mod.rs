@@ -294,6 +294,52 @@ pub async fn create_branch(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn rename_branch(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    from: String,
+    to: String,
+    force: bool,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    blocking("rename_branch", move || {
+        app_state.rename_branch(repo, &from, &to, force)
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn set_upstream(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    branch: String,
+    upstream: Option<String>,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    blocking("set_upstream", move || {
+        app_state.set_upstream(repo, &branch, upstream.as_deref())
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_remote_branch(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    remote: String,
+    branch: String,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    blocking("delete_remote_branch", move || {
+        app_state.delete_remote_branch(repo, &remote, &branch)
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn delete_branch(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,

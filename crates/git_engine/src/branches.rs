@@ -46,6 +46,40 @@ impl RepoHandle {
         let flag = if force { "-D" } else { "-d" };
         self.run_git(&["branch", flag, "--", name]).map(drop)
     }
+
+    /// `git branch -m` moves HEAD with the branch, so a rename of the checked-out branch
+    /// needs no extra step.
+    pub fn rename_branch(&self, from: &str, to: &str, force: bool) -> Result<()> {
+        let from = require_name(from)?;
+        let to = require_name(to)?;
+        let flag = if force { "-M" } else { "-m" };
+        self.run_git(&["branch", flag, from, to]).map(drop)
+    }
+
+    /// `None` clears the tracking information rather than pointing it somewhere harmless.
+    pub fn set_upstream(&self, branch: &str, upstream: Option<&str>) -> Result<()> {
+        let branch = require_name(branch)?;
+        match upstream {
+            Some(upstream) => {
+                let upstream = require_name(upstream)?;
+                self.run_git(&["branch", "--set-upstream-to", upstream, branch])
+                    .map(drop)
+            }
+            None => self
+                .run_git(&["branch", "--unset-upstream", branch])
+                .map(drop),
+        }
+    }
+
+    /// `push --delete` rather than deleting the tracking ref: only the push reaches the
+    /// server's hooks and permissions, and a local ref deletion would quietly lie.
+    pub fn delete_remote_branch(&self, remote: &str, branch: &str) -> Result<()> {
+        let remote = require_name(remote)?;
+        let branch = require_name(branch)?;
+        // The panel shows `origin/topic`; the server wants `topic`.
+        let short = branch.strip_prefix(&format!("{remote}/")).unwrap_or(branch);
+        self.run_git(&["push", "--delete", remote, short]).map(drop)
+    }
 }
 
 fn require_name(name: &str) -> Result<&str> {

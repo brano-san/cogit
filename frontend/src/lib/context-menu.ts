@@ -41,7 +41,23 @@ export function branchMenu(at: { isHead: boolean; hasUpstream: boolean }): Conte
     item("merge-branch", "Merge into the current branch", !at.isHead),
     item("rebase-branch", "Rebase the current branch onto this one", !at.isHead),
     SEPARATOR,
+    item("rename-branch", "Rename this branch…"),
+    item("set-upstream", "Set the upstream…"),
+    item("clear-upstream", "Stop tracking an upstream", at.hasUpstream),
+    SEPARATOR,
     item("delete-branch", "Delete this branch", !at.isHead),
+  ];
+}
+
+/** A remote branch lives on the server: local deletion would be a lie, so it is not offered. */
+function remoteBranchMenu(): ContextItem[] {
+  return [
+    item("checkout", "Check out a local branch from this one"),
+    SEPARATOR,
+    item("merge-branch", "Merge into the current branch"),
+    item("rebase-branch", "Rebase the current branch onto this one"),
+    SEPARATOR,
+    item("delete-remote-branch", "Delete this branch on the remote…"),
   ];
 }
 
@@ -53,8 +69,9 @@ export function refMenu(at: {
 }): ContextItem[] {
   switch (at.kind) {
     case "local":
-    case "remote":
       return branchMenu({ isHead: at.isHead, hasUpstream: at.hasUpstream });
+    case "remote":
+      return remoteBranchMenu();
     case "tag":
       return [
         item("checkout-tag", "Check out this tag"),

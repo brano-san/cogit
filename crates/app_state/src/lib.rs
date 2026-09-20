@@ -533,6 +533,42 @@ impl AppState {
         self.handle(repo)?.create_branch(name, start, switch)
     }
 
+    pub fn rename_branch(
+        &self,
+        repo: RepoId,
+        from: &str,
+        to: &str,
+        force: bool,
+    ) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
+        self.tracked("Renaming branch", || {
+            self.handle(repo)?.rename_branch(from, to, force)
+        })
+    }
+
+    pub fn set_upstream(
+        &self,
+        repo: RepoId,
+        branch: &str,
+        upstream: Option<&str>,
+    ) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
+        self.handle(repo)?.set_upstream(branch, upstream)
+    }
+
+    /// Reaches the server, so it is tracked and journalled like any other network call.
+    pub fn delete_remote_branch(
+        &self,
+        repo: RepoId,
+        remote: &str,
+        branch: &str,
+    ) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
+        self.tracked("Deleting remote branch", || {
+            self.handle(repo)?.delete_remote_branch(remote, branch)
+        })
+    }
+
     pub fn delete_branch(
         &self,
         repo: RepoId,
