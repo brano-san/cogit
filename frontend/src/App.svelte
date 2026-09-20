@@ -1,16 +1,16 @@
 <script lang="ts">
   import { ask, open as openFolderDialog } from "@tauri-apps/plugin-dialog";
 
-  import RefTree from "$components/branch-tree/RefTree.svelte";
   import DiffPanel from "$components/panels/DiffPanel.svelte";
+  import ReferencesPanel from "$components/panels/ReferencesPanel.svelte";
+  import RepositoriesPanel from "$components/panels/RepositoriesPanel.svelte";
+  import GraphPanel from "$components/panels/GraphPanel.svelte";
+  import FilesPanel from "$components/panels/FilesPanel.svelte";
+  import CommitPanel from "$components/panels/CommitPanel.svelte";
   import CommitDetailsPane from "$components/panels/CommitDetailsPane.svelte";
-  import CommitBox from "$components/file-list/CommitBox.svelte";
   import SplitOffDialog from "$components/file-list/SplitOffDialog.svelte";
-  import FileList from "$components/file-list/FileList.svelte";
-  import CommitList from "$components/graph/CommitList.svelte";
   import GraphFilter from "$components/graph/GraphFilter.svelte";
   import RebaseEditor from "$components/graph/RebaseEditor.svelte";
-  import RebaseProgressView from "$components/graph/RebaseProgressView.svelte";
   import DropMenu from "$components/layout/DropMenu.svelte";
   import Panel from "$components/layout/Panel.svelte";
   import CommandPalette from "$components/layout/CommandPalette.svelte";
@@ -23,10 +23,8 @@
   import Splitter from "$components/layout/Splitter.svelte";
   import StatusBar from "$components/layout/StatusBar.svelte";
   import Toolbar from "$components/layout/Toolbar.svelte";
-  import RepositoryList from "$components/repo-tree/RepositoryList.svelte";
   import ScanDialog from "$components/repo-tree/ScanDialog.svelte";
   import PromptDialog from "$components/layout/PromptDialog.svelte";
-  import SubmoduleList from "$components/repo-tree/SubmoduleList.svelte";
   import { shortOid } from "$lib/format";
   import { checkedIds, disabledIds, type PaletteCommand } from "$lib/palette";
   import { pullRequestUrl } from "$lib/pull-request";
@@ -1558,7 +1556,7 @@ Log: ${info?.logPath ?? ""}`),
         onpointerenter={() => (focused = "repositories")}
       >
         <Panel title="Repositories" count={repository.openRepos.length}>
-          <RepositoryList
+          <RepositoriesPanel
             {opening}
             onscan={() => {
               scanOpen = true;
@@ -1567,11 +1565,8 @@ Log: ${info?.logPath ?? ""}`),
             onopen={pickRepository}
             onselect={(entry) => void activate(entry.root)}
             onclose={(entry) => void closeOne(entry)}
-          />
-          <SubmoduleList
-            modules={submodules.entries}
-            onopen={(module) => void activate(`${repo?.root ?? ""}/${module.path}`)}
-            onupdate={(module) => void refreshSubmodule(module)}
+            onopenmodule={(module) => void activate(`${repo?.root ?? ""}/${module.path}`)}
+            onupdatemodule={(module) => void refreshSubmodule(module)}
           />
         </Panel>
       </div>
@@ -1605,22 +1600,15 @@ Log: ${info?.logPath ?? ""}`),
               />
             {/if}
           {/snippet}
-          {#if repo}
-            <RefTree
-              input={refTreeInput}
-              visible={refs.visible}
-              onvisible={(next) => {
-                refs.set(next);
-                void reloadGraph();
-              }}
-              oncollapse={(id) => refs.collapse(id)}
-              onselect={selectRef}
-              oncheckout={switchTo}
-              onactivate={activateRef}
-              oncontext={(node, x, y) => void refContext(node, x, y)}
-              ondrop={onBranchDrop}
-            />
-          {/if}
+          <ReferencesPanel
+            input={refTreeInput}
+            onvisible={() => void reloadGraph()}
+            onselect={selectRef}
+            oncheckout={switchTo}
+            onactivate={activateRef}
+            oncontext={(node, x, y) => void refContext(node, x, y)}
+            ondrop={onBranchDrop}
+          />
         </Panel>
       </div>
       {/if}
@@ -1659,22 +1647,12 @@ Log: ${info?.logPath ?? ""}`),
                 <GraphFilter onchange={filterGraph} matches={graph.rows.length} />
               {/if}
             {/snippet}
-            {#if repo}
-              {#if progress}
-                <RebaseProgressView
-                  {progress}
-                  changes={worktree.total}
-                  staged={worktree.staged.length}
-                />
-              {/if}
-              <CommitList
-                ondrop={onCommitDrop}
-                oncontext={(oid, x, y) => void commitContext(oid, x, y)}
-                onref={(text) => (refFilter = text)}
-              />
-            {:else}
-              <p class="note">Open a repository to see its history.</p>
-            {/if}
+            <GraphPanel
+              {progress}
+              ondrop={onCommitDrop}
+              oncontext={(oid, x, y) => void commitContext(oid, x, y)}
+              onref={(text) => (refFilter = text)}
+            />
           </Panel>
         </div>
         {/if}
@@ -1702,52 +1680,24 @@ Log: ${info?.logPath ?? ""}`),
           aria-label={PANEL_TITLES.files}
           onpointerenter={() => (focused = "files")}>
           <Panel title="Files" count={onWorkingTree ? worktree.total : commit.files.length}>
-            <div class="files">
-            {#if onWorkingTree}
-              <FileList
-                view={filesView.current}
-                onview={(next) => {
-                  filesView.set(next);
-                  if (repo) void worktree.load(repo.repo);
-                }}
-                split={fractions.filesSplit}
-                onsplit={(delta) => layout.nudge("filesSplit", delta)}
-                onsplitreset={() => layout.resetOne("filesSplit")}
-                sections={[
-                  {
-                    title: "Unstaged",
-                    files: worktree.unstaged,
-                    onselect: openWorktreeDiff,
-                    actions: [
-                      { label: "Stage", title: "Stage", run: stage },
-                      { label: "+x", title: "Stage only the mode change", run: stageModeOnly },
-                      { label: "Discard", title: "Discard changes", run: discard },
-                      { label: "Ignore", title: "Add to .gitignore", run: ignore },
-                      { label: "Delete", title: "Delete from disk", run: deleteFromDisk },
-                    ],
-                  },
-                  {
-                    title: "Staged",
-                    files: worktree.staged,
-                    onselect: openStagedDiff,
-                    actions: [{ label: "Unstage", title: "Unstage", run: unstage }],
-                  },
-                ]}
-                empty="The working tree is clean."
-                selected={diff.path}
-                onopen={openInWindow}
-                onmask={(mask) => (fileMask = mask)}
-              />
-            {:else}
-              <FileList
-                sections={[{ files: commit.files }]}
-                empty="Select a commit to see the files it changed."
-                selected={diff.path}
-                onselect={openDiff}
-                onopen={openInWindow}
-              />
-            {/if}
-            </div>
+            <FilesPanel
+              {onWorkingTree}
+              onviewchange={(next) => {
+                filesView.set(next);
+                if (repo) void worktree.load(repo.repo);
+              }}
+              onopenworktree={openWorktreeDiff}
+              onopenstaged={openStagedDiff}
+              onopencommit={openDiff}
+              onopenwindow={openInWindow}
+              onmask={(mask) => (fileMask = mask)}
+              {stage}
+              stagemode={stageModeOnly}
+              {unstage}
+              {discard}
+              {ignore}
+              remove={deleteFromDisk}
+            />
           </Panel>
         </div>
         {/if}
@@ -1767,14 +1717,7 @@ Log: ${info?.logPath ?? ""}`),
           aria-label={PANEL_TITLES.commit}
           onpointerenter={() => (focused = "commit")}>
           <Panel title="Commit Message" count={worktree.staged.length}>
-            <CommitBox
-              {scope}
-              {template}
-              stagedCount={worktree.staged.length}
-              busy={worktree.loading}
-              draftKey={`cogit:draft:${repo?.root ?? ""}`}
-              oncommit={commitStaged}
-            />
+            <CommitPanel {scope} {template} oncommit={commitStaged} />
           </Panel>
         </div>
         {/if}
@@ -2063,20 +2006,6 @@ Log: ${info?.logPath ?? ""}`),
     border: 1px solid var(--field-border);
     border-radius: var(--r-sm);
     font-size: 10px;
-  }
-
-  .files {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    min-height: 0;
-  }
-
-  .note {
-    margin: 0;
-    padding: var(--sp-5);
-    font-size: var(--fs-dense);
-    color: var(--text-secondary);
   }
 
   /* Raw Git output is never reformatted or truncated (INV-05). */
