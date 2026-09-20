@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  capsules,
   formatCommitDate,
   headLabel,
   refLabels,
   relativeDate,
   shortOid,
   splitBranches,
+  type RefLabel,
 } from "./format";
 import type { Tag } from "./ipc";
 import type { Branch, Head } from "./ipc";
@@ -194,5 +196,38 @@ describe("relativeDate", () => {
 
   it("does not claim a future commit happened in the past", () => {
     expect(relativeDate(NOW + 600, 0, NOW)).toBe("just now");
+  });
+});
+
+describe("capsules", () => {
+  const many = (n: number): RefLabel[] =>
+    Array.from({ length: n }, (_, i) => ({ text: `branch-${i}`, kind: "local" as const }));
+
+  it("shows every label when there are few", () => {
+    const { shown, hidden } = capsules(many(2), 3);
+    expect(shown).toHaveLength(2);
+    expect(hidden).toEqual([]);
+  });
+
+  it("keeps the first labels and hides the rest", () => {
+    const { shown, hidden } = capsules(many(10), 3);
+    expect(shown.map((l) => l.text)).toEqual(["branch-0", "branch-1", "branch-2"]);
+    expect(hidden).toHaveLength(7);
+  });
+
+  it("reports the hidden ones so a tooltip can name them", () => {
+    expect(capsules(many(5), 2).hidden.map((l) => l.text)).toEqual([
+      "branch-2",
+      "branch-3",
+      "branch-4",
+    ]);
+  });
+
+  it("shows nothing when there is no room at all", () => {
+    expect(capsules(many(3), 0).shown).toEqual([]);
+  });
+
+  it("copes with an empty list", () => {
+    expect(capsules([], 3)).toEqual({ shown: [], hidden: [] });
   });
 });

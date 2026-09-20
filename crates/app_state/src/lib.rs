@@ -831,6 +831,20 @@ impl AppState {
         self.handle(repo)?.hooks()
     }
 
+    pub fn stage_mode(
+        &self,
+        repo: RepoId,
+        path: &str,
+        executable: bool,
+    ) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
+        self.handle(repo)?.stage_mode(path, executable)
+    }
+
+    pub fn commit_template(&self, repo: RepoId) -> Result<Option<String>, git_engine::GitError> {
+        self.handle(repo)?.commit_template()
+    }
+
     pub fn bypass_log(
         &self,
         repo: RepoId,

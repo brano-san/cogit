@@ -1,7 +1,7 @@
 <script lang="ts">
   import { settings } from "$stores/settings.svelte";
   import GraphCanvas from "$components/graph/GraphCanvas.svelte";
-  import { refLabels, shortOid } from "$lib/format";
+  import { capsules, refLabels, shortOid } from "$lib/format";
   import { DRAG_TYPE, parseDrag, serialiseDrag } from "$lib/drop-target";
   import { overlapLabel, overlapTooltip } from "$lib/overlap";
   import { overlap } from "$stores/overlap.svelte";
@@ -23,11 +23,15 @@
     /** A commit was dropped on another commit; the caller offers squash or reorder. */
     ondrop?: (source: string, target: string) => void;
     oncontext?: (oid: string, x: number, y: number) => void;
+    onref?: (text: string) => void;
   }
 
-  let { ondrop, oncontext }: Props = $props();
+  let { ondrop, oncontext, onref }: Props = $props();
 
   let over = $state<string | null>(null);
+
+  /** Enough for HEAD plus its upstream plus a tag; the rest fold into a `+N` capsule. */
+  const CAPSULE_ROOM = 3;
 
   /** Rows rendered beyond the viewport so a fast scroll does not show blanks. */
   const BUFFER_ROWS = 10;
@@ -171,18 +175,28 @@
         firstRow={Math.max(range.start - HEADER_ROWS, 0)}
         lastRow={range.end}
         rowOffset={HEADER_ROWS}
+        headLane={graph.rows[0]?.lane.lane ?? null}
       />
     </div>
 
     <div class="rows" style:height="{listRows * GRAPH.rowHeight}px">
       {#if range.start === 0}
-        <div class="row header" style:top="0px" style:padding-left="{gutter}px">
+        <button
+          type="button"
+          class="row header"
+          class:selected={selection.oid === null}
+          style:top="0px"
+          style:padding-left="{gutter}px"
+          title="Show the working tree in Files and Diff"
+          onclick={() => selection.clear()}
+        >
           <span class="summary truncate">{headerLabel}</span>
           {#if graph.loading}<span class="date">loading…</span>{/if}
-        </div>
+        </button>
       {/if}
 
       {#each visible as item (item.entry.commit.oid)}
+        {@const refs = capsules(labels.get(item.entry.commit.oid) ?? [], CAPSULE_ROOM)}
         <div
           class="row"
           class:selected={selection.oid === item.entry.commit.oid}
@@ -217,9 +231,24 @@
             }
           }}
         >
-          {#each labels.get(item.entry.commit.oid) ?? [] as label (label.text)}
-            <span class="capsule {label.kind}">{label.text}</span>
+          {#each refs.shown as label (label.text)}
+            <span
+              class="capsule {label.kind}"
+              role="button"
+              tabindex="-1"
+              title={label.text}
+              onclick={(event) => {
+                event.stopPropagation();
+                onref?.(label.text);
+              }}
+              onkeydown={(event) => event.key === "Enter" && onref?.(label.text)}
+            >{label.text}</span>
           {/each}
+          {#if refs.hidden.length > 0}
+            <span class="capsule more" title={refs.hidden.map((l) => l.text).join("\n")}
+              >+{refs.hidden.length}</span
+            >
+          {/if}
           <span class="summary truncate">{item.entry.commit.summary}</span>
           <span class="author truncate">{item.entry.commit.authorName}</span>
           <span class="date tabular"
@@ -290,8 +319,23 @@
     background: var(--state-selected);
   }
 
+  /* A button, so it needs the row geometry rather than the browser default. */
+  button.row {
+    width: 100%;
+    background: none;
+    color: inherit;
+    border: 0;
+    font: inherit;
+    text-align: left;
+  }
+
   .row.header .summary {
     color: var(--status-modify);
+  }
+
+  .capsule.more {
+    background: var(--surface-raised);
+    color: var(--text-secondary);
   }
 
   .capsule {
