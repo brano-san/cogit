@@ -57,5 +57,11 @@
 | F-051 | Cherry-pick | [F-051-cherry-pick.md](F-051-cherry-pick.md) |
 | F-052 | Revert | [F-052-revert.md](F-052-revert.md) |
 | F-053 | Потерянные коммиты | [F-053-lost-commits.md](F-053-lost-commits.md) |
+| F-054 | Несколько репозиториев | [F-054-multiple-repositories.md](F-054-multiple-repositories.md) |
+| F-055 | Восстановление списка | [F-055-repository-restore.md](F-055-repository-restore.md) |
+| F-056 | Сабмодули | [F-056-submodules.md](F-056-submodules.md) |
+| F-057 | Построчный стейджинг | [F-057-line-staging.md](F-057-line-staging.md) |
+| F-058 | Построчный unstage | [F-058-line-unstaging.md](F-058-line-unstaging.md) |
+| F-059 | Подсветка синтаксиса | [F-059-syntax-highlighting.md](F-059-syntax-highlighting.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.

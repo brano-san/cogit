@@ -35,7 +35,7 @@
 | M0 | Костяк, тулчейн, workspace | `DONE` | — | [M0](modules/M0-skeleton.md) |
 | M9 | Тестовые фикстуры | `DONE` | M0 | [M9](modules/M9-fixtures.md) |
 | M1 | Ядро Git и системный бэкенд | `WIP` (чтение, исполнитель команд и watcher готовы) | M0, M9 | [M1](modules/M1-core.md) |
-| M3 | Дерево репозиториев и сабмодули | `TODO` | M1, M2 | [M3](modules/M3-repo-tree.md) |
+| M3 | Дерево репозиториев и сабмодули | `WIP` (список репозиториев и сабмодули готовы) | M1, M2 | [M3](modules/M3-repo-tree.md) |
 | M4 | Граф истории и визуальный Rebase | `WIP` (граф, стриминг и фильтрация готовы) | M1, M2, M9 | [M4](modules/M4-graph.md) |
 | M2 | Макет, многооконность, меню | `WIP` (панели, диалог ошибок, Output готовы) | M0 | [M2](modules/M2-layout.md) |
 | M5 | Дерево ссылок и управление состоянием | `WIP` (ветки и журнал Undo готовы) | M1, M2 | [M5](modules/M5-references.md) |

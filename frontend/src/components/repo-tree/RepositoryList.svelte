@@ -1,12 +1,17 @@
 <script lang="ts">
+  import type { RepoOverview } from "$lib/ipc";
   import { repository } from "$stores/repository.svelte";
 
   interface Props {
     onopen: () => void;
+    onselect: (entry: RepoOverview) => void;
+    onclose: (entry: RepoOverview) => void;
   }
 
-  let { onopen }: Props = $props();
-  const repo = $derived(repository.current);
+  let { onopen, onselect, onclose }: Props = $props();
+
+  const active = $derived(repository.current?.repo);
+  const entries = $derived(repository.openRepos);
 </script>
 
 <div class="wrapper">
@@ -14,17 +19,47 @@
     {repository.busy ? "Opening…" : "Open Repository…"}
   </button>
 
-  {#if repo}
-    <div class="row selected" title={repo.root}>
-      <span class="icon" aria-hidden="true">🗁</span>
-      <span class="name truncate">{repo.name}</span>
-      {#if repo.isBare}<span class="badge">bare</span>{/if}
-    </div>
-    <div class="path truncate" title={repo.root}>{repo.root}</div>
-  {:else if repository.error}
-    <p class="error">{repository.error.message}</p>
+  {#if entries.length === 0}
+    {#if repository.error}
+      <p class="error">{repository.error.message}</p>
+    {:else}
+      <p class="empty">No repository open.</p>
+    {/if}
   {:else}
-    <p class="empty">No repository open.</p>
+    {#each entries as entry (entry.repo)}
+      <div
+        class="row"
+        class:selected={active?.valueOf() === entry.repo.valueOf()}
+        role="button"
+        tabindex="0"
+        title={entry.root}
+        onclick={() => onselect(entry)}
+        onkeydown={(event) => event.key === "Enter" && onselect(entry)}
+      >
+        <span class="icon" aria-hidden="true">🗁</span>
+        <span class="name truncate">{entry.name}</span>
+        {#if entry.dirty}<span class="dirty" title="Uncommitted changes">●</span>{/if}
+        {#if entry.branch}<span class="branch truncate">{entry.branch}</span>{/if}
+        {#if entry.ahead > 0 || entry.behind > 0}
+          <span class="track tabular"
+            >{entry.ahead > 0 ? "↑" + entry.ahead : ""}{entry.behind > 0
+              ? "↓" + entry.behind
+              : ""}</span
+          >
+        {/if}
+        <span
+          class="act"
+          role="button"
+          tabindex="-1"
+          title="Close {entry.name}"
+          onclick={(event) => {
+            event.stopPropagation();
+            onclose(entry);
+          }}
+          onkeydown={(event) => event.key === "Enter" && onclose(entry)}>✕</span
+        >
+      </div>
+    {/each}
   {/if}
 </div>
 
@@ -38,67 +73,78 @@
     width: calc(100% - var(--sp-5) * 2);
     margin: 0 var(--sp-5) var(--sp-4);
     height: var(--h-input);
-    border: 1px solid var(--field-border);
-    border-radius: var(--r-md);
     background: var(--surface-input);
     color: var(--text-primary);
-    font: inherit;
+    border: 1px solid var(--field-border);
+    border-radius: var(--r-sm);
     font-size: var(--fs-dense);
-    cursor: pointer;
-    transition: background var(--t-fast) var(--ease-out);
-  }
-
-  .open:hover:not(:disabled) {
-    background: var(--state-hover);
-  }
-
-  .open:disabled {
-    opacity: 0.5;
     cursor: default;
+  }
+
+  .open:not(:disabled):hover {
+    border-color: var(--status-ref);
   }
 
   .row {
     display: flex;
     align-items: center;
     gap: var(--sp-3);
-    height: var(--h-row);
+    height: 22px;
     padding: 0 var(--sp-5);
     font-size: var(--fs-dense);
-    position: relative;
+    white-space: nowrap;
+  }
+
+  .row:hover {
+    background: var(--state-hover);
   }
 
   .row.selected {
     background: var(--state-selected);
   }
 
-  .row.selected::before {
-    content: "";
-    position: absolute;
-    inset-block: 0;
-    inset-inline-start: 0;
-    width: 2px;
-    background: var(--status-ref);
+  .icon {
+    flex: 0 0 auto;
   }
 
   .name {
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     min-width: 0;
   }
 
-  .badge {
-    padding: 0 var(--sp-3);
-    border: 1px solid var(--status-stash);
-    border-radius: var(--r-sm);
-    color: var(--status-stash);
-    background: var(--c-stash-bg);
-    font-size: 10px;
-    line-height: 14px;
+  .dirty {
+    flex: 0 0 auto;
+    color: var(--status-modify);
+    font-size: 9px;
   }
 
-  .path {
-    padding: var(--sp-1) var(--sp-5) 0 calc(var(--sp-5) + 20px);
-    font-size: 11px;
+  .branch {
+    flex: 1 1 auto;
+    min-width: 0;
     color: var(--text-secondary);
+    font-size: 10px;
+  }
+
+  .track {
+    flex: 0 0 auto;
+    color: var(--status-ref);
+    font-size: 10px;
+  }
+
+  .act {
+    flex: 0 0 auto;
+    padding: 0 var(--sp-2, 3px);
+    color: var(--text-secondary);
+    opacity: 0;
+    cursor: default;
+  }
+
+  .row:hover .act {
+    opacity: 1;
+  }
+
+  .act:hover {
+    color: var(--status-delete);
   }
 
   .empty,

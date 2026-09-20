@@ -1,8 +1,8 @@
 //! Without normalization a Windows checkout shows every line of every file as changed (INV-08).
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum LineEnding {
     Lf,

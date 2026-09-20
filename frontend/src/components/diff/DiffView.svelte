@@ -1,14 +1,21 @@
 <script lang="ts">
-  import { flatten, pairRows, segments, type FlatEntry, type SideCell } from "$lib/diff-rows";
+  import { flatten, pairRows, type FlatEntry, type SideCell } from "$lib/diff-rows";
+  import { highlightLines, mergePieces, type Token } from "$lib/highlight";
+  import { hunkSelection, lineKey, toggleLine } from "$lib/selection";
   import { visibleRange } from "$lib/graph-geometry";
   import type { FileDiff, Hunk } from "$lib/ipc";
 
   interface Props {
     diff: FileDiff;
     path: string;
+    /** Only the working tree can be staged; a commit's diff is read-only. */
+    stageable?: boolean;
+    onstage?: (selected: ReadonlySet<string>, reverse: boolean) => void;
   }
 
-  let { diff, path }: Props = $props();
+  let { diff, path, stageable = false, onstage }: Props = $props();
+
+  let selected = $state<Set<string>>(new Set());
 
   const ROW_HEIGHT = 18;
   const BUFFER_ROWS = 12;
@@ -20,6 +27,41 @@
   let current = $state(0);
 
   const hunks = $derived<Hunk[]>(diff.kind === "text" ? diff.hunks : []);
+  const language = $derived(diff.kind === "text" ? diff.language : null);
+
+  /** Parsed once per diff, per side: a block comment must survive the line it opened on. */
+  const tokens = $derived.by(() => {
+    const oldLines: string[] = [];
+    const newLines: string[] = [];
+    const oldAt = new Map<string, number>();
+    const newAt = new Map<string, number>();
+
+    for (const hunk of hunks) {
+      for (const row of hunk.rows) {
+        if (row.kind === "context") {
+          oldAt.set("c" + row.old, oldLines.push(row.text) - 1);
+          newAt.set("c" + row.new, newLines.push(row.text) - 1);
+        } else if (row.kind === "delete") {
+          oldAt.set("d" + row.old, oldLines.push(row.text) - 1);
+        } else if (row.kind === "insert") {
+          newAt.set("i" + row.new, newLines.push(row.text) - 1);
+        }
+      }
+    }
+    return {
+      old: highlightLines(oldLines, language),
+      new: highlightLines(newLines, language),
+      oldAt,
+      newAt,
+    };
+  });
+
+  function tokensFor(row: import("$lib/ipc").DiffRow): Token[] {
+    if (row.kind === "delete") return tokens.old[tokens.oldAt.get("d" + row.old) ?? -1] ?? [];
+    if (row.kind === "insert") return tokens.new[tokens.newAt.get("i" + row.new) ?? -1] ?? [];
+    if (row.kind === "context") return tokens.old[tokens.oldAt.get("c" + row.old) ?? -1] ?? [];
+    return [];
+  }
   const unified = $derived(flatten(hunks));
   const split = $derived.by(() => {
     const out: { hunk: number; header?: string; pair?: ReturnType<typeof pairRows>[number] }[] = [];
@@ -49,8 +91,39 @@
     return cell.kind === "delete" ? "−" : cell.kind === "insert" ? "+" : " ";
   }
 
+  function pick(row: import("$lib/ipc").DiffRow) {
+    const key = lineKey(row);
+    if (key && stageable) selected = toggleLine(selected, key);
+  }
+
+  function pickHunk(index: number) {
+    const hunk = hunks[index];
+    if (!hunk || !stageable) return;
+    const keys = hunkSelection(hunk);
+    const all = [...keys].every((key) => selected.has(key));
+    const next = new Set(selected);
+    for (const key of keys) {
+      if (all) next.delete(key);
+      else next.add(key);
+    }
+    selected = next;
+  }
+
+  function apply(reverse: boolean) {
+    if (selected.size === 0) return;
+    onstage?.(selected, reverse);
+    selected = new Set();
+  }
+
   function cells(cell: SideCell | null) {
-    return cell ? segments(cell.text, cell.inline) : [];
+    if (!cell) return [];
+    const row =
+      cell.kind === "delete"
+        ? ({ kind: "delete", old: cell.line, text: cell.text, inline: cell.inline } as const)
+        : cell.kind === "insert"
+          ? ({ kind: "insert", new: cell.line, text: cell.text, inline: cell.inline } as const)
+          : ({ kind: "context", old: cell.line, new: cell.line, text: cell.text } as const);
+    return mergePieces(cell.text, tokensFor(row), cell.inline);
   }
 
   function jump(delta: number) {
@@ -77,6 +150,7 @@
   $effect(() => {
     void path;
     current = 0;
+    selected = new Set();
     if (scroller) scroller.scrollTop = 0;
   });
 </script>
@@ -91,6 +165,15 @@
       {#if diff.lossyEncoding}<span class="warn">not valid UTF-8</span>{/if}
       <button type="button" onclick={() => jump(-1)} title="Previous change (Shift+F6)">▲</button>
       <button type="button" onclick={() => jump(1)} title="Next change (F6)">▼</button>
+      {#if stageable}
+        <span class="picked tabular">{selected.size ? `${selected.size} selected` : ""}</span>
+        <button type="button" disabled={selected.size === 0} onclick={() => apply(false)}
+          >Stage lines</button
+        >
+        <button type="button" disabled={selected.size === 0} onclick={() => apply(true)}
+          >Unstage lines</button
+        >
+      {/if}
       <button
         type="button"
         class="mode"
@@ -120,25 +203,57 @@
           {#each unified.slice(range.start, range.end) as entry, index (range.start + index)}
             <div class="line" style:top="{(range.start + index) * ROW_HEIGHT}px">
               {#if entry.kind === "header"}
-                <span class="header mono">{entry.text}</span>
+                <span
+                  class="header mono"
+                  class:clickable={stageable}
+                  role="button"
+                  tabindex="-1"
+                  onclick={() => pickHunk(entry.hunk)}
+                  onkeydown={(e) => e.key === "Enter" && pickHunk(entry.hunk)}>{entry.text}</span
+                >
               {:else if entry.row.kind === "context"}
+                <span class="gutter"></span>
                 <span class="num">{entry.row.old}</span>
                 <span class="num">{entry.row.new}</span>
-                <span class="code mono"> {entry.row.text}</span>
+                <span class="code mono"
+                  > {#each mergePieces(entry.row.text, tokensFor(entry.row), []) as piece, i (i)}<span
+                      class={piece.cls}>{piece.text}</span
+                    >{/each}</span
+                >
               {:else if entry.row.kind === "delete"}
+                <span
+                  class="gutter"
+                  class:picked={selected.has("d:" + entry.row.old)}
+                  role="button"
+                  tabindex="-1"
+                  onclick={() => pick(entry.row)}
+                  onkeydown={(e) => e.key === "Enter" && pick(entry.row)}
+                  >{stageable ? (selected.has("d:" + entry.row.old) ? "■" : "□") : ""}</span
+                >
                 <span class="num">{entry.row.old}</span>
                 <span class="num"></span>
                 <span class="code mono del"
-                  >−{#each segments(entry.row.text, entry.row.inline) as part, i (i)}<span
-                      class:word={part.changed}>{part.text}</span
+                  >−{#each mergePieces(entry.row.text, tokensFor(entry.row), entry.row.inline) as piece, i (i)}<span
+                      class="{piece.cls}"
+                      class:word={piece.changed}>{piece.text}</span
                     >{/each}</span
                 >
               {:else if entry.row.kind === "insert"}
+                <span
+                  class="gutter"
+                  class:picked={selected.has("i:" + entry.row.new)}
+                  role="button"
+                  tabindex="-1"
+                  onclick={() => pick(entry.row)}
+                  onkeydown={(e) => e.key === "Enter" && pick(entry.row)}
+                  >{stageable ? (selected.has("i:" + entry.row.new) ? "■" : "□") : ""}</span
+                >
                 <span class="num"></span>
                 <span class="num">{entry.row.new}</span>
                 <span class="code mono add"
-                  >+{#each segments(entry.row.text, entry.row.inline) as part, i (i)}<span
-                      class:word={part.changed}>{part.text}</span
+                  >+{#each mergePieces(entry.row.text, tokensFor(entry.row), entry.row.inline) as piece, i (i)}<span
+                      class="{piece.cls}"
+                      class:word={piece.changed}>{piece.text}</span
                     >{/each}</span
                 >
               {/if}
@@ -152,14 +267,16 @@
               {:else if entry.pair}
                 <span class="num">{entry.pair.left?.line ?? ""}</span>
                 <span class="code mono side" class:del={entry.pair.left?.kind === "delete"}
-                  >{sign(entry.pair.left)}{#each cells(entry.pair.left) as part, i (i)}<span
-                      class:word={part.changed}>{part.text}</span
+                  >{sign(entry.pair.left)}{#each cells(entry.pair.left) as piece, i (i)}<span
+                      class="{piece.cls}"
+                      class:word={piece.changed}>{piece.text}</span
                     >{/each}</span
                 >
                 <span class="num">{entry.pair.right?.line ?? ""}</span>
                 <span class="code mono side" class:add={entry.pair.right?.kind === "insert"}
-                  >{sign(entry.pair.right)}{#each cells(entry.pair.right) as part, i (i)}<span
-                      class:word={part.changed}>{part.text}</span
+                  >{sign(entry.pair.right)}{#each cells(entry.pair.right) as piece, i (i)}<span
+                      class="{piece.cls}"
+                      class:word={piece.changed}>{piece.text}</span
                     >{/each}</span
                 >
               {/if}
@@ -239,6 +356,28 @@
     height: 18px;
     font-size: var(--fs-code);
     white-space: pre;
+  }
+
+  .gutter {
+    flex: 0 0 auto;
+    width: 14px;
+    color: var(--text-secondary);
+    font-size: 9px;
+    text-align: center;
+    cursor: default;
+  }
+
+  .gutter.picked {
+    color: var(--status-add);
+  }
+
+  .header.clickable:hover {
+    color: var(--status-add);
+  }
+
+  .picked {
+    color: var(--status-add);
+    font-size: 10px;
   }
 
   .num {

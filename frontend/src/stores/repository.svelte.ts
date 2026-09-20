@@ -1,10 +1,40 @@
 import { headLabel, splitBranches } from "$lib/format";
-import { CogitError, openRepository, repoStatus, type RepoSummary } from "$lib/ipc";
+import {
+  closeRepository,
+  CogitError,
+  listRepositories,
+  openRepository,
+  repoStatus,
+  type RepoId,
+  type RepoOverview,
+  type RepoSummary,
+} from "$lib/ipc";
+
+/** Roots are remembered so the tree comes back with the same repositories after a restart. */
+const REMEMBERED = "cogit:repositories";
+
+function remembered(): string[] {
+  try {
+    const raw = localStorage.getItem(REMEMBERED);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function remember(roots: string[]): void {
+  try {
+    localStorage.setItem(REMEMBERED, JSON.stringify(roots));
+  } catch {
+    // A blocked store costs the user the list on restart, nothing more.
+  }
+}
 
 class RepositoryStore {
   current = $state<RepoSummary | null>(null);
   error = $state<CogitError | null>(null);
   busy = $state(false);
+  openRepos = $state.raw<RepoOverview[]>([]);
 
   get localBranches() {
     return splitBranches(this.current?.branches ?? []).local;
@@ -49,6 +79,31 @@ class RepositoryStore {
   async refresh(): Promise<void> {
     const root = this.current?.root;
     if (root) await this.open(root);
+  }
+
+  async refreshList(): Promise<void> {
+    this.openRepos = await listRepositories();
+    remember(this.openRepos.map((entry) => entry.root));
+  }
+
+  /** Reopens everything the previous session had, ignoring paths that are gone. */
+  async restore(): Promise<string[]> {
+    const failed: string[] = [];
+    for (const root of remembered()) {
+      try {
+        await openRepository(root);
+      } catch {
+        failed.push(root);
+      }
+    }
+    await this.refreshList();
+    return failed;
+  }
+
+  async closeOne(repo: RepoId): Promise<void> {
+    await closeRepository(repo);
+    if (this.current?.repo === repo) this.current = null;
+    await this.refreshList();
   }
 
   close(): void {

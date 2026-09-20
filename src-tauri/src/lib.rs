@@ -71,7 +71,12 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::cherry_pick,
             commands::revert,
             commands::reflog,
-            commands::lost_commits
+            commands::lost_commits,
+            commands::repositories,
+            commands::close_repository,
+            commands::submodules,
+            commands::update_submodule,
+            commands::stage_selection
         ])
 }
 
