@@ -125,6 +125,8 @@ export const commands = {
 	stageMode: (repo: RepoId, path: string, executable: boolean) => typedError<null, GitError>(__TAURI_INVOKE("stage_mode", { repo, path, executable })),
 	listPresets: () => typedError<PresetStatus[], GitError>(__TAURI_INVOKE("list_presets")),
 	installPreset: (repo: RepoId, id: string) => typedError<null, GitError>(__TAURI_INVOKE("install_preset", { repo, id })),
+	/**  Every file of a commit in one round trip, diffed in parallel (doc/08-diff-engine.md §9). */
+	diffFiles: (repo: RepoId, spec: DiffSpec, paths: string[], options: DiffOptions) => typedError<FileDiffEntry[], GitError>(__TAURI_INVOKE("diff_files", { repo, spec, paths, options })),
 };
 
 /** Events */
@@ -270,6 +272,15 @@ language: string | null } | { kind: "eolOnly"; from: LineEnding; to: LineEnding 
  *  `Unchanged` so the UI can say the diff is being filtered (T7.10).
  */
 { kind: "whitespaceOnly" };
+
+/**
+ *  Named rather than a tuple: a positional pair crossing IPC reads as `[string, FileDiff]`
+ *  on the other side, and nothing there says which half is which.
+ */
+export type FileDiffEntry = {
+	path: string,
+	diff: FileDiff,
+};
 
 export type FileEntry = {
 	path: string,

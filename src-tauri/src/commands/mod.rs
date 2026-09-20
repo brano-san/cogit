@@ -1118,3 +1118,31 @@ pub async fn install_preset(
 }
 
 // ─── everything below this line belongs to the diff-merge branch; master appends above ───
+
+/// Every file of a commit in one round trip, diffed in parallel (doc/08-diff-engine.md §9).
+#[tauri::command]
+#[specta::specta]
+pub async fn diff_files(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    spec: DiffSpec,
+    paths: Vec<String>,
+    options: DiffOptions,
+) -> Result<Vec<diff_engine::FileDiffEntry>, GitError> {
+    let app_state = state.state.clone();
+    let started = std::time::Instant::now();
+    let requested = paths.len();
+
+    let diffs = blocking("diff_files", move || {
+        app_state.diff_files(repo, &spec, &paths, &options)
+    })
+    .await?;
+
+    tracing::debug!(
+        repo = repo.0,
+        files = requested,
+        elapsed_ms = started.elapsed().as_millis(),
+        "commit files diffed"
+    );
+    Ok(diffs)
+}
