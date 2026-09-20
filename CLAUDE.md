@@ -112,13 +112,25 @@ logic, virtualization and geometry; do not test markup.
 
 ```bash
 cargo check -p git_engine            # fastest feedback
-cargo test -p diff_engine
-cargo test -p graph_engine
+cargo nextest run -p diff_engine     # nextest: one pool, not eighty binaries in a row
+cargo nextest run -p graph_engine
 cargo insta review                   # inspect snapshot changes, never accept blindly
 ```
 
-Avoid full-workspace rebuilds during micro-iterations. Full `cargo test --workspace`
-before committing.
+Avoid full-workspace rebuilds during micro-iterations.
+
+The hooks split the work by what it costs. `pre-commit` runs the crates you touched plus
+their consumers, and leaves out the tests that measure time and the integration suites
+that drive real git operations. `pre-push` runs everything. A commit is about a minute.
+Install the runner once:
+
+```bash
+cargo install cargo-nextest --locked   # or the prebuilt binary from get.nexte.st
+```
+
+Fixtures are built with `fast-import` where the shape allows it — two processes per commit
+is what made the suite slow (R-56). `fast-import` writes no reflog and does not merge
+trees, so a test about either has to arrange it itself.
 
 Test fixtures generate temporary repositories with the **system git**, with `HOME` and
 `GIT_CONFIG_GLOBAL` redirected so the developer's own `.gitconfig` cannot skew results.
@@ -166,7 +178,7 @@ Then, by hand:
 ```bash
 # Rust
 cargo check --workspace
-cargo test --workspace
+cargo nextest run --workspace --exclude cogit
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all
 cargo deny check
