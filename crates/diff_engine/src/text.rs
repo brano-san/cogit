@@ -256,6 +256,7 @@ fn build(
                     .unwrap_or_default(),
                 moved: false,
                 move_id: None,
+                move_scope: None,
                 no_newline: open.old && index as usize + 1 == old_lines.len(),
             });
         }
@@ -269,6 +270,7 @@ fn build(
                     .unwrap_or_default(),
                 moved: false,
                 move_id: None,
+                move_scope: None,
                 no_newline: open.new && index as usize + 1 == new_lines.len(),
             });
         }
