@@ -377,6 +377,71 @@ pub fn safety_log(state: tauri::State<'_, crate::AppContext>) -> Vec<SafetyEntry
     state.state.safety_log()
 }
 
+#[tauri::command]
+#[specta::specta]
+pub async fn worktrees(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<Vec<git_engine::WorktreeEntry>, GitError> {
+    let app_state = state.state.clone();
+    blocking("worktrees", move || app_state.worktrees(repo)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn worktree_holding(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    branch: String,
+) -> Result<Option<git_engine::WorktreeEntry>, GitError> {
+    let app_state = state.state.clone();
+    blocking("worktree_holding", move || {
+        app_state.worktree_holding(repo, &branch)
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn add_worktree(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    path: String,
+    branch: String,
+    create: bool,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    blocking("add_worktree", move || {
+        app_state.add_worktree(repo, &path, &branch, create)
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn remove_worktree(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    path: String,
+    force: bool,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    blocking("remove_worktree", move || {
+        app_state.remove_worktree(repo, &path, force)
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn prune_worktrees(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    blocking("prune_worktrees", move || app_state.prune_worktrees(repo)).await
+}
+
 /// The terminals this platform can offer, for the settings dropdown.
 #[tauri::command]
 #[specta::specta]

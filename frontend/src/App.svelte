@@ -92,6 +92,7 @@
   import { commit } from "$stores/commit.svelte";
   import { conflicts } from "$stores/conflicts.svelte";
   import { worktree } from "$stores/worktree.svelte";
+  import { worktrees } from "$stores/worktrees.svelte";
   import { diff } from "$stores/diff.svelte";
   import { errors } from "$stores/errors.svelte";
   import { output } from "$stores/output.svelte";
@@ -750,6 +751,17 @@ Log: ${info?.logPath ?? ""}`),
   async function switchTo(branch: Branch) {
     const id = repository.current?.repo;
     if (!id) return;
+
+    const elsewhere = await worktrees.holding(id, branch.name);
+    if (elsewhere && !elsewhere.missing) {
+      const go = await ask(
+        `${branch.name} is checked out in the worktree at ${elsewhere.path}. Switch to it?`,
+        { title: "Branch is in another worktree", kind: "info" },
+      );
+      if (go) await activate(elsewhere.path);
+      return;
+    }
+
     try {
       await checkout(id, { kind: "branch", name: branch.name });
     } catch (err) {
@@ -1127,6 +1139,7 @@ Log: ${info?.logPath ?? ""}`),
     submodules.clear();
     conflicts.clear();
     stashView.clear();
+    worktrees.clear();
     refs.clear();
     const watch = measure("open-repository");
     await repository.open(root);
@@ -1135,6 +1148,7 @@ Log: ${info?.logPath ?? ""}`),
       refs.adopt(opened.root, buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() }));
       void reloadGraph();
       void refs.loadUrls(opened.repo);
+      void worktrees.refresh(opened.repo);
       await repository.refreshList();
       await afterMutation();
     } else {
@@ -1435,6 +1449,49 @@ Log: ${info?.logPath ?? ""}`),
   async function primaryRemote(id: import("$lib/ipc").RepoId): Promise<string | null> {
     const names = await listRemotes(id).catch(() => [] as string[]);
     return names.includes("origin") ? "origin" : (names[0] ?? null);
+  }
+
+  /** A worktree with work in it is not removed on a single click. */
+  async function removeWorktreeAt(entry: import("$lib/ipc").WorktreeEntry) {
+    const id = repo?.repo;
+    if (!id) return;
+    const warning = entry.dirty
+      ? " It has uncommitted changes, which will be lost."
+      : "";
+    const confirmed = await ask(`Remove the worktree at ${entry.path}?${warning}`, {
+      title: "Remove worktree",
+      kind: entry.dirty ? "warning" : "info",
+    });
+    if (!confirmed) return;
+    await worktrees
+      .remove(id, entry.path, entry.dirty)
+      .catch((err) => errors.report(err as never));
+  }
+
+  async function pruneWorktreesHere() {
+    const id = repo?.repo;
+    if (!id) return;
+    await worktrees.prune(id).catch((err) => errors.report(err as never));
+  }
+
+  function askAddWorktree() {
+    const id = repo?.repo;
+    if (!id) return;
+    prompt = {
+      title: "Add a worktree",
+      label: "New branch name",
+      value: "",
+      confirm: "Choose folder…",
+      run: (branch) => {
+        prompt = null;
+        void openFolderDialog({ directory: true, title: "Folder for the new worktree" })
+          .then((picked) => {
+            if (typeof picked !== "string") return;
+            return worktrees.add(id, picked, branch, true);
+          })
+          .catch((err) => errors.report(err as never));
+      },
+    };
   }
 
   async function repoContext(entry: import("$lib/ipc").RepoOverview, x: number, y: number) {
@@ -1743,6 +1800,10 @@ Log: ${info?.logPath ?? ""}`),
             onclose={(entry) => void closeOne(entry)}
             oncontext={(entry, x, y) => void repoContext(entry, x, y)}
             onmarked={(roots) => (markedRepos = roots)}
+            onopenworktree={(entry) => void activate(entry.path)}
+            onremoveworktree={(entry) => void removeWorktreeAt(entry)}
+            onaddworktree={() => askAddWorktree()}
+            onpruneworktrees={() => void pruneWorktreesHere()}
             onopenmodule={(module) => void activate(`${repo?.root ?? ""}/${module.path}`)}
             onupdatemodule={(module) => void refreshSubmodule(module)}
           />
