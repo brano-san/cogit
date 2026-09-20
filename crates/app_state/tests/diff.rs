@@ -209,3 +209,79 @@ fn a_hunk_header_names_the_function_it_is_inside() {
         other => panic!("expected a text diff, got {other:?}"),
     }
 }
+
+#[test]
+fn move_detection_can_be_turned_off() {
+    let block = "alpha\nbeta\ngamma\n";
+    let body = "one\ntwo\nthree\nfour\nfive\n";
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::write(f.path().join("moved.txt"), format!("{block}{body}")).unwrap();
+    f.git(&["add", "--", "moved.txt"]).unwrap();
+    f.commit_staged(1, "add a block").unwrap();
+    std::fs::write(f.path().join("moved.txt"), format!("{body}{block}")).unwrap();
+    f.git(&["add", "--", "moved.txt"]).unwrap();
+    f.commit_staged(2, "move the block").unwrap();
+
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let options = DiffOptions {
+        detect_moves: false,
+        ..DiffOptions::default()
+    };
+
+    let diff = state
+        .diff_file(repo, &head_vs_parent(&f), "moved.txt", &options)
+        .unwrap();
+
+    match diff {
+        FileDiff::Text { hunks, .. } => assert!(
+            hunks
+                .iter()
+                .flat_map(|hunk| &hunk.rows)
+                .all(|row| !matches!(
+                    row,
+                    diff_engine::DiffRow::Delete { moved: true, .. }
+                        | diff_engine::DiffRow::Insert { moved: true, .. }
+                )),
+            "{hunks:?}"
+        ),
+        other => panic!("expected a text diff, got {other:?}"),
+    }
+}
+
+#[test]
+fn move_detection_is_on_by_default() {
+    let block = "alpha\nbeta\ngamma\n";
+    let body = "one\ntwo\nthree\nfour\nfive\n";
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::write(f.path().join("moved.txt"), format!("{block}{body}")).unwrap();
+    f.git(&["add", "--", "moved.txt"]).unwrap();
+    f.commit_staged(1, "add a block").unwrap();
+    std::fs::write(f.path().join("moved.txt"), format!("{body}{block}")).unwrap();
+    f.git(&["add", "--", "moved.txt"]).unwrap();
+    f.commit_staged(2, "move the block").unwrap();
+
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let diff = state
+        .diff_file(
+            repo,
+            &head_vs_parent(&f),
+            "moved.txt",
+            &DiffOptions::default(),
+        )
+        .unwrap();
+
+    match diff {
+        FileDiff::Text { hunks, .. } => assert!(
+            hunks.iter().flat_map(|hunk| &hunk.rows).any(|row| matches!(
+                row,
+                diff_engine::DiffRow::Delete { moved: true, .. }
+                    | diff_engine::DiffRow::Insert { moved: true, .. }
+            )),
+            "{hunks:?}"
+        ),
+        other => panic!("expected a text diff, got {other:?}"),
+    }
+}

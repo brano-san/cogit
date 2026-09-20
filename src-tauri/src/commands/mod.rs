@@ -1,6 +1,6 @@
 use app_state::{DEFAULT_CHUNK_SIZE, GraphChunk, RepoId, RepoOverview, RepoSummary, SafetyEntry};
 use diff_engine::{DiffOptions, FileDiff, PatchRequest};
-use git_engine::{BlameLine, CommitRow, Submodule};
+use git_engine::{BlameLine, CommitRow, ConflictSide, Found, Submodule};
 use git_engine::{
     CheckoutTarget, CommitDetails, CommitQuery, CommitRequest, DiffSpec, FileEntry, GitError,
     WorktreeFiles,
@@ -643,4 +643,71 @@ pub async fn image_sides(
     tokio::task::spawn_blocking(move || app_state.image_sides(repo, &spec, &path))
         .await
         .map_err(|err| GitError::Internal(format!("image_sides task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn conflicted_paths(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<Vec<String>, GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.conflicted_paths(repo))
+        .await
+        .map_err(|err| GitError::Internal(format!("conflicted_paths task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn conflict_text(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    path: String,
+) -> Result<git_engine::ConflictText, GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.conflict_text(repo, &path))
+        .await
+        .map_err(|err| GitError::Internal(format!("conflict_text task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn resolve_conflict(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    path: String,
+    side: ConflictSide,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.resolve_conflict(repo, &path, side))
+        .await
+        .map_err(|err| GitError::Internal(format!("resolve_conflict task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn resolve_conflict_text(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    path: String,
+    text: String,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.resolve_conflict_text(repo, &path, &text))
+        .await
+        .map_err(|err| GitError::Internal(format!("resolve_conflict_text task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn find_object(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    query: String,
+    limit: u32,
+) -> Result<Vec<Found>, GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.find(repo, &query, limit))
+        .await
+        .map_err(|err| GitError::Internal(format!("find_object task failed: {err}")))?
 }

@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { formatCommitDate, shortOid } from "$lib/format";
+  import { settings } from "$stores/settings.svelte";
+  import { shortOid } from "$lib/format";
   import { visibleRange } from "$lib/graph-geometry";
   import type { BlameLine } from "$lib/ipc";
 
@@ -65,7 +66,7 @@
             >
               <span class="oid mono">{shortOid(item.line.oid)}</span>
               <span class="author truncate">{item.line.author}</span>
-              <span class="date tabular">{formatCommitDate(item.line.timestamp, 0)}</span>
+              <span class="date tabular">{settings.formatDate(item.line.timestamp, 0)}</span>
             </span>
           {:else}
             <span class="annotation"></span>

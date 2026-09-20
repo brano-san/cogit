@@ -265,7 +265,7 @@
                 >
                 <span class="num">{entry.row.old}</span>
                 <span class="num"></span>
-                <span class="code mono del"
+                <span class="code mono del" class:moved={entry.row.moved}
                   >−{#each mergePieces(entry.row.text, tokensFor(entry.row), entry.row.inline) as piece, i (i)}<span
                       class="{piece.cls}"
                       class:word={piece.changed}>{piece.text}</span
@@ -283,7 +283,7 @@
                 >
                 <span class="num"></span>
                 <span class="num">{entry.row.new}</span>
-                <span class="code mono add"
+                <span class="code mono add" class:moved={entry.row.moved}
                   >+{#each mergePieces(entry.row.text, tokensFor(entry.row), entry.row.inline) as piece, i (i)}<span
                       class="{piece.cls}"
                       class:word={piece.changed}>{piece.text}</span
@@ -299,14 +299,20 @@
                 <span class="header mono">{entry.header}</span>
               {:else if entry.pair}
                 <span class="num">{entry.pair.left?.line ?? ""}</span>
-                <span class="code mono side" class:del={entry.pair.left?.kind === "delete"}
+                <span
+                  class="code mono side"
+                  class:del={entry.pair.left?.kind === "delete"}
+                  class:moved={entry.pair.left?.moved}
                   >{sign(entry.pair.left)}{#each cells(entry.pair.left) as piece, i (i)}<span
                       class="{piece.cls}"
                       class:word={piece.changed}>{piece.text}</span
                     >{/each}</span
                 >
                 <span class="num">{entry.pair.right?.line ?? ""}</span>
-                <span class="code mono side" class:add={entry.pair.right?.kind === "insert"}
+                <span
+                  class="code mono side"
+                  class:add={entry.pair.right?.kind === "insert"}
+                  class:moved={entry.pair.right?.moved}
                   >{sign(entry.pair.right)}{#each cells(entry.pair.right) as piece, i (i)}<span
                       class="{piece.cls}"
                       class:word={piece.changed}>{piece.text}</span
@@ -444,6 +450,12 @@
     border-radius: 2px;
     background: rgb(255 255 255 / 14%);
     font-weight: 600;
+  }
+
+  /* A moved block is one fact, not a deletion plus an addition (T7.9). */
+  .code.moved {
+    background: var(--c-stash-bg, rgb(70 60 95 / 35%));
+    color: var(--status-stash);
   }
 
   .code.del {

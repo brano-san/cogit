@@ -1,8 +1,13 @@
 /** Single-sourced so the list and the canvas cannot drift apart (doc/12-risks.md, R-03). */
 
+const LANE_WIDTH = { default: 14, min: 8, max: 40 } as const;
+let laneWidth: number = LANE_WIDTH.default;
+
 export const GRAPH = {
   rowHeight: 22,
-  laneWidth: 14,
+  get laneWidth() {
+    return laneWidth;
+  },
   leftPad: 10,
   nodeRadius: 3.5,
   mergeRadius: 4.5,
@@ -30,6 +35,11 @@ export function visibleRange(
   const start = Math.min(Math.max(first, 0), totalRows);
   const end = Math.min(Math.max(last, start), totalRows);
   return { start, end };
+}
+
+/** Clamped again here: the canvas must stay drawable whatever the settings file holds. */
+export function setLaneWidth(px: number): void {
+  laneWidth = Math.min(Math.max(Math.round(px), LANE_WIDTH.min), LANE_WIDTH.max);
 }
 
 export function laneX(lane: number): number {
@@ -69,7 +79,6 @@ export function hitTest(
   return { row, lane };
 }
 
-/** Rounded up: a fractional ratio leaves the last row a pixel short. */
 export function canvasPixelSize(cssWidth: number, cssHeight: number, dpr: number) {
   const ratio = dpr > 0 ? dpr : 1;
   return {

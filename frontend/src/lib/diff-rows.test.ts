@@ -6,10 +6,10 @@ function context(old: number, nw: number, text: string): DiffRow {
   return { kind: "context", old, new: nw, text };
 }
 function del(old: number, text: string): DiffRow {
-  return { kind: "delete", old, text, inline: [] };
+  return { kind: "delete", old, text, inline: [], moved: false };
 }
 function ins(nw: number, text: string): DiffRow {
-  return { kind: "insert", new: nw, text, inline: [] };
+  return { kind: "insert", new: nw, text, inline: [], moved: false };
 }
 function hunk(rows: DiffRow[], header = "@@ -1,1 +1,1 @@"): Hunk {
   return { oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, header, rows };
@@ -20,8 +20,8 @@ describe("pairRows", () => {
     const pairs = pairRows([context(1, 1, "same")]);
 
     expect(pairs).toHaveLength(1);
-    expect(pairs[0]!.left).toEqual({ kind: "context", line: 1, text: "same", inline: [] });
-    expect(pairs[0]!.right).toEqual({ kind: "context", line: 1, text: "same", inline: [] });
+    expect(pairs[0]!.left).toMatchObject({ kind: "context", line: 1, text: "same" });
+    expect(pairs[0]!.right).toMatchObject({ kind: "context", line: 1, text: "same" });
   });
 
   it("pairs a replaced line with its replacement", () => {

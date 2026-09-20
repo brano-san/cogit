@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { formatCommitDate } from "$lib/format";
+  import { settings } from "$stores/settings.svelte";
   import type { StashEntry } from "$lib/ipc";
 
   interface Props {
@@ -18,7 +18,7 @@
       <div class="row" title={stash.message}>
         <span class="marker" aria-hidden="true">⚑</span>
         <span class="name truncate">{stash.message}</span>
-        <span class="date tabular">{formatCommitDate(stash.timestamp, 0)}</span>
+        <span class="date tabular">{settings.formatDate(stash.timestamp, 0)}</span>
         <span
           class="act"
           role="button"

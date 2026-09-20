@@ -5,6 +5,7 @@ import type {
   CheckoutTarget,
   CommitQuery,
   CommitRequest,
+  ConflictSide,
   DiffOptions,
   DiffSpec,
   GitError,
@@ -29,6 +30,7 @@ export type {
   CommitQuery,
   CommitRequest,
   CommitRow,
+  ConflictSide,
   DiffOptions,
   DiffRow,
   DiffSpec,
@@ -36,6 +38,8 @@ export type {
   FileDiff,
   FileEntry,
   FileStatus,
+  Found,
+  FoundKind,
   GitError,
   GitOutput,
   GraphChunk,
@@ -146,6 +150,7 @@ export const DEFAULT_DIFF_OPTIONS: DiffOptions = {
   ignoreWhitespace: "none",
   ignoreBlankLines: false,
   wordDiff: true,
+  detectMoves: true,
 };
 
 export async function diffFile(
@@ -221,6 +226,26 @@ export async function safetyLog() {
 
 export async function undoLast(repo: RepoId) {
   return unwrap(await commands.undoLast(repo));
+}
+
+export async function findObject(repo: RepoId, query: string, limit = 25) {
+  return unwrap(await commands.findObject(repo, query, limit));
+}
+
+export async function conflictedPaths(repo: RepoId) {
+  return unwrap(await commands.conflictedPaths(repo));
+}
+
+export async function conflictText(repo: RepoId, path: string) {
+  return unwrap(await commands.conflictText(repo, path));
+}
+
+export async function resolveConflict(repo: RepoId, path: string, side: ConflictSide) {
+  return unwrap(await commands.resolveConflict(repo, path, side));
+}
+
+export async function resolveConflictText(repo: RepoId, path: string, text: string) {
+  return unwrap(await commands.resolveConflictText(repo, path, text));
 }
 
 export async function imageSides(repo: RepoId, spec: DiffSpec, path: string) {

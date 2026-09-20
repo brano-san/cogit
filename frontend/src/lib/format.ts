@@ -74,3 +74,21 @@ export function refLabels(
   }
   return byOid;
 }
+
+const UNITS: [seconds: number, name: string][] = [
+  [31_536_000, "year"],
+  [2_592_000, "month"],
+  [86_400, "day"],
+  [3600, "hour"],
+  [60, "minute"],
+];
+
+/** The offset is ignored: an elapsed time is the same number in every timezone. */
+export function relativeDate(timestamp: number, _offsetMinutes: number, now: number): string {
+  const elapsed = now - timestamp;
+  for (const [seconds, name] of UNITS) {
+    const count = Math.floor(elapsed / seconds);
+    if (count >= 1) return `${count} ${name}${count === 1 ? "" : "s"} ago`;
+  }
+  return "just now";
+}
