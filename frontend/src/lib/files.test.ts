@@ -3,7 +3,7 @@ import type { FileEntry } from "$lib/ipc";
 import { fileName, matchesMask, sortFiles, statusBadge, statusLabel } from "./files";
 
 function entry(path: string, status: FileEntry["status"] = "modified"): FileEntry {
-  return { path, oldPath: null, status };
+  return { path, oldPath: null, status, modeChange: null, similarity: null };
 }
 
 describe("statusBadge", () => {

@@ -12,6 +12,7 @@ fn request(message: &str) -> CommitRequest {
         message: message.to_owned(),
         amend: false,
         no_verify: false,
+        only: Vec::new(),
     }
 }
 
@@ -101,6 +102,7 @@ fn amend_replaces_the_previous_commit_instead_of_adding_one() {
             message: "commit 2, reworded".to_owned(),
             amend: true,
             no_verify: false,
+            only: Vec::new(),
         })
         .unwrap();
 
@@ -124,6 +126,7 @@ fn amend_can_add_staged_changes_to_the_previous_commit() {
             message: "commit 0".to_owned(),
             amend: true,
             no_verify: false,
+            only: Vec::new(),
         })
         .unwrap();
 
@@ -174,7 +177,51 @@ fn no_verify_skips_a_hook_that_would_reject_the_commit() {
             message: "allowed".to_owned(),
             amend: false,
             no_verify: true,
+            only: Vec::new(),
         })
         .unwrap();
     assert_eq!(repo.commit_details(&oid).unwrap().summary, "allowed");
+}
+
+#[test]
+fn committing_only_named_paths_leaves_the_rest_staged() {
+    let f = test_fixtures::linear(1).unwrap();
+    for name in ["one.txt", "two.txt"] {
+        std::fs::write(f.path().join(name), "new\n").unwrap();
+    }
+    f.git(&["add", "--", "one.txt", "two.txt"]).unwrap();
+    let repo = open(&f);
+
+    repo.commit(&CommitRequest {
+        message: "only one".to_owned(),
+        amend: false,
+        no_verify: false,
+        only: vec!["one.txt".to_owned()],
+    })
+    .unwrap();
+
+    let files = repo.worktree_files().unwrap();
+    assert_eq!(
+        files
+            .staged
+            .iter()
+            .map(|e| e.path.as_str())
+            .collect::<Vec<_>>(),
+        ["two.txt"],
+        "the hidden file must stay staged"
+    );
+}
+
+#[test]
+fn an_empty_path_list_still_commits_everything_staged() {
+    let f = test_fixtures::linear(1).unwrap();
+    for name in ["one.txt", "two.txt"] {
+        std::fs::write(f.path().join(name), "new\n").unwrap();
+    }
+    f.git(&["add", "--", "one.txt", "two.txt"]).unwrap();
+    let repo = open(&f);
+
+    repo.commit(&request("both of them")).unwrap();
+
+    assert!(repo.worktree_files().unwrap().staged.is_empty());
 }

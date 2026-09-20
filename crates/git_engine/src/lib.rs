@@ -25,7 +25,7 @@ mod worktree;
 pub use blame::BlameLine;
 pub use blobs::{DiffSides, DiffSpec};
 pub use branches::CheckoutTarget;
-pub use commit::{CommitDetails, FileEntry, FileStatus, Signature};
+pub use commit::{CommitDetails, DEFAULT_SIMILARITY, FileEntry, FileMode, FileStatus, Signature};
 pub use commit_write::CommitRequest;
 pub use error::{GitCommandError, GitError};
 pub use history::CommitRow;

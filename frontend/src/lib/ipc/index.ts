@@ -173,6 +173,14 @@ export async function unstagePaths(repo: RepoId, paths: string[]) {
   return unwrap(await commands.unstagePaths(repo, paths));
 }
 
+export async function addToGitignore(repo: RepoId, paths: string[]) {
+  return unwrap(await commands.addToGitignore(repo, paths));
+}
+
+export async function deleteUntracked(repo: RepoId, paths: string[]) {
+  return unwrap(await commands.deleteUntracked(repo, paths));
+}
+
 export async function discardPaths(repo: RepoId, paths: string[]) {
   return unwrap(await commands.discardPaths(repo, paths));
 }
@@ -213,6 +221,10 @@ export async function safetyLog() {
 
 export async function undoLast(repo: RepoId) {
   return unwrap(await commands.undoLast(repo));
+}
+
+export async function imageSides(repo: RepoId, spec: DiffSpec, path: string) {
+  return unwrap(await commands.imageSides(repo, spec, path));
 }
 
 export async function blameFile(repo: RepoId, path: string, rev: string) {

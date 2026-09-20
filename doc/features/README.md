@@ -70,5 +70,12 @@
 | F-064 | Дерево ссылок | [F-064-ref-tree.md](F-064-ref-tree.md) |
 | F-065 | Фильтр ссылок | [F-065-ref-filter.md](F-065-ref-filter.md) |
 | F-066 | Создание Pull Request | [F-066-pull-request.md](F-066-pull-request.md) |
+| F-067 | Игнорирование пробелов | [F-067-whitespace-toggle.md](F-067-whitespace-toggle.md) |
+| F-068 | Переименования в списке | [F-068-rename-badges.md](F-068-rename-badges.md) |
+| F-069 | Свёртка untracked-каталогов | [F-069-untracked-collapse.md](F-069-untracked-collapse.md) |
+| F-070 | Add to .gitignore | [F-070-gitignore.md](F-070-gitignore.md) |
+| F-071 | Удаление с диска | [F-071-delete-untracked.md](F-071-delete-untracked.md) |
+| F-072 | Commit What You See | [F-072-commit-what-you-see.md](F-072-commit-what-you-see.md) |
+| F-073 | Сравнение изображений | [F-073-image-diff.md](F-073-image-diff.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.

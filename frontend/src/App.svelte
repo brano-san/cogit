@@ -4,6 +4,7 @@
   import BranchList from "$components/branch-tree/BranchList.svelte";
   import BlameView from "$components/diff/BlameView.svelte";
   import DiffView from "$components/diff/DiffView.svelte";
+  import ImageDiff from "$components/diff/ImageDiff.svelte";
   import CommitBox from "$components/file-list/CommitBox.svelte";
   import FileList from "$components/file-list/FileList.svelte";
   import CommitList from "$components/graph/CommitList.svelte";
@@ -24,6 +25,7 @@
   import { formatCommitDate, shortOid } from "$lib/format";
   import type { PaletteCommand } from "$lib/palette";
   import { pullRequestUrl } from "$lib/pull-request";
+  import { commitScope } from "$lib/commit-scope";
   import { stateBanner, type BannerAction } from "$lib/repo-state";
   import {
     checkout,
@@ -34,7 +36,9 @@
     createTag,
     deleteTag,
     getAppInfo,
+    addToGitignore,
     cherryPick,
+    deleteUntracked,
     mergeInto,
     stageSelection,
     onRepoChanged,
@@ -64,6 +68,7 @@
   let paletteOpen = $state(false);
   let recentCommands = $state<string[]>([]);
   let refFilter = $state("");
+  let fileMask = $state("");
 
   $effect(() => {
     getAppInfo().then((result) => {
@@ -80,6 +85,7 @@
   const details = $derived(commit.details);
   const banner = $derived(repo ? stateBanner(repo.state, repo.indexLock) : null);
   const tracked = $derived(repository.localBranches.find((b) => b.isHead));
+  const scope = $derived(commitScope(worktree.staged, fileMask));
   const prUrl = $derived.by(() => {
     const head = tracked?.name;
     const base = tracked?.upstream?.split("/").slice(1).join("/") ?? "main";
@@ -245,11 +251,24 @@
     await afterMutation(paths);
   }
 
+  async function ignore(paths: string[]) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    try {
+      await addToGitignore(id, paths);
+    } catch (err) {
+      errors.report(err as never);
+      return;
+    }
+    await worktree.load(id);
+    await afterMutation(paths);
+  }
+
   async function discard(paths: string[]) {
     const id = repository.current?.repo;
     if (!id) return;
     const what = paths.length === 1 ? paths[0] : `${paths.length} files`;
-    const confirmed = await ask(`Discard changes in ${what}? This cannot be undone.`, {
+    const confirmed = await ask(`Discard changes in ${what}? Undo can bring them back.`, {
       title: "Discard changes",
       kind: "warning",
     });
@@ -258,10 +277,37 @@
     await afterMutation(paths);
   }
 
+  async function deleteFromDisk(paths: string[]) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    const what = paths.length === 1 ? paths[0] : `${paths.length} untracked paths`;
+    const confirmed = await ask(
+      `Delete ${what} from disk? Untracked files are not in Git, so this cannot be undone.`,
+      { title: "Delete from disk", kind: "warning" },
+    );
+    if (!confirmed) return;
+    try {
+      await deleteUntracked(id, paths);
+    } catch (err) {
+      errors.report(err as never);
+      return;
+    }
+    await worktree.load(id);
+    await afterMutation(paths);
+  }
+
   async function commitStaged(message: string, amend: boolean, noVerify: boolean) {
     const id = repository.current?.repo;
     if (!id) return;
-    await worktree.commit(id, message, amend, noVerify);
+    if (scope.paths) {
+      const listed = scope.paths.join("\n");
+      const confirmed = await ask(
+        `Commit only these ${scope.paths.length} file(s)?\n\n${listed}\n\n${scope.warning}.`,
+        { title: "Commit what you see", kind: "warning" },
+      );
+      if (!confirmed) return;
+    }
+    await worktree.commit(id, message, amend, noVerify, scope.paths ?? []);
     if (worktree.error) return;
     diff.clear();
     await repository.refresh();
@@ -748,13 +794,17 @@
                     actions: [
                       { label: "Stage", title: "Stage", run: stage },
                       { label: "Discard", title: "Discard changes", run: discard },
+                      { label: "Ignore", title: "Add to .gitignore", run: ignore },
+                      { label: "Delete", title: "Delete from disk", run: deleteFromDisk },
                     ],
                   },
                 ]}
                 empty="The working tree is clean."
                 selected={diff.path}
+                onmask={(mask) => (fileMask = mask)}
               />
               <CommitBox
+                {scope}
                 stagedCount={worktree.staged.length}
                 busy={worktree.loading}
                 draftKey={`cogit:draft:${repo?.root ?? ""}`}
@@ -795,6 +845,14 @@
             />
           {:else if diff.error}
             <p class="error detail">{diff.error.message}</p>
+          {:else if diff.diff?.kind === "image"}
+            <ImageDiff
+              before={diff.images[0]}
+              after={diff.images[1]}
+              oldSize={diff.diff.oldSize}
+              newSize={diff.diff.newSize}
+              mime={diff.diff.mime}
+            />
           {:else if diff.diff && diff.path}
             <DiffView
               diff={diff.diff}
@@ -802,6 +860,11 @@
               stageable={diff.stageable}
               onstage={(selected, reverse) => void stageLines(selected, reverse)}
               onblame={() => void showBlame()}
+              whitespace={diff.whitespace}
+              onwhitespace={(mode) => {
+                const id = repository.current?.repo;
+                if (id) void diff.setWhitespace(id, mode);
+              }}
             />
           {:else}
           <div class="detail">

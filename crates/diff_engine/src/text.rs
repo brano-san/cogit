@@ -21,6 +21,16 @@ pub fn diff_bytes(old: &[u8], new: &[u8], options: &DiffOptions) -> FileDiff {
             size: old_size.max(new_size),
         };
     }
+    if old == new {
+        return FileDiff::Unchanged;
+    }
+    if let Some(mime) = crate::image_mime(old).or_else(|| crate::image_mime(new)) {
+        return FileDiff::Image {
+            old_size,
+            new_size,
+            mime: mime.to_owned(),
+        };
+    }
     if is_binary(old) || is_binary(new) {
         return FileDiff::Binary { old_size, new_size };
     }
@@ -80,7 +90,11 @@ pub fn diff_text(old: &str, new: &str, options: &DiffOptions) -> FileDiff {
 
     let changes: Vec<imara_diff::Hunk> = diff.hunks().collect();
     if changes.is_empty() {
-        return FileDiff::Unchanged;
+        return if options.ignore_whitespace == Whitespace::None {
+            FileDiff::Unchanged
+        } else {
+            FileDiff::WhitespaceOnly
+        };
     }
 
     let context = options.context_lines as usize;

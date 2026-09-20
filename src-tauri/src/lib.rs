@@ -78,7 +78,10 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::update_submodule,
             commands::stage_selection,
             commands::blame,
-            commands::remote_url
+            commands::remote_url,
+            commands::add_to_gitignore,
+            commands::delete_untracked,
+            commands::image_sides
         ])
 }
 

@@ -176,3 +176,144 @@ fn each_section_is_sorted_by_path() {
     sorted.sort_unstable();
     assert_eq!(listed, sorted);
 }
+
+#[test]
+fn an_untracked_directory_is_one_row_not_one_per_file() {
+    let f = test_fixtures::linear(1).unwrap();
+    let junk = f.path().join("generated");
+    std::fs::create_dir_all(junk.join("deep")).unwrap();
+    for i in 0..200 {
+        std::fs::write(junk.join(format!("file-{i}.txt")), "x").unwrap();
+        std::fs::write(junk.join("deep").join(format!("file-{i}.txt")), "x").unwrap();
+    }
+    let repo = open(&f);
+
+    let files = repo.worktree_files().unwrap();
+
+    assert_eq!(
+        files.unstaged.len(),
+        1,
+        "400 files in one untracked directory must collapse: {:?}",
+        paths(&files.unstaged)
+    );
+    assert_eq!(files.unstaged[0].path, "generated/");
+}
+
+#[test]
+fn a_collapsed_directory_is_still_marked_untracked() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::create_dir_all(f.path().join("build")).unwrap();
+    std::fs::write(f.path().join("build/out.o"), "x").unwrap();
+    let repo = open(&f);
+
+    let files = repo.worktree_files().unwrap();
+
+    assert_eq!(files.unstaged[0].status, FileStatus::Untracked);
+}
+
+#[test]
+fn a_single_untracked_file_is_not_collapsed_into_a_directory() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::write(f.path().join("loose.txt"), "x").unwrap();
+    let repo = open(&f);
+
+    assert_eq!(
+        paths(&repo.worktree_files().unwrap().unstaged),
+        ["loose.txt"]
+    );
+}
+
+#[test]
+fn tracked_changes_inside_a_directory_are_never_collapsed() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::create_dir_all(f.path().join("src")).unwrap();
+    std::fs::write(f.path().join("src/kept.txt"), "one\n").unwrap();
+    f.git(&["add", "--", "src/kept.txt"]).unwrap();
+    f.commit_staged(1, "add src/kept.txt").unwrap();
+    std::fs::write(f.path().join("src/kept.txt"), "two\n").unwrap();
+    std::fs::write(f.path().join("src/new.txt"), "x").unwrap();
+    let repo = open(&f);
+
+    let files = repo.worktree_files().unwrap();
+
+    assert!(
+        paths(&files.unstaged).contains(&"src/kept.txt"),
+        "a tracked edit must stay visible: {:?}",
+        paths(&files.unstaged)
+    );
+}
+
+#[test]
+fn ignoring_a_path_writes_it_to_gitignore() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::write(f.path().join("secret.env"), "TOKEN=1\n").unwrap();
+    let repo = open(&f);
+
+    repo.add_to_gitignore(&["secret.env".to_owned()]).unwrap();
+
+    let ignore = std::fs::read_to_string(f.path().join(".gitignore")).unwrap();
+    assert!(ignore.contains("secret.env"), "{ignore:?}");
+    assert!(
+        !repo
+            .worktree_files()
+            .unwrap()
+            .unstaged
+            .iter()
+            .any(|e| e.path == "secret.env"),
+        "an ignored file leaves the list"
+    );
+}
+
+#[test]
+fn ignoring_appends_without_losing_what_was_there() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file(".gitignore", "already-here\n").unwrap();
+    let repo = open(&f);
+
+    repo.add_to_gitignore(&["and-this".to_owned()]).unwrap();
+
+    let ignore = std::fs::read_to_string(f.path().join(".gitignore")).unwrap();
+    assert!(ignore.contains("already-here"));
+    assert!(ignore.contains("and-this"));
+}
+
+#[test]
+fn ignoring_the_same_path_twice_does_not_duplicate_it() {
+    let f = test_fixtures::linear(1).unwrap();
+    let repo = open(&f);
+    repo.add_to_gitignore(&["once".to_owned()]).unwrap();
+
+    repo.add_to_gitignore(&["once".to_owned()]).unwrap();
+
+    let ignore = std::fs::read_to_string(f.path().join(".gitignore")).unwrap();
+    assert_eq!(ignore.matches("once").count(), 1, "{ignore:?}");
+}
+
+#[test]
+fn an_empty_ignore_list_is_refused() {
+    let f = test_fixtures::linear(1).unwrap();
+    assert!(open(&f).add_to_gitignore(&[]).is_err());
+}
+
+#[test]
+fn deleting_an_untracked_file_removes_it_from_disk() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::write(f.path().join("junk.txt"), "x").unwrap();
+    let repo = open(&f);
+
+    repo.delete_untracked(&["junk.txt".to_owned()]).unwrap();
+
+    assert!(!f.path().join("junk.txt").exists());
+}
+
+#[test]
+fn deleting_refuses_a_tracked_file() {
+    let f = test_fixtures::linear(2).unwrap();
+    let repo = open(&f);
+
+    assert!(repo.delete_untracked(&["file0.txt".to_owned()]).is_err());
+    assert!(
+        f.path().join("file0.txt").exists(),
+        "a tracked file must survive a refused delete"
+    );
+}

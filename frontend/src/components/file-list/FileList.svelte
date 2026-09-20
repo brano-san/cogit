@@ -23,13 +23,19 @@
     selected?: string | null;
     empty?: string;
     onselect?: (path: string) => void;
+    /** Reported upward so Commit What You See knows what is hidden (T6.8). */
+    onmask?: (mask: string) => void;
   }
 
-  let { sections, selected = null, empty, onselect }: Props = $props();
+  let { sections, selected = null, empty, onselect, onmask }: Props = $props();
 
   const BUFFER_ROWS = 10;
 
   let mask = $state("");
+
+  $effect(() => {
+    onmask?.(mask);
+  });
   let sort = $state<SortKey>("path");
   let scroller: HTMLDivElement | undefined = $state();
   let scrollTop = $state(0);
@@ -143,6 +149,18 @@
             >
               <span class="badge" aria-label={statusLabel(file.status)}>{statusBadge(file.status)}</span>
               <span class="name truncate">{fileName(file.path)}</span>
+              {#if file.oldPath}
+                <span class="renamed truncate" title="from {file.oldPath}"
+                  >← {fileName(file.oldPath)}{file.similarity !== null
+                    ? ` ${file.similarity}%`
+                    : ""}</span
+                >
+              {/if}
+              {#if file.modeChange}
+                <span class="mode" title="Mode changed to {file.modeChange}"
+                  >{file.modeChange === "executable" ? "+x" : "−x"}</span
+                >
+              {/if}
               <span class="dir truncate">{directory(file.path)}</span>
               {#each item.row.actions as action (action.label)}
                 <span
@@ -317,6 +335,20 @@
   .name {
     flex: 0 1 auto;
     min-width: 0;
+  }
+
+  .renamed {
+    flex: 0 1 auto;
+    min-width: 0;
+    color: var(--status-ref);
+    font-size: 10px;
+  }
+
+  .mode {
+    flex: 0 0 auto;
+    color: var(--status-modify);
+    font-family: var(--font-mono);
+    font-size: 10px;
   }
 
   .dir {

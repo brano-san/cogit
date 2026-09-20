@@ -286,8 +286,8 @@ fn ignoring_trailing_whitespace_hides_a_whitespace_only_edit() {
     let diff = diff_text("a\nb\n", "a\nb   \n", &options);
 
     assert!(
-        matches!(diff, FileDiff::Unchanged),
-        "expected Unchanged, got {diff:?}"
+        matches!(diff, FileDiff::WhitespaceOnly),
+        "expected WhitespaceOnly, got {diff:?}"
     );
 }
 
@@ -301,7 +301,43 @@ fn ignoring_all_whitespace_survives_reindentation() {
     let diff = diff_text("if (x) {\n", "    if  (x)  {\n", &options);
 
     assert!(
-        matches!(diff, FileDiff::Unchanged),
-        "expected Unchanged, got {diff:?}"
+        matches!(diff, FileDiff::WhitespaceOnly),
+        "expected WhitespaceOnly, got {diff:?}"
     );
+}
+
+#[test]
+fn a_whitespace_only_change_is_told_apart_from_no_change_at_all() {
+    let options = DiffOptions {
+        ignore_whitespace: diff_engine::Whitespace::All,
+        ..DiffOptions::default()
+    };
+
+    let same = diff_text("a\n", "a\n", &options);
+    let reindented = diff_text("if (x) {\n", "    if (x) {\n", &options);
+
+    assert!(matches!(same, FileDiff::Unchanged), "got {same:?}");
+    assert!(
+        matches!(reindented, FileDiff::WhitespaceOnly),
+        "the user must know the diff is being filtered, got {reindented:?}"
+    );
+}
+
+#[test]
+fn ignoring_whitespace_still_shows_a_real_change() {
+    let options = DiffOptions {
+        ignore_whitespace: diff_engine::Whitespace::All,
+        ..DiffOptions::default()
+    };
+
+    let diff = diff_text("if (x) {\n", "    if (y) {\n", &options);
+
+    assert!(matches!(diff, FileDiff::Text { .. }), "got {diff:?}");
+}
+
+#[test]
+fn without_the_option_a_reindent_is_an_ordinary_change() {
+    let diff = diff_text("if (x) {\n", "    if (x) {\n", &DiffOptions::default());
+
+    assert!(matches!(diff, FileDiff::Text { .. }), "got {diff:?}");
 }
