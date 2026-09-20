@@ -10,10 +10,7 @@ pub struct CommitRow {
     pub summary: String,
     pub author_name: String,
     pub author_email: String,
-    /// Seconds since the Unix epoch.
-    ///
-    /// specta refuses `i64` by default to guard against precision loss. Unix seconds
-    /// stay far below 2^53, so a plain TypeScript number is exact here.
+    /// specta refuses `i64`; Unix seconds stay far below 2^53, so a number is exact.
     #[specta(type = specta_typescript::Number)]
     pub timestamp: i64,
     pub tz_offset_minutes: i32,

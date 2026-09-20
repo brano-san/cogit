@@ -89,3 +89,32 @@ export function toCommitRow(listRow: number): number | null {
   const row = listRow - HEADER_ROWS;
   return row >= 0 ? row : null;
 }
+
+export interface RowIndexed {
+  fromRow: number;
+}
+
+/** Bucketed by upper row: rescanning every edge each frame misses the frame budget. */
+export function indexByRow<T extends RowIndexed>(edges: readonly T[]): Map<number, T[]> {
+  const index = new Map<number, T[]>();
+  for (const edge of edges) {
+    const bucket = index.get(edge.fromRow);
+    if (bucket) bucket.push(edge);
+    else index.set(edge.fromRow, [edge]);
+  }
+  return index;
+}
+
+/** Edges that cross the rows on screen, plus the band just above so lines enter correctly. */
+export function edgeBand<T extends RowIndexed>(
+  index: Map<number, T[]>,
+  firstRow: number,
+  lastRow: number,
+): T[] {
+  const band: T[] = [];
+  for (let row = firstRow - 1; row <= lastRow; row++) {
+    const bucket = index.get(row);
+    if (bucket) band.push(...bucket);
+  }
+  return band;
+}
