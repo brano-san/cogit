@@ -72,6 +72,7 @@ export type {
   RebaseStep,
   ReflogEntry,
   ScanHit,
+  StashContents,
   RepoChanged,
   RepoId,
   RepoOverview,
@@ -269,6 +270,14 @@ export async function commandLog() {
 
 export async function safetyLog() {
   return await commands.safetyLog();
+}
+
+export async function stashSelection(repo: RepoId, paths: string[], message: string) {
+  return unwrap(await commands.stashSelection(repo, paths, message));
+}
+
+export async function stashContents(repo: RepoId, index: number) {
+  return unwrap(await commands.stashContents(repo, index));
 }
 
 export async function undoEntry(repo: RepoId, id: number) {

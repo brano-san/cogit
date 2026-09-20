@@ -53,7 +53,7 @@ pub use reflog::ReflogEntry;
 pub use repo::{Branch, BranchKind, Head, RepoHandle, Tag};
 pub use runner::{CommandSink, GitOutput, redact_command};
 pub use search::CommitQuery;
-pub use stash::{StashEntry, StashOptions};
+pub use stash::{StashContents, StashEntry, StashOptions};
 pub use state::RepoState;
 pub use status::RepoStatus;
 pub use submodules::{Submodule, SubmoduleState};
