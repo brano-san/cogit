@@ -35,5 +35,6 @@
 | F-029 | Diff рабочего дерева | [F-029-worktree-diff.md](F-029-worktree-diff.md) |
 | F-030 | Переключение ветки | [F-030-checkout.md](F-030-checkout.md) |
 | F-031 | Удаление ветки | [F-031-delete-branch.md](F-031-delete-branch.md) |
+| F-032 | Живое обновление | [F-032-live-refresh.md](F-032-live-refresh.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.

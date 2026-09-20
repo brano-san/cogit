@@ -4,7 +4,11 @@
 //! on large monorepos, and `.git/objects` alone produces thousands of events during a
 //! single `fetch`.
 
-use serde::Serialize;
+mod watcher;
+
+pub use watcher::RepoWatcher;
+
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 pub const DEBOUNCE_MS: u64 = 100;
@@ -30,7 +34,8 @@ pub const EXCLUDED_DIRS: &[&str] = &[
     "__pycache__",
 ];
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub enum ChangeKind {
     Head,
     Index,
@@ -41,6 +46,7 @@ pub enum ChangeKind {
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub struct RepoChanged {
     pub kind: ChangeKind,
     pub path: String,

@@ -6,13 +6,22 @@ use specta_typescript::Typescript;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::Manager as _;
-use tauri_specta::{Builder, collect_commands};
+use tauri_specta::{Builder, Event as _, collect_commands, collect_events};
 
 /// Manifest-relative: `cargo run` starts in the workspace root, not here.
 const BINDINGS_PATH: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../frontend/src/lib/ipc/bindings.ts"
 );
+
+/// Mirrors `app_state::AppEvent::RepoChanged`. It lives here because deriving
+/// `tauri_specta::Event` would make `app_state` depend on tauri (INV-09).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoChanged {
+    pub repo: app_state::RepoId,
+    pub kind: fs_watcher::ChangeKind,
+}
 
 #[derive(Debug)]
 pub struct AppContext {
@@ -21,22 +30,24 @@ pub struct AppContext {
 }
 
 fn specta_builder() -> Builder<tauri::Wry> {
-    Builder::<tauri::Wry>::new().commands(collect_commands![
-        commands::app_info,
-        commands::open_repository,
-        commands::load_commits,
-        commands::commit_details,
-        commands::commit_files,
-        commands::diff_file,
-        commands::worktree_files,
-        commands::stage_paths,
-        commands::unstage_paths,
-        commands::discard_paths,
-        commands::commit,
-        commands::checkout,
-        commands::create_branch,
-        commands::delete_branch
-    ])
+    Builder::<tauri::Wry>::new()
+        .events(collect_events![RepoChanged])
+        .commands(collect_commands![
+            commands::app_info,
+            commands::open_repository,
+            commands::load_commits,
+            commands::commit_details,
+            commands::commit_files,
+            commands::diff_file,
+            commands::worktree_files,
+            commands::stage_paths,
+            commands::unstage_paths,
+            commands::discard_paths,
+            commands::commit,
+            commands::checkout,
+            commands::create_branch,
+            commands::delete_branch
+        ])
 }
 
 /// A binary rather than a `#[test]`: linking tauri needs the ComCtl32 v6 manifest
@@ -72,13 +83,15 @@ pub fn run() -> anyhow::Result<()> {
                 "cogit starting"
             );
 
+            let state = Arc::new(AppState::new());
             app.manage(AppContext {
-                state: Arc::new(AppState::new()),
+                state: Arc::clone(&state),
                 log_path: log_dir.join("cogit.log"),
             });
             app.manage(guard);
 
             specta_builder.mount_events(app);
+            forward_repo_changes(app.handle().clone(), &state);
 
             if let Some(window) = app.get_webview_window("main") {
                 window.show()?;
@@ -88,6 +101,18 @@ pub fn run() -> anyhow::Result<()> {
         .run(tauri::generate_context!())?;
 
     Ok(())
+}
+
+/// The watcher runs on its own thread, so events cross into the webview here.
+fn forward_repo_changes(app: tauri::AppHandle, state: &Arc<AppState>) {
+    let mut events = state.subscribe();
+    tauri::async_runtime::spawn(async move {
+        while let Ok(event) = events.recv().await {
+            if let app_state::AppEvent::RepoChanged { repo, kind } = event {
+                let _ = RepoChanged { repo, kind }.emit(&app);
+            }
+        }
+    });
 }
 
 #[cfg(debug_assertions)]

@@ -14,7 +14,14 @@
   import Toolbar from "$components/layout/Toolbar.svelte";
   import RepositoryList from "$components/repo-tree/RepositoryList.svelte";
   import { formatCommitDate, shortOid } from "$lib/format";
-  import { checkout, deleteBranch, getAppInfo, type AppInfo, type Branch } from "$lib/ipc";
+  import {
+    checkout,
+    deleteBranch,
+    getAppInfo,
+    onRepoChanged,
+    type AppInfo,
+    type Branch,
+  } from "$lib/ipc";
   import { commit } from "$stores/commit.svelte";
   import { worktree } from "$stores/worktree.svelte";
   import { diff } from "$stores/diff.svelte";
@@ -54,6 +61,20 @@
   $effect(() => errors.report(commit.error));
   $effect(() => errors.report(diff.error));
   $effect(() => errors.report(graph.error));
+
+  // The watcher is the only way Cogit learns about work done in a terminal alongside it.
+  $effect(() => {
+    const unlisten = onRepoChanged((change) => {
+      const id = repository.current?.repo;
+      if (!id || id.valueOf() !== change.repo.valueOf()) return;
+      void repository.refresh();
+      if (commit.oid === null) void worktree.load(id);
+      if (change.kind === "head" || change.kind === "refs") void graph.load(id, graph.query);
+    });
+    return () => {
+      void unlisten.then((stop) => stop());
+    };
+  });
 
   function filterGraph(query: import("$lib/ipc").CommitQuery) {
     const id = repository.current?.repo;

@@ -1,0 +1,163 @@
+// clippy.toml's allow-unwrap-in-tests does not reach helpers beside `#[test]` fns.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
+use fs_watcher::{ChangeKind, RepoChanged, RepoWatcher};
+use std::sync::mpsc;
+use std::time::Duration;
+
+const SETTLE: Duration = Duration::from_millis(600);
+
+struct Harness {
+    _dir: tempfile::TempDir,
+    watcher: RepoWatcher,
+    events: mpsc::Receiver<RepoChanged>,
+    root: std::path::PathBuf,
+}
+
+fn start() -> Harness {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().to_path_buf();
+    let git_dir = root.join(".git");
+    std::fs::create_dir_all(git_dir.join("refs/heads")).unwrap();
+    std::fs::create_dir_all(git_dir.join("objects")).unwrap();
+    std::fs::write(git_dir.join("HEAD"), "ref: refs/heads/main\n").unwrap();
+    std::fs::write(git_dir.join("index"), "").unwrap();
+
+    let (tx, events) = mpsc::channel();
+    let watcher = RepoWatcher::start(&root, &git_dir, move |change| {
+        let _ = tx.send(change);
+    })
+    .unwrap();
+
+    // Events from the watcher settling in are not user activity.
+    std::thread::sleep(Duration::from_millis(300));
+    while events.try_recv().is_ok() {}
+
+    Harness {
+        _dir: dir,
+        watcher,
+        events,
+        root,
+    }
+}
+
+fn collect(harness: &Harness) -> Vec<RepoChanged> {
+    let mut seen = Vec::new();
+    while let Ok(change) = harness.events.recv_timeout(SETTLE) {
+        seen.push(change);
+    }
+    seen
+}
+
+#[test]
+fn a_change_to_head_arrives_as_a_head_event() {
+    let harness = start();
+
+    std::fs::write(harness.root.join(".git/HEAD"), "ref: refs/heads/other\n").unwrap();
+
+    let seen = collect(&harness);
+    assert!(
+        seen.iter().any(|c| c.kind == ChangeKind::Head),
+        "got {seen:?}"
+    );
+}
+
+#[test]
+fn a_thousand_files_in_target_produce_no_events() {
+    let harness = start();
+    let target = harness.root.join("target");
+    std::fs::create_dir_all(&target).unwrap();
+
+    for i in 0..1000 {
+        std::fs::write(target.join(format!("artifact-{i}.o")), "x").unwrap();
+    }
+
+    let seen = collect(&harness);
+    assert!(
+        seen.is_empty(),
+        "INV-06: build output must be filtered out, got {} events",
+        seen.len()
+    );
+}
+
+#[test]
+fn churn_in_git_objects_is_ignored() {
+    let harness = start();
+    let objects = harness.root.join(".git/objects/ab");
+    std::fs::create_dir_all(&objects).unwrap();
+
+    for i in 0..200 {
+        std::fs::write(objects.join(format!("{i:038x}")), "loose object").unwrap();
+    }
+
+    assert!(
+        collect(&harness).is_empty(),
+        "a fetch writes thousands of loose objects and none of them matter"
+    );
+}
+
+#[test]
+fn a_new_ref_is_reported_as_a_refs_change() {
+    let harness = start();
+
+    std::fs::write(
+        harness.root.join(".git/refs/heads/topic"),
+        "0000000000000000000000000000000000000000\n",
+    )
+    .unwrap();
+
+    let seen = collect(&harness);
+    assert!(
+        seen.iter().any(|c| c.kind == ChangeKind::Refs),
+        "got {seen:?}"
+    );
+}
+
+#[test]
+fn a_working_tree_edit_is_reported() {
+    let harness = start();
+
+    std::fs::write(harness.root.join("source.txt"), "edited\n").unwrap();
+
+    let seen = collect(&harness);
+    assert!(
+        seen.iter().any(|c| c.kind == ChangeKind::WorkingTree),
+        "got {seen:?}"
+    );
+}
+
+#[test]
+fn a_paused_watcher_reports_nothing() {
+    let harness = start();
+    harness.watcher.pause();
+
+    std::fs::write(harness.root.join("source.txt"), "our own mutation\n").unwrap();
+
+    assert!(
+        collect(&harness).is_empty(),
+        "Cogit must not react to its own writes"
+    );
+}
+
+#[test]
+fn resuming_starts_reporting_again() {
+    let harness = start();
+    harness.watcher.pause();
+    std::fs::write(harness.root.join("a.txt"), "ignored\n").unwrap();
+    std::thread::sleep(Duration::from_millis(400));
+    while harness.events.try_recv().is_ok() {}
+    harness.watcher.resume();
+
+    std::fs::write(harness.root.join("b.txt"), "seen\n").unwrap();
+
+    assert!(!collect(&harness).is_empty());
+}
+
+#[test]
+fn a_missing_repository_fails_instead_of_panicking() {
+    let missing = std::path::Path::new("C:/no/such/repository/anywhere");
+
+    let result = RepoWatcher::start(missing, &missing.join(".git"), |_| {});
+
+    assert!(result.is_err());
+}

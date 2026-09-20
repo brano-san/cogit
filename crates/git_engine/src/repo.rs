@@ -75,6 +75,11 @@ impl RepoHandle {
     }
 
     #[must_use]
+    pub fn git_dir(&self) -> &Path {
+        self.repo.git_dir()
+    }
+
+    #[must_use]
     pub fn is_bare(&self) -> bool {
         self.repo.is_bare()
     }

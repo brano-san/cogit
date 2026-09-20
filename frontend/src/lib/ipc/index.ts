@@ -1,8 +1,9 @@
 import { Channel } from "@tauri-apps/api/core";
 
-import { commands } from "./bindings";
+import { commands, events } from "./bindings";
 import type {
   CheckoutTarget,
+  RepoChanged,
   CommitQuery,
   CommitRequest,
   DiffOptions,
@@ -37,6 +38,7 @@ export type {
   LaneAssignment,
   LineEnding,
   RepoId,
+  RepoChanged,
   RepoStatus,
   RepoSummary,
   Signature,
@@ -171,6 +173,11 @@ export async function createBranch(
 
 export async function deleteBranch(repo: RepoId, name: string, force: boolean) {
   return unwrap(await commands.deleteBranch(repo, name, force));
+}
+
+/** Fires when the watcher sees the repository change on disk; returns an unlisten fn. */
+export async function onRepoChanged(handler: (change: RepoChanged) => void) {
+  return await events.repoChanged.listen((event) => handler(event.payload));
 }
 
 function unwrap<T>(result: { status: "ok"; data: T } | { status: "error"; error: GitError }): T {
