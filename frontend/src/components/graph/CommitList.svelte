@@ -17,19 +17,22 @@
     visibleRange,
   } from "$lib/graph-geometry";
   import { measurer } from "$lib/timing";
-  import { reportTiming, type RepoId } from "$lib/ipc";
+  import { reportTiming, type RebaseProgress, type RepoId } from "$lib/ipc";
   import { commit as selection } from "$stores/commit.svelte";
   import { graph } from "$stores/graph.svelte";
   import { repository } from "$stores/repository.svelte";
 
   interface Props {
+    /** Rows of this list, not a block above it: a rebase in flight is part of the history
+        the user is reading, and the graph has to draw lines into it. */
+    rebase?: RebaseProgress | null;
     /** A commit was dropped on another commit; the caller offers squash or reorder. */
     ondrop?: (source: string, target: string) => void;
     oncontext?: (oid: string, x: number, y: number) => void;
     onref?: (text: string) => void;
   }
 
-  let { ondrop, oncontext, onref }: Props = $props();
+  let { rebase = null, ondrop, oncontext, onref }: Props = $props();
 
   let over = $state<string | null>(null);
 
@@ -53,8 +56,33 @@
   let viewportHeight = $state(0);
   let viewportWidth = $state(0);
 
+  /** Index and every pending step, sitting between Working Tree and the first commit. */
+  const virtualRows = $derived.by(() => {
+    if (!rebase) return [];
+    const staged = repository.current?.status?.staged ?? 0;
+    const rows = [
+      {
+        kind: "index",
+        label: "Index",
+        detail: rebase.applying ? `rebasing: ${rebase.applying}` : `${staged} staged`,
+      },
+      ...rebase.todo.map((step) => ({
+        kind: "todo",
+        label: step.summary || step.oid.slice(0, 7),
+        detail: step.action,
+      })),
+      {
+        kind: "onto",
+        label: `Replaying onto ${rebase.onto ? rebase.onto.slice(0, 7) : "the new base"}`,
+        detail: `${rebase.done} of ${rebase.total} done`,
+      },
+    ];
+    return rows;
+  });
+
+  const headerRows = $derived(HEADER_ROWS + virtualRows.length);
   const commitCount = $derived(graph.rows.length);
-  const listRows = $derived(commitCount + HEADER_ROWS);
+  const listRows = $derived(commitCount + headerRows);
   const range = $derived(
     visibleRange(scrollTop, viewportHeight, GRAPH.rowHeight, listRows, BUFFER_ROWS),
   );
@@ -91,10 +119,10 @@
   });
 
   const visible = $derived.by(() => {
-    const from = Math.max(range.start, HEADER_ROWS);
+    const from = Math.max(range.start, headerRows);
     const rows = [];
     for (let listRow = from; listRow < range.end; listRow++) {
-      const commitRow = toCommitRow(listRow);
+      const commitRow = toCommitRow(listRow, headerRows);
       const entry = commitRow === null ? undefined : graph.rows[commitRow];
       if (entry) rows.push({ listRow, entry });
     }
@@ -125,7 +153,7 @@
     void pick(id, row.commit.oid);
 
     const offset = scrollRowIntoView(
-      target + HEADER_ROWS,
+      target + headerRows,
       scrollTop,
       viewportHeight,
       GRAPH.rowHeight,
@@ -154,7 +182,7 @@
     const at = graph.rows.findIndex((row) => row.commit.oid === wanted.oid);
     if (at < 0) return;
 
-    scroller.scrollTop = centreRow(at + HEADER_ROWS, viewportHeight, GRAPH.rowHeight, listRows);
+    scroller.scrollTop = centreRow(at + headerRows, viewportHeight, GRAPH.rowHeight, listRows);
     revealed = wanted.request;
   });
 
@@ -165,7 +193,7 @@
     if (!hit) return;
     const repo = repository.current?.repo;
     if (!repo) return;
-    const commitRow = toCommitRow(hit.row);
+    const commitRow = toCommitRow(hit.row, headerRows);
     void pick(repo, commitRow === null ? null : (graph.rows[commitRow]?.commit.oid ?? null));
   }
 
@@ -205,9 +233,9 @@
         {scrollTop}
         width={gutter}
         height={viewportHeight}
-        firstRow={Math.max(range.start - HEADER_ROWS, 0)}
+        firstRow={Math.max(range.start - headerRows, 0)}
         lastRow={range.end}
-        rowOffset={HEADER_ROWS}
+        rowOffset={headerRows}
         headLane={graph.rows[0]?.lane.lane ?? null}
       />
     </div>
@@ -227,6 +255,18 @@
           {#if graph.loading}<span class="date">loading…</span>{/if}
         </button>
       {/if}
+
+      {#each virtualRows as row, index (index)}
+        <div
+          class="row virtual {row.kind}"
+          style:top="{(HEADER_ROWS + index) * GRAPH.rowHeight}px"
+          style:padding-left="{gutter}px"
+        >
+          <span class="node" aria-hidden="true">{row.kind === "onto" ? "▶" : "◌"}</span>
+          <span class="summary truncate">{row.label}</span>
+          <span class="date">{row.detail}</span>
+        </div>
+      {/each}
 
       {#each visible as item (item.entry.commit.oid)}
         {@const refs = capsules(labels.get(item.entry.commit.oid) ?? [], CAPSULE_ROOM)}
@@ -364,6 +404,25 @@
     border: 0;
     font: inherit;
     text-align: left;
+  }
+
+  .row.virtual {
+    color: var(--text-secondary);
+  }
+
+  .row.virtual .node {
+    flex: 0 0 12px;
+    color: var(--status-modify);
+    font-size: 9px;
+    text-align: center;
+  }
+
+  .row.virtual.onto .node {
+    color: var(--status-ref);
+  }
+
+  .row.virtual.todo .node {
+    color: var(--text-secondary);
   }
 
   .row.header .summary {

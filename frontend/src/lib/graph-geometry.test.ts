@@ -264,3 +264,27 @@ describe("centreRow", () => {
     expect(centreRow(10, 0, rowHeight, 1000)).toBeGreaterThanOrEqual(0);
   });
 });
+
+describe("row offset with extra header rows", () => {
+  it("shifts a commit past however many rows sit above it", () => {
+    expect(toListRow(0, 1)).toBe(1);
+    expect(toListRow(0, 5)).toBe(5);
+    expect(toListRow(3, 5)).toBe(8);
+  });
+
+  it("maps a list row back to its commit", () => {
+    expect(toCommitRow(8, 5)).toBe(3);
+    expect(toCommitRow(5, 5)).toBe(0);
+  });
+
+  it("reports no commit for a row inside the header", () => {
+    expect(toCommitRow(4, 5)).toBeNull();
+    expect(toCommitRow(0, 5)).toBeNull();
+  });
+
+  it("still defaults to the single working-tree row", () => {
+    expect(toListRow(0)).toBe(1);
+    expect(toCommitRow(1)).toBe(0);
+    expect(toCommitRow(0)).toBeNull();
+  });
+});
