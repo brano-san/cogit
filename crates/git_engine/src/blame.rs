@@ -29,6 +29,27 @@ impl RepoHandle {
         Ok(lines)
     }
 
+    /// The file as it stood before `oid` touched it, or `None` when there was no such file
+    /// — because the commit added it, or because it is the root commit and there is no
+    /// "before" at all.
+    pub fn file_before(&self, oid: &str, path: &str) -> Result<Option<Vec<u8>>> {
+        let commit = self
+            .repo
+            .rev_parse_single(oid)
+            .map_err(|err| GitError::InvalidState(format!("cannot resolve {oid}: {err}")))?;
+
+        let has_parent = commit
+            .object()
+            .ok()
+            .and_then(|object| object.try_into_commit().ok())
+            .is_some_and(|commit| commit.parent_ids().next().is_some());
+        if !has_parent {
+            return Ok(None);
+        }
+
+        self.blob_at(&format!("{oid}^"), path)
+    }
+
     /// The commits `.git-blame-ignore-revs` asks to look past. Missing file, unreadable
     /// file and malformed lines all mean "nothing to skip": losing blame over a typo in an
     /// optional file would be worse than ignoring the file.

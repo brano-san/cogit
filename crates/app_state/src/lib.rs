@@ -1722,4 +1722,18 @@ impl AppState {
             Ok(DiffBatch::Superseded)
         }
     }
+
+    /// The file as it stood before a commit. Decoded lossily on purpose: a file the user
+    /// cannot open at all is worse than one rendered oddly.
+    pub fn file_before(
+        &self,
+        repo: RepoId,
+        oid: &str,
+        path: &str,
+    ) -> Result<Option<String>, git_engine::GitError> {
+        Ok(self
+            .handle(repo)?
+            .file_before(oid, path)?
+            .map(|bytes| String::from_utf8_lossy(&bytes).into_owned()))
+    }
 }
