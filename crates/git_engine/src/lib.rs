@@ -58,6 +58,6 @@ pub use state::RepoState;
 pub use status::RepoStatus;
 pub use submodules::{Submodule, SubmoduleState};
 pub use tags::TagRequest;
-pub use worktree::WorktreeFiles;
+pub use worktree::{WorktreeFiles, WorktreeView};
 
 pub type Result<T> = std::result::Result<T, GitError>;

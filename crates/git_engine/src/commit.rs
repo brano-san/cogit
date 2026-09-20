@@ -35,6 +35,11 @@ pub enum FileStatus {
     Copied,
     Untracked,
     Conflicted,
+    /// Tracked and identical to the index; only listed when the panel asks for it.
+    Unchanged,
+    Ignored,
+    AssumeUnchanged,
+    Skipped,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]

@@ -447,8 +447,9 @@ impl AppState {
     pub fn worktree_files(
         &self,
         repo: RepoId,
+        view: git_engine::WorktreeView,
     ) -> Result<git_engine::WorktreeFiles, git_engine::GitError> {
-        self.handle(repo)?.worktree_files()
+        self.handle(repo)?.worktree_files_with(view)
     }
 
     pub fn stage_paths(&self, repo: RepoId, paths: &[String]) -> Result<(), git_engine::GitError> {

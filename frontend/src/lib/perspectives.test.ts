@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_LAYOUT,
   DEFAULT_PERSPECTIVES,
   PANELS,
   isVisible,
@@ -93,5 +94,17 @@ describe("mergePerspectives", () => {
   it("accepts a v1 layout, which was a bare set of fractions", () => {
     const merged = mergePerspectives({ graph: 0.5 } as never);
     expect(merged.main.fractions.graph).toBe(0.5);
+  });
+});
+
+describe("filesSplit", () => {
+  it("is part of the saved layout, so the Files divider survives a restart", () => {
+    expect(DEFAULT_LAYOUT.filesSplit).toBeGreaterThan(0);
+  });
+
+  it("comes back from a stored layout that predates it", () => {
+    const upgraded = mergePerspectives({ leftColumn: 0.3 });
+    expect(upgraded.main.fractions.filesSplit).toBe(DEFAULT_LAYOUT.filesSplit);
+    expect(upgraded.main.fractions.leftColumn).toBe(0.3);
   });
 });

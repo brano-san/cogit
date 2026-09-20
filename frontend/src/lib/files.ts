@@ -10,6 +10,10 @@ const BADGES: Record<FileStatus, string> = {
   copied: "C",
   untracked: "?",
   conflicted: "U",
+  unchanged: "·",
+  ignored: "∅",
+  assumeUnchanged: "≈",
+  skipped: "⤳",
 };
 
 const STATUS_ORDER: FileStatus[] = [
@@ -20,14 +24,22 @@ const STATUS_ORDER: FileStatus[] = [
   "renamed",
   "copied",
   "untracked",
+  "assumeUnchanged",
+  "skipped",
+  "ignored",
+  "unchanged",
 ];
 
 export function statusBadge(status: FileStatus): string {
   return BADGES[status];
 }
 
+const LABELS: Partial<Record<FileStatus, string>> = {
+  assumeUnchanged: "Assume unchanged",
+};
+
 export function statusLabel(status: FileStatus): string {
-  return status.charAt(0).toUpperCase() + status.slice(1);
+  return LABELS[status] ?? status.charAt(0).toUpperCase() + status.slice(1);
 }
 
 export function fileName(path: string): string {

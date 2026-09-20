@@ -1,3 +1,5 @@
+import { backendView } from "$lib/file-view";
+import { filesView } from "$stores/files-view.svelte";
 import {
   CogitError,
   createCommit,
@@ -27,7 +29,7 @@ class WorktreeStore {
     this.loading = true;
 
     try {
-      const files = await worktreeFiles(repo);
+      const files = await worktreeFiles(repo, backendView(filesView.current));
       if (generation !== this.#generation) return;
       this.staged = files.staged;
       this.unstaged = files.unstaged;
