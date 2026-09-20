@@ -67,10 +67,14 @@ class WorktreeStore {
     await this.load(repo);
   }
 
-  async commit(repo: RepoId, message: string, amend: boolean, noVerify: boolean): Promise<void> {
-    await this.mutate(repo, () =>
-      createCommit(repo, { message, amend, noVerify }),
-    );
+  async commit(
+    repo: RepoId,
+    message: string,
+    amend: boolean,
+    noVerify: boolean,
+    only: string[] = [],
+  ): Promise<void> {
+    await this.mutate(repo, () => createCommit(repo, { message, amend, noVerify, only }));
   }
 
   clear(): void {

@@ -888,6 +888,46 @@ impl AppState {
         Ok(self.handle(repo)?.remote_url(name))
     }
 
+    pub fn add_to_gitignore(
+        &self,
+        repo: RepoId,
+        paths: &[String],
+    ) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
+        self.handle(repo)?.add_to_gitignore(paths)
+    }
+
+    pub fn delete_untracked(
+        &self,
+        repo: RepoId,
+        paths: &[String],
+    ) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
+        self.handle(repo)?.delete_untracked(paths)?;
+        self.record(
+            repo,
+            format!("Delete {} untracked path(s)", paths.len()),
+            Recovery::None,
+        );
+        Ok(())
+    }
+
+    /// Both sides of an image as `data:` URLs; `None` on a side the file is absent from.
+    pub fn image_sides(
+        &self,
+        repo: RepoId,
+        spec: &git_engine::DiffSpec,
+        path: &str,
+    ) -> Result<(Option<String>, Option<String>), git_engine::GitError> {
+        let (old, new) = self.handle(repo)?.diff_sides(spec, path)?;
+        let encode = |bytes: Option<Vec<u8>>| {
+            bytes.and_then(|data| {
+                diff_engine::image_mime(&data).map(|mime| diff_engine::data_url(mime, &data))
+            })
+        };
+        Ok((encode(old), encode(new)))
+    }
+
     fn handle(&self, repo: RepoId) -> Result<git_engine::RepoHandle, git_engine::GitError> {
         let open = self
             .get(repo)

@@ -7,6 +7,9 @@ pub struct CommitRequest {
     pub message: String,
     pub amend: bool,
     pub no_verify: bool,
+    /// Empty means everything staged; a list narrows the commit to those paths (T6.8).
+    #[serde(default)]
+    pub only: Vec<String>,
 }
 
 impl RepoHandle {
@@ -27,6 +30,11 @@ impl RepoHandle {
         // `-m` takes the next argument verbatim, so a message starting with `--` is safe.
         args.push("-m");
         args.push(&request.message);
+        if !request.only.is_empty() {
+            args.push("--only");
+            args.push("--");
+            args.extend(request.only.iter().map(String::as_str));
+        }
 
         self.run_git(&args)?;
         Ok(self

@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 mod eol;
 mod headers;
+mod images;
 mod language;
 mod patch;
 mod text;
@@ -9,6 +10,7 @@ mod words;
 
 pub use eol::{EolInfo, LineEnding, detect_line_ending, normalize_line_endings};
 pub use headers::with_hunk_context;
+pub use images::{data_url, image_mime};
 pub use language::language_for_path;
 pub use patch::{PatchRequest, build_patch};
 pub use text::{MAX_TEXT_BYTES, diff_bytes, diff_text};
@@ -127,6 +129,9 @@ pub enum FileDiff {
         size: u64,
     },
     Unchanged,
+    /// Nothing but whitespace changed, and the active option hides it. Told apart from
+    /// `Unchanged` so the UI can say the diff is being filtered (T7.10).
+    WhitespaceOnly,
 }
 
 #[derive(Debug, thiserror::Error, Serialize, specta::Type)]

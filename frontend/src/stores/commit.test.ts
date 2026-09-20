@@ -28,7 +28,9 @@ function details(oid: string) {
 }
 
 function files(path: string) {
-  return ok([{ path, oldPath: null, status: "added" as const }]);
+  return ok([
+    { path, oldPath: null, status: "added" as const, modeChange: null, similarity: null },
+  ]);
 }
 
 function deferred<T>() {

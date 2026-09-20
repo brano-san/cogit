@@ -12,9 +12,22 @@
     stageable?: boolean;
     onstage?: (selected: ReadonlySet<string>, reverse: boolean) => void;
     onblame?: () => void;
+    whitespace?: import("$lib/ipc").Whitespace;
+    onwhitespace?: (mode: import("$lib/ipc").Whitespace) => void;
   }
 
-  let { diff, path, stageable = false, onstage, onblame }: Props = $props();
+  let {
+    diff,
+    path,
+    stageable = false,
+    onstage,
+    onblame,
+    whitespace = "none",
+    onwhitespace,
+  }: Props = $props();
+
+  const WHITESPACE_LABEL = { none: "Whitespace", trailing: "Trailing ws", all: "Ignore ws" };
+  const WHITESPACE_NEXT = { none: "trailing", trailing: "all", all: "none" } as const;
 
   let selected = $state<Set<string>>(new Set());
 
@@ -175,6 +188,15 @@
           >Unstage lines</button
         >
       {/if}
+      {#if onwhitespace}
+        <button
+          type="button"
+          class:active={whitespace !== "none"}
+          title="Off → trailing → all"
+          onclick={() => onwhitespace(WHITESPACE_NEXT[whitespace])}
+          >{WHITESPACE_LABEL[whitespace]}</button
+        >
+      {/if}
       {#if onblame}
         <button type="button" title="Annotate every line with its commit" onclick={() => onblame()}
           >Blame</button
@@ -192,6 +214,11 @@
 
   {#if diff.kind === "unchanged"}
     <p class="message">No change in this file.</p>
+  {:else if diff.kind === "whitespaceOnly"}
+    <p class="message warn">
+      Only whitespace changed. The current mode hides it — switch the whitespace button off
+      to see the diff.
+    </p>
   {:else if diff.kind === "eolOnly"}
     <p class="message">
       Only the line endings changed: {diff.from} → {diff.to}. The content is identical.
@@ -338,6 +365,11 @@
     cursor: default;
   }
 
+  .bar button.active {
+    color: var(--status-modify);
+    border-color: var(--status-modify);
+  }
+
   .bar button:hover {
     background: var(--state-hover);
   }
@@ -429,6 +461,10 @@
     padding-left: var(--sp-4);
     color: var(--status-ref);
     background: var(--surface-raised);
+  }
+
+  .message.warn {
+    color: var(--status-modify);
   }
 
   .message {

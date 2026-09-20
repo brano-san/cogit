@@ -184,6 +184,8 @@ macro_rules! path_command {
 path_command!(stage_paths, stage_paths);
 path_command!(unstage_paths, unstage_paths);
 path_command!(discard_paths, discard_paths);
+path_command!(add_to_gitignore, add_to_gitignore);
+path_command!(delete_untracked, delete_untracked);
 
 #[tauri::command]
 #[specta::specta]
@@ -627,4 +629,18 @@ pub async fn remote_url(
     tokio::task::spawn_blocking(move || app_state.remote_url(repo, &name))
         .await
         .map_err(|err| GitError::Internal(format!("remote_url task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn image_sides(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    spec: DiffSpec,
+    path: String,
+) -> Result<(Option<String>, Option<String>), GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.image_sides(repo, &spec, &path))
+        .await
+        .map_err(|err| GitError::Internal(format!("image_sides task failed: {err}")))?
 }

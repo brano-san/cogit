@@ -2,13 +2,15 @@
   import { SUBJECT_HARD, SUBJECT_SOFT, subjectOf, subjectState } from "$lib/commit-message";
 
   interface Props {
+    /** What the button will actually commit, given the active filter (T6.8). */
+    scope: import("$lib/commit-scope").CommitScope;
     stagedCount: number;
     busy?: boolean;
     draftKey: string;
     oncommit: (message: string, amend: boolean, noVerify: boolean) => void;
   }
 
-  let { stagedCount, busy = false, draftKey, oncommit }: Props = $props();
+  let { scope, stagedCount, busy = false, draftKey, oncommit }: Props = $props();
 
   let message = $state("");
   let amend = $state(false);
@@ -62,6 +64,10 @@
     aria-label="Commit message"
   ></textarea>
 
+  {#if scope.warning}
+    <p class="hidden-warning">{scope.warning}</p>
+  {/if}
+
   <div class="bar">
     <span class="count {overflow}" title="Subject line: {SUBJECT_SOFT} soft, {SUBJECT_HARD} hard"
       >{length}</span
@@ -70,7 +76,7 @@
     <label><input type="checkbox" bind:checked={noVerify} /> No verify</label>
     <span class="grow"></span>
     <button type="button" disabled={!ready} onclick={submit}>
-      {amend ? "Amend" : "Commit"}{stagedCount > 0 ? ` ${stagedCount}` : ""}
+      {amend ? "Amend" : scope.label}
     </button>
   </div>
 </div>
@@ -94,6 +100,12 @@
     border-radius: var(--r-sm);
     font-family: var(--font-mono);
     font-size: var(--fs-code);
+  }
+
+  .hidden-warning {
+    margin: var(--sp-3) 0 0;
+    color: var(--status-modify);
+    font-size: 10px;
   }
 
   .bar {
