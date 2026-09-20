@@ -1,8 +1,42 @@
 use crate::{GitError, RepoHandle, RepoState, Result};
+use serde::Deserialize;
+
+#[derive(Debug, Clone, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RebaseOptions {
+    pub onto: String,
+    /// Lets the rebase start with a dirty tree; Git puts the changes back afterwards.
+    pub autostash: bool,
+}
 
 impl RepoHandle {
     pub fn abort_operation(&self) -> Result<()> {
         self.run_git(&[self.operation()?, "--abort"]).map(drop)
+    }
+
+    pub fn rebase(&self, options: &RebaseOptions) -> Result<()> {
+        let onto = options.onto.trim();
+        if onto.is_empty() {
+            return Err(GitError::InvalidState("nothing to rebase onto".to_owned()));
+        }
+
+        let mut args = vec!["rebase"];
+        if options.autostash {
+            args.push("--autostash");
+        }
+        args.push(onto);
+        self.run_git(&args).map(drop)
+    }
+
+    /// Only a rebase and a cherry-pick can skip; a merge has nothing to skip past.
+    pub fn skip_operation(&self) -> Result<()> {
+        let operation = self.operation()?;
+        if !matches!(operation, "rebase" | "cherry-pick" | "revert") {
+            return Err(GitError::InvalidState(format!(
+                "{operation} cannot skip a step"
+            )));
+        }
+        self.run_git(&[operation, "--skip"]).map(drop)
     }
 
     pub fn continue_operation(&self) -> Result<()> {

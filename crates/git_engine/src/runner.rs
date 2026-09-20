@@ -43,6 +43,18 @@ impl RepoHandle {
         self.spawn(args, true)
     }
 
+    pub(crate) fn base_git(&self, args: &[&str]) -> Command {
+        let mut command = base_command(self.root(), false);
+        command.args(args);
+        command
+    }
+
+    pub(crate) fn journal_entry(&self, entry: GitOutput) {
+        if let Some(sink) = self.journal() {
+            sink(entry);
+        }
+    }
+
     fn spawn(&self, args: &[&str], reading: bool) -> Result<GitOutput> {
         let command = format!("git {}", args.join(" "));
         let started = std::time::Instant::now();
@@ -63,9 +75,7 @@ impl RepoHandle {
             duration_ms,
         };
 
-        if let Some(sink) = self.journal() {
-            sink(result.clone());
-        }
+        self.journal_entry(result.clone());
 
         if output.status.success() {
             tracing::debug!(

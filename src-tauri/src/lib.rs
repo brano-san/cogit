@@ -60,7 +60,18 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::stash_apply,
             commands::stash_drop,
             commands::create_tag,
-            commands::delete_tag
+            commands::delete_tag,
+            commands::remotes,
+            commands::fetch,
+            commands::pull,
+            commands::push,
+            commands::merge,
+            commands::rebase,
+            commands::skip_operation,
+            commands::cherry_pick,
+            commands::revert,
+            commands::reflog,
+            commands::lost_commits
         ])
 }
 

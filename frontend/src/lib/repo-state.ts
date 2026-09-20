@@ -1,6 +1,6 @@
 import type { RepoState } from "$lib/ipc";
 
-export type BannerAction = "continue" | "abort" | "createBranch";
+export type BannerAction = "continue" | "skip" | "abort" | "createBranch";
 
 export interface Banner {
   title: string;
@@ -34,7 +34,7 @@ export function stateBanner(state: RepoState, indexLock: string | null): Banner 
       title: `${interrupted} in progress`,
       detail: "Resolve the conflicts and continue, or abort to go back.",
       severity: "warning",
-      actions: ["continue", "abort"],
+      actions: state.kind === "merging" ? ["continue", "abort"] : ["continue", "skip", "abort"],
     };
   }
 

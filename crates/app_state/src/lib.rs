@@ -641,6 +641,139 @@ impl AppState {
         Ok(())
     }
 
+    pub fn remotes(&self, repo: RepoId) -> Result<Vec<String>, git_engine::GitError> {
+        self.handle(repo)?.remotes()
+    }
+
+    pub fn fetch(
+        &self,
+        repo: RepoId,
+        remote: &str,
+        on_line: impl FnMut(&str),
+    ) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
+        self.handle(repo)?.fetch(remote, on_line)
+    }
+
+    pub fn pull(
+        &self,
+        repo: RepoId,
+        remote: &str,
+        ff_only: bool,
+        on_line: impl FnMut(&str),
+    ) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
+        self.handle(repo)?.pull(remote, ff_only, on_line)
+    }
+
+    pub fn push(
+        &self,
+        repo: RepoId,
+        remote: &str,
+        force: bool,
+        on_line: impl FnMut(&str),
+    ) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
+        self.handle(repo)?.push(remote, None, force, on_line)
+    }
+
+    pub fn merge(
+        &self,
+        repo: RepoId,
+        options: &git_engine::MergeOptions,
+    ) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
+        let handle = self.handle(repo)?;
+        let before = handle.head()?;
+        handle.merge(options)?;
+
+        let recovery = match before {
+            git_engine::Head::Branch { name, oid } => Recovery::Branch { name, oid },
+            _ => Recovery::None,
+        };
+        self.record(repo, format!("Merge {}", options.source), recovery);
+        Ok(())
+    }
+
+    pub fn rebase(
+        &self,
+        repo: RepoId,
+        options: &git_engine::RebaseOptions,
+    ) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
+        let handle = self.handle(repo)?;
+        let before = handle.head()?;
+        handle.rebase(options)?;
+
+        let recovery = match before {
+            git_engine::Head::Branch { name, oid } => Recovery::Branch { name, oid },
+            _ => Recovery::None,
+        };
+        self.record(repo, format!("Rebase onto {}", options.onto), recovery);
+        Ok(())
+    }
+
+    pub fn skip_operation(&self, repo: RepoId) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
+        self.handle(repo)?.skip_operation()
+    }
+
+    pub fn cherry_pick(
+        &self,
+        repo: RepoId,
+        commits: &[String],
+    ) -> Result<(), git_engine::GitError> {
+        self.replay(repo, commits, true)
+    }
+
+    pub fn revert(&self, repo: RepoId, commits: &[String]) -> Result<(), git_engine::GitError> {
+        self.replay(repo, commits, false)
+    }
+
+    fn replay(
+        &self,
+        repo: RepoId,
+        commits: &[String],
+        pick: bool,
+    ) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
+        let handle = self.handle(repo)?;
+        let before = handle.head()?;
+        if pick {
+            handle.cherry_pick(commits)?;
+        } else {
+            handle.revert(commits)?;
+        }
+
+        let recovery = match before {
+            git_engine::Head::Branch { name, oid } => Recovery::Branch { name, oid },
+            _ => Recovery::None,
+        };
+        let verb = if pick { "Cherry-pick" } else { "Revert" };
+        self.record(
+            repo,
+            format!("{verb} {} commit(s)", commits.len()),
+            recovery,
+        );
+        Ok(())
+    }
+
+    pub fn reflog(
+        &self,
+        repo: RepoId,
+        limit: u32,
+    ) -> Result<Vec<git_engine::ReflogEntry>, git_engine::GitError> {
+        self.handle(repo)?.reflog(limit as usize)
+    }
+
+    pub fn lost_commits(
+        &self,
+        repo: RepoId,
+        limit: u32,
+    ) -> Result<Vec<git_engine::CommitRow>, git_engine::GitError> {
+        self.handle(repo)?.lost_commits(limit as usize)
+    }
+
     fn handle(&self, repo: RepoId) -> Result<git_engine::RepoHandle, git_engine::GitError> {
         let open = self
             .get(repo)
