@@ -515,6 +515,8 @@ export type RepoOverview = {
 	ahead: number,
 	behind: number,
 	dirty: boolean,
+	/**  The folder is gone. The row stays so the user can remove it on purpose (T3.7). */
+	missing: boolean,
 };
 
 export type RepoState = { kind: "clean" } | { kind: "detachedHead"; oid: string } | { kind: "merging" } | { kind: "rebasing" } | { kind: "cherryPicking" } | { kind: "reverting" } | { kind: "bisecting" } | { kind: "empty" } | { kind: "bare" };

@@ -66,6 +66,8 @@
     mergeInto,
     stageSelection,
     stashSelection,
+    fetchRemote,
+    listRemotes,
     onMenuCommand,
     openInTerminal,
     terminalChoices,
@@ -138,6 +140,8 @@
   let markedFiles = $state.raw<string[]>([]);
   let repoTarget = $state.raw<import("$lib/ipc").RepoOverview | null>(null);
   let terminals = $state.raw<{ id: string; label: string }[]>([]);
+  let markedRepos = $state.raw<string[]>([]);
+  let bulk = $state.raw<import("$lib/operations").BulkProgress | undefined>(undefined);
   let journalOpen = $state(false);
   let journalBusy = $state(false);
   let prompt = $state.raw<{
@@ -443,6 +447,13 @@ Log: ${info?.logPath ?? ""}`),
           journalOpen = true;
           void safety.refresh();
         },
+      },
+      {
+        id: "fetch-all",
+        title: "Fetch All",
+        synonyms: ["update every repository"],
+        unavailable: repository.openRepos.length > 0 ? undefined : "No repository is open",
+        run: () => void fetchAll(),
       },
       {
         id: "reveal-log",
@@ -1393,6 +1404,39 @@ Log: ${info?.logPath ?? ""}`),
     await repository.refresh();
   }
 
+  /** One failure must not stop the rest: the point of Fetch All is not doing it by hand. */
+  async function fetchAll() {
+    const roots = markedRepos.length > 0 ? markedRepos : repository.openRepos.map((e) => e.root);
+    const targets = repository.openRepos.filter((entry) => roots.includes(entry.root));
+    if (targets.length === 0) return;
+
+    const watch = measure("fetch-all");
+    let failed = 0;
+    bulk = { label: "Fetching", done: 0, total: targets.length };
+
+    for (const [index, entry] of targets.entries()) {
+      try {
+        const remote = await primaryRemote(entry.repo);
+        if (remote) await fetchRemote(entry.repo, remote, () => {});
+      } catch (err) {
+        failed += 1;
+        errors.report(err as never);
+      }
+      bulk = { label: "Fetching", done: index + 1, total: targets.length, failed };
+    }
+
+    bulk = undefined;
+    watch.stop(`${targets.length} repositories, ${failed} failed`);
+    await repository.refreshList();
+    await afterRefChange();
+  }
+
+  /** The remote a bulk fetch should use: the tracked one, else the only one there is. */
+  async function primaryRemote(id: import("$lib/ipc").RepoId): Promise<string | null> {
+    const names = await listRemotes(id).catch(() => [] as string[]);
+    return names.includes("origin") ? "origin" : (names[0] ?? null);
+  }
+
   async function repoContext(entry: import("$lib/ipc").RepoOverview, x: number, y: number) {
     repoTarget = entry;
     const active = repo?.repo.valueOf() === entry.repo.valueOf();
@@ -1698,6 +1742,7 @@ Log: ${info?.logPath ?? ""}`),
             onselect={(entry) => void activate(entry.root)}
             onclose={(entry) => void closeOne(entry)}
             oncontext={(entry, x, y) => void repoContext(entry, x, y)}
+            onmarked={(roots) => (markedRepos = roots)}
             onopenmodule={(module) => void activate(`${repo?.root ?? ""}/${module.path}`)}
             onupdatemodule={(module) => void refreshSubmodule(module)}
           />
@@ -2085,6 +2130,7 @@ Log: ${info?.logPath ?? ""}`),
     version={info?.version}
     activity={activity({
       operations: running,
+      bulk,
       network: network.running ?? undefined,
       networkProgress: network.progress ?? undefined,
       opening: repository.busy,

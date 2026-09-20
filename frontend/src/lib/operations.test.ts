@@ -97,3 +97,28 @@ describe("activity", () => {
     expect(activity({ ...idle, operations, failed: true }).tone).toBe("busy");
   });
 });
+
+describe("activity · bulk work", () => {
+  const idle = { operations: new Map(), opening: false, failed: false };
+
+  it("shows how far a bulk run has got", () => {
+    expect(activity({ ...idle, bulk: { label: "Fetching", done: 2, total: 7 } }).label).toBe(
+      "Fetching 2 of 7…",
+    );
+  });
+
+  it("counts the ones that failed without stopping", () => {
+    const bulk = { label: "Fetching", done: 7, total: 7, failed: 2 };
+    expect(activity({ ...idle, bulk }).label).toBe("Fetching 7 of 7… (2 failed)");
+  });
+
+  it("outranks a single operation, because it is the thing the user started", () => {
+    const operations = new Map([[1, "Fetching"]]);
+    const bulk = { label: "Fetching", done: 1, total: 4 };
+    expect(activity({ ...idle, operations, bulk }).label).toBe("Fetching 1 of 4…");
+  });
+
+  it("is busy while it runs", () => {
+    expect(activity({ ...idle, bulk: { label: "Fetching", done: 0, total: 3 } }).busy).toBe(true);
+  });
+});
