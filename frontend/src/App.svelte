@@ -8,6 +8,7 @@
   import CommitList from "$components/graph/CommitList.svelte";
   import GraphFilter from "$components/graph/GraphFilter.svelte";
   import Panel from "$components/layout/Panel.svelte";
+  import GitErrorDialog from "$components/layout/GitErrorDialog.svelte";
   import Splitter from "$components/layout/Splitter.svelte";
   import StatusBar from "$components/layout/StatusBar.svelte";
   import Toolbar from "$components/layout/Toolbar.svelte";
@@ -17,6 +18,7 @@
   import { commit } from "$stores/commit.svelte";
   import { worktree } from "$stores/worktree.svelte";
   import { diff } from "$stores/diff.svelte";
+  import { errors } from "$stores/errors.svelte";
   import { graph } from "$stores/graph.svelte";
   import { layout } from "$stores/layout.svelte";
   import { repository } from "$stores/repository.svelte";
@@ -44,6 +46,14 @@
     const id = repository.current?.repo;
     if (id && commit.oid === null) void worktree.load(id);
   });
+
+  // Every failure that carries raw Git output goes to the dialog; INV-05 says the user
+  // sees exactly what Git said, not a summary of it.
+  $effect(() => errors.report(worktree.error));
+  $effect(() => errors.report(repository.error));
+  $effect(() => errors.report(commit.error));
+  $effect(() => errors.report(diff.error));
+  $effect(() => errors.report(graph.error));
 
   function filterGraph(query: import("$lib/ipc").CommitQuery) {
     const id = repository.current?.repo;
@@ -277,6 +287,10 @@
     </div>
   </div>
 
+  {#if errors.current}
+    <GitErrorDialog error={errors.current} ondismiss={() => errors.dismiss()} />
+  {/if}
+
   <StatusBar
     repository={repo?.name ?? "No repository"}
     branch={repo ? repository.headLabel : undefined}
@@ -288,6 +302,7 @@
 
 <style>
   .app {
+    position: relative;
     display: flex;
     flex-direction: column;
     height: 100%;
