@@ -28,9 +28,12 @@
 
   interface Props {
     busy?: string;
+    /** Description of what Undo would reverse, or undefined when there is nothing to undo. */
+    undoable?: string;
+    onundo?: () => void;
   }
 
-  let { busy }: Props = $props();
+  let { busy, undoable, onundo }: Props = $props();
 
   const enabled = false;
 </script>
@@ -55,6 +58,20 @@
       {/each}
     </div>
   {/each}
+
+  <span class="separator" aria-hidden="true"></span>
+  <div class="group">
+    <button
+      type="button"
+      class="action"
+      disabled={!undoable}
+      title={undoable ? `Undo: ${undoable}` : "Nothing to undo"}
+      onclick={() => onundo?.()}
+    >
+      <span class="icon" aria-hidden="true">↶</span>
+      <span>Undo</span>
+    </button>
+  </div>
 
   <div class="spacer"></div>
 

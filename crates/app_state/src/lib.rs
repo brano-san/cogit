@@ -73,6 +73,35 @@ pub const DEFAULT_CHUNK_SIZE: usize = 200;
 /// from holding every byte Git ever printed.
 pub const JOURNAL_CAPACITY: usize = 500;
 
+/// What has to be put back to reverse one destructive operation (INV-12).
+#[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum Recovery {
+    Stash {
+        oid: String,
+    },
+    Branch {
+        name: String,
+        oid: String,
+    },
+    /// Recorded for the journal, refused by undo: honesty beats a half-working restore.
+    None,
+}
+
+#[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SafetyEntry {
+    pub id: u32,
+    pub repo: RepoId,
+    pub description: String,
+    pub undoable: bool,
+    pub recovery: Recovery,
+}
+
 /// Git reports mixed line endings, permissions and deprecated settings on `stderr` with
 /// exit code 0. Nobody sees those unless we call them out.
 #[must_use]
@@ -87,6 +116,8 @@ pub struct AppState {
     events: broadcast::Sender<AppEvent>,
     watchers: RwLock<HashMap<RepoId, fs_watcher::RepoWatcher>>,
     journal: Arc<RwLock<std::collections::VecDeque<git_engine::GitOutput>>>,
+    safety: RwLock<Vec<SafetyEntry>>,
+    next_entry_id: AtomicU32,
 }
 
 impl Default for AppState {
@@ -107,6 +138,8 @@ impl AppState {
             journal: Arc::new(RwLock::new(std::collections::VecDeque::with_capacity(
                 JOURNAL_CAPACITY,
             ))),
+            safety: RwLock::new(Vec::new()),
+            next_entry_id: AtomicU32::new(1),
         }
     }
 
@@ -295,12 +328,34 @@ impl AppState {
         self.handle(repo)?.unstage(paths)
     }
 
+    /// Discarded work goes into a hidden stash first, so Undo has something to put back.
     pub fn discard_paths(
         &self,
         repo: RepoId,
         paths: &[String],
     ) -> Result<(), git_engine::GitError> {
-        self.handle(repo)?.discard(paths)
+        if paths.is_empty() {
+            return Err(git_engine::GitError::InvalidState(
+                "no paths given; refusing to act on the whole repository".to_owned(),
+            ));
+        }
+
+        let handle = self.handle(repo)?;
+        // A successful stash has already taken the changes out of the working tree, so
+        // discarding again would only fail on paths Git no longer knows about.
+        let stashed = handle
+            .stash_paths(paths, &format!("cogit: discard {}", paths.join(", ")))
+            .unwrap_or(None);
+        if stashed.is_none() {
+            handle.discard(paths)?;
+        }
+
+        self.record(
+            repo,
+            format!("Discard {}", paths.join(", ")),
+            stashed.map_or(Recovery::None, |oid| Recovery::Stash { oid }),
+        );
+        Ok(())
     }
 
     pub fn commit(
@@ -316,7 +371,14 @@ impl AppState {
         repo: RepoId,
         target: &git_engine::CheckoutTarget,
     ) -> Result<(), git_engine::GitError> {
-        self.handle(repo)?.checkout(target)
+        self.handle(repo)?.checkout(target)?;
+
+        let what = match target {
+            git_engine::CheckoutTarget::Branch { name } => name.clone(),
+            git_engine::CheckoutTarget::Commit { oid } => oid.clone(),
+        };
+        self.record(repo, format!("Check out {what}"), Recovery::None);
+        Ok(())
     }
 
     pub fn create_branch(
@@ -335,7 +397,23 @@ impl AppState {
         name: &str,
         force: bool,
     ) -> Result<(), git_engine::GitError> {
-        self.handle(repo)?.delete_branch(name, force)
+        let handle = self.handle(repo)?;
+        let oid = handle
+            .branches()?
+            .into_iter()
+            .find(|branch| branch.name == name)
+            .map(|branch| branch.oid);
+        handle.delete_branch(name, force)?;
+
+        self.record(
+            repo,
+            format!("Delete branch {name}"),
+            oid.map_or(Recovery::None, |oid| Recovery::Branch {
+                name: name.to_owned(),
+                oid,
+            }),
+        );
+        Ok(())
     }
 
     /// A repository is watched once; reopening the same path must not stack watchers.
@@ -403,6 +481,54 @@ impl AppState {
             }
             log.push_back(entry);
         })
+    }
+
+    /// Newest first, like the Output panel.
+    #[must_use]
+    pub fn safety_log(&self) -> Vec<SafetyEntry> {
+        self.safety.read().iter().rev().cloned().collect()
+    }
+
+    pub fn undo_last(&self, repo: RepoId) -> Result<SafetyEntry, git_engine::GitError> {
+        let entry = self
+            .safety
+            .read()
+            .iter()
+            .rev()
+            .find(|entry| entry.repo == repo && entry.undoable)
+            .cloned()
+            .ok_or_else(|| git_engine::GitError::InvalidState("nothing to undo".to_owned()))?;
+
+        let handle = self.handle(repo)?;
+        match &entry.recovery {
+            Recovery::Stash { oid } => handle.stash_apply(oid)?,
+            Recovery::Branch { name, oid } => handle.create_branch(name, Some(oid), false)?,
+            Recovery::None => {
+                return Err(git_engine::GitError::InvalidState(
+                    "this operation cannot be undone".to_owned(),
+                ));
+            }
+        }
+
+        self.safety.write().retain(|kept| kept.id != entry.id);
+        Ok(entry)
+    }
+
+    fn record(&self, repo: RepoId, description: String, recovery: Recovery) {
+        let entry = SafetyEntry {
+            id: self.next_entry_id.fetch_add(1, Ordering::Relaxed),
+            repo,
+            description,
+            undoable: !matches!(recovery, Recovery::None),
+            recovery,
+        };
+        tracing::info!(
+            repo = repo.0,
+            entry = %entry.description,
+            undoable = entry.undoable,
+            "destructive operation recorded"
+        );
+        self.safety.write().push(entry);
     }
 
     fn handle(&self, repo: RepoId) -> Result<git_engine::RepoHandle, git_engine::GitError> {

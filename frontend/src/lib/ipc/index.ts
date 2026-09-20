@@ -42,6 +42,7 @@ export type {
   RepoId,
   RepoStatus,
   RepoSummary,
+  SafetyEntry,
   Signature,
   Tag,
   Whitespace,
@@ -183,6 +184,14 @@ export async function onRepoChanged(handler: (change: RepoChanged) => void) {
 
 export async function commandLog() {
   return await commands.commandLog();
+}
+
+export async function safetyLog() {
+  return await commands.safetyLog();
+}
+
+export async function undoLast(repo: RepoId) {
+  return unwrap(await commands.undoLast(repo));
 }
 
 export async function commandProblems() {

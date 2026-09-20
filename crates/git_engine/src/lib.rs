@@ -8,6 +8,7 @@ mod repo;
 mod runner;
 mod search;
 mod staging;
+mod stash;
 mod state;
 mod status;
 mod worktree;

@@ -23,6 +23,8 @@ export const commands = {
 	commandLog: () => __TAURI_INVOKE<GitOutput[]>("command_log"),
 	commandProblems: () => __TAURI_INVOKE<number>("command_problems"),
 	clearCommandLog: () => __TAURI_INVOKE<void>("clear_command_log"),
+	safetyLog: () => __TAURI_INVOKE<SafetyEntry[]>("safety_log"),
+	undoLast: (repo: RepoId) => typedError<SafetyEntry, GitError>(__TAURI_INVOKE("undo_last", { repo })),
 };
 
 /** Events */
@@ -180,6 +182,11 @@ export type LineEnding = "lf" | "crlf" | "cr" | "mixed" | "none";
 
 export type NodeKind = "normal" | "merge" | "root" | "workingTree";
 
+/**  What has to be put back to reverse one destructive operation (INV-12). */
+export type Recovery = { kind: "stash"; oid: string } | { kind: "branch"; name: string; oid: string } | 
+/**  Recorded for the journal, refused by undo: honesty beats a half-working restore. */
+{ kind: "none" };
+
 /**
  *  Mirrors `app_state::AppEvent::RepoChanged`. It lives here because deriving
  *  `tauri_specta::Event` would make `app_state` depend on tauri (INV-09).
@@ -207,6 +214,14 @@ export type RepoSummary = {
 	branches: Branch[],
 	tags: Tag[],
 	status: RepoStatus,
+};
+
+export type SafetyEntry = {
+	id: number,
+	repo: RepoId,
+	description: string,
+	undoable: boolean,
+	recovery: Recovery,
 };
 
 export type Signature = {

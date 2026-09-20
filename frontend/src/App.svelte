@@ -28,6 +28,7 @@
   import { diff } from "$stores/diff.svelte";
   import { errors } from "$stores/errors.svelte";
   import { output } from "$stores/output.svelte";
+  import { safety } from "$stores/safety.svelte";
   import { graph } from "$stores/graph.svelte";
   import { layout } from "$stores/layout.svelte";
   import { repository } from "$stores/repository.svelte";
@@ -69,6 +70,7 @@
     void worktree.loading;
     void repository.busy;
     void output.refreshProblems();
+    void safety.refresh();
     if (output.open) void output.refresh();
   });
 
@@ -170,6 +172,18 @@
     await afterRefChange();
   }
 
+  async function undo() {
+    const id = repository.current?.repo;
+    if (!id) return;
+    try {
+      await safety.undo(id);
+    } catch (err) {
+      errors.report(err as never);
+      return;
+    }
+    await afterRefChange();
+  }
+
   function openDiff(path: string) {
     const id = repository.current?.repo;
     const oid = commit.oid;
@@ -205,7 +219,11 @@
 <svelte:window {onkeydown} />
 
 <div class="app">
-  <Toolbar busy={repository.busy ? "Opening repository…" : undefined} />
+  <Toolbar
+    busy={repository.busy ? "Opening repository…" : undefined}
+    undoable={safety.last?.description}
+    onundo={undo}
+  />
 
   <div class="workspace">
     <div class="left-column" style:flex="0 0 {fractions.leftColumn * 100}%">

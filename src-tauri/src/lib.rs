@@ -49,7 +49,9 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::delete_branch,
             commands::command_log,
             commands::command_problems,
-            commands::clear_command_log
+            commands::clear_command_log,
+            commands::safety_log,
+            commands::undo_last
         ])
 }
 
