@@ -12,6 +12,9 @@ pub struct CommitQuery {
     #[specta(type = Option<specta_typescript::Number>)]
     pub until: Option<i64>,
     pub path: Option<String>,
+    /// Revisions the References panel has ticked. Empty means every ref, as before.
+    #[serde(default)]
+    pub tips: Vec<String>,
 }
 
 impl CommitQuery {
@@ -56,6 +59,30 @@ impl RepoHandle {
         self.search_commits(&CommitQuery::default(), chunk_size, on_chunk)
     }
 
+    /// A tip that no longer resolves — a branch deleted while the panel still lists it —
+    /// is dropped, not fatal. Dropping every one leaves an empty graph, which is the honest
+    /// answer to "show me only these refs" when none of them exist.
+    fn tips_for(&self, query: &CommitQuery) -> Result<Vec<gix::ObjectId>> {
+        if query.tips.is_empty() {
+            return self.graph_tips();
+        }
+
+        let mut tips: Vec<gix::ObjectId> = query
+            .tips
+            .iter()
+            .filter_map(|rev| match self.repo.rev_parse_single(rev.as_str()) {
+                Ok(id) => Some(id.detach()),
+                Err(err) => {
+                    tracing::debug!(rev, error = %err, "a ticked ref no longer resolves");
+                    None
+                }
+            })
+            .collect();
+        tips.sort_unstable();
+        tips.dedup();
+        Ok(tips)
+    }
+
     pub fn search_commits(
         &self,
         query: &CommitQuery,
@@ -63,7 +90,7 @@ impl RepoHandle {
         mut on_chunk: impl FnMut(Vec<CommitRow>) -> bool,
     ) -> Result<()> {
         let chunk_size = chunk_size.max(1);
-        let tips = self.graph_tips()?;
+        let tips = self.tips_for(query)?;
         if tips.is_empty() {
             return Ok(());
         }
