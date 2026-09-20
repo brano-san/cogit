@@ -110,6 +110,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::undo_entry,
             commands::stash_contents,
             commands::stash_selection,
+            commands::terminal_choices,
+            commands::open_in_terminal,
             commands::set_menu_state,
             // ─── diff-merge branch appends below; master inserts above ───
             commands::report_timing,

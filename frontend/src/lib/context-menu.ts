@@ -61,6 +61,19 @@ function remoteBranchMenu(): ContextItem[] {
   ];
 }
 
+/** A row of the Repositories panel: opening it, and the three things the OS can do. */
+export function repoMenu(at: { active: boolean }): ContextItem[] {
+  return [
+    item("repo-open", "Open this repository", !at.active),
+    SEPARATOR,
+    item("repo-explorer", "Show in Explorer"),
+    item("repo-terminal", "Open in Terminal"),
+    item("repo-copy-path", "Copy the path"),
+    SEPARATOR,
+    item("repo-close", "Close this repository"),
+  ];
+}
+
 /** One menu for the whole References tree: the node kind decides what is on offer. */
 export function refMenu(at: {
   kind: string;

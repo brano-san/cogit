@@ -139,10 +139,20 @@ export const CATEGORIES: Category[] = [
   heading("tools", "Tools & Integrations"),
   {
     id: "cli",
-    title: "CLI & Logging",
+    title: "CLI & Terminal",
     parent: "tools",
     note: "*) The log level takes effect after a restart.",
     groups: [
+      {
+        title: "Terminal",
+        fields: [
+          {
+            key: "terminal",
+            label: "Open in Terminal uses",
+            keywords: ["shell", "powershell", "cmd", "bash", "console"],
+          },
+        ],
+      },
       {
         title: "Logging",
         fields: [

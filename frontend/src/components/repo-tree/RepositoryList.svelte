@@ -9,9 +9,10 @@
     onscan: () => void;
     onselect: (entry: RepoOverview) => void;
     onclose: (entry: RepoOverview) => void;
+    oncontext: (entry: RepoOverview, x: number, y: number) => void;
   }
 
-  let { opening = false, onopen, onscan, onselect, onclose }: Props = $props();
+  let { opening = false, onopen, onscan, onselect, onclose, oncontext }: Props = $props();
 
   const active = $derived(repository.current?.repo);
   const entries = $derived(repository.openRepos);
@@ -43,6 +44,10 @@
         title={entry.root}
         onclick={() => onselect(entry)}
         onkeydown={(event) => event.key === "Enter" && onselect(entry)}
+        oncontextmenu={(event) => {
+          event.preventDefault();
+          oncontext(entry, event.clientX, event.clientY);
+        }}
       >
         <svg class="folder" viewBox="0 0 16 16" aria-hidden="true"
           ><path

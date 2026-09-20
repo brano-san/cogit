@@ -11,6 +11,7 @@
     onopen: () => void;
     onselect: (entry: RepoOverview) => void;
     onclose: (entry: RepoOverview) => void;
+    oncontext: (entry: RepoOverview, x: number, y: number) => void;
     onopenmodule: (module: Submodule) => void;
     onupdatemodule: (module: Submodule) => void;
   }
@@ -21,12 +22,13 @@
     onopen,
     onselect,
     onclose,
+    oncontext,
     onopenmodule,
     onupdatemodule,
   }: Props = $props();
 </script>
 
-<RepositoryList {opening} {onscan} {onopen} {onselect} {onclose} />
+<RepositoryList {opening} {onscan} {onopen} {onselect} {onclose} {oncontext} />
 <SubmoduleList
   modules={submodules.entries}
   onopen={(module) => onopenmodule(module)}

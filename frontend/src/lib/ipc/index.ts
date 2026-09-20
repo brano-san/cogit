@@ -272,6 +272,14 @@ export async function safetyLog() {
   return await commands.safetyLog();
 }
 
+export async function terminalChoices() {
+  return await commands.terminalChoices();
+}
+
+export async function openInTerminal(path: string, terminal: string) {
+  return unwrap(await commands.openInTerminal(path, terminal));
+}
+
 export async function stashSelection(repo: RepoId, paths: string[], message: string) {
   return unwrap(await commands.stashSelection(repo, paths, message));
 }

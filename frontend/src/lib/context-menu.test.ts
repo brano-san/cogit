@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { commitMenu, fileMenu, branchMenu, refMenu } from "./context-menu";
+import { commitMenu, fileMenu, branchMenu, refMenu, repoMenu } from "./context-menu";
 
 describe("commitMenu", () => {
   const items = commitMenu({ onRemote: false });
@@ -150,5 +150,36 @@ describe("branchMenu · управление веткой", () => {
   it("does not offer to check out a remote branch as if it were local", () => {
     const remote = refMenu({ kind: "remote", isHead: false, hasUpstream: false });
     expect(remote.find((entry) => entry.id === "delete-branch")).toBeUndefined();
+  });
+});
+
+describe("repoMenu", () => {
+  const ids = (items: ReturnType<typeof repoMenu>) =>
+    items.filter((entry) => !entry.separator).map((entry) => entry.id);
+
+  it("offers the system actions a repository row needs", () => {
+    expect(ids(repoMenu({ active: false }))).toEqual([
+      "repo-open",
+      "repo-explorer",
+      "repo-terminal",
+      "repo-copy-path",
+      "repo-close",
+    ]);
+  });
+
+  it("does not offer to open the repository that is already open", () => {
+    const menu = repoMenu({ active: true });
+    expect(menu.find((entry) => entry.id === "repo-open")?.enabled).toBe(false);
+  });
+
+  it("offers to open one that is not", () => {
+    const menu = repoMenu({ active: false });
+    expect(menu.find((entry) => entry.id === "repo-open")?.enabled).toBe(true);
+  });
+
+  it("always allows closing, including the active one", () => {
+    for (const active of [true, false]) {
+      expect(repoMenu({ active }).find((entry) => entry.id === "repo-close")?.enabled).toBe(true);
+    }
   });
 });

@@ -12,6 +12,7 @@ export interface Settings {
   laneWidth: number;
   pullMode: "ffOnly" | "merge";
   gitPath: string;
+  terminal: string;
   logLevel: "error" | "warn" | "info" | "debug" | "trace";
 }
 
@@ -26,6 +27,7 @@ export const DEFAULT_SETTINGS: Settings = {
   laneWidth: 14,
   pullMode: "ffOnly",
   gitPath: "git",
+  terminal: "system",
   logLevel: "info",
 };
 

@@ -1,5 +1,6 @@
 mod credentials;
 pub mod logging;
+pub mod terminal;
 
 pub use credentials::{
     KeyringStore, MemoryStore, SecretError, SecretStore, host_of, platform_store,
