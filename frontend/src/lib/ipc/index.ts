@@ -143,6 +143,7 @@ export const EMPTY_QUERY: CommitQuery = {
   since: null,
   until: null,
   path: null,
+  visibleRefs: null,
 };
 
 export async function loadCommits(

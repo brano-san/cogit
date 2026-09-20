@@ -2,15 +2,25 @@ import { defaultVisible, type RefNode } from "$lib/ref-nodes";
 import { listRemotes, remoteUrl, type RepoId } from "$lib/ipc";
 
 /** Per repository, so ticking `master` in one does not change what another shows. */
-const STORAGE_KEY = "cogit.visible-refs.v1";
+const STORAGE_KEY = "cogit.visible-refs.v2";
 
-function stored(): Record<string, string[]> {
+interface Saved {
+  visible: string[];
+  /** Which headings the user folded away; T5.1 asks for this to survive a restart. */
+  collapsed: string[];
+}
+
+function stored(): Record<string, Saved> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw === null ? {} : (JSON.parse(raw) as Record<string, string[]>);
+    return raw === null ? {} : (JSON.parse(raw) as Record<string, Saved>);
   } catch {
     return {};
   }
+}
+
+function strings(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((entry) => typeof entry === "string") : [];
 }
 
 class RefsStore {
@@ -27,26 +37,32 @@ class RefsStore {
     this.#root = root;
     const remembered = stored()[root];
     const known = new Set(nodes.map((node) => node.id));
-    const kept = (remembered ?? []).filter((id) => known.has(id));
+    const kept = strings(remembered?.visible).filter((id) => known.has(id));
     this.visible = kept.length > 0 ? new Set(kept) : defaultVisible(nodes);
+    this.collapsed = new Set(strings(remembered?.collapsed));
   }
 
   set(next: Set<string>): void {
     this.visible = next;
-    if (this.#root === null) return;
-    try {
-      const all = stored();
-      all[this.#root] = [...next];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
-    } catch {
-      // A blocked store costs the ticks on restart, nothing more.
-    }
+    this.persist();
   }
 
   collapse(id: string): void {
     const next = new Set(this.collapsed);
     if (!next.delete(id)) next.add(id);
     this.collapsed = next;
+    this.persist();
+  }
+
+  private persist(): void {
+    if (this.#root === null) return;
+    try {
+      const all = stored();
+      all[this.#root] = { visible: [...this.visible], collapsed: [...this.collapsed] };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+    } catch {
+      // A blocked store costs the ticks and the folds on restart, nothing more.
+    }
   }
 
   async loadUrls(repo: RepoId): Promise<void> {

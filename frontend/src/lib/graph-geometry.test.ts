@@ -4,6 +4,7 @@ import {
   canvasPixelSize,
   gutterWidth,
   hitTest,
+  centreRow,
   laneX,
   nextRow,
   rowY,
@@ -237,5 +238,29 @@ describe("scrollRowIntoView", () => {
 
   it("never scrolls to a negative offset", () => {
     expect(scrollRowIntoView(0, 100, 440, rowHeight)).toBe(0);
+  });
+});
+
+describe("centreRow", () => {
+  const rowHeight = 22;
+
+  it("puts the row in the middle of the viewport", () => {
+    expect(centreRow(50, 440, rowHeight, 1000)).toBe(50 * rowHeight + rowHeight / 2 - 220);
+  });
+
+  it("does not scroll above the first row", () => {
+    expect(centreRow(1, 440, rowHeight, 1000)).toBe(0);
+  });
+
+  it("does not scroll past the last row", () => {
+    expect(centreRow(999, 440, rowHeight, 1000)).toBe(1000 * rowHeight - 440);
+  });
+
+  it("stays at zero when the whole list fits on screen", () => {
+    expect(centreRow(3, 440, rowHeight, 5)).toBe(0);
+  });
+
+  it("survives a viewport that has not been measured yet", () => {
+    expect(centreRow(10, 0, rowHeight, 1000)).toBeGreaterThanOrEqual(0);
   });
 });

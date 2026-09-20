@@ -26,7 +26,18 @@ class GraphStore {
   /** Discriminates concurrent loads; chunks from a superseded stream are dropped. */
   #generation = 0;
 
+  /** The search half only; the References panel contributes its half at load time. */
   query = $state.raw<CommitQuery>(EMPTY_QUERY);
+
+  /** `null` is every ref. Owned by the References panel, folded into every load. */
+  visibleRefs = $state.raw<string[] | null>(null);
+
+  /** Asking twice for the same commit has to scroll twice, hence the counter. */
+  reveal = $state.raw<{ oid: string; request: number } | null>(null);
+
+  requestReveal(oid: string): void {
+    this.reveal = { oid, request: (this.reveal?.request ?? 0) + 1 };
+  }
 
   async load(repo: RepoId, query: CommitQuery = EMPTY_QUERY): Promise<void> {
     const generation = ++this.#generation;
@@ -52,7 +63,7 @@ class GraphStore {
         }
         this.maxLane = Math.max(this.maxLane, chunk.maxLane);
         if (chunk.isLast) this.complete = true;
-      }, query);
+      }, { ...query, visibleRefs: this.visibleRefs });
     } catch (err) {
       if (generation === this.#generation) {
         this.error =
@@ -68,6 +79,8 @@ class GraphStore {
   clear(): void {
     this.#generation += 1;
     this.query = EMPTY_QUERY;
+    this.visibleRefs = null;
+    this.reveal = null;
     this.rows = [];
     this.edges = [];
     this.maxLane = 0;

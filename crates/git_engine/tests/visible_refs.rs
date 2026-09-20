@@ -16,17 +16,39 @@ fn summaries(repo: &RepoHandle, query: &CommitQuery) -> Vec<String> {
 
 fn tips(names: &[&str]) -> CommitQuery {
     CommitQuery {
-        tips: names.iter().map(|name| (*name).to_owned()).collect(),
+        visible_refs: Some(names.iter().map(|name| (*name).to_owned()).collect()),
         ..CommitQuery::default()
     }
 }
 
 #[test]
-fn an_empty_tip_list_still_walks_every_ref() {
+fn no_tip_list_at_all_still_walks_every_ref() {
     let f = test_fixtures::branched().unwrap();
     let repo = RepoHandle::open(f.path()).unwrap();
     let all = summaries(&repo, &CommitQuery::default());
     assert!(all.len() > 1, "{all:?}");
+}
+
+#[test]
+fn an_empty_tip_list_means_nothing_rather_than_everything() {
+    let f = test_fixtures::branched().unwrap();
+    let repo = RepoHandle::open(f.path()).unwrap();
+    assert!(summaries(&repo, &tips(&[])).is_empty());
+}
+
+#[test]
+fn narrowing_the_refs_is_not_a_row_filter() {
+    assert!(!tips(&["refs/heads/main"]).filters_rows());
+    assert!(!CommitQuery::default().filters_rows());
+}
+
+#[test]
+fn any_other_filter_is_a_row_filter_even_beside_a_tip_list() {
+    let query = CommitQuery {
+        message: Some("fix".to_owned()),
+        ..tips(&["refs/heads/main"])
+    };
+    assert!(query.filters_rows());
 }
 
 #[test]
