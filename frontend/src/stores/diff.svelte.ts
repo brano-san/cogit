@@ -1,4 +1,4 @@
-import { CogitError, diffFile, type FileDiff, type RepoId } from "$lib/ipc";
+import { CogitError, diffFile, type DiffSpec, type FileDiff, type RepoId } from "$lib/ipc";
 
 class DiffStore {
   path = $state<string | null>(null);
@@ -10,14 +10,14 @@ class DiffStore {
   /** Clicking down the file list outruns the backend; stale diffs lose. */
   #generation = 0;
 
-  async load(repo: RepoId, oid: string, path: string): Promise<void> {
+  async load(repo: RepoId, spec: DiffSpec, path: string): Promise<void> {
     const generation = ++this.#generation;
     this.path = path;
     this.error = null;
     this.loading = true;
 
     try {
-      const result = await diffFile(repo, { kind: "commitVsParent", oid }, path);
+      const result = await diffFile(repo, spec, path);
       if (generation !== this.#generation) return;
       this.diff = result;
     } catch (err) {

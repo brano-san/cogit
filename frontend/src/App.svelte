@@ -96,7 +96,17 @@
   function openDiff(path: string) {
     const id = repository.current?.repo;
     const oid = commit.oid;
-    if (id && oid) void diff.load(id, oid, path);
+    if (id && oid) void diff.load(id, { kind: "commitVsParent", oid }, path);
+  }
+
+  function openStagedDiff(path: string) {
+    const id = repository.current?.repo;
+    if (id) void diff.load(id, { kind: "indexVsHead" }, path);
+  }
+
+  function openWorktreeDiff(path: string) {
+    const id = repository.current?.repo;
+    if (id) void diff.load(id, { kind: "workTreeVsIndex" }, path);
   }
 
   async function pickRepository() {
@@ -190,11 +200,13 @@
                   {
                     title: "Staged",
                     files: worktree.staged,
+                    onselect: openStagedDiff,
                     actions: [{ label: "Unstage", title: "Unstage", run: unstage }],
                   },
                   {
                     title: "Unstaged",
                     files: worktree.unstaged,
+                    onselect: openWorktreeDiff,
                     actions: [
                       { label: "Stage", title: "Stage", run: stage },
                       { label: "Discard", title: "Discard changes", run: discard },

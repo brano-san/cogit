@@ -6,6 +6,8 @@ use serde::Deserialize;
 pub enum DiffSpec {
     CommitVsParent { oid: String },
     CommitVsCommit { a: String, b: String },
+    WorkTreeVsIndex,
+    IndexVsHead,
 }
 
 /// Old and new contents of one path; `None` on a side means it is absent there.
@@ -43,7 +45,37 @@ impl RepoHandle {
             DiffSpec::CommitVsCommit { a, b } => {
                 Ok((self.blob_at(a, path)?, self.blob_at(b, path)?))
             }
+            DiffSpec::WorkTreeVsIndex => Ok((self.blob_in_index(path)?, self.blob_on_disk(path))),
+            DiffSpec::IndexVsHead => {
+                let old = match self.head()? {
+                    crate::Head::Unborn { .. } => None,
+                    _ => self.blob_at("HEAD", path)?,
+                };
+                Ok((old, self.blob_in_index(path)?))
+            }
         }
+    }
+
+    fn blob_in_index(&self, path: &str) -> Result<Option<Vec<u8>>> {
+        let index = self
+            .repo
+            .index_or_empty()
+            .map_err(|err| GitError::Internal(format!("cannot read the index: {err}")))?;
+        let Some(entry) = index.entry_by_path(path.into()) else {
+            return Ok(None);
+        };
+        let object = self.repo.find_object(entry.id).map_err(|err| {
+            GitError::Internal(format!("cannot read {path} from the index: {err}"))
+        })?;
+        Ok(Some(object.into_blob().data.clone()))
+    }
+
+    /// Bytes as they are on disk: the worktree side of a diff is not a Git object.
+    fn blob_on_disk(&self, path: &str) -> Option<Vec<u8>> {
+        if self.is_bare() {
+            return None;
+        }
+        std::fs::read(self.root().join(path)).ok()
     }
 
     fn first_parent(&self, rev: &str) -> Result<Option<String>> {
