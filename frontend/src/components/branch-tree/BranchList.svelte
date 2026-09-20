@@ -18,6 +18,15 @@
       <div class="row" class:head={branch.isHead} title={branch.fullName}>
         <span class="marker" aria-hidden="true">{branch.isHead ? "▸" : ""}</span>
         <span class="name truncate">{branch.name}</span>
+        {#if branch.ahead > 0 || branch.behind > 0}
+          <span class="track tabular" title="{branch.ahead} ahead, {branch.behind} behind">
+            {branch.ahead > 0 ? "↑" + branch.ahead : ""}{branch.behind > 0
+              ? "↓" + branch.behind
+              : ""}
+          </span>
+        {:else if branch.upstream}
+          <span class="track" title="In step with {branch.upstream}">=</span>
+        {/if}
         <span class="oid mono tabular">{branch.oid.slice(0, 7)}</span>
         {#if !branch.isHead}
           <span
@@ -118,6 +127,12 @@
     flex: 1 1 auto;
     min-width: 0;
     color: var(--status-ref);
+  }
+
+  .track {
+    flex: 0 0 auto;
+    color: var(--status-ref);
+    font-size: 10px;
   }
 
   .oid {

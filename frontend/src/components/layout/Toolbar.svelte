@@ -23,6 +23,7 @@
       { id: "stash", label: "Stash", icon: "⚑", shortcut: "Ctrl+S", hasMenu: true },
       { id: "merge", label: "Merge", icon: "⑂", shortcut: "Ctrl+M" },
       { id: "rebase", label: "Rebase", icon: "⎇", shortcut: "Ctrl+R" },
+      { id: "tag", label: "Tag", icon: "◆", shortcut: "Shift+F7" },
     ],
   ];
 
@@ -31,11 +32,12 @@
     /** Description of what Undo would reverse, or undefined when there is nothing to undo. */
     undoable?: string;
     onundo?: () => void;
+    /** Actions wired to a handler; the rest stay disabled until their module lands. */
+    handlers?: Partial<Record<string, () => void>>;
   }
 
-  let { busy, undoable, onundo }: Props = $props();
+  let { busy, undoable, onundo, handlers = {} }: Props = $props();
 
-  const enabled = false;
 </script>
 
 <div class="toolbar">
@@ -48,8 +50,9 @@
         <button
           type="button"
           class="action"
-          disabled={!enabled}
+          disabled={!handlers[action.id]}
           title="{action.label}{action.shortcut ? ` (${action.shortcut})` : ''}"
+          onclick={() => handlers[action.id]?.()}
         >
           <span class="icon" aria-hidden="true">{action.icon}</span>
           <span>{action.label}</span>

@@ -26,6 +26,10 @@ pub struct Branch {
     pub kind: BranchKind,
     pub oid: String,
     pub is_head: bool,
+    /// Short name of the tracking branch, e.g. `origin/main`.
+    pub upstream: Option<String>,
+    pub ahead: u32,
+    pub behind: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
@@ -154,8 +158,72 @@ impl RepoHandle {
             &mut branches,
         );
 
+        for branch in &mut branches {
+            if branch.kind == BranchKind::Local {
+                self.fill_upstream(branch);
+            }
+        }
+
         branches.sort_by(|a, b| a.name.cmp(&b.name));
         Ok(branches)
+    }
+
+    fn fill_upstream(&self, branch: &mut Branch) {
+        let Ok(full) = gix::refs::FullName::try_from(branch.full_name.as_str()) else {
+            return;
+        };
+        let Some(Ok(tracking)) = self
+            .repo
+            .branch_remote_tracking_ref_name(full.as_ref(), gix::remote::Direction::Fetch)
+        else {
+            return;
+        };
+        branch.upstream = Some(tracking.shorten().to_string());
+
+        let Ok(mut reference) = self.repo.find_reference(tracking.as_ref()) else {
+            return;
+        };
+        let Ok(upstream_id) = reference.peel_to_id() else {
+            return;
+        };
+        let Ok(local_id) = gix::ObjectId::from_hex(branch.oid.as_bytes()) else {
+            return;
+        };
+
+        if let Some((ahead, behind)) = self.count_divergence(local_id, upstream_id.detach()) {
+            branch.ahead = ahead;
+            branch.behind = behind;
+        }
+    }
+
+    /// Commits on each side of the merge base. Through `gix`: a `rev-list` per branch
+    /// would mean one process per row in a 500-branch repository.
+    fn count_divergence(
+        &self,
+        local: gix::ObjectId,
+        upstream: gix::ObjectId,
+    ) -> Option<(u32, u32)> {
+        if local == upstream {
+            return Some((0, 0));
+        }
+        let base = self.repo.merge_base(local, upstream).ok()?.detach();
+        Some((
+            self.count_between(local, base)?,
+            self.count_between(upstream, base)?,
+        ))
+    }
+
+    fn count_between(&self, tip: gix::ObjectId, base: gix::ObjectId) -> Option<u32> {
+        if tip == base {
+            return Some(0);
+        }
+        let walk = self
+            .repo
+            .rev_walk(Some(tip))
+            .with_hidden(Some(base))
+            .all()
+            .ok()?;
+        u32::try_from(walk.filter_map(std::result::Result::ok).count()).ok()
     }
 
     pub fn tags(&self) -> Result<Vec<Tag>> {
@@ -212,6 +280,9 @@ fn collect<'a>(
             kind,
             oid: id.detach().to_string(),
             is_head: head_name.is_some_and(|head| head.as_ref() == full_name),
+            upstream: None,
+            ahead: 0,
+            behind: 0,
         });
     }
 }

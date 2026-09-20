@@ -52,7 +52,15 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::command_problems,
             commands::clear_command_log,
             commands::safety_log,
-            commands::undo_last
+            commands::undo_last,
+            commands::abort_operation,
+            commands::continue_operation,
+            commands::stashes,
+            commands::stash_push,
+            commands::stash_apply,
+            commands::stash_drop,
+            commands::create_tag,
+            commands::delete_tag
         ])
 }
 

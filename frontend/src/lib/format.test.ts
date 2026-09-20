@@ -4,7 +4,16 @@ import type { Tag } from "./ipc";
 import type { Branch, Head } from "./ipc";
 
 function branch(name: string, kind: Branch["kind"], isHead = false): Branch {
-  return { name, fullName: `refs/${kind}/${name}`, kind, oid: "a".repeat(40), isHead };
+  return {
+    name,
+    fullName: `refs/${kind}/${name}`,
+    kind,
+    oid: "a".repeat(40),
+    isHead,
+    upstream: null,
+    ahead: 0,
+    behind: 0,
+  };
 }
 
 describe("headLabel", () => {
@@ -79,14 +88,35 @@ describe("formatCommitDate", () => {
 describe("refLabels", () => {
   const head: Head = { kind: "branch", name: "main", oid: "a".repeat(40) };
   const branches: Branch[] = [
-    { name: "main", fullName: "refs/heads/main", kind: "local", oid: "a".repeat(40), isHead: true },
-    { name: "dev", fullName: "refs/heads/dev", kind: "local", oid: "b".repeat(40), isHead: false },
+    {
+      name: "main",
+      fullName: "refs/heads/main",
+      kind: "local",
+      oid: "a".repeat(40),
+      isHead: true,
+      upstream: null,
+      ahead: 0,
+      behind: 0,
+    },
+    {
+      name: "dev",
+      fullName: "refs/heads/dev",
+      kind: "local",
+      oid: "b".repeat(40),
+      isHead: false,
+      upstream: null,
+      ahead: 0,
+      behind: 0,
+    },
     {
       name: "origin/main",
       fullName: "refs/remotes/origin/main",
       kind: "remote",
       oid: "a".repeat(40),
       isHead: false,
+      upstream: null,
+      ahead: 0,
+      behind: 0,
     },
   ];
   const tags: Tag[] = [

@@ -21,8 +21,6 @@ const INHERITED_GIT_VARS: &[&str] = &[
     "GIT_CEILING_DIRECTORIES",
     "GIT_CONFIG_PARAMETERS",
     "GIT_CONFIG_COUNT",
-    "GIT_EDITOR",
-    "GIT_SEQUENCE_EDITOR",
 ];
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -111,6 +109,9 @@ fn base_command(root: &Path, reading: bool) -> Command {
     command.current_dir(root);
     command.env("GIT_TERMINAL_PROMPT", "0");
     command.env("LC_ALL", "C");
+    // `--continue` opens an editor, and with no terminal it hangs forever (R-26).
+    command.env("GIT_EDITOR", "true");
+    command.env("GIT_SEQUENCE_EDITOR", "true");
     if reading {
         command.env("GIT_OPTIONAL_LOCKS", "0");
     }

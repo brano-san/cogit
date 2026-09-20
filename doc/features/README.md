@@ -40,5 +40,13 @@
 | F-034 | Индикатор предупреждений | [F-034-warning-indicator.md](F-034-warning-indicator.md) |
 | F-035 | Undo деструктивных операций | [F-035-undo.md](F-035-undo.md) |
 | F-036 | Честная пометка необратимого | [F-036-undo-honesty.md](F-036-undo-honesty.md) |
+| F-037 | Баннер состояния | [F-037-state-banner.md](F-037-state-banner.md) |
+| F-038 | Баннер Detached HEAD | [F-038-detached-banner.md](F-038-detached-banner.md) |
+| F-039 | Предупреждение о блокировке индекса | [F-039-index-lock.md](F-039-index-lock.md) |
+| F-040 | Список стэшей | [F-040-stash-list.md](F-040-stash-list.md) |
+| F-041 | Создание стэша | [F-041-stash-push.md](F-041-stash-push.md) |
+| F-042 | Список тегов | [F-042-tag-list.md](F-042-tag-list.md) |
+| F-043 | Создание тега | [F-043-tag-create.md](F-043-tag-create.md) |
+| F-044 | Расхождение с upstream | [F-044-upstream-divergence.md](F-044-upstream-divergence.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.

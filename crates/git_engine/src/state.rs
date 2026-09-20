@@ -1,9 +1,14 @@
 //! Variants are detected from marker files in `.git`; none of them may panic (INV-07).
 
+use crate::{Head, RepoHandle, Result};
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
-#[serde(tag = "kind")]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum RepoState {
     Clean,
     DetachedHead { oid: String },
@@ -32,6 +37,49 @@ impl RepoState {
     #[must_use]
     pub fn allows_commit(&self) -> bool {
         !matches!(self, Self::Bare | Self::Bisecting)
+    }
+}
+
+impl RepoHandle {
+    /// An interrupted operation outranks everything else: it is what the user has to
+    /// deal with before anything else works.
+    pub fn state(&self) -> Result<RepoState> {
+        if self.is_bare() {
+            return Ok(RepoState::Bare);
+        }
+
+        let git_dir = self.git_dir();
+        let marker = |name: &str| git_dir.join(name).exists();
+
+        if marker("MERGE_HEAD") {
+            return Ok(RepoState::Merging);
+        }
+        if marker("rebase-merge") || marker("rebase-apply") {
+            return Ok(RepoState::Rebasing);
+        }
+        if marker("CHERRY_PICK_HEAD") {
+            return Ok(RepoState::CherryPicking);
+        }
+        if marker("REVERT_HEAD") {
+            return Ok(RepoState::Reverting);
+        }
+        if marker("BISECT_LOG") {
+            return Ok(RepoState::Bisecting);
+        }
+
+        Ok(match self.head()? {
+            Head::Unborn { .. } => RepoState::Empty,
+            Head::Detached { oid } => RepoState::DetachedHead { oid },
+            Head::Branch { .. } => RepoState::Clean,
+        })
+    }
+
+    /// The path of a stale `index.lock`, which blocks every write until it is removed.
+    #[must_use]
+    pub fn index_lock(&self) -> Option<String> {
+        let lock = self.git_dir().join("index.lock");
+        lock.exists()
+            .then(|| lock.to_string_lossy().replace('\\', "/"))
     }
 }
 

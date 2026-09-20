@@ -54,6 +54,8 @@ pub struct RepoSummary {
     pub branches: Vec<git_engine::Branch>,
     pub tags: Vec<git_engine::Tag>,
     pub status: git_engine::RepoStatus,
+    pub state: git_engine::RepoState,
+    pub index_lock: Option<String>,
 }
 
 /// Commits arrive with their lane placement so the UI never computes layout (INV-02).
@@ -85,6 +87,10 @@ pub enum Recovery {
         oid: String,
     },
     Branch {
+        name: String,
+        oid: String,
+    },
+    Tag {
         name: String,
         oid: String,
     },
@@ -160,6 +166,8 @@ impl AppState {
         let branches = handle.branches()?;
         let tags = handle.tags()?;
         let status = handle.status()?;
+        let state = handle.state()?;
+        let index_lock = handle.index_lock();
 
         let name = root.file_name().map_or_else(
             || root.display().to_string(),
@@ -180,6 +188,8 @@ impl AppState {
             branches,
             tags,
             status,
+            state,
+            index_lock,
         })
     }
 
@@ -273,6 +283,7 @@ impl AppState {
         repo: RepoId,
         rev: &str,
     ) -> Result<git_engine::CommitDetails, git_engine::GitError> {
+        self.quiet(repo);
         self.handle(repo)?.commit_details(rev)
     }
 
@@ -317,6 +328,7 @@ impl AppState {
     }
 
     pub fn stage_paths(&self, repo: RepoId, paths: &[String]) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
         self.handle(repo)?.stage(paths)
     }
 
@@ -325,6 +337,7 @@ impl AppState {
         repo: RepoId,
         paths: &[String],
     ) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
         self.handle(repo)?.unstage(paths)
     }
 
@@ -340,6 +353,7 @@ impl AppState {
             ));
         }
 
+        self.quiet(repo);
         let handle = self.handle(repo)?;
         // A successful stash has already taken the changes out of the working tree, so
         // discarding again would only fail on paths Git no longer knows about.
@@ -371,6 +385,7 @@ impl AppState {
         repo: RepoId,
         target: &git_engine::CheckoutTarget,
     ) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
         self.handle(repo)?.checkout(target)?;
 
         let what = match target {
@@ -388,6 +403,7 @@ impl AppState {
         start: Option<&str>,
         switch: bool,
     ) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
         self.handle(repo)?.create_branch(name, start, switch)
     }
 
@@ -397,6 +413,7 @@ impl AppState {
         name: &str,
         force: bool,
     ) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
         let handle = self.handle(repo)?;
         let oid = handle
             .branches()?
@@ -437,16 +454,11 @@ impl AppState {
         }
     }
 
-    /// Held across a mutation so Cogit does not reload in response to its own writes.
-    pub fn pause_watching(&self, repo: RepoId) {
+    /// Called before every mutation: the UI reloads itself afterwards, so reacting to our
+    /// own writes only makes it reload twice (doc/12-risks.md, R-25).
+    fn quiet(&self, repo: RepoId) {
         if let Some(watcher) = self.watchers.read().get(&repo) {
-            watcher.pause();
-        }
-    }
-
-    pub fn resume_watching(&self, repo: RepoId) {
-        if let Some(watcher) = self.watchers.read().get(&repo) {
-            watcher.resume();
+            watcher.quiet_for(fs_watcher::DEFAULT_QUIET);
         }
     }
 
@@ -499,10 +511,17 @@ impl AppState {
             .cloned()
             .ok_or_else(|| git_engine::GitError::InvalidState("nothing to undo".to_owned()))?;
 
+        self.quiet(repo);
         let handle = self.handle(repo)?;
         match &entry.recovery {
             Recovery::Stash { oid } => handle.stash_apply(oid)?,
             Recovery::Branch { name, oid } => handle.create_branch(name, Some(oid), false)?,
+            Recovery::Tag { name, oid } => handle.create_tag(&git_engine::TagRequest {
+                name: name.clone(),
+                target: Some(oid.clone()),
+                message: None,
+                force: false,
+            })?,
             Recovery::None => {
                 return Err(git_engine::GitError::InvalidState(
                     "this operation cannot be undone".to_owned(),
@@ -538,6 +557,88 @@ impl AppState {
         repo: RepoId,
     ) -> Result<git_engine::RepoStatus, git_engine::GitError> {
         self.handle(repo)?.status()
+    }
+
+    pub fn abort_operation(&self, repo: RepoId) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
+        self.handle(repo)?.abort_operation()?;
+        self.record(
+            repo,
+            "Abort the operation in progress".to_owned(),
+            Recovery::None,
+        );
+        Ok(())
+    }
+
+    pub fn continue_operation(&self, repo: RepoId) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
+        self.handle(repo)?.continue_operation()
+    }
+
+    pub fn stashes(
+        &self,
+        repo: RepoId,
+    ) -> Result<Vec<git_engine::StashEntry>, git_engine::GitError> {
+        self.handle(repo)?.stashes()
+    }
+
+    pub fn stash_push(
+        &self,
+        repo: RepoId,
+        options: &git_engine::StashOptions,
+    ) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
+        self.handle(repo)?.stash_push(options)
+    }
+
+    pub fn stash_apply(
+        &self,
+        repo: RepoId,
+        index: u32,
+        pop: bool,
+    ) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
+        self.handle(repo)?.stash_apply_index(index, pop)
+    }
+
+    pub fn stash_drop(&self, repo: RepoId, index: u32) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
+        let oid = self.handle(repo)?.stash_drop(index)?;
+        self.record(
+            repo,
+            format!("Drop stash@{{{index}}}"),
+            Recovery::Stash { oid },
+        );
+        Ok(())
+    }
+
+    pub fn create_tag(
+        &self,
+        repo: RepoId,
+        request: &git_engine::TagRequest,
+    ) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
+        self.handle(repo)?.create_tag(request)
+    }
+
+    pub fn delete_tag(&self, repo: RepoId, name: &str) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
+        let handle = self.handle(repo)?;
+        let oid = handle
+            .tags()?
+            .into_iter()
+            .find(|tag| tag.name == name)
+            .map(|tag| tag.oid);
+        handle.delete_tag(name)?;
+        self.record(
+            repo,
+            format!("Delete tag {name}"),
+            oid.map_or(Recovery::None, |oid| Recovery::Tag {
+                name: name.to_owned(),
+                oid,
+            }),
+        );
+        Ok(())
     }
 
     fn handle(&self, repo: RepoId) -> Result<git_engine::RepoHandle, git_engine::GitError> {

@@ -163,3 +163,28 @@ fn discarding_nothing_records_nothing() {
 
     assert!(state.safety_log().is_empty());
 }
+
+#[test]
+fn a_mutation_does_not_make_the_watcher_report_our_own_writes() {
+    let f = test_fixtures::linear(1).unwrap();
+    let (state, repo) = open(&f);
+    let mut events = state.subscribe();
+    std::fs::write(f.path().join("file0.txt"), "edited by us\n").unwrap();
+    // Let the edit above settle so only the mutation's own writes are in play.
+    std::thread::sleep(std::time::Duration::from_millis(500));
+    while events.try_recv().is_ok() {}
+
+    state.stage_paths(repo, &["file0.txt".to_owned()]).unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(500));
+
+    let mut reported = Vec::new();
+    while let Ok(event) = events.try_recv() {
+        if let app_state::AppEvent::RepoChanged { kind, .. } = event {
+            reported.push(kind);
+        }
+    }
+    assert!(
+        reported.is_empty(),
+        "the UI reloads itself after a mutation; a watcher event on top makes it flicker, got {reported:?}"
+    );
+}

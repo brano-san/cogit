@@ -26,6 +26,14 @@ export const commands = {
 	clearCommandLog: () => __TAURI_INVOKE<void>("clear_command_log"),
 	safetyLog: () => __TAURI_INVOKE<SafetyEntry[]>("safety_log"),
 	undoLast: (repo: RepoId) => typedError<SafetyEntry, GitError>(__TAURI_INVOKE("undo_last", { repo })),
+	abortOperation: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("abort_operation", { repo })),
+	continueOperation: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("continue_operation", { repo })),
+	stashes: (repo: RepoId) => typedError<StashEntry[], GitError>(__TAURI_INVOKE("stashes", { repo })),
+	stashPush: (repo: RepoId, options: StashOptions) => typedError<null, GitError>(__TAURI_INVOKE("stash_push", { repo, options })),
+	stashApply: (repo: RepoId, index: number, pop: boolean) => typedError<null, GitError>(__TAURI_INVOKE("stash_apply", { repo, index, pop })),
+	stashDrop: (repo: RepoId, index: number) => typedError<null, GitError>(__TAURI_INVOKE("stash_drop", { repo, index })),
+	createTag: (repo: RepoId, request: TagRequest) => typedError<null, GitError>(__TAURI_INVOKE("create_tag", { repo, request })),
+	deleteTag: (repo: RepoId, name: string) => typedError<null, GitError>(__TAURI_INVOKE("delete_tag", { repo, name })),
 };
 
 /** Events */
@@ -49,6 +57,10 @@ export type Branch = {
 	kind: BranchKind,
 	oid: string,
 	isHead: boolean,
+	/**  Short name of the tracking branch, e.g. `origin/main`. */
+	upstream: string | null,
+	ahead: number,
+	behind: number,
 };
 
 export type BranchKind = "local" | "remote";
@@ -184,7 +196,7 @@ export type LineEnding = "lf" | "crlf" | "cr" | "mixed" | "none";
 export type NodeKind = "normal" | "merge" | "root" | "workingTree";
 
 /**  What has to be put back to reverse one destructive operation (INV-12). */
-export type Recovery = { kind: "stash"; oid: string } | { kind: "branch"; name: string; oid: string } | 
+export type Recovery = { kind: "stash"; oid: string } | { kind: "branch"; name: string; oid: string } | { kind: "tag"; name: string; oid: string } | 
 /**  Recorded for the journal, refused by undo: honesty beats a half-working restore. */
 { kind: "none" };
 
@@ -198,6 +210,8 @@ export type RepoChanged = {
 };
 
 export type RepoId = number;
+
+export type RepoState = { kind: "clean" } | { kind: "detachedHead"; oid: string } | { kind: "merging" } | { kind: "rebasing" } | { kind: "cherryPicking" } | { kind: "reverting" } | { kind: "bisecting" } | { kind: "empty" } | { kind: "bare" };
 
 export type RepoStatus = {
 	staged: number,
@@ -215,6 +229,8 @@ export type RepoSummary = {
 	branches: Branch[],
 	tags: Tag[],
 	status: RepoStatus,
+	state: RepoState,
+	indexLock: string | null,
 };
 
 export type SafetyEntry = {
@@ -232,11 +248,33 @@ export type Signature = {
 	tzOffsetMinutes: number,
 };
 
+export type StashEntry = {
+	index: number,
+	oid: string,
+	message: string,
+	timestamp: number,
+};
+
+export type StashOptions = {
+	message: string,
+	includeUntracked: boolean,
+	keepIndex: boolean,
+};
+
 export type Tag = {
 	name: string,
 	fullName: string,
 	oid: string,
 	isAnnotated: boolean,
+};
+
+export type TagRequest = {
+	name: string,
+	/**  `None` means HEAD. */
+	target: string | null,
+	/**  A message makes the tag annotated, which is what a release wants. */
+	message: string | null,
+	force: boolean,
 };
 
 export type Whitespace = "none" | "trailing" | "all";
