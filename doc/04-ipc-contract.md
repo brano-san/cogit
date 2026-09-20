@@ -174,6 +174,10 @@ pub enum FileStatus { Added, Modified, Deleted, Renamed, Copied }
 `image`, `tooLarge`, `unchanged`. Вариант `text` несёт ханки, сведения об окончаниях
 строк, флаг `lossyEncoding` и подсказку грамматики для Lezer.
 
+`DiffOptions` — `algorithm`, `contextLines`, `ignoreWhitespace`, `ignoreBlankLines`,
+`wordDiff`, `detectMoves`. Значения приходят из настроек (F-078); `detectMoves`
+управляет пометкой перемещённых блоков, остальные — самим сравнением.
+
 ```rust
 pub struct Hunk {
     pub old_start: u32,   // 1-based; 0, когда старой стороны нет

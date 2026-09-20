@@ -55,6 +55,11 @@ export const commands = {
 	addToGitignore: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("add_to_gitignore", { repo, paths })),
 	deleteUntracked: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("delete_untracked", { repo, paths })),
 	imageSides: (repo: RepoId, spec: DiffSpec, path: string) => typedError<[string | null, string | null], GitError>(__TAURI_INVOKE("image_sides", { repo, spec, path })),
+	conflictedPaths: (repo: RepoId) => typedError<string[], GitError>(__TAURI_INVOKE("conflicted_paths", { repo })),
+	conflictText: (repo: RepoId, path: string) => typedError<ConflictText, GitError>(__TAURI_INVOKE("conflict_text", { repo, path })),
+	resolveConflict: (repo: RepoId, path: string, side: ConflictSide) => typedError<null, GitError>(__TAURI_INVOKE("resolve_conflict", { repo, path, side })),
+	resolveConflictText: (repo: RepoId, path: string, text: string) => typedError<null, GitError>(__TAURI_INVOKE("resolve_conflict_text", { repo, path, text })),
+	findObject: (repo: RepoId, query: string, limit: number) => typedError<Found[], GitError>(__TAURI_INVOKE("find_object", { repo, query, limit })),
 };
 
 /** Events */
@@ -137,15 +142,25 @@ export type CommitRow = {
 	tzOffsetMinutes: number,
 };
 
+export type ConflictSide = "base" | "ours" | "theirs";
+
+/**  Named rather than a tuple: positional optional strings reorder silently across IPC. */
+export type ConflictText = {
+	base: string | null,
+	ours: string | null,
+	theirs: string | null,
+};
+
 export type DiffOptions = {
 	algorithm: Algorithm,
 	contextLines: number,
 	ignoreWhitespace: Whitespace,
 	ignoreBlankLines: boolean,
 	wordDiff: boolean,
+	detectMoves: boolean,
 };
 
-export type DiffRow = { kind: "context"; old: number; new: number; text: string } | { kind: "delete"; old: number; text: string; inline: ([number, number])[] } | { kind: "insert"; new: number; text: string; inline: ([number, number])[] } | { kind: "collapsed"; count: number };
+export type DiffRow = { kind: "context"; old: number; new: number; text: string } | { kind: "delete"; old: number; text: string; inline: ([number, number])[]; moved?: boolean } | { kind: "insert"; new: number; text: string; inline: ([number, number])[]; moved?: boolean } | { kind: "collapsed"; count: number };
 
 export type DiffSpec = { kind: "commitVsParent"; oid: string } | { kind: "commitVsCommit"; a: string; b: string } | { kind: "workTreeVsIndex" } | { kind: "indexVsHead" };
 
@@ -179,6 +194,15 @@ export type FileEntry = {
 export type FileMode = "plain" | "executable" | "symlink" | "submodule";
 
 export type FileStatus = "added" | "modified" | "deleted" | "renamed" | "copied" | "untracked" | "conflicted";
+
+export type Found = {
+	kind: FoundKind,
+	label: string,
+	detail: string,
+	oid: string,
+};
+
+export type FoundKind = "branch" | "tag" | "commit" | "file";
 
 export type GitCommandError = {
 	command: string,

@@ -117,6 +117,47 @@
   --ease-out: cubic-bezier(0.2, 0, 0, 1);
 }
 
+/* Only the primitives change: every component reads the semantic layer above. */
+:root[data-theme="light"] {
+  --c-bg-window: #ffffff;
+  --c-bg-panel: #f6f8fa;
+  --c-bg-elevated: #eef1f5;
+  --c-bg-hover: #eaeef2;
+  --c-bg-active: #dde3ea;
+  --c-bg-inset: #ffffff;
+
+  --c-border: #d8dee4;
+  --c-border-strong: #bcc4cc;
+
+  --c-text: #1f2328;
+  --c-text-muted: #59636e;
+  --c-text-code: #24292f;
+  --c-text-inverse: #ffffff;
+
+  --c-added: #1a7f37;
+  --c-modified: #9a6700;
+  --c-deleted: #cf222e;
+  --c-branch: #0969da;
+  --c-stash: #8250df;
+
+  --c-added-bg: rgba(26, 127, 55, 0.1);
+  --c-modified-bg: rgba(154, 103, 0, 0.12);
+  --c-deleted-bg: rgba(207, 34, 46, 0.1);
+  --c-branch-bg: rgba(9, 105, 218, 0.1);
+  --c-stash-bg: rgba(130, 80, 223, 0.1);
+
+  --c-lane-1: #0969da;
+  --c-lane-2: #1a7f37;
+  --c-lane-3: #bc4c00;
+  --c-lane-4: #8250df;
+  --c-lane-5: #bf3989;
+  --c-lane-6: #0f766e;
+  --c-lane-7: #9a6700;
+  --c-lane-8: #a40e26;
+
+  --shadow-popover: 0 8px 24px rgba(31, 35, 40, 0.15);
+}
+
 @media (prefers-reduced-motion: reduce) {
   :root {
     --t-fast: 0ms;

@@ -77,5 +77,10 @@
 | F-071 | Удаление с диска | [F-071-delete-untracked.md](F-071-delete-untracked.md) |
 | F-072 | Commit What You See | [F-072-commit-what-you-see.md](F-072-commit-what-you-see.md) |
 | F-073 | Сравнение изображений | [F-073-image-diff.md](F-073-image-diff.md) |
+| F-074 | Три стороны конфликта | [F-074-conflict-sides.md](F-074-conflict-sides.md) |
+| F-075 | Разрешение конфликта в один клик | [F-075-resolve-buttons.md](F-075-resolve-buttons.md) |
+| F-076 | Подсветка перемещённых блоков | [F-076-moved-blocks.md](F-076-moved-blocks.md) |
+| F-077 | Поиск объекта по Ctrl+P | [F-077-find-object.md](F-077-find-object.md) |
+| F-078 | Настройки | [F-078-settings.md](F-078-settings.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.

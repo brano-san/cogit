@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { formatCommitDate, shortOid } from "$lib/format";
+  import { settings } from "$stores/settings.svelte";
+  import { shortOid } from "$lib/format";
   import type { CommitRow } from "$lib/ipc";
 
   interface Props {
@@ -18,7 +19,7 @@
         <span class="marker" aria-hidden="true">⚠</span>
         <span class="name truncate">{lost.summary}</span>
         <span class="oid mono tabular">{shortOid(lost.oid)}</span>
-        <span class="date tabular">{formatCommitDate(lost.timestamp, lost.tzOffsetMinutes)}</span>
+        <span class="date tabular">{settings.formatDate(lost.timestamp, lost.tzOffsetMinutes)}</span>
         <span
           class="act"
           role="button"

@@ -209,6 +209,7 @@ fn build(
                     .get(offset)
                     .map(|(old, _)| old.clone())
                     .unwrap_or_default(),
+                moved: false,
             });
         }
         for (offset, index) in change.after.clone().enumerate() {
@@ -219,6 +220,7 @@ fn build(
                     .get(offset)
                     .map(|(_, new)| new.clone())
                     .unwrap_or_default(),
+                moved: false,
             });
         }
         old_at = change.before.end;

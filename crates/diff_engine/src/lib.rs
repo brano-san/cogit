@@ -4,6 +4,7 @@ mod eol;
 mod headers;
 mod images;
 mod language;
+mod moves;
 mod patch;
 mod text;
 mod words;
@@ -12,6 +13,7 @@ pub use eol::{EolInfo, LineEnding, detect_line_ending, normalize_line_endings};
 pub use headers::with_hunk_context;
 pub use images::{data_url, image_mime};
 pub use language::language_for_path;
+pub use moves::{MIN_MOVED_LINES, detect_moves};
 pub use patch::{PatchRequest, build_patch};
 pub use text::{MAX_TEXT_BYTES, diff_bytes, diff_text};
 pub use words::{Spans, block_is_comparable, inline_spans};
@@ -41,6 +43,7 @@ pub struct DiffOptions {
     pub ignore_whitespace: Whitespace,
     pub ignore_blank_lines: bool,
     pub word_diff: bool,
+    pub detect_moves: bool,
 }
 
 impl Default for DiffOptions {
@@ -51,6 +54,7 @@ impl Default for DiffOptions {
             ignore_whitespace: Whitespace::default(),
             ignore_blank_lines: false,
             word_diff: true,
+            detect_moves: true,
         }
     }
 }
@@ -71,11 +75,15 @@ pub enum DiffRow {
         old: u32,
         text: String,
         inline: Vec<(u32, u32)>,
+        #[serde(default)]
+        moved: bool,
     },
     Insert {
         new: u32,
         text: String,
         inline: Vec<(u32, u32)>,
+        #[serde(default)]
+        moved: bool,
     },
     Collapsed {
         count: u32,

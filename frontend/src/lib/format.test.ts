@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { formatCommitDate, headLabel, refLabels, shortOid, splitBranches } from "./format";
+import {
+  formatCommitDate,
+  headLabel,
+  refLabels,
+  relativeDate,
+  shortOid,
+  splitBranches,
+} from "./format";
 import type { Tag } from "./ipc";
 import type { Branch, Head } from "./ipc";
 
@@ -158,5 +165,34 @@ describe("refLabels", () => {
       .get("a".repeat(40))
       ?.map((l) => l.kind);
     expect(kinds).not.toContain("head");
+  });
+});
+
+describe("relativeDate", () => {
+  const NOW = Date.UTC(2026, 0, 15, 12, 0, 0) / 1000;
+  const at = (seconds: number) => relativeDate(NOW - seconds, 0, NOW);
+
+  it("calls the last minute just now", () => {
+    expect(at(30)).toBe("just now");
+  });
+
+  it("counts whole minutes", () => {
+    expect(at(5 * 60)).toBe("5 minutes ago");
+  });
+
+  it("uses the singular for one of anything", () => {
+    expect(at(60)).toBe("1 minute ago");
+    expect(at(3600)).toBe("1 hour ago");
+  });
+
+  it("counts hours, then days, then months, then years", () => {
+    expect(at(5 * 3600)).toBe("5 hours ago");
+    expect(at(3 * 86400)).toBe("3 days ago");
+    expect(at(70 * 86400)).toBe("2 months ago");
+    expect(at(800 * 86400)).toBe("2 years ago");
+  });
+
+  it("does not claim a future commit happened in the past", () => {
+    expect(relativeDate(NOW + 600, 0, NOW)).toBe("just now");
   });
 });

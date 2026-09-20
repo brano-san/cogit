@@ -1,5 +1,6 @@
 <script lang="ts">
   import { GRAPH, canvasPixelSize, edgeBand, indexByRow, laneX, rowY } from "$lib/graph-geometry";
+  import { settings } from "$stores/settings.svelte";
   import type { GraphEdge } from "$lib/ipc";
 
   interface Props {
@@ -95,7 +96,9 @@
   }
 
   $effect(() => {
+    // The theme and the lane width change what is painted without changing the data.
     void [edges, nodes, scrollTop, width, height, dpr, rowOffset];
+    void [settings.current.theme, settings.current.laneWidth];
     schedule();
     return () => cancelAnimationFrame(frame);
   });

@@ -1,6 +1,7 @@
 <script lang="ts">
+  import { settings } from "$stores/settings.svelte";
   import GraphCanvas from "$components/graph/GraphCanvas.svelte";
-  import { formatCommitDate, refLabels, shortOid } from "$lib/format";
+  import { refLabels, shortOid } from "$lib/format";
   import {
     GRAPH,
     HEADER_ROWS,
@@ -134,7 +135,7 @@
           <span class="summary truncate">{item.entry.commit.summary}</span>
           <span class="author truncate">{item.entry.commit.authorName}</span>
           <span class="date tabular"
-            >{formatCommitDate(
+            >{settings.formatDate(
               item.entry.commit.timestamp,
               item.entry.commit.tzOffsetMinutes,
             )}</span

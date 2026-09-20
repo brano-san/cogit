@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   GRAPH,
   canvasPixelSize,
@@ -6,6 +6,7 @@ import {
   hitTest,
   laneX,
   rowY,
+  setLaneWidth,
   visibleRange,
   HEADER_ROWS,
   toCommitRow,
@@ -150,5 +151,29 @@ describe("row offset for the Working Tree header", () => {
     for (const row of [0, 1, 42, 9999]) {
       expect(toCommitRow(toListRow(row))).toBe(row);
     }
+  });
+});
+
+describe("setLaneWidth", () => {
+  afterEach(() => setLaneWidth(14));
+
+  it("widens the spacing between lanes", () => {
+    setLaneWidth(24);
+    expect(laneX(2)).toBe(GRAPH.leftPad + 48);
+  });
+
+  it("widens the gutter to match", () => {
+    setLaneWidth(24);
+    expect(gutterWidth(0, 1000)).toBe(GRAPH.leftPad + 24);
+  });
+
+  it("refuses a width that would collapse the lanes onto each other", () => {
+    setLaneWidth(0);
+    expect(GRAPH.laneWidth).toBeGreaterThan(0);
+  });
+
+  it("rounds to whole pixels so lines stay crisp", () => {
+    setLaneWidth(16.4);
+    expect(GRAPH.laneWidth).toBe(16);
   });
 });

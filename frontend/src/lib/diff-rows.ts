@@ -7,6 +7,7 @@ export interface SideCell {
   line: number;
   text: string;
   inline: [number, number][];
+  moved: boolean;
 }
 
 export interface SidePair {
@@ -38,14 +39,32 @@ export function pairRows(rows: readonly DiffRow[]): SidePair[] {
       case "delete":
         // An insertion already seen belongs to the previous block, not to this deletion.
         if (inserts.length > 0) flushBlock();
-        deletes.push({ kind: "delete", line: row.old, text: row.text, inline: row.inline });
+        deletes.push({
+          kind: "delete",
+          line: row.old,
+          text: row.text,
+          inline: row.inline,
+          moved: row.moved ?? false,
+        });
         break;
       case "insert":
-        inserts.push({ kind: "insert", line: row.new, text: row.text, inline: row.inline });
+        inserts.push({
+          kind: "insert",
+          line: row.new,
+          text: row.text,
+          inline: row.inline,
+          moved: row.moved ?? false,
+        });
         break;
       case "context": {
         flushBlock();
-        const cell: SideCell = { kind: "context", line: 0, text: row.text, inline: [] };
+        const cell: SideCell = {
+          kind: "context",
+          line: 0,
+          text: row.text,
+          inline: [],
+          moved: false,
+        };
         pairs.push({
           left: { ...cell, line: row.old },
           right: { ...cell, line: row.new },

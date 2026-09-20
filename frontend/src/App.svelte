@@ -4,6 +4,7 @@
   import BranchList from "$components/branch-tree/BranchList.svelte";
   import BlameView from "$components/diff/BlameView.svelte";
   import DiffView from "$components/diff/DiffView.svelte";
+  import ConflictView from "$components/diff/ConflictView.svelte";
   import ImageDiff from "$components/diff/ImageDiff.svelte";
   import CommitBox from "$components/file-list/CommitBox.svelte";
   import FileList from "$components/file-list/FileList.svelte";
@@ -11,6 +12,8 @@
   import GraphFilter from "$components/graph/GraphFilter.svelte";
   import Panel from "$components/layout/Panel.svelte";
   import CommandPalette from "$components/layout/CommandPalette.svelte";
+  import SettingsPanel from "$components/layout/SettingsPanel.svelte";
+  import FindObject from "$components/layout/FindObject.svelte";
   import GitErrorDialog from "$components/layout/GitErrorDialog.svelte";
   import OutputPanel from "$components/layout/OutputPanel.svelte";
   import StateBanner from "$components/layout/StateBanner.svelte";
@@ -22,11 +25,12 @@
   import TagList from "$components/branch-tree/TagList.svelte";
   import RepositoryList from "$components/repo-tree/RepositoryList.svelte";
   import SubmoduleList from "$components/repo-tree/SubmoduleList.svelte";
-  import { formatCommitDate, shortOid } from "$lib/format";
+  import { shortOid } from "$lib/format";
   import type { PaletteCommand } from "$lib/palette";
   import { pullRequestUrl } from "$lib/pull-request";
   import { commitScope } from "$lib/commit-scope";
   import { stateBanner, type BannerAction } from "$lib/repo-state";
+  import type { Settings } from "$lib/settings";
   import {
     checkout,
     deleteBranch,
@@ -39,6 +43,7 @@
     addToGitignore,
     cherryPick,
     deleteUntracked,
+    findObject,
     mergeInto,
     stageSelection,
     onRepoChanged,
@@ -51,6 +56,7 @@
   } from "$lib/ipc";
   import { blame } from "$stores/blame.svelte";
   import { commit } from "$stores/commit.svelte";
+  import { conflicts } from "$stores/conflicts.svelte";
   import { worktree } from "$stores/worktree.svelte";
   import { diff } from "$stores/diff.svelte";
   import { errors } from "$stores/errors.svelte";
@@ -61,11 +67,25 @@
   import { stashes } from "$stores/stashes.svelte";
   import { submodules } from "$stores/submodules.svelte";
   import { graph } from "$stores/graph.svelte";
+  import { settings } from "$stores/settings.svelte";
   import { layout } from "$stores/layout.svelte";
   import { repository } from "$stores/repository.svelte";
 
+  /** Settings the open diff was computed with: changing one has to re-run it. */
+  const REDIFF: readonly (keyof Settings)[] = [
+    "algorithm",
+    "contextLines",
+    "wordDiff",
+    "detectMoves",
+  ];
+
   let info = $state<AppInfo | null>(null);
   let paletteOpen = $state(false);
+  let settingsOpen = $state(false);
+  let finderOpen = $state(false);
+  let finderBusy = $state(false);
+  let finderResults = $state.raw<import("$lib/ipc").Found[]>([]);
+  let finderToken = 0;
   let recentCommands = $state<string[]>([]);
   let refFilter = $state("");
   let fileMask = $state("");
@@ -73,6 +93,9 @@
   $effect(() => {
     getAppInfo().then((result) => {
       info = result;
+    });
+    void settings.load().then(() => {
+      diff.whitespace = settings.current.ignoreWhitespace;
     });
     void repository.restore().then(() => {
       const first = repository.openRepos[0];
@@ -125,6 +148,7 @@
       id ? network.refresh(id) : Promise.resolve(),
       id ? recovery.refresh(id) : Promise.resolve(),
       id ? submodules.refresh(id) : Promise.resolve(),
+      id ? conflicts.refresh(id) : Promise.resolve(),
       output.refreshProblems(),
       safety.refresh(),
       output.open ? output.refresh() : Promise.resolve(),
@@ -152,6 +176,21 @@
         run: () => void undo(),
       },
       { id: "output", title: "Toggle Output Panel", shortcut: "Ctrl+Shift+7", run: () => output.toggle() },
+      {
+        id: "settings",
+        title: "Settings",
+        shortcut: "Ctrl+,",
+        synonyms: ["preferences", "options"],
+        run: () => (settingsOpen = true),
+      },
+      {
+        id: "find",
+        title: "Find Object",
+        shortcut: "Ctrl+P",
+        synonyms: ["goto", "jump"],
+        unavailable: noRepo,
+        run: () => (finderOpen = true),
+      },
       {
         id: "pr",
         title: "Create Pull Request",
@@ -195,6 +234,34 @@
     await openUrl(prUrl);
   }
 
+  async function runFind(text: string) {
+    const id = repository.current?.repo;
+    const token = ++finderToken;
+    if (!id || text.trim() === "") {
+      finderResults = [];
+      return;
+    }
+    finderBusy = true;
+    try {
+      const found = await findObject(id, text);
+      if (token === finderToken) finderResults = found;
+    } catch (err) {
+      errors.report(err as never);
+    } finally {
+      if (token === finderToken) finderBusy = false;
+    }
+  }
+
+  function pickFound(item: import("$lib/ipc").Found) {
+    finderOpen = false;
+    const id = repository.current?.repo;
+    if (!id) return;
+    if (item.kind === "commit") void commit.select(id, item.oid);
+    if (item.kind === "branch") void switchTo({ name: item.label } as Branch);
+    if (item.kind === "tag" && item.oid) void commit.select(id, item.oid);
+    if (item.kind === "file" && commit.oid) openDiff(item.label);
+  }
+
   function runCommand(command: PaletteCommand) {
     paletteOpen = false;
     recentCommands = [command.id, ...recentCommands.filter((id) => id !== command.id)].slice(0, 8);
@@ -209,6 +276,24 @@
     if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "p") {
       event.preventDefault();
       paletteOpen = !paletteOpen;
+    }
+    if (event.ctrlKey && !event.shiftKey && event.key.toLowerCase() === "p") {
+      event.preventDefault();
+      finderOpen = !finderOpen;
+    }
+    if (event.ctrlKey && event.key === ",") {
+      event.preventDefault();
+      settingsOpen = !settingsOpen;
+    }
+  }
+
+  async function changeSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
+    await settings.set(key, value);
+    const id = repository.current?.repo;
+    if (key === "ignoreWhitespace" && id) {
+      await diff.setWhitespace(id, settings.current.ignoreWhitespace);
+    } else if (REDIFF.includes(key) && id && diff.spec && diff.path) {
+      await diff.load(id, diff.spec, diff.path);
     }
   }
 
@@ -619,7 +704,15 @@
 
   function openWorktreeDiff(path: string) {
     const id = repository.current?.repo;
-    if (id) void diff.load(id, { kind: "workTreeVsIndex" }, path);
+    if (!id) return;
+    // A conflicted file has three sides; a two-sided diff of it says nothing useful.
+    if (conflicts.paths.includes(path)) {
+      diff.clear();
+      void conflicts.open(id, path);
+      return;
+    }
+    conflicts.close();
+    void diff.load(id, { kind: "workTreeVsIndex" }, path);
   }
 
   async function activate(root: string) {
@@ -631,6 +724,7 @@
     network.clear();
     recovery.clear();
     submodules.clear();
+    conflicts.clear();
     await repository.open(root);
     const opened = repository.current;
     if (opened) {
@@ -833,7 +927,22 @@
 
       <div class="pane grow">
         <Panel title="Diff">
-          {#if blame.path}
+          {#if conflicts.path}
+            <ConflictView
+              path={conflicts.path}
+              base={conflicts.base}
+              ours={conflicts.ours}
+              theirs={conflicts.theirs}
+              onresolve={(side) => {
+                const id = repository.current?.repo;
+                if (id) void conflicts.take(id, side).then(() => afterMutation());
+              }}
+              onresolveText={(text) => {
+                const id = repository.current?.repo;
+                if (id) void conflicts.write(id, text).then(() => afterMutation());
+              }}
+            />
+          {:else if blame.path}
             <BlameView
               lines={blame.lines}
               path={blame.path}
@@ -884,7 +993,7 @@
                 <dt>Author</dt>
                 <dd>
                   {details.author.name} &lt;{details.author.email}&gt; ·
-                  {formatCommitDate(details.author.timestamp, details.author.tzOffsetMinutes)}
+                  {settings.formatDate(details.author.timestamp, details.author.tzOffsetMinutes)}
                 </dd>
                 <dt>Parents</dt>
                 <dd class="mono tabular">
@@ -925,12 +1034,31 @@
     <OutputPanel />
   {/if}
 
+  {#if finderOpen}
+    <FindObject
+      results={finderResults}
+      busy={finderBusy}
+      onquery={(text) => void runFind(text)}
+      onpick={pickFound}
+      onclose={() => (finderOpen = false)}
+    />
+  {/if}
+
   {#if paletteOpen}
     <CommandPalette
       commands={palette}
       recent={recentCommands}
       onrun={runCommand}
       onclose={() => (paletteOpen = false)}
+    />
+  {/if}
+
+  {#if settingsOpen}
+    <SettingsPanel
+      value={settings.current}
+      onchange={(key, next) => void changeSetting(key, next)}
+      onreset={() => void settings.reset()}
+      onclose={() => (settingsOpen = false)}
     />
   {/if}
 

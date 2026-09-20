@@ -329,6 +329,9 @@ impl AppState {
             *language = diff_engine::language_for_path(path);
         }
         diff_engine::with_hunk_context(&mut diff, &String::from_utf8_lossy(old_bytes));
+        if options.detect_moves {
+            diff_engine::detect_moves(&mut diff);
+        }
         Ok(diff)
     }
 
@@ -926,6 +929,47 @@ impl AppState {
             })
         };
         Ok((encode(old), encode(new)))
+    }
+
+    pub fn conflicted_paths(&self, repo: RepoId) -> Result<Vec<String>, git_engine::GitError> {
+        self.handle(repo)?.conflicted_paths()
+    }
+
+    pub fn conflict_text(
+        &self,
+        repo: RepoId,
+        path: &str,
+    ) -> Result<git_engine::ConflictText, git_engine::GitError> {
+        Ok(self.handle(repo)?.conflict_sides(path)?.to_text())
+    }
+
+    pub fn resolve_conflict(
+        &self,
+        repo: RepoId,
+        path: &str,
+        side: git_engine::ConflictSide,
+    ) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
+        self.handle(repo)?.resolve_with(path, side)
+    }
+
+    pub fn resolve_conflict_text(
+        &self,
+        repo: RepoId,
+        path: &str,
+        text: &str,
+    ) -> Result<(), git_engine::GitError> {
+        self.quiet(repo);
+        self.handle(repo)?.resolve_with_text(path, text)
+    }
+
+    pub fn find(
+        &self,
+        repo: RepoId,
+        query: &str,
+        limit: u32,
+    ) -> Result<Vec<git_engine::Found>, git_engine::GitError> {
+        self.handle(repo)?.find(query, limit as usize)
     }
 
     fn handle(&self, repo: RepoId) -> Result<git_engine::RepoHandle, git_engine::GitError> {

@@ -1,6 +1,5 @@
 import {
   CogitError,
-  DEFAULT_DIFF_OPTIONS,
   diffFile,
   imageSides,
   type DiffSpec,
@@ -9,6 +8,7 @@ import {
   type Whitespace,
   type RepoId,
 } from "$lib/ipc";
+import { settings } from "./settings.svelte";
 
 class DiffStore {
   path = $state<string | null>(null);
@@ -40,7 +40,7 @@ class DiffStore {
 
     try {
       const result = await diffFile(repo, spec, path, {
-        ...DEFAULT_DIFF_OPTIONS,
+        ...settings.diffOptions,
         ignoreWhitespace: this.whitespace,
       });
       if (generation !== this.#generation) return;
