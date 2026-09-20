@@ -3,7 +3,6 @@ use std::io::Read as _;
 use std::process::Stdio;
 
 impl RepoHandle {
-    /// Remote names, read from the config rather than by spawning `git remote`.
     pub fn remotes(&self) -> Result<Vec<String>> {
         let mut names: Vec<String> = self
             .repo
@@ -61,9 +60,7 @@ impl RepoHandle {
         }))
     }
 
-    /// Network commands can run for minutes, so their output is delivered as it appears
-    /// instead of after the process exits. Git writes progress to `stderr`, overwriting
-    /// the line with `\r`, so both separators end a line here.
+    /// Delivered as it appears, not after the process exits.
     fn stream_git(&self, args: &[&str], mut on_line: impl FnMut(&str)) -> Result<GitOutput> {
         let command = format!("git {}", args.join(" "));
         let started = std::time::Instant::now();
@@ -75,7 +72,6 @@ impl RepoHandle {
             .stderr(Stdio::piped())
             .spawn()?;
 
-        // stdout is drained on its own thread: a full pipe on either stream deadlocks.
         let mut stdout_pipe = child.stdout.take();
         let stdout_reader = std::thread::spawn(move || {
             let mut buffer = Vec::new();

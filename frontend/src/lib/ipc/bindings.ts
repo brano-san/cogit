@@ -215,7 +215,6 @@ export type NodeKind = "normal" | "merge" | "root" | "workingTree";
 
 export type RebaseOptions = {
 	onto: string,
-	/**  Lets the rebase start with a dirty tree; Git puts the changes back afterwards. */
 	autostash: boolean,
 };
 

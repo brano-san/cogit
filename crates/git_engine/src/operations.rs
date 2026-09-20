@@ -5,7 +5,6 @@ use serde::Deserialize;
 #[serde(rename_all = "camelCase")]
 pub struct RebaseOptions {
     pub onto: String,
-    /// Lets the rebase start with a dirty tree; Git puts the changes back afterwards.
     pub autostash: bool,
 }
 
