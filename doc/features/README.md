@@ -150,6 +150,7 @@
 | F-144 | Группы репозиториев | [F-144-repo-groups.md](F-144-repo-groups.md) |
 | F-145 | Команда проверки на паузах rebase | [F-145-rebase-check.md](F-145-rebase-check.md) |
 | F-146 | Провал проверки ничего не отменяет | [F-146-check-never-aborts.md](F-146-check-never-aborts.md) |
+| F-147 | Шаги rebase — строками графа | [F-147-rebase-rows-in-list.md](F-147-rebase-rows-in-list.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.
 

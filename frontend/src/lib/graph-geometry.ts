@@ -87,15 +87,16 @@ export function canvasPixelSize(cssWidth: number, cssHeight: number, dpr: number
   };
 }
 
-/** Rows before the first commit; list, canvas and hit testing all shift by this. */
+/** The Working Tree row. A rebase in progress adds its own rows on top of it, so the
+    offset is a parameter everywhere and this is only the floor. */
 export const HEADER_ROWS = 1;
 
-export function toListRow(commitRow: number): number {
-  return commitRow + HEADER_ROWS;
+export function toListRow(commitRow: number, headerRows: number = HEADER_ROWS): number {
+  return commitRow + headerRows;
 }
 
-export function toCommitRow(listRow: number): number | null {
-  const row = listRow - HEADER_ROWS;
+export function toCommitRow(listRow: number, headerRows: number = HEADER_ROWS): number | null {
+  const row = listRow - headerRows;
   return row >= 0 ? row : null;
 }
 

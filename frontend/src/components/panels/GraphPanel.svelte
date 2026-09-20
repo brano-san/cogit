@@ -1,12 +1,11 @@
 <script lang="ts">
   import CommitList from "$components/graph/CommitList.svelte";
-  import RebaseProgressView from "$components/graph/RebaseProgressView.svelte";
+  import PauseCheckBar from "$components/graph/PauseCheckBar.svelte";
   import type { HookRun, RebaseProgress } from "$lib/ipc";
   import { repository } from "$stores/repository.svelte";
-  import { worktree } from "$stores/worktree.svelte";
 
   interface Props {
-    /** Non-null while a rebase is in flight; the banner sits above the history. */
+    /** Non-null while a rebase is in flight; its steps become rows of the list below. */
     progress: RebaseProgress | null;
     check: string;
     oncheck: (command: string) => void;
@@ -24,18 +23,9 @@
 
 {#if repository.current}
   {#if progress}
-    <RebaseProgressView
-      {progress}
-      changes={worktree.total}
-      staged={worktree.staged.length}
-      {check}
-      {oncheck}
-      onrun={onruncheck}
-      {verdict}
-      running={checking}
-    />
+    <PauseCheckBar {check} {oncheck} onrun={onruncheck} {verdict} running={checking} />
   {/if}
-  <CommitList {ondrop} {oncontext} {onref} />
+  <CommitList rebase={progress} {ondrop} {oncontext} {onref} />
 {:else}
   <p class="note">Open a repository to see its history.</p>
 {/if}
