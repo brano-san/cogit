@@ -262,6 +262,11 @@ snake_case и читаются на фронтенде как `undefined`.
 | `open_compare_window` | `url, title` | `()` | M2 |
 | `commit_template` | `repo` | `Option<String>` | M6 |
 | `stage_mode` | `repo, path, executable` | `()` | M6 |
+| `list_presets` | — | `Vec<PresetStatus>` | M10 |
+| `install_preset` | `repo, id` | `()` | M10 |
+
+`PresetStatus` плоский: форма TOML — дело каталога, а не webview. `toolPath` — где
+инструмент нашёлся, `null` — не установлен; `installHint` тогда говорит, что делать.
 
 `stage_mode` перерегистрирует запись индекса через `update-index --cacheinfo` с тем же
 блобом: `--chmod` перечитал бы файл и затянул в индекс ещё и правки содержимого.

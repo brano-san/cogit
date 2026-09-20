@@ -1,7 +1,7 @@
 <script lang="ts">
   import { settings } from "$stores/settings.svelte";
   import GraphCanvas from "$components/graph/GraphCanvas.svelte";
-  import { capsules, refLabels, shortOid } from "$lib/format";
+  import { capsules, dateTooltip, refLabels, shortOid } from "$lib/format";
   import { DRAG_TYPE, parseDrag, serialiseDrag } from "$lib/drop-target";
   import { overlapLabel, overlapTooltip } from "$lib/overlap";
   import { overlap } from "$stores/overlap.svelte";
@@ -251,8 +251,12 @@
           {/if}
           <span class="summary truncate">{item.entry.commit.summary}</span>
           <span class="author truncate">{item.entry.commit.authorName}</span>
-          <span class="date tabular"
-            >{settings.formatDate(
+          <span
+            class="date tabular"
+            title={dateTooltip(
+              item.entry.commit.timestamp,
+              item.entry.commit.tzOffsetMinutes,
+            )}>{settings.formatDate(
               item.entry.commit.timestamp,
               item.entry.commit.tzOffsetMinutes,
             )}</span

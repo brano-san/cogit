@@ -251,16 +251,22 @@
       },
       { id: "output", title: "Toggle Output Panel", shortcut: "Ctrl+Shift+7", run: () => output.toggle() },
       {
+        id: "copy-path",
+        title: "Copy the File Path",
+        unavailable: diff.path ? undefined : "No file is open in the Diff panel",
+        run: () => void copyText(diff.path ?? ""),
+      },
+      {
+        id: "copy-branch",
+        title: "Copy the Branch Name",
+        unavailable: tracked ? undefined : "HEAD is not on a branch",
+        run: () => void copyText(tracked?.name ?? ""),
+      },
+      {
         id: "copy-sha",
         title: "Copy the Commit SHA",
         unavailable: commit.oid ? undefined : "Select a commit first",
-        run: () => {
-          if (commit.oid) {
-            void import("@tauri-apps/plugin-clipboard-manager").then((m) =>
-              m.writeText(commit.oid ?? ""),
-            );
-          }
-        },
+        run: () => void copyText(commit.oid ?? ""),
       },
       {
         id: "rebase-i",
@@ -1153,6 +1159,12 @@ Log: ${info?.logPath ?? ""}`),
     template = (await commitTemplate(id).catch(() => null)) ?? null;
   }
 
+  async function copyText(text: string) {
+    if (text === "") return;
+    const { writeText } = await import("@tauri-apps/plugin-clipboard-manager");
+    await writeText(text);
+  }
+
   async function closeCurrent() {
     const id = repository.current?.repo;
     if (!id) return;
@@ -1479,6 +1491,10 @@ Log: ${info?.logPath ?? ""}`),
                 const id = repository.current?.repo;
                 if (id) void diff.setWhitespace(id, mode);
               }}
+              onexpand={(whole) => {
+                const id = repository.current?.repo;
+                if (id) void diff.expand(id, whole);
+              }}
             />
           {:else}
           <div class="detail">
@@ -1628,6 +1644,13 @@ Log: ${info?.logPath ?? ""}`),
       lastRun={hooks.lastRun}
       running={hooks.running}
       bypasses={hooks.bypasses}
+      presets={hooks.presets}
+      showPresets={hooks.showPresets}
+      ontogglepresets={() => (hooks.showPresets = !hooks.showPresets)}
+      oninstall={(id) => {
+        const repo = repository.current?.repo;
+        if (repo) void hooks.install(repo, id);
+      }}
       onclose={() => hooks.close()}
     />
   {/if}

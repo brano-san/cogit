@@ -8,7 +8,10 @@ import {
   type Whitespace,
   type RepoId,
 } from "$lib/ipc";
+import { expandedContext } from "$lib/diff-rows";
 import { settings } from "./settings.svelte";
+
+const DEFAULT_CONTEXT = 3;
 
 class DiffStore {
   path = $state<string | null>(null);
@@ -18,6 +21,7 @@ class DiffStore {
   spec = $state.raw<DiffSpec | null>(null);
   /** Remembered per repository: the mode outlives switching between files. */
   whitespace = $state<Whitespace>("none");
+  context = $state<number | null>(null);
   images = $state.raw<[string | null, string | null]>([null, null]);
 
   get hunks(): Hunk[] {
@@ -33,6 +37,7 @@ class DiffStore {
 
   async load(repo: RepoId, spec: DiffSpec, path: string): Promise<void> {
     const generation = ++this.#generation;
+    if (path !== this.path) this.context = null;
     this.path = path;
     this.spec = spec;
     this.error = null;
@@ -41,6 +46,7 @@ class DiffStore {
     try {
       const result = await diffFile(repo, spec, path, {
         ...settings.diffOptions,
+        ...(this.context === null ? {} : { contextLines: this.context }),
         ignoreWhitespace: this.whitespace,
       });
       if (generation !== this.#generation) return;
@@ -54,6 +60,12 @@ class DiffStore {
     } finally {
       if (generation === this.#generation) this.loading = false;
     }
+  }
+
+  async expand(repo: RepoId, whole: boolean): Promise<void> {
+    if (!this.spec || !this.path) return;
+    this.context = expandedContext(this.context ?? DEFAULT_CONTEXT, whole);
+    await this.load(repo, this.spec, this.path);
   }
 
   dropIfAffected(paths: readonly string[]): void {
@@ -70,6 +82,7 @@ class DiffStore {
     this.#generation += 1;
     this.path = null;
     this.spec = null;
+    this.context = null;
     this.diff = null;
     this.images = [null, null];
     this.loading = false;

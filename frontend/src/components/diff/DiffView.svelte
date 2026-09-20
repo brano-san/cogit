@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { flatten, pairRows, type FlatEntry, type SideCell } from "$lib/diff-rows";
+  import { flatten, gapBetween, pairRows, type FlatEntry, type SideCell } from "$lib/diff-rows";
   import { highlightLines, mergePieces, type Token } from "$lib/highlight";
   import { hunkSelection, lineKey, toggleLine } from "$lib/selection";
   import { visibleRange } from "$lib/graph-geometry";
@@ -14,6 +14,8 @@
     onblame?: () => void;
     whitespace?: import("$lib/ipc").Whitespace;
     onwhitespace?: (mode: import("$lib/ipc").Whitespace) => void;
+    /** Show more of the file around the hunks; `whole` opens all of it (T7.3). */
+    onexpand?: (whole: boolean) => void;
   }
 
   let {
@@ -24,6 +26,7 @@
     onblame,
     whitespace = "none",
     onwhitespace,
+    onexpand,
   }: Props = $props();
 
   const WHITESPACE_LABEL = { none: "Whitespace", trailing: "Trailing ws", all: "Ignore ws" };
@@ -99,6 +102,11 @@
     });
     return offsets;
   });
+
+  /** Lines the diff is not showing above each hunk, for the expander. */
+  const hidden = $derived(
+    hunks.map((hunk, index) => gapBetween(index === 0 ? null : (hunks[index - 1] ?? null), hunk)),
+  );
 
   function sign(cell: SideCell | null): string {
     if (!cell) return "";
@@ -244,6 +252,15 @@
                   onclick={() => pickHunk(entry.hunk)}
                   onkeydown={(e) => e.key === "Enter" && pickHunk(entry.hunk)}>{entry.text}</span
                 >
+                {#if onexpand && hidden[entry.hunk]}
+                  <button
+                    type="button"
+                    class="expand mono"
+                    title="Click for 20 more lines, Ctrl+click for the whole file"
+                    onclick={(event) => onexpand?.(event.ctrlKey || event.metaKey)}
+                    >▲ {hidden[entry.hunk]} lines hidden ▲</button
+                  >
+                {/if}
               {:else if entry.row.kind === "context"}
                 <span class="gutter"></span>
                 <span class="num">{entry.row.old}</span>
@@ -466,6 +483,22 @@
   .code.add {
     background: var(--c-added-bg, rgb(40 80 45 / 35%));
     color: var(--status-add);
+  }
+
+  .expand {
+    margin-left: var(--sp-4);
+    padding: 0 var(--sp-3);
+    background: var(--surface-raised);
+    color: var(--text-secondary);
+    border: 0;
+    border-radius: var(--r-sm);
+    font-family: var(--font-mono);
+    font-size: var(--fs-header);
+    cursor: default;
+  }
+
+  .expand:hover {
+    color: var(--text-primary);
   }
 
   .header {

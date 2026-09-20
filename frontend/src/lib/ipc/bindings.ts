@@ -102,6 +102,8 @@ export const commands = {
 	openCompareWindow: (url: string, title: string) => typedError<null, GitError>(__TAURI_INVOKE("open_compare_window", { url, title })),
 	commitTemplate: (repo: RepoId) => typedError<string | null, GitError>(__TAURI_INVOKE("commit_template", { repo })),
 	stageMode: (repo: RepoId, path: string, executable: boolean) => typedError<null, GitError>(__TAURI_INVOKE("stage_mode", { repo, path, executable })),
+	listPresets: () => typedError<PresetStatus[], GitError>(__TAURI_INVOKE("list_presets")),
+	installPreset: (repo: RepoId, id: string) => typedError<null, GitError>(__TAURI_INVOKE("install_preset", { repo, id })),
 };
 
 /** Events */
@@ -395,6 +397,20 @@ export type PatchRequest = {
 	selectedInserts: number[],
 	lineEnding: LineEnding,
 	noTrailingNewline: boolean,
+};
+
+/**  Flattened for the UI: the TOML shape belongs to the catalogue, not the webview. */
+export type PresetStatus = {
+	id: string,
+	name: string,
+	hook: string,
+	description: string,
+	slow: boolean,
+	configFiles: string[],
+	tool: string | null,
+	installHint: string | null,
+	/**  Where the tool was found, or `None` when it is not installed. */
+	toolPath: string | null,
 };
 
 export type RebaseOptions = {

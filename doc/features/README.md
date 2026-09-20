@@ -110,5 +110,10 @@
 | F-104 | Стейджинг только смены прав | [F-104-stage-mode-only.md](F-104-stage-mode-only.md) |
 | F-105 | Капсулы ссылок не ломают строку | [F-105-ref-capsules.md](F-105-ref-capsules.md) |
 | F-106 | Строка Working Tree кликабельна | [F-106-working-tree-row.md](F-106-working-tree-row.md) |
+| F-107 | Каталог пресетов хуков | [F-107-hook-presets.md](F-107-hook-presets.md) |
+| F-108 | Командные хуки одним кликом | [F-108-team-hooks.md](F-108-team-hooks.md) |
+| F-109 | Копирование одним действием | [F-109-copy-actions.md](F-109-copy-actions.md) |
+| F-110 | Разворот скрытых строк | [F-110-hunk-expand.md](F-110-hunk-expand.md) |
+| F-111 | Точная дата в тултипе | [F-111-exact-date-tooltip.md](F-111-exact-date-tooltip.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.

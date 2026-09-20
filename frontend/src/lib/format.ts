@@ -101,3 +101,15 @@ export function capsules(
   if (labels.length <= room) return { shown: [...labels], hidden: [] };
   return { shown: labels.slice(0, Math.max(room, 0)), hidden: labels.slice(Math.max(room, 0)) };
 }
+
+export function dateTooltip(timestamp: number, offsetMinutes: number): string {
+  const shifted = new Date((timestamp + offsetMinutes * 60) * 1000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const sign = offsetMinutes < 0 ? "-" : "+";
+  const total = Math.abs(offsetMinutes);
+  return (
+    `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}` +
+    ` ${pad(shifted.getUTCHours())}:${pad(shifted.getUTCMinutes())}:${pad(shifted.getUTCSeconds())}` +
+    ` ${sign}${pad(Math.floor(total / 60))}:${pad(total % 60)}`
+  );
+}

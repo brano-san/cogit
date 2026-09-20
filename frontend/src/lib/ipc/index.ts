@@ -62,6 +62,7 @@ export type {
   OperationChanged,
   Overlap,
   OverlapRow,
+  PresetStatus,
   PatchRequest,
   RebaseOptions,
   RebaseProgress,
@@ -511,4 +512,12 @@ export async function commitTemplate(repo: RepoId) {
 
 export async function stageMode(repo: RepoId, path: string, executable: boolean) {
   return unwrap(await commands.stageMode(repo, path, executable));
+}
+
+export async function listPresets() {
+  return unwrap(await commands.listPresets());
+}
+
+export async function installPreset(repo: RepoId, id: string) {
+  return unwrap(await commands.installPreset(repo, id));
 }
