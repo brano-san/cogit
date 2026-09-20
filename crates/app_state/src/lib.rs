@@ -1620,3 +1620,43 @@ mod tests {
 }
 
 // ─── everything below this line belongs to the diff-merge branch; master appends above ───
+
+// The divider sits after `mod tests`, so anything the branch appends here trips
+// `items_after_test_module`. Moving the divider is `master`'s call, not this branch's.
+#[allow(clippy::items_after_test_module)]
+impl AppState {
+    /// Every file of a commit in one call.
+    ///
+    /// The object reads stay sequential — a `gix` repository is not shared across threads
+    /// — and only the diffing is parallel, which is where the time goes anyway
+    /// (doc/08-diff-engine.md section 9).
+    ///
+    /// Blocking by design; the Tauri layer wraps it in `spawn_blocking`, and `rayon` must
+    /// never be entered from an async task ([INV-01](doc/01-architecture.md)).
+    pub fn diff_files(
+        &self,
+        repo: RepoId,
+        spec: &git_engine::DiffSpec,
+        paths: &[String],
+        options: &diff_engine::DiffOptions,
+    ) -> Result<Vec<diff_engine::FileDiffEntry>, git_engine::GitError> {
+        let handle = self.handle(repo)?;
+        let mut inputs = Vec::with_capacity(paths.len());
+
+        for path in paths {
+            let (old, new) = handle.diff_sides(spec, path)?;
+            if old.is_none() && new.is_none() {
+                return Err(git_engine::GitError::InvalidState(format!(
+                    "{path} is absent from both sides of the diff"
+                )));
+            }
+            inputs.push(diff_engine::FileInput {
+                path: path.clone(),
+                old: old.unwrap_or_default(),
+                new: new.unwrap_or_default(),
+            });
+        }
+
+        Ok(diff_engine::diff_many(inputs, options))
+    }
+}

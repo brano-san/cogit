@@ -160,7 +160,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::commit_template,
             commands::stage_mode,
             commands::list_presets,
-            commands::install_preset
+            commands::install_preset,
+            commands::diff_files
         ])
 }
 

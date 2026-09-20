@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+mod batch;
 mod eol;
 mod headers;
 mod images;
@@ -9,6 +10,7 @@ mod patch;
 mod text;
 mod words;
 
+pub use batch::{FileDiffEntry, FileInput, diff_many, diff_one};
 pub use eol::{EolInfo, LineEnding, detect_line_ending, normalize_line_endings};
 pub use headers::with_hunk_context;
 pub use images::{data_url, image_mime};
