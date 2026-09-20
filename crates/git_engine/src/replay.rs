@@ -1,12 +1,10 @@
 use crate::{GitError, RepoHandle, Result};
 
 impl RepoHandle {
-    /// Applies each commit as a new one on top of HEAD, oldest first.
     pub fn cherry_pick(&self, commits: &[String]) -> Result<()> {
         self.replay("cherry-pick", commits)
     }
 
-    /// Records the inverse of each commit; history itself is left alone.
     pub fn revert(&self, commits: &[String]) -> Result<()> {
         self.replay("revert", commits)
     }
