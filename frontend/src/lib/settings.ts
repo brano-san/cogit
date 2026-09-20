@@ -1,8 +1,9 @@
+import type { DateMode } from "$lib/format";
 import type { Algorithm, Whitespace } from "$lib/ipc";
 
 export interface Settings {
   theme: "dark" | "light";
-  dateFormat: "iso" | "relative";
+  dateFormat: DateMode;
   algorithm: Algorithm;
   contextLines: number;
   ignoreWhitespace: Whitespace;
@@ -16,7 +17,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: "dark",
-  dateFormat: "iso",
+  dateFormat: "smart",
   algorithm: "histogram",
   contextLines: 3,
   ignoreWhitespace: "none",
@@ -33,7 +34,7 @@ const RESTART_REQUIRED: readonly (keyof Settings)[] = ["logLevel", "gitPath"];
 
 const ENUMS: Partial<Record<keyof Settings, readonly string[]>> = {
   theme: ["dark", "light"],
-  dateFormat: ["iso", "relative"],
+  dateFormat: ["smart", "relative", "both"],
   algorithm: ["histogram", "myers"],
   ignoreWhitespace: ["none", "trailing", "all"],
   pullMode: ["ffOnly", "merge"],

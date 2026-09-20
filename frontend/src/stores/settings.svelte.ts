@@ -1,5 +1,5 @@
 import { load } from "@tauri-apps/plugin-store";
-import { formatCommitDate, relativeDate } from "$lib/format";
+import { displayDate } from "$lib/format";
 import { setLaneWidth } from "$lib/graph-geometry";
 import { DEFAULT_DIFF_OPTIONS, type DiffOptions } from "$lib/ipc";
 import { DEFAULT_SETTINGS, merge, type Settings } from "$lib/settings";
@@ -21,9 +21,7 @@ class SettingsStore {
   }
 
   formatDate(timestamp: number, offsetMinutes: number): string {
-    return this.current.dateFormat === "relative"
-      ? relativeDate(timestamp, offsetMinutes, Date.now() / 1000)
-      : formatCommitDate(timestamp, offsetMinutes);
+    return displayDate(timestamp, offsetMinutes, Date.now() / 1000, this.current.dateFormat);
   }
 
   async load(): Promise<void> {

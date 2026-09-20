@@ -9,6 +9,8 @@ export interface LayoutFractions {
   graph: number;
   /** Height of the Unstaged list inside the Files panel; the rest goes to Staged. */
   filesSplit: number;
+  /** Height the Files panel keeps when the Commit Message panel sits under it. */
+  commitBox: number;
 }
 
 export const DEFAULT_LAYOUT: LayoutFractions = {
@@ -17,6 +19,7 @@ export const DEFAULT_LAYOUT: LayoutFractions = {
   topRow: 0.55,
   graph: 0.68,
   filesSplit: 0.55,
+  commitBox: 0.68,
 };
 
 export function clampFraction(value: number): number {
@@ -24,7 +27,7 @@ export function clampFraction(value: number): number {
   return Math.min(MAX_FRACTION, Math.max(MIN_FRACTION, value));
 }
 
-export const PANELS = ["repositories", "refs", "graph", "files", "diff"] as const;
+export const PANELS = ["repositories", "refs", "graph", "files", "commit", "diff"] as const;
 export type PanelId = (typeof PANELS)[number];
 
 export interface Perspective {
@@ -39,7 +42,7 @@ export const DEFAULT_PERSPECTIVES: Record<PerspectiveId, Perspective> = {
   main: { fractions: { ...DEFAULT_LAYOUT }, hidden: [] },
   review: {
     fractions: { ...DEFAULT_LAYOUT, leftColumn: 0.18, topRow: 0.32 },
-    hidden: ["repositories"],
+    hidden: ["repositories", "commit"],
   },
 };
 
