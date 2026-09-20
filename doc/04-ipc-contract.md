@@ -204,6 +204,7 @@ snake_case и читаются на фронтенде как `undefined`.
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
 | `stage_paths` / `unstage_paths` | `repo, paths: Vec<String>` | `()` | M6 |
+| `worktree_files` | `repo` | `WorktreeFiles` | M6 |
 | `stage_hunk` | `repo, patch: String` | `()` | M6 |
 | `discard_paths` | `repo, paths` | `()` | M6 |
 | `commit` | `repo, message, amend: bool, no_verify: bool` | `String` (oid) | M6 |

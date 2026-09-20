@@ -25,5 +25,7 @@
 | F-019 | Логи в файл | [F-019-logging.md](F-019-logging.md) |
 | F-020 | Автономный exe | [F-020-standalone-exe.md](F-020-standalone-exe.md) |
 | F-021 | Файлы рабочего дерева | [F-021-worktree-files.md](F-021-worktree-files.md) |
+| F-022 | Stage и Unstage | [F-022-stage-unstage.md](F-022-stage-unstage.md) |
+| F-023 | Discard | [F-023-discard.md](F-023-discard.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.

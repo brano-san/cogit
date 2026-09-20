@@ -153,3 +153,26 @@ pub async fn worktree_files(
         .await
         .map_err(|err| GitError::Internal(format!("worktree_files task failed: {err}")))?
 }
+
+macro_rules! path_command {
+    ($name:ident, $method:ident) => {
+        #[tauri::command]
+        #[specta::specta]
+        pub async fn $name(
+            state: tauri::State<'_, crate::AppContext>,
+            repo: RepoId,
+            paths: Vec<String>,
+        ) -> Result<(), GitError> {
+            let app_state = state.state.clone();
+            tokio::task::spawn_blocking(move || app_state.$method(repo, &paths))
+                .await
+                .map_err(|err| {
+                    GitError::Internal(format!(concat!(stringify!($name), " task failed: {}"), err))
+                })?
+        }
+    };
+}
+
+path_command!(stage_paths, stage_paths);
+path_command!(unstage_paths, unstage_paths);
+path_command!(discard_paths, discard_paths);

@@ -5,6 +5,7 @@ mod history;
 mod repo;
 mod runner;
 mod search;
+mod staging;
 mod state;
 mod status;
 mod worktree;
