@@ -132,5 +132,9 @@
 | F-126 | Двухколоночный диалог настроек | [F-126-preferences-dialog.md](F-126-preferences-dialog.md) |
 | F-127 | Настройка горячих клавиш | [F-127-keymap-editor.md](F-127-keymap-editor.md) |
 | F-128 | Центрирование графа на ссылке | [F-128-ref-reveal.md](F-128-ref-reveal.md) |
+| F-129 | Переименование ветки | [F-129-branch-rename.md](F-129-branch-rename.md) |
+| F-130 | Управление upstream | [F-130-upstream.md](F-130-upstream.md) |
+| F-131 | Удаление удалённой ветки | [F-131-delete-remote-branch.md](F-131-delete-remote-branch.md) |
+| F-132 | Автостэш при переключении | [F-132-autostash-checkout.md](F-132-autostash-checkout.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.

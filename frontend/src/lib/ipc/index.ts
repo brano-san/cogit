@@ -245,6 +245,19 @@ export async function deleteBranch(repo: RepoId, name: string, force: boolean) {
   return unwrap(await commands.deleteBranch(repo, name, force));
 }
 
+export async function renameBranch(repo: RepoId, from: string, to: string, force: boolean) {
+  return unwrap(await commands.renameBranch(repo, from, to, force));
+}
+
+/** `null` stops the branch tracking anything rather than pointing it somewhere harmless. */
+export async function setUpstream(repo: RepoId, branch: string, upstream: string | null) {
+  return unwrap(await commands.setUpstream(repo, branch, upstream));
+}
+
+export async function deleteRemoteBranch(repo: RepoId, remote: string, branch: string) {
+  return unwrap(await commands.deleteRemoteBranch(repo, remote, branch));
+}
+
 /** Fires when the watcher sees the repository change on disk; returns an unlisten fn. */
 export async function onRepoChanged(handler: (change: RepoChanged) => void) {
   return await events.repoChanged.listen((event) => handler(event.payload));

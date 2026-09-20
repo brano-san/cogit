@@ -60,6 +60,9 @@ export const commands = {
 	resolveConflict: (repo: RepoId, path: string, side: ConflictSide) => typedError<null, GitError>(__TAURI_INVOKE("resolve_conflict", { repo, path, side })),
 	resolveConflictText: (repo: RepoId, path: string, text: string) => typedError<null, GitError>(__TAURI_INVOKE("resolve_conflict_text", { repo, path, text })),
 	findObject: (repo: RepoId, query: string, limit: number) => typedError<Found[], GitError>(__TAURI_INVOKE("find_object", { repo, query, limit })),
+	renameBranch: (repo: RepoId, from: string, to: string, force: boolean) => typedError<null, GitError>(__TAURI_INVOKE("rename_branch", { repo, from, to, force })),
+	setUpstream: (repo: RepoId, branch: string, upstream: string | null) => typedError<null, GitError>(__TAURI_INVOKE("set_upstream", { repo, branch, upstream })),
+	deleteRemoteBranch: (repo: RepoId, remote: string, branch: string) => typedError<null, GitError>(__TAURI_INVOKE("delete_remote_branch", { repo, remote, branch })),
 	/**  Not `async`: touching menu items off the main thread deadlocks on Windows. */
 	setMenuState: (disabled: string[], checked: string[]) => __TAURI_INVOKE<void>("set_menu_state", { disabled, checked }),
 	reportTiming: (label: string, ms: number, detail: string) => __TAURI_INVOKE<void>("report_timing", { label, ms, detail }),

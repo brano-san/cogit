@@ -27,6 +27,7 @@
   import Toolbar from "$components/layout/Toolbar.svelte";
   import RepositoryList from "$components/repo-tree/RepositoryList.svelte";
   import ScanDialog from "$components/repo-tree/ScanDialog.svelte";
+  import PromptDialog from "$components/layout/PromptDialog.svelte";
   import SubmoduleList from "$components/repo-tree/SubmoduleList.svelte";
   import { shortOid } from "$lib/format";
   import { checkedIds, disabledIds, type PaletteCommand } from "$lib/palette";
@@ -39,11 +40,16 @@
   import { dropActions, type DropAction, type DragPayload } from "$lib/drop-target";
   import { moveEntry } from "$lib/rebase-plan";
   import { stateBanner, type BannerAction } from "$lib/repo-state";
+  import { blockedByLocalChanges } from "$lib/checkout-refusal";
   import { PANELS, type PanelId } from "$lib/perspectives";
   import type { Settings } from "$lib/settings";
   import {
     checkout,
+    CogitError,
     deleteBranch,
+    deleteRemoteBranch,
+    renameBranch,
+    setUpstream,
     abortOperation,
     continueOperation,
     createBranch,
@@ -128,6 +134,14 @@
   let info = $state<AppInfo | null>(null);
   let opening = $state(false);
   let scanOpen = $state(false);
+  let prompt = $state.raw<{
+    title: string;
+    label: string;
+    value: string;
+    choices?: string[];
+    confirm: string;
+    run: (value: string) => void;
+  } | null>(null);
   let paletteOpen = $state(false);
   let settingsOpen = $state(false);
   let finderOpen = $state(false);
@@ -678,10 +692,41 @@ Log: ${info?.logPath ?? ""}`),
     try {
       await checkout(id, { kind: "branch", name: branch.name });
     } catch (err) {
-      errors.report(err as never);
+      // Only git knows whether the working tree is really in the way: many dirty checkouts
+      // are fine, so the offer is made after its refusal, not before every switch.
+      if (!(await offerAutostash(err, branch))) errors.report(err as never);
       return;
     }
     await afterRefChange();
+  }
+
+  /** Stash, switch, put the changes back — what `--autostash` does for rebase and pull. */
+  async function offerAutostash(err: unknown, branch: Branch): Promise<boolean> {
+    const id = repository.current?.repo;
+    if (!id || !(err instanceof CogitError) || err.detail.kind !== "command") return false;
+    const blocked = blockedByLocalChanges(err.detail.data.stderr);
+    if (!blocked) return false;
+
+    const what =
+      blocked.length === 0
+        ? "Local changes are in the way"
+        : `${blocked.length} file(s) are in the way: ${blocked.slice(0, 5).join(", ")}`;
+    const confirmed = await ask(
+      `${what}. Stash them, switch to ${branch.name}, then put them back?`,
+      { title: "Switch branch", kind: "warning" },
+    );
+    if (!confirmed) return false;
+
+    try {
+      await stashes.push(id, `cogit: autostash before switching to ${branch.name}`, true);
+      await checkout(id, { kind: "branch", name: branch.name });
+      // Popping can conflict; the state banner then takes over, which is the honest outcome.
+      await stashes.apply(id, 0, true);
+    } catch (failed) {
+      errors.report(failed as never);
+    }
+    await afterRefChange();
+    return true;
   }
 
   async function removeBranch(branch: Branch) {
@@ -1208,6 +1253,72 @@ Log: ${info?.logPath ?? ""}`),
     await popupContextMenu(items, x, y).catch(() => {});
   }
 
+  /** Git refuses most of these itself; the dialog only spares the round trip. */
+  function branchNameProblem(name: string, taken: readonly string[]): string | null {
+    const trimmed = name.trim();
+    if (trimmed === "") return "Enter a name.";
+    if (taken.includes(trimmed)) return `${trimmed} already exists.`;
+    if (/[\s~^:?*\[\\]/.test(trimmed)) return "A branch name cannot contain spaces or ~^:?*[\\.";
+    if (trimmed.startsWith("-") || trimmed.endsWith(".lock")) return "Git will refuse that name.";
+    return null;
+  }
+
+  function askRename(branch: Branch) {
+    const id = repo?.repo;
+    if (!id) return;
+    prompt = {
+      title: `Rename ${branch.name}`,
+      label: "New name",
+      value: branch.name,
+      confirm: "Rename",
+      run: (name) => {
+        prompt = null;
+        void renameBranch(id, branch.name, name, false)
+          .then(() => repository.refresh())
+          .then(() => afterMutation())
+          .catch((err) => errors.report(err as never));
+      },
+    };
+  }
+
+  function askUpstream(branch: Branch) {
+    const id = repo?.repo;
+    if (!id) return;
+    const choices = repository.remoteBranches.map((entry) => entry.name);
+    if (choices.length === 0) {
+      errors.report({ kind: "invalidState", data: "No remote branch to track." } as never);
+      return;
+    }
+    prompt = {
+      title: `Upstream for ${branch.name}`,
+      label: "Track",
+      value: branch.upstream ?? choices[0] ?? "",
+      choices,
+      confirm: "Set",
+      run: (upstream) => {
+        prompt = null;
+        void setUpstream(id, branch.name, upstream)
+          .then(() => repository.refresh())
+          .catch((err) => errors.report(err as never));
+      },
+    };
+  }
+
+  async function confirmDeleteRemote(branch: Branch) {
+    const id = repo?.repo;
+    if (!id) return;
+    const remote = branch.name.split("/")[0] ?? "origin";
+    const confirmed = await ask(
+      `Delete ${branch.name} on ${remote}? This runs on the server and Undo cannot reach it.`,
+      { title: "Delete remote branch", kind: "warning" },
+    );
+    if (!confirmed) return;
+    await deleteRemoteBranch(id, remote, branch.name).catch((err) =>
+      errors.report(err as never),
+    );
+    await repository.refresh();
+  }
+
   /** Returns true when the id belonged to the References tree and was handled here. */
   function runRefCommand(id: string): boolean {
     const node = refTarget;
@@ -1220,6 +1331,22 @@ Log: ${info?.logPath ?? ""}`),
         return true;
       case "delete-branch":
         if (branch) void removeBranch(branch);
+        return true;
+      case "rename-branch":
+        if (branch) askRename(branch);
+        return true;
+      case "set-upstream":
+        if (branch) askUpstream(branch);
+        return true;
+      case "clear-upstream":
+        if (branch && repo) {
+          void setUpstream(repo.repo, branch.name, null)
+            .then(() => repository.refresh())
+            .catch((err) => errors.report(err as never));
+        }
+        return true;
+      case "delete-remote-branch":
+        if (branch) void confirmDeleteRemote(branch);
         return true;
       case "merge-branch":
         if (branch) void mergeBranch(branch);
@@ -1896,6 +2023,25 @@ Log: ${info?.logPath ?? ""}`),
       onforgettoken={() => void network.forgetToken()}
       onapply={(next, keys) => void applySettings(next, keys)}
       onclose={() => (settingsOpen = false)}
+    />
+  {/if}
+
+  {#if prompt}
+    <PromptDialog
+      title={prompt.title}
+      label={prompt.label}
+      value={prompt.value}
+      choices={prompt.choices}
+      confirm={prompt.confirm}
+      validate={prompt.choices
+        ? undefined
+        : (name) =>
+            branchNameProblem(
+              name,
+              repository.localBranches.map((entry) => entry.name),
+            )}
+      onaccept={(value) => prompt?.run(value)}
+      onclose={() => (prompt = null)}
     />
   {/if}
 
