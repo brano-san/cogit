@@ -108,6 +108,8 @@ pub struct RepoOverview {
     pub ahead: u32,
     pub behind: u32,
     pub dirty: bool,
+    /// The folder is gone. The row stays so the user can remove it on purpose (T3.7).
+    pub missing: bool,
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -1263,9 +1265,11 @@ impl AppState {
             ahead: 0,
             behind: 0,
             dirty: false,
+            missing: false,
         };
 
         let Ok(handle) = git_engine::RepoHandle::open(&open.root) else {
+            row.missing = true;
             return row;
         };
         if let Ok(git_engine::Head::Branch { name, .. }) = handle.head() {

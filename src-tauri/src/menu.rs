@@ -43,6 +43,7 @@ const VIEW: &[Entry] = &[
 
 const REMOTE: &[Entry] = &[
     Entry::Item("fetch", "Fetch", Some("CmdOrCtrl+Shift+F")),
+    Entry::Item("fetch-all", "Fetch All", None),
     Entry::Item("pull", "Pull", Some("CmdOrCtrl+Shift+U")),
     Entry::Item("push", "Push", Some("CmdOrCtrl+Shift+O")),
     Entry::Separator,

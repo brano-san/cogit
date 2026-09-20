@@ -12,6 +12,7 @@
     onselect: (entry: RepoOverview) => void;
     onclose: (entry: RepoOverview) => void;
     oncontext: (entry: RepoOverview, x: number, y: number) => void;
+    onmarked: (roots: string[]) => void;
     onopenmodule: (module: Submodule) => void;
     onupdatemodule: (module: Submodule) => void;
   }
@@ -23,12 +24,13 @@
     onselect,
     onclose,
     oncontext,
+    onmarked,
     onopenmodule,
     onupdatemodule,
   }: Props = $props();
 </script>
 
-<RepositoryList {opening} {onscan} {onopen} {onselect} {onclose} {oncontext} />
+<RepositoryList {opening} {onscan} {onopen} {onselect} {onclose} {oncontext} {onmarked} />
 <SubmoduleList
   modules={submodules.entries}
   onopen={(module) => onopenmodule(module)}

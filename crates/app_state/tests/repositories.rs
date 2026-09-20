@@ -130,3 +130,40 @@ fn an_overview_of_an_empty_repository_has_no_branch_yet() {
 
     assert!(state.overviews()[0].branch.is_none());
 }
+
+#[test]
+fn a_repository_still_on_disk_is_not_reported_missing() {
+    let f = test_fixtures::linear(1).unwrap();
+    let state = AppState::new();
+    state.open_repository(f.path()).unwrap();
+
+    assert!(state.overviews().iter().all(|row| !row.missing));
+}
+
+#[test]
+fn a_repository_that_left_the_disk_is_reported_missing() {
+    let f = test_fixtures::linear(1).unwrap();
+    let state = AppState::new();
+    state.open_repository(f.path()).unwrap();
+
+    // The folder is gone, but the user's list should still show the row — with a mark, so
+    // they can remove it deliberately rather than wonder where it went (T3.7).
+    std::fs::remove_dir_all(f.path().join(".git")).unwrap();
+
+    let rows = state.overviews();
+    assert_eq!(rows.len(), 1, "the row must survive to be removable");
+    assert!(rows[0].missing);
+}
+
+#[test]
+fn a_missing_repository_reports_nothing_it_cannot_know() {
+    let f = test_fixtures::linear(1).unwrap();
+    let state = AppState::new();
+    state.open_repository(f.path()).unwrap();
+    std::fs::remove_dir_all(f.path().join(".git")).unwrap();
+
+    let row = state.overviews().into_iter().next().unwrap();
+    assert_eq!(row.branch, None);
+    assert!(!row.dirty);
+    assert_eq!((row.ahead, row.behind), (0, 0));
+}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { applyClick, EMPTY_SELECTION, type FileSelection } from "$lib/multi-select";
   import type { RepoOverview } from "$lib/ipc";
   import { repository } from "$stores/repository.svelte";
 
@@ -10,12 +11,27 @@
     onselect: (entry: RepoOverview) => void;
     onclose: (entry: RepoOverview) => void;
     oncontext: (entry: RepoOverview, x: number, y: number) => void;
+    /** Ticked rows, for actions that work on several repositories at once (T3.3). */
+    onmarked: (roots: string[]) => void;
   }
 
-  let { opening = false, onopen, onscan, onselect, onclose, oncontext }: Props = $props();
+  let { opening = false, onopen, onscan, onselect, onclose, oncontext, onmarked }: Props =
+    $props();
+
+  let filter = $state("");
+  let marked = $state.raw<FileSelection>(EMPTY_SELECTION);
+
+  $effect(() => {
+    onmarked([...marked.paths]);
+  });
 
   const active = $derived(repository.current?.repo);
-  const entries = $derived(repository.openRepos);
+  const entries = $derived(
+    repository.openRepos.filter((entry) =>
+      `${entry.name} ${entry.root}`.toLowerCase().includes(filter.trim().toLowerCase()),
+    ),
+  );
+  const order = $derived(entries.map((entry) => entry.root));
 </script>
 
 <div class="wrapper">
@@ -28,6 +44,16 @@
     </button>
   </div>
 
+  {#if repository.openRepos.length > 1}
+    <input
+      class="filter"
+      type="search"
+      bind:value={filter}
+      placeholder="Filter repositories"
+      aria-label="Filter repositories"
+    />
+  {/if}
+
   {#if entries.length === 0}
     {#if repository.error}
       <p class="error">{repository.error.message}</p>
@@ -39,10 +65,18 @@
       <div
         class="row"
         class:selected={active?.valueOf() === entry.repo.valueOf()}
+        class:marked={marked.paths.has(entry.root)}
+        class:missing={entry.missing}
         role="button"
         tabindex="0"
         title={entry.root}
-        onclick={() => onselect(entry)}
+        onclick={(event) => {
+          marked = applyClick(marked, entry.root, order, {
+            ctrl: event.ctrlKey || event.metaKey,
+            shift: event.shiftKey,
+          });
+          if (!event.ctrlKey && !event.metaKey && !event.shiftKey) onselect(entry);
+        }}
         onkeydown={(event) => event.key === "Enter" && onselect(entry)}
         oncontextmenu={(event) => {
           event.preventDefault();
@@ -56,7 +90,11 @@
           /></svg
         >
         <span class="name truncate">{entry.name}</span>
-        {#if entry.dirty}<span class="dirty" title="Uncommitted changes">●</span>{/if}
+        {#if entry.missing}
+          <span class="gone" title="This folder is no longer on disk">missing</span>
+        {:else if entry.dirty}
+          <span class="dirty" title="Uncommitted changes">●</span>
+        {/if}
         {#if entry.branch}<span class="branch truncate">{entry.branch}</span>{/if}
         {#if entry.ahead > 0 || entry.behind > 0}
           <span class="track tabular"
@@ -128,6 +166,36 @@
 
   .row.selected {
     background: var(--state-selected);
+  }
+
+  .row.marked {
+    box-shadow: inset 2px 0 0 var(--status-ref);
+  }
+
+  .row.missing .name {
+    color: var(--text-secondary);
+    text-decoration: line-through;
+  }
+
+  .gone {
+    flex: 0 0 auto;
+    color: var(--status-delete);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .filter {
+    display: block;
+    width: calc(100% - var(--sp-5) * 2);
+    margin: 0 var(--sp-5) var(--sp-4);
+    height: 20px;
+    padding: 0 var(--sp-3);
+    background: var(--surface-input);
+    color: var(--text-primary);
+    border: 1px solid var(--field-border);
+    border-radius: var(--r-sm);
+    font-size: var(--fs-dense);
   }
 
   .folder {
