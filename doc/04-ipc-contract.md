@@ -176,6 +176,12 @@ pub enum FileStatus { Added, Modified, Deleted, Renamed, Copied }
 | `diff_working_tree` | `repo, path` | `FileDiff` | M7 |
 | `merge_conflict` | `repo, path` | `ThreeWayDiff` | M7 |
 | `file_before` | `repo, oid, path` | `string \| null` | M8 |
+| `investigate` | `repo, path, from, to, limit` | `InvestigationStep[]` | M8 |
+
+`investigate` — история диапазона строк, а не файла: `InvestigationStep { oid, summary,
+author, email, timestamp, path, diff }`, новые сверху. `path` — имя файла **на момент того
+коммита**, оно меняется при переименовании. Идёт через `git log -L`, а не через `gix`
+([R-104](12-risks.md)); `limit` зажимается в 1…1000.
 
 `diff_files` — та же работа, что `diff_file`, но сразу по всем файлам коммита: чтение
 объектов последовательное, само сравнение параллельное через `rayon` внутри

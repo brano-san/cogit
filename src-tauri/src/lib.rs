@@ -138,7 +138,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::list_presets,
             commands::install_preset,
             commands::diff_files,
-            commands::file_before
+            commands::file_before,
+            commands::investigate
         ])
 }
 

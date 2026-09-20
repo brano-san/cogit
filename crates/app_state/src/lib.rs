@@ -1593,6 +1593,19 @@ impl AppState {
         }
     }
 
+    /// Every commit that changed a fragment of a file, newest first.
+    pub fn investigate(
+        &self,
+        repo: RepoId,
+        path: &str,
+        from: u32,
+        to: u32,
+        limit: u32,
+    ) -> Result<Vec<git_engine::InvestigationStep>, git_engine::GitError> {
+        self.handle(repo)?
+            .investigate(path, from, to, limit as usize)
+    }
+
     /// The file as it stood before a commit. Decoded lossily on purpose: a file the user
     /// cannot open at all is worse than one rendered oddly.
     pub fn file_before(

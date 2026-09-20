@@ -129,6 +129,11 @@ export const commands = {
 	diffFiles: (repo: RepoId, spec: DiffSpec, paths: string[], options: DiffOptions, request: number) => typedError<DiffBatch, GitError>(__TAURI_INVOKE("diff_files", { repo, spec, paths, options, request })),
 	/**  The file as it was before a commit. `None` means there was no such file to open. */
 	fileBefore: (repo: RepoId, oid: string, path: string) => typedError<string | null, GitError>(__TAURI_INVOKE("file_before", { repo, oid, path })),
+	/**
+	 *  The history of one fragment: every commit that changed it, newest first, with the diff
+	 *  of each edit and the path the file had at the time.
+	 */
+	investigate: (repo: RepoId, path: string, from: number, to: number, limit: number) => typedError<InvestigationStep[], GitError>(__TAURI_INVOKE("investigate", { repo, path, from, to, limit })),
 };
 
 /** Events */
@@ -403,6 +408,19 @@ export type Hunk = {
 	newLines: number,
 	header: string,
 	rows: DiffRow[],
+};
+
+/**  One edit to the fragment under investigation. */
+export type InvestigationStep = {
+	oid: string,
+	summary: string,
+	author: string,
+	email: string,
+	timestamp: number,
+	/**  The path the file had at this commit, which a rename changes under the range. */
+	path: string,
+	/**  The unified diff of this edit, restricted to the range. */
+	diff: string,
 };
 
 /**  One row of the keymap editor. */
