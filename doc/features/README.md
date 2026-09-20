@@ -144,3 +144,4 @@
 
 | F-200 | Отсутствие финального перевода строки видно в diff | [F-200-final-newline.md](F-200-final-newline.md) |
 | F-201 | Перемещённый блок помечен с обоих концов | [F-201-move-pairing.md](F-201-move-pairing.md) |
+| F-202 | Перемещение между файлами отличается от внутрифайлового | [F-202-cross-file-moves.md](F-202-cross-file-moves.md) |

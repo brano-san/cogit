@@ -15,7 +15,7 @@ pub use eol::{EolInfo, LineEnding, detect_line_ending, normalize_line_endings};
 pub use headers::with_hunk_context;
 pub use images::{data_url, image_mime};
 pub use language::language_for_path;
-pub use moves::{MIN_MOVED_LINES, detect_moves};
+pub use moves::{MIN_MOVED_LINES, detect_moves, link_moves_across_files};
 pub use patch::{PatchRequest, build_patch};
 pub use text::{MAX_TEXT_BYTES, diff_bytes, diff_text};
 pub use words::{Spans, block_is_comparable, inline_spans};
@@ -61,6 +61,15 @@ impl Default for DiffOptions {
     }
 }
 
+/// Where the other end of a move is. Two different facts, drawn two different ways: a
+/// block that travelled inside its file, and one that left it for another.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum MoveScope {
+    WithinFile,
+    AcrossFiles,
+}
+
 #[derive(Debug, Clone, Serialize, specta::Type, Deserialize)]
 #[serde(
     tag = "kind",
@@ -82,6 +91,8 @@ pub enum DiffRow {
         /// Both ends of one move carry the same number, so the UI can draw the pair.
         #[serde(default)]
         move_id: Option<u32>,
+        #[serde(default)]
+        move_scope: Option<MoveScope>,
         /// The file ends on this row without a final newline; a unified diff prints
         /// `\ No newline at end of file` underneath it.
         #[serde(default)]
@@ -95,6 +106,8 @@ pub enum DiffRow {
         moved: bool,
         #[serde(default)]
         move_id: Option<u32>,
+        #[serde(default)]
+        move_scope: Option<MoveScope>,
         #[serde(default)]
         no_newline: bool,
     },
