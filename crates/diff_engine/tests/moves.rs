@@ -114,3 +114,91 @@ fn two_separate_moves_are_both_found() {
 
     assert!(moved(&rows) >= 8, "{rows:#?}");
 }
+
+/// `(text, move_id)` for every row that could carry a pairing.
+fn pairings(rows: &[DiffRow]) -> Vec<(String, Option<u32>)> {
+    rows.iter()
+        .filter_map(|row| match row {
+            DiffRow::Delete { text, move_id, .. } | DiffRow::Insert { text, move_id, .. } => {
+                Some((text.clone(), *move_id))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn ids(rows: &[DiffRow]) -> Vec<u32> {
+    let mut seen: Vec<u32> = pairings(rows)
+        .into_iter()
+        .filter_map(|(_, id)| id)
+        .collect();
+    seen.sort_unstable();
+    seen.dedup();
+    seen
+}
+
+#[test]
+fn both_ends_of_a_move_share_one_identifier() {
+    let (old, new) = moved_block();
+
+    let rows = rows(&old, &new);
+
+    assert_eq!(ids(&rows).len(), 1, "one move means one identifier");
+    let id = ids(&rows)[0];
+    let deleted: Vec<String> = rows
+        .iter()
+        .filter_map(|row| match row {
+            DiffRow::Delete { text, move_id, .. } if *move_id == Some(id) => Some(text.clone()),
+            _ => None,
+        })
+        .collect();
+    let inserted: Vec<String> = rows
+        .iter()
+        .filter_map(|row| match row {
+            DiffRow::Insert { text, move_id, .. } if *move_id == Some(id) => Some(text.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(deleted, inserted, "both ends carry the same lines");
+}
+
+#[test]
+fn two_separate_moves_get_two_identifiers() {
+    let first = "fn a() {\n    one();\n    two();\n}\n";
+    let second = "fn b() {\n    three();\n    four();\n}\n";
+    let rest: String = (0..10).map(|i| format!("line {i}\n")).collect();
+
+    let rows = rows(
+        &format!("{first}{second}{rest}"),
+        &format!("{rest}{second}{first}"),
+    );
+
+    assert_eq!(ids(&rows).len(), 2, "{rows:#?}");
+}
+
+#[test]
+fn an_ordinary_edit_has_no_move_identifier() {
+    let rows = rows("one\ntwo\nthree\n", "one\nTWO\nthree\n");
+
+    assert!(
+        pairings(&rows).iter().all(|(_, id)| id.is_none()),
+        "{rows:#?}"
+    );
+}
+
+#[test]
+fn every_row_marked_moved_carries_an_identifier() {
+    let (old, new) = moved_block();
+
+    let rows = rows(&old, &new);
+
+    for row in &rows {
+        let (flagged, id) = match row {
+            DiffRow::Delete { moved, move_id, .. } | DiffRow::Insert { moved, move_id, .. } => {
+                (*moved, *move_id)
+            }
+            _ => continue,
+        };
+        assert_eq!(flagged, id.is_some(), "{row:?}");
+    }
+}

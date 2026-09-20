@@ -32,8 +32,9 @@ pub fn detect_moves(diff: &mut FileDiff) {
                 map
             });
 
-    let mut moved_deletes = vec![false; deleted.len()];
-    let mut moved_inserts = vec![false; inserted.len()];
+    let mut moved_deletes: Vec<Option<u32>> = vec![None; deleted.len()];
+    let mut moved_inserts: Vec<Option<u32>> = vec![None; inserted.len()];
+    let mut next_id: u32 = 0;
 
     let mut start = 0;
     while start < deleted.len() {
@@ -49,9 +50,11 @@ pub fn detect_moves(diff: &mut FileDiff) {
 
         match best {
             Some((begin, length)) if length >= MIN_MOVED_LINES => {
+                let id = next_id;
+                next_id += 1;
                 for offset in 0..length {
-                    moved_deletes[start + offset] = true;
-                    moved_inserts[begin + offset] = true;
+                    moved_deletes[start + offset] = Some(id);
+                    moved_inserts[begin + offset] = Some(id);
                 }
                 start += length;
             }
@@ -74,19 +77,25 @@ fn run_length(deleted: &[(usize, usize, String)], inserted: &[(usize, usize, Str
 fn apply(
     hunks: &mut [crate::Hunk],
     entries: &[(usize, usize, String)],
-    flags: &[bool],
+    flags: &[Option<u32>],
     deletes: bool,
 ) {
-    for ((hunk, row, _), &is_moved) in entries.iter().zip(flags) {
-        if !is_moved {
+    for ((hunk, row, _), &id) in entries.iter().zip(flags) {
+        let Some(id) = id else {
             continue;
-        }
+        };
         let Some(target) = hunks.get_mut(*hunk).and_then(|h| h.rows.get_mut(*row)) else {
             continue;
         };
         match target {
-            DiffRow::Delete { moved, .. } if deletes => *moved = true,
-            DiffRow::Insert { moved, .. } if !deletes => *moved = true,
+            DiffRow::Delete { moved, move_id, .. } if deletes => {
+                *moved = true;
+                *move_id = Some(id);
+            }
+            DiffRow::Insert { moved, move_id, .. } if !deletes => {
+                *moved = true;
+                *move_id = Some(id);
+            }
             _ => {}
         }
     }
