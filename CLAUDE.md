@@ -15,6 +15,7 @@ Cogit is a desktop Git client: Rust workspace + Tauri v2 + Svelte 5.
 | `doc/07-graph-rendering.md` | Commit graph work |
 | `doc/08-diff-engine.md` | Diff, staging patches, 3-way merge |
 | `doc/12-risks.md` | Before deviating from the spec — record the decision there |
+| `doc/features/` | One file per user-visible feature, one sentence each — add one whenever you ship a feature |
 | `doc/13-distribution.md` | Release builds, installers, what the end user's machine needs |
 
 ## Verify APIs before writing code
@@ -153,6 +154,8 @@ git config core.hooksPath .githooks
 
 Then, by hand:
 - Update module status in `doc/00-roadmap.md` (the single source of truth for status).
+- Add `doc/features/F-NNN-<slug>.md` for every user-visible feature: a title line and one
+  sentence someone can check by hand. Add its row to `doc/features/README.md`.
 - Record any decision taken against the spec in `doc/12-risks.md`.
 - Reflect IPC changes in `doc/04-ipc-contract.md` and shortcuts in `doc/11-keybindings.md`,
   in the same commit.
