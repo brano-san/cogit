@@ -106,3 +106,83 @@ fn an_unknown_repository_is_reported_as_missing() {
     let result = state.stream_graph(RepoId(999), 10, |_| true);
     assert!(result.is_err());
 }
+
+fn search(state: &AppState, repo: RepoId, query: &git_engine::CommitQuery) -> Vec<GraphChunk> {
+    let mut chunks = Vec::new();
+    state
+        .search_graph(repo, query, 100, |chunk| {
+            chunks.push(chunk);
+            true
+        })
+        .unwrap();
+    chunks
+}
+
+#[test]
+fn a_filter_narrows_the_stream() {
+    let f = test_fixtures::linear(5).unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let query = git_engine::CommitQuery {
+        message: Some("commit 3".to_owned()),
+        ..git_engine::CommitQuery::default()
+    };
+    let commits: Vec<String> = search(&state, repo, &query)
+        .iter()
+        .flat_map(|c| c.commits.iter().map(|r| r.summary.clone()))
+        .collect();
+
+    assert_eq!(commits, ["commit 3"]);
+}
+
+#[test]
+fn a_filtered_result_is_a_flat_list_without_edges() {
+    let f = test_fixtures::diamond().unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let query = git_engine::CommitQuery {
+        author: Some("fixture".to_owned()),
+        ..git_engine::CommitQuery::default()
+    };
+    let chunks = search(&state, repo, &query);
+
+    assert!(
+        chunks.iter().all(|c| c.edges.is_empty()),
+        "edges between survivors would claim a lineage that is not there"
+    );
+    assert!(chunks.iter().all(|c| c.lanes.iter().all(|l| l.lane == 0)));
+}
+
+#[test]
+fn rows_keep_counting_across_chunks_when_filtered() {
+    let f = test_fixtures::linear(5).unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let query = git_engine::CommitQuery {
+        author: Some("fixture".to_owned()),
+        ..git_engine::CommitQuery::default()
+    };
+    let mut rows = Vec::new();
+    state
+        .search_graph(repo, &query, 2, |chunk| {
+            rows.extend(chunk.lanes.iter().map(|l| l.row));
+            true
+        })
+        .unwrap();
+
+    assert_eq!(rows, [0, 1, 2, 3, 4]);
+}
+
+#[test]
+fn an_empty_query_still_draws_the_graph() {
+    let f = test_fixtures::diamond().unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let chunks = search(&state, repo, &git_engine::CommitQuery::default());
+
+    assert!(chunks.iter().any(|c| !c.edges.is_empty()));
+}

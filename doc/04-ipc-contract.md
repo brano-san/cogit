@@ -88,10 +88,31 @@ pub enum CogitError {
 
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
-| `load_commits` | `repo, channel: Channel<GraphChunk>` | `()` | M4 |
+| `load_commits` | `repo, query: CommitQuery, channel: Channel<GraphChunk>` | `()` | M4 |
 | `commit_details` | `repo, rev: String` | `CommitDetails` | M4 |
 | `commit_files` | `repo, rev: String` | `Vec<FileEntry>` | M6 |
-| `search_commits` | `repo, query: CommitQuery, channel` | `()` | M4 |
+
+`search_commits` из первоначальной спеки **свёрнут в `load_commits`**: отфильтрованная
+история — это тот же обход с более узким предикатом, и две команды означали бы две копии
+логики стриминга. Пустой `CommitQuery` даёт полную историю.
+
+```rust
+pub struct CommitQuery {
+    pub author: Option<String>,      // подстрока имени или e-mail, регистр не важен
+    pub message: Option<String>,     // подстрока темы коммита
+    pub oid_prefix: Option<String>,
+    pub since: Option<i64>,          // секунды Unix, включительно
+    pub until: Option<i64>,
+    pub path: Option<String>,
+}
+```
+
+Условия объединяются по **И**. Фильтр по пути сравнивает запись дерева с первым
+родителем — так же, как `git log -- path` до отслеживания переименований, — и проверяется
+последним, потому что стоит два обращения к дереву на каждого кандидата.
+
+**Отфильтрованный результат — плоский список без рёбер.** Родители совпавшего коммита
+обычно отфильтрованы, и дорожки между выжившими утверждали бы родство, которого нет.
 
 `rev` — любая ревизия в понимании `git rev-parse` (`HEAD`, `HEAD~2`, полный или сокращённый OID),
 а не только OID: панель деталей использует то же поле, что и будущая строка перехода.

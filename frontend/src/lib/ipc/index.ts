@@ -1,7 +1,7 @@
 import { Channel } from "@tauri-apps/api/core";
 
 import { commands } from "./bindings";
-import type { DiffOptions, DiffSpec, GitError, GraphChunk, RepoId } from "./bindings";
+import type { CommitQuery, DiffOptions, DiffSpec, GitError, GraphChunk, RepoId } from "./bindings";
 
 export type {
   AppInfo,
@@ -9,6 +9,7 @@ export type {
   BranchKind,
   Algorithm,
   CommitDetails,
+  CommitQuery,
   CommitRow,
   DiffOptions,
   DiffRow,
@@ -76,10 +77,23 @@ export async function openRepository(path: string) {
   return result.data;
 }
 
-export async function loadCommits(repo: RepoId, onChunk: (chunk: GraphChunk) => void) {
+export const EMPTY_QUERY: CommitQuery = {
+  author: null,
+  message: null,
+  oidPrefix: null,
+  since: null,
+  until: null,
+  path: null,
+};
+
+export async function loadCommits(
+  repo: RepoId,
+  onChunk: (chunk: GraphChunk) => void,
+  query: CommitQuery = EMPTY_QUERY,
+) {
   const channel = new Channel<GraphChunk>();
   channel.onmessage = onChunk;
-  const result = await commands.loadCommits(repo, channel);
+  const result = await commands.loadCommits(repo, query, channel);
   if (result.status === "error") {
     throw new CogitError(result.error);
   }

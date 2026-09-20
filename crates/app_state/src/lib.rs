@@ -137,32 +137,67 @@ impl AppState {
         &self,
         repo: RepoId,
         chunk_size: usize,
+        on_chunk: impl FnMut(GraphChunk) -> bool,
+    ) -> Result<(), git_engine::GitError> {
+        self.search_graph(
+            repo,
+            &git_engine::CommitQuery::default(),
+            chunk_size,
+            on_chunk,
+        )
+    }
+
+    /// A filtered history is a flat list, not a graph: the parents of a match are usually
+    /// filtered out, so lanes drawn between survivors would claim a lineage that is not
+    /// there. Other clients do the same.
+    pub fn search_graph(
+        &self,
+        repo: RepoId,
+        query: &git_engine::CommitQuery,
+        chunk_size: usize,
         mut on_chunk: impl FnMut(GraphChunk) -> bool,
     ) -> Result<(), git_engine::GitError> {
-        let open = self
-            .get(repo)
-            .ok_or_else(|| git_engine::GitError::RepoNotFound(format!("id {}", repo.0)))?;
-        let handle = git_engine::RepoHandle::open(&open.root)?;
+        let handle = self.handle(repo)?;
+        let flat = !query.is_empty();
+        let mut row = 0_u32;
 
         let mut cursor = graph_engine::LayoutCursor::default();
         let mut cancelled = false;
         let mut max_lane = 0_u16;
 
-        handle.stream_commits(chunk_size, |commits| {
-            let nodes: Vec<graph_engine::CommitNode> = commits
-                .iter()
-                .map(|c| graph_engine::CommitNode {
-                    oid: c.oid.clone(),
-                    parents: c.parents.clone(),
-                })
-                .collect();
-            let placed = graph_engine::layout(&nodes, &mut cursor);
-            max_lane = max_lane.max(placed.max_lane);
+        handle.search_commits(query, chunk_size, |commits| {
+            let (lanes, edges) = if flat {
+                let lanes = commits
+                    .iter()
+                    .map(|_| {
+                        let placement = graph_engine::LaneAssignment {
+                            row,
+                            lane: 0,
+                            color: 0,
+                            kind: graph_engine::NodeKind::Normal,
+                        };
+                        row += 1;
+                        placement
+                    })
+                    .collect();
+                (lanes, Vec::new())
+            } else {
+                let nodes: Vec<graph_engine::CommitNode> = commits
+                    .iter()
+                    .map(|c| graph_engine::CommitNode {
+                        oid: c.oid.clone(),
+                        parents: c.parents.clone(),
+                    })
+                    .collect();
+                let placed = graph_engine::layout(&nodes, &mut cursor);
+                max_lane = max_lane.max(placed.max_lane);
+                (placed.lanes, placed.edges)
+            };
 
             let keep = on_chunk(GraphChunk {
                 commits,
-                lanes: placed.lanes,
-                edges: placed.edges,
+                lanes,
+                edges,
                 max_lane,
                 is_last: false,
             });

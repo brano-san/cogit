@@ -7,7 +7,7 @@ export const commands = {
 	appInfo: () => __TAURI_INVOKE<AppInfo>("app_info"),
 	openRepository: (path: string) => typedError<RepoSummary, GitError>(__TAURI_INVOKE("open_repository", { path })),
 	/**  A channel rather than a return value (INV-02); dropping it cancels the walk. */
-	loadCommits: (repo: RepoId, onChunk: Channel<GraphChunk>) => typedError<null, GitError>(__TAURI_INVOKE("load_commits", { repo, onChunk })),
+	loadCommits: (repo: RepoId, query: CommitQuery, onChunk: Channel<GraphChunk>) => typedError<null, GitError>(__TAURI_INVOKE("load_commits", { repo, query, onChunk })),
 	commitDetails: (repo: RepoId, rev: string) => typedError<CommitDetails, GitError>(__TAURI_INVOKE("commit_details", { repo, rev })),
 	commitFiles: (repo: RepoId, rev: string) => typedError<FileEntry[], GitError>(__TAURI_INVOKE("commit_files", { repo, rev })),
 	diffFile: (repo: RepoId, spec: DiffSpec, path: string, options: DiffOptions) => typedError<FileDiff, GitError>(__TAURI_INVOKE("diff_file", { repo, spec, path, options })),
@@ -40,6 +40,15 @@ export type CommitDetails = {
 	body: string,
 	author: Signature,
 	committer: Signature,
+};
+
+export type CommitQuery = {
+	author?: string | null,
+	message?: string | null,
+	oidPrefix?: string | null,
+	since?: number | null,
+	until?: number | null,
+	path?: string | null,
 };
 
 export type CommitRow = {
