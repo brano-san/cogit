@@ -377,6 +377,45 @@ pub fn safety_log(state: tauri::State<'_, crate::AppContext>) -> Vec<SafetyEntry
     state.state.safety_log()
 }
 
+/// The terminals this platform can offer, for the settings dropdown.
+#[tauri::command]
+#[specta::specta]
+pub fn terminal_choices() -> Vec<TerminalChoice> {
+    app_state::terminal::choices()
+        .into_iter()
+        .map(|kind| TerminalChoice {
+            id: kind.id().to_owned(),
+            label: kind.label().to_owned(),
+        })
+        .collect()
+}
+
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalChoice {
+    pub id: String,
+    pub label: String,
+}
+
+/// Spawned with the repository as its working directory, detached from Cogit: closing the
+/// client must not close the user's shell.
+#[tauri::command]
+#[specta::specta]
+pub async fn open_in_terminal(path: String, terminal: String) -> Result<(), GitError> {
+    let kind = app_state::terminal::Terminal::from_id(&terminal).unwrap_or_default();
+    let (program, args) = app_state::terminal::command_for(kind, &path);
+
+    blocking("open_in_terminal", move || {
+        std::process::Command::new(&program)
+            .args(&args)
+            .current_dir(&path)
+            .spawn()
+            .map(drop)
+            .map_err(|err| GitError::Io(format!("cannot start {program}: {err}")))
+    })
+    .await
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn stash_selection(

@@ -32,7 +32,7 @@
   import { commitScope } from "$lib/commit-scope";
   import { activity, applyOperation } from "$lib/operations";
   import { measurer } from "$lib/timing";
-  import { commitMenu, refMenu } from "$lib/context-menu";
+  import { commitMenu, refMenu, repoMenu } from "$lib/context-menu";
   import { compareUrl } from "$lib/compare-params";
   import { dropActions, type DropAction, type DragPayload } from "$lib/drop-target";
   import { moveEntry } from "$lib/rebase-plan";
@@ -67,6 +67,8 @@
     stageSelection,
     stashSelection,
     onMenuCommand,
+    openInTerminal,
+    terminalChoices,
     openRepository,
     reportTiming,
     commitTemplate,
@@ -134,6 +136,8 @@
   let opening = $state(false);
   let scanOpen = $state(false);
   let markedFiles = $state.raw<string[]>([]);
+  let repoTarget = $state.raw<import("$lib/ipc").RepoOverview | null>(null);
+  let terminals = $state.raw<{ id: string; label: string }[]>([]);
   let journalOpen = $state(false);
   let journalBusy = $state(false);
   let prompt = $state.raw<{
@@ -180,6 +184,7 @@
       diff.whitespace = settings.current.ignoreWhitespace;
     });
     void settings.loadBindings();
+    void terminalChoices().then((found) => (terminals = found));
     void repository.restore().then(() => {
       const first = repository.openRepos[0];
       if (first) void activate(first.root);
@@ -1388,6 +1393,42 @@ Log: ${info?.logPath ?? ""}`),
     await repository.refresh();
   }
 
+  async function repoContext(entry: import("$lib/ipc").RepoOverview, x: number, y: number) {
+    repoTarget = entry;
+    const active = repo?.repo.valueOf() === entry.repo.valueOf();
+    await popupContextMenu(repoMenu({ active }), x, y).catch(() => {});
+  }
+
+  /** Returns true when the id belonged to the Repositories panel and was handled here. */
+  function runRepoCommand(id: string): boolean {
+    const entry = repoTarget;
+    if (!entry) return false;
+
+    switch (id) {
+      case "repo-open":
+        void activate(entry.root);
+        return true;
+      case "repo-close":
+        void closeOne(entry);
+        return true;
+      case "repo-explorer":
+        void import("@tauri-apps/plugin-opener")
+          .then((opener) => opener.revealItemInDir(entry.root))
+          .catch((err) => errors.report(err as never));
+        return true;
+      case "repo-terminal":
+        void openInTerminal(entry.root, settings.current.terminal).catch((err) =>
+          errors.report(err as never),
+        );
+        return true;
+      case "repo-copy-path":
+        void copyText(entry.root);
+        return true;
+      default:
+        return false;
+    }
+  }
+
   /** Returns true when the id belonged to the References tree and was handled here. */
   function runRefCommand(id: string): boolean {
     const node = refTarget;
@@ -1581,6 +1622,7 @@ Log: ${info?.logPath ?? ""}`),
 
   $effect(() => {
     const pending = onMenuCommand((id) => {
+      if (runRepoCommand(id)) return;
       if (runRefCommand(id)) return;
       const command = palette.find((entry) => entry.id === id);
       if (command && !command.unavailable) runCommand(command);
@@ -1655,6 +1697,7 @@ Log: ${info?.logPath ?? ""}`),
             onopen={pickRepository}
             onselect={(entry) => void activate(entry.root)}
             onclose={(entry) => void closeOne(entry)}
+            oncontext={(entry, x, y) => void repoContext(entry, x, y)}
             onopenmodule={(module) => void activate(`${repo?.root ?? ""}/${module.path}`)}
             onupdatemodule={(module) => void refreshSubmodule(module)}
           />
@@ -1976,6 +2019,7 @@ Log: ${info?.logPath ?? ""}`),
   {#if settingsOpen}
     <SettingsPanel
       value={settings.current}
+      {terminals}
       keymap={settings.keymap}
       bindings={settings.bindings}
       tokenHost={network.tokenHost}

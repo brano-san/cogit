@@ -7,6 +7,8 @@
 
   interface Props {
     value: Settings;
+    /** What this platform can actually offer; a choice nobody can run is not a choice. */
+    terminals: readonly { id: string; label: string }[];
     keymap: Keymap;
     bindings: readonly KeyBinding[];
     /** The host of the current remote, or null when it is SSH or there is none. */
@@ -21,6 +23,7 @@
 
   let {
     value,
+    terminals,
     keymap,
     bindings,
     tokenHost,
@@ -302,6 +305,18 @@
                   onchange={(e) => set("wordDiff", e.currentTarget.checked)}
                 />
                 <span>{field.label}</span>
+              </label>
+            {:else if field.key === "terminal"}
+              <label class="row">
+                <span>{field.label}</span>
+                <select
+                  value={draft.terminal}
+                  onchange={(e) => set("terminal", e.currentTarget.value)}
+                >
+                  {#each terminals as choice (choice.id)}
+                    <option value={choice.id}>{choice.label}</option>
+                  {/each}
+                </select>
               </label>
             {:else if field.key === "logLevel"}
               <label class="row">

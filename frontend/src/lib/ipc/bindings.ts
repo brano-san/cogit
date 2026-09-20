@@ -68,6 +68,13 @@ export const commands = {
 	/**  The three parts of a stash, read without applying it (T5.2). */
 	stashContents: (repo: RepoId, index: number) => typedError<StashContents, GitError>(__TAURI_INVOKE("stash_contents", { repo, index })),
 	stashSelection: (repo: RepoId, paths: string[], message: string) => typedError<null, GitError>(__TAURI_INVOKE("stash_selection", { repo, paths, message })),
+	/**  The terminals this platform can offer, for the settings dropdown. */
+	terminalChoices: () => __TAURI_INVOKE<TerminalChoice[]>("terminal_choices"),
+	/**
+	 *  Spawned with the repository as its working directory, detached from Cogit: closing the
+	 *  client must not close the user's shell.
+	 */
+	openInTerminal: (path: string, terminal: string) => typedError<null, GitError>(__TAURI_INVOKE("open_in_terminal", { path, terminal })),
 	/**  Not `async`: touching menu items off the main thread deadlocks on Windows. */
 	setMenuState: (disabled: string[], checked: string[]) => __TAURI_INVOKE<void>("set_menu_state", { disabled, checked }),
 	reportTiming: (label: string, ms: number, detail: string) => __TAURI_INVOKE<void>("report_timing", { label, ms, detail }),
@@ -610,6 +617,11 @@ export type TagRequest = {
 	/**  A message makes the tag annotated, which is what a release wants. */
 	message: string | null,
 	force: boolean,
+};
+
+export type TerminalChoice = {
+	id: string,
+	label: string,
 };
 
 export type TodoAction = "pick" | "reword" | "edit" | "squash" | "fixup" | "drop";
