@@ -2,8 +2,24 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const commands = { diffFile: vi.fn() };
 
+/** Stands in for the on-disk store: the branch keeps its view preferences there. */
+const stored = new Map<string, unknown>();
+let storeFails = false;
+
 vi.mock("@tauri-apps/api/core", () => ({ Channel: class {} }));
 vi.mock("$lib/ipc/bindings", () => ({ commands }));
+vi.mock("@tauri-apps/plugin-store", () => ({
+  load: async () => {
+    if (storeFails) throw new Error("store unavailable");
+    return {
+      get: async (key: string) => stored.get(key),
+      set: async (key: string, value: unknown) => {
+        stored.set(key, value);
+      },
+      save: async () => {},
+    };
+  },
+}));
 
 const { diff } = await import("./diff.svelte");
 
@@ -67,5 +83,101 @@ describe("diff store", () => {
     diff.dropIfAffected([]);
 
     expect(diff.path).toBe("kept.txt");
+  });
+});
+
+describe("diff view preferences", () => {
+  beforeEach(async () => {
+    commands.diffFile.mockReset();
+    commands.diffFile.mockResolvedValue(textDiff());
+    stored.clear();
+    storeFails = false;
+    diff.clear();
+    diff.resetPreferences();
+  });
+
+  it("starts side by side, which is what the panel is for", () => {
+    expect(diff.layout).toBe("split");
+    expect(diff.showMoves).toBe(true);
+  });
+
+  it("remembers the layout for the next run", async () => {
+    await diff.setLayout("unified");
+
+    expect(stored.get("diffView")).toEqual({ layout: "unified", showMoves: true });
+  });
+
+  it("reads the remembered layout back", async () => {
+    stored.set("diffView", { layout: "unified", showMoves: false });
+
+    await diff.loadPreferences();
+
+    expect(diff.layout).toBe("unified");
+    expect(diff.showMoves).toBe(false);
+  });
+
+  it("reads the store only once, however many views ask", async () => {
+    stored.set("diffView", { layout: "unified", showMoves: true });
+
+    await diff.loadPreferences();
+    stored.set("diffView", { layout: "split", showMoves: true });
+    await diff.loadPreferences();
+
+    expect(diff.layout).toBe("unified");
+  });
+
+  it("ignores a stored layout that is not a mode it knows", async () => {
+    stored.set("diffView", { layout: "three-way", showMoves: true });
+
+    await diff.loadPreferences();
+
+    expect(diff.layout).toBe("split");
+  });
+
+  it("ignores stored junk instead of failing to open", async () => {
+    stored.set("diffView", "unified");
+
+    await diff.loadPreferences();
+
+    expect(diff.layout).toBe("split");
+  });
+
+  it("keeps the default when the store cannot be read", async () => {
+    storeFails = true;
+
+    await diff.loadPreferences();
+
+    expect(diff.layout).toBe("split");
+  });
+
+  it("still applies the choice when it cannot be written down", async () => {
+    storeFails = true;
+
+    await diff.setLayout("unified");
+
+    expect(diff.layout).toBe("unified");
+  });
+
+  it("re-runs the diff with move detection off", async () => {
+    await diff.load(REPO, SPEC, "moved.rs");
+    commands.diffFile.mockClear();
+
+    await diff.setShowMoves(false);
+
+    expect(diff.showMoves).toBe(false);
+    const options = commands.diffFile.mock.calls[0]?.[3];
+    expect(options.detectMoves).toBe(false);
+  });
+
+  it("does not ask the backend again when no file is open", async () => {
+    await diff.setShowMoves(false);
+
+    expect(commands.diffFile).not.toHaveBeenCalled();
+  });
+
+  it("remembers that moves are shown as ordinary edits", async () => {
+    await diff.setShowMoves(false);
+
+    expect(stored.get("diffView")).toEqual({ layout: "split", showMoves: false });
   });
 });

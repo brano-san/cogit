@@ -171,3 +171,5 @@
 | F-204 | Blame пропускает косметические коммиты | [F-204-blame-ignore-revs.md](F-204-blame-ignore-revs.md) |
 | F-205 | Открыть файл в состоянии до коммита | [F-205-state-before-commit.md](F-205-state-before-commit.md) |
 | F-206 | Investigate: история выделенного фрагмента | [F-206-investigate.md](F-206-investigate.md) |
+| F-207 | Выбор unified / side-by-side переживает перезапуск | [F-207-diff-layout-remembered.md](F-207-diff-layout-remembered.md) |
+| F-208 | Перемещения можно смотреть как обычные правки | [F-208-moves-as-plain-edits.md](F-208-moves-as-plain-edits.md) |
