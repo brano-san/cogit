@@ -379,6 +379,17 @@ pub fn safety_log(state: tauri::State<'_, crate::AppContext>) -> Vec<SafetyEntry
 
 #[tauri::command]
 #[specta::specta]
+pub async fn run_check(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    command: String,
+) -> Result<git_engine::HookRun, GitError> {
+    let app_state = state.state.clone();
+    blocking("run_check", move || app_state.run_check(repo, &command)).await
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn worktrees(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,

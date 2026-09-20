@@ -68,6 +68,7 @@ export const commands = {
 	/**  The three parts of a stash, read without applying it (T5.2). */
 	stashContents: (repo: RepoId, index: number) => typedError<StashContents, GitError>(__TAURI_INVOKE("stash_contents", { repo, index })),
 	stashSelection: (repo: RepoId, paths: string[], message: string) => typedError<null, GitError>(__TAURI_INVOKE("stash_selection", { repo, paths, message })),
+	runCheck: (repo: RepoId, command: string) => typedError<HookRun, GitError>(__TAURI_INVOKE("run_check", { repo, command })),
 	worktrees: (repo: RepoId) => typedError<WorktreeEntry[], GitError>(__TAURI_INVOKE("worktrees", { repo })),
 	worktreeHolding: (repo: RepoId, branch: string) => typedError<{
 	path: string,

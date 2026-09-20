@@ -355,6 +355,64 @@ fn hook_command(path: &Path, root: &Path, args: &[String]) -> std::process::Comm
     command
 }
 
+impl RepoHandle {
+    /// Runs the user's check command in the repository and reports what it said. A failing
+    /// check is a verdict, not an error: only being unable to run one is a failure (T11.3).
+    pub fn run_check(&self, command: &str) -> Result<HookRun> {
+        let trimmed = command.trim();
+        if trimmed.is_empty() {
+            return Err(GitError::InvalidState("no check command given".to_owned()));
+        }
+
+        let started = std::time::Instant::now();
+        let output = shell_command(trimmed, self.root())
+            .output()
+            .map_err(|err| GitError::Io(format!("cannot run the check: {err}")))?;
+        let duration_ms = u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX);
+
+        let run = HookRun {
+            name: "check".to_owned(),
+            exit_code: output.status.code(),
+            stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
+            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+            duration_ms,
+            slow: duration_ms > SLOW_MS,
+        };
+
+        if let Some(sink) = self.journal() {
+            sink(crate::GitOutput {
+                command: format!("check: {trimmed}"),
+                exit_code: run.exit_code,
+                stdout: run.stdout.clone(),
+                stderr: run.stderr.clone(),
+                duration_ms,
+            });
+        }
+        Ok(run)
+    }
+}
+
+/// The same shell the hooks use, so a check reads like the command line the user typed.
+#[cfg(windows)]
+fn shell_command(command: &str, root: &Path) -> std::process::Command {
+    use std::os::windows::process::CommandExt as _;
+    let mut spawned = std::process::Command::new("bash");
+    spawned.creation_flags(0x0800_0000);
+    spawned.args(["-lc", command]);
+    spawned.current_dir(root);
+    spawned.env("GIT_TERMINAL_PROMPT", "0");
+    spawned
+}
+
+#[cfg(not(windows))]
+fn shell_command(command: &str, root: &Path) -> std::process::Command {
+    let mut spawned = std::process::Command::new("sh");
+    spawned.args(["-c", command]);
+    spawned.current_dir(root);
+    spawned.env("GIT_TERMINAL_PROMPT", "0");
+    spawned
+}
+
 const BYPASS_FILE: &str = "cogit-hook-bypasses";
 const SEPARATOR: char = '\u{1f}';
 

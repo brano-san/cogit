@@ -158,3 +158,62 @@ fn skipping_with_nothing_in_progress_is_refused() {
     let f = test_fixtures::linear(2).unwrap();
     assert!(open(&f).skip_operation().is_err());
 }
+
+/// Every ref, not just HEAD: an abort that moved a branch nobody was looking at would be
+/// invisible until it mattered (T11.3).
+fn every_ref(f: &test_fixtures::Fixture) -> Vec<String> {
+    let mut refs: Vec<String> = f
+        .git(&["for-each-ref", "--format=%(refname) %(objectname)"])
+        .unwrap()
+        .lines()
+        .map(str::to_owned)
+        .collect();
+    refs.sort();
+    refs
+}
+
+#[test]
+fn aborting_puts_every_ref_back_exactly_where_it_was() {
+    let f = test_fixtures::branched().unwrap();
+    f.git(&["branch", "bystander"]).unwrap();
+    f.git(&["tag", "milestone"]).unwrap();
+
+    f.write_file("base.txt", "main version\n").unwrap();
+    f.git(&["add", "--", "base.txt"]).unwrap();
+    f.commit_staged(30, "change base on main").unwrap();
+    f.git(&["switch", "dev"]).unwrap();
+    f.write_file("base.txt", "dev version\n").unwrap();
+    f.git(&["add", "--", "base.txt"]).unwrap();
+    f.commit_staged(31, "change base on dev").unwrap();
+
+    let repo = open(&f);
+    let before = every_ref(&f);
+    let _ = repo.rebase(&onto("main"));
+    repo.abort_operation().unwrap();
+
+    assert_eq!(every_ref(&f), before);
+    assert_eq!(repo.state().unwrap(), RepoState::Clean);
+}
+
+#[test]
+fn aborting_leaves_the_working_tree_as_it_was() {
+    let f = test_fixtures::branched().unwrap();
+    f.write_file("base.txt", "main version\n").unwrap();
+    f.git(&["add", "--", "base.txt"]).unwrap();
+    f.commit_staged(30, "change base on main").unwrap();
+    f.git(&["switch", "dev"]).unwrap();
+    f.write_file("base.txt", "dev version\n").unwrap();
+    f.git(&["add", "--", "base.txt"]).unwrap();
+    f.commit_staged(31, "change base on dev").unwrap();
+
+    let repo = open(&f);
+    let before = std::fs::read_to_string(f.path().join("base.txt")).unwrap();
+    let _ = repo.rebase(&onto("main"));
+    repo.abort_operation().unwrap();
+
+    assert_eq!(
+        std::fs::read_to_string(f.path().join("base.txt")).unwrap(),
+        before
+    );
+    assert_eq!(f.git(&["status", "--porcelain"]).unwrap().trim(), "");
+}
