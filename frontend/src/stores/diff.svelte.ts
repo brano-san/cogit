@@ -8,10 +8,19 @@ import {
   type Whitespace,
   type RepoId,
 } from "$lib/ipc";
+import { load } from "@tauri-apps/plugin-store";
 import { expandedContext } from "$lib/diff-rows";
 import { settings } from "./settings.svelte";
 
 const DEFAULT_CONTEXT = 3;
+
+/** The branch keeps its own key in the shared store file: `Settings` belongs to `master`. */
+const PREFS_FILE = "settings.json";
+const PREFS_KEY = "diffView";
+
+export type DiffLayout = "unified" | "split";
+
+const LAYOUTS: readonly DiffLayout[] = ["unified", "split"];
 
 class DiffStore {
   path = $state<string | null>(null);
@@ -23,6 +32,14 @@ class DiffStore {
   whitespace = $state<Whitespace>("none");
   context = $state<number | null>(null);
   images = $state.raw<[string | null, string | null]>([null, null]);
+  /** Remembered between runs, unlike `whitespace`, which is a per-session mode. */
+  layout = $state<DiffLayout>("split");
+  /** Off shows a moved block as an ordinary deletion plus addition (T7.9). */
+  showMoves = $state(true);
+
+  #prefsRead = false;
+  /** Which repository the shown diff came from, so a toggle can recompute it. */
+  #repo: RepoId | null = null;
 
   get hunks(): Hunk[] {
     return this.diff?.kind === "text" ? this.diff.hunks : [];
@@ -38,6 +55,7 @@ class DiffStore {
   async load(repo: RepoId, spec: DiffSpec, path: string): Promise<void> {
     const generation = ++this.#generation;
     if (path !== this.path) this.context = null;
+    this.#repo = repo;
     this.path = path;
     this.spec = spec;
     this.error = null;
@@ -48,6 +66,7 @@ class DiffStore {
         ...settings.diffOptions,
         ...(this.context === null ? {} : { contextLines: this.context }),
         ignoreWhitespace: this.whitespace,
+        detectMoves: settings.diffOptions.detectMoves && this.showMoves,
       });
       if (generation !== this.#generation) return;
       this.diff = result;
@@ -72,6 +91,55 @@ class DiffStore {
     if (this.path !== null && paths.includes(this.path)) this.clear();
   }
 
+  /** Reads the remembered view once per session; every view may ask. */
+  async loadPreferences(): Promise<void> {
+    if (this.#prefsRead) return;
+    this.#prefsRead = true;
+    try {
+      const store = await load(PREFS_FILE, { autoSave: false });
+      const saved = await store.get<unknown>(PREFS_KEY);
+      if (typeof saved !== "object" || saved === null) return;
+      const { layout, showMoves } = saved as Partial<Record<string, unknown>>;
+      if (LAYOUTS.includes(layout as DiffLayout)) this.layout = layout as DiffLayout;
+      if (typeof showMoves === "boolean") this.showMoves = showMoves;
+    } catch {
+      // Unreadable store: a fresh install or a locked profile. The defaults still work.
+    }
+  }
+
+  async setLayout(next: DiffLayout): Promise<void> {
+    this.layout = next;
+    await this.#writePreferences();
+  }
+
+  /** Re-runs the diff: whether a block reads as moved is decided in Rust, not here.
+      Takes no repository — the view that offers the toggle does not know it, and the
+      store already learned it from the last `load`. */
+  async setShowMoves(next: boolean): Promise<void> {
+    this.showMoves = next;
+    await this.#writePreferences();
+    if (this.#repo !== null && this.spec && this.path) {
+      await this.load(this.#repo, this.spec, this.path);
+    }
+  }
+
+  async #writePreferences(): Promise<void> {
+    try {
+      const store = await load(PREFS_FILE, { autoSave: false });
+      await store.set(PREFS_KEY, { layout: this.layout, showMoves: this.showMoves });
+      await store.save();
+    } catch {
+      // The choice still holds for this session even when it cannot be written down.
+    }
+  }
+
+  /** Tests only: the store is a singleton, so preferences outlive `clear()`. */
+  resetPreferences(): void {
+    this.#prefsRead = false;
+    this.layout = "split";
+    this.showMoves = true;
+  }
+
   /** Re-runs the last diff with the new mode so the panel does not go stale. */
   async setWhitespace(repo: RepoId, mode: Whitespace): Promise<void> {
     this.whitespace = mode;
@@ -80,6 +148,7 @@ class DiffStore {
 
   clear(): void {
     this.#generation += 1;
+    this.#repo = null;
     this.path = null;
     this.spec = null;
     this.context = null;

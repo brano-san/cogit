@@ -4,6 +4,9 @@
   import { hunkSelection, lineKey, toggleLine } from "$lib/selection";
   import { visibleRange } from "$lib/graph-geometry";
   import type { FileDiff, Hunk } from "$lib/ipc";
+  // The panel above belongs to `master` and cannot grow props for the branch's own view
+  // preferences, so the view reads them from the branch's own store.
+  import { diff as diffStore } from "$stores/diff.svelte";
 
   interface Props {
     diff: FileDiff;
@@ -37,7 +40,7 @@
   const ROW_HEIGHT = 18;
   const BUFFER_ROWS = 12;
 
-  let mode = $state<"unified" | "split">("split");
+  const mode = $derived(diffStore.layout);
   let scroller: HTMLDivElement | undefined = $state();
   let scrollTop = $state(0);
   let viewportHeight = $state(0);
@@ -161,6 +164,10 @@
   }
 
   $effect(() => {
+    void diffStore.loadPreferences();
+  });
+
+  $effect(() => {
     if (!scroller) return;
     const observer = new ResizeObserver(([entry]) => {
       if (entry) viewportHeight = entry.contentRect.height;
@@ -212,8 +219,17 @@
       {/if}
       <button
         type="button"
+        class:active={!diffStore.showMoves}
+        title="Show a moved block as an ordinary deletion plus addition"
+        onclick={() => diffStore.setShowMoves(!diffStore.showMoves)}
+      >
+        {diffStore.showMoves ? "Moves" : "No moves"}
+      </button>
+      <button
+        type="button"
         class="mode"
-        onclick={() => (mode = mode === "split" ? "unified" : "split")}
+        title="Remembered between runs"
+        onclick={() => diffStore.setLayout(mode === "split" ? "unified" : "split")}
       >
         {mode === "split" ? "Unified" : "Side by side"}
       </button>
