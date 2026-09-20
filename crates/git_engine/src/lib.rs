@@ -1,4 +1,5 @@
 mod blobs;
+mod branches;
 mod commit;
 mod commit_write;
 mod error;
@@ -12,6 +13,7 @@ mod status;
 mod worktree;
 
 pub use blobs::{DiffSides, DiffSpec};
+pub use branches::CheckoutTarget;
 pub use commit::{CommitDetails, FileEntry, FileStatus, Signature};
 pub use commit_write::CommitRequest;
 pub use error::{GitCommandError, GitError};

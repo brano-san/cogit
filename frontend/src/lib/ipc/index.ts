@@ -2,6 +2,7 @@ import { Channel } from "@tauri-apps/api/core";
 
 import { commands } from "./bindings";
 import type {
+  CheckoutTarget,
   CommitQuery,
   CommitRequest,
   DiffOptions,
@@ -15,6 +16,7 @@ export type {
   AppInfo,
   Branch,
   BranchKind,
+  CheckoutTarget,
   Algorithm,
   CommitDetails,
   CommitQuery,
@@ -152,6 +154,23 @@ export async function discardPaths(repo: RepoId, paths: string[]) {
 
 export async function createCommit(repo: RepoId, request: CommitRequest) {
   return unwrap(await commands.commit(repo, request));
+}
+
+export async function checkout(repo: RepoId, target: CheckoutTarget) {
+  return unwrap(await commands.checkout(repo, target));
+}
+
+export async function createBranch(
+  repo: RepoId,
+  name: string,
+  start: string | null,
+  switchTo: boolean,
+) {
+  return unwrap(await commands.createBranch(repo, name, start, switchTo));
+}
+
+export async function deleteBranch(repo: RepoId, name: string, force: boolean) {
+  return unwrap(await commands.deleteBranch(repo, name, force));
 }
 
 function unwrap<T>(result: { status: "ok"; data: T } | { status: "error"; error: GitError }): T {
