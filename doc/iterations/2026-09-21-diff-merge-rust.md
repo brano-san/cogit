@@ -344,6 +344,62 @@ pub fn investigate(&self, path: &str, from: u32, to: u32, limit: usize)
 13 — в конце
 ```
 
+## Итог захода
+
+Сделано 21 сентября 2026, база — `5f9494b` (после `git rebase master`, когда влилась
+декомпозиция `App.svelte`).
+
+| Пункт | Коммит | Чем закрыт |
+|---|---|---|
+| 1 | `91fcae2` | R-100: сравнение по семи требованиям, R-10 закрыт |
+| 12 | `ce1db51` | `tests/budget.rs`, четыре замера; R-101 про недостижимую строку §9 |
+| 7 | `b7ff128` | `diff_many` через `rayon`, `AppState::diff_files`, команда `diff_files` |
+| 8 | `a3565fe` | `DiffBatch::{Ready,Superseded}`, номер запроса; R-102 |
+| 11 | `0f03b42` | `noNewline` в `DiffRow`; попутно найдено, что появление финального перевода строки показывалось как «без изменений» |
+| 14 | `de4726d` | `moveId` на обоих концах перемещения |
+| 17 | `d9d47da` | `MoveScope`, `link_moves_across_files`, сквозная нумерация по пачке |
+| — | `dc8b220` | разделитель в `git_engine/src/lib.rs`, седьмой общий файл |
+| 30 | `c6047d4` | `.mailmap` через `repo.open_mailmap()`, поле `email` в `BlameLine` |
+| 31 | `694a1cc` | `.git-blame-ignore-revs` поверх blame; R-103 про сопоставление по номеру строки |
+| 32 | `60ce6b7` | `file_before`, команда `file_before` |
+| 33, 34, 35 | `c7628a2` | `investigate` поверх `git log -L`; R-104 про чтение через CLI |
+
+Пункты 9, 10, 13 и 18 были закрыты до начала ветки. Проверено поимённым прогоном:
+`a_file_that_differs_only_in_line_endings_is_not_a_rewrite`,
+`line_endings_are_normalized_before_comparing`,
+`a_file_with_mixed_line_endings_still_diffs_line_by_line`,
+`mixed_line_endings_are_reported_as_mixed`,
+`offsets_are_utf16_units_so_javascript_can_slice_directly`,
+`an_emoji_replaced_by_an_emoji_keeps_its_boundaries`,
+`a_block_shorter_than_the_threshold_is_not_a_move`,
+`indentation_alone_does_not_hide_a_move`,
+`all_three_sides_are_readable_while_the_merge_is_unresolved`.
+
+Замеры бюджетов [§9](../08-diff-engine.md):
+
+| Что | Измерено | Бюджет |
+|---|---|---|
+| Файл 5 000 строк | 2 мс | 50 мс |
+| Файл 100 000 строк | 148 мс | 1000 мс |
+| Пачка 500 файлов | 7 мс | 2000 мс |
+
+### Что осталось за `master`
+
+1. `.claude/worktrees/` не в `.gitignore`: worktree ветки виден в основном чекауте как
+   неотслеживаемый каталог.
+2. Восемь мёртвых зависимостей CodeMirror в `frontend/package.json` ([R-100](../12-risks.md)).
+3. Разделитель в `crates/app_state/src/lib.rs` стоит после `mod tests` ([R-102](../12-risks.md)).
+4. `AppState::diff_file` повторяет конвейер, который теперь живёт в `diff_engine::diff_one`;
+   свести их нельзя, пока метод выше разделителя.
+5. `doc/04-ipc-contract.md` разделителя не имеет; ветка правила подраздел `### Diff`.
+
+### Что осталось ветке
+
+Пункты 2–6, 15, 16, 19–29, 36 — фронтенд. Точка входа готова:
+`components/panels/DiffPanel.svelte` пришёл с `master` и разводит по четырём компонентам
+ветки. Бэкенд под них уже лежит: `moveId`, `moveScope`, `noNewline`, `diffFiles`,
+`investigate`, `fileBefore`.
+
 ## Проверка перед каждым коммитом
 
 ```bash
