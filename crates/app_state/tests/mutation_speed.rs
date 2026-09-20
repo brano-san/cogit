@@ -83,7 +83,9 @@ fn reading_the_working_tree_spawns_no_process_at_all() {
     state.clear_command_log();
 
     let started = Instant::now();
-    state.worktree_files(repo).unwrap();
+    state
+        .worktree_files(repo, git_engine::WorktreeView::default())
+        .unwrap();
     report(
         "worktree_files",
         started.elapsed(),

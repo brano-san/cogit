@@ -123,5 +123,7 @@
 | F-117 | Открыть папку с логом | [F-117-reveal-log.md](F-117-reveal-log.md) |
 | F-118 | Поиск репозиториев в папке | [F-118-scan-folder.md](F-118-scan-folder.md) |
 | F-119 | Сортировка файлов кнопками | [F-119-file-sort-buttons.md](F-119-file-sort-buttons.md) |
+| F-120 | Переключатели вида файлов | [F-120-file-view-toggles.md](F-120-file-view-toggles.md) |
+| F-121 | Раздельные списки Unstaged и Staged | [F-121-files-split.md](F-121-files-split.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.

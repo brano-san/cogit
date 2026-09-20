@@ -12,7 +12,7 @@ export const commands = {
 	commitDetails: (repo: RepoId, rev: string) => typedError<CommitDetails, GitError>(__TAURI_INVOKE("commit_details", { repo, rev })),
 	commitFiles: (repo: RepoId, rev: string) => typedError<FileEntry[], GitError>(__TAURI_INVOKE("commit_files", { repo, rev })),
 	diffFile: (repo: RepoId, spec: DiffSpec, path: string, options: DiffOptions) => typedError<FileDiff, GitError>(__TAURI_INVOKE("diff_file", { repo, spec, path, options })),
-	worktreeFiles: (repo: RepoId) => typedError<WorktreeFiles, GitError>(__TAURI_INVOKE("worktree_files", { repo })),
+	worktreeFiles: (repo: RepoId, view: WorktreeView) => typedError<WorktreeFiles, GitError>(__TAURI_INVOKE("worktree_files", { repo, view })),
 	repoStatus: (repo: RepoId) => typedError<RepoStatus, GitError>(__TAURI_INVOKE("repo_status", { repo })),
 	stagePaths: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("stage_paths", { repo, paths })),
 	unstagePaths: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("unstage_paths", { repo, paths })),
@@ -267,7 +267,9 @@ export type FileEntry = {
 
 export type FileMode = "plain" | "executable" | "symlink" | "submodule";
 
-export type FileStatus = "added" | "modified" | "deleted" | "renamed" | "copied" | "untracked" | "conflicted";
+export type FileStatus = "added" | "modified" | "deleted" | "renamed" | "copied" | "untracked" | "conflicted" | 
+/**  Tracked and identical to the index; only listed when the panel asks for it. */
+"unchanged" | "ignored" | "assumeUnchanged" | "skipped";
 
 export type Found = {
 	kind: FoundKind,
@@ -584,6 +586,18 @@ export type WorktreeFiles = {
 	 *  "Changes not staged for commit" plus "Untracked files".
 	 */
 	unstaged: FileEntry[],
+};
+
+/**
+ *  The four Files-panel toggles that cost extra reading. The rest — untracked, rename
+ *  sources, directories, index and worktree side by side — are filters over what is already
+ *  in the list, so the panel applies them itself (doc/modules/M6-staging.md, T6.9).
+ */
+export type WorktreeView = {
+	unchanged?: boolean,
+	ignored?: boolean,
+	assumeUnchanged?: boolean,
+	skipped?: boolean,
 };
 
 /* Tauri Specta runtime */

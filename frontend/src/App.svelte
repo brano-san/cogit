@@ -101,6 +101,7 @@
   import { settings } from "$stores/settings.svelte";
   import { layout } from "$stores/layout.svelte";
   import { repository } from "$stores/repository.svelte";
+  import { filesView } from "$stores/files-view.svelte";
   import { scan } from "$stores/scan.svelte";
 
   /** Settings the open diff was computed with: changing one has to re-run it. */
@@ -1456,13 +1457,15 @@ Log: ${info?.logPath ?? ""}`),
             <div class="files">
             {#if onWorkingTree}
               <FileList
+                view={filesView.current}
+                onview={(next) => {
+                  filesView.set(next);
+                  if (repo) void worktree.load(repo.repo);
+                }}
+                split={fractions.filesSplit}
+                onsplit={(delta) => layout.nudge("filesSplit", delta)}
+                onsplitreset={() => layout.resetOne("filesSplit")}
                 sections={[
-                  {
-                    title: "Staged",
-                    files: worktree.staged,
-                    onselect: openStagedDiff,
-                    actions: [{ label: "Unstage", title: "Unstage", run: unstage }],
-                  },
                   {
                     title: "Unstaged",
                     files: worktree.unstaged,
@@ -1474,6 +1477,12 @@ Log: ${info?.logPath ?? ""}`),
                       { label: "Ignore", title: "Add to .gitignore", run: ignore },
                       { label: "Delete", title: "Delete from disk", run: deleteFromDisk },
                     ],
+                  },
+                  {
+                    title: "Staged",
+                    files: worktree.staged,
+                    onselect: openStagedDiff,
+                    actions: [{ label: "Unstage", title: "Unstage", run: unstage }],
                   },
                 ]}
                 empty="The working tree is clean."

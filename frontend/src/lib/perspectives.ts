@@ -7,6 +7,8 @@ export interface LayoutFractions {
   repositories: number;
   topRow: number;
   graph: number;
+  /** Height of the Unstaged list inside the Files panel; the rest goes to Staged. */
+  filesSplit: number;
 }
 
 export const DEFAULT_LAYOUT: LayoutFractions = {
@@ -14,6 +16,7 @@ export const DEFAULT_LAYOUT: LayoutFractions = {
   repositories: 0.45,
   topRow: 0.55,
   graph: 0.68,
+  filesSplit: 0.55,
 };
 
 export function clampFraction(value: number): number {

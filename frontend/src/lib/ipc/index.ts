@@ -18,6 +18,7 @@ import type {
   RepoChanged,
   RepoId,
   ScanHit,
+  WorktreeView,
   StashOptions,
   TagRequest,
   TodoEntry,
@@ -197,8 +198,8 @@ export async function repoStatus(repo: RepoId) {
   return unwrap(await commands.repoStatus(repo));
 }
 
-export async function worktreeFiles(repo: RepoId) {
-  return unwrap(await commands.worktreeFiles(repo));
+export async function worktreeFiles(repo: RepoId, view: WorktreeView) {
+  return unwrap(await commands.worktreeFiles(repo, view));
 }
 
 export async function stagePaths(repo: RepoId, paths: string[]) {

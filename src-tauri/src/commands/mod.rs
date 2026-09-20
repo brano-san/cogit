@@ -199,9 +199,13 @@ pub async fn diff_file(
 pub async fn worktree_files(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,
+    view: git_engine::WorktreeView,
 ) -> Result<WorktreeFiles, GitError> {
     let app_state = state.state.clone();
-    blocking("worktree_files", move || app_state.worktree_files(repo)).await
+    blocking("worktree_files", move || {
+        app_state.worktree_files(repo, view)
+    })
+    .await
 }
 
 macro_rules! path_command {
