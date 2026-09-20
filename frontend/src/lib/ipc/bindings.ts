@@ -75,6 +75,18 @@ export const commands = {
 	setHookEnabled: (repo: RepoId, name: string, enabled: boolean) => typedError<null, GitError>(__TAURI_INVOKE("set_hook_enabled", { repo, name, enabled })),
 	useHooksPath: (repo: RepoId, path: string) => typedError<null, GitError>(__TAURI_INVOKE("use_hooks_path", { repo, path })),
 	runHook: (repo: RepoId, name: string) => typedError<HookRun, GitError>(__TAURI_INVOKE("run_hook", { repo, name })),
+	rollbackTo: (repo: RepoId, rev: string, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("rollback_to", { repo, rev, paths })),
+	isPublished: (repo: RepoId, rev: string) => typedError<boolean, GitError>(__TAURI_INVOKE("is_published", { repo, rev })),
+	splitOff: (repo: RepoId, rev: string, paths: string[], message: string, splitFirst: boolean) => typedError<null, GitError>(__TAURI_INVOKE("split_off", { repo, rev, paths, message, splitFirst })),
+	rebaseTodo: (repo: RepoId, base: string) => typedError<TodoEntry[], GitError>(__TAURI_INVOKE("rebase_todo", { repo, base })),
+	interactiveRebase: (repo: RepoId, base: string, plan: TodoEntry[]) => typedError<null, GitError>(__TAURI_INVOKE("interactive_rebase", { repo, base, plan })),
+	rebaseProgress: (repo: RepoId) => typedError<{
+	applying: string | null,
+	onto: string | null,
+	done: number,
+	total: number,
+	todo: RebaseStep[],
+} | null, GitError>(__TAURI_INVOKE("rebase_progress", { repo })),
 };
 
 /** Events */
@@ -338,6 +350,20 @@ export type RebaseOptions = {
 	autostash: boolean,
 };
 
+export type RebaseProgress = {
+	applying: string | null,
+	onto: string | null,
+	done: number,
+	total: number,
+	todo: RebaseStep[],
+};
+
+export type RebaseStep = {
+	action: string,
+	oid: string,
+	summary: string,
+};
+
 /**  What has to be put back to reverse one destructive operation (INV-12). */
 export type Recovery = { kind: "stash"; oid: string } | { kind: "branch"; name: string; oid: string } | { kind: "tag"; name: string; oid: string } | 
 /**  Recorded for the journal, refused by undo: honesty beats a half-working restore. */
@@ -453,6 +479,14 @@ export type TagRequest = {
 	/**  A message makes the tag annotated, which is what a release wants. */
 	message: string | null,
 	force: boolean,
+};
+
+export type TodoAction = "pick" | "reword" | "edit" | "squash" | "fixup" | "drop";
+
+export type TodoEntry = {
+	oid: string,
+	action: TodoAction,
+	message: string | null,
 };
 
 export type Whitespace = "none" | "trailing" | "all";

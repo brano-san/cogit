@@ -44,6 +44,10 @@ const LOCAL: &[Entry] = &[
     Entry::Separator,
     Entry::Item("undo", "Undo Last Operation", None),
     Entry::Item("abort", "Abort Operation In Progress", None),
+    Entry::Separator,
+    Entry::Item("rebase-i", "Rebase Commits After This One…", None),
+    Entry::Item("split-off", "Split Off Files…", None),
+    Entry::Item("rollback", "Roll Back Tree To This Commit", None),
 ];
 
 const BRANCH: &[Entry] = &[

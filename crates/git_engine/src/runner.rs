@@ -55,12 +55,29 @@ impl RepoHandle {
         }
     }
 
+    /// For the handful of commands that need a variable `base_command` deliberately pins.
+    pub(crate) fn run_git_with_env(
+        &self,
+        args: &[&str],
+        env: &[(&str, &str)],
+    ) -> Result<GitOutput> {
+        self.spawn_with(args, false, env)
+    }
+
     fn spawn(&self, args: &[&str], reading: bool) -> Result<GitOutput> {
+        self.spawn_with(args, reading, &[])
+    }
+
+    fn spawn_with(&self, args: &[&str], reading: bool, env: &[(&str, &str)]) -> Result<GitOutput> {
         let command = redact_command(args);
         let started = std::time::Instant::now();
 
         tracing::info!(command = %command, "running git");
-        let output = base_command(self.root(), reading).args(args).output()?;
+        let mut process = base_command(self.root(), reading);
+        for (key, value) in env {
+            process.env(key, value);
+        }
+        let output = process.args(args).output()?;
 
         let duration_ms = u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX);
         let result = GitOutput {

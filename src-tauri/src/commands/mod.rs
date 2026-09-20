@@ -836,3 +836,87 @@ pub async fn run_hook(
         .await
         .map_err(|err| GitError::Internal(format!("run_hook task failed: {err}")))?
 }
+
+#[tauri::command]
+#[specta::specta]
+pub async fn rollback_to(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    rev: String,
+    paths: Vec<String>,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.rollback_to(repo, &rev, &paths))
+        .await
+        .map_err(|err| GitError::Internal(format!("rollback_to task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn is_published(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    rev: String,
+) -> Result<bool, GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.is_published(repo, &rev))
+        .await
+        .map_err(|err| GitError::Internal(format!("is_published task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn split_off(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    rev: String,
+    paths: Vec<String>,
+    message: String,
+    split_first: bool,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || {
+        app_state.split_off(repo, &rev, &paths, &message, split_first)
+    })
+    .await
+    .map_err(|err| GitError::Internal(format!("split_off task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn rebase_todo(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    base: String,
+) -> Result<Vec<git_engine::TodoEntry>, GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.rebase_todo(repo, &base))
+        .await
+        .map_err(|err| GitError::Internal(format!("rebase_todo task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn interactive_rebase(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    base: String,
+    plan: Vec<git_engine::TodoEntry>,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.interactive_rebase(repo, &base, &plan))
+        .await
+        .map_err(|err| GitError::Internal(format!("interactive_rebase task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn rebase_progress(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<Option<git_engine::RebaseProgress>, GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.rebase_progress(repo))
+        .await
+        .map_err(|err| GitError::Internal(format!("rebase_progress task failed: {err}")))?
+}

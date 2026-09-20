@@ -1,5 +1,6 @@
 <script lang="ts">
   import { buildTree, matchesFilter } from "$lib/ref-tree";
+  import { DRAG_TYPE, parseDrag, serialiseDrag } from "$lib/drop-target";
   import type { Branch } from "$lib/ipc";
 
   interface Props {
@@ -9,11 +10,31 @@
     ondelete?: (branch: Branch) => void;
     onmerge?: (branch: Branch) => void;
     onrebase?: (branch: Branch) => void;
+    /** A branch was dropped on another branch; the caller offers the choices. */
+    ondrop?: (source: string, target: Branch) => void;
     /** Typed in the panel header; folders whose children all fail it disappear with them. */
     filter?: string;
   }
 
-  let { title, branches, oncheckout, ondelete, onmerge, onrebase, filter = "" }: Props = $props();
+  let {
+    title,
+    branches,
+    oncheckout,
+    ondelete,
+    onmerge,
+    onrebase,
+    ondrop,
+    filter = "",
+  }: Props = $props();
+
+  let over = $state<string | null>(null);
+
+  function dropped(event: DragEvent, target: Branch) {
+    over = null;
+    const text = event.dataTransfer?.getData(DRAG_TYPE) ?? "";
+    const payload = parseDrag(text);
+    if (payload?.kind === "branch" && payload.id !== target.name) ondrop?.(payload.id, target);
+  }
 
   let collapsed = $state(false);
   const shown = $derived(branches.filter((b) => matchesFilter(b.name, filter)));
@@ -42,8 +63,21 @@
         <div
           class="row"
           class:head={branch.isHead}
+          class:over={over === branch.name}
           title={branch.fullName}
           style:padding-left="calc(var(--sp-5) + {row.depth * 12}px)"
+          role="listitem"
+          draggable={ondrop !== undefined}
+          ondragstart={(event) =>
+            event.dataTransfer?.setData(DRAG_TYPE, serialiseDrag({ kind: "branch", id: branch.name }))}
+          ondragover={(event) => {
+            if (ondrop) {
+              event.preventDefault();
+              over = branch.name;
+            }
+          }}
+          ondragleave={() => (over = null)}
+          ondrop={(event) => dropped(event, branch)}
         >
         <span class="marker" aria-hidden="true">{branch.isHead ? "▸" : ""}</span>
         <span class="name truncate">{row.label}</span>
@@ -162,6 +196,10 @@
 
   .act:hover {
     color: var(--status-ref);
+  }
+
+  .row.over {
+    box-shadow: inset 0 0 0 1px var(--status-ref);
   }
 
   .row:hover {
