@@ -127,3 +127,46 @@ export function edgeBand<T extends RowIndexed>(
   }
   return band;
 }
+
+/** Keyboard navigation over the list; `null` means the key was not ours. */
+export function nextRow(
+  current: number | null,
+  key: string,
+  total: number,
+  pageRows: number,
+): number | null {
+  if (total <= 0) return null;
+  const at = current ?? -1;
+  const clamp = (row: number) => Math.min(Math.max(row, 0), total - 1);
+
+  switch (key) {
+    case "ArrowDown":
+      return current === null ? 0 : clamp(at + 1);
+    case "ArrowUp":
+      return current === null ? 0 : clamp(at - 1);
+    case "PageDown":
+      return clamp(Math.max(at, 0) + pageRows);
+    case "PageUp":
+      return clamp(Math.max(at, 0) - pageRows);
+    case "Home":
+      return 0;
+    case "End":
+      return total - 1;
+    default:
+      return null;
+  }
+}
+
+/** The new scroll offset, or `null` when the row already fits on screen. */
+export function scrollRowIntoView(
+  row: number,
+  scrollTop: number,
+  viewportHeight: number,
+  rowHeight: number,
+): number | null {
+  const top = row * rowHeight;
+  const bottom = top + rowHeight;
+  if (top < scrollTop) return Math.max(top, 0);
+  if (bottom > scrollTop + viewportHeight) return Math.max(bottom - viewportHeight, 0);
+  return null;
+}

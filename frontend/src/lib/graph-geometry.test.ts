@@ -5,7 +5,9 @@ import {
   gutterWidth,
   hitTest,
   laneX,
+  nextRow,
   rowY,
+  scrollRowIntoView,
   setLaneWidth,
   visibleRange,
   HEADER_ROWS,
@@ -175,5 +177,65 @@ describe("setLaneWidth", () => {
   it("rounds to whole pixels so lines stay crisp", () => {
     setLaneWidth(16.4);
     expect(GRAPH.laneWidth).toBe(16);
+  });
+});
+
+describe("nextRow", () => {
+  it("moves down and up by one", () => {
+    expect(nextRow(5, "ArrowDown", 100, 20)).toBe(6);
+    expect(nextRow(5, "ArrowUp", 100, 20)).toBe(4);
+  });
+
+  it("stops at the ends instead of wrapping", () => {
+    expect(nextRow(0, "ArrowUp", 100, 20)).toBe(0);
+    expect(nextRow(99, "ArrowDown", 100, 20)).toBe(99);
+  });
+
+  it("moves by a page", () => {
+    expect(nextRow(50, "PageDown", 100, 20)).toBe(70);
+    expect(nextRow(50, "PageUp", 100, 20)).toBe(30);
+  });
+
+  it("clamps a page move to the ends", () => {
+    expect(nextRow(5, "PageUp", 100, 20)).toBe(0);
+    expect(nextRow(95, "PageDown", 100, 20)).toBe(99);
+  });
+
+  it("jumps to the first and last row", () => {
+    expect(nextRow(50, "Home", 100, 20)).toBe(0);
+    expect(nextRow(50, "End", 100, 20)).toBe(99);
+  });
+
+  it("starts from the top when nothing is selected", () => {
+    expect(nextRow(null, "ArrowDown", 100, 20)).toBe(0);
+    expect(nextRow(null, "ArrowUp", 100, 20)).toBe(0);
+  });
+
+  it("ignores a key that is not navigation", () => {
+    expect(nextRow(5, "a", 100, 20)).toBeNull();
+  });
+
+  it("has nowhere to go in an empty list", () => {
+    expect(nextRow(null, "ArrowDown", 0, 20)).toBeNull();
+  });
+});
+
+describe("scrollRowIntoView", () => {
+  const rowHeight = 22;
+
+  it("leaves the scroll alone when the row is already visible", () => {
+    expect(scrollRowIntoView(5, 0, 440, rowHeight)).toBeNull();
+  });
+
+  it("scrolls up to reach a row above the viewport", () => {
+    expect(scrollRowIntoView(2, 220, 440, rowHeight)).toBe(2 * rowHeight);
+  });
+
+  it("scrolls down just far enough to reveal a row below it", () => {
+    expect(scrollRowIntoView(30, 0, 440, rowHeight)).toBe(31 * rowHeight - 440);
+  });
+
+  it("never scrolls to a negative offset", () => {
+    expect(scrollRowIntoView(0, 100, 440, rowHeight)).toBe(0);
   });
 });

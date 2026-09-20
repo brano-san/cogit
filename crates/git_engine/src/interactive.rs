@@ -39,6 +39,17 @@ fn shell_quote(text: &str) -> String {
 
 #[must_use]
 pub fn render_todo(plan: &[TodoEntry]) -> String {
+    render(plan, false)
+}
+
+/// A `break` after every applied commit, so a check command can run between steps.
+/// `drop` applies nothing and `edit` already stops, so neither gets one (Git >= 2.20).
+#[must_use]
+pub fn render_todo_paused(plan: &[TodoEntry]) -> String {
+    render(plan, true)
+}
+
+fn render(plan: &[TodoEntry], paused: bool) -> String {
     let mut out = String::new();
     for entry in plan {
         out.push_str(entry.action.verb());
@@ -51,6 +62,11 @@ pub fn render_todo(plan: &[TodoEntry]) -> String {
             out.push_str("exec git commit --amend --no-verify -m ");
             out.push_str(&shell_quote(message));
             out.push('\n');
+        }
+
+        let stops_already = matches!(entry.action, TodoAction::Edit | TodoAction::Drop);
+        if paused && !stops_already {
+            out.push_str("break\n");
         }
     }
     out
@@ -76,6 +92,15 @@ impl RepoHandle {
 
     /// Runs `git rebase -i` with the plan already written, so nothing prompts.
     pub fn interactive_rebase(&self, base: &str, plan: &[TodoEntry]) -> Result<()> {
+        self.run_rebase(base, plan, false)
+    }
+
+    /// Stops after every commit so the user can run a check before going on.
+    pub fn interactive_rebase_paused(&self, base: &str, plan: &[TodoEntry]) -> Result<()> {
+        self.run_rebase(base, plan, true)
+    }
+
+    fn run_rebase(&self, base: &str, plan: &[TodoEntry], paused: bool) -> Result<()> {
         if plan.is_empty() {
             return Err(GitError::InvalidState("the plan is empty".to_owned()));
         }
@@ -88,7 +113,12 @@ impl RepoHandle {
         }
 
         let todo = self.git_dir().join("cogit-rebase-todo");
-        std::fs::write(&todo, render_todo(plan))?;
+        let body = if paused {
+            render_todo_paused(plan)
+        } else {
+            render_todo(plan)
+        };
+        std::fs::write(&todo, body)?;
 
         let head = self
             .run_git_reading(&["rev-parse", "HEAD"])?

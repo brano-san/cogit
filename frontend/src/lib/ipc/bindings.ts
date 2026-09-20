@@ -79,7 +79,7 @@ export const commands = {
 	isPublished: (repo: RepoId, rev: string) => typedError<boolean, GitError>(__TAURI_INVOKE("is_published", { repo, rev })),
 	splitOff: (repo: RepoId, rev: string, paths: string[], message: string, splitFirst: boolean) => typedError<null, GitError>(__TAURI_INVOKE("split_off", { repo, rev, paths, message, splitFirst })),
 	rebaseTodo: (repo: RepoId, base: string) => typedError<TodoEntry[], GitError>(__TAURI_INVOKE("rebase_todo", { repo, base })),
-	interactiveRebase: (repo: RepoId, base: string, plan: TodoEntry[]) => typedError<null, GitError>(__TAURI_INVOKE("interactive_rebase", { repo, base, plan })),
+	interactiveRebase: (repo: RepoId, base: string, plan: TodoEntry[], paused: boolean) => typedError<null, GitError>(__TAURI_INVOKE("interactive_rebase", { repo, base, plan, paused })),
 	rebaseProgress: (repo: RepoId) => typedError<{
 	applying: string | null,
 	onto: string | null,
@@ -87,11 +87,25 @@ export const commands = {
 	total: number,
 	todo: RebaseStep[],
 } | null, GitError>(__TAURI_INVOKE("rebase_progress", { repo })),
+	/**
+	 *  `spawn_blocking` matters here: the engine fans out with rayon, which must never run on
+	 *  a Tokio worker (INV-01).
+	 */
+	overlapWindow: (repo: RepoId, base: string, window: string[]) => typedError<OverlapRow[], GitError>(__TAURI_INVOKE("overlap_window", { repo, base, window })),
+	bypassLog: (repo: RepoId) => typedError<Bypass[], GitError>(__TAURI_INVOKE("bypass_log", { repo })),
+	/**  Not `async`: menu APIs must run on the main thread on Windows. */
+	popupContextMenu: (items: ContextItem[], x: number | null, y: number | null) => typedError<null, GitError>(__TAURI_INVOKE("popup_context_menu", { items, x, y })),
+	/**
+	 *  Not `async`: creating a window has to happen on the main thread. The parameters ride in
+	 *  the URL so the window rebuilds itself after a webview reload (T2.5).
+	 */
+	openCompareWindow: (url: string, title: string) => typedError<null, GitError>(__TAURI_INVOKE("open_compare_window", { url, title })),
 };
 
 /** Events */
 export const events = {
 	menuCommand: makeEvent<MenuCommand>("menu-command"),
+	operationChanged: makeEvent<OperationChanged>("operation-changed"),
 	repoChanged: makeEvent<RepoChanged>("repo-changed"),
 };
 
@@ -127,6 +141,13 @@ export type Branch = {
 };
 
 export type BranchKind = "local" | "remote";
+
+/**  Git records nothing about `--no-verify`, so Cogit keeps its own note per clone. */
+export type Bypass = {
+	oid: string,
+	summary: string,
+	at: number,
+};
 
 export type ChangeKind = "head" | "index" | "refs" | "workingTree" | "stash" | "config";
 
@@ -177,6 +198,17 @@ export type ConflictText = {
 	base: string | null,
 	ours: string | null,
 	theirs: string | null,
+};
+
+/**
+ *  One row the frontend asks for in a context menu. Ids are palette command ids, so the
+ *  chosen item travels back through the same `menu-command` event as the menu bar.
+ */
+export type ContextItem = {
+	id: string,
+	label: string,
+	enabled: boolean,
+	separator?: boolean,
 };
 
 export type DiffOptions = {
@@ -335,6 +367,24 @@ export type MergeOptions = {
 };
 
 export type NodeKind = "normal" | "merge" | "root" | "workingTree";
+
+/**  Mirrors `app_state::AppEvent::Operation*`, for the spinner in the toolbar. */
+export type OperationChanged = {
+	id: number,
+	label: string,
+	/**  `None` while it runs; `Some` once it is over. */
+	success: boolean | null,
+};
+
+export type Overlap = "none" | "slight" | "heavy" | "same";
+
+export type OverlapRow = {
+	oid: string,
+	overlap: Overlap,
+	isBase: boolean,
+	shared: string[],
+	sharedTotal: number,
+};
 
 export type PatchRequest = {
 	path: string,

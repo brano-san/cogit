@@ -12,6 +12,7 @@ description = "Git reading via gix and mutations via the system git CLI."
 gix.workspace = true
 tokio.workspace = true
 parking_lot.workspace = true
+rayon.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 serde.workspace = true

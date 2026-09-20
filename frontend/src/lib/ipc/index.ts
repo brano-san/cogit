@@ -6,11 +6,13 @@ import type {
   CommitQuery,
   CommitRequest,
   ConflictSide,
+  ContextItem,
   DiffOptions,
   DiffSpec,
   GitError,
   GraphChunk,
   MergeOptions,
+  OperationChanged,
   PatchRequest,
   RebaseOptions,
   RepoChanged,
@@ -26,12 +28,14 @@ export type {
   BlameLine,
   Branch,
   BranchKind,
+  Bypass,
   CheckoutTarget,
   CommitDetails,
   CommitQuery,
   CommitRequest,
   CommitRow,
   ConflictSide,
+  ContextItem,
   DiffOptions,
   DiffRow,
   DiffSpec,
@@ -55,6 +59,9 @@ export type {
   LaneAssignment,
   LineEnding,
   MergeOptions,
+  OperationChanged,
+  Overlap,
+  OverlapRow,
   PatchRequest,
   RebaseOptions,
   RebaseProgress,
@@ -464,10 +471,36 @@ export async function rebaseTodo(repo: RepoId, base: string) {
   return unwrap(await commands.rebaseTodo(repo, base));
 }
 
-export async function interactiveRebase(repo: RepoId, base: string, plan: TodoEntry[]) {
-  return unwrap(await commands.interactiveRebase(repo, base, plan));
+export async function interactiveRebase(
+  repo: RepoId,
+  base: string,
+  plan: TodoEntry[],
+  paused: boolean,
+) {
+  return unwrap(await commands.interactiveRebase(repo, base, plan, paused));
 }
 
 export async function rebaseProgress(repo: RepoId) {
   return unwrap(await commands.rebaseProgress(repo));
+}
+
+export async function overlapWindow(repo: RepoId, base: string, window: string[]) {
+  return unwrap(await commands.overlapWindow(repo, base, window));
+}
+
+export async function bypassLog(repo: RepoId) {
+  return unwrap(await commands.bypassLog(repo));
+}
+
+/** Fires when a tracked operation starts or finishes; drives the toolbar spinner. */
+export async function onOperationChanged(handler: (event: OperationChanged) => void) {
+  return await events.operationChanged.listen((event) => handler(event.payload));
+}
+
+export async function popupContextMenu(items: ContextItem[], x: number, y: number) {
+  return unwrap(await commands.popupContextMenu(items, x, y));
+}
+
+export async function openCompareWindow(url: string, title: string) {
+  return unwrap(await commands.openCompareWindow(url, title));
 }

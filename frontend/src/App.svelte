@@ -34,6 +34,9 @@
   import { disabledIds, type PaletteCommand } from "$lib/palette";
   import { pullRequestUrl } from "$lib/pull-request";
   import { commitScope } from "$lib/commit-scope";
+  import { applyOperation, busyLabel } from "$lib/operations";
+  import { commitMenu } from "$lib/context-menu";
+  import { compareUrl } from "$lib/compare-params";
   import { dropActions, type DropAction, type DragPayload } from "$lib/drop-target";
   import { moveEntry } from "$lib/rebase-plan";
   import { stateBanner, type BannerAction } from "$lib/repo-state";
@@ -61,6 +64,9 @@
     mergeInto,
     stageSelection,
     onMenuCommand,
+    onOperationChanged,
+    openCompareWindow,
+    popupContextMenu,
     onRepoChanged,
     setMenuState,
     revertCommits,
@@ -85,6 +91,7 @@
   import { submodules } from "$stores/submodules.svelte";
   import { graph } from "$stores/graph.svelte";
   import { hooks } from "$stores/hooks.svelte";
+  import { overlap } from "$stores/overlap.svelte";
   import { settings } from "$stores/settings.svelte";
   import { layout } from "$stores/layout.svelte";
   import { repository } from "$stores/repository.svelte";
@@ -107,6 +114,7 @@
 
   /** Maximising acts on the panel the pointer last entered; there is no focus ring yet. */
   let focused = $state<PanelId>("graph");
+  let running = $state.raw<Map<number, string>>(new Map());
   let info = $state<AppInfo | null>(null);
   let paletteOpen = $state(false);
   let settingsOpen = $state(false);
@@ -127,6 +135,7 @@
   let rebaseBase = $state("");
   let rebasePlan = $state.raw<import("$lib/ipc").TodoEntry[]>([]);
   let rebaseBusy = $state(false);
+  let rebasePaused = $state(false);
   let splitOpen = $state(false);
   let splitPublished = $state(false);
   let splitBusy = $state(false);
@@ -238,6 +247,18 @@
       },
       { id: "output", title: "Toggle Output Panel", shortcut: "Ctrl+Shift+7", run: () => output.toggle() },
       {
+        id: "copy-sha",
+        title: "Copy the Commit SHA",
+        unavailable: commit.oid ? undefined : "Select a commit first",
+        run: () => {
+          if (commit.oid) {
+            void import("@tauri-apps/plugin-clipboard-manager").then((m) =>
+              m.writeText(commit.oid ?? ""),
+            );
+          }
+        },
+      },
+      {
         id: "rebase-i",
         title: "Rebase Commits After This One…",
         synonyms: ["interactive rebase", "squash", "reorder"],
@@ -273,6 +294,12 @@
         run: () => void runBannerAction("createBranch"),
       },
       { id: "reset-layout", title: "Reset Perspective", run: () => layout.reset() },
+      {
+        id: "overlap",
+        title: "Toggle Commit Overlap Column",
+        synonyms: ["who else touched", "conflict risk"],
+        run: () => overlap.toggle(),
+      },
       {
         id: "hooks",
         title: "Manage Hooks…",
@@ -824,6 +851,16 @@ Log: ${info?.logPath ?? ""}`),
     await afterRefChange();
   }
 
+  /** Double-click opens the file in its own window, which survives a webview reload. */
+  function openInWindow(path: string) {
+    const id = repository.current?.repo;
+    const spec = diff.spec;
+    if (!id || !spec) return;
+    void openCompareWindow(compareUrl(id, path, spec), `${path} — Cogit`).catch((err) =>
+      errors.report(err as never),
+    );
+  }
+
   function openDiff(path: string) {
     const id = repository.current?.repo;
     const oid = commit.oid;
@@ -1030,7 +1067,7 @@ Log: ${info?.logPath ?? ""}`),
     if (!id) return;
     rebaseBusy = true;
     try {
-      await interactiveRebase(id, rebaseBase, rebasePlan);
+      await interactiveRebase(id, rebaseBase, rebasePlan, rebasePaused);
       rebaseOpen = false;
       commit.clear();
     } catch (err) {
@@ -1039,6 +1076,14 @@ Log: ${info?.logPath ?? ""}`),
       rebaseBusy = false;
     }
     await afterRefChange();
+  }
+
+  /** A real OS menu, not an HTML popup: the chosen id comes back as a menu command. */
+  async function commitContext(oid: string, x: number, y: number) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    const onRemote = await isPublished(id, oid).catch(() => false);
+    await popupContextMenu(commitMenu({ onRemote }), x, y).catch(() => {});
   }
 
   async function openSplit() {
@@ -1083,6 +1128,13 @@ Log: ${info?.logPath ?? ""}`),
   }
 
   $effect(() => {
+    const pending = onOperationChanged((event) => {
+      running = applyOperation(running, event);
+    });
+    return () => void pending.then((unlisten) => unlisten());
+  });
+
+  $effect(() => {
     const pending = onMenuCommand((id) => {
       const command = palette.find((entry) => entry.id === id);
       if (command && !command.unavailable) runCommand(command);
@@ -1106,7 +1158,9 @@ Log: ${info?.logPath ?? ""}`),
 
 <div class="app">
   <Toolbar
-    busy={network.running ?? (repository.busy ? "Opening repository…" : undefined)}
+    busy={busyLabel(running) ??
+      network.running ??
+      (repository.busy ? "Opening repository…" : undefined)}
     undoable={safety.last?.description}
     onundo={undo}
     handlers={{
@@ -1251,7 +1305,10 @@ Log: ${info?.logPath ?? ""}`),
                   staged={worktree.staged.length}
                 />
               {/if}
-              <CommitList ondrop={onCommitDrop} />
+              <CommitList
+                ondrop={onCommitDrop}
+                oncontext={(oid, x, y) => void commitContext(oid, x, y)}
+              />
             {:else}
               <p class="note">Open a repository to see its history.</p>
             {/if}
@@ -1296,6 +1353,7 @@ Log: ${info?.logPath ?? ""}`),
                 ]}
                 empty="The working tree is clean."
                 selected={diff.path}
+                onopen={openInWindow}
                 onmask={(mask) => (fileMask = mask)}
               />
               <CommitBox
@@ -1311,6 +1369,7 @@ Log: ${info?.logPath ?? ""}`),
                 empty="Select a commit to see the files it changed."
                 selected={diff.path}
                 onselect={openDiff}
+                onopen={openInWindow}
               />
             {/if}
             </div>
@@ -1483,6 +1542,8 @@ Log: ${info?.logPath ?? ""}`),
       published={splitPublished}
       busy={rebaseBusy}
       onplan={(next) => (rebasePlan = next)}
+      paused={rebasePaused}
+      onpaused={(next) => (rebasePaused = next)}
       onrun={() => void runRebase()}
       onclose={() => (rebaseOpen = false)}
     />
@@ -1528,6 +1589,7 @@ Log: ${info?.logPath ?? ""}`),
       }}
       lastRun={hooks.lastRun}
       running={hooks.running}
+      bypasses={hooks.bypasses}
       onclose={() => hooks.close()}
     />
   {/if}

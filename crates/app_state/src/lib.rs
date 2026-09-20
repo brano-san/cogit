@@ -1,4 +1,5 @@
 mod credentials;
+pub mod logging;
 
 pub use credentials::{
     KeyringStore, MemoryStore, SecretError, SecretStore, host_of, platform_store,
@@ -207,6 +208,23 @@ impl AppState {
     #[must_use]
     pub fn subscribe(&self) -> broadcast::Receiver<AppEvent> {
         self.events.subscribe()
+    }
+
+    /// Brackets one operation with a start and a finish event, so the toolbar can show a
+    /// spinner without every call site remembering to announce itself.
+    pub fn tracked<T, E>(&self, label: &str, work: impl FnOnce() -> Result<T, E>) -> Result<T, E> {
+        let id = self.next_entry_id.fetch_add(1, Ordering::Relaxed);
+        self.emit(AppEvent::OperationStarted {
+            id,
+            label: label.to_owned(),
+        });
+
+        let result = work();
+        self.emit(AppEvent::OperationFinished {
+            id,
+            success: result.is_ok(),
+        });
+        result
     }
 
     pub fn emit(&self, event: AppEvent) {
@@ -726,6 +744,17 @@ impl AppState {
         Ok(())
     }
 
+    /// Only the rows on screen: the whole history would be tens of thousands of tree
+    /// comparisons for data nobody looks at (doc/modules/M13-commit-overlap.md).
+    pub fn overlap_window(
+        &self,
+        repo: RepoId,
+        base: &str,
+        window: &[String],
+    ) -> Result<Vec<git_engine::OverlapRow>, git_engine::GitError> {
+        self.handle(repo)?.overlap_window(base, window)
+    }
+
     pub fn rebase_progress(
         &self,
         repo: RepoId,
@@ -746,11 +775,16 @@ impl AppState {
         repo: RepoId,
         base: &str,
         plan: &[git_engine::TodoEntry],
+        paused: bool,
     ) -> Result<(), git_engine::GitError> {
         self.quiet(repo);
         let handle = self.handle(repo)?;
         let before = handle.head()?;
-        handle.interactive_rebase(base, plan)?;
+        if paused {
+            handle.interactive_rebase_paused(base, plan)?;
+        } else {
+            handle.interactive_rebase(base, plan)?;
+        }
 
         let recovery = match before {
             git_engine::Head::Branch { name, oid } => Recovery::Branch { name, oid },
@@ -795,6 +829,13 @@ impl AppState {
 
     pub fn hooks(&self, repo: RepoId) -> Result<git_engine::HookOverview, git_engine::GitError> {
         self.handle(repo)?.hooks()
+    }
+
+    pub fn bypass_log(
+        &self,
+        repo: RepoId,
+    ) -> Result<Vec<git_engine::Bypass>, git_engine::GitError> {
+        self.handle(repo)?.bypass_log()
     }
 
     pub fn read_hook(&self, repo: RepoId, name: &str) -> Result<String, git_engine::GitError> {
@@ -851,7 +892,9 @@ impl AppState {
         self.quiet(repo);
         let handle = self.handle(repo)?;
         let token = self.token_for(&handle, remote);
-        handle.fetch(remote, token.as_deref(), on_line)
+        self.tracked("Fetching", || {
+            handle.fetch(remote, token.as_deref(), on_line)
+        })
     }
 
     pub fn pull(
@@ -864,7 +907,9 @@ impl AppState {
         self.quiet(repo);
         let handle = self.handle(repo)?;
         let token = self.token_for(&handle, remote);
-        handle.pull(remote, ff_only, token.as_deref(), on_line)
+        self.tracked("Pulling", || {
+            handle.pull(remote, ff_only, token.as_deref(), on_line)
+        })
     }
 
     pub fn push(
@@ -877,7 +922,9 @@ impl AppState {
         self.quiet(repo);
         let handle = self.handle(repo)?;
         let token = self.token_for(&handle, remote);
-        handle.push(remote, None, force, token.as_deref(), on_line)
+        self.tracked("Pushing", || {
+            handle.push(remote, None, force, token.as_deref(), on_line)
+        })
     }
 
     /// Only for an HTTP remote: SSH already authenticates through the agent, and handing

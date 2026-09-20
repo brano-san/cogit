@@ -37,10 +37,14 @@ impl RepoHandle {
         }
 
         self.run_git(&args)?;
-        Ok(self
+        let oid = self
             .run_git_reading(&["rev-parse", "HEAD"])?
             .stdout
             .trim()
-            .to_owned())
+            .to_owned();
+        if request.no_verify {
+            self.record_bypass(&oid, &request.message);
+        }
+        Ok(oid)
     }
 }

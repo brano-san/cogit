@@ -217,3 +217,66 @@ fn the_default_plan_carries_each_commit_subject_for_the_editor() {
 
     assert_eq!(plan[0].message.as_deref(), Some("commit 2"));
 }
+
+#[test]
+fn pausing_after_each_commit_inserts_a_break_between_them() {
+    let plan = [
+        entry("aaaa", TodoAction::Pick),
+        entry("bbbb", TodoAction::Pick),
+    ];
+
+    let todo = git_engine::render_todo_paused(&plan);
+
+    assert_eq!(todo, "pick aaaa\nbreak\npick bbbb\nbreak\n");
+}
+
+#[test]
+fn a_dropped_commit_gets_no_break_because_nothing_was_applied() {
+    let plan = [
+        entry("aaaa", TodoAction::Drop),
+        entry("bbbb", TodoAction::Pick),
+    ];
+
+    assert_eq!(
+        git_engine::render_todo_paused(&plan),
+        "drop aaaa\npick bbbb\nbreak\n"
+    );
+}
+
+#[test]
+fn an_edit_step_gets_no_extra_break_because_it_already_stops() {
+    let plan = [entry("aaaa", TodoAction::Edit)];
+    assert_eq!(git_engine::render_todo_paused(&plan), "edit aaaa\n");
+}
+
+#[test]
+fn a_paused_rebase_stops_before_it_has_finished() {
+    let f = test_fixtures::linear(4).unwrap();
+    let base = f.oid("HEAD~2").unwrap();
+    let plan = [
+        entry(&f.oid("HEAD~1").unwrap(), TodoAction::Pick),
+        entry(&f.oid("HEAD").unwrap(), TodoAction::Pick),
+    ];
+
+    open(&f).interactive_rebase_paused(&base, &plan).unwrap();
+
+    assert!(f.path().join(".git/rebase-merge").is_dir());
+}
+
+#[test]
+fn continuing_a_paused_rebase_reaches_the_end() {
+    let f = test_fixtures::linear(4).unwrap();
+    let base = f.oid("HEAD~2").unwrap();
+    let plan = [
+        entry(&f.oid("HEAD~1").unwrap(), TodoAction::Pick),
+        entry(&f.oid("HEAD").unwrap(), TodoAction::Pick),
+    ];
+    let repo = open(&f);
+    repo.interactive_rebase_paused(&base, &plan).unwrap();
+
+    while f.path().join(".git/rebase-merge").is_dir() {
+        repo.continue_operation().unwrap();
+    }
+
+    assert_eq!(subjects(&f)[0], "commit 3", "{:?}", subjects(&f));
+}

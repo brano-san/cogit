@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Hook, HookOverview, HookRun } from "$lib/ipc";
+  import type { Bypass, Hook, HookOverview, HookRun } from "$lib/ipc";
 
   interface Props {
     overview: HookOverview | null;
@@ -14,6 +14,7 @@
     onrun: (name: string) => void;
     lastRun: HookRun | null;
     running: boolean;
+    bypasses: readonly Bypass[];
     onclose: () => void;
   }
 
@@ -30,6 +31,7 @@
     onrun,
     lastRun,
     running,
+    bypasses,
     onclose,
   }: Props = $props();
 
@@ -81,6 +83,13 @@
         </button>
       </div>
     {/if}
+  {/if}
+
+  {#if bypasses.length > 0}
+    <p class="bypasses">
+      {bypasses.length} commit{bypasses.length === 1 ? "" : "s"} in this clone skipped the hooks.
+      Most recent: <code>{bypasses[0]?.oid.slice(0, 7)}</code> {bypasses[0]?.summary}
+    </p>
   {/if}
 
   {#if editing !== null}
@@ -240,6 +249,14 @@
 
   .offer button {
     flex: 0 0 auto;
+  }
+
+  .bypasses {
+    margin: 0;
+    padding: var(--sp-4) var(--sp-5);
+    color: var(--text-secondary);
+    font-size: var(--fs-dense);
+    border-bottom: 1px solid var(--divider);
   }
 
   .list {

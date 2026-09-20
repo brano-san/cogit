@@ -902,9 +902,10 @@ pub async fn interactive_rebase(
     repo: RepoId,
     base: String,
     plan: Vec<git_engine::TodoEntry>,
+    paused: bool,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.interactive_rebase(repo, &base, &plan))
+    tokio::task::spawn_blocking(move || app_state.interactive_rebase(repo, &base, &plan, paused))
         .await
         .map_err(|err| GitError::Internal(format!("interactive_rebase task failed: {err}")))?
 }
@@ -919,4 +920,66 @@ pub async fn rebase_progress(
     tokio::task::spawn_blocking(move || app_state.rebase_progress(repo))
         .await
         .map_err(|err| GitError::Internal(format!("rebase_progress task failed: {err}")))?
+}
+
+/// `spawn_blocking` matters here: the engine fans out with rayon, which must never run on
+/// a Tokio worker (INV-01).
+#[tauri::command]
+#[specta::specta]
+pub async fn overlap_window(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    base: String,
+    window: Vec<String>,
+) -> Result<Vec<git_engine::OverlapRow>, GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.overlap_window(repo, &base, &window))
+        .await
+        .map_err(|err| GitError::Internal(format!("overlap_window task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn bypass_log(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<Vec<git_engine::Bypass>, GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.bypass_log(repo))
+        .await
+        .map_err(|err| GitError::Internal(format!("bypass_log task failed: {err}")))?
+}
+
+/// Not `async`: menu APIs must run on the main thread on Windows.
+#[tauri::command]
+#[specta::specta]
+pub fn popup_context_menu(
+    window: tauri::Window,
+    held: tauri::State<'_, crate::menu::ContextMenu<tauri::Wry>>,
+    items: Vec<crate::menu::ContextItem>,
+    x: f64,
+    y: f64,
+) -> Result<(), GitError> {
+    crate::menu::popup(&window, &held, &items, x, y)
+        .map_err(|err| GitError::Internal(format!("cannot open the context menu: {err}")))
+}
+
+/// Not `async`: creating a window has to happen on the main thread. The parameters ride in
+/// the URL so the window rebuilds itself after a webview reload (T2.5).
+#[tauri::command]
+#[specta::specta]
+pub fn open_compare_window(
+    app: tauri::AppHandle,
+    url: String,
+    title: String,
+) -> Result<(), GitError> {
+    use tauri::{Manager as _, WebviewUrl, WebviewWindowBuilder};
+
+    let label = format!("compare-{}", app.webview_windows().len());
+    WebviewWindowBuilder::new(&app, label, WebviewUrl::App(url.into()))
+        .title(title)
+        .inner_size(1000.0, 720.0)
+        .build()
+        .map(drop)
+        .map_err(|err| GitError::Internal(format!("cannot open the compare window: {err}")))
 }

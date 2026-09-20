@@ -8,11 +8,14 @@
     published: boolean;
     busy: boolean;
     onplan: (plan: TodoEntry[]) => void;
+    paused: boolean;
+    onpaused: (paused: boolean) => void;
     onrun: () => void;
     onclose: () => void;
   }
 
-  let { base, plan, published, busy, onplan, onrun, onclose }: Props = $props();
+  let { base, plan, published, busy, onplan, paused, onpaused, onrun, onclose }: Props =
+    $props();
 
   const ACTIONS: TodoAction[] = ["pick", "reword", "edit", "squash", "fixup", "drop"];
 
@@ -120,6 +123,14 @@
 
   <footer>
     <span class="preview">{remaining} commits will remain</span>
+    <label class="pause">
+      <input
+        type="checkbox"
+        checked={paused}
+        onchange={(event) => onpaused(event.currentTarget.checked)}
+      />
+      Pause after each commit
+    </label>
     {#if problem}<span class="problem">{problem}</span>{/if}
     <button type="button" onclick={onclose}>Cancel</button>
     <button type="button" class="primary" disabled={problem !== null || busy} onclick={onrun}>
@@ -233,7 +244,7 @@
     min-width: 0;
   }
 
-  input {
+  input[type="text"] {
     flex: 1 1 auto;
     min-width: 0;
     height: 22px;
@@ -254,6 +265,14 @@
   }
 
   .preview {
+    color: var(--text-secondary);
+    font-size: var(--fs-header);
+  }
+
+  .pause {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
     color: var(--text-secondary);
     font-size: var(--fs-header);
   }
