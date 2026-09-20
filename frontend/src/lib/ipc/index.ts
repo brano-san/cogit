@@ -17,6 +17,7 @@ import type {
   RebaseOptions,
   RepoChanged,
   RepoId,
+  ScanHit,
   StashOptions,
   TagRequest,
   TodoEntry,
@@ -68,6 +69,7 @@ export type {
   RebaseProgress,
   RebaseStep,
   ReflogEntry,
+  ScanHit,
   RepoChanged,
   RepoId,
   RepoOverview,
@@ -152,6 +154,17 @@ export async function loadCommits(
   if (result.status === "error") {
     throw new CogitError(result.error);
   }
+}
+
+/** Hits stream in as the walk finds them; the promise resolves with the total. */
+export async function scanForRepositories(
+  path: string,
+  maxDepth: number,
+  onFound: (hit: ScanHit) => void,
+) {
+  const channel = new Channel<ScanHit>();
+  channel.onmessage = onFound;
+  return unwrap(await commands.scanForRepositories(path, maxDepth, channel));
 }
 
 export async function commitDetails(repo: RepoId, rev: string) {

@@ -121,5 +121,7 @@
 | F-115 | Разбор времени сетевых операций | [F-115-network-phases.md](F-115-network-phases.md) |
 | F-116 | Профилирующий лог | [F-116-profile-log.md](F-116-profile-log.md) |
 | F-117 | Открыть папку с логом | [F-117-reveal-log.md](F-117-reveal-log.md) |
+| F-118 | Поиск репозиториев в папке | [F-118-scan-folder.md](F-118-scan-folder.md) |
+| F-119 | Сортировка файлов кнопками | [F-119-file-sort-buttons.md](F-119-file-sort-buttons.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.

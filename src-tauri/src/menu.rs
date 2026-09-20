@@ -11,6 +11,7 @@ use tauri::{AppHandle, Manager, Runtime};
 /// when it is available, and both the menu and the palette read it.
 const REPOSITORY: &[Entry] = &[
     Entry::Item("open", "Open Repository…", Some("CmdOrCtrl+O")),
+    Entry::Item("scan", "Scan Folder for Repositories…", None),
     Entry::Item("close", "Close Repository", Some("CmdOrCtrl+W")),
     Entry::Separator,
     Entry::Item("refresh", "Refresh", Some("F5")),

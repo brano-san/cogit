@@ -5,6 +5,7 @@ mod branches;
 mod commit;
 mod commit_write;
 mod conflicts;
+pub mod discover;
 mod error;
 mod find;
 mod history;
