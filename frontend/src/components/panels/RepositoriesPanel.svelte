@@ -16,6 +16,8 @@
     onclose: (entry: RepoOverview) => void;
     oncontext: (entry: RepoOverview, x: number, y: number) => void;
     onmarked: (roots: string[]) => void;
+    ongroupcontext: (id: string, x: number, y: number) => void;
+    onaddgroup: () => void;
     onopenworktree: (entry: WorktreeEntry) => void;
     onremoveworktree: (entry: WorktreeEntry) => void;
     onaddworktree: () => void;
@@ -32,6 +34,8 @@
     onclose,
     oncontext,
     onmarked,
+    ongroupcontext,
+    onaddgroup,
     onopenworktree,
     onremoveworktree,
     onaddworktree,
@@ -41,7 +45,17 @@
   }: Props = $props();
 </script>
 
-<RepositoryList {opening} {onscan} {onopen} {onselect} {onclose} {oncontext} {onmarked} />
+<RepositoryList
+  {opening}
+  {onscan}
+  {onopen}
+  {onselect}
+  {onclose}
+  {oncontext}
+  {onmarked}
+  {ongroupcontext}
+  {onaddgroup}
+/>
 <WorktreeList
   entries={worktrees.entries}
   onopen={onopenworktree}
