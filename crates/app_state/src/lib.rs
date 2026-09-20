@@ -74,6 +74,7 @@ pub struct AppState {
     repos: RwLock<HashMap<RepoId, OpenRepo>>,
     next_repo_id: AtomicU32,
     events: broadcast::Sender<AppEvent>,
+    watchers: RwLock<HashMap<RepoId, fs_watcher::RepoWatcher>>,
 }
 
 impl Default for AppState {
@@ -90,6 +91,7 @@ impl AppState {
             repos: RwLock::new(HashMap::new()),
             next_repo_id: AtomicU32::new(1),
             events,
+            watchers: RwLock::new(HashMap::new()),
         }
     }
 
@@ -119,6 +121,7 @@ impl AppState {
         let id = self
             .find_by_root(&root)
             .unwrap_or_else(|| self.register(root.clone(), name.clone()));
+        self.start_watching(id, &root, handle.git_dir());
 
         Ok(RepoSummary {
             repo: id,
@@ -318,6 +321,40 @@ impl AppState {
         force: bool,
     ) -> Result<(), git_engine::GitError> {
         self.handle(repo)?.delete_branch(name, force)
+    }
+
+    /// A repository is watched once; reopening the same path must not stack watchers.
+    fn start_watching(&self, repo: RepoId, root: &Path, git_dir: &Path) {
+        if self.watchers.read().contains_key(&repo) {
+            return;
+        }
+        let events = self.events.clone();
+        match fs_watcher::RepoWatcher::start(root, git_dir, move |change| {
+            let _ = events.send(AppEvent::RepoChanged {
+                repo,
+                kind: change.kind,
+            });
+        }) {
+            Ok(watcher) => {
+                self.watchers.write().insert(repo, watcher);
+            }
+            Err(err) => {
+                tracing::warn!(error = %err, repo = repo.0, "cannot watch the repository");
+            }
+        }
+    }
+
+    /// Held across a mutation so Cogit does not reload in response to its own writes.
+    pub fn pause_watching(&self, repo: RepoId) {
+        if let Some(watcher) = self.watchers.read().get(&repo) {
+            watcher.pause();
+        }
+    }
+
+    pub fn resume_watching(&self, repo: RepoId) {
+        if let Some(watcher) = self.watchers.read().get(&repo) {
+            watcher.resume();
+        }
     }
 
     fn handle(&self, repo: RepoId) -> Result<git_engine::RepoHandle, git_engine::GitError> {
