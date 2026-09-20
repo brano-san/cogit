@@ -8,9 +8,19 @@ const BADGES: Record<FileStatus, string> = {
   deleted: "D",
   renamed: "R",
   copied: "C",
+  untracked: "?",
+  conflicted: "U",
 };
 
-const STATUS_ORDER: FileStatus[] = ["added", "modified", "deleted", "renamed", "copied"];
+const STATUS_ORDER: FileStatus[] = [
+  "conflicted",
+  "added",
+  "modified",
+  "deleted",
+  "renamed",
+  "copied",
+  "untracked",
+];
 
 export function statusBadge(status: FileStatus): string {
   return BADGES[status];

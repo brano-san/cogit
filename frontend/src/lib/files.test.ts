@@ -8,11 +8,19 @@ function entry(path: string, status: FileEntry["status"] = "modified"): FileEntr
 
 describe("statusBadge", () => {
   it("gives every status its own single letter", () => {
-    const badges = (["added", "modified", "deleted", "renamed", "copied"] as const).map(
-      statusBadge,
-    );
-    expect(badges).toEqual(["A", "M", "D", "R", "C"]);
+    const badges = (
+      ["added", "modified", "deleted", "renamed", "copied", "untracked", "conflicted"] as const
+    ).map(statusBadge);
+    expect(badges).toEqual(["A", "M", "D", "R", "C", "?", "U"]);
     expect(new Set(badges).size).toBe(badges.length);
+  });
+
+  it("puts conflicts first when sorting by status", () => {
+    const rows = sortFiles(
+      [entry("b.txt", "modified"), entry("a.txt", "conflicted")],
+      "status",
+    );
+    expect(rows[0]!.path).toBe("a.txt");
   });
 
   it("spells the status out for assistive technology", () => {

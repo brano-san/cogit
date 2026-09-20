@@ -14,6 +14,7 @@
   import { formatCommitDate, shortOid } from "$lib/format";
   import { getAppInfo, type AppInfo } from "$lib/ipc";
   import { commit } from "$stores/commit.svelte";
+  import { worktree } from "$stores/worktree.svelte";
   import { diff } from "$stores/diff.svelte";
   import { graph } from "$stores/graph.svelte";
   import { layout } from "$stores/layout.svelte";
@@ -31,9 +32,16 @@
   const repo = $derived(repository.current);
   const details = $derived(commit.details);
 
+  const onWorkingTree = $derived(repo !== undefined && repo !== null && commit.oid === null);
+
   $effect(() => {
     void commit.oid;
     diff.clear();
+  });
+
+  $effect(() => {
+    const id = repository.current?.repo;
+    if (id && commit.oid === null) void worktree.load(id);
   });
 
   function filterGraph(query: import("$lib/ipc").CommitQuery) {
@@ -55,6 +63,7 @@
     if (typeof picked !== "string") return;
     commit.clear();
     diff.clear();
+    worktree.clear();
     await repository.open(picked);
     const opened = repository.current;
     if (opened) {
@@ -132,8 +141,24 @@
           onreset={() => layout.resetOne("graph")}
         />
         <div class="pane grow">
-          <Panel title="Files" count={commit.files.length}>
-            <FileList files={commit.files} selected={diff.path} onselect={openDiff} />
+          <Panel title="Files" count={onWorkingTree ? worktree.total : commit.files.length}>
+            {#if onWorkingTree}
+              <FileList
+                sections={[
+                  { title: "Staged", files: worktree.staged },
+                  { title: "Unstaged", files: worktree.unstaged },
+                ]}
+                empty="The working tree is clean."
+                selected={diff.path}
+              />
+            {:else}
+              <FileList
+                sections={[{ files: commit.files }]}
+                empty="Select a commit to see the files it changed."
+                selected={diff.path}
+                onselect={openDiff}
+              />
+            {/if}
           </Panel>
         </div>
       </div>

@@ -258,6 +258,13 @@ impl AppState {
         Ok(diff)
     }
 
+    pub fn worktree_files(
+        &self,
+        repo: RepoId,
+    ) -> Result<git_engine::WorktreeFiles, git_engine::GitError> {
+        self.handle(repo)?.worktree_files()
+    }
+
     fn handle(&self, repo: RepoId) -> Result<git_engine::RepoHandle, git_engine::GitError> {
         let open = self
             .get(repo)

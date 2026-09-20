@@ -31,6 +31,7 @@ export type {
   Signature,
   Tag,
   Whitespace,
+  WorktreeFiles,
 } from "./bindings";
 
 /** Carries the raw `GitError` untouched so the dialog can show Git's own output (INV-05). */
@@ -122,6 +123,10 @@ export async function diffFile(
   options: DiffOptions = DEFAULT_DIFF_OPTIONS,
 ) {
   return unwrap(await commands.diffFile(repo, spec, path, options));
+}
+
+export async function worktreeFiles(repo: RepoId) {
+  return unwrap(await commands.worktreeFiles(repo));
 }
 
 function unwrap<T>(result: { status: "ok"; data: T } | { status: "error"; error: GitError }): T {

@@ -7,6 +7,7 @@ mod runner;
 mod search;
 mod state;
 mod status;
+mod worktree;
 
 pub use blobs::{DiffSides, DiffSpec};
 pub use commit::{CommitDetails, FileEntry, FileStatus, Signature};
@@ -17,5 +18,6 @@ pub use runner::GitOutput;
 pub use search::CommitQuery;
 pub use state::RepoState;
 pub use status::RepoStatus;
+pub use worktree::WorktreeFiles;
 
 pub type Result<T> = std::result::Result<T, GitError>;

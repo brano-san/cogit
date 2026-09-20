@@ -4,13 +4,19 @@
   import { GRAPH, visibleRange } from "$lib/graph-geometry";
   import type { FileEntry } from "$lib/ipc";
 
-  interface Props {
+  interface Section {
+    title?: string;
     files: readonly FileEntry[];
+  }
+
+  interface Props {
+    sections: readonly Section[];
     selected?: string | null;
+    empty?: string;
     onselect?: (path: string) => void;
   }
 
-  let { files, selected = null, onselect }: Props = $props();
+  let { sections, selected = null, empty, onselect }: Props = $props();
 
   const BUFFER_ROWS = 10;
 
@@ -20,12 +26,27 @@
   let scrollTop = $state(0);
   let viewportHeight = $state(0);
 
-  const shown = $derived(sortFiles(files.filter((f) => matchesMask(f.path, mask)), sort));
+  type Row = { kind: "header"; title: string } | { kind: "file"; file: FileEntry };
+
+  const total = $derived(sections.reduce((n, s) => n + s.files.length, 0));
+  const shown = $derived.by(() => {
+    const rows: Row[] = [];
+    for (const section of sections) {
+      const kept = sortFiles(
+        section.files.filter((f) => matchesMask(f.path, mask)),
+        sort,
+      );
+      if (kept.length === 0) continue;
+      if (section.title) rows.push({ kind: "header", title: `${section.title} (${kept.length})` });
+      for (const file of kept) rows.push({ kind: "file", file });
+    }
+    return rows;
+  });
   const range = $derived(
     visibleRange(scrollTop, viewportHeight, GRAPH.rowHeight, shown.length, BUFFER_ROWS),
   );
   const visible = $derived(
-    shown.slice(range.start, range.end).map((file, index) => ({ file, row: range.start + index })),
+    shown.slice(range.start, range.end).map((row, index) => ({ row, at: range.start + index })),
   );
 
   function directory(path: string): string {
@@ -59,8 +80,8 @@
     </select>
   </div>
 
-  {#if files.length === 0}
-    <p class="message">Select a commit to see the files it changed.</p>
+  {#if total === 0}
+    <p class="message">{empty ?? "Nothing to show."}</p>
   {:else if shown.length === 0}
     <p class="message">No file matches “{mask}”.</p>
   {:else}
@@ -70,23 +91,24 @@
       onscroll={() => scroller && (scrollTop = scroller.scrollTop)}
     >
       <div class="rows" style:height="{shown.length * GRAPH.rowHeight}px">
-        {#each visible as item (item.file.path)}
-          <button
-            type="button"
-            class="row {item.file.status}"
-            class:selected={selected === item.file.path}
-            style:top="{item.row * GRAPH.rowHeight}px"
-            title={item.file.oldPath
-              ? `${item.file.oldPath} → ${item.file.path}`
-              : item.file.path}
-            onclick={() => onselect?.(item.file.path)}
-          >
-            <span class="badge" aria-label={statusLabel(item.file.status)}
-              >{statusBadge(item.file.status)}</span
+        {#each visible as item (item.at)}
+          {#if item.row.kind === "header"}
+            <div class="section" style:top="{item.at * GRAPH.rowHeight}px">{item.row.title}</div>
+          {:else}
+            {@const file = item.row.file}
+            <button
+              type="button"
+              class="row {file.status}"
+              class:selected={selected === file.path}
+              style:top="{item.at * GRAPH.rowHeight}px"
+              title={file.oldPath ? `${file.oldPath} → ${file.path}` : file.path}
+              onclick={() => onselect?.(file.path)}
             >
-            <span class="name truncate">{fileName(item.file.path)}</span>
-            <span class="dir truncate">{directory(item.file.path)}</span>
-          </button>
+              <span class="badge" aria-label={statusLabel(file.status)}>{statusBadge(file.status)}</span>
+              <span class="name truncate">{fileName(file.path)}</span>
+              <span class="dir truncate">{directory(file.path)}</span>
+            </button>
+          {/if}
         {/each}
       </div>
     </div>
@@ -163,6 +185,22 @@
     background: var(--state-selected);
   }
 
+  .section {
+    position: absolute;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    height: 22px;
+    padding: 0 var(--sp-5);
+    background: var(--surface-raised);
+    color: var(--text-secondary);
+    font-size: var(--fs-header);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
   .badge {
     flex: 0 0 auto;
     width: 12px;
@@ -186,6 +224,15 @@
   .row.renamed .badge,
   .row.copied .badge {
     color: var(--status-ref);
+  }
+
+  .row.untracked .badge {
+    color: var(--text-secondary);
+  }
+
+  .row.conflicted .badge {
+    color: var(--status-delete);
+    background: var(--c-deleted-bg, rgb(90 40 40 / 45%));
   }
 
   .name {

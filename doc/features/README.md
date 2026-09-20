@@ -24,5 +24,6 @@
 | F-018 | Фильтр истории | [F-018-history-filter.md](F-018-history-filter.md) |
 | F-019 | Логи в файл | [F-019-logging.md](F-019-logging.md) |
 | F-020 | Автономный exe | [F-020-standalone-exe.md](F-020-standalone-exe.md) |
+| F-021 | Файлы рабочего дерева | [F-021-worktree-files.md](F-021-worktree-files.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.
