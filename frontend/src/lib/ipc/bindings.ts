@@ -15,6 +15,7 @@ export const commands = {
 	stagePaths: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("stage_paths", { repo, paths })),
 	unstagePaths: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("unstage_paths", { repo, paths })),
 	discardPaths: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("discard_paths", { repo, paths })),
+	commit: (repo: RepoId, request: CommitRequest) => typedError<string, GitError>(__TAURI_INVOKE("commit", { repo, request })),
 };
 
 /* Types */
@@ -53,6 +54,12 @@ export type CommitQuery = {
 	since?: number | null,
 	until?: number | null,
 	path?: string | null,
+};
+
+export type CommitRequest = {
+	message: string,
+	amend: boolean,
+	noVerify: boolean,
 };
 
 export type CommitRow = {

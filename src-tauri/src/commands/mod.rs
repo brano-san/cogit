@@ -1,6 +1,8 @@
 use app_state::{DEFAULT_CHUNK_SIZE, GraphChunk, RepoId, RepoSummary};
 use diff_engine::{DiffOptions, FileDiff};
-use git_engine::{CommitDetails, CommitQuery, DiffSpec, FileEntry, GitError, WorktreeFiles};
+use git_engine::{
+    CommitDetails, CommitQuery, CommitRequest, DiffSpec, FileEntry, GitError, WorktreeFiles,
+};
 use serde::Serialize;
 use std::path::PathBuf;
 
@@ -176,3 +178,19 @@ macro_rules! path_command {
 path_command!(stage_paths, stage_paths);
 path_command!(unstage_paths, unstage_paths);
 path_command!(discard_paths, discard_paths);
+
+#[tauri::command]
+#[specta::specta]
+pub async fn commit(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    request: CommitRequest,
+) -> Result<String, GitError> {
+    let app_state = state.state.clone();
+    let oid = tokio::task::spawn_blocking(move || app_state.commit(repo, &request))
+        .await
+        .map_err(|err| GitError::Internal(format!("commit task failed: {err}")))??;
+
+    tracing::info!(repo = repo.0, oid = %oid, "commit created");
+    Ok(oid)
+}

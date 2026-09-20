@@ -31,7 +31,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
         commands::worktree_files,
         commands::stage_paths,
         commands::unstage_paths,
-        commands::discard_paths
+        commands::discard_paths,
+        commands::commit
     ])
 }
 

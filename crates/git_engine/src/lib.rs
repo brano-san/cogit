@@ -1,5 +1,6 @@
 mod blobs;
 mod commit;
+mod commit_write;
 mod error;
 mod history;
 mod repo;
@@ -12,6 +13,7 @@ mod worktree;
 
 pub use blobs::{DiffSides, DiffSpec};
 pub use commit::{CommitDetails, FileEntry, FileStatus, Signature};
+pub use commit_write::CommitRequest;
 pub use error::{GitCommandError, GitError};
 pub use history::CommitRow;
 pub use repo::{Branch, BranchKind, Head, RepoHandle, Tag};

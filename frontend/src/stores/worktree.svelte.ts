@@ -1,5 +1,6 @@
 import {
   CogitError,
+  createCommit,
   discardPaths,
   stagePaths,
   unstagePaths,
@@ -64,6 +65,12 @@ class WorktreeStore {
       return;
     }
     await this.load(repo);
+  }
+
+  async commit(repo: RepoId, message: string, amend: boolean, noVerify: boolean): Promise<void> {
+    await this.mutate(repo, () =>
+      createCommit(repo, { message, amend, noVerify }),
+    );
   }
 
   clear(): void {

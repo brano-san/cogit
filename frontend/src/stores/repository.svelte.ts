@@ -35,6 +35,12 @@ class RepositoryStore {
     }
   }
 
+  /** Re-reads HEAD, branches and status after a mutation, keeping the same path. */
+  async refresh(): Promise<void> {
+    const root = this.current?.root;
+    if (root) await this.open(root);
+  }
+
   close(): void {
     this.current = null;
     this.error = null;

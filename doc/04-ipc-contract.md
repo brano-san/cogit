@@ -207,7 +207,7 @@ snake_case и читаются на фронтенде как `undefined`.
 | `worktree_files` | `repo` | `WorktreeFiles` | M6 |
 | `stage_hunk` | `repo, patch: String` | `()` | M6 |
 | `discard_paths` | `repo, paths` | `()` | M6 |
-| `commit` | `repo, message, amend: bool, no_verify: bool` | `String` (oid) | M6 |
+| `commit` | `repo, request: CommitRequest { message, amend, noVerify }` | `String` (oid) | M6 |
 | `checkout` | `repo, target: CheckoutTarget` | `()` | M5 |
 | `create_branch` / `delete_branch` | `repo, ...` | `()` | M5 |
 | `merge` / `rebase` / `cherry_pick` / `revert` | `repo, ...` | `()` | M5 |

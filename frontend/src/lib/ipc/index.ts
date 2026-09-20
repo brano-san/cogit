@@ -1,7 +1,15 @@
 import { Channel } from "@tauri-apps/api/core";
 
 import { commands } from "./bindings";
-import type { CommitQuery, DiffOptions, DiffSpec, GitError, GraphChunk, RepoId } from "./bindings";
+import type {
+  CommitQuery,
+  CommitRequest,
+  DiffOptions,
+  DiffSpec,
+  GitError,
+  GraphChunk,
+  RepoId,
+} from "./bindings";
 
 export type {
   AppInfo,
@@ -10,6 +18,7 @@ export type {
   Algorithm,
   CommitDetails,
   CommitQuery,
+  CommitRequest,
   CommitRow,
   DiffOptions,
   DiffRow,
@@ -139,6 +148,10 @@ export async function unstagePaths(repo: RepoId, paths: string[]) {
 
 export async function discardPaths(repo: RepoId, paths: string[]) {
   return unwrap(await commands.discardPaths(repo, paths));
+}
+
+export async function createCommit(repo: RepoId, request: CommitRequest) {
+  return unwrap(await commands.commit(repo, request));
 }
 
 function unwrap<T>(result: { status: "ok"; data: T } | { status: "error"; error: GitError }): T {

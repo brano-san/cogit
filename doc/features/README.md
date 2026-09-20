@@ -27,5 +27,8 @@
 | F-021 | Файлы рабочего дерева | [F-021-worktree-files.md](F-021-worktree-files.md) |
 | F-022 | Stage и Unstage | [F-022-stage-unstage.md](F-022-stage-unstage.md) |
 | F-023 | Discard | [F-023-discard.md](F-023-discard.md) |
+| F-024 | Коммит | [F-024-commit.md](F-024-commit.md) |
+| F-025 | Amend и no-verify | [F-025-commit-amend.md](F-025-commit-amend.md) |
+| F-026 | Черновик сообщения | [F-026-commit-draft.md](F-026-commit-draft.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.

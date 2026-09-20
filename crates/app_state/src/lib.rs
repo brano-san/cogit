@@ -285,6 +285,14 @@ impl AppState {
         self.handle(repo)?.discard(paths)
     }
 
+    pub fn commit(
+        &self,
+        repo: RepoId,
+        request: &git_engine::CommitRequest,
+    ) -> Result<String, git_engine::GitError> {
+        self.handle(repo)?.commit(request)
+    }
+
     fn handle(&self, repo: RepoId) -> Result<git_engine::RepoHandle, git_engine::GitError> {
         let open = self
             .get(repo)
