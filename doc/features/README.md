@@ -148,6 +148,8 @@
 | F-142 | Добавление и удаление worktree | [F-142-worktree-manage.md](F-142-worktree-manage.md) |
 | F-143 | Переключение вместо already checked out | [F-143-worktree-switch.md](F-143-worktree-switch.md) |
 | F-144 | Группы репозиториев | [F-144-repo-groups.md](F-144-repo-groups.md) |
+| F-145 | Команда проверки на паузах rebase | [F-145-rebase-check.md](F-145-rebase-check.md) |
+| F-146 | Провал проверки ничего не отменяет | [F-146-check-never-aborts.md](F-146-check-never-aborts.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.
 

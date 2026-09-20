@@ -110,6 +110,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::undo_entry,
             commands::stash_contents,
             commands::stash_selection,
+            commands::run_check,
             commands::worktrees,
             commands::worktree_holding,
             commands::add_worktree,

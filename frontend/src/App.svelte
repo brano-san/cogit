@@ -70,6 +70,7 @@
     listRemotes,
     onMenuCommand,
     openInTerminal,
+    runCheck,
     terminalChoices,
     openRepository,
     reportTiming,
@@ -143,6 +144,10 @@
   let repoTarget = $state.raw<import("$lib/ipc").RepoOverview | null>(null);
   let terminals = $state.raw<{ id: string; label: string }[]>([]);
   let groupTarget = $state<string | null>(null);
+  /** Remembered per repository: a check command is worth typing once, not once per pause. */
+  let checkCommand = $state("");
+  let checkVerdict = $state.raw<import("$lib/ipc").HookRun | null>(null);
+  let checking = $state(false);
   let markedRepos = $state.raw<string[]>([]);
   let bulk = $state.raw<import("$lib/operations").BulkProgress | undefined>(undefined);
   let journalOpen = $state(false);
@@ -1453,6 +1458,23 @@ Log: ${info?.logPath ?? ""}`),
     return names.includes("origin") ? "origin" : (names[0] ?? null);
   }
 
+  /** The verdict is information. Nothing is aborted, continued or skipped on its account. */
+  async function runPauseCheck() {
+    const id = repo?.repo;
+    if (!id || checkCommand.trim() === "") return;
+    checking = true;
+    try {
+      checkVerdict = await runCheck(id, checkCommand);
+    } catch (err) {
+      checkVerdict = null;
+      errors.report(err as never);
+    } finally {
+      checking = false;
+      await output.refresh();
+      await output.refreshProblems();
+    }
+  }
+
   function askAddGroup() {
     prompt = {
       title: "Add a group",
@@ -1945,6 +1967,11 @@ Log: ${info?.logPath ?? ""}`),
             {/snippet}
             <GraphPanel
               {progress}
+              check={checkCommand}
+              oncheck={(command) => (checkCommand = command)}
+              onruncheck={() => void runPauseCheck()}
+              verdict={checkVerdict}
+              {checking}
               ondrop={onCommitDrop}
               oncontext={(oid, x, y) => void commitContext(oid, x, y)}
               onref={(text) => (refFilter = text)}

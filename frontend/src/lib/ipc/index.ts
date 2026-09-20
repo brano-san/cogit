@@ -273,6 +273,10 @@ export async function safetyLog() {
   return await commands.safetyLog();
 }
 
+export async function runCheck(repo: RepoId, command: string) {
+  return unwrap(await commands.runCheck(repo, command));
+}
+
 export async function listWorktrees(repo: RepoId) {
   return unwrap(await commands.worktrees(repo));
 }
