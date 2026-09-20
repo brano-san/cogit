@@ -44,3 +44,38 @@ export function branchMenu(at: { isHead: boolean; hasUpstream: boolean }): Conte
     item("delete-branch", "Delete this branch", !at.isHead),
   ];
 }
+
+/** One menu for the whole References tree: the node kind decides what is on offer. */
+export function refMenu(at: {
+  kind: string;
+  isHead: boolean;
+  hasUpstream: boolean;
+}): ContextItem[] {
+  switch (at.kind) {
+    case "local":
+    case "remote":
+      return branchMenu({ isHead: at.isHead, hasUpstream: at.hasUpstream });
+    case "tag":
+      return [
+        item("checkout-tag", "Check out this tag"),
+        item("delete-tag", "Delete this tag"),
+        SEPARATOR,
+        item("copy-sha", "Copy the full SHA"),
+      ];
+    case "stash":
+      return [
+        item("apply-stash", "Apply this stash"),
+        item("pop-stash", "Pop this stash"),
+        SEPARATOR,
+        item("drop-stash", "Drop this stash"),
+      ];
+    case "lost":
+      return [
+        item("restore-lost", "Create a branch here"),
+        SEPARATOR,
+        item("copy-sha", "Copy the full SHA"),
+      ];
+    default:
+      return [];
+  }
+}

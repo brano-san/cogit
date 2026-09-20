@@ -125,5 +125,7 @@
 | F-119 | Сортировка файлов кнопками | [F-119-file-sort-buttons.md](F-119-file-sort-buttons.md) |
 | F-120 | Переключатели вида файлов | [F-120-file-view-toggles.md](F-120-file-view-toggles.md) |
 | F-121 | Раздельные списки Unstaged и Staged | [F-121-files-split.md](F-121-files-split.md) |
+| F-122 | Дерево ссылок с чекбоксами | [F-122-ref-tree.md](F-122-ref-tree.md) |
+| F-123 | Контекстное меню дерева ссылок | [F-123-ref-tree-context.md](F-123-ref-tree-context.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.

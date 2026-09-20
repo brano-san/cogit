@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { commitMenu, fileMenu, branchMenu } from "./context-menu";
+import { commitMenu, fileMenu, branchMenu, refMenu } from "./context-menu";
 
 describe("commitMenu", () => {
   const items = commitMenu({ onRemote: false });
@@ -77,5 +77,45 @@ describe("branchMenu", () => {
     expect(
       branchMenu({ isHead: true, hasUpstream: true }).find((e) => e.id === "pull")?.enabled,
     ).toBe(true);
+  });
+});
+
+describe("refMenu", () => {
+  const ids = (items: ReturnType<typeof refMenu>) =>
+    items.filter((entry) => !entry.separator).map((entry) => entry.id);
+
+  it("offers branch actions for a local branch", () => {
+    const menu = refMenu({ kind: "local", isHead: false, hasUpstream: true });
+    expect(ids(menu)).toContain("checkout");
+    expect(ids(menu)).toContain("delete-branch");
+  });
+
+  it("offers a tag its own actions, not a branch's", () => {
+    const menu = refMenu({ kind: "tag", isHead: false, hasUpstream: false });
+    expect(ids(menu)).toEqual(["checkout-tag", "delete-tag", "copy-sha"]);
+  });
+
+  it("offers a stash apply, pop and drop", () => {
+    expect(ids(refMenu({ kind: "stash", isHead: false, hasUpstream: false }))).toEqual([
+      "apply-stash",
+      "pop-stash",
+      "drop-stash",
+    ]);
+  });
+
+  it("offers a lost commit the way back", () => {
+    expect(ids(refMenu({ kind: "lost", isHead: false, hasUpstream: false }))).toEqual([
+      "restore-lost",
+      "copy-sha",
+    ]);
+  });
+
+  it("has nothing to offer for a heading", () => {
+    expect(refMenu({ kind: "group", isHead: false, hasUpstream: false })).toEqual([]);
+  });
+
+  it("cannot check out the branch that is already checked out", () => {
+    const menu = refMenu({ kind: "local", isHead: true, hasUpstream: true });
+    expect(menu.find((entry) => entry.id === "checkout")?.enabled).toBe(false);
   });
 });

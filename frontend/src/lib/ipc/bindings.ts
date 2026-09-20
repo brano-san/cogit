@@ -183,6 +183,8 @@ export type CommitQuery = {
 	since?: number | null,
 	until?: number | null,
 	path?: string | null,
+	/**  Revisions the References panel has ticked. Empty means every ref, as before. */
+	tips?: string[],
 };
 
 export type CommitRequest = {

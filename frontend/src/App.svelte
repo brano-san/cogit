@@ -1,7 +1,7 @@
 <script lang="ts">
   import { ask, open as openFolderDialog } from "@tauri-apps/plugin-dialog";
 
-  import BranchList from "$components/branch-tree/BranchList.svelte";
+  import RefTree from "$components/branch-tree/RefTree.svelte";
   import BlameView from "$components/diff/BlameView.svelte";
   import DiffView from "$components/diff/DiffView.svelte";
   import ConflictView from "$components/diff/ConflictView.svelte";
@@ -25,9 +25,6 @@
   import Splitter from "$components/layout/Splitter.svelte";
   import StatusBar from "$components/layout/StatusBar.svelte";
   import Toolbar from "$components/layout/Toolbar.svelte";
-  import LostCommits from "$components/branch-tree/LostCommits.svelte";
-  import StashList from "$components/branch-tree/StashList.svelte";
-  import TagList from "$components/branch-tree/TagList.svelte";
   import RepositoryList from "$components/repo-tree/RepositoryList.svelte";
   import ScanDialog from "$components/repo-tree/ScanDialog.svelte";
   import SubmoduleList from "$components/repo-tree/SubmoduleList.svelte";
@@ -37,7 +34,7 @@
   import { commitScope } from "$lib/commit-scope";
   import { activity, applyOperation } from "$lib/operations";
   import { measurer } from "$lib/timing";
-  import { commitMenu } from "$lib/context-menu";
+  import { commitMenu, refMenu } from "$lib/context-menu";
   import { compareUrl } from "$lib/compare-params";
   import { dropActions, type DropAction, type DragPayload } from "$lib/drop-target";
   import { moveEntry } from "$lib/rebase-plan";
@@ -103,6 +100,8 @@
   import { repository } from "$stores/repository.svelte";
   import { filesView } from "$stores/files-view.svelte";
   import { scan } from "$stores/scan.svelte";
+  import { refs } from "$stores/refs.svelte";
+  import { buildRefTree, visibleTips, type RefNode } from "$lib/ref-nodes";
 
   /** Settings the open diff was computed with: changing one has to re-run it. */
   const REDIFF: readonly (keyof Settings)[] = [
@@ -617,6 +616,45 @@ Log: ${info?.logPath ?? ""}`),
     void graph.load(id, graph.query);
   }
 
+  const refTreeInput = $derived({
+    head: repo?.head,
+    branches: repo?.branches ?? [],
+    tags: repo?.tags ?? [],
+    stashes: stashes.entries,
+    lost: recovery.lost,
+    remoteUrls: refs.urls,
+    collapsed: refs.collapsed,
+    filter: refFilter,
+  });
+
+  /** Ticking a box changes which tips the walk starts from, so the graph is rebuilt. */
+  async function reloadGraph() {
+    const id = repo?.repo;
+    if (!id) return;
+    const watch = measure("reload-graph");
+    const nodes = buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() });
+    await graph.load(id, { ...graph.query, tips: visibleTips(nodes, refs.visible) });
+    watch.stop(`${graph.rows.length} commits`);
+  }
+
+  /** A click on the text selects the ref and points the graph at its tip. */
+  function selectRef(node: RefNode) {
+    const id = repo?.repo;
+    if (!id || !node.oid) return;
+    void commit.select(id, node.oid);
+  }
+
+  function activateRef(node: RefNode) {
+    if (node.kind === "stash") void applyStash(Number(node.id.slice("stash:".length)), false);
+    else if (node.kind === "tag") {
+      const found = repo?.tags.find((tag) => tag.name === node.label);
+      if (found) void checkoutTag(found);
+    } else if (node.kind === "lost" && node.oid) {
+      const found = recovery.lost.find((row) => row.oid === node.oid);
+      if (found) void recoverCommit(found);
+    }
+  }
+
   async function switchTo(branch: Branch) {
     const id = repository.current?.repo;
     if (!id) return;
@@ -942,11 +980,14 @@ Log: ${info?.logPath ?? ""}`),
     recovery.clear();
     submodules.clear();
     conflicts.clear();
+    refs.clear();
     const watch = measure("open-repository");
     await repository.open(root);
     const opened = repository.current;
     if (opened) {
-      void graph.load(opened.repo);
+      refs.adopt(opened.root, buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() }));
+      void reloadGraph();
+      void refs.loadUrls(opened.repo);
       await repository.refreshList();
       await afterMutation();
     } else {
@@ -1135,6 +1176,67 @@ Log: ${info?.logPath ?? ""}`),
     await popupContextMenu(commitMenu({ onRemote }), x, y).catch(() => {});
   }
 
+  /** The chosen item comes back through the same `menu-command` event as the menu bar,
+      so the node it was opened on has to be remembered until then. */
+  let refTarget = $state.raw<RefNode | null>(null);
+
+  async function refContext(node: RefNode, x: number, y: number) {
+    const items = refMenu({
+      kind: node.kind,
+      isHead: node.branch?.isHead ?? false,
+      hasUpstream: node.branch?.upstream !== null && node.branch?.upstream !== undefined,
+    });
+    if (items.length === 0) return;
+    refTarget = node;
+    await popupContextMenu(items, x, y).catch(() => {});
+  }
+
+  /** Returns true when the id belonged to the References tree and was handled here. */
+  function runRefCommand(id: string): boolean {
+    const node = refTarget;
+    if (!node) return false;
+    const branch = node.branch;
+
+    switch (id) {
+      case "checkout":
+        if (branch) void switchTo(branch);
+        return true;
+      case "delete-branch":
+        if (branch) void removeBranch(branch);
+        return true;
+      case "merge-branch":
+        if (branch) void mergeBranch(branch);
+        return true;
+      case "rebase-branch":
+        if (branch) void rebaseOntoBranch(branch);
+        return true;
+      case "checkout-tag":
+      case "delete-tag": {
+        const tag = repo?.tags.find((entry) => entry.name === node.label);
+        if (tag) void (id === "checkout-tag" ? checkoutTag(tag) : removeTag(tag));
+        return true;
+      }
+      case "apply-stash":
+      case "pop-stash":
+      case "drop-stash": {
+        const index = Number(node.id.slice("stash:".length));
+        if (id === "drop-stash") void dropStash(index);
+        else void applyStash(index, id === "pop-stash");
+        return true;
+      }
+      case "restore-lost": {
+        const found = recovery.lost.find((row) => row.oid === node.oid);
+        if (found) void recoverCommit(found);
+        return true;
+      }
+      case "copy-sha":
+        if (node.oid) void copyText(node.oid);
+        return true;
+      default:
+        return false;
+    }
+  }
+
   async function openSplit() {
     const id = repository.current?.repo;
     const rev = commit.oid;
@@ -1250,6 +1352,7 @@ Log: ${info?.logPath ?? ""}`),
 
   $effect(() => {
     const pending = onMenuCommand((id) => {
+      if (runRefCommand(id)) return;
       const command = palette.find((entry) => entry.id === id);
       if (command && !command.unavailable) runCommand(command);
     });
@@ -1353,35 +1456,26 @@ Log: ${info?.logPath ?? ""}`),
                 class="ref-filter"
                 type="search"
                 bind:value={refFilter}
-                placeholder="Filter refs"
+                placeholder="Filter refs or oid"
                 aria-label="Filter references"
               />
             {/if}
           {/snippet}
           {#if repo}
-            {#if repo.branches.length === 0}
-              <p class="note">No branches yet — the first commit creates one.</p>
-            {:else}
-              <BranchList
-                title="Local Branches"
-                branches={repository.localBranches}
-                oncheckout={switchTo}
-                ondelete={removeBranch}
-                onmerge={mergeBranch}
-                onrebase={rebaseOntoBranch}
-                ondrop={onBranchDrop}
-                filter={refFilter}
-              />
-              <BranchList
-                title="Remote"
-                branches={repository.remoteBranches}
-                oncheckout={switchTo}
-                filter={refFilter}
-              />
-              <TagList tags={repo.tags} oncheckout={checkoutTag} ondelete={removeTag} />
-              <StashList stashes={stashes.entries} onapply={applyStash} ondrop={dropStash} />
-              <LostCommits commits={recovery.lost} onrestore={recoverCommit} />
-            {/if}
+            <RefTree
+              input={refTreeInput}
+              visible={refs.visible}
+              onvisible={(next) => {
+                refs.set(next);
+                void reloadGraph();
+              }}
+              oncollapse={(id) => refs.collapse(id)}
+              onselect={selectRef}
+              oncheckout={switchTo}
+              onactivate={activateRef}
+              oncontext={(node, x, y) => void refContext(node, x, y)}
+              ondrop={onBranchDrop}
+            />
           {/if}
         </Panel>
       </div>
