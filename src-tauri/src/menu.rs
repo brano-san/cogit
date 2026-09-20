@@ -74,6 +74,7 @@ const QUERY: &[Entry] = &[
 const TOOLS: &[Entry] = &[
     Entry::Item("hooks", "Manage Hooks…", None),
     Entry::Separator,
+    Entry::Item("reveal-log", "Reveal Log File", None),
     Entry::Item("copy-pr", "Copy Pull Request Link", None),
 ];
 

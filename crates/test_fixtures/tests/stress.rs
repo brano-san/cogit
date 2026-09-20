@@ -83,3 +83,24 @@ fn report_fixture_timings() {
         stress(10_000).unwrap();
     });
 }
+
+#[test]
+fn wide_has_the_requested_number_of_files() {
+    let f = test_fixtures::wide(300).unwrap();
+    let listed = f.git(&["ls-files"]).unwrap();
+    assert_eq!(listed.lines().count(), 300);
+}
+
+#[test]
+fn wide_ends_with_a_commit_touching_one_file() {
+    let f = test_fixtures::wide(50).unwrap();
+    let changed = f.git(&["diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"]);
+    assert_eq!(changed.unwrap().lines().count(), 1);
+}
+
+#[test]
+fn wide_is_deterministic() {
+    let a = test_fixtures::wide(20).unwrap();
+    let b = test_fixtures::wide(20).unwrap();
+    assert_eq!(a.oid("HEAD").unwrap(), b.oid("HEAD").unwrap());
+}

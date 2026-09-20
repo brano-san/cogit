@@ -108,3 +108,14 @@ fn the_log_is_capped_and_keeps_at_most_two_archives() {
         "{total} bytes after writing {written}"
     );
 }
+
+#[test]
+fn the_profile_target_survives_a_quiet_log_level() {
+    for level in ["error", "warn", "info", "debug", "trace"] {
+        let filter = log_filter(Some(level));
+        assert!(
+            filter.contains("cogit::profile=info"),
+            "a day of profiling must survive {level}: {filter}"
+        );
+    }
+}

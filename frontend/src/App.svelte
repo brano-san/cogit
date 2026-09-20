@@ -35,6 +35,7 @@
   import { pullRequestUrl } from "$lib/pull-request";
   import { commitScope } from "$lib/commit-scope";
   import { activity, applyOperation } from "$lib/operations";
+  import { measurer } from "$lib/timing";
   import { commitMenu } from "$lib/context-menu";
   import { compareUrl } from "$lib/compare-params";
   import { dropActions, type DropAction, type DragPayload } from "$lib/drop-target";
@@ -64,6 +65,7 @@
     mergeInto,
     stageSelection,
     onMenuCommand,
+    reportTiming,
     commitTemplate,
     stageMode,
     onOperationChanged,
@@ -113,6 +115,8 @@
     files: "Files",
     diff: "Diff",
   };
+
+  const measure = measurer((label, ms, detail) => void reportTiming(label, ms, detail));
 
   /** Maximising acts on the panel the pointer last entered; there is no focus ring yet. */
   let focused = $state<PanelId>("graph");
@@ -377,6 +381,13 @@ Log: ${info?.logPath ?? ""}`),
         synonyms: ["merge request", "pr", "mr"],
         unavailable: prUrl ? undefined : "No GitHub, GitLab or Bitbucket remote",
         run: () => void openPullRequest(),
+      },
+      {
+        id: "reveal-log",
+        title: "Reveal Log File",
+        synonyms: ["profiling", "diagnostics", "performance"],
+        unavailable: info?.logPath ? undefined : "The log path is not known yet",
+        run: () => void revealLog(),
       },
       {
         id: "copy-pr",
@@ -903,7 +914,8 @@ Log: ${info?.logPath ?? ""}`),
       return;
     }
     conflicts.close();
-    void diff.load(id, { kind: "workTreeVsIndex" }, path);
+    const watch = measure("open-diff");
+    void diff.load(id, { kind: "workTreeVsIndex" }, path).then(() => watch.stop(path));
   }
 
   async function activate(root: string) {
@@ -916,6 +928,7 @@ Log: ${info?.logPath ?? ""}`),
     recovery.clear();
     submodules.clear();
     conflicts.clear();
+    const watch = measure("open-repository");
     await repository.open(root);
     const opened = repository.current;
     if (opened) {
@@ -925,6 +938,7 @@ Log: ${info?.logPath ?? ""}`),
     } else {
       graph.clear();
     }
+    watch.stop(`${repository.current?.branches.length ?? 0} refs`);
   }
 
   async function closeOne(entry: import("$lib/ipc").RepoOverview) {
@@ -1131,6 +1145,14 @@ Log: ${info?.logPath ?? ""}`),
       splitBusy = false;
     }
     await afterMutation();
+  }
+
+  /** The profile log is the answer to "why was that slow?": it has to be reachable. */
+  async function revealLog() {
+    const path = info?.logPath;
+    if (!path) return;
+    const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
+    await revealItemInDir(path).catch(() => errors.report({ kind: "internal", data: path } as never));
   }
 
   async function pickRepository() {

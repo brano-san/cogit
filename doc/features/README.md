@@ -118,5 +118,8 @@
 | F-112 | Один индикатор активности | [F-112-single-activity.md](F-112-single-activity.md) |
 | F-113 | Галочки в меню View | [F-113-view-checkmarks.md](F-113-view-checkmarks.md) |
 | F-114 | Шорткаты панелей | [F-114-panel-shortcuts.md](F-114-panel-shortcuts.md) |
+| F-115 | Разбор времени сетевых операций | [F-115-network-phases.md](F-115-network-phases.md) |
+| F-116 | Профилирующий лог | [F-116-profile-log.md](F-116-profile-log.md) |
+| F-117 | Открыть папку с логом | [F-117-reveal-log.md](F-117-reveal-log.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.

@@ -15,6 +15,10 @@ const COGIT_CRATES: &[&str] = &[
 ];
 
 const QUIET: &str = "gix=warn,notify=warn,tauri=info";
+
+/// The profiling stream ignores the chosen level: its whole point is that a day of ordinary
+/// use leaves a log worth reading back, whatever the user set.
+const PROFILE: &str = "cogit::profile=info";
 const LEVELS: &[&str] = &["error", "warn", "info", "debug", "trace"];
 
 #[must_use]
@@ -39,6 +43,7 @@ pub fn log_filter(level: Option<&str>) -> String {
         .map(|krate| format!("{krate}={chosen}"))
         .collect();
     parts.push(QUIET.to_owned());
+    parts.push(PROFILE.to_owned());
     parts.join(",")
 }
 

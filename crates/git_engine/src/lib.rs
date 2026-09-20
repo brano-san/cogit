@@ -14,6 +14,7 @@ mod merging;
 mod network;
 mod operations;
 mod overlap;
+pub mod phases;
 mod presets;
 mod progress;
 mod reflog;

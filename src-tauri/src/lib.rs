@@ -1,6 +1,7 @@
 mod commands;
 mod logging;
 mod menu;
+mod profile;
 
 use app_state::AppState;
 use specta_typescript::Typescript;
@@ -104,6 +105,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::resolve_conflict_text,
             commands::find_object,
             commands::set_menu_state,
+            commands::report_timing,
             commands::has_token,
             commands::store_token,
             commands::forget_token,

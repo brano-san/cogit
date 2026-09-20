@@ -21,6 +21,29 @@ pub struct AppInfo {
     pub debug_build: bool,
 }
 
+/// Every blocking command goes through here, so the profile log holds one line per IPC
+/// call: what ran, how long it took and whether it worked.
+async fn blocking<T, F>(label: &'static str, work: F) -> Result<T, GitError>
+where
+    T: Send + 'static,
+    F: FnOnce() -> Result<T, GitError> + Send + 'static,
+{
+    let started = std::time::Instant::now();
+    let joined = tokio::task::spawn_blocking(work)
+        .await
+        .map_err(|err| GitError::Internal(format!("{label} task failed: {err}")))?;
+    crate::profile::call(label, started.elapsed(), joined.is_ok());
+    joined
+}
+
+/// The webview's own clock: how long the user waited between an action and the screen
+/// showing its result. Only the backend half is visible from Rust.
+#[tauri::command]
+#[specta::specta]
+pub fn report_timing(label: String, ms: u32, detail: String) {
+    crate::profile::ui(&label, u64::from(ms), &detail);
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn app_info(state: tauri::State<'_, crate::AppContext>) -> AppInfo {
@@ -41,9 +64,7 @@ pub async fn open_repository(
     let path = PathBuf::from(path);
 
     let started = std::time::Instant::now();
-    let summary = tokio::task::spawn_blocking(move || app_state.open_repository(&path))
-        .await
-        .map_err(|err| GitError::Internal(format!("open_repository task failed: {err}")))??;
+    let summary = blocking("open_repository", move || app_state.open_repository(&path)).await?;
 
     tracing::info!(
         repo = summary.repo.0,
@@ -67,7 +88,7 @@ pub async fn load_commits(
     let app_state = state.state.clone();
     let started = std::time::Instant::now();
 
-    let sent = tokio::task::spawn_blocking(move || {
+    let sent = blocking("load_commits", move || {
         let mut sent = 0_usize;
         let result = app_state.search_graph(repo, &query, DEFAULT_CHUNK_SIZE, |chunk| {
             sent += chunk.commits.len();
@@ -75,8 +96,7 @@ pub async fn load_commits(
         });
         result.map(|()| sent)
     })
-    .await
-    .map_err(|err| GitError::Internal(format!("load_commits task failed: {err}")))??;
+    .await?;
 
     tracing::info!(
         repo = repo.0,
@@ -95,9 +115,10 @@ pub async fn commit_details(
     rev: String,
 ) -> Result<CommitDetails, GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.commit_details(repo, &rev))
-        .await
-        .map_err(|err| GitError::Internal(format!("commit_details task failed: {err}")))?
+    blocking("commit_details", move || {
+        app_state.commit_details(repo, &rev)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -110,9 +131,7 @@ pub async fn commit_files(
     let app_state = state.state.clone();
     let started = std::time::Instant::now();
 
-    let files = tokio::task::spawn_blocking(move || app_state.commit_files(repo, &rev))
-        .await
-        .map_err(|err| GitError::Internal(format!("commit_files task failed: {err}")))??;
+    let files = blocking("commit_files", move || app_state.commit_files(repo, &rev)).await?;
 
     tracing::debug!(
         repo = repo.0,
@@ -136,10 +155,10 @@ pub async fn diff_file(
     let started = std::time::Instant::now();
     let logged = path.clone();
 
-    let diff =
-        tokio::task::spawn_blocking(move || app_state.diff_file(repo, &spec, &path, &options))
-            .await
-            .map_err(|err| GitError::Internal(format!("diff_file task failed: {err}")))??;
+    let diff = blocking("diff_file", move || {
+        app_state.diff_file(repo, &spec, &path, &options)
+    })
+    .await?;
 
     tracing::debug!(
         repo = repo.0,
@@ -157,9 +176,7 @@ pub async fn worktree_files(
     repo: RepoId,
 ) -> Result<WorktreeFiles, GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.worktree_files(repo))
-        .await
-        .map_err(|err| GitError::Internal(format!("worktree_files task failed: {err}")))?
+    blocking("worktree_files", move || app_state.worktree_files(repo)).await
 }
 
 macro_rules! path_command {
@@ -172,11 +189,7 @@ macro_rules! path_command {
             paths: Vec<String>,
         ) -> Result<(), GitError> {
             let app_state = state.state.clone();
-            tokio::task::spawn_blocking(move || app_state.$method(repo, &paths))
-                .await
-                .map_err(|err| {
-                    GitError::Internal(format!(concat!(stringify!($name), " task failed: {}"), err))
-                })?
+            blocking(stringify!($name), move || app_state.$method(repo, &paths)).await
         }
     };
 }
@@ -195,9 +208,7 @@ pub async fn commit(
     request: CommitRequest,
 ) -> Result<String, GitError> {
     let app_state = state.state.clone();
-    let oid = tokio::task::spawn_blocking(move || app_state.commit(repo, &request))
-        .await
-        .map_err(|err| GitError::Internal(format!("commit task failed: {err}")))??;
+    let oid = blocking("commit", move || app_state.commit(repo, &request)).await?;
 
     tracing::info!(repo = repo.0, oid = %oid, "commit created");
     Ok(oid)
@@ -211,9 +222,7 @@ pub async fn checkout(
     target: CheckoutTarget,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.checkout(repo, &target))
-        .await
-        .map_err(|err| GitError::Internal(format!("checkout task failed: {err}")))?
+    blocking("checkout", move || app_state.checkout(repo, &target)).await
 }
 
 #[tauri::command]
@@ -228,11 +237,10 @@ pub async fn create_branch(
     switch_to: bool,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || {
+    blocking("create_branch", move || {
         app_state.create_branch(repo, &name, start.as_deref(), switch_to)
     })
     .await
-    .map_err(|err| GitError::Internal(format!("create_branch task failed: {err}")))?
 }
 
 #[tauri::command]
@@ -244,9 +252,10 @@ pub async fn delete_branch(
     force: bool,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.delete_branch(repo, &name, force))
-        .await
-        .map_err(|err| GitError::Internal(format!("delete_branch task failed: {err}")))?
+    blocking("delete_branch", move || {
+        app_state.delete_branch(repo, &name, force)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -280,9 +289,7 @@ pub async fn undo_last(
     repo: RepoId,
 ) -> Result<SafetyEntry, GitError> {
     let app_state = state.state.clone();
-    let entry = tokio::task::spawn_blocking(move || app_state.undo_last(repo))
-        .await
-        .map_err(|err| GitError::Internal(format!("undo_last task failed: {err}")))??;
+    let entry = blocking("undo_last", move || app_state.undo_last(repo)).await?;
 
     tracing::info!(repo = repo.0, entry = %entry.description, "operation undone");
     Ok(entry)
@@ -295,9 +302,7 @@ pub async fn repo_status(
     repo: RepoId,
 ) -> Result<RepoStatus, GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.repo_status(repo))
-        .await
-        .map_err(|err| GitError::Internal(format!("repo_status task failed: {err}")))?
+    blocking("repo_status", move || app_state.repo_status(repo)).await
 }
 
 macro_rules! repo_command {
@@ -309,11 +314,7 @@ macro_rules! repo_command {
             repo: RepoId,
         ) -> Result<(), GitError> {
             let app_state = state.state.clone();
-            tokio::task::spawn_blocking(move || app_state.$name(repo))
-                .await
-                .map_err(|err| {
-                    GitError::Internal(format!(concat!(stringify!($name), " task failed: {}"), err))
-                })?
+            blocking(stringify!($name), move || app_state.$name(repo)).await
         }
     };
 }
@@ -329,9 +330,7 @@ pub async fn stashes(
     repo: RepoId,
 ) -> Result<Vec<StashEntry>, GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.stashes(repo))
-        .await
-        .map_err(|err| GitError::Internal(format!("stashes task failed: {err}")))?
+    blocking("stashes", move || app_state.stashes(repo)).await
 }
 
 #[tauri::command]
@@ -342,9 +341,7 @@ pub async fn stash_push(
     options: StashOptions,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.stash_push(repo, &options))
-        .await
-        .map_err(|err| GitError::Internal(format!("stash_push task failed: {err}")))?
+    blocking("stash_push", move || app_state.stash_push(repo, &options)).await
 }
 
 #[tauri::command]
@@ -356,9 +353,10 @@ pub async fn stash_apply(
     pop: bool,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.stash_apply(repo, index, pop))
-        .await
-        .map_err(|err| GitError::Internal(format!("stash_apply task failed: {err}")))?
+    blocking("stash_apply", move || {
+        app_state.stash_apply(repo, index, pop)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -369,9 +367,7 @@ pub async fn stash_drop(
     index: u32,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.stash_drop(repo, index))
-        .await
-        .map_err(|err| GitError::Internal(format!("stash_drop task failed: {err}")))?
+    blocking("stash_drop", move || app_state.stash_drop(repo, index)).await
 }
 
 #[tauri::command]
@@ -382,9 +378,7 @@ pub async fn create_tag(
     request: TagRequest,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.create_tag(repo, &request))
-        .await
-        .map_err(|err| GitError::Internal(format!("create_tag task failed: {err}")))?
+    blocking("create_tag", move || app_state.create_tag(repo, &request)).await
 }
 
 #[tauri::command]
@@ -395,9 +389,7 @@ pub async fn delete_tag(
     name: String,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.delete_tag(repo, &name))
-        .await
-        .map_err(|err| GitError::Internal(format!("delete_tag task failed: {err}")))?
+    blocking("delete_tag", move || app_state.delete_tag(repo, &name)).await
 }
 
 #[tauri::command]
@@ -407,9 +399,7 @@ pub async fn remotes(
     repo: RepoId,
 ) -> Result<Vec<String>, GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.remotes(repo))
-        .await
-        .map_err(|err| GitError::Internal(format!("remotes task failed: {err}")))?
+    blocking("remotes", move || app_state.remotes(repo)).await
 }
 
 #[tauri::command]
@@ -421,13 +411,17 @@ pub async fn fetch(
     on_progress: tauri::ipc::Channel<String>,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || {
-        app_state.fetch(repo, &remote, |line| {
+    blocking("fetch", move || {
+        let mut timer = git_engine::phases::PhaseTimer::new();
+        let named = remote.clone();
+        let result = app_state.fetch(repo, &remote, |line| {
+            timer.observe(line);
             let _ = on_progress.send(line.to_owned());
-        })
+        });
+        crate::profile::network("fetch", &named, timer, result.is_ok());
+        result
     })
     .await
-    .map_err(|err| GitError::Internal(format!("fetch task failed: {err}")))?
 }
 
 #[tauri::command]
@@ -440,13 +434,17 @@ pub async fn pull(
     on_progress: tauri::ipc::Channel<String>,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || {
-        app_state.pull(repo, &remote, ff_only, |line| {
+    blocking("pull", move || {
+        let mut timer = git_engine::phases::PhaseTimer::new();
+        let named = remote.clone();
+        let result = app_state.pull(repo, &remote, ff_only, |line| {
+            timer.observe(line);
             let _ = on_progress.send(line.to_owned());
-        })
+        });
+        crate::profile::network("pull", &named, timer, result.is_ok());
+        result
     })
     .await
-    .map_err(|err| GitError::Internal(format!("pull task failed: {err}")))?
 }
 
 #[tauri::command]
@@ -459,13 +457,17 @@ pub async fn push(
     on_progress: tauri::ipc::Channel<String>,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || {
-        app_state.push(repo, &remote, force, |line| {
+    blocking("push", move || {
+        let mut timer = git_engine::phases::PhaseTimer::new();
+        let named = remote.clone();
+        let result = app_state.push(repo, &remote, force, |line| {
+            timer.observe(line);
             let _ = on_progress.send(line.to_owned());
-        })
+        });
+        crate::profile::network("push", &named, timer, result.is_ok());
+        result
     })
     .await
-    .map_err(|err| GitError::Internal(format!("push task failed: {err}")))?
 }
 
 #[tauri::command]
@@ -476,9 +478,7 @@ pub async fn merge(
     options: MergeOptions,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.merge(repo, &options))
-        .await
-        .map_err(|err| GitError::Internal(format!("merge task failed: {err}")))?
+    blocking("merge", move || app_state.merge(repo, &options)).await
 }
 
 #[tauri::command]
@@ -489,9 +489,7 @@ pub async fn rebase(
     options: RebaseOptions,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.rebase(repo, &options))
-        .await
-        .map_err(|err| GitError::Internal(format!("rebase task failed: {err}")))?
+    blocking("rebase", move || app_state.rebase(repo, &options)).await
 }
 
 macro_rules! replay_command {
@@ -504,11 +502,7 @@ macro_rules! replay_command {
             commits: Vec<String>,
         ) -> Result<(), GitError> {
             let app_state = state.state.clone();
-            tokio::task::spawn_blocking(move || app_state.$name(repo, &commits))
-                .await
-                .map_err(|err| {
-                    GitError::Internal(format!(concat!(stringify!($name), " task failed: {}"), err))
-                })?
+            blocking(stringify!($name), move || app_state.$name(repo, &commits)).await
         }
     };
 }
@@ -524,9 +518,7 @@ pub async fn reflog(
     limit: u32,
 ) -> Result<Vec<ReflogEntry>, GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.reflog(repo, limit))
-        .await
-        .map_err(|err| GitError::Internal(format!("reflog task failed: {err}")))?
+    blocking("reflog", move || app_state.reflog(repo, limit)).await
 }
 
 #[tauri::command]
@@ -537,9 +529,7 @@ pub async fn lost_commits(
     limit: u32,
 ) -> Result<Vec<CommitRow>, GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.lost_commits(repo, limit))
-        .await
-        .map_err(|err| GitError::Internal(format!("lost_commits task failed: {err}")))?
+    blocking("lost_commits", move || app_state.lost_commits(repo, limit)).await
 }
 
 #[tauri::command]
@@ -561,9 +551,7 @@ pub async fn submodules(
     repo: RepoId,
 ) -> Result<Vec<Submodule>, GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.submodules(repo))
-        .await
-        .map_err(|err| GitError::Internal(format!("submodules task failed: {err}")))?
+    blocking("submodules", move || app_state.submodules(repo)).await
 }
 
 #[tauri::command]
@@ -575,9 +563,10 @@ pub async fn update_submodule(
     init: bool,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.update_submodule(repo, &path, init))
-        .await
-        .map_err(|err| GitError::Internal(format!("update_submodule task failed: {err}")))?
+    blocking("update_submodule", move || {
+        app_state.update_submodule(repo, &path, init)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -589,9 +578,10 @@ pub async fn stage_selection(
     reverse: bool,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.stage_selection(repo, &request, reverse))
-        .await
-        .map_err(|err| GitError::Internal(format!("stage_selection task failed: {err}")))?
+    blocking("stage_selection", move || {
+        app_state.stage_selection(repo, &request, reverse)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -605,9 +595,7 @@ pub async fn blame(
     let app_state = state.state.clone();
     let started = std::time::Instant::now();
 
-    let lines = tokio::task::spawn_blocking(move || app_state.blame(repo, &path, &rev))
-        .await
-        .map_err(|err| GitError::Internal(format!("blame task failed: {err}")))??;
+    let lines = blocking("blame", move || app_state.blame(repo, &path, &rev)).await?;
 
     tracing::debug!(
         repo = repo.0,
@@ -626,9 +614,7 @@ pub async fn remote_url(
     name: String,
 ) -> Result<Option<String>, GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.remote_url(repo, &name))
-        .await
-        .map_err(|err| GitError::Internal(format!("remote_url task failed: {err}")))?
+    blocking("remote_url", move || app_state.remote_url(repo, &name)).await
 }
 
 #[tauri::command]
@@ -640,9 +626,10 @@ pub async fn image_sides(
     path: String,
 ) -> Result<(Option<String>, Option<String>), GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.image_sides(repo, &spec, &path))
-        .await
-        .map_err(|err| GitError::Internal(format!("image_sides task failed: {err}")))?
+    blocking("image_sides", move || {
+        app_state.image_sides(repo, &spec, &path)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -652,9 +639,7 @@ pub async fn conflicted_paths(
     repo: RepoId,
 ) -> Result<Vec<String>, GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.conflicted_paths(repo))
-        .await
-        .map_err(|err| GitError::Internal(format!("conflicted_paths task failed: {err}")))?
+    blocking("conflicted_paths", move || app_state.conflicted_paths(repo)).await
 }
 
 #[tauri::command]
@@ -665,9 +650,10 @@ pub async fn conflict_text(
     path: String,
 ) -> Result<git_engine::ConflictText, GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.conflict_text(repo, &path))
-        .await
-        .map_err(|err| GitError::Internal(format!("conflict_text task failed: {err}")))?
+    blocking("conflict_text", move || {
+        app_state.conflict_text(repo, &path)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -679,9 +665,10 @@ pub async fn resolve_conflict(
     side: ConflictSide,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.resolve_conflict(repo, &path, side))
-        .await
-        .map_err(|err| GitError::Internal(format!("resolve_conflict task failed: {err}")))?
+    blocking("resolve_conflict", move || {
+        app_state.resolve_conflict(repo, &path, side)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -693,9 +680,10 @@ pub async fn resolve_conflict_text(
     text: String,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.resolve_conflict_text(repo, &path, &text))
-        .await
-        .map_err(|err| GitError::Internal(format!("resolve_conflict_text task failed: {err}")))?
+    blocking("resolve_conflict_text", move || {
+        app_state.resolve_conflict_text(repo, &path, &text)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -707,9 +695,7 @@ pub async fn find_object(
     limit: u32,
 ) -> Result<Vec<Found>, GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.find(repo, &query, limit))
-        .await
-        .map_err(|err| GitError::Internal(format!("find_object task failed: {err}")))?
+    blocking("find_object", move || app_state.find(repo, &query, limit)).await
 }
 
 /// Not `async`: touching menu items off the main thread deadlocks on Windows.
@@ -766,9 +752,7 @@ pub async fn list_hooks(
     repo: RepoId,
 ) -> Result<git_engine::HookOverview, GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.hooks(repo))
-        .await
-        .map_err(|err| GitError::Internal(format!("list_hooks task failed: {err}")))?
+    blocking("list_hooks", move || app_state.hooks(repo)).await
 }
 
 #[tauri::command]
@@ -779,9 +763,7 @@ pub async fn read_hook(
     name: String,
 ) -> Result<String, GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.read_hook(repo, &name))
-        .await
-        .map_err(|err| GitError::Internal(format!("read_hook task failed: {err}")))?
+    blocking("read_hook", move || app_state.read_hook(repo, &name)).await
 }
 
 #[tauri::command]
@@ -793,9 +775,10 @@ pub async fn write_hook(
     body: String,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.write_hook(repo, &name, &body))
-        .await
-        .map_err(|err| GitError::Internal(format!("write_hook task failed: {err}")))?
+    blocking("write_hook", move || {
+        app_state.write_hook(repo, &name, &body)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -807,9 +790,10 @@ pub async fn set_hook_enabled(
     enabled: bool,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.set_hook_enabled(repo, &name, enabled))
-        .await
-        .map_err(|err| GitError::Internal(format!("set_hook_enabled task failed: {err}")))?
+    blocking("set_hook_enabled", move || {
+        app_state.set_hook_enabled(repo, &name, enabled)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -820,9 +804,7 @@ pub async fn use_hooks_path(
     path: String,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.adopt_hooks(repo, &path))
-        .await
-        .map_err(|err| GitError::Internal(format!("use_hooks_path task failed: {err}")))?
+    blocking("use_hooks_path", move || app_state.adopt_hooks(repo, &path)).await
 }
 
 #[tauri::command]
@@ -833,9 +815,7 @@ pub async fn run_hook(
     name: String,
 ) -> Result<git_engine::HookRun, GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.run_hook(repo, &name))
-        .await
-        .map_err(|err| GitError::Internal(format!("run_hook task failed: {err}")))?
+    blocking("run_hook", move || app_state.run_hook(repo, &name)).await
 }
 
 #[tauri::command]
@@ -847,9 +827,10 @@ pub async fn rollback_to(
     paths: Vec<String>,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.rollback_to(repo, &rev, &paths))
-        .await
-        .map_err(|err| GitError::Internal(format!("rollback_to task failed: {err}")))?
+    blocking("rollback_to", move || {
+        app_state.rollback_to(repo, &rev, &paths)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -860,9 +841,7 @@ pub async fn is_published(
     rev: String,
 ) -> Result<bool, GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.is_published(repo, &rev))
-        .await
-        .map_err(|err| GitError::Internal(format!("is_published task failed: {err}")))?
+    blocking("is_published", move || app_state.is_published(repo, &rev)).await
 }
 
 #[tauri::command]
@@ -876,11 +855,10 @@ pub async fn split_off(
     split_first: bool,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || {
+    blocking("split_off", move || {
         app_state.split_off(repo, &rev, &paths, &message, split_first)
     })
     .await
-    .map_err(|err| GitError::Internal(format!("split_off task failed: {err}")))?
 }
 
 #[tauri::command]
@@ -891,9 +869,7 @@ pub async fn rebase_todo(
     base: String,
 ) -> Result<Vec<git_engine::TodoEntry>, GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.rebase_todo(repo, &base))
-        .await
-        .map_err(|err| GitError::Internal(format!("rebase_todo task failed: {err}")))?
+    blocking("rebase_todo", move || app_state.rebase_todo(repo, &base)).await
 }
 
 #[tauri::command]
@@ -906,9 +882,10 @@ pub async fn interactive_rebase(
     paused: bool,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.interactive_rebase(repo, &base, &plan, paused))
-        .await
-        .map_err(|err| GitError::Internal(format!("interactive_rebase task failed: {err}")))?
+    blocking("interactive_rebase", move || {
+        app_state.interactive_rebase(repo, &base, &plan, paused)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -918,9 +895,7 @@ pub async fn rebase_progress(
     repo: RepoId,
 ) -> Result<Option<git_engine::RebaseProgress>, GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.rebase_progress(repo))
-        .await
-        .map_err(|err| GitError::Internal(format!("rebase_progress task failed: {err}")))?
+    blocking("rebase_progress", move || app_state.rebase_progress(repo)).await
 }
 
 /// `spawn_blocking` matters here: the engine fans out with rayon, which must never run on
@@ -934,9 +909,10 @@ pub async fn overlap_window(
     window: Vec<String>,
 ) -> Result<Vec<git_engine::OverlapRow>, GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.overlap_window(repo, &base, &window))
-        .await
-        .map_err(|err| GitError::Internal(format!("overlap_window task failed: {err}")))?
+    blocking("overlap_window", move || {
+        app_state.overlap_window(repo, &base, &window)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -946,9 +922,7 @@ pub async fn bypass_log(
     repo: RepoId,
 ) -> Result<Vec<git_engine::Bypass>, GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.bypass_log(repo))
-        .await
-        .map_err(|err| GitError::Internal(format!("bypass_log task failed: {err}")))?
+    blocking("bypass_log", move || app_state.bypass_log(repo)).await
 }
 
 /// Not `async`: menu APIs must run on the main thread on Windows.
@@ -992,9 +966,7 @@ pub async fn commit_template(
     repo: RepoId,
 ) -> Result<Option<String>, GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.commit_template(repo))
-        .await
-        .map_err(|err| GitError::Internal(format!("commit_template task failed: {err}")))?
+    blocking("commit_template", move || app_state.commit_template(repo)).await
 }
 
 #[tauri::command]
@@ -1006,9 +978,10 @@ pub async fn stage_mode(
     executable: bool,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.stage_mode(repo, &path, executable))
-        .await
-        .map_err(|err| GitError::Internal(format!("stage_mode task failed: {err}")))?
+    blocking("stage_mode", move || {
+        app_state.stage_mode(repo, &path, executable)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -1017,9 +990,7 @@ pub async fn list_presets(
     state: tauri::State<'_, crate::AppContext>,
 ) -> Result<Vec<app_state::PresetStatus>, GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || Ok(app_state.presets()))
-        .await
-        .map_err(|err| GitError::Internal(format!("list_presets task failed: {err}")))?
+    blocking("list_presets", move || Ok(app_state.presets())).await
 }
 
 #[tauri::command]
@@ -1030,7 +1001,8 @@ pub async fn install_preset(
     id: String,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.install_preset(repo, &id))
-        .await
-        .map_err(|err| GitError::Internal(format!("install_preset task failed: {err}")))?
+    blocking("install_preset", move || {
+        app_state.install_preset(repo, &id)
+    })
+    .await
 }

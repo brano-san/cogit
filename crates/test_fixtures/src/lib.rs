@@ -340,6 +340,87 @@ pub fn stress(n: i64) -> Result<Fixture> {
     Ok(f)
 }
 
+/// A broad tree rather than a long history: `n` files, then one commit touching one.
+/// Rename and copy detection scale with the tree, not with the number of commits.
+pub fn wide(n: i64) -> Result<Fixture> {
+    let f = Fixture::init()?;
+    run_git_stdin(
+        f.path(),
+        &["fast-import", "--quiet"],
+        &wide_import_stream(n),
+    )?;
+    f.git(&["reset", "--hard", "main"])?;
+    Ok(f)
+}
+
+fn wide_import_stream(n: i64) -> String {
+    let mut stream = String::new();
+    for (mark, stamp) in [(1, BASE_TIMESTAMP), (2, BASE_TIMESTAMP + STEP_SECONDS)] {
+        let message = if mark == 1 {
+            "seed tree"
+        } else {
+            "touch one file"
+        };
+        stream.push_str(
+            "commit refs/heads/main
+",
+        );
+        stream.push_str(&format!(
+            "mark :{mark}
+"
+        ));
+        stream.push_str(&format!(
+            "author {AUTHOR_NAME} <{AUTHOR_EMAIL}> {stamp} +0000
+"
+        ));
+        stream.push_str(&format!(
+            "committer {AUTHOR_NAME} <{AUTHOR_EMAIL}> {stamp} +0000
+"
+        ));
+        stream.push_str(&format!(
+            "data {}
+{message}
+",
+            message.len()
+        ));
+        if mark == 2 {
+            stream.push_str(
+                "from :1
+",
+            );
+            let content = "edited
+";
+            stream.push_str(
+                "M 100644 inline dir000/file0000.txt
+",
+            );
+            stream.push_str(&format!(
+                "data {}
+{content}",
+                content.len()
+            ));
+            continue;
+        }
+        for i in 0..n {
+            let content = format!(
+                "file {i}
+"
+            );
+            stream.push_str(&format!(
+                "M 100644 inline dir{:03}/file{i:04}.txt
+",
+                i % 16
+            ));
+            stream.push_str(&format!(
+                "data {}
+{content}",
+                content.len()
+            ));
+        }
+    }
+    stream
+}
+
 fn fast_import_stream(n: i64) -> String {
     let mut stream = String::new();
     for i in 0..n {
