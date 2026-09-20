@@ -1,6 +1,8 @@
 <script lang="ts">
   import { applyClick, EMPTY_SELECTION, type FileSelection } from "$lib/multi-select";
+  import { UNGROUPED, groupRows } from "$lib/repo-groups";
   import type { RepoOverview } from "$lib/ipc";
+  import { repoGroups } from "$stores/repo-groups.svelte";
   import { repository } from "$stores/repository.svelte";
 
   interface Props {
@@ -13,10 +15,25 @@
     oncontext: (entry: RepoOverview, x: number, y: number) => void;
     /** Ticked rows, for actions that work on several repositories at once (T3.3). */
     onmarked: (roots: string[]) => void;
+    /** Renaming and deleting a group live in the caller's dialogs, not here. */
+    ongroupcontext: (id: string, x: number, y: number) => void;
+    onaddgroup: () => void;
   }
 
-  let { opening = false, onopen, onscan, onselect, onclose, oncontext, onmarked }: Props =
-    $props();
+  let {
+    opening = false,
+    onopen,
+    onscan,
+    onselect,
+    onclose,
+    oncontext,
+    onmarked,
+    ongroupcontext,
+    onaddgroup,
+  }: Props = $props();
+
+  /** The group a drag is hovering, so the drop target is visible before the drop. */
+  let over = $state<string | null>(null);
 
   let filter = $state("");
   let marked = $state.raw<FileSelection>(EMPTY_SELECTION);
@@ -32,6 +49,15 @@
     ),
   );
   const order = $derived(entries.map((entry) => entry.root));
+  const byRoot = $derived(new Map(entries.map((entry) => [entry.root, entry])));
+  const rows = $derived(groupRows(repoGroups.groups, order, repoGroups.collapsed));
+
+  /** Dropping a repository that is part of a marked set moves the whole set. */
+  function dropped(group: string, root: string) {
+    over = null;
+    const moving = marked.paths.has(root) && marked.paths.size > 1 ? [...marked.paths] : [root];
+    for (const each of moving) repoGroups.assign(each, group);
+  }
 </script>
 
 <div class="wrapper">
@@ -42,6 +68,7 @@
     <button type="button" class="open scan" onclick={onscan} disabled={repository.busy}>
       Scan Folder…
     </button>
+    <button type="button" class="open scan" onclick={onaddgroup} title="Add a group">＋</button>
   </div>
 
   {#if repository.openRepos.length > 1}
@@ -61,9 +88,43 @@
       <p class="empty">No repository open.</p>
     {/if}
   {:else}
-    {#each entries as entry (entry.repo)}
+    {#each rows as row (row.kind === "group" ? `g:${row.id}` : row.root)}
+      {#if row.kind === "group"}
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div
+          class="group"
+          class:over={over === row.id}
+          role="button"
+          tabindex="0"
+          onclick={() => repoGroups.collapse(row.id)}
+          onkeydown={(event) => event.key === "Enter" && repoGroups.collapse(row.id)}
+          oncontextmenu={(event) => {
+            if (row.id === UNGROUPED) return;
+            event.preventDefault();
+            ongroupcontext(row.id, event.clientX, event.clientY);
+          }}
+          ondragover={(event) => {
+            event.preventDefault();
+            over = row.id;
+          }}
+          ondragleave={() => (over = null)}
+          ondrop={(event) => {
+            const root = event.dataTransfer?.getData("text/cogit-repo") ?? "";
+            if (root) dropped(row.id, root);
+          }}
+        >
+          <span class="caret" aria-hidden="true"
+            >{repoGroups.collapsed.has(row.id) ? "▸" : "▾"}</span
+          >
+          <span class="truncate">{row.name} ({row.count})</span>
+        </div>
+      {:else}
+        {@const entry = byRoot.get(row.root)}
+        {#if entry}
       <div
         class="row"
+        draggable="true"
+        ondragstart={(event) => event.dataTransfer?.setData("text/cogit-repo", entry.root)}
         class:selected={active?.valueOf() === entry.repo.valueOf()}
         class:marked={marked.paths.has(entry.root)}
         class:missing={entry.missing}
@@ -115,6 +176,8 @@
           onkeydown={(event) => event.key === "Enter" && onclose(entry)}>✕</span
         >
       </div>
+        {/if}
+      {/if}
     {/each}
   {/if}
 </div>
@@ -166,6 +229,30 @@
 
   .row.selected {
     background: var(--state-selected);
+  }
+
+  .group {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    height: var(--h-row-dense);
+    padding: 0 var(--sp-5);
+    background: var(--surface-raised);
+    color: var(--text-secondary);
+    font-size: var(--fs-header);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .group.over {
+    box-shadow: inset 0 0 0 1px var(--status-ref);
+  }
+
+  .caret {
+    flex: 0 0 auto;
+    font-size: 9px;
   }
 
   .row.marked {

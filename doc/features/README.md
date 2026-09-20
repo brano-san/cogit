@@ -147,6 +147,7 @@
 | F-141 | Worktree в дереве репозиториев | [F-141-worktree-list.md](F-141-worktree-list.md) |
 | F-142 | Добавление и удаление worktree | [F-142-worktree-manage.md](F-142-worktree-manage.md) |
 | F-143 | Переключение вместо already checked out | [F-143-worktree-switch.md](F-143-worktree-switch.md) |
+| F-144 | Группы репозиториев | [F-144-repo-groups.md](F-144-repo-groups.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.
 

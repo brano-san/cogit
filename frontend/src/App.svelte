@@ -106,6 +106,7 @@
   import { overlap } from "$stores/overlap.svelte";
   import { settings } from "$stores/settings.svelte";
   import { layout } from "$stores/layout.svelte";
+  import { repoGroups } from "$stores/repo-groups.svelte";
   import { repository } from "$stores/repository.svelte";
   import { filesView } from "$stores/files-view.svelte";
   import { scan } from "$stores/scan.svelte";
@@ -141,6 +142,7 @@
   let markedFiles = $state.raw<string[]>([]);
   let repoTarget = $state.raw<import("$lib/ipc").RepoOverview | null>(null);
   let terminals = $state.raw<{ id: string; label: string }[]>([]);
+  let groupTarget = $state<string | null>(null);
   let markedRepos = $state.raw<string[]>([]);
   let bulk = $state.raw<import("$lib/operations").BulkProgress | undefined>(undefined);
   let journalOpen = $state(false);
@@ -1451,6 +1453,58 @@ Log: ${info?.logPath ?? ""}`),
     return names.includes("origin") ? "origin" : (names[0] ?? null);
   }
 
+  function askAddGroup() {
+    prompt = {
+      title: "Add a group",
+      label: "Name",
+      value: "",
+      confirm: "Add",
+      run: (name) => {
+        prompt = null;
+        repoGroups.add(name);
+      },
+    };
+  }
+
+  async function groupContext(id: string, x: number, y: number) {
+    groupTarget = id;
+    await popupContextMenu(
+      [
+        { id: "group-rename", label: "Rename this group…", enabled: true, separator: false },
+        { id: "", label: "", enabled: false, separator: true },
+        { id: "group-remove", label: "Delete this group", enabled: true, separator: false },
+      ],
+      x,
+      y,
+    ).catch(() => {});
+  }
+
+  /** Returns true when the id belonged to a group heading and was handled here. */
+  function runGroupCommand(id: string): boolean {
+    const target = groupTarget;
+    if (target === null) return false;
+
+    if (id === "group-rename") {
+      prompt = {
+        title: "Rename group",
+        label: "Name",
+        value: repoGroups.groups.names[target] ?? "",
+        confirm: "Rename",
+        run: (name) => {
+          prompt = null;
+          repoGroups.rename(target, name);
+        },
+      };
+      return true;
+    }
+    if (id === "group-remove") {
+      // The repositories go back to the ungrouped bucket, so nothing is lost by deleting.
+      repoGroups.remove(target);
+      return true;
+    }
+    return false;
+  }
+
   /** A worktree with work in it is not removed on a single click. */
   async function removeWorktreeAt(entry: import("$lib/ipc").WorktreeEntry) {
     const id = repo?.repo;
@@ -1723,6 +1777,7 @@ Log: ${info?.logPath ?? ""}`),
 
   $effect(() => {
     const pending = onMenuCommand((id) => {
+      if (runGroupCommand(id)) return;
       if (runRepoCommand(id)) return;
       if (runRefCommand(id)) return;
       const command = palette.find((entry) => entry.id === id);
@@ -1800,6 +1855,8 @@ Log: ${info?.logPath ?? ""}`),
             onclose={(entry) => void closeOne(entry)}
             oncontext={(entry, x, y) => void repoContext(entry, x, y)}
             onmarked={(roots) => (markedRepos = roots)}
+            onaddgroup={askAddGroup}
+            ongroupcontext={(id, x, y) => void groupContext(id, x, y)}
             onopenworktree={(entry) => void activate(entry.path)}
             onremoveworktree={(entry) => void removeWorktreeAt(entry)}
             onaddworktree={() => askAddWorktree()}
