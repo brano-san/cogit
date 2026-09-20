@@ -79,6 +79,9 @@ pub enum DiffRow {
         inline: Vec<(u32, u32)>,
         #[serde(default)]
         moved: bool,
+        /// Both ends of one move carry the same number, so the UI can draw the pair.
+        #[serde(default)]
+        move_id: Option<u32>,
         /// The file ends on this row without a final newline; a unified diff prints
         /// `\ No newline at end of file` underneath it.
         #[serde(default)]
@@ -90,6 +93,8 @@ pub enum DiffRow {
         inline: Vec<(u32, u32)>,
         #[serde(default)]
         moved: bool,
+        #[serde(default)]
+        move_id: Option<u32>,
         #[serde(default)]
         no_newline: bool,
     },
