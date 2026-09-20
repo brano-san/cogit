@@ -1,4 +1,4 @@
-use app_state::{DEFAULT_CHUNK_SIZE, GraphChunk, RepoId, RepoSummary};
+use app_state::{DEFAULT_CHUNK_SIZE, GraphChunk, RepoId, RepoSummary, SafetyEntry};
 use diff_engine::{DiffOptions, FileDiff};
 use git_engine::GitOutput;
 use git_engine::{
@@ -259,4 +259,25 @@ pub fn command_problems(state: tauri::State<'_, crate::AppContext>) -> u32 {
 #[specta::specta]
 pub fn clear_command_log(state: tauri::State<'_, crate::AppContext>) {
     state.state.clear_command_log();
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn safety_log(state: tauri::State<'_, crate::AppContext>) -> Vec<SafetyEntry> {
+    state.state.safety_log()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn undo_last(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<SafetyEntry, GitError> {
+    let app_state = state.state.clone();
+    let entry = tokio::task::spawn_blocking(move || app_state.undo_last(repo))
+        .await
+        .map_err(|err| GitError::Internal(format!("undo_last task failed: {err}")))??;
+
+    tracing::info!(repo = repo.0, entry = %entry.description, "operation undone");
+    Ok(entry)
 }

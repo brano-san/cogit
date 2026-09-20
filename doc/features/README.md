@@ -38,5 +38,7 @@
 | F-032 | Живое обновление | [F-032-live-refresh.md](F-032-live-refresh.md) |
 | F-033 | Панель Output | [F-033-output-panel.md](F-033-output-panel.md) |
 | F-034 | Индикатор предупреждений | [F-034-warning-indicator.md](F-034-warning-indicator.md) |
+| F-035 | Undo деструктивных операций | [F-035-undo.md](F-035-undo.md) |
+| F-036 | Честная пометка необратимого | [F-036-undo-honesty.md](F-036-undo-honesty.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.
