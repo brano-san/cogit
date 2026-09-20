@@ -317,7 +317,12 @@ export type DiffOptions = {
 	detectMoves: boolean,
 };
 
-export type DiffRow = { kind: "context"; old: number; new: number; text: string } | { kind: "delete"; old: number; text: string; inline: ([number, number])[]; moved?: boolean } | { kind: "insert"; new: number; text: string; inline: ([number, number])[]; moved?: boolean } | { kind: "collapsed"; count: number };
+export type DiffRow = { kind: "context"; old: number; new: number; text: string } | { kind: "delete"; old: number; text: string; inline: ([number, number])[]; moved?: boolean; 
+/**
+ *  The file ends on this row without a final newline; a unified diff prints
+ *  `\ No newline at end of file` underneath it.
+ */
+noNewline?: boolean } | { kind: "insert"; new: number; text: string; inline: ([number, number])[]; moved?: boolean; noNewline?: boolean } | { kind: "collapsed"; count: number };
 
 export type DiffSpec = { kind: "commitVsParent"; oid: string } | { kind: "commitVsCommit"; a: string; b: string } | { kind: "workTreeVsIndex" } | { kind: "indexVsHead" };
 
