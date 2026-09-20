@@ -3,12 +3,14 @@
   import { repository } from "$stores/repository.svelte";
 
   interface Props {
+    /** Only the folder dialog changes the label; selecting a repository must not (R-35). */
+    opening?: boolean;
     onopen: () => void;
     onselect: (entry: RepoOverview) => void;
     onclose: (entry: RepoOverview) => void;
   }
 
-  let { onopen, onselect, onclose }: Props = $props();
+  let { opening = false, onopen, onselect, onclose }: Props = $props();
 
   const active = $derived(repository.current?.repo);
   const entries = $derived(repository.openRepos);
@@ -16,7 +18,7 @@
 
 <div class="wrapper">
   <button type="button" class="open" onclick={onopen} disabled={repository.busy}>
-    {repository.busy ? "Opening…" : "Open Repository…"}
+    {opening ? "Opening…" : "Open Repository…"}
   </button>
 
   {#if entries.length === 0}
@@ -36,7 +38,12 @@
         onclick={() => onselect(entry)}
         onkeydown={(event) => event.key === "Enter" && onselect(entry)}
       >
-        <span class="icon" aria-hidden="true">🗁</span>
+        <svg class="folder" viewBox="0 0 16 16" aria-hidden="true"
+          ><path
+            fill="currentColor"
+            d="M1.5 3.5c0-.69.56-1.25 1.25-1.25h3.04c.4 0 .78.19 1.01.51l.79 1.09h5.66c.69 0 1.25.56 1.25 1.25v7.15c0 .69-.56 1.25-1.25 1.25H2.75c-.69 0-1.25-.56-1.25-1.25V3.5Z"
+          /></svg
+        >
         <span class="name truncate">{entry.name}</span>
         {#if entry.dirty}<span class="dirty" title="Uncommitted changes">●</span>{/if}
         {#if entry.branch}<span class="branch truncate">{entry.branch}</span>{/if}
@@ -103,8 +110,11 @@
     background: var(--state-selected);
   }
 
-  .icon {
+  .folder {
     flex: 0 0 auto;
+    width: 13px;
+    height: 13px;
+    color: var(--status-ref);
   }
 
   .name {

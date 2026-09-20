@@ -14,10 +14,12 @@
   --c-bg-hover: #1e222b;
   --c-bg-active: #242b38;
   --c-bg-inset: #0c0e12;
+  --c-bg-chrome: #121418;
 
   /* ---- primitives: borders ---- */
   --c-border: #262b35;
   --c-border-strong: #323945;
+  --c-border-chrome: #000000;
 
   /* ---- primitives: text ---- */
   --c-text: #e6edf3;
@@ -59,6 +61,10 @@
 
   --divider: var(--c-border);
   --field-border: var(--c-border-strong);
+
+  /* The window chrome — toolbar and status bar — reads as one frame around the work. */
+  --titlebar-bg: var(--c-bg-chrome);
+  --titlebar-border: var(--c-border-chrome);
 
   --text-primary: var(--c-text);
   --text-secondary: var(--c-text-muted);
@@ -125,9 +131,11 @@
   --c-bg-hover: #eaeef2;
   --c-bg-active: #dde3ea;
   --c-bg-inset: #ffffff;
+  --c-bg-chrome: #e8eaed;
 
   --c-border: #d8dee4;
   --c-border-strong: #bcc4cc;
+  --c-border-chrome: #c2c8cf;
 
   --c-text: #1f2328;
   --c-text-muted: #59636e;

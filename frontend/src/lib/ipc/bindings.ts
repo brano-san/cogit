@@ -61,7 +61,7 @@ export const commands = {
 	resolveConflictText: (repo: RepoId, path: string, text: string) => typedError<null, GitError>(__TAURI_INVOKE("resolve_conflict_text", { repo, path, text })),
 	findObject: (repo: RepoId, query: string, limit: number) => typedError<Found[], GitError>(__TAURI_INVOKE("find_object", { repo, query, limit })),
 	/**  Not `async`: touching menu items off the main thread deadlocks on Windows. */
-	setMenuState: (disabled: string[]) => __TAURI_INVOKE<void>("set_menu_state", { disabled }),
+	setMenuState: (disabled: string[], checked: string[]) => __TAURI_INVOKE<void>("set_menu_state", { disabled, checked }),
 	/**
 	 *  Reports only whether a token exists. Reading one back would put it in the webview,
 	 *  where every dependency could see it.

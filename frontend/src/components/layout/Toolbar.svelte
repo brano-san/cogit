@@ -28,7 +28,6 @@
   ];
 
   interface Props {
-    busy?: string;
     /** Description of what Undo would reverse, or undefined when there is nothing to undo. */
     undoable?: string;
     onundo?: () => void;
@@ -36,7 +35,7 @@
     handlers?: Partial<Record<string, () => void>>;
   }
 
-  let { busy, undoable, onundo, handlers = {} }: Props = $props();
+  let { undoable, onundo, handlers = {} }: Props = $props();
 
 </script>
 
@@ -77,13 +76,6 @@
   </div>
 
   <div class="spacer"></div>
-
-  {#if busy}
-    <div class="busy" role="status">
-      <span class="spinner" aria-hidden="true"></span>
-      <span>{busy}</span>
-    </div>
-  {/if}
 </div>
 
 <style>
@@ -94,8 +86,8 @@
     height: var(--h-toolbar);
     flex: 0 0 var(--h-toolbar);
     padding: 0 var(--sp-5);
-    background: var(--surface-raised);
-    border-bottom: 1px solid var(--divider);
+    background: var(--titlebar-bg);
+    border-bottom: 1px solid var(--titlebar-border);
   }
 
   .group {
@@ -152,34 +144,5 @@
 
   .spacer {
     flex: 1 1 auto;
-  }
-
-  .busy {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--sp-3);
-    font-size: var(--fs-dense);
-    color: var(--text-secondary);
-  }
-
-  .spinner {
-    width: 11px;
-    height: 11px;
-    border: 1.5px solid var(--divider);
-    border-top-color: var(--status-ref);
-    border-radius: 50%;
-    animation: spin 700ms linear infinite;
-  }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .spinner {
-      animation: none;
-    }
   }
 </style>

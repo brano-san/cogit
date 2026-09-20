@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyOperation, busyLabel } from "./operations";
+import { activity, applyOperation, busyLabel } from "./operations";
 
 const start = (id: number, label: string) => ({ id, label, success: null });
 const end = (id: number, success: boolean) => ({ id, label: "", success });
@@ -51,5 +51,49 @@ describe("busyLabel", () => {
       [2, "Pushing"],
     ]);
     expect(busyLabel(running)).toBe("2 operations running…");
+  });
+});
+
+describe("activity", () => {
+  const idle = { operations: new Map(), opening: false, failed: false };
+
+  it("is ready when nothing happens", () => {
+    expect(activity(idle)).toEqual({ label: "Ready", busy: false, tone: "idle" });
+  });
+
+  it("reports the error state when the last action failed", () => {
+    expect(activity({ ...idle, failed: true })).toEqual({
+      label: "Error",
+      busy: false,
+      tone: "error",
+    });
+  });
+
+  it("reports opening a repository", () => {
+    expect(activity({ ...idle, opening: true }).label).toBe("Opening repository…");
+  });
+
+  it("reports a tracked backend operation", () => {
+    const operations = new Map([[1, "Rebasing"]]);
+    expect(activity({ ...idle, operations })).toEqual({
+      label: "Rebasing…",
+      busy: true,
+      tone: "busy",
+    });
+  });
+
+  it("prefers network progress over everything else", () => {
+    const operations = new Map([[1, "Rebasing"]]);
+    const state = { ...idle, operations, network: "pull", networkProgress: "Receiving 40%" };
+    expect(activity(state).label).toBe("Receiving 40%");
+  });
+
+  it("names the network operation until it reports progress", () => {
+    expect(activity({ ...idle, network: "push" }).label).toBe("push…");
+  });
+
+  it("stays busy while an operation runs even if something failed earlier", () => {
+    const operations = new Map([[1, "Fetching"]]);
+    expect(activity({ ...idle, operations, failed: true }).tone).toBe("busy");
   });
 });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { disabledIds, fuzzyScore, rankCommands, type PaletteCommand } from "./palette";
+import { checkedIds, disabledIds, fuzzyScore, rankCommands, type PaletteCommand } from "./palette";
+import type { PanelId } from "./perspectives";
 
 function cmd(id: string, title: string, extra: Partial<PaletteCommand> = {}): PaletteCommand {
   return { id, title, run: () => {}, ...extra };
@@ -96,5 +97,42 @@ describe("disabledIds", () => {
     const one = disabledIds([cmd("b", "x"), cmd("a", "x")]);
     const two = disabledIds([cmd("a", "x"), cmd("b", "x")]);
     expect(one).toEqual(two);
+  });
+});
+
+describe("checkedIds", () => {
+  const off = {
+    panels: [] as PanelId[],
+    output: false,
+    maximized: false,
+    overlap: false,
+    perspective: "main" as const,
+  };
+
+  it("always ticks the active perspective", () => {
+    expect(checkedIds(off)).toEqual(["perspective-main"]);
+  });
+
+  it("ticks each visible panel", () => {
+    const ids = checkedIds({ ...off, panels: ["graph", "files"] });
+    expect(ids).toContain("panel-graph");
+    expect(ids).toContain("panel-files");
+    expect(ids).not.toContain("panel-diff");
+  });
+
+  it("ticks the toggles that are on", () => {
+    const ids = checkedIds({ ...off, output: true, maximized: true, overlap: true });
+    expect(ids).toEqual(
+      expect.arrayContaining(["output", "maximize-panel", "overlap", "perspective-main"]),
+    );
+  });
+
+  it("follows the perspective that is active", () => {
+    expect(checkedIds({ ...off, perspective: "review" })).toEqual(["perspective-review"]);
+  });
+
+  it("is sorted so an unchanged set produces an identical array", () => {
+    const ids = checkedIds({ ...off, panels: ["refs", "diff"], output: true });
+    expect(ids).toEqual([...ids].sort());
   });
 });

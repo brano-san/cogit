@@ -31,10 +31,10 @@
   import RepositoryList from "$components/repo-tree/RepositoryList.svelte";
   import SubmoduleList from "$components/repo-tree/SubmoduleList.svelte";
   import { shortOid } from "$lib/format";
-  import { disabledIds, type PaletteCommand } from "$lib/palette";
+  import { checkedIds, disabledIds, type PaletteCommand } from "$lib/palette";
   import { pullRequestUrl } from "$lib/pull-request";
   import { commitScope } from "$lib/commit-scope";
-  import { applyOperation, busyLabel } from "$lib/operations";
+  import { activity, applyOperation } from "$lib/operations";
   import { commitMenu } from "$lib/context-menu";
   import { compareUrl } from "$lib/compare-params";
   import { dropActions, type DropAction, type DragPayload } from "$lib/drop-target";
@@ -118,6 +118,7 @@
   let focused = $state<PanelId>("graph");
   let running = $state.raw<Map<number, string>>(new Map());
   let info = $state<AppInfo | null>(null);
+  let opening = $state(false);
   let paletteOpen = $state(false);
   let settingsOpen = $state(false);
   let finderOpen = $state(false);
@@ -1135,7 +1136,12 @@ Log: ${info?.logPath ?? ""}`),
   async function pickRepository() {
     const picked = await openFolderDialog({ directory: true, title: "Open Repository" });
     if (typeof picked !== "string") return;
-    await activate(picked);
+    opening = true;
+    try {
+      await activate(picked);
+    } finally {
+      opening = false;
+    }
   }
 
   /** Seeds an empty draft from `commit.template`, the way `git commit` would. */
@@ -1189,9 +1195,17 @@ Log: ${info?.logPath ?? ""}`),
     return () => void pending.then((unlisten) => unlisten());
   });
 
-  // The native menu is not reactive, so the derived availability is pushed to it.
+  // The native menu is not reactive, so the derived state is pushed to it. muda flips a
+  // tick itself when the item is clicked, so this also puts the wrong one back.
   $effect(() => {
-    void setMenuState(disabledIds(palette)).catch(() => {});
+    const checked = checkedIds({
+      panels: PANELS.filter((panel) => layout.visible(panel)),
+      output: output.open,
+      maximized: layout.maximized !== null,
+      overlap: overlap.enabled,
+      perspective: layout.active,
+    });
+    void setMenuState(disabledIds(palette), checked).catch(() => {});
   });
 </script>
 
@@ -1205,9 +1219,6 @@ Log: ${info?.logPath ?? ""}`),
 
 <div class="app">
   <Toolbar
-    busy={busyLabel(running) ??
-      network.running ??
-      (repository.busy ? "Opening repository…" : undefined)}
     undoable={safety.last?.description}
     onundo={undo}
     handlers={{
@@ -1240,6 +1251,7 @@ Log: ${info?.logPath ?? ""}`),
       >
         <Panel title="Repositories" count={repository.openRepos.length}>
           <RepositoryList
+            {opening}
             onopen={pickRepository}
             onselect={(entry) => void activate(entry.root)}
             onclose={(entry) => void closeOne(entry)}
@@ -1680,13 +1692,13 @@ Log: ${info?.logPath ?? ""}`),
     behind={tracked?.behind ?? 0}
     summary={repo ? `${graph.rows.length} commits · ${repo.branches.length} refs` : "Milestone C"}
     version={info?.version}
-    status={network.running
-      ? (network.progress ?? `${network.running}…`)
-      : repository.error
-        ? "Error"
-        : repository.busy
-          ? "Working…"
-          : "Ready"}
+    activity={activity({
+      operations: running,
+      network: network.running ?? undefined,
+      networkProgress: network.progress ?? undefined,
+      opening: repository.busy,
+      failed: repository.error !== null,
+    })}
     problems={output.problems}
     onproblems={() => output.toggle()}
   />

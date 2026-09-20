@@ -718,8 +718,9 @@ pub async fn find_object(
 pub fn set_menu_state(
     items: tauri::State<'_, crate::menu::MenuItems<tauri::Wry>>,
     disabled: Vec<String>,
+    checked: Vec<String>,
 ) {
-    items.set_enabled(&disabled);
+    items.apply(&disabled, &checked);
 }
 
 /// Reports only whether a token exists. Reading one back would put it in the webview,
