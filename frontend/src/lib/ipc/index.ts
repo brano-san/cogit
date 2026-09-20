@@ -129,6 +129,18 @@ export async function worktreeFiles(repo: RepoId) {
   return unwrap(await commands.worktreeFiles(repo));
 }
 
+export async function stagePaths(repo: RepoId, paths: string[]) {
+  return unwrap(await commands.stagePaths(repo, paths));
+}
+
+export async function unstagePaths(repo: RepoId, paths: string[]) {
+  return unwrap(await commands.unstagePaths(repo, paths));
+}
+
+export async function discardPaths(repo: RepoId, paths: string[]) {
+  return unwrap(await commands.discardPaths(repo, paths));
+}
+
 function unwrap<T>(result: { status: "ok"; data: T } | { status: "error"; error: GitError }): T {
   if (result.status === "error") {
     throw new CogitError(result.error);

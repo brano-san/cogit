@@ -265,6 +265,26 @@ impl AppState {
         self.handle(repo)?.worktree_files()
     }
 
+    pub fn stage_paths(&self, repo: RepoId, paths: &[String]) -> Result<(), git_engine::GitError> {
+        self.handle(repo)?.stage(paths)
+    }
+
+    pub fn unstage_paths(
+        &self,
+        repo: RepoId,
+        paths: &[String],
+    ) -> Result<(), git_engine::GitError> {
+        self.handle(repo)?.unstage(paths)
+    }
+
+    pub fn discard_paths(
+        &self,
+        repo: RepoId,
+        paths: &[String],
+    ) -> Result<(), git_engine::GitError> {
+        self.handle(repo)?.discard(paths)
+    }
+
     fn handle(&self, repo: RepoId) -> Result<git_engine::RepoHandle, git_engine::GitError> {
         let open = self
             .get(repo)

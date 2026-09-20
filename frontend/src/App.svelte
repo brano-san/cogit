@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { open as openFolderDialog } from "@tauri-apps/plugin-dialog";
+  import { ask, open as openFolderDialog } from "@tauri-apps/plugin-dialog";
 
   import BranchList from "$components/branch-tree/BranchList.svelte";
   import DiffView from "$components/diff/DiffView.svelte";
@@ -50,6 +50,27 @@
     commit.clear();
     diff.clear();
     void graph.load(id, query);
+  }
+
+  function stage(paths: string[]) {
+    const id = repository.current?.repo;
+    if (id) void worktree.stage(id, paths);
+  }
+
+  function unstage(paths: string[]) {
+    const id = repository.current?.repo;
+    if (id) void worktree.unstage(id, paths);
+  }
+
+  async function discard(paths: string[]) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    const what = paths.length === 1 ? paths[0] : `${paths.length} files`;
+    const confirmed = await ask(`Discard changes in ${what}? This cannot be undone.`, {
+      title: "Discard changes",
+      kind: "warning",
+    });
+    if (confirmed) void worktree.discard(id, paths);
   }
 
   function openDiff(path: string) {
@@ -145,8 +166,19 @@
             {#if onWorkingTree}
               <FileList
                 sections={[
-                  { title: "Staged", files: worktree.staged },
-                  { title: "Unstaged", files: worktree.unstaged },
+                  {
+                    title: "Staged",
+                    files: worktree.staged,
+                    actions: [{ label: "Unstage", title: "Unstage", run: unstage }],
+                  },
+                  {
+                    title: "Unstaged",
+                    files: worktree.unstaged,
+                    actions: [
+                      { label: "Stage", title: "Stage", run: stage },
+                      { label: "Discard", title: "Discard changes", run: discard },
+                    ],
+                  },
                 ]}
                 empty="The working tree is clean."
                 selected={diff.path}

@@ -1,4 +1,12 @@
-import { CogitError, worktreeFiles, type FileEntry, type RepoId } from "$lib/ipc";
+import {
+  CogitError,
+  discardPaths,
+  stagePaths,
+  unstagePaths,
+  worktreeFiles,
+  type FileEntry,
+  type RepoId,
+} from "$lib/ipc";
 
 class WorktreeStore {
   staged = $state.raw<FileEntry[]>([]);
@@ -31,6 +39,31 @@ class WorktreeStore {
     } finally {
       if (generation === this.#generation) this.loading = false;
     }
+  }
+
+  async stage(repo: RepoId, paths: string[]): Promise<void> {
+    await this.mutate(repo, () => stagePaths(repo, paths));
+  }
+
+  async unstage(repo: RepoId, paths: string[]): Promise<void> {
+    await this.mutate(repo, () => unstagePaths(repo, paths));
+  }
+
+  async discard(repo: RepoId, paths: string[]): Promise<void> {
+    await this.mutate(repo, () => discardPaths(repo, paths));
+  }
+
+  /** A mutation is only believed once the working tree has been read back. */
+  async mutate(repo: RepoId, run: () => Promise<unknown>): Promise<void> {
+    this.error = null;
+    try {
+      await run();
+    } catch (err) {
+      this.error =
+        err instanceof CogitError ? err : new CogitError({ kind: "internal", data: String(err) });
+      return;
+    }
+    await this.load(repo);
   }
 
   clear(): void {

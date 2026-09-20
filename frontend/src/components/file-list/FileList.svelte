@@ -4,9 +4,16 @@
   import { GRAPH, visibleRange } from "$lib/graph-geometry";
   import type { FileEntry } from "$lib/ipc";
 
+  interface Action {
+    label: string;
+    title: string;
+    run: (paths: string[]) => void;
+  }
+
   interface Section {
     title?: string;
     files: readonly FileEntry[];
+    actions?: readonly Action[];
   }
 
   interface Props {
@@ -26,7 +33,9 @@
   let scrollTop = $state(0);
   let viewportHeight = $state(0);
 
-  type Row = { kind: "header"; title: string } | { kind: "file"; file: FileEntry };
+  type Row =
+    | { kind: "header"; title: string; paths: string[]; actions: readonly Action[] }
+    | { kind: "file"; file: FileEntry; actions: readonly Action[] };
 
   const total = $derived(sections.reduce((n, s) => n + s.files.length, 0));
   const shown = $derived.by(() => {
@@ -37,8 +46,16 @@
         sort,
       );
       if (kept.length === 0) continue;
-      if (section.title) rows.push({ kind: "header", title: `${section.title} (${kept.length})` });
-      for (const file of kept) rows.push({ kind: "file", file });
+      const actions = section.actions ?? [];
+      if (section.title) {
+        rows.push({
+          kind: "header",
+          title: `${section.title} (${kept.length})`,
+          paths: kept.map((f) => f.path),
+          actions,
+        });
+      }
+      for (const file of kept) rows.push({ kind: "file", file, actions });
     }
     return rows;
   });
@@ -93,7 +110,18 @@
       <div class="rows" style:height="{shown.length * GRAPH.rowHeight}px">
         {#each visible as item (item.at)}
           {#if item.row.kind === "header"}
-            <div class="section" style:top="{item.at * GRAPH.rowHeight}px">{item.row.title}</div>
+            {@const header = item.row}
+            <div class="section" style:top="{item.at * GRAPH.rowHeight}px">
+              <span class="grow">{header.title}</span>
+              {#each header.actions as action (action.label)}
+                <button
+                  type="button"
+                  class="act"
+                  title="{action.title} — all"
+                  onclick={() => action.run(header.paths)}>{action.label} all</button
+                >
+              {/each}
+            </div>
           {:else}
             {@const file = item.row.file}
             <button
@@ -107,6 +135,21 @@
               <span class="badge" aria-label={statusLabel(file.status)}>{statusBadge(file.status)}</span>
               <span class="name truncate">{fileName(file.path)}</span>
               <span class="dir truncate">{directory(file.path)}</span>
+              {#each item.row.actions as action (action.label)}
+                <span
+                  class="act"
+                  role="button"
+                  tabindex="-1"
+                  title={action.title}
+                  onclick={(event) => {
+                    event.stopPropagation();
+                    action.run([file.path]);
+                  }}
+                  onkeydown={(event) => {
+                    if (event.key === "Enter") action.run([file.path]);
+                  }}>{action.label}</span
+                >
+              {/each}
             </button>
           {/if}
         {/each}
@@ -183,6 +226,33 @@
 
   .row.selected {
     background: var(--state-selected);
+  }
+
+  .grow {
+    flex: 1 1 auto;
+  }
+
+  .act {
+    flex: 0 0 auto;
+    padding: 0 var(--sp-3);
+    background: none;
+    border: 0;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0;
+    cursor: default;
+  }
+
+  .row:hover .act,
+  .section:hover .act {
+    opacity: 1;
+  }
+
+  .act:hover {
+    color: var(--status-ref);
   }
 
   .section {
