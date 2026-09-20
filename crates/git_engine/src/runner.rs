@@ -4,12 +4,10 @@ use std::path::Path;
 use std::process::Command;
 use std::sync::Arc;
 
-/// Receives every command, successful or not, for the Output panel.
 pub type CommandSink = Arc<dyn Fn(GitOutput) + Send + Sync>;
 
-/// `GIT_DIR` and friends override `current_dir`, so an inherited value would send the
-/// command into a different repository. Cleared, not overridden: unset must stay unset.
-/// See `doc/03-git-semantics.md` section 3 and `doc/12-risks.md` (R-22).
+/// Cleared, not overridden — `GIT_DIR` and friends override `current_dir`, and unset must
+/// stay unset (doc/12-risks.md, R-22).
 const INHERITED_GIT_VARS: &[&str] = &[
     "GIT_DIR",
     "GIT_WORK_TREE",
@@ -42,8 +40,7 @@ impl RepoHandle {
         self.spawn(args, false)
     }
 
-    /// For commands that only read: `GIT_OPTIONAL_LOCKS=0` keeps them off `index.lock`, so
-    /// a background refresh cannot collide with something the user started.
+    /// `GIT_OPTIONAL_LOCKS=0` keeps a background read off `index.lock`.
     pub fn run_git_reading(&self, args: &[&str]) -> Result<GitOutput> {
         self.spawn(args, true)
     }
@@ -99,8 +96,18 @@ impl RepoHandle {
     }
 }
 
+/// Without it every `git` call flashes a console window and pays for creating it
+/// (doc/12-risks.md, R-24).
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
 fn base_command(root: &Path, reading: bool) -> Command {
     let mut command = Command::new("git");
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt as _;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
     command.current_dir(root);
     command.env("GIT_TERMINAL_PROMPT", "0");
     command.env("LC_ALL", "C");

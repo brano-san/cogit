@@ -531,6 +531,15 @@ impl AppState {
         self.safety.write().push(entry);
     }
 
+    /// Staging changes the status and nothing else; reopening the repository to learn
+    /// that re-reads HEAD, every branch and every tag for no reason.
+    pub fn repo_status(
+        &self,
+        repo: RepoId,
+    ) -> Result<git_engine::RepoStatus, git_engine::GitError> {
+        self.handle(repo)?.status()
+    }
+
     fn handle(&self, repo: RepoId) -> Result<git_engine::RepoHandle, git_engine::GitError> {
         let open = self
             .get(repo)

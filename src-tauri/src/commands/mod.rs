@@ -1,10 +1,10 @@
 use app_state::{DEFAULT_CHUNK_SIZE, GraphChunk, RepoId, RepoSummary, SafetyEntry};
 use diff_engine::{DiffOptions, FileDiff};
-use git_engine::GitOutput;
 use git_engine::{
     CheckoutTarget, CommitDetails, CommitQuery, CommitRequest, DiffSpec, FileEntry, GitError,
     WorktreeFiles,
 };
+use git_engine::{GitOutput, RepoStatus};
 use serde::Serialize;
 use std::path::PathBuf;
 
@@ -280,4 +280,16 @@ pub async fn undo_last(
 
     tracing::info!(repo = repo.0, entry = %entry.description, "operation undone");
     Ok(entry)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn repo_status(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<RepoStatus, GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.repo_status(repo))
+        .await
+        .map_err(|err| GitError::Internal(format!("repo_status task failed: {err}")))?
 }

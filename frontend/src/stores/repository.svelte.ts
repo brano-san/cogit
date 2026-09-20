@@ -1,9 +1,8 @@
 import { headLabel, splitBranches } from "$lib/format";
-import { CogitError, openRepository, type RepoSummary } from "$lib/ipc";
+import { CogitError, openRepository, repoStatus, type RepoSummary } from "$lib/ipc";
 
 class RepositoryStore {
   current = $state<RepoSummary | null>(null);
-  /** Kept structured so the Git Error Dialog can show raw output (INV-05). */
   error = $state<CogitError | null>(null);
   busy = $state(false);
 
@@ -35,7 +34,18 @@ class RepositoryStore {
     }
   }
 
-  /** Re-reads HEAD, branches and status after a mutation, keeping the same path. */
+  /** Staging changes only the counters; re-reading every ref for that is waste (R-24). */
+  async refreshStatus(): Promise<void> {
+    const repo = this.current?.repo;
+    if (!repo) return;
+    try {
+      const status = await repoStatus(repo);
+      if (this.current) this.current = { ...this.current, status };
+    } catch {
+      // Nothing actionable; the next full refresh reports it with its own error.
+    }
+  }
+
   async refresh(): Promise<void> {
     const root = this.current?.root;
     if (root) await this.open(root);

@@ -140,6 +140,10 @@ export async function diffFile(
   return unwrap(await commands.diffFile(repo, spec, path, options));
 }
 
+export async function repoStatus(repo: RepoId) {
+  return unwrap(await commands.repoStatus(repo));
+}
+
 export async function worktreeFiles(repo: RepoId) {
   return unwrap(await commands.worktreeFiles(repo));
 }

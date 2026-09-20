@@ -30,6 +30,10 @@ class DiffStore {
     }
   }
 
+  dropIfAffected(paths: readonly string[]): void {
+    if (this.path !== null && paths.includes(this.path)) this.clear();
+  }
+
   clear(): void {
     this.#generation += 1;
     this.path = null;

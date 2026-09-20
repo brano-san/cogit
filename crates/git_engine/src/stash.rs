@@ -1,9 +1,6 @@
 use crate::{RepoHandle, Result};
 
 impl RepoHandle {
-    /// Stashes exactly the given paths and returns the stash commit, or `None` when there
-    /// was nothing to put away. Untracked files are included: discarding one destroys it
-    /// just as thoroughly as discarding an edit.
     pub fn stash_paths(&self, paths: &[String], message: &str) -> Result<Option<String>> {
         let before = self.stash_top();
 
@@ -28,10 +25,13 @@ impl RepoHandle {
             .map(drop)
     }
 
+    /// Through `gix`: a spawned `rev-parse` costs tens of milliseconds (R-24).
     fn stash_top(&self) -> Option<String> {
-        self.run_git_reading(&["rev-parse", "--verify", "--quiet", "refs/stash"])
+        self.repo
+            .find_reference("refs/stash")
+            .ok()?
+            .peel_to_id()
             .ok()
-            .map(|out| out.stdout.trim().to_owned())
-            .filter(|oid| !oid.is_empty())
+            .map(|id| id.detach().to_string())
     }
 }
