@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { GRAPH, canvasPixelSize, laneX, rowY } from "$lib/graph-geometry";
+  import { GRAPH, canvasPixelSize, edgeBand, indexByRow, laneX, rowY } from "$lib/graph-geometry";
   import type { GraphEdge } from "$lib/ipc";
 
   interface Props {
@@ -19,16 +19,7 @@
   let dpr = $state(typeof window === "undefined" ? 1 : window.devicePixelRatio);
   let frame = 0;
 
-  /** Bucketed by upper row: rescanning every edge each frame misses the frame budget. */
-  const edgesByRow = $derived.by(() => {
-    const index = new Map<number, GraphEdge[]>();
-    for (const edge of edges) {
-      const bucket = index.get(edge.fromRow);
-      if (bucket) bucket.push(edge);
-      else index.set(edge.fromRow, [edge]);
-    }
-    return index;
-  });
+  const edgesByRow = $derived(indexByRow(edges));
 
   function laneColor(index: number): string {
     const styles = getComputedStyle(document.documentElement);
@@ -48,11 +39,7 @@
     context.clearRect(0, 0, width, height);
     context.lineWidth = GRAPH.lineWidth;
 
-    const band: GraphEdge[] = [];
-    for (let row = firstRow - 1; row <= lastRow; row++) {
-      const bucket = edgesByRow.get(row);
-      if (bucket) band.push(...bucket);
-    }
+    const band = edgeBand(edgesByRow, firstRow, lastRow);
     const order = { crossing: 0, direct: 1, merge: 2 } as const;
     band.sort((a, b) => order[a.kind] - order[b.kind]);
 

@@ -1,15 +1,11 @@
 use similar::{ChangeTag, TextDiff};
 
-/// Beyond this imbalance the two sides are unrelated and a word diff is visual noise.
 const MAX_BLOCK_RATIO: usize = 100;
 
 pub type Spans = Vec<(u32, u32)>;
 
-/// Changed words on each side, as **UTF-16 offsets**.
-///
-/// UTF-16 rather than bytes because the only consumer is JavaScript, where a string index
-/// is a UTF-16 unit: converting here is exact, converting in the UI would mean re-encoding
-/// every line. See `doc/12-risks.md` (R-10).
+/// Changed words on each side, in **UTF-16 units**: the consumer is JavaScript, where a
+/// string index is a UTF-16 unit (doc/12-risks.md, R-10).
 #[must_use]
 pub fn inline_spans(old: &str, new: &str) -> (Spans, Spans) {
     let diff = TextDiff::from_unicode_words(old, new);
@@ -57,8 +53,7 @@ fn utf16_len(text: &str) -> u32 {
     text.encode_utf16().count() as u32
 }
 
-/// Changed words separated only by whitespace read as one highlight; splitting them at
-/// every space gives a striped line that is harder to read than the change itself.
+/// Words separated only by whitespace read as one highlight, not as stripes.
 fn push(spans: &mut Spans, from: u32, to: u32, soft: bool) {
     match spans.last_mut() {
         Some(last) if soft && last.1 <= from => last.1 = to,

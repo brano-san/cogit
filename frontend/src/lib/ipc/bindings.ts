@@ -58,12 +58,7 @@ export type CommitRow = {
 	summary: string,
 	authorName: string,
 	authorEmail: string,
-	/**
-	 *  Seconds since the Unix epoch.
-	 * 
-	 *  specta refuses `i64` by default to guard against precision loss. Unix seconds
-	 *  stay far below 2^53, so a plain TypeScript number is exact here.
-	 */
+	/**  specta refuses `i64`; Unix seconds stay far below 2^53, so a number is exact. */
 	timestamp: number,
 	tzOffsetMinutes: number,
 };
