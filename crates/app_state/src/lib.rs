@@ -1459,3 +1459,5 @@ mod tests {
         assert_eq!(ids, vec![1, 2]);
     }
 }
+
+// ─── everything below this line belongs to the diff-merge branch; master appends above ───

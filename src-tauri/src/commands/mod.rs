@@ -1101,3 +1101,5 @@ pub async fn install_preset(
     })
     .await
 }
+
+// ─── everything below this line belongs to the diff-merge branch; master appends above ───
