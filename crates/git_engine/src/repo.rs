@@ -48,6 +48,7 @@ fn env_free() -> gix::open::Options {
 pub struct RepoHandle {
     pub(crate) repo: gix::Repository,
     root: PathBuf,
+    journal: Option<crate::CommandSink>,
 }
 
 impl std::fmt::Debug for RepoHandle {
@@ -66,12 +67,26 @@ impl RepoHandle {
             .workdir()
             .unwrap_or_else(|| repo.git_dir())
             .to_path_buf();
-        Ok(Self { repo, root })
+        Ok(Self {
+            repo,
+            root,
+            journal: None,
+        })
     }
 
     #[must_use]
     pub fn root(&self) -> &Path {
         &self.root
+    }
+
+    #[must_use]
+    pub fn with_journal(mut self, sink: crate::CommandSink) -> Self {
+        self.journal = Some(sink);
+        self
+    }
+
+    pub(crate) fn journal(&self) -> Option<&crate::CommandSink> {
+        self.journal.as_ref()
     }
 
     #[must_use]

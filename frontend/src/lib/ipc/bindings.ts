@@ -20,6 +20,9 @@ export const commands = {
 	checkout: (repo: RepoId, target: CheckoutTarget) => typedError<null, GitError>(__TAURI_INVOKE("checkout", { repo, target })),
 	createBranch: (repo: RepoId, name: string, start: string | null, switchTo: boolean) => typedError<null, GitError>(__TAURI_INVOKE("create_branch", { repo, name, start, switchTo })),
 	deleteBranch: (repo: RepoId, name: string, force: boolean) => typedError<null, GitError>(__TAURI_INVOKE("delete_branch", { repo, name, force })),
+	commandLog: () => __TAURI_INVOKE<GitOutput[]>("command_log"),
+	commandProblems: () => __TAURI_INVOKE<number>("command_problems"),
+	clearCommandLog: () => __TAURI_INVOKE<void>("clear_command_log"),
 };
 
 /** Events */
@@ -127,6 +130,14 @@ export type GitCommandError = {
 };
 
 export type GitError = { kind: "command"; data: GitCommandError } | { kind: "repoNotFound"; data: string } | { kind: "repoBusy"; data: string } | { kind: "invalidState"; data: string } | { kind: "io"; data: string } | { kind: "internal"; data: string };
+
+export type GitOutput = {
+	command: string,
+	exitCode: number | null,
+	stdout: string,
+	stderr: string,
+	durationMs: number,
+};
 
 /**  Commits arrive with their lane placement so the UI never computes layout (INV-02). */
 export type GraphChunk = {

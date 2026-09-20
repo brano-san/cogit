@@ -2,6 +2,10 @@ use crate::{GitCommandError, GitError, RepoHandle, Result};
 use serde::Serialize;
 use std::path::Path;
 use std::process::Command;
+use std::sync::Arc;
+
+/// Receives every command, successful or not, for the Output panel.
+pub type CommandSink = Arc<dyn Fn(GitOutput) + Send + Sync>;
 
 /// `GIT_DIR` and friends override `current_dir`, so an inherited value would send the
 /// command into a different repository. Cleared, not overridden: unset must stay unset.
@@ -63,6 +67,10 @@ impl RepoHandle {
             ),
             duration_ms,
         };
+
+        if let Some(sink) = self.journal() {
+            sink(result.clone());
+        }
 
         if output.status.success() {
             tracing::debug!(

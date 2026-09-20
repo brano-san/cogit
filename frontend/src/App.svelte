@@ -9,6 +9,7 @@
   import GraphFilter from "$components/graph/GraphFilter.svelte";
   import Panel from "$components/layout/Panel.svelte";
   import GitErrorDialog from "$components/layout/GitErrorDialog.svelte";
+  import OutputPanel from "$components/layout/OutputPanel.svelte";
   import Splitter from "$components/layout/Splitter.svelte";
   import StatusBar from "$components/layout/StatusBar.svelte";
   import Toolbar from "$components/layout/Toolbar.svelte";
@@ -26,6 +27,7 @@
   import { worktree } from "$stores/worktree.svelte";
   import { diff } from "$stores/diff.svelte";
   import { errors } from "$stores/errors.svelte";
+  import { output } from "$stores/output.svelte";
   import { graph } from "$stores/graph.svelte";
   import { layout } from "$stores/layout.svelte";
   import { repository } from "$stores/repository.svelte";
@@ -61,6 +63,21 @@
   $effect(() => errors.report(commit.error));
   $effect(() => errors.report(diff.error));
   $effect(() => errors.report(graph.error));
+
+  // Every Git command lands in the journal; the panel reads it back when it is open.
+  $effect(() => {
+    void worktree.loading;
+    void repository.busy;
+    void output.refreshProblems();
+    if (output.open) void output.refresh();
+  });
+
+  function onkeydown(event: KeyboardEvent) {
+    if (event.ctrlKey && event.shiftKey && event.key === "&") {
+      event.preventDefault();
+      output.toggle();
+    }
+  }
 
   // The watcher is the only way Cogit learns about work done in a terminal alongside it.
   $effect(() => {
@@ -184,6 +201,8 @@
     }
   }
 </script>
+
+<svelte:window {onkeydown} />
 
 <div class="app">
   <Toolbar busy={repository.busy ? "Opening repository…" : undefined} />
@@ -368,6 +387,10 @@
     </div>
   </div>
 
+  {#if output.open}
+    <OutputPanel />
+  {/if}
+
   {#if errors.current}
     <GitErrorDialog error={errors.current} ondismiss={() => errors.dismiss()} />
   {/if}
@@ -378,6 +401,8 @@
     summary={repo ? `${graph.rows.length} commits · ${repo.branches.length} refs` : "Milestone C"}
     version={info?.version}
     status={repository.error ? "Error" : repository.busy ? "Working…" : "Ready"}
+    problems={output.problems}
+    onproblems={() => output.toggle()}
   />
 </div>
 

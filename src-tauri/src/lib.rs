@@ -46,7 +46,10 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::commit,
             commands::checkout,
             commands::create_branch,
-            commands::delete_branch
+            commands::delete_branch,
+            commands::command_log,
+            commands::command_problems,
+            commands::clear_command_log
         ])
 }
 

@@ -69,12 +69,24 @@ pub struct GraphChunk {
 
 pub const DEFAULT_CHUNK_SIZE: usize = 200;
 
+/// The Output panel is a recent history, not an audit log; the cap keeps a long session
+/// from holding every byte Git ever printed.
+pub const JOURNAL_CAPACITY: usize = 500;
+
+/// Git reports mixed line endings, permissions and deprecated settings on `stderr` with
+/// exit code 0. Nobody sees those unless we call them out.
+#[must_use]
+pub fn is_warning(entry: &git_engine::GitOutput) -> bool {
+    entry.exit_code == Some(0) && !entry.stderr.trim().is_empty()
+}
+
 #[derive(Debug)]
 pub struct AppState {
     repos: RwLock<HashMap<RepoId, OpenRepo>>,
     next_repo_id: AtomicU32,
     events: broadcast::Sender<AppEvent>,
     watchers: RwLock<HashMap<RepoId, fs_watcher::RepoWatcher>>,
+    journal: Arc<RwLock<std::collections::VecDeque<git_engine::GitOutput>>>,
 }
 
 impl Default for AppState {
@@ -92,6 +104,9 @@ impl AppState {
             next_repo_id: AtomicU32::new(1),
             events,
             watchers: RwLock::new(HashMap::new()),
+            journal: Arc::new(RwLock::new(std::collections::VecDeque::with_capacity(
+                JOURNAL_CAPACITY,
+            ))),
         }
     }
 
@@ -357,11 +372,44 @@ impl AppState {
         }
     }
 
+    /// Newest first: the Output panel opens on what just happened.
+    #[must_use]
+    pub fn command_log(&self) -> Vec<git_engine::GitOutput> {
+        self.journal.read().iter().rev().cloned().collect()
+    }
+
+    /// Just the count: the indicator refreshes often and the entries can be a megabyte each.
+    #[must_use]
+    pub fn command_problems(&self) -> u32 {
+        let count = self
+            .journal
+            .read()
+            .iter()
+            .filter(|entry| entry.exit_code != Some(0) || is_warning(entry))
+            .count();
+        u32::try_from(count).unwrap_or(u32::MAX)
+    }
+
+    pub fn clear_command_log(&self) {
+        self.journal.write().clear();
+    }
+
+    fn command_sink(&self) -> git_engine::CommandSink {
+        let journal = Arc::clone(&self.journal);
+        Arc::new(move |entry| {
+            let mut log = journal.write();
+            if log.len() == JOURNAL_CAPACITY {
+                log.pop_front();
+            }
+            log.push_back(entry);
+        })
+    }
+
     fn handle(&self, repo: RepoId) -> Result<git_engine::RepoHandle, git_engine::GitError> {
         let open = self
             .get(repo)
             .ok_or_else(|| git_engine::GitError::RepoNotFound(format!("id {}", repo.0)))?;
-        git_engine::RepoHandle::open(&open.root)
+        Ok(git_engine::RepoHandle::open(&open.root)?.with_journal(self.command_sink()))
     }
 
     #[must_use]
