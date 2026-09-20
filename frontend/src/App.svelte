@@ -65,14 +65,16 @@
   $effect(() => errors.report(diff.error));
   $effect(() => errors.report(graph.error));
 
-  // Every Git command lands in the journal; the panel reads it back when it is open.
-  $effect(() => {
-    void worktree.loading;
-    void repository.busy;
-    void output.refreshProblems();
-    void safety.refresh();
-    if (output.open) void output.refresh();
-  });
+  /** One place after every mutation: the reactive version fired on each loading toggle. */
+  async function afterMutation(paths: string[] = []) {
+    diff.dropIfAffected(paths);
+    await repository.refreshStatus();
+    await Promise.all([
+      output.refreshProblems(),
+      safety.refresh(),
+      output.open ? output.refresh() : Promise.resolve(),
+    ]);
+  }
 
   function onkeydown(event: KeyboardEvent) {
     if (event.ctrlKey && event.shiftKey && event.key === "&") {
@@ -88,6 +90,7 @@
       if (!id || id.valueOf() !== change.repo.valueOf()) return;
       void repository.refresh();
       if (commit.oid === null) void worktree.load(id);
+      void afterMutation();
       if (change.kind === "head" || change.kind === "refs") void graph.load(id, graph.query);
     });
     return () => {
@@ -103,14 +106,18 @@
     void graph.load(id, query);
   }
 
-  function stage(paths: string[]) {
+  async function stage(paths: string[]) {
     const id = repository.current?.repo;
-    if (id) void worktree.stage(id, paths);
+    if (!id) return;
+    await worktree.stage(id, paths);
+    await afterMutation(paths);
   }
 
-  function unstage(paths: string[]) {
+  async function unstage(paths: string[]) {
     const id = repository.current?.repo;
-    if (id) void worktree.unstage(id, paths);
+    if (!id) return;
+    await worktree.unstage(id, paths);
+    await afterMutation(paths);
   }
 
   async function discard(paths: string[]) {
@@ -121,7 +128,9 @@
       title: "Discard changes",
       kind: "warning",
     });
-    if (confirmed) void worktree.discard(id, paths);
+    if (!confirmed) return;
+    await worktree.discard(id, paths);
+    await afterMutation(paths);
   }
 
   async function commitStaged(message: string, amend: boolean, noVerify: boolean) {
@@ -129,7 +138,9 @@
     if (!id) return;
     await worktree.commit(id, message, amend, noVerify);
     if (worktree.error) return;
+    diff.clear();
     await repository.refresh();
+    await afterMutation();
     void graph.load(id, graph.query);
   }
 
@@ -140,6 +151,7 @@
     diff.clear();
     await repository.refresh();
     await worktree.load(id);
+    await afterMutation();
     void graph.load(id, graph.query);
   }
 
@@ -210,6 +222,7 @@
     const opened = repository.current;
     if (opened) {
       void graph.load(opened.repo);
+      void afterMutation();
     } else {
       graph.clear();
     }
