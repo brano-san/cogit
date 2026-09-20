@@ -25,6 +25,8 @@ const VIEW: &[Entry] = &[
     Entry::Item("panel-files", "Files Panel", None),
     Entry::Item("panel-diff", "Diff Panel", None),
     Entry::Separator,
+    Entry::Item("overlap", "Commit Overlap Column", None),
+    Entry::Separator,
     Entry::Item("perspective-main", "Perspective: Main", None),
     Entry::Item("perspective-review", "Perspective: Review", None),
     Entry::Item("reset-layout", "Reset Perspective", None),
@@ -168,4 +170,57 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         items: Mutex::new(collected),
     });
     Ok(menu)
+}
+
+/// One row the frontend asks for in a context menu. Ids are palette command ids, so the
+/// chosen item travels back through the same `menu-command` event as the menu bar.
+#[derive(Debug, Clone, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ContextItem {
+    pub id: String,
+    pub label: String,
+    pub enabled: bool,
+    #[serde(default)]
+    pub separator: bool,
+}
+
+/// Held until the next popup replaces it: dropping the menu closes it under the pointer.
+pub struct ContextMenu<R: Runtime> {
+    current: Mutex<Option<Menu<R>>>,
+}
+
+impl<R: Runtime> Default for ContextMenu<R> {
+    fn default() -> Self {
+        Self {
+            current: Mutex::new(None),
+        }
+    }
+}
+
+pub fn popup<R: Runtime>(
+    window: &tauri::Window<R>,
+    held: &ContextMenu<R>,
+    items: &[ContextItem],
+    x: f64,
+    y: f64,
+) -> tauri::Result<()> {
+    let app = window.app_handle();
+    let mut builder = tauri::menu::MenuBuilder::new(app);
+    for item in items {
+        if item.separator {
+            builder = builder.separator();
+            continue;
+        }
+        let entry = MenuItemBuilder::with_id(item.id.as_str(), item.label.as_str())
+            .enabled(item.enabled)
+            .build(app)?;
+        builder = builder.item(&entry);
+    }
+
+    let menu = builder.build()?;
+    window.popup_menu_at(&menu, tauri::LogicalPosition::new(x, y))?;
+    if let Ok(mut slot) = held.current.lock() {
+        *slot = Some(menu);
+    }
+    Ok(())
 }

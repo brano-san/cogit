@@ -29,6 +29,16 @@ pub struct RepoChanged {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
 pub struct MenuCommand(pub String);
 
+/// Mirrors `app_state::AppEvent::Operation*`, for the spinner in the toolbar.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
+#[serde(rename_all = "camelCase")]
+pub struct OperationChanged {
+    pub id: u32,
+    pub label: String,
+    /// `None` while it runs; `Some` once it is over.
+    pub success: Option<bool>,
+}
+
 #[derive(Debug)]
 pub struct AppContext {
     pub state: Arc<AppState>,
@@ -37,7 +47,7 @@ pub struct AppContext {
 
 fn specta_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new()
-        .events(collect_events![RepoChanged, MenuCommand])
+        .events(collect_events![RepoChanged, MenuCommand, OperationChanged])
         .commands(collect_commands![
             commands::app_info,
             commands::open_repository,
@@ -108,7 +118,11 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::split_off,
             commands::rebase_todo,
             commands::interactive_rebase,
-            commands::rebase_progress
+            commands::rebase_progress,
+            commands::overlap_window,
+            commands::bypass_log,
+            commands::popup_context_menu,
+            commands::open_compare_window
         ])
 }
 
@@ -137,7 +151,8 @@ pub fn run() -> anyhow::Result<()> {
         .invoke_handler(specta_builder.invoke_handler())
         .setup(move |app| {
             let log_dir = app.path().app_log_dir()?;
-            let guard = logging::init(&log_dir)?;
+            let config_dir = app.path().app_config_dir()?;
+            let guard = logging::init(&log_dir, &config_dir)?;
 
             tracing::info!(
                 version = env!("CARGO_PKG_VERSION"),
@@ -155,6 +170,7 @@ pub fn run() -> anyhow::Result<()> {
             specta_builder.mount_events(app);
             forward_repo_changes(app.handle().clone(), &state);
 
+            app.manage(menu::ContextMenu::<tauri::Wry>::default());
             app.set_menu(menu::build(app.handle())?)?;
             app.on_menu_event(|app, event| {
                 let _ = MenuCommand(event.id().0.clone()).emit(app);
@@ -175,8 +191,27 @@ fn forward_repo_changes(app: tauri::AppHandle, state: &Arc<AppState>) {
     let mut events = state.subscribe();
     tauri::async_runtime::spawn(async move {
         while let Ok(event) = events.recv().await {
-            if let app_state::AppEvent::RepoChanged { repo, kind } = event {
-                let _ = RepoChanged { repo, kind }.emit(&app);
+            match event {
+                app_state::AppEvent::RepoChanged { repo, kind } => {
+                    let _ = RepoChanged { repo, kind }.emit(&app);
+                }
+                app_state::AppEvent::OperationStarted { id, label } => {
+                    let _ = OperationChanged {
+                        id,
+                        label,
+                        success: None,
+                    }
+                    .emit(&app);
+                }
+                app_state::AppEvent::OperationFinished { id, success } => {
+                    let _ = OperationChanged {
+                        id,
+                        label: String::new(),
+                        success: Some(success),
+                    }
+                    .emit(&app);
+                }
+                _ => {}
             }
         }
     });

@@ -1,4 +1,5 @@
 import {
+  bypassLog,
   CogitError,
   listHooks,
   readHook,
@@ -6,6 +7,7 @@ import {
   setHookEnabled,
   useHooksPath,
   writeHook,
+  type Bypass,
   type HookOverview,
   type HookRun,
   type RepoId,
@@ -19,10 +21,12 @@ class HooksStore {
   error = $state<CogitError | null>(null);
   lastRun = $state.raw<HookRun | null>(null);
   running = $state(false);
+  bypasses = $state.raw<Bypass[]>([]);
 
   async refresh(repo: RepoId): Promise<void> {
     try {
       this.overview = await listHooks(repo);
+      this.bypasses = await bypassLog(repo);
     } catch (err) {
       this.report(err);
     }

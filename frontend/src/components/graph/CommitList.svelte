@@ -3,11 +3,15 @@
   import GraphCanvas from "$components/graph/GraphCanvas.svelte";
   import { refLabels, shortOid } from "$lib/format";
   import { DRAG_TYPE, parseDrag, serialiseDrag } from "$lib/drop-target";
+  import { overlapLabel, overlapTooltip } from "$lib/overlap";
+  import { overlap } from "$stores/overlap.svelte";
   import {
     GRAPH,
     HEADER_ROWS,
     gutterWidth,
     hitTest,
+    nextRow,
+    scrollRowIntoView,
     toCommitRow,
     visibleRange,
   } from "$lib/graph-geometry";
@@ -18,9 +22,10 @@
   interface Props {
     /** A commit was dropped on another commit; the caller offers squash or reorder. */
     ondrop?: (source: string, target: string) => void;
+    oncontext?: (oid: string, x: number, y: number) => void;
   }
 
-  let { ondrop }: Props = $props();
+  let { ondrop, oncontext }: Props = $props();
 
   let over = $state<string | null>(null);
 
@@ -38,6 +43,17 @@
     visibleRange(scrollTop, viewportHeight, GRAPH.rowHeight, listRows, BUFFER_ROWS),
   );
   const gutter = $derived(gutterWidth(graph.maxLane, viewportWidth || 600));
+
+  $effect(() => {
+    const id = repository.current?.repo;
+    const base = selection.oid;
+    if (!id || !base || !overlap.enabled) return;
+    void overlap.load(
+      id,
+      base,
+      visible.map((item) => item.entry.commit.oid),
+    );
+  });
 
   const labels = $derived(
     refLabels(
@@ -77,6 +93,30 @@
     root: entry.lane.kind === "root",
   })));
 
+  /** Selection and scroll move together: an arrow key that selects off-screen is useless. */
+  function onkeydown(event: KeyboardEvent) {
+    const id = repository.current?.repo;
+    if (!id) return;
+
+    const at = graph.rows.findIndex((row) => row.commit.oid === selection.oid);
+    const page = Math.max(Math.floor(viewportHeight / GRAPH.rowHeight) - 1, 1);
+    const target = nextRow(at < 0 ? null : at, event.key, graph.rows.length, page);
+    if (target === null) return;
+
+    event.preventDefault();
+    const row = graph.rows[target];
+    if (!row) return;
+    void selection.select(id, row.commit.oid);
+
+    const offset = scrollRowIntoView(
+      target + HEADER_ROWS,
+      scrollTop,
+      viewportHeight,
+      GRAPH.rowHeight,
+    );
+    if (offset !== null && scroller) scroller.scrollTop = offset;
+  }
+
   function onscroll() {
     if (scroller) scrollTop = scroller.scrollTop;
   }
@@ -110,7 +150,17 @@
   <p class="message">No commits yet.</p>
 {:else}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-  <div class="scroll" bind:this={scroller} {onscroll} {onclick}>
+  <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
+  <div
+    class="scroll"
+    bind:this={scroller}
+    {onscroll}
+    {onclick}
+    {onkeydown}
+    role="listbox"
+    aria-label="Commits"
+    tabindex="0"
+  >
     <div class="canvas-layer">
       <GraphCanvas
         edges={graph.edges}
@@ -153,6 +203,12 @@
             }
           }}
           ondragleave={() => (over = null)}
+          oncontextmenu={(event) => {
+            if (!oncontext) return;
+            event.preventDefault();
+            void selection.select(repository.current?.repo ?? 0, item.entry.commit.oid);
+            oncontext(item.entry.commit.oid, event.clientX, event.clientY);
+          }}
           ondrop={(event) => {
             over = null;
             const payload = parseDrag(event.dataTransfer?.getData(DRAG_TYPE) ?? "");
@@ -172,6 +228,16 @@
               item.entry.commit.tzOffsetMinutes,
             )}</span
           >
+          {#if overlap.enabled}
+            {@const row = overlap.rows.get(item.entry.commit.oid)}
+            <span
+              class="overlap {row?.overlap ?? 'none'}"
+              class:base={row?.isBase}
+              title={row ? overlapTooltip(row.shared, row.sharedTotal) : ""}
+            >
+              {row?.isBase ? "base" : row ? overlapLabel(row.overlap) : ""}
+            </span>
+          {/if}
           <span class="oid mono tabular">{shortOid(item.entry.commit.oid)}</span>
         </div>
       {/each}
@@ -275,6 +341,26 @@
   }
 
   .date,
+  .overlap {
+    flex: 0 0 74px;
+    color: var(--text-secondary);
+    font-size: var(--fs-header);
+    text-align: right;
+  }
+
+  .overlap.heavy {
+    color: var(--status-modify);
+  }
+
+  .overlap.same {
+    color: var(--status-delete);
+  }
+
+  .overlap.base {
+    color: var(--status-ref);
+    font-weight: 600;
+  }
+
   .oid {
     flex: 0 0 auto;
     color: var(--text-secondary);

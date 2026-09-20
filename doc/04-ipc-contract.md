@@ -256,6 +256,18 @@ snake_case и читаются на фронтенде как `undefined`.
 | `rebase_todo` | `repo, base` | `Vec<TodoEntry>` | M4 |
 | `interactive_rebase` | `repo, base, plan: Vec<TodoEntry>` | `()` | M4 |
 | `rebase_progress` | `repo` | `Option<RebaseProgress>` | M11 |
+| `overlap_window` | `repo, base, window: Vec<String>` | `Vec<OverlapRow>` | M13 |
+| `bypass_log` | `repo` | `Vec<Bypass>` | M10 |
+| `popup_context_menu` | `items: Vec<ContextItem>, x, y` | `()` | M2 |
+| `open_compare_window` | `url, title` | `()` | M2 |
+
+Обе последние — **синхронные** команды: на Windows и меню, и создание окна обязаны
+выполняться в главном потоке. Выбранный пункт контекстного меню возвращается тем же
+событием `menu-command`, что и строка меню.
+
+`interactive_rebase` принимает `paused`: план дописывается строками `break` после каждого
+применённого коммита. `overlap_window` считается только по видимому окну и фанится
+`rayon` внутри `spawn_blocking` ([INV-01](01-architecture.md#inv-01)).
 
 `TodoEntry` — `{ oid, action: pick|reword|edit|squash|fixup|drop, message }`.
 Сообщение для `reword` уезжает в план строкой `exec git commit --amend`, чтобы редактор
@@ -310,6 +322,7 @@ pub struct GraphChunk {
 | `operation-started` / `operation-finished` | `{ id, label, result }` | Для спиннера в тулбаре |
 | `git-command-logged` | `CommandLogEntry` | Для панели Output |
 | `menu-command` | `String` (id команды палитры) | Выбран пункт нативного меню |
+| `operation-changed` | `{ id, label, success }` | Началась или закончилась операция; `success: null` — идёт |
 
 `ChangeKind`: `Head` · `Index` · `Refs` · `WorkingTree` · `Stash` · `Config`.
 UI обновляет **только** соответствующую панель — не перезагружает всё.

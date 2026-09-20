@@ -44,21 +44,21 @@
 неуспех возвращает `GitCommandError`, а не общую ошибку.
 
 ### T1.4 · Логирование
-- [ ] `tracing-subscriber` с `EnvFilter`
-- [ ] `file-rotate` внутри `tracing_appender::non_blocking` (D-06)
-- [ ] `ContentLimit::Bytes(10 * 1024 * 1024)`, 2 архива
-- [ ] `WorkerGuard` хранится в состоянии приложения
-- [ ] Умолчание: `cogit=debug,git_engine=debug,gix=warn,notify=warn,tauri=info`
+- [x] `tracing-subscriber` с `EnvFilter`
+- [x] `file-rotate` внутри `tracing_appender::non_blocking` (D-06)
+- [x] `ContentLimit::Bytes(10 * 1024 * 1024)`, 2 архива
+- [x] `WorkerGuard` хранится в состоянии приложения
+- [x] Умолчание: `cogit=debug,git_engine=debug,gix=warn,notify=warn,tauri=info`
 - [ ] Логируются границы операций и `elapsed`, не шаги циклов
 
 **DoD:** тест записывает более 10 МБ логов и проверяет, что файлов не более трёх
 и общий объём ограничен.
 
 ### T1.5 · Шина событий
-- [ ] `tokio::sync::broadcast` в `app_state`
+- [x] `tokio::sync::broadcast` в `app_state`
 - [ ] Типы событий из [04-ipc-contract.md §6](../04-ipc-contract.md#6-события)
-- [ ] Мост «шина → Tauri Event» в слое `src-tauri`
-- [ ] Отставший подписчик не ломает шину (обработка `RecvError::Lagged`)
+- [x] Мост «шина → Tauri Event» в слое `src-tauri`
+- [x] Отставший подписчик не ломает шину (обработка `RecvError::Lagged`)
 
 **DoD:** тест с двумя подписчиками, один из которых медленный.
 

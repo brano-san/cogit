@@ -96,5 +96,13 @@
 | F-090 | Визуальный interactive rebase | [F-090-interactive-rebase.md](F-090-interactive-rebase.md) |
 | F-091 | Перетаскивание в графе | [F-091-graph-drag-drop.md](F-091-graph-drag-drop.md) |
 | F-092 | Стек незавершённого rebase | [F-092-rebase-stack.md](F-092-rebase-stack.md) |
+| F-093 | Колонка Commit Overlap | [F-093-commit-overlap.md](F-093-commit-overlap.md) |
+| F-094 | Учёт обхода хуков | [F-094-hook-bypass-log.md](F-094-hook-bypass-log.md) |
+| F-095 | Rebase с остановкой на каждом коммите | [F-095-paused-rebase.md](F-095-paused-rebase.md) |
+| F-096 | Уровень логирования из настроек | [F-096-log-level.md](F-096-log-level.md) |
+| F-097 | Индикатор фоновых операций | [F-097-operation-progress.md](F-097-operation-progress.md) |
+| F-098 | Нативное контекстное меню | [F-098-context-menu.md](F-098-context-menu.md) |
+| F-099 | Отдельное окно сравнения | [F-099-compare-window.md](F-099-compare-window.md) |
+| F-100 | Клавиатура в графе | [F-100-graph-keyboard.md](F-100-graph-keyboard.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.

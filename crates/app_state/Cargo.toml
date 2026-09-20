@@ -18,12 +18,15 @@ parking_lot.workspace = true
 keyring.workspace = true
 directories.workspace = true
 thiserror.workspace = true
+file-rotate.workspace = true
 tracing.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 specta.workspace = true
 
 [dev-dependencies]
 test_fixtures.workspace = true
+tempfile.workspace = true
 
 [lints]
 workspace = true

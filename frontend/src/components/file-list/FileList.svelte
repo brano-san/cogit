@@ -23,11 +23,13 @@
     selected?: string | null;
     empty?: string;
     onselect?: (path: string) => void;
+    /** Double-click: open the file in its own window (T2.5). */
+    onopen?: (path: string) => void;
     /** Reported upward so Commit What You See knows what is hidden (T6.8). */
     onmask?: (mask: string) => void;
   }
 
-  let { sections, selected = null, empty, onselect, onmask }: Props = $props();
+  let { sections, selected = null, empty, onselect, onopen, onmask }: Props = $props();
 
   const BUFFER_ROWS = 10;
 
@@ -146,6 +148,7 @@
               style:top="{item.at * GRAPH.rowHeight}px"
               title={file.oldPath ? `${file.oldPath} → ${file.path}` : file.path}
               onclick={() => (item.row.kind === "file" ? (item.row.open ?? onselect)?.(file.path) : undefined)}
+              ondblclick={() => onopen?.(file.path)}
             >
               <span class="badge" aria-label={statusLabel(file.status)}>{statusBadge(file.status)}</span>
               <span class="name truncate">{fileName(file.path)}</span>

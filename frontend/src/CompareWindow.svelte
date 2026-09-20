@@ -1,0 +1,100 @@
+<script lang="ts">
+  import DiffView from "$components/diff/DiffView.svelte";
+  import ImageDiff from "$components/diff/ImageDiff.svelte";
+  import { parseCompare } from "$lib/compare-params";
+  import { diff } from "$stores/diff.svelte";
+  import { settings } from "$stores/settings.svelte";
+
+  const request = parseCompare(window.location.search);
+
+  $effect(() => {
+    void settings.load();
+    if (request) void diff.load(request.repo, request.spec, request.path);
+  });
+
+  const title = $derived(request ? `${request.path} — ${request.spec.kind}` : "Compare");
+
+  $effect(() => {
+    document.title = `${title} — Cogit`;
+  });
+</script>
+
+<div class="window">
+  {#if !request}
+    <p class="note">
+      This window needs a file to compare. Open it from the Diff panel rather than by hand.
+    </p>
+  {:else}
+    <header>
+      <span class="path truncate">{request.path}</span>
+      <span class="spec">{request.spec.kind}</span>
+    </header>
+
+    {#if diff.error}
+      <p class="note error">{diff.error.message}</p>
+    {:else if diff.diff?.kind === "image"}
+      <ImageDiff
+        before={diff.images[0]}
+        after={diff.images[1]}
+        oldSize={diff.diff.oldSize}
+        newSize={diff.diff.newSize}
+        mime={diff.diff.mime}
+      />
+    {:else if diff.diff && diff.path}
+      <DiffView
+        diff={diff.diff}
+        path={diff.path}
+        stageable={false}
+        onstage={() => {}}
+        whitespace={diff.whitespace}
+        onwhitespace={(mode) => void diff.setWhitespace(request.repo, mode)}
+      />
+    {:else}
+      <p class="note">Loading…</p>
+    {/if}
+  {/if}
+</div>
+
+<style>
+  .window {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: var(--surface-base);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-5);
+    height: var(--h-panel-hdr);
+    padding: 0 var(--sp-5);
+    background: var(--surface-panel);
+    border-bottom: 1px solid var(--divider);
+    font-size: var(--fs-dense);
+  }
+
+  .path {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-family: var(--font-mono);
+  }
+
+  .spec {
+    color: var(--text-secondary);
+    font-size: var(--fs-header);
+  }
+
+  .note {
+    margin: 0;
+    padding: var(--sp-6);
+    color: var(--text-secondary);
+    font-size: var(--fs-dense);
+  }
+
+  .error {
+    color: var(--status-delete);
+  }
+</style>
