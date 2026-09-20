@@ -11,9 +11,10 @@
     /** Only the working tree can be staged; a commit's diff is read-only. */
     stageable?: boolean;
     onstage?: (selected: ReadonlySet<string>, reverse: boolean) => void;
+    onblame?: () => void;
   }
 
-  let { diff, path, stageable = false, onstage }: Props = $props();
+  let { diff, path, stageable = false, onstage, onblame }: Props = $props();
 
   let selected = $state<Set<string>>(new Set());
 
@@ -172,6 +173,11 @@
         >
         <button type="button" disabled={selected.size === 0} onclick={() => apply(true)}
           >Unstage lines</button
+        >
+      {/if}
+      {#if onblame}
+        <button type="button" title="Annotate every line with its commit" onclick={() => onblame()}
+          >Blame</button
         >
       {/if}
       <button

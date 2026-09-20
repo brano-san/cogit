@@ -63,5 +63,12 @@
 | F-057 | Построчный стейджинг | [F-057-line-staging.md](F-057-line-staging.md) |
 | F-058 | Построчный unstage | [F-058-line-unstaging.md](F-058-line-unstaging.md) |
 | F-059 | Подсветка синтаксиса | [F-059-syntax-highlighting.md](F-059-syntax-highlighting.md) |
+| F-060 | Заголовки ханков | [F-060-hunk-headers.md](F-060-hunk-headers.md) |
+| F-061 | Blame | [F-061-blame.md](F-061-blame.md) |
+| F-062 | Переход из blame | [F-062-blame-navigation.md](F-062-blame-navigation.md) |
+| F-063 | Палитра команд | [F-063-command-palette.md](F-063-command-palette.md) |
+| F-064 | Дерево ссылок | [F-064-ref-tree.md](F-064-ref-tree.md) |
+| F-065 | Фильтр ссылок | [F-065-ref-filter.md](F-065-ref-filter.md) |
+| F-066 | Создание Pull Request | [F-066-pull-request.md](F-066-pull-request.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.

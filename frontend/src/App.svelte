@@ -2,12 +2,14 @@
   import { ask, open as openFolderDialog } from "@tauri-apps/plugin-dialog";
 
   import BranchList from "$components/branch-tree/BranchList.svelte";
+  import BlameView from "$components/diff/BlameView.svelte";
   import DiffView from "$components/diff/DiffView.svelte";
   import CommitBox from "$components/file-list/CommitBox.svelte";
   import FileList from "$components/file-list/FileList.svelte";
   import CommitList from "$components/graph/CommitList.svelte";
   import GraphFilter from "$components/graph/GraphFilter.svelte";
   import Panel from "$components/layout/Panel.svelte";
+  import CommandPalette from "$components/layout/CommandPalette.svelte";
   import GitErrorDialog from "$components/layout/GitErrorDialog.svelte";
   import OutputPanel from "$components/layout/OutputPanel.svelte";
   import StateBanner from "$components/layout/StateBanner.svelte";
@@ -20,6 +22,8 @@
   import RepositoryList from "$components/repo-tree/RepositoryList.svelte";
   import SubmoduleList from "$components/repo-tree/SubmoduleList.svelte";
   import { formatCommitDate, shortOid } from "$lib/format";
+  import type { PaletteCommand } from "$lib/palette";
+  import { pullRequestUrl } from "$lib/pull-request";
   import { stateBanner, type BannerAction } from "$lib/repo-state";
   import {
     checkout,
@@ -41,6 +45,7 @@
     type Branch,
     type Tag,
   } from "$lib/ipc";
+  import { blame } from "$stores/blame.svelte";
   import { commit } from "$stores/commit.svelte";
   import { worktree } from "$stores/worktree.svelte";
   import { diff } from "$stores/diff.svelte";
@@ -56,6 +61,9 @@
   import { repository } from "$stores/repository.svelte";
 
   let info = $state<AppInfo | null>(null);
+  let paletteOpen = $state(false);
+  let recentCommands = $state<string[]>([]);
+  let refFilter = $state("");
 
   $effect(() => {
     getAppInfo().then((result) => {
@@ -72,12 +80,19 @@
   const details = $derived(commit.details);
   const banner = $derived(repo ? stateBanner(repo.state, repo.indexLock) : null);
   const tracked = $derived(repository.localBranches.find((b) => b.isHead));
+  const prUrl = $derived.by(() => {
+    const head = tracked?.name;
+    const base = tracked?.upstream?.split("/").slice(1).join("/") ?? "main";
+    if (!network.url || !head) return null;
+    return pullRequestUrl(network.url, base, head, commit.details?.summary ?? head);
+  });
 
   const onWorkingTree = $derived(repo !== undefined && repo !== null && commit.oid === null);
 
   $effect(() => {
     void commit.oid;
     diff.clear();
+    blame.clear();
   });
 
   $effect(() => {
@@ -92,6 +107,7 @@
   $effect(() => errors.report(commit.error));
   $effect(() => errors.report(diff.error));
   $effect(() => errors.report(graph.error));
+  $effect(() => errors.report(blame.error));
 
   /** One place after every mutation: the reactive version fired on each loading toggle. */
   async function afterMutation(paths: string[] = []) {
@@ -109,10 +125,84 @@
     ]);
   }
 
+  const palette = $derived.by<PaletteCommand[]>(() => {
+    const open = repo !== undefined && repo !== null;
+    const noRepo = open ? undefined : "No repository is open";
+    const noRemote = network.primary ? undefined : "This repository has no remote";
+    const nothingStaged = worktree.staged.length > 0 ? undefined : "Nothing is staged";
+
+    return [
+      { id: "open", title: "Open Repository…", run: () => void pickRepository() },
+      { id: "fetch", title: "Fetch", unavailable: noRepo ?? noRemote, run: () => void runNetwork("fetch") },
+      { id: "pull", title: "Pull", unavailable: noRepo ?? noRemote, run: () => void runNetwork("pull") },
+      { id: "push", title: "Push", unavailable: noRepo ?? noRemote, run: () => void runNetwork("push") },
+      { id: "stash", title: "Stash All", synonyms: ["shelve"], unavailable: noRepo, run: () => void stashAll() },
+      { id: "tag", title: "Create Tag", unavailable: noRepo, run: () => void tagHead() },
+      { id: "commit", title: "Commit Staged", unavailable: noRepo ?? nothingStaged, run: () => {} },
+      {
+        id: "undo",
+        title: "Undo Last Operation",
+        unavailable: safety.last ? undefined : "Nothing to undo",
+        run: () => void undo(),
+      },
+      { id: "output", title: "Toggle Output Panel", shortcut: "Ctrl+Shift+7", run: () => output.toggle() },
+      {
+        id: "pr",
+        title: "Create Pull Request",
+        synonyms: ["merge request", "pr", "mr"],
+        unavailable: prUrl ? undefined : "No GitHub, GitLab or Bitbucket remote",
+        run: () => void openPullRequest(),
+      },
+      {
+        id: "copy-pr",
+        title: "Copy Pull Request Link",
+        unavailable: prUrl ? undefined : "No GitHub, GitLab or Bitbucket remote",
+        run: () => {
+          if (prUrl) void import("@tauri-apps/plugin-clipboard-manager").then((m) => m.writeText(prUrl));
+        },
+      },
+      {
+        id: "blame",
+        title: "Blame This File",
+        unavailable: diff.path ? undefined : "No file is open in the Diff panel",
+        run: () => void showBlame(),
+      },
+      {
+        id: "abort",
+        title: "Abort Operation In Progress",
+        unavailable: banner?.actions.includes("abort") ? undefined : "Nothing is in progress",
+        run: () => void runBannerAction("abort"),
+      },
+    ];
+  });
+
+  async function openPullRequest() {
+    if (!prUrl) return;
+    if (tracked && tracked.ahead > 0) {
+      const push = await ask(
+        `${tracked.name} has ${tracked.ahead} commit(s) the remote has not seen. Push first?`,
+        { title: "Create pull request", kind: "info" },
+      );
+      if (push) await runNetwork("push");
+    }
+    const { openUrl } = await import("@tauri-apps/plugin-opener");
+    await openUrl(prUrl);
+  }
+
+  function runCommand(command: PaletteCommand) {
+    paletteOpen = false;
+    recentCommands = [command.id, ...recentCommands.filter((id) => id !== command.id)].slice(0, 8);
+    command.run();
+  }
+
   function onkeydown(event: KeyboardEvent) {
     if (event.ctrlKey && event.shiftKey && event.key === "&") {
       event.preventDefault();
       output.toggle();
+    }
+    if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "p") {
+      event.preventDefault();
+      paletteOpen = !paletteOpen;
     }
   }
 
@@ -229,6 +319,13 @@
       return;
     }
     await afterRefChange();
+  }
+
+  async function showBlame() {
+    const id = repository.current?.repo;
+    const path = diff.path;
+    if (!id || !path) return;
+    await blame.show(id, path, commit.oid ?? "HEAD");
   }
 
   async function stageLines(selected: ReadonlySet<string>, reverse: boolean) {
@@ -482,6 +579,7 @@
   async function activate(root: string) {
     commit.clear();
     diff.clear();
+    blame.clear();
     worktree.clear();
     stashes.clear();
     network.clear();
@@ -561,6 +659,17 @@
           count={repo?.branches.length}
           empty={repo ? undefined : "Open a repository to see its branches."}
         >
+          {#snippet actions()}
+            {#if repo}
+              <input
+                class="ref-filter"
+                type="search"
+                bind:value={refFilter}
+                placeholder="Filter refs"
+                aria-label="Filter references"
+              />
+            {/if}
+          {/snippet}
           {#if repo}
             {#if repo.branches.length === 0}
               <p class="note">No branches yet — the first commit creates one.</p>
@@ -572,11 +681,13 @@
                 ondelete={removeBranch}
                 onmerge={mergeBranch}
                 onrebase={rebaseOntoBranch}
+                filter={refFilter}
               />
               <BranchList
                 title="Remote"
                 branches={repository.remoteBranches}
                 oncheckout={switchTo}
+                filter={refFilter}
               />
               <TagList tags={repo.tags} oncheckout={checkoutTag} ondelete={removeTag} />
               <StashList stashes={stashes.entries} onapply={applyStash} ondrop={dropStash} />
@@ -672,7 +783,17 @@
 
       <div class="pane grow">
         <Panel title="Diff">
-          {#if diff.error}
+          {#if blame.path}
+            <BlameView
+              lines={blame.lines}
+              path={blame.path}
+              onselect={(oid) => {
+                blame.clear();
+                const id = repository.current?.repo;
+                if (id) void commit.select(id, oid);
+              }}
+            />
+          {:else if diff.error}
             <p class="error detail">{diff.error.message}</p>
           {:else if diff.diff && diff.path}
             <DiffView
@@ -680,6 +801,7 @@
               path={diff.path}
               stageable={diff.stageable}
               onstage={(selected, reverse) => void stageLines(selected, reverse)}
+              onblame={() => void showBlame()}
             />
           {:else}
           <div class="detail">
@@ -738,6 +860,15 @@
 
   {#if output.open}
     <OutputPanel />
+  {/if}
+
+  {#if paletteOpen}
+    <CommandPalette
+      commands={palette}
+      recent={recentCommands}
+      onrun={runCommand}
+      onclose={() => (paletteOpen = false)}
+    />
   {/if}
 
   {#if errors.current}
@@ -809,6 +940,17 @@
 
   .grow {
     flex: 1 1 0;
+  }
+
+  .ref-filter {
+    width: 140px;
+    height: 18px;
+    padding: 0 var(--sp-3);
+    background: var(--surface-input);
+    color: var(--text-primary);
+    border: 1px solid var(--field-border);
+    border-radius: var(--r-sm);
+    font-size: 10px;
   }
 
   .files {

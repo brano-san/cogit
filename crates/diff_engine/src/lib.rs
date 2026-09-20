@@ -1,12 +1,14 @@
 use serde::{Deserialize, Serialize};
 
 mod eol;
+mod headers;
 mod language;
 mod patch;
 mod text;
 mod words;
 
 pub use eol::{EolInfo, LineEnding, detect_line_ending, normalize_line_endings};
+pub use headers::with_hunk_context;
 pub use language::language_for_path;
 pub use patch::{PatchRequest, build_patch};
 pub use text::{MAX_TEXT_BYTES, diff_bytes, diff_text};

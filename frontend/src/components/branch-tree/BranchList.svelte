@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { buildTree, matchesFilter } from "$lib/ref-tree";
   import type { Branch } from "$lib/ipc";
 
   interface Props {
@@ -8,18 +9,44 @@
     ondelete?: (branch: Branch) => void;
     onmerge?: (branch: Branch) => void;
     onrebase?: (branch: Branch) => void;
+    /** Typed in the panel header; folders whose children all fail it disappear with them. */
+    filter?: string;
   }
 
-  let { title, branches, oncheckout, ondelete, onmerge, onrebase }: Props = $props();
+  let { title, branches, oncheckout, ondelete, onmerge, onrebase, filter = "" }: Props = $props();
+
+  let collapsed = $state(false);
+  const shown = $derived(branches.filter((b) => matchesFilter(b.name, filter)));
+  const rows = $derived(buildTree(shown));
 </script>
 
-{#if branches.length > 0}
+{#if shown.length > 0}
   <div class="section">
-    <div class="section-header">{title} ({branches.length})</div>
-    {#each branches as branch (branch.fullName)}
-      <div class="row" class:head={branch.isHead} title={branch.fullName}>
+    <div
+      class="section-header"
+      role="button"
+      tabindex="0"
+      onclick={() => (collapsed = !collapsed)}
+      onkeydown={(event) => event.key === "Enter" && (collapsed = !collapsed)}
+    >
+      <span class="caret" aria-hidden="true">{collapsed ? "▸" : "▾"}</span>
+      {title} ({shown.length})
+    </div>
+    {#each collapsed ? [] : rows as row (row.branch?.fullName ?? row.label + row.depth)}
+      {#if !row.branch}
+        <div class="folder" style:padding-left="calc(var(--sp-5) + {row.depth * 12}px)">
+          {row.label}
+        </div>
+      {:else}
+        {@const branch = row.branch}
+        <div
+          class="row"
+          class:head={branch.isHead}
+          title={branch.fullName}
+          style:padding-left="calc(var(--sp-5) + {row.depth * 12}px)"
+        >
         <span class="marker" aria-hidden="true">{branch.isHead ? "▸" : ""}</span>
-        <span class="name truncate">{branch.name}</span>
+        <span class="name truncate">{row.label}</span>
         {#if branch.ahead > 0 || branch.behind > 0}
           <span class="track tabular" title="{branch.ahead} ahead, {branch.behind} behind">
             {branch.ahead > 0 ? "↑" + branch.ahead : ""}{branch.behind > 0
@@ -70,7 +97,8 @@
             >
           {/if}
         {/if}
-      </div>
+        </div>
+      {/if}
     {/each}
   </div>
 {/if}
@@ -78,6 +106,22 @@
 <style>
   .section {
     padding-bottom: var(--sp-4);
+  }
+
+  .caret {
+    display: inline-block;
+    width: 10px;
+    color: var(--text-secondary);
+  }
+
+  .folder {
+    display: flex;
+    align-items: center;
+    height: 22px;
+    padding-right: var(--sp-5);
+    color: var(--text-secondary);
+    font-size: var(--fs-dense);
+    white-space: nowrap;
   }
 
   .section-header {

@@ -50,6 +50,8 @@ export const commands = {
 	submodules: (repo: RepoId) => typedError<Submodule[], GitError>(__TAURI_INVOKE("submodules", { repo })),
 	updateSubmodule: (repo: RepoId, path: string, init: boolean) => typedError<null, GitError>(__TAURI_INVOKE("update_submodule", { repo, path, init })),
 	stageSelection: (repo: RepoId, request: PatchRequest, reverse: boolean) => typedError<null, GitError>(__TAURI_INVOKE("stage_selection", { repo, request, reverse })),
+	blame: (repo: RepoId, path: string, rev: string) => typedError<BlameLine[], GitError>(__TAURI_INVOKE("blame", { repo, path, rev })),
+	remoteUrl: (repo: RepoId, name: string) => typedError<string | null, GitError>(__TAURI_INVOKE("remote_url", { repo, name })),
 };
 
 /** Events */
@@ -65,6 +67,15 @@ export type AppInfo = {
 	version: string,
 	logPath: string,
 	debugBuild: boolean,
+};
+
+export type BlameLine = {
+	line: number,
+	text: string,
+	oid: string,
+	summary: string,
+	author: string,
+	timestamp: number,
 };
 
 export type Branch = {

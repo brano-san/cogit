@@ -1,10 +1,10 @@
 use app_state::{DEFAULT_CHUNK_SIZE, GraphChunk, RepoId, RepoOverview, RepoSummary, SafetyEntry};
 use diff_engine::{DiffOptions, FileDiff, PatchRequest};
+use git_engine::{BlameLine, CommitRow, Submodule};
 use git_engine::{
     CheckoutTarget, CommitDetails, CommitQuery, CommitRequest, DiffSpec, FileEntry, GitError,
     WorktreeFiles,
 };
-use git_engine::{CommitRow, Submodule};
 use git_engine::{
     GitOutput, MergeOptions, RebaseOptions, ReflogEntry, RepoStatus, StashEntry, StashOptions,
     TagRequest,
@@ -590,4 +590,41 @@ pub async fn stage_selection(
     tokio::task::spawn_blocking(move || app_state.stage_selection(repo, &request, reverse))
         .await
         .map_err(|err| GitError::Internal(format!("stage_selection task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn blame(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    path: String,
+    rev: String,
+) -> Result<Vec<BlameLine>, GitError> {
+    let app_state = state.state.clone();
+    let started = std::time::Instant::now();
+
+    let lines = tokio::task::spawn_blocking(move || app_state.blame(repo, &path, &rev))
+        .await
+        .map_err(|err| GitError::Internal(format!("blame task failed: {err}")))??;
+
+    tracing::debug!(
+        repo = repo.0,
+        lines = lines.len(),
+        elapsed_ms = started.elapsed().as_millis(),
+        "blame computed"
+    );
+    Ok(lines)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn remote_url(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    name: String,
+) -> Result<Option<String>, GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.remote_url(repo, &name))
+        .await
+        .map_err(|err| GitError::Internal(format!("remote_url task failed: {err}")))?
 }

@@ -1,7 +1,15 @@
-import { fetchRemote, listRemotes, pullRemote, pushRemote, type RepoId } from "$lib/ipc";
+import {
+  fetchRemote,
+  listRemotes,
+  pullRemote,
+  pushRemote,
+  remoteUrl,
+  type RepoId,
+} from "$lib/ipc";
 
 class NetworkStore {
   remotes = $state.raw<string[]>([]);
+  url = $state<string | null>(null);
   /** The last line Git printed, shown in the status bar while the operation runs. */
   progress = $state<string | null>(null);
   running = $state<string | null>(null);
@@ -12,6 +20,7 @@ class NetworkStore {
 
   async refresh(repo: RepoId): Promise<void> {
     this.remotes = await listRemotes(repo);
+    this.url = this.primary ? await remoteUrl(repo, this.primary) : null;
   }
 
   async fetch(repo: RepoId, remote: string): Promise<void> {
@@ -39,6 +48,7 @@ class NetworkStore {
 
   clear(): void {
     this.remotes = [];
+    this.url = null;
     this.progress = null;
     this.running = null;
   }

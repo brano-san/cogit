@@ -169,3 +169,43 @@ fn a_path_in_neither_side_is_an_error_not_an_empty_diff() {
             .is_err()
     );
 }
+
+#[test]
+fn a_hunk_header_names_the_function_it_is_inside() {
+    let f = test_fixtures::linear(1).unwrap();
+    let body: String = (0..12).map(|i| format!("    let v{i} = {i};\n")).collect();
+    f.write_file("main.rs", &format!("fn outer() {{\n{body}}}\n"))
+        .unwrap();
+    f.git(&["add", "--", "main.rs"]).unwrap();
+    f.commit_staged(1, "add main.rs").unwrap();
+    f.write_file(
+        "main.rs",
+        &format!(
+            "fn outer() {{\n{}}}\n",
+            body.replace("let v6 = 6;", "let v6 = 66;")
+        ),
+    )
+    .unwrap();
+
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let diff = state
+        .diff_file(
+            repo,
+            &DiffSpec::WorkTreeVsIndex,
+            "main.rs",
+            &DiffOptions::default(),
+        )
+        .unwrap();
+
+    match diff {
+        FileDiff::Text { hunks, .. } => {
+            assert!(
+                hunks[0].header.ends_with("fn outer() {"),
+                "{:?}",
+                hunks[0].header
+            );
+        }
+        other => panic!("expected a text diff, got {other:?}"),
+    }
+}

@@ -1,4 +1,5 @@
 mod apply;
+mod blame;
 mod blobs;
 mod branches;
 mod commit;
@@ -21,6 +22,7 @@ mod submodules;
 mod tags;
 mod worktree;
 
+pub use blame::BlameLine;
 pub use blobs::{DiffSides, DiffSpec};
 pub use branches::CheckoutTarget;
 pub use commit::{CommitDetails, FileEntry, FileStatus, Signature};

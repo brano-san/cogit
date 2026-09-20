@@ -21,6 +21,7 @@ import type {
 export type {
   Algorithm,
   AppInfo,
+  BlameLine,
   Branch,
   BranchKind,
   CheckoutTarget,
@@ -214,6 +215,10 @@ export async function undoLast(repo: RepoId) {
   return unwrap(await commands.undoLast(repo));
 }
 
+export async function blameFile(repo: RepoId, path: string, rev: string) {
+  return unwrap(await commands.blame(repo, path, rev));
+}
+
 export async function stageSelection(repo: RepoId, request: PatchRequest, reverse: boolean) {
   return unwrap(await commands.stageSelection(repo, request, reverse));
 }
@@ -260,6 +265,10 @@ export async function skipOperation(repo: RepoId) {
 
 export async function mergeInto(repo: RepoId, options: MergeOptions) {
   return unwrap(await commands.merge(repo, options));
+}
+
+export async function remoteUrl(repo: RepoId, name: string) {
+  return unwrap(await commands.remoteUrl(repo, name));
 }
 
 export async function listRemotes(repo: RepoId) {
