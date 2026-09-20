@@ -1,6 +1,4 @@
 use crate::{GitError, RepoHandle, Result};
-use gix::revision::walk::Sorting;
-use gix::traverse::commit::simple::CommitTimeOrder;
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
@@ -24,50 +22,7 @@ pub struct CommitRow {
 const SECONDS_PER_MINUTE: i32 = 60;
 
 impl RepoHandle {
-    pub fn stream_commits(
-        &self,
-        chunk_size: usize,
-        mut on_chunk: impl FnMut(Vec<CommitRow>) -> bool,
-    ) -> Result<()> {
-        let chunk_size = chunk_size.max(1);
-        let tips = self.graph_tips()?;
-        if tips.is_empty() {
-            return Ok(());
-        }
-
-        let walk = self
-            .repo
-            .rev_walk(tips)
-            .sorting(Sorting::ByCommitTime(CommitTimeOrder::NewestFirst))
-            .all()
-            .map_err(|err| GitError::Internal(format!("cannot walk history: {err}")))?;
-
-        let mut chunk = Vec::with_capacity(chunk_size);
-        for info in walk {
-            let info = match info {
-                Ok(info) => info,
-                Err(err) => {
-                    tracing::warn!(error = %err, "skipping an unreadable commit");
-                    continue;
-                }
-            };
-
-            chunk.push(self.to_row(&info)?);
-            if chunk.len() >= chunk_size {
-                let full = std::mem::replace(&mut chunk, Vec::with_capacity(chunk_size));
-                if !on_chunk(full) {
-                    return Ok(());
-                }
-            }
-        }
-
-        if !chunk.is_empty() {
-            on_chunk(chunk);
-        }
-        Ok(())
-    }
-
-    fn graph_tips(&self) -> Result<Vec<gix::ObjectId>> {
+    pub(crate) fn graph_tips(&self) -> Result<Vec<gix::ObjectId>> {
         let platform = self
             .repo
             .references()
@@ -93,7 +48,7 @@ impl RepoHandle {
         Ok(tips)
     }
 
-    fn to_row(&self, info: &gix::revision::walk::Info<'_>) -> Result<CommitRow> {
+    pub(crate) fn to_row(&self, info: &gix::revision::walk::Info<'_>) -> Result<CommitRow> {
         let commit = info
             .object()
             .map_err(|err| GitError::Internal(format!("cannot read commit: {err}")))?;

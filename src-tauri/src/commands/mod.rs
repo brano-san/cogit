@@ -1,6 +1,6 @@
 use app_state::{DEFAULT_CHUNK_SIZE, GraphChunk, RepoId, RepoSummary};
 use diff_engine::{DiffOptions, FileDiff};
-use git_engine::{CommitDetails, DiffSpec, FileEntry, GitError};
+use git_engine::{CommitDetails, CommitQuery, DiffSpec, FileEntry, GitError};
 use serde::Serialize;
 use std::path::PathBuf;
 
@@ -53,6 +53,7 @@ pub async fn open_repository(
 pub async fn load_commits(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,
+    query: CommitQuery,
     on_chunk: tauri::ipc::Channel<GraphChunk>,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
@@ -60,7 +61,7 @@ pub async fn load_commits(
 
     let sent = tokio::task::spawn_blocking(move || {
         let mut sent = 0_usize;
-        let result = app_state.stream_graph(repo, DEFAULT_CHUNK_SIZE, |chunk| {
+        let result = app_state.search_graph(repo, &query, DEFAULT_CHUNK_SIZE, |chunk| {
             sent += chunk.commits.len();
             on_chunk.send(chunk).is_ok()
         });

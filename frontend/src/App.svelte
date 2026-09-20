@@ -5,6 +5,7 @@
   import DiffView from "$components/diff/DiffView.svelte";
   import FileList from "$components/file-list/FileList.svelte";
   import CommitList from "$components/graph/CommitList.svelte";
+  import GraphFilter from "$components/graph/GraphFilter.svelte";
   import Panel from "$components/layout/Panel.svelte";
   import Splitter from "$components/layout/Splitter.svelte";
   import StatusBar from "$components/layout/StatusBar.svelte";
@@ -34,6 +35,14 @@
     void commit.oid;
     diff.clear();
   });
+
+  function filterGraph(query: import("$lib/ipc").CommitQuery) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    commit.clear();
+    diff.clear();
+    void graph.load(id, query);
+  }
 
   function openDiff(path: string) {
     const id = repository.current?.repo;
@@ -103,6 +112,11 @@
       <div class="top-row" style:flex="0 0 {fractions.topRow * 100}%">
         <div class="pane" style:flex="0 0 {fractions.graph * 100}%">
           <Panel title="Graph &amp; History" count={graph.rows.length}>
+            {#snippet actions()}
+              {#if repo}
+                <GraphFilter onchange={filterGraph} matches={graph.rows.length} />
+              {/if}
+            {/snippet}
             {#if repo}
               <CommitList />
             {:else}

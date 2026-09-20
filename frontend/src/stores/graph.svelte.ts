@@ -1,6 +1,8 @@
 import {
   CogitError,
+  EMPTY_QUERY,
   loadCommits,
+  type CommitQuery,
   type CommitRow,
   type GraphEdge,
   type LaneAssignment,
@@ -24,8 +26,11 @@ class GraphStore {
   /** Discriminates concurrent loads; chunks from a superseded stream are dropped. */
   #generation = 0;
 
-  async load(repo: RepoId): Promise<void> {
+  query = $state.raw<CommitQuery>(EMPTY_QUERY);
+
+  async load(repo: RepoId, query: CommitQuery = EMPTY_QUERY): Promise<void> {
     const generation = ++this.#generation;
+    this.query = query;
     this.rows = [];
     this.edges = [];
     this.maxLane = 0;
@@ -47,7 +52,7 @@ class GraphStore {
         }
         this.maxLane = Math.max(this.maxLane, chunk.maxLane);
         if (chunk.isLast) this.complete = true;
-      });
+      }, query);
     } catch (err) {
       if (generation === this.#generation) {
         this.error =
@@ -62,6 +67,7 @@ class GraphStore {
 
   clear(): void {
     this.#generation += 1;
+    this.query = EMPTY_QUERY;
     this.rows = [];
     this.edges = [];
     this.maxLane = 0;
