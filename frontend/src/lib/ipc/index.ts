@@ -68,6 +68,7 @@ export type {
   PatchRequest,
   RebaseOptions,
   RebaseProgress,
+  KeyBinding,
   RebaseStep,
   ReflogEntry,
   ScanHit,
@@ -422,6 +423,16 @@ function unwrap<T>(result: { status: "ok"; data: T } | { status: "error"; error:
 /** Fires when a native menu item is chosen; the payload is a palette command id. */
 export async function onMenuCommand(handler: (id: string) => void) {
   return await events.menuCommand.listen((event) => handler(event.payload));
+}
+
+/** The shipped accelerators, kept beside the menu they belong to. */
+export async function defaultKeymap() {
+  return await commands.defaultKeymap();
+}
+
+/** Rebuilds the native menu bar with the user's keys. */
+export async function setKeymap(overrides: Record<string, string>) {
+  return unwrap(await commands.setKeymap(overrides));
 }
 
 /** Lands in the profile log beside the backend's own numbers (F-116). */

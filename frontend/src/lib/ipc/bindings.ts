@@ -62,11 +62,17 @@ export const commands = {
 	findObject: (repo: RepoId, query: string, limit: number) => typedError<Found[], GitError>(__TAURI_INVOKE("find_object", { repo, query, limit })),
 	/**  Not `async`: touching menu items off the main thread deadlocks on Windows. */
 	setMenuState: (disabled: string[], checked: string[]) => __TAURI_INVOKE<void>("set_menu_state", { disabled, checked }),
+	reportTiming: (label: string, ms: number, detail: string) => __TAURI_INVOKE<void>("report_timing", { label, ms, detail }),
 	/**
 	 *  The webview's own clock: how long the user waited between an action and the screen
 	 *  showing its result. Only the backend half is visible from Rust.
 	 */
-	reportTiming: (label: string, ms: number, detail: string) => __TAURI_INVOKE<void>("report_timing", { label, ms, detail }),
+	defaultKeymap: () => __TAURI_INVOKE<KeyBinding[]>("default_keymap"),
+	/**
+	 *  Synchronous: muda has to build the bar on the main thread, and rebuilding is the only
+	 *  way to change an accelerator once an item exists.
+	 */
+	setKeymap: (overrides: { [key in string]: string }) => typedError<null, GitError>(__TAURI_INVOKE("set_keymap", { overrides })),
 	/**
 	 *  A folder can hold hundreds of repositories, so hits stream in as they are found and
 	 *  dropping the channel stops the walk.
@@ -360,6 +366,15 @@ export type Hunk = {
 	newLines: number,
 	header: string,
 	rows: DiffRow[],
+};
+
+/**  One row of the keymap editor. */
+export type KeyBinding = {
+	id: string,
+	label: string,
+	section: string,
+	/**  What the menu ships with; the user's override lives in settings, not here. */
+	defaultAccelerator: string | null,
 };
 
 export type LaneAssignment = {

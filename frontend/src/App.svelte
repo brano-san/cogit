@@ -163,6 +163,7 @@
     void settings.load().then(() => {
       diff.whitespace = settings.current.ignoreWhitespace;
     });
+    void settings.loadBindings();
     void repository.restore().then(() => {
       const first = repository.openRepos[0];
       if (first) void activate(first.root);
@@ -485,12 +486,22 @@ Log: ${info?.logPath ?? ""}`),
     }
   }
 
-  async function changeSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
-    await settings.set(key, value);
+  /** OK in Preferences: one write, then re-run whatever the change invalidated. */
+  async function applySettings(next: Settings, keymap: import("$lib/keymap").Keymap) {
+    const before = settings.current;
+    const touched = (Object.keys(next) as (keyof Settings)[]).filter(
+      (key) => next[key] !== before[key],
+    );
+    await settings.apply(next);
+    await settings.setKeymap(keymap);
+    pushMenuState();
+    settingsOpen = false;
+
     const id = repository.current?.repo;
-    if (key === "ignoreWhitespace" && id) {
+    if (!id || !diff.spec || !diff.path) return;
+    if (touched.includes("ignoreWhitespace")) {
       await diff.setWhitespace(id, settings.current.ignoreWhitespace);
-    } else if (REDIFF.includes(key) && id && diff.spec && diff.path) {
+    } else if (touched.some((key) => REDIFF.includes(key))) {
       await diff.load(id, diff.spec, diff.path);
     }
   }
@@ -1362,9 +1373,8 @@ Log: ${info?.logPath ?? ""}`),
     return () => void pending.then((unlisten) => unlisten());
   });
 
-  // The native menu is not reactive, so the derived state is pushed to it. muda flips a
-  // tick itself when the item is clicked, so this also puts the wrong one back.
-  $effect(() => {
+  /** A rebuilt bar starts with every tick cleared, so this runs again after a keymap save. */
+  function pushMenuState() {
     const checked = checkedIds({
       panels: PANELS.filter((panel) => layout.visible(panel)),
       output: output.open,
@@ -1373,7 +1383,11 @@ Log: ${info?.logPath ?? ""}`),
       perspective: layout.active,
     });
     void setMenuState(disabledIds(palette), checked).catch(() => {});
-  });
+  }
+
+  // The native menu is not reactive, so the derived state is pushed to it. muda flips a
+  // tick itself when the item is clicked, so this also puts the wrong one back.
+  $effect(pushMenuState);
 </script>
 
 <svelte:window
@@ -1871,12 +1885,13 @@ Log: ${info?.logPath ?? ""}`),
   {#if settingsOpen}
     <SettingsPanel
       value={settings.current}
+      keymap={settings.keymap}
+      bindings={settings.bindings}
       tokenHost={network.tokenHost}
       tokenStored={network.tokenStored}
       onstoretoken={(token) => void network.storeToken(token)}
       onforgettoken={() => void network.forgetToken()}
-      onchange={(key, next) => void changeSetting(key, next)}
-      onreset={() => void settings.reset()}
+      onapply={(next, keys) => void applySettings(next, keys)}
       onclose={() => (settingsOpen = false)}
     />
   {/if}

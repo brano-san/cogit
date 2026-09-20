@@ -129,5 +129,7 @@
 | F-123 | Контекстное меню дерева ссылок | [F-123-ref-tree-context.md](F-123-ref-tree-context.md) |
 | F-124 | Сообщение коммита отдельной панелью | [F-124-commit-panel.md](F-124-commit-panel.md) |
 | F-125 | Умные даты в истории | [F-125-smart-dates.md](F-125-smart-dates.md) |
+| F-126 | Двухколоночный диалог настроек | [F-126-preferences-dialog.md](F-126-preferences-dialog.md) |
+| F-127 | Настройка горячих клавиш | [F-127-keymap-editor.md](F-127-keymap-editor.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.
