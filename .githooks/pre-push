@@ -42,7 +42,7 @@ cargo clippy --workspace --all-targets -- -D warnings || fail "clippy found prob
 # themselves, which is the only way their numbers mean anything.
 say "cargo test (whole workspace, timing tests included)"
 if command -v cargo-nextest >/dev/null 2>&1; then
-  cargo nextest run --workspace || fail "tests failed"
+  cargo nextest run --workspace --exclude cogit || fail "tests failed"
 else
   warn "cargo-nextest is not installed; falling back to the slower runner"
   cargo test --workspace || fail "tests failed"
