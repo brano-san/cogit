@@ -1621,10 +1621,57 @@ mod tests {
 
 // ─── everything below this line belongs to the diff-merge branch; master appends above ───
 
-// The divider sits after `mod tests`, so anything the branch appends here trips
-// `items_after_test_module`. Moving the divider is `master`'s call, not this branch's.
+/// What a batch diff came back with. A request the user has already moved on from stops
+/// between files rather than finishing work nobody will look at.
+#[allow(clippy::items_after_test_module)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum DiffBatch {
+    Ready {
+        files: Vec<diff_engine::FileDiffEntry>,
+    },
+    /// A newer request for the same repository started while this one was running.
+    Superseded,
+}
+
+/// The newest batch request seen per repository, keyed by `AppState` instance.
+///
+/// This would naturally be a field of `AppState`, but the struct is declared above the
+/// branch divider and this branch may only append an `impl` below it (R-102). Keying by
+/// the instance address keeps parallel tests, which each build their own `AppState`,
+/// from cancelling one another.
+static NEWEST_DIFF_REQUEST: std::sync::OnceLock<RwLock<HashMap<(usize, RepoId), u32>>> =
+    std::sync::OnceLock::new();
+
+fn newest_diff_request() -> &'static RwLock<HashMap<(usize, RepoId), u32>> {
+    NEWEST_DIFF_REQUEST.get_or_init(|| RwLock::new(HashMap::new()))
+}
+
 #[allow(clippy::items_after_test_module)]
 impl AppState {
+    /// Records `request` as the newest for `repo` and reports whether it still is. An
+    /// older number never displaces a newer one, so responses cannot arrive out of order.
+    fn claim_diff_request(&self, repo: RepoId, request: u32) -> bool {
+        let key = (std::ptr::from_ref(self) as usize, repo);
+        let mut newest = newest_diff_request().write();
+        match newest.get(&key) {
+            Some(&seen) if seen > request => false,
+            _ => {
+                newest.insert(key, request);
+                true
+            }
+        }
+    }
+
+    fn diff_request_is_current(&self, repo: RepoId, request: u32) -> bool {
+        let key = (std::ptr::from_ref(self) as usize, repo);
+        newest_diff_request().read().get(&key) == Some(&request)
+    }
+
     /// Every file of a commit in one call.
     ///
     /// The object reads stay sequential — a `gix` repository is not shared across threads
@@ -1639,11 +1686,22 @@ impl AppState {
         spec: &git_engine::DiffSpec,
         paths: &[String],
         options: &diff_engine::DiffOptions,
-    ) -> Result<Vec<diff_engine::FileDiffEntry>, git_engine::GitError> {
+        request: u32,
+    ) -> Result<DiffBatch, git_engine::GitError> {
+        if !self.claim_diff_request(repo, request) {
+            return Ok(DiffBatch::Superseded);
+        }
+
         let handle = self.handle(repo)?;
         let mut inputs = Vec::with_capacity(paths.len());
 
         for path in paths {
+            // Between files, never inside one: there is no way to interrupt `imara-diff`
+            // part-way, and a single file is short enough that it does not matter.
+            if !self.diff_request_is_current(repo, request) {
+                return Ok(DiffBatch::Superseded);
+            }
+
             let (old, new) = handle.diff_sides(spec, path)?;
             if old.is_none() && new.is_none() {
                 return Err(git_engine::GitError::InvalidState(format!(
@@ -1657,6 +1715,11 @@ impl AppState {
             });
         }
 
-        Ok(diff_engine::diff_many(inputs, options))
+        let files = diff_engine::diff_many(inputs, options);
+        if self.diff_request_is_current(repo, request) {
+            Ok(DiffBatch::Ready { files })
+        } else {
+            Ok(DiffBatch::Superseded)
+        }
     }
 }

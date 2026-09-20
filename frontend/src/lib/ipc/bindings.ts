@@ -164,7 +164,7 @@ export const commands = {
 	listPresets: () => typedError<PresetStatus[], GitError>(__TAURI_INVOKE("list_presets")),
 	installPreset: (repo: RepoId, id: string) => typedError<null, GitError>(__TAURI_INVOKE("install_preset", { repo, id })),
 	/**  Every file of a commit in one round trip, diffed in parallel (doc/08-diff-engine.md §9). */
-	diffFiles: (repo: RepoId, spec: DiffSpec, paths: string[], options: DiffOptions) => typedError<FileDiffEntry[], GitError>(__TAURI_INVOKE("diff_files", { repo, spec, paths, options })),
+	diffFiles: (repo: RepoId, spec: DiffSpec, paths: string[], options: DiffOptions, request: number) => typedError<DiffBatch, GitError>(__TAURI_INVOKE("diff_files", { repo, spec, paths, options, request })),
 };
 
 /** Events */
@@ -299,6 +299,14 @@ export type ContextItem = {
 	enabled: boolean,
 	separator?: boolean,
 };
+
+/**
+ *  What a batch diff came back with. A request the user has already moved on from stops
+ *  between files rather than finishing work nobody will look at.
+ */
+export type DiffBatch = { kind: "ready"; files: FileDiffEntry[] } | 
+/**  A newer request for the same repository started while this one was running. */
+{ kind: "superseded" };
 
 export type DiffOptions = {
 	algorithm: Algorithm,
