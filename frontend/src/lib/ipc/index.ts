@@ -271,6 +271,10 @@ export async function safetyLog() {
   return await commands.safetyLog();
 }
 
+export async function undoEntry(repo: RepoId, id: number) {
+  return unwrap(await commands.undoEntry(repo, id));
+}
+
 export async function undoLast(repo: RepoId) {
   return unwrap(await commands.undoLast(repo));
 }

@@ -54,6 +54,7 @@ const LOCAL: &[Entry] = &[
     Entry::Item("stash", "Stash All", None),
     Entry::Separator,
     Entry::Item("undo", "Undo Last Operation", None),
+    Entry::Item("journal", "Safety Journal…", None),
     Entry::Item("abort", "Abort Operation In Progress", None),
     Entry::Separator,
     Entry::Item("rebase-i", "Rebase Commits After This One…", None),

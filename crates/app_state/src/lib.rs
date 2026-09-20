@@ -679,7 +679,29 @@ impl AppState {
             .find(|entry| entry.repo == repo && entry.undoable)
             .cloned()
             .ok_or_else(|| git_engine::GitError::InvalidState("nothing to undo".to_owned()))?;
+        self.reverse(repo, entry)
+    }
 
+    /// Any entry, not only the newest: the recoveries are independent restores rather than
+    /// a stack, so the order is the user's to choose (T5.7).
+    pub fn undo_entry(&self, repo: RepoId, id: u32) -> Result<SafetyEntry, git_engine::GitError> {
+        let entry = self
+            .safety
+            .read()
+            .iter()
+            .find(|entry| entry.id == id && entry.repo == repo && entry.undoable)
+            .cloned()
+            .ok_or_else(|| {
+                git_engine::GitError::InvalidState(format!("no undoable entry {id} here"))
+            })?;
+        self.reverse(repo, entry)
+    }
+
+    fn reverse(
+        &self,
+        repo: RepoId,
+        entry: SafetyEntry,
+    ) -> Result<SafetyEntry, git_engine::GitError> {
         self.quiet(repo);
         let handle = self.handle(repo)?;
         match &entry.recovery {

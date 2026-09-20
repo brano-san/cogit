@@ -188,3 +188,61 @@ fn a_mutation_does_not_make_the_watcher_report_our_own_writes() {
         "the UI reloads itself after a mutation; a watcher event on top makes it flicker, got {reported:?}"
     );
 }
+
+#[test]
+fn an_older_entry_can_be_undone_out_of_order() {
+    let f = test_fixtures::linear(1).unwrap();
+    let (state, repo) = open(&f);
+    f.git(&["branch", "first"]).unwrap();
+    f.git(&["branch", "second"]).unwrap();
+    let oid = f.oid("first").unwrap();
+
+    state.delete_branch(repo, "first", false).unwrap();
+    state.delete_branch(repo, "second", false).unwrap();
+
+    // The recoveries are independent restores, not a stack, so order is the user's choice.
+    let older = state
+        .safety_log()
+        .into_iter()
+        .find(|entry| entry.description.contains("first"))
+        .unwrap();
+    state.undo_entry(repo, older.id).unwrap();
+
+    assert_eq!(f.oid("first").unwrap(), oid);
+    assert!(f.oid("second").is_err(), "the newer entry must still stand");
+}
+
+#[test]
+fn undoing_an_entry_removes_it_from_the_journal() {
+    let f = test_fixtures::linear(1).unwrap();
+    let (state, repo) = open(&f);
+    f.git(&["branch", "gone"]).unwrap();
+    state.delete_branch(repo, "gone", false).unwrap();
+
+    let entry = state.safety_log().into_iter().next().unwrap();
+    state.undo_entry(repo, entry.id).unwrap();
+
+    assert!(state.safety_log().iter().all(|kept| kept.id != entry.id));
+}
+
+#[test]
+fn an_unknown_entry_id_is_refused() {
+    let f = test_fixtures::linear(1).unwrap();
+    let (state, repo) = open(&f);
+    assert!(state.undo_entry(repo, 9_999).is_err());
+}
+
+#[test]
+fn an_entry_belonging_to_another_repository_is_refused() {
+    let a = test_fixtures::linear(1).unwrap();
+    let b = test_fixtures::linear(1).unwrap();
+    let state = AppState::new();
+    let first = state.open_repository(a.path()).unwrap().repo;
+    let second = state.open_repository(b.path()).unwrap().repo;
+
+    a.git(&["branch", "doomed"]).unwrap();
+    state.delete_branch(first, "doomed", false).unwrap();
+    let entry = state.safety_log().into_iter().next().unwrap();
+
+    assert!(state.undo_entry(second, entry.id).is_err());
+}
