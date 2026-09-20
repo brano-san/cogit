@@ -170,3 +170,15 @@ export function scrollRowIntoView(
   if (bottom > scrollTop + viewportHeight) return Math.max(bottom - viewportHeight, 0);
   return null;
 }
+
+/** Centres, unlike `scrollRowIntoView`: a row reached from another panel needs context. */
+export function centreRow(
+  row: number,
+  viewportHeight: number,
+  rowHeight: number,
+  totalRows: number,
+): number {
+  const wanted = row * rowHeight + rowHeight / 2 - viewportHeight / 2;
+  const furthest = Math.max(totalRows * rowHeight - viewportHeight, 0);
+  return Math.min(Math.max(wanted, 0), furthest);
+}

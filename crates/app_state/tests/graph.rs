@@ -186,3 +186,73 @@ fn an_empty_query_still_draws_the_graph() {
 
     assert!(chunks.iter().any(|c| !c.edges.is_empty()));
 }
+
+fn visible(names: &[&str]) -> git_engine::CommitQuery {
+    git_engine::CommitQuery {
+        visible_refs: Some(names.iter().map(|name| (*name).to_owned()).collect()),
+        ..git_engine::CommitQuery::default()
+    }
+}
+
+#[test]
+fn narrowing_the_visible_refs_keeps_the_graph_a_graph() {
+    let f = test_fixtures::diamond().unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let chunks = search(
+        &state,
+        repo,
+        &visible(&["refs/heads/main", "refs/heads/dev"]),
+    );
+
+    assert!(
+        chunks.iter().any(|c| !c.edges.is_empty()),
+        "unticking a ref drops whole tips, never a commit from inside a lineage"
+    );
+    assert!(
+        chunks.iter().any(|c| c.lanes.iter().any(|l| l.lane > 0)),
+        "the second lane of the diamond has to survive"
+    );
+}
+
+#[test]
+fn one_visible_ref_walks_only_its_own_history() {
+    let f = test_fixtures::diamond().unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let summaries: Vec<String> = search(&state, repo, &visible(&["refs/heads/dev"]))
+        .iter()
+        .flat_map(|c| c.commits.iter().map(|r| r.summary.clone()))
+        .collect();
+
+    assert_eq!(summaries, ["commit 1", "commit 0"]);
+}
+
+#[test]
+fn unticking_everything_shows_nothing() {
+    let f = test_fixtures::diamond().unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let chunks = search(&state, repo, &visible(&[]));
+
+    assert_eq!(chunks.iter().map(|c| c.commits.len()).sum::<usize>(), 0);
+}
+
+#[test]
+fn a_search_inside_a_narrowed_graph_is_still_flat() {
+    let f = test_fixtures::diamond().unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let query = git_engine::CommitQuery {
+        message: Some("commit".to_owned()),
+        ..visible(&["refs/heads/main"])
+    };
+    let chunks = search(&state, repo, &query);
+
+    assert!(chunks.iter().all(|c| c.edges.is_empty()));
+    assert!(chunks.iter().all(|c| c.lanes.iter().all(|l| l.lane == 0)));
+}

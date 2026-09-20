@@ -332,7 +332,8 @@ impl AppState {
 
     /// A filtered history is a flat list, not a graph: the parents of a match are usually
     /// filtered out, so lanes drawn between survivors would claim a lineage that is not
-    /// there. Other clients do the same.
+    /// there. Other clients do the same. Narrowing the visible refs is exempt — it drops
+    /// whole tips, never a commit from inside a surviving lineage (R-51).
     pub fn search_graph(
         &self,
         repo: RepoId,
@@ -341,7 +342,7 @@ impl AppState {
         mut on_chunk: impl FnMut(GraphChunk) -> bool,
     ) -> Result<(), git_engine::GitError> {
         let handle = self.handle(repo)?;
-        let flat = !query.is_empty();
+        let flat = query.filters_rows();
         let mut row = 0_u32;
 
         let mut cursor = graph_engine::LayoutCursor::default();

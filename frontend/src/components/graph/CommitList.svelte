@@ -8,6 +8,7 @@
   import {
     GRAPH,
     HEADER_ROWS,
+    centreRow,
     gutterWidth,
     hitTest,
     nextRow,
@@ -135,6 +136,21 @@
   function onscroll() {
     if (scroller) scrollTop = scroller.scrollTop;
   }
+
+  /** A commit reached from the References panel is centred, not merely brought on screen:
+      arriving from elsewhere, the user needs the rows around it to know where they are. */
+  $effect(() => {
+    const wanted = graph.reveal;
+    if (!wanted || !scroller) return;
+    const at = graph.rows.findIndex((row) => row.commit.oid === wanted.oid);
+    if (at < 0) return;
+    scroller.scrollTop = centreRow(
+      at + HEADER_ROWS,
+      viewportHeight,
+      GRAPH.rowHeight,
+      listRows,
+    );
+  });
 
   function onclick(event: MouseEvent) {
     if (!scroller) return;

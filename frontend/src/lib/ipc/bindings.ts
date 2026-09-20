@@ -189,8 +189,11 @@ export type CommitQuery = {
 	since?: number | null,
 	until?: number | null,
 	path?: string | null,
-	/**  Revisions the References panel has ticked. Empty means every ref, as before. */
-	tips?: string[],
+	/**
+	 *  Revisions the References panel has ticked. `None` is every ref; `Some([])` is
+	 *  nothing, which is the honest answer when the user unticks the last box.
+	 */
+	visibleRefs?: string[] | null,
 };
 
 export type CommitRequest = {

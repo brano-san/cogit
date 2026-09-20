@@ -641,21 +641,24 @@ Log: ${info?.logPath ?? ""}`),
     filter: refFilter,
   });
 
-  /** Ticking a box changes which tips the walk starts from, so the graph is rebuilt. */
+  /** Ticking a box changes which tips the walk starts from, so the graph is rebuilt.
+      The ticks live on the graph store, so a later search keeps them. */
   async function reloadGraph() {
     const id = repo?.repo;
     if (!id) return;
     const watch = measure("reload-graph");
     const nodes = buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() });
-    await graph.load(id, { ...graph.query, tips: visibleTips(nodes, refs.visible) });
+    graph.visibleRefs = visibleTips(nodes, refs.visible);
+    await graph.load(id, graph.query);
     watch.stop(`${graph.rows.length} commits`);
   }
 
-  /** A click on the text selects the ref and points the graph at its tip. */
+  /** A click on the text selects the ref and centres the graph on its tip. */
   function selectRef(node: RefNode) {
     const id = repo?.repo;
     if (!id || !node.oid) return;
     void commit.select(id, node.oid);
+    graph.requestReveal(node.oid);
   }
 
   function activateRef(node: RefNode) {

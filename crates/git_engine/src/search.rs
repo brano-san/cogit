@@ -12,15 +12,27 @@ pub struct CommitQuery {
     #[specta(type = Option<specta_typescript::Number>)]
     pub until: Option<i64>,
     pub path: Option<String>,
-    /// Revisions the References panel has ticked. Empty means every ref, as before.
+    /// Revisions the References panel has ticked. `None` is every ref; `Some([])` is
+    /// nothing, which is the honest answer when the user unticks the last box.
     #[serde(default)]
-    pub tips: Vec<String>,
+    pub visible_refs: Option<Vec<String>>,
 }
 
 impl CommitQuery {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self == &Self::default()
+    }
+
+    /// True when a per-commit predicate is set, which forces a flat list. Narrowing the
+    /// visible refs is not one: it drops whole tips, so every ancestor of a surviving tip
+    /// is still there and the lanes between them stay truthful.
+    #[must_use]
+    pub fn filters_rows(&self) -> bool {
+        Self {
+            visible_refs: None,
+            ..self.clone()
+        } != Self::default()
     }
 
     fn matches_row(&self, row: &CommitRow) -> bool {
@@ -60,15 +72,14 @@ impl RepoHandle {
     }
 
     /// A tip that no longer resolves — a branch deleted while the panel still lists it —
-    /// is dropped, not fatal. Dropping every one leaves an empty graph, which is the honest
-    /// answer to "show me only these refs" when none of them exist.
+    /// is dropped, not fatal. `rev_parse_single` rather than `find_reference`, because the
+    /// panel also ticks stashes (`stash@{2}`) and lost commits (a bare oid).
     fn tips_for(&self, query: &CommitQuery) -> Result<Vec<gix::ObjectId>> {
-        if query.tips.is_empty() {
+        let Some(names) = query.visible_refs.as_deref() else {
             return self.graph_tips();
-        }
+        };
 
-        let mut tips: Vec<gix::ObjectId> = query
-            .tips
+        let mut tips: Vec<gix::ObjectId> = names
             .iter()
             .filter_map(|rev| match self.repo.rev_parse_single(rev.as_str()) {
                 Ok(id) => Some(id.detach()),
