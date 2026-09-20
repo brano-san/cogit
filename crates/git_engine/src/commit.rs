@@ -33,6 +33,8 @@ pub enum FileStatus {
     Deleted,
     Renamed,
     Copied,
+    Untracked,
+    Conflicted,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]

@@ -1,6 +1,6 @@
 use app_state::{DEFAULT_CHUNK_SIZE, GraphChunk, RepoId, RepoSummary};
 use diff_engine::{DiffOptions, FileDiff};
-use git_engine::{CommitDetails, CommitQuery, DiffSpec, FileEntry, GitError};
+use git_engine::{CommitDetails, CommitQuery, DiffSpec, FileEntry, GitError, WorktreeFiles};
 use serde::Serialize;
 use std::path::PathBuf;
 
@@ -140,4 +140,16 @@ pub async fn diff_file(
         "file diff computed"
     );
     Ok(diff)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn worktree_files(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<WorktreeFiles, GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.worktree_files(repo))
+        .await
+        .map_err(|err| GitError::Internal(format!("worktree_files task failed: {err}")))?
 }

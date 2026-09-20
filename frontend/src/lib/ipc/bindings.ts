@@ -11,6 +11,7 @@ export const commands = {
 	commitDetails: (repo: RepoId, rev: string) => typedError<CommitDetails, GitError>(__TAURI_INVOKE("commit_details", { repo, rev })),
 	commitFiles: (repo: RepoId, rev: string) => typedError<FileEntry[], GitError>(__TAURI_INVOKE("commit_files", { repo, rev })),
 	diffFile: (repo: RepoId, spec: DiffSpec, path: string, options: DiffOptions) => typedError<FileDiff, GitError>(__TAURI_INVOKE("diff_file", { repo, spec, path, options })),
+	worktreeFiles: (repo: RepoId) => typedError<WorktreeFiles, GitError>(__TAURI_INVOKE("worktree_files", { repo })),
 };
 
 /* Types */
@@ -93,7 +94,7 @@ export type FileEntry = {
 	status: FileStatus,
 };
 
-export type FileStatus = "added" | "modified" | "deleted" | "renamed" | "copied";
+export type FileStatus = "added" | "modified" | "deleted" | "renamed" | "copied" | "untracked" | "conflicted";
 
 export type GitCommandError = {
 	command: string,
@@ -180,6 +181,15 @@ export type Tag = {
 };
 
 export type Whitespace = "none" | "trailing" | "all";
+
+export type WorktreeFiles = {
+	staged: FileEntry[],
+	/**
+	 *  Unstaged edits, untracked files and conflicts share one section, as in Git's own
+	 *  "Changes not staged for commit" plus "Untracked files".
+	 */
+	unstaged: FileEntry[],
+};
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {
