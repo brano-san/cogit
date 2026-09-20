@@ -8,7 +8,9 @@
 //! `test(/budget/)` puts these in the `timing` group, which gives them the machine to
 //! themselves and keeps them out of the pre-commit hook (.config/nextest.toml).
 
-use diff_engine::{DiffOptions, FileDiff, MAX_TEXT_BYTES, diff_bytes, diff_text};
+use diff_engine::{
+    DiffOptions, FileDiff, FileInput, MAX_TEXT_BYTES, diff_bytes, diff_many, diff_text,
+};
 use std::time::Instant;
 
 /// Every hundredth line differs: many small hunks cost more to assemble than one big one,
@@ -104,4 +106,38 @@ fn a_hundred_thousand_line_file_never_reaches_the_engine_in_production() {
         }
     );
     assert!(matches!(diff, FileDiff::TooLarge { .. }), "{diff:?}");
+}
+
+#[test]
+fn a_commit_of_five_hundred_files_diffs_inside_the_budget() {
+    let files: Vec<FileInput> = (0..500)
+        .map(|f| {
+            let (old, new) = pair(200);
+            FileInput {
+                path: format!("src/module_{f}/file_{f}.rs"),
+                old: old.into_bytes(),
+                new: new.into_bytes(),
+            }
+        })
+        .collect();
+    let options = DiffOptions::default();
+
+    // Warm: the first pass pays for rayon starting its thread pool.
+    let _ = diff_many(files.clone(), &options);
+
+    let started = Instant::now();
+    let out = diff_many(files, &options);
+    let elapsed = started.elapsed();
+
+    println!(
+        "    500 files {:>6} ms   (budget 2000 ms)",
+        elapsed.as_millis()
+    );
+    assert_eq!(out.len(), 500);
+    assert_eq!(hunks(&out[0].diff), 2);
+    assert!(
+        elapsed.as_millis() < 2_000,
+        "500 files took {} ms, budget is 2000 ms",
+        elapsed.as_millis()
+    );
 }
