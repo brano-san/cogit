@@ -12,6 +12,15 @@ describe("stateBanner", () => {
     expect(banner?.actions).toEqual(["continue", "abort"]);
   });
 
+  it("offers skip only where a step can be skipped", () => {
+    expect(stateBanner({ kind: "rebasing" }, null)?.actions).toEqual([
+      "continue",
+      "skip",
+      "abort",
+    ]);
+    expect(stateBanner({ kind: "merging" }, null)?.actions).not.toContain("skip");
+  });
+
   it("names the operation so the user knows which one is stuck", () => {
     expect(stateBanner({ kind: "rebasing" }, null)?.title).toContain("Rebase");
     expect(stateBanner({ kind: "cherryPicking" }, null)?.title).toContain("Cherry-pick");

@@ -11,6 +11,7 @@
 
   const LABELS: Record<BannerAction, string> = {
     continue: "Continue",
+    skip: "Skip",
     abort: "Abort",
     createBranch: "Create Branch",
   };

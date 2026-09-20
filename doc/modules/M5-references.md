@@ -8,7 +8,7 @@
 ## Задачи
 
 ### T5.1 · Иерархия ссылок
-- [ ] Аккордеоны: `HEAD`, `Local Branches`, `Remote`, `Tags`, `Stashes`, `Lost Commits`
+- [x] Секции `Local Branches`, `Remote`, `Tags`, `Stashes`, `Lost Commits`; сворачивание — впереди
 - [ ] Счётчики в заголовках секций
 - [ ] Группировка удалённых веток по remote
 - [ ] Вложенность по слешам в именах (`feature/auth/login`)
@@ -39,9 +39,9 @@
 **DoD:** случайно удалённый стэш восстанавливается через Undo.
 
 ### T5.4 · Операции над ветками
-- [ ] `Checkout` (`Ctrl+G`), `Merge` (`Ctrl+M`), `Fast-Forward`
-- [ ] `Rebase` (`Ctrl+R`), `Cherry-Pick`, `Revert`
-- [ ] `Branch` (`F7`), `Tag` (`Shift+F7`), удаление с различением `-d` и `-D`
+- [x] `Checkout` (`Ctrl+G`), `Merge` (`Ctrl+M`), `Fast-Forward`
+- [x] `Rebase` (`Ctrl+R`), `Cherry-Pick`, `Revert`
+- [x] `Branch` (`F7`), `Tag` (`Shift+F7`), удаление с различением `-d` и `-D`
 - [ ] `Set Upstream`, `Rename`, `Push`, `Delete Remote Branch`
 - [ ] Предупреждение при checkout с несохранёнными изменениями и предложение автоstash
 

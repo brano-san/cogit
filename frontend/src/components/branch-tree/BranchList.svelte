@@ -6,9 +6,11 @@
     branches: Branch[];
     oncheckout?: (branch: Branch) => void;
     ondelete?: (branch: Branch) => void;
+    onmerge?: (branch: Branch) => void;
+    onrebase?: (branch: Branch) => void;
   }
 
-  let { title, branches, oncheckout, ondelete }: Props = $props();
+  let { title, branches, oncheckout, ondelete, onmerge, onrebase }: Props = $props();
 </script>
 
 {#if branches.length > 0}
@@ -37,6 +39,26 @@
             onclick={() => oncheckout?.(branch)}
             onkeydown={(event) => event.key === "Enter" && oncheckout?.(branch)}>Checkout</span
           >
+          {#if onmerge}
+            <span
+              class="act"
+              role="button"
+              tabindex="-1"
+              title="Merge {branch.name} into the current branch"
+              onclick={() => onmerge?.(branch)}
+              onkeydown={(event) => event.key === "Enter" && onmerge?.(branch)}>Merge</span
+            >
+          {/if}
+          {#if onrebase}
+            <span
+              class="act"
+              role="button"
+              tabindex="-1"
+              title="Rebase the current branch onto {branch.name}"
+              onclick={() => onrebase?.(branch)}
+              onkeydown={(event) => event.key === "Enter" && onrebase?.(branch)}>Rebase</span
+            >
+          {/if}
           {#if branch.kind === "local"}
             <span
               class="act"

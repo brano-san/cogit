@@ -9,6 +9,8 @@ import type {
   DiffSpec,
   GitError,
   GraphChunk,
+  MergeOptions,
+  RebaseOptions,
   RepoChanged,
   RepoId,
   StashOptions,
@@ -40,6 +42,9 @@ export type {
   Hunk,
   LaneAssignment,
   LineEnding,
+  MergeOptions,
+  RebaseOptions,
+  ReflogEntry,
   RepoChanged,
   RepoId,
   RepoState,
@@ -202,6 +207,66 @@ export async function safetyLog() {
 
 export async function undoLast(repo: RepoId) {
   return unwrap(await commands.undoLast(repo));
+}
+
+export async function readReflog(repo: RepoId, limit = 100) {
+  return unwrap(await commands.reflog(repo, limit));
+}
+
+export async function lostCommits(repo: RepoId, limit = 100) {
+  return unwrap(await commands.lostCommits(repo, limit));
+}
+
+export async function cherryPick(repo: RepoId, commits: string[]) {
+  return unwrap(await commands.cherryPick(repo, commits));
+}
+
+export async function revertCommits(repo: RepoId, commits: string[]) {
+  return unwrap(await commands.revert(repo, commits));
+}
+
+export async function rebaseOnto(repo: RepoId, options: RebaseOptions) {
+  return unwrap(await commands.rebase(repo, options));
+}
+
+export async function skipOperation(repo: RepoId) {
+  return unwrap(await commands.skipOperation(repo));
+}
+
+export async function mergeInto(repo: RepoId, options: MergeOptions) {
+  return unwrap(await commands.merge(repo, options));
+}
+
+export async function listRemotes(repo: RepoId) {
+  return unwrap(await commands.remotes(repo));
+}
+
+function progressChannel(onLine: (line: string) => void) {
+  const channel = new Channel<string>();
+  channel.onmessage = onLine;
+  return channel;
+}
+
+export async function fetchRemote(repo: RepoId, remote: string, onLine: (line: string) => void) {
+  return unwrap(await commands.fetch(repo, remote, progressChannel(onLine)));
+}
+
+export async function pullRemote(
+  repo: RepoId,
+  remote: string,
+  ffOnly: boolean,
+  onLine: (line: string) => void,
+) {
+  return unwrap(await commands.pull(repo, remote, ffOnly, progressChannel(onLine)));
+}
+
+export async function pushRemote(
+  repo: RepoId,
+  remote: string,
+  force: boolean,
+  onLine: (line: string) => void,
+) {
+  return unwrap(await commands.push(repo, remote, force, progressChannel(onLine)));
 }
 
 export async function createTag(repo: RepoId, request: TagRequest) {

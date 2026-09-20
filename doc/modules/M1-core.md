@@ -35,10 +35,10 @@
 попали в ошибку **целиком** и не были подменены.
 
 ### T1.3 · Базовые мутации
-- [ ] `stage` / `unstage` / `discard`
-- [ ] `commit` (с `--amend`, `--no-verify`)
-- [ ] `checkout` ветки, коммита, тега
-- [ ] `fetch` / `pull` / `push` с прогрессом через `Channel`
+- [x] `stage` / `unstage` / `discard`
+- [x] `commit` (с `--amend`, `--no-verify`)
+- [x] `checkout` ветки, коммита, тега
+- [x] `fetch` / `pull` / `push` с прогрессом через `Channel`
 
 **DoD:** каждая операция проверена интеграционным тестом на фикстуре;
 неуспех возвращает `GitCommandError`, а не общую ошибку.

@@ -48,5 +48,14 @@
 | F-042 | Список тегов | [F-042-tag-list.md](F-042-tag-list.md) |
 | F-043 | Создание тега | [F-043-tag-create.md](F-043-tag-create.md) |
 | F-044 | Расхождение с upstream | [F-044-upstream-divergence.md](F-044-upstream-divergence.md) |
+| F-045 | Fetch с прогрессом | [F-045-fetch.md](F-045-fetch.md) |
+| F-046 | Pull только fast-forward | [F-046-pull.md](F-046-pull.md) |
+| F-047 | Push с защитой | [F-047-push.md](F-047-push.md) |
+| F-048 | Слияние веток | [F-048-merge.md](F-048-merge.md) |
+| F-049 | Rebase на ветку | [F-049-rebase.md](F-049-rebase.md) |
+| F-050 | Пропуск шага rebase | [F-050-rebase-skip.md](F-050-rebase-skip.md) |
+| F-051 | Cherry-pick | [F-051-cherry-pick.md](F-051-cherry-pick.md) |
+| F-052 | Revert | [F-052-revert.md](F-052-revert.md) |
+| F-053 | Потерянные коммиты | [F-053-lost-commits.md](F-053-lost-commits.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.

@@ -34,6 +34,17 @@ export const commands = {
 	stashDrop: (repo: RepoId, index: number) => typedError<null, GitError>(__TAURI_INVOKE("stash_drop", { repo, index })),
 	createTag: (repo: RepoId, request: TagRequest) => typedError<null, GitError>(__TAURI_INVOKE("create_tag", { repo, request })),
 	deleteTag: (repo: RepoId, name: string) => typedError<null, GitError>(__TAURI_INVOKE("delete_tag", { repo, name })),
+	remotes: (repo: RepoId) => typedError<string[], GitError>(__TAURI_INVOKE("remotes", { repo })),
+	fetch: (repo: RepoId, remote: string, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("fetch", { repo, remote, onProgress })),
+	pull: (repo: RepoId, remote: string, ffOnly: boolean, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("pull", { repo, remote, ffOnly, onProgress })),
+	push: (repo: RepoId, remote: string, force: boolean, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("push", { repo, remote, force, onProgress })),
+	merge: (repo: RepoId, options: MergeOptions) => typedError<null, GitError>(__TAURI_INVOKE("merge", { repo, options })),
+	rebase: (repo: RepoId, options: RebaseOptions) => typedError<null, GitError>(__TAURI_INVOKE("rebase", { repo, options })),
+	skipOperation: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("skip_operation", { repo })),
+	cherryPick: (repo: RepoId, commits: string[]) => typedError<null, GitError>(__TAURI_INVOKE("cherry_pick", { repo, commits })),
+	revert: (repo: RepoId, commits: string[]) => typedError<null, GitError>(__TAURI_INVOKE("revert", { repo, commits })),
+	reflog: (repo: RepoId, limit: number) => typedError<ReflogEntry[], GitError>(__TAURI_INVOKE("reflog", { repo, limit })),
+	lostCommits: (repo: RepoId, limit: number) => typedError<CommitRow[], GitError>(__TAURI_INVOKE("lost_commits", { repo, limit })),
 };
 
 /** Events */
@@ -193,12 +204,33 @@ export type LaneAssignment = {
 
 export type LineEnding = "lf" | "crlf" | "cr" | "mixed" | "none";
 
+export type MergeOptions = {
+	source: string,
+	noFastForward: boolean,
+	squash: boolean,
+	message: string | null,
+};
+
 export type NodeKind = "normal" | "merge" | "root" | "workingTree";
+
+export type RebaseOptions = {
+	onto: string,
+	/**  Lets the rebase start with a dirty tree; Git puts the changes back afterwards. */
+	autostash: boolean,
+};
 
 /**  What has to be put back to reverse one destructive operation (INV-12). */
 export type Recovery = { kind: "stash"; oid: string } | { kind: "branch"; name: string; oid: string } | { kind: "tag"; name: string; oid: string } | 
 /**  Recorded for the journal, refused by undo: honesty beats a half-working restore. */
 { kind: "none" };
+
+export type ReflogEntry = {
+	selector: string,
+	oid: string,
+	action: string,
+	message: string,
+	timestamp: number,
+};
 
 /**
  *  Mirrors `app_state::AppEvent::RepoChanged`. It lives here because deriving

@@ -14,6 +14,7 @@
   import Splitter from "$components/layout/Splitter.svelte";
   import StatusBar from "$components/layout/StatusBar.svelte";
   import Toolbar from "$components/layout/Toolbar.svelte";
+  import LostCommits from "$components/branch-tree/LostCommits.svelte";
   import StashList from "$components/branch-tree/StashList.svelte";
   import TagList from "$components/branch-tree/TagList.svelte";
   import RepositoryList from "$components/repo-tree/RepositoryList.svelte";
@@ -28,7 +29,12 @@
     createTag,
     deleteTag,
     getAppInfo,
+    cherryPick,
+    mergeInto,
     onRepoChanged,
+    revertCommits,
+    rebaseOnto,
+    skipOperation,
     type AppInfo,
     type Branch,
     type Tag,
@@ -38,6 +44,8 @@
   import { diff } from "$stores/diff.svelte";
   import { errors } from "$stores/errors.svelte";
   import { output } from "$stores/output.svelte";
+  import { network } from "$stores/network.svelte";
+  import { recovery } from "$stores/recovery.svelte";
   import { safety } from "$stores/safety.svelte";
   import { stashes } from "$stores/stashes.svelte";
   import { graph } from "$stores/graph.svelte";
@@ -85,6 +93,8 @@
     const id = repository.current?.repo;
     await Promise.all([
       id ? stashes.refresh(id) : Promise.resolve(),
+      id ? network.refresh(id) : Promise.resolve(),
+      id ? recovery.refresh(id) : Promise.resolve(),
       output.refreshProblems(),
       safety.refresh(),
       output.open ? output.refresh() : Promise.resolve(),
@@ -213,6 +223,88 @@
     await afterRefChange();
   }
 
+  async function recoverCommit(lost: import("$lib/ipc").CommitRow) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    const name = window.prompt("Branch name for the recovered commit:", "recovered");
+    if (!name) return;
+    try {
+      await createBranch(id, name, lost.oid, false);
+    } catch (err) {
+      errors.report(err as never);
+      return;
+    }
+    await afterRefChange();
+  }
+
+  async function replaySelected(kind: "cherryPick" | "revert") {
+    const id = repository.current?.repo;
+    const oid = commit.oid;
+    if (!id || !oid) return;
+    const verb = kind === "cherryPick" ? "Cherry-pick" : "Revert";
+    const confirmed = await ask(`${verb} ${oid.slice(0, 7)} onto the current branch?`, {
+      title: verb,
+      kind: "warning",
+    });
+    if (!confirmed) return;
+    try {
+      if (kind === "cherryPick") await cherryPick(id, [oid]);
+      else await revertCommits(id, [oid]);
+    } catch (err) {
+      errors.report(err as never);
+    }
+    await afterRefChange();
+  }
+
+  async function rebaseOntoBranch(branch: Branch) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    try {
+      await rebaseOnto(id, { onto: branch.name, autostash: true });
+    } catch (err) {
+      errors.report(err as never);
+    }
+    await afterRefChange();
+  }
+
+  async function mergeBranch(branch: Branch) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    try {
+      await mergeInto(id, {
+        source: branch.name,
+        noFastForward: false,
+        squash: false,
+        message: null,
+      });
+    } catch (err) {
+      errors.report(err as never);
+      await afterRefChange();
+      return;
+    }
+    await afterRefChange();
+  }
+
+  async function runNetwork(kind: "fetch" | "pull" | "push") {
+    const id = repository.current?.repo;
+    const remote = network.primary;
+    if (!id) return;
+    if (!remote) {
+      errors.report({ message: "This repository has no remote." } as never);
+      return;
+    }
+    try {
+      if (kind === "fetch") await network.fetch(id, remote);
+      if (kind === "pull") await network.pull(id, remote, true);
+      if (kind === "push") await network.push(id, remote, false);
+    } catch (err) {
+      errors.report(err as never);
+      await afterMutation();
+      return;
+    }
+    await afterRefChange();
+  }
+
   async function tagHead() {
     const id = repository.current?.repo;
     if (!id) return;
@@ -311,6 +403,7 @@
     try {
       if (action === "abort") await abortOperation(id);
       if (action === "continue") await continueOperation(id);
+      if (action === "skip") await skipOperation(id);
       if (action === "createBranch") {
         const name = window.prompt("Name for the new branch at this commit:");
         if (!name) return;
@@ -346,6 +439,8 @@
     diff.clear();
     worktree.clear();
     stashes.clear();
+    network.clear();
+    recovery.clear();
     await repository.open(picked);
     const opened = repository.current;
     if (opened) {
@@ -361,10 +456,16 @@
 
 <div class="app">
   <Toolbar
-    busy={repository.busy ? "Opening repository…" : undefined}
+    busy={network.running ?? (repository.busy ? "Opening repository…" : undefined)}
     undoable={safety.last?.description}
     onundo={undo}
-    handlers={{ stash: stashAll, tag: tagHead }}
+    handlers={{
+      stash: stashAll,
+      tag: tagHead,
+      pull: () => void runNetwork("pull"),
+      push: () => void runNetwork("push"),
+      sync: () => void runNetwork("fetch"),
+    }}
   />
 
   {#if banner}
@@ -400,6 +501,8 @@
                 branches={repository.localBranches}
                 oncheckout={switchTo}
                 ondelete={removeBranch}
+                onmerge={mergeBranch}
+                onrebase={rebaseOntoBranch}
               />
               <BranchList
                 title="Remote"
@@ -408,6 +511,7 @@
               />
               <TagList tags={repo.tags} oncheckout={checkoutTag} ondelete={removeTag} />
               <StashList stashes={stashes.entries} onapply={applyStash} ondrop={dropStash} />
+              <LostCommits commits={recovery.lost} onrestore={recoverCommit} />
             {/if}
           {/if}
         </Panel>
@@ -530,7 +634,12 @@
                     : details.parents.map(shortOid).join(", ")}
                 </dd>
               </dl>
-              <p class="muted">Select a file to see the diff.</p>
+              <div class="commit-actions">
+                <button type="button" onclick={() => void replaySelected("cherryPick")}
+                  >Cherry-pick</button
+                >
+                <button type="button" onclick={() => void replaySelected("revert")}>Revert</button>
+              </div>
             {:else if repo}
               <dl>
                 <dt>Repository</dt>
@@ -569,7 +678,13 @@
     behind={tracked?.behind ?? 0}
     summary={repo ? `${graph.rows.length} commits · ${repo.branches.length} refs` : "Milestone C"}
     version={info?.version}
-    status={repository.error ? "Error" : repository.busy ? "Working…" : "Ready"}
+    status={network.running
+      ? (network.progress ?? `${network.running}…`)
+      : repository.error
+        ? "Error"
+        : repository.busy
+          ? "Working…"
+          : "Ready"}
     problems={output.problems}
     onproblems={() => output.toggle()}
   />
@@ -657,6 +772,26 @@
     font-size: var(--fs-code);
     white-space: pre;
     overflow: auto;
+  }
+
+  .commit-actions {
+    display: flex;
+    gap: var(--sp-3);
+  }
+
+  .commit-actions button {
+    height: 20px;
+    padding: 0 var(--sp-4);
+    background: var(--surface-input);
+    color: var(--text-primary);
+    border: 1px solid var(--field-border);
+    border-radius: var(--r-sm);
+    font-size: var(--fs-dense);
+    cursor: default;
+  }
+
+  .commit-actions button:hover {
+    border-color: var(--status-ref);
   }
 
   .subject {

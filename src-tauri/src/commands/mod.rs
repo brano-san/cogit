@@ -1,10 +1,14 @@
 use app_state::{DEFAULT_CHUNK_SIZE, GraphChunk, RepoId, RepoSummary, SafetyEntry};
 use diff_engine::{DiffOptions, FileDiff};
+use git_engine::CommitRow;
 use git_engine::{
     CheckoutTarget, CommitDetails, CommitQuery, CommitRequest, DiffSpec, FileEntry, GitError,
     WorktreeFiles,
 };
-use git_engine::{GitOutput, RepoStatus, StashEntry, StashOptions, TagRequest};
+use git_engine::{
+    GitOutput, MergeOptions, RebaseOptions, ReflogEntry, RepoStatus, StashEntry, StashOptions,
+    TagRequest,
+};
 use serde::Serialize;
 use std::path::PathBuf;
 
@@ -314,6 +318,7 @@ macro_rules! repo_command {
 
 repo_command!(abort_operation);
 repo_command!(continue_operation);
+repo_command!(skip_operation);
 
 #[tauri::command]
 #[specta::specta]
@@ -391,4 +396,146 @@ pub async fn delete_tag(
     tokio::task::spawn_blocking(move || app_state.delete_tag(repo, &name))
         .await
         .map_err(|err| GitError::Internal(format!("delete_tag task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn remotes(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<Vec<String>, GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.remotes(repo))
+        .await
+        .map_err(|err| GitError::Internal(format!("remotes task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn fetch(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    remote: String,
+    on_progress: tauri::ipc::Channel<String>,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || {
+        app_state.fetch(repo, &remote, |line| {
+            let _ = on_progress.send(line.to_owned());
+        })
+    })
+    .await
+    .map_err(|err| GitError::Internal(format!("fetch task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn pull(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    remote: String,
+    ff_only: bool,
+    on_progress: tauri::ipc::Channel<String>,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || {
+        app_state.pull(repo, &remote, ff_only, |line| {
+            let _ = on_progress.send(line.to_owned());
+        })
+    })
+    .await
+    .map_err(|err| GitError::Internal(format!("pull task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn push(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    remote: String,
+    force: bool,
+    on_progress: tauri::ipc::Channel<String>,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || {
+        app_state.push(repo, &remote, force, |line| {
+            let _ = on_progress.send(line.to_owned());
+        })
+    })
+    .await
+    .map_err(|err| GitError::Internal(format!("push task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn merge(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    options: MergeOptions,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.merge(repo, &options))
+        .await
+        .map_err(|err| GitError::Internal(format!("merge task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn rebase(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    options: RebaseOptions,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.rebase(repo, &options))
+        .await
+        .map_err(|err| GitError::Internal(format!("rebase task failed: {err}")))?
+}
+
+macro_rules! replay_command {
+    ($name:ident) => {
+        #[tauri::command]
+        #[specta::specta]
+        pub async fn $name(
+            state: tauri::State<'_, crate::AppContext>,
+            repo: RepoId,
+            commits: Vec<String>,
+        ) -> Result<(), GitError> {
+            let app_state = state.state.clone();
+            tokio::task::spawn_blocking(move || app_state.$name(repo, &commits))
+                .await
+                .map_err(|err| {
+                    GitError::Internal(format!(concat!(stringify!($name), " task failed: {}"), err))
+                })?
+        }
+    };
+}
+
+replay_command!(cherry_pick);
+replay_command!(revert);
+
+#[tauri::command]
+#[specta::specta]
+pub async fn reflog(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    limit: u32,
+) -> Result<Vec<ReflogEntry>, GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.reflog(repo, limit))
+        .await
+        .map_err(|err| GitError::Internal(format!("reflog task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn lost_commits(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    limit: u32,
+) -> Result<Vec<CommitRow>, GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.lost_commits(repo, limit))
+        .await
+        .map_err(|err| GitError::Internal(format!("lost_commits task failed: {err}")))?
 }
