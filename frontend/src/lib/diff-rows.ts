@@ -112,3 +112,16 @@ export function segments(text: string, spans: readonly [number, number][]): Segm
   if (at < text.length) out.push({ text: text.slice(at), changed: false });
   return out;
 }
+
+/** How many lines the diff is not showing between two hunks. */
+export function gapBetween(previous: Hunk | null, next: Hunk): number {
+  const from = previous === null ? 1 : previous.oldStart + previous.oldLines;
+  return Math.max(next.oldStart - from, 0);
+}
+
+const EXPAND_BY = 20;
+const WHOLE_FILE = 100_000;
+
+export function expandedContext(current: number, whole: boolean): number {
+  return whole ? WHOLE_FILE : current + EXPAND_BY;
+}

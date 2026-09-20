@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DiffRow, Hunk } from "$lib/ipc";
-import { flatten, pairRows, segments } from "./diff-rows";
+import { expandedContext, flatten, gapBetween, pairRows, segments } from "./diff-rows";
 
 function context(old: number, nw: number, text: string): DiffRow {
   return { kind: "context", old, new: nw, text };
@@ -163,5 +163,44 @@ describe("segments", () => {
       { text: "a", changed: false },
       { text: "b", changed: true },
     ]);
+  });
+});
+
+describe("gapBetween", () => {
+  const hunk = (oldStart: number, oldLines: number): Hunk =>
+    ({ oldStart, oldLines, newStart: oldStart, newLines: oldLines, header: "", rows: [] }) as Hunk;
+
+  it("counts the lines between two hunks", () => {
+    expect(gapBetween(hunk(1, 5), hunk(30, 5))).toBe(24);
+  });
+
+  it("is zero for hunks that touch", () => {
+    expect(gapBetween(hunk(1, 5), hunk(6, 5))).toBe(0);
+  });
+
+  it("is zero rather than negative for overlapping hunks", () => {
+    expect(gapBetween(hunk(1, 20), hunk(5, 5))).toBe(0);
+  });
+
+  it("counts the lines above the first hunk", () => {
+    expect(gapBetween(null, hunk(10, 3))).toBe(9);
+  });
+
+  it("is zero when the first hunk starts at the top", () => {
+    expect(gapBetween(null, hunk(1, 3))).toBe(0);
+  });
+});
+
+describe("expandedContext", () => {
+  it("adds a screenful of lines", () => {
+    expect(expandedContext(3, false)).toBe(23);
+  });
+
+  it("opens the whole file when asked", () => {
+    expect(expandedContext(3, true)).toBeGreaterThan(9000);
+  });
+
+  it("keeps growing on repeated clicks", () => {
+    expect(expandedContext(expandedContext(3, false), false)).toBe(43);
   });
 });

@@ -124,7 +124,9 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::popup_context_menu,
             commands::open_compare_window,
             commands::commit_template,
-            commands::stage_mode
+            commands::stage_mode,
+            commands::list_presets,
+            commands::install_preset
         ])
 }
 

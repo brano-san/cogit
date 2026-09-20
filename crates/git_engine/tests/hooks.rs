@@ -221,3 +221,70 @@ fn listing_hooks_spawns_no_process() {
 
     assert!(log.lock().unwrap().is_empty());
 }
+
+#[test]
+fn a_repository_without_gitattributes_needs_the_eol_rule() {
+    let f = test_fixtures::linear(1).unwrap();
+    write_hook(&f.path().join(".githooks"), "pre-commit", "#!/bin/sh\n");
+
+    assert!(open(&f).needs_eol_rule(".githooks").unwrap());
+}
+
+#[test]
+fn a_repository_that_already_pins_lf_for_the_hooks_needs_nothing() {
+    let f = test_fixtures::linear(1).unwrap();
+    write_hook(&f.path().join(".githooks"), "pre-commit", "#!/bin/sh\n");
+    f.write_file(".gitattributes", ".githooks/** eol=lf\n")
+        .unwrap();
+
+    assert!(!open(&f).needs_eol_rule(".githooks").unwrap());
+}
+
+#[test]
+fn a_rule_for_another_directory_does_not_count() {
+    let f = test_fixtures::linear(1).unwrap();
+    write_hook(&f.path().join(".githooks"), "pre-commit", "#!/bin/sh\n");
+    f.write_file(".gitattributes", "scripts/** eol=lf\n")
+        .unwrap();
+
+    assert!(open(&f).needs_eol_rule(".githooks").unwrap());
+}
+
+#[test]
+fn the_eol_rule_can_be_added_without_losing_what_is_there() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file(".gitattributes", "*.png binary\n").unwrap();
+
+    open(&f).add_eol_rule(".githooks").unwrap();
+
+    let text = std::fs::read_to_string(f.path().join(".gitattributes")).unwrap();
+    assert!(text.contains("*.png binary"), "{text}");
+    assert!(text.contains(".githooks/** eol=lf"), "{text}");
+}
+
+#[test]
+fn adding_the_rule_twice_does_not_repeat_it() {
+    let f = test_fixtures::linear(1).unwrap();
+    let repo = open(&f);
+
+    repo.add_eol_rule(".githooks").unwrap();
+    repo.add_eol_rule(".githooks").unwrap();
+
+    let text = std::fs::read_to_string(f.path().join(".gitattributes")).unwrap();
+    assert_eq!(text.matches(".githooks/** eol=lf").count(), 1, "{text}");
+}
+
+#[test]
+fn every_hook_in_the_active_directory_is_checked_for_the_execution_bit() {
+    let f = test_fixtures::linear(1).unwrap();
+    write_hook(&f.path().join(".git/hooks"), "pre-commit", "#!/bin/sh\n");
+
+    let overview = open(&f).hooks().unwrap();
+    let present: Vec<_> = overview
+        .hooks
+        .iter()
+        .filter(|hook| hook.state != HookState::Missing)
+        .collect();
+
+    assert_eq!(present.len(), 1);
+}

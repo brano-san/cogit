@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Bypass, Hook, HookOverview, HookRun } from "$lib/ipc";
+  import type { Bypass, Hook, HookOverview, HookRun, PresetStatus } from "$lib/ipc";
 
   interface Props {
     overview: HookOverview | null;
@@ -15,6 +15,10 @@
     lastRun: HookRun | null;
     running: boolean;
     bypasses: readonly Bypass[];
+    presets: readonly PresetStatus[];
+    showPresets: boolean;
+    ontogglepresets: () => void;
+    oninstall: (id: string) => void;
     onclose: () => void;
   }
 
@@ -32,6 +36,10 @@
     lastRun,
     running,
     bypasses,
+    presets,
+    showPresets,
+    ontogglepresets,
+    oninstall,
     onclose,
   }: Props = $props();
 
@@ -59,6 +67,9 @@
 <div class="dialog" role="dialog" aria-label="Hooks">
   <header>
     <h2>Hooks</h2>
+    <button type="button" onclick={ontogglepresets}>
+      {showPresets ? "Back to hooks" : "Presets…"}
+    </button>
     <button type="button" class="icon" onclick={onclose} aria-label="Close hooks">✕</button>
   </header>
 
@@ -92,7 +103,21 @@
     </p>
   {/if}
 
-  {#if editing !== null}
+  {#if showPresets}
+    <div class="list">
+      {#each presets as entry (entry.id)}
+        <div class="row preset">
+          <span class="name">{entry.name}</span>
+          <span class="detail truncate">{entry.description}</span>
+          <span class="badge">{entry.hook}</span>
+          {#if entry.tool && entry.toolPath === null}
+            <span class="warn" title={entry.installHint ?? ""}>{entry.tool} not found</span>
+          {/if}
+          <button type="button" onclick={() => oninstall(entry.id)}>Install</button>
+        </div>
+      {/each}
+    </div>
+  {:else if editing !== null}
     <div class="editor">
       <label for="hook-body">{editing}</label>
       <textarea
@@ -286,6 +311,10 @@
 
   .row:hover {
     background: var(--state-hover);
+  }
+
+  .row.preset .name {
+    flex: 0 0 190px;
   }
 
   .name {

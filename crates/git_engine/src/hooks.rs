@@ -89,6 +89,12 @@ pub struct HookOverview {
     pub hooks: Vec<Hook>,
 }
 
+/// Whether a name is one of Git's hooks; a preset target is checked against it.
+#[must_use]
+pub fn is_hook_name(name: &str) -> bool {
+    is_known(name)
+}
+
 fn is_known(name: &str) -> bool {
     HOOKS.iter().any(|(hook, _)| *hook == name)
 }
@@ -420,5 +426,34 @@ impl RepoHandle {
             self.root().join(path)
         };
         Ok(std::fs::read_to_string(resolved).ok())
+    }
+}
+
+impl RepoHandle {
+    /// A hooks directory checked out with CRLF has a shebang the kernel cannot read, so
+    /// the team setup offers the `.gitattributes` rule (doc/modules/M10-hooks.md, T10.6).
+    pub fn needs_eol_rule(&self, dir: &str) -> Result<bool> {
+        let rule = format!("{dir}/**");
+        let Ok(text) = std::fs::read_to_string(self.root().join(".gitattributes")) else {
+            return Ok(true);
+        };
+        Ok(!text
+            .lines()
+            .any(|line| line.starts_with(&rule) && line.contains("eol=lf")))
+    }
+
+    pub fn add_eol_rule(&self, dir: &str) -> Result<()> {
+        if !self.needs_eol_rule(dir)? {
+            return Ok(());
+        }
+
+        let path = self.root().join(".gitattributes");
+        let mut text = std::fs::read_to_string(&path).unwrap_or_default();
+        if !text.is_empty() && !text.ends_with('\n') {
+            text.push('\n');
+        }
+        text.push_str(&format!("{dir}/** eol=lf\n"));
+        std::fs::write(&path, text)?;
+        Ok(())
     }
 }

@@ -47,6 +47,22 @@ pub enum AppEvent {
     },
 }
 
+/// Flattened for the UI: the TOML shape belongs to the catalogue, not the webview.
+#[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PresetStatus {
+    pub id: String,
+    pub name: String,
+    pub hook: String,
+    pub description: String,
+    pub slow: bool,
+    pub config_files: Vec<String>,
+    pub tool: Option<String>,
+    pub install_hint: Option<String>,
+    /// Where the tool was found, or `None` when it is not installed.
+    pub tool_path: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 pub struct OpenRepo {
     pub id: RepoId,
@@ -829,6 +845,46 @@ impl AppState {
 
     pub fn hooks(&self, repo: RepoId) -> Result<git_engine::HookOverview, git_engine::GitError> {
         self.handle(repo)?.hooks()
+    }
+
+    /// The catalogue with each preset's tool resolved, so the UI can say what is missing.
+    #[must_use]
+    pub fn presets(&self) -> Vec<PresetStatus> {
+        git_engine::builtin_presets()
+            .into_iter()
+            .map(|preset| PresetStatus {
+                tool_path: preset
+                    .tool
+                    .as_ref()
+                    .and_then(git_engine::find_tool)
+                    .map(|path| path.to_string_lossy().replace(char::from(92), "/")),
+                tool: preset.tool.as_ref().map(|tool| tool.command.clone()),
+                install_hint: preset.tool.as_ref().map(|tool| tool.install_hint.clone()),
+                id: preset.id,
+                name: preset.name,
+                hook: preset.hook,
+                description: preset.description,
+                slow: preset.slow,
+                config_files: preset.config_files,
+            })
+            .collect()
+    }
+
+    /// Wiring up a team's hooks is two steps, and the second is the one people forget.
+    pub fn adopt_hooks(&self, repo: RepoId, path: &str) -> Result<(), git_engine::GitError> {
+        self.use_hooks_path(repo, path)?;
+        self.handle(repo)?.add_eol_rule(path)
+    }
+
+    pub fn install_preset(&self, repo: RepoId, id: &str) -> Result<(), git_engine::GitError> {
+        let preset = git_engine::builtin_presets()
+            .into_iter()
+            .find(|preset| preset.id == id)
+            .ok_or_else(|| {
+                git_engine::GitError::InvalidState(format!("there is no preset {id}"))
+            })?;
+        self.quiet(repo);
+        self.handle(repo)?.install_preset(&preset)
     }
 
     pub fn stage_mode(

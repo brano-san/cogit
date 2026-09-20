@@ -819,7 +819,7 @@ pub async fn use_hooks_path(
     path: String,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    tokio::task::spawn_blocking(move || app_state.use_hooks_path(repo, &path))
+    tokio::task::spawn_blocking(move || app_state.adopt_hooks(repo, &path))
         .await
         .map_err(|err| GitError::Internal(format!("use_hooks_path task failed: {err}")))?
 }
@@ -1008,4 +1008,28 @@ pub async fn stage_mode(
     tokio::task::spawn_blocking(move || app_state.stage_mode(repo, &path, executable))
         .await
         .map_err(|err| GitError::Internal(format!("stage_mode task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn list_presets(
+    state: tauri::State<'_, crate::AppContext>,
+) -> Result<Vec<app_state::PresetStatus>, GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || Ok(app_state.presets()))
+        .await
+        .map_err(|err| GitError::Internal(format!("list_presets task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn install_preset(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    id: String,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    tokio::task::spawn_blocking(move || app_state.install_preset(repo, &id))
+        .await
+        .map_err(|err| GitError::Internal(format!("install_preset task failed: {err}")))?
 }

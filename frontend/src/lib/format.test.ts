@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   capsules,
+  dateTooltip,
   formatCommitDate,
   headLabel,
   refLabels,
@@ -229,5 +230,25 @@ describe("capsules", () => {
 
   it("copes with an empty list", () => {
     expect(capsules([], 3)).toEqual({ shown: [], hidden: [] });
+  });
+});
+
+describe("dateTooltip", () => {
+  it("always gives the exact time, whatever the display format is", () => {
+    expect(dateTooltip(Date.UTC(2026, 0, 15, 12, 0, 0) / 1000, 0)).toContain("2026-01-15");
+  });
+
+  it("keeps the author's offset so the tooltip is not machine-dependent", () => {
+    const at = Date.UTC(2026, 0, 15, 12, 0, 0) / 1000;
+    expect(dateTooltip(at, 180)).toContain("15:00");
+    expect(dateTooltip(at, 180)).toContain("+03:00");
+  });
+
+  it("shows a negative offset with its sign", () => {
+    expect(dateTooltip(Date.UTC(2026, 0, 15, 12, 0, 0) / 1000, -300)).toContain("-05:00");
+  });
+
+  it("writes a zero offset as +00:00", () => {
+    expect(dateTooltip(0, 0)).toContain("+00:00");
   });
 });

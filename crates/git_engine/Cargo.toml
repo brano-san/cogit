@@ -16,12 +16,14 @@ rayon.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 serde.workspace = true
+toml.workspace = true
 specta.workspace = true
 # Type-level only: `Number` overrides an i64 field to a plain TypeScript number.
 specta-typescript.workspace = true
 
 [dev-dependencies]
 test_fixtures.workspace = true
+tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt"] }
 
 [lints]

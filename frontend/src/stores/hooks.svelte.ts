@@ -1,5 +1,7 @@
 import {
   bypassLog,
+  installPreset,
+  listPresets,
   CogitError,
   listHooks,
   readHook,
@@ -8,6 +10,7 @@ import {
   useHooksPath,
   writeHook,
   type Bypass,
+  type PresetStatus,
   type HookOverview,
   type HookRun,
   type RepoId,
@@ -22,11 +25,14 @@ class HooksStore {
   lastRun = $state.raw<HookRun | null>(null);
   running = $state(false);
   bypasses = $state.raw<Bypass[]>([]);
+  presets = $state.raw<PresetStatus[]>([]);
+  showPresets = $state(false);
 
   async refresh(repo: RepoId): Promise<void> {
     try {
       this.overview = await listHooks(repo);
       this.bypasses = await bypassLog(repo);
+      this.presets = await listPresets();
     } catch (err) {
       this.report(err);
     }
@@ -88,8 +94,19 @@ class HooksStore {
     }
   }
 
+  async install(repo: RepoId, id: string): Promise<void> {
+    try {
+      await installPreset(repo, id);
+      this.showPresets = false;
+      await this.refresh(repo);
+    } catch (err) {
+      this.report(err);
+    }
+  }
+
   close(): void {
     this.lastRun = null;
+    this.showPresets = false;
     this.open = false;
     this.editing = null;
     this.body = "";
