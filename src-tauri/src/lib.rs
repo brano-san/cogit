@@ -108,6 +108,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::set_upstream,
             commands::delete_remote_branch,
             commands::set_menu_state,
+            // ─── diff-merge branch appends below; master inserts above ───
             commands::report_timing,
             commands::default_keymap,
             commands::set_keymap,

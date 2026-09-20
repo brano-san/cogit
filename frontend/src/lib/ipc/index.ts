@@ -565,3 +565,5 @@ export async function listPresets() {
 export async function installPreset(repo: RepoId, id: string) {
   return unwrap(await commands.installPreset(repo, id));
 }
+
+// ─── everything below this line belongs to the diff-merge branch; master appends above ───
