@@ -19,7 +19,7 @@ pub use commit_write::CommitRequest;
 pub use error::{GitCommandError, GitError};
 pub use history::CommitRow;
 pub use repo::{Branch, BranchKind, Head, RepoHandle, Tag};
-pub use runner::GitOutput;
+pub use runner::{CommandSink, GitOutput};
 pub use search::CommitQuery;
 pub use state::RepoState;
 pub use status::RepoStatus;

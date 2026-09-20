@@ -3,22 +3,22 @@ import { Channel } from "@tauri-apps/api/core";
 import { commands, events } from "./bindings";
 import type {
   CheckoutTarget,
-  RepoChanged,
   CommitQuery,
   CommitRequest,
   DiffOptions,
   DiffSpec,
   GitError,
   GraphChunk,
+  RepoChanged,
   RepoId,
 } from "./bindings";
 
 export type {
+  Algorithm,
   AppInfo,
   Branch,
   BranchKind,
   CheckoutTarget,
-  Algorithm,
   CommitDetails,
   CommitQuery,
   CommitRequest,
@@ -31,14 +31,15 @@ export type {
   FileEntry,
   FileStatus,
   GitError,
+  GitOutput,
   GraphChunk,
   GraphEdge,
   Head,
   Hunk,
   LaneAssignment,
   LineEnding,
-  RepoId,
   RepoChanged,
+  RepoId,
   RepoStatus,
   RepoSummary,
   Signature,
@@ -178,6 +179,18 @@ export async function deleteBranch(repo: RepoId, name: string, force: boolean) {
 /** Fires when the watcher sees the repository change on disk; returns an unlisten fn. */
 export async function onRepoChanged(handler: (change: RepoChanged) => void) {
   return await events.repoChanged.listen((event) => handler(event.payload));
+}
+
+export async function commandLog() {
+  return await commands.commandLog();
+}
+
+export async function commandProblems() {
+  return await commands.commandProblems();
+}
+
+export async function clearCommandLog() {
+  await commands.clearCommandLog();
 }
 
 function unwrap<T>(result: { status: "ok"; data: T } | { status: "error"; error: GitError }): T {

@@ -13,6 +13,9 @@
     /** Application version, proving the IPC round-trip works. */
     version?: string;
     status?: string;
+    /** Commands that failed or printed something on stderr; opens the Output panel. */
+    problems?: number;
+    onproblems?: () => void;
   }
 
   let {
@@ -26,10 +29,19 @@
     lineEnding = "LF",
     version,
     status = "Ready",
+    problems = 0,
+    onproblems,
   }: Props = $props();
 </script>
 
 <footer class="status-bar">
+  {#if problems > 0}
+    <button type="button" class="problems" onclick={() => onproblems?.()} title="Show Output">
+      ⚠ {problems}
+    </button>
+    <span class="divider" aria-hidden="true"></span>
+  {/if}
+
   {#if repository}
     <span class="item"><span aria-hidden="true">🗁</span> {repository}</span>
     <span class="divider" aria-hidden="true"></span>
@@ -63,6 +75,21 @@
 </footer>
 
 <style>
+  .problems {
+    height: 16px;
+    padding: 0 var(--sp-3);
+    background: none;
+    border: 0;
+    color: var(--status-modify);
+    font: inherit;
+    font-size: var(--fs-dense);
+    cursor: default;
+  }
+
+  .problems:hover {
+    color: var(--status-delete);
+  }
+
   .status-bar {
     display: flex;
     align-items: center;

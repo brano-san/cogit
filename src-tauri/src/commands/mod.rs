@@ -1,5 +1,6 @@
 use app_state::{DEFAULT_CHUNK_SIZE, GraphChunk, RepoId, RepoSummary};
 use diff_engine::{DiffOptions, FileDiff};
+use git_engine::GitOutput;
 use git_engine::{
     CheckoutTarget, CommitDetails, CommitQuery, CommitRequest, DiffSpec, FileEntry, GitError,
     WorktreeFiles,
@@ -240,4 +241,22 @@ pub async fn delete_branch(
     tokio::task::spawn_blocking(move || app_state.delete_branch(repo, &name, force))
         .await
         .map_err(|err| GitError::Internal(format!("delete_branch task failed: {err}")))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn command_log(state: tauri::State<'_, crate::AppContext>) -> Vec<GitOutput> {
+    state.state.command_log()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn command_problems(state: tauri::State<'_, crate::AppContext>) -> u32 {
+    state.state.command_problems()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn clear_command_log(state: tauri::State<'_, crate::AppContext>) {
+    state.state.clear_command_log();
 }
