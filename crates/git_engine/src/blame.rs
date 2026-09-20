@@ -14,9 +14,80 @@ pub struct BlameLine {
     pub timestamp: i64,
 }
 
+/// How many ignored commits deep to keep walking before giving up. A reformatting pass on
+/// top of a reformatting pass is normal; a hundred of them is a loop.
+const MAX_IGNORE_HOPS: usize = 16;
+
 impl RepoHandle {
-    /// One entry per line, in file order.
+    /// One entry per line, in file order, with `.git-blame-ignore-revs` honoured.
     pub fn blame(&self, path: &str, rev: &str) -> Result<Vec<BlameLine>> {
+        let mut lines = self.blame_raw(path, rev)?;
+        let ignored = self.ignored_revs();
+        if !ignored.is_empty() {
+            self.skip_ignored(path, &mut lines, &ignored);
+        }
+        Ok(lines)
+    }
+
+    /// The commits `.git-blame-ignore-revs` asks to look past. Missing file, unreadable
+    /// file and malformed lines all mean "nothing to skip": losing blame over a typo in an
+    /// optional file would be worse than ignoring the file.
+    fn ignored_revs(&self) -> std::collections::HashSet<String> {
+        let Some(root) = self.repo.workdir() else {
+            return std::collections::HashSet::new();
+        };
+        let Ok(text) = std::fs::read_to_string(root.join(".git-blame-ignore-revs")) else {
+            return std::collections::HashSet::new();
+        };
+        text.lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty() && !line.starts_with('#'))
+            .filter_map(|line| gix::ObjectId::from_hex(line.as_bytes()).ok())
+            .map(|oid| oid.to_string())
+            .collect()
+    }
+
+    /// Re-attributes every line an ignored commit claimed to whoever the same line belonged
+    /// to in that commit's parent.
+    ///
+    /// Line numbers are matched by position, which holds for the cosmetic commits the file
+    /// is meant to list — a reformatting pass keeps the lines and their order (R-103). The
+    /// text stays the one being viewed; only the attribution moves.
+    fn skip_ignored(
+        &self,
+        path: &str,
+        lines: &mut [BlameLine],
+        ignored: &std::collections::HashSet<String>,
+    ) {
+        let mut cache: std::collections::HashMap<String, Vec<BlameLine>> =
+            std::collections::HashMap::new();
+
+        for (index, line) in lines.iter_mut().enumerate() {
+            for _ in 0..MAX_IGNORE_HOPS {
+                if !ignored.contains(&line.oid) {
+                    break;
+                }
+                let parent = format!("{}^", line.oid);
+                if !cache.contains_key(&parent) {
+                    // A root commit has no parent, and then there is nowhere left to look.
+                    let Ok(older) = self.blame_raw(path, &parent) else {
+                        break;
+                    };
+                    cache.insert(parent.clone(), older);
+                }
+                let Some(older) = cache.get(&parent).and_then(|older| older.get(index)) else {
+                    break;
+                };
+                line.oid = older.oid.clone();
+                line.summary = older.summary.clone();
+                line.author = older.author.clone();
+                line.email = older.email.clone();
+                line.timestamp = older.timestamp;
+            }
+        }
+    }
+
+    fn blame_raw(&self, path: &str, rev: &str) -> Result<Vec<BlameLine>> {
         let suspect = self
             .repo
             .rev_parse_single(rev)
