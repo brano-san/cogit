@@ -2,10 +2,8 @@
   import { ask, open as openFolderDialog } from "@tauri-apps/plugin-dialog";
 
   import RefTree from "$components/branch-tree/RefTree.svelte";
-  import BlameView from "$components/diff/BlameView.svelte";
-  import DiffView from "$components/diff/DiffView.svelte";
-  import ConflictView from "$components/diff/ConflictView.svelte";
-  import ImageDiff from "$components/diff/ImageDiff.svelte";
+  import DiffPanel from "$components/panels/DiffPanel.svelte";
+  import CommitDetailsPane from "$components/panels/CommitDetailsPane.svelte";
   import CommitBox from "$components/file-list/CommitBox.svelte";
   import SplitOffDialog from "$components/file-list/SplitOffDialog.svelte";
   import FileList from "$components/file-list/FileList.svelte";
@@ -195,7 +193,6 @@
   });
   const leftColumn = $derived(shown.repositories || shown.refs);
   const repo = $derived(repository.current);
-  const details = $derived(commit.details);
   const banner = $derived(repo ? stateBanner(repo.state, repo.indexLock) : null);
   const tracked = $derived(repository.localBranches.find((b) => b.isHead));
   const scope = $derived(commitScope(worktree.staged, fileMask));
@@ -1801,111 +1798,40 @@ Log: ${info?.logPath ?? ""}`),
         aria-label={PANEL_TITLES.diff}
         onpointerenter={() => (focused = "diff")}>
         <Panel title="Diff">
-          {#if conflicts.path}
-            <ConflictView
-              path={conflicts.path}
-              base={conflicts.base}
-              ours={conflicts.ours}
-              theirs={conflicts.theirs}
-              onresolve={(side) => {
-                const id = repository.current?.repo;
-                if (id) void conflicts.take(id, side).then(() => afterMutation());
-              }}
-              onresolveText={(text) => {
-                const id = repository.current?.repo;
-                if (id) void conflicts.write(id, text).then(() => afterMutation());
-              }}
-            />
-          {:else if blame.path}
-            <BlameView
-              lines={blame.lines}
-              path={blame.path}
-              onselect={(oid) => {
-                blame.clear();
-                const id = repository.current?.repo;
-                if (id) void commit.select(id, oid);
-              }}
-            />
-          {:else if diff.error}
-            <p class="error detail">{diff.error.message}</p>
-          {:else if diff.diff?.kind === "image"}
-            <ImageDiff
-              before={diff.images[0]}
-              after={diff.images[1]}
-              oldSize={diff.diff.oldSize}
-              newSize={diff.diff.newSize}
-              mime={diff.diff.mime}
-            />
-          {:else if diff.diff && diff.path}
-            <DiffView
-              diff={diff.diff}
-              path={diff.path}
-              stageable={diff.stageable}
-              onstage={(selected, reverse) => void stageLines(selected, reverse)}
-              onblame={() => void showBlame()}
-              whitespace={diff.whitespace}
-              onwhitespace={(mode) => {
-                const id = repository.current?.repo;
-                if (id) void diff.setWhitespace(id, mode);
-              }}
-              onexpand={(whole) => {
-                const id = repository.current?.repo;
-                if (id) void diff.expand(id, whole);
-              }}
-            />
-          {:else}
-          <div class="detail">
-            {#if repository.error}
-              <p class="error">{repository.error.message}</p>
-              {#if repository.error.isCommandFailure && repository.error.detail.kind === "command"}
-                <pre class="raw">{repository.error.detail.data.stderr}</pre>
-              {/if}
-            {:else if commit.error}
-              <p class="error">{commit.error.message}</p>
-            {:else if details}
-              <p class="subject">{details.summary}</p>
-              {#if details.body}<pre class="body">{details.body}</pre>{/if}
-              <dl>
-                <dt>Commit</dt>
-                <dd class="mono">{details.oid}</dd>
-                <dt>Author</dt>
-                <dd>
-                  {details.author.name} &lt;{details.author.email}&gt; ·
-                  {settings.formatDate(details.author.timestamp, details.author.tzOffsetMinutes)}
-                </dd>
-                <dt>Parents</dt>
-                <dd class="mono tabular">
-                  {details.parents.length === 0
-                    ? "none (root commit)"
-                    : details.parents.map(shortOid).join(", ")}
-                </dd>
-              </dl>
-              <div class="commit-actions">
-                <button type="button" onclick={() => void replaySelected("cherryPick")}
-                  >Cherry-pick</button
-                >
-                <button type="button" onclick={() => void replaySelected("revert")}>Revert</button>
-                <button type="button" onclick={() => void openSplit()}>Split Off…</button>
-                <button type="button" onclick={() => void openRebase()}>Rebase…</button>
-                <button type="button" onclick={() => void rollbackFiles([])}>Roll Back Tree</button>
-              </div>
-            {:else if repo}
-              <dl>
-                <dt>Repository</dt>
-                <dd class="mono">{repo.root}</dd>
-                <dt>HEAD</dt>
-                <dd class="mono">{repository.headLabel}</dd>
-                <dt>Branches</dt>
-                <dd class="mono tabular">
-                  {repository.localBranches.length} local, {repository.remoteBranches.length} remote
-                </dd>
-              </dl>
-              <p class="muted">Select a commit to see what it changed.</p>
-            {:else}
-              <p class="muted">Open a repository to begin.</p>
-            {/if}
-          </div>
-          {/if}
+          <DiffPanel
+            onstage={(selected, reverse) => void stageLines(selected, reverse)}
+            onblame={() => void showBlame()}
+            onwhitespace={(mode) => {
+              const id = repository.current?.repo;
+              if (id) void diff.setWhitespace(id, mode);
+            }}
+            onexpand={(whole) => {
+              const id = repository.current?.repo;
+              if (id) void diff.expand(id, whole);
+            }}
+            onresolve={(side) => {
+              const id = repository.current?.repo;
+              if (id) void conflicts.take(id, side).then(() => afterMutation());
+            }}
+            onresolveText={(text) => {
+              const id = repository.current?.repo;
+              if (id) void conflicts.write(id, text).then(() => afterMutation());
+            }}
+            onselectcommit={(oid) => {
+              const id = repository.current?.repo;
+              if (id) void commit.select(id, oid);
+            }}
+          >
+            {#snippet fallback()}
+              <CommitDetailsPane
+                oncherrypick={() => void replaySelected("cherryPick")}
+                onrevert={() => void replaySelected("revert")}
+                onsplit={() => void openSplit()}
+                onrebase={() => void openRebase()}
+                onrollback={() => void rollbackFiles([])}
+              />
+            {/snippet}
+          </DiffPanel>
         </Panel>
       </div>
       {/if}
@@ -2153,74 +2079,6 @@ Log: ${info?.logPath ?? ""}`),
     color: var(--text-secondary);
   }
 
-  .detail {
-    padding: var(--sp-6);
-    font-size: var(--fs-dense);
-    user-select: text;
-  }
-
-  .error {
-    margin: 0 0 var(--sp-4);
-    color: var(--status-delete);
-  }
-
   /* Raw Git output is never reformatted or truncated (INV-05). */
-  .raw {
-    margin: 0;
-    padding: var(--sp-5);
-    background: var(--surface-input);
-    border-radius: var(--r-sm);
-    font-family: var(--font-mono);
-    font-size: var(--fs-code);
-    white-space: pre;
-    overflow: auto;
-  }
 
-  .commit-actions {
-    display: flex;
-    gap: var(--sp-3);
-  }
-
-  .commit-actions button {
-    height: 20px;
-    padding: 0 var(--sp-4);
-    background: var(--surface-input);
-    color: var(--text-primary);
-    border: 1px solid var(--field-border);
-    border-radius: var(--r-sm);
-    font-size: var(--fs-dense);
-    cursor: default;
-  }
-
-  .commit-actions button:hover {
-    border-color: var(--status-ref);
-  }
-
-  .subject {
-    margin: 0 0 var(--sp-4);
-    font-weight: 600;
-  }
-
-  .body {
-    margin: 0 0 var(--sp-5);
-    font-family: inherit;
-    white-space: pre-wrap;
-    color: var(--text-secondary);
-  }
-
-  dl {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: var(--sp-3) var(--sp-6);
-    margin: 0 0 var(--sp-5);
-  }
-
-  dt {
-    color: var(--text-secondary);
-  }
-
-  dd {
-    margin: 0;
-    overflow-wrap: anywhere;
-  }
 </style>
