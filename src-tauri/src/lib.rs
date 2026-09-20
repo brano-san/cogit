@@ -106,6 +106,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::find_object,
             commands::set_menu_state,
             commands::report_timing,
+            commands::default_keymap,
+            commands::set_keymap,
             commands::scan_for_repositories,
             commands::has_token,
             commands::store_token,
@@ -178,7 +180,13 @@ pub fn run() -> anyhow::Result<()> {
             forward_repo_changes(app.handle().clone(), &state);
 
             app.manage(menu::ContextMenu::<tauri::Wry>::default());
-            app.set_menu(menu::build(app.handle())?)?;
+            let stored = menu::stored_keymap(&config_dir);
+            let (menu, collected) = menu::build(app.handle(), &stored)?;
+            app.set_menu(menu)?;
+            app.manage(menu::MenuItems::from(collected));
+            let keymap = menu::Keymap::default();
+            keymap.set(stored);
+            app.manage(keymap);
             app.on_menu_event(|app, event| {
                 let _ = MenuCommand(event.id().0.clone()).emit(app);
             });

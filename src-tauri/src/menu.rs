@@ -82,6 +82,104 @@ const TOOLS: &[Entry] = &[
 
 const HELP: &[Entry] = &[Entry::Item("about", "About Cogit", None)];
 
+/// The menu bar in order. One list, so the keymap editor and the menu cannot disagree.
+const SECTIONS: &[(&str, &[Entry])] = &[
+    ("Repository", REPOSITORY),
+    ("View", VIEW),
+    ("Remote", REMOTE),
+    ("Local", LOCAL),
+    ("Branch", BRANCH),
+    ("Query", QUERY),
+    ("Tools", TOOLS),
+    ("Help", HELP),
+];
+
+/// One row of the keymap editor.
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct KeyBinding {
+    pub id: String,
+    pub label: String,
+    pub section: String,
+    /// What the menu ships with; the user's override lives in settings, not here.
+    pub default_accelerator: Option<String>,
+}
+
+#[must_use]
+pub fn default_keymap() -> Vec<KeyBinding> {
+    let mut rows = Vec::new();
+    for (section, entries) in SECTIONS {
+        for entry in *entries {
+            let (id, label, accelerator) = match entry {
+                Entry::Item(id, label, keys) | Entry::Check(id, label, keys) => (id, label, keys),
+                Entry::Separator => continue,
+            };
+            rows.push(KeyBinding {
+                id: (*id).to_owned(),
+                label: (*label).to_owned(),
+                section: (*section).to_owned(),
+                default_accelerator: accelerator.map(str::to_owned),
+            });
+        }
+    }
+    rows
+}
+
+/// The user's overrides, held so a menu rebuild keeps them.
+#[derive(Default)]
+pub struct Keymap {
+    overrides: Mutex<HashMap<String, String>>,
+}
+
+impl Keymap {
+    pub fn set(&self, overrides: HashMap<String, String>) {
+        if let Ok(mut held) = self.overrides.lock() {
+            *held = overrides;
+        }
+    }
+
+    fn snapshot(&self) -> HashMap<String, String> {
+        self.overrides
+            .lock()
+            .map(|held| held.clone())
+            .unwrap_or_default()
+    }
+}
+
+/// Read straight from the settings file: the bar is built before the webview exists, so
+/// a restart must already show the user's own keys.
+#[must_use]
+pub fn stored_keymap(config_dir: &std::path::Path) -> HashMap<String, String> {
+    let Ok(text) = std::fs::read_to_string(config_dir.join("settings.json")) else {
+        return HashMap::new();
+    };
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {
+        return HashMap::new();
+    };
+    value
+        .get("keymap")
+        .and_then(serde_json::Value::as_object)
+        .map(|map| {
+            map.iter()
+                .filter_map(|(id, keys)| Some((id.clone(), keys.as_str()?.to_owned())))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// An empty override means "no accelerator at all", which is how a user removes one.
+fn accelerator<'a>(
+    overrides: &'a HashMap<String, String>,
+    id: &str,
+    fallback: Option<&'a &'static str>,
+) -> Option<&'a str> {
+    match overrides.get(id) {
+        Some(keys) if keys.is_empty() => None,
+        Some(keys) => Some(keys.as_str()),
+        None => fallback.copied(),
+    }
+}
+
 enum Entry {
     Item(&'static str, &'static str, Option<&'static str>),
     /// A toggle. muda flips the tick itself on click, so the frontend always writes the
@@ -98,6 +196,16 @@ pub struct MenuItems<R: Runtime> {
 }
 
 impl<R: Runtime> MenuItems<R> {
+    /// A rebuilt bar has new items; the old handles point at nothing the user can see.
+    fn replace(&self, collected: Collected<R>) {
+        if let Ok(mut items) = self.items.lock() {
+            *items = collected.items;
+        }
+        if let Ok(mut checks) = self.checks.lock() {
+            *checks = collected.checks;
+        }
+    }
+
     pub fn apply(&self, disabled: &[String], checked: &[String]) {
         if let Ok(items) = self.items.lock() {
             for (id, item) in items.iter() {
@@ -119,7 +227,7 @@ fn report(id: &str, result: tauri::Result<()>) {
     }
 }
 
-struct Collected<R: Runtime> {
+pub struct Collected<R: Runtime> {
     items: HashMap<String, MenuItem<R>>,
     checks: HashMap<String, CheckMenuItem<R>>,
 }
@@ -128,25 +236,26 @@ fn submenu<R: Runtime>(
     app: &AppHandle<R>,
     title: &str,
     entries: &[Entry],
+    overrides: &HashMap<String, String>,
     collected: &mut Collected<R>,
 ) -> tauri::Result<Submenu<R>> {
     let mut builder = SubmenuBuilder::new(app, title);
     for entry in entries {
         match entry {
             Entry::Separator => builder = builder.separator(),
-            Entry::Item(id, label, accelerator) => {
+            Entry::Item(id, label, fallback) => {
                 let mut item = MenuItemBuilder::with_id(*id, *label);
-                if let Some(keys) = accelerator {
-                    item = item.accelerator(*keys);
+                if let Some(keys) = accelerator(overrides, id, fallback.as_ref()) {
+                    item = item.accelerator(keys);
                 }
                 let item = item.build(app)?;
                 builder = builder.item(&item);
                 collected.items.insert((*id).to_owned(), item);
             }
-            Entry::Check(id, label, accelerator) => {
+            Entry::Check(id, label, fallback) => {
                 let mut item = CheckMenuItemBuilder::with_id(*id, *label);
-                if let Some(keys) = accelerator {
-                    item = item.accelerator(*keys);
+                if let Some(keys) = accelerator(overrides, id, fallback.as_ref()) {
+                    item = item.accelerator(keys);
                 }
                 let item = item.build(app)?;
                 builder = builder.item(&item);
@@ -157,12 +266,16 @@ fn submenu<R: Runtime>(
     builder.build()
 }
 
-pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
+pub fn build<R: Runtime>(
+    app: &AppHandle<R>,
+    overrides: &HashMap<String, String>,
+) -> tauri::Result<(Menu<R>, Collected<R>)> {
     let mut collected = Collected {
         items: HashMap::new(),
         checks: HashMap::new(),
     };
-    let mut section = |title: &str, entries: &[Entry]| submenu(app, title, entries, &mut collected);
+    let mut section =
+        |title: &str, entries: &[Entry]| submenu(app, title, entries, overrides, &mut collected);
 
     let repository = section("Repository", REPOSITORY)?;
     let view = section("View", VIEW)?;
@@ -207,11 +320,31 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         ],
     )?;
 
-    app.manage(MenuItems {
-        items: Mutex::new(collected.items),
-        checks: Mutex::new(collected.checks),
-    });
-    Ok(menu)
+    Ok((menu, collected))
+}
+
+impl<R: Runtime> From<Collected<R>> for MenuItems<R> {
+    fn from(collected: Collected<R>) -> Self {
+        Self {
+            items: Mutex::new(collected.items),
+            checks: Mutex::new(collected.checks),
+        }
+    }
+}
+
+/// Rebuilds the whole bar: muda cannot change an accelerator after an item is built, so the
+/// held item handles are replaced along with it.
+pub fn rebuild<R: Runtime>(
+    app: &AppHandle<R>,
+    keymap: &Keymap,
+    items: &MenuItems<R>,
+    overrides: HashMap<String, String>,
+) -> tauri::Result<()> {
+    keymap.set(overrides);
+    let (menu, collected) = build(app, &keymap.snapshot())?;
+    app.set_menu(menu)?;
+    items.replace(collected);
+    Ok(())
 }
 
 /// One row the frontend asks for in a context menu. Ids are palette command ids, so the

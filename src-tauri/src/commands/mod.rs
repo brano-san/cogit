@@ -40,6 +40,26 @@ where
 /// showing its result. Only the backend half is visible from Rust.
 #[tauri::command]
 #[specta::specta]
+pub fn default_keymap() -> Vec<crate::menu::KeyBinding> {
+    crate::menu::default_keymap()
+}
+
+/// Synchronous: muda has to build the bar on the main thread, and rebuilding is the only
+/// way to change an accelerator once an item exists.
+#[tauri::command]
+#[specta::specta]
+pub fn set_keymap(
+    app: tauri::AppHandle,
+    keymap: tauri::State<'_, crate::menu::Keymap>,
+    items: tauri::State<'_, crate::menu::MenuItems<tauri::Wry>>,
+    overrides: std::collections::HashMap<String, String>,
+) -> Result<(), GitError> {
+    crate::menu::rebuild(&app, &keymap, &items, overrides)
+        .map_err(|err| GitError::Internal(format!("cannot rebuild the menu: {err}")))
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn report_timing(label: String, ms: u32, detail: String) {
     crate::profile::ui(&label, u64::from(ms), &detail);
 }
