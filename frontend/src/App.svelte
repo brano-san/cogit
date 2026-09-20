@@ -116,6 +116,7 @@
     refs: "References",
     graph: "Graph",
     files: "Files",
+    commit: "Commit Message",
     diff: "Diff",
   };
 
@@ -174,10 +175,10 @@
     refs: layout.visible("refs"),
     graph: layout.visible("graph"),
     files: layout.visible("files"),
+    commit: layout.visible("commit"),
     diff: layout.visible("diff"),
   });
   const leftColumn = $derived(shown.repositories || shown.refs);
-  const topRow = $derived(shown.graph || shown.files);
   const repo = $derived(repository.current);
   const details = $derived(commit.details);
   const banner = $derived(repo ? stateBanner(repo.state, repo.indexLock) : null);
@@ -191,6 +192,8 @@
   });
 
   const onWorkingTree = $derived(repo !== undefined && repo !== null && commit.oid === null);
+  const filesColumn = $derived(shown.files || (shown.commit && onWorkingTree));
+  const topRow = $derived(shown.graph || filesColumn);
 
   $effect(() => {
     void commit.oid;
@@ -1534,7 +1537,7 @@ Log: ${info?.logPath ?? ""}`),
           </Panel>
         </div>
         {/if}
-        {#if shown.graph && shown.files}
+        {#if shown.graph && filesColumn}
         <Splitter
           direction="vertical"
           value={fractions.graph}
@@ -1543,10 +1546,20 @@ Log: ${info?.logPath ?? ""}`),
           onreset={() => layout.resetOne("graph")}
         />
         {/if}
+        {#if filesColumn}
+        <div
+          class="files-column"
+          class:grow={!shown.graph}
+          style:flex={shown.graph ? `1 1 auto` : undefined}
+        >
         {#if shown.files}
-        <div class="pane grow" role="region"
-        aria-label={PANEL_TITLES.files}
-        onpointerenter={() => (focused = "files")}>
+        <div
+          class="pane"
+          class:grow={!(shown.commit && onWorkingTree)}
+          style:flex={shown.commit && onWorkingTree ? `0 0 ${fractions.commitBox * 100}%` : undefined}
+          role="region"
+          aria-label={PANEL_TITLES.files}
+          onpointerenter={() => (focused = "files")}>
           <Panel title="Files" count={onWorkingTree ? worktree.total : commit.files.length}>
             <div class="files">
             {#if onWorkingTree}
@@ -1584,14 +1597,6 @@ Log: ${info?.logPath ?? ""}`),
                 onopen={openInWindow}
                 onmask={(mask) => (fileMask = mask)}
               />
-              <CommitBox
-                {scope}
-                {template}
-                stagedCount={worktree.staged.length}
-                busy={worktree.loading}
-                draftKey={`cogit:draft:${repo?.root ?? ""}`}
-                oncommit={commitStaged}
-              />
             {:else}
               <FileList
                 sections={[{ files: commit.files }]}
@@ -1603,6 +1608,35 @@ Log: ${info?.logPath ?? ""}`),
             {/if}
             </div>
           </Panel>
+        </div>
+        {/if}
+
+        {#if shown.files && shown.commit && onWorkingTree}
+        <Splitter
+          direction="horizontal"
+          value={fractions.commitBox}
+          label="Resize commit message panel"
+          onchange={(d) => layout.nudge("commitBox", d)}
+          onreset={() => layout.resetOne("commitBox")}
+        />
+        {/if}
+
+        {#if shown.commit && onWorkingTree}
+        <div class="pane grow" role="region"
+          aria-label={PANEL_TITLES.commit}
+          onpointerenter={() => (focused = "commit")}>
+          <Panel title="Commit Message" count={worktree.staged.length}>
+            <CommitBox
+              {scope}
+              {template}
+              stagedCount={worktree.staged.length}
+              busy={worktree.loading}
+              draftKey={`cogit:draft:${repo?.root ?? ""}`}
+              oncommit={commitStaged}
+            />
+          </Panel>
+        </div>
+        {/if}
         </div>
         {/if}
       </div>

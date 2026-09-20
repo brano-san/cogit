@@ -127,5 +127,7 @@
 | F-121 | Раздельные списки Unstaged и Staged | [F-121-files-split.md](F-121-files-split.md) |
 | F-122 | Дерево ссылок с чекбоксами | [F-122-ref-tree.md](F-122-ref-tree.md) |
 | F-123 | Контекстное меню дерева ссылок | [F-123-ref-tree-context.md](F-123-ref-tree-context.md) |
+| F-124 | Сообщение коммита отдельной панелью | [F-124-commit-panel.md](F-124-commit-panel.md) |
+| F-125 | Умные даты в истории | [F-125-smart-dates.md](F-125-smart-dates.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.

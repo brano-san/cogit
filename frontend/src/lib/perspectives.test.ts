@@ -108,3 +108,21 @@ describe("filesSplit", () => {
     expect(upgraded.main.fractions.leftColumn).toBe(0.3);
   });
 });
+
+describe("the commit message panel", () => {
+  it("is one of the panels the View menu can toggle", () => {
+    expect(PANELS).toContain("commit");
+  });
+
+  it("is shown by default in the Main perspective", () => {
+    expect(DEFAULT_PERSPECTIVES.main.hidden).not.toContain("commit");
+  });
+
+  it("is out of the way while reviewing", () => {
+    expect(DEFAULT_PERSPECTIVES.review.hidden).toContain("commit");
+  });
+
+  it("has its own share of the column height", () => {
+    expect(DEFAULT_LAYOUT.commitBox).toBeGreaterThan(0);
+  });
+});

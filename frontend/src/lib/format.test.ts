@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  displayDate,
+  smartDate,
   capsules,
   dateTooltip,
   formatCommitDate,
@@ -250,5 +252,58 @@ describe("dateTooltip", () => {
 
   it("writes a zero offset as +00:00", () => {
     expect(dateTooltip(0, 0)).toContain("+00:00");
+  });
+});
+
+describe("smartDate", () => {
+  const DAY = 86_400;
+  // Thursday 2026-09-17 12:00:00 UTC
+  const now = Date.UTC(2026, 8, 17, 12, 0, 0) / 1000;
+
+  it("calls the same calendar day today", () => {
+    expect(smartDate(now - 3600, 0, now)).toBe("today");
+  });
+
+  it("calls the day before yesterday", () => {
+    expect(smartDate(now - DAY, 0, now)).toBe("yesterday");
+  });
+
+  it("names the weekday inside the last week", () => {
+    expect(smartDate(now - 3 * DAY, 0, now)).toBe("Monday");
+  });
+
+  it("still names the weekday six days back", () => {
+    expect(smartDate(now - 6 * DAY, 0, now)).toBe("Friday");
+  });
+
+  it("falls back to a date once a week has passed", () => {
+    expect(smartDate(now - 8 * DAY, 0, now)).toBe("09-09-26");
+  });
+
+  it("writes a date for anything in the future, which is clock skew", () => {
+    expect(smartDate(now + 3 * DAY, 0, now)).toBe("20-09-26");
+  });
+
+  it("reads the day boundary in the commit's own timezone", () => {
+    // 23:30 in UTC+3 is still the same day there, though it is 20:30 UTC.
+    const late = Date.UTC(2026, 8, 17, 20, 30, 0) / 1000;
+    expect(smartDate(late, 180, now)).toBe("today");
+  });
+});
+
+describe("displayDate", () => {
+  const now = Date.UTC(2026, 8, 17, 12, 0, 0) / 1000;
+  const yesterday = now - 86_400;
+
+  it("shows the smart form alone", () => {
+    expect(displayDate(yesterday, 0, now, "smart")).toBe("yesterday");
+  });
+
+  it("shows the elapsed form alone", () => {
+    expect(displayDate(yesterday, 0, now, "relative")).toBe("1 day ago");
+  });
+
+  it("shows both, smart first", () => {
+    expect(displayDate(yesterday, 0, now, "both")).toBe("yesterday · 1 day ago");
   });
 });

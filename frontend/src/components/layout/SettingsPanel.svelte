@@ -31,9 +31,11 @@
     ["light", "Light"],
   ] as const;
 
+  // Labelled by example: the setting is about what the row will read, not about a term.
   const DATE_FORMATS = [
-    ["iso", "2026-01-15 12:00"],
-    ["relative", "3 hours ago"],
+    ["smart", "yesterday · Tuesday · 09-09-26"],
+    ["relative", "3 days ago"],
+    ["both", "yesterday · 1 day ago"],
   ] as const;
 
   const ALGORITHMS = [
