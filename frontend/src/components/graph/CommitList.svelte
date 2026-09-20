@@ -137,19 +137,25 @@
     if (scroller) scrollTop = scroller.scrollTop;
   }
 
+  /** The request already acted on. Without it every arriving chunk would re-centre and
+      fight the user's own scrolling; a commit not on screen yet keeps the request open. */
+  let revealed = $state(-1);
+
   /** A commit reached from the References panel is centred, not merely brought on screen:
       arriving from elsewhere, the user needs the rows around it to know where they are. */
   $effect(() => {
     const wanted = graph.reveal;
-    if (!wanted || !scroller) return;
+    if (!wanted) {
+      revealed = -1;
+      return;
+    }
+    if (!scroller || wanted.request === revealed) return;
+
     const at = graph.rows.findIndex((row) => row.commit.oid === wanted.oid);
     if (at < 0) return;
-    scroller.scrollTop = centreRow(
-      at + HEADER_ROWS,
-      viewportHeight,
-      GRAPH.rowHeight,
-      listRows,
-    );
+
+    scroller.scrollTop = centreRow(at + HEADER_ROWS, viewportHeight, GRAPH.rowHeight, listRows);
+    revealed = wanted.request;
   });
 
   function onclick(event: MouseEvent) {
