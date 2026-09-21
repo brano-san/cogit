@@ -154,13 +154,23 @@ pub enum DiffRow {
 
 ### Что обязательно покрыть тестом
 
-- [ ] Стейджинг одной строки из ханка с несколькими изменениями
-- [ ] Стейджинг только удалений при наличии добавлений в том же ханке
-- [ ] Файл с CRLF
+- [x] Стейджинг одной строки из ханка с несколькими изменениями —
+      `staging_only_a_deletion_leaves_the_addition_in_the_same_hunk_unstaged`
+- [x] Стейджинг только удалений при наличии добавлений в том же ханке — тот же тест,
+      плюс `staging_only_deletions_while_insertions_exist_in_the_same_hunk` на сборку патча
+- [x] Файл с CRLF — `a_crlf_file_keeps_its_line_endings_after_partial_staging`
 - [x] Файл без завершающего перевода строки (`\ No newline at end of file`)
-- [ ] Новый файл (нет старой версии)
-- [ ] Удалённый файл
-- [ ] Unstage выбранных строк (обратная операция, `git apply --cached --reverse`)
+- [x] Новый файл (нет старой версии) —
+      `staging_a_line_of_a_file_that_has_no_committed_version_creates_it_in_the_index`
+- [x] Удалённый файл — `staging_the_removal_of_every_line_records_the_file_as_deleted`
+- [x] Unstage выбранных строк (обратная операция, `git apply --cached --reverse`) —
+      `reversing_the_same_patch_unstages_the_line`
+
+Сборка патча проверяется в [diff_engine/tests/patch.rs](../crates/diff_engine/tests/patch.rs),
+применение — в [git_engine/tests/apply.rs](../crates/git_engine/tests/apply.rs), а обе
+половины вместе — в [app_state/tests/stage_lines.rs](../crates/app_state/tests/stage_lines.rs).
+Порознь они были зелёными и до этого; конверт `/dev/null` для созданного и удалённого файла
+проверяется только сквозным прогоном.
 
 Отсутствие завершающего перевода строки — классический источник порчи файлов
 при генерации патчей. Маркер `\ No newline at end of file` обязан присутствовать в патче.
@@ -230,6 +240,9 @@ pub struct ThreeWayDiff {
 - [x] UTF-8 с многобайтовыми символами: смещения word-diff корректны
 - [x] Очень длинная строка (минифицированный JS, 1 МБ в одной строке) не вешает движок
 - [x] Перемещение блока кода распознаётся как перемещение, а не удаление + добавление
-- [ ] C++: изменение в теле функции даёт корректный заголовок ханка
+- [x] C++: изменение в теле функции даёт корректный заголовок ханка —
+      `a_change_in_a_cpp_function_body_names_that_function`. Второй тест,
+      `a_change_inside_a_cpp_class_method_names_the_class`, нашёл промах: спецификатор
+      доступа `public:` стоит без отступа и попадал в заголовок вместо класса ([R-84](12-risks.md))
 - [x] Бинарный файл не пытается декодироваться
 - [x] Отношение 1:100 удалений к добавлениям отключает word-diff
