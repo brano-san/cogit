@@ -170,6 +170,8 @@
 | F-227 | Вложенные группы репозиториев | [F-227-nested-groups.md](F-227-nested-groups.md) |
 | F-228 | Стартовый экран с недавними | [F-228-start-screen.md](F-228-start-screen.md) |
 
+| F-229 | Слияние в отдельном окне | [F-229-merge-window.md](F-229-merge-window.md) |
+
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.
 
 | F-214 | Четырёхпанельное слияние | [F-214-four-panel-merge.md](F-214-four-panel-merge.md) |

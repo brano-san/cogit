@@ -1,6 +1,7 @@
 import { Channel } from "@tauri-apps/api/core";
 
 import { commands, events } from "./bindings";
+import { mergeUrl } from "$lib/merge-params";
 import type {
   Author,
   AvatarReady,
@@ -14,6 +15,7 @@ import type {
   GitError,
   GraphChunk,
   MergeOptions,
+  MergeResolved,
   OperationChanged,
   PatchRequest,
   RebaseOptions,
@@ -67,6 +69,7 @@ export type {
   LaneAssignment,
   LineEnding,
   MergeOptions,
+  MergeResolved,
   OperationChanged,
   Origin,
   Overlap,
@@ -594,6 +597,20 @@ export async function overlapWindow(repo: RepoId, base: string, window: string[]
 
 export async function bypassLog(repo: RepoId) {
   return unwrap(await commands.bypassLog(repo));
+}
+
+/** Opens one conflicted file in a window of its own. */
+export async function openMergeWindow(repo: RepoId, path: string) {
+  return unwrap(await commands.openMergeWindow(mergeUrl(repo, path), `${path} — Cogit`));
+}
+
+/** Told by the merge window once the resolution is written. */
+export async function mergeResolved(repo: RepoId, path: string) {
+  return unwrap(await commands.mergeResolved(repo, path));
+}
+
+export async function onMergeResolved(handler: (event: MergeResolved) => void) {
+  return await events.mergeResolved.listen((event) => handler(event.payload));
 }
 
 /** The three sides already merged into regions, for the four-panel merge view. */

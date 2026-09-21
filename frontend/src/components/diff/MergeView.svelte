@@ -18,9 +18,11 @@
     regions: readonly Region[];
     onsave: (text: string) => void;
     oncancel: () => void;
+    /** Absent in the window of its own, where there is nowhere to pop out to. */
+    onpopout?: () => void;
   }
 
-  let { path, regions, onsave, oncancel }: Props = $props();
+  let { path, regions, onsave, oncancel, onpopout }: Props = $props();
 
   let choices = $state.raw<Choices>({});
   let edited = $state<string | null>(null);
@@ -77,6 +79,9 @@
     <button type="button" onclick={() => (choices = chooseAll(regions, "theirs"))}>
       Take all theirs
     </button>
+    {#if onpopout}
+      <button type="button" onclick={onpopout} title="Open in a window of its own">⧉</button>
+    {/if}
     <button type="button" onclick={oncancel}>Cancel</button>
     <button type="button" class="primary" disabled={left > 0} onclick={save} title="Ctrl+S">
       Save resolution

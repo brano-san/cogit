@@ -25,6 +25,14 @@ pub struct RepoChanged {
     pub kind: fs_watcher::ChangeKind,
 }
 
+/// A conflicted file was resolved in its own window; the main one refreshes on it.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
+#[serde(rename_all = "camelCase")]
+pub struct MergeResolved {
+    pub repo: app_state::RepoId,
+    pub path: String,
+}
+
 /// A native menu item was chosen. The payload is the palette command id, so the frontend
 /// runs the same code path the palette would.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
@@ -59,7 +67,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             RepoChanged,
             MenuCommand,
             OperationChanged,
-            AvatarReady
+            AvatarReady,
+            MergeResolved
         ])
         .commands(collect_commands![
             commands::app_info,
@@ -129,6 +138,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::remove_worktree,
             commands::prune_worktrees,
             commands::merge_preview,
+            commands::open_merge_window,
+            commands::merge_resolved,
             commands::protecting_refs,
             commands::export_preset,
             commands::remove_preset,
@@ -137,7 +148,6 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::terminal_choices,
             commands::open_in_terminal,
             commands::set_menu_state,
-            // ─── diff-merge branch appends below; master inserts above ───
             commands::report_timing,
             commands::default_keymap,
             commands::set_keymap,

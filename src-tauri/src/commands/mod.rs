@@ -1425,6 +1425,36 @@ pub async fn file_before(
     .await
 }
 
+/// A window of its own for one conflicted file, so the merge is not squeezed into a panel.
+#[tauri::command]
+#[specta::specta]
+pub fn open_merge_window(
+    app: tauri::AppHandle,
+    url: String,
+    title: String,
+) -> Result<(), GitError> {
+    use tauri::{WebviewUrl, WebviewWindowBuilder};
+
+    let label = format!("merge-{}", app.webview_windows().len());
+    WebviewWindowBuilder::new(&app, label, WebviewUrl::App(url.into()))
+        .title(title)
+        .inner_size(1200.0, 760.0)
+        .build()
+        .map(drop)
+        .map_err(|err| GitError::Internal(format!("cannot open the merge window: {err}")))
+}
+
+/// Told by the merge window once it has written the resolution.
+#[tauri::command]
+#[specta::specta]
+pub fn merge_resolved(app: tauri::AppHandle, repo: RepoId, path: String) -> Result<(), GitError> {
+    use tauri_specta::Event as _;
+
+    crate::MergeResolved { repo, path }
+        .emit(&app)
+        .map_err(|err| GitError::Internal(format!("cannot announce the resolution: {err}")))
+}
+
 /// The three sides merged into regions, for the four-panel view (doc/08-diff-engine.md §8).
 #[tauri::command]
 #[specta::specta]

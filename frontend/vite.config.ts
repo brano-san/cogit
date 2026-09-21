@@ -35,6 +35,7 @@ export default defineConfig({
       input: {
         main: resolve(fileURLToPath(new URL(".", import.meta.url)), "index.html"),
         compare: resolve(fileURLToPath(new URL(".", import.meta.url)), "compare.html"),
+        merge: resolve(fileURLToPath(new URL(".", import.meta.url)), "merge.html"),
       },
     },
   },
