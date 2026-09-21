@@ -8,6 +8,8 @@ export interface SideCell {
   text: string;
   inline: [number, number][];
   moved: boolean;
+  /** Both ends of one move share it, which is what ties the two sides together. */
+  moveId: number | null;
 }
 
 export interface SidePair {
@@ -45,6 +47,7 @@ export function pairRows(rows: readonly DiffRow[]): SidePair[] {
           text: row.text,
           inline: row.inline,
           moved: row.moved ?? false,
+          moveId: row.moveId ?? null,
         });
         break;
       case "insert":
@@ -54,6 +57,7 @@ export function pairRows(rows: readonly DiffRow[]): SidePair[] {
           text: row.text,
           inline: row.inline,
           moved: row.moved ?? false,
+          moveId: row.moveId ?? null,
         });
         break;
       case "context": {
@@ -64,6 +68,7 @@ export function pairRows(rows: readonly DiffRow[]): SidePair[] {
           text: row.text,
           inline: [],
           moved: false,
+          moveId: null,
         };
         pairs.push({
           left: { ...cell, line: row.old },
@@ -155,6 +160,76 @@ export function searchRows(rows: readonly SearchRow[], query: string): SearchHit
 export function stepHit(hits: readonly unknown[], current: number, delta: number): number {
   if (hits.length === 0) return -1;
   return (current + delta + hits.length) % hits.length;
+}
+
+/** One ribbon in the band between the columns: which rows on the left face which on the right. */
+export interface Connector {
+  fromTop: number;
+  fromBottom: number;
+  toTop: number;
+  toBottom: number;
+  /** A move is drawn dashed: its two ends are usually nowhere near each other. */
+  moved: boolean;
+}
+
+/** A row of the rendered side-by-side list; `null` is a hunk header, which connects nothing. */
+export type ConnectorRow = SidePair | null;
+
+function changed(row: ConnectorRow): boolean {
+  return row?.left?.kind === "delete" || row?.right?.kind === "insert";
+}
+
+/**
+ * What to draw in the band between the two columns.
+ *
+ * Two kinds. A move is matched by `moveId`, so its ends join however far apart they sit.
+ * Everything else is a run of consecutive changed rows facing the rows opposite it —
+ * short, because `pairRows` has already lined the two sides up (R-105).
+ */
+export function connectors(rows: readonly ConnectorRow[]): Connector[] {
+  const ends = new Map<number, { left: number[]; right: number[] }>();
+  rows.forEach((row, index) => {
+    for (const [side, cell] of [
+      ["left", row?.left],
+      ["right", row?.right],
+    ] as const) {
+      if (!cell || cell.moveId === null) continue;
+      const pair = ends.get(cell.moveId) ?? { left: [], right: [] };
+      pair[side].push(index);
+      ends.set(cell.moveId, pair);
+    }
+  });
+
+  const out: Connector[] = [];
+  const claimed = new Set<number>();
+  for (const { left, right } of ends.values()) {
+    // One end outside the rendered rows is not a pairing anyone can see; leave it plain.
+    if (left.length === 0 || right.length === 0) continue;
+    out.push({
+      fromTop: Math.min(...left),
+      fromBottom: Math.max(...left),
+      toTop: Math.min(...right),
+      toBottom: Math.max(...right),
+      moved: true,
+    });
+    for (const index of [...left, ...right]) claimed.add(index);
+  }
+
+  let start: number | null = null;
+  rows.forEach((row, index) => {
+    const open = changed(row) && !claimed.has(index);
+    if (open && start === null) start = index;
+    if (!open && start !== null) {
+      out.push({ fromTop: start, fromBottom: index - 1, toTop: start, toBottom: index - 1, moved: false });
+      start = null;
+    }
+  });
+  if (start !== null) {
+    const last = rows.length - 1;
+    out.push({ fromTop: start, fromBottom: last, toTop: start, toBottom: last, moved: false });
+  }
+
+  return out.sort((a, b) => a.fromTop - b.fromTop);
 }
 
 /** How many lines the diff is not showing between two hunks. */

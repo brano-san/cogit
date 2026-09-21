@@ -1,11 +1,13 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import {
+    connectors,
     flatten,
     gapBetween,
     pairRows,
     searchRows,
     stepHit,
+    type ConnectorRow,
     type FlatEntry,
     type SearchRow,
     type SideCell,
@@ -49,6 +51,9 @@
 
   const ROW_HEIGHT = 18;
   const BUFFER_ROWS = 12;
+  /** Must match `.num` and `.band` in the stylesheet: the overlay is positioned by hand. */
+  const NUM_WIDTH = 44;
+  const BAND_WIDTH = 28;
 
   const mode = $derived(diffStore.layout);
   let finding = $state(false);
@@ -119,6 +124,40 @@
     });
     return offsets;
   });
+
+  let rowsWidth = $state(0);
+
+  /** `[num][code][band][num][code]` with equal code columns puts the band dead centre.
+      Every part is `border-box`, so the widths in the stylesheet are the real ones. */
+  const bandLeft = $derived(Math.max((rowsWidth - BAND_WIDTH) / 2, NUM_WIDTH));
+
+  /** Computed once per diff. Scrolling only filters it — walking every row on each frame
+      would cost the 60 FPS the product promises. */
+  const allRibbons = $derived.by(() => {
+    if (mode !== "split") return [];
+    const rows: ConnectorRow[] = split.map((entry) => entry.pair ?? null);
+    return connectors(rows);
+  });
+
+  /** Only what is near the viewport is drawn; the band is as tall as the whole file. */
+  const ribbons = $derived.by(() => {
+    const from = range.start - BUFFER_ROWS;
+    const to = range.end + BUFFER_ROWS;
+    return allRibbons.filter(
+      (c) => Math.max(c.fromBottom, c.toBottom) >= from && Math.min(c.fromTop, c.toTop) <= to,
+    );
+  });
+
+  /** A closed ribbon: down the left edge, across on a curve, back up the right edge. */
+  function ribbonPath(c: { fromTop: number; fromBottom: number; toTop: number; toBottom: number }) {
+    const w = BAND_WIDTH;
+    const bend = w / 2;
+    const a = c.fromTop * ROW_HEIGHT;
+    const b = (c.fromBottom + 1) * ROW_HEIGHT;
+    const x = c.toTop * ROW_HEIGHT;
+    const y = (c.toBottom + 1) * ROW_HEIGHT;
+    return `M 0 ${a} C ${bend} ${a} ${bend} ${x} ${w} ${x} L ${w} ${y} C ${bend} ${y} ${bend} ${b} 0 ${b} Z`;
+  }
 
   /** Only code is searchable: a hit on a hunk header would scroll to nothing useful. */
   const searchTexts = $derived.by<SearchRow[]>(() => {
@@ -402,7 +441,20 @@
     <p class="message">File is too large to diff ({diff.size} bytes).</p>
   {:else}
     <div class="scroll" bind:this={scroller} onscroll={() => scroller && (scrollTop = scroller.scrollTop)}>
-      <div class="rows" style:height="{total * ROW_HEIGHT}px">
+      <div class="rows" style:height="{total * ROW_HEIGHT}px" bind:clientWidth={rowsWidth}>
+        {#if mode === "split" && ribbons.length > 0}
+          <svg
+            class="band"
+            style:left="{bandLeft}px"
+            width={BAND_WIDTH}
+            height={total * ROW_HEIGHT}
+            aria-hidden="true"
+          >
+            {#each ribbons as ribbon, i (i)}
+              <path class="ribbon" class:moved={ribbon.moved} d={ribbonPath(ribbon)} />
+            {/each}
+          </svg>
+        {/if}
         {#if mode === "unified"}
           {#each unified.slice(range.start, range.end) as entry, index (range.start + index)}
             {@const rowIndex = range.start + index}
@@ -498,6 +550,7 @@
                       class:current={isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
                     >{/each}</span
                 >
+                <span class="gap"></span>
                 <span class="num">{entry.pair.right?.line ?? ""}</span>
                 <span
                   class="code mono side"
@@ -636,6 +689,30 @@
 
   .side {
     flex: 1 1 50%;
+  }
+
+  /* Reserves the strip the ribbons are drawn over. Width must match `BAND_WIDTH`. */
+  .gap {
+    flex: 0 0 28px;
+  }
+
+  .band {
+    position: absolute;
+    top: 0;
+    pointer-events: none;
+  }
+
+  .ribbon {
+    fill: var(--c-added-bg, rgb(40 80 45 / 35%));
+    stroke: none;
+  }
+
+  /* A move goes somewhere else in the file, so its ribbon is an outline, not a fill. */
+  .ribbon.moved {
+    fill: none;
+    stroke: var(--status-stash);
+    stroke-width: 1.5;
+    stroke-dasharray: 4 3;
   }
 
   .word {
