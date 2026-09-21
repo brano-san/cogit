@@ -6,6 +6,7 @@ mod menu;
 mod profile;
 #[cfg(windows)]
 mod renderer_failure;
+mod shutdown;
 #[cfg(windows)]
 mod webview2;
 mod webview_memory;
@@ -173,6 +174,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::report_memory,
             commands::log_from_frontend,
             commands::diagnostics,
+            commands::closing_ping,
             commands::read_settings,
             commands::write_setting,
             commands::default_keymap,
@@ -231,6 +233,11 @@ pub fn run() -> anyhow::Result<()> {
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
+                shutdown::watch(window.app_handle());
+            }
+        })
         .invoke_handler(specta_builder.invoke_handler())
         .setup(move |app| {
             let log_dir = app.path().app_log_dir()?;
