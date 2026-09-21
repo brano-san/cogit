@@ -166,6 +166,10 @@
 | F-224 | Предупреждение при закрытии с несохранённым | [F-224-close-confirmation.md](F-224-close-confirmation.md) |
 | F-225 | Всплывающие подсказки в тулбаре | [F-225-tooltips.md](F-225-tooltips.md) |
 
+| F-226 | Построчный Discard обратим | [F-226-line-discard-undo.md](F-226-line-discard-undo.md) |
+| F-227 | Вложенные группы репозиториев | [F-227-nested-groups.md](F-227-nested-groups.md) |
+| F-228 | Стартовый экран с недавними | [F-228-start-screen.md](F-228-start-screen.md) |
+
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.
 
 | F-214 | Четырёхпанельное слияние | [F-214-four-panel-merge.md](F-214-four-panel-merge.md) |

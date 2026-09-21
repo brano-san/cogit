@@ -138,6 +138,12 @@ pub enum Recovery {
         name: String,
         oid: String,
     },
+    /// The patch that was reversed. Undo applies it again, which puts back exactly the
+    /// lines that went and leaves the rest of the file alone.
+    Patch {
+        path: String,
+        patch: String,
+    },
     /// Recorded for the journal, refused by undo: honesty beats a half-working restore.
     None,
 }
@@ -741,6 +747,9 @@ impl AppState {
                 message: None,
                 force: false,
             })?,
+            Recovery::Patch { patch, .. } => {
+                handle.apply_patch_to(patch, false, git_engine::PatchTarget::WorkTree)?;
+            }
             Recovery::None => {
                 return Err(git_engine::GitError::InvalidState(
                     "this operation cannot be undone".to_owned(),
@@ -1808,7 +1817,10 @@ impl AppState {
         self.record(
             repo,
             format!("Discard lines in {}", request.path),
-            Recovery::None,
+            Recovery::Patch {
+                path: request.path.clone(),
+                patch,
+            },
         );
         Ok(())
     }

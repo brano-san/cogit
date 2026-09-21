@@ -78,8 +78,8 @@ fn a_discard_is_written_to_the_safety_journal() {
     assert_eq!(entries.len(), 1);
     assert!(entries[0].description.contains("file0.txt"), "{entries:?}");
     assert!(
-        !entries[0].undoable,
-        "a line-level discard has nowhere to restore from, and says so"
+        entries[0].undoable,
+        "the patch that was reversed is kept, so undo can apply it again"
     );
 }
 
@@ -113,4 +113,51 @@ fn discarding_does_not_stage_anything() {
             .staged
             .is_empty()
     );
+}
+
+#[test]
+fn a_discarded_line_range_can_be_put_back() {
+    let f = two_added_lines();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    state
+        .discard_selection(repo, &request("file0.txt", vec![2]))
+        .unwrap();
+    let after = std::fs::read_to_string(f.path().join("file0.txt")).unwrap();
+    assert!(!after.contains("first added"), "{after}");
+
+    state.undo_last(repo).unwrap();
+
+    let back = std::fs::read_to_string(f.path().join("file0.txt")).unwrap();
+    assert!(back.contains("first added"), "{back}");
+}
+
+#[test]
+fn putting_it_back_leaves_the_lines_that_were_kept_alone() {
+    let f = two_added_lines();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    state
+        .discard_selection(repo, &request("file0.txt", vec![2]))
+        .unwrap();
+    state.undo_last(repo).unwrap();
+
+    let back = std::fs::read_to_string(f.path().join("file0.txt")).unwrap();
+    assert_eq!(back, "content 0\nfirst added\nsecond added\n");
+}
+
+#[test]
+fn the_journal_calls_a_line_discard_undoable() {
+    let f = two_added_lines();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    state
+        .discard_selection(repo, &request("file0.txt", vec![2]))
+        .unwrap();
+
+    let entry = state.safety_log().into_iter().next().unwrap();
+    assert!(entry.undoable, "{entry:?}");
 }

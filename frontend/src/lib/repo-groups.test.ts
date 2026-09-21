@@ -10,12 +10,13 @@ import {
   type RepoGroups,
 } from "./repo-groups";
 
-const empty: RepoGroups = { order: [], names: {}, of: {} };
+const empty: RepoGroups = { order: [], names: {}, of: {}, under: {} };
 
 const withTwo: RepoGroups = {
   order: ["g1", "g2"],
   names: { g1: "Work", g2: "Toys" },
   of: { "/w/alpha": "g1", "/w/beta": "g1", "/w/gamma": "g2" },
+  under: {},
 };
 
 describe("addGroup", () => {
@@ -95,7 +96,7 @@ describe("groupRows", () => {
   it("puts a repository nobody claimed in the ungrouped bucket", () => {
     const rows = groupRows(withTwo, roots, new Set());
     const at = rows.findIndex((row) => row.kind === "group" && row.id === UNGROUPED);
-    expect(rows[at + 1]).toEqual({ kind: "repo", root: "/w/loose", group: UNGROUPED });
+    expect(rows[at + 1]).toEqual({ kind: "repo", root: "/w/loose", group: UNGROUPED, depth: 1 });
   });
 
   it("leaves out the ungrouped heading when everything is claimed", () => {
@@ -136,7 +137,11 @@ describe("mergeGroups", () => {
   });
 
   it("drops an assignment pointing at a group that is gone", () => {
-    const stored = { order: ["g1"], names: { g1: "Work" }, of: { "/w/a": "g1", "/w/b": "ghost" } };
+    const stored = {
+      order: ["g1"],
+      names: { g1: "Work" },
+      of: { "/w/a": "g1", "/w/b": "ghost" },
+    };
     expect(mergeGroups(stored).of).toEqual({ "/w/a": "g1" });
   });
 

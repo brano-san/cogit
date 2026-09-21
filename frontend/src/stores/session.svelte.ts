@@ -1,4 +1,4 @@
-import { readSession, writeSession, type Session } from "$lib/session";
+import { forget, readSession, remember, writeSession, type Session } from "$lib/session";
 
 const STORAGE_KEY = "cogit.session.v1";
 
@@ -22,6 +22,19 @@ class SessionStore {
     return this.#session.active;
   }
 
+  get recent(): readonly string[] {
+    return this.#session.recent;
+  }
+
+  /** Called on every open, so the start screen reflects what was really used. */
+  opened(root: string): void {
+    this.write({ ...this.#session, recent: remember(this.#session.recent, root) });
+  }
+
+  forgetRecent(root: string): void {
+    this.write({ ...this.#session, recent: forget(this.#session.recent, root) });
+  }
+
   selected(root: string): string | null {
     return this.#session.selected[root] ?? null;
   }
@@ -39,6 +52,7 @@ class SessionStore {
         ? this.#session.active
         : (roots[0] ?? null),
       selected,
+      recent: this.#session.recent,
     });
   }
 

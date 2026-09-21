@@ -2,6 +2,7 @@ import {
   addGroup,
   assign,
   mergeGroups,
+  nest,
   removeGroup,
   renameGroup,
   type RepoGroups,
@@ -32,6 +33,11 @@ class RepoGroupsStore {
 
   remove(id: string): void {
     this.write(removeGroup(this.groups, id));
+  }
+
+  /** A group dropped on another becomes its child; dropped on nothing, it comes back up. */
+  nest(id: string, parent: string | null): void {
+    this.write(nest(this.groups, id, parent));
   }
 
   assign(root: string, group: string): void {
