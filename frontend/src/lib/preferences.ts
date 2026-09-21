@@ -211,6 +211,24 @@ export function firstMatch(query: string): string | null {
   return leaf?.id ?? null;
 }
 
+/** Which settings the draft moved. Key by key, not by serialising both sides: the
+    dialog asks on every keystroke, and JSON also calls two keymaps different when they
+    hold the same bindings in another order. */
+export function changedKeys(draft: Settings, saved: Settings): (keyof Settings)[] {
+  return (Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]).filter(
+    (key) => draft[key] !== saved[key],
+  );
+}
+
+export function sameKeymap(
+  draft: Readonly<Record<string, string>>,
+  saved: Readonly<Record<string, string>>,
+): boolean {
+  const keys = Object.keys(draft);
+  if (keys.length !== Object.keys(saved).length) return false;
+  return keys.every((key) => draft[key] === saved[key]);
+}
+
 /** Restore Defaults acts on the page in front of the user, not on everything. */
 export function restoreCategory(draft: Settings, id: string): Settings {
   const category = CATEGORIES.find((entry) => entry.id === id);
