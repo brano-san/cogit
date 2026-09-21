@@ -119,9 +119,22 @@ cargo insta review                   # inspect snapshot changes, never accept bl
 
 Avoid full-workspace rebuilds during micro-iterations.
 
-The hooks split the work by what it costs. `pre-commit` runs the crates you touched plus
-their consumers, and leaves out the tests that measure time and the integration suites
-that drive real git operations. `pre-push` runs everything. A commit is about a minute.
+**The hooks do not run tests.** The suite has tests that assert a duration, and sharing
+the machine with a build made them fail at random; a hook that cries wolf is a hook you
+learn to skip. The hooks keep the cheap, deterministic checks — fmt, clippy, the IPC
+bindings, `svelte-check`.
+
+Tests are run deliberately instead:
+
+- **while working** — the ones the change touches, and their neighbours, one target at a
+  time: `cargo nextest run -p diff_engine --test headers`, `npx vitest run path/to.test.ts`;
+- **once before handing the work over** — the whole suite, on a machine doing nothing else:
+
+```bash
+cargo nextest run --workspace --exclude cogit
+npm --prefix frontend run test
+```
+
 Install the runner once:
 
 ```bash
@@ -159,7 +172,8 @@ Propose the commit name at the end of each step of work, before committing.
 
 ## Before committing
 
-The pre-commit hook runs fmt, clippy, tests and `svelte-check`. Enable it once per clone:
+The pre-commit hook runs fmt, clippy, the IPC bindings and `svelte-check` — not tests
+(see above). Enable it once per clone:
 
 ```
 git config core.hooksPath .githooks

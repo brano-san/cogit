@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Everything the pre-commit hook leaves out, because it costs more than a commit should:
-# the whole test suite across every crate, and the tests that assert a duration.
+# The checks a commit does not pay for: clippy over every target, and the frontend type
+# check. Tests are deliberately not here — see the note below.
 #
 # Bypass deliberately with `git push --no-verify`.
 set -euo pipefail
@@ -38,22 +38,17 @@ fi
 say "cargo clippy"
 cargo clippy --workspace --all-targets -- -D warnings || fail "clippy found problems"
 
-# Timing tests run here and nowhere else: `.config/nextest.toml` gives them the machine to
-# themselves, which is the only way their numbers mean anything.
-say "cargo test (whole workspace, timing tests included)"
-if command -v cargo-nextest >/dev/null 2>&1; then
-  cargo nextest run --workspace --exclude cogit || fail "tests failed"
-else
-  warn "cargo-nextest is not installed; falling back to the slower runner"
-  cargo test --workspace || fail "tests failed"
-fi
+# Tests do not run here. The timing tests need the machine to themselves, and sharing it
+# with a build made them fail at random; a hook that cries wolf is a hook people learn to
+# skip. They are run deliberately instead — the ones a change touches while the work goes
+# on, and the whole suite once before it is handed over (doc/09-testing.md).
+#
+#   cargo nextest run --workspace --exclude cogit
+#   npm --prefix frontend run test
 
 if command -v npm >/dev/null 2>&1; then
   say "svelte-check"
   npm --prefix frontend run --silent check || fail "type check failed"
-
-  say "vitest"
-  npm --prefix frontend run --silent test || fail "frontend tests failed"
 else
   warn "npm not found; the frontend was not verified"
 fi

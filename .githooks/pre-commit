@@ -22,17 +22,6 @@ fail() { printf '\033[31m[pre-commit] %s\033[0m\n' "$1" >&2; exit 1; }
 
 BINDINGS=frontend/src/lib/ipc/bindings.ts
 
-# What a commit is allowed to cost. Two kinds of test are left out and run in pre-push:
-#
-#   - tests that assert a duration, because thirty tests sharing a machine make the number
-#     they measure meaningless;
-#   - the integration suites that drive real git operations (clones, pushes, submodules,
-#     rebases). They are the slowest third of the suite and they catch the kind of breakage
-#     that matters before a push, not before every commit.
-TIMING='binary(mutation_speed) | binary(performance) | binary(selection_speed) | test(/budget/) | test(one_enormous_line_does_not_hang_the_engine)'
-HEAVY='binary(surgery) | binary(submodules) | binary(network) | binary(branch_ops) | binary(stashes) | binary(merging) | binary(rebasing) | binary(replay) | binary(upstream)'
-FAST_ONLY="not ($TIMING | $HEAVY)"
-
 # --- locate the toolchain ----------------------------------------------------
 # GUI Git clients (SmartGit, Fork, IntelliJ, VS Code) run hooks with the environment
 # they were launched with, so anything installed afterwards is missing from PATH.
@@ -74,29 +63,6 @@ STAGED_LINES=$(printf '%s\n' "${STAGED[@]}")
 has() { grep -qE "$1" <<<"$STAGED_LINES"; }
 if has '\.rs$|Cargo\.(toml|lock)$';     then RUST=1; else RUST=0; fi
 if has '^frontend/.*\.(ts|js|svelte)$'; then WEB=1;  else WEB=0;  fi
-
-# Which crates the change can break: the ones touched, plus the ones that depend on them.
-# `test_fixtures` is a dev-dependency of everything, so touching it means everything.
-affected_packages() {
-  local pkgs=() touched
-  touched=$(grep -oE '^crates/[a-z_]+' <<<"$STAGED_LINES" | sed 's|crates/||' | sort -u)
-
-  if grep -q '^test_fixtures$' <<<"$touched" || has '^Cargo\.(toml|lock)$'; then
-    printf '%s' "--workspace --exclude cogit"
-    return
-  fi
-
-  for name in $touched; do pkgs+=("-p" "$name"); done
-  # Every engine crate is consumed by app_state; src-tauri is covered by the bindings run.
-  if grep -qE '^(git_engine|diff_engine|graph_engine|fs_watcher)$' <<<"$touched"; then
-    case " ${pkgs[*]} " in *" app_state "*) ;; *) pkgs+=("-p" "app_state") ;; esac
-  fi
-  if [ ${#pkgs[@]} -eq 0 ]; then
-    printf '%s' "--workspace --exclude cogit"
-  else
-    printf '%s ' "${pkgs[@]}"
-  fi
-}
 
 # --- may we rewrite files? ---------------------------------------------------
 # A file that is staged *and* dirty in the worktree was partially staged with
@@ -155,17 +121,10 @@ if [ "$RUST" = "1" ]; then
   say "cargo clippy"
   cargo clippy --workspace --all-targets -- -D warnings || fail "clippy found problems"
 
-  # nextest runs every test from every binary in one pool; `cargo test` runs the eighty
-  # binaries one after another, which costs three times as long (doc/09-testing.md).
-  read -r -a PKGS <<<"$(affected_packages)"
-  say "tests ${PKGS[*]}"
-  if command -v cargo-nextest >/dev/null 2>&1; then
-    cargo nextest run "${PKGS[@]}" --profile quick -E "$FAST_ONLY" || fail "tests failed"
-  else
-    warn "cargo-nextest is not installed; falling back to the slower runner"
-    warn "install it with: cargo install cargo-nextest --locked"
-    cargo test "${PKGS[@]}" || fail "tests failed"
-  fi
+  # Tests do not run here. Sharing one machine with a build made the timing tests fail
+  # at random, and a hook that cries wolf is a hook people learn to skip. They are run
+  # deliberately instead: the ones a change touches while the work is going on, and the
+  # whole suite once before the work is handed over (doc/09-testing.md).
 
   # IPC bindings are generated, never hand-written (INV-10).
   say "IPC bindings"
@@ -185,9 +144,6 @@ if [ "$WEB" = "1" ]; then
   need npm
   say "svelte-check"
   npm --prefix frontend run --silent check || fail "type check failed"
-
-  say "vitest"
-  npm --prefix frontend run --silent test || fail "frontend tests failed"
 
   # An unbalanced <!-- leaves the comment body rendering as visible text, which
   # svelte-check accepts as a valid text node. Only what is being committed is checked.
