@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { clampBox, defaultBox, MIN_BOX } from "./window-box";
+import { visibleRange } from "./graph-geometry";
 
 const screen = { width: 1600, height: 900 };
 
@@ -57,5 +58,25 @@ describe("clampBox", () => {
   it("rounds to whole pixels, so a drag cannot blur the text", () => {
     const box = clampBox({ x: 10.4, y: 20.6, w: 700.5, h: 500.5 }, screen);
     expect(Object.values(box).every(Number.isInteger)).toBe(true);
+  });
+});
+
+describe("what the output window asks the DOM for", () => {
+  it("shows a screenful of a huge log, not the log", () => {
+    // 20 000 lines at the window's row height. The point of the number is that it does
+    // not grow with the log: this is what keeps a hook's test output off the heap.
+    const rows = visibleRange(0, 600, 18, 20_000, 20);
+    expect(rows.end - rows.start).toBeLessThan(120);
+  });
+
+  it("asks for the same number however long the log is", () => {
+    const small = visibleRange(900 * 18, 600, 18, 20_000, 20);
+    const huge = visibleRange(900 * 18, 600, 18, 2_000_000, 20);
+    expect(huge.end - huge.start).toBe(small.end - small.start);
+  });
+
+  it("stays bounded at the end of the log, where a reader lands on a failure", () => {
+    const bottom = visibleRange(19_400 * 18, 600, 18, 20_000, 20);
+    expect(bottom.end - bottom.start).toBeLessThan(120);
   });
 });
