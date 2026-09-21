@@ -1604,8 +1604,9 @@ Log: ${info?.logPath ?? ""}`),
     groupTarget = id;
     await popupContextMenu(
       [
-        { id: "group-rename", label: "Rename this group…", enabled: true, separator: false },
+        { id: "group-open", label: "Open Repository here…", enabled: true, separator: false },
         { id: "", label: "", enabled: false, separator: true },
+        { id: "group-rename", label: "Rename this group…", enabled: true, separator: false },
         { id: "group-remove", label: "Delete this group", enabled: true, separator: false },
       ],
       x,
@@ -1618,6 +1619,14 @@ Log: ${info?.logPath ?? ""}`),
     const target = groupTarget;
     if (target === null) return false;
 
+    if (id === "group-open") {
+      // Opened and filed in one step, so a fresh group is not a dead end (issue 7).
+      void pickRepository().then(() => {
+        const root = repository.current?.root;
+        if (root) repoGroups.assign(root, target);
+      });
+      return true;
+    }
     if (id === "group-rename") {
       void prompt
         .ask({
