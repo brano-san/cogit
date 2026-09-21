@@ -171,7 +171,6 @@
 | F-219 | Свои пресеты хуков | [F-219-user-presets.md](F-219-user-presets.md) |
 | F-220 | Обход хуков видно в Output | [F-220-bypass-in-output.md](F-220-bypass-in-output.md) |
 
-<!-- ─── ниже дописывает ветка diff-merge; master вставляет выше ─── -->
 
 | F-200 | Отсутствие финального перевода строки видно в diff | [F-200-final-newline.md](F-200-final-newline.md) |
 | F-201 | Перемещённый блок помечен с обоих концов | [F-201-move-pairing.md](F-201-move-pairing.md) |

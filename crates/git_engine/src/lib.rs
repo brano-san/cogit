@@ -64,7 +64,5 @@ pub use worktrees::WorktreeEntry;
 
 pub type Result<T> = std::result::Result<T, GitError>;
 
-// ─── everything below this line belongs to the diff-merge branch; master appends above ───
-
 pub use apply::PatchTarget;
 pub use find::InvestigationStep;

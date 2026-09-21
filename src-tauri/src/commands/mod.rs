@@ -1292,8 +1292,6 @@ pub async fn install_preset(
     .await
 }
 
-// ─── everything below this line belongs to the diff-merge branch; master appends above ───
-
 /// The authors on screen. Returns at once with whatever is already cached; anything
 /// missing is queued and announced later through `AvatarReady` (M14 T14.2).
 #[tauri::command]

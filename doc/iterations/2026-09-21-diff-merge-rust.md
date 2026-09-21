@@ -383,6 +383,10 @@ pub fn investigate(&self, path: &str, from: u32, to: u32, limit: usize)
 | Файл 100 000 строк | 148 мс | 1000 мс |
 | Пачка 500 файлов | 7 мс | 2000 мс |
 
+> Закрыто 21.09.2026 при слиянии ветки в `master`: разделители сняты (ветки больше нет),
+> `.claude/` в `.gitignore`, восемь пакетов CodeMirror удалены, `AppState::diff_file`
+> сведён к `diff_engine::diff_one`.
+
 ### Что осталось за `master`
 
 1. `.claude/worktrees/` не в `.gitignore`: worktree ветки виден в основном чекауте как
