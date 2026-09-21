@@ -212,3 +212,50 @@ fn no_token_means_no_extra_argument() {
 
     assert!(!seen(&log).join("\n").contains("http.extraHeader"));
 }
+
+/// End to end, with a real `git push` against a URL that carries a token: nothing the
+/// user could paste into a bug report carries the credential.
+///
+/// Modern git already hides it in its own messages; this pins that, and `output_text`
+/// covers the paths git does not control — hook output, and older versions.
+#[test]
+fn a_token_in_a_remote_url_never_leaves_the_runner() {
+    const TOKEN: &str = "ghp_thisMustNotAppearAnywhere";
+
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&[
+        "remote",
+        "add",
+        "leaky",
+        &format!("https://brano:{TOKEN}@127.0.0.1:1/x/y.git"),
+    ])
+    .unwrap();
+
+    let repo = open(&f);
+    let (lines, sink) = collector();
+    let err = repo
+        .push("leaky", Some("master"), false, None, sink)
+        .expect_err("pushing at a dead port must fail");
+
+    let git_engine::GitError::Command(details) = err else {
+        panic!("expected a command failure");
+    };
+
+    let everywhere = format!(
+        "{} {} {} {} {}",
+        details.command,
+        details.stdout,
+        details.stderr,
+        details.summary,
+        seen(&lines).join(" ")
+    );
+    assert!(
+        !everywhere.contains(TOKEN),
+        "the token survived: {everywhere}"
+    );
+    assert_eq!(
+        details.operation, "Push",
+        "the heading names the command that ran"
+    );
+    assert!(!details.summary.is_empty(), "a failure must say something");
+}
