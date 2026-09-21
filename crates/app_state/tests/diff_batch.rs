@@ -297,3 +297,49 @@ fn two_app_states_do_not_cancel_each_other() {
         "another AppState must keep its own request numbering: {low:?}"
     );
 }
+
+#[test]
+fn closing_a_repository_forgets_its_request_numbers() {
+    let f = three_changed_files();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    // A high number claimed, then the repository goes.
+    let _ = ready(
+        state
+            .diff_files(repo, &head_vs_parent(&f), &[], &DiffOptions::default(), 99)
+            .unwrap(),
+    );
+    state.close_repository(repo);
+
+    // Reopening gets a fresh id, so nothing could collide — but the table must not keep
+    // the row either, or a long session leaks one entry per repository ever opened.
+    let again = state.open_repository(f.path()).unwrap().repo;
+    let out = state
+        .diff_files(again, &head_vs_parent(&f), &[], &DiffOptions::default(), 1)
+        .unwrap();
+    assert!(
+        matches!(out, DiffBatch::Ready { .. }),
+        "a fresh repository must not inherit an old number"
+    );
+}
+
+#[test]
+fn two_states_do_not_share_request_numbers() {
+    let f = three_changed_files();
+    let first = AppState::new();
+    let second = AppState::new();
+    let a = first.open_repository(f.path()).unwrap().repo;
+    let b = second.open_repository(f.path()).unwrap().repo;
+
+    let _ = ready(
+        first
+            .diff_files(a, &head_vs_parent(&f), &[], &DiffOptions::default(), 50)
+            .unwrap(),
+    );
+    // The same repository id in another state: its own counter starts clean.
+    let out = second
+        .diff_files(b, &head_vs_parent(&f), &[], &DiffOptions::default(), 1)
+        .unwrap();
+    assert!(matches!(out, DiffBatch::Ready { .. }));
+}

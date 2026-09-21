@@ -2,7 +2,7 @@
 //! and while it is absent nothing is fetched and no cache directory exists (M14 T14.3).
 
 use crate::AppEvent;
-use avatars::{Cache, Lookup, Queue, Source, data_url, fallback};
+use avatars::{Cache, Lookup, Queue, Source, fallback};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::broadcast;
@@ -71,7 +71,9 @@ impl Avatars {
     fn row(&self, author: &Author) -> AvatarRow {
         let look = fallback(&author.name, &author.email);
         let image = match self.cache.lookup(&author.email) {
-            Lookup::Hit(path) => std::fs::read(path).ok().map(|bytes| data_url(&bytes)),
+            Lookup::Hit(path) => std::fs::read(path)
+                .ok()
+                .map(|bytes| diff_engine::data_url("image/png", &bytes)),
             _ => None,
         };
         AvatarRow {

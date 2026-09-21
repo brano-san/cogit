@@ -1,7 +1,7 @@
 //! Turning two sides of a file into something the Diff panel can draw, and applying a
 //! selection back. The engine stays a pure function; the state lives here.
 
-use crate::{AppState, DiffBatch, Recovery, RepoId, newest_diff_request};
+use crate::{AppState, DiffBatch, Recovery, RepoId};
 
 impl AppState {
     pub fn diff_file(
@@ -80,20 +80,18 @@ impl AppState {
     /// Records `request` as the newest for `repo` and reports whether it still is. An
     /// older number never displaces a newer one, so responses cannot arrive out of order.
     fn claim_diff_request(&self, repo: RepoId, request: u32) -> bool {
-        let key = (std::ptr::from_ref(self) as usize, repo);
-        let mut newest = newest_diff_request().write();
-        match newest.get(&key) {
+        let mut newest = self.newest_diff.write();
+        match newest.get(&repo) {
             Some(&seen) if seen > request => false,
             _ => {
-                newest.insert(key, request);
+                newest.insert(repo, request);
                 true
             }
         }
     }
 
     fn diff_request_is_current(&self, repo: RepoId, request: u32) -> bool {
-        let key = (std::ptr::from_ref(self) as usize, repo);
-        newest_diff_request().read().get(&key) == Some(&request)
+        self.newest_diff.read().get(&repo) == Some(&request)
     }
 
     /// Builds the patch and applies it in one step: the two halves must never drift
