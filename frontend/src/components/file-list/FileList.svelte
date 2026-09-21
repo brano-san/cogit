@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { matchesMask, sortFiles } from "$lib/files";
-  import type { SortKey } from "$lib/files";
+  import FilesToolbar from "./FilesToolbar.svelte";
+  import { compile, matches } from "$lib/file-search";
+  import { sortFiles } from "$lib/files";
   import {
     DEFAULT_VIEW,
-    TOGGLES,
     groupByDirectory,
     visibleFiles,
     type FileView,
@@ -29,8 +29,10 @@
 
   interface Props {
     sections: readonly Section[];
-    /** No repository behind the list: the filter and the sort have nothing to act on. */
+    /** No repository behind the list: the filter has nothing to act on. */
     disabled?: boolean;
+    /** This list is in the panel holding the keyboard, so Ctrl+F is ours (issue 15). */
+    activePanel?: boolean;
     selected?: string | null;
     empty?: string;
     /** The eight view switches; absent means this list is not a working tree. */
@@ -63,17 +65,20 @@
     onmask,
     onmarked,
     disabled = false,
+    activePanel = false,
   }: Props = $props();
-
-  const SORTS: { key: SortKey; label: string }[] = [
-    { key: "path", label: "Path" },
-    { key: "name", label: "Name" },
-    { key: "status", label: "Status" },
-  ];
 
   let marked = $state.raw<FileSelection>(EMPTY_SELECTION);
   let mask = $state("");
-  let sort = $state<SortKey>("path");
+  let bar: ReturnType<typeof FilesToolbar> | undefined = $state();
+
+  function onkeydown(event: KeyboardEvent) {
+    if (!activePanel) return;
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
+      event.preventDefault();
+      bar?.focus();
+    }
+  }
 
   $effect(() => {
     onmask?.(mask);
@@ -84,11 +89,12 @@
   });
 
   const active = $derived(view ?? DEFAULT_VIEW);
+  const pattern = $derived(compile(mask, active.regex));
   const groups = $derived(
     sections.map((section) => {
       const files = sortFiles(
-        visibleFiles(section.files, active).filter((file) => matchesMask(file.path, mask)),
-        sort,
+        visibleFiles(section.files, active).filter((file) => matches(file, pattern)),
+        "path",
       );
       return {
         section,
@@ -131,44 +137,19 @@
   }
 </script>
 
-<div class="file-list">
-  <div class="controls">
-    <input
-      class="mask"
-      type="search"
-      bind:value={mask}
-      placeholder="Filter files…"
-      aria-label="Filter files by mask"
-      {disabled}
-    />
-    <div class="sort" role="group" aria-label="Sort files">
-      {#each SORTS as option (option.key)}
-        <button
-          type="button"
-          class:active={sort === option.key}
-          title="Sort by {option.label.toLowerCase()}"
-          {disabled}
-          onclick={() => (sort = option.key)}>{option.label}</button
-        >
-      {/each}
-    </div>
-  </div>
+<svelte:window {onkeydown} />
 
-  {#if view}
-    <div class="toggles" role="group" aria-label="What the list shows">
-      {#each TOGGLES as item (item.key)}
-        <button
-          type="button"
-          class:on={active[item.key]}
-          aria-pressed={active[item.key]}
-          aria-label={item.title}
-          title={item.title}
-          onclick={() => onview?.({ ...active, [item.key]: !active[item.key] })}
-          >{item.icon}</button
-        >
-      {/each}
-    </div>
-  {/if}
+<div class="file-list">
+  <FilesToolbar
+    bind:this={bar}
+    view={active}
+    onview={(next) => onview?.(next)}
+    filter={mask}
+    onfilter={(text) => (mask = text)}
+    hidden={total - shownCount}
+    broken={pattern.broken}
+    {disabled}
+  />
 
   {#if total === 0}
     <p class="message">{empty ?? "Nothing to show."}</p>
@@ -232,92 +213,6 @@
     flex-direction: column;
     height: 100%;
     min-height: 0;
-  }
-
-  .controls {
-    display: flex;
-    gap: var(--sp-3);
-    flex: 0 0 auto;
-    padding: var(--sp-3) var(--sp-4);
-    border-bottom: 1px solid var(--divider);
-  }
-
-  .mask {
-    flex: 1 1 auto;
-    min-width: 0;
-    height: var(--h-button-sm);
-    padding: 0 var(--sp-3);
-    background: var(--surface-input);
-    color: var(--text-primary);
-    border: 1px solid var(--field-border);
-    border-radius: var(--r-sm);
-    font-size: var(--fs-dense);
-  }
-
-  /* All three choices stay visible: a dropdown hides the two the user is not on. */
-  .sort {
-    display: flex;
-    flex: 0 0 auto;
-    border: 1px solid var(--field-border);
-    border-radius: var(--r-sm);
-    overflow: hidden;
-  }
-
-  .sort button {
-    height: var(--h-button-sm);
-    padding: 0 var(--sp-4);
-    background: var(--surface-input);
-    color: var(--text-secondary);
-    border: 0;
-    border-left: 1px solid var(--field-border);
-    font: inherit;
-    font-size: var(--fs-dense);
-    cursor: default;
-  }
-
-  .sort button:first-child {
-    border-left: 0;
-  }
-
-  .sort button:hover {
-    color: var(--text-primary);
-  }
-
-  .sort button.active {
-    background: var(--state-selected);
-    color: var(--text-primary);
-  }
-
-  .toggles {
-    display: flex;
-    gap: var(--sp-1);
-    flex: 0 0 auto;
-    padding: var(--sp-2) var(--sp-4);
-    border-bottom: 1px solid var(--divider);
-  }
-
-  .toggles button {
-    width: 22px;
-    height: var(--h-button-sm);
-    background: transparent;
-    color: var(--text-secondary);
-    border: 1px solid transparent;
-    border-radius: var(--r-sm);
-    font: inherit;
-    font-size: var(--fs-dense);
-    line-height: 1;
-    cursor: default;
-  }
-
-  .toggles button:hover {
-    border-color: var(--field-border);
-    color: var(--text-primary);
-  }
-
-  .toggles button.on {
-    background: var(--state-selected);
-    border-color: var(--field-border);
-    color: var(--status-ref);
   }
 
   .panes {
