@@ -26,16 +26,6 @@ export function shortOid(oid: string): string {
   return oid.slice(0, SHORT_OID);
 }
 
-/** The author's timezone, not the reader's — otherwise the output is machine-dependent. */
-export function formatCommitDate(timestamp: number, offsetMinutes: number): string {
-  const shifted = new Date((timestamp + offsetMinutes * 60) * 1000);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return (
-    `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}` +
-    ` ${pad(shifted.getUTCHours())}:${pad(shifted.getUTCMinutes())}`
-  );
-}
-
 export type RefKind = "head" | "local" | "remote" | "tag";
 
 export interface RefLabel {
@@ -75,7 +65,7 @@ export function refLabels(
   return byOid;
 }
 
-const UNITS: [seconds: number, name: string][] = [
+const UNITS: [seconds: number, unit: Intl.RelativeTimeFormatUnit][] = [
   [31_536_000, "year"],
   [2_592_000, "month"],
   [86_400, "day"],
@@ -83,12 +73,17 @@ const UNITS: [seconds: number, name: string][] = [
   [60, "minute"],
 ];
 
+/** Pinned to English, like every other string in the UI: the default follows the system
+    locale and would leave half the window in another language. `always`, not `auto`:
+    "yesterday" belongs to the smart format, this one always spells the elapsed time. */
+const RELATIVE = new Intl.RelativeTimeFormat("en", { numeric: "always" });
+
 /** The offset is ignored: an elapsed time is the same number in every timezone. */
 export function relativeDate(timestamp: number, _offsetMinutes: number, now: number): string {
   const elapsed = now - timestamp;
-  for (const [seconds, name] of UNITS) {
+  for (const [seconds, unit] of UNITS) {
     const count = Math.floor(elapsed / seconds);
-    if (count >= 1) return `${count} ${name}${count === 1 ? "" : "s"} ago`;
+    if (count >= 1) return RELATIVE.format(-count, unit);
   }
   return "just now";
 }

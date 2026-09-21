@@ -95,3 +95,12 @@ describe("recent repositories", () => {
     expect(readSession({ recent: ["ok", 7] }).recent).toEqual(["ok"]);
   });
 });
+
+describe("writing often", () => {
+  it("validates on the way in, so a hot path does not pay for it twice", () => {
+    // readSession is the gate for what comes off disk; a write of an already-valid
+    // session must not need it again.
+    const twice = readSession(readSession(JSON.parse(writeSession(full))));
+    expect(twice).toEqual(full);
+  });
+});

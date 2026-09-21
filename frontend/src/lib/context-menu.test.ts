@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { commitMenu, fileMenu, branchMenu, refMenu, repoMenu } from "./context-menu";
+import { commitMenu, branchMenu, refMenu, repoMenu } from "./context-menu";
 
 describe("commitMenu", () => {
   const items = commitMenu({ onRemote: false });
@@ -29,29 +29,6 @@ describe("commitMenu", () => {
 
   it("separates the destructive group from the rest", () => {
     expect(items.some((item) => item.separator)).toBe(true);
-  });
-});
-
-describe("fileMenu", () => {
-  it("offers staging for an unstaged file", () => {
-    const ids = fileMenu({ staged: false }).map((item) => item.id);
-    expect(ids).toContain("stage");
-    expect(ids).toContain("discard");
-    expect(ids).not.toContain("unstage");
-  });
-
-  it("offers unstaging for a staged one", () => {
-    const ids = fileMenu({ staged: true }).map((item) => item.id);
-    expect(ids).toContain("unstage");
-    expect(ids).not.toContain("stage");
-  });
-
-  it("always offers the harmless actions", () => {
-    for (const staged of [true, false]) {
-      const ids = fileMenu({ staged }).map((item) => item.id);
-      expect(ids).toContain("copy-path");
-      expect(ids).toContain("blame");
-    }
   });
 });
 

@@ -386,10 +386,6 @@ export async function closeRepository(repo: RepoId) {
   return await commands.closeRepository(repo);
 }
 
-export async function readReflog(repo: RepoId, limit = 100) {
-  return unwrap(await commands.reflog(repo, limit));
-}
-
 export async function lostCommits(repo: RepoId, limit = 100) {
   return unwrap(await commands.lostCommits(repo, limit));
 }

@@ -246,3 +246,19 @@ fn an_entry_belonging_to_another_repository_is_refused() {
 
     assert!(state.undo_entry(second, entry.id).is_err());
 }
+
+#[test]
+fn the_journal_does_not_ship_the_recovery_payload_over_ipc() {
+    // A line-level discard keeps the whole patch to undo with. It is the size of the
+    // change, it is of no use to the panel, and it crosses the boundary on every read.
+    let json = serde_json::to_string(&app_state::SafetyEntry {
+        id: 1,
+        repo: app_state::RepoId(1),
+        description: "Discard lines in a.txt".to_owned(),
+        undoable: true,
+    })
+    .unwrap();
+
+    assert!(!json.contains("recovery"), "{json}");
+    assert!(json.contains("undoable"), "{json}");
+}

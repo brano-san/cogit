@@ -4,7 +4,6 @@ import {
   smartDate,
   capsules,
   dateTooltip,
-  formatCommitDate,
   headLabel,
   refLabels,
   relativeDate,
@@ -80,20 +79,6 @@ describe("shortOid", () => {
 
   it("leaves an already short value alone", () => {
     expect(shortOid("abc")).toBe("abc");
-  });
-});
-
-describe("formatCommitDate", () => {
-  it("renders the time the author saw, not the reader's", () => {
-    expect(formatCommitDate(1_767_225_600, 180)).toBe("2026-01-01 03:00");
-  });
-
-  it("handles negative offsets", () => {
-    expect(formatCommitDate(1_767_225_600, -300)).toBe("2025-12-31 19:00");
-  });
-
-  it("treats a zero offset as UTC", () => {
-    expect(formatCommitDate(1_767_225_600, 0)).toBe("2026-01-01 00:00");
   });
 });
 

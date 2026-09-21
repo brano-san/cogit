@@ -92,3 +92,47 @@ fn a_revision_that_does_not_exist_is_an_error() {
     let f = test_fixtures::linear(1).unwrap();
     assert!(open(&f).protecting_refs("no-such-rev").is_err());
 }
+
+#[test]
+fn a_character_class_in_the_pattern_is_understood() {
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&["config", "cogit.protectedBranches", "m[ai]in"])
+        .unwrap();
+
+    assert!(!open(&f).protecting_refs(PUSHED).unwrap().is_empty());
+}
+
+#[test]
+fn a_double_star_reaches_through_the_slashes() {
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&["switch", "-c", "release/2026/q1"]).unwrap();
+    f.git(&["push", "origin", "release/2026/q1"]).unwrap();
+    f.git(&["config", "cogit.protectedBranches", "release/**"])
+        .unwrap();
+
+    let refs = open(&f).protecting_refs("HEAD").unwrap();
+    assert!(
+        refs.iter().any(|name| name.contains("release/2026/q1")),
+        "{refs:?}"
+    );
+}
+
+#[test]
+fn a_single_star_does_not_cross_a_slash() {
+    // `release/*` means one segment, as it does everywhere else in git.
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&["switch", "-c", "release/2026/q1"]).unwrap();
+    f.git(&["push", "origin", "release/2026/q1"]).unwrap();
+
+    assert!(open(&f).protecting_refs("HEAD").unwrap().is_empty());
+}
+
+#[test]
+fn a_pattern_that_does_not_parse_is_skipped_not_fatal() {
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&["config", "cogit.protectedBranches", "main,[unclosed"])
+        .unwrap();
+
+    // The good half still protects; the broken half is ignored.
+    assert!(!open(&f).protecting_refs(PUSHED).unwrap().is_empty());
+}

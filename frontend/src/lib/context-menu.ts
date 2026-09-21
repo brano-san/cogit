@@ -21,16 +21,6 @@ export function commitMenu(at: { onRemote: boolean }): ContextItem[] {
   ];
 }
 
-export function fileMenu(at: { staged: boolean }): ContextItem[] {
-  return [
-    at.staged ? item("unstage", "Unstage this file") : item("stage", "Stage this file"),
-    ...(at.staged ? [] : [item("discard", "Discard the changes in this file")]),
-    SEPARATOR,
-    item("blame", "Blame this file"),
-    item("copy-path", "Copy the path"),
-  ];
-}
-
 export function branchMenu(at: { isHead: boolean; hasUpstream: boolean }): ContextItem[] {
   return [
     item("checkout", "Check out this branch", !at.isHead),

@@ -101,23 +101,6 @@ export interface Segment {
   changed: boolean;
 }
 
-/** Spans are UTF-16 offsets, which is exactly what `String.prototype.slice` indexes by. */
-export function segments(text: string, spans: readonly [number, number][]): Segment[] {
-  if (spans.length === 0) return [{ text, changed: false }];
-
-  const out: Segment[] = [];
-  let at = 0;
-  for (const [from, to] of spans) {
-    const start = Math.max(at, Math.min(from, text.length));
-    const end = Math.max(start, Math.min(to, text.length));
-    if (start > at) out.push({ text: text.slice(at, start), changed: false });
-    if (end > start) out.push({ text: text.slice(start, end), changed: true });
-    at = end;
-  }
-  if (at < text.length) out.push({ text: text.slice(at), changed: false });
-  return out;
-}
-
 export interface SearchHit {
   /** Row index in the list being rendered, so the view can scroll straight to it. */
   index: number;

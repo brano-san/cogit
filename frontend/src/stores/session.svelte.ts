@@ -1,6 +1,7 @@
 import { forget, readSession, remember, writeSession, type Session } from "$lib/session";
 
 const STORAGE_KEY = "cogit.session.v1";
+const WRITE_DELAY_MS = 400;
 
 function stored(): Session {
   try {
@@ -13,6 +14,7 @@ function stored(): Session {
 
 class SessionStore {
   #session = $state.raw<Session>(stored());
+  #pending: ReturnType<typeof setTimeout> | undefined;
 
   get repositories(): readonly string[] {
     return this.#session.repositories;
@@ -67,8 +69,18 @@ class SessionStore {
     this.write({ ...this.#session, selected });
   }
 
+  /** The selected commit changes on every arrow key, so the write is deferred: a
+      synchronous store round trip per keystroke is felt in the list. What is already in
+      memory is correct by construction; validation is for what comes off disk. */
   private write(next: Session): void {
-    this.#session = readSession(next);
+    this.#session = next;
+    clearTimeout(this.#pending);
+    this.#pending = setTimeout(() => this.persist(), WRITE_DELAY_MS);
+  }
+
+  /** Called on the way out, so a close does not lose the last few seconds. */
+  persist(): void {
+    clearTimeout(this.#pending);
     try {
       localStorage.setItem(STORAGE_KEY, writeSession(this.#session));
     } catch {

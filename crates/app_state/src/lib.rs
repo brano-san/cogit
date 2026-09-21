@@ -148,6 +148,8 @@ pub enum Recovery {
     None,
 }
 
+/// What the journal shows. The means of undoing stays in `Undoable`, on this side of
+/// the boundary: it can be as large as the change itself and the panel never reads it.
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SafetyEntry {
@@ -155,7 +157,12 @@ pub struct SafetyEntry {
     pub repo: RepoId,
     pub description: String,
     pub undoable: bool,
-    pub recovery: Recovery,
+}
+
+#[derive(Debug, Clone)]
+struct Undoable {
+    entry: SafetyEntry,
+    recovery: Recovery,
 }
 
 /// Git reports mixed line endings, permissions and deprecated settings on `stderr` with
@@ -184,7 +191,7 @@ pub struct AppState {
     events: broadcast::Sender<AppEvent>,
     watchers: RwLock<HashMap<RepoId, fs_watcher::RepoWatcher>>,
     journal: Arc<RwLock<std::collections::VecDeque<git_engine::GitOutput>>>,
-    safety: RwLock<Vec<SafetyEntry>>,
+    safety: RwLock<Vec<Undoable>>,
     next_entry_id: AtomicU32,
     secrets: Box<dyn SecretStore>,
     pictures: RwLock<Option<Avatars>>,
@@ -708,44 +715,45 @@ impl AppState {
     /// Newest first, like the Output panel.
     #[must_use]
     pub fn safety_log(&self) -> Vec<SafetyEntry> {
-        self.safety.read().iter().rev().cloned().collect()
+        self.safety
+            .read()
+            .iter()
+            .rev()
+            .map(|held| held.entry.clone())
+            .collect()
     }
 
     pub fn undo_last(&self, repo: RepoId) -> Result<SafetyEntry, git_engine::GitError> {
-        let entry = self
+        let held = self
             .safety
             .read()
             .iter()
             .rev()
-            .find(|entry| entry.repo == repo && entry.undoable)
+            .find(|held| held.entry.repo == repo && held.entry.undoable)
             .cloned()
             .ok_or_else(|| git_engine::GitError::InvalidState("nothing to undo".to_owned()))?;
-        self.reverse(repo, entry)
+        self.reverse(repo, held)
     }
 
     /// Any entry, not only the newest: the recoveries are independent restores rather than
     /// a stack, so the order is the user's to choose (T5.7).
     pub fn undo_entry(&self, repo: RepoId, id: u32) -> Result<SafetyEntry, git_engine::GitError> {
-        let entry = self
+        let held = self
             .safety
             .read()
             .iter()
-            .find(|entry| entry.id == id && entry.repo == repo && entry.undoable)
+            .find(|held| held.entry.id == id && held.entry.repo == repo && held.entry.undoable)
             .cloned()
             .ok_or_else(|| {
                 git_engine::GitError::InvalidState(format!("no undoable entry {id} here"))
             })?;
-        self.reverse(repo, entry)
+        self.reverse(repo, held)
     }
 
-    fn reverse(
-        &self,
-        repo: RepoId,
-        entry: SafetyEntry,
-    ) -> Result<SafetyEntry, git_engine::GitError> {
+    fn reverse(&self, repo: RepoId, held: Undoable) -> Result<SafetyEntry, git_engine::GitError> {
         self.quiet(repo);
         let handle = self.handle(repo)?;
-        match &entry.recovery {
+        match &held.recovery {
             Recovery::Stash { oid } => handle.stash_apply(oid)?,
             Recovery::Branch { name, oid } => handle.create_branch(name, Some(oid), false)?,
             Recovery::Tag { name, oid } => handle.create_tag(&git_engine::TagRequest {
@@ -764,8 +772,10 @@ impl AppState {
             }
         }
 
-        self.safety.write().retain(|kept| kept.id != entry.id);
-        Ok(entry)
+        self.safety
+            .write()
+            .retain(|kept| kept.entry.id != held.entry.id);
+        Ok(held.entry)
     }
 
     fn record(&self, repo: RepoId, description: String, recovery: Recovery) {
@@ -774,7 +784,6 @@ impl AppState {
             repo,
             description,
             undoable: !matches!(recovery, Recovery::None),
-            recovery,
         };
         tracing::info!(
             repo = repo.0,
@@ -782,7 +791,7 @@ impl AppState {
             undoable = entry.undoable,
             "destructive operation recorded"
         );
-        self.safety.write().push(entry);
+        self.safety.write().push(Undoable { entry, recovery });
     }
 
     /// Staging changes the status and nothing else; reopening the repository to learn
@@ -1472,7 +1481,7 @@ impl AppState {
 
     pub fn close_repository(&self, repo: RepoId) -> bool {
         self.watchers.write().remove(&repo);
-        self.safety.write().retain(|entry| entry.repo != repo);
+        self.safety.write().retain(|held| held.entry.repo != repo);
         let removed = self.unregister(repo);
         if removed {
             self.emit(AppEvent::RepoClosed { repo });

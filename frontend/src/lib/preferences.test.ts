@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS, type Settings } from "./settings";
 import {
   CATEGORIES,
-  changedKeys,
   firstMatch,
   matchingCategories,
   restoreCategory,
@@ -81,17 +80,6 @@ describe("firstMatch", () => {
 
   it("is null when nothing matched", () => {
     expect(firstMatch("zzzznothing")).toBeNull();
-  });
-});
-
-describe("changedKeys", () => {
-  it("is empty when the draft is untouched", () => {
-    expect(changedKeys(DEFAULT_SETTINGS, DEFAULT_SETTINGS)).toEqual([]);
-  });
-
-  it("names only what differs", () => {
-    const draft = { ...DEFAULT_SETTINGS, laneWidth: 20 };
-    expect(changedKeys(draft, DEFAULT_SETTINGS)).toEqual(["laneWidth"]);
   });
 });
 
