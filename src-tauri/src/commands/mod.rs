@@ -1,4 +1,6 @@
-use app_state::{DEFAULT_CHUNK_SIZE, GraphChunk, RepoId, RepoOverview, RepoSummary, SafetyEntry};
+use app_state::{
+    DEFAULT_CHUNK_SIZE, GraphChunk, OperationKind, RepoId, RepoOverview, RepoSummary, SafetyEntry,
+};
 use diff_engine::{DiffOptions, FileDiff, PatchRequest};
 use git_engine::{BlameLine, CommitRow, ConflictSide, Found, Submodule};
 use git_engine::{
@@ -35,6 +37,37 @@ where
         .map_err(|err| GitError::Internal(format!("{label} task failed: {err}")))?;
     crate::profile::call(label, started.elapsed(), joined.is_ok());
     joined
+}
+
+/// A mutation waits for its turn in the repository's lane before it starts (P1.3).
+///
+/// Three clicks on push are three pushes, one after the other, in the order they landed —
+/// not three `git push` processes racing for the same ref lock, and not two of them
+/// silently dropped.
+async fn mutating<T, F>(
+    state: &std::sync::Arc<app_state::AppState>,
+    repo: RepoId,
+    kind: OperationKind,
+    label: &'static str,
+    work: F,
+) -> Result<T, GitError>
+where
+    T: Send + 'static,
+    F: FnOnce() -> Result<T, GitError> + Send + 'static,
+{
+    let permit = state.enqueue(repo, kind, kind.title()).await;
+    let result = blocking(label, work).await;
+    permit.finish(result.is_ok());
+    result
+}
+
+/// Everything queued or running, for a panel that has just been opened again (P1.5).
+#[tauri::command]
+#[specta::specta]
+pub async fn list_operations(
+    state: tauri::State<'_, crate::AppContext>,
+) -> Result<Vec<app_state::Operation>, GitError> {
+    Ok(state.state.operations())
 }
 
 /// The webview's own clock: how long the user waited between an action and the screen
@@ -408,7 +441,7 @@ pub async fn worktree_files(
 }
 
 macro_rules! path_command {
-    ($name:ident, $method:ident) => {
+    ($name:ident, $method:ident, $kind:ident) => {
         #[tauri::command]
         #[specta::specta]
         pub async fn $name(
@@ -417,16 +450,23 @@ macro_rules! path_command {
             paths: Vec<String>,
         ) -> Result<(), GitError> {
             let app_state = state.state.clone();
-            blocking(stringify!($name), move || app_state.$method(repo, &paths)).await
+            mutating(
+                &state.state,
+                repo,
+                OperationKind::$kind,
+                stringify!($name),
+                move || app_state.$method(repo, &paths),
+            )
+            .await
         }
     };
 }
 
-path_command!(stage_paths, stage_paths);
-path_command!(unstage_paths, unstage_paths);
-path_command!(discard_paths, discard_paths);
-path_command!(add_to_gitignore, add_to_gitignore);
-path_command!(delete_untracked, delete_untracked);
+path_command!(stage_paths, stage_paths, Stage);
+path_command!(unstage_paths, unstage_paths, Stage);
+path_command!(discard_paths, discard_paths, Discard);
+path_command!(add_to_gitignore, add_to_gitignore, Stage);
+path_command!(delete_untracked, delete_untracked, Discard);
 
 #[tauri::command]
 #[specta::specta]
@@ -436,7 +476,14 @@ pub async fn commit(
     request: CommitRequest,
 ) -> Result<String, GitError> {
     let app_state = state.state.clone();
-    let oid = blocking("commit", move || app_state.commit(repo, &request)).await?;
+    let oid = mutating(
+        &state.state,
+        repo,
+        OperationKind::Commit,
+        "commit",
+        move || app_state.commit(repo, &request),
+    )
+    .await?;
 
     tracing::info!(repo = repo.0, oid = %oid, "commit created");
     Ok(oid)
@@ -450,7 +497,14 @@ pub async fn checkout(
     target: CheckoutTarget,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("checkout", move || app_state.checkout(repo, &target)).await
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Checkout,
+        "checkout",
+        move || app_state.checkout(repo, &target),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -465,9 +519,13 @@ pub async fn create_branch(
     switch_to: bool,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("create_branch", move || {
-        app_state.create_branch(repo, &name, start.as_deref(), switch_to)
-    })
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Branch,
+        "create_branch",
+        move || app_state.create_branch(repo, &name, start.as_deref(), switch_to),
+    )
     .await
 }
 
@@ -481,9 +539,13 @@ pub async fn rename_branch(
     force: bool,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("rename_branch", move || {
-        app_state.rename_branch(repo, &from, &to, force)
-    })
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Branch,
+        "rename_branch",
+        move || app_state.rename_branch(repo, &from, &to, force),
+    )
     .await
 }
 
@@ -496,9 +558,13 @@ pub async fn set_upstream(
     upstream: Option<String>,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("set_upstream", move || {
-        app_state.set_upstream(repo, &branch, upstream.as_deref())
-    })
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Branch,
+        "set_upstream",
+        move || app_state.set_upstream(repo, &branch, upstream.as_deref()),
+    )
     .await
 }
 
@@ -511,9 +577,13 @@ pub async fn delete_remote_branch(
     branch: String,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("delete_remote_branch", move || {
-        app_state.delete_remote_branch(repo, &remote, &branch)
-    })
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Branch,
+        "delete_remote_branch",
+        move || app_state.delete_remote_branch(repo, &remote, &branch),
+    )
     .await
 }
 
@@ -526,9 +596,13 @@ pub async fn delete_branch(
     force: bool,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("delete_branch", move || {
-        app_state.delete_branch(repo, &name, force)
-    })
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Branch,
+        "delete_branch",
+        move || app_state.delete_branch(repo, &name, force),
+    )
     .await
 }
 
@@ -603,9 +677,13 @@ pub async fn add_worktree(
     create: bool,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("add_worktree", move || {
-        app_state.add_worktree(repo, &path, &branch, create)
-    })
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Worktree,
+        "add_worktree",
+        move || app_state.add_worktree(repo, &path, &branch, create),
+    )
     .await
 }
 
@@ -618,9 +696,13 @@ pub async fn remove_worktree(
     force: bool,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("remove_worktree", move || {
-        app_state.remove_worktree(repo, &path, force)
-    })
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Worktree,
+        "remove_worktree",
+        move || app_state.remove_worktree(repo, &path, force),
+    )
     .await
 }
 
@@ -631,7 +713,14 @@ pub async fn prune_worktrees(
     repo: RepoId,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("prune_worktrees", move || app_state.prune_worktrees(repo)).await
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Worktree,
+        "prune_worktrees",
+        move || app_state.prune_worktrees(repo),
+    )
+    .await
 }
 
 /// The terminals this platform can offer, for the settings dropdown.
@@ -682,9 +771,13 @@ pub async fn stash_selection(
     message: String,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("stash_selection", move || {
-        app_state.stash_selection(repo, &paths, &message)
-    })
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Stash,
+        "stash_selection",
+        move || app_state.stash_selection(repo, &paths, &message),
+    )
     .await
 }
 
@@ -712,7 +805,14 @@ pub async fn undo_entry(
     id: u32,
 ) -> Result<SafetyEntry, GitError> {
     let app_state = state.state.clone();
-    let entry = blocking("undo_entry", move || app_state.undo_entry(repo, id)).await?;
+    let entry = mutating(
+        &state.state,
+        repo,
+        OperationKind::Undo,
+        "undo_entry",
+        move || app_state.undo_entry(repo, id),
+    )
+    .await?;
 
     tracing::info!(repo = repo.0, entry = %entry.description, "operation undone");
     Ok(entry)
@@ -725,7 +825,14 @@ pub async fn undo_last(
     repo: RepoId,
 ) -> Result<SafetyEntry, GitError> {
     let app_state = state.state.clone();
-    let entry = blocking("undo_last", move || app_state.undo_last(repo)).await?;
+    let entry = mutating(
+        &state.state,
+        repo,
+        OperationKind::Undo,
+        "undo_last",
+        move || app_state.undo_last(repo),
+    )
+    .await?;
 
     tracing::info!(repo = repo.0, entry = %entry.description, "operation undone");
     Ok(entry)
@@ -742,7 +849,7 @@ pub async fn repo_status(
 }
 
 macro_rules! repo_command {
-    ($name:ident) => {
+    ($name:ident, $kind:ident) => {
         #[tauri::command]
         #[specta::specta]
         pub async fn $name(
@@ -750,14 +857,21 @@ macro_rules! repo_command {
             repo: RepoId,
         ) -> Result<(), GitError> {
             let app_state = state.state.clone();
-            blocking(stringify!($name), move || app_state.$name(repo)).await
+            mutating(
+                &state.state,
+                repo,
+                OperationKind::$kind,
+                stringify!($name),
+                move || app_state.$name(repo),
+            )
+            .await
         }
     };
 }
 
-repo_command!(abort_operation);
-repo_command!(continue_operation);
-repo_command!(skip_operation);
+repo_command!(abort_operation, Merge);
+repo_command!(continue_operation, Merge);
+repo_command!(skip_operation, Merge);
 
 #[tauri::command]
 #[specta::specta]
@@ -777,7 +891,14 @@ pub async fn stash_push(
     options: StashOptions,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("stash_push", move || app_state.stash_push(repo, &options)).await
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Stash,
+        "stash_push",
+        move || app_state.stash_push(repo, &options),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -789,9 +910,13 @@ pub async fn stash_apply(
     pop: bool,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("stash_apply", move || {
-        app_state.stash_apply(repo, index, pop)
-    })
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Stash,
+        "stash_apply",
+        move || app_state.stash_apply(repo, index, pop),
+    )
     .await
 }
 
@@ -803,7 +928,14 @@ pub async fn stash_drop(
     index: u32,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("stash_drop", move || app_state.stash_drop(repo, index)).await
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Stash,
+        "stash_drop",
+        move || app_state.stash_drop(repo, index),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -814,7 +946,14 @@ pub async fn create_tag(
     request: TagRequest,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("create_tag", move || app_state.create_tag(repo, &request)).await
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Tag,
+        "create_tag",
+        move || app_state.create_tag(repo, &request),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -825,7 +964,14 @@ pub async fn delete_tag(
     name: String,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("delete_tag", move || app_state.delete_tag(repo, &name)).await
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Tag,
+        "delete_tag",
+        move || app_state.delete_tag(repo, &name),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -847,16 +993,22 @@ pub async fn fetch(
     on_progress: tauri::ipc::Channel<String>,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("fetch", move || {
-        let mut timer = git_engine::phases::PhaseTimer::new();
-        let named = remote.clone();
-        let result = app_state.fetch(repo, &remote, |line| {
-            timer.observe(line);
-            let _ = on_progress.send(line.to_owned());
-        });
-        crate::profile::network("fetch", &named, timer, result.is_ok());
-        result
-    })
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Fetch,
+        "fetch",
+        move || {
+            let mut timer = git_engine::phases::PhaseTimer::new();
+            let named = remote.clone();
+            let result = app_state.fetch(repo, &remote, |line| {
+                timer.observe(line);
+                let _ = on_progress.send(line.to_owned());
+            });
+            crate::profile::network("fetch", &named, timer, result.is_ok());
+            result
+        },
+    )
     .await
 }
 
@@ -870,7 +1022,7 @@ pub async fn pull(
     on_progress: tauri::ipc::Channel<String>,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("pull", move || {
+    mutating(&state.state, repo, OperationKind::Pull, "pull", move || {
         let mut timer = git_engine::phases::PhaseTimer::new();
         let named = remote.clone();
         let result = app_state.pull(repo, &remote, ff_only, |line| {
@@ -893,7 +1045,7 @@ pub async fn push(
     on_progress: tauri::ipc::Channel<String>,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("push", move || {
+    mutating(&state.state, repo, OperationKind::Push, "push", move || {
         let mut timer = git_engine::phases::PhaseTimer::new();
         let named = remote.clone();
         let result = app_state.push(repo, &remote, force, |line| {
@@ -914,7 +1066,14 @@ pub async fn merge(
     options: MergeOptions,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("merge", move || app_state.merge(repo, &options)).await
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Merge,
+        "merge",
+        move || app_state.merge(repo, &options),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -925,7 +1084,14 @@ pub async fn rebase(
     options: RebaseOptions,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("rebase", move || app_state.rebase(repo, &options)).await
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Rebase,
+        "rebase",
+        move || app_state.rebase(repo, &options),
+    )
+    .await
 }
 
 macro_rules! replay_command {
@@ -938,7 +1104,14 @@ macro_rules! replay_command {
             commits: Vec<String>,
         ) -> Result<(), GitError> {
             let app_state = state.state.clone();
-            blocking(stringify!($name), move || app_state.$name(repo, &commits)).await
+            mutating(
+                &state.state,
+                repo,
+                OperationKind::Commit,
+                stringify!($name),
+                move || app_state.$name(repo, &commits),
+            )
+            .await
         }
     };
 }
@@ -1001,9 +1174,13 @@ pub async fn update_submodule(
     init: bool,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("update_submodule", move || {
-        app_state.update_submodule(repo, &path, init)
-    })
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Submodule,
+        "update_submodule",
+        move || app_state.update_submodule(repo, &path, init),
+    )
     .await
 }
 
@@ -1016,9 +1193,13 @@ pub async fn stage_selection(
     reverse: bool,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("stage_selection", move || {
-        app_state.stage_selection(repo, &request, reverse)
-    })
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Stage,
+        "stage_selection",
+        move || app_state.stage_selection(repo, &request, reverse),
+    )
     .await
 }
 
@@ -1103,9 +1284,13 @@ pub async fn resolve_conflict(
     side: ConflictSide,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("resolve_conflict", move || {
-        app_state.resolve_conflict(repo, &path, side)
-    })
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Merge,
+        "resolve_conflict",
+        move || app_state.resolve_conflict(repo, &path, side),
+    )
     .await
 }
 
@@ -1118,9 +1303,13 @@ pub async fn resolve_conflict_text(
     text: String,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("resolve_conflict_text", move || {
-        app_state.resolve_conflict_text(repo, &path, &text)
-    })
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Merge,
+        "resolve_conflict_text",
+        move || app_state.resolve_conflict_text(repo, &path, &text),
+    )
     .await
 }
 
@@ -1265,9 +1454,13 @@ pub async fn rollback_to(
     paths: Vec<String>,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("rollback_to", move || {
-        app_state.rollback_to(repo, &rev, &paths)
-    })
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Undo,
+        "rollback_to",
+        move || app_state.rollback_to(repo, &rev, &paths),
+    )
     .await
 }
 
@@ -1293,9 +1486,13 @@ pub async fn split_off(
     split_first: bool,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("split_off", move || {
-        app_state.split_off(repo, &rev, &paths, &message, split_first)
-    })
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Commit,
+        "split_off",
+        move || app_state.split_off(repo, &rev, &paths, &message, split_first),
+    )
     .await
 }
 
@@ -1320,9 +1517,13 @@ pub async fn interactive_rebase(
     paused: bool,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("interactive_rebase", move || {
-        app_state.interactive_rebase(repo, &base, &plan, paused)
-    })
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Rebase,
+        "interactive_rebase",
+        move || app_state.interactive_rebase(repo, &base, &plan, paused),
+    )
     .await
 }
 
@@ -1572,9 +1773,13 @@ pub async fn discard_selection(
     request: PatchRequest,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("discard_selection", move || {
-        app_state.discard_selection(repo, &request)
-    })
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Discard,
+        "discard_selection",
+        move || app_state.discard_selection(repo, &request),
+    )
     .await
 }
 
@@ -1641,7 +1846,14 @@ pub async fn flow_init(
     config: git_engine::FlowConfig,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("flow_init", move || app_state.flow_init(repo, &config)).await
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Branch,
+        "flow_init",
+        move || app_state.flow_init(repo, &config),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -1653,9 +1865,13 @@ pub async fn flow_start(
     name: String,
 ) -> Result<String, GitError> {
     let app_state = state.state.clone();
-    blocking("flow_start", move || {
-        app_state.flow_start(repo, kind, &name)
-    })
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Branch,
+        "flow_start",
+        move || app_state.flow_start(repo, kind, &name),
+    )
     .await
 }
 
@@ -1669,9 +1885,13 @@ pub async fn flow_finish(
     tag: Option<String>,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("flow_finish", move || {
-        app_state.flow_finish(repo, kind, &name, tag.as_deref())
-    })
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Branch,
+        "flow_finish",
+        move || app_state.flow_finish(repo, kind, &name, tag.as_deref()),
+    )
     .await
 }
 

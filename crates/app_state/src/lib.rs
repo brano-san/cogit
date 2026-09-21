@@ -5,6 +5,7 @@ mod hooking;
 pub mod logging;
 mod network;
 mod presets;
+mod queue;
 mod safety;
 pub mod settings;
 pub mod terminal;
@@ -15,6 +16,7 @@ pub use credentials::{
     KeyringStore, MemoryStore, SecretError, SecretStore, host_of, platform_store,
 };
 pub use presets::PresetStatus;
+pub use queue::{Operation, OperationKind, OperationPermit, OperationPhase, Queue};
 pub use safety::{Recovery, SafetyEntry};
 
 use parking_lot::RwLock;
@@ -49,14 +51,8 @@ pub enum AppEvent {
         repo: RepoId,
         kind: fs_watcher::ChangeKind,
     },
-    OperationStarted {
-        id: u32,
-        label: String,
-    },
-    OperationFinished {
-        id: u32,
-        success: bool,
-    },
+    /// Queued, started or finished — the phase is inside.
+    Operation(Operation),
     AvatarReady {
         email: String,
     },
@@ -164,6 +160,7 @@ pub struct AppState {
     /// says otherwise (problem 5).
     cached_rows: Arc<RwLock<HashMap<RepoId, RepoOverview>>>,
     rows_read: Arc<AtomicU32>,
+    queue: Queue,
 }
 
 impl std::fmt::Debug for AppState {
@@ -200,6 +197,7 @@ impl AppState {
             newest_diff: RwLock::new(HashMap::new()),
             cached_rows: Arc::new(RwLock::new(HashMap::new())),
             rows_read: Arc::new(AtomicU32::new(0)),
+            queue: Queue::default(),
         }
     }
 
@@ -276,17 +274,20 @@ impl AppState {
     /// Brackets one operation with a start and a finish event, so the toolbar can show a
     /// spinner without every call site remembering to announce itself.
     pub fn tracked<T, E>(&self, label: &str, work: impl FnOnce() -> Result<T, E>) -> Result<T, E> {
-        let id = self.next_entry_id.fetch_add(1, Ordering::Relaxed);
-        self.emit(AppEvent::OperationStarted {
-            id,
+        let mut operation = Operation {
+            id: self.next_entry_id.fetch_add(1, Ordering::Relaxed),
+            repo: None,
+            kind: OperationKind::Other,
             label: label.to_owned(),
-        });
+            phase: OperationPhase::Running,
+            success: None,
+        };
+        self.emit(AppEvent::Operation(operation.clone()));
 
         let result = work();
-        self.emit(AppEvent::OperationFinished {
-            id,
-            success: result.is_ok(),
-        });
+        operation.phase = OperationPhase::Done;
+        operation.success = Some(result.is_ok());
+        self.emit(AppEvent::Operation(operation));
         result
     }
 
@@ -551,9 +552,7 @@ impl AppState {
         force: bool,
     ) -> Result<(), git_engine::GitError> {
         self.quiet(repo);
-        self.tracked("Renaming branch", || {
-            self.handle(repo)?.rename_branch(from, to, force)
-        })
+        self.handle(repo)?.rename_branch(from, to, force)
     }
 
     pub fn set_upstream(
@@ -574,9 +573,7 @@ impl AppState {
         branch: &str,
     ) -> Result<(), git_engine::GitError> {
         self.quiet(repo);
-        self.tracked("Deleting remote branch", || {
-            self.handle(repo)?.delete_remote_branch(remote, branch)
-        })
+        self.handle(repo)?.delete_remote_branch(remote, branch)
     }
 
     pub fn delete_branch(
@@ -712,9 +709,7 @@ impl AppState {
         }
         self.quiet(repo);
         let handle = self.handle(repo)?;
-        self.tracked("Stashing selection", || {
-            handle.stash_paths(paths, message).map(drop)
-        })
+        handle.stash_paths(paths, message).map(drop)
     }
 
     pub fn stash_contents(
@@ -1375,10 +1370,14 @@ mod tests {
     #[test]
     fn emitting_without_subscribers_is_not_an_error() {
         let state = AppState::new();
-        state.emit(AppEvent::OperationStarted {
+        state.emit(AppEvent::Operation(Operation {
             id: 1,
+            repo: None,
+            kind: OperationKind::Fetch,
             label: "fetch".into(),
-        });
+            phase: OperationPhase::Running,
+            success: None,
+        }));
     }
 
     #[test]

@@ -54,14 +54,19 @@ pub struct AvatarReady {
     pub email: String,
 }
 
-/// Mirrors `app_state::AppEvent::Operation*`, for the spinner in the toolbar.
+/// Mirrors `app_state::AppEvent::Operation`: the toolbar spinner and the queue indicator
+/// read the same stream, one message per phase (P1.4).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
 #[serde(rename_all = "camelCase")]
 pub struct OperationChanged {
     pub id: u32,
     pub label: String,
-    /// `None` while it runs; `Some` once it is over.
+    /// `None` until the phase is `done`.
     pub success: Option<bool>,
+    /// `None` for work that belongs to no repository in particular.
+    pub repo: Option<app_state::RepoId>,
+    pub kind: app_state::OperationKind,
+    pub phase: app_state::OperationPhase,
 }
 
 #[derive(Debug)]
@@ -172,6 +177,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::search_file_contents,
             commands::list_submodules,
             commands::cancel_operation,
+            commands::list_operations,
             commands::read_settings,
             commands::write_setting,
             commands::default_keymap,
@@ -351,19 +357,14 @@ fn forward_repo_changes(app: tauri::AppHandle, state: &Arc<AppState>) {
                 app_state::AppEvent::AvatarReady { email } => {
                     let _ = AvatarReady { email }.emit(&app);
                 }
-                app_state::AppEvent::OperationStarted { id, label } => {
+                app_state::AppEvent::Operation(operation) => {
                     let _ = OperationChanged {
-                        id,
-                        label,
-                        success: None,
-                    }
-                    .emit(&app);
-                }
-                app_state::AppEvent::OperationFinished { id, success } => {
-                    let _ = OperationChanged {
-                        id,
-                        label: String::new(),
-                        success: Some(success),
+                        id: operation.id,
+                        label: operation.label,
+                        success: operation.success,
+                        repo: operation.repo,
+                        kind: operation.kind,
+                        phase: operation.phase,
                     }
                     .emit(&app);
                 }

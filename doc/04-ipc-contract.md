@@ -318,6 +318,7 @@ snake_case и читаются на фронтенде как `undefined`.
 | `search_file_contents` | `repo`, `query`, `is_regex`, `scope`, `Channel<SearchChunk>` | `()` | M6 |
 | `list_submodules` | `repo`, `parent` (пусто — верхний уровень) | `Vec<Submodule>` | M3 |
 | `cancel_operation` | `id` | `bool` — `false`, если уже закончилась | — |
+| `list_operations` | — | `Vec<Operation>` — всё, что в очереди и в работе | — |
 
 `list_all_repo_files` отвечает на «где этот файл», а не «что изменилось»: панель ищет файл
 и тогда, когда с ним ничего не происходило.
@@ -454,10 +455,39 @@ pub struct GraphChunk {
 |---|---|---|
 | `repo-changed` | `{ repo: RepoId, kind: ChangeKind }` | `fs_watcher` заметил изменение |
 | `repo-opened` / `repo-closed` | `{ repo: RepoId }` | Изменился состав открытых репозиториев |
-| `operation-started` / `operation-finished` | `{ id, label, result }` | Для спиннера в тулбаре |
 | `git-command-logged` | `CommandLogEntry` | Для панели Output |
 | `menu-command` | `String` (id команды палитры) | Выбран пункт нативного меню |
-| `operation-changed` | `{ id, label, success }` | Началась или закончилась операция; `success: null` — идёт |
+| `operation-changed` | `{ id, repo, kind, label, phase, success }` | Операция встала в очередь, началась или закончилась |
+
+### Очередь операций
+
+Мутации репозитория идут по одной на репозиторий, в порядке поступления. Четыре события из
+постановки задачи — это одно событие `operation-changed` с полем `phase`:
+
+| Задача | Здесь |
+|---|---|
+| `operation_queued` | `phase: "queued"` |
+| `operation_started` | `phase: "running"` |
+| `operation_finished` | `phase: "done"`, `success` — true или false |
+| `operation_progress` | не в этом потоке — прогресс идёт своим `Channel` у `fetch`/`pull`/`push` |
+
+Одно событие вместо четырёх потому, что индикатору нужен один поток сообщений с одним
+`id`, а не четыре подписки, которые надо сшивать на стороне панели.
+
+```ts
+type Operation = {
+  id: number,
+  repo: RepoId | null,   // null — работа, не привязанная к репозиторию
+  kind: OperationKind,   // "fetch" | "push" | "commit" | "merge" | …
+  label: string,         // "Pushing", "Committing" — то, что показывает тулбар
+  phase: "queued" | "running" | "done",
+  success: boolean | null,
+}
+```
+
+`list_operations` отдаёт то же самое списком: панель, открытая заново, видит очередь
+целиком, а не с середины. Чтения в очередь не попадают — они идут параллельно и
+отменяются через `cancel_operation`.
 
 `ChangeKind`: `Head` · `Index` · `Refs` · `WorkingTree` · `Stash` · `Config`.
 UI обновляет **только** соответствующую панель — не перезагружает всё.

@@ -161,6 +161,8 @@ export const commands = {
 	listSubmodules: (repo: RepoId, parent: string) => typedError<Submodule[], GitError>(__TAURI_INVOKE("list_submodules", { repo, parent })),
 	/**  Stops a running read. `false` when it had already finished. */
 	cancelOperation: (id: number) => __TAURI_INVOKE<boolean>("cancel_operation", { id }),
+	/**  Everything queued or running, for a panel that has just been opened again (P1.5). */
+	listOperations: () => typedError<Operation[], GitError>(__TAURI_INVOKE("list_operations")),
 	/**
 	 *  The settings document as JSON text. Rust owns the file because the menu and the
 	 *  logger read it before there is a window to ask.
@@ -622,13 +624,36 @@ export type MoveScope = "withinFile" | "acrossFiles";
 
 export type NodeKind = "normal" | "merge" | "root" | "workingTree";
 
-/**  Mirrors `app_state::AppEvent::Operation*`, for the spinner in the toolbar. */
+/**  What the toolbar and the queue indicator are told, at every phase. */
+export type Operation = {
+	id: number,
+	/**  `None` for work that belongs to no repository in particular. */
+	repo: RepoId | null,
+	kind: OperationKind,
+	label: string,
+	phase: OperationPhase,
+	/**  Only ever `Some` once the phase is `Done`. */
+	success: boolean | null,
+};
+
+/**
+ *  Mirrors `app_state::AppEvent::Operation`: the toolbar spinner and the queue indicator
+ *  read the same stream, one message per phase (P1.4).
+ */
 export type OperationChanged = {
 	id: number,
 	label: string,
-	/**  `None` while it runs; `Some` once it is over. */
+	/**  `None` until the phase is `done`. */
 	success: boolean | null,
+	/**  `None` for work that belongs to no repository in particular. */
+	repo: RepoId | null,
+	kind: OperationKind,
+	phase: OperationPhase,
 };
+
+export type OperationKind = "fetch" | "pull" | "push" | "commit" | "checkout" | "branch" | "merge" | "rebase" | "stage" | "discard" | "stash" | "tag" | "worktree" | "submodule" | "undo" | "other";
+
+export type OperationPhase = "queued" | "running" | "done";
 
 export type Origin = 
 /**  Nobody touched these lines. */
