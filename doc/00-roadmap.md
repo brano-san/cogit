@@ -47,6 +47,7 @@
 | M12 | Хирургия коммитов: Split-Off, Rollback-To | `DONE` | M1, M4, M6 | [M12](modules/M12-commit-surgery.md) |
 | M13 | Commit Overlap — анализ пересечений | `DONE` | M1, M4 | [M13](modules/M13-commit-overlap.md) |
 | M14 | Аватары авторов | `DONE` (Gravatar; GitLab и GitHub — не делали) | M1, M4 | [M14](modules/M14-avatars.md) |
+| M15 | Бэкенд там, где репозиторий (WSL) | `TODO` (спроектирован, не начат) | M1, M3, M4 | [M15](modules/M15-remote-backend.md) |
 
 M9 намеренно идёт **вторым**: без генератора репозиториев нечем тестировать M1, M4 и M7,
 а писать тесты на живых репозиториях пользователя недопустимо.
