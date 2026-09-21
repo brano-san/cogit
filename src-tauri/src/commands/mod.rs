@@ -202,7 +202,7 @@ pub fn closing_ping() {
 }
 
 /// Everything `Help ▸ Copy Diagnostics` puts on the clipboard, as text.
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn diagnostics(state: tauri::State<'_, crate::AppContext>) -> String {
     crate::diagnostics::report(
@@ -220,13 +220,13 @@ pub fn report_memory(sample: crate::profile::RendererMemory) {
 
 /// The settings document as JSON text. Rust owns the file because the menu and the
 /// logger read it before there is a window to ask.
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn read_settings(state: tauri::State<'_, crate::AppContext>) -> String {
     app_state::settings::read_document(&state.config_dir).to_string()
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn write_setting(
     state: tauri::State<'_, crate::AppContext>,
@@ -968,13 +968,13 @@ pub async fn lost_commits(
     blocking("lost_commits", move || app_state.lost_commits(repo, limit)).await
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn repositories(state: tauri::State<'_, crate::AppContext>) -> Vec<RepoOverview> {
     state.state.overviews()
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn close_repository(state: tauri::State<'_, crate::AppContext>, repo: RepoId) -> bool {
     state.state.close_repository(repo)
@@ -1733,4 +1733,102 @@ pub async fn protecting_refs(
         app_state.protecting_refs(repo, &rev)
     })
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    /// A command declared `pub fn` is `ExecutionContext::Blocking`: it runs inline on the
+    /// thread that delivered the IPC message, which on Windows is the thread pumping
+    /// window messages. Anything slow there stops the window redrawing while it runs
+    /// (problem 1). Only work that *must* stay on the main thread, or that is a handful of
+    /// memory reads, belongs in this list.
+    const MAIN_THREAD_ONLY: &[&str] = &[
+        "default_keymap",
+        "set_keymap",
+        "set_menu_state",
+        "report_timing",
+        "log_from_frontend",
+        "report_memory",
+        "closing_ping",
+        "cancel_operation",
+        "app_info",
+        "terminal_choices",
+        "command_log",
+        "command_problems",
+        "clear_command_log",
+        "safety_log",
+        "popup_context_menu",
+        "open_compare_window",
+        "open_merge_window",
+        "merge_resolved",
+    ];
+
+    /// Each command with a flag: does it leave the main thread? An `async fn` does, and so
+    /// does a plain `fn` marked `#[tauri::command(async)]` — tauri hands that one to the
+    /// thread pool without demanding it return a `Result`.
+    fn declared() -> Vec<(String, bool)> {
+        let mut found = Vec::new();
+        let mut armed = false;
+        let mut marked_async = false;
+        for line in include_str!("mod.rs").lines() {
+            let line = line.trim_start();
+            if let Some(rest) = line.strip_prefix("#[tauri::command") {
+                armed = true;
+                marked_async = rest.starts_with("(async)");
+                continue;
+            }
+            if !armed {
+                continue;
+            }
+            if let Some(rest) = line.strip_prefix("pub async fn ") {
+                found.push((name_of(rest), true));
+                armed = false;
+            } else if let Some(rest) = line.strip_prefix("pub fn ") {
+                found.push((name_of(rest), marked_async));
+                armed = false;
+            }
+        }
+        found
+    }
+
+    fn name_of(rest: &str) -> String {
+        rest.split(['(', '<']).next().unwrap_or_default().to_owned()
+    }
+
+    #[test]
+    fn the_parser_sees_every_command() {
+        let all = declared();
+        assert!(
+            all.len() > 60,
+            "expected the whole command surface, parsed {}",
+            all.len()
+        );
+        assert!(all.iter().any(|(name, _)| name == "repositories"));
+    }
+
+    #[test]
+    fn nothing_heavy_runs_on_the_main_thread() {
+        let stragglers: Vec<String> = declared()
+            .into_iter()
+            .filter(|(name, off_thread)| !off_thread && !MAIN_THREAD_ONLY.contains(&name.as_str()))
+            .map(|(name, _)| name)
+            .collect();
+
+        assert!(
+            stragglers.is_empty(),
+            "these commands block the window's message loop; mark them \
+             `#[tauri::command(async)]` or justify them in MAIN_THREAD_ONLY: {stragglers:?}"
+        );
+    }
+
+    #[test]
+    fn the_main_thread_list_has_no_leftovers() {
+        let names: Vec<String> = declared().into_iter().map(|(name, _)| name).collect();
+        let gone: Vec<&&str> = MAIN_THREAD_ONLY
+            .iter()
+            .filter(|allowed| !names.iter().any(|name| name == *allowed))
+            .collect();
+
+        assert!(gone.is_empty(), "no longer commands at all: {gone:?}");
+    }
 }
