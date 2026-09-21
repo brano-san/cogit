@@ -232,6 +232,19 @@ export function connectors(rows: readonly ConnectorRow[]): Connector[] {
   return out.sort((a, b) => a.fromTop - b.fromTop);
 }
 
+/**
+ * Whether a patch built from these hunks must carry `\ No newline at end of file`.
+ *
+ * `git apply` silently adds the newline back when the marker is missing, which rewrites
+ * a line the user did not touch.
+ */
+export function lacksFinalNewline(hunks: readonly Hunk[]): boolean {
+  const hunk = hunks[hunks.length - 1];
+  const row = hunk?.rows[hunk.rows.length - 1];
+  if (row?.kind !== "delete" && row?.kind !== "insert") return false;
+  return row.noNewline ?? false;
+}
+
 /** How many lines the diff is not showing between two hunks. */
 export function gapBetween(previous: Hunk | null, next: Hunk): number {
   const from = previous === null ? 1 : previous.oldStart + previous.oldLines;

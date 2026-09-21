@@ -1337,6 +1337,22 @@ pub async fn diff_files(
     Ok(batch)
 }
 
+/// Throws the selected lines away in the working tree. Destructive and journalled; the
+/// view is responsible for confirming it first.
+#[tauri::command]
+#[specta::specta]
+pub async fn discard_selection(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    request: PatchRequest,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    blocking("discard_selection", move || {
+        app_state.discard_selection(repo, &request)
+    })
+    .await
+}
+
 /// The history of one fragment: every commit that changed it, newest first, with the diff
 /// of each edit and the path the file had at the time.
 #[tauri::command]

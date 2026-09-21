@@ -46,43 +46,69 @@ describe("diff store", () => {
     diff.clear();
   });
 
-  it("keeps the diff of a file that was not touched", async () => {
+  it("leaves a file that was not touched alone", async () => {
     await diff.load(REPO, SPEC, "untouched.txt");
+    commands.diffFile.mockClear();
 
-    diff.dropIfAffected(["other.txt"]);
+    await diff.dropIfAffected(["other.txt"]);
 
     expect(diff.path).toBe("untouched.txt");
-    expect(diff.diff).not.toBeNull();
+    expect(commands.diffFile).not.toHaveBeenCalled();
   });
 
-  it("drops the diff of a file that was just discarded", async () => {
-    await diff.load(REPO, SPEC, "gone.txt");
+  it("re-diffs the shown file instead of blanking the panel", async () => {
+    await diff.load(REPO, SPEC, "staged.txt");
+    commands.diffFile.mockClear();
 
-    diff.dropIfAffected(["gone.txt"]);
+    await diff.dropIfAffected(["staged.txt"]);
+
+    expect(diff.path).toBe("staged.txt");
+    expect(commands.diffFile).toHaveBeenCalledOnce();
+  });
+
+  it("re-diffs it when the file is one of several touched at once", async () => {
+    await diff.load(REPO, SPEC, "b.txt");
+
+    await diff.dropIfAffected(["a.txt", "b.txt", "c.txt"]);
+
+    expect(diff.path).toBe("b.txt");
+  });
+
+  it("clears the panel once the file no longer differs", async () => {
+    await diff.load(REPO, SPEC, "gone.txt");
+    commands.diffFile.mockResolvedValue({ status: "ok", data: { kind: "unchanged" } });
+
+    await diff.dropIfAffected(["gone.txt"]);
 
     expect(diff.path).toBeNull();
     expect(diff.diff).toBeNull();
   });
 
-  it("drops it when the file is one of several touched at once", async () => {
-    await diff.load(REPO, SPEC, "b.txt");
+  it("clears the panel when the file can no longer be diffed at all", async () => {
+    await diff.load(REPO, SPEC, "deleted.txt");
+    commands.diffFile.mockResolvedValue({
+      status: "error",
+      error: { kind: "invalidState", data: "no such path" },
+    });
 
-    diff.dropIfAffected(["a.txt", "b.txt", "c.txt"]);
+    await diff.dropIfAffected(["deleted.txt"]);
 
     expect(diff.path).toBeNull();
   });
 
-  it("does nothing when no diff is shown", () => {
-    expect(() => diff.dropIfAffected(["a.txt"])).not.toThrow();
+  it("does nothing when no diff is shown", async () => {
+    await expect(diff.dropIfAffected(["a.txt"])).resolves.toBeUndefined();
     expect(diff.path).toBeNull();
   });
 
   it("does nothing for an empty path list", async () => {
     await diff.load(REPO, SPEC, "kept.txt");
+    commands.diffFile.mockClear();
 
-    diff.dropIfAffected([]);
+    await diff.dropIfAffected([]);
 
     expect(diff.path).toBe("kept.txt");
+    expect(commands.diffFile).not.toHaveBeenCalled();
   });
 });
 

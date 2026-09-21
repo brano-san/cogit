@@ -1723,6 +1723,32 @@ impl AppState {
         }
     }
 
+    /// Throws the selected lines away in the working tree.
+    ///
+    /// Journalled with `Recovery::None`: a line-level snapshot has nowhere to live, and an
+    /// undo that half works is worse than one that says no (R-106). That is why the view
+    /// confirms every discard.
+    pub fn discard_selection(
+        &self,
+        repo: RepoId,
+        request: &diff_engine::PatchRequest,
+    ) -> Result<(), git_engine::GitError> {
+        let Some(patch) = diff_engine::build_patch(request) else {
+            return Err(git_engine::GitError::InvalidState(
+                "nothing selected".to_owned(),
+            ));
+        };
+        self.quiet(repo);
+        self.handle(repo)?
+            .apply_patch_to(&patch, true, git_engine::PatchTarget::WorkTree)?;
+        self.record(
+            repo,
+            format!("Discard lines in {}", request.path),
+            Recovery::None,
+        );
+        Ok(())
+    }
+
     /// Every commit that changed a fragment of a file, newest first.
     pub fn investigate(
         &self,

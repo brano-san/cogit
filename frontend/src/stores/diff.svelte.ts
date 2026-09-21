@@ -9,7 +9,9 @@ import {
   type RepoId,
 } from "$lib/ipc";
 import { load } from "@tauri-apps/plugin-store";
-import { expandedContext } from "$lib/diff-rows";
+import { discardSelection } from "$lib/ipc";
+import { expandedContext, lacksFinalNewline } from "$lib/diff-rows";
+import { splitSelection } from "$lib/selection";
 import { settings } from "./settings.svelte";
 
 const DEFAULT_CONTEXT = 3;
@@ -87,8 +89,44 @@ class DiffStore {
     await this.load(repo, this.spec, this.path);
   }
 
-  dropIfAffected(paths: readonly string[]): void {
-    if (this.path !== null && paths.includes(this.path)) this.clear();
+  /** Recomputes this file and nothing else: the panel keeps its scroll and selection. */
+  async reload(): Promise<void> {
+    if (this.#repo === null || !this.spec || !this.path) return;
+    await this.load(this.#repo, this.spec, this.path);
+  }
+
+  /** Throws the selected lines away in the working tree. The caller confirms first. */
+  async discardLines(selected: ReadonlySet<string>): Promise<void> {
+    if (this.#repo === null || this.path === null || this.diff?.kind !== "text") return;
+    const { deletes, inserts } = splitSelection(selected);
+    if (deletes.length === 0 && inserts.length === 0) return;
+
+    await discardSelection(this.#repo, {
+      path: this.path,
+      hunks: this.diff.hunks,
+      selectedDeletes: deletes,
+      selectedInserts: inserts,
+      lineEnding: this.diff.eol.old,
+      noTrailingNewline: lacksFinalNewline(this.diff.hunks),
+    });
+    await this.reload();
+  }
+
+  /**
+   * A mutation touched these paths.
+   *
+   * The shown file is re-diffed rather than blanked: staging one hunk must not cost the
+   * user their place in the file (T6.7). It still clears when there is nothing left to
+   * show — the change was staged whole, or the file is gone.
+   *
+   * Returns the promise so tests can wait for it; callers fire and forget.
+   */
+  async dropIfAffected(paths: readonly string[]): Promise<void> {
+    if (this.path === null || !paths.includes(this.path)) return;
+    await this.reload();
+    if (this.error !== null || this.diff === null || this.diff.kind === "unchanged") {
+      this.clear();
+    }
   }
 
   /** Reads the remembered view once per session; every view may ask. */

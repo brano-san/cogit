@@ -172,6 +172,11 @@ export const commands = {
 	 *  of each edit and the path the file had at the time.
 	 */
 	investigate: (repo: RepoId, path: string, from: number, to: number, limit: number) => typedError<InvestigationStep[], GitError>(__TAURI_INVOKE("investigate", { repo, path, from, to, limit })),
+	/**
+	 *  Throws the selected lines away in the working tree. Destructive and journalled; the
+	 *  view is responsible for confirming it first.
+	 */
+	discardSelection: (repo: RepoId, request: PatchRequest) => typedError<null, GitError>(__TAURI_INVOKE("discard_selection", { repo, request })),
 };
 
 /** Events */
