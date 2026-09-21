@@ -1,6 +1,5 @@
 <script lang="ts">
-  import EmptyState from "$components/common/EmptyState.svelte";
-  import { applyClick, EMPTY_SELECTION, type FileSelection } from "$lib/multi-select";
+    import { applyClick, EMPTY_SELECTION, type FileSelection } from "$lib/multi-select";
   import { UNGROUPED, groupRows } from "$lib/repo-groups";
   import type { RepoOverview } from "$lib/ipc";
   import { repoGroups } from "$stores/repo-groups.svelte";
@@ -62,14 +61,46 @@
 </script>
 
 <div class="wrapper">
-  <div class="actions">
-    <button type="button" class="open" onclick={onopen} disabled={repository.busy}>
-      {opening ? "Opening…" : "Open Repository…"}
+  <div class="actions" role="toolbar" aria-label="Repository list actions">
+    <button
+      type="button"
+      class="tool"
+      onclick={onopen}
+      disabled={repository.busy}
+      title={opening ? "Opening…" : "Open Repository…"}
+      aria-label="Open Repository"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true"
+        ><path
+          d="M4 5.5A1.5 1.5 0 0 1 5.5 4h3.2a1.5 1.5 0 0 1 1.2.6l1 1.4h7.6A1.5 1.5 0 0 1 20 7.5v11A1.5 1.5 0 0 1 18.5 20h-13A1.5 1.5 0 0 1 4 18.5Z"
+        /></svg
+      >
     </button>
-    <button type="button" class="open scan" onclick={onscan} disabled={repository.busy}>
-      Scan Folder…
+    <button
+      type="button"
+      class="tool"
+      onclick={onscan}
+      disabled={repository.busy}
+      title="Scan Folder for Repositories…"
+      aria-label="Scan folder for repositories"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true"
+        ><circle cx="11" cy="11" r="6" /><path d="m20 20-4.3-4.3" /></svg
+      >
     </button>
-    <button type="button" class="open scan" onclick={onaddgroup} title="Add a group">＋</button>
+    <button
+      type="button"
+      class="tool"
+      onclick={onaddgroup}
+      title="New Group"
+      aria-label="New group"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true"
+        ><path
+          d="M4 6.5A1.5 1.5 0 0 1 5.5 5h3.2a1.5 1.5 0 0 1 1.2.6l.9 1.4h7.7A1.5 1.5 0 0 1 20 8.5v9A1.5 1.5 0 0 1 18.5 19h-13A1.5 1.5 0 0 1 4 17.5Z"
+        /><path d="M12 10.5v5M9.5 13h5" /></svg
+      >
+    </button>
   </div>
 
   {#if repository.openRepos.length > 1}
@@ -86,12 +117,7 @@
     {#if repository.error}
       <p class="error">{repository.error.message}</p>
     {:else}
-      <EmptyState
-        title="No repository open"
-        hint="Open a folder that holds a Git repository, or scan a directory for several at once."
-        action="Open Repository…"
-        onaction={onopen}
-      />
+      <p class="none">No repository open.</p>
     {/if}
   {:else}
     {#each rows as row (row.kind === "group" ? `g:${row.id}` : row.root)}
@@ -205,29 +231,52 @@
 
   .actions {
     display: flex;
-    gap: var(--sp-3);
-    margin: 0 var(--sp-5) var(--sp-4);
+    gap: var(--sp-1);
+    margin: 0 var(--sp-3) var(--sp-2);
   }
 
-  .open {
-    flex: 1 1 auto;
-    min-width: 0;
-    height: var(--h-input);
-    background: var(--surface-input);
-    color: var(--text-primary);
-    border: 1px solid var(--field-border);
+  .tool {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 24px;
+    padding: 0;
+    background: none;
+    border: 0;
     border-radius: var(--r-sm);
-    font-size: var(--fs-dense);
+    color: var(--text-secondary);
     cursor: default;
   }
 
-  .open:not(:disabled):hover {
-    border-color: var(--status-ref);
+  .tool svg {
+    width: 15px;
+    height: 15px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
-  .scan {
-    flex: 0 0 auto;
+  .tool:not(:disabled):hover {
+    background: var(--state-hover);
+    color: var(--text-primary);
   }
+
+  .tool:disabled {
+    opacity: 0.4;
+  }
+
+  /* One line, the same shape every other empty panel uses. */
+  .none {
+    margin: 0;
+    padding: var(--sp-6, 16px) var(--sp-5);
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: var(--fs-dense);
+  }
+
 
   .row {
     display: flex;
@@ -260,7 +309,6 @@
     font-size: var(--fs-header);
     font-weight: 600;
     letter-spacing: 0.04em;
-    text-transform: uppercase;
     white-space: nowrap;
   }
 
@@ -286,7 +334,6 @@
     flex: 0 0 auto;
     color: var(--status-delete);
     font-size: 10px;
-    text-transform: uppercase;
     letter-spacing: 0.04em;
   }
 

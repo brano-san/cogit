@@ -66,7 +66,7 @@
     </dl>
     <p class="muted">Select a commit to see what it changed.</p>
   {:else}
-    <p class="muted">Open a repository to begin.</p>
+    <p class="muted">No repository open.</p>
   {/if}
 </div>
 
@@ -119,6 +119,14 @@
   .muted {
     margin: var(--sp-5) 0 0;
     color: var(--text-secondary);
+  }
+
+  /* The one that stands alone gets the placeholder shape the panels share. */
+  .detail > .muted:only-child {
+    margin: 0;
+    padding: var(--sp-7) var(--sp-5);
+    text-align: center;
+    font-size: var(--fs-dense);
   }
 
   .commit-actions {

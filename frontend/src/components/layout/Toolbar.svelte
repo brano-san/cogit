@@ -5,27 +5,41 @@
   interface Action {
     id: string;
     label: string;
+    /** Lucide path data, drawn by the one <svg> below at a single size and weight. */
     icon: string;
     shortcut?: string;
-    hasMenu?: boolean;
   }
+
+  const ICONS = {
+    pull: "M12 3v12m0 0 4-4m-4 4-4-4M5 21h14",
+    push: "M12 21V9m0 0 4 4m-4-4-4 4M5 3h14",
+    sync: "M21 12a9 9 0 0 1-9 9 9 9 0 0 1-8.5-6M3 12a9 9 0 0 1 9-9 9 9 0 0 1 8.5 6M21 4v5h-5M3 20v-5h5",
+    stage: "M12 5v14m-7-7h14",
+    unstage: "M5 12h14",
+    discard: "M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5",
+    stash: "M3 8h18M3 8l2-4h14l2 4M3 8v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8m-11 5h4",
+    merge: "M7 18V9a4 4 0 0 1 4-4h5M7 6.5a2.5 2.5 0 1 0 0-.1M18.5 7.5a2.5 2.5 0 1 0 0-.1M7 20.5a2.5 2.5 0 1 0 0-.1",
+    rebase: "M7 6.5a2.5 2.5 0 1 0 0-.1M7 20.5a2.5 2.5 0 1 0 0-.1M7 9v6M17 6.5a2.5 2.5 0 1 0 0-.1M17 9v4a4 4 0 0 1-4 4H9",
+    tag: "M3 11V5a2 2 0 0 1 2-2h6l10 10-8 8L3 11Zm4-4.5a.5.5 0 1 0 0-.1",
+    undo: "M3 12a9 9 0 1 1 3 6.7L3 16m0 5v-5h5",
+  } as const;
 
   const GROUPS: Action[][] = [
     [
-      { id: "pull", label: "Pull", icon: "⭳", shortcut: "Ctrl+Shift+U", hasMenu: true },
-      { id: "push", label: "Push", icon: "⭱", shortcut: "Ctrl+Shift+O", hasMenu: true },
-      { id: "sync", label: "Sync", icon: "⟲", shortcut: "Ctrl+Shift+S" },
+      { id: "pull", label: "Pull", icon: ICONS.pull, shortcut: "Ctrl+Shift+U" },
+      { id: "push", label: "Push", icon: ICONS.push, shortcut: "Ctrl+Shift+O" },
+      { id: "sync", label: "Sync", icon: ICONS.sync, shortcut: "Ctrl+Shift+S" },
     ],
     [
-      { id: "stage", label: "Stage", icon: "✓", shortcut: "Ctrl+T" },
-      { id: "unstage", label: "Unstage", icon: "✗", shortcut: "Ctrl+Shift+T" },
-      { id: "discard", label: "Discard", icon: "↺", shortcut: "Ctrl+Z" },
+      { id: "stage", label: "Stage", icon: ICONS.stage, shortcut: "Ctrl+T" },
+      { id: "unstage", label: "Unstage", icon: ICONS.unstage, shortcut: "Ctrl+Shift+T" },
+      { id: "discard", label: "Discard", icon: ICONS.discard, shortcut: "Ctrl+Z" },
     ],
     [
-      { id: "stash", label: "Stash", icon: "⚑", shortcut: "Ctrl+S", hasMenu: true },
-      { id: "merge", label: "Merge", icon: "⑂", shortcut: "Ctrl+M" },
-      { id: "rebase", label: "Rebase", icon: "⎇", shortcut: "Ctrl+R" },
-      { id: "tag", label: "Tag", icon: "◆", shortcut: "Shift+F7" },
+      { id: "stash", label: "Stash", icon: ICONS.stash, shortcut: "Ctrl+S" },
+      { id: "merge", label: "Merge", icon: ICONS.merge, shortcut: "Ctrl+M" },
+      { id: "rebase", label: "Rebase", icon: ICONS.rebase, shortcut: "Ctrl+R" },
+      { id: "tag", label: "Tag", icon: ICONS.tag, shortcut: "Shift+F7" },
     ],
   ];
 
@@ -56,9 +70,10 @@
             aria-label="{action.label}{action.shortcut ? ` (${action.shortcut})` : ''}"
             onclick={() => handlers[action.id]?.()}
           >
-            <span class="icon" aria-hidden="true">{action.icon}</span>
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"
+              ><path d={action.icon} /></svg
+            >
             <span>{action.label}</span>
-            {#if action.hasMenu}<span class="caret" aria-hidden="true">▾</span>{/if}
           </button>
         </Tooltip>
       {/each}
@@ -74,7 +89,7 @@
       title={undoable ? `Undo: ${undoable}` : "Nothing to undo"}
       onclick={() => onundo?.()}
     >
-      <span class="icon" aria-hidden="true">↶</span>
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.undo} /></svg>
       <span>Undo</span>
     </button>
   </div>
@@ -137,13 +152,14 @@
   }
 
   .icon {
-    font-size: 13px;
-    line-height: 1;
-  }
-
-  .caret {
-    font-size: 8px;
-    color: var(--text-secondary);
+    flex: 0 0 auto;
+    width: 15px;
+    height: 15px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   .spacer {

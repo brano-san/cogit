@@ -79,9 +79,9 @@
 ></div>
 
 <style>
-  /* A visible rail, not a gap: the track is darker than either panel and carries a grip
-     in the middle. `::before` widens the grab zone past the rail without moving anything,
-     so the divider stays thin and is still easy to catch. */
+  /* A thin line that lights up under the pointer. `::before` widens the grab zone past
+     the line without moving anything, so the divider stays hairline and is still easy
+     to catch: 1px of rail inside 9px of target. */
   .splitter {
     position: relative;
     z-index: 2;
@@ -96,21 +96,9 @@
     z-index: 1;
   }
 
-  .splitter::after {
-    content: "";
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    translate: -50% -50%;
-    background-image: radial-gradient(var(--splitter-grip) 40%, transparent 45%);
-    background-size: 2px 4px;
-    pointer-events: none;
-  }
-
   .splitter.vertical {
     width: var(--w-splitter);
     cursor: col-resize;
-    border-inline: 1px solid var(--divider);
   }
 
   .splitter.vertical::before {
@@ -118,26 +106,14 @@
     inset-inline: -3px;
   }
 
-  .splitter.vertical::after {
-    width: 2px;
-    height: 24px;
-  }
-
   .splitter.horizontal {
     height: var(--w-splitter);
     cursor: row-resize;
-    border-block: 1px solid var(--divider);
   }
 
   .splitter.horizontal::before {
     inset-inline: 0;
     inset-block: -3px;
-  }
-
-  .splitter.horizontal::after {
-    width: 24px;
-    height: 2px;
-    background-size: 4px 2px;
   }
 
   .splitter:hover,
@@ -146,9 +122,4 @@
     background: var(--splitter-active);
   }
 
-  .splitter:hover::after,
-  .splitter.dragging::after,
-  .splitter:focus-visible::after {
-    background-image: radial-gradient(var(--c-bg-window) 40%, transparent 45%);
-  }
 </style>

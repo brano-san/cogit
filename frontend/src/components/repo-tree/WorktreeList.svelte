@@ -75,7 +75,6 @@
     font-size: var(--fs-header);
     font-weight: 600;
     letter-spacing: 0.04em;
-    text-transform: uppercase;
   }
 
   .grow {
@@ -151,7 +150,6 @@
     color: var(--text-secondary);
     font: inherit;
     font-size: 10px;
-    text-transform: uppercase;
     letter-spacing: 0.04em;
     cursor: default;
   }

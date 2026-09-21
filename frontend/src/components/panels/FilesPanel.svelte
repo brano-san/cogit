@@ -11,6 +11,8 @@
   /** Two lists in one place: the working tree while nothing is selected, and the files a
       selected commit changed. They share the panel but almost nothing else. */
   interface Props {
+    /** False while no repository is open: the list has nothing behind it at all. */
+    ready: boolean;
     onWorkingTree: boolean;
     onviewchange: (next: FileView) => void;
     onopenworktree: (path: string) => void;
@@ -30,6 +32,7 @@
   }
 
   let {
+    ready,
     onWorkingTree,
     onviewchange,
     onopenworktree,
@@ -48,10 +51,21 @@
   }: Props = $props();
 
   const fractions = $derived(layout.fractions);
+
+  /** Three different nothings, and the panel used to say the same thing for all of them. */
+  const nothing = $derived(
+    !ready
+      ? "No repository open."
+      : commit.oid === null
+        ? "Select a commit to see the files it changed."
+        : "This commit changed no files.",
+  );
 </script>
 
 <div class="files">
-  {#if stashView.contents}
+  {#if !ready}
+    <FileList sections={[{ files: [] }]} empty={nothing} disabled />
+  {:else if stashView.contents}
     {@const parts = stashView.contents}
     <FileList
       sections={[
@@ -107,7 +121,7 @@
   {:else}
     <FileList
       sections={[{ files: commit.files }]}
-      empty="Select a commit to see the files it changed."
+      empty={nothing}
       selected={diff.path}
       onselect={onopencommit}
       onopen={onopenwindow}

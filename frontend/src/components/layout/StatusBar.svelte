@@ -12,8 +12,8 @@
     summary?: string;
     encoding?: string;
     lineEnding?: string;
-    /** Application version, proving the IPC round-trip works. */
-    version?: string;
+    /** A file is showing in the diff panel, so the encoding pair describes something. */
+    fileOpen?: boolean;
     activity: Activity;
     /** Commands that failed or printed something on stderr; opens the Output panel. */
     problems?: number;
@@ -29,7 +29,7 @@
     summary,
     encoding = "UTF-8",
     lineEnding = "LF",
-    version,
+    fileOpen = false,
     activity,
     problems = 0,
     onproblems,
@@ -54,7 +54,7 @@
       >
       {repository}
     </span>
-    <span class="divider" aria-hidden="true"></span>
+    {#if branch || summary}<span class="divider" aria-hidden="true"></span>{/if}
   {/if}
 
   {#if branch}
@@ -75,10 +75,8 @@
 
   <span class="spacer"></span>
 
-  <span class="item muted">{encoding} • {lineEnding}</span>
-  <span class="divider" aria-hidden="true"></span>
-  {#if version}
-    <span class="item muted tabular" title="Cogit version, read over IPC">v{version}</span>
+  {#if fileOpen}
+    <span class="item muted">{encoding} • {lineEnding}</span>
     <span class="divider" aria-hidden="true"></span>
   {/if}
   <span class="item activity {activity.tone}" role="status">
