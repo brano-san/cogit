@@ -1993,6 +1993,15 @@ Log: ${info?.logPath ?? ""}`),
     }),
   );
 
+  // A warning is worth a glance, not a dismissal: every commit on Windows produces one
+  // about line endings, and a toast that waits to be clicked becomes a second thing to
+  // clean up after each commit.
+  $effect(() => {
+    if (!output.warning) return;
+    const timer = setTimeout(() => output.dismissWarning(), 8_000);
+    return () => clearTimeout(timer);
+  });
+
   /** Only the operations that mean the same thing when run again. Deleting a branch
       that is already gone is not a retry, it is a second, different failure. */
   function retryOf(operation: string): (() => void) | undefined {
@@ -2591,7 +2600,7 @@ Log: ${info?.logPath ?? ""}`),
     background: var(--surface-base);
   }
 
-  /* A warning interrupts nothing: it sits in the corner and goes away on its own. */
+  /* A warning interrupts nothing: it sits in the corner and leaves by itself. */
   .toast {
     position: absolute;
     right: var(--sp-5);

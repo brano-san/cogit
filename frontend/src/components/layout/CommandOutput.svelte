@@ -1,6 +1,5 @@
 <script lang="ts">
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-  import { openPath } from "@tauri-apps/plugin-opener";
   import VirtualList from "$components/common/VirtualList.svelte";
   import { findMatches, logLines } from "$lib/output-highlight";
   import { readKey, writeKey } from "$lib/settings-file";
@@ -150,6 +149,13 @@
     }
   }
 
+  /** Imported here rather than at the top: the opener is one call on one button, and a
+      static import pulls the whole plugin into the first chunk the window is in. */
+  async function openLog() {
+    const { openPath } = await import("@tauri-apps/plugin-opener");
+    await openPath(logPath);
+  }
+
   function step(by: number) {
     if (hits.length === 0) return;
     at = (at + by + hits.length) % hits.length;
@@ -278,7 +284,7 @@
       >
         Wrap lines
       </button>
-      <button type="button" onclick={() => void openPath(logPath)} title={logPath}>Open log</button>
+      <button type="button" onclick={() => void openLog()} title={logPath}>Open log</button>
       <span class="grow"></span>
       {#if onretry}
         <button type="button" onclick={onretry}>Retry</button>
