@@ -259,3 +259,62 @@ fn a_token_in_a_remote_url_never_leaves_the_runner() {
     );
     assert!(!details.summary.is_empty(), "a failure must say something");
 }
+
+/// The scenario the window exists for: `pre-push` runs the test suite, one test panics,
+/// and every line of that panic has to survive the trip to the reader.
+#[test]
+fn a_failing_pre_push_hook_delivers_its_whole_log() {
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&["reset", "--hard", "origin/main"]).unwrap();
+    f.commit_file(41, "work.txt", "done\n").unwrap();
+
+    let hooks = f.path().join(".git/hooks");
+    std::fs::create_dir_all(&hooks).unwrap();
+    let hook = hooks.join("pre-push");
+    std::fs::write(
+        &hook,
+        "#!/bin/sh\n\
+         echo 'running 2 tests' >&2\n\
+         echo 'test budget::a_commit_is_under_a_second ... FAILED' >&2\n\
+         echo '' >&2\n\
+         echo \"thread 'budget' panicked at crates/app_state/tests/mutation_speed.rs:31:5:\" >&2\n\
+         echo '  assertion failed: elapsed < BUDGET' >&2\n\
+         echo 'note: run with `RUST_BACKTRACE=1` to display a backtrace' >&2\n\
+         exit 1\n",
+    )
+    .unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        let mut mode = std::fs::metadata(&hook).unwrap().permissions();
+        mode.set_mode(0o755);
+        std::fs::set_permissions(&hook, mode).unwrap();
+    }
+
+    let repo = open(&f);
+    let (_, on_line) = collector();
+
+    let err = repo.push("origin", None, false, None, on_line).unwrap_err();
+
+    let git_engine::GitError::Command(details) = err else {
+        panic!("a rejected push must be a command failure");
+    };
+    for line in [
+        "test budget::a_commit_is_under_a_second ... FAILED",
+        "thread 'budget' panicked at crates/app_state/tests/mutation_speed.rs:31:5:",
+        "  assertion failed: elapsed < BUDGET",
+        "note: run with `RUST_BACKTRACE=1` to display a backtrace",
+    ] {
+        assert!(
+            details.stderr.contains(line),
+            "the hook said {line:?} and the reader never saw it:\n{}",
+            details.stderr
+        );
+    }
+    assert!(
+        details.stderr.contains("FAILED\n\nthread"),
+        "the blank line between them carries the shape of the log:\n{}",
+        details.stderr
+    );
+    assert_eq!(details.operation, "Push");
+}
