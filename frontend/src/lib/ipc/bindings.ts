@@ -137,6 +137,13 @@ export const commands = {
 	/**  Everything `Help ▸ Copy Diagnostics` puts on the clipboard, as text. */
 	diagnostics: () => __TAURI_INVOKE<string>("diagnostics"),
 	/**
+	 *  Answered by the page to show it is still running while a close is pending.
+	 * 
+	 *  Injected by `shutdown::watch`, not called from `frontend/`: the whole point is that
+	 *  it works without the page knowing about it (problem 13).
+	 */
+	closingPing: () => __TAURI_INVOKE<void>("closing_ping"),
+	/**
 	 *  The settings document as JSON text. Rust owns the file because the menu and the
 	 *  logger read it before there is a window to ask.
 	 */
