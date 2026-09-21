@@ -22,6 +22,22 @@ export function hunkSelection(hunk: Hunk): Set<string> {
   return keys;
 }
 
+/**
+ * The line range a selection covers, for Investigate.
+ *
+ * `git log -L` counts lines in the file as it stands, so the new side wins whenever the
+ * selection has one. A selection of deletions alone falls back to the old side, which is
+ * the only numbering those lines ever had.
+ */
+export function selectedRange(
+  selected: ReadonlySet<string>,
+): { from: number; to: number } | null {
+  const { deletes, inserts } = splitSelection(selected);
+  const lines = inserts.length > 0 ? inserts : deletes;
+  if (lines.length === 0) return null;
+  return { from: Math.min(...lines), to: Math.max(...lines) };
+}
+
 export function splitSelection(selected: ReadonlySet<string>): {
   deletes: number[];
   inserts: number[];

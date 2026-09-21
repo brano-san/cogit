@@ -645,6 +645,9 @@ export async function diffFiles(
   return unwrap(await commands.diffFiles(repo, spec, paths, options, request));
 }
 
+/** The types the branch added. The list above the divider belongs to `master`. */
+export type { DiffBatch, FileDiffEntry, InvestigationStep, MoveScope } from "./bindings";
+
 /** Throws the selected lines away in the working tree. Destructive: confirm it first. */
 export async function discardSelection(repo: RepoId, request: PatchRequest) {
   return unwrap(await commands.discardSelection(repo, request));
