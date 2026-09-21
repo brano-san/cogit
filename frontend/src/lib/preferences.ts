@@ -81,6 +81,17 @@ export const CATEGORIES: Category[] = [
         fields: [{ key: "laneWidth", label: "Lane width", keywords: ["column", "spacing"] }],
       },
       {
+        title: "Authors",
+        fields: [
+          {
+            key: "avatars",
+            label: "Author avatars",
+            hint: "Gravatar is asked for an MD5 of the address, never the address itself.",
+            keywords: ["gravatar", "picture", "face", "network"],
+          },
+        ],
+      },
+      {
         title: "History",
         fields: [
           {

@@ -166,3 +166,20 @@ fn fifty_thousand_commits_meet_the_product_promise() {
         Duration::from_millis(500),
     );
 }
+
+#[test]
+fn status_on_a_large_repository_stays_inside_its_budget() {
+    let f = test_fixtures::stress(COMMITS).unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    // Warm: the first call pays for the index and the object cache, and the panel that
+    // depends on this is never the first thing drawn.
+    let _ = state.repo_status(repo).unwrap();
+
+    let started = Instant::now();
+    let status = state.repo_status(repo).unwrap();
+    report("repo_status", started.elapsed(), Duration::from_millis(500));
+
+    assert_eq!(status.staged + status.unstaged + status.untracked, 0);
+}

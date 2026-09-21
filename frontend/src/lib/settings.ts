@@ -14,6 +14,9 @@ export interface Settings {
   gitPath: string;
   terminal: string;
   logLevel: "error" | "warn" | "info" | "debug" | "trace";
+  /** `ask` until the user decides: nothing is fetched and no cache exists while it
+      stands, and the settings row says so rather than switching on quietly. */
+  avatars: "ask" | "gravatar" | "off";
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -29,6 +32,7 @@ export const DEFAULT_SETTINGS: Settings = {
   gitPath: "git",
   terminal: "system",
   logLevel: "info",
+  avatars: "ask",
 };
 
 /** Read once at startup, so changing them needs a restart to take effect. */
@@ -41,6 +45,7 @@ const ENUMS: Partial<Record<keyof Settings, readonly string[]>> = {
   ignoreWhitespace: ["none", "trailing", "all"],
   pullMode: ["ffOnly", "merge"],
   logLevel: ["error", "warn", "info", "debug", "trace"],
+  avatars: ["ask", "gravatar", "off"],
 };
 
 const RANGES: Partial<Record<keyof Settings, [number, number]>> = {

@@ -65,7 +65,7 @@
     color: var(--text-primary);
     border: 1px solid var(--field-border);
     border-radius: var(--r-sm);
-    box-shadow: 0 2px 8px rgb(0 0 0 / 35%);
+    box-shadow: var(--shadow-popover);
     font-size: var(--fs-header);
     white-space: nowrap;
     pointer-events: none;

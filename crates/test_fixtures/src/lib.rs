@@ -742,6 +742,52 @@ pub fn two_roots() -> Result<Fixture> {
     Ok(f)
 }
 
+/// A submodule that itself has one. The second level is what a naive `.gitmodules` reader
+/// misses, since only the top file is in the parent's tree (M3).
+pub fn with_nested_submodule() -> Result<Fixture> {
+    let inner = linear(2)?;
+    let inner_url = inner.url_path();
+
+    let middle = Fixture::init()?;
+    middle.commit_file(0, "middle.md", "the middle repository\n")?;
+    middle.git(&[
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "add",
+        "--",
+        &inner_url,
+        "deep/inner",
+    ])?;
+    middle.commit_staged(1, "add deep/inner submodule")?;
+    let middle_url = middle.url_path();
+
+    let mut f = Fixture::init()?;
+    f.commit_file(2, "README.md", "parent repository\n")?;
+    f.git(&[
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "add",
+        "--",
+        &middle_url,
+        "vendor/middle",
+    ])?;
+    f.commit_staged(3, "add vendor/middle submodule")?;
+    f.git(&[
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "update",
+        "--init",
+        "--recursive",
+    ])?;
+
+    f._aux.push(middle.into_temp_dir());
+    f._aux.push(inner.into_temp_dir());
+    Ok(f)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

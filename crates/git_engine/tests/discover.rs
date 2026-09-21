@@ -221,3 +221,19 @@ fn an_unignored_rule_wins_over_the_ignore_above_it() {
 
     assert_eq!(collect(dir.path(), &ScanOptions::default()), ["work/keep"]);
 }
+
+#[test]
+fn a_folder_that_is_not_there_is_scanned_without_a_panic() {
+    let dir = tempfile::tempdir().unwrap();
+    assert!(collect(&dir.path().join("nowhere"), &ScanOptions::default()).is_empty());
+}
+
+#[test]
+fn a_folder_the_walk_cannot_read_costs_only_that_folder() {
+    let dir = tempfile::tempdir().unwrap();
+    repo_at(dir.path(), "reachable");
+    // A file where a directory is expected: the walk must step over it, not stop.
+    fs::write(dir.path().join("not-a-directory"), "").unwrap();
+
+    assert_eq!(collect(dir.path(), &ScanOptions::default()), ["reachable"]);
+}

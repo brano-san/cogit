@@ -70,7 +70,7 @@
 
   button {
     flex: 0 0 auto;
-    height: 20px;
+    height: var(--h-button-sm);
     padding: 0 var(--sp-4);
     background: var(--surface-input);
     color: var(--text-primary);

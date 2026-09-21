@@ -419,7 +419,11 @@
         id: "avatars",
         title: "Toggle Author Avatars",
         synonyms: ["gravatar", "pictures", "faces"],
-        run: () => void avatars.toggle(),
+        run: () =>
+          void settings.apply({
+            ...settings.current,
+            avatars: settings.current.avatars === "gravatar" ? "off" : "gravatar",
+          }),
       },
       {
         id: "hooks",
@@ -1788,6 +1792,11 @@ Log: ${info?.logPath ?? ""}`),
         return false;
     }
   }
+
+  /** `ask` means the user has not decided: nothing is fetched and no cache is made. */
+  $effect(() => {
+    void avatars.apply(settings.current.avatars === "gravatar");
+  });
 
   /** Kept up to date with the selection so the menu is right before it is opened. */
   $effect(() => {

@@ -119,3 +119,39 @@ fn the_profile_target_survives_a_quiet_log_level() {
         );
     }
 }
+
+#[test]
+fn the_log_rotates_rather_than_growing_without_end() {
+    use std::io::Write as _;
+
+    let dir = tempfile::tempdir().unwrap();
+    let mut writer = app_state::logging::rotating_writer(dir.path());
+
+    // A megabyte at a time past the limit, so the rotation has to happen more than once.
+    let block = vec![b'x'; 1024 * 1024];
+    for _ in 0..(app_state::logging::LOG_SIZE_LIMIT / block.len() + 3) {
+        writer.write_all(&block).unwrap();
+    }
+    writer.flush().unwrap();
+    drop(writer);
+
+    let files: Vec<_> = std::fs::read_dir(dir.path())
+        .unwrap()
+        .filter_map(Result::ok)
+        .collect();
+    for file in &files {
+        let size = file.metadata().unwrap().len() as usize;
+        assert!(
+            size <= app_state::logging::LOG_SIZE_LIMIT,
+            "{:?} is {size} bytes",
+            file.path()
+        );
+    }
+
+    // The live file plus at most the archives it is allowed to keep.
+    assert!(
+        files.len() <= app_state::logging::LOG_ARCHIVES + 1,
+        "{} files left behind",
+        files.len()
+    );
+}

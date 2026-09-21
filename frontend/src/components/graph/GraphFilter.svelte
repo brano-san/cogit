@@ -60,7 +60,7 @@
 
   input {
     width: 260px;
-    height: 20px;
+    height: var(--h-button-sm);
     padding: 0 var(--sp-3);
     background: var(--surface-input);
     color: var(--text-primary);

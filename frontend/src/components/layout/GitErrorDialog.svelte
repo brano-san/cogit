@@ -84,7 +84,7 @@
     background: var(--surface-panel);
     border: 1px solid var(--status-delete);
     border-radius: var(--r-md);
-    box-shadow: 0 8px 28px rgb(0 0 0 / 45%);
+    box-shadow: var(--shadow-dialog);
     font-size: var(--fs-dense);
   }
 
@@ -110,7 +110,7 @@
   }
 
   button {
-    height: 20px;
+    height: var(--h-button-sm);
     padding: 0 var(--sp-3);
     background: var(--surface-input);
     color: var(--text-primary);

@@ -144,7 +144,7 @@
     position: absolute;
     inset: 0;
     z-index: 20;
-    background: rgb(0 0 0 / 35%);
+    background: var(--scrim);
   }
 
   .dialog {
@@ -310,7 +310,7 @@
 
   button.nudge {
     flex: 0 0 auto;
-    height: 20px;
+    height: var(--h-button-sm);
     padding: 0 var(--sp-3);
     font-size: var(--fs-header);
   }

@@ -717,7 +717,7 @@
   }
 
   .bar button {
-    height: 20px;
+    height: var(--h-button-sm);
     padding: 0 var(--sp-3);
     background: var(--surface-input);
     color: var(--text-primary);
@@ -774,7 +774,7 @@
   /* What the next Stage or Unstage will act on, marked on the row and not just in the
      14-pixel gutter, so the user can see the extent of it at a glance (T6.7). */
   .line.staging {
-    background: rgb(90 160 110 / 14%);
+    background: var(--c-add-soft);
     box-shadow: inset 2px 0 0 var(--status-add);
   }
 
@@ -826,7 +826,7 @@
   }
 
   .confirm button {
-    height: 20px;
+    height: var(--h-button-sm);
     padding: 0 var(--sp-3);
     background: var(--surface-input);
     color: var(--text-primary);
@@ -897,7 +897,7 @@
 
   .word {
     border-radius: 2px;
-    background: rgb(255 255 255 / 14%);
+    background: var(--c-neutral-soft);
     font-weight: 600;
   }
 
@@ -924,7 +924,7 @@
   }
 
   .find button {
-    height: 20px;
+    height: var(--h-button-sm);
     padding: 0 var(--sp-3);
     background: var(--surface-input);
     color: var(--text-primary);
@@ -949,12 +949,12 @@
   /* Every match is marked; the one the counter points at is the bright one. */
   .hit {
     border-radius: 2px;
-    background: rgb(220 180 60 / 30%);
+    background: var(--c-search-hit);
   }
 
   .hit.current {
-    background: rgb(240 200 70 / 75%);
-    color: #1a1a1a;
+    background: var(--c-search-current);
+    color: var(--c-search-ink);
   }
 
   /* A moved block is one fact, not a deletion plus an addition (T7.9). */

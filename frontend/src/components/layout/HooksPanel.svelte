@@ -236,7 +236,7 @@
     position: absolute;
     inset: 0;
     z-index: 20;
-    background: rgb(0 0 0 / 35%);
+    background: var(--scrim);
   }
 
   .dialog {

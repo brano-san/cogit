@@ -243,8 +243,10 @@
     background: var(--state-hover);
   }
 
+  /* A bar as well as a tint: two greys apart is not something everyone can see. */
   .row.selected {
     background: var(--state-selected);
+    box-shadow: inset 2px 0 0 var(--status-ref);
   }
 
   .group {
@@ -292,7 +294,7 @@
     display: block;
     width: calc(100% - var(--sp-5) * 2);
     margin: 0 var(--sp-5) var(--sp-4);
-    height: 20px;
+    height: var(--h-button-sm);
     padding: 0 var(--sp-3);
     background: var(--surface-input);
     color: var(--text-primary);

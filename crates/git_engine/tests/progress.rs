@@ -119,3 +119,53 @@ fn reading_the_progress_spawns_no_process() {
 
     assert!(log.lock().unwrap().is_empty());
 }
+
+/// A `git-rebase-todo` written by a hand or a tool Cogit does not know about. The panel
+/// must show what it can and refuse to fall over (M11).
+mod damaged_todo {
+    use super::*;
+
+    fn paused(body: &str) -> test_fixtures::Fixture {
+        let f = test_fixtures::linear(3).unwrap();
+        let merge = f.path().join(".git").join("rebase-merge");
+        std::fs::create_dir_all(&merge).unwrap();
+        std::fs::write(merge.join("git-rebase-todo"), body).unwrap();
+        std::fs::write(merge.join("done"), "").unwrap();
+        f
+    }
+
+    #[test]
+    fn a_todo_full_of_nonsense_still_reports_a_rebase() {
+        let f = paused("this is not a todo file at all\n\u{0}\u{1}\n");
+        let progress = open(&f).rebase_progress().unwrap();
+        assert!(progress.is_some());
+    }
+
+    #[test]
+    fn an_unknown_action_does_not_lose_the_line() {
+        let f = paused("teleport abc1234 do something odd\n");
+        let progress = open(&f).rebase_progress().unwrap().unwrap();
+        assert_eq!(progress.todo.len(), 1, "{:?}", progress.todo);
+    }
+
+    #[test]
+    fn a_line_with_no_oid_is_skipped_rather_than_guessed_at() {
+        let f = paused("pick\n");
+        let progress = open(&f).rebase_progress().unwrap().unwrap();
+        assert!(progress.todo.is_empty(), "{:?}", progress.todo);
+    }
+
+    #[test]
+    fn an_empty_todo_means_nothing_is_left_to_do() {
+        let f = paused("");
+        let progress = open(&f).rebase_progress().unwrap().unwrap();
+        assert_eq!(progress.total, progress.done);
+    }
+
+    #[test]
+    fn a_todo_that_cannot_be_read_at_all_is_not_an_error() {
+        let f = test_fixtures::linear(2).unwrap();
+        std::fs::create_dir_all(f.path().join(".git").join("rebase-merge")).unwrap();
+        assert!(open(&f).rebase_progress().is_ok());
+    }
+}

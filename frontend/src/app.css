@@ -108,6 +108,8 @@
   --h-statusbar: 24px;
   --h-panel-hdr: 28px;
   --h-input: 26px;
+  /* The small buttons that live in panel bars, next to a dense row. */
+  --h-button-sm: 20px;
 
   /* ---- radii: nothing above 6px, a dense UI with big radii reads as mushy ---- */
   --r-sm: 3px;
@@ -115,6 +117,15 @@
   --r-lg: 6px;
 
   --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-dialog: 0 12px 40px rgba(0, 0, 0, 0.55);
+  /* Behind a dialog: dark enough to push the window back, light enough to read it. */
+  --scrim: rgba(0, 0, 0, 0.35);
+  --text-on-accent: #ffffff;
+  --c-add-soft: rgba(90, 160, 110, 0.14);
+  --c-neutral-soft: rgba(255, 255, 255, 0.14);
+  --c-search-hit: rgba(220, 180, 60, 0.3);
+  --c-search-current: rgba(240, 200, 70, 0.75);
+  --c-search-ink: #1a1a1a;
 
   /* ---- motion: anything over 150ms feels like lag in a developer tool ---- */
   --t-fast: 80ms;
@@ -164,6 +175,14 @@
   --c-lane-8: #a40e26;
 
   --shadow-popover: 0 8px 24px rgba(31, 35, 40, 0.15);
+  --shadow-dialog: 0 12px 40px rgba(31, 35, 40, 0.25);
+  --scrim: rgba(31, 35, 40, 0.25);
+  --text-on-accent: #ffffff;
+  --c-add-soft: rgba(26, 127, 55, 0.12);
+  --c-neutral-soft: rgba(31, 35, 40, 0.08);
+  --c-search-hit: rgba(214, 160, 20, 0.3);
+  --c-search-current: rgba(214, 160, 20, 0.65);
+  --c-search-ink: #1a1a1a;
 }
 
 @media (prefers-reduced-motion: reduce) {
