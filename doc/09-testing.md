@@ -159,14 +159,22 @@ cargo deny check
 Автоматически (pre-commit хук):
 1. `cargo fmt --all --check`
 2. `cargo clippy --workspace --all-targets -- -D warnings`
-3. `cargo test --workspace`
-4. `npm run check`
-5. Биндинги IPC актуальны (перегенерация не даёт diff)
+3. `npm run check`
+4. Биндинги IPC актуальны (перегенерация не даёт diff)
+
+**Тесты хуки не гоняют.** В наборе есть тесты с замером времени, и на машине, занятой
+сборкой, они падали случайно. Хук, который врёт, приучают пропускать, поэтому прогон
+вынесен из хуков и делается осознанно:
+
+- **по ходу работы** — только то, что задето, по одной цели за раз:
+  `cargo nextest run -p diff_engine --test headers`, `npx vitest run путь/к.test.ts`;
+- **один раз перед сдачей работы** — весь набор, на незанятой машине:
+  `cargo nextest run --workspace --exclude cogit` и `npm --prefix frontend run test`.
 
 Вручную:
-6. Статусы модулей в [00-roadmap.md](00-roadmap.md) обновлены
-7. Новые решения записаны в [12-risks.md](12-risks.md)
-8. Изменения IPC отражены в [04-ipc-contract.md](04-ipc-contract.md)
+5. Статусы модулей в [00-roadmap.md](00-roadmap.md) обновлены
+6. Новые решения записаны в [12-risks.md](12-risks.md)
+7. Изменения IPC отражены в [04-ipc-contract.md](04-ipc-contract.md)
 
 ## 10. Ловушка: `allow-unwrap-in-tests` покрывает не весь тестовый код
 
