@@ -8,6 +8,7 @@ mod language;
 mod merge;
 mod moves;
 mod patch;
+mod syntax;
 mod text;
 mod words;
 
@@ -16,7 +17,7 @@ pub use eol::{EolInfo, LineEnding, detect_line_ending, normalize_line_endings};
 pub use headers::with_hunk_context;
 pub use images::{data_url, image_mime};
 pub use language::language_for_path;
-pub use merge::{Origin, Region, merge3};
+pub use merge::{Origin, Region, merge3, merge3_with_syntax};
 pub use moves::{MIN_MOVED_LINES, detect_moves, link_moves_across_files};
 pub use patch::{PatchRequest, build_patch};
 pub use text::{MAX_TEXT_BYTES, diff_bytes, diff_text};

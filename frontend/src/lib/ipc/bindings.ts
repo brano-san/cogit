@@ -582,7 +582,12 @@ export type Origin =
 /**  Nobody touched these lines. */
 "unchanged" | "ours" | "theirs" | 
 /**  Both sides made the same edit. */
-"both";
+"both" | 
+/**
+ *  Settled by the parser: the two sides touched different nodes of the tree, so the
+ *  order is not a guess. Always worth a look before the merge is committed.
+ */
+"syntactic";
 
 export type Overlap = "none" | "slight" | "heavy" | "same";
 

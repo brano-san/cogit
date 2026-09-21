@@ -84,6 +84,9 @@ gix = { version = "0.87", default-features = false, features = [
 imara-diff = "0.2"
 similar = { version = "3.2", features = ["text", "inline", "unicode"] }
 tree-sitter = "0.27"
+# Grammars for the syntactic 3-way merge (M7 T7.8). Only the two the spec names first.
+tree-sitter-cpp = "0.23"
+tree-sitter-typescript = "0.23"
 
 # --- filesystem watching ---
 notify = "8.2"

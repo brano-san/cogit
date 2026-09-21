@@ -6,6 +6,7 @@ import {
   mergeRows,
   mergedText,
   nextConflict,
+  syntacticCount,
   unresolvedCount,
 } from "./merge-view";
 import type { Region } from "$lib/ipc";
@@ -174,5 +175,21 @@ describe("nextConflict", () => {
 
   it("has nowhere to go in a file without conflicts", () => {
     expect(nextConflict([], null, 1)).toBeNull();
+  });
+});
+
+describe("syntacticCount", () => {
+  it("counts only what the parser settled", () => {
+    expect(syntacticCount([clean(["a"], "syntactic"), clean(["b"], "ours")])).toBe(1);
+  });
+
+  it("is zero when no parser was involved", () => {
+    expect(syntacticCount([clean(["a"], "ours")])).toBe(0);
+  });
+});
+
+describe("autoResolvedCount with a parser", () => {
+  it("counts a parser-settled region too: it still wants a look", () => {
+    expect(autoResolvedCount([clean(["a"], "syntactic")])).toBe(1);
   });
 });
