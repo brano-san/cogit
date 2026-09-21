@@ -106,6 +106,9 @@
   import { graph } from "$stores/graph.svelte";
   import { hooks } from "$stores/hooks.svelte";
   import { avatars } from "$stores/avatars.svelte";
+  import { session } from "$stores/session.svelte";
+  import { droppedRepositories } from "$lib/drop-open";
+  import { getCurrentWebview } from "@tauri-apps/api/webview";
   import { overlap } from "$stores/overlap.svelte";
   import { settings } from "$stores/settings.svelte";
   import { layout } from "$stores/layout.svelte";
@@ -188,6 +191,7 @@
   let splitBusy = $state(false);
   const pointer = { x: 0, y: 0 };
   let refFilter = $state("");
+  let dropping = $state(false);
   let fileMask = $state("");
 
   $effect(() => {
@@ -199,9 +203,12 @@
     });
     void settings.loadBindings();
     void terminalChoices().then((found) => (terminals = found));
+    const wanted = session.active;
+    const remembered = wanted === null ? null : session.selected(wanted);
     void repository.restore().then(() => {
-      const first = repository.openRepos[0];
-      if (first) void activate(first.root);
+      const back =
+        repository.openRepos.find((entry) => entry.root === wanted) ?? repository.openRepos[0];
+      if (back) void activate(back.root, back.root === wanted ? remembered : null);
     });
   });
 
@@ -1143,7 +1150,7 @@ Log: ${info?.logPath ?? ""}`),
     void diff.load(id, { kind: "workTreeVsIndex" }, path).then(() => watch.stop(path));
   }
 
-  async function activate(root: string) {
+  async function activate(root: string, restoreOid: string | null = null) {
     commit.clear();
     diff.clear();
     blame.clear();
@@ -1161,6 +1168,8 @@ Log: ${info?.logPath ?? ""}`),
     const opened = repository.current;
     if (opened) {
       refs.adopt(opened.root, buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() }));
+      session.setActive(opened.root);
+      if (restoreOid) void commit.select(opened.repo, restoreOid);
       void reloadGraph();
       void refs.loadUrls(opened.repo);
       void worktrees.refresh(opened.repo);
@@ -1810,6 +1819,37 @@ Log: ${info?.logPath ?? ""}`),
     return () => void pending.then((unlisten) => unlisten());
   });
 
+  /** Where the user was last: written as it changes, not only on the way out, because a
+      crash is exactly the case this is meant to survive. */
+  $effect(() => {
+    const root = repository.current?.root;
+    if (root) session.setSelected(root, commit.oid);
+  });
+
+  /** A folder dropped on the window is a repository to open. Anything that is not one is
+      refused by the backend and reported like any other failed open. */
+  $effect(() => {
+    const pending = getCurrentWebview().onDragDropEvent((event) => {
+      if (event.payload.type === "enter") dropping = true;
+      else if (event.payload.type === "leave") dropping = false;
+      else if (event.payload.type === "drop") {
+        dropping = false;
+        void openDropped(droppedRepositories(event.payload.paths));
+      }
+    });
+    return () => void pending.then((unlisten) => unlisten());
+  });
+
+  async function openDropped(paths: string[]) {
+    for (const path of paths) {
+      try {
+        await activate(path);
+      } catch (err) {
+        errors.report(err as never);
+      }
+    }
+  }
+
   $effect(() => {
     const pending = onMenuCommand((id) => {
       if (runGroupCommand(id)) return;
@@ -2298,6 +2338,10 @@ Log: ${info?.logPath ?? ""}`),
     problems={output.problems}
     onproblems={() => output.toggle()}
   />
+
+  {#if dropping}
+    <div class="drop-hint" aria-hidden="true">Drop a folder to open it as a repository</div>
+  {/if}
 </div>
 
 <style>
@@ -2307,6 +2351,20 @@ Log: ${info?.logPath ?? ""}`),
     flex-direction: column;
     height: 100%;
     background: var(--surface-base);
+  }
+
+  .drop-hint {
+    position: absolute;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--surface-base) 78%, transparent);
+    border: 2px dashed var(--status-ref);
+    color: var(--text-primary);
+    font-size: var(--fs-ui);
+    pointer-events: none;
   }
 
   .workspace {

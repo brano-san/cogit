@@ -155,6 +155,10 @@
 | F-149 | Кэш аватаров на диске | [F-149-avatar-cache.md](F-149-avatar-cache.md) |
 | F-150 | Инициалы вместо аватара | [F-150-avatar-initials.md](F-150-avatar-initials.md) |
 | F-151 | Переключатель аватаров в меню View | [F-151-avatar-toggle.md](F-151-avatar-toggle.md) |
+| F-152 | Подсветка вывода Git | [F-152-output-highlighting.md](F-152-output-highlighting.md) |
+| F-153 | Пустые состояния и скелетон загрузки | [F-153-empty-states.md](F-153-empty-states.md) |
+| F-154 | Папка, брошенная в окно, открывается | [F-154-drop-to-open.md](F-154-drop-to-open.md) |
+| F-155 | Восстановление сессии | [F-155-session-restore.md](F-155-session-restore.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.
 

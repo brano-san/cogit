@@ -1,7 +1,8 @@
 <script lang="ts">
+  import VirtualList from "$components/common/VirtualList.svelte";
   import { fileName, statusBadge, statusLabel } from "$lib/files";
   import type { ViewRow } from "$lib/file-view";
-  import { GRAPH, visibleRange } from "$lib/graph-geometry";
+  import { GRAPH } from "$lib/graph-geometry";
 
   interface Action {
     label: string;
@@ -37,32 +38,10 @@
     onopen,
   }: Props = $props();
 
-  const BUFFER_ROWS = 10;
-
-  let scroller: HTMLDivElement | undefined = $state();
-  let scrollTop = $state(0);
-  let viewportHeight = $state(0);
-
-  const range = $derived(
-    visibleRange(scrollTop, viewportHeight, GRAPH.rowHeight, rows.length, BUFFER_ROWS),
-  );
-  const visible = $derived(
-    rows.slice(range.start, range.end).map((row, index) => ({ row, at: range.start + index })),
-  );
-
   function directory(path: string): string {
     const cut = path.lastIndexOf("/");
     return cut === -1 ? "" : path.slice(0, cut + 1);
   }
-
-  $effect(() => {
-    if (!scroller) return;
-    const observer = new ResizeObserver(([entry]) => {
-      if (entry) viewportHeight = entry.contentRect.height;
-    });
-    observer.observe(scroller);
-    return () => observer.disconnect();
-  });
 </script>
 
 <div class="pane">
@@ -77,28 +56,23 @@
     </div>
   {/if}
 
-  <div
-    class="scroll"
-    bind:this={scroller}
-    onscroll={() => scroller && (scrollTop = scroller.scrollTop)}
-  >
-    <div class="rows" style:height="{rows.length * GRAPH.rowHeight}px">
-      {#each visible as item (item.at)}
-        {#if item.row.kind === "dir"}
-          {@const group = item.row}
-          <div class="folder" style:top="{item.at * GRAPH.rowHeight}px">
+  <VirtualList items={rows} label={title ?? "Files"}>
+    {#snippet row(entry, at)}
+        {#if entry.kind === "dir"}
+          {@const group = entry}
+          <div class="folder" style:top="{at * GRAPH.rowHeight}px">
             <span aria-hidden="true">▾</span>
             <span class="truncate">{group.path === "" ? "(root)" : group.path}</span>
             <span class="count">{group.count}</span>
           </div>
         {:else}
-          {@const file = item.row.file}
+          {@const file = entry.file}
           <button
             type="button"
             class="row {file.status}"
             class:selected={selected === file.path}
             class:marked={marked.has(file.path)}
-            style:top="{item.at * GRAPH.rowHeight}px"
+            style:top="{at * GRAPH.rowHeight}px"
             title={file.oldPath ? `${file.oldPath} → ${file.path}` : file.path}
             onclick={(event) => onclick(file.path, event)}
             onkeydown={(event) => {
@@ -140,9 +114,8 @@
             {/each}
           </button>
         {/if}
-      {/each}
-    </div>
-  </div>
+    {/snippet}
+  </VirtualList>
 </div>
 
 <style>
@@ -165,17 +138,6 @@
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-  }
-
-  .scroll {
-    position: relative;
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow: auto;
-  }
-
-  .rows {
-    position: relative;
   }
 
   .row,

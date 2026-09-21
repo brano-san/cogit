@@ -1,6 +1,7 @@
 <script lang="ts">
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
   import type { GitOutput } from "$lib/ipc";
+  import { highlightStream } from "$lib/output-highlight";
   import { isFailure, isWarning, output } from "$stores/output.svelte";
 
   let expanded = $state<Set<string>>(new Set());
@@ -59,8 +60,13 @@
             <span class="meta tabular">{entry.exitCode ?? "?"} · {entry.durationMs} ms</span>
           </button>
           {#if expanded.has(id)}
-            {#if entry.stdout.trim() !== ""}<pre class="stream mono">{entry.stdout}</pre>{/if}
-            {#if entry.stderr.trim() !== ""}<pre class="stream mono err">{entry.stderr}</pre>{/if}
+            {#each [entry.stdout, entry.stderr] as stream, which (which)}
+              {#if stream.trim() !== ""}
+                <pre class="stream mono">{#each highlightStream(stream) as line, at (at)}<span
+                      class="ln {line.kind}">{line.text}</span
+                    >{/each}</pre>
+              {/if}
+            {/each}
           {/if}
         </div>
       {/each}
@@ -183,7 +189,17 @@
     user-select: text;
   }
 
-  .stream.err {
+  /* One block per line, so a blank line keeps its height without a literal newline. */
+  .ln {
+    display: block;
+    min-height: 1em;
+  }
+
+  .ln.error {
+    color: var(--status-delete);
+  }
+
+  .ln.warning {
     color: var(--status-modify);
   }
 

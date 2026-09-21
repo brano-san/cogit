@@ -1,4 +1,6 @@
 <script lang="ts">
+  import EmptyState from "$components/common/EmptyState.svelte";
+  import SkeletonRows from "$components/common/SkeletonRows.svelte";
   import { settings } from "$stores/settings.svelte";
   import GraphCanvas from "$components/graph/GraphCanvas.svelte";
   import { capsules, dateTooltip, refLabels, shortOid } from "$lib/format";
@@ -218,8 +220,13 @@
 
 {#if graph.error}
   <p class="message error">{graph.error.message}</p>
-{:else if commitCount === 0 && !graph.loading}
-  <p class="message">No commits yet.</p>
+{:else if commitCount === 0 && graph.loading}
+  <SkeletonRows rows={14} />
+{:else if commitCount === 0}
+  <EmptyState
+    title="No commits yet"
+    hint="The first commit you make in this repository shows up here."
+  />
 {:else}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->

@@ -9,26 +9,7 @@ import {
   type RepoOverview,
   type RepoSummary,
 } from "$lib/ipc";
-
-/** Roots are remembered so the tree comes back with the same repositories after a restart. */
-const REMEMBERED = "cogit:repositories";
-
-function remembered(): string[] {
-  try {
-    const raw = localStorage.getItem(REMEMBERED);
-    return raw ? (JSON.parse(raw) as string[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function remember(roots: string[]): void {
-  try {
-    localStorage.setItem(REMEMBERED, JSON.stringify(roots));
-  } catch {
-    // A blocked store costs the user the list on restart, nothing more.
-  }
-}
+import { session } from "$stores/session.svelte";
 
 class RepositoryStore {
   current = $state<RepoSummary | null>(null);
@@ -83,13 +64,13 @@ class RepositoryStore {
 
   async refreshList(): Promise<void> {
     this.openRepos = await listRepositories();
-    remember(this.openRepos.map((entry) => entry.root));
+    session.remember(this.openRepos.map((entry) => entry.root));
   }
 
   /** Reopens everything the previous session had, ignoring paths that are gone. */
   async restore(): Promise<string[]> {
     const failed: string[] = [];
-    for (const root of remembered()) {
+    for (const root of session.repositories) {
       try {
         await openRepository(root);
       } catch {
