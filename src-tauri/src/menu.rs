@@ -95,7 +95,11 @@ const TOOLS: &[Entry] = &[
     Entry::Item("copy-pr", "Copy Pull Request Link", None),
 ];
 
-const HELP: &[Entry] = &[Entry::Item("about", "About Cogit", None)];
+const HELP: &[Entry] = &[
+    Entry::Item("check-updates", "Check for Updates…", None),
+    Entry::Separator,
+    Entry::Item("about", "About Cogit", None),
+];
 
 /// The menu bar in order. One list, so the keymap editor and the menu cannot disagree.
 const SECTIONS: &[(&str, &[Entry])] = &[

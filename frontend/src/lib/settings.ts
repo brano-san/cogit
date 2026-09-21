@@ -17,6 +17,9 @@ export interface Settings {
   /** `ask` until the user decides: nothing is fetched and no cache exists while it
       stands, and the settings row says so rather than switching on quietly. */
   avatars: "ask" | "gravatar" | "off";
+  /** Off until ticked, like avatars: nothing reaches the network unasked. Help ▸ Check
+      for Updates… works either way. */
+  autoUpdate: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -33,6 +36,7 @@ export const DEFAULT_SETTINGS: Settings = {
   terminal: "system",
   logLevel: "info",
   avatars: "ask",
+  autoUpdate: false,
 };
 
 /** Read once at startup, so changing them needs a restart to take effect. */

@@ -178,6 +178,24 @@ export const CATEGORIES: Category[] = [
     ],
   },
   heading("advanced", "Advanced"),
+  {
+    id: "updates",
+    title: "Updates",
+    parent: "advanced",
+    groups: [
+      {
+        title: "Automatic checks",
+        fields: [
+          {
+            key: "autoUpdate",
+            label: "Check for updates when Cogit starts",
+            hint: "Off by default: nothing is asked of the network until this is ticked.",
+            keywords: ["update", "upgrade", "version", "network", "release", "download"],
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 function haystack(category: Category): string {

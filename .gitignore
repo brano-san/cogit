@@ -40,3 +40,7 @@ src-tauri/icons/ios/
 # string: `cd ""` succeeds, so the fallback never runs and curl writes to the repo
 # root. The project has no HTML at the top level, so this catches them.
 /*.html
+
+# The signing overlay names a certificate that lives on one machine; the example
+# beside it is the tracked copy (13-distribution.md).
+src-tauri/tauri.signing.conf.json
