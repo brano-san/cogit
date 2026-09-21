@@ -152,6 +152,8 @@ API переписан полностью. Все примеры в интерн
 | `tauri-plugin-window-state` | 2.4 | Сохранение геометрии окон |
 | `tauri-plugin-dialog` | 2.7 | Системные диалоги выбора папки |
 | `tauri-plugin-clipboard-manager` | 2.3 | Кнопка «Copy Output» в диалоге ошибок |
+| `tauri-plugin-updater` | 2.12 | Проверка обновлений; по умолчанию только вручную |
+| `tauri-plugin-process` | 2.3 | Перезапуск после установки обновления |
 
 ### Почему `tauri-plugin-store` снят
 

@@ -179,6 +179,7 @@
 | F-232 | Аватары спрашивают, а не включаются сами | [F-232-avatars-ask-first.md](F-232-avatars-ask-first.md) |
 
 | F-233 | Видимые разделители панелей | [F-233-visible-splitters.md](F-233-visible-splitters.md) |
+| F-234 | Проверка обновлений, которая не включается сама | [F-234-check-for-updates.md](F-234-check-for-updates.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.
 
