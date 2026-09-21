@@ -1,7 +1,34 @@
 use app_state::logging::{log_filter, read_log_level, rotating_writer};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::EnvFilter;
+
+/// A panic in a windowed process has nowhere to go: there is no console for stderr, and
+/// the non-blocking writer loses whatever it still holds when the process dies. Its own
+/// file, written and flushed inline, survives an abort.
+pub fn install_panic_hook(log_dir: &Path) {
+    let path: PathBuf = log_dir.join("panic.log");
+    let previous = std::panic::take_hook();
+
+    std::panic::set_hook(Box::new(move |info| {
+        let backtrace = std::backtrace::Backtrace::force_capture();
+        write_panic(&path, &format!("{info}\n{backtrace}"));
+        tracing::error!(panic = %info, "panic");
+        previous(info);
+    }));
+}
+
+fn write_panic(path: &Path, report: &str) {
+    use std::io::Write as _;
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
+        let _ = writeln!(file, "--- {report}");
+        let _ = file.flush();
+    }
+}
 
 /// The returned guard must outlive the process or the tail of the log is lost.
 pub fn init(log_dir: &Path, config_dir: &Path) -> anyhow::Result<WorkerGuard> {

@@ -127,6 +127,12 @@ export const commands = {
 	setMenuState: (disabled: string[], checked: string[]) => __TAURI_INVOKE<void>("set_menu_state", { disabled, checked }),
 	reportTiming: (label: string, ms: number, detail: string) => __TAURI_INVOKE<void>("report_timing", { label, ms, detail }),
 	/**
+	 *  The settings document as JSON text. Rust owns the file because the menu and the
+	 *  logger read it before there is a window to ask.
+	 */
+	readSettings: () => __TAURI_INVOKE<string>("read_settings"),
+	writeSetting: (key: string, value: string) => typedError<null, GitError>(__TAURI_INVOKE("write_setting", { key, value })),
+	/**
 	 *  The webview's own clock: how long the user waited between an action and the screen
 	 *  showing its result. Only the backend half is visible from Rust.
 	 */
