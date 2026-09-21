@@ -315,6 +315,8 @@ snake_case и читаются на фронтенде как `undefined`.
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
 | `app_info` | — | `AppInfo { version, git_version, log_path }` | M0 |
+| `read_settings` | — | `String` — весь документ настроек как текст JSON | M8 |
+| `write_setting` | `key`, `value` (текст JSON) | `()` | M8 |
 | `command_log` | `limit` | `Vec<CommandLogEntry>` | M2 |
 | `open_in_explorer` / `open_in_terminal` | `path` | `()` | M3 |
 | `set_menu_state` | `disabled: Vec<String>` | `()` | M2 |
