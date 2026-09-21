@@ -1,9 +1,12 @@
 mod commands;
+mod diagnostics;
 mod logging;
 mod menu;
 mod profile;
 #[cfg(windows)]
 mod renderer_failure;
+#[cfg(windows)]
+mod webview2;
 mod webview_memory;
 
 use app_state::AppState;
@@ -159,6 +162,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::set_menu_state,
             commands::report_timing,
             commands::report_memory,
+            commands::log_from_frontend,
+            commands::diagnostics,
             commands::read_settings,
             commands::write_setting,
             commands::default_keymap,
@@ -227,6 +232,8 @@ pub fn run() -> anyhow::Result<()> {
 
             tracing::info!(
                 version = env!("CARGO_PKG_VERSION"),
+                webview2 = webview2_version().as_deref().unwrap_or("unknown"),
+                build = if cfg!(debug_assertions) { "debug" } else { "release" },
                 log_dir = %log_dir.display(),
                 "cogit starting"
             );
@@ -254,6 +261,10 @@ pub fn run() -> anyhow::Result<()> {
             keymap.set(stored);
             app.manage(keymap);
             app.on_menu_event(|app, event| {
+                if event.id().0 == "copy-diagnostics" {
+                    copy_diagnostics(app);
+                    return;
+                }
                 let _ = MenuCommand(event.id().0.clone()).emit(app);
             });
 
@@ -266,9 +277,46 @@ pub fn run() -> anyhow::Result<()> {
             }
             Ok(())
         })
-        .run(tauri::generate_context!())?;
+        .build(tauri::generate_context!())?
+        .run(|_app, event| {
+            if matches!(event, tauri::RunEvent::Exit) {
+                tracing::info!(version = env!("CARGO_PKG_VERSION"), "cogit stopped");
+            }
+        });
 
     Ok(())
+}
+
+/// `None` off Windows, where there is no WebView2 to ask about.
+fn webview2_version() -> Option<String> {
+    #[cfg(windows)]
+    {
+        webview2::browser_version()
+    }
+    #[cfg(not(windows))]
+    {
+        None
+    }
+}
+
+/// `Help ▸ Copy Diagnostics`. Answered in Rust so that it still works when the webview is
+/// the part that stopped responding.
+fn copy_diagnostics(app: &tauri::AppHandle) {
+    use tauri_plugin_clipboard_manager::ClipboardExt as _;
+
+    let Some(context) = app.try_state::<AppContext>() else {
+        return;
+    };
+    let text = diagnostics::report(
+        &context.log_path,
+        &context.config_dir,
+        webview2_version().as_deref(),
+    );
+
+    match app.clipboard().write_text(text) {
+        Ok(()) => tracing::info!("diagnostics copied to the clipboard"),
+        Err(err) => tracing::error!(error = %err, "cannot copy diagnostics"),
+    }
 }
 
 /// The watcher runs on its own thread, so events cross into the webview here.

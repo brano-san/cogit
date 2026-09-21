@@ -7,11 +7,24 @@ use std::time::Duration;
 /// Below this an entry says nothing a human would act on, and a scroll produces hundreds.
 const FLOOR: Duration = Duration::from_millis(5);
 
+/// Half a second is where a click stops feeling answered. Anything past it earns a warning
+/// of its own, so "the interface hung" has something to point at.
+const SLOW: Duration = Duration::from_millis(500);
+
 fn millis(elapsed: Duration) -> u64 {
     u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX)
 }
 
 pub fn call(label: &str, elapsed: Duration, ok: bool) {
+    // Every command, however fast. The profile stream below has a floor so that scrolling
+    // cannot bury the file, but diagnosing a freeze needs the calls that returned quickly
+    // just as much as the one that did not. Default target, so `Log level` governs it.
+    tracing::debug!(op = label, ms = millis(elapsed), ok, "ipc");
+
+    if elapsed >= SLOW {
+        tracing::warn!(op = label, ms = millis(elapsed), ok, "slow ipc command");
+    }
+
     if elapsed < FLOOR && ok {
         return;
     }

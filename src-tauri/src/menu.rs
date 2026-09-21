@@ -91,11 +91,14 @@ const QUERY: &[Entry] = &[
 const TOOLS: &[Entry] = &[
     Entry::Item("hooks", "Manage Hooks…", None),
     Entry::Separator,
-    Entry::Item("reveal-log", "Reveal Log File", None),
     Entry::Item("copy-pr", "Copy Pull Request Link", None),
 ];
 
 const HELP: &[Entry] = &[
+    // Moved here from Tools: this is where someone looks when asked to send a log.
+    Entry::Item("reveal-log", "Open Log Folder", None),
+    Entry::Item("copy-diagnostics", "Copy Diagnostics", None),
+    Entry::Separator,
     Entry::Item("check-updates", "Check for Updates…", None),
     Entry::Separator,
     Entry::Item("about", "About Cogit", None),
