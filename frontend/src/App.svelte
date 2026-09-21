@@ -2045,10 +2045,14 @@ Log: ${info?.logPath ?? ""}`),
     handlers={repo
       ? {
           stash: stashAll,
+          "stash-selection": stashSelected,
           tag: tagHead,
           pull: () => void runNetwork("pull"),
           push: () => void runNetwork("push"),
           sync: () => void runNetwork("fetch"),
+          fetch: () => void runNetwork("fetch"),
+          "fetch-all": () => void fetchAll(),
+          "rebase-i": () => void openRebase(),
         }
       : {}}
   />
