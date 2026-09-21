@@ -172,6 +172,8 @@
 
 | F-229 | Слияние в отдельном окне | [F-229-merge-window.md](F-229-merge-window.md) |
 
+| F-230 | Git-Flow без расширения | [F-230-git-flow.md](F-230-git-flow.md) |
+
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.
 
 | F-214 | Четырёхпанельное слияние | [F-214-four-panel-merge.md](F-214-four-panel-merge.md) |

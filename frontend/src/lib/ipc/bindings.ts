@@ -86,6 +86,10 @@ export const commands = {
 	addWorktree: (repo: RepoId, path: string, branch: string, create: boolean) => typedError<null, GitError>(__TAURI_INVOKE("add_worktree", { repo, path, branch, create })),
 	removeWorktree: (repo: RepoId, path: string, force: boolean) => typedError<null, GitError>(__TAURI_INVOKE("remove_worktree", { repo, path, force })),
 	pruneWorktrees: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("prune_worktrees", { repo })),
+	flowStatus: (repo: RepoId) => typedError<FlowStatus, GitError>(__TAURI_INVOKE("flow_status", { repo })),
+	flowInit: (repo: RepoId, config: FlowConfig) => typedError<null, GitError>(__TAURI_INVOKE("flow_init", { repo, config })),
+	flowStart: (repo: RepoId, kind: FlowKind, name: string) => typedError<string, GitError>(__TAURI_INVOKE("flow_start", { repo, kind, name })),
+	flowFinish: (repo: RepoId, kind: FlowKind, name: string, tag: string | null) => typedError<null, GitError>(__TAURI_INVOKE("flow_finish", { repo, kind, name, tag })),
 	/**  The three sides merged into regions, for the four-panel view (doc/08-diff-engine.md §8). */
 	mergePreview: (repo: RepoId, path: string) => typedError<Region[], GitError>(__TAURI_INVOKE("merge_preview", { repo, path })),
 	/**  A window of its own for one conflicted file, so the merge is not squeezed into a panel. */
@@ -394,6 +398,30 @@ export type FileMode = "plain" | "executable" | "symlink" | "submodule";
 export type FileStatus = "added" | "modified" | "deleted" | "renamed" | "copied" | "untracked" | "conflicted" | 
 /**  Tracked and identical to the index; only listed when the panel asks for it. */
 "unchanged" | "ignored" | "assumeUnchanged" | "skipped";
+
+export type FlowBranch = {
+	kind: FlowKind,
+	/**  Without the prefix, which is what the user typed when starting it. */
+	name: string,
+	full: string,
+	isHead: boolean,
+};
+
+export type FlowConfig = {
+	main: string,
+	develop: string,
+	feature: string,
+	release: string,
+	hotfix: string,
+};
+
+export type FlowKind = "feature" | "release" | "hotfix";
+
+export type FlowStatus = {
+	initialised: boolean,
+	config: FlowConfig,
+	branches: FlowBranch[],
+};
 
 export type Found = {
 	kind: FoundKind,

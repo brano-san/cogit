@@ -12,6 +12,8 @@ import type {
   ContextItem,
   DiffOptions,
   DiffSpec,
+  FlowConfig,
+  FlowKind,
   GitError,
   GraphChunk,
   MergeOptions,
@@ -53,6 +55,10 @@ export type {
   FileDiff,
   FileEntry,
   FileStatus,
+  FlowBranch,
+  FlowConfig,
+  FlowKind,
+  FlowStatus,
   Found,
   FoundKind,
   GitError,
@@ -597,6 +603,28 @@ export async function overlapWindow(repo: RepoId, base: string, window: string[]
 
 export async function bypassLog(repo: RepoId) {
   return unwrap(await commands.bypassLog(repo));
+}
+
+/** Git-Flow, over ordinary git commands: the extension is not required (M5 T5.5). */
+export async function flowStatus(repo: RepoId) {
+  return unwrap(await commands.flowStatus(repo));
+}
+
+export async function flowInit(repo: RepoId, config: FlowConfig) {
+  return unwrap(await commands.flowInit(repo, config));
+}
+
+export async function flowStart(repo: RepoId, kind: FlowKind, name: string) {
+  return unwrap(await commands.flowStart(repo, kind, name));
+}
+
+export async function flowFinish(
+  repo: RepoId,
+  kind: FlowKind,
+  name: string,
+  tag: string | null,
+) {
+  return unwrap(await commands.flowFinish(repo, kind, name, tag));
 }
 
 /** Opens one conflicted file in a window of its own. */
