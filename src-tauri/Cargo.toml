@@ -23,13 +23,11 @@ app_state.workspace = true
 diff_engine.workspace = true
 fs_watcher.workspace = true
 git_engine.workspace = true
-graph_engine.workspace = true
 
 tauri.workspace = true
 tauri-specta.workspace = true
 tauri-plugin-opener.workspace = true
 tauri-plugin-dialog.workspace = true
-tauri-plugin-store.workspace = true
 tauri-plugin-clipboard-manager.workspace = true
 tauri-plugin-window-state.workspace = true
 

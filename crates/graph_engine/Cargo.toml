@@ -9,9 +9,6 @@ publish.workspace = true
 description = "Commit DAG topology and lane allocation. Deliberately free of any gix dependency."
 
 [dependencies]
-rayon.workspace = true
-thiserror.workspace = true
-tracing.workspace = true
 serde.workspace = true
 specta.workspace = true
 
