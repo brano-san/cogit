@@ -144,12 +144,9 @@ impl RepoHandle {
             stderr = %result.stderr,
             "git failed"
         );
-        Err(GitError::Command(GitCommandError {
-            command: result.command,
-            exit_code: result.exit_code,
-            stdout: result.stdout,
-            stderr: result.stderr,
-        }))
+        Err(GitError::Command(Box::new(GitCommandError::from_output(
+            result,
+        ))))
     }
 }
 

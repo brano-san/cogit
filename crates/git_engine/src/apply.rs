@@ -63,11 +63,8 @@ impl RepoHandle {
             return Ok(());
         }
         tracing::error!(patch = %patch, stderr = %result.stderr, "the patch did not apply");
-        Err(GitError::Command(GitCommandError {
-            command: result.command,
-            exit_code: result.exit_code,
-            stdout: result.stdout,
-            stderr: result.stderr,
-        }))
+        Err(GitError::Command(Box::new(GitCommandError::from_output(
+            result,
+        ))))
     }
 }

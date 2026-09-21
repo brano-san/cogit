@@ -448,9 +448,21 @@ export type GitCommandError = {
 	exitCode: number | null,
 	stdout: string,
 	stderr: string,
+	/**
+	 *  What to call this in the window title. Derived from `command`, so the heading
+	 *  and the output below it always describe the same run (R-87).
+	 */
+	operation: string,
+	/**  One line over the output, never instead of it. */
+	summary: string,
 };
 
-export type GitError = { kind: "command"; data: GitCommandError } | { kind: "repoNotFound"; data: string } | { kind: "repoBusy"; data: string } | { kind: "invalidState"; data: string } | { kind: "io"; data: string } | { kind: "internal"; data: string };
+export type GitError = 
+/**
+ *  Boxed: it carries both streams, and an unboxed variant makes every `Result` in
+ *  the crate as wide as the largest failure it could ever hold.
+ */
+{ kind: "command"; data: GitCommandError } | { kind: "repoNotFound"; data: string } | { kind: "repoBusy"; data: string } | { kind: "invalidState"; data: string } | { kind: "io"; data: string } | { kind: "internal"; data: string };
 
 export type GitOutput = {
 	command: string,

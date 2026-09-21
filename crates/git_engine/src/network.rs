@@ -80,12 +80,9 @@ impl RepoHandle {
         if out.exit_code == Some(0) {
             return Ok(());
         }
-        Err(GitError::Command(GitCommandError {
-            command: out.command,
-            exit_code: out.exit_code,
-            stdout: out.stdout,
-            stderr: out.stderr,
-        }))
+        Err(GitError::Command(Box::new(GitCommandError::from_output(
+            out,
+        ))))
     }
 
     /// Delivered as it appears, not after the process exits.

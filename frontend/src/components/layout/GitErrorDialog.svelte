@@ -14,6 +14,12 @@
   const details = $derived(error.detail.kind === "command" ? error.detail.data : null);
   const copied = $state({ done: false });
 
+  /** The heading names the command that actually ran; both come off one record (R-87). */
+  const heading = $derived(details ? `${details.operation} failed` : "Git failed");
+
+  let technical = $state(false);
+  let wrap = $state(false);
+
   function plainText(): string {
     if (!details) return error.message;
     return [
@@ -43,19 +49,44 @@
 
 <div class="dialog" role="dialog" aria-label="Git error">
   <header>
-    <span class="title">Git failed</span>
-    {#if details}<span class="code mono">exit {details.exitCode ?? "?"}</span>{/if}
+    <span class="title">{heading}</span>
     <span class="grow"></span>
+    <button
+      type="button"
+      class:on={wrap}
+      aria-pressed={wrap}
+      title="Wrap long lines. Off by default: compiler output is unreadable wrapped."
+      onclick={() => (wrap = !wrap)}>Wrap lines</button
+    >
     <button type="button" onclick={copy}>{copied.done ? "Copied" : "Copy Output"}</button>
     <button type="button" onclick={ondismiss} title="Dismiss">✕</button>
   </header>
 
   {#if details}
-    <p class="command mono">$ {details.command}</p>
+    {#if details.summary.trim() !== ""}
+      <p class="summary">{details.summary}</p>
+    {/if}
+
+    <button
+      type="button"
+      class="technical"
+      aria-expanded={technical}
+      onclick={() => (technical = !technical)}
+    >
+      {technical ? "▾" : "▸"} Command details
+    </button>
+    {#if technical}
+      <dl class="facts">
+        <dt>Command</dt>
+        <dd class="mono">{details.command}</dd>
+        <dt>Exit code</dt>
+        <dd class="mono tabular">{details.exitCode ?? "did not start"}</dd>
+      </dl>
+    {/if}
     {#each streams(details) as pane (pane.label)}
       {#if pane.stream.trim() !== ""}
         <p class="label">{pane.label}</p>
-        <pre class="stream mono">{#each splitLinks(pane.stream) as part, i (i)}{#if part.href}<a
+        <pre class="stream mono" class:wrap>{#each splitLinks(pane.stream) as part, i (i)}{#if part.href}<a
                 href={part.href}
                 onclick={(event) => {
                   event.preventDefault();
@@ -100,11 +131,6 @@
     color: var(--status-delete);
   }
 
-  .code {
-    color: var(--text-secondary);
-    font-size: 11px;
-  }
-
   .grow {
     flex: 1 1 auto;
   }
@@ -130,6 +156,48 @@
     user-select: text;
   }
 
+  /* Read in two seconds; the full output below is what it points at, never a stand-in. */
+  .summary {
+    margin: 0 0 var(--sp-4);
+    color: var(--text-primary);
+    user-select: text;
+  }
+
+  .technical {
+    align-self: flex-start;
+    margin-bottom: var(--sp-3);
+    padding: 0;
+    background: none;
+    border: 0;
+    color: var(--text-secondary);
+    font-size: var(--fs-header);
+  }
+
+  .technical:hover {
+    color: var(--text-primary);
+    border-color: transparent;
+  }
+
+  .facts {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--sp-2) var(--sp-4);
+    margin: 0 0 var(--sp-4);
+    color: var(--text-secondary);
+    font-size: var(--fs-header);
+  }
+
+  .facts dd {
+    margin: 0;
+    color: var(--text-primary);
+    user-select: text;
+  }
+
+  button.on {
+    border-color: var(--status-ref);
+    color: var(--status-ref);
+  }
+
   .label {
     margin: 0 0 var(--sp-2, 3px);
     color: var(--text-secondary);
@@ -145,9 +213,14 @@
     background: var(--surface-input);
     border-radius: var(--r-sm);
     font-size: var(--fs-code);
+    white-space: pre;
+    overflow-x: auto;
+    user-select: text;
+  }
+
+  .stream.wrap {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
-    user-select: text;
   }
 
   a {
