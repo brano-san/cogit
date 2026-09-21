@@ -207,3 +207,4 @@
 | F-211 | Stage, Unstage и Discard прямо у ханка | [F-211-gutter-staging.md](F-211-gutter-staging.md) |
 | F-212 | Панель diff переживает стейджинг | [F-212-diff-survives-staging.md](F-212-diff-survives-staging.md) |
 | F-213 | Investigate от выделения в diff | [F-213-investigate-from-selection.md](F-213-investigate-from-selection.md) |
+| F-235 | Падение интерфейса объясняется своими словами | [F-235-renderer-crash-dialog.md](F-235-renderer-crash-dialog.md) |

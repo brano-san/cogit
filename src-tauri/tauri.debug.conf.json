@@ -1,0 +1,13 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "identifier": "dev.branosan.cogit-oomtest",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port=9222",
+        "visible": true
+      }
+    ]
+  }
+}

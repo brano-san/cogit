@@ -104,6 +104,15 @@ md-5 = "0.11"
 
 # --- system ---
 keyring = "4.2"
+# Working set of the WebView2 child processes, for the `kind=procmem` probe. Only the
+# `system` feature: disks, networks, components and users are never read. A safe API was
+# required — the workspace denies `unsafe_code`, so raw Win32 was not an option (R-86).
+sysinfo = { version = "0.39", default-features = false, features = ["system"] }
+# WebView2 `ProcessFailed`, so the renderer dying never shows Edge's own error page.
+# Versions must match what tauri 2.11 already resolves, or the COM types are two
+# incompatible copies of themselves (R-88).
+webview2-com = "0.38"
+windows-core = "0.61"
 
 # --- dev / testing ---
 insta = "1.48"

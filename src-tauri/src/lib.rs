@@ -2,6 +2,9 @@ mod commands;
 mod logging;
 mod menu;
 mod profile;
+#[cfg(windows)]
+mod renderer_failure;
+mod webview_memory;
 
 use app_state::AppState;
 use specta_typescript::Typescript;
@@ -163,6 +166,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::open_in_terminal,
             commands::set_menu_state,
             commands::report_timing,
+            commands::report_memory,
             commands::read_settings,
             commands::write_setting,
             commands::default_keymap,
@@ -227,6 +231,7 @@ pub fn run() -> anyhow::Result<()> {
             let config_dir = app.path().app_config_dir()?;
             let guard = logging::init(&log_dir, &config_dir)?;
             logging::install_panic_hook(&log_dir);
+            webview_memory::spawn(std::process::id());
 
             tracing::info!(
                 version = env!("CARGO_PKG_VERSION"),
@@ -261,6 +266,10 @@ pub fn run() -> anyhow::Result<()> {
             });
 
             if let Some(window) = app.get_webview_window("main") {
+                // Subscribed before the window is shown: a renderer that dies during the first
+                // paint must not be the one failure nobody catches.
+                #[cfg(windows)]
+                renderer_failure::install(&window);
                 window.show()?;
             }
             Ok(())
