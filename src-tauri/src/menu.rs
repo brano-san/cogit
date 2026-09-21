@@ -165,13 +165,7 @@ impl Keymap {
 /// a restart must already show the user's own keys.
 #[must_use]
 pub fn stored_keymap(config_dir: &std::path::Path) -> HashMap<String, String> {
-    let Ok(text) = std::fs::read_to_string(config_dir.join("settings.json")) else {
-        return HashMap::new();
-    };
-    let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {
-        return HashMap::new();
-    };
-    value
+    app_state::settings::read_document(config_dir)
         .get("keymap")
         .and_then(serde_json::Value::as_object)
         .map(|map| {

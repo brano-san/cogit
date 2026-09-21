@@ -8,7 +8,7 @@ import {
   type Whitespace,
   type RepoId,
 } from "$lib/ipc";
-import { load } from "@tauri-apps/plugin-store";
+import { readKey, writeKey } from "$lib/settings-file";
 import { discardSelection } from "$lib/ipc";
 import { expandedContext, lacksFinalNewline } from "$lib/diff-rows";
 import { splitSelection } from "$lib/selection";
@@ -17,7 +17,6 @@ import { settings } from "./settings.svelte";
 const DEFAULT_CONTEXT = 3;
 
 /** The branch keeps its own key in the shared store file: `Settings` belongs to `master`. */
-const PREFS_FILE = "settings.json";
 const PREFS_KEY = "diffView";
 
 export type DiffLayout = "unified" | "split";
@@ -140,8 +139,7 @@ class DiffStore {
     if (this.#prefsRead) return;
     this.#prefsRead = true;
     try {
-      const store = await load(PREFS_FILE, { autoSave: false });
-      const saved = await store.get<unknown>(PREFS_KEY);
+      const saved = await readKey<unknown>(PREFS_KEY);
       if (typeof saved !== "object" || saved === null) return;
       const { layout, showMoves } = saved as Partial<Record<string, unknown>>;
       if (LAYOUTS.includes(layout as DiffLayout)) this.layout = layout as DiffLayout;
@@ -169,9 +167,7 @@ class DiffStore {
 
   async #writePreferences(): Promise<void> {
     try {
-      const store = await load(PREFS_FILE, { autoSave: false });
-      await store.set(PREFS_KEY, { layout: this.layout, showMoves: this.showMoves });
-      await store.save();
+      await writeKey(PREFS_KEY, { layout: this.layout, showMoves: this.showMoves });
     } catch {
       // The choice still holds for this session even when it cannot be written down.
     }

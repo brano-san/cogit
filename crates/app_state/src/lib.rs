@@ -6,6 +6,7 @@ pub mod logging;
 mod network;
 mod presets;
 mod safety;
+pub mod settings;
 pub mod terminal;
 mod worktrees;
 

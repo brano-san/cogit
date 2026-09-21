@@ -513,6 +513,15 @@ export async function reportTiming(label: string, ms: number, detail: string) {
   return await commands.reportTiming(label, ms, detail);
 }
 
+/** The settings document as JSON text; Rust owns the file (R-81). */
+export async function readSettings(): Promise<string> {
+  return await commands.readSettings();
+}
+
+export async function writeSetting(key: string, value: string): Promise<null> {
+  return unwrap(await commands.writeSetting(key, value));
+}
+
 export async function setMenuState(disabled: string[], checked: string[]) {
   return await commands.setMenuState(disabled, checked);
 }

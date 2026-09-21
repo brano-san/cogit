@@ -65,6 +65,30 @@ pub fn report_timing(label: String, ms: u32, detail: String) {
     crate::profile::ui(&label, u64::from(ms), &detail);
 }
 
+/// The settings document as JSON text. Rust owns the file because the menu and the
+/// logger read it before there is a window to ask.
+#[tauri::command]
+#[specta::specta]
+pub fn read_settings(state: tauri::State<'_, crate::AppContext>) -> String {
+    app_state::settings::read_document(&state.config_dir).to_string()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn write_setting(
+    state: tauri::State<'_, crate::AppContext>,
+    key: String,
+    value: String,
+) -> Result<(), GitError> {
+    // Parsed here rather than stored raw: the same file is read back by the logger and
+    // the menu, and a malformed value would take both down with it.
+    let parsed = serde_json::from_str(&value)
+        .map_err(|err| GitError::Internal(format!("settings value is not JSON: {err}")))?;
+
+    app_state::settings::write_key(&state.config_dir, &key, parsed)
+        .map_err(|err| GitError::Internal(format!("cannot write settings: {err}")))
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn app_info(state: tauri::State<'_, crate::AppContext>) -> AppInfo {
