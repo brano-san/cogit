@@ -23,6 +23,8 @@ class HooksStore {
   open = $state(false);
   editing = $state<string | null>(null);
   body = $state("");
+  /** What was on disk when the editor opened, so "changed" is a comparison, not a guess. */
+  saved = $state("");
   error = $state<CogitError | null>(null);
   lastRun = $state.raw<HookRun | null>(null);
   running = $state(false);
@@ -52,6 +54,11 @@ class HooksStore {
       present && present.state !== "missing"
         ? await readHook(repo, name).catch(() => "")
         : "#!/bin/sh\nset -e\n\n";
+    this.saved = this.body;
+  }
+
+  get dirty(): boolean {
+    return this.editing !== null && this.body !== this.saved;
   }
 
   async save(repo: RepoId): Promise<void> {

@@ -1025,6 +1025,15 @@ impl AppState {
         Ok(())
     }
 
+    /// The shared branches that already contain this commit; empty means safe to rewrite.
+    pub fn protecting_refs(
+        &self,
+        repo: RepoId,
+        rev: &str,
+    ) -> Result<Vec<String>, git_engine::GitError> {
+        self.handle(repo)?.protecting_refs(rev)
+    }
+
     pub fn is_published(&self, repo: RepoId, rev: &str) -> Result<bool, git_engine::GitError> {
         self.handle(repo)?.is_published(rev)
     }
@@ -1037,8 +1046,17 @@ impl AppState {
         message: &str,
         split_first: bool,
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
         let handle = self.handle(repo)?;
+        let protecting = handle.protecting_refs(rev)?;
+        if !protecting.is_empty() {
+            return Err(git_engine::GitError::InvalidState(format!(
+                "{} is on {} — splitting it would rewrite what others already have",
+                short(rev),
+                protecting.join(", ")
+            )));
+        }
+
+        self.quiet(repo);
         let before = handle.head()?;
         handle.split_off(rev, paths, message, split_first)?;
 

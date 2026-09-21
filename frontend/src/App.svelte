@@ -59,6 +59,7 @@
     findObject,
     interactiveRebase,
     isPublished,
+    protectingRefs,
     rebaseProgress,
     rebaseTodo,
     rollbackTo,
@@ -108,7 +109,10 @@
   import { avatars } from "$stores/avatars.svelte";
   import { session } from "$stores/session.svelte";
   import { droppedRepositories } from "$lib/drop-open";
+  import { clear as freshen, mark as markStale } from "$lib/staleness";
   import { getCurrentWebview } from "@tauri-apps/api/webview";
+  import { getCurrentWindow } from "@tauri-apps/api/window";
+  import { unsavedSummary } from "$lib/unsaved";
   import { overlap } from "$stores/overlap.svelte";
   import { settings } from "$stores/settings.svelte";
   import { layout } from "$stores/layout.svelte";
@@ -188,6 +192,10 @@
   let template = $state<string | null>(null);
   let splitOpen = $state(false);
   let splitPublished = $state(false);
+  /** Non-empty while the selected commit sits on a branch the team shares. */
+  let protectedBy = $state.raw<string[]>([]);
+  /** Panels a disk event has outdated; cleared as each reload lands. */
+  let stale = $state.raw<ReadonlySet<PanelId>>(new Set());
   let splitBusy = $state(false);
   const pointer = { x: 0, y: 0 };
   let refFilter = $state("");
@@ -348,7 +356,11 @@
         id: "split-off",
         title: "Split Off Files…",
         synonyms: ["split commit", "surgery"],
-        unavailable: commit.oid ? undefined : "Select a commit first",
+        unavailable: !commit.oid
+          ? "Select a commit first"
+          : protectedBy.length > 0
+            ? `Already on ${protectedBy.join(", ")}`
+            : undefined,
         run: () => void openSplit(),
       },
       {
@@ -596,11 +608,25 @@ Log: ${info?.logPath ?? ""}`),
         if (hooks.open) void hooks.refresh(id);
         return;
       }
+      stale = markStale(stale, change.kind);
       const movedRefs = change.kind === "head" || change.kind === "refs";
-      void (movedRefs ? repository.refresh() : repository.refreshStatus());
-      if (commit.oid === null) void worktree.load(id);
-      void afterMutation();
-      if (movedRefs) void graph.load(id, graph.query);
+      void (movedRefs ? repository.refresh() : repository.refreshStatus()).then(() => {
+        stale = freshen(stale, ["repositories", "refs"]);
+      });
+      if (commit.oid === null) void worktree.load(id).then(() => {
+        stale = freshen(stale, ["files", "commit"]);
+      });
+      void worktrees.refresh(id);
+      void afterMutation().then(() => {
+        stale = freshen(stale, ["diff", "files", "commit"]);
+      });
+      if (movedRefs) {
+        void graph.load(id, graph.query).then(() => {
+          stale = freshen(stale, ["graph", "refs"]);
+        });
+      } else {
+        stale = freshen(stale, ["graph"]);
+      }
     });
     return () => {
       void unlisten.then((stop) => stop());
@@ -1690,6 +1716,19 @@ Log: ${info?.logPath ?? ""}`),
     }
   }
 
+  /** Kept up to date with the selection so the menu is right before it is opened. */
+  $effect(() => {
+    const id = repository.current?.repo;
+    const rev = commit.oid;
+    if (!id || !rev) {
+      protectedBy = [];
+      return;
+    }
+    void protectingRefs(id, rev)
+      .then((refs) => (protectedBy = refs))
+      .catch(() => (protectedBy = []));
+  });
+
   async function openSplit() {
     const id = repository.current?.repo;
     const rev = commit.oid;
@@ -1831,6 +1870,24 @@ Log: ${info?.logPath ?? ""}`),
     if (root) session.setSelected(root, commit.oid);
   });
 
+  /** Closing throws away whatever is only in the window: an edited hook, a resolution
+      nobody wrote yet. Everything else is already on disk or in the draft store. */
+  $effect(() => {
+    const pending = getCurrentWindow().onCloseRequested(async (event) => {
+      const what = unsavedSummary({
+        hook: hooks.dirty ? hooks.editing : null,
+        merge: conflicts.regions.length > 0 ? conflicts.path : null,
+      });
+      if (!what) return;
+      const go = await ask(`${what} Close anyway?`, {
+        title: "Cogit",
+        kind: "warning",
+      });
+      if (!go) event.preventDefault();
+    });
+    return () => void pending.then((unlisten) => unlisten());
+  });
+
   /** A folder dropped on the window is a repository to open. Anything that is not one is
       refused by the backend and reported like any other failed open. */
   $effect(() => {
@@ -1924,7 +1981,11 @@ Log: ${info?.logPath ?? ""}`),
         aria-label={PANEL_TITLES.repositories}
         onpointerenter={() => (focused = "repositories")}
       >
-        <Panel title="Repositories" count={repository.openRepos.length}>
+        <Panel
+          title="Repositories"
+          count={repository.openRepos.length}
+          stale={stale.has("repositories")}
+        >
           <RepositoriesPanel
             {opening}
             onscan={() => {
@@ -1963,6 +2024,7 @@ Log: ${info?.logPath ?? ""}`),
         onpointerenter={() => (focused = "refs")}>
         <Panel
           title="References"
+          stale={stale.has("refs")}
           count={repo?.branches.length}
           empty={repo ? undefined : "Open a repository to see its branches."}
         >
@@ -2018,7 +2080,11 @@ Log: ${info?.logPath ?? ""}`),
         aria-label={PANEL_TITLES.graph}
         onpointerenter={() => (focused = "graph")}
         >
-          <Panel title="Graph &amp; History" count={graph.rows.length}>
+          <Panel
+            title="Graph &amp; History"
+            count={graph.rows.length}
+            stale={stale.has("graph")}
+          >
             {#snippet actions()}
               {#if repo}
                 <GraphFilter onchange={filterGraph} matches={graph.rows.length} />
@@ -2061,7 +2127,11 @@ Log: ${info?.logPath ?? ""}`),
           role="region"
           aria-label={PANEL_TITLES.files}
           onpointerenter={() => (focused = "files")}>
-          <Panel title="Files" count={onWorkingTree ? worktree.total : commit.files.length}>
+          <Panel
+            title="Files"
+            count={onWorkingTree ? worktree.total : commit.files.length}
+            stale={stale.has("files")}
+          >
             <FilesPanel
               {onWorkingTree}
               onviewchange={(next) => {
@@ -2100,7 +2170,11 @@ Log: ${info?.logPath ?? ""}`),
         <div class="pane grow" role="region"
           aria-label={PANEL_TITLES.commit}
           onpointerenter={() => (focused = "commit")}>
-          <Panel title="Commit Message" count={worktree.staged.length}>
+          <Panel
+            title="Commit Message"
+            count={worktree.staged.length}
+            stale={stale.has("commit")}
+          >
             <CommitPanel {scope} {template} oncommit={commitStaged} />
           </Panel>
         </div>
@@ -2124,7 +2198,7 @@ Log: ${info?.logPath ?? ""}`),
       <div class="pane grow" role="region"
         aria-label={PANEL_TITLES.diff}
         onpointerenter={() => (focused = "diff")}>
-        <Panel title="Diff">
+        <Panel title="Diff" stale={stale.has("diff")}>
           <DiffPanel
             onstage={(selected, reverse) => void stageLines(selected, reverse)}
             onblame={() => void showBlame()}

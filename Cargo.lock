@@ -1821,6 +1821,7 @@ name = "git_engine"
 version = "0.1.0"
 dependencies = [
  "gix",
+ "ignore",
  "parking_lot",
  "rayon",
  "serde",

@@ -160,6 +160,12 @@
 | F-154 | Папка, брошенная в окно, открывается | [F-154-drop-to-open.md](F-154-drop-to-open.md) |
 | F-155 | Восстановление сессии | [F-155-session-restore.md](F-155-session-restore.md) |
 
+| F-221 | Обход по `.gitignore` при поиске репозиториев | [F-221-scan-respects-gitignore.md](F-221-scan-respects-gitignore.md) |
+| F-222 | Защита от правки общей истории | [F-222-protected-branches.md](F-222-protected-branches.md) |
+| F-223 | Пометка «данные устарели» на панелях | [F-223-stale-panels.md](F-223-stale-panels.md) |
+| F-224 | Предупреждение при закрытии с несохранённым | [F-224-close-confirmation.md](F-224-close-confirmation.md) |
+| F-225 | Всплывающие подсказки в тулбаре | [F-225-tooltips.md](F-225-tooltips.md) |
+
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.
 
 | F-214 | Четырёхпанельное слияние | [F-214-four-panel-merge.md](F-214-four-panel-merge.md) |

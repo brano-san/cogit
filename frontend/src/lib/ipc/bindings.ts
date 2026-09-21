@@ -88,6 +88,8 @@ export const commands = {
 	pruneWorktrees: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("prune_worktrees", { repo })),
 	/**  The three sides merged into regions, for the four-panel view (doc/08-diff-engine.md §8). */
 	mergePreview: (repo: RepoId, path: string) => typedError<Region[], GitError>(__TAURI_INVOKE("merge_preview", { repo, path })),
+	/**  The shared branches that already hold this commit; empty means it is safe to rewrite. */
+	protectingRefs: (repo: RepoId, rev: string) => typedError<string[], GitError>(__TAURI_INVOKE("protecting_refs", { repo, rev })),
 	/**  Saves the hook as it stands as a preset, so the next repository gets it in one click. */
 	exportPreset: (repo: RepoId, hook: string, id: string, name: string, description: string) => typedError<null, GitError>(__TAURI_INVOKE("export_preset", { repo, hook, id, name, description })),
 	removePreset: (id: string) => typedError<null, GitError>(__TAURI_INVOKE("remove_preset", { id })),

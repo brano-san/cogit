@@ -1439,3 +1439,18 @@ pub async fn merge_preview(
     })
     .await
 }
+
+/// The shared branches that already hold this commit; empty means it is safe to rewrite.
+#[tauri::command]
+#[specta::specta]
+pub async fn protecting_refs(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    rev: String,
+) -> Result<Vec<String>, GitError> {
+    let app_state = state.state.clone();
+    blocking("protecting_refs", move || {
+        app_state.protecting_refs(repo, &rev)
+    })
+    .await
+}

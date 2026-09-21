@@ -11,9 +11,11 @@
     children?: Snippet;
     /** Shown when `children` has nothing to display. */
     empty?: string;
+    /** Something changed on disk and this panel has not caught up yet. */
+    stale?: boolean;
   }
 
-  let { title, count, actions, children, empty }: Props = $props();
+  let { title, count, actions, children, empty, stale = false }: Props = $props();
 </script>
 
 <section class="panel">
@@ -21,6 +23,9 @@
     <h2 class="panel-title">
       {title}{#if count !== undefined}&nbsp;({count}){/if}
     </h2>
+    {#if stale}
+      <span class="stale" title="Something changed on disk; this is being reloaded">•</span>
+    {/if}
     {#if actions}
       <div class="panel-actions">{@render actions()}</div>
     {/if}
@@ -36,6 +41,13 @@
 </section>
 
 <style>
+  .stale {
+    flex: 0 0 auto;
+    color: var(--status-modify);
+    font-size: 14px;
+    line-height: 1;
+  }
+
   .panel {
     display: flex;
     flex-direction: column;
