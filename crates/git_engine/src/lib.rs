@@ -15,6 +15,7 @@ mod interactive;
 mod merging;
 mod network;
 mod operations;
+pub mod outcome;
 pub mod output_text;
 mod overlap;
 pub mod phases;

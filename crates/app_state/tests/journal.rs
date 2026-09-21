@@ -72,13 +72,7 @@ fn the_journal_is_newest_first() {
 }
 
 fn entry(command: &str) -> git_engine::GitOutput {
-    git_engine::GitOutput {
-        command: command.to_owned(),
-        exit_code: Some(0),
-        stdout: String::new(),
-        stderr: String::new(),
-        duration_ms: 0,
-    }
+    git_engine::GitOutput::record(command.to_owned(), Some(0), "", "", 0)
 }
 
 /// Driven directly rather than through 520 `git` processes: the property is a ring buffer,

@@ -50,17 +50,13 @@ impl RepoHandle {
         drop(child.stdin.take());
 
         let output = child.wait_with_output()?;
-        let result = GitOutput {
+        let result = GitOutput::record(
             command,
-            exit_code: output.status.code(),
-            stdout: GitCommandError::cap_stream(
-                String::from_utf8_lossy(&output.stdout).into_owned(),
-            ),
-            stderr: GitCommandError::cap_stream(
-                String::from_utf8_lossy(&output.stderr).into_owned(),
-            ),
-            duration_ms: u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX),
-        };
+            output.status.code(),
+            &String::from_utf8_lossy(&output.stdout),
+            &String::from_utf8_lossy(&output.stderr),
+            u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX),
+        );
         self.journal_entry(result.clone());
 
         if output.status.success() {
