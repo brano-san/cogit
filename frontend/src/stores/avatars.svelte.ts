@@ -1,5 +1,5 @@
 import { authorsOf, keyOf, mergeRows, type Commitish } from "$lib/avatars";
-import { avatarWindow, avatarsFor, setAvatars, type AvatarRow } from "$lib/ipc";
+import { avatarWindow, avatarsFor, setAvatars, type Author, type AvatarRow } from "$lib/ipc";
 
 class AvatarStore {
   /** Off until asked for: turning it on is what creates the cache directory (M14 T14.3). */
@@ -7,6 +7,11 @@ class AvatarStore {
   rows = $state.raw<Map<string, AvatarRow>>(new Map());
 
   #window: Commitish[] = [];
+  #queued: ReturnType<typeof setTimeout> | undefined;
+
+  /** The window changes on every frame of a scroll. The queue only cares where the
+      user stopped, so telling it that often is a round trip per frame for nothing. */
+  static readonly #SETTLE_MS = 150;
 
   /** Follows the setting, which is the only thing that turns the cache directory on. */
   async apply(wanted: boolean): Promise<void> {
@@ -31,6 +36,12 @@ class AvatarStore {
 
     const authors = authorsOf(window);
     if (authors.length === 0) return;
+
+    clearTimeout(this.#queued);
+    this.#queued = setTimeout(() => void this.#settled(authors), AvatarStore.#SETTLE_MS);
+  }
+
+  async #settled(authors: readonly Author[]): Promise<void> {
     try {
       await avatarWindow(authors.map((author) => author.email));
       const missing = authors.filter((author) => !this.rows.has(keyOf(author.email)));

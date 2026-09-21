@@ -117,10 +117,28 @@ export function groupRows(
   const rows: GroupRow[] = [];
   const claimed = new Set<string>();
 
+  // Bucketed once. Walking every group and filtering every root per level made this
+  // quadratic in the number of groups for no reason.
+  const inGroup = new Map<string, string[]>();
+  for (const root of roots) {
+    const id = groups.of[root];
+    if (id === undefined) continue;
+    const bucket = inGroup.get(id);
+    if (bucket) bucket.push(root);
+    else inGroup.set(id, [root]);
+  }
+
+  const children = new Map<string | null, string[]>();
+  for (const id of groups.order) {
+    const parent = groups.under[id] ?? null;
+    const bucket = children.get(parent);
+    if (bucket) bucket.push(id);
+    else children.set(parent, [id]);
+  }
+
   const walk = (parent: string | null, depth: number) => {
-    for (const id of groups.order) {
-      if ((groups.under[id] ?? null) !== parent) continue;
-      const inside = roots.filter((root) => groups.of[root] === id);
+    for (const id of children.get(parent) ?? []) {
+      const inside = inGroup.get(id) ?? [];
       for (const root of inside) claimed.add(root);
       rows.push({
         kind: "group",

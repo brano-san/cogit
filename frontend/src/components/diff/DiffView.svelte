@@ -59,6 +59,10 @@
   const mode = $derived(diffStore.layout);
   let finding = $state(false);
   let query = $state("");
+  /** The scan walks every row of the file. At typing speed that is a frame lost per
+      letter on a large diff, so the search runs on what was typed a moment ago. */
+  let applied = $state("");
+  const SEARCH_DELAY_MS = 120;
   let hitAt = $state(0);
   let findBox: HTMLInputElement | undefined = $state();
   let scroller: HTMLDivElement | undefined = $state();
@@ -173,7 +177,14 @@
     );
   });
 
-  const hits = $derived(searchRows(searchTexts, query));
+  $effect(() => {
+    const text = query;
+    if (text === applied) return;
+    const timer = setTimeout(() => (applied = text), SEARCH_DELAY_MS);
+    return () => clearTimeout(timer);
+  });
+
+  const hits = $derived(searchRows(searchTexts, applied));
   const currentHit = $derived(hits[hitAt] ?? null);
 
   const hitSpans = $derived.by(() => {
@@ -217,6 +228,7 @@
   function closeFind() {
     finding = false;
     query = "";
+    applied = "";
   }
 
   /** Lines the diff is not showing above each hunk, for the expander. */
@@ -365,7 +377,7 @@
 
   /** Typing lands on the first hit. `untrack` keeps a resize from re-scrolling the view. */
   $effect(() => {
-    void query;
+    void applied;
     untrack(() => {
       hitAt = 0;
       const first = hits[0];
@@ -500,7 +512,7 @@
         onkeydown={onfindkey}
       />
       <span class="count tabular">
-        {#if query.trim() === ""}
+        {#if applied.trim() === ""}
           &nbsp;
         {:else if hits.length === 0}
           no matches

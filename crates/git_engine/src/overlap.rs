@@ -1,6 +1,7 @@
 use crate::{GitError, RepoHandle, Result};
 use rayon::prelude::*;
 use serde::Serialize;
+use std::collections::HashSet;
 use std::ops::ControlFlow;
 
 impl RepoHandle {
@@ -93,18 +94,21 @@ pub fn shared_paths(base: &[String], other: &[String]) -> Vec<String> {
 
 #[must_use]
 pub fn overlap_of(base: &[String], other: &[String]) -> Overlap {
-    if base.is_empty() || other.is_empty() {
+    classify(shared_paths(base, other).len(), base.len(), other.len())
+}
+
+/// The table from doc/modules/M13, over a count somebody else has already worked out.
+/// Separate from `overlap_of` so the window does not pay for the intersection twice.
+#[must_use]
+fn classify(shared: usize, base_len: usize, other_len: usize) -> Overlap {
+    if base_len == 0 || other_len == 0 || shared == 0 {
         return Overlap::None;
     }
-    let shared = shared_paths(base, other).len();
-    if shared == 0 {
-        return Overlap::None;
-    }
-    if shared == base.len() && shared == other.len() {
+    if shared == base_len && shared == other_len {
         return Overlap::Same;
     }
     #[allow(clippy::cast_precision_loss)]
-    if shared as f32 / base.len() as f32 > HEAVY_FRACTION {
+    if shared as f32 / base_len as f32 > HEAVY_FRACTION {
         Overlap::Heavy
     } else {
         Overlap::Slight
@@ -115,6 +119,9 @@ impl RepoHandle {
     /// Only the visible window: the whole history is tree comparisons nobody looks at.
     pub fn overlap_window(&self, base: &str, window: &[String]) -> Result<Vec<OverlapRow>> {
         let base_paths = self.changed_paths(base)?;
+        // Built once for the whole window: a linear scan per row turned this into
+        // millions of string comparisons on a commit that touches many files.
+        let base_set: HashSet<&str> = base_paths.iter().map(String::as_str).collect();
         let shared_repo = self.repo.clone().into_sync();
 
         Ok(window
@@ -123,13 +130,17 @@ impl RepoHandle {
                 // One unreadable commit must not cost the whole column.
                 let paths =
                     changed_paths_in(&shared_repo.to_thread_local(), oid).unwrap_or_default();
-                let shared = shared_paths(&base_paths, &paths);
+                let shared: Vec<String> = paths
+                    .iter()
+                    .filter(|path| base_set.contains(path.as_str()))
+                    .cloned()
+                    .collect();
                 OverlapRow {
                     oid: oid.clone(),
                     overlap: if oid == base {
                         Overlap::Same
                     } else {
-                        overlap_of(&base_paths, &paths)
+                        classify(shared.len(), base_paths.len(), paths.len())
                     },
                     is_base: oid == base,
                     shared_total: u32::try_from(shared.len()).unwrap_or(u32::MAX),
