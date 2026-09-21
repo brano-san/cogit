@@ -92,6 +92,12 @@ notify = "8.2"
 notify-debouncer-mini = { version = "0.7", features = ["crossbeam-channel"] }
 ignore = "0.4"
 
+# --- avatars ---
+# The only HTTP in the app. Everything git-related still goes through the system git
+# (doc/12-risks.md, R-67): a Gravatar lookup is not git traffic and has no credentials.
+ureq = "3.4"
+md-5 = "0.11"
+
 # --- system ---
 keyring = "4.2"
 directories = "6.0"
@@ -102,6 +108,7 @@ tempfile = "3.27"
 
 # --- internal crates ---
 app_state = { path = "crates/app_state" }
+avatars = { path = "crates/avatars" }
 diff_engine = { path = "crates/diff_engine" }
 fs_watcher = { path = "crates/fs_watcher" }
 git_engine = { path = "crates/git_engine" }
