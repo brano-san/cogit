@@ -478,17 +478,12 @@ impl AppState {
             )));
         }
 
-        let old_bytes = old.as_deref().unwrap_or_default();
-        let mut diff =
-            diff_engine::diff_bytes(old_bytes, new.as_deref().unwrap_or_default(), options);
-        if let diff_engine::FileDiff::Text { language, .. } = &mut diff {
-            *language = diff_engine::language_for_path(path);
-        }
-        diff_engine::with_hunk_context(&mut diff, &String::from_utf8_lossy(old_bytes));
-        if options.detect_moves {
-            diff_engine::detect_moves(&mut diff);
-        }
-        Ok(diff)
+        Ok(diff_engine::diff_one(
+            path,
+            old.as_deref().unwrap_or_default(),
+            new.as_deref().unwrap_or_default(),
+            options,
+        ))
     }
 
     pub fn worktree_files(
@@ -1671,8 +1666,6 @@ mod tests {
         assert_eq!(ids, vec![1, 2]);
     }
 }
-
-// ─── everything below this line belongs to the diff-merge branch; master appends above ───
 
 /// What a batch diff came back with. A request the user has already moved on from stops
 /// between files rather than finishing work nobody will look at.

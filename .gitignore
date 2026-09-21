@@ -16,6 +16,9 @@ src-tauri/target/
 # insta snapshot review leftovers
 **/*.snap.new
 
+# Agent worktrees and session scratch live here, not in the history.
+.claude/
+
 # IDE / OS
 .vscode/*
 !.vscode/extensions.json
