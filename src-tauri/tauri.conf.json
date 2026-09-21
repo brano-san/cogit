@@ -31,7 +31,13 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["msi", "nsis", "deb", "appimage", "dmg"],
+    "targets": [
+      "msi",
+      "nsis",
+      "deb",
+      "appimage",
+      "dmg"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -43,6 +49,18 @@
     "shortDescription": "Blazing-fast Git GUI client for power users",
     "longDescription": "Cogit is a SmartGit-inspired Git client built with Rust and Tauri.",
     "copyright": "Copyright (c) 2026 brano-san",
-    "licenseFile": "../LICENSE"
+    "licenseFile": "../LICENSE",
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDJENUQwNTJEN0ZDMzU3N0EKUldSNlY4Ti9MUVZkTGNxdW9CSVJGOWZTNHFpYit4R2hlZXk3OVBLeFlaTTRmUVpWTnJhcEN6T1QK",
+      "endpoints": [
+        "https://github.com/brano-san/cogit/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

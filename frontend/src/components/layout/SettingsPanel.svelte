@@ -330,6 +330,15 @@
                 />
                 <span>{field.label}</span>
               </label>
+            {:else if field.key === "autoUpdate"}
+              <label class="row check">
+                <input
+                  type="checkbox"
+                  checked={draft.autoUpdate}
+                  onchange={(e) => set("autoUpdate", e.currentTarget.checked)}
+                />
+                <span>{field.label}</span>
+              </label>
             {:else if field.key === "wordDiff"}
               <label class="row check nested">
                 <input

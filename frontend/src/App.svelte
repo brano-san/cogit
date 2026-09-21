@@ -1,5 +1,6 @@
 <script lang="ts">
   import { ask, open as openFolderDialog } from "@tauri-apps/plugin-dialog";
+  import { checkForUpdates, message } from "$lib/updates";
 
   import DiffPanel from "$components/panels/DiffPanel.svelte";
   import ReferencesPanel from "$components/panels/ReferencesPanel.svelte";
@@ -188,6 +189,24 @@
   let protection = $state.raw<ReadonlyMap<string, readonly string[]>>(new Map());
   const protectedBy = $derived(protection.get(commit.oid ?? "") ?? []);
 
+  /** Help ▸ Check for Updates, and the start-up check when the setting is on. The
+      plugin is loaded on demand: nobody pays for the updater until it is wanted. */
+  async function runUpdateCheck(quiet = false): Promise<void> {
+    const [{ check }, { relaunch }] = await Promise.all([
+      import("@tauri-apps/plugin-updater"),
+      import("@tauri-apps/plugin-process"),
+    ]);
+    await checkForUpdates(
+      {
+        check: () => check(),
+        relaunch,
+        confirm: (outcome) => window.confirm(message(outcome)),
+        report: (text) => window.alert(text),
+      },
+      { quiet },
+    );
+  }
+
   async function learnProtection(oid: string): Promise<readonly string[]> {
     const id = repository.current?.repo;
     if (!id) return [];
@@ -211,6 +230,8 @@
     });
     void settings.load().then(() => {
       diff.whitespace = settings.current.ignoreWhitespace;
+      // Only after the settings are read: the tick is what permits the network call.
+      if (settings.current.autoUpdate) void runUpdateCheck(true);
     });
     void settings.loadBindings();
     void terminalChoices().then((found) => (terminals = found));
@@ -484,6 +505,11 @@
           if (commit.oid) void learnProtection(commit.oid);
           paletteOpen = true;
         },
+      },
+      {
+        id: "check-updates",
+        title: "Check for Updates",
+        run: () => void runUpdateCheck(),
       },
       {
         id: "about",
