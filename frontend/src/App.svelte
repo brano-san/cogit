@@ -77,13 +77,9 @@
     reportTiming,
     commitTemplate,
     stageMode,
-    onAvatarReady,
-    onMergeResolved,
     openMergeWindow,
-    onOperationChanged,
     openCompareWindow,
     popupContextMenu,
-    onRepoChanged,
     setMenuState,
     revertCommits,
     rebaseOnto,
@@ -109,12 +105,12 @@
   import { graph } from "$stores/graph.svelte";
   import { hooks } from "$stores/hooks.svelte";
   import { avatars } from "$stores/avatars.svelte";
+  import { prompt } from "$stores/prompt.svelte";
   import { session } from "$stores/session.svelte";
   import { flow } from "$stores/flow.svelte";
   import { droppedRepositories } from "$lib/drop-open";
+  import { connect } from "$lib/wiring";
   import { clear as freshen, mark as markStale } from "$lib/staleness";
-  import { getCurrentWebview } from "@tauri-apps/api/webview";
-  import { getCurrentWindow } from "@tauri-apps/api/window";
   import { unsavedSummary } from "$lib/unsaved";
   import { overlap } from "$stores/overlap.svelte";
   import { settings } from "$stores/settings.svelte";
@@ -164,14 +160,6 @@
   let bulk = $state.raw<import("$lib/operations").BulkProgress | undefined>(undefined);
   let journalOpen = $state(false);
   let journalBusy = $state(false);
-  let prompt = $state.raw<{
-    title: string;
-    label: string;
-    value: string;
-    choices?: string[];
-    confirm: string;
-    run: (value: string) => void;
-  } | null>(null);
   let paletteOpen = $state(false);
   let settingsOpen = $state(false);
   let finderOpen = $state(false);
@@ -660,8 +648,7 @@ Log: ${info?.logPath ?? ""}`),
   }
 
   // The watcher is the only way Cogit learns about work done in a terminal alongside it.
-  $effect(() => {
-    const unlisten = onRepoChanged((change) => {
+  function onDiskChange(change: import("$lib/ipc").RepoChanged) {
       const id = repository.current?.repo;
       if (!id || id.valueOf() !== change.repo.valueOf()) return;
       // Only a ref move needs the full re-read; an index or worktree change moves counters.
@@ -690,11 +677,7 @@ Log: ${info?.logPath ?? ""}`),
       } else {
         stale = freshen(stale, ["graph"]);
       }
-    });
-    return () => {
-      void unlisten.then((stop) => stop());
-    };
-  });
+  }
 
   function filterGraph(query: import("$lib/ipc").CommitQuery) {
     const id = repository.current?.repo;
@@ -1091,41 +1074,35 @@ Log: ${info?.logPath ?? ""}`),
     await afterRefChange();
   }
 
-  function stashAll() {
+  async function stashAll() {
     const id = repository.current?.repo;
     if (!id) return;
-    prompt = {
+    const message = await prompt.ask({
       title: "Stash everything",
       label: "Message",
-      value: "",
       confirm: "Stash",
-      run: (message) => {
-        prompt = null;
-        void stashes
-          .push(id, message, true)
-          .then(() => afterRefChange())
-          .catch((err) => errors.report(err as never));
-      },
-    };
+    });
+    if (message === null) return;
+    await stashes
+      .push(id, message, true)
+      .then(() => afterRefChange())
+      .catch((err) => errors.report(err as never));
   }
 
   /** Only the ticked rows; everything else stays in the working tree (T5.3). */
-  function stashSelected() {
+  async function stashSelected() {
     const id = repository.current?.repo;
     if (!id || markedFiles.length === 0) return;
     const paths = [...markedFiles];
-    prompt = {
+    const message = await prompt.ask({
       title: `Stash ${paths.length} file(s)`,
       label: "Message",
-      value: "",
       confirm: "Stash",
-      run: (message) => {
-        prompt = null;
-        void stashSelection(id, paths, message)
-          .then(() => afterRefChange())
-          .catch((err) => errors.report(err as never));
-      },
-    };
+    });
+    if (message === null) return;
+    await stashSelection(id, paths, message)
+      .then(() => afterRefChange())
+      .catch((err) => errors.report(err as never));
   }
 
   async function applyStash(index: number, pop: boolean) {
@@ -1439,25 +1416,23 @@ Log: ${info?.logPath ?? ""}`),
     return null;
   }
 
-  function askRename(branch: Branch) {
+  async function askRename(branch: Branch) {
     const id = repo?.repo;
     if (!id) return;
-    prompt = {
+    const name = await prompt.ask({
       title: `Rename ${branch.name}`,
       label: "New name",
       value: branch.name,
       confirm: "Rename",
-      run: (name) => {
-        prompt = null;
-        void renameBranch(id, branch.name, name, false)
-          .then(() => repository.refresh())
-          .then(() => afterMutation())
-          .catch((err) => errors.report(err as never));
-      },
-    };
+    });
+    if (name === null) return;
+    await renameBranch(id, branch.name, name, false)
+      .then(() => repository.refresh())
+      .then(() => afterMutation())
+      .catch((err) => errors.report(err as never));
   }
 
-  function askUpstream(branch: Branch) {
+  async function askUpstream(branch: Branch) {
     const id = repo?.repo;
     if (!id) return;
     const choices = repository.remoteBranches.map((entry) => entry.name);
@@ -1465,19 +1440,17 @@ Log: ${info?.logPath ?? ""}`),
       errors.report({ kind: "invalidState", data: "No remote branch to track." } as never);
       return;
     }
-    prompt = {
+    const upstream = await prompt.ask({
       title: `Upstream for ${branch.name}`,
       label: "Track",
       value: branch.upstream ?? choices[0] ?? "",
       choices,
       confirm: "Set",
-      run: (upstream) => {
-        prompt = null;
-        void setUpstream(id, branch.name, upstream)
-          .then(() => repository.refresh())
-          .catch((err) => errors.report(err as never));
-      },
-    };
+    });
+    if (upstream === null) return;
+    await setUpstream(id, branch.name, upstream)
+      .then(() => repository.refresh())
+      .catch((err) => errors.report(err as never));
   }
 
   async function confirmDeleteRemote(branch: Branch) {
@@ -1557,22 +1530,15 @@ Log: ${info?.logPath ?? ""}`),
     }
   }
 
-  function askFlowStart(kind: import("$lib/ipc").FlowKind) {
+  async function askFlowStart(kind: import("$lib/ipc").FlowKind) {
     const id = repository.current?.repo;
     if (!id) return;
-    prompt = {
-      title: `Start a ${kind}`,
-      label: "Name",
-      value: "",
-      confirm: "Start",
-      run: (name) => {
-        prompt = null;
-        void runFlow(() => flow.start(id, kind, name));
-      },
-    };
+    const name = await prompt.ask({ title: `Start a ${kind}`, label: "Name", confirm: "Start" });
+    if (name === null) return;
+    await runFlow(() => flow.start(id, kind, name));
   }
 
-  function askFlowFinish() {
+  async function askFlowFinish() {
     const id = repository.current?.repo;
     const branch = flow.current;
     if (!id || !branch) return;
@@ -1580,29 +1546,19 @@ Log: ${info?.logPath ?? ""}`),
       void runFlow(() => flow.finish(id, branch.kind, branch.name, null));
       return;
     }
-    prompt = {
+    const tag = await prompt.ask({
       title: `Finish ${branch.full}`,
       label: "Tag for the release, or empty for none",
       value: branch.name,
       confirm: "Finish",
-      run: (tag) => {
-        prompt = null;
-        void runFlow(() => flow.finish(id, branch.kind, branch.name, tag.trim() || null));
-      },
-    };
+    });
+    if (tag === null) return;
+    await runFlow(() => flow.finish(id, branch.kind, branch.name, tag.trim() || null));
   }
 
-  function askAddGroup() {
-    prompt = {
-      title: "Add a group",
-      label: "Name",
-      value: "",
-      confirm: "Add",
-      run: (name) => {
-        prompt = null;
-        repoGroups.add(name);
-      },
-    };
+  async function askAddGroup() {
+    const name = await prompt.ask({ title: "Add a group", label: "Name", confirm: "Add" });
+    if (name !== null) repoGroups.add(name);
   }
 
   async function groupContext(id: string, x: number, y: number) {
@@ -1624,16 +1580,16 @@ Log: ${info?.logPath ?? ""}`),
     if (target === null) return false;
 
     if (id === "group-rename") {
-      prompt = {
-        title: "Rename group",
-        label: "Name",
-        value: repoGroups.groups.names[target] ?? "",
-        confirm: "Rename",
-        run: (name) => {
-          prompt = null;
-          repoGroups.rename(target, name);
-        },
-      };
+      void prompt
+        .ask({
+          title: "Rename group",
+          label: "Name",
+          value: repoGroups.groups.names[target] ?? "",
+          confirm: "Rename",
+        })
+        .then((name) => {
+          if (name !== null) repoGroups.rename(target, name);
+        });
       return true;
     }
     if (id === "group-remove") {
@@ -1667,24 +1623,21 @@ Log: ${info?.logPath ?? ""}`),
     await worktrees.prune(id).catch((err) => errors.report(err as never));
   }
 
-  function askAddWorktree() {
+  async function askAddWorktree() {
     const id = repo?.repo;
     if (!id) return;
-    prompt = {
+    const branch = await prompt.ask({
       title: "Add a worktree",
       label: "New branch name",
-      value: "",
       confirm: "Choose folder…",
-      run: (branch) => {
-        prompt = null;
-        void openFolderDialog({ directory: true, title: "Folder for the new worktree" })
-          .then((picked) => {
-            if (typeof picked !== "string") return;
-            return worktrees.add(id, picked, branch, true);
-          })
-          .catch((err) => errors.report(err as never));
-      },
-    };
+    });
+    if (branch === null) return;
+    await openFolderDialog({ directory: true, title: "Folder for the new worktree" })
+      .then((picked) => {
+        if (typeof picked !== "string") return;
+        return worktrees.add(id, picked, branch, true);
+      })
+      .catch((err) => errors.report(err as never));
   }
 
   async function repoContext(entry: import("$lib/ipc").RepoOverview, x: number, y: number) {
@@ -1912,28 +1865,6 @@ Log: ${info?.logPath ?? ""}`),
     await repository.closeOne(id);
   }
 
-  $effect(() => {
-    const pending = onOperationChanged((event) => {
-      running = applyOperation(running, event);
-    });
-    return () => void pending.then((unlisten) => unlisten());
-  });
-
-  $effect(() => {
-    const pending = onAvatarReady((event) => void avatars.refresh(event.email));
-    return () => void pending.then((unlisten) => unlisten());
-  });
-
-  /** A resolution written in its own window; the panels here catch up. */
-  $effect(() => {
-    const pending = onMergeResolved((event) => {
-      if (repository.current?.repo.valueOf() !== event.repo.valueOf()) return;
-      conflicts.close();
-      void afterMutation();
-    });
-    return () => void pending.then((unlisten) => unlisten());
-  });
-
   /** Where the user was last: written as it changes, not only on the way out, because a
       crash is exactly the case this is meant to survive. */
   $effect(() => {
@@ -1943,36 +1874,42 @@ Log: ${info?.logPath ?? ""}`),
 
   /** Closing throws away whatever is only in the window: an edited hook, a resolution
       nobody wrote yet. Everything else is already on disk or in the draft store. */
-  $effect(() => {
-    const pending = getCurrentWindow().onCloseRequested(async (event) => {
-      session.persist();
-      const what = unsavedSummary({
-        hook: hooks.dirty ? hooks.editing : null,
-        merge: conflicts.regions.length > 0 ? conflicts.path : null,
-      });
-      if (!what) return;
-      const go = await ask(`${what} Close anyway?`, {
-        title: "Cogit",
-        kind: "warning",
-      });
-      if (!go) event.preventDefault();
+  async function mayClose(): Promise<boolean> {
+    session.persist();
+    const what = unsavedSummary({
+      hook: hooks.dirty ? hooks.editing : null,
+      merge: conflicts.regions.length > 0 ? conflicts.path : null,
     });
-    return () => void pending.then((unlisten) => unlisten());
-  });
+    if (!what) return true;
+    return await ask(`${what} Close anyway?`, { title: "Cogit", kind: "warning" });
+  }
 
   /** A folder dropped on the window is a repository to open. Anything that is not one is
       refused by the backend and reported like any other failed open. */
-  $effect(() => {
-    const pending = getCurrentWebview().onDragDropEvent((event) => {
-      if (event.payload.type === "enter") dropping = true;
-      else if (event.payload.type === "leave") dropping = false;
-      else if (event.payload.type === "drop") {
-        dropping = false;
-        void openDropped(droppedRepositories(event.payload.paths));
-      }
-    });
-    return () => void pending.then((unlisten) => unlisten());
-  });
+  function onDragDrop(event: import("@tauri-apps/api/webview").DragDropEvent) {
+    if (event.type === "enter") dropping = true;
+    else if (event.type === "leave") dropping = false;
+    else if (event.type === "drop") {
+      dropping = false;
+      void openDropped(droppedRepositories(event.paths));
+    }
+  }
+
+  /** One subscription for everything the window hears from outside itself. */
+  $effect(() =>
+    connect({
+      repoChanged: onDiskChange,
+      operationChanged: (event) => (running = applyOperation(running, event)),
+      avatarReady: (email) => void avatars.refresh(email),
+      mergeResolved: (event) => {
+        if (repository.current?.repo.valueOf() !== event.repo.valueOf()) return;
+        conflicts.close();
+        void afterMutation();
+      },
+      closeRequested: mayClose,
+      dragDrop: onDragDrop,
+    }),
+  );
 
   async function openDropped(paths: string[]) {
     for (const path of paths.slice(1)) {
@@ -2418,16 +2355,16 @@ Log: ${info?.logPath ?? ""}`),
       onexport={(hook) => {
         const repo = repository.current?.repo;
         if (!repo) return;
-        prompt = {
-          title: "Save as preset",
-          label: `A name for the preset made from ${hook}`,
-          value: hook,
-          confirm: "Save",
-          run: (name) => {
-            prompt = null;
-            void hooks.export(repo, hook, name);
-          },
-        };
+        void prompt
+          .ask({
+            title: "Save as preset",
+            label: `A name for the preset made from ${hook}`,
+            value: hook,
+            confirm: "Save",
+          })
+          .then((name) => {
+            if (name !== null) void hooks.export(repo, hook, name);
+          });
       }}
       onremovepreset={(id) => {
         const repo = repository.current?.repo;
@@ -2461,22 +2398,22 @@ Log: ${info?.logPath ?? ""}`),
     />
   {/if}
 
-  {#if prompt}
+  {#if prompt.open}
     <PromptDialog
-      title={prompt.title}
-      label={prompt.label}
-      value={prompt.value}
-      choices={prompt.choices}
-      confirm={prompt.confirm}
-      validate={prompt.choices
+      title={prompt.open.title}
+      label={prompt.open.label}
+      value={prompt.open.value ?? ""}
+      choices={prompt.open.choices}
+      confirm={prompt.open.confirm}
+      validate={prompt.open.choices
         ? undefined
         : (name) =>
             branchNameProblem(
               name,
               repository.localBranches.map((entry) => entry.name),
             )}
-      onaccept={(value) => prompt?.run(value)}
-      onclose={() => (prompt = null)}
+      onaccept={(value) => prompt.accept(value)}
+      onclose={() => prompt.cancel()}
     />
   {/if}
 

@@ -1,14 +1,20 @@
 mod avatars;
 mod credentials;
+mod diffing;
+mod hooking;
 pub mod logging;
+mod network;
 mod presets;
+mod safety;
 pub mod terminal;
+mod worktrees;
 
 pub use avatars::{Author, AvatarRow, Avatars};
 pub use credentials::{
     KeyringStore, MemoryStore, SecretError, SecretStore, host_of, platform_store,
 };
 pub use presets::PresetStatus;
+pub use safety::{Recovery, SafetyEntry};
 
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -119,52 +125,6 @@ pub const DEFAULT_CHUNK_SIZE: usize = 200;
 /// from holding every byte Git ever printed.
 pub const JOURNAL_CAPACITY: usize = 500;
 
-/// What has to be put back to reverse one destructive operation (INV-12).
-#[derive(Debug, Clone, Serialize, specta::Type)]
-#[serde(
-    tag = "kind",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum Recovery {
-    Stash {
-        oid: String,
-    },
-    Branch {
-        name: String,
-        oid: String,
-    },
-    Tag {
-        name: String,
-        oid: String,
-    },
-    /// The patch that was reversed. Undo applies it again, which puts back exactly the
-    /// lines that went and leaves the rest of the file alone.
-    Patch {
-        path: String,
-        patch: String,
-    },
-    /// Recorded for the journal, refused by undo: honesty beats a half-working restore.
-    None,
-}
-
-/// What the journal shows. The means of undoing stays in `Undoable`, on this side of
-/// the boundary: it can be as large as the change itself and the panel never reads it.
-#[derive(Debug, Clone, Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct SafetyEntry {
-    pub id: u32,
-    pub repo: RepoId,
-    pub description: String,
-    pub undoable: bool,
-}
-
-#[derive(Debug, Clone)]
-struct Undoable {
-    entry: SafetyEntry,
-    recovery: Recovery,
-}
-
 /// Git reports mixed line endings, permissions and deprecated settings on `stderr` with
 /// exit code 0. Nobody sees those unless we call them out.
 #[must_use]
@@ -191,7 +151,7 @@ pub struct AppState {
     events: broadcast::Sender<AppEvent>,
     watchers: RwLock<HashMap<RepoId, fs_watcher::RepoWatcher>>,
     journal: Arc<RwLock<std::collections::VecDeque<git_engine::GitOutput>>>,
-    safety: RwLock<Vec<Undoable>>,
+    safety: RwLock<Vec<safety::Undoable>>,
     next_entry_id: AtomicU32,
     secrets: Box<dyn SecretStore>,
     pictures: RwLock<Option<Avatars>>,
@@ -484,28 +444,6 @@ impl AppState {
         self.handle(repo)?.commit_files(rev)
     }
 
-    pub fn diff_file(
-        &self,
-        repo: RepoId,
-        spec: &git_engine::DiffSpec,
-        path: &str,
-        options: &diff_engine::DiffOptions,
-    ) -> Result<diff_engine::FileDiff, git_engine::GitError> {
-        let (old, new) = self.handle(repo)?.diff_sides(spec, path)?;
-        if old.is_none() && new.is_none() {
-            return Err(git_engine::GitError::InvalidState(format!(
-                "{path} is absent from both sides of the diff"
-            )));
-        }
-
-        Ok(diff_engine::diff_one(
-            path,
-            old.as_deref().unwrap_or_default(),
-            new.as_deref().unwrap_or_default(),
-            options,
-        ))
-    }
-
     pub fn worktree_files(
         &self,
         repo: RepoId,
@@ -712,88 +650,6 @@ impl AppState {
         Arc::new(move |entry| record(&mut journal.write(), JOURNAL_CAPACITY, entry))
     }
 
-    /// Newest first, like the Output panel.
-    #[must_use]
-    pub fn safety_log(&self) -> Vec<SafetyEntry> {
-        self.safety
-            .read()
-            .iter()
-            .rev()
-            .map(|held| held.entry.clone())
-            .collect()
-    }
-
-    pub fn undo_last(&self, repo: RepoId) -> Result<SafetyEntry, git_engine::GitError> {
-        let held = self
-            .safety
-            .read()
-            .iter()
-            .rev()
-            .find(|held| held.entry.repo == repo && held.entry.undoable)
-            .cloned()
-            .ok_or_else(|| git_engine::GitError::InvalidState("nothing to undo".to_owned()))?;
-        self.reverse(repo, held)
-    }
-
-    /// Any entry, not only the newest: the recoveries are independent restores rather than
-    /// a stack, so the order is the user's to choose (T5.7).
-    pub fn undo_entry(&self, repo: RepoId, id: u32) -> Result<SafetyEntry, git_engine::GitError> {
-        let held = self
-            .safety
-            .read()
-            .iter()
-            .find(|held| held.entry.id == id && held.entry.repo == repo && held.entry.undoable)
-            .cloned()
-            .ok_or_else(|| {
-                git_engine::GitError::InvalidState(format!("no undoable entry {id} here"))
-            })?;
-        self.reverse(repo, held)
-    }
-
-    fn reverse(&self, repo: RepoId, held: Undoable) -> Result<SafetyEntry, git_engine::GitError> {
-        self.quiet(repo);
-        let handle = self.handle(repo)?;
-        match &held.recovery {
-            Recovery::Stash { oid } => handle.stash_apply(oid)?,
-            Recovery::Branch { name, oid } => handle.create_branch(name, Some(oid), false)?,
-            Recovery::Tag { name, oid } => handle.create_tag(&git_engine::TagRequest {
-                name: name.clone(),
-                target: Some(oid.clone()),
-                message: None,
-                force: false,
-            })?,
-            Recovery::Patch { patch, .. } => {
-                handle.apply_patch_to(patch, false, git_engine::PatchTarget::WorkTree)?;
-            }
-            Recovery::None => {
-                return Err(git_engine::GitError::InvalidState(
-                    "this operation cannot be undone".to_owned(),
-                ));
-            }
-        }
-
-        self.safety
-            .write()
-            .retain(|kept| kept.entry.id != held.entry.id);
-        Ok(held.entry)
-    }
-
-    fn record(&self, repo: RepoId, description: String, recovery: Recovery) {
-        let entry = SafetyEntry {
-            id: self.next_entry_id.fetch_add(1, Ordering::Relaxed),
-            repo,
-            description,
-            undoable: !matches!(recovery, Recovery::None),
-        };
-        tracing::info!(
-            repo = repo.0,
-            entry = %entry.description,
-            undoable = entry.undoable,
-            "destructive operation recorded"
-        );
-        self.safety.write().push(Undoable { entry, recovery });
-    }
-
     /// Staging changes the status and nothing else; reopening the repository to learn
     /// that re-reads HEAD, every branch and every tag for no reason.
     pub fn repo_status(
@@ -843,62 +699,6 @@ impl AppState {
         self.tracked("Stashing selection", || {
             handle.stash_paths(paths, message).map(drop)
         })
-    }
-
-    /// A failing check is a verdict the user reads, so it is tracked like any other run
-    /// and never turned into an error that stops the rebase (T11.3).
-    pub fn run_check(
-        &self,
-        repo: RepoId,
-        command: &str,
-    ) -> Result<git_engine::HookRun, git_engine::GitError> {
-        self.handle(repo)?.run_check(command)
-    }
-
-    pub fn worktrees(
-        &self,
-        repo: RepoId,
-    ) -> Result<Vec<git_engine::WorktreeEntry>, git_engine::GitError> {
-        self.handle(repo)?.worktrees()
-    }
-
-    /// Which worktree already has this branch, so a checkout can offer to go there instead
-    /// of failing with `already checked out` (T3.8).
-    pub fn worktree_holding(
-        &self,
-        repo: RepoId,
-        branch: &str,
-    ) -> Result<Option<git_engine::WorktreeEntry>, git_engine::GitError> {
-        self.handle(repo)?.worktree_holding(branch)
-    }
-
-    pub fn add_worktree(
-        &self,
-        repo: RepoId,
-        path: &str,
-        branch: &str,
-        create: bool,
-    ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
-        let handle = self.handle(repo)?;
-        self.tracked("Adding worktree", || {
-            handle.add_worktree(path, branch, create)
-        })
-    }
-
-    pub fn remove_worktree(
-        &self,
-        repo: RepoId,
-        path: &str,
-        force: bool,
-    ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
-        self.handle(repo)?.remove_worktree(path, force)
-    }
-
-    pub fn prune_worktrees(&self, repo: RepoId) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
-        self.handle(repo)?.prune_worktrees()
     }
 
     pub fn stash_contents(
@@ -1156,100 +956,6 @@ impl AppState {
         Ok(())
     }
 
-    pub fn hooks(&self, repo: RepoId) -> Result<git_engine::HookOverview, git_engine::GitError> {
-        self.handle(repo)?.hooks()
-    }
-
-    /// Where the user's own presets live. Set once at startup from the app config dir.
-    pub fn use_preset_dir(&self, dir: std::path::PathBuf) {
-        *self.preset_dir.write() = Some(dir);
-    }
-
-    /// The catalogue told against one repository: tools resolved and config files checked.
-    pub fn presets_for(&self, repo: RepoId) -> Result<Vec<PresetStatus>, git_engine::GitError> {
-        let root = self
-            .get(repo)
-            .ok_or_else(|| git_engine::GitError::RepoNotFound(format!("id {}", repo.0)))?
-            .root;
-
-        let mut all: Vec<PresetStatus> = git_engine::builtin_presets()
-            .into_iter()
-            .map(|preset| presets::status_for(preset, &root, false))
-            .collect();
-        if let Some(dir) = self.preset_dir.read().clone() {
-            all.extend(
-                presets::user_presets(&dir)
-                    .into_iter()
-                    .map(|preset| presets::status_for(preset, &root, true)),
-            );
-        }
-        Ok(all)
-    }
-
-    /// Saves the hook as it stands now as a preset the user can install elsewhere.
-    pub fn export_preset(
-        &self,
-        repo: RepoId,
-        hook: &str,
-        id: &str,
-        name: &str,
-        description: &str,
-    ) -> Result<(), git_engine::GitError> {
-        if !presets::valid_id(id) {
-            return Err(git_engine::GitError::InvalidState(format!(
-                "{id} is not a usable preset name"
-            )));
-        }
-        if git_engine::builtin_presets().iter().any(|p| p.id == id) {
-            return Err(git_engine::GitError::InvalidState(format!(
-                "{id} is the name of a built-in preset"
-            )));
-        }
-        let dir = self.preset_dir()?;
-        let script = self.handle(repo)?.read_hook(hook)?;
-        presets::write_preset(&dir, id, name, hook, description, &script).map(drop)
-    }
-
-    pub fn remove_preset(&self, id: &str) -> Result<(), git_engine::GitError> {
-        if !presets::valid_id(id) || git_engine::builtin_presets().iter().any(|p| p.id == id) {
-            return Err(git_engine::GitError::InvalidState(format!(
-                "{id} is not a preset of yours"
-            )));
-        }
-        std::fs::remove_file(self.preset_dir()?.join(format!("{id}.toml")))?;
-        Ok(())
-    }
-
-    fn preset_dir(&self) -> Result<std::path::PathBuf, git_engine::GitError> {
-        self.preset_dir.read().clone().ok_or_else(|| {
-            git_engine::GitError::InvalidState("no directory for your own presets".into())
-        })
-    }
-
-    /// Wiring up a team's hooks is two steps, and the second is the one people forget.
-    pub fn adopt_hooks(&self, repo: RepoId, path: &str) -> Result<(), git_engine::GitError> {
-        self.use_hooks_path(repo, path)?;
-        self.handle(repo)?.add_eol_rule(path)
-    }
-
-    pub fn install_preset(&self, repo: RepoId, id: &str) -> Result<(), git_engine::GitError> {
-        let saved = self
-            .preset_dir
-            .read()
-            .clone()
-            .map(|dir| presets::user_presets(&dir))
-            .unwrap_or_default();
-        let preset = git_engine::builtin_presets()
-            .into_iter()
-            .chain(saved)
-            .find(|preset| preset.id == id)
-            .ok_or_else(|| {
-                git_engine::GitError::InvalidState(format!("there is no preset {id}"))
-            })?;
-        self.quiet(repo);
-        self.handle(repo)?.install_preset(&preset)
-    }
-
     pub fn stage_mode(
         &self,
         repo: RepoId,
@@ -1258,116 +964,6 @@ impl AppState {
     ) -> Result<(), git_engine::GitError> {
         self.quiet(repo);
         self.handle(repo)?.stage_mode(path, executable)
-    }
-
-    pub fn commit_template(&self, repo: RepoId) -> Result<Option<String>, git_engine::GitError> {
-        self.handle(repo)?.commit_template()
-    }
-
-    pub fn bypass_log(
-        &self,
-        repo: RepoId,
-    ) -> Result<Vec<git_engine::Bypass>, git_engine::GitError> {
-        self.handle(repo)?.bypass_log()
-    }
-
-    pub fn read_hook(&self, repo: RepoId, name: &str) -> Result<String, git_engine::GitError> {
-        self.handle(repo)?.read_hook(name)
-    }
-
-    pub fn write_hook(
-        &self,
-        repo: RepoId,
-        name: &str,
-        body: &str,
-    ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
-        self.handle(repo)?.write_hook(name, body)
-    }
-
-    pub fn set_hook_enabled(
-        &self,
-        repo: RepoId,
-        name: &str,
-        enabled: bool,
-    ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
-        self.handle(repo)?.set_hook_enabled(name, enabled)
-    }
-
-    /// Wires a versioned hook directory up. Never automatic: a hooks path inside the tree
-    /// turns repository content into code that runs on commit (doc/modules/M10-hooks.md).
-    pub fn use_hooks_path(&self, repo: RepoId, path: &str) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
-        self.handle(repo)?
-            .run_git(&["config", "core.hooksPath", path])
-            .map(drop)
-    }
-
-    pub fn run_hook(
-        &self,
-        repo: RepoId,
-        name: &str,
-    ) -> Result<git_engine::HookRun, git_engine::GitError> {
-        self.handle(repo)?.run_hook(name)
-    }
-
-    pub fn remotes(&self, repo: RepoId) -> Result<Vec<String>, git_engine::GitError> {
-        self.handle(repo)?.remotes()
-    }
-
-    pub fn fetch(
-        &self,
-        repo: RepoId,
-        remote: &str,
-        on_line: impl FnMut(&str),
-    ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
-        let handle = self.handle(repo)?;
-        let token = self.token_for(&handle, remote);
-        self.tracked("Fetching", || {
-            handle.fetch(remote, token.as_deref(), on_line)
-        })
-    }
-
-    pub fn pull(
-        &self,
-        repo: RepoId,
-        remote: &str,
-        ff_only: bool,
-        on_line: impl FnMut(&str),
-    ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
-        let handle = self.handle(repo)?;
-        let token = self.token_for(&handle, remote);
-        self.tracked("Pulling", || {
-            handle.pull(remote, ff_only, token.as_deref(), on_line)
-        })
-    }
-
-    pub fn push(
-        &self,
-        repo: RepoId,
-        remote: &str,
-        force: bool,
-        on_line: impl FnMut(&str),
-    ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
-        let handle = self.handle(repo)?;
-        let token = self.token_for(&handle, remote);
-        self.tracked("Pushing", || {
-            handle.push(remote, None, force, token.as_deref(), on_line)
-        })
-    }
-
-    /// Only for an HTTP remote: SSH already authenticates through the agent, and handing
-    /// a token to an unknown host would leak it.
-    fn token_for(&self, handle: &git_engine::RepoHandle, remote: &str) -> Option<String> {
-        let url = handle.remote_url(remote)?;
-        if !git_engine::wants_auth(&url) {
-            return None;
-        }
-        self.secrets.get(&host_of(&url)?)
     }
 
     pub fn merge(
@@ -1537,23 +1133,6 @@ impl AppState {
         self.handle(repo)?.update_submodule(path, init)
     }
 
-    /// Builds the patch and applies it in one step: the two halves must never drift
-    /// apart, and a half-applied selection is exactly the damage R-04 warns about.
-    pub fn stage_selection(
-        &self,
-        repo: RepoId,
-        request: &diff_engine::PatchRequest,
-        reverse: bool,
-    ) -> Result<(), git_engine::GitError> {
-        let Some(patch) = diff_engine::build_patch(request) else {
-            return Err(git_engine::GitError::InvalidState(
-                "nothing selected".to_owned(),
-            ));
-        };
-        self.quiet(repo);
-        self.handle(repo)?.apply_patch(&patch, reverse)
-    }
-
     pub fn blame(
         &self,
         repo: RepoId,
@@ -1595,22 +1174,6 @@ impl AppState {
         Ok(())
     }
 
-    /// Both sides of an image as `data:` URLs; `None` on a side the file is absent from.
-    pub fn image_sides(
-        &self,
-        repo: RepoId,
-        spec: &git_engine::DiffSpec,
-        path: &str,
-    ) -> Result<(Option<String>, Option<String>), git_engine::GitError> {
-        let (old, new) = self.handle(repo)?.diff_sides(spec, path)?;
-        let encode = |bytes: Option<Vec<u8>>| {
-            bytes.and_then(|data| {
-                diff_engine::image_mime(&data).map(|mime| diff_engine::data_url(mime, &data))
-            })
-        };
-        Ok((encode(old), encode(new)))
-    }
-
     pub fn conflicted_paths(&self, repo: RepoId) -> Result<Vec<String>, git_engine::GitError> {
         self.handle(repo)?.conflicted_paths()
     }
@@ -1621,23 +1184,6 @@ impl AppState {
         path: &str,
     ) -> Result<git_engine::ConflictText, git_engine::GitError> {
         Ok(self.handle(repo)?.conflict_sides(path)?.to_text())
-    }
-
-    /// The three sides already merged: the view needs regions to count and step through,
-    /// not a file with markers in it.
-    pub fn merge_preview(
-        &self,
-        repo: RepoId,
-        path: &str,
-    ) -> Result<Vec<diff_engine::Region>, git_engine::GitError> {
-        let sides = self.handle(repo)?.conflict_sides(path)?.to_text();
-        let language = diff_engine::language_for_path(path);
-        Ok(diff_engine::merge3_with_syntax(
-            sides.base.as_deref().unwrap_or_default(),
-            sides.ours.as_deref().unwrap_or_default(),
-            sides.theirs.as_deref().unwrap_or_default(),
-            language.as_deref(),
-        ))
     }
 
     pub fn resolve_conflict(
@@ -1797,111 +1343,12 @@ pub enum DiffBatch {
 static NEWEST_DIFF_REQUEST: std::sync::OnceLock<RwLock<HashMap<(usize, RepoId), u32>>> =
     std::sync::OnceLock::new();
 
-fn newest_diff_request() -> &'static RwLock<HashMap<(usize, RepoId), u32>> {
+pub(crate) fn newest_diff_request() -> &'static RwLock<HashMap<(usize, RepoId), u32>> {
     NEWEST_DIFF_REQUEST.get_or_init(|| RwLock::new(HashMap::new()))
 }
 
 #[allow(clippy::items_after_test_module)]
 impl AppState {
-    /// Records `request` as the newest for `repo` and reports whether it still is. An
-    /// older number never displaces a newer one, so responses cannot arrive out of order.
-    fn claim_diff_request(&self, repo: RepoId, request: u32) -> bool {
-        let key = (std::ptr::from_ref(self) as usize, repo);
-        let mut newest = newest_diff_request().write();
-        match newest.get(&key) {
-            Some(&seen) if seen > request => false,
-            _ => {
-                newest.insert(key, request);
-                true
-            }
-        }
-    }
-
-    fn diff_request_is_current(&self, repo: RepoId, request: u32) -> bool {
-        let key = (std::ptr::from_ref(self) as usize, repo);
-        newest_diff_request().read().get(&key) == Some(&request)
-    }
-
-    /// Every file of a commit in one call.
-    ///
-    /// The object reads stay sequential — a `gix` repository is not shared across threads
-    /// — and only the diffing is parallel, which is where the time goes anyway
-    /// (doc/08-diff-engine.md section 9).
-    ///
-    /// Blocking by design; the Tauri layer wraps it in `spawn_blocking`, and `rayon` must
-    /// never be entered from an async task ([INV-01](doc/01-architecture.md)).
-    pub fn diff_files(
-        &self,
-        repo: RepoId,
-        spec: &git_engine::DiffSpec,
-        paths: &[String],
-        options: &diff_engine::DiffOptions,
-        request: u32,
-    ) -> Result<DiffBatch, git_engine::GitError> {
-        if !self.claim_diff_request(repo, request) {
-            return Ok(DiffBatch::Superseded);
-        }
-
-        let handle = self.handle(repo)?;
-        let mut inputs = Vec::with_capacity(paths.len());
-
-        for path in paths {
-            // Between files, never inside one: there is no way to interrupt `imara-diff`
-            // part-way, and a single file is short enough that it does not matter.
-            if !self.diff_request_is_current(repo, request) {
-                return Ok(DiffBatch::Superseded);
-            }
-
-            let (old, new) = handle.diff_sides(spec, path)?;
-            if old.is_none() && new.is_none() {
-                return Err(git_engine::GitError::InvalidState(format!(
-                    "{path} is absent from both sides of the diff"
-                )));
-            }
-            inputs.push(diff_engine::FileInput {
-                path: path.clone(),
-                old: old.unwrap_or_default(),
-                new: new.unwrap_or_default(),
-            });
-        }
-
-        let files = diff_engine::diff_many(inputs, options);
-        if self.diff_request_is_current(repo, request) {
-            Ok(DiffBatch::Ready { files })
-        } else {
-            Ok(DiffBatch::Superseded)
-        }
-    }
-
-    /// Throws the selected lines away in the working tree.
-    ///
-    /// Journalled with `Recovery::None`: a line-level snapshot has nowhere to live, and an
-    /// undo that half works is worse than one that says no (R-106). That is why the view
-    /// confirms every discard.
-    pub fn discard_selection(
-        &self,
-        repo: RepoId,
-        request: &diff_engine::PatchRequest,
-    ) -> Result<(), git_engine::GitError> {
-        let Some(patch) = diff_engine::build_patch(request) else {
-            return Err(git_engine::GitError::InvalidState(
-                "nothing selected".to_owned(),
-            ));
-        };
-        self.quiet(repo);
-        self.handle(repo)?
-            .apply_patch_to(&patch, true, git_engine::PatchTarget::WorkTree)?;
-        self.record(
-            repo,
-            format!("Discard lines in {}", request.path),
-            Recovery::Patch {
-                path: request.path.clone(),
-                patch,
-            },
-        );
-        Ok(())
-    }
-
     /// Every commit that changed a fragment of a file, newest first.
     pub fn investigate(
         &self,
