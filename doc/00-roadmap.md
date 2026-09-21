@@ -34,19 +34,19 @@
 |---|---|---|---|---|
 | M0 | Костяк, тулчейн, workspace | `DONE` | — | [M0](modules/M0-skeleton.md) |
 | M9 | Тестовые фикстуры | `DONE` | M0 | [M9](modules/M9-fixtures.md) |
-| M1 | Ядро Git и системный бэкенд | `WIP` (осталась фильтрация через `ignore` и два замера) | M0, M9 | [M1](modules/M1-core.md) |
-| M3 | Дерево репозиториев и сабмодули | `WIP` (осталось: вложенные группы, стартовый экран, dirty по watcher) | M1, M2 | [M3](modules/M3-repo-tree.md) |
-| M4 | Граф истории и визуальный Rebase | `DONE` (остались две ручные проверки) | M1, M2, M9 | [M4](modules/M4-graph.md) |
-| M2 | Макет, многооконность, меню | `WIP` (осталось окно merge, подтверждение закрытия, чек-лист дизайна) | M0 | [M2](modules/M2-layout.md) |
-| M5 | Дерево ссылок и управление состоянием | `WIP` (остался Git-Flow) | M1, M2 | [M5](modules/M5-references.md) |
-| M6 | Список файлов, стейджинг, Hunk Staging | `WIP` (остался скрытый стэш под Undo для Discard) | M1, M2, M7 | [M6](modules/M6-staging.md) |
-| M7 | Движок Diff, подсветка, 3-Way Merge | `WIP` (осталось синтаксическое слияние через tree-sitter) | M0, M9 | [M7](modules/M7-diff.md) |
-| M8 | Инструменты продуктивности | `WIP` (остался индикатор устаревших данных) | M1–M7 | [M8](modules/M8-tools.md) |
+| M1 | Ядро Git и системный бэкенд | `DONE` | M0, M9 | [M1](modules/M1-core.md) |
+| M3 | Дерево репозиториев и сабмодули | `DONE` | M1, M2 | [M3](modules/M3-repo-tree.md) |
+| M4 | Граф истории и визуальный Rebase | `DONE` (остались две проверки глазами) | M1, M2, M9 | [M4](modules/M4-graph.md) |
+| M2 | Макет, многооконность, меню | `DONE` (остались две проверки глазами) | M0 | [M2](modules/M2-layout.md) |
+| M5 | Дерево ссылок и управление состоянием | `DONE` | M1, M2 | [M5](modules/M5-references.md) |
+| M6 | Список файлов, стейджинг, Hunk Staging | `DONE` | M1, M2, M7 | [M6](modules/M6-staging.md) |
+| M7 | Движок Diff, подсветка, 3-Way Merge | `DONE` (Markdown в синтаксическом слиянии не делали) | M0, M9 | [M7](modules/M7-diff.md) |
+| M8 | Инструменты продуктивности | `DONE` | M1–M7 | [M8](modules/M8-tools.md) |
 | M10 | Управление хуками и пресеты | `DONE` | M1, M2, M3 | [M10](modules/M10-hooks.md) |
-| M11 | Commit Debugger — граф во время операции | `DONE` (остался тест на повреждённый todo) | M4, M5, M6 | [M11](modules/M11-commit-debugger.md) |
-| M12 | Хирургия коммитов: Split-Off, Rollback-To | `DONE` (осталась защита от правки запушенного в защищённую ветку) | M1, M4, M6 | [M12](modules/M12-commit-surgery.md) |
+| M11 | Commit Debugger — граф во время операции | `DONE` | M4, M5, M6 | [M11](modules/M11-commit-debugger.md) |
+| M12 | Хирургия коммитов: Split-Off, Rollback-To | `DONE` | M1, M4, M6 | [M12](modules/M12-commit-surgery.md) |
 | M13 | Commit Overlap — анализ пересечений | `DONE` | M1, M4 | [M13](modules/M13-commit-overlap.md) |
-| M14 | Аватары авторов | `DONE (Gravatar)` | M1, M4 | [M14](modules/M14-avatars.md) |
+| M14 | Аватары авторов | `DONE` (Gravatar; GitLab и GitHub — не делали) | M1, M4 | [M14](modules/M14-avatars.md) |
 
 M9 намеренно идёт **вторым**: без генератора репозиториев нечем тестировать M1, M4 и M7,
 а писать тесты на живых репозиториях пользователя недопустимо.
