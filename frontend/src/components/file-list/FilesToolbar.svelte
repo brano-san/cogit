@@ -33,6 +33,35 @@
 
   let box: HTMLInputElement | undefined = $state();
   let columnsOpen = $state(false);
+  let bar: HTMLDivElement | undefined = $state();
+  let crowded = $state(false);
+
+  /** Field at its narrowest, plus the nine buttons and three rules to its right. */
+  const ROOM_FOR_SWITCHES = 420;
+
+  /** The Files panel is often a narrow column. Rather than clip the switches, they move
+      into the Customize View menu, where they are still one click away (issue 12). */
+  $effect(() => {
+    const element = bar;
+    if (!element) return;
+    // Read the switches so a change in what is rendered re-measures the row.
+    void hidden;
+    void view;
+
+    // A width, not a measurement of the overflow: once the switches are hidden the row
+    // fits again, so measuring the overflow makes the decision flap.
+    const measure = () => {
+      crowded = element.clientWidth < ROOM_FOR_SWITCHES;
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    // One frame later: on the first pass the children have no laid-out width yet.
+    const frame = requestAnimationFrame(measure);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  });
 
   export function focus() {
     box?.select();
@@ -89,7 +118,7 @@
   }
 </script>
 
-<div class="bar" role="toolbar" aria-label="File list options">
+<div class="bar" class:crowded bind:this={bar} role="toolbar" aria-label="File list options">
   {#if hidden > 0}
     <button
       type="button"
@@ -177,7 +206,7 @@
 
   <span class="rule" aria-hidden="true"></span>
 
-  {#each STATES as item (item.key)}
+  {#each crowded ? [] : STATES as item (item.key)}
     <button
       type="button"
       class="tool"
@@ -210,6 +239,22 @@
       <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
       <div class="backdrop" onclick={() => (columnsOpen = false)}></div>
       <div class="menu" role="menu">
+        {#if crowded}
+          <p class="group-label">Show files that are…</p>
+          {#each STATES as item (item.key)}
+            <button
+              type="button"
+              role="menuitemcheckbox"
+              aria-checked={view[item.key]}
+              title={item.title}
+              onclick={() => set(item.key, !view[item.key])}
+            >
+              <span class="tick">{view[item.key] ? "✓" : ""}</span>
+              {item.key.charAt(0).toUpperCase() + item.key.slice(1)}
+            </button>
+          {/each}
+          <p class="group-label">Columns</p>
+        {/if}
         {#each COLUMNS as column (column.key)}
           <button
             type="button"
@@ -234,7 +279,7 @@
   .bar {
     display: flex;
     align-items: center;
-    gap: var(--sp-2);
+    gap: var(--sp-1);
     height: 32px;
     flex: 0 0 32px;
     padding: 0 var(--sp-3);
@@ -338,8 +383,8 @@
     align-items: center;
     justify-content: center;
     flex: 0 0 auto;
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
     padding: 0;
     background: none;
     border: 0;
@@ -432,5 +477,17 @@
     display: inline-block;
     width: 10px;
     color: var(--status-ref);
+  }
+
+  .group-label {
+    margin: var(--sp-2) 0 var(--sp-1);
+    padding: 0 var(--sp-4);
+    color: var(--text-secondary);
+    font-size: var(--fs-header);
+  }
+
+  /* Once the switches have moved into the menu, the rules that fenced them go too. */
+  .bar.crowded .rule:nth-of-type(n + 2) {
+    display: none;
   }
 </style>
