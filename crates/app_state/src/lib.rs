@@ -1488,6 +1488,21 @@ impl AppState {
         Ok(self.handle(repo)?.conflict_sides(path)?.to_text())
     }
 
+    /// The three sides already merged: the view needs regions to count and step through,
+    /// not a file with markers in it.
+    pub fn merge_preview(
+        &self,
+        repo: RepoId,
+        path: &str,
+    ) -> Result<Vec<diff_engine::Region>, git_engine::GitError> {
+        let sides = self.handle(repo)?.conflict_sides(path)?.to_text();
+        Ok(diff_engine::merge3(
+            sides.base.as_deref().unwrap_or_default(),
+            sides.ours.as_deref().unwrap_or_default(),
+            sides.theirs.as_deref().unwrap_or_default(),
+        ))
+    }
+
     pub fn resolve_conflict(
         &self,
         repo: RepoId,

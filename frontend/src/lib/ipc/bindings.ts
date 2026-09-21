@@ -86,6 +86,8 @@ export const commands = {
 	addWorktree: (repo: RepoId, path: string, branch: string, create: boolean) => typedError<null, GitError>(__TAURI_INVOKE("add_worktree", { repo, path, branch, create })),
 	removeWorktree: (repo: RepoId, path: string, force: boolean) => typedError<null, GitError>(__TAURI_INVOKE("remove_worktree", { repo, path, force })),
 	pruneWorktrees: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("prune_worktrees", { repo })),
+	/**  The three sides merged into regions, for the four-panel view (doc/08-diff-engine.md §8). */
+	mergePreview: (repo: RepoId, path: string) => typedError<Region[], GitError>(__TAURI_INVOKE("merge_preview", { repo, path })),
 	/**
 	 *  The authors on screen. Returns at once with whatever is already cached; anything
 	 *  missing is queued and announced later through `AvatarReady` (M14 T14.2).
@@ -532,6 +534,12 @@ export type OperationChanged = {
 	success: boolean | null,
 };
 
+export type Origin = 
+/**  Nobody touched these lines. */
+"unchanged" | "ours" | "theirs" | 
+/**  Both sides made the same edit. */
+"both";
+
 export type Overlap = "none" | "slight" | "heavy" | "same";
 
 export type OverlapRow = {
@@ -596,6 +604,13 @@ export type ReflogEntry = {
 	message: string,
 	timestamp: number,
 };
+
+export type Region = { kind: "clean"; lines: string[]; 
+/**
+ *  Anything but `Unchanged` was resolved without asking, and is worth a look
+ *  before the merge is committed (doc/08-diff-engine.md §8).
+ */
+origin: Origin } | { kind: "conflict"; base: string[]; ours: string[]; theirs: string[] };
 
 /**
  *  Mirrors `app_state::AppEvent::RepoChanged`. It lives here because deriving

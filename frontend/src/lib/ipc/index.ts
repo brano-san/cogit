@@ -67,12 +67,14 @@ export type {
   LineEnding,
   MergeOptions,
   OperationChanged,
+  Origin,
   Overlap,
   OverlapRow,
   PresetStatus,
   PatchRequest,
   RebaseOptions,
   RebaseProgress,
+  Region,
   KeyBinding,
   RebaseStep,
   ReflogEntry,
@@ -586,6 +588,11 @@ export async function overlapWindow(repo: RepoId, base: string, window: string[]
 
 export async function bypassLog(repo: RepoId) {
   return unwrap(await commands.bypassLog(repo));
+}
+
+/** The three sides already merged into regions, for the four-panel merge view. */
+export async function mergePreview(repo: RepoId, path: string) {
+  return unwrap(await commands.mergePreview(repo, path));
 }
 
 /** The authors on screen. Returns at once; pictures not cached yet arrive as events. */
