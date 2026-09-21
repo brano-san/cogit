@@ -102,6 +102,9 @@
           class:over={over === row.id}
           role="button"
           tabindex="0"
+          draggable={row.id !== UNGROUPED}
+          style:padding-left="calc(var(--sp-4) + {row.depth * 12}px)"
+          ondragstart={(event) => event.dataTransfer?.setData("text/cogit-group", row.id)}
           onclick={() => repoGroups.collapse(row.id)}
           onkeydown={(event) => event.key === "Enter" && repoGroups.collapse(row.id)}
           oncontextmenu={(event) => {
@@ -115,6 +118,12 @@
           }}
           ondragleave={() => (over = null)}
           ondrop={(event) => {
+            over = null;
+            const moved = event.dataTransfer?.getData("text/cogit-group") ?? "";
+            if (moved) {
+              repoGroups.nest(moved, row.id === UNGROUPED ? null : row.id);
+              return;
+            }
             const root = event.dataTransfer?.getData("text/cogit-repo") ?? "";
             if (root) dropped(row.id, root);
           }}
@@ -130,6 +139,7 @@
       <div
         class="row"
         draggable="true"
+        style:padding-left="calc(var(--sp-5) + {row.depth * 12}px)"
         ondragstart={(event) => event.dataTransfer?.setData("text/cogit-repo", entry.root)}
         class:selected={active?.valueOf() === entry.repo.valueOf()}
         class:marked={marked.paths.has(entry.root)}

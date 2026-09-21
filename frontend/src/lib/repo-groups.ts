@@ -5,14 +5,16 @@ export interface RepoGroups {
   names: Record<string, string>;
   /** Repository root to group id. A root absent here is ungrouped. */
   of: Record<string, string>;
+  /** Group id to the group it sits inside. Absent means it sits at the top. */
+  under: Record<string, string>;
 }
 
 /** Not a group: the heading the unclaimed repositories gather under. */
 export const UNGROUPED = "";
 
 export type GroupRow =
-  | { kind: "group"; id: string; name: string; count: number }
-  | { kind: "repo"; root: string; group: string };
+  | { kind: "group"; id: string; name: string; count: number; depth: number }
+  | { kind: "repo"; root: string; group: string; depth: number };
 
 export function addGroup(
   groups: RepoGroups,
@@ -29,6 +31,7 @@ export function addGroup(
       order: [...groups.order, id],
       names: { ...groups.names, [id]: trimmed },
       of: { ...groups.of },
+      under: { ...groups.under },
     },
     id,
   };
@@ -49,7 +52,47 @@ export function removeGroup(groups: RepoGroups, id: string): RepoGroups {
   for (const [root, group] of Object.entries(groups.of)) {
     if (group !== id) of[root] = group;
   }
-  return { order: groups.order.filter((entry) => entry !== id), names, of };
+
+  // Children move up to where their parent was rather than disappearing with it.
+  const under: Record<string, string> = {};
+  for (const [child, parent] of Object.entries(groups.under)) {
+    if (child === id) continue;
+    if (parent === id) {
+      const grandparent = groups.under[id];
+      if (grandparent) under[child] = grandparent;
+    } else {
+      under[child] = parent;
+    }
+  }
+
+  return { order: groups.order.filter((entry) => entry !== id), names, of, under };
+}
+
+/** Moves a group inside another, or to the top level with `null`. A move that would make
+    a group its own ancestor is refused: both ends would drop out of the tree. */
+export function nest(groups: RepoGroups, id: string, parent: string | null): RepoGroups {
+  if (groups.names[id] === undefined) return groups;
+
+  if (parent === null) {
+    if (groups.under[id] === undefined) return groups;
+    const under = { ...groups.under };
+    delete under[id];
+    return { ...groups, under };
+  }
+
+  if (parent === id || groups.names[parent] === undefined) return groups;
+  if (ancestors(groups, parent).includes(id)) return groups;
+  return { ...groups, under: { ...groups.under, [id]: parent } };
+}
+
+function ancestors(groups: RepoGroups, id: string): string[] {
+  const seen: string[] = [];
+  let at: string | undefined = id;
+  while (at !== undefined && !seen.includes(at)) {
+    seen.push(at);
+    at = groups.under[at];
+  }
+  return seen;
 }
 
 export function assign(groups: RepoGroups, root: string, group: string): RepoGroups {
@@ -68,26 +111,37 @@ export function groupRows(
   collapsed: ReadonlySet<string>,
 ): GroupRow[] {
   if (groups.order.length === 0) {
-    return roots.map((root) => ({ kind: "repo", root, group: UNGROUPED }));
+    return roots.map((root) => ({ kind: "repo", root, group: UNGROUPED, depth: 0 }));
   }
 
   const rows: GroupRow[] = [];
   const claimed = new Set<string>();
 
-  for (const id of groups.order) {
-    const inside = roots.filter((root) => groups.of[root] === id);
-    for (const root of inside) claimed.add(root);
-    rows.push({ kind: "group", id, name: groups.names[id] ?? id, count: inside.length });
-    if (collapsed.has(id)) continue;
-    for (const root of inside) rows.push({ kind: "repo", root, group: id });
-  }
+  const walk = (parent: string | null, depth: number) => {
+    for (const id of groups.order) {
+      if ((groups.under[id] ?? null) !== parent) continue;
+      const inside = roots.filter((root) => groups.of[root] === id);
+      for (const root of inside) claimed.add(root);
+      rows.push({
+        kind: "group",
+        id,
+        name: groups.names[id] ?? id,
+        count: inside.length,
+        depth,
+      });
+      if (collapsed.has(id)) continue;
+      for (const root of inside) rows.push({ kind: "repo", root, group: id, depth: depth + 1 });
+      walk(id, depth + 1);
+    }
+  };
+  walk(null, 0);
 
   const loose = roots.filter((root) => !claimed.has(root));
   if (loose.length === 0) return rows;
 
-  rows.push({ kind: "group", id: UNGROUPED, name: "Ungrouped", count: loose.length });
+  rows.push({ kind: "group", id: UNGROUPED, name: "Ungrouped", count: loose.length, depth: 0 });
   if (!collapsed.has(UNGROUPED)) {
-    for (const root of loose) rows.push({ kind: "repo", root, group: UNGROUPED });
+    for (const root of loose) rows.push({ kind: "repo", root, group: UNGROUPED, depth: 1 });
   }
   return rows;
 }
@@ -97,10 +151,15 @@ function strings(value: unknown): string[] {
 }
 
 export function mergeGroups(stored: unknown): RepoGroups {
-  const empty: RepoGroups = { order: [], names: {}, of: {} };
+  const empty: RepoGroups = { order: [], names: {}, of: {}, under: {} };
   if (typeof stored !== "object" || stored === null) return empty;
 
-  const source = stored as { order?: unknown; names?: unknown; of?: unknown };
+  const source = stored as {
+    order?: unknown;
+    names?: unknown;
+    of?: unknown;
+    under?: unknown;
+  };
   const names: Record<string, string> = {};
   if (typeof source.names === "object" && source.names !== null) {
     for (const [id, name] of Object.entries(source.names as Record<string, unknown>)) {
@@ -116,5 +175,24 @@ export function mergeGroups(stored: unknown): RepoGroups {
       if (typeof id === "string" && order.includes(id)) of[root] = id;
     }
   }
-  return { order, names, of };
+  const under: Record<string, string> = {};
+  if (typeof source.under === "object" && source.under !== null) {
+    for (const [child, parent] of Object.entries(source.under as Record<string, unknown>)) {
+      if (typeof parent !== "string") continue;
+      if (!order.includes(child) || !order.includes(parent) || child === parent) continue;
+      under[child] = parent;
+    }
+  }
+  // A stored cycle would leave every group in it unreachable from the top level.
+  for (const child of Object.keys(under)) {
+    let at: string | undefined = under[child];
+    const seen = new Set([child]);
+    while (at !== undefined && !seen.has(at)) {
+      seen.add(at);
+      at = under[at];
+    }
+    if (at !== undefined) delete under[child];
+  }
+
+  return { order, names, of, under };
 }

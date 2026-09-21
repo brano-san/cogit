@@ -1200,6 +1200,7 @@ Log: ${info?.logPath ?? ""}`),
     if (opened) {
       refs.adopt(opened.root, buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() }));
       session.setActive(opened.root);
+      session.opened(opened.root);
       if (restoreOid) void commit.select(opened.repo, restoreOid);
       void reloadGraph();
       void refs.loadUrls(opened.repo);
@@ -2091,6 +2092,11 @@ Log: ${info?.logPath ?? ""}`),
               {/if}
             {/snippet}
             <GraphPanel
+              recent={session.recent}
+              onopenrecent={(path) => void activate(path)}
+              onforgetrecent={(path) => session.forgetRecent(path)}
+              onopen={pickRepository}
+              onscan={() => (scanOpen = true)}
               {progress}
               check={checkCommand}
               oncheck={(command) => (checkCommand = command)}

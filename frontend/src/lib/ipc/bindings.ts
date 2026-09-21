@@ -604,6 +604,11 @@ export type RebaseStep = {
 
 /**  What has to be put back to reverse one destructive operation (INV-12). */
 export type Recovery = { kind: "stash"; oid: string } | { kind: "branch"; name: string; oid: string } | { kind: "tag"; name: string; oid: string } | 
+/**
+ *  The patch that was reversed. Undo applies it again, which puts back exactly the
+ *  lines that went and leaves the rest of the file alone.
+ */
+{ kind: "patch"; path: string; patch: string } | 
 /**  Recorded for the journal, refused by undo: honesty beats a half-working restore. */
 { kind: "none" };
 
