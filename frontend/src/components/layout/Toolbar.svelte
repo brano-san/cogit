@@ -1,5 +1,6 @@
 <script lang="ts">
   import Tooltip from "$components/common/Tooltip.svelte";
+  import { reasons, type Context, type Requires } from "$lib/availability";
 
   /** Inapplicable actions are disabled, not hidden, so buttons never move under the cursor. */
   interface Action {
@@ -8,6 +9,8 @@
     /** Lucide path data, drawn by the one <svg> below at a single size and weight. */
     icon: string;
     shortcut?: string;
+    /** What the action needs; the one rule set decides whether it is offered (issue 2). */
+    needs: Requires;
   }
 
   const ICONS = {
@@ -26,32 +29,54 @@
 
   const GROUPS: Action[][] = [
     [
-      { id: "pull", label: "Pull", icon: ICONS.pull, shortcut: "Ctrl+Shift+U" },
-      { id: "push", label: "Push", icon: ICONS.push, shortcut: "Ctrl+Shift+O" },
-      { id: "sync", label: "Sync", icon: ICONS.sync, shortcut: "Ctrl+Shift+S" },
+      { id: "pull", label: "Pull", icon: ICONS.pull, shortcut: "Ctrl+Shift+U", needs: { remote: true } },
+      { id: "push", label: "Push", icon: ICONS.push, shortcut: "Ctrl+Shift+O", needs: { remote: true } },
+      { id: "sync", label: "Sync", icon: ICONS.sync, shortcut: "Ctrl+Shift+S", needs: { remote: true } },
     ],
     [
-      { id: "stage", label: "Stage", icon: ICONS.stage, shortcut: "Ctrl+T" },
-      { id: "unstage", label: "Unstage", icon: ICONS.unstage, shortcut: "Ctrl+Shift+T" },
-      { id: "discard", label: "Discard", icon: ICONS.discard, shortcut: "Ctrl+Z" },
+      { id: "stage", label: "Stage", icon: ICONS.stage, shortcut: "Ctrl+T", needs: { selection: true } },
+      { id: "unstage", label: "Unstage", icon: ICONS.unstage, shortcut: "Ctrl+Shift+T", needs: { staged: true } },
+      { id: "discard", label: "Discard", icon: ICONS.discard, shortcut: "Ctrl+Z", needs: { selection: true } },
     ],
     [
-      { id: "stash", label: "Stash", icon: ICONS.stash, shortcut: "Ctrl+S" },
-      { id: "merge", label: "Merge", icon: ICONS.merge, shortcut: "Ctrl+M" },
-      { id: "rebase", label: "Rebase", icon: ICONS.rebase, shortcut: "Ctrl+R" },
-      { id: "tag", label: "Tag", icon: ICONS.tag, shortcut: "Shift+F7" },
+      { id: "stash", label: "Stash", icon: ICONS.stash, shortcut: "Ctrl+S", needs: { changes: true } },
+      { id: "merge", label: "Merge", icon: ICONS.merge, shortcut: "Ctrl+M", needs: { commit: true } },
+      { id: "rebase", label: "Rebase", icon: ICONS.rebase, shortcut: "Ctrl+R", needs: { commit: true } },
+      { id: "tag", label: "Tag", icon: ICONS.tag, shortcut: "Shift+F7", needs: { repository: true } },
     ],
   ];
 
+  const UNDO: Action = {
+    id: "undo",
+    label: "Undo",
+    icon: ICONS.undo,
+    needs: { undo: true },
+  };
+
   interface Props {
-    /** Description of what Undo would reverse, or undefined when there is nothing to undo. */
+    /** Description of what Undo would reverse, for the tooltip. */
     undoable?: string;
     onundo?: () => void;
     /** Actions wired to a handler; the rest stay disabled until their module lands. */
     handlers?: Partial<Record<string, () => void>>;
+    /** The state the rules read. */
+    context: Context;
   }
 
-  let { undoable, onundo, handlers = {} }: Props = $props();
+  let { undoable, onundo, handlers = {}, context }: Props = $props();
+
+  const blocked = $derived(
+    reasons(
+      Object.fromEntries([...GROUPS.flat(), UNDO].map((action) => [action.id, action.needs])),
+      context,
+    ),
+  );
+
+  /** Unbuilt actions stay off whatever the state says, and say so rather than lying. */
+  function why(action: Action): string | undefined {
+    if (action.id !== "undo" && !handlers[action.id]) return "Not built yet";
+    return blocked[action.id];
+  }
 
 </script>
 
@@ -66,7 +91,8 @@
           <button
             type="button"
             class="action"
-            disabled={!handlers[action.id]}
+            disabled={why(action) !== undefined}
+            title={why(action)}
             aria-label="{action.label}{action.shortcut ? ` (${action.shortcut})` : ''}"
             onclick={() => handlers[action.id]?.()}
           >
@@ -85,12 +111,12 @@
     <button
       type="button"
       class="action"
-      disabled={!undoable}
-      title={undoable ? `Undo: ${undoable}` : "Nothing to undo"}
+      disabled={why(UNDO) !== undefined}
+      title={undoable ? `Undo: ${undoable}` : why(UNDO)}
       onclick={() => onundo?.()}
     >
-      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.undo} /></svg>
-      <span>Undo</span>
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d={UNDO.icon} /></svg>
+      <span>{UNDO.label}</span>
     </button>
   </div>
 

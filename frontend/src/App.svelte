@@ -29,6 +29,7 @@
   import PromptDialog from "$components/layout/PromptDialog.svelte";
   import { shortOid } from "$lib/format";
   import { checkedIds, disabledIds, type PaletteCommand } from "$lib/palette";
+  import { reasonFor, type Context } from "$lib/availability";
   import { pullRequestUrl } from "$lib/pull-request";
   import { commitScope } from "$lib/commit-scope";
   import { activity, applyOperation } from "$lib/operations";
@@ -334,11 +335,23 @@
     ]);
   }
 
+  /** What every command rule reads (issue 2). One object, one definition. */
+  const commands = $derived<Context>({
+    repository: repo !== null,
+    remote: Boolean(network.primary),
+    selection: markedFiles.length > 0,
+    changes: worktree.total > 0,
+    staged: worktree.staged.length > 0,
+    commit: commit.oid !== null,
+    branch: tracked !== undefined,
+    undo: safety.last !== undefined,
+    file: diff.path !== null,
+  });
+
   const palette = $derived.by<PaletteCommand[]>(() => {
-    const open = repo !== undefined && repo !== null;
-    const noRepo = open ? undefined : "No repository is open";
-    const noRemote = network.primary ? undefined : "This repository has no remote";
-    const nothingStaged = worktree.staged.length > 0 ? undefined : "Nothing is staged";
+    const noRepo = reasonFor({ repository: true }, commands);
+    const noRemote = reasonFor({ remote: true }, commands);
+    const nothingStaged = reasonFor({ staged: true }, commands);
 
     return [
       { id: "open", title: "Open Repository…", run: () => void pickRepository() },
@@ -1985,6 +1998,7 @@ Log: ${info?.logPath ?? ""}`),
 
 <div class="app">
   <Toolbar
+    context={commands}
     undoable={safety.last?.description}
     onundo={undo}
     handlers={repo
