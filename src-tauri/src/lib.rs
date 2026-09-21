@@ -3,6 +3,7 @@ mod commands;
 mod diagnostics;
 mod logging;
 mod menu;
+mod operations;
 mod profile;
 #[cfg(windows)]
 mod renderer_failure;
@@ -175,6 +176,10 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::log_from_frontend,
             commands::diagnostics,
             commands::closing_ping,
+            commands::list_all_repo_files,
+            commands::search_file_contents,
+            commands::list_submodules,
+            commands::cancel_operation,
             commands::read_settings,
             commands::write_setting,
             commands::default_keymap,
@@ -264,6 +269,7 @@ pub fn run() -> anyhow::Result<()> {
                 config_dir: config_dir.clone(),
             });
             app.manage(guard);
+            app.manage(Arc::new(operations::Cancellations::default()));
 
             specta_builder.mount_events(app);
             forward_repo_changes(app.handle().clone(), &state);
