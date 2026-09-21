@@ -149,3 +149,79 @@ fn a_template_path_is_resolved_against_the_repository_root() {
         Some("from etc\n")
     );
 }
+
+#[test]
+fn a_bypass_reaches_the_output_panel_as_its_own_line() {
+    let f = test_fixtures::linear(1).unwrap();
+    stage_something(&f, "a.txt");
+
+    let log = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let sink = {
+        let log = std::sync::Arc::clone(&log);
+        std::sync::Arc::new(move |entry: git_engine::GitOutput| {
+            log.lock().unwrap().push(entry);
+        })
+    };
+
+    open(&f)
+        .with_journal(sink)
+        .commit(&request("skip the hooks", true))
+        .unwrap();
+
+    let entries = log.lock().unwrap();
+    let bypass = entries
+        .iter()
+        .find(|entry| entry.command.contains("hooks bypassed"))
+        .expect("the bypass is journalled");
+    // Exit zero with something on stderr is what the panel marks as a warning.
+    assert_eq!(bypass.exit_code, Some(0));
+    assert!(!bypass.stderr.trim().is_empty(), "{bypass:?}");
+}
+
+#[test]
+fn an_ordinary_commit_writes_no_bypass_line() {
+    let f = test_fixtures::linear(1).unwrap();
+    stage_something(&f, "a.txt");
+
+    let log = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let sink = {
+        let log = std::sync::Arc::clone(&log);
+        std::sync::Arc::new(move |entry: git_engine::GitOutput| {
+            log.lock().unwrap().push(entry);
+        })
+    };
+
+    open(&f)
+        .with_journal(sink)
+        .commit(&request("run the hooks", false))
+        .unwrap();
+
+    let entries = log.lock().unwrap();
+    assert!(!entries.iter().any(|e| e.command.contains("hooks bypassed")));
+}
+
+#[test]
+fn the_bypass_line_names_the_commit_it_belongs_to() {
+    let f = test_fixtures::linear(1).unwrap();
+    stage_something(&f, "a.txt");
+
+    let log = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let sink = {
+        let log = std::sync::Arc::clone(&log);
+        std::sync::Arc::new(move |entry: git_engine::GitOutput| {
+            log.lock().unwrap().push(entry);
+        })
+    };
+
+    let oid = open(&f)
+        .with_journal(sink)
+        .commit(&request("skip the hooks", true))
+        .unwrap();
+
+    let entries = log.lock().unwrap();
+    let bypass = entries
+        .iter()
+        .find(|entry| entry.command.contains("hooks bypassed"))
+        .unwrap();
+    assert!(bypass.stderr.contains(&oid[..7]), "{bypass:?}");
+}

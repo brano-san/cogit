@@ -466,6 +466,19 @@ impl RepoHandle {
         if let Err(err) = written {
             tracing::error!(error = ?err, context = "failed to record a hook bypass");
         }
+
+        // Exit zero with a line on stderr is what the Output panel marks as a warning,
+        // so a bypass reads there like any other thing worth noticing (M10 T10.5).
+        self.journal_entry(crate::GitOutput {
+            command: "hooks bypassed".to_owned(),
+            exit_code: Some(0),
+            stdout: String::new(),
+            stderr: format!(
+                "{} committed without running the hooks: {subject}",
+                &oid[..7.min(oid.len())]
+            ),
+            duration_ms: 0,
+        });
     }
 }
 

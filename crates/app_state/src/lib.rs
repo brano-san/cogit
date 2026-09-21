@@ -1,12 +1,14 @@
 mod avatars;
 mod credentials;
 pub mod logging;
+mod presets;
 pub mod terminal;
 
 pub use avatars::{Author, AvatarRow, Avatars};
 pub use credentials::{
     KeyringStore, MemoryStore, SecretError, SecretStore, host_of, platform_store,
 };
+pub use presets::PresetStatus;
 
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -51,22 +53,6 @@ pub enum AppEvent {
     AvatarReady {
         email: String,
     },
-}
-
-/// Flattened for the UI: the TOML shape belongs to the catalogue, not the webview.
-#[derive(Debug, Clone, Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct PresetStatus {
-    pub id: String,
-    pub name: String,
-    pub hook: String,
-    pub description: String,
-    pub slow: bool,
-    pub config_files: Vec<String>,
-    pub tool: Option<String>,
-    pub install_hint: Option<String>,
-    /// Where the tool was found, or `None` when it is not installed.
-    pub tool_path: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -196,6 +182,7 @@ pub struct AppState {
     next_entry_id: AtomicU32,
     secrets: Box<dyn SecretStore>,
     pictures: RwLock<Option<Avatars>>,
+    preset_dir: RwLock<Option<std::path::PathBuf>>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -228,6 +215,7 @@ impl AppState {
             next_entry_id: AtomicU32::new(1),
             secrets: platform_store(),
             pictures: RwLock::new(None),
+            preset_dir: RwLock::new(None),
         }
     }
 
@@ -1075,27 +1063,70 @@ impl AppState {
         self.handle(repo)?.hooks()
     }
 
-    /// The catalogue with each preset's tool resolved, so the UI can say what is missing.
-    #[must_use]
-    pub fn presets(&self) -> Vec<PresetStatus> {
-        git_engine::builtin_presets()
+    /// Where the user's own presets live. Set once at startup from the app config dir.
+    pub fn use_preset_dir(&self, dir: std::path::PathBuf) {
+        *self.preset_dir.write() = Some(dir);
+    }
+
+    /// The catalogue told against one repository: tools resolved and config files checked.
+    pub fn presets_for(&self, repo: RepoId) -> Result<Vec<PresetStatus>, git_engine::GitError> {
+        let root = self
+            .get(repo)
+            .ok_or_else(|| git_engine::GitError::RepoNotFound(format!("id {}", repo.0)))?
+            .root;
+
+        let mut all: Vec<PresetStatus> = git_engine::builtin_presets()
             .into_iter()
-            .map(|preset| PresetStatus {
-                tool_path: preset
-                    .tool
-                    .as_ref()
-                    .and_then(git_engine::find_tool)
-                    .map(|path| path.to_string_lossy().replace(char::from(92), "/")),
-                tool: preset.tool.as_ref().map(|tool| tool.command.clone()),
-                install_hint: preset.tool.as_ref().map(|tool| tool.install_hint.clone()),
-                id: preset.id,
-                name: preset.name,
-                hook: preset.hook,
-                description: preset.description,
-                slow: preset.slow,
-                config_files: preset.config_files,
-            })
-            .collect()
+            .map(|preset| presets::status_for(preset, &root, false))
+            .collect();
+        if let Some(dir) = self.preset_dir.read().clone() {
+            all.extend(
+                presets::user_presets(&dir)
+                    .into_iter()
+                    .map(|preset| presets::status_for(preset, &root, true)),
+            );
+        }
+        Ok(all)
+    }
+
+    /// Saves the hook as it stands now as a preset the user can install elsewhere.
+    pub fn export_preset(
+        &self,
+        repo: RepoId,
+        hook: &str,
+        id: &str,
+        name: &str,
+        description: &str,
+    ) -> Result<(), git_engine::GitError> {
+        if !presets::valid_id(id) {
+            return Err(git_engine::GitError::InvalidState(format!(
+                "{id} is not a usable preset name"
+            )));
+        }
+        if git_engine::builtin_presets().iter().any(|p| p.id == id) {
+            return Err(git_engine::GitError::InvalidState(format!(
+                "{id} is the name of a built-in preset"
+            )));
+        }
+        let dir = self.preset_dir()?;
+        let script = self.handle(repo)?.read_hook(hook)?;
+        presets::write_preset(&dir, id, name, hook, description, &script).map(drop)
+    }
+
+    pub fn remove_preset(&self, id: &str) -> Result<(), git_engine::GitError> {
+        if !presets::valid_id(id) || git_engine::builtin_presets().iter().any(|p| p.id == id) {
+            return Err(git_engine::GitError::InvalidState(format!(
+                "{id} is not a preset of yours"
+            )));
+        }
+        std::fs::remove_file(self.preset_dir()?.join(format!("{id}.toml")))?;
+        Ok(())
+    }
+
+    fn preset_dir(&self) -> Result<std::path::PathBuf, git_engine::GitError> {
+        self.preset_dir.read().clone().ok_or_else(|| {
+            git_engine::GitError::InvalidState("no directory for your own presets".into())
+        })
     }
 
     /// Wiring up a team's hooks is two steps, and the second is the one people forget.
@@ -1105,8 +1136,15 @@ impl AppState {
     }
 
     pub fn install_preset(&self, repo: RepoId, id: &str) -> Result<(), git_engine::GitError> {
+        let saved = self
+            .preset_dir
+            .read()
+            .clone()
+            .map(|dir| presets::user_presets(&dir))
+            .unwrap_or_default();
         let preset = git_engine::builtin_presets()
             .into_iter()
+            .chain(saved)
             .find(|preset| preset.id == id)
             .ok_or_else(|| {
                 git_engine::GitError::InvalidState(format!("there is no preset {id}"))

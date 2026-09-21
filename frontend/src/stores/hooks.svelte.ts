@@ -1,7 +1,9 @@
 import {
   bypassLog,
+  exportPreset,
   installPreset,
   listPresets,
+  removePreset,
   CogitError,
   listHooks,
   readHook,
@@ -32,7 +34,7 @@ class HooksStore {
     try {
       this.overview = await listHooks(repo);
       this.bypasses = await bypassLog(repo);
-      this.presets = await listPresets();
+      this.presets = await listPresets(repo);
     } catch (err) {
       this.report(err);
     }
@@ -91,6 +93,31 @@ class HooksStore {
       this.report(err);
     } finally {
       this.running = false;
+    }
+  }
+
+  /** The hook as it stands becomes a preset; the id is derived from the name given. */
+  async export(repo: RepoId, hook: string, name: string): Promise<void> {
+    const id = name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+    if (id === "") return;
+    try {
+      await exportPreset(repo, hook, id, name.trim(), `Saved from ${hook} in this repository`);
+      await this.refresh(repo);
+    } catch (err) {
+      this.report(err);
+    }
+  }
+
+  async removeOwn(repo: RepoId, id: string): Promise<void> {
+    try {
+      await removePreset(id);
+      await this.refresh(repo);
+    } catch (err) {
+      this.report(err);
     }
   }
 
