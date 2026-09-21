@@ -8,16 +8,14 @@ let storeFails = false;
 
 vi.mock("@tauri-apps/api/core", () => ({ Channel: class {} }));
 vi.mock("$lib/ipc/bindings", () => ({ commands }));
-vi.mock("@tauri-apps/plugin-store", () => ({
-  load: async () => {
+vi.mock("$lib/settings-file", () => ({
+  readKey: async (key: string) => {
     if (storeFails) throw new Error("store unavailable");
-    return {
-      get: async (key: string) => stored.get(key),
-      set: async (key: string, value: unknown) => {
-        stored.set(key, value);
-      },
-      save: async () => {},
-    };
+    return stored.get(key);
+  },
+  writeKey: async (key: string, value: unknown) => {
+    if (storeFails) throw new Error("store unavailable");
+    stored.set(key, value);
   },
 }));
 

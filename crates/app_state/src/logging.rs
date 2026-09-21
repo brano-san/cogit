@@ -50,8 +50,10 @@ pub fn log_filter(level: Option<&str>) -> String {
 /// Read straight from the file the settings panel writes, before the webview exists.
 #[must_use]
 pub fn read_log_level(config_dir: &Path) -> Option<String> {
-    let text = std::fs::read_to_string(config_dir.join("settings.json")).ok()?;
-    let value: serde_json::Value = serde_json::from_str(&text).ok()?;
-    let level = value.get("settings")?.get("logLevel")?.as_str()?;
-    LEVELS.contains(&level).then(|| level.to_owned())
+    let level = crate::settings::read_document(config_dir)
+        .get("settings")?
+        .get("logLevel")?
+        .as_str()?
+        .to_owned();
+    LEVELS.contains(&level.as_str()).then_some(level)
 }

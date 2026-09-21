@@ -59,6 +59,7 @@ pub struct OperationChanged {
 pub struct AppContext {
     pub state: Arc<AppState>,
     pub log_path: PathBuf,
+    pub config_dir: PathBuf,
 }
 
 fn specta_builder() -> Builder<tauri::Wry> {
@@ -154,6 +155,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::open_in_terminal,
             commands::set_menu_state,
             commands::report_timing,
+            commands::read_settings,
+            commands::write_setting,
             commands::default_keymap,
             commands::set_keymap,
             commands::scan_for_repositories,
@@ -206,7 +209,6 @@ pub fn run() -> anyhow::Result<()> {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .invoke_handler(specta_builder.invoke_handler())
@@ -214,6 +216,7 @@ pub fn run() -> anyhow::Result<()> {
             let log_dir = app.path().app_log_dir()?;
             let config_dir = app.path().app_config_dir()?;
             let guard = logging::init(&log_dir, &config_dir)?;
+            logging::install_panic_hook(&log_dir);
 
             tracing::info!(
                 version = env!("CARGO_PKG_VERSION"),
@@ -228,6 +231,7 @@ pub fn run() -> anyhow::Result<()> {
             app.manage(AppContext {
                 state: Arc::clone(&state),
                 log_path: log_dir.join("cogit.log"),
+                config_dir: config_dir.clone(),
             });
             app.manage(guard);
 
