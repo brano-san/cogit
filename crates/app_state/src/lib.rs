@@ -253,7 +253,14 @@ impl AppState {
         *self.pictures.write() = None;
     }
 
-    /// The authors visible right now: the answer is immediate, pictures catch up later.
+    /// The addresses on screen, for the download queue. Reads nothing.
+    pub fn avatar_window(&self, emails: &[String]) {
+        if let Some(service) = self.pictures.read().as_ref() {
+            service.window(emails);
+        }
+    }
+
+    /// The pictures these authors have, if any. The answer is immediate.
     #[must_use]
     pub fn avatars(&self, authors: &[Author]) -> Vec<AvatarRow> {
         match self.pictures.read().as_ref() {

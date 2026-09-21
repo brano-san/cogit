@@ -1,5 +1,5 @@
 import { authorsOf, keyOf, mergeRows, type Commitish } from "$lib/avatars";
-import { avatarsFor, setAvatars, type AvatarRow } from "$lib/ipc";
+import { avatarWindow, avatarsFor, setAvatars, type AvatarRow } from "$lib/ipc";
 
 class AvatarStore {
   /** Off until asked for: turning it on is what creates the cache directory (M14 T14.3). */
@@ -22,8 +22,9 @@ class AvatarStore {
     else this.rows = new Map();
   }
 
-  /** The rows on screen. Sending the whole window each time is what lets the queue drop
-      the requests for rows that have scrolled away. */
+  /** The rows on screen. The whole window goes to the queue every time — that is what
+      lets it drop the rows that scrolled away — but only the authors this store has
+      never seen are read back, because each one costs a file read and a base64 encode. */
   async load(window: readonly Commitish[]): Promise<void> {
     this.#window = [...window];
     if (!this.enabled) return;
@@ -31,7 +32,10 @@ class AvatarStore {
     const authors = authorsOf(window);
     if (authors.length === 0) return;
     try {
-      this.rows = mergeRows(this.rows, await avatarsFor(authors));
+      await avatarWindow(authors.map((author) => author.email));
+      const missing = authors.filter((author) => !this.rows.has(keyOf(author.email)));
+      if (missing.length === 0) return;
+      this.rows = mergeRows(this.rows, await avatarsFor(missing));
     } catch {
       // A missing avatar is a fallback, not a dialog.
     }

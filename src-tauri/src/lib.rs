@@ -148,6 +148,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::export_preset,
             commands::remove_preset,
             commands::avatars,
+            commands::avatar_window,
             commands::set_avatars,
             commands::terminal_choices,
             commands::open_in_terminal,

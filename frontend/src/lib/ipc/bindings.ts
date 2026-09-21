@@ -102,10 +102,15 @@ export const commands = {
 	exportPreset: (repo: RepoId, hook: string, id: string, name: string, description: string) => typedError<null, GitError>(__TAURI_INVOKE("export_preset", { repo, hook, id, name, description })),
 	removePreset: (id: string) => typedError<null, GitError>(__TAURI_INVOKE("remove_preset", { id })),
 	/**
-	 *  The authors on screen. Returns at once with whatever is already cached; anything
-	 *  missing is queued and announced later through `AvatarReady` (M14 T14.2).
+	 *  The pictures these authors already have. One file read and one base64 encode each,
+	 *  so the caller asks only for what it does not hold (M14 T14.2).
 	 */
 	avatars: (authors: Author[]) => typedError<AvatarRow[], GitError>(__TAURI_INVOKE("avatars", { authors })),
+	/**
+	 *  The addresses on screen, for the download queue. Sent on every scroll, so it reads
+	 *  nothing: rows that scrolled away leave the queue, the rest keep their place in it.
+	 */
+	avatarWindow: (emails: string[]) => typedError<null, GitError>(__TAURI_INVOKE("avatar_window", { emails })),
 	/**
 	 *  Turning avatars on is also what creates the cache directory: off means no directory,
 	 *  no request and no address leaving the machine (M14 T14.3).

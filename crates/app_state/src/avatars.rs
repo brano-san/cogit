@@ -50,16 +50,21 @@ impl Avatars {
         Ok(Self { cache, queue })
     }
 
-    /// The window the graph is showing. Everything not named here is dropped from the
-    /// queue, so scrolling past a thousand rows does not cost a thousand requests.
-    pub fn rows(&self, authors: &[Author]) -> Vec<AvatarRow> {
-        let wanted: Vec<String> = authors
+    /// The addresses on screen. Everything not named here is dropped from the queue,
+    /// so scrolling past a thousand rows does not cost a thousand requests. Cheap by
+    /// design: the caller sends it on every scroll, and it touches no file.
+    pub fn window(&self, emails: &[String]) {
+        let wanted: Vec<String> = emails
             .iter()
-            .map(|a| a.email.clone())
             .filter(|e| !e.trim().is_empty())
+            .cloned()
             .collect();
         self.queue.request(&wanted);
+    }
 
+    /// Reads the pictures for these authors. Each one costs a file read and a base64
+    /// encode, so the caller asks only for what it does not already hold.
+    pub fn rows(&self, authors: &[Author]) -> Vec<AvatarRow> {
         authors.iter().map(|a| self.row(a)).collect()
     }
 
