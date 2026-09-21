@@ -19,6 +19,7 @@
   import SettingsPanel from "$components/layout/SettingsPanel.svelte";
   import HooksPanel from "$components/layout/HooksPanel.svelte";
   import FindObject from "$components/layout/FindObject.svelte";
+  import CommandOutput from "$components/layout/CommandOutput.svelte";
   import GitErrorDialog from "$components/layout/GitErrorDialog.svelte";
   import OutputPanel from "$components/layout/OutputPanel.svelte";
   import StateBanner from "$components/layout/StateBanner.svelte";
@@ -1986,10 +1987,22 @@ Log: ${info?.logPath ?? ""}`),
         conflicts.close();
         void afterMutation();
       },
+      commandRecorded: (event) => void output.notice(event),
       closeRequested: mayClose,
       dragDrop: onDragDrop,
     }),
   );
+
+  /** Only the operations that mean the same thing when run again. Deleting a branch
+      that is already gone is not a retry, it is a second, different failure. */
+  function retryOf(operation: string): (() => void) | undefined {
+    const kind = operation.toLowerCase();
+    if (kind !== "push" && kind !== "pull" && kind !== "fetch") return undefined;
+    return () => {
+      output.close();
+      void runNetwork(kind);
+    };
+  }
 
   async function openDropped(paths: string[]) {
     for (const path of paths.slice(1)) {
@@ -2527,6 +2540,23 @@ Log: ${info?.logPath ?? ""}`),
     <GitErrorDialog error={errors.current} ondismiss={() => errors.dismiss()} />
   {/if}
 
+  {#if output.shown}
+    <CommandOutput
+      entry={output.shown}
+      logPath={info?.logPath ?? ""}
+      onretry={retryOf(output.shown.operation)}
+    />
+  {/if}
+
+  {#if output.warning}
+    <div class="toast" role="status">
+      <span class="what">{output.warning.operation}</span>
+      <span class="said truncate">{output.warning.summary}</span>
+      <button type="button" onclick={() => void output.showWarning()}>Details</button>
+      <button type="button" onclick={() => output.dismissWarning()} title="Dismiss">✕</button>
+    </div>
+  {/if}
+
   <StatusBar
     repository={repo?.name ?? "No repository"}
     branch={repo ? repository.headLabel : undefined}
@@ -2559,6 +2589,44 @@ Log: ${info?.logPath ?? ""}`),
     flex-direction: column;
     height: 100%;
     background: var(--surface-base);
+  }
+
+  /* A warning interrupts nothing: it sits in the corner and goes away on its own. */
+  .toast {
+    position: absolute;
+    right: var(--sp-5);
+    bottom: calc(var(--h-statusbar) + var(--sp-4));
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    max-width: min(560px, 60vw);
+    padding: var(--sp-3) var(--sp-4);
+    background: var(--surface-raised);
+    border: 1px solid var(--status-modify);
+    border-radius: var(--r-md);
+    box-shadow: var(--shadow-dialog);
+    font-size: var(--fs-dense);
+  }
+
+  .toast .what {
+    font-weight: 600;
+  }
+
+  .toast .said {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: var(--text-secondary);
+  }
+
+  .toast button {
+    height: var(--h-button-sm);
+    padding: 0 var(--sp-3);
+    background: var(--surface-input);
+    color: var(--text-primary);
+    border: 1px solid var(--field-border);
+    border-radius: var(--r-sm);
+    font-size: var(--fs-dense);
   }
 
   .drop-hint {
