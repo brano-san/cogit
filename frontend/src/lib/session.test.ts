@@ -117,7 +117,7 @@ describe("writing often", () => {
 // The store holds the session in `$state.raw`, which invalidates on a changed reference
 // and nothing else. A write that changes nothing must therefore hand back the very same
 // object, or an effect that reads the session and writes it through `activate()` re-runs
-// itself forever (R-87).
+// itself forever (R-93).
 describe("writes that change nothing", () => {
   it("keeps the same session when the active repository is already active", () => {
     expect(withActive(full, "C:/work/two")).toBe(full);
