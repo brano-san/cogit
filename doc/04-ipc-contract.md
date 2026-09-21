@@ -195,6 +195,11 @@ pub enum FileStatus { Added, Modified, Deleted, Renamed, Copied }
 | `merge_conflict` | `repo, path` | `ThreeWayDiff` | M7 |
 | `file_before` | `repo, oid, path` | `string \| null` | M8 |
 | `investigate` | `repo, path, from, to, limit` | `InvestigationStep[]` | M8 |
+| `discard_selection` | `repo, request: PatchRequest` | — | M6 |
+
+`discard_selection` — обратная сторона `stage_selection`: тот же `PatchRequest`, но патч
+накладывается на **рабочее дерево**, а не на индекс. Деструктивно; пишется в журнал
+безопасности как неоткатываемое ([R-106](12-risks.md)), и вьюер обязан переспросить.
 
 `investigate` — история диапазона строк, а не файла: `InvestigationStep { oid, summary,
 author, email, timestamp, path, diff }`, новые сверху. `path` — имя файла **на момент того

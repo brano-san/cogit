@@ -252,6 +252,35 @@
     selected = new Set();
   }
 
+  /** Stage, Unstage and Discard act on one hunk without disturbing the line selection. */
+  function applyHunk(index: number, reverse: boolean) {
+    const hunk = hunks[index];
+    if (!hunk) return;
+    onstage?.(hunkSelection(hunk), reverse);
+  }
+
+  /** Which lines a Discard is about to throw away; `null` while nothing is pending. */
+  let pendingDiscard = $state<{ keys: Set<string>; label: string } | null>(null);
+  let discardError = $state<string | null>(null);
+
+  function askDiscard(keys: Set<string>, label: string) {
+    if (keys.size === 0) return;
+    discardError = null;
+    pendingDiscard = { keys, label };
+  }
+
+  async function confirmDiscard() {
+    const pending = pendingDiscard;
+    if (!pending) return;
+    pendingDiscard = null;
+    try {
+      await diffStore.discardLines(pending.keys);
+      selected = new Set();
+    } catch (err) {
+      discardError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
   function cells(cell: SideCell | null, index: number, side: "left" | "right") {
     if (!cell) return [];
     const row =
@@ -330,6 +359,26 @@
 
 <svelte:window {onkeydown} />
 
+{#snippet hunkActions(index: number)}
+  {#if stageable}
+    <span class="acts">
+      <button type="button" title="Stage this hunk" onclick={() => applyHunk(index, false)}
+        >Stage</button
+      >
+      <button type="button" title="Unstage this hunk" onclick={() => applyHunk(index, true)}
+        >Unstage</button
+      >
+      <button
+        type="button"
+        class="danger"
+        title="Throw this hunk away (always asks first)"
+        onclick={() => askDiscard(hunkSelection(hunks[index]!), `hunk ${index + 1}`)}
+        >Discard</button
+      >
+    </span>
+  {/if}
+{/snippet}
+
 <div class="diff">
   <div class="bar">
     <span class="path mono truncate">{path}</span>
@@ -351,6 +400,14 @@
         >
         <button type="button" disabled={selected.size === 0} onclick={() => apply(true)}
           >Unstage lines</button
+        >
+        <button
+          type="button"
+          class="danger"
+          disabled={selected.size === 0}
+          title="Throw the selected lines away (always asks first)"
+          onclick={() => askDiscard(new Set(selected), `${selected.size} selected lines`)}
+          >Discard lines</button
         >
       {/if}
       {#if onwhitespace}
@@ -385,6 +442,19 @@
       </button>
     {/if}
   </div>
+
+  {#if pendingDiscard}
+    <div class="confirm" role="alertdialog" aria-label="Confirm discard">
+      <span class="grow">Throw away {pendingDiscard.label}? This cannot be undone.</span>
+      <button type="button" onclick={() => (pendingDiscard = null)}>Cancel</button>
+      <button type="button" class="danger" onclick={confirmDiscard}>Discard</button>
+    </div>
+  {:else if discardError}
+    <div class="confirm">
+      <span class="grow warn">{discardError}</span>
+      <button type="button" onclick={() => (discardError = null)}>Dismiss</button>
+    </div>
+  {/if}
 
   {#if finding && diff.kind === "text"}
     <div class="find">
@@ -458,7 +528,12 @@
         {#if mode === "unified"}
           {#each unified.slice(range.start, range.end) as entry, index (range.start + index)}
             {@const rowIndex = range.start + index}
-            <div class="line" style:top="{rowIndex * ROW_HEIGHT}px">
+            {@const key = entry.kind === "row" ? lineKey(entry.row) : null}
+            <div
+              class="line"
+              class:staging={key !== null && selected.has(key)}
+              style:top="{rowIndex * ROW_HEIGHT}px"
+            >
               {#if entry.kind === "header"}
                 <span
                   class="header mono"
@@ -477,6 +552,7 @@
                     >▲ {hidden[entry.hunk]} lines hidden ▲</button
                   >
                 {/if}
+                {@render hunkActions(entry.hunk)}
               {:else if entry.row.kind === "context"}
                 <span class="gutter"></span>
                 <span class="num">{entry.row.old}</span>
@@ -537,6 +613,7 @@
             <div class="line" style:top="{rowIndex * ROW_HEIGHT}px">
               {#if entry.header}
                 <span class="header mono">{entry.header}</span>
+                {@render hunkActions(entry.hunk)}
               {:else if entry.pair}
                 <span class="num">{entry.pair.left?.line ?? ""}</span>
                 <span
@@ -658,6 +735,70 @@
 
   .gutter.picked {
     color: var(--status-add);
+  }
+
+  /* What the next Stage or Unstage will act on, marked on the row and not just in the
+     14-pixel gutter, so the user can see the extent of it at a glance (T6.7). */
+  .line.staging {
+    background: rgb(90 160 110 / 14%);
+    box-shadow: inset 2px 0 0 var(--status-add);
+  }
+
+  .acts {
+    display: flex;
+    gap: var(--sp-2);
+    flex: 0 0 auto;
+    padding-right: var(--sp-3);
+  }
+
+  .acts button {
+    height: 14px;
+    padding: 0 var(--sp-2);
+    background: var(--surface-input);
+    color: var(--text-secondary);
+    border: 1px solid var(--field-border);
+    border-radius: var(--r-sm);
+    font-size: 9px;
+    line-height: 12px;
+    cursor: default;
+  }
+
+  .acts button:hover {
+    color: var(--text-primary);
+  }
+
+  button.danger {
+    color: var(--status-delete);
+  }
+
+  button.danger:hover {
+    border-color: var(--status-delete);
+  }
+
+  .confirm {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    flex: 0 0 auto;
+    padding: var(--sp-3) var(--sp-4);
+    border-bottom: 1px solid var(--divider);
+    background: var(--surface-raised);
+    font-size: var(--fs-dense);
+  }
+
+  .confirm button {
+    height: 20px;
+    padding: 0 var(--sp-3);
+    background: var(--surface-input);
+    color: var(--text-primary);
+    border: 1px solid var(--field-border);
+    border-radius: var(--r-sm);
+    font-size: var(--fs-dense);
+    cursor: default;
+  }
+
+  .grow {
+    flex: 1 1 auto;
   }
 
   .header.clickable:hover {

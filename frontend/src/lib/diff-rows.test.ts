@@ -4,6 +4,7 @@ import {
   expandedContext,
   flatten,
   gapBetween,
+  lacksFinalNewline,
   pairRows,
   connectors,
   searchRows,
@@ -301,6 +302,39 @@ describe("stepping through search hits", () => {
 
   it("stays at nothing when there are no hits", () => {
     expect(stepHit([], 0, 1)).toBe(-1);
+  });
+});
+
+describe("lacksFinalNewline", () => {
+  function hunkOf(rows: DiffRow[]): Hunk {
+    return { oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, header: "@@", rows };
+  }
+
+  it("says no for a file that ends in a newline", () => {
+    const rows: DiffRow[] = [{ kind: "insert", new: 1, text: "a", inline: [] }];
+    expect(lacksFinalNewline([hunkOf(rows)])).toBe(false);
+  });
+
+  it("says yes when the last row is flagged", () => {
+    const rows: DiffRow[] = [{ kind: "insert", new: 1, text: "a", inline: [], noNewline: true }];
+    expect(lacksFinalNewline([hunkOf(rows)])).toBe(true);
+  });
+
+  it("looks only at the very last row", () => {
+    const rows: DiffRow[] = [
+      { kind: "insert", new: 1, text: "a", inline: [], noNewline: true },
+      { kind: "insert", new: 2, text: "b", inline: [] },
+    ];
+    expect(lacksFinalNewline([hunkOf(rows)])).toBe(false);
+  });
+
+  it("ignores a context row at the end", () => {
+    const rows: DiffRow[] = [{ kind: "context", old: 1, new: 1, text: "a" }];
+    expect(lacksFinalNewline([hunkOf(rows)])).toBe(false);
+  });
+
+  it("says no when there are no hunks at all", () => {
+    expect(lacksFinalNewline([])).toBe(false);
   });
 });
 

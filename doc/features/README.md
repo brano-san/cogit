@@ -175,3 +175,5 @@
 | F-208 | Перемещения можно смотреть как обычные правки | [F-208-moves-as-plain-edits.md](F-208-moves-as-plain-edits.md) |
 | F-209 | Поиск внутри diff | [F-209-diff-search.md](F-209-diff-search.md) |
 | F-210 | Соединительная полоса между панелями diff | [F-210-connector-band.md](F-210-connector-band.md) |
+| F-211 | Stage, Unstage и Discard прямо у ханка | [F-211-gutter-staging.md](F-211-gutter-staging.md) |
+| F-212 | Панель diff переживает стейджинг | [F-212-diff-survives-staging.md](F-212-diff-survives-staging.md) |
