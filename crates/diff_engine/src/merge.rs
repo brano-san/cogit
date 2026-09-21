@@ -15,6 +15,9 @@ pub enum Origin {
     Theirs,
     /// Both sides made the same edit.
     Both,
+    /// Settled by the parser: the two sides touched different nodes of the tree, so the
+    /// order is not a guess. Always worth a look before the merge is committed.
+    Syntactic,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
@@ -40,9 +43,9 @@ impl Region {
     }
 }
 
-struct Edit {
-    base: Range<usize>,
-    lines: Vec<String>,
+pub(crate) struct Edit {
+    pub(crate) base: Range<usize>,
+    pub(crate) lines: Vec<String>,
 }
 
 fn split(text: &str) -> Vec<String> {
@@ -78,6 +81,20 @@ fn edits(base: &str, side: &str) -> Vec<Edit> {
 
 #[must_use]
 pub fn merge3(base: &str, ours: &str, theirs: &str) -> Vec<Region> {
+    merge3_with_syntax(base, ours, theirs, None)
+}
+
+/// The same merge, with one more rule: where the two sides changed different top-level
+/// nodes of the parsed base, their edits are combined instead of handed over. Only with
+/// full certainty — an unparsable file or an edit that spans two nodes stays a conflict
+/// (doc/08-diff-engine.md §8).
+#[must_use]
+pub fn merge3_with_syntax(
+    base: &str,
+    ours: &str,
+    theirs: &str,
+    language: Option<&str>,
+) -> Vec<Region> {
     // Normalised once up front, or a CRLF base makes every line of an LF side a change.
     let base = normalize_line_endings(base);
     let ours = normalize_line_endings(ours);
@@ -86,6 +103,7 @@ pub fn merge3(base: &str, ours: &str, theirs: &str) -> Vec<Region> {
     let base_lines = split(&base);
     let mine = edits(&base, &ours);
     let yours = edits(&base, &theirs);
+    let nodes = language.and_then(|name| crate::syntax::top_level_nodes(&base, name));
 
     let mut regions: Vec<Region> = Vec::new();
     let mut at = 0usize;
@@ -130,13 +148,24 @@ pub fn merge3(base: &str, ours: &str, theirs: &str) -> Vec<Region> {
         let theirs_lines = apply(&base_lines, &yours[from_j..j], span.clone());
         let base_slice: Vec<String> = base_lines[span.clone()].to_vec();
 
-        regions.push(resolve(
-            base_slice,
-            ours_lines,
-            theirs_lines,
-            i > from_i,
-            j > from_j,
-        ));
+        let settled = resolve(base_slice, ours_lines, theirs_lines, i > from_i, j > from_j);
+        let settled = match (settled, nodes.as_deref()) {
+            (Region::Conflict { base, ours, theirs }, Some(nodes)) => crate::syntax::settle(
+                nodes,
+                &base_lines,
+                span.clone(),
+                &mine[from_i..i],
+                &yours[from_j..j],
+            )
+            .map_or(Region::Conflict { base, ours, theirs }, |lines| {
+                Region::Clean {
+                    lines,
+                    origin: Origin::Syntactic,
+                }
+            }),
+            (other, _) => other,
+        };
+        regions.push(settled);
         at = end;
     }
 
@@ -183,7 +212,7 @@ fn resolve(
 }
 
 /// The base stretch with one side's edits applied, which is that side's take on it.
-fn apply(base: &[String], edits: &[Edit], span: Range<usize>) -> Vec<String> {
+pub(crate) fn apply(base: &[String], edits: &[Edit], span: Range<usize>) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     let mut at = span.start;
     for edit in edits {

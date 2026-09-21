@@ -94,6 +94,10 @@ gix = { version = "0.87", default-features = false, features = [
 Его делает `ureq` 3.4 (rustls) из крейта `avatars`, и больше нигде в приложении HTTP нет —
 см. [12-risks.md](12-risks.md) R-67. MD5 для Gravatar даёт `md-5` 0.11.
 
+Грамматики `tree-sitter-cpp` и `tree-sitter-typescript` 0.23 добавлены под синтаксическое
+слияние (M7 T7.8). Markdown не берём: у прозы нет узлов, по которым можно судить о
+независимости правок.
+
 ### Грабли `gix`
 
 - `gix::Repository` держит открытые файловые дескрипторы и кэши. Долго хранить в глобальном

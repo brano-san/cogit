@@ -7,6 +7,7 @@
     mergeRows,
     mergedText,
     nextConflict,
+    syntacticCount,
     unresolvedCount,
     type Choice,
     type Choices,
@@ -32,6 +33,7 @@
   const conflicts = $derived(conflictRows(rows));
   const left = $derived(unresolvedCount(regions, choices));
   const auto = $derived(autoResolvedCount(regions));
+  const parsed = $derived(syntacticCount(regions));
   const text = $derived(edited ?? mergedText(regions, choices));
   const current = $derived(at === null ? 0 : conflicts.indexOf(at) + 1);
 
@@ -63,8 +65,8 @@
       {left === 0 ? "all resolved" : `${left} unresolved`}
     </span>
     {#if auto > 0}
-      <span class="auto" title="Taken without asking because only one side changed them">
-        {auto} resolved automatically — worth a look
+      <span class="auto" title="Taken without asking; look before you commit">
+        {auto} resolved automatically{parsed > 0 ? `, ${parsed} by the parser` : ""} — worth a look
       </span>
     {/if}
     <span class="grow"></span>

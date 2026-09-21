@@ -29,6 +29,10 @@ fn kinds(regions: &[Region]) -> Vec<&'static str> {
                 origin: Origin::Both,
                 ..
             } => "both",
+            Region::Clean {
+                origin: Origin::Syntactic,
+                ..
+            } => "syntactic",
             Region::Conflict { .. } => "conflict",
         })
         .collect()

@@ -91,6 +91,13 @@ export function autoResolvedCount(regions: readonly Region[]): number {
     .length;
 }
 
+/** Settled by the parser, not by the line diff. Called out on its own: the rule is that
+    it gets looked at before the merge is committed (doc/08-diff-engine.md §8). */
+export function syntacticCount(regions: readonly Region[]): number {
+  return regions.filter((region) => region.kind === "clean" && region.origin === "syntactic")
+    .length;
+}
+
 export function nextConflict(
   at: readonly number[],
   current: number | null,

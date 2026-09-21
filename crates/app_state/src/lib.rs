@@ -1615,10 +1615,12 @@ impl AppState {
         path: &str,
     ) -> Result<Vec<diff_engine::Region>, git_engine::GitError> {
         let sides = self.handle(repo)?.conflict_sides(path)?.to_text();
-        Ok(diff_engine::merge3(
+        let language = diff_engine::language_for_path(path);
+        Ok(diff_engine::merge3_with_syntax(
             sides.base.as_deref().unwrap_or_default(),
             sides.ours.as_deref().unwrap_or_default(),
             sides.theirs.as_deref().unwrap_or_default(),
+            language.as_deref(),
         ))
     }
 
