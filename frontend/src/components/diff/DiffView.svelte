@@ -1,5 +1,15 @@
 <script lang="ts">
-  import { flatten, gapBetween, pairRows, type FlatEntry, type SideCell } from "$lib/diff-rows";
+  import { untrack } from "svelte";
+  import {
+    flatten,
+    gapBetween,
+    pairRows,
+    searchRows,
+    stepHit,
+    type FlatEntry,
+    type SearchRow,
+    type SideCell,
+  } from "$lib/diff-rows";
   import { highlightLines, mergePieces, type Token } from "$lib/highlight";
   import { hunkSelection, lineKey, toggleLine } from "$lib/selection";
   import { visibleRange } from "$lib/graph-geometry";
@@ -41,6 +51,10 @@
   const BUFFER_ROWS = 12;
 
   const mode = $derived(diffStore.layout);
+  let finding = $state(false);
+  let query = $state("");
+  let hitAt = $state(0);
+  let findBox: HTMLInputElement | undefined = $state();
   let scroller: HTMLDivElement | undefined = $state();
   let scrollTop = $state(0);
   let viewportHeight = $state(0);
@@ -106,6 +120,65 @@
     return offsets;
   });
 
+  /** Only code is searchable: a hit on a hunk header would scroll to nothing useful. */
+  const searchTexts = $derived.by<SearchRow[]>(() => {
+    if (mode === "unified") {
+      return unified.map((entry) => {
+        if (entry.kind !== "row" || entry.row.kind === "collapsed") return [null, null];
+        return [entry.row.text, null];
+      });
+    }
+    return split.map((entry) =>
+      entry.pair ? [entry.pair.left?.text ?? null, entry.pair.right?.text ?? null] : [null, null],
+    );
+  });
+
+  const hits = $derived(searchRows(searchTexts, query));
+  const currentHit = $derived(hits[hitAt] ?? null);
+
+  const hitSpans = $derived.by(() => {
+    const byCell = new Map<string, [number, number][]>();
+    for (const hit of hits) {
+      const key = `${hit.index}:${hit.side}`;
+      const spans = byCell.get(key) ?? [];
+      spans.push([hit.from, hit.to]);
+      byCell.set(key, spans);
+    }
+    return byCell;
+  });
+
+  function spansFor(index: number, side: "left" | "right"): [number, number][] {
+    return hitSpans.get(`${index}:${side}`) ?? [];
+  }
+
+  /** The one hit the counter is pointing at, told apart from the rest it looks like. */
+  function isCurrent(index: number, side: "left" | "right", start: number): boolean {
+    if (!currentHit || currentHit.index !== index || currentHit.side !== side) return false;
+    return start >= currentHit.from && start < currentHit.to;
+  }
+
+  function scrollToRow(index: number) {
+    if (!scroller) return;
+    scroller.scrollTop = Math.max(index * ROW_HEIGHT - Math.floor(viewportHeight / 2), 0);
+  }
+
+  function goHit(delta: number) {
+    if (hits.length === 0) return;
+    hitAt = stepHit(hits, hitAt, delta);
+    const hit = hits[hitAt];
+    if (hit) scrollToRow(hit.index);
+  }
+
+  function openFind() {
+    finding = true;
+    queueMicrotask(() => findBox?.select());
+  }
+
+  function closeFind() {
+    finding = false;
+    query = "";
+  }
+
   /** Lines the diff is not showing above each hunk, for the expander. */
   const hidden = $derived(
     hunks.map((hunk, index) => gapBetween(index === 0 ? null : (hunks[index - 1] ?? null), hunk)),
@@ -140,7 +213,7 @@
     selected = new Set();
   }
 
-  function cells(cell: SideCell | null) {
+  function cells(cell: SideCell | null, index: number, side: "left" | "right") {
     if (!cell) return [];
     const row =
       cell.kind === "delete"
@@ -148,7 +221,7 @@
         : cell.kind === "insert"
           ? ({ kind: "insert", new: cell.line, text: cell.text, inline: cell.inline } as const)
           : ({ kind: "context", old: cell.line, new: cell.line, text: cell.text } as const);
-    return mergePieces(cell.text, tokensFor(row), cell.inline);
+    return mergePieces(cell.text, tokensFor(row), cell.inline, spansFor(index, side));
   }
 
   function jump(delta: number) {
@@ -158,9 +231,30 @@
   }
 
   function onkeydown(event: KeyboardEvent) {
-    if (event.key !== "F6") return;
-    event.preventDefault();
-    jump(event.shiftKey ? -1 : 1);
+    const ctrl = event.ctrlKey || event.metaKey;
+    const key = event.key.toLowerCase();
+
+    if (event.key === "F6") {
+      event.preventDefault();
+      jump(event.shiftKey ? -1 : 1);
+    } else if (ctrl && event.shiftKey && key === "d") {
+      event.preventDefault();
+      void diffStore.setLayout(mode === "split" ? "unified" : "split");
+    } else if (ctrl && !event.shiftKey && key === "f") {
+      event.preventDefault();
+      openFind();
+    } else if (finding && event.key === "Escape") {
+      event.preventDefault();
+      closeFind();
+    }
+  }
+
+  /** Enter walks the hits; the input keeps the key to itself so the page does not scroll. */
+  function onfindkey(event: KeyboardEvent) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      goHit(event.shiftKey ? -1 : 1);
+    }
   }
 
   $effect(() => {
@@ -179,8 +273,19 @@
   $effect(() => {
     void path;
     current = 0;
+    hitAt = 0;
     selected = new Set();
     if (scroller) scroller.scrollTop = 0;
+  });
+
+  /** Typing lands on the first hit. `untrack` keeps a resize from re-scrolling the view. */
+  $effect(() => {
+    void query;
+    untrack(() => {
+      hitAt = 0;
+      const first = hits[0];
+      if (first) scrollToRow(first.index);
+    });
   });
 </script>
 
@@ -194,6 +299,12 @@
       {#if diff.lossyEncoding}<span class="warn">not valid UTF-8</span>{/if}
       <button type="button" onclick={() => jump(-1)} title="Previous change (Shift+F6)">▲</button>
       <button type="button" onclick={() => jump(1)} title="Next change (F6)">▼</button>
+      <button
+        type="button"
+        class:active={finding}
+        title="Search inside this diff (Ctrl+F)"
+        onclick={() => (finding ? closeFind() : openFind())}>Find</button
+      >
       {#if stageable}
         <span class="picked tabular">{selected.size ? `${selected.size} selected` : ""}</span>
         <button type="button" disabled={selected.size === 0} onclick={() => apply(false)}
@@ -236,6 +347,42 @@
     {/if}
   </div>
 
+  {#if finding && diff.kind === "text"}
+    <div class="find">
+      <input
+        bind:this={findBox}
+        bind:value={query}
+        type="search"
+        placeholder="Find in diff"
+        spellcheck="false"
+        aria-label="Find in diff"
+        onkeydown={onfindkey}
+      />
+      <span class="count tabular">
+        {#if query.trim() === ""}
+          &nbsp;
+        {:else if hits.length === 0}
+          no matches
+        {:else}
+          {hitAt + 1} / {hits.length}
+        {/if}
+      </span>
+      <button
+        type="button"
+        disabled={hits.length === 0}
+        title="Previous match (Shift+Enter)"
+        onclick={() => goHit(-1)}>▲</button
+      >
+      <button
+        type="button"
+        disabled={hits.length === 0}
+        title="Next match (Enter)"
+        onclick={() => goHit(1)}>▼</button
+      >
+      <button type="button" title="Close (Escape)" onclick={closeFind}>✕</button>
+    </div>
+  {/if}
+
   {#if diff.kind === "unchanged"}
     <p class="message">No change in this file.</p>
   {:else if diff.kind === "whitespaceOnly"}
@@ -258,7 +405,8 @@
       <div class="rows" style:height="{total * ROW_HEIGHT}px">
         {#if mode === "unified"}
           {#each unified.slice(range.start, range.end) as entry, index (range.start + index)}
-            <div class="line" style:top="{(range.start + index) * ROW_HEIGHT}px">
+            {@const rowIndex = range.start + index}
+            <div class="line" style:top="{rowIndex * ROW_HEIGHT}px">
               {#if entry.kind === "header"}
                 <span
                   class="header mono"
@@ -282,8 +430,10 @@
                 <span class="num">{entry.row.old}</span>
                 <span class="num">{entry.row.new}</span>
                 <span class="code mono"
-                  > {#each mergePieces(entry.row.text, tokensFor(entry.row), []) as piece, i (i)}<span
-                      class={piece.cls}>{piece.text}</span
+                  > {#each mergePieces(entry.row.text, tokensFor(entry.row), [], spansFor(rowIndex, "left")) as piece, i (i)}<span
+                      class={piece.cls}
+                      class:hit={piece.hit}
+                      class:current={isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
                     >{/each}</span
                 >
               {:else if entry.row.kind === "delete"}
@@ -299,9 +449,11 @@
                 <span class="num">{entry.row.old}</span>
                 <span class="num"></span>
                 <span class="code mono del" class:moved={entry.row.moved}
-                  >−{#each mergePieces(entry.row.text, tokensFor(entry.row), entry.row.inline) as piece, i (i)}<span
+                  >−{#each mergePieces(entry.row.text, tokensFor(entry.row), entry.row.inline, spansFor(rowIndex, "left")) as piece, i (i)}<span
                       class="{piece.cls}"
-                      class:word={piece.changed}>{piece.text}</span
+                      class:word={piece.changed}
+                      class:hit={piece.hit}
+                      class:current={isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
                     >{/each}</span
                 >
               {:else if entry.row.kind === "insert"}
@@ -317,9 +469,11 @@
                 <span class="num"></span>
                 <span class="num">{entry.row.new}</span>
                 <span class="code mono add" class:moved={entry.row.moved}
-                  >+{#each mergePieces(entry.row.text, tokensFor(entry.row), entry.row.inline) as piece, i (i)}<span
+                  >+{#each mergePieces(entry.row.text, tokensFor(entry.row), entry.row.inline, spansFor(rowIndex, "left")) as piece, i (i)}<span
                       class="{piece.cls}"
-                      class:word={piece.changed}>{piece.text}</span
+                      class:word={piece.changed}
+                      class:hit={piece.hit}
+                      class:current={isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
                     >{/each}</span
                 >
               {/if}
@@ -327,7 +481,8 @@
           {/each}
         {:else}
           {#each split.slice(range.start, range.end) as entry, index (range.start + index)}
-            <div class="line" style:top="{(range.start + index) * ROW_HEIGHT}px">
+            {@const rowIndex = range.start + index}
+            <div class="line" style:top="{rowIndex * ROW_HEIGHT}px">
               {#if entry.header}
                 <span class="header mono">{entry.header}</span>
               {:else if entry.pair}
@@ -336,9 +491,11 @@
                   class="code mono side"
                   class:del={entry.pair.left?.kind === "delete"}
                   class:moved={entry.pair.left?.moved}
-                  >{sign(entry.pair.left)}{#each cells(entry.pair.left) as piece, i (i)}<span
+                  >{sign(entry.pair.left)}{#each cells(entry.pair.left, rowIndex, "left") as piece, i (i)}<span
                       class="{piece.cls}"
-                      class:word={piece.changed}>{piece.text}</span
+                      class:word={piece.changed}
+                      class:hit={piece.hit}
+                      class:current={isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
                     >{/each}</span
                 >
                 <span class="num">{entry.pair.right?.line ?? ""}</span>
@@ -346,9 +503,11 @@
                   class="code mono side"
                   class:add={entry.pair.right?.kind === "insert"}
                   class:moved={entry.pair.right?.moved}
-                  >{sign(entry.pair.right)}{#each cells(entry.pair.right) as piece, i (i)}<span
+                  >{sign(entry.pair.right)}{#each cells(entry.pair.right, rowIndex, "right") as piece, i (i)}<span
                       class="{piece.cls}"
-                      class:word={piece.changed}>{piece.text}</span
+                      class:word={piece.changed}
+                      class:hit={piece.hit}
+                      class:current={isCurrent(rowIndex, "right", piece.start)}>{piece.text}</span
                     >{/each}</span
                 >
               {/if}
@@ -483,6 +642,62 @@
     border-radius: 2px;
     background: rgb(255 255 255 / 14%);
     font-weight: 600;
+  }
+
+  .find {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    flex: 0 0 auto;
+    padding: var(--sp-2) var(--sp-4);
+    border-bottom: 1px solid var(--divider);
+    background: var(--surface-raised);
+  }
+
+  .find input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 22px;
+    padding: 0 var(--sp-3);
+    background: var(--surface-input);
+    color: var(--text-primary);
+    border: 1px solid var(--field-border);
+    border-radius: var(--r-sm);
+    font-size: var(--fs-dense);
+  }
+
+  .find button {
+    height: 20px;
+    padding: 0 var(--sp-3);
+    background: var(--surface-input);
+    color: var(--text-primary);
+    border: 1px solid var(--field-border);
+    border-radius: var(--r-sm);
+    font-size: var(--fs-dense);
+    cursor: default;
+  }
+
+  .find button:disabled {
+    color: var(--text-secondary);
+  }
+
+  .count {
+    flex: 0 0 auto;
+    min-width: 64px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    text-align: right;
+  }
+
+  /* Every match is marked; the one the counter points at is the bright one. */
+  .hit {
+    border-radius: 2px;
+    background: rgb(220 180 60 / 30%);
+  }
+
+  .hit.current {
+    background: rgb(240 200 70 / 75%);
+    color: #1a1a1a;
   }
 
   /* A moved block is one fact, not a deletion plus an addition (T7.9). */
