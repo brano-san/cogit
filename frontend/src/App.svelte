@@ -110,6 +110,7 @@
   import { hooks } from "$stores/hooks.svelte";
   import { avatars } from "$stores/avatars.svelte";
   import { session } from "$stores/session.svelte";
+  import { flow } from "$stores/flow.svelte";
   import { droppedRepositories } from "$lib/drop-open";
   import { clear as freshen, mark as markStale } from "$lib/staleness";
   import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -353,6 +354,27 @@
         synonyms: ["interactive rebase", "squash", "reorder"],
         unavailable: commit.oid ? undefined : "Select a commit first",
         run: () => void openRebase(),
+      },
+      {
+        id: "flow-init",
+        title: "Git-Flow: Set Up",
+        synonyms: ["gitflow", "develop branch"],
+        unavailable: noRepo ?? (flow.status.initialised ? "Already set up" : undefined),
+        run: () => void runFlow(() => flow.init(repo!.repo)),
+      },
+      ...(["feature", "release", "hotfix"] as const).map((kind) => ({
+        id: `flow-${kind}`,
+        title: `Git-Flow: Start ${kind[0]?.toUpperCase()}${kind.slice(1)}…`,
+        synonyms: ["gitflow", kind],
+        unavailable: noRepo ?? (flow.status.initialised ? undefined : "Set up Git-Flow first"),
+        run: () => askFlowStart(kind),
+      })),
+      {
+        id: "flow-finish",
+        title: "Git-Flow: Finish This Branch…",
+        synonyms: ["gitflow", "merge back"],
+        unavailable: flow.current ? undefined : "Not on a Git-Flow branch",
+        run: () => askFlowFinish(),
       },
       {
         id: "split-off",
@@ -1207,6 +1229,7 @@ Log: ${info?.logPath ?? ""}`),
       void reloadGraph();
       void refs.loadUrls(opened.repo);
       void worktrees.refresh(opened.repo);
+      void flow.refresh(opened.repo);
       await repository.refreshList();
       await afterMutation();
     } else {
@@ -1524,6 +1547,53 @@ Log: ${info?.logPath ?? ""}`),
       await output.refresh();
       await output.refreshProblems();
     }
+  }
+
+  /** Every flow step ends the same way: refresh what the panels show, or report why not. */
+  async function runFlow(step: () => Promise<void>) {
+    try {
+      await step();
+      await repository.refresh();
+      await afterMutation();
+      await reloadGraph();
+    } catch (err) {
+      errors.report(err as never);
+    }
+  }
+
+  function askFlowStart(kind: import("$lib/ipc").FlowKind) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    prompt = {
+      title: `Start a ${kind}`,
+      label: "Name",
+      value: "",
+      confirm: "Start",
+      run: (name) => {
+        prompt = null;
+        void runFlow(() => flow.start(id, kind, name));
+      },
+    };
+  }
+
+  function askFlowFinish() {
+    const id = repository.current?.repo;
+    const branch = flow.current;
+    if (!id || !branch) return;
+    if (branch.kind === "feature") {
+      void runFlow(() => flow.finish(id, branch.kind, branch.name, null));
+      return;
+    }
+    prompt = {
+      title: `Finish ${branch.full}`,
+      label: "Tag for the release, or empty for none",
+      value: branch.name,
+      confirm: "Finish",
+      run: (tag) => {
+        prompt = null;
+        void runFlow(() => flow.finish(id, branch.kind, branch.name, tag.trim() || null));
+      },
+    };
   }
 
   function askAddGroup() {
