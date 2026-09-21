@@ -39,10 +39,9 @@ impl RepoWatcher {
                 let Ok(events) = result else {
                     return;
                 };
-                for event in events {
-                    if let Some(change) = route.classify(&event.path) {
-                        on_change(change);
-                    }
+                let paths: Vec<PathBuf> = events.into_iter().map(|event| event.path).collect();
+                for change in route.coalesce(&paths) {
+                    on_change(change);
                 }
             },
         )
@@ -111,6 +110,27 @@ impl Route {
             .is_some_and(|until| Instant::now() < until)
     }
 
+    /// One debounce window, one event per kind.
+    ///
+    /// A single `git commit` rewrites the index, moves HEAD and touches a dozen refs; a
+    /// `checkout` rewrites half the working tree. Announcing each path separately made the
+    /// panel re-read the repository once per file, which is where the flicker on
+    /// `dtv_device` came from (problem 5). The debounce window is 100 ms, so this also caps
+    /// the rate at ten updates per second per kind, however large the repository.
+    fn coalesce(&self, paths: &[PathBuf]) -> Vec<RepoChanged> {
+        let mut batch: Vec<RepoChanged> = Vec::new();
+        for path in paths {
+            let Some(change) = self.classify(path) else {
+                continue;
+            };
+            if batch.iter().any(|seen| seen.kind == change.kind) {
+                continue;
+            }
+            batch.push(change);
+        }
+        batch
+    }
+
     fn classify(&self, path: &Path) -> Option<RepoChanged> {
         if self.paused.load(Ordering::Relaxed) || self.is_quiet() {
             return None;
@@ -155,4 +175,96 @@ fn watch(
             path: path.display().to_string(),
             source,
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ChangeKind;
+
+    fn route() -> Route {
+        let root = PathBuf::from("C:/repo");
+        Route {
+            git_dir: root.join(".git"),
+            root,
+            paused: Arc::new(AtomicBool::new(false)),
+            quiet_until: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    #[test]
+    fn a_burst_of_ref_writes_becomes_one_event() {
+        let route = route();
+        let burst: Vec<PathBuf> = (0..50)
+            .map(|i| route.git_dir.join(format!("refs/heads/topic-{i}")))
+            .collect();
+
+        let batch = route.coalesce(&burst);
+
+        assert_eq!(
+            batch.len(),
+            1,
+            "one push must not redraw the tree fifty times"
+        );
+        assert_eq!(batch[0].kind, ChangeKind::Refs);
+    }
+
+    #[test]
+    fn a_batch_still_carries_every_kind_it_saw() {
+        let route = route();
+        let paths = vec![
+            route.git_dir.join("refs/heads/main"),
+            route.git_dir.join("HEAD"),
+            route.git_dir.join("index"),
+            route.root.join("src/main.rs"),
+            route.git_dir.join("refs/heads/other"),
+        ];
+
+        let batch = route.coalesce(&paths);
+        let kinds: Vec<ChangeKind> = batch.iter().map(|change| change.kind).collect();
+
+        assert_eq!(
+            kinds.len(),
+            4,
+            "coalescing by kind, not by everything: {kinds:?}"
+        );
+        assert!(kinds.contains(&ChangeKind::Refs));
+        assert!(kinds.contains(&ChangeKind::Head));
+        assert!(kinds.contains(&ChangeKind::Index));
+        assert!(kinds.contains(&ChangeKind::WorkingTree));
+    }
+
+    #[test]
+    fn the_order_a_batch_arrives_in_is_kept() {
+        let route = route();
+        let paths = vec![
+            route.git_dir.join("index"),
+            route.git_dir.join("HEAD"),
+            route.git_dir.join("index"),
+        ];
+
+        let kinds: Vec<ChangeKind> = route.coalesce(&paths).iter().map(|c| c.kind).collect();
+
+        assert_eq!(kinds, vec![ChangeKind::Index, ChangeKind::Head]);
+    }
+
+    #[test]
+    fn noise_never_reaches_the_batch() {
+        let route = route();
+        let paths = vec![
+            route.git_dir.join("objects/ab/cdef"),
+            route.root.join("target/debug/cogit.exe"),
+            route.root.join("node_modules/left-pad/index.js"),
+        ];
+
+        assert!(route.coalesce(&paths).is_empty());
+    }
+
+    #[test]
+    fn a_paused_watcher_produces_nothing() {
+        let route = route();
+        route.paused.store(true, Ordering::Relaxed);
+
+        assert!(route.coalesce(&[route.git_dir.join("HEAD")]).is_empty());
+    }
 }
