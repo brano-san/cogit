@@ -18,6 +18,7 @@
   } from "$lib/graph-geometry";
   import { measurer } from "$lib/timing";
   import { reportTiming, type RebaseProgress, type RepoId } from "$lib/ipc";
+  import { avatars } from "$stores/avatars.svelte";
   import { commit as selection } from "$stores/commit.svelte";
   import { graph } from "$stores/graph.svelte";
   import { repository } from "$stores/repository.svelte";
@@ -87,6 +88,12 @@
     visibleRange(scrollTop, viewportHeight, GRAPH.rowHeight, listRows, BUFFER_ROWS),
   );
   const gutter = $derived(gutterWidth(graph.maxLane, viewportWidth || 600));
+
+  /** The window drives the queue: rows that scroll away stop being asked for. */
+  $effect(() => {
+    if (!avatars.enabled) return;
+    void avatars.load(visible.map((item) => item.entry.commit));
+  });
 
   $effect(() => {
     const id = repository.current?.repo;
@@ -323,6 +330,20 @@
             >
           {/if}
           <span class="summary truncate">{item.entry.commit.summary}</span>
+          {#if avatars.enabled}
+            {@const face = avatars.look(item.entry.commit.authorEmail)}
+            <span
+              class="avatar"
+              style:background={face?.image ? "transparent" : (face?.color ?? "var(--surface-raised)")}
+              title={item.entry.commit.authorEmail}
+            >
+              {#if face?.image}
+                <img src={face.image} alt="" width="16" height="16" />
+              {:else}
+                {face?.initials ?? ""}
+              {/if}
+            </span>
+          {/if}
           <span class="author truncate">{item.entry.commit.authorName}</span>
           <span
             class="date tabular"
@@ -472,6 +493,26 @@
   .summary {
     flex: 1 1 auto;
     min-width: 0;
+  }
+
+  /* Fixed width so the author column does not shift as pictures arrive. */
+  .avatar {
+    flex: 0 0 16px;
+    width: 16px;
+    height: 16px;
+    border-radius: var(--r-sm);
+    overflow: hidden;
+    color: #fff;
+    font-size: 9px;
+    font-weight: 600;
+    line-height: 16px;
+    text-align: center;
+  }
+
+  .avatar img {
+    display: block;
+    width: 16px;
+    height: 16px;
   }
 
   .author {

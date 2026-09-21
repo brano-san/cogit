@@ -151,6 +151,10 @@
 | F-145 | Команда проверки на паузах rebase | [F-145-rebase-check.md](F-145-rebase-check.md) |
 | F-146 | Провал проверки ничего не отменяет | [F-146-check-never-aborts.md](F-146-check-never-aborts.md) |
 | F-147 | Шаги rebase — строками графа | [F-147-rebase-rows-in-list.md](F-147-rebase-rows-in-list.md) |
+| F-148 | Аватары авторов из Gravatar | [F-148-gravatar-avatars.md](F-148-gravatar-avatars.md) |
+| F-149 | Кэш аватаров на диске | [F-149-avatar-cache.md](F-149-avatar-cache.md) |
+| F-150 | Инициалы вместо аватара | [F-150-avatar-initials.md](F-150-avatar-initials.md) |
+| F-151 | Переключатель аватаров в меню View | [F-151-avatar-toggle.md](F-151-avatar-toggle.md) |
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.
 

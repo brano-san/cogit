@@ -9,6 +9,7 @@ publish.workspace = true
 description = "Open repositories, the event bus, credentials and the undo journal."
 
 [dependencies]
+avatars.workspace = true
 git_engine.workspace = true
 diff_engine.workspace = true
 graph_engine.workspace = true

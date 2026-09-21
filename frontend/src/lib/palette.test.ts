@@ -106,6 +106,7 @@ describe("checkedIds", () => {
     output: false,
     maximized: false,
     overlap: false,
+    avatars: false,
     perspective: "main" as const,
   };
 

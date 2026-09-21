@@ -76,6 +76,7 @@
     reportTiming,
     commitTemplate,
     stageMode,
+    onAvatarReady,
     onOperationChanged,
     openCompareWindow,
     popupContextMenu,
@@ -104,6 +105,7 @@
   import { submodules } from "$stores/submodules.svelte";
   import { graph } from "$stores/graph.svelte";
   import { hooks } from "$stores/hooks.svelte";
+  import { avatars } from "$stores/avatars.svelte";
   import { overlap } from "$stores/overlap.svelte";
   import { settings } from "$stores/settings.svelte";
   import { layout } from "$stores/layout.svelte";
@@ -369,6 +371,12 @@
         title: "Toggle Commit Overlap Column",
         synonyms: ["who else touched", "conflict risk"],
         run: () => overlap.toggle(),
+      },
+      {
+        id: "avatars",
+        title: "Toggle Author Avatars",
+        synonyms: ["gravatar", "pictures", "faces"],
+        run: () => void avatars.toggle(),
       },
       {
         id: "hooks",
@@ -1798,6 +1806,11 @@ Log: ${info?.logPath ?? ""}`),
   });
 
   $effect(() => {
+    const pending = onAvatarReady((event) => void avatars.refresh(event.email));
+    return () => void pending.then((unlisten) => unlisten());
+  });
+
+  $effect(() => {
     const pending = onMenuCommand((id) => {
       if (runGroupCommand(id)) return;
       if (runRepoCommand(id)) return;
@@ -1815,6 +1828,7 @@ Log: ${info?.logPath ?? ""}`),
       output: output.open,
       maximized: layout.maximized !== null,
       overlap: overlap.enabled,
+      avatars: avatars.enabled,
       perspective: layout.active,
     });
     void setMenuState(disabledIds(palette), checked).catch(() => {});
