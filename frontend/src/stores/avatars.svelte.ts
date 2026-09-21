@@ -8,15 +8,17 @@ class AvatarStore {
 
   #window: Commitish[] = [];
 
-  async toggle(): Promise<void> {
-    this.enabled = !this.enabled;
+  /** Follows the setting, which is the only thing that turns the cache directory on. */
+  async apply(wanted: boolean): Promise<void> {
+    if (wanted === this.enabled) return;
+    this.enabled = wanted;
     try {
-      await setAvatars(this.enabled);
+      await setAvatars(wanted);
     } catch {
       this.enabled = false;
       return;
     }
-    if (this.enabled) await this.load(this.#window);
+    if (wanted) await this.load(this.#window);
     else this.rows = new Map();
   }
 

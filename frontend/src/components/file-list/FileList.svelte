@@ -240,7 +240,7 @@
   .mask {
     flex: 1 1 auto;
     min-width: 0;
-    height: 20px;
+    height: var(--h-button-sm);
     padding: 0 var(--sp-3);
     background: var(--surface-input);
     color: var(--text-primary);
@@ -259,7 +259,7 @@
   }
 
   .sort button {
-    height: 20px;
+    height: var(--h-button-sm);
     padding: 0 var(--sp-4);
     background: var(--surface-input);
     color: var(--text-secondary);
@@ -293,7 +293,7 @@
 
   .toggles button {
     width: 22px;
-    height: 20px;
+    height: var(--h-button-sm);
     background: transparent;
     color: var(--text-secondary);
     border: 1px solid transparent;

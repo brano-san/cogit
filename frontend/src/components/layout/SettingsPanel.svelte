@@ -66,6 +66,11 @@
 
   const LOG_LEVELS = ["error", "warn", "info", "debug", "trace"] as const;
 
+  const AVATARS = [
+    ["gravatar", "Show them, from Gravatar"],
+    ["off", "Do not show them"],
+  ] as const;
+
   /** Nothing is written until OK: Esc and Cancel throw the whole draft away. The snapshot
       is deliberate — the dialog is mounted fresh each time it opens. */
   // svelte-ignore state_referenced_locally
@@ -179,7 +184,26 @@
           </div>
 
           {#each group.fields as field (field.key)}
-            {#if field.key === "theme"}
+            {#if field.key === "avatars"}
+              <div class="row choice" role="radiogroup" aria-label={field.label}>
+                <span>{field.label}</span>
+                <div class="options">
+                  {#if draft.avatars === "ask"}
+                    <p class="ask">Not decided yet — nothing is fetched until you choose.</p>
+                  {/if}
+                  {#each AVATARS as [id, title] (id)}
+                    <label>
+                      <input
+                        type="radio"
+                        checked={draft.avatars === id}
+                        onchange={() => set("avatars", id)}
+                      />
+                      <span>{title}</span>
+                    </label>
+                  {/each}
+                </div>
+              </div>
+            {:else if field.key === "theme"}
               <label class="row">
                 <span>{field.label}</span>
                 <select
@@ -392,7 +416,7 @@
     position: absolute;
     inset: 0;
     z-index: 20;
-    background: rgb(0 0 0 / 35%);
+    background: var(--scrim);
   }
 
   .dialog {
@@ -613,6 +637,12 @@
 
   .stored {
     color: var(--status-add);
+  }
+
+  .ask {
+    margin: 0 0 var(--sp-2, 3px);
+    color: var(--status-modify);
+    font-size: var(--fs-header);
   }
 
   .empty {

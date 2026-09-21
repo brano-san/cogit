@@ -121,3 +121,45 @@ fn an_unknown_submodule_path_is_a_typed_error() {
     let f = test_fixtures::with_submodule().unwrap();
     assert!(open(&f).update_submodule("no/such/module", false).is_err());
 }
+
+#[test]
+fn a_submodule_inside_a_submodule_is_reachable() {
+    let f = test_fixtures::with_nested_submodule().unwrap();
+    let top = RepoHandle::open(f.path()).unwrap();
+
+    let outer = top.submodules().unwrap();
+    assert_eq!(outer.len(), 1, "{outer:?}");
+    assert_eq!(outer[0].path, "vendor/middle");
+
+    let inner = RepoHandle::open(&f.path().join("vendor").join("middle"))
+        .unwrap()
+        .submodules()
+        .unwrap();
+    assert_eq!(inner.len(), 1, "{inner:?}");
+    assert_eq!(inner[0].path, "deep/inner");
+}
+
+#[test]
+fn the_second_level_is_a_repository_in_its_own_right() {
+    let f = test_fixtures::with_nested_submodule().unwrap();
+    let deep = f
+        .path()
+        .join("vendor")
+        .join("middle")
+        .join("deep")
+        .join("inner");
+
+    assert!(RepoHandle::open(&deep).is_ok(), "{deep:?}");
+}
+
+#[test]
+fn a_path_that_is_not_there_is_an_error_rather_than_a_panic() {
+    let f = test_fixtures::linear(1).unwrap();
+    assert!(RepoHandle::open(&f.path().join("no-such-folder")).is_err());
+}
+
+#[test]
+fn a_folder_that_is_not_a_repository_is_an_error() {
+    let dir = tempfile::tempdir().unwrap();
+    assert!(RepoHandle::open(dir.path()).is_err());
+}

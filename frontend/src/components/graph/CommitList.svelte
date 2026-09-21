@@ -420,8 +420,16 @@
     box-shadow: inset 0 0 0 1px var(--status-ref);
   }
 
+  /* A bar as well as a tint: two greys apart is not something everyone can see. */
   .row.selected {
     background: var(--state-selected);
+    box-shadow: inset 2px 0 0 var(--status-ref);
+  }
+
+  .row.selected.over {
+    box-shadow:
+      inset 2px 0 0 var(--status-ref),
+      inset 0 0 0 1px var(--status-ref);
   }
 
   /* A button, so it needs the row geometry rather than the browser default. */
@@ -509,7 +517,7 @@
     height: 16px;
     border-radius: var(--r-sm);
     overflow: hidden;
-    color: #fff;
+    color: var(--text-on-accent);
     font-size: 9px;
     font-weight: 600;
     line-height: 16px;

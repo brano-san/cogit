@@ -36,6 +36,10 @@ fn subject(dir: &Path, name: &str) -> Option<String> {
     Some(first.trim().to_owned())
 }
 
+fn looks_like_oid(token: &str) -> bool {
+    token.len() >= 4 && token.chars().all(|c| c.is_ascii_hexdigit())
+}
+
 /// `.git/rebase-merge/` is undocumented, so an unparsable line is skipped, never fatal.
 fn parse_todo(dir: &Path, name: &str) -> Vec<RebaseStep> {
     let Ok(text) = std::fs::read_to_string(dir.join(name)) else {
@@ -48,12 +52,18 @@ fn parse_todo(dir: &Path, name: &str) -> Vec<RebaseStep> {
         .filter_map(|l| {
             let mut parts = l.splitn(3, ' ');
             let action = parts.next()?;
-            if !VERBS.contains(&action) {
+            let oid = parts.next().unwrap_or_default();
+            // A verb we do not know is still a step if it names an object: dropping it
+            // would under-report the work left, which is worse than showing it oddly.
+            if !VERBS.contains(&action) && !looks_like_oid(oid) {
+                return None;
+            }
+            if oid.is_empty() {
                 return None;
             }
             Some(RebaseStep {
                 action: action.to_owned(),
-                oid: parts.next().unwrap_or_default().to_owned(),
+                oid: oid.to_owned(),
                 // Git writes the subject behind a comment marker in some versions.
                 summary: parts
                     .next()

@@ -91,7 +91,7 @@
     position: absolute;
     inset: 0;
     z-index: 20;
-    background: rgb(0 0 0 / 35%);
+    background: var(--scrim);
   }
 
   .palette {
@@ -107,7 +107,7 @@
     background: var(--surface-panel);
     border: 1px solid var(--field-border);
     border-radius: var(--r-md);
-    box-shadow: 0 12px 40px rgb(0 0 0 / 55%);
+    box-shadow: var(--shadow-dialog);
     overflow: hidden;
   }
 

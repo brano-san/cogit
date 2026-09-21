@@ -176,6 +176,8 @@
 
 | F-231 | Синтаксическое слияние через tree-sitter | [F-231-syntactic-merge.md](F-231-syntactic-merge.md) |
 
+| F-232 | Аватары спрашивают, а не включаются сами | [F-232-avatars-ask-first.md](F-232-avatars-ask-first.md) |
+
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.
 
 | F-214 | Четырёхпанельное слияние | [F-214-four-panel-merge.md](F-214-four-panel-merge.md) |
