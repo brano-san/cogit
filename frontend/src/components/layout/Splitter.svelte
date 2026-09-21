@@ -79,35 +79,76 @@
 ></div>
 
 <style>
-  /* The visible line is 1px; the grab zone is widened with padding and a negative
-     margin so the divider stays hairline-thin but is still easy to hit. */
+  /* A visible rail, not a gap: the track is darker than either panel and carries a grip
+     in the middle. `::before` widens the grab zone past the rail without moving anything,
+     so the divider stays thin and is still easy to catch. */
   .splitter {
     position: relative;
     z-index: 2;
-    background: var(--divider);
     flex: 0 0 auto;
+    background: var(--splitter-track);
     transition: background var(--t-fast) var(--ease-out);
   }
 
+  .splitter::before {
+    content: "";
+    position: absolute;
+    z-index: 1;
+  }
+
+  .splitter::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    translate: -50% -50%;
+    background-image: radial-gradient(var(--splitter-grip) 40%, transparent 45%);
+    background-size: 2px 4px;
+    pointer-events: none;
+  }
+
   .splitter.vertical {
-    width: 1px;
+    width: var(--w-splitter);
     cursor: col-resize;
-    padding-inline: 2px;
-    margin-inline: -2px;
-    background-clip: content-box;
+    border-inline: 1px solid var(--divider);
+  }
+
+  .splitter.vertical::before {
+    inset-block: 0;
+    inset-inline: -3px;
+  }
+
+  .splitter.vertical::after {
+    width: 2px;
+    height: 24px;
   }
 
   .splitter.horizontal {
-    height: 1px;
+    height: var(--w-splitter);
     cursor: row-resize;
-    padding-block: 2px;
-    margin-block: -2px;
-    background-clip: content-box;
+    border-block: 1px solid var(--divider);
+  }
+
+  .splitter.horizontal::before {
+    inset-inline: 0;
+    inset-block: -3px;
+  }
+
+  .splitter.horizontal::after {
+    width: 24px;
+    height: 2px;
+    background-size: 4px 2px;
   }
 
   .splitter:hover,
   .splitter.dragging,
   .splitter:focus-visible {
-    background: var(--state-focus-ring);
+    background: var(--splitter-active);
+  }
+
+  .splitter:hover::after,
+  .splitter.dragging::after,
+  .splitter:focus-visible::after {
+    background-image: radial-gradient(var(--c-bg-window) 40%, transparent 45%);
   }
 </style>

@@ -149,5 +149,4 @@
   .spacer {
     flex: 1 1 auto;
   }
-</style>  import Tooltip from "$components/common/Tooltip.svelte";
-
+</style>

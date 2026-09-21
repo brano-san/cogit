@@ -2,12 +2,17 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Permissions granted to the main window and to compare/merge windows.",
-  "windows": ["main", "compare-*"],
+  "windows": [
+    "main",
+    "compare-*",
+    "merge-*"
+  ],
   "permissions": [
     "core:default",
     "opener:default",
     "dialog:default",
     "store:default",
-    "clipboard-manager:allow-write-text"
+    "clipboard-manager:allow-write-text",
+    "core:window:allow-destroy"
   ]
 }
