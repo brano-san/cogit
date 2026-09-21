@@ -458,6 +458,16 @@ export type GitOutput = {
 	stdout: string,
 	stderr: string,
 	durationMs: number,
+	/**  What to call this in a title. Read off `command`, so the two cannot disagree. */
+	operation: string,
+	severity: Severity,
+	/**  One line over the output, never instead of it. */
+	summary: string,
+	/**
+	 *  Unix epoch milliseconds. Not `DateTime`: the tree has no date crate, and the
+	 *  frontend formats every other timestamp from a number already.
+	 */
+	startedAtMs: number,
 };
 
 export type GraphChunk = {
@@ -739,6 +749,8 @@ export type ScanHit = {
 	bare: boolean,
 	alreadyOpen: boolean,
 };
+
+export type Severity = "success" | "warning" | "failure";
 
 export type Signature = {
 	name: string,

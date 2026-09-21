@@ -141,13 +141,7 @@ impl RepoHandle {
             .unwrap_or_default();
 
         let duration_ms = u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX);
-        let result = GitOutput {
-            command,
-            exit_code: status.code(),
-            stdout: GitCommandError::cap_stream(stdout),
-            stderr: GitCommandError::cap_stream(stderr_text),
-            duration_ms,
-        };
+        let result = GitOutput::record(command, status.code(), &stdout, &stderr_text, duration_ms);
         self.journal_entry(result.clone());
         Ok(result)
     }

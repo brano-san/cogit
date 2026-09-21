@@ -380,13 +380,13 @@ impl RepoHandle {
         };
 
         if let Some(sink) = self.journal() {
-            sink(crate::GitOutput {
-                command: format!("check: {trimmed}"),
-                exit_code: run.exit_code,
-                stdout: run.stdout.clone(),
-                stderr: run.stderr.clone(),
+            sink(crate::GitOutput::record(
+                format!("check: {trimmed}"),
+                run.exit_code,
+                &run.stdout,
+                &run.stderr,
                 duration_ms,
-            });
+            ));
         }
         Ok(run)
     }
@@ -469,16 +469,16 @@ impl RepoHandle {
 
         // Exit zero with a line on stderr is what the Output panel marks as a warning,
         // so a bypass reads there like any other thing worth noticing (M10 T10.5).
-        self.journal_entry(crate::GitOutput {
-            command: "hooks bypassed".to_owned(),
-            exit_code: Some(0),
-            stdout: String::new(),
-            stderr: format!(
-                "{} committed without running the hooks: {subject}",
+        self.journal_entry(crate::GitOutput::record(
+            "hooks bypassed".to_owned(),
+            Some(0),
+            "",
+            &format!(
+                "warning: {} committed without running the hooks: {subject}",
                 &oid[..7.min(oid.len())]
             ),
-            duration_ms: 0,
-        });
+            0,
+        ));
     }
 }
 

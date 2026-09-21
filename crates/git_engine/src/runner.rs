@@ -31,6 +31,42 @@ pub struct GitOutput {
     pub stdout: String,
     pub stderr: String,
     pub duration_ms: u32,
+    /// What to call this in a title. Read off `command`, so the two cannot disagree.
+    pub operation: String,
+    pub severity: crate::outcome::Severity,
+    /// One line over the output, never instead of it.
+    pub summary: String,
+    /// Unix epoch milliseconds. Not `DateTime`: the tree has no date crate, and the
+    /// frontend formats every other timestamp from a number already.
+    #[specta(type = specta_typescript::Number)]
+    pub started_at_ms: u64,
+}
+
+impl GitOutput {
+    /// Normalises both streams and works out how to describe the result. Every record
+    /// in the journal goes through here, git commands and hook runs alike.
+    #[must_use]
+    pub fn record(
+        command: String,
+        exit_code: Option<i32>,
+        stdout: &str,
+        stderr: &str,
+        duration_ms: u32,
+    ) -> Self {
+        let stdout = GitCommandError::cap_stream(crate::output_text::normalise(stdout));
+        let stderr = GitCommandError::cap_stream(crate::output_text::normalise(stderr));
+        Self {
+            operation: crate::outcome::operation_label(&command),
+            severity: crate::outcome::severity_of(exit_code, &stderr),
+            summary: crate::outcome::summarise(&stderr, &stdout),
+            started_at_ms: started_at_ms(),
+            command,
+            exit_code,
+            stdout,
+            stderr,
+            duration_ms,
+        }
+    }
 }
 
 impl RepoHandle {
@@ -80,19 +116,13 @@ impl RepoHandle {
         let output = process.args(args).output()?;
 
         let duration_ms = u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX);
-        let result = GitOutput {
+        let result = GitOutput::record(
             command,
-            exit_code: output.status.code(),
-            // Normalised once, here: the journal, the log file and the error window
-            // all read this record, and none of them may show a credential (INV-05).
-            stdout: GitCommandError::cap_stream(crate::output_text::normalise(
-                &String::from_utf8_lossy(&output.stdout),
-            )),
-            stderr: GitCommandError::cap_stream(crate::output_text::normalise(
-                &String::from_utf8_lossy(&output.stderr),
-            )),
+            output.status.code(),
+            &String::from_utf8_lossy(&output.stdout),
+            &String::from_utf8_lossy(&output.stderr),
             duration_ms,
-        };
+        );
 
         self.journal_entry(result.clone());
 
@@ -121,6 +151,16 @@ impl RepoHandle {
             stderr: result.stderr,
         }))
     }
+}
+
+/// Wall-clock start, for the history list. A clock that jumps backwards only misorders
+/// a list; it must never stop a command from running, so a failure reads as zero.
+fn started_at_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |since| {
+            u64::try_from(since.as_millis()).unwrap_or(u64::MAX)
+        })
 }
 
 /// Without it every `git` call flashes a console window and pays for it (R-24).
