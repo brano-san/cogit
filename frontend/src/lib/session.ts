@@ -26,7 +26,7 @@ export function forget(recent: readonly string[], root: string): string[] {
     The store keeps the session in `$state.raw`, which invalidates on a changed reference
     and on nothing else. A fresh-but-equal object is therefore enough to re-run every
     effect that read the session — including the one that writes it back through
-    `activate()`, which then never settles (R-87). */
+    `activate()`, which then never settles (R-93). */
 export function withActive(session: Session, active: string | null): Session {
   return session.active === active ? session : { ...session, active };
 }

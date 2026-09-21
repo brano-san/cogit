@@ -242,7 +242,7 @@
       session back, and anything this effect touches that the session feeds — including
       `session.repositories`, which `repository.restore()` reads for itself — makes the
       effect depend on its own write and re-enter `open_repository` about a hundred times
-      a second (R-87). Untracking one getter at a time only moves the problem to the next
+      a second (R-93). Untracking one getter at a time only moves the problem to the next
       caller down. */
   $effect(() => {
     untrack(() => {
@@ -1965,7 +1965,7 @@ Log: ${info?.logPath ?? ""}`),
   $effect(() => {
     const root = repository.current?.root;
     const oid = commit.oid;
-    // Tracks the selection, not the session it writes it into (R-87).
+    // Tracks the selection, not the session it writes it into (R-93).
     if (root) untrack(() => session.setSelected(root, oid));
   });
 

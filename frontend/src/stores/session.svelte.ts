@@ -80,7 +80,7 @@ class SessionStore {
   private write(next: Session): void {
     // A write that changed nothing must not touch the field: `$state.raw` invalidates on
     // the reference alone, and an effect that reads the session and writes it back would
-    // never settle (R-87).
+    // never settle (R-93).
     if (next === this.#session) return;
 
     this.#session = next;

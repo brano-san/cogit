@@ -4,7 +4,7 @@
 //! version was it" is the first question about any report that starts with "the interface
 //! went blank". It belongs in the first line of the log, next to our own version.
 //!
-//! See doc/12-risks.md (R-88) for why this file is allowed `unsafe`.
+//! See doc/12-risks.md (R-94) for why this file is allowed `unsafe`.
 
 // COM again: neither the loader nor the accelerator event has a safe entry point.
 #![allow(unsafe_code)]

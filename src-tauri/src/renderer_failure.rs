@@ -5,7 +5,7 @@
 //! apologising about "this page" to an application that has no pages. WebView2 announces
 //! the death first, through `ICoreWebView2::add_ProcessFailed`, and this is what listens.
 //!
-//! See doc/12-risks.md (R-88).
+//! See doc/12-risks.md (R-94).
 
 // Every WebView2 call below is COM, and the platform offers no safe door to this event.
 // The workspace denies `unsafe_code` so that the Git paths cannot contain any; this file
