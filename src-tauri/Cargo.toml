@@ -47,6 +47,7 @@ tracing-subscriber.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 webview2-com.workspace = true
+windows.workspace = true
 windows-core.workspace = true
 
 [lints]

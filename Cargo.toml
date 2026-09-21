@@ -113,6 +113,8 @@ sysinfo = { version = "0.39", default-features = false, features = ["system"] }
 # incompatible copies of themselves (R-88).
 webview2-com = "0.38"
 windows-core = "0.61"
+# Only `GetKeyState`: the accelerator event says which key, never which modifiers.
+windows = { version = "0.61", features = ["Win32_UI_Input_KeyboardAndMouse"] }
 
 # --- dev / testing ---
 insta = "1.48"

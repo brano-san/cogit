@@ -147,6 +147,24 @@ pub fn default_keymap() -> Vec<KeyBinding> {
     rows
 }
 
+/// `(id, default accelerator)` for every entry, in menu order.
+///
+/// Feeds the window-level accelerator table: one list decides what the bar shows and what
+/// the window claims, so the two cannot drift apart (problem 3).
+#[must_use]
+pub fn default_keymap_pairs() -> Vec<(&'static str, Option<&'static str>)> {
+    let mut rows = Vec::new();
+    for (_, entries) in SECTIONS {
+        for entry in *entries {
+            match entry {
+                Entry::Item(id, _, keys) | Entry::Check(id, _, keys) => rows.push((*id, *keys)),
+                Entry::Separator => {}
+            }
+        }
+    }
+    rows
+}
+
 /// The user's overrides, held so a menu rebuild keeps them.
 #[derive(Default)]
 pub struct Keymap {
@@ -158,6 +176,11 @@ impl Keymap {
         if let Ok(mut held) = self.overrides.lock() {
             *held = overrides;
         }
+    }
+
+    #[must_use]
+    pub fn current(&self) -> HashMap<String, String> {
+        self.snapshot()
     }
 
     fn snapshot(&self) -> HashMap<String, String> {
