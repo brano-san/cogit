@@ -1,7 +1,7 @@
 // clippy.toml's allow-unwrap-in-tests does not reach helpers beside `#[test]` fns.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use app_state::{AppEvent, AppState};
+use app_state::{AppEvent, AppState, OperationPhase};
 
 fn drain(rx: &mut tokio::sync::broadcast::Receiver<AppEvent>) -> Vec<AppEvent> {
     let mut seen = Vec::new();
@@ -21,11 +21,11 @@ async fn an_operation_announces_its_start_and_its_end() {
     assert_eq!(value.unwrap(), 7);
     let seen = drain(&mut rx);
     assert!(
-        matches!(seen[0], AppEvent::OperationStarted { ref label, .. } if label == "Fetching"),
+        matches!(seen[0], AppEvent::Operation(ref op) if op.label == "Fetching" && op.phase == OperationPhase::Running),
         "{seen:?}"
     );
     assert!(
-        matches!(seen[1], AppEvent::OperationFinished { success: true, .. }),
+        matches!(seen[1], AppEvent::Operation(ref op) if op.success == Some(true)),
         "{seen:?}"
     );
 }
@@ -42,7 +42,7 @@ async fn a_failed_operation_still_announces_its_end() {
     assert!(result.is_err());
     let seen = drain(&mut rx);
     assert!(
-        matches!(seen[1], AppEvent::OperationFinished { success: false, .. }),
+        matches!(seen[1], AppEvent::Operation(ref op) if op.success == Some(false)),
         "{seen:?}"
     );
 }
@@ -58,11 +58,11 @@ async fn start_and_finish_carry_the_same_id() {
 
     let seen = drain(&mut rx);
     let started = match seen[0] {
-        AppEvent::OperationStarted { id, .. } => id,
+        AppEvent::Operation(ref op) => op.id,
         ref other => panic!("{other:?}"),
     };
     let finished = match seen[1] {
-        AppEvent::OperationFinished { id, .. } => id,
+        AppEvent::Operation(ref op) => op.id,
         ref other => panic!("{other:?}"),
     };
     assert_eq!(started, finished);
@@ -83,7 +83,7 @@ async fn two_operations_do_not_share_an_id() {
     let ids: Vec<u32> = drain(&mut rx)
         .into_iter()
         .filter_map(|event| match event {
-            AppEvent::OperationStarted { id, .. } => Some(id),
+            AppEvent::Operation(op) if op.phase == OperationPhase::Running => Some(op.id),
             _ => None,
         })
         .collect();

@@ -17,9 +17,7 @@ impl AppState {
         self.quiet(repo);
         let handle = self.handle(repo)?;
         let token = self.token_for(&handle, remote);
-        self.tracked("Fetching", || {
-            handle.fetch(remote, token.as_deref(), on_line)
-        })
+        handle.fetch(remote, token.as_deref(), on_line)
     }
 
     pub fn pull(
@@ -32,9 +30,7 @@ impl AppState {
         self.quiet(repo);
         let handle = self.handle(repo)?;
         let token = self.token_for(&handle, remote);
-        self.tracked("Pulling", || {
-            handle.pull(remote, ff_only, token.as_deref(), on_line)
-        })
+        handle.pull(remote, ff_only, token.as_deref(), on_line)
     }
 
     pub fn push(
@@ -47,9 +43,7 @@ impl AppState {
         self.quiet(repo);
         let handle = self.handle(repo)?;
         let token = self.token_for(&handle, remote);
-        self.tracked("Pushing", || {
-            handle.push(remote, None, force, token.as_deref(), on_line)
-        })
+        handle.push(remote, None, force, token.as_deref(), on_line)
     }
 
     /// Only for an HTTP remote: SSH already authenticates through the agent, and handing

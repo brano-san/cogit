@@ -29,9 +29,7 @@ impl AppState {
     ) -> Result<(), git_engine::GitError> {
         self.quiet(repo);
         let handle = self.handle(repo)?;
-        self.tracked("Adding worktree", || {
-            handle.add_worktree(path, branch, create)
-        })
+        handle.add_worktree(path, branch, create)
     }
 
     pub fn remove_worktree(
