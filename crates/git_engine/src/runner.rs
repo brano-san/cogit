@@ -83,12 +83,14 @@ impl RepoHandle {
         let result = GitOutput {
             command,
             exit_code: output.status.code(),
-            stdout: GitCommandError::cap_stream(
-                String::from_utf8_lossy(&output.stdout).into_owned(),
-            ),
-            stderr: GitCommandError::cap_stream(
-                String::from_utf8_lossy(&output.stderr).into_owned(),
-            ),
+            // Normalised once, here: the journal, the log file and the error window
+            // all read this record, and none of them may show a credential (INV-05).
+            stdout: GitCommandError::cap_stream(crate::output_text::normalise(
+                &String::from_utf8_lossy(&output.stdout),
+            )),
+            stderr: GitCommandError::cap_stream(crate::output_text::normalise(
+                &String::from_utf8_lossy(&output.stderr),
+            )),
             duration_ms,
         };
 
