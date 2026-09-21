@@ -113,12 +113,10 @@
     />
   {/if}
 
-  {#if entries.length === 0}
-    {#if repository.error}
-      <p class="error">{repository.error.message}</p>
-    {:else}
-      <p class="none">No repository open.</p>
-    {/if}
+  {#if repository.error}
+    <p class="error">{repository.error.message}</p>
+  {:else if rows.length === 0}
+    <p class="none">No repository open.</p>
   {:else}
     {#each rows as row (row.kind === "group" ? `g:${row.id}` : row.root)}
       {#if row.kind === "group"}
