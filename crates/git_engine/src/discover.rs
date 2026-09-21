@@ -1,9 +1,11 @@
+use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use rayon::prelude::*;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 /// Directories that hold thousands of files and never the repository the user meant.
+/// A backstop under `.gitignore`, for the folders nobody writes a rule about.
 const SKIP: &[&str] = &[
     "node_modules",
     "target",
@@ -46,10 +48,16 @@ impl Default for ScanOptions {
 /// leaf: the walk does not enter one, so a checkout full of vendored clones stays cheap.
 pub fn scan(root: &Path, options: &ScanOptions, on_found: impl FnMut(Found) + Send) {
     let sink = Mutex::new(on_found);
-    walk(root, 0, options, &sink);
+    walk(root, 0, options, &sink, &[]);
 }
 
-fn walk<F: FnMut(Found) + Send>(dir: &Path, depth: usize, options: &ScanOptions, sink: &Mutex<F>) {
+fn walk<F: FnMut(Found) + Send>(
+    dir: &Path,
+    depth: usize,
+    options: &ScanOptions,
+    sink: &Mutex<F>,
+    ignores: &[Arc<Gitignore>],
+) {
     if depth > options.max_depth {
         return;
     }
@@ -63,6 +71,14 @@ fn walk<F: FnMut(Found) + Send>(dir: &Path, depth: usize, options: &ScanOptions,
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
     };
+
+    // The rules of this directory apply to everything below it, so the chain grows as the
+    // walk descends and the innermost file has the final say, exactly as git reads them.
+    let chain: Vec<Arc<Gitignore>> = match gitignore_at(dir) {
+        Some(local) => ignores.iter().cloned().chain([local]).collect(),
+        None => ignores.to_vec(),
+    };
+
     let children: Vec<PathBuf> = entries
         .filter_map(|entry| {
             let entry = entry.ok()?;
@@ -70,12 +86,38 @@ fn walk<F: FnMut(Found) + Send>(dir: &Path, depth: usize, options: &ScanOptions,
             // second syscall per entry, and a symlink could send the walk round a loop.
             entry.file_type().ok()?.is_dir().then(|| entry.path())
         })
-        .filter(|path| !is_skipped(path))
+        .filter(|path| !is_skipped(path) && !is_ignored(path, &chain))
         .collect();
 
     children
         .par_iter()
-        .for_each(|child| walk(child, depth + 1, options, sink));
+        .for_each(|child| walk(child, depth + 1, options, sink, &chain));
+}
+
+/// A `.gitignore` that does not parse is no reason to abandon the scan.
+fn gitignore_at(dir: &Path) -> Option<Arc<Gitignore>> {
+    let file = dir.join(".gitignore");
+    if !file.is_file() {
+        return None;
+    }
+    let mut builder = GitignoreBuilder::new(dir);
+    if let Some(error) = builder.add(&file) {
+        tracing::debug!(?error, path = ?file, "a .gitignore was not usable for the scan");
+        return None;
+    }
+    builder.build().ok().map(Arc::new)
+}
+
+/// Innermost first: the deepest file that says anything about this path decides.
+fn is_ignored(path: &Path, chain: &[Arc<Gitignore>]) -> bool {
+    for rules in chain.iter().rev() {
+        match rules.matched(path, true) {
+            ignore::Match::Ignore(_) => return true,
+            ignore::Match::Whitelist(_) => return false,
+            ignore::Match::None => (),
+        }
+    }
+    false
 }
 
 fn is_skipped(path: &Path) -> bool {

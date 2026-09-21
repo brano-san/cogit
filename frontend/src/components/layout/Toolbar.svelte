@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Tooltip from "$components/common/Tooltip.svelte";
+
   /** Inapplicable actions are disabled, not hidden, so buttons never move under the cursor. */
   interface Action {
     id: string;
@@ -46,17 +48,19 @@
     {/if}
     <div class="group">
       {#each group as action (action.id)}
-        <button
-          type="button"
-          class="action"
-          disabled={!handlers[action.id]}
-          title="{action.label}{action.shortcut ? ` (${action.shortcut})` : ''}"
-          onclick={() => handlers[action.id]?.()}
-        >
-          <span class="icon" aria-hidden="true">{action.icon}</span>
-          <span>{action.label}</span>
-          {#if action.hasMenu}<span class="caret" aria-hidden="true">▾</span>{/if}
-        </button>
+        <Tooltip label={action.label} hint={action.shortcut ?? undefined} below>
+          <button
+            type="button"
+            class="action"
+            disabled={!handlers[action.id]}
+            aria-label="{action.label}{action.shortcut ? ` (${action.shortcut})` : ''}"
+            onclick={() => handlers[action.id]?.()}
+          >
+            <span class="icon" aria-hidden="true">{action.icon}</span>
+            <span>{action.label}</span>
+            {#if action.hasMenu}<span class="caret" aria-hidden="true">▾</span>{/if}
+          </button>
+        </Tooltip>
       {/each}
     </div>
   {/each}
@@ -145,4 +149,5 @@
   .spacer {
     flex: 1 1 auto;
   }
-</style>
+</style>  import Tooltip from "$components/common/Tooltip.svelte";
+

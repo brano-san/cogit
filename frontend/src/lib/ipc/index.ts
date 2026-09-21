@@ -33,6 +33,7 @@ export type {
   Branch,
   BranchKind,
   Bypass,
+  ChangeKind,
   CheckoutTarget,
   CommitDetails,
   CommitQuery,
@@ -549,6 +550,11 @@ export async function runHook(repo: RepoId, name: string) {
 
 export async function rollbackTo(repo: RepoId, rev: string, paths: string[]) {
   return unwrap(await commands.rollbackTo(repo, rev, paths));
+}
+
+/** The shared branches holding this commit; empty means rewriting it costs nobody. */
+export async function protectingRefs(repo: RepoId, rev: string) {
+  return unwrap(await commands.protectingRefs(repo, rev));
 }
 
 export async function isPublished(repo: RepoId, rev: string) {

@@ -167,3 +167,57 @@ fn a_broad_tree_is_scanned_inside_the_budget() {
         "scanning 1000 folders took {elapsed:?}"
     );
 }
+
+#[test]
+fn a_directory_the_gitignore_names_is_not_walked() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join(".gitignore"), "vendor/\n").unwrap();
+    repo_at(dir.path(), "vendor/thirdparty");
+    repo_at(dir.path(), "mine");
+
+    assert_eq!(collect(dir.path(), &ScanOptions::default()), ["mine"]);
+}
+
+#[test]
+fn an_ignore_rule_reaches_a_folder_further_down() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join(".gitignore"), "build\n").unwrap();
+    fs::create_dir_all(dir.path().join("src")).unwrap();
+    repo_at(dir.path(), "src/build/generated");
+    repo_at(dir.path(), "src/real");
+
+    assert_eq!(collect(dir.path(), &ScanOptions::default()), ["src/real"]);
+}
+
+#[test]
+fn the_skip_list_still_applies_where_no_gitignore_says_so() {
+    let dir = tempfile::tempdir().unwrap();
+    repo_at(dir.path(), "node_modules/some-package");
+    repo_at(dir.path(), "mine");
+
+    assert_eq!(collect(dir.path(), &ScanOptions::default()), ["mine"]);
+}
+
+#[test]
+fn a_repository_in_a_hidden_folder_is_still_found() {
+    // Hidden is not the same as uninteresting: dotfile repositories live in `.config`.
+    let dir = tempfile::tempdir().unwrap();
+    repo_at(dir.path(), ".config/dotfiles");
+
+    assert_eq!(
+        collect(dir.path(), &ScanOptions::default()),
+        [".config/dotfiles"]
+    );
+}
+
+#[test]
+fn an_unignored_rule_wins_over_the_ignore_above_it() {
+    let dir = tempfile::tempdir().unwrap();
+    // `work/` then `!work/keep` would not work in git either: nothing under an excluded
+    // directory can be re-included, because git never looks inside it.
+    fs::write(dir.path().join(".gitignore"), "work/*\n!work/keep\n").unwrap();
+    repo_at(dir.path(), "work/keep");
+    repo_at(dir.path(), "work/drop");
+
+    assert_eq!(collect(dir.path(), &ScanOptions::default()), ["work/keep"]);
+}

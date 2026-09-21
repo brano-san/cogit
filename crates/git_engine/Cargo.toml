@@ -10,6 +10,7 @@ description = "Git reading via gix and mutations via the system git CLI."
 
 [dependencies]
 gix.workspace = true
+ignore.workspace = true
 tokio.workspace = true
 parking_lot.workspace = true
 rayon.workspace = true

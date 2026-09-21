@@ -201,3 +201,67 @@ impl RepoHandle {
         Ok(!containing.stdout.trim().is_empty())
     }
 }
+
+/// Shared branches, unless `cogit.protectedBranches` says otherwise. Rewriting a commit on
+/// one of these costs everybody who has it a divergence, so surgery refuses rather than warns.
+const PROTECTED: &[&str] = &["main", "master", "develop", "release/*"];
+
+impl RepoHandle {
+    /// The protected remote branches that already contain this commit, if any.
+    pub fn protecting_refs(&self, rev: &str) -> Result<Vec<String>> {
+        let oid = self.rev_parse(rev)?;
+        let patterns = self.protected_patterns();
+        if patterns.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let listed = self.run_git_reading(&[
+            "for-each-ref",
+            "--format=%(refname:short)",
+            "--contains",
+            &oid,
+            "refs/remotes/",
+        ])?;
+
+        Ok(listed
+            .stdout
+            .lines()
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .filter(|name| patterns.iter().any(|glob| matches_branch(glob, name)))
+            .map(str::to_owned)
+            .collect())
+    }
+
+    fn protected_patterns(&self) -> Vec<String> {
+        match self
+            .repo
+            .config_snapshot()
+            .string("cogit.protectedBranches")
+        {
+            Some(value) => value
+                .to_string()
+                .split(',')
+                .map(str::trim)
+                .filter(|part| !part.is_empty())
+                .map(str::to_owned)
+                .collect(),
+            None => PROTECTED.iter().map(|name| (*name).to_owned()).collect(),
+        }
+    }
+}
+
+/// `origin/release/1.0` is matched against `release/*`: the remote name is not part of it.
+fn matches_branch(pattern: &str, full: &str) -> bool {
+    let branch = full.split_once('/').map_or(full, |(_, rest)| rest);
+    glob_matches(pattern, branch)
+}
+
+fn glob_matches(pattern: &str, text: &str) -> bool {
+    match pattern.split_once('*') {
+        None => pattern == text,
+        Some((head, tail)) => {
+            text.len() >= head.len() + tail.len() && text.starts_with(head) && text.ends_with(tail)
+        }
+    }
+}
