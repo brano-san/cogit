@@ -178,6 +178,8 @@
 
 | F-232 | Аватары спрашивают, а не включаются сами | [F-232-avatars-ask-first.md](F-232-avatars-ask-first.md) |
 
+| F-233 | Видимые разделители панелей | [F-233-visible-splitters.md](F-233-visible-splitters.md) |
+
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.
 
 | F-214 | Четырёхпанельное слияние | [F-214-four-panel-merge.md](F-214-four-panel-merge.md) |

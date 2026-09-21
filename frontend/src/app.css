@@ -60,6 +60,11 @@
   --state-focus-ring: var(--c-branch);
 
   --divider: var(--c-border);
+  /* The rail between two panels. Darker than either in both themes, so the blocks
+     read as blocks and the handle is somewhere you can see before you reach for it. */
+  --splitter-track: #101319;
+  --splitter-grip: var(--c-border-strong);
+  --splitter-active: var(--status-ref);
   --field-border: var(--c-border-strong);
 
   /* The window chrome — toolbar and status bar — reads as one frame around the work. */
@@ -110,6 +115,8 @@
   --h-input: 26px;
   /* The small buttons that live in panel bars, next to a dense row. */
   --h-button-sm: 20px;
+  /* Wide enough to see and to hit; the grab zone widens further on top of it. */
+  --w-splitter: 6px;
 
   /* ---- radii: nothing above 6px, a dense UI with big radii reads as mushy ---- */
   --r-sm: 3px;
@@ -175,6 +182,8 @@
   --c-lane-8: #a40e26;
 
   --shadow-popover: 0 8px 24px rgba(31, 35, 40, 0.15);
+  --splitter-track: #e4e8ec;
+  --splitter-grip: #aab2bb;
   --shadow-dialog: 0 12px 40px rgba(31, 35, 40, 0.25);
   --scrim: rgba(31, 35, 40, 0.25);
   --text-on-accent: #ffffff;

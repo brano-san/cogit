@@ -48,12 +48,14 @@
     line-height: 1;
   }
 
+  /* An outline of its own, so a panel is a block even where no splitter borders it. */
   .panel {
     display: flex;
     flex-direction: column;
     min-width: 0;
     min-height: 0;
     background: var(--surface-panel);
+    border: 1px solid var(--divider);
     overflow: hidden;
   }
 
