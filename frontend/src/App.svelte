@@ -78,6 +78,8 @@
     commitTemplate,
     stageMode,
     onAvatarReady,
+    onMergeResolved,
+    openMergeWindow,
     onOperationChanged,
     openCompareWindow,
     popupContextMenu,
@@ -1864,6 +1866,16 @@ Log: ${info?.logPath ?? ""}`),
     return () => void pending.then((unlisten) => unlisten());
   });
 
+  /** A resolution written in its own window; the panels here catch up. */
+  $effect(() => {
+    const pending = onMergeResolved((event) => {
+      if (repository.current?.repo.valueOf() !== event.repo.valueOf()) return;
+      conflicts.close();
+      void afterMutation();
+    });
+    return () => void pending.then((unlisten) => unlisten());
+  });
+
   /** Where the user was last: written as it changes, not only on the way out, because a
       crash is exactly the case this is meant to survive. */
   $effect(() => {
@@ -2219,6 +2231,10 @@ Log: ${info?.logPath ?? ""}`),
             onresolve={(side) => {
               const id = repository.current?.repo;
               if (id) void conflicts.take(id, side).then(() => afterMutation());
+            }}
+            onpopoutmerge={() => {
+              const id = repository.current?.repo;
+              if (id && conflicts.path) void openMergeWindow(id, conflicts.path);
             }}
             onresolveText={(text) => {
               const id = repository.current?.repo;

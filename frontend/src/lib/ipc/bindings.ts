@@ -88,6 +88,10 @@ export const commands = {
 	pruneWorktrees: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("prune_worktrees", { repo })),
 	/**  The three sides merged into regions, for the four-panel view (doc/08-diff-engine.md §8). */
 	mergePreview: (repo: RepoId, path: string) => typedError<Region[], GitError>(__TAURI_INVOKE("merge_preview", { repo, path })),
+	/**  A window of its own for one conflicted file, so the merge is not squeezed into a panel. */
+	openMergeWindow: (url: string, title: string) => typedError<null, GitError>(__TAURI_INVOKE("open_merge_window", { url, title })),
+	/**  Told by the merge window once it has written the resolution. */
+	mergeResolved: (repo: RepoId, path: string) => typedError<null, GitError>(__TAURI_INVOKE("merge_resolved", { repo, path })),
 	/**  The shared branches that already hold this commit; empty means it is safe to rewrite. */
 	protectingRefs: (repo: RepoId, rev: string) => typedError<string[], GitError>(__TAURI_INVOKE("protecting_refs", { repo, rev })),
 	/**  Saves the hook as it stands as a preset, so the next repository gets it in one click. */
@@ -190,6 +194,7 @@ export const commands = {
 export const events = {
 	avatarReady: makeEvent<AvatarReady>("avatar-ready"),
 	menuCommand: makeEvent<MenuCommand>("menu-command"),
+	mergeResolved: makeEvent<MergeResolved>("merge-resolved"),
 	operationChanged: makeEvent<OperationChanged>("operation-changed"),
 	repoChanged: makeEvent<RepoChanged>("repo-changed"),
 };
@@ -521,6 +526,12 @@ export type MergeOptions = {
 	noFastForward: boolean,
 	squash: boolean,
 	message: string | null,
+};
+
+/**  A conflicted file was resolved in its own window; the main one refreshes on it. */
+export type MergeResolved = {
+	repo: RepoId,
+	path: string,
 };
 
 /**

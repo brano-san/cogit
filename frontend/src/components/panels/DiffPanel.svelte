@@ -18,6 +18,7 @@
     onwhitespace: (mode: Whitespace) => void;
     onexpand: (whole: boolean) => void;
     onresolve: (side: ConflictSide) => void;
+    onpopoutmerge: () => void;
     onresolveText: (text: string) => void;
     onselectcommit: (oid: string) => void;
     /** Shown when there is nothing to diff: commit details, or why there is nothing. */
@@ -30,6 +31,7 @@
     onwhitespace,
     onexpand,
     onresolve,
+    onpopoutmerge,
     onresolveText,
     onselectcommit,
     fallback,
@@ -42,6 +44,7 @@
     regions={conflicts.regions}
     onsave={(text) => onresolveText(text)}
     oncancel={() => conflicts.close()}
+    onpopout={onpopoutmerge}
   />
 {:else if conflicts.path}
   <ConflictView
