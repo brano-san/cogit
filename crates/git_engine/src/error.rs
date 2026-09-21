@@ -3,12 +3,13 @@
 
 use serde::Serialize;
 
-const MAX_STREAM_BYTES: usize = 1024 * 1024;
-
 #[derive(Debug, Clone, thiserror::Error, Serialize, specta::Type)]
 #[error("Command `{command}` failed (exit code {exit_code:?})")]
 #[serde(rename_all = "camelCase")]
 pub struct GitCommandError {
+    /// The journal entry this came from, so the window can offer the full record.
+    pub id: u32,
+    pub repo: String,
     pub command: String,
     pub exit_code: Option<i32>,
     pub stdout: String,
@@ -25,6 +26,8 @@ impl GitCommandError {
     #[must_use]
     pub fn from_output(output: crate::GitOutput) -> Self {
         Self {
+            id: output.id,
+            repo: output.repo,
             operation: output.operation,
             summary: output.summary,
             command: output.command,
@@ -32,22 +35,6 @@ impl GitCommandError {
             stdout: output.stdout,
             stderr: output.stderr,
         }
-    }
-
-    #[must_use]
-    pub fn cap_stream(stream: String) -> String {
-        if stream.len() <= MAX_STREAM_BYTES {
-            return stream;
-        }
-        let mut cut = MAX_STREAM_BYTES;
-        while cut > 0 && !stream.is_char_boundary(cut) {
-            cut -= 1;
-        }
-        let dropped = stream.len() - cut;
-        format!(
-            "{}\n[... {dropped} bytes truncated by Cogit ...]",
-            &stream[..cut]
-        )
     }
 }
 
@@ -92,28 +79,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn short_streams_pass_through_untouched() {
-        let s = "fatal: not a git repository".to_owned();
-        assert_eq!(GitCommandError::cap_stream(s.clone()), s);
-    }
-
-    #[test]
-    fn long_streams_are_truncated_visibly() {
-        let capped = GitCommandError::cap_stream("x".repeat(MAX_STREAM_BYTES + 500));
-        assert!(capped.contains("truncated by Cogit"));
-        assert!(capped.len() < MAX_STREAM_BYTES + 200);
-    }
-
-    #[test]
-    fn truncation_never_splits_a_character() {
-        let input = "я".repeat(MAX_STREAM_BYTES);
-        let capped = GitCommandError::cap_stream(input);
-        assert!(capped.is_char_boundary(capped.len()));
-    }
-
-    #[test]
     fn error_display_names_the_command() {
         let err = GitCommandError::from_output(crate::GitOutput::record(
+            std::path::Path::new("."),
             "git push origin main".to_owned(),
             Some(1),
             "",
@@ -127,6 +95,7 @@ mod tests {
     #[test]
     fn the_operation_is_the_command_that_actually_ran() {
         let err = GitCommandError::from_output(crate::GitOutput::record(
+            std::path::Path::new("."),
             "git push origin main".to_owned(),
             Some(1),
             "",

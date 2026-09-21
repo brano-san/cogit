@@ -4,7 +4,7 @@
 //! What reaches the error window and the clipboard after git and its hooks are done
 //! colouring, redrawing and printing credentials.
 
-use git_engine::output_text::{collapse_progress, normalise, redact_secrets, strip_ansi};
+use git_engine::output_text::{collapse_progress, normalise, redact_secrets, strip_ansi, trim};
 
 #[test]
 fn colour_codes_are_stripped() {
@@ -117,4 +117,82 @@ fn normalise_does_all_three_and_keeps_the_shape_of_a_test_log() {
 #[test]
 fn normalising_empty_output_is_empty() {
     assert_eq!(normalise(""), "");
+}
+
+// --- what the renderer is allowed to be handed -------------------------------------
+
+#[test]
+fn a_log_shorter_than_the_limit_is_handed_over_byte_for_byte() {
+    let log = "warning: LF will be replaced by CRLF\n\n  indented\n";
+    assert_eq!(trim(log), log);
+}
+
+#[test]
+fn a_giant_log_keeps_its_head_and_its_tail() {
+    let log: String = (0..30_000).map(|i| format!("line {i}\n")).collect();
+
+    let short = trim(&log);
+
+    assert!(short.starts_with("line 0\nline 1\n"), "{}", &short[..40]);
+    assert!(
+        short.ends_with("line 29999\n"),
+        "{}",
+        &short[short.len() - 40..]
+    );
+}
+
+#[test]
+fn the_middle_of_a_giant_log_says_how_much_is_missing() {
+    let log: String = (0..30_000).map(|i| format!("line {i}\n")).collect();
+
+    let short = trim(&log);
+
+    assert!(
+        short.contains("… 23000 lines omitted, see log …\n"),
+        "{short:.400}"
+    );
+    assert!(!short.contains("line 15000\n"), "the middle should be gone");
+}
+
+#[test]
+fn the_kept_lines_are_the_ones_promised() {
+    let log: String = (0..30_000).map(|i| format!("line {i}\n")).collect();
+
+    let short = trim(&log);
+
+    assert!(short.contains("line 1999\n"));
+    assert!(!short.contains("line 2000\n"));
+    assert!(!short.contains("line 24999\n"));
+    assert!(short.contains("line 25000\n"));
+}
+
+#[test]
+fn a_panic_at_the_end_of_a_huge_test_log_survives() {
+    let mut log: String = (0..40_000).map(|i| format!("test {i} ... ok\n")).collect();
+    log.push_str("thread 'main' panicked at crates/a/src/b.rs:12:5:\n");
+
+    let short = trim(&log);
+
+    assert!(short.contains("thread 'main' panicked at crates/a/src/b.rs:12:5:\n"));
+}
+
+#[test]
+fn a_few_enormous_lines_are_cut_by_bytes_as_well() {
+    let log = format!("{}\n{}\n", "x".repeat(2_000_000), "y".repeat(2_000_000));
+
+    let short = trim(&log);
+
+    assert!(short.len() < 2_200_000, "{} bytes", short.len());
+    assert!(short.contains("bytes omitted, see log …"), "{:.200}", short);
+}
+
+#[test]
+fn cutting_by_bytes_never_splits_a_character() {
+    // Three bytes per character, so neither cut lands on a boundary by luck. Slicing a
+    // `str` off a boundary panics, which is what this test is really watching for.
+    let log = "日".repeat(1_400_000);
+
+    let short = trim(&log);
+
+    assert!(short.chars().filter(|c| *c == '日').count() > 600_000);
 }

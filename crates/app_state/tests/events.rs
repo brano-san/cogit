@@ -133,3 +133,46 @@ async fn one_slow_subscriber_does_not_stop_another() {
     assert!(fast.try_recv().is_ok());
     assert!(slow.try_recv().is_ok());
 }
+
+#[tokio::test]
+async fn every_git_command_announces_itself_without_carrying_its_output() {
+    let f = test_fixtures::linear(1).unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let mut rx = state.subscribe();
+
+    state.create_branch(repo, "topic", None, false).unwrap();
+
+    let notices: Vec<_> = drain(&mut rx)
+        .into_iter()
+        .filter_map(|event| match event {
+            AppEvent::CommandRecorded(notice) => Some(notice),
+            _ => None,
+        })
+        .collect();
+    let notice = notices.first().expect("a command must announce itself");
+    assert_eq!(notice.operation, "Branch");
+    assert!(state.command_outcome(notice.id).is_some());
+}
+
+#[tokio::test]
+async fn a_failure_is_announced_as_one() {
+    let f = test_fixtures::linear(1).unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let mut rx = state.subscribe();
+
+    let _ = state.stage_paths(repo, &["never-existed.txt".to_owned()]);
+
+    let severities: Vec<_> = drain(&mut rx)
+        .into_iter()
+        .filter_map(|event| match event {
+            AppEvent::CommandRecorded(notice) => Some(notice.severity),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        severities.contains(&git_engine::Severity::Failure),
+        "{severities:?}"
+    );
+}

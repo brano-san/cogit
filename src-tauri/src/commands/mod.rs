@@ -384,6 +384,13 @@ pub fn command_log(state: tauri::State<'_, crate::AppContext>) -> Vec<GitOutput>
     state.state.command_log()
 }
 
+/// One entry in full. The notice that opened the window carried only its summary.
+#[tauri::command]
+#[specta::specta]
+pub fn command_outcome(state: tauri::State<'_, crate::AppContext>, id: u32) -> Option<GitOutput> {
+    state.state.command_outcome(id)
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn command_problems(state: tauri::State<'_, crate::AppContext>) -> u32 {

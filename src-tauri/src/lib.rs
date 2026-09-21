@@ -45,6 +45,12 @@ pub struct AvatarReady {
     pub email: String,
 }
 
+/// Mirrors `app_state::AppEvent::CommandRecorded`. Every git command sends one; the
+/// output itself stays in the journal until somebody asks to read it.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
+#[serde(rename_all = "camelCase")]
+pub struct CommandRecorded(pub app_state::CommandNotice);
+
 /// Mirrors `app_state::AppEvent::Operation*`, for the spinner in the toolbar.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
 #[serde(rename_all = "camelCase")]
@@ -69,7 +75,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             MenuCommand,
             OperationChanged,
             AvatarReady,
-            MergeResolved
+            MergeResolved,
+            CommandRecorded
         ])
         .commands(collect_commands![
             commands::app_info,
@@ -88,6 +95,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::create_branch,
             commands::delete_branch,
             commands::command_log,
+            commands::command_outcome,
             commands::command_problems,
             commands::clear_command_log,
             commands::safety_log,
@@ -270,6 +278,9 @@ fn forward_repo_changes(app: tauri::AppHandle, state: &Arc<AppState>) {
             match event {
                 app_state::AppEvent::RepoChanged { repo, kind } => {
                     let _ = RepoChanged { repo, kind }.emit(&app);
+                }
+                app_state::AppEvent::CommandRecorded(notice) => {
+                    let _ = CommandRecorded(notice).emit(&app);
                 }
                 app_state::AppEvent::AvatarReady { email } => {
                     let _ = AvatarReady { email }.emit(&app);

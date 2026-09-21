@@ -299,12 +299,8 @@ impl RepoHandle {
         let run = HookRun {
             name: name.to_owned(),
             exit_code: output.status.code(),
-            stdout: crate::GitCommandError::cap_stream(
-                String::from_utf8_lossy(&output.stdout).into_owned(),
-            ),
-            stderr: crate::GitCommandError::cap_stream(
-                String::from_utf8_lossy(&output.stderr).into_owned(),
-            ),
+            stdout: crate::output_text::shown(&String::from_utf8_lossy(&output.stdout)),
+            stderr: crate::output_text::shown(&String::from_utf8_lossy(&output.stderr)),
             duration_ms,
             slow: duration_ms > SLOW_MS,
         };
@@ -381,6 +377,7 @@ impl RepoHandle {
 
         if let Some(sink) = self.journal() {
             sink(crate::GitOutput::record(
+                self.root(),
                 format!("check: {trimmed}"),
                 run.exit_code,
                 &run.stdout,
@@ -470,6 +467,7 @@ impl RepoHandle {
         // Exit zero with a line on stderr is what the Output panel marks as a warning,
         // so a bypass reads there like any other thing worth noticing (M10 T10.5).
         self.journal_entry(crate::GitOutput::record(
+            self.root(),
             "hooks bypassed".to_owned(),
             Some(0),
             "",

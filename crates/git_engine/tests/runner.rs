@@ -158,7 +158,7 @@ fn inherited_git_variables_are_cleared() {
 #[test]
 fn an_oversized_stream_is_capped_with_a_visible_marker() {
     let f = test_fixtures::linear(1).unwrap();
-    let big = "x".repeat(2 * 1024 * 1024);
+    let big = "x".repeat(3 * 1024 * 1024);
     std::fs::write(f.path().join("big.txt"), &big).unwrap();
     f.git(&["add", "--", "big.txt"]).unwrap();
     f.commit_staged(1, "add a large file").unwrap();
@@ -167,10 +167,33 @@ fn an_oversized_stream_is_capped_with_a_visible_marker() {
     let out = repo.run_git(&["show", "HEAD:big.txt"]).unwrap();
 
     assert!(
-        out.stdout.contains("truncated by Cogit"),
+        out.stdout.contains("omitted, see log …"),
         "output was not capped"
     );
     assert!(out.stdout.len() < big.len());
+}
+
+#[test]
+fn a_record_names_the_repository_it_ran_in() {
+    let f = test_fixtures::linear(1).unwrap();
+    let repo = open(&f);
+
+    let out = repo.run_git(&["rev-parse", "HEAD"]).unwrap();
+
+    let named = std::fs::canonicalize(&out.repo).unwrap();
+    assert_eq!(named, std::fs::canonicalize(f.path()).unwrap());
+}
+
+/// The window is opened by pointing at one entry of the history, so entries need names.
+#[test]
+fn records_are_numbered_in_the_order_they_ran() {
+    let f = test_fixtures::linear(1).unwrap();
+    let repo = open(&f);
+
+    let first = repo.run_git(&["rev-parse", "HEAD"]).unwrap();
+    let second = repo.run_git(&["rev-parse", "HEAD"]).unwrap();
+
+    assert!(second.id > first.id, "{} then {}", first.id, second.id);
 }
 
 #[test]

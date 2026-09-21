@@ -6,6 +6,10 @@ use std::sync::Arc;
 
 pub type CommandSink = Arc<dyn Fn(GitOutput) + Send + Sync>;
 
+/// Per process, not per repository: the window is opened by id and does not care which
+/// repository the run came from. Wrapping after four billion commands is not a scenario.
+static NEXT_ID: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
+
 /// Cleared, not overridden — `GIT_DIR` and friends override `current_dir`, and unset must
 /// stay unset (doc/12-risks.md, R-22).
 const INHERITED_GIT_VARS: &[&str] = &[
@@ -26,6 +30,10 @@ const INHERITED_GIT_VARS: &[&str] = &[
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GitOutput {
+    /// Numbered so a window, a toast and a history row can all name the same run.
+    pub id: u32,
+    /// The repository root the command ran in. A record outlives the handle that made it.
+    pub repo: String,
     pub command: String,
     pub exit_code: Option<i32>,
     pub stdout: String,
@@ -47,15 +55,23 @@ impl GitOutput {
     /// in the journal goes through here, git commands and hook runs alike.
     #[must_use]
     pub fn record(
+        repo: &Path,
         command: String,
         exit_code: Option<i32>,
         stdout: &str,
         stderr: &str,
         duration_ms: u32,
     ) -> Self {
-        let stdout = GitCommandError::cap_stream(crate::output_text::normalise(stdout));
-        let stderr = GitCommandError::cap_stream(crate::output_text::normalise(stderr));
+        let stdout = crate::output_text::normalise(stdout);
+        let stderr = crate::output_text::normalise(stderr);
+        // The log file keeps what the window cannot show, and it is written here rather
+        // than at the five call sites so that no path can capture output and lose it.
+        tracing::debug!(%command, exit_code = ?exit_code, %stdout, %stderr, "git output");
+        let stdout = crate::output_text::trim(&stdout);
+        let stderr = crate::output_text::trim(&stderr);
         Self {
+            id: NEXT_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+            repo: repo.display().to_string(),
             operation: crate::outcome::operation_label(&command),
             severity: crate::outcome::severity_of(exit_code, &stderr),
             summary: crate::outcome::summarise(&stderr, &stdout),
@@ -117,6 +133,7 @@ impl RepoHandle {
 
         let duration_ms = u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX);
         let result = GitOutput::record(
+            self.root(),
             command,
             output.status.code(),
             &String::from_utf8_lossy(&output.stdout),
@@ -127,13 +144,6 @@ impl RepoHandle {
         self.journal_entry(result.clone());
 
         if output.status.success() {
-            tracing::debug!(
-                command = %result.command,
-                duration_ms,
-                stdout = %result.stdout,
-                stderr = %result.stderr,
-                "git finished"
-            );
             return Ok(result);
         }
 
@@ -141,7 +151,7 @@ impl RepoHandle {
             command = %result.command,
             exit_code = ?result.exit_code,
             duration_ms,
-            stderr = %result.stderr,
+            summary = %result.summary,
             "git failed"
         );
         Err(GitError::Command(Box::new(GitCommandError::from_output(
