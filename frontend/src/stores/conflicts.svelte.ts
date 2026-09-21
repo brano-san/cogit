@@ -18,19 +18,32 @@ class ConflictStore {
   /** The three sides already merged; empty until a conflicted file is opened. */
   regions = $state.raw<Region[]>([]);
 
+  /** Opening a file takes two round trips. Without this, a slow answer for the file the
+      user has moved on from lands on the file they are looking at now — and Save would
+      then write one file's resolution into another. */
+  #generation = 0;
+
   async refresh(repo: RepoId): Promise<void> {
     this.paths = await conflictedPaths(repo);
     if (this.path && !this.paths.includes(this.path)) this.close();
   }
 
   async open(repo: RepoId, path: string): Promise<void> {
+    const generation = ++this.#generation;
+
     const sides = await conflictText(repo, path);
+    if (generation !== this.#generation) return;
+
     this.path = path;
     this.base = sides.base;
     this.ours = sides.ours;
     this.theirs = sides.theirs;
+    this.regions = [];
+
     // A failed merge leaves the three raw sides, which are still worth showing.
-    this.regions = await mergePreview(repo, path).catch(() => []);
+    const regions = await mergePreview(repo, path).catch(() => []);
+    if (generation !== this.#generation) return;
+    this.regions = regions;
   }
 
   async take(repo: RepoId, side: ConflictSide): Promise<void> {
@@ -48,6 +61,7 @@ class ConflictStore {
   }
 
   close(): void {
+    this.#generation += 1;
     this.path = null;
     this.base = null;
     this.ours = null;
