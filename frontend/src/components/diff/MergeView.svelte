@@ -21,9 +21,12 @@
     oncancel: () => void;
     /** Absent in the window of its own, where there is nowhere to pop out to. */
     onpopout?: () => void;
+    /** Only the separate window may take Ctrl+S: in the main one the native menu owns
+        it for Stash All, and an accelerator cannot be preventDefault-ed from here. */
+    saveShortcut?: boolean;
   }
 
-  let { path, regions, onsave, oncancel, onpopout }: Props = $props();
+  let { path, regions, onsave, oncancel, onpopout, saveShortcut = false }: Props = $props();
 
   let choices = $state.raw<Choices>({});
   let edited = $state<string | null>(null);
@@ -50,6 +53,7 @@
   }
 
   function onkeydown(event: KeyboardEvent) {
+    if (!saveShortcut) return;
     if (!(event.ctrlKey || event.metaKey) || event.key !== "s") return;
     event.preventDefault();
     if (left === 0) save();
@@ -85,7 +89,13 @@
       <button type="button" onclick={onpopout} title="Open in a window of its own">⧉</button>
     {/if}
     <button type="button" onclick={oncancel}>Cancel</button>
-    <button type="button" class="primary" disabled={left > 0} onclick={save} title="Ctrl+S">
+    <button
+      type="button"
+      class="primary"
+      disabled={left > 0}
+      onclick={save}
+      title={saveShortcut ? "Ctrl+S" : "Write the resolution and stage the file"}
+    >
       Save resolution
     </button>
   </div>

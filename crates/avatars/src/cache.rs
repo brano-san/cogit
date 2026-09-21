@@ -4,6 +4,7 @@ use crate::identity::email_hash;
 use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 const FOUND_TTL: u64 = 30 * 24 * 60 * 60;
 const MISSING_TTL: u64 = 7 * 24 * 60 * 60;
@@ -46,6 +47,9 @@ pub struct Cache {
     index: Mutex<HashMap<String, Entry>>,
     limit: u64,
     clock: Clock,
+    /// Use times changed since the last write. They only order eviction, so they are
+    /// worth a flush at the end, never a file write per row of a scrolling list.
+    touched: AtomicBool,
 }
 
 impl std::fmt::Debug for Cache {
@@ -70,6 +74,7 @@ impl Cache {
             index: Mutex::new(index),
             limit: DEFAULT_LIMIT,
             clock: Box::new(now),
+            touched: AtomicBool::new(false),
         })
     }
 
@@ -113,7 +118,7 @@ impl Cache {
         entry.used_at = now;
         let path = self.file(&key);
         drop(index);
-        self.save();
+        self.touched.store(true, Ordering::Relaxed);
         Lookup::Hit(path)
     }
 
@@ -155,6 +160,13 @@ impl Cache {
         Ok(())
     }
 
+    /// Writes the use times if any changed. Called when the window settles, and on drop.
+    pub fn flush(&self) {
+        if self.touched.swap(false, Ordering::Relaxed) {
+            self.save();
+        }
+    }
+
     fn file(&self, key: &str) -> PathBuf {
         self.dir.join(format!("{key}.png"))
     }
@@ -186,6 +198,7 @@ impl Cache {
 
     /// Losing the index costs a refetch, never the run, so a failed write is only logged.
     fn save(&self) {
+        self.touched.store(false, Ordering::Relaxed);
         let path = self.dir.join(INDEX);
         let snapshot = self.index.lock().clone();
         match serde_json::to_vec(&snapshot) {
@@ -196,6 +209,12 @@ impl Cache {
             }
             Err(error) => tracing::warn!(?error, "could not serialise the avatar cache index"),
         }
+    }
+}
+
+impl Drop for Cache {
+    fn drop(&mut self) {
+        self.flush();
     }
 }
 

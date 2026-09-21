@@ -195,8 +195,20 @@
   let template = $state<string | null>(null);
   let splitOpen = $state(false);
   let splitPublished = $state(false);
-  /** Non-empty while the selected commit sits on a branch the team shares. */
-  let protectedBy = $state.raw<string[]>([]);
+  /** Which shared branches hold a commit, once asked. Answering costs a graph walk per
+      remote ref, so it is asked when the user opens a menu, not on every selection. */
+  let protection = $state.raw<ReadonlyMap<string, readonly string[]>>(new Map());
+  const protectedBy = $derived(protection.get(commit.oid ?? "") ?? []);
+
+  async function learnProtection(oid: string): Promise<readonly string[]> {
+    const id = repository.current?.repo;
+    if (!id) return [];
+    const known = protection.get(oid);
+    if (known) return known;
+    const refs = await protectingRefs(id, oid).catch(() => [] as string[]);
+    protection = new Map(protection).set(oid, refs);
+    return refs;
+  }
   /** Panels a disk event has outdated; cleared as each reload lands. */
   let stale = $state.raw<ReadonlySet<PanelId>>(new Set());
   let splitBusy = $state(false);
@@ -461,7 +473,10 @@
         id: "palette",
         title: "Find Command",
         shortcut: "Ctrl+Shift+P",
-        run: () => (paletteOpen = true),
+        run: () => {
+          if (commit.oid) void learnProtection(commit.oid);
+          paletteOpen = true;
+        },
       },
       {
         id: "about",
@@ -637,6 +652,7 @@ Log: ${info?.logPath ?? ""}`),
         return;
       }
       stale = markStale(stale, change.kind);
+      if (change.kind === "refs" || change.kind === "head") protection = new Map();
       const movedRefs = change.kind === "head" || change.kind === "refs";
       void (movedRefs ? repository.refresh() : repository.refreshStatus()).then(() => {
         stale = freshen(stale, ["repositories", "refs"]);
@@ -1419,6 +1435,7 @@ Log: ${info?.logPath ?? ""}`),
     const id = repository.current?.repo;
     if (!id) return;
     const onRemote = await isPublished(id, oid).catch(() => false);
+    void learnProtection(oid);
     await popupContextMenu(commitMenu({ onRemote }), x, y).catch(() => {});
   }
 
@@ -1796,19 +1813,6 @@ Log: ${info?.logPath ?? ""}`),
   /** `ask` means the user has not decided: nothing is fetched and no cache is made. */
   $effect(() => {
     void avatars.apply(settings.current.avatars === "gravatar");
-  });
-
-  /** Kept up to date with the selection so the menu is right before it is opened. */
-  $effect(() => {
-    const id = repository.current?.repo;
-    const rev = commit.oid;
-    if (!id || !rev) {
-      protectedBy = [];
-      return;
-    }
-    void protectingRefs(id, rev)
-      .then((refs) => (protectedBy = refs))
-      .catch(() => (protectedBy = []));
   });
 
   async function openSplit() {

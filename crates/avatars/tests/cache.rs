@@ -226,3 +226,54 @@ fn a_remembered_miss_costs_no_disk_space() {
         .count();
     assert_eq!(png_files, 0);
 }
+
+#[test]
+fn reading_a_cached_picture_does_not_rewrite_the_index() {
+    let dir = tempfile::tempdir().unwrap();
+    let (cache, _) = cache(&dir);
+    cache.store("ada@example.com", PNG).unwrap();
+
+    let index = dir.path().join("index.json");
+    let before = std::fs::metadata(&index).unwrap().len();
+    let stamp = std::fs::read(&index).unwrap();
+
+    // A window of fifty rows looks up fifty times per repaint; each one must be free.
+    for _ in 0..50 {
+        assert!(matches!(cache.lookup("ada@example.com"), Lookup::Hit(_)));
+    }
+
+    assert_eq!(std::fs::metadata(&index).unwrap().len(), before);
+    assert_eq!(std::fs::read(&index).unwrap(), stamp);
+}
+
+#[test]
+fn the_use_times_reach_the_disk_when_the_cache_is_flushed() {
+    let dir = tempfile::tempdir().unwrap();
+    let (cache, clock) = cache(&dir);
+    cache.store("ada@example.com", PNG).unwrap();
+    let before = std::fs::read(dir.path().join("index.json")).unwrap();
+
+    clock.fetch_add(60, Ordering::Relaxed);
+    let _ = cache.lookup("ada@example.com");
+    cache.flush();
+
+    assert_ne!(
+        std::fs::read(dir.path().join("index.json")).unwrap(),
+        before
+    );
+}
+
+#[test]
+fn a_stale_entry_is_dropped_from_the_index_on_disk_at_once() {
+    let dir = tempfile::tempdir().unwrap();
+    {
+        let (first, clock) = cache(&dir);
+        first.store("ada@example.com", PNG).unwrap();
+        clock.fetch_add(31 * DAY, Ordering::Relaxed);
+        assert_eq!(first.lookup("ada@example.com"), Lookup::Unknown);
+    }
+
+    // Eviction removed the file, so the index must not keep pointing at it.
+    let (reopened, _) = cache(&dir);
+    assert_eq!(reopened.lookup("ada@example.com"), Lookup::Unknown);
+}

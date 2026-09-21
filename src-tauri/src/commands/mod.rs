@@ -1292,8 +1292,24 @@ pub async fn install_preset(
     .await
 }
 
-/// The authors on screen. Returns at once with whatever is already cached; anything
-/// missing is queued and announced later through `AvatarReady` (M14 T14.2).
+/// The addresses on screen, for the download queue. Sent on every scroll, so it reads
+/// nothing: rows that scrolled away leave the queue, the rest keep their place in it.
+#[tauri::command]
+#[specta::specta]
+pub async fn avatar_window(
+    state: tauri::State<'_, crate::AppContext>,
+    emails: Vec<String>,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    blocking("avatar_window", move || {
+        app_state.avatar_window(&emails);
+        Ok(())
+    })
+    .await
+}
+
+/// The pictures these authors already have. One file read and one base64 encode each,
+/// so the caller asks only for what it does not hold (M14 T14.2).
 #[tauri::command]
 #[specta::specta]
 pub async fn avatars(

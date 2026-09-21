@@ -59,7 +59,7 @@ fn a_fetched_picture_comes_back_as_a_data_url() {
         .enable_avatars_with(dir.path().to_path_buf(), Arc::new(Always(b"png".to_vec())))
         .unwrap();
 
-    let _ = state.avatars(&authors());
+    state.avatar_window(&["ada@example.com".to_string()]);
     state.drain_avatars();
 
     let rows = state.avatars(&authors());
@@ -80,7 +80,7 @@ fn the_fallback_is_served_alongside_the_picture() {
         .enable_avatars_with(dir.path().to_path_buf(), Arc::new(Always(b"png".to_vec())))
         .unwrap();
 
-    let _ = state.avatars(&authors());
+    state.avatar_window(&["ada@example.com".to_string()]);
     state.drain_avatars();
 
     // The initials stay in the row so the frontend can draw them while the image loads.
@@ -95,7 +95,7 @@ fn an_author_the_service_does_not_know_keeps_the_fallback() {
         .enable_avatars_with(dir.path().to_path_buf(), Arc::new(Never))
         .unwrap();
 
-    let _ = state.avatars(&authors());
+    state.avatar_window(&["ada@example.com".to_string()]);
     state.drain_avatars();
 
     assert!(state.avatars(&authors())[0].image.is_none());
@@ -108,7 +108,7 @@ fn turning_avatars_off_stops_serving_pictures() {
     state
         .enable_avatars_with(dir.path().to_path_buf(), Arc::new(Always(b"png".to_vec())))
         .unwrap();
-    let _ = state.avatars(&authors());
+    state.avatar_window(&["ada@example.com".to_string()]);
     state.drain_avatars();
 
     state.disable_avatars();
@@ -125,7 +125,7 @@ async fn an_arrived_picture_is_announced_so_the_row_can_redraw() {
         .enable_avatars_with(dir.path().to_path_buf(), Arc::new(Always(b"png".to_vec())))
         .unwrap();
 
-    let _ = state.avatars(&authors());
+    state.avatar_window(&["ada@example.com".to_string()]);
     state.drain_avatars();
 
     let event = events.try_recv().unwrap();
@@ -150,4 +150,56 @@ fn an_author_without_an_address_is_never_looked_up() {
 
     assert_eq!(rows[0].initials, "N");
     assert!(rows[0].image.is_none());
+}
+
+#[test]
+fn asking_for_rows_does_not_read_the_file_again_for_the_same_author() {
+    let dir = tempfile::tempdir().unwrap();
+    let state = AppState::new();
+    state
+        .enable_avatars_with(dir.path().to_path_buf(), Arc::new(Always(b"png".to_vec())))
+        .unwrap();
+
+    state.avatar_window(&["ada@example.com".to_string()]);
+    state.drain_avatars();
+
+    // The window is what drives the queue; reading rows is a separate, explicit ask.
+    let rows = state.avatars(&authors());
+    assert!(rows[0].image.is_some(), "{rows:?}");
+}
+
+#[test]
+fn the_window_alone_fetches_without_anyone_reading_rows() {
+    let dir = tempfile::tempdir().unwrap();
+    let state = AppState::new();
+    state
+        .enable_avatars_with(dir.path().to_path_buf(), Arc::new(Always(b"png".to_vec())))
+        .unwrap();
+
+    state.avatar_window(&["ada@example.com".to_string()]);
+    state.drain_avatars();
+
+    assert!(state.avatars(&authors())[0].image.is_some());
+}
+
+#[test]
+fn the_window_is_harmless_with_avatars_off() {
+    let state = AppState::new();
+    state.avatar_window(&["ada@example.com".to_string()]);
+    assert!(state.avatars(&authors())[0].image.is_none());
+}
+
+#[test]
+fn reading_rows_no_longer_queues_anything() {
+    let dir = tempfile::tempdir().unwrap();
+    let state = AppState::new();
+    state
+        .enable_avatars_with(dir.path().to_path_buf(), Arc::new(Always(b"png".to_vec())))
+        .unwrap();
+
+    let _ = state.avatars(&authors());
+    state.drain_avatars();
+
+    // Nothing was asked for, so nothing arrived: the window is the only way in.
+    assert!(state.avatars(&authors())[0].image.is_none());
 }

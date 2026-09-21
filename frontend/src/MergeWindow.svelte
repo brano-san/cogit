@@ -46,6 +46,7 @@
     <MergeView
       path={request.path}
       {regions}
+      saveShortcut
       onsave={(text) => void save(text)}
       oncancel={() => void getCurrentWindow().close()}
     />

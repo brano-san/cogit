@@ -190,15 +190,27 @@ impl RepoHandle {
 impl RepoHandle {
     /// True when rewriting the commit will cost a force-push and divergence for others.
     pub fn is_published(&self, rev: &str) -> Result<bool> {
+        Ok(!self.containing_remote_refs(rev)?.is_empty())
+    }
+
+    /// Every remote branch that already holds this commit. One graph walk per remote
+    /// ref, so callers ask when the user acts, never on every selection.
+    fn containing_remote_refs(&self, rev: &str) -> Result<Vec<String>> {
         let oid = self.rev_parse(rev)?;
-        let containing = self.run_git_reading(&[
+        let listed = self.run_git_reading(&[
             "for-each-ref",
-            "--format=%(refname)",
+            "--format=%(refname:short)",
             "--contains",
             &oid,
             "refs/remotes/",
         ])?;
-        Ok(!containing.stdout.trim().is_empty())
+        Ok(listed
+            .stdout
+            .lines()
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .map(str::to_owned)
+            .collect())
     }
 }
 
@@ -209,27 +221,17 @@ const PROTECTED: &[&str] = &["main", "master", "develop", "release/*"];
 impl RepoHandle {
     /// The protected remote branches that already contain this commit, if any.
     pub fn protecting_refs(&self, rev: &str) -> Result<Vec<String>> {
-        let oid = self.rev_parse(rev)?;
         let patterns = self.protected_patterns();
         if patterns.is_empty() {
+            // Still resolve the revision: an unknown one is an error, not an empty list.
+            self.rev_parse(rev)?;
             return Ok(Vec::new());
         }
 
-        let listed = self.run_git_reading(&[
-            "for-each-ref",
-            "--format=%(refname:short)",
-            "--contains",
-            &oid,
-            "refs/remotes/",
-        ])?;
-
-        Ok(listed
-            .stdout
-            .lines()
-            .map(str::trim)
-            .filter(|name| !name.is_empty())
+        Ok(self
+            .containing_remote_refs(rev)?
+            .into_iter()
             .filter(|name| patterns.iter().any(|glob| matches_branch(glob, name)))
-            .map(str::to_owned)
             .collect())
     }
 

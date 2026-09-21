@@ -646,7 +646,13 @@ export async function mergePreview(repo: RepoId, path: string) {
   return unwrap(await commands.mergePreview(repo, path));
 }
 
-/** The authors on screen. Returns at once; pictures not cached yet arrive as events. */
+/** The addresses on screen. Cheap enough to send on every scroll: it only moves the
+    download queue and reads nothing. */
+export async function avatarWindow(emails: string[]) {
+  return unwrap(await commands.avatarWindow(emails));
+}
+
+/** The pictures these authors already have. Costs a file read each, so ask narrowly. */
 export async function avatarsFor(authors: Author[]) {
   return unwrap(await commands.avatars(authors));
 }
