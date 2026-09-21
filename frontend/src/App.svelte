@@ -1987,13 +1987,15 @@ Log: ${info?.logPath ?? ""}`),
   <Toolbar
     undoable={safety.last?.description}
     onundo={undo}
-    handlers={{
-      stash: stashAll,
-      tag: tagHead,
-      pull: () => void runNetwork("pull"),
-      push: () => void runNetwork("push"),
-      sync: () => void runNetwork("fetch"),
-    }}
+    handlers={repo
+      ? {
+          stash: stashAll,
+          tag: tagHead,
+          pull: () => void runNetwork("pull"),
+          push: () => void runNetwork("push"),
+          sync: () => void runNetwork("fetch"),
+        }
+      : {}}
   />
 
   {#if banner}
@@ -2057,10 +2059,10 @@ Log: ${info?.logPath ?? ""}`),
         aria-label={PANEL_TITLES.refs}
         onpointerenter={() => (focused = "refs")}>
         <Panel
-          title="References"
+          title="Branches"
           stale={stale.has("refs")}
           count={repo?.branches.length}
-          empty={repo ? undefined : "Open a repository to see its branches."}
+          empty={repo ? undefined : "No repository open."}
         >
           {#snippet actions()}
             {#if repo}
@@ -2172,6 +2174,7 @@ Log: ${info?.logPath ?? ""}`),
             stale={stale.has("files")}
           >
             <FilesPanel
+              ready={repo !== null}
               {onWorkingTree}
               onviewchange={(next) => {
                 filesView.set(next);
@@ -2465,8 +2468,8 @@ Log: ${info?.logPath ?? ""}`),
     upstream={tracked?.upstream ?? undefined}
     ahead={tracked?.ahead ?? 0}
     behind={tracked?.behind ?? 0}
-    summary={repo ? `${graph.rows.length} commits · ${repo.branches.length} refs` : "Milestone C"}
-    version={info?.version}
+    summary={repo ? `${graph.rows.length} commits · ${repo.branches.length} refs` : undefined}
+    fileOpen={diff.path !== null}
     activity={activity({
       operations: running,
       bulk,
@@ -2531,10 +2534,12 @@ Log: ${info?.logPath ?? ""}`),
     min-width: 0;
   }
 
+  /* A panel squeezed to its header is a panel the user cannot get back without the
+     keyboard, so every one keeps room for a row or two. */
   .pane {
     display: flex;
     min-width: 0;
-    min-height: 0;
+    min-height: calc(var(--h-panel-hdr) + 3 * var(--h-row-dense));
   }
 
   .pane > :global(.panel) {

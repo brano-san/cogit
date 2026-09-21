@@ -61,7 +61,6 @@
     font-size: var(--fs-header);
     font-weight: 600;
     letter-spacing: 0.04em;
-    text-transform: uppercase;
   }
 
   .row {
@@ -110,7 +109,6 @@
     padding: 0 var(--sp-3);
     color: var(--text-secondary);
     font-size: 10px;
-    text-transform: uppercase;
     letter-spacing: 0.04em;
     opacity: 0;
     cursor: default;

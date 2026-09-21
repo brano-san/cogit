@@ -29,6 +29,8 @@
 
   interface Props {
     sections: readonly Section[];
+    /** No repository behind the list: the filter and the sort have nothing to act on. */
+    disabled?: boolean;
     selected?: string | null;
     empty?: string;
     /** The eight view switches; absent means this list is not a working tree. */
@@ -60,6 +62,7 @@
     onopen,
     onmask,
     onmarked,
+    disabled = false,
   }: Props = $props();
 
   const SORTS: { key: SortKey; label: string }[] = [
@@ -134,8 +137,9 @@
       class="mask"
       type="search"
       bind:value={mask}
-      placeholder="Filter, e.g. *.rs"
+      placeholder="Filter files…"
       aria-label="Filter files by mask"
+      {disabled}
     />
     <div class="sort" role="group" aria-label="Sort files">
       {#each SORTS as option (option.key)}
@@ -143,6 +147,7 @@
           type="button"
           class:active={sort === option.key}
           title="Sort by {option.label.toLowerCase()}"
+          {disabled}
           onclick={() => (sort = option.key)}>{option.label}</button
         >
       {/each}
@@ -334,7 +339,8 @@
 
   .message {
     margin: 0;
-    padding: var(--sp-5);
+    padding: var(--sp-7) var(--sp-5);
+    text-align: center;
     font-size: var(--fs-dense);
     color: var(--text-secondary);
   }

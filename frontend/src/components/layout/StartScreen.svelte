@@ -15,6 +15,7 @@
 </script>
 
 <div class="start">
+  <div class="column">
   <h2>Cogit</h2>
   <p class="lead">Open a repository, scan a folder for several, or drop a folder on the window.</p>
 
@@ -42,15 +43,28 @@
       {/each}
     </ul>
   {/if}
+  </div>
 </div>
 
 <style>
+  /* Centred in the panel, and no wider than a paragraph reads comfortably. A recent
+     list can outgrow the panel, so the scroller is the outer box and the column is
+     what gets centred inside it. */
   .start {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: var(--sp-6, 16px) var(--sp-5);
+    overflow: auto;
+  }
+
+  .column {
     display: flex;
     flex-direction: column;
     gap: var(--sp-4);
-    padding: var(--sp-6, 16px) var(--sp-5);
-    overflow: auto;
+    width: 100%;
+    max-width: 400px;
   }
 
   h2 {
@@ -64,13 +78,10 @@
     color: var(--text-secondary);
     font-size: var(--fs-header);
     font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
   }
 
   .lead {
     margin: 0;
-    max-width: 52ch;
     color: var(--text-secondary);
     font-size: var(--fs-dense);
   }

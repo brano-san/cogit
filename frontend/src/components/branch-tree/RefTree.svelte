@@ -164,7 +164,6 @@
     font-size: var(--fs-header);
     font-weight: 600;
     letter-spacing: 0.03em;
-    text-transform: uppercase;
   }
 
   .caret {

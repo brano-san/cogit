@@ -4,12 +4,13 @@
   /** A titled work surface. Every panel in the grid uses this shell. */
   interface Props {
     title: string;
-    /** Optional count shown next to the title, e.g. "FILES (23)". */
+    /** Optional count shown next to the title, e.g. "Files (23)". Zero is not worth the
+        parentheses: three panels showing "(0)" is three ways of saying nothing is here. */
     count?: number;
     /** Controls placed at the right of the header, such as a filter field. */
     actions?: Snippet;
     children?: Snippet;
-    /** Shown when `children` has nothing to display. */
+    /** Shown instead of `children`; set it only in the state where the body is empty. */
     empty?: string;
     /** Something changed on disk and this panel has not caught up yet. */
     stale?: boolean;
@@ -21,7 +22,7 @@
 <section class="panel">
   <header class="panel-header">
     <h2 class="panel-title">
-      {title}{#if count !== undefined}&nbsp;({count}){/if}
+      {title}{#if count}&nbsp;({count}){/if}
     </h2>
     {#if stale}
       <span class="stale" title="Something changed on disk; this is being reloaded">•</span>
@@ -32,10 +33,10 @@
   </header>
 
   <div class="panel-body">
-    {#if children}
-      {@render children()}
-    {:else if empty}
+    {#if empty}
       <p class="panel-empty">{empty}</p>
+    {:else if children}
+      {@render children()}
     {/if}
   </div>
 </section>
@@ -75,8 +76,6 @@
     margin: 0;
     font-size: var(--fs-header);
     font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
     color: var(--text-secondary);
     white-space: nowrap;
   }
