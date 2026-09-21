@@ -41,3 +41,55 @@ pub fn network(op: &str, remote: &str, timer: PhaseTimer, ok: bool) {
         slowest = bottleneck(&timings),
     );
 }
+
+/// What the renderer reports every ten seconds in a debug build.
+///
+/// A heap figure on its own cannot tell a leak from a large repository, so the counters
+/// that separate the three diagnoses — growth with time, with actions, or in one jump —
+/// travel with it.
+#[derive(Debug, Clone, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RendererMemory {
+    /// KiB, not bytes: specta forbids 64-bit integers over IPC, and 32 bits of KiB is
+    /// four terabytes — past anything a renderer can hold.
+    pub used_heap_kib: u32,
+    pub total_heap_kib: u32,
+    pub limit_kib: u32,
+    pub dom_nodes: u32,
+    pub listeners: u32,
+    /// Sorted by key, so two samples an hour apart diff line by line.
+    pub caches: std::collections::BTreeMap<String, u32>,
+}
+
+/// One `kind=mem` line per sample from the webview.
+pub fn renderer(sample: &RendererMemory) {
+    tracing::info!(
+        target: "cogit::profile",
+        kind = "mem",
+        used_kib = sample.used_heap_kib,
+        total_kib = sample.total_heap_kib,
+        limit_kib = sample.limit_kib,
+        dom = sample.dom_nodes,
+        listeners = sample.listeners,
+        caches = %counters(&sample.caches),
+    );
+}
+
+fn counters(caches: &std::collections::BTreeMap<String, u32>) -> String {
+    caches
+        .iter()
+        .map(|(name, value)| format!("{name}={value}"))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// One `kind=procmem` line per sample from the host, which outlives the renderer.
+pub fn processes(totals: &crate::webview_memory::Totals) {
+    tracing::info!(
+        target: "cogit::profile",
+        kind = "procmem",
+        processes = totals.count,
+        rss_kib = totals.rss_kib,
+        largest_kib = totals.largest_kib,
+    );
+}

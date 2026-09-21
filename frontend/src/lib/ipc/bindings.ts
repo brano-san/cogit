@@ -148,6 +148,7 @@ export const commands = {
 	/**  Not `async`: touching menu items off the main thread deadlocks on Windows. */
 	setMenuState: (disabled: string[], checked: string[]) => __TAURI_INVOKE<void>("set_menu_state", { disabled, checked }),
 	reportTiming: (label: string, ms: number, detail: string) => __TAURI_INVOKE<void>("report_timing", { label, ms, detail }),
+	reportMemory: (sample: RendererMemory) => __TAURI_INVOKE<void>("report_memory", { sample }),
 	/**
 	 *  The settings document as JSON text. Rust owns the file because the menu and the
 	 *  logger read it before there is a window to ask.
@@ -741,6 +742,27 @@ export type Region = { kind: "clean"; lines: string[];
  *  before the merge is committed (doc/08-diff-engine.md §8).
  */
 origin: Origin } | { kind: "conflict"; base: string[]; ours: string[]; theirs: string[] };
+
+/**
+ *  What the renderer reports every ten seconds in a debug build.
+ * 
+ *  A heap figure on its own cannot tell a leak from a large repository, so the counters
+ *  that separate the three diagnoses — growth with time, with actions, or in one jump —
+ *  travel with it.
+ */
+export type RendererMemory = {
+	/**
+	 *  KiB, not bytes: specta forbids 64-bit integers over IPC, and 32 bits of KiB is
+	 *  four terabytes — past anything a renderer can hold.
+	 */
+	usedHeapKib: number,
+	totalHeapKib: number,
+	limitKib: number,
+	domNodes: number,
+	listeners: number,
+	/**  Sorted by key, so two samples an hour apart diff line by line. */
+	caches: { [key in string]: number },
+};
 
 /**
  *  Mirrors `app_state::AppEvent::RepoChanged`. It lives here because deriving

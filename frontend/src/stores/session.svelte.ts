@@ -1,4 +1,12 @@
-import { forget, readSession, remember, writeSession, type Session } from "$lib/session";
+import {
+  forget,
+  readSession,
+  withActive,
+  withOpened,
+  withSelected,
+  writeSession,
+  type Session,
+} from "$lib/session";
 
 const STORAGE_KEY = "cogit.session.v1";
 const WRITE_DELAY_MS = 400;
@@ -30,7 +38,7 @@ class SessionStore {
 
   /** Called on every open, so the start screen reflects what was really used. */
   opened(root: string): void {
-    this.write({ ...this.#session, recent: remember(this.#session.recent, root) });
+    this.write(withOpened(this.#session, root));
   }
 
   forgetRecent(root: string): void {
@@ -59,20 +67,22 @@ class SessionStore {
   }
 
   setActive(root: string | null): void {
-    this.write({ ...this.#session, active: root });
+    this.write(withActive(this.#session, root));
   }
 
   setSelected(root: string, oid: string | null): void {
-    const selected = { ...this.#session.selected };
-    if (oid === null) delete selected[root];
-    else selected[root] = oid;
-    this.write({ ...this.#session, selected });
+    this.write(withSelected(this.#session, root, oid));
   }
 
   /** The selected commit changes on every arrow key, so the write is deferred: a
       synchronous store round trip per keystroke is felt in the list. What is already in
       memory is correct by construction; validation is for what comes off disk. */
   private write(next: Session): void {
+    // A write that changed nothing must not touch the field: `$state.raw` invalidates on
+    // the reference alone, and an effect that reads the session and writes it back would
+    // never settle (R-87).
+    if (next === this.#session) return;
+
     this.#session = next;
     clearTimeout(this.#pending);
     this.#pending = setTimeout(() => this.persist(), WRITE_DELAY_MS);

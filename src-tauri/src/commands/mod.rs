@@ -65,6 +65,12 @@ pub fn report_timing(label: String, ms: u32, detail: String) {
     crate::profile::ui(&label, u64::from(ms), &detail);
 }
 
+#[tauri::command]
+#[specta::specta]
+pub fn report_memory(sample: crate::profile::RendererMemory) {
+    crate::profile::renderer(&sample);
+}
+
 /// The settings document as JSON text. Rust owns the file because the menu and the
 /// logger read it before there is a window to ask.
 #[tauri::command]
