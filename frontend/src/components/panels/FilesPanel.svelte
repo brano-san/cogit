@@ -13,6 +13,8 @@
   interface Props {
     /** False while no repository is open: the list has nothing behind it at all. */
     ready: boolean;
+    /** This panel holds the keyboard (issue 15). */
+    activePanel: boolean;
     onWorkingTree: boolean;
     onviewchange: (next: FileView) => void;
     onopenworktree: (path: string) => void;
@@ -33,6 +35,7 @@
 
   let {
     ready,
+    activePanel,
     onWorkingTree,
     onviewchange,
     onopenworktree,
@@ -64,10 +67,11 @@
 
 <div class="files">
   {#if !ready}
-    <FileList sections={[{ files: [] }]} empty={nothing} disabled />
+    <FileList sections={[{ files: [] }]} empty={nothing} disabled {activePanel} />
   {:else if stashView.contents}
     {@const parts = stashView.contents}
     <FileList
+      {activePanel}
       sections={[
         {
           title: "Working tree",
@@ -87,6 +91,7 @@
     />
   {:else if onWorkingTree}
     <FileList
+      {activePanel}
       view={filesView.current}
       onview={onviewchange}
       split={fractions.filesSplit}
@@ -120,6 +125,7 @@
     />
   {:else}
     <FileList
+      {activePanel}
       sections={[{ files: commit.files }]}
       empty={nothing}
       selected={diff.path}

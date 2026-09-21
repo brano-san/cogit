@@ -2238,6 +2238,7 @@ Log: ${info?.logPath ?? ""}`),
           >
             <FilesPanel
               ready={repo !== null}
+              activePanel={focused === "files"}
               {onWorkingTree}
               onviewchange={(next) => {
                 filesView.set(next);

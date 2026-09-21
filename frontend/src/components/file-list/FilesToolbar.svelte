@@ -1,0 +1,436 @@
+<script lang="ts">
+  import type { FileView } from "$lib/file-view";
+
+  /**
+   * The bar above the file list (issue 11). Left: what is hidden and how to search.
+   * Right: how the list is split, how it is structured, and which states it shows.
+   */
+  interface Props {
+    view: FileView;
+    onview: (next: FileView) => void;
+    filter: string;
+    onfilter: (text: string) => void;
+    /** How many rows the switches and the filter are keeping out of sight. */
+    hidden: number;
+    /** The filter text is not a valid expression; the field says so quietly. */
+    broken?: boolean;
+    /** No repository behind the list. */
+    disabled?: boolean;
+    /** Content search needs a backend command that is not there yet. */
+    contentsReady?: boolean;
+  }
+
+  let {
+    view,
+    onview,
+    filter,
+    onfilter,
+    hidden,
+    broken = false,
+    disabled = false,
+    contentsReady = false,
+  }: Props = $props();
+
+  let box: HTMLInputElement | undefined = $state();
+  let columnsOpen = $state(false);
+
+  export function focus() {
+    box?.select();
+  }
+
+  const set = (key: keyof FileView, value: boolean) => onview({ ...view, [key]: value });
+
+  /** Lucide paths, the family the main toolbar uses. */
+  const I = {
+    search: "M11 5a6 6 0 1 0 0 12 6 6 0 0 0 0-12m9 15-4.3-4.3",
+    split: "M4 4h10v10H4zM10 10h10v10H10m2-2 2 2 4-4",
+    tree: "M3 6.5A1.5 1.5 0 0 1 4.5 5h3l1.5 2h10a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 19 19H4.5A1.5 1.5 0 0 1 3 17.5ZM9 11v5m0-5h4m-4 5h4",
+    flat: "M4 6h16M4 12h16M4 18h16",
+    unchanged: "M6 3h8l5 5v13H6zM14 3v5h5",
+    untracked: "M6 3h8l5 5v13H6zM14 3v5h5M9 12h6m-3-3v6",
+    ignored: "M6 3h8l5 5v13H6zM14 3v5h5M9 11l6 6m0-6-6 6",
+    modified: "M6 3h8l5 5v13H6zM14 3v5h5M9 15l6-6",
+    skipped: "M6 3h8l5 5v13H6zM14 3v5h5M10 11v6M14 11v6",
+    missing: "M6 3h8l5 5v13H6zM14 3v5h5M9 14h6",
+    columns: "M4 7h16M4 12h16M4 17h16",
+  } as const;
+
+  interface Switch {
+    key: keyof FileView;
+    icon: string;
+    title: string;
+  }
+
+  const STATES: Switch[] = [
+    { key: "unchanged", icon: I.unchanged, title: "If selected, unchanged files will be shown" },
+    { key: "untracked", icon: I.untracked, title: "If selected, untracked files will be shown" },
+    { key: "ignored", icon: I.ignored, title: "If selected, ignored files will be shown" },
+    { key: "modified", icon: I.modified, title: "If selected, modified files will be shown" },
+    { key: "skipped", icon: I.skipped, title: "If selected, skipped files will be shown" },
+    { key: "missing", icon: I.missing, title: "If selected, missing/removed files will be shown" },
+  ];
+
+  const COLUMNS: { key: keyof FileView | "size"; label: string }[] = [
+    { key: "renameSources", label: "Renamed Path" },
+  ];
+
+  /** Everything hidden comes back: the switches go on and the filter text goes away. */
+  function showEverything() {
+    onfilter("");
+    onview({
+      ...view,
+      unchanged: true,
+      untracked: true,
+      ignored: true,
+      modified: true,
+      skipped: true,
+      missing: true,
+    });
+  }
+</script>
+
+<div class="bar" role="toolbar" aria-label="File list options">
+  {#if hidden > 0}
+    <button
+      type="button"
+      class="badge"
+      title="Click to show all files (reset filters)"
+      onclick={showEverything}
+    >
+      ✕ {hidden} file{hidden === 1 ? "" : "s"} hidden
+    </button>
+  {/if}
+
+  <div class="field" class:broken>
+    <svg class="lens" viewBox="0 0 24 24" aria-hidden="true"><path d={I.search} /></svg>
+    <input
+      bind:this={box}
+      type="search"
+      value={filter}
+      placeholder="File Filter"
+      aria-label="Filter files by name or path"
+      title="Filter files by name or path (Ctrl+F)"
+      {disabled}
+      oninput={(event) => onfilter(event.currentTarget.value)}
+    />
+    <button
+      type="button"
+      class="chip"
+      class:on={view.regex}
+      aria-pressed={view.regex}
+      title="Use Regular Expressions"
+      {disabled}
+      onclick={() => set("regex", !view.regex)}>*</button
+    >
+    <button
+      type="button"
+      class="chip"
+      class:on={view.contents}
+      aria-pressed={view.contents}
+      disabled={disabled || !contentsReady}
+      title={contentsReady
+        ? "Search in file contents"
+        : "Search in file contents — waiting on the backend command"}
+      onclick={() => set("contents", !view.contents)}
+      >⌕</button
+    >
+  </div>
+
+  <span class="spacer"></span>
+
+  <button
+    type="button"
+    class="tool"
+    class:on={view.separateIndex}
+    aria-pressed={view.separateIndex}
+    title="Separate Working Tree and Index"
+    {disabled}
+    onclick={() => set("separateIndex", !view.separateIndex)}
+  >
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d={I.split} /></svg>
+  </button>
+
+  <span class="rule" aria-hidden="true"></span>
+
+  <button
+    type="button"
+    class="tool"
+    class:on={view.directories}
+    aria-pressed={view.directories}
+    title="Show Directories"
+    {disabled}
+    onclick={() => set("directories", true)}
+  >
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d={I.tree} /></svg>
+  </button>
+  <button
+    type="button"
+    class="tool"
+    class:on={!view.directories}
+    aria-pressed={!view.directories}
+    title="Show Flat List"
+    {disabled}
+    onclick={() => set("directories", false)}
+  >
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d={I.flat} /></svg>
+  </button>
+
+  <span class="rule" aria-hidden="true"></span>
+
+  {#each STATES as item (item.key)}
+    <button
+      type="button"
+      class="tool"
+      class:on={view[item.key]}
+      aria-pressed={view[item.key]}
+      aria-label={item.title}
+      title={item.title}
+      {disabled}
+      onclick={() => set(item.key, !view[item.key])}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d={item.icon} /></svg>
+    </button>
+  {/each}
+
+  <span class="rule" aria-hidden="true"></span>
+
+  <div class="menu-host">
+    <button
+      type="button"
+      class="tool"
+      aria-haspopup="menu"
+      aria-expanded={columnsOpen}
+      title="Customize View"
+      {disabled}
+      onclick={() => (columnsOpen = !columnsOpen)}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d={I.columns} /></svg>
+    </button>
+    {#if columnsOpen}
+      <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+      <div class="backdrop" onclick={() => (columnsOpen = false)}></div>
+      <div class="menu" role="menu">
+        {#each COLUMNS as column (column.key)}
+          <button
+            type="button"
+            role="menuitemcheckbox"
+            aria-checked={view[column.key as keyof FileView]}
+            onclick={() =>
+              set(column.key as keyof FileView, !view[column.key as keyof FileView])}
+          >
+            <span class="tick">{view[column.key as keyof FileView] ? "✓" : ""}</span>
+            {column.label}
+          </button>
+        {/each}
+        <button type="button" role="menuitem" disabled title="The backend does not report a size"
+          ><span class="tick"></span>Size</button
+        >
+      </div>
+    {/if}
+  </div>
+</div>
+
+<style>
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    height: 32px;
+    flex: 0 0 32px;
+    padding: 0 var(--sp-3);
+    border-bottom: 1px solid var(--divider);
+    background: var(--surface-panel);
+    overflow: hidden;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    height: 20px;
+    padding: 0 var(--sp-3);
+    background: var(--state-hover);
+    color: var(--text-secondary);
+    border: 0;
+    border-radius: var(--r-sm);
+    font-size: var(--fs-header);
+    white-space: nowrap;
+    cursor: default;
+  }
+
+  .badge:hover {
+    color: var(--text-primary);
+  }
+
+  .field {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-1);
+    flex: 1 1 auto;
+    min-width: 90px;
+    max-width: 260px;
+    height: 22px;
+    padding: 0 var(--sp-2);
+    background: var(--surface-input);
+    border: 1px solid var(--field-border);
+    border-radius: var(--r-sm);
+  }
+
+  /* A half-typed expression is normal; the field says so without an error anywhere. */
+  .field.broken {
+    border-color: var(--status-delete);
+  }
+
+  .lens {
+    flex: 0 0 auto;
+    width: 12px;
+    height: 12px;
+    fill: none;
+    stroke: var(--text-secondary);
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+
+  .field input {
+    flex: 1 1 auto;
+    min-width: 0;
+    background: none;
+    border: 0;
+    color: var(--text-primary);
+    font: inherit;
+    font-size: var(--fs-dense);
+  }
+
+  .field input:focus {
+    outline: none;
+  }
+
+  .chip {
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: 2px;
+    color: var(--text-secondary);
+    font-size: var(--fs-dense);
+    line-height: 1;
+    cursor: default;
+  }
+
+  .chip.on {
+    background: var(--state-selected);
+    color: var(--status-ref);
+  }
+
+  .chip:disabled {
+    opacity: 0.4;
+  }
+
+  .spacer {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .tool {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: var(--r-sm);
+    color: var(--text-secondary);
+    cursor: default;
+  }
+
+  .tool svg {
+    width: 15px;
+    height: 15px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .tool:hover:not(:disabled) {
+    background: var(--state-hover);
+    color: var(--text-primary);
+  }
+
+  /* Pressed is a state, not a hover: it has to read without the pointer on it. */
+  .tool.on {
+    background: var(--state-selected);
+    color: var(--status-ref);
+  }
+
+  .tool:disabled {
+    opacity: 0.4;
+  }
+
+  .rule {
+    flex: 0 0 auto;
+    width: 1px;
+    height: 16px;
+    background: var(--divider);
+    margin-inline: var(--sp-1);
+  }
+
+  .menu-host {
+    position: relative;
+    flex: 0 0 auto;
+  }
+
+  .backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+  }
+
+  .menu {
+    position: absolute;
+    z-index: 31;
+    top: calc(100% + 2px);
+    right: 0;
+    min-width: 170px;
+    padding: var(--sp-2) 0;
+    background: var(--surface-raised);
+    border: 1px solid var(--field-border);
+    border-radius: var(--r-sm);
+    box-shadow: var(--shadow-popover);
+  }
+
+  .menu button {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    width: 100%;
+    padding: var(--sp-2) var(--sp-4);
+    background: none;
+    border: 0;
+    color: var(--text-primary);
+    font: inherit;
+    font-size: var(--fs-dense);
+    text-align: left;
+    cursor: default;
+  }
+
+  .menu button:hover:not(:disabled) {
+    background: var(--state-hover);
+  }
+
+  .menu button:disabled {
+    opacity: 0.4;
+  }
+
+  .tick {
+    display: inline-block;
+    width: 10px;
+    color: var(--status-ref);
+  }
+</style>

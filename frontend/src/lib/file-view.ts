@@ -10,6 +10,13 @@ export interface FileView {
   renameSources: boolean;
   directories: boolean;
   separateIndex: boolean;
+  /** SmartGit lists these two beside the others; Cogit had them always on (issue 11). */
+  modified: boolean;
+  missing: boolean;
+  /** The filter field reads the text as a pattern rather than a substring. */
+  regex: boolean;
+  /** Look inside the files, not only at their names (issue 10.3). */
+  contents: boolean;
 }
 
 export const DEFAULT_VIEW: FileView = {
@@ -21,6 +28,10 @@ export const DEFAULT_VIEW: FileView = {
   renameSources: false,
   directories: false,
   separateIndex: true,
+  modified: true,
+  missing: true,
+  regex: false,
+  contents: false,
 };
 
 export interface Toggle {
@@ -80,6 +91,8 @@ const GATED: Partial<Record<FileEntry["status"], keyof FileView>> = {
   ignored: "ignored",
   assumeUnchanged: "assumeUnchanged",
   skipped: "skipped",
+  modified: "modified",
+  deleted: "missing",
 };
 
 export function visibleFiles(files: readonly FileEntry[], view: FileView): FileEntry[] {
