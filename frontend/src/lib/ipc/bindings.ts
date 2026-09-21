@@ -144,6 +144,24 @@ export const commands = {
 	 */
 	closingPing: () => __TAURI_INVOKE<void>("closing_ping"),
 	/**
+	 *  Every path in the repository: tracked plus untracked, never ignored.
+	 * 
+	 *  Not the change list. The Files panel searches what changed; this is what lets it find
+	 *  a file that nothing happened to, the way SmartGit does.
+	 */
+	listAllRepoFiles: (repo: RepoId) => typedError<string[], GitError>(__TAURI_INVOKE("list_all_repo_files", { repo })),
+	/**
+	 *  Searches inside files, streaming matches as they are found.
+	 * 
+	 *  Cancellable: the id arrives on the first chunk and `cancel_operation` stops it.
+	 *  Binary files and anything over two megabytes are skipped without being opened.
+	 */
+	searchFileContents: (repo: RepoId, query: string, isRegex: boolean, scope: SearchScope, onChunk: Channel<SearchChunk>) => typedError<null, GitError>(__TAURI_INVOKE("search_file_contents", { repo, query, isRegex, scope, onChunk })),
+	/**  The submodules directly under `parent`; empty `parent` means the top level. */
+	listSubmodules: (repo: RepoId, parent: string) => typedError<Submodule[], GitError>(__TAURI_INVOKE("list_submodules", { repo, parent })),
+	/**  Stops a running read. `false` when it had already finished. */
+	cancelOperation: (id: number) => __TAURI_INVOKE<boolean>("cancel_operation", { id }),
+	/**
 	 *  The settings document as JSON text. Rust owns the file because the menu and the
 	 *  logger read it before there is a window to ask.
 	 */
@@ -344,6 +362,12 @@ export type ConflictText = {
 	base: string | null,
 	ours: string | null,
 	theirs: string | null,
+};
+
+export type ContentMatch = {
+	path: string,
+	line: number,
+	preview: string,
 };
 
 /**
@@ -777,6 +801,21 @@ export type ScanHit = {
 	bare: boolean,
 	alreadyOpen: boolean,
 };
+
+/**
+ *  What travels up the channel while a content search runs.
+ * 
+ *  `Started` comes first and carries the id, so the panel can cancel a search long before
+ *  it has an answer — which is the point when the user is typing.
+ */
+export type SearchChunk = { kind: "started"; id: number } | { kind: "matches"; matches: ContentMatch[] } | { kind: "done"; total: number; cancelled: boolean };
+
+/**  Which files to look inside. */
+export type SearchScope = 
+/**  What the Files panel already shows. The default, and the cheap one. */
+"changed" | 
+/**  Every file in the repository. */
+"all";
 
 export type Signature = {
 	name: string,

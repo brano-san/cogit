@@ -1129,6 +1129,39 @@ impl AppState {
         self.handle(repo)?.submodules()
     }
 
+    /// The submodules directly under `parent`, which is empty for the top level.
+    ///
+    /// Lazy on purpose: a repository with nine submodules, each with its own, costs one
+    /// walk per level, and the tree only needs the level the user opened (problem 5).
+    pub fn submodules_under(
+        &self,
+        repo: RepoId,
+        parent: &str,
+    ) -> Result<Vec<git_engine::Submodule>, git_engine::GitError> {
+        let handle = self.handle(repo)?;
+        if parent.is_empty() {
+            return handle.submodules();
+        }
+        git_engine::RepoHandle::open(&handle.root().join(parent))?.submodules()
+    }
+
+    /// Every path in the repository, tracked and untracked, never ignored.
+    pub fn all_files(&self, repo: RepoId) -> Result<Vec<String>, git_engine::GitError> {
+        self.handle(repo)?.all_files()
+    }
+
+    /// Looks inside files, handing matches over in batches as they are found.
+    pub fn search_contents(
+        &self,
+        repo: RepoId,
+        request: &git_engine::SearchRequest<'_>,
+        cancelled: &dyn Fn() -> bool,
+        on_batch: &mut dyn FnMut(Vec<git_engine::ContentMatch>),
+    ) -> Result<(), git_engine::GitError> {
+        self.handle(repo)?
+            .search_contents(request, cancelled, on_batch)
+    }
+
     pub fn update_submodule(
         &self,
         repo: RepoId,

@@ -12,6 +12,7 @@ mod flow;
 mod history;
 mod hooks;
 mod interactive;
+mod listing;
 mod merging;
 mod network;
 mod operations;
@@ -46,6 +47,9 @@ pub use flow::{FlowBranch, FlowConfig, FlowKind, FlowStatus};
 pub use history::CommitRow;
 pub use hooks::{Bypass, Hook, HookOverview, HookRun, HookSource, HookState, is_hook_name};
 pub use interactive::{TodoAction, TodoEntry, render_todo, render_todo_paused};
+pub use listing::{
+    BATCH, ContentMatch, MAX_SEARCH_BYTES, PREVIEW_CHARS, SearchRequest, SearchScope,
+};
 pub use merging::MergeOptions;
 pub use network::{auth_header, wants_auth};
 pub use operations::RebaseOptions;
