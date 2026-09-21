@@ -1,7 +1,7 @@
 <script lang="ts">
+  import VirtualList from "$components/common/VirtualList.svelte";
   import { settings } from "$stores/settings.svelte";
   import { shortOid } from "$lib/format";
-  import { visibleRange } from "$lib/graph-geometry";
   import type { BlameLine } from "$lib/ipc";
 
   interface Props {
@@ -13,32 +13,11 @@
   let { lines, path, onselect }: Props = $props();
 
   const ROW_HEIGHT = 18;
-  const BUFFER_ROWS = 12;
-
-  let scroller: HTMLDivElement | undefined = $state();
-  let scrollTop = $state(0);
-  let viewportHeight = $state(0);
-
-  const range = $derived(
-    visibleRange(scrollTop, viewportHeight, ROW_HEIGHT, lines.length, BUFFER_ROWS),
-  );
-  const visible = $derived(
-    lines.slice(range.start, range.end).map((line, i) => ({ line, at: range.start + i })),
-  );
 
   /** Only the first line of a run shows the annotation, as `git blame` does. */
   function startsRun(at: number): boolean {
     return at === 0 || lines[at - 1]?.oid !== lines[at]?.oid;
   }
-
-  $effect(() => {
-    if (!scroller) return;
-    const observer = new ResizeObserver(([entry]) => {
-      if (entry) viewportHeight = entry.contentRect.height;
-    });
-    observer.observe(scroller);
-    return () => observer.disconnect();
-  });
 </script>
 
 <div class="blame">
@@ -47,36 +26,30 @@
     <span class="count tabular">{lines.length} lines</span>
   </div>
 
-  <div
-    class="scroll"
-    bind:this={scroller}
-    onscroll={() => scroller && (scrollTop = scroller.scrollTop)}
-  >
-    <div class="rows" style:height="{lines.length * ROW_HEIGHT}px">
-      {#each visible as item (item.at)}
-        <div class="line" style:top="{item.at * ROW_HEIGHT}px">
-          {#if startsRun(item.at)}
+  <VirtualList items={lines} rowHeight={ROW_HEIGHT} buffer={12} label="Blame">
+    {#snippet row(line, at)}
+        <div class="line" style:top="{at * ROW_HEIGHT}px">
+          {#if startsRun(at)}
             <span
               class="annotation truncate"
               role="button"
               tabindex="-1"
-              title="{item.line.summary} — {item.line.author}"
-              onclick={() => onselect(item.line.oid)}
-              onkeydown={(e) => e.key === "Enter" && onselect(item.line.oid)}
+              title="{line.summary} — {line.author}"
+              onclick={() => onselect(line.oid)}
+              onkeydown={(e) => e.key === "Enter" && onselect(line.oid)}
             >
-              <span class="oid mono">{shortOid(item.line.oid)}</span>
-              <span class="author truncate">{item.line.author}</span>
-              <span class="date tabular">{settings.formatDate(item.line.timestamp, 0)}</span>
+              <span class="oid mono">{shortOid(line.oid)}</span>
+              <span class="author truncate">{line.author}</span>
+              <span class="date tabular">{settings.formatDate(line.timestamp, 0)}</span>
             </span>
           {:else}
             <span class="annotation"></span>
           {/if}
-          <span class="num tabular">{item.line.line}</span>
-          <span class="code mono">{item.line.text}</span>
+          <span class="num tabular">{line.line}</span>
+          <span class="code mono">{line.text}</span>
         </div>
-      {/each}
-    </div>
-  </div>
+    {/snippet}
+  </VirtualList>
 </div>
 
 <style>
@@ -105,17 +78,6 @@
   .count {
     color: var(--text-secondary);
     font-size: 11px;
-  }
-
-  .scroll {
-    position: relative;
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow: auto;
-  }
-
-  .rows {
-    position: relative;
   }
 
   .line {

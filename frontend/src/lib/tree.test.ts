@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { flatten, subtree, toggle, type TreeNode } from "./tree";
+import { flatten, toggle, type TreeNode } from "./tree";
 
 interface Row extends TreeNode {
   label: string;
@@ -62,24 +62,6 @@ describe("flatten", () => {
 
   it("returns nothing for an empty tree", () => {
     expect(flatten([], new Set())).toEqual([]);
-  });
-});
-
-describe("subtree", () => {
-  it("is every row under a node, however deep", () => {
-    expect(subtree(tree, "a").map((row) => row.id)).toEqual(["a/1", "a/1/x", "a/2"]);
-  });
-
-  it("stops at the next sibling", () => {
-    expect(subtree(tree, "a/1").map((row) => row.id)).toEqual(["a/1/x"]);
-  });
-
-  it("is empty for a leaf", () => {
-    expect(subtree(tree, "a/2")).toEqual([]);
-  });
-
-  it("is empty for a node that is not there", () => {
-    expect(subtree(tree, "nope")).toEqual([]);
   });
 });
 

@@ -288,6 +288,25 @@
     progress = id ? await rebaseProgress(id).catch(() => null) : null;
   }
 
+  /** Every change to the working tree ends the same way: reload it and refresh what
+      depends on it, or report why not. `false` means nothing was done. */
+  async function mutate(
+    step: (repo: import("$lib/ipc").RepoId) => Promise<unknown>,
+    paths: string[] = [],
+  ): Promise<boolean> {
+    const id = repository.current?.repo;
+    if (!id) return false;
+    try {
+      await step(id);
+    } catch (err) {
+      errors.report(err as never);
+      return false;
+    }
+    await worktree.load(id);
+    await afterMutation(paths);
+    return true;
+  }
+
   async function afterMutation(paths: string[] = []) {
     diff.dropIfAffected(paths);
     await repository.refreshStatus();
@@ -686,30 +705,15 @@ Log: ${info?.logPath ?? ""}`),
   }
 
   async function stage(paths: string[]) {
-    const id = repository.current?.repo;
-    if (!id) return;
-    await worktree.stage(id, paths);
-    await afterMutation(paths);
+    await mutate((id) => worktree.stage(id, paths), paths);
   }
 
   async function unstage(paths: string[]) {
-    const id = repository.current?.repo;
-    if (!id) return;
-    await worktree.unstage(id, paths);
-    await afterMutation(paths);
+    await mutate((id) => worktree.unstage(id, paths), paths);
   }
 
   async function ignore(paths: string[]) {
-    const id = repository.current?.repo;
-    if (!id) return;
-    try {
-      await addToGitignore(id, paths);
-    } catch (err) {
-      errors.report(err as never);
-      return;
-    }
-    await worktree.load(id);
-    await afterMutation(paths);
+    await mutate((id) => addToGitignore(id, paths), paths);
   }
 
   async function discard(paths: string[]) {
@@ -721,8 +725,7 @@ Log: ${info?.logPath ?? ""}`),
       kind: "warning",
     });
     if (!confirmed) return;
-    await worktree.discard(id, paths);
-    await afterMutation(paths);
+    await mutate((repo) => worktree.discard(repo, paths), paths);
   }
 
   async function deleteFromDisk(paths: string[]) {
@@ -734,14 +737,7 @@ Log: ${info?.logPath ?? ""}`),
       { title: "Delete from disk", kind: "warning" },
     );
     if (!confirmed) return;
-    try {
-      await deleteUntracked(id, paths);
-    } catch (err) {
-      errors.report(err as never);
-      return;
-    }
-    await worktree.load(id);
-    await afterMutation(paths);
+    await mutate((repo) => deleteUntracked(repo, paths), paths);
   }
 
   async function commitStaged(message: string, amend: boolean, noVerify: boolean) {
@@ -942,36 +938,26 @@ Log: ${info?.logPath ?? ""}`),
     const { splitSelection } = await import("$lib/selection");
     const { deletes, inserts } = splitSelection(selected);
 
-    try {
-      await stageSelection(
-        id,
-        {
-          path,
-          hunks: diff.hunks,
-          selectedDeletes: deletes,
-          selectedInserts: inserts,
-          lineEnding: diff.diff?.kind === "text" ? diff.diff.eol.old : "lf",
-          noTrailingNewline: false,
-        },
-        reverse,
-      );
-    } catch (err) {
-      errors.report(err as never);
-      return;
-    }
-    await worktree.load(id);
-    await afterMutation([path]);
+    await mutate(
+      (repo) =>
+        stageSelection(
+          repo,
+          {
+            path,
+            hunks: diff.hunks,
+            selectedDeletes: deletes,
+            selectedInserts: inserts,
+            lineEnding: diff.diff?.kind === "text" ? diff.diff.eol.old : "lf",
+            noTrailingNewline: false,
+          },
+          reverse,
+        ),
+      [path],
+    );
   }
 
   async function refreshSubmodule(module: import("$lib/ipc").Submodule) {
-    const id = repository.current?.repo;
-    if (!id) return;
-    try {
-      await submodules.update(id, module.path, module.state === "notInitialised");
-    } catch (err) {
-      errors.report(err as never);
-    }
-    await afterMutation();
+    await mutate((id) => submodules.update(id, module.path, module.state === "notInitialised"));
   }
 
   async function recoverCommit(lost: import("$lib/ipc").CommitRow) {
@@ -1162,13 +1148,7 @@ Log: ${info?.logPath ?? ""}`),
       kind: "warning",
     });
     if (!confirmed) return;
-    try {
-      await stashes.drop(id, index);
-    } catch (err) {
-      errors.report(err as never);
-      return;
-    }
-    await afterMutation();
+    await mutate((repo) => stashes.drop(repo, index));
   }
 
   async function runBannerAction(action: BannerAction) {
@@ -1276,12 +1256,7 @@ Log: ${info?.logPath ?? ""}`),
       kind: "warning",
     });
     if (!go) return;
-    try {
-      await rollbackTo(id, rev, paths);
-    } catch (err) {
-      errors.report(err as never);
-    }
-    await afterMutation(paths);
+    await mutate((repo) => rollbackTo(repo, rev, paths), paths);
   }
 
   /** Opens the plan editor for everything after the selected commit. */
@@ -1970,6 +1945,7 @@ Log: ${info?.logPath ?? ""}`),
       nobody wrote yet. Everything else is already on disk or in the draft store. */
   $effect(() => {
     const pending = getCurrentWindow().onCloseRequested(async (event) => {
+      session.persist();
       const what = unsavedSummary({
         hook: hooks.dirty ? hooks.editing : null,
         merge: conflicts.regions.length > 0 ? conflicts.path : null,
@@ -1999,13 +1975,12 @@ Log: ${info?.logPath ?? ""}`),
   });
 
   async function openDropped(paths: string[]) {
-    for (const path of paths) {
-      try {
-        await activate(path);
-      } catch (err) {
-        errors.report(err as never);
-      }
+    for (const path of paths.slice(1)) {
+      await repository.open(path).catch((err) => errors.report(err as never));
     }
+    const first = paths[0];
+    if (first) await activate(first);
+    else await repository.refreshList();
   }
 
   $effect(() => {

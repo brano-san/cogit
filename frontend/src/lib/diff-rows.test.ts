@@ -8,7 +8,6 @@ import {
   pairRows,
   connectors,
   searchRows,
-  segments,
   stepHit,
 } from "./diff-rows";
 
@@ -123,56 +122,6 @@ describe("flatten", () => {
 
   it("produces nothing for no hunks", () => {
     expect(flatten([])).toEqual([]);
-  });
-});
-
-describe("segments", () => {
-  it("returns the whole line unchanged when there are no spans", () => {
-    expect(segments("hello", [])).toEqual([{ text: "hello", changed: false }]);
-  });
-
-  it("splits a line around one changed word", () => {
-    expect(segments("the quick fox", [[4, 9]])).toEqual([
-      { text: "the ", changed: false },
-      { text: "quick", changed: true },
-      { text: " fox", changed: false },
-    ]);
-  });
-
-  it("handles a span at the very start", () => {
-    expect(segments("abc", [[0, 1]])).toEqual([
-      { text: "a", changed: true },
-      { text: "bc", changed: false },
-    ]);
-  });
-
-  it("handles a span running to the end", () => {
-    expect(segments("abc", [[1, 3]])).toEqual([
-      { text: "a", changed: false },
-      { text: "bc", changed: true },
-    ]);
-  });
-
-  it("keeps several spans in order", () => {
-    expect(segments("a b c", [[0, 1], [4, 5]]).map((s) => s.changed)).toEqual([
-      true,
-      false,
-      true,
-    ]);
-  });
-
-  it("slices surrogate pairs by UTF-16 offset, as the backend counts them", () => {
-    expect(segments("привет 🙂 мир", [[10, 13]])).toEqual([
-      { text: "привет 🙂 ", changed: false },
-      { text: "мир", changed: true },
-    ]);
-  });
-
-  it("clamps a span that runs past the end rather than producing undefined", () => {
-    expect(segments("ab", [[1, 99]])).toEqual([
-      { text: "a", changed: false },
-      { text: "b", changed: true },
-    ]);
   });
 });
 

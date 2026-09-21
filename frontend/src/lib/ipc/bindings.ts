@@ -651,16 +651,6 @@ export type RebaseStep = {
 	summary: string,
 };
 
-/**  What has to be put back to reverse one destructive operation (INV-12). */
-export type Recovery = { kind: "stash"; oid: string } | { kind: "branch"; name: string; oid: string } | { kind: "tag"; name: string; oid: string } | 
-/**
- *  The patch that was reversed. Undo applies it again, which puts back exactly the
- *  lines that went and leaves the rest of the file alone.
- */
-{ kind: "patch"; path: string; patch: string } | 
-/**  Recorded for the journal, refused by undo: honesty beats a half-working restore. */
-{ kind: "none" };
-
 export type ReflogEntry = {
 	selector: string,
 	oid: string,
@@ -725,12 +715,15 @@ export type RepoSummary = {
 	indexLock: string | null,
 };
 
+/**
+ *  What the journal shows. The means of undoing stays in `Undoable`, on this side of
+ *  the boundary: it can be as large as the change itself and the panel never reads it.
+ */
 export type SafetyEntry = {
 	id: number,
 	repo: RepoId,
 	description: string,
 	undoable: boolean,
-	recovery: Recovery,
 };
 
 /**  One hit from a folder scan. Paths cross IPC as strings, like every other path. */

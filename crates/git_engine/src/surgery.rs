@@ -221,18 +221,39 @@ const PROTECTED: &[&str] = &["main", "master", "develop", "release/*"];
 impl RepoHandle {
     /// The protected remote branches that already contain this commit, if any.
     pub fn protecting_refs(&self, rev: &str) -> Result<Vec<String>> {
-        let patterns = self.protected_patterns();
-        if patterns.is_empty() {
+        let Some(patterns) = self.protected_set() else {
             // Still resolve the revision: an unknown one is an error, not an empty list.
             self.rev_parse(rev)?;
             return Ok(Vec::new());
-        }
+        };
 
         Ok(self
             .containing_remote_refs(rev)?
             .into_iter()
-            .filter(|name| patterns.iter().any(|glob| matches_branch(glob, name)))
+            .filter(|name| patterns.is_match(branch_of(name)))
             .collect())
+    }
+
+    /// A pattern that does not parse is skipped, not fatal: the rest still protect.
+    fn protected_set(&self) -> Option<globset::GlobSet> {
+        let mut builder = globset::GlobSetBuilder::new();
+        let mut any = false;
+        for pattern in self.protected_patterns() {
+            // `literal_separator`: `release/*` is one segment, as everywhere else in git.
+            match globset::GlobBuilder::new(&pattern)
+                .literal_separator(true)
+                .build()
+            {
+                Ok(glob) => {
+                    builder.add(glob);
+                    any = true;
+                }
+                Err(error) => {
+                    tracing::warn!(?error, %pattern, "a protected-branch pattern was ignored");
+                }
+            }
+        }
+        if any { builder.build().ok() } else { None }
     }
 
     fn protected_patterns(&self) -> Vec<String> {
@@ -253,17 +274,7 @@ impl RepoHandle {
     }
 }
 
-/// `origin/release/1.0` is matched against `release/*`: the remote name is not part of it.
-fn matches_branch(pattern: &str, full: &str) -> bool {
-    let branch = full.split_once('/').map_or(full, |(_, rest)| rest);
-    glob_matches(pattern, branch)
-}
-
-fn glob_matches(pattern: &str, text: &str) -> bool {
-    match pattern.split_once('*') {
-        None => pattern == text,
-        Some((head, tail)) => {
-            text.len() >= head.len() + tail.len() && text.starts_with(head) && text.ends_with(tail)
-        }
-    }
+/// `origin/release/1.0` is matched as `release/1.0`: the remote name is not part of it.
+fn branch_of(full: &str) -> &str {
+    full.split_once('/').map_or(full, |(_, rest)| rest)
 }

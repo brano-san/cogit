@@ -94,6 +94,8 @@ notify = "8.2"
 # bridge to the rayon/OS-thread side described in doc/01-architecture.md section 3.
 notify-debouncer-mini = { version = "0.7", features = ["crossbeam-channel"] }
 ignore = "0.4"
+# Already in the tree through `ignore`; used for the protected-branch patterns.
+globset = "0.4"
 
 # --- avatars ---
 # The only HTTP in the app. Everything git-related still goes through the system git
