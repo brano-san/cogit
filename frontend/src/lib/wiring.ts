@@ -10,6 +10,7 @@ import {
   type OperationChanged,
   type RepoChanged,
 } from "$lib/ipc";
+import { counted } from "$lib/listener-count";
 
 /** What the window listens to from outside itself. Everything is a `() => Promise<stop>`,
     which is the one shape every Tauri listener has, so they unsubscribe together. */
@@ -26,17 +27,25 @@ export interface Handlers {
 type Stop = () => void;
 
 /** Subscribes to all of them and gives back one function that undoes the lot. Errors are
-    swallowed on purpose: a listener that never attached has nothing to detach. */
+    swallowed on purpose: a listener that never attached has nothing to detach.
+
+    The four `on*` helpers count themselves inside `$lib/ipc`; the two that come straight
+    from the Tauri API are counted here, so the probe sees every subscription this window
+    holds. */
 export function connect(handlers: Handlers): Stop {
   const pending: Promise<Stop>[] = [
     onRepoChanged(handlers.repoChanged),
     onOperationChanged(handlers.operationChanged),
     onAvatarReady((event) => handlers.avatarReady(event.email)),
     onMergeResolved(handlers.mergeResolved),
-    getCurrentWindow().onCloseRequested(async (event) => {
-      if (!(await handlers.closeRequested())) event.preventDefault();
-    }),
-    getCurrentWebview().onDragDropEvent((event) => handlers.dragDrop(event.payload)),
+    counted(
+      getCurrentWindow().onCloseRequested(async (event) => {
+        if (!(await handlers.closeRequested())) event.preventDefault();
+      }),
+    ),
+    counted(
+      getCurrentWebview().onDragDropEvent((event) => handlers.dragDrop(event.payload)),
+    ),
   ];
 
   return () => {

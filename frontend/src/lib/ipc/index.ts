@@ -1,6 +1,7 @@
 import { Channel } from "@tauri-apps/api/core";
 
 import { commands, events } from "./bindings";
+import { counted } from "$lib/listener-count";
 import { mergeUrl } from "$lib/merge-params";
 import type {
   Author,
@@ -21,6 +22,7 @@ import type {
   OperationChanged,
   PatchRequest,
   RebaseOptions,
+  RendererMemory,
   RepoChanged,
   RepoId,
   ScanHit,
@@ -279,7 +281,7 @@ export async function deleteRemoteBranch(repo: RepoId, remote: string, branch: s
 
 /** Fires when the watcher sees the repository change on disk; returns an unlisten fn. */
 export async function onRepoChanged(handler: (change: RepoChanged) => void) {
-  return await events.repoChanged.listen((event) => handler(event.payload));
+  return await counted(events.repoChanged.listen((event) => handler(event.payload)));
 }
 
 export async function commandLog() {
@@ -495,7 +497,7 @@ function unwrap<T>(result: { status: "ok"; data: T } | { status: "error"; error:
 
 /** Fires when a native menu item is chosen; the payload is a palette command id. */
 export async function onMenuCommand(handler: (id: string) => void) {
-  return await events.menuCommand.listen((event) => handler(event.payload));
+  return await counted(events.menuCommand.listen((event) => handler(event.payload)));
 }
 
 /** The shipped accelerators, kept beside the menu they belong to. */
@@ -511,6 +513,11 @@ export async function setKeymap(overrides: Record<string, string>) {
 /** Lands in the profile log beside the backend's own numbers (F-116). */
 export async function reportTiming(label: string, ms: number, detail: string) {
   return await commands.reportTiming(label, ms, detail);
+}
+
+/** One renderer memory sample; `kind=mem` in the profile log (doc/14-profiling.md). */
+export async function reportMemory(sample: RendererMemory) {
+  return await commands.reportMemory(sample);
 }
 
 /** The settings document as JSON text; Rust owns the file (R-81). */
@@ -643,7 +650,7 @@ export async function mergeResolved(repo: RepoId, path: string) {
 }
 
 export async function onMergeResolved(handler: (event: MergeResolved) => void) {
-  return await events.mergeResolved.listen((event) => handler(event.payload));
+  return await counted(events.mergeResolved.listen((event) => handler(event.payload)));
 }
 
 /** The three sides already merged into regions, for the four-panel merge view. */
@@ -668,12 +675,12 @@ export async function setAvatars(enabled: boolean) {
 
 /** Fires when one author's picture has landed in the cache and the row can redraw. */
 export async function onAvatarReady(handler: (event: AvatarReady) => void) {
-  return await events.avatarReady.listen((event) => handler(event.payload));
+  return await counted(events.avatarReady.listen((event) => handler(event.payload)));
 }
 
 /** Fires when a tracked operation starts or finishes; drives the toolbar spinner. */
 export async function onOperationChanged(handler: (event: OperationChanged) => void) {
-  return await events.operationChanged.listen((event) => handler(event.payload));
+  return await counted(events.operationChanged.listen((event) => handler(event.payload)));
 }
 
 export async function popupContextMenu(items: ContextItem[], x: number, y: number) {

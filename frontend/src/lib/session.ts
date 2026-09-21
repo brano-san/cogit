@@ -21,6 +21,29 @@ export function forget(recent: readonly string[], root: string): string[] {
   return recent.filter((path) => path !== root);
 }
 
+/** A write that changes nothing hands back the very same session.
+
+    The store keeps the session in `$state.raw`, which invalidates on a changed reference
+    and on nothing else. A fresh-but-equal object is therefore enough to re-run every
+    effect that read the session — including the one that writes it back through
+    `activate()`, which then never settles (R-87). */
+export function withActive(session: Session, active: string | null): Session {
+  return session.active === active ? session : { ...session, active };
+}
+
+export function withSelected(session: Session, root: string, oid: string | null): Session {
+  if ((session.selected[root] ?? null) === oid) return session;
+
+  const selected = { ...session.selected };
+  if (oid === null) delete selected[root];
+  else selected[root] = oid;
+  return { ...session, selected };
+}
+
+export function withOpened(session: Session, root: string): Session {
+  return session.recent[0] === root ? session : { ...session, recent: remember(session.recent, root) };
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }

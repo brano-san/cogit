@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { ask, open as openFolderDialog } from "@tauri-apps/plugin-dialog";
   import { checkForUpdates, message } from "$lib/updates";
 
@@ -40,6 +41,8 @@
   import { stateBanner, type BannerAction } from "$lib/repo-state";
   import { blockedByLocalChanges } from "$lib/checkout-refusal";
   import { PANELS, type PanelId } from "$lib/perspectives";
+  import { browserSources, start as startMemoryProbe } from "$lib/mem-probe";
+  import { liveListeners } from "$lib/listener-count";
   import type { Settings } from "$lib/settings";
   import {
     checkout,
@@ -75,6 +78,7 @@
     runCheck,
     terminalChoices,
     openRepository,
+    reportMemory,
     reportTiming,
     commitTemplate,
     stageMode,
@@ -224,23 +228,33 @@
   let dropping = $state(false);
   let fileMask = $state("");
 
+  /** Startup, not a reaction: everything here runs once.
+
+      Wrapped in `untrack` as a whole rather than read by read. `activate()` writes the
+      session back, and anything this effect touches that the session feeds — including
+      `session.repositories`, which `repository.restore()` reads for itself — makes the
+      effect depend on its own write and re-enter `open_repository` about a hundred times
+      a second (R-87). Untracking one getter at a time only moves the problem to the next
+      caller down. */
   $effect(() => {
-    getAppInfo().then((result) => {
-      info = result;
-    });
-    void settings.load().then(() => {
-      diff.whitespace = settings.current.ignoreWhitespace;
-      // Only after the settings are read: the tick is what permits the network call.
-      if (settings.current.autoUpdate) void runUpdateCheck(true);
-    });
-    void settings.loadBindings();
-    void terminalChoices().then((found) => (terminals = found));
-    const wanted = session.active;
-    const remembered = wanted === null ? null : session.selected(wanted);
-    void repository.restore().then(() => {
-      const back =
-        repository.openRepos.find((entry) => entry.root === wanted) ?? repository.openRepos[0];
-      if (back) void activate(back.root, back.root === wanted ? remembered : null);
+    untrack(() => {
+      getAppInfo().then((result) => {
+        info = result;
+      });
+      void settings.load().then(() => {
+        diff.whitespace = settings.current.ignoreWhitespace;
+        // Only after the settings are read: the tick is what permits the network call.
+        if (settings.current.autoUpdate) void runUpdateCheck(true);
+      });
+      void settings.loadBindings();
+      void terminalChoices().then((found) => (terminals = found));
+      const wanted = session.active;
+      const remembered = wanted === null ? null : session.selected(wanted);
+      void repository.restore().then(() => {
+        const back =
+          repository.openRepos.find((entry) => entry.root === wanted) ?? repository.openRepos[0];
+        if (back) void activate(back.root, back.root === wanted ? remembered : null);
+      });
     });
   });
 
@@ -1895,7 +1909,9 @@ Log: ${info?.logPath ?? ""}`),
       crash is exactly the case this is meant to survive. */
   $effect(() => {
     const root = repository.current?.root;
-    if (root) session.setSelected(root, commit.oid);
+    const oid = commit.oid;
+    // Tracks the selection, not the session it writes it into (R-87).
+    if (root) untrack(() => session.setSelected(root, oid));
   });
 
   /** Closing throws away whatever is only in the window: an edited hook, a resolution
@@ -1955,6 +1971,29 @@ Log: ${info?.logPath ?? ""}`),
       if (command && !command.unavailable) runCommand(command);
     });
     return () => void pending.then((unlisten) => unlisten());
+  });
+
+  /** P0: what the renderer is holding, sampled into the profile log every ten seconds.
+      Debug builds only — the DOM walk is not free, and nobody reads `kind=mem` in a
+      release. The counters are read inside the callback, which runs off the interval and
+      so outside the tracking context: the probe must not restart whenever the graph grows. */
+  $effect(() => {
+    if (!import.meta.env.DEV) return;
+
+    return startMemoryProbe(
+      browserSources(liveListeners, () => ({
+        graphRows: graph.rows.length,
+        graphEdges: graph.edges.length,
+        avatarRows: avatars.rows.size,
+        overlapRows: overlap.rows.size,
+        diffHunks: diff.hunks.length,
+        blameLines: blame.lines.length,
+        commitFiles: commit.files.length,
+        outputEntries: output.entries.length,
+        openRepos: repository.openRepos.length,
+      })),
+      (taken) => void reportMemory(taken),
+    );
   });
 
   /** A rebuilt bar starts with every tick cleared, so this runs again after a keymap save. */
