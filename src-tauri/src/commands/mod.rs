@@ -80,6 +80,16 @@ pub fn log_from_frontend(level: String, message: String, context: String) {
     }
 }
 
+/// Answered by the page to show it is still running while a close is pending.
+///
+/// Injected by `shutdown::watch`, not called from `frontend/`: the whole point is that
+/// it works without the page knowing about it (problem 13).
+#[tauri::command]
+#[specta::specta]
+pub fn closing_ping() {
+    crate::shutdown::answered();
+}
+
 /// Everything `Help ▸ Copy Diagnostics` puts on the clipboard, as text.
 #[tauri::command]
 #[specta::specta]
