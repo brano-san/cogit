@@ -1,3 +1,4 @@
+mod accelerators;
 mod commands;
 mod diagnostics;
 mod logging;
@@ -260,19 +261,15 @@ pub fn run() -> anyhow::Result<()> {
             let keymap = menu::Keymap::default();
             keymap.set(stored);
             app.manage(keymap);
-            app.on_menu_event(|app, event| {
-                if event.id().0 == "copy-diagnostics" {
-                    copy_diagnostics(app);
-                    return;
-                }
-                let _ = MenuCommand(event.id().0.clone()).emit(app);
-            });
+            app.on_menu_event(|app, event| dispatch_menu_command(app, &event.id().0));
 
             if let Some(window) = app.get_webview_window("main") {
                 // Subscribed before the window is shown: a renderer that dies during the first
                 // paint must not be the one failure nobody catches.
                 #[cfg(windows)]
                 renderer_failure::install(&window);
+                #[cfg(windows)]
+                webview2::install_accelerators(&window);
                 window.show()?;
             }
             Ok(())
@@ -285,6 +282,16 @@ pub fn run() -> anyhow::Result<()> {
         });
 
     Ok(())
+}
+
+/// What a menu id does, wherever it came from: the bar, the command palette, or a key
+/// the window took back from the webview (problem 3).
+pub fn dispatch_menu_command(app: &tauri::AppHandle, id: &str) {
+    if id == "copy-diagnostics" {
+        copy_diagnostics(app);
+        return;
+    }
+    let _ = MenuCommand(id.to_owned()).emit(app);
 }
 
 /// `None` off Windows, where there is no WebView2 to ask about.
