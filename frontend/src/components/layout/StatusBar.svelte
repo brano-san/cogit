@@ -73,16 +73,16 @@
     <span class="divider" aria-hidden="true"></span>
   {/if}
 
-  <span class="spacer"></span>
-
-  {#if fileOpen}
-    <span class="item muted">{encoding} • {lineEnding}</span>
-    <span class="divider" aria-hidden="true"></span>
-  {/if}
   <span class="item activity {activity.tone}" role="status">
     {#if activity.busy}<span class="spinner" aria-hidden="true"></span>{/if}
     <span class="truncate">{activity.label}</span>
   </span>
+
+  <span class="spacer"></span>
+
+  {#if fileOpen}
+    <span class="item muted encoding">{encoding} • {lineEnding}</span>
+  {/if}
 </footer>
 
 <style>
@@ -144,7 +144,13 @@
   }
 
   .activity {
+    min-width: 0;
     max-width: 320px;
+  }
+
+  /* Fixed content, fixed box: it must not shift when the status beside it changes. */
+  .encoding {
+    flex: 0 0 auto;
   }
 
   .activity.error {
