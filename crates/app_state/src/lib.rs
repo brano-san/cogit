@@ -187,6 +187,10 @@ pub struct AppState {
     /// The newest diff batch asked for per repository. An older answer never displaces
     /// a newer one, so responses cannot arrive out of order.
     pub(crate) newest_diff: RwLock<HashMap<RepoId, u32>>,
+    /// One tree row per repository, good until the watcher or one of our own mutations
+    /// says otherwise (problem 5).
+    cached_rows: Arc<RwLock<HashMap<RepoId, RepoOverview>>>,
+    rows_read: Arc<AtomicU32>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -221,6 +225,8 @@ impl AppState {
             pictures: RwLock::new(None),
             preset_dir: RwLock::new(None),
             newest_diff: RwLock::new(HashMap::new()),
+            cached_rows: Arc::new(RwLock::new(HashMap::new())),
+            rows_read: Arc::new(AtomicU32::new(0)),
         }
     }
 
@@ -632,7 +638,9 @@ impl AppState {
             return;
         }
         let events = self.events.clone();
+        let rows = Arc::clone(&self.cached_rows);
         match fs_watcher::RepoWatcher::start(root, git_dir, move |change| {
+            rows.write().remove(&repo);
             let _ = events.send(AppEvent::RepoChanged {
                 repo,
                 kind: change.kind,
@@ -650,6 +658,9 @@ impl AppState {
     /// Called before every mutation: the UI reloads itself afterwards, so reacting to our
     /// own writes only makes it reload twice (doc/12-risks.md, R-25).
     fn quiet(&self, repo: RepoId) {
+        // Our own writes are the one change the watcher will not report, so the row has to
+        // be dropped here instead.
+        self.forget_row(repo);
         if let Some(watcher) = self.watchers.read().get(&repo) {
             watcher.quiet_for(fs_watcher::DEFAULT_QUIET);
         }
@@ -1117,15 +1128,39 @@ impl AppState {
         let mut rows: Vec<RepoOverview> = self
             .list()
             .into_iter()
-            .map(|open| self.overview_of(&open))
+            .map(|open| self.row_for(&open))
             .collect();
         rows.sort_by(|a, b| a.name.cmp(&b.name));
         rows
     }
 
+    /// Reading a row costs a `head`, a `branches` and a `status`; the panel asks for the
+    /// whole tree on every refresh, and most rows have not moved since it last asked.
+    fn row_for(&self, open: &OpenRepo) -> RepoOverview {
+        if let Some(row) = self.cached_rows.read().get(&open.id) {
+            return row.clone();
+        }
+        let row = self.overview_of(open);
+        self.rows_read.fetch_add(1, Ordering::Relaxed);
+        self.cached_rows.write().insert(open.id, row.clone());
+        row
+    }
+
+    /// Whatever this repository's row said is no longer true.
+    pub fn forget_row(&self, repo: RepoId) {
+        self.cached_rows.write().remove(&repo);
+    }
+
+    /// How many rows were built from git rather than served from the last look.
+    #[must_use]
+    pub fn rows_read(&self) -> u32 {
+        self.rows_read.load(Ordering::Relaxed)
+    }
+
     pub fn close_repository(&self, repo: RepoId) -> bool {
         self.watchers.write().remove(&repo);
         self.newest_diff.write().remove(&repo);
+        self.forget_row(repo);
         self.safety.write().retain(|held| held.entry.repo != repo);
         let removed = self.unregister(repo);
         if removed {

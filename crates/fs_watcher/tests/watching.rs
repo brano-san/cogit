@@ -208,3 +208,24 @@ fn a_shorter_window_does_not_cut_a_longer_one_short() {
 
     assert!(collect(&harness).is_empty());
 }
+
+#[test]
+fn a_hundred_files_at_once_do_not_become_a_hundred_events() {
+    let harness = start();
+
+    for i in 0..100 {
+        std::fs::write(harness.root.join(format!("file-{i}.txt")), "x").unwrap();
+    }
+
+    let seen = collect(&harness);
+    assert!(
+        !seen.is_empty(),
+        "the burst still has to be announced, just not once per file"
+    );
+    assert!(
+        seen.len() <= 4,
+        "a checkout must not redraw the panel once per file, got {} events",
+        seen.len()
+    );
+    assert!(seen.iter().all(|c| c.kind == ChangeKind::WorkingTree));
+}
