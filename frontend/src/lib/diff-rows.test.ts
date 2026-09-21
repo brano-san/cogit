@@ -5,6 +5,7 @@ import {
   flatten,
   gapBetween,
   pairRows,
+  connectors,
   searchRows,
   segments,
   stepHit,
@@ -300,5 +301,109 @@ describe("stepping through search hits", () => {
 
   it("stays at nothing when there are no hits", () => {
     expect(stepHit([], 0, 1)).toBe(-1);
+  });
+});
+
+describe("connectors between the two columns", () => {
+  function cell(kind: "delete" | "insert" | "context", moveId: number | null = null) {
+    return { kind, line: 1, text: "x", inline: [], moved: moveId !== null, moveId };
+  }
+  const ctx = () => ({ left: cell("context"), right: cell("context") });
+  const header = () => null;
+
+  it("draws nothing when nothing changed", () => {
+    expect(connectors([ctx(), ctx()])).toEqual([]);
+  });
+
+  it("ties one block of changes to the rows facing it", () => {
+    const rows = [ctx(), { left: cell("delete"), right: cell("insert") }, ctx()];
+
+    expect(connectors(rows)).toEqual([
+      { fromTop: 1, fromBottom: 1, toTop: 1, toBottom: 1, moved: false },
+    ]);
+  });
+
+  it("treats consecutive changed rows as one connector", () => {
+    const rows = [
+      ctx(),
+      { left: cell("delete"), right: cell("insert") },
+      { left: cell("delete"), right: null },
+      { left: cell("delete"), right: null },
+      ctx(),
+    ];
+
+    expect(connectors(rows)).toEqual([
+      { fromTop: 1, fromBottom: 3, toTop: 1, toBottom: 3, moved: false },
+    ]);
+  });
+
+  it("separates blocks that context rows keep apart", () => {
+    const rows = [
+      { left: cell("delete"), right: cell("insert") },
+      ctx(),
+      { left: cell("delete"), right: cell("insert") },
+    ];
+
+    expect(connectors(rows)).toHaveLength(2);
+  });
+
+  it("joins the two ends of a move however far apart they are", () => {
+    const rows = [
+      { left: cell("delete", 7), right: null },
+      { left: cell("delete", 7), right: null },
+      ctx(),
+      ctx(),
+      { left: null, right: cell("insert", 7) },
+      { left: null, right: cell("insert", 7) },
+    ];
+
+    expect(connectors(rows)).toEqual([
+      { fromTop: 0, fromBottom: 1, toTop: 4, toBottom: 5, moved: true },
+    ]);
+  });
+
+  it("gives every move its own connector", () => {
+    const rows = [
+      { left: cell("delete", 1), right: null },
+      { left: cell("delete", 2), right: null },
+      ctx(),
+      { left: null, right: cell("insert", 2) },
+      { left: null, right: cell("insert", 1) },
+    ];
+
+    const drawn = connectors(rows);
+
+    expect(drawn.filter((c) => c.moved)).toHaveLength(2);
+  });
+
+  it("does not draw a move whose other end is out of the diff", () => {
+    const rows = [{ left: cell("delete", 3), right: null }, ctx()];
+
+    expect(connectors(rows)).toEqual([
+      { fromTop: 0, fromBottom: 0, toTop: 0, toBottom: 0, moved: false },
+    ]);
+  });
+
+  it("leaves a row a move already claimed out of the plain connectors", () => {
+    const rows = [
+      { left: cell("delete", 5), right: null },
+      ctx(),
+      { left: null, right: cell("insert", 5) },
+    ];
+
+    const drawn = connectors(rows);
+
+    expect(drawn).toHaveLength(1);
+    expect(drawn[0]?.moved).toBe(true);
+  });
+
+  it("skips header rows without letting them join two blocks", () => {
+    const rows = [
+      { left: cell("delete"), right: cell("insert") },
+      header(),
+      { left: cell("delete"), right: cell("insert") },
+    ];
+
+    expect(connectors(rows)).toHaveLength(2);
   });
 });
