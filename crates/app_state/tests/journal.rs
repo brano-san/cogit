@@ -72,7 +72,14 @@ fn the_journal_is_newest_first() {
 }
 
 fn entry(command: &str) -> git_engine::GitOutput {
-    git_engine::GitOutput::record(command.to_owned(), Some(0), "", "", 0)
+    git_engine::GitOutput::record(
+        std::path::Path::new("."),
+        command.to_owned(),
+        Some(0),
+        "",
+        "",
+        0,
+    )
 }
 
 /// Driven directly rather than through 520 `git` processes: the property is a ring buffer,
@@ -143,4 +150,24 @@ fn clearing_empties_the_journal() {
     state.clear_command_log();
 
     assert!(state.command_log().is_empty());
+}
+
+#[test]
+fn one_entry_can_be_fetched_by_its_number() {
+    let f = test_fixtures::linear(1).unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    state.create_branch(repo, "topic", None, false).unwrap();
+
+    let wanted = state.command_log().first().unwrap().id;
+
+    assert_eq!(state.command_outcome(wanted).unwrap().id, wanted);
+}
+
+/// The window is opened from a notice that outlives the entry it points at; asking for
+/// one that has already rotated out of the ring must read as "gone", not as a failure.
+#[test]
+fn asking_for_an_entry_that_has_rotated_out_is_not_an_error() {
+    let state = AppState::new();
+    assert!(state.command_outcome(999_999).is_none());
 }

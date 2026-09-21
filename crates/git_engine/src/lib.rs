@@ -51,6 +51,7 @@ pub use interactive::{TodoAction, TodoEntry, render_todo, render_todo_paused};
 pub use merging::MergeOptions;
 pub use network::{auth_header, wants_auth};
 pub use operations::RebaseOptions;
+pub use outcome::Severity;
 pub use overlap::{Overlap, OverlapRow, overlap_of, shared_paths};
 pub use presets::{Preset, PresetTool, builtin_presets, find_tool, parse_preset};
 pub use progress::{RebaseProgress, RebaseStep};

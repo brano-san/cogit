@@ -147,3 +147,72 @@ pub fn normalise(text: &str) -> String {
     }
     redact_secrets(&collapse_progress(&strip_ansi(text)))
 }
+
+/// What a renderer may be handed. A test log of a hundred thousand lines is a real thing
+/// to hit — the whole point of the window is that a hook printed it — and handing it to
+/// the DOM whole is how the webview runs out of memory. The full text stays in the log
+/// file; the window shows the beginning, the end, and how much it is not showing.
+pub const MAX_LINES: usize = 20_000;
+pub const MAX_BYTES: usize = 2 * 1024 * 1024;
+const HEAD_LINES: usize = 2_000;
+const TAIL_LINES: usize = 5_000;
+
+/// Both limits, in that order. Text under either one comes back byte for byte.
+#[must_use]
+pub fn trim(text: &str) -> String {
+    match by_lines(text) {
+        Some(short) => by_bytes(&short).unwrap_or(short),
+        None => by_bytes(text).unwrap_or_else(|| text.to_owned()),
+    }
+}
+
+/// `None` when the text is already short enough to pass through untouched.
+fn by_lines(text: &str) -> Option<String> {
+    let total = text.split_inclusive('\n').count();
+    if total <= MAX_LINES {
+        return None;
+    }
+
+    let mut lines = text.split_inclusive('\n');
+    let mut out = String::new();
+    for line in lines.by_ref().take(HEAD_LINES) {
+        out.push_str(line);
+    }
+
+    let rest: Vec<&str> = lines.collect();
+    let tail = rest.len().saturating_sub(TAIL_LINES);
+    out.push_str(&format!("… {tail} lines omitted, see log …\n"));
+    for line in &rest[tail..] {
+        out.push_str(line);
+    }
+    Some(out)
+}
+
+/// The backstop for output that is few lines and enormous anyway — a minified bundle in
+/// a diff, a base64 blob a hook echoed.
+fn by_bytes(text: &str) -> Option<String> {
+    if text.len() <= MAX_BYTES {
+        return None;
+    }
+    let half = MAX_BYTES / 2;
+    let mut head = half;
+    while head > 0 && !text.is_char_boundary(head) {
+        head -= 1;
+    }
+    let mut tail = text.len() - half;
+    while tail < text.len() && !text.is_char_boundary(tail) {
+        tail += 1;
+    }
+    let omitted = tail - head;
+    Some(format!(
+        "{}\n… {omitted} bytes omitted, see log …\n{}",
+        &text[..head],
+        &text[tail..]
+    ))
+}
+
+/// Everything a stream goes through before anyone can see it: cleaned up, then cut down.
+#[must_use]
+pub fn shown(text: &str) -> String {
+    trim(&normalise(text))
+}

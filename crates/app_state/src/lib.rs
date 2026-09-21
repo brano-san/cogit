@@ -60,6 +60,33 @@ pub enum AppEvent {
     AvatarReady {
         email: String,
     },
+    /// A git command finished. The payload says what happened, not what was printed:
+    /// a record can be two megabytes and most of them are never looked at.
+    CommandRecorded(CommandNotice),
+}
+
+/// What the UI needs to decide whether to interrupt the user. The output itself is
+/// fetched by `id` from the journal, and only when somebody asks to see it.
+#[derive(Debug, Clone, Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct CommandNotice {
+    pub id: u32,
+    pub repo: String,
+    pub operation: String,
+    pub severity: git_engine::Severity,
+    pub summary: String,
+}
+
+impl From<&git_engine::GitOutput> for CommandNotice {
+    fn from(entry: &git_engine::GitOutput) -> Self {
+        Self {
+            id: entry.id,
+            repo: entry.repo.clone(),
+            operation: entry.operation.clone(),
+            severity: entry.severity,
+            summary: entry.summary.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -124,7 +151,7 @@ pub const DEFAULT_CHUNK_SIZE: usize = 200;
 
 /// The Output panel is a recent history, not an audit log; the cap keeps a long session
 /// from holding every byte Git ever printed.
-const JOURNAL_CAPACITY: usize = 500;
+const JOURNAL_CAPACITY: usize = 100;
 
 /// Git reports mixed line endings, permissions and deprecated settings on `stderr` with
 /// exit code 0. Nobody sees those unless we call them out.
@@ -652,7 +679,23 @@ impl AppState {
 
     fn command_sink(&self) -> git_engine::CommandSink {
         let journal = Arc::clone(&self.journal);
-        Arc::new(move |entry| record(&mut journal.write(), JOURNAL_CAPACITY, entry))
+        let events = self.events.clone();
+        Arc::new(move |entry| {
+            let _ = events.send(AppEvent::CommandRecorded(CommandNotice::from(&entry)));
+            record(&mut journal.write(), JOURNAL_CAPACITY, entry);
+        })
+    }
+
+    /// One entry of the journal, by the number a notice carried. `None` once the ring
+    /// has moved past it.
+    #[must_use]
+    pub fn command_outcome(&self, id: u32) -> Option<git_engine::GitOutput> {
+        self.journal
+            .read()
+            .iter()
+            .rev()
+            .find(|entry| entry.id == id)
+            .cloned()
     }
 
     /// Staging changes the status and nothing else; reopening the repository to learn

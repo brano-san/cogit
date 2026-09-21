@@ -22,6 +22,28 @@ export const commands = {
 	createBranch: (repo: RepoId, name: string, start: string | null, switchTo: boolean) => typedError<null, GitError>(__TAURI_INVOKE("create_branch", { repo, name, start, switchTo })),
 	deleteBranch: (repo: RepoId, name: string, force: boolean) => typedError<null, GitError>(__TAURI_INVOKE("delete_branch", { repo, name, force })),
 	commandLog: () => __TAURI_INVOKE<GitOutput[]>("command_log"),
+	/**  One entry in full. The notice that opened the window carried only its summary. */
+	commandOutcome: (id: number) => __TAURI_INVOKE<{
+	/**  Numbered so a window, a toast and a history row can all name the same run. */
+	id: number,
+	/**  The repository root the command ran in. A record outlives the handle that made it. */
+	repo: string,
+	command: string,
+	exitCode: number | null,
+	stdout: string,
+	stderr: string,
+	durationMs: number,
+	/**  What to call this in a title. Read off `command`, so the two cannot disagree. */
+	operation: string,
+	severity: Severity,
+	/**  One line over the output, never instead of it. */
+	summary: string,
+	/**
+	 *  Unix epoch milliseconds. Not `DateTime`: the tree has no date crate, and the
+	 *  frontend formats every other timestamp from a number already.
+	 */
+	startedAtMs: number,
+} | null>("command_outcome", { id }),
 	commandProblems: () => __TAURI_INVOKE<number>("command_problems"),
 	clearCommandLog: () => __TAURI_INVOKE<void>("clear_command_log"),
 	safetyLog: () => __TAURI_INVOKE<SafetyEntry[]>("safety_log"),
@@ -208,6 +230,7 @@ export const commands = {
 /** Events */
 export const events = {
 	avatarReady: makeEvent<AvatarReady>("avatar-ready"),
+	commandRecorded: makeEvent<CommandRecorded>("command-recorded"),
 	menuCommand: makeEvent<MenuCommand>("menu-command"),
 	mergeResolved: makeEvent<MergeResolved>("merge-resolved"),
 	operationChanged: makeEvent<OperationChanged>("operation-changed"),
@@ -276,6 +299,24 @@ export type Bypass = {
 export type ChangeKind = "head" | "index" | "refs" | "workingTree" | "stash" | "config" | "hooks";
 
 export type CheckoutTarget = { kind: "branch"; name: string } | { kind: "commit"; oid: string };
+
+/**
+ *  What the UI needs to decide whether to interrupt the user. The output itself is
+ *  fetched by `id` from the journal, and only when somebody asks to see it.
+ */
+export type CommandNotice = {
+	id: number,
+	repo: string,
+	operation: string,
+	severity: Severity,
+	summary: string,
+};
+
+/**
+ *  Mirrors `app_state::AppEvent::CommandRecorded`. Every git command sends one; the
+ *  output itself stays in the journal until somebody asks to read it.
+ */
+export type CommandRecorded = CommandNotice;
 
 export type CommitDetails = {
 	oid: string,
@@ -444,6 +485,9 @@ export type Found = {
 export type FoundKind = "branch" | "tag" | "commit" | "file";
 
 export type GitCommandError = {
+	/**  The journal entry this came from, so the window can offer the full record. */
+	id: number,
+	repo: string,
 	command: string,
 	exitCode: number | null,
 	stdout: string,
@@ -465,6 +509,10 @@ export type GitError =
 { kind: "command"; data: GitCommandError } | { kind: "repoNotFound"; data: string } | { kind: "repoBusy"; data: string } | { kind: "invalidState"; data: string } | { kind: "io"; data: string } | { kind: "internal"; data: string };
 
 export type GitOutput = {
+	/**  Numbered so a window, a toast and a history row can all name the same run. */
+	id: number,
+	/**  The repository root the command ran in. A record outlives the handle that made it. */
+	repo: string,
 	command: string,
 	exitCode: number | null,
 	stdout: string,

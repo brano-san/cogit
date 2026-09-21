@@ -51,6 +51,7 @@ impl RepoHandle {
 
         let output = child.wait_with_output()?;
         let result = GitOutput::record(
+            self.root(),
             command,
             output.status.code(),
             &String::from_utf8_lossy(&output.stdout),
