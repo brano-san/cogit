@@ -50,7 +50,7 @@
     id: "undo",
     label: "Undo",
     icon: ICONS.undo,
-    needs: { undo: true },
+    needs: { repository: true, undo: true },
   };
 
   interface Props {
