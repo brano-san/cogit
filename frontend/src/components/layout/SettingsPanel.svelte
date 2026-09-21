@@ -1,6 +1,13 @@
 <script lang="ts">
   import Tree from "$components/common/Tree.svelte";
-  import { CATEGORIES, firstMatch, matchingCategories, restoreCategory } from "$lib/preferences";
+  import {
+    CATEGORIES,
+    changedKeys,
+    firstMatch,
+    matchingCategories,
+    restoreCategory,
+    sameKeymap,
+  } from "$lib/preferences";
   import type { TreeNode } from "$lib/tree";
   import { needsRestart, DEFAULT_SETTINGS, type Settings } from "$lib/settings";
   import type { Keymap } from "$lib/keymap";
@@ -96,8 +103,7 @@
   );
   const current = $derived(CATEGORIES.find((category) => category.id === active));
   const dirty = $derived(
-    JSON.stringify(draft) !== JSON.stringify(value) ||
-      JSON.stringify(draftKeys) !== JSON.stringify(keymap),
+    changedKeys(draft, value).length > 0 || !sameKeymap(draftKeys, keymap),
   );
   const restarts = $derived(
     (Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]).some(

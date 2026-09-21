@@ -5,6 +5,8 @@ import {
   firstMatch,
   matchingCategories,
   restoreCategory,
+  changedKeys,
+  sameKeymap,
 } from "./preferences";
 
 const ids = CATEGORIES.map((category) => category.id);
@@ -95,5 +97,45 @@ describe("restoreCategory", () => {
   it("leaves the draft alone for a category it does not know", () => {
     const draft: Settings = { ...DEFAULT_SETTINGS, laneWidth: 30 };
     expect(restoreCategory(draft, "nonsense")).toEqual(draft);
+  });
+});
+
+describe("changedKeys", () => {
+  it("says nothing changed when nothing did", () => {
+    expect(changedKeys({ ...DEFAULT_SETTINGS }, { ...DEFAULT_SETTINGS })).toEqual([]);
+  });
+
+  it("names the key that moved", () => {
+    const draft = { ...DEFAULT_SETTINGS, theme: "light" as const };
+    expect(changedKeys(draft, DEFAULT_SETTINGS)).toEqual(["theme"]);
+  });
+
+  it("names every key that moved", () => {
+    const draft = { ...DEFAULT_SETTINGS, theme: "light" as const, contextLines: 9 };
+    expect(changedKeys(draft, DEFAULT_SETTINGS).sort()).toEqual(["contextLines", "theme"]);
+  });
+});
+
+describe("sameKeymap", () => {
+  it("ignores the order the keys were added in", () => {
+    // `JSON.stringify` would call these two different, and the OK button would light up
+    // on a dialog where nothing was touched.
+    expect(sameKeymap({ a: "Ctrl+A", b: "Ctrl+B" }, { b: "Ctrl+B", a: "Ctrl+A" })).toBe(true);
+  });
+
+  it("sees a changed binding", () => {
+    expect(sameKeymap({ a: "Ctrl+A" }, { a: "Ctrl+X" })).toBe(false);
+  });
+
+  it("sees an added binding", () => {
+    expect(sameKeymap({ a: "Ctrl+A" }, { a: "Ctrl+A", b: "Ctrl+B" })).toBe(false);
+  });
+
+  it("sees a removed binding", () => {
+    expect(sameKeymap({ a: "Ctrl+A", b: "Ctrl+B" }, { a: "Ctrl+A" })).toBe(false);
+  });
+
+  it("calls two empty keymaps the same", () => {
+    expect(sameKeymap({}, {})).toBe(true);
   });
 });
