@@ -16,7 +16,6 @@ tree-sitter-cpp.workspace = true
 tree-sitter-typescript.workspace = true
 rayon.workspace = true
 thiserror.workspace = true
-tracing.workspace = true
 serde.workspace = true
 specta.workspace = true
 specta-typescript.workspace = true

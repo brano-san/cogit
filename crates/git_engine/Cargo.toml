@@ -12,8 +12,6 @@ description = "Git reading via gix and mutations via the system git CLI."
 gix.workspace = true
 globset.workspace = true
 ignore.workspace = true
-tokio.workspace = true
-parking_lot.workspace = true
 rayon.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
@@ -26,7 +24,6 @@ specta-typescript.workspace = true
 [dev-dependencies]
 test_fixtures.workspace = true
 tempfile.workspace = true
-tokio = { workspace = true, features = ["macros", "rt"] }
 
 [lints]
 workspace = true

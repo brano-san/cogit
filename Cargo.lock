@@ -76,7 +76,6 @@ version = "0.1.0"
 dependencies = [
  "avatars",
  "diff_engine",
- "directories",
  "file-rotate",
  "fs_watcher",
  "git_engine",
@@ -666,7 +665,6 @@ dependencies = [
  "diff_engine",
  "fs_watcher",
  "git_engine",
- "graph_engine",
  "serde",
  "serde_json",
  "specta",
@@ -676,7 +674,6 @@ dependencies = [
  "tauri-plugin-clipboard-manager",
  "tauri-plugin-dialog",
  "tauri-plugin-opener",
- "tauri-plugin-store",
  "tauri-plugin-window-state",
  "tauri-specta",
  "tokio",
@@ -1083,7 +1080,6 @@ dependencies = [
  "specta",
  "specta-typescript",
  "thiserror 2.0.20",
- "tracing",
  "tree-sitter",
  "tree-sitter-cpp",
  "tree-sitter-typescript",
@@ -1109,15 +1105,6 @@ dependencies = [
  "const-oid",
  "crypto-common 0.2.2",
  "ctutils",
-]
-
-[[package]]
-name = "directories"
-version = "6.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16f5094c54661b38d03bd7e50df373292118db60b585c08a411c6d840017fe7d"
-dependencies = [
- "dirs-sys",
 ]
 
 [[package]]
@@ -1528,16 +1515,12 @@ dependencies = [
 name = "fs_watcher"
 version = "0.1.0"
 dependencies = [
- "crossbeam-channel",
- "ignore",
  "notify",
  "notify-debouncer-mini",
  "serde",
  "specta",
  "tempfile",
- "test_fixtures",
  "thiserror 2.0.20",
- "tracing",
 ]
 
 [[package]]
@@ -1825,7 +1808,6 @@ dependencies = [
  "gix",
  "globset",
  "ignore",
- "parking_lot",
  "rayon",
  "serde",
  "specta",
@@ -1833,7 +1815,6 @@ dependencies = [
  "tempfile",
  "test_fixtures",
  "thiserror 2.0.20",
- "tokio",
  "toml 0.9.12+spec-1.1.0",
  "tracing",
 ]
@@ -2767,11 +2748,8 @@ name = "graph_engine"
 version = "0.1.0"
 dependencies = [
  "insta",
- "rayon",
  "serde",
  "specta",
- "thiserror 2.0.20",
- "tracing",
 ]
 
 [[package]]
@@ -5726,22 +5704,6 @@ dependencies = [
  "url",
  "windows",
  "zbus",
-]
-
-[[package]]
-name = "tauri-plugin-store"
-version = "2.4.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2c7c771d3ce796b48c6e52b2fac38087d479a3c58e0424d3850cc21db6b4a69"
-dependencies = [
- "dunce",
- "serde",
- "serde_json",
- "tauri",
- "tauri-plugin",
- "thiserror 2.0.20",
- "tokio",
- "tracing",
 ]
 
 [[package]]

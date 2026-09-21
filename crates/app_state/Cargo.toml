@@ -17,7 +17,6 @@ fs_watcher.workspace = true
 tokio = { workspace = true, features = ["sync"] }
 parking_lot.workspace = true
 keyring.workspace = true
-directories.workspace = true
 thiserror.workspace = true
 file-rotate.workspace = true
 tracing.workspace = true
