@@ -3,7 +3,7 @@
 
 use serde::Serialize;
 
-pub const MAX_STREAM_BYTES: usize = 1024 * 1024;
+const MAX_STREAM_BYTES: usize = 1024 * 1024;
 
 #[derive(Debug, Clone, thiserror::Error, Serialize, specta::Type)]
 #[error("Command `{command}` failed (exit code {exit_code:?})")]

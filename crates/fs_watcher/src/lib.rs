@@ -24,7 +24,7 @@ pub const WATCHED_GIT_PATHS: &[&str] = &[
     "rebase-apply",
 ];
 
-pub const EXCLUDED_DIRS: &[&str] = &[
+const EXCLUDED_DIRS: &[&str] = &[
     "objects",
     "target",
     "build",

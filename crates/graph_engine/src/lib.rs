@@ -4,7 +4,7 @@ pub use lanes::layout;
 
 use serde::Serialize;
 
-pub const LANE_COLORS: u8 = 8;
+const LANE_COLORS: u8 = 8;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommitNode {

@@ -123,7 +123,7 @@ pub const DEFAULT_CHUNK_SIZE: usize = 200;
 
 /// The Output panel is a recent history, not an audit log; the cap keeps a long session
 /// from holding every byte Git ever printed.
-pub const JOURNAL_CAPACITY: usize = 500;
+const JOURNAL_CAPACITY: usize = 500;
 
 /// Git reports mixed line endings, permissions and deprecated settings on `stderr` with
 /// exit code 0. Nobody sees those unless we call them out.
@@ -156,6 +156,9 @@ pub struct AppState {
     secrets: Box<dyn SecretStore>,
     pictures: RwLock<Option<Avatars>>,
     preset_dir: RwLock<Option<std::path::PathBuf>>,
+    /// The newest diff batch asked for per repository. An older answer never displaces
+    /// a newer one, so responses cannot arrive out of order.
+    pub(crate) newest_diff: RwLock<HashMap<RepoId, u32>>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -189,6 +192,7 @@ impl AppState {
             secrets: platform_store(),
             pictures: RwLock::new(None),
             preset_dir: RwLock::new(None),
+            newest_diff: RwLock::new(HashMap::new()),
         }
     }
 
@@ -1077,6 +1081,7 @@ impl AppState {
 
     pub fn close_repository(&self, repo: RepoId) -> bool {
         self.watchers.write().remove(&repo);
+        self.newest_diff.write().remove(&repo);
         self.safety.write().retain(|held| held.entry.repo != repo);
         let removed = self.unregister(repo);
         if removed {
@@ -1332,19 +1337,6 @@ pub enum DiffBatch {
     },
     /// A newer request for the same repository started while this one was running.
     Superseded,
-}
-
-/// The newest batch request seen per repository, keyed by `AppState` instance.
-///
-/// This would naturally be a field of `AppState`, but the struct is declared above the
-/// branch divider and this branch may only append an `impl` below it (R-102). Keying by
-/// the instance address keeps parallel tests, which each build their own `AppState`,
-/// from cancelling one another.
-static NEWEST_DIFF_REQUEST: std::sync::OnceLock<RwLock<HashMap<(usize, RepoId), u32>>> =
-    std::sync::OnceLock::new();
-
-pub(crate) fn newest_diff_request() -> &'static RwLock<HashMap<(usize, RepoId), u32>> {
-    NEWEST_DIFF_REQUEST.get_or_init(|| RwLock::new(HashMap::new()))
 }
 
 #[allow(clippy::items_after_test_module)]
