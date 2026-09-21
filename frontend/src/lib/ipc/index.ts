@@ -18,6 +18,7 @@ import type {
   GraphChunk,
   MergeOptions,
   MergeResolved,
+  CommandNotice,
   OperationChanged,
   PatchRequest,
   RebaseOptions,
@@ -42,6 +43,7 @@ export type {
   CommitDetails,
   CommitQuery,
   CommitRequest,
+  CommandNotice,
   CommitRow,
   ConflictSide,
   Author,
@@ -284,6 +286,17 @@ export async function onRepoChanged(handler: (change: RepoChanged) => void) {
 
 export async function commandLog() {
   return await commands.commandLog();
+}
+
+/** One record in full. A notice carries its summary; this is where the output lives. */
+export async function commandOutcome(id: number) {
+  return await commands.commandOutcome(id);
+}
+
+/** Fires once per git command, whatever it did; the payload says how it went, not what
+ *  it printed. */
+export async function onCommandRecorded(handler: (event: CommandNotice) => void) {
+  return await events.commandRecorded.listen((event) => handler(event.payload));
 }
 
 export async function safetyLog() {

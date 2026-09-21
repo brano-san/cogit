@@ -3,9 +3,11 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { DragDropEvent } from "@tauri-apps/api/webview";
 import {
   onAvatarReady,
+  onCommandRecorded,
   onMergeResolved,
   onOperationChanged,
   onRepoChanged,
+  type CommandNotice,
   type MergeResolved,
   type OperationChanged,
   type RepoChanged,
@@ -18,6 +20,8 @@ export interface Handlers {
   operationChanged: (event: OperationChanged) => void;
   avatarReady: (email: string) => void;
   mergeResolved: (event: MergeResolved) => void;
+  /** One per git command, whatever it did. */
+  commandRecorded: (event: CommandNotice) => void;
   /** Return false to keep the window open. */
   closeRequested: () => Promise<boolean>;
   dragDrop: (event: DragDropEvent) => void;
@@ -33,6 +37,7 @@ export function connect(handlers: Handlers): Stop {
     onOperationChanged(handlers.operationChanged),
     onAvatarReady((event) => handlers.avatarReady(event.email)),
     onMergeResolved(handlers.mergeResolved),
+    onCommandRecorded(handlers.commandRecorded),
     getCurrentWindow().onCloseRequested(async (event) => {
       if (!(await handlers.closeRequested())) event.preventDefault();
     }),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyLine, highlightStream } from "./output-highlight";
+import { classifyLine, findMatches, highlightStream, logLines } from "./output-highlight";
 
 describe("classifyLine", () => {
   it("calls an error an error", () => {
@@ -72,5 +72,78 @@ describe("highlightStream", () => {
     const rows = highlightStream("warning: careful\r\nok");
     expect(rows[0]?.kind).toBe("warning");
     expect(rows[0]?.text).toBe("warning: careful");
+  });
+});
+
+describe("classifyLine, on what a hook prints", () => {
+  it("marks a panic, which is the line the reader is looking for", () => {
+    expect(classifyLine("thread 'main' panicked at crates/a/src/b.rs:12:5:")).toBe("error");
+  });
+
+  it("marks a failed test", () => {
+    expect(classifyLine("FAILED [   0.31s] git_engine::runner captures_stdout")).toBe("error");
+  });
+
+  it("leaves a passing test alone, or the whole log turns red", () => {
+    expect(classifyLine("PASS [   0.31s] git_engine::runner captures_stdout")).toBe("plain");
+  });
+
+  it("marks the line that says output is missing", () => {
+    expect(classifyLine("… 23000 lines omitted, see log …")).toBe("omitted");
+  });
+});
+
+describe("logLines", () => {
+  it("puts stderr first, because that is where the reason is", () => {
+    const rows = logLines("on stdout", "on stderr");
+    expect(rows.map((row) => row.text)).toEqual([
+      "stderr",
+      "on stderr",
+      "stdout",
+      "on stdout",
+    ]);
+  });
+
+  it("labels the sections so the two streams cannot be confused", () => {
+    expect(logLines("out", "err").map((row) => row.kind)).toEqual([
+      "label",
+      "plain",
+      "label",
+      "plain",
+    ]);
+  });
+
+  it("does not label a stream that is empty", () => {
+    expect(logLines("", "fatal: no").map((row) => row.text)).toEqual(["fatal: no"]);
+  });
+
+  it("is empty when the command said nothing at all", () => {
+    expect(logLines("", "")).toEqual([]);
+  });
+
+  it("keeps every line of a long log", () => {
+    const log = Array.from({ length: 20_000 }, (_, i) => `line ${i}`).join("\n");
+    expect(logLines(log, "")).toHaveLength(20_000);
+  });
+});
+
+describe("findMatches", () => {
+  const rows = logLines("", "fatal: one\nplain two\nFATAL: three");
+
+  it("gives the index of every line that contains the text", () => {
+    expect(findMatches(rows, "fatal")).toEqual([0, 2]);
+  });
+
+  it("ignores case, the way a reader skimming a log does", () => {
+    expect(findMatches(rows, "FATAL")).toEqual([0, 2]);
+  });
+
+  it("finds nothing for an empty needle, rather than everything", () => {
+    expect(findMatches(rows, "")).toEqual([]);
+  });
+
+  it("treats the needle as text, not as a pattern", () => {
+    const dotted = logLines("", "a.b\naxb");
+    expect(findMatches(dotted, "a.b")).toEqual([0]);
   });
 });

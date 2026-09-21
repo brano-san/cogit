@@ -1,20 +1,12 @@
 <script lang="ts">
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
   import type { GitOutput } from "$lib/ipc";
-  import { highlightStream } from "$lib/output-highlight";
   import { isFailure, isWarning, output } from "$stores/output.svelte";
 
-  let expanded = $state<Set<string>>(new Set());
+  const clock = new Intl.DateTimeFormat(undefined, { timeStyle: "medium" });
 
-  function key(entry: GitOutput, index: number): string {
-    return `${index}:${entry.command}`;
-  }
-
-  function toggle(id: string) {
-    const next = new Set(expanded);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    expanded = next;
+  function repoName(entry: GitOutput): string {
+    return entry.repo.replace(/[/\\]+$/, "").split(/[/\\]/).pop() ?? entry.repo;
   }
 
   function asText(entry: GitOutput): string {
@@ -40,34 +32,31 @@
     <span class="title">Output</span>
     <label><input type="checkbox" bind:checked={output.errorsOnly} /> Problems only</label>
     <span class="grow"></span>
-    <button type="button" onclick={() => void writeText(output.shown.map(asText).join("\n\n"))}>
+    <button type="button" onclick={() => void writeText(output.shownEntries.map(asText).join("\n\n"))}>
       Copy log
     </button>
     <button type="button" onclick={() => void output.clear()}>Clear</button>
     <button type="button" onclick={() => (output.open = false)} title="Close (Esc)">✕</button>
   </header>
 
-  {#if output.shown.length === 0}
+  {#if output.shownEntries.length === 0}
     <p class="message">No Git command has run yet.</p>
   {:else}
     <div class="list">
-      {#each output.shown as entry, index (key(entry, index))}
-        {@const id = key(entry, index)}
+      {#each output.shownEntries as entry (entry.id)}
         <div class="entry" class:failed={isFailure(entry)} class:warned={isWarning(entry)}>
-          <button type="button" class="line" onclick={() => toggle(id)}>
-            <span class="caret">{expanded.has(id) ? "▾" : "▸"}</span>
+          <button
+            type="button"
+            class="line"
+            title="Show the output of this command"
+            onclick={() => output.show(entry)}
+          >
+            <span class="when tabular">{clock.format(entry.startedAtMs)}</span>
+            <span class="what">{entry.operation}</span>
+            <span class="where truncate">{repoName(entry)}</span>
             <span class="cmd mono truncate">{entry.command}</span>
             <span class="meta tabular">{entry.exitCode ?? "?"} · {entry.durationMs} ms</span>
           </button>
-          {#if expanded.has(id)}
-            {#each [entry.stdout, entry.stderr] as stream, which (which)}
-              {#if stream.trim() !== ""}
-                <pre class="stream mono">{#each highlightStream(stream) as line, at (at)}<span
-                      class="ln {line.kind}">{line.text}</span
-                    >{/each}</pre>
-              {/if}
-            {/each}
-          {/if}
         </div>
       {/each}
     </div>
@@ -152,15 +141,27 @@
     background: var(--state-hover);
   }
 
-  .caret {
+  .when {
     flex: 0 0 auto;
-    width: 10px;
+    color: var(--text-secondary);
+    font-size: 10px;
+  }
+
+  .what {
+    flex: 0 0 auto;
+    min-width: 72px;
+  }
+
+  .where {
+    flex: 0 1 140px;
+    min-width: 0;
     color: var(--text-secondary);
   }
 
   .cmd {
     flex: 1 1 auto;
     min-width: 0;
+    color: var(--text-secondary);
   }
 
   .meta {
@@ -169,37 +170,11 @@
     font-size: 10px;
   }
 
-  .entry.failed .cmd {
+  .entry.failed .what {
     color: var(--status-delete);
   }
 
-  .entry.warned .cmd {
-    color: var(--status-modify);
-  }
-
-  /* Raw Git output is never reformatted or truncated (INV-05). */
-  .stream {
-    margin: 0 var(--sp-5) var(--sp-3) calc(var(--sp-5) + 13px);
-    padding: var(--sp-3);
-    background: var(--surface-input);
-    border-radius: var(--r-sm);
-    font-size: var(--fs-code);
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    user-select: text;
-  }
-
-  /* One block per line, so a blank line keeps its height without a literal newline. */
-  .ln {
-    display: block;
-    min-height: 1em;
-  }
-
-  .ln.error {
-    color: var(--status-delete);
-  }
-
-  .ln.warning {
+  .entry.warned .what {
     color: var(--status-modify);
   }
 
