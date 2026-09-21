@@ -14,13 +14,15 @@
     empty?: string;
     /** Something changed on disk and this panel has not caught up yet. */
     stale?: boolean;
+    /** The panel the keyboard is talking to; its header says so (issue 15). */
+    active?: boolean;
   }
 
-  let { title, count, actions, children, empty, stale = false }: Props = $props();
+  let { title, count, actions, children, empty, stale = false, active = false }: Props = $props();
 </script>
 
 <section class="panel">
-  <header class="panel-header">
+  <header class="panel-header" class:active>
     <h2 class="panel-title">
       {title}{#if count}&nbsp;({count}){/if}
     </h2>
@@ -70,6 +72,15 @@
     padding: 0 var(--sp-5);
     background: var(--surface-raised);
     border-bottom: 1px solid var(--divider);
+  }
+
+  .panel-header.active {
+    background: var(--state-selected);
+    box-shadow: inset 2px 0 0 var(--status-ref);
+  }
+
+  .panel-header.active .panel-title {
+    color: var(--text-primary);
   }
 
   .panel-title {

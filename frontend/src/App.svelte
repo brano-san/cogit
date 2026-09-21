@@ -30,6 +30,7 @@
   import { shortOid } from "$lib/format";
   import { checkedIds, disabledIds, type PaletteCommand } from "$lib/palette";
   import { reasonFor, type Context } from "$lib/availability";
+  import { allowsSelectAll, settle, step } from "$lib/panel-focus";
   import { pullRequestUrl } from "$lib/pull-request";
   import { commitScope } from "$lib/commit-scope";
   import { activity, applyOperation } from "$lib/operations";
@@ -146,6 +147,11 @@
 
   /** Maximising acts on the panel the pointer last entered; there is no focus ring yet. */
   let focused = $state<PanelId>("graph");
+
+  $effect(() => {
+    const landed = settle(focused, (panel) => layout.visible(panel));
+    if (landed !== focused) focused = landed;
+  });
   let running = $state.raw<Map<number, string>>(new Map());
   let info = $state<AppInfo | null>(null);
   let opening = $state(false);
@@ -658,11 +664,37 @@ Log: ${info?.logPath ?? ""}`),
 
   // Accords that appear in the native menu are owned by it: handling them here too
   // would run the command twice for one keypress.
+  /** True while the keystroke belongs to whatever the user is typing in. */
+  function typing(event: KeyboardEvent): boolean {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return false;
+    return (
+      target.isContentEditable ||
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLSelectElement
+    );
+  }
+
   function onkeydown(event: KeyboardEvent) {
     if (event.key === "Escape") {
       settingsOpen = false;
       paletteOpen = false;
       finderOpen = false;
+      return;
+    }
+
+    // F6 walks the panels. Ctrl+Tab is left to the window: the menu agent owns the
+    // accelerators, and browsers and hosts both claim that pair (issue 15).
+    if (event.key === "F6") {
+      event.preventDefault();
+      focused = step(focused, (panel) => layout.visible(panel), event.shiftKey ? -1 : 1);
+      return;
+    }
+
+    // Select All belongs to the focused panel, and the graph declines it on purpose.
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a" && !typing(event)) {
+      if (!allowsSelectAll(focused)) event.preventDefault();
     }
   }
 
@@ -2038,10 +2070,11 @@ Log: ${info?.logPath ?? ""}`),
         style:flex={shown.refs ? `0 0 ${fractions.repositories * 100}%` : undefined}
         role="region"
         aria-label={PANEL_TITLES.repositories}
-        onpointerenter={() => (focused = "repositories")}
+        onpointerdown={() => (focused = "repositories")}
       >
         <Panel
           title="Repositories"
+          active={focused === "repositories"}
           count={repository.openRepos.length}
           stale={stale.has("repositories")}
         >
@@ -2080,9 +2113,10 @@ Log: ${info?.logPath ?? ""}`),
       {#if shown.refs}
       <div class="pane grow" role="region"
         aria-label={PANEL_TITLES.refs}
-        onpointerenter={() => (focused = "refs")}>
+        onpointerdown={() => (focused = "refs")}>
         <Panel
           title="Branches"
+          active={focused === "refs"}
           stale={stale.has("refs")}
           count={repo?.branches.length}
           empty={repo ? undefined : "No repository open."}
@@ -2137,10 +2171,11 @@ Log: ${info?.logPath ?? ""}`),
           style:flex={shown.files ? `0 0 ${fractions.graph * 100}%` : undefined}
           role="region"
         aria-label={PANEL_TITLES.graph}
-        onpointerenter={() => (focused = "graph")}
+        onpointerdown={() => (focused = "graph")}
         >
           <Panel
             title="Graph &amp; History"
+            active={focused === "graph"}
             count={graph.rows.length}
             stale={stale.has("graph")}
           >
@@ -2190,9 +2225,10 @@ Log: ${info?.logPath ?? ""}`),
           style:flex={shown.commit && onWorkingTree ? `0 0 ${fractions.commitBox * 100}%` : undefined}
           role="region"
           aria-label={PANEL_TITLES.files}
-          onpointerenter={() => (focused = "files")}>
+          onpointerdown={() => (focused = "files")}>
           <Panel
             title="Files"
+            active={focused === "files"}
             count={onWorkingTree ? worktree.total : commit.files.length}
             stale={stale.has("files")}
           >
@@ -2234,9 +2270,10 @@ Log: ${info?.logPath ?? ""}`),
         {#if shown.commit && onWorkingTree}
         <div class="pane grow" role="region"
           aria-label={PANEL_TITLES.commit}
-          onpointerenter={() => (focused = "commit")}>
+          onpointerdown={() => (focused = "commit")}>
           <Panel
             title="Commit Message"
+            active={focused === "commit"}
             count={worktree.staged.length}
             stale={stale.has("commit")}
           >
@@ -2262,8 +2299,8 @@ Log: ${info?.logPath ?? ""}`),
       {#if shown.diff}
       <div class="pane grow" role="region"
         aria-label={PANEL_TITLES.diff}
-        onpointerenter={() => (focused = "diff")}>
-        <Panel title="Diff" stale={stale.has("diff")}>
+        onpointerdown={() => (focused = "diff")}>
+        <Panel title="Diff" active={focused === "diff"} stale={stale.has("diff")}>
           <DiffPanel
             onstage={(selected, reverse) => void stageLines(selected, reverse)}
             onblame={() => void showBlame()}
