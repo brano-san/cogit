@@ -35,6 +35,7 @@ const VIEW: &[Entry] = &[
     Entry::Check("panel-diff", "Diff Panel", Some("CmdOrCtrl+6")),
     Entry::Separator,
     Entry::Check("overlap", "Commit Overlap Column", None),
+    Entry::Check("avatars", "Author Avatars", None),
     Entry::Separator,
     Entry::Check("perspective-main", "Perspective: Main", None),
     Entry::Check("perspective-review", "Perspective: Review", None),

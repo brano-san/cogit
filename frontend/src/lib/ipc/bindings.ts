@@ -86,6 +86,16 @@ export const commands = {
 	addWorktree: (repo: RepoId, path: string, branch: string, create: boolean) => typedError<null, GitError>(__TAURI_INVOKE("add_worktree", { repo, path, branch, create })),
 	removeWorktree: (repo: RepoId, path: string, force: boolean) => typedError<null, GitError>(__TAURI_INVOKE("remove_worktree", { repo, path, force })),
 	pruneWorktrees: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("prune_worktrees", { repo })),
+	/**
+	 *  The authors on screen. Returns at once with whatever is already cached; anything
+	 *  missing is queued and announced later through `AvatarReady` (M14 T14.2).
+	 */
+	avatars: (authors: Author[]) => typedError<AvatarRow[], GitError>(__TAURI_INVOKE("avatars", { authors })),
+	/**
+	 *  Turning avatars on is also what creates the cache directory: off means no directory,
+	 *  no request and no address leaving the machine (M14 T14.3).
+	 */
+	setAvatars: (enabled: boolean) => typedError<null, GitError>(__TAURI_INVOKE("set_avatars", { enabled })),
 	/**  The terminals this platform can offer, for the settings dropdown. */
 	terminalChoices: () => __TAURI_INVOKE<TerminalChoice[]>("terminal_choices"),
 	/**
@@ -157,6 +167,7 @@ export const commands = {
 
 /** Events */
 export const events = {
+	avatarReady: makeEvent<AvatarReady>("avatar-ready"),
 	menuCommand: makeEvent<MenuCommand>("menu-command"),
 	operationChanged: makeEvent<OperationChanged>("operation-changed"),
 	repoChanged: makeEvent<RepoChanged>("repo-changed"),
@@ -170,6 +181,24 @@ export type AppInfo = {
 	version: string,
 	logPath: string,
 	debugBuild: boolean,
+};
+
+export type Author = {
+	name: string,
+	email: string,
+};
+
+/**  Mirrors `app_state::AppEvent::AvatarReady`: one row can redraw without a refetch. */
+export type AvatarReady = {
+	email: string,
+};
+
+export type AvatarRow = {
+	email: string,
+	initials: string,
+	color: string,
+	/**  A `data:` URL, so the webview needs no access to the cache directory. */
+	image: string | null,
 };
 
 export type BlameLine = {

@@ -1,7 +1,9 @@
+mod avatars;
 mod credentials;
 pub mod logging;
 pub mod terminal;
 
+pub use avatars::{Author, AvatarRow, Avatars};
 pub use credentials::{
     KeyringStore, MemoryStore, SecretError, SecretStore, host_of, platform_store,
 };
@@ -45,6 +47,9 @@ pub enum AppEvent {
     OperationFinished {
         id: u32,
         success: bool,
+    },
+    AvatarReady {
+        email: String,
     },
 }
 
@@ -190,6 +195,7 @@ pub struct AppState {
     safety: RwLock<Vec<SafetyEntry>>,
     next_entry_id: AtomicU32,
     secrets: Box<dyn SecretStore>,
+    pictures: RwLock<Option<Avatars>>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -221,6 +227,7 @@ impl AppState {
             safety: RwLock::new(Vec::new()),
             next_entry_id: AtomicU32::new(1),
             secrets: platform_store(),
+            pictures: RwLock::new(None),
         }
     }
 
@@ -230,6 +237,41 @@ impl AppState {
         Self {
             secrets,
             ..Self::new()
+        }
+    }
+
+    /// Turning avatars on is what creates the cache directory; `off` never gets here.
+    pub fn enable_avatars(&self, dir: std::path::PathBuf) -> Result<(), ::avatars::CacheError> {
+        self.enable_avatars_with(dir, std::sync::Arc::new(::avatars::Gravatar::new()))
+    }
+
+    pub fn enable_avatars_with<S: ::avatars::Source>(
+        &self,
+        dir: std::path::PathBuf,
+        source: std::sync::Arc<S>,
+    ) -> Result<(), ::avatars::CacheError> {
+        let service = Avatars::new(dir, source, self.events.clone())?;
+        *self.pictures.write() = Some(service);
+        Ok(())
+    }
+
+    pub fn disable_avatars(&self) {
+        *self.pictures.write() = None;
+    }
+
+    /// The authors visible right now: the answer is immediate, pictures catch up later.
+    #[must_use]
+    pub fn avatars(&self, authors: &[Author]) -> Vec<AvatarRow> {
+        match self.pictures.read().as_ref() {
+            Some(service) => service.rows(authors),
+            None => avatars::rows_without_pictures(authors),
+        }
+    }
+
+    /// Tests only: waits for the queue to settle so an assertion is not a race.
+    pub fn drain_avatars(&self) {
+        if let Some(service) = self.pictures.read().as_ref() {
+            service.drain();
         }
     }
 

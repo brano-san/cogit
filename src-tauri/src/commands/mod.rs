@@ -11,6 +11,7 @@ use git_engine::{
 };
 use serde::Serialize;
 use std::path::PathBuf;
+use tauri::Manager as _;
 
 /// specta follows serde, so a DTO without `camelCase` reads `undefined` in the UI.
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -1263,3 +1264,44 @@ pub async fn install_preset(
 }
 
 // ─── everything below this line belongs to the diff-merge branch; master appends above ───
+
+/// The authors on screen. Returns at once with whatever is already cached; anything
+/// missing is queued and announced later through `AvatarReady` (M14 T14.2).
+#[tauri::command]
+#[specta::specta]
+pub async fn avatars(
+    state: tauri::State<'_, crate::AppContext>,
+    authors: Vec<app_state::Author>,
+) -> Result<Vec<app_state::AvatarRow>, GitError> {
+    let state = state.state.clone();
+    blocking("avatars", move || Ok(state.avatars(&authors))).await
+}
+
+/// Turning avatars on is also what creates the cache directory: off means no directory,
+/// no request and no address leaving the machine (M14 T14.3).
+#[tauri::command]
+#[specta::specta]
+pub async fn set_avatars(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, crate::AppContext>,
+    enabled: bool,
+) -> Result<(), GitError> {
+    let state = state.state.clone();
+    if !enabled {
+        state.disable_avatars();
+        return Ok(());
+    }
+
+    let dir = app
+        .path()
+        .app_cache_dir()
+        .map_err(|err| GitError::Io(format!("no cache directory: {err}")))?
+        .join("avatars");
+
+    blocking("set_avatars", move || {
+        state
+            .enable_avatars(dir)
+            .map_err(|err| GitError::Io(err.to_string()))
+    })
+    .await
+}

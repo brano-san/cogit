@@ -2,6 +2,8 @@ import { Channel } from "@tauri-apps/api/core";
 
 import { commands, events } from "./bindings";
 import type {
+  Author,
+  AvatarReady,
   CheckoutTarget,
   CommitQuery,
   CommitRequest,
@@ -37,6 +39,9 @@ export type {
   CommitRequest,
   CommitRow,
   ConflictSide,
+  Author,
+  AvatarReady,
+  AvatarRow,
   ContextItem,
   DiffOptions,
   DiffRow,
@@ -581,6 +586,20 @@ export async function overlapWindow(repo: RepoId, base: string, window: string[]
 
 export async function bypassLog(repo: RepoId) {
   return unwrap(await commands.bypassLog(repo));
+}
+
+/** The authors on screen. Returns at once; pictures not cached yet arrive as events. */
+export async function avatarsFor(authors: Author[]) {
+  return unwrap(await commands.avatars(authors));
+}
+
+export async function setAvatars(enabled: boolean) {
+  return unwrap(await commands.setAvatars(enabled));
+}
+
+/** Fires when one author's picture has landed in the cache and the row can redraw. */
+export async function onAvatarReady(handler: (event: AvatarReady) => void) {
+  return await events.avatarReady.listen((event) => handler(event.payload));
 }
 
 /** Fires when a tracked operation starts or finishes; drives the toolbar spinner. */

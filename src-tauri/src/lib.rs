@@ -30,6 +30,13 @@ pub struct RepoChanged {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
 pub struct MenuCommand(pub String);
 
+/// Mirrors `app_state::AppEvent::AvatarReady`: one row can redraw without a refetch.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
+#[serde(rename_all = "camelCase")]
+pub struct AvatarReady {
+    pub email: String,
+}
+
 /// Mirrors `app_state::AppEvent::Operation*`, for the spinner in the toolbar.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
 #[serde(rename_all = "camelCase")]
@@ -48,7 +55,12 @@ pub struct AppContext {
 
 fn specta_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new()
-        .events(collect_events![RepoChanged, MenuCommand, OperationChanged])
+        .events(collect_events![
+            RepoChanged,
+            MenuCommand,
+            OperationChanged,
+            AvatarReady
+        ])
         .commands(collect_commands![
             commands::app_info,
             commands::open_repository,
@@ -116,6 +128,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::add_worktree,
             commands::remove_worktree,
             commands::prune_worktrees,
+            commands::avatars,
+            commands::set_avatars,
             commands::terminal_choices,
             commands::open_in_terminal,
             commands::set_menu_state,
@@ -224,6 +238,9 @@ fn forward_repo_changes(app: tauri::AppHandle, state: &Arc<AppState>) {
             match event {
                 app_state::AppEvent::RepoChanged { repo, kind } => {
                     let _ = RepoChanged { repo, kind }.emit(&app);
+                }
+                app_state::AppEvent::AvatarReady { email } => {
+                    let _ = AvatarReady { email }.emit(&app);
                 }
                 app_state::AppEvent::OperationStarted { id, label } => {
                     let _ = OperationChanged {
