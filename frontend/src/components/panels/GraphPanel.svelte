@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EmptyState from "$components/common/EmptyState.svelte";
   import CommitList from "$components/graph/CommitList.svelte";
   import PauseCheckBar from "$components/graph/PauseCheckBar.svelte";
   import type { HookRun, RebaseProgress } from "$lib/ipc";
@@ -27,14 +28,8 @@
   {/if}
   <CommitList rebase={progress} {ondrop} {oncontext} {onref} />
 {:else}
-  <p class="note">Open a repository to see its history.</p>
+  <EmptyState
+    title="No history to show"
+    hint="Open a repository and its commits appear here."
+  />
 {/if}
-
-<style>
-  .note {
-    margin: 0;
-    padding: var(--sp-5);
-    font-size: var(--fs-dense);
-    color: var(--text-secondary);
-  }
-</style>

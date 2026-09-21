@@ -1,5 +1,7 @@
 <script lang="ts">
+  import Tree from "$components/common/Tree.svelte";
   import { CATEGORIES, firstMatch, matchingCategories, restoreCategory } from "$lib/preferences";
+  import type { TreeNode } from "$lib/tree";
   import { needsRestart, DEFAULT_SETTINGS, type Settings } from "$lib/settings";
   import type { Keymap } from "$lib/keymap";
   import type { KeyBinding } from "$lib/ipc";
@@ -76,12 +78,16 @@
   let collapsed = $state.raw<ReadonlySet<string>>(new Set());
 
   const visible = $derived(matchingCategories(search));
-  const rows = $derived(
-    CATEGORIES.filter(
-      (category) =>
-        visible.includes(category.id) &&
-        (category.parent === undefined || !collapsed.has(category.parent)),
-    ),
+  const nodes = $derived(
+    CATEGORIES.filter((category) => visible.includes(category.id)).map<
+      TreeNode & { title: string; leaf: boolean }
+    >((category) => ({
+      id: category.id,
+      depth: category.parent === undefined ? 0 : 1,
+      children: category.parent === undefined ? true : undefined,
+      title: category.title,
+      leaf: category.parent !== undefined,
+    })),
   );
   const current = $derived(CATEGORIES.find((category) => category.id === active));
   const dirty = $derived(
@@ -99,12 +105,6 @@
 
   function set<K extends keyof Settings>(key: K, next: Settings[K]) {
     draft = { ...draft, [key]: next };
-  }
-
-  function fold(id: string) {
-    const next = new Set(collapsed);
-    if (!next.delete(id)) next.add(id);
-    collapsed = next;
   }
 
   function onsearch(text: string) {
@@ -143,23 +143,26 @@
         aria-label="Search settings"
       />
       <div class="tree">
-        {#each rows as category (category.id)}
-          <button
-            type="button"
-            class="nav-row"
-            class:heading={category.parent === undefined}
-            class:active={active === category.id}
-            style:padding-left={category.parent === undefined ? "var(--sp-4)" : "var(--sp-7)"}
-            onclick={() =>
-              category.parent === undefined ? fold(category.id) : (active = category.id)}
-          >
-            {#if category.parent === undefined}
-              <span class="caret" aria-hidden="true">{collapsed.has(category.id) ? "▸" : "▾"}</span>
-            {/if}
-            <span class="truncate">{category.title}</span>
-          </button>
-        {/each}
-        {#if rows.length === 0}
+        <Tree
+          {nodes}
+          {collapsed}
+          oncollapse={(next) => (collapsed = next)}
+          label="Settings categories"
+        >
+          {#snippet row(node)}
+            <button
+              type="button"
+              class="nav-row"
+              class:heading={!node.leaf}
+              class:active={active === node.id}
+              disabled={!node.leaf}
+              onclick={() => (active = node.id)}
+            >
+              <span class="truncate">{node.title}</span>
+            </button>
+          {/snippet}
+        </Tree>
+        {#if nodes.length === 0}
           <p class="empty">No setting matches that.</p>
         {/if}
       </div>
@@ -497,10 +500,6 @@
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-  }
-
-  .caret {
-    font-size: 9px;
   }
 
   .content {

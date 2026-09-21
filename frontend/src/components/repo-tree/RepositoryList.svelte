@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EmptyState from "$components/common/EmptyState.svelte";
   import { applyClick, EMPTY_SELECTION, type FileSelection } from "$lib/multi-select";
   import { UNGROUPED, groupRows } from "$lib/repo-groups";
   import type { RepoOverview } from "$lib/ipc";
@@ -85,7 +86,12 @@
     {#if repository.error}
       <p class="error">{repository.error.message}</p>
     {:else}
-      <p class="empty">No repository open.</p>
+      <EmptyState
+        title="No repository open"
+        hint="Open a folder that holds a Git repository, or scan a directory for several at once."
+        action="Open Repository…"
+        onaction={onopen}
+      />
     {/if}
   {:else}
     {#each rows as row (row.kind === "group" ? `g:${row.id}` : row.root)}
@@ -332,15 +338,10 @@
     color: var(--status-delete);
   }
 
-  .empty,
   .error {
     margin: 0;
     padding: var(--sp-4) var(--sp-5);
     font-size: var(--fs-dense);
-    color: var(--text-secondary);
-  }
-
-  .error {
     color: var(--status-delete);
     user-select: text;
   }
