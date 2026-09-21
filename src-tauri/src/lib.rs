@@ -128,6 +128,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::add_worktree,
             commands::remove_worktree,
             commands::prune_worktrees,
+            commands::merge_preview,
             commands::avatars,
             commands::set_avatars,
             commands::terminal_choices,

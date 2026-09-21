@@ -162,6 +162,10 @@
 
 Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.
 
+| F-214 | Четырёхпанельное слияние | [F-214-four-panel-merge.md](F-214-four-panel-merge.md) |
+| F-215 | Автоматически разрешённые участки помечены | [F-215-auto-resolved-marked.md](F-215-auto-resolved-marked.md) |
+| F-216 | Ctrl+S сохраняет разрешение | [F-216-merge-save-shortcut.md](F-216-merge-save-shortcut.md) |
+
 <!-- ─── ниже дописывает ветка diff-merge; master вставляет выше ─── -->
 
 | F-200 | Отсутствие финального перевода строки видно в diff | [F-200-final-newline.md](F-200-final-newline.md) |

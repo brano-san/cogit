@@ -1397,3 +1397,18 @@ pub async fn file_before(
     })
     .await
 }
+
+/// The three sides merged into regions, for the four-panel view (doc/08-diff-engine.md §8).
+#[tauri::command]
+#[specta::specta]
+pub async fn merge_preview(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    path: String,
+) -> Result<Vec<diff_engine::Region>, GitError> {
+    let app_state = state.state.clone();
+    blocking("merge_preview", move || {
+        app_state.merge_preview(repo, &path)
+    })
+    .await
+}

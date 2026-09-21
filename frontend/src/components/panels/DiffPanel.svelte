@@ -1,6 +1,7 @@
 <script lang="ts">
   import BlameView from "$components/diff/BlameView.svelte";
   import ConflictView from "$components/diff/ConflictView.svelte";
+  import MergeView from "$components/diff/MergeView.svelte";
   import DiffView from "$components/diff/DiffView.svelte";
   import ImageDiff from "$components/diff/ImageDiff.svelte";
   import type { ConflictSide, Whitespace } from "$lib/ipc";
@@ -35,7 +36,14 @@
   }: Props = $props();
 </script>
 
-{#if conflicts.path}
+{#if conflicts.path && conflicts.regions.length > 0}
+  <MergeView
+    path={conflicts.path}
+    regions={conflicts.regions}
+    onsave={(text) => onresolveText(text)}
+    oncancel={() => conflicts.close()}
+  />
+{:else if conflicts.path}
   <ConflictView
     path={conflicts.path}
     base={conflicts.base}
