@@ -5,13 +5,14 @@
     flatten,
     gapBetween,
     pairRows,
-    searchRows,
-    stepHit,
     type ConnectorRow,
     type FlatEntry,
     type SearchRow,
     type SideCell,
   } from "$lib/diff-rows";
+  import { DiffSearch } from "$lib/diff-search.svelte";
+  import { BAND_WIDTH, bandLeft, ribbonPath, ribbonsNear } from "$lib/diff-band";
+  import DiffFindBar from "./DiffFindBar.svelte";
   import { highlightLines, mergePieces, type Token } from "$lib/highlight";
   import { hunkSelection, lineKey, selectedRange, toggleLine } from "$lib/selection";
   import InvestigateView from "./InvestigateView.svelte";
@@ -53,18 +54,12 @@
   const ROW_HEIGHT = 18;
   const BUFFER_ROWS = 12;
   /** Must match `.num` and `.band` in the stylesheet: the overlay is positioned by hand. */
-  const NUM_WIDTH = 44;
-  const BAND_WIDTH = 28;
+
 
   const mode = $derived(diffStore.layout);
-  let finding = $state(false);
-  let query = $state("");
+  let findBar: ReturnType<typeof DiffFindBar> | undefined = $state();
   /** The scan walks every row of the file. At typing speed that is a frame lost per
       letter on a large diff, so the search runs on what was typed a moment ago. */
-  let applied = $state("");
-  const SEARCH_DELAY_MS = 120;
-  let hitAt = $state(0);
-  let findBox: HTMLInputElement | undefined = $state();
   let scroller: HTMLDivElement | undefined = $state();
   let scrollTop = $state(0);
   let viewportHeight = $state(0);
@@ -132,9 +127,7 @@
 
   let rowsWidth = $state(0);
 
-  /** `[num][code][band][num][code]` with equal code columns puts the band dead centre.
-      Every part is `border-box`, so the widths in the stylesheet are the real ones. */
-  const bandLeft = $derived(Math.max((rowsWidth - BAND_WIDTH) / 2, NUM_WIDTH));
+  const left = $derived(bandLeft(rowsWidth));
 
   /** Computed once per diff. Scrolling only filters it — walking every row on each frame
       would cost the 60 FPS the product promises. */
@@ -144,25 +137,9 @@
     return connectors(rows);
   });
 
-  /** Only what is near the viewport is drawn; the band is as tall as the whole file. */
-  const ribbons = $derived.by(() => {
-    const from = range.start - BUFFER_ROWS;
-    const to = range.end + BUFFER_ROWS;
-    return allRibbons.filter(
-      (c) => Math.max(c.fromBottom, c.toBottom) >= from && Math.min(c.fromTop, c.toTop) <= to,
-    );
-  });
-
-  /** A closed ribbon: down the left edge, across on a curve, back up the right edge. */
-  function ribbonPath(c: { fromTop: number; fromBottom: number; toTop: number; toBottom: number }) {
-    const w = BAND_WIDTH;
-    const bend = w / 2;
-    const a = c.fromTop * ROW_HEIGHT;
-    const b = (c.fromBottom + 1) * ROW_HEIGHT;
-    const x = c.toTop * ROW_HEIGHT;
-    const y = (c.toBottom + 1) * ROW_HEIGHT;
-    return `M 0 ${a} C ${bend} ${a} ${bend} ${x} ${w} ${x} L ${w} ${y} C ${bend} ${y} ${bend} ${b} 0 ${b} Z`;
-  }
+  const ribbons = $derived(
+    ribbonsNear(allRibbons, range.start - BUFFER_ROWS, range.end + BUFFER_ROWS),
+  );
 
   /** Only code is searchable: a hit on a hunk header would scroll to nothing useful. */
   const searchTexts = $derived.by<SearchRow[]>(() => {
@@ -177,58 +154,16 @@
     );
   });
 
-  $effect(() => {
-    const text = query;
-    if (text === applied) return;
-    const timer = setTimeout(() => (applied = text), SEARCH_DELAY_MS);
-    return () => clearTimeout(timer);
-  });
-
-  const hits = $derived(searchRows(searchTexts, applied));
-  const currentHit = $derived(hits[hitAt] ?? null);
-
-  const hitSpans = $derived.by(() => {
-    const byCell = new Map<string, [number, number][]>();
-    for (const hit of hits) {
-      const key = `${hit.index}:${hit.side}`;
-      const spans = byCell.get(key) ?? [];
-      spans.push([hit.from, hit.to]);
-      byCell.set(key, spans);
-    }
-    return byCell;
-  });
-
-  function spansFor(index: number, side: "left" | "right"): [number, number][] {
-    return hitSpans.get(`${index}:${side}`) ?? [];
-  }
-
-  /** The one hit the counter is pointing at, told apart from the rest it looks like. */
-  function isCurrent(index: number, side: "left" | "right", start: number): boolean {
-    if (!currentHit || currentHit.index !== index || currentHit.side !== side) return false;
-    return start >= currentHit.from && start < currentHit.to;
-  }
+  const find = new DiffSearch(() => searchTexts);
 
   function scrollToRow(index: number) {
     if (!scroller) return;
     scroller.scrollTop = Math.max(index * ROW_HEIGHT - Math.floor(viewportHeight / 2), 0);
   }
 
-  function goHit(delta: number) {
-    if (hits.length === 0) return;
-    hitAt = stepHit(hits, hitAt, delta);
-    const hit = hits[hitAt];
-    if (hit) scrollToRow(hit.index);
-  }
-
   function openFind() {
-    finding = true;
-    queueMicrotask(() => findBox?.select());
-  }
-
-  function closeFind() {
-    finding = false;
-    query = "";
-    applied = "";
+    find.open();
+    queueMicrotask(() => findBar?.focus());
   }
 
   /** Lines the diff is not showing above each hunk, for the expander. */
@@ -312,7 +247,7 @@
         : cell.kind === "insert"
           ? ({ kind: "insert", new: cell.line, text: cell.text, inline: cell.inline } as const)
           : ({ kind: "context", old: cell.line, new: cell.line, text: cell.text } as const);
-    return mergePieces(cell.text, tokensFor(row), cell.inline, spansFor(index, side));
+    return mergePieces(cell.text, tokensFor(row), cell.inline, find.spansFor(index, side));
   }
 
   function jump(delta: number) {
@@ -340,17 +275,9 @@
     } else if (tracing && event.key === "Escape") {
       event.preventDefault();
       tracing = null;
-    } else if (finding && event.key === "Escape") {
+    } else if (find.showing && event.key === "Escape") {
       event.preventDefault();
-      closeFind();
-    }
-  }
-
-  /** Enter walks the hits; the input keeps the key to itself so the page does not scroll. */
-  function onfindkey(event: KeyboardEvent) {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      goHit(event.shiftKey ? -1 : 1);
+      find.close();
     }
   }
 
@@ -370,17 +297,17 @@
   $effect(() => {
     void path;
     current = 0;
-    hitAt = 0;
+    find.rewind();
     selected = new Set();
     if (scroller) scroller.scrollTop = 0;
   });
 
   /** Typing lands on the first hit. `untrack` keeps a resize from re-scrolling the view. */
   $effect(() => {
-    void applied;
+    void find.applied;
     untrack(() => {
-      hitAt = 0;
-      const first = hits[0];
+      find.rewind();
+      const first = find.hits[0];
       if (first) scrollToRow(first.index);
     });
   });
@@ -427,9 +354,9 @@
       <button type="button" onclick={() => jump(1)} title="Next change (F6)">▼</button>
       <button
         type="button"
-        class:active={finding}
+        class:active={find.showing}
         title="Search inside this diff (Ctrl+F)"
-        onclick={() => (finding ? closeFind() : openFind())}>Find</button
+        onclick={() => (find.showing ? find.close() : openFind())}>Find</button
       >
       {#if stageable}
         <span class="picked tabular">{selected.size ? `${selected.size} selected` : ""}</span>
@@ -500,40 +427,8 @@
     </div>
   {/if}
 
-  {#if finding && diff.kind === "text"}
-    <div class="find">
-      <input
-        bind:this={findBox}
-        bind:value={query}
-        type="search"
-        placeholder="Find in diff"
-        spellcheck="false"
-        aria-label="Find in diff"
-        onkeydown={onfindkey}
-      />
-      <span class="count tabular">
-        {#if applied.trim() === ""}
-          &nbsp;
-        {:else if hits.length === 0}
-          no matches
-        {:else}
-          {hitAt + 1} / {hits.length}
-        {/if}
-      </span>
-      <button
-        type="button"
-        disabled={hits.length === 0}
-        title="Previous match (Shift+Enter)"
-        onclick={() => goHit(-1)}>▲</button
-      >
-      <button
-        type="button"
-        disabled={hits.length === 0}
-        title="Next match (Enter)"
-        onclick={() => goHit(1)}>▼</button
-      >
-      <button type="button" title="Close (Escape)" onclick={closeFind}>✕</button>
-    </div>
+  {#if find.showing && diff.kind === "text"}
+    <DiffFindBar bind:this={findBar} {find} reveal={scrollToRow} />
   {/if}
 
   {#if diff.kind === "unchanged"}
@@ -559,13 +454,13 @@
         {#if mode === "split" && ribbons.length > 0}
           <svg
             class="band"
-            style:left="{bandLeft}px"
+            style:left="{left}px"
             width={BAND_WIDTH}
             height={total * ROW_HEIGHT}
             aria-hidden="true"
           >
             {#each ribbons as ribbon, i (i)}
-              <path class="ribbon" class:moved={ribbon.moved} d={ribbonPath(ribbon)} />
+              <path class="ribbon" class:moved={ribbon.moved} d={ribbonPath(ribbon, ROW_HEIGHT)} />
             {/each}
           </svg>
         {/if}
@@ -603,10 +498,10 @@
                 <span class="num">{entry.row.old}</span>
                 <span class="num">{entry.row.new}</span>
                 <span class="code mono"
-                  > {#each mergePieces(entry.row.text, tokensFor(entry.row), [], spansFor(rowIndex, "left")) as piece, i (i)}<span
+                  > {#each mergePieces(entry.row.text, tokensFor(entry.row), [], find.spansFor(rowIndex, "left")) as piece, i (i)}<span
                       class={piece.cls}
                       class:hit={piece.hit}
-                      class:current={isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
+                      class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
                     >{/each}</span
                 >
               {:else if entry.row.kind === "delete"}
@@ -622,11 +517,11 @@
                 <span class="num">{entry.row.old}</span>
                 <span class="num"></span>
                 <span class="code mono del" class:moved={entry.row.moved}
-                  >−{#each mergePieces(entry.row.text, tokensFor(entry.row), entry.row.inline, spansFor(rowIndex, "left")) as piece, i (i)}<span
+                  >−{#each mergePieces(entry.row.text, tokensFor(entry.row), entry.row.inline, find.spansFor(rowIndex, "left")) as piece, i (i)}<span
                       class="{piece.cls}"
                       class:word={piece.changed}
                       class:hit={piece.hit}
-                      class:current={isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
+                      class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
                     >{/each}</span
                 >
               {:else if entry.row.kind === "insert"}
@@ -642,11 +537,11 @@
                 <span class="num"></span>
                 <span class="num">{entry.row.new}</span>
                 <span class="code mono add" class:moved={entry.row.moved}
-                  >+{#each mergePieces(entry.row.text, tokensFor(entry.row), entry.row.inline, spansFor(rowIndex, "left")) as piece, i (i)}<span
+                  >+{#each mergePieces(entry.row.text, tokensFor(entry.row), entry.row.inline, find.spansFor(rowIndex, "left")) as piece, i (i)}<span
                       class="{piece.cls}"
                       class:word={piece.changed}
                       class:hit={piece.hit}
-                      class:current={isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
+                      class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
                     >{/each}</span
                 >
               {/if}
@@ -669,7 +564,7 @@
                       class="{piece.cls}"
                       class:word={piece.changed}
                       class:hit={piece.hit}
-                      class:current={isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
+                      class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
                     >{/each}</span
                 >
                 <span class="gap"></span>
@@ -682,7 +577,7 @@
                       class="{piece.cls}"
                       class:word={piece.changed}
                       class:hit={piece.hit}
-                      class:current={isCurrent(rowIndex, "right", piece.start)}>{piece.text}</span
+                      class:current={find.isCurrent(rowIndex, "right", piece.start)}>{piece.text}</span
                     >{/each}</span
                 >
               {/if}
@@ -911,51 +806,6 @@
     border-radius: 2px;
     background: var(--c-neutral-soft);
     font-weight: 600;
-  }
-
-  .find {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-3);
-    flex: 0 0 auto;
-    padding: var(--sp-2) var(--sp-4);
-    border-bottom: 1px solid var(--divider);
-    background: var(--surface-raised);
-  }
-
-  .find input {
-    flex: 1 1 auto;
-    min-width: 0;
-    height: 22px;
-    padding: 0 var(--sp-3);
-    background: var(--surface-input);
-    color: var(--text-primary);
-    border: 1px solid var(--field-border);
-    border-radius: var(--r-sm);
-    font-size: var(--fs-dense);
-  }
-
-  .find button {
-    height: var(--h-button-sm);
-    padding: 0 var(--sp-3);
-    background: var(--surface-input);
-    color: var(--text-primary);
-    border: 1px solid var(--field-border);
-    border-radius: var(--r-sm);
-    font-size: var(--fs-dense);
-    cursor: default;
-  }
-
-  .find button:disabled {
-    color: var(--text-secondary);
-  }
-
-  .count {
-    flex: 0 0 auto;
-    min-width: 64px;
-    color: var(--text-secondary);
-    font-size: 11px;
-    text-align: right;
   }
 
   /* Every match is marked; the one the counter points at is the bright one. */
