@@ -84,6 +84,21 @@ pub enum CogitError {
 | `list_submodules` | `repo: RepoId` | `Vec<Submodule>` | M3 |
 | `list_worktrees` | `repo: RepoId` | `Vec<Worktree>` | M3 |
 
+### Хуки и пресеты (M10)
+
+| Команда | Вход | Выход | Модуль |
+|---|---|---|---|
+| `list_presets` | `repo: RepoId` | `Vec<PresetStatus>` | M10 |
+| `export_preset` | `repo, hook, id, name, description` | `()` | M10 |
+| `remove_preset` | `id: String` | `()` | M10 |
+
+`list_presets` теперь берёт репозиторий: `missingConfig` считается против его рабочего
+дерева, иначе предупреждение о `.clang-format` не с чем сверять. `user: true` отличает
+пресет, сохранённый пользователем, — только такой можно удалить.
+
+Обход хука (`--no-verify`) идёт в журнал обычной записью `GitOutput` с кодом 0 и строкой
+на `stderr`: панель Output помечает такие как предупреждения.
+
 ### Аватары (M14)
 
 | Команда | Вход | Выход | Модуль |

@@ -630,8 +630,23 @@ export async function stageMode(repo: RepoId, path: string, executable: boolean)
   return unwrap(await commands.stageMode(repo, path, executable));
 }
 
-export async function listPresets() {
-  return unwrap(await commands.listPresets());
+export async function listPresets(repo: RepoId) {
+  return unwrap(await commands.listPresets(repo));
+}
+
+/** Saves the hook as it stands as a preset of the user's own. */
+export async function exportPreset(
+  repo: RepoId,
+  hook: string,
+  id: string,
+  name: string,
+  description: string,
+) {
+  return unwrap(await commands.exportPreset(repo, hook, id, name, description));
+}
+
+export async function removePreset(id: string) {
+  return unwrap(await commands.removePreset(id));
 }
 
 export async function installPreset(repo: RepoId, id: string) {

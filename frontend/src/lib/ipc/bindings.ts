@@ -88,6 +88,9 @@ export const commands = {
 	pruneWorktrees: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("prune_worktrees", { repo })),
 	/**  The three sides merged into regions, for the four-panel view (doc/08-diff-engine.md §8). */
 	mergePreview: (repo: RepoId, path: string) => typedError<Region[], GitError>(__TAURI_INVOKE("merge_preview", { repo, path })),
+	/**  Saves the hook as it stands as a preset, so the next repository gets it in one click. */
+	exportPreset: (repo: RepoId, hook: string, id: string, name: string, description: string) => typedError<null, GitError>(__TAURI_INVOKE("export_preset", { repo, hook, id, name, description })),
+	removePreset: (id: string) => typedError<null, GitError>(__TAURI_INVOKE("remove_preset", { id })),
 	/**
 	 *  The authors on screen. Returns at once with whatever is already cached; anything
 	 *  missing is queued and announced later through `AvatarReady` (M14 T14.2).
@@ -163,7 +166,7 @@ export const commands = {
 	openCompareWindow: (url: string, title: string) => typedError<null, GitError>(__TAURI_INVOKE("open_compare_window", { url, title })),
 	commitTemplate: (repo: RepoId) => typedError<string | null, GitError>(__TAURI_INVOKE("commit_template", { repo })),
 	stageMode: (repo: RepoId, path: string, executable: boolean) => typedError<null, GitError>(__TAURI_INVOKE("stage_mode", { repo, path, executable })),
-	listPresets: () => typedError<PresetStatus[], GitError>(__TAURI_INVOKE("list_presets")),
+	listPresets: (repo: RepoId) => typedError<PresetStatus[], GitError>(__TAURI_INVOKE("list_presets", { repo })),
 	installPreset: (repo: RepoId, id: string) => typedError<null, GitError>(__TAURI_INVOKE("install_preset", { repo, id })),
 	/**  Every file of a commit in one round trip, diffed in parallel (doc/08-diff-engine.md §9). */
 	diffFiles: (repo: RepoId, spec: DiffSpec, paths: string[], options: DiffOptions, request: number) => typedError<DiffBatch, GitError>(__TAURI_INVOKE("diff_files", { repo, spec, paths, options, request })),
@@ -248,7 +251,7 @@ export type Bypass = {
 	at: number,
 };
 
-export type ChangeKind = "head" | "index" | "refs" | "workingTree" | "stash" | "config";
+export type ChangeKind = "head" | "index" | "refs" | "workingTree" | "stash" | "config" | "hooks";
 
 export type CheckoutTarget = { kind: "branch"; name: string } | { kind: "commit"; oid: string };
 
@@ -559,7 +562,6 @@ export type PatchRequest = {
 	noTrailingNewline: boolean,
 };
 
-/**  Flattened for the UI: the TOML shape belongs to the catalogue, not the webview. */
 export type PresetStatus = {
 	id: string,
 	name: string,
@@ -567,10 +569,16 @@ export type PresetStatus = {
 	description: string,
 	slow: boolean,
 	configFiles: string[],
+	/**
+	 *  The declared config files this repository does not have. A preset installed
+	 *  without them runs a tool that will pick up someone else's defaults.
+	 */
+	missingConfig: string[],
 	tool: string | null,
 	installHint: string | null,
 	/**  Where the tool was found, or `None` when it is not installed. */
 	toolPath: string | null,
+	user: boolean,
 };
 
 export type RebaseOptions = {

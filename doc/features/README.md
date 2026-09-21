@@ -166,6 +166,11 @@
 | F-215 | Автоматически разрешённые участки помечены | [F-215-auto-resolved-marked.md](F-215-auto-resolved-marked.md) |
 | F-216 | Ctrl+S сохраняет разрешение | [F-216-merge-save-shortcut.md](F-216-merge-save-shortcut.md) |
 
+| F-217 | Хук, изменённый снаружи, подхватывается | [F-217-hook-watch.md](F-217-hook-watch.md) |
+| F-218 | Предупреждение о недостающем конфиге пресета | [F-218-preset-missing-config.md](F-218-preset-missing-config.md) |
+| F-219 | Свои пресеты хуков | [F-219-user-presets.md](F-219-user-presets.md) |
+| F-220 | Обход хуков видно в Output | [F-220-bypass-in-output.md](F-220-bypass-in-output.md) |
+
 <!-- ─── ниже дописывает ветка diff-merge; master вставляет выше ─── -->
 
 | F-200 | Отсутствие финального перевода строки видно в diff | [F-200-final-newline.md](F-200-final-newline.md) |

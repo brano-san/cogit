@@ -591,6 +591,11 @@ Log: ${info?.logPath ?? ""}`),
       const id = repository.current?.repo;
       if (!id || id.valueOf() !== change.repo.valueOf()) return;
       // Only a ref move needs the full re-read; an index or worktree change moves counters.
+      // A hook edited outside Cogit is only interesting while the panel is open.
+      if (change.kind === "hooks") {
+        if (hooks.open) void hooks.refresh(id);
+        return;
+      }
       const movedRefs = change.kind === "head" || change.kind === "refs";
       void (movedRefs ? repository.refresh() : repository.refreshStatus());
       if (commit.oid === null) void worktree.load(id);
@@ -2255,6 +2260,24 @@ Log: ${info?.logPath ?? ""}`),
       oninstall={(id) => {
         const repo = repository.current?.repo;
         if (repo) void hooks.install(repo, id);
+      }}
+      onexport={(hook) => {
+        const repo = repository.current?.repo;
+        if (!repo) return;
+        prompt = {
+          title: "Save as preset",
+          label: `A name for the preset made from ${hook}`,
+          value: hook,
+          confirm: "Save",
+          run: (name) => {
+            prompt = null;
+            void hooks.export(repo, hook, name);
+          },
+        };
+      }}
+      onremovepreset={(id) => {
+        const repo = repository.current?.repo;
+        if (repo) void hooks.removeOwn(repo, id);
       }}
       onclose={() => hooks.close()}
     />

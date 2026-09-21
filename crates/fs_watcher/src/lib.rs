@@ -43,6 +43,7 @@ pub enum ChangeKind {
     WorkingTree,
     Stash,
     Config,
+    Hooks,
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -84,6 +85,9 @@ pub fn classify_git_path(relative: &str) -> Option<ChangeKind> {
     }
     if normalized == "refs/stash" || normalized.starts_with("logs/refs/stash") {
         return Some(ChangeKind::Stash);
+    }
+    if normalized == "hooks" || normalized.starts_with("hooks/") {
+        return Some(ChangeKind::Hooks);
     }
     if normalized.starts_with("refs/") || normalized == "packed-refs" {
         return Some(ChangeKind::Refs);
@@ -149,5 +153,44 @@ mod tests {
     #[test]
     fn unknown_paths_produce_no_event() {
         assert_eq!(classify_git_path("COMMIT_EDITMSG"), None);
+    }
+}
+
+#[cfg(test)]
+mod hook_tests {
+    use super::*;
+
+    #[test]
+    fn a_hook_file_is_its_own_kind() {
+        assert_eq!(
+            classify_git_path("hooks/pre-commit"),
+            Some(ChangeKind::Hooks)
+        );
+    }
+
+    #[test]
+    fn a_sample_is_a_hook_change_too_since_renaming_it_installs_it() {
+        assert_eq!(
+            classify_git_path("hooks/pre-push.sample"),
+            Some(ChangeKind::Hooks)
+        );
+    }
+
+    #[test]
+    fn the_hooks_directory_itself_counts() {
+        assert_eq!(classify_git_path("hooks"), Some(ChangeKind::Hooks));
+    }
+
+    #[test]
+    fn a_backslash_path_from_windows_is_recognised() {
+        assert_eq!(
+            classify_git_path(r"hooks\pre-commit"),
+            Some(ChangeKind::Hooks)
+        );
+    }
+
+    #[test]
+    fn a_path_that_merely_starts_with_the_word_is_not_a_hook() {
+        assert_eq!(classify_git_path("hooksomething"), None);
     }
 }

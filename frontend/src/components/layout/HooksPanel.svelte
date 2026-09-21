@@ -19,6 +19,8 @@
     showPresets: boolean;
     ontogglepresets: () => void;
     oninstall: (id: string) => void;
+    onexport: (hook: string) => void;
+    onremovepreset: (id: string) => void;
     onclose: () => void;
   }
 
@@ -40,6 +42,8 @@
     showPresets,
     ontogglepresets,
     oninstall,
+    onexport,
+    onremovepreset,
     onclose,
   }: Props = $props();
 
@@ -110,10 +114,21 @@
           <span class="name">{entry.name}</span>
           <span class="detail truncate">{entry.description}</span>
           <span class="badge">{entry.hook}</span>
+          {#if entry.user}<span class="badge mine">yours</span>{/if}
           {#if entry.tool && entry.toolPath === null}
             <span class="warn" title={entry.installHint ?? ""}>{entry.tool} not found</span>
           {/if}
+          {#if entry.missingConfig.length > 0}
+            <span
+              class="warn"
+              title="Without it the tool falls back to its own defaults, which are not this project's."
+              >no {entry.missingConfig.join(", ")}</span
+            >
+          {/if}
           <button type="button" onclick={() => oninstall(entry.id)}>Install</button>
+          {#if entry.user}
+            <button type="button" onclick={() => onremovepreset(entry.id)}>Remove</button>
+          {/if}
         </div>
       {/each}
     </div>
@@ -138,6 +153,9 @@
         {#each present as hook (hook.name)}
           <div class="row">
             <span class="name" class:off={hook.state === "disabled"}>{hook.name}</span>
+            <button type="button" class="act" title="Save this hook as a preset"
+              onclick={() => onexport(hook.name)}>Save as preset</button
+            >
             <span class="detail truncate">{hook.description}</span>
             {#if !hook.executable}
               <span class="warn" title="Git will not run a hook without the execution bit">
@@ -311,6 +329,11 @@
 
   .row:hover {
     background: var(--state-hover);
+  }
+
+  .badge.mine {
+    color: var(--status-ref);
+    border-color: var(--status-ref);
   }
 
   .row.preset .name {

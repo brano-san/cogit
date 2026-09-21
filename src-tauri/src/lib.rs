@@ -129,6 +129,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::remove_worktree,
             commands::prune_worktrees,
             commands::merge_preview,
+            commands::export_preset,
+            commands::remove_preset,
             commands::avatars,
             commands::set_avatars,
             commands::terminal_choices,
@@ -204,6 +206,9 @@ pub fn run() -> anyhow::Result<()> {
             );
 
             let state = Arc::new(AppState::new());
+            if let Ok(dir) = app.path().app_config_dir() {
+                state.use_preset_dir(dir.join("presets"));
+            }
             app.manage(AppContext {
                 state: Arc::clone(&state),
                 log_path: log_dir.join("cogit.log"),
