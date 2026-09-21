@@ -150,6 +150,15 @@ export const commands = {
 	reportTiming: (label: string, ms: number, detail: string) => __TAURI_INVOKE<void>("report_timing", { label, ms, detail }),
 	reportMemory: (sample: RendererMemory) => __TAURI_INVOKE<void>("report_memory", { sample }),
 	/**
+	 *  The webview's own log lines, into the same file.
+	 * 
+	 *  A JS error that only reaches the devtools console dies with the renderer — which is
+	 *  exactly the moment it was worth keeping.
+	 */
+	logFromFrontend: (level: string, message: string, context: string) => __TAURI_INVOKE<void>("log_from_frontend", { level, message, context }),
+	/**  Everything `Help ▸ Copy Diagnostics` puts on the clipboard, as text. */
+	diagnostics: () => __TAURI_INVOKE<string>("diagnostics"),
+	/**
 	 *  The settings document as JSON text. Rust owns the file because the menu and the
 	 *  logger read it before there is a window to ask.
 	 */

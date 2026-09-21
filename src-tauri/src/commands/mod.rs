@@ -65,6 +65,32 @@ pub fn report_timing(label: String, ms: u32, detail: String) {
     crate::profile::ui(&label, u64::from(ms), &detail);
 }
 
+/// The webview's own log lines, into the same file.
+///
+/// A JS error that only reaches the devtools console dies with the renderer — which is
+/// exactly the moment it was worth keeping.
+#[tauri::command]
+#[specta::specta]
+pub fn log_from_frontend(level: String, message: String, context: String) {
+    match level.as_str() {
+        "error" => tracing::error!(target: "cogit::webview", context, "{message}"),
+        "warn" => tracing::warn!(target: "cogit::webview", context, "{message}"),
+        "debug" => tracing::debug!(target: "cogit::webview", context, "{message}"),
+        _ => tracing::info!(target: "cogit::webview", context, "{message}"),
+    }
+}
+
+/// Everything `Help ▸ Copy Diagnostics` puts on the clipboard, as text.
+#[tauri::command]
+#[specta::specta]
+pub fn diagnostics(state: tauri::State<'_, crate::AppContext>) -> String {
+    crate::diagnostics::report(
+        &state.log_path,
+        &state.config_dir,
+        crate::webview2::browser_version().as_deref(),
+    )
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn report_memory(sample: crate::profile::RendererMemory) {
@@ -120,6 +146,7 @@ pub async fn open_repository(
     tracing::info!(
         repo = summary.repo.0,
         name = %summary.name,
+        path = %summary.root,
         branches = summary.branches.len(),
         elapsed_ms = started.elapsed().as_millis(),
         "repository opened"
@@ -433,7 +460,9 @@ pub async fn worktrees(
     repo: RepoId,
 ) -> Result<Vec<git_engine::WorktreeEntry>, GitError> {
     let app_state = state.state.clone();
-    blocking("worktrees", move || app_state.worktrees(repo)).await
+    let found = blocking("worktrees", move || app_state.worktrees(repo)).await?;
+    tracing::info!(repo = repo.0, worktrees = found.len(), "worktrees listed");
+    Ok(found)
 }
 
 #[tauri::command]
@@ -844,7 +873,9 @@ pub async fn submodules(
     repo: RepoId,
 ) -> Result<Vec<Submodule>, GitError> {
     let app_state = state.state.clone();
-    blocking("submodules", move || app_state.submodules(repo)).await
+    let found = blocking("submodules", move || app_state.submodules(repo)).await?;
+    tracing::info!(repo = repo.0, submodules = found.len(), "submodules listed");
+    Ok(found)
 }
 
 #[tauri::command]
