@@ -23,8 +23,24 @@ pub fn with_hunk_context(diff: &mut FileDiff, old_text: &str) {
     }
 }
 
+/// C++ puts these unindented inside a class body, so the generic rule below picks one up
+/// and the header reads `public:`, which tells the reader nothing about where they are.
+/// Matched whole rather than by the trailing colon: Python's `class Foo:` must survive.
+const ACCESS_SPECIFIERS: &[&str] = &[
+    "public:",
+    "private:",
+    "protected:",
+    "signals:",
+    "public slots:",
+    "private slots:",
+    "protected slots:",
+];
+
 fn declares(line: &str) -> bool {
-    line.chars()
+    let starts = line
+        .chars()
         .next()
-        .is_some_and(|c| c.is_alphabetic() || c == '_' || c == '$')
+        .is_some_and(|c| c.is_alphabetic() || c == '_' || c == '$');
+
+    starts && !ACCESS_SPECIFIERS.contains(&line.trim_end())
 }

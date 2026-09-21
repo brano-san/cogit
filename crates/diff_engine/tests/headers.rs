@@ -138,3 +138,33 @@ fn a_diff_that_is_not_text_is_left_untouched() {
     with_hunk_context(&mut diff, "");
     assert!(matches!(diff, FileDiff::Unchanged));
 }
+
+/// C++ free function: `with_hunk_context` has no grammar, it looks for the nearest
+/// unindented line, and a C++ signature is one (doc/08-diff-engine.md).
+#[test]
+fn a_change_in_a_cpp_function_body_names_that_function() {
+    let body: String = (0..12).map(|i| format!("    int v{i} = {i};\n")).collect();
+    let old = format!("#include <vector>\n\nvoid Widget::draw(int x) {{\n{body}}}\n");
+    let new = old.replace("int v6 = 6;", "int v6 = 66;");
+
+    let header = headers(&old, &new).remove(0);
+    assert!(
+        header.ends_with("@@ void Widget::draw(int x) {"),
+        "{header:?}"
+    );
+}
+
+/// A method declared inside a class body is indented, so the nearest unindented line is
+/// the class. That is the rule working as designed, not a miss: the class still tells the
+/// reader where they are.
+#[test]
+fn a_change_inside_a_cpp_class_method_names_the_class() {
+    let body: String = (0..12)
+        .map(|i| format!("        int v{i} = {i};\n"))
+        .collect();
+    let old = format!("class Widget {{\npublic:\n    void draw(int x) {{\n{body}    }}\n}};\n");
+    let new = old.replace("int v6 = 6;", "int v6 = 66;");
+
+    let header = headers(&old, &new).remove(0);
+    assert!(header.ends_with("@@ class Widget {"), "{header:?}");
+}
