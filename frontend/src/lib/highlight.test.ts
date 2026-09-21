@@ -63,7 +63,7 @@ describe("highlightLines", () => {
 
 describe("mergePieces", () => {
   it("returns the whole line when there is nothing to mark", () => {
-    expect(mergePieces("plain", [], [])).toEqual([{ text: "plain", cls: "", changed: false }]);
+    expect(mergePieces("plain", [], [])).toEqual([{ text: "plain", cls: "", changed: false, hit: false, start: 0 }]);
   });
 
   it("applies a syntax class to its own range only", () => {
@@ -73,7 +73,7 @@ describe("mergePieces", () => {
 
   it("marks a changed word without losing its syntax class", () => {
     const pieces = mergePieces("let a", [{ start: 0, end: 3, cls: "tok-keyword" }], [[0, 3]]);
-    expect(pieces[0]).toEqual({ text: "let", cls: "tok-keyword", changed: true });
+    expect(pieces[0]).toEqual({ text: "let", cls: "tok-keyword", changed: true, hit: false, start: 0 });
   });
 
   it("cuts at every boundary either overlay introduces", () => {
@@ -94,5 +94,25 @@ describe("mergePieces", () => {
 
   it("handles an empty line", () => {
     expect(mergePieces("", [], [])).toEqual([]);
+  });
+
+  it("marks a search hit and nothing around it", () => {
+    const pieces = mergePieces("find me here", [], [], [[5, 7]]);
+
+    expect(pieces.map((p) => p.text)).toEqual(["find ", "me", " here"]);
+    expect(pieces.map((p) => p.hit)).toEqual([false, true, false]);
+  });
+
+  it("keeps a hit that lands inside a changed word marked as both", () => {
+    const pieces = mergePieces("alpha", [], [[0, 5]], [[0, 5]]);
+
+    expect(pieces[0]).toEqual({ text: "alpha", cls: "", changed: true, hit: true, start: 0 });
+  });
+
+  it("cuts at the hit boundary as well as the other two", () => {
+    const pieces = mergePieces("abcdef", [{ start: 0, end: 2, cls: "t" }], [[2, 4]], [[3, 6]]);
+
+    expect(pieces.map((p) => p.text).join("")).toBe("abcdef");
+    expect(pieces.map((p) => p.hit)).toEqual([false, false, true, true]);
   });
 });

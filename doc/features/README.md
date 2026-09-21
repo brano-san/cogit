@@ -173,3 +173,4 @@
 | F-206 | Investigate: история выделенного фрагмента | [F-206-investigate.md](F-206-investigate.md) |
 | F-207 | Выбор unified / side-by-side переживает перезапуск | [F-207-diff-layout-remembered.md](F-207-diff-layout-remembered.md) |
 | F-208 | Перемещения можно смотреть как обычные правки | [F-208-moves-as-plain-edits.md](F-208-moves-as-plain-edits.md) |
+| F-209 | Поиск внутри diff | [F-209-diff-search.md](F-209-diff-search.md) |

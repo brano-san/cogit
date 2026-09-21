@@ -76,20 +76,25 @@ export interface Piece {
   text: string;
   cls: string;
   changed: boolean;
+  /** Part of a search match, so the view can mark it without a fourth pass. */
+  hit: boolean;
+  /** Offset of this piece in the line, which is how the view tells one hit from another. */
+  start: number;
 }
 
-/** One segmentation for both overlays, cut at every boundary either introduces. */
+/** One segmentation for all three overlays, cut at every boundary any of them introduces. */
 export function mergePieces(
   text: string,
   tokens: readonly Token[],
   inline: readonly [number, number][],
+  hits: readonly [number, number][] = [],
 ): Piece[] {
   const cuts = new Set<number>([0, text.length]);
   for (const token of tokens) {
     cuts.add(Math.min(token.start, text.length));
     cuts.add(Math.min(token.end, text.length));
   }
-  for (const [from, to] of inline) {
+  for (const [from, to] of [...inline, ...hits]) {
     cuts.add(Math.min(from, text.length));
     cuts.add(Math.min(to, text.length));
   }
@@ -104,6 +109,8 @@ export function mergePieces(
       text: text.slice(start, end),
       cls: tokens.find((t) => t.start <= start && t.end >= end)?.cls ?? "",
       changed: inline.some(([from, to]) => from <= start && to >= end),
+      hit: hits.some(([from, to]) => from <= start && to >= end),
+      start,
     });
   }
   return pieces;

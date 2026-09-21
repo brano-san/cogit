@@ -113,6 +113,50 @@ export function segments(text: string, spans: readonly [number, number][]): Segm
   return out;
 }
 
+export interface SearchHit {
+  /** Row index in the list being rendered, so the view can scroll straight to it. */
+  index: number;
+  /** Which column holds the hit; unified rows are all `left`. */
+  side: "left" | "right";
+  from: number;
+  to: number;
+}
+
+/** Two texts per row: side by side has two columns, unified leaves the second `null`. */
+export type SearchRow = readonly [string | null, string | null];
+
+/**
+ * Case-insensitive plain-text search over the rows as rendered.
+ *
+ * Plain text, not a regular expression: a stray `(` in a search box should find a
+ * bracket, not throw. Matches do not overlap — `aa` in `aaaa` is two hits, not three.
+ */
+export function searchRows(rows: readonly SearchRow[], query: string): SearchHit[] {
+  const needle = query.trim().toLowerCase();
+  if (needle.length === 0) return [];
+
+  const hits: SearchHit[] = [];
+  rows.forEach((row, index) => {
+    (["left", "right"] as const).forEach((side, column) => {
+      const text = row[column];
+      if (text === null || text === undefined) return;
+      const haystack = text.toLowerCase();
+      let at = haystack.indexOf(needle);
+      while (at !== -1) {
+        hits.push({ index, side, from: at, to: at + needle.length });
+        at = haystack.indexOf(needle, at + needle.length);
+      }
+    });
+  });
+  return hits;
+}
+
+/** Next or previous hit, wrapping at both ends. `-1` when there is nothing to step to. */
+export function stepHit(hits: readonly unknown[], current: number, delta: number): number {
+  if (hits.length === 0) return -1;
+  return (current + delta + hits.length) % hits.length;
+}
+
 /** How many lines the diff is not showing between two hunks. */
 export function gapBetween(previous: Hunk | null, next: Hunk): number {
   const from = previous === null ? 1 : previous.oldStart + previous.oldLines;
