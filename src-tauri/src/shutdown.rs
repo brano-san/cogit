@@ -55,6 +55,14 @@ pub fn watch(app: &tauri::AppHandle) {
     }
     ANSWERED.store(false, Ordering::SeqCst);
 
+    if let Some(cancellations) = app.try_state::<std::sync::Arc<crate::operations::Cancellations>>()
+    {
+        let stopped = cancellations.cancel_all();
+        if stopped > 0 {
+            tracing::debug!(stopped, "cancelled the reads still running");
+        }
+    }
+
     if let Some(window) = app.get_webview_window("main")
         && let Err(err) = window.eval(PING)
     {

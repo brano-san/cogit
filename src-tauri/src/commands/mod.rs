@@ -80,6 +80,117 @@ pub fn log_from_frontend(level: String, message: String, context: String) {
     }
 }
 
+/// What travels up the channel while a content search runs.
+///
+/// `Started` comes first and carries the id, so the panel can cancel a search long before
+/// it has an answer — which is the point when the user is typing.
+#[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase", tag = "kind")]
+pub enum SearchChunk {
+    Started {
+        id: u32,
+    },
+    Matches {
+        matches: Vec<git_engine::ContentMatch>,
+    },
+    Done {
+        total: u32,
+        cancelled: bool,
+    },
+}
+
+/// Every path in the repository: tracked plus untracked, never ignored.
+///
+/// Not the change list. The Files panel searches what changed; this is what lets it find
+/// a file that nothing happened to, the way SmartGit does.
+#[tauri::command]
+#[specta::specta]
+pub async fn list_all_repo_files(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<Vec<String>, GitError> {
+    let app_state = state.state.clone();
+    blocking("list_all_repo_files", move || app_state.all_files(repo)).await
+}
+
+/// Searches inside files, streaming matches as they are found.
+///
+/// Cancellable: the id arrives on the first chunk and `cancel_operation` stops it.
+/// Binary files and anything over two megabytes are skipped without being opened.
+#[tauri::command]
+#[specta::specta]
+pub async fn search_file_contents(
+    state: tauri::State<'_, crate::AppContext>,
+    cancellations: tauri::State<'_, std::sync::Arc<crate::operations::Cancellations>>,
+    repo: RepoId,
+    query: String,
+    is_regex: bool,
+    scope: git_engine::SearchScope,
+    on_chunk: tauri::ipc::Channel<SearchChunk>,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    let cancellations = std::sync::Arc::clone(&cancellations);
+
+    let (id, cancel) = cancellations.start();
+    let _ = on_chunk.send(SearchChunk::Started { id });
+
+    let token = cancel.clone();
+    let channel = on_chunk.clone();
+    let counted = blocking("search_file_contents", move || {
+        let request = git_engine::SearchRequest {
+            query: &query,
+            is_regex,
+            scope,
+        };
+
+        let mut total = 0_u32;
+        app_state.search_contents(repo, &request, &|| token.is_cancelled(), &mut |batch| {
+            total = total.saturating_add(u32::try_from(batch.len()).unwrap_or(u32::MAX));
+            let _ = channel.send(SearchChunk::Matches { matches: batch });
+        })?;
+        Ok(total)
+    })
+    .await;
+
+    cancellations.finish(id);
+    let total = counted?;
+
+    let _ = on_chunk.send(SearchChunk::Done {
+        total,
+        cancelled: cancel.is_cancelled(),
+    });
+    Ok(())
+}
+
+/// The submodules directly under `parent`; empty `parent` means the top level.
+#[tauri::command]
+#[specta::specta]
+pub async fn list_submodules(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    parent: String,
+) -> Result<Vec<Submodule>, GitError> {
+    let app_state = state.state.clone();
+    let found = blocking("list_submodules", move || {
+        app_state.submodules_under(repo, &parent)
+    })
+    .await?;
+    tracing::debug!(repo = repo.0, submodules = found.len(), "submodules listed");
+    Ok(found)
+}
+
+/// Stops a running read. `false` when it had already finished.
+#[tauri::command]
+#[specta::specta]
+pub fn cancel_operation(
+    cancellations: tauri::State<'_, std::sync::Arc<crate::operations::Cancellations>>,
+    id: u32,
+) -> bool {
+    let stopped = cancellations.cancel(id);
+    tracing::debug!(id, stopped, "cancel requested");
+    stopped
+}
+
 /// Answered by the page to show it is still running while a close is pending.
 ///
 /// Injected by `shutdown::watch`, not called from `frontend/`: the whole point is that

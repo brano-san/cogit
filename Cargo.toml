@@ -95,6 +95,9 @@ notify-debouncer-mini = { version = "0.7", features = ["crossbeam-channel"] }
 ignore = "0.4"
 # Already in the tree through `ignore`; used for the protected-branch patterns.
 globset = "0.4"
+# Same tree, named explicitly: the Files panel's content search takes a regex from the
+# user, and a query that cannot compile has to be an error rather than no results.
+regex = "1.13"
 
 # --- avatars ---
 # The only HTTP in the app. Everything git-related still goes through the system git
