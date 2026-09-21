@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DiffRow, Hunk } from "$lib/ipc";
-import { hunkSelection, lineKey, toggleLine } from "./selection";
+import { hunkSelection, lineKey, selectedRange, toggleLine } from "./selection";
 
 function del(old: number, text: string): DiffRow {
   return { kind: "delete", old, text, inline: [] };
@@ -59,5 +59,31 @@ describe("hunkSelection", () => {
 
     expect(deletes).toEqual([2]);
     expect(inserts.sort()).toEqual([5, 6]);
+  });
+});
+
+describe("selectedRange", () => {
+  it("has no range when nothing is selected", () => {
+    expect(selectedRange(new Set())).toBeNull();
+  });
+
+  it("spans the selected lines on the new side", () => {
+    expect(selectedRange(new Set(["i:12", "i:9", "i:10"]))).toEqual({ from: 9, to: 12 });
+  });
+
+  it("prefers the new side, which is how the file is numbered now", () => {
+    expect(selectedRange(new Set(["d:100", "i:4"]))).toEqual({ from: 4, to: 4 });
+  });
+
+  it("falls back to the old side when only deletions are selected", () => {
+    expect(selectedRange(new Set(["d:7", "d:8"]))).toEqual({ from: 7, to: 8 });
+  });
+
+  it("collapses a single line into a range of one", () => {
+    expect(selectedRange(new Set(["i:3"]))).toEqual({ from: 3, to: 3 });
+  });
+
+  it("spans the gap when the selection is not contiguous", () => {
+    expect(selectedRange(new Set(["i:2", "i:40"]))).toEqual({ from: 2, to: 40 });
   });
 });

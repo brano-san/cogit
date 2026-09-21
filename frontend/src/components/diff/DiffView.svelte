@@ -13,7 +13,8 @@
     type SideCell,
   } from "$lib/diff-rows";
   import { highlightLines, mergePieces, type Token } from "$lib/highlight";
-  import { hunkSelection, lineKey, toggleLine } from "$lib/selection";
+  import { hunkSelection, lineKey, selectedRange, toggleLine } from "$lib/selection";
+  import InvestigateView from "./InvestigateView.svelte";
   import { visibleRange } from "$lib/graph-geometry";
   import type { FileDiff, Hunk } from "$lib/ipc";
   // The panel above belongs to `master` and cannot grow props for the branch's own view
@@ -228,14 +229,15 @@
     return cell.kind === "delete" ? "−" : cell.kind === "insert" ? "+" : " ";
   }
 
+  /** Selecting works on any diff: a commit cannot be staged, but it can be investigated. */
   function pick(row: import("$lib/ipc").DiffRow) {
     const key = lineKey(row);
-    if (key && stageable) selected = toggleLine(selected, key);
+    if (key) selected = toggleLine(selected, key);
   }
 
   function pickHunk(index: number) {
     const hunk = hunks[index];
-    if (!hunk || !stageable) return;
+    if (!hunk) return;
     const keys = hunkSelection(hunk);
     const all = [...keys].every((key) => selected.has(key));
     const next = new Set(selected);
@@ -257,6 +259,15 @@
     const hunk = hunks[index];
     if (!hunk) return;
     onstage?.(hunkSelection(hunk), reverse);
+  }
+
+  /** The fragment being traced, or `null` while the diff itself is shown. */
+  let tracing = $state<{ from: number; to: number } | null>(null);
+
+  const traceable = $derived(selectedRange(selected));
+
+  function startInvestigate() {
+    if (traceable) tracing = traceable;
   }
 
   /** Which lines a Discard is about to throw away; `null` while nothing is pending. */
@@ -311,6 +322,12 @@
     } else if (ctrl && !event.shiftKey && key === "f") {
       event.preventDefault();
       openFind();
+    } else if (ctrl && event.altKey && event.shiftKey && key === "l") {
+      event.preventDefault();
+      startInvestigate();
+    } else if (tracing && event.key === "Escape") {
+      event.preventDefault();
+      tracing = null;
     } else if (finding && event.key === "Escape") {
       event.preventDefault();
       closeFind();
@@ -379,6 +396,15 @@
   {/if}
 {/snippet}
 
+{#if tracing && diffStore.repo !== null}
+  <InvestigateView
+    repo={diffStore.repo}
+    {path}
+    from={tracing.from}
+    to={tracing.to}
+    onclose={() => (tracing = null)}
+  />
+{:else}
 <div class="diff">
   <div class="bar">
     <span class="path mono truncate">{path}</span>
@@ -424,6 +450,12 @@
           >Blame</button
         >
       {/if}
+      <button
+        type="button"
+        disabled={traceable === null || diffStore.repo === null}
+        title="History of the selected lines (Ctrl+Alt+Shift+L)"
+        onclick={startInvestigate}>Investigate</button
+      >
       <button
         type="button"
         class:active={!diffStore.showMoves}
@@ -531,7 +563,8 @@
             {@const key = entry.kind === "row" ? lineKey(entry.row) : null}
             <div
               class="line"
-              class:staging={key !== null && selected.has(key)}
+              class:staging={stageable && key !== null && selected.has(key)}
+              class:marked={!stageable && key !== null && selected.has(key)}
               style:top="{rowIndex * ROW_HEIGHT}px"
             >
               {#if entry.kind === "header"}
@@ -648,6 +681,7 @@
     </div>
   {/if}
 </div>
+{/if}
 
 <style>
   .diff {
@@ -742,6 +776,11 @@
   .line.staging {
     background: rgb(90 160 110 / 14%);
     box-shadow: inset 2px 0 0 var(--status-add);
+  }
+
+  /* A read-only diff can still be selected, for Investigate; it just stages nothing. */
+  .line.marked {
+    box-shadow: inset 2px 0 0 var(--status-ref);
   }
 
   .acts {

@@ -47,6 +47,12 @@ class DiffStore {
     return this.diff?.kind === "text" ? this.diff.hunks : [];
   }
 
+  /** Which repository the shown diff came from; views in `components/diff/**` have no
+      other way to learn it, because the panel above them belongs to `master`. */
+  get repo(): RepoId | null {
+    return this.#repo;
+  }
+
   get stageable(): boolean {
     return this.spec?.kind === "workTreeVsIndex" || this.spec?.kind === "indexVsHead";
   }
