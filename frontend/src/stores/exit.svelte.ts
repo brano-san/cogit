@@ -57,7 +57,9 @@ export class ExitFlow {
     if (this.#asking) return false;
     this.#asking = true;
     this.#meanwhile = [];
-    const operations = await snapshot().catch(() => []);
+    const operations = await Promise.resolve()
+      .then(snapshot)
+      .catch(() => []);
     const pending = seedPending(operations, this.#meanwhile);
     this.#meanwhile = null;
 
