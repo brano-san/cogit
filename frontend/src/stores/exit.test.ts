@@ -57,6 +57,18 @@ describe("asking", () => {
     await expect(answer).resolves.toBe(false);
   });
 
+  it("is not wedged shut by a snapshot that throws before it starts", async () => {
+    const flow = new ExitFlow();
+    const failing = () => {
+      throw new Error("not even a promise");
+    };
+    const answer = flow.ask("window", true, failing);
+    await flushed();
+    flow.answer("cancel", false, true);
+    await expect(answer).resolves.toBe(false);
+    await expect(flow.ask("window", false, snapshot([]))).resolves.toBe(true);
+  });
+
   it("replays what happened while the snapshot was on its way", async () => {
     const flow = new ExitFlow();
     let release: (operations: Operation[]) => void = () => {};
