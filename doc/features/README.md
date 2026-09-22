@@ -240,3 +240,4 @@
 | F-265 | Текущий коммит — верхняя точка графа | [F-265-head-on-top.md](F-265-head-on-top.md) |
 | F-266 | Аватар справа от имени автора | [F-266-avatar-after-author.md](F-266-avatar-after-author.md) |
 | F-267 | Текст прокручивается вместе с графом | [F-267-text-scrolls-with-graph.md](F-267-text-scrolls-with-graph.md) |
+| F-280 | Чекбоксы Branches отвечают на каждый клик | [F-280-branch-boxes-follow-clicks.md](F-280-branch-boxes-follow-clicks.md) |
