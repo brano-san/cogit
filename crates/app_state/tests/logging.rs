@@ -2,7 +2,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use app_state::logging::{
-    LOG_ARCHIVES, LOG_SIZE_LIMIT, log_filter, read_log_level, rotating_writer,
+    LOG_FILES_KEPT, LOG_SIZE_LIMIT, SessionLog, log_filter, read_log_level, start_label,
 };
 
 #[test]
@@ -67,46 +67,154 @@ fn settings_without_a_level_mean_no_chosen_level() {
     assert!(read_log_level(dir.path()).is_none());
 }
 
-/// The DoD of T1.4: writing past the limit leaves the current file plus its archives.
-#[test]
-fn the_log_is_capped_and_keeps_at_most_two_archives() {
-    use std::io::Write as _;
-
-    let dir = tempfile::tempdir().unwrap();
-    let mut writer = rotating_writer(dir.path());
-    let line = vec![b'x'; 64 * 1024];
-
-    let mut written = 0;
-    while written < LOG_SIZE_LIMIT * 3 {
-        writer.write_all(&line).unwrap();
-        written += line.len();
-    }
-    writer.flush().unwrap();
-    drop(writer);
-
-    let files: Vec<_> = std::fs::read_dir(dir.path())
+/// One file per run, named after the moment it started; a run past 10 MB goes on in a
+/// second file of the same run; the folder never keeps more than ten (doc/12-risks.md, R-159).
+fn names(dir: &std::path::Path) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(dir)
         .unwrap()
-        .filter_map(std::result::Result::ok)
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
         .collect();
-    let total: u64 = files
-        .iter()
-        .filter_map(|f| f.metadata().ok())
-        .map(|m| m.len())
-        .sum();
+    names.sort();
+    names
+}
 
+fn write_lines(log: &mut SessionLog, total: usize) {
+    use std::io::Write as _;
+    let line = [b'x'; 100];
+    for _ in 0..total / line.len() {
+        log.write_all(&line).unwrap();
+    }
+    log.flush().unwrap();
+}
+
+#[test]
+fn the_limits_are_ten_megabytes_and_ten_files() {
+    assert_eq!(LOG_SIZE_LIMIT, 10 * 1024 * 1024);
+    assert_eq!(LOG_FILES_KEPT, 10);
+}
+
+#[test]
+fn the_log_is_named_after_the_moment_cogit_started() {
+    let dir = tempfile::tempdir().unwrap();
+    let log = SessionLog::start(dir.path(), "2026-09-22_23-15-04").unwrap();
+    assert_eq!(names(dir.path()), vec!["cogit-2026-09-22_23-15-04.log"]);
+    assert_eq!(log.path(), dir.path().join("cogit-2026-09-22_23-15-04.log"));
+}
+
+#[test]
+fn the_start_label_is_a_local_time_a_file_name_can_hold() {
+    let label = start_label();
+    assert_eq!(label.len(), "2026-09-22_23-15-04".len(), "{label}");
     assert!(
-        files.len() <= LOG_ARCHIVES + 1,
-        "{} files: {:?}",
-        files.len(),
-        files
-            .iter()
-            .map(std::fs::DirEntry::file_name)
-            .collect::<Vec<_>>()
+        label
+            .chars()
+            .all(|c| c.is_ascii_digit() || c == '-' || c == '_'),
+        "{label}"
+    );
+}
+
+#[test]
+fn a_run_past_the_limit_goes_on_in_the_next_part_of_the_same_run() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut log = SessionLog::with_limits(dir.path(), "2026-09-22_23-15-04", 1000, 10).unwrap();
+    write_lines(&mut log, 2500);
+
+    assert_eq!(
+        names(dir.path()),
+        vec![
+            "cogit-2026-09-22_23-15-04.2.log",
+            "cogit-2026-09-22_23-15-04.3.log",
+            "cogit-2026-09-22_23-15-04.log",
+        ]
+    );
+    for name in names(dir.path()) {
+        let size = std::fs::metadata(dir.path().join(&name)).unwrap().len();
+        assert!(size <= 1000, "{name} is {size} bytes");
+    }
+    assert_eq!(
+        log.path(),
+        dir.path().join("cogit-2026-09-22_23-15-04.3.log")
+    );
+}
+
+#[test]
+fn the_folder_never_holds_more_than_ten_logs_and_the_oldest_go_first() {
+    let dir = tempfile::tempdir().unwrap();
+    for day in 1..=12 {
+        let name = format!("cogit-2026-09-{day:02}_10-00-00.log");
+        std::fs::write(dir.path().join(name), b"old").unwrap();
+    }
+
+    let _log = SessionLog::start(dir.path(), "2026-09-22_23-15-04").unwrap();
+
+    let left = names(dir.path());
+    assert_eq!(left.len(), 10, "{left:?}");
+    assert!(left.contains(&"cogit-2026-09-22_23-15-04.log".to_owned()));
+    assert!(!left.contains(&"cogit-2026-09-01_10-00-00.log".to_owned()));
+    assert!(!left.contains(&"cogit-2026-09-03_10-00-00.log".to_owned()));
+    assert!(left.contains(&"cogit-2026-09-04_10-00-00.log".to_owned()));
+}
+
+#[test]
+fn a_long_run_keeps_its_newest_parts_within_the_cap() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut log = SessionLog::with_limits(dir.path(), "2026-09-22_23-15-04", 1000, 3).unwrap();
+    write_lines(&mut log, 10_000);
+
+    let left = names(dir.path());
+    assert_eq!(left.len(), 3, "{left:?}");
+    assert!(
+        log.path().exists(),
+        "the file being written is never the one removed"
+    );
+}
+
+#[test]
+fn files_that_are_not_rotating_logs_are_left_alone() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("panic.log"), b"boom").unwrap();
+    std::fs::write(dir.path().join("settings.json"), b"{}").unwrap();
+
+    let mut log = SessionLog::with_limits(dir.path(), "2026-09-22_23-15-04", 1000, 1).unwrap();
+    write_lines(&mut log, 5000);
+
+    let left = names(dir.path());
+    assert!(left.contains(&"panic.log".to_owned()));
+    assert!(left.contains(&"settings.json".to_owned()));
+}
+
+#[test]
+fn logs_from_before_the_named_files_are_the_first_to_go() {
+    let dir = tempfile::tempdir().unwrap();
+    for name in ["cogit.log", "cogit.log.1", "cogit.log.2"] {
+        std::fs::write(dir.path().join(name), b"legacy").unwrap();
+    }
+    // Three old-style files, nine named ones and the new run: three have to go.
+    for day in 1..=9 {
+        let name = format!("cogit-2026-09-{day:02}_10-00-00.log");
+        std::fs::write(dir.path().join(name), b"old").unwrap();
+    }
+
+    let _log = SessionLog::start(dir.path(), "2026-09-22_23-15-04").unwrap();
+
+    let left = names(dir.path());
+    assert_eq!(left.len(), 10);
+    assert!(
+        !left.iter().any(|name| name.starts_with("cogit.log")),
+        "{left:?}"
     );
     assert!(
-        total <= (LOG_SIZE_LIMIT * (LOG_ARCHIVES + 1)) as u64,
-        "{total} bytes after writing {written}"
+        left.contains(&"cogit-2026-09-01_10-00-00.log".to_owned()),
+        "{left:?}"
     );
+}
+
+#[test]
+fn a_second_start_in_the_same_second_does_not_share_the_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let first = SessionLog::start(dir.path(), "2026-09-22_23-15-04").unwrap();
+    let second = SessionLog::start(dir.path(), "2026-09-22_23-15-04").unwrap();
+    assert_ne!(first.path(), second.path());
 }
 
 #[test]
@@ -118,40 +226,4 @@ fn the_profile_target_survives_a_quiet_log_level() {
             "a day of profiling must survive {level}: {filter}"
         );
     }
-}
-
-#[test]
-fn the_log_rotates_rather_than_growing_without_end() {
-    use std::io::Write as _;
-
-    let dir = tempfile::tempdir().unwrap();
-    let mut writer = app_state::logging::rotating_writer(dir.path());
-
-    // A megabyte at a time past the limit, so the rotation has to happen more than once.
-    let block = vec![b'x'; 1024 * 1024];
-    for _ in 0..(app_state::logging::LOG_SIZE_LIMIT / block.len() + 3) {
-        writer.write_all(&block).unwrap();
-    }
-    writer.flush().unwrap();
-    drop(writer);
-
-    let files: Vec<_> = std::fs::read_dir(dir.path())
-        .unwrap()
-        .filter_map(Result::ok)
-        .collect();
-    for file in &files {
-        let size = file.metadata().unwrap().len() as usize;
-        assert!(
-            size <= app_state::logging::LOG_SIZE_LIMIT,
-            "{:?} is {size} bytes",
-            file.path()
-        );
-    }
-
-    // The live file plus at most the archives it is allowed to keep.
-    assert!(
-        files.len() <= app_state::logging::LOG_ARCHIVES + 1,
-        "{} files left behind",
-        files.len()
-    );
 }

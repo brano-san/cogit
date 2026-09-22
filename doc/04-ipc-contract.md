@@ -134,7 +134,7 @@ URL, чтобы окно пережило перезагрузку вебвью.
 
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
-| `load_commits` | `repo, query: CommitQuery, channel: Channel<GraphChunk>` | `()` | M4 |
+| `load_commits` | `repo, query: CommitQuery, channel: Channel<GraphChunk>` | `Vec<SkippedRef { name, reason }>` — отмеченные ссылки, не ставшие стартовой точкой; новый вызов останавливает предыдущий обход | M4 |
 | `commit_details` | `repo, rev: String` | `CommitDetails` | M4 |
 | `commit_files` | `repo, rev: String` | `Vec<FileEntry>` | M6 |
 

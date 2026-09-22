@@ -22,6 +22,7 @@
   import ConfigEditor from "$components/common/ConfigEditor.svelte";
   import HealthNotice from "$components/layout/HealthNotice.svelte";
   import { exitBlockers, mustAskBeforeExit } from "$lib/exit";
+  import { describeSkipped } from "$lib/skipped";
   import { health } from "$stores/health.svelte";
   import SettingsPanel from "$components/layout/SettingsPanel.svelte";
   import HooksPanel from "$components/layout/HooksPanel.svelte";
@@ -2596,6 +2597,9 @@
                 <GraphFilter onchange={filterGraph} matches={graph.rows.length} />
               {/if}
             {/snippet}
+            {#if describeSkipped(graph.skipped)}
+              <p class="graph-skipped" role="status">{describeSkipped(graph.skipped)}</p>
+            {/if}
             <GraphPanel
               recent={session.recent}
               onopenrecent={(path) => void activate(path)}
@@ -3023,6 +3027,16 @@
 </div>
 
 <style>
+  .graph-skipped {
+    margin: 0;
+    padding: var(--sp-2) var(--sp-4);
+    border-bottom: 1px solid var(--divider);
+    border-left: 3px solid var(--status-modify);
+    background: var(--surface-raised);
+    color: var(--text-primary);
+    font-size: var(--fs-dense);
+  }
+
   .app {
     position: relative;
     display: flex;

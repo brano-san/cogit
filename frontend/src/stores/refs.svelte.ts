@@ -1,4 +1,5 @@
 import { defaultVisible, type RefNode } from "$lib/ref-nodes";
+import { recall, remember } from "$lib/session-memory";
 import { listRemotes, remoteUrl, type RepoId } from "$lib/ipc";
 
 /** Per repository, so ticking `master` in one does not change what another shows. */
@@ -6,11 +7,6 @@ const STORAGE_KEY = "cogit.visible-refs.v2";
 
 interface Saved {
   visible: string[];
-  /** The headings the user opened. Everything else is folded, which is what makes a
-      repository never seen before start folded, headings that load late included (R-154). */
-  expanded?: string[];
-  /** The previous shape: what was folded. Read once, then written back as `expanded`. */
-  collapsed?: string[];
 }
 
 function foldableIds(nodes: readonly RefNode[]): Set<string> {
@@ -39,7 +35,6 @@ class RefsStore {
   #expanded = $state.raw<ReadonlySet<string>>(new Set());
   #foldable = $state.raw<ReadonlySet<string>>(new Set());
 
-  /** Every heading the user has not opened. */
   get collapsed(): ReadonlySet<string> {
     return new Set([...this.#foldable].filter((id) => !this.#expanded.has(id)));
   }
@@ -53,15 +48,7 @@ class RefsStore {
     const kept = strings(remembered?.visible).filter((id) => known.has(id));
     this.visible = kept.length > 0 ? new Set(kept) : defaultVisible(nodes);
     this.#foldable = foldableIds(nodes);
-
-    if (remembered?.expanded !== undefined) {
-      this.#expanded = new Set(strings(remembered.expanded));
-    } else if (remembered?.collapsed !== undefined) {
-      const folded = new Set(strings(remembered.collapsed));
-      this.#expanded = new Set([...this.#foldable].filter((id) => !folded.has(id)));
-    } else {
-      this.#expanded = new Set();
-    }
+    this.#expanded = recall("refs", root);
   }
 
   /** The tree grows after the open — stashes, lost commits, a fetched remote — and a
@@ -83,14 +70,14 @@ class RefsStore {
     const next = new Set(this.#expanded);
     if (!next.delete(id)) next.add(id);
     this.#expanded = next;
-    this.persist();
+    if (this.#root !== null) remember("refs", this.#root, next);
   }
 
   private persist(): void {
     if (this.#root === null) return;
     try {
       const all = stored();
-      all[this.#root] = { visible: [...this.visible], expanded: [...this.#expanded] };
+      all[this.#root] = { visible: [...this.visible] };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
     } catch {
       // A blocked store costs the ticks and the folds on restart, nothing more.

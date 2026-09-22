@@ -117,7 +117,7 @@ describe("refLabels", () => {
     },
   ];
   const tags: Tag[] = [
-    { name: "v1.0", fullName: "refs/tags/v1.0", oid: "a".repeat(40), isAnnotated: false },
+    { name: "v1.0", fullName: "refs/tags/v1.0", oid: "a".repeat(40), isAnnotated: false, pointsToCommit: true },
   ];
 
   it("groups every ref by the commit it points at", () => {

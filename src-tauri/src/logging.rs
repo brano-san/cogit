@@ -1,4 +1,4 @@
-use app_state::logging::{log_filter, read_log_level, rotating_writer};
+use app_state::logging::{SessionLog, log_filter, read_log_level, start_label};
 use std::path::{Path, PathBuf};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::EnvFilter;
@@ -30,11 +30,12 @@ fn write_panic(path: &Path, report: &str) {
     }
 }
 
-/// The returned guard must outlive the process or the tail of the log is lost.
-pub fn init(log_dir: &Path, config_dir: &Path) -> anyhow::Result<WorkerGuard> {
-    std::fs::create_dir_all(log_dir)?;
-
-    let (writer, guard) = tracing_appender::non_blocking(rotating_writer(log_dir));
+/// The returned guard must outlive the process or the tail of the log is lost. The path
+/// is this run's first file, which the About window names and Open log reveals.
+pub fn init(log_dir: &Path, config_dir: &Path) -> anyhow::Result<(WorkerGuard, PathBuf)> {
+    let log = SessionLog::start(log_dir, &start_label())?;
+    let path = log.path();
+    let (writer, guard) = tracing_appender::non_blocking(log);
 
     // `RUST_LOG` wins: a developer overriding the level should not have to open the app.
     let filter = EnvFilter::try_from_default_env()
@@ -47,5 +48,5 @@ pub fn init(log_dir: &Path, config_dir: &Path) -> anyhow::Result<WorkerGuard> {
         .with_target(true)
         .init();
 
-    Ok(guard)
+    Ok((guard, path))
 }

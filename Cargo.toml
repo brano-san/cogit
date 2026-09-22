@@ -57,7 +57,8 @@ tauri-plugin-process = "2.3"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 tracing-appender = "0.2"
-file-rotate = "0.8"
+# Local time for the log file names; already locked, via the log rotator it replaced.
+chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 
 # --- git ---
 # Default features omit everything we need; see doc/02-tech-stack.md and doc/12-risks.md (D-05).

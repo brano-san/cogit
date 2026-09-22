@@ -80,8 +80,10 @@ cm=$(grep -cE '^[[:space:]]*(//|/*|*)' FILE); tot=$(grep -c '' FILE); echo $((cm
   `tracing::error!(error = ?err, context = "failed to resolve ref")`.
 - Log the boundaries and `elapsed` of heavy operations (graph build, large diff, fetch).
 - Do not log inside tight loops. Log the outcome, not the iterations.
-- The log file is capped at 10 MB with 2 archives, written non-blocking. The
-  `WorkerGuard` must stay alive for the process lifetime or the tail of the log is lost.
+- One log file per run, named after its start (`cogit-2026-09-22_23-15-04.log`),
+  continued in `….2.log` past 10 MB; the folder keeps at most 10 log files. Written
+  non-blocking. The `WorkerGuard` must stay alive for the process lifetime or the tail
+  of the log is lost.
 
 ## Git CLI error handling
 

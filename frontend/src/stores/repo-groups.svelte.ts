@@ -1,4 +1,5 @@
 import {
+  UNGROUPED,
   addGroup,
   assign,
   mergeGroups,
@@ -21,7 +22,12 @@ function stored(): unknown {
 
 class RepoGroupsStore {
   groups = $state.raw<RepoGroups>(mergeGroups(stored()));
-  collapsed = $state.raw<ReadonlySet<string>>(new Set());
+  /** Opened this run only: every group, the ungrouped one too, starts folded (R-160). */
+  #expanded = $state.raw<ReadonlySet<string>>(new Set());
+
+  get collapsed(): ReadonlySet<string> {
+    return new Set([...this.groups.order, UNGROUPED].filter((id) => !this.#expanded.has(id)));
+  }
 
   add(name: string): void {
     this.write(addGroup(this.groups, name).groups);
@@ -45,9 +51,9 @@ class RepoGroupsStore {
   }
 
   collapse(id: string): void {
-    const next = new Set(this.collapsed);
+    const next = new Set(this.#expanded);
     if (!next.delete(id)) next.add(id);
-    this.collapsed = next;
+    this.#expanded = next;
   }
 
   private write(next: RepoGroups): void {

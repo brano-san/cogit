@@ -22,6 +22,8 @@ class GraphStore {
   loading = $state(false);
   complete = $state(false);
   error = $state<CogitError | null>(null);
+  /** Ticked refs the last walk had to leave out, named over the graph (R-157). */
+  skipped = $state.raw<import("$lib/ipc").SkippedRef[]>([]);
 
   /** Discriminates concurrent loads; chunks from a superseded stream are dropped. */
   #generation = 0;
@@ -46,11 +48,12 @@ class GraphStore {
     this.edges = [];
     this.maxLane = 0;
     this.error = null;
+    this.skipped = [];
     this.complete = false;
     this.loading = true;
 
     try {
-      await loadCommits(repo, (chunk) => {
+      const skipped = await loadCommits(repo, (chunk) => {
         if (generation !== this.#generation) return;
 
         if (chunk.commits.length > 0) {
@@ -64,6 +67,7 @@ class GraphStore {
         this.maxLane = Math.max(this.maxLane, chunk.maxLane);
         if (chunk.isLast) this.complete = true;
       }, { ...query, visibleRefs: this.visibleRefs });
+      if (generation === this.#generation) this.skipped = skipped ?? [];
     } catch (err) {
       if (generation === this.#generation) {
         this.error =

@@ -72,7 +72,7 @@ pub use progress::{RebaseProgress, RebaseStep};
 pub use reflog::ReflogEntry;
 pub use repo::{Branch, BranchKind, Head, RepoHandle, Tag};
 pub use runner::{CommandSink, GitOutput, git_version, redact_command};
-pub use search::CommitQuery;
+pub use search::{CommitQuery, SkippedRef};
 pub use stash::{StashContents, StashEntry, StashOptions};
 pub use state::RepoState;
 pub use status::RepoStatus;

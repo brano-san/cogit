@@ -3,7 +3,9 @@
   import {
     buildRefTree,
     checkState,
+    leavesUnder,
     toggleNode,
+    type CheckState,
     type RefNode,
     type RefTreeInput,
   } from "$lib/ref-nodes";
@@ -41,7 +43,22 @@
 
   /** Built whole, then folded: one rule for what is hidden, for groups and folders
       alike (doc/12-risks.md, R-128). */
-  const nodes = $derived(flatten(buildRefTree(input), input.collapsed));
+  /** Every row, folded or not: a heading's box is counted from this, never from the rows
+      on screen, so folding a group cannot take its ticks away (R-158). */
+  const tree = $derived(buildRefTree(input));
+  const nodes = $derived(flatten(tree, input.collapsed));
+
+  /** The box shows the computed state on every render. Left to itself a checkbox flips its
+      own tick on click, and a click that left the computed state unchanged kept the flip —
+      a ✓ over children that were all cleared (R-158). */
+  function box(element: HTMLInputElement, state: CheckState) {
+    const apply = (next: CheckState) => {
+      element.checked = next === "on";
+      element.indeterminate = next === "mixed";
+    };
+    apply(state);
+    return { update: apply };
+  }
 
   function foldable(node: RefNode): boolean {
     return node.children === true;
@@ -62,7 +79,8 @@
 
 <div class="tree" role="tree" aria-label="References">
   {#each nodes as node (node.id)}
-    {@const state = checkState(nodes, node.id, visible)}
+    {@const state = checkState(tree, node.id, visible)}
+    {@const tickable = leavesUnder(tree, node.id).length > 0}
     <div
       class="row {node.kind}"
       class:selected={active === node.id}
@@ -104,12 +122,14 @@
       <input
         type="checkbox"
         class="box"
-        checked={state === "on"}
-        indeterminate={state === "mixed"}
+        use:box={state}
+        disabled={!tickable}
+        title={node.disabled}
         aria-label="Show {node.label} in the graph"
         onclick={(event) => {
           event.stopPropagation();
-          onvisible(toggleNode(nodes, node.id, visible));
+          event.preventDefault();
+          onvisible(toggleNode(tree, node.id, visible));
         }}
       />
 

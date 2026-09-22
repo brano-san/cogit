@@ -35,22 +35,17 @@
 | `tracing` | 0.1 | — | Структурное логирование |
 | `tracing-subscriber` | 0.3 | `env-filter`, `fmt`, `json` | Фильтры и форматирование |
 | `tracing-appender` | 0.2 | — | Неблокирующая запись в отдельном потоке |
-| `file-rotate` | 0.8 | — | Жёсткий лимит 10 МБ + 2 архива |
+| `chrono` | 0.4 | `clock` | Только локальное время в имени лог-файла (R-159); был в дереве через `file-rotate`, который он заменил |
 
-### Грабли: `tracing-appender` + `file-rotate`
+### Лог: свой писатель под `tracing-appender`
 
-Они **конкурируют** — у обоих есть своя ротация. Правильная схема: `file-rotate` выступает
-в роли `io::Write`, а `tracing_appender::non_blocking` оборачивает его.
+У `tracing-appender` своя ротация, по времени, и она не умеет ни лимита размера, ни
+имени по моменту запуска. Поэтому ротацию делает `SessionLog` (`io::Write`), а
+`tracing_appender::non_blocking` только выносит запись в отдельный поток.
 
 ```rust
-let file = FileRotate::new(
-    log_dir.join("cogit.log"),
-    AppendCount::new(2),
-    ContentLimit::Bytes(10 * 1024 * 1024),
-    Compression::None,
-    None,
-);
-let (writer, guard) = tracing_appender::non_blocking(file);
+let log = SessionLog::start(log_dir, &start_label())?; // cogit-2026-09-22_23-15-04.log
+let (writer, guard) = tracing_appender::non_blocking(log);
 ```
 
 `guard` обязан жить до конца работы приложения — при drop он сбрасывает буфер.

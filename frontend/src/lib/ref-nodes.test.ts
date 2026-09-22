@@ -28,8 +28,15 @@ function branch(name: string, over: Partial<Branch> = {}): Branch {
   };
 }
 
-function tag(name: string): Tag {
-  return { name, fullName: `refs/tags/${name}`, oid: OID, isAnnotated: false };
+function tag(name: string, over: Partial<Tag> = {}): Tag {
+  return {
+    name,
+    fullName: `refs/tags/${name}`,
+    oid: OID,
+    isAnnotated: false,
+    pointsToCommit: true,
+    ...over,
+  };
 }
 
 function stash(index: number): StashEntry {
@@ -131,6 +138,18 @@ describe("buildRefTree", () => {
     expect(ids(nodes)).toContain("local:master");
   });
 
+  // The reported case: folding Tags took its ticks with it, because the rows were not
+  // built at all and the heading counted nothing under it (R-158).
+  it("builds the rows of a folded Tags, Stashes and Lost group too", () => {
+    const collapsed = new Set(["group:tags", "group:stashes", "group:lost"]);
+    const nodes = buildRefTree(
+      input({ tags: [tag("v1")], stashes: [stash(0)], lost: [lost("c".repeat(40))], collapsed }),
+    );
+    expect(ids(nodes)).toEqual(
+      expect.arrayContaining(["tag:v1", "stash:0", `lost:${"c".repeat(40)}`]),
+    );
+  });
+
   it("hides the children of a collapsed group but keeps the group", () => {
     const collapsed = new Set(["group:local"]);
     const rows = flatten(buildRefTree(input({ branches: [branch("master")] })), collapsed);
@@ -170,6 +189,19 @@ describe("buildRefTree", () => {
 });
 
 describe("leavesUnder", () => {
+  it("does not let a folder claim the branches of the folder next to it", () => {
+    const nodes = buildRefTree(input({ branches: [branch("fix/a"), branch("feat/b")] }));
+    expect(leavesUnder(nodes, "folder:local/fix")).toEqual(["local:fix/a"]);
+    expect(leavesUnder(nodes, "folder:local/feat")).toEqual(["local:feat/b"]);
+  });
+
+  it("leaves out a tag that points at no commit", () => {
+    const nodes = buildRefTree(
+      input({ tags: [tag("v1"), tag("v-tree", { pointsToCommit: false })] }),
+    );
+    expect(leavesUnder(nodes, "group:tags")).toEqual(["tag:v1"]);
+  });
+
   it("lists every tickable row inside a group", () => {
     const nodes = buildRefTree(input({ branches: [branch("a"), branch("b")] }));
     expect(leavesUnder(nodes, "group:local")).toEqual(["local:a", "local:b"]);
@@ -213,10 +245,46 @@ describe("toggleNode", () => {
     expect([...next].sort()).toEqual(["local:a", "local:b"]);
   });
 
-  it("clears the whole group from a mixed state, then fills it on the next click", () => {
-    const cleared = toggleNode(nodes, "group:local", new Set(["local:a"]));
-    expect(cleared.size).toBe(0);
-    expect(toggleNode(nodes, "group:local", cleared).size).toBe(2);
+  // The standard three-state box: empty → all, mixed → all, all → none. The heading is
+  // never stored; each step is read back from the children (R-158).
+  it("fills a mixed group, and empties a full one", () => {
+    let ticked: ReadonlySet<string> = new Set(["local:a"]);
+    expect(checkState(nodes, "group:local", ticked)).toBe("mixed");
+
+    ticked = toggleNode(nodes, "group:local", ticked);
+    expect([...ticked].sort()).toEqual(["local:a", "local:b"]);
+    expect(checkState(nodes, "group:local", ticked)).toBe("on");
+
+    ticked = toggleNode(nodes, "group:local", ticked);
+    expect(ticked.size).toBe(0);
+    expect(checkState(nodes, "group:local", ticked)).toBe("off");
+
+    ticked = toggleNode(nodes, "group:local", ticked);
+    expect(checkState(nodes, "group:local", ticked)).toBe("on");
+  });
+
+  it("reads a folded group's state from its children, not from the rows on screen", () => {
+    const folded = buildRefTree(
+      input({ tags: [tag("v1"), tag("v2")], collapsed: new Set(["group:tags"]) }),
+    );
+    expect(checkState(folded, "group:tags", new Set(["tag:v1"]))).toBe("mixed");
+  });
+
+  it("makes a group mixed when one branch in a nested folder is ticked", () => {
+    const nested = buildRefTree(input({ branches: [branch("fix/a"), branch("main")] }));
+    const ticked = toggleNode(nested, "local:fix/a", new Set());
+    expect(checkState(nested, "folder:local/fix", ticked)).toBe("on");
+    expect(checkState(nested, "group:local", ticked)).toBe("mixed");
+  });
+
+  it("never ticks a tag that points at no commit, alone or with its group", () => {
+    const withTree = buildRefTree(
+      input({ tags: [tag("v1"), tag("v-tree", { pointsToCommit: false })] }),
+    );
+    expect(toggleNode(withTree, "tag:v-tree", new Set()).size).toBe(0);
+    const all = toggleNode(withTree, "group:tags", new Set());
+    expect([...all]).toEqual(["tag:v1"]);
+    expect(checkState(withTree, "group:tags", all)).toBe("on");
   });
 
   it("leaves rows outside the group alone", () => {
@@ -246,6 +314,11 @@ describe("visibleTips", () => {
     expect(visibleTips(nodes, new Set([`lost:${oid}`]))).toEqual([oid]);
   });
 
+  it("never sends a tag that points at no commit", () => {
+    const nodes = buildRefTree(input({ tags: [tag("v-tree", { pointsToCommit: false })] }));
+    expect(visibleTips(nodes, new Set(["tag:v-tree"]))).toEqual([]);
+  });
+
   it("is empty when nothing is ticked, which means show nothing", () => {
     const nodes = buildRefTree(input({ branches: [branch("master")] }));
     expect(visibleTips(nodes, new Set())).toEqual([]);
@@ -253,14 +326,17 @@ describe("visibleTips", () => {
 });
 
 describe("defaultVisible", () => {
-  it("starts with HEAD and every branch ticked, local and remote, but no tags", () => {
+  // The graph is the union of what the ticked refs reach; out of the box that is HEAD
+  // alone. Labels of every other ref still show on the commits it reaches (R-158).
+  it("starts with HEAD alone ticked", () => {
     const remote = branch("origin/master", { kind: "remote", fullName: "refs/remotes/origin/master" });
     const nodes = buildRefTree(input({ branches: [branch("master"), remote], tags: [tag("v1")] }));
-    expect([...defaultVisible(nodes)].sort()).toEqual([
-      "HEAD",
-      "local:master",
-      "remote:origin/master",
-    ]);
+    expect([...defaultVisible(nodes)]).toEqual(["HEAD"]);
+  });
+
+  it("ticks HEAD on a detached checkout too", () => {
+    const nodes = buildRefTree(input({ head: { kind: "detached", oid: OID } }));
+    expect([...defaultVisible(nodes)]).toEqual(["HEAD"]);
   });
 });
 
@@ -332,12 +408,8 @@ describe("what is ticked when a repository is opened", () => {
 
   // The graph showed master and the current branch while every box looked cleared: the
   // ticks and the walk were reading different defaults.
-  it("ticks HEAD, the local branches and the remote ones", () => {
-    const ticked = defaultVisible(tree());
-    expect(ticked.has("HEAD")).toBe(true);
-    expect(ticked.has("local:master")).toBe(true);
-    expect(ticked.has("local:feature/a")).toBe(true);
-    expect(ticked.has("remote:origin/master")).toBe(true);
+  it("ticks HEAD and nothing else; other branches are labels until ticked", () => {
+    expect([...defaultVisible(tree())]).toEqual(["HEAD"]);
   });
 
   it("leaves tags alone: a tag is a label, not a line of history to draw", () => {
@@ -352,8 +424,6 @@ describe("what is ticked when a repository is opened", () => {
 
   it("walks from exactly what is ticked", () => {
     const nodes = tree();
-    const tips = visibleTips(nodes, defaultVisible(nodes));
-    expect(tips).toContain("refs/heads/master");
-    expect(tips).toContain("refs/remotes/origin/master");
+    expect(visibleTips(nodes, defaultVisible(nodes))).toEqual(["HEAD"]);
   });
 });

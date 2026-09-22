@@ -230,3 +230,7 @@
 | F-255 | Подмодуль: ahead, behind или diverged | [F-255-submodule-position.md](F-255-submodule-position.md) |
 | F-256 | Branches открываются свёрнутыми | [F-256-branches-folded.md](F-256-branches-folded.md) |
 | F-257 | Подмодуль, который не открылся, говорит почему | [F-257-submodule-reasons.md](F-257-submodule-reasons.md) |
+| F-258 | Граф — история отмеченных ссылок | [F-258-graph-union-of-ticked-refs.md](F-258-graph-union-of-ticked-refs.md) |
+| F-259 | Общий чекбокс группы в Branches | [F-259-tri-state-group-box.md](F-259-tri-state-group-box.md) |
+| F-260 | Лог на каждый запуск | [F-260-log-per-run.md](F-260-log-per-run.md) |
+| F-261 | Всё свёрнуто при запуске | [F-261-lists-folded-at-start.md](F-261-lists-folded-at-start.md) |

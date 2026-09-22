@@ -14,7 +14,8 @@ vi.stubGlobal("localStorage", {
   removeItem: (key: string) => void store.delete(key),
 });
 
-const { refs } = await import("./refs.svelte");
+/** Each test is a fresh run: what was opened lives for the run, in module state. */
+let refs: typeof import("./refs.svelte").refs;
 
 const node = (id: string, kind: RefNode["kind"], rev?: string): RefNode => ({
   id,
@@ -35,14 +36,15 @@ const TREE: RefNode[] = [
 ];
 
 describe("refs store", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     store.clear();
-    refs.clear();
+    vi.resetModules();
+    ({ refs } = await import("./refs.svelte"));
   });
 
-  it("starts a fresh repository with HEAD and the local branches ticked", () => {
+  it("starts a fresh repository with HEAD alone ticked", () => {
     refs.adopt("/w/alpha", TREE);
-    expect([...refs.visible].sort()).toEqual(["HEAD", "local:master", "local:topic"]);
+    expect([...refs.visible]).toEqual(["HEAD"]);
   });
 
   it("brings back the ticks the user left", () => {
@@ -85,14 +87,33 @@ describe("refs store", () => {
     expect([...refs.collapsed].sort()).toEqual(["group:local", "group:tags"]);
   });
 
-  /** The list used to hold what was folded; a repository saved that way keeps its looks. */
-  it("reads a repository saved before the change the way it was left", () => {
+  // A start shows every list folded, whatever an earlier run or version left (R-160).
+  it("folds everything on a start, whatever an earlier version saved", () => {
     store.set(
       "cogit.visible-refs.v2",
-      JSON.stringify({ "/w/alpha": { visible: ["HEAD"], collapsed: ["group:tags"] } }),
+      JSON.stringify({ "/w/zeta": { visible: ["HEAD"], collapsed: ["group:tags"] } }),
     );
-    refs.adopt("/w/alpha", TREE);
-    expect([...refs.collapsed]).toEqual(["group:tags"]);
+    refs.adopt("/w/zeta", TREE);
+    expect([...refs.collapsed].sort()).toEqual(["group:local", "group:tags"]);
+  });
+
+  it("keeps the ticks on disk but never what was opened", () => {
+    refs.adopt("/w/eta", TREE);
+    refs.set(new Set(["HEAD"]));
+    refs.collapse("group:local");
+    const saved = JSON.parse(store.get("cogit.visible-refs.v2") ?? "{}")["/w/eta"];
+    expect(saved.visible).toEqual(["HEAD"]);
+    expect(saved.expanded).toBeUndefined();
+  });
+
+  it("starts the next run folded again", async () => {
+    refs.adopt("/w/theta", TREE);
+    refs.collapse("group:local");
+
+    vi.resetModules();
+    const { refs: restarted } = await import("./refs.svelte");
+    restarted.adopt("/w/theta", TREE);
+    expect([...restarted.collapsed].sort()).toEqual(["group:local", "group:tags"]);
   });
 
   it("keeps each repository's state apart", () => {
@@ -101,7 +122,7 @@ describe("refs store", () => {
     refs.clear();
 
     refs.adopt("/w/beta", TREE);
-    expect([...refs.visible].sort()).toEqual(["HEAD", "local:master", "local:topic"]);
+    expect([...refs.visible]).toEqual(["HEAD"]);
   });
 
   it("drops a remembered tick for a ref that is gone", () => {
@@ -119,7 +140,7 @@ describe("refs store", () => {
 
     refs.clear();
     refs.adopt("/w/alpha", TREE);
-    expect([...refs.visible].sort()).toEqual(["HEAD", "local:master", "local:topic"]);
+    expect([...refs.visible]).toEqual(["HEAD"]);
   });
 
   it("remembers a heading folded again after it was opened", () => {
@@ -135,7 +156,7 @@ describe("refs store", () => {
   it("ignores a stored entry that is not the shape it wrote", () => {
     store.set("cogit.visible-refs.v2", JSON.stringify({ "/w/alpha": { visible: 7 } }));
     refs.adopt("/w/alpha", TREE);
-    expect([...refs.visible].sort()).toEqual(["HEAD", "local:master", "local:topic"]);
+    expect([...refs.visible]).toEqual(["HEAD"]);
     expect([...refs.collapsed].sort()).toEqual(["group:local", "group:tags"]);
   });
 

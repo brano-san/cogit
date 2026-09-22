@@ -1,8 +1,7 @@
 import { moduleRows, type ModuleRow } from "$lib/module-tree";
-import { readKey, writeKey } from "$lib/settings-file";
+import { recall, remember } from "$lib/session-memory";
 import { listSubmodules, updateSubmodule, type RepoId, type Submodule } from "$lib/ipc";
 
-const KEY = "submoduleTree";
 
 class SubmoduleStore {
   /** Keyed by the path from the top repository down; `""` is the repository itself.
@@ -12,8 +11,7 @@ class SubmoduleStore {
   expanded = $state.raw<ReadonlySet<string>>(new Set());
   /** The submodule the panels are currently showing, by key; null for the repository. */
   open = $state<string | null>(null);
-  /** Is the repository's own list of submodules folded away? */
-  folded = $state(false);
+  folded = $state(true);
 
   get top(): readonly Submodule[] {
     return this.children.get("") ?? [];
@@ -21,11 +19,14 @@ class SubmoduleStore {
 
   foldTop(): void {
     this.folded = !this.folded;
+    const root = this.#root;
+    if (root === null) return;
+    const open = new Set(recall("submodules-top", ""));
+    if (this.folded) open.delete(root);
+    else open.add(root);
+    remember("submodules-top", "", open);
   }
 
-  /** The repository the tree belongs to. It is the one in the Repositories panel, which
-      is not the same as the one the other panels are showing once a submodule has been
-      opened from this very tree (R-109). */
   #repo = $state.raw<RepoId | null>(null);
   #root: string | null = null;
 
@@ -35,7 +36,6 @@ class SubmoduleStore {
     return this.#repo;
   }
 
-  /** Where the owner lives on disk. Every node key is a path from here (R-149). */
   get ownerRoot(): string | null {
     return this.#root;
   }
@@ -55,19 +55,16 @@ class SubmoduleStore {
     this.#root = root;
     this.open = null;
     this.children = new Map([["", await listSubmodules(repo, "").catch(() => [])]]);
-    // What was open last time is opened again, one level at a time.
-    const remembered = (await readKey<Record<string, string[]>>(KEY))?.[root] ?? [];
+    this.folded = !recall("submodules-top", "").has(root);
     this.expanded = new Set();
-    for (const key of remembered) {
+    for (const key of recall("submodules", root)) {
       await this.#load(key);
       this.expanded = new Set([...this.expanded, key]);
     }
   }
 
-  async #remember(): Promise<void> {
-    if (this.#root === null) return;
-    const all = (await readKey<Record<string, string[]>>(KEY)) ?? {};
-    await writeKey(KEY, { ...all, [this.#root]: [...this.expanded] });
+  #remember(): void {
+    if (this.#root !== null) remember("submodules", this.#root, this.expanded);
   }
 
   /** Re-reads what is on screen. Every mutation lands here, so collapsing the tree each
@@ -88,13 +85,13 @@ class SubmoduleStore {
     if (next.has(row.key)) {
       next.delete(row.key);
       this.expanded = next;
-      void this.#remember();
+      this.#remember();
       return;
     }
     next.add(row.key);
     this.expanded = next;
     await this.#load(row.key);
-    void this.#remember();
+    this.#remember();
   }
 
   /** Reads one node's children, once. A node that turns out to have none stays known as
@@ -105,8 +102,7 @@ class SubmoduleStore {
       const found = await listSubmodules(this.#repo, key);
       this.children = new Map([...this.children, [key, found]]);
     } catch {
-      // A module that is not initialised has no repository to read; an empty branch is
-      // the honest answer and the row already says why.
+      // Not initialised: nothing to read, and the row already says why.
       this.children = new Map([...this.children, [key, []]]);
     }
   }
