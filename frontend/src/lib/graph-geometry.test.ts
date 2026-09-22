@@ -7,6 +7,7 @@ import {
   centreRow,
   laneX,
   nextRow,
+  nodeCentre,
   rowY,
   scrollRowIntoView,
   setLaneWidth,
@@ -286,5 +287,40 @@ describe("row offset with extra header rows", () => {
     expect(toListRow(0)).toBe(1);
     expect(toCommitRow(1)).toBe(0);
     expect(toCommitRow(0)).toBeNull();
+  });
+});
+
+describe("how big the graph is drawn", () => {
+  it("draws a dot big enough to aim at with a mouse", () => {
+    expect(GRAPH.nodeRadius * 2).toBeGreaterThanOrEqual(8);
+  });
+
+  it("draws lines thick enough to follow across a screen", () => {
+    expect(GRAPH.lineWidth).toBeGreaterThanOrEqual(2);
+  });
+
+  // The line used to be drawn half a pixel off the dot, because an odd stroke width
+  // needs that offset to stay crisp and the dots never got it. An even width needs no
+  // offset at all, so both can sit on the same whole-pixel centre.
+  it("uses an even line width, so nothing has to be nudged half a pixel", () => {
+    expect(GRAPH.lineWidth % 2).toBe(0);
+  });
+
+  it("leaves a gap between a dot and the one below it", () => {
+    expect(GRAPH.rowHeight).toBeGreaterThan(GRAPH.mergeRadius * 2 + 4);
+  });
+
+  it("leaves a gap between a dot and the one beside it", () => {
+    expect(GRAPH.laneWidth).toBeGreaterThan(GRAPH.mergeRadius * 2);
+  });
+});
+
+describe("nodeCentre", () => {
+  it("is where the line ends and where the dot is drawn, one and the same", () => {
+    expect(nodeCentre(3, 7, 0)).toEqual({ x: laneX(3), y: rowY(7, 0) });
+  });
+
+  it("follows the scroll", () => {
+    expect(nodeCentre(0, 10, GRAPH.rowHeight * 10).y).toBe(GRAPH.rowHeight / 2);
   });
 });

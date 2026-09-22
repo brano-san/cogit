@@ -1,0 +1,64 @@
+import { shortOid } from "$lib/format";
+import type { Submodule } from "$lib/ipc";
+
+/** A submodule as a row of the repository tree: its own path, how deep it sits, and
+    whether its own submodules are showing. SmartGit draws these as branches of the
+    repository they belong to, not as a flat list beside it (doc/12-risks.md, R-110). */
+export interface ModuleRow {
+  /** The path from the top repository down, which is what keeps a node expanded across
+      a refresh however the rows are ordered. */
+  key: string;
+  /** The path inside the repository that owns it, which is what the backend asks for. */
+  path: string;
+  parent: string;
+  depth: number;
+  module: Submodule;
+  expanded: boolean;
+}
+
+/** Beyond this the tree is not nested, it is looping. */
+const MAX_DEPTH = 16;
+
+export function splitModulePath(path: string): { dir: string; name: string } {
+  const trimmed = path.replace(/[/\\]+$/, "");
+  const cut = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
+  return cut < 0
+    ? { dir: "", name: trimmed }
+    : { dir: trimmed.slice(0, cut + 1), name: trimmed.slice(cut + 1) };
+}
+
+export function moduleKey(parent: string, path: string): string {
+  return parent === "" ? path : `${parent}/${path}`;
+}
+
+/** What the row says after the name: a branch, or the commit it is detached on. */
+export function describeModule(module: Submodule): string {
+  if (module.state === "notInitialised") return "not initialised";
+  const where =
+    module.branch ??
+    (module.checkedOut
+      ? `${shortOid(module.checkedOut)}${module.subject ? `: ${module.subject}` : ""}`
+      : "no commit checked out");
+  return module.state === "diverged" ? `${where} · diverged` : where;
+}
+
+/** Flattens the loaded parts of the tree into the rows to draw, parents before children. */
+export function moduleRows(
+  children: ReadonlyMap<string, readonly Submodule[]>,
+  expanded: ReadonlySet<string>,
+): ModuleRow[] {
+  const rows: ModuleRow[] = [];
+
+  const walk = (parent: string, depth: number) => {
+    if (depth > MAX_DEPTH) return;
+    for (const module of children.get(parent) ?? []) {
+      const key = moduleKey(parent, module.path);
+      const open = expanded.has(key);
+      rows.push({ key, path: module.path, parent, depth, module, expanded: open });
+      if (open) walk(key, depth + 1);
+    }
+  };
+
+  walk("", 0);
+  return rows;
+}

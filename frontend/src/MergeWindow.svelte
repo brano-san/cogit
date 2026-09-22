@@ -1,9 +1,9 @@
 <script lang="ts">
   import MergeView from "$components/diff/MergeView.svelte";
   import { parseMerge } from "$lib/merge-params";
-  import { mergePreview, mergeResolved, resolveConflictText, type Region } from "$lib/ipc";
+  import { closeThisWindow, mergePreview, mergeResolved, resolveConflictText, type Region } from "$lib/ipc";
+  import { onWindowKey } from "$lib/child-window";
   import { settings } from "$stores/settings.svelte";
-  import { getCurrentWindow } from "@tauri-apps/api/window";
 
   const request = parseMerge(window.location.search);
 
@@ -28,12 +28,14 @@
     try {
       await resolveConflictText(request.repo, request.path, text);
       await mergeResolved(request.repo, request.path);
-      await getCurrentWindow().close();
+      await closeThisWindow();
     } catch (err) {
       failed = String(err);
     }
   }
 </script>
+
+<svelte:window onkeydown={onWindowKey} />
 
 <div class="window">
   {#if !request}
@@ -48,7 +50,7 @@
       {regions}
       saveShortcut
       onsave={(text) => void save(text)}
-      oncancel={() => void getCurrentWindow().close()}
+      oncancel={() => void closeThisWindow()}
     />
   {/if}
 </div>

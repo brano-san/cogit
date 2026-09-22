@@ -11,11 +11,49 @@ import {
 } from "$lib/ipc";
 import { session } from "$stores/session.svelte";
 
+/** Opening a repository is one transition, and every panel reads the result of it from
+    here rather than catching an event as it goes past. A panel mounted late sees the
+    same thing as one mounted early, which is what the Graph panel did not (R-98).
+
+    `repo` rides along on `opening` and `failed` so that re-reading an open repository —
+    which the file watcher does on every ref move — cannot blank the panels while it is
+    in flight or if it goes wrong. */
+export type RepoPhase =
+  | { kind: "closed" }
+  | { kind: "opening"; root: string; repo: RepoSummary | null }
+  | { kind: "open"; repo: RepoSummary }
+  | { kind: "failed"; root: string; error: CogitError; repo: RepoSummary | null };
+
+/** Long enough that a cold repository with submodules is not called a failure, short
+    enough that nobody watches a spinner wondering whether it is still alive. */
+const OPEN_TIMEOUT_MS = 30_000;
+
+function asCogitError(err: unknown): CogitError {
+  return err instanceof CogitError ? err : new CogitError({ kind: "internal", data: String(err) });
+}
+
 class RepositoryStore {
-  current = $state<RepoSummary | null>(null);
-  error = $state<CogitError | null>(null);
-  busy = $state(false);
+  phase = $state.raw<RepoPhase>({ kind: "closed" });
   openRepos = $state.raw<RepoOverview[]>([]);
+
+  readonly openTimeoutMs = OPEN_TIMEOUT_MS;
+
+  /** Only the newest open may write the phase; an older one that finishes late is
+      dropped, whichever way it ends. */
+  #ticket = 0;
+  #timer: ReturnType<typeof setTimeout> | null = null;
+
+  get current(): RepoSummary | null {
+    return this.phase.kind === "closed" ? null : this.phase.repo;
+  }
+
+  get busy(): boolean {
+    return this.phase.kind === "opening";
+  }
+
+  get error(): CogitError | null {
+    return this.phase.kind === "failed" ? this.phase.error : null;
+  }
 
   get localBranches() {
     return splitBranches(this.current?.branches ?? []).local;
@@ -30,19 +68,50 @@ class RepositoryStore {
   }
 
   async open(path: string): Promise<void> {
-    this.busy = true;
-    this.error = null;
+    const ticket = this.#begin(path);
     try {
-      this.current = await openRepository(path);
+      const repo = await openRepository(path);
+      this.#settle(ticket, { kind: "open", repo });
     } catch (err) {
-      this.error =
-        err instanceof CogitError
-          ? err
-          : new CogitError({ kind: "internal", data: String(err) });
-      this.current = null;
-    } finally {
-      this.busy = false;
+      this.#settle(ticket, {
+        kind: "failed",
+        root: path,
+        error: asCogitError(err),
+        repo: this.current,
+      });
     }
+  }
+
+  #begin(root: string): number {
+    const ticket = ++this.#ticket;
+    this.#disarm();
+    this.phase = { kind: "opening", root, repo: this.current };
+    // A backend that never answers is a bug of its own, but it must not read as
+    // "still working" for ever. A real answer arriving later still wins.
+    this.#timer = setTimeout(() => {
+      if (this.#ticket !== ticket || this.phase.kind !== "opening") return;
+      this.phase = {
+        kind: "failed",
+        root,
+        error: new CogitError({
+          kind: "internal",
+          data: `Opening ${root} is taking longer than ${Math.round(OPEN_TIMEOUT_MS / 1000)}s. It may still be running; the log says how far it got.`,
+        }),
+        repo: this.current,
+      };
+    }, OPEN_TIMEOUT_MS);
+    return ticket;
+  }
+
+  #settle(ticket: number, phase: RepoPhase): void {
+    if (this.#ticket !== ticket) return;
+    this.#disarm();
+    this.phase = phase;
+  }
+
+  #disarm(): void {
+    if (this.#timer !== null) clearTimeout(this.#timer);
+    this.#timer = null;
   }
 
   /** Staging changes only the counters; re-reading every ref for that is waste (R-24). */
@@ -51,10 +120,25 @@ class RepositoryStore {
     if (!repo) return;
     try {
       const status = await repoStatus(repo);
-      if (this.current) this.current = { ...this.current, status };
+      const open = this.current;
+      if (open && open.repo === repo) this.#replace({ ...open, status });
     } catch {
       // Nothing actionable; the next full refresh reports it with its own error.
     }
+  }
+
+  /** Takes a repository somebody else opened — a submodule reached from the tree —
+      without asking the backend to open it again. */
+  adopt(repo: RepoSummary): void {
+    this.#ticket += 1;
+    this.#disarm();
+    this.phase = { kind: "open", repo };
+  }
+
+  /** The repository is the same one; only its contents were re-read. */
+  #replace(repo: RepoSummary): void {
+    if (this.phase.kind === "closed") return;
+    this.phase = this.phase.kind === "open" ? { kind: "open", repo } : { ...this.phase, repo };
   }
 
   async refresh(): Promise<void> {
@@ -83,13 +167,14 @@ class RepositoryStore {
 
   async closeOne(repo: RepoId): Promise<void> {
     await closeRepository(repo);
-    if (this.current?.repo === repo) this.current = null;
+    if (this.current?.repo === repo) this.close();
     await this.refreshList();
   }
 
   close(): void {
-    this.current = null;
-    this.error = null;
+    this.#ticket += 1;
+    this.#disarm();
+    this.phase = { kind: "closed" };
   }
 }
 

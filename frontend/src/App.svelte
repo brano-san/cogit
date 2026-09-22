@@ -22,6 +22,7 @@
   import FindObject from "$components/layout/FindObject.svelte";
   import CommandOutput from "$components/layout/CommandOutput.svelte";
   import GitErrorDialog from "$components/layout/GitErrorDialog.svelte";
+  import { panelView } from "$lib/repo-phase";
   import OutputPanel from "$components/layout/OutputPanel.svelte";
   import StateBanner from "$components/layout/StateBanner.svelte";
   import Splitter from "$components/layout/Splitter.svelte";
@@ -81,6 +82,7 @@
     runCheck,
     terminalChoices,
     openRepository,
+    openSubmodule,
     reportMemory,
     reportTiming,
     commitTemplate,
@@ -277,6 +279,10 @@
   });
   const leftColumn = $derived(shown.repositories || shown.refs);
   const repo = $derived(repository.current);
+  /** One sentence for every panel that has nothing to show, so they cannot disagree. */
+  const panelEmpty = $derived(
+    panelView(repository.phase) === "opening" ? "Opening repository…" : "No repository open.",
+  );
   const banner = $derived(repo ? stateBanner(repo.state, repo.indexLock) : null);
   const tracked = $derived(repository.localBranches.find((b) => b.isHead));
   const scope = $derived(commitScope(worktree.staged, fileMask));
@@ -346,7 +352,7 @@
       id ? stashes.refresh(id) : Promise.resolve(),
       id ? network.refresh(id) : Promise.resolve(),
       id ? recovery.refresh(id) : Promise.resolve(),
-      id ? submodules.refresh(id) : Promise.resolve(),
+      submodules.refresh(),
       id ? conflicts.refresh(id) : Promise.resolve(),
       output.refreshProblems(),
       safety.refresh(),
@@ -714,6 +720,13 @@ Log: ${info?.logPath ?? ""}`),
   }
 
   /** OK in Preferences: one write, then re-run whatever the change invalidated. */
+  /** Cancel: everything previewed while the dialog was open goes back to what was
+      saved. `settings.load()` re-reads the file rather than trusting a copy in memory. */
+  function closeSettings() {
+    settingsOpen = false;
+    void settings.load();
+  }
+
   async function applySettings(next: Settings, keymap: import("$lib/keymap").Keymap) {
     const before = settings.current;
     const touched = (Object.keys(next) as (keyof Settings)[]).filter(
@@ -1025,8 +1038,66 @@ Log: ${info?.logPath ?? ""}`),
     );
   }
 
-  async function refreshSubmodule(module: import("$lib/ipc").Submodule) {
-    await mutate((id) => submodules.update(id, module.path, module.state === "notInitialised"));
+  async function refreshSubmodule(row: import("$lib/module-tree").ModuleRow) {
+    const init = row.module.state === "notInitialised";
+    // A nested module is updated by the repository that owns it, which is the submodule
+    // above it in the tree, not the one at the top.
+    const owner = row.parent === "" ? repository.current : await openedModule(row.parent);
+    if (!owner) return;
+    await submodules.update(owner.repo, row.path, init).catch((err) => errors.report(err as never));
+    await afterMutation();
+  }
+
+  /** Opens a submodule in the panels without listing it as a repository of its own
+      (doc/12-risks.md, R-109). The tree keeps showing it where it is, and the tree is
+      the one thing not forgotten, because it is what the click came from. */
+  async function openModule(row: import("$lib/module-tree").ModuleRow) {
+    const tree = { children: submodules.children, expanded: submodules.expanded };
+    const opened = await openedModule(row.key);
+    if (!opened) return;
+
+    forgetPanels();
+    // The tree still belongs to the repository in the list; only the panels moved.
+    submodules.restore(tree.children, tree.expanded, row.key);
+    repository.adopt(opened);
+    refs.adopt(opened.root, buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() }));
+    void reloadGraph();
+    void refs.loadUrls(opened.repo);
+    void worktrees.refresh(opened.repo);
+    void flow.refresh(opened.repo);
+    await afterMutation();
+  }
+
+  /** The repository behind a node of the submodule tree, opened but not listed. */
+  async function openedModule(key: string) {
+    const top = repository.current?.root;
+    if (!top) return null;
+    try {
+      return await openSubmodule(`${top}/${key}`);
+    } catch (err) {
+      errors.report(err as never);
+      return null;
+    }
+  }
+
+  async function moduleContext(row: import("$lib/module-tree").ModuleRow, x: number, y: number) {
+    const init = row.module.state === "notInitialised";
+    const chosen = await popupContextMenu(
+      [
+        { id: "open", label: "Open", enabled: !init },
+        { id: "update", label: init ? "Init and Update" : "Update", enabled: true },
+        { id: "reveal", label: "Show in Explorer", enabled: !init },
+      ],
+      x,
+      y,
+    );
+    const top = repository.current?.root;
+    if (chosen === "open") await openModule(row);
+    if (chosen === "update") await refreshSubmodule(row);
+    if (chosen === "reveal" && top) {
+      const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
+      await revealItemInDir(`${top}/${row.key}`).catch(() => {});
+    }
   }
 
   async function recoverCommit(lost: import("$lib/ipc").CommitRow) {
@@ -1268,7 +1339,7 @@ Log: ${info?.logPath ?? ""}`),
     void diff.load(id, { kind: "workTreeVsIndex" }, path).then(() => watch.stop(path));
   }
 
-  async function activate(root: string, restoreOid: string | null = null) {
+  function forgetPanels() {
     commit.clear();
     diff.clear();
     blame.clear();
@@ -1281,11 +1352,16 @@ Log: ${info?.logPath ?? ""}`),
     stashView.clear();
     worktrees.clear();
     refs.clear();
+  }
+
+  async function activate(root: string, restoreOid: string | null = null) {
+    forgetPanels();
     const watch = measure("open-repository");
     await repository.open(root);
     const opened = repository.current;
     if (opened) {
       refs.adopt(opened.root, buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() }));
+      void submodules.own(opened.repo);
       session.setActive(opened.root);
       session.opened(opened.root);
       if (restoreOid) void commit.select(opened.repo, restoreOid);
@@ -2160,8 +2236,9 @@ Log: ${info?.logPath ?? ""}`),
             onremoveworktree={(entry) => void removeWorktreeAt(entry)}
             onaddworktree={() => askAddWorktree()}
             onpruneworktrees={() => void pruneWorktreesHere()}
-            onopenmodule={(module) => void activate(`${repo?.root ?? ""}/${module.path}`)}
-            onupdatemodule={(module) => void refreshSubmodule(module)}
+            onopenmodule={(row) => void openModule(row)}
+            onupdatemodule={(row) => void refreshSubmodule(row)}
+            onmodulecontext={(row, x, y) => void moduleContext(row, x, y)}
           />
         </Panel>
       </div>
@@ -2184,7 +2261,7 @@ Log: ${info?.logPath ?? ""}`),
           active={focused === "refs"}
           stale={stale.has("refs")}
           count={repo?.branches.length}
-          empty={repo ? undefined : "No repository open."}
+          empty={repo ? undefined : panelEmpty}
         >
           {#snippet actions()}
             {#if repo}
@@ -2241,7 +2318,7 @@ Log: ${info?.logPath ?? ""}`),
           <Panel
             title="Graph &amp; History"
             active={focused === "graph"}
-            count={graph.rows.length}
+            count={repo ? graph.rows.length : undefined}
             stale={stale.has("graph")}
           >
             {#snippet actions()}
@@ -2298,7 +2375,7 @@ Log: ${info?.logPath ?? ""}`),
             stale={stale.has("files")}
           >
             <FilesPanel
-              ready={repo !== null}
+              view={panelView(repository.phase)}
               activePanel={focused === "files"}
               {onWorkingTree}
               onviewchange={(next) => {
@@ -2540,7 +2617,8 @@ Log: ${info?.logPath ?? ""}`),
       onstoretoken={(token) => void network.storeToken(token)}
       onforgettoken={() => void network.forgetToken()}
       onapply={(next, keys) => void applySettings(next, keys)}
-      onclose={() => (settingsOpen = false)}
+      onpreview={(next) => settings.preview(next)}
+      onclose={() => closeSettings()}
     />
   {/if}
 
@@ -2585,7 +2663,11 @@ Log: ${info?.logPath ?? ""}`),
   {/if}
 
   {#if errors.current}
-    <GitErrorDialog error={errors.current} ondismiss={() => errors.dismiss()} />
+    <GitErrorDialog
+      error={errors.current}
+      pending={errors.pending}
+      ondismiss={() => errors.dismiss()}
+    />
   {/if}
 
   {#if output.shown}
@@ -2619,7 +2701,7 @@ Log: ${info?.logPath ?? ""}`),
       network: network.running ?? undefined,
       networkProgress: network.progress ?? undefined,
       opening: repository.busy,
-      failed: repository.error !== null,
+      failed: errors.pending > 0,
     })}
     problems={output.problems}
     onproblems={() => output.toggle()}
@@ -2721,6 +2803,13 @@ Log: ${info?.logPath ?? ""}`),
     display: flex;
     min-width: 0;
     min-height: calc(var(--h-panel-hdr) + 3 * var(--h-row-dense));
+  }
+
+  .files-column {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
   }
 
   .pane > :global(.panel) {

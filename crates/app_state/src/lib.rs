@@ -90,6 +90,10 @@ pub struct OpenRepo {
     pub id: RepoId,
     pub root: PathBuf,
     pub display_name: String,
+    /// Whether it appears in the Repositories panel as an entry of its own. A submodule
+    /// reached by double-clicking its node is open and workable but not listed: it is
+    /// already on screen, as a node of its parent (doc/12-risks.md, R-109).
+    pub listed: bool,
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -347,6 +351,16 @@ impl AppState {
 
     /// Blocking by design; the Tauri layer wraps it in `spawn_blocking`.
     pub fn open_repository(&self, path: &Path) -> Result<RepoSummary, git_engine::GitError> {
+        self.open_at(path, true)
+    }
+
+    /// Opens a submodule from its node in the tree. Already listed stays listed: asking
+    /// for the same path by hand is a different request with a different answer.
+    pub fn open_submodule(&self, path: &Path) -> Result<RepoSummary, git_engine::GitError> {
+        self.open_at(path, false)
+    }
+
+    fn open_at(&self, path: &Path, listed: bool) -> Result<RepoSummary, git_engine::GitError> {
         let handle = git_engine::RepoHandle::open(path)?;
         let root = handle.root().to_path_buf();
         let head = handle.head()?;
@@ -361,9 +375,15 @@ impl AppState {
             |n| n.to_string_lossy().into_owned(),
         );
 
-        let id = self
-            .find_by_root(&root)
-            .unwrap_or_else(|| self.register(root.clone(), name.clone()));
+        let id = match self.find_by_root(&root) {
+            Some(id) => {
+                if listed && let Some(open) = self.repos.write().get_mut(&id) {
+                    open.listed = true;
+                }
+                id
+            }
+            None => self.register_as(root.clone(), name.clone(), listed),
+        };
         self.start_watching(id, &root, handle.git_dir());
 
         Ok(RepoSummary {
@@ -410,7 +430,12 @@ impl AppState {
         let flat = query.filters_rows();
         let mut row = 0_u32;
 
-        let mut cursor = graph_engine::LayoutCursor::default();
+        // Which commit owns the leftmost column. Read once per load: the graph is drawn
+        // in chunks and a column that moved half way down would be worse than no rule.
+        let mut cursor = graph_engine::LayoutCursor {
+            mainline: mainline_of(&handle),
+            ..Default::default()
+        };
         let mut cancelled = false;
         let mut max_lane = 0_u16;
 
@@ -1123,6 +1148,7 @@ impl AppState {
         let mut rows: Vec<RepoOverview> = self
             .list()
             .into_iter()
+            .filter(|open| open.listed)
             .map(|open| self.row_for(&open))
             .collect();
         rows.sort_by(|a, b| a.name.cmp(&b.name));
@@ -1344,6 +1370,10 @@ impl AppState {
     }
 
     pub fn register(&self, root: PathBuf, display_name: String) -> RepoId {
+        self.register_as(root, display_name, true)
+    }
+
+    fn register_as(&self, root: PathBuf, display_name: String, listed: bool) -> RepoId {
         let id = RepoId(self.next_repo_id.fetch_add(1, Ordering::Relaxed));
         self.repos.write().insert(
             id,
@@ -1351,6 +1381,7 @@ impl AppState {
                 id,
                 root,
                 display_name,
+                listed,
             },
         );
         self.emit(AppEvent::RepoOpened { repo: id });
@@ -1478,4 +1509,20 @@ impl AppState {
             .file_before(oid, path)?
             .map(|bytes| String::from_utf8_lossy(&bytes).into_owned()))
     }
+}
+
+/// `master`, then `main`, then HEAD. A repository that cannot be read names no mainline
+/// and the graph falls back to what it always did.
+fn mainline_of(handle: &git_engine::RepoHandle) -> Option<String> {
+    let branches = handle.branches().ok()?;
+    let locals: Vec<(&str, &str)> = branches
+        .iter()
+        .filter(|branch| branch.kind == git_engine::BranchKind::Local)
+        .map(|branch| (branch.name.as_str(), branch.oid.as_str()))
+        .collect();
+    let head = branches
+        .iter()
+        .find(|branch| branch.is_head)
+        .map(|b| b.oid.as_str());
+    graph_engine::mainline_tip(&locals, head)
 }

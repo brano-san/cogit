@@ -1,17 +1,23 @@
 /** Single-sourced so the list and the canvas cannot drift apart (doc/12-risks.md, R-03). */
 
-const LANE_WIDTH = { default: 14, min: 8, max: 40 } as const;
+const LANE_WIDTH = { default: 18, min: 12, max: 48 } as const;
 let laneWidth: number = LANE_WIDTH.default;
 
+/** Sizes are CSS pixels; the canvas is scaled by `devicePixelRatio` before drawing, so
+    125% and 150% displays get the same shapes with more pixels in them.
+
+    `lineWidth` is even on purpose. An odd stroke has to be nudged half a pixel to land
+    on a whole one, the dots never were, and the line ran half a pixel off the dot it was
+    supposed to pass through (doc/12-risks.md, R-114). */
 export const GRAPH = {
-  rowHeight: 22,
+  rowHeight: 24,
   get laneWidth() {
     return laneWidth;
   },
-  leftPad: 10,
-  nodeRadius: 3.5,
-  mergeRadius: 4.5,
-  lineWidth: 1.5,
+  leftPad: 12,
+  nodeRadius: 4,
+  mergeRadius: 5,
+  lineWidth: 2,
   maxGutterFraction: 0.25,
 } as const;
 
@@ -48,6 +54,12 @@ export function laneX(lane: number): number {
 
 export function rowY(row: number, scrollTop: number): number {
   return row * GRAPH.rowHeight + GRAPH.rowHeight / 2 - scrollTop;
+}
+
+/** Where a commit sits. Lines end here and the dot is drawn here, from one function, so
+    they cannot be half a pixel apart again. */
+export function nodeCentre(lane: number, row: number, scrollTop: number) {
+  return { x: laneX(lane), y: rowY(row, scrollTop) };
 }
 
 export function gutterWidth(maxLane: number, panelWidth: number): number {

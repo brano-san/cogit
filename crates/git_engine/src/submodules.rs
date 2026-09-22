@@ -19,6 +19,18 @@ pub struct Submodule {
     pub recorded: String,
     pub checked_out: Option<String>,
     pub state: SubmoduleState,
+    /// The branch it is on, when it is on one. A submodule is usually detached, and then
+    /// the row has to name the commit instead (R-110).
+    pub branch: Option<String>,
+    /// First line of the commit it sits on, for the row that has no branch to show.
+    pub subject: Option<String>,
+}
+
+/// What the submodule's own repository says about itself.
+struct Inside {
+    oid: Option<String>,
+    branch: Option<String>,
+    subject: Option<String>,
 }
 
 impl RepoHandle {
@@ -43,7 +55,8 @@ impl RepoHandle {
                 .flatten()
                 .map(|id| id.to_string())
                 .unwrap_or_default();
-            let checked_out = self.submodule_head(&path);
+            let inside = self.submodule_state(&path);
+            let checked_out = inside.as_ref().and_then(|found| found.oid.clone());
 
             let state = match &checked_out {
                 None => SubmoduleState::NotInitialised,
@@ -61,6 +74,8 @@ impl RepoHandle {
                 recorded,
                 checked_out,
                 state,
+                branch: inside.as_ref().and_then(|found| found.branch.clone()),
+                subject: inside.and_then(|found| found.subject),
             });
         }
         out.sort_by(|a, b| a.path.cmp(&b.path));
@@ -83,7 +98,7 @@ impl RepoHandle {
 
     /// A deinitialised submodule leaves an empty directory, and discovery walks upward
     /// from there straight into the parent. Comparing roots is what tells them apart.
-    fn submodule_head(&self, path: &str) -> Option<String> {
+    fn submodule_state(&self, path: &str) -> Option<Inside> {
         let expected = self.root().join(path);
         let inner = RepoHandle::open(&expected).ok()?;
         let same = std::fs::canonicalize(inner.root())
@@ -93,9 +108,19 @@ impl RepoHandle {
         if !same {
             return None;
         }
-        match inner.head().ok()? {
-            crate::Head::Branch { oid, .. } | crate::Head::Detached { oid } => Some(oid),
-            crate::Head::Unborn { .. } => None,
-        }
+        let (oid, branch) = match inner.head().ok()? {
+            crate::Head::Branch { oid, name } => (Some(oid), Some(name)),
+            crate::Head::Detached { oid } => (Some(oid), None),
+            crate::Head::Unborn { .. } => (None, None),
+        };
+        let subject = oid
+            .as_deref()
+            .and_then(|oid| inner.commit_details(oid).ok())
+            .map(|details| details.summary);
+        Some(Inside {
+            oid,
+            branch,
+            subject,
+        })
     }
 }

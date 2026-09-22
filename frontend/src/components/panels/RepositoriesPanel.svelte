@@ -4,8 +4,8 @@
   import WorktreeList from "$components/repo-tree/WorktreeList.svelte";
   import { worktrees } from "$stores/worktrees.svelte";
   import type { WorktreeEntry } from "$lib/ipc";
-  import type { RepoOverview, Submodule } from "$lib/ipc";
-  import { submodules } from "$stores/submodules.svelte";
+  import type { RepoOverview } from "$lib/ipc";
+  import type { ModuleRow } from "$lib/module-tree";
 
   interface Props {
     /** True only while the folder dialog's own flow runs, so the label does not flicker. */
@@ -22,8 +22,9 @@
     onremoveworktree: (entry: WorktreeEntry) => void;
     onaddworktree: () => void;
     onpruneworktrees: () => void;
-    onopenmodule: (module: Submodule) => void;
-    onupdatemodule: (module: Submodule) => void;
+    onopenmodule: (row: ModuleRow) => void;
+    onupdatemodule: (row: ModuleRow) => void;
+    onmodulecontext: (row: ModuleRow, x: number, y: number) => void;
   }
 
   let {
@@ -42,6 +43,7 @@
     onpruneworktrees,
     onopenmodule,
     onupdatemodule,
+    onmodulecontext,
   }: Props = $props();
 </script>
 
@@ -64,7 +66,7 @@
   onprune={onpruneworktrees}
 />
 <SubmoduleList
-  modules={submodules.entries}
-  onopen={(module) => onopenmodule(module)}
-  onupdate={(module) => onupdatemodule(module)}
+  onopen={(row) => onopenmodule(row)}
+  onupdate={(row) => onupdatemodule(row)}
+  oncontext={(row, x, y) => onmodulecontext(row, x, y)}
 />

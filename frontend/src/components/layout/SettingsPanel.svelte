@@ -1,10 +1,13 @@
 <script lang="ts">
+  import Dialog from "$components/common/Dialog.svelte";
+  import Select from "$components/common/Select.svelte";
   import Tree from "$components/common/Tree.svelte";
   import {
     CATEGORIES,
     changedKeys,
     firstMatch,
     matchingCategories,
+    disabledBy,
     restoreCategory,
     sameKeymap,
   } from "$lib/preferences";
@@ -27,6 +30,8 @@
     onforgettoken: () => void;
     /** Applies the whole draft at once; nothing is written before OK. */
     onapply: (next: Settings, keymap: Keymap) => void;
+    /** Shows a draft without saving it, so a choice can be seen while it is being made. */
+    onpreview: (next: Settings) => void;
     onclose: () => void;
   }
 
@@ -40,6 +45,7 @@
     onstoretoken,
     onforgettoken,
     onapply,
+    onpreview,
     onclose,
   }: Props = $props();
 
@@ -116,6 +122,9 @@
 
   function set<K extends keyof Settings>(key: K, next: Settings[K]) {
     draft = { ...draft, [key]: next };
+    // Seen before it is saved: choosing a theme from a list nobody can see the effect of
+    // is choosing blind (R-107). Cancel puts `value` back.
+    onpreview(draft);
   }
 
   function onsearch(text: string) {
@@ -124,26 +133,15 @@
     if (landing) active = landing;
   }
 
-  function onkeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      onclose();
-    }
-  }
 </script>
 
-<svelte:window {onkeydown} />
-
-<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div class="backdrop" onclick={onclose}></div>
-
-<div class="dialog" role="dialog" aria-label="Preferences">
-  <header>
-    <h2>Preferences</h2>
-    <button type="button" class="icon" onclick={onclose} aria-label="Close">✕</button>
-  </header>
-
-  <div class="body">
+<Dialog
+  title="Preferences"
+  width="min(860px, 94vw)"
+  height="min(640px, 88vh)"
+  {onclose}
+>
+  <div class="panes">
     <nav aria-label="Settings categories">
       <input
         type="search"
@@ -210,15 +208,15 @@
                 </div>
               </div>
             {:else if field.key === "theme"}
-              <label class="row">
-                <span>{field.label}</span>
-                <select
+              <div class="row">
+                <span id="f-theme">{field.label}</span>
+                <Select
                   value={draft.theme}
-                  onchange={(e) => set("theme", e.currentTarget.value as never)}
-                >
-                  {#each THEMES as [id, title] (id)}<option value={id}>{title}</option>{/each}
-                </select>
-              </label>
+                  options={THEMES}
+                  label={field.label}
+                  onchange={(next) => set("theme", next)}
+                />
+              </div>
             {:else if field.key === "dateFormat"}
               <div class="row choice" role="radiogroup" aria-label={field.label}>
                 <span>{field.label}</span>
@@ -344,32 +342,31 @@
                 <input
                   type="checkbox"
                   checked={draft.wordDiff}
+                  disabled={disabledBy(draft, field.dependsOn)}
                   onchange={(e) => set("wordDiff", e.currentTarget.checked)}
                 />
                 <span>{field.label}</span>
               </label>
             {:else if field.key === "terminal"}
-              <label class="row">
+              <div class="row">
                 <span>{field.label}</span>
-                <select
+                <Select
                   value={draft.terminal}
-                  onchange={(e) => set("terminal", e.currentTarget.value)}
-                >
-                  {#each terminals as choice (choice.id)}
-                    <option value={choice.id}>{choice.label}</option>
-                  {/each}
-                </select>
-              </label>
+                  options={terminals.map((choice) => [choice.id, choice.label] as const)}
+                  label={field.label}
+                  onchange={(next) => set("terminal", next)}
+                />
+              </div>
             {:else if field.key === "logLevel"}
-              <label class="row">
+              <div class="row">
                 <span>{field.label}</span>
-                <select
+                <Select
                   value={draft.logLevel}
-                  onchange={(e) => set("logLevel", e.currentTarget.value as never)}
-                >
-                  {#each LOG_LEVELS as level (level)}<option value={level}>{level}</option>{/each}
-                </select>
-              </label>
+                  options={LOG_LEVELS.map((level) => [level, level] as const)}
+                  label={field.label}
+                  onchange={(next) => set("logLevel", next)}
+                />
+              </div>
             {:else if field.key === "keymap"}
               <KeymapEditor
                 {bindings}
@@ -414,69 +411,26 @@
     </section>
   </div>
 
-  <footer>
+  {#snippet footer()}
     <span class="note">{note}</span>
-    <button type="button" onclick={() => (draft = restoreCategory(draft, active))}>
+    <button
+      type="button"
+      onclick={() => {
+        draft = restoreCategory(draft, active);
+        onpreview(draft);
+      }}
+    >
       Restore Defaults
     </button>
     <button type="button" onclick={onclose}>Cancel</button>
     <button type="button" class="primary" disabled={!dirty} onclick={() => onapply(draft, draftKeys)}>
       OK
     </button>
-  </footer>
-</div>
+  {/snippet}
+</Dialog>
 
 <style>
-  .backdrop {
-    position: absolute;
-    inset: 0;
-    z-index: 20;
-    background: var(--scrim);
-  }
-
-  .dialog {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 21;
-    display: flex;
-    flex-direction: column;
-    width: min(860px, 94vw);
-    height: min(640px, 88vh);
-    background: var(--surface-panel);
-    border: 1px solid var(--field-border);
-    border-radius: var(--r-md);
-    box-shadow: var(--shadow-popover);
-    overflow: hidden;
-  }
-
-  header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex: 0 0 auto;
-    height: var(--h-toolbar);
-    padding: 0 var(--sp-5);
-    background: var(--titlebar-bg);
-    border-bottom: 1px solid var(--titlebar-border);
-  }
-
-  h2 {
-    margin: 0;
-    font-size: var(--fs-ui);
-    font-weight: 600;
-  }
-
-  .icon {
-    background: none;
-    border: 0;
-    color: var(--text-secondary);
-    font: inherit;
-    cursor: default;
-  }
-
-  .body {
+  .panes {
     display: flex;
     flex: 1 1 auto;
     min-height: 0;
@@ -581,7 +535,8 @@
   }
 
   .row {
-    display: flex;
+    display: grid;
+    grid-template-columns: 200px minmax(0, 1fr);
     align-items: center;
     gap: var(--sp-4);
     min-height: var(--h-row);
@@ -589,12 +544,8 @@
     font-size: var(--fs-dense);
   }
 
-  .row > span:first-child {
-    flex: 0 0 200px;
-  }
-
   .row.choice {
-    align-items: flex-start;
+    align-items: start;
   }
 
   .row.check {
@@ -667,23 +618,64 @@
     font-size: var(--fs-dense);
   }
 
-  footer {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-4);
-    flex: 0 0 auto;
-    padding: var(--sp-4) var(--sp-5);
-    background: var(--titlebar-bg);
-    border-top: 1px solid var(--titlebar-border);
-  }
-
   .note {
     flex: 1 1 auto;
     color: var(--text-secondary);
     font-size: 11px;
   }
 
+  button {
+    height: var(--h-button);
+    padding: 0 var(--sp-5);
+    background: var(--surface-input);
+    color: var(--text-primary);
+    border: 1px solid var(--field-border);
+    border-radius: var(--r-sm);
+    font: inherit;
+    font-size: var(--fs-dense);
+    cursor: default;
+  }
+
+  button:hover:not(:disabled) {
+    border-color: var(--state-focus-ring);
+  }
+
+  button:disabled {
+    color: var(--text-secondary);
+    opacity: 0.6;
+  }
+
+  /* OK is the one thing the dialog is for, so it is filled rather than outlined. */
   .primary {
+    background: var(--status-ref);
     border-color: var(--status-ref);
+    color: var(--c-bg-window);
+    font-weight: 600;
+  }
+
+  .primary:hover:not(:disabled) {
+    filter: brightness(1.1);
+  }
+
+  .primary:disabled {
+    background: var(--surface-input);
+    border-color: var(--field-border);
+    color: var(--text-secondary);
+    font-weight: 400;
+  }
+
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: var(--status-ref);
+    width: 13px;
+    height: 13px;
+    margin: 0;
+  }
+
+  /* A nested option that its parent has switched off says so rather than looking live. */
+  label:has(input:disabled),
+  .row:has(> input:disabled) {
+    color: var(--text-secondary);
+    opacity: 0.6;
   }
 </style>

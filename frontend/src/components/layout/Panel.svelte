@@ -98,12 +98,22 @@
   }
 
   .panel-body {
+    display: flex;
+    flex-direction: column;
     flex: 1 1 auto;
     min-height: 0;
     overflow: auto;
   }
 
+  .panel-body > :global(*) {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
   .panel-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     margin: 0;
     padding: var(--sp-7) var(--sp-5);
     text-align: center;

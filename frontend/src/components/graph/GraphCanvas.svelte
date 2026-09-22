@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { GRAPH, canvasPixelSize, edgeBand, indexByRow, laneX, rowY } from "$lib/graph-geometry";
+  import { GRAPH, canvasPixelSize, edgeBand, indexByRow, nodeCentre } from "$lib/graph-geometry";
   import { settings } from "$stores/settings.svelte";
   import type { GraphEdge } from "$lib/ipc";
 
@@ -57,45 +57,36 @@
     band.sort((a, b) => order[a.kind] - order[b.kind]);
 
     for (const edge of band) {
-      const x1 = laneX(edge.fromLane);
-      const y1 = rowY(edge.fromRow + rowOffset, scrollTop);
-      const x2 = laneX(edge.toLane);
-      const y2 = rowY(edge.toRow + rowOffset, scrollTop);
+      const { x: x1, y: y1 } = nodeCentre(edge.fromLane, edge.fromRow + rowOffset, scrollTop);
+      const { x: x2, y: y2 } = nodeCentre(edge.toLane, edge.toRow + rowOffset, scrollTop);
 
       context.strokeStyle = laneColor(edge.color);
       context.beginPath();
-      context.moveTo(x1 + 0.5, y1 + 0.5);
+      context.moveTo(x1, y1);
       if (x1 === x2) {
-        context.lineTo(x2 + 0.5, y2 + 0.5);
+        context.lineTo(x2, y2);
       } else {
         const bend = (y2 - y1) / 2;
-        context.bezierCurveTo(
-          x1 + 0.5,
-          y1 + bend + 0.5,
-          x2 + 0.5,
-          y2 - bend + 0.5,
-          x2 + 0.5,
-          y2 + 0.5,
-        );
+        context.bezierCurveTo(x1, y1 + bend, x2, y2 - bend, x2, y2);
       }
       context.stroke();
     }
 
     if (headLane !== null && firstRow === 0) {
-      const x = laneX(headLane);
+      const top = nodeCentre(headLane, 0, scrollTop);
+      const foot = nodeCentre(headLane, rowOffset, scrollTop);
       context.save();
       context.setLineDash([3, 3]);
       context.strokeStyle = laneColor(0);
       context.beginPath();
-      context.moveTo(x + 0.5, rowY(0, scrollTop) + 0.5);
-      context.lineTo(x + 0.5, rowY(rowOffset, scrollTop) + 0.5);
+      context.moveTo(top.x, top.y);
+      context.lineTo(foot.x, foot.y);
       context.stroke();
       context.restore();
     }
 
     for (const node of nodes) {
-      const x = laneX(node.lane);
-      const y = rowY(node.row + rowOffset, scrollTop);
+      const { x, y } = nodeCentre(node.lane, node.row + rowOffset, scrollTop);
       context.fillStyle = laneColor(node.color);
       context.beginPath();
       if (node.root) {

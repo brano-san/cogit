@@ -8,6 +8,9 @@ export interface Field {
   hint?: string;
   /** Words the user might search for that the label does not contain. */
   keywords?: string[];
+  /** The option this one only makes sense under. Indenting a row in the markup is a
+      claim about behaviour, and this is what makes the claim true (R-117). */
+  dependsOn?: keyof Settings;
 }
 
 export interface Group {
@@ -142,7 +145,12 @@ export const CATEGORIES: Category[] = [
         title: "Within a diff",
         fields: [
           { key: "detectMoves", label: "Mark moved blocks instead of delete plus insert" },
-          { key: "wordDiff", label: "Highlight changed words inside a line", keywords: ["intraline"] },
+          {
+            key: "wordDiff",
+            label: "Highlight changed words inside a line",
+            keywords: ["intraline"],
+            dependsOn: "detectMoves",
+          },
         ],
       },
     ],
@@ -260,4 +268,11 @@ export function restoreCategory(draft: Settings, id: string): Settings {
     }
   }
   return restored;
+}
+
+/** Is this field switched off because the option above it is? */
+export function disabledBy(current: Settings, parent: keyof Settings | undefined): boolean {
+  if (parent === undefined) return false;
+  const value = current[parent];
+  return typeof value === "boolean" && !value;
 }

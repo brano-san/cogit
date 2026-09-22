@@ -44,6 +44,12 @@ export const commands = {
 	 */
 	startedAtMs: number,
 } | null>("command_outcome", { id }),
+	/**
+	 *  Closes whichever window asked. Not `async`: window operations belong to the main
+	 *  thread, and doing it here rather than through `getCurrentWindow()` keeps the call out
+	 *  of the webview (doc/12-risks.md, R-86).
+	 */
+	closeThisWindow: () => typedError<null, GitError>(__TAURI_INVOKE("close_this_window")),
 	commandProblems: () => __TAURI_INVOKE<number>("command_problems"),
 	clearCommandLog: () => __TAURI_INVOKE<void>("clear_command_log"),
 	safetyLog: () => __TAURI_INVOKE<SafetyEntry[]>("safety_log"),
@@ -181,6 +187,11 @@ export const commands = {
 	searchFileContents: (repo: RepoId, query: string, isRegex: boolean, scope: SearchScope, onChunk: Channel<SearchChunk>) => typedError<null, GitError>(__TAURI_INVOKE("search_file_contents", { repo, query, isRegex, scope, onChunk })),
 	/**  The submodules directly under `parent`; empty `parent` means the top level. */
 	listSubmodules: (repo: RepoId, parent: string) => typedError<Submodule[], GitError>(__TAURI_INVOKE("list_submodules", { repo, parent })),
+	/**
+	 *  Opens a submodule from its node in the tree: the panels follow it, the Repositories
+	 *  panel does not gain an entry for it (doc/12-risks.md, R-109).
+	 */
+	openSubmodule: (path: string) => typedError<RepoSummary, GitError>(__TAURI_INVOKE("open_submodule", { path })),
 	/**  Stops a running read. `false` when it had already finished. */
 	cancelOperation: (id: number) => __TAURI_INVOKE<boolean>("cancel_operation", { id }),
 	/**  Everything queued or running, for a panel that has just been opened again (P1.5). */
@@ -956,6 +967,13 @@ export type Submodule = {
 	recorded: string,
 	checkedOut: string | null,
 	state: SubmoduleState,
+	/**
+	 *  The branch it is on, when it is on one. A submodule is usually detached, and then
+	 *  the row has to name the commit instead (R-110).
+	 */
+	branch: string | null,
+	/**  First line of the commit it sits on, for the row that has no branch to show. */
+	subject: string | null,
 };
 
 export type SubmoduleState = "notInitialised" | "inSync" | 

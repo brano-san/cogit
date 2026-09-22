@@ -132,6 +132,7 @@ Tests are run deliberately instead:
 
 ```bash
 cargo nextest run --workspace --exclude cogit
+cargo test -p cogit --lib          # excluded above: tauri needs a manifest nextest lacks
 npm --prefix frontend run test
 ```
 
@@ -193,6 +194,7 @@ Then, by hand:
 # Rust
 cargo check --workspace
 cargo nextest run --workspace --exclude cogit
+cargo test -p cogit --lib
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all
 cargo deny check

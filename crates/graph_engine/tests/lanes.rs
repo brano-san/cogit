@@ -228,3 +228,143 @@ fn snapshot_nested_branches() {
     ]);
     insta::assert_snapshot!(render(&nodes, &out));
 }
+
+// --- the mainline owns the leftmost column -----------------------------------------
+
+/// SmartGit draws the main line as one unbroken column on the left and hangs everything
+/// else off it to the right. Cogit drew whichever branch happened to be newest there,
+/// which put the main line somewhere in the middle with branches on both sides.
+#[test]
+fn the_mainline_takes_lane_zero_even_when_it_is_not_the_newest_commit() {
+    // `feature` is newer than `master`, so it comes first in the log.
+    let nodes = commits(&[
+        ("f2", &["f1"]),
+        ("f1", &["m2"]),
+        ("m2", &["m1"]),
+        ("m1", &[]),
+    ]);
+    let mut cursor = LayoutCursor {
+        mainline: Some("m2".to_owned()),
+        ..Default::default()
+    };
+
+    let out = layout(&nodes, &mut cursor);
+
+    let lane_of = |row: u32| out.lanes.iter().find(|l| l.row == row).unwrap().lane;
+    assert_ne!(lane_of(0), 0, "the feature branch must give way");
+    assert_eq!(
+        lane_of(2),
+        0,
+        "the mainline tip belongs in the first column"
+    );
+    assert_eq!(lane_of(3), 0, "and stays there down its first-parent chain");
+}
+
+#[test]
+fn a_linear_history_is_one_column_on_the_left() {
+    let nodes = commits(&[("c", &["b"]), ("b", &["a"]), ("a", &[])]);
+    let mut cursor = LayoutCursor {
+        mainline: Some("c".to_owned()),
+        ..Default::default()
+    };
+
+    let out = layout(&nodes, &mut cursor);
+
+    assert!(out.lanes.iter().all(|l| l.lane == 0), "{:?}", out.lanes);
+    assert_eq!(out.max_lane, 0);
+}
+
+#[test]
+fn branches_off_the_mainline_go_to_its_right() {
+    let nodes = commits(&[
+        ("m3", &["m2", "t1"]),
+        ("t1", &["m1"]),
+        ("m2", &["m1"]),
+        ("m1", &[]),
+    ]);
+    let mut cursor = LayoutCursor {
+        mainline: Some("m3".to_owned()),
+        ..Default::default()
+    };
+
+    let out = layout(&nodes, &mut cursor);
+
+    let lane_of = |row: u32| out.lanes.iter().find(|l| l.row == row).unwrap().lane;
+    assert_eq!(lane_of(0), 0);
+    assert!(lane_of(1) > 0, "the topic branch belongs to the right");
+    assert_eq!(
+        lane_of(2),
+        0,
+        "the mainline keeps its column across the merge"
+    );
+}
+
+/// Without a mainline to honour, nothing changes: the old behaviour is the fallback.
+#[test]
+fn with_no_mainline_named_the_first_commit_still_takes_lane_zero() {
+    let nodes = commits(&[("c", &["b"]), ("b", &["a"]), ("a", &[])]);
+    let mut cursor = LayoutCursor::default();
+
+    let out = layout(&nodes, &mut cursor);
+
+    assert!(out.lanes.iter().all(|l| l.lane == 0));
+}
+
+/// The log is streamed in chunks; the reservation has to survive the chunk boundary.
+#[test]
+fn the_column_is_still_reserved_after_a_chunk_boundary() {
+    let mut cursor = LayoutCursor {
+        mainline: Some("m1".to_owned()),
+        ..Default::default()
+    };
+
+    let first = layout(&commits(&[("f2", &["f1"]), ("f1", &["m1"])]), &mut cursor);
+    let second = layout(&commits(&[("m1", &[])]), &mut cursor);
+
+    assert!(first.lanes.iter().all(|l| l.lane != 0), "{:?}", first.lanes);
+    assert_eq!(second.lanes[0].lane, 0);
+}
+
+// --- which branch counts as the mainline --------------------------------------------
+
+use graph_engine::mainline_tip;
+
+#[test]
+fn master_is_the_mainline_when_it_is_there() {
+    let tip = mainline_tip(
+        &[("feature", "f1"), ("master", "m1"), ("topic", "t1")],
+        Some("f1"),
+    );
+    assert_eq!(tip.as_deref(), Some("m1"));
+}
+
+#[test]
+fn main_counts_the_same_as_master() {
+    let tip = mainline_tip(&[("feature", "f1"), ("main", "m1")], Some("f1"));
+    assert_eq!(tip.as_deref(), Some("m1"));
+}
+
+/// Both names exist in repositories that were renamed and kept the old branch around.
+#[test]
+fn master_wins_over_main_rather_than_picking_at_random() {
+    let tip = mainline_tip(&[("main", "a"), ("master", "b")], None);
+    assert_eq!(tip.as_deref(), Some("b"));
+}
+
+#[test]
+fn without_either_name_the_branch_head_is_on_takes_the_column() {
+    let tip = mainline_tip(&[("release/1.0", "r1"), ("topic", "t1")], Some("t1"));
+    assert_eq!(tip.as_deref(), Some("t1"));
+}
+
+#[test]
+fn a_repository_with_no_branches_at_all_names_no_mainline() {
+    assert_eq!(mainline_tip(&[], None), None);
+}
+
+/// A detached HEAD is still a column worth keeping straight.
+#[test]
+fn a_detached_head_is_its_own_mainline() {
+    let tip = mainline_tip(&[("topic", "t1")], Some("deadbeef"));
+    assert_eq!(tip.as_deref(), Some("deadbeef"));
+}

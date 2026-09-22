@@ -1,4 +1,5 @@
 mod accelerators;
+mod child_window;
 mod commands;
 mod diagnostics;
 mod logging;
@@ -11,6 +12,7 @@ mod shutdown;
 #[cfg(windows)]
 mod webview2;
 mod webview_memory;
+mod window_place;
 
 use app_state::AppState;
 use specta_typescript::Typescript;
@@ -110,6 +112,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::delete_branch,
             commands::command_log,
             commands::command_outcome,
+            commands::close_this_window,
             commands::command_problems,
             commands::clear_command_log,
             commands::safety_log,
@@ -184,6 +187,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::list_all_repo_files,
             commands::search_file_contents,
             commands::list_submodules,
+            commands::open_submodule,
             commands::cancel_operation,
             commands::list_operations,
             commands::read_settings,
@@ -297,6 +301,18 @@ pub fn run() -> anyhow::Result<()> {
                 renderer_failure::install(&window);
                 #[cfg(windows)]
                 webview2::install_accelerators(&window);
+
+                // After the state plugin restored the saved geometry, and before the
+                // window is shown: a window that opens off screen cannot be dragged back.
+                window_place::settle(&window);
+                let watched = window.clone();
+                window.on_window_event(move |event| {
+                    // Windows moves the window itself when a monitor is unplugged. A drag
+                    // cannot put the title bar out of reach, so this only ever undoes that.
+                    if matches!(event, tauri::WindowEvent::Moved(_)) {
+                        window_place::settle(&watched);
+                    }
+                });
                 window.show()?;
             }
             Ok(())
@@ -316,6 +332,12 @@ pub fn run() -> anyhow::Result<()> {
 pub fn dispatch_menu_command(app: &tauri::AppHandle, id: &str) {
     if id == "copy-diagnostics" {
         copy_diagnostics(app);
+        return;
+    }
+    if id == "reset-window-position" {
+        if let Some(window) = app.get_webview_window("main") {
+            window_place::recentre(&window);
+        }
         return;
     }
     let _ = MenuCommand(id.to_owned()).emit(app);
