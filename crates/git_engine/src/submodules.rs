@@ -26,6 +26,14 @@ pub struct Submodule {
     pub subject: Option<String>,
 }
 
+/// Which commit a gitlink points at on each side of a diff.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SubmodulePointer {
+    pub recorded: String,
+    pub previous: Option<String>,
+    pub checked_out: bool,
+}
+
 /// What the submodule's own repository says about itself.
 struct Inside {
     oid: Option<String>,

@@ -31,6 +31,52 @@ impl RepoHandle {
         self.blob_in(&tree, path)
     }
 
+    /// The commit a gitlink points at on each side, when `path` is a submodule. `None`
+    /// when it is not one — an ordinary path that is missing is still an error.
+    ///
+    /// A submodule diff is about the pointer, not about content: that is what changed, and
+    /// on a submodule nobody checked out it is the only thing there is (R-139).
+    pub fn submodule_pointer(
+        &self,
+        spec: &DiffSpec,
+        path: &str,
+    ) -> Result<Option<crate::SubmodulePointer>> {
+        let (new_rev, old_rev) = match spec {
+            DiffSpec::CommitVsParent { oid } => (Some(oid.clone()), self.first_parent(oid)?),
+            DiffSpec::CommitVsCommit { a, b } => (Some(b.clone()), Some(a.clone())),
+            DiffSpec::WorkTreeVsIndex | DiffSpec::IndexVsHead => (Some("HEAD".to_owned()), None),
+        };
+
+        let recorded = new_rev
+            .as_deref()
+            .and_then(|rev| self.gitlink_at(rev, path));
+        let previous = old_rev
+            .as_deref()
+            .and_then(|rev| self.gitlink_at(rev, path));
+        let Some(recorded) = recorded.or_else(|| previous.clone()) else {
+            return Ok(None);
+        };
+
+        Ok(Some(crate::SubmodulePointer {
+            checked_out: self.root().join(path).join(".git").exists()
+                || self.root().join(path).join("HEAD").exists(),
+            previous: previous.filter(|before| *before != recorded),
+            recorded,
+        }))
+    }
+
+    /// The object id a tree records for `path` when the entry is a gitlink.
+    fn gitlink_at(&self, rev: &str, path: &str) -> Option<String> {
+        let id = self.repo.rev_parse_single(rev).ok()?;
+        let tree = self.repo.find_commit(id.detach()).ok()?.tree().ok()?;
+        let entry = tree.lookup_entry_by_path(path).ok()??;
+        if entry.mode().is_commit() {
+            Some(entry.object_id().to_string())
+        } else {
+            None
+        }
+    }
+
     pub fn diff_sides(&self, spec: &DiffSpec, path: &str) -> Result<DiffSides> {
         match spec {
             DiffSpec::CommitVsParent { oid } => {

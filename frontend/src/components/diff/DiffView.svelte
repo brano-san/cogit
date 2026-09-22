@@ -659,8 +659,9 @@
     left: 0;
     right: 0;
     display: flex;
-    align-items: center;
+    align-items: stretch;
     height: 18px;
+    line-height: 18px;
     font-size: var(--fs-code);
     white-space: pre;
   }
@@ -806,6 +807,16 @@
     border-radius: 2px;
     background: var(--c-neutral-soft);
     font-weight: 600;
+  }
+
+  .code.del .word {
+    background: color-mix(in srgb, var(--c-deleted) 45%, transparent);
+    color: var(--text-primary);
+  }
+
+  .code.add .word {
+    background: color-mix(in srgb, var(--c-added) 45%, transparent);
+    color: var(--text-primary);
   }
 
   /* Every match is marked; the one the counter points at is the bright one. */

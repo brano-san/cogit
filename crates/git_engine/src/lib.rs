@@ -66,7 +66,7 @@ pub use search::CommitQuery;
 pub use stash::{StashContents, StashEntry, StashOptions};
 pub use state::RepoState;
 pub use status::RepoStatus;
-pub use submodules::{Submodule, SubmoduleState};
+pub use submodules::{Submodule, SubmodulePointer, SubmoduleState};
 pub use tags::TagRequest;
 pub use worktree::{WorktreeFiles, WorktreeView};
 pub use worktrees::WorktreeEntry;

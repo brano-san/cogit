@@ -17,7 +17,13 @@ const INTERRUPTED: Partial<Record<RepoState["kind"], string>> = {
   bisecting: "Bisect",
 };
 
-export function stateBanner(state: RepoState, indexLock: string | null): Banner | null {
+/** `submodule` changes one thing: a detached HEAD there is how submodules work, not a
+    situation to be rescued from (doc/12-risks.md, R-130). */
+export function stateBanner(
+  state: RepoState,
+  indexLock: string | null,
+  submodule = false,
+): Banner | null {
   // A stale lock blocks every write, so it outranks whatever else is going on.
   if (indexLock) {
     return {
@@ -39,6 +45,14 @@ export function stateBanner(state: RepoState, indexLock: string | null): Banner 
   }
 
   if (state.kind === "detachedHead") {
+    if (submodule) {
+      return {
+        title: "Detached HEAD",
+        detail: `On commit ${state.oid.slice(0, 7)}, the one the parent repository records.`,
+        severity: "info",
+        actions: [],
+      };
+    }
     return {
       title: "Detached HEAD",
       detail: `On commit ${state.oid.slice(0, 7)}. New commits belong to no branch and are easy to lose.`,

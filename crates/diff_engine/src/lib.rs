@@ -169,6 +169,16 @@ pub enum FileDiff {
     /// Nothing but whitespace changed, and the active option hides it. Told apart from
     /// `Unchanged` so the UI can say the diff is being filtered (T7.10).
     WhitespaceOnly,
+    /// A gitlink: what changed is which commit the parent records, not any file. A
+    /// submodule that was never checked out has nothing else to show, and that is a
+    /// normal state of a repository rather than a broken one (doc/12-risks.md, R-139).
+    Submodule {
+        /// The commit the parent records now, and the one it recorded before.
+        recorded: String,
+        previous: Option<String>,
+        /// False when the submodule's own repository is not on disk.
+        checked_out: bool,
+    },
 }
 
 #[derive(Debug, thiserror::Error, Serialize, specta::Type)]

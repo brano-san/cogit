@@ -285,3 +285,32 @@ fn move_detection_is_on_by_default() {
         other => panic!("expected a text diff, got {other:?}"),
     }
 }
+
+/// A submodule that has not been checked out is a normal state of a repository, not a
+/// broken one. SmartGit shows "Submodule does not exist!" on both sides; Cogit used to
+/// answer `Invalid repository state` and show nothing at all.
+#[test]
+fn a_submodule_that_is_not_checked_out_is_described_rather_than_refused() {
+    let f = test_fixtures::with_submodule().unwrap();
+    f.git(&["submodule", "deinit", "-f", "--", "vendor/lib"])
+        .unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let head = f.oid("HEAD").unwrap();
+
+    let shown = state
+        .diff_file(
+            repo,
+            &git_engine::DiffSpec::CommitVsParent { oid: head },
+            "vendor/lib",
+            &diff_engine::DiffOptions::default(),
+        )
+        .expect("a missing submodule must not be an error");
+
+    match shown {
+        diff_engine::FileDiff::Submodule { recorded, .. } => {
+            assert!(!recorded.is_empty(), "the recorded pointer is the diff");
+        }
+        other => panic!("expected a submodule diff, got {other:?}"),
+    }
+}

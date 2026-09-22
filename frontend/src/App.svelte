@@ -248,6 +248,10 @@
       effect depend on its own write and re-enter `open_repository` about a hundred times
       a second (R-93). Untracking one getter at a time only moves the problem to the next
       caller down. */
+  // D4: leaving a commit drops the file that was open in it, so the tick in Files and the
+  // panel beside it always agree (doc/12-risks.md, R-138).
+  commit.onchange = () => diff.clear();
+
   $effect(() => {
     untrack(() => {
       startTracing();
@@ -288,7 +292,11 @@
   /** One field for every panel that depends on an open repository. The panel decides
       from it both what its header counts and what its body says (R-119). */
   const panelState = $derived(panelView(repository.phase));
-  const banner = $derived(repo ? stateBanner(repo.state, repo.indexLock) : null);
+  /** The banner belongs to whatever repository the panels are showing, and a submodule
+      opened from the tree is a different case from one the user checked out (R-130). */
+  const banner = $derived(
+    repo ? stateBanner(repo.state, repo.indexLock, submodules.open !== null) : null,
+  );
   const tracked = $derived(repository.localBranches.find((b) => b.isHead));
   const scope = $derived(commitScope(worktree.staged, fileMask));
   const prUrl = $derived.by(() => {
@@ -1068,13 +1076,13 @@ Log: ${info?.logPath ?? ""}`),
       await refreshSubmodule(row);
       return;
     }
-    const tree = { children: submodules.children, expanded: submodules.expanded };
     const opened = await openedModule(row.key);
     if (!opened) return;
 
-    forgetPanels();
-    // The tree still belongs to the repository in the list; only the panels moved.
-    submodules.restore(tree.children, tree.expanded, row.key);
+    // Everything except the tree: it belongs to the repository in the list, and the click
+    // came from it (doc/12-risks.md, R-129).
+    forgetPanelsKeepingTheTree();
+    submodules.open = row.key;
     repository.adopt(opened);
     refs.adopt(opened.root, buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() }));
     void reloadGraph();
@@ -1082,6 +1090,11 @@ Log: ${info?.logPath ?? ""}`),
     void worktrees.refresh(opened.repo);
     void flow.refresh(opened.repo);
     await afterMutation();
+  }
+
+  /** From the Diff panel, where a submodule that was never checked out says so. */
+  async function initSubmoduleAt(path: string) {
+    await mutate((id) => submodules.update(id, path, true));
   }
 
   /** The repository behind a node of the submodule tree, opened but not listed. */
@@ -1333,17 +1346,31 @@ Log: ${info?.logPath ?? ""}`),
   function openDiff(path: string) {
     const id = repository.current?.repo;
     const oid = commit.oid;
-    if (id && oid) void diff.load(id, { kind: "commitVsParent", oid }, path);
+    if (!id || !oid) return;
+    if (diff.path === path) {
+      diff.clear();
+      return;
+    }
+    void diff.load(id, { kind: "commitVsParent", oid }, path);
   }
 
   function openStagedDiff(path: string) {
     const id = repository.current?.repo;
-    if (id) void diff.load(id, { kind: "indexVsHead" }, path);
+    if (!id) return;
+    if (diff.path === path) {
+      diff.clear();
+      return;
+    }
+    void diff.load(id, { kind: "indexVsHead" }, path);
   }
 
   function openWorktreeDiff(path: string) {
     const id = repository.current?.repo;
     if (!id) return;
+    if (diff.path === path && !conflicts.paths.includes(path)) {
+      diff.clear();
+      return;
+    }
     // A conflicted file has three sides; a two-sided diff of it says nothing useful.
     if (conflicts.paths.includes(path)) {
       diff.clear();
@@ -1355,7 +1382,9 @@ Log: ${info?.logPath ?? ""}`),
     void diff.load(id, { kind: "workTreeVsIndex" }, path).then(() => watch.stop(path));
   }
 
-  function forgetPanels() {
+  /** Clearing everything the old repository put on screen — except the submodule tree,
+      which belongs to the repository in the list and outlives the panels (R-129). */
+  function forgetPanelsKeepingTheTree() {
     commit.clear();
     diff.clear();
     blame.clear();
@@ -1368,6 +1397,11 @@ Log: ${info?.logPath ?? ""}`),
     stashView.clear();
     worktrees.clear();
     refs.clear();
+  }
+
+  function forgetPanels() {
+    forgetPanelsKeepingTheTree();
+    submodules.clear();
   }
 
   async function activate(root: string, restoreOid: string | null = null) {
@@ -2468,6 +2502,7 @@ Log: ${info?.logPath ?? ""}`),
         onpointerdown={() => (focused = "diff")}>
         <Panel title="Diff" active={focused === "diff"} view={panelState} stale={stale.has("diff")}>
           <DiffPanel
+            oninitsubmodule={(path) => void initSubmoduleAt(path)}
             onstage={(selected, reverse) => void stageLines(selected, reverse)}
             onblame={() => void showBlame()}
             onwhitespace={(mode) => {

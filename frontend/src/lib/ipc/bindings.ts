@@ -478,7 +478,17 @@ language: string | null } | { kind: "eolOnly"; from: LineEnding; to: LineEnding 
  *  Nothing but whitespace changed, and the active option hides it. Told apart from
  *  `Unchanged` so the UI can say the diff is being filtered (T7.10).
  */
-{ kind: "whitespaceOnly" };
+{ kind: "whitespaceOnly" } | 
+/**
+ *  A gitlink: what changed is which commit the parent records, not any file. A
+ *  submodule that was never checked out has nothing else to show, and that is a
+ *  normal state of a repository rather than a broken one (doc/12-risks.md, R-139).
+ */
+{ kind: "submodule"; 
+/**  The commit the parent records now, and the one it recorded before. */
+recorded: string; previous: string | null; 
+/**  False when the submodule's own repository is not on disk. */
+checkedOut: boolean };
 
 /**
  *  Named rather than a tuple: a positional pair crossing IPC reads as `[string, FileDiff]`

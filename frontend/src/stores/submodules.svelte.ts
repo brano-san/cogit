@@ -12,19 +12,35 @@ class SubmoduleStore {
   expanded = $state.raw<ReadonlySet<string>>(new Set());
   /** The submodule the panels are currently showing, by key; null for the repository. */
   open = $state<string | null>(null);
+  /** Is the repository's own list of submodules folded away? */
+  folded = $state(false);
+
+  get top(): readonly Submodule[] {
+    return this.children.get("") ?? [];
+  }
+
+  foldTop(): void {
+    this.folded = !this.folded;
+  }
 
   /** The repository the tree belongs to. It is the one in the Repositories panel, which
       is not the same as the one the other panels are showing once a submodule has been
       opened from this very tree (R-109). */
-  #repo: RepoId | null = null;
+  #repo = $state.raw<RepoId | null>(null);
   #root: string | null = null;
+
+  /** The repository whose tree this is — the one in the list. Not the same as the one
+      the other panels are showing once a submodule has been opened from it (R-129). */
+  get owner(): RepoId | null {
+    return this.#repo;
+  }
 
   get entries(): readonly Submodule[] {
     return this.children.get("") ?? [];
   }
 
   get rows(): ModuleRow[] {
-    return moduleRows(this.children, this.expanded);
+    return this.folded ? [] : moduleRows(this.children, this.expanded);
   }
 
   /** Hands the tree to a repository. Called when one is activated from the list, and
@@ -93,18 +109,6 @@ class SubmoduleStore {
   async update(repo: RepoId, path: string, init: boolean): Promise<void> {
     await updateSubmodule(repo, path, init);
     await this.refresh();
-  }
-
-  /** Puts the tree back after the panels were cleared for a submodule that was opened
-      from it: the click came from this tree and it must not vanish underneath. */
-  restore(
-    children: ReadonlyMap<string, Submodule[]>,
-    expanded: ReadonlySet<string>,
-    open: string,
-  ): void {
-    this.children = children;
-    this.expanded = expanded;
-    this.open = open;
   }
 
   clear(): void {

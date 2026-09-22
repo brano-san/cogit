@@ -154,6 +154,26 @@
   }
 
   let open = $state<string | null>(null);
+  /** Where the open menu hangs, measured from the button that opened it. The menu is
+      rendered outside `.row`, which clips everything below itself. */
+  let openAt = $state(0);
+
+  const openMenuOf = $derived(
+    open === null || open === "overflow"
+      ? null
+      : (EVERY.find((action) => action.id === open)?.menu ?? null),
+  );
+
+  function openMenu(id: string, event: MouseEvent) {
+    if (open === id) {
+      open = null;
+      return;
+    }
+    const button = event.currentTarget as HTMLElement;
+    const bar = button.closest(".toolbar");
+    openAt = bar ? button.getBoundingClientRect().left - bar.getBoundingClientRect().left : 0;
+    open = id;
+  }
   let row: HTMLDivElement | undefined = $state();
   let crowded = $state(false);
 
@@ -211,7 +231,7 @@
                 aria-haspopup="menu"
                 aria-expanded={open === action.id}
                 title="More {action.label.toLowerCase()} actions"
-                onclick={() => (open = open === action.id ? null : action.id)}
+                onclick={(event) => openMenu(action.id, event)}
               >
                 <span>{action.label}</span>
                 <span class="caret" aria-hidden="true">▾</span>
@@ -226,21 +246,6 @@
               >
             {/if}
 
-            {#if open === action.id && action.menu}
-              <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-              <div class="backdrop" onclick={() => (open = null)}></div>
-              <div class="menu" role="menu">
-                {#each action.menu as choice (choice.id)}
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={why(choice.id, `menu:${choice.id}`) !== undefined}
-                    title={why(choice.id, `menu:${choice.id}`) ?? choice.hint}
-                    onclick={() => run(choice.id)}>{choice.label}</button
-                  >
-                {/each}
-              </div>
-            {/if}
           </div>
         {/each}
       </div>
@@ -299,17 +304,36 @@
       {/if}
     </div>
   {/if}
+
+  <!-- Outside `.row`, which clips whatever falls below it. Positioned from the button
+       that opened it (doc/12-risks.md, R-132). -->
+  {#if openMenuOf}
+    <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+    <div class="backdrop" onclick={() => (open = null)}></div>
+    <div class="menu" role="menu" style:left="{openAt}px">
+      {#each openMenuOf as choice (choice.id)}
+        <button
+          type="button"
+          role="menuitem"
+          disabled={why(choice.id, `menu:${choice.id}`) !== undefined}
+          title={why(choice.id, `menu:${choice.id}`) ?? choice.hint}
+          onclick={() => run(choice.id)}>{choice.label}</button
+        >
+      {/each}
+    </div>
+  {/if}
 </div>
 
 <style>
   .toolbar {
+    position: relative;
     display: flex;
     align-items: stretch;
     height: var(--h-toolbar);
     flex: 0 0 var(--h-toolbar);
     padding: 0 var(--sp-3);
-    background: var(--titlebar-bg);
-    border-bottom: 1px solid var(--titlebar-border);
+    background: var(--surface-panel);
+    border-bottom: 1px solid var(--divider);
   }
 
   .row {

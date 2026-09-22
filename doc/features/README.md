@@ -218,3 +218,5 @@
 | F-243 | Все диалоги выглядят и ведут себя одинаково | [F-243-dialogs-are-one-shape.md](F-243-dialogs-are-one-shape.md) |
 | F-244 | Окном управляет Windows, а не Cogit | [F-244-window-belongs-to-windows.md](F-244-window-belongs-to-windows.md) |
 | F-245 | Настройка, которую видно, остаётся | [F-245-settings-keep-what-you-chose.md](F-245-settings-keep-what-you-chose.md) |
+| F-246 | Дерево репозиториев переживает выбор submodule | [F-246-tree-survives-selection.md](F-246-tree-survives-selection.md) |
+| F-247 | Отказ git не теряется в очереди | [F-247-failures-queue.md](F-247-failures-queue.md) |
