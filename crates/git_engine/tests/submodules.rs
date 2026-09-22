@@ -204,3 +204,33 @@ fn an_uninitialised_submodule_reports_no_branch_and_no_subject() {
     assert_eq!(module.branch, None);
     assert_eq!(module.subject, None);
 }
+
+/// The Repositories tree draws a disclosure triangle only where there is something to
+/// open. "Not known yet" must not draw one that later disappears (doc/12-risks.md, R-148).
+#[test]
+fn a_submodule_says_whether_it_holds_submodules_of_its_own() {
+    let f = test_fixtures::with_nested_submodule().unwrap();
+    let modules = open(&f).submodules().unwrap();
+    let outer = modules.first().expect("the parent has one submodule");
+    assert!(
+        outer.nested,
+        "{} holds deep/inner and should say so",
+        outer.path
+    );
+}
+
+#[test]
+fn a_leaf_submodule_does_not_claim_to_hold_more() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let modules = open(&f).submodules().unwrap();
+    assert!(!modules.first().expect("one submodule").nested);
+}
+
+#[test]
+fn an_uninitialised_submodule_holds_nothing_anyone_can_see() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let modules = open(&f).submodules().unwrap();
+    let path = f.path().join(&modules.first().expect("one submodule").path);
+    std::fs::remove_dir_all(&path).unwrap();
+    assert!(!open(&f).submodules().unwrap().first().unwrap().nested);
+}

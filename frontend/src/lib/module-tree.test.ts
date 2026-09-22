@@ -17,6 +17,7 @@ const mod = (path: string, over: Partial<Submodule> = {}): Submodule => ({
   state: "inSync",
   branch: null,
   subject: null,
+  nested: false,
   ...over,
 });
 
@@ -132,17 +133,21 @@ describe("moduleRows", () => {
 });
 
 describe("whether a node can be opened", () => {
-  it("assumes it can until a look says otherwise, so the caret is offered", () => {
-    expect(mayExpand(new Map(), "lib")).toBe(true);
+  const leaf = mod("lib");
+  const holder = { ...mod("lib"), nested: true };
+
+  // The reported case: every node wore a caret that vanished on the first click.
+  it("does not offer a caret before anything is known, unless the node said it holds more", () => {
+    expect(mayExpand(new Map(), "lib", leaf)).toBe(false);
+    expect(mayExpand(new Map(), "lib", holder)).toBe(true);
   });
 
   it("offers the caret for a node with children", () => {
-    expect(mayExpand(new Map([["lib", [mod("a")]]]), "lib")).toBe(true);
+    expect(mayExpand(new Map([["lib", [mod("a")]]]), "lib", leaf)).toBe(true);
   });
 
-  // The reported case: two leaf submodules both wore a caret that did nothing.
-  it("takes the caret away once a look found nothing", () => {
-    expect(mayExpand(new Map([["lib", []]]), "lib")).toBe(false);
+  it("takes the caret away once a look found nothing, whatever the node claimed", () => {
+    expect(mayExpand(new Map([["lib", []]]), "lib", holder)).toBe(false);
   });
 });
 

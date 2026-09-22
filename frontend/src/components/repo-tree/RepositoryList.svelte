@@ -261,7 +261,7 @@
             }}
           >
             <Caret
-              empty={!mayExpand(submodules.children, node.key)}
+              empty={!mayExpand(submodules.children, node.key, node.module)}
               open={node.expanded}
               label={node.expanded ? "Collapse" : "Expand"}
               onclick={(event) => {

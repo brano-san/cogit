@@ -1405,7 +1405,6 @@
     stashes.clear();
     network.clear();
     recovery.clear();
-    submodules.clear();
     conflicts.clear();
     stashView.clear();
     worktrees.clear();
