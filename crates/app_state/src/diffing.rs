@@ -40,7 +40,8 @@ impl AppState {
 
         let handle = self.handle(repo)?;
         let mut inputs = Vec::with_capacity(paths.len());
-        let mut pointers = Vec::new();
+        // `None` stands for the next text diff, so the answer keeps the order it was asked in.
+        let mut slots = Vec::with_capacity(paths.len());
 
         for path in paths {
             // Between files, never inside one: `imara-diff` cannot be interrupted part-way.
@@ -50,12 +51,13 @@ impl AppState {
 
             let (old, new) = handle.diff_sides(spec, path)?;
             if old.is_none() && new.is_none() {
-                pointers.push(diff_engine::FileDiffEntry {
+                slots.push(Some(diff_engine::FileDiffEntry {
                     path: path.clone(),
                     diff: pointer_diff(&handle, spec, path)?,
-                });
+                }));
                 continue;
             }
+            slots.push(None);
             inputs.push(diff_engine::FileInput {
                 path: path.clone(),
                 old: old.unwrap_or_default(),
@@ -63,8 +65,11 @@ impl AppState {
             });
         }
 
-        let mut files = diff_engine::diff_many(inputs, options);
-        files.extend(pointers);
+        let mut texts = diff_engine::diff_many(inputs, options).into_iter();
+        let files = slots
+            .into_iter()
+            .filter_map(|slot| slot.or_else(|| texts.next()))
+            .collect();
         if self.diff_request_is_current(repo, request) {
             Ok(DiffBatch::Ready { files })
         } else {

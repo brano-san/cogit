@@ -357,18 +357,22 @@ fn a_submodule_in_the_batch_is_its_pointer_not_a_failure() {
             .diff_files(
                 repo,
                 &head_vs_parent(&f),
-                &[".gitmodules".to_owned(), "vendor/lib".to_owned()],
+                &["vendor/lib".to_owned(), ".gitmodules".to_owned()],
                 &DiffOptions::default(),
                 1,
             )
             .unwrap(),
     );
 
-    let module = out.iter().find(|entry| entry.path == "vendor/lib").unwrap();
-    assert!(
-        matches!(module.diff, FileDiff::Submodule { .. }),
-        "{:?}",
-        module.diff
+    let answered: Vec<&str> = out.iter().map(|entry| entry.path.as_str()).collect();
+    assert_eq!(
+        answered,
+        ["vendor/lib", ".gitmodules"],
+        "in the order asked"
     );
-    assert_eq!(out.len(), 2);
+    assert!(
+        matches!(out[0].diff, FileDiff::Submodule { .. }),
+        "{:?}",
+        out[0].diff
+    );
 }
