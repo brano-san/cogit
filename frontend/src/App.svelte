@@ -1176,10 +1176,10 @@
   async function offerInitialise(key: string) {
     const row = submodules.rows.find((entry) => entry.key === key);
     if (!row) return;
-    const go = await ask(`Submodule ${key} is not initialized. Initialize and check it out now?`, {
-      title: "Submodule is not initialized",
+    const go = await ask(`Submodule ${key} is not initialised. Initialise and check it out now?`, {
+      title: "Submodule is not initialised",
       kind: "info",
-      okLabel: "Initialize",
+      okLabel: "Initialise",
       cancelLabel: "Cancel",
     });
     if (go) await refreshSubmodule(row);

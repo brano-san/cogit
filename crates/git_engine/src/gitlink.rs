@@ -12,7 +12,7 @@ pub enum ModuleProblem {
     #[error("Directory does not exist: {path}")]
     Missing { path: String },
 
-    #[error("Submodule is not initialized: {path}")]
+    #[error("Submodule is not initialised: {path}")]
     NotInitialised { path: String },
 
     /// `foreign`: an absolute path in another operating system's form.
