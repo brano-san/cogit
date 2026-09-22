@@ -17,6 +17,8 @@ name = "cogit_lib"
 
 [build-dependencies]
 tauri-build.workspace = true
+build_info.workspace = true
+serde_json.workspace = true
 
 [dependencies]
 app_state.workspace = true

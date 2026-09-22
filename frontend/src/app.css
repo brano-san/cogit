@@ -26,6 +26,7 @@
   --c-text-muted: #8b949e;
   --c-text-code: #d1d7e0;
   --c-text-inverse: #0f1115;
+  --c-link: #58a6ff;
 
   /* ---- primitives: git status accents ---- */
   --c-added: #22c55e;
@@ -78,8 +79,8 @@
   --status-modify: var(--c-modified);
   --status-delete: var(--c-deleted);
   --status-ref: var(--c-branch);
-  /* Links are the one interactive colour, the same blue that marks a hovered control. */
-  --text-link: var(--status-ref);
+  /* Every link in the app, anchor or button, reads this one token (R-172). */
+  --link: var(--c-link);
   /* The graph: the main line in the foreground colour, every other line one grey. */
   --graph-main: var(--text-primary);
   --graph-line: var(--text-secondary);
@@ -165,6 +166,7 @@
   --c-text-muted: #59636e;
   --c-text-code: #24292f;
   --c-text-inverse: #ffffff;
+  --c-link: #0969da;
 
   --c-added: #1a7f37;
   --c-modified: #9a6700;
@@ -241,6 +243,16 @@ body {
 :focus-visible {
   outline: 1px solid var(--state-focus-ring);
   outline-offset: -1px;
+}
+
+a {
+  color: var(--link);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+a:hover {
+  text-decoration: underline;
 }
 
 /* Numeric columns must not jitter when values update. */

@@ -5,7 +5,16 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 
 /** Commands */
 export const commands = {
-	appInfo: () => __TAURI_INVOKE<AppInfo>("app_info"),
+	/**
+	 *  Async: it spawns `git --version` and reads the registry, neither of which belongs on
+	 *  the main thread that a plain command runs on.
+	 */
+	appInfo: () => typedError<AppInfo, GitError>(__TAURI_INVOKE("app_info")),
+	/**
+	 *  Help ▸ About ▸ Third-party licences. `frontend` is the list the Vite build shipped
+	 *  beside the page; the dev server has none.
+	 */
+	openThirdPartyLicences: (frontend: string | null) => typedError<null, GitError>(__TAURI_INVOKE("open_third_party_licences", { frontend })),
 	openRepository: (path: string) => typedError<RepoSummary, GitError>(__TAURI_INVOKE("open_repository", { path })),
 	/**  A channel rather than a return value (INV-02); dropping it cancels the walk. */
 	loadCommits: (repo: RepoId, query: CommitQuery, onChunk: Channel<GraphChunk>) => typedError<SkippedRef[], GitError>(__TAURI_INVOKE("load_commits", { repo, query, onChunk })),
@@ -298,20 +307,28 @@ export type Algorithm = "histogram" | "myers";
 /**  specta follows serde, so a DTO without `camelCase` reads `undefined` in the UI. */
 export type AppInfo = {
 	version: string,
-	logPath: string,
 	debugBuild: boolean,
 	/**  What a bug report needs to identify the build (doc/12-risks.md, R-146). */
 	commit: string,
+	/**  Built from a tree with uncommitted code, so the commit alone does not describe it. */
+	dirty: boolean,
 	builtAt: number,
+	repository: string,
+	os: OsInfo,
+	/**
+	 *  The engine actually rendering this window — the one the user has to update when a
+	 *  CSS feature is missing, and the one Cogit cannot ship itself.
+	 */
+	renderer: string,
+	git: string,
 	rustc: string,
 	tauri: string,
-	/**
-	 *  The WebView2 runtime actually rendering this window — the version the user has to
-	 *  update when a CSS feature is missing, and the one Cogit cannot ship itself.
-	 */
-	webview: string,
-	git: string,
-	os: string,
+	/**  The `gix` version the reads go through. */
+	gitLibrary: string,
+	logPath: string,
+	logDir: string,
+	settingsPath: string,
+	displays: DisplayInfo[],
 };
 
 export type Author = {
@@ -499,6 +516,14 @@ moveId?: number | null; moveScope?: MoveScope | null;
 noNewline?: boolean } | { kind: "insert"; new: number; text: string; inline: ([number, number])[]; moved?: boolean; moveId?: number | null; moveScope?: MoveScope | null; noNewline?: boolean } | { kind: "collapsed"; count: number };
 
 export type DiffSpec = { kind: "commitVsParent"; oid: string } | { kind: "commitVsCommit"; a: string; b: string } | { kind: "workTreeVsIndex" } | { kind: "indexVsHead" };
+
+export type DisplayInfo = {
+	name: string | null,
+	width: number,
+	height: number,
+	scale: number | null,
+	primary: boolean,
+};
 
 export type EolInfo = {
 	old: LineEnding,
@@ -809,6 +834,18 @@ export type Origin =
  *  order is not a guess. Always worth a look before the merge is committed.
  */
 "syntactic";
+
+export type OsInfo = {
+	product: string,
+	edition: string | null,
+	release: string | null,
+	build: string | null,
+	/**  The cumulative update on top of the build: `4946` in `26100.4946`. */
+	revision: string | null,
+	kernel: string | null,
+	/**  The architecture Cogit was compiled for, which is the one that matters for a bug. */
+	arch: string,
+};
 
 export type Overlap = "none" | "slight" | "heavy" | "same";
 

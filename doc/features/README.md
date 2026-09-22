@@ -244,3 +244,10 @@
 | F-269 | Чекбокс приложения в диалоге Exit | [F-269-app-checkbox.md](F-269-app-checkbox.md) |
 | F-270 | Выход во время операций: подождать или остановить | [F-270-exit-while-busy.md](F-270-exit-while-busy.md) |
 | F-271 | Выключение Windows ждёт операций | [F-271-shutdown-waits-for-operations.md](F-271-shutdown-waits-for-operations.md) |
+| F-272 | About разбит на группы | [F-272-about-groups.md](F-272-about-groups.md) |
+| F-273 | Пути в About не переносятся | [F-273-about-paths.md](F-273-about-paths.md) |
+| F-274 | Commit в About ведёт на GitHub | [F-274-about-commit-link.md](F-274-about-commit-link.md) |
+| F-275 | Copy Diagnostics отвечает | [F-275-about-copy-feedback.md](F-275-about-copy-feedback.md) |
+| F-276 | Список сторонних лицензий | [F-276-third-party-licences.md](F-276-third-party-licences.md) |
+| F-277 | Статус обновлений в About | [F-277-about-update-status.md](F-277-about-update-status.md) |
+| F-278 | Один цвет ссылок | [F-278-one-link-colour.md](F-278-one-link-colour.md) |

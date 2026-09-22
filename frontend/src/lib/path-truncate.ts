@@ -1,0 +1,72 @@
+const ELLIPSIS = "…";
+
+function charCut(text: string, max: number): string {
+  if (max <= 0) return "";
+  const room = max - 1;
+  const head = Math.floor(room / 2);
+  const tail = room - head;
+  return text.slice(0, head) + ELLIPSIS + (tail > 0 ? text.slice(-tail) : "");
+}
+
+/** `C:\Users\brano\…\logs\cogit.log`: whole folders dropped from the middle to fit `max`. */
+export function truncateMiddle(path: string, max: number): string {
+  if (path.length <= max) return path;
+  const sep = path.includes("\\") ? "\\" : "/";
+  const root = path.match(sep === "\\" ? /^\\+/ : /^\/+/)?.[0] ?? "";
+  const parts = path.slice(root.length).split(sep);
+
+  const head: string[] = [];
+  const tail: string[] = [parts[parts.length - 1]!];
+  const render = () =>
+    root + (head.length > 0 ? head.join(sep) + sep : "") + ELLIPSIS + sep + tail.join(sep);
+  if (render().length > max) return charCut(path, max);
+
+  let growing = true;
+  while (growing) {
+    growing = false;
+    for (const side of ["tail", "head"] as const) {
+      if (head.length + tail.length >= parts.length - 1) return render();
+      if (side === "tail") tail.unshift(parts[parts.length - 1 - tail.length]!);
+      else head.push(parts[head.length]!);
+      if (render().length <= max) {
+        growing = true;
+      } else if (side === "tail") {
+        tail.shift();
+      } else {
+        head.pop();
+      }
+    }
+  }
+  return render();
+}
+
+function charWidth(node: HTMLElement): number {
+  const context = document.createElement("canvas").getContext("2d");
+  if (!context) return 0;
+  context.font = getComputedStyle(node).font;
+  // Only meaningful in a monospace font, where every glyph is this wide.
+  return context.measureText("M").width;
+}
+
+/** Svelte action: shows `path` cut in the middle to whatever width the node is given. */
+export function fitPath(node: HTMLElement, path: string) {
+  let current = path;
+  const fit = () => {
+    const width = node.clientWidth;
+    const glyph = charWidth(node);
+    node.textContent =
+      width > 0 && glyph > 0 ? truncateMiddle(current, Math.floor(width / glyph)) : current;
+  };
+  const observer = new ResizeObserver(fit);
+  observer.observe(node);
+  fit();
+  return {
+    update(next: string) {
+      current = next;
+      fit();
+    },
+    destroy() {
+      observer.disconnect();
+    },
+  };
+}
