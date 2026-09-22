@@ -4,31 +4,26 @@ import {
   loadCommits,
   type CommitQuery,
   type CommitRow,
-  type GraphEdge,
-  type LaneAssignment,
+  type GraphRow,
   type RepoId,
 } from "$lib/ipc";
 
-export interface GraphRow {
+export interface GraphEntry {
   commit: CommitRow;
-  lane: LaneAssignment;
+  layout: GraphRow;
 }
 
 class GraphStore {
   /** `$state.raw`: 50 000 commits would otherwise become 50 000 reactive proxies. */
-  rows = $state.raw<GraphRow[]>([]);
-  edges = $state.raw<GraphEdge[]>([]);
-  maxLane = $state(0);
+  rows = $state.raw<GraphEntry[]>([]);
   loading = $state(false);
   complete = $state(false);
   error = $state<CogitError | null>(null);
-  /** Ticked refs the last walk had to leave out, named over the graph (R-157). */
   skipped = $state.raw<import("$lib/ipc").SkippedRef[]>([]);
 
   /** Discriminates concurrent loads; chunks from a superseded stream are dropped. */
   #generation = 0;
 
-  /** The search half only; the References panel contributes its half at load time. */
   query = $state.raw<CommitQuery>(EMPTY_QUERY);
 
   /** `null` is every ref. Owned by the References panel, folded into every load. */
@@ -45,8 +40,6 @@ class GraphStore {
     const generation = ++this.#generation;
     this.query = query;
     this.rows = [];
-    this.edges = [];
-    this.maxLane = 0;
     this.error = null;
     this.skipped = [];
     this.complete = false;
@@ -59,12 +52,10 @@ class GraphStore {
         if (chunk.commits.length > 0) {
           const incoming = chunk.commits.map((commit, index) => ({
             commit,
-            lane: chunk.lanes[index]!,
+            layout: chunk.rows[index]!,
           }));
           this.rows = [...this.rows, ...incoming];
-          this.edges = [...this.edges, ...chunk.edges];
         }
-        this.maxLane = Math.max(this.maxLane, chunk.maxLane);
         if (chunk.isLast) this.complete = true;
       }, { ...query, visibleRefs: this.visibleRefs });
       if (generation === this.#generation) this.skipped = skipped ?? [];
@@ -86,8 +77,6 @@ class GraphStore {
     this.visibleRefs = null;
     this.reveal = null;
     this.rows = [];
-    this.edges = [];
-    this.maxLane = 0;
     this.loading = false;
     this.complete = false;
     this.error = null;

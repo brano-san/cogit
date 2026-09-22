@@ -1,4 +1,4 @@
-use crate::topo::{LOOKAHEAD, group_topologically};
+use crate::topo::{LOOKAHEAD, in_date_order};
 use crate::{CommitRow, GitError, RepoHandle, Result};
 use serde::{Deserialize, Serialize};
 
@@ -115,22 +115,12 @@ impl RepoHandle {
     ) -> Result<Vec<SkippedRef>> {
         let (tips, skipped) = self.tips_for(query)?;
         if !tips.is_empty() {
-            self.stream_rows(query, chunk_size, self.by_date(tips)?, on_chunk)?;
-        }
-        Ok(skipped)
-    }
-
-    /// `git log --topo-order` in a sliding window over the date walk (doc/12-risks.md, R-140).
-    pub fn search_commits_topo(
-        &self,
-        query: &CommitQuery,
-        chunk_size: usize,
-        on_chunk: impl FnMut(Vec<CommitRow>) -> bool,
-    ) -> Result<Vec<SkippedRef>> {
-        let (tips, skipped) = self.tips_for(query)?;
-        if !tips.is_empty() {
-            let walk = group_topologically(self.by_date(tips)?, LOOKAHEAD);
-            self.stream_rows(query, chunk_size, walk, on_chunk)?;
+            self.stream_rows(
+                query,
+                chunk_size,
+                in_date_order(self.by_date(tips)?, LOOKAHEAD),
+                on_chunk,
+            )?;
         }
         Ok(skipped)
     }
@@ -192,6 +182,26 @@ impl RepoHandle {
             on_chunk(chunk);
         }
         Ok(())
+    }
+
+    /// Whether the list for `query` holds this commit: a match streams by before its
+    /// parents do, and the graph has to know then whether a line to them will end.
+    pub fn shown_by(&self, query: &CommitQuery, oid: &str) -> bool {
+        let Ok(id) = gix::ObjectId::from_hex(oid.as_bytes()) else {
+            return false;
+        };
+        let Ok(commit) = self.repo.find_commit(id) else {
+            return false;
+        };
+        let parents: Vec<gix::ObjectId> = commit.parent_ids().map(gix::Id::detach).collect();
+        let Ok(row) = self.row_of(id, &parents) else {
+            return false;
+        };
+        query.matches_row(&row)
+            && query
+                .path
+                .as_deref()
+                .is_none_or(|path| self.touches(&id, path))
     }
 
     /// Against the first parent, as `git log -- path` does before following renames.

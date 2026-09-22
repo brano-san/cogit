@@ -22,9 +22,9 @@ fn every_commit_arrives_with_a_lane() {
 
     let chunks = stream(&state, repo, 100);
     let commits: usize = chunks.iter().map(|c| c.commits.len()).sum();
-    let lanes: usize = chunks.iter().map(|c| c.lanes.len()).sum();
+    let rows: usize = chunks.iter().map(|c| c.rows.len()).sum();
     assert_eq!(commits, 5);
-    assert_eq!(lanes, commits, "each commit needs exactly one placement");
+    assert_eq!(rows, commits, "each commit needs exactly one placement");
 }
 
 #[test]
@@ -61,23 +61,58 @@ fn rows_keep_counting_across_chunk_boundaries() {
 
     let rows: Vec<u32> = stream(&state, repo, 3)
         .iter()
-        .flat_map(|c| c.lanes.iter().map(|l| l.row))
+        .flat_map(|c| c.rows.iter().map(|l| l.row))
         .collect();
     assert_eq!(rows, (0..7).collect::<Vec<u32>>());
 }
 
 #[test]
-fn a_merge_keeps_its_two_lanes_within_one_chunk() {
+fn a_diamond_is_two_columns_wide_while_it_is_open() {
     let f = test_fixtures::diamond().unwrap();
     let state = AppState::new();
     let repo = state.open_repository(f.path()).unwrap().repo;
 
     let widest = stream(&state, repo, 100)
         .iter()
-        .map(|c| c.max_lane)
+        .flat_map(|c| c.rows.iter().map(|row| row.width))
         .max()
         .unwrap();
-    assert_eq!(widest, 1);
+    assert_eq!(widest, 2);
+}
+
+/// Column 0 follows HEAD's first parents; with HEAD unticked it follows nothing, rather
+/// than sitting empty for a line that is not drawn (doc/12-risks.md, R-161).
+#[test]
+fn the_main_column_follows_head_when_head_is_ticked_and_nothing_when_it_is_not() {
+    let f = test_fixtures::linear(3).unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let with_head = git_engine::CommitQuery {
+        visible_refs: Some(vec!["HEAD".to_owned()]),
+        ..git_engine::CommitQuery::default()
+    };
+    let rows: Vec<_> = search(&state, repo, &with_head)
+        .into_iter()
+        .flat_map(|c| c.rows)
+        .collect();
+    assert!(rows.iter().all(|row| row.primary && row.lane == 0));
+
+    let without = git_engine::CommitQuery {
+        visible_refs: Some(vec![
+            "refs/heads/other".to_owned(),
+            "refs/heads/main".to_owned(),
+        ]),
+        ..git_engine::CommitQuery::default()
+    };
+    let rows: Vec<_> = search(&state, repo, &without)
+        .into_iter()
+        .flat_map(|c| c.rows)
+        .collect();
+    assert!(
+        rows.iter().all(|row| row.lane == 0),
+        "main is ticked, so main takes column 0"
+    );
 }
 
 #[test]
@@ -137,23 +172,37 @@ fn a_filter_narrows_the_stream() {
     assert_eq!(commits, ["commit 3"]);
 }
 
+/// A filtered list draws a line only between a commit and a parent it also shows; a line
+/// to a parent it does not show ends in an arrow, and never claims a lineage (R-161).
 #[test]
-fn a_filtered_result_is_a_flat_list_without_edges() {
-    let f = test_fixtures::diamond().unwrap();
+fn a_filtered_result_links_what_it_shows_and_ends_the_rest_in_an_arrow() {
+    let f = test_fixtures::linear(5).unwrap();
     let state = AppState::new();
     let repo = state.open_repository(f.path()).unwrap().repo;
+    let all: Vec<_> = stream(&state, repo, 100)
+        .into_iter()
+        .flat_map(|c| c.commits)
+        .collect();
 
     let query = git_engine::CommitQuery {
-        author: Some("fixture".to_owned()),
+        since: Some(all[2].timestamp),
         ..git_engine::CommitQuery::default()
     };
-    let chunks = search(&state, repo, &query);
+    let rows: Vec<_> = search(&state, repo, &query)
+        .into_iter()
+        .flat_map(|c| c.rows)
+        .collect();
 
-    assert!(
-        chunks.iter().all(|c| c.edges.is_empty()),
-        "edges between survivors would claim a lineage that is not there"
+    assert_eq!(rows.len(), 3);
+    let arrows = |row: &graph_engine::GraphRow| row.segments.iter().filter(|seg| seg.arrow).count();
+    assert_eq!(arrows(&rows[0]), 0, "its parent is in the list");
+    assert_eq!(arrows(&rows[1]), 0);
+    assert_eq!(
+        arrows(&rows[2]),
+        1,
+        "the oldest match's parent is filtered out"
     );
-    assert!(chunks.iter().all(|c| c.lanes.iter().all(|l| l.lane == 0)));
+    assert!(rows.iter().all(|row| row.width == 1), "{rows:?}");
 }
 
 #[test]
@@ -169,7 +218,7 @@ fn rows_keep_counting_across_chunks_when_filtered() {
     let mut rows = Vec::new();
     state
         .search_graph(repo, &query, 2, |chunk| {
-            rows.extend(chunk.lanes.iter().map(|l| l.row));
+            rows.extend(chunk.rows.iter().map(|l| l.row));
             true
         })
         .unwrap();
@@ -185,7 +234,11 @@ fn an_empty_query_still_draws_the_graph() {
 
     let chunks = search(&state, repo, &git_engine::CommitQuery::default());
 
-    assert!(chunks.iter().any(|c| !c.edges.is_empty()));
+    assert!(
+        chunks
+            .iter()
+            .any(|c| c.rows.iter().any(|row| row.width > 1))
+    );
 }
 
 fn visible(names: &[&str]) -> git_engine::CommitQuery {
@@ -208,12 +261,8 @@ fn narrowing_the_visible_refs_keeps_the_graph_a_graph() {
     );
 
     assert!(
-        chunks.iter().any(|c| !c.edges.is_empty()),
-        "unticking a ref drops whole tips, never a commit from inside a lineage"
-    );
-    assert!(
-        chunks.iter().any(|c| c.lanes.iter().any(|l| l.lane > 0)),
-        "the second lane of the diamond has to survive"
+        chunks.iter().any(|c| c.rows.iter().any(|row| row.lane > 0)),
+        "unticking a ref drops whole tips; the second lane of the diamond survives"
     );
 }
 
@@ -242,20 +291,31 @@ fn unticking_everything_shows_nothing() {
     assert_eq!(chunks.iter().map(|c| c.commits.len()).sum::<usize>(), 0);
 }
 
+/// R-51 kept a filtered list flat; now it links whatever it shows (R-161), so a search
+/// that every commit matches is simply the graph.
 #[test]
-fn a_search_inside_a_narrowed_graph_is_still_flat() {
+fn a_search_every_commit_matches_draws_the_whole_graph() {
     let f = test_fixtures::diamond().unwrap();
     let state = AppState::new();
     let repo = state.open_repository(f.path()).unwrap().repo;
 
     let query = git_engine::CommitQuery {
         message: Some("commit".to_owned()),
-        ..visible(&["refs/heads/main"])
+        ..visible(&["refs/heads/main", "refs/heads/dev"])
     };
     let chunks = search(&state, repo, &query);
 
-    assert!(chunks.iter().all(|c| c.edges.is_empty()));
-    assert!(chunks.iter().all(|c| c.lanes.iter().all(|l| l.lane == 0)));
+    assert!(
+        chunks
+            .iter()
+            .any(|c| c.rows.iter().any(|row| row.width > 1))
+    );
+    assert!(
+        chunks
+            .iter()
+            .flat_map(|c| &c.rows)
+            .all(|row| row.segments.iter().all(|seg| !seg.arrow))
+    );
 }
 
 // --- ticking refs: the walk that lost its reason to run stops (doc/12-risks.md, R-157) --

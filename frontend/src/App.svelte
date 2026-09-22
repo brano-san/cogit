@@ -2406,7 +2406,7 @@
     return startMemoryProbe(
       browserSources(liveListeners, () => ({
         graphRows: graph.rows.length,
-        graphEdges: graph.edges.length,
+        graphSegments: graph.rows.reduce((count, row) => count + row.layout.segments.length, 0),
         avatarRows: avatars.rows.size,
         overlapRows: overlap.rows.size,
         diffHunks: diff.hunks.length,

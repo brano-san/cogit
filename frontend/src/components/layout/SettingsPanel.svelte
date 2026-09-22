@@ -322,6 +322,15 @@
                   <output>{draft.laneWidth}px</output>
                 </span>
               </label>
+            {:else if field.key === "coloredLanes"}
+              <label class="row check">
+                <input
+                  type="checkbox"
+                  checked={draft.coloredLanes}
+                  onchange={(e) => set("coloredLanes", e.currentTarget.checked)}
+                />
+                <span>{field.label}</span>
+              </label>
             {:else if field.key === "detectMoves"}
               <label class="row check">
                 <input

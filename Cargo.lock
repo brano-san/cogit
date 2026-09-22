@@ -2775,7 +2775,6 @@ dependencies = [
 name = "graph_engine"
 version = "0.1.0"
 dependencies = [
- "insta",
  "serde",
  "specta",
 ]

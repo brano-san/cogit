@@ -1,168 +1,213 @@
-use crate::{CommitNode, EdgeKind, GraphEdge, GraphLayout, LaneAssignment, LayoutCursor, NodeKind};
+use crate::{Above, CommitNode, GraphRow, Lane, LayoutCursor, NodeKind, Segment, Span};
 
 #[must_use]
-pub fn layout(commits: &[CommitNode], cursor: &mut LayoutCursor) -> GraphLayout {
-    let mut out = GraphLayout::default();
-
-    for node in commits {
-        let row = cursor.next_row;
-        let commit_lane = choose_lane(node, cursor);
-
-        emit_band(node, commit_lane, row, cursor, &mut out.edges);
-
-        for lane in 0..cursor.active.len() {
-            if cursor.active[lane].as_deref() == Some(node.oid.as_str()) {
-                cursor.active[lane] = None;
-                cursor.origins[lane].clear();
-            } else if cursor.active[lane].is_some() {
-                cursor.origins[lane].clear();
-                cursor.origins[lane].push(lane_index(lane));
-            }
-        }
-
-        place_parents(node, commit_lane, cursor);
-
-        out.lanes.push(LaneAssignment {
-            row,
-            lane: lane_index(commit_lane),
-            color: cursor.lane_colors[commit_lane],
-            kind: node_kind(node),
-        });
-        out.max_lane = out.max_lane.max(lane_index(commit_lane));
-        out.max_lane = out.max_lane.max(widest(cursor));
-
-        trim_trailing_free_lanes(cursor);
-        cursor.next_row += 1;
-    }
-
-    out
-}
-
-fn node_kind(node: &CommitNode) -> NodeKind {
-    match node.parents.len() {
-        0 => NodeKind::Root,
-        1 => NodeKind::Normal,
-        _ => NodeKind::Merge,
-    }
+pub fn layout(commits: &[CommitNode], cursor: &mut LayoutCursor) -> Vec<GraphRow> {
+    commits.iter().map(|node| place(node, cursor)).collect()
 }
 
 #[expect(
     clippy::cast_possible_truncation,
-    reason = "lane count is bounded in practice"
+    reason = "a row with 65 536 lanes is not a history anyone draws"
 )]
-fn lane_index(lane: usize) -> u16 {
-    lane as u16
+fn column(index: usize) -> u16 {
+    index as u16
 }
 
-fn widest(cursor: &LayoutCursor) -> u16 {
-    lane_index(cursor.active.len().saturating_sub(1))
+fn waits_for(lane: &Lane, oid: &str) -> bool {
+    lane.waits.as_deref() == Some(oid)
 }
 
-fn choose_lane(node: &CommitNode, cursor: &mut LayoutCursor) -> usize {
-    if let Some(lane) = cursor
-        .active
+fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
+    let row = cursor.next_row;
+    cursor.next_row += 1;
+    let mut above = std::mem::take(&mut cursor.above);
+    let mut converging = std::mem::take(&mut cursor.converging);
+    let mut leaving = std::mem::take(&mut cursor.leaving);
+    above.clear();
+    converging.clear();
+    leaving.clear();
+    above.extend(cursor.lanes.iter().map(|lane| Above {
+        id: lane.id,
+        color: lane.color,
+        drawn: lane.drawn,
+        primary: lane.primary,
+    }));
+
+    // 1. The node: the leftmost lane waiting for it, or a new one for a branch tip.
+    let on_main = cursor.reserved
+        && cursor
+            .lanes
+            .first()
+            .is_some_and(|lane| waits_for(lane, &node.oid));
+    let node_id = match cursor
+        .lanes
         .iter()
-        .position(|slot| slot.as_deref() == Some(node.oid.as_str()))
+        .position(|lane| waits_for(lane, &node.oid))
     {
-        if cursor.is_mainline(&node.oid) {
-            cursor.mainline_placed = true;
-        }
-        return lane;
-    }
-
-    let lane = if cursor.is_mainline(&node.oid) {
-        cursor.mainline_placed = true;
-        0
-    } else {
-        cursor.first_free_lane()
+        Some(at) => cursor.lanes[at].id,
+        None => open_tip(node, cursor),
     };
-    grow_to(cursor, lane + 1);
-    cursor.lane_colors[lane] = cursor.take_color();
-    cursor.origins[lane].clear();
-    lane
-}
+    let node_at = cursor
+        .lanes
+        .iter()
+        .position(|lane| lane.id == node_id)
+        .unwrap_or(0);
 
-fn emit_band(
-    node: &CommitNode,
-    commit_lane: usize,
-    row: u32,
-    cursor: &LayoutCursor,
-    edges: &mut Vec<GraphEdge>,
-) {
-    if row == 0 {
-        return;
+    // 2. Every other lane waiting for it ends in it.
+    converging.extend(
+        cursor
+            .lanes
+            .iter()
+            .filter(|lane| lane.id != node_id && waits_for(lane, &node.oid))
+            .map(|lane| lane.id),
+    );
+    if !converging.is_empty() {
+        cursor.lanes.retain(|lane| !converging.contains(&lane.id));
     }
-    for (lane, slot) in cursor.active.iter().enumerate() {
-        let Some(waiting_for) = slot else { continue };
-        let arrives_here = waiting_for == &node.oid;
-        let to_lane = if arrives_here { commit_lane } else { lane };
-        let kind = if !arrives_here {
-            EdgeKind::Crossing
-        } else if lane == commit_lane {
-            EdgeKind::Direct
-        } else {
-            EdgeKind::Merge
-        };
 
-        for &from_lane in &cursor.origins[lane] {
-            edges.push(GraphEdge {
-                from_row: row - 1,
-                from_lane,
-                to_row: row,
-                to_lane: lane_index(to_lane),
-                color: cursor.lane_colors[lane],
-                kind,
+    // 3. The first parent continues the lane; the others join a lane already waiting for
+    // them or open one right of the node, in parent order.
+    let shown = |parent: &String| !node.hidden.contains(parent);
+    let first = node.parents.first().filter(|parent| shown(parent)).cloned();
+    let node_index = cursor
+        .lanes
+        .iter()
+        .position(|lane| lane.id == node_id)
+        .unwrap_or(0);
+    let continues = first.is_some();
+    {
+        let lane = &mut cursor.lanes[node_index];
+        lane.waits = first;
+        lane.drawn = continues || !lane.primary;
+    }
+    if continues {
+        leaving.push(node_id);
+    }
+    let mut insert_at = node_index + 1;
+    for parent in node.parents.iter().skip(1).filter(|parent| shown(parent)) {
+        if let Some(lane) = cursor.lanes.iter().find(|lane| waits_for(lane, parent)) {
+            if lane.id != node_id {
+                leaving.push(lane.id);
+            }
+            continue;
+        }
+        let lane = Lane {
+            id: cursor.take_id(),
+            waits: Some(parent.clone()),
+            color: cursor.take_color(),
+            drawn: true,
+            primary: false,
+        };
+        leaving.push(lane.id);
+        cursor.lanes.insert(insert_at, lane);
+        insert_at += 1;
+    }
+
+    // 4. Close the gaps. Column 0 stays, waiting or empty, for as long as it is reserved.
+    let reserved = cursor.reserved;
+    cursor
+        .lanes
+        .retain(|lane| lane.waits.is_some() || (reserved && lane.primary));
+
+    // 5. What moved from the top edge to the bottom edge is what gets drawn.
+    let below = |id: u64, lanes: &[Lane]| lanes.iter().position(|lane| lane.id == id);
+    let mut segments = Vec::with_capacity(above.len() + leaving.len());
+    for (index, lane) in above.iter().enumerate() {
+        if !lane.drawn {
+            continue;
+        }
+        let segment = if lane.id == node_id || converging.contains(&lane.id) {
+            Some((index, node_at, Span::Top))
+        } else {
+            below(lane.id, &cursor.lanes).map(|to| (index, to, Span::Through))
+        };
+        if let Some((from, to, span)) = segment {
+            segments.push(Segment {
+                from: column(from),
+                to: column(to),
+                span,
+                primary: lane.primary,
+                color: lane.color,
+                arrow: false,
             });
         }
     }
-}
-
-fn place_parents(node: &CommitNode, commit_lane: usize, cursor: &mut LayoutCursor) {
-    for (index, parent) in node.parents.iter().enumerate() {
-        if let Some(existing) = cursor
-            .active
-            .iter()
-            .position(|slot| slot.as_deref() == Some(parent.as_str()))
-        {
-            cursor.origins[existing].push(lane_index(commit_lane));
-            continue;
+    for &id in &leaving {
+        if let Some(to) = below(id, &cursor.lanes) {
+            let lane = &cursor.lanes[to];
+            segments.push(Segment {
+                from: column(node_at),
+                to: column(to),
+                span: Span::Bottom,
+                // A side commit joining the main line is still a side line.
+                primary: on_main && id == node_id,
+                color: lane.color,
+                arrow: false,
+            });
         }
+    }
 
-        // The mainline claims the leftmost column wherever it is reached from, so a
-        // feature branch that happens to be newer cannot take it first (R-115).
-        let lane = if cursor.is_mainline(parent) {
-            grow_to(cursor, 1);
-            cursor.mainline_placed = true;
-            0
-        } else if index == 0 {
-            // The first parent inherits the commit's own lane, which is what keeps the
-            // mainline vertical rather than zig-zagging (doc/07-graph-rendering.md).
-            commit_lane
-        } else {
-            let free = cursor.first_free_lane();
-            grow_to(cursor, free + 1);
-            cursor.lane_colors[free] = cursor.take_color();
-            free
-        };
+    let color = above.iter().find(|lane| lane.id == node_id).map_or_else(
+        || cursor.lanes.get(node_index).map_or(0, |lane| lane.color),
+        |lane| lane.color,
+    );
+    if node.parents.iter().any(|parent| !shown(parent)) {
+        segments.push(Segment {
+            from: column(node_at),
+            to: column(node_at),
+            span: Span::Bottom,
+            primary: on_main,
+            color,
+            arrow: true,
+        });
+    }
 
-        cursor.active[lane] = Some(parent.clone());
-        cursor.origins[lane].clear();
-        cursor.origins[lane].push(lane_index(commit_lane));
+    let width = segments
+        .iter()
+        .flat_map(|segment| [segment.from, segment.to])
+        .chain([column(node_at)])
+        .max()
+        .unwrap_or(0)
+        + 1;
+    cursor.above = above;
+    cursor.converging = converging;
+    cursor.leaving = leaving;
+
+    GraphRow {
+        row,
+        lane: column(node_at),
+        color,
+        kind: match node.parents.len() {
+            0 => NodeKind::Root,
+            1 => NodeKind::Normal,
+            _ => NodeKind::Merge,
+        },
+        primary: on_main,
+        width,
+        segments,
     }
 }
 
-fn grow_to(cursor: &mut LayoutCursor, len: usize) {
-    if cursor.active.len() < len {
-        cursor.active.resize(len, None);
-        cursor.lane_colors.resize(len, 0);
-        cursor.origins.resize(len, Vec::new());
-    }
-}
-
-fn trim_trailing_free_lanes(cursor: &mut LayoutCursor) {
-    while cursor.active.last().is_some_and(Option::is_none) {
-        cursor.active.pop();
-        cursor.lane_colors.pop();
-        cursor.origins.pop();
-    }
+/// A commit nobody was waiting for starts a lane of its own, beside the lane its first
+/// parent is already on when there is one, else at the right; never in column 0.
+fn open_tip(node: &CommitNode, cursor: &mut LayoutCursor) -> u64 {
+    let beside = node
+        .parents
+        .first()
+        .filter(|parent| !node.hidden.contains(parent))
+        .and_then(|parent| cursor.lanes.iter().position(|lane| waits_for(lane, parent)));
+    let floor = usize::from(cursor.reserved);
+    let at = beside
+        .map_or(cursor.lanes.len(), |lane| lane + 1)
+        .max(floor);
+    let lane = Lane {
+        id: cursor.take_id(),
+        waits: Some(node.oid.clone()),
+        color: cursor.take_color(),
+        drawn: true,
+        primary: false,
+    };
+    let id = lane.id;
+    cursor.lanes.insert(at.min(cursor.lanes.len()), lane);
+    id
 }

@@ -80,6 +80,9 @@
   --status-ref: var(--c-branch);
   /* Links are the one interactive colour, the same blue that marks a hovered control. */
   --text-link: var(--status-ref);
+  /* The graph: the main line in the foreground colour, every other line one grey. */
+  --graph-main: var(--text-primary);
+  --graph-line: var(--text-secondary);
   --status-stash: var(--c-stash);
 
   /* ---- typography ---- */

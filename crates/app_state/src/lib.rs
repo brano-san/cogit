@@ -141,9 +141,8 @@ pub struct RepoOverview {
 #[serde(rename_all = "camelCase")]
 pub struct GraphChunk {
     pub commits: Vec<git_engine::CommitRow>,
-    pub lanes: Vec<graph_engine::LaneAssignment>,
-    pub edges: Vec<graph_engine::GraphEdge>,
-    pub max_lane: u16,
+    /// One per commit, in the same order: the node and every segment of its row.
+    pub rows: Vec<graph_engine::GraphRow>,
     pub is_last: bool,
 }
 
@@ -475,72 +474,47 @@ impl AppState {
     ) -> Result<Vec<git_engine::SkippedRef>, git_engine::GitError> {
         let handle = self.handle(repo)?;
         let flat = query.filters_rows();
-        let mut row = 0_u32;
 
-        // Which commit owns the leftmost column. Read once per load: the graph is drawn
-        // in chunks and a column that moved half way down would be worse than no rule.
-        let mut cursor = graph_engine::LayoutCursor {
-            mainline: mainline_of(&handle),
-            ..Default::default()
-        };
+        // Read once per load: a column that moved half way down would be worse than none.
+        let mut cursor = graph_engine::LayoutCursor::with_mainline(mainline_of(&handle, query));
         let mut cancelled = false;
-        let mut max_lane = 0_u16;
 
-        // Topological for the graph, and only for the graph: lanes stay straight only if a
-        // line of history arrives whole (doc/12-risks.md, R-140). A filtered search is a
-        // flat list and reads better newest-first, the way `git log` does.
+        // One order for the graph and the filtered list: by date, never a parent above a
+        // child (R-162). A line to a parent the list will not show ends in an arrow (R-161).
         let on_commits = |commits: Vec<git_engine::CommitRow>| {
-            let (lanes, edges) = if flat {
-                let lanes = commits
-                    .iter()
-                    .map(|_| {
-                        let placement = graph_engine::LaneAssignment {
-                            row,
-                            lane: 0,
-                            color: 0,
-                            kind: graph_engine::NodeKind::Normal,
-                        };
-                        row += 1;
-                        placement
-                    })
-                    .collect();
-                (lanes, Vec::new())
-            } else {
-                let nodes: Vec<graph_engine::CommitNode> = commits
-                    .iter()
-                    .map(|c| graph_engine::CommitNode {
-                        oid: c.oid.clone(),
-                        parents: c.parents.clone(),
-                    })
-                    .collect();
-                let placed = graph_engine::layout(&nodes, &mut cursor);
-                max_lane = max_lane.max(placed.max_lane);
-                (placed.lanes, placed.edges)
-            };
+            let nodes: Vec<graph_engine::CommitNode> = commits
+                .iter()
+                .map(|c| graph_engine::CommitNode {
+                    oid: c.oid.clone(),
+                    parents: c.parents.clone(),
+                    hidden: if flat {
+                        c.parents
+                            .iter()
+                            .filter(|parent| !handle.shown_by(query, parent))
+                            .cloned()
+                            .collect()
+                    } else {
+                        Vec::new()
+                    },
+                })
+                .collect();
+            let rows = graph_engine::layout(&nodes, &mut cursor);
 
             let keep = on_chunk(GraphChunk {
                 commits,
-                lanes,
-                edges,
-                max_lane,
+                rows,
                 is_last: false,
             });
             cancelled = !keep;
             keep
         };
 
-        let skipped = if flat {
-            handle.search_commits(query, chunk_size, on_commits)?
-        } else {
-            handle.search_commits_topo(query, chunk_size, on_commits)?
-        };
+        let skipped = handle.search_commits(query, chunk_size, on_commits)?;
 
         if !cancelled {
             on_chunk(GraphChunk {
                 commits: Vec::new(),
-                lanes: Vec::new(),
-                edges: Vec::new(),
-                max_lane,
+                rows: Vec::new(),
                 is_last: true,
             });
         }
@@ -1628,13 +1602,22 @@ impl AppState {
     }
 }
 
-/// `master`, then `main`, then HEAD. A repository that cannot be read names no mainline
-/// and the graph falls back to what it always did.
-fn mainline_of(handle: &git_engine::RepoHandle) -> Option<String> {
+/// HEAD, then `master`, then `main` — of those the graph draws. A primary ref that is
+/// unticked or filtered out would hold column 0 empty for a line that never comes (R-161).
+fn mainline_of(handle: &git_engine::RepoHandle, query: &git_engine::CommitQuery) -> Option<String> {
+    let ticked = |name: &str| {
+        query
+            .visible_refs
+            .as_ref()
+            .is_none_or(|refs| refs.iter().any(|rev| rev == name))
+    };
     let branches = handle.branches().ok()?;
     let locals: Vec<(&str, &str)> = branches
         .iter()
-        .filter(|branch| branch.kind == git_engine::BranchKind::Local)
+        .filter(|branch| {
+            branch.kind == git_engine::BranchKind::Local
+                && ticked(&format!("refs/heads/{}", branch.name))
+        })
         .map(|branch| (branch.name.as_str(), branch.oid.as_str()))
         .collect();
     // `head()`, not the branch marked as HEAD: a detached HEAD is a line worth keeping
@@ -1642,8 +1625,10 @@ fn mainline_of(handle: &git_engine::RepoHandle) -> Option<String> {
     let head = match handle.head().ok()? {
         git_engine::Head::Branch { oid, .. } | git_engine::Head::Detached { oid } => Some(oid),
         git_engine::Head::Unborn { .. } => None,
-    };
-    graph_engine::mainline_tip(&locals, head.as_deref())
+    }
+    .filter(|_| ticked("HEAD"));
+    let tip = graph_engine::mainline_tip(&locals, head.as_deref())?;
+    (!query.filters_rows() || handle.shown_by(query, &tip)).then_some(tip)
 }
 
 /// Times the reads that make up one `open_repository` and writes them as one line.

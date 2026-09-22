@@ -11,10 +11,10 @@
     GRAPH,
     HEADER_ROWS,
     centreRow,
-    gutterWidth,
     hitTest,
     nextRow,
     scrollRowIntoView,
+    textX,
     toCommitRow,
     visibleRange,
   } from "$lib/graph-geometry";
@@ -58,7 +58,6 @@
   let scroller: HTMLDivElement | undefined = $state();
   let scrollTop = $state(0);
   let viewportHeight = $state(0);
-  let viewportWidth = $state(0);
 
   /** Index and every pending step, sitting between Working Tree and the first commit. */
   const virtualRows = $derived.by(() => {
@@ -90,7 +89,9 @@
   const range = $derived(
     visibleRange(scrollTop, viewportHeight, GRAPH.rowHeight, listRows, BUFFER_ROWS),
   );
-  const gutter = $derived(gutterWidth(graph.maxLane, viewportWidth || 600));
+  /** The Working Tree row and the rebase rows start where HEAD's line is. */
+  const headLane = $derived(graph.rows[0]?.layout.lane ?? null);
+  const headerX = $derived(textX((headLane ?? 0) + 1));
 
   /** The window drives the queue: rows that scroll away stop being asked for. */
   $effect(() => {
@@ -139,13 +140,12 @@
     return rows;
   });
 
-  const nodes = $derived(visible.map(({ entry }) => ({
-    row: entry.lane.row,
-    lane: entry.lane.lane,
-    color: entry.lane.color,
-    merge: entry.lane.kind === "merge",
-    root: entry.lane.kind === "root",
-  })));
+  const drawn = $derived(visible.map(({ listRow, entry }) => ({ listRow, layout: entry.layout })));
+  /** The canvas only has to reach the widest row on screen. */
+  const canvasWidth = $derived(
+    Math.max(headerX, ...drawn.map(({ layout }) => textX(layout.width))),
+  );
+  const selectedRow = $derived(visible.find(({ entry }) => entry.commit.oid === selection.oid)?.listRow ?? null);
 
   /** Selection and scroll move together: an arrow key that selects off-screen is useless. */
   function onkeydown(event: KeyboardEvent) {
@@ -212,7 +212,6 @@
     const observer = new ResizeObserver(([entry]) => {
       if (!entry) return;
       viewportHeight = entry.contentRect.height;
-      viewportWidth = entry.contentRect.width;
     });
     observer.observe(scroller);
     return () => observer.disconnect();
@@ -243,15 +242,13 @@
   >
     <div class="canvas-layer">
       <GraphCanvas
-        edges={graph.edges}
-        {nodes}
+        rows={drawn}
         {scrollTop}
-        width={gutter}
+        width={canvasWidth}
         height={viewportHeight}
-        firstRow={Math.max(range.start - headerRows, 0)}
-        lastRow={range.end}
-        rowOffset={headerRows}
-        headLane={graph.rows[0]?.lane.lane ?? null}
+        firstCommitRow={headerRows}
+        {headLane}
+        {selectedRow}
       />
     </div>
 
@@ -262,7 +259,7 @@
           class="row header"
           class:selected={selection.oid === null}
           style:top="0px"
-          style:padding-left="{gutter}px"
+          style:padding-left="{headerX}px"
           title="Show the working tree in Files and Diff"
           onclick={() => selection.clear()}
         >
@@ -275,7 +272,7 @@
         <div
           class="row virtual {row.kind}"
           style:top="{(HEADER_ROWS + index) * GRAPH.rowHeight}px"
-          style:padding-left="{gutter}px"
+          style:padding-left="{headerX}px"
         >
           <span class="node" aria-hidden="true">{row.kind === "onto" ? "▶" : "◌"}</span>
           <span class="summary truncate">{row.label}</span>
@@ -290,7 +287,7 @@
           class:selected={selection.oid === item.entry.commit.oid}
           class:over={over === item.entry.commit.oid}
           style:top="{item.listRow * GRAPH.rowHeight}px"
-          style:padding-left="{gutter}px"
+          style:padding-left="{textX(item.entry.layout.width)}px"
           role="listitem"
           draggable={ondrop !== undefined}
           ondragstart={(event) =>

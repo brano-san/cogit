@@ -10,6 +10,8 @@ export interface Settings {
   wordDiff: boolean;
   detectMoves: boolean;
   laneWidth: number;
+  /** A colour per lane instead of one grey; off, as SmartGit draws it (R-161). */
+  coloredLanes: boolean;
   pullMode: "ffOnly" | "merge";
   gitPath: string;
   terminal: string;
@@ -33,7 +35,8 @@ export const DEFAULT_SETTINGS: Settings = {
   ignoreWhitespace: "none",
   wordDiff: true,
   detectMoves: true,
-  laneWidth: 14,
+  laneWidth: 16,
+  coloredLanes: false,
   pullMode: "ffOnly",
   gitPath: "git",
   terminal: "system",

@@ -46,6 +46,9 @@ pub struct Tag {
 
 /// Ignores inherited `GIT_*` variables: `gix` honours `GIT_INDEX_FILE` and friends,
 /// which is right for a hook and wrong for a client (doc/12-risks.md, R-22).
+/// Enough for the topological window of the graph walk several times over.
+const OBJECT_CACHE_BYTES: usize = 4 * 1024 * 1024;
+
 pub(crate) fn env_free() -> gix::open::Options {
     let mut options = gix::open::Options::default();
     options.permissions.env.git_prefix = gix::sec::Permission::Deny;
@@ -73,7 +76,10 @@ impl RepoHandle {
         Ok(Self::from_repo(repo))
     }
 
-    pub(crate) fn from_repo(repo: gix::Repository) -> Self {
+    pub(crate) fn from_repo(mut repo: gix::Repository) -> Self {
+        // The graph walk reads a commit for its parents and again, up to 2 048 commits
+        // later, for its message; without a cache that second read unpacks it again.
+        repo.object_cache_size_if_unset(OBJECT_CACHE_BYTES);
         let root = repo
             .workdir()
             .unwrap_or_else(|| repo.git_dir())

@@ -1,28 +1,26 @@
 /** Single-sourced so the list and the canvas cannot drift apart (doc/12-risks.md, R-03). */
 
-const LANE_WIDTH = { default: 18, min: 12, max: 48 } as const;
+const LANE_WIDTH = { default: 16, min: 12, max: 48 } as const;
 let laneWidth: number = LANE_WIDTH.default;
 
-/** Sizes are CSS pixels; the canvas is scaled by `devicePixelRatio` before drawing, so
-    125% and 150% displays get the same shapes with more pixels in them.
-
-    `lineWidth` is even on purpose. An odd stroke has to be nudged half a pixel to land
-    on a whole one, the dots never were, and the line ran half a pixel off the dot it was
-    supposed to pass through (doc/12-risks.md, R-114). */
+/** CSS pixels; the canvas is scaled by `devicePixelRatio`, so 125% and 150% displays get
+    the same shapes with more pixels in them. Lines and rings share one centre, so no
+    width has to be nudged half a pixel to meet the other (R-114, R-161). */
 export const GRAPH = {
   rowHeight: 24,
   get laneWidth() {
     return laneWidth;
   },
-  leftPad: 12,
-  nodeRadius: 4,
-  mergeRadius: 5,
+  leftPad: 10,
+  ringRadius: 3.5,
+  ringStroke: 1.5,
   lineWidth: 2,
-  /** A merge is a ring so the lane shows through it; the ring needs to read at 2 px. */
-  ringWidth: 2,
-  /** How round the corner is where a branch leaves its lane (R-141). */
-  elbowRadius: 7,
-  maxGutterFraction: 0.25,
+  mainLineWidth: 2.75,
+  textGap: 8,
+  /** Past this many columns a row is cut off with a fade, and its text starts there. */
+  maxColumns: 40,
+  arrowLength: 6,
+  arrowHead: 3,
 } as const;
 
 export interface VisibleRange {
@@ -66,9 +64,46 @@ export function nodeCentre(lane: number, row: number, scrollTop: number) {
   return { x: laneX(lane), y: rowY(row, scrollTop) };
 }
 
-export function gutterWidth(maxLane: number, panelWidth: number): number {
-  const natural = GRAPH.leftPad + GRAPH.laneWidth * (maxLane + 1);
-  return Math.min(natural, panelWidth * GRAPH.maxGutterFraction);
+export function textX(width: number): number {
+  const columns = Math.min(Math.max(width, 1), GRAPH.maxColumns);
+  return laneX(columns - 1) + GRAPH.laneWidth / 2 + GRAPH.textGap;
+}
+
+export interface Curve {
+  x1: number;
+  y1: number;
+  cx1: number;
+  cy1: number;
+  cx2: number;
+  cy2: number;
+  x2: number;
+  y2: number;
+}
+
+/** A cubic with both tangents vertical: a straight line when the column stays, an S
+    inside the one row when it changes. `listRow` counts the header rows. */
+export function segmentCurve(
+  segment: { from: number; to: number; span: "top" | "bottom" | "through" },
+  listRow: number,
+  scrollTop: number,
+): Curve {
+  const top = listRow * GRAPH.rowHeight - scrollTop;
+  const centre = top + GRAPH.rowHeight / 2;
+  const bottom = top + GRAPH.rowHeight;
+  const y1 = segment.span === "bottom" ? centre : top;
+  const y2 = segment.span === "top" ? centre : bottom;
+  const x1 = laneX(segment.from);
+  const x2 = laneX(segment.to);
+  const middle = (y1 + y2) / 2;
+  return { x1, y1, cx1: x1, cy1: middle, cx2: x2, cy2: middle, x2, y2 };
+}
+
+/** The line to a commit the list does not show: a stub under the ring, pointing on. */
+export function arrowStub(lane: number, listRow: number, scrollTop: number) {
+  const { x, y } = nodeCentre(lane, listRow, scrollTop);
+  const y1 = y + GRAPH.ringRadius + GRAPH.ringStroke;
+  const tipY = Math.min(y1 + GRAPH.arrowLength, y + GRAPH.rowHeight / 2);
+  return { x1: x, y1, tipY, head: GRAPH.arrowHead };
 }
 
 export interface GraphHit {
@@ -116,36 +151,6 @@ export function toCommitRow(listRow: number, headerRows: number = HEADER_ROWS): 
   return row >= 0 ? row : null;
 }
 
-export interface RowIndexed {
-  fromRow: number;
-}
-
-/** Bucketed by upper row: rescanning every edge each frame misses the frame budget. */
-export function indexByRow<T extends RowIndexed>(edges: readonly T[]): Map<number, T[]> {
-  const index = new Map<number, T[]>();
-  for (const edge of edges) {
-    const bucket = index.get(edge.fromRow);
-    if (bucket) bucket.push(edge);
-    else index.set(edge.fromRow, [edge]);
-  }
-  return index;
-}
-
-/** Edges that cross the rows on screen, plus the band just above so lines enter correctly. */
-export function edgeBand<T extends RowIndexed>(
-  index: Map<number, T[]>,
-  firstRow: number,
-  lastRow: number,
-): T[] {
-  const band: T[] = [];
-  for (let row = firstRow - 1; row <= lastRow; row++) {
-    const bucket = index.get(row);
-    if (bucket) band.push(...bucket);
-  }
-  return band;
-}
-
-/** Keyboard navigation over the list; `null` means the key was not ours. */
 export function nextRow(
   current: number | null,
   key: string,
@@ -174,7 +179,6 @@ export function nextRow(
   }
 }
 
-/** The new scroll offset, or `null` when the row already fits on screen. */
 export function scrollRowIntoView(
   row: number,
   scrollTop: number,
