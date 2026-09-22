@@ -1,5 +1,5 @@
 <script lang="ts" generics="T extends import('$lib/tree').TreeNode">
-  import Caret from "$components/common/Caret.svelte";
+  import Disclosure from "$components/common/Disclosure.svelte";
   import { flatten, toggle, type Flattened } from "$lib/tree";
   import type { Snippet } from "svelte";
 
@@ -30,7 +30,7 @@
       tabindex="-1"
       style:padding-left="{base + node.depth * indent}px"
     >
-      <Caret
+      <Disclosure
         empty={node.open === undefined}
         open={node.open ?? false}
         label={node.open ? "Collapse" : "Expand"}

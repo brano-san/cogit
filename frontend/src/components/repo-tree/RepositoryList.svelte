@@ -1,5 +1,5 @@
 <script lang="ts">
-  import Caret from "$components/common/Caret.svelte";
+  import Disclosure from "$components/common/Disclosure.svelte";
   import KindIcon from "$components/common/KindIcon.svelte";
   import { applyClick, EMPTY_SELECTION, type FileSelection } from "$lib/multi-select";
   import { DIRTY_REPOSITORY, MISSING_REPOSITORY, trackTooltip } from "$lib/repo-labels";
@@ -168,7 +168,7 @@
             if (root) dropped(row.id, root);
           }}
         >
-          <Caret open={!repoGroups.collapsed.has(row.id)} />
+          <Disclosure open={!repoGroups.collapsed.has(row.id)} />
           <KindIcon kind="group" />
           <span class="truncate">{row.name} ({row.count})</span>
         </div>
@@ -199,7 +199,7 @@
           oncontext(entry, event.clientX, event.clientY);
         }}
       >
-        <Caret
+        <Disclosure
           empty={!(
             submodules.owner?.valueOf() === entry.repo.valueOf() && submodules.top.length > 0
           )}
@@ -264,7 +264,7 @@
               onmodulecontext(node, event.clientX, event.clientY);
             }}
           >
-            <Caret
+            <Disclosure
               empty={!mayExpand(submodules.children, node.key, node.module)}
               open={node.expanded}
               label={node.expanded ? "Collapse" : "Expand"}

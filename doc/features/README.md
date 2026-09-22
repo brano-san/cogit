@@ -246,3 +246,4 @@
 | F-283 | Диф подмодуля и метка not fetched | [F-283-submodule-pointer-diff-and-not-fetched.md](F-283-submodule-pointer-diff-and-not-fetched.md) |
 | F-284 | Тип записи в Files отдельно от состояния | [F-284-file-kind-icons.md](F-284-file-kind-icons.md) |
 | F-285 | Подсказки везде одинаковые | [F-285-one-tooltip.md](F-285-one-tooltip.md) |
+| F-286 | Один треугольник раскрытия, одна каретка меню | [F-286-one-disclosure-one-caret.md](F-286-one-disclosure-one-caret.md) |

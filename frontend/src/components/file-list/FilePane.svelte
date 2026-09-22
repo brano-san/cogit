@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Disclosure from "$components/common/Disclosure.svelte";
   import KindIcon, { type Kind } from "$components/common/KindIcon.svelte";
   import VirtualList from "$components/common/VirtualList.svelte";
   import { fileName, statusBadge, statusLabel, statusTooltip } from "$lib/files";
@@ -72,7 +73,7 @@
         {#if entry.kind === "dir"}
           {@const group = entry}
           <div class="folder" style:top="{at * GRAPH.rowHeight}px">
-            <span class="fold" aria-hidden="true">▾</span>
+            <Disclosure open />
             <span class="truncate">{group.path === "" ? "(root)" : group.path}</span>
             <span class="count">{group.count}</span>
           </div>
@@ -138,11 +139,6 @@
 </div>
 
 <style>
-  .fold {
-    font-size: 11px;
-    line-height: 1;
-  }
-
   .pane {
     display: flex;
     flex-direction: column;
