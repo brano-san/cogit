@@ -105,12 +105,12 @@ fn a_lane_ending_in_the_middle_slides_the_lanes_right_of_it_left_in_that_row() {
     let m1 = &rows[4];
     assert_eq!(
         segs(m1, Span::Top),
-        vec![(0, 0), (1, 0)],
-        "a's lane ends in m1"
+        vec![(0, 0), (1, 0), (2, 1)],
+        "a's lane ends in m1, and b slides from column 2 to 1 beside it within the row"
     );
     assert!(
-        segs(m1, Span::Through).contains(&(2, 1)),
-        "b slides from column 2 to 1 within the row: {:?}",
+        segs(m1, Span::Bottom).contains(&(1, 1)),
+        "{:?}",
         m1.segments
     );
     assert_eq!(rows[5].lane, 1, "and carries on from its new column");
@@ -133,9 +133,9 @@ fn an_octopus_opens_its_new_lanes_right_of_the_node_in_parent_order() {
 
     let m = &rows[1];
     assert_eq!(m.lane, 0);
-    assert_eq!(segs(m, Span::Bottom), vec![(0, 0), (0, 1), (0, 2)]);
-    assert!(
-        segs(m, Span::Through).contains(&(1, 3)),
+    assert_eq!(
+        segs(m, Span::Bottom),
+        vec![(0, 0), (0, 1), (0, 2), (1, 3)],
         "the lane already there makes room rather than the new ones going far right: {:?}",
         m.segments
     );
@@ -212,48 +212,72 @@ fn the_main_line_holds_column_zero_on_random_histories() {
     }
 }
 
-/// Only the node's own lines reach its ring: every other line keeps out of its column at
-/// the top edge, the bottom edge and halfway down, where the ring is.
-#[test]
-fn no_line_but_its_own_reaches_a_ring_on_random_histories() {
+/// Branches, merges, roots and hidden parents in random mixes, each laid out.
+fn random_layouts() -> Vec<(Vec<CommitNode>, Vec<GraphRow>)> {
     let mut seed = 0x9e37_79b9_u64;
     let mut next = move |bound: usize| {
         seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
         usize::try_from(seed >> 33).unwrap() % bound
     };
 
-    for _ in 0..300 {
-        let count = 3 + next(40);
-        let names: Vec<String> = (0..count).map(|i| format!("c{i}")).collect();
-        let nodes: Vec<CommitNode> = (0..count)
-            .map(|i| {
-                let older = count - i - 1;
-                let mut parents = Vec::new();
-                if older > 0 && next(6) != 0 {
-                    parents.push(names[i + 1 + next(older.min(4))].clone());
-                    if older > 1 && next(3) == 0 {
-                        let other = names[i + 1 + next(older)].clone();
-                        if !parents.contains(&other) {
-                            parents.push(other);
+    (0..300)
+        .map(|_| {
+            let count = 3 + next(40);
+            let names: Vec<String> = (0..count).map(|i| format!("c{i}")).collect();
+            let nodes: Vec<CommitNode> = (0..count)
+                .map(|i| {
+                    let older = count - i - 1;
+                    let mut parents = Vec::new();
+                    if older > 0 && next(6) != 0 {
+                        parents.push(names[i + 1 + next(older.min(4))].clone());
+                        if older > 1 && next(3) == 0 {
+                            let other = names[i + 1 + next(older)].clone();
+                            if !parents.contains(&other) {
+                                parents.push(other);
+                            }
                         }
                     }
-                }
-                let hidden = parents.iter().filter(|_| next(5) == 0).cloned().collect();
-                CommitNode {
-                    oid: names[i].clone(),
-                    parents,
-                    hidden,
-                }
-            })
-            .collect();
-        let primary = (next(2) == 0).then(|| names[next(count)].clone());
-        let rows = layout(&nodes, &mut LayoutCursor::with_mainline(primary));
+                    let hidden = parents.iter().filter(|_| next(5) == 0).cloned().collect();
+                    CommitNode {
+                        oid: names[i].clone(),
+                        parents,
+                        hidden,
+                    }
+                })
+                .collect();
+            let primary = (next(2) == 0).then(|| names[next(count)].clone());
+            let rows = layout(&nodes, &mut LayoutCursor::with_mainline(primary));
+            (nodes, rows)
+        })
+        .collect()
+}
 
-        for row in &rows {
+/// Only the node's own lines reach its ring: every other line keeps out of its column at
+/// the top edge, the bottom edge and halfway down, where the ring is.
+#[test]
+fn no_line_but_its_own_reaches_a_ring_on_random_histories() {
+    for (nodes, rows) in random_layouts() {
+        for (row, node) in rows.iter().zip(&nodes) {
+            let parents = node
+                .parents
+                .iter()
+                .filter(|parent| !node.hidden.contains(parent))
+                .count();
+            let out_of_ring = row
+                .segments
+                .iter()
+                .filter(|seg| seg.span == Span::Bottom && !seg.arrow && seg.from == row.lane)
+                .count();
+            assert!(
+                out_of_ring <= parents,
+                "row {}: {:?}",
+                row.row,
+                row.segments
+            );
             for seg in &row.segments {
                 let passes_by = match seg.span {
                     Span::Through => seg.from == row.lane || seg.to == row.lane,
-                    Span::Bottom => seg.from != row.lane && seg.from != seg.to,
+                    Span::Bottom => seg.to == row.lane && seg.from != row.lane,
                     Span::Top => false,
                 };
                 assert!(!passes_by, "row {}: {seg:?} in {:?}", row.row, row.segments);
@@ -266,6 +290,43 @@ fn no_line_but_its_own_reaches_a_ring_on_random_histories() {
             }
         }
     }
+}
+
+/// One shape for every turn: half a row, as the node's own lines are. A lane only spans
+/// the whole row where it runs straight.
+#[test]
+fn every_turn_takes_half_a_row_on_random_histories() {
+    for (_, rows) in random_layouts() {
+        for row in &rows {
+            for seg in row.segments.iter().filter(|seg| seg.span == Span::Through) {
+                assert_eq!(seg.from, seg.to, "row {}: {:?}", row.row, row.segments);
+            }
+        }
+    }
+}
+
+/// The lane a merge pushes aside for its new line turns beside it, in the lower half.
+#[test]
+fn a_lane_a_merge_pushes_aside_turns_alongside_the_new_line() {
+    let rows = run(
+        &[
+            ("t", &["z"]),
+            ("m", &["a", "b"]),
+            ("b", &["r"]),
+            ("a", &["r"]),
+            ("z", &["r"]),
+            ("r", &[]),
+        ],
+        Some("m"),
+    );
+    let m = &rows[1];
+    assert_eq!(
+        segs(m, Span::Bottom),
+        vec![(0, 0), (0, 1), (1, 2)],
+        "{:?}",
+        m.segments
+    );
+    assert_eq!(segs(m, Span::Top), vec![(1, 1)], "{:?}", m.segments);
 }
 
 #[test]

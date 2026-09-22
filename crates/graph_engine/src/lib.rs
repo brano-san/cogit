@@ -85,6 +85,7 @@ pub struct LayoutCursor {
     pub(crate) above: Vec<Above>,
     pub(crate) converging: Vec<u64>,
     pub(crate) leaving: Vec<u64>,
+    pub(crate) middle: Vec<u64>,
 }
 
 impl LayoutCursor {

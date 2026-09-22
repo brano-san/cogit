@@ -240,130 +240,140 @@
     aria-label="Commits"
     tabindex="0"
   >
-    <div class="canvas-layer">
-      <GraphCanvas
-        rows={drawn}
-        {scrollTop}
-        width={canvasWidth}
-        height={viewportHeight}
-        firstCommitRow={headerRows}
-        {headLane}
-        {selectedRow}
-      />
-    </div>
+    <div class="viewport">
+      <div class="canvas-layer">
+        <GraphCanvas
+          rows={drawn}
+          {scrollTop}
+          width={canvasWidth}
+          height={viewportHeight}
+          firstCommitRow={headerRows}
+          {headLane}
+          {selectedRow}
+        />
+      </div>
 
-    <div class="rows" style:height="{listRows * GRAPH.rowHeight}px" style:--row-h="{GRAPH.rowHeight}px">
-      {#if range.start === 0}
-        <button
-          type="button"
-          class="row header"
-          class:selected={selection.oid === null}
-          style:top="0px"
-          style:padding-left="{headerX}px"
-          title="Show the working tree in Files and Diff"
-          onclick={() => selection.clear()}
-        >
-          <span class="summary truncate">{headerLabel}</span>
-          {#if graph.loading}<span class="date">loading…</span>{/if}
-        </button>
-      {/if}
-
-      {#each virtualRows as row, index (index)}
-        <div
-          class="row virtual {row.kind}"
-          style:top="{(HEADER_ROWS + index) * GRAPH.rowHeight}px"
-          style:padding-left="{headerX}px"
-        >
-          <span class="node" aria-hidden="true">{row.kind === "onto" ? "▶" : "◌"}</span>
-          <span class="summary truncate">{row.label}</span>
-          <span class="date">{row.detail}</span>
-        </div>
-      {/each}
-
-      {#each visible as item (item.entry.commit.oid)}
-        {@const refs = capsules(labels.get(item.entry.commit.oid) ?? [], CAPSULE_ROOM)}
-        <div
-          class="row"
-          class:selected={selection.oid === item.entry.commit.oid}
-          class:over={over === item.entry.commit.oid}
-          style:top="{item.listRow * GRAPH.rowHeight}px"
-          style:padding-left="{textX(item.entry.layout.width)}px"
-          role="listitem"
-          draggable={ondrop !== undefined}
-          ondragstart={(event) =>
-            event.dataTransfer?.setData(
-              DRAG_TYPE,
-              serialiseDrag({ kind: "commit", id: item.entry.commit.oid }),
-            )}
-          ondragover={(event) => {
-            if (ondrop) {
-              event.preventDefault();
-              over = item.entry.commit.oid;
-            }
-          }}
-          ondragleave={() => (over = null)}
-          oncontextmenu={(event) => {
-            if (!oncontext) return;
-            event.preventDefault();
-            void pick(repository.current?.repo ?? (0 as unknown as RepoId), item.entry.commit.oid);
-            oncontext(item.entry.commit.oid, event.clientX, event.clientY);
-          }}
-          ondrop={(event) => {
-            over = null;
-            const payload = parseDrag(event.dataTransfer?.getData(DRAG_TYPE) ?? "");
-            if (payload?.kind === "commit" && payload.id !== item.entry.commit.oid) {
-              ondrop?.(payload.id, item.entry.commit.oid);
-            }
-          }}
-        >
-          {#each refs.shown as label (label.text)}
-            <span
-              class="capsule {label.kind}"
-              role="button"
-              tabindex="-1"
-              title={label.text}
-              onclick={(event) => {
-                event.stopPropagation();
-                onref?.(label.text);
-              }}
-              onkeydown={(event) => event.key === "Enter" && onref?.(label.text)}
-            >{label.text}</span>
-          {/each}
-          {#if refs.hidden.length > 0}
-            <span class="capsule more" title={refs.hidden.map((l) => l.text).join("\n")}
-              >+{refs.hidden.length}</span
-            >
-          {/if}
-          <span class="summary truncate">{item.entry.commit.summary}</span>
-          <span class="author truncate">{item.entry.commit.authorName}</span>
-          <Avatar
-            name={item.entry.commit.authorName}
-            email={item.entry.commit.authorEmail}
-          />
-          <span
-            class="date tabular"
-            title={dateTooltip(
-              item.entry.commit.timestamp,
-              item.entry.commit.tzOffsetMinutes,
-            )}>{settings.formatDate(
-              item.entry.commit.timestamp,
-              item.entry.commit.tzOffsetMinutes,
-            )}</span
+      <div
+        class="rows"
+        style:transform="translateY({-scrollTop}px)"
+        style:--row-h="{GRAPH.rowHeight}px"
+      >
+        {#if range.start === 0}
+          <button
+            type="button"
+            class="row header"
+            class:selected={selection.oid === null}
+            style:top="0px"
+            style:padding-left="{headerX}px"
+            title="Show the working tree in Files and Diff"
+            onclick={() => selection.clear()}
           >
-          {#if overlap.enabled}
-            {@const row = overlap.rows.get(item.entry.commit.oid)}
+            <span class="summary truncate">{headerLabel}</span>
+            {#if graph.loading}<span class="date">loading…</span>{/if}
+          </button>
+        {/if}
+
+        {#each virtualRows as row, index (index)}
+          <div
+            class="row virtual {row.kind}"
+            style:top="{(HEADER_ROWS + index) * GRAPH.rowHeight}px"
+            style:padding-left="{headerX}px"
+          >
+            <span class="node" aria-hidden="true">{row.kind === "onto" ? "▶" : "◌"}</span>
+            <span class="summary truncate">{row.label}</span>
+            <span class="date">{row.detail}</span>
+          </div>
+        {/each}
+
+        {#each visible as item (item.entry.commit.oid)}
+          {@const refs = capsules(labels.get(item.entry.commit.oid) ?? [], CAPSULE_ROOM)}
+          <div
+            class="row"
+            class:selected={selection.oid === item.entry.commit.oid}
+            class:over={over === item.entry.commit.oid}
+            style:top="{item.listRow * GRAPH.rowHeight}px"
+            style:padding-left="{textX(item.entry.layout.width)}px"
+            role="listitem"
+            draggable={ondrop !== undefined}
+            ondragstart={(event) =>
+              event.dataTransfer?.setData(
+                DRAG_TYPE,
+                serialiseDrag({ kind: "commit", id: item.entry.commit.oid }),
+              )}
+            ondragover={(event) => {
+              if (ondrop) {
+                event.preventDefault();
+                over = item.entry.commit.oid;
+              }
+            }}
+            ondragleave={() => (over = null)}
+            oncontextmenu={(event) => {
+              if (!oncontext) return;
+              event.preventDefault();
+              void pick(repository.current?.repo ?? (0 as unknown as RepoId), item.entry.commit.oid);
+              oncontext(item.entry.commit.oid, event.clientX, event.clientY);
+            }}
+            ondrop={(event) => {
+              over = null;
+              const payload = parseDrag(event.dataTransfer?.getData(DRAG_TYPE) ?? "");
+              if (payload?.kind === "commit" && payload.id !== item.entry.commit.oid) {
+                ondrop?.(payload.id, item.entry.commit.oid);
+              }
+            }}
+          >
+            {#each refs.shown as label (label.text)}
+              <span
+                class="capsule {label.kind}"
+                role="button"
+                tabindex="-1"
+                title={label.text}
+                onclick={(event) => {
+                  event.stopPropagation();
+                  onref?.(label.text);
+                }}
+                onkeydown={(event) => event.key === "Enter" && onref?.(label.text)}
+              >{label.text}</span>
+            {/each}
+            {#if refs.hidden.length > 0}
+              <span class="capsule more" title={refs.hidden.map((l) => l.text).join("\n")}
+                >+{refs.hidden.length}</span
+              >
+            {/if}
+            <span class="summary truncate">{item.entry.commit.summary}</span>
+            <span class="author truncate">{item.entry.commit.authorName}</span>
+            <Avatar
+              name={item.entry.commit.authorName}
+              email={item.entry.commit.authorEmail}
+            />
             <span
-              class="overlap {row?.overlap ?? 'none'}"
-              class:base={row?.isBase}
-              title={row ? overlapTooltip(row.shared, row.sharedTotal) : ""}
+              class="date tabular"
+              title={dateTooltip(
+                item.entry.commit.timestamp,
+                item.entry.commit.tzOffsetMinutes,
+              )}>{settings.formatDate(
+                item.entry.commit.timestamp,
+                item.entry.commit.tzOffsetMinutes,
+              )}</span
             >
-              {row?.isBase ? "base" : row ? overlapLabel(row.overlap) : ""}
-            </span>
-          {/if}
-          <span class="oid mono tabular">{shortOid(item.entry.commit.oid)}</span>
-        </div>
-      {/each}
+            {#if overlap.enabled}
+              {@const row = overlap.rows.get(item.entry.commit.oid)}
+              <span
+                class="overlap {row?.overlap ?? 'none'}"
+                class:base={row?.isBase}
+                title={row ? overlapTooltip(row.shared, row.sharedTotal) : ""}
+              >
+                {row?.isBase ? "base" : row ? overlapLabel(row.overlap) : ""}
+              </span>
+            {/if}
+            <span class="oid mono tabular">{shortOid(item.entry.commit.oid)}</span>
+          </div>
+        {/each}
+      </div>
     </div>
+    <div
+      class="spacer"
+      style:height="{Math.max(listRows * GRAPH.rowHeight - viewportHeight, 0)}px"
+    ></div>
   </div>
 {/if}
 
@@ -374,17 +384,27 @@
     overflow: auto;
   }
 
-  /* Height zero so the pinned canvas claims no layout space of its own. */
-  .canvas-layer {
+  /* Text and graph move together, in the frame that draws the graph. Rows scrolled by the
+     browser itself ran ahead of the canvas and showed rings with no text beside them. */
+  .viewport {
     position: sticky;
     top: 0;
-    height: 0;
+    height: 100%;
+    overflow: clip;
+  }
+
+  .canvas-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
     z-index: 2;
   }
 
   .rows {
-    position: relative;
+    position: absolute;
+    inset: 0;
     z-index: 1;
+    will-change: transform;
   }
 
   .row {
