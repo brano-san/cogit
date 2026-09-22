@@ -10,6 +10,11 @@ fn file_in(config_dir: &Path) -> PathBuf {
     config_dir.join(FILE)
 }
 
+#[must_use]
+pub fn path(config_dir: &Path) -> PathBuf {
+    file_in(config_dir)
+}
+
 /// The whole settings document. Anything unreadable reads as empty: a damaged file must
 /// not keep the application from starting with defaults.
 #[must_use]

@@ -20,20 +20,31 @@ use tauri::Manager as _;
 #[serde(rename_all = "camelCase")]
 pub struct AppInfo {
     pub version: String,
-    pub log_path: String,
     pub debug_build: bool,
     /// What a bug report needs to identify the build (doc/12-risks.md, R-146).
     pub commit: String,
+    /// Built from a tree with uncommitted code, so the commit alone does not describe it.
+    pub dirty: bool,
     #[specta(type = specta_typescript::Number)]
     pub built_at: i64,
+    pub repository: String,
+    pub os: app_state::environment::OsInfo,
+    /// The engine actually rendering this window — the one the user has to update when a
+    /// CSS feature is missing, and the one Cogit cannot ship itself.
+    pub renderer: String,
+    pub git: String,
     pub rustc: String,
     pub tauri: String,
-    /// The WebView2 runtime actually rendering this window — the version the user has to
-    /// update when a CSS feature is missing, and the one Cogit cannot ship itself.
-    pub webview: String,
-    pub git: String,
-    pub os: String,
+    /// The `gix` version the reads go through.
+    pub git_library: String,
+    pub log_path: String,
+    pub log_dir: String,
+    pub settings_path: String,
+    pub displays: Vec<app_state::environment::DisplayInfo>,
 }
+
+/// The Rust half of the third-party licence list, written by `build.rs`.
+const THIRD_PARTY_CRATES: &str = include_str!(concat!(env!("OUT_DIR"), "/third-party-crates.txt"));
 
 /// Every blocking command goes through here, so the profile log holds one line per IPC
 /// call: what ran, how long it took and whether it worked.
@@ -345,21 +356,90 @@ pub fn write_setting(
         .map_err(|err| GitError::Internal(format!("cannot write settings: {err}")))
 }
 
+/// Async: it spawns `git --version` and reads the registry, neither of which belongs on
+/// the main thread that a plain command runs on.
 #[tauri::command]
 #[specta::specta]
-pub fn app_info(state: tauri::State<'_, crate::AppContext>) -> AppInfo {
-    AppInfo {
-        version: env!("CARGO_PKG_VERSION").to_owned(),
-        log_path: state.log_path.display().to_string(),
-        debug_build: cfg!(debug_assertions),
-        commit: env!("COGIT_COMMIT").to_owned(),
-        built_at: env!("COGIT_BUILT_AT").parse().unwrap_or_default(),
-        rustc: env!("COGIT_RUSTC").to_owned(),
-        tauri: tauri::VERSION.to_owned(),
-        webview: tauri::webview_version().unwrap_or_else(|_| "unknown".to_owned()),
-        git: git_engine::git_version().unwrap_or_else(|_| "not found".to_owned()),
-        os: format!("{} {}", std::env::consts::OS, std::env::consts::ARCH),
-    }
+pub async fn app_info(
+    window: tauri::Window,
+    state: tauri::State<'_, crate::AppContext>,
+) -> Result<AppInfo, GitError> {
+    let log_path = state.log_path.clone();
+    let settings_path = app_state::settings::path(&state.config_dir);
+    let displays = displays(&window);
+
+    blocking("app_info", move || {
+        let webview = tauri::webview_version().ok();
+        Ok(AppInfo {
+            version: env!("CARGO_PKG_VERSION").to_owned(),
+            debug_build: cfg!(debug_assertions),
+            commit: env!("COGIT_COMMIT").to_owned(),
+            dirty: env!("COGIT_DIRTY") == "true",
+            built_at: env!("COGIT_BUILT_AT").parse().unwrap_or_default(),
+            repository: env!("CARGO_PKG_REPOSITORY").to_owned(),
+            os: app_state::environment::os_info(),
+            renderer: app_state::environment::renderer_label(
+                std::env::consts::OS,
+                webview.as_deref(),
+            ),
+            git: git_engine::git_version().unwrap_or_else(|_| "not found".to_owned()),
+            rustc: env!("COGIT_RUSTC").to_owned(),
+            tauri: tauri::VERSION.to_owned(),
+            git_library: git_engine::gix_version().to_owned(),
+            log_dir: log_path
+                .parent()
+                .map(|dir| dir.display().to_string())
+                .unwrap_or_default(),
+            log_path: log_path.display().to_string(),
+            settings_path: settings_path.display().to_string(),
+            displays,
+        })
+    })
+    .await
+}
+
+/// The same monitor list `window_place` reads at start-up; read-only.
+fn displays(window: &tauri::Window) -> Vec<app_state::environment::DisplayInfo> {
+    let monitors = window.available_monitors().unwrap_or_else(|err| {
+        tracing::warn!(error = ?err, context = "cannot list the monitors for About");
+        Vec::new()
+    });
+    let primary = window.primary_monitor().ok().flatten();
+    monitors
+        .iter()
+        .map(|monitor| app_state::environment::DisplayInfo {
+            name: monitor.name().cloned(),
+            width: monitor.size().width,
+            height: monitor.size().height,
+            scale: monitor.scale_factor(),
+            primary: primary
+                .as_ref()
+                .is_some_and(|main| main.position() == monitor.position()),
+        })
+        .collect()
+}
+
+/// Help ▸ About ▸ Third-party licences. `frontend` is the list the Vite build shipped
+/// beside the page; the dev server has none.
+#[tauri::command]
+#[specta::specta]
+pub async fn open_third_party_licences(
+    app: tauri::AppHandle,
+    frontend: Option<String>,
+) -> Result<(), GitError> {
+    let text = app_state::licences::document(
+        env!("CARGO_PKG_VERSION"),
+        THIRD_PARTY_CRATES,
+        frontend.as_deref(),
+    );
+    let path = blocking("open_third_party_licences", move || {
+        app_state::licences::write(&std::env::temp_dir(), &text)
+            .map_err(|err| GitError::Internal(format!("cannot write the licence list: {err}")))
+    })
+    .await?;
+    tauri_plugin_opener::OpenerExt::opener(&app)
+        .open_path(path.display().to_string(), None::<&str>)
+        .map_err(|err| GitError::Internal(format!("cannot open {}: {err}", path.display())))
 }
 
 #[tauri::command]
@@ -2088,7 +2168,6 @@ mod tests {
         "report_memory",
         "closing_ping",
         "cancel_operation",
-        "app_info",
         "terminal_choices",
         "command_log",
         "command_problems",

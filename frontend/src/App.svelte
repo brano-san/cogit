@@ -1,7 +1,8 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import { ask, open as openFolderDialog } from "@tauri-apps/plugin-dialog";
-  import { checkForUpdates, message } from "$lib/updates";
+  import { checkForUpdates, message, type UpdateOutcome } from "$lib/updates";
+  import { THIRD_PARTY_FILE } from "$lib/third-party";
 
   import DiffPanel from "$components/panels/DiffPanel.svelte";
   import ReferencesPanel from "$components/panels/ReferencesPanel.svelte";
@@ -70,6 +71,7 @@
     createTag,
     deleteTag,
     getAppInfo,
+    openThirdPartyLicences,
     addToGitignore,
     cherryPick,
     deleteUntracked,
@@ -174,6 +176,8 @@
   });
   let running = $state.raw<Map<number, string>>(new Map());
   let info = $state<AppInfo | null>(null);
+  /** The last update check this session, for the line in About. */
+  let lastUpdate = $state.raw<UpdateOutcome | null>(null);
   let opening = $state(false);
   let scanOpen = $state(false);
   let markedFiles = $state.raw<string[]>([]);
@@ -223,7 +227,7 @@
       import("@tauri-apps/plugin-updater"),
       import("@tauri-apps/plugin-process"),
     ]);
-    await checkForUpdates(
+    lastUpdate = await checkForUpdates(
       {
         check: () => check(),
         relaunch,
@@ -269,9 +273,9 @@
       trace("startup", "the window is running");
       // Nothing in a Git client is a web page (R-127).
       suppressNativeMenu(document);
-      getAppInfo().then((result) => {
-        info = result;
-      });
+      getAppInfo()
+        .then((result) => (info = result))
+        .catch((err) => errors.report(err as never));
       void settings.load().then(() => {
         diff.whitespace = settings.current.ignoreWhitespace;
         // Only after the settings are read: the tick is what permits the network call.
@@ -2219,10 +2223,20 @@
 
   /** The profile log is the answer to "why was that slow?": it has to be reachable. */
   async function revealLog() {
-    const path = info?.logPath;
-    if (!path) return;
+    if (info) await revealPath(info.logPath);
+  }
+
+  async function revealPath(path: string) {
     const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
     await revealItemInDir(path).catch(() => errors.report({ kind: "internal", data: path } as never));
+  }
+
+  /** The frontend list ships beside the page in a release build; the dev server has none. */
+  async function showLicences() {
+    const response = await fetch(`/${THIRD_PARTY_FILE}`).catch(() => null);
+    const text = response?.ok ? await response.text() : "";
+    const frontend = text.startsWith("Frontend packages") ? text : null;
+    await openThirdPartyLicences(frontend).catch((err) => errors.report(err as never));
   }
 
   /** The journal stays open: undoing one entry rarely means undoing only one. */
@@ -2930,9 +2944,12 @@
   {#if aboutOpen && info}
     <AboutDialog
       {info}
+      update={lastUpdate}
       onclose={() => (aboutOpen = false)}
       oncopy={(text) => void copyText(text)}
-      onreveallog={() => void revealLog()}
+      onreveal={(path) => void revealPath(path)}
+      onlicences={() => void showLicences()}
+      oncheckupdates={() => void runUpdateCheck()}
     />
   {/if}
 

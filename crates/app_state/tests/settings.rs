@@ -90,6 +90,17 @@ fn a_missing_directory_is_created_on_the_way() {
     assert_eq!(read_document(&nested)["settings"]["theme"], json!("dark"));
 }
 
+/// The About window names this file; it has to be the one the writes land in.
+#[test]
+fn the_settings_path_is_the_file_that_was_written() {
+    let home = dir();
+    write_key(home.path(), "settings", json!({ "theme": "dark" })).unwrap();
+
+    let path = app_state::settings::path(home.path());
+    assert!(path.is_file(), "{} was not written", path.display());
+    assert_eq!(path.parent(), Some(home.path()));
+}
+
 /// The three windows write the same file. A read-modify-write in one process is enough
 /// to keep them from erasing each other's keys.
 #[test]
