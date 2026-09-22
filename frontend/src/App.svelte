@@ -21,7 +21,8 @@
   import ExitDialog from "$components/common/ExitDialog.svelte";
   import ConfigEditor from "$components/common/ConfigEditor.svelte";
   import HealthNotice from "$components/layout/HealthNotice.svelte";
-  import { exitBlockers, mustAskBeforeExit } from "$lib/exit";
+  import { exitRows, type ExitAction } from "$lib/exit";
+  import { exitFlow } from "$stores/exit.svelte";
   import { describeSkipped } from "$lib/skipped";
   import { health } from "$stores/health.svelte";
   import SettingsPanel from "$components/layout/SettingsPanel.svelte";
@@ -594,10 +595,13 @@
         title: "Exit",
         shortcut: "Alt+X",
         synonyms: ["quit", "close"],
-        run: () =>
-          void import("@tauri-apps/api/window").then(({ getCurrentWindow }) =>
-            getCurrentWindow().close(),
-          ),
+        run: () => {
+          // No window is being closed by hand, so the dialog must not say one is.
+          exitFlow.fromCommand();
+          void import("@tauri-apps/api/window")
+            .then(({ getCurrentWindow }) => getCurrentWindow().close())
+            .catch(() => exitFlow.takeSource());
+        },
       },
       {
         id: "about",
@@ -1727,10 +1731,6 @@
       await afterMutation();
     }
   }
-  /** The Exit question while it is open; answering settles the close request (R-151). */
-  let exitPrompt = $state.raw<{ blockers: string[]; resolve: (go: boolean) => void } | null>(
-    null,
-  );
 
   /** Right-clicking a ticked row acts on the whole tick; right-clicking any other row
       acts on that one, which is what every file manager does. */
@@ -2301,6 +2301,7 @@
   /** Closing throws away whatever is only in the window: an edited hook, a resolution
       nobody wrote yet. Everything else is already on disk or in the draft store. */
   async function mayClose(): Promise<boolean> {
+    const source = exitFlow.takeSource();
     session.persist();
     const what = unsavedSummary({
       hook: hooks.dirty ? hooks.editing : null,
@@ -2309,23 +2310,19 @@
     if (what && !(await ask(`${what} Close anyway?`, { title: "Cogit", kind: "warning" }))) {
       return false;
     }
-
-    const names = new Map(repository.openRepos.map((entry) => [entry.repo.valueOf(), entry.name]));
-    const blockers = exitBlockers(await listOperations().catch(() => []), names);
     // Someone who just said "close anyway" has been asked once already.
     const confirm = what ? false : settings.current.confirmExit;
-    if (!mustAskBeforeExit(confirm, blockers.length)) return true;
-    return await new Promise<boolean>((resolve) => (exitPrompt = { blockers, resolve }));
+    return exitFlow.ask(source, confirm, listOperations);
   }
 
-  function answerExit(go: boolean, dontShowAgain: boolean) {
-    const prompt = exitPrompt;
-    exitPrompt = null;
-    if (go && dontShowAgain === settings.current.confirmExit) {
-      void settings.set("confirmExit", !dontShowAgain);
-    }
-    prompt?.resolve(go);
+  function answerExit(action: ExitAction, dontShowAgain: boolean) {
+    const stored = exitFlow.answer(action, dontShowAgain, settings.current.confirmExit);
+    if (stored !== null) void settings.set("confirmExit", stored);
   }
+
+  const exitNames = $derived(
+    new Map(repository.openRepos.map((entry) => [entry.repo.valueOf(), entry.name])),
+  );
 
   /** A folder dropped on the window is a repository to open. Anything that is not one is
       refused by the backend and reported like any other failed open. */
@@ -2342,7 +2339,10 @@
   $effect(() =>
     connect({
       repoChanged: onDiskChange,
-      operationChanged: (event) => (running = applyOperation(running, event)),
+      operationChanged: (event) => {
+        running = applyOperation(running, event);
+        exitFlow.observe(event);
+      },
       avatarReady: (email) => void avatars.refresh(email),
       mergeResolved: (event) => {
         if (repository.current?.repo.valueOf() !== event.repo.valueOf()) return;
@@ -2913,12 +2913,17 @@
     />
   {/if}
 
-  {#if exitPrompt}
+  {#if exitFlow.prompt}
     <ExitDialog
-      blockers={exitPrompt.blockers}
+      source={exitFlow.prompt.source}
+      variant={exitFlow.variant}
+      rows={exitRows(exitFlow.pending.values(), exitNames, {
+        repo: network.running ? network.repo : null,
+        line: network.progress,
+      })}
+      waiting={exitFlow.waiting}
       dontShow={!settings.current.confirmExit}
-      onexit={(dontShowAgain) => answerExit(true, dontShowAgain)}
-      oncancel={() => answerExit(false, !settings.current.confirmExit)}
+      onanswer={answerExit}
     />
   {/if}
 

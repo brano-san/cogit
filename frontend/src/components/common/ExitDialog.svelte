@@ -1,112 +1,188 @@
 <script lang="ts">
+  import Checkbox from "$components/common/Checkbox.svelte";
   import Dialog from "$components/common/Dialog.svelte";
+  import {
+    DONT_SHOW_HINT,
+    defaultAction,
+    exitButtons,
+    exitHeading,
+    exitNote,
+    focusAfterSwitch,
+    showsDontShow,
+    type ExitAction,
+    type ExitRow,
+    type ExitSource,
+    type ExitVariant,
+  } from "$lib/exit";
   import { untrack } from "svelte";
 
-  /** SmartGit's Exit question. With work still queued it is also a warning, and then it
-      shows whatever "Don't show again" says (requirement 1.3). */
+  /** The question, or the warning while work is queued; which one is decided in
+      `$lib/exit` (doc/12-risks.md, R-151, R-168). */
   interface Props {
-    /** One line per unfinished operation; empty when the queue is idle. */
-    blockers: readonly string[];
-    /** The checkbox as the setting has it, so the dialog and Settings agree. */
+    source: ExitSource;
+    variant: ExitVariant;
+    /** One line per unfinished operation. */
+    rows: readonly ExitRow[];
+    waiting: boolean;
+    /** The checkbox as the setting has it, so the dialog and Preferences agree. */
     dontShow: boolean;
-    onexit: (dontShowAgain: boolean) => void;
-    oncancel: () => void;
+    onanswer: (action: ExitAction, dontShowAgain: boolean) => void;
   }
 
-  let { blockers, dontShow, onexit, oncancel }: Props = $props();
+  let { source, variant, rows, waiting, dontShow, onanswer }: Props = $props();
 
   // Seeded once: the dialog is created for one question and the box is then the user's.
   let checked = $state(untrack(() => dontShow));
+  let elements = $state<Partial<Record<ExitAction, HTMLButtonElement | null>>>({});
+  let focused: ExitAction | null = null;
+
+  const buttons = $derived(exitButtons(variant, waiting));
+  const note = $derived(exitNote(source, variant));
+
+  // Re-run on a switch between the question and the warning: Cancel keeps the focus,
+  // a button that went away hands it to the new default.
+  $effect(() => {
+    const target = focusAfterSwitch(untrack(() => focused), variant, waiting);
+    elements[target]?.focus();
+  });
+
+  const answer = (action: ExitAction) => onanswer(action, checked);
 </script>
 
-<Dialog title="Exit" onclose={oncancel} onconfirm={() => onexit(checked)} width="min(460px, 92vw)">
+<Dialog
+  title="Exit"
+  onclose={() => answer("cancel")}
+  onconfirm={() => answer(defaultAction(variant))}
+  width="min(460px, 92vw)"
+>
   <div class="exit">
-    <span class="icon" aria-hidden="true">?</span>
-    <div>
-      <p class="question">Do you want to exit Cogit now?</p>
-      <p class="muted">By closing the last window you will exit Cogit.</p>
+    <svg class="icon {variant}" viewBox="0 0 32 32" aria-hidden="true">
+      {#if variant === "plain"}
+        <circle cx="16" cy="16" r="15" />
+        <path class="glyph" d="M12 12.6a4 4 0 1 1 5.7 3.6c-1.1.5-1.7 1.3-1.7 2.4v.6" />
+        <circle class="dot" cx="16" cy="23.4" r="1.5" />
+      {:else}
+        <path d="M16 3.5 30 28.5H2Z" />
+        <path class="glyph" d="M16 12.5v7" />
+        <circle class="dot" cx="16" cy="24" r="1.5" />
+      {/if}
+    </svg>
 
-      {#if blockers.length > 0}
-        <div class="busy" role="alert">
-          <p>
-            {blockers.length === 1
-              ? "1 operation has not finished:"
-              : `${blockers.length} operations have not finished:`}
-          </p>
-          <ul>
-            {#each blockers as line (line)}<li>{line}</li>{/each}
-          </ul>
-          <p>Exiting stops them. A push or a rebase cut off half way can leave work behind.</p>
-        </div>
+    <div class="text">
+      <p class="heading">{exitHeading(variant, rows.length)}</p>
+      {#if note}<p class="muted">{note}</p>{/if}
+
+      {#if variant === "busy"}
+        <ul class="operations">
+          {#each rows as row (row.id)}<li>{row.text}</li>{/each}
+        </ul>
+        <p class="muted">
+          {waiting
+            ? "Cogit will exit as soon as they finish."
+            : "Exit Anyway stops them. A push or a rebase cut off half way can leave work behind."}
+        </p>
       {/if}
     </div>
   </div>
 
   {#snippet footer()}
-    <label class="dont-show">
-      <input type="checkbox" bind:checked />
-      <span>Don't show again</span>
-    </label>
-    <span class="grow"></span>
-    <button type="button" class="btn" onclick={oncancel}>Cancel</button>
-    <button type="button" class="btn primary" onclick={() => onexit(checked)}>Exit Now</button>
+    {#if showsDontShow(variant)}
+      <div class="dont-show">
+        <Checkbox bind:checked label="Don't show again" />
+        {#if checked}<span class="hint">{DONT_SHOW_HINT}</span>{/if}
+      </div>
+    {/if}
+    {#each buttons as button (button.action)}
+      <button
+        type="button"
+        class="btn"
+        class:primary={button.tone === "primary"}
+        class:warning={button.tone === "warning"}
+        disabled={button.disabled}
+        data-autofocus={button.action === defaultAction(variant) ? "" : undefined}
+        bind:this={elements[button.action]}
+        onfocus={() => (focused = button.action)}
+        onclick={() => answer(button.action)}>{button.label}</button
+      >
+    {/each}
   {/snippet}
 </Dialog>
 
 <style>
   .exit {
     display: flex;
+    align-items: flex-start;
     gap: var(--sp-5);
   }
 
   .icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
     flex: 0 0 32px;
     width: 32px;
     height: 32px;
-    border-radius: 50%;
-    background: var(--status-ref);
-    color: var(--text-on-accent);
-    font-size: 18px;
-    font-weight: 700;
   }
 
-  .question {
-    margin: 0 0 var(--sp-2);
+  .icon.plain {
+    fill: var(--status-ref);
+  }
+
+  .icon.busy {
+    fill: var(--status-modify);
+    stroke: var(--status-modify);
+    stroke-width: 2;
+    stroke-linejoin: round;
+  }
+
+  .icon .glyph {
+    fill: none;
+    stroke: var(--surface-base);
+    stroke-width: 2.4;
+    stroke-linecap: round;
+  }
+
+  .icon .dot {
+    fill: var(--surface-base);
+    stroke: none;
+  }
+
+  .text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+    min-width: 0;
+    padding-top: var(--sp-2);
+  }
+
+  .text p {
+    margin: 0;
+  }
+
+  .heading {
     font-weight: 600;
   }
 
   .muted {
-    margin: 0;
     color: var(--text-secondary);
   }
 
-  .busy {
-    margin-top: var(--sp-5);
-    padding: var(--sp-3) var(--sp-4);
-    border-left: 3px solid var(--status-modify);
-    background: var(--surface-raised);
-    border-radius: var(--r-sm);
-  }
-
-  .busy p {
-    margin: 0;
-  }
-
-  .busy ul {
+  .operations {
     margin: var(--sp-2) 0;
-    padding-left: var(--sp-6);
+    padding: var(--sp-3) var(--sp-4) var(--sp-3) var(--sp-7);
+    background: var(--surface-raised);
+    border-left: 3px solid var(--status-modify);
+    border-radius: var(--r-sm);
+    font-variant-numeric: tabular-nums;
+    user-select: text;
   }
 
   .dont-show {
     display: flex;
-    align-items: center;
-    gap: var(--sp-3);
+    flex-direction: column;
+    gap: var(--sp-1);
+    margin-right: auto;
   }
 
-  .grow {
-    flex: 1 1 auto;
+  .hint {
+    color: var(--text-secondary);
+    font-size: var(--fs-status);
   }
 </style>
