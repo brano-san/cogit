@@ -119,6 +119,9 @@ webview2-com = "0.38"
 windows-core = "0.61"
 # Only `GetKeyState`: the accelerator event says which key, never which modifiers.
 windows = { version = "0.61", features = ["Win32_UI_Input_KeyboardAndMouse"] }
+# The Windows release (`24H2`) and update revision for About; `sysinfo` reads neither.
+# Already in the tree through hyper-util, so nothing new is compiled (R-171).
+windows-registry = "0.6"
 
 # --- dev / testing ---
 insta = "1.48"
@@ -127,6 +130,7 @@ tempfile = "3.27"
 # --- internal crates ---
 app_state = { path = "crates/app_state" }
 avatars = { path = "crates/avatars" }
+build_info = { path = "crates/build_info" }
 diff_engine = { path = "crates/diff_engine" }
 fs_watcher = { path = "crates/fs_watcher" }
 git_engine = { path = "crates/git_engine" }

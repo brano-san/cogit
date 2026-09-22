@@ -24,6 +24,12 @@ serde.workspace = true
 serde_json.workspace = true
 specta.workspace = true
 
+[target.'cfg(windows)'.dependencies]
+windows-registry.workspace = true
+
+[target.'cfg(not(windows))'.dependencies]
+sysinfo.workspace = true
+
 [dev-dependencies]
 test_fixtures.workspace = true
 tempfile.workspace = true

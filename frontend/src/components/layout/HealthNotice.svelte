@@ -179,7 +179,7 @@
     padding: 0;
     background: none;
     border: 0;
-    color: var(--text-link);
+    color: var(--link);
     font: inherit;
     cursor: pointer;
   }
