@@ -764,6 +764,7 @@ pub async fn add_worktree(
     path: String,
     branch: String,
     create: bool,
+    base: Option<String>,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
     mutating(
@@ -771,7 +772,109 @@ pub async fn add_worktree(
         repo,
         OperationKind::Worktree,
         "add_worktree",
-        move || app_state.add_worktree(repo, &path, &branch, create),
+        move || app_state.add_worktree(repo, &path, &branch, create, base.as_deref()),
+    )
+    .await
+}
+
+/// A worktree in the panels, not in the Repositories list (R-184).
+#[tauri::command]
+#[specta::specta]
+pub async fn open_worktree(
+    state: tauri::State<'_, crate::AppContext>,
+    owner: RepoId,
+    path: String,
+) -> Result<RepoSummary, GitError> {
+    let app_state = state.state.clone();
+    blocking("open_worktree", move || {
+        app_state.open_worktree(owner, &path)
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn worktree_changes(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    path: String,
+) -> Result<Vec<git_engine::FileEntry>, GitError> {
+    let app_state = state.state.clone();
+    blocking("worktree_changes", move || {
+        app_state.worktree_changes(repo, &path)
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn prune_worktree(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    path: String,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Worktree,
+        "prune_worktree",
+        move || app_state.prune_worktree(repo, &path),
+    )
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn repair_worktree(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    path: String,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Worktree,
+        "repair_worktree",
+        move || app_state.repair_worktree(repo, &path),
+    )
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn lock_worktree(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    path: String,
+    reason: Option<String>,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Worktree,
+        "lock_worktree",
+        move || app_state.lock_worktree(repo, &path, reason.as_deref()),
+    )
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn unlock_worktree(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    path: String,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Worktree,
+        "unlock_worktree",
+        move || app_state.unlock_worktree(repo, &path),
     )
     .await
 }

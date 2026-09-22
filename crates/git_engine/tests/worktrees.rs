@@ -197,3 +197,193 @@ fn the_branch_of_the_current_worktree_is_not_reported_as_held_elsewhere() {
     let f = test_fixtures::with_worktree().unwrap();
     assert_eq!(open(&f).worktree_holding("main").unwrap(), None);
 }
+
+fn linked(f: &test_fixtures::Fixture) -> git_engine::WorktreeEntry {
+    open(f)
+        .worktrees()
+        .unwrap()
+        .into_iter()
+        .find(|entry| !entry.is_main)
+        .unwrap()
+}
+
+fn slashed(path: &std::path::Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
+/// Opened on a linked worktree the list used to call that one the main worktree, lose the
+/// real main one and show the linked one twice (R-184).
+#[test]
+fn listed_from_a_linked_worktree_the_main_one_is_still_the_main_one() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let path = linked(&f).path;
+
+    let found = RepoHandle::open(std::path::Path::new(&path))
+        .unwrap()
+        .worktrees()
+        .unwrap();
+
+    assert_eq!(found.len(), 2, "{found:?}");
+    let main = found.iter().find(|entry| entry.is_main).unwrap();
+    assert_eq!(main.path, slashed(f.path()));
+    assert!(!main.is_current);
+    let here = found.iter().find(|entry| entry.path == path).unwrap();
+    assert!(here.is_current && !here.is_main, "{here:?}");
+}
+
+/// The panel names a worktree by its folder; the full path is the tooltip (R-184).
+#[test]
+fn every_worktree_is_named_after_its_folder() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let found = open(&f).worktrees().unwrap();
+    let main = found.iter().find(|entry| entry.is_main).unwrap();
+    let expected = f.path().file_name().unwrap().to_string_lossy();
+
+    assert_eq!(main.name, expected);
+    assert_eq!(linked(&f).name, "linked");
+}
+
+#[test]
+fn a_worktree_can_be_locked_with_a_reason_and_unlocked_again() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let path = linked(&f).path;
+
+    open(&f)
+        .lock_worktree(&path, Some("on a usb stick"))
+        .unwrap();
+    assert_eq!(linked(&f).locked.as_deref(), Some("on a usb stick"));
+
+    open(&f).unlock_worktree(&path).unwrap();
+    assert_eq!(linked(&f).locked, None);
+}
+
+#[test]
+fn pruning_one_missing_worktree_leaves_the_other_registrations_alone() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let aux = tempfile::tempdir().unwrap();
+    let second = slashed(&aux.path().join("second"));
+    open(&f).add_worktree(&second, "second", true).unwrap();
+    let first = linked(&f).path;
+    std::fs::remove_dir_all(&first).unwrap();
+    std::fs::remove_dir_all(&second).unwrap();
+
+    open(&f).prune_worktree(&first).unwrap();
+
+    let left: Vec<String> = open(&f)
+        .worktrees()
+        .unwrap()
+        .into_iter()
+        .filter(|entry| !entry.is_main)
+        .map(|entry| entry.path)
+        .collect();
+    assert_eq!(left, [second]);
+}
+
+#[test]
+fn pruning_a_worktree_whose_folder_is_still_there_is_refused() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let path = linked(&f).path;
+
+    let refused = open(&f).prune_worktree(&path);
+
+    assert!(
+        matches!(refused, Err(git_engine::GitError::InvalidState(_))),
+        "{refused:?}"
+    );
+    assert!(std::path::Path::new(&path).join("file0.txt").exists());
+    assert_eq!(open(&f).worktrees().unwrap().len(), 2);
+}
+
+#[test]
+fn a_moved_worktree_is_found_again_by_repairing_it_with_its_new_folder() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let old = linked(&f).path;
+    let aux = tempfile::tempdir().unwrap();
+    let moved = aux.path().join("moved");
+    std::fs::rename(&old, &moved).unwrap();
+    assert!(linked(&f).missing);
+
+    open(&f).repair_worktree(&slashed(&moved)).unwrap();
+
+    let repaired = linked(&f);
+    assert!(!repaired.missing, "{repaired:?}");
+    assert_eq!(repaired.path, slashed(&moved));
+    assert_eq!(repaired.branch.as_deref(), Some("feature-wt"));
+}
+
+/// `dtv_device_master`, registered on Linux as `/home/user/work/…`: Windows reads that as
+/// `E:\home\user\work\…`, which is nowhere. Repair with the real folder closes it.
+#[test]
+fn a_worktree_registered_from_another_system_is_repaired_with_its_real_folder() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let real = linked(&f).path;
+    let admin = f.git_dir().join("worktrees").join("linked");
+    std::fs::write(admin.join("gitdir"), "/home/user/work/linked/.git\n").unwrap();
+    assert!(linked(&f).missing, "{:?}", linked(&f));
+
+    open(&f).repair_worktree(&real).unwrap();
+
+    let repaired = linked(&f);
+    assert!(!repaired.missing, "{repaired:?}");
+    assert_eq!(repaired.path, real);
+}
+
+#[test]
+fn a_new_worktree_can_start_its_branch_at_a_chosen_commit() {
+    let f = test_fixtures::linear(3).unwrap();
+    let first = f.oid("HEAD~2").unwrap();
+    let aux = tempfile::tempdir().unwrap();
+    let path = slashed(&aux.path().join("from-first"));
+
+    open(&f)
+        .add_worktree_at(&path, "from-first", true, Some(&first))
+        .unwrap();
+
+    let added = open(&f)
+        .worktrees()
+        .unwrap()
+        .into_iter()
+        .find(|entry| entry.branch.as_deref() == Some("from-first"))
+        .unwrap();
+    assert_eq!(added.head, first);
+}
+
+#[test]
+fn the_changes_in_a_worktree_are_listed_before_it_is_removed() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let path = linked(&f).path;
+    std::fs::write(std::path::Path::new(&path).join("file0.txt"), "work\n").unwrap();
+    std::fs::write(std::path::Path::new(&path).join("new.txt"), "new\n").unwrap();
+
+    let changes = open(&f).worktree_changes(&path).unwrap();
+    let paths: Vec<&str> = changes.iter().map(|file| file.path.as_str()).collect();
+
+    assert!(paths.contains(&"file0.txt"), "{paths:?}");
+    assert!(paths.contains(&"new.txt"), "{paths:?}");
+}
+
+#[test]
+fn the_changes_of_a_worktree_can_be_put_in_a_stash_before_it_goes() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let path = linked(&f).path;
+    std::fs::write(std::path::Path::new(&path).join("file0.txt"), "work\n").unwrap();
+
+    let stashed = open(&f)
+        .stash_worktree_changes(&path, "cogit: before removing worktree linked")
+        .unwrap();
+
+    assert!(stashed.is_some());
+    assert!(open(&f).worktree_changes(&path).unwrap().is_empty());
+    let messages: Vec<String> = open(&f)
+        .stashes()
+        .unwrap()
+        .into_iter()
+        .map(|entry| entry.message)
+        .collect();
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("before removing worktree linked")),
+        "{messages:?}"
+    );
+}

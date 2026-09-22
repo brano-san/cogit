@@ -248,3 +248,7 @@
 | F-285 | Подсказки везде одинаковые | [F-285-one-tooltip.md](F-285-one-tooltip.md) |
 | F-286 | Один треугольник раскрытия, одна каретка меню | [F-286-one-disclosure-one-caret.md](F-286-one-disclosure-one-caret.md) |
 | F-287 | Кнопка Commit видна при любой высоте панели | [F-287-commit-panel-keeps-controls.md](F-287-commit-panel-keeps-controls.md) |
+| F-288 | Панель Worktrees | [F-288-worktrees-panel.md](F-288-worktrees-panel.md) |
+| F-289 | Двойной клик по ворктри делает его активным | [F-289-open-worktree.md](F-289-open-worktree.md) |
+| F-290 | Устаревший ворктри: Prune или Repair в строке | [F-290-stale-worktree-prune-repair.md](F-290-stale-worktree-prune-repair.md) |
+| F-291 | Добавление и удаление ворктри | [F-291-worktree-dialogs.md](F-291-worktree-dialogs.md) |

@@ -39,6 +39,10 @@
   import Toolbar from "$components/layout/Toolbar.svelte";
   import ScanDialog from "$components/repo-tree/ScanDialog.svelte";
   import PromptDialog from "$components/layout/PromptDialog.svelte";
+  import WorktreesPanel from "$components/panels/WorktreesPanel.svelte";
+  import AddWorktreeDialog from "$components/repo-tree/AddWorktreeDialog.svelte";
+  import RemoveWorktreeDialog from "$components/repo-tree/RemoveWorktreeDialog.svelte";
+  import { branchChoices, hasStale, removable } from "$lib/worktree-list";
   import { shortOid } from "$lib/format";
   import { checkedIds, disabledIds, type PaletteCommand } from "$lib/palette";
   import { reasonFor, type Context } from "$lib/availability";
@@ -92,6 +96,7 @@
     terminalChoices,
     openRepository,
     openSubmodule,
+    openWorktree,
     listOperations,
     readGitConfig,
     writeGitConfig,
@@ -163,6 +168,7 @@
     files: "Files",
     commit: "Commit Message",
     diff: "Diff",
+    worktrees: "Worktrees",
   };
 
   const measure = measurer((label, ms, detail) => void reportTiming(label, ms, detail));
@@ -178,6 +184,11 @@
   let info = $state<AppInfo | null>(null);
   let opening = $state(false);
   let scanOpen = $state(false);
+  let addWorktreeOpen = $state(false);
+  let worktreeRemoval = $state.raw<{
+    entry: import("$lib/ipc").WorktreeEntry;
+    changes: import("$lib/ipc").FileEntry[] | null;
+  } | null>(null);
   let markedFiles = $state.raw<string[]>([]);
   let repoTarget = $state.raw<import("$lib/ipc").RepoOverview | null>(null);
   let terminals = $state.raw<{ id: string; label: string }[]>([]);
@@ -296,6 +307,9 @@
   /** `--commit-panel-min` plus the splitter, in the same CSS pixels. */
   const COMMIT_MIN_PX = 126;
   let filesColumnHeight = $state(0);
+  /** `--worktrees-panel-min` plus the splitter. */
+  const WORKTREES_MIN_PX = 98;
+  let reposColumnHeight = $state(0);
   const shown = $derived({
     repositories: layout.visible("repositories"),
     refs: layout.visible("refs"),
@@ -303,8 +317,10 @@
     files: layout.visible("files"),
     commit: layout.visible("commit"),
     diff: layout.visible("diff"),
+    worktrees: layout.visible("worktrees"),
   });
-  const leftColumn = $derived(shown.repositories || shown.refs);
+  const reposColumn = $derived(shown.repositories || shown.worktrees);
+  const leftColumn = $derived(reposColumn || shown.refs);
   const repo = $derived(repository.current);
   /** One field for every panel that depends on an open repository. The panel decides
       from it both what its header counts and what its body says (R-119). */
@@ -561,6 +577,33 @@
         shortcut: "Shift+F11",
         synonyms: ["zoom", "full screen panel"],
         run: () => layout.toggleMaximized(focused),
+      },
+      {
+        id: "worktree-add",
+        title: "Add Worktree…",
+        synonyms: ["worktree", "second checkout"],
+        unavailable: noRepo,
+        run: () => (addWorktreeOpen = true),
+      },
+      {
+        id: "worktree-remove",
+        title: "Remove Worktree…",
+        unavailable:
+          noRepo ??
+          (removable(worktrees.current)
+            ? undefined
+            : "Select a worktree other than the main one in the Worktrees panel"),
+        run: () => {
+          const entry = worktrees.current;
+          if (removable(entry)) void removeWorktreeAt(entry);
+        },
+      },
+      {
+        id: "worktree-prune",
+        title: "Prune Obsolete Worktrees…",
+        synonyms: ["worktree prune", "missing worktree"],
+        unavailable: noRepo ?? (hasStale(worktrees.entries) ? undefined : "No worktree is missing"),
+        run: () => void pruneWorktreesHere(),
       },
       ...PANELS.map((panel) => ({
         id: `panel-${panel}`,
@@ -1139,6 +1182,7 @@
     // Everything except the tree: it belongs to the repository in the list, and the click
     // came from it (doc/12-risks.md, R-129).
     forgetPanelsKeepingTheTree();
+    worktrees.ownerRoot = null;
     submodules.open = row.key;
     repository.adopt(opened);
     refs.adopt(opened.root, buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() }));
@@ -1479,7 +1523,7 @@
 
   /** Clearing everything the old repository put on screen — except the submodule tree,
       which belongs to the repository in the list and outlives the panels (R-129). */
-  function forgetPanelsKeepingTheTree() {
+  function forgetPanelsKeepingTheTree(keepWorktrees = false) {
     commit.clear();
     diff.clear();
     blame.clear();
@@ -1489,7 +1533,7 @@
     recovery.clear();
     conflicts.clear();
     stashView.clear();
-    worktrees.clear();
+    if (!keepWorktrees) worktrees.clear();
     refs.clear();
   }
 
@@ -1502,6 +1546,7 @@
     const story = `open:${root}`;
     trace(story, "activate: panels cleared");
     forgetPanels();
+    worktrees.ownerRoot = null;
     const watch = measure("open-repository");
     await repository.open(root);
     const opened = repository.current;
@@ -2046,44 +2091,144 @@
     return false;
   }
 
-  /** A worktree with work in it is not removed on a single click. */
+  /** The dialog lists what is uncommitted and asks separately for --force (R-184). */
   async function removeWorktreeAt(entry: import("$lib/ipc").WorktreeEntry) {
-    const id = repo?.repo;
-    if (!id) return;
-    const warning = entry.dirty
-      ? " It has uncommitted changes, which will be lost."
-      : "";
-    const confirmed = await ask(`Remove the worktree at ${entry.path}?${warning}`, {
-      title: "Remove worktree",
-      kind: entry.dirty ? "warning" : "info",
+    worktreeRemoval = { entry, changes: null };
+    const changes = await worktrees.changes(entry.path).catch((err) => {
+      errors.report(err, "Could not read the worktree's changes");
+      return null;
     });
-    if (!confirmed) return;
+    if (changes === null) {
+      worktreeRemoval = null;
+      return;
+    }
+    if (worktreeRemoval?.entry.path === entry.path) worktreeRemoval = { entry, changes };
+  }
+
+  async function confirmWorktreeRemoval(force: boolean) {
+    const target = worktreeRemoval?.entry;
+    worktreeRemoval = null;
+    if (!target) return;
     await worktrees
-      .remove(id, entry.path, entry.dirty)
+      .remove(target.path, force)
       .catch((err) => errors.report(err, "Could not remove the worktree"));
+    await safety.refresh();
   }
 
   async function pruneWorktreesHere() {
-    const id = repo?.repo;
-    if (!id) return;
-    await worktrees.prune(id).catch((err) => errors.report(err, "Could not prune worktrees"));
+    const stale = worktrees.entries.filter((entry) => entry.missing);
+    if (stale.length === 0) return;
+    const names = stale.map((entry) => entry.name).join(", ");
+    const confirmed = await ask(
+      `Forget ${stale.length === 1 ? "the missing worktree" : `${stale.length} missing worktrees`} (${names})? ` +
+        "Only Git's registration is removed; nothing on disk is touched. Locked ones are kept.",
+      { title: "Prune Obsolete Worktrees", kind: "info", okLabel: "Prune", cancelLabel: "Cancel" },
+    );
+    if (!confirmed) return;
+    await worktrees.prune().catch((err) => errors.report(err, "Could not prune worktrees"));
   }
 
-  async function askAddWorktree() {
-    const id = repo?.repo;
-    if (!id) return;
-    const branch = await prompt.ask({
-      title: "Add a worktree",
-      label: "New branch name",
-      confirm: "Choose folder…",
+  async function pruneWorktreeAt(entry: import("$lib/ipc").WorktreeEntry) {
+    const confirmed = await ask(
+      `Forget the worktree ${entry.name} at ${entry.path}? ` +
+        "Only Git's registration of it is removed; nothing on disk is touched.",
+      { title: "Prune Worktree", kind: "info", okLabel: "Prune", cancelLabel: "Cancel" },
+    );
+    if (!confirmed) return;
+    await worktrees
+      .pruneOne(entry.path)
+      .catch((err) => errors.report(err, "Could not prune the worktree"));
+  }
+
+  /** Repair cannot guess where a folder went: the new place is asked for first. */
+  async function repairWorktreeAt(entry: import("$lib/ipc").WorktreeEntry) {
+    const picked = await openFolderDialog({
+      directory: true,
+      title: `Locate the folder of worktree ${entry.name}`,
     });
-    if (branch === null) return;
-    await openFolderDialog({ directory: true, title: "Folder for the new worktree" })
-      .then((picked) => {
-        if (typeof picked !== "string") return;
-        return worktrees.add(id, picked, branch, true);
-      })
+    if (typeof picked !== "string") return;
+    await worktrees
+      .repair(picked.replace(/\\/g, "/"))
+      .catch((err) => errors.report(err, "Could not repair the worktree"));
+  }
+
+  async function addWorktreeFrom(request: {
+    folder: string;
+    branch: string;
+    create: boolean;
+    base: string | null;
+  }) {
+    addWorktreeOpen = false;
+    await worktrees
+      .add(request.folder.replace(/\\/g, "/"), request.branch, request.create, request.base)
       .catch((err) => errors.report(err, "Could not add the worktree"));
+  }
+
+  /** Like a submodule: the panels switch to it, the Repositories tree stays (R-184). */
+  async function openWorktreeRow(entry: import("$lib/ipc").WorktreeEntry) {
+    const owner = worktrees.repo;
+    const listed = repository.current?.root ?? null;
+    if (!owner || entry.missing || entry.isCurrent) return;
+    let opened;
+    try {
+      opened = await openWorktree(owner, entry.path);
+    } catch (err) {
+      errors.report(err, "Could not open the worktree");
+      return;
+    }
+    const ownerRoot = worktrees.ownerRoot ?? listed;
+    const same = (a: string, b: string | null) =>
+      b !== null && a.replaceAll("\\", "/") === b.replaceAll("\\", "/");
+    forgetPanelsKeepingTheTree(true);
+    worktrees.ownerRoot = same(opened.root, ownerRoot) ? null : ownerRoot;
+    worktrees.selected = entry.path;
+    repository.adopt(opened);
+    refs.adopt(opened.root, buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() }));
+    void reloadGraph();
+    void refs.loadUrls(opened.repo);
+    void worktrees.refresh(opened.repo);
+    void flow.refresh(opened.repo);
+    await afterMutation();
+  }
+
+  async function worktreeContext(entry: import("$lib/ipc").WorktreeEntry, x: number, y: number) {
+    const chosen = await popupContextMenu(
+      entry.missing
+        ? [
+            { id: "prune", label: "Prune", enabled: entry.locked === null },
+            { id: "repair", label: "Repair…", enabled: true },
+            { id: "", label: "", enabled: false, separator: true },
+            { id: "copy", label: "Copy Path", enabled: true },
+          ]
+        : [
+            { id: "open", label: "Open", enabled: !entry.isCurrent },
+            { id: "reveal", label: "Reveal in File Manager", enabled: true },
+            { id: "copy", label: "Copy Path", enabled: true },
+            { id: "", label: "", enabled: false, separator: true },
+            entry.locked === null
+              ? { id: "lock", label: "Lock", enabled: !entry.isMain }
+              : { id: "unlock", label: "Unlock", enabled: true },
+            { id: "remove", label: "Remove…", enabled: removable(entry) },
+          ],
+      x,
+      y,
+    ).catch(() => null);
+
+    if (chosen === "open") await openWorktreeRow(entry);
+    if (chosen === "copy") await copyText(entry.path);
+    if (chosen === "remove") await removeWorktreeAt(entry);
+    if (chosen === "prune") await pruneWorktreeAt(entry);
+    if (chosen === "repair") await repairWorktreeAt(entry);
+    if (chosen === "lock") {
+      await worktrees.lock(entry.path, null).catch((err) => errors.report(err, "Could not lock the worktree"));
+    }
+    if (chosen === "unlock") {
+      await worktrees.unlock(entry.path).catch((err) => errors.report(err, "Could not unlock the worktree"));
+    }
+    if (chosen === "reveal") {
+      const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
+      await revealItemInDir(entry.path).catch((err) => errors.report(err, "Could not reveal the worktree"));
+    }
   }
 
   async function repoContext(entry: import("$lib/ipc").RepoOverview, x: number, y: number) {
@@ -2500,11 +2645,18 @@
       class="left-column"
       style:flex={shown.diff || topRow ? `0 0 ${fractions.leftColumn * 100}%` : "1 1 auto"}
     >
+      {#if reposColumn}
+      <div
+        class="repos-column"
+        class:grow={!shown.refs}
+        style:flex={shown.refs ? `0 0 ${fractions.repositories * 100}%` : undefined}
+        bind:clientHeight={reposColumnHeight}
+      >
       {#if shown.repositories}
       <div
         class="pane"
-        class:grow={!shown.refs}
-        style:flex={shown.refs ? `0 0 ${fractions.repositories * 100}%` : undefined}
+        class:grow={!shown.worktrees}
+        style:flex={shown.worktrees ? `0 1 ${fractions.worktrees * 100}%` : undefined}
         role="region"
         aria-label={PANEL_TITLES.repositories}
         onpointerdown={() => (focused = "repositories")}
@@ -2528,17 +2680,64 @@
             onmarked={(roots) => (markedRepos = roots)}
             onaddgroup={askAddGroup}
             ongroupcontext={(id, x, y) => void groupContext(id, x, y)}
-            onopenworktree={(entry) => void activate(entry.path)}
-            onremoveworktree={(entry) => void removeWorktreeAt(entry)}
-            onaddworktree={() => askAddWorktree()}
-            onpruneworktrees={() => void pruneWorktreesHere()}
             onopenmodule={(row) => void openModule(row)}
             onmodulecontext={(row, x, y) => void moduleContext(row, x, y)}
           />
         </Panel>
       </div>
       {/if}
-      {#if shown.repositories && shown.refs}
+      {#if shown.repositories && shown.worktrees}
+      <Splitter
+        direction="horizontal"
+        value={fractions.worktrees}
+        label="Resize worktrees panel"
+        onchange={(d) =>
+          layout.set("worktrees", capFraction(fractions.worktrees + d, reposColumnHeight, WORKTREES_MIN_PX))}
+        onreset={() => layout.resetOne("worktrees")}
+      />
+      {/if}
+      {#if shown.worktrees}
+      <div
+        class="pane grow worktrees-pane"
+        role="region"
+        aria-label={PANEL_TITLES.worktrees}
+        onpointerdown={() => (focused = "worktrees")}
+      >
+        <Panel
+          title="Worktrees"
+          active={focused === "worktrees"}
+          view={panelState}
+          count={worktrees.entries.length > 1 ? worktrees.entries.length : undefined}
+        >
+          {#snippet actions()}
+            {#if repo}
+              <button type="button" class="panel-act" title="Add Worktree…" onclick={() => (addWorktreeOpen = true)}
+                >Add…</button
+              >
+              <button
+                type="button"
+                class="panel-act"
+                disabled={!hasStale(worktrees.entries)}
+                title={hasStale(worktrees.entries)
+                  ? "Forget every worktree whose folder is gone"
+                  : "No worktree is missing"}
+                onclick={() => void pruneWorktreesHere()}>Prune All</button
+              >
+            {/if}
+          {/snippet}
+          <WorktreesPanel
+            onopen={(entry) => void openWorktreeRow(entry)}
+            oncontext={(entry, x, y) => void worktreeContext(entry, x, y)}
+            onprune={(entry) => void pruneWorktreeAt(entry)}
+            onrepair={(entry) => void repairWorktreeAt(entry)}
+            onadd={() => (addWorktreeOpen = true)}
+          />
+        </Panel>
+      </div>
+      {/if}
+      </div>
+      {/if}
+      {#if reposColumn && shown.refs}
       <Splitter
         direction="horizontal"
         value={fractions.repositories}
@@ -2993,6 +3192,28 @@
     />
   {/if}
 
+  {#if addWorktreeOpen && repo}
+    <AddWorktreeDialog
+      choices={branchChoices(repo.branches, worktrees.entries)}
+      base={commit.oid ?? "HEAD"}
+      onbrowse={async () => {
+        const picked = await openFolderDialog({ directory: true, title: "Folder for the new worktree" });
+        return typeof picked === "string" ? picked : null;
+      }}
+      onadd={(request) => void addWorktreeFrom(request)}
+      onclose={() => (addWorktreeOpen = false)}
+    />
+  {/if}
+
+  {#if worktreeRemoval}
+    <RemoveWorktreeDialog
+      entry={worktreeRemoval.entry}
+      changes={worktreeRemoval.changes}
+      onremove={(force) => void confirmWorktreeRemoval(force)}
+      onclose={() => (worktreeRemoval = null)}
+    />
+  {/if}
+
   {#if scanOpen}
     <ScanDialog
       busy={opening}
@@ -3160,6 +3381,36 @@
   /* Header, two lines of message and the Commit row; the splitter stops here (R-183). */
   .commit-pane {
     min-height: var(--commit-panel-min);
+  }
+
+  .repos-column {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .worktrees-pane {
+    min-height: var(--worktrees-panel-min);
+  }
+
+  .panel-act {
+    height: 18px;
+    padding: 0 var(--sp-3);
+    background: var(--surface-input);
+    color: var(--text-primary);
+    border: 1px solid var(--field-border);
+    border-radius: var(--r-sm);
+    font-size: 10px;
+    cursor: default;
+  }
+
+  .panel-act:hover:not(:disabled) {
+    border-color: var(--status-ref);
+  }
+
+  .panel-act:disabled {
+    opacity: 0.45;
   }
 
   .pane > :global(.panel) {

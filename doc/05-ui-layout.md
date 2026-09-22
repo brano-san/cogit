@@ -40,6 +40,11 @@
 горизонтальный (Repositories / References), внутри правой части — горизонтальный (верх / Diff),
 внутри верха — вертикальный (Graph / Files).
 
+Под Repositories пристыкована панель **Worktrees** (R-184): свой заголовок с `Add…` и
+`Prune All`, свой сплиттер, минимальная высота `--worktrees-panel-min`; включается в
+`View ▸ Worktrees Panel` (`Ctrl+7`). Так же под Files стоит Commit Message, у которой строка
+управления всегда видна (R-183).
+
 ### Правила сплиттеров
 
 - Ширина ручки 1 px, зона захвата 5 px, курсор меняется на `col-resize` / `row-resize`.

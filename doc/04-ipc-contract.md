@@ -82,7 +82,15 @@ pub enum CogitError {
 | `list_repositories` | — | `Vec<RepoEntry>` | M3 |
 | `repo_state` | `repo: RepoId` | `RepoState` | M1 |
 | `list_submodules` | `repo: RepoId` | `Vec<Submodule>` | M3 |
-| `list_worktrees` | `repo: RepoId` | `Vec<Worktree>` | M3 |
+| `worktrees` | `repo: RepoId` | `Vec<WorktreeEntry { path, name, branch, head, isMain, isCurrent, locked, missing, dirty }>`; из linked-ворктри основной — всё равно основной (R-184) | M3 |
+| `open_worktree` | `owner: RepoId`, `path` — существующий ворктри владельца | `RepoSummary`, в списке Repositories не появляется; чужая папка — `InvalidState` | M3 |
+| `add_worktree` | `repo`, `path`, `branch`, `create`, `base: Option<String>` — откуда новая ветка, по умолчанию HEAD | `()` | M3 |
+| `remove_worktree` | `repo`, `path`, `force` | `()`; при `force` изменения сначала в stash, в журнале — Undo (INV-12) | M3 |
+| `worktree_changes` | `repo`, `path` | `Vec<FileEntry>` — незакоммиченное в этом ворктри, для подтверждения Remove | M3 |
+| `prune_worktrees` | `repo` | `()` — `git worktree prune`, все устаревшие | M3 |
+| `prune_worktree` | `repo`, `path` | `()` — одна регистрация; папка на месте — `InvalidState` | M3 |
+| `repair_worktree` | `repo`, `path` — где папка теперь | `()` — `git worktree repair <path>` | M3 |
+| `lock_worktree` / `unlock_worktree` | `repo`, `path`, `reason: Option<String>` (только lock) | `()` | M3 |
 
 ### Хуки и пресеты (M10)
 

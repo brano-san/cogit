@@ -1,12 +1,12 @@
 use crate::{GitError, RepoHandle, Result};
 use serde::Serialize;
 
-/// One checkout of the repository. The main one cannot be removed; a linked one can be
-/// locked, or left behind when its folder is deleted (M3 T3.5).
+/// One checkout: the main one cannot be removed, a linked one can be locked or left behind.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WorktreeEntry {
     pub path: String,
+    pub name: String,
     /// `None` when the worktree is on a detached HEAD.
     pub branch: Option<String>,
     pub head: String,
@@ -20,10 +20,9 @@ pub struct WorktreeEntry {
 }
 
 impl RepoHandle {
-    /// Read through `gix`: the main worktree plus every linked one git knows about.
     pub fn worktrees(&self) -> Result<Vec<WorktreeEntry>> {
         let here = normalise(self.root());
-        let mut entries = vec![self.describe(self.root().to_path_buf(), true, None, &here)];
+        let mut entries = vec![self.describe(self.main_root(), true, None, &here)];
 
         let linked = self
             .repo
@@ -36,11 +35,11 @@ impl RepoHandle {
                     .map(|r| r.to_string())
                     .unwrap_or_default()
             });
-            // `base()` fails exactly when the checkout is gone, which is what we want to say.
             match proxy.base() {
                 Ok(path) => entries.push(self.describe(path, false, locked, &here)),
                 Err(_) => entries.push(WorktreeEntry {
                     path: proxy.git_dir().display().to_string().replace('\\', "/"),
+                    name: proxy.id().to_string(),
                     branch: None,
                     head: String::new(),
                     is_main: false,
@@ -54,8 +53,7 @@ impl RepoHandle {
         Ok(entries)
     }
 
-    /// The worktree holding this branch, unless it is the one we are in: switching to where
-    /// you already are is not a switch (T3.8).
+    /// The worktree holding this branch, unless it is the current one (T3.8).
     pub fn worktree_holding(&self, branch: &str) -> Result<Option<WorktreeEntry>> {
         Ok(self
             .worktrees()?
@@ -63,14 +61,107 @@ impl RepoHandle {
             .find(|entry| !entry.is_current && entry.branch.as_deref() == Some(branch)))
     }
 
-    /// `git worktree add` takes the path last when creating a branch and first otherwise.
     pub fn add_worktree(&self, path: &str, branch: &str, create: bool) -> Result<()> {
-        let args = if create {
+        self.add_worktree_at(path, branch, create, None)
+    }
+
+    /// `worktree add` takes the path last with `-b` and first otherwise; `base` defaults to HEAD.
+    pub fn add_worktree_at(
+        &self,
+        path: &str,
+        branch: &str,
+        create: bool,
+        base: Option<&str>,
+    ) -> Result<()> {
+        let mut args = if create {
             vec!["worktree", "add", "-b", branch, path]
         } else {
             vec!["worktree", "add", path, branch]
         };
+        if let (true, Some(base)) = (create, base) {
+            args.push(base);
+        }
         self.run_git(&args).map(drop)
+    }
+
+    pub fn lock_worktree(&self, path: &str, reason: Option<&str>) -> Result<()> {
+        let mut args = vec!["worktree", "lock"];
+        if let Some(reason) = reason.filter(|reason| !reason.trim().is_empty()) {
+            args.extend(["--reason", reason]);
+        }
+        args.push(path);
+        self.run_git(&args).map(drop)
+    }
+
+    pub fn unlock_worktree(&self, path: &str) -> Result<()> {
+        self.run_git(&["worktree", "unlock", path]).map(drop)
+    }
+
+    /// `prune` cannot name one entry; `remove --force` on a missing folder deletes only the
+    /// record, and the check keeps it from ever deleting a folder that is there (R-184).
+    pub fn prune_worktree(&self, path: &str) -> Result<()> {
+        if std::path::Path::new(path).exists() {
+            return Err(GitError::InvalidState(format!(
+                "{path} still exists; remove the worktree instead of pruning it"
+            )));
+        }
+        self.run_git(&["worktree", "remove", "--force", path])
+            .map(drop)
+    }
+
+    pub fn repair_worktree(&self, path: &str) -> Result<()> {
+        self.run_git(&["worktree", "repair", path]).map(drop)
+    }
+
+    pub fn worktree_changes(&self, path: &str) -> Result<Vec<crate::FileEntry>> {
+        let files = self.linked_handle(path)?.worktree_files()?;
+        let mut seen = std::collections::BTreeSet::new();
+        Ok(files
+            .staged
+            .into_iter()
+            .chain(files.unstaged)
+            .filter(|file| seen.insert(file.path.clone()))
+            .collect())
+    }
+
+    /// Uncommitted work, untracked included, into a stash that outlives the worktree.
+    pub fn stash_worktree_changes(&self, path: &str, message: &str) -> Result<Option<String>> {
+        self.linked_handle(path)?
+            .stash_paths(&[".".to_owned()], message)
+    }
+
+    /// Around the shared `.git`, which a linked worktree reports as `.git/worktrees/<n>/../..`.
+    fn main_root(&self) -> std::path::PathBuf {
+        let mut common = std::path::PathBuf::new();
+        for part in self.repo.common_dir().components() {
+            match part {
+                std::path::Component::ParentDir => {
+                    common.pop();
+                }
+                std::path::Component::CurDir => {}
+                other => common.push(other),
+            }
+        }
+        match common.parent() {
+            Some(parent) if common.file_name().is_some_and(|name| name == ".git") => {
+                parent.to_path_buf()
+            }
+            _ => self.root().to_path_buf(),
+        }
+    }
+
+    fn linked_handle(&self, path: &str) -> Result<RepoHandle> {
+        let wanted = normalise(std::path::Path::new(path));
+        if !self
+            .worktrees()?
+            .iter()
+            .any(|entry| entry.path == wanted && !entry.missing)
+        {
+            return Err(GitError::InvalidState(format!(
+                "{path} is not a worktree of this repository"
+            )));
+        }
+        RepoHandle::open_exact(std::path::Path::new(path))
     }
 
     pub fn remove_worktree(&self, path: &str, force: bool) -> Result<()> {
@@ -96,6 +187,10 @@ impl RepoHandle {
         let shown = normalise(&path);
         let mut entry = WorktreeEntry {
             is_current: shown == here,
+            name: path
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+                .unwrap_or_else(|| shown.clone()),
             path: shown,
             branch: None,
             head: String::new(),
@@ -105,6 +200,10 @@ impl RepoHandle {
             dirty: false,
         };
 
+        // Discovery would climb to whatever repository holds the parent folder.
+        if entry.missing {
+            return entry;
+        }
         let Ok(handle) = RepoHandle::open(&path) else {
             entry.missing = true;
             return entry;
