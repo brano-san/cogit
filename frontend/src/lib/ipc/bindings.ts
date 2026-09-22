@@ -191,7 +191,13 @@ export const commands = {
 	 *  Opens a submodule from its node in the tree: the panels follow it, the Repositories
 	 *  panel does not gain an entry for it (doc/12-risks.md, R-109).
 	 */
-	openSubmodule: (path: string) => typedError<RepoSummary, GitError>(__TAURI_INVOKE("open_submodule", { path })),
+	openSubmodule: (owner: RepoId, key: string) => typedError<RepoSummary, GitError>(__TAURI_INVOKE("open_submodule", { owner, key })),
+	/**  Run in the background after a repository opens; nothing in it changes the repository. */
+	repositoryHealth: (repo: RepoId) => typedError<HealthFinding[], GitError>(__TAURI_INVOKE("repository_health", { repo })),
+	/**  Repository ▸ Edit Git Config. `repo` is only read for the repository scope. */
+	readGitConfig: (repo: number | null, scope: ConfigScope) => typedError<ConfigFile, GitError>(__TAURI_INVOKE("read_git_config", { repo, scope })),
+	/**  Written only after `git config --file` has read the text back without complaint. */
+	writeGitConfig: (repo: number | null, scope: ConfigScope, text: string, crlf: boolean) => typedError<null, GitError>(__TAURI_INVOKE("write_git_config", { repo, scope, text, crlf })),
 	/**  Stops a running read. `false` when it had already finished. */
 	cancelOperation: (id: number) => __TAURI_INVOKE<boolean>("cancel_operation", { id }),
 	/**  Everything queued or running, for a panel that has just been opened again (P1.5). */
@@ -421,6 +427,22 @@ export type CommitRow = {
 	tzOffsetMinutes: number,
 };
 
+export type ConfigFile = {
+	path: string,
+	/**  Always `\n`; `crlf` says what to write back. */
+	text: string,
+	crlf: boolean,
+	exists: boolean,
+};
+
+/**  Why git refused the text. `line` is 1-based, as git counts it. */
+export type ConfigProblem = {
+	line: number | null,
+	message: string,
+};
+
+export type ConfigScope = "repository" | "user";
+
 export type ConflictSide = "base" | "ours" | "theirs";
 
 /**  Named rather than a tuple: positional optional strings reorder silently across IPC. */
@@ -592,7 +614,11 @@ export type GitError =
  *  Boxed: it carries both streams, and an unboxed variant makes every `Result` in
  *  the crate as wide as the largest failure it could ever hold.
  */
-{ kind: "command"; data: GitCommandError } | { kind: "repoNotFound"; data: string } | { kind: "repoBusy"; data: string } | { kind: "invalidState"; data: string } | { kind: "io"; data: string } | { kind: "internal"; data: string };
+{ kind: "command"; data: GitCommandError } | { kind: "repoNotFound"; data: string } | { kind: "repoBusy"; data: string } | { kind: "invalidState"; data: string } | { kind: "io"; data: string } | { kind: "internal"; data: string } | 
+/**  A submodule that cannot be opened, with the reason rather than "not a repository". */
+{ kind: "moduleUnavailable"; data: ModuleProblem } | 
+/**  Git refused a config file's text; nothing was written. */
+{ kind: "configInvalid"; data: ConfigProblem };
 
 export type GitOutput = {
 	/**  Numbered so a window, a toast and a history row can all name the same run. */
@@ -635,6 +661,16 @@ export type GraphEdge = {
 
 /**  Assuming "HEAD is a branch" crashes on an unborn or detached checkout (INV-07). */
 export type Head = { kind: "branch"; name: string; oid: string } | { kind: "detached"; oid: string } | { kind: "unborn"; name: string };
+
+export type HealthFinding = {
+	/**  Path from the repository that was checked; empty for that repository itself. */
+	module: string,
+	issue: HealthIssue,
+};
+
+export type HealthIssue = 
+/**  `configured` is what `core.ignoreCase` says, `actual` what the folder does. */
+{ kind: "ignoreCaseMismatch"; configured: boolean; actual: boolean } | { kind: "danglingModule"; target: string; foreign: boolean } | { kind: "danglingWorktree"; name: string; target: string; foreign: boolean };
 
 export type Hook = {
 	name: string,
@@ -728,6 +764,11 @@ export type MergeResolved = {
 	repo: RepoId,
 	path: string,
 };
+
+/**  Why a submodule path is not a repository of its own. */
+export type ModuleProblem = { reason: "missing"; path: string } | { reason: "notInitialised"; path: string } | 
+/**  `foreign`: an absolute path in another operating system's form. */
+{ reason: "danglingGitFile"; path: string; target: string; foreign: boolean } | { reason: "notARepository"; path: string; detail: string };
 
 /**
  *  Where the other end of a move is. Two different facts, drawn two different ways: a
@@ -1011,11 +1052,23 @@ export type Submodule = {
 	 *  before drawing whether the row opens at all (doc/12-risks.md, R-148).
 	 */
 	nested: boolean,
+	/**
+	 *  Commits on each side of the merge base, for the tooltip; zero unless ahead,
+	 *  behind or diverged.
+	 */
+	ahead: number,
+	behind: number,
 };
 
 export type SubmoduleState = "notInitialised" | "inSync" | 
-/**  Checked out on something other than the commit the parent records. */
-"diverged";
+/**  New commits on top of the recorded one: commit the pointer in the parent. */
+"ahead" | 
+/**  On an ancestor of the recorded commit: `git submodule update`. */
+"behind" | 
+/**  Neither contains the other; only a person can decide which side wins. */
+"diverged" | 
+/**  The recorded commit is not in the submodule, so where it stands cannot be told. */
+"unknown";
 
 export type Tag = {
 	name: string,

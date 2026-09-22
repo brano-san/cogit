@@ -117,7 +117,7 @@
     color: var(--text-primary);
     border: 0;
     border-bottom: 1px solid var(--divider);
-    font-size: var(--fs-body, 13px);
+    font-size: var(--fs-ui);
   }
 
   .list {

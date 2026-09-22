@@ -1,4 +1,5 @@
 <script lang="ts">
+  import QueueNav from "$components/common/QueueNav.svelte";
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
   import VirtualList from "$components/common/VirtualList.svelte";
   import { findMatches, logLines } from "$lib/output-highlight";
@@ -196,23 +197,12 @@
         <span class="repeats" title="The same failure, this many times">×{output.repeats}</span>
       {/if}
       <span class="grow"></span>
-      {#if output.queue.length > 1}
-        <button
-          type="button"
-          class="step"
-          disabled={output.at === 0}
-          title="Previous failure"
-          onclick={() => void output.step(-1)}>‹</button
-        >
-        <span class="count tabular">{output.at + 1} of {output.queue.length}</span>
-        <button
-          type="button"
-          class="step"
-          disabled={output.at === output.queue.length - 1}
-          title="Next failure"
-          onclick={() => void output.step(1)}>›</button
-        >
-      {/if}
+      <QueueNav
+        at={output.at}
+        total={output.queue.length}
+        noun="failure"
+        onstep={(delta) => void output.step(delta)}
+      />
       <button bind:this={closer} type="button" onclick={() => output.close()} title="Close (Esc)">
         ✕
       </button>
@@ -317,11 +307,6 @@
     padding: 0 var(--sp-2);
     color: var(--status-modify);
     font-size: var(--fs-header);
-  }
-
-  .step {
-    min-width: 22px;
-    padding: 0 var(--sp-2);
   }
 
   .window {

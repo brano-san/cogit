@@ -3,6 +3,7 @@ import { DEFAULT_SETTINGS, type Settings } from "./settings";
 import {
   CATEGORIES,
   disabledBy,
+  isSetting,
   firstMatch,
   matchingCategories,
   restoreCategory,
@@ -38,10 +39,18 @@ describe("CATEGORIES", () => {
   it("covers every setting exactly once", () => {
     const placed = CATEGORIES.flatMap((category) =>
       category.groups.flatMap((group) => group.fields.map((field) => field.key)),
-    ).filter((key): key is keyof Settings => key !== "keymap");
+    ).filter(isSetting);
     const keys = Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[];
 
     expect([...placed].sort()).toEqual([...keys].sort());
+  });
+
+  // Requirement 1.6: every "Don't show again" can be taken back from one place.
+  it("puts the list of hidden dialogs somewhere the user can reach it", () => {
+    const found = CATEGORIES.filter((category) =>
+      category.groups.some((group) => group.fields.some((field) => field.key === "suppressions")),
+    );
+    expect(found).toHaveLength(1);
   });
 
   it("puts the keymap somewhere the user can reach it", () => {

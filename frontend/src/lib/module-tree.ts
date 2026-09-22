@@ -31,6 +31,13 @@ export function moduleKey(parent: string, path: string): string {
   return parent === "" ? path : `${parent}/${path}`;
 }
 
+/** The word after the row's position, only where it is exact (R-153). */
+const LABELS: Partial<Record<Submodule["state"], string>> = {
+  ahead: "ahead",
+  behind: "behind",
+  diverged: "diverged",
+};
+
 /** What the row says after the name: a branch, or the commit it is detached on. */
 export function describeModule(module: Submodule): string {
   if (module.state === "notInitialised") return "not initialised";
@@ -39,7 +46,43 @@ export function describeModule(module: Submodule): string {
     (module.checkedOut
       ? `${shortOid(module.checkedOut)}${module.subject ? `: ${module.subject}` : ""}`
       : "no commit checked out");
-  return module.state === "diverged" ? `${where} · diverged` : where;
+  const label = LABELS[module.state];
+  return label ? `${where} · ${label}` : where;
+}
+
+function commits(count: number): string {
+  return count === 1 ? "1 commit" : `${count} commits`;
+}
+
+/** What the label means and what to do about it; empty when there is nothing to do. */
+export function moduleTooltip(module: Submodule): string {
+  switch (module.state) {
+    case "inSync":
+      return "";
+    case "notInitialised":
+      return "Not checked out yet. Initialize it to get its files.";
+    case "ahead":
+      return (
+        `${commits(module.ahead)} newer than the one the parent records. Commit the new ` +
+        "submodule pointer in the parent to keep them."
+      );
+    case "behind":
+      return (
+        `${commits(module.behind)} older than the one the parent records. Run ` +
+        "git submodule update (Update) to check out the recorded commit."
+      );
+    case "diverged":
+      return (
+        `${commits(module.ahead)} of its own and ${commits(module.behind)} of the parent's ` +
+        "that it lacks. Neither contains the other, so someone has to decide by hand which " +
+        "one the parent should record."
+      );
+    case "unknown":
+      return (
+        "The parent records a commit this submodule does not have, so where it stands " +
+        "cannot be told. Fetch in the submodule to compare."
+      );
+  }
 }
 
 /** Flattens the loaded parts of the tree into the rows to draw, parents before children. */

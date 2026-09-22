@@ -317,6 +317,10 @@ snake_case и читаются на фронтенде как `undefined`.
 | `list_all_repo_files` | `repo` | `Vec<String>` — tracked и untracked, без ignored | M6 |
 | `search_file_contents` | `repo`, `query`, `is_regex`, `scope`, `Channel<SearchChunk>` | `()` | M6 |
 | `list_submodules` | `repo`, `parent` (пусто — верхний уровень) | `Vec<Submodule>` | M3 |
+| `open_submodule` | `owner: RepoId`, `key` — путь узла от владельца дерева | `RepoSummary`; отказ — `GitError::ModuleUnavailable(ModuleProblem)` | M3 |
+| `repository_health` | `repo` | `Vec<HealthFinding { module, issue }>` — репозиторий и все подмодули | M3 |
+| `read_git_config` | `repo: Option<RepoId>`, `scope: repository \| user` | `ConfigFile { path, text, crlf, exists }` | M3 |
+| `write_git_config` | `repo`, `scope`, `text`, `crlf` | `()`; отказ git — `GitError::ConfigInvalid { line, message }` | M3 |
 | `cancel_operation` | `id` | `bool` — `false`, если уже закончилась | — |
 | `list_operations` | — | `Vec<Operation>` — всё, что в очереди и в работе | — |
 
@@ -340,6 +344,13 @@ type SearchChunk =
 
 `list_submodules` перечисляет **один уровень**. Репозиторий с девятью сабмодулями, у каждого
 свои, стоит одного обхода на уровень, а дереву нужен только раскрытый узел.
+
+`Submodule.state` — `notInitialised | inSync | ahead | behind | diverged | unknown`, с
+`ahead`/`behind` — числом коммитов по обе стороны общего предка (R-153). `unknown` —
+записанного коммита в подмодуле нет, и положение не угадывается.
+
+`open_submodule` принимает ключ, а не путь: путь из ключа собирает бэкенд тем же
+`module_root`, что и `list_submodules`, и открывает ровно там, без поиска вверх (R-149).
 
 Каждая строка несёт `nested` — есть ли у сабмодуля свои сабмодули. Это проверка
 существования `<path>/.gitmodules`, сделанная там же, при перечислении: без неё дерево

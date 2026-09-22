@@ -21,6 +21,8 @@ export interface Settings {
   /** Off until ticked: nothing reaches the network unasked. Help ▸ Check for Updates…
       works either way. */
   autoUpdate: boolean;
+  /** The Exit dialog's "Don't show again" and this checkbox are the same value (R-151). */
+  confirmExit: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -38,6 +40,7 @@ export const DEFAULT_SETTINGS: Settings = {
   logLevel: "info",
   avatars: "gravatar",
   autoUpdate: false,
+  confirmExit: true,
 };
 
 /** Read once at startup, so changing them needs a restart to take effect. */

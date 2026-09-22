@@ -14,6 +14,7 @@
   import type { Keymap } from "$lib/keymap";
   import type { KeyBinding } from "$lib/ipc";
   import KeymapEditor from "$components/layout/KeymapEditor.svelte";
+  import { parseChoice, suppressedChoices } from "$lib/suppressions";
 
   interface Props {
     value: Settings;
@@ -32,6 +33,10 @@
     onrevert: () => void;
     /** Closes and keeps: everything was applied as it was chosen. */
     onclose: () => void;
+    /** Warnings ignored per repository; the exit question comes from the draft itself. */
+    ignored: import("$lib/suppressions").IgnoredWarnings;
+    /** Brings an ignored warning back at once, outside the draft. */
+    onunignore: (root: string, warning: string) => void;
   }
 
   let {
@@ -46,6 +51,8 @@
     onapply,
     onrevert,
     onclose,
+    ignored,
+    onunignore,
   }: Props = $props();
 
   const THEMES = [
@@ -324,6 +331,41 @@
                 />
                 <span>{field.label}</span>
               </label>
+            {:else if field.key === "confirmExit"}
+              <label class="row check">
+                <input
+                  type="checkbox"
+                  checked={draft.confirmExit}
+                  onchange={(e) => set("confirmExit", e.currentTarget.checked)}
+                />
+                <span>{field.label}</span>
+              </label>
+            {:else if field.key === "suppressions"}
+              {@const choices = suppressedChoices(draft.confirmExit, ignored)}
+              <p class="row">{field.label}</p>
+              {#if choices.length === 0}
+                <p class="hint">Nothing is hidden: every dialog and warning still shows.</p>
+              {:else}
+                <ul class="suppressed">
+                  {#each choices as choice (choice.id)}
+                    {@const parsed = parseChoice(choice.id)}
+                    <li>
+                      <span class="grow">
+                        {choice.label}
+                        {#if choice.scope}<span class="scope">— {choice.scope}</span>{/if}
+                      </span>
+                      <button
+                        type="button"
+                        class="btn"
+                        onclick={() => {
+                          if (parsed.kind === "confirmExit") set("confirmExit", true);
+                          else if (parsed.kind === "health") onunignore(parsed.root, parsed.warning);
+                        }}>Show again</button
+                      >
+                    </li>
+                  {/each}
+                </ul>
+              {/if}
             {:else if field.key === "autoUpdate"}
               <label class="row check">
                 <input
@@ -426,6 +468,25 @@
 </Dialog>
 
 <style>
+  .suppressed {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .suppressed li {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+  }
+
+  .suppressed .scope {
+    color: var(--text-secondary);
+  }
+
   .panes {
     display: flex;
     flex: 1 1 auto;

@@ -46,8 +46,31 @@ fn an_uninitialised_submodule_is_reported_as_such() {
     assert!(modules[0].checked_out.is_none());
 }
 
+/// Commits in the submodule the parent has never been told about. The inner repository
+/// has no identity of its own, so the commit brings one.
+fn commit_inside(f: &test_fixtures::Fixture, inner: &std::path::Path, message: &str) {
+    f.git_in(
+        inner,
+        &[
+            "-c",
+            "user.name=Cogit Test",
+            "-c",
+            "user.email=test@cogit.invalid",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "--allow-empty",
+            "-m",
+            message,
+        ],
+    )
+    .unwrap();
+}
+
+/// Requirement 6: three different situations needing three different actions, not one
+/// "diverged" for all of them (doc/12-risks.md, R-153).
 #[test]
-fn a_submodule_left_on_another_commit_is_reported_as_diverged() {
+fn a_submodule_checked_out_on_an_older_commit_is_behind() {
     let f = test_fixtures::with_submodule().unwrap();
     let inner = f.path().join("vendor/lib");
     let before = f.git_in(&inner, &["rev-parse", "HEAD"]).unwrap();
@@ -56,9 +79,56 @@ fn a_submodule_left_on_another_commit_is_reported_as_diverged() {
 
     let modules = open(&f).submodules().unwrap();
 
-    assert_eq!(modules[0].state, SubmoduleState::Diverged);
+    assert_eq!(modules[0].state, SubmoduleState::Behind);
+    assert_eq!((modules[0].ahead, modules[0].behind), (0, 1));
     assert_eq!(modules[0].recorded, before.trim());
-    assert_ne!(modules[0].checked_out.as_deref(), Some(before.trim()));
+}
+
+#[test]
+fn a_submodule_with_new_commits_on_top_is_ahead() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let inner = f.path().join("vendor/lib");
+    commit_inside(&f, &inner, "one more");
+
+    let modules = open(&f).submodules().unwrap();
+
+    assert_eq!(modules[0].state, SubmoduleState::Ahead);
+    assert_eq!((modules[0].ahead, modules[0].behind), (1, 0));
+}
+
+#[test]
+fn a_submodule_on_a_line_of_its_own_has_diverged() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let inner = f.path().join("vendor/lib");
+    f.git_in(&inner, &["checkout", "--detach", "HEAD~1"])
+        .unwrap();
+    commit_inside(&f, &inner, "elsewhere");
+
+    let modules = open(&f).submodules().unwrap();
+
+    assert_eq!(modules[0].state, SubmoduleState::Diverged);
+    assert_eq!((modules[0].ahead, modules[0].behind), (1, 1));
+}
+
+/// "Do not show an inexact label as an exact one": a recorded commit the submodule has
+/// never fetched cannot be placed, and saying "diverged" would be a guess.
+#[test]
+fn a_recorded_commit_the_submodule_does_not_have_is_not_guessed_at() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let absent = "1234567890abcdef1234567890abcdef12345678";
+    f.git(&[
+        "update-index",
+        "--cacheinfo",
+        &format!("160000,{absent},vendor/lib"),
+    ])
+    .unwrap();
+    f.commit_staged(2, "record a commit nobody fetched")
+        .unwrap();
+
+    let modules = open(&f).submodules().unwrap();
+
+    assert_eq!(modules[0].recorded, absent);
+    assert_eq!(modules[0].state, SubmoduleState::Unknown);
 }
 
 #[test]
@@ -104,7 +174,7 @@ fn initialising_an_uninitialised_submodule_brings_it_back() {
 }
 
 #[test]
-fn updating_a_diverged_submodule_puts_it_back_on_the_recorded_commit() {
+fn updating_a_submodule_left_behind_puts_it_back_on_the_recorded_commit() {
     let f = test_fixtures::with_submodule().unwrap();
     let inner = f.path().join("vendor/lib");
     f.git_in(&inner, &["checkout", "--detach", "HEAD~1"])

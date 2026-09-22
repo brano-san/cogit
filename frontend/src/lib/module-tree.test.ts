@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   describeModule,
+  moduleTooltip,
   mayExpand,
   moduleKey,
   moduleRows,
@@ -18,6 +19,8 @@ const mod = (path: string, over: Partial<Submodule> = {}): Submodule => ({
   branch: null,
   subject: null,
   nested: false,
+  ahead: 0,
+  behind: 0,
   ...over,
 });
 
@@ -77,6 +80,55 @@ describe("describeModule", () => {
 
   it("says something even for a module with nothing checked out", () => {
     expect(describeModule(mod("lib", { checkedOut: null })).length).toBeGreaterThan(0);
+  });
+
+  // Requirement 6: three situations, three different things to do about them.
+  it("labels a module ahead of, behind or apart from what the parent records", () => {
+    expect(describeModule(mod("lib", { state: "ahead", ahead: 2 }))).toContain("ahead");
+    expect(describeModule(mod("lib", { state: "behind", behind: 1 }))).toContain("behind");
+    expect(describeModule(mod("lib", { state: "diverged", ahead: 1, behind: 1 }))).toContain(
+      "diverged",
+    );
+  });
+
+  it("does not dress up a guess as a label when the recorded commit is missing", () => {
+    const text = describeModule(mod("lib", { state: "unknown" }));
+    expect(text).not.toMatch(/ahead|behind|diverged/);
+  });
+
+  it("puts nothing after the name when the module is where the parent says", () => {
+    expect(describeModule(mod("lib", { branch: "master" }))).toBe("master");
+  });
+});
+
+describe("moduleTooltip", () => {
+  it("tells a module that is ahead to commit the pointer in the parent", () => {
+    expect(moduleTooltip(mod("lib", { state: "ahead", ahead: 2 }))).toMatch(/2 commits.*commit/is);
+  });
+
+  it("tells a module that is behind to run git submodule update", () => {
+    expect(moduleTooltip(mod("lib", { state: "behind", behind: 1 }))).toContain(
+      "git submodule update",
+    );
+  });
+
+  it("says a diverged module needs a person, with both counts", () => {
+    const tip = moduleTooltip(mod("lib", { state: "diverged", ahead: 3, behind: 2 }));
+    expect(tip).toContain("3");
+    expect(tip).toContain("2");
+    expect(tip).toMatch(/decide|by hand|manual/i);
+  });
+
+  it("explains why an unknown position cannot be told, and what would tell it", () => {
+    expect(moduleTooltip(mod("lib", { state: "unknown" }))).toMatch(/fetch/i);
+  });
+
+  it("offers to initialise a module that is not checked out", () => {
+    expect(moduleTooltip(mod("lib", { state: "notInitialised" }))).toMatch(/initiali[sz]e/i);
+  });
+
+  it("has nothing to add for a module in sync", () => {
+    expect(moduleTooltip(mod("lib"))).toBe("");
   });
 });
 

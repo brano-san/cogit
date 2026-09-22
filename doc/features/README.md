@@ -224,3 +224,9 @@
 | F-249 | Контекстное меню файла | [F-249-file-context-menu.md](F-249-file-context-menu.md) |
 | F-250 | Окно About отвечает на «какая у вас сборка» | [F-250-about-window.md](F-250-about-window.md) |
 | F-251 | Лица в списке коммитов | [F-251-avatars-on-by-default.md](F-251-avatars-on-by-default.md) |
+| F-252 | Выход спрашивает, а посреди push — предупреждает | [F-252-confirm-exit.md](F-252-confirm-exit.md) |
+| F-253 | Edit Git Config | [F-253-edit-git-config.md](F-253-edit-git-config.md) |
+| F-254 | Предупреждения о состоянии репозитория | [F-254-repository-warnings.md](F-254-repository-warnings.md) |
+| F-255 | Подмодуль: ahead, behind или diverged | [F-255-submodule-position.md](F-255-submodule-position.md) |
+| F-256 | Branches открываются свёрнутыми | [F-256-branches-folded.md](F-256-branches-folded.md) |
+| F-257 | Подмодуль, который не открылся, говорит почему | [F-257-submodule-reasons.md](F-257-submodule-reasons.md) |

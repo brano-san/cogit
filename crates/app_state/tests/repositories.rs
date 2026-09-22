@@ -2,6 +2,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use app_state::AppState;
+use git_engine::{GitError, ModuleProblem};
 
 #[test]
 fn several_repositories_can_be_open_at_once() {
@@ -178,7 +179,7 @@ fn opening_a_submodule_does_not_add_it_to_the_list() {
     let state = AppState::new();
     let parent = state.open_repository(f.path()).unwrap().repo;
 
-    let child = state.open_submodule(&f.path().join("vendor/lib")).unwrap();
+    let child = state.open_submodule(parent, "vendor/lib").unwrap();
 
     assert_ne!(child.repo, parent);
     assert_eq!(state.overviews().len(), 1, "only the parent is listed");
@@ -188,9 +189,9 @@ fn opening_a_submodule_does_not_add_it_to_the_list() {
 fn a_submodule_opened_from_the_tree_is_still_a_repository_to_work_in() {
     let f = test_fixtures::with_submodule().unwrap();
     let state = AppState::new();
-    state.open_repository(f.path()).unwrap();
+    let parent = state.open_repository(f.path()).unwrap().repo;
 
-    let child = state.open_submodule(&f.path().join("vendor/lib")).unwrap();
+    let child = state.open_submodule(parent, "vendor/lib").unwrap();
 
     assert!(state.repo_status(child.repo).is_ok());
 }
@@ -201,8 +202,8 @@ fn a_submodule_opened_from_the_tree_is_still_a_repository_to_work_in() {
 fn opening_the_same_path_by_hand_afterwards_does_list_it() {
     let f = test_fixtures::with_submodule().unwrap();
     let state = AppState::new();
-    state.open_repository(f.path()).unwrap();
-    state.open_submodule(&f.path().join("vendor/lib")).unwrap();
+    let parent = state.open_repository(f.path()).unwrap().repo;
+    state.open_submodule(parent, "vendor/lib").unwrap();
 
     state.open_repository(&f.path().join("vendor/lib")).unwrap();
 
@@ -215,10 +216,133 @@ fn opening_the_same_path_by_hand_afterwards_does_list_it() {
 fn opening_a_listed_repository_as_a_submodule_leaves_it_listed() {
     let f = test_fixtures::with_submodule().unwrap();
     let state = AppState::new();
-    state.open_repository(f.path()).unwrap();
+    let parent = state.open_repository(f.path()).unwrap().repo;
     state.open_repository(&f.path().join("vendor/lib")).unwrap();
 
-    state.open_submodule(&f.path().join("vendor/lib")).unwrap();
+    state.open_submodule(parent, "vendor/lib").unwrap();
 
     assert_eq!(state.overviews().len(), 2);
+}
+
+// --- one resolution for listing and opening (doc/12-risks.md, R-149) --------------------
+
+/// The reported case: after one submodule was opened, every other one failed, because the
+/// path was built from the submodule on screen instead of the repository owning the tree.
+#[test]
+fn a_second_submodule_opens_after_the_first_one_did() {
+    let f = test_fixtures::with_nested_submodule().unwrap();
+    let state = AppState::new();
+    let parent = state.open_repository(f.path()).unwrap().repo;
+
+    state.open_submodule(parent, "vendor/middle").unwrap();
+    let deep = state
+        .open_submodule(parent, "vendor/middle/deep/inner")
+        .unwrap();
+
+    assert!(
+        deep.root
+            .replace('\\', "/")
+            .ends_with("vendor/middle/deep/inner")
+    );
+}
+
+#[test]
+fn a_node_is_opened_where_the_tree_listed_it() {
+    let f = test_fixtures::with_nested_submodule().unwrap();
+    let state = AppState::new();
+    let parent = state.open_repository(f.path()).unwrap().repo;
+
+    let listed = state.submodules_under(parent, "vendor/middle").unwrap();
+    let key = format!("vendor/middle/{}", listed[0].path);
+
+    assert!(state.open_submodule(parent, &key).is_ok());
+}
+
+/// Discovery from an empty submodule directory lands in the parent; the tree must get a
+/// reason, not the parent's own submodules dressed up as the child's.
+#[test]
+fn an_uninitialised_submodule_lists_nothing_of_its_parent() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let state = AppState::new();
+    let parent = state.open_repository(f.path()).unwrap().repo;
+    let path = f.path().join("vendor/lib");
+    std::fs::remove_dir_all(&path).unwrap();
+    std::fs::create_dir_all(&path).unwrap();
+
+    match state.submodules_under(parent, "vendor/lib") {
+        Err(GitError::ModuleUnavailable(ModuleProblem::NotInitialised { .. })) => {}
+        other => panic!("expected NotInitialised, got {other:?}"),
+    }
+}
+
+#[test]
+fn opening_an_uninitialised_submodule_names_the_reason() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let state = AppState::new();
+    let parent = state.open_repository(f.path()).unwrap().repo;
+    let path = f.path().join("vendor/lib");
+    std::fs::remove_dir_all(&path).unwrap();
+    std::fs::create_dir_all(&path).unwrap();
+
+    assert!(matches!(
+        state.open_submodule(parent, "vendor/lib"),
+        Err(GitError::ModuleUnavailable(
+            ModuleProblem::NotInitialised { .. }
+        ))
+    ));
+}
+
+// --- health checks run for the repository in the list (doc/12-risks.md, R-150) ---------
+
+#[test]
+fn the_health_of_an_open_repository_can_be_asked_for() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let state = AppState::new();
+    let parent = state.open_repository(f.path()).unwrap().repo;
+    let module = f.path().join("vendor/lib");
+    std::fs::remove_dir_all(&module).unwrap();
+    std::fs::create_dir_all(&module).unwrap();
+    std::fs::write(module.join(".git"), "gitdir: ../../nowhere\n").unwrap();
+
+    let report = state.health(parent).unwrap();
+    assert!(report.iter().any(|finding| finding.module == "vendor/lib"));
+}
+
+// --- Repository ▸ Edit Git Config (doc/12-risks.md, R-155) -------------------------------
+
+#[test]
+fn a_repositorys_config_is_read_and_written_through_the_state() {
+    let f = test_fixtures::linear(1).unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let file = state
+        .config_file(Some(repo), git_engine::ConfigScope::Repository)
+        .unwrap();
+    assert!(file.text.contains("[core]"));
+
+    let edited = format!("{}[cogit]\n\tprobe = yes\n", file.text);
+    state
+        .save_config_file(
+            Some(repo),
+            git_engine::ConfigScope::Repository,
+            &edited,
+            file.crlf,
+        )
+        .unwrap();
+    assert!(
+        std::fs::read_to_string(f.git_dir().join("config"))
+            .unwrap()
+            .contains("probe = yes")
+    );
+}
+
+#[test]
+fn the_repository_scope_needs_a_repository() {
+    let state = AppState::new();
+    assert!(
+        state
+            .config_file(None, git_engine::ConfigScope::Repository)
+            .is_err()
+    );
 }

@@ -230,6 +230,20 @@ fn redact_url(arg: &str) -> String {
 /// Which `git` the writes actually go through. Run outside any repository, so it answers
 /// before one is open and cannot fail on a broken working directory.
 pub fn git_version() -> Result<String> {
+    Ok(bare_git(&["--version"])?.stdout.trim().to_owned())
+}
+
+/// What `git` said when it ran outside any repository.
+pub(crate) struct BareOutput {
+    pub exit_code: Option<i32>,
+    pub stdout: String,
+    pub stderr: String,
+}
+
+/// `git` with no repository behind it: the version, the user's own config. Output is
+/// parsed, so `LC_ALL=C`. The streams are never logged — this reads config files, and
+/// config files hold tokens in `url.*` and `http.*` (doc/12-risks.md, R-155).
+pub(crate) fn bare_git(args: &[&str]) -> Result<BareOutput> {
     let mut command = Command::new("git");
     #[cfg(windows)]
     {
@@ -238,6 +252,14 @@ pub fn git_version() -> Result<String> {
     }
     command.env("GIT_TERMINAL_PROMPT", "0");
     command.env("LC_ALL", "C");
-    let output = command.arg("--version").output()?;
-    Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
+    for variable in INHERITED_GIT_VARS {
+        command.env_remove(variable);
+    }
+    let output = command.args(args).output()?;
+    tracing::debug!(command = %redact_command(args), exit_code = ?output.status.code(), "git without a repository");
+    Ok(BareOutput {
+        exit_code: output.status.code(),
+        stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
+        stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+    })
 }
