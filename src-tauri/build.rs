@@ -126,15 +126,26 @@ fn write_crate_list(out_dir: &Path) {
     }
 }
 
-fn crate_list() -> Result<String, String> {
+/// Offline first; a machine without other platforms' manifests needs the registry once.
+fn metadata(target: &str) -> Result<Vec<u8>, String> {
     let cargo = std::env::var_os("CARGO").map_or_else(|| PathBuf::from("cargo"), PathBuf::from);
-    let target = std::env::var("TARGET").map_err(|err| format!("TARGET: {err}"))?;
-    let mut command = Command::new(cargo);
-    command.args(["metadata", "--format-version", "1", "--offline", "--locked"]);
-    command.args(["--filter-platform", &target]);
+    let run = |offline: bool| {
+        let mut command = Command::new(&cargo);
+        command.args(["metadata", "--format-version", "1", "--locked"]);
+        command.args(["--filter-platform", target]);
+        if offline {
+            command.arg("--offline");
+        }
+        build_info::process::output_within(command, Duration::from_secs(120))
+    };
+    run(true)
+        .or_else(|_| run(false))
+        .map_err(|err| format!("cargo metadata: {err}"))
+}
 
-    let out = build_info::process::output_within(command, Duration::from_secs(120))
-        .map_err(|err| format!("cargo metadata: {err}"))?;
+fn crate_list() -> Result<String, String> {
+    let target = std::env::var("TARGET").map_err(|err| format!("TARGET: {err}"))?;
+    let out = metadata(&target)?;
     let metadata: serde_json::Value =
         serde_json::from_slice(&out).map_err(|err| format!("cargo metadata output: {err}"))?;
     let packages = build_info::licences::shipped(&metadata, "cogit")?;
