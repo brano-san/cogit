@@ -10,6 +10,8 @@ const LANE_COLORS: u8 = 8;
 pub struct CommitNode {
     pub oid: String,
     pub parents: Vec<String>,
+    /// Parents the list does not show; their line ends in an arrow under the node.
+    pub hidden: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
@@ -21,100 +23,103 @@ pub enum NodeKind {
     WorkingTree,
 }
 
+/// `Through` spans the row edge to edge; `Top` and `Bottom` end at the node's centre.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
-pub enum EdgeKind {
-    Direct,
-    Merge,
-    Crossing,
+pub enum Span {
+    Top,
+    Bottom,
+    Through,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
-pub struct LaneAssignment {
+pub struct Segment {
+    pub from: u16,
+    pub to: u16,
+    pub span: Span,
+    pub primary: bool,
+    pub color: u8,
+    pub arrow: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct GraphRow {
     pub row: u32,
     pub lane: u16,
     pub color: u8,
     pub kind: NodeKind,
+    pub primary: bool,
+    /// Columns used by the top edge, the node and the bottom edge together.
+    pub width: u16,
+    pub segments: Vec<Segment>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct GraphEdge {
-    pub from_row: u32,
-    pub from_lane: u16,
-    pub to_row: u32,
-    pub to_lane: u16,
-    pub color: u8,
-    pub kind: EdgeKind,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Above {
+    pub(crate) id: u64,
+    pub(crate) color: u8,
+    pub(crate) drawn: bool,
+    pub(crate) primary: bool,
 }
 
-#[derive(Debug, Clone, Default, Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct GraphLayout {
-    pub lanes: Vec<LaneAssignment>,
-    pub edges: Vec<GraphEdge>,
-    pub max_lane: u16,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Lane {
+    pub(crate) id: u64,
+    pub(crate) waits: Option<String>,
+    pub(crate) color: u8,
+    pub(crate) drawn: bool,
+    pub(crate) primary: bool,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct LayoutCursor {
-    pub active: Vec<Option<String>>,
-    pub lane_colors: Vec<u8>,
-    pub origins: Vec<Vec<u16>>,
-    pub next_color: u8,
-    pub next_row: u32,
-    /// The commit that owns the leftmost column, usually the tip of `master`. Until it
-    /// turns up, lane 0 is kept empty for it; after it, its first-parent chain inherits
-    /// the lane the way any first parent does (doc/12-risks.md, R-115).
-    pub mainline: Option<String>,
-    /// Set once the mainline tip has been placed, so the reservation ends there.
-    pub mainline_placed: bool,
+    pub(crate) lanes: Vec<Lane>,
+    pub(crate) next_id: u64,
+    pub(crate) next_color: u8,
+    pub(crate) next_row: u32,
+    pub(crate) reserved: bool,
+    /// Reused on every row: fifty thousand rows were two hundred thousand allocations.
+    pub(crate) above: Vec<Above>,
+    pub(crate) converging: Vec<u64>,
+    pub(crate) leaving: Vec<u64>,
 }
 
 impl LayoutCursor {
+    /// Column 0 waits for `tip`, then follows its first parents (R-115, R-161).
     #[must_use]
-    pub fn take_color(&mut self) -> u8 {
+    pub fn with_mainline(tip: Option<String>) -> Self {
+        let mut cursor = Self::default();
+        if let Some(tip) = tip {
+            cursor.reserved = true;
+            cursor.lanes.push(Lane {
+                id: 0,
+                waits: Some(tip),
+                color: 0,
+                drawn: false,
+                primary: true,
+            });
+            cursor.next_id = 1;
+            cursor.next_color = 1;
+        }
+        cursor
+    }
+
+    pub(crate) fn take_color(&mut self) -> u8 {
         let color = self.next_color % LANE_COLORS;
         self.next_color = self.next_color.wrapping_add(1);
         color
     }
 
-    #[must_use]
-    pub fn first_free_lane(&self) -> usize {
-        self.free_lane_from(usize::from(self.holding_lane_zero()))
-    }
-
-    /// Lane 0 belongs to the mainline, before it arrives and after its line ends. A
-    /// column that is reused halfway down is not a column the eye can follow.
-    #[must_use]
-    pub fn holding_lane_zero(&self) -> bool {
-        self.mainline.is_some()
-    }
-
-    #[must_use]
-    pub fn free_lane_from(&self, first: usize) -> usize {
-        self.active
-            .iter()
-            .enumerate()
-            .skip(first)
-            .find(|(_, slot)| slot.is_none())
-            .map_or(self.active.len().max(first), |(lane, _)| lane)
-    }
-
-    #[must_use]
-    pub fn is_mainline(&self, oid: &str) -> bool {
-        self.mainline.as_deref() == Some(oid)
+    pub(crate) fn take_id(&mut self) -> u64 {
+        let id = self.next_id;
+        self.next_id += 1;
+        id
     }
 }
 
-/// Which commit owns the leftmost column: the line HEAD is on, and only failing that
-/// `master` or `main`.
-///
-/// The first version had it the other way round — names first, on the reasoning that HEAD
-/// moves with every checkout. On a repository checked out on a feature branch that put the
-/// branch being worked on somewhere to the right of a `master` nobody was looking at, and
-/// the column the reader follows is the one they are working in (R-115).
+/// HEAD's line, failing that `master`, then `main` (R-115).
 #[must_use]
 pub fn mainline_tip(local_branches: &[(&str, &str)], head_oid: Option<&str>) -> Option<String> {
     if let Some(oid) = head_oid {
@@ -126,36 +131,4 @@ pub fn mainline_tip(local_branches: &[(&str, &str)], head_oid: Option<&str>) -> 
         }
     }
     None
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn lane_colors_cycle_within_the_palette() {
-        let mut cursor = LayoutCursor::default();
-        let taken: Vec<u8> = (0..LANE_COLORS + 2).map(|_| cursor.take_color()).collect();
-        assert_eq!(&taken[..8], &[0, 1, 2, 3, 4, 5, 6, 7]);
-        assert_eq!(taken[8], 0);
-        assert!(taken.iter().all(|c| *c < LANE_COLORS));
-    }
-
-    #[test]
-    fn free_lane_is_reused_before_widening_the_graph() {
-        let cursor = LayoutCursor {
-            active: vec![Some("a".into()), None, Some("c".into())],
-            ..Default::default()
-        };
-        assert_eq!(cursor.first_free_lane(), 1);
-    }
-
-    #[test]
-    fn a_full_row_of_lanes_appends_a_new_one() {
-        let cursor = LayoutCursor {
-            active: vec![Some("a".into()), Some("b".into())],
-            ..Default::default()
-        };
-        assert_eq!(cursor.first_free_lane(), 2);
-    }
 }

@@ -499,8 +499,6 @@ noNewline?: boolean } | { kind: "insert"; new: number; text: string; inline: ([n
 
 export type DiffSpec = { kind: "commitVsParent"; oid: string } | { kind: "commitVsCommit"; a: string; b: string } | { kind: "workTreeVsIndex" } | { kind: "indexVsHead" };
 
-export type EdgeKind = "direct" | "merge" | "crossing";
-
 export type EolInfo = {
 	old: LineEnding,
 	new: LineEnding,
@@ -641,19 +639,20 @@ export type GitOutput = {
 
 export type GraphChunk = {
 	commits: CommitRow[],
-	lanes: LaneAssignment[],
-	edges: GraphEdge[],
-	maxLane: number,
+	/**  One per commit, in the same order: the node and every segment of its row. */
+	rows: GraphRow[],
 	isLast: boolean,
 };
 
-export type GraphEdge = {
-	fromRow: number,
-	fromLane: number,
-	toRow: number,
-	toLane: number,
+export type GraphRow = {
+	row: number,
+	lane: number,
 	color: number,
-	kind: EdgeKind,
+	kind: NodeKind,
+	primary: boolean,
+	/**  Columns used by the top edge, the node and the bottom edge together. */
+	width: number,
+	segments: Segment[],
 };
 
 /**  Assuming "HEAD is a branch" crashes on an unborn or detached checkout (INV-07). */
@@ -732,13 +731,6 @@ export type KeyBinding = {
 	section: string,
 	/**  What the menu ships with; the user's override lives in settings, not here. */
 	defaultAccelerator: string | null,
-};
-
-export type LaneAssignment = {
-	row: number,
-	lane: number,
-	color: number,
-	kind: NodeKind,
 };
 
 export type LineEnding = "lf" | "crlf" | "cr" | "mixed" | "none";
@@ -993,6 +985,15 @@ export type SearchScope =
 /**  Every file in the repository. */
 "all";
 
+export type Segment = {
+	from: number,
+	to: number,
+	span: Span,
+	primary: boolean,
+	color: number,
+	arrow: boolean,
+};
+
 export type Severity = "success" | "warning" | "failure";
 
 export type Signature = {
@@ -1006,6 +1007,9 @@ export type SkippedRef = {
 	name: string,
 	reason: string,
 };
+
+/**  `Through` spans the row edge to edge; `Top` and `Bottom` end at the node's centre. */
+export type Span = "top" | "bottom" | "through";
 
 /**
  *  The three things `git stash` puts away, each readable without touching the working tree.

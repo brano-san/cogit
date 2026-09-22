@@ -86,7 +86,15 @@ export const CATEGORIES: Category[] = [
     groups: [
       {
         title: "Graph",
-        fields: [{ key: "laneWidth", label: "Lane width", keywords: ["column", "spacing"] }],
+        fields: [
+          { key: "laneWidth", label: "Lane width", keywords: ["column", "spacing"] },
+          {
+            key: "coloredLanes",
+            label: "Colored branch lines",
+            hint: "Off: the main line is light and every other line one grey.",
+            keywords: ["colour", "color", "lanes", "branches", "rainbow"],
+          },
+        ],
       },
       {
         title: "Authors",

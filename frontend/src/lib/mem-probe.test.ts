@@ -17,7 +17,7 @@ function sources(over: Partial<ProbeSources> = {}): ProbeSources {
     }),
     domNodes: () => 1200,
     listeners: () => 6,
-    caches: () => ({ graphRows: 50000, graphEdges: 49999 }),
+    caches: () => ({ graphRows: 50000, graphSegments: 49999 }),
     ...over,
   };
 }
@@ -58,7 +58,7 @@ describe("sample", () => {
     const taken = sample(sources());
     expect(taken.domNodes).toBe(1200);
     expect(taken.listeners).toBe(6);
-    expect(taken.caches).toEqual({ graphRows: 50000, graphEdges: 49999 });
+    expect(taken.caches).toEqual({ graphRows: 50000, graphSegments: 49999 });
   });
 
   it("still reports the counters where the heap is not exposed", () => {

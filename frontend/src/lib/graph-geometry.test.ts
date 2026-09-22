@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   GRAPH,
   canvasPixelSize,
-  gutterWidth,
+  arrowStub,
+  segmentCurve,
+  textX,
   hitTest,
   centreRow,
   laneX,
@@ -84,14 +86,23 @@ describe("rowY", () => {
   });
 });
 
-describe("gutterWidth", () => {
-  it("grows with the widest lane", () => {
-    expect(gutterWidth(0, 1000)).toBe(GRAPH.leftPad + GRAPH.laneWidth);
-    expect(gutterWidth(4, 1000)).toBe(GRAPH.leftPad + GRAPH.laneWidth * 5);
+// SmartGit: the message starts right of the last line of its own row, so it sits next
+// to its node however wide the rows around it are (R-161).
+describe("textX", () => {
+  it("starts right of the one column a linear history uses", () => {
+    expect(textX(1)).toBe(laneX(0) + GRAPH.laneWidth / 2 + GRAPH.textGap);
   });
 
-  it("never eats more than a quarter of the panel", () => {
-    expect(gutterWidth(50, 400)).toBeLessThanOrEqual(100);
+  it("moves one column right for every column the row uses", () => {
+    expect(textX(3) - textX(2)).toBe(GRAPH.laneWidth);
+  });
+
+  it("stops at the column cap, so a pathological row cannot push the text away", () => {
+    expect(textX(GRAPH.maxColumns + 20)).toBe(textX(GRAPH.maxColumns));
+  });
+
+  it("treats a row with no columns as one", () => {
+    expect(textX(0)).toBe(textX(1));
   });
 });
 
@@ -159,16 +170,16 @@ describe("row offset for the Working Tree header", () => {
 });
 
 describe("setLaneWidth", () => {
-  afterEach(() => setLaneWidth(14));
+  afterEach(() => setLaneWidth(16));
 
   it("widens the spacing between lanes", () => {
     setLaneWidth(24);
     expect(laneX(2)).toBe(GRAPH.leftPad + 48);
   });
 
-  it("widens the gutter to match", () => {
+  it("moves the text to match", () => {
     setLaneWidth(24);
-    expect(gutterWidth(0, 1000)).toBe(GRAPH.leftPad + 24);
+    expect(textX(1)).toBe(GRAPH.leftPad + 24 / 2 + GRAPH.textGap);
   });
 
   it("refuses a width that would collapse the lanes onto each other", () => {
@@ -291,27 +302,26 @@ describe("row offset with extra header rows", () => {
 });
 
 describe("how big the graph is drawn", () => {
-  it("draws a dot big enough to aim at with a mouse", () => {
-    expect(GRAPH.nodeRadius * 2).toBeGreaterThanOrEqual(8);
+  it("draws a ring big enough to aim at with a mouse", () => {
+    expect(GRAPH.ringRadius * 2 + GRAPH.ringStroke).toBeGreaterThanOrEqual(8);
   });
 
   it("draws lines thick enough to follow across a screen", () => {
     expect(GRAPH.lineWidth).toBeGreaterThanOrEqual(2);
   });
 
-  // The line used to be drawn half a pixel off the dot, because an odd stroke width
-  // needs that offset to stay crisp and the dots never got it. An even width needs no
-  // offset at all, so both can sit on the same whole-pixel centre.
-  it("uses an even line width, so nothing has to be nudged half a pixel", () => {
-    expect(GRAPH.lineWidth % 2).toBe(0);
+  it("draws the main line a little thicker than the rest, as SmartGit does", () => {
+    const extra = GRAPH.mainLineWidth - GRAPH.lineWidth;
+    expect(extra).toBeGreaterThanOrEqual(0.5);
+    expect(extra).toBeLessThanOrEqual(1);
   });
 
-  it("leaves a gap between a dot and the one below it", () => {
-    expect(GRAPH.rowHeight).toBeGreaterThan(GRAPH.mergeRadius * 2 + 4);
+  it("leaves a gap between a ring and the one below it", () => {
+    expect(GRAPH.rowHeight).toBeGreaterThan(GRAPH.ringRadius * 2 + GRAPH.ringStroke + 4);
   });
 
-  it("leaves a gap between a dot and the one beside it", () => {
-    expect(GRAPH.laneWidth).toBeGreaterThan(GRAPH.mergeRadius * 2);
+  it("leaves a gap between a ring and the one beside it", () => {
+    expect(GRAPH.laneWidth).toBeGreaterThan(GRAPH.ringRadius * 2 + GRAPH.ringStroke);
   });
 });
 
@@ -325,16 +335,58 @@ describe("nodeCentre", () => {
   });
 });
 
-describe("the shapes a lane change is drawn with", () => {
-  it("rounds the corner by less than half a lane, or the elbow overshoots", () => {
-    expect(GRAPH.elbowRadius).toBeLessThanOrEqual(GRAPH.laneWidth / 2);
+// A column change is one S inside one row: it leaves and arrives vertically, so
+// consecutive rows join without a kink and nothing is ever drawn horizontally (R-161).
+describe("segmentCurve", () => {
+  const top = (row: number) => row * GRAPH.rowHeight;
+
+  it("leaves and arrives vertically", () => {
+    const curve = segmentCurve({ from: 1, to: 3, span: "through" }, 5, 0);
+    expect(curve.cx1).toBe(curve.x1);
+    expect(curve.cx2).toBe(curve.x2);
+    expect(curve.cy1).toBe(curve.cy2);
   });
 
-  it("draws the ring of a merge thick enough to read", () => {
-    expect(GRAPH.ringWidth).toBeGreaterThanOrEqual(2);
+  it("covers the upper half for a line into the node", () => {
+    const curve = segmentCurve({ from: 2, to: 0, span: "top" }, 4, 0);
+    expect([curve.y1, curve.y2]).toEqual([top(4), top(4) + GRAPH.rowHeight / 2]);
+    expect([curve.x1, curve.x2]).toEqual([laneX(2), laneX(0)]);
   });
 
-  it("keeps the ring inside the row, so two merges do not touch", () => {
-    expect(GRAPH.mergeRadius * 2 + GRAPH.ringWidth).toBeLessThan(GRAPH.rowHeight);
+  it("covers the lower half for a line out of the node", () => {
+    const curve = segmentCurve({ from: 0, to: 1, span: "bottom" }, 4, 0);
+    expect([curve.y1, curve.y2]).toEqual([top(4) + GRAPH.rowHeight / 2, top(5)]);
+  });
+
+  it("covers the whole row, and only it, for a lane passing through", () => {
+    const curve = segmentCurve({ from: 2, to: 1, span: "through" }, 4, 0);
+    expect([curve.y1, curve.y2]).toEqual([top(4), top(5)]);
+  });
+
+  it("meets the node at its centre", () => {
+    const into = segmentCurve({ from: 3, to: 1, span: "top" }, 7, 0);
+    expect({ x: into.x2, y: into.y2 }).toEqual(nodeCentre(1, 7, 0));
+  });
+
+  it("ends a row where the next one starts, so a lane runs on without a gap", () => {
+    const leaving = segmentCurve({ from: 0, to: 2, span: "bottom" }, 3, 0);
+    const next = segmentCurve({ from: 2, to: 2, span: "through" }, 4, 0);
+    expect({ x: leaving.x2, y: leaving.y2 }).toEqual({ x: next.x1, y: next.y1 });
+  });
+
+  it("follows the scroll", () => {
+    const curve = segmentCurve({ from: 0, to: 0, span: "through" }, 10, GRAPH.rowHeight * 10);
+    expect(curve.y1).toBe(0);
+  });
+});
+
+describe("arrowStub", () => {
+  it("points down from the node and stays inside its own row", () => {
+    const stub = arrowStub(1, 4, 0);
+    const centre = nodeCentre(1, 4, 0);
+    expect(stub.x1).toBe(centre.x);
+    expect(stub.y1).toBeGreaterThan(centre.y);
+    expect(stub.tipY).toBeLessThanOrEqual(5 * GRAPH.rowHeight);
+    expect(stub.tipY).toBeGreaterThan(stub.y1);
   });
 });

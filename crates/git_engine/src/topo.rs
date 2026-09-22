@@ -1,55 +1,43 @@
-//! Re-orders a date-ordered commit stream so that each line of history comes out in one
-//! piece, the way `git log --topo-order` reads.
-//!
-//! `gix`'s own topological walk counts every commit's children before it may emit the
-//! first one, which costs a pass over the whole repository — 460 ms on the 50k fixture,
-//! against a 300 ms budget for the first screen. This does the same bookkeeping inside a
-//! sliding window instead, so the cost is paid per screen rather than per repository
-//! (doc/12-risks.md, R-140).
+//! `git log --date-order`: newest first, never a parent above a child (R-162). Arrival
+//! is date order, so Kahn's window only holds back a commit whose child is still to come.
 
-use std::collections::{HashMap, VecDeque};
+use std::cmp::Reverse;
+use std::collections::{BinaryHeap, HashMap};
 use std::hash::Hash;
 
-/// Commits read ahead before the first one is emitted. A line of history longer than this
-/// falls back to date order for its tail, which is the same thing the user sees today.
+/// Read ahead: a clock skewed by fewer commits than this is put right.
 pub(crate) const LOOKAHEAD: usize = 2048;
 
-/// Kahn's algorithm over a window of the stream. Depth-first, so emitting a merge walks
-/// the branch it joined before returning to the line the merge sits on.
-pub(crate) struct Grouped<Id, I> {
+pub(crate) struct Ordered<Id, I> {
     source: I,
     drained: bool,
     lookahead: usize,
-    /// Read, not yet emitted, with the parents still to visit.
-    window: HashMap<Id, Vec<Id>>,
-    /// Unemitted children each commit is still waiting for. An entry may exist before the
-    /// commit itself is read: in date order children always arrive first.
+    arrived: u64,
+    window: HashMap<Id, (u64, Vec<Id>)>,
+    /// Unemitted children each commit still waits for; may exist before the commit.
     waiting: HashMap<Id, usize>,
-    /// Ready because a child was just emitted. A stack, and that is the whole trick —
-    /// taking the newest ready commit instead is exactly the date order we are undoing.
-    line: Vec<Id>,
-    /// Ready on arrival — a tip. In the order the source gave them, so newest first.
-    tips: VecDeque<Id>,
+    /// Earliest arrival first; an entry that gained a child to wait for is skipped.
+    ready: BinaryHeap<Reverse<(u64, Id)>>,
 }
 
 /// `source` yields `(id, parents)` newest first by commit time.
-pub(crate) fn group_topologically<Id, I>(source: I, lookahead: usize) -> Grouped<Id, I>
+pub(crate) fn in_date_order<Id, I>(source: I, lookahead: usize) -> Ordered<Id, I>
 where
     Id: Copy + Eq + Ord + Hash,
     I: Iterator<Item = (Id, Vec<Id>)>,
 {
-    Grouped {
+    Ordered {
         source,
         drained: false,
         lookahead: lookahead.max(1),
+        arrived: 0,
         window: HashMap::new(),
         waiting: HashMap::new(),
-        line: Vec::new(),
-        tips: VecDeque::new(),
+        ready: BinaryHeap::new(),
     }
 }
 
-impl<Id, I> Grouped<Id, I>
+impl<Id, I> Ordered<Id, I>
 where
     Id: Copy + Eq + Ord + Hash,
     I: Iterator<Item = (Id, Vec<Id>)>,
@@ -63,29 +51,33 @@ where
             for parent in &parents {
                 *self.waiting.entry(*parent).or_insert(0) += 1;
             }
+            let seq = self.arrived;
+            self.arrived += 1;
             if self.waiting.get(&id).copied().unwrap_or(0) == 0 {
-                self.tips.push_back(id);
+                self.ready.push(Reverse((seq, id)));
             }
-            self.window.insert(id, parents);
+            self.window.insert(id, (seq, parents));
         }
     }
 
-    /// Every non-empty window holds a commit with no unemitted children — follow any chain
-    /// of children upwards and it ends, the history being finite and acyclic. Reaching the
-    /// fallback means the bookkeeping is wrong, so it is loud and deterministic rather
-    /// than silently dropping the rest of the history.
+    fn is_ready(&self, id: &Id) -> bool {
+        self.window.contains_key(id) && self.waiting.get(id).copied().unwrap_or(0) == 0
+    }
+
+    /// Unreachable on an acyclic history; loud and deterministic rather than lossy.
     fn unblock(&mut self) {
-        let mut ready: Vec<Id> = self.window.keys().copied().collect();
-        ready.sort_unstable();
         tracing::error!(
-            stranded = ready.len(),
-            "topological order stalled; falling back to date order for the rest"
+            stranded = self.window.len(),
+            "commit order stalled; falling back to date order for the rest"
         );
-        self.tips.extend(ready);
+        for (id, (seq, _)) in &self.window {
+            self.waiting.remove(id);
+            self.ready.push(Reverse((*seq, *id)));
+        }
     }
 }
 
-impl<Id, I> Iterator for Grouped<Id, I>
+impl<Id, I> Iterator for Ordered<Id, I>
 where
     Id: Copy + Eq + Ord + Hash,
     I: Iterator<Item = (Id, Vec<Id>)>,
@@ -95,25 +87,28 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             self.fill();
-            if self.line.is_empty() && self.tips.is_empty() {
+            let Some(Reverse((_, id))) = self.ready.pop() else {
                 if self.window.is_empty() {
                     return None;
                 }
                 self.unblock();
-            }
-
-            let id = self.line.pop().or_else(|| self.tips.pop_front())?;
-            let Some(parents) = self.window.remove(&id) else {
                 continue;
             };
-
+            if !self.is_ready(&id) {
+                continue;
+            }
+            let Some((_, parents)) = self.window.remove(&id) else {
+                continue;
+            };
             for parent in &parents {
                 let Some(count) = self.waiting.get_mut(parent) else {
                     continue;
                 };
                 *count = count.saturating_sub(1);
-                if *count == 0 && self.window.contains_key(parent) {
-                    self.line.push(*parent);
+                if *count == 0
+                    && let Some((seq, _)) = self.window.get(parent)
+                {
+                    self.ready.push(Reverse((*seq, *parent)));
                 }
             }
             return Some((id, parents));
@@ -123,38 +118,32 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::group_topologically as group;
+    use super::in_date_order as order;
     use std::collections::HashSet;
 
-    /// `(id, parents)` pairs, the way a date-ordered walk hands them over.
     fn run(commits: &[(u32, &[u32])], lookahead: usize) -> Vec<u32> {
         let source = commits
             .iter()
             .map(|(id, parents)| (*id, parents.to_vec()))
             .collect::<Vec<_>>();
-        group(source.into_iter(), lookahead)
+        order(source.into_iter(), lookahead)
             .map(|(id, _)| id)
             .collect()
     }
 
-    /// Ids count down, so a commit's parents always have smaller ids: a valid order is one
-    /// where nothing appears after its parents.
     fn is_topological(order: &[u32], commits: &[(u32, &[u32])]) -> bool {
         let position = |id: u32| order.iter().position(|seen| *seen == id);
         commits.iter().all(|(id, parents)| {
-            parents.iter().all(|parent| {
-                match (position(*id), position(*parent)) {
+            parents
+                .iter()
+                .all(|parent| match (position(*id), position(*parent)) {
                     (Some(child), Some(parent)) => child < parent,
-                    _ => true, // a parent outside the stream is not our business
-                }
-            })
+                    _ => true,
+                })
         })
     }
 
-    /// main:  8 -- 6 -- 4 -- 2 -- 1     (8 is the merge)
-    /// side:   \- 7 -- 5 -- 3 --/
-    /// The id is also the commit date, so the date walk hands these over as 8..1 and the
-    /// two lines arrive one row each in turn, which is what makes the graph unreadable.
+    /// main: 8 -- 6 -- 4 -- 2 -- 1, side: 7 -- 5 -- 3, merged by 8. The id is the date.
     const INTERLEAVED: &[(u32, &[u32])] = &[
         (8, &[6, 7]),
         (7, &[5]),
@@ -172,9 +161,18 @@ mod tests {
         assert_eq!(run(line, 16), vec![4, 3, 2, 1]);
     }
 
+    /// Lines that lived side by side stay side by side: every edge as short as it can be.
     #[test]
-    fn two_lines_of_history_stop_interleaving() {
-        assert_eq!(run(INTERLEAVED, 16), vec![8, 7, 5, 3, 6, 4, 2, 1]);
+    fn lines_that_lived_at_the_same_time_stay_in_date_order() {
+        assert_eq!(run(INTERLEAVED, 16), vec![8, 7, 6, 5, 4, 3, 2, 1]);
+    }
+
+    #[test]
+    fn a_parent_dated_after_its_child_still_comes_after_it() {
+        let skewed: &[(u32, &[u32])] = &[(4, &[]), (3, &[4]), (2, &[3]), (1, &[])];
+        let order = run(skewed, 16);
+        assert_eq!(order, vec![2, 3, 4, 1]);
+        assert!(is_topological(&order, skewed));
     }
 
     #[test]
@@ -185,23 +183,19 @@ mod tests {
 
     #[test]
     fn every_commit_is_emitted_exactly_once() {
+        let skewed: &[(u32, &[u32])] = &[(4, &[]), (3, &[4]), (2, &[3]), (1, &[])];
         for lookahead in [1, 2, 3, 8, 64] {
-            let order = run(INTERLEAVED, lookahead);
-            let unique: HashSet<u32> = order.iter().copied().collect();
-            assert_eq!(unique.len(), INTERLEAVED.len(), "lookahead {lookahead}");
-            assert_eq!(order.len(), INTERLEAVED.len(), "lookahead {lookahead}");
+            for commits in [INTERLEAVED, skewed] {
+                let order = run(commits, lookahead);
+                let unique: HashSet<u32> = order.iter().copied().collect();
+                assert_eq!(unique.len(), commits.len(), "lookahead {lookahead}");
+                assert_eq!(order.len(), commits.len(), "lookahead {lookahead}");
+            }
         }
     }
 
     #[test]
-    fn a_lookahead_too_small_to_group_still_orders_topologically() {
-        let order = run(INTERLEAVED, 1);
-        assert!(is_topological(&order, INTERLEAVED), "{order:?}");
-    }
-
-    #[test]
-    fn an_octopus_merge_keeps_each_of_its_branches_together() {
-        // 9 merges three lines that were committed in alternation.
+    fn an_octopus_merge_comes_out_in_date_order() {
         let octopus: &[(u32, &[u32])] = &[
             (9, &[8, 6, 4]),
             (8, &[7]),
@@ -214,25 +208,14 @@ mod tests {
             (1, &[]),
         ];
         let order = run(octopus, 16);
-        assert!(is_topological(&order, octopus), "{order:?}");
-        let run_of = |first: u32| order.windows(2).any(|pair| pair == [first, first - 1]);
-        assert!(run_of(8) && run_of(6) && run_of(4), "{order:?}");
+        assert_eq!(order, vec![9, 8, 7, 6, 5, 4, 3, 2, 1]);
+        assert!(is_topological(&order, octopus));
     }
 
     #[test]
-    fn several_tips_are_started_newest_first() {
-        // Two roots that never meet: the newer tip's line has to come out first.
+    fn several_tips_come_out_newest_first() {
         let forest: &[(u32, &[u32])] = &[(4, &[2]), (3, &[1]), (2, &[]), (1, &[])];
-        assert_eq!(run(forest, 16), vec![4, 2, 3, 1]);
-    }
-
-    #[test]
-    fn a_parent_dated_after_its_child_is_still_emitted_once() {
-        // Clock skew: 3's parent 4 carries a newer date and arrives first.
-        let skewed: &[(u32, &[u32])] = &[(4, &[]), (3, &[4]), (2, &[3]), (1, &[])];
-        let order = run(skewed, 16);
-        assert_eq!(order.len(), 4);
-        assert_eq!(order.iter().collect::<HashSet<_>>().len(), 4, "{order:?}");
+        assert_eq!(run(forest, 16), vec![4, 3, 2, 1]);
     }
 
     #[test]

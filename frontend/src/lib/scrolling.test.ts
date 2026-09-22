@@ -1,68 +1,40 @@
 import { describe, expect, it } from "vitest";
-import { GRAPH, edgeBand, indexByRow, visibleRange } from "./graph-geometry";
+import type { Segment } from "$lib/ipc";
+import { GRAPH, segmentCurve, visibleRange } from "./graph-geometry";
 
-/** Per-frame cost only: it must not grow with history size. Real FPS is not measured. */
+/** Per-frame cost only: it must not grow with history size. Real FPS is not measured.
+    Segments belong to their row, so a frame touches the rows on screen and nothing else. */
 
 const ROWS = 50_000;
 const VIEWPORT = 800;
 const FRAME_BUDGET_MS = 16.6;
 
-interface Edge {
-  fromRow: number;
-  toRow: number;
-  fromLane: number;
-  toLane: number;
-}
-
-function history(rows: number): Edge[] {
-  const edges: Edge[] = [];
-  for (let row = 1; row < rows; row++) {
-    edges.push({ fromRow: row - 1, toRow: row, fromLane: row % 6, toLane: (row + 1) % 6 });
-  }
-  return edges;
+function history(rows: number): Segment[][] {
+  return Array.from({ length: rows }, (_, row) => [
+    { from: 0, to: 0, span: "through", primary: true, color: 0, arrow: false },
+    { from: row % 4, to: (row + 1) % 4, span: "through", primary: false, color: 1, arrow: false },
+  ]);
 }
 
 describe("scrolling a 50 000 row history", () => {
-  const edges = history(ROWS);
-
-  it("indexes every edge once, not once per frame", () => {
-    const started = performance.now();
-    const index = indexByRow(edges);
-    const elapsed = performance.now() - started;
-
-    expect(index.size).toBe(ROWS - 1);
-    expect(elapsed).toBeLessThan(250);
-  });
-
-  it("keeps the per-frame edge lookup independent of history size", () => {
-    const index = indexByRow(edges);
-    const small = indexByRow(history(500));
-    const rowsOnScreen = Math.ceil(VIEWPORT / GRAPH.rowHeight);
-
-    const measure = (idx: Map<number, Edge[]>, from: number) => {
-      const started = performance.now();
-      for (let i = 0; i < 200; i++) edgeBand(idx, from, from + rowsOnScreen);
-      return performance.now() - started;
-    };
-
-    const big = measure(index, 25_000);
-    const tiny = measure(small, 200);
-
-    expect(big).toBeLessThan(Math.max(tiny * 8, 20));
-  });
+  const rows = history(ROWS);
 
   it("draws one frame well inside the 60 FPS budget at the far end of the history", () => {
-    const index = indexByRow(edges);
     const rowsOnScreen = Math.ceil(VIEWPORT / GRAPH.rowHeight);
     const scrollTop = (ROWS - rowsOnScreen) * GRAPH.rowHeight;
 
     const started = performance.now();
     const range = visibleRange(scrollTop, VIEWPORT, GRAPH.rowHeight, ROWS, 10);
-    const band = edgeBand(index, range.start, range.end);
+    let curves = 0;
+    for (let row = range.start; row < range.end; row++) {
+      for (const segment of rows[row]!) {
+        segmentCurve(segment, row, scrollTop);
+        curves += 1;
+      }
+    }
     const elapsed = performance.now() - started;
 
-    expect(range.end - range.start).toBeLessThan(rowsOnScreen + 30);
-    expect(band.length).toBeLessThan(rowsOnScreen + 30);
+    expect(curves).toBeLessThan((rowsOnScreen + 30) * 2);
     expect(elapsed).toBeLessThan(FRAME_BUDGET_MS);
   });
 

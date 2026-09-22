@@ -16,7 +16,7 @@ fn walk(f: &test_fixtures::Fixture, refs: &[&str]) -> (Vec<String>, Vec<String>)
     };
     let mut oids = Vec::new();
     let skipped = handle
-        .search_commits_topo(&query, 50, |chunk| {
+        .search_commits(&query, 50, |chunk| {
             oids.extend(chunk.into_iter().map(|row| row.oid));
             true
         })
@@ -129,4 +129,22 @@ fn a_tag_on_a_tree_says_so_for_its_checkbox() {
     let tags = RepoHandle::open(f.path()).unwrap().tags().unwrap();
 
     assert!(!tags[0].points_to_commit);
+}
+
+/// A filtered list draws lines only between commits it shows; for the rest it needs to
+/// know, as each match streams by, whether its parent will be in the list too (R-161).
+#[test]
+fn a_parent_is_shown_by_a_filter_only_if_it_matches_it() {
+    let f = test_fixtures::linear(4).unwrap();
+    let handle = RepoHandle::open(f.path()).unwrap();
+    let query = CommitQuery {
+        message: Some("commit 2".to_owned()),
+        ..CommitQuery::default()
+    };
+    let second = f.git(&["rev-parse", "HEAD~1"]).unwrap();
+    let third = f.git(&["rev-parse", "HEAD"]).unwrap();
+
+    assert!(handle.shown_by(&query, second.trim()));
+    assert!(!handle.shown_by(&query, third.trim()));
+    assert!(!handle.shown_by(&query, "not-an-oid"));
 }
