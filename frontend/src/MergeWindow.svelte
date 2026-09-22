@@ -2,10 +2,14 @@
   import MergeView from "$components/diff/MergeView.svelte";
   import { parseMerge } from "$lib/merge-params";
   import { closeThisWindow, mergePreview, mergeResolved, resolveConflictText, type Region } from "$lib/ipc";
+  import { suppressNativeMenu } from "$lib/native-menu";
   import { onWindowKey } from "$lib/child-window";
   import { settings } from "$stores/settings.svelte";
 
   const request = parseMerge(window.location.search);
+
+  // Nothing in a Git client is a web page (R-127).
+  $effect(() => suppressNativeMenu(document));
 
   let regions = $state.raw<Region[]>([]);
   let failed = $state<string | null>(null);

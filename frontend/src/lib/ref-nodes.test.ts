@@ -10,6 +10,7 @@ import {
   type RefNode,
   type RefTreeInput,
 } from "./ref-nodes";
+import { flatten } from "./tree";
 
 const OID = "a".repeat(40);
 
@@ -123,11 +124,29 @@ describe("buildRefTree", () => {
     expect(ids(buildRefTree(input()))).not.toContain("group:tags");
   });
 
-  it("hides the children of a collapsed group but keeps the group", () => {
+  it("builds the whole tree; hiding is the folding step's job", () => {
     const collapsed = new Set(["group:local"]);
     const nodes = buildRefTree(input({ branches: [branch("master")], collapsed }));
     expect(ids(nodes)).toContain("group:local");
-    expect(ids(nodes)).not.toContain("local:master");
+    expect(ids(nodes)).toContain("local:master");
+  });
+
+  it("hides the children of a collapsed group but keeps the group", () => {
+    const collapsed = new Set(["group:local"]);
+    const rows = flatten(buildRefTree(input({ branches: [branch("master")] })), collapsed);
+    expect(ids(rows)).toContain("group:local");
+    expect(ids(rows)).not.toContain("local:master");
+  });
+
+  /** The reported symptom: a folder's caret changed its glyph and nothing else. */
+  it("folds a folder inside a group, not only the group", () => {
+    const nodes = buildRefTree(input({ branches: [branch("feature/auth/login")] }));
+    const folder = nodes.find((node) => node.kind === "folder");
+    const rows = flatten(nodes, new Set([folder?.id ?? ""]));
+
+    expect(ids(rows)).toContain(folder?.id);
+    expect(ids(rows)).not.toContain("local:feature/auth/login");
+    expect(ids(rows)).toContain("group:local");
   });
 
   it("splits a slashed branch name into folders", () => {
@@ -238,5 +257,51 @@ describe("defaultVisible", () => {
     const remote = branch("origin/master", { kind: "remote", fullName: "refs/remotes/origin/master" });
     const nodes = buildRefTree(input({ branches: [branch("master"), remote], tags: [tag("v1")] }));
     expect([...defaultVisible(nodes)].sort()).toEqual(["HEAD", "local:master"]);
+  });
+});
+
+describe("node ids are unique", () => {
+  // `fix/14340` existing both locally and on origin gave two nodes called `folder:fix`.
+  // A keyed `{#each}` with a duplicate key renders unpredictably: rows go missing, a
+  // heading expands every other click, and collapsing one folder collapses another.
+  it("gives two folders of the same name in different groups different ids", () => {
+    const nodes = buildRefTree(
+      input({
+        branches: [
+          branch("fix/14340"),
+          branch("origin/fix/14340", { kind: "remote" }),
+        ],
+      }),
+    );
+
+    expect(new Set(ids(nodes)).size).toBe(ids(nodes).length);
+  });
+
+  it("keeps every id unique across locals, remotes and tags at once", () => {
+    const nodes = buildRefTree(
+      input({
+        branches: [
+          branch("feature/a"),
+          branch("feature/b"),
+          branch("origin/feature/a", { kind: "remote" }),
+          branch("upstream/feature/a", { kind: "remote" }),
+        ],
+        tags: [tag("feature/a")],
+      }),
+    );
+
+    expect(new Set(ids(nodes)).size).toBe(ids(nodes).length);
+  });
+
+  it("still folds the two folders independently", () => {
+    const branches = [branch("fix/one"), branch("origin/fix/one", { kind: "remote" })];
+    const all = buildRefTree(input({ branches }));
+    const localFolder = all.find((node) => node.kind === "folder" && node.depth === 1);
+    expect(localFolder).toBeDefined();
+
+    const folded = flatten(all, new Set([localFolder?.id ?? ""]));
+
+    expect(folded.length).toBeLessThan(all.length);
+    expect(folded.some((node) => node.id.startsWith("remote:"))).toBe(true);
   });
 });

@@ -15,6 +15,8 @@ export type RefKind =
 export interface RefNode {
   id: string;
   kind: RefKind;
+  /** Set on a node with rows under it, which is what `flatten` folds. */
+  children?: boolean;
   label: string;
   depth: number;
   /** `▶` for the checked-out branch, `▷` for a remote one. */
@@ -58,8 +60,13 @@ function upstreamDetail(branch: Branch): string | undefined {
 }
 
 /** `feature/auth/login` becomes two folders and a leaf, so long prefixes are written once. */
+/** `owner` is the group the folder hangs under. Without it `fix/…` under Local Branches
+    and `fix/…` under origin both produced `folder:fix`; a keyed `{#each}` with a repeated
+    key renders unpredictably, which is why headings expanded every other click and rows
+    went missing (doc/12-risks.md, R-128). */
 function withFolders(
   rows: RefNode[],
+  owner: string,
   name: string,
   depth: number,
   seen: Set<string>,
@@ -70,13 +77,19 @@ function withFolders(
     const path = parts.slice(0, index + 1).join("/");
     if (seen.has(path)) return;
     seen.add(path);
-    rows.push({ id: `folder:${path}`, kind: "folder", label: part, depth: depth + index });
+    rows.push({
+      id: `folder:${owner}/${path}`,
+      kind: "folder",
+      label: part,
+      depth: depth + index,
+      children: true,
+    });
   });
   rows.push({ ...leaf, label: parts.at(-1) ?? name, depth: depth + parts.length - 1 });
 }
 
 function group(rows: RefNode[], id: string, label: string, detail?: string): void {
-  rows.push({ id, kind: "group", label, depth: 0, detail });
+  rows.push({ id, kind: "group", label, depth: 0, detail, children: true });
 }
 
 export function buildRefTree(input: RefTreeInput): RefNode[] {
@@ -110,10 +123,8 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
 
   if (locals.length > 0) {
     group(rows, "group:local", `Local Branches (${locals.length})`);
-    if (open("group:local")) {
-      const seen = new Set<string>();
-      for (const node of locals) withFolders(rows, node.label, 1, seen, node);
-    }
+    const seen = new Set<string>();
+    for (const node of locals) withFolders(rows, "local", node.label, 1, seen, node);
   }
 
   const remotes = new Map<string, RefNode[]>();
@@ -139,9 +150,8 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
   for (const [remote, branches] of [...remotes].sort(([a], [b]) => a.localeCompare(b))) {
     const id = `remote-group:${remote}`;
     group(rows, id, `${remote} (${branches.length})`, input.remoteUrls[remote]);
-    if (!open(id)) continue;
     const seen = new Set<string>();
-    for (const node of branches) withFolders(rows, node.label, 1, seen, node);
+    for (const node of branches) withFolders(rows, remote, node.label, 1, seen, node);
   }
 
   const tags = input.tags

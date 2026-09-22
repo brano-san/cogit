@@ -46,7 +46,7 @@
   onconfirm={open}
 >
   <div class="bar">
-    <button type="button" onclick={onbrowse} disabled={scan.busy}>Choose Folder…</button>
+    <button class="btn" type="button" onclick={onbrowse} disabled={scan.busy}>Choose Folder…</button>
     <span class="folder truncate" title={scan.folder ?? ""}>{scan.folder ?? "No folder chosen"}</span>
   </div>
 
@@ -58,7 +58,7 @@
         placeholder="Filter by name or path"
         aria-label="Filter results"
       />
-      <button type="button" onclick={() => scan.toggleAll()} disabled={scan.openable.length === 0}>
+      <button class="btn" type="button" onclick={() => scan.toggleAll()} disabled={scan.openable.length === 0}>
         {chosen.length === scan.openable.length ? "Select None" : "Select All"}
       </button>
     </div>
@@ -77,7 +77,7 @@
               : "Pick a folder and Cogit will look through it for repositories."}
         </p>
         {#if !scan.folder && !scan.busy}
-          <button type="button" onclick={onbrowse}>Choose Folder…</button>
+          <button class="btn" type="button" onclick={onbrowse}>Choose Folder…</button>
         {/if}
       </div>
     {:else}
@@ -102,8 +102,8 @@
     <span class="count">
       {scan.busy ? `${scan.hits.length} found so far…` : `${scan.hits.length} found`}
     </span>
-    <button type="button" onclick={onclose}>Cancel</button>
-    <button type="button" class="primary" disabled={chosen.length === 0 || busy} onclick={open}>
+    <button class="btn" type="button" onclick={onclose}>Cancel</button>
+    <button type="button" class="btn primary" disabled={chosen.length === 0 || busy} onclick={open}>
       {openLabel}
     </button>
   {/snippet}

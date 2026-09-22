@@ -135,10 +135,13 @@
     border-top: 1px solid var(--divider);
   }
 
-  /* The controls inside belong to the application. Global because they are written by
-     whoever fills the dialog, and scoping them to this panel is what keeps them
-     consistent without every dialog restating them. */
-  .dialog :global(button) {
+  /* Opt-in, by class, never by element.
+     `.dialog :global(button)` compiles to `.dialog.svelte-x button`, which outweighs a
+     component's own `.nav-row.svelte-y` — so it painted the category list as a column of
+     boxed buttons and gave every 12px tree caret twenty pixels of padding, pushing it out
+     of the panel. Three times running (doc/12-risks.md, R-125). A structural button now
+     has to ask. */
+  .dialog :global(.btn) {
     height: var(--h-button);
     padding: 0 var(--sp-5);
     background: var(--surface-input);
@@ -150,27 +153,27 @@
     cursor: default;
   }
 
-  .dialog :global(button:hover:not(:disabled)) {
+  .dialog :global(.btn:hover:not(:disabled)) {
     border-color: var(--state-focus-ring);
   }
 
-  .dialog :global(button:disabled) {
+  .dialog :global(.btn:disabled) {
     color: var(--text-secondary);
     opacity: 0.6;
   }
 
-  .dialog :global(button.primary) {
+  .dialog :global(.btn.primary) {
     background: var(--status-ref);
     border-color: var(--status-ref);
     color: var(--c-bg-window);
     font-weight: 600;
   }
 
-  .dialog :global(button.primary:hover:not(:disabled)) {
+  .dialog :global(.btn.primary:hover:not(:disabled)) {
     filter: brightness(1.1);
   }
 
-  .dialog :global(button.primary:disabled) {
+  .dialog :global(.btn.primary:disabled) {
     background: var(--surface-input);
     border-color: var(--field-border);
     color: var(--text-secondary);

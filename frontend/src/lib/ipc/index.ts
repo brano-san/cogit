@@ -405,7 +405,7 @@ export async function listRepositories() {
 }
 
 export async function closeRepository(repo: RepoId) {
-  return await commands.closeRepository(repo);
+  return unwrap(await commands.closeRepository(repo));
 }
 
 export async function lostCommits(repo: RepoId, limit = 100) {

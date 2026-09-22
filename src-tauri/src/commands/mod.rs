@@ -1169,10 +1169,19 @@ pub fn repositories(state: tauri::State<'_, crate::AppContext>) -> Vec<RepoOverv
     state.state.overviews()
 }
 
-#[tauri::command(async)]
+#[tauri::command]
 #[specta::specta]
-pub fn close_repository(state: tauri::State<'_, crate::AppContext>, repo: RepoId) -> bool {
-    state.state.close_repository(repo)
+pub async fn close_repository(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<bool, GitError> {
+    let app_state = state.state.clone();
+    // Off the main thread: stopping a watcher joins the thread that delivers its events,
+    // and a join on the message loop is a frozen window (doc/12-risks.md, R-126).
+    blocking("close_repository", move || {
+        Ok(app_state.close_repository(repo))
+    })
+    .await
 }
 
 #[tauri::command]
