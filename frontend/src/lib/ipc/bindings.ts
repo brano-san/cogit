@@ -1008,7 +1008,7 @@ export type SkippedRef = {
 	reason: string,
 };
 
-/**  `Through` spans the row edge to edge; `Top` and `Bottom` end at the node's centre. */
+/**  The part of its row a segment covers: the upper half, the lower half or all of it. */
 export type Span = "top" | "bottom" | "through";
 
 /**

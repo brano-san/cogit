@@ -98,12 +98,31 @@ export function segmentCurve(
   return { x1, y1, cx1: x1, cy1: middle, cx2: x2, cy2: middle, x2, y2 };
 }
 
-/** The line to a commit the list does not show: a stub under the ring, pointing on. */
-export function arrowStub(lane: number, listRow: number, scrollTop: number) {
-  const { x, y } = nodeCentre(lane, listRow, scrollTop);
-  const y1 = y + GRAPH.ringRadius + GRAPH.ringStroke;
-  const tipY = Math.min(y1 + GRAPH.arrowLength, y + GRAPH.rowHeight / 2);
-  return { x1: x, y1, tipY, head: GRAPH.arrowHead };
+/** The line to a commit the list does not show: a stub under the ring, pointing on; it
+    leans right when it is not the first parent, whose line goes straight down. */
+export function arrowStub(
+  segment: { from: number; to: number },
+  listRow: number,
+  scrollTop: number,
+) {
+  const { x, y } = nodeCentre(segment.from, listRow, scrollTop);
+  const dx = segment.to > segment.from ? Math.SQRT1_2 : 0;
+  const dy = dx > 0 ? Math.SQRT1_2 : 1;
+  const start = GRAPH.ringRadius + GRAPH.ringStroke;
+  const length = Math.min(GRAPH.arrowLength, GRAPH.rowHeight / 2 / dy - start);
+  const x1 = x + dx * start;
+  const y1 = y + dy * start;
+  const x2 = x1 + dx * length;
+  const y2 = y1 + dy * length;
+  const h = GRAPH.arrowHead;
+  return {
+    x1,
+    y1,
+    x2,
+    y2,
+    left: { x: x2 - (dx + dy) * h, y: y2 - (dy - dx) * h },
+    right: { x: x2 - (dx - dy) * h, y: y2 - (dy + dx) * h },
+  };
 }
 
 export interface GraphHit {

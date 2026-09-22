@@ -23,7 +23,7 @@ pub enum NodeKind {
     WorkingTree,
 }
 
-/// `Through` spans the row edge to edge; `Top` and `Bottom` end at the node's centre.
+/// The part of its row a segment covers: the upper half, the lower half or all of it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum Span {
@@ -71,6 +71,8 @@ pub(crate) struct Lane {
     pub(crate) color: u8,
     pub(crate) drawn: bool,
     pub(crate) primary: bool,
+    /// Ended at its node; the column is given back on the next row, clear of the ring.
+    pub(crate) ended: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -80,7 +82,6 @@ pub struct LayoutCursor {
     pub(crate) next_color: u8,
     pub(crate) next_row: u32,
     pub(crate) reserved: bool,
-    /// Reused on every row: fifty thousand rows were two hundred thousand allocations.
     pub(crate) above: Vec<Above>,
     pub(crate) converging: Vec<u64>,
     pub(crate) leaving: Vec<u64>,
@@ -99,6 +100,7 @@ impl LayoutCursor {
                 color: 0,
                 drawn: false,
                 primary: true,
+                ended: false,
             });
             cursor.next_id = 1;
             cursor.next_color = 1;

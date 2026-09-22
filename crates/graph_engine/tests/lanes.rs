@@ -2,8 +2,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 //! The SmartGit layout: an ordered list of active lanes, re-indexed on every row. A lane
-//! that ends lets every lane to its right slide left within that row; only lane 0, the
-//! first-parent chain of the primary ref, never moves (doc/07-graph-rendering.md).
+//! that joins another lets the lanes right of it slide left within that row, one that stops
+//! at its node a row later; only lane 0, the primary ref's first parents, never moves.
 
 use graph_engine::{CommitNode, GraphRow, LayoutCursor, NodeKind, Span, layout, mainline_tip};
 
@@ -212,6 +212,62 @@ fn the_main_line_holds_column_zero_on_random_histories() {
     }
 }
 
+/// Only the node's own lines reach its ring: every other line keeps out of its column at
+/// the top edge, the bottom edge and halfway down, where the ring is.
+#[test]
+fn no_line_but_its_own_reaches_a_ring_on_random_histories() {
+    let mut seed = 0x9e37_79b9_u64;
+    let mut next = move |bound: usize| {
+        seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+        usize::try_from(seed >> 33).unwrap() % bound
+    };
+
+    for _ in 0..300 {
+        let count = 3 + next(40);
+        let names: Vec<String> = (0..count).map(|i| format!("c{i}")).collect();
+        let nodes: Vec<CommitNode> = (0..count)
+            .map(|i| {
+                let older = count - i - 1;
+                let mut parents = Vec::new();
+                if older > 0 && next(6) != 0 {
+                    parents.push(names[i + 1 + next(older.min(4))].clone());
+                    if older > 1 && next(3) == 0 {
+                        let other = names[i + 1 + next(older)].clone();
+                        if !parents.contains(&other) {
+                            parents.push(other);
+                        }
+                    }
+                }
+                let hidden = parents.iter().filter(|_| next(5) == 0).cloned().collect();
+                CommitNode {
+                    oid: names[i].clone(),
+                    parents,
+                    hidden,
+                }
+            })
+            .collect();
+        let primary = (next(2) == 0).then(|| names[next(count)].clone());
+        let rows = layout(&nodes, &mut LayoutCursor::with_mainline(primary));
+
+        for row in &rows {
+            for seg in &row.segments {
+                let passes_by = match seg.span {
+                    Span::Through => seg.from == row.lane || seg.to == row.lane,
+                    Span::Bottom => seg.from != row.lane && seg.from != seg.to,
+                    Span::Top => false,
+                };
+                assert!(!passes_by, "row {}: {seg:?} in {:?}", row.row, row.segments);
+                if seg.arrow && seg.from == seg.to {
+                    let under = row.segments.iter().filter(|other| {
+                        other.span != Span::Top && !other.arrow && other.to == row.lane
+                    });
+                    assert_eq!(under.count(), 0, "row {}: {:?}", row.row, row.segments);
+                }
+            }
+        }
+    }
+}
+
 #[test]
 fn the_width_of_a_row_counts_both_edges_and_the_node() {
     let rows = run(
@@ -258,11 +314,106 @@ fn a_tip_is_placed_beside_the_lane_it_will_join() {
         rows[1].lane, 2,
         "y1 ends in x0, so it opens beside the lane waiting for x0"
     );
-    assert!(
-        segs(&rows[1], Span::Through).contains(&(2, 3)),
-        "{:?}",
-        rows[1].segments
+}
+
+/// A lane turning over the whole row is level with the ring halfway down, so the one a
+/// tip pushes aside turns in the upper half and is clear of the ring before it.
+#[test]
+fn a_lane_a_tip_pushes_aside_turns_before_the_ring() {
+    let rows = run(
+        &[
+            ("m2", &["m1", "x0", "z1"]),
+            ("y1", &["x0"]),
+            ("z1", &["x0"]),
+            ("m1", &["x0"]),
+            ("x0", &[]),
+        ],
+        Some("m2"),
     );
+    let y1 = &rows[1];
+    assert!(segs(y1, Span::Top).contains(&(2, 3)), "{:?}", y1.segments);
+    assert!(
+        segs(y1, Span::Bottom).contains(&(3, 3)),
+        "{:?}",
+        y1.segments
+    );
+    assert!(segs(y1, Span::Through).iter().all(|&(from, _)| from != 2));
+}
+
+/// A root commit keeps its column for its own row: nothing slides in under the ring.
+#[test]
+fn a_lane_that_ends_gives_its_column_back_on_the_next_row() {
+    let rows = run(
+        &[
+            ("a", &["ar"]),
+            ("b", &["br"]),
+            ("c", &["cr"]),
+            ("br", &[]),
+            ("cr", &[]),
+            ("ar", &[]),
+        ],
+        None,
+    );
+    let br = &rows[3];
+    assert_eq!(br.lane, 1);
+    assert_eq!(
+        segs(br, Span::Through),
+        vec![(0, 0), (2, 2)],
+        "{:?}",
+        br.segments
+    );
+    assert_eq!(rows[4].lane, 1, "c moves over a row later");
+    assert_eq!(segs(&rows[4], Span::Top), vec![(2, 1)]);
+}
+
+#[test]
+fn the_arrow_of_a_hidden_parent_has_its_column_to_itself() {
+    let mut nodes = commits(&[("t", &["b"]), ("u", &["up"]), ("b", &["h"]), ("up", &[])]);
+    nodes[2].hidden = vec!["h".to_owned()];
+    let mut cursor = LayoutCursor::with_mainline(None);
+
+    let rows = layout(&nodes, &mut cursor);
+
+    let b = &rows[2];
+    assert!(b.segments.iter().any(|seg| seg.arrow && seg.from == 0));
+    assert_eq!(segs(b, Span::Through), vec![(1, 1)], "{:?}", b.segments);
+}
+
+/// Straight down is the first parent's line; an arrow drawn over it would say that parent
+/// is missing.
+#[test]
+fn a_hidden_second_parent_points_away_from_the_line_that_goes_on() {
+    let mut nodes = commits(&[("m", &["a", "h"]), ("a", &[])]);
+    nodes[0].hidden = vec!["h".to_owned()];
+    let mut cursor = LayoutCursor::with_mainline(None);
+
+    let rows = layout(&nodes, &mut cursor);
+
+    let arrows: Vec<_> = rows[0].segments.iter().filter(|seg| seg.arrow).collect();
+    assert_eq!(arrows.len(), 1, "{:?}", rows[0].segments);
+    assert_eq!((arrows[0].from, arrows[0].to), (0, 1));
+    assert_eq!(rows[0].width, 1, "a stub is shorter than a column");
+}
+
+/// The column closing a row later can put a lane right above the next node; it turns in
+/// the upper half too, beside the node's own line.
+#[test]
+fn a_lane_leaving_the_column_of_the_next_node_turns_before_its_ring() {
+    let rows = run(
+        &[
+            ("a", &["ar"]),
+            ("y", &["yp"]),
+            ("n", &["np"]),
+            ("ar", &[]),
+            ("np", &[]),
+        ],
+        None,
+    );
+    let np = &rows[4];
+    assert_eq!(np.lane, 1);
+    assert!(segs(np, Span::Through).is_empty(), "{:?}", np.segments);
+    assert_eq!(segs(np, Span::Top), vec![(1, 0), (2, 1)]);
+    assert_eq!(segs(np, Span::Bottom), vec![(0, 0)]);
 }
 
 #[test]

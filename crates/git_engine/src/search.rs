@@ -115,10 +115,17 @@ impl RepoHandle {
     ) -> Result<Vec<SkippedRef>> {
         let (tips, skipped) = self.tips_for(query)?;
         if !tips.is_empty() {
+            // Only a tip: `first` has to be in the walk, or the whole of it is read up front.
+            let head = self
+                .repo
+                .head_id()
+                .ok()
+                .map(gix::Id::detach)
+                .filter(|head| tips.contains(head));
             self.stream_rows(
                 query,
                 chunk_size,
-                in_date_order(self.by_date(tips)?, LOOKAHEAD),
+                in_date_order(self.by_date(tips)?, LOOKAHEAD, head),
                 on_chunk,
             )?;
         }

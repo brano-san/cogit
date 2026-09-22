@@ -77,12 +77,12 @@
           context.lineWidth = primary ? GRAPH.mainLineWidth : GRAPH.lineWidth;
           context.beginPath();
           if (segment.arrow) {
-            const stub = arrowStub(segment.from, row.listRow, scrollTop);
+            const stub = arrowStub(segment, row.listRow, scrollTop);
             context.moveTo(stub.x1, stub.y1);
-            context.lineTo(stub.x1, stub.tipY);
-            context.moveTo(stub.x1 - stub.head, stub.tipY - stub.head);
-            context.lineTo(stub.x1, stub.tipY);
-            context.lineTo(stub.x1 + stub.head, stub.tipY - stub.head);
+            context.lineTo(stub.x2, stub.y2);
+            context.moveTo(stub.left.x, stub.left.y);
+            context.lineTo(stub.x2, stub.y2);
+            context.lineTo(stub.right.x, stub.right.y);
           } else {
             const curve = segmentCurve(segment, row.listRow, scrollTop);
             context.moveTo(curve.x1, curve.y1);

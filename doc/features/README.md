@@ -237,3 +237,5 @@
 | F-262 | Граф как в SmartGit | [F-262-graph-like-smartgit.md](F-262-graph-like-smartgit.md) |
 | F-263 | Цветные линии веток | [F-263-colored-branch-lines.md](F-263-colored-branch-lines.md) |
 | F-264 | Граф в отфильтрованном списке | [F-264-filtered-graph-arrows.md](F-264-filtered-graph-arrows.md) |
+| F-265 | Текущий коммит — верхняя точка графа | [F-265-head-on-top.md](F-265-head-on-top.md) |
+| F-266 | Аватар справа от имени автора | [F-266-avatar-after-author.md](F-266-avatar-after-author.md) |

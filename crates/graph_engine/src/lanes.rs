@@ -32,6 +32,7 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
         drawn: lane.drawn,
         primary: lane.primary,
     }));
+    cursor.lanes.retain(|lane| !lane.ended);
 
     // 1. The node: the leftmost lane waiting for it, or a new one for a branch tip.
     let on_main = cursor.reserved
@@ -78,7 +79,8 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
     {
         let lane = &mut cursor.lanes[node_index];
         lane.waits = first;
-        lane.drawn = continues || !lane.primary;
+        lane.drawn = continues;
+        lane.ended = !continues && !lane.primary;
     }
     if continues {
         leaving.push(node_id);
@@ -97,20 +99,20 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
             color: cursor.take_color(),
             drawn: true,
             primary: false,
+            ended: false,
         };
         leaving.push(lane.id);
         cursor.lanes.insert(insert_at, lane);
         insert_at += 1;
     }
 
-    // 4. Close the gaps. Column 0 stays, waiting or empty, for as long as it is reserved.
-    let reserved = cursor.reserved;
-    cursor
-        .lanes
-        .retain(|lane| lane.waits.is_some() || (reserved && lane.primary));
-
-    // 5. What moved from the top edge to the bottom edge is what gets drawn.
+    // 4. What moved from the top edge to the bottom edge is what gets drawn. A lane that
+    // starts in the node's column has to leave it before the ring, and the lanes moving
+    // with it turn alongside.
     let below = |id: u64, lanes: &[Lane]| lanes.iter().position(|lane| lane.id == id);
+    let early = above
+        .get(node_at)
+        .is_some_and(|lane| lane.drawn && lane.id != node_id);
     let mut segments = Vec::with_capacity(above.len() + leaving.len());
     for (index, lane) in above.iter().enumerate() {
         if !lane.drawn {
@@ -121,15 +123,22 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
         } else {
             below(lane.id, &cursor.lanes).map(|to| (index, to, Span::Through))
         };
-        if let Some((from, to, span)) = segment {
-            segments.push(Segment {
-                from: column(from),
-                to: column(to),
-                span,
-                primary: lane.primary,
-                color: lane.color,
-                arrow: false,
-            });
+        let Some((from, to, span)) = segment else {
+            continue;
+        };
+        let line = |from: usize, to: usize, span: Span| Segment {
+            from: column(from),
+            to: column(to),
+            span,
+            primary: lane.primary,
+            color: lane.color,
+            arrow: false,
+        };
+        if early && span == Span::Through && from != to {
+            segments.push(line(from, to, Span::Top));
+            segments.push(line(to, to, Span::Bottom));
+        } else {
+            segments.push(line(from, to, span));
         }
     }
     for &id in &leaving {
@@ -151,12 +160,18 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
         || cursor.lanes.get(node_index).map_or(0, |lane| lane.color),
         |lane| lane.color,
     );
-    if node.parents.iter().any(|parent| !shown(parent)) {
+    // Straight down for the first parent; a later one's stub leans right, off that line.
+    let first_hidden = node.parents.first().is_some_and(|parent| !shown(parent));
+    let later_hidden = node.parents.iter().skip(1).any(|parent| !shown(parent));
+    for (lean, hidden) in [(0, first_hidden), (1, later_hidden)] {
+        if !hidden {
+            continue;
+        }
         segments.push(Segment {
             from: column(node_at),
-            to: column(node_at),
+            to: column(node_at + lean),
             span: Span::Bottom,
-            primary: on_main,
+            primary: on_main && lean == 0,
             color,
             arrow: true,
         });
@@ -164,7 +179,16 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
 
     let width = segments
         .iter()
-        .flat_map(|segment| [segment.from, segment.to])
+        .flat_map(|segment| {
+            [
+                segment.from,
+                if segment.arrow {
+                    segment.from
+                } else {
+                    segment.to
+                },
+            ]
+        })
         .chain([column(node_at)])
         .max()
         .unwrap_or(0)
@@ -206,6 +230,7 @@ fn open_tip(node: &CommitNode, cursor: &mut LayoutCursor) -> u64 {
         color: cursor.take_color(),
         drawn: true,
         primary: false,
+        ended: false,
     };
     let id = lane.id;
     cursor.lanes.insert(at.min(cursor.lanes.len()), lane);

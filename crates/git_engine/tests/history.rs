@@ -196,6 +196,7 @@ fn walked(repo: &RepoHandle) -> Vec<String> {
 #[test]
 fn lines_that_lived_at_the_same_time_are_read_in_date_order() {
     let f = interleaved();
+    f.git(&["switch", "feature"]).unwrap();
     let repo = RepoHandle::open(f.path()).unwrap();
 
     let order = walked(&repo);
@@ -205,6 +206,36 @@ fn lines_that_lived_at_the_same_time_are_read_in_date_order() {
         ["commit 40", "commit 30", "commit 20", "commit 10"],
         "{order:?}"
     );
+}
+
+/// The commit being worked on heads the graph, even under a newer one on another branch;
+/// the rest stays in date order.
+#[test]
+fn the_commit_head_is_on_comes_first_even_when_another_branch_is_newer() {
+    let f = interleaved();
+    let repo = RepoHandle::open(f.path()).unwrap();
+
+    let order = walked(&repo);
+
+    assert_eq!(
+        order[..4],
+        ["commit 30", "commit 40", "commit 20", "commit 10"],
+        "{order:?}"
+    );
+}
+
+#[test]
+fn a_head_behind_another_branch_still_comes_after_the_commits_on_top_of_it() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.commit_file(10, "a.txt", "a\n").unwrap();
+    f.git(&["switch", "-c", "ahead"]).unwrap();
+    f.commit_file(20, "b.txt", "b\n").unwrap();
+    f.git(&["switch", "main"]).unwrap();
+    let repo = RepoHandle::open(f.path()).unwrap();
+
+    let order = walked(&repo);
+
+    assert_eq!(order[..2], ["commit 20", "commit 10"], "{order:?}");
 }
 
 /// The clock of whoever made a commit is not the history. A child dated before its
