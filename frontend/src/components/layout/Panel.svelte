@@ -15,10 +15,8 @@
     /** Optional count shown next to the title, e.g. "Files (23)". Zero is not worth the
         parentheses: three panels showing "(0)" is three ways of saying nothing is here. */
     count?: number;
-    /** Controls placed at the right of the header, such as a filter field. */
     actions?: Snippet;
     children?: Snippet;
-    /** Shown instead of `children` while the panel has its own reason to be empty. */
     empty?: string;
     /** Something changed on disk and this panel has not caught up yet. */
     stale?: boolean;
@@ -85,6 +83,7 @@
   }
 
   .panel-header {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -98,7 +97,17 @@
 
   .panel-header.active {
     background: var(--state-selected);
-    box-shadow: inset 2px 0 0 var(--status-ref);
+  }
+
+  /* Over the bottom border too, so it runs on into the bar of a selected first row. */
+  .panel-header.active::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: -1px;
+    left: 0;
+    width: 2px;
+    background: var(--status-ref);
   }
 
   .panel-header.active .panel-title {
