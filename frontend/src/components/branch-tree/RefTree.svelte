@@ -7,6 +7,7 @@
     type RefTreeInput,
   } from "$lib/ref-nodes";
   import { DRAG_TYPE, parseDrag, serialiseDrag } from "$lib/drop-target";
+  import { flatten } from "$lib/tree";
   import type { Branch } from "$lib/ipc";
 
   interface Props {
@@ -37,10 +38,12 @@
   let over = $state<string | null>(null);
   let active = $state<string | null>(null);
 
-  const nodes = $derived(buildRefTree(input));
+  /** Built whole, then folded: one rule for what is hidden, for groups and folders
+      alike (doc/12-risks.md, R-128). */
+  const nodes = $derived(flatten(buildRefTree(input), input.collapsed));
 
   function foldable(node: RefNode): boolean {
-    return node.kind === "group" || node.kind === "remote-group" || node.kind === "folder";
+    return node.children === true;
   }
 
   function pick(node: RefNode) {

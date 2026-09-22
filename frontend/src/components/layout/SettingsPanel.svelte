@@ -384,13 +384,13 @@
             <div class="row">
               <span>{tokenHost}</span>
               <span class="stored">A token is stored.</span>
-              <button type="button" onclick={onforgettoken}>Forget</button>
+              <button class="btn" type="button" onclick={onforgettoken}>Forget</button>
             </div>
           {:else}
             <label class="row">
               <span>{tokenHost}</span>
               <input type="password" class="text" bind:value={token} placeholder="Access token" />
-              <button type="button" disabled={token === ""} onclick={() => onstoretoken(token)}>
+              <button class="btn" type="button" disabled={token === ""} onclick={() => onstoretoken(token)}>
                 Store
               </button>
             </label>
@@ -409,7 +409,7 @@
 
   {#snippet footer()}
     <span class="note">{note}</span>
-    <button
+    <button class="btn"
       type="button"
       onclick={() => {
         draft = restoreCategory(draft, active);
@@ -418,10 +418,10 @@
     >
       Restore Defaults
     </button>
-    <button type="button" title="Put everything back to how it was when this opened" onclick={onrevert}>
+    <button class="btn" type="button" title="Put everything back to how it was when this opened" onclick={onrevert}>
       Cancel
     </button>
-    <button type="button" class="primary" onclick={onclose}>OK</button>
+    <button type="button" class="btn primary" onclick={onclose}>OK</button>
   {/snippet}
 </Dialog>
 
@@ -628,46 +628,6 @@
     flex: 1 1 auto;
     color: var(--text-secondary);
     font-size: 11px;
-  }
-
-  button {
-    height: var(--h-button);
-    padding: 0 var(--sp-5);
-    background: var(--surface-input);
-    color: var(--text-primary);
-    border: 1px solid var(--field-border);
-    border-radius: var(--r-sm);
-    font: inherit;
-    font-size: var(--fs-dense);
-    cursor: default;
-  }
-
-  button:hover:not(:disabled) {
-    border-color: var(--state-focus-ring);
-  }
-
-  button:disabled {
-    color: var(--text-secondary);
-    opacity: 0.6;
-  }
-
-  /* OK is the one thing the dialog is for, so it is filled rather than outlined. */
-  .primary {
-    background: var(--status-ref);
-    border-color: var(--status-ref);
-    color: var(--c-bg-window);
-    font-weight: 600;
-  }
-
-  .primary:hover:not(:disabled) {
-    filter: brightness(1.1);
-  }
-
-  .primary:disabled {
-    background: var(--surface-input);
-    border-color: var(--field-border);
-    color: var(--text-secondary);
-    font-weight: 400;
   }
 
   input[type="checkbox"],

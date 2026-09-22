@@ -1,12 +1,16 @@
 <script lang="ts">
   import DiffView from "$components/diff/DiffView.svelte";
   import ImageDiff from "$components/diff/ImageDiff.svelte";
+  import { suppressNativeMenu } from "$lib/native-menu";
   import { onWindowKey } from "$lib/child-window";
   import { parseCompare } from "$lib/compare-params";
   import { diff } from "$stores/diff.svelte";
   import { settings } from "$stores/settings.svelte";
 
   const request = parseCompare(window.location.search);
+
+  // Nothing in a Git client is a web page (R-127).
+  $effect(() => suppressNativeMenu(document));
 
   $effect(() => {
     void settings.load();

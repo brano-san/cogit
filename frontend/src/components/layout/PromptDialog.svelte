@@ -61,8 +61,8 @@
   {#snippet footer()}
     {#if problem}<span class="problem">{problem}</span>{/if}
     <span class="grow"></span>
-    <button type="button" onclick={onclose}>Cancel</button>
-    <button type="button" class="primary" disabled={problem !== null} onclick={submit}>
+    <button class="btn" type="button" onclick={onclose}>Cancel</button>
+    <button type="button" class="btn primary" disabled={problem !== null} onclick={submit}>
       {confirm}
     </button>
   {/snippet}

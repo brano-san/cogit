@@ -22,6 +22,7 @@
   import FindObject from "$components/layout/FindObject.svelte";
   import CommandOutput from "$components/layout/CommandOutput.svelte";
   import GitErrorDialog from "$components/layout/GitErrorDialog.svelte";
+  import { suppressNativeMenu } from "$lib/native-menu";
   import { panelView } from "$lib/repo-phase";
   import { startTracing, timed, trace } from "$lib/trace";
   import OutputPanel from "$components/layout/OutputPanel.svelte";
@@ -251,6 +252,8 @@
     untrack(() => {
       startTracing();
       trace("startup", "the window is running");
+      // Nothing in a Git client is a web page (R-127).
+      suppressNativeMenu(document);
       getAppInfo().then((result) => {
         info = result;
       });

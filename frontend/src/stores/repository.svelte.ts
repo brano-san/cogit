@@ -175,9 +175,17 @@ class RepositoryStore {
   }
 
   async closeOne(repo: RepoId): Promise<void> {
-    await closeRepository(repo);
+    trace("close", `asked to close repository ${repo}`);
     if (this.current?.repo === repo) this.close();
+    this.openRepos = this.openRepos.filter((entry) => entry.repo !== repo);
+    try {
+      await closeRepository(repo);
+      trace("close", `backend released repository ${repo}`);
+    } catch (err) {
+      trace("close", `backend refused to close ${repo}: ${String(err)}`);
+    }
     await this.refreshList();
+    trace("close", "list refreshed");
   }
 
   close(): void {

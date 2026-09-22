@@ -1189,15 +1189,34 @@ impl AppState {
         self.rows_read.load(Ordering::Relaxed)
     }
 
+    /// Closing froze the application with nothing in the log. Dropping a `RepoWatcher`
+    /// joins the thread that delivers its events, and that was done **on the main thread
+    /// and while holding the `watchers` lock** — so a delivery already in flight, which
+    /// needs state this very call is holding, never finished (doc/12-risks.md, R-126).
+    ///
+    /// The watcher is now lifted out of the map, the guard is dropped, and only then is
+    /// the watcher itself dropped. Every step says how long it took.
     pub fn close_repository(&self, repo: RepoId) -> bool {
-        self.watchers.write().remove(&repo);
+        let mut watch = Steps::new();
+        tracing::info!(repo = repo.0, "closing repository");
+
+        let watcher = self.watchers.write().remove(&repo);
+        watch.done("unhook-watcher");
+        // Outside the lock, and said out loud: this is the join that used to hang.
+        drop(watcher);
+        watch.done("stop-watcher");
+
         self.newest_diff.write().remove(&repo);
         self.forget_row(repo);
         self.safety.write().retain(|held| held.entry.repo != repo);
+        watch.done("forget-state");
+
         let removed = self.unregister(repo);
         if removed {
             self.emit(AppEvent::RepoClosed { repo });
         }
+        watch.done("unregister");
+        watch.report_close(repo.0, removed);
         removed
     }
 
@@ -1562,6 +1581,21 @@ impl Steps {
         self.parts
             .push((what, now.duration_since(self.last).as_millis()));
         self.last = now;
+    }
+
+    fn report_close(&self, repo: u32, removed: bool) {
+        let breakdown: Vec<String> = self
+            .parts
+            .iter()
+            .map(|(what, ms)| format!("{what}={ms}ms"))
+            .collect();
+        tracing::info!(
+            repo,
+            removed,
+            total_ms = self.started.elapsed().as_millis(),
+            steps = %breakdown.join(" "),
+            "repository closed"
+        );
     }
 
     fn report(&self, path: &Path, branches: usize) {
