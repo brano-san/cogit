@@ -364,7 +364,8 @@ type SearchChunk =
 
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
-| `app_info` | — | `AppInfo { version, log_path, debug_build, commit, built_at, rustc, tauri, webview, git, os }` | M0 |
+| `app_info` | — | `Result<AppInfo { version, debug_build, commit, dirty, built_at, repository, os: OsInfo, renderer, git, rustc, tauri, git_library, log_path, log_dir, settings_path, displays: DisplayInfo[] }>`; async, вне главного потока (R-175) | M0, M2 |
+| `open_third_party_licences` | `frontend: string \| null` | `Result<()>`: пишет список лицензий (крейты из `build.rs` + пакеты из сборки Vite) во временный файл и открывает его системой (R-173) | M2 |
 | `read_settings` | — | `String` — весь документ настроек как текст JSON | M8 |
 | `write_setting` | `key`, `value` (текст JSON) | `()` | M8 |
 | `command_log` | `limit` | `Vec<CommandLogEntry>` | M2 |
