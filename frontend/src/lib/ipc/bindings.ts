@@ -289,6 +289,7 @@ export const events = {
 	mergeResolved: makeEvent<MergeResolved>("merge-resolved"),
 	operationChanged: makeEvent<OperationChanged>("operation-changed"),
 	repoChanged: makeEvent<RepoChanged>("repo-changed"),
+	sessionEnding: makeEvent<SessionEnding>("session-ending"),
 };
 
 /* Types */
@@ -992,6 +993,11 @@ export type Segment = {
 	primary: boolean,
 	color: number,
 	arrow: boolean,
+};
+
+/**  Windows asked to end the session while operations run, and was told to wait. */
+export type SessionEnding = {
+	reason: string,
 };
 
 export type Severity = "success" | "warning" | "failure";

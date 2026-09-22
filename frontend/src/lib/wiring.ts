@@ -7,6 +7,7 @@ import {
   onMergeResolved,
   onOperationChanged,
   onRepoChanged,
+  onSessionEnding,
   type CommandNotice,
   type MergeResolved,
   type OperationChanged,
@@ -25,6 +26,8 @@ export interface Handlers {
   commandRecorded: (event: CommandNotice) => void;
   /** Return false to keep the window open. */
   closeRequested: () => Promise<boolean>;
+  /** The system is ending the session and waits because operations run. */
+  sessionEnding: () => void;
   dragDrop: (event: DragDropEvent) => void;
 }
 
@@ -43,6 +46,7 @@ export function connect(handlers: Handlers): Stop {
     onAvatarReady((event) => handlers.avatarReady(event.email)),
     onMergeResolved(handlers.mergeResolved),
     onCommandRecorded(handlers.commandRecorded),
+    onSessionEnding(handlers.sessionEnding),
     counted(
       getCurrentWindow().onCloseRequested(async (event) => {
         if (!(await handlers.closeRequested())) event.preventDefault();

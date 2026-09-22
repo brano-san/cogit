@@ -580,6 +580,11 @@ export async function onMenuCommand(handler: (id: string) => void) {
   return await counted(events.menuCommand.listen((event) => handler(event.payload)));
 }
 
+/** Windows wants to end the session and was told to wait for the queue (R-168). */
+export async function onSessionEnding(handler: () => void) {
+  return await counted(events.sessionEnding.listen(() => handler()));
+}
+
 /** The shipped accelerators, kept beside the menu they belong to. */
 export async function defaultKeymap() {
   return await commands.defaultKeymap();

@@ -180,3 +180,45 @@ async fn every_phase_is_announced() {
         ]
     );
 }
+
+#[test]
+fn the_session_may_end_when_nothing_is_queued() {
+    let (state, _) = opened();
+    assert_eq!(state.session_end_blocker(), None);
+}
+
+#[tokio::test]
+async fn the_session_end_is_held_while_a_push_runs() {
+    let (state, repo) = opened();
+    let held = state.enqueue(repo, OperationKind::Push, "Pushing").await;
+
+    assert_eq!(
+        state.session_end_blocker().as_deref(),
+        Some("1 operation is still running")
+    );
+
+    held.finish(true);
+    assert_eq!(state.session_end_blocker(), None);
+}
+
+#[tokio::test]
+async fn the_session_end_counts_what_waits_behind_it() {
+    let (state, repo) = opened();
+    let held = state.enqueue(repo, OperationKind::Push, "Pushing").await;
+    let second = Arc::clone(&state);
+    let waiting = tokio::spawn(async move {
+        second
+            .enqueue(repo, OperationKind::Fetch, "Fetching")
+            .await
+            .finish(true);
+    });
+    until(&state, 2).await;
+
+    assert_eq!(
+        state.session_end_blocker().as_deref(),
+        Some("2 operations are still running")
+    );
+
+    held.finish(true);
+    waiting.await.unwrap();
+}

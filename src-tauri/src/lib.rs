@@ -8,6 +8,8 @@ mod operations;
 mod profile;
 #[cfg(windows)]
 mod renderer_failure;
+#[cfg(windows)]
+mod session_end;
 mod shutdown;
 #[cfg(windows)]
 mod webview2;
@@ -48,6 +50,13 @@ pub struct MergeResolved {
 /// runs the same code path the palette would.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
 pub struct MenuCommand(pub String);
+
+/// Windows asked to end the session while operations run, and was told to wait.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionEnding {
+    pub reason: String,
+}
 
 /// Mirrors `app_state::AppEvent::AvatarReady`: one row can redraw without a refetch.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
@@ -92,7 +101,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             OperationChanged,
             AvatarReady,
             MergeResolved,
-            CommandRecorded
+            CommandRecorded,
+            SessionEnding
         ])
         .commands(collect_commands![
             commands::app_info,
@@ -303,6 +313,8 @@ pub fn run() -> anyhow::Result<()> {
                 #[cfg(windows)]
                 renderer_failure::install(&window);
                 #[cfg(windows)]
+                session_end::install(&window);
+                #[cfg(windows)]
                 webview2::install_accelerators(&window);
 
                 // Once, after the state plugin restored the saved geometry and before the
@@ -376,6 +388,8 @@ fn copy_diagnostics(app: &tauri::AppHandle) {
 /// The watcher runs on its own thread, so events cross into the webview here.
 fn forward_repo_changes(app: tauri::AppHandle, state: &Arc<AppState>) {
     let mut events = state.subscribe();
+    #[cfg(windows)]
+    let state = Arc::clone(state);
     tauri::async_runtime::spawn(async move {
         while let Ok(event) = events.recv().await {
             match event {
@@ -389,6 +403,12 @@ fn forward_repo_changes(app: tauri::AppHandle, state: &Arc<AppState>) {
                     let _ = AvatarReady { email }.emit(&app);
                 }
                 app_state::AppEvent::Operation(operation) => {
+                    #[cfg(windows)]
+                    if operation.phase == app_state::OperationPhase::Done
+                        && state.session_end_blocker().is_none()
+                    {
+                        session_end::release(&app);
+                    }
                     let _ = OperationChanged {
                         id: operation.id,
                         label: operation.label,

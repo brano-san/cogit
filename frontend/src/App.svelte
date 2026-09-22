@@ -2315,6 +2315,15 @@
     return exitFlow.ask(source, confirm, listOperations);
   }
 
+  /** No close request is pending here, so the window is destroyed rather than closed:
+      closing would ask the same question a second time. */
+  async function onSessionEnding() {
+    session.persist();
+    if (!(await exitFlow.ask("system", settings.current.confirmExit, listOperations))) return;
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    await getCurrentWindow().destroy();
+  }
+
   function answerExit(action: ExitAction, dontShowAgain: boolean) {
     const stored = exitFlow.answer(action, dontShowAgain, settings.current.confirmExit);
     if (stored !== null) void settings.set("confirmExit", stored);
@@ -2351,6 +2360,7 @@
       },
       commandRecorded: (event) => void output.notice(event),
       closeRequested: mayClose,
+      sessionEnding: () => void onSessionEnding(),
       dragDrop: onDragDrop,
     }),
   );

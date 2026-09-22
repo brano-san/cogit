@@ -117,8 +117,14 @@ sysinfo = { version = "0.39", default-features = false, features = ["system"] }
 # incompatible copies of themselves (R-88).
 webview2-com = "0.38"
 windows-core = "0.61"
-# Only `GetKeyState`: the accelerator event says which key, never which modifiers.
-windows = { version = "0.61", features = ["Win32_UI_Input_KeyboardAndMouse"] }
+# `GetKeyState`: the accelerator event says which key, never which modifiers. The rest
+# holds a shutdown while operations run: a window subclass and the block reason (R-168).
+windows = { version = "0.61", features = [
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_Shutdown",
+] }
 
 # --- dev / testing ---
 insta = "1.48"
