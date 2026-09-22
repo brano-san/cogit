@@ -324,3 +324,17 @@ describe("nodeCentre", () => {
     expect(nodeCentre(0, 10, GRAPH.rowHeight * 10).y).toBe(GRAPH.rowHeight / 2);
   });
 });
+
+describe("the shapes a lane change is drawn with", () => {
+  it("rounds the corner by less than half a lane, or the elbow overshoots", () => {
+    expect(GRAPH.elbowRadius).toBeLessThanOrEqual(GRAPH.laneWidth / 2);
+  });
+
+  it("draws the ring of a merge thick enough to read", () => {
+    expect(GRAPH.ringWidth).toBeGreaterThanOrEqual(2);
+  });
+
+  it("keeps the ring inside the row, so two merges do not touch", () => {
+    expect(GRAPH.mergeRadius * 2 + GRAPH.ringWidth).toBeLessThan(GRAPH.rowHeight);
+  });
+});

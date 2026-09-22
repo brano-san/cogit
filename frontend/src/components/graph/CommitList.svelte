@@ -20,6 +20,7 @@
   } from "$lib/graph-geometry";
   import { measurer } from "$lib/timing";
   import { reportTiming, type RebaseProgress, type RepoId } from "$lib/ipc";
+  import Avatar from "$components/common/Avatar.svelte";
   import { avatars } from "$stores/avatars.svelte";
   import { commit as selection } from "$stores/commit.svelte";
   import { graph } from "$stores/graph.svelte";
@@ -337,20 +338,10 @@
             >
           {/if}
           <span class="summary truncate">{item.entry.commit.summary}</span>
-          {#if avatars.enabled}
-            {@const face = avatars.look(item.entry.commit.authorEmail)}
-            <span
-              class="avatar"
-              style:background={face?.image ? "transparent" : (face?.color ?? "var(--surface-raised)")}
-              title={item.entry.commit.authorEmail}
-            >
-              {#if face?.image}
-                <img src={face.image} alt="" width="16" height="16" />
-              {:else}
-                {face?.initials ?? ""}
-              {/if}
-            </span>
-          {/if}
+          <Avatar
+            name={item.entry.commit.authorName}
+            email={item.entry.commit.authorEmail}
+          />
           <span class="author truncate">{item.entry.commit.authorName}</span>
           <span
             class="date tabular"
@@ -508,26 +499,6 @@
   .summary {
     flex: 1 1 auto;
     min-width: 0;
-  }
-
-  /* Fixed width so the author column does not shift as pictures arrive. */
-  .avatar {
-    flex: 0 0 16px;
-    width: 16px;
-    height: 16px;
-    border-radius: var(--r-sm);
-    overflow: hidden;
-    color: var(--text-on-accent);
-    font-size: 9px;
-    font-weight: 600;
-    line-height: 16px;
-    text-align: center;
-  }
-
-  .avatar img {
-    display: block;
-    width: 16px;
-    height: 16px;
   }
 
   .author {

@@ -3,7 +3,7 @@ import type { FileEntry } from "$lib/ipc";
 import { commitScope } from "./commit-scope";
 
 function entry(path: string): FileEntry {
-  return { path, oldPath: null, status: "modified", modeChange: null, similarity: null };
+  return { path, oldPath: null, status: "modified", mode: "plain", modeChange: null, similarity: null };
 }
 
 const staged = [entry("a.rs"), entry("b.rs"), entry("c.ts")];

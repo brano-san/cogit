@@ -1,3 +1,4 @@
+use crate::topo::{LOOKAHEAD, group_topologically};
 use crate::{CommitRow, GitError, RepoHandle, Result};
 use serde::Deserialize;
 
@@ -94,44 +95,84 @@ impl RepoHandle {
         Ok(tips)
     }
 
+    /// Newest first by commit time, the way `git log` reads by default. Search, history
+    /// and Investigate all want this: a reader looking for "what happened on Tuesday"
+    /// wants Tuesday, not one line of history at a time.
     pub fn search_commits(
         &self,
         query: &CommitQuery,
         chunk_size: usize,
-        mut on_chunk: impl FnMut(Vec<CommitRow>) -> bool,
+        on_chunk: impl FnMut(Vec<CommitRow>) -> bool,
     ) -> Result<()> {
-        let chunk_size = chunk_size.max(1);
         let tips = self.tips_for(query)?;
         if tips.is_empty() {
             return Ok(());
         }
 
-        let walk = self
+        self.stream_rows(query, chunk_size, self.by_date(tips)?, on_chunk)
+    }
+
+    /// The same commits, ordered so that no line of history is interleaved with another —
+    /// `git log --topo-order`, computed in a sliding window over the date walk. The graph
+    /// is drawn from this: lanes only stay straight if a branch's commits arrive together
+    /// (doc/12-risks.md, R-140).
+    pub fn search_commits_topo(
+        &self,
+        query: &CommitQuery,
+        chunk_size: usize,
+        on_chunk: impl FnMut(Vec<CommitRow>) -> bool,
+    ) -> Result<()> {
+        let tips = self.tips_for(query)?;
+        if tips.is_empty() {
+            return Ok(());
+        }
+
+        let walk = group_topologically(self.by_date(tips)?, LOOKAHEAD);
+        self.stream_rows(query, chunk_size, walk, on_chunk)
+    }
+
+    /// Newest first by commit time. An unreadable object is skipped with a line in the
+    /// log: one bad commit must not end the history.
+    fn by_date(
+        &self,
+        tips: Vec<gix::ObjectId>,
+    ) -> Result<impl Iterator<Item = (gix::ObjectId, Vec<gix::ObjectId>)> + '_> {
+        Ok(self
             .repo
             .rev_walk(tips)
             .sorting(gix::revision::walk::Sorting::ByCommitTime(
                 gix::traverse::commit::simple::CommitTimeOrder::NewestFirst,
             ))
             .all()
-            .map_err(|err| GitError::Internal(format!("cannot walk history: {err}")))?;
-
-        let mut chunk = Vec::with_capacity(chunk_size);
-        for info in walk {
-            let info = match info {
-                Ok(info) => info,
+            .map_err(|err| GitError::Internal(format!("cannot walk history: {err}")))?
+            .filter_map(|step| match step {
+                Ok(info) => Some((info.id, info.parent_ids.into_iter().collect())),
                 Err(err) => {
                     tracing::warn!(error = %err, "skipping an unreadable commit");
-                    continue;
+                    None
                 }
-            };
+            }))
+    }
 
-            let row = self.to_row(&info)?;
+    /// Filtering and chunking, shared by both walks.
+    fn stream_rows(
+        &self,
+        query: &CommitQuery,
+        chunk_size: usize,
+        walk: impl Iterator<Item = (gix::ObjectId, Vec<gix::ObjectId>)>,
+        mut on_chunk: impl FnMut(Vec<CommitRow>) -> bool,
+    ) -> Result<()> {
+        let chunk_size = chunk_size.max(1);
+        let mut chunk = Vec::with_capacity(chunk_size);
+
+        for (id, parents) in walk {
+            let row = self.row_of(id, &parents)?;
             if !query.matches_row(&row) {
                 continue;
             }
             // Last, because it costs two tree lookups per candidate.
             if let Some(path) = &query.path
-                && !self.touches(&info.id, path)
+                && !self.touches(&id, path)
             {
                 continue;
             }

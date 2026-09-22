@@ -17,6 +17,7 @@
   import DropMenu from "$components/layout/DropMenu.svelte";
   import Panel from "$components/layout/Panel.svelte";
   import CommandPalette from "$components/layout/CommandPalette.svelte";
+  import AboutDialog from "$components/common/AboutDialog.svelte";
   import SettingsPanel from "$components/layout/SettingsPanel.svelte";
   import HooksPanel from "$components/layout/HooksPanel.svelte";
   import FindObject from "$components/layout/FindObject.svelte";
@@ -40,7 +41,7 @@
   import { commitScope } from "$lib/commit-scope";
   import { activity, applyOperation } from "$lib/operations";
   import { measurer } from "$lib/timing";
-  import { commitMenu, refMenu, repoMenu } from "$lib/context-menu";
+  import { commitMenu, fileMenu, refMenu, repoMenu } from "$lib/context-menu";
   import { compareUrl } from "$lib/compare-params";
   import { dropActions, type DropAction, type DragPayload } from "$lib/drop-target";
   import { moveEntry } from "$lib/rebase-plan";
@@ -122,6 +123,7 @@
   import { flow } from "$stores/flow.svelte";
   import { droppedRepositories } from "$lib/drop-open";
   import { connect } from "$lib/wiring";
+  import { planFor } from "$lib/disk-change";
   import { clear as freshen, mark as markStale } from "$lib/staleness";
   import { unsavedSummary } from "$lib/unsaved";
   import { overlap } from "$stores/overlap.svelte";
@@ -567,9 +569,7 @@
       {
         id: "about",
         title: "About Cogit",
-        run: () => window.alert(`Cogit ${info?.version ?? ""}
-
-Log: ${info?.logPath ?? ""}`),
+        run: () => (aboutOpen = info !== null),
       },
       {
         id: "settings",
@@ -766,35 +766,48 @@ Log: ${info?.logPath ?? ""}`),
   }
 
   // The watcher is the only way Cogit learns about work done in a terminal alongside it.
+  // One `git commit` arrives as four events, so they are collected and answered once.
+  let pending = new Set<import("$lib/ipc").ChangeKind>();
+  let settling: ReturnType<typeof setTimeout> | undefined;
+  const SETTLE_MS = 120;
+
   function onDiskChange(change: import("$lib/ipc").RepoChanged) {
-      const id = repository.current?.repo;
-      if (!id || id.valueOf() !== change.repo.valueOf()) return;
-      // Only a ref move needs the full re-read; an index or worktree change moves counters.
-      // A hook edited outside Cogit is only interesting while the panel is open.
-      if (change.kind === "hooks") {
-        if (hooks.open) void hooks.refresh(id);
-        return;
-      }
-      stale = markStale(stale, change.kind);
-      if (change.kind === "refs" || change.kind === "head") protection = new Map();
-      const movedRefs = change.kind === "head" || change.kind === "refs";
-      void (movedRefs ? repository.refresh() : repository.refreshStatus()).then(() => {
-        stale = freshen(stale, ["repositories", "refs"]);
-      });
-      if (commit.oid === null) void worktree.load(id).then(() => {
-        stale = freshen(stale, ["files", "commit"]);
-      });
-      void worktrees.refresh(id);
-      void afterMutation().then(() => {
-        stale = freshen(stale, ["diff", "files", "commit"]);
-      });
-      if (movedRefs) {
-        void graph.load(id, graph.query).then(() => {
-          stale = freshen(stale, ["graph", "refs"]);
-        });
-      } else {
-        stale = freshen(stale, ["graph"]);
-      }
+    const id = repository.current?.repo;
+    if (!id || id.valueOf() !== change.repo.valueOf()) return;
+    if (change.kind !== "hooks") stale = markStale(stale, change.kind);
+    pending.add(change.kind);
+    clearTimeout(settling);
+    settling = setTimeout(() => void applyDiskChanges(), SETTLE_MS);
+  }
+
+  async function applyDiskChanges() {
+    const id = repository.current?.repo;
+    const plan = planFor(pending);
+    pending = new Set();
+    if (!id) return;
+
+    // A hook edited outside Cogit is only interesting while the panel is open.
+    if (plan.hooks && hooks.open) void hooks.refresh(id);
+    if (!plan.cascade) return;
+
+    if (plan.refs) {
+      protection = new Map();
+      await repository.refresh();
+    }
+    stale = freshen(stale, ["repositories", "refs"]);
+
+    if (plan.worktree && commit.oid === null) {
+      await worktree.load(id);
+      stale = freshen(stale, ["files", "commit"]);
+    }
+    void worktrees.refresh(id);
+
+    // Reads the status itself, which is why nothing above does it a second time.
+    await afterMutation();
+    stale = freshen(stale, ["diff", "files", "commit"]);
+
+    if (plan.refs) await graph.load(id, graph.query);
+    stale = freshen(stale, ["graph", "refs"]);
   }
 
   function filterGraph(query: import("$lib/ipc").CommitQuery) {
@@ -1611,6 +1624,85 @@ Log: ${info?.logPath ?? ""}`),
   /** The chosen item comes back through the same `menu-command` event as the menu bar,
       so the node it was opened on has to be remembered until then. */
   let refTarget = $state.raw<RefNode | null>(null);
+  let fileTarget = $state.raw<string | null>(null);
+  let aboutOpen = $state(false);
+
+  /** Right-clicking a ticked row acts on the whole tick; right-clicking any other row
+      acts on that one, which is what every file manager does. */
+  function fileScope(path: string): string[] {
+    return markedFiles.includes(path) ? [...markedFiles] : [path];
+  }
+
+  async function fileContext(path: string, event: MouseEvent) {
+    fileTarget = path;
+    const staged = worktree.staged.some((file) => file.path === path);
+    const entry = [...worktree.staged, ...worktree.unstaged, ...commit.files].find(
+      (file) => file.path === path,
+    );
+    await popupContextMenu(
+      fileMenu({
+        status: entry?.status ?? "modified",
+        staged,
+        count: fileScope(path).length,
+        worktree: onWorkingTree,
+      }),
+      event.clientX,
+      event.clientY,
+    ).catch(() => {});
+  }
+
+  function runFileCommand(id: string): boolean {
+    const path = fileTarget;
+    if (path === null || !id.startsWith("file-")) return false;
+    const paths = fileScope(path);
+    switch (id) {
+      case "file-stage":
+        void stage(paths);
+        return true;
+      case "file-unstage":
+        void unstage(paths);
+        return true;
+      case "file-discard":
+        void discard(paths);
+        return true;
+      case "file-ignore":
+        void ignore(paths);
+        return true;
+      case "file-delete":
+        void deleteFromDisk(paths);
+        return true;
+      case "file-blame":
+        void blameOne(path);
+        return true;
+      case "file-history":
+        filterGraph({ ...graph.query, path });
+        return true;
+      case "file-explorer":
+        void revealFile(path);
+        return true;
+      case "file-copy-path":
+        void copyText(path);
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  /** Blame of a row that is not the one open in the Diff panel. */
+  async function blameOne(path: string) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    await blame.show(id, path, commit.oid ?? "HEAD");
+  }
+
+  async function revealFile(path: string) {
+    const root = repository.current?.root;
+    if (!root) return;
+    const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
+    await revealItemInDir(`${root}/${path}`).catch(() =>
+      errors.report({ kind: "internal", data: path } as never),
+    );
+  }
 
   async function refContext(node: RefNode, x: number, y: number) {
     const items = refMenu({
@@ -2173,6 +2265,7 @@ Log: ${info?.logPath ?? ""}`),
     const pending = onMenuCommand((id) => {
       if (runGroupCommand(id)) return;
       if (runRepoCommand(id)) return;
+      if (runFileCommand(id)) return;
       if (runRefCommand(id)) return;
       const command = palette.find((entry) => entry.id === id);
       if (command && !command.unavailable) runCommand(command);
@@ -2445,6 +2538,7 @@ Log: ${info?.logPath ?? ""}`),
               onopenwindow={openInWindow}
               onmask={(mask) => (fileMask = mask)}
               onmarked={(paths) => (markedFiles = paths)}
+              oncontext={fileContext}
               {stage}
               stagemode={stageModeOnly}
               {unstage}
@@ -2677,6 +2771,15 @@ Log: ${info?.logPath ?? ""}`),
       onapply={(next, keys) => void applySettings(next, keys)}
       onrevert={() => void revertSettings()}
       onclose={() => (settingsOpen = false)}
+    />
+  {/if}
+
+  {#if aboutOpen && info}
+    <AboutDialog
+      {info}
+      onclose={() => (aboutOpen = false)}
+      oncopy={(text) => void copyText(text)}
+      onreveallog={() => void revealLog()}
     />
   {/if}
 

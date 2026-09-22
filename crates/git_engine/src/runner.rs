@@ -226,3 +226,18 @@ fn redact_url(arg: &str) -> String {
     };
     format!("{scheme}://{user}:{HIDDEN}@{tail}")
 }
+
+/// Which `git` the writes actually go through. Run outside any repository, so it answers
+/// before one is open and cannot fail on a broken working directory.
+pub fn git_version() -> Result<String> {
+    let mut command = Command::new("git");
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt as _;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    command.env("GIT_TERMINAL_PROMPT", "0");
+    command.env("LC_ALL", "C");
+    let output = command.arg("--version").output()?;
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
+}

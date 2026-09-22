@@ -18,6 +18,10 @@ export const GRAPH = {
   nodeRadius: 4,
   mergeRadius: 5,
   lineWidth: 2,
+  /** A merge is a ring so the lane shows through it; the ring needs to read at 2 px. */
+  ringWidth: 2,
+  /** How round the corner is where a branch leaves its lane (R-141). */
+  elbowRadius: 7,
   maxGutterFraction: 0.25,
 } as const;
 

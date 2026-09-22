@@ -45,9 +45,11 @@ impl RepoHandle {
         Ok(tips)
     }
 
-    pub(crate) fn to_row(&self, info: &gix::revision::walk::Info<'_>) -> Result<CommitRow> {
-        let commit = info
-            .object()
+    /// One row from an id and its parents, whichever walk produced them.
+    pub(crate) fn row_of(&self, id: gix::ObjectId, parents: &[gix::ObjectId]) -> Result<CommitRow> {
+        let commit = self
+            .repo
+            .find_commit(id)
             .map_err(|err| GitError::Internal(format!("cannot read commit: {err}")))?;
 
         let message = commit
@@ -61,8 +63,8 @@ impl RepoHandle {
             .map_err(|err| GitError::Internal(format!("cannot read commit time: {err}")))?;
 
         Ok(CommitRow {
-            oid: info.id.to_string(),
-            parents: info.parent_ids.iter().map(ToString::to_string).collect(),
+            oid: id.to_string(),
+            parents: parents.iter().map(ToString::to_string).collect(),
             summary: message.summary().to_string(),
             author_name: author.name.to_string(),
             author_email: author.email.to_string(),

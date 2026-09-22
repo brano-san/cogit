@@ -293,6 +293,18 @@ export type AppInfo = {
 	version: string,
 	logPath: string,
 	debugBuild: boolean,
+	/**  What a bug report needs to identify the build (doc/12-risks.md, R-146). */
+	commit: string,
+	builtAt: number,
+	rustc: string,
+	tauri: string,
+	/**
+	 *  The WebView2 runtime actually rendering this window — the version the user has to
+	 *  update when a CSS feature is missing, and the one Cogit cannot ship itself.
+	 */
+	webview: string,
+	git: string,
+	os: string,
 };
 
 export type Author = {
@@ -433,6 +445,11 @@ export type ContextItem = {
 	label: string,
 	enabled: boolean,
 	separator?: boolean,
+	/**
+	 *  Shown on the right of the row. A popup menu only draws it — the chord itself is
+	 *  bound in the frontend, which is the only place that knows the focused panel.
+	 */
+	accelerator?: string | null,
 };
 
 /**
@@ -503,6 +520,11 @@ export type FileEntry = {
 	path: string,
 	oldPath: string | null,
 	status: FileStatus,
+	/**
+	 *  What the entry is. A changed submodule is drawn with the submodule icon, the same
+	 *  one the Repositories panel uses, not as a file (doc/12-risks.md, R-143).
+	 */
+	mode: FileMode,
 	/**  The new mode, only when it differs from the old one. */
 	modeChange: FileMode | null,
 	/**  Percent, only for a rename or a copy. */

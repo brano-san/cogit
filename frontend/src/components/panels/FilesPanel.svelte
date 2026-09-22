@@ -25,6 +25,7 @@
     onopenwindow: (path: string) => void;
     onmask: (mask: string) => void;
     onmarked: (paths: string[]) => void;
+    oncontext: (path: string, event: MouseEvent) => void;
     stage: (paths: string[]) => void;
     stagemode: (paths: string[]) => void;
     unstage: (paths: string[]) => void;
@@ -45,6 +46,7 @@
     onopenwindow,
     onmask,
     onmarked,
+    oncontext,
     stage,
     stagemode,
     unstage,
@@ -124,6 +126,7 @@
       onopen={onopenwindow}
       {onmask}
       {onmarked}
+      {oncontext}
     />
   {:else}
     <FileList
@@ -133,6 +136,7 @@
       selected={diff.path}
       onselect={onopencommit}
       onopen={onopenwindow}
+      {oncontext}
     />
   {/if}
 </div>

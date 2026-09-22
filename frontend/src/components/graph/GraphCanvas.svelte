@@ -66,8 +66,11 @@
       if (x1 === x2) {
         context.lineTo(x2, y2);
       } else {
-        const bend = (y2 - y1) / 2;
-        context.bezierCurveTo(x1, y1 + bend, x2, y2 - bend, x2, y2);
+        const middle = (y1 + y2) / 2;
+        const radius = Math.min(GRAPH.elbowRadius, Math.abs(x2 - x1) / 2, Math.abs(y2 - y1) / 2);
+        context.arcTo(x1, middle, x2, middle, radius);
+        context.arcTo(x2, middle, x2, y2, radius);
+        context.lineTo(x2, y2);
       }
       context.stroke();
     }
@@ -85,23 +88,36 @@
       context.restore();
     }
 
+    const behind = getComputedStyle(document.documentElement)
+      .getPropertyValue("--surface-panel")
+      .trim();
+
     for (const node of nodes) {
       const { x, y } = nodeCentre(node.lane, node.row + rowOffset, scrollTop);
-      context.fillStyle = laneColor(node.color);
       context.beginPath();
       if (node.root) {
         const size = GRAPH.nodeRadius * 1.6;
         context.rect(x - size / 2, y - size / 2, size, size);
-      } else {
-        context.arc(x, y, node.merge ? GRAPH.mergeRadius : GRAPH.nodeRadius, 0, Math.PI * 2);
+        context.fillStyle = laneColor(node.color);
+        context.fill();
+        continue;
       }
-      context.fill();
+
       if (node.merge) {
-        context.strokeStyle = getComputedStyle(document.documentElement)
-          .getPropertyValue("--surface-panel")
-          .trim();
+        // A ring, not a disc: the lane passes through the middle of it.
+        context.arc(x, y, GRAPH.mergeRadius, 0, Math.PI * 2);
+        context.fillStyle = behind;
+        context.fill();
+        context.strokeStyle = laneColor(node.color);
+        context.lineWidth = GRAPH.ringWidth;
         context.stroke();
+        context.lineWidth = GRAPH.lineWidth;
+        continue;
       }
+
+      context.arc(x, y, GRAPH.nodeRadius, 0, Math.PI * 2);
+      context.fillStyle = laneColor(node.color);
+      context.fill();
     }
   }
 

@@ -14,11 +14,12 @@ export interface Settings {
   gitPath: string;
   terminal: string;
   logLevel: "error" | "warn" | "info" | "debug" | "trace";
-  /** `ask` until the user decides: nothing is fetched and no cache exists while it
-      stands, and the settings row says so rather than switching on quietly. */
+  /** On by default: a face per row is what the commit list is read by, and the request
+      carries a hash rather than the address (doc/12-risks.md, R-145). `ask` is what a
+      settings file written before that default said. */
   avatars: "ask" | "gravatar" | "off";
-  /** Off until ticked, like avatars: nothing reaches the network unasked. Help ▸ Check
-      for Updates… works either way. */
+  /** Off until ticked: nothing reaches the network unasked. Help ▸ Check for Updates…
+      works either way. */
   autoUpdate: boolean;
 }
 
@@ -35,7 +36,7 @@ export const DEFAULT_SETTINGS: Settings = {
   gitPath: "git",
   terminal: "system",
   logLevel: "info",
-  avatars: "ask",
+  avatars: "gravatar",
   autoUpdate: false,
 };
 

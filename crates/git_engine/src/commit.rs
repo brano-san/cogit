@@ -57,6 +57,9 @@ pub struct FileEntry {
     pub path: String,
     pub old_path: Option<String>,
     pub status: FileStatus,
+    /// What the entry is. A changed submodule is drawn with the submodule icon, the same
+    /// one the Repositories panel uses, not as a file (doc/12-risks.md, R-143).
+    pub mode: FileMode,
     /// The new mode, only when it differs from the old one.
     pub mode_change: Option<FileMode>,
     /// Percent, only for a rename or a copy.
@@ -66,7 +69,7 @@ pub struct FileEntry {
 /// Git's own default: below this the two sides are an add and a delete, not a rename.
 pub const DEFAULT_SIMILARITY: u32 = 50;
 
-fn mode_of(mode: gix::object::tree::EntryMode) -> FileMode {
+pub(crate) fn mode_of_entry(mode: gix::object::tree::EntryMode) -> FileMode {
     if mode.is_link() {
         FileMode::Symlink
     } else if mode.is_commit() {
@@ -195,7 +198,7 @@ fn signature(sig: gix::actor::SignatureRef<'_>) -> Signature {
 fn to_entry(change: &gix::object::tree::diff::Change<'_, '_, '_>) -> Option<FileEntry> {
     use gix::object::tree::diff::Change;
 
-    let (path, old_path, status, mode_change, similarity) = match change {
+    let (path, old_path, status, mode, mode_change, similarity) = match change {
         Change::Addition {
             location,
             entry_mode,
@@ -204,7 +207,14 @@ fn to_entry(change: &gix::object::tree::diff::Change<'_, '_, '_>) -> Option<File
             if entry_mode.is_tree() {
                 return None;
             }
-            (location, None, FileStatus::Added, None, None)
+            (
+                location,
+                None,
+                FileStatus::Added,
+                mode_of_entry(*entry_mode),
+                None,
+                None,
+            )
         }
         Change::Deletion {
             location,
@@ -214,7 +224,14 @@ fn to_entry(change: &gix::object::tree::diff::Change<'_, '_, '_>) -> Option<File
             if entry_mode.is_tree() {
                 return None;
             }
-            (location, None, FileStatus::Deleted, None, None)
+            (
+                location,
+                None,
+                FileStatus::Deleted,
+                mode_of_entry(*entry_mode),
+                None,
+                None,
+            )
         }
         Change::Modification {
             location,
@@ -225,9 +242,16 @@ fn to_entry(change: &gix::object::tree::diff::Change<'_, '_, '_>) -> Option<File
             if entry_mode.is_tree() {
                 return None;
             }
-            let mode =
-                (entry_mode.kind() != previous_entry_mode.kind()).then(|| mode_of(*entry_mode));
-            (location, None, FileStatus::Modified, mode, None)
+            let changed = (entry_mode.kind() != previous_entry_mode.kind())
+                .then(|| mode_of_entry(*entry_mode));
+            (
+                location,
+                None,
+                FileStatus::Modified,
+                mode_of_entry(*entry_mode),
+                changed,
+                None,
+            )
         }
         Change::Rewrite {
             location,
@@ -247,8 +271,8 @@ fn to_entry(change: &gix::object::tree::diff::Change<'_, '_, '_>) -> Option<File
                     .and_then(|scaled| scaled.checked_div(total))
                     .map_or(100, |ratio| 100 - ratio.min(100))
             });
-            let mode =
-                (entry_mode.kind() != source_entry_mode.kind()).then(|| mode_of(*entry_mode));
+            let changed =
+                (entry_mode.kind() != source_entry_mode.kind()).then(|| mode_of_entry(*entry_mode));
             (
                 location,
                 Some(source_location.to_string()),
@@ -257,7 +281,8 @@ fn to_entry(change: &gix::object::tree::diff::Change<'_, '_, '_>) -> Option<File
                 } else {
                     FileStatus::Renamed
                 },
-                mode,
+                mode_of_entry(*entry_mode),
+                changed,
                 Some(percent),
             )
         }
@@ -267,6 +292,7 @@ fn to_entry(change: &gix::object::tree::diff::Change<'_, '_, '_>) -> Option<File
         path: path.to_string(),
         old_path,
         status,
+        mode,
         mode_change,
         similarity,
     })
