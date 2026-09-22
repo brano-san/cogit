@@ -26,6 +26,8 @@ export interface RefNode {
   rev?: string;
   oid?: string;
   branch?: Branch;
+  /** Why this row cannot be ticked; it then counts for nothing in its group (R-158). */
+  disabled?: string;
 }
 
 export interface RefTreeInput {
@@ -92,9 +94,10 @@ function group(rows: RefNode[], id: string, label: string, detail?: string): voi
   rows.push({ id, kind: "group", label, depth: 0, detail, children: true });
 }
 
+/** Every row, folded or not: a heading's box is read from its children, and a child that
+    is not built cannot be counted (R-158). Hiding is `flatten`'s job alone. */
 export function buildRefTree(input: RefTreeInput): RefNode[] {
   const rows: RefNode[] = [];
-  const open = (id: string) => !input.collapsed.has(id);
 
   const headOid = input.head?.kind === "unborn" ? undefined : input.head?.oid;
   rows.push({
@@ -162,11 +165,12 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
       depth: 1,
       rev: tag.fullName,
       oid: tag.oid,
+      disabled: tag.pointsToCommit ? undefined : "Tag does not point to a commit",
     }))
     .filter((node) => matches(node, input.filter));
   if (tags.length > 0) {
     group(rows, "group:tags", `Tags (${tags.length})`);
-    if (open("group:tags")) rows.push(...tags);
+    rows.push(...tags);
   }
 
   const stashes = input.stashes
@@ -182,7 +186,7 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
     .filter((node) => matches(node, input.filter));
   if (stashes.length > 0) {
     group(rows, "group:stashes", `Stashes (${stashes.length})`);
-    if (open("group:stashes")) rows.push(...stashes);
+    rows.push(...stashes);
   }
 
   const lost = input.lost
@@ -198,24 +202,25 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
     .filter((node) => matches(node, input.filter));
   if (lost.length > 0) {
     group(rows, "group:lost", `Lost Commits (${lost.length})`);
-    if (open("group:lost")) rows.push(...lost);
+    rows.push(...lost);
   }
 
   return rows;
 }
 
 /** Every tickable row a heading owns; a leaf owns only itself. */
+/** The tickable rows of a subtree: everything deeper than the node, up to the next row
+    that is not. `nodes` is the whole tree, never the rows on screen. */
 export function leavesUnder(nodes: readonly RefNode[], id: string): string[] {
   const at = nodes.findIndex((node) => node.id === id);
   if (at < 0) return [];
-  const node = nodes[at];
-  if (!node || (node.kind !== "group" && node.kind !== "folder")) return [id];
+  const node = nodes[at]!;
+  if (node.kind !== "group" && node.kind !== "folder") return node.disabled ? [] : [id];
 
   const leaves: string[] = [];
   for (const next of nodes.slice(at + 1)) {
-    if (next.kind === "group") break;
-    if (next.depth <= node.depth && next.kind !== "folder") break;
-    if (next.rev !== undefined) leaves.push(next.id);
+    if (next.depth <= node.depth) break;
+    if (next.rev !== undefined && !next.disabled) leaves.push(next.id);
   }
   return leaves;
 }
@@ -231,7 +236,8 @@ export function checkState(
   return ticked === leaves.length ? "on" : "mixed";
 }
 
-/** A half-ticked heading clears first; the next click fills it. */
+/** Empty or half-ticked fills, full empties: the usual three-state box. One new set for
+    the whole group, so a hundred tags are one graph reload, not a hundred. */
 export function toggleNode(
   nodes: readonly RefNode[],
   id: string,
@@ -239,28 +245,22 @@ export function toggleNode(
 ): Set<string> {
   const leaves = leavesUnder(nodes, id);
   const next = new Set(visible);
-  if (checkState(nodes, id, visible) === "off") {
-    for (const leaf of leaves) next.add(leaf);
-  } else {
+  if (checkState(nodes, id, visible) === "on") {
     for (const leaf of leaves) next.delete(leaf);
+  } else {
+    for (const leaf of leaves) next.add(leaf);
   }
   return next;
 }
 
 export function visibleTips(nodes: readonly RefNode[], visible: ReadonlySet<string>): string[] {
   return nodes
-    .filter((node) => node.rev !== undefined && visible.has(node.id))
+    .filter((node) => node.rev !== undefined && !node.disabled && visible.has(node.id))
     .map((node) => node.rev as string);
 }
 
-/** What the panel starts with: the current work, not every ref in the repository. */
-/** What a repository shows before anybody touches a box: HEAD, every local branch and
-    every remote branch — the same set SmartGit opens with. Tags are labels on commits
-    that are already drawn, not lines of history of their own (doc/12-risks.md, R-142). */
+/** HEAD alone: a box says whether a ref's history is drawn, not whether its label is —
+    labels show on every drawn commit regardless (doc/12-risks.md, R-158). */
 export function defaultVisible(nodes: readonly RefNode[]): Set<string> {
-  return new Set(
-    nodes
-      .filter((node) => node.kind === "head" || node.kind === "local" || node.kind === "remote")
-      .map((node) => node.id),
-  );
+  return new Set(nodes.filter((node) => node.kind === "head").map((node) => node.id));
 }

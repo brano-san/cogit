@@ -8,7 +8,7 @@ export const commands = {
 	appInfo: () => __TAURI_INVOKE<AppInfo>("app_info"),
 	openRepository: (path: string) => typedError<RepoSummary, GitError>(__TAURI_INVOKE("open_repository", { path })),
 	/**  A channel rather than a return value (INV-02); dropping it cancels the walk. */
-	loadCommits: (repo: RepoId, query: CommitQuery, onChunk: Channel<GraphChunk>) => typedError<null, GitError>(__TAURI_INVOKE("load_commits", { repo, query, onChunk })),
+	loadCommits: (repo: RepoId, query: CommitQuery, onChunk: Channel<GraphChunk>) => typedError<SkippedRef[], GitError>(__TAURI_INVOKE("load_commits", { repo, query, onChunk })),
 	commitDetails: (repo: RepoId, rev: string) => typedError<CommitDetails, GitError>(__TAURI_INVOKE("commit_details", { repo, rev })),
 	commitFiles: (repo: RepoId, rev: string) => typedError<FileEntry[], GitError>(__TAURI_INVOKE("commit_files", { repo, rev })),
 	diffFile: (repo: RepoId, spec: DiffSpec, path: string, options: DiffOptions) => typedError<FileDiff, GitError>(__TAURI_INVOKE("diff_file", { repo, spec, path, options })),
@@ -400,10 +400,7 @@ export type CommitQuery = {
 	since?: number | null,
 	until?: number | null,
 	path?: string | null,
-	/**
-	 *  Revisions the References panel has ticked. `None` is every ref; `Some([])` is
-	 *  nothing, which is the honest answer when the user unticks the last box.
-	 */
+	/**  Refs the References panel ticked; `None` is every ref, `Some([])` is none. */
 	visibleRefs?: string[] | null,
 };
 
@@ -1005,6 +1002,11 @@ export type Signature = {
 	tzOffsetMinutes: number,
 };
 
+export type SkippedRef = {
+	name: string,
+	reason: string,
+};
+
 /**
  *  The three things `git stash` puts away, each readable without touching the working tree.
  *  A stash is a commit: `^1` is HEAD at the time, `^2` the index, `^3` the untracked files.
@@ -1073,8 +1075,11 @@ export type SubmoduleState = "notInitialised" | "inSync" |
 export type Tag = {
 	name: string,
 	fullName: string,
+	/**  Peeled through every tag object, so the label sits on the commit (R-157). */
 	oid: string,
 	isAnnotated: boolean,
+	/**  False for a tag on a tree or a blob: it cannot start a walk, so its box is off. */
+	pointsToCommit: boolean,
 };
 
 export type TagRequest = {

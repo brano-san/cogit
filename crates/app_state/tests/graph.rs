@@ -257,3 +257,39 @@ fn a_search_inside_a_narrowed_graph_is_still_flat() {
     assert!(chunks.iter().all(|c| c.edges.is_empty()));
     assert!(chunks.iter().all(|c| c.lanes.iter().all(|l| l.lane == 0)));
 }
+
+// --- ticking refs: the walk that lost its reason to run stops (doc/12-risks.md, R-157) --
+
+#[test]
+fn a_newer_graph_request_retires_the_one_before() {
+    let state = AppState::new();
+    let first = state.begin_graph();
+    let second = state.begin_graph();
+    assert!(!state.is_current_graph(first));
+    assert!(state.is_current_graph(second));
+}
+
+#[test]
+fn a_tag_on_a_tree_is_reported_and_the_graph_is_drawn_without_it() {
+    let f = test_fixtures::linear(2).unwrap();
+    f.git(&["tag", "-a", "v-tree", "-m", "a tree", "HEAD^{tree}"])
+        .unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let query = git_engine::CommitQuery {
+        visible_refs: Some(vec!["HEAD".to_owned(), "refs/tags/v-tree".to_owned()]),
+        ..git_engine::CommitQuery::default()
+    };
+
+    let mut commits = 0;
+    let skipped = state
+        .search_graph(repo, &query, 50, |chunk| {
+            commits += chunk.commits.len();
+            true
+        })
+        .unwrap();
+
+    assert_eq!(commits, 2);
+    assert_eq!(skipped.len(), 1);
+    assert_eq!(skipped[0].name, "refs/tags/v-tree");
+}

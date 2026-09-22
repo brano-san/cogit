@@ -37,8 +37,11 @@ pub struct Branch {
 pub struct Tag {
     pub name: String,
     pub full_name: String,
+    /// Peeled through every tag object, so the label sits on the commit (R-157).
     pub oid: String,
     pub is_annotated: bool,
+    /// False for a tag on a tree or a blob: it cannot start a walk, so its box is off.
+    pub points_to_commit: bool,
 }
 
 /// Ignores inherited `GIT_*` variables: `gix` honours `GIT_INDEX_FILE` and friends,
@@ -254,6 +257,10 @@ impl RepoHandle {
                 full_name,
                 oid: peeled.to_string(),
                 is_annotated: direct != Some(peeled),
+                points_to_commit: self
+                    .repo
+                    .find_header(peeled)
+                    .is_ok_and(|header| header.kind() == gix::object::Kind::Commit),
             });
         }
         tags.sort_by(|a, b| a.name.cmp(&b.name));

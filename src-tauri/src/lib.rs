@@ -260,7 +260,7 @@ pub fn run() -> anyhow::Result<()> {
         .setup(move |app| {
             let log_dir = app.path().app_log_dir()?;
             let config_dir = app.path().app_config_dir()?;
-            let guard = logging::init(&log_dir, &config_dir)?;
+            let (guard, log_path) = logging::init(&log_dir, &config_dir)?;
             logging::install_panic_hook(&log_dir);
             webview_memory::spawn(std::process::id());
 
@@ -278,7 +278,7 @@ pub fn run() -> anyhow::Result<()> {
             }
             app.manage(AppContext {
                 state: Arc::clone(&state),
-                log_path: log_dir.join("cogit.log"),
+                log_path,
                 config_dir: config_dir.clone(),
             });
             app.manage(guard);

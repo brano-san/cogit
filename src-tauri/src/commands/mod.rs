@@ -418,27 +418,32 @@ pub async fn load_commits(
     repo: RepoId,
     query: CommitQuery,
     on_chunk: tauri::ipc::Channel<GraphChunk>,
-) -> Result<(), GitError> {
+) -> Result<Vec<git_engine::SkippedRef>, GitError> {
     let app_state = state.state.clone();
     let started = std::time::Instant::now();
+    let generation = app_state.begin_graph();
 
-    let sent = blocking("load_commits", move || {
+    let (sent, skipped) = blocking("load_commits", move || {
         let mut sent = 0_usize;
         let result = app_state.search_graph(repo, &query, DEFAULT_CHUNK_SIZE, |chunk| {
+            if !app_state.is_current_graph(generation) {
+                return false;
+            }
             sent += chunk.commits.len();
             on_chunk.send(chunk).is_ok()
         });
-        result.map(|()| sent)
+        result.map(|skipped| (sent, skipped))
     })
     .await?;
 
     tracing::info!(
         repo = repo.0,
         commits = sent,
+        skipped = skipped.len(),
         elapsed_ms = started.elapsed().as_millis(),
         "commit graph streamed"
     );
-    Ok(())
+    Ok(skipped)
 }
 
 #[tauri::command]

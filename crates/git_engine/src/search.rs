@@ -1,6 +1,13 @@
 use crate::topo::{LOOKAHEAD, group_topologically};
 use crate::{CommitRow, GitError, RepoHandle, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SkippedRef {
+    pub name: String,
+    pub reason: String,
+}
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase", default)]
@@ -13,8 +20,7 @@ pub struct CommitQuery {
     #[specta(type = Option<specta_typescript::Number>)]
     pub until: Option<i64>,
     pub path: Option<String>,
-    /// Revisions the References panel has ticked. `None` is every ref; `Some([])` is
-    /// nothing, which is the honest answer when the user unticks the last box.
+    /// Refs the References panel ticked; `None` is every ref, `Some([])` is none.
     #[serde(default)]
     pub visible_refs: Option<Vec<String>>,
 }
@@ -25,9 +31,7 @@ impl CommitQuery {
         self == &Self::default()
     }
 
-    /// True when a per-commit predicate is set, which forces a flat list. Narrowing the
-    /// visible refs is not one: it drops whole tips, so every ancestor of a surviving tip
-    /// is still there and the lanes between them stay truthful.
+    /// A per-commit predicate forces a flat list; narrowing the ticked refs does not (R-51).
     #[must_use]
     pub fn filters_rows(&self) -> bool {
         Self {
@@ -70,69 +74,68 @@ impl RepoHandle {
         on_chunk: impl FnMut(Vec<CommitRow>) -> bool,
     ) -> Result<()> {
         self.search_commits(&CommitQuery::default(), chunk_size, on_chunk)
+            .map(drop)
     }
 
-    /// A tip that no longer resolves — a branch deleted while the panel still lists it —
-    /// is dropped, not fatal. `rev_parse_single` rather than `find_reference`, because the
-    /// panel also ticks stashes (`stash@{2}`) and lost commits (a bare oid).
-    fn tips_for(&self, query: &CommitQuery) -> Result<Vec<gix::ObjectId>> {
+    /// Every tip peeled to a commit; a ref that names none is reported, not fatal (R-157).
+    fn tips_for(&self, query: &CommitQuery) -> Result<(Vec<gix::ObjectId>, Vec<SkippedRef>)> {
         let Some(names) = query.visible_refs.as_deref() else {
-            return self.graph_tips();
+            return Ok((self.graph_tips()?, Vec::new()));
         };
 
-        let mut tips: Vec<gix::ObjectId> = names
-            .iter()
-            .filter_map(|rev| match self.repo.rev_parse_single(rev.as_str()) {
-                Ok(id) => Some(id.detach()),
-                Err(err) => {
-                    tracing::debug!(rev, error = %err, "a ticked ref no longer resolves");
-                    None
-                }
-            })
-            .collect();
+        let mut tips = Vec::with_capacity(names.len());
+        let mut skipped = Vec::new();
+        for rev in names {
+            let Ok(id) = self.repo.rev_parse_single(rev.as_str()) else {
+                tracing::debug!(rev, "a ticked ref no longer resolves");
+                continue;
+            };
+            match id.object().map(gix::Object::peel_to_commit) {
+                Ok(Ok(commit)) => tips.push(commit.id),
+                _ => skipped.push(SkippedRef {
+                    name: rev.clone(),
+                    reason: "Tag does not point to a commit".to_owned(),
+                }),
+            }
+        }
+        if !skipped.is_empty() {
+            tracing::warn!(skipped = skipped.len(), "ticked refs left out of the graph");
+        }
         tips.sort_unstable();
         tips.dedup();
-        Ok(tips)
+        Ok((tips, skipped))
     }
 
-    /// Newest first by commit time, the way `git log` reads by default. Search, history
-    /// and Investigate all want this: a reader looking for "what happened on Tuesday"
-    /// wants Tuesday, not one line of history at a time.
+    /// Newest first by commit time, as `git log` reads: for search, history, Investigate.
     pub fn search_commits(
         &self,
         query: &CommitQuery,
         chunk_size: usize,
         on_chunk: impl FnMut(Vec<CommitRow>) -> bool,
-    ) -> Result<()> {
-        let tips = self.tips_for(query)?;
-        if tips.is_empty() {
-            return Ok(());
+    ) -> Result<Vec<SkippedRef>> {
+        let (tips, skipped) = self.tips_for(query)?;
+        if !tips.is_empty() {
+            self.stream_rows(query, chunk_size, self.by_date(tips)?, on_chunk)?;
         }
-
-        self.stream_rows(query, chunk_size, self.by_date(tips)?, on_chunk)
+        Ok(skipped)
     }
 
-    /// The same commits, ordered so that no line of history is interleaved with another —
-    /// `git log --topo-order`, computed in a sliding window over the date walk. The graph
-    /// is drawn from this: lanes only stay straight if a branch's commits arrive together
-    /// (doc/12-risks.md, R-140).
+    /// `git log --topo-order` in a sliding window over the date walk (doc/12-risks.md, R-140).
     pub fn search_commits_topo(
         &self,
         query: &CommitQuery,
         chunk_size: usize,
         on_chunk: impl FnMut(Vec<CommitRow>) -> bool,
-    ) -> Result<()> {
-        let tips = self.tips_for(query)?;
-        if tips.is_empty() {
-            return Ok(());
+    ) -> Result<Vec<SkippedRef>> {
+        let (tips, skipped) = self.tips_for(query)?;
+        if !tips.is_empty() {
+            let walk = group_topologically(self.by_date(tips)?, LOOKAHEAD);
+            self.stream_rows(query, chunk_size, walk, on_chunk)?;
         }
-
-        let walk = group_topologically(self.by_date(tips)?, LOOKAHEAD);
-        self.stream_rows(query, chunk_size, walk, on_chunk)
+        Ok(skipped)
     }
 
-    /// Newest first by commit time. An unreadable object is skipped with a line in the
-    /// log: one bad commit must not end the history.
+    /// Newest first by commit time; an unreadable object is logged and skipped.
     fn by_date(
         &self,
         tips: Vec<gix::ObjectId>,
@@ -154,7 +157,6 @@ impl RepoHandle {
             }))
     }
 
-    /// Filtering and chunking, shared by both walks.
     fn stream_rows(
         &self,
         query: &CommitQuery,
@@ -192,8 +194,7 @@ impl RepoHandle {
         Ok(())
     }
 
-    /// Compares the entry at `path` with the same entry in the first parent, which is what
-    /// `git log -- path` does before rename following.
+    /// Against the first parent, as `git log -- path` does before following renames.
     fn touches(&self, oid: &gix::ObjectId, path: &str) -> bool {
         let Ok(commit) = self.repo.find_commit(*oid) else {
             return false;

@@ -45,6 +45,7 @@ export type {
   ModuleProblem,
   Operation,
   OperationKind,
+  SkippedRef,
   OperationPhase,
   BlameLine,
   Branch,
@@ -212,6 +213,7 @@ export async function loadCommits(
   if (result.status === "error") {
     throw new CogitError(result.error);
   }
+  return result.data;
 }
 
 /** Hits stream in as the walk finds them; the promise resolves with the total. */

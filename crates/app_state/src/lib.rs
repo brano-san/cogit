@@ -192,6 +192,8 @@ pub struct AppState {
     cached_rows: Arc<RwLock<HashMap<RepoId, RepoOverview>>>,
     rows_read: Arc<AtomicU32>,
     queue: Queue,
+    /// One graph is on screen at a time; a newer request makes the walk before it stop.
+    graph_generation: AtomicU32,
 }
 
 impl std::fmt::Debug for AppState {
@@ -229,7 +231,19 @@ impl AppState {
             cached_rows: Arc::new(RwLock::new(HashMap::new())),
             rows_read: Arc::new(AtomicU32::new(0)),
             queue: Queue::default(),
+            graph_generation: AtomicU32::new(0),
         }
+    }
+
+    /// Ticking a hundred tags is one request, and ticking again mid-walk retires the old
+    /// one: its next chunk sees it is no longer current and the walk ends there.
+    pub fn begin_graph(&self) -> u32 {
+        self.graph_generation.fetch_add(1, Ordering::SeqCst) + 1
+    }
+
+    #[must_use]
+    pub fn is_current_graph(&self, generation: u32) -> bool {
+        self.graph_generation.load(Ordering::SeqCst) == generation
     }
 
     /// Tests and a machine without a credential store share this constructor.
@@ -445,6 +459,7 @@ impl AppState {
             chunk_size,
             on_chunk,
         )
+        .map(drop)
     }
 
     /// A filtered history is a flat list, not a graph: the parents of a match are usually
@@ -457,7 +472,7 @@ impl AppState {
         query: &git_engine::CommitQuery,
         chunk_size: usize,
         mut on_chunk: impl FnMut(GraphChunk) -> bool,
-    ) -> Result<(), git_engine::GitError> {
+    ) -> Result<Vec<git_engine::SkippedRef>, git_engine::GitError> {
         let handle = self.handle(repo)?;
         let flat = query.filters_rows();
         let mut row = 0_u32;
@@ -514,11 +529,11 @@ impl AppState {
             keep
         };
 
-        if flat {
-            handle.search_commits(query, chunk_size, on_commits)?;
+        let skipped = if flat {
+            handle.search_commits(query, chunk_size, on_commits)?
         } else {
-            handle.search_commits_topo(query, chunk_size, on_commits)?;
-        }
+            handle.search_commits_topo(query, chunk_size, on_commits)?
+        };
 
         if !cancelled {
             on_chunk(GraphChunk {
@@ -529,7 +544,7 @@ impl AppState {
                 is_last: true,
             });
         }
-        Ok(())
+        Ok(skipped)
     }
 
     pub fn commit_details(
