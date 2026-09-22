@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Caret from "$components/common/Caret.svelte";
   import {
     buildRefTree,
     checkState,
@@ -93,17 +94,12 @@
         oncontext(node, event.clientX, event.clientY);
       }}
     >
-      {#if foldable(node)}
-        <button
-          type="button"
-          class="caret"
-          aria-label="Collapse {node.label}"
-          onclick={() => oncollapse(node.id)}
-          >{input.collapsed.has(node.id) ? "▸" : "▾"}</button
-        >
-      {:else}
-        <span class="caret" aria-hidden="true"></span>
-      {/if}
+      <Caret
+        empty={!foldable(node)}
+        open={!input.collapsed.has(node.id)}
+        label="Collapse {node.label}"
+        onclick={() => oncollapse(node.id)}
+      />
 
       <input
         type="checkbox"
@@ -167,18 +163,6 @@
     font-size: var(--fs-header);
     font-weight: 600;
     letter-spacing: 0.03em;
-  }
-
-  .caret {
-    flex: 0 0 auto;
-    width: 12px;
-    background: none;
-    border: 0;
-    color: var(--text-secondary);
-    font: inherit;
-    font-size: 9px;
-    padding: 0;
-    cursor: default;
   }
 
   .box {
