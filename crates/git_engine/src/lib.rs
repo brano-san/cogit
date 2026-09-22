@@ -4,11 +4,14 @@ mod blobs;
 mod branches;
 mod commit;
 mod commit_write;
+mod config_file;
 mod conflicts;
 pub mod discover;
 mod error;
 mod find;
 mod flow;
+mod gitlink;
+mod health;
 mod history;
 mod hooks;
 mod interactive;
@@ -43,10 +46,16 @@ pub use blobs::{DiffSides, DiffSpec};
 pub use branches::CheckoutTarget;
 pub use commit::{CommitDetails, DEFAULT_SIMILARITY, FileEntry, FileMode, FileStatus, Signature};
 pub use commit_write::CommitRequest;
+pub use config_file::{
+    ConfigFile, ConfigProblem, ConfigScope, origin_file, read_config, save_config,
+    user_config_by_rules, user_config_path,
+};
 pub use conflicts::{ConflictSide, ConflictSides, ConflictText};
 pub use error::{GitCommandError, GitError};
 pub use find::{Found, FoundKind};
 pub use flow::{FlowBranch, FlowConfig, FlowKind, FlowStatus};
+pub use gitlink::{ModuleProblem, is_foreign_path};
+pub use health::{HealthFinding, HealthIssue, case_sensitive};
 pub use history::CommitRow;
 pub use hooks::{Bypass, Hook, HookOverview, HookRun, HookSource, HookState, is_hook_name};
 pub use interactive::{TodoAction, TodoEntry, render_todo, render_todo_paused};

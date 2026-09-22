@@ -64,13 +64,13 @@
   .about {
     display: flex;
     flex-direction: column;
-    gap: var(--s-4);
+    gap: var(--sp-4);
   }
 
   header {
     display: flex;
     align-items: flex-start;
-    gap: var(--s-4);
+    gap: var(--sp-4);
   }
 
   header img {
@@ -86,7 +86,7 @@
 
   .tagline,
   .licence {
-    margin: var(--s-1) 0 0;
+    margin: var(--sp-1) 0 0;
     color: var(--text-secondary);
     font-size: 12px;
   }
@@ -94,7 +94,7 @@
   dl {
     display: grid;
     grid-template-columns: max-content 1fr;
-    gap: var(--s-1) var(--s-4);
+    gap: var(--sp-1) var(--sp-4);
     margin: 0;
     font-size: 12px;
   }
@@ -118,7 +118,7 @@
     padding: 0;
     border: 0;
     background: none;
-    color: var(--accent);
+    color: var(--text-link);
     font: inherit;
     text-align: left;
     cursor: pointer;

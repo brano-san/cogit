@@ -35,6 +35,11 @@ class SubmoduleStore {
     return this.#repo;
   }
 
+  /** Where the owner lives on disk. Every node key is a path from here (R-149). */
+  get ownerRoot(): string | null {
+    return this.#root;
+  }
+
   get entries(): readonly Submodule[] {
     return this.children.get("") ?? [];
   }

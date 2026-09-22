@@ -6,8 +6,15 @@ const STORAGE_KEY = "cogit.visible-refs.v2";
 
 interface Saved {
   visible: string[];
-  /** Which headings the user folded away; T5.1 asks for this to survive a restart. */
-  collapsed: string[];
+  /** The headings the user opened. Everything else is folded, which is what makes a
+      repository never seen before start folded, headings that load late included (R-154). */
+  expanded?: string[];
+  /** The previous shape: what was folded. Read once, then written back as `expanded`. */
+  collapsed?: string[];
+}
+
+function foldableIds(nodes: readonly RefNode[]): Set<string> {
+  return new Set(nodes.filter((node) => node.children === true).map((node) => node.id));
 }
 
 function stored(): Record<string, Saved> {
@@ -25,11 +32,17 @@ function strings(value: unknown): string[] {
 
 class RefsStore {
   visible = $state.raw<ReadonlySet<string>>(new Set());
-  collapsed = $state.raw<ReadonlySet<string>>(new Set());
   filter = $state("");
   urls = $state.raw<Record<string, string>>({});
 
   #root: string | null = null;
+  #expanded = $state.raw<ReadonlySet<string>>(new Set());
+  #foldable = $state.raw<ReadonlySet<string>>(new Set());
+
+  /** Every heading the user has not opened. */
+  get collapsed(): ReadonlySet<string> {
+    return new Set([...this.#foldable].filter((id) => !this.#expanded.has(id)));
+  }
 
   /** Until the tree has been built once there is nothing to seed a default from. */
   adopt(root: string, nodes: readonly RefNode[]): void {
@@ -39,7 +52,25 @@ class RefsStore {
     const known = new Set(nodes.map((node) => node.id));
     const kept = strings(remembered?.visible).filter((id) => known.has(id));
     this.visible = kept.length > 0 ? new Set(kept) : defaultVisible(nodes);
-    this.collapsed = new Set(strings(remembered?.collapsed));
+    this.#foldable = foldableIds(nodes);
+
+    if (remembered?.expanded !== undefined) {
+      this.#expanded = new Set(strings(remembered.expanded));
+    } else if (remembered?.collapsed !== undefined) {
+      const folded = new Set(strings(remembered.collapsed));
+      this.#expanded = new Set([...this.#foldable].filter((id) => !folded.has(id)));
+    } else {
+      this.#expanded = new Set();
+    }
+  }
+
+  /** The tree grows after the open — stashes, lost commits, a fetched remote — and a
+      heading nobody has opened yet arrives folded. */
+  know(nodes: readonly RefNode[]): void {
+    const next = foldableIds(nodes);
+    const same =
+      next.size === this.#foldable.size && [...next].every((id) => this.#foldable.has(id));
+    if (!same) this.#foldable = next;
   }
 
   set(next: Set<string>): void {
@@ -47,10 +78,11 @@ class RefsStore {
     this.persist();
   }
 
+  /** Folds an open heading and opens a folded one. */
   collapse(id: string): void {
-    const next = new Set(this.collapsed);
+    const next = new Set(this.#expanded);
     if (!next.delete(id)) next.add(id);
-    this.collapsed = next;
+    this.#expanded = next;
     this.persist();
   }
 
@@ -58,7 +90,7 @@ class RefsStore {
     if (this.#root === null) return;
     try {
       const all = stored();
-      all[this.#root] = { visible: [...this.visible], collapsed: [...this.collapsed] };
+      all[this.#root] = { visible: [...this.visible], expanded: [...this.#expanded] };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
     } catch {
       // A blocked store costs the ticks and the folds on restart, nothing more.
@@ -80,7 +112,8 @@ class RefsStore {
   clear(): void {
     this.#root = null;
     this.visible = new Set();
-    this.collapsed = new Set();
+    this.#expanded = new Set();
+    this.#foldable = new Set();
     this.filter = "";
     this.urls = {};
   }

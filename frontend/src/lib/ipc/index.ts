@@ -9,6 +9,7 @@ import type {
   CheckoutTarget,
   CommitQuery,
   CommitRequest,
+  ConfigScope,
   ConflictSide,
   ContextItem,
   DiffOptions,
@@ -19,6 +20,7 @@ import type {
   GraphChunk,
   MergeOptions,
   MergeResolved,
+  ModuleProblem,
   CommandNotice,
   OperationChanged,
   PatchRequest,
@@ -36,6 +38,14 @@ import type {
 export type {
   Algorithm,
   AppInfo,
+  ConfigFile,
+  ConfigScope,
+  HealthFinding,
+  HealthIssue,
+  ModuleProblem,
+  Operation,
+  OperationKind,
+  OperationPhase,
   BlameLine,
   Branch,
   BranchKind,
@@ -144,6 +154,28 @@ function describeError(error: GitError): string {
       return `I/O error: ${error.data}`;
     case "internal":
       return `Internal error: ${error.data}`;
+    case "moduleUnavailable":
+      return describeModuleProblem(error.data);
+    case "configInvalid":
+      return error.data.line === null
+        ? `Git refused the config: ${error.data.message}`
+        : `Git refused the config at line ${error.data.line}: ${error.data.message}`;
+  }
+}
+
+/** The backend's wording, in the one place the frontend writes it (R-149). */
+export function describeModuleProblem(problem: ModuleProblem): string {
+  switch (problem.reason) {
+    case "missing":
+      return `Directory does not exist: ${problem.path}`;
+    case "notInitialised":
+      return `Submodule is not initialized: ${problem.path}`;
+    case "danglingGitFile":
+      return problem.foreign
+        ? `The .git file of ${problem.path} points to ${problem.target}, which does not exist on this system — the path was written by another operating system.`
+        : `The .git file of ${problem.path} points to ${problem.target}, which does not exist.`;
+    case "notARepository":
+      return `Not a Git repository: ${problem.path}: ${problem.detail}`;
   }
 }
 
@@ -392,8 +424,33 @@ export async function listSubmodules(repo: RepoId, parent = "") {
 }
 
 /** Opens a submodule from its node: the panels follow it, the list does not grow. */
-export async function openSubmodule(path: string) {
-  return unwrap(await commands.openSubmodule(path));
+export async function readGitConfig(repo: RepoId | null, scope: ConfigScope) {
+  return unwrap(await commands.readGitConfig(repo === null ? null : repo.valueOf(), scope));
+}
+
+export async function writeGitConfig(
+  repo: RepoId | null,
+  scope: ConfigScope,
+  text: string,
+  crlf: boolean,
+) {
+  return unwrap(
+    await commands.writeGitConfig(repo === null ? null : repo.valueOf(), scope, text, crlf),
+  );
+}
+
+/** The repository and every submodule below it; read-only apart from a probe file. */
+export async function repositoryHealth(repo: RepoId) {
+  return unwrap(await commands.repositoryHealth(repo));
+}
+
+export async function listOperations() {
+  return unwrap(await commands.listOperations());
+}
+
+/** `key` is the node path from `owner`, the repository whose tree it is (R-149). */
+export async function openSubmodule(owner: RepoId, key: string) {
+  return unwrap(await commands.openSubmodule(owner, key));
 }
 
 export async function updateSubmodule(repo: RepoId, path: string, init: boolean) {

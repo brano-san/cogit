@@ -76,7 +76,7 @@
   .author {
     display: flex;
     align-items: center;
-    gap: var(--s-2);
+    gap: var(--sp-2);
   }
 
   .detail {

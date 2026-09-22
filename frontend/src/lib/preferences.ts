@@ -1,6 +1,11 @@
 import { DEFAULT_SETTINGS, type Settings } from "./settings";
 
-export type FieldKey = keyof Settings | "keymap";
+export type FieldKey = keyof Settings | "keymap" | "suppressions";
+
+/** Rows that show something other than a setting: the keymap, the hidden-dialogs list. */
+export function isSetting(key: FieldKey): key is keyof Settings {
+  return key !== "keymap" && key !== "suppressions";
+}
 
 export interface Field {
   key: FieldKey;
@@ -116,6 +121,34 @@ export const CATEGORIES: Category[] = [
         title: "Shortcuts",
         fields: [
           { key: "keymap", label: "Shortcuts", keywords: ["keyboard", "shortcut", "accelerator", "binding"] },
+        ],
+      },
+    ],
+  },
+  {
+    id: "behaviour",
+    title: "Behaviour",
+    parent: "ui",
+    groups: [
+      {
+        title: "Exiting",
+        fields: [
+          {
+            key: "confirmExit",
+            label: "Confirm before exiting",
+            hint: "Cogit still asks while an operation is running or waiting, whatever this says.",
+            keywords: ["exit", "quit", "close", "confirm", "ask"],
+          },
+        ],
+      },
+      {
+        title: "Don't show again",
+        fields: [
+          {
+            key: "suppressions",
+            label: "Choices made with \"Don't show again\" or \"Ignore for this repository\"",
+            keywords: ["reset", "dont show", "ignore", "warning", "suppressed", "hidden"],
+          },
         ],
       },
     ],
@@ -263,7 +296,7 @@ export function restoreCategory(draft: Settings, id: string): Settings {
   const restored = { ...draft };
   for (const group of category.groups) {
     for (const field of group.fields) {
-      if (field.key === "keymap") continue;
+      if (!isSetting(field.key)) continue;
       (restored[field.key] as Settings[keyof Settings]) = DEFAULT_SETTINGS[field.key];
     }
   }

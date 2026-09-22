@@ -78,6 +78,8 @@
   --status-modify: var(--c-modified);
   --status-delete: var(--c-deleted);
   --status-ref: var(--c-branch);
+  /* Links are the one interactive colour, the same blue that marks a hovered control. */
+  --text-link: var(--status-ref);
   --status-stash: var(--c-stash);
 
   /* ---- typography ---- */

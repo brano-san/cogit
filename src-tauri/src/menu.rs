@@ -9,6 +9,12 @@ use tauri::{AppHandle, Manager, Runtime};
 
 /// Item ids are the palette command ids: one place decides what an action is called and
 /// when it is available, and both the menu and the palette read it.
+/// SmartGit's own split: this repository's `.git/config`, and the user's own file.
+const EDIT_CONFIG: &[Entry] = &[
+    Entry::Item("edit-config-repository", "Repository…", None),
+    Entry::Item("edit-config-user", "User…", None),
+];
+
 const REPOSITORY: &[Entry] = &[
     Entry::Item("open", "Open Repository…", Some("CmdOrCtrl+O")),
     Entry::Item("scan", "Scan Folder for Repositories…", None),
@@ -16,7 +22,11 @@ const REPOSITORY: &[Entry] = &[
     Entry::Separator,
     Entry::Item("refresh", "Refresh", Some("F5")),
     Entry::Separator,
+    Entry::Nested("Edit Git Config", EDIT_CONFIG),
+    Entry::Separator,
     Entry::Item("settings", "Settings…", Some("CmdOrCtrl+,")),
+    Entry::Separator,
+    Entry::Item("exit", "Exit", Some("Alt+X")),
 ];
 
 const VIEW: &[Entry] = &[
@@ -131,10 +141,10 @@ pub struct KeyBinding {
 pub fn default_keymap() -> Vec<KeyBinding> {
     let mut rows = Vec::new();
     for (section, entries) in SECTIONS {
-        for entry in *entries {
+        for entry in leaves(entries) {
             let (id, label, accelerator) = match entry {
                 Entry::Item(id, label, keys) | Entry::Check(id, label, keys) => (id, label, keys),
-                Entry::Separator => continue,
+                Entry::Separator | Entry::Nested(..) => continue,
             };
             rows.push(KeyBinding {
                 id: (*id).to_owned(),
@@ -155,10 +165,9 @@ pub fn default_keymap() -> Vec<KeyBinding> {
 pub fn default_keymap_pairs() -> Vec<(&'static str, Option<&'static str>)> {
     let mut rows = Vec::new();
     for (_, entries) in SECTIONS {
-        for entry in *entries {
-            match entry {
-                Entry::Item(id, _, keys) | Entry::Check(id, _, keys) => rows.push((*id, *keys)),
-                Entry::Separator => {}
+        for entry in leaves(entries) {
+            if let Entry::Item(id, _, keys) | Entry::Check(id, _, keys) = entry {
+                rows.push((*id, *keys));
             }
         }
     }
@@ -225,6 +234,20 @@ pub(crate) enum Entry {
     /// authoritative state back through `set_menu_state` afterwards.
     Check(&'static str, &'static str, Option<&'static str>),
     Separator,
+    /// A submenu inside a menu; its items are commands like any other.
+    Nested(&'static str, &'static [Entry]),
+}
+
+/// Items and checks in menu order, submenus opened up: what the keymap lists.
+fn leaves(entries: &'static [Entry]) -> Vec<&'static Entry> {
+    entries
+        .iter()
+        .flat_map(|entry| match entry {
+            Entry::Nested(_, inner) => leaves(inner),
+            Entry::Separator => Vec::new(),
+            item => vec![item],
+        })
+        .collect()
 }
 
 /// The items by id, so a state change can enable or disable one without walking the tree:
@@ -299,6 +322,10 @@ fn submenu<R: Runtime>(
                 let item = item.build(app)?;
                 builder = builder.item(&item);
                 collected.checks.insert((*id).to_owned(), item);
+            }
+            Entry::Nested(title, inner) => {
+                let nested = submenu(app, title, inner, overrides, collected)?;
+                builder = builder.item(&nested);
             }
         }
     }
@@ -541,5 +568,31 @@ mod separator_tests {
             assert_eq!(kinds.first(), Some(&false), "a menu began with a separator");
             assert_eq!(kinds.last(), Some(&false), "a menu ended with a separator");
         }
+    }
+}
+
+#[cfg(test)]
+mod nested_tests {
+    use super::*;
+
+    /// Repository ▸ Edit Git Config ▸ Repository / User: a submenu's items are commands
+    /// like any other, so the keymap and the window accelerators must see them.
+    #[test]
+    fn items_inside_a_nested_menu_are_in_the_keymap() {
+        let ids: Vec<&str> = default_keymap_pairs()
+            .into_iter()
+            .map(|(id, _)| id)
+            .collect();
+        assert!(ids.contains(&"edit-config-repository"), "{ids:?}");
+        assert!(ids.contains(&"edit-config-user"), "{ids:?}");
+    }
+
+    #[test]
+    fn the_keymap_editor_lists_them_under_their_menu() {
+        let row = default_keymap()
+            .into_iter()
+            .find(|row| row.id == "edit-config-user")
+            .expect("listed");
+        assert_eq!(row.section, "Repository");
     }
 }

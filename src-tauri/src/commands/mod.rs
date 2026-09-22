@@ -212,13 +212,57 @@ pub async fn search_file_contents(
 #[specta::specta]
 pub async fn open_submodule(
     state: tauri::State<'_, crate::AppContext>,
-    path: String,
+    owner: RepoId,
+    key: String,
 ) -> Result<RepoSummary, GitError> {
     let app_state = state.state.clone();
     blocking("open_submodule", move || {
-        app_state.open_submodule(std::path::Path::new(&path))
+        app_state.open_submodule(owner, &key)
     })
     .await
+}
+
+/// Repository ▸ Edit Git Config. `repo` is only read for the repository scope.
+#[tauri::command]
+#[specta::specta]
+pub async fn read_git_config(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: Option<RepoId>,
+    scope: git_engine::ConfigScope,
+) -> Result<git_engine::ConfigFile, GitError> {
+    let app_state = state.state.clone();
+    blocking("read_git_config", move || {
+        app_state.config_file(repo, scope)
+    })
+    .await
+}
+
+/// Written only after `git config --file` has read the text back without complaint.
+#[tauri::command]
+#[specta::specta]
+pub async fn write_git_config(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: Option<RepoId>,
+    scope: git_engine::ConfigScope,
+    text: String,
+    crlf: bool,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    blocking("write_git_config", move || {
+        app_state.save_config_file(repo, scope, &text, crlf)
+    })
+    .await
+}
+
+/// Run in the background after a repository opens; nothing in it changes the repository.
+#[tauri::command]
+#[specta::specta]
+pub async fn repository_health(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<Vec<git_engine::HealthFinding>, GitError> {
+    let app_state = state.state.clone();
+    blocking("repository_health", move || app_state.health(repo)).await
 }
 
 /// The submodules directly under `parent`; empty `parent` means the top level.

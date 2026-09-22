@@ -66,6 +66,14 @@ pub enum GitError {
 
     #[error("internal error: {0}")]
     Internal(String),
+
+    /// A submodule that cannot be opened, with the reason rather than "not a repository".
+    #[error("{0}")]
+    ModuleUnavailable(crate::ModuleProblem),
+
+    /// Git refused a config file's text; nothing was written.
+    #[error("{0}")]
+    ConfigInvalid(crate::ConfigProblem),
 }
 
 impl From<std::io::Error> for GitError {

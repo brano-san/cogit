@@ -1,7 +1,13 @@
 <script lang="ts">
   import Caret from "$components/common/Caret.svelte";
     import { applyClick, EMPTY_SELECTION, type FileSelection } from "$lib/multi-select";
-  import { describeModule, mayExpand, splitModulePath, type ModuleRow } from "$lib/module-tree";
+  import {
+    describeModule,
+    mayExpand,
+    moduleTooltip,
+    splitModulePath,
+    type ModuleRow,
+  } from "$lib/module-tree";
   import { panelView } from "$lib/repo-phase";
   import { submodules } from "$stores/submodules.svelte";
   import { UNGROUPED, groupRows } from "$lib/repo-groups";
@@ -280,7 +286,9 @@
                 class="leaf">{parts.name}</span
               >
             </span>
-            <span class="where truncate">({describeModule(node.module)})</span>
+            <span class="where truncate" title={moduleTooltip(node.module) || undefined}
+              >({describeModule(node.module)})</span
+            >
           </div>
         {/each}
       {/if}
@@ -332,8 +340,14 @@
   }
 
   .row.module.diverged .where,
+  .row.module.behind .where,
   .row.module.notInitialised .where {
     color: var(--status-modify);
+  }
+
+  /* Ahead is work the user did and has only to record; not a warning colour. */
+  .row.module.ahead .where {
+    color: var(--status-add);
   }
 
   .actions {

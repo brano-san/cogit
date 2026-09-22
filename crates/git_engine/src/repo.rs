@@ -43,7 +43,7 @@ pub struct Tag {
 
 /// Ignores inherited `GIT_*` variables: `gix` honours `GIT_INDEX_FILE` and friends,
 /// which is right for a hook and wrong for a client (doc/12-risks.md, R-22).
-fn env_free() -> gix::open::Options {
+pub(crate) fn env_free() -> gix::open::Options {
     let mut options = gix::open::Options::default();
     options.permissions.env.git_prefix = gix::sec::Permission::Deny;
     options
@@ -67,15 +67,19 @@ impl RepoHandle {
     pub fn open(path: &Path) -> Result<Self> {
         let repo = gix::discover_opts(path, gix::discover::upwards::Options::default(), env_free())
             .map_err(|err| GitError::RepoNotFound(format!("{}: {err}", path.display())))?;
+        Ok(Self::from_repo(repo))
+    }
+
+    pub(crate) fn from_repo(repo: gix::Repository) -> Self {
         let root = repo
             .workdir()
             .unwrap_or_else(|| repo.git_dir())
             .to_path_buf();
-        Ok(Self {
+        Self {
             repo,
             root,
             journal: None,
-        })
+        }
     }
 
     #[must_use]
@@ -198,7 +202,7 @@ impl RepoHandle {
 
     /// Commits on each side of the merge base. Through `gix`: a `rev-list` per branch
     /// would mean one process per row in a 500-branch repository.
-    fn count_divergence(
+    pub(crate) fn count_divergence(
         &self,
         local: gix::ObjectId,
         upstream: gix::ObjectId,

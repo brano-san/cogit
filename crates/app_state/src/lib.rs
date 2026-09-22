@@ -351,22 +351,43 @@ impl AppState {
 
     /// Blocking by design; the Tauri layer wraps it in `spawn_blocking`.
     pub fn open_repository(&self, path: &Path) -> Result<RepoSummary, git_engine::GitError> {
-        self.open_at(path, true)
-    }
-
-    /// Opens a submodule from its node in the tree. Already listed stays listed: asking
-    /// for the same path by hand is a different request with a different answer.
-    pub fn open_submodule(&self, path: &Path) -> Result<RepoSummary, git_engine::GitError> {
-        self.open_at(path, false)
-    }
-
-    fn open_at(&self, path: &Path, listed: bool) -> Result<RepoSummary, git_engine::GitError> {
-        // Timed step by step: the log of the three-monitor machine showed this command
-        // taking 7.7 s on a repository with sixteen branches, and one number for the whole
-        // thing does not say which read to go after (doc/12-risks.md, R-121).
         let mut watch = Steps::new();
         let handle = git_engine::RepoHandle::open(path)?;
         watch.done("open");
+        self.open_with(handle, path, true, watch)
+    }
+
+    /// Opens a submodule from its node in the tree. `key` is the node's path from `owner`,
+    /// the repository in the list — never from whichever submodule the panels show now.
+    /// Already listed stays listed: asking for the same path by hand is a different request.
+    pub fn open_submodule(
+        &self,
+        owner: RepoId,
+        key: &str,
+    ) -> Result<RepoSummary, git_engine::GitError> {
+        let path = self.module_root(owner, key)?;
+        let mut watch = Steps::new();
+        let handle = git_engine::RepoHandle::open_exact(&path)?;
+        watch.done("open");
+        self.open_with(handle, &path, false, watch)
+    }
+
+    /// The one place a tree key becomes a directory, shared by listing and opening so the
+    /// two can never disagree about where a node is (doc/12-risks.md, R-149).
+    fn module_root(&self, owner: RepoId, key: &str) -> Result<PathBuf, git_engine::GitError> {
+        Ok(self.handle(owner)?.root().join(key))
+    }
+
+    fn open_with(
+        &self,
+        handle: git_engine::RepoHandle,
+        path: &Path,
+        listed: bool,
+        mut watch: Steps,
+    ) -> Result<RepoSummary, git_engine::GitError> {
+        // Timed step by step: the log of the three-monitor machine showed this command
+        // taking 7.7 s on a repository with sixteen branches, and one number for the whole
+        // thing does not say which read to go after (doc/12-risks.md, R-121).
         let root = handle.root().to_path_buf();
         let head = handle.head()?;
         watch.done("head");
@@ -1267,6 +1288,49 @@ impl AppState {
         self.handle(repo)?.submodules()
     }
 
+    /// Resolved here on every call: the frontend names a scope, never a path to write.
+    fn config_target(
+        &self,
+        repo: Option<RepoId>,
+        scope: git_engine::ConfigScope,
+    ) -> Result<PathBuf, git_engine::GitError> {
+        match scope {
+            git_engine::ConfigScope::User => Ok(git_engine::user_config_path()),
+            git_engine::ConfigScope::Repository => {
+                let repo = repo.ok_or_else(|| {
+                    git_engine::GitError::InvalidState("no repository is open".to_owned())
+                })?;
+                self.handle(repo)?.config_path()
+            }
+        }
+    }
+
+    pub fn config_file(
+        &self,
+        repo: Option<RepoId>,
+        scope: git_engine::ConfigScope,
+    ) -> Result<git_engine::ConfigFile, git_engine::GitError> {
+        git_engine::read_config(&self.config_target(repo, scope)?)
+    }
+
+    pub fn save_config_file(
+        &self,
+        repo: Option<RepoId>,
+        scope: git_engine::ConfigScope,
+        text: &str,
+        crlf: bool,
+    ) -> Result<(), git_engine::GitError> {
+        git_engine::save_config(&self.config_target(repo, scope)?, text, crlf)
+    }
+
+    /// The repository and every submodule below it; 72 ms on a tree of twenty-one.
+    pub fn health(
+        &self,
+        repo: RepoId,
+    ) -> Result<Vec<git_engine::HealthFinding>, git_engine::GitError> {
+        Ok(self.handle(repo)?.health_report())
+    }
+
     /// The submodules directly under `parent`, which is empty for the top level.
     ///
     /// Lazy on purpose: a repository with nine submodules, each with its own, costs one
@@ -1276,11 +1340,10 @@ impl AppState {
         repo: RepoId,
         parent: &str,
     ) -> Result<Vec<git_engine::Submodule>, git_engine::GitError> {
-        let handle = self.handle(repo)?;
         if parent.is_empty() {
-            return handle.submodules();
+            return self.handle(repo)?.submodules();
         }
-        git_engine::RepoHandle::open(&handle.root().join(parent))?.submodules()
+        git_engine::RepoHandle::open_exact(&self.module_root(repo, parent)?)?.submodules()
     }
 
     /// Every path in the repository, tracked and untracked, never ignored.

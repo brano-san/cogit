@@ -6,8 +6,14 @@ use serde::Serialize;
 pub enum SubmoduleState {
     NotInitialised,
     InSync,
-    /// Checked out on something other than the commit the parent records.
+    /// New commits on top of the recorded one: commit the pointer in the parent.
+    Ahead,
+    /// On an ancestor of the recorded commit: `git submodule update`.
+    Behind,
+    /// Neither contains the other; only a person can decide which side wins.
     Diverged,
+    /// The recorded commit is not in the submodule, so where it stands cannot be told.
+    Unknown,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
@@ -27,6 +33,10 @@ pub struct Submodule {
     /// Whether it holds submodules of its own. Answered here so the tree can decide
     /// before drawing whether the row opens at all (doc/12-risks.md, R-148).
     pub nested: bool,
+    /// Commits on each side of the merge base, for the tooltip; zero unless ahead,
+    /// behind or diverged.
+    pub ahead: u32,
+    pub behind: u32,
 }
 
 /// Which commit a gitlink points at on each side of a diff.
@@ -39,9 +49,34 @@ pub struct SubmodulePointer {
 
 /// What the submodule's own repository says about itself.
 struct Inside {
+    handle: RepoHandle,
     oid: Option<String>,
     branch: Option<String>,
     subject: Option<String>,
+}
+
+impl Inside {
+    /// Where the checkout stands against the recorded commit. Asked only when the two
+    /// differ, which in a healthy tree is one submodule in ten, so it is not deferred.
+    fn place(&self, actual: &str, recorded: &str) -> (SubmoduleState, u32, u32) {
+        let (Ok(actual), Ok(recorded)) = (
+            gix::ObjectId::from_hex(actual.as_bytes()),
+            gix::ObjectId::from_hex(recorded.as_bytes()),
+        ) else {
+            return (SubmoduleState::Unknown, 0, 0);
+        };
+        if self.handle.repo.find_object(recorded).is_err() {
+            return (SubmoduleState::Unknown, 0, 0);
+        }
+        match self.handle.count_divergence(actual, recorded) {
+            Some((0, 0)) => (SubmoduleState::InSync, 0, 0),
+            Some((ahead, 0)) => (SubmoduleState::Ahead, ahead, 0),
+            Some((0, behind)) => (SubmoduleState::Behind, 0, behind),
+            Some((ahead, behind)) => (SubmoduleState::Diverged, ahead, behind),
+            // Both commits exist and share nothing: histories that were never related.
+            None => (SubmoduleState::Diverged, 0, 0),
+        }
+    }
 }
 
 impl RepoHandle {
@@ -72,10 +107,10 @@ impl RepoHandle {
             let nested =
                 checked_out.is_some() && self.root().join(&path).join(".gitmodules").is_file();
 
-            let state = match &checked_out {
-                None => SubmoduleState::NotInitialised,
-                Some(actual) if *actual == recorded => SubmoduleState::InSync,
-                Some(_) => SubmoduleState::Diverged,
+            let (state, ahead, behind) = match (&checked_out, &inside) {
+                (None, _) | (_, None) => (SubmoduleState::NotInitialised, 0, 0),
+                (Some(actual), _) if *actual == recorded => (SubmoduleState::InSync, 0, 0),
+                (Some(actual), Some(found)) => found.place(actual, &recorded),
             };
 
             out.push(Submodule {
@@ -91,6 +126,8 @@ impl RepoHandle {
                 branch: inside.as_ref().and_then(|found| found.branch.clone()),
                 subject: inside.and_then(|found| found.subject),
                 nested,
+                ahead,
+                behind,
             });
         }
         out.sort_by(|a, b| a.path.cmp(&b.path));
@@ -111,18 +148,10 @@ impl RepoHandle {
         self.run_git(&args).map(drop)
     }
 
-    /// A deinitialised submodule leaves an empty directory, and discovery walks upward
-    /// from there straight into the parent. Comparing roots is what tells them apart.
+    /// A deinitialised submodule leaves an empty directory; `open_exact` refuses it rather
+    /// than discovering its way up into the parent.
     fn submodule_state(&self, path: &str) -> Option<Inside> {
-        let expected = self.root().join(path);
-        let inner = RepoHandle::open(&expected).ok()?;
-        let same = std::fs::canonicalize(inner.root())
-            .ok()
-            .zip(std::fs::canonicalize(&expected).ok())
-            .is_some_and(|(actual, expected)| actual == expected);
-        if !same {
-            return None;
-        }
+        let inner = RepoHandle::open_exact(&self.root().join(path)).ok()?;
         let (oid, branch) = match inner.head().ok()? {
             crate::Head::Branch { oid, name } => (Some(oid), Some(name)),
             crate::Head::Detached { oid } => (Some(oid), None),
@@ -133,6 +162,7 @@ impl RepoHandle {
             .and_then(|oid| inner.commit_details(oid).ok())
             .map(|details| details.summary);
         Some(Inside {
+            handle: inner,
             oid,
             branch,
             subject,

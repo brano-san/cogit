@@ -22,6 +22,7 @@ const node = (id: string, kind: RefNode["kind"], rev?: string): RefNode => ({
   label: id,
   depth: kind === "group" ? 0 : 1,
   rev,
+  ...(kind === "group" ? { children: true } : {}),
 });
 
 const TREE: RefNode[] = [
@@ -53,11 +54,43 @@ describe("refs store", () => {
     expect([...refs.visible]).toEqual(["tag:v1"]);
   });
 
-  it("brings back the folded headings too", () => {
+  // Requirement 3: a repository opened for the first time shows its headings folded.
+  it("folds every heading of a repository it has never seen", () => {
+    refs.adopt("/w/alpha", TREE);
+    expect([...refs.collapsed].sort()).toEqual(["group:local", "group:tags"]);
+  });
+
+  it("brings back the headings the user opened, and only those", () => {
     refs.adopt("/w/alpha", TREE);
     refs.collapse("group:tags");
 
     refs.clear();
+    refs.adopt("/w/alpha", TREE);
+    expect([...refs.collapsed]).toEqual(["group:local"]);
+  });
+
+  it("folds a heading that only appears later, the way Stashes does once they load", () => {
+    refs.adopt("/w/alpha", TREE);
+    refs.collapse("group:local");
+    refs.know([...TREE, node("group:stashes", "group")]);
+    expect([...refs.collapsed].sort()).toEqual(["group:stashes", "group:tags"]);
+  });
+
+  it("starts a second repository folded however the first one was left", () => {
+    refs.adopt("/w/alpha", TREE);
+    refs.collapse("group:local");
+    refs.clear();
+
+    refs.adopt("/w/beta", TREE);
+    expect([...refs.collapsed].sort()).toEqual(["group:local", "group:tags"]);
+  });
+
+  /** The list used to hold what was folded; a repository saved that way keeps its looks. */
+  it("reads a repository saved before the change the way it was left", () => {
+    store.set(
+      "cogit.visible-refs.v2",
+      JSON.stringify({ "/w/alpha": { visible: ["HEAD"], collapsed: ["group:tags"] } }),
+    );
     refs.adopt("/w/alpha", TREE);
     expect([...refs.collapsed]).toEqual(["group:tags"]);
   });
@@ -89,20 +122,21 @@ describe("refs store", () => {
     expect([...refs.visible].sort()).toEqual(["HEAD", "local:master", "local:topic"]);
   });
 
-  it("remembers that the user unticked everything", () => {
+  it("remembers a heading folded again after it was opened", () => {
     refs.adopt("/w/alpha", TREE);
+    refs.collapse("group:local");
     refs.collapse("group:local");
 
     refs.clear();
     refs.adopt("/w/alpha", TREE);
-    expect([...refs.collapsed]).toEqual(["group:local"]);
+    expect([...refs.collapsed].sort()).toEqual(["group:local", "group:tags"]);
   });
 
   it("ignores a stored entry that is not the shape it wrote", () => {
     store.set("cogit.visible-refs.v2", JSON.stringify({ "/w/alpha": { visible: 7 } }));
     refs.adopt("/w/alpha", TREE);
     expect([...refs.visible].sort()).toEqual(["HEAD", "local:master", "local:topic"]);
-    expect([...refs.collapsed]).toEqual([]);
+    expect([...refs.collapsed].sort()).toEqual(["group:local", "group:tags"]);
   });
 
   it("survives a corrupt store rather than refusing to open the panel", () => {

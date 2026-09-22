@@ -18,6 +18,11 @@
   import Panel from "$components/layout/Panel.svelte";
   import CommandPalette from "$components/layout/CommandPalette.svelte";
   import AboutDialog from "$components/common/AboutDialog.svelte";
+  import ExitDialog from "$components/common/ExitDialog.svelte";
+  import ConfigEditor from "$components/common/ConfigEditor.svelte";
+  import HealthNotice from "$components/layout/HealthNotice.svelte";
+  import { exitBlockers, mustAskBeforeExit } from "$lib/exit";
+  import { health } from "$stores/health.svelte";
   import SettingsPanel from "$components/layout/SettingsPanel.svelte";
   import HooksPanel from "$components/layout/HooksPanel.svelte";
   import FindObject from "$components/layout/FindObject.svelte";
@@ -86,6 +91,9 @@
     terminalChoices,
     openRepository,
     openSubmodule,
+    listOperations,
+    readGitConfig,
+    writeGitConfig,
     reportMemory,
     reportTiming,
     commitTemplate,
@@ -269,6 +277,7 @@
         if (settings.current.autoUpdate) void runUpdateCheck(true);
       });
       void settings.loadBindings();
+      void health.loadIgnored();
       void terminalChoices().then((found) => (terminals = found));
       const wanted = session.active;
       const remembered = wanted === null ? null : session.selected(wanted);
@@ -565,6 +574,29 @@
         id: "check-updates",
         title: "Check for Updates",
         run: () => void runUpdateCheck(),
+      },
+      {
+        id: "edit-config-repository",
+        title: "Edit Git Config: Repository",
+        synonyms: ["config", ".git/config", "settings", "remote"],
+        unavailable: noRepo,
+        run: () => void openConfig("repository"),
+      },
+      {
+        id: "edit-config-user",
+        title: "Edit Git Config: User",
+        synonyms: ["config", "gitconfig", "global", "user.name", "email"],
+        run: () => void openConfig("user"),
+      },
+      {
+        id: "exit",
+        title: "Exit",
+        shortcut: "Alt+X",
+        synonyms: ["quit", "close"],
+        run: () =>
+          void import("@tauri-apps/api/window").then(({ getCurrentWindow }) =>
+            getCurrentWindow().close(),
+          ),
       },
       {
         id: "about",
@@ -894,15 +926,20 @@
     void graph.load(id, graph.query);
   }
 
-  const refTreeInput = $derived({
+  const refTreeBase = $derived({
     head: repo?.head,
     branches: repo?.branches ?? [],
     tags: repo?.tags ?? [],
     stashes: stashes.entries,
     lost: recovery.lost,
     remoteUrls: refs.urls,
-    collapsed: refs.collapsed,
-    filter: refFilter,
+  });
+  const refTreeInput = $derived({ ...refTreeBase, collapsed: refs.collapsed, filter: refFilter });
+
+  // A heading that arrives after the open — stashes, lost commits — arrives folded (R-154).
+  $effect(() => {
+    const nodes = buildRefTree({ ...refTreeBase, collapsed: new Set(), filter: "" });
+    untrack(() => refs.know(nodes));
   });
 
   /** Ticking a box changes which tips the walk starts from, so the graph is rebuilt.
@@ -1074,9 +1111,10 @@
     const init = row.module.state === "notInitialised";
     // A nested module is updated by the repository that owns it, which is the submodule
     // above it in the tree, not the one at the top.
-    const owner = row.parent === "" ? repository.current : await openedModule(row.parent);
+    const owner =
+      row.parent === "" ? submodules.owner : ((await openedModule(row.parent))?.repo ?? null);
     if (!owner) return;
-    await submodules.update(owner.repo, row.path, init).catch((err) => errors.report(err as never));
+    await submodules.update(owner, row.path, init).catch((err) => errors.report(err as never));
     await afterMutation();
   }
 
@@ -1111,15 +1149,35 @@
   }
 
   /** The repository behind a node of the submodule tree, opened but not listed. */
+  /** The key is from the tree's owner, not from whichever submodule the panels show: that
+      mix-up is what made every submodule after the first one fail (R-149). */
   async function openedModule(key: string) {
-    const top = repository.current?.root;
-    if (!top) return null;
+    const owner = submodules.owner;
+    if (!owner) return null;
     try {
-      return await openSubmodule(`${top}/${key}`);
+      return await openSubmodule(owner, key);
     } catch (err) {
+      const detail = (err as { detail?: import("$lib/ipc").GitError }).detail;
+      if (detail?.kind === "moduleUnavailable" && detail.data.reason === "notInitialised") {
+        await offerInitialise(key);
+        return null;
+      }
       errors.report(err as never);
       return null;
     }
+  }
+
+  /** Never changes the repository unasked: the answer is a question (R-149). */
+  async function offerInitialise(key: string) {
+    const row = submodules.rows.find((entry) => entry.key === key);
+    if (!row) return;
+    const go = await ask(`Submodule ${key} is not initialized. Initialize and check it out now?`, {
+      title: "Submodule is not initialized",
+      kind: "info",
+      okLabel: "Initialize",
+      cancelLabel: "Cancel",
+    });
+    if (go) await refreshSubmodule(row);
   }
 
   async function moduleContext(row: import("$lib/module-tree").ModuleRow, x: number, y: number) {
@@ -1133,7 +1191,7 @@
       x,
       y,
     );
-    const top = repository.current?.root;
+    const top = submodules.ownerRoot;
     if (chosen === "open") await openModule(row);
     if (chosen === "update") await refreshSubmodule(row);
     if (chosen === "reveal" && top) {
@@ -1427,6 +1485,7 @@
     if (opened) {
       refs.adopt(opened.root, buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() }));
       void submodules.own(opened.repo, opened.root);
+      void health.check(opened.repo, opened.root, opened.name);
       session.setActive(opened.root);
       session.opened(opened.root);
       if (restoreOid) void commit.select(opened.repo, restoreOid);
@@ -1625,6 +1684,52 @@
   let refTarget = $state.raw<RefNode | null>(null);
   let fileTarget = $state.raw<string | null>(null);
   let aboutOpen = $state(false);
+  let configEdit = $state.raw<{
+    scope: import("$lib/ipc").ConfigScope;
+    file: import("$lib/ipc").ConfigFile;
+    problem: { line: number | null; message: string } | null;
+    saving: boolean;
+  } | null>(null);
+
+  async function openConfig(scope: import("$lib/ipc").ConfigScope) {
+    const id = scope === "repository" ? (repository.current?.repo ?? null) : null;
+    if (scope === "repository" && id === null) return;
+    try {
+      configEdit = { scope, file: await readGitConfig(id, scope), problem: null, saving: false };
+    } catch (err) {
+      errors.report(err as never);
+    }
+  }
+
+  /** Git reads the text back before it is written; a refusal keeps the dialog open on
+      the line it named. The config changes remotes and core.*, so the rest is re-read. */
+  async function saveConfig(text: string) {
+    const edit = configEdit;
+    if (!edit) return;
+    const id = edit.scope === "repository" ? (repository.current?.repo ?? null) : null;
+    configEdit = { ...edit, saving: true };
+    try {
+      await writeGitConfig(id, edit.scope, text, edit.file.crlf);
+    } catch (err) {
+      const detail = (err as { detail?: import("$lib/ipc").GitError }).detail;
+      if (detail?.kind === "configInvalid") {
+        configEdit = { ...edit, saving: false, problem: detail.data };
+        return;
+      }
+      configEdit = { ...edit, saving: false };
+      errors.report(err as never);
+      return;
+    }
+    configEdit = null;
+    if (repository.current) {
+      await repository.refresh();
+      await afterMutation();
+    }
+  }
+  /** The Exit question while it is open; answering settles the close request (R-151). */
+  let exitPrompt = $state.raw<{ blockers: string[]; resolve: (go: boolean) => void } | null>(
+    null,
+  );
 
   /** Right-clicking a ticked row acts on the whole tick; right-clicking any other row
       acts on that one, which is what every file manager does. */
@@ -2179,6 +2284,7 @@
     commit.clear();
     diff.clear();
     blame.clear();
+    health.clear();
     await repository.closeOne(id);
   }
 
@@ -2199,8 +2305,25 @@
       hook: hooks.dirty ? hooks.editing : null,
       merge: conflicts.regions.length > 0 ? conflicts.path : null,
     });
-    if (!what) return true;
-    return await ask(`${what} Close anyway?`, { title: "Cogit", kind: "warning" });
+    if (what && !(await ask(`${what} Close anyway?`, { title: "Cogit", kind: "warning" }))) {
+      return false;
+    }
+
+    const names = new Map(repository.openRepos.map((entry) => [entry.repo.valueOf(), entry.name]));
+    const blockers = exitBlockers(await listOperations().catch(() => []), names);
+    // Someone who just said "close anyway" has been asked once already.
+    const confirm = what ? false : settings.current.confirmExit;
+    if (!mustAskBeforeExit(confirm, blockers.length)) return true;
+    return await new Promise<boolean>((resolve) => (exitPrompt = { blockers, resolve }));
+  }
+
+  function answerExit(go: boolean, dontShowAgain: boolean) {
+    const prompt = exitPrompt;
+    exitPrompt = null;
+    if (go && dontShowAgain === settings.current.confirmExit) {
+      void settings.set("confirmExit", !dontShowAgain);
+    }
+    prompt?.resolve(go);
   }
 
   /** A folder dropped on the window is a repository to open. Anything that is not one is
@@ -2770,8 +2893,35 @@
       onapply={(next, keys) => void applySettings(next, keys)}
       onrevert={() => void revertSettings()}
       onclose={() => (settingsOpen = false)}
+      ignored={health.ignored}
+      onunignore={(root, warning) => void health.unignore(root, warning)}
     />
   {/if}
+
+  {#if configEdit}
+    <ConfigEditor
+      title={configEdit.scope === "repository" ? "Edit Git Config — Repository" : "Edit Git Config — User"}
+      file={configEdit.file}
+      problem={configEdit.problem}
+      saving={configEdit.saving}
+      onsave={(text) => void saveConfig(text)}
+      oncancel={() => (configEdit = null)}
+    />
+  {/if}
+
+  {#if exitPrompt}
+    <ExitDialog
+      blockers={exitPrompt.blockers}
+      dontShow={!settings.current.confirmExit}
+      onexit={(dontShowAgain) => answerExit(true, dontShowAgain)}
+      oncancel={() => answerExit(false, !settings.current.confirmExit)}
+    />
+  {/if}
+
+  <HealthNotice
+    oncopy={(text) => void copyText(text)}
+    onopenurl={(url) => void import("@tauri-apps/plugin-opener").then((opener) => opener.openUrl(url))}
+  />
 
   {#if aboutOpen && info}
     <AboutDialog
