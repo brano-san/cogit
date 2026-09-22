@@ -1,5 +1,5 @@
 <script lang="ts">
-  import Caret from "$components/common/Caret.svelte";
+  import Disclosure from "$components/common/Disclosure.svelte";
   import {
     buildRefTree,
     checkState,
@@ -104,7 +104,7 @@
         oncontext(node, event.clientX, event.clientY);
       }}
     >
-      <Caret
+      <Disclosure
         empty={!foldable(node)}
         open={!input.collapsed.has(node.id)}
         label="Collapse {node.label}"
