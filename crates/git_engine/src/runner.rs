@@ -233,6 +233,12 @@ pub fn git_version() -> Result<String> {
     Ok(bare_git(&["--version"])?.stdout.trim().to_owned())
 }
 
+#[must_use]
+pub fn gix_version() -> &'static str {
+    let agent = gix::env::agent();
+    agent.strip_prefix("oxide-").unwrap_or(agent)
+}
+
 /// What `git` said when it ran outside any repository.
 pub(crate) struct BareOutput {
     pub exit_code: Option<i32>,

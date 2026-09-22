@@ -1,7 +1,9 @@
 mod avatars;
 mod credentials;
 mod diffing;
+pub mod environment;
 mod hooking;
+pub mod licences;
 pub mod logging;
 mod network;
 mod presets;

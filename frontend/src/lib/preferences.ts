@@ -102,7 +102,7 @@ export const CATEGORIES: Category[] = [
           { key: "laneWidth", label: "Lane width", keywords: ["column", "spacing"] },
           {
             key: "coloredLanes",
-            label: "Colored branch lines",
+            label: "Coloured branch lines",
             hint: "Off: the main line is light and every other line one grey.",
             keywords: ["colour", "color", "lanes", "branches", "rainbow"],
           },

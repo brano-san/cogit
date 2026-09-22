@@ -38,6 +38,8 @@ import type {
 export type {
   Algorithm,
   AppInfo,
+  DisplayInfo,
+  OsInfo,
   ConfigFile,
   ConfigScope,
   HealthFinding,
@@ -171,7 +173,7 @@ export function describeModuleProblem(problem: ModuleProblem): string {
     case "missing":
       return `Directory does not exist: ${problem.path}`;
     case "notInitialised":
-      return `Submodule is not initialized: ${problem.path}`;
+      return `Submodule is not initialised: ${problem.path}`;
     case "danglingGitFile":
       return problem.foreign
         ? `The .git file of ${problem.path} points to ${problem.target}, which does not exist on this system — the path was written by another operating system.`
@@ -182,7 +184,12 @@ export function describeModuleProblem(problem: ModuleProblem): string {
 }
 
 export async function getAppInfo() {
-  return await commands.appInfo();
+  return unwrap(await commands.appInfo());
+}
+
+/** `frontend` is the list the Vite build shipped; null under the dev server. */
+export async function openThirdPartyLicences(frontend: string | null) {
+  unwrap(await commands.openThirdPartyLicences(frontend));
 }
 
 export async function openRepository(path: string) {

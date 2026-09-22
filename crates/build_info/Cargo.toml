@@ -1,0 +1,15 @@
+[package]
+name = "build_info"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "What src-tauri/build.rs stamps into the binary: the third-party crate list."
+
+[dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

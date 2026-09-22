@@ -1,11 +1,41 @@
 import { defineConfig } from "vitest/config";
+import type { Plugin } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { fileURLToPath, URL } from "node:url";
 import { resolve } from "node:path";
 import fs from "node:fs";
 import { createRequire } from "node:module";
+import {
+  THIRD_PARTY_FILE,
+  bundledRoots,
+  describePackage,
+  renderPackages,
+  type BundledPackage,
+} from "./src/lib/third-party";
 
 const DEV_PORT = 1420;
+
+function thirdPartyLicences(): Plugin {
+  return {
+    name: "cogit-third-party-licences",
+    apply: "build",
+    generateBundle(_options, bundle) {
+      const modules: [string, number][] = [];
+      for (const item of Object.values(bundle)) {
+        if (item.type !== "chunk") continue;
+        for (const [id, rendered] of Object.entries(item.modules)) {
+          modules.push([id, rendered.renderedLength]);
+        }
+      }
+      const manifest = (root: string) => JSON.parse(fs.readFileSync(`${root}/package.json`, "utf8"));
+      const packages = bundledRoots(modules)
+        .map((root) => describePackage(manifest(root)))
+        .filter((entry): entry is BundledPackage => entry !== null);
+      const source = renderPackages(packages);
+      this.emitFile({ type: "asset", fileName: THIRD_PARTY_FILE, source });
+    },
+  };
+}
 
 // The About window names the toolkit it is drawn with; the backend cannot see it.
 // Resolved rather than guessed: the install is hoisted to the repository root.
@@ -14,7 +44,7 @@ const svelteVersion = JSON.parse(
 ).version as string;
 
 export default defineConfig({
-  plugins: [svelte()],
+  plugins: [svelte(), thirdPartyLicences()],
 
   define: {
     __SVELTE_VERSION__: JSON.stringify(svelteVersion),
