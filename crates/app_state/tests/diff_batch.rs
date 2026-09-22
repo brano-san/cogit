@@ -343,3 +343,36 @@ fn two_states_do_not_share_request_numbers() {
         .unwrap();
     assert!(matches!(out, DiffBatch::Ready { .. }));
 }
+
+/// A commit that adds a submodule next to a file: the gitlink has no content on either
+/// side, and it used to fail the whole batch as "absent from both sides" (R-179).
+#[test]
+fn a_submodule_in_the_batch_is_its_pointer_not_a_failure() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let out = ready(
+        state
+            .diff_files(
+                repo,
+                &head_vs_parent(&f),
+                &["vendor/lib".to_owned(), ".gitmodules".to_owned()],
+                &DiffOptions::default(),
+                1,
+            )
+            .unwrap(),
+    );
+
+    let answered: Vec<&str> = out.iter().map(|entry| entry.path.as_str()).collect();
+    assert_eq!(
+        answered,
+        ["vendor/lib", ".gitmodules"],
+        "in the order asked"
+    );
+    assert!(
+        matches!(out[0].diff, FileDiff::Submodule { .. }),
+        "{:?}",
+        out[0].diff
+    );
+}

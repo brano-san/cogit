@@ -1,7 +1,7 @@
 <script lang="ts">
-  import QueueNav from "$components/common/QueueNav.svelte";
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
   import VirtualList from "$components/common/VirtualList.svelte";
+  import { commandReport, repoNameOf } from "$lib/notices";
   import { findMatches, logLines } from "$lib/output-highlight";
   import { readKey, writeKey } from "$lib/settings-file";
   import { clampBox, defaultBox, type Box } from "$lib/window-box";
@@ -28,7 +28,7 @@
   const heading = $derived(
     failed ? `${entry.operation} failed` : `${entry.operation} finished with warnings`,
   );
-  const repoName = $derived(entry.repo.replace(/[/\\]+$/, "").split(/[/\\]/).pop() ?? entry.repo);
+  const repoName = $derived(repoNameOf(entry.repo));
 
   let box = $state<Box | null>(null);
   let font = $state(12);
@@ -94,23 +94,9 @@
     target.addEventListener("pointerup", drop);
   }
 
-  /** Everything somebody would have to ask for anyway: what ran, how it ended, how long
-      it took, where, and then the output itself (R-135). */
-  function asText(): string {
-    return [
-      `Command: ${entry.command}`,
-      `Exit code: ${entry.exitCode ?? "did not start"}`,
-      `Duration: ${entry.durationMs} ms`,
-      `Started: ${new Date(entry.startedAtMs).toLocaleString()}`,
-      `Repository: ${repoName}`,
-      "",
-      ...lines.map((line) => line.text),
-    ].join("\n");
-  }
-
   async function copy() {
     const picked = window.getSelection()?.toString() ?? "";
-    await writeText(picked !== "" && !allSelected ? picked : asText());
+    await writeText(picked !== "" && !allSelected ? picked : commandReport(entry));
     copied = true;
     setTimeout(() => (copied = false), 1500);
   }
@@ -193,16 +179,7 @@
     <header onpointerdown={(e) => grab(e, "move")}>
       <span class="dot" aria-hidden="true"></span>
       <span class="title">{entry.operation} · {repoName}</span>
-      {#if output.repeats > 1}
-        <span class="repeats" title="The same failure, this many times">×{output.repeats}</span>
-      {/if}
       <span class="grow"></span>
-      <QueueNav
-        at={output.at}
-        total={output.queue.length}
-        noun="failure"
-        onstep={(delta) => void output.step(delta)}
-      />
       <button bind:this={closer} type="button" onclick={() => output.close()} title="Close (Esc)">
         ✕
       </button>
@@ -294,7 +271,7 @@
         <button type="button" onclick={onretry}>Retry</button>
       {/if}
       <button type="button" onclick={copy}>{copied ? "Copied" : "Copy output"}</button>
-      <button type="button" class="primary" onclick={() => void output.dismissShown()}>Close</button>
+      <button type="button" class="primary" onclick={() => output.close()}>Close</button>
     </footer>
 
     <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -303,12 +280,6 @@
 {/if}
 
 <style>
-  .repeats {
-    padding: 0 var(--sp-2);
-    color: var(--status-modify);
-    font-size: var(--fs-header);
-  }
-
   .window {
     position: fixed;
     z-index: 30;

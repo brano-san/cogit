@@ -1,4 +1,6 @@
 <script lang="ts" generics="T extends string">
+  import Caret from "$components/common/Caret.svelte";
+
   /** The application's dropdown. It is a real `<select>` underneath with its native
       chrome turned off: the keyboard behaviour, the type-ahead and the screen-reader
       support of the platform control are worth more than the last few pixels of the
@@ -27,7 +29,7 @@
       <option value={key}>{title}</option>
     {/each}
   </select>
-  <span class="caret" aria-hidden="true">▾</span>
+  <span class="caret"><Caret /></span>
 </span>
 
 <style>
@@ -64,8 +66,8 @@
   .caret {
     position: absolute;
     right: var(--sp-3);
+    display: flex;
     color: var(--text-secondary);
-    font-size: 11px;
     pointer-events: none;
   }
 

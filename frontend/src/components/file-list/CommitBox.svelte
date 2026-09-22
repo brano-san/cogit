@@ -72,8 +72,10 @@
   {/if}
 
   <div class="bar">
-    <span class="count {overflow}" title="Subject line: {SUBJECT_SOFT} soft, {SUBJECT_HARD} hard"
-      >{length}</span
+    <span
+      class="count {overflow}"
+      title="Length of the subject line (the first line): {length} characters. Keep it under {SUBJECT_SOFT}; past {SUBJECT_HARD} tools cut it off."
+      >Subject <span class="tabular">{length}</span></span
     >
     <label><input type="checkbox" bind:checked={amend} /> Amend</label>
     <label><input type="checkbox" bind:checked={noVerify} /> No verify</label>
@@ -85,18 +87,26 @@
 </div>
 
 <style>
+  /* The field takes what is left and gives it back first: the controls under it stay on
+     screen however low the panel is dragged (R-183). */
   .box {
-    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
     border-top: 1px solid var(--divider);
     padding: var(--sp-3) var(--sp-4);
   }
 
   textarea {
     display: block;
+    flex: 1 1 auto;
     width: 100%;
+    min-height: calc(2 * var(--lh-code) + 2 * var(--sp-3) + 2px);
     box-sizing: border-box;
-    resize: vertical;
+    resize: none;
     padding: var(--sp-3);
+    line-height: var(--lh-code);
     background: var(--surface-input);
     color: var(--text-primary);
     border: 1px solid var(--field-border);
@@ -106,6 +116,7 @@
   }
 
   .hidden-warning {
+    flex: none;
     margin: var(--sp-3) 0 0;
     color: var(--status-modify);
     font-size: 10px;
@@ -113,6 +124,7 @@
 
   .bar {
     display: flex;
+    flex: none;
     align-items: center;
     gap: var(--sp-4);
     margin-top: var(--sp-3);
@@ -131,10 +143,14 @@
   }
 
   .count {
-    font-family: var(--font-mono);
     font-size: 11px;
-    font-variant-numeric: tabular-nums;
     color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  .count .tabular {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
   }
 
   .count.long {

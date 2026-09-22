@@ -11,6 +11,7 @@ vi.mock("@tauri-apps/api/core", () => ({ Channel: class {} }));
 vi.mock("$lib/ipc/bindings", () => ({ commands, events: {} }));
 
 const { output } = await import("./output.svelte");
+const { notices } = await import("./notices.svelte");
 
 type Severity = "success" | "warning" | "failure";
 
@@ -42,38 +43,38 @@ describe("output store", () => {
     commands.commandOutcome.mockImplementation((id: number) => Promise.resolve(record(id)));
     output.close();
     output.dismissWarning();
+    notices.dismissAll();
   });
 
-  it("opens the window on a failure, with the output the notice did not carry", async () => {
+  // One window for everything that went wrong: the output window opens on request.
+  it("announces a failure in the notification window, not by opening itself", async () => {
     await output.notice(notice(7, "failure"));
+
+    expect(output.shown).toBeNull();
+    expect(notices.current?.title).toBe("Push failed");
+    expect(notices.current?.record).toBe(7);
+  });
+
+  it("opens the record Show Output asks for, with the output the notice did not carry", async () => {
+    await output.openRecord(7);
 
     expect(output.shown?.id).toBe(7);
     expect(output.shown?.stderr).toContain("failed to push");
   });
 
-  it("does not open a second window for a second failure", async () => {
-    await output.notice(notice(7, "failure"));
-    await output.notice(notice(8, "failure"));
+  it("stays closed for a record that has already rotated out of the journal", async () => {
+    commands.commandOutcome.mockResolvedValue(null);
 
-    expect(output.shown?.id).toBe(7);
-    expect(output.unread).toBe(1);
+    await output.openRecord(7);
+
+    expect(output.shown).toBeNull();
   });
 
-  it("moves to the newest failure when asked, and stops counting", async () => {
-    await output.notice(notice(7, "failure"));
-    await output.notice(notice(8, "failure"));
-    await output.notice(notice(9, "failure"));
-
-    await output.showNewest();
-
-    expect(output.shown?.id).toBe(9);
-    expect(output.unread).toBe(0);
-  });
-
-  it("leaves the window alone for a warning, which is what makes commits bearable", async () => {
+  it("leaves the windows alone for a warning, which is what makes commits bearable", async () => {
     await output.notice(notice(3, "warning"));
 
     expect(output.shown).toBeNull();
+    expect(notices.current).toBeUndefined();
     expect(output.warning?.summary).toBe("summary 3");
   });
 
@@ -82,6 +83,7 @@ describe("output store", () => {
 
     expect(output.shown).toBeNull();
     expect(output.warning).toBeNull();
+    expect(notices.current).toBeUndefined();
   });
 
   it("opens the window from a warning when the reader asks for details", async () => {
@@ -102,111 +104,5 @@ describe("output store", () => {
 
     expect(output.problems).toBe(before + 2);
     expect(commands.commandProblems).not.toHaveBeenCalled();
-  });
-
-  it("forgets the unread count when the window is closed", async () => {
-    await output.notice(notice(7, "failure"));
-    await output.notice(notice(8, "failure"));
-
-    output.close();
-
-    expect(output.unread).toBe(0);
-    expect(output.shown).toBeNull();
-  });
-
-  it("survives a record that has already rotated out of the journal", async () => {
-    commands.commandOutcome.mockResolvedValue(null);
-
-    await output.notice(notice(7, "failure"));
-
-    expect(output.shown).toBeNull();
-  });
-});
-
-describe("output store, when a failure arrives twice", () => {
-  beforeEach(() => {
-    commands.commandOutcome.mockReset();
-    commands.commandOutcome.mockImplementation((id: number) => Promise.resolve(record(id)));
-    output.close();
-  });
-
-  it("counts the event and the rejected call as one failure", async () => {
-    await Promise.all([output.notice(notice(7, "failure")), output.raise(7)]);
-
-    expect(output.shown?.id).toBe(7);
-    expect(output.unread).toBe(0);
-    expect(commands.commandOutcome).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not count an unread failure twice either", async () => {
-    await output.notice(notice(7, "failure"));
-    await output.notice(notice(8, "failure"));
-    await output.raise(8);
-
-    expect(output.unread).toBe(1);
-  });
-});
-
-describe("the queue behind the output window", () => {
-  beforeEach(() => {
-    commands.commandOutcome.mockReset();
-    commands.commandOutcome.mockImplementation((id: number) => Promise.resolve(record(id)));
-    output.close();
-  });
-
-  it("keeps every failure, not only the one on screen", async () => {
-    for (const id of [1, 2, 3]) await output.notice(notice(id, "failure"));
-
-    expect(output.queue).toEqual([1, 2, 3]);
-    expect(output.at).toBe(0);
-  });
-
-  it("walks forward and back through them", async () => {
-    for (const id of [1, 2, 3]) await output.notice(notice(id, "failure"));
-
-    await output.step(1);
-    expect(output.shown?.id).toBe(2);
-    await output.step(1);
-    expect(output.shown?.id).toBe(3);
-    await output.step(-1);
-    expect(output.shown?.id).toBe(2);
-  });
-
-  it("does not walk off either end", async () => {
-    for (const id of [1, 2]) await output.notice(notice(id, "failure"));
-
-    await output.step(-1);
-    expect(output.shown?.id).toBe(1);
-    await output.step(1);
-    await output.step(1);
-    expect(output.shown?.id).toBe(2);
-  });
-
-  // `Close` used to throw the other two away.
-  it("closing one moves to the next and only the last closes the window", async () => {
-    for (const id of [1, 2]) await output.notice(notice(id, "failure"));
-
-    await output.dismissShown();
-    expect(output.shown?.id).toBe(2);
-    await output.dismissShown();
-    expect(output.shown).toBeNull();
-  });
-
-  // Fifteen identical pull failures are one thing that happened fifteen times.
-  it("counts a repeat instead of queueing it again", async () => {
-    await output.notice(notice(1, "failure"));
-    await output.notice({ ...notice(2, "failure"), summary: "summary 1" });
-
-    expect(output.queue).toHaveLength(1);
-    expect(output.repeats).toBe(2);
-  });
-
-  it("starts counting again once something different fails", async () => {
-    await output.notice(notice(1, "failure"));
-    await output.notice({ ...notice(2, "failure"), summary: "summary 1" });
-    await output.notice({ ...notice(3, "failure"), summary: "another thing" });
-
-    expect(output.queue).toHaveLength(2);
-    expect(output.repeats).toBe(1);
   });
 });

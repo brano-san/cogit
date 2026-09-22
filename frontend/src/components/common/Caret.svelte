@@ -1,47 +1,30 @@
 <script lang="ts">
-  /** The disclosure triangle every tree in the app opens with. One component, because a
-      12px caret in one panel and a 20px one in the next is the same control twice. */
+  /** The caret of every dropdown and split button: the same size wherever a menu opens. */
   interface Props {
     open?: boolean;
-    /** Nothing to open: an empty box of the same size, so the rows still line up. */
-    empty?: boolean;
-    label?: string;
-    /** Absent when the whole row toggles: the triangle is then a picture, not a button. */
-    onclick?: (event: MouseEvent) => void;
   }
 
-  let { open = false, empty = false, label, onclick }: Props = $props();
+  let { open = false }: Props = $props();
 </script>
 
-{#if empty}
-  <span class="caret" aria-hidden="true"></span>
-{:else if onclick}
-  <button type="button" class="caret" aria-label={label} {onclick}>{open ? "▾" : "▸"}</button>
-{:else}
-  <span class="caret" aria-hidden="true">{open ? "▾" : "▸"}</span>
-{/if}
+<svg class="caret" class:open viewBox="0 0 10 10" aria-hidden="true"
+  ><path d="M2 3.5 5 6.5 8 3.5" /></svg
+>
 
 <style>
-  /* 20×20 is the click target; the glyph inside it is 11px, which is the smallest a
-     triangle still reads as a triangle at 100% scale. */
   .caret {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 20px;
-    width: 20px;
-    height: 20px;
-    padding: 0;
-    background: none;
-    border: 0;
-    color: var(--text-secondary);
-    font: inherit;
-    font-size: 11px;
-    line-height: 1;
-    cursor: default;
+    flex: none;
+    width: var(--menu-caret);
+    height: var(--menu-caret);
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: transform 0.12s ease-out;
   }
 
-  button.caret:hover {
-    color: var(--text-primary);
+  .caret.open {
+    transform: rotate(180deg);
   }
 </style>

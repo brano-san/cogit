@@ -82,7 +82,15 @@ pub enum CogitError {
 | `list_repositories` | — | `Vec<RepoEntry>` | M3 |
 | `repo_state` | `repo: RepoId` | `RepoState` | M1 |
 | `list_submodules` | `repo: RepoId` | `Vec<Submodule>` | M3 |
-| `list_worktrees` | `repo: RepoId` | `Vec<Worktree>` | M3 |
+| `worktrees` | `repo: RepoId` | `Vec<WorktreeEntry { path, name, branch, head, isMain, isCurrent, locked, missing, dirty }>`; из linked-ворктри основной — всё равно основной (R-184) | M3 |
+| `open_worktree` | `owner: RepoId`, `path` — существующий ворктри владельца | `RepoSummary`, в списке Repositories не появляется; чужая папка — `InvalidState` | M3 |
+| `add_worktree` | `repo`, `path`, `branch`, `create`, `base: Option<String>` — откуда новая ветка, по умолчанию HEAD | `()` | M3 |
+| `remove_worktree` | `repo`, `path`, `force` | `()`; при `force` изменения сначала в stash, в журнале — Undo (INV-12) | M3 |
+| `worktree_changes` | `repo`, `path` | `Vec<FileEntry>` — незакоммиченное в этом ворктри, для подтверждения Remove | M3 |
+| `prune_worktrees` | `repo` | `()` — `git worktree prune`, все устаревшие | M3 |
+| `prune_worktree` | `repo`, `path` | `()` — одна регистрация; папка на месте — `InvalidState` | M3 |
+| `repair_worktree` | `repo`, `path` — где папка теперь | `()` — `git worktree repair <path>` | M3 |
+| `lock_worktree` / `unlock_worktree` | `repo`, `path`, `reason: Option<String>` (только lock) | `()` | M3 |
 
 ### Хуки и пресеты (M10)
 
@@ -318,7 +326,7 @@ snake_case и читаются на фронтенде как `undefined`.
 | `search_file_contents` | `repo`, `query`, `is_regex`, `scope`, `Channel<SearchChunk>` | `()` | M6 |
 | `list_submodules` | `repo`, `parent` (пусто — верхний уровень) | `Vec<Submodule>` | M3 |
 | `open_submodule` | `owner: RepoId`, `key` — путь узла от владельца дерева | `RepoSummary`; отказ — `GitError::ModuleUnavailable(ModuleProblem)` | M3 |
-| `repository_health` | `repo` | `Vec<HealthFinding { module, issue }>` — репозиторий и все подмодули | M3 |
+| `repository_health` | `repo` | `Vec<HealthFinding { module, issue }>` — репозиторий и все подмодули; `issue`: `ignoreCaseMismatch`, `danglingModule`, `danglingWorktree`, `missingModuleCommit { commit }` (R-179) | M3 |
 | `read_git_config` | `repo: Option<RepoId>`, `scope: repository \| user` | `ConfigFile { path, text, crlf, exists }` | M3 |
 | `write_git_config` | `repo`, `scope`, `text`, `crlf` | `()`; отказ git — `GitError::ConfigInvalid { line, message }` | M3 |
 | `cancel_operation` | `id` | `bool` — `false`, если уже закончилась | — |

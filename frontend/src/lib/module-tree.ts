@@ -16,7 +16,6 @@ export interface ModuleRow {
   expanded: boolean;
 }
 
-/** Beyond this the tree is not nested, it is looping. */
 const MAX_DEPTH = 16;
 
 export function splitModulePath(path: string): { dir: string; name: string } {
@@ -31,14 +30,15 @@ export function moduleKey(parent: string, path: string): string {
   return parent === "" ? path : `${parent}/${path}`;
 }
 
-/** The word after the row's position, only where it is exact (R-153). */
+/** The word after the row's position, only where it is exact (R-153). `unknown` means the
+    recorded commit is not in the submodule — that much is exact (R-179). */
 const LABELS: Partial<Record<Submodule["state"], string>> = {
   ahead: "ahead",
   behind: "behind",
   diverged: "diverged",
+  unknown: "not fetched",
 };
 
-/** What the row says after the name: a branch, or the commit it is detached on. */
 export function describeModule(module: Submodule): string {
   if (module.state === "notInitialised") return "not initialised";
   const where =
@@ -54,7 +54,6 @@ function commits(count: number): string {
   return count === 1 ? "1 commit" : `${count} commits`;
 }
 
-/** What the label means and what to do about it; empty when there is nothing to do. */
 export function moduleTooltip(module: Submodule): string {
   switch (module.state) {
     case "inSync":
@@ -79,13 +78,12 @@ export function moduleTooltip(module: Submodule): string {
       );
     case "unknown":
       return (
-        "The parent records a commit this submodule does not have, so where it stands " +
-        "cannot be told. Fetch in the submodule to compare."
+        "Not fetched: the parent records a commit this submodule does not have, so it " +
+        "cannot be compared with it. Fetch in the submodule."
       );
   }
 }
 
-/** Flattens the loaded parts of the tree into the rows to draw, parents before children. */
 export function moduleRows(
   children: ReadonlyMap<string, readonly Submodule[]>,
   expanded: ReadonlySet<string>,

@@ -251,3 +251,15 @@
 | F-276 | Список сторонних лицензий | [F-276-third-party-licences.md](F-276-third-party-licences.md) |
 | F-277 | Статус обновлений в About | [F-277-about-update-status.md](F-277-about-update-status.md) |
 | F-278 | Один цвет ссылок | [F-278-one-link-colour.md](F-278-one-link-colour.md) |
+| F-280 | Чекбоксы Branches отвечают на каждый клик | [F-280-branch-boxes-follow-clicks.md](F-280-branch-boxes-follow-clicks.md) |
+| F-281 | Одно окно уведомлений | [F-281-one-notification-window.md](F-281-one-notification-window.md) |
+| F-282 | Шапка уведомления и длинный список мест | [F-282-notification-header-and-places.md](F-282-notification-header-and-places.md) |
+| F-283 | Диф подмодуля и метка not fetched | [F-283-submodule-pointer-diff-and-not-fetched.md](F-283-submodule-pointer-diff-and-not-fetched.md) |
+| F-284 | Тип записи в Files отдельно от состояния | [F-284-file-kind-icons.md](F-284-file-kind-icons.md) |
+| F-285 | Подсказки везде одинаковые | [F-285-one-tooltip.md](F-285-one-tooltip.md) |
+| F-286 | Один треугольник раскрытия, одна каретка меню | [F-286-one-disclosure-one-caret.md](F-286-one-disclosure-one-caret.md) |
+| F-287 | Кнопка Commit видна при любой высоте панели | [F-287-commit-panel-keeps-controls.md](F-287-commit-panel-keeps-controls.md) |
+| F-288 | Панель Worktrees | [F-288-worktrees-panel.md](F-288-worktrees-panel.md) |
+| F-289 | Двойной клик по ворктри делает его активным | [F-289-open-worktree.md](F-289-open-worktree.md) |
+| F-290 | Устаревший ворктри: Prune или Repair в строке | [F-290-stale-worktree-prune-repair.md](F-290-stale-worktree-prune-repair.md) |
+| F-291 | Добавление и удаление ворктри | [F-291-worktree-dialogs.md](F-291-worktree-dialogs.md) |
