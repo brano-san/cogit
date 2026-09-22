@@ -21,6 +21,7 @@
   import ExitDialog from "$components/common/ExitDialog.svelte";
   import ConfigEditor from "$components/common/ConfigEditor.svelte";
   import Notifications from "$components/layout/Notifications.svelte";
+  import TooltipLayer from "$components/common/TooltipLayer.svelte";
   import { exitBlockers, mustAskBeforeExit } from "$lib/exit";
   import { describeSkipped } from "$lib/skipped";
   import { health } from "$stores/health.svelte";
@@ -2463,6 +2464,8 @@
     pointer.y = event.clientY;
   }}
 />
+
+<TooltipLayer />
 
 <div class="app">
   <Toolbar

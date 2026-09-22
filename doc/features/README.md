@@ -244,3 +244,5 @@
 | F-281 | Одно окно уведомлений | [F-281-one-notification-window.md](F-281-one-notification-window.md) |
 | F-282 | Шапка уведомления и длинный список мест | [F-282-notification-header-and-places.md](F-282-notification-header-and-places.md) |
 | F-283 | Диф подмодуля и метка not fetched | [F-283-submodule-pointer-diff-and-not-fetched.md](F-283-submodule-pointer-diff-and-not-fetched.md) |
+| F-284 | Тип записи в Files отдельно от состояния | [F-284-file-kind-icons.md](F-284-file-kind-icons.md) |
+| F-285 | Подсказки везде одинаковые | [F-285-one-tooltip.md](F-285-one-tooltip.md) |

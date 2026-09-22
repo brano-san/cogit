@@ -60,10 +60,17 @@ impl RepoHandle {
             match item {
                 Item::TreeIndex(change) => files.staged.push(staged_entry(&change)),
                 Item::IndexWorktree(WorktreeItem::Modification {
-                    rela_path, status, ..
+                    rela_path,
+                    status,
+                    entry: found,
+                    ..
                 }) => {
                     if let Some(status) = worktree_status(&status) {
-                        files.unstaged.push(entry(rela_path.to_string(), status));
+                        files.unstaged.push(entry_of(
+                            rela_path.to_string(),
+                            status,
+                            mode_of(found.mode),
+                        ));
                     }
                 }
                 Item::IndexWorktree(WorktreeItem::DirectoryContents { entry: found, .. }) => {
@@ -146,11 +153,41 @@ fn entry_of(path: String, status: FileStatus, mode: crate::FileMode) -> FileEntr
     }
 }
 
+/// The index keeps a raw mode: a gitlink is 0o160000, a symlink 0o120000 (R-143, R-180).
+fn mode_of(mode: gix::index::entry::Mode) -> crate::FileMode {
+    use gix::index::entry::Mode;
+    if mode == Mode::COMMIT {
+        crate::FileMode::Submodule
+    } else if mode == Mode::SYMLINK {
+        crate::FileMode::Symlink
+    } else if mode == Mode::FILE_EXECUTABLE {
+        crate::FileMode::Executable
+    } else {
+        crate::FileMode::Plain
+    }
+}
+
 fn staged_entry(change: &gix::diff::index::Change) -> FileEntry {
     use gix::diff::index::Change;
     match change {
-        Change::Addition { location, .. } => entry(location.to_string(), FileStatus::Added),
-        Change::Deletion { location, .. } => entry(location.to_string(), FileStatus::Deleted),
+        Change::Addition {
+            location,
+            entry_mode,
+            ..
+        } => entry_of(
+            location.to_string(),
+            FileStatus::Added,
+            mode_of(*entry_mode),
+        ),
+        Change::Deletion {
+            location,
+            entry_mode,
+            ..
+        } => entry_of(
+            location.to_string(),
+            FileStatus::Deleted,
+            mode_of(*entry_mode),
+        ),
         Change::Modification {
             location,
             entry_mode,
@@ -158,20 +195,13 @@ fn staged_entry(change: &gix::diff::index::Change) -> FileEntry {
         } => entry_of(
             location.to_string(),
             FileStatus::Modified,
-            // The index reports a raw mode; a gitlink is 0o160000, and telling one apart
-            // is the whole point of showing an icon at all (R-143).
-            if *entry_mode == gix::index::entry::Mode::COMMIT {
-                crate::FileMode::Submodule
-            } else if *entry_mode == gix::index::entry::Mode::SYMLINK {
-                crate::FileMode::Symlink
-            } else {
-                crate::FileMode::Plain
-            },
+            mode_of(*entry_mode),
         ),
         Change::Rewrite {
             location,
             source_location,
             copy,
+            entry_mode,
             ..
         } => FileEntry {
             path: location.to_string(),
@@ -181,7 +211,7 @@ fn staged_entry(change: &gix::diff::index::Change) -> FileEntry {
             } else {
                 FileStatus::Renamed
             },
-            mode: crate::FileMode::Plain,
+            mode: mode_of(*entry_mode),
             mode_change: None,
             similarity: None,
         },
