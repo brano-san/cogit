@@ -169,7 +169,13 @@ cargo deny check
 - **по ходу работы** — только то, что задето, по одной цели за раз:
   `cargo nextest run -p diff_engine --test headers`, `npx vitest run путь/к.test.ts`;
 - **один раз перед сдачей работы** — весь набор, на незанятой машине:
-  `cargo nextest run --workspace --exclude cogit` и `npm --prefix frontend run test`.
+  `cargo nextest run --workspace --exclude cogit`, `cargo test -p cogit --lib` и
+  `npm --prefix frontend run test`.
+
+`cogit` исключён из первой команды — линковка tauri требует манифеста ComCtl32, которого
+нет у тестового харнесса, — но `--lib` собирается и гоняется как обычно, и там лежат
+проверки самого IPC-слоя. Забыть про них значит не заметить команду, которая блокирует
+поток сообщений окна.
 
 Вручную:
 5. Статусы модулей в [00-roadmap.md](00-roadmap.md) обновлены

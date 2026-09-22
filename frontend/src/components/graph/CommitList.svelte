@@ -254,7 +254,7 @@
       />
     </div>
 
-    <div class="rows" style:height="{listRows * GRAPH.rowHeight}px">
+    <div class="rows" style:height="{listRows * GRAPH.rowHeight}px" style:--row-h="{GRAPH.rowHeight}px">
       {#if range.start === 0}
         <button
           type="button"
@@ -406,7 +406,7 @@
     display: flex;
     align-items: center;
     gap: var(--sp-3);
-    height: 22px;
+    height: var(--row-h);
     padding-right: var(--sp-5);
     font-size: var(--fs-dense);
     white-space: nowrap;

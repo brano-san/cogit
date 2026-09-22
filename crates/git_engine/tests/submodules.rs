@@ -163,3 +163,44 @@ fn a_folder_that_is_not_a_repository_is_an_error() {
     let dir = tempfile::tempdir().unwrap();
     assert!(RepoHandle::open(dir.path()).is_err());
 }
+
+/// The row in the tree has to say what the submodule is on, and a submodule checked out
+/// by `git submodule update` is detached, so the branch alone is never enough.
+#[test]
+fn a_submodule_reports_the_commit_it_sits_on_and_its_subject() {
+    let f = test_fixtures::with_submodule().unwrap();
+    f.git(&[
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "update",
+        "--init",
+    ])
+    .unwrap();
+    let repo = RepoHandle::open(f.path()).unwrap();
+
+    let module = repo.submodules().unwrap().into_iter().next().unwrap();
+
+    assert!(module.checked_out.is_some(), "{module:?}");
+    assert!(
+        module
+            .subject
+            .as_deref()
+            .is_some_and(|line| !line.is_empty()),
+        "the row needs something to show beside the hash: {module:?}"
+    );
+}
+
+#[test]
+fn an_uninitialised_submodule_reports_no_branch_and_no_subject() {
+    let f = test_fixtures::with_submodule().unwrap();
+    f.git(&["submodule", "deinit", "-f", "--", "vendor/lib"])
+        .unwrap();
+    let repo = RepoHandle::open(f.path()).unwrap();
+
+    let module = repo.submodules().unwrap().into_iter().next().unwrap();
+
+    assert_eq!(module.state, git_engine::SubmoduleState::NotInitialised);
+    assert_eq!(module.branch, None);
+    assert_eq!(module.subject, None);
+}

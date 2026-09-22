@@ -1,5 +1,6 @@
 <script lang="ts">
     import { applyClick, EMPTY_SELECTION, type FileSelection } from "$lib/multi-select";
+  import { panelView } from "$lib/repo-phase";
   import { UNGROUPED, groupRows } from "$lib/repo-groups";
   import type { RepoOverview } from "$lib/ipc";
   import { repoGroups } from "$stores/repo-groups.svelte";
@@ -113,10 +114,10 @@
     />
   {/if}
 
-  {#if repository.error}
-    <p class="error">{repository.error.message}</p>
-  {:else if rows.length === 0}
-    <p class="none">No repository open.</p>
+  {#if rows.length === 0}
+    <p class="none">
+      {panelView(repository.phase) === "opening" ? "Opening repository…" : "No repository open."}
+    </p>
   {:else}
     {#each rows as row (row.kind === "group" ? `g:${row.id}` : row.root)}
       {#if row.kind === "group"}
@@ -393,13 +394,5 @@
 
   .act:hover {
     color: var(--status-delete);
-  }
-
-  .error {
-    margin: 0;
-    padding: var(--sp-4) var(--sp-5);
-    font-size: var(--fs-dense);
-    color: var(--status-delete);
-    user-select: text;
   }
 </style>

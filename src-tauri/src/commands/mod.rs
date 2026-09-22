@@ -195,6 +195,21 @@ pub async fn search_file_contents(
     Ok(())
 }
 
+/// Opens a submodule from its node in the tree: the panels follow it, the Repositories
+/// panel does not gain an entry for it (doc/12-risks.md, R-109).
+#[tauri::command(async)]
+#[specta::specta]
+pub async fn open_submodule(
+    state: tauri::State<'_, crate::AppContext>,
+    path: String,
+) -> Result<RepoSummary, GitError> {
+    let app_state = state.state.clone();
+    blocking("open_submodule", move || {
+        app_state.open_submodule(std::path::Path::new(&path))
+    })
+    .await
+}
+
 /// The submodules directly under `parent`; empty `parent` means the top level.
 #[tauri::command]
 #[specta::specta]
@@ -613,7 +628,7 @@ pub fn command_log(state: tauri::State<'_, crate::AppContext>) -> Vec<GitOutput>
 }
 
 /// One entry in full. The notice that opened the window carried only its summary.
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn command_outcome(state: tauri::State<'_, crate::AppContext>, id: u32) -> Option<GitOutput> {
     state.state.command_outcome(id)
@@ -1594,15 +1609,30 @@ pub fn open_compare_window(
     url: String,
     title: String,
 ) -> Result<(), GitError> {
-    use tauri::{Manager as _, WebviewUrl, WebviewWindowBuilder};
+    crate::child_window::open(
+        &app,
+        "compare",
+        url,
+        title,
+        crate::child_window::Shape {
+            width: 1000.0,
+            height: 720.0,
+            min_width: 600.0,
+            min_height: 400.0,
+        },
+    )
+    .map_err(|err| GitError::Internal(format!("cannot open the compare window: {err}")))
+}
 
-    let label = format!("compare-{}", app.webview_windows().len());
-    WebviewWindowBuilder::new(&app, label, WebviewUrl::App(url.into()))
-        .title(title)
-        .inner_size(1000.0, 720.0)
-        .build()
-        .map(drop)
-        .map_err(|err| GitError::Internal(format!("cannot open the compare window: {err}")))
+/// Closes whichever window asked. Not `async`: window operations belong to the main
+/// thread, and doing it here rather than through `getCurrentWindow()` keeps the call out
+/// of the webview (doc/12-risks.md, R-86).
+#[tauri::command]
+#[specta::specta]
+pub fn close_this_window(window: tauri::Window) -> Result<(), GitError> {
+    window
+        .close()
+        .map_err(|err| GitError::Internal(format!("cannot close the window: {err}")))
 }
 
 #[tauri::command]
@@ -1910,15 +1940,19 @@ pub fn open_merge_window(
     url: String,
     title: String,
 ) -> Result<(), GitError> {
-    use tauri::{WebviewUrl, WebviewWindowBuilder};
-
-    let label = format!("merge-{}", app.webview_windows().len());
-    WebviewWindowBuilder::new(&app, label, WebviewUrl::App(url.into()))
-        .title(title)
-        .inner_size(1200.0, 760.0)
-        .build()
-        .map(drop)
-        .map_err(|err| GitError::Internal(format!("cannot open the merge window: {err}")))
+    crate::child_window::open(
+        &app,
+        "merge",
+        url,
+        title,
+        crate::child_window::Shape {
+            width: 1200.0,
+            height: 760.0,
+            min_width: 800.0,
+            min_height: 500.0,
+        },
+    )
+    .map_err(|err| GitError::Internal(format!("cannot open the merge window: {err}")))
 }
 
 /// Told by the merge window once it has written the resolution.
@@ -1987,6 +2021,7 @@ mod tests {
         "popup_context_menu",
         "open_compare_window",
         "open_merge_window",
+        "close_this_window",
         "merge_resolved",
     ];
 

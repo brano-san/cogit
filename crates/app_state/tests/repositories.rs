@@ -167,3 +167,58 @@ fn a_missing_repository_reports_nothing_it_cannot_know() {
     assert!(!row.dirty);
     assert_eq!((row.ahead, row.behind), (0, 0));
 }
+
+// --- a submodule opened from the tree is not a repository in the list -----------------
+
+/// SmartGit opens a submodule by double-clicking its node: the panels follow it, but the
+/// list of repositories does not grow a second entry for it (doc/12-risks.md, R-109).
+#[test]
+fn opening_a_submodule_does_not_add_it_to_the_list() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let state = AppState::new();
+    let parent = state.open_repository(f.path()).unwrap().repo;
+
+    let child = state.open_submodule(&f.path().join("vendor/lib")).unwrap();
+
+    assert_ne!(child.repo, parent);
+    assert_eq!(state.overviews().len(), 1, "only the parent is listed");
+}
+
+#[test]
+fn a_submodule_opened_from_the_tree_is_still_a_repository_to_work_in() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let state = AppState::new();
+    state.open_repository(f.path()).unwrap();
+
+    let child = state.open_submodule(&f.path().join("vendor/lib")).unwrap();
+
+    assert!(state.repo_status(child.repo).is_ok());
+}
+
+/// Requirement 6.10: the same path can be an open submodule and an entry of its own, and
+/// asking for it by hand is what makes it an entry.
+#[test]
+fn opening_the_same_path_by_hand_afterwards_does_list_it() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let state = AppState::new();
+    state.open_repository(f.path()).unwrap();
+    state.open_submodule(&f.path().join("vendor/lib")).unwrap();
+
+    state.open_repository(&f.path().join("vendor/lib")).unwrap();
+
+    assert_eq!(state.overviews().len(), 2);
+}
+
+/// And the other way round: a submodule of a repository already open by hand must not
+/// disappear from the list when its node is double-clicked.
+#[test]
+fn opening_a_listed_repository_as_a_submodule_leaves_it_listed() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let state = AppState::new();
+    state.open_repository(f.path()).unwrap();
+    state.open_repository(&f.path().join("vendor/lib")).unwrap();
+
+    state.open_submodule(&f.path().join("vendor/lib")).unwrap();
+
+    assert_eq!(state.overviews().len(), 2);
+}

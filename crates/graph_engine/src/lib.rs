@@ -64,6 +64,12 @@ pub struct LayoutCursor {
     pub origins: Vec<Vec<u16>>,
     pub next_color: u8,
     pub next_row: u32,
+    /// The commit that owns the leftmost column, usually the tip of `master`. Until it
+    /// turns up, lane 0 is kept empty for it; after it, its first-parent chain inherits
+    /// the lane the way any first parent does (doc/12-risks.md, R-115).
+    pub mainline: Option<String>,
+    /// Set once the mainline tip has been placed, so the reservation ends there.
+    pub mainline_placed: bool,
 }
 
 impl LayoutCursor {
@@ -76,11 +82,42 @@ impl LayoutCursor {
 
     #[must_use]
     pub fn first_free_lane(&self) -> usize {
+        self.free_lane_from(usize::from(self.holding_lane_zero()))
+    }
+
+    /// Lane 0 belongs to the mainline until the mainline has had it.
+    #[must_use]
+    pub fn holding_lane_zero(&self) -> bool {
+        self.mainline.is_some() && !self.mainline_placed
+    }
+
+    #[must_use]
+    pub fn free_lane_from(&self, first: usize) -> usize {
         self.active
             .iter()
-            .position(Option::is_none)
-            .unwrap_or(self.active.len())
+            .enumerate()
+            .skip(first)
+            .find(|(_, slot)| slot.is_none())
+            .map_or(self.active.len().max(first), |(lane, _)| lane)
     }
+
+    #[must_use]
+    pub fn is_mainline(&self, oid: &str) -> bool {
+        self.mainline.as_deref() == Some(oid)
+    }
+}
+
+/// Which commit should own the leftmost column: `master`, then `main`, then whatever
+/// HEAD points at. Names first, because HEAD moves with every checkout and the main line
+/// of a repository does not (doc/12-risks.md, R-115).
+#[must_use]
+pub fn mainline_tip(local_branches: &[(&str, &str)], head_oid: Option<&str>) -> Option<String> {
+    for wanted in ["master", "main"] {
+        if let Some((_, oid)) = local_branches.iter().find(|(name, _)| *name == wanted) {
+            return Some((*oid).to_owned());
+        }
+    }
+    head_oid.map(ToOwned::to_owned)
 }
 
 #[cfg(test)]

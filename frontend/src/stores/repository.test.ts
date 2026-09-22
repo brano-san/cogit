@@ -1,0 +1,216 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const commands = {
+  openRepository: vi.fn(),
+  closeRepository: vi.fn(),
+  repositories: vi.fn(),
+  repoStatus: vi.fn(),
+};
+
+vi.mock("@tauri-apps/api/core", () => ({ Channel: class {} }));
+vi.mock("$lib/ipc/bindings", () => ({ commands, events: {} }));
+
+const { repository } = await import("./repository.svelte");
+const { panelView } = await import("$lib/repo-phase");
+
+const summary = (root: string) => ({
+  repo: root.length,
+  root,
+  name: root.slice(root.lastIndexOf("/") + 1),
+  isBare: false,
+  head: { kind: "branch", data: { name: "master", oid: "a".repeat(40) } },
+  branches: [],
+  tags: [],
+  status: { staged: 0, unstaged: 0, untracked: 0, conflicted: 0 },
+  state: { kind: "clean" },
+  indexLock: null,
+});
+
+/** A promise plus the handles to settle it later, so a test can hold an open in flight. */
+function pending<T>() {
+  let settle!: (value: T) => void;
+  let fail!: (reason: unknown) => void;
+  const promise = new Promise<T>((resolve, reject) => {
+    settle = resolve;
+    fail = reject;
+  });
+  return { promise, settle, fail };
+}
+
+describe("repository store, as a state machine", () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+    commands.openRepository.mockReset();
+    commands.repositories.mockResolvedValue({ status: "ok", data: [] });
+    repository.close();
+  });
+
+  it("starts closed", () => {
+    expect(repository.phase.kind).toBe("closed");
+    expect(repository.current).toBeNull();
+  });
+
+  it("is opening while the backend has not answered", async () => {
+    const answer = pending<unknown>();
+    commands.openRepository.mockReturnValue(answer.promise);
+
+    const open = repository.open("C:/repos/one");
+
+    expect(repository.phase.kind).toBe("opening");
+    expect(repository.busy).toBe(true);
+    answer.settle({ status: "ok", data: summary("C:/repos/one") });
+    await open;
+  });
+
+  it("ends up open, with the repository the caller asked for", async () => {
+    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
+
+    await repository.open("C:/repos/one");
+
+    expect(repository.phase.kind).toBe("open");
+    expect(repository.current?.root).toBe("C:/repos/one");
+    expect(repository.busy).toBe(false);
+  });
+
+  it("ends up failed, and stops being busy", async () => {
+    commands.openRepository.mockResolvedValue({
+      status: "error",
+      error: { kind: "invalidState", data: "Not a Git repository" },
+    });
+
+    await repository.open("E:/Work/dtv_device");
+
+    expect(repository.phase.kind).toBe("failed");
+    expect(repository.busy).toBe(false);
+    expect(repository.error?.message).toContain("Not a Git repository");
+  });
+
+  // The bug behind "Graph & History (348)" over an empty panel: the watcher fires a
+  // refresh, that refresh fails, and the failure used to wipe the repository that was
+  // perfectly fine, leaving every panel on its empty state with the counters still full.
+  it("keeps the open repository when a later refresh fails", async () => {
+    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
+    await repository.open("C:/repos/one");
+
+    commands.openRepository.mockResolvedValue({
+      status: "error",
+      error: { kind: "invalidState", data: "index.lock" },
+    });
+    await repository.refresh();
+
+    expect(repository.current?.root).toBe("C:/repos/one");
+    expect(repository.error?.message).toContain("index.lock");
+  });
+
+  it("keeps showing the old repository while a refresh is in flight", async () => {
+    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
+    await repository.open("C:/repos/one");
+
+    const answer = pending<unknown>();
+    commands.openRepository.mockReturnValue(answer.promise);
+    const refreshing = repository.refresh();
+
+    expect(repository.phase.kind).toBe("opening");
+    expect(repository.current?.root).toBe("C:/repos/one");
+    answer.settle({ status: "ok", data: summary("C:/repos/one") });
+    await refreshing;
+  });
+
+  it("lets the newest open win, however the older one ends", async () => {
+    const slow = pending<unknown>();
+    commands.openRepository.mockReturnValueOnce(slow.promise);
+    const first = repository.open("C:/repos/slow");
+
+    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/two") });
+    await repository.open("C:/repos/two");
+
+    slow.settle({ status: "ok", data: summary("C:/repos/slow") });
+    await first;
+
+    expect(repository.current?.root).toBe("C:/repos/two");
+    expect(repository.phase.kind).toBe("open");
+  });
+
+  it("does not let a superseded failure close what is open", async () => {
+    const slow = pending<unknown>();
+    commands.openRepository.mockReturnValueOnce(slow.promise);
+    const first = repository.open("C:/repos/slow");
+
+    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/two") });
+    await repository.open("C:/repos/two");
+
+    slow.fail(new Error("too late"));
+    await first;
+
+    expect(repository.current?.root).toBe("C:/repos/two");
+    expect(repository.error).toBeNull();
+  });
+
+  it("gives up waiting rather than spinning for ever", async () => {
+    vi.useFakeTimers();
+    commands.openRepository.mockReturnValue(pending<unknown>().promise);
+
+    void repository.open("C:/repos/never");
+    await vi.advanceTimersByTimeAsync(repository.openTimeoutMs + 1);
+
+    expect(repository.busy).toBe(false);
+    expect(repository.phase.kind).toBe("failed");
+    expect(repository.error?.message).toMatch(/still/i);
+  });
+
+  it("lets a late answer overrule the timeout it already reported", async () => {
+    vi.useFakeTimers();
+    const answer = pending<unknown>();
+    commands.openRepository.mockReturnValue(answer.promise);
+
+    const open = repository.open("C:/repos/slow");
+    await vi.advanceTimersByTimeAsync(repository.openTimeoutMs + 1);
+    answer.settle({ status: "ok", data: summary("C:/repos/slow") });
+    await open;
+
+    expect(repository.phase.kind).toBe("open");
+    expect(repository.error).toBeNull();
+  });
+
+  it("closing goes back to closed, with nothing left behind", async () => {
+    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
+    await repository.open("C:/repos/one");
+
+    repository.close();
+
+    expect(repository.phase.kind).toBe("closed");
+    expect(repository.current).toBeNull();
+    expect(repository.error).toBeNull();
+    expect(repository.busy).toBe(false);
+  });
+});
+
+describe("what the panels see, end to end", () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+    commands.openRepository.mockReset();
+    commands.repositories.mockResolvedValue({ status: "ok", data: [] });
+    repository.close();
+  });
+
+  it("puts every panel on the repository as soon as it opens, unprompted", async () => {
+    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
+
+    await repository.open("C:/repos/one");
+
+    expect(panelView(repository.phase)).toBe("content");
+  });
+
+  // The whole of item 1: counters full, panels empty, footer stuck. One failing re-read
+  // used to produce all three at once.
+  it("does not send the panels back to the start screen when a re-read fails", async () => {
+    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
+    await repository.open("C:/repos/one");
+
+    commands.openRepository.mockRejectedValue(new Error("the watcher caught it mid-write"));
+    await repository.refresh();
+
+    expect(panelView(repository.phase)).toBe("content");
+    expect(repository.busy).toBe(false);
+  });
+});

@@ -12,7 +12,7 @@
       selected commit changed. They share the panel but almost nothing else. */
   interface Props {
     /** False while no repository is open: the list has nothing behind it at all. */
-    ready: boolean;
+    view: import("$lib/repo-phase").PanelView;
     /** This panel holds the keyboard (issue 15). */
     activePanel: boolean;
     onWorkingTree: boolean;
@@ -34,7 +34,7 @@
   }
 
   let {
-    ready,
+    view,
     activePanel,
     onWorkingTree,
     onviewchange,
@@ -57,16 +57,18 @@
 
   /** Three different nothings, and the panel used to say the same thing for all of them. */
   const nothing = $derived(
-    !ready
-      ? "No repository open."
-      : commit.oid === null
+    view === "opening"
+      ? "Opening repository…"
+      : view === "start"
+        ? "No repository open."
+        : commit.oid === null
         ? "Select a commit to see the files it changed."
         : "This commit changed no files.",
   );
 </script>
 
 <div class="files">
-  {#if !ready}
+  {#if view !== "content"}
     <FileList sections={[{ files: [] }]} empty={nothing} disabled {activePanel} />
   {:else if stashView.contents}
     {@const parts = stashView.contents}

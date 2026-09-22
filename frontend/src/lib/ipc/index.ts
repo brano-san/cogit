@@ -385,8 +385,15 @@ export async function stageSelection(repo: RepoId, request: PatchRequest, revers
   return unwrap(await commands.stageSelection(repo, request, reverse));
 }
 
-export async function listSubmodules(repo: RepoId) {
-  return unwrap(await commands.submodules(repo));
+/** The submodules directly under `parent`; `""` is the repository itself. Read one node
+ *  at a time: a tree nine deep must not cost nine reads before anyone expands anything. */
+export async function listSubmodules(repo: RepoId, parent = "") {
+  return unwrap(await commands.listSubmodules(repo, parent));
+}
+
+/** Opens a submodule from its node: the panels follow it, the list does not grow. */
+export async function openSubmodule(path: string) {
+  return unwrap(await commands.openSubmodule(path));
 }
 
 export async function updateSubmodule(repo: RepoId, path: string, init: boolean) {
@@ -698,6 +705,12 @@ export async function onOperationChanged(handler: (event: OperationChanged) => v
 
 export async function popupContextMenu(items: ContextItem[], x: number, y: number) {
   return unwrap(await commands.popupContextMenu(items, x, y));
+}
+
+/** Closes the window this webview lives in. The close happens in Rust: a window
+ *  operation issued from inside the webview is what R-86 is about. */
+export async function closeThisWindow() {
+  return unwrap(await commands.closeThisWindow());
 }
 
 export async function openCompareWindow(url: string, title: string) {

@@ -1,11 +1,13 @@
 <script lang="ts">
   import { shortOid } from "$lib/format";
+  import { panelView } from "$lib/repo-phase";
   import { commit } from "$stores/commit.svelte";
   import { repository } from "$stores/repository.svelte";
   import { settings } from "$stores/settings.svelte";
 
-  /** What the Diff panel shows when there is no file to diff: the selected commit, the
-      error that stopped one from loading, or what to do next. */
+  /** What the Diff panel shows when there is no file to diff: the selected commit, or
+      what to do next. Why a repository would not open is told once, in the notification
+      (doc/12-risks.md, R-99) — not here as well. */
   interface Props {
     oncherrypick: () => void;
     onrevert: () => void;
@@ -17,16 +19,12 @@
   let { oncherrypick, onrevert, onsplit, onrebase, onrollback }: Props = $props();
 
   const repo = $derived(repository.current);
+  const view = $derived(panelView(repository.phase));
   const details = $derived(commit.details);
 </script>
 
 <div class="detail">
-  {#if repository.error}
-    <p class="error">{repository.error.message}</p>
-    {#if repository.error.isCommandFailure && repository.error.detail.kind === "command"}
-      <pre class="raw">{repository.error.detail.data.stderr}</pre>
-    {/if}
-  {:else if commit.error}
+  {#if commit.error}
     <p class="error">{commit.error.message}</p>
   {:else if details}
     <p class="subject">{details.summary}</p>
@@ -66,7 +64,7 @@
     </dl>
     <p class="muted">Select a commit to see what it changed.</p>
   {:else}
-    <p class="muted">No repository open.</p>
+    <p class="muted">{view === "opening" ? "Opening repository…" : "No repository open."}</p>
   {/if}
 </div>
 
@@ -82,8 +80,7 @@
     font-weight: 600;
   }
 
-  .body,
-  .raw {
+  .body {
     margin: 0 0 var(--sp-5);
     padding: var(--sp-4);
     background: var(--surface-input);

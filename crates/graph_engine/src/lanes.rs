@@ -64,10 +64,18 @@ fn choose_lane(node: &CommitNode, cursor: &mut LayoutCursor) -> usize {
         .iter()
         .position(|slot| slot.as_deref() == Some(node.oid.as_str()))
     {
+        if cursor.is_mainline(&node.oid) {
+            cursor.mainline_placed = true;
+        }
         return lane;
     }
 
-    let lane = cursor.first_free_lane();
+    let lane = if cursor.is_mainline(&node.oid) {
+        cursor.mainline_placed = true;
+        0
+    } else {
+        cursor.first_free_lane()
+    };
     grow_to(cursor, lane + 1);
     cursor.lane_colors[lane] = cursor.take_color();
     cursor.origins[lane].clear();
@@ -120,9 +128,15 @@ fn place_parents(node: &CommitNode, commit_lane: usize, cursor: &mut LayoutCurso
             continue;
         }
 
-        // The first parent inherits the commit's own lane, which is what keeps the
-        // mainline vertical rather than zig-zagging (doc/07-graph-rendering.md).
-        let lane = if index == 0 {
+        // The mainline claims the leftmost column wherever it is reached from, so a
+        // feature branch that happens to be newer cannot take it first (R-115).
+        let lane = if cursor.is_mainline(parent) {
+            grow_to(cursor, 1);
+            cursor.mainline_placed = true;
+            0
+        } else if index == 0 {
+            // The first parent inherits the commit's own lane, which is what keeps the
+            // mainline vertical rather than zig-zagging (doc/07-graph-rendering.md).
             commit_lane
         } else {
             let free = cursor.first_free_lane();

@@ -64,7 +64,7 @@
       onselectcommit(oid);
     }}
   />
-{:else if diff.error}
+{:else if diff.error && diff.path}
   <p class="error detail">{diff.error.message}</p>
 {:else if diff.diff?.kind === "image"}
   <ImageDiff

@@ -1,6 +1,7 @@
 <script lang="ts">
   import DiffView from "$components/diff/DiffView.svelte";
   import ImageDiff from "$components/diff/ImageDiff.svelte";
+  import { onWindowKey } from "$lib/child-window";
   import { parseCompare } from "$lib/compare-params";
   import { diff } from "$stores/diff.svelte";
   import { settings } from "$stores/settings.svelte";
@@ -18,6 +19,8 @@
     document.title = `${title} — Cogit`;
   });
 </script>
+
+<svelte:window onkeydown={onWindowKey} />
 
 <div class="window">
   {#if !request}

@@ -340,6 +340,14 @@ pub fn build<R: Runtime>(
         .minimize()
         .maximize()
         .separator()
+        .item(&MenuItem::with_id(
+            app,
+            "reset-window-position",
+            "Reset Window Position",
+            true,
+            None::<&str>,
+        )?)
+        .separator()
         .item(&PredefinedMenuItem::close_window(app, Some("Close"))?)
         .build()?;
 

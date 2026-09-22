@@ -209,3 +209,10 @@
 | F-213 | Investigate от выделения в diff | [F-213-investigate-from-selection.md](F-213-investigate-from-selection.md) |
 | F-235 | Падение интерфейса объясняется своими словами | [F-235-renderer-crash-dialog.md](F-235-renderer-crash-dialog.md) |
 | F-236 | Ни одно действие не теряется и не обгоняет другое | [F-236-operation-queue.md](F-236-operation-queue.md) |
+| F-237 | Открытый репозиторий виден во всех панелях сразу | [F-237-repository-opens-every-panel.md](F-237-repository-opens-every-panel.md) |
+| F-238 | Одна ошибка показывается в одном месте | [F-238-one-error-one-place.md](F-238-one-error-one-place.md) |
+| F-239 | Окно сравнения ведёт себя как окно | [F-239-child-window-behaves.md](F-239-child-window-behaves.md) |
+| F-240 | Окно всегда открывается там, где его видно | [F-240-window-opens-where-it-can-be-reached.md](F-240-window-opens-where-it-can-be-reached.md) |
+| F-241 | Основная ветка идёт слева, сплошной линией | [F-241-mainline-on-the-left.md](F-241-mainline-on-the-left.md) |
+| F-242 | Submodules — ветки дерева, а не список сбоку | [F-242-submodule-tree.md](F-242-submodule-tree.md) |
+| F-243 | Все диалоги выглядят и ведут себя одинаково | [F-243-dialogs-are-one-shape.md](F-243-dialogs-are-one-shape.md) |

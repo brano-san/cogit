@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Dialog from "$components/common/Dialog.svelte";
   import { scan } from "$stores/scan.svelte";
 
   interface Props {
@@ -21,25 +22,29 @@
   );
   const chosen = $derived(scan.selected);
 
-  function onkeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      onclose();
-    }
+  /** "Open 0 Selected" reads like a broken button; with nothing ticked the button says
+      what it is waiting for instead. */
+  const openLabel = $derived(
+    busy
+      ? "Opening…"
+      : chosen.length === 0
+        ? "Open Selected"
+        : chosen.length === 1
+          ? "Open 1 Repository"
+          : `Open ${chosen.length} Repositories`,
+  );
+
+  function open() {
+    if (chosen.length > 0 && !busy) onopen(chosen);
   }
 </script>
 
-<svelte:window {onkeydown} />
-
-<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div class="backdrop" onclick={onclose}></div>
-
-<div class="dialog" role="dialog" aria-label="Scan folder for repositories">
-  <header>
-    <h2>Scan folder for repositories</h2>
-    <button type="button" class="icon" onclick={onclose} aria-label="Close">✕</button>
-  </header>
-
+<Dialog
+  title="Scan folder for repositories"
+  width="min(720px, 92vw)"
+  {onclose}
+  onconfirm={open}
+>
   <div class="bar">
     <button type="button" onclick={onbrowse} disabled={scan.busy}>Choose Folder…</button>
     <span class="folder truncate" title={scan.folder ?? ""}>{scan.folder ?? "No folder chosen"}</span>
@@ -63,9 +68,18 @@
     {#if scan.error}
       <p class="message error">{scan.error.message}</p>
     {:else if scan.hits.length === 0}
-      <p class="message">
-        {scan.busy ? "Scanning…" : scan.done ? "No repository under that folder." : "Choose a folder to scan."}
-      </p>
+      <div class="empty">
+        <p class="message">
+          {scan.busy
+            ? "Scanning…"
+            : scan.done
+              ? "No repository under that folder."
+              : "Pick a folder and Cogit will look through it for repositories."}
+        </p>
+        {#if !scan.folder && !scan.busy}
+          <button type="button" onclick={onbrowse}>Choose Folder…</button>
+        {/if}
+      </div>
     {:else}
       {#each shown as hit (hit.root)}
         <label class="row" class:disabled={hit.alreadyOpen}>
@@ -84,70 +98,18 @@
     {/if}
   </div>
 
-  <footer>
+  {#snippet footer()}
     <span class="count">
       {scan.busy ? `${scan.hits.length} found so far…` : `${scan.hits.length} found`}
     </span>
     <button type="button" onclick={onclose}>Cancel</button>
-    <button
-      type="button"
-      class="primary"
-      disabled={chosen.length === 0 || busy}
-      onclick={() => onopen(chosen)}
-    >
-      {busy ? "Opening…" : `Open ${chosen.length} Selected`}
+    <button type="button" class="primary" disabled={chosen.length === 0 || busy} onclick={open}>
+      {openLabel}
     </button>
-  </footer>
-</div>
+  {/snippet}
+</Dialog>
 
 <style>
-  .backdrop {
-    position: absolute;
-    inset: 0;
-    z-index: 20;
-    background: var(--scrim);
-  }
-
-  .dialog {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 21;
-    display: flex;
-    flex-direction: column;
-    width: min(720px, 92vw);
-    max-height: 82vh;
-    background: var(--surface-panel);
-    border: 1px solid var(--field-border);
-    border-radius: var(--r-md);
-    box-shadow: var(--shadow-popover);
-    overflow: hidden;
-  }
-
-  header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: var(--h-toolbar);
-    padding: 0 var(--sp-5);
-    border-bottom: 1px solid var(--divider);
-  }
-
-  h2 {
-    margin: 0;
-    font-size: var(--fs-ui);
-    font-weight: 600;
-  }
-
-  .icon {
-    background: none;
-    border: 0;
-    color: var(--text-secondary);
-    font: inherit;
-    cursor: default;
-  }
-
   .bar {
     display: flex;
     align-items: center;
@@ -169,9 +131,18 @@
   }
 
   .results {
-    flex: 1 1 auto;
-    min-height: 120px;
-    overflow: auto;
+    min-height: 160px;
+  }
+
+  /* Not an empty frame: a folder has to be chosen and the dialog says so and offers it. */
+  .empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-4);
+    min-height: 160px;
+    text-align: center;
   }
 
   .row {
@@ -224,21 +195,9 @@
     user-select: text;
   }
 
-  footer {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-4);
-    padding: var(--sp-4) var(--sp-5);
-    border-top: 1px solid var(--divider);
-  }
-
   .count {
     flex: 1 1 auto;
     color: var(--text-secondary);
     font-size: var(--fs-dense);
-  }
-
-  .primary {
-    border-color: var(--status-ref);
   }
 </style>

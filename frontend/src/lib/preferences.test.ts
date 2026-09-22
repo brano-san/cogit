@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS, type Settings } from "./settings";
 import {
   CATEGORIES,
+  disabledBy,
   firstMatch,
   matchingCategories,
   restoreCategory,
@@ -137,5 +138,37 @@ describe("sameKeymap", () => {
 
   it("calls two empty keymaps the same", () => {
     expect(sameKeymap({}, {})).toBe(true);
+  });
+});
+
+describe("options that depend on another option", () => {
+  const every = CATEGORIES.flatMap((category) =>
+    category.groups.flatMap((group) => group.fields),
+  );
+
+  it("names a real setting as the parent, never a typo", () => {
+    for (const field of every.filter((f) => f.dependsOn)) {
+      expect(every.some((other) => other.key === field.dependsOn)).toBe(true);
+    }
+  });
+
+  // The reported case: the second tick sat visually under the first and stayed live
+  // when the first was cleared.
+  it("makes intra-line highlighting depend on move detection", () => {
+    const word = every.find((field) => field.key === "wordDiff");
+    expect(word?.dependsOn).toBe("detectMoves");
+  });
+
+  it("says a dependent option is off when its parent is", () => {
+    expect(disabledBy({ ...DEFAULT_SETTINGS, detectMoves: false }, "detectMoves")).toBe(true);
+    expect(disabledBy({ ...DEFAULT_SETTINGS, detectMoves: true }, "detectMoves")).toBe(false);
+  });
+
+  it("leaves an option with no parent alone", () => {
+    expect(disabledBy(DEFAULT_SETTINGS, undefined)).toBe(false);
+  });
+
+  it("treats a non-boolean parent as satisfied, since there is nothing to switch off", () => {
+    expect(disabledBy(DEFAULT_SETTINGS, "theme")).toBe(false);
   });
 });
