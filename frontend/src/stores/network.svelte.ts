@@ -17,6 +17,8 @@ class NetworkStore {
   /** The last line Git printed, shown in the status bar while the operation runs. */
   progress = $state<string | null>(null);
   running = $state<string | null>(null);
+  /** Whose progress `progress` is; the Exit dialog must not give it to another repository. */
+  repo = $state.raw<RepoId | null>(null);
   tokenStored = $state(false);
 
   get tokenHost(): string | null {
@@ -49,19 +51,20 @@ class NetworkStore {
   }
 
   async fetch(repo: RepoId, remote: string): Promise<void> {
-    await this.run("Fetching", () => fetchRemote(repo, remote, (l) => (this.progress = l)));
+    await this.run(repo, "Fetching", () => fetchRemote(repo, remote, (l) => (this.progress = l)));
   }
 
   async pull(repo: RepoId, remote: string, ffOnly: boolean): Promise<void> {
-    await this.run("Pulling", () => pullRemote(repo, remote, ffOnly, (l) => (this.progress = l)));
+    await this.run(repo, "Pulling", () => pullRemote(repo, remote, ffOnly, (l) => (this.progress = l)));
   }
 
   async push(repo: RepoId, remote: string, force: boolean): Promise<void> {
-    await this.run("Pushing", () => pushRemote(repo, remote, force, (l) => (this.progress = l)));
+    await this.run(repo, "Pushing", () => pushRemote(repo, remote, force, (l) => (this.progress = l)));
   }
 
-  async run(label: string, operation: () => Promise<unknown>): Promise<void> {
+  async run(repo: RepoId, label: string, operation: () => Promise<unknown>): Promise<void> {
     this.running = label;
+    this.repo = repo;
     this.progress = null;
     try {
       await operation();

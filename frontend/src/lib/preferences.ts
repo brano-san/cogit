@@ -44,6 +44,18 @@ export const CATEGORIES: Category[] = [
     note: "*) Changing the Git executable takes effect after a restart.",
     groups: [
       {
+        // Where the Exit dialog's "Don't show again" hint sends the user (R-169).
+        title: "Exiting",
+        fields: [
+          {
+            key: "confirmExit",
+            label: "Confirm before exiting",
+            hint: "Cogit still asks while an operation is running or waiting, whatever this says.",
+            keywords: ["exit", "quit", "close", "confirm", "ask", "dont show"],
+          },
+        ],
+      },
+      {
         title: "Pull",
         fields: [
           {
@@ -138,17 +150,6 @@ export const CATEGORIES: Category[] = [
     title: "Behaviour",
     parent: "ui",
     groups: [
-      {
-        title: "Exiting",
-        fields: [
-          {
-            key: "confirmExit",
-            label: "Confirm before exiting",
-            hint: "Cogit still asks while an operation is running or waiting, whatever this says.",
-            keywords: ["exit", "quit", "close", "confirm", "ask"],
-          },
-        ],
-      },
       {
         title: "Don't show again",
         fields: [
