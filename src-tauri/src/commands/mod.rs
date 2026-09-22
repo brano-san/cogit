@@ -22,6 +22,17 @@ pub struct AppInfo {
     pub version: String,
     pub log_path: String,
     pub debug_build: bool,
+    /// What a bug report needs to identify the build (doc/12-risks.md, R-146).
+    pub commit: String,
+    #[specta(type = specta_typescript::Number)]
+    pub built_at: i64,
+    pub rustc: String,
+    pub tauri: String,
+    /// The WebView2 runtime actually rendering this window — the version the user has to
+    /// update when a CSS feature is missing, and the one Cogit cannot ship itself.
+    pub webview: String,
+    pub git: String,
+    pub os: String,
 }
 
 /// Every blocking command goes through here, so the profile log holds one line per IPC
@@ -297,6 +308,13 @@ pub fn app_info(state: tauri::State<'_, crate::AppContext>) -> AppInfo {
         version: env!("CARGO_PKG_VERSION").to_owned(),
         log_path: state.log_path.display().to_string(),
         debug_build: cfg!(debug_assertions),
+        commit: env!("COGIT_COMMIT").to_owned(),
+        built_at: env!("COGIT_BUILT_AT").parse().unwrap_or_default(),
+        rustc: env!("COGIT_RUSTC").to_owned(),
+        tauri: tauri::VERSION.to_owned(),
+        webview: tauri::webview_version().unwrap_or_else(|_| "unknown".to_owned()),
+        git: git_engine::git_version().unwrap_or_else(|_| "not found".to_owned()),
+        os: format!("{} {}", std::env::consts::OS, std::env::consts::ARCH),
     }
 }
 

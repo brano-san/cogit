@@ -34,6 +34,7 @@ mod status;
 mod submodules;
 mod surgery;
 mod tags;
+mod topo;
 mod worktree;
 mod worktrees;
 
@@ -61,7 +62,7 @@ pub use presets::{Preset, PresetTool, builtin_presets, find_tool, parse_preset};
 pub use progress::{RebaseProgress, RebaseStep};
 pub use reflog::ReflogEntry;
 pub use repo::{Branch, BranchKind, Head, RepoHandle, Tag};
-pub use runner::{CommandSink, GitOutput, redact_command};
+pub use runner::{CommandSink, GitOutput, git_version, redact_command};
 pub use search::CommitQuery;
 pub use stash::{StashContents, StashEntry, StashOptions};
 pub use state::RepoState;

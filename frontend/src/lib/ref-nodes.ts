@@ -254,8 +254,13 @@ export function visibleTips(nodes: readonly RefNode[], visible: ReadonlySet<stri
 }
 
 /** What the panel starts with: the current work, not every ref in the repository. */
+/** What a repository shows before anybody touches a box: HEAD, every local branch and
+    every remote branch — the same set SmartGit opens with. Tags are labels on commits
+    that are already drawn, not lines of history of their own (doc/12-risks.md, R-142). */
 export function defaultVisible(nodes: readonly RefNode[]): Set<string> {
   return new Set(
-    nodes.filter((node) => node.kind === "head" || node.kind === "local").map((node) => node.id),
+    nodes
+      .filter((node) => node.kind === "head" || node.kind === "local" || node.kind === "remote")
+      .map((node) => node.id),
   );
 }

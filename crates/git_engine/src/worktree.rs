@@ -132,10 +132,15 @@ impl RepoHandle {
 }
 
 fn entry(path: String, status: FileStatus) -> FileEntry {
+    entry_of(path, status, crate::FileMode::Plain)
+}
+
+fn entry_of(path: String, status: FileStatus, mode: crate::FileMode) -> FileEntry {
     FileEntry {
         path,
         old_path: None,
         status,
+        mode,
         mode_change: None,
         similarity: None,
     }
@@ -146,7 +151,23 @@ fn staged_entry(change: &gix::diff::index::Change) -> FileEntry {
     match change {
         Change::Addition { location, .. } => entry(location.to_string(), FileStatus::Added),
         Change::Deletion { location, .. } => entry(location.to_string(), FileStatus::Deleted),
-        Change::Modification { location, .. } => entry(location.to_string(), FileStatus::Modified),
+        Change::Modification {
+            location,
+            entry_mode,
+            ..
+        } => entry_of(
+            location.to_string(),
+            FileStatus::Modified,
+            // The index reports a raw mode; a gitlink is 0o160000, and telling one apart
+            // is the whole point of showing an icon at all (R-143).
+            if *entry_mode == gix::index::entry::Mode::COMMIT {
+                crate::FileMode::Submodule
+            } else if *entry_mode == gix::index::entry::Mode::SYMLINK {
+                crate::FileMode::Symlink
+            } else {
+                crate::FileMode::Plain
+            },
+        ),
         Change::Rewrite {
             location,
             source_location,
@@ -160,6 +181,7 @@ fn staged_entry(change: &gix::diff::index::Change) -> FileEntry {
             } else {
                 FileStatus::Renamed
             },
+            mode: crate::FileMode::Plain,
             mode_change: None,
             similarity: None,
         },

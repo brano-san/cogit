@@ -220,3 +220,7 @@
 | F-245 | Настройка, которую видно, остаётся | [F-245-settings-keep-what-you-chose.md](F-245-settings-keep-what-you-chose.md) |
 | F-246 | Дерево репозиториев переживает выбор submodule | [F-246-tree-survives-selection.md](F-246-tree-survives-selection.md) |
 | F-247 | Отказ git не теряется в очереди | [F-247-failures-queue.md](F-247-failures-queue.md) |
+| F-248 | Граф читается веткой, а не по датам | [F-248-graph-reads-branch-by-branch.md](F-248-graph-reads-branch-by-branch.md) |
+| F-249 | Контекстное меню файла | [F-249-file-context-menu.md](F-249-file-context-menu.md) |
+| F-250 | Окно About отвечает на «какая у вас сборка» | [F-250-about-window.md](F-250-about-window.md) |
+| F-251 | Лица в списке коммитов | [F-251-avatars-on-by-default.md](F-251-avatars-on-by-default.md) |

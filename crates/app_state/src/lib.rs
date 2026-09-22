@@ -450,7 +450,10 @@ impl AppState {
         let mut cancelled = false;
         let mut max_lane = 0_u16;
 
-        handle.search_commits(query, chunk_size, |commits| {
+        // Topological for the graph, and only for the graph: lanes stay straight only if a
+        // line of history arrives whole (doc/12-risks.md, R-140). A filtered search is a
+        // flat list and reads better newest-first, the way `git log` does.
+        let on_commits = |commits: Vec<git_engine::CommitRow>| {
             let (lanes, edges) = if flat {
                 let lanes = commits
                     .iter()
@@ -488,7 +491,13 @@ impl AppState {
             });
             cancelled = !keep;
             keep
-        })?;
+        };
+
+        if flat {
+            handle.search_commits(query, chunk_size, on_commits)?;
+        } else {
+            handle.search_commits_topo(query, chunk_size, on_commits)?;
+        }
 
         if !cancelled {
             on_chunk(GraphChunk {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authorsOf, mergeRows } from "./avatars";
+import { authorsOf, initialsOf, mergeRows } from "./avatars";
 import type { AvatarRow } from "$lib/ipc";
 
 const row = (email: string, image: string | null = null): AvatarRow => ({
@@ -72,5 +72,30 @@ describe("mergeRows", () => {
   it("keys on the normalised address", () => {
     const merged = mergeRows(new Map(), [row(" Ada@Example.com ")]);
     expect(merged.has("ada@example.com")).toBe(true);
+  });
+});
+
+/** The backend draws the same letters (crates/avatars/tests/identity.rs); a row that
+    changes its initials when the answer arrives is worse than waiting for it. */
+describe("initialsOf", () => {
+  it("takes the first letter of the first and last word", () => {
+    expect(initialsOf("Ada Lovelace", "ada@example.com")).toBe("AL");
+    expect(initialsOf("Ada Augusta King Lovelace", "ada@example.com")).toBe("AL");
+  });
+
+  it("gives one letter for a single-word name", () => {
+    expect(initialsOf("octocat", "o@example.com")).toBe("O");
+  });
+
+  it("keeps the letters of a non-latin name", () => {
+    expect(initialsOf("Иван Петров", "ivan@example.com")).toBe("ИП");
+  });
+
+  it("falls back to the address when there is no name", () => {
+    expect(initialsOf("   ", "ada@example.com")).toBe("A");
+  });
+
+  it("always has something to draw", () => {
+    expect(initialsOf("", "")).toBe("?");
   });
 });

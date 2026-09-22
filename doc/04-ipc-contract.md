@@ -349,7 +349,7 @@ type SearchChunk =
 
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
-| `app_info` | — | `AppInfo { version, git_version, log_path }` | M0 |
+| `app_info` | — | `AppInfo { version, log_path, debug_build, commit, built_at, rustc, tauri, webview, git, os }` | M0 |
 | `read_settings` | — | `String` — весь документ настроек как текст JSON | M8 |
 | `write_setting` | `key`, `value` (текст JSON) | `()` | M8 |
 | `command_log` | `limit` | `Vec<CommandLogEntry>` | M2 |
@@ -384,7 +384,7 @@ type SearchChunk =
 | `rebase_progress` | `repo` | `Option<RebaseProgress>` | M11 |
 | `overlap_window` | `repo, base, window: Vec<String>` | `Vec<OverlapRow>` | M13 |
 | `bypass_log` | `repo` | `Vec<Bypass>` | M10 |
-| `popup_context_menu` | `items: Vec<ContextItem>, x, y` | `()` | M2 |
+| `popup_context_menu` | `items: Vec<ContextItem { id, label, enabled, separator, accelerator }>, x, y` | `()` | M2 |
 | `open_compare_window` | `url, title` | `()` | M2 |
 | `commit_template` | `repo` | `Option<String>` | M6 |
 | `stage_mode` | `repo, path, executable` | `()` | M6 |

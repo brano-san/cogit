@@ -175,3 +175,36 @@ fn an_empty_repository_answers_without_panicking() {
 
     assert!(repo.commit_details("HEAD").is_err());
 }
+
+/// A changed submodule is a gitlink, and the Files panel draws it with the submodule
+/// icon rather than as a file (doc/12-risks.md, R-143).
+#[test]
+fn a_changed_submodule_is_reported_as_one() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let repo = RepoHandle::open(f.path()).unwrap();
+    let head = f.oid("HEAD").unwrap();
+
+    let files = repo.commit_files(&head).unwrap();
+    let module = files
+        .iter()
+        .find(|entry| entry.path == "vendor/lib")
+        .expect("the commit that added the submodule lists it");
+
+    assert_eq!(module.mode, git_engine::FileMode::Submodule);
+}
+
+#[test]
+fn an_ordinary_file_is_reported_as_plain() {
+    let f = test_fixtures::linear(1).unwrap();
+    let repo = RepoHandle::open(f.path()).unwrap();
+    let head = f.oid("HEAD").unwrap();
+
+    let files = repo.commit_files(&head).unwrap();
+
+    assert!(
+        files
+            .iter()
+            .all(|entry| entry.mode == git_engine::FileMode::Plain),
+        "{files:?}"
+    );
+}

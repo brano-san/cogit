@@ -45,6 +45,8 @@
     onselect?: (path: string) => void;
     /** Double-click: open the file in its own window (T2.5). */
     onopen?: (path: string) => void;
+    /** Right-click: the row becomes the selection, then the menu opens on it. */
+    oncontext?: (path: string, event: MouseEvent) => void;
     /** Reported upward so Commit What You See knows what is hidden (T6.8). */
     onmask?: (mask: string) => void;
     /** The ticked rows, for actions that live outside the list — stashing a selection. */
@@ -62,6 +64,7 @@
     onsplitreset,
     onselect,
     onopen,
+    oncontext,
     onmask,
     onmarked,
     disabled = false,
@@ -179,6 +182,7 @@
             onclick={(path, event) => clicked(group.section, path, event)}
             onmark={mark}
             {onopen}
+            {oncontext}
           />
         </div>
       {/each}
@@ -199,6 +203,7 @@
               onclick={(path, event) => clicked(group.section, path, event)}
               onmark={mark}
               {onopen}
+              {oncontext}
             />
           </div>
         {/if}

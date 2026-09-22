@@ -144,3 +144,106 @@ fn every_commit_appears_exactly_once() {
     oids.dedup();
     assert_eq!(oids.len(), total, "a commit was emitted more than once");
 }
+
+// --- the order the graph is drawn in ------------------------------------------------
+
+/// Two branches whose commits alternate in time. By date the walk reads
+/// `f2 m2 f1 m1`, and lanes drawn from that zig-zag; topologically each line comes out
+/// whole (doc/12-risks.md, R-140).
+fn interleaved() -> test_fixtures::Fixture {
+    let f = test_fixtures::linear(1).unwrap();
+    f.commit_file(
+        10, "m1.txt", "one
+",
+    )
+    .unwrap();
+    f.git(&["switch", "-c", "feature"]).unwrap();
+    f.commit_file(
+        20, "f1.txt", "one
+",
+    )
+    .unwrap();
+    f.git(&["switch", "main"]).unwrap();
+    f.commit_file(
+        30, "m2.txt", "two
+",
+    )
+    .unwrap();
+    f.git(&["switch", "feature"]).unwrap();
+    f.commit_file(
+        40, "f2.txt", "two
+",
+    )
+    .unwrap();
+    f.git(&["switch", "main"]).unwrap();
+    f
+}
+
+fn walked(repo: &RepoHandle, topo: bool) -> Vec<String> {
+    let query = git_engine::CommitQuery {
+        visible_refs: None,
+        ..Default::default()
+    };
+    let mut seen = Vec::new();
+    let collect = |rows: Vec<git_engine::CommitRow>| {
+        seen.extend(rows.into_iter().map(|row| row.summary));
+        true
+    };
+    if topo {
+        repo.search_commits_topo(&query, 50, collect).unwrap();
+    } else {
+        repo.search_commits(&query, 50, collect).unwrap();
+    }
+    seen
+}
+
+#[test]
+fn a_topological_walk_keeps_each_line_of_history_together() {
+    let f = interleaved();
+    let repo = RepoHandle::open(f.path()).unwrap();
+
+    let order = walked(&repo, true);
+
+    let at = |what: &str| order.iter().position(|row| row == what).unwrap();
+    let feature = [at("commit 40"), at("commit 20")];
+    let master = [at("commit 30"), at("commit 10")];
+    assert!(
+        feature.iter().max() < master.iter().min() || master.iter().max() < feature.iter().min(),
+        "the two lines are interleaved: {order:?}"
+    );
+}
+
+#[test]
+fn a_topological_walk_never_puts_a_parent_before_its_child() {
+    let f = interleaved();
+    let repo = RepoHandle::open(f.path()).unwrap();
+
+    let order = walked(&repo, true);
+
+    let at = |what: &str| order.iter().position(|row| row == what).unwrap();
+    assert!(at("commit 40") < at("commit 20"));
+    assert!(at("commit 30") < at("commit 10"));
+}
+
+#[test]
+fn both_walks_see_the_same_commits() {
+    let f = interleaved();
+    let repo = RepoHandle::open(f.path()).unwrap();
+
+    let mut topo = walked(&repo, true);
+    let mut date = walked(&repo, false);
+    topo.sort();
+    date.sort();
+
+    assert_eq!(topo, date);
+}
+
+#[test]
+fn a_topological_walk_of_a_linear_history_is_the_history() {
+    let f = test_fixtures::linear(3).unwrap();
+    let repo = RepoHandle::open(f.path()).unwrap();
+
+    let order = walked(&repo, true);
+
+    assert_eq!(order.len(), 3);
+}

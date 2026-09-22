@@ -253,10 +253,14 @@ describe("visibleTips", () => {
 });
 
 describe("defaultVisible", () => {
-  it("starts with HEAD and every local branch ticked, and nothing else", () => {
+  it("starts with HEAD and every branch ticked, local and remote, but no tags", () => {
     const remote = branch("origin/master", { kind: "remote", fullName: "refs/remotes/origin/master" });
     const nodes = buildRefTree(input({ branches: [branch("master"), remote], tags: [tag("v1")] }));
-    expect([...defaultVisible(nodes)].sort()).toEqual(["HEAD", "local:master"]);
+    expect([...defaultVisible(nodes)].sort()).toEqual([
+      "HEAD",
+      "local:master",
+      "remote:origin/master",
+    ]);
   });
 });
 
@@ -303,5 +307,53 @@ describe("node ids are unique", () => {
 
     expect(folded.length).toBeLessThan(all.length);
     expect(folded.some((node) => node.id.startsWith("remote:"))).toBe(true);
+  });
+});
+
+describe("what is ticked when a repository is opened", () => {
+  const tree = () =>
+    buildRefTree(
+      input({
+        branches: [
+          branch("master", { isHead: true }),
+          branch("feature/a"),
+          branch("origin/master", {
+            kind: "remote",
+            fullName: "refs/remotes/origin/master",
+          }),
+          branch("origin/feature/a", {
+            kind: "remote",
+            fullName: "refs/remotes/origin/feature/a",
+          }),
+        ],
+        tags: [tag("v1.0")],
+      }),
+    );
+
+  // The graph showed master and the current branch while every box looked cleared: the
+  // ticks and the walk were reading different defaults.
+  it("ticks HEAD, the local branches and the remote ones", () => {
+    const ticked = defaultVisible(tree());
+    expect(ticked.has("HEAD")).toBe(true);
+    expect(ticked.has("local:master")).toBe(true);
+    expect(ticked.has("local:feature/a")).toBe(true);
+    expect(ticked.has("remote:origin/master")).toBe(true);
+  });
+
+  it("leaves tags alone: a tag is a label, not a line of history to draw", () => {
+    expect(defaultVisible(tree()).has("tag:v1.0")).toBe(false);
+  });
+
+  it("ticks nothing structural, so a group box stays a summary of its children", () => {
+    const ticked = defaultVisible(tree());
+    expect([...ticked].some((id) => id.startsWith("group:"))).toBe(false);
+    expect([...ticked].some((id) => id.startsWith("folder:"))).toBe(false);
+  });
+
+  it("walks from exactly what is ticked", () => {
+    const nodes = tree();
+    const tips = visibleTips(nodes, defaultVisible(nodes));
+    expect(tips).toContain("refs/heads/master");
+    expect(tips).toContain("refs/remotes/origin/master");
   });
 });

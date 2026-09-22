@@ -37,3 +37,18 @@ export function mergeRows(
   }
   return next;
 }
+
+/** The same letters `avatars::fallback` draws, so a row that has not been answered yet
+    looks like the one that has. Colour is not mirrored: it needs an MD5 the frontend has
+    no other use for, and a neutral square until the answer lands reads as "loading". */
+export function initialsOf(name: string, email: string): string {
+  const words = name.split(/\s+/).filter(Boolean);
+  const letters =
+    words.length === 0
+      ? [...email.trim()].slice(0, 1)
+      : words.length === 1
+        ? [...words[0]!].slice(0, 1)
+        : [...[...words[0]!].slice(0, 1), ...[...words[words.length - 1]!].slice(0, 1)];
+
+  return letters.join("").toUpperCase() || "?";
+}

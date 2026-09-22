@@ -404,6 +404,10 @@ pub struct ContextItem {
     pub enabled: bool,
     #[serde(default)]
     pub separator: bool,
+    /// Shown on the right of the row. A popup menu only draws it — the chord itself is
+    /// bound in the frontend, which is the only place that knows the focused panel.
+    #[serde(default)]
+    pub accelerator: Option<String>,
 }
 
 /// Held until the next popup replaces it: dropping the menu closes it under the pointer.
@@ -433,9 +437,12 @@ pub fn popup<R: Runtime>(
             builder = builder.separator();
             continue;
         }
-        let entry = MenuItemBuilder::with_id(item.id.as_str(), item.label.as_str())
-            .enabled(item.enabled)
-            .build(app)?;
+        let mut entry =
+            MenuItemBuilder::with_id(item.id.as_str(), item.label.as_str()).enabled(item.enabled);
+        if let Some(chord) = &item.accelerator {
+            entry = entry.accelerator(chord.as_str());
+        }
+        let entry = entry.build(app)?;
         builder = builder.item(&entry);
     }
 

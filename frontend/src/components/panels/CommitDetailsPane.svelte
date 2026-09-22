@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Avatar from "$components/common/Avatar.svelte";
   import { shortOid } from "$lib/format";
   import { panelView } from "$lib/repo-phase";
   import { commit } from "$stores/commit.svelte";
@@ -33,9 +34,12 @@
       <dt>Commit</dt>
       <dd class="mono">{details.oid}</dd>
       <dt>Author</dt>
-      <dd>
-        {details.author.name} &lt;{details.author.email}&gt; ·
-        {settings.formatDate(details.author.timestamp, details.author.tzOffsetMinutes)}
+      <dd class="author">
+        <Avatar name={details.author.name} email={details.author.email} size={20} />
+        <span>
+          {details.author.name} &lt;{details.author.email}&gt; ·
+          {settings.formatDate(details.author.timestamp, details.author.tzOffsetMinutes)}
+        </span>
       </dd>
       <dt>Parents</dt>
       <dd class="mono tabular">
@@ -69,6 +73,12 @@
 </div>
 
 <style>
+  .author {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+  }
+
   .detail {
     padding: var(--sp-5);
     font-size: var(--fs-dense);
