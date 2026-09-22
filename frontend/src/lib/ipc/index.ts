@@ -184,19 +184,12 @@ export function describeModuleProblem(problem: ModuleProblem): string {
 }
 
 export async function getAppInfo() {
-  const result = await commands.appInfo();
-  if (result.status === "error") {
-    throw new CogitError(result.error);
-  }
-  return result.data;
+  return unwrap(await commands.appInfo());
 }
 
 /** `frontend` is the list the Vite build shipped; null under the dev server. */
 export async function openThirdPartyLicences(frontend: string | null) {
-  const result = await commands.openThirdPartyLicences(frontend);
-  if (result.status === "error") {
-    throw new CogitError(result.error);
-  }
+  unwrap(await commands.openThirdPartyLicences(frontend));
 }
 
 export async function openRepository(path: string) {
