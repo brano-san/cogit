@@ -18,8 +18,13 @@ class CommitStore {
   /** Clicking down the graph fires faster than the backend answers; stale replies lose. */
   #generation = 0;
 
+  /** `onfile` is called whenever the selected commit changes, so the Files panel and the
+      Diff panel cannot disagree about which file is on screen (doc/12-risks.md, R-138). */
+  onchange: (() => void) | null = null;
+
   async select(repo: RepoId, oid: string | null): Promise<void> {
     const generation = ++this.#generation;
+    if (this.oid !== oid) this.onchange?.();
     this.oid = oid;
     this.error = null;
 

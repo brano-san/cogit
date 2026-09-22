@@ -55,3 +55,31 @@ describe("stateBanner", () => {
     expect(stateBanner({ kind: "merging" }, null)?.severity).toBe("warning");
   });
 });
+
+describe("a detached HEAD inside a submodule", () => {
+  const detached = { kind: "detachedHead", oid: "452e8002c0ffee" } as never;
+
+  it("still warns in a repository the user checked out themselves", () => {
+    const shown = stateBanner(detached, null, false);
+    expect(shown?.title).toBe("Detached HEAD");
+    expect(shown?.detail).toContain("easy to lose");
+  });
+
+  // A submodule is detached because its parent records one commit. That is how submodules
+  // work, and "commits are easy to lose" is a warning about nothing.
+  it("says what it is without the warning when the repository is a submodule", () => {
+    const shown = stateBanner(detached, null, true);
+    expect(shown?.severity).toBe("info");
+    expect(shown?.detail).not.toContain("easy to lose");
+    expect(shown?.detail).toContain("452e800");
+  });
+
+  it("offers no branch to create for a submodule, which does not want one", () => {
+    expect(stateBanner(detached, null, true)?.actions).toEqual([]);
+  });
+
+  it("leaves every other state alone whether it is a submodule or not", () => {
+    const merging = { kind: "merging" } as never;
+    expect(stateBanner(merging, null, true)).toEqual(stateBanner(merging, null, false));
+  });
+});

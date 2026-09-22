@@ -11,8 +11,18 @@ impl AppState {
         path: &str,
         options: &diff_engine::DiffOptions,
     ) -> Result<diff_engine::FileDiff, git_engine::GitError> {
-        let (old, new) = self.handle(repo)?.diff_sides(spec, path)?;
+        let handle = self.handle(repo)?;
+        let (old, new) = handle.diff_sides(spec, path)?;
         if old.is_none() && new.is_none() {
+            // A gitlink has no content on either side; so has a path that is simply not
+            // there. Telling them apart is what turns an error into a description (R-139).
+            if let Some(pointer) = handle.submodule_pointer(spec, path)? {
+                return Ok(diff_engine::FileDiff::Submodule {
+                    recorded: pointer.recorded,
+                    previous: pointer.previous,
+                    checked_out: pointer.checked_out,
+                });
+            }
             return Err(git_engine::GitError::InvalidState(format!(
                 "{path} is absent from both sides of the diff"
             )));

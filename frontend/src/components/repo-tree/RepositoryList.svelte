@@ -191,6 +191,19 @@
           oncontext(entry, event.clientX, event.clientY);
         }}
       >
+        {#if submodules.owner?.valueOf() === entry.repo.valueOf() && submodules.top.length > 0}
+          <button
+            type="button"
+            class="caret"
+            aria-label={submodules.folded ? "Show submodules" : "Hide submodules"}
+            onclick={(event) => {
+              event.stopPropagation();
+              submodules.foldTop();
+            }}>{submodules.folded ? "▸" : "▾"}</button
+          >
+        {:else}
+          <span class="caret" aria-hidden="true"></span>
+        {/if}
         <svg class="folder" viewBox="0 0 16 16" aria-hidden="true"
           ><path
             fill="currentColor"
@@ -224,7 +237,7 @@
         >
       </div>
 
-      {#if active?.valueOf() === entry.repo.valueOf()}
+      {#if submodules.owner?.valueOf() === entry.repo.valueOf()}
         {#each submodules.rows as node (node.key)}
           {@const parts = splitModulePath(node.path)}
           {@const folder = parts.dir.replace(/[/\\]$/, "")}
@@ -235,7 +248,11 @@
             tabindex="0"
             title="{node.path} — {node.module.url}"
             style:padding-left="calc(var(--sp-5) + {(row.depth + 1 + node.depth) * 12}px)"
-            ondblclick={() => onopenmodule(node)}
+            onclick={() => onopenmodule(node)}
+            ondblclick={() => {
+              onopenmodule(node);
+              void submodules.toggle(node);
+            }}
             onkeydown={(event) => {
               if (event.key === "Enter") onopenmodule(node);
               if (event.key === "ArrowRight" && !node.expanded) void submodules.toggle(node);
@@ -326,19 +343,25 @@
     color: var(--status-modify);
   }
 
-  .row.module .caret {
-    flex: 0 0 12px;
-    width: 12px;
+  /* A3: big enough to read as a triangle, with a target big enough to hit. */
+  .row .caret {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 20px;
+    width: 20px;
+    height: 20px;
     padding: 0;
     background: none;
     border: 0;
     color: var(--text-secondary);
     font: inherit;
-    font-size: 9px;
+    font-size: 11px;
+    line-height: 1;
     cursor: default;
   }
 
-  .row.module .caret:hover {
+  .row .caret:hover {
     color: var(--text-primary);
   }
 

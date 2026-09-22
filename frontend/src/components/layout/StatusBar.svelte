@@ -73,14 +73,15 @@
     <span class="divider" aria-hidden="true"></span>
   {/if}
 
+  <span class="spacer"></span>
+
   <span class="item activity {activity.tone}" role="status">
     {#if activity.busy}<span class="spinner" aria-hidden="true"></span>{/if}
     <span class="truncate">{activity.label}</span>
   </span>
 
-  <span class="spacer"></span>
-
   {#if fileOpen}
+    <span class="divider" aria-hidden="true"></span>
     <span class="item muted encoding">{encoding} • {lineEnding}</span>
   {/if}
 </footer>
@@ -143,14 +144,20 @@
     flex: 1 1 auto;
   }
 
+  /* Right-aligned but not shoving: the status is as wide as it needs and no wider, and
+     it does not push the fixed blocks about as its text changes (R-134). */
   .activity {
+    flex: 0 0 auto;
     min-width: 0;
     max-width: 320px;
+    justify-content: flex-end;
   }
 
   /* Fixed content, fixed box: it must not shift when the status beside it changes. */
   .encoding {
     flex: 0 0 auto;
+    min-width: 92px;
+    justify-content: flex-end;
   }
 
   .activity.error {

@@ -146,3 +146,67 @@ describe("output store, when a failure arrives twice", () => {
     expect(output.unread).toBe(1);
   });
 });
+
+describe("the queue behind the output window", () => {
+  beforeEach(() => {
+    commands.commandOutcome.mockReset();
+    commands.commandOutcome.mockImplementation((id: number) => Promise.resolve(record(id)));
+    output.close();
+  });
+
+  it("keeps every failure, not only the one on screen", async () => {
+    for (const id of [1, 2, 3]) await output.notice(notice(id, "failure"));
+
+    expect(output.queue).toEqual([1, 2, 3]);
+    expect(output.at).toBe(0);
+  });
+
+  it("walks forward and back through them", async () => {
+    for (const id of [1, 2, 3]) await output.notice(notice(id, "failure"));
+
+    await output.step(1);
+    expect(output.shown?.id).toBe(2);
+    await output.step(1);
+    expect(output.shown?.id).toBe(3);
+    await output.step(-1);
+    expect(output.shown?.id).toBe(2);
+  });
+
+  it("does not walk off either end", async () => {
+    for (const id of [1, 2]) await output.notice(notice(id, "failure"));
+
+    await output.step(-1);
+    expect(output.shown?.id).toBe(1);
+    await output.step(1);
+    await output.step(1);
+    expect(output.shown?.id).toBe(2);
+  });
+
+  // `Close` used to throw the other two away.
+  it("closing one moves to the next and only the last closes the window", async () => {
+    for (const id of [1, 2]) await output.notice(notice(id, "failure"));
+
+    await output.dismissShown();
+    expect(output.shown?.id).toBe(2);
+    await output.dismissShown();
+    expect(output.shown).toBeNull();
+  });
+
+  // Fifteen identical pull failures are one thing that happened fifteen times.
+  it("counts a repeat instead of queueing it again", async () => {
+    await output.notice(notice(1, "failure"));
+    await output.notice({ ...notice(2, "failure"), summary: "summary 1" });
+
+    expect(output.queue).toHaveLength(1);
+    expect(output.repeats).toBe(2);
+  });
+
+  it("starts counting again once something different fails", async () => {
+    await output.notice(notice(1, "failure"));
+    await output.notice({ ...notice(2, "failure"), summary: "summary 1" });
+    await output.notice({ ...notice(3, "failure"), summary: "another thing" });
+
+    expect(output.queue).toHaveLength(2);
+    expect(output.repeats).toBe(1);
+  });
+});

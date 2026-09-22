@@ -4,6 +4,7 @@
   import MergeView from "$components/diff/MergeView.svelte";
   import DiffView from "$components/diff/DiffView.svelte";
   import ImageDiff from "$components/diff/ImageDiff.svelte";
+  import SubmoduleDiff from "$components/diff/SubmoduleDiff.svelte";
   import type { ConflictSide, Whitespace } from "$lib/ipc";
   import { blame } from "$stores/blame.svelte";
   import { conflicts } from "$stores/conflicts.svelte";
@@ -21,11 +22,14 @@
     onpopoutmerge: () => void;
     onresolveText: (text: string) => void;
     onselectcommit: (oid: string) => void;
+    /** `git submodule update --init` for the path the panel is showing. */
+    oninitsubmodule: (path: string) => void;
     /** Shown when there is nothing to diff: commit details, or why there is nothing. */
     fallback: Snippet;
   }
 
   let {
+    oninitsubmodule,
     onstage,
     onblame,
     onwhitespace,
@@ -66,6 +70,14 @@
   />
 {:else if diff.error && diff.path}
   <p class="error detail">{diff.error.message}</p>
+{:else if diff.diff?.kind === "submodule" && diff.path}
+  <SubmoduleDiff
+    path={diff.path}
+    recorded={diff.diff.recorded}
+    previous={diff.diff.previous}
+    checkedOut={diff.diff.checkedOut}
+    oninit={() => oninitsubmodule(diff.path ?? "")}
+  />
 {:else if diff.diff?.kind === "image"}
   <ImageDiff
     before={diff.images[0]}

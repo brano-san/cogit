@@ -219,7 +219,7 @@ fn accelerator<'a>(
     }
 }
 
-enum Entry {
+pub(crate) enum Entry {
     Item(&'static str, &'static str, Option<&'static str>),
     /// A toggle. muda flips the tick itself on click, so the frontend always writes the
     /// authoritative state back through `set_menu_state` afterwards.
@@ -279,7 +279,7 @@ fn submenu<R: Runtime>(
     collected: &mut Collected<R>,
 ) -> tauri::Result<Submenu<R>> {
     let mut builder = SubmenuBuilder::new(app, title);
-    for entry in entries {
+    for entry in tidy(entries) {
         match entry {
             Entry::Separator => builder = builder.separator(),
             Entry::Item(id, label, fallback) => {
@@ -445,4 +445,94 @@ pub fn popup<R: Runtime>(
         *slot = Some(menu);
     }
     Ok(())
+}
+
+/// Drops separators that separate nothing: repeated ones, and one at either end. A menu
+/// grows an entry at a time and the rule has to live with the builder, not be applied by
+/// hand each time a line is added (doc/12-risks.md, R-133).
+#[must_use]
+pub fn tidy(entries: &[Entry]) -> Vec<&Entry> {
+    let mut kept: Vec<&Entry> = Vec::with_capacity(entries.len());
+    for entry in entries {
+        if matches!(entry, Entry::Separator)
+            && kept
+                .last()
+                .is_none_or(|last| matches!(last, Entry::Separator))
+        {
+            continue;
+        }
+        kept.push(entry);
+    }
+    while kept
+        .last()
+        .is_some_and(|last| matches!(last, Entry::Separator))
+    {
+        kept.pop();
+    }
+    kept
+}
+
+#[cfg(test)]
+mod separator_tests {
+    use super::*;
+
+    const ITEM: Entry = Entry::Item("a", "A", None);
+    const OTHER: Entry = Entry::Item("b", "B", None);
+
+    fn kinds(entries: &[Entry]) -> Vec<bool> {
+        tidy(entries)
+            .into_iter()
+            .map(|entry| matches!(entry, Entry::Separator))
+            .collect()
+    }
+
+    #[test]
+    fn two_separators_in_a_row_become_one() {
+        assert_eq!(
+            kinds(&[ITEM, Entry::Separator, Entry::Separator, OTHER]),
+            [false, true, false]
+        );
+    }
+
+    #[test]
+    fn a_separator_at_the_top_is_dropped() {
+        assert_eq!(kinds(&[Entry::Separator, ITEM]), [false]);
+    }
+
+    #[test]
+    fn a_separator_at_the_bottom_is_dropped() {
+        assert_eq!(kinds(&[ITEM, Entry::Separator]), [false]);
+    }
+
+    #[test]
+    fn a_menu_of_nothing_but_separators_comes_out_empty() {
+        assert!(tidy(&[Entry::Separator, Entry::Separator]).is_empty());
+    }
+
+    #[test]
+    fn a_separator_that_separates_two_things_stays() {
+        assert_eq!(
+            kinds(&[ITEM, Entry::Separator, OTHER]),
+            [false, true, false]
+        );
+    }
+
+    /// The reported case, straight from the Local menu.
+    #[test]
+    fn the_local_menu_has_no_double_separator() {
+        let kinds = kinds(LOCAL);
+        assert!(
+            !kinds.windows(2).any(|pair| pair[0] && pair[1]),
+            "two separators in a row survived"
+        );
+    }
+
+    #[test]
+    fn no_menu_of_the_application_starts_or_ends_with_a_separator() {
+        for entries in [REPOSITORY, VIEW, LOCAL, REMOTE, BRANCH, QUERY, TOOLS, HELP] {
+            let kinds = kinds(entries);
+            assert_eq!(kinds.first(), Some(&false), "a menu began with a separator");
+            assert_eq!(kinds.last(), Some(&false), "a menu ended with a separator");
+        }
+    }
 }

@@ -31,7 +31,7 @@
 
   let box = $state<Box | null>(null);
   let font = $state(12);
-  let technical = $state(false);
+  const technical = true;
   let wrap = $state(false);
   let allSelected = $state(false);
   let finding = $state(false);
@@ -93,8 +93,18 @@
     target.addEventListener("pointerup", drop);
   }
 
+  /** Everything somebody would have to ask for anyway: what ran, how it ended, how long
+      it took, where, and then the output itself (R-135). */
   function asText(): string {
-    return lines.map((line) => line.text).join("\n");
+    return [
+      `Command: ${entry.command}`,
+      `Exit code: ${entry.exitCode ?? "did not start"}`,
+      `Duration: ${entry.durationMs} ms`,
+      `Started: ${new Date(entry.startedAtMs).toLocaleString()}`,
+      `Repository: ${repoName}`,
+      "",
+      ...lines.map((line) => line.text),
+    ].join("\n");
   }
 
   async function copy() {
@@ -152,8 +162,8 @@
   /** Imported here rather than at the top: the opener is one call on one button, and a
       static import pulls the whole plugin into the first chunk the window is in. */
   async function openLog() {
-    const { openPath } = await import("@tauri-apps/plugin-opener");
-    await openPath(logPath);
+    const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
+    await revealItemInDir(logPath).catch(() => {});
   }
 
   function step(by: number) {
@@ -181,30 +191,34 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <header onpointerdown={(e) => grab(e, "move")}>
       <span class="dot" aria-hidden="true"></span>
-      <span class="title">{heading}</span>
-      {#if output.unread > 0}
-        <button type="button" class="more" onclick={() => void output.showNewest()}>
-          {output.unread} more
-        </button>
+      <span class="title">{entry.operation} · {repoName}</span>
+      {#if output.repeats > 1}
+        <span class="repeats" title="The same failure, this many times">×{output.repeats}</span>
       {/if}
       <span class="grow"></span>
+      {#if output.queue.length > 1}
+        <button
+          type="button"
+          class="step"
+          disabled={output.at === 0}
+          title="Previous failure"
+          onclick={() => void output.step(-1)}>‹</button
+        >
+        <span class="count tabular">{output.at + 1} of {output.queue.length}</span>
+        <button
+          type="button"
+          class="step"
+          disabled={output.at === output.queue.length - 1}
+          title="Next failure"
+          onclick={() => void output.step(1)}>›</button
+        >
+      {/if}
       <button bind:this={closer} type="button" onclick={() => output.close()} title="Close (Esc)">
         ✕
       </button>
     </header>
 
     <div class="body">
-      <p class="summary">{entry.summary}</p>
-      <p class="where">{entry.operation} · {repoName}</p>
-
-      <button
-        type="button"
-        class="technical"
-        aria-expanded={technical}
-        onclick={() => (technical = !technical)}
-      >
-        {technical ? "▾" : "▸"} Command details
-      </button>
       {#if technical}
         <dl class="facts">
           <dt>Command</dt>
@@ -290,7 +304,7 @@
         <button type="button" onclick={onretry}>Retry</button>
       {/if}
       <button type="button" onclick={copy}>{copied ? "Copied" : "Copy output"}</button>
-      <button type="button" class="primary" onclick={() => output.close()}>Close</button>
+      <button type="button" class="primary" onclick={() => void output.dismissShown()}>Close</button>
     </footer>
 
     <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -299,6 +313,17 @@
 {/if}
 
 <style>
+  .repeats {
+    padding: 0 var(--sp-2);
+    color: var(--status-modify);
+    font-size: var(--fs-header);
+  }
+
+  .step {
+    min-width: 22px;
+    padding: 0 var(--sp-2);
+  }
+
   .window {
     position: fixed;
     z-index: 30;
@@ -353,19 +378,6 @@
     flex: 1 1 auto;
     min-height: 0;
     padding: var(--sp-4) var(--sp-4) 0;
-  }
-
-  /* Read in two seconds; the output below is what it points at, never a stand-in. */
-  .summary {
-    margin: 0;
-    color: var(--text-primary);
-    user-select: text;
-  }
-
-  .where {
-    margin: var(--sp-2) 0 var(--sp-3);
-    color: var(--text-secondary);
-    font-size: var(--fs-header);
   }
 
   .technical,
@@ -435,6 +447,8 @@
     border: 1px solid var(--divider);
     border-radius: var(--r-sm);
     display: flex;
+    user-select: text;
+    cursor: text;
   }
 
   .out.picked {
