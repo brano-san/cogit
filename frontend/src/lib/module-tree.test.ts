@@ -96,6 +96,11 @@ describe("describeModule", () => {
     expect(text).not.toMatch(/ahead|behind|diverged/);
   });
 
+  // Comparing with a commit that is not here is impossible; that it is not here is a fact.
+  it("says a module whose recorded commit is missing has not been fetched", () => {
+    expect(describeModule(mod("lib", { state: "unknown" }))).toMatch(/· not fetched$/);
+  });
+
   it("puts nothing after the name when the module is where the parent says", () => {
     expect(describeModule(mod("lib", { branch: "master" }))).toBe("master");
   });

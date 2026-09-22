@@ -1,16 +1,16 @@
 <script lang="ts">
-  import Caret from "$components/common/Caret.svelte";
+  import Disclosure from "$components/common/Disclosure.svelte";
   import {
     buildRefTree,
     checkState,
     leavesUnder,
     toggleNode,
-    type CheckState,
     type RefNode,
     type RefTreeInput,
   } from "$lib/ref-nodes";
   import { DRAG_TYPE, parseDrag, serialiseDrag } from "$lib/drop-target";
   import { flatten } from "$lib/tree";
+  import { triState } from "$lib/tri-state-box";
   import type { Branch } from "$lib/ipc";
 
   interface Props {
@@ -41,23 +41,15 @@
   let over = $state<string | null>(null);
   let active = $state<string | null>(null);
 
-  /** Built whole, then folded: one rule for what is hidden, for groups and folders
-      alike (doc/12-risks.md, R-128). */
   /** Every row, folded or not: a heading's box is counted from this, never from the rows
       on screen, so folding a group cannot take its ticks away (R-158). */
   const tree = $derived(buildRefTree(input));
   const nodes = $derived(flatten(tree, input.collapsed));
 
-  /** The box shows the computed state on every render. Left to itself a checkbox flips its
-      own tick on click, and a click that left the computed state unchanged kept the flip —
-      a ✓ over children that were all cleared (R-158). */
-  function box(element: HTMLInputElement, state: CheckState) {
-    const apply = (next: CheckState) => {
-      element.checked = next === "on";
-      element.indeterminate = next === "mixed";
-    };
-    apply(state);
-    return { update: apply };
+  function toggle(id: string) {
+    const next = toggleNode(tree, id, visible);
+    onvisible(next);
+    return checkState(tree, id, next);
   }
 
   function foldable(node: RefNode): boolean {
@@ -112,7 +104,7 @@
         oncontext(node, event.clientX, event.clientY);
       }}
     >
-      <Caret
+      <Disclosure
         empty={!foldable(node)}
         open={!input.collapsed.has(node.id)}
         label="Collapse {node.label}"
@@ -122,15 +114,10 @@
       <input
         type="checkbox"
         class="box"
-        use:box={state}
+        use:triState={{ state, toggle: () => toggle(node.id) }}
         disabled={!tickable}
         title={node.disabled}
         aria-label="Show {node.label} in the graph"
-        onclick={(event) => {
-          event.stopPropagation();
-          event.preventDefault();
-          onvisible(toggleNode(tree, node.id, visible));
-        }}
       />
 
       {#if node.marker}<span class="marker" aria-hidden="true">{node.marker}</span>{/if}

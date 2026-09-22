@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FileEntry } from "$lib/ipc";
-import { fileName, matchesMask, sortFiles, statusBadge, statusLabel } from "./files";
+import { fileName, matchesMask, sortFiles, statusBadge, statusLabel, statusTooltip } from "./files";
 
 function entry(path: string, status: FileEntry["status"] = "modified"): FileEntry {
   return { path, oldPath: null, status, mode: "plain", modeChange: null, similarity: null };
@@ -25,6 +25,15 @@ describe("statusBadge", () => {
 
   it("spells the status out for assistive technology", () => {
     expect(statusLabel("renamed")).toBe("Renamed");
+  });
+
+  it("explains every marker the list can show in its tooltip", () => {
+    expect(statusTooltip("modified")).toBe("Modified — changed since last commit");
+    expect(statusTooltip("untracked")).toBe("Untracked — not under version control");
+    expect(statusTooltip("conflicted")).toBe("Conflict — unmerged");
+    for (const status of ["unchanged", "ignored", "assumeUnchanged", "skipped"] as const) {
+      expect(statusTooltip(status)).toMatch(/^[A-Z]/);
+    }
   });
 });
 

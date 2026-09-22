@@ -1,6 +1,7 @@
 <script lang="ts">
   import DiffView from "$components/diff/DiffView.svelte";
   import ImageDiff from "$components/diff/ImageDiff.svelte";
+  import TooltipLayer from "$components/common/TooltipLayer.svelte";
   import { suppressNativeMenu } from "$lib/native-menu";
   import { onWindowKey } from "$lib/child-window";
   import { parseCompare } from "$lib/compare-params";
@@ -25,6 +26,8 @@
 </script>
 
 <svelte:window onkeydown={onWindowKey} />
+
+<TooltipLayer />
 
 <div class="window">
   {#if !request}

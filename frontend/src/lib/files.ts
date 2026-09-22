@@ -42,6 +42,25 @@ export function statusLabel(status: FileStatus): string {
   return LABELS[status] ?? status.charAt(0).toUpperCase() + status.slice(1);
 }
 
+const TOOLTIPS: Record<FileStatus, string> = {
+  modified: "Modified — changed since last commit",
+  added: "Added — new file in the index",
+  deleted: "Deleted",
+  renamed: "Renamed",
+  copied: "Copied",
+  untracked: "Untracked — not under version control",
+  ignored: "Ignored",
+  conflicted: "Conflict — unmerged",
+  unchanged: "Unchanged — the same as in the last commit",
+  assumeUnchanged: "Assume unchanged — Git does not check this file for changes",
+  skipped: "Skip worktree — left out of the working tree",
+};
+
+/** The full name of a status marker and what it means, for its tooltip (R-181). */
+export function statusTooltip(status: FileStatus): string {
+  return TOOLTIPS[status];
+}
+
 export function fileName(path: string): string {
   const trimmed = path.endsWith("/") ? path.slice(0, -1) : path;
   return trimmed.slice(trimmed.lastIndexOf("/") + 1);

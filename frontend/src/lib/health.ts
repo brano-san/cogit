@@ -15,7 +15,18 @@ export interface HealthWarning {
   places: HealthPlace[];
   /** Commands, each run inside the repository or submodule it is listed next to. */
   fixes: string[];
+  /** A button that does the fix, when Cogit can. */
+  action?: HealthAction;
 }
+
+export interface HealthAction {
+  id: string;
+  label: string;
+  /** The submodules it acts in, as paths from the repository that was checked. */
+  targets: string[];
+}
+
+export const FETCH_MODULES = "fetch-modules";
 
 export function placeOf(repoName: string, module: string): string {
   return module === "" ? repoName : `${repoName} [${module}]`;
@@ -25,7 +36,8 @@ export function placeOf(repoName: string, module: string): string {
 const SEVERITY: Record<HealthIssue["kind"], number> = {
   danglingModule: 0,
   danglingWorktree: 1,
-  ignoreCaseMismatch: 2,
+  missingModuleCommit: 2,
+  ignoreCaseMismatch: 3,
 };
 
 function idOf(issue: HealthIssue): string {
@@ -35,21 +47,43 @@ function idOf(issue: HealthIssue): string {
     case "danglingModule":
     case "danglingWorktree":
       return `${issue.kind}:${issue.foreign ? "foreign" : "gone"}`;
+    case "missingModuleCommit":
+      return issue.kind;
   }
 }
 
 function detailOf(issue: HealthIssue): string | undefined {
-  return issue.kind === "ignoreCaseMismatch" ? undefined : issue.target;
+  switch (issue.kind) {
+    case "ignoreCaseMismatch":
+      return undefined;
+    case "missingModuleCommit":
+      return issue.commit.slice(0, 10);
+    case "danglingModule":
+    case "danglingWorktree":
+      return issue.target;
+  }
 }
 
 const DOCS = {
   ignoreCase: "https://git-scm.com/docs/git-config#Documentation/git-config.txt-coreignoreCase",
   submodule: "https://git-scm.com/docs/git-submodule#Documentation/git-submodule.txt-absorbgitdirs",
   worktree: "https://git-scm.com/docs/git-worktree#Documentation/git-worktree.txt-repair",
+  fetch: "https://git-scm.com/docs/git-fetch",
 };
 
 function describe(issue: HealthIssue): Omit<HealthWarning, "id" | "places"> {
   switch (issue.kind) {
+    case "missingModuleCommit":
+      return {
+        title: "Submodule commit is not available locally",
+        body:
+          "The parent records a commit that the submodule's repository does not have: it has " +
+          "not been fetched yet. Until it is, the submodule cannot be compared with it and a " +
+          "checkout of the recorded commit fails. Fetching in the submodule brings it.",
+        docs: DOCS.fetch,
+        fixes: ["git fetch"],
+        action: { id: FETCH_MODULES, label: "Fetch in submodule", targets: [] },
+      };
     case "ignoreCaseMismatch":
       return issue.actual
         ? {
@@ -120,11 +154,14 @@ export function groupFindings(findings: readonly HealthFinding[], repoName: stri
     const held = byId.get(id);
     if (held) {
       held.places.push(place);
+      held.action?.targets.push(finding.module);
       continue;
     }
+    const described = describe(finding.issue);
+    if (described.action) described.action = { ...described.action, targets: [finding.module] };
     byId.set(id, {
       id,
-      ...describe(finding.issue),
+      ...described,
       places: [place],
       rank: SEVERITY[finding.issue.kind],
     });

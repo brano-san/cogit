@@ -78,6 +78,7 @@ export type {
   FlowStatus,
   Found,
   FoundKind,
+  GitCommandError,
   GitError,
   GitOutput,
   GraphChunk,
@@ -359,8 +360,14 @@ export async function worktreeHolding(repo: RepoId, branch: string) {
   return unwrap(await commands.worktreeHolding(repo, branch));
 }
 
-export async function addWorktree(repo: RepoId, path: string, branch: string, create: boolean) {
-  return unwrap(await commands.addWorktree(repo, path, branch, create));
+export async function addWorktree(
+  repo: RepoId,
+  path: string,
+  branch: string,
+  create: boolean,
+  base: string | null = null,
+) {
+  return unwrap(await commands.addWorktree(repo, path, branch, create, base));
 }
 
 export async function removeWorktree(repo: RepoId, path: string, force: boolean) {
@@ -369,6 +376,30 @@ export async function removeWorktree(repo: RepoId, path: string, force: boolean)
 
 export async function pruneWorktrees(repo: RepoId) {
   return unwrap(await commands.pruneWorktrees(repo));
+}
+
+export async function openWorktree(owner: RepoId, path: string) {
+  return unwrap(await commands.openWorktree(owner, path));
+}
+
+export async function worktreeChanges(repo: RepoId, path: string) {
+  return unwrap(await commands.worktreeChanges(repo, path));
+}
+
+export async function pruneWorktree(repo: RepoId, path: string) {
+  return unwrap(await commands.pruneWorktree(repo, path));
+}
+
+export async function repairWorktree(repo: RepoId, path: string) {
+  return unwrap(await commands.repairWorktree(repo, path));
+}
+
+export async function lockWorktree(repo: RepoId, path: string, reason: string | null) {
+  return unwrap(await commands.lockWorktree(repo, path, reason));
+}
+
+export async function unlockWorktree(repo: RepoId, path: string) {
+  return unwrap(await commands.unlockWorktree(repo, path));
 }
 
 export async function terminalChoices() {

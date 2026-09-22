@@ -1,5 +1,4 @@
-//! Turning two sides of a file into something the Diff panel can draw, and applying a
-//! selection back. The engine stays a pure function; the state lives here.
+//! Two sides of a file turned into what the Diff panel draws, and a selection applied back.
 
 use crate::{AppState, DiffBatch, Recovery, RepoId};
 
@@ -14,18 +13,7 @@ impl AppState {
         let handle = self.handle(repo)?;
         let (old, new) = handle.diff_sides(spec, path)?;
         if old.is_none() && new.is_none() {
-            // A gitlink has no content on either side; so has a path that is simply not
-            // there. Telling them apart is what turns an error into a description (R-139).
-            if let Some(pointer) = handle.submodule_pointer(spec, path)? {
-                return Ok(diff_engine::FileDiff::Submodule {
-                    recorded: pointer.recorded,
-                    previous: pointer.previous,
-                    checked_out: pointer.checked_out,
-                });
-            }
-            return Err(git_engine::GitError::InvalidState(format!(
-                "{path} is absent from both sides of the diff"
-            )));
+            return pointer_diff(&handle, spec, path);
         }
 
         Ok(diff_engine::diff_one(
@@ -36,14 +24,8 @@ impl AppState {
         ))
     }
 
-    /// Every file of a commit in one call.
-    ///
-    /// The object reads stay sequential — a `gix` repository is not shared across threads
-    /// — and only the diffing is parallel, which is where the time goes anyway
-    /// (doc/08-diff-engine.md section 9).
-    ///
-    /// Blocking by design; the Tauri layer wraps it in `spawn_blocking`, and `rayon` must
-    /// never be entered from an async task ([INV-01](doc/01-architecture.md)).
+    /// Every file of a commit in one call. Blocking: reads are sequential, only the diffing
+    /// is parallel, and the caller wraps it in `spawn_blocking` (doc/08-diff-engine.md §9).
     pub fn diff_files(
         &self,
         repo: RepoId,
@@ -58,20 +40,24 @@ impl AppState {
 
         let handle = self.handle(repo)?;
         let mut inputs = Vec::with_capacity(paths.len());
+        // `None` stands for the next text diff, so the answer keeps the order it was asked in.
+        let mut slots = Vec::with_capacity(paths.len());
 
         for path in paths {
-            // Between files, never inside one: there is no way to interrupt `imara-diff`
-            // part-way, and a single file is short enough that it does not matter.
+            // Between files, never inside one: `imara-diff` cannot be interrupted part-way.
             if !self.diff_request_is_current(repo, request) {
                 return Ok(DiffBatch::Superseded);
             }
 
             let (old, new) = handle.diff_sides(spec, path)?;
             if old.is_none() && new.is_none() {
-                return Err(git_engine::GitError::InvalidState(format!(
-                    "{path} is absent from both sides of the diff"
-                )));
+                slots.push(Some(diff_engine::FileDiffEntry {
+                    path: path.clone(),
+                    diff: pointer_diff(&handle, spec, path)?,
+                }));
+                continue;
             }
+            slots.push(None);
             inputs.push(diff_engine::FileInput {
                 path: path.clone(),
                 old: old.unwrap_or_default(),
@@ -79,7 +65,11 @@ impl AppState {
             });
         }
 
-        let files = diff_engine::diff_many(inputs, options);
+        let mut texts = diff_engine::diff_many(inputs, options).into_iter();
+        let files = slots
+            .into_iter()
+            .filter_map(|slot| slot.or_else(|| texts.next()))
+            .collect();
         if self.diff_request_is_current(repo, request) {
             Ok(DiffBatch::Ready { files })
         } else {
@@ -87,8 +77,7 @@ impl AppState {
         }
     }
 
-    /// Records `request` as the newest for `repo` and reports whether it still is. An
-    /// older number never displaces a newer one, so responses cannot arrive out of order.
+    /// An older request never displaces a newer one, so responses cannot arrive out of order.
     fn claim_diff_request(&self, repo: RepoId, request: u32) -> bool {
         let mut newest = self.newest_diff.write();
         match newest.get(&repo) {
@@ -104,8 +93,7 @@ impl AppState {
         self.newest_diff.read().get(&repo) == Some(&request)
     }
 
-    /// Builds the patch and applies it in one step: the two halves must never drift
-    /// apart, and a half-applied selection is exactly the damage R-04 warns about.
+    /// Built and applied in one step: a half-applied selection is the damage R-04 warns of.
     pub fn stage_selection(
         &self,
         repo: RepoId,
@@ -121,11 +109,7 @@ impl AppState {
         self.handle(repo)?.apply_patch(&patch, reverse)
     }
 
-    /// Throws the selected lines away in the working tree.
-    ///
-    /// The patch that was reversed is kept, so undo applies it again and puts back exactly
-    /// those lines. R-106 recorded the earlier answer — that a line-level discard had
-    /// nowhere to restore from — and it no longer holds.
+    /// The reversed patch is journalled, so undo puts back exactly those lines (R-106).
     pub fn discard_selection(
         &self,
         repo: RepoId,
@@ -150,8 +134,6 @@ impl AppState {
         Ok(())
     }
 
-    /// The three sides already merged: the view needs regions to count and step through,
-    /// not a file with markers in it.
     pub fn merge_preview(
         &self,
         repo: RepoId,
@@ -167,7 +149,6 @@ impl AppState {
         ))
     }
 
-    /// Both sides of an image as `data:` URLs; `None` on a side the file is absent from.
     pub fn image_sides(
         &self,
         repo: RepoId,
@@ -181,5 +162,23 @@ impl AppState {
             })
         };
         Ok((encode(old), encode(new)))
+    }
+}
+
+/// A gitlink has no content on either side, nor has a missing path: this tells them apart.
+fn pointer_diff(
+    handle: &git_engine::RepoHandle,
+    spec: &git_engine::DiffSpec,
+    path: &str,
+) -> Result<diff_engine::FileDiff, git_engine::GitError> {
+    match handle.submodule_pointer(spec, path)? {
+        Some(pointer) => Ok(diff_engine::FileDiff::Submodule {
+            recorded: pointer.recorded,
+            previous: pointer.previous,
+            checked_out: pointer.checked_out,
+        }),
+        None => Err(git_engine::GitError::InvalidState(format!(
+            "{path} is absent from both sides of the diff"
+        ))),
     }
 }

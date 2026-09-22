@@ -1,6 +1,9 @@
 <script lang="ts">
+  import Disclosure from "$components/common/Disclosure.svelte";
+  import KindIcon, { type Kind } from "$components/common/KindIcon.svelte";
   import VirtualList from "$components/common/VirtualList.svelte";
-  import { fileName, statusBadge, statusLabel } from "$lib/files";
+  import { fileName, statusBadge, statusLabel, statusTooltip } from "$lib/files";
+  import type { FileEntry } from "$lib/ipc";
   import type { ViewRow } from "$lib/file-view";
   import { GRAPH } from "$lib/graph-geometry";
 
@@ -40,6 +43,13 @@
     oncontext,
   }: Props = $props();
 
+  /** By the entry's mode, 160000 and 120000, never by the name (R-180). */
+  function kindOf(file: FileEntry): Kind {
+    if (file.mode === "submodule") return "submodule";
+    if (file.mode === "symlink") return "symlink";
+    return file.path.endsWith("/") ? "directory" : "file";
+  }
+
   function directory(path: string): string {
     const cut = path.lastIndexOf("/");
     return cut === -1 ? "" : path.slice(0, cut + 1);
@@ -63,7 +73,7 @@
         {#if entry.kind === "dir"}
           {@const group = entry}
           <div class="folder" style:top="{at * GRAPH.rowHeight}px">
-            <span class="fold" aria-hidden="true">▾</span>
+            <Disclosure open />
             <span class="truncate">{group.path === "" ? "(root)" : group.path}</span>
             <span class="count">{group.count}</span>
           </div>
@@ -89,24 +99,10 @@
               oncontext(file.path, event);
             }}
           >
-            <span class="badge" aria-label={statusLabel(file.status)}>{statusBadge(file.status)}</span>
-            {#if file.mode === "submodule"}
-              <svg class="kind" viewBox="0 0 16 16" aria-label="Submodule"
-                ><path
-                  fill="currentColor"
-                  d="M1.5 3.5c0-.69.56-1.25 1.25-1.25h3.04c.4 0 .78.19 1.01.51l.79 1.09h5.66c.69 0 1.25.56 1.25 1.25v7.15c0 .69-.56 1.25-1.25 1.25H2.75c-.69 0-1.25-.56-1.25-1.25V3.5Z"
-                /></svg
-              >
-            {:else if file.mode === "symlink"}
-              <span class="kind link" aria-label="Symbolic link">↗</span>
-            {:else}
-              <svg class="kind" viewBox="0 0 16 16" aria-hidden="true"
-                ><path
-                  fill="currentColor"
-                  d="M4 1.75A.75.75 0 0 1 4.75 1h4.19c.2 0 .39.08.53.22l3.31 3.31c.14.14.22.33.22.53v9.19a.75.75 0 0 1-.75.75h-7.5A.75.75 0 0 1 4 14.25Z"
-                /></svg
-              >
-            {/if}
+            <KindIcon kind={kindOf(file)} />
+            <span class="badge" aria-label={statusLabel(file.status)} title={statusTooltip(file.status)}
+              >{statusBadge(file.status)}</span
+            >
             <span class="name truncate">{fileName(file.path)}</span>
             {#if file.oldPath}
               <span class="renamed truncate" title="from {file.oldPath}"
@@ -143,11 +139,6 @@
 </div>
 
 <style>
-  .fold {
-    font-size: 11px;
-    line-height: 1;
-  }
-
   .pane {
     display: flex;
     flex-direction: column;
@@ -243,19 +234,6 @@
   }
 
   /* Dimmed: it is context for the name, not a thing to read on its own. */
-  .kind {
-    flex: 0 0 12px;
-    width: 12px;
-    height: 12px;
-    color: var(--text-secondary);
-  }
-
-  .kind.link {
-    font-size: 11px;
-    line-height: 12px;
-    text-align: center;
-  }
-
   .badge {
     flex: 0 0 auto;
     width: 12px;

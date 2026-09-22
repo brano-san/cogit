@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  capFraction,
   DEFAULT_LAYOUT,
   DEFAULT_PERSPECTIVES,
   PANELS,
@@ -124,5 +125,39 @@ describe("the commit message panel", () => {
 
   it("has its own share of the column height", () => {
     expect(DEFAULT_LAYOUT.commitBox).toBeGreaterThan(0);
+  });
+});
+
+describe("capFraction", () => {
+  // 400 px column, 120 px the commit panel cannot do without: Files stops at 70%.
+  it("stops the upper panel where the lower one would drop below its minimum", () => {
+    expect(capFraction(0.85, 400, 120)).toBeCloseTo(0.7);
+  });
+
+  it("leaves a fraction alone while both panels fit", () => {
+    expect(capFraction(0.5, 400, 120)).toBe(0.5);
+  });
+
+  it("falls back to the ordinary clamp before the container has been measured", () => {
+    expect(capFraction(0.95, 0, 120)).toBe(0.88);
+  });
+
+  it("never squeezes the upper panel below the smallest fraction either", () => {
+    expect(capFraction(0.5, 100, 120)).toBe(0.12);
+  });
+});
+
+describe("the Worktrees panel", () => {
+  it("is a panel of its own, shown in Main and hidden in Review", () => {
+    expect(PANELS).toContain("worktrees");
+    expect(DEFAULT_PERSPECTIVES.main.hidden).not.toContain("worktrees");
+    expect(DEFAULT_PERSPECTIVES.review.hidden).toContain("worktrees");
+  });
+
+  it("shows up in a layout saved before it existed, with its default height", () => {
+    const stored = { main: { fractions: { graph: 0.5 }, hidden: ["diff"] } };
+    const merged = mergePerspectives(stored as never).main;
+    expect(merged.hidden).toEqual(["diff"]);
+    expect(merged.fractions.worktrees).toBe(DEFAULT_LAYOUT.worktrees);
   });
 });

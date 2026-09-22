@@ -314,3 +314,71 @@ fn a_submodule_that_is_not_checked_out_is_described_rather_than_refused() {
         other => panic!("expected a submodule diff, got {other:?}"),
     }
 }
+
+/// The parent's object database never holds a submodule's commits. Reading the gitlink in
+/// the index as a blob asked it for one anyway: `Internal error: … could not be found`
+/// on every click on a submodule marked `M` in Files (doc/12-risks.md, R-179).
+#[test]
+fn a_submodule_moved_in_the_working_tree_shows_both_commits() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let recorded = f.oid("HEAD:vendor/lib").unwrap();
+    f.git(&["-C", "vendor/lib", "checkout", "-q", "HEAD~1"])
+        .unwrap();
+    let moved = f.git(&["-C", "vendor/lib", "rev-parse", "HEAD"]).unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let shown = state
+        .diff_file(
+            repo,
+            &DiffSpec::WorkTreeVsIndex,
+            "vendor/lib",
+            &DiffOptions::default(),
+        )
+        .expect("a moved submodule is a pointer change, not an internal error");
+
+    match shown {
+        FileDiff::Submodule {
+            recorded: now,
+            previous,
+            ..
+        } => {
+            assert_eq!(now, moved.trim());
+            assert_eq!(previous.as_deref(), Some(recorded.as_str()));
+        }
+        other => panic!("expected a submodule diff, got {other:?}"),
+    }
+}
+
+#[test]
+fn a_staged_submodule_pointer_shows_both_commits() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let recorded = f.oid("HEAD:vendor/lib").unwrap();
+    f.git(&["-C", "vendor/lib", "checkout", "-q", "HEAD~1"])
+        .unwrap();
+    f.git(&["add", "--", "vendor/lib"]).unwrap();
+    let staged = f.oid(":vendor/lib").unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let shown = state
+        .diff_file(
+            repo,
+            &DiffSpec::IndexVsHead,
+            "vendor/lib",
+            &DiffOptions::default(),
+        )
+        .expect("a staged pointer is a pointer change, not an internal error");
+
+    match shown {
+        FileDiff::Submodule {
+            recorded: now,
+            previous,
+            ..
+        } => {
+            assert_eq!(now, staged);
+            assert_eq!(previous.as_deref(), Some(recorded.as_str()));
+        }
+        other => panic!("expected a submodule diff, got {other:?}"),
+    }
+}

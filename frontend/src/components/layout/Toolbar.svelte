@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Caret from "$components/common/Caret.svelte";
   import Tooltip from "$components/common/Tooltip.svelte";
   import { reasons, type Context, type Requires } from "$lib/availability";
 
@@ -234,7 +235,7 @@
                 onclick={(event) => openMenu(action.id, event)}
               >
                 <span>{action.label}</span>
-                <span class="caret" aria-hidden="true">▾</span>
+                <Caret open={open === action.id} />
               </button>
             {:else}
               <button
@@ -422,20 +423,10 @@
     color: var(--status-ref);
   }
 
-  .caret {
-    font-size: 11px;
-    line-height: 1;
-    color: var(--text-secondary);
-  }
-
   .slot.disabled,
   .quick:disabled,
   .label:disabled {
     opacity: 0.4;
-  }
-
-  .label:disabled .caret {
-    color: inherit;
   }
 
   /* Narrow window: the labels go first, the icons stay recognisable (issue 12). */

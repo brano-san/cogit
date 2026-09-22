@@ -11,6 +11,8 @@ export interface LayoutFractions {
   filesSplit: number;
   /** Height the Files panel keeps when the Commit Message panel sits under it. */
   commitBox: number;
+  /** The same for Repositories over the Worktrees panel. */
+  worktrees: number;
 }
 
 export const DEFAULT_LAYOUT: LayoutFractions = {
@@ -20,6 +22,7 @@ export const DEFAULT_LAYOUT: LayoutFractions = {
   graph: 0.68,
   filesSplit: 0.55,
   commitBox: 0.68,
+  worktrees: 0.62,
 };
 
 export function clampFraction(value: number): number {
@@ -27,7 +30,21 @@ export function clampFraction(value: number): number {
   return Math.min(MAX_FRACTION, Math.max(MIN_FRACTION, value));
 }
 
-export const PANELS = ["repositories", "refs", "graph", "files", "commit", "diff"] as const;
+export function capFraction(value: number, containerPx: number, reservedPx: number): number {
+  const clamped = clampFraction(value);
+  if (containerPx <= 0) return clamped;
+  return Math.max(MIN_FRACTION, Math.min(clamped, 1 - reservedPx / containerPx));
+}
+
+export const PANELS = [
+  "repositories",
+  "refs",
+  "graph",
+  "files",
+  "commit",
+  "diff",
+  "worktrees",
+] as const;
 export type PanelId = (typeof PANELS)[number];
 
 export interface Perspective {
@@ -42,11 +59,10 @@ export const DEFAULT_PERSPECTIVES: Record<PerspectiveId, Perspective> = {
   main: { fractions: { ...DEFAULT_LAYOUT }, hidden: [] },
   review: {
     fractions: { ...DEFAULT_LAYOUT, leftColumn: 0.18, topRow: 0.32 },
-    hidden: ["repositories", "commit"],
+    hidden: ["repositories", "commit", "worktrees"],
   },
 };
 
-/** Maximizing overrides the perspective: Shift+F11 shows one panel whatever else is set. */
 export function isVisible(
   perspective: Perspective,
   maximized: PanelId | null,
