@@ -23,9 +23,11 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
     let mut above = std::mem::take(&mut cursor.above);
     let mut converging = std::mem::take(&mut cursor.converging);
     let mut leaving = std::mem::take(&mut cursor.leaving);
+    let mut middle = std::mem::take(&mut cursor.middle);
     above.clear();
     converging.clear();
     leaving.clear();
+    middle.clear();
     above.extend(cursor.lanes.iter().map(|lane| Above {
         id: lane.id,
         color: lane.color,
@@ -65,6 +67,7 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
     if !converging.is_empty() {
         cursor.lanes.retain(|lane| !converging.contains(&lane.id));
     }
+    middle.extend(cursor.lanes.iter().map(|lane| lane.id));
 
     // 3. The first parent continues the lane; the others join a lane already waiting for
     // them or open one right of the node, in parent order.
@@ -106,26 +109,15 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
         insert_at += 1;
     }
 
-    // 4. What moved from the top edge to the bottom edge is what gets drawn. A lane that
-    // starts in the node's column has to leave it before the ring, and the lanes moving
-    // with it turn alongside.
+    // 4. What moved is what gets drawn. A lane passing the node makes room for what
+    // arrives in the upper half and for what leaves in the lower one, beside the node's own
+    // lines and never in its column at the ring.
     let below = |id: u64, lanes: &[Lane]| lanes.iter().position(|lane| lane.id == id);
-    let early = above
-        .get(node_at)
-        .is_some_and(|lane| lane.drawn && lane.id != node_id);
     let mut segments = Vec::with_capacity(above.len() + leaving.len());
     for (index, lane) in above.iter().enumerate() {
         if !lane.drawn {
             continue;
         }
-        let segment = if lane.id == node_id || converging.contains(&lane.id) {
-            Some((index, node_at, Span::Top))
-        } else {
-            below(lane.id, &cursor.lanes).map(|to| (index, to, Span::Through))
-        };
-        let Some((from, to, span)) = segment else {
-            continue;
-        };
         let line = |from: usize, to: usize, span: Span| Segment {
             from: column(from),
             to: column(to),
@@ -134,11 +126,21 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
             color: lane.color,
             arrow: false,
         };
-        if early && span == Span::Through && from != to {
-            segments.push(line(from, to, Span::Top));
-            segments.push(line(to, to, Span::Bottom));
+        if lane.id == node_id || converging.contains(&lane.id) {
+            segments.push(line(index, node_at, Span::Top));
+            continue;
+        }
+        let (Some(mid), Some(to)) = (
+            middle.iter().position(|id| *id == lane.id),
+            below(lane.id, &cursor.lanes),
+        ) else {
+            continue;
+        };
+        if index == mid && mid == to {
+            segments.push(line(index, to, Span::Through));
         } else {
-            segments.push(line(from, to, span));
+            segments.push(line(index, mid, Span::Top));
+            segments.push(line(mid, to, Span::Bottom));
         }
     }
     for &id in &leaving {
@@ -196,6 +198,7 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
     cursor.above = above;
     cursor.converging = converging;
     cursor.leaving = leaving;
+    cursor.middle = middle;
 
     GraphRow {
         row,
