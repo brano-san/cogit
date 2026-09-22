@@ -83,6 +83,23 @@ describe("groupFindings", () => {
     const [warning] = groupFindings([ignoreCase("")], "repo");
     expect(warning!.docs).toMatch(/^https:\/\/git-scm\.com\//);
   });
+
+  // import/kors: a recorded commit that was never fetched is a state, not an internal error.
+  it("offers to fetch in every submodule whose recorded commit is missing", () => {
+    const missing = (module: string): HealthFinding => ({
+      module,
+      issue: { kind: "missingModuleCommit", commit: "20483bd723e2be25a60f7b2bf74016a444a16df0" },
+    });
+    const [warning] = groupFindings([missing("import/kors"), missing("import/libjam")], "dtv");
+
+    expect(warning!.title).toBe("Submodule commit is not available locally");
+    expect(warning!.places[0]).toEqual({ label: "dtv [import/kors]", detail: "20483bd723" });
+    expect(warning!.action).toEqual({
+      id: "fetch-modules",
+      label: "Fetch in submodule",
+      targets: ["import/kors", "import/libjam"],
+    });
+  });
 });
 
 describe("visibleWarnings", () => {

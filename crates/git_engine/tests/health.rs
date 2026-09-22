@@ -164,6 +164,47 @@ fn a_nested_submodule_is_checked_as_well_as_the_top() {
     );
 }
 
+/// A recorded commit the submodule never fetched is a state of the clone, and the one
+/// thing that helps is a fetch inside the submodule (doc/12-risks.md, R-179).
+#[test]
+fn a_recorded_commit_the_submodule_has_not_fetched_is_reported_under_its_path() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let absent = "1234567890abcdef1234567890abcdef12345678";
+    f.git(&[
+        "update-index",
+        "--cacheinfo",
+        &format!("160000,{absent},vendor/lib"),
+    ])
+    .unwrap();
+    f.commit_staged(2, "record a commit nobody fetched")
+        .unwrap();
+
+    let report = RepoHandle::open(f.path()).unwrap().health_report();
+    let finding = report
+        .iter()
+        .find(|finding| finding.module == "vendor/lib")
+        .expect("the submodule is named");
+    assert_eq!(
+        finding.issue,
+        HealthIssue::MissingModuleCommit {
+            commit: absent.to_owned()
+        }
+    );
+}
+
+#[test]
+fn a_submodule_that_has_its_recorded_commit_is_not_reported() {
+    let f = test_fixtures::with_submodule().unwrap();
+    f.git(&["-C", "vendor/lib", "checkout", "-q", "HEAD~1"])
+        .unwrap();
+
+    let report = RepoHandle::open(f.path()).unwrap().health_report();
+    assert!(
+        report.iter().all(|finding| finding.module != "vendor/lib"),
+        "{report:?}"
+    );
+}
+
 #[test]
 fn an_uninitialised_submodule_is_not_mistaken_for_a_broken_one() {
     let f = test_fixtures::with_submodule().unwrap();

@@ -318,7 +318,7 @@ snake_case и читаются на фронтенде как `undefined`.
 | `search_file_contents` | `repo`, `query`, `is_regex`, `scope`, `Channel<SearchChunk>` | `()` | M6 |
 | `list_submodules` | `repo`, `parent` (пусто — верхний уровень) | `Vec<Submodule>` | M3 |
 | `open_submodule` | `owner: RepoId`, `key` — путь узла от владельца дерева | `RepoSummary`; отказ — `GitError::ModuleUnavailable(ModuleProblem)` | M3 |
-| `repository_health` | `repo` | `Vec<HealthFinding { module, issue }>` — репозиторий и все подмодули | M3 |
+| `repository_health` | `repo` | `Vec<HealthFinding { module, issue }>` — репозиторий и все подмодули; `issue`: `ignoreCaseMismatch`, `danglingModule`, `danglingWorktree`, `missingModuleCommit { commit }` (R-179) | M3 |
 | `read_git_config` | `repo: Option<RepoId>`, `scope: repository \| user` | `ConfigFile { path, text, crlf, exists }` | M3 |
 | `write_git_config` | `repo`, `scope`, `text`, `crlf` | `()`; отказ git — `GitError::ConfigInvalid { line, message }` | M3 |
 | `cancel_operation` | `id` | `bool` — `false`, если уже закончилась | — |

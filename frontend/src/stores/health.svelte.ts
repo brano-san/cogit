@@ -5,22 +5,17 @@ import type { IgnoredWarnings } from "$lib/suppressions";
 
 const KEY = "health-ignored";
 
-/** What is wrong with the open repository, stepped through like the failure queue. */
 class HealthStore {
   ignored = $state.raw<IgnoredWarnings>({});
-  at = $state(0);
 
   #all = $state.raw<HealthWarning[]>([]);
   #later = $state.raw<ReadonlySet<string>>(new Set());
   #root = $state<string | null>(null);
+  #checked: { repo: RepoId; name: string } | null = null;
 
   get warnings(): HealthWarning[] {
     const mine = this.#root === null ? {} : (this.ignored[this.#root] ?? {});
     return visibleWarnings(this.#all, new Set(Object.keys(mine)), this.#later);
-  }
-
-  get current(): HealthWarning | undefined {
-    return this.warnings[Math.min(this.at, this.warnings.length - 1)];
   }
 
   async loadIgnored(): Promise<void> {
@@ -32,31 +27,35 @@ class HealthStore {
     this.#root = root;
     this.#later = new Set();
     this.#all = [];
-    this.at = 0;
+    this.#checked = { repo, name };
+    await this.recheck();
+  }
+
+  /** After a fix: the same repository asked again, with what was put off still put off. */
+  async recheck(): Promise<void> {
+    const checked = this.#checked;
+    const root = this.#root;
+    if (!checked || root === null) return;
     try {
-      const findings = await repositoryHealth(repo);
-      if (this.#root === root) this.#all = groupFindings(findings, name);
+      const findings = await repositoryHealth(checked.repo);
+      if (this.#root === root) this.#all = groupFindings(findings, checked.name);
     } catch {
       // A check that cannot run has nothing to warn about; the open itself succeeded.
     }
   }
 
-  remindLater(): void {
-    const warning = this.current;
-    if (!warning) return;
-    this.#later = new Set([...this.#later, warning.id]);
-    this.#clamp();
+  remindLater(id: string): void {
+    this.#later = new Set([...this.#later, id]);
   }
 
-  async ignore(): Promise<void> {
-    const warning = this.current;
+  async ignore(id: string): Promise<void> {
+    const warning = this.#all.find((held) => held.id === id);
     const root = this.#root;
     if (!warning || root === null) return;
     this.ignored = {
       ...this.ignored,
       [root]: { ...(this.ignored[root] ?? {}), [warning.id]: warning.title },
     };
-    this.#clamp();
     await writeKey(KEY, this.ignored);
   }
 
@@ -70,18 +69,10 @@ class HealthStore {
     await writeKey(KEY, next);
   }
 
-  step(delta: -1 | 1): void {
-    this.at = Math.max(0, Math.min(this.at + delta, this.warnings.length - 1));
-  }
-
   clear(): void {
     this.#root = null;
+    this.#checked = null;
     this.#all = [];
-    this.at = 0;
-  }
-
-  #clamp(): void {
-    this.at = Math.max(0, Math.min(this.at, this.warnings.length - 1));
   }
 }
 

@@ -20,7 +20,7 @@
   import AboutDialog from "$components/common/AboutDialog.svelte";
   import ExitDialog from "$components/common/ExitDialog.svelte";
   import ConfigEditor from "$components/common/ConfigEditor.svelte";
-  import HealthNotice from "$components/layout/HealthNotice.svelte";
+  import Notifications from "$components/layout/Notifications.svelte";
   import { exitBlockers, mustAskBeforeExit } from "$lib/exit";
   import { describeSkipped } from "$lib/skipped";
   import { health } from "$stores/health.svelte";
@@ -28,7 +28,6 @@
   import HooksPanel from "$components/layout/HooksPanel.svelte";
   import FindObject from "$components/layout/FindObject.svelte";
   import CommandOutput from "$components/layout/CommandOutput.svelte";
-  import GitErrorDialog from "$components/layout/GitErrorDialog.svelte";
   import { suppressNativeMenu } from "$lib/native-menu";
   import { panelView } from "$lib/repo-phase";
   import { startTracing, timed, trace } from "$lib/trace";
@@ -118,6 +117,8 @@
   import { worktrees } from "$stores/worktrees.svelte";
   import { diff } from "$stores/diff.svelte";
   import { errors } from "$stores/errors.svelte";
+  import { notices } from "$stores/notices.svelte";
+  import { FETCH_MODULES } from "$lib/health";
   import { output } from "$stores/output.svelte";
   import { network } from "$stores/network.svelte";
   import { recovery } from "$stores/recovery.svelte";
@@ -335,13 +336,13 @@
 
   // Every failure that carries raw Git output goes to the dialog; INV-05 says the user
   // sees exactly what Git said, not a summary of it.
-  $effect(() => errors.report(worktree.error));
-  $effect(() => errors.report(repository.error));
-  $effect(() => errors.report(commit.error));
-  $effect(() => errors.report(diff.error));
-  $effect(() => errors.report(graph.error));
-  $effect(() => errors.report(blame.error));
-  $effect(() => errors.report(hooks.error));
+  $effect(() => errors.report(worktree.error, "Could not read the working tree"));
+  $effect(() => errors.report(repository.error, "Could not load the repository"));
+  $effect(() => errors.report(commit.error, "Could not load the commit"));
+  $effect(() => errors.report(diff.error, "Could not show the diff"));
+  $effect(() => errors.report(graph.error, "Could not load the graph"));
+  $effect(() => errors.report(blame.error, "Could not load blame"));
+  $effect(() => errors.report(hooks.error, "Could not read the hooks"));
 
   /** One place after every mutation: the reactive version fired on each loading toggle. */
   /** Refreshed with the rest of the state, so the stack follows Continue and Abort. */
@@ -361,7 +362,7 @@
     try {
       await step(id);
     } catch (err) {
-      errors.report(err as never);
+      errors.report(err, "Could not change the working tree");
       return false;
     }
     await worktree.load(id);
@@ -707,7 +708,7 @@
       const found = await findObject(id, text);
       if (token === finderToken) finderResults = found;
     } catch (err) {
-      errors.report(err as never);
+      errors.report(err, "Could not search");
     } finally {
       if (token === finderToken) finderBusy = false;
     }
@@ -1012,7 +1013,7 @@
     } catch (err) {
       // Only git knows whether the working tree is really in the way: many dirty checkouts
       // are fine, so the offer is made after its refusal, not before every switch.
-      if (!(await offerAutostash(err, branch))) errors.report(err as never);
+      if (!(await offerAutostash(err, branch))) errors.report(err, "Could not switch branches");
       return;
     }
     await afterRefChange();
@@ -1041,7 +1042,7 @@
       // Popping can conflict; the state banner then takes over, which is the honest outcome.
       await stashes.apply(id, 0, true);
     } catch (failed) {
-      errors.report(failed as never);
+      errors.report(failed, "Could not switch branches");
     }
     await afterRefChange();
     return true;
@@ -1058,7 +1059,7 @@
     try {
       await deleteBranch(id, branch.name, false);
     } catch (err) {
-      errors.report(err as never);
+      errors.report(err, "Could not delete the branch");
       return;
     }
     await afterRefChange();
@@ -1070,7 +1071,7 @@
     try {
       await safety.undo(id);
     } catch (err) {
-      errors.report(err as never);
+      errors.report(err, "Could not undo");
       return;
     }
     await afterRefChange();
@@ -1115,7 +1116,7 @@
     const owner =
       row.parent === "" ? submodules.owner : ((await openedModule(row.parent))?.repo ?? null);
     if (!owner) return;
-    await submodules.update(owner, row.path, init).catch((err) => errors.report(err as never));
+    await submodules.update(owner, row.path, init).catch((err) => errors.report(err, "Could not update the submodule"));
     await afterMutation();
   }
 
@@ -1163,9 +1164,27 @@
         await offerInitialise(key);
         return null;
       }
-      errors.report(err as never);
+      errors.report(err, "Could not open the submodule");
       return null;
     }
+  }
+
+  /** A warning's own button. Fetching is the one fix Cogit runs for the user: it changes
+      nothing but the submodule's object database (R-179). */
+  async function runNoticeAction(action: import("$lib/health").HealthAction) {
+    const owner = submodules.owner;
+    if (action.id !== FETCH_MODULES || !owner) return;
+    for (const key of action.targets) {
+      try {
+        const opened = await openSubmodule(owner, key);
+        const remote = await primaryRemote(opened.repo);
+        if (remote) await fetchRemote(opened.repo, remote, () => {});
+      } catch (err) {
+        errors.report(err, `Could not fetch in ${key}`);
+      }
+    }
+    await health.recheck();
+    await submodules.refresh();
   }
 
   /** Never changes the repository unasked: the answer is a question (R-149). */
@@ -1209,7 +1228,7 @@
     try {
       await createBranch(id, name, lost.oid, false);
     } catch (err) {
-      errors.report(err as never);
+      errors.report(err, "Could not recover the commit");
       return;
     }
     await afterRefChange();
@@ -1229,7 +1248,7 @@
       if (kind === "cherryPick") await cherryPick(id, [oid]);
       else await revertCommits(id, [oid]);
     } catch (err) {
-      errors.report(err as never);
+      errors.report(err, `${verb} failed`);
     }
     await afterRefChange();
   }
@@ -1240,7 +1259,7 @@
     try {
       await rebaseOnto(id, { onto: branch.name, autostash: true });
     } catch (err) {
-      errors.report(err as never);
+      errors.report(err, "Could not rebase");
     }
     await afterRefChange();
   }
@@ -1256,7 +1275,7 @@
         message: null,
       });
     } catch (err) {
-      errors.report(err as never);
+      errors.report(err, "Could not merge");
       await afterRefChange();
       return;
     }
@@ -1268,7 +1287,7 @@
     const remote = network.primary;
     if (!id) return;
     if (!remote) {
-      errors.report({ message: "This repository has no remote." } as never);
+      errors.message("This repository has no remote.", `Could not ${kind}`);
       return;
     }
     try {
@@ -1276,7 +1295,7 @@
       if (kind === "pull") await network.pull(id, remote, true);
       if (kind === "push") await network.push(id, remote, false);
     } catch (err) {
-      errors.report(err as never);
+      errors.report(err, `Could not ${kind}`);
       await afterMutation();
       return;
     }
@@ -1297,7 +1316,7 @@
         force: false,
       });
     } catch (err) {
-      errors.report(err as never);
+      errors.report(err, "Could not create the tag");
       return;
     }
     await afterRefChange();
@@ -1314,7 +1333,7 @@
     try {
       await deleteTag(id, tag.name);
     } catch (err) {
-      errors.report(err as never);
+      errors.report(err, "Could not delete the tag");
       return;
     }
     await afterRefChange();
@@ -1326,7 +1345,7 @@
     try {
       await checkout(id, { kind: "commit", oid: tag.oid });
     } catch (err) {
-      errors.report(err as never);
+      errors.report(err, "Could not check out the tag");
       return;
     }
     await afterRefChange();
@@ -1344,7 +1363,7 @@
     await stashes
       .push(id, message, true)
       .then(() => afterRefChange())
-      .catch((err) => errors.report(err as never));
+      .catch((err) => errors.report(err, "Could not stash"));
   }
 
   /** Only the ticked rows; everything else stays in the working tree (T5.3). */
@@ -1360,7 +1379,7 @@
     if (message === null) return;
     await stashSelection(id, paths, message)
       .then(() => afterRefChange())
-      .catch((err) => errors.report(err as never));
+      .catch((err) => errors.report(err, "Could not stash"));
   }
 
   async function applyStash(index: number, pop: boolean) {
@@ -1369,7 +1388,7 @@
     try {
       await stashes.apply(id, index, pop);
     } catch (err) {
-      errors.report(err as never);
+      errors.report(err, "Could not apply the stash");
       return;
     }
     await afterRefChange();
@@ -1399,7 +1418,7 @@
         await createBranch(id, name, null, true);
       }
     } catch (err) {
-      errors.report(err as never);
+      errors.report(err, action === "createBranch" ? "Could not create the branch" : `Could not ${action}`);
       return;
     }
     await afterRefChange();
@@ -1411,7 +1430,7 @@
     const spec = diff.spec;
     if (!id || !spec) return;
     void openCompareWindow(compareUrl(id, path, spec), `${path} — Cogit`).catch((err) =>
-      errors.report(err as never),
+      errors.report(err, "Could not open the file window"),
     );
   }
 
@@ -1576,7 +1595,7 @@
         });
       }
     } catch (err) {
-      errors.report(err as never);
+      errors.report(err, `Could not ${action.id === "rebase" ? "rebase" : "merge"}`);
     }
     await afterRefChange();
   }
@@ -1600,14 +1619,14 @@
     try {
       plan = await rebaseTodo(id, base);
     } catch (err) {
-      errors.report(err as never);
+      errors.report(err, "Could not plan the rebase");
       return;
     }
 
     const from = plan.findIndex((entry) => entry.oid === source);
     const onto = plan.findIndex((entry) => entry.oid === target);
     if (from < 0 || onto < 0) {
-      errors.message("Both commits have to be on the current branch above their common parent.");
+      errors.message("Both commits have to be on the current branch above their common parent.", "Could not move the commit");
       return;
     }
 
@@ -1631,7 +1650,7 @@
       if (plan.some((entry) => entry.oid === b)) return `${a}^`;
       return `${b}^`;
     } catch {
-      errors.message("Both commits have to be on the current branch.");
+      errors.message("Both commits have to be on the current branch.", "Could not move the commit");
       return null;
     }
   }
@@ -1643,11 +1662,11 @@
     try {
       rebasePlan = await rebaseTodo(id, rev);
     } catch (err) {
-      errors.report(err as never);
+      errors.report(err, "Could not start the interactive rebase");
       return;
     }
     if (rebasePlan.length === 0) {
-      errors.message("This commit is the tip; there is nothing after it to rebase.");
+      errors.message("This commit is the tip; there is nothing after it to rebase.", "Could not start the interactive rebase");
       return;
     }
     rebaseBase = rev;
@@ -1664,7 +1683,7 @@
       rebaseOpen = false;
       commit.clear();
     } catch (err) {
-      errors.report(err as never);
+      errors.report(err, "Could not rebase");
     } finally {
       rebaseBusy = false;
     }
@@ -1698,7 +1717,7 @@
     try {
       configEdit = { scope, file: await readGitConfig(id, scope), problem: null, saving: false };
     } catch (err) {
-      errors.report(err as never);
+      errors.report(err, "Could not read the Git config");
     }
   }
 
@@ -1718,7 +1737,7 @@
         return;
       }
       configEdit = { ...edit, saving: false };
-      errors.report(err as never);
+      errors.report(err, "Could not save the Git config");
       return;
     }
     configEdit = null;
@@ -1805,7 +1824,7 @@
     if (!root) return;
     const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
     await revealItemInDir(`${root}/${path}`).catch(() =>
-      errors.report({ kind: "internal", data: path } as never),
+      errors.report({ kind: "internal", data: path }, "Could not reveal the file"),
     );
   }
 
@@ -1843,7 +1862,7 @@
     await renameBranch(id, branch.name, name, false)
       .then(() => repository.refresh())
       .then(() => afterMutation())
-      .catch((err) => errors.report(err as never));
+      .catch((err) => errors.report(err, "Could not rename the branch"));
   }
 
   async function askUpstream(branch: Branch) {
@@ -1851,7 +1870,7 @@
     if (!id) return;
     const choices = repository.remoteBranches.map((entry) => entry.name);
     if (choices.length === 0) {
-      errors.report({ kind: "invalidState", data: "No remote branch to track." } as never);
+      errors.message("No remote branch to track.", "Could not set the upstream");
       return;
     }
     const upstream = await prompt.ask({
@@ -1864,7 +1883,7 @@
     if (upstream === null) return;
     await setUpstream(id, branch.name, upstream)
       .then(() => repository.refresh())
-      .catch((err) => errors.report(err as never));
+      .catch((err) => errors.report(err, "Could not set the upstream"));
   }
 
   async function confirmDeleteRemote(branch: Branch) {
@@ -1877,7 +1896,7 @@
     );
     if (!confirmed) return;
     await deleteRemoteBranch(id, remote, branch.name).catch((err) =>
-      errors.report(err as never),
+      errors.report(err, "Could not delete the remote branch"),
     );
     await repository.refresh();
   }
@@ -1898,7 +1917,7 @@
         if (remote) await fetchRemote(entry.repo, remote, () => {});
       } catch (err) {
         failed += 1;
-        errors.report(err as never);
+        errors.report(err, "Could not fetch");
       }
       bulk = { label: "Fetching", done: index + 1, total: targets.length, failed };
     }
@@ -1924,7 +1943,7 @@
       checkVerdict = await runCheck(id, checkCommand);
     } catch (err) {
       checkVerdict = null;
-      errors.report(err as never);
+      errors.report(err, "Could not run the check");
     } finally {
       checking = false;
       await output.refresh();
@@ -1940,7 +1959,7 @@
       await afterMutation();
       await reloadGraph();
     } catch (err) {
-      errors.report(err as never);
+      errors.report(err, "Could not run the git-flow step");
     }
   }
 
@@ -2037,13 +2056,13 @@
     if (!confirmed) return;
     await worktrees
       .remove(id, entry.path, entry.dirty)
-      .catch((err) => errors.report(err as never));
+      .catch((err) => errors.report(err, "Could not remove the worktree"));
   }
 
   async function pruneWorktreesHere() {
     const id = repo?.repo;
     if (!id) return;
-    await worktrees.prune(id).catch((err) => errors.report(err as never));
+    await worktrees.prune(id).catch((err) => errors.report(err, "Could not prune worktrees"));
   }
 
   async function askAddWorktree() {
@@ -2060,7 +2079,7 @@
         if (typeof picked !== "string") return;
         return worktrees.add(id, picked, branch, true);
       })
-      .catch((err) => errors.report(err as never));
+      .catch((err) => errors.report(err, "Could not add the worktree"));
   }
 
   async function repoContext(entry: import("$lib/ipc").RepoOverview, x: number, y: number) {
@@ -2084,11 +2103,11 @@
       case "repo-explorer":
         void import("@tauri-apps/plugin-opener")
           .then((opener) => opener.revealItemInDir(entry.root))
-          .catch((err) => errors.report(err as never));
+          .catch((err) => errors.report(err, "Could not reveal the repository"));
         return true;
       case "repo-terminal":
         void openInTerminal(entry.root, settings.current.terminal).catch((err) =>
-          errors.report(err as never),
+          errors.report(err, "Could not open a terminal"),
         );
         return true;
       case "repo-copy-path":
@@ -2122,7 +2141,7 @@
         if (branch && repo) {
           void setUpstream(repo.repo, branch.name, null)
             .then(() => repository.refresh())
-            .catch((err) => errors.report(err as never));
+            .catch((err) => errors.report(err, "Could not clear the upstream"));
         }
         return true;
       case "delete-remote-branch":
@@ -2185,7 +2204,7 @@
       await repository.refresh();
       commit.clear();
     } catch (err) {
-      errors.report(err as never);
+      errors.report(err, "Could not split the commit");
     } finally {
       splitBusy = false;
     }
@@ -2205,7 +2224,7 @@
     opening = true;
     try {
       for (const root of roots) {
-        await openRepository(root).catch((err) => errors.report(err as never));
+        await openRepository(root).catch((err) => errors.report(err, "Could not open the repository"));
       }
       await repository.refreshList();
       const first = roots[0];
@@ -2222,7 +2241,7 @@
     const path = info?.logPath;
     if (!path) return;
     const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
-    await revealItemInDir(path).catch(() => errors.report({ kind: "internal", data: path } as never));
+    await revealItemInDir(path).catch(() => errors.report({ kind: "internal", data: path }, "Could not reveal the log"));
   }
 
   /** The journal stays open: undoing one entry rarely means undoing only one. */
@@ -2235,7 +2254,7 @@
       await repository.refresh();
       await afterMutation();
     } catch (err) {
-      errors.report(err as never);
+      errors.report(err, "Could not undo");
     } finally {
       journalBusy = false;
     }
@@ -2261,7 +2280,7 @@
       const file = worktree.unstaged.find((entry) => entry.path === path);
       if (!file?.modeChange) continue;
       await stageMode(id, path, file.modeChange === "executable").catch((err) =>
-        errors.report(err as never),
+        errors.report(err, "Could not stage the mode change"),
       );
     }
     await afterMutation(paths);
@@ -2377,7 +2396,7 @@
 
   async function openDropped(paths: string[]) {
     for (const path of paths.slice(1)) {
-      await repository.open(path).catch((err) => errors.report(err as never));
+      await repository.open(path).catch((err) => errors.report(err, "Could not open the repository"));
     }
     const first = paths[0];
     if (first) await activate(first);
@@ -2922,9 +2941,11 @@
     />
   {/if}
 
-  <HealthNotice
+  <Notifications
     oncopy={(text) => void copyText(text)}
     onopenurl={(url) => void import("@tauri-apps/plugin-opener").then((opener) => opener.openUrl(url))}
+    onshowoutput={(record) => void output.openRecord(record)}
+    onaction={(action) => void runNoticeAction(action)}
   />
 
   {#if aboutOpen && info}
@@ -2976,14 +2997,6 @@
     />
   {/if}
 
-  {#if errors.current}
-    <GitErrorDialog
-      error={errors.current}
-      pending={errors.pending}
-      ondismiss={() => errors.dismiss()}
-    />
-  {/if}
-
   {#if output.shown}
     <CommandOutput
       entry={output.shown}
@@ -3015,7 +3028,7 @@
       network: network.running ?? undefined,
       networkProgress: network.progress ?? undefined,
       opening: repository.busy,
-      failed: errors.pending > 0,
+      failed: notices.errorCount > 0,
     })}
     problems={output.problems}
     onproblems={() => output.toggle()}

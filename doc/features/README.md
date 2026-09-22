@@ -241,3 +241,6 @@
 | F-266 | Аватар справа от имени автора | [F-266-avatar-after-author.md](F-266-avatar-after-author.md) |
 | F-267 | Текст прокручивается вместе с графом | [F-267-text-scrolls-with-graph.md](F-267-text-scrolls-with-graph.md) |
 | F-280 | Чекбоксы Branches отвечают на каждый клик | [F-280-branch-boxes-follow-clicks.md](F-280-branch-boxes-follow-clicks.md) |
+| F-281 | Одно окно уведомлений | [F-281-one-notification-window.md](F-281-one-notification-window.md) |
+| F-282 | Шапка уведомления и длинный список мест | [F-282-notification-header-and-places.md](F-282-notification-header-and-places.md) |
+| F-283 | Диф подмодуля и метка not fetched | [F-283-submodule-pointer-diff-and-not-fetched.md](F-283-submodule-pointer-diff-and-not-fetched.md) |
