@@ -1,5 +1,6 @@
 <script lang="ts">
   import MergeView from "$components/diff/MergeView.svelte";
+  import TooltipLayer from "$components/common/TooltipLayer.svelte";
   import { parseMerge } from "$lib/merge-params";
   import { closeThisWindow, mergePreview, mergeResolved, resolveConflictText, type Region } from "$lib/ipc";
   import { suppressNativeMenu } from "$lib/native-menu";
@@ -40,6 +41,8 @@
 </script>
 
 <svelte:window onkeydown={onWindowKey} />
+
+<TooltipLayer />
 
 <div class="window">
   {#if !request}

@@ -1,6 +1,8 @@
 <script lang="ts">
   import Caret from "$components/common/Caret.svelte";
-    import { applyClick, EMPTY_SELECTION, type FileSelection } from "$lib/multi-select";
+  import KindIcon from "$components/common/KindIcon.svelte";
+  import { applyClick, EMPTY_SELECTION, type FileSelection } from "$lib/multi-select";
+  import { DIRTY_REPOSITORY, MISSING_REPOSITORY, trackTooltip } from "$lib/repo-labels";
   import {
     describeModule,
     mayExpand,
@@ -167,6 +169,7 @@
           }}
         >
           <Caret open={!repoGroups.collapsed.has(row.id)} />
+          <KindIcon kind="group" />
           <span class="truncate">{row.name} ({row.count})</span>
         </div>
       {:else}
@@ -207,21 +210,16 @@
             submodules.foldTop();
           }}
         />
-        <svg class="folder" viewBox="0 0 16 16" aria-hidden="true"
-          ><path
-            fill="currentColor"
-            d="M1.5 3.5c0-.69.56-1.25 1.25-1.25h3.04c.4 0 .78.19 1.01.51l.79 1.09h5.66c.69 0 1.25.56 1.25 1.25v7.15c0 .69-.56 1.25-1.25 1.25H2.75c-.69 0-1.25-.56-1.25-1.25V3.5Z"
-          /></svg
-        >
+        <KindIcon kind="repository" />
         <span class="name truncate">{entry.name}</span>
         {#if entry.missing}
-          <span class="gone" title="This folder is no longer on disk">missing</span>
+          <span class="gone" title={MISSING_REPOSITORY}>missing</span>
         {:else if entry.dirty}
-          <span class="dirty" title="Uncommitted changes">●</span>
+          <span class="dirty" title={DIRTY_REPOSITORY}>●</span>
         {/if}
         {#if entry.branch}<span class="branch truncate">{entry.branch}</span>{/if}
         {#if entry.ahead > 0 || entry.behind > 0}
-          <span class="track tabular"
+          <span class="track tabular" title={trackTooltip(entry.ahead, entry.behind)}
             >{entry.ahead > 0 ? "↑" + entry.ahead : ""}{entry.behind > 0
               ? "↓" + entry.behind
               : ""}</span
@@ -275,12 +273,7 @@
                 void submodules.toggle(node);
               }}
             />
-            <svg class="folder" viewBox="0 0 16 16" aria-hidden="true"
-              ><path
-                fill="currentColor"
-                d="M1.5 3.5c0-.69.56-1.25 1.25-1.25h3.04c.4 0 .78.19 1.01.51l.79 1.09h5.66c.69 0 1.25.56 1.25 1.25v7.15c0 .69-.56 1.25-1.25 1.25H2.75c-.69 0-1.25-.56-1.25-1.25V3.5Z"
-              /></svg
-            >
+            <KindIcon kind="submodule" />
             <span class="modname">
               {#if folder}<span class="dir">{folder}</span><span class="sep">/</span>{/if}<span
                 class="leaf">{parts.name}</span
@@ -464,13 +457,6 @@
     border: 1px solid var(--field-border);
     border-radius: var(--r-sm);
     font-size: var(--fs-dense);
-  }
-
-  .folder {
-    flex: 0 0 auto;
-    width: 13px;
-    height: 13px;
-    color: var(--status-ref);
   }
 
   .name {

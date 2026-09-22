@@ -172,3 +172,60 @@ fn a_copy_from_an_untouched_file_reads_as_an_addition() {
 
     assert_eq!(files[0].status, git_engine::FileStatus::Added);
 }
+
+/// `kors` with `M` drawn as a file: the working-tree side never read the entry's mode
+/// (doc/12-risks.md, R-180).
+#[test]
+fn a_submodule_moved_in_the_working_tree_is_listed_as_a_submodule() {
+    let f = test_fixtures::with_submodule().unwrap();
+    f.git(&["-C", "vendor/lib", "checkout", "-q", "HEAD~1"])
+        .unwrap();
+
+    let files = open(&f).worktree_files().unwrap();
+    let module = files
+        .unstaged
+        .iter()
+        .find(|file| file.path == "vendor/lib")
+        .expect("the moved submodule is listed");
+
+    assert_eq!(module.status, git_engine::FileStatus::Modified);
+    assert_eq!(module.mode, FileMode::Submodule);
+}
+
+#[test]
+fn a_staged_new_submodule_is_listed_as_a_submodule() {
+    let f = test_fixtures::with_submodule().unwrap();
+    f.git(&["rm", "-q", "--cached", "vendor/lib"]).unwrap();
+    f.commit_staged(2, "forget the submodule").unwrap();
+    f.git(&["add", "vendor/lib"]).unwrap();
+
+    let files = open(&f).worktree_files().unwrap();
+    let module = files
+        .staged
+        .iter()
+        .find(|file| file.path == "vendor/lib")
+        .expect("the staged submodule is listed");
+
+    assert_eq!(module.status, git_engine::FileStatus::Added);
+    assert_eq!(module.mode, FileMode::Submodule);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_changed_symlink_in_the_working_tree_is_listed_as_a_symlink() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::os::unix::fs::symlink("file0.txt", f.path().join("link")).unwrap();
+    f.git(&["add", "link"]).unwrap();
+    f.commit_staged(1, "add a link").unwrap();
+    std::fs::remove_file(f.path().join("link")).unwrap();
+    std::os::unix::fs::symlink("elsewhere", f.path().join("link")).unwrap();
+
+    let files = open(&f).worktree_files().unwrap();
+    let link = files
+        .unstaged
+        .iter()
+        .find(|file| file.path == "link")
+        .unwrap();
+
+    assert_eq!(link.mode, FileMode::Symlink);
+}
