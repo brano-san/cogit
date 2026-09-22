@@ -142,6 +142,7 @@
   title="Preferences"
   width="min(860px, 94vw)"
   height="min(640px, 88vh)"
+  flush
   {onclose}
 >
   <div class="panes">

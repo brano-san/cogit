@@ -73,7 +73,6 @@
     display: flex;
     flex-direction: column;
     gap: var(--sp-3);
-    padding: var(--sp-5);
     font-size: var(--fs-dense);
   }
 

@@ -42,6 +42,7 @@
 <Dialog
   title="Scan folder for repositories"
   width="min(720px, 92vw)"
+  flush
   {onclose}
   onconfirm={open}
 >
