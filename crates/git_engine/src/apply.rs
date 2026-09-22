@@ -37,12 +37,12 @@ impl RepoHandle {
         tracing::info!(command = %command, patch = %patch, "applying a patch");
 
         let started = std::time::Instant::now();
-        let mut child = self
-            .base_git(&args)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?;
+        let (mut child, _tracked) = crate::children::spawn(
+            self.base_git(&args)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped()),
+        )?;
 
         if let Some(stdin) = child.stdin.as_mut() {
             stdin.write_all(patch.as_bytes())?;

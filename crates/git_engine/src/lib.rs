@@ -2,6 +2,7 @@ mod apply;
 mod blame;
 mod blobs;
 mod branches;
+pub mod children;
 mod commit;
 mod commit_write;
 mod config_file;

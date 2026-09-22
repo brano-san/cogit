@@ -129,7 +129,7 @@ impl RepoHandle {
         for (key, value) in env {
             process.env(key, value);
         }
-        let output = process.args(args).output()?;
+        let output = crate::children::output(process.args(args))?;
 
         let duration_ms = u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX);
         let result = GitOutput::record(
@@ -172,7 +172,7 @@ fn started_at_ms() -> u64 {
 
 /// Without it every `git` call flashes a console window and pays for it (R-24).
 #[cfg(windows)]
-const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+pub(crate) const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 fn base_command(root: &Path, reading: bool) -> Command {
     let mut command = Command::new("git");
@@ -255,7 +255,7 @@ pub(crate) fn bare_git(args: &[&str]) -> Result<BareOutput> {
     for variable in INHERITED_GIT_VARS {
         command.env_remove(variable);
     }
-    let output = command.args(args).output()?;
+    let output = crate::children::output(command.args(args))?;
     tracing::debug!(command = %redact_command(args), exit_code = ?output.status.code(), "git without a repository");
     Ok(BareOutput {
         exit_code: output.status.code(),

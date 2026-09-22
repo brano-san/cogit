@@ -91,11 +91,11 @@ impl RepoHandle {
         let started = std::time::Instant::now();
         tracing::info!(command = %command, "running git");
 
-        let mut child = self
-            .base_git(args)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?;
+        let (mut child, _tracked) = crate::children::spawn(
+            self.base_git(args)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped()),
+        )?;
 
         let mut stdout_pipe = child.stdout.take();
         let stdout_reader = std::thread::spawn(move || {
