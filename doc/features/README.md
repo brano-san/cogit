@@ -247,3 +247,4 @@
 | F-284 | Тип записи в Files отдельно от состояния | [F-284-file-kind-icons.md](F-284-file-kind-icons.md) |
 | F-285 | Подсказки везде одинаковые | [F-285-one-tooltip.md](F-285-one-tooltip.md) |
 | F-286 | Один треугольник раскрытия, одна каретка меню | [F-286-one-disclosure-one-caret.md](F-286-one-disclosure-one-caret.md) |
+| F-287 | Кнопка Commit видна при любой высоте панели | [F-287-commit-panel-keeps-controls.md](F-287-commit-panel-keeps-controls.md) |

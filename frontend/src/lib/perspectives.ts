@@ -27,6 +27,12 @@ export function clampFraction(value: number): number {
   return Math.min(MAX_FRACTION, Math.max(MIN_FRACTION, value));
 }
 
+export function capFraction(value: number, containerPx: number, reservedPx: number): number {
+  const clamped = clampFraction(value);
+  if (containerPx <= 0) return clamped;
+  return Math.max(MIN_FRACTION, Math.min(clamped, 1 - reservedPx / containerPx));
+}
+
 export const PANELS = ["repositories", "refs", "graph", "files", "commit", "diff"] as const;
 export type PanelId = (typeof PANELS)[number];
 
@@ -46,7 +52,6 @@ export const DEFAULT_PERSPECTIVES: Record<PerspectiveId, Perspective> = {
   },
 };
 
-/** Maximizing overrides the perspective: Shift+F11 shows one panel whatever else is set. */
 export function isVisible(
   perspective: Perspective,
   maximized: PanelId | null,
