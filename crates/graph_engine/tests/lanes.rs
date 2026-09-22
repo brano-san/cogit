@@ -330,17 +330,23 @@ fn the_column_is_still_reserved_after_a_chunk_boundary() {
 use graph_engine::mainline_tip;
 
 #[test]
-fn master_is_the_mainline_when_it_is_there() {
+fn the_branch_head_is_on_takes_the_column_over_master() {
     let tip = mainline_tip(
         &[("feature", "f1"), ("master", "m1"), ("topic", "t1")],
         Some("f1"),
     );
+    assert_eq!(tip.as_deref(), Some("f1"));
+}
+
+#[test]
+fn master_is_the_mainline_when_there_is_no_head_to_follow() {
+    let tip = mainline_tip(&[("feature", "f1"), ("master", "m1")], None);
     assert_eq!(tip.as_deref(), Some("m1"));
 }
 
 #[test]
 fn main_counts_the_same_as_master() {
-    let tip = mainline_tip(&[("feature", "f1"), ("main", "m1")], Some("f1"));
+    let tip = mainline_tip(&[("feature", "f1"), ("main", "m1")], None);
     assert_eq!(tip.as_deref(), Some("m1"));
 }
 
@@ -355,6 +361,24 @@ fn master_wins_over_main_rather_than_picking_at_random() {
 fn without_either_name_the_branch_head_is_on_takes_the_column() {
     let tip = mainline_tip(&[("release/1.0", "r1"), ("topic", "t1")], Some("t1"));
     assert_eq!(tip.as_deref(), Some("t1"));
+}
+
+/// Requirement 6.3: the column is never handed to anything else, not even after the line
+/// that owns it has reached its root commit.
+#[test]
+fn lane_zero_is_not_reused_after_the_mainline_ends() {
+    let nodes = commits(&[("m1", &[]), ("t2", &["t1"]), ("t1", &[])]);
+    let mut cursor = LayoutCursor {
+        mainline: Some("m1".to_owned()),
+        ..Default::default()
+    };
+
+    let out = layout(&nodes, &mut cursor);
+
+    let lane_of = |row: u32| out.lanes.iter().find(|l| l.row == row).unwrap().lane;
+    assert_eq!(lane_of(0), 0, "the mainline takes its column");
+    assert_ne!(lane_of(1), 0, "and keeps it after its own history ends");
+    assert_ne!(lane_of(2), 0);
 }
 
 #[test]

@@ -1,6 +1,8 @@
 <script lang="ts">
     import { applyClick, EMPTY_SELECTION, type FileSelection } from "$lib/multi-select";
+  import { describeModule, mayExpand, splitModulePath, type ModuleRow } from "$lib/module-tree";
   import { panelView } from "$lib/repo-phase";
+  import { submodules } from "$stores/submodules.svelte";
   import { UNGROUPED, groupRows } from "$lib/repo-groups";
   import type { RepoOverview } from "$lib/ipc";
   import { repoGroups } from "$stores/repo-groups.svelte";
@@ -9,6 +11,8 @@
   interface Props {
     /** Only the folder dialog changes the label; selecting a repository must not (R-35). */
     opening?: boolean;
+    onopenmodule: (row: ModuleRow) => void;
+    onmodulecontext: (row: ModuleRow, x: number, y: number) => void;
     onopen: () => void;
     onscan: () => void;
     onselect: (entry: RepoOverview) => void;
@@ -31,6 +35,8 @@
     onmarked,
     ongroupcontext,
     onaddgroup,
+    onopenmodule,
+    onmodulecontext,
   }: Props = $props();
 
   /** The group a drag is hovering, so the drop target is visible before the drop. */
@@ -217,6 +223,57 @@
           onkeydown={(event) => event.key === "Enter" && onclose(entry)}>✕</span
         >
       </div>
+
+      {#if active?.valueOf() === entry.repo.valueOf()}
+        {#each submodules.rows as node (node.key)}
+          {@const parts = splitModulePath(node.path)}
+          {@const folder = parts.dir.replace(/[/\\]$/, "")}
+          <div
+            class="row module {node.module.state}"
+            class:selected={submodules.open === node.key}
+            role="button"
+            tabindex="0"
+            title="{node.path} — {node.module.url}"
+            style:padding-left="calc(var(--sp-5) + {(row.depth + 1 + node.depth) * 12}px)"
+            ondblclick={() => onopenmodule(node)}
+            onkeydown={(event) => {
+              if (event.key === "Enter") onopenmodule(node);
+              if (event.key === "ArrowRight" && !node.expanded) void submodules.toggle(node);
+              if (event.key === "ArrowLeft" && node.expanded) void submodules.toggle(node);
+            }}
+            oncontextmenu={(event) => {
+              event.preventDefault();
+              onmodulecontext(node, event.clientX, event.clientY);
+            }}
+          >
+            {#if mayExpand(submodules.children, node.key)}
+              <button
+                type="button"
+                class="caret"
+                aria-label={node.expanded ? "Collapse" : "Expand"}
+                onclick={(event) => {
+                  event.stopPropagation();
+                  void submodules.toggle(node);
+                }}>{node.expanded ? "▾" : "▸"}</button
+              >
+            {:else}
+              <span class="caret" aria-hidden="true"></span>
+            {/if}
+            <svg class="folder" viewBox="0 0 16 16" aria-hidden="true"
+              ><path
+                fill="currentColor"
+                d="M1.5 3.5c0-.69.56-1.25 1.25-1.25h3.04c.4 0 .78.19 1.01.51l.79 1.09h5.66c.69 0 1.25.56 1.25 1.25v7.15c0 .69-.56 1.25-1.25 1.25H2.75c-.69 0-1.25-.56-1.25-1.25V3.5Z"
+              /></svg
+            >
+            <span class="modname">
+              {#if folder}<span class="dir">{folder}</span><span class="sep">/</span>{/if}<span
+                class="leaf">{parts.name}</span
+              >
+            </span>
+            <span class="where truncate">({describeModule(node.module)})</span>
+          </div>
+        {/each}
+      {/if}
         {/if}
       {/if}
     {/each}
@@ -226,6 +283,63 @@
 <style>
   .wrapper {
     padding: var(--sp-4) 0;
+  }
+
+  .modname {
+    display: flex;
+    align-items: baseline;
+    min-width: 0;
+    flex: 0 1 auto;
+  }
+
+  /* Shortened from its own left, so `cmake/cmake-conan` becomes `…/cmake-conan` and
+     never `cmake/cmake-…`. */
+  .dir {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    direction: rtl;
+    color: var(--text-secondary);
+  }
+
+  .sep,
+  .leaf {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .sep {
+    color: var(--text-secondary);
+  }
+
+  .row.module .where {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: var(--text-secondary);
+    font-size: 11px;
+  }
+
+  .row.module.diverged .where,
+  .row.module.notInitialised .where {
+    color: var(--status-modify);
+  }
+
+  .row.module .caret {
+    flex: 0 0 12px;
+    width: 12px;
+    padding: 0;
+    background: none;
+    border: 0;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 9px;
+    cursor: default;
+  }
+
+  .row.module .caret:hover {
+    color: var(--text-primary);
   }
 
   .actions {

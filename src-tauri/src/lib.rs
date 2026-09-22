@@ -302,17 +302,11 @@ pub fn run() -> anyhow::Result<()> {
                 #[cfg(windows)]
                 webview2::install_accelerators(&window);
 
-                // After the state plugin restored the saved geometry, and before the
-                // window is shown: a window that opens off screen cannot be dragged back.
+                // Once, after the state plugin restored the saved geometry and before the
+                // window is shown. Never again: Windows moves and resizes the window
+                // itself for maximize, snap and minimize, and correcting it afterwards is
+                // a fight the window loses (doc/12-risks.md, R-118).
                 window_place::settle(&window);
-                let watched = window.clone();
-                window.on_window_event(move |event| {
-                    // Windows moves the window itself when a monitor is unplugged. A drag
-                    // cannot put the title bar out of reach, so this only ever undoes that.
-                    if matches!(event, tauri::WindowEvent::Moved(_)) {
-                        window_place::settle(&watched);
-                    }
-                });
                 window.show()?;
             }
             Ok(())

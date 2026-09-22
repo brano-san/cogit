@@ -9,6 +9,7 @@ import {
   type RepoOverview,
   type RepoSummary,
 } from "$lib/ipc";
+import { trace } from "$lib/trace";
 import { session } from "$stores/session.svelte";
 
 /** Opening a repository is one transition, and every panel reads the result of it from
@@ -71,8 +72,10 @@ class RepositoryStore {
     const ticket = this.#begin(path);
     try {
       const repo = await openRepository(path);
+      trace(`open:${path}`, `backend answered, ticket ${ticket}, ${repo.branches.length} refs`);
       this.#settle(ticket, { kind: "open", repo });
     } catch (err) {
+      trace(`open:${path}`, `backend refused, ticket ${ticket}: ${String(err)}`);
       this.#settle(ticket, {
         kind: "failed",
         root: path,
@@ -86,10 +89,12 @@ class RepositoryStore {
     const ticket = ++this.#ticket;
     this.#disarm();
     this.phase = { kind: "opening", root, repo: this.current };
+    trace(`open:${root}`, `phase → opening, ticket ${ticket}`);
     // A backend that never answers is a bug of its own, but it must not read as
     // "still working" for ever. A real answer arriving later still wins.
     this.#timer = setTimeout(() => {
       if (this.#ticket !== ticket || this.phase.kind !== "opening") return;
+      trace(`open:${root}`, `phase → failed, timed out after ${OPEN_TIMEOUT_MS}ms`);
       this.phase = {
         kind: "failed",
         root,
@@ -104,9 +109,13 @@ class RepositoryStore {
   }
 
   #settle(ticket: number, phase: RepoPhase): void {
-    if (this.#ticket !== ticket) return;
+    if (this.#ticket !== ticket) {
+      trace("open", `ticket ${ticket} is stale, ${this.#ticket} is current; answer dropped`);
+      return;
+    }
     this.#disarm();
     this.phase = phase;
+    trace("open", `phase → ${phase.kind}, ticket ${ticket}`);
   }
 
   #disarm(): void {

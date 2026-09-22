@@ -62,3 +62,14 @@ export function moduleRows(
   walk("", 0);
   return rows;
 }
+
+/** Does this node still deserve a caret? Unknown counts as yes: the alternative is
+    reading every node of the tree before drawing any of it. A look that found nothing
+    takes the caret away (R-123). */
+export function mayExpand(
+  children: ReadonlyMap<string, readonly Submodule[]>,
+  key: string,
+): boolean {
+  const found = children.get(key);
+  return found === undefined || found.length > 0;
+}

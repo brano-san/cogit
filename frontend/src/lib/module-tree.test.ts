@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { describeModule, moduleKey, moduleRows, splitModulePath } from "./module-tree";
+import {
+  describeModule,
+  mayExpand,
+  moduleKey,
+  moduleRows,
+  splitModulePath,
+} from "./module-tree";
 import type { Submodule } from "$lib/ipc";
 
 const mod = (path: string, over: Partial<Submodule> = {}): Submodule => ({
@@ -122,5 +128,29 @@ describe("moduleRows", () => {
       ["lib", [mod("lib")]],
     ]);
     expect(moduleRows(loop, new Set(["lib", "lib/lib"])).length).toBeLessThan(40);
+  });
+});
+
+describe("whether a node can be opened", () => {
+  it("assumes it can until a look says otherwise, so the caret is offered", () => {
+    expect(mayExpand(new Map(), "lib")).toBe(true);
+  });
+
+  it("offers the caret for a node with children", () => {
+    expect(mayExpand(new Map([["lib", [mod("a")]]]), "lib")).toBe(true);
+  });
+
+  // The reported case: two leaf submodules both wore a caret that did nothing.
+  it("takes the caret away once a look found nothing", () => {
+    expect(mayExpand(new Map([["lib", []]]), "lib")).toBe(false);
+  });
+});
+
+describe("splitModulePath, for a name that has to survive truncation", () => {
+  it("hands back the folder without its separator, so it can be shortened alone", () => {
+    expect(splitModulePath("src/tetra/import/dmo")).toEqual({
+      dir: "src/tetra/import/",
+      name: "dmo",
+    });
   });
 });

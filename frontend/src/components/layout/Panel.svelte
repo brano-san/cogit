@@ -1,16 +1,24 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import type { PanelView } from "$lib/repo-phase";
 
-  /** A titled work surface. Every panel in the grid uses this shell. */
+  /** A titled work surface. Every panel in the grid uses this shell.
+
+      The header and the body read one field. "Branches (9)" over "Opening repository…"
+      was two of them disagreeing, and no amount of care at the call site prevents that
+      from coming back — so the panel decides both (doc/12-risks.md, R-119). */
   interface Props {
     title: string;
+    /** What the repository is doing. Anything but `content` and the body is the message
+        below, with no count beside the title: there is nothing to have counted. */
+    view?: PanelView;
     /** Optional count shown next to the title, e.g. "Files (23)". Zero is not worth the
         parentheses: three panels showing "(0)" is three ways of saying nothing is here. */
     count?: number;
     /** Controls placed at the right of the header, such as a filter field. */
     actions?: Snippet;
     children?: Snippet;
-    /** Shown instead of `children`; set it only in the state where the body is empty. */
+    /** Shown instead of `children` while the panel has its own reason to be empty. */
     empty?: string;
     /** Something changed on disk and this panel has not caught up yet. */
     stale?: boolean;
@@ -18,13 +26,27 @@
     active?: boolean;
   }
 
-  let { title, count, actions, children, empty, stale = false, active = false }: Props = $props();
+  let {
+    title,
+    view = "content",
+    count,
+    actions,
+    children,
+    empty,
+    stale = false,
+    active = false,
+  }: Props = $props();
+
+  const ready = $derived(view === "content");
+  const message = $derived(
+    ready ? empty : view === "opening" ? "Opening repository…" : "No repository open.",
+  );
 </script>
 
 <section class="panel">
   <header class="panel-header" class:active>
     <h2 class="panel-title">
-      {title}{#if count}&nbsp;({count}){/if}
+      {title}{#if ready && count}&nbsp;({count}){/if}
     </h2>
     {#if stale}
       <span class="stale" title="Something changed on disk; this is being reloaded">•</span>
@@ -35,8 +57,8 @@
   </header>
 
   <div class="panel-body">
-    {#if empty}
-      <p class="panel-empty">{empty}</p>
+    {#if message}
+      <p class="panel-empty">{message}</p>
     {:else if children}
       {@render children()}
     {/if}
