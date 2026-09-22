@@ -382,11 +382,51 @@ describe("segmentCurve", () => {
 
 describe("arrowStub", () => {
   it("points down from the node and stays inside its own row", () => {
-    const stub = arrowStub(1, 4, 0);
+    const stub = arrowStub({ from: 1, to: 1 }, 4, 0);
     const centre = nodeCentre(1, 4, 0);
     expect(stub.x1).toBe(centre.x);
+    expect(stub.x2).toBe(centre.x);
     expect(stub.y1).toBeGreaterThan(centre.y);
-    expect(stub.tipY).toBeLessThanOrEqual(5 * GRAPH.rowHeight);
-    expect(stub.tipY).toBeGreaterThan(stub.y1);
+    expect(stub.y2).toBeGreaterThan(stub.y1);
+    expect(stub.y2).toBeLessThanOrEqual(5 * GRAPH.rowHeight);
+  });
+
+  it("leans right for a later parent, off the first parent's line, and stays short", () => {
+    const stub = arrowStub({ from: 1, to: 2 }, 4, 0);
+    const centre = nodeCentre(1, 4, 0);
+    expect(stub.x1).toBeGreaterThan(centre.x);
+    expect(stub.x2).toBeGreaterThan(stub.x1);
+    expect(stub.y2).toBeGreaterThan(stub.y1);
+    expect(stub.x2).toBeLessThan(laneX(2) - GRAPH.laneWidth / 2);
+    expect(stub.y2).toBeLessThanOrEqual(5 * GRAPH.rowHeight);
+  });
+});
+
+describe("a lane leaving a node's column", () => {
+  const at = (curve: ReturnType<typeof segmentCurve>, t: number) => {
+    const u = 1 - t;
+    const mix = (a: number, b: number, c: number, d: number) =>
+      u * u * u * a + 3 * u * u * t * b + 3 * u * t * t * c + t * t * t * d;
+    return {
+      x: mix(curve.x1, curve.cx1, curve.cx2, curve.x2),
+      y: mix(curve.y1, curve.cy1, curve.cy2, curve.y2),
+    };
+  };
+  const closest = (curve: ReturnType<typeof segmentCurve>, lane: number) => {
+    const centre = nodeCentre(lane, 0, 0);
+    let best = Infinity;
+    for (let step = 0; step <= 200; step++) {
+      const point = at(curve, step / 200);
+      best = Math.min(best, Math.hypot(point.x - centre.x, point.y - centre.y));
+    }
+    return best - GRAPH.ringRadius - GRAPH.ringStroke / 2 - GRAPH.lineWidth / 2;
+  };
+
+  it("keeps clear of the ring when it turns in the upper half", () => {
+    expect(closest(segmentCurve({ from: 2, to: 3, span: "top" }, 0, 0), 2)).toBeGreaterThan(3);
+  });
+
+  it("would graze the ring if it turned over the whole row", () => {
+    expect(closest(segmentCurve({ from: 2, to: 3, span: "through" }, 0, 0), 2)).toBeLessThan(1);
   });
 });

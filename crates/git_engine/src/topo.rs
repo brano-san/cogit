@@ -18,10 +18,13 @@ pub(crate) struct Ordered<Id, I> {
     waiting: HashMap<Id, usize>,
     /// Earliest arrival first; an entry that gained a child to wait for is skipped.
     ready: BinaryHeap<Reverse<(u64, Id)>>,
+    /// Goes out as soon as its children have: the commit HEAD is on.
+    first: Option<Id>,
+    first_arrived: bool,
 }
 
-/// `source` yields `(id, parents)` newest first by commit time.
-pub(crate) fn in_date_order<Id, I>(source: I, lookahead: usize) -> Ordered<Id, I>
+/// `source` is newest first by commit time; `first` must be in it, or all of it is read first.
+pub(crate) fn in_date_order<Id, I>(source: I, lookahead: usize, first: Option<Id>) -> Ordered<Id, I>
 where
     Id: Copy + Eq + Ord + Hash,
     I: Iterator<Item = (Id, Vec<Id>)>,
@@ -34,6 +37,8 @@ where
         window: HashMap::new(),
         waiting: HashMap::new(),
         ready: BinaryHeap::new(),
+        first,
+        first_arrived: false,
     }
 }
 
@@ -43,7 +48,9 @@ where
     I: Iterator<Item = (Id, Vec<Id>)>,
 {
     fn fill(&mut self) {
-        while !self.drained && self.window.len() < self.lookahead {
+        while !self.drained
+            && (self.window.len() < self.lookahead || self.first.is_some() && !self.first_arrived)
+        {
             let Some((id, parents)) = self.source.next() else {
                 self.drained = true;
                 return;
@@ -51,6 +58,7 @@ where
             for parent in &parents {
                 *self.waiting.entry(*parent).or_insert(0) += 1;
             }
+            self.first_arrived |= self.first == Some(id);
             let seq = self.arrived;
             self.arrived += 1;
             if self.waiting.get(&id).copied().unwrap_or(0) == 0 {
@@ -62,6 +70,22 @@ where
 
     fn is_ready(&self, id: &Id) -> bool {
         self.window.contains_key(id) && self.waiting.get(id).copied().unwrap_or(0) == 0
+    }
+
+    fn emit(&mut self, id: Id) -> Option<(Id, Vec<Id>)> {
+        let (_, parents) = self.window.remove(&id)?;
+        for parent in &parents {
+            let Some(count) = self.waiting.get_mut(parent) else {
+                continue;
+            };
+            *count = count.saturating_sub(1);
+            if *count == 0
+                && let Some((seq, _)) = self.window.get(parent)
+            {
+                self.ready.push(Reverse((*seq, *parent)));
+            }
+        }
+        Some((id, parents))
     }
 
     /// Unreachable on an acyclic history; loud and deterministic rather than lossy.
@@ -87,6 +111,12 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             self.fill();
+            if let Some(first) = self.first.filter(|first| self.is_ready(first)) {
+                self.first = None;
+                if let Some(emitted) = self.emit(first) {
+                    return Some(emitted);
+                }
+            }
             let Some(Reverse((_, id))) = self.ready.pop() else {
                 if self.window.is_empty() {
                     return None;
@@ -97,21 +127,9 @@ where
             if !self.is_ready(&id) {
                 continue;
             }
-            let Some((_, parents)) = self.window.remove(&id) else {
-                continue;
-            };
-            for parent in &parents {
-                let Some(count) = self.waiting.get_mut(parent) else {
-                    continue;
-                };
-                *count = count.saturating_sub(1);
-                if *count == 0
-                    && let Some((seq, _)) = self.window.get(parent)
-                {
-                    self.ready.push(Reverse((*seq, *parent)));
-                }
+            if let Some(emitted) = self.emit(id) {
+                return Some(emitted);
             }
-            return Some((id, parents));
         }
     }
 }
@@ -122,11 +140,15 @@ mod tests {
     use std::collections::HashSet;
 
     fn run(commits: &[(u32, &[u32])], lookahead: usize) -> Vec<u32> {
+        run_first(commits, lookahead, None)
+    }
+
+    fn run_first(commits: &[(u32, &[u32])], lookahead: usize, first: Option<u32>) -> Vec<u32> {
         let source = commits
             .iter()
             .map(|(id, parents)| (*id, parents.to_vec()))
             .collect::<Vec<_>>();
-        order(source.into_iter(), lookahead)
+        order(source.into_iter(), lookahead, first)
             .map(|(id, _)| id)
             .collect()
     }
@@ -216,6 +238,26 @@ mod tests {
     fn several_tips_come_out_newest_first() {
         let forest: &[(u32, &[u32])] = &[(4, &[2]), (3, &[1]), (2, &[]), (1, &[])];
         assert_eq!(run(forest, 16), vec![4, 3, 2, 1]);
+    }
+
+    #[test]
+    fn the_commit_asked_for_first_comes_first_when_nothing_above_it_waits() {
+        let two: &[(u32, &[u32])] = &[(5, &[3]), (4, &[2]), (3, &[1]), (2, &[1]), (1, &[])];
+        assert_eq!(run_first(two, 16, Some(4)), vec![4, 5, 3, 2, 1]);
+    }
+
+    #[test]
+    fn the_commit_asked_for_first_still_comes_after_its_children() {
+        let behind: &[(u32, &[u32])] = &[(5, &[3]), (4, &[1]), (3, &[1]), (1, &[])];
+        let order = run_first(behind, 16, Some(3));
+        assert_eq!(order, vec![5, 3, 4, 1]);
+        assert!(is_topological(&order, behind));
+    }
+
+    #[test]
+    fn the_commit_asked_for_first_comes_first_however_far_down_its_date_puts_it() {
+        let far: &[(u32, &[u32])] = &[(9, &[8]), (8, &[7]), (7, &[]), (2, &[1]), (1, &[])];
+        assert_eq!(run_first(far, 2, Some(2)), vec![2, 9, 8, 7, 1]);
     }
 
     #[test]

@@ -335,11 +335,11 @@
             >
           {/if}
           <span class="summary truncate">{item.entry.commit.summary}</span>
+          <span class="author truncate">{item.entry.commit.authorName}</span>
           <Avatar
             name={item.entry.commit.authorName}
             email={item.entry.commit.authorEmail}
           />
-          <span class="author truncate">{item.entry.commit.authorName}</span>
           <span
             class="date tabular"
             title={dateTooltip(
