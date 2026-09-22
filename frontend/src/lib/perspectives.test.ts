@@ -146,3 +146,18 @@ describe("capFraction", () => {
     expect(capFraction(0.5, 100, 120)).toBe(0.12);
   });
 });
+
+describe("the Worktrees panel", () => {
+  it("is a panel of its own, shown in Main and hidden in Review", () => {
+    expect(PANELS).toContain("worktrees");
+    expect(DEFAULT_PERSPECTIVES.main.hidden).not.toContain("worktrees");
+    expect(DEFAULT_PERSPECTIVES.review.hidden).toContain("worktrees");
+  });
+
+  it("shows up in a layout saved before it existed, with its default height", () => {
+    const stored = { main: { fractions: { graph: 0.5 }, hidden: ["diff"] } };
+    const merged = mergePerspectives(stored as never).main;
+    expect(merged.hidden).toEqual(["diff"]);
+    expect(merged.fractions.worktrees).toBe(DEFAULT_LAYOUT.worktrees);
+  });
+});

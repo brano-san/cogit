@@ -100,6 +100,7 @@ export const commands = {
 	worktrees: (repo: RepoId) => typedError<WorktreeEntry[], GitError>(__TAURI_INVOKE("worktrees", { repo })),
 	worktreeHolding: (repo: RepoId, branch: string) => typedError<{
 	path: string,
+	name: string,
 	/**  `None` when the worktree is on a detached HEAD. */
 	branch: string | null,
 	head: string,
@@ -111,9 +112,16 @@ export const commands = {
 	missing: boolean,
 	dirty: boolean,
 } | null, GitError>(__TAURI_INVOKE("worktree_holding", { repo, branch })),
-	addWorktree: (repo: RepoId, path: string, branch: string, create: boolean) => typedError<null, GitError>(__TAURI_INVOKE("add_worktree", { repo, path, branch, create })),
+	addWorktree: (repo: RepoId, path: string, branch: string, create: boolean, base: string | null) => typedError<null, GitError>(__TAURI_INVOKE("add_worktree", { repo, path, branch, create, base })),
 	removeWorktree: (repo: RepoId, path: string, force: boolean) => typedError<null, GitError>(__TAURI_INVOKE("remove_worktree", { repo, path, force })),
 	pruneWorktrees: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("prune_worktrees", { repo })),
+	/**  A worktree in the panels, not in the Repositories list (R-184). */
+	openWorktree: (owner: RepoId, path: string) => typedError<RepoSummary, GitError>(__TAURI_INVOKE("open_worktree", { owner, path })),
+	worktreeChanges: (repo: RepoId, path: string) => typedError<FileEntry[], GitError>(__TAURI_INVOKE("worktree_changes", { repo, path })),
+	pruneWorktree: (repo: RepoId, path: string) => typedError<null, GitError>(__TAURI_INVOKE("prune_worktree", { repo, path })),
+	repairWorktree: (repo: RepoId, path: string) => typedError<null, GitError>(__TAURI_INVOKE("repair_worktree", { repo, path })),
+	lockWorktree: (repo: RepoId, path: string, reason: string | null) => typedError<null, GitError>(__TAURI_INVOKE("lock_worktree", { repo, path, reason })),
+	unlockWorktree: (repo: RepoId, path: string) => typedError<null, GitError>(__TAURI_INVOKE("unlock_worktree", { repo, path })),
 	flowStatus: (repo: RepoId) => typedError<FlowStatus, GitError>(__TAURI_INVOKE("flow_status", { repo })),
 	flowInit: (repo: RepoId, config: FlowConfig) => typedError<null, GitError>(__TAURI_INVOKE("flow_init", { repo, config })),
 	flowStart: (repo: RepoId, kind: FlowKind, name: string) => typedError<string, GitError>(__TAURI_INVOKE("flow_start", { repo, kind, name })),
@@ -1112,12 +1120,10 @@ export type TodoEntry = {
 
 export type Whitespace = "none" | "trailing" | "all";
 
-/**
- *  One checkout of the repository. The main one cannot be removed; a linked one can be
- *  locked, or left behind when its folder is deleted (M3 T3.5).
- */
+/**  One checkout: the main one cannot be removed, a linked one can be locked or left behind. */
 export type WorktreeEntry = {
 	path: string,
+	name: string,
 	/**  `None` when the worktree is on a detached HEAD. */
 	branch: string | null,
 	head: string,

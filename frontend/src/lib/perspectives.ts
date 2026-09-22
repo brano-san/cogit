@@ -11,6 +11,8 @@ export interface LayoutFractions {
   filesSplit: number;
   /** Height the Files panel keeps when the Commit Message panel sits under it. */
   commitBox: number;
+  /** The same for Repositories over the Worktrees panel. */
+  worktrees: number;
 }
 
 export const DEFAULT_LAYOUT: LayoutFractions = {
@@ -20,6 +22,7 @@ export const DEFAULT_LAYOUT: LayoutFractions = {
   graph: 0.68,
   filesSplit: 0.55,
   commitBox: 0.68,
+  worktrees: 0.62,
 };
 
 export function clampFraction(value: number): number {
@@ -33,7 +36,15 @@ export function capFraction(value: number, containerPx: number, reservedPx: numb
   return Math.max(MIN_FRACTION, Math.min(clamped, 1 - reservedPx / containerPx));
 }
 
-export const PANELS = ["repositories", "refs", "graph", "files", "commit", "diff"] as const;
+export const PANELS = [
+  "repositories",
+  "refs",
+  "graph",
+  "files",
+  "commit",
+  "diff",
+  "worktrees",
+] as const;
 export type PanelId = (typeof PANELS)[number];
 
 export interface Perspective {
@@ -48,7 +59,7 @@ export const DEFAULT_PERSPECTIVES: Record<PerspectiveId, Perspective> = {
   main: { fractions: { ...DEFAULT_LAYOUT }, hidden: [] },
   review: {
     fractions: { ...DEFAULT_LAYOUT, leftColumn: 0.18, topRow: 0.32 },
-    hidden: ["repositories", "commit"],
+    hidden: ["repositories", "commit", "worktrees"],
   },
 };
 

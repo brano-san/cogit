@@ -16,6 +16,7 @@
   import type { RepoOverview } from "$lib/ipc";
   import { repoGroups } from "$stores/repo-groups.svelte";
   import { repository } from "$stores/repository.svelte";
+  import { worktrees } from "$stores/worktrees.svelte";
 
   interface Props {
     /** Only the folder dialog changes the label; selecting a repository must not (R-35). */
@@ -181,6 +182,7 @@
         style:padding-left="calc(var(--sp-5) + {row.depth * 12}px)"
         ondragstart={(event) => event.dataTransfer?.setData("text/cogit-repo", entry.root)}
         class:selected={active?.valueOf() === entry.repo.valueOf()}
+        class:holds-worktree={worktrees.ownerRoot === entry.root}
         class:marked={marked.paths.has(entry.root)}
         class:missing={entry.missing}
         role="button"
@@ -212,6 +214,9 @@
         />
         <KindIcon kind="repository" />
         <span class="name truncate">{entry.name}</span>
+        {#if worktrees.ownerRoot === entry.root && repository.current}
+          <KindIcon kind="worktree" title="The panels show its worktree {repository.current.root}" />
+        {/if}
         {#if entry.missing}
           <span class="gone" title={MISSING_REPOSITORY}>missing</span>
         {:else if entry.dirty}
@@ -330,6 +335,10 @@
     min-width: 0;
     color: var(--text-secondary);
     font-size: 11px;
+  }
+
+  .row.holds-worktree {
+    box-shadow: inset 2px 0 0 var(--status-ref);
   }
 
   .row.module.diverged .where,
