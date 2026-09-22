@@ -174,8 +174,22 @@ export function applyPending(
   return next;
 }
 
+export type Verdict = "wait" | "exit" | "stay";
+
 /** A failure stops the wait: exiting would take the error message away with the window. */
-export function waitVerdict(pending: number, failed: boolean): "wait" | "exit" | "stay" {
+export function waitVerdict(pending: number, failed: boolean): Verdict {
   if (failed) return "stay";
   return pending === 0 ? "exit" : "wait";
+}
+
+/** After the queue changed under an open dialog. A shutdown the app held is let go as
+    soon as nothing would be lost by it; any other exit waits for the user. */
+export function settleVerdict(
+  source: ExitSource,
+  waiting: boolean,
+  pending: number,
+  failed: boolean,
+): Verdict {
+  if (waiting) return waitVerdict(pending, failed);
+  return source === "system" && pending === 0 ? "exit" : "wait";
 }

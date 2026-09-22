@@ -172,6 +172,15 @@ impl crate::AppState {
     pub fn operations(&self) -> Vec<Operation> {
         self.queue.snapshot()
     }
+
+    #[must_use]
+    pub fn session_end_blocker(&self) -> Option<String> {
+        match self.queue.snapshot().len() {
+            0 => None,
+            1 => Some("1 operation is still running".to_owned()),
+            n => Some(format!("{n} operations are still running")),
+        }
+    }
 }
 
 /// Holds one repository's lane until the work is over.

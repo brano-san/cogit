@@ -5,7 +5,7 @@ import {
   exitVariant,
   mustAskBeforeExit,
   seedPending,
-  waitVerdict,
+  settleVerdict,
   type ExitAction,
   type ExitSource,
   type ExitVariant,
@@ -44,8 +44,7 @@ export class ExitFlow {
     this.#meanwhile?.push(event);
     if (!this.prompt) return;
     this.pending = applyPending(this.pending, event);
-    if (!this.waiting) return;
-    if (event.phase === "done" && event.success === false) this.#failed = true;
+    if (this.waiting && event.phase === "done" && event.success === false) this.#failed = true;
     this.#settle();
   }
 
@@ -87,7 +86,8 @@ export class ExitFlow {
   }
 
   #settle(): void {
-    const verdict = waitVerdict(this.pending.size, this.#failed);
+    const source = this.prompt?.source ?? "window";
+    const verdict = settleVerdict(source, this.waiting, this.pending.size, this.#failed);
     if (verdict !== "wait") this.#finish(verdict === "exit");
   }
 

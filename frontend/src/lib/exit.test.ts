@@ -13,6 +13,7 @@ import {
   mustAskBeforeExit,
   progressPercent,
   seedPending,
+  settleVerdict,
   showsDontShow,
   waitVerdict,
 } from "./exit";
@@ -246,6 +247,23 @@ describe("the live queue", () => {
     let pending = seedPending([op({ id: 4, phase: "queued" })], []);
     pending = applyPending(pending, changed({ id: 4, phase: "running" }));
     expect(pending.get(4)?.phase).toBe("running");
+  });
+});
+
+describe("settleVerdict", () => {
+  it("leaves an undecided question on screen when the queue changes", () => {
+    expect(settleVerdict("window", false, 0, false)).toBe("wait");
+    expect(settleVerdict("command", false, 0, false)).toBe("wait");
+  });
+
+  it("lets a held shutdown go on once nothing is left to lose", () => {
+    expect(settleVerdict("system", false, 0, false)).toBe("exit");
+    expect(settleVerdict("system", false, 1, false)).toBe("wait");
+  });
+
+  it("follows Exit When Done once the user chose it", () => {
+    expect(settleVerdict("window", true, 0, false)).toBe("exit");
+    expect(settleVerdict("window", true, 0, true)).toBe("stay");
   });
 });
 

@@ -88,6 +88,16 @@ describe("while the dialog is open", () => {
     expect(flow.prompt).not.toBeNull();
   });
 
+  it("lets a held shutdown go on by itself once the queue is empty", async () => {
+    const flow = new ExitFlow();
+    const answer = flow.ask("system", true, snapshot([op(1)]));
+    await flushed();
+    expect(flow.variant).toBe("busy");
+    flow.observe(done(1));
+    await expect(answer).resolves.toBe(true);
+    expect(flow.prompt).toBeNull();
+  });
+
   it("turns into the warning when something starts", async () => {
     const flow = new ExitFlow();
     await opened(flow, []);
