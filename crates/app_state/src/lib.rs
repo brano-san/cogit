@@ -361,14 +361,25 @@ impl AppState {
     }
 
     fn open_at(&self, path: &Path, listed: bool) -> Result<RepoSummary, git_engine::GitError> {
+        // Timed step by step: the log of the three-monitor machine showed this command
+        // taking 7.7 s on a repository with sixteen branches, and one number for the whole
+        // thing does not say which read to go after (doc/12-risks.md, R-121).
+        let mut watch = Steps::new();
         let handle = git_engine::RepoHandle::open(path)?;
+        watch.done("open");
         let root = handle.root().to_path_buf();
         let head = handle.head()?;
+        watch.done("head");
         let branches = handle.branches()?;
+        watch.done("branches");
         let tags = handle.tags()?;
+        watch.done("tags");
         let status = handle.status()?;
+        watch.done("status");
         let state = handle.state()?;
+        watch.done("state");
         let index_lock = handle.index_lock();
+        watch.report(path, branches.len());
 
         let name = root.file_name().map_or_else(
             || root.display().to_string(),
@@ -1520,9 +1531,52 @@ fn mainline_of(handle: &git_engine::RepoHandle) -> Option<String> {
         .filter(|branch| branch.kind == git_engine::BranchKind::Local)
         .map(|branch| (branch.name.as_str(), branch.oid.as_str()))
         .collect();
-    let head = branches
-        .iter()
-        .find(|branch| branch.is_head)
-        .map(|b| b.oid.as_str());
-    graph_engine::mainline_tip(&locals, head)
+    // `head()`, not the branch marked as HEAD: a detached HEAD is a line worth keeping
+    // straight too, and it belongs to no branch.
+    let head = match handle.head().ok()? {
+        git_engine::Head::Branch { oid, .. } | git_engine::Head::Detached { oid } => Some(oid),
+        git_engine::Head::Unborn { .. } => None,
+    };
+    graph_engine::mainline_tip(&locals, head.as_deref())
+}
+
+/// Times the reads that make up one `open_repository` and writes them as one line.
+struct Steps {
+    started: std::time::Instant,
+    last: std::time::Instant,
+    parts: Vec<(&'static str, u128)>,
+}
+
+impl Steps {
+    fn new() -> Self {
+        let now = std::time::Instant::now();
+        Self {
+            started: now,
+            last: now,
+            parts: Vec::new(),
+        }
+    }
+
+    fn done(&mut self, what: &'static str) {
+        let now = std::time::Instant::now();
+        self.parts
+            .push((what, now.duration_since(self.last).as_millis()));
+        self.last = now;
+    }
+
+    fn report(&self, path: &Path, branches: usize) {
+        let total = self.started.elapsed().as_millis();
+        let breakdown: Vec<String> = self
+            .parts
+            .iter()
+            .map(|(what, ms)| format!("{what}={ms}ms"))
+            .collect();
+        tracing::info!(
+            path = %path.display(),
+            branches,
+            total_ms = total,
+            steps = %breakdown.join(" "),
+            "repository read"
+        );
+    }
 }

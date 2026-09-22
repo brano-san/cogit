@@ -4,12 +4,10 @@
   import Tree from "$components/common/Tree.svelte";
   import {
     CATEGORIES,
-    changedKeys,
     firstMatch,
     matchingCategories,
     disabledBy,
     restoreCategory,
-    sameKeymap,
   } from "$lib/preferences";
   import type { TreeNode } from "$lib/tree";
   import { needsRestart, DEFAULT_SETTINGS, type Settings } from "$lib/settings";
@@ -30,8 +28,9 @@
     onforgettoken: () => void;
     /** Applies the whole draft at once; nothing is written before OK. */
     onapply: (next: Settings, keymap: Keymap) => void;
-    /** Shows a draft without saving it, so a choice can be seen while it is being made. */
-    onpreview: (next: Settings) => void;
+    /** Puts everything back to how it was when the dialog opened, and closes. */
+    onrevert: () => void;
+    /** Closes and keeps: everything was applied as it was chosen. */
     onclose: () => void;
   }
 
@@ -45,7 +44,7 @@
     onstoretoken,
     onforgettoken,
     onapply,
-    onpreview,
+    onrevert,
     onclose,
   }: Props = $props();
 
@@ -84,8 +83,10 @@
     ["off", "Do not show them"],
   ] as const;
 
-  /** Nothing is written until OK: Esc and Cancel throw the whole draft away. The snapshot
-      is deliberate — the dialog is mounted fresh each time it opens. */
+  /** Everything here is applied and saved the moment it is changed, because it is also
+      shown the moment it is changed and a visible change that is not kept is a trap.
+      `Cancel` is the one control that undoes; `OK`, `Esc` and the ✕ all just close
+      (doc/12-risks.md, R-122). The snapshot is what `Cancel` goes back to. */
   // svelte-ignore state_referenced_locally
   let draft = $state<Settings>({ ...value });
   // svelte-ignore state_referenced_locally
@@ -108,9 +109,6 @@
     })),
   );
   const current = $derived(CATEGORIES.find((category) => category.id === active));
-  const dirty = $derived(
-    changedKeys(draft, value).length > 0 || !sameKeymap(draftKeys, keymap),
-  );
   const restarts = $derived(
     (Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]).some(
       (key) => draft[key] !== value[key] && needsRestart(key),
@@ -122,9 +120,7 @@
 
   function set<K extends keyof Settings>(key: K, next: Settings[K]) {
     draft = { ...draft, [key]: next };
-    // Seen before it is saved: choosing a theme from a list nobody can see the effect of
-    // is choosing blind (R-107). Cancel puts `value` back.
-    onpreview(draft);
+    onapply(draft, draftKeys);
   }
 
   function onsearch(text: string) {
@@ -417,15 +413,15 @@
       type="button"
       onclick={() => {
         draft = restoreCategory(draft, active);
-        onpreview(draft);
+        onapply(draft, draftKeys);
       }}
     >
       Restore Defaults
     </button>
-    <button type="button" onclick={onclose}>Cancel</button>
-    <button type="button" class="primary" disabled={!dirty} onclick={() => onapply(draft, draftKeys)}>
-      OK
+    <button type="button" title="Put everything back to how it was when this opened" onclick={onrevert}>
+      Cancel
     </button>
+    <button type="button" class="primary" onclick={onclose}>OK</button>
   {/snippet}
 </Dialog>
 
@@ -538,6 +534,7 @@
     display: grid;
     grid-template-columns: 200px minmax(0, 1fr);
     align-items: center;
+    justify-items: start;
     gap: var(--sp-4);
     min-height: var(--h-row);
     margin-bottom: var(--sp-3);
@@ -548,12 +545,21 @@
     align-items: start;
   }
 
-  .row.check {
-    gap: var(--sp-3);
+  /* Controls fill their column; only the labels stay at its left edge. */
+  .row > :global(:not(span)) {
+    justify-self: stretch;
+    width: 100%;
   }
 
-  .row.check > span:first-child {
-    flex: 0 0 auto;
+  .row.check {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--sp-3);
+    justify-items: start;
+  }
+
+  .row.check > span {
+    justify-self: start;
+    text-align: left;
   }
 
   /* A dependent switch sits under the one it depends on, as SmartGit does. */

@@ -1,5 +1,8 @@
 import { moduleRows, type ModuleRow } from "$lib/module-tree";
+import { readKey, writeKey } from "$lib/settings-file";
 import { listSubmodules, updateSubmodule, type RepoId, type Submodule } from "$lib/ipc";
+
+const KEY = "submoduleTree";
 
 class SubmoduleStore {
   /** Keyed by the path from the top repository down; `""` is the repository itself.
@@ -14,6 +17,7 @@ class SubmoduleStore {
       is not the same as the one the other panels are showing once a submodule has been
       opened from this very tree (R-109). */
   #repo: RepoId | null = null;
+  #root: string | null = null;
 
   get entries(): readonly Submodule[] {
     return this.children.get("") ?? [];
@@ -25,11 +29,24 @@ class SubmoduleStore {
 
   /** Hands the tree to a repository. Called when one is activated from the list, and
       never when a submodule is opened from inside the tree. */
-  async own(repo: RepoId): Promise<void> {
+  async own(repo: RepoId, root: string): Promise<void> {
     this.#repo = repo;
-    this.expanded = new Set();
+    this.#root = root;
     this.open = null;
     this.children = new Map([["", await listSubmodules(repo, "").catch(() => [])]]);
+    // What was open last time is opened again, one level at a time.
+    const remembered = (await readKey<Record<string, string[]>>(KEY))?.[root] ?? [];
+    this.expanded = new Set();
+    for (const key of remembered) {
+      await this.#load(key);
+      this.expanded = new Set([...this.expanded, key]);
+    }
+  }
+
+  async #remember(): Promise<void> {
+    if (this.#root === null) return;
+    const all = (await readKey<Record<string, string[]>>(KEY)) ?? {};
+    await writeKey(KEY, { ...all, [this.#root]: [...this.expanded] });
   }
 
   /** Re-reads what is on screen. Every mutation lands here, so collapsing the tree each
@@ -50,11 +67,13 @@ class SubmoduleStore {
     if (next.has(row.key)) {
       next.delete(row.key);
       this.expanded = next;
+      void this.#remember();
       return;
     }
     next.add(row.key);
     this.expanded = next;
     await this.#load(row.key);
+    void this.#remember();
   }
 
   /** Reads one node's children, once. A node that turns out to have none stays known as
@@ -93,6 +112,7 @@ class SubmoduleStore {
     this.expanded = new Set();
     this.open = null;
     this.#repo = null;
+    this.#root = null;
   }
 }
 

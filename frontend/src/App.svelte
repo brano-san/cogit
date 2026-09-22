@@ -23,6 +23,7 @@
   import CommandOutput from "$components/layout/CommandOutput.svelte";
   import GitErrorDialog from "$components/layout/GitErrorDialog.svelte";
   import { panelView } from "$lib/repo-phase";
+  import { startTracing, timed, trace } from "$lib/trace";
   import OutputPanel from "$components/layout/OutputPanel.svelte";
   import StateBanner from "$components/layout/StateBanner.svelte";
   import Splitter from "$components/layout/Splitter.svelte";
@@ -248,6 +249,8 @@
       caller down. */
   $effect(() => {
     untrack(() => {
+      startTracing();
+      trace("startup", "the window is running");
       getAppInfo().then((result) => {
         info = result;
       });
@@ -260,7 +263,7 @@
       void terminalChoices().then((found) => (terminals = found));
       const wanted = session.active;
       const remembered = wanted === null ? null : session.selected(wanted);
-      void repository.restore().then(() => {
+      void timed("startup", "restore the session", () => repository.restore()).then(() => {
         const back =
           repository.openRepos.find((entry) => entry.root === wanted) ?? repository.openRepos[0];
         if (back) void activate(back.root, back.root === wanted ? remembered : null);
@@ -279,10 +282,9 @@
   });
   const leftColumn = $derived(shown.repositories || shown.refs);
   const repo = $derived(repository.current);
-  /** One sentence for every panel that has nothing to show, so they cannot disagree. */
-  const panelEmpty = $derived(
-    panelView(repository.phase) === "opening" ? "Opening repository…" : "No repository open.",
-  );
+  /** One field for every panel that depends on an open repository. The panel decides
+      from it both what its header counts and what its body says (R-119). */
+  const panelState = $derived(panelView(repository.phase));
   const banner = $derived(repo ? stateBanner(repo.state, repo.indexLock) : null);
   const tracked = $derived(repository.localBranches.find((b) => b.isHead));
   const scope = $derived(commitScope(worktree.staged, fileMask));
@@ -563,7 +565,7 @@ Log: ${info?.logPath ?? ""}`),
         title: "Settings",
         shortcut: "Ctrl+,",
         synonyms: ["preferences", "options"],
-        run: () => (settingsOpen = true),
+        run: () => openSettings(),
       },
       {
         id: "find",
@@ -719,12 +721,19 @@ Log: ${info?.logPath ?? ""}`),
     }
   }
 
-  /** OK in Preferences: one write, then re-run whatever the change invalidated. */
-  /** Cancel: everything previewed while the dialog was open goes back to what was
-      saved. `settings.load()` re-reads the file rather than trusting a copy in memory. */
-  function closeSettings() {
+  /** What Cancel goes back to. Taken when the dialog opens, not when it closes: by the
+      time it closes, everything has already been applied and saved (R-122). */
+  let settingsAtOpen = $state.raw<Settings | null>(null);
+
+  function openSettings() {
+    settingsAtOpen = { ...settings.current };
+    settingsOpen = true;
+  }
+
+  async function revertSettings() {
+    const before = settingsAtOpen;
     settingsOpen = false;
-    void settings.load();
+    if (before) await settings.apply(before);
   }
 
   async function applySettings(next: Settings, keymap: import("$lib/keymap").Keymap) {
@@ -735,7 +744,6 @@ Log: ${info?.logPath ?? ""}`),
     await settings.apply(next);
     await settings.setKeymap(keymap);
     pushMenuState();
-    settingsOpen = false;
 
     const id = repository.current?.repo;
     if (!id || !diff.spec || !diff.path) return;
@@ -1052,6 +1060,11 @@ Log: ${info?.logPath ?? ""}`),
       (doc/12-risks.md, R-109). The tree keeps showing it where it is, and the tree is
       the one thing not forgotten, because it is what the click came from. */
   async function openModule(row: import("$lib/module-tree").ModuleRow) {
+    // Nothing to open until it has been checked out; a double-click there means "get it".
+    if (row.module.state === "notInitialised") {
+      await refreshSubmodule(row);
+      return;
+    }
     const tree = { children: submodules.children, expanded: submodules.expanded };
     const opened = await openedModule(row.key);
     if (!opened) return;
@@ -1355,23 +1368,28 @@ Log: ${info?.logPath ?? ""}`),
   }
 
   async function activate(root: string, restoreOid: string | null = null) {
+    const story = `open:${root}`;
+    trace(story, "activate: panels cleared");
     forgetPanels();
     const watch = measure("open-repository");
     await repository.open(root);
     const opened = repository.current;
+    trace(story, `activate: repository.current is ${opened ? opened.name : "null"}`);
     if (opened) {
       refs.adopt(opened.root, buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() }));
-      void submodules.own(opened.repo);
+      void submodules.own(opened.repo, opened.root);
       session.setActive(opened.root);
       session.opened(opened.root);
       if (restoreOid) void commit.select(opened.repo, restoreOid);
-      void reloadGraph();
+      void timed(story, "graph", () => reloadGraph());
       void refs.loadUrls(opened.repo);
       void worktrees.refresh(opened.repo);
       void flow.refresh(opened.repo);
-      await repository.refreshList();
-      await afterMutation();
+      await timed(story, "repository list", () => repository.refreshList());
+      await timed(story, "everything else", () => afterMutation());
+      trace(story, "activate: done");
     } else {
+      trace(story, "activate: nothing opened, graph cleared");
       graph.clear();
     }
     watch.stop(`${repository.current?.branches.length ?? 0} refs`);
@@ -2237,7 +2255,6 @@ Log: ${info?.logPath ?? ""}`),
             onaddworktree={() => askAddWorktree()}
             onpruneworktrees={() => void pruneWorktreesHere()}
             onopenmodule={(row) => void openModule(row)}
-            onupdatemodule={(row) => void refreshSubmodule(row)}
             onmodulecontext={(row, x, y) => void moduleContext(row, x, y)}
           />
         </Panel>
@@ -2260,8 +2277,8 @@ Log: ${info?.logPath ?? ""}`),
           title="Branches"
           active={focused === "refs"}
           stale={stale.has("refs")}
+          view={panelState}
           count={repo?.branches.length}
-          empty={repo ? undefined : panelEmpty}
         >
           {#snippet actions()}
             {#if repo}
@@ -2318,7 +2335,8 @@ Log: ${info?.logPath ?? ""}`),
           <Panel
             title="Graph &amp; History"
             active={focused === "graph"}
-            count={repo ? graph.rows.length : undefined}
+            view={panelState}
+            count={graph.rows.length}
             stale={stale.has("graph")}
           >
             {#snippet actions()}
@@ -2371,6 +2389,7 @@ Log: ${info?.logPath ?? ""}`),
           <Panel
             title="Files"
             active={focused === "files"}
+            view={panelState}
             count={onWorkingTree ? worktree.total : commit.files.length}
             stale={stale.has("files")}
           >
@@ -2417,6 +2436,7 @@ Log: ${info?.logPath ?? ""}`),
           <Panel
             title="Commit Message"
             active={focused === "commit"}
+            view={panelState}
             count={worktree.staged.length}
             stale={stale.has("commit")}
           >
@@ -2443,7 +2463,7 @@ Log: ${info?.logPath ?? ""}`),
       <div class="pane grow" role="region"
         aria-label={PANEL_TITLES.diff}
         onpointerdown={() => (focused = "diff")}>
-        <Panel title="Diff" active={focused === "diff"} stale={stale.has("diff")}>
+        <Panel title="Diff" active={focused === "diff"} view={panelState} stale={stale.has("diff")}>
           <DiffPanel
             onstage={(selected, reverse) => void stageLines(selected, reverse)}
             onblame={() => void showBlame()}
@@ -2617,8 +2637,8 @@ Log: ${info?.logPath ?? ""}`),
       onstoretoken={(token) => void network.storeToken(token)}
       onforgettoken={() => void network.forgetToken()}
       onapply={(next, keys) => void applySettings(next, keys)}
-      onpreview={(next) => settings.preview(next)}
-      onclose={() => closeSettings()}
+      onrevert={() => void revertSettings()}
+      onclose={() => (settingsOpen = false)}
     />
   {/if}
 
@@ -2688,7 +2708,7 @@ Log: ${info?.logPath ?? ""}`),
   {/if}
 
   <StatusBar
-    repository={repo?.name ?? "No repository"}
+    repository={repo?.name ?? (panelState === "opening" ? "Opening…" : "No repository")}
     branch={repo ? repository.headLabel : undefined}
     upstream={tracked?.upstream ?? undefined}
     ahead={tracked?.ahead ?? 0}

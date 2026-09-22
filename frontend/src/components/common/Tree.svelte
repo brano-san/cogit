@@ -9,10 +9,12 @@
     /** Draws one row's content; the caret and the indent belong to this component. */
     row: Snippet<[Flattened<T>]>;
     indent?: number;
+    /** Left padding of the shallowest row, so the caret never touches the panel edge. */
+    base?: number;
     label?: string;
   }
 
-  let { nodes, collapsed, oncollapse, row, indent = 12, label }: Props = $props();
+  let { nodes, collapsed, oncollapse, row, indent = 12, base = 8, label }: Props = $props();
 
   const rows = $derived(flatten(nodes, collapsed));
 </script>
@@ -25,7 +27,7 @@
       aria-expanded={node.open}
       aria-selected="false"
       tabindex="-1"
-      style:padding-left="{node.depth * indent}px"
+      style:padding-left="{base + node.depth * indent}px"
     >
       {#if node.open === undefined}
         <span class="caret spacer" aria-hidden="true"></span>

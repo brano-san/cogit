@@ -30,14 +30,23 @@ const GRAB_HEIGHT: i32 = 32;
 /// to aim at.
 const GRAB_WIDTH: i32 = 120;
 
+/// How much of the grab strip has to be on screen vertically. A maximized or snapped
+/// window deliberately hangs its frame a few pixels past the work area, and demanding the
+/// whole strip called every one of those off screen (R-118).
+const GRAB_VISIBLE: i32 = 8;
+
 /// Can the title bar be grabbed on any of these monitors?
 #[must_use]
 pub fn reachable(window: Rect, monitors: &[Rect]) -> bool {
+    let strip = Rect {
+        y: window.y,
+        h: GRAB_HEIGHT,
+        ..window
+    };
     monitors.iter().any(|screen| {
-        let overlap = window.right().min(screen.right()) - window.x.max(screen.x);
-        let below_top = window.y >= screen.y;
-        let above_bottom = window.y + GRAB_HEIGHT <= screen.bottom();
-        overlap >= GRAB_WIDTH && below_top && above_bottom
+        let across = strip.right().min(screen.right()) - strip.x.max(screen.x);
+        let down = strip.bottom().min(screen.bottom()) - strip.y.max(screen.y);
+        across >= GRAB_WIDTH && down >= GRAB_VISIBLE
     })
 }
 
@@ -94,10 +103,34 @@ impl From<&tauri::Monitor> for Rect {
     }
 }
 
-/// Moves the window onto a monitor that exists, if it is not on one already. Called once
-/// after the state plugin has restored the saved position, and again whenever Windows
-/// moves the window itself — which is what unplugging a monitor does.
+/// Whether a window in this state has a position worth checking at all.
+///
+/// A maximized window is on a monitor by definition, and its frame deliberately hangs a
+/// few pixels past the work area — "correcting" that un-maximizes it. A minimized window
+/// sits at about (-32000, -32000), and moving it from there breaks the rectangle Windows
+/// restores to. Fullscreen is the operating system's business.
+#[must_use]
+pub fn should_settle(maximized: bool, minimized: bool, fullscreen: bool) -> bool {
+    !maximized && !minimized && !fullscreen
+}
+
+/// Moves the window onto a monitor that exists, if it is not on one already. Called
+/// **once**, after the state plugin has restored the saved position and before the window
+/// is shown. Never in response to a window event: Windows moves and resizes the window
+/// itself, and a handler that answers by moving it back is a fight (R-118).
 pub fn settle<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>) {
+    let maximized = window.is_maximized().unwrap_or(false);
+    let minimized = window.is_minimized().unwrap_or(false);
+    let fullscreen = window.is_fullscreen().unwrap_or(false);
+    if !should_settle(maximized, minimized, fullscreen) {
+        tracing::debug!(
+            maximized,
+            minimized,
+            fullscreen,
+            "window geometry left to Windows"
+        );
+        return;
+    }
     let Ok(position) = window.outer_position() else {
         return;
     };
@@ -189,6 +222,30 @@ mod tests {
     }
 
     #[test]
+    fn an_ordinary_window_is_worth_checking() {
+        assert!(should_settle(false, false, false));
+    }
+
+    /// The regression: maximize moves the window, the check called that invalid and moved
+    /// it back, Windows maximized again — and the window bounced between monitors.
+    #[test]
+    fn a_maximized_window_is_not_touched() {
+        assert!(!should_settle(true, false, false));
+    }
+
+    /// A minimized window sits at about (-32000, -32000); moving it from there is how it
+    /// stops coming back from the taskbar.
+    #[test]
+    fn a_minimized_window_is_not_touched() {
+        assert!(!should_settle(false, true, false));
+    }
+
+    #[test]
+    fn a_fullscreen_window_is_not_touched() {
+        assert!(!should_settle(false, false, true));
+    }
+
+    #[test]
     fn a_window_in_the_middle_of_the_screen_is_left_alone() {
         let wanted = window(200, 150, 1200, 800);
         assert_eq!(place(wanted, &[LAPTOP], LAPTOP), wanted);
@@ -206,6 +263,34 @@ mod tests {
         let placed = place(window(200, -300, 1200, 800), &[LAPTOP], LAPTOP);
         assert!(placed.y >= LAPTOP.y, "{placed:?}");
         assert!(reachable(placed, &[LAPTOP]));
+    }
+
+    /// From the log of the three-monitor machine: every maximized and snapped window was
+    /// called off screen because its frame hangs a dozen pixels past the work area, and
+    /// each verdict moved it. `from=(-4838, -174, 1820, 1164)` was one of sixty thousand.
+    #[test]
+    fn a_frame_that_overhangs_the_work_area_is_still_reachable() {
+        assert!(reachable(window(200, -12, 1920, 1052), &[LAPTOP]));
+    }
+
+    /// The three-monitor machine has monitors at negative coordinates; a window there is
+    /// where it belongs, not somewhere to be rescued from.
+    #[test]
+    fn a_monitor_to_the_left_of_the_primary_one_is_a_monitor_like_any_other() {
+        let left = Rect {
+            x: -5768,
+            y: -363,
+            w: 1920,
+            h: 1080,
+        };
+        let wanted = window(-5700, -300, 1200, 800);
+        assert_eq!(place(wanted, &[left, LAPTOP], LAPTOP), wanted);
+    }
+
+    /// Eight pixels of title bar is a grip; none of it is not.
+    #[test]
+    fn a_title_bar_entirely_above_the_screen_is_still_out_of_reach() {
+        assert!(!reachable(window(200, -40, 1200, 800), &[LAPTOP]));
     }
 
     #[test]

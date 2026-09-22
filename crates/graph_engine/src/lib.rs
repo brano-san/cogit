@@ -85,10 +85,11 @@ impl LayoutCursor {
         self.free_lane_from(usize::from(self.holding_lane_zero()))
     }
 
-    /// Lane 0 belongs to the mainline until the mainline has had it.
+    /// Lane 0 belongs to the mainline, before it arrives and after its line ends. A
+    /// column that is reused halfway down is not a column the eye can follow.
     #[must_use]
     pub fn holding_lane_zero(&self) -> bool {
-        self.mainline.is_some() && !self.mainline_placed
+        self.mainline.is_some()
     }
 
     #[must_use]
@@ -107,17 +108,24 @@ impl LayoutCursor {
     }
 }
 
-/// Which commit should own the leftmost column: `master`, then `main`, then whatever
-/// HEAD points at. Names first, because HEAD moves with every checkout and the main line
-/// of a repository does not (doc/12-risks.md, R-115).
+/// Which commit owns the leftmost column: the line HEAD is on, and only failing that
+/// `master` or `main`.
+///
+/// The first version had it the other way round — names first, on the reasoning that HEAD
+/// moves with every checkout. On a repository checked out on a feature branch that put the
+/// branch being worked on somewhere to the right of a `master` nobody was looking at, and
+/// the column the reader follows is the one they are working in (R-115).
 #[must_use]
 pub fn mainline_tip(local_branches: &[(&str, &str)], head_oid: Option<&str>) -> Option<String> {
+    if let Some(oid) = head_oid {
+        return Some(oid.to_owned());
+    }
     for wanted in ["master", "main"] {
         if let Some((_, oid)) = local_branches.iter().find(|(name, _)| *name == wanted) {
             return Some((*oid).to_owned());
         }
     }
-    head_oid.map(ToOwned::to_owned)
+    None
 }
 
 #[cfg(test)]

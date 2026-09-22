@@ -1,6 +1,5 @@
 <script lang="ts">
   import RepositoryList from "$components/repo-tree/RepositoryList.svelte";
-  import SubmoduleList from "$components/repo-tree/SubmoduleList.svelte";
   import WorktreeList from "$components/repo-tree/WorktreeList.svelte";
   import { worktrees } from "$stores/worktrees.svelte";
   import type { WorktreeEntry } from "$lib/ipc";
@@ -23,7 +22,7 @@
     onaddworktree: () => void;
     onpruneworktrees: () => void;
     onopenmodule: (row: ModuleRow) => void;
-    onupdatemodule: (row: ModuleRow) => void;
+
     onmodulecontext: (row: ModuleRow, x: number, y: number) => void;
   }
 
@@ -42,7 +41,7 @@
     onaddworktree,
     onpruneworktrees,
     onopenmodule,
-    onupdatemodule,
+
     onmodulecontext,
   }: Props = $props();
 </script>
@@ -57,6 +56,8 @@
   {onmarked}
   {ongroupcontext}
   {onaddgroup}
+  {onopenmodule}
+  {onmodulecontext}
 />
 <WorktreeList
   entries={worktrees.entries}
@@ -64,9 +65,4 @@
   onremove={onremoveworktree}
   onadd={onaddworktree}
   onprune={onpruneworktrees}
-/>
-<SubmoduleList
-  onopen={(row) => onopenmodule(row)}
-  onupdate={(row) => onupdatemodule(row)}
-  oncontext={(row, x, y) => onmodulecontext(row, x, y)}
 />
