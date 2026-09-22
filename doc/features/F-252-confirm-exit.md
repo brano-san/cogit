@@ -2,5 +2,5 @@
 
 Крестик, `Alt+F4` и `Repository ▸ Exit` (`Alt+X`) показывают диалог Exit с «Don't show
 again»; пока push, pull или fetch идут или ждут, диалог появляется всегда и перечисляет
-их. Проверить: поставить галочку, выйти, открыть Settings ▸ User Interface ▸ Behaviour —
-«Confirm before exiting» снят, а в списке ниже есть строка с «Show again».
+их. Проверить: поставить галочку, выйти, открыть `Preferences ▸ General` — «Confirm before
+exiting» снят, а в `User Interface ▸ Behaviour` есть строка с «Show again» (R-169).

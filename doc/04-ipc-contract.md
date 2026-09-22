@@ -475,6 +475,7 @@ pub struct GraphChunk {
 | `git-command-logged` | `CommandLogEntry` | Для панели Output |
 | `menu-command` | `String` (id команды палитры) | Выбран пункт нативного меню |
 | `operation-changed` | `{ id, repo, kind, label, phase, success }` | Операция встала в очередь, началась или закончилась |
+| `session-ending` | `{ reason: String }` | Windows хочет завершить сеанс, а в очереди есть операции; сеанс удержан (R-168) |
 
 ### Очередь операций
 

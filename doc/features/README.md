@@ -240,3 +240,7 @@
 | F-265 | Текущий коммит — верхняя точка графа | [F-265-head-on-top.md](F-265-head-on-top.md) |
 | F-266 | Аватар справа от имени автора | [F-266-avatar-after-author.md](F-266-avatar-after-author.md) |
 | F-267 | Текст прокручивается вместе с графом | [F-267-text-scrolls-with-graph.md](F-267-text-scrolls-with-graph.md) |
+| F-268 | Диалоги: одна левая линия, один крестик | [F-268-dialog-inset-and-cross.md](F-268-dialog-inset-and-cross.md) |
+| F-269 | Чекбокс приложения в диалоге Exit | [F-269-app-checkbox.md](F-269-app-checkbox.md) |
+| F-270 | Выход во время операций: подождать или остановить | [F-270-exit-while-busy.md](F-270-exit-while-busy.md) |
+| F-271 | Выключение Windows ждёт операций | [F-271-shutdown-waits-for-operations.md](F-271-shutdown-waits-for-operations.md) |
