@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Caret from "$components/common/Caret.svelte";
     import { applyClick, EMPTY_SELECTION, type FileSelection } from "$lib/multi-select";
   import { describeModule, mayExpand, splitModulePath, type ModuleRow } from "$lib/module-tree";
   import { panelView } from "$lib/repo-phase";
@@ -159,9 +160,7 @@
             if (root) dropped(row.id, root);
           }}
         >
-          <span class="caret" aria-hidden="true"
-            >{repoGroups.collapsed.has(row.id) ? "▸" : "▾"}</span
-          >
+          <Caret open={!repoGroups.collapsed.has(row.id)} />
           <span class="truncate">{row.name} ({row.count})</span>
         </div>
       {:else}
@@ -191,19 +190,17 @@
           oncontext(entry, event.clientX, event.clientY);
         }}
       >
-        {#if submodules.owner?.valueOf() === entry.repo.valueOf() && submodules.top.length > 0}
-          <button
-            type="button"
-            class="caret"
-            aria-label={submodules.folded ? "Show submodules" : "Hide submodules"}
-            onclick={(event) => {
-              event.stopPropagation();
-              submodules.foldTop();
-            }}>{submodules.folded ? "▸" : "▾"}</button
-          >
-        {:else}
-          <span class="caret" aria-hidden="true"></span>
-        {/if}
+        <Caret
+          empty={!(
+            submodules.owner?.valueOf() === entry.repo.valueOf() && submodules.top.length > 0
+          )}
+          open={!submodules.folded}
+          label={submodules.folded ? "Show submodules" : "Hide submodules"}
+          onclick={(event) => {
+            event.stopPropagation();
+            submodules.foldTop();
+          }}
+        />
         <svg class="folder" viewBox="0 0 16 16" aria-hidden="true"
           ><path
             fill="currentColor"
@@ -263,19 +260,15 @@
               onmodulecontext(node, event.clientX, event.clientY);
             }}
           >
-            {#if mayExpand(submodules.children, node.key)}
-              <button
-                type="button"
-                class="caret"
-                aria-label={node.expanded ? "Collapse" : "Expand"}
-                onclick={(event) => {
-                  event.stopPropagation();
-                  void submodules.toggle(node);
-                }}>{node.expanded ? "▾" : "▸"}</button
-              >
-            {:else}
-              <span class="caret" aria-hidden="true"></span>
-            {/if}
+            <Caret
+              empty={!mayExpand(submodules.children, node.key)}
+              open={node.expanded}
+              label={node.expanded ? "Collapse" : "Expand"}
+              onclick={(event) => {
+                event.stopPropagation();
+                void submodules.toggle(node);
+              }}
+            />
             <svg class="folder" viewBox="0 0 16 16" aria-hidden="true"
               ><path
                 fill="currentColor"
@@ -341,28 +334,6 @@
   .row.module.diverged .where,
   .row.module.notInitialised .where {
     color: var(--status-modify);
-  }
-
-  /* A3: big enough to read as a triangle, with a target big enough to hit. */
-  .row .caret {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 20px;
-    width: 20px;
-    height: 20px;
-    padding: 0;
-    background: none;
-    border: 0;
-    color: var(--text-secondary);
-    font: inherit;
-    font-size: 11px;
-    line-height: 1;
-    cursor: default;
-  }
-
-  .row .caret:hover {
-    color: var(--text-primary);
   }
 
   .actions {
@@ -450,11 +421,6 @@
 
   .group.over {
     box-shadow: inset 0 0 0 1px var(--status-ref);
-  }
-
-  .caret {
-    flex: 0 0 auto;
-    font-size: 9px;
   }
 
   .row.marked {

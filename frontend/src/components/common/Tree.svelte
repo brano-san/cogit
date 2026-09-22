@@ -1,4 +1,5 @@
 <script lang="ts" generics="T extends import('$lib/tree').TreeNode">
+  import Caret from "$components/common/Caret.svelte";
   import { flatten, toggle, type Flattened } from "$lib/tree";
   import type { Snippet } from "svelte";
 
@@ -29,16 +30,12 @@
       tabindex="-1"
       style:padding-left="{base + node.depth * indent}px"
     >
-      {#if node.open === undefined}
-        <span class="caret spacer" aria-hidden="true"></span>
-      {:else}
-        <button
-          type="button"
-          class="caret"
-          aria-label={node.open ? "Collapse" : "Expand"}
-          onclick={() => oncollapse(toggle(collapsed, node.id))}>{node.open ? "▾" : "▸"}</button
-        >
-      {/if}
+      <Caret
+        empty={node.open === undefined}
+        open={node.open ?? false}
+        label={node.open ? "Collapse" : "Expand"}
+        onclick={() => oncollapse(toggle(collapsed, node.id))}
+      />
       {@render row(node)}
     </div>
   {/each}
@@ -52,22 +49,5 @@
     height: var(--h-row-dense);
     font-size: var(--fs-dense);
     white-space: nowrap;
-  }
-
-  .caret {
-    flex: 0 0 12px;
-    width: 12px;
-    padding: 0;
-    background: none;
-    border: 0;
-    color: var(--text-secondary);
-    font: inherit;
-    line-height: 1;
-    text-align: center;
-    cursor: default;
-  }
-
-  .caret.spacer {
-    display: inline-block;
   }
 </style>
