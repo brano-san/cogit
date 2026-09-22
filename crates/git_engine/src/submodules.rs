@@ -24,6 +24,9 @@ pub struct Submodule {
     pub branch: Option<String>,
     /// First line of the commit it sits on, for the row that has no branch to show.
     pub subject: Option<String>,
+    /// Whether it holds submodules of its own. Answered here so the tree can decide
+    /// before drawing whether the row opens at all (doc/12-risks.md, R-148).
+    pub nested: bool,
 }
 
 /// Which commit a gitlink points at on each side of a diff.
@@ -65,6 +68,9 @@ impl RepoHandle {
                 .unwrap_or_default();
             let inside = self.submodule_state(&path);
             let checked_out = inside.as_ref().and_then(|found| found.oid.clone());
+            // A file test, not a second repository open: this runs per row of the tree.
+            let nested =
+                checked_out.is_some() && self.root().join(&path).join(".gitmodules").is_file();
 
             let state = match &checked_out {
                 None => SubmoduleState::NotInitialised,
@@ -84,6 +90,7 @@ impl RepoHandle {
                 state,
                 branch: inside.as_ref().and_then(|found| found.branch.clone()),
                 subject: inside.and_then(|found| found.subject),
+                nested,
             });
         }
         out.sort_by(|a, b| a.path.cmp(&b.path));

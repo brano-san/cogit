@@ -423,7 +423,8 @@
   }
 
   .caret {
-    font-size: 8px;
+    font-size: 11px;
+    line-height: 1;
     color: var(--text-secondary);
   }
 

@@ -63,13 +63,14 @@ export function moduleRows(
   return rows;
 }
 
-/** Does this node still deserve a caret? Unknown counts as yes: the alternative is
-    reading every node of the tree before drawing any of it. A look that found nothing
-    takes the caret away (R-123). */
+/** Does this node deserve a caret? Before anything has been read, the answer is the
+    one the backend already gave: `nested` is a file test it did while listing the row.
+    A look that found nothing overrules it (R-123, R-148). */
 export function mayExpand(
   children: ReadonlyMap<string, readonly Submodule[]>,
   key: string,
+  module: Submodule,
 ): boolean {
   const found = children.get(key);
-  return found === undefined || found.length > 0;
+  return found === undefined ? module.nested : found.length > 0;
 }

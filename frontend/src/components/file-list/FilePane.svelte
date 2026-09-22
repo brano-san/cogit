@@ -63,7 +63,7 @@
         {#if entry.kind === "dir"}
           {@const group = entry}
           <div class="folder" style:top="{at * GRAPH.rowHeight}px">
-            <span aria-hidden="true">▾</span>
+            <span class="fold" aria-hidden="true">▾</span>
             <span class="truncate">{group.path === "" ? "(root)" : group.path}</span>
             <span class="count">{group.count}</span>
           </div>
@@ -143,6 +143,11 @@
 </div>
 
 <style>
+  .fold {
+    font-size: 11px;
+    line-height: 1;
+  }
+
   .pane {
     display: flex;
     flex-direction: column;

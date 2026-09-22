@@ -1006,6 +1006,11 @@ export type Submodule = {
 	branch: string | null,
 	/**  First line of the commit it sits on, for the row that has no branch to show. */
 	subject: string | null,
+	/**
+	 *  Whether it holds submodules of its own. Answered here so the tree can decide
+	 *  before drawing whether the row opens at all (doc/12-risks.md, R-148).
+	 */
+	nested: boolean,
 };
 
 export type SubmoduleState = "notInitialised" | "inSync" | 

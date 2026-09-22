@@ -65,7 +65,7 @@
     position: absolute;
     right: var(--sp-3);
     color: var(--text-secondary);
-    font-size: 10px;
+    font-size: 11px;
     pointer-events: none;
   }
 
