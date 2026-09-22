@@ -666,9 +666,7 @@ export type HealthFinding = {
 
 export type HealthIssue = 
 /**  `configured` is what `core.ignoreCase` says, `actual` what the folder does. */
-{ kind: "ignoreCaseMismatch"; configured: boolean; actual: boolean } | { kind: "danglingModule"; target: string; foreign: boolean } | { kind: "danglingWorktree"; name: string; target: string; foreign: boolean } | 
-/**  The parent records a commit the submodule's repository does not have. */
-{ kind: "missingModuleCommit"; commit: string };
+{ kind: "ignoreCaseMismatch"; configured: boolean; actual: boolean } | { kind: "danglingModule"; target: string; foreign: boolean } | { kind: "danglingWorktree"; name: string; target: string; foreign: boolean };
 
 export type Hook = {
 	name: string,
