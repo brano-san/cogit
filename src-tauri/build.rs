@@ -31,7 +31,19 @@ fn main() {
     println!("cargo:rustc-env=COGIT_COMMIT={commit}");
     println!("cargo:rustc-env=COGIT_BUILT_AT={built}");
     println!("cargo:rustc-env=COGIT_RUSTC={rustc}");
+    // HEAD holds `ref: refs/heads/master`, which a commit does not change; the branch
+    // file, or packed-refs once git packs it, is what moves.
     println!("cargo:rerun-if-changed=../.git/HEAD");
+    println!("cargo:rerun-if-changed=../.git/packed-refs");
+    if let Some(branch) = std::fs::read_to_string("../.git/HEAD")
+        .ok()
+        .and_then(|head| {
+            head.strip_prefix("ref: ")
+                .map(|name| name.trim().to_owned())
+        })
+    {
+        println!("cargo:rerun-if-changed=../.git/{branch}");
+    }
 
     tauri_build::build();
 }
