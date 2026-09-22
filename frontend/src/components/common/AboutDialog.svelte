@@ -214,18 +214,18 @@
 
   .value {
     min-width: 0;
+    overflow: hidden;
     color: var(--text-code);
     font-family: var(--font-mono);
     font-size: var(--fs-dense);
     white-space: nowrap;
+    text-overflow: ellipsis;
     user-select: text;
     cursor: text;
   }
 
   .path {
     flex: 1 1 auto;
-    overflow: hidden;
-    text-overflow: ellipsis;
     color: var(--link);
     cursor: pointer;
   }
