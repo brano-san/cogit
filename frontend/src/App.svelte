@@ -53,7 +53,7 @@
   import { moveEntry } from "$lib/rebase-plan";
   import { stateBanner, type BannerAction } from "$lib/repo-state";
   import { blockedByLocalChanges } from "$lib/checkout-refusal";
-  import { PANELS, type PanelId } from "$lib/perspectives";
+  import { capFraction, PANELS, type PanelId } from "$lib/perspectives";
   import { browserSources, start as startMemoryProbe } from "$lib/mem-probe";
   import { liveListeners } from "$lib/listener-count";
   import type { Settings } from "$lib/settings";
@@ -293,6 +293,9 @@
   });
 
   const fractions = $derived(layout.fractions);
+  /** `--commit-panel-min` plus the splitter, in the same CSS pixels. */
+  const COMMIT_MIN_PX = 126;
+  let filesColumnHeight = $state(0);
   const shown = $derived({
     repositories: layout.visible("repositories"),
     refs: layout.visible("refs"),
@@ -2653,6 +2656,7 @@
         {#if filesColumn}
         <div
           class="files-column"
+          bind:clientHeight={filesColumnHeight}
           class:grow={!shown.graph}
           style:flex={shown.graph ? `1 1 auto` : undefined}
         >
@@ -2660,7 +2664,7 @@
         <div
           class="pane"
           class:grow={!(shown.commit && onWorkingTree)}
-          style:flex={shown.commit && onWorkingTree ? `0 0 ${fractions.commitBox * 100}%` : undefined}
+          style:flex={shown.commit && onWorkingTree ? `0 1 ${fractions.commitBox * 100}%` : undefined}
           role="region"
           aria-label={PANEL_TITLES.files}
           onpointerdown={() => (focused = "files")}>
@@ -2703,13 +2707,14 @@
           direction="horizontal"
           value={fractions.commitBox}
           label="Resize commit message panel"
-          onchange={(d) => layout.nudge("commitBox", d)}
+          onchange={(d) =>
+            layout.set("commitBox", capFraction(fractions.commitBox + d, filesColumnHeight, COMMIT_MIN_PX))}
           onreset={() => layout.resetOne("commitBox")}
         />
         {/if}
 
         {#if shown.commit && onWorkingTree}
-        <div class="pane grow" role="region"
+        <div class="pane grow commit-pane" role="region"
           aria-label={PANEL_TITLES.commit}
           onpointerdown={() => (focused = "commit")}>
           <Panel
@@ -3150,6 +3155,11 @@
     flex-direction: column;
     min-width: 0;
     min-height: 0;
+  }
+
+  /* Header, two lines of message and the Commit row; the splitter stops here (R-183). */
+  .commit-pane {
+    min-height: var(--commit-panel-min);
   }
 
   .pane > :global(.panel) {

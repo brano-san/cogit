@@ -128,6 +128,8 @@
   --disclosure-hit: 20px;
   --menu-caret: 9px;
   --kind-icon: 14px;
+  /* Header 28 + two message lines 50 + the Commit row 22 + padding and borders. */
+  --commit-panel-min: 122px;
 
   /* ---- radii: nothing above 6px, a dense UI with big radii reads as mushy ---- */
   --r-sm: 3px;
