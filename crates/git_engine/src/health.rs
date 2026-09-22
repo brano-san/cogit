@@ -24,6 +24,10 @@ pub enum HealthIssue {
         target: String,
         foreign: bool,
     },
+    /// The parent records a commit the submodule's repository does not have.
+    MissingModuleCommit {
+        commit: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
@@ -73,6 +77,14 @@ impl RepoHandle {
             } else {
                 format!("{prefix}/{}", module.path)
             };
+            if module.state == crate::SubmoduleState::Unknown && module.checked_out.is_some() {
+                found.push(HealthFinding {
+                    module: key.clone(),
+                    issue: HealthIssue::MissingModuleCommit {
+                        commit: module.recorded.clone(),
+                    },
+                });
+            }
             match RepoHandle::open_exact(&self.root().join(&module.path)) {
                 Ok(inner) => inner.collect_health(&key, depth + 1, found),
                 Err(GitError::ModuleUnavailable(ModuleProblem::DanglingGitFile {

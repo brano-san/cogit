@@ -14,8 +14,7 @@ pub enum DiffSpec {
 pub type DiffSides = (Option<Vec<u8>>, Option<Vec<u8>>);
 
 impl RepoHandle {
-    /// `None` means the path is absent from that tree, which is how an addition or a
-    /// deletion is told apart from an empty file.
+    /// `None` when the path is absent from that tree: an addition, not an empty file.
     pub fn blob_at(&self, rev: &str, path: &str) -> Result<Option<Vec<u8>>> {
         let id = self
             .repo
@@ -31,28 +30,28 @@ impl RepoHandle {
         self.blob_in(&tree, path)
     }
 
-    /// The commit a gitlink points at on each side, when `path` is a submodule. `None`
-    /// when it is not one — an ordinary path that is missing is still an error.
-    ///
-    /// A submodule diff is about the pointer, not about content: that is what changed, and
-    /// on a submodule nobody checked out it is the only thing there is (R-139).
+    /// The commit a gitlink points at on each side, or `None` when `path` is no submodule.
+    /// The pointer is what changed, and all there is on one nobody checked out (R-139).
     pub fn submodule_pointer(
         &self,
         spec: &DiffSpec,
         path: &str,
     ) -> Result<Option<crate::SubmodulePointer>> {
-        let (new_rev, old_rev) = match spec {
-            DiffSpec::CommitVsParent { oid } => (Some(oid.clone()), self.first_parent(oid)?),
-            DiffSpec::CommitVsCommit { a, b } => (Some(b.clone()), Some(a.clone())),
-            DiffSpec::WorkTreeVsIndex | DiffSpec::IndexVsHead => (Some("HEAD".to_owned()), None),
+        let (recorded, previous) = match spec {
+            DiffSpec::CommitVsParent { oid } => (
+                self.gitlink_at(oid, path),
+                self.first_parent(oid)?
+                    .and_then(|parent| self.gitlink_at(&parent, path)),
+            ),
+            DiffSpec::CommitVsCommit { a, b } => {
+                (self.gitlink_at(b, path), self.gitlink_at(a, path))
+            }
+            DiffSpec::WorkTreeVsIndex => {
+                let staged = self.gitlink_in_index(path);
+                (self.checked_out_commit(path).or(staged.clone()), staged)
+            }
+            DiffSpec::IndexVsHead => (self.gitlink_in_index(path), self.gitlink_at("HEAD", path)),
         };
-
-        let recorded = new_rev
-            .as_deref()
-            .and_then(|rev| self.gitlink_at(rev, path));
-        let previous = old_rev
-            .as_deref()
-            .and_then(|rev| self.gitlink_at(rev, path));
         let Some(recorded) = recorded.or_else(|| previous.clone()) else {
             return Ok(None);
         };
@@ -63,6 +62,24 @@ impl RepoHandle {
             previous: previous.filter(|before| *before != recorded),
             recorded,
         }))
+    }
+
+    fn gitlink_in_index(&self, path: &str) -> Option<String> {
+        let index = self.repo.index_or_empty().ok()?;
+        let entry = index.entry_by_path(path.into())?;
+        entry.mode.is_submodule().then(|| entry.id.to_string())
+    }
+
+    /// What the submodule's own HEAD is on: the working-tree side of its pointer.
+    fn checked_out_commit(&self, path: &str) -> Option<String> {
+        match RepoHandle::open_exact(&self.root().join(path))
+            .ok()?
+            .head()
+            .ok()?
+        {
+            crate::Head::Branch { oid, .. } | crate::Head::Detached { oid } => Some(oid),
+            crate::Head::Unborn { .. } => None,
+        }
     }
 
     /// The object id a tree records for `path` when the entry is a gitlink.
@@ -110,6 +127,10 @@ impl RepoHandle {
         let Some(entry) = index.entry_by_path(path.into()) else {
             return Ok(None);
         };
+        // A gitlink names a commit of the submodule, which this object database never has.
+        if entry.mode.is_submodule() {
+            return Ok(None);
+        }
         let object = self.repo.find_object(entry.id).map_err(|err| {
             GitError::Internal(format!("cannot read {path} from the index: {err}"))
         })?;

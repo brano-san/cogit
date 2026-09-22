@@ -76,6 +76,7 @@ export type {
   FlowStatus,
   Found,
   FoundKind,
+  GitCommandError,
   GitError,
   GitOutput,
   GraphChunk,
