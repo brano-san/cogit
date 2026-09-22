@@ -291,7 +291,7 @@ impl RepoHandle {
         let args = sample_args(name, &scratch)?;
 
         let started = std::time::Instant::now();
-        let output = hook_command(&path, self.root(), &args).output();
+        let output = crate::children::output(&mut hook_command(&path, self.root(), &args));
         let duration_ms = u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX);
         let _ = std::fs::remove_file(&scratch);
         let output = output?;
@@ -361,8 +361,7 @@ impl RepoHandle {
         }
 
         let started = std::time::Instant::now();
-        let output = shell_command(trimmed, self.root())
-            .output()
+        let output = crate::children::output(&mut shell_command(trimmed, self.root()))
             .map_err(|err| GitError::Io(format!("cannot run the check: {err}")))?;
         let duration_ms = u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX);
 
