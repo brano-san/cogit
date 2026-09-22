@@ -32,7 +32,7 @@ pub struct CommitNode {       // вход; никакой зависимости
 pub struct GraphRow {         // выход, одна на коммит
     pub row: u32,
     pub lane: u16,            // колонка узла в этой строке
-    pub color: u8,            // для настройки «Colored branch lines»
+    pub color: u8,            // для настройки «Coloured branch lines»
     pub kind: NodeKind,
     pub primary: bool,        // узел главной линии
     pub width: u16,           // колонок у верхнего края, узла и нижнего края вместе
@@ -98,7 +98,7 @@ pub struct Segment {
 
 По умолчанию главная линия и её кольца — цвет переднего плана темы (`--graph-main`),
 всё остальное — один серый (`--graph-line`). Цвет на полосу — под настройкой
-`Colored branch lines` (выключена); номер цвета даётся полосе при создании и не меняется.
+`Coloured branch lines` (выключена); номер цвета даётся полосе при создании и не меняется.
 
 ### Порядок коммитов
 

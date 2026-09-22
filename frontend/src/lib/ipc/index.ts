@@ -173,7 +173,7 @@ export function describeModuleProblem(problem: ModuleProblem): string {
     case "missing":
       return `Directory does not exist: ${problem.path}`;
     case "notInitialised":
-      return `Submodule is not initialized: ${problem.path}`;
+      return `Submodule is not initialised: ${problem.path}`;
     case "danglingGitFile":
       return problem.foreign
         ? `The .git file of ${problem.path} points to ${problem.target}, which does not exist on this system — the path was written by another operating system.`
