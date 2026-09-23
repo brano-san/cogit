@@ -272,3 +272,4 @@
 | F-342 | Ветка, взятая в worktree, помечена в Branches | [F-342-worktree-branches.md](F-342-worktree-branches.md) |
 | F-343 | Одно правило усечения текста | [F-343-one-truncation-rule.md](F-343-one-truncation-rule.md) |
 | F-344 | Повторный клик по репозиторию ничего не перезагружает | [F-344-repository-reclick.md](F-344-repository-reclick.md) |
+| F-345 | Статус открытия репозитория — только в футере | [F-345-opening-status-in-footer.md](F-345-opening-status-in-footer.md) |
