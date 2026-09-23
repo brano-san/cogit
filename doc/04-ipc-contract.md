@@ -462,7 +462,8 @@ type SearchChunk =
 `reset_to` с `hard` на грязном дереве сначала кладёт отслеживаемые правки в stash и
 пишет его в журнал безопасности — Undo возвращает их. `tag_name_problem` зовёт
 `git check-ref-format refs/tags/<имя>` один раз при подтверждении диалога, не на каждую
-букву. `rename_stash` сохраняет порядок списка (R-252), `edit_author` — rebase с `exec
+букву, и мимо журнала команд: отказ — это ответ, а не упавшая команда, окно ошибки Git он
+не открывает. `rename_stash` сохраняет порядок списка (R-252), `edit_author` — rebase с `exec
 git commit --amend --author`, как `reword`. `push_to` — один refspec: Push To, Push Up To
 и push ветки или тега, которые не HEAD.
 
