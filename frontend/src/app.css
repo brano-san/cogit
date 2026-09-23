@@ -294,6 +294,19 @@ a:hover {
   white-space: nowrap;
 }
 
+/* The one truncation rule (#5, R-243): everything cuts on the right, and a row gives up its
+   secondary text (URL, path, subject, branch) before its name. The weight makes the first
+   absorb the whole squeeze until it is gone; components set only flex-grow beside these. */
+.shrink-first {
+  min-width: 0;
+  flex-shrink: 100000;
+}
+
+.shrink-last {
+  min-width: 0;
+  flex-shrink: 1;
+}
+
 /* ---- scrollbars ---- */
 ::-webkit-scrollbar {
   width: 10px;

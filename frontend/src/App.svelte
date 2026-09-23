@@ -60,7 +60,8 @@
   import { moveEntry } from "$lib/rebase-plan";
   import { stateBanner, type BannerAction } from "$lib/repo-state";
   import { blockedByLocalChanges } from "$lib/checkout-refusal";
-  import { capFraction, PANELS, type PanelId } from "$lib/perspectives";
+  import { capFraction, floorFraction, PANELS, type PanelId } from "$lib/perspectives";
+  import { graphPanelMinWidth } from "$lib/graph-panel";
   import { browserSources, start as startMemoryProbe } from "$lib/mem-probe";
   import { liveListeners } from "$lib/listener-count";
   import type { Settings } from "$lib/settings";
@@ -317,6 +318,12 @@
   /** `--worktrees-panel-min` plus the splitter. */
   const WORKTREES_MIN_PX = 98;
   let reposColumnHeight = $state(0);
+  const graphMin = graphPanelMinWidth();
+  let graphPane = $state<HTMLDivElement | null>(null);
+  let topRowWidth = $state(0);
+  let workspaceWidth = $state(0);
+  /** The Graph panel's CSS minimum in pixels, so the splitters stop where the panel does. */
+  const graphMinPx = () => (graphPane ? parseFloat(getComputedStyle(graphPane).minWidth) || 0 : 0);
   const shown = $derived({
     repositories: layout.visible("repositories"),
     refs: layout.visible("refs"),
@@ -2670,11 +2677,11 @@
     <StateBanner {banner} busy={repository.busy} onaction={runBannerAction} />
   {/if}
 
-  <div class="workspace">
+  <div class="workspace" bind:clientWidth={workspaceWidth}>
     {#if leftColumn}
     <div
       class="left-column"
-      style:flex={shown.diff || topRow ? `0 0 ${fractions.leftColumn * 100}%` : "1 1 auto"}
+      style:flex={shown.diff || topRow ? `0 1 ${fractions.leftColumn * 100}%` : "1 1 auto"}
     >
       {#if reposColumn}
       <div
@@ -2820,16 +2827,18 @@
       direction="vertical"
       value={fractions.leftColumn}
       label="Resize left column"
-      onchange={(d) => layout.nudge("leftColumn", d)}
+      onchange={(d) =>
+        layout.set("leftColumn", capFraction(fractions.leftColumn + d, workspaceWidth, graphMinPx()))}
       onreset={() => layout.resetOne("leftColumn")}
     />
     {/if}
 
     {#if topRow || shown.diff}
-    <div class="right-area">
+    <div class="right-area" style:min-width={shown.graph ? graphMin : undefined}>
       {#if topRow}
       <div
         class="top-row"
+        bind:clientWidth={topRowWidth}
         style:flex={shown.diff ? `0 0 ${fractions.topRow * 100}%` : "1 1 auto"}
       >
         {#if shown.graph}
@@ -2837,6 +2846,8 @@
           class="pane"
           class:grow={!shown.files}
           style:flex={shown.files ? `0 0 ${fractions.graph * 100}%` : undefined}
+          style:min-width={graphMin}
+          bind:this={graphPane}
           role="region"
         aria-label={PANEL_TITLES.graph}
         onpointerdown={() => (focused = "graph")}
@@ -2880,7 +2891,8 @@
           direction="vertical"
           value={fractions.graph}
           label="Resize graph panel"
-          onchange={(d) => layout.nudge("graph", d)}
+          onchange={(d) =>
+            layout.set("graph", floorFraction(fractions.graph + d, topRowWidth, graphMinPx()))}
           onreset={() => layout.resetOne("graph")}
         />
         {/if}
