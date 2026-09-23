@@ -1,10 +1,8 @@
 export interface ConfirmRequest {
   title: string;
   message: string;
-  /** Shown under the message, one per line: the files a Discard or a Delete touches. */
   items?: readonly string[];
   confirm: string;
-  /** Destructive: the confirm button is drawn as a warning. */
   danger?: boolean;
 }
 

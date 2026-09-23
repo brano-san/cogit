@@ -2,15 +2,12 @@ import type { IndexFlag } from "./ipc/file-menus";
 
 /** What a file menu command acts on (#40, #41). */
 export interface FileScope {
-  /** The right-clicked row. */
   path: string;
   /** Every file the command acts on: the ticked set when the clicked row is in it. */
   paths: string[];
-  /** One per path. */
   statuses: string[];
   /** The commit of a history file; `null` on the Working Tree. */
   rev: string | null;
-  /** Where the clicked file was renamed from in that commit. */
   oldPath: string | null;
 }
 
@@ -82,7 +79,6 @@ export function copiedText(
     .join("\n");
 }
 
-/** Returns false for an id that is not a file menu command. */
 export function runFileMenuCommand(
   id: string,
   scope: FileScope,

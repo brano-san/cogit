@@ -116,7 +116,6 @@ impl RepoHandle {
         ))))
     }
 
-    /// `args` with `input` on stdin; the journal records it like any other run.
     pub(crate) fn run_git_fed(&self, args: &[&str], input: &[u8]) -> Result<GitOutput> {
         self.spawn_fed(args, false, &[], Some(input))
     }

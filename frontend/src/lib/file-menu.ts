@@ -8,7 +8,6 @@ export interface WorktreeFileTarget {
   section: FileSection;
   /** One status per file the menu acts on; the right-clicked one first. */
   statuses: readonly string[];
-  /** Some of those files have staged changes. */
   staged: boolean;
   /** Some of those files have unstaged changes, untracked ones included. */
   unstaged: boolean;
@@ -77,10 +76,8 @@ export function worktreeFileMenu(at: WorktreeFileTarget): ContextItem[] {
 }
 
 export interface CommitFileTarget {
-  /** How the commit changed the file: a deleted one has no version in it. */
   status: string;
   count: number;
-  /** The file still exists in the working tree. */
   onDisk: boolean;
   fileManager: string;
 }

@@ -1,6 +1,5 @@
-//! What the desktop does with a folder or a file: open it, reveal it in its parent, open a
-//! shell in it, move it to the bin. Each answer is data for a named platform, so the macOS
-//! and Linux ones are tested on Windows too; only `spawn` touches the system.
+//! Open, reveal, shells and the bin. Each answer is data for a named platform, so every
+//! platform's is tested on any machine; only `spawn` and `run` touch the system.
 
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -9,7 +8,6 @@ use std::path::{Path, PathBuf};
 pub enum Platform {
     Windows,
     MacOs,
-    /// Every other Unix desktop: the freedesktop tools are what it has in common.
     Linux,
 }
 
@@ -25,7 +23,6 @@ impl Platform {
         }
     }
 
-    /// What the menus call it: "Reveal in Explorer", "Reveal in Finder".
     #[must_use]
     pub fn file_manager(self) -> &'static str {
         match self {
@@ -36,7 +33,6 @@ impl Platform {
     }
 }
 
-/// A program to start and forget.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Launch {
     pub program: String,
@@ -44,7 +40,7 @@ pub struct Launch {
     /// Passed exactly as written. Explorer parses its own command line, and the usual
     /// quoting of `/select,C:\a b` into `"/select,C:\a b"` makes it open Documents.
     pub verbatim: bool,
-    /// Started without a console window of its own: `cmd /C start` only relays.
+    /// No console window of its own: `cmd /C start` only relays.
     pub hidden: bool,
 }
 
@@ -59,16 +55,13 @@ impl Launch {
     }
 }
 
-/// The platform's shell actions, for the menus that offer them.
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct DesktopInfo {
     pub file_manager: String,
     /// PowerShell and Git Bash are Windows programs; elsewhere their items are left out.
     pub windows_shells: bool,
-    /// Git Bash from Git for Windows, when one was found.
     pub git_shell: Option<String>,
-    /// What "Copy Path" joins with.
     pub separator: String,
 }
 
@@ -107,7 +100,6 @@ pub fn native_path(platform: Platform, path: &str) -> String {
     native
 }
 
-/// A folder opens itself; a file opens in the application the desktop pairs it with.
 #[must_use]
 pub fn open_command(platform: Platform, path: &str) -> Launch {
     let native = native_path(platform, path);
@@ -123,7 +115,6 @@ pub fn open_command(platform: Platform, path: &str) -> Launch {
     }
 }
 
-/// The parent folder, with the item selected in it.
 #[must_use]
 pub fn reveal_command(platform: Platform, path: &str) -> Launch {
     let native = native_path(platform, path);
@@ -164,8 +155,7 @@ pub fn file_uri(path: &str) -> String {
     uri
 }
 
-/// Windows only. Started through `start`, which gives it a console of its own and working
-/// standard handles; a GUI process has none to pass on.
+/// Through `start`: a GUI process has no console or standard handles to pass on.
 #[must_use]
 pub fn power_shell_command(platform: Platform) -> Option<Launch> {
     (platform == Platform::Windows).then(|| Launch {
@@ -184,8 +174,7 @@ pub fn git_shell_command(bash: &Path, platform: Platform, dir: &str) -> Launch {
     }
 }
 
-/// Where `git-bash.exe` may be, best guess first: the installer's own record, then the
-/// installation the `git` on PATH belongs to, then the default program folders.
+/// Best guess first: the installer's record, the `git` on PATH, the program folders.
 #[must_use]
 pub fn git_bash_candidates(
     installs: &[PathBuf],
@@ -250,9 +239,8 @@ fn installer_records() -> Vec<PathBuf> {
     Vec::new()
 }
 
-/// The paths for `SHFileOperationW`: absolute, `\`-separated, each ended by a NUL and the
-/// list by another. A path that is not there is refused here, with its name, rather than
-/// left to a shell error code.
+/// For `SHFileOperationW`: absolute, NUL after each, NUL at the end. A missing path is
+/// refused here by name rather than left to a shell error code.
 pub fn trash_list(paths: &[PathBuf]) -> std::io::Result<Vec<u16>> {
     let mut list = Vec::new();
     for path in paths {
@@ -271,7 +259,6 @@ pub fn trash_list(paths: &[PathBuf]) -> std::io::Result<Vec<u16>> {
     Ok(list)
 }
 
-/// The bin off Windows, where it is a command rather than a shell call.
 #[must_use]
 pub fn trash_command(platform: Platform, paths: &[PathBuf]) -> Option<Launch> {
     let names: Vec<String> = paths
@@ -305,7 +292,6 @@ pub fn spawn(launch: &Launch, cwd: Option<&Path>) -> std::io::Result<()> {
     command_for(launch, cwd).spawn().map(drop)
 }
 
-/// For the few launches whose answer matters, such as moving files to the bin.
 pub fn run(launch: &Launch) -> std::io::Result<()> {
     let output = command_for(launch, None)
         .stderr(std::process::Stdio::piped())

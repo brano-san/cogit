@@ -445,8 +445,7 @@ pub struct ContextItem {
     pub children: Vec<ContextItem>,
 }
 
-/// The `tidy` rule for a popup, applied at every depth. A submenu whose children were all
-/// separators stays as a disabled row: a heading with nothing under it offers nothing.
+/// `tidy` at every depth; a submenu left empty stays as a disabled row.
 #[must_use]
 pub fn tidy_items(items: &[ContextItem]) -> Vec<ContextItem> {
     let mut kept: Vec<ContextItem> = Vec::with_capacity(items.len());
@@ -687,7 +686,6 @@ mod context_tests {
             .collect()
     }
 
-    /// Every menu written before submenus existed sends rows without `children`.
     #[test]
     fn a_row_without_children_is_still_a_plain_item() {
         let items = parse(r#"[{"id":"a","label":"A","enabled":true}]"#);
