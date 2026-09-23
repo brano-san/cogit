@@ -155,3 +155,10 @@ export function shownSections<S extends { files: readonly unknown[]; hideWhenEmp
 ): S[] {
   return sections.filter((section) => section.files.length > 0 || !section.hideWhenEmpty);
 }
+
+/** Headings belong to a list of several sections, even while one of them is hidden: they
+    carry Stage all and Unstage all. Separate panes stay separate with one of them hidden. */
+export function paneLayout(sections: number, visible: number, separate: boolean) {
+  const titled = sections > 1;
+  return { apart: separate && titled && visible > 0, titled };
+}

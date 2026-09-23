@@ -5,6 +5,7 @@
   import {
     DEFAULT_VIEW,
     groupByDirectory,
+    paneLayout,
     shownSections,
     visibleFiles,
     type FileView,
@@ -110,8 +111,8 @@
     }),
   );
 
-  /** One pane per section only when there is a second one to put beside it. */
-  const apart = $derived(active.separateIndex && groups.length > 1);
+  const layout = $derived(paneLayout(sections.length, groups.length, active.separateIndex));
+  const apart = $derived(layout.apart);
   const total = $derived(sections.reduce((n, section) => n + section.files.length, 0));
   const shownCount = $derived(groups.reduce((n, group) => n + group.files.length, 0));
   const order = $derived(groups.flatMap((group) => group.paths));
@@ -172,7 +173,7 @@
             onreset={() => onsplitreset?.()}
           />
         {/if}
-        <div class="slot" style:flex={index === 0 ? `0 0 ${split * 100}%` : "1 1 auto"}>
+        <div class="slot" style:flex={index === 0 && groups.length > 1 ? `0 0 ${split * 100}%` : "1 1 auto"}>
           <FilePane
             rows={group.rows}
             title={group.section.title}
@@ -196,7 +197,7 @@
           <div class="slot grow">
             <FilePane
               rows={group.rows}
-              title={groups.length > 1 ? group.section.title : undefined}
+              title={layout.titled ? group.section.title : undefined}
               paths={group.paths}
               actions={scoped(group.section.actions ?? [])}
               showDirectory={!active.directories}
