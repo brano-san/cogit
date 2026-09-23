@@ -20,6 +20,11 @@ node scripts/bench/compare.mjs target/bench/results/baseline.json target/bench/r
 записываются), `--cold 10` (холодных запусков), `--no-cold`, `--no-warm`, `--no-app`,
 `--trace` (печатать каждый шаг).
 
+**Не мешая человеку за машиной:** `--hidden` запускает приложение на отдельном рабочем
+столе Win32 (`scripts/bench/hidden-desktop.ps1`) — его окна не попадают на экран и не берут
+фокус; `--cores 16-31` держит прогон и всё, что он запускает, на этих ядрах. Проверка, что
+окно не утекло на экран пользователя: `scripts/bench/windows-of.ps1 -ProcessId <pid> -Guard`.
+
 ## 2. Как это устроено
 
 **Сборка.** `src-tauri/tauri.bench.conf.json` — оверлей конфига Tauri: тот же `release`, то же

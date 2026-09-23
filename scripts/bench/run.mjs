@@ -11,7 +11,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { appendFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import { join, resolve } from "node:path";
-import { EXE, dropScript, launch, resetProfile, stop } from "./app.mjs";
+import { EXE, dropScript, launch, resetProfile, runHidden, stop } from "./app.mjs";
 import { KEYS, sleep } from "./cdp.mjs";
 import { SCENARIOS } from "./scenarios.mjs";
 import { BUDGETS } from "./budgets.mjs";
@@ -37,6 +37,17 @@ const SETS = args.has("sets") ? String(args.get("sets")).split(",") : ["small", 
 const REPOS = resolve("target/bench/repos");
 const OUT = resolve(String(args.get("out") ?? `target/bench/results/${LABEL}.json`));
 const LOG = OUT.replace(/\.json$/, ".log");
+
+if (args.has("hidden")) runHidden(true);
+
+// `--cores 16-31`: this process and everything it starts (git, the app, WebView2) stay on
+// those cores, off the ones the person at the machine is using.
+if (args.has("cores")) {
+  const [from, to] = String(args.get("cores")).split("-").map(Number);
+  let mask = 0n;
+  for (let core = from; core <= (to ?? from); core += 1) mask |= 1n << BigInt(core);
+  spawnSync("powershell", ["-NoProfile", "-Command", `(Get-Process -Id ${process.pid}).ProcessorAffinity = [IntPtr]${mask}`]);
+}
 
 const wanted = (id) => !ONLY || ONLY.some((o) => id === o || id.startsWith(`${o}.`) || o === id.split(".")[0]);
 
@@ -217,9 +228,11 @@ public static class BenchMenu {
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetClassName(IntPtr h, StringBuilder s, int n);
   [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr OpenDesktop(string name, int flags, bool inherit, uint access);
+  [DllImport("user32.dll")] public static extern bool EnumDesktopWindows(IntPtr desktop, Enum f, IntPtr l);
   public static int Close(uint owner) {
     int closed = 0;
-    EnumWindows((h, l) => {
+    Enum visit = (h, l) => {
       uint pid; GetWindowThreadProcessId(h, out pid);
       var name = new StringBuilder(64); GetClassName(h, name, 64);
       if (pid == owner && name.ToString() == "#32768") {
@@ -228,7 +241,11 @@ public static class BenchMenu {
         closed++;
       }
       return true;
-    }, IntPtr.Zero);
+    };
+    EnumWindows(visit, IntPtr.Zero);
+    // A run on the hidden desktop has its menu there, where EnumWindows does not look.
+    IntPtr hidden = OpenDesktop("cogit-bench", 0, false, 0x0041);
+    if (hidden != IntPtr.Zero) EnumDesktopWindows(hidden, visit, IntPtr.Zero);
     return closed;
   }
 }
@@ -439,6 +456,15 @@ async function appPass() {
       return null;
     })()`);
     if (keep && paint) record("app.first-paint", "empty", "cold", { total: paint - app.spawnedAt }, meta("запуск до первой отрисовки"));
+    // Where the launch goes: the process and WebView2 before the page, then the page itself.
+    const phases = await app.cdp.eval(`(() => {
+      const n = performance.getEntriesByType("navigation")[0];
+      return { origin: performance.timeOrigin, loaded: n ? n.domContentLoadedEventEnd : null };
+    })()`);
+    if (keep) {
+      record("app.navigation-start", "empty", "cold", { total: phases.origin - app.spawnedAt }, meta("запуск: процесс и WebView2 до начала страницы"));
+      if (phases.loaded) record("app.dom-loaded", "empty", "cold", { total: phases.origin + phases.loaded - app.spawnedAt }, meta("запуск: до DOMContentLoaded"));
+    }
     await app.cdp.eval(`window.__bench.idle(300, 20000)`);
     // The app writes its own session on the way out, so the repository goes in the way a
     // user puts it there: opened, then remembered.
