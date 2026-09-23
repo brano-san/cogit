@@ -123,7 +123,7 @@
     type RepoId,
     type Tag,
   } from "$lib/ipc";
-  import { blame } from "$stores/blame.svelte";
+  import { openBlame } from "$lib/blame-window";
   import { commit } from "$stores/commit.svelte";
   import { conflicts } from "$stores/conflicts.svelte";
   import { worktree } from "$stores/worktree.svelte";
@@ -361,7 +361,6 @@
   $effect(() => {
     void commit.oid;
     diff.clear();
-    blame.clear();
   });
 
   /** The id, not the object: a status refresh replaces `repository.current`, and reading
@@ -379,7 +378,6 @@
   $effect(() => errors.report(commit.error, "Could not load the commit"));
   $effect(() => errors.report(diff.error, "Could not show the diff"));
   $effect(() => errors.report(graph.error, "Could not load the graph"));
-  $effect(() => errors.report(blame.error, "Could not load blame"));
   $effect(() => errors.report(hooks.error, "Could not read the hooks"));
 
   /** One place after every mutation: the reactive version fired on each loading toggle. */
@@ -1149,7 +1147,9 @@
     const id = repository.current?.repo;
     const path = diff.path;
     if (!id || !path) return;
-    await blame.show(id, path, commit.oid ?? "HEAD");
+    await openBlame(id, path, commit.oid ?? "HEAD").catch((err) =>
+      errors.report(err, "Could not open blame"),
+    );
   }
 
   async function stageLines(selected: ReadonlySet<string>, reverse: boolean) {
@@ -1548,7 +1548,6 @@
   function forgetPanelsKeepingTheTree(keepWorktrees = false) {
     commit.clear();
     diff.clear();
-    blame.clear();
     worktree.clear();
     stashes.clear();
     network.clear();
@@ -1910,11 +1909,13 @@
     }
   }
 
-  /** Blame of a row that is not the one open in the Diff panel. */
+  /** Blame of any row in Files, in the Blame window like every other entry point. */
   async function blameOne(path: string) {
     const id = repository.current?.repo;
     if (!id) return;
-    await blame.show(id, path, commit.oid ?? "HEAD");
+    await openBlame(id, path, commit.oid ?? "HEAD").catch((err) =>
+      errors.report(err, "Could not open blame"),
+    );
   }
 
   async function revealFile(path: string) {
@@ -2514,7 +2515,6 @@
     if (!id) return;
     commit.clear();
     diff.clear();
-    blame.clear();
     health.clear();
     await repository.closeOne(id);
   }
@@ -2650,7 +2650,6 @@
         avatarRows: avatars.rows.size,
         overlapRows: overlap.rows.size,
         diffHunks: diff.hunks.length,
-        blameLines: blame.lines.length,
         commitFiles: commit.files.length,
         outputEntries: output.entries.length,
         openRepos: repository.openRepos.length,
@@ -3050,10 +3049,6 @@
             onresolveText={(text) => {
               const id = repository.current?.repo;
               if (id) void conflicts.write(id, text).then(() => afterMutation());
-            }}
-            onselectcommit={(oid) => {
-              const id = repository.current?.repo;
-              if (id) void commit.select(id, oid);
             }}
           >
             {#snippet fallback()}

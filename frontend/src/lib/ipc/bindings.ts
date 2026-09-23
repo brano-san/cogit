@@ -35,8 +35,8 @@ export const commands = {
 	/**  Searches in the background where a block came from; `cancel_operation` stops it. */
 	originCandidates: (repo: RepoId, query: OriginQuery, onEvent: Channel<OriginEvent>) => typedError<null, GitError>(__TAURI_INVOKE("origin_candidates", { repo, query, onEvent })),
 	/**
-	 *  `async`, unlike the older window commands: WebView2 can deadlock when a window is
-	 *  built on the thread that delivered a synchronous command (R-283).
+	 *  The Investigate window with its own menu. Building a window blocks, so it happens on
+	 *  the blocking pool, never on the thread that delivers IPC (R-201, R-283).
 	 */
 	openInvestigateWindow: (url: string, title: string) => typedError<null, GitError>(__TAURI_INVOKE("open_investigate_window", { url, title })),
 	commitDetails: (repo: RepoId, rev: string) => typedError<CommitDetails, GitError>(__TAURI_INVOKE("commit_details", { repo, rev })),
@@ -75,9 +75,8 @@ export const commands = {
 	startedAtMs: number,
 } | null>("command_outcome", { id }),
 	/**
-	 *  Closes whichever window asked. Not `async`: window operations belong to the main
-	 *  thread, and doing it here rather than through `getCurrentWindow()` keeps the call out
-	 *  of the webview (doc/12-risks.md, R-86).
+	 *  Closes whichever window asked. In Rust rather than through `getCurrentWindow()`, which
+	 *  keeps the call out of the webview (R-86); off the main thread for the reason in R-201.
 	 */
 	closeThisWindow: () => typedError<null, GitError>(__TAURI_INVOKE("close_this_window")),
 	commandProblems: () => __TAURI_INVOKE<number>("command_problems"),
@@ -109,6 +108,15 @@ export const commands = {
 	updateSubmodule: (repo: RepoId, path: string, init: boolean) => typedError<null, GitError>(__TAURI_INVOKE("update_submodule", { repo, path, init })),
 	stageSelection: (repo: RepoId, request: PatchRequest, reverse: boolean) => typedError<null, GitError>(__TAURI_INVOKE("stage_selection", { repo, request, reverse })),
 	blame: (repo: RepoId, path: string, rev: string) => typedError<BlameLine[], GitError>(__TAURI_INVOKE("blame", { repo, path, rev })),
+	/**
+	 *  The Blame window for `path` at `rev`, titled with the commit `rev` resolves to. The one
+	 *  way blame opens, from every menu and button (#10).
+	 */
+	openBlameWindow: (repo: RepoId, path: string, rev: string) => typedError<null, GitError>(__TAURI_INVOKE("open_blame_window", { repo, path, rev })),
+	/**  The commits that made line `line` of `path` at `rev` what it is, newest first. */
+	lineHistory: (repo: RepoId, path: string, rev: string, line: number) => typedError<LineVersion[], GitError>(__TAURI_INVOKE("line_history", { repo, path, rev, line })),
+	/**  The versions of `path` up to `rev`: the commits that changed it, newest first. */
+	fileRevisions: (repo: RepoId, path: string, rev: string) => typedError<CommitRow[], GitError>(__TAURI_INVOKE("file_revisions", { repo, path, rev })),
 	remoteUrl: (repo: RepoId, name: string) => typedError<string | null, GitError>(__TAURI_INVOKE("remote_url", { repo, name })),
 	refDates: (repo: RepoId) => typedError<RefDate[], GitError>(__TAURI_INVOKE("ref_dates", { repo })),
 	addToGitignore: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("add_to_gitignore", { repo, paths })),
@@ -296,8 +304,9 @@ export const commands = {
 	/**  Not `async`: menu APIs must run on the main thread on Windows. */
 	popupContextMenu: (items: ContextItem[], x: number | null, y: number | null) => typedError<null, GitError>(__TAURI_INVOKE("popup_context_menu", { items, x, y })),
 	/**
-	 *  Not `async`: creating a window has to happen on the main thread. The parameters ride in
-	 *  the URL so the window rebuilds itself after a webview reload (T2.5).
+	 *  Off the main thread: building a window inside the WebView2 callback of a synchronous
+	 *  command deadlocks every window (R-201). The parameters ride in the URL so the window
+	 *  rebuilds itself after a webview reload (T2.5).
 	 */
 	openCompareWindow: (url: string, title: string) => typedError<null, GitError>(__TAURI_INVOKE("open_compare_window", { url, title })),
 	commitTemplate: (repo: RepoId) => typedError<string | null, GitError>(__TAURI_INVOKE("commit_template", { repo })),
@@ -856,6 +865,20 @@ export type LineChange =
 export type LineEnding = "lf" | "crlf" | "cr" | "mixed" | "none";
 
 export type LineMatch = "same" | "changed" | "missing";
+
+/**  One version of a line: the commit that left it looking like this. */
+export type LineVersion = {
+	oid: string,
+	summary: string,
+	author: string,
+	email: string,
+	timestamp: number,
+	/**  The path the file had at this commit. */
+	path: string,
+	/**  Where the line stood in that version, from 1. */
+	line: number,
+	text: string,
+};
 
 /**
  *  A native menu item was chosen. The payload is the palette command id, so the frontend

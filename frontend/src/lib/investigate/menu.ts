@@ -1,132 +1,44 @@
-import { PERSPECTIVES, type Perspective } from "./perspectives";
+import type { Perspective } from "./perspectives";
 
-export type InvestigateCommand =
-  | "close"
-  | "copyCommitId"
-  | "copyPath"
-  | "copyLine"
-  | "followRenames"
-  | "ignoreWhitespace"
-  | "refresh"
-  | "back"
-  | "forward"
-  | "goDeeper"
-  | "closeCard"
-  | "previousChange"
-  | "nextChange"
-  | "newerVersion"
-  | "olderVersion"
-  | `perspective:${Perspective}`
-  | "help";
+/** The actions of the window's native menu, `MENU` in `src-tauri/src/commands/investigate.rs`.
+    Close is answered in Rust and never reaches the page. */
+export const ACTIONS = [
+  "copy-line",
+  "copy-commit-id",
+  "copy-path",
+  "follow-renames",
+  "ignore-whitespace",
+  "refresh",
+  "back",
+  "forward",
+  "go-deeper",
+  "close-card",
+  "previous-change",
+  "next-change",
+  "newer-version",
+  "older-version",
+  "perspective-log",
+  "perspective-diff",
+  "perspective-blame",
+  "perspective-blame-origins",
+  "perspective-origins",
+  "help",
+] as const;
 
-export interface MenuEntry {
-  id: InvestigateCommand;
-  label: string;
-  shortcut?: string;
-  /** A toggle draws a check mark, a radio item a dot. */
-  mark?: "check" | "radio";
+export type InvestigateCommand = (typeof ACTIONS)[number];
+
+export function commandOf(action: string): InvestigateCommand | null {
+  return (ACTIONS as readonly string[]).includes(action) ? (action as InvestigateCommand) : null;
 }
 
-export type MenuLine = MenuEntry | "separator";
-
-export interface Menu {
-  label: string;
-  items: readonly MenuLine[];
-}
-
-/** The window's own menu (R-283): it never carries the main window's. */
-export const MENUS: readonly Menu[] = [
-  { label: "File", items: [{ id: "close", label: "Close Window", shortcut: "Ctrl+W" }] },
-  {
-    label: "Edit",
-    items: [
-      { id: "copyLine", label: "Copy Line" },
-      { id: "copyCommitId", label: "Copy Commit ID", shortcut: "Ctrl+Shift+C" },
-      { id: "copyPath", label: "Copy File Path" },
-    ],
-  },
-  {
-    label: "View",
-    items: [
-      { id: "followRenames", label: "Follow Renames", mark: "check" },
-      { id: "ignoreWhitespace", label: "Ignore Whitespace Changes", mark: "check" },
-      "separator",
-      { id: "refresh", label: "Refresh", shortcut: "F5" },
-    ],
-  },
-  {
-    label: "Go To",
-    items: [
-      { id: "back", label: "Back", shortcut: "Alt+Left" },
-      { id: "forward", label: "Forward", shortcut: "Alt+Right" },
-      "separator",
-      { id: "goDeeper", label: "Go Deeper", shortcut: "Ctrl+D" },
-      { id: "closeCard", label: "Hide Origin Card" },
-      "separator",
-      { id: "previousChange", label: "Previous Change", shortcut: "Shift+F6" },
-      { id: "nextChange", label: "Next Change", shortcut: "F6" },
-      "separator",
-      { id: "newerVersion", label: "Newer Version", shortcut: "Alt+Up" },
-      { id: "olderVersion", label: "Older Version", shortcut: "Alt+Down" },
-    ],
-  },
-  {
-    label: "Window",
-    items: PERSPECTIVES.map((p) => ({
-      id: `perspective:${p.id}` as const,
-      label: p.label,
-      shortcut: p.shortcut,
-      mark: "radio" as const,
-    })),
-  },
-  { label: "Help", items: [{ id: "help", label: "How Investigate Works", shortcut: "F1" }] },
-];
-
-const KEY_NAMES: Record<string, string> = {
-  left: "arrowleft",
-  right: "arrowright",
-  up: "arrowup",
-  down: "arrowdown",
+const PERSPECTIVE_OF: Partial<Record<InvestigateCommand, Perspective>> = {
+  "perspective-log": "log",
+  "perspective-diff": "diff",
+  "perspective-blame": "blame",
+  "perspective-blame-origins": "blameOrigins",
+  "perspective-origins": "origins",
 };
 
-interface Keyish {
-  key: string;
-  ctrlKey: boolean;
-  metaKey: boolean;
-  shiftKey: boolean;
-  altKey: boolean;
-}
-
-export function matchesShortcut(event: Keyish, shortcut: string): boolean {
-  const parts = shortcut.toLowerCase().split("+");
-  const key = parts.pop() ?? "";
-  const wanted = KEY_NAMES[key] ?? key;
-  return (
-    event.key.toLowerCase() === wanted &&
-    (event.ctrlKey || event.metaKey) === parts.includes("ctrl") &&
-    event.shiftKey === parts.includes("shift") &&
-    event.altKey === parts.includes("alt")
-  );
-}
-
-export function commandForKey(event: Keyish): InvestigateCommand | null {
-  for (const menu of MENUS) {
-    for (const line of menu.items) {
-      if (line !== "separator" && line.shortcut && matchesShortcut(event, line.shortcut)) {
-        return line.id;
-      }
-    }
-  }
-  return null;
-}
-
-/** Separators only between items: never first, last or doubled. */
-export function visibleLines(items: readonly MenuLine[]): MenuLine[] {
-  const out: MenuLine[] = [];
-  for (const line of items) {
-    if (line === "separator" && (out.length === 0 || out[out.length - 1] === "separator")) continue;
-    out.push(line);
-  }
-  if (out[out.length - 1] === "separator") out.pop();
-  return out;
+export function perspectiveOf(command: InvestigateCommand): Perspective | null {
+  return PERSPECTIVE_OF[command] ?? null;
 }
