@@ -3,6 +3,7 @@
   import FilesToolbar from "./FilesToolbar.svelte";
   import { contentQuery, keepFile, type ContentSearch } from "$lib/content-search.svelte";
   import { compile } from "$lib/file-search";
+  import type { ListContext } from "$lib/file-switches";
   import { sortFiles } from "$lib/files";
   import {
     DEFAULT_VIEW,
@@ -58,6 +59,7 @@
     onmarked?: (paths: string[]) => void;
     /** Only the working tree is on disk to be searched inside. */
     contents?: ContentSearch;
+    context?: ListContext;
   }
 
   let {
@@ -77,6 +79,7 @@
     disabled = false,
     activePanel = false,
     contents,
+    context = "worktree",
   }: Props = $props();
 
   const NO_HITS: ReadonlyMap<string, number> = new Map();
@@ -189,6 +192,7 @@
     broken={pattern.broken}
     {disabled}
     contentsReady={contents !== undefined}
+    {context}
   />
 
   {#if query !== null && contents}
