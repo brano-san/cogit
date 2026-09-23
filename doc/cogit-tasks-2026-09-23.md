@@ -106,6 +106,8 @@
   - [ ] Настраивает **тулбар с кнопками** (`Pull`, `Push`, `Sync`, `Stage`…), а не строку меню.
   - [ ] Добавление, удаление, перестановка кнопок, сброс к умолчанию; сохраняется между запусками.
 
+> Итог: причина — настройки тулбара не было вовсе: кнопки были зашиты в `Toolbar.svelte`, а в меню `Edit` были только системные пункты буфера обмена. Сделано: тулбар рисуется из раскладки (`lib/toolbar-layout.ts`: чистка сохранённого списка, добавление, удаление, перестановка), раскладка хранится в ключе `toolbar.layout` (`stores/toolbar.svelte.ts`); диалог `Configure Toolbar` (`components/layout/ToolbarConfigDialog.svelte`) — списки `Available` / `Toolbar`, `Add →`, `← Remove`, `Move Up`, `Move Down`, `Reset to Default`, `OK` / `Cancel`, разделитель добавляется как пункт. Открывается командой `configure-toolbar` (палитра, пункт меню `Edit ▸ Configure Toolbar…`) и правым кликом по тулбару (R-213). Тесты: `lib/toolbar-layout.test.ts` (10). Проверить в сборке: `Edit ▸ Configure Toolbar…` открывает диалог именно кнопок тулбара; убрать кнопку, переставить, добавить разделитель, `OK` — тулбар изменился, после перезапуска тот же; `Reset to Default` возвращает исходный набор; правый клик по тулбару показывает `Configure Toolbar…`.
+
 - [ ] **#45 Меню Remote: новые пункты**
   - [ ] `Synchronize`
   - [ ] `Submodule ▸`: `Initialize`, `Synchronize`, `Reset`, —, `Add`, —, `Deactivate`, `Deinit`, `Unregister`

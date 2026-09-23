@@ -274,6 +274,7 @@
 | F-312 | Порядок Sync: Pull, then Push или Push, then Pull | [F-312-sync-order.md](F-312-sync-order.md) |
 | F-313 | Stash: диалог с тремя режимами и быстрые варианты | [F-313-stash-dialog-modes.md](F-313-stash-dialog-modes.md) |
 | F-314 | Кнопка Apply Stash | [F-314-apply-stash-button.md](F-314-apply-stash-button.md) |
+| F-315 | Настройка тулбара | [F-315-configure-toolbar.md](F-315-configure-toolbar.md) |
 | F-330 | Одна метка у ветки и её upstream | [F-330-joined-upstream-label.md](F-330-joined-upstream-label.md) |
 | F-331 | Stash в графе: метка и квадратный узел | [F-331-stash-in-graph.md](F-331-stash-in-graph.md) |
 | F-332 | Чередование строк графа | [F-332-graph-row-stripes.md](F-332-graph-row-stripes.md) |
