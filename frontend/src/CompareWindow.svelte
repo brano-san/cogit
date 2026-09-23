@@ -2,16 +2,15 @@
   import DiffView from "$components/diff/DiffView.svelte";
   import ImageDiff from "$components/diff/ImageDiff.svelte";
   import TooltipLayer from "$components/common/TooltipLayer.svelte";
-  import { suppressNativeMenu } from "$lib/native-menu";
-  import { onWindowKey } from "$lib/child-window";
+  import { installChildWindow } from "$lib/child-window";
   import { parseCompare } from "$lib/compare-params";
   import { diff } from "$stores/diff.svelte";
   import { settings } from "$stores/settings.svelte";
 
   const request = parseCompare(window.location.search);
 
-  // Nothing in a Git client is a web page (R-127).
-  $effect(() => suppressNativeMenu(document));
+  // No browser menu (R-127), and Esc / Ctrl+W close the window.
+  $effect(() => installChildWindow(window));
 
   $effect(() => {
     void settings.load();
@@ -24,8 +23,6 @@
     document.title = `${title} — Cogit`;
   });
 </script>
-
-<svelte:window onkeydown={onWindowKey} />
 
 <TooltipLayer />
 

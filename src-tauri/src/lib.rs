@@ -1,4 +1,5 @@
 mod accelerators;
+mod blame_window;
 mod child_window;
 mod commands;
 mod diagnostics;
@@ -158,6 +159,9 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::update_submodule,
             commands::stage_selection,
             commands::blame,
+            commands::open_blame_window,
+            commands::line_history,
+            commands::file_revisions,
             commands::remote_url,
             commands::ref_dates,
             commands::add_to_gitignore,
@@ -286,11 +290,18 @@ pub fn run() -> anyhow::Result<()> {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
-        .plugin(tauri_plugin_window_state::Builder::new().build())
+        .plugin(
+            tauri_plugin_window_state::Builder::new()
+                .with_filter(child_window::is_main)
+                .build(),
+        )
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .on_window_event(|window, event| {
-            if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
+            // A child window closing is not the app closing (R-201).
+            if matches!(event, tauri::WindowEvent::CloseRequested { .. })
+                && child_window::is_main(window.label())
+            {
                 shutdown::watch(window.app_handle());
             }
         })
@@ -368,6 +379,9 @@ pub fn run() -> anyhow::Result<()> {
 /// What a menu id does, wherever it came from: the bar, the command palette, or a key
 /// the window took back from the webview (problem 3).
 pub fn dispatch_menu_command(app: &tauri::AppHandle, id: &str) {
+    if child_window::on_menu(app, id) {
+        return;
+    }
     if id == "copy-diagnostics" {
         copy_diagnostics(app);
         return;

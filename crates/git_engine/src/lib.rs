@@ -17,6 +17,7 @@ mod health;
 mod history;
 mod hooks;
 mod interactive;
+mod line_history;
 mod listing;
 mod merging;
 mod network;
@@ -63,6 +64,7 @@ pub use health::{HealthFinding, HealthIssue, case_sensitive};
 pub use history::CommitRow;
 pub use hooks::{Bypass, Hook, HookOverview, HookRun, HookSource, HookState, is_hook_name};
 pub use interactive::{TodoAction, TodoEntry, render_todo, render_todo_paused};
+pub use line_history::LineVersion;
 pub use listing::{
     BATCH, ContentMatch, MAX_SEARCH_BYTES, PREVIEW_CHARS, SearchRequest, SearchScope,
 };
