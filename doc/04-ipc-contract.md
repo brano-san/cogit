@@ -490,7 +490,7 @@ type SearchChunk =
 | `rebase_progress` | `repo` | `Option<RebaseProgress>` | M11 |
 | `overlap_window` | `repo, base, window: Vec<String>` | `Vec<OverlapRow>` | M13 |
 | `bypass_log` | `repo` | `Vec<Bypass>` | M10 |
-| `popup_context_menu` | `items: Vec<ContextItem { id, label, enabled, separator, accelerator }>, x, y` | `()` | M2 |
+| `popup_context_menu` | `items: Vec<ContextItem { id, label, enabled, separator, accelerator, children? }>, x, y`; непустой `children` делает строку подменю (`Move To ▸`), лишние разделители убираются на любой глубине | `()` | M2 |
 | `open_compare_window` | `url, title` | `()` | M2 |
 | `commit_template` | `repo` | `Option<String>` | M6 |
 | `stage_mode` | `repo, path, executable` | `()` | M6 |
@@ -550,6 +550,29 @@ Tauri сам переносит создание окна на главный п
 не открывает. `rename_stash` сохраняет порядок списка (R-252), `edit_author` — rebase с `exec
 git commit --amend --author`, как `reword`. `push_to` — один refspec: Push To, Push Up To
 и push ветки или тега, которые не HEAD.
+
+### Контекстные меню репозитория и файлов (#36, #40, #41)
+
+| Команда | Вход | Выход | Модуль |
+|---|---|---|---|
+| `desktop_info` | — | `DesktopInfo { fileManager, windowsShells, gitShell: string \| null, separator }` — что умеет эта платформа | M3 |
+| `open_path` | `path` (абсолютный, `/`) | `()` — папка открывается сама, файл — связанной программой | M3 |
+| `reveal_path` | `path` | `()` — родительская папка с выделенным элементом | M3 |
+| `open_power_shell` / `open_git_shell` | `path` | `()`; только Windows, Git Bash ищется сам (R-261) | M3 |
+| `move_to_trash` | `repo, paths` | `()` — в Корзину, не безвозвратно | M6 |
+| `remove_from_repository` | `repo, paths, deleteLocal` | `()` — `git rm --cached` / `git rm` | M6 |
+| `move_path` | `repo, from, to` | `()` — `git mv` для отслеживаемого, перенос на диске для остального; занятое имя — `InvalidState` | M6 |
+| `set_index_flag` | `repo, paths, flag: "assumeUnchanged" \| "skipWorktree", on` | `()` | M6 |
+| `index_editor_sides` | `repo, path` | `IndexEditorSides { head, index, worktree, binary }` | M6 |
+| `write_index_editor` | `repo, path, index: string \| null, worktree: string \| null` | `()`; `null` — сторону не трогать | M6 |
+| `save_blob` | `repo, rev, path, target` | `()` | M8 |
+| `open_read_only` | `repo, rev, path` | `string` — путь read-only копии во временной папке | M8 |
+| `apply_commit_file` | `repo, rev, path, oldPath, reverse` | `()` — `git apply --3way` изменений одного файла из коммита | M8 |
+| `present_on_disk` | `repo, paths` | `string[]` — какие из путей есть в рабочей копии | M8 |
+
+Все пути, кроме `target` и аргумента `open_path` / `reveal_path`, — относительные от корня.
+`DiffSpec` получил вариант `commitVsWorkTree { oid }` — версия из коммита против файла на
+диске (Compare with Working Tree).
 
 ## 5. Стриминг истории
 

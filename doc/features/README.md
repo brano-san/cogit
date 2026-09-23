@@ -293,6 +293,13 @@
 | F-354 | Меню метки ветки или тега в графе | [F-354-graph-ref-menu.md](F-354-graph-ref-menu.md) |
 | F-355 | Меню ветки, тега и stash-а в Branches | [F-355-branches-menus.md](F-355-branches-menus.md) |
 | F-356 | Rename Stash на месте | [F-356-rename-stash.md](F-356-rename-stash.md) |
+| F-360 | Контекстное меню репозитория | [F-360-repository-context-menu.md](F-360-repository-context-menu.md) |
+| F-361 | Закрытый репозиторий остаётся в списке | [F-361-closed-repositories-stay-listed.md](F-361-closed-repositories-stay-listed.md) |
+| F-362 | Контекстное меню файла рабочего дерева | [F-362-file-context-menu.md](F-362-file-context-menu.md) |
+| F-363 | Диалог Remove | [F-363-remove-files-dialog.md](F-363-remove-files-dialog.md) |
+| F-364 | Index Editor | [F-364-index-editor.md](F-364-index-editor.md) |
+| F-365 | Контекстное меню файла в коммите из истории | [F-365-commit-file-context-menu.md](F-365-commit-file-context-menu.md) |
+| F-366 | Delete — в Корзину | [F-366-delete-to-recycle-bin.md](F-366-delete-to-recycle-bin.md) |
 | F-370 | Поиск по содержимому файлов | [F-370-file-content-search.md](F-370-file-content-search.md) |
 | F-371 | Переключатели Files в коммите из истории | [F-371-commit-file-switches.md](F-371-commit-file-switches.md) |
 | F-372 | Повторный клик по коммиту возвращает его описание | [F-372-reclick-commit-shows-details.md](F-372-reclick-commit-shows-details.md) |

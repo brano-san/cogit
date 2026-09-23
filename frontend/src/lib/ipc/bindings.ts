@@ -218,6 +218,27 @@ export const commands = {
 	 *  client must not close the user's shell.
 	 */
 	openInTerminal: (path: string, terminal: string) => typedError<null, GitError>(__TAURI_INVOKE("open_in_terminal", { path, terminal })),
+	/**  Looks for Git Bash on disk and in the registry, so it stays off the main thread. */
+	desktopInfo: () => typedError<DesktopInfo, GitError>(__TAURI_INVOKE("desktop_info")),
+	openPath: (path: string) => typedError<null, GitError>(__TAURI_INVOKE("open_path", { path })),
+	revealPath: (path: string) => typedError<null, GitError>(__TAURI_INVOKE("reveal_path", { path })),
+	openPowerShell: (path: string) => typedError<null, GitError>(__TAURI_INVOKE("open_power_shell", { path })),
+	openGitShell: (path: string) => typedError<null, GitError>(__TAURI_INVOKE("open_git_shell", { path })),
+	moveToTrash: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("move_to_trash", { repo, paths })),
+	/**  `git rm --cached` or, with `delete_local`, `git rm`. */
+	removeFromRepository: (repo: RepoId, paths: string[], deleteLocal: boolean) => typedError<null, GitError>(__TAURI_INVOKE("remove_from_repository", { repo, paths, deleteLocal })),
+	movePath: (repo: RepoId, from: string, to: string) => typedError<null, GitError>(__TAURI_INVOKE("move_path", { repo, from, to })),
+	setIndexFlag: (repo: RepoId, paths: string[], flag: IndexFlag, on: boolean) => typedError<null, GitError>(__TAURI_INVOKE("set_index_flag", { repo, paths, flag, on })),
+	indexEditorSides: (repo: RepoId, path: string) => typedError<IndexEditorSides, GitError>(__TAURI_INVOKE("index_editor_sides", { repo, path })),
+	/**  A side sent as `null` was not edited and stays as it is. */
+	writeIndexEditor: (repo: RepoId, path: string, index: string | null, worktree: string | null) => typedError<null, GitError>(__TAURI_INVOKE("write_index_editor", { repo, path, index, worktree })),
+	/**  `target` is an absolute path the user picked in the save dialog. */
+	saveBlob: (repo: RepoId, rev: string, path: string, target: string) => typedError<null, GitError>(__TAURI_INVOKE("save_blob", { repo, rev, path, target })),
+	/**  A read-only copy of the version in `rev`, opened in the application paired with it. */
+	openReadOnly: (repo: RepoId, rev: string, path: string) => typedError<string, GitError>(__TAURI_INVOKE("open_read_only", { repo, rev, path })),
+	/**  One file's change from `rev`, applied forward (Cherry-Pick) or backward (Revert). */
+	applyCommitFile: (repo: RepoId, rev: string, path: string, oldPath: string | null, reverse: boolean) => typedError<null, GitError>(__TAURI_INVOKE("apply_commit_file", { repo, rev, path, oldPath, reverse })),
+	presentOnDisk: (repo: RepoId, paths: string[]) => typedError<string[], GitError>(__TAURI_INVOKE("present_on_disk", { repo, paths })),
 	/**  Not `async`: touching menu items off the main thread deadlocks on Windows. */
 	setMenuState: (disabled: string[], checked: string[]) => __TAURI_INVOKE<void>("set_menu_state", { disabled, checked }),
 	reportTiming: (label: string, ms: number, detail: string) => __TAURI_INVOKE<void>("report_timing", { label, ms, detail }),
@@ -575,6 +596,8 @@ export type ContextItem = {
 	 *  bound in the frontend, which is the only place that knows the focused panel.
 	 */
 	accelerator?: string | null,
+	/**  Non-empty makes the row a submenu (`Move To ▸`); its own id is then never chosen. */
+	children?: ContextItem[],
 };
 
 /**  Where Go Deeper continues: the source's version, file and the picked line in it. */
@@ -582,6 +605,14 @@ export type DeeperTarget = {
 	rev: string,
 	path: string,
 	line: number,
+};
+
+export type DesktopInfo = {
+	fileManager: string,
+	/**  PowerShell and Git Bash are Windows programs; elsewhere their items are left out. */
+	windowsShells: boolean,
+	gitShell: string | null,
+	separator: string,
 };
 
 /**
@@ -610,7 +641,9 @@ moveId?: number | null; moveScope?: MoveScope | null;
  */
 noNewline?: boolean } | { kind: "insert"; new: number; text: string; inline: ([number, number])[]; moved?: boolean; moveId?: number | null; moveScope?: MoveScope | null; noNewline?: boolean } | { kind: "collapsed"; count: number };
 
-export type DiffSpec = { kind: "commitVsParent"; oid: string } | { kind: "commitVsCommit"; a: string; b: string } | { kind: "workTreeVsIndex" } | { kind: "indexVsHead" };
+export type DiffSpec = { kind: "commitVsParent"; oid: string } | { kind: "commitVsCommit"; a: string; b: string } | { kind: "workTreeVsIndex" } | { kind: "indexVsHead" } | 
+/**  A past version against the file on disk now: Compare with Working Tree. */
+{ kind: "commitVsWorkTree"; oid: string };
 
 export type DisplayInfo = {
 	name: string | null,
@@ -854,6 +887,16 @@ export type Hunk = {
 	header: string,
 	rows: DiffRow[],
 };
+
+/**  `None` where the file is absent; every side `None` when any of them is not text. */
+export type IndexEditorSides = {
+	head: string | null,
+	index: string | null,
+	worktree: string | null,
+	binary: boolean,
+};
+
+export type IndexFlag = "assumeUnchanged" | "skipWorktree";
 
 /**  One edit to the fragment under investigation. */
 export type InvestigationStep = {
