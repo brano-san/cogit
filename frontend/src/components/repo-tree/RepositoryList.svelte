@@ -213,7 +213,7 @@
           }}
         />
         <KindIcon kind="repository" />
-        <span class="name truncate">{entry.name}</span>
+        <span class="name truncate shrink-last">{entry.name}</span>
         {#if worktrees.ownerRoot === entry.root && repository.current}
           <KindIcon kind="worktree" title="The panels show its worktree {repository.current.root}" />
         {/if}
@@ -222,7 +222,7 @@
         {:else if entry.dirty}
           <span class="dirty" title={DIRTY_REPOSITORY}>●</span>
         {/if}
-        {#if entry.branch}<span class="branch truncate">{entry.branch}</span>{/if}
+        {#if entry.branch}<span class="branch truncate shrink-first">{entry.branch}</span>{/if}
         {#if entry.ahead > 0 || entry.behind > 0}
           <span class="track tabular" title={trackTooltip(entry.ahead, entry.behind)}
             >{entry.ahead > 0 ? "↑" + entry.ahead : ""}{entry.behind > 0
@@ -279,12 +279,10 @@
               }}
             />
             <KindIcon kind="submodule" />
-            <span class="modname">
-              {#if folder}<span class="dir">{folder}</span><span class="sep">/</span>{/if}<span
-                class="leaf">{parts.name}</span
-              >
-            </span>
-            <span class="where truncate" title={moduleTooltip(node.module) || undefined}
+            <span class="modname truncate shrink-last"
+              >{#if folder}<span class="dir">{folder}/</span>{/if}{parts.name}</span
+            >
+            <span class="where truncate shrink-first" title={moduleTooltip(node.module) || undefined}
               >({describeModule(node.module)})</span
             >
           </div>
@@ -302,38 +300,13 @@
     padding: var(--sp-4) 0;
   }
 
-  .modname {
-    display: flex;
-    align-items: baseline;
-    min-width: 0;
-    flex: 0 1 auto;
-  }
-
-  /* Shortened from its own left, so `cmake/cmake-conan` becomes `…/cmake-conan` and
-     never `cmake/cmake-…`. */
+  /* One run of text cut on the right like every list (R-243, which replaces R-124). */
   .dir {
-    flex: 0 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    direction: rtl;
-    color: var(--text-secondary);
-  }
-
-  .sep,
-  .leaf {
-    flex: 0 0 auto;
-    white-space: nowrap;
-  }
-
-  .sep {
     color: var(--text-secondary);
   }
 
   .row.module .where {
-    flex: 1 1 auto;
-    min-width: 0;
+    flex-grow: 1;
     color: var(--text-secondary);
     font-size: 11px;
   }
@@ -469,11 +442,6 @@
     font-size: var(--fs-dense);
   }
 
-  .name {
-    flex: 0 1 auto;
-    min-width: 0;
-  }
-
   .dirty {
     flex: 0 0 auto;
     color: var(--status-modify);
@@ -481,8 +449,7 @@
   }
 
   .branch {
-    flex: 1 1 auto;
-    min-width: 0;
+    flex-grow: 1;
     color: var(--text-secondary);
     font-size: 10px;
   }

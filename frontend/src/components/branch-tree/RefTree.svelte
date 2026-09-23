@@ -127,7 +127,7 @@
 
       <button
         type="button"
-        class="label truncate"
+        class="label truncate shrink-last"
         class:current={node.current}
         onclick={() => pick(node)}
         ondblclick={() => {
@@ -143,7 +143,7 @@
         >
       {/if}
 
-      {#if node.detail}<span class="detail truncate">{node.detail}</span>{/if}
+      {#if node.detail}<span class="detail truncate shrink-first">{node.detail}</span>{/if}
     </div>
   {/each}
 </div>
@@ -219,8 +219,6 @@
   }
 
   .label {
-    flex: 0 1 auto;
-    min-width: 0;
     background: none;
     border: 0;
     padding: 0;
@@ -245,8 +243,7 @@
   }
 
   .detail {
-    flex: 1 1 auto;
-    min-width: 0;
+    flex-grow: 1;
     text-align: right;
     color: var(--text-secondary);
     font-size: 10px;

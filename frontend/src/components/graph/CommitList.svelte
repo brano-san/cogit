@@ -19,6 +19,8 @@
     visibleRange,
   } from "$lib/graph-geometry";
   import { measurer } from "$lib/timing";
+  import { refLabelText } from "$lib/truncate";
+  import { subjectMinWidth } from "$lib/graph-panel";
   import { reportTiming, type RebaseProgress, type RepoId } from "$lib/ipc";
   import Avatar from "$components/common/Avatar.svelte";
   import { avatars } from "$stores/avatars.svelte";
@@ -262,6 +264,7 @@
         class="rows"
         style:transform="translateY({-scrollTop}px)"
         style:--row-h="{GRAPH.rowHeight}px"
+        style:--subject-min={subjectMinWidth()}
       >
         {#if range.start === 0}
           <button
@@ -337,7 +340,7 @@
                   onref?.(label.text);
                 }}
                 onkeydown={(event) => event.key === "Enter" && onref?.(label.text)}
-              >{label.text}</span>
+              >{refLabelText(label.text)}</span>
             {/each}
             {#if refs.hidden.length > 0}
               <span class="capsule more" title={refs.hidden.map((l) => l.text).join("\n")}
@@ -518,9 +521,10 @@
     border-color: var(--status-stash);
   }
 
+  /* Kept, not squeezed to nothing: past it the row is cut by the panel's edge (#5). */
   .summary {
     flex: 1 1 auto;
-    min-width: 0;
+    min-width: var(--subject-min, 0);
   }
 
   .author {
