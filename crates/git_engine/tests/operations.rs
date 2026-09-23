@@ -156,3 +156,46 @@ fn aborting_a_rebase_uses_the_right_command() {
         commands(&log)
     );
 }
+
+#[test]
+fn aborting_git_am_uses_the_right_command() {
+    let f = test_fixtures::linear(2).unwrap();
+    let apply = f.git_dir().join("rebase-apply");
+    std::fs::create_dir_all(&apply).unwrap();
+    std::fs::write(apply.join("applying"), "").unwrap();
+    let (repo, log) = open_logged(&f);
+
+    let _ = repo.abort_operation();
+
+    assert!(
+        commands(&log).iter().any(|c| c.contains("am --abort")),
+        "got {:?}",
+        commands(&log)
+    );
+}
+
+/// `git bisect` has no `--abort` and no `--continue`: it ends with `reset`.
+#[test]
+fn aborting_a_bisect_resets_it() {
+    let f = test_fixtures::linear(3).unwrap();
+    std::fs::write(f.git_dir().join("BISECT_LOG"), "git bisect start\n").unwrap();
+    let (repo, log) = open_logged(&f);
+
+    let _ = repo.abort_operation();
+
+    assert!(
+        commands(&log).iter().any(|c| c.contains("bisect reset")),
+        "got {:?}",
+        commands(&log)
+    );
+}
+
+#[test]
+fn continuing_a_bisect_is_refused_before_git_is_started() {
+    let f = test_fixtures::linear(3).unwrap();
+    std::fs::write(f.git_dir().join("BISECT_LOG"), "git bisect start\n").unwrap();
+    let (repo, log) = open_logged(&f);
+
+    assert!(repo.continue_operation().is_err());
+    assert!(commands(&log).is_empty(), "got {:?}", commands(&log));
+}

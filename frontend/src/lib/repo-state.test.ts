@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { stateBanner } from "./repo-state";
+import { repoStateTag, stateBanner, workingTreeLabel } from "./repo-state";
 
 describe("stateBanner", () => {
   it("shows nothing for a clean repository", () => {
@@ -81,5 +81,75 @@ describe("a detached HEAD inside a submodule", () => {
   it("leaves every other state alone whether it is a submodule or not", () => {
     const merging = { kind: "merging" } as never;
     expect(stateBanner(merging, null, true)).toEqual(stateBanner(merging, null, false));
+  });
+});
+
+describe("git am and bisect", () => {
+  it("names git am stopped on a patch and lets it continue, skip or abort", () => {
+    const banner = stateBanner({ kind: "applyingPatches" }, null);
+    expect(banner?.title).toContain("patches");
+    expect(banner?.actions).toEqual(["continue", "skip", "abort"]);
+  });
+
+  // git bisect has no --continue and no --skip: it goes on with good, bad or skip.
+  it("offers only abort for a bisect", () => {
+    expect(stateBanner({ kind: "bisecting" }, null)?.actions).toEqual(["abort"]);
+  });
+});
+
+describe("workingTreeLabel", () => {
+  const status = { staged: 1, unstaged: 2, untracked: 0, conflicted: 3 };
+
+  it("counts what the working tree holds", () => {
+    expect(workingTreeLabel(status, { kind: "clean" })).toBe(
+      "Working Tree (1 staged, 2 modified, 3 conflicted)",
+    );
+  });
+
+  it("adds the operation in progress after the counts", () => {
+    expect(workingTreeLabel(status, { kind: "merging" })).toBe(
+      "Working Tree (1 staged, 2 modified, 3 conflicted), merging",
+    );
+    expect(workingTreeLabel(undefined, { kind: "applyingPatches" })).toBe(
+      "Working Tree, applying patches",
+    );
+  });
+
+  it("says clean when there is nothing to count", () => {
+    const none = { staged: 0, unstaged: 0, untracked: 0, conflicted: 0 };
+    expect(workingTreeLabel(none, { kind: "clean" })).toBe("Working Tree — clean");
+    expect(workingTreeLabel(none, { kind: "rebasing" })).toBe("Working Tree — clean, rebasing");
+  });
+
+  it("leaves a detached HEAD to the banner", () => {
+    expect(workingTreeLabel(undefined, { kind: "detachedHead", oid: "abc" })).toBe("Working Tree");
+  });
+});
+
+describe("repoStateTag", () => {
+  it("labels every long-running state in angle brackets", () => {
+    const tags = (
+      ["merging", "rebasing", "cherryPicking", "reverting", "bisecting", "applyingPatches"] as const
+    ).map((kind) => repoStateTag({ kind }));
+    expect(tags).toEqual([
+      "<merging>",
+      "<rebasing>",
+      "<cherry-picking>",
+      "<reverting>",
+      "<bisecting>",
+      "<applying patches>",
+    ]);
+  });
+
+  it("labels a detached HEAD in a repository but not in a submodule, where it is normal", () => {
+    const detached = { kind: "detachedHead", oid: "abc" } as const;
+    expect(repoStateTag(detached)).toBe("<detached>");
+    expect(repoStateTag(detached, true)).toBeNull();
+  });
+
+  it("labels nothing when nothing is going on", () => {
+    expect(repoStateTag({ kind: "clean" })).toBeNull();
+    expect(repoStateTag({ kind: "empty" })).toBeNull();
+    expect(repoStateTag(null)).toBeNull();
   });
 });

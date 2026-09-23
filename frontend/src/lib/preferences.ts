@@ -89,7 +89,7 @@ export const CATEGORIES: Category[] = [
     id: "theme",
     title: "Theme & Colours",
     parent: "ui",
-    groups: [{ title: "Appearance", fields: [{ key: "theme", label: "Theme", keywords: ["dark", "light"] }] }],
+    groups: [{ title: "Appearance", fields: [{ key: "theme", label: "Theme", keywords: ["dark", "light", "grey", "gray"] }] }],
   },
   {
     id: "graph",

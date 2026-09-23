@@ -123,6 +123,28 @@ fn overviews_are_sorted_by_name() {
     assert_eq!(listed, sorted);
 }
 
+/// The tree row says `<merging>` or `<detached>` beside the name (#22).
+#[test]
+fn an_overview_says_what_the_repository_is_in_the_middle_of() {
+    let f = test_fixtures::conflicted().unwrap();
+    let state = AppState::new();
+    state.open_repository(f.path()).unwrap();
+
+    assert_eq!(state.overviews()[0].state, git_engine::RepoState::Merging);
+}
+
+#[test]
+fn an_overview_says_when_head_is_detached() {
+    let f = test_fixtures::detached_head().unwrap();
+    let state = AppState::new();
+    state.open_repository(f.path()).unwrap();
+
+    assert!(matches!(
+        state.overviews()[0].state,
+        git_engine::RepoState::DetachedHead { .. }
+    ));
+}
+
 #[test]
 fn an_overview_of_an_empty_repository_has_no_branch_yet() {
     let f = test_fixtures::empty().unwrap();
@@ -167,6 +189,7 @@ fn a_missing_repository_reports_nothing_it_cannot_know() {
     assert_eq!(row.branch, None);
     assert!(!row.dirty);
     assert_eq!((row.ahead, row.behind), (0, 0));
+    assert_eq!(row.state, git_engine::RepoState::Clean);
 }
 
 // --- a submodule opened from the tree is not a repository in the list -----------------
