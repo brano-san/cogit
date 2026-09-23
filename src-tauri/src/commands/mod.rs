@@ -2431,27 +2431,57 @@ mod tests {
         rest.split(['(', '<']).next().unwrap_or_default().to_owned()
     }
 
-    /// Each command with its body, lines joined so that a chained call reads as one.
-    fn bodies() -> Vec<(String, String)> {
-        let mut found: Vec<(String, String)> = Vec::new();
-        let mut armed = false;
+    struct Command {
+        name: String,
+        off_thread: bool,
+        /// Lines joined, so that a chained call reads as one.
+        body: String,
+    }
+
+    /// Every command in `source` with its body: everything up to the next attribute.
+    fn commands_in(source: &str) -> Vec<Command> {
+        let mut found: Vec<Command> = Vec::new();
+        let mut armed: Option<bool> = None;
         let mut open = false;
-        for line in include_str!("mod.rs").lines() {
+        for line in source.lines() {
             let line = line.trim_start();
-            if line.starts_with("#[tauri::command") || line.starts_with("#[cfg(test)]") {
-                armed = line.starts_with("#[tauri::command");
+            if let Some(rest) = line.strip_prefix("#[tauri::command") {
+                armed = Some(rest.starts_with("(async)"));
+                open = false;
+                continue;
+            }
+            if line.starts_with("#[cfg(test)]") {
+                armed = None;
                 open = false;
                 continue;
             }
             let signature = line
                 .strip_prefix("pub async fn ")
-                .or_else(|| line.strip_prefix("pub fn "));
-            if armed && let Some(rest) = signature {
-                found.push((name_of(rest), String::new()));
-                armed = false;
+                .map(|rest| (rest, true))
+                .or_else(|| line.strip_prefix("pub fn ").map(|rest| (rest, false)));
+            if let (Some(marked_async), Some((rest, is_async))) = (armed, signature) {
+                found.push(Command {
+                    name: name_of(rest),
+                    off_thread: is_async || marked_async,
+                    body: String::new(),
+                });
+                armed = None;
                 open = true;
-            } else if open && let Some((_, body)) = found.last_mut() {
-                body.push_str(line);
+            } else if open && let Some(command) = found.last_mut() {
+                command.body.push_str(line);
+            }
+        }
+        found
+    }
+
+    /// Every file of this module, so a command moved out of `mod.rs` is still checked.
+    fn all_commands() -> Vec<Command> {
+        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/src/commands");
+        let mut found = Vec::new();
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().is_some_and(|ext| ext == "rs") {
+                found.extend(commands_in(&std::fs::read_to_string(path).unwrap()));
             }
         }
         found
@@ -2463,13 +2493,12 @@ mod tests {
     #[test]
     fn a_window_is_never_opened_or_closed_on_the_main_thread() {
         const WINDOW_WORK: &[&str] = &["child_window::", "WebviewWindowBuilder", "window.close()"];
-        let off_thread: std::collections::HashMap<String, bool> = declared().into_iter().collect();
 
-        let stuck: Vec<String> = bodies()
+        let stuck: Vec<String> = all_commands()
             .into_iter()
-            .filter(|(_, body)| WINDOW_WORK.iter().any(|call| body.contains(call)))
-            .filter(|(name, _)| !off_thread.get(name).copied().unwrap_or(false))
-            .map(|(name, _)| name)
+            .filter(|command| WINDOW_WORK.iter().any(|call| command.body.contains(call)))
+            .filter(|command| !command.off_thread)
+            .map(|command| command.name)
             .collect();
 
         assert!(
@@ -2480,17 +2509,24 @@ mod tests {
 
     #[test]
     fn the_body_parser_sees_the_window_commands() {
-        let all = bodies();
-        let compare = all.iter().find(|(name, _)| name == "open_compare_window");
-        assert!(
-            compare.is_some_and(|(_, body)| body.contains("child_window::open")),
-            "{compare:?}"
-        );
-        let close = all.iter().find(|(name, _)| name == "close_this_window");
-        assert!(
-            close.is_some_and(|(_, body)| body.contains("window.close()")),
-            "{close:?}"
-        );
+        let all = all_commands();
+        let body_of = |name: &str| {
+            all.iter()
+                .find(|command| command.name == name)
+                .map(|command| command.body.as_str())
+                .unwrap_or_default()
+        };
+        assert!(body_of("open_compare_window").contains("child_window::open"));
+        assert!(body_of("close_this_window").contains("window.close()"));
+    }
+
+    #[test]
+    fn a_synchronous_window_command_would_be_caught() {
+        let source = "#[tauri::command]\n#[specta::specta]\npub fn open_it(app: AppHandle) {\n    crate::child_window::open(&app, \"x\");\n}\n";
+        let found = commands_in(source);
+        assert_eq!(found.len(), 1);
+        assert!(!found[0].off_thread);
+        assert!(found[0].body.contains("child_window::"));
     }
 
     #[test]
