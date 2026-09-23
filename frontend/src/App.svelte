@@ -42,6 +42,7 @@
   import ScanDialog from "$components/repo-tree/ScanDialog.svelte";
   import PromptDialog from "$components/layout/PromptDialog.svelte";
   import RemoteOpsDialog from "$components/remote/RemoteOpsDialog.svelte";
+  import RepoSettingsDialog from "$components/remote/RepoSettingsDialog.svelte";
   import { remoteCommands, submoduleScope } from "$lib/remote-menu";
   import { remoteOps } from "$stores/remote-ops.svelte";
   import WorktreesPanel from "$components/panels/WorktreesPanel.svelte";
@@ -212,6 +213,7 @@
   let journalBusy = $state(false);
   let paletteOpen = $state(false);
   let settingsOpen = $state(false);
+  let repoSettingsOpen = $state(false);
   let finderOpen = $state(false);
   let finderBusy = $state(false);
   let finderResults = $state.raw<import("$lib/ipc").Found[]>([]);
@@ -440,7 +442,7 @@
     files: () => pickedFiles,
     changed: afterRefChange,
     synchronize: () => void synchronize(),
-    repoSettings: () => void openConfig("repository"),
+    repoSettings: () => (repoSettingsOpen = true),
   });
 
   const palette = $derived.by<PaletteCommand[]>(() => {
@@ -3265,6 +3267,16 @@
         onclose={() => remoteOps.close()}
       />
     {/key}
+  {/if}
+
+  {#if repoSettingsOpen && repo}
+    <!-- Readers of these keys, the tag folders among them, pick them up on the refresh. -->
+    <RepoSettingsDialog
+      repo={repo.repo}
+      name={repo.name}
+      onsaved={() => repository.refresh()}
+      onclose={() => (repoSettingsOpen = false)}
+    />
   {/if}
 
   {#if prompt.open}
