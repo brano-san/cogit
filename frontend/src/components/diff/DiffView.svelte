@@ -199,7 +199,7 @@
 
   function sign(cell: SideCell | null): string {
     if (!cell) return "";
-    return cell.kind === "delete" ? "−" : cell.kind === "insert" ? "+" : " ";
+    return cell.kind === "delete" ? "−" : cell.kind === "insert" ? "+" : "";
   }
 
   /** Selecting works on any diff: a commit cannot be staged, but it can be investigated. */
@@ -564,8 +564,9 @@
                   <span class="gutter"></span>
                   <span class="num">{entry.row.old}</span>
                   <span class="num">{entry.row.new}</span>
+                  <span class="sign"></span>
                   <span class="code mono"
-                    > {#each mergePieces(entry.row.text, tokensFor(entry.row), [], find.spansFor(rowIndex, "left")) as piece, i (i)}<span
+                    >{#each mergePieces(entry.row.text, tokensFor(entry.row), [], find.spansFor(rowIndex, "left")) as piece, i (i)}<span
                         class={piece.cls}
                         class:hit={piece.hit}
                         class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
@@ -584,8 +585,9 @@
                   >
                   <span class="num">{row.old}</span>
                   <span class="num"></span>
+                  <span class="sign del" class:moved={row.moved}>−</span>
                   <span class="code mono del" class:moved={row.moved}
-                    >−{#each mergePieces(row.text, tokensFor(row), row.inline, find.spansFor(rowIndex, "left")) as piece, i (i)}<span
+                    >{#each mergePieces(row.text, tokensFor(row), row.inline, find.spansFor(rowIndex, "left")) as piece, i (i)}<span
                         class="{piece.cls}"
                         class:word={piece.changed}
                         class:hit={piece.hit}
@@ -605,8 +607,9 @@
                   >
                   <span class="num"></span>
                   <span class="num">{row.new}</span>
+                  <span class="sign add" class:moved={row.moved}>+</span>
                   <span class="code mono add" class:moved={row.moved}
-                    >+{#each mergePieces(row.text, tokensFor(row), row.inline, find.spansFor(rowIndex, "left")) as piece, i (i)}<span
+                    >{#each mergePieces(row.text, tokensFor(row), row.inline, find.spansFor(rowIndex, "left")) as piece, i (i)}<span
                         class="{piece.cls}"
                         class:word={piece.changed}
                         class:hit={piece.hit}
@@ -634,10 +637,15 @@
               >
                 <span class="num">{entry.pair.left?.line ?? ""}</span>
                 <span
+                  class="sign"
+                  class:del={entry.pair.left?.kind === "delete"}
+                  class:moved={entry.pair.left?.moved}>{sign(entry.pair.left)}</span
+                >
+                <span
                   class="code mono side"
                   class:del={entry.pair.left?.kind === "delete"}
                   class:moved={entry.pair.left?.moved}
-                  >{sign(entry.pair.left)}{#each cells(entry.pair.left, rowIndex, "left") as piece, i (i)}<span
+                  >{#each cells(entry.pair.left, rowIndex, "left") as piece, i (i)}<span
                       class="{piece.cls}"
                       class:word={piece.changed}
                       class:hit={piece.hit}
@@ -647,10 +655,15 @@
                 <span class="gap"></span>
                 <span class="num">{entry.pair.right?.line ?? ""}</span>
                 <span
+                  class="sign"
+                  class:add={entry.pair.right?.kind === "insert"}
+                  class:moved={entry.pair.right?.moved}>{sign(entry.pair.right)}</span
+                >
+                <span
                   class="code mono side"
                   class:add={entry.pair.right?.kind === "insert"}
                   class:moved={entry.pair.right?.moved}
-                  >{sign(entry.pair.right)}{#each cells(entry.pair.right, rowIndex, "right") as piece, i (i)}<span
+                  >{#each cells(entry.pair.right, rowIndex, "right") as piece, i (i)}<span
                       class="{piece.cls}"
                       class:word={piece.changed}
                       class:hit={piece.hit}
@@ -862,6 +875,34 @@
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+    user-select: text;
+  }
+
+  /* The +/− column: its own, two spaces clear of the code, never copied with it (#9). */
+  .sign {
+    flex: 0 0 auto;
+    width: 3.5ch;
+    padding-left: 0.5ch;
+    box-sizing: border-box;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: var(--fs-code);
+    user-select: none;
+  }
+
+  .sign.del {
+    background: var(--c-deleted-bg, rgb(90 40 40 / 35%));
+    color: var(--status-delete);
+  }
+
+  .sign.add {
+    background: var(--c-added-bg, rgb(40 80 45 / 35%));
+    color: var(--status-add);
+  }
+
+  .sign.moved {
+    background: var(--c-stash-bg, rgb(70 60 95 / 35%));
+    color: var(--status-stash);
   }
 
   .side {
