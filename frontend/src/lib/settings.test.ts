@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_SETTINGS, merge, needsRestart } from "./settings";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { DEFAULT_SETTINGS, THEMES, merge, needsRestart } from "./settings";
 
 describe("merge", () => {
   it("returns the defaults for nothing stored", () => {
@@ -57,5 +59,22 @@ describe("needsRestart", () => {
 
   it("is true for the git executable path", () => {
     expect(needsRestart("gitPath")).toBe(true);
+  });
+});
+
+describe("themes", () => {
+  it("offers four, from the lightest to the darkest (#24)", () => {
+    expect(THEMES.map(([id]) => id)).toEqual(["light", "lightGrey", "darkGrey", "dark"]);
+  });
+
+  it("keeps every one of them from a stored file", () => {
+    for (const [id] of THEMES) expect(merge({ theme: id }).theme).toBe(id);
+  });
+
+  it("gives every theme but the default its own palette in app.css", () => {
+    const css = readFileSync(join(__dirname, "..", "app.css"), "utf8");
+    for (const [id] of THEMES.filter(([id]) => id !== DEFAULT_SETTINGS.theme)) {
+      expect(css).toContain(`:root[data-theme="${id}"]`);
+    }
   });
 });
