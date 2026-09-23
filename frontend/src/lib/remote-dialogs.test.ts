@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   followUp,
   lfsMissingDialog,
-  lfsPruneDialog,
+  LFS_PRUNE,
   lfsTrackDialog,
   lfsTrackRequest,
   pathFromUrl,
@@ -118,7 +118,7 @@ describe("lfs dialogs", () => {
   });
 
   it("confirms a prune as destructive", () => {
-    expect(lfsPruneDialog().destructive).toBe(true);
+    expect(LFS_PRUNE.warning).toBe(true);
   });
 });
 

@@ -1,5 +1,6 @@
 import type { LfsOp, SubmoduleOp, SubtreeOp } from "./ipc/bindings";
 import type { SubtreeAction } from "./remote-menu";
+import type { ConfirmRequest } from "$stores/confirm.svelte";
 
 /** The dialogs behind Remote ▸ Submodule, Subtree and LFS, as data: one component draws
     them all, and what they ask and send is tested here rather than in markup. */
@@ -246,17 +247,14 @@ export function lfsTrackRequest(values: Values): LfsOp {
   return { kind: "track", pattern: text(values, "pattern") };
 }
 
-export function lfsPruneDialog(): DialogSpec {
-  return {
-    title: "Prune Git LFS Files",
-    intro:
-      "Deletes local copies of LFS files that are old and already on the remote (git lfs prune). They are downloaded again when needed.",
-    fields: [],
-    confirm: "Prune",
-    destructive: true,
-    values: {},
-  };
-}
+/** A plain yes-or-no, so it goes through the app's confirmation dialog. */
+export const LFS_PRUNE: ConfirmRequest = {
+  title: "Prune Git LFS Files",
+  message:
+    "Deletes local copies of LFS files that are old and already on the remote (git lfs prune). They are downloaded again when needed.",
+  confirm: "Prune",
+  warning: true,
+};
 
 export const LFS_DOWNLOAD = "https://git-lfs.com";
 

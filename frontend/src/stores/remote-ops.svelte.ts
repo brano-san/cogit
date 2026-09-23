@@ -11,7 +11,7 @@ import {
 import {
   LFS_DOWNLOAD,
   lfsMissingDialog,
-  lfsPruneDialog,
+  LFS_PRUNE,
   lfsTrackDialog,
   lfsTrackRequest,
   submoduleAddDialog,
@@ -30,6 +30,7 @@ import {
   type SubmoduleAction,
   type SubtreeAction,
 } from "$lib/remote-menu";
+import { confirmation } from "$stores/confirm.svelte";
 import { errors } from "$stores/errors.svelte";
 import { network } from "$stores/network.svelte";
 import { repository } from "$stores/repository.svelte";
@@ -180,7 +181,7 @@ class RemoteOpsStore {
         await run({ kind: action, paths: [...host.files()] });
         return;
       case "prune":
-        this.dialog = { spec: lfsPruneDialog(), submit: () => run({ kind: "prune" }) };
+        if (await confirmation.ask(LFS_PRUNE)) await run({ kind: "prune" });
         return;
     }
   }
