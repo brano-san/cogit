@@ -171,6 +171,21 @@ pub async fn list_all_repo_files(
     blocking("list_all_repo_files", move || app_state.all_files(repo)).await
 }
 
+/// Every file of a commit's tree: the Files panel's Unchanged switch on a commit.
+#[tauri::command]
+#[specta::specta]
+pub async fn commit_tree_files(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    rev: String,
+) -> Result<Vec<String>, GitError> {
+    let app_state = state.state.clone();
+    blocking("commit_tree_files", move || {
+        app_state.tree_files(repo, &rev)
+    })
+    .await
+}
+
 /// Searches inside files, streaming matches as they are found.
 ///
 /// Cancellable: the id arrives on the first chunk and `cancel_operation` stops it.

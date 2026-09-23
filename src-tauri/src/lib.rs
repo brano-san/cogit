@@ -220,6 +220,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::diagnostics,
             commands::closing_ping,
             commands::list_all_repo_files,
+            commands::commit_tree_files,
             commands::search_file_contents,
             commands::list_submodules,
             commands::open_submodule,

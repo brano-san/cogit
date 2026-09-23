@@ -48,6 +48,11 @@ export class DiffSearch {
     return this.#at;
   }
 
+  /** A search ran and found nothing. Emptying the field clears it at once, not after the pause. */
+  get missing(): boolean {
+    return this.query.trim() !== "" && this.#applied.trim() !== "" && this.hits.length === 0;
+  }
+
   setQuery(text: string): void {
     this.query = text;
     clearTimeout(this.#timer);

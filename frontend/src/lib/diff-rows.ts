@@ -17,10 +17,6 @@ export interface SidePair {
   right: SideCell | null;
 }
 
-export type FlatEntry =
-  | { kind: "header"; hunk: number; text: string }
-  | { kind: "row"; hunk: number; row: DiffRow };
-
 /** Deletions and the insertions that replace them line up; a longer side pads the other. */
 export function pairRows(rows: readonly DiffRow[]): SidePair[] {
   const pairs: SidePair[] = [];
@@ -85,17 +81,6 @@ export function pairRows(rows: readonly DiffRow[]): SidePair[] {
   return pairs;
 }
 
-export function flatten(hunks: readonly Hunk[]): FlatEntry[] {
-  const entries: FlatEntry[] = [];
-  hunks.forEach((hunk, index) => {
-    entries.push({ kind: "header", hunk: index, text: hunk.header });
-    for (const row of hunk.rows) {
-      entries.push({ kind: "row", hunk: index, row });
-    }
-  });
-  return entries;
-}
-
 export interface Segment {
   text: string;
   changed: boolean;
@@ -155,7 +140,7 @@ export interface Connector {
   moved: boolean;
 }
 
-/** A row of the rendered side-by-side list; `null` is a hunk header, which connects nothing. */
+/** A row of the rendered side-by-side list; `null` is a fold, which connects nothing. */
 export type ConnectorRow = SidePair | null;
 
 function changed(row: ConnectorRow): boolean {
@@ -226,12 +211,6 @@ export function lacksFinalNewline(hunks: readonly Hunk[]): boolean {
   const row = hunk?.rows[hunk.rows.length - 1];
   if (row?.kind !== "delete" && row?.kind !== "insert") return false;
   return row.noNewline ?? false;
-}
-
-/** How many lines the diff is not showing between two hunks. */
-export function gapBetween(previous: Hunk | null, next: Hunk): number {
-  const from = previous === null ? 1 : previous.oldStart + previous.oldLines;
-  return Math.max(next.oldStart - from, 0);
 }
 
 const EXPAND_BY = 20;
