@@ -64,9 +64,8 @@ export const commands = {
 	startedAtMs: number,
 } | null>("command_outcome", { id }),
 	/**
-	 *  Closes whichever window asked. Not `async`: window operations belong to the main
-	 *  thread, and doing it here rather than through `getCurrentWindow()` keeps the call out
-	 *  of the webview (doc/12-risks.md, R-86).
+	 *  Closes whichever window asked. In Rust rather than through `getCurrentWindow()`, which
+	 *  keeps the call out of the webview (R-86); off the main thread for the reason in R-201.
 	 */
 	closeThisWindow: () => typedError<null, GitError>(__TAURI_INVOKE("close_this_window")),
 	commandProblems: () => __TAURI_INVOKE<number>("command_problems"),
@@ -284,8 +283,9 @@ export const commands = {
 	/**  Not `async`: menu APIs must run on the main thread on Windows. */
 	popupContextMenu: (items: ContextItem[], x: number | null, y: number | null) => typedError<null, GitError>(__TAURI_INVOKE("popup_context_menu", { items, x, y })),
 	/**
-	 *  Not `async`: creating a window has to happen on the main thread. The parameters ride in
-	 *  the URL so the window rebuilds itself after a webview reload (T2.5).
+	 *  Off the main thread: building a window inside the WebView2 callback of a synchronous
+	 *  command deadlocks every window (R-201). The parameters ride in the URL so the window
+	 *  rebuilds itself after a webview reload (T2.5).
 	 */
 	openCompareWindow: (url: string, title: string) => typedError<null, GitError>(__TAURI_INVOKE("open_compare_window", { url, title })),
 	commitTemplate: (repo: RepoId) => typedError<string | null, GitError>(__TAURI_INVOKE("commit_template", { repo })),
