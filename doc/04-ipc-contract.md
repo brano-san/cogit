@@ -315,6 +315,8 @@ snake_case и читаются на фронтенде как `undefined`.
 | `create_branch` / `delete_branch` | `repo, ...` | `()` | M5 |
 | `merge` / `rebase` / `cherry_pick` / `revert` | `repo, ...` | `()` | M5 |
 | `stash_push` / `apply` / `pop` / `drop` | `repo, ...` | `()` | M5 |
+| `stash_keeping_worktree` | `repo, message` | `()` — `git stash create` + `git stash store --message`: stash без очистки рабочей копии; untracked-файлы в него не входят; чистое дерево — `InvalidState` (R-212) | M5 |
+| `stash_selection` | `repo, paths, message` | `()` — пустое `message` не передаётся в Git: stash получает его собственное `WIP on …` | M5 |
 | `fetch` / `pull` / `push` | `repo, remote, refspec, channel: Channel<Progress>` | `()` | M1 |
 | `undo_last` | `repo` | `UndoResult` | M5 |
 

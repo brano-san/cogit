@@ -42,6 +42,7 @@
   import Toolbar from "$components/layout/Toolbar.svelte";
   import ScanDialog from "$components/repo-tree/ScanDialog.svelte";
   import PromptDialog from "$components/layout/PromptDialog.svelte";
+  import StashDialogs from "$components/layout/StashDialogs.svelte";
   import WorktreesPanel from "$components/panels/WorktreesPanel.svelte";
   import AddWorktreeDialog from "$components/repo-tree/AddWorktreeDialog.svelte";
   import RemoveWorktreeDialog from "$components/repo-tree/RemoveWorktreeDialog.svelte";
@@ -52,6 +53,7 @@
   import { refAt, splitMarked, targetsOf, type MenuContext, type ToolbarFacts } from "$lib/toolbar";
   import { currentRemote, pullSteps, syncSteps, type SyncOrder } from "$lib/toolbar-prefs";
   import { toolbar } from "$stores/toolbar.svelte";
+  import { stashDialog } from "$stores/stash-dialog.svelte";
   import { allowsSelectAll, settle, step } from "$lib/panel-focus";
   import { pullRequestUrl } from "$lib/pull-request";
   import { commitScope } from "$lib/commit-scope";
@@ -1535,31 +1537,35 @@
     await afterRefChange();
   }
 
+  /** The Stash dialog: a name and Stash All, + Keep Index or + Keep Working Tree (#29). */
   async function stashAll() {
     const id = repository.current?.repo;
     if (!id) return;
-    const message = await prompt.ask({
-      title: "Stash everything",
-      label: "Message",
-      confirm: "Stash",
-    });
-    if (message === null) return;
+    const choice = await stashDialog.create();
+    if (choice === null) return;
     await stashes
-      .push(id, message, true)
+      .save(id, choice)
       .then(() => afterRefChange())
       .catch((err) => errors.report(err, "Could not stash"));
   }
 
-  /** Only the ticked rows; everything else stays in the working tree (T5.3). */
-  async function stashSelected() {
+  /** Everything, no dialog, Git's own message. */
+  async function quickStashAll() {
     const id = repository.current?.repo;
-    if (!id || markedFiles.length === 0) return;
-    const paths = [...markedFiles];
-    const message = await prompt.ask({
-      title: `Stash ${paths.length} file(s)`,
-      label: "Message",
-      confirm: "Stash",
-    });
+    if (!id) return;
+    await stashes
+      .save(id, { mode: "all", message: "" })
+      .then(() => afterRefChange())
+      .catch((err) => errors.report(err, "Could not stash"));
+  }
+
+  /** Only the selected files; everything else stays in the working tree (T5.3). With
+      `confirm`, the list is shown first. */
+  async function stashSelected(confirm = true) {
+    const id = repository.current?.repo;
+    const paths = targetsOf("stash-selection", toolbarFacts);
+    if (!id || paths.length === 0) return;
+    const message = confirm ? await stashDialog.selection(paths) : "";
     if (message === null) return;
     await stashSelection(id, paths, message)
       .then(() => afterRefChange())
@@ -2810,7 +2816,9 @@
       ? {
           undo: () => void undo(),
           stash: stashAll,
-          "stash-selection": stashSelected,
+          "stash-selection": () => void stashSelected(),
+          "quick-stash-all": () => void quickStashAll(),
+          "quick-stash-selection": () => void stashSelected(false),
           tag: tagHead,
           pull: () => void pullNow(),
           push: () => void runNetwork("push"),
@@ -3386,6 +3394,8 @@
       onclose={() => (journalOpen = false)}
     />
   {/if}
+
+  <StashDialogs />
 
   {#if prompt.open}
     <PromptDialog

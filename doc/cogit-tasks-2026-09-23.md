@@ -90,6 +90,8 @@
   - [ ] `Quick Stash All` — stash всего без диалога.
   - [ ] `Quick Stash Selection` — stash выбранных файлов без подтверждения.
 
+> Итог: причина — Stash шёл через общий `PromptDialog`: ошибка выводилась в футере рядом с кнопками, а сообщение stash проверялось правилом имени ветки (пустое — «Enter a name.», пробелы запрещены); режимов keep index / keep working tree не было. Сделано: диалог `Stash All` (`components/layout/StashDialogs.svelte`, `stores/stash-dialog.svelte.ts`) — поле `Name`, «Enter a name.» прямо под полем, кнопки `Stash All` (`stash push -u`), `+ Keep Index` (`-u --keep-index`), `+ Keep Working Tree` (новая команда `stash_keeping_worktree`: `git stash create` + `git stash store --message`); основная кнопка открывает его. Меню: `Stash Selection` (выключен без выбранных файлов; диалог со списком файлов, `OK` / `Cancel`, необязательное сообщение), `Quick Stash All`, `Quick Stash Selection` (без вопросов, сообщение Git). `stash_paths` с пустым сообщением больше не передаёт `--message ""`. Решения — R-212. Тесты: `git_engine --test stash_modes` (4), `lib/stash-modes.test.ts` (5), `lib/toolbar.test.ts` (меню Stash, 4). Проверить в сборке: `Stash` → диалог, пустое имя — ошибка под полем и кнопки неактивны; `+ Keep Working Tree` — stash есть, файлы остались изменёнными; `+ Keep Index` — staged-изменения остались в индексе; меню без выбранных файлов — `Stash Selection` и `Quick Stash Selection` неактивны; с выбором — `Stash Selection` показывает список и после `OK` стешит только их.
+
 - [ ] **#30 Кнопка Apply Stash**
   - [ ] Новая кнопка рядом со `Stash`: применяет последний stash активного репозитория (`stash@{0}`).
   - [ ] Неактивна, если stash-ей нет. При конфликтах — уведомление через общее окно уведомлений.
