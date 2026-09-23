@@ -1,6 +1,7 @@
 <script lang="ts">
   import RepositoryList from "$components/repo-tree/RepositoryList.svelte";
   import type { RepoOverview } from "$lib/ipc";
+  import type { ListedRepo } from "$lib/repo-list";
   import type { ModuleRow } from "$lib/module-tree";
 
   interface Props {
@@ -10,7 +11,8 @@
     onopen: () => void;
     onselect: (entry: RepoOverview) => void;
     onclose: (entry: RepoOverview) => void;
-    oncontext: (entry: RepoOverview, x: number, y: number) => void;
+    oncontext: (row: ListedRepo, x: number, y: number) => void;
+    onreopen: (root: string) => void;
     onmarked: (roots: string[]) => void;
     ongroupcontext: (id: string, x: number, y: number) => void;
     onaddgroup: () => void;
@@ -26,6 +28,7 @@
     onselect,
     onclose,
     oncontext,
+    onreopen,
     onmarked,
     ongroupcontext,
     onaddgroup,
@@ -42,6 +45,7 @@
   {onselect}
   {onclose}
   {oncontext}
+  {onreopen}
   {onmarked}
   {ongroupcontext}
   {onaddgroup}

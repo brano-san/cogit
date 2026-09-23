@@ -1,7 +1,9 @@
 mod avatars;
 mod credentials;
+pub mod desktop;
 mod diffing;
 pub mod environment;
+mod file_actions;
 mod graph_cache;
 pub mod graph_wire;
 mod hooking;
@@ -12,6 +14,7 @@ mod network;
 mod presets;
 mod queue;
 mod ref_ops;
+mod remote_ops;
 mod safety;
 pub mod settings;
 pub mod terminal;

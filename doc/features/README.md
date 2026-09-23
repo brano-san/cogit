@@ -275,6 +275,11 @@
 | F-313 | Stash: диалог с тремя режимами и быстрые варианты | [F-313-stash-dialog-modes.md](F-313-stash-dialog-modes.md) |
 | F-314 | Кнопка Apply Stash | [F-314-apply-stash-button.md](F-314-apply-stash-button.md) |
 | F-315 | Настройка тулбара | [F-315-configure-toolbar.md](F-315-configure-toolbar.md) |
+| F-320 | Remote ▸ Synchronize | [F-320-remote-synchronize.md](F-320-remote-synchronize.md) |
+| F-321 | Remote ▸ Submodule | [F-321-remote-submodule-menu.md](F-321-remote-submodule-menu.md) |
+| F-322 | Remote ▸ Subtree | [F-322-remote-subtree-menu.md](F-322-remote-subtree-menu.md) |
+| F-323 | Remote ▸ LFS | [F-323-remote-lfs-menu.md](F-323-remote-lfs-menu.md) |
+| F-324 | Repository ▸ Settings… | [F-324-repository-settings.md](F-324-repository-settings.md) |
 | F-330 | Одна метка у ветки и её upstream | [F-330-joined-upstream-label.md](F-330-joined-upstream-label.md) |
 | F-331 | Stash в графе: метка и квадратный узел | [F-331-stash-in-graph.md](F-331-stash-in-graph.md) |
 | F-332 | Чередование строк графа | [F-332-graph-row-stripes.md](F-332-graph-row-stripes.md) |
@@ -294,6 +299,13 @@
 | F-354 | Меню метки ветки или тега в графе | [F-354-graph-ref-menu.md](F-354-graph-ref-menu.md) |
 | F-355 | Меню ветки, тега и stash-а в Branches | [F-355-branches-menus.md](F-355-branches-menus.md) |
 | F-356 | Rename Stash на месте | [F-356-rename-stash.md](F-356-rename-stash.md) |
+| F-360 | Контекстное меню репозитория | [F-360-repository-context-menu.md](F-360-repository-context-menu.md) |
+| F-361 | Закрытый репозиторий остаётся в списке | [F-361-closed-repositories-stay-listed.md](F-361-closed-repositories-stay-listed.md) |
+| F-362 | Контекстное меню файла рабочего дерева | [F-362-file-context-menu.md](F-362-file-context-menu.md) |
+| F-363 | Диалог Remove | [F-363-remove-files-dialog.md](F-363-remove-files-dialog.md) |
+| F-364 | Index Editor | [F-364-index-editor.md](F-364-index-editor.md) |
+| F-365 | Контекстное меню файла в коммите из истории | [F-365-commit-file-context-menu.md](F-365-commit-file-context-menu.md) |
+| F-366 | Delete — в Корзину | [F-366-delete-to-recycle-bin.md](F-366-delete-to-recycle-bin.md) |
 | F-370 | Поиск по содержимому файлов | [F-370-file-content-search.md](F-370-file-content-search.md) |
 | F-371 | Переключатели Files в коммите из истории | [F-371-commit-file-switches.md](F-371-commit-file-switches.md) |
 | F-372 | Повторный клик по коммиту возвращает его описание | [F-372-reclick-commit-shows-details.md](F-372-reclick-commit-shows-details.md) |
