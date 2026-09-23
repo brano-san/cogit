@@ -16,6 +16,8 @@ use serde::Serialize;
 use std::path::PathBuf;
 use tauri::Manager as _;
 
+pub mod ref_ops;
+
 /// specta follows serde, so a DTO without `camelCase` reads `undefined` in the UI.
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -2416,7 +2418,10 @@ mod tests {
         let mut found = Vec::new();
         let mut armed = false;
         let mut marked_async = false;
-        for line in include_str!("mod.rs").lines() {
+        let sources = include_str!("mod.rs")
+            .lines()
+            .chain(include_str!("ref_ops.rs").lines());
+        for line in sources {
             let line = line.trim_start();
             if let Some(rest) = line.strip_prefix("#[tauri::command") {
                 armed = true;
