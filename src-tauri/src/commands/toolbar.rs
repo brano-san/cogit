@@ -1,10 +1,7 @@
-//! What the toolbar asks for beyond the commands every panel shares.
-
 use super::{blocking, mutating};
 use app_state::{OperationKind, RepoId};
 use git_engine::GitError;
 
-/// Merge is offered only for a commit HEAD does not already contain (task #31).
 #[tauri::command]
 #[specta::specta]
 pub async fn is_merged_into_head(
@@ -38,8 +35,7 @@ pub async fn stash_keeping_worktree(
     .await
 }
 
-/// After a pull: local branches merged into HEAD whose upstream the remote deleted.
-/// Returns the names that were deleted.
+/// After a pull: deletes merged branches whose upstream is gone; returns their names.
 #[tauri::command]
 #[specta::specta]
 pub async fn delete_merged_branches(

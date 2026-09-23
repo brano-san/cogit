@@ -6,23 +6,18 @@ import { DEFAULT_PREFS, mergePrefs, type ToolbarPrefs } from "$lib/toolbar-prefs
 
 const KEY = "toolbar";
 
-/** What the button toolbar keeps between renders beyond the shared stores. */
 class ToolbarStore {
-  /** Whether HEAD already contains the selected commit; `undefined` until answered. */
   merged = $state<boolean | undefined>(undefined);
   prefs = $state.raw<ToolbarPrefs>({ ...DEFAULT_PREFS });
-  /** Button ids and separators in order (#44). */
   layout = $state.raw<string[]>([...DEFAULT_LAYOUT]);
   configuring = $state(false);
   #asked = 0;
 
-  /** Clicking down the graph asks faster than the backend answers; stale replies lose. */
+  /** Stale replies lose; a failed question offers the merge and lets Git say why. */
   async checkMerged(repo: RepoId | undefined, commit: string | null, head: string | null) {
     const ticket = ++this.#asked;
     this.merged = undefined;
     if (!repo || commit === null || commit === head) return;
-    // A failed question offers the merge: Git then says why, rather than a button that
-    // stays grey with no reason.
     const answer = await isMergedIntoHead(repo, commit).catch(() => false);
     if (ticket === this.#asked) this.merged = answer;
   }

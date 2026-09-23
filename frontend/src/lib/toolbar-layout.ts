@@ -1,11 +1,6 @@
-/** Which buttons the toolbar shows and in what order: Edit ▸ Configure Toolbar… (#44). */
-
 import { ACTIONS, DEFAULT_LAYOUT, SEPARATOR, type ToolbarAction } from "$lib/toolbar";
 
-/**
- * A stored layout made safe to draw: unknown ids and repeated buttons dropped, runs of
- * separators collapsed, none at either end. Anything that is not a list is the default.
- */
+/** Unknown ids and repeats dropped, separators never doubled or at an end; not a list: default. */
 export function normalizeLayout(stored: unknown): string[] {
   if (!Array.isArray(stored)) return [...DEFAULT_LAYOUT];
   const known = new Set(ACTIONS.map((action) => action.id));
@@ -24,7 +19,6 @@ export function normalizeLayout(stored: unknown): string[] {
   return out;
 }
 
-/** The buttons the layout leaves out, in the order the defaults list them. */
 export function hiddenActions(layout: readonly string[]): ToolbarAction[] {
   return ACTIONS.filter((action) => !layout.includes(action.id));
 }
@@ -39,7 +33,6 @@ export function removeEntry(layout: readonly string[], index: number): string[] 
   return layout.filter((_, at) => at !== index);
 }
 
-/** One step up or down; at either end nothing moves. */
 export function moveEntry(layout: readonly string[], index: number, delta: -1 | 1): string[] {
   const target = index + delta;
   if (index < 0 || index >= layout.length || target < 0 || target >= layout.length) {

@@ -1,8 +1,7 @@
 use crate::{GitError, RepoHandle, Result};
 
 impl RepoHandle {
-    /// True when HEAD already contains `rev`, so merging it would change nothing.
-    /// Through `gix`: the toolbar asks on every selection change (R-210).
+    /// HEAD already contains `rev`. Through `gix`: asked on every selection change (R-210).
     pub fn is_merged_into_head(&self, rev: &str) -> Result<bool> {
         let target = self.commit_id(rev)?;
         let Ok(head) = self.repo.head_id() else {
@@ -18,9 +17,8 @@ impl RepoHandle {
         }
     }
 
-    /// Local branches that are safe to delete after a pull: the remote deleted their
-    /// upstream and HEAD already holds every commit on them (R-211). The checked-out
-    /// branch and branches held by other worktrees are kept; `git branch -d` would refuse.
+    /// Merged into HEAD, upstream deleted on the remote; not HEAD's nor another worktree's
+    /// branch, which `git branch -d` would refuse (R-211).
     pub fn merged_gone_branches(&self) -> Result<Vec<String>> {
         let branches = self.branches()?;
         let remote: std::collections::HashSet<&str> = branches
