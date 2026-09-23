@@ -37,19 +37,17 @@ impl RepoHandle {
         self.run_git(&["tag", "--delete", name]).map(drop)
     }
 
-    /// Asked once on submit: `check-ref-format` is a process, too slow for every keystroke.
+    /// Asked once on submit. A refusal is the answer, not a failed command, so it stays out
+    /// of the journal: a journalled failure would open the Git error window over the dialog.
     pub fn tag_name_problem(&self, name: &str) -> Result<Option<String>> {
         let name = name.trim();
         if name.is_empty() {
             return Ok(Some("Enter a name.".to_owned()));
         }
         let full = format!("refs/tags/{name}");
-        match self.run_git_reading(&["check-ref-format", &full]) {
-            Ok(_) => {}
-            Err(GitError::Command(failed)) if failed.exit_code == Some(1) => {
-                return Ok(Some(format!("'{name}' is not a valid tag name.")));
-            }
-            Err(err) => return Err(err),
+        let checked = crate::children::output(&mut self.base_git(&["check-ref-format", &full]))?;
+        if !checked.status.success() {
+            return Ok(Some(format!("'{name}' is not a valid tag name.")));
         }
         if self.repo.find_reference(full.as_str()).is_ok() {
             return Ok(Some(format!("A tag named '{name}' already exists.")));
