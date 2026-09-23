@@ -2,7 +2,7 @@ import type { FileEntry } from "./ipc/bindings";
 import { DEFAULT_VIEW, type FileView } from "./file-view";
 
 /** What the Files list is showing: the switches that mean something differ between them. */
-export type ListContext = "worktree" | "commit" | "stash";
+export type ListContext = "worktree" | "commit" | "stash" | "compare";
 
 /** The six file-state buttons, by position; the icon belongs to the slot, not the key. */
 export type StateSlot = "unchanged" | "untracked" | "ignored" | "modified" | "skipped" | "missing";
@@ -38,11 +38,19 @@ const SLOTS: readonly StateSlot[] = [
   "missing",
 ];
 
+const NOUN = { commit: "A commit", stash: "A stash", compare: "A comparison" } as const;
+
+const NO_UNCHANGED = {
+  commit: null,
+  stash: "Unchanged files are listed for commits, not for stashes",
+  compare: "Unchanged files are listed for one commit, not for a comparison",
+} as const;
+
 function deadReason(context: Exclude<ListContext, "worktree">, slot: StateSlot): string | null {
-  const noun = context === "stash" ? "A stash" : "A commit";
+  const noun = NOUN[context];
   switch (slot) {
     case "unchanged":
-      return context === "stash" ? "Unchanged files are listed for commits, not for stashes" : null;
+      return NO_UNCHANGED[context];
     case "untracked":
       return `${noun} has no untracked files`;
     case "ignored":
@@ -72,7 +80,7 @@ export function toolReason(context: ListContext, tool: Tool): string | null {
   if (tool === "separateIndex") {
     return context === "stash"
       ? "A stash is already listed by its parts"
-      : "A commit has no index to separate from the working tree";
+      : `${NOUN[context]} has no index to separate from the working tree`;
   }
   if (tool === "contents") return "Content search reads the files on disk: select Working Tree";
   return null;
