@@ -199,7 +199,7 @@ pub struct AppState {
     repos: RwLock<HashMap<RepoId, OpenRepo>>,
     next_repo_id: AtomicU32,
     events: broadcast::Sender<AppEvent>,
-    watchers: RwLock<HashMap<RepoId, fs_watcher::RepoWatcher>>,
+    watchers: Arc<RwLock<HashMap<RepoId, fs_watcher::RepoWatcher>>>,
     journal: Arc<RwLock<std::collections::VecDeque<git_engine::GitOutput>>>,
     safety: RwLock<Vec<safety::Undoable>>,
     next_entry_id: AtomicU32,
@@ -253,7 +253,7 @@ impl AppState {
             repos: RwLock::new(HashMap::new()),
             next_repo_id: AtomicU32::new(1),
             events,
-            watchers: RwLock::new(HashMap::new()),
+            watchers: Arc::new(RwLock::new(HashMap::new())),
             journal: Arc::new(RwLock::new(std::collections::VecDeque::with_capacity(
                 JOURNAL_CAPACITY,
             ))),
@@ -789,13 +789,30 @@ impl AppState {
         self.journal.write().clear();
     }
 
-    fn command_sink(&self) -> git_engine::CommandSink {
+    /// Every git process of `repo` passes through here the moment it has exited. The quiet
+    /// window is reopened from that moment, not only from the start and the end of the
+    /// mutation: under load the process's last write can leave the debouncer before the
+    /// mutation returns and the guard drops (R-197).
+    fn command_sink(&self, repo: RepoId) -> git_engine::CommandSink {
         let journal = Arc::clone(&self.journal);
         let events = self.events.clone();
+        let watchers = Arc::clone(&self.watchers);
         Arc::new(move |entry| {
+            if let Some(watcher) = watchers.read().get(&repo) {
+                watcher.quiet_for(fs_watcher::DEFAULT_QUIET);
+            }
             let _ = events.send(AppEvent::CommandRecorded(CommandNotice::from(&entry)));
             record(&mut journal.write(), JOURNAL_CAPACITY, entry);
         })
+    }
+
+    /// Test seam: whether the watcher of `repo` is inside a quiet window right now.
+    #[must_use]
+    pub fn watcher_is_quiet(&self, repo: RepoId) -> bool {
+        self.watchers
+            .read()
+            .get(&repo)
+            .is_some_and(fs_watcher::RepoWatcher::is_quiet)
     }
 
     /// One entry of the journal, by the number a notice carried. `None` once the ring
@@ -1557,7 +1574,7 @@ impl AppState {
         let open = self
             .get(repo)
             .ok_or_else(|| git_engine::GitError::RepoNotFound(format!("id {}", repo.0)))?;
-        Ok(git_engine::RepoHandle::open(&open.root)?.with_journal(self.command_sink()))
+        Ok(git_engine::RepoHandle::open(&open.root)?.with_journal(self.command_sink(repo)))
     }
 
     #[must_use]
