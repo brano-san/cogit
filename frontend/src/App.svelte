@@ -6,6 +6,7 @@
 
   import DiffPanel from "$components/panels/DiffPanel.svelte";
   import ReferencesPanel from "$components/panels/ReferencesPanel.svelte";
+  import RefSortButtons from "$components/branch-tree/RefSortButtons.svelte";
   import SafetyJournal from "$components/layout/SafetyJournal.svelte";
   import RepositoriesPanel from "$components/panels/RepositoriesPanel.svelte";
   import GraphPanel from "$components/panels/GraphPanel.svelte";
@@ -32,7 +33,7 @@
   import FindObject from "$components/layout/FindObject.svelte";
   import CommandOutput from "$components/layout/CommandOutput.svelte";
   import { suppressNativeMenu } from "$lib/native-menu";
-  import { panelView } from "$lib/repo-phase";
+  import { footerRepository, panelView } from "$lib/repo-phase";
   import { startTracing, timed, trace } from "$lib/trace";
   import OutputPanel from "$components/layout/OutputPanel.svelte";
   import StateBanner from "$components/layout/StateBanner.svelte";
@@ -61,7 +62,9 @@
   import { moveEntry } from "$lib/rebase-plan";
   import { stateBanner, type BannerAction } from "$lib/repo-state";
   import { blockedByLocalChanges } from "$lib/checkout-refusal";
-  import { capFraction, PANELS, type PanelId } from "$lib/perspectives";
+  import { capFraction, floorFraction, PANELS, type PanelId } from "$lib/perspectives";
+  import { graphPanelMinWidth } from "$lib/graph-panel";
+  import { repoClick } from "$lib/repo-click";
   import { browserSources, start as startMemoryProbe } from "$lib/mem-probe";
   import { liveListeners } from "$lib/listener-count";
   import type { Settings } from "$lib/settings";
@@ -315,6 +318,12 @@
   /** `--worktrees-panel-min` plus the splitter. */
   const WORKTREES_MIN_PX = 98;
   let reposColumnHeight = $state(0);
+  const graphMin = graphPanelMinWidth();
+  let graphPane = $state<HTMLDivElement | null>(null);
+  let topRowWidth = $state(0);
+  let workspaceWidth = $state(0);
+  /** The Graph panel's CSS minimum in pixels, so the splitters stop where the panel does. */
+  const graphMinPx = () => (graphPane ? parseFloat(getComputedStyle(graphPane).minWidth) || 0 : 0);
   const shown = $derived({
     repositories: layout.visible("repositories"),
     refs: layout.visible("refs"),
@@ -993,6 +1002,7 @@
     stashes: stashes.entries,
     lost: recovery.lost,
     remoteUrls: refs.urls,
+    tagSeparator: repo?.tagGroupSeparator,
   });
   const refTreeInput = $derived({ ...refTreeBase, collapsed: refs.collapsed, filter: refFilter });
 
@@ -1044,8 +1054,7 @@
   function activateRef(node: RefNode) {
     if (node.kind === "stash") void applyStash(Number(node.id.slice("stash:".length)), false);
     else if (node.kind === "tag") {
-      const found = repo?.tags.find((tag) => tag.name === node.label);
-      if (found) void checkoutTag(found);
+      if (node.tag) void checkoutTag(node.tag);
     } else if (node.kind === "lost" && node.oid) {
       const found = recovery.lost.find((row) => row.oid === node.oid);
       if (found) void recoverCommit(found);
@@ -1178,6 +1187,7 @@
     forgetPanelsKeepingTheTree();
     worktrees.ownerRoot = null;
     submodules.open = row.key;
+    repository.keep();
     repository.adopt(opened);
     refs.adopt(opened.root, buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() }));
     void reloadGraph();
@@ -1487,6 +1497,37 @@
       graph.clear();
     }
     watch.stop(`${repository.current?.branches.length ?? 0} refs`);
+  }
+
+  /** A click in the Repositories list (#50): the one on screen reloads nothing, the owner
+      of the submodule or worktree on screen comes back from what was kept, keeping its
+      submodule tree, and only another repository goes through a full open. */
+  async function selectRepository(entry: import("$lib/ipc").RepoOverview) {
+    const phase = repository.phase;
+    const step = repoClick(entry, {
+      shown: repository.current?.repo ?? null,
+      opening: phase.kind === "opening" ? phase.root : null,
+      moduleOwner: submodules.open !== null ? submodules.owner : null,
+      worktreeOwner: worktrees.ownerRoot,
+    });
+    trace(`open:${entry.root}`, `repository click: ${step}`);
+    if (step === "open") await activate(entry.root);
+    else if (step === "return") await comeBack(entry.root);
+  }
+
+  async function comeBack(root: string) {
+    forgetPanelsKeepingTheTree();
+    worktrees.ownerRoot = null;
+    submodules.open = null;
+    await repository.comeBack(root);
+    const opened = repository.current;
+    if (!opened) return;
+    refs.adopt(opened.root, buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() }));
+    void reloadGraph();
+    void refs.loadUrls(opened.repo);
+    void worktrees.refresh(opened.repo);
+    void flow.refresh(opened.repo);
+    await afterMutation();
   }
 
   async function closeOne(entry: import("$lib/ipc").RepoOverview) {
@@ -2043,6 +2084,7 @@
     forgetPanelsKeepingTheTree(true);
     worktrees.ownerRoot = same(opened.root, ownerRoot) ? null : ownerRoot;
     worktrees.selected = entry.path;
+    repository.keep();
     repository.adopt(opened);
     refs.adopt(opened.root, buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() }));
     void reloadGraph();
@@ -2477,15 +2519,15 @@
       : {}}
   />
 
-  {#if banner}
+  {#if banner && !shown.graph}
     <StateBanner {banner} busy={repository.busy} onaction={runBannerAction} />
   {/if}
 
-  <div class="workspace">
+  <div class="workspace" bind:clientWidth={workspaceWidth}>
     {#if leftColumn}
     <div
       class="left-column"
-      style:flex={shown.diff || topRow ? `0 0 ${fractions.leftColumn * 100}%` : "1 1 auto"}
+      style:flex={shown.diff || topRow ? `0 1 ${fractions.leftColumn * 100}%` : "1 1 auto"}
     >
       {#if reposColumn}
       <div
@@ -2516,7 +2558,7 @@
               void browseForScan();
             }}
             onopen={pickRepository}
-            onselect={(entry) => void activate(entry.root)}
+            onselect={(entry) => void selectRepository(entry)}
             onclose={(entry) => void closeOne(entry)}
             oncontext={(entry, x, y) => void repoContext(entry, x, y)}
             onmarked={(roots) => (markedRepos = roots)}
@@ -2608,6 +2650,7 @@
                 placeholder="Filter refs or oid"
                 aria-label="Filter references"
               />
+              <RefSortButtons />
             {/if}
           {/snippet}
           <ReferencesPanel
@@ -2630,16 +2673,18 @@
       direction="vertical"
       value={fractions.leftColumn}
       label="Resize left column"
-      onchange={(d) => layout.nudge("leftColumn", d)}
+      onchange={(d) =>
+        layout.set("leftColumn", capFraction(fractions.leftColumn + d, workspaceWidth, graphMinPx()))}
       onreset={() => layout.resetOne("leftColumn")}
     />
     {/if}
 
     {#if topRow || shown.diff}
-    <div class="right-area">
+    <div class="right-area" style:min-width={shown.graph ? graphMin : undefined}>
       {#if topRow}
       <div
         class="top-row"
+        bind:clientWidth={topRowWidth}
         style:flex={shown.diff ? `0 0 ${fractions.topRow * 100}%` : "1 1 auto"}
       >
         {#if shown.graph}
@@ -2647,6 +2692,8 @@
           class="pane"
           class:grow={!shown.files}
           style:flex={shown.files ? `0 0 ${fractions.graph * 100}%` : undefined}
+          style:min-width={graphMin}
+          bind:this={graphPane}
           role="region"
         aria-label={PANEL_TITLES.graph}
         onpointerdown={() => (focused = "graph")}
@@ -2680,7 +2727,9 @@
               {checking}
               ondrop={onCommitDrop}
               oncontext={(oid, x, y) => void commitContext(oid, x, y)}
-              onref={(text) => (refFilter = text)}
+              {banner}
+              busy={repository.busy}
+              onbanneraction={runBannerAction}
               onworktreecontext={(x, y) => void refActions?.worktreeContext(x, y)}
               onrefcontext={(label, oid, x, y) => void refActions?.labelContext(label, oid, x, y)}
             />
@@ -2692,7 +2741,8 @@
           direction="vertical"
           value={fractions.graph}
           label="Resize graph panel"
-          onchange={(d) => layout.nudge("graph", d)}
+          onchange={(d) =>
+            layout.set("graph", floorFraction(fractions.graph + d, topRowWidth, graphMinPx()))}
           onreset={() => layout.resetOne("graph")}
         />
         {/if}
@@ -3106,7 +3156,7 @@
   {/if}
 
   <StatusBar
-    repository={repo?.name ?? (panelState === "opening" ? "Opening…" : "No repository")}
+    repository={footerRepository(repository.phase)}
     branch={repo ? repository.headLabel : undefined}
     upstream={tracked?.upstream ?? undefined}
     ahead={tracked?.ahead ?? 0}

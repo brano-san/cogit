@@ -1561,6 +1561,16 @@ pub async fn remote_url(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn ref_dates(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<Vec<git_engine::RefDate>, GitError> {
+    let app_state = state.state.clone();
+    blocking("ref_dates", move || app_state.ref_dates(repo)).await
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn image_sides(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,

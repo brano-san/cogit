@@ -104,9 +104,9 @@
             <span class="badge" aria-label={statusLabel(file.status)} title={statusTooltip(file.status)}
               >{statusBadge(file.status)}</span
             >
-            <span class="name truncate">{fileName(file.path)}</span>
+            <span class="name truncate shrink-last">{fileName(file.path)}</span>
             {#if file.oldPath}
-              <span class="renamed truncate" title="from {file.oldPath}"
+              <span class="renamed truncate shrink-first" title="from {file.oldPath}"
                 >← {fileName(file.oldPath)}{file.similarity !== null
                   ? ` ${file.similarity}%`
                   : ""}</span
@@ -117,7 +117,7 @@
                 >{file.modeChange === "executable" ? "+x" : "−x"}</span
               >
             {/if}
-            <span class="dir truncate">{showDirectory ? directory(file.path) : ""}</span>
+            <span class="dir truncate shrink-first">{showDirectory ? directory(file.path) : ""}</span>
             {#each actions as action (action.label)}
               <span
                 class="act"
@@ -293,14 +293,7 @@
     background: var(--c-deleted-bg, rgb(90 40 40 / 45%));
   }
 
-  .name {
-    flex: 0 1 auto;
-    min-width: 0;
-  }
-
   .renamed {
-    flex: 0 1 auto;
-    min-width: 0;
     color: var(--status-ref);
     font-size: 10px;
   }
@@ -313,8 +306,7 @@
   }
 
   .dir {
-    flex: 1 1 auto;
-    min-width: 0;
+    flex-grow: 1;
     color: var(--text-secondary);
     font-size: 11px;
   }

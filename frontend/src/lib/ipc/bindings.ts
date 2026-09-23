@@ -108,6 +108,7 @@ export const commands = {
 	stageSelection: (repo: RepoId, request: PatchRequest, reverse: boolean) => typedError<null, GitError>(__TAURI_INVOKE("stage_selection", { repo, request, reverse })),
 	blame: (repo: RepoId, path: string, rev: string) => typedError<BlameLine[], GitError>(__TAURI_INVOKE("blame", { repo, path, rev })),
 	remoteUrl: (repo: RepoId, name: string) => typedError<string | null, GitError>(__TAURI_INVOKE("remote_url", { repo, name })),
+	refDates: (repo: RepoId) => typedError<RefDate[], GitError>(__TAURI_INVOKE("ref_dates", { repo })),
 	addToGitignore: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("add_to_gitignore", { repo, paths })),
 	deleteUntracked: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("delete_untracked", { repo, paths })),
 	imageSides: (repo: RepoId, spec: DiffSpec, path: string) => typedError<[string | null, string | null], GitError>(__TAURI_INVOKE("image_sides", { repo, spec, path })),
@@ -934,6 +935,13 @@ export type RebaseStep = {
 	summary: string,
 };
 
+/**  When a ref's tip was made, for sorting Branches by date. */
+export type RefDate = {
+	fullName: string,
+	/**  Unix seconds: the tagger's for an annotated tag, the committer's otherwise. */
+	timestamp: number,
+};
+
 export type ReflogEntry = {
 	selector: string,
 	oid: string,
@@ -995,9 +1003,11 @@ export type RepoOverview = {
 	dirty: boolean,
 	/**  The folder is gone. The row stays so the user can remove it on purpose (T3.7). */
 	missing: boolean,
+	/**  An operation stopped half way, or a detached HEAD: the row labels it (#22). */
+	state: RepoState,
 };
 
-export type RepoState = { kind: "clean" } | { kind: "detachedHead"; oid: string } | { kind: "merging" } | { kind: "rebasing" } | { kind: "cherryPicking" } | { kind: "reverting" } | { kind: "bisecting" } | { kind: "empty" } | { kind: "bare" };
+export type RepoState = { kind: "clean" } | { kind: "detachedHead"; oid: string } | { kind: "merging" } | { kind: "rebasing" } | { kind: "cherryPicking" } | { kind: "reverting" } | { kind: "bisecting" } | { kind: "applyingPatches" } | { kind: "empty" } | { kind: "bare" };
 
 export type RepoStatus = {
 	staged: number,
@@ -1017,6 +1027,8 @@ export type RepoSummary = {
 	status: RepoStatus,
 	state: RepoState,
 	indexLock: string | null,
+	/**  `cogit.tagGroupSeparator`, `/` when unset; read on every open, so a refresh sees a change. */
+	tagGroupSeparator: string,
 };
 
 /**  The five modes of `git reset <commit>`: what happens to the index and the tree. */
@@ -1140,6 +1152,8 @@ export type Submodule = {
 	 */
 	ahead: number,
 	behind: number,
+	/**  What the submodule's own repository is in the middle of; `None` until it is checked out. */
+	repoState: RepoState | null,
 };
 
 export type SubmoduleState = "notInitialised" | "inSync" | 

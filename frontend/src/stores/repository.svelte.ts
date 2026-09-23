@@ -43,6 +43,9 @@ class RepositoryStore {
       dropped, whichever way it ends. */
   #ticket = 0;
   #timer: ReturnType<typeof setTimeout> | null = null;
+  /** What a listed repository looked like when a submodule or worktree of it replaced it
+      in the panels, so clicking it again switches back without reopening it (#50). */
+  #kept = new Map<string, RepoSummary>();
 
   get current(): RepoSummary | null {
     return this.phase.kind === "closed" ? null : this.phase.repo;
@@ -142,6 +145,31 @@ class RepositoryStore {
     this.#ticket += 1;
     this.#disarm();
     this.phase = { kind: "open", repo };
+  }
+
+  /** Called before a submodule or worktree takes the panels. */
+  keep(): void {
+    const open = this.current;
+    if (open) this.#kept.set(open.root, open);
+  }
+
+  /** Shows the kept summary at once and re-reads it quietly, with no `opening` phase: a
+      worktree may have moved a branch meanwhile. Nothing kept is an ordinary open. */
+  async comeBack(root: string): Promise<void> {
+    const kept = this.#kept.get(root);
+    this.#kept.delete(root);
+    if (!kept) {
+      await this.open(root);
+      return;
+    }
+    this.adopt(kept);
+    const ticket = this.#ticket;
+    try {
+      const fresh = await openRepository(root);
+      if (this.#ticket === ticket) this.#replace(fresh);
+    } catch (err) {
+      trace(`open:${root}`, `re-reading the kept repository failed: ${String(err)}`);
+    }
   }
 
   /** The repository is the same one; only its contents were re-read. */

@@ -388,6 +388,15 @@ describe("labelTarget", () => {
     expect(labelTarget({ text: "v1", kind: "tag" }, branches, tags)?.tag?.name).toBe("v1");
   });
 
+  it("acts on the local branch of a joined origin=branch label", () => {
+    const joined = { text: "origin=topic", kind: "head", remotes: ["origin"], name: "topic" } as const;
+    expect(labelTarget(joined, branches, tags)?.branch?.kind).toBe("local");
+  });
+
+  it("leaves a stash label to the stash menu", () => {
+    expect(labelTarget({ text: "stash@{0}", kind: "stash" }, branches, tags)).toBeNull();
+  });
+
   it("gives nothing for a ref that is gone", () => {
     expect(labelTarget({ text: "gone", kind: "local" }, branches, tags)).toBeNull();
   });
