@@ -116,6 +116,10 @@ class GraphStore {
   }
 
   async load(repo: RepoId, query: CommitQuery = EMPTY_QUERY): Promise<void> {
+    await this.#load(repo, query, true);
+  }
+
+  async #load(repo: RepoId, query: CommitQuery, retry: boolean): Promise<void> {
     const load = ++this.#loads;
     this.query = query;
     const fresh = walk(repo);
@@ -143,6 +147,9 @@ class GraphStore {
         { ...query, visibleRefs: this.visibleRefs },
       );
       if (load === this.#loads) this.skipped = skipped ?? [];
+      if (load === this.#loads && !fresh.complete && !(await this.#settle(fresh, load)) && retry) {
+        return await this.#load(repo, query, false);
+      }
     } catch (err) {
       if (load === this.#loads) {
         this.#next = null;
@@ -198,10 +205,13 @@ class GraphStore {
   async #fetch(of: Walk, index: number): Promise<void> {
     if (of.generation === null || of.asking.has(index)) return;
     of.asking.add(index);
+    let served: number;
     try {
       const block = await graphWindow(of.repo, of.generation, index * BLOCK, BLOCK);
       if (!block) return;
       of.blocks.set(index, block);
+      served = block.total;
+      this.#adopt(of, block);
       this.#evict(of);
     } catch (err) {
       if (of === this.#shown) this.error = asError(err);
@@ -209,12 +219,30 @@ class GraphStore {
     } finally {
       of.asking.delete(index);
     }
-    if (of === this.#shown) {
-      this.#arrived += 1;
-      // The walk went on while this block was on its way.
-      if (this.#wanted(of).includes(index)) void this.#fetch(of, index);
-    }
+    if (of === this.#shown) this.#arrived += 1;
+    // The walk went on while this block was on its way; a reload catching up needs it too.
+    const live = of === this.#shown || of === this.#next;
+    if (live && served < of.total && this.#wanted(of).includes(index)) void this.#fetch(of, index);
     this.#promote(of);
+  }
+
+  /** A window counts the rows Rust had when it cut them: the count never lags the rows. */
+  #adopt(of: Walk, block: GraphBlock): void {
+    if (block.total <= of.total && (of.complete || !block.complete)) return;
+    of.total = Math.max(of.total, block.total);
+    of.complete ||= block.complete;
+    if (of === this.#shown) this.#publish();
+  }
+
+  /** The walk ended without its last count. Rust's own figure, or false once it is gone. */
+  async #settle(of: Walk, load: number): Promise<boolean> {
+    if (of.generation === null) return false;
+    const block = await graphWindow(of.repo, of.generation, 0, 0).catch(() => null);
+    if (load !== this.#loads) return true;
+    if (!block) return false;
+    this.#adopt(of, block);
+    this.#ask(of);
+    return true;
   }
 
   /** A reload takes over once it has every row on screen, or has no more to give. */

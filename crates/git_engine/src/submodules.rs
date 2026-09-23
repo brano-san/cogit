@@ -1,4 +1,4 @@
-use crate::{GitError, RepoHandle, Result};
+use crate::{GitError, RepoHandle, RepoState, Result};
 use serde::Serialize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
@@ -37,6 +37,8 @@ pub struct Submodule {
     /// behind or diverged.
     pub ahead: u32,
     pub behind: u32,
+    /// What the submodule's own repository is in the middle of; `None` until it is checked out.
+    pub repo_state: Option<RepoState>,
 }
 
 /// Which commit a gitlink points at on each side of a diff.
@@ -53,6 +55,7 @@ struct Inside {
     oid: Option<String>,
     branch: Option<String>,
     subject: Option<String>,
+    state: Option<RepoState>,
 }
 
 impl Inside {
@@ -124,6 +127,7 @@ impl RepoHandle {
                 checked_out,
                 state,
                 branch: inside.as_ref().and_then(|found| found.branch.clone()),
+                repo_state: inside.as_ref().and_then(|found| found.state.clone()),
                 subject: inside.and_then(|found| found.subject),
                 nested,
                 ahead,
@@ -162,6 +166,7 @@ impl RepoHandle {
             .and_then(|oid| inner.commit_details(oid).ok())
             .map(|details| details.summary);
         Some(Inside {
+            state: inner.state().ok(),
             handle: inner,
             oid,
             branch,

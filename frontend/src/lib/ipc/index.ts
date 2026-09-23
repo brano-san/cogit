@@ -107,6 +107,7 @@ export type {
   Region,
   KeyBinding,
   RebaseStep,
+  RefDate,
   ReflogEntry,
   ScanHit,
   StashContents,
@@ -539,6 +540,10 @@ export async function mergeInto(repo: RepoId, options: MergeOptions) {
 
 export async function remoteUrl(repo: RepoId, name: string) {
   return unwrap(await commands.remoteUrl(repo, name));
+}
+
+export async function refDates(repo: RepoId) {
+  return unwrap(await commands.refDates(repo));
 }
 
 export async function listRemotes(repo: RepoId) {

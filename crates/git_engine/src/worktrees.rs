@@ -35,9 +35,9 @@ impl RepoHandle {
                     .map(|r| r.to_string())
                     .unwrap_or_default()
             });
-            match proxy.base() {
-                Ok(path) => entries.push(self.describe(path, false, locked, &here)),
-                Err(_) => entries.push(WorktreeEntry {
+            let mut entry = match proxy.base() {
+                Ok(path) => self.describe(path, false, locked, &here),
+                Err(_) => WorktreeEntry {
                     path: proxy.git_dir().display().to_string().replace('\\', "/"),
                     name: proxy.id().to_string(),
                     branch: None,
@@ -47,10 +47,34 @@ impl RepoHandle {
                     locked,
                     missing: true,
                     dirty: false,
-                }),
+                },
+            };
+            // The folder is gone but its record is not, and git still keeps the branch there.
+            if entry.missing {
+                (entry.branch, entry.head) = self.recorded_head(proxy.git_dir());
             }
+            entries.push(entry);
         }
         Ok(entries)
+    }
+
+    fn recorded_head(&self, record: &std::path::Path) -> (Option<String>, String) {
+        let Ok(text) = std::fs::read_to_string(record.join("HEAD")) else {
+            return (None, String::new());
+        };
+        let text = text.trim();
+        let Some(full) = text.strip_prefix("ref: ") else {
+            return (None, text.to_owned());
+        };
+        let head = self
+            .repo
+            .find_reference(full)
+            .ok()
+            .and_then(|mut reference| reference.peel_to_id().ok())
+            .map(|id| id.to_string())
+            .unwrap_or_default();
+        let branch = full.strip_prefix("refs/heads/").unwrap_or(full).to_owned();
+        (Some(branch), head)
     }
 
     /// The worktree holding this branch, unless it is the current one (T3.8).

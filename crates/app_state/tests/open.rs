@@ -97,3 +97,36 @@ fn an_empty_repository_opens_without_error() {
     assert!(matches!(summary.head, Head::Unborn { .. }));
     assert!(summary.branches.is_empty());
 }
+
+#[test]
+fn the_summary_carries_the_tag_separator_and_rereads_it_on_every_open() {
+    let f = test_fixtures::linear(1).unwrap();
+    let state = AppState::new();
+    assert_eq!(
+        state.open_repository(f.path()).unwrap().tag_group_separator,
+        "/"
+    );
+
+    f.git(&["config", "cogit.tagGroupSeparator", "-"]).unwrap();
+    assert_eq!(
+        state.open_repository(f.path()).unwrap().tag_group_separator,
+        "-"
+    );
+}
+
+#[test]
+fn ref_dates_cover_branches_and_tags() {
+    let f = test_fixtures::linear(2).unwrap();
+    f.git(&["tag", "v1"]).unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let mut names: Vec<String> = state
+        .ref_dates(repo)
+        .unwrap()
+        .into_iter()
+        .map(|entry| entry.full_name)
+        .collect();
+    names.sort();
+    assert_eq!(names, vec!["refs/heads/main", "refs/tags/v1"]);
+}

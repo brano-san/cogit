@@ -387,3 +387,16 @@ fn the_changes_of_a_worktree_can_be_put_in_a_stash_before_it_goes() {
         "{messages:?}"
     );
 }
+
+/// Branches marks a branch whose worktree folder is gone as `missing`, so the branch has to
+/// survive the folder: git still refuses to check it out anywhere else.
+#[test]
+fn a_missing_worktree_still_names_the_branch_it_holds() {
+    let f = test_fixtures::with_worktree().unwrap();
+    std::fs::remove_dir_all(linked(&f).path).unwrap();
+
+    let gone = linked(&f);
+    assert!(gone.missing, "{gone:?}");
+    assert_eq!(gone.branch.as_deref(), Some("feature-wt"), "{gone:?}");
+    assert!(!gone.head.is_empty(), "{gone:?}");
+}

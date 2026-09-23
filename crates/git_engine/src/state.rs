@@ -17,6 +17,8 @@ pub enum RepoState {
     CherryPicking,
     Reverting,
     Bisecting,
+    // `git am` stopped on a patch that did not apply.
+    ApplyingPatches,
     Empty,
     Bare,
 }
@@ -31,6 +33,7 @@ impl RepoState {
                 | Self::CherryPicking
                 | Self::Reverting
                 | Self::Bisecting
+                | Self::ApplyingPatches
         )
     }
 
@@ -53,6 +56,10 @@ impl RepoHandle {
 
         if marker("MERGE_HEAD") {
             return Ok(RepoState::Merging);
+        }
+        // `git am` and the apply backend of rebase share `rebase-apply`; am leaves `applying`.
+        if marker("rebase-apply/applying") {
+            return Ok(RepoState::ApplyingPatches);
         }
         if marker("rebase-merge") || marker("rebase-apply") {
             return Ok(RepoState::Rebasing);
@@ -91,6 +98,7 @@ mod tests {
     fn interrupted_operations_offer_continue_and_abort() {
         assert!(RepoState::Merging.is_interrupted_operation());
         assert!(RepoState::Rebasing.is_interrupted_operation());
+        assert!(RepoState::ApplyingPatches.is_interrupted_operation());
         assert!(!RepoState::Clean.is_interrupted_operation());
         assert!(!RepoState::Empty.is_interrupted_operation());
     }

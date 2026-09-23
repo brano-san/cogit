@@ -6,6 +6,7 @@ class Channel {
 
 /** The Rust side: the rows of every graph built so far, by generation. */
 const built = new Map<number, string[]>();
+const walked = new Set<number>();
 let generations = 0;
 const streams: { channel: Channel; generation: number; finish: (outcome: unknown) => void }[] = [];
 
@@ -27,7 +28,7 @@ const commands = {
       data: {
         start,
         total: rows.length,
-        complete: false,
+        complete: walked.has(generation),
         length: oids.length,
         oid: (row: number) => oids[row],
         find: (oid: string) => oids.indexOf(oid),
@@ -56,11 +57,23 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 function last() {
   const stream = streams.at(-1);
   if (!stream) throw new Error("no stream started");
+  /** Rows laid out in Rust, and whether the walk is over, without a word to the channel. */
+  const walk = (oids: string[], isLast: boolean) => {
+    const rows = built.get(stream.generation)!;
+    rows.push(...oids);
+    if (isLast) walked.add(stream.generation);
+    return rows.length;
+  };
+  /** A progress message; the rows a window asks for meanwhile are still on their way. */
+  const push = (oids: string[], isLast = false) => {
+    const total = walk(oids, isLast);
+    stream.channel.onmessage?.({ generation: stream.generation, total, isLast });
+  };
   return {
+    walk,
+    push,
     send: async (oids: string[], isLast = false) => {
-      const rows = built.get(stream.generation)!;
-      rows.push(...oids);
-      stream.channel.onmessage?.({ generation: stream.generation, total: rows.length, isLast });
+      push(oids, isLast);
       await settle();
     },
     finish: () => stream.finish({ status: "ok", data: [] }),
@@ -91,7 +104,94 @@ beforeEach(() => {
   graph.clear();
   streams.length = 0;
   built.clear();
+  walked.clear();
   graph.show(0, 50);
+});
+
+const ids = (count: number, prefix: string) => Array.from({ length: count }, (_, i) => `${prefix}${i}`);
+
+describe("graph counter", () => {
+  it("settles on the newest walk after reloads restarted in a row", async () => {
+    await loaded(A, ["a", "b", "c"]);
+
+    void graph.load(A);
+    const first = last();
+    void graph.load(A);
+    const second = last();
+    const done = graph.load(A);
+    const third = last();
+    await first.send(["x"], true);
+    await second.send(["y", "z"], true);
+    await third.send(["p", "q", "r", "s"], true);
+    third.finish();
+    await done;
+
+    expect(graph.total).toBe(4);
+    expect(oids()).toEqual(["p", "q", "r", "s"]);
+  });
+
+  it("keeps the old count with the old rows while a restarted reload has nothing yet", async () => {
+    await loaded(A, ["a", "b", "c"]);
+
+    void graph.load(A);
+    void graph.load(A);
+
+    expect(graph.total).toBe(3);
+    expect(oids()).toEqual(["a", "b", "c"]);
+  });
+
+  it("finishes a reload whose rows were on their way when its last count arrived", async () => {
+    await loaded(A, ids(300, "o"));
+    graph.show(100, 200);
+    await settle();
+
+    const reload = graph.load(A);
+    const stream = last();
+    stream.push(ids(200, "n"));
+    stream.push(ids(150, "m"), true);
+    await settle();
+    stream.finish();
+    await reload;
+    await settle();
+
+    expect(graph.total).toBe(350);
+    expect(graph.rowAt(150)?.commit.oid).toBe("n150");
+  });
+
+  it("takes the final count from Rust when the last progress message never came", async () => {
+    await loaded(A, ["a", "b", "c"]);
+
+    const reload = graph.load(A);
+    const stream = last();
+    await stream.send(ids(200, "n"));
+    stream.walk(ids(150, "m"), true);
+    stream.finish();
+    await reload;
+    await settle();
+
+    expect(graph.total).toBe(350);
+    expect(graph.complete).toBe(true);
+  });
+
+  it("walks again when a walk it does not know about cut the newest one short", async () => {
+    await loaded(A, ["a", "b", "c"]);
+
+    const reload = graph.load(A);
+    const started = streams.length;
+    const cut = last();
+    generations += 1;
+    cut.finish();
+    await settle();
+    expect(streams.length).toBe(started + 1);
+    const again = last();
+    await again.send(["x", "y"], true);
+    again.finish();
+    await reload;
+    await settle();
+
+    expect(graph.total).toBe(2);
+    expect(oids()).toEqual(["x", "y"]);
+  });
 });
 
 describe("graph reload", () => {
