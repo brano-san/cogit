@@ -1,6 +1,5 @@
 /**
  * The button toolbar: what each button is, and whether it can run right now.
- *
  * Kept out of the component so the rules can be tested; the component only draws them.
  */
 
@@ -120,7 +119,6 @@ export const ACTIONS: readonly ToolbarAction[] = [
   { id: "undo", label: "Undo", icon: ICONS.undo, hint: "Reverse the last operation" },
 ];
 
-/** Where one group of buttons ends and the next begins. */
 export const SEPARATOR = "|";
 
 export const DEFAULT_LAYOUT: readonly string[] = [
@@ -164,7 +162,6 @@ export type MenuEntry =
   | { kind: "radio" | "check"; id: string; label: string; hint: string; checked: boolean }
   | { kind: "separator" };
 
-/** What the dropdowns are built from besides the fixed entries. */
 export interface MenuContext {
   remotes: readonly string[];
   /** The remote Pull uses; see `currentRemote`. */
@@ -254,7 +251,6 @@ export function hintOf(action: ToolbarAction, context: MenuContext = NO_MENU_CON
   return action.hint;
 }
 
-/** The dropdown of a split button. */
 export function menuOf(id: string, context: MenuContext = NO_MENU_CONTEXT): MenuEntry[] {
   switch (id) {
     case "pull":
@@ -298,7 +294,6 @@ export interface ToolbarFacts {
   /** The commit selected in Graph or through a ref in Branches. */
   commit: string | null;
   head: string | null;
-  /** HEAD is on a branch rather than detached. */
   branch: boolean;
   /** Whether HEAD already contains `commit`; `undefined` while that is being asked. */
   merged: boolean | undefined;

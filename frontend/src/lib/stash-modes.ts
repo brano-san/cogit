@@ -1,5 +1,3 @@
-/** The three ways the Stash dialog can put the working tree aside (#29). */
-
 export type StashMode = "all" | "keepIndex" | "keepWorktree";
 
 export interface StashChoice {
@@ -7,7 +5,6 @@ export interface StashChoice {
   message: string;
 }
 
-/** In the order the dialog shows them; the first is what Enter does. */
 export const STASH_MODES: readonly { mode: StashMode; label: string; hint: string }[] = [
   {
     mode: "all",

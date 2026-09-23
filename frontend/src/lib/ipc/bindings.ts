@@ -298,12 +298,8 @@ export const commands = {
 	runHook: (repo: RepoId, name: string) => typedError<HookRun, GitError>(__TAURI_INVOKE("run_hook", { repo, name })),
 	rollbackTo: (repo: RepoId, rev: string, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("rollback_to", { repo, rev, paths })),
 	isPublished: (repo: RepoId, rev: string) => typedError<boolean, GitError>(__TAURI_INVOKE("is_published", { repo, rev })),
-	/**  Merge is offered only for a commit HEAD does not already contain (task #31). */
 	isMergedIntoHead: (repo: RepoId, rev: string) => typedError<boolean, GitError>(__TAURI_INVOKE("is_merged_into_head", { repo, rev })),
-	/**
-	 *  After a pull: local branches merged into HEAD whose upstream the remote deleted.
-	 *  Returns the names that were deleted.
-	 */
+	/**  After a pull: deletes merged branches whose upstream is gone; returns their names. */
 	deleteMergedBranches: (repo: RepoId) => typedError<string[], GitError>(__TAURI_INVOKE("delete_merged_branches", { repo })),
 	splitOff: (repo: RepoId, rev: string, paths: string[], message: string, splitFirst: boolean) => typedError<null, GitError>(__TAURI_INVOKE("split_off", { repo, rev, paths, message, splitFirst })),
 	rebaseTodo: (repo: RepoId, base: string) => typedError<TodoEntry[], GitError>(__TAURI_INVOKE("rebase_todo", { repo, base })),

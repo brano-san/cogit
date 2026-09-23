@@ -8,7 +8,6 @@ type Pending =
 class StashDialogStore {
   open = $state.raw<Pending | null>(null);
 
-  /** Stash ▸ the main button: a name and one of the three modes, or null. */
   create(): Promise<StashChoice | null> {
     this.#dismiss();
     return new Promise((resolve) => {
@@ -22,7 +21,6 @@ class StashDialogStore {
     });
   }
 
-  /** Stash Selection: the files listed for a yes; the message, possibly empty, or null. */
   selection(paths: readonly string[]): Promise<string | null> {
     this.#dismiss();
     return new Promise((resolve) => {
