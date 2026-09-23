@@ -328,3 +328,17 @@ describe("the Stash menu", () => {
     expect(reasonOf("quick-stash-all", tree())).toBe("The working tree is clean");
   });
 });
+
+describe("the Push menu", () => {
+  it("offers Push and Push To…", () => {
+    expect(menuOf("push").map((entry) => (entry.kind === "separator" ? "—" : entry.id))).toEqual([
+      "push",
+      "push-to",
+    ]);
+  });
+
+  it("needs HEAD on a branch for Push To…", () => {
+    expect(reasonOf("push-to", facts({ remote: true }))).toBe("HEAD is not on a branch");
+    expect(reasonOf("push-to", facts({ remote: true, branch: true }))).toBeUndefined();
+  });
+});

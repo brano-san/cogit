@@ -55,6 +55,7 @@ export const ACTIONS: readonly ToolbarAction[] = [
     icon: ICONS.push,
     hint: "Send your commits to the remote",
     shortcut: "Ctrl+Shift+O",
+    split: true,
   },
   {
     id: "sync",
@@ -250,6 +251,11 @@ export function menuOf(id: string, context: MenuContext = NO_MENU_CONTEXT): Menu
   switch (id) {
     case "pull":
       return pullMenu(context);
+    case "push":
+      return [
+        item("push", "Push", "The current branch to its upstream"),
+        item("push-to", "Push To…", "Choose the remote and the ref"),
+      ];
     case "sync":
       return syncMenu(context);
     case "stash":
@@ -284,6 +290,8 @@ export interface ToolbarFacts {
   /** The commit selected in Graph or through a ref in Branches. */
   commit: string | null;
   head: string | null;
+  /** HEAD is on a branch rather than detached. */
+  branch: boolean;
   /** Whether HEAD already contains `commit`; `undefined` while that is being asked. */
   merged: boolean | undefined;
   stashes: number;
@@ -300,6 +308,7 @@ export const NO_FACTS: ToolbarFacts = {
   staged: [],
   commit: null,
   head: null,
+  branch: false,
   merged: undefined,
   stashes: 0,
   undo: false,
@@ -352,6 +361,7 @@ const needCommit: Rule = (f) =>
 const RULES: Record<string, Rule> = {
   pull: needRemote,
   push: needRemote,
+  "push-to": (f) => needRemote(f) ?? (f.branch ? undefined : "HEAD is not on a branch"),
   sync: needRemote,
   "fetch-remote": needRemote,
   "fetch-remotes": needRemote,
