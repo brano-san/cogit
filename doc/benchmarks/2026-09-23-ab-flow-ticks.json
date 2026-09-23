@@ -1,0 +1,1076 @@
+{
+  "env": {
+    "label": "ab-flow-ticks",
+    "date": "2026-09-23T16:50:54.373Z",
+    "commit": "a5b4cbb",
+    "dirty": true,
+    "exeBuilt": "2026-09-23T16:26:44.808Z",
+    "os": "Майкрософт Windows 11 Домашняя 10.0.26200 build 26200",
+    "arch": "x64",
+    "cpu": "AMD Ryzen 9 9950X3D 16-Core Processor × 32",
+    "memoryGiB": 62,
+    "disk": "Reletech P400 EVO PCIE4.0 2TB, SSD, NVMe",
+    "git": "git version 2.51.0.windows.1",
+    "node": "v22.18.0",
+    "config": {
+      "runs": 10,
+      "warmup": 2,
+      "cold": 10,
+      "sets": [
+        "medium",
+        "large"
+      ],
+      "only": [
+        "graph.tick-tags",
+        "graph.tick-branch"
+      ]
+    },
+    "conditions": {
+      "cold": "a new process for every sample; the OS file cache is not flushed",
+      "warm": "the same action repeated in one session, after two unrecorded runs"
+    },
+    "ab": [
+      "quiet",
+      "flow"
+    ],
+    "minutes": 5.8,
+    "calibrationLevel": 5.6
+  },
+  "ab": [
+    {
+      "key": "graph.tick-tags|large",
+      "ma": 236.8,
+      "mb": 245.3,
+      "ratio": 1.036,
+      "lo": 1.018,
+      "hi": 1.054,
+      "verdict": "same",
+      "na": 11,
+      "nb": 11
+    },
+    {
+      "key": "graph.tick-branch|large",
+      "ma": 232.8,
+      "mb": 241,
+      "ratio": 1.035,
+      "lo": 1.018,
+      "hi": 1.036,
+      "verdict": "same",
+      "na": 12,
+      "nb": 12
+    },
+    {
+      "key": "graph.tick-tags|medium",
+      "ma": 41,
+      "mb": 45.2,
+      "ratio": 1.102,
+      "lo": 1.1,
+      "hi": 1.108,
+      "verdict": "SLOWER",
+      "na": 12,
+      "nb": 12
+    },
+    {
+      "key": "graph.tick-branch|medium",
+      "ma": 33,
+      "mb": 37,
+      "ratio": 1.121,
+      "lo": 0.997,
+      "hi": 1.128,
+      "verdict": "same",
+      "na": 9,
+      "nb": 8
+    }
+  ],
+  "results": [
+    {
+      "id": "graph.tick-tags",
+      "group": "Граф",
+      "title": "отметка группы тегов",
+      "set": "large",
+      "condition": "warm",
+      "variant": "flow",
+      "n": 11,
+      "busy": 1,
+      "median": 245.3,
+      "p95": 249.5,
+      "min": 241.3,
+      "max": 249.5,
+      "ipcMedian": 238.2,
+      "frontMedian": 7.1,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.017,
+      "retakes": 7,
+      "calibMedian": 6.5,
+      "commands": {
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 237.6
+        },
+        "graph_window": {
+          "perRun": 1,
+          "msPerRun": 0.7
+        },
+        "report_timing": {
+          "perRun": 1,
+          "msPerRun": 0.2
+        }
+      },
+      "samples": [
+        {
+          "total": 245.3,
+          "ipc": 238.6,
+          "front": 6.7,
+          "longest": 0,
+          "calib": 7.4,
+          "busy": true
+        },
+        {
+          "total": 245.3,
+          "ipc": 238.2,
+          "front": 7.1,
+          "longest": 0,
+          "calib": 6.5
+        },
+        {
+          "total": 241.3,
+          "ipc": 234.6,
+          "front": 6.7,
+          "longest": 0,
+          "calib": 6.2
+        },
+        {
+          "total": 245.4,
+          "ipc": 238,
+          "front": 7.4,
+          "longest": 0,
+          "calib": 6.8
+        },
+        {
+          "total": 245.6,
+          "ipc": 234.9,
+          "front": 10.7,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 245.2,
+          "ipc": 238.8,
+          "front": 6.4,
+          "longest": 0,
+          "calib": 6.9
+        },
+        {
+          "total": 249.5,
+          "ipc": 238.8,
+          "front": 10.7,
+          "longest": 0,
+          "calib": 7.1
+        },
+        {
+          "total": 249.4,
+          "ipc": 242.3,
+          "front": 7.1,
+          "longest": 0,
+          "calib": 7.1
+        },
+        {
+          "total": 245.2,
+          "ipc": 238.1,
+          "front": 7.1,
+          "longest": 0,
+          "calib": 7
+        },
+        {
+          "total": 245.2,
+          "ipc": 238.7,
+          "front": 6.5,
+          "longest": 0,
+          "calib": 6.2
+        },
+        {
+          "total": 245.4,
+          "ipc": 238.4,
+          "front": 7,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 245.1,
+          "ipc": 235,
+          "front": 10.1,
+          "longest": 0,
+          "calib": 6.2
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.tick-branch",
+      "group": "Граф",
+      "title": "отметка ветки в Branches",
+      "set": "large",
+      "condition": "warm",
+      "variant": "flow",
+      "n": 12,
+      "busy": 0,
+      "median": 241,
+      "p95": 261.8,
+      "min": 236.9,
+      "max": 261.8,
+      "ipcMedian": 233.9,
+      "frontMedian": 6.7,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.086,
+      "retakes": 0,
+      "calibMedian": 6.1,
+      "commands": {
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 234.7
+        },
+        "graph_window": {
+          "perRun": 1,
+          "msPerRun": 0.6
+        },
+        "report_timing": {
+          "perRun": 1,
+          "msPerRun": 0.2
+        }
+      },
+      "samples": [
+        {
+          "total": 237,
+          "ipc": 230.1,
+          "front": 6.9,
+          "longest": 0,
+          "calib": 6.3
+        },
+        {
+          "total": 236.9,
+          "ipc": 230.8,
+          "front": 6.1,
+          "longest": 0,
+          "calib": 6.3
+        },
+        {
+          "total": 236.9,
+          "ipc": 230.2,
+          "front": 6.7,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 247.3,
+          "ipc": 235.2,
+          "front": 12.1,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 237.1,
+          "ipc": 230.7,
+          "front": 6.4,
+          "longest": 0,
+          "calib": 5.5
+        },
+        {
+          "total": 241.2,
+          "ipc": 234.3,
+          "front": 6.9,
+          "longest": 0,
+          "calib": 6.4
+        },
+        {
+          "total": 236.9,
+          "ipc": 230.3,
+          "front": 6.6,
+          "longest": 0,
+          "calib": 6.1
+        },
+        {
+          "total": 241.2,
+          "ipc": 234.5,
+          "front": 6.7,
+          "longest": 0,
+          "calib": 6.9
+        },
+        {
+          "total": 241,
+          "ipc": 233.9,
+          "front": 7.1,
+          "longest": 0,
+          "calib": 6.5
+        },
+        {
+          "total": 261.8,
+          "ipc": 250.6,
+          "front": 11.2,
+          "longest": 0,
+          "calib": 6.9
+        },
+        {
+          "total": 249.7,
+          "ipc": 242.8,
+          "front": 6.9,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 241.2,
+          "ipc": 234.7,
+          "front": 6.5,
+          "longest": 0,
+          "calib": 5.6
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.tick-tags",
+      "group": "Граф",
+      "title": "отметка группы тегов",
+      "set": "large",
+      "condition": "warm",
+      "variant": "quiet",
+      "n": 11,
+      "busy": 1,
+      "median": 236.8,
+      "p95": 270.5,
+      "min": 232.9,
+      "max": 270.5,
+      "ipcMedian": 230.3,
+      "frontMedian": 7.3,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.142,
+      "retakes": 5,
+      "calibMedian": 6.9,
+      "commands": {
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 230.7
+        },
+        "graph_window": {
+          "perRun": 1,
+          "msPerRun": 0.7
+        },
+        "report_timing": {
+          "perRun": 1,
+          "msPerRun": 0.5
+        }
+      },
+      "samples": [
+        {
+          "total": 236.8,
+          "ipc": 230.3,
+          "front": 6.5,
+          "longest": 0,
+          "calib": 6.9
+        },
+        {
+          "total": 232.9,
+          "ipc": 225.9,
+          "front": 7,
+          "longest": 0,
+          "calib": 6.1
+        },
+        {
+          "total": 236.8,
+          "ipc": 230.5,
+          "front": 6.3,
+          "longest": 0,
+          "calib": 7.1
+        },
+        {
+          "total": 240.9,
+          "ipc": 233.8,
+          "front": 7.1,
+          "longest": 0,
+          "calib": 7.3,
+          "busy": true
+        },
+        {
+          "total": 236.7,
+          "ipc": 226.1,
+          "front": 10.6,
+          "longest": 0,
+          "calib": 6.9
+        },
+        {
+          "total": 237,
+          "ipc": 226.4,
+          "front": 10.6,
+          "longest": 0,
+          "calib": 7
+        },
+        {
+          "total": 241.1,
+          "ipc": 230.6,
+          "front": 10.5,
+          "longest": 0,
+          "calib": 7
+        },
+        {
+          "total": 232.9,
+          "ipc": 226.5,
+          "front": 6.4,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 232.9,
+          "ipc": 225.6,
+          "front": 7.3,
+          "longest": 0,
+          "calib": 6.5
+        },
+        {
+          "total": 241,
+          "ipc": 230.6,
+          "front": 10.4,
+          "longest": 0,
+          "calib": 7.1
+        },
+        {
+          "total": 236.8,
+          "ipc": 230.3,
+          "front": 6.5,
+          "longest": 0,
+          "calib": 6.8
+        },
+        {
+          "total": 270.5,
+          "ipc": 260.2,
+          "front": 10.3,
+          "longest": 0,
+          "calib": 5.9
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.tick-branch",
+      "group": "Граф",
+      "title": "отметка ветки в Branches",
+      "set": "large",
+      "condition": "warm",
+      "variant": "quiet",
+      "n": 12,
+      "busy": 0,
+      "median": 232.8,
+      "p95": 237.1,
+      "min": 228.8,
+      "max": 237.1,
+      "ipcMedian": 226,
+      "frontMedian": 6.8,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.018,
+      "retakes": 1,
+      "calibMedian": 6,
+      "commands": {
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 224.7
+        },
+        "report_timing": {
+          "perRun": 1,
+          "msPerRun": 1
+        },
+        "graph_window": {
+          "perRun": 1,
+          "msPerRun": 0.6
+        }
+      },
+      "samples": [
+        {
+          "total": 232.7,
+          "ipc": 222.1,
+          "front": 10.6,
+          "longest": 0,
+          "calib": 6.9
+        },
+        {
+          "total": 232.8,
+          "ipc": 226,
+          "front": 6.8,
+          "longest": 0,
+          "calib": 6.5
+        },
+        {
+          "total": 232.9,
+          "ipc": 222.3,
+          "front": 10.6,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 232.8,
+          "ipc": 225.9,
+          "front": 6.9,
+          "longest": 0,
+          "calib": 7.1
+        },
+        {
+          "total": 236.9,
+          "ipc": 230.7,
+          "front": 6.2,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 232.8,
+          "ipc": 222.3,
+          "front": 10.5,
+          "longest": 0,
+          "calib": 6.5
+        },
+        {
+          "total": 237.1,
+          "ipc": 227,
+          "front": 10.1,
+          "longest": 0,
+          "calib": 6.5
+        },
+        {
+          "total": 232.8,
+          "ipc": 226.7,
+          "front": 6.1,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 228.8,
+          "ipc": 222.4,
+          "front": 6.4,
+          "longest": 0,
+          "calib": 6
+        },
+        {
+          "total": 232.8,
+          "ipc": 226.1,
+          "front": 6.7,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 232.9,
+          "ipc": 226,
+          "front": 6.9,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 236.6,
+          "ipc": 230.2,
+          "front": 6.4,
+          "longest": 0,
+          "calib": 6.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.tick-tags",
+      "group": "Граф",
+      "title": "отметка группы тегов",
+      "set": "medium",
+      "condition": "warm",
+      "variant": "flow",
+      "n": 12,
+      "busy": 0,
+      "median": 45.2,
+      "p95": 45.4,
+      "min": 37.1,
+      "max": 45.4,
+      "ipcMedian": 32.8,
+      "frontMedian": 12.3,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.004,
+      "retakes": 36,
+      "calibMedian": 7.4,
+      "commands": {
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 32.4
+        },
+        "graph_window": {
+          "perRun": 1,
+          "msPerRun": 0.7
+        }
+      },
+      "samples": [
+        {
+          "total": 45.1,
+          "ipc": 32.8,
+          "front": 12.3,
+          "longest": 0,
+          "calib": 7.4,
+          "busy": true
+        },
+        {
+          "total": 45.2,
+          "ipc": 32.6,
+          "front": 12.6,
+          "longest": 0,
+          "calib": 7.3,
+          "busy": true
+        },
+        {
+          "total": 45.4,
+          "ipc": 33.3,
+          "front": 12.1,
+          "longest": 0,
+          "calib": 7.4,
+          "busy": true
+        },
+        {
+          "total": 45.2,
+          "ipc": 32.8,
+          "front": 12.4,
+          "longest": 0,
+          "calib": 7.2
+        },
+        {
+          "total": 45.3,
+          "ipc": 32.6,
+          "front": 12.7,
+          "longest": 0,
+          "calib": 7.5,
+          "busy": true
+        },
+        {
+          "total": 45.4,
+          "ipc": 33,
+          "front": 12.4,
+          "longest": 0,
+          "calib": 7.3,
+          "busy": true
+        },
+        {
+          "total": 45.3,
+          "ipc": 32.7,
+          "front": 12.6,
+          "longest": 0,
+          "calib": 7.3,
+          "busy": true
+        },
+        {
+          "total": 37.1,
+          "ipc": 25.6,
+          "front": 11.5,
+          "longest": 0,
+          "calib": 6.3
+        },
+        {
+          "total": 41.1,
+          "ipc": 33.9,
+          "front": 7.2,
+          "longest": 0,
+          "calib": 7.7,
+          "busy": true
+        },
+        {
+          "total": 45.2,
+          "ipc": 32.9,
+          "front": 12.3,
+          "longest": 0,
+          "calib": 7.5,
+          "busy": true
+        },
+        {
+          "total": 45.3,
+          "ipc": 33.7,
+          "front": 11.6,
+          "longest": 0,
+          "calib": 7.4,
+          "busy": true
+        },
+        {
+          "total": 45.3,
+          "ipc": 32.7,
+          "front": 12.6,
+          "longest": 0,
+          "calib": 7.4,
+          "busy": true
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.tick-tags",
+      "group": "Граф",
+      "title": "отметка группы тегов",
+      "set": "medium",
+      "condition": "warm",
+      "variant": "quiet",
+      "n": 12,
+      "busy": 0,
+      "median": 41,
+      "p95": 41.2,
+      "min": 40.7,
+      "max": 41.2,
+      "ipcMedian": 33.2,
+      "frontMedian": 7.7,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.005,
+      "retakes": 34,
+      "calibMedian": 7.3,
+      "commands": {
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 32.8
+        },
+        "graph_window": {
+          "perRun": 1,
+          "msPerRun": 0.7
+        }
+      },
+      "samples": [
+        {
+          "total": 40.9,
+          "ipc": 33.8,
+          "front": 7.1,
+          "longest": 0,
+          "calib": 7.4,
+          "busy": true
+        },
+        {
+          "total": 40.7,
+          "ipc": 33.2,
+          "front": 7.5,
+          "longest": 0,
+          "calib": 7.3,
+          "busy": true
+        },
+        {
+          "total": 41,
+          "ipc": 34,
+          "front": 7,
+          "longest": 0,
+          "calib": 7.3,
+          "busy": true
+        },
+        {
+          "total": 41,
+          "ipc": 31.5,
+          "front": 9.5,
+          "longest": 0,
+          "calib": 7.3,
+          "busy": true
+        },
+        {
+          "total": 41.1,
+          "ipc": 31.4,
+          "front": 9.7,
+          "longest": 0,
+          "calib": 7.4,
+          "busy": true
+        },
+        {
+          "total": 41.1,
+          "ipc": 33.2,
+          "front": 7.9,
+          "longest": 0,
+          "calib": 7.4,
+          "busy": true
+        },
+        {
+          "total": 41.2,
+          "ipc": 33.3,
+          "front": 7.9,
+          "longest": 0,
+          "calib": 7.4,
+          "busy": true
+        },
+        {
+          "total": 40.8,
+          "ipc": 31,
+          "front": 9.8,
+          "longest": 0,
+          "calib": 7.2
+        },
+        {
+          "total": 41,
+          "ipc": 31.3,
+          "front": 9.7,
+          "longest": 0,
+          "calib": 7.3,
+          "busy": true
+        },
+        {
+          "total": 41.1,
+          "ipc": 33.4,
+          "front": 7.7,
+          "longest": 0,
+          "calib": 7.2
+        },
+        {
+          "total": 41.1,
+          "ipc": 34,
+          "front": 7.1,
+          "longest": 0,
+          "calib": 7.4,
+          "busy": true
+        },
+        {
+          "total": 40.8,
+          "ipc": 33.1,
+          "front": 7.7,
+          "longest": 0,
+          "calib": 7.4,
+          "busy": true
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.tick-branch",
+      "group": "Граф",
+      "title": "отметка ветки в Branches",
+      "set": "medium",
+      "condition": "warm",
+      "variant": "flow",
+      "n": 8,
+      "busy": 4,
+      "median": 37,
+      "p95": 41.3,
+      "min": 32.8,
+      "max": 41.3,
+      "ipcMedian": 25,
+      "frontMedian": 12,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.116,
+      "retakes": 12,
+      "calibMedian": 5.7,
+      "commands": {
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 25.6
+        },
+        "graph_window": {
+          "perRun": 1,
+          "msPerRun": 0.6
+        }
+      },
+      "samples": [
+        {
+          "total": 36.7,
+          "ipc": 25,
+          "front": 11.7,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 41.1,
+          "ipc": 33.8,
+          "front": 7.3,
+          "longest": 0,
+          "calib": 7.3,
+          "busy": true
+        },
+        {
+          "total": 37,
+          "ipc": 24.9,
+          "front": 12.1,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 41.1,
+          "ipc": 34.1,
+          "front": 7,
+          "longest": 0,
+          "calib": 7.3,
+          "busy": true
+        },
+        {
+          "total": 32.8,
+          "ipc": 25.5,
+          "front": 7.3,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 41,
+          "ipc": 31.5,
+          "front": 9.5,
+          "longest": 0,
+          "calib": 7.4,
+          "busy": true
+        },
+        {
+          "total": 37.1,
+          "ipc": 24.5,
+          "front": 12.6,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 40.9,
+          "ipc": 31.5,
+          "front": 9.4,
+          "longest": 0,
+          "calib": 7.3,
+          "busy": true
+        },
+        {
+          "total": 37.1,
+          "ipc": 24.6,
+          "front": 12.5,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 41.3,
+          "ipc": 30.3,
+          "front": 11,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 37,
+          "ipc": 25,
+          "front": 12,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 37.1,
+          "ipc": 25,
+          "front": 12.1,
+          "longest": 0,
+          "calib": 5.7
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.tick-branch",
+      "group": "Граф",
+      "title": "отметка ветки в Branches",
+      "set": "medium",
+      "condition": "warm",
+      "variant": "quiet",
+      "n": 9,
+      "busy": 3,
+      "median": 33,
+      "p95": 44.7,
+      "min": 32.6,
+      "max": 44.7,
+      "ipcMedian": 25.1,
+      "frontMedian": 9.5,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.355,
+      "retakes": 11,
+      "calibMedian": 5.6,
+      "commands": {
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 25.6
+        },
+        "graph_window": {
+          "perRun": 1,
+          "msPerRun": 0.6
+        }
+      },
+      "samples": [
+        {
+          "total": 37,
+          "ipc": 24.1,
+          "front": 12.9,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 32.6,
+          "ipc": 25.5,
+          "front": 7.1,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 36.6,
+          "ipc": 25.1,
+          "front": 11.5,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 40.9,
+          "ipc": 30.6,
+          "front": 10.3,
+          "longest": 0,
+          "calib": 7.3,
+          "busy": true
+        },
+        {
+          "total": 32.9,
+          "ipc": 25.1,
+          "front": 7.8,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 44.7,
+          "ipc": 32.1,
+          "front": 12.6,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 32.9,
+          "ipc": 25.1,
+          "front": 7.8,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 37.1,
+          "ipc": 24.5,
+          "front": 12.6,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 32.8,
+          "ipc": 25,
+          "front": 7.8,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 41.2,
+          "ipc": 30.6,
+          "front": 10.6,
+          "longest": 0,
+          "calib": 7.4,
+          "busy": true
+        },
+        {
+          "total": 33,
+          "ipc": 23.5,
+          "front": 9.5,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 41.1,
+          "ipc": 30.5,
+          "front": 10.6,
+          "longest": 0,
+          "calib": 7.4,
+          "busy": true
+        }
+      ],
+      "errors": []
+    }
+  ]
+}

@@ -341,3 +341,15 @@ fn a_conflicting_finish_leaves_the_merge_for_the_user_rather_than_pretending() {
             .any(|line| line.trim() == "feature/one")
     );
 }
+
+#[test]
+fn a_detached_head_is_no_flow_branch_being_checked_out() {
+    let f = started();
+    open(&f).flow_start(FlowKind::Feature, "login").unwrap();
+    f.git(&["switch", "--detach", "feature/login"]).unwrap();
+
+    let status = open(&f).flow_status().unwrap();
+
+    assert_eq!(status.branches.len(), 1);
+    assert!(!status.branches[0].is_head);
+}

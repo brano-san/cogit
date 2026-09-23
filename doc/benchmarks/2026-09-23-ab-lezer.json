@@ -1,0 +1,2768 @@
+{
+  "env": {
+    "label": "ab-lezer",
+    "date": "2026-09-23T16:18:43.398Z",
+    "commit": "a5b4cbb",
+    "dirty": true,
+    "exeBuilt": "2026-09-23T16:18:33.139Z",
+    "os": "Майкрософт Windows 11 Домашняя 10.0.26200 build 26200",
+    "arch": "x64",
+    "cpu": "AMD Ryzen 9 9950X3D 16-Core Processor × 32",
+    "memoryGiB": 62,
+    "disk": "Reletech P400 EVO PCIE4.0 2TB, SSD, NVMe",
+    "git": "git version 2.51.0.windows.1",
+    "node": "v22.18.0",
+    "config": {
+      "runs": 10,
+      "warmup": 2,
+      "cold": 10,
+      "sets": [
+        "dirty"
+      ],
+      "only": [
+        "app",
+        "diff",
+        "repo.open"
+      ]
+    },
+    "conditions": {
+      "cold": "a new process for every sample; the OS file cache is not flushed",
+      "warm": "the same action repeated in one session, after two unrecorded runs"
+    },
+    "ab": [
+      "quiet",
+      "lezer"
+    ],
+    "minutes": 4.5,
+    "calibrationLevel": 5.7
+  },
+  "ab": [
+    {
+      "key": "app.ready|medium",
+      "ma": 422.8,
+      "mb": 397.9,
+      "ratio": 0.941,
+      "lo": 0.85,
+      "hi": 1.102,
+      "verdict": "same",
+      "na": 11,
+      "nb": 11
+    },
+    {
+      "key": "app.first-paint|empty",
+      "ma": 409.3,
+      "mb": 405.2,
+      "ratio": 0.99,
+      "lo": 0.94,
+      "hi": 1.041,
+      "verdict": "same",
+      "na": 11,
+      "nb": 11
+    },
+    {
+      "key": "app.dom-loaded|empty",
+      "ma": 336.5,
+      "mb": 331.9,
+      "ratio": 0.986,
+      "lo": 0.939,
+      "hi": 1.043,
+      "verdict": "same",
+      "na": 11,
+      "nb": 11
+    },
+    {
+      "key": "app.navigation-start|empty",
+      "ma": 209.3,
+      "mb": 213.2,
+      "ratio": 1.019,
+      "lo": 0.929,
+      "hi": 1.108,
+      "verdict": "same",
+      "na": 11,
+      "nb": 11
+    },
+    {
+      "key": "repo.open|dirty",
+      "ma": 87.6,
+      "mb": 91.6,
+      "ratio": 1.046,
+      "lo": 0.952,
+      "hi": 1.095,
+      "verdict": "same",
+      "na": 12,
+      "nb": 12
+    },
+    {
+      "key": "app.close|medium",
+      "ma": 23,
+      "mb": 27,
+      "ratio": 1.174,
+      "lo": 0.583,
+      "hi": 1.857,
+      "verdict": "same",
+      "na": 11,
+      "nb": 11
+    },
+    {
+      "key": "graph.first-screen|dirty",
+      "ma": 22.7,
+      "mb": 25.9,
+      "ratio": 1.141,
+      "lo": 0.639,
+      "hi": 1.371,
+      "verdict": "same",
+      "na": 12,
+      "nb": 12
+    },
+    {
+      "key": "graph.full-layout|dirty",
+      "ma": 20.2,
+      "mb": 21.3,
+      "ratio": 1.054,
+      "lo": 0.869,
+      "hi": 1.138,
+      "verdict": "same",
+      "na": 12,
+      "nb": 12
+    },
+    {
+      "key": "diff.big|dirty",
+      "ma": 20.1,
+      "mb": 20.2,
+      "ratio": 1.005,
+      "lo": 0.995,
+      "hi": 1.01,
+      "verdict": "same",
+      "na": 12,
+      "nb": 12
+    },
+    {
+      "key": "branches.load|dirty",
+      "ma": 16.7,
+      "mb": 16.7,
+      "ratio": 1,
+      "lo": 0.994,
+      "hi": 1.184,
+      "verdict": "same",
+      "na": 12,
+      "nb": 12
+    },
+    {
+      "key": "diff.small|dirty",
+      "ma": 11.9,
+      "mb": 11.9,
+      "ratio": 1,
+      "lo": 0.992,
+      "hi": 1.017,
+      "verdict": "same",
+      "na": 8,
+      "nb": 11
+    },
+    {
+      "key": "diff.binary|dirty",
+      "ma": 11.9,
+      "mb": 11.9,
+      "ratio": 1,
+      "lo": 1,
+      "hi": 1.017,
+      "verdict": "same",
+      "na": 12,
+      "nb": 12
+    }
+  ],
+  "results": [
+    {
+      "id": "app.ready",
+      "group": "Приложение",
+      "title": "запуск до готовности (medium восстановлен)",
+      "set": "medium",
+      "condition": "cold",
+      "variant": "quiet",
+      "n": 11,
+      "busy": 0,
+      "median": 422.8,
+      "p95": 492.6,
+      "min": 386.3,
+      "max": 492.6,
+      "ipcMedian": 0,
+      "frontMedian": 422.8,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.165,
+      "retakes": 0,
+      "calibMedian": 0,
+      "commands": {},
+      "samples": [
+        {
+          "total": 459.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 422.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 471.1,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 418.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 492.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 425,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 386.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 395.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 393.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 386.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 463.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "app.first-paint",
+      "group": "Приложение",
+      "title": "запуск до первой отрисовки",
+      "set": "empty",
+      "condition": "cold",
+      "variant": "quiet",
+      "n": 11,
+      "busy": 0,
+      "median": 409.3,
+      "p95": 454.7,
+      "min": 393.1,
+      "max": 454.7,
+      "ipcMedian": 0,
+      "frontMedian": 409.3,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.111,
+      "retakes": 0,
+      "calibMedian": 0,
+      "commands": {},
+      "samples": [
+        {
+          "total": 428.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 422.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 409.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 454.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 437.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 410.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 396.5,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 397.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 399.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 393.1,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 394.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "app.first-paint",
+      "group": "Приложение",
+      "title": "запуск до первой отрисовки",
+      "set": "empty",
+      "condition": "cold",
+      "variant": "lezer",
+      "n": 11,
+      "busy": 0,
+      "median": 405.2,
+      "p95": 794.8,
+      "min": 392.5,
+      "max": 794.8,
+      "ipcMedian": 0,
+      "frontMedian": 405.2,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.962,
+      "retakes": 0,
+      "calibMedian": 0,
+      "commands": {},
+      "samples": [
+        {
+          "total": 423.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 412.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 405.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 794.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 474.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 411.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 401.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 393.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 394.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 396.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 392.5,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "app.ready",
+      "group": "Приложение",
+      "title": "запуск до готовности (medium восстановлен)",
+      "set": "medium",
+      "condition": "cold",
+      "variant": "lezer",
+      "n": 11,
+      "busy": 0,
+      "median": 397.9,
+      "p95": 783.9,
+      "min": 384.9,
+      "max": 783.9,
+      "ipcMedian": 0,
+      "frontMedian": 397.9,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.97,
+      "retakes": 0,
+      "calibMedian": 0,
+      "commands": {},
+      "samples": [
+        {
+          "total": 783.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 435.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 400.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 490,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 459,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 386.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 391,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 394.1,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 397.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 384.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 390,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "app.dom-loaded",
+      "group": "Приложение",
+      "title": "запуск: до DOMContentLoaded",
+      "set": "empty",
+      "condition": "cold",
+      "variant": "quiet",
+      "n": 11,
+      "busy": 0,
+      "median": 336.5,
+      "p95": 376.2,
+      "min": 320.2,
+      "max": 376.2,
+      "ipcMedian": 0,
+      "frontMedian": 336.5,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.118,
+      "retakes": 0,
+      "calibMedian": 0,
+      "commands": {},
+      "samples": [
+        {
+          "total": 353.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 339.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 336.5,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 376.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 355.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 338.5,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 322.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 324.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 326.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 320.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 327.1,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "app.dom-loaded",
+      "group": "Приложение",
+      "title": "запуск: до DOMContentLoaded",
+      "set": "empty",
+      "condition": "cold",
+      "variant": "lezer",
+      "n": 11,
+      "busy": 0,
+      "median": 331.9,
+      "p95": 683.3,
+      "min": 320.4,
+      "max": 683.3,
+      "ipcMedian": 0,
+      "frontMedian": 331.9,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 1.059,
+      "retakes": 0,
+      "calibMedian": 0,
+      "commands": {},
+      "samples": [
+        {
+          "total": 348.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 338.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 331.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 683.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 392.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 335,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 322.5,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 324.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 324.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 327.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 320.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "app.navigation-start",
+      "group": "Приложение",
+      "title": "запуск: процесс и WebView2 до начала страницы",
+      "set": "empty",
+      "condition": "cold",
+      "variant": "lezer",
+      "n": 11,
+      "busy": 0,
+      "median": 213.2,
+      "p95": 406.8,
+      "min": 203.9,
+      "max": 406.8,
+      "ipcMedian": 0,
+      "frontMedian": 213.2,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.908,
+      "retakes": 0,
+      "calibMedian": 0,
+      "commands": {},
+      "samples": [
+        {
+          "total": 231.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 216.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 213.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 406.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 262.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 203.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 209.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 213.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 206.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 212.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 208.5,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "app.navigation-start",
+      "group": "Приложение",
+      "title": "запуск: процесс и WebView2 до начала страницы",
+      "set": "empty",
+      "condition": "cold",
+      "variant": "quiet",
+      "n": 11,
+      "busy": 0,
+      "median": 209.3,
+      "p95": 250.7,
+      "min": 201.1,
+      "max": 250.7,
+      "ipcMedian": 0,
+      "frontMedian": 209.3,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.198,
+      "retakes": 0,
+      "calibMedian": 0,
+      "commands": {},
+      "samples": [
+        {
+          "total": 240.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 214.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 209.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 250.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 229.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 214.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 204.5,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 201.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 203.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 201.1,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 202.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "repo.open",
+      "group": "Репозиторий",
+      "title": "открытие",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "lezer",
+      "n": 12,
+      "busy": 0,
+      "median": 91.6,
+      "p95": 104.2,
+      "min": 83.3,
+      "max": 104.2,
+      "ipcMedian": 86.9,
+      "frontMedian": 6.9,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.138,
+      "retakes": 3,
+      "calibMedian": 5.7,
+      "commands": {
+        "flow_status": {
+          "perRun": 1,
+          "msPerRun": 71.3
+        },
+        "worktree_files": {
+          "perRun": 2,
+          "msPerRun": 53.5
+        },
+        "worktrees": {
+          "perRun": 1,
+          "msPerRun": 32.5
+        },
+        "repositories": {
+          "perRun": 1,
+          "msPerRun": 32
+        },
+        "conflicted_paths": {
+          "perRun": 1,
+          "msPerRun": 19.9
+        },
+        "log_from_frontend": {
+          "perRun": 9,
+          "msPerRun": 19.1
+        },
+        "open_repository": {
+          "perRun": 1,
+          "msPerRun": 12.6
+        },
+        "repo_status": {
+          "perRun": 1,
+          "msPerRun": 12.3
+        },
+        "set_menu_state": {
+          "perRun": 10,
+          "msPerRun": 11.2
+        },
+        "list_submodules": {
+          "perRun": 2,
+          "msPerRun": 8.2
+        },
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 7.4
+        },
+        "repository_health": {
+          "perRun": 1,
+          "msPerRun": 5.3
+        }
+      },
+      "samples": [
+        {
+          "total": 95.9,
+          "ipc": 87.5,
+          "front": 8.4,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 87.4,
+          "ipc": 82.4,
+          "front": 5,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 91.6,
+          "ipc": 86.9,
+          "front": 4.7,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 87.4,
+          "ipc": 80.5,
+          "front": 6.9,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 95.7,
+          "ipc": 88.7,
+          "front": 7,
+          "longest": 0,
+          "calib": 5.5
+        },
+        {
+          "total": 104.2,
+          "ipc": 99,
+          "front": 5.2,
+          "longest": 0,
+          "calib": 7.2
+        },
+        {
+          "total": 95.9,
+          "ipc": 87.9,
+          "front": 8,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 91.6,
+          "ipc": 83.6,
+          "front": 8,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 95.8,
+          "ipc": 87.7,
+          "front": 8.1,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 87.6,
+          "ipc": 82.1,
+          "front": 5.5,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 95.8,
+          "ipc": 88.4,
+          "front": 7.4,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 83.3,
+          "ipc": 79,
+          "front": 4.3,
+          "longest": 0,
+          "calib": 5.6
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "repo.open",
+      "group": "Репозиторий",
+      "title": "открытие",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "quiet",
+      "n": 12,
+      "busy": 0,
+      "median": 87.6,
+      "p95": 95.9,
+      "min": 87.4,
+      "max": 95.9,
+      "ipcMedian": 82.3,
+      "frontMedian": 6.9,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.095,
+      "retakes": 0,
+      "calibMedian": 5.7,
+      "commands": {
+        "flow_status": {
+          "perRun": 1,
+          "msPerRun": 69.8
+        },
+        "worktree_files": {
+          "perRun": 2,
+          "msPerRun": 52
+        },
+        "worktrees": {
+          "perRun": 1,
+          "msPerRun": 31
+        },
+        "repositories": {
+          "perRun": 1,
+          "msPerRun": 30.2
+        },
+        "conflicted_paths": {
+          "perRun": 1,
+          "msPerRun": 19.2
+        },
+        "log_from_frontend": {
+          "perRun": 9,
+          "msPerRun": 18
+        },
+        "set_menu_state": {
+          "perRun": 10,
+          "msPerRun": 13.6
+        },
+        "repo_status": {
+          "perRun": 1,
+          "msPerRun": 12.5
+        },
+        "open_repository": {
+          "perRun": 1,
+          "msPerRun": 12.3
+        },
+        "list_submodules": {
+          "perRun": 2,
+          "msPerRun": 8.5
+        },
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 7.3
+        },
+        "remotes": {
+          "perRun": 2,
+          "msPerRun": 5.8
+        }
+      },
+      "samples": [
+        {
+          "total": 87.5,
+          "ipc": 80.4,
+          "front": 7.1,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 87.5,
+          "ipc": 80.4,
+          "front": 7.1,
+          "longest": 0,
+          "calib": 7.2
+        },
+        {
+          "total": 95.9,
+          "ipc": 87.8,
+          "front": 8.1,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 87.6,
+          "ipc": 82.3,
+          "front": 5.3,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 95.8,
+          "ipc": 89.4,
+          "front": 6.4,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 87.4,
+          "ipc": 79.7,
+          "front": 7.7,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 91.8,
+          "ipc": 87.5,
+          "front": 4.3,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 91.8,
+          "ipc": 87.3,
+          "front": 4.5,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 95.8,
+          "ipc": 87.3,
+          "front": 8.5,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 87.6,
+          "ipc": 82.1,
+          "front": 5.5,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 95.8,
+          "ipc": 88.9,
+          "front": 6.9,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 87.4,
+          "ipc": 79.9,
+          "front": 7.5,
+          "longest": 0,
+          "calib": 5.7
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "app.close",
+      "group": "Приложение",
+      "title": "закрытие приложения",
+      "set": "medium",
+      "condition": "cold",
+      "variant": "lezer",
+      "n": 11,
+      "busy": 0,
+      "median": 27,
+      "p95": 43,
+      "min": 15,
+      "max": 43,
+      "ipcMedian": 0,
+      "frontMedian": 27,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.593,
+      "retakes": 0,
+      "calibMedian": 0,
+      "commands": {},
+      "samples": [
+        {
+          "total": 27,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 21,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 40,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 43,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 39,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 19,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 40,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 35,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 15,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 20,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 21,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.first-screen",
+      "group": "Репозиторий",
+      "title": "graph.first-screen",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "lezer",
+      "n": 12,
+      "busy": 0,
+      "median": 25.9,
+      "p95": 35.8,
+      "min": 22.2,
+      "max": 35.8,
+      "ipcMedian": 0,
+      "frontMedian": 25.9,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.382,
+      "retakes": 0,
+      "calibMedian": 5.7,
+      "commands": {},
+      "samples": [
+        {
+          "total": 26.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 22.5,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 28.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 22.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 29.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.5
+        },
+        {
+          "total": 31.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 7.2
+        },
+        {
+          "total": 35.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 22.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 29.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 22.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 25.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 22.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.6
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "app.close",
+      "group": "Приложение",
+      "title": "закрытие приложения",
+      "set": "medium",
+      "condition": "cold",
+      "variant": "quiet",
+      "n": 11,
+      "busy": 0,
+      "median": 23,
+      "p95": 43,
+      "min": 17,
+      "max": 43,
+      "ipcMedian": 0,
+      "frontMedian": 23,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.87,
+      "retakes": 0,
+      "calibMedian": 0,
+      "commands": {},
+      "samples": [
+        {
+          "total": 21,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 36,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 30,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 21,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 21,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 35,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 41,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 43,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 17,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 19,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 23,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.first-screen",
+      "group": "Репозиторий",
+      "title": "graph.first-screen",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "quiet",
+      "n": 12,
+      "busy": 0,
+      "median": 22.7,
+      "p95": 39.9,
+      "min": 20.8,
+      "max": 39.9,
+      "ipcMedian": 0,
+      "frontMedian": 22.7,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.758,
+      "retakes": 0,
+      "calibMedian": 5.7,
+      "commands": {},
+      "samples": [
+        {
+          "total": 21,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 20.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 7.2
+        },
+        {
+          "total": 39.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 21,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 37,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 22.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 26.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 22.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 39.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 28.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 35.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 20.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.full-layout",
+      "group": "Репозиторий",
+      "title": "graph.full-layout",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "lezer",
+      "n": 12,
+      "busy": 0,
+      "median": 21.3,
+      "p95": 29.8,
+      "min": 19.6,
+      "max": 29.8,
+      "ipcMedian": 7.2,
+      "frontMedian": 14.4,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.399,
+      "retakes": 0,
+      "calibMedian": 5.7,
+      "commands": {},
+      "samples": [
+        {
+          "total": 21.2,
+          "ipc": 7.2,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 19.6,
+          "ipc": 5.3,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 23,
+          "ipc": 8.1,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 19.9,
+          "ipc": 5.6,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 22.3,
+          "ipc": 8.1,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.5
+        },
+        {
+          "total": 29.8,
+          "ipc": 12,
+          "front": 0,
+          "longest": 0,
+          "calib": 7.2
+        },
+        {
+          "total": 23.8,
+          "ipc": 9.3,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 19.7,
+          "ipc": 4.8,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 22.2,
+          "ipc": 7.6,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 21.3,
+          "ipc": 6.7,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 22.5,
+          "ipc": 8.1,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 20.4,
+          "ipc": 6.3,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.6
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.full-layout",
+      "group": "Репозиторий",
+      "title": "graph.full-layout",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "quiet",
+      "n": 12,
+      "busy": 0,
+      "median": 20.2,
+      "p95": 25.1,
+      "min": 18.4,
+      "max": 25.1,
+      "ipcMedian": 6.1,
+      "frontMedian": 14.4,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.243,
+      "retakes": 0,
+      "calibMedian": 5.7,
+      "commands": {},
+      "samples": [
+        {
+          "total": 19.6,
+          "ipc": 6,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 20,
+          "ipc": 6.1,
+          "front": 0,
+          "longest": 0,
+          "calib": 7.2
+        },
+        {
+          "total": 22.8,
+          "ipc": 8.4,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 18.4,
+          "ipc": 4.6,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 24.7,
+          "ipc": 10.1,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 19.8,
+          "ipc": 5.6,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 24.4,
+          "ipc": 8.1,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 20.2,
+          "ipc": 5.7,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 25.1,
+          "ipc": 10.7,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 23.3,
+          "ipc": 8.5,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 24.1,
+          "ipc": 9.3,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 18.4,
+          "ipc": 4.6,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "diff.big",
+      "group": "Diff",
+      "title": "файл на 10 000 строк",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "lezer",
+      "n": 12,
+      "busy": 0,
+      "median": 20.2,
+      "p95": 20.2,
+      "min": 19.9,
+      "max": 20.2,
+      "ipcMedian": 7.9,
+      "frontMedian": 12.1,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0,
+      "retakes": 3,
+      "calibMedian": 7.4,
+      "commands": {
+        "diff_file": {
+          "perRun": 1,
+          "msPerRun": 8.1
+        },
+        "set_menu_state": {
+          "perRun": 1,
+          "msPerRun": 0.3
+        }
+      },
+      "samples": [
+        {
+          "total": 20.2,
+          "ipc": 8.1,
+          "front": 12.1,
+          "longest": 0,
+          "calib": 7.4
+        },
+        {
+          "total": 20.2,
+          "ipc": 7.9,
+          "front": 12.3,
+          "longest": 0,
+          "calib": 7.4
+        },
+        {
+          "total": 20.2,
+          "ipc": 8.1,
+          "front": 12.1,
+          "longest": 0,
+          "calib": 7.4
+        },
+        {
+          "total": 20.1,
+          "ipc": 8.9,
+          "front": 11.2,
+          "longest": 0,
+          "calib": 7.4
+        },
+        {
+          "total": 20.2,
+          "ipc": 7.7,
+          "front": 12.5,
+          "longest": 0,
+          "calib": 7.3
+        },
+        {
+          "total": 19.9,
+          "ipc": 7.8,
+          "front": 12.1,
+          "longest": 0,
+          "calib": 7.4
+        },
+        {
+          "total": 20.2,
+          "ipc": 8.3,
+          "front": 11.9,
+          "longest": 0,
+          "calib": 7.2
+        },
+        {
+          "total": 20,
+          "ipc": 9.5,
+          "front": 10.5,
+          "longest": 0,
+          "calib": 7.3
+        },
+        {
+          "total": 20.1,
+          "ipc": 7.8,
+          "front": 12.3,
+          "longest": 0,
+          "calib": 7.4
+        },
+        {
+          "total": 20,
+          "ipc": 7.6,
+          "front": 12.4,
+          "longest": 0,
+          "calib": 7.4
+        },
+        {
+          "total": 20.2,
+          "ipc": 7.9,
+          "front": 12.3,
+          "longest": 0,
+          "calib": 7.4
+        },
+        {
+          "total": 20.2,
+          "ipc": 8,
+          "front": 12.2,
+          "longest": 0,
+          "calib": 7.4
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "diff.big",
+      "group": "Diff",
+      "title": "файл на 10 000 строк",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "quiet",
+      "n": 12,
+      "busy": 0,
+      "median": 20.1,
+      "p95": 20.3,
+      "min": 16,
+      "max": 20.3,
+      "ipcMedian": 7.6,
+      "frontMedian": 12.1,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.01,
+      "retakes": 3,
+      "calibMedian": 7.3,
+      "commands": {
+        "diff_file": {
+          "perRun": 1,
+          "msPerRun": 7.8
+        },
+        "set_menu_state": {
+          "perRun": 1,
+          "msPerRun": 0.3
+        }
+      },
+      "samples": [
+        {
+          "total": 20.3,
+          "ipc": 7.6,
+          "front": 12.7,
+          "longest": 0,
+          "calib": 7.3
+        },
+        {
+          "total": 20.1,
+          "ipc": 7.6,
+          "front": 12.5,
+          "longest": 0,
+          "calib": 7.4
+        },
+        {
+          "total": 20.2,
+          "ipc": 7.9,
+          "front": 12.3,
+          "longest": 0,
+          "calib": 7.4
+        },
+        {
+          "total": 20.1,
+          "ipc": 8,
+          "front": 12.1,
+          "longest": 0,
+          "calib": 7.3
+        },
+        {
+          "total": 19.9,
+          "ipc": 9.7,
+          "front": 10.2,
+          "longest": 0,
+          "calib": 7.3
+        },
+        {
+          "total": 20,
+          "ipc": 8.4,
+          "front": 11.6,
+          "longest": 0,
+          "calib": 7.3
+        },
+        {
+          "total": 20.2,
+          "ipc": 7.3,
+          "front": 12.9,
+          "longest": 0,
+          "calib": 7.3
+        },
+        {
+          "total": 20.2,
+          "ipc": 7.4,
+          "front": 12.8,
+          "longest": 0,
+          "calib": 7.4
+        },
+        {
+          "total": 20.1,
+          "ipc": 8,
+          "front": 12.1,
+          "longest": 0,
+          "calib": 7.3
+        },
+        {
+          "total": 20.2,
+          "ipc": 7.6,
+          "front": 12.6,
+          "longest": 0,
+          "calib": 7.4
+        },
+        {
+          "total": 20.1,
+          "ipc": 8.2,
+          "front": 11.9,
+          "longest": 0,
+          "calib": 7.4
+        },
+        {
+          "total": 16,
+          "ipc": 6.2,
+          "front": 9.8,
+          "longest": 0,
+          "calib": 5.6
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "branches.load",
+      "group": "Репозиторий",
+      "title": "branches.load",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "quiet",
+      "n": 12,
+      "busy": 0,
+      "median": 16.7,
+      "p95": 16.9,
+      "min": 13.9,
+      "max": 16.9,
+      "ipcMedian": 0,
+      "frontMedian": 16.7,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.012,
+      "retakes": 0,
+      "calibMedian": 5.7,
+      "commands": {},
+      "samples": [
+        {
+          "total": 13.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 14.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 7.2
+        },
+        {
+          "total": 16.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 14.1,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 16.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 16.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 16.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 16.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 16.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 16.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 16.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 14.1,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "branches.load",
+      "group": "Репозиторий",
+      "title": "branches.load",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "lezer",
+      "n": 12,
+      "busy": 0,
+      "median": 16.7,
+      "p95": 18.1,
+      "min": 14.4,
+      "max": 18.1,
+      "ipcMedian": 0,
+      "frontMedian": 16.7,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.084,
+      "retakes": 0,
+      "calibMedian": 5.7,
+      "commands": {},
+      "samples": [
+        {
+          "total": 14.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 16.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 16.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 16.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 16.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.5
+        },
+        {
+          "total": 18.1,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 7.2
+        },
+        {
+          "total": 16.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 16.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 16.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 16.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 16.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 16.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.6
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "diff.small",
+      "group": "Diff",
+      "title": "маленький файл",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "quiet",
+      "n": 8,
+      "busy": 4,
+      "median": 11.9,
+      "p95": 12,
+      "min": 11.7,
+      "max": 12,
+      "ipcMedian": 3.3,
+      "frontMedian": 8.6,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.008,
+      "retakes": 19,
+      "calibMedian": 7.3,
+      "commands": {
+        "diff_file": {
+          "perRun": 1,
+          "msPerRun": 3.1
+        },
+        "set_menu_state": {
+          "perRun": 1,
+          "msPerRun": 0.3
+        }
+      },
+      "samples": [
+        {
+          "total": 11.9,
+          "ipc": 3.2,
+          "front": 8.7,
+          "longest": 0,
+          "calib": 7.3,
+          "busy": true
+        },
+        {
+          "total": 11.6,
+          "ipc": 3.1,
+          "front": 8.5,
+          "longest": 0,
+          "calib": 7.4,
+          "busy": true
+        },
+        {
+          "total": 12,
+          "ipc": 2,
+          "front": 10,
+          "longest": 0,
+          "calib": 7.4
+        },
+        {
+          "total": 11.9,
+          "ipc": 3.4,
+          "front": 8.5,
+          "longest": 0,
+          "calib": 7.4
+        },
+        {
+          "total": 11.8,
+          "ipc": 3.2,
+          "front": 8.6,
+          "longest": 0,
+          "calib": 7.3
+        },
+        {
+          "total": 12,
+          "ipc": 3.4,
+          "front": 8.6,
+          "longest": 0,
+          "calib": 7.4
+        },
+        {
+          "total": 12,
+          "ipc": 3.3,
+          "front": 8.7,
+          "longest": 0,
+          "calib": 7.2
+        },
+        {
+          "total": 11.9,
+          "ipc": 3.4,
+          "front": 8.5,
+          "longest": 0,
+          "calib": 7.4,
+          "busy": true
+        },
+        {
+          "total": 12,
+          "ipc": 3.4,
+          "front": 8.6,
+          "longest": 0,
+          "calib": 7.6,
+          "busy": true
+        },
+        {
+          "total": 11.8,
+          "ipc": 3,
+          "front": 8.8,
+          "longest": 0,
+          "calib": 7.3
+        },
+        {
+          "total": 11.9,
+          "ipc": 3.3,
+          "front": 8.6,
+          "longest": 0,
+          "calib": 7.3
+        },
+        {
+          "total": 11.7,
+          "ipc": 3.3,
+          "front": 8.4,
+          "longest": 0,
+          "calib": 7.4
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "diff.binary",
+      "group": "Diff",
+      "title": "бинарный файл",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "quiet",
+      "n": 12,
+      "busy": 0,
+      "median": 11.9,
+      "p95": 11.9,
+      "min": 11.7,
+      "max": 11.9,
+      "ipcMedian": 3.4,
+      "frontMedian": 8.4,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0,
+      "retakes": 1,
+      "calibMedian": 7.3,
+      "commands": {
+        "diff_file": {
+          "perRun": 1,
+          "msPerRun": 3.4
+        },
+        "set_menu_state": {
+          "perRun": 1,
+          "msPerRun": 0.3
+        }
+      },
+      "samples": [
+        {
+          "total": 11.7,
+          "ipc": 3.4,
+          "front": 8.3,
+          "longest": 0,
+          "calib": 7.4
+        },
+        {
+          "total": 11.9,
+          "ipc": 3.5,
+          "front": 8.4,
+          "longest": 0,
+          "calib": 7.3
+        },
+        {
+          "total": 11.9,
+          "ipc": 3.5,
+          "front": 8.4,
+          "longest": 0,
+          "calib": 7.3
+        },
+        {
+          "total": 11.9,
+          "ipc": 3.5,
+          "front": 8.4,
+          "longest": 0,
+          "calib": 7.3
+        },
+        {
+          "total": 11.9,
+          "ipc": 3.3,
+          "front": 8.6,
+          "longest": 0,
+          "calib": 7.4
+        },
+        {
+          "total": 11.9,
+          "ipc": 3.4,
+          "front": 8.5,
+          "longest": 0,
+          "calib": 7.3
+        },
+        {
+          "total": 11.9,
+          "ipc": 3.3,
+          "front": 8.6,
+          "longest": 0,
+          "calib": 7.4
+        },
+        {
+          "total": 11.9,
+          "ipc": 3.5,
+          "front": 8.4,
+          "longest": 0,
+          "calib": 7.3
+        },
+        {
+          "total": 11.8,
+          "ipc": 3.2,
+          "front": 8.6,
+          "longest": 0,
+          "calib": 7.3
+        },
+        {
+          "total": 11.9,
+          "ipc": 3.3,
+          "front": 8.6,
+          "longest": 0,
+          "calib": 7.3
+        },
+        {
+          "total": 11.9,
+          "ipc": 3.3,
+          "front": 8.6,
+          "longest": 0,
+          "calib": 7.4
+        },
+        {
+          "total": 11.7,
+          "ipc": 3.5,
+          "front": 8.2,
+          "longest": 0,
+          "calib": 7.3
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "diff.small",
+      "group": "Diff",
+      "title": "маленький файл",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "lezer",
+      "n": 11,
+      "busy": 1,
+      "median": 11.9,
+      "p95": 12.1,
+      "min": 11.8,
+      "max": 12.1,
+      "ipcMedian": 3.4,
+      "frontMedian": 8.5,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.017,
+      "retakes": 12,
+      "calibMedian": 7.3,
+      "commands": {
+        "diff_file": {
+          "perRun": 1,
+          "msPerRun": 3.4
+        },
+        "set_menu_state": {
+          "perRun": 1,
+          "msPerRun": 0.3
+        }
+      },
+      "samples": [
+        {
+          "total": 11.6,
+          "ipc": 3.8,
+          "front": 7.8,
+          "longest": 0,
+          "calib": 7.3,
+          "busy": true
+        },
+        {
+          "total": 12,
+          "ipc": 3.4,
+          "front": 8.6,
+          "longest": 0,
+          "calib": 7.3
+        },
+        {
+          "total": 12,
+          "ipc": 3.4,
+          "front": 8.6,
+          "longest": 0,
+          "calib": 7.3
+        },
+        {
+          "total": 11.9,
+          "ipc": 3.5,
+          "front": 8.4,
+          "longest": 0,
+          "calib": 7.4
+        },
+        {
+          "total": 12.1,
+          "ipc": 3.6,
+          "front": 8.5,
+          "longest": 0,
+          "calib": 7.3
+        },
+        {
+          "total": 11.8,
+          "ipc": 3.3,
+          "front": 8.5,
+          "longest": 0,
+          "calib": 7.3
+        },
+        {
+          "total": 11.8,
+          "ipc": 3.3,
+          "front": 8.5,
+          "longest": 0,
+          "calib": 7.4
+        },
+        {
+          "total": 11.9,
+          "ipc": 3.3,
+          "front": 8.6,
+          "longest": 0,
+          "calib": 7.4
+        },
+        {
+          "total": 11.9,
+          "ipc": 3.6,
+          "front": 8.3,
+          "longest": 0,
+          "calib": 7.3
+        },
+        {
+          "total": 11.8,
+          "ipc": 3.5,
+          "front": 8.3,
+          "longest": 0,
+          "calib": 7.3
+        },
+        {
+          "total": 11.8,
+          "ipc": 3.5,
+          "front": 8.3,
+          "longest": 0,
+          "calib": 7.4
+        },
+        {
+          "total": 12,
+          "ipc": 3.3,
+          "front": 8.7,
+          "longest": 0,
+          "calib": 7.4
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "diff.binary",
+      "group": "Diff",
+      "title": "бинарный файл",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "lezer",
+      "n": 12,
+      "busy": 0,
+      "median": 11.9,
+      "p95": 12.1,
+      "min": 11.6,
+      "max": 12.1,
+      "ipcMedian": 3.4,
+      "frontMedian": 8.5,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.017,
+      "retakes": 3,
+      "calibMedian": 7.3,
+      "commands": {
+        "diff_file": {
+          "perRun": 1,
+          "msPerRun": 3
+        },
+        "set_menu_state": {
+          "perRun": 1,
+          "msPerRun": 0.3
+        }
+      },
+      "samples": [
+        {
+          "total": 11.9,
+          "ipc": 3.5,
+          "front": 8.4,
+          "longest": 0,
+          "calib": 7.3
+        },
+        {
+          "total": 11.9,
+          "ipc": 3.6,
+          "front": 8.3,
+          "longest": 0,
+          "calib": 7.4
+        },
+        {
+          "total": 11.9,
+          "ipc": 2.3,
+          "front": 9.6,
+          "longest": 0,
+          "calib": 6.8
+        },
+        {
+          "total": 11.9,
+          "ipc": 3.5,
+          "front": 8.4,
+          "longest": 0,
+          "calib": 7.4
+        },
+        {
+          "total": 12,
+          "ipc": 3.4,
+          "front": 8.6,
+          "longest": 0,
+          "calib": 7.4
+        },
+        {
+          "total": 11.7,
+          "ipc": 3.4,
+          "front": 8.3,
+          "longest": 0,
+          "calib": 7.3
+        },
+        {
+          "total": 12.1,
+          "ipc": 2.3,
+          "front": 9.8,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 12.1,
+          "ipc": 2.2,
+          "front": 9.9,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 12,
+          "ipc": 3.5,
+          "front": 8.5,
+          "longest": 0,
+          "calib": 7.3
+        },
+        {
+          "total": 11.9,
+          "ipc": 3.6,
+          "front": 8.3,
+          "longest": 0,
+          "calib": 7.4
+        },
+        {
+          "total": 12.1,
+          "ipc": 2.1,
+          "front": 10,
+          "longest": 0,
+          "calib": 7.4
+        },
+        {
+          "total": 11.6,
+          "ipc": 3,
+          "front": 8.6,
+          "longest": 0,
+          "calib": 7.3
+        }
+      ],
+      "errors": []
+    }
+  ]
+}
