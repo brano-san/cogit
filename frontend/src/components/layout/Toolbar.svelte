@@ -4,6 +4,7 @@
     DEFAULT_LAYOUT,
     ICONS,
     groupsOf,
+    hintOf,
     menuOf,
     reasonOf,
     NO_MENU_CONTEXT,
@@ -51,7 +52,7 @@
   function tipOf(action: ToolbarAction): string {
     const reason = why(action.id);
     if (reason) return reason;
-    return action.id === "undo" && undoable ? `Undo: ${undoable}` : action.hint;
+    return action.id === "undo" && undoable ? `Undo: ${undoable}` : hintOf(action, menus);
   }
 
   let open = $state<string | null>(null);

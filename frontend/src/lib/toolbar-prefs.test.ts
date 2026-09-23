@@ -5,6 +5,7 @@ import {
   mergePrefs,
   pullSteps,
   remotesInOrder,
+  syncSteps,
 } from "./toolbar-prefs";
 
 describe("mergePrefs", () => {
@@ -68,5 +69,21 @@ describe("pullSteps", () => {
       fetch: ["beta", "fork"],
       pull: "origin",
     });
+  });
+});
+
+describe("syncSteps", () => {
+  it("pulls, then pushes by default", () => {
+    expect(DEFAULT_PREFS.syncOrder).toBe("pullThenPush");
+    expect(syncSteps(DEFAULT_PREFS.syncOrder)).toEqual(["pull", "push"]);
+  });
+
+  it("pushes first when told to", () => {
+    expect(syncSteps("pushThenPull")).toEqual(["push", "pull"]);
+  });
+
+  it("remembers the order and ignores a bad one", () => {
+    expect(mergePrefs({ syncOrder: "pushThenPull" }).syncOrder).toBe("pushThenPull");
+    expect(mergePrefs({ syncOrder: "sideways" }).syncOrder).toBe("pullThenPush");
   });
 });

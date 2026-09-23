@@ -2,16 +2,21 @@
 
 export type PullScope = "current" | "all";
 
+export type SyncOrder = "pullThenPush" | "pushThenPull";
+
 export interface ToolbarPrefs {
   /** Whether the main Pull button fetches every remote first (#26). */
   pullScope: PullScope;
   /** Deletes local branches merged into HEAD whose upstream the remote deleted (#26). */
   deleteMergedAfterPull: boolean;
+  /** What the main Sync button runs (#27). */
+  syncOrder: SyncOrder;
 }
 
 export const DEFAULT_PREFS: ToolbarPrefs = {
   pullScope: "current",
   deleteMergedAfterPull: false,
+  syncOrder: "pullThenPush",
 };
 
 /** Every stored value is checked on its own: one bad key keeps the others. */
@@ -23,7 +28,15 @@ export function mergePrefs(stored: unknown): ToolbarPrefs {
   if (typeof value.deleteMergedAfterPull === "boolean") {
     merged.deleteMergedAfterPull = value.deleteMergedAfterPull;
   }
+  if (value.syncOrder === "pullThenPush" || value.syncOrder === "pushThenPull") {
+    merged.syncOrder = value.syncOrder;
+  }
   return merged;
+}
+
+/** The two halves of Sync in the order chosen; the second runs only if the first worked. */
+export function syncSteps(order: SyncOrder): ("pull" | "push")[] {
+  return order === "pushThenPull" ? ["push", "pull"] : ["pull", "push"];
 }
 
 /**

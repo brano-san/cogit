@@ -4,7 +4,12 @@
  * Kept out of the component so the rules can be tested; the component only draws them.
  */
 
-import { DEFAULT_PREFS, remotesInOrder, type ToolbarPrefs } from "$lib/toolbar-prefs";
+import {
+  DEFAULT_PREFS,
+  remotesInOrder,
+  type SyncOrder,
+  type ToolbarPrefs,
+} from "$lib/toolbar-prefs";
 
 /** Inapplicable actions are disabled, not hidden, so buttons never move under the cursor. */
 export interface ToolbarAction {
@@ -55,8 +60,9 @@ export const ACTIONS: readonly ToolbarAction[] = [
     id: "sync",
     label: "Sync",
     icon: ICONS.sync,
-    hint: "Fetch every remote",
+    hint: "Pull, then push",
     shortcut: "Ctrl+Shift+S",
+    split: true,
   },
   {
     id: "stage",
@@ -212,11 +218,40 @@ function pullMenu(context: MenuContext): MenuEntry[] {
   ];
 }
 
+const SYNC_ORDERS: readonly [SyncOrder, string, string][] = [
+  ["pushThenPull", "Push, then Pull", "Push first; pull only if the push worked"],
+  ["pullThenPush", "Pull, then Push", "Pull first; push only if the pull worked"],
+];
+
+/** Picking an order runs it and makes it what the Sync button does from then on. */
+function syncMenu(context: MenuContext): MenuEntry[] {
+  return SYNC_ORDERS.map(([order, label, hint]) => ({
+    kind: "radio",
+    id: `sync-order:${order}`,
+    label,
+    hint,
+    checked: context.prefs.syncOrder === order,
+  }));
+}
+
+/** The tooltip of a button whose action depends on a remembered choice. */
+export function hintOf(action: ToolbarAction, context: MenuContext = NO_MENU_CONTEXT): string {
+  if (action.id === "sync") {
+    return context.prefs.syncOrder === "pushThenPull" ? "Push, then pull" : "Pull, then push";
+  }
+  if (action.id === "pull" && context.prefs.pullScope === "all") {
+    return "Fetch every remote, then bring the current remote's commits down";
+  }
+  return action.hint;
+}
+
 /** The dropdown of a split button. */
 export function menuOf(id: string, context: MenuContext = NO_MENU_CONTEXT): MenuEntry[] {
   switch (id) {
     case "pull":
       return pullMenu(context);
+    case "sync":
+      return syncMenu(context);
     case "stash":
       return [
         item("stash", "Stash All", "Everything in the working tree"),
@@ -314,6 +349,7 @@ const RULES: Record<string, Rule> = {
   "fetch-remotes": needRemote,
   "pull-scope": needRemote,
   "delete-merged": needRemote,
+  "sync-order": needRemote,
   stage: (f) =>
     needWorkingTree(f) ??
     (anyMarked(f)
