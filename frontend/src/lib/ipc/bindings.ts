@@ -16,8 +16,21 @@ export const commands = {
 	 */
 	openThirdPartyLicences: (frontend: string | null) => typedError<null, GitError>(__TAURI_INVOKE("open_third_party_licences", { frontend })),
 	openRepository: (path: string) => typedError<RepoSummary, GitError>(__TAURI_INVOKE("open_repository", { path })),
-	/**  A channel rather than a return value (INV-02); dropping it cancels the walk. */
-	loadCommits: (repo: RepoId, query: CommitQuery, onChunk: Channel<GraphChunk>) => typedError<SkippedRef[], GitError>(__TAURI_INVOKE("load_commits", { repo, query, onChunk })),
+	/**
+	 *  The walk and its layout stay in Rust; the channel only says how far it got and the
+	 *  rows go out by `graph_window` (R-193). Dropping the channel cancels the walk.
+	 */
+	loadCommits: (repo: RepoId, query: CommitQuery, onProgress: Channel<GraphProgress>) => typedError<SkippedRef[], GitError>(__TAURI_INVOKE("load_commits", { repo, query, onProgress })),
+	/**  `None` once a newer graph replaced `generation`: the answer would be for other rows. */
+	graphWindow: (repo: RepoId, generation: number, start: number, count: number) => typedError<{
+	start: number,
+	total: number,
+	complete: boolean,
+	commits: CommitRow[],
+	/**  One per commit, in the same order. */
+	rows: GraphRow[],
+} | null, GitError>(__TAURI_INVOKE("graph_window", { repo, generation, start, count })),
+	graphRowOf: (repo: RepoId, generation: number, oid: string) => typedError<number | null, GitError>(__TAURI_INVOKE("graph_row_of", { repo, generation, oid })),
 	commitDetails: (repo: RepoId, rev: string) => typedError<CommitDetails, GitError>(__TAURI_INVOKE("commit_details", { repo, rev })),
 	commitFiles: (repo: RepoId, rev: string) => typedError<FileEntry[], GitError>(__TAURI_INVOKE("commit_files", { repo, rev })),
 	diffFile: (repo: RepoId, spec: DiffSpec, path: string, options: DiffOptions) => typedError<FileDiff, GitError>(__TAURI_INVOKE("diff_file", { repo, spec, path, options })),
@@ -671,10 +684,11 @@ export type GitOutput = {
 	startedAtMs: number,
 };
 
-export type GraphChunk = {
-	commits: CommitRow[],
-	/**  One per commit, in the same order: the node and every segment of its row. */
-	rows: GraphRow[],
+/**  How far the walk got. The rows themselves travel only when asked for, by window. */
+export type GraphProgress = {
+	generation: number,
+	/**  Rows laid out so far: the list is this long while the rest is being walked. */
+	total: number,
 	isLast: boolean,
 };
 
@@ -687,6 +701,15 @@ export type GraphRow = {
 	/**  Columns used by the top edge, the node and the bottom edge together. */
 	width: number,
 	segments: Segment[],
+};
+
+export type GraphWindow = {
+	start: number,
+	total: number,
+	complete: boolean,
+	commits: CommitRow[],
+	/**  One per commit, in the same order. */
+	rows: GraphRow[],
 };
 
 /**  Assuming "HEAD is a branch" crashes on an unborn or detached checkout (INV-07). */

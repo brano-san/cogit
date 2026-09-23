@@ -109,6 +109,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::open_third_party_licences,
             commands::open_repository,
             commands::load_commits,
+            commands::graph_window,
+            commands::graph_row_of,
             commands::commit_details,
             commands::commit_files,
             commands::diff_file,

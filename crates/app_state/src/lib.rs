@@ -2,6 +2,7 @@ mod avatars;
 mod credentials;
 mod diffing;
 pub mod environment;
+mod graph_cache;
 mod hooking;
 pub mod licences;
 pub mod logging;
@@ -17,6 +18,7 @@ pub use avatars::{Author, AvatarRow, Avatars};
 pub use credentials::{
     KeyringStore, MemoryStore, SecretError, SecretStore, host_of, platform_store,
 };
+pub use graph_cache::{GraphProgress, GraphWindow};
 pub use presets::PresetStatus;
 pub use queue::{Operation, OperationKind, OperationPermit, OperationPhase, Queue};
 pub use safety::{Recovery, SafetyEntry};
@@ -204,6 +206,7 @@ pub struct AppState {
     queue: Queue,
     /// One graph is on screen at a time; a newer request makes the walk before it stop.
     graph_generation: AtomicU32,
+    graph: RwLock<graph_cache::GraphCache>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -242,6 +245,7 @@ impl AppState {
             rows_read: Arc::new(AtomicU32::new(0)),
             queue: Queue::default(),
             graph_generation: AtomicU32::new(0),
+            graph: RwLock::new(graph_cache::GraphCache::default()),
         }
     }
 
@@ -1238,6 +1242,7 @@ impl AppState {
 
         self.newest_diff.write().remove(&repo);
         self.forget_row(repo);
+        self.forget_graph(repo);
         self.safety.write().retain(|held| held.entry.repo != repo);
         watch.done("forget-state");
 

@@ -1009,7 +1009,7 @@
     const nodes = buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() });
     graph.visibleRefs = visibleTips(nodes, refs.visible);
     await graph.load(id, graph.query);
-    watch.stop(`${graph.rows.length} commits`);
+    watch.stop(`${graph.total} commits`);
   }
 
   /** A click on the text selects the ref and centres the graph on its tip. A stash is not
@@ -2600,8 +2600,8 @@
 
     return startMemoryProbe(
       browserSources(liveListeners, () => ({
-        graphRows: graph.rows.length,
-        graphSegments: graph.rows.reduce((count, row) => count + row.layout.segments.length, 0),
+        graphRows: graph.total,
+        graphLoadedRows: graph.loadedRows(),
         avatarRows: avatars.rows.size,
         overlapRows: overlap.rows.size,
         diffHunks: diff.hunks.length,
@@ -2840,12 +2840,12 @@
             title="Graph &amp; History"
             active={focused === "graph"}
             view={panelState}
-            count={graph.rows.length}
+            count={graph.total}
             stale={stale.has("graph")}
           >
             {#snippet actions()}
               {#if repo}
-                <GraphFilter onchange={filterGraph} matches={graph.rows.length} />
+                <GraphFilter onchange={filterGraph} matches={graph.total} />
               {/if}
             {/snippet}
             {#if describeSkipped(graph.skipped)}
@@ -3284,7 +3284,7 @@
     upstream={tracked?.upstream ?? undefined}
     ahead={tracked?.ahead ?? 0}
     behind={tracked?.behind ?? 0}
-    summary={repo ? `${graph.rows.length} commits · ${repo.branches.length} refs` : undefined}
+    summary={repo ? `${graph.total} commits · ${repo.branches.length} refs` : undefined}
     fileOpen={diff.path !== null}
     activity={activity({
       operations: running,
