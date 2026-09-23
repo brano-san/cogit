@@ -13,7 +13,17 @@ import {
 } from "./repo-list";
 
 function overview(root: string, name = folderName(root)): RepoOverview {
-  return { repo: root.length, name, root, branch: "main", ahead: 0, behind: 0, dirty: false, missing: false };
+  return {
+    repo: root.length,
+    name,
+    root,
+    branch: "main",
+    ahead: 0,
+    behind: 0,
+    dirty: false,
+    missing: false,
+    state: { kind: "clean" },
+  };
 }
 
 describe("readRepoList", () => {

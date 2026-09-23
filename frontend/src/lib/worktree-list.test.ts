@@ -7,6 +7,8 @@ import {
   removable,
   worktreeTags,
   worktreeWhere,
+  worktreeMarks,
+  worktreeMarkTooltip,
 } from "./worktree-list";
 
 const OID = "20483bd723e2be25a60f7b2bf74016a444a16df0";
@@ -123,5 +125,38 @@ describe("the Add Worktree dialog", () => {
 
   it("goes ahead with a fresh branch name", () => {
     expect(addProblem({ folder: "E:/wt", create: true, branch: "spike", choices })).toBeNull();
+  });
+});
+
+describe("worktreeMarks", () => {
+  it("marks a branch another worktree holds, with its path", () => {
+    const marks = worktreeMarks([
+      entry({ branch: "main", isMain: true, isCurrent: true, path: "E:/w/main" }),
+      entry({ branch: "feature", path: "E:/w/feature" }),
+    ]);
+    expect(marks.get("feature")).toEqual({ path: "E:/w/feature", state: "clean" });
+  });
+
+  it("leaves out the worktree on screen and a detached one", () => {
+    const marks = worktreeMarks([
+      entry({ branch: "main", isCurrent: true }),
+      entry({ branch: null, path: "E:/w/detached" }),
+    ]);
+    expect(marks.size).toBe(0);
+  });
+
+  it("says whether the worktree has changes or is missing", () => {
+    const marks = worktreeMarks([
+      entry({ branch: "dirty", dirty: true }),
+      entry({ branch: "gone", missing: true, dirty: true }),
+    ]);
+    expect(marks.get("dirty")?.state).toBe("changes");
+    expect(marks.get("gone")?.state).toBe("missing");
+  });
+
+  it("puts the path and the state in the tooltip", () => {
+    expect(worktreeMarkTooltip({ path: "E:/w/x", state: "missing" })).toBe(
+      "Checked out in the worktree E:/w/x; its folder is missing",
+    );
   });
 });

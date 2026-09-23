@@ -1,6 +1,7 @@
 <script lang="ts">
   import FileList from "$components/file-list/FileList.svelte";
   import type { FileView } from "$lib/file-view";
+  import { idleMessage } from "$lib/repo-phase";
   import { commit } from "$stores/commit.svelte";
   import { diff } from "$stores/diff.svelte";
   import { filesView } from "$stores/files-view.svelte";
@@ -59,11 +60,9 @@
 
   /** Three different nothings, and the panel used to say the same thing for all of them. */
   const nothing = $derived(
-    view === "opening"
-      ? "Opening repository…"
-      : view === "start"
-        ? "No repository open."
-        : commit.oid === null
+    view !== "content"
+      ? (idleMessage(view) ?? "")
+      : commit.oid === null
         ? "Select a commit to see the files it changed."
         : "This commit changed no files.",
   );

@@ -10,7 +10,8 @@
     splitModulePath,
     type ModuleRow,
   } from "$lib/module-tree";
-  import { panelView } from "$lib/repo-phase";
+  import { idleMessage, panelView } from "$lib/repo-phase";
+  import { STATE_TAG_HINT, repoStateTag } from "$lib/repo-state";
   import { submodules } from "$stores/submodules.svelte";
   import { UNGROUPED, groupRows } from "$lib/repo-groups";
   import type { RepoOverview } from "$lib/ipc";
@@ -136,9 +137,8 @@
   {/if}
 
   {#if rows.length === 0}
-    <p class="none">
-      {panelView(repository.phase) === "opening" ? "Opening repository…" : "No repository open."}
-    </p>
+    {@const idle = idleMessage(panelView(repository.phase))}
+    {#if idle}<p class="none">{idle}</p>{/if}
   {:else}
     {#each rows as row (row.kind === "group" ? `g:${row.id}` : row.root)}
       {#if row.kind === "group"}
@@ -219,17 +219,20 @@
           }}
         />
         <KindIcon kind="repository" />
-        <span class="name truncate">{listed.name}</span>
+        <span class="name truncate shrink-last">{listed.name}</span>
         {#if listed.pinned}<span class="pin" title="Pinned to the top of its group">⊤</span>{/if}
         {#if worktrees.ownerRoot === entry.root && repository.current}
           <KindIcon kind="worktree" title="The panels show its worktree {repository.current.root}" />
+        {/if}
+        {#if repoStateTag(entry.state)}
+          <span class="op" title={STATE_TAG_HINT}>{repoStateTag(entry.state)}</span>
         {/if}
         {#if entry.missing}
           <span class="gone" title={MISSING_REPOSITORY}>missing</span>
         {:else if entry.dirty}
           <span class="dirty" title={DIRTY_REPOSITORY}>●</span>
         {/if}
-        {#if entry.branch}<span class="branch truncate">{entry.branch}</span>{/if}
+        {#if entry.branch}<span class="branch truncate shrink-first">{entry.branch}</span>{/if}
         {#if entry.ahead > 0 || entry.behind > 0}
           <span class="track tabular" title={trackTooltip(entry.ahead, entry.behind)}
             >{entry.ahead > 0 ? "↑" + entry.ahead : ""}{entry.behind > 0
@@ -286,12 +289,13 @@
               }}
             />
             <KindIcon kind="submodule" />
-            <span class="modname">
-              {#if folder}<span class="dir">{folder}</span><span class="sep">/</span>{/if}<span
-                class="leaf">{parts.name}</span
-              >
-            </span>
-            <span class="where truncate" title={moduleTooltip(node.module) || undefined}
+            <span class="modname truncate shrink-last"
+              >{#if folder}<span class="dir">{folder}/</span>{/if}{parts.name}</span
+            >
+            {#if repoStateTag(node.module.repoState, true)}
+              <span class="op" title={STATE_TAG_HINT}>{repoStateTag(node.module.repoState, true)}</span>
+            {/if}
+            <span class="where truncate shrink-first" title={moduleTooltip(node.module) || undefined}
               >({describeModule(node.module)})</span
             >
           </div>
@@ -315,7 +319,7 @@
           >
             <Disclosure empty />
             <KindIcon kind="repository" />
-            <span class="name truncate">{listed.name}</span>
+            <span class="name truncate shrink-last">{listed.name}</span>
             {#if listed.pinned}<span class="pin" title="Pinned to the top of its group">⊤</span>{/if}
             <span class="gone">closed</span>
           </div>
@@ -331,38 +335,13 @@
     padding: var(--sp-4) 0;
   }
 
-  .modname {
-    display: flex;
-    align-items: baseline;
-    min-width: 0;
-    flex: 0 1 auto;
-  }
-
-  /* Shortened from its own left, so `cmake/cmake-conan` becomes `…/cmake-conan` and
-     never `cmake/cmake-…`. */
+  /* One run of text cut on the right like every list (R-243, which replaces R-124). */
   .dir {
-    flex: 0 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    direction: rtl;
-    color: var(--text-secondary);
-  }
-
-  .sep,
-  .leaf {
-    flex: 0 0 auto;
-    white-space: nowrap;
-  }
-
-  .sep {
     color: var(--text-secondary);
   }
 
   .row.module .where {
-    flex: 1 1 auto;
-    min-width: 0;
+    flex-grow: 1;
     color: var(--text-secondary);
     font-size: 11px;
   }
@@ -508,9 +487,10 @@
     font-size: var(--fs-dense);
   }
 
-  .name {
-    flex: 0 1 auto;
-    min-width: 0;
+  .op {
+    flex: 0 0 auto;
+    color: var(--status-modify);
+    font-size: 10px;
   }
 
   .dirty {
@@ -520,8 +500,7 @@
   }
 
   .branch {
-    flex: 1 1 auto;
-    min-width: 0;
+    flex-grow: 1;
     color: var(--text-secondary);
     font-size: 10px;
   }
