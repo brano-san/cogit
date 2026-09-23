@@ -13,7 +13,8 @@ const ALL = ["small", "medium", "large", "submodules", "dirty"];
 const COMMIT_ROW = (index) => ({ sel: `[role="listitem"]`, index });
 const REPO_ROW = (name) => ({ sel: `.wrapper .row`, text: name, exact: ".name" });
 const REF_GROUP = (label, child) => ({ sel: `[role="treeitem"].group`, text: label, child });
-const FILE_ROW = (name, section) => ({ sel: `.pane button.row`, text: name, section });
+// The name, not the row centre: the row's Stage and Discard buttons sit there on hover.
+const FILE_ROW = (name, section) => ({ sel: `.pane button.row`, text: name, section, child: ".name" });
 const FILTER_FILES = `input[placeholder="File Filter"]`;
 const FILTER_REFS = `input[aria-label="Filter references"]`;
 const WORKTREE_ROW = (index) => ({ sel: `[aria-label="Worktrees"] [role="option"]`, index });
