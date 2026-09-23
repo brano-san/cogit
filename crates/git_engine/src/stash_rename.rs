@@ -1,8 +1,7 @@
 use crate::{GitError, RepoHandle, Result};
 
 impl RepoHandle {
-    /// Git cannot rename a stash: the entries down to `index` are dropped and stored back,
-    /// oldest first, so every entry keeps its place in the list (R-252).
+    /// Drop and store back every entry down to `index`, so none moves (R-252).
     pub fn rename_stash(&self, index: u32, message: &str) -> Result<()> {
         let message = message.trim();
         if message.is_empty() {
@@ -26,7 +25,6 @@ impl RepoHandle {
         );
         for (text, oid) in restore {
             if let Err(err) = self.run_git(&["stash", "store", "--message", text, oid]) {
-                // Dropped entries are only reachable by id now; the log keeps them findable.
                 tracing::error!(error = ?err, %oid, context = "stash rename could not store an entry back");
                 return Err(err);
             }

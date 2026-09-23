@@ -3,7 +3,7 @@
   import SkeletonRows from "$components/common/SkeletonRows.svelte";
   import { settings } from "$stores/settings.svelte";
   import GraphCanvas from "$components/graph/GraphCanvas.svelte";
-  import { capsules, dateTooltip, refLabels, shortOid } from "$lib/format";
+  import { capsules, dateTooltip, refLabels, shortOid, type RefLabel } from "$lib/format";
   import { DRAG_TYPE, parseDrag, serialiseDrag } from "$lib/drop-target";
   import { overlapLabel, overlapTooltip } from "$lib/overlap";
   import { overlap } from "$stores/overlap.svelte";
@@ -23,6 +23,7 @@
   import Avatar from "$components/common/Avatar.svelte";
   import { avatars } from "$stores/avatars.svelte";
   import { commit as selection } from "$stores/commit.svelte";
+  import { compareView } from "$stores/compare-view.svelte";
   import { graph } from "$stores/graph.svelte";
   import { repository } from "$stores/repository.svelte";
 
@@ -34,9 +35,14 @@
     ondrop?: (source: string, target: string) => void;
     oncontext?: (oid: string, x: number, y: number) => void;
     onref?: (text: string) => void;
+    onworktreecontext?: (x: number, y: number) => void;
+    onrefcontext?: (label: RefLabel, oid: string, x: number, y: number) => void;
   }
 
-  let { rebase = null, ondrop, oncontext, onref }: Props = $props();
+  let { rebase = null, ondrop, oncontext, onref, onworktreecontext, onrefcontext }: Props = $props();
+
+  /** The other end of a comparison stays marked while the graph shows it (#33). */
+  const comparedFrom = $derived(compareView.showing(selection.oid) ? compareView.from : null);
 
   let over = $state<string | null>(null);
 
@@ -272,6 +278,12 @@
             style:padding-left="{headerX}px"
             title="Show the working tree in Files and Diff"
             onclick={() => selection.clear()}
+            oncontextmenu={(event) => {
+              if (!onworktreecontext) return;
+              event.preventDefault();
+              selection.clear();
+              onworktreecontext(event.clientX, event.clientY);
+            }}
           >
             <span class="summary truncate">{headerLabel}</span>
             {#if graph.loading}<span class="date">loading…</span>{/if}
@@ -294,7 +306,7 @@
           {@const refs = capsules(labels.get(item.entry.commit.oid) ?? [], CAPSULE_ROOM)}
           <div
             class="row"
-            class:selected={selection.oid === item.entry.commit.oid}
+            class:selected={selection.oid === item.entry.commit.oid || comparedFrom === item.entry.commit.oid}
             class:over={over === item.entry.commit.oid}
             style:top="{item.listRow * GRAPH.rowHeight}px"
             style:padding-left="{textX(item.entry.layout.width)}px"
@@ -337,6 +349,14 @@
                   onref?.(label.text);
                 }}
                 onkeydown={(event) => event.key === "Enter" && onref?.(label.text)}
+                oncontextmenu={(event) => {
+                  if (!onrefcontext) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  const oid = item.entry.commit.oid;
+                  void pick(repository.current?.repo ?? (0 as unknown as RepoId), oid);
+                  onrefcontext(label, oid, event.clientX, event.clientY);
+                }}
               >{label.text}</span>
             {/each}
             {#if refs.hidden.length > 0}

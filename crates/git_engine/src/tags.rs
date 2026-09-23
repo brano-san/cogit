@@ -37,8 +37,7 @@ impl RepoHandle {
         self.run_git(&["tag", "--delete", name]).map(drop)
     }
 
-    /// Why a new tag cannot be called `name`, in words for the field, or `None`. Asked
-    /// once on submit: `check-ref-format` is a process, too slow for every keystroke.
+    /// Asked once on submit: `check-ref-format` is a process, too slow for every keystroke.
     pub fn tag_name_problem(&self, name: &str) -> Result<Option<String>> {
         let name = name.trim();
         if name.is_empty() {
@@ -58,7 +57,6 @@ impl RepoHandle {
         Ok(None)
     }
 
-    /// The annotation of an annotated tag; `None` for a lightweight one.
     pub fn tag_message(&self, name: &str) -> Result<Option<String>> {
         let full = format!("refs/tags/{}", require(name)?);
         let reference = self
@@ -81,8 +79,7 @@ impl RepoHandle {
         Ok(Some(decoded.message.to_string().trim_end().to_owned()))
     }
 
-    /// Git has no rename for tags: the new one is made first, so a refusal leaves the old
-    /// one standing. An annotation is carried over as a new annotated tag (R-251).
+    /// The new tag first, so a refusal leaves the old one standing (R-251).
     pub fn rename_tag(&self, from: &str, to: &str) -> Result<()> {
         let from = require(from)?;
         let to = require(to)?;

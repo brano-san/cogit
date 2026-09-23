@@ -1019,10 +1019,7 @@ export type RepoSummary = {
 	indexLock: string | null,
 };
 
-/**
- *  The five modes of `git reset <commit>`; they differ only in what happens to the index
- *  and the working tree once the branch has moved.
- */
+/**  The five modes of `git reset <commit>`: what happens to the index and the tree. */
 export type ResetMode = "soft" | "mixed" | "hard" | "keep" | "merge";
 
 /**

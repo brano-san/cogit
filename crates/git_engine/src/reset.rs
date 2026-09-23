@@ -1,8 +1,7 @@
 use crate::{GitError, RepoHandle, Result};
 use serde::Deserialize;
 
-/// The five modes of `git reset <commit>`; they differ only in what happens to the index
-/// and the working tree once the branch has moved.
+/// The five modes of `git reset <commit>`: what happens to the index and the tree.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum ResetMode {
@@ -26,7 +25,6 @@ impl ResetMode {
 }
 
 impl RepoHandle {
-    /// Moves the checked-out branch (or a detached HEAD) to `rev`.
     pub fn reset(&self, rev: &str, mode: ResetMode) -> Result<()> {
         let rev = rev.trim();
         if rev.is_empty() || rev.starts_with('-') {
@@ -41,8 +39,7 @@ impl RepoHandle {
         self.run_git(&["reset", mode.flag(), &oid]).map(drop)
     }
 
-    /// True when `ancestor` is `descendant` or lies in its history. Through `gix`: the
-    /// graph menu asks on every right-click.
+    /// Through `gix`: the graph menu asks on every right-click.
     pub fn is_ancestor(&self, ancestor: &str, descendant: &str) -> Result<bool> {
         let ancestor = self.resolve_commit(ancestor)?;
         let descendant = self.resolve_commit(descendant)?;
@@ -55,7 +52,6 @@ impl RepoHandle {
             .is_ok_and(|base| base.detach() == ancestor))
     }
 
-    /// Every file that differs between two commits, `from` being the old side.
     pub fn files_between(&self, from: &str, to: &str) -> Result<Vec<crate::FileEntry>> {
         let before = self.tree_of(self.resolve_commit(from)?)?;
         let after = self.tree_of(self.resolve_commit(to)?)?;

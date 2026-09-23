@@ -613,7 +613,7 @@ export async function clearCommandLog() {
   await commands.clearCommandLog();
 }
 
-function unwrap<T>(result: { status: "ok"; data: T } | { status: "error"; error: GitError }): T {
+export function unwrap<T>(result: { status: "ok"; data: T } | { status: "error"; error: GitError }): T {
   if (result.status === "error") {
     throw new CogitError(result.error);
   }
