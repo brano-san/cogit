@@ -54,6 +54,20 @@ impl AppState {
         handle.push(remote, None, force, token.as_deref(), on_line)
     }
 
+    /// One refspec to one remote: Push To, Push Up To and pushing a ref that is not HEAD.
+    pub fn push_to(
+        &self,
+        repo: RepoId,
+        remote: &str,
+        refspec: &str,
+        on_line: impl FnMut(&str),
+    ) -> Result<(), git_engine::GitError> {
+        let _quiet = self.quiet(repo);
+        let handle = self.handle(repo)?;
+        let token = self.token_for(&handle, remote);
+        handle.push(remote, Some(refspec), false, token.as_deref(), on_line)
+    }
+
     /// Only for an HTTP remote: SSH already authenticates through the agent, and handing
     /// a token to an unknown host would leak it.
     fn token_for(&self, handle: &git_engine::RepoHandle, remote: &str) -> Option<String> {
