@@ -1,11 +1,8 @@
-// The benchmark: every scenario, cold and warm, on every repository set, against the
-// release build. See doc/15-benchmark.md.
+// The release benchmark; methods and flags in doc/15-benchmark.md.
 //
 //   npm run bench -- [--label baseline] [--sets small,dirty] [--only repo.open,diff.big]
 //                    [--runs 10] [--warmup 2] [--cold 10] [--no-cold] [--no-warm] [--no-app]
-//                    [--check]
-//
-// Needs the bench build (npm run bench:build) and the repositories (npm run bench:repos).
+//                    [--check] [--hidden] [--cores 16-31] [--ab old,new]
 
 import { spawn, spawnSync } from "node:child_process";
 import { appendFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
@@ -251,7 +248,8 @@ public static class BenchMenu {
 }
 "@
 [BenchMenu]::Close(${this.app.child.pid})`;
-    for (let attempt = 0; attempt < 5; attempt += 1) {
+    // The menu can take a while to appear on a large repository; keep looking for 3 s.
+    for (let attempt = 0; attempt < 20; attempt += 1) {
       await sleep(150);
       const r = spawnSync("powershell", ["-NoProfile", "-Command", script], { encoding: "utf8" });
       if (Number(r.stdout.trim()) > 0) break;
@@ -263,25 +261,34 @@ public static class BenchMenu {
 // --- statistics ------------------------------------------------------------------------
 
 const quantile = (sorted, q) => sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil(q * sorted.length) - 1))];
+const median = (values) => quantile([...values].sort((a, b) => a - b), 0.5);
 
-function summarise(samples) {
+/** Samples taken while the machine was busy are dropped when enough clean ones remain. */
+const clean = (samples) => {
+  const quiet = samples.filter((s) => !s.busy);
+  return quiet.length >= Math.min(5, samples.length) ? quiet : samples;
+};
+
+function summarise(all) {
+  const samples = clean(all);
   const totals = samples.map((s) => s.total).sort((a, b) => a - b);
   const ipcs = samples.map((s) => s.ipc ?? 0).sort((a, b) => a - b);
   const fronts = samples.map((s) => s.front ?? Math.max(s.total - (s.ipc ?? 0), 0)).sort((a, b) => a - b);
-  const median = quantile(totals, 0.5);
+  const mid = quantile(totals, 0.5);
   const p95 = quantile(totals, 0.95);
   return {
     n: totals.length,
-    median: round(median),
+    busy: all.length - samples.length,
+    median: round(mid),
     p95: round(p95),
     min: round(totals[0]),
     max: round(totals.at(-1)),
     ipcMedian: round(quantile(ipcs, 0.5)),
     frontMedian: round(quantile(fronts, 0.5)),
-    spread: median > 0 ? round((p95 - median) / median, 3) : 0,
+    spread: mid > 0 ? round((p95 - mid) / mid, 3) : 0,
   };
 }
-const round = (v, digits = 1) => (v === undefined || Number.isNaN(v) ? null : Number(v.toFixed(digits)));
+const round = (v, digits = 1) => (v === undefined || v === null || Number.isNaN(v) ? null : Number(v.toFixed(digits)));
 
 function commands(samples) {
   const sum = {};
@@ -300,19 +307,42 @@ function commands(samples) {
   );
 }
 
+/** Busy: the page's fixed work took over 1.3 × its quiet level (doc/15-benchmark.md). */
+const calibration = {
+  seen: [],
+  add(ms) {
+    this.seen.push(ms);
+    if (this.seen.length > 400) this.seen.shift();
+  },
+  level() {
+    return this.seen.length >= 10 ? quantile([...this.seen].sort((a, b) => a - b), 0.25) : null;
+  },
+  busy(ms) {
+    const level = this.level();
+    return level !== null && ms > level * BUSY_FACTOR;
+  },
+};
+const BUSY_FACTOR = Number(args.get("busy-factor") ?? 1.3);
+const RETRIES = Number(args.get("retries") ?? 3);
+const MAX_RUNS = Number(args.get("max-runs") ?? 30);
+
 // --- results ---------------------------------------------------------------------------
 
+let VARIANT = null;
 const results = new Map();
+const keyOf = (id, set, condition) => `${id}|${set}|${condition}|${VARIANT ?? ""}`;
+function entry(id, set, condition, meta) {
+  const key = keyOf(id, set, condition);
+  if (!results.has(key)) results.set(key, { id, set, condition, variant: VARIANT, ...meta, samples: [], errors: [], retakes: 0 });
+  return results.get(key);
+}
 function record(id, set, condition, sample, meta) {
-  const key = `${id}|${set}|${condition}`;
-  if (!results.has(key)) results.set(key, { id, set, condition, ...meta, samples: [], errors: [] });
-  results.get(key).samples.push(sample);
+  entry(id, set, condition, meta).samples.push(sample);
 }
 function fail(id, set, condition, error, meta) {
-  const key = `${id}|${set}|${condition}`;
-  if (!results.has(key)) results.set(key, { id, set, condition, ...meta, samples: [], errors: [] });
-  results.get(key).errors.push(String(error.message ?? error).slice(0, 300));
+  entry(id, set, condition, meta).errors.push(String(error.message ?? error).slice(0, 300));
 }
+const samplesOf = (id, set, condition) => results.get(keyOf(id, set, condition))?.samples ?? [];
 
 const SCENARIO_LIMIT_MS = 180_000;
 
@@ -341,18 +371,41 @@ async function once(scenario, ctx, condition, keep) {
   }
 }
 
+async function calibrate(ctx) {
+  const ms = await ctx.cdp.eval("window.__bench.calibrate()");
+  return ms;
+}
+
+/** A warm sample taken on a busy machine is retaken; a cold one cannot be and is only marked. */
 async function attempt(scenario, ctx, condition, keep) {
   const meta = { group: scenario.group, title: scenario.title };
   if (args.has("trace")) await note(`  > ${scenario.id} (${ctx.set}, ${condition}, #${ctx.iteration})`);
+  const retries = condition === "warm" ? RETRIES : 0;
   try {
-    await scenario.prep?.(ctx);
-    const r = await scenario.measure(ctx);
-    const named = r && typeof r.total === "number" ? { [scenario.id]: r } : r;
-    for (const [id, sample] of Object.entries(named)) {
-      if (sample.timedOut) throw new Error(`${id} timed out`);
-      if (keep) record(id, ctx.set, condition, sample, id === scenario.id ? meta : { group: scenario.group, title: id });
+    for (let tries = 0; ; tries += 1) {
+      await scenario.prep?.(ctx);
+      const before = await calibrate(ctx);
+      const r = await scenario.measure(ctx);
+      const after = await calibrate(ctx);
+      await scenario.reset?.(ctx);
+      const busy = calibration.busy(before) || calibration.busy(after);
+      calibration.add(before);
+      calibration.add(after);
+      const named = r && typeof r.total === "number" ? { [scenario.id]: r } : r;
+      for (const [id, sample] of Object.entries(named)) {
+        if (sample.timedOut) throw new Error(`${id} timed out`);
+      }
+      if (busy && tries < retries) {
+        if (keep) entry(scenario.id, ctx.set, condition, meta).retakes += 1;
+        continue;
+      }
+      if (keep) {
+        for (const [id, sample] of Object.entries(named)) {
+          record(id, ctx.set, condition, { ...sample, calib: round(Math.max(before, after), 2), busy }, id === scenario.id ? meta : { group: scenario.group, title: id });
+        }
+      }
+      return;
     }
-    await scenario.reset?.(ctx);
   } catch (error) {
     fail(scenario.id, ctx.set, condition, error, meta);
     await note(`  ! ${scenario.id} on ${ctx.set} (${condition}): ${String(error.message).split("\n")[0]}`);
@@ -373,27 +426,43 @@ async function exitApp(app) {
   await stop(app);
 }
 
+/** A fresh process with the repository open, and a first read of what the page runs at. */
+async function session(set, exe) {
+  await resetProfile();
+  const app = await launch(exe);
+  const ctx = new Context(app, set);
+  await limited(openRepo(ctx), 120_000, "open");
+  for (let i = 0; i < 12; i += 1) calibration.add(await calibrate(ctx));
+  return ctx;
+}
+
 const errorsIn = (set, condition) =>
   [...results.values()].filter((r) => r.set === set && r.condition === condition).reduce((n, r) => n + r.errors.length, 0);
 
-async function coldPass(set) {
+/** Every scenario once per fresh process; a sample taken while the machine was busy costs
+    one more launch, up to twice the planned count. */
+async function coldPass(set, exe) {
   const list = applicable(set);
   if (list.length === 0) return;
   let before = errorsIn(set, "cold");
-  for (let run = 0; run < WARMUP + COLD; run += 1) {
+  const quietEnough = () =>
+    list.every((s) => samplesOf(s.id, set, "cold").filter((x) => !x.busy).length >= COLD);
+  for (let run = 0; run < WARMUP + 2 * COLD; run += 1) {
+    if (run >= WARMUP + COLD && quietEnough()) break;
     // The repository is rebuilt only when the run before left it in doubt.
     if (!args.has("keep-repos") && run > 0 && errorsIn(set, "cold") > before) await rebuild([set]);
     before = errorsIn(set, "cold");
     await resetProfile();
     let app;
     try {
-      app = await launch();
+      app = await launch(exe);
     } catch (error) {
       await note(`  ! launch failed (cold ${set} #${run}): ${error.message}`);
       continue;
     }
     const ctx = new Context(app, set);
     ctx.iteration = run;
+    for (let i = 0; i < 6; i += 1) calibration.add(await calibrate(ctx).catch(() => 0));
     if (!list.some((s) => s.id === "repo.open")) {
       try {
         await limited(openRepo(ctx), 120_000, "open");
@@ -407,38 +476,48 @@ async function coldPass(set) {
       if (!(await once(scenario, ctx, "cold", run >= WARMUP))) break;
     }
     await exitApp(ctx.app);
-    await note(`  cold ${set} ${run + 1}/${WARMUP + COLD}`);
+    await note(`  cold ${set} ${run + 1}`);
   }
 }
 
-async function warmPass(set) {
+/** Rounds, not runs: every scenario once per round, so a burst of someone else's load is
+    spread over all of them. Then more runs for any still noisier than 20 %, up to MAX_RUNS. */
+async function warmPass(set, exe) {
   const list = applicable(set);
   if (list.length === 0) return;
-  await resetProfile();
-  if (args.has("trace")) await note("  . profile reset");
-  const app = await launch();
-  if (args.has("trace")) await note(`  . launched pid ${app.child.pid}`);
-  const ctx = new Context(app, set);
-  await openRepo(ctx);
-  if (args.has("trace")) await note("  . repository open");
-  for (const scenario of list) {
-    const runs = scenario.runs ?? RUNS;
-    for (let i = 0; i < WARMUP + runs; i += 1) {
+  let ctx = await session(set, exe);
+  const recover = async (i) => {
+    await stop(ctx.app, { gracefulMs: 2000 }).catch(() => {});
+    ctx = await session(set, exe);
+    ctx.iteration = i;
+  };
+  const planned = (s) => WARMUP + (s.runs ?? RUNS);
+  const rounds = Math.max(...list.map(planned));
+  for (let i = 0; i < rounds; i += 1) {
+    for (const scenario of list) {
+      if (i >= planned(scenario)) continue;
       ctx.iteration = i;
-      if (await once(scenario, ctx, "warm", i >= WARMUP)) continue;
-      await stop(ctx.app, { gracefulMs: 2000 }).catch(() => {});
-      const fresh = await launch();
-      Object.assign(ctx, new Context(fresh, set), { iteration: i });
-      await openRepo(ctx);
-      break;
+      if (!(await once(scenario, ctx, "warm", i >= WARMUP))) await recover(i);
     }
-    await note(`  warm ${set} ${scenario.id}: ${summarise(results.get(`${scenario.id}|${set}|warm`)?.samples ?? [{ total: NaN }]).median} ms`);
+    if (args.has("trace")) await note(`  round ${i + 1}/${rounds}`);
   }
-  await exitApp(app);
+  for (const scenario of list) {
+    const cap = scenario.runs ? scenario.runs * 2 : MAX_RUNS;
+    for (let i = planned(scenario); ; i += 1) {
+      const samples = samplesOf(scenario.id, set, "warm");
+      const s = summarise(samples.length ? samples : [{ total: NaN }]);
+      if (!samples.length || s.spread <= 0.2 || samples.length >= cap) break;
+      ctx.iteration = i;
+      if (!(await once(scenario, ctx, "warm", true))) await recover(i);
+    }
+    const s = summarise(samplesOf(scenario.id, set, "warm").length ? samplesOf(scenario.id, set, "warm") : [{ total: NaN }]);
+    await note(`  warm ${set} ${scenario.id}${VARIANT ? ` [${VARIANT}]` : ""}: ${s.median} ms (n ${s.n}, busy ${s.busy}, spread ${s.spread})`);
+  }
+  await exitApp(ctx.app);
 }
 
 /** Launch to first paint, launch to ready (a repository restored), and exit. */
-async function appPass() {
+async function appPass(exe) {
   if (!wanted("app")) return;
   const medium = join(REPOS, "medium").replaceAll("\\", "/");
   const meta = (title) => ({ group: "Приложение", title });
@@ -446,7 +525,7 @@ async function appPass() {
   for (let run = 0; run < WARMUP + COLD; run += 1) {
     const keep = run >= WARMUP;
     await resetProfile();
-    const app = await launch();
+    const app = await launch(exe);
     const paint = await app.cdp.eval(`(async () => {
       for (let i = 0; i < 600; i += 1) {
         const e = performance.getEntriesByName("first-contentful-paint")[0];
@@ -471,7 +550,7 @@ async function appPass() {
     await app.cdp.eval(`window.__bench.run(() => ${dropScript(medium)}, 300, 60000)`);
     await exitApp(app);
 
-    const restored = await launch();
+    const restored = await launch(exe);
     const ready = await restored.cdp.eval(`(async () => {
       const frame = () => new Promise((ok) => requestAnimationFrame(() => ok(performance.now())));
       let painted = null;
@@ -531,45 +610,171 @@ async function environment() {
   };
 }
 
+// --- A/B -------------------------------------------------------------------------------
+
+const EXES = resolve("target/bench/exes");
+const exeOf = (name) => join(EXES, `${name}.exe`);
+
+/** Two builds alternated round by round (AB BA AB …) on the same machine in the same hour:
+    whatever else the machine is doing lands on both. Per round: a fresh process, one
+    unrecorded run, then `--per-round` recorded runs of every scenario. */
+async function abPass(set, names) {
+  const list = applicable(set);
+  if (list.length === 0) return;
+  const rounds = Number(args.get("rounds") ?? 6);
+  const perRound = Number(args.get("per-round") ?? 2);
+  for (let r = 0; r < rounds; r += 1) {
+    const order = r % 2 === 0 ? names : [...names].reverse();
+    for (const name of order) {
+      VARIANT = name;
+      let ctx;
+      try {
+        ctx = await session(set, exeOf(name));
+      } catch (error) {
+        await note(`  ! ${name} session failed: ${error.message}`);
+        continue;
+      }
+      for (const scenario of list) {
+        for (let i = 0; i <= perRound; i += 1) {
+          ctx.iteration = r * (perRound + 1) + i;
+          if (!(await once(scenario, ctx, "warm", i > 0))) {
+            await stop(ctx.app, { gracefulMs: 2000 }).catch(() => {});
+            ctx = await session(set, exeOf(name));
+            break;
+          }
+        }
+      }
+      await exitApp(ctx.app);
+    }
+    await note(`  ab ${set} round ${r + 1}/${rounds}`);
+  }
+  VARIANT = null;
+}
+
+/** 95 % interval of median(B) / median(A) by resampling both. */
+function ratioInterval(a, b, draws = 2000) {
+  // mulberry32: an LCG's low bits cycle too fast for small samples.
+  let seed = 12345;
+  const random = () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let x = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+  const pick = (xs) => xs[Math.floor(random() * xs.length)];
+  const ratios = [];
+  for (let d = 0; d < draws; d += 1) {
+    const ra = median(a.map(() => pick(a)));
+    const rb = median(b.map(() => pick(b)));
+    ratios.push(rb / ra);
+  }
+  ratios.sort((x, y) => x - y);
+  return [quantile(ratios, 0.025), quantile(ratios, 0.975)];
+}
+
+function abTable(names) {
+  const [a, b] = names;
+  const lines = [];
+  const pairs = new Map();
+  for (const r of results.values()) {
+    if (!r.variant) continue;
+    const key = `${r.id}|${r.set}`;
+    if (!pairs.has(key)) pairs.set(key, {});
+    pairs.get(key)[r.variant] = r;
+  }
+  for (const [key, pair] of pairs) {
+    if (!pair[a] || !pair[b]) continue;
+    const xa = clean(pair[a].samples).map((s) => s.total);
+    const xb = clean(pair[b].samples).map((s) => s.total);
+    if (!xa.length || !xb.length) continue;
+    const ma = median(xa);
+    const mb = median(xb);
+    const [lo, hi] = ratioInterval(xa, xb);
+    const verdict = hi < 0.97 ? "faster" : lo > 1.03 ? "SLOWER" : "same";
+    lines.push({ key, ma: round(ma), mb: round(mb), ratio: round(mb / ma, 3), lo: round(lo, 3), hi: round(hi, 3), verdict, na: xa.length, nb: xb.length });
+  }
+  return lines.sort((x, y) => y.ma - x.ma);
+}
+
 // --- main ------------------------------------------------------------------------------
+
+function rowsOf() {
+  const rows = [...results.values()].map((r) => {
+    const kept = clean(r.samples);
+    return {
+      id: r.id,
+      group: r.group,
+      title: r.title,
+      set: r.set,
+      condition: r.condition,
+      variant: r.variant ?? undefined,
+      ...summarise(r.samples.length ? r.samples : [{ total: NaN }]),
+      retakes: r.retakes,
+      calibMedian: kept.length ? round(median(kept.map((s) => s.calib ?? 0)), 2) : null,
+      commands: commands(kept),
+      samples: r.samples.map((s) => ({ total: round(s.total), ipc: round(s.ipc ?? 0), front: round(s.front ?? 0), calib: s.calib, busy: s.busy || undefined })),
+      errors: r.errors,
+    };
+  });
+  return rows.sort((a, b) => (b.median ?? -1) - (a.median ?? -1));
+}
+
+/** Written after every pass: an interrupted run keeps what it measured. */
+async function save(env, started, extra = {}) {
+  env.minutes = round((Date.now() - started) / 60000);
+  env.calibrationLevel = round(calibration.level(), 2);
+  await writeFile(OUT, JSON.stringify({ env, ...extra, results: rowsOf() }, null, 2));
+}
 
 async function main() {
   await mkdir(resolve(OUT, ".."), { recursive: true });
   await writeFile(LOG, "");
   const env = await environment();
   await note(`bench ${LABEL}: ${env.commit}${env.dirty ? "+" : ""}, ${env.cpu}, ${env.disk}`);
-
   const started = Date.now();
-  if (!args.has("no-app")) await appPass();
+
+  if (args.has("ab")) {
+    const names = String(args.get("ab")).split(",");
+    env.ab = names;
+    for (const set of SETS) {
+      await note(`${set}: A/B ${names.join(" vs ")}`);
+      if (!args.has("keep-repos")) await rebuild([set]);
+      await abPass(set, names).catch((error) => note(`  !! ${set} A/B stopped: ${error.message}`));
+      await save(env, started, { ab: abTable(names) });
+    }
+    const table = abTable(names);
+    await save(env, started, { ab: table });
+    await note(`\n${names[0].padStart(10)} ${names[1].padStart(10)}   ratio   95% interval    verdict  scenario`);
+    for (const l of table) {
+      await note(`${String(l.ma).padStart(10)} ${String(l.mb).padStart(10)}  ${String(l.ratio).padStart(6)}  [${l.lo}, ${l.hi}]  ${l.verdict.padEnd(7)}  ${l.key}`);
+    }
+    await note(`\nwritten ${OUT} in ${env.minutes} min`);
+    return;
+  }
+
+  const exe = args.has("exe") ? exeOf(String(args.get("exe"))) : EXE;
+  env.exe = exe;
+  if (!args.has("no-app")) {
+    await appPass(exe);
+    await save(env, started);
+  }
   for (const set of SETS) {
     for (const [pass, run] of [["warm", warmPass], ["cold", coldPass]]) {
       if (args.has(`no-${pass}`)) continue;
       await note(`${set}: ${pass}`);
       // Every pass starts from the generated state: a failed reset must not skew the next.
       if (!args.has("keep-repos")) await rebuild(set === "network" ? ["network"] : [set]);
-      await run(set).catch((error) => note(`  !! ${set} ${pass} pass stopped: ${error.message}`));
+      await run(set, exe).catch((error) => note(`  !! ${set} ${pass} pass stopped: ${error.message}`));
+      await save(env, started);
     }
   }
 
-  const rows = [...results.values()].map((r) => ({
-    id: r.id,
-    group: r.group,
-    title: r.title,
-    set: r.set,
-    condition: r.condition,
-    ...summarise(r.samples.length ? r.samples : [{ total: NaN }]),
-    commands: commands(r.samples),
-    samples: r.samples.map((s) => ({ total: round(s.total), ipc: round(s.ipc ?? 0), front: round(s.front ?? 0) })),
-    errors: r.errors,
-  }));
-  rows.sort((a, b) => (b.median ?? -1) - (a.median ?? -1));
-  env.minutes = round((Date.now() - started) / 60000);
-  await writeFile(OUT, JSON.stringify({ env, results: rows }, null, 2));
-
-  await note(`\n${"median".padStart(9)} ${"p95".padStart(9)}  spread  scenario`);
+  const rows = rowsOf();
+  await save(env, started);
+  await note(`\n${"median".padStart(9)} ${"p95".padStart(9)}  spread  busy  scenario`);
   for (const r of rows) {
     const flag = r.spread > 0.2 ? " ⚠ noisy" : "";
-    await note(`${String(r.median).padStart(9)} ${String(r.p95).padStart(9)}  ${String(r.spread).padStart(6)}  ${r.id} · ${r.set} · ${r.condition}${r.errors.length ? ` (${r.errors.length} errors)` : ""}${flag}`);
+    await note(`${String(r.median).padStart(9)} ${String(r.p95).padStart(9)}  ${String(r.spread).padStart(6)}  ${String(r.busy).padStart(4)}  ${r.id} · ${r.set} · ${r.condition}${r.errors.length ? ` (${r.errors.length} errors)` : ""}${flag}`);
   }
   await note(`\nwritten ${OUT} in ${env.minutes} min`);
 

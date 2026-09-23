@@ -40,8 +40,8 @@ export async function resetProfile() {
   }
 }
 
-export async function launch() {
-  const { child, spawnedAt, exited } = hidden ? startHidden() : startShown();
+export async function launch(exe = EXE) {
+  const { child, spawnedAt, exited } = hidden ? startHidden(exe) : startShown(exe);
   try {
     return await attach(child, spawnedAt, exited);
   } catch (error) {
@@ -52,22 +52,28 @@ export async function launch() {
   }
 }
 
+/** Above the background load on the cores the run is allowed, without starving anybody. */
+function raisePriority(pid) {
+  const script = `(Get-Process -Id ${pid}).PriorityClass = "AboveNormal"; Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" | Where-Object { $_.CommandLine -like '*${IDENTIFIER}*' } | ForEach-Object { (Get-Process -Id $_.ProcessId).PriorityClass = "AboveNormal" }`;
+  spawn("powershell", ["-NoProfile", "-Command", script], { stdio: "ignore" });
+}
+
 let hidden = false;
 /** Runs on a desktop of its own, out of the way of whoever uses the machine (doc/15-benchmark.md). */
 export function runHidden(on) {
   hidden = on;
 }
 
-function startShown() {
+function startShown(exe) {
   const spawnedAt = Date.now();
-  const child = spawn(EXE, [], { stdio: "ignore", env: { ...process.env } });
+  const child = spawn(exe, [], { stdio: "ignore", env: { ...process.env } });
   const exited = new Promise((ok) => child.on("exit", () => ok(Date.now())));
   return { child, spawnedAt, exited };
 }
 
-function startHidden() {
+function startHidden(exe) {
   const script = resolve("scripts/bench/hidden-desktop.ps1");
-  const r = spawnSync("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, "-Exe", EXE], { encoding: "utf8" });
+  const r = spawnSync("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, "-Exe", exe], { encoding: "utf8" });
   const [pid, at] = r.stdout.trim().split(/\s+/).map(Number);
   if (!pid) throw new Error(`hidden launch failed: ${r.stderr.trim() || r.stdout.trim()}`);
   const alive = () => {
@@ -106,6 +112,7 @@ async function attach(child, spawnedAt, exited) {
       if (ready) {
         await cdp.eval(PAGE, 5000);
         await cdp.eval("window.__bench.patch(), true", 5000);
+        raisePriority(child.pid);
         break;
       }
     } catch (error) {
