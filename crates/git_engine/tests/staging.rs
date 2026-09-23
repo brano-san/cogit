@@ -203,3 +203,51 @@ fn a_path_that_does_not_exist_reports_gits_own_words() {
         other => panic!("expected a command failure, got {other:?}"),
     }
 }
+
+/// Longer together than the 32 767 characters Windows allows a whole command line. At the
+/// root: an untracked directory is listed as one entry, never file by file.
+fn many_untracked(f: &test_fixtures::Fixture) -> Vec<String> {
+    (0..1200)
+        .map(|i| {
+            let name = format!("a-file-whose-name-is-long-enough-to-matter-{i:04}.txt");
+            std::fs::write(f.path().join(&name), "x\n").unwrap();
+            name
+        })
+        .collect()
+}
+
+#[test]
+fn a_list_longer_than_a_command_line_is_staged_and_unstaged_whole() {
+    let f = test_fixtures::linear(1).unwrap();
+    let paths = many_untracked(&f);
+    let repo = open(&f);
+
+    repo.stage(&paths).unwrap();
+    assert_eq!(staged(&repo).len(), paths.len());
+
+    repo.unstage(&paths).unwrap();
+    assert!(staged(&repo).is_empty());
+}
+
+#[test]
+fn a_list_longer_than_a_command_line_is_discarded_whole() {
+    let f = test_fixtures::linear(1).unwrap();
+    let paths = many_untracked(&f);
+    let repo = open(&f);
+
+    repo.discard(&paths).unwrap();
+
+    assert!(unstaged(&repo).is_empty());
+}
+
+#[test]
+fn a_list_too_long_to_stash_is_refused_before_anything_changes() {
+    let f = test_fixtures::linear(1).unwrap();
+    let paths = many_untracked(&f);
+    let repo = open(&f);
+
+    assert!(repo.stash_paths(&paths, "many").is_err());
+
+    assert!(repo.stashes().unwrap().is_empty());
+    assert_eq!(unstaged(&repo).len(), paths.len());
+}

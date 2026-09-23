@@ -8,13 +8,14 @@ impl RepoHandle {
         }
 
         let source = format!("--source={rev}");
-        let mut args = vec!["restore", source.as_str(), "--"];
-        if paths.is_empty() {
-            args.push(".");
+        let everything = [".".to_owned()];
+        let paths = if paths.is_empty() {
+            &everything[..]
         } else {
-            args.extend(paths.iter().map(String::as_str));
-        }
-        self.run_git(&args).map(drop)
+            paths
+        };
+        self.run_git_paths(&["restore", source.as_str()], paths)
+            .map(drop)
     }
 
     /// Splits `rev` in two. History from `rev` on is rewritten, so the caller warns first.

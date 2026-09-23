@@ -262,3 +262,23 @@ fn the_journal_does_not_ship_the_recovery_payload_over_ipc() {
     assert!(!json.contains("recovery"), "{json}");
     assert!(json.contains("undoable"), "{json}");
 }
+
+#[test]
+fn discarding_a_long_list_of_files_is_undoable() {
+    let f = test_fixtures::linear(1).unwrap();
+    let (state, repo) = open(&f);
+    // Short enough for one command line, too long to repeat in the stash message as well.
+    let paths: Vec<String> = (0..400)
+        .map(|i| format!("a-file-whose-name-is-long-enough-to-matter-{i:04}.txt"))
+        .collect();
+    for path in &paths {
+        std::fs::write(f.path().join(path), "not added yet\n").unwrap();
+    }
+
+    state.discard_paths(repo, &paths).unwrap();
+    assert!(!f.path().join(&paths[0]).exists());
+
+    state.undo_last(repo).unwrap();
+
+    assert!(paths.iter().all(|path| f.path().join(path).exists()));
+}

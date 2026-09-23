@@ -3,16 +3,16 @@ use std::collections::HashSet;
 
 impl RepoHandle {
     pub fn stage(&self, paths: &[String]) -> Result<()> {
-        self.run_paths(&["add", "--all", "--"], paths)
+        self.run_paths(&["add", "--all"], paths)
     }
 
     pub fn unstage(&self, paths: &[String]) -> Result<()> {
         require_paths(paths)?;
         // `restore --staged` resolves HEAD, which does not exist before the first commit.
         if matches!(self.head()?, Head::Unborn { .. }) {
-            return self.run_paths(&["rm", "--cached", "-r", "--"], paths);
+            return self.run_paths(&["rm", "--cached", "-r"], paths);
         }
-        self.run_paths(&["restore", "--staged", "--"], paths)
+        self.run_paths(&["restore", "--staged"], paths)
     }
 
     /// A tracked file comes back from the index; an untracked one is removed outright.
@@ -33,19 +33,17 @@ impl RepoHandle {
             .partition(|path| untracked.contains(path));
 
         if !to_restore.is_empty() {
-            self.run_paths(&["restore", "--worktree", "--"], &to_restore)?;
+            self.run_paths(&["restore", "--worktree"], &to_restore)?;
         }
-        if !to_clean.is_empty() {
-            self.run_paths(&["clean", "-fd", "--"], &to_clean)?;
+        for batch in crate::runner::command_line_batches(&to_clean) {
+            self.run_paths(&["clean", "-fd"], batch)?;
         }
         Ok(())
     }
 
     fn run_paths(&self, prefix: &[&str], paths: &[String]) -> Result<()> {
         require_paths(paths)?;
-        let mut args: Vec<&str> = prefix.to_vec();
-        args.extend(paths.iter().map(String::as_str));
-        self.run_git(&args).map(drop)
+        self.run_git_paths(prefix, paths).map(drop)
     }
 }
 
