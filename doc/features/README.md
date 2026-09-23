@@ -297,3 +297,6 @@
 | F-376 | Стрелки изменений гаснут на краях | [F-376-change-arrows.md](F-376-change-arrows.md) |
 | F-377 | Полосы скрытых строк вместо `@@` | [F-377-diff-folds.md](F-377-diff-folds.md) |
 | F-378 | Маркеры `+` и `−` в своей колонке | [F-378-diff-sign-column.md](F-378-diff-sign-column.md) |
+| F-380 | Окно Investigate | [F-380-investigate-window.md](F-380-investigate-window.md) |
+| F-381 | Происхождение строки и Go Deeper | [F-381-origin-candidates.md](F-381-origin-candidates.md) |
+| F-382 | Investigate из Diff с выделенной строкой | [F-382-investigate-from-diff.md](F-382-investigate-from-diff.md) |

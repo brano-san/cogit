@@ -81,6 +81,7 @@ export default defineConfig({
         main: resolve(fileURLToPath(new URL(".", import.meta.url)), "index.html"),
         compare: resolve(fileURLToPath(new URL(".", import.meta.url)), "compare.html"),
         merge: resolve(fileURLToPath(new URL(".", import.meta.url)), "merge.html"),
+        investigate: resolve(fileURLToPath(new URL(".", import.meta.url)), "investigate.html"),
         blame: resolve(fileURLToPath(new URL(".", import.meta.url)), "blame.html"),
       },
     },

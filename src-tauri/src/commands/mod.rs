@@ -16,6 +16,7 @@ use serde::Serialize;
 use std::path::PathBuf;
 use tauri::Manager as _;
 
+pub mod investigate;
 pub mod ref_ops;
 
 /// specta follows serde, so a DTO without `camelCase` reads `undefined` in the UI.

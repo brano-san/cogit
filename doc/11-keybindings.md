@@ -17,6 +17,7 @@
 | `repos` | Фокус в панели Repositories |
 | `diff` | Фокус в панели Diff |
 | `merge-window` | Окно 3-Way Merge |
+| `investigate-window` | Окно Investigate (§9a) |
 | `modal` | Открыт диалог или палитра |
 
 Разрешение конфликта: `modal` > конкретная панель > `global`.
@@ -129,7 +130,7 @@
 | Аккорд | Действие |
 |---|---|
 | `Ctrl+Shift+L` | Blame файла — в отдельном окне |
-| `Ctrl+Alt+Shift+L` | Investigate — история правок фрагмента |
+| `Ctrl+Alt+Shift+L` | Investigate — окно происхождения строк для файла в Diff, на выделенной строке (#15; область `diff`) |
 | `Ctrl+Shift+E` | Open in Explorer |
 | `Ctrl+Shift+X` | Open in Terminal |
 | `Ctrl+Shift+Y` | Copy SHA выбранного коммита |
@@ -154,6 +155,28 @@
 | `Ctrl+W` | все | Закрыть окно; в Blame — ещё и пункт `File ▸ Close` его меню |
 | `↑` / `↓`, `PageUp` / `PageDown`, `Home` / `End` | Blame | Сменить текущую строку — под ней `History of current line` |
 | `F5` | Blame | Перечитать blame и версии файла (`View ▸ Refresh`), а не перезагрузить страницу |
+
+### 9.2. Окно Investigate
+
+Нативное меню окна ([R-283](12-risks.md)): аккорды ниже — акселераторы его пунктов, они
+показаны справа в меню и срабатывают через меню, а не через webview.
+
+| Аккорд | Действие |
+|---|---|
+| `Esc`, `Ctrl+W` | Закрыть окно (`Esc` сначала закрывает список Back, справку или поиск в diff) |
+| `Alt+←` / `Alt+→` | Back / Forward по шагам исследования |
+| `Alt+↑` / `Alt+↓` | Более новая / более старая версия файла в Navigation |
+| `Ctrl+1` … `Ctrl+5` | Перспектива Log, Diff, Blame, Blame+Origins, Origins |
+| `Ctrl+D` | Go Deeper — к версии до коммита-источника |
+| `F6` / `Shift+F6` | Следующее / предыдущее изменение этой версии в Blame |
+| `F5` | Перечитать лог и blame |
+| `Ctrl+Shift+C` | Копировать ID коммита выбранной строки |
+| `F1` | Как работает Investigate |
+| `↑` / `↓` | Строка в Blame, коммит в Navigation, кандидат в Origin Candidates |
+| `Enter` в Origin Candidates | Go Deeper в выбранного кандидата |
+
+Пересечения только с другими окнами: `Ctrl+1…5` и `F1` — отдельное окно со своим меню,
+как у 3-Way Merge; в перспективе Diff `F6` / `Shift+F6` передаются самому diff.
 
 ## 10. Навигация в списках
 
