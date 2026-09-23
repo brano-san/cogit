@@ -62,6 +62,7 @@
   import { blockedByLocalChanges } from "$lib/checkout-refusal";
   import { capFraction, floorFraction, PANELS, type PanelId } from "$lib/perspectives";
   import { graphPanelMinWidth } from "$lib/graph-panel";
+  import { repoClick } from "$lib/repo-click";
   import { browserSources, start as startMemoryProbe } from "$lib/mem-probe";
   import { liveListeners } from "$lib/listener-count";
   import type { Settings } from "$lib/settings";
@@ -1204,6 +1205,7 @@
     forgetPanelsKeepingTheTree();
     worktrees.ownerRoot = null;
     submodules.open = row.key;
+    repository.keep();
     repository.adopt(opened);
     refs.adopt(opened.root, buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() }));
     void reloadGraph();
@@ -1590,6 +1592,37 @@
       graph.clear();
     }
     watch.stop(`${repository.current?.branches.length ?? 0} refs`);
+  }
+
+  /** A click in the Repositories list (#50): the one on screen reloads nothing, the owner
+      of the submodule or worktree on screen comes back from what was kept, keeping its
+      submodule tree, and only another repository goes through a full open. */
+  async function selectRepository(entry: import("$lib/ipc").RepoOverview) {
+    const phase = repository.phase;
+    const step = repoClick(entry, {
+      shown: repository.current?.repo ?? null,
+      opening: phase.kind === "opening" ? phase.root : null,
+      moduleOwner: submodules.open !== null ? submodules.owner : null,
+      worktreeOwner: worktrees.ownerRoot,
+    });
+    trace(`open:${entry.root}`, `repository click: ${step}`);
+    if (step === "open") await activate(entry.root);
+    else if (step === "return") await comeBack(entry.root);
+  }
+
+  async function comeBack(root: string) {
+    forgetPanelsKeepingTheTree();
+    worktrees.ownerRoot = null;
+    submodules.open = null;
+    await repository.comeBack(root);
+    const opened = repository.current;
+    if (!opened) return;
+    refs.adopt(opened.root, buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() }));
+    void reloadGraph();
+    void refs.loadUrls(opened.repo);
+    void worktrees.refresh(opened.repo);
+    void flow.refresh(opened.repo);
+    await afterMutation();
   }
 
   async function closeOne(entry: import("$lib/ipc").RepoOverview) {
@@ -2198,6 +2231,7 @@
     forgetPanelsKeepingTheTree(true);
     worktrees.ownerRoot = same(opened.root, ownerRoot) ? null : ownerRoot;
     worktrees.selected = entry.path;
+    repository.keep();
     repository.adopt(opened);
     refs.adopt(opened.root, buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() }));
     void reloadGraph();
@@ -2712,7 +2746,7 @@
               void browseForScan();
             }}
             onopen={pickRepository}
-            onselect={(entry) => void activate(entry.root)}
+            onselect={(entry) => void selectRepository(entry)}
             onclose={(entry) => void closeOne(entry)}
             oncontext={(entry, x, y) => void repoContext(entry, x, y)}
             onmarked={(roots) => (markedRepos = roots)}
