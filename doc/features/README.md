@@ -269,6 +269,11 @@
 | F-295 | Уровни деревьев выровнены | [F-295-tree-levels-aligned.md](F-295-tree-levels-aligned.md) |
 | F-300 | Окно Blame | [F-300-blame-window.md](F-300-blame-window.md) |
 | F-301 | Отдельные окна не ломают главное | [F-301-child-windows-isolated.md](F-301-child-windows-isolated.md) |
+| F-320 | Remote ▸ Synchronize | [F-320-remote-synchronize.md](F-320-remote-synchronize.md) |
+| F-321 | Remote ▸ Submodule | [F-321-remote-submodule-menu.md](F-321-remote-submodule-menu.md) |
+| F-322 | Remote ▸ Subtree | [F-322-remote-subtree-menu.md](F-322-remote-subtree-menu.md) |
+| F-323 | Remote ▸ LFS | [F-323-remote-lfs-menu.md](F-323-remote-lfs-menu.md) |
+| F-324 | Repository ▸ Settings… | [F-324-repository-settings.md](F-324-repository-settings.md) |
 | F-330 | Одна метка у ветки и её upstream | [F-330-joined-upstream-label.md](F-330-joined-upstream-label.md) |
 | F-331 | Stash в графе: метка и квадратный узел | [F-331-stash-in-graph.md](F-331-stash-in-graph.md) |
 | F-332 | Чередование строк графа | [F-332-graph-row-stripes.md](F-332-graph-row-stripes.md) |

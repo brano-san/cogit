@@ -18,6 +18,7 @@ use tauri::Manager as _;
 
 pub mod investigate;
 pub mod ref_ops;
+pub mod remote_ops;
 
 /// specta follows serde, so a DTO without `camelCase` reads `undefined` in the UI.
 #[derive(Debug, Clone, Serialize, specta::Type)]

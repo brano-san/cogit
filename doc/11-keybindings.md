@@ -31,8 +31,8 @@
 | `Ctrl+O` | Open Repository |
 | `Ctrl+W` | Close Repository |
 | `Ctrl+Shift+7` | Панель Output (журнал команд Git) |
-| `Ctrl+,` | Настройки |
-| `F5` | Refresh — перечитать состояние репозитория |
+| `Ctrl+,` | Настройки Cogit — `Edit ▸ Preferences…` (до #42 — `Repository ▸ Settings…`, теперь это настройки репозитория, без аккорда) |
+| `F5` | Refresh — перечитать состояние репозитория. Пункта в меню нет (#43), клавишу по-прежнему перехватывает окно, иначе WebView2 перезагрузил бы страницу; есть в палитре команд |
 | `Alt+X` | Exit — выход с подтверждением (R-151, R-168); `Alt+F4` ведёт туда же |
 | `Shift+F11` | Развернуть активную панель / вернуть раскладку |
 | `Ctrl+1` … `Ctrl+7` | Показать/скрыть панель (`View`): Repositories, References, Graph, Files, Commit Message, Diff, Worktrees |
@@ -43,7 +43,8 @@
 | `F1` | Справка |
 
 Аккорды, у которых есть пункт нативного меню, обрабатывает меню, а не webview:
-иначе одно нажатие срабатывало бы дважды.
+иначе одно нажатие срабатывало бы дважды. Так же окно перехватывает аккорды команд без
+пункта в меню (`OFF_THE_BAR` в `menu.rs`, сейчас это `F5`).
 
 ## 3. Сеть и синхронизация
 
@@ -52,7 +53,7 @@
 | `Ctrl+Shift+F` | Fetch |
 | `Ctrl+Shift+U` | Pull |
 | `Ctrl+Shift+O` | Push |
-| `Ctrl+Shift+S` | Sync (pull + push) |
+| `Ctrl+Shift+S` | Sync (pull, затем push) — `Remote ▸ Synchronize`; аккорд перехватывает окно (#45) |
 | `Ctrl+Alt+Shift+F` | Fetch All (все открытые репозитории) |
 
 ## 4. Индекс и коммит
@@ -207,7 +208,7 @@
 | `Ctrl+P` | Find Object ↔ Print | Печати в приложении нет |
 | `Ctrl+F` | Поиск в diff ↔ Fetch | Fetch перенесён на `Ctrl+Shift+F` |
 | `Ctrl+Shift+O` | Push ↔ Open | Open на `Ctrl+O` |
-| `F5` | Refresh | Свободен |
+| `F5` | Refresh ↔ перезагрузка страницы WebView2 | Аккорд перехватывает окно, хотя пункта Refresh в меню нет (#43) |
 
 ## 12. Правила при добавлении шортката
 

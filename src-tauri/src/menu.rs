@@ -20,18 +20,18 @@ const REPOSITORY: &[Entry] = &[
     Entry::Item("scan", "Scan Folder for Repositories…", None),
     Entry::Item("close", "Close Repository", Some("CmdOrCtrl+W")),
     Entry::Separator,
-    Entry::Item("refresh", "Refresh", Some("F5")),
-    Entry::Separator,
     Entry::Item("worktree-add", "Add Worktree…", None),
     Entry::Item("worktree-remove", "Remove Worktree…", None),
     Entry::Item("worktree-prune", "Prune Obsolete Worktrees…", None),
     Entry::Separator,
+    Entry::Item("repo-settings", "Settings…", None),
     Entry::Nested("Edit Git Config", EDIT_CONFIG),
-    Entry::Separator,
-    Entry::Item("settings", "Settings…", Some("CmdOrCtrl+,")),
     Entry::Separator,
     Entry::Item("exit", "Exit", Some("Alt+X")),
 ];
+
+/// After the platform's own clipboard items, which `build` puts first.
+const EDIT: &[Entry] = &[Entry::Item("settings", "Preferences…", Some("CmdOrCtrl+,"))];
 
 const VIEW: &[Entry] = &[
     Entry::Check("output", "Output", Some("CmdOrCtrl+Shift+7")),
@@ -57,11 +57,48 @@ const VIEW: &[Entry] = &[
     Entry::Item("reset-layout", "Reset Perspective", None),
 ];
 
+const SUBMODULE: &[Entry] = &[
+    Entry::Item("submodule-init", "Initialize", None),
+    Entry::Item("submodule-sync", "Synchronize", None),
+    Entry::Item("submodule-reset", "Reset…", None),
+    Entry::Separator,
+    Entry::Item("submodule-add", "Add…", None),
+    Entry::Separator,
+    Entry::Item("submodule-deactivate", "Deactivate…", None),
+    Entry::Item("submodule-deinit", "Deinit…", None),
+    Entry::Item("submodule-unregister", "Unregister…", None),
+];
+
+const SUBTREE: &[Entry] = &[
+    Entry::Item("subtree-add", "Add…", None),
+    Entry::Separator,
+    Entry::Item("subtree-merge", "Merge…", None),
+    Entry::Item("subtree-split", "Split…", None),
+    Entry::Item("subtree-reset", "Reset…", None),
+    Entry::Separator,
+    Entry::Item("subtree-push", "Push…", None),
+];
+
+const LFS: &[Entry] = &[
+    Entry::Item("lfs-install", "Install", None),
+    Entry::Item("lfs-track", "Track…", None),
+    Entry::Separator,
+    Entry::Item("lfs-lock", "Lock", None),
+    Entry::Item("lfs-unlock", "Unlock", None),
+    Entry::Separator,
+    Entry::Item("lfs-prune", "Prune…", None),
+];
+
 const REMOTE: &[Entry] = &[
     Entry::Item("fetch", "Fetch", Some("CmdOrCtrl+Shift+F")),
     Entry::Item("fetch-all", "Fetch All", None),
     Entry::Item("pull", "Pull", Some("CmdOrCtrl+Shift+U")),
     Entry::Item("push", "Push", Some("CmdOrCtrl+Shift+O")),
+    Entry::Item("synchronize", "Synchronize", Some("CmdOrCtrl+Shift+S")),
+    Entry::Separator,
+    Entry::Nested("Submodule", SUBMODULE),
+    Entry::Nested("Subtree", SUBTREE),
+    Entry::Nested("LFS", LFS),
     Entry::Separator,
     Entry::Item("pr", "Create Pull Request", None),
 ];
@@ -122,6 +159,7 @@ const HELP: &[Entry] = &[
 /// The menu bar in order. One list, so the keymap editor and the menu cannot disagree.
 const SECTIONS: &[(&str, &[Entry])] = &[
     ("Repository", REPOSITORY),
+    ("Edit", EDIT),
     ("View", VIEW),
     ("Remote", REMOTE),
     ("Local", LOCAL),
@@ -130,6 +168,23 @@ const SECTIONS: &[(&str, &[Entry])] = &[
     ("Tools", TOOLS),
     ("Help", HELP),
 ];
+
+/// Keyed commands with no place on the bar (#43): the window still claims the key, or
+/// WebView2 would take F5 as "reload the page", and the keymap editor still lists them.
+const OFF_THE_BAR: &[(&str, &[Entry])] = &[(
+    "Repository",
+    &[Entry::Item("refresh", "Refresh", Some("F5"))],
+)];
+
+fn keyed(section: &str, entries: &'static [Entry]) -> Vec<&'static Entry> {
+    let mut all = leaves(entries);
+    for (owner, extra) in OFF_THE_BAR {
+        if *owner == section {
+            all.extend(leaves(extra));
+        }
+    }
+    all
+}
 
 /// One row of the keymap editor.
 #[derive(Debug, Clone, serde::Serialize, specta::Type)]
@@ -146,7 +201,7 @@ pub struct KeyBinding {
 pub fn default_keymap() -> Vec<KeyBinding> {
     let mut rows = Vec::new();
     for (section, entries) in SECTIONS {
-        for entry in leaves(entries) {
+        for entry in keyed(section, entries) {
             let (id, label, accelerator) = match entry {
                 Entry::Item(id, label, keys) | Entry::Check(id, label, keys) => (id, label, keys),
                 Entry::Separator | Entry::Nested(..) => continue,
@@ -169,8 +224,8 @@ pub fn default_keymap() -> Vec<KeyBinding> {
 #[must_use]
 pub fn default_keymap_pairs() -> Vec<(&'static str, Option<&'static str>)> {
     let mut rows = Vec::new();
-    for (_, entries) in SECTIONS {
-        for entry in leaves(entries) {
+    for (section, entries) in SECTIONS {
+        for entry in keyed(section, entries) {
             if let Entry::Item(id, _, keys) | Entry::Check(id, _, keys) = entry {
                 rows.push((*id, *keys));
             }
@@ -306,7 +361,24 @@ fn submenu<R: Runtime>(
     overrides: &HashMap<String, String>,
     collected: &mut Collected<R>,
 ) -> tauri::Result<Submenu<R>> {
-    let mut builder = SubmenuBuilder::new(app, title);
+    fill(
+        app,
+        SubmenuBuilder::new(app, title),
+        entries,
+        overrides,
+        collected,
+    )?
+    .build()
+}
+
+/// Appends `entries` to a menu that may already hold the platform's own items.
+fn fill<'m, R: Runtime>(
+    app: &'m AppHandle<R>,
+    mut builder: SubmenuBuilder<'m, R, AppHandle<R>>,
+    entries: &[Entry],
+    overrides: &HashMap<String, String>,
+    collected: &mut Collected<R>,
+) -> tauri::Result<SubmenuBuilder<'m, R, AppHandle<R>>> {
     for entry in tidy(entries) {
         match entry {
             Entry::Separator => builder = builder.separator(),
@@ -334,7 +406,7 @@ fn submenu<R: Runtime>(
             }
         }
     }
-    builder.build()
+    Ok(builder)
 }
 
 pub fn build<R: Runtime>(
@@ -359,7 +431,7 @@ pub fn build<R: Runtime>(
 
     // Edit and Window are the OS's own items: the webview needs real clipboard entries
     // for Ctrl+C to work inside an input, and muda gives them native behaviour.
-    let edit = SubmenuBuilder::new(app, "Edit")
+    let clipboard = SubmenuBuilder::new(app, "Edit")
         .undo()
         .redo()
         .separator()
@@ -367,7 +439,8 @@ pub fn build<R: Runtime>(
         .copy()
         .paste()
         .select_all()
-        .build()?;
+        .separator();
+    let edit = fill(app, clipboard, EDIT, overrides, &mut collected)?.build()?;
     let window = SubmenuBuilder::new(app, "Window")
         .minimize()
         .maximize()
@@ -568,7 +641,10 @@ mod separator_tests {
 
     #[test]
     fn no_menu_of_the_application_starts_or_ends_with_a_separator() {
-        for entries in [REPOSITORY, VIEW, LOCAL, REMOTE, BRANCH, QUERY, TOOLS, HELP] {
+        for entries in [
+            REPOSITORY, EDIT, VIEW, LOCAL, REMOTE, BRANCH, QUERY, TOOLS, HELP, SUBMODULE, SUBTREE,
+            LFS,
+        ] {
             let kinds = kinds(entries);
             assert_eq!(kinds.first(), Some(&false), "a menu began with a separator");
             assert_eq!(kinds.last(), Some(&false), "a menu ended with a separator");
@@ -592,6 +668,21 @@ mod nested_tests {
         assert!(ids.contains(&"edit-config-user"), "{ids:?}");
     }
 
+    /// #43: Refresh left the bar, F5 stayed the window's.
+    #[test]
+    fn refresh_is_off_the_bar_but_f5_still_belongs_to_the_window() {
+        let listed = leaves(REPOSITORY)
+            .into_iter()
+            .any(|entry| matches!(entry, Entry::Item("refresh", ..)));
+        assert!(!listed, "Repository ▸ Refresh is still in the menu");
+        assert!(default_keymap_pairs().contains(&("refresh", Some("F5"))));
+        let row = default_keymap()
+            .into_iter()
+            .find(|row| row.id == "refresh")
+            .expect("listed in the keymap editor");
+        assert_eq!(row.section, "Repository");
+    }
+
     #[test]
     fn the_keymap_editor_lists_them_under_their_menu() {
         let row = default_keymap()
@@ -599,5 +690,122 @@ mod nested_tests {
             .find(|row| row.id == "edit-config-user")
             .expect("listed");
         assert_eq!(row.section, "Repository");
+    }
+}
+
+#[cfg(test)]
+mod remote_tests {
+    use super::*;
+
+    fn outline(entries: &[Entry]) -> Vec<String> {
+        tidy(entries)
+            .into_iter()
+            .map(|entry| match entry {
+                Entry::Item(_, label, _) | Entry::Check(_, label, _) => (*label).to_owned(),
+                Entry::Separator => "-".to_owned(),
+                Entry::Nested(title, inner) => format!("{title} ▸ {:?}", outline(inner)),
+            })
+            .collect()
+    }
+
+    fn nested(title: &str) -> &'static [Entry] {
+        REMOTE
+            .iter()
+            .find_map(|entry| match entry {
+                Entry::Nested(name, inner) if *name == title => Some(*inner),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("Remote has no {title} submenu"))
+    }
+
+    #[test]
+    fn the_submodule_menu_is_in_the_asked_order() {
+        assert_eq!(
+            outline(nested("Submodule")),
+            [
+                "Initialize",
+                "Synchronize",
+                "Reset…",
+                "-",
+                "Add…",
+                "-",
+                "Deactivate…",
+                "Deinit…",
+                "Unregister…"
+            ]
+        );
+    }
+
+    #[test]
+    fn the_subtree_menu_is_in_the_asked_order() {
+        assert_eq!(
+            outline(nested("Subtree")),
+            ["Add…", "-", "Merge…", "Split…", "Reset…", "-", "Push…"]
+        );
+    }
+
+    /// #46: next to Submodule and Subtree, where the other extensions of a remote live.
+    #[test]
+    fn lfs_sits_beside_submodule_and_subtree() {
+        assert_eq!(
+            outline(nested("LFS")),
+            ["Install", "Track…", "-", "Lock", "Unlock", "-", "Prune…"]
+        );
+        let titles: Vec<&str> = REMOTE
+            .iter()
+            .filter_map(|entry| match entry {
+                Entry::Nested(title, _) => Some(*title),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(titles, ["Submodule", "Subtree", "LFS"]);
+    }
+
+    #[test]
+    fn synchronize_is_a_remote_command_with_the_sync_key() {
+        assert!(default_keymap_pairs().contains(&("synchronize", Some("CmdOrCtrl+Shift+S"))));
+        let row = default_keymap()
+            .into_iter()
+            .find(|row| row.id == "synchronize")
+            .expect("listed");
+        assert_eq!(row.section, "Remote");
+    }
+
+    /// Enabled by id: two items sharing one would be enabled and disabled together.
+    #[test]
+    fn no_two_items_share_an_id() {
+        let mut ids: Vec<&str> = default_keymap_pairs()
+            .into_iter()
+            .map(|(id, _)| id)
+            .collect();
+        let count = ids.len();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), count);
+    }
+
+    /// #42: Cogit's own settings moved to `Edit ▸ Preferences…`, as in SmartGit.
+    #[test]
+    fn settings_in_the_repository_menu_are_the_repository_s() {
+        let repository = leaves(REPOSITORY);
+        assert!(
+            repository
+                .iter()
+                .any(|entry| matches!(entry, Entry::Item("repo-settings", "Settings…", _)))
+        );
+        assert!(
+            !repository
+                .iter()
+                .any(|entry| matches!(entry, Entry::Item("settings", ..)))
+        );
+        assert!(default_keymap_pairs().contains(&("settings", Some("CmdOrCtrl+,"))));
+        let row = default_keymap()
+            .into_iter()
+            .find(|row| row.id == "settings")
+            .expect("listed");
+        assert_eq!(
+            (row.section.as_str(), row.label.as_str()),
+            ("Edit", "Preferences…")
+        );
     }
 }

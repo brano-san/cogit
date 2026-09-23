@@ -430,6 +430,26 @@ type SearchChunk =
 оставила бы репозиторий в состоянии, которого никто не просил. При закрытии приложения все
 идущие чтения гасятся автоматически.
 
+### Remote ▸ Submodule, Subtree, LFS и Repository ▸ Settings (#42, #45, #46)
+
+Команды — в `src-tauri/src/commands/remote_ops.rs`, логика — в `git_engine` (`module_ops.rs`,
+`subtrees.rs`, `lfs.rs`, `repo_settings.rs`). Мутации идут через очередь репозитория.
+
+| Команда | Вход | Выход | Модуль |
+|---|---|---|---|
+| `submodule_op` | `repo`, `op: initialize \| synchronize \| reset \| deactivate \| deinit \| unregister`, `paths` (пусто — все, только для `initialize` и `synchronize`) | `()`; путь не сабмодуль — `InvalidState` до запуска git | M3 |
+| `add_submodule` | `repo`, `url`, `path`, `branch: Option<String>` | `()` | M3 |
+| `subtree_op` | `repo`, `op: SubtreeOp` — `{ kind: add, prefix, repository, reference, squash }`, `{ kind: merge, prefix, repository: string \| null, reference, squash }` (без `repository` — `git subtree merge`, с ним — `pull`), `{ kind: split, prefix, branch, rejoin }`, `{ kind: reset, prefix, reference }`, `{ kind: push, prefix, repository, reference }` | `()`; папка вне репозитория — `InvalidState` | M3 |
+| `subtree_prefixes` | `repo` | `Vec<String>` — папки из строк `git-subtree-dir:` истории, которые ещё есть | M3 |
+| `lfs_version` | — | `Option<String>` — `None`, если у git нет команды `lfs` | M3 |
+| `lfs_op` | `repo`, `op: LfsOp` — `install` (`--local`), `{ track, pattern }`, `{ lock, paths }`, `{ unlock, paths }`, `prune` | `()` | M3 |
+| `repo_settings` | `repo` | `Vec<RepoSetting { key, local, inherited }>` — ключи `REPO_SETTING_KEYS` по порядку; `local` — из конфига репозитория, `inherited` — из пользовательского и системного | M3 |
+| `write_repo_settings` | `repo`, `changes: Vec<RepoSettingChange { key, value: string \| null }>` | `()`; `null` снимает ключ; ключ не из списка — `InvalidState`, и не пишется ничего | M3 |
+
+`cogit.*` в `REPO_SETTING_KEYS` — ключи самого Cogit в `.git/config`: `cogit.tagGroupSeparator`
+(разделитель папок тегов, по умолчанию `/`, пустая строка — без папок; читает дерево Branches) и
+`cogit.initNewSubmodules` (после Pull инициализировать сабмодули, которых до него не было).
+
 ### Служебные
 
 | Команда | Вход | Выход | Модуль |
