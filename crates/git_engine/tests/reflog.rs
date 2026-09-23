@@ -188,3 +188,16 @@ fn an_unchanged_repository_is_answered_without_counting_again() {
 
     assert_eq!(cache.recounts(), 1);
 }
+
+#[test]
+fn entries_are_named_from_head_at_zero_and_carry_the_commit_time() {
+    let f = test_fixtures::branched().unwrap();
+    f.git(&["switch", "dev"]).unwrap();
+    f.git(&["switch", "-"]).unwrap();
+
+    let entries = open(&f).reflog(50).unwrap();
+
+    let names: Vec<&str> = entries.iter().map(|e| e.selector.as_str()).collect();
+    assert_eq!(names[..2], ["HEAD@{0}", "HEAD@{1}"]);
+    assert!(entries.iter().all(|e| e.timestamp > 0));
+}

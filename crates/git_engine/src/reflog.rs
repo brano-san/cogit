@@ -20,6 +20,12 @@ impl Reachable {
     }
 }
 
+pub(crate) struct ReflogLine {
+    pub(crate) oid: gix::ObjectId,
+    pub(crate) message: String,
+    pub(crate) author_time: i64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ReflogEntry {
@@ -34,37 +40,66 @@ pub struct ReflogEntry {
 impl RepoHandle {
     /// Newest first, like `git reflog`.
     pub fn reflog(&self, limit: usize) -> Result<Vec<ReflogEntry>> {
-        if self.head().is_err() || matches!(self.head()?, crate::Head::Unborn { .. }) {
+        let lines = self.reflog_of("HEAD", limit)?;
+        Ok(lines
+            .into_iter()
+            .enumerate()
+            .map(|(index, line)| {
+                let (action, message) =
+                    line.message.split_once(": ").unwrap_or((&line.message, ""));
+                ReflogEntry {
+                    selector: format!("HEAD@{{{index}}}"),
+                    oid: line.oid.to_string(),
+                    action: action.trim().to_owned(),
+                    message: message.trim().to_owned(),
+                    timestamp: line.author_time,
+                }
+            })
+            .collect())
+    }
+
+    /// A reflog newest first, the way `git log -g` walks it: the commit each entry moved
+    /// to, the entry's message, the commit's author time. Read through `gix`: the `git`
+    /// process it replaces cost tens of milliseconds a call on Windows (R-24, R-196).
+    pub(crate) fn reflog_of(&self, name: &str, limit: usize) -> Result<Vec<ReflogLine>> {
+        let Ok(reference) = self.repo.find_reference(name) else {
             return Ok(Vec::new());
-        }
-
-        let count = limit.to_string();
-        let out = self.run_git_reading(&[
-            "reflog",
-            "--max-count",
-            &count,
-            "--format=%H%x00%gd%x00%gs%x00%at",
-        ])?;
-
-        let mut entries = Vec::new();
-        for line in out.stdout.lines().filter(|l| !l.is_empty()) {
-            let mut parts = line.split('\0');
-            let (Some(oid), Some(selector), Some(subject), Some(timestamp)) =
-                (parts.next(), parts.next(), parts.next(), parts.next())
-            else {
-                tracing::warn!(line, "skipping an unreadable reflog entry");
+        };
+        let mut platform = reference.log_iter();
+        let Some(lines) = platform
+            .rev()
+            .map_err(|err| GitError::Internal(format!("cannot read the reflog: {err}")))?
+        else {
+            return Ok(Vec::new());
+        };
+        let mut out = Vec::new();
+        for line in lines {
+            if out.len() == limit {
+                break;
+            }
+            let line = match line {
+                Ok(line) => line,
+                Err(err) => {
+                    tracing::warn!(error = %err, "skipping an unreadable reflog entry");
+                    continue;
+                }
+            };
+            // `git log -g` shows the commit; an entry whose commit is gone has nothing to show.
+            let Ok(commit) = self.repo.find_commit(line.new_oid) else {
                 continue;
             };
-            let (action, message) = subject.split_once(": ").unwrap_or((subject, ""));
-            entries.push(ReflogEntry {
-                selector: selector.to_owned(),
-                oid: oid.to_owned(),
-                action: action.trim().to_owned(),
-                message: message.trim().to_owned(),
-                timestamp: timestamp.trim().parse().unwrap_or_default(),
+            let author_time = commit
+                .author()
+                .ok()
+                .and_then(|author| author.time().ok())
+                .map_or(0, |time| time.seconds);
+            out.push(ReflogLine {
+                oid: line.new_oid,
+                message: line.message.to_string(),
+                author_time,
             });
         }
-        Ok(entries)
+        Ok(out)
     }
 
     /// Commits the reflog remembers but no ref can reach — what a reset or a rebase left
