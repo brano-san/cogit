@@ -9,7 +9,7 @@
   import { blame } from "$stores/blame.svelte";
   import { conflicts } from "$stores/conflicts.svelte";
   import { diff } from "$stores/diff.svelte";
-  import type { Snippet } from "svelte";
+  import { untrack, type Snippet } from "svelte";
 
   /** Everything this panel shows comes from its own stores; the callbacks are the actions
       that reach past it — staging touches the index, blame changes the selected commit. */
@@ -40,6 +40,13 @@
     onselectcommit,
     fallback,
   }: Props = $props();
+
+  // Blame outranks the diff below, so it has to end when the file does: it used to stay
+  // until the selected commit changed, whatever file was picked meanwhile (#10).
+  $effect(() => {
+    void diff.path;
+    untrack(() => blame.clear());
+  });
 </script>
 
 {#if conflicts.path && conflicts.regions.length > 0}
@@ -67,6 +74,7 @@
       blame.clear();
       onselectcommit(oid);
     }}
+    onclose={() => blame.clear()}
   />
 {:else if diff.error && diff.path}
   <p class="error detail">{diff.error.message}</p>

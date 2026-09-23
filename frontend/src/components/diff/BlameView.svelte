@@ -8,9 +8,10 @@
     lines: readonly BlameLine[];
     path: string;
     onselect: (oid: string) => void;
+    onclose?: () => void;
   }
 
-  let { lines, path, onselect }: Props = $props();
+  let { lines, path, onselect, onclose }: Props = $props();
 
   const ROW_HEIGHT = 18;
 
@@ -24,6 +25,9 @@
   <div class="bar">
     <span class="path mono truncate">{path}</span>
     <span class="count tabular">{lines.length} lines</span>
+    {#if onclose}
+      <button type="button" class="close" title="Close blame" onclick={() => onclose()}>✕</button>
+    {/if}
   </div>
 
   <VirtualList items={lines} rowHeight={ROW_HEIGHT} buffer={12} label="Blame">
@@ -78,6 +82,10 @@
   .count {
     color: var(--text-secondary);
     font-size: 11px;
+  }
+
+  .close {
+    flex: 0 0 auto;
   }
 
   .line {
