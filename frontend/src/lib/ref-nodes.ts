@@ -1,5 +1,7 @@
-import type { Branch, CommitRow, Head, StashEntry, Tag } from "$lib/ipc";
+import type { Branch, CommitRow, Head, StashEntry, Tag, WorktreeEntry } from "$lib/ipc";
 import { shortOid } from "$lib/format";
+import { compareDated, compareNames, DEFAULT_REF_SORT, type RefSort } from "$lib/ref-sort";
+import { worktreeMarks, type WorktreeMark } from "$lib/worktree-list";
 
 export type RefKind =
   | "head"
@@ -17,15 +19,19 @@ export interface RefNode {
   kind: RefKind;
   /** Set on a node with rows under it, which is what `flatten` folds. */
   children?: boolean;
+  /** Inside a folder, only the part after it: `login` under `feature/auth`. */
   label: string;
   depth: number;
-  /** `▶` for the checked-out branch, `▷` for a remote one. */
-  marker?: string;
+  /** The checked-out branch. */
+  current?: boolean;
   detail?: string;
   /** What the backend should walk from; absent on groups and folders. */
   rev?: string;
   oid?: string;
   branch?: Branch;
+  tag?: Tag;
+  /** Another worktree has this branch checked out (#25). */
+  worktree?: WorktreeMark;
   /** Why this row cannot be ticked; it then counts for nothing in its group (R-158). */
   disabled?: string;
 }
@@ -39,9 +45,18 @@ export interface RefTreeInput {
   remoteUrls: Readonly<Record<string, string>>;
   collapsed: ReadonlySet<string>;
   filter: string;
+  /** `cogit.tagGroupSeparator`: `/` when absent, `""` for tags without folders (#11). */
+  tagSeparator?: string;
+  sort?: RefSort;
+  /** Tip dates by full ref name; only read while the sort goes by date (#20). */
+  dates?: ReadonlyMap<string, number>;
+  worktrees?: readonly WorktreeEntry[];
 }
 
 export type CheckState = "on" | "off" | "mixed";
+
+/** Tag folders get an owner no remote can be called: a ref name cannot hold a colon. */
+const TAG_OWNER = ":tags";
 
 function matches(node: { label: string; oid?: string }, filter: string): boolean {
   const needle = filter.trim().toLowerCase();
@@ -61,33 +76,79 @@ function upstreamDetail(branch: Branch): string | undefined {
   return `↑${branch.ahead} ↓${branch.behind}`;
 }
 
-/** `feature/auth/login` becomes two folders and a leaf, so long prefixes are written once. */
-/** `owner` is the group the folder hangs under. Without it `fix/…` under Local Branches
-    and `fix/…` under origin both produced `folder:fix`; a keyed `{#each}` with a repeated
-    key renders unpredictably, which is why headings expanded every other click and rows
-    went missing (doc/12-risks.md, R-128). */
-function withFolders(
-  rows: RefNode[],
-  owner: string,
-  name: string,
-  depth: number,
-  seen: Set<string>,
-  leaf: RefNode,
-): void {
-  const parts = name.split("/").filter((part) => part !== "");
-  parts.slice(0, -1).forEach((part, index) => {
-    const path = parts.slice(0, index + 1).join("/");
-    if (seen.has(path)) return;
-    seen.add(path);
+interface Level {
+  folders: Map<string, Level>;
+  leaves: RefNode[];
+}
+
+interface Nesting {
+  /** The group the folders hang under, so `fix/…` under Local Branches and under origin
+      are two folders with two ids (doc/12-risks.md, R-128). */
+  owner: string;
+  separator: string;
+  sort: RefSort;
+  dates: ReadonlyMap<string, number> | undefined;
+}
+
+function segments(name: string, separator: string): string[] {
+  if (separator === "") return [name];
+  const parts = name.split(separator).filter((part) => part !== "");
+  return parts.length > 0 ? parts : [name];
+}
+
+/** `feature/auth/login` becomes a folder and a leaf, so a long prefix is written once. */
+function nest(rows: RefNode[], leaves: readonly RefNode[], depth: number, how: Nesting): void {
+  const root: Level = { folders: new Map(), leaves: [] };
+  for (const leaf of leaves) {
+    const parts = segments(leaf.label, how.separator);
+    let level = root;
+    for (const part of parts.slice(0, -1)) {
+      let next = level.folders.get(part);
+      if (!next) {
+        next = { folders: new Map(), leaves: [] };
+        level.folders.set(part, next);
+      }
+      level = next;
+    }
+    level.leaves.push({ ...leaf, label: parts.at(-1) ?? leaf.label });
+  }
+  emit(rows, root, [], depth, how);
+}
+
+/** Folders first on every level, then the refs. */
+function emit(rows: RefNode[], level: Level, prefix: string[], depth: number, how: Nesting) {
+  const folders = [...level.folders].sort(([a], [b]) => compareNames(a, b, how.sort.names));
+  for (const [name, first] of folders) {
+    const path = [...prefix, name];
+    const label = [name];
+    let folder = first;
+    // A folder holding nothing but one folder is one row: `testing/network`.
+    for (let only = soleFolder(folder); only; only = soleFolder(folder)) {
+      path.push(only[0]);
+      label.push(only[0]);
+      folder = only[1];
+    }
     rows.push({
-      id: `folder:${owner}/${path}`,
+      id: `folder:${how.owner}/${path.join(how.separator || "/")}`,
       kind: "folder",
-      label: part,
-      depth: depth + index,
+      label: label.join(how.separator || "/"),
+      depth,
       children: true,
     });
+    emit(rows, folder, path, depth + 1, how);
+  }
+
+  const dated = (node: RefNode) => ({
+    name: node.label,
+    date: node.rev === undefined ? undefined : how.dates?.get(node.rev),
   });
-  rows.push({ ...leaf, label: parts.at(-1) ?? name, depth: depth + parts.length - 1 });
+  const leaves = [...level.leaves].sort((a, b) => compareDated(dated(a), dated(b), how.sort));
+  for (const leaf of leaves) rows.push({ ...leaf, depth });
+}
+
+function soleFolder(level: Level): [string, Level] | undefined {
+  if (level.leaves.length > 0 || level.folders.size !== 1) return undefined;
+  return level.folders.entries().next().value;
 }
 
 function group(rows: RefNode[], id: string, label: string, detail?: string): void {
@@ -98,6 +159,9 @@ function group(rows: RefNode[], id: string, label: string, detail?: string): voi
     is not built cannot be counted (R-158). Hiding is `flatten`'s job alone. */
 export function buildRefTree(input: RefTreeInput): RefNode[] {
   const rows: RefNode[] = [];
+  const sort = input.sort ?? DEFAULT_REF_SORT;
+  const dates = sort.dates === "off" ? undefined : input.dates;
+  const nesting = (owner: string, separator = "/"): Nesting => ({ owner, separator, sort, dates });
 
   const headOid = input.head?.kind === "unborn" ? undefined : input.head?.oid;
   rows.push({
@@ -109,6 +173,7 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
     oid: headOid,
   });
 
+  const held = worktreeMarks(input.worktrees ?? []);
   const locals = input.branches
     .filter((branch) => branch.kind === "local")
     .map<RefNode>((branch) => ({
@@ -116,18 +181,18 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
       kind: "local",
       label: branch.name,
       depth: 1,
-      marker: branch.isHead ? "▶" : undefined,
+      current: branch.isHead || undefined,
       detail: upstreamDetail(branch),
       rev: branch.fullName,
       oid: branch.oid,
       branch,
+      worktree: held.get(branch.name),
     }))
     .filter((node) => matches(node, input.filter));
 
   if (locals.length > 0) {
     group(rows, "group:local", `Local Branches (${locals.length})`);
-    const seen = new Set<string>();
-    for (const node of locals) withFolders(rows, "local", node.label, 1, seen, node);
+    nest(rows, locals, 1, nesting("local"));
   }
 
   const remotes = new Map<string, RefNode[]>();
@@ -139,7 +204,6 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
       kind: "remote",
       label: branch.name.slice(remote.length + 1) || branch.name,
       depth: 1,
-      marker: "▷",
       rev: branch.fullName,
       oid: branch.oid,
       branch,
@@ -150,11 +214,11 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
     else remotes.set(remote, [node]);
   }
 
-  for (const [remote, branches] of [...remotes].sort(([a], [b]) => a.localeCompare(b))) {
+  const byRemote = [...remotes].sort(([a], [b]) => compareNames(a, b, sort.names));
+  for (const [remote, branches] of byRemote) {
     const id = `remote-group:${remote}`;
     group(rows, id, `${remote} (${branches.length})`, input.remoteUrls[remote]);
-    const seen = new Set<string>();
-    for (const node of branches) withFolders(rows, remote, node.label, 1, seen, node);
+    nest(rows, branches, 1, nesting(remote));
   }
 
   const tags = input.tags
@@ -165,12 +229,13 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
       depth: 1,
       rev: tag.fullName,
       oid: tag.oid,
+      tag,
       disabled: tag.pointsToCommit ? undefined : "Tag does not point to a commit",
     }))
     .filter((node) => matches(node, input.filter));
   if (tags.length > 0) {
     group(rows, "group:tags", `Tags (${tags.length})`);
-    rows.push(...tags);
+    nest(rows, tags, 1, nesting(TAG_OWNER, input.tagSeparator ?? "/"));
   }
 
   const stashes = input.stashes
@@ -206,6 +271,15 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
   }
 
   return rows;
+}
+
+/** While a filter is typed every folder is open: a match folded away is a match not found. */
+export function foldedWhileFiltering(
+  collapsed: ReadonlySet<string>,
+  filter: string,
+): ReadonlySet<string> {
+  if (filter.trim() === "") return collapsed;
+  return new Set([...collapsed].filter((id) => !id.startsWith("folder:")));
 }
 
 /** Every tickable row a heading owns; a leaf owns only itself. */

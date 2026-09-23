@@ -123,6 +123,8 @@ pub struct RepoSummary {
     pub status: git_engine::RepoStatus,
     pub state: git_engine::RepoState,
     pub index_lock: Option<String>,
+    /// `cogit.tagGroupSeparator`, `/` when unset; read on every open, so a refresh sees a change.
+    pub tag_group_separator: String,
 }
 
 /// One hit from a folder scan. Paths cross IPC as strings, like every other path.
@@ -442,6 +444,7 @@ impl AppState {
         let state = handle.state()?;
         watch.done("state");
         let index_lock = handle.index_lock();
+        let tag_group_separator = handle.tag_group_separator();
         watch.report(path, branches.len());
 
         let name = root.file_name().map_or_else(
@@ -471,6 +474,7 @@ impl AppState {
             status,
             state,
             index_lock,
+            tag_group_separator,
         })
     }
 
@@ -1422,6 +1426,13 @@ impl AppState {
         name: &str,
     ) -> Result<Option<String>, git_engine::GitError> {
         Ok(self.handle(repo)?.remote_url(name))
+    }
+
+    pub fn ref_dates(
+        &self,
+        repo: RepoId,
+    ) -> Result<Vec<git_engine::RefDate>, git_engine::GitError> {
+        self.handle(repo)?.ref_dates()
     }
 
     pub fn add_to_gitignore(
