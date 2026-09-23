@@ -30,7 +30,15 @@ impl AppState {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         let token = self.token_for(&handle, remote);
-        handle.pull(remote, ff_only, token.as_deref(), on_line)
+        // Listed before the pull: a submodule the user deinitialised stays that way (#42).
+        let known = handle
+            .wants_new_submodules()
+            .then(|| handle.submodule_paths());
+        handle.pull(remote, ff_only, token.as_deref(), on_line)?;
+        if let Some(known) = known {
+            handle.init_submodules_added_since(&known)?;
+        }
+        Ok(())
     }
 
     pub fn push(

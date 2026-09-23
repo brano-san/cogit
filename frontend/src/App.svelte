@@ -42,6 +42,10 @@
   import Toolbar from "$components/layout/Toolbar.svelte";
   import ScanDialog from "$components/repo-tree/ScanDialog.svelte";
   import PromptDialog from "$components/layout/PromptDialog.svelte";
+  import RemoteOpsDialog from "$components/remote/RemoteOpsDialog.svelte";
+  import RepoSettingsDialog from "$components/remote/RepoSettingsDialog.svelte";
+  import { remoteCommands, submoduleScope } from "$lib/remote-menu";
+  import { remoteOps } from "$stores/remote-ops.svelte";
   import WorktreesPanel from "$components/panels/WorktreesPanel.svelte";
   import AddWorktreeDialog from "$components/repo-tree/AddWorktreeDialog.svelte";
   import RemoveWorktreeDialog from "$components/repo-tree/RemoveWorktreeDialog.svelte";
@@ -208,6 +212,7 @@
   let journalBusy = $state(false);
   let paletteOpen = $state(false);
   let settingsOpen = $state(false);
+  let repoSettingsOpen = $state(false);
   let finderOpen = $state(false);
   let finderBusy = $state(false);
   let finderResults = $state.raw<import("$lib/ipc").Found[]>([]);
@@ -293,6 +298,7 @@
       getAppInfo()
         .then((result) => (info = result))
         .catch((err) => errors.report(err, "Could not read the application info"));
+      void remoteOps.detectLfs();
       void settings.load().then(() => {
         diff.whitespace = settings.current.ignoreWhitespace;
         // Only after the settings are read: the tick is what permits the network call.
@@ -434,6 +440,15 @@
     branch: tracked !== undefined,
     undo: safety.last !== undefined,
     file: diff.path !== null,
+  });
+
+  /** What Remote ▸ LFS ▸ Lock and Submodule act on: the ticked files, or the one in Diff. */
+  const pickedFiles = $derived(markedFiles.length > 0 ? markedFiles : diff.path ? [diff.path] : []);
+  const remoteActions = remoteOps.actions({
+    files: () => pickedFiles,
+    changed: afterRefChange,
+    synchronize: () => void synchronize(),
+    repoSettings: () => (repoSettingsOpen = true),
   });
 
   const palette = $derived.by<PaletteCommand[]>(() => {
@@ -672,9 +687,9 @@
       },
       {
         id: "settings",
-        title: "Settings",
+        title: "Preferences",
         shortcut: "Ctrl+,",
-        synonyms: ["preferences", "options"],
+        synonyms: ["settings", "options"],
         run: () => openSettings(),
       },
       {
@@ -745,6 +760,21 @@
         unavailable: banner?.actions.includes("abort") ? undefined : "Nothing is in progress",
         run: () => void runBannerAction("abort"),
       },
+      ...remoteCommands(
+        {
+          repository: repo !== null,
+          remote: Boolean(network.primary),
+          changes: worktree.total > 0,
+          submodules: submoduleScope({
+            children: submodules.children,
+            open: submodules.open,
+            selected: pickedFiles,
+          }).choices.length,
+          lfs: remoteOps.lfs,
+          files: pickedFiles,
+        },
+        remoteActions,
+      ),
     ];
   });
 
@@ -1319,6 +1349,23 @@
       if (kind === "push") await network.push(id, remote, false);
     } catch (err) {
       errors.report(err, `Could not ${kind}`);
+      await afterMutation();
+      return;
+    }
+    await afterRefChange();
+  }
+
+  /** Remote ▸ Synchronize (#45): the toolbar's Sync, pull then push; the push is skipped
+      when the pull fails. */
+  async function synchronize() {
+    const id = repository.current?.repo;
+    const remote = network.primary;
+    if (!id || !remote) return;
+    try {
+      await network.pull(id, remote, true);
+      await network.push(id, remote, false);
+    } catch (err) {
+      errors.report(err, "Could not synchronize");
       await afterMutation();
       return;
     }
@@ -3070,6 +3117,27 @@
       busy={journalBusy}
       onundo={(entry) => void undoEntry(entry)}
       onclose={() => (journalOpen = false)}
+    />
+  {/if}
+
+  {#if remoteOps.dialog}
+    {#key remoteOps.dialog}
+      <RemoteOpsDialog
+        spec={remoteOps.dialog.spec}
+        link={remoteOps.dialog.link}
+        onsubmit={(values) => void remoteOps.submit(values)}
+        onclose={() => remoteOps.close()}
+      />
+    {/key}
+  {/if}
+
+  {#if repoSettingsOpen && repo}
+    <!-- Readers of these keys, the tag folders among them, pick them up on the refresh. -->
+    <RepoSettingsDialog
+      repo={repo.repo}
+      name={repo.name}
+      onsaved={() => repository.refresh()}
+      onclose={() => (repoSettingsOpen = false)}
     />
   {/if}
 
