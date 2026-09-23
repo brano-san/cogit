@@ -64,6 +64,28 @@ export function nodeCentre(lane: number, row: number, scrollTop: number) {
   return { x: laneX(lane), y: rowY(row, scrollTop) };
 }
 
+/** A stash is drawn as a square, as SmartGit does, on the centre a ring would have. */
+export function nodeSquare(lane: number, row: number, scrollTop: number) {
+  const { x, y } = nodeCentre(lane, row, scrollTop);
+  const size = GRAPH.ringRadius * 2;
+  return { x: x - size / 2, y: y - size / 2, size };
+}
+
+/** Every second row a shade lighter (#21); the Working Tree row is the first, unstriped. */
+export function striped(listRow: number): boolean {
+  return listRow % 2 === 1;
+}
+
+/** What is behind a node, bottom up, so its fill hides the lines exactly as the row does:
+    the panel, the stripe, then hover and selection, which cover the stripe. */
+export function nodeFill(listRow: number, selectedRow: number | null, hoverRow: number | null): string[] {
+  const layers = ["--surface-panel"];
+  if (striped(listRow)) layers.push("--row-stripe");
+  if (listRow === hoverRow) layers.push("--state-hover");
+  if (listRow === selectedRow) layers.push("--state-selected");
+  return layers;
+}
+
 export function textX(width: number): number {
   const columns = Math.min(Math.max(width, 1), GRAPH.maxColumns);
   return laneX(columns - 1) + GRAPH.laneWidth / 2 + GRAPH.textGap;

@@ -10,7 +10,7 @@
     restoreCategory,
   } from "$lib/preferences";
   import type { TreeNode } from "$lib/tree";
-  import { needsRestart, DEFAULT_SETTINGS, type Settings } from "$lib/settings";
+  import { needsRestart, DEFAULT_SETTINGS, THEMES, type Settings } from "$lib/settings";
   import type { Keymap } from "$lib/keymap";
   import type { KeyBinding } from "$lib/ipc";
   import KeymapEditor from "$components/layout/KeymapEditor.svelte";
@@ -54,11 +54,6 @@
     ignored,
     onunignore,
   }: Props = $props();
-
-  const THEMES = [
-    ["dark", "Dark"],
-    ["light", "Light"],
-  ] as const;
 
   // Labelled by example: the setting is about what the row will read, not about a term.
   const DATE_FORMATS = [

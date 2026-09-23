@@ -12,7 +12,7 @@ import {
   type RefLabel,
 } from "./format";
 import type { Tag } from "./ipc";
-import type { Branch, Head } from "./ipc";
+import type { Branch, Head, WorktreeEntry } from "./ipc";
 
 function branch(name: string, kind: Branch["kind"], isHead = false): Branch {
   return {
@@ -155,6 +155,156 @@ describe("refLabels", () => {
       .get("a".repeat(40))
       ?.map((l) => l.kind);
     expect(kinds).not.toContain("head");
+  });
+});
+
+describe("refLabels with the upstream on the same commit", () => {
+  const A = "a".repeat(40);
+  const B = "b".repeat(40);
+  const local = (name: string, oid: string, upstream: string | null): Branch => ({
+    name,
+    fullName: `refs/heads/${name}`,
+    kind: "local",
+    oid,
+    isHead: false,
+    upstream,
+    ahead: 0,
+    behind: 0,
+  });
+  const remote = (name: string, oid: string): Branch => ({
+    name,
+    fullName: `refs/remotes/${name}`,
+    kind: "remote",
+    oid,
+    isHead: false,
+    upstream: null,
+    ahead: 0,
+    behind: 0,
+  });
+  const at = (list: Branch[], oid = A, head: Head | null = null) =>
+    refLabels(list, [], head).get(oid) ?? [];
+
+  it("draws a branch and its upstream as one label", () => {
+    const labels = at([local("feature/x", A, "origin/feature/x"), remote("origin/feature/x", A)]);
+
+    expect(labels).toHaveLength(1);
+    expect(labels[0]).toMatchObject({
+      text: "origin=feature/x",
+      kind: "local",
+      remotes: ["origin"],
+      name: "feature/x",
+    });
+  });
+
+  it("names both refs in the tooltip of the joined label", () => {
+    const [label] = at([local("dev", A, "origin/dev"), remote("origin/dev", A)]);
+
+    expect(label?.title).toBe("dev\norigin/dev");
+  });
+
+  it("keeps two labels once the branch and its upstream have diverged", () => {
+    const list = [local("dev", A, "origin/dev"), remote("origin/dev", B)];
+
+    expect(at(list).map((l) => l.text)).toEqual(["dev"]);
+    expect(at(list, B).map((l) => l.text)).toEqual(["origin/dev"]);
+  });
+
+  it("puts every remote with the same branch on that commit into the one label", () => {
+    const labels = at([
+      remote("upstream/dev", A),
+      local("dev", A, "origin/dev"),
+      remote("origin/dev", A),
+      remote("fork/dev", A),
+    ]);
+
+    expect(labels.map((l) => l.text)).toEqual(["origin,fork,upstream=dev"]);
+    expect(labels[0]?.remotes).toEqual(["origin", "fork", "upstream"]);
+  });
+
+  it("leaves a branch without an upstream apart from a remote namesake", () => {
+    expect(at([local("dev", A, null), remote("origin/dev", A)]).map((l) => l.text)).toEqual([
+      "dev",
+      "origin/dev",
+    ]);
+  });
+
+  it("leaves an upstream of another name as its own label", () => {
+    expect(at([local("main", A, "origin/master"), remote("origin/master", A)]).map((l) => l.text)).toEqual([
+      "main",
+      "origin/master",
+    ]);
+  });
+
+  it("keeps the checked-out branch drawn as HEAD when it is joined", () => {
+    const head: Head = { kind: "branch", name: "main", oid: A };
+    const [label] = at([local("main", A, "origin/main"), remote("origin/main", A)], A, head);
+
+    expect(label).toMatchObject({ kind: "head", text: "origin=main" });
+  });
+
+  it("keeps a remote branch that no local branch joined", () => {
+    const labels = at([local("dev", A, "origin/dev"), remote("origin/dev", A), remote("origin/other", A)]);
+
+    expect(labels.map((l) => l.text)).toEqual(["origin=dev", "origin/other"]);
+  });
+});
+
+describe("refLabels for stashes", () => {
+  const S = "5".repeat(40);
+  const stash = (index: number, oid: string, message: string) => ({ index, oid, message, timestamp: 0 });
+  const tag: Tag = { name: "v1", fullName: "refs/tags/v1", oid: S, isAnnotated: false, pointsToCommit: true };
+
+  it("labels a stash commit with its name and keeps the message for the tooltip", () => {
+    const [label] = refLabels([], [], null, { stashes: [stash(0, S, "On main: halfway")] }).get(S) ?? [];
+
+    expect(label).toEqual({ text: "stash@{0}", kind: "stash", title: "stash@{0}\nOn main: halfway" });
+  });
+
+  it("puts a stash label after the branch and tag labels", () => {
+    const labels = refLabels([], [tag], null, { stashes: [stash(2, S, "wip")] }).get(S) ?? [];
+
+    expect(labels.map((l) => l.kind)).toEqual(["tag", "stash"]);
+  });
+});
+
+describe("refLabels for branches held by worktrees", () => {
+  const A = "a".repeat(40);
+  const dev: Branch = {
+    name: "dev",
+    fullName: "refs/heads/dev",
+    kind: "local",
+    oid: A,
+    isHead: false,
+    upstream: null,
+    ahead: 0,
+    behind: 0,
+  };
+  const tree = (over: Partial<WorktreeEntry>): WorktreeEntry => ({
+    path: "C:/work/dev",
+    name: "dev",
+    branch: "dev",
+    head: A,
+    isMain: false,
+    isCurrent: false,
+    locked: null,
+    missing: false,
+    dirty: false,
+    ...over,
+  });
+  const label = (entry: WorktreeEntry) => refLabels([dev], [], null, { worktrees: [entry] }).get(A)?.[0];
+
+  it("marks a branch checked out in another worktree with where it is and how it stands", () => {
+    expect(label(tree({ dirty: true }))).toMatchObject({
+      text: "dev",
+      worktree: { path: "C:/work/dev", state: "modified" },
+      title: "dev\nChecked out in worktree C:/work/dev (modified)",
+    });
+    expect(label(tree({}))?.worktree?.state).toBe("clean");
+    expect(label(tree({ missing: true }))?.worktree?.state).toBe("missing");
+  });
+
+  it("leaves unmarked the branch of the worktree the panels show", () => {
+    expect(label(tree({ isCurrent: true }))?.worktree).toBeUndefined();
   });
 });
 

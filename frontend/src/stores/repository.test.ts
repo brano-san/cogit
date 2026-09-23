@@ -185,6 +185,54 @@ describe("repository store, as a state machine", () => {
   });
 });
 
+describe("coming back to a listed repository (#50)", () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+    commands.openRepository.mockReset();
+    repository.close();
+  });
+
+  it("shows what was kept at once, never passing through opening", async () => {
+    commands.openRepository.mockResolvedValueOnce({ status: "ok", data: summary("C:/repos/one") });
+    await repository.open("C:/repos/one");
+    repository.keep();
+    repository.adopt(summary("C:/repos/one/sub") as never);
+
+    const answer = pending<unknown>();
+    commands.openRepository.mockReturnValue(answer.promise);
+    const back = repository.comeBack("C:/repos/one");
+
+    expect(repository.phase.kind).toBe("open");
+    expect(repository.current?.root).toBe("C:/repos/one");
+    answer.settle({ status: "ok", data: { ...summary("C:/repos/one"), name: "fresh" } });
+    await back;
+    expect(repository.phase.kind).toBe("open");
+    expect(repository.current?.name).toBe("fresh");
+  });
+
+  it("does not let a late re-read undo a newer switch", async () => {
+    commands.openRepository.mockResolvedValueOnce({ status: "ok", data: summary("C:/repos/one") });
+    await repository.open("C:/repos/one");
+    repository.keep();
+
+    const answer = pending<unknown>();
+    commands.openRepository.mockReturnValue(answer.promise);
+    const back = repository.comeBack("C:/repos/one");
+    repository.adopt(summary("C:/repos/two") as never);
+    answer.settle({ status: "ok", data: summary("C:/repos/one") });
+    await back;
+
+    expect(repository.current?.root).toBe("C:/repos/two");
+  });
+
+  it("opens in the ordinary way when nothing was kept", async () => {
+    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/three") });
+    await repository.comeBack("C:/repos/three");
+    expect(commands.openRepository).toHaveBeenCalledTimes(1);
+    expect(repository.current?.root).toBe("C:/repos/three");
+  });
+});
+
 describe("what the panels see, end to end", () => {
   beforeEach(() => {
     vi.useRealTimers();

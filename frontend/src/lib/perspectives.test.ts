@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   capFraction,
   DEFAULT_LAYOUT,
+  floorFraction,
   DEFAULT_PERSPECTIVES,
   PANELS,
   isVisible,
@@ -144,6 +145,26 @@ describe("capFraction", () => {
 
   it("never squeezes the upper panel below the smallest fraction either", () => {
     expect(capFraction(0.5, 100, 120)).toBe(0.12);
+  });
+});
+
+describe("floorFraction", () => {
+  // 1000 px row, the Graph panel needs 300: the splitter stops at 30%.
+  it("stops the panel where it would drop below its minimum", () => {
+    expect(floorFraction(0.2, 1000, 300)).toBeCloseTo(0.3);
+  });
+
+  it("leaves a fraction alone while the panel fits", () => {
+    expect(floorFraction(0.5, 1000, 300)).toBe(0.5);
+  });
+
+  it("falls back to the ordinary clamp before anything has been measured", () => {
+    expect(floorFraction(0.05, 0, 300)).toBe(0.12);
+    expect(floorFraction(0.05, 1000, 0)).toBe(0.12);
+  });
+
+  it("never grows the panel past the largest fraction", () => {
+    expect(floorFraction(0.5, 200, 300)).toBe(0.88);
   });
 });
 

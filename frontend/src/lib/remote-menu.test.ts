@@ -137,6 +137,7 @@ function module(path: string): Submodule {
     nested: false,
     ahead: 0,
     behind: 0,
+    repoState: null,
   };
 }
 
