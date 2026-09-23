@@ -10,7 +10,7 @@
     splitModulePath,
     type ModuleRow,
   } from "$lib/module-tree";
-  import { panelView } from "$lib/repo-phase";
+  import { idleMessage, panelView } from "$lib/repo-phase";
   import { submodules } from "$stores/submodules.svelte";
   import { UNGROUPED, groupRows } from "$lib/repo-groups";
   import type { RepoOverview } from "$lib/ipc";
@@ -131,9 +131,8 @@
   {/if}
 
   {#if rows.length === 0}
-    <p class="none">
-      {panelView(repository.phase) === "opening" ? "Opening repository…" : "No repository open."}
-    </p>
+    {@const idle = idleMessage(panelView(repository.phase))}
+    {#if idle}<p class="none">{idle}</p>{/if}
   {:else}
     {#each rows as row (row.kind === "group" ? `g:${row.id}` : row.root)}
       {#if row.kind === "group"}

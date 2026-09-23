@@ -46,7 +46,7 @@
 </script>
 
 {#if view === "opening"}
-  <p class="waiting">Opening repository…</p>
+  <!-- Blank on purpose: the footer is the one place an open in progress is reported (#4). -->
 {:else if view === "content"}
   {#if progress}
     <PauseCheckBar {check} {oncheck} onrun={onruncheck} {verdict} running={checking} />
@@ -61,11 +61,3 @@
     onforget={onforgetrecent}
   />
 {/if}
-
-<style>
-  .waiting {
-    margin: 0;
-    padding: var(--sp-5);
-    color: var(--text-secondary);
-  }
-</style>

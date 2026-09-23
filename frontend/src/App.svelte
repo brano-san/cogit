@@ -33,7 +33,7 @@
   import FindObject from "$components/layout/FindObject.svelte";
   import CommandOutput from "$components/layout/CommandOutput.svelte";
   import { suppressNativeMenu } from "$lib/native-menu";
-  import { panelView } from "$lib/repo-phase";
+  import { footerRepository, panelView } from "$lib/repo-phase";
   import { startTracing, timed, trace } from "$lib/trace";
   import OutputPanel from "$components/layout/OutputPanel.svelte";
   import StateBanner from "$components/layout/StateBanner.svelte";
@@ -3330,7 +3330,7 @@
   {/if}
 
   <StatusBar
-    repository={repo?.name ?? (panelState === "opening" ? "Opening…" : "No repository")}
+    repository={footerRepository(repository.phase)}
     branch={repo ? repository.headLabel : undefined}
     upstream={tracked?.upstream ?? undefined}
     ahead={tracked?.ahead ?? 0}
