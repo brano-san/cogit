@@ -13,6 +13,7 @@
   import { DiffSearch } from "$lib/diff-search.svelte";
   import { BAND_WIDTH, bandLeft, ribbonPath, ribbonsNear } from "$lib/diff-band";
   import DiffFindBar from "./DiffFindBar.svelte";
+  import { eolLabel, layoutTip } from "$lib/diff-toolbar";
   import { highlightLines, mergePieces, type Token } from "$lib/highlight";
   import { hunkSelection, lineKey, selectedRange, toggleLine } from "$lib/selection";
   import InvestigateView from "./InvestigateView.svelte";
@@ -348,7 +349,8 @@
   <div class="bar">
     <span class="path mono truncate">{path}</span>
     {#if diff.kind === "text"}
-      <span class="eol">{diff.eol.old} → {diff.eol.new}</span>
+      {@const eol = eolLabel(diff.eol, diff.hunks)}
+      <span class="eol" title={eol.title}>{eol.text}</span>
       {#if diff.lossyEncoding}<span class="warn">not valid UTF-8</span>{/if}
       <button type="button" onclick={() => jump(-1)} title="Previous change (Shift+F6)">▲</button>
       <button type="button" onclick={() => jump(1)} title="Next change (F6)">▼</button>
@@ -406,7 +408,7 @@
       <button
         type="button"
         class="mode"
-        title="Remembered between runs"
+        title={layoutTip(mode)}
         onclick={() => diffStore.setLayout(mode === "split" ? "unified" : "split")}
       >
         {mode === "split" ? "Unified" : "Side by side"}
@@ -598,12 +600,15 @@
     min-height: 0;
   }
 
+  /* Chrome, not content: the raised surface and a rule set it apart from the diff (#18). */
   .bar {
     display: flex;
     align-items: center;
     gap: var(--sp-3);
     flex: 0 0 auto;
-    padding: var(--sp-3) var(--sp-4);
+    min-height: 32px;
+    padding: var(--sp-2) var(--sp-4);
+    background: var(--surface-raised);
     border-bottom: 1px solid var(--divider);
     font-size: var(--fs-dense);
   }
