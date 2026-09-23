@@ -56,6 +56,11 @@ class DiffStore {
     return this.spec?.kind === "workTreeVsIndex" || this.spec?.kind === "indexVsHead";
   }
 
+  /** This file under this spec is on screen already, so clicking it again changes nothing. */
+  shows(spec: DiffSpec, path: string): boolean {
+    return this.path === path && this.error === null && sameSpec(this.spec, spec);
+  }
+
   /** Clicking down the file list outruns the backend; stale diffs lose. */
   #generation = 0;
 
@@ -197,6 +202,13 @@ class DiffStore {
     this.loading = false;
     this.error = null;
   }
+}
+
+function sameSpec(a: DiffSpec | null, b: DiffSpec): boolean {
+  if (a === null || a.kind !== b.kind) return false;
+  if (a.kind === "commitVsParent" && b.kind === "commitVsParent") return a.oid === b.oid;
+  if (a.kind === "commitVsCommit" && b.kind === "commitVsCommit") return a.a === b.a && a.b === b.b;
+  return true;
 }
 
 export const diff = new DiffStore();

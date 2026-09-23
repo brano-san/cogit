@@ -108,6 +108,28 @@ describe("diff store", () => {
     expect(diff.path).toBe("kept.txt");
     expect(commands.diffFile).not.toHaveBeenCalled();
   });
+
+  it("knows it already shows a file, so a second click is not a toggle (#7)", async () => {
+    await diff.load(REPO, SPEC, "a.txt");
+
+    expect(diff.shows(SPEC, "a.txt")).toBe(true);
+    expect(diff.shows({ kind: "indexVsHead" }, "a.txt")).toBe(false);
+    expect(diff.shows(SPEC, "b.txt")).toBe(false);
+  });
+
+  it("tells commits apart by their id", async () => {
+    await diff.load(REPO, { kind: "commitVsParent", oid: "c1" }, "a.txt");
+
+    expect(diff.shows({ kind: "commitVsParent", oid: "c1" }, "a.txt")).toBe(true);
+    expect(diff.shows({ kind: "commitVsParent", oid: "c2" }, "a.txt")).toBe(false);
+  });
+
+  it("lets a failed diff be asked for again", async () => {
+    commands.diffFile.mockResolvedValue({ status: "error", error: { kind: "internal", data: "x" } });
+    await diff.load(REPO, SPEC, "a.txt");
+
+    expect(diff.shows(SPEC, "a.txt")).toBe(false);
+  });
 });
 
 describe("diff view preferences", () => {
