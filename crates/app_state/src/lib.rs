@@ -10,6 +10,7 @@ pub mod logging;
 mod network;
 mod presets;
 mod queue;
+mod remote_ops;
 mod safety;
 pub mod settings;
 pub mod terminal;
