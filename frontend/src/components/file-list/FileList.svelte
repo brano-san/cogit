@@ -13,7 +13,7 @@
     visibleFiles,
     type FileView,
   } from "$lib/file-view";
-  import { applyClick, EMPTY_SELECTION, type FileSelection } from "$lib/multi-select";
+  import { afterDeselect, applyClick, EMPTY_SELECTION, type FileSelection } from "$lib/multi-select";
   import FilePane from "$components/file-list/FilePane.svelte";
   import Splitter from "$components/layout/Splitter.svelte";
   import type { FileEntry } from "$lib/ipc";
@@ -102,6 +102,15 @@
 
   $effect(() => {
     onmarked?.([...marked.paths]);
+  });
+
+  let shownBefore: string | null = null;
+  $effect(() => {
+    const shown = selected;
+    untrack(() => {
+      marked = afterDeselect(shownBefore, shown, marked);
+      shownBefore = shown;
+    });
   });
 
   const active = $derived(view ?? DEFAULT_VIEW);
