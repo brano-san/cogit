@@ -2665,7 +2665,7 @@
       : {}}
   />
 
-  {#if banner}
+  {#if banner && !shown.graph}
     <StateBanner {banner} busy={repository.busy} onaction={runBannerAction} />
   {/if}
 
@@ -2868,6 +2868,9 @@
               {checking}
               ondrop={onCommitDrop}
               oncontext={(oid, x, y) => void commitContext(oid, x, y)}
+              {banner}
+              busy={repository.busy}
+              onbanneraction={runBannerAction}
             />
           </Panel>
         </div>

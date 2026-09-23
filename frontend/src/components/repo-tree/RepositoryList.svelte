@@ -11,6 +11,7 @@
     type ModuleRow,
   } from "$lib/module-tree";
   import { panelView } from "$lib/repo-phase";
+  import { STATE_TAG_HINT, repoStateTag } from "$lib/repo-state";
   import { submodules } from "$stores/submodules.svelte";
   import { UNGROUPED, groupRows } from "$lib/repo-groups";
   import type { RepoOverview } from "$lib/ipc";
@@ -217,6 +218,9 @@
         {#if worktrees.ownerRoot === entry.root && repository.current}
           <KindIcon kind="worktree" title="The panels show its worktree {repository.current.root}" />
         {/if}
+        {#if repoStateTag(entry.state)}
+          <span class="op" title={STATE_TAG_HINT}>{repoStateTag(entry.state)}</span>
+        {/if}
         {#if entry.missing}
           <span class="gone" title={MISSING_REPOSITORY}>missing</span>
         {:else if entry.dirty}
@@ -284,6 +288,9 @@
                 class="leaf">{parts.name}</span
               >
             </span>
+            {#if repoStateTag(node.module.repoState, true)}
+              <span class="op" title={STATE_TAG_HINT}>{repoStateTag(node.module.repoState, true)}</span>
+            {/if}
             <span class="where truncate" title={moduleTooltip(node.module) || undefined}
               >({describeModule(node.module)})</span
             >
@@ -472,6 +479,12 @@
   .name {
     flex: 0 1 auto;
     min-width: 0;
+  }
+
+  .op {
+    flex: 0 0 auto;
+    color: var(--status-modify);
+    font-size: 10px;
   }
 
   .dirty {
