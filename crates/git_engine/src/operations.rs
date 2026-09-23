@@ -10,7 +10,10 @@ pub struct RebaseOptions {
 
 impl RepoHandle {
     pub fn abort_operation(&self) -> Result<()> {
-        self.run_git(&[self.operation()?, "--abort"]).map(drop)
+        match self.operation()? {
+            "bisect" => self.run_git(&["bisect", "reset"]).map(drop),
+            operation => self.run_git(&[operation, "--abort"]).map(drop),
+        }
     }
 
     pub fn rebase(&self, options: &RebaseOptions) -> Result<()> {
@@ -30,7 +33,7 @@ impl RepoHandle {
     /// Only a rebase and a cherry-pick can skip; a merge has nothing to skip past.
     pub fn skip_operation(&self) -> Result<()> {
         let operation = self.operation()?;
-        if !matches!(operation, "rebase" | "cherry-pick" | "revert") {
+        if !matches!(operation, "rebase" | "cherry-pick" | "revert" | "am") {
             return Err(GitError::InvalidState(format!(
                 "{operation} cannot skip a step"
             )));
@@ -39,7 +42,12 @@ impl RepoHandle {
     }
 
     pub fn continue_operation(&self) -> Result<()> {
-        self.run_git(&[self.operation()?, "--continue"]).map(drop)
+        match self.operation()? {
+            "bisect" => Err(GitError::InvalidState(
+                "a bisect goes on with good, bad or skip, not continue".to_owned(),
+            )),
+            operation => self.run_git(&[operation, "--continue"]).map(drop),
+        }
     }
 
     /// The wrong command leaves the repository half-resolved.
@@ -50,6 +58,7 @@ impl RepoHandle {
             RepoState::CherryPicking => Ok("cherry-pick"),
             RepoState::Reverting => Ok("revert"),
             RepoState::Bisecting => Ok("bisect"),
+            RepoState::ApplyingPatches => Ok("am"),
             other => Err(GitError::InvalidState(format!(
                 "nothing is in progress ({other:?})"
             ))),

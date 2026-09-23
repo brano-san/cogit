@@ -201,6 +201,10 @@
     const id = repoId();
     const summary = repository.current;
     if (!id || !summary) return;
+    if (label.kind === "stash") {
+      await stashLabelContext(label.text, oid, x, y);
+      return;
+    }
     const found = labelTarget(label, summary.branches, summary.tags);
     if (!found) return;
     const token = ++asked;
@@ -213,6 +217,14 @@
     }
   }
 
+  /** A stash label in the graph gets the stash menu of Branches (#35). */
+  async function stashLabelContext(text: string, oid: string, x: number, y: number) {
+    const index = Number(/\{(\d+)\}/.exec(text)?.[1] ?? Number.NaN);
+    if (Number.isNaN(index)) return;
+    const node: RefNode = { id: `stash:${index}`, kind: "stash", label: text, depth: 1, rev: text, oid };
+    await branchesContext(node, x, y);
+  }
+
   /** The Branches rows this component has a menu for. */
   export function claims(node: RefNode): boolean {
     return node.kind === "local" || node.kind === "remote" || node.kind === "tag" || node.kind === "stash";
@@ -223,7 +235,10 @@
     const summary = repository.current;
     if (!id || !summary || !claims(node)) return;
     const token = ++asked;
-    const tag = node.kind === "tag" ? summary.tags.find((entry) => entry.name === tagNameOf(node)) : undefined;
+    const tag =
+      node.kind === "tag"
+        ? (node.tag ?? summary.tags.find((entry) => entry.name === tagNameOf(node)))
+        : undefined;
     const oid = node.kind === "tag" ? (tag?.pointsToCommit ? tag.oid : null) : (node.oid ?? null);
     try {
       const loaded = oid ? await factsOf(id, oid, false) : null;

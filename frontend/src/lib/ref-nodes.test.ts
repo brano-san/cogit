@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { Branch, CommitRow, Head, StashEntry, Tag } from "$lib/ipc";
+import type { Branch, CommitRow, Head, StashEntry, Tag, WorktreeEntry } from "$lib/ipc";
 import {
   buildRefTree,
   checkState,
   defaultVisible,
+  foldedWhileFiltering,
   leavesUnder,
   toggleNode,
   visibleTips,
@@ -86,15 +87,17 @@ describe("buildRefTree", () => {
     expect(group?.label).toBe("Local Branches (2)");
   });
 
-  it("marks the checked-out branch with a filled triangle", () => {
+  it("flags the checked-out branch as current", () => {
     const nodes = buildRefTree(input({ branches: [branch("master", { isHead: true })] }));
-    expect(nodes.find((node) => node.id === "local:master")?.marker).toBe("▶");
+    expect(nodes.find((node) => node.id === "local:master")?.current).toBe(true);
   });
 
-  it("marks a remote branch with a hollow triangle", () => {
+  // #11: the blue triangles in front of branches are gone; folders carry an icon instead.
+  it("puts no marker in front of a remote or an idle branch", () => {
     const remote = branch("origin/master", { kind: "remote", fullName: "refs/remotes/origin/master" });
-    const nodes = buildRefTree(input({ branches: [remote] }));
-    expect(nodes.find((node) => node.id === "remote:origin/master")?.marker).toBe("▷");
+    const nodes = buildRefTree(input({ branches: [remote, branch("topic")] }));
+    expect(nodes.find((node) => node.id === "remote:origin/master")?.current).toBeUndefined();
+    expect(nodes.find((node) => node.id === "local:topic")?.current).toBeUndefined();
   });
 
   it("says a branch is level with its upstream", () => {
@@ -169,7 +172,9 @@ describe("buildRefTree", () => {
   });
 
   it("splits a slashed branch name into folders", () => {
-    const nodes = buildRefTree(input({ branches: [branch("feature/auth/login")] }));
+    const nodes = buildRefTree(
+      input({ branches: [branch("feature/auth/login"), branch("feature/ui")] }),
+    );
     const labels = nodes.filter((node) => node.kind === "folder").map((node) => node.label);
     expect(labels).toEqual(["feature", "auth"]);
   });
@@ -425,5 +430,217 @@ describe("what is ticked when a repository is opened", () => {
   it("walks from exactly what is ticked", () => {
     const nodes = tree();
     expect(visibleTips(nodes, defaultVisible(nodes))).toEqual(["HEAD"]);
+  });
+});
+
+/** Labels and depths of a group's rows, the shape the panel draws. */
+function outline(nodes: RefNode[], from: string): string[] {
+  const at = nodes.findIndex((node) => node.id === from);
+  const rows: string[] = [];
+  for (const node of nodes.slice(at + 1)) {
+    if (node.depth === 0) break;
+    const mark = node.kind === "folder" ? "/" : "";
+    rows.push(`${"  ".repeat(node.depth - 1)}${node.label}${mark}`);
+  }
+  return rows;
+}
+
+describe("folders (#11)", () => {
+  it("puts folders before branches on every level", () => {
+    const nodes = buildRefTree(
+      input({
+        branches: [
+          branch("alpha"),
+          branch("testing/zeta"),
+          branch("testing/a/one"),
+          branch("testing/a/two"),
+          branch("zulu/x"),
+        ],
+      }),
+    );
+    expect(outline(nodes, "group:local")).toEqual([
+      "testing/",
+      "  a/",
+      "    one",
+      "    two",
+      "  zeta",
+      "zulu/",
+      "  x",
+      "alpha",
+    ]);
+  });
+
+  it("draws a folder that holds only one folder as one row", () => {
+    const nodes = buildRefTree(
+      input({ branches: [branch("testing/network/a"), branch("testing/network/b")] }),
+    );
+    expect(outline(nodes, "group:local")).toEqual(["testing/network/", "  a", "  b"]);
+    expect(ids(nodes)).toContain("folder:local/testing/network");
+  });
+
+  it("nests normally once a folder holds a branch beside its subfolder", () => {
+    const nodes = buildRefTree(
+      input({ branches: [branch("testing/network/a"), branch("testing/b")] }),
+    );
+    expect(outline(nodes, "group:local")).toEqual(["testing/", "  network/", "    a", "  b"]);
+  });
+
+  it("collapses a chain inside a folder too", () => {
+    const nodes = buildRefTree(
+      input({ branches: [branch("team/x"), branch("team/deep/er/y")] }),
+    );
+    expect(outline(nodes, "group:local")).toEqual(["team/", "  deep/er/", "    y", "  x"]);
+  });
+
+  it("groups tags into folders", () => {
+    const nodes = buildRefTree(
+      input({ tags: [tag("release/1.0"), tag("release/1.1"), tag("v0")] }),
+    );
+    expect(outline(nodes, "group:tags")).toEqual(["release/", "  1.0", "  1.1", "v0"]);
+  });
+
+  it("groups tags by the repository's own separator", () => {
+    const nodes = buildRefTree(
+      input({ tags: [tag("release-1.0"), tag("release-1.1"), tag("v/0")], tagSeparator: "-" }),
+    );
+    expect(outline(nodes, "group:tags")).toEqual(["release/", "  1.0", "  1.1", "v/0"]);
+  });
+
+  it("keeps tags flat when the separator is empty", () => {
+    const nodes = buildRefTree(input({ tags: [tag("release/1.0")], tagSeparator: "" }));
+    expect(outline(nodes, "group:tags")).toEqual(["release/1.0"]);
+  });
+
+  it("keeps the tag itself on the leaf, whose label is only the last part", () => {
+    const nodes = buildRefTree(input({ tags: [tag("release/1.0")] }));
+    const leaf = nodes.find((node) => node.id === "tag:release/1.0");
+    expect(leaf?.label).toBe("1.0");
+    expect(leaf?.tag?.name).toBe("release/1.0");
+  });
+
+  it("never gives a tag folder the id of a remote's folder", () => {
+    const nodes = buildRefTree(
+      input({
+        branches: [branch("tags/fix/a", { kind: "remote" })],
+        tags: [tag("fix/a")],
+      }),
+    );
+    expect(new Set(ids(nodes)).size).toBe(ids(nodes).length);
+  });
+
+  it("opens every folder while a filter is typed, and only folders", () => {
+    const collapsed = new Set(["folder:local/fix", "group:tags"]);
+    expect([...foldedWhileFiltering(collapsed, "")]).toEqual([...collapsed]);
+    expect([...foldedWhileFiltering(collapsed, "fix")]).toEqual(["group:tags"]);
+  });
+});
+
+describe("sorting (#20)", () => {
+  const names = (nodes: RefNode[]) =>
+    nodes.filter((node) => node.kind === "tag").map((node) => node.label);
+  const versions = [tag("v1.0.10"), tag("v1.0.2"), tag("v1.0.1")];
+
+  it("sorts names naturally by default", () => {
+    expect(names(buildRefTree(input({ tags: versions })))).toEqual([
+      "v1.0.1",
+      "v1.0.2",
+      "v1.0.10",
+    ]);
+  });
+
+  it("sorts by code unit when natural sorting is off", () => {
+    const sort = { names: "plain", dates: "off" } as const;
+    expect(names(buildRefTree(input({ tags: versions, sort })))).toEqual([
+      "v1.0.1",
+      "v1.0.10",
+      "v1.0.2",
+    ]);
+  });
+
+  it("sorts folders naturally too", () => {
+    const nodes = buildRefTree(
+      input({ branches: [branch("f10/a"), branch("f9/a"), branch("f9/b")] }),
+    );
+    expect(outline(nodes, "group:local")).toEqual(["f9/", "  a", "  b", "f10/", "  a"]);
+  });
+
+  it("sorts refs by the date of their tip, newest or oldest first", () => {
+    const dates = new Map([
+      ["refs/tags/v1.0.10", 100],
+      ["refs/tags/v1.0.2", 300],
+      ["refs/tags/v1.0.1", 200],
+    ]);
+    const newest = { names: "natural", dates: "newest" } as const;
+    const oldest = { names: "natural", dates: "oldest" } as const;
+    expect(names(buildRefTree(input({ tags: versions, dates, sort: newest })))).toEqual([
+      "v1.0.2",
+      "v1.0.1",
+      "v1.0.10",
+    ]);
+    expect(names(buildRefTree(input({ tags: versions, dates, sort: oldest })))).toEqual([
+      "v1.0.10",
+      "v1.0.1",
+      "v1.0.2",
+    ]);
+  });
+
+  it("ignores dates while the date sort is off", () => {
+    const dates = new Map([["refs/tags/v1.0.10", 999]]);
+    expect(names(buildRefTree(input({ tags: versions, dates })))).toEqual([
+      "v1.0.1",
+      "v1.0.2",
+      "v1.0.10",
+    ]);
+  });
+
+  it("sorts the remotes by name the same way", () => {
+    const nodes = buildRefTree(
+      input({
+        branches: [
+          branch("r10/main", { kind: "remote" }),
+          branch("r9/main", { kind: "remote" }),
+        ],
+      }),
+    );
+    expect(nodes.filter((node) => node.kind === "group").map((node) => node.id)).toEqual([
+      "remote-group:r9",
+      "remote-group:r10",
+    ]);
+  });
+});
+
+describe("branches held by a worktree (#25)", () => {
+  const held = (over: Partial<WorktreeEntry>): WorktreeEntry => ({
+    path: "E:/w/feature",
+    name: "feature",
+    branch: "feature",
+    head: OID,
+    isMain: false,
+    isCurrent: false,
+    locked: null,
+    missing: false,
+    dirty: false,
+    ...over,
+  });
+
+  it("marks a branch another worktree has checked out", () => {
+    const nodes = buildRefTree(
+      input({ branches: [branch("feature"), branch("main")], worktrees: [held({ dirty: true })] }),
+    );
+    expect(nodes.find((node) => node.id === "local:feature")?.worktree).toEqual({
+      path: "E:/w/feature",
+      state: "changes",
+    });
+    expect(nodes.find((node) => node.id === "local:main")?.worktree).toBeUndefined();
+  });
+
+  it("does not mark a remote branch of the same name", () => {
+    const nodes = buildRefTree(
+      input({
+        branches: [branch("origin/feature", { kind: "remote" })],
+        worktrees: [held({})],
+      }),
+    );
+    expect(nodes.find((node) => node.id === "remote:origin/feature")?.worktree).toBeUndefined();
   });
 });

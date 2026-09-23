@@ -280,9 +280,10 @@ export function commitFacts(input: {
   };
 }
 
-/** The ref a graph label stands for; null when the repository no longer has it. */
+/** The ref a graph label stands for; null when the repository no longer has it. A joined
+    `origin=topic` label stands for the local branch, which its menu then acts on. */
 export function labelTarget(
-  label: { text: string; kind: "head" | "local" | "remote" | "tag" },
+  label: { text: string; kind: "head" | "local" | "remote" | "tag" | "stash"; name?: string },
   branches: readonly Branch[],
   tags: readonly Tag[],
 ): { ref: RefTarget; branch: Branch | null; tag: Tag | null } | null {
@@ -290,8 +291,10 @@ export function labelTarget(
     const tag = tags.find((entry) => entry.name === label.text);
     return tag ? { ref: { kind: "tag", name: tag.name, isHead: false }, branch: null, tag } : null;
   }
+  if (label.kind === "stash") return null;
   const wanted = label.kind === "remote" ? "remote" : "local";
-  const branch = branches.find((entry) => entry.kind === wanted && entry.name === label.text);
+  const name = label.name ?? label.text;
+  const branch = branches.find((entry) => entry.kind === wanted && entry.name === name);
   if (!branch) return null;
   return {
     ref: { kind: wanted === "remote" ? "remote" : "branch", name: branch.name, isHead: branch.isHead },

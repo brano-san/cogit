@@ -21,6 +21,7 @@ const mod = (path: string, over: Partial<Submodule> = {}): Submodule => ({
   nested: false,
   ahead: 0,
   behind: 0,
+  repoState: null,
   ...over,
 });
 

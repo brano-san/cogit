@@ -1,7 +1,7 @@
 <script lang="ts">
   import Dialog from "$components/common/Dialog.svelte";
   import { aboutGroups, diagnosticsText, type AboutRow, type Context } from "$lib/diagnostics";
-  import { fitPath } from "$lib/path-truncate";
+  import { fitPath } from "$lib/truncate";
   import type { AppInfo } from "$lib/ipc";
   import type { UpdateOutcome } from "$lib/updates";
   import icon from "../../../../src-tauri/icons/128x128.png";
