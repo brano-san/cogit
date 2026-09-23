@@ -96,6 +96,17 @@ export const commands = {
 	closeRepository: (repo: RepoId) => typedError<boolean, GitError>(__TAURI_INVOKE("close_repository", { repo })),
 	submodules: (repo: RepoId) => typedError<Submodule[], GitError>(__TAURI_INVOKE("submodules", { repo })),
 	updateSubmodule: (repo: RepoId, path: string, init: boolean) => typedError<null, GitError>(__TAURI_INVOKE("update_submodule", { repo, path, init })),
+	/**  Empty `paths` means every submodule, for Initialize and Synchronize only. */
+	submoduleOp: (repo: RepoId, op: SubmoduleOp, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("submodule_op", { repo, op, paths })),
+	addSubmodule: (repo: RepoId, url: string, path: string, branch: string | null) => typedError<null, GitError>(__TAURI_INVOKE("add_submodule", { repo, url, path, branch })),
+	subtreeOp: (repo: RepoId, op: SubtreeOp) => typedError<null, GitError>(__TAURI_INVOKE("subtree_op", { repo, op })),
+	/**  Walks history for `git-subtree-dir:`; asked when a Subtree dialog opens, not before. */
+	subtreePrefixes: (repo: RepoId) => typedError<string[], GitError>(__TAURI_INVOKE("subtree_prefixes", { repo })),
+	/**  `None` when git has no `lfs` command: only Install stays available then. */
+	lfsVersion: () => typedError<string | null, GitError>(__TAURI_INVOKE("lfs_version")),
+	lfsOp: (repo: RepoId, op: LfsOp) => typedError<null, GitError>(__TAURI_INVOKE("lfs_op", { repo, op })),
+	repoSettings: (repo: RepoId) => typedError<RepoSetting[], GitError>(__TAURI_INVOKE("repo_settings", { repo })),
+	writeRepoSettings: (repo: RepoId, changes: RepoSettingChange[]) => typedError<null, GitError>(__TAURI_INVOKE("write_repo_settings", { repo, changes })),
 	stageSelection: (repo: RepoId, request: PatchRequest, reverse: boolean) => typedError<null, GitError>(__TAURI_INVOKE("stage_selection", { repo, request, reverse })),
 	blame: (repo: RepoId, path: string, rev: string) => typedError<BlameLine[], GitError>(__TAURI_INVOKE("blame", { repo, path, rev })),
 	remoteUrl: (repo: RepoId, name: string) => typedError<string | null, GitError>(__TAURI_INVOKE("remote_url", { repo, name })),
@@ -780,6 +791,10 @@ export type KeyBinding = {
 	defaultAccelerator: string | null,
 };
 
+export type LfsOp = 
+/**  `--local`: the filters go into this repository's config, not the user's. */
+{ kind: "install" } | { kind: "track"; pattern: string } | { kind: "lock"; paths: string[] } | { kind: "unlock"; paths: string[] } | { kind: "prune" };
+
 export type LineEnding = "lf" | "crlf" | "cr" | "mixed" | "none";
 
 /**
@@ -988,6 +1003,20 @@ export type RepoOverview = {
 	missing: boolean,
 };
 
+export type RepoSetting = {
+	key: string,
+	/**  Set in this repository's config (`.git/config`, or `config.worktree`). */
+	local: string | null,
+	/**  What applies when `local` is unset: the user's and the system's config. */
+	inherited: string | null,
+};
+
+export type RepoSettingChange = {
+	key: string,
+	/**  `None` removes the key from the repository's config. */
+	value: string | null,
+};
+
 export type RepoState = { kind: "clean" } | { kind: "detachedHead"; oid: string } | { kind: "merging" } | { kind: "rebasing" } | { kind: "cherryPicking" } | { kind: "reverting" } | { kind: "bisecting" } | { kind: "empty" } | { kind: "bare" };
 
 export type RepoStatus = {
@@ -1130,6 +1159,14 @@ export type Submodule = {
 	behind: number,
 };
 
+export type SubmoduleOp = "initialize" | "synchronize" | 
+/**  Back to the commit the parent records. git refuses to overwrite local changes. */
+"reset" | 
+/**  `submodule.<name>.active = false`: recursive commands skip it, the files stay. */
+"deactivate" | "deinit" | 
+/**  Out of the index and `.gitmodules`; the files stay behind as an untracked folder. */
+"unregister";
+
 export type SubmoduleState = "notInitialised" | "inSync" | 
 /**  New commits on top of the recorded one: commit the pointer in the parent. */
 "ahead" | 
@@ -1139,6 +1176,14 @@ export type SubmoduleState = "notInitialised" | "inSync" |
 "diverged" | 
 /**  The recorded commit is not in the submodule, so where it stands cannot be told. */
 "unknown";
+
+export type SubtreeOp = { kind: "add"; prefix: string; repository: string; reference: string; squash: boolean } | 
+/**  `git subtree pull` from `repository`, or `git subtree merge` of a local commit. */
+{ kind: "merge"; prefix: string; repository: string | null; reference: string; squash: boolean } | 
+/**  The folder's own history as a new branch. */
+{ kind: "split"; prefix: string; branch: string; rejoin: boolean } | 
+/**  The folder's contents replaced by `reference`'s tree, staged for the next commit. */
+{ kind: "reset"; prefix: string; reference: string } | { kind: "push"; prefix: string; repository: string; reference: string };
 
 export type Tag = {
 	name: string,

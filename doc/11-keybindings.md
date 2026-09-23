@@ -30,7 +30,7 @@
 | `Ctrl+O` | Open Repository |
 | `Ctrl+W` | Close Repository |
 | `Ctrl+Shift+7` | Панель Output (журнал команд Git) |
-| `Ctrl+,` | Настройки |
+| `Ctrl+,` | Настройки Cogit — `Edit ▸ Preferences…` (до #42 — `Repository ▸ Settings…`, теперь это настройки репозитория, без аккорда) |
 | `F5` | Refresh — перечитать состояние репозитория. Пункта в меню нет (#43), клавишу по-прежнему перехватывает окно, иначе WebView2 перезагрузил бы страницу; есть в палитре команд |
 | `Alt+X` | Exit — выход с подтверждением (R-151, R-168); `Alt+F4` ведёт туда же |
 | `Shift+F11` | Развернуть активную панель / вернуть раскладку |
@@ -52,7 +52,7 @@
 | `Ctrl+Shift+F` | Fetch |
 | `Ctrl+Shift+U` | Pull |
 | `Ctrl+Shift+O` | Push |
-| `Ctrl+Shift+S` | Sync (pull + push) |
+| `Ctrl+Shift+S` | Sync (pull, затем push) — `Remote ▸ Synchronize`; аккорд перехватывает окно (#45) |
 | `Ctrl+Alt+Shift+F` | Fetch All (все открытые репозитории) |
 
 ## 4. Индекс и коммит
