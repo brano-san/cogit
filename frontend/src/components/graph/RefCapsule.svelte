@@ -1,4 +1,5 @@
 <script lang="ts">
+  import KindIcon from "$components/common/KindIcon.svelte";
   import type { RefLabel } from "$lib/format";
 
   interface Props {
@@ -6,20 +7,30 @@
   }
 
   let { label }: Props = $props();
+
+  const tooltip = $derived(label.title ?? label.text);
 </script>
 
-<span class="capsule {label.kind}" class:joined={label.remotes} title={label.title ?? label.text}>
+{#snippet held()}
+  {#if label.worktree}
+    <span class="held"><KindIcon kind="worktree" title={tooltip} /></span>
+  {/if}
+{/snippet}
+
+<span class="capsule {label.kind}" class:joined={label.remotes} title={tooltip}>
   {#if label.remotes}
     <span class="prefix">{label.remotes.join(",")}</span><span class="eq">=</span><span
-      class="branch">{label.name}</span
+      class="branch">{@render held()}{label.name}</span
     >
   {:else}
-    {label.text}
+    {@render held()}{label.text}
   {/if}
 </span>
 
 <style>
   .capsule {
+    display: inline-flex;
+    align-items: center;
     flex: 0 0 auto;
     height: 16px;
     padding: 0 var(--sp-3);
@@ -62,7 +73,6 @@
 
   /* `origin=feature/x`: the remotes in the remote colours, the branch in its own. */
   .joined {
-    display: inline-flex;
     padding: 0;
     overflow: hidden;
   }
@@ -82,6 +92,19 @@
   }
 
   .branch {
+    display: inline-flex;
+    align-items: center;
     padding: 0 var(--sp-3) 0 var(--sp-2);
+  }
+
+  /* The Worktrees panel's icon, in the label's own colour so it shows on a filled HEAD. */
+  .held {
+    --kind-icon: 10px;
+    display: inline-flex;
+    margin-right: var(--sp-1);
+  }
+
+  .held :global(.kind.worktree) {
+    color: inherit;
   }
 </style>

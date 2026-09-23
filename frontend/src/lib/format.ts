@@ -1,4 +1,4 @@
-import type { Branch, Head, StashEntry, Tag } from "./ipc";
+import type { Branch, Head, StashEntry, Tag, WorktreeEntry } from "./ipc";
 
 const SHORT_OID = 7;
 
@@ -37,6 +37,17 @@ export interface RefLabel {
   name?: string;
   /** The tooltip, when it says more than `text`. */
   title?: string;
+  /** Another worktree has this branch checked out (#25). */
+  worktree?: WorktreeMark;
+}
+
+export interface WorktreeMark {
+  path: string;
+  state: "clean" | "modified" | "missing";
+}
+
+function worktreeMark(entry: WorktreeEntry): WorktreeMark {
+  return { path: entry.path, state: entry.missing ? "missing" : entry.dirty ? "modified" : "clean" };
 }
 
 /** The row truncates from the right, so order here is priority order. */
@@ -45,6 +56,7 @@ const REF_ORDER: Record<RefKind, number> = { head: 0, local: 1, remote: 2, tag: 
 /** What the graph labels besides branches and tags. */
 export interface RefExtras {
   stashes?: readonly StashEntry[];
+  worktrees?: readonly WorktreeEntry[];
 }
 
 const withoutRemote = (name: string) => name.slice(name.indexOf("/") + 1);
@@ -77,24 +89,31 @@ export function refLabels(
   };
 
   const remotes = new Map(branches.filter((b) => b.kind === "remote").map((b) => [b.name, b]));
+  const held = new Map(
+    (extras.worktrees ?? [])
+      .filter((entry) => entry.branch !== null && !entry.isCurrent)
+      .map((entry) => [entry.branch as string, worktreeMark(entry)]),
+  );
   const joined = new Set<string>();
   for (const branch of branches) {
     if (branch.kind !== "local") continue;
     const kind: RefKind = branch.name === headBranch ? "head" : "local";
     const found = twins(branch, remotes);
-    if (found.length === 0) {
-      add(branch.oid, { text: branch.name, kind });
-      continue;
-    }
     for (const twin of found) joined.add(twin.name);
     const names = found.map((twin) => remoteOf(twin.name));
-    add(branch.oid, {
-      text: `${names.join(",")}=${branch.name}`,
-      kind,
-      remotes: names,
-      name: branch.name,
-      title: [branch.name, ...found.map((twin) => twin.name)].join("\n"),
-    });
+    const label: RefLabel =
+      found.length === 0
+        ? { text: branch.name, kind }
+        : { text: `${names.join(",")}=${branch.name}`, kind, remotes: names, name: branch.name };
+    const lines = found.length === 0 ? [] : [branch.name, ...found.map((twin) => twin.name)];
+    const worktree = held.get(branch.name);
+    if (worktree) {
+      label.worktree = worktree;
+      if (lines.length === 0) lines.push(branch.name);
+      lines.push(`Checked out in worktree ${worktree.path} (${worktree.state})`);
+    }
+    if (lines.length > 0) label.title = lines.join("\n");
+    add(branch.oid, label);
   }
   for (const branch of remotes.values()) {
     if (!joined.has(branch.name)) add(branch.oid, { text: branch.name, kind: "remote" });

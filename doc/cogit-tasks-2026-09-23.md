@@ -225,6 +225,7 @@
   - [ ] В `Branches` у ветки, взятой в worktree, — иконка worktree (та же, что в панели Worktrees) и tooltip с путём.
   - [ ] Состояние worktree рядом: чистый / есть изменения / `missing`.
   - [ ] В графе метка такой ветки тоже помечена.
+  > Итог (часть Graph): не было реализовано. Сделано: `refLabels` получает список worktree (`worktrees.entries`, уже загружаемый стором) и помечает метку локальной ветки, выписанной в другом worktree (не текущем), полем `worktree { path, state: clean | modified | missing }` и строкой тултипа `Checked out in worktree <путь> (<состояние>)`; `RefCapsule` ставит перед именем иконку worktree из `KindIcon` (та же, что в панели Worktrees) цветом текста метки. Тесты: 2 новых в `lib/format.test.ts` (один падал до правки). Часть Branches — у агента «branches». Проверить в сборке: `git worktree add ../wt feature` — у метки `feature` в графе основного репозитория иконка worktree, тултип с путём и `(clean)`; правка файла в `../wt` → `(modified)`; удалить папку `../wt` → `(missing)`.
 
 - [ ] **#33 Контекстное меню ветки в Branches**
   - [ ] Check Out
