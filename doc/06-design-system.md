@@ -198,6 +198,7 @@ focus-visible   outline: 1px solid --state-focus-ring; outline-offset: -1px
 | Локальная ветка | `--status-ref` | `dev` |
 | HEAD | `--status-ref`, насыщенный фон | `HEAD → dev` |
 | Удалённая ветка | `--status-ref` приглушённый | `origin/master` |
+| Ветка и её upstream на одном коммите | блок remote `--text-secondary` на `--surface-raised`, `=`, блок ветки — цветом ветки или HEAD | `origin=dev` |
 | Тег | `--status-stash` | `v1.2.0` |
 | Stash | `--status-stash` | `stash@{0}` |
 

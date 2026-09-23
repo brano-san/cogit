@@ -158,6 +158,97 @@ describe("refLabels", () => {
   });
 });
 
+describe("refLabels with the upstream on the same commit", () => {
+  const A = "a".repeat(40);
+  const B = "b".repeat(40);
+  const local = (name: string, oid: string, upstream: string | null): Branch => ({
+    name,
+    fullName: `refs/heads/${name}`,
+    kind: "local",
+    oid,
+    isHead: false,
+    upstream,
+    ahead: 0,
+    behind: 0,
+  });
+  const remote = (name: string, oid: string): Branch => ({
+    name,
+    fullName: `refs/remotes/${name}`,
+    kind: "remote",
+    oid,
+    isHead: false,
+    upstream: null,
+    ahead: 0,
+    behind: 0,
+  });
+  const at = (list: Branch[], oid = A, head: Head | null = null) =>
+    refLabels(list, [], head).get(oid) ?? [];
+
+  it("draws a branch and its upstream as one label", () => {
+    const labels = at([local("feature/x", A, "origin/feature/x"), remote("origin/feature/x", A)]);
+
+    expect(labels).toHaveLength(1);
+    expect(labels[0]).toMatchObject({
+      text: "origin=feature/x",
+      kind: "local",
+      remotes: ["origin"],
+      name: "feature/x",
+    });
+  });
+
+  it("names both refs in the tooltip of the joined label", () => {
+    const [label] = at([local("dev", A, "origin/dev"), remote("origin/dev", A)]);
+
+    expect(label?.title).toBe("dev\norigin/dev");
+  });
+
+  it("keeps two labels once the branch and its upstream have diverged", () => {
+    const list = [local("dev", A, "origin/dev"), remote("origin/dev", B)];
+
+    expect(at(list).map((l) => l.text)).toEqual(["dev"]);
+    expect(at(list, B).map((l) => l.text)).toEqual(["origin/dev"]);
+  });
+
+  it("puts every remote with the same branch on that commit into the one label", () => {
+    const labels = at([
+      remote("upstream/dev", A),
+      local("dev", A, "origin/dev"),
+      remote("origin/dev", A),
+      remote("fork/dev", A),
+    ]);
+
+    expect(labels.map((l) => l.text)).toEqual(["origin,fork,upstream=dev"]);
+    expect(labels[0]?.remotes).toEqual(["origin", "fork", "upstream"]);
+  });
+
+  it("leaves a branch without an upstream apart from a remote namesake", () => {
+    expect(at([local("dev", A, null), remote("origin/dev", A)]).map((l) => l.text)).toEqual([
+      "dev",
+      "origin/dev",
+    ]);
+  });
+
+  it("leaves an upstream of another name as its own label", () => {
+    expect(at([local("main", A, "origin/master"), remote("origin/master", A)]).map((l) => l.text)).toEqual([
+      "main",
+      "origin/master",
+    ]);
+  });
+
+  it("keeps the checked-out branch drawn as HEAD when it is joined", () => {
+    const head: Head = { kind: "branch", name: "main", oid: A };
+    const [label] = at([local("main", A, "origin/main"), remote("origin/main", A)], A, head);
+
+    expect(label).toMatchObject({ kind: "head", text: "origin=main" });
+  });
+
+  it("keeps a remote branch that no local branch joined", () => {
+    const labels = at([local("dev", A, "origin/dev"), remote("origin/dev", A), remote("origin/other", A)]);
+
+    expect(labels.map((l) => l.text)).toEqual(["origin=dev", "origin/other"]);
+  });
+});
+
 describe("relativeDate", () => {
   const NOW = Date.UTC(2026, 0, 15, 12, 0, 0) / 1000;
   const at = (seconds: number) => relativeDate(NOW - seconds, 0, NOW);
