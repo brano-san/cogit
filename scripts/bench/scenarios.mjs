@@ -225,7 +225,7 @@ export const SCENARIOS = [
   {
     id: "changes.stage-all",
     group: "Изменения",
-    title: "stage всех (≈1 500 файлов)",
+    title: "stage всех (2 003 файла)",
     sets: ["dirty"],
     runs: 6,
     prep: workingTree,
@@ -235,7 +235,7 @@ export const SCENARIOS = [
   {
     id: "changes.unstage-all",
     group: "Изменения",
-    title: "unstage всех (≈1 500 файлов)",
+    title: "unstage всех (2 003 файла)",
     sets: ["dirty"],
     runs: 6,
     async prep(ctx) {
