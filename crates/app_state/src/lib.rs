@@ -11,6 +11,7 @@ pub mod logging;
 mod network;
 mod presets;
 mod queue;
+mod ref_ops;
 mod safety;
 pub mod settings;
 pub mod terminal;
