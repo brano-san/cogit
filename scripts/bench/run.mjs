@@ -356,12 +356,17 @@ async function exitApp(app) {
   await stop(app);
 }
 
+const errorsIn = (set, condition) =>
+  [...results.values()].filter((r) => r.set === set && r.condition === condition).reduce((n, r) => n + r.errors.length, 0);
+
 async function coldPass(set) {
   const list = applicable(set);
   if (list.length === 0) return;
+  let before = errorsIn(set, "cold");
   for (let run = 0; run < WARMUP + COLD; run += 1) {
-    // Cold samples are independent: each starts from the generated repository.
-    if (!args.has("keep-repos") && run > 0) await rebuild([set]);
+    // The repository is rebuilt only when the run before left it in doubt.
+    if (!args.has("keep-repos") && run > 0 && errorsIn(set, "cold") > before) await rebuild([set]);
+    before = errorsIn(set, "cold");
     await resetProfile();
     let app;
     try {

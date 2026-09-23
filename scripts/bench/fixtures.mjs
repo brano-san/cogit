@@ -1,7 +1,7 @@
 // Benchmark repositories, deterministic (doc/15-benchmark.md): node scripts/bench/fixtures.mjs [--only small,large]
 
 import { spawn } from "node:child_process";
-import { mkdir, rm, writeFile, readFile } from "node:fs/promises";
+import { mkdir, rm, writeFile, readFile, readdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 
@@ -263,7 +263,21 @@ export async function rebuild(names, root = ROOT) {
       await rm(join(root, "medium-worktree"), { recursive: true, force: true });
     }
     await make(root);
+    await readAll(root, name);
   }
+}
+
+/** A freshly written file is slow to read once (the antivirus sees it); no scenario pays that. */
+async function readAll(root, name) {
+  const dirs = (await readdir(root)).filter((d) => d.startsWith(name) || (name === "submodules" && d === "submodule-upstreams"));
+  const walk = async (dir) => {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) await walk(path);
+      else if (entry.isFile()) await readFile(path);
+    }
+  };
+  for (const dir of dirs) await walk(join(root, dir));
 }
 
 async function main() {
