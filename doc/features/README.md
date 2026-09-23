@@ -272,3 +272,4 @@
 | F-332 | Чередование строк графа | [F-332-graph-row-stripes.md](F-332-graph-row-stripes.md) |
 | F-333 | Состояние репозитория в панели Graph и в Repositories | [F-333-repository-state-in-graph.md](F-333-repository-state-in-graph.md) |
 | F-334 | Метка ветки, взятой в другой worktree | [F-334-worktree-branch-label.md](F-334-worktree-branch-label.md) |
+| F-335 | Четыре темы | [F-335-four-themes.md](F-335-four-themes.md) |
