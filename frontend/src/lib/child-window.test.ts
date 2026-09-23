@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { closesWindow } from "./child-window";
+import { describe, expect, it, vi } from "vitest";
+import { closesWindow, onMenuAction, whenCloses } from "./child-window";
 
 const key = (k: string, mods: { ctrlKey?: boolean; metaKey?: boolean } = {}) => ({
   key: k,
@@ -31,5 +31,55 @@ describe("closesWindow", () => {
   it("leaves everything else alone", () => {
     expect(closesWindow(key("Enter"))).toBe(false);
     expect(closesWindow(key("f", { ctrlKey: true }))).toBe(false);
+  });
+});
+
+describe("whenCloses", () => {
+  it("closes on Ctrl+W straight away: nothing inside the window wants it", () => {
+    expect(whenCloses(key("w", { ctrlKey: true }))).toBe("now");
+  });
+
+  it("lets an open find bar take Escape first", () => {
+    expect(whenCloses(key("Escape"))).toBe("unless-handled");
+  });
+
+  it("has nothing to do with other keys", () => {
+    expect(whenCloses(key("Tab"))).toBeNull();
+    expect(whenCloses(key("F6"))).toBeNull();
+  });
+});
+
+describe("onMenuAction", () => {
+  const menu = (detail: unknown) => new CustomEvent("cogit-menu", { detail });
+
+  it("hands over the action Rust dispatched into this window", () => {
+    const target = new EventTarget();
+    const handler = vi.fn();
+    onMenuAction(target, handler);
+
+    target.dispatchEvent(menu("refresh"));
+
+    expect(handler).toHaveBeenCalledWith("refresh");
+  });
+
+  it("ignores an event that carries no action", () => {
+    const target = new EventTarget();
+    const handler = vi.fn();
+    onMenuAction(target, handler);
+
+    target.dispatchEvent(menu(42));
+
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("stops listening when undone", () => {
+    const target = new EventTarget();
+    const handler = vi.fn();
+    const stop = onMenuAction(target, handler);
+
+    stop();
+    target.dispatchEvent(menu("refresh"));
+
+    expect(handler).not.toHaveBeenCalled();
   });
 });

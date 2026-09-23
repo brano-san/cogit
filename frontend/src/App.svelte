@@ -59,7 +59,9 @@
   import { commitScope } from "$lib/commit-scope";
   import { activity, applyOperation } from "$lib/operations";
   import { measurer } from "$lib/timing";
-  import { commitMenu, fileMenu, refMenu, repoMenu } from "$lib/context-menu";
+  import { fileMenu, refMenu, repoMenu } from "$lib/context-menu";
+  import RefActions from "$components/menus/RefActions.svelte";
+  import { compareView } from "$stores/compare-view.svelte";
   import { compareUrl } from "$lib/compare-params";
   import { dropActions, type DropAction, type DragPayload } from "$lib/drop-target";
   import { moveEntry } from "$lib/rebase-plan";
@@ -74,15 +76,9 @@
   import {
     checkout,
     CogitError,
-    deleteBranch,
-    deleteRemoteBranch,
-    renameBranch,
-    setUpstream,
     abortOperation,
     continueOperation,
     createBranch,
-    createTag,
-    deleteTag,
     getAppInfo,
     openThirdPartyLicences,
     addToGitignore,
@@ -129,7 +125,7 @@
     type RepoId,
     type Tag,
   } from "$lib/ipc";
-  import { blame } from "$stores/blame.svelte";
+  import { openBlame } from "$lib/blame-window";
   import { commit } from "$stores/commit.svelte";
   import { conflicts } from "$stores/conflicts.svelte";
   import { worktree } from "$stores/worktree.svelte";
@@ -289,7 +285,10 @@
       caller down. */
   // D4: leaving a commit drops the file that was open in it, so the tick in Files and the
   // panel beside it always agree (doc/12-risks.md, R-138).
-  commit.onchange = () => diff.clear();
+  commit.onchange = () => {
+    diff.clear();
+    compareView.clear();
+  };
 
   $effect(() => {
     untrack(() => {
@@ -368,7 +367,6 @@
   $effect(() => {
     void commit.oid;
     diff.clear();
-    blame.clear();
   });
 
   /** The id, not the object: a status refresh replaces `repository.current`, and reading
@@ -386,7 +384,6 @@
   $effect(() => errors.report(commit.error, "Could not load the commit"));
   $effect(() => errors.report(diff.error, "Could not show the diff"));
   $effect(() => errors.report(graph.error, "Could not load the graph"));
-  $effect(() => errors.report(blame.error, "Could not load blame"));
   $effect(() => errors.report(hooks.error, "Could not read the hooks"));
 
   /** One place after every mutation: the reactive version fired on each loading toggle. */
@@ -462,6 +459,7 @@
     staged: worktree.staged.map((file) => file.path),
     commit: commit.oid,
     head: headOid,
+    branch: repo?.head.kind === "branch",
     merged: toolbar.merged,
     stashes: stashes.entries.length,
     undo: safety.last !== undefined,
@@ -501,7 +499,7 @@
         unavailable: noRepo ?? (markedFiles.length > 0 ? undefined : "No file is ticked"),
         run: stashSelected,
       },
-      { id: "tag", title: "Create Tag", unavailable: noRepo, run: () => void tagHead() },
+      { id: "tag", title: "Create Tag", unavailable: noRepo, run: () => void refActions?.addTag(null) },
       { id: "commit", title: "Commit Staged", unavailable: noRepo ?? nothingStaged, run: () => {} },
       {
         id: "undo",
@@ -1152,23 +1150,6 @@
     return true;
   }
 
-  async function removeBranch(branch: Branch) {
-    const id = repository.current?.repo;
-    if (!id) return;
-    const confirmed = await ask(`Delete branch ${branch.name}?`, {
-      title: "Delete branch",
-      kind: "warning",
-    });
-    if (!confirmed) return;
-    try {
-      await deleteBranch(id, branch.name, false);
-    } catch (err) {
-      errors.report(err, "Could not delete the branch");
-      return;
-    }
-    await afterRefChange();
-  }
-
   async function undo() {
     const id = repository.current?.repo;
     if (!id) return;
@@ -1185,7 +1166,9 @@
     const id = repository.current?.repo;
     const path = diff.path;
     if (!id || !path) return;
-    await blame.show(id, path, commit.oid ?? "HEAD");
+    await openBlame(id, path, commit.oid ?? "HEAD").catch((err) =>
+      errors.report(err, "Could not open blame"),
+    );
   }
 
   async function stageLines(selected: ReadonlySet<string>, reverse: boolean) {
@@ -1359,35 +1342,6 @@
     await afterRefChange();
   }
 
-  async function rebaseOntoBranch(branch: Branch) {
-    const id = repository.current?.repo;
-    if (!id) return;
-    try {
-      await rebaseOnto(id, { onto: branch.name, autostash: true });
-    } catch (err) {
-      errors.report(err, "Could not rebase");
-    }
-    await afterRefChange();
-  }
-
-  async function mergeBranch(branch: Branch) {
-    const id = repository.current?.repo;
-    if (!id) return;
-    try {
-      await mergeInto(id, {
-        source: branch.name,
-        noFastForward: false,
-        squash: false,
-        message: null,
-      });
-    } catch (err) {
-      errors.report(err, "Could not merge");
-      await afterRefChange();
-      return;
-    }
-    await afterRefChange();
-  }
-
   /** Toolbar Merge and Rebase act on the selection in Graph or Branches (task #31). */
   async function mergeSelected() {
     const id = repository.current?.repo;
@@ -1488,43 +1442,6 @@
     await afterRefChange();
   }
 
-  async function tagHead() {
-    const id = repository.current?.repo;
-    if (!id) return;
-    const name = window.prompt("Tag name for the current commit:");
-    if (!name) return;
-    const message = window.prompt("Message (leave empty for a lightweight tag):", "");
-    try {
-      await createTag(id, {
-        name,
-        target: null,
-        message: message ? message : null,
-        force: false,
-      });
-    } catch (err) {
-      errors.report(err, "Could not create the tag");
-      return;
-    }
-    await afterRefChange();
-  }
-
-  async function removeTag(tag: Tag) {
-    const id = repository.current?.repo;
-    if (!id) return;
-    const confirmed = await ask(`Delete tag ${tag.name}? Undo can bring it back.`, {
-      title: "Delete tag",
-      kind: "warning",
-    });
-    if (!confirmed) return;
-    try {
-      await deleteTag(id, tag.name);
-    } catch (err) {
-      errors.report(err, "Could not delete the tag");
-      return;
-    }
-    await afterRefChange();
-  }
-
   async function checkoutTag(tag: Tag) {
     const id = repository.current?.repo;
     if (!id) return;
@@ -1582,17 +1499,6 @@
       return;
     }
     await afterRefChange();
-  }
-
-  async function dropStash(index: number) {
-    const id = repository.current?.repo;
-    if (!id) return;
-    const confirmed = await ask(`Drop stash@{${index}}? Undo can bring it back.`, {
-      title: "Drop stash",
-      kind: "warning",
-    });
-    if (!confirmed) return;
-    await mutate((repo) => stashes.drop(repo, index));
   }
 
   async function runBannerAction(action: BannerAction) {
@@ -1668,7 +1574,6 @@
   function forgetPanelsKeepingTheTree(keepWorktrees = false) {
     commit.clear();
     diff.clear();
-    blame.clear();
     worktree.clear();
     stashes.clear();
     network.clear();
@@ -1916,14 +1821,14 @@
   async function commitContext(oid: string, x: number, y: number) {
     const id = repository.current?.repo;
     if (!id) return;
-    const onRemote = await isPublished(id, oid).catch(() => false);
     void learnProtection(oid);
-    await popupContextMenu(commitMenu({ onRemote }), x, y).catch(() => {});
+    await refActions?.commitContext(oid, x, y);
   }
 
   /** The chosen item comes back through the same `menu-command` event as the menu bar,
       so the node it was opened on has to be remembered until then. */
   let refTarget = $state.raw<RefNode | null>(null);
+  let refActions = $state<ReturnType<typeof RefActions>>();
   let fileTarget = $state.raw<string | null>(null);
   let aboutOpen = $state(false);
   let configEdit = $state.raw<{
@@ -2030,11 +1935,13 @@
     }
   }
 
-  /** Blame of a row that is not the one open in the Diff panel. */
+  /** Blame of any row in Files, in the Blame window like every other entry point. */
   async function blameOne(path: string) {
     const id = repository.current?.repo;
     if (!id) return;
-    await blame.show(id, path, commit.oid ?? "HEAD");
+    await openBlame(id, path, commit.oid ?? "HEAD").catch((err) =>
+      errors.report(err, "Could not open blame"),
+    );
   }
 
   async function revealFile(path: string) {
@@ -2047,11 +1954,11 @@
   }
 
   async function refContext(node: RefNode, x: number, y: number) {
-    const items = refMenu({
-      kind: node.kind,
-      isHead: node.branch?.isHead ?? false,
-      hasUpstream: node.branch?.upstream !== null && node.branch?.upstream !== undefined,
-    });
+    if (refActions?.claims(node)) {
+      await refActions.branchesContext(node, x, y);
+      return;
+    }
+    const items = refMenu({ kind: node.kind });
     if (items.length === 0) return;
     refTarget = node;
     await popupContextMenu(items, x, y).catch(() => {});
@@ -2065,58 +1972,6 @@
     if (/[\s~^:?*\[\\]/.test(trimmed)) return "A branch name cannot contain spaces or ~^:?*[\\.";
     if (trimmed.startsWith("-") || trimmed.endsWith(".lock")) return "Git will refuse that name.";
     return null;
-  }
-
-  async function askRename(branch: Branch) {
-    const id = repo?.repo;
-    if (!id) return;
-    const name = await prompt.ask({
-      title: `Rename ${branch.name}`,
-      label: "New name",
-      value: branch.name,
-      confirm: "Rename",
-    });
-    if (name === null) return;
-    await renameBranch(id, branch.name, name, false)
-      .then(() => repository.refresh())
-      .then(() => afterMutation())
-      .catch((err) => errors.report(err, "Could not rename the branch"));
-  }
-
-  async function askUpstream(branch: Branch) {
-    const id = repo?.repo;
-    if (!id) return;
-    const choices = repository.remoteBranches.map((entry) => entry.name);
-    if (choices.length === 0) {
-      errors.message("No remote branch to track.", "Could not set the upstream");
-      return;
-    }
-    const upstream = await prompt.ask({
-      title: `Upstream for ${branch.name}`,
-      label: "Track",
-      value: branch.upstream ?? choices[0] ?? "",
-      choices,
-      confirm: "Set",
-    });
-    if (upstream === null) return;
-    await setUpstream(id, branch.name, upstream)
-      .then(() => repository.refresh())
-      .catch((err) => errors.report(err, "Could not set the upstream"));
-  }
-
-  async function confirmDeleteRemote(branch: Branch) {
-    const id = repo?.repo;
-    if (!id) return;
-    const remote = branch.name.split("/")[0] ?? "origin";
-    const confirmed = await ask(
-      `Delete ${branch.name} on ${remote}? This runs on the server and Undo cannot reach it.`,
-      { title: "Delete remote branch", kind: "warning" },
-    );
-    if (!confirmed) return;
-    await deleteRemoteBranch(id, remote, branch.name).catch((err) =>
-      errors.report(err, "Could not delete the remote branch"),
-    );
-    await repository.refresh();
   }
 
   /** One failure must not stop the rest: the point of Fetch All is not doing it by hand. */
@@ -2441,51 +2296,8 @@
   function runRefCommand(id: string): boolean {
     const node = refTarget;
     if (!node) return false;
-    const branch = node.branch;
 
     switch (id) {
-      case "checkout":
-        if (branch) void switchTo(branch);
-        return true;
-      case "delete-branch":
-        if (branch) void removeBranch(branch);
-        return true;
-      case "rename-branch":
-        if (branch) askRename(branch);
-        return true;
-      case "set-upstream":
-        if (branch) askUpstream(branch);
-        return true;
-      case "clear-upstream":
-        if (branch && repo) {
-          void setUpstream(repo.repo, branch.name, null)
-            .then(() => repository.refresh())
-            .catch((err) => errors.report(err, "Could not clear the upstream"));
-        }
-        return true;
-      case "delete-remote-branch":
-        if (branch) void confirmDeleteRemote(branch);
-        return true;
-      case "merge-branch":
-        if (branch) void mergeBranch(branch);
-        return true;
-      case "rebase-branch":
-        if (branch) void rebaseOntoBranch(branch);
-        return true;
-      case "checkout-tag":
-      case "delete-tag": {
-        const tag = node.tag;
-        if (tag) void (id === "checkout-tag" ? checkoutTag(tag) : removeTag(tag));
-        return true;
-      }
-      case "apply-stash":
-      case "pop-stash":
-      case "drop-stash": {
-        const index = Number(node.id.slice("stash:".length));
-        if (id === "drop-stash") void dropStash(index);
-        else void applyStash(index, id === "pop-stash");
-        return true;
-      }
       case "restore-lost": {
         const found = recovery.lost.find((row) => row.oid === node.oid);
         if (found) void recoverCommit(found);
@@ -2634,7 +2446,6 @@
     if (!id) return;
     commit.clear();
     diff.clear();
-    blame.clear();
     health.clear();
     await repository.closeOne(id);
   }
@@ -2746,6 +2557,7 @@
 
   $effect(() => {
     const pending = onMenuCommand((id) => {
+      if (refActions?.run(id)) return;
       if (runGroupCommand(id)) return;
       if (runRepoCommand(id)) return;
       if (runFileCommand(id)) return;
@@ -2770,7 +2582,6 @@
         avatarRows: avatars.rows.size,
         overlapRows: overlap.rows.size,
         diffHunks: diff.hunks.length,
-        blameLines: blame.lines.length,
         commitFiles: commit.files.length,
         outputEntries: output.entries.length,
         openRepos: repository.openRepos.length,
@@ -2819,7 +2630,8 @@
           "stash-selection": () => void stashSelected(),
           "quick-stash-all": () => void quickStashAll(),
           "quick-stash-selection": () => void stashSelected(false),
-          tag: tagHead,
+          tag: () => void refActions?.addTag(null),
+          "push-to": () => refActions?.pushToCurrent(),
           pull: () => void pullNow(),
           push: () => void runNetwork("push"),
           sync: () => void syncNow(),
@@ -3052,6 +2864,8 @@
               {banner}
               busy={repository.busy}
               onbanneraction={runBannerAction}
+              onworktreecontext={(x, y) => void refActions?.worktreeContext(x, y)}
+              onrefcontext={(label, oid, x, y) => void refActions?.labelContext(label, oid, x, y)}
             />
           </Panel>
         </div>
@@ -3185,10 +2999,6 @@
               const id = repository.current?.repo;
               if (id) void conflicts.write(id, text).then(() => afterMutation());
             }}
-            onselectcommit={(oid) => {
-              const id = repository.current?.repo;
-              if (id) void commit.select(id, oid);
-            }}
           >
             {#snippet fallback()}
               <CommitDetailsPane
@@ -3253,6 +3063,16 @@
       onclose={() => (rebaseOpen = false)}
     />
   {/if}
+
+  <RefActions
+    bind:this={refActions}
+    {afterRefChange}
+    afterMutation={() => afterMutation()}
+    {reloadGraph}
+    checkoutBranch={switchTo}
+    {openSplit}
+    {openRebase}
+  />
 
   {#if splitOpen && commit.oid}
     <SplitOffDialog

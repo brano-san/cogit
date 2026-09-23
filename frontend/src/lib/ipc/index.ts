@@ -94,6 +94,7 @@ export type {
   Segment,
   Span,
   LineEnding,
+  LineVersion,
   MergeOptions,
   MergeResolved,
   OperationChanged,
@@ -462,6 +463,19 @@ export async function blameFile(repo: RepoId, path: string, rev: string) {
   return unwrap(await commands.blame(repo, path, rev));
 }
 
+/** `rev` may be any revision; the window is titled with the commit it resolves to. */
+export async function openBlameWindow(repo: RepoId, path: string, rev: string) {
+  return unwrap(await commands.openBlameWindow(repo, path, rev));
+}
+
+export async function fileRevisions(repo: RepoId, path: string, rev: string) {
+  return unwrap(await commands.fileRevisions(repo, path, rev));
+}
+
+export async function lineHistory(repo: RepoId, path: string, rev: string, line: number) {
+  return unwrap(await commands.lineHistory(repo, path, rev, line));
+}
+
 export async function stageSelection(repo: RepoId, request: PatchRequest, reverse: boolean) {
   return unwrap(await commands.stageSelection(repo, request, reverse));
 }
@@ -622,7 +636,7 @@ export async function clearCommandLog() {
   await commands.clearCommandLog();
 }
 
-function unwrap<T>(result: { status: "ok"; data: T } | { status: "error"; error: GitError }): T {
+export function unwrap<T>(result: { status: "ok"; data: T } | { status: "error"; error: GitError }): T {
   if (result.status === "error") {
     throw new CogitError(result.error);
   }

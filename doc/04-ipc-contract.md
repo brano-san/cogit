@@ -121,6 +121,30 @@ URL, чтобы окно пережило перезагрузку вебвью.
 `merge_resolved`, а тот шлёт событие `merge-resolved` всем окнам; главное закрывает
 панель конфликта и перечитывает состояние.
 
+### Окно Blame (M8, M2)
+
+| Команда | Вход | Выход | Модуль |
+|---|---|---|---|
+| `blame` | `repo, path, rev` | `Vec<BlameLine>` | M8 |
+| `open_blame_window` | `repo, path, rev` — любая ревизия, `HEAD` тоже | `()` | M2 |
+| `file_revisions` | `repo, path, rev` | `Vec<CommitRow>` — коммиты до `rev`, менявшие файл, новые сверху; не больше 500 | M8 |
+| `line_history` | `repo, path, rev, line` — строка с 1 | `Vec<LineVersion { oid, summary, author, email, timestamp, path, line, text }>`, новые сверху; не больше 200 | M8 |
+
+Blame открывается только отдельным окном (`blame.html`). `open_blame_window` сам разрешает
+`rev` в коммит: заголовок окна — `<файл> - Blame of <путь>@<короткий хеш>`, в URL уходит
+полный хеш, так что окно после перезагрузки вебвью показывает ту же версию.
+
+`line_history` — история одной строки: коммиты, менявшие её, и сама строка в каждой версии
+(`text`, номер `line`, путь `path` на момент коммита — он меняется при переименовании). Идёт
+через `git log -L`, как `investigate` ([R-202](12-risks.md)). `file_revisions` — список
+версий для `View Commit` и `Highlight: Changes Since`, обход через `gix` без следования за
+переименованием.
+
+У окна своё меню. Id его пунктов — `child:<метка окна>:<действие>`; обработчик меню
+приложения узнаёт их по префиксу и не шлёт в `menu-command`. `close` закрывает окно в Rust,
+остальные действия доходят только до этого окна DOM-событием `cogit-menu` (`detail` —
+действие).
+
 ### Аватары (M14)
 
 | Команда | Вход | Выход | Модуль |
@@ -429,9 +453,15 @@ type SearchChunk =
 `stage_mode` перерегистрирует запись индекса через `update-index --cacheinfo` с тем же
 блобом: `--chmod` перечитал бы файл и затянул в индекс ещё и правки содержимого.
 
-Обе последние — **синхронные** команды: на Windows и меню, и создание окна обязаны
-выполняться в главном потоке. Выбранный пункт контекстного меню возвращается тем же
-событием `menu-command`, что и строка меню.
+`popup_context_menu` — **синхронная** команда: меню на Windows показывается из главного
+потока. Выбранный пункт контекстного меню возвращается тем же событием `menu-command`, что
+и строка меню.
+
+Команды окон (`open_compare_window`, `open_merge_window`, `open_blame_window`,
+`close_this_window`) — наоборот, **только асинхронные**: синхронная команда выполняется
+внутри обработчика WebView2, и `WebviewWindowBuilder::build()` там навсегда блокирует все
+окна ([R-201](12-risks.md#r-201--дочернее-окно-чёрное-окно-и-зависшее-главное-8--в)).
+Tauri сам переносит создание окна на главный поток.
 
 `interactive_rebase` принимает `paused`: план дописывается строками `break` после каждого
 применённого коммита. `overlap_window` считается только по видимому окну и фанится
@@ -445,6 +475,31 @@ type SearchChunk =
 
 Токен **никогда** не возвращается наружу: `has_token` отвечает только «есть или нет»,
 чтобы секрет не попадал в webview.
+
+### Контекстные меню графа и Branches
+
+Команды живут в `src-tauri/src/commands/ref_ops.rs`, логика — в `git_engine`
+(`reset.rs`, `tags.rs`, `stash_rename.rs`, `interactive.rs`).
+
+| Команда | Вход | Выход | Модуль |
+|---|---|---|---|
+| `reset_to` | `repo, rev, mode: soft\|mixed\|hard\|keep\|merge` | `()` | M5 |
+| `is_ancestor` | `repo, ancestor, descendant` | `bool` | M4 |
+| `compare_files` | `repo, from, to` | `Vec<FileEntry>` | M5 |
+| `tag_name_problem` | `repo, name` | `Option<String>` | M5 |
+| `tag_message` | `repo, name` | `Option<String>` | M5 |
+| `rename_tag` | `repo, from, to` | `()` | M5 |
+| `rename_stash` | `repo, index, message` | `()` | M5 |
+| `edit_author` | `repo, rev, name, email` | `()` | M12 |
+| `push_to` | `repo, remote, refspec, onProgress: Channel<String>` | `()` | M1 |
+
+`reset_to` с `hard` на грязном дереве сначала кладёт отслеживаемые правки в stash и
+пишет его в журнал безопасности — Undo возвращает их. `tag_name_problem` зовёт
+`git check-ref-format refs/tags/<имя>` один раз при подтверждении диалога, не на каждую
+букву, и мимо журнала команд: отказ — это ответ, а не упавшая команда, окно ошибки Git он
+не открывает. `rename_stash` сохраняет порядок списка (R-252), `edit_author` — rebase с `exec
+git commit --amend --author`, как `reword`. `push_to` — один refspec: Push To, Push Up To
+и push ветки или тега, которые не HEAD.
 
 ## 5. Стриминг истории
 
