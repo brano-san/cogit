@@ -227,7 +227,10 @@
     const repo = repository.current?.repo;
     if (!repo) return;
     const commitRow = toCommitRow(hit.row, headerRows);
-    void pick(repo, commitRow === null ? null : (graph.rowAt(commitRow)?.commit.oid ?? null));
+    const oid = commitRow === null ? null : (graph.rowAt(commitRow)?.commit.oid ?? null);
+    // Clicking the selected commit again brings its details back into Diff (#7).
+    if (oid !== null && oid === selection.oid) selection.showDetails();
+    else void pick(repo, oid);
   }
 
   $effect(() => {
