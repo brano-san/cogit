@@ -270,3 +270,4 @@
 | F-370 | Поиск по содержимому файлов | [F-370-file-content-search.md](F-370-file-content-search.md) |
 | F-371 | Переключатели Files в коммите из истории | [F-371-commit-file-switches.md](F-371-commit-file-switches.md) |
 | F-372 | Повторный клик по коммиту возвращает его описание | [F-372-reclick-commit-shows-details.md](F-372-reclick-commit-shows-details.md) |
+| F-373 | Поиск по diff без совпадений | [F-373-diff-find-no-matches.md](F-373-diff-find-no-matches.md) |
