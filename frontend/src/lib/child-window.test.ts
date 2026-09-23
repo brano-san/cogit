@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { closesWindow } from "./child-window";
+import { closesWindow, whenCloses } from "./child-window";
 
 const key = (k: string, mods: { ctrlKey?: boolean; metaKey?: boolean } = {}) => ({
   key: k,
@@ -31,5 +31,20 @@ describe("closesWindow", () => {
   it("leaves everything else alone", () => {
     expect(closesWindow(key("Enter"))).toBe(false);
     expect(closesWindow(key("f", { ctrlKey: true }))).toBe(false);
+  });
+});
+
+describe("whenCloses", () => {
+  it("closes on Ctrl+W straight away: nothing inside the window wants it", () => {
+    expect(whenCloses(key("w", { ctrlKey: true }))).toBe("now");
+  });
+
+  it("lets an open find bar take Escape first", () => {
+    expect(whenCloses(key("Escape"))).toBe("unless-handled");
+  });
+
+  it("has nothing to do with other keys", () => {
+    expect(whenCloses(key("Tab"))).toBeNull();
+    expect(whenCloses(key("F6"))).toBeNull();
   });
 });
