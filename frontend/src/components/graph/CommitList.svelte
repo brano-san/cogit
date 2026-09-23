@@ -29,6 +29,7 @@
   import { graph } from "$stores/graph.svelte";
   import { repository } from "$stores/repository.svelte";
   import { stashes } from "$stores/stashes.svelte";
+  import { worktrees } from "$stores/worktrees.svelte";
 
   interface Props {
     /** Rows of this list, not a block above it: a rebase in flight is part of the history
@@ -118,7 +119,7 @@
       repository.current?.branches ?? [],
       repository.current?.tags ?? [],
       repository.current?.head,
-      { stashes: stashes.entries },
+      { stashes: stashes.entries, worktrees: worktrees.entries },
     ),
   );
   const stashOids = $derived(new Set(stashes.entries.map((entry) => entry.oid)));

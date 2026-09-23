@@ -12,7 +12,7 @@ import {
   type RefLabel,
 } from "./format";
 import type { Tag } from "./ipc";
-import type { Branch, Head } from "./ipc";
+import type { Branch, Head, WorktreeEntry } from "./ipc";
 
 function branch(name: string, kind: Branch["kind"], isHead = false): Branch {
   return {
@@ -264,6 +264,47 @@ describe("refLabels for stashes", () => {
     const labels = refLabels([], [tag], null, { stashes: [stash(2, S, "wip")] }).get(S) ?? [];
 
     expect(labels.map((l) => l.kind)).toEqual(["tag", "stash"]);
+  });
+});
+
+describe("refLabels for branches held by worktrees", () => {
+  const A = "a".repeat(40);
+  const dev: Branch = {
+    name: "dev",
+    fullName: "refs/heads/dev",
+    kind: "local",
+    oid: A,
+    isHead: false,
+    upstream: null,
+    ahead: 0,
+    behind: 0,
+  };
+  const tree = (over: Partial<WorktreeEntry>): WorktreeEntry => ({
+    path: "C:/work/dev",
+    name: "dev",
+    branch: "dev",
+    head: A,
+    isMain: false,
+    isCurrent: false,
+    locked: null,
+    missing: false,
+    dirty: false,
+    ...over,
+  });
+  const label = (entry: WorktreeEntry) => refLabels([dev], [], null, { worktrees: [entry] }).get(A)?.[0];
+
+  it("marks a branch checked out in another worktree with where it is and how it stands", () => {
+    expect(label(tree({ dirty: true }))).toMatchObject({
+      text: "dev",
+      worktree: { path: "C:/work/dev", state: "modified" },
+      title: "dev\nChecked out in worktree C:/work/dev (modified)",
+    });
+    expect(label(tree({}))?.worktree?.state).toBe("clean");
+    expect(label(tree({ missing: true }))?.worktree?.state).toBe("missing");
+  });
+
+  it("leaves unmarked the branch of the worktree the panels show", () => {
+    expect(label(tree({ isCurrent: true }))?.worktree).toBeUndefined();
   });
 });
 
