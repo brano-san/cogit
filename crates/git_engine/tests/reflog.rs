@@ -1,7 +1,7 @@
 // clippy.toml's allow-unwrap-in-tests does not reach helpers beside `#[test]` fns.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use git_engine::RepoHandle;
+use git_engine::{Reachable, RepoHandle};
 
 fn open(f: &test_fixtures::Fixture) -> RepoHandle {
     RepoHandle::open(f.path()).unwrap()
@@ -110,4 +110,81 @@ fn a_lost_commit_keeps_its_summary_so_it_can_be_recognised() {
     let commits = repo.lost_commits(50).unwrap();
 
     assert_eq!(commits[0].summary, "commit 2");
+}
+
+fn lost(repo: &RepoHandle, cache: &mut Reachable) -> Vec<String> {
+    repo.lost_commits_with(50, cache)
+        .unwrap()
+        .into_iter()
+        .map(|c| c.oid)
+        .collect()
+}
+
+#[test]
+fn a_warm_cache_answers_like_a_fresh_count_after_a_new_commit() {
+    let f = test_fixtures::linear(3).unwrap();
+    let dropped = f.oid("HEAD").unwrap();
+    f.git(&["reset", "--hard", "HEAD~1"]).unwrap();
+    let mut cache = Reachable::default();
+    assert!(lost(&open(&f), &mut cache).contains(&dropped));
+
+    f.commit_file(10, "new.txt", "new\n").unwrap();
+
+    let repo = open(&f);
+    let fresh: Vec<String> = repo
+        .lost_commits(50)
+        .unwrap()
+        .into_iter()
+        .map(|c| c.oid)
+        .collect();
+    assert_eq!(lost(&repo, &mut cache), fresh);
+    assert_eq!(
+        cache.recounts(),
+        1,
+        "a commit on top is counted from the new tip alone"
+    );
+}
+
+#[test]
+fn a_branch_put_on_a_lost_commit_finds_it_through_a_warm_cache() {
+    let f = test_fixtures::linear(3).unwrap();
+    let dropped = f.oid("HEAD").unwrap();
+    f.git(&["reset", "--hard", "HEAD~1"]).unwrap();
+    let mut cache = Reachable::default();
+    assert!(lost(&open(&f), &mut cache).contains(&dropped));
+
+    f.git(&["branch", "rescue", &dropped]).unwrap();
+
+    assert!(!lost(&open(&f), &mut cache).contains(&dropped));
+}
+
+#[test]
+fn deleting_the_only_branch_to_a_commit_loses_it_through_a_warm_cache() {
+    let f = test_fixtures::linear(2).unwrap();
+    f.git(&["switch", "-c", "side"]).unwrap();
+    f.commit_file(10, "side.txt", "side\n").unwrap();
+    let side = f.oid("HEAD").unwrap();
+    f.git(&["switch", "main"]).unwrap();
+    let mut cache = Reachable::default();
+    assert!(!lost(&open(&f), &mut cache).contains(&side));
+
+    f.git(&["branch", "-D", "side"]).unwrap();
+
+    assert!(lost(&open(&f), &mut cache).contains(&side));
+    assert_eq!(
+        cache.recounts(),
+        2,
+        "a vanished tip can shrink the set, so it is recounted"
+    );
+}
+
+#[test]
+fn an_unchanged_repository_is_answered_without_counting_again() {
+    let f = test_fixtures::linear(3).unwrap();
+    let mut cache = Reachable::default();
+
+    lost(&open(&f), &mut cache);
+    lost(&open(&f), &mut cache);
+
+    assert_eq!(cache.recounts(), 1);
 }
