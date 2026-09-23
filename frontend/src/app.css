@@ -15,6 +15,8 @@
   --c-bg-active: #242b38;
   --c-bg-inset: #0c0e12;
   --c-bg-chrome: #121418;
+  /* Every second row of a long list, over the panel: barely there, as SmartGit draws it. */
+  --c-row-stripe: rgba(255, 255, 255, 0.03);
 
   /* ---- primitives: borders ---- */
   --c-border: #262b35;
@@ -34,12 +36,14 @@
   --c-deleted: #ef4444;
   --c-branch: #38bdf8;
   --c-stash: #a855f7;
+  --c-tag: #eab308;
 
   --c-added-bg: rgba(34, 197, 94, 0.12);
   --c-modified-bg: rgba(245, 158, 11, 0.12);
   --c-deleted-bg: rgba(239, 68, 68, 0.12);
   --c-branch-bg: rgba(56, 189, 248, 0.12);
   --c-stash-bg: rgba(168, 85, 247, 0.12);
+  --c-tag-bg: rgba(234, 179, 8, 0.12);
 
   /* ---- primitives: graph lanes (distinguishable under common colour blindness) ---- */
   --c-lane-1: #38bdf8;
@@ -58,6 +62,7 @@
   --surface-input: var(--c-bg-inset);
   --state-hover: var(--c-bg-hover);
   --state-selected: var(--c-bg-active);
+  --row-stripe: var(--c-row-stripe);
   --state-focus-ring: var(--c-branch);
 
   --divider: var(--c-border);
@@ -85,6 +90,7 @@
   --graph-main: var(--text-primary);
   --graph-line: var(--text-secondary);
   --status-stash: var(--c-stash);
+  --status-tag: var(--c-tag);
 
   /* ---- typography ---- */
   --font-ui: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -161,8 +167,10 @@
   --ease-out: cubic-bezier(0.2, 0, 0, 1);
 }
 
-/* Only the primitives change: every component reads the semantic layer above. */
-:root[data-theme="light"] {
+/* Only the primitives change: every component reads the semantic layer above. Light grey
+   starts from light and darkens the surfaces; dark grey starts from dark and lightens them. */
+:root[data-theme="light"],
+:root[data-theme="lightGrey"] {
   --c-bg-window: #ffffff;
   --c-bg-panel: #f6f8fa;
   --c-bg-elevated: #eef1f5;
@@ -170,6 +178,7 @@
   --c-bg-active: #dde3ea;
   --c-bg-inset: #ffffff;
   --c-bg-chrome: #e8eaed;
+  --c-row-stripe: rgba(255, 255, 255, 0.6);
 
   --c-border: #d8dee4;
   --c-border-strong: #bcc4cc;
@@ -186,12 +195,14 @@
   --c-deleted: #cf222e;
   --c-branch: #0969da;
   --c-stash: #8250df;
+  --c-tag: #855d00;
 
   --c-added-bg: rgba(26, 127, 55, 0.1);
   --c-modified-bg: rgba(154, 103, 0, 0.12);
   --c-deleted-bg: rgba(207, 34, 46, 0.1);
   --c-branch-bg: rgba(9, 105, 218, 0.1);
   --c-stash-bg: rgba(130, 80, 223, 0.1);
+  --c-tag-bg: rgba(133, 93, 0, 0.1);
 
   --c-lane-1: #0969da;
   --c-lane-2: #1a7f37;
@@ -212,6 +223,56 @@
   --c-search-hit: rgba(214, 160, 20, 0.3);
   --c-search-current: rgba(214, 160, 20, 0.65);
   --c-search-ink: #1a1a1a;
+}
+
+/* Accents one step darker than light: the grey panel takes contrast away from them. */
+:root[data-theme="lightGrey"] {
+  --c-bg-window: #d9dce1;
+  --c-bg-panel: #e6e8ec;
+  --c-bg-elevated: #dde0e5;
+  --c-bg-hover: #d6dae0;
+  --c-bg-active: #c8cfd8;
+  --c-bg-inset: #f2f3f5;
+  --c-bg-chrome: #d2d5db;
+  --c-row-stripe: rgba(255, 255, 255, 0.35);
+
+  --c-border: #c4c9d0;
+  --c-border-strong: #a9b0b9;
+  --c-border-chrome: #b5bbc3;
+  --splitter-track: #c4c9d0;
+
+  --c-text-muted: #515a65;
+  --c-link: #0858b8;
+
+  --c-added: #16702f;
+  --c-modified: #845800;
+  --c-deleted: #b91c28;
+  --c-branch: #0858b8;
+  --c-stash: #7042c9;
+}
+
+/* Red and violet a step lighter than dark: on a grey panel the dark ones fall below 4.5:1. */
+:root[data-theme="darkGrey"] {
+  --c-bg-window: #25272c;
+  --c-bg-panel: #2d3036;
+  --c-bg-elevated: #33363d;
+  --c-bg-hover: #383c44;
+  --c-bg-active: #414754;
+  --c-bg-inset: #212328;
+  --c-bg-chrome: #282a2f;
+  --c-row-stripe: rgba(255, 255, 255, 0.035);
+
+  --c-border: #3d414a;
+  --c-border-strong: #4b505a;
+  --c-border-chrome: #1b1c20;
+
+  --c-text: #e3e6ea;
+  --c-text-muted: #a0a7b1;
+  --c-text-code: #d6dbe1;
+  --c-text-inverse: #25272c;
+
+  --c-deleted: #f87171;
+  --c-stash: #c084fc;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -292,6 +353,19 @@ a:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The one truncation rule (#5, R-243): everything cuts on the right, and a row gives up its
+   secondary text (URL, path, subject, branch) before its name. The weight makes the first
+   absorb the whole squeeze until it is gone; components set only flex-grow beside these. */
+.shrink-first {
+  min-width: 0;
+  flex-shrink: 100000;
+}
+
+.shrink-last {
+  min-width: 0;
+  flex-shrink: 1;
 }
 
 /* ---- scrollbars ---- */

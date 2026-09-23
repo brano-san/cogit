@@ -96,6 +96,7 @@ export type {
   Segment,
   Span,
   LineEnding,
+  LineVersion,
   MergeOptions,
   MergeResolved,
   OperationChanged,
@@ -109,6 +110,7 @@ export type {
   Region,
   KeyBinding,
   RebaseStep,
+  RefDate,
   ReflogEntry,
   ScanHit,
   ContentMatch,
@@ -488,6 +490,19 @@ export async function blameFile(repo: RepoId, path: string, rev: string) {
   return unwrap(await commands.blame(repo, path, rev));
 }
 
+/** `rev` may be any revision; the window is titled with the commit it resolves to. */
+export async function openBlameWindow(repo: RepoId, path: string, rev: string) {
+  return unwrap(await commands.openBlameWindow(repo, path, rev));
+}
+
+export async function fileRevisions(repo: RepoId, path: string, rev: string) {
+  return unwrap(await commands.fileRevisions(repo, path, rev));
+}
+
+export async function lineHistory(repo: RepoId, path: string, rev: string, line: number) {
+  return unwrap(await commands.lineHistory(repo, path, rev, line));
+}
+
 export async function stageSelection(repo: RepoId, request: PatchRequest, reverse: boolean) {
   return unwrap(await commands.stageSelection(repo, request, reverse));
 }
@@ -566,6 +581,10 @@ export async function mergeInto(repo: RepoId, options: MergeOptions) {
 
 export async function remoteUrl(repo: RepoId, name: string) {
   return unwrap(await commands.remoteUrl(repo, name));
+}
+
+export async function refDates(repo: RepoId) {
+  return unwrap(await commands.refDates(repo));
 }
 
 export async function listRemotes(repo: RepoId) {

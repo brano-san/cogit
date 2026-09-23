@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Blame — Cogit</title>
+    <!-- Before any stylesheet: a window that fails to load its script showed a white
+         page with no explanation, which looks like a hung application (R-111). -->
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        background: #0f1115;
+        color: #c9d1d9;
+        font: 13px/1.5 "Segoe UI", system-ui, sans-serif;
+      }
+      #failed {
+        display: none;
+        padding: 24px;
+        white-space: pre-wrap;
+      }
+      #failed code {
+        color: #f0857d;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="failed">
+      <p>This window could not load.</p>
+      <p><code id="why"></code></p>
+      <p>Press Esc to close it. The full text is in the log: Help ▸ Open Log Folder.</p>
+    </div>
+    <script>
+      window.addEventListener("error", function (event) {
+        var box = document.getElementById("failed");
+        var why = document.getElementById("why");
+        if (!box || !why || box.style.display === "block") return;
+        why.textContent = String(event.message || event.error || "unknown error");
+        box.style.display = "block";
+      });
+      // Esc has to work even when the module that normally handles it never ran, and only
+      // then: once it runs, an open find bar gets Esc before the window does.
+      window.addEventListener("keydown", function (event) {
+        if (event.key !== "Escape" || window.__cogitMounted) return;
+        var tauri = window.__TAURI_INTERNALS__;
+        if (tauri && typeof tauri.invoke === "function") tauri.invoke("close_this_window");
+      });
+    </script>
+    <script type="module" src="/src/blame.ts"></script>
+  </body>
+</html>
