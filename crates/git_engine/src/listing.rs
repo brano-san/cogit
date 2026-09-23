@@ -128,6 +128,29 @@ impl RepoHandle {
         Ok(paths.into_iter().collect())
     }
 
+    /// Every file of `rev`'s tree, sorted: what a commit's file list shows as unchanged.
+    ///
+    /// A submodule is one entry, as in the change list; its contents are another repository.
+    pub fn tree_files(&self, rev: &str) -> Result<Vec<String>> {
+        let tree = self
+            .find_commit(rev)?
+            .tree()
+            .map_err(|err| GitError::Internal(format!("cannot read the tree of {rev}: {err}")))?;
+        let mut recorder = gix::traverse::tree::Recorder::default();
+        tree.traverse()
+            .breadthfirst(&mut recorder)
+            .map_err(|err| GitError::Internal(format!("cannot walk the tree of {rev}: {err}")))?;
+
+        let mut paths: Vec<String> = recorder
+            .records
+            .into_iter()
+            .filter(|entry| !entry.mode.is_tree())
+            .map(|entry| entry.filepath.to_string())
+            .collect();
+        paths.sort();
+        Ok(paths)
+    }
+
     /// Looks inside files for `query`, handing over matches in batches.
     ///
     /// `cancelled` is consulted between files rather than between lines: a file is small

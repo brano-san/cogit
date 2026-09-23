@@ -1413,36 +1413,29 @@
     const id = repository.current?.repo;
     const oid = commit.oid;
     if (!id || !oid) return;
-    if (diff.path === path) {
-      diff.clear();
-      return;
-    }
-    void diff.load(id, { kind: "commitVsParent", oid }, path);
+    const spec = { kind: "commitVsParent", oid } as const;
+    if (diff.shows(spec, path)) return;
+    void diff.load(id, spec, path);
   }
 
   function openStagedDiff(path: string) {
     const id = repository.current?.repo;
     if (!id) return;
-    if (diff.path === path) {
-      diff.clear();
-      return;
-    }
+    if (diff.shows({ kind: "indexVsHead" }, path)) return;
     void diff.load(id, { kind: "indexVsHead" }, path);
   }
 
   function openWorktreeDiff(path: string) {
     const id = repository.current?.repo;
     if (!id) return;
-    if (diff.path === path && !conflicts.paths.includes(path)) {
-      diff.clear();
-      return;
-    }
     // A conflicted file has three sides; a two-sided diff of it says nothing useful.
     if (conflicts.paths.includes(path)) {
       diff.clear();
       void conflicts.open(id, path);
       return;
     }
+    // A second click is not a toggle: it would fight the double-click that opens a window (#7).
+    if (diff.shows({ kind: "workTreeVsIndex" }, path)) return;
     conflicts.close();
     const watch = measure("open-diff");
     void diff.load(id, { kind: "workTreeVsIndex" }, path).then(() => watch.stop(path));

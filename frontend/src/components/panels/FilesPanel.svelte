@@ -1,12 +1,16 @@
 <script lang="ts">
   import FileList from "$components/file-list/FileList.svelte";
+  import { ContentSearch } from "$lib/content-search.svelte";
+  import { withUnchanged } from "$lib/file-switches";
   import type { FileView } from "$lib/file-view";
   import { idleMessage } from "$lib/repo-phase";
   import { commit } from "$stores/commit.svelte";
+  import { commitTree } from "$stores/commit-tree.svelte";
   import { compareView } from "$stores/compare-view.svelte";
   import { diff } from "$stores/diff.svelte";
   import { filesView } from "$stores/files-view.svelte";
   import { layout } from "$stores/layout.svelte";
+  import { repository } from "$stores/repository.svelte";
   import { stashView } from "$stores/stash-view.svelte";
   import { worktree } from "$stores/worktree.svelte";
 
@@ -58,6 +62,21 @@
   }: Props = $props();
 
   const fractions = $derived(layout.fractions);
+  const contents = new ContentSearch(() => repository.current?.repo ?? null);
+
+  /** A commit's whole tree is read only while its Unchanged switch asks for it. */
+  $effect(() => {
+    const id = repository.current?.repo;
+    const oid = commit.oid;
+    if (!onWorkingTree && filesView.commit.unchanged && id && oid) void commitTree.load(id, oid);
+  });
+
+  const commitList = $derived(
+    withUnchanged(
+      commit.files,
+      filesView.commit.unchanged && commitTree.oid === commit.oid ? commitTree.paths : null,
+    ),
+  );
 
   /** Three different nothings, and the panel used to say the same thing for all of them. */
   const nothing = $derived(
@@ -76,6 +95,9 @@
     {@const parts = stashView.contents}
     <FileList
       {activePanel}
+      context="stash"
+      view={{ ...filesView.commit, separateIndex: true }}
+      onview={(next) => filesView.setCommit(next)}
       sections={[
         {
           title: "Working tree",
@@ -96,6 +118,9 @@
   {:else if compareView.showing(commit.oid)}
     <FileList
       {activePanel}
+      context="compare"
+      view={filesView.commit}
+      onview={(next) => filesView.setCommit(next)}
       sections={[
         {
           title: `From ${compareView.from?.slice(0, 7)} to ${compareView.to?.slice(0, 7)}`,
@@ -112,6 +137,7 @@
       {activePanel}
       view={filesView.current}
       onview={onviewchange}
+      {contents}
       split={fractions.filesSplit}
       onsplit={(delta) => layout.nudge("filesSplit", delta)}
       onsplitreset={() => layout.resetOne("filesSplit")}
@@ -125,7 +151,7 @@
             { label: "+x", title: "Stage only the mode change", run: stagemode },
             { label: "Discard", title: "Discard changes", run: discard },
             { label: "Ignore", title: "Add to .gitignore", run: ignore },
-            { label: "Delete", title: "Delete from disk", run: remove },
+            { label: "Delete", title: "Move to the Recycle Bin (the Trash off Windows)", run: remove },
           ],
         },
         {
@@ -146,7 +172,10 @@
   {:else}
     <FileList
       {activePanel}
-      sections={[{ files: commit.files }]}
+      context="commit"
+      view={filesView.commit}
+      onview={(next) => filesView.setCommit(next)}
+      sections={[{ files: commitList }]}
       empty={nothing}
       selected={diff.path}
       onselect={onopencommit}

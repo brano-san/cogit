@@ -129,4 +129,42 @@ describe("DiffSearch", () => {
     expect(find.at).toBe(0);
     expect(find.hits).toHaveLength(3);
   });
+
+  describe("missing (#12)", () => {
+    it("is set once a search has run and found nothing", () => {
+      const find = search();
+      find.setQuery("nowhere");
+      expect(find.missing).toBe(false);
+
+      vi.advanceTimersByTime(SETTLE_MS);
+      expect(find.missing).toBe(true);
+    });
+
+    it("clears the moment the field is emptied, without waiting for the pause", () => {
+      const find = search();
+      find.setQuery("nowhere");
+      vi.advanceTimersByTime(SETTLE_MS);
+
+      find.setQuery("");
+      expect(find.missing).toBe(false);
+    });
+
+    it("clears as soon as there is a match", () => {
+      const find = search();
+      find.setQuery("betax");
+      vi.advanceTimersByTime(SETTLE_MS);
+      find.setQuery("beta");
+      vi.advanceTimersByTime(SETTLE_MS);
+
+      expect(find.missing).toBe(false);
+    });
+
+    it("is not set for a field of blanks", () => {
+      const find = search();
+      find.setQuery("   ");
+      vi.advanceTimersByTime(SETTLE_MS);
+
+      expect(find.missing).toBe(false);
+    });
+  });
 });

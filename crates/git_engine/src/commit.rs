@@ -173,7 +173,7 @@ impl RepoHandle {
             .map_err(|err| GitError::Internal(format!("cannot read tree of {oid}: {err}")))
     }
 
-    fn find_commit(&self, rev: &str) -> Result<gix::Commit<'_>> {
+    pub(crate) fn find_commit(&self, rev: &str) -> Result<gix::Commit<'_>> {
         let id = self
             .repo
             .rev_parse_single(rev)
