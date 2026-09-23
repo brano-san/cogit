@@ -15,7 +15,15 @@
   const words = $derived(session.candidate ? describeCandidate(session.candidate, blockPath) : null);
 </script>
 
-<div class="card" role="dialog" aria-label="Origin of the selected lines">
+<!-- A click on the card must not reach the line under it and restart the search. -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<div
+  class="card"
+  role="dialog"
+  tabindex="-1"
+  aria-label="Origin of the selected lines"
+  onclick={(event) => event.stopPropagation()}
+>
   <div class="text">
     {#if session.search === "searching"}
       <span class="title">Searching for the origin…</span>
