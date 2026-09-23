@@ -22,7 +22,6 @@
     checking: boolean;
     ondrop: (source: string, target: string) => void;
     oncontext: (oid: string, x: number, y: number) => void;
-    onref: (text: string) => void;
   }
 
   let {
@@ -39,7 +38,6 @@
     checking,
     ondrop,
     oncontext,
-    onref,
   }: Props = $props();
 
   const view = $derived(panelView(repository.phase));
@@ -51,7 +49,7 @@
   {#if progress}
     <PauseCheckBar {check} {oncheck} onrun={onruncheck} {verdict} running={checking} />
   {/if}
-  <CommitList rebase={progress} {ondrop} {oncontext} {onref} />
+  <CommitList rebase={progress} {ondrop} {oncontext} />
 {:else}
   <StartScreen
     {recent}
