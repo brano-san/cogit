@@ -101,6 +101,36 @@ impl RepoHandle {
         command
     }
 
+    /// The whole stdout, unaltered, for output that is parsed rather than shown: the
+    /// journal's record trims long output and rewrites `\r` (R-280). Failures still
+    /// reach the journal with both streams.
+    pub(crate) fn read_git(&self, args: &[&str]) -> Result<String> {
+        let command = redact_command(args);
+        let started = std::time::Instant::now();
+        let mut process = base_command(self.root(), true);
+        process.args(args);
+        let output = crate::children::output(&mut process)?;
+        let duration_ms = u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX);
+        tracing::debug!(%command, bytes = output.stdout.len(), duration_ms, "git read");
+
+        if output.status.success() {
+            return Ok(String::from_utf8_lossy(&output.stdout).into_owned());
+        }
+        let result = GitOutput::record(
+            self.root(),
+            command,
+            output.status.code(),
+            &String::from_utf8_lossy(&output.stdout),
+            &String::from_utf8_lossy(&output.stderr),
+            duration_ms,
+        );
+        self.journal_entry(result.clone());
+        tracing::error!(command = %result.command, exit_code = ?result.exit_code, "git read failed");
+        Err(GitError::Command(Box::new(GitCommandError::from_output(
+            result,
+        ))))
+    }
+
     pub(crate) fn journal_entry(&self, entry: GitOutput) {
         if let Some(sink) = self.journal() {
             sink(entry);
