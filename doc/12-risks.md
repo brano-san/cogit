@@ -3567,3 +3567,41 @@ Cogit отказывает до первого шага — иначе они п
 `Ctrl+,` сохранён), в палитре — «Preferences». Меню Edit по-прежнему начинается со своих
 пунктов платформы, после них — список `EDIT` в `menu.rs`: туда же ложатся будущие команды
 Edit (например `Configure Toolbar…` из #44).
+
+## R-226 · Repository Settings: всё в `.git/config`, кодировка файлов не настраивается · С
+
+#42 требует для каждой опции сказать, где она хранится. Решение — **все опции диалога пишутся
+в `.git/config` репозитория** (`git config --local`), и диалог пишет это под каждой опцией:
+
+| Вкладка | Опция | Ключ |
+|---|---|---|
+| User | Name, Email | `user.name`, `user.email` |
+| Fetch and Pull | Merge / Rebase | `pull.rebase` (`false` / `true`) |
+| | Prune obsolete remote tracked branches | `fetch.prune` |
+| | Always fetch … from submodules | `fetch.recurseSubmodules` (`true` / `on-demand`) |
+| | Update registered submodules | `submodule.recurse` |
+| | Initialize new submodules | `cogit.initNewSubmodules` — ключ Cogit |
+| Push | Поведение push | `push.default`, `push.autoSetupRemote`, `push.followTags` |
+| Signing | Подпись | `commit.gpgSign`, `tag.gpgSign`, `gpg.format`, `user.signingKey` |
+| Encoding | Сообщения коммитов, вывод log | `i18n.commitEncoding`, `i18n.logOutputEncoding` |
+| Tag-Grouping | Разделитель папок тегов | `cogit.tagGroupSeparator` — ключ Cogit |
+
+Почему не настройки Cogit: выбор относится к одному репозиторию и должен жить с ним, а
+значения по умолчанию у git уже есть — пользовательский `~/.gitconfig`. Незаданная опция
+показывает унаследованное значение (из пользовательского и системного конфига, по источникам
+gix) и кнопку «Use inherited» у заданной. Ключи `cogit.*` git игнорирует; Cogit читает их сам:
+`cogit.tagGroupSeparator` — дерево Branches при каждом открытии и обновлении (пусто — теги без
+папок, по умолчанию `/`; после Save диалог вызывает обычное обновление репозитория),
+`cogit.initNewSubmodules` — Pull: сабмодули, которых не было до него, инициализируются, а
+деинициализированные вручную не трогаются. Бэкенд пишет только ключи из
+`REPO_SETTING_KEYS`; чужой ключ отвергается до записи.
+
+Честные оговорки в подсказках: Fetch в Cogit всегда идёт с `--prune`, поэтому `fetch.prune`
+влияет на Pull и на git из терминала; Pull в Cogit только fast-forward, поэтому `pull.rebase`
+действует на `git pull` вне Cogit; `i18n.commitEncoding` git лишь записывает в коммит, а
+Cogit передаёт сообщение в UTF-8.
+
+**Не сделано:** кодировка отображения файлов. Diff декодирует файлы как UTF-8 и помечает
+иначе закодированные как lossy; из этого же текста строятся патчи для стейджинга строк, и
+перекодирование на отображении без перекодирования патча испортило бы файл. Вкладка Encoding
+говорит об этом строкой «File contents», ничего не сохраняя.

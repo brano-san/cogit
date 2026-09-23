@@ -385,7 +385,7 @@ type SearchChunk =
 | `write_repo_settings` | `repo`, `changes: Vec<RepoSettingChange { key, value: string \| null }>` | `()`; `null` снимает ключ; ключ не из списка — `InvalidState`, и не пишется ничего | M3 |
 
 `cogit.*` в `REPO_SETTING_KEYS` — ключи самого Cogit в `.git/config`: `cogit.tagGroupSeparator`
-(разделитель папок тегов, по умолчанию `/`, читает дерево Branches) и
+(разделитель папок тегов, по умолчанию `/`, пустая строка — без папок; читает дерево Branches) и
 `cogit.initNewSubmodules` (после Pull инициализировать сабмодули, которых до него не было).
 
 ### Служебные
