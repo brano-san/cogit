@@ -5,6 +5,7 @@ pub mod environment;
 mod graph_cache;
 pub mod graph_wire;
 mod hooking;
+pub mod investigation;
 pub mod licences;
 pub mod logging;
 mod network;

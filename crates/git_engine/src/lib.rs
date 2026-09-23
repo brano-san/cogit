@@ -1,5 +1,6 @@
 mod apply;
 mod blame;
+mod blame_origins;
 mod blobs;
 mod branches;
 pub mod children;
@@ -9,6 +10,7 @@ mod config_file;
 mod conflicts;
 pub mod discover;
 mod error;
+mod file_log;
 mod find;
 mod flow;
 mod gitlink;
@@ -17,10 +19,12 @@ mod history;
 mod hooks;
 mod interactive;
 mod line_history;
+mod line_match;
 mod listing;
 mod merging;
 mod network;
 mod operations;
+mod origin_search;
 pub mod outcome;
 pub mod output_text;
 mod overlap;
@@ -47,6 +51,9 @@ mod worktree;
 mod worktrees;
 
 pub use blame::BlameLine;
+pub use blame_origins::{
+    BlameCommit, BlameReport, BlameSource, LineChange, OriginLine, PreviousFile,
+};
 pub use blobs::{DiffSides, DiffSpec};
 pub use branches::CheckoutTarget;
 pub use commit::{CommitDetails, DEFAULT_SIMILARITY, FileEntry, FileMode, FileStatus, Signature};
@@ -57,6 +64,7 @@ pub use config_file::{
 };
 pub use conflicts::{ConflictSide, ConflictSides, ConflictText};
 pub use error::{GitCommandError, GitError};
+pub use file_log::{FileChange, FileRevision};
 pub use find::{Found, FoundKind};
 pub use flow::{FlowBranch, FlowConfig, FlowKind, FlowStatus};
 pub use gitlink::{ModuleProblem, is_foreign_path};
@@ -71,6 +79,10 @@ pub use listing::{
 pub use merging::MergeOptions;
 pub use network::{auth_header, wants_auth};
 pub use operations::RebaseOptions;
+pub use origin_search::{
+    DeeperTarget, Likelihood, LineMatch, OriginCandidate, OriginKind, OriginQuery, OriginReport,
+    OriginText,
+};
 pub use outcome::Severity;
 pub use overlap::{Overlap, OverlapRow, overlap_of, shared_paths};
 pub use presets::{Preset, PresetTool, builtin_presets, find_tool, parse_preset};
