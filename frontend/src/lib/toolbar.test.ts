@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   ACTIONS,
   DEFAULT_LAYOUT,
+  actionOf,
+  hintOf,
   NO_FACTS,
   SEPARATOR,
   groupsOf,
@@ -272,5 +274,29 @@ describe("the Pull menu", () => {
   it("offers a per-remote fetch under the fetch rule", () => {
     expect(reasonOf("fetch-remote:origin", facts({ remote: true }))).toBeUndefined();
     expect(reasonOf("fetch-remote:origin", facts())).toBe("This repository has no remote");
+  });
+});
+
+describe("the Sync menu", () => {
+  const sync = actionOf("sync")!;
+  const withOrder = (syncOrder: "pullThenPush" | "pushThenPull"): MenuContext => ({
+    ...NO_MENU_CONTEXT,
+    prefs: { ...NO_MENU_CONTEXT.prefs, syncOrder },
+  });
+
+  it("offers both orders, the remembered one ticked", () => {
+    expect(menuOf("sync", withOrder("pullThenPush"))).toEqual([
+      expect.objectContaining({ id: "sync-order:pushThenPull", label: "Push, then Pull", checked: false }),
+      expect.objectContaining({ id: "sync-order:pullThenPush", label: "Pull, then Push", checked: true }),
+    ]);
+  });
+
+  it("says in the tooltip what the button will do", () => {
+    expect(hintOf(sync, withOrder("pullThenPush"))).toBe("Pull, then push");
+    expect(hintOf(sync, withOrder("pushThenPull"))).toBe("Push, then pull");
+  });
+
+  it("needs a remote like the rest of Sync", () => {
+    expect(reasonOf("sync-order:pushThenPull", facts())).toBe("This repository has no remote");
   });
 });

@@ -74,6 +74,8 @@
   - [ ] По умолчанию основная кнопка `Sync` выполняет `Pull, then Push`.
   - [ ] Выбор в меню задаёт поведение основной кнопки и запоминается.
 
+> Итог: причина — у `Sync` не было меню, а кнопка выполняла `fetch` основного remote. Сделано: `Sync` — split-кнопка с пунктами-радио `Push, then Pull` / `Pull, then Push` (`lib/toolbar.ts`, `syncMenu`); выбор пункта сразу выполняет этот порядок и запоминается как действие основной кнопки (ключ `toolbar.syncOrder`, по умолчанию `pullThenPush`), подсказка кнопки называет текущий порядок. Шаги идут по очереди, вторая половина не запускается, если первая упала (`runRemoteSteps` в `App.svelte`); Pull внутри Sync — тот же, что у кнопки Pull (режим remotes и удаление слитых веток из #26). Тесты: `lib/toolbar-prefs.test.ts` (`syncSteps`, 3), `lib/toolbar.test.ts` (меню Sync, 3). Проверить в сборке: подсказка Sync — «Pull, then push»; меню Sync → `Push, then Pull` выполняет push и pull, радио переключилось, подсказка «Push, then pull»; после перезапуска основная кнопка делает push, затем pull; при отказе push pull не запускается.
+
 - [ ] **#28 Выпадающее меню Push → Push To…**
   - [ ] Пункт `Push To…` открывает диалог по образцу SmartGit: заголовок `Push '<ветка>' to remote '<remote>'`, подзаголовок `Select the target repository where to push the ref(s).`, выбор remote (если их несколько), переключатель `Push To:` — `Tracked or matching branch` / `Custom Ref` с полем ввода имени ref, кнопки `Push` и `Cancel`.
   - [ ] У SmartGit в этом диалоге подписи обрезаны справа — не повторять.

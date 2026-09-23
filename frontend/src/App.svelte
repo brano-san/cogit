@@ -49,7 +49,7 @@
   import { checkedIds, disabledIds, type PaletteCommand } from "$lib/palette";
   import { reasonFor, type Context } from "$lib/availability";
   import { refAt, splitMarked, targetsOf, type MenuContext, type ToolbarFacts } from "$lib/toolbar";
-  import { currentRemote, pullSteps } from "$lib/toolbar-prefs";
+  import { currentRemote, pullSteps, syncSteps, type SyncOrder } from "$lib/toolbar-prefs";
   import { toolbar } from "$stores/toolbar.svelte";
   import { allowsSelectAll, settle, step } from "$lib/panel-focus";
   import { pullRequestUrl } from "$lib/pull-request";
@@ -1428,24 +1428,42 @@
 
   /** Pull as the toolbar's own choices say: which remotes to fetch first, whether to delete
       merged branches afterwards, and the fast-forward setting from Preferences (#26). */
-  async function pullNow() {
+  async function pullOnce(id: RepoId) {
+    if (!pullRemote) throw new Error("This repository has no remote.");
+    const plan = pullSteps(toolbar.prefs.pullScope, network.remotes, pullRemote);
+    for (const remote of plan.fetch) await network.fetch(id, remote);
+    await network.pull(id, plan.pull, settings.current.pullMode === "ffOnly");
+    if (toolbar.prefs.deleteMergedAfterPull) await deleteMergedBranches(id);
+  }
+
+  async function pushOnce(id: RepoId) {
+    const remote = network.primary;
+    if (!remote) throw new Error("This repository has no remote.");
+    await network.push(id, remote, false);
+  }
+
+  /** Each step waits for the one before; the first failure stops the rest. */
+  async function runRemoteSteps(steps: readonly ("pull" | "push")[], failure: string) {
     const id = repository.current?.repo;
     if (!id) return;
-    if (!pullRemote) {
-      errors.message("This repository has no remote.", "Could not pull");
-      return;
-    }
-    const plan = pullSteps(toolbar.prefs.pullScope, network.remotes, pullRemote);
     try {
-      for (const remote of plan.fetch) await network.fetch(id, remote);
-      await network.pull(id, plan.pull, settings.current.pullMode === "ffOnly");
-      if (toolbar.prefs.deleteMergedAfterPull) await deleteMergedBranches(id);
+      for (const step of steps) await (step === "pull" ? pullOnce(id) : pushOnce(id));
     } catch (err) {
-      errors.report(err, "Could not pull");
+      errors.report(err, failure);
       await afterMutation();
       return;
     }
     await afterRefChange();
+  }
+
+  function pullNow() {
+    return runRemoteSteps(["pull"], "Could not pull");
+  }
+
+  /** Sync ▸ an order: runs it, and the Sync button runs it from then on (#27). */
+  function syncNow(order: SyncOrder = toolbar.prefs.syncOrder) {
+    if (order !== toolbar.prefs.syncOrder) void toolbar.set("syncOrder", order);
+    return runRemoteSteps(syncSteps(order), "Could not sync");
   }
 
   /** One failure does not stop the other remotes. */
@@ -2754,7 +2772,9 @@
           tag: tagHead,
           pull: () => void pullNow(),
           push: () => void runNetwork("push"),
-          sync: () => void runNetwork("fetch"),
+          sync: () => void syncNow(),
+          "sync-order": (order) =>
+            void syncNow(order === "pushThenPull" ? "pushThenPull" : "pullThenPush"),
           "fetch-remote": (remote) => void fetchRemotes(remote ? [remote] : []),
           "fetch-remotes": () => void fetchRemotes(network.remotes),
           "pull-scope": (scope) =>

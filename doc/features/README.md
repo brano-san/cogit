@@ -269,3 +269,4 @@
 | F-295 | Уровни деревьев выровнены | [F-295-tree-levels-aligned.md](F-295-tree-levels-aligned.md) |
 | F-310 | Кнопки тулбара следуют выбору | [F-310-toolbar-follows-selection.md](F-310-toolbar-follows-selection.md) |
 | F-311 | Меню Pull: remotes, режим Pull и удаление слитых веток | [F-311-pull-menu-remotes.md](F-311-pull-menu-remotes.md) |
+| F-312 | Порядок Sync: Pull, then Push или Push, then Pull | [F-312-sync-order.md](F-312-sync-order.md) |
