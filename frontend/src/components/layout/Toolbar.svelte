@@ -219,7 +219,7 @@
     align-items: stretch;
     height: var(--h-toolbar);
     flex: 0 0 var(--h-toolbar);
-    padding: var(--sp-2) var(--sp-3);
+    padding: var(--sp-1) var(--sp-5);
     background: var(--surface-panel);
     border-bottom: 1px solid var(--divider);
   }
@@ -293,13 +293,15 @@
     stroke-linejoin: round;
   }
 
+  /* The line box holds the descenders: at `line-height: 1` the tail of the `g` in Tag
+     hung below `.row`, which clips (#2). Icon, gap and label leave 1px spare. */
   .label {
     display: flex;
     align-items: center;
     gap: 2px;
-    height: 13px;
+    height: 15px;
     font-size: var(--fs-header);
-    line-height: 1;
+    line-height: 15px;
     white-space: nowrap;
   }
 
