@@ -80,7 +80,8 @@ pub enum CogitError {
 | `open_repository` | `path: String` | `RepoSummary` | M1 |
 | `close_repository` | `repo: RepoId` | `()` | M1 |
 | `list_repositories` | — | `Vec<RepoEntry>` | M3 |
-| `repo_state` | `repo: RepoId` | `RepoState` | M1 |
+| `repo_state` | `repo: RepoId` | `RepoState` — `clean | detachedHead { oid } | merging | rebasing | cherryPicking | reverting | bisecting | applyingPatches | empty | bare`; `applyingPatches` — `git am`, остановленный на патче (`rebase-apply/applying`) | M1 |
+| `repositories` | — | `Vec<RepoOverview { repo, name, root, branch, ahead, behind, dirty, missing, state: RepoState }>`; `state` — для меток `<merging>`/`<detached>` в дереве (#22) | M3 |
 | `list_submodules` | `repo: RepoId` | `Vec<Submodule>` | M3 |
 | `worktrees` | `repo: RepoId` | `Vec<WorktreeEntry { path, name, branch, head, isMain, isCurrent, locked, missing, dirty }>`; из linked-ворктри основной — всё равно основной (R-184) | M3 |
 | `open_worktree` | `owner: RepoId`, `path` — существующий ворктри владельца | `RepoSummary`, в списке Repositories не появляется; чужая папка — `InvalidState` | M3 |
@@ -355,7 +356,9 @@ type SearchChunk =
 
 `Submodule.state` — `notInitialised | inSync | ahead | behind | diverged | unknown`, с
 `ahead`/`behind` — числом коммитов по обе стороны общего предка (R-153). `unknown` —
-записанного коммита в подмодуле нет, и положение не угадывается.
+записанного коммита в подмодуле нет, и положение не угадывается. `Submodule.repoState` —
+`RepoState` его собственного репозитория (`null`, пока он не выписан): дерево ставит на узел
+метку операции, остановленной внутри подмодуля (#22).
 
 `open_submodule` принимает ключ, а не путь: путь из ключа собирает бэкенд тем же
 `module_root`, что и `list_submodules`, и открывает ровно там, без поиска вверх (R-149).

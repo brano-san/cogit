@@ -986,9 +986,11 @@ export type RepoOverview = {
 	dirty: boolean,
 	/**  The folder is gone. The row stays so the user can remove it on purpose (T3.7). */
 	missing: boolean,
+	/**  An operation stopped half way, or a detached HEAD: the row labels it (#22). */
+	state: RepoState,
 };
 
-export type RepoState = { kind: "clean" } | { kind: "detachedHead"; oid: string } | { kind: "merging" } | { kind: "rebasing" } | { kind: "cherryPicking" } | { kind: "reverting" } | { kind: "bisecting" } | { kind: "empty" } | { kind: "bare" };
+export type RepoState = { kind: "clean" } | { kind: "detachedHead"; oid: string } | { kind: "merging" } | { kind: "rebasing" } | { kind: "cherryPicking" } | { kind: "reverting" } | { kind: "bisecting" } | { kind: "applyingPatches" } | { kind: "empty" } | { kind: "bare" };
 
 export type RepoStatus = {
 	staged: number,
@@ -1128,6 +1130,8 @@ export type Submodule = {
 	 */
 	ahead: number,
 	behind: number,
+	/**  What the submodule's own repository is in the middle of; `None` until it is checked out. */
+	repoState: RepoState | null,
 };
 
 export type SubmoduleState = "notInitialised" | "inSync" | 

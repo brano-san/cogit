@@ -21,6 +21,7 @@
     visibleRange,
   } from "$lib/graph-geometry";
   import { measurer } from "$lib/timing";
+  import { workingTreeLabel } from "$lib/repo-state";
   import { reportTiming, type RebaseProgress, type RepoId } from "$lib/ipc";
   import Avatar from "$components/common/Avatar.svelte";
   import { avatars } from "$stores/avatars.svelte";
@@ -122,16 +123,7 @@
   );
   const stashOids = $derived(new Set(stashes.entries.map((entry) => entry.oid)));
 
-  const status = $derived(repository.current?.status);
-  const headerLabel = $derived.by(() => {
-    if (!status) return "Working Tree";
-    const parts: string[] = [];
-    if (status.staged > 0) parts.push(`${status.staged} staged`);
-    if (status.unstaged > 0) parts.push(`${status.unstaged} modified`);
-    if (status.untracked > 0) parts.push(`${status.untracked} untracked`);
-    if (status.conflicted > 0) parts.push(`${status.conflicted} conflicted`);
-    return parts.length > 0 ? `Working Tree (${parts.join(", ")})` : "Working Tree — clean";
-  });
+  const headerLabel = $derived(workingTreeLabel(repository.current?.status, repository.current?.state));
 
   const visible = $derived.by(() => {
     const from = Math.max(range.start, headerRows);

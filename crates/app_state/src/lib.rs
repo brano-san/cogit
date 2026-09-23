@@ -149,6 +149,8 @@ pub struct RepoOverview {
     pub dirty: bool,
     /// The folder is gone. The row stays so the user can remove it on purpose (T3.7).
     pub missing: bool,
+    /// An operation stopped half way, or a detached HEAD: the row labels it (#22).
+    pub state: git_engine::RepoState,
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -1294,6 +1296,7 @@ impl AppState {
             behind: 0,
             dirty: false,
             missing: false,
+            state: git_engine::RepoState::Clean,
         };
 
         let Ok(handle) = git_engine::RepoHandle::open(&open.root) else {
@@ -1311,6 +1314,9 @@ impl AppState {
         }
         if let Ok(status) = handle.status() {
             row.dirty = !status.is_clean();
+        }
+        if let Ok(state) = handle.state() {
+            row.state = state;
         }
         row
     }
