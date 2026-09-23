@@ -13,7 +13,10 @@
     "build": "npm run build -w frontend",
     "check": "npm run check -w frontend",
     "test": "npm run test -w frontend",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "bench:repos": "node scripts/bench/fixtures.mjs",
+    "bench:build": "node scripts/bench/build.mjs",
+    "bench": "node scripts/bench/run.mjs"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.11.4"

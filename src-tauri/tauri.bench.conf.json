@@ -1,0 +1,22 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "identifier": "dev.branosan.cogit-bench",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Cogit",
+        "width": 1600,
+        "height": 1000,
+        "minWidth": 1024,
+        "minHeight": 640,
+        "resizable": true,
+        "center": true,
+        "theme": "Dark",
+        "backgroundColor": "#0f1115",
+        "visible": false,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port=9333"
+      }
+    ]
+  }
+}
