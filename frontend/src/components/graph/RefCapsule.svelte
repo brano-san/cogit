@@ -49,6 +49,12 @@
   }
 
   .tag {
+    color: var(--status-tag);
+    background: var(--c-tag-bg);
+    border-color: var(--status-tag);
+  }
+
+  .stash {
     color: var(--status-stash);
     background: var(--c-stash-bg);
     border-color: var(--status-stash);

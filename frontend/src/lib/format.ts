@@ -1,4 +1,4 @@
-import type { Branch, Head, Tag } from "./ipc";
+import type { Branch, Head, StashEntry, Tag } from "./ipc";
 
 const SHORT_OID = 7;
 
@@ -26,7 +26,7 @@ export function shortOid(oid: string): string {
   return oid.slice(0, SHORT_OID);
 }
 
-export type RefKind = "head" | "local" | "remote" | "tag";
+export type RefKind = "head" | "local" | "remote" | "tag" | "stash";
 
 export interface RefLabel {
   text: string;
@@ -40,7 +40,12 @@ export interface RefLabel {
 }
 
 /** The row truncates from the right, so order here is priority order. */
-const REF_ORDER: Record<RefKind, number> = { head: 0, local: 1, remote: 2, tag: 3 };
+const REF_ORDER: Record<RefKind, number> = { head: 0, local: 1, remote: 2, tag: 3, stash: 4 };
+
+/** What the graph labels besides branches and tags. */
+export interface RefExtras {
+  stashes?: readonly StashEntry[];
+}
 
 const withoutRemote = (name: string) => name.slice(name.indexOf("/") + 1);
 const remoteOf = (name: string) => name.slice(0, Math.max(name.indexOf("/"), 0));
@@ -60,6 +65,7 @@ export function refLabels(
   branches: Branch[],
   tags: Tag[],
   head: Head | null | undefined,
+  extras: RefExtras = {},
 ): Map<string, RefLabel[]> {
   const headBranch = head?.kind === "branch" ? head.name : null;
   const byOid = new Map<string, RefLabel[]>();
@@ -95,6 +101,10 @@ export function refLabels(
   }
   for (const tag of tags) {
     add(tag.oid, { text: tag.name, kind: "tag" });
+  }
+  for (const stash of extras.stashes ?? []) {
+    const text = `stash@{${stash.index}}`;
+    add(stash.oid, { text, kind: "stash", title: `${text}\n${stash.message}` });
   }
 
   for (const labels of byOid.values()) {

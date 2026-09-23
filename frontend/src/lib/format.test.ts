@@ -249,6 +249,24 @@ describe("refLabels with the upstream on the same commit", () => {
   });
 });
 
+describe("refLabels for stashes", () => {
+  const S = "5".repeat(40);
+  const stash = (index: number, oid: string, message: string) => ({ index, oid, message, timestamp: 0 });
+  const tag: Tag = { name: "v1", fullName: "refs/tags/v1", oid: S, isAnnotated: false, pointsToCommit: true };
+
+  it("labels a stash commit with its name and keeps the message for the tooltip", () => {
+    const [label] = refLabels([], [], null, { stashes: [stash(0, S, "On main: halfway")] }).get(S) ?? [];
+
+    expect(label).toEqual({ text: "stash@{0}", kind: "stash", title: "stash@{0}\nOn main: halfway" });
+  });
+
+  it("puts a stash label after the branch and tag labels", () => {
+    const labels = refLabels([], [tag], null, { stashes: [stash(2, S, "wip")] }).get(S) ?? [];
+
+    expect(labels.map((l) => l.kind)).toEqual(["tag", "stash"]);
+  });
+});
+
 describe("relativeDate", () => {
   const NOW = Date.UTC(2026, 0, 15, 12, 0, 0) / 1000;
   const at = (seconds: number) => relativeDate(NOW - seconds, 0, NOW);
