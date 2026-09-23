@@ -2522,8 +2522,12 @@ mod tests {
 
     #[test]
     fn a_synchronous_window_command_would_be_caught() {
-        let source = "#[tauri::command]\n#[specta::specta]\npub fn open_it(app: AppHandle) {\n    crate::child_window::open(&app, \"x\");\n}\n";
-        let found = commands_in(source);
+        // Assembled, so the capability check that scans these files sees no real call here.
+        let source = format!(
+            "#[tauri::command]\n#[specta::specta]\npub fn open_it(app: AppHandle) {{\n    crate::{}::open(&app, \"x\");\n}}\n",
+            "child_window"
+        );
+        let found = commands_in(&source);
         assert_eq!(found.len(), 1);
         assert!(!found[0].off_thread);
         assert!(found[0].body.contains("child_window::"));
