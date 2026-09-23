@@ -55,6 +55,7 @@
   import { currentRemote, pullSteps, syncSteps, type SyncOrder } from "$lib/toolbar-prefs";
   import { toolbar } from "$stores/toolbar.svelte";
   import { stashDialog } from "$stores/stash-dialog.svelte";
+  import { confirmation } from "$stores/confirm.svelte";
   import { allowsSelectAll, settle, step } from "$lib/panel-focus";
   import { pullRequestUrl } from "$lib/pull-request";
   import { commitScope } from "$lib/commit-scope";
@@ -983,6 +984,19 @@
     });
     if (!confirmed) return;
     await mutate((repo) => worktree.discard(repo, paths), paths);
+  }
+
+  /** Toolbar Discard asks in the app's own modal, focus on Cancel (R-255). */
+  async function discardFromToolbar(paths: string[]) {
+    if (paths.length === 0) return;
+    const what = paths.length === 1 ? paths[0] : `${paths.length} files`;
+    const go = await confirmation.ask({
+      title: "Discard Changes",
+      message: `Discard the changes in ${what}? Undo can bring them back.`,
+      confirm: "Discard",
+      warning: true,
+    });
+    if (go) await mutate((repo) => worktree.discard(repo, paths), paths);
   }
 
   async function deleteFromDisk(paths: string[]) {
@@ -2664,7 +2678,7 @@
             void toolbar.set("deleteMergedAfterPull", !toolbar.prefs.deleteMergedAfterPull),
           stage: () => void stage(targetsOf("stage", toolbarFacts)),
           unstage: () => void unstage(targetsOf("unstage", toolbarFacts)),
-          discard: () => void discard(targetsOf("discard", toolbarFacts)),
+          discard: () => void discardFromToolbar(targetsOf("discard", toolbarFacts)),
           merge: () => void mergeSelected(),
           rebase: () => void rebaseSelected(),
           "rebase-i": () => void openRebase(),
