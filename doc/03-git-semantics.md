@@ -162,16 +162,19 @@ URL в выводе кликабельны — именно там `git` отд�
 ## 4. Состояния репозитория
 
 Каждое состояние определяется наличием файлов в `.git/` и требует своего баннера в UI.
+Баннер стоит в панели Graph над списком коммитов; длительные состояния и detached HEAD ещё и
+подписаны в Repositories (`<merging>`, `<detached>`…) и в строке Working Tree (#22, R-233).
 
 | Состояние | Маркер | Действия в баннере |
 |---|---|---|
 | Normal | — | — |
 | Detached HEAD | `.git/HEAD` не содержит `ref:` | `Create Branch`, `Return to <branch>` |
 | Merge in progress | `.git/MERGE_HEAD` | `Continue`, `Abort` |
-| Rebase in progress | `.git/rebase-merge/` или `.git/rebase-apply/` | `Continue`, `Skip`, `Abort` |
+| Rebase in progress | `.git/rebase-merge/` или `.git/rebase-apply/` без `applying` | `Continue`, `Skip`, `Abort` |
+| `git am` in progress | `.git/rebase-apply/applying` | `Continue`, `Skip`, `Abort` (`git am --continue/--skip/--abort`) |
 | Cherry-pick in progress | `.git/CHERRY_PICK_HEAD` | `Continue`, `Abort` |
 | Revert in progress | `.git/REVERT_HEAD` | `Continue`, `Abort` |
-| Bisect in progress | `.git/BISECT_LOG` | `Good`, `Bad`, `Reset` |
+| Bisect in progress | `.git/BISECT_LOG` | `Abort` = `git bisect reset` (`--continue` у bisect нет, Continue отказывает без запуска git) |
 | Пустой репозиторий | `HEAD` указывает на несуществующий ref | Подсказка «сделайте первый коммит» |
 | Bare-репозиторий | нет рабочей директории | Скрыть панели стейджинга |
 | Index заблокирован | `.git/index.lock` существует | `Retry`, `Show which process` |

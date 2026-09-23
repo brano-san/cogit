@@ -1,8 +1,18 @@
 import type { DateMode } from "$lib/format";
 import type { Algorithm, Whitespace } from "$lib/ipc";
 
+/** Lightest first; the grey ones sit between the extremes (#24). */
+export const THEMES = [
+  ["light", "Light"],
+  ["lightGrey", "Light grey"],
+  ["darkGrey", "Dark grey"],
+  ["dark", "Dark"],
+] as const;
+
+export type Theme = (typeof THEMES)[number][0];
+
 export interface Settings {
-  theme: "dark" | "light";
+  theme: Theme;
   dateFormat: DateMode;
   algorithm: Algorithm;
   contextLines: number;
@@ -50,7 +60,7 @@ export const DEFAULT_SETTINGS: Settings = {
 const RESTART_REQUIRED: readonly (keyof Settings)[] = ["logLevel", "gitPath"];
 
 const ENUMS: Partial<Record<keyof Settings, readonly string[]>> = {
-  theme: ["dark", "light"],
+  theme: THEMES.map(([id]) => id),
   dateFormat: ["smart", "relative", "both"],
   algorithm: ["histogram", "myers"],
   ignoreWhitespace: ["none", "trailing", "all"],

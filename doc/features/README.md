@@ -267,12 +267,26 @@
 | F-293 | Граф не мигает при смене отметок | [F-293-graph-no-flash-on-reload.md](F-293-graph-no-flash-on-reload.md) |
 | F-294 | Одна подсветка у кнопок тулбара | [F-294-toolbar-single-hover.md](F-294-toolbar-single-hover.md) |
 | F-295 | Уровни деревьев выровнены | [F-295-tree-levels-aligned.md](F-295-tree-levels-aligned.md) |
+| F-300 | Окно Blame | [F-300-blame-window.md](F-300-blame-window.md) |
+| F-301 | Отдельные окна не ломают главное | [F-301-child-windows-isolated.md](F-301-child-windows-isolated.md) |
+| F-330 | Одна метка у ветки и её upstream | [F-330-joined-upstream-label.md](F-330-joined-upstream-label.md) |
+| F-331 | Stash в графе: метка и квадратный узел | [F-331-stash-in-graph.md](F-331-stash-in-graph.md) |
+| F-332 | Чередование строк графа | [F-332-graph-row-stripes.md](F-332-graph-row-stripes.md) |
+| F-333 | Состояние репозитория в панели Graph и в Repositories | [F-333-repository-state-in-graph.md](F-333-repository-state-in-graph.md) |
+| F-334 | Метка ветки, взятой в другой worktree | [F-334-worktree-branch-label.md](F-334-worktree-branch-label.md) |
+| F-335 | Четыре темы | [F-335-four-themes.md](F-335-four-themes.md) |
+| F-340 | Папки веток и тегов в Branches | [F-340-branch-folders.md](F-340-branch-folders.md) |
+| F-341 | Натуральная сортировка и сортировка по дате в Branches | [F-341-branch-sort.md](F-341-branch-sort.md) |
+| F-342 | Ветка, взятая в worktree, помечена в Branches | [F-342-worktree-branches.md](F-342-worktree-branches.md) |
+| F-343 | Одно правило усечения текста | [F-343-one-truncation-rule.md](F-343-one-truncation-rule.md) |
+| F-344 | Повторный клик по репозиторию ничего не перезагружает | [F-344-repository-reclick.md](F-344-repository-reclick.md) |
+| F-345 | Статус открытия репозитория — только в футере | [F-345-opening-status-in-footer.md](F-345-opening-status-in-footer.md) |
 | F-370 | Поиск по содержимому файлов | [F-370-file-content-search.md](F-370-file-content-search.md) |
 | F-371 | Переключатели Files в коммите из истории | [F-371-commit-file-switches.md](F-371-commit-file-switches.md) |
 | F-372 | Повторный клик по коммиту возвращает его описание | [F-372-reclick-commit-shows-details.md](F-372-reclick-commit-shows-details.md) |
 | F-373 | Поиск по diff без совпадений | [F-373-diff-find-no-matches.md](F-373-diff-find-no-matches.md) |
 | F-374 | Индикатор окончаний строк | [F-374-line-ending-indicator.md](F-374-line-ending-indicator.md) |
 | F-375 | Тулбар Diff отделён от содержимого | [F-375-diff-toolbar.md](F-375-diff-toolbar.md) |
-| F-377 | Полосы скрытых строк вместо `@@` | [F-377-diff-folds.md](F-377-diff-folds.md) |
 | F-376 | Стрелки изменений гаснут на краях | [F-376-change-arrows.md](F-376-change-arrows.md) |
+| F-377 | Полосы скрытых строк вместо `@@` | [F-377-diff-folds.md](F-377-diff-folds.md) |
 | F-378 | Маркеры `+` и `−` в своей колонке | [F-378-diff-sign-column.md](F-378-diff-sign-column.md) |

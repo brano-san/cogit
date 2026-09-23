@@ -1561,6 +1561,79 @@ pub async fn blame(
     Ok(lines)
 }
 
+/// The Blame window for `path` at `rev`, titled with the commit `rev` resolves to. The one
+/// way blame opens, from every menu and button (#10).
+#[tauri::command]
+#[specta::specta]
+pub async fn open_blame_window(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    path: String,
+    rev: String,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    let oid = blocking("resolve_blame_revision", move || {
+        app_state
+            .commit_details(repo, &rev)
+            .map(|details| details.oid)
+    })
+    .await?;
+
+    blocking("open_blame_window", move || {
+        crate::child_window::open_with_menu(
+            &app,
+            "blame",
+            crate::blame_window::url(repo.0, &path, &oid),
+            crate::blame_window::title(&path, &oid),
+            crate::child_window::Shape {
+                width: 1100.0,
+                height: 800.0,
+                min_width: 700.0,
+                min_height: 450.0,
+            },
+            crate::blame_window::MENU,
+        )
+        .map_err(|err| GitError::Internal(format!("cannot open the blame window: {err}")))
+    })
+    .await
+}
+
+/// The commits that made line `line` of `path` at `rev` what it is, newest first.
+#[tauri::command]
+#[specta::specta]
+pub async fn line_history(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    path: String,
+    rev: String,
+    line: u32,
+) -> Result<Vec<git_engine::LineVersion>, GitError> {
+    const LIMIT: usize = 200;
+    let app_state = state.state.clone();
+    blocking("line_history", move || {
+        app_state.line_history(repo, &path, &rev, line, LIMIT)
+    })
+    .await
+}
+
+/// The versions of `path` up to `rev`: the commits that changed it, newest first.
+#[tauri::command]
+#[specta::specta]
+pub async fn file_revisions(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    path: String,
+    rev: String,
+) -> Result<Vec<CommitRow>, GitError> {
+    const LIMIT: usize = 500;
+    let app_state = state.state.clone();
+    blocking("file_revisions", move || {
+        app_state.file_revisions(repo, &path, &rev, LIMIT)
+    })
+    .await
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn remote_url(
@@ -1570,6 +1643,16 @@ pub async fn remote_url(
 ) -> Result<Option<String>, GitError> {
     let app_state = state.state.clone();
     blocking("remote_url", move || app_state.remote_url(repo, &name)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn ref_dates(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<Vec<git_engine::RefDate>, GitError> {
+    let app_state = state.state.clone();
+    blocking("ref_dates", move || app_state.ref_dates(repo)).await
 }
 
 #[tauri::command]
@@ -1914,36 +1997,39 @@ pub fn popup_context_menu(
         .map_err(|err| GitError::Internal(format!("cannot open the context menu: {err}")))
 }
 
-/// Not `async`: creating a window has to happen on the main thread. The parameters ride in
-/// the URL so the window rebuilds itself after a webview reload (T2.5).
+/// Off the main thread: building a window inside the WebView2 callback of a synchronous
+/// command deadlocks every window (R-201). The parameters ride in the URL so the window
+/// rebuilds itself after a webview reload (T2.5).
 #[tauri::command]
 #[specta::specta]
-pub fn open_compare_window(
+pub async fn open_compare_window(
     app: tauri::AppHandle,
     url: String,
     title: String,
 ) -> Result<(), GitError> {
-    crate::child_window::open(
-        &app,
-        "compare",
-        url,
-        title,
-        crate::child_window::Shape {
-            width: 1000.0,
-            height: 720.0,
-            min_width: 600.0,
-            min_height: 400.0,
-        },
-    )
-    .map_err(|err| GitError::Internal(format!("cannot open the compare window: {err}")))
+    blocking("open_compare_window", move || {
+        crate::child_window::open(
+            &app,
+            "compare",
+            url,
+            title,
+            crate::child_window::Shape {
+                width: 1000.0,
+                height: 720.0,
+                min_width: 600.0,
+                min_height: 400.0,
+            },
+        )
+        .map_err(|err| GitError::Internal(format!("cannot open the compare window: {err}")))
+    })
+    .await
 }
 
-/// Closes whichever window asked. Not `async`: window operations belong to the main
-/// thread, and doing it here rather than through `getCurrentWindow()` keeps the call out
-/// of the webview (doc/12-risks.md, R-86).
+/// Closes whichever window asked. In Rust rather than through `getCurrentWindow()`, which
+/// keeps the call out of the webview (R-86); off the main thread for the reason in R-201.
 #[tauri::command]
 #[specta::specta]
-pub fn close_this_window(window: tauri::Window) -> Result<(), GitError> {
+pub async fn close_this_window(window: tauri::Window) -> Result<(), GitError> {
     window
         .close()
         .map_err(|err| GitError::Internal(format!("cannot close the window: {err}")))
@@ -2249,24 +2335,27 @@ pub async fn flow_finish(
 /// A window of its own for one conflicted file, so the merge is not squeezed into a panel.
 #[tauri::command]
 #[specta::specta]
-pub fn open_merge_window(
+pub async fn open_merge_window(
     app: tauri::AppHandle,
     url: String,
     title: String,
 ) -> Result<(), GitError> {
-    crate::child_window::open(
-        &app,
-        "merge",
-        url,
-        title,
-        crate::child_window::Shape {
-            width: 1200.0,
-            height: 760.0,
-            min_width: 800.0,
-            min_height: 500.0,
-        },
-    )
-    .map_err(|err| GitError::Internal(format!("cannot open the merge window: {err}")))
+    blocking("open_merge_window", move || {
+        crate::child_window::open(
+            &app,
+            "merge",
+            url,
+            title,
+            crate::child_window::Shape {
+                width: 1200.0,
+                height: 760.0,
+                min_width: 800.0,
+                min_height: 500.0,
+            },
+        )
+        .map_err(|err| GitError::Internal(format!("cannot open the merge window: {err}")))
+    })
+    .await
 }
 
 /// Told by the merge window once it has written the resolution.
@@ -2332,9 +2421,6 @@ mod tests {
         "clear_command_log",
         "safety_log",
         "popup_context_menu",
-        "open_compare_window",
-        "open_merge_window",
-        "close_this_window",
         "merge_resolved",
     ];
 
@@ -2368,6 +2454,108 @@ mod tests {
 
     fn name_of(rest: &str) -> String {
         rest.split(['(', '<']).next().unwrap_or_default().to_owned()
+    }
+
+    struct Command {
+        name: String,
+        off_thread: bool,
+        /// Lines joined, so that a chained call reads as one.
+        body: String,
+    }
+
+    /// Every command in `source` with its body: everything up to the next attribute.
+    fn commands_in(source: &str) -> Vec<Command> {
+        let mut found: Vec<Command> = Vec::new();
+        let mut armed: Option<bool> = None;
+        let mut open = false;
+        for line in source.lines() {
+            let line = line.trim_start();
+            if let Some(rest) = line.strip_prefix("#[tauri::command") {
+                armed = Some(rest.starts_with("(async)"));
+                open = false;
+                continue;
+            }
+            if line.starts_with("#[cfg(test)]") {
+                armed = None;
+                open = false;
+                continue;
+            }
+            let signature = line
+                .strip_prefix("pub async fn ")
+                .map(|rest| (rest, true))
+                .or_else(|| line.strip_prefix("pub fn ").map(|rest| (rest, false)));
+            if let (Some(marked_async), Some((rest, is_async))) = (armed, signature) {
+                found.push(Command {
+                    name: name_of(rest),
+                    off_thread: is_async || marked_async,
+                    body: String::new(),
+                });
+                armed = None;
+                open = true;
+            } else if open && let Some(command) = found.last_mut() {
+                command.body.push_str(line);
+            }
+        }
+        found
+    }
+
+    /// Every file of this module, so a command moved out of `mod.rs` is still checked.
+    fn all_commands() -> Vec<Command> {
+        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/src/commands");
+        let mut found = Vec::new();
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().is_some_and(|ext| ext == "rs") {
+                found.extend(commands_in(&std::fs::read_to_string(path).unwrap()));
+            }
+        }
+        found
+    }
+
+    /// `WebviewWindowBuilder::build` deadlocks on Windows inside the WebView2 callback that
+    /// runs a synchronous command (wry#583): the window appears without its webview, and
+    /// no window gets an IPC answer again (#8, doc/12-risks.md R-201).
+    #[test]
+    fn a_window_is_never_opened_or_closed_on_the_main_thread() {
+        const WINDOW_WORK: &[&str] = &["child_window::", "WebviewWindowBuilder", "window.close()"];
+
+        let stuck: Vec<String> = all_commands()
+            .into_iter()
+            .filter(|command| WINDOW_WORK.iter().any(|call| command.body.contains(call)))
+            .filter(|command| !command.off_thread)
+            .map(|command| command.name)
+            .collect();
+
+        assert!(
+            stuck.is_empty(),
+            "these commands build or close a window on the main thread; make them async: {stuck:?}"
+        );
+    }
+
+    #[test]
+    fn the_body_parser_sees_the_window_commands() {
+        let all = all_commands();
+        let body_of = |name: &str| {
+            all.iter()
+                .find(|command| command.name == name)
+                .map(|command| command.body.as_str())
+                .unwrap_or_default()
+        };
+        assert!(body_of("open_compare_window").contains("child_window::open"));
+        assert!(body_of("close_this_window").contains("window.close()"));
+    }
+
+    #[test]
+    fn a_synchronous_window_command_would_be_caught() {
+        // Assembled, so the capability check that scans these files sees no real call here.
+        let source = format!(
+            "#[tauri::command]\n#[specta::specta]\npub fn open_it(app: AppHandle) {{\n    crate::{}::open(&app, \"x\");\n}}\n",
+            "child_window"
+        );
+        let found = commands_in(&source);
+        assert_eq!(found.len(), 1);
+        assert!(!found[0].off_thread);
+        assert!(found[0].body.contains("child_window::"));
     }
 
     #[test]

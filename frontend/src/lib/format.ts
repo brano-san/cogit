@@ -1,4 +1,4 @@
-import type { Branch, Head, Tag } from "./ipc";
+import type { Branch, Head, StashEntry, Tag, WorktreeEntry } from "./ipc";
 
 const SHORT_OID = 7;
 
@@ -26,20 +26,58 @@ export function shortOid(oid: string): string {
   return oid.slice(0, SHORT_OID);
 }
 
-export type RefKind = "head" | "local" | "remote" | "tag";
+export type RefKind = "head" | "local" | "remote" | "tag" | "stash";
 
 export interface RefLabel {
   text: string;
   kind: RefKind;
+  /** Remotes whose branch of the same name is on this commit too, upstream first (#49). */
+  remotes?: string[];
+  /** The branch name drawn after `remotes` and `=`. */
+  name?: string;
+  /** The tooltip, when it says more than `text`. */
+  title?: string;
+  /** Another worktree has this branch checked out (#25). */
+  worktree?: WorktreeMark;
+}
+
+export interface WorktreeMark {
+  path: string;
+  state: "clean" | "modified" | "missing";
+}
+
+function worktreeMark(entry: WorktreeEntry): WorktreeMark {
+  return { path: entry.path, state: entry.missing ? "missing" : entry.dirty ? "modified" : "clean" };
 }
 
 /** The row truncates from the right, so order here is priority order. */
-const REF_ORDER: Record<RefKind, number> = { head: 0, local: 1, remote: 2, tag: 3 };
+const REF_ORDER: Record<RefKind, number> = { head: 0, local: 1, remote: 2, tag: 3, stash: 4 };
+
+/** What the graph labels besides branches and tags. */
+export interface RefExtras {
+  stashes?: readonly StashEntry[];
+  worktrees?: readonly WorktreeEntry[];
+}
+
+const withoutRemote = (name: string) => name.slice(name.indexOf("/") + 1);
+const remoteOf = (name: string) => name.slice(0, Math.max(name.indexOf("/"), 0));
+
+/** Remote branches drawn inside the local label: its upstream, when it names the same
+    branch on the same commit, and that branch on every other remote at that commit. */
+function twins(local: Branch, remotes: ReadonlyMap<string, Branch>): Branch[] {
+  const upstream = local.upstream === null ? undefined : remotes.get(local.upstream);
+  if (!upstream || upstream.oid !== local.oid || withoutRemote(upstream.name) !== local.name) return [];
+  const others = [...remotes.values()]
+    .filter((r) => r !== upstream && r.oid === local.oid && withoutRemote(r.name) === local.name)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return [upstream, ...others];
+}
 
 export function refLabels(
   branches: Branch[],
   tags: Tag[],
   head: Head | null | undefined,
+  extras: RefExtras = {},
 ): Map<string, RefLabel[]> {
   const headBranch = head?.kind === "branch" ? head.name : null;
   const byOid = new Map<string, RefLabel[]>();
@@ -50,13 +88,42 @@ export function refLabels(
     else byOid.set(oid, [label]);
   };
 
+  const remotes = new Map(branches.filter((b) => b.kind === "remote").map((b) => [b.name, b]));
+  const held = new Map(
+    (extras.worktrees ?? [])
+      .filter((entry) => entry.branch !== null && !entry.isCurrent)
+      .map((entry) => [entry.branch as string, worktreeMark(entry)]),
+  );
+  const joined = new Set<string>();
   for (const branch of branches) {
-    const kind: RefKind =
-      branch.kind === "remote" ? "remote" : branch.name === headBranch ? "head" : "local";
-    add(branch.oid, { text: branch.name, kind });
+    if (branch.kind !== "local") continue;
+    const kind: RefKind = branch.name === headBranch ? "head" : "local";
+    const found = twins(branch, remotes);
+    for (const twin of found) joined.add(twin.name);
+    const names = found.map((twin) => remoteOf(twin.name));
+    const label: RefLabel =
+      found.length === 0
+        ? { text: branch.name, kind }
+        : { text: `${names.join(",")}=${branch.name}`, kind, remotes: names, name: branch.name };
+    const lines = found.length === 0 ? [] : [branch.name, ...found.map((twin) => twin.name)];
+    const worktree = held.get(branch.name);
+    if (worktree) {
+      label.worktree = worktree;
+      if (lines.length === 0) lines.push(branch.name);
+      lines.push(`Checked out in worktree ${worktree.path} (${worktree.state})`);
+    }
+    if (lines.length > 0) label.title = lines.join("\n");
+    add(branch.oid, label);
+  }
+  for (const branch of remotes.values()) {
+    if (!joined.has(branch.name)) add(branch.oid, { text: branch.name, kind: "remote" });
   }
   for (const tag of tags) {
     add(tag.oid, { text: tag.name, kind: "tag" });
+  }
+  for (const stash of extras.stashes ?? []) {
+    const text = `stash@{${stash.index}}`;
+    add(stash.oid, { text, kind: "stash", title: `${text}\n${stash.message}` });
   }
 
   for (const labels of byOid.values()) {

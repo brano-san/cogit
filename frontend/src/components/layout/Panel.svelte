@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import type { PanelView } from "$lib/repo-phase";
+  import { idleMessage, type PanelView } from "$lib/repo-phase";
 
   /** A titled work surface. Every panel in the grid uses this shell.
 
@@ -36,12 +36,10 @@
   }: Props = $props();
 
   const ready = $derived(view === "content");
-  const message = $derived(
-    ready ? empty : view === "opening" ? "Opening repository…" : "No repository open.",
-  );
+  const message = $derived(ready ? empty : idleMessage(view));
 </script>
 
-<section class="panel">
+<section class="panel" aria-busy={view === "opening"}>
   <header class="panel-header" class:active>
     <h2 class="panel-title">
       {title}{#if ready && count}&nbsp;({count}){/if}
@@ -57,7 +55,7 @@
   <div class="panel-body">
     {#if message}
       <p class="panel-empty">{message}</p>
-    {:else if children}
+    {:else if ready && children}
       {@render children()}
     {/if}
   </div>

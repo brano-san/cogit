@@ -3,6 +3,7 @@
   import { ContentSearch } from "$lib/content-search.svelte";
   import { withUnchanged } from "$lib/file-switches";
   import type { FileView } from "$lib/file-view";
+  import { idleMessage } from "$lib/repo-phase";
   import { commit } from "$stores/commit.svelte";
   import { commitTree } from "$stores/commit-tree.svelte";
   import { diff } from "$stores/diff.svelte";
@@ -78,11 +79,9 @@
 
   /** Three different nothings, and the panel used to say the same thing for all of them. */
   const nothing = $derived(
-    view === "opening"
-      ? "Opening repository…"
-      : view === "start"
-        ? "No repository open."
-        : commit.oid === null
+    view !== "content"
+      ? (idleMessage(view) ?? "")
+      : commit.oid === null
         ? "Select a commit to see the files it changed."
         : "This commit changed no files.",
   );
