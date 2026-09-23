@@ -355,8 +355,11 @@
     blame.clear();
   });
 
+  /** The id, not the object: a status refresh replaces `repository.current`, and reading
+      the object here reloaded the working tree after every mutation that had just done so. */
+  const currentRepo = $derived(repository.current?.repo);
   $effect(() => {
-    const id = repository.current?.repo;
+    const id = currentRepo;
     if (id && commit.oid === null) void worktree.load(id);
   });
 
