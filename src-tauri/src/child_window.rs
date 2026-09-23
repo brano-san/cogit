@@ -49,17 +49,29 @@ pub fn open<R: tauri::Runtime>(
     // draws a blank bar, so it is taken off again before the window is first shown.
     let empty = tauri::menu::Menu::new(app)?;
 
-    let window = WebviewWindowBuilder::new(app, label, WebviewUrl::App(url.into()))
+    let mut builder = WebviewWindowBuilder::new(app, label, WebviewUrl::App(url.into()))
         .title(title)
         .menu(empty)
         .visible(false)
         .background_color(BACKGROUND)
         .inner_size(shape.width, shape.height)
         .min_inner_size(shape.min_width, shape.min_height)
-        .center()
-        .build()?;
+        .center();
+    // WebView2 refuses a second environment on the same profile with other arguments.
+    if let Some(args) = browser_args(&app.config().app.windows) {
+        builder = builder.additional_browser_args(&args);
+    }
+    let window = builder.build()?;
     window.remove_menu()?;
     window.show()
+}
+
+/// The main window's browser arguments, which every other webview has to repeat.
+fn browser_args(windows: &[tauri::utils::config::WindowConfig]) -> Option<String> {
+    windows
+        .iter()
+        .find(|window| is_main(&window.label))
+        .and_then(|window| window.additional_browser_args.clone())
 }
 
 #[cfg(test)]
@@ -97,6 +109,30 @@ mod tests {
         let mut taken = labels("compare", 2);
         taken.extend(labels("merge", 2));
         assert!(labels_are_unique(&taken));
+    }
+
+    fn windows_of(config: &str) -> Vec<tauri::utils::config::WindowConfig> {
+        let value: serde_json::Value = serde_json::from_str(config).unwrap();
+        serde_json::from_value(value["app"]["windows"].clone()).unwrap()
+    }
+
+    /// The benchmark's config opens a debugging port on the main window; a child window
+    /// without the same arguments failed to get a webview at all.
+    #[test]
+    fn a_child_repeats_the_main_windows_browser_arguments() {
+        let args = browser_args(&windows_of(include_str!("../tauri.bench.conf.json")));
+        assert!(
+            args.is_some_and(|args| args.contains("--remote-debugging-port")),
+            "the child must join the same WebView2 environment"
+        );
+    }
+
+    #[test]
+    fn a_main_window_without_arguments_leaves_the_defaults_alone() {
+        assert_eq!(
+            browser_args(&windows_of(include_str!("../tauri.conf.json"))),
+            None
+        );
     }
 
     /// Closing a diff window used to arm the shutdown watchdog of the whole app (#8).
