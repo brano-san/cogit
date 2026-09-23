@@ -3,6 +3,7 @@
   import SkeletonRows from "$components/common/SkeletonRows.svelte";
   import { settings } from "$stores/settings.svelte";
   import GraphCanvas from "$components/graph/GraphCanvas.svelte";
+  import RefCapsule from "$components/graph/RefCapsule.svelte";
   import { capsules, dateTooltip, refLabels, shortOid } from "$lib/format";
   import { DRAG_TYPE, parseDrag, serialiseDrag } from "$lib/drop-target";
   import { overlapLabel, overlapTooltip } from "$lib/overlap";
@@ -326,7 +327,7 @@
             }}
           >
             {#each refs.shown as label (label.text)}
-              <span class="capsule {label.kind}" title={label.text}>{label.text}</span>
+              <RefCapsule {label} />
             {/each}
             {#if refs.hidden.length > 0}
               <span class="capsule more" title={refs.hidden.map((l) => l.text).join("\n")}
@@ -481,30 +482,6 @@
     font-family: var(--font-mono);
     font-size: 10px;
     line-height: 14px;
-  }
-
-  .capsule.head {
-    color: var(--c-bg-window);
-    background: var(--status-ref);
-    border-color: var(--status-ref);
-  }
-
-  .capsule.local {
-    color: var(--status-ref);
-    background: var(--c-branch-bg);
-    border-color: var(--status-ref);
-  }
-
-  .capsule.remote {
-    color: var(--text-secondary);
-    background: transparent;
-    border-color: var(--field-border);
-  }
-
-  .capsule.tag {
-    color: var(--status-stash);
-    background: var(--c-stash-bg);
-    border-color: var(--status-stash);
   }
 
   .summary {
