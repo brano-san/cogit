@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { NO_FACTS, reasonOf, refAt, splitMarked, targetsOf, type ToolbarFacts } from "./toolbar";
+import {
+  ACTIONS,
+  DEFAULT_LAYOUT,
+  NO_FACTS,
+  SEPARATOR,
+  groupsOf,
+  menuOf,
+  reasonOf,
+  refAt,
+  splitMarked,
+  targetsOf,
+  type ToolbarFacts,
+} from "./toolbar";
 
 const HEAD = "a".repeat(40);
 const OTHER = "b".repeat(40);
@@ -181,5 +193,36 @@ describe("refAt", () => {
 
   it("skips HEAD's own branch", () => {
     expect(refAt(HEAD, branches)).toBe(HEAD);
+  });
+});
+
+describe("groupsOf", () => {
+  it("splits the default layout into its four groups", () => {
+    const groups = groupsOf(DEFAULT_LAYOUT).map((group) => group.map((action) => action.id));
+    expect(groups).toEqual([
+      ["pull", "push", "sync"],
+      ["stage", "unstage", "discard"],
+      ["stash", "merge", "rebase", "tag"],
+      ["undo"],
+    ]);
+  });
+
+  it("drops unknown ids and the groups they leave empty", () => {
+    const groups = groupsOf(["teleport", SEPARATOR, SEPARATOR, "pull", SEPARATOR]);
+    expect(groups.map((group) => group.map((action) => action.id))).toEqual([["pull"]]);
+  });
+});
+
+describe("every button", () => {
+  it("has a rule, so none of them can be on while its state says off", () => {
+    for (const action of ACTIONS) {
+      expect(reasonOf(action.id, NO_FACTS), action.id).not.toBe("Not built yet");
+    }
+  });
+
+  it("has a menu exactly when it is a split button", () => {
+    for (const action of ACTIONS) {
+      expect(menuOf(action.id).length > 0, action.id).toBe(Boolean(action.split));
+    }
   });
 });

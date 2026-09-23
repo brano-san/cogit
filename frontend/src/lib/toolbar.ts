@@ -4,6 +4,179 @@
  * Kept out of the component so the rules can be tested; the component only draws them.
  */
 
+/** Inapplicable actions are disabled, not hidden, so buttons never move under the cursor. */
+export interface ToolbarAction {
+  id: string;
+  label: string;
+  /** Lucide path data, drawn at one size and weight. */
+  icon: string;
+  hint: string;
+  shortcut?: string;
+  /** A caret beside the label opens more choices; the icon runs the action itself. */
+  split?: boolean;
+}
+
+export const ICONS = {
+  pull: "M12 3v12m0 0 4-4m-4 4-4-4M5 21h14",
+  push: "M12 21V9m0 0 4 4m-4-4-4 4M5 3h14",
+  sync: "M21 12a9 9 0 0 1-9 9 9 9 0 0 1-8.5-6M3 12a9 9 0 0 1 9-9 9 9 0 0 1 8.5 6M21 4v5h-5M3 20v-5h5",
+  stage: "M12 5v14m-7-7h14",
+  unstage: "M5 12h14",
+  discard: "M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5",
+  stash: "M3 8h18M3 8l2-4h14l2 4M3 8v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8m-11 5h4",
+  merge:
+    "M7 18V9a4 4 0 0 1 4-4h5M7 6.5a2.5 2.5 0 1 0 0-.1M18.5 7.5a2.5 2.5 0 1 0 0-.1M7 20.5a2.5 2.5 0 1 0 0-.1",
+  rebase:
+    "M7 6.5a2.5 2.5 0 1 0 0-.1M7 20.5a2.5 2.5 0 1 0 0-.1M7 9v6M17 6.5a2.5 2.5 0 1 0 0-.1M17 9v4a4 4 0 0 1-4 4H9",
+  tag: "M3 11V5a2 2 0 0 1 2-2h6l10 10-8 8L3 11Zm4-4.5a.5.5 0 1 0 0-.1",
+  undo: "M3 12a9 9 0 1 1 3 6.7L3 16m0 5v-5h5",
+  more: "M5 12h.01M12 12h.01M19 12h.01",
+} as const;
+
+export const ACTIONS: readonly ToolbarAction[] = [
+  {
+    id: "pull",
+    label: "Pull",
+    icon: ICONS.pull,
+    hint: "Bring the remote's commits down",
+    shortcut: "Ctrl+Shift+U",
+    split: true,
+  },
+  {
+    id: "push",
+    label: "Push",
+    icon: ICONS.push,
+    hint: "Send your commits to the remote",
+    shortcut: "Ctrl+Shift+O",
+  },
+  {
+    id: "sync",
+    label: "Sync",
+    icon: ICONS.sync,
+    hint: "Fetch every remote",
+    shortcut: "Ctrl+Shift+S",
+  },
+  {
+    id: "stage",
+    label: "Stage",
+    icon: ICONS.stage,
+    hint: "Stage the selected files, or every change when none is selected",
+    shortcut: "Ctrl+T",
+  },
+  {
+    id: "unstage",
+    label: "Unstage",
+    icon: ICONS.unstage,
+    hint: "Unstage the selected files, or the whole index when none is selected",
+    shortcut: "Ctrl+Shift+T",
+  },
+  {
+    id: "discard",
+    label: "Discard",
+    icon: ICONS.discard,
+    hint: "Throw away the changes in the selected files",
+    shortcut: "Ctrl+Z",
+  },
+  {
+    id: "stash",
+    label: "Stash",
+    icon: ICONS.stash,
+    hint: "Put the working tree aside",
+    shortcut: "Ctrl+S",
+    split: true,
+  },
+  {
+    id: "merge",
+    label: "Merge",
+    icon: ICONS.merge,
+    hint: "Merge the selected commit into HEAD",
+    shortcut: "Ctrl+M",
+  },
+  {
+    id: "rebase",
+    label: "Rebase",
+    icon: ICONS.rebase,
+    hint: "Replay HEAD on the selected commit",
+    shortcut: "Ctrl+R",
+    split: true,
+  },
+  { id: "tag", label: "Tag", icon: ICONS.tag, hint: "Tag the current commit", shortcut: "Shift+F7" },
+  { id: "undo", label: "Undo", icon: ICONS.undo, hint: "Reverse the last operation" },
+];
+
+/** Where one group of buttons ends and the next begins. */
+export const SEPARATOR = "|";
+
+export const DEFAULT_LAYOUT: readonly string[] = [
+  "pull",
+  "push",
+  "sync",
+  SEPARATOR,
+  "stage",
+  "unstage",
+  "discard",
+  SEPARATOR,
+  "stash",
+  "merge",
+  "rebase",
+  "tag",
+  SEPARATOR,
+  "undo",
+];
+
+export function actionOf(id: string): ToolbarAction | undefined {
+  return ACTIONS.find((action) => action.id === id);
+}
+
+/** The buttons in their groups. Unknown ids and empty groups drop out. */
+export function groupsOf(layout: readonly string[]): ToolbarAction[][] {
+  const groups: ToolbarAction[][] = [[]];
+  for (const id of layout) {
+    if (id === SEPARATOR) {
+      groups.push([]);
+      continue;
+    }
+    const action = actionOf(id);
+    if (action) groups[groups.length - 1]?.push(action);
+  }
+  return groups.filter((group) => group.length > 0);
+}
+
+export type MenuEntry =
+  | { kind: "item"; id: string; label: string; hint: string }
+  | { kind: "radio" | "check"; id: string; label: string; hint: string; checked: boolean }
+  | { kind: "separator" };
+
+/** The dropdown of a split button. */
+export function menuOf(id: string): MenuEntry[] {
+  const item = (entry: string, label: string, hint: string): MenuEntry => ({
+    kind: "item",
+    id: entry,
+    label,
+    hint,
+  });
+  switch (id) {
+    case "pull":
+      return [
+        item("fetch", "Fetch", "Update the remote refs, change nothing here"),
+        item("pull", "Pull", "Fetch, then merge"),
+        item("fetch-all", "Fetch All", "Every remote of every open repository"),
+      ];
+    case "stash":
+      return [
+        item("stash", "Stash All", "Everything in the working tree"),
+        item("stash-selection", "Stash Selection", "Only the selected files"),
+      ];
+    case "rebase":
+      return [
+        item("rebase", "Rebase", "Replay HEAD on the selected commit"),
+        item("rebase-i", "Interactive Rebase…", "Edit the list of commits first"),
+      ];
+    default:
+      return [];
+  }
+}
+
 /** Everything the rules read, recomputed whenever the selection in Graph, Files or
     Branches changes. */
 export interface ToolbarFacts {
