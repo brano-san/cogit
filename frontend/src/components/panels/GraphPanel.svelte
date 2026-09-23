@@ -28,6 +28,8 @@
     banner: Banner | null;
     busy: boolean;
     onbanneraction: (action: BannerAction) => void;
+    onworktreecontext?: (x: number, y: number) => void;
+    onrefcontext?: (label: import("$lib/format").RefLabel, oid: string, x: number, y: number) => void;
   }
 
   let {
@@ -47,6 +49,8 @@
     banner,
     busy,
     onbanneraction,
+    onworktreecontext,
+    onrefcontext,
   }: Props = $props();
 
   const view = $derived(panelView(repository.phase));
@@ -61,7 +65,7 @@
   {#if progress}
     <PauseCheckBar {check} {oncheck} onrun={onruncheck} {verdict} running={checking} />
   {/if}
-  <CommitList rebase={progress} {ondrop} {oncontext} />
+  <CommitList rebase={progress} {ondrop} {oncontext} {onworktreecontext} {onrefcontext} />
 {:else}
   <StartScreen
     {recent}
