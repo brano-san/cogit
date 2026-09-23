@@ -35,6 +35,15 @@ fn short(rev: &str) -> &str {
     &rev[..rev.len().min(7)]
 }
 
+/// For labels and stash messages: a message is on the command line too, so a thousand
+/// names in it would cost the stash that Undo needs (R-191).
+fn named(paths: &[String]) -> String {
+    match paths {
+        [_, _, _, _, ..] => format!("{}, {} and {} more", paths[0], paths[1], paths.len() - 2),
+        _ => paths.join(", "),
+    }
+}
+
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, specta::Type,
 )]
@@ -579,7 +588,7 @@ impl AppState {
         // A successful stash has already taken the changes out of the working tree, so
         // discarding again would only fail on paths Git no longer knows about.
         let stashed = handle
-            .stash_paths(paths, &format!("cogit: discard {}", paths.join(", ")))
+            .stash_paths(paths, &format!("cogit: discard {}", named(paths)))
             .unwrap_or(None);
         if stashed.is_none() {
             handle.discard(paths)?;
@@ -587,7 +596,7 @@ impl AppState {
 
         self.record(
             repo,
-            format!("Discard {}", paths.join(", ")),
+            format!("Discard {}", named(paths)),
             stashed.map_or(Recovery::None, |oid| Recovery::Stash { oid }),
         );
         Ok(())
@@ -892,7 +901,7 @@ impl AppState {
         let label = if paths.is_empty() {
             "the working tree".to_owned()
         } else {
-            paths.join(", ")
+            named(paths)
         };
         let stashed = handle
             .stash_paths(paths, &format!("cogit: before rollback of {label}"))
@@ -1061,7 +1070,7 @@ impl AppState {
         };
         self.record(
             repo,
-            format!("Split {} off {}", paths.join(", "), short(rev)),
+            format!("Split {} off {}", named(paths), short(rev)),
             recovery,
         );
         Ok(())

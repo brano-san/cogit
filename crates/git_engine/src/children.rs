@@ -1,6 +1,7 @@
 //! Every process Cogit started and has not reaped yet, so that exiting can stop them (R-170).
 
 use std::collections::BTreeSet;
+use std::io::Write as _;
 use std::process::{Child, Command, Output, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, PoisonError};
@@ -47,6 +48,24 @@ pub(crate) fn output(command: &mut Command) -> std::io::Result<Output> {
         .stderr(Stdio::piped());
     let (child, _tracked) = spawn(command)?;
     child.wait_with_output()
+}
+
+/// `output` with `input` on stdin. Written from a thread of its own: a child that fills
+/// its stdout before reading all of stdin would otherwise wait on us forever.
+pub(crate) fn output_fed(command: &mut Command, input: &[u8]) -> std::io::Result<Output> {
+    command
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let (mut child, _tracked) = spawn(command)?;
+    let stdin = child.stdin.take();
+    std::thread::scope(|scope| {
+        scope.spawn(move || {
+            // A child that quit early says why in its exit code; the broken pipe adds nothing.
+            let _ = stdin.map(|mut pipe| pipe.write_all(input));
+        });
+        child.wait_with_output()
+    })
 }
 
 fn exiting() -> std::io::Error {

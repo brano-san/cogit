@@ -116,11 +116,34 @@ impl RepoHandle {
         self.spawn_with(args, false, env)
     }
 
+    /// `args`, `--` and the paths. A list too long for a Windows command line goes through
+    /// stdin instead, still as one command (R-191).
+    pub(crate) fn run_git_paths(&self, args: &[&str], paths: &[String]) -> Result<GitOutput> {
+        let mut all = args.to_vec();
+        if fits_command_line(paths) {
+            all.push("--");
+            all.extend(paths.iter().map(String::as_str));
+            return self.run_git(&all);
+        }
+        all.extend(["--pathspec-from-file=-", "--pathspec-file-nul"]);
+        self.spawn_fed(&all, false, &[], Some(paths.join("\0").as_bytes()))
+    }
+
     fn spawn(&self, args: &[&str], reading: bool) -> Result<GitOutput> {
         self.spawn_with(args, reading, &[])
     }
 
     fn spawn_with(&self, args: &[&str], reading: bool, env: &[(&str, &str)]) -> Result<GitOutput> {
+        self.spawn_fed(args, reading, env, None)
+    }
+
+    fn spawn_fed(
+        &self,
+        args: &[&str],
+        reading: bool,
+        env: &[(&str, &str)],
+        input: Option<&[u8]>,
+    ) -> Result<GitOutput> {
         let command = redact_command(args);
         let started = std::time::Instant::now();
 
@@ -129,7 +152,11 @@ impl RepoHandle {
         for (key, value) in env {
             process.env(key, value);
         }
-        let output = crate::children::output(process.args(args))?;
+        process.args(args);
+        let output = match input {
+            Some(bytes) => crate::children::output_fed(&mut process, bytes)?,
+            None => crate::children::output(&mut process)?,
+        };
 
         let duration_ms = u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX);
         let result = GitOutput::record(
@@ -158,6 +185,31 @@ impl RepoHandle {
             result,
         ))))
     }
+}
+
+/// Windows caps a command line at 32 767 UTF-16 units; bytes overcount them, and the rest
+/// is left for the executable and the options.
+const PATHS_BUDGET: usize = 24_000;
+
+pub(crate) fn fits_command_line(paths: &[String]) -> bool {
+    paths.iter().map(|path| path.len() + 3).sum::<usize>() <= PATHS_BUDGET
+}
+
+/// For the few commands without `--pathspec-from-file`, such as `clean`.
+pub(crate) fn command_line_batches(paths: &[String]) -> Vec<&[String]> {
+    let mut batches = Vec::new();
+    let (mut start, mut length) = (0, 0);
+    for (index, path) in paths.iter().enumerate() {
+        if index > start && length + path.len() + 3 > PATHS_BUDGET {
+            batches.push(&paths[start..index]);
+            (start, length) = (index, 0);
+        }
+        length += path.len() + 3;
+    }
+    if start < paths.len() {
+        batches.push(&paths[start..]);
+    }
+    batches
 }
 
 /// Wall-clock start, for the history list. A clock that jumps backwards only misorders
