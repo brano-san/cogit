@@ -12,7 +12,8 @@
   import OriginCandidates from "$components/investigate/OriginCandidates.svelte";
   import OriginView from "$components/investigate/OriginView.svelte";
   import { closesWindow } from "$lib/child-window";
-  import { closeThisWindow, type RepoId } from "$lib/ipc";
+  import { onMount, untrack } from "svelte";
+  import { closeThisWindow, type DiffSpec, type RepoId } from "$lib/ipc";
   import {
     cancelOriginSearch,
     investigateBlame,
@@ -52,7 +53,9 @@
   // Nothing in a Git client is a web page (R-127).
   $effect(() => suppressNativeMenu(document));
 
-  $effect(() => {
+  // `onMount` does not track: the session reads its own state while starting.
+  onMount(() => {
+    document.title = request ? investigateTitle(request.start.path, request.repoName) : "Investigate";
     void settings.load().then(() => avatars.apply(settings.current.avatars === "gravatar"));
     void session?.start();
     const tick = setInterval(() => (now = Math.floor(Date.now() / 1000)), 60_000);
@@ -63,25 +66,18 @@
   });
 
   $effect(() => {
-    document.title = session
-      ? investigateTitle(session.location.path, request?.repoName ?? "")
-      : "Investigate";
-  });
-
-  $effect(() => {
     const rows = session?.sections.flatMap((section) => section.rows) ?? [];
-    void avatars.load(rows.slice(0, 200).map((row) => ({ authorName: row.author, authorEmail: row.email })));
+    const authors = rows.slice(0, 200).map((row) => ({ authorName: row.author, authorEmail: row.email }));
+    untrack(() => void avatars.load(authors));
   });
 
   /** The Diff perspective reads the shared diff store, as the compare window does. */
   $effect(() => {
     if (!session || !request || session.perspective !== "diff") return;
     const { path, rev } = session.location;
-    void diff.load(
-      request.repo,
-      rev === null ? { kind: "workTreeVsIndex" } : { kind: "commitVsParent", oid: rev },
-      path,
-    );
+    const spec: DiffSpec =
+      rev === null ? { kind: "workTreeVsIndex" } : { kind: "commitVsParent", oid: rev };
+    untrack(() => void diff.load(request.repo, spec, path));
   });
 
   function stateOf(id: InvestigateCommand): { enabled: boolean; checked: boolean } {
