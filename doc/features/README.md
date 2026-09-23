@@ -267,6 +267,12 @@
 | F-293 | Граф не мигает при смене отметок | [F-293-graph-no-flash-on-reload.md](F-293-graph-no-flash-on-reload.md) |
 | F-294 | Одна подсветка у кнопок тулбара | [F-294-toolbar-single-hover.md](F-294-toolbar-single-hover.md) |
 | F-295 | Уровни деревьев выровнены | [F-295-tree-levels-aligned.md](F-295-tree-levels-aligned.md) |
+| F-330 | Одна метка у ветки и её upstream | [F-330-joined-upstream-label.md](F-330-joined-upstream-label.md) |
+| F-331 | Stash в графе: метка и квадратный узел | [F-331-stash-in-graph.md](F-331-stash-in-graph.md) |
+| F-332 | Чередование строк графа | [F-332-graph-row-stripes.md](F-332-graph-row-stripes.md) |
+| F-333 | Состояние репозитория в панели Graph и в Repositories | [F-333-repository-state-in-graph.md](F-333-repository-state-in-graph.md) |
+| F-334 | Метка ветки, взятой в другой worktree | [F-334-worktree-branch-label.md](F-334-worktree-branch-label.md) |
+| F-335 | Четыре темы | [F-335-four-themes.md](F-335-four-themes.md) |
 | F-340 | Папки веток и тегов в Branches | [F-340-branch-folders.md](F-340-branch-folders.md) |
 | F-341 | Натуральная сортировка и сортировка по дате в Branches | [F-341-branch-sort.md](F-341-branch-sort.md) |
 | F-342 | Ветка, взятая в worktree, помечена в Branches | [F-342-worktree-branches.md](F-342-worktree-branches.md) |

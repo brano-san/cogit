@@ -1,4 +1,4 @@
-import type { RepoState } from "$lib/ipc";
+import type { RepoState, RepoStatus } from "$lib/ipc";
 
 export type BannerAction = "continue" | "skip" | "abort" | "createBranch";
 
@@ -15,7 +15,47 @@ const INTERRUPTED: Partial<Record<RepoState["kind"], string>> = {
   cherryPicking: "Cherry-pick",
   reverting: "Revert",
   bisecting: "Bisect",
+  applyingPatches: "Applying patches",
 };
+
+/** What the Working Tree row and the Repositories tree call a state that outlasts a command. */
+const ONGOING: Partial<Record<RepoState["kind"], string>> = {
+  merging: "merging",
+  rebasing: "rebasing",
+  cherryPicking: "cherry-picking",
+  reverting: "reverting",
+  bisecting: "bisecting",
+  applyingPatches: "applying patches",
+};
+
+/** Merge and bisect have nothing to skip; bisect ends with `reset`, never `--continue`. */
+function interruptedActions(kind: RepoState["kind"]): BannerAction[] {
+  if (kind === "merging") return ["continue", "abort"];
+  if (kind === "bisecting") return ["abort"];
+  return ["continue", "skip", "abort"];
+}
+
+export function workingTreeLabel(status: RepoStatus | undefined, state: RepoState | undefined): string {
+  const parts: string[] = [];
+  if (status && status.staged > 0) parts.push(`${status.staged} staged`);
+  if (status && status.unstaged > 0) parts.push(`${status.unstaged} modified`);
+  if (status && status.untracked > 0) parts.push(`${status.untracked} untracked`);
+  if (status && status.conflicted > 0) parts.push(`${status.conflicted} conflicted`);
+  const counts = !status ? "Working Tree" : parts.length > 0 ? `Working Tree (${parts.join(", ")})` : "Working Tree — clean";
+  const ongoing = state ? ONGOING[state.kind] : undefined;
+  return ongoing ? `${counts}, ${ongoing}` : counts;
+}
+
+export const STATE_TAG_HINT =
+  "Stopped half way or on a detached HEAD: the banner in the Graph panel says what to do.";
+
+/** `<merging>` beside a name in Repositories. A submodule is detached by design (R-130). */
+export function repoStateTag(state: RepoState | null | undefined, submodule = false): string | null {
+  if (!state) return null;
+  if (state.kind === "detachedHead") return submodule ? null : "<detached>";
+  const ongoing = ONGOING[state.kind];
+  return ongoing ? `<${ongoing}>` : null;
+}
 
 /** `submodule` changes one thing: a detached HEAD there is how submodules work, not a
     situation to be rescued from (doc/12-risks.md, R-130). */
@@ -40,7 +80,7 @@ export function stateBanner(
       title: `${interrupted} in progress`,
       detail: "Resolve the conflicts and continue, or abort to go back.",
       severity: "warning",
-      actions: state.kind === "merging" ? ["continue", "abort"] : ["continue", "skip", "abort"],
+      actions: interruptedActions(state.kind),
     };
   }
 
