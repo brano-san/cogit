@@ -140,7 +140,10 @@ class Context {
     const cdp = this.cdp;
     const point = async (spec) => {
       const at = await cdp.eval(`window.__bench.point(${JSON.stringify(spec)})`);
-      if (!at) throw new Error(`nothing matches ${JSON.stringify(spec)}`);
+      if (!at) {
+        const seen = await cdp.eval(`JSON.stringify({ filter: document.querySelector('input[placeholder="File Filter"]')?.value, headings: [...document.querySelectorAll(".pane.tree-rows .heading")].map((h) => h.textContent.trim().slice(0, 24)), rows: [...document.querySelectorAll(".pane button.row")].slice(0, 4).map((r) => r.textContent.replace(/\s+/g, " ").trim().slice(0, 30)), message: document.querySelector(".file-list .message")?.textContent })`).catch(() => "?");
+        throw new Error(`nothing matches ${JSON.stringify(spec)}; the page shows ${seen}`);
+      }
       return at;
     };
     const input = async (send, opts = {}) => {
@@ -519,11 +522,16 @@ async function warmPass(set, exe) {
 /** Launch to first paint, launch to ready (a repository restored), and exit. */
 async function appPass(exe) {
   if (!wanted("app")) return;
+  for (let run = 0; run < WARMUP + COLD; run += 1) {
+    await appOnce(exe, run >= WARMUP);
+    await note(`  app ${run + 1}/${WARMUP + COLD}`);
+  }
+}
+
+async function appOnce(exe, keep) {
   const medium = join(REPOS, "medium").replaceAll("\\", "/");
   const meta = (title) => ({ group: "Приложение", title });
-
-  for (let run = 0; run < WARMUP + COLD; run += 1) {
-    const keep = run >= WARMUP;
+  {
     await resetProfile();
     const app = await launch(exe);
     const paint = await app.cdp.eval(`(async () => {
@@ -573,7 +581,6 @@ async function appPass(exe) {
     const gone = await Promise.race([restored.exited, sleep(15000).then(() => null)]);
     if (keep && gone) record("app.close", "medium", "cold", { total: gone - asked }, meta("закрытие приложения"));
     await stop(restored);
-    await note(`  app ${run + 1}/${WARMUP + COLD}`);
   }
 }
 
@@ -736,6 +743,18 @@ async function main() {
   if (args.has("ab")) {
     const names = String(args.get("ab")).split(",");
     env.ab = names;
+    if (wanted("app") && !args.has("no-app")) {
+      const rounds = Number(args.get("rounds") ?? 6);
+      for (let r = 0; r < rounds * 2; r += 1) {
+        for (const name of r % 2 === 0 ? names : [...names].reverse()) {
+          VARIANT = name;
+          await appOnce(exeOf(name), r > 0).catch((error) => note(`  ! app ${name}: ${error.message}`));
+        }
+        await note(`  ab app round ${r + 1}/${rounds * 2}`);
+      }
+      VARIANT = null;
+      await save(env, started, { ab: abTable(names) });
+    }
     for (const set of SETS) {
       await note(`${set}: A/B ${names.join(" vs ")}`);
       if (!args.has("keep-repos")) await rebuild([set]);
