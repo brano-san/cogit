@@ -70,7 +70,7 @@ pub use outcome::Severity;
 pub use overlap::{Overlap, OverlapRow, overlap_of, shared_paths};
 pub use presets::{Preset, PresetTool, builtin_presets, find_tool, parse_preset};
 pub use progress::{RebaseProgress, RebaseStep};
-pub use reflog::ReflogEntry;
+pub use reflog::{Reachable, ReflogEntry};
 pub use repo::{Branch, BranchKind, Head, RepoHandle, Tag};
 pub use runner::{CommandSink, GitOutput, git_version, gix_version, redact_command};
 pub use search::{CommitQuery, SkippedRef};
