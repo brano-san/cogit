@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RefNode } from "$lib/ref-nodes";
 
-const commands = { remotes: vi.fn(), remoteUrl: vi.fn() };
+const commands = { remotes: vi.fn(), remoteUrl: vi.fn(), refDates: vi.fn() };
 
 vi.mock("@tauri-apps/api/core", () => ({ Channel: class {} }));
 vi.mock("$lib/ipc/bindings", () => ({ commands }));
@@ -164,5 +164,45 @@ describe("refs store", () => {
     store.set("cogit.visible-refs.v2", "{not json");
     refs.adopt("/w/alpha", TREE);
     expect(refs.visible.size).toBeGreaterThan(0);
+  });
+});
+
+describe("the Branches sort (#20)", () => {
+  beforeEach(async () => {
+    store.clear();
+    vi.resetModules();
+    ({ refs } = await import("./refs.svelte"));
+  });
+
+  it("sorts naturally by name out of the box", () => {
+    expect(refs.sort).toEqual({ names: "natural", dates: "off" });
+  });
+
+  it("keeps the chosen order for the next run", async () => {
+    refs.setSort({ names: "plain", dates: "newest" });
+
+    vi.resetModules();
+    ({ refs } = await import("./refs.svelte"));
+    expect(refs.sort).toEqual({ names: "plain", dates: "newest" });
+  });
+
+  it("reads the tip dates by full ref name", async () => {
+    commands.refDates.mockResolvedValueOnce({
+      status: "ok",
+      data: [{ fullName: "refs/heads/main", timestamp: 42 }],
+    });
+    await refs.loadDates(1 as never);
+    expect(refs.dates.get("refs/heads/main")).toBe(42);
+  });
+
+  it("keeps the dates it had when a read fails", async () => {
+    commands.refDates.mockResolvedValueOnce({
+      status: "ok",
+      data: [{ fullName: "refs/heads/main", timestamp: 42 }],
+    });
+    await refs.loadDates(1 as never);
+    commands.refDates.mockRejectedValueOnce(new Error("gone"));
+    await refs.loadDates(1 as never);
+    expect(refs.dates.get("refs/heads/main")).toBe(42);
   });
 });

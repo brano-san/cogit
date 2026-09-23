@@ -36,6 +36,13 @@ export function capFraction(value: number, containerPx: number, reservedPx: numb
   return Math.max(MIN_FRACTION, Math.min(clamped, 1 - reservedPx / containerPx));
 }
 
+/** The panel before the splitter keeps `minPx`, so dragging past it leaves no dead zone. */
+export function floorFraction(value: number, containerPx: number, minPx: number): number {
+  const clamped = clampFraction(value);
+  if (containerPx <= 0 || minPx <= 0) return clamped;
+  return Math.min(MAX_FRACTION, Math.max(clamped, minPx / containerPx));
+}
+
 export const PANELS = [
   "repositories",
   "refs",

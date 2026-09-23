@@ -77,12 +77,13 @@ pub enum CogitError {
 
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
-| `open_repository` | `path: String` | `RepoSummary` | M1 |
+| `open_repository` | `path: String` | `RepoSummary`; в нём `tagGroupSeparator` — `cogit.tagGroupSeparator` из конфига репозитория, `/` если не задан, `""` — теги без папок; перечитывается при каждом открытии и обновлении (#11) | M1 |
 | `close_repository` | `repo: RepoId` | `()` | M1 |
 | `list_repositories` | — | `Vec<RepoEntry>` | M3 |
-| `repo_state` | `repo: RepoId` | `RepoState` | M1 |
+| `repo_state` | `repo: RepoId` | `RepoState` — `clean | detachedHead { oid } | merging | rebasing | cherryPicking | reverting | bisecting | applyingPatches | empty | bare`; `applyingPatches` — `git am`, остановленный на патче (`rebase-apply/applying`) | M1 |
+| `repositories` | — | `Vec<RepoOverview { repo, name, root, branch, ahead, behind, dirty, missing, state: RepoState }>`; `state` — для меток `<merging>`/`<detached>` в дереве (#22) | M3 |
 | `list_submodules` | `repo: RepoId` | `Vec<Submodule>` | M3 |
-| `worktrees` | `repo: RepoId` | `Vec<WorktreeEntry { path, name, branch, head, isMain, isCurrent, locked, missing, dirty }>`; из linked-ворктри основной — всё равно основной (R-184) | M3 |
+| `worktrees` | `repo: RepoId` | `Vec<WorktreeEntry { path, name, branch, head, isMain, isCurrent, locked, missing, dirty }>`; из linked-ворктри основной — всё равно основной (R-184); у `missing` ветка и HEAD читаются из записи `.git/worktrees/<id>/HEAD` (R-241) | M3 |
 | `open_worktree` | `owner: RepoId`, `path` — существующий ворктри владельца | `RepoSummary`, в списке Repositories не появляется; чужая папка — `InvalidState` | M3 |
 | `add_worktree` | `repo`, `path`, `branch`, `create`, `base: Option<String>` — откуда новая ветка, по умолчанию HEAD | `()` | M3 |
 | `remove_worktree` | `repo`, `path`, `force` | `()`; при `force` изменения сначала в stash, в журнале — Undo (INV-12) | M3 |
@@ -119,6 +120,30 @@ pub enum CogitError {
 URL, чтобы окно пережило перезагрузку вебвью. Записав результат, оно зовёт
 `merge_resolved`, а тот шлёт событие `merge-resolved` всем окнам; главное закрывает
 панель конфликта и перечитывает состояние.
+
+### Окно Blame (M8, M2)
+
+| Команда | Вход | Выход | Модуль |
+|---|---|---|---|
+| `blame` | `repo, path, rev` | `Vec<BlameLine>` | M8 |
+| `open_blame_window` | `repo, path, rev` — любая ревизия, `HEAD` тоже | `()` | M2 |
+| `file_revisions` | `repo, path, rev` | `Vec<CommitRow>` — коммиты до `rev`, менявшие файл, новые сверху; не больше 500 | M8 |
+| `line_history` | `repo, path, rev, line` — строка с 1 | `Vec<LineVersion { oid, summary, author, email, timestamp, path, line, text }>`, новые сверху; не больше 200 | M8 |
+
+Blame открывается только отдельным окном (`blame.html`). `open_blame_window` сам разрешает
+`rev` в коммит: заголовок окна — `<файл> - Blame of <путь>@<короткий хеш>`, в URL уходит
+полный хеш, так что окно после перезагрузки вебвью показывает ту же версию.
+
+`line_history` — история одной строки: коммиты, менявшие её, и сама строка в каждой версии
+(`text`, номер `line`, путь `path` на момент коммита — он меняется при переименовании). Идёт
+через `git log -L`, как `investigate` ([R-202](12-risks.md)). `file_revisions` — список
+версий для `View Commit` и `Highlight: Changes Since`, обход через `gix` без следования за
+переименованием.
+
+У окна своё меню. Id его пунктов — `child:<метка окна>:<действие>`; обработчик меню
+приложения узнаёт их по префиксу и не шлёт в `menu-command`. `close` закрывает окно в Rust,
+остальные действия доходят только до этого окна DOM-событием `cogit-menu` (`detail` —
+действие).
 
 ### Аватары (M14)
 
@@ -220,6 +245,7 @@ pub enum FileStatus { Added, Modified, Deleted, Renamed, Copied }
 | `list_stashes` | `repo` | `Vec<StashEntry>` | M5 |
 | `stash_contents` | `repo, index: usize` | `Vec<FileEntry>` | M5 |
 | `list_reflog` | `repo` | `Vec<ReflogEntry>` | M5 |
+| `ref_dates` | `repo` | `Vec<RefDate { fullName, timestamp }>` — дата вершины каждой ветки (локальной и remote) и тега в секундах Unix: у аннотированного тега — дата тега, иначе — committer-дата коммита; зовётся только при сортировке Branches по дате (#20) | M5 |
 
 ### Diff
 
@@ -355,7 +381,9 @@ type SearchChunk =
 
 `Submodule.state` — `notInitialised | inSync | ahead | behind | diverged | unknown`, с
 `ahead`/`behind` — числом коммитов по обе стороны общего предка (R-153). `unknown` —
-записанного коммита в подмодуле нет, и положение не угадывается.
+записанного коммита в подмодуле нет, и положение не угадывается. `Submodule.repoState` —
+`RepoState` его собственного репозитория (`null`, пока он не выписан): дерево ставит на узел
+метку операции, остановленной внутри подмодуля (#22).
 
 `open_submodule` принимает ключ, а не путь: путь из ключа собирает бэкенд тем же
 `module_root`, что и `list_submodules`, и открывает ровно там, без поиска вверх (R-149).
@@ -441,9 +469,15 @@ type SearchChunk =
 `stage_mode` перерегистрирует запись индекса через `update-index --cacheinfo` с тем же
 блобом: `--chmod` перечитал бы файл и затянул в индекс ещё и правки содержимого.
 
-Обе последние — **синхронные** команды: на Windows и меню, и создание окна обязаны
-выполняться в главном потоке. Выбранный пункт контекстного меню возвращается тем же
-событием `menu-command`, что и строка меню.
+`popup_context_menu` — **синхронная** команда: меню на Windows показывается из главного
+потока. Выбранный пункт контекстного меню возвращается тем же событием `menu-command`, что
+и строка меню.
+
+Команды окон (`open_compare_window`, `open_merge_window`, `open_blame_window`,
+`close_this_window`) — наоборот, **только асинхронные**: синхронная команда выполняется
+внутри обработчика WebView2, и `WebviewWindowBuilder::build()` там навсегда блокирует все
+окна ([R-201](12-risks.md#r-201--дочернее-окно-чёрное-окно-и-зависшее-главное-8--в)).
+Tauri сам переносит создание окна на главный поток.
 
 `interactive_rebase` принимает `paused`: план дописывается строками `break` после каждого
 применённого коммита. `overlap_window` считается только по видимому окну и фанится

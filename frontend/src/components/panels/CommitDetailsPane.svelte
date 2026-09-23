@@ -1,7 +1,7 @@
 <script lang="ts">
   import Avatar from "$components/common/Avatar.svelte";
   import { shortOid } from "$lib/format";
-  import { panelView } from "$lib/repo-phase";
+  import { idleMessage, panelView } from "$lib/repo-phase";
   import { commit } from "$stores/commit.svelte";
   import { repository } from "$stores/repository.svelte";
   import { settings } from "$stores/settings.svelte";
@@ -68,7 +68,7 @@
     </dl>
     <p class="muted">Select a commit to see what it changed.</p>
   {:else}
-    <p class="muted">{view === "opening" ? "Opening repository…" : "No repository open."}</p>
+    {#if idleMessage(view)}<p class="muted">{idleMessage(view)}</p>{/if}
   {/if}
 </div>
 
