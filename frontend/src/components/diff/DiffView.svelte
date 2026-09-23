@@ -14,8 +14,8 @@
   import { BAND_WIDTH, bandLeft, ribbonPath, ribbonsNear } from "$lib/diff-band";
   import DiffFindBar from "./DiffFindBar.svelte";
   import { highlightLines, mergePieces, type Token } from "$lib/highlight";
-  import { hunkSelection, lineKey, selectedRange, toggleLine } from "$lib/selection";
-  import InvestigateView from "./InvestigateView.svelte";
+  import { hunkSelection, lineKey, toggleLine } from "$lib/selection";
+  import { investigateTarget, openInvestigate } from "$lib/investigate/open";
   import { visibleRange } from "$lib/graph-geometry";
   import type { FileDiff, Hunk } from "$lib/ipc";
   // The panel above belongs to `master` and cannot grow props for the branch's own view
@@ -208,13 +208,13 @@
     onstage?.(hunkSelection(hunk), reverse);
   }
 
-  /** The fragment being traced, or `null` while the diff itself is shown. */
-  let tracing = $state<{ from: number; to: number } | null>(null);
-
-  const traceable = $derived(selectedRange(selected));
-
+  /** Opens the Investigate window (#15), on the selected line when there is one. */
   function startInvestigate() {
-    if (traceable) tracing = traceable;
+    const repo = diffStore.repo;
+    const spec = diffStore.spec;
+    if (repo === null || !spec) return;
+    const target = investigateTarget(spec, selected);
+    void openInvestigate(repo, path, target.rev, target.line);
   }
 
   /** Which lines a Discard is about to throw away; `null` while nothing is pending. */
@@ -272,9 +272,6 @@
     } else if (ctrl && event.altKey && event.shiftKey && key === "l") {
       event.preventDefault();
       startInvestigate();
-    } else if (tracing && event.key === "Escape") {
-      event.preventDefault();
-      tracing = null;
     } else if (find.showing && event.key === "Escape") {
       event.preventDefault();
       find.close();
@@ -335,15 +332,6 @@
   {/if}
 {/snippet}
 
-{#if tracing && diffStore.repo !== null}
-  <InvestigateView
-    repo={diffStore.repo}
-    {path}
-    from={tracing.from}
-    to={tracing.to}
-    onclose={() => (tracing = null)}
-  />
-{:else}
 <div class="diff">
   <div class="bar">
     <span class="path mono truncate">{path}</span>
@@ -391,8 +379,8 @@
       {/if}
       <button
         type="button"
-        disabled={traceable === null || diffStore.repo === null}
-        title="History of the selected lines (Ctrl+Alt+Shift+L)"
+        disabled={diffStore.repo === null}
+        title="Trace where the lines came from, starting at the selected one (Ctrl+Alt+Shift+L)"
         onclick={startInvestigate}>Investigate</button
       >
       <button
@@ -588,7 +576,6 @@
     </div>
   {/if}
 </div>
-{/if}
 
 <style>
   .diff {
