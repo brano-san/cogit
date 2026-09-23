@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { editedSides, editorSide, forDisk, removeRows } from "./file-dialogs";
+import { editedSides, editorSide, forDisk, listedMessage, removeRows } from "./file-dialogs";
 
 describe("removeRows", () => {
   it("splits each path into name and directory, in path order", () => {
@@ -7,6 +7,20 @@ describe("removeRows", () => {
       { path: "README.md", name: "README.md", directory: "" },
       { path: "src/lib/a.ts", name: "a.ts", directory: "src/lib" },
     ]);
+  });
+});
+
+describe("listedMessage", () => {
+  it("leaves a question about one file alone", () => {
+    expect(listedMessage("Delete a.txt?", ["a.txt"])).toBe("Delete a.txt?");
+  });
+
+  it("names several files under the question and counts the ones that do not fit", () => {
+    const paths = Array.from({ length: 14 }, (_, at) => `f${at}.txt`);
+    const lines = listedMessage("Delete 14 files?", paths).split("\n");
+    expect(lines.slice(0, 3)).toEqual(["Delete 14 files?", "", "f0.txt"]);
+    expect(lines).toHaveLength(2 + 12 + 1);
+    expect(lines.at(-1)).toBe("and 2 more");
   });
 });
 

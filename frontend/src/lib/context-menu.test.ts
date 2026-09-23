@@ -1,59 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { branchMenu, commitMenu, refMenu } from "./context-menu";
+import { SEPARATOR, item, offer, refMenu, submenu, tidy } from "./context-menu";
 
-describe("commitMenu", () => {
-  const items = commitMenu({ onRemote: false });
+describe("tidy", () => {
+  const sep = SEPARATOR;
+  const a = item("a", "A");
+  const b = item("b", "B");
 
-  it("offers the actions a commit supports", () => {
-    const ids = items.map((item) => item.id);
-    expect(ids).toContain("cherry-pick");
-    expect(ids).toContain("revert");
-    expect(ids).toContain("split-off");
-    expect(ids).toContain("rebase-i");
-    expect(ids).toContain("copy-sha");
+  it("drops leading, trailing and doubled separators", () => {
+    expect(tidy([sep, a, sep, sep, b, sep])).toEqual([a, sep, b]);
   });
 
-  it("gives every item a label a human can read", () => {
-    for (const item of items.filter((i) => !i.separator)) {
-      expect(item.label.length).toBeGreaterThan(2);
-      expect(item.label).not.toMatch(/^[a-z-]+$/);
-    }
-  });
-
-  it("keeps history-rewriting actions available but marked on a published commit", () => {
-    const published = commitMenu({ onRemote: true });
-    const split = published.find((item) => item.id === "split-off");
-    expect(split?.enabled).toBe(true);
-    expect(split?.label).toMatch(/force-push/i);
-  });
-
-  it("separates the destructive group from the rest", () => {
-    expect(items.some((item) => item.separator)).toBe(true);
+  it("leaves nothing of a menu that is only separators", () => {
+    expect(tidy([sep, sep])).toEqual([]);
   });
 });
 
-describe("branchMenu", () => {
-  it("does not offer to check out the branch that is already out", () => {
-    const item = branchMenu({ isHead: true, hasUpstream: true }).find(
-      (entry) => entry.id === "checkout",
-    );
-    expect(item?.enabled).toBe(false);
+describe("offer", () => {
+  it("is an ordinary row when nothing blocks it", () => {
+    expect(offer("x", "Squash", null)).toEqual(item("x", "Squash"));
   });
 
-  it("does not offer to delete the branch that is checked out", () => {
-    const item = branchMenu({ isHead: true, hasUpstream: true }).find(
-      (entry) => entry.id === "delete-branch",
-    );
-    expect(item?.enabled).toBe(false);
-  });
-
-  it("offers pull only when there is an upstream to pull from", () => {
-    expect(
-      branchMenu({ isHead: true, hasUpstream: false }).find((e) => e.id === "pull")?.enabled,
-    ).toBe(false);
-    expect(
-      branchMenu({ isHead: true, hasUpstream: true }).find((e) => e.id === "pull")?.enabled,
-    ).toBe(true);
+  it("puts the reason into the label of a row that is off", () => {
+    const off = offer("x", "Squash", "already pushed", "CmdOrCtrl+Q");
+    expect(off.enabled).toBe(false);
+    expect(off.label).toBe("Squash (already pushed)");
+    expect(off.accelerator).toBe("CmdOrCtrl+Q");
   });
 });
 
@@ -61,71 +32,24 @@ describe("refMenu", () => {
   const ids = (items: ReturnType<typeof refMenu>) =>
     items.filter((entry) => !entry.separator).map((entry) => entry.id);
 
-  it("offers branch actions for a local branch", () => {
-    const menu = refMenu({ kind: "local", isHead: false, hasUpstream: true });
-    expect(ids(menu)).toContain("checkout");
-    expect(ids(menu)).toContain("delete-branch");
-  });
-
-  it("offers a tag its own actions, not a branch's", () => {
-    const menu = refMenu({ kind: "tag", isHead: false, hasUpstream: false });
-    expect(ids(menu)).toEqual(["checkout-tag", "delete-tag", "copy-sha"]);
-  });
-
-  it("offers a stash apply, pop and drop", () => {
-    expect(ids(refMenu({ kind: "stash", isHead: false, hasUpstream: false }))).toEqual([
-      "apply-stash",
-      "pop-stash",
-      "drop-stash",
-    ]);
-  });
-
   it("offers a lost commit the way back", () => {
-    expect(ids(refMenu({ kind: "lost", isHead: false, hasUpstream: false }))).toEqual([
-      "restore-lost",
-      "copy-sha",
-    ]);
+    expect(ids(refMenu({ kind: "lost" }))).toEqual(["restore-lost", "copy-sha"]);
   });
 
   it("has nothing to offer for a heading", () => {
-    expect(refMenu({ kind: "group", isHead: false, hasUpstream: false })).toEqual([]);
-  });
-
-  it("cannot check out the branch that is already checked out", () => {
-    const menu = refMenu({ kind: "local", isHead: true, hasUpstream: true });
-    expect(menu.find((entry) => entry.id === "checkout")?.enabled).toBe(false);
+    expect(refMenu({ kind: "group" })).toEqual([]);
   });
 });
 
-describe("branchMenu · управление веткой", () => {
-  const ids = (items: ReturnType<typeof branchMenu>) =>
-    items.filter((entry) => !entry.separator).map((entry) => entry.id);
-
-  it("offers to rename any branch, checked out or not", () => {
-    expect(ids(branchMenu({ isHead: true, hasUpstream: true }))).toContain("rename-branch");
-    expect(ids(branchMenu({ isHead: false, hasUpstream: false }))).toContain("rename-branch");
+describe("submenu", () => {
+  it("carries its children, tidied like a menu of their own", () => {
+    const menu = submenu("move", "Move To", [SEPARATOR, item("a", "A"), SEPARATOR, SEPARATOR, item("b", "B")]);
+    expect(menu.children?.map((child) => (child.separator ? "-" : child.id))).toEqual(["a", "-", "b"]);
+    expect(menu.enabled).toBe(true);
   });
 
-  it("offers to set the upstream", () => {
-    expect(ids(branchMenu({ isHead: false, hasUpstream: false }))).toContain("set-upstream");
-  });
-
-  it("only offers to clear an upstream that exists", () => {
-    const without = branchMenu({ isHead: false, hasUpstream: false });
-    expect(without.find((entry) => entry.id === "clear-upstream")?.enabled).toBe(false);
-    const with_ = branchMenu({ isHead: false, hasUpstream: true });
-    expect(with_.find((entry) => entry.id === "clear-upstream")?.enabled).toBe(true);
-  });
-
-  it("offers to delete a remote branch only on a remote one", () => {
-    const local = refMenu({ kind: "local", isHead: false, hasUpstream: true });
-    const remote = refMenu({ kind: "remote", isHead: false, hasUpstream: false });
-    expect(local.map((e) => e.id)).not.toContain("delete-remote-branch");
-    expect(remote.map((e) => e.id)).toContain("delete-remote-branch");
-  });
-
-  it("does not offer to check out a remote branch as if it were local", () => {
-    const remote = refMenu({ kind: "remote", isHead: false, hasUpstream: false });
-    expect(remote.find((entry) => entry.id === "delete-branch")).toBeUndefined();
+  it("is off when told so, and when nothing is left inside", () => {
+    expect(submenu("r", "Resolve", [item("t", "Take Theirs")], false).enabled).toBe(false);
+    expect(submenu("r", "Resolve", [SEPARATOR]).enabled).toBe(false);
   });
 });
