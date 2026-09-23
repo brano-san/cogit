@@ -32,56 +32,13 @@ export function tidy(entries: readonly ContextItem[]): ContextItem[] {
   return kept;
 }
 
-/** A row of the Repositories panel: opening it, and the three things the OS can do. */
-export function repoMenu(at: { active: boolean }): ContextItem[] {
-  return [
-    item("repo-open", "Open this repository", !at.active),
-    SEPARATOR,
-    item("repo-explorer", "Show in Explorer"),
-    item("repo-terminal", "Open in Terminal"),
-    item("repo-copy-path", "Copy the path"),
-    SEPARATOR,
-    item("repo-close", "Close this repository"),
-  ];
+/** A row that opens a nested menu (`Move To ▸`); its children are tidied like a menu. */
+export function submenu(id: string, label: string, children: ContextItem[], enabled = true): ContextItem {
+  const inside = tidy(children);
+  return { ...item(id, label, enabled && inside.length > 0), children: inside };
 }
 
 export function refMenu(at: { kind: string }): ContextItem[] {
   if (at.kind !== "lost") return [];
   return [item("restore-lost", "Create a branch here"), SEPARATOR, item("copy-sha", "Copy the full SHA")];
-}
-
-/** A row of the Files panel, in SmartGit's order: what you do to a file most often comes
-    first, and what cannot be undone sits behind a separator. Chords match
-    doc/11-keybindings.md — a menu that shows a different one teaches the wrong thing. */
-export function fileMenu(at: {
-  status: string;
-  staged: boolean;
-  count: number;
-  /** A file of a past commit has nothing to stage and nothing on disk to discard. */
-  worktree: boolean;
-}): ContextItem[] {
-  const untracked = at.status === "untracked";
-  const one = at.count <= 1;
-  const hasHistory = !untracked && at.status !== "added" && at.status !== "deleted";
-
-  const staging: ContextItem[] = at.worktree
-    ? [
-        item("file-stage", "Stage", !at.staged, "CmdOrCtrl+T"),
-        item("file-unstage", "Unstage", at.staged, "CmdOrCtrl+Shift+T"),
-        SEPARATOR,
-        item("file-discard", "Discard changes…", !untracked, "CmdOrCtrl+Z"),
-        item("file-ignore", "Add to .gitignore", untracked),
-        item("file-delete", "Delete from disk…", untracked),
-        SEPARATOR,
-      ]
-    : [];
-
-  return tidy([
-    ...staging,
-    item("file-blame", "Blame", hasHistory && one, "CmdOrCtrl+Shift+L"),
-    item("file-history", "History of this file", hasHistory && one),
-    SEPARATOR,
-    item("file-explorer", "Show in Explorer", one && at.worktree, "CmdOrCtrl+Shift+E"),
-    item("file-copy-path", "Copy the path", one),
-  ]);
 }

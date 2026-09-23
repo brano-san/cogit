@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack } from "svelte";
+  import { tick, untrack } from "svelte";
   import { ask, open as openFolderDialog } from "@tauri-apps/plugin-dialog";
   import { checkForUpdates, message, type UpdateOutcome } from "$lib/updates";
   import { THIRD_PARTY_FILE } from "$lib/third-party";
@@ -46,6 +46,9 @@
   import RepoSettingsDialog from "$components/remote/RepoSettingsDialog.svelte";
   import { remoteCommands, submoduleScope } from "$lib/remote-menu";
   import { remoteOps } from "$stores/remote-ops.svelte";
+  import RemoveFilesDialog from "$components/file-list/RemoveFilesDialog.svelte";
+  import IndexEditorDialog from "$components/file-list/IndexEditorDialog.svelte";
+  import { openInvestigate } from "$lib/investigate/open";
   import WorktreesPanel from "$components/panels/WorktreesPanel.svelte";
   import AddWorktreeDialog from "$components/repo-tree/AddWorktreeDialog.svelte";
   import RemoveWorktreeDialog from "$components/repo-tree/RemoveWorktreeDialog.svelte";
@@ -58,9 +61,19 @@
   import { commitScope } from "$lib/commit-scope";
   import { activity, applyOperation } from "$lib/operations";
   import { measurer } from "$lib/timing";
-  import { fileMenu, refMenu, repoMenu } from "$lib/context-menu";
+  import { refMenu } from "$lib/context-menu";
   import RefActions from "$components/menus/RefActions.svelte";
   import { compareView } from "$stores/compare-view.svelte";
+  import { confirmation } from "$stores/confirm.svelte";
+  import { commitFileMenu, worktreeFileMenu } from "$lib/file-menu";
+  import { fileName, runFileMenuCommand, type FileActions, type FileScope } from "$lib/file-actions";
+  import { listedMessage } from "$lib/file-dialogs";
+  import * as fileMenus from "$lib/ipc/file-menus";
+  import { desktop } from "$stores/desktop.svelte";
+  import { groupChoices, parseRepoCommand, repoMenu } from "$lib/repo-menu";
+  import type { ListedRepo } from "$lib/repo-list";
+  import { UNGROUPED } from "$lib/repo-groups";
+  import { repoList } from "$stores/repo-list.svelte";
   import { compareUrl } from "$lib/compare-params";
   import { dropActions, type DropAction, type DragPayload } from "$lib/drop-target";
   import { moveEntry } from "$lib/rebase-plan";
@@ -83,7 +96,6 @@
     addToGitignore,
     cherryPick,
     closeThisWindow,
-    deleteUntracked,
     findObject,
     interactiveRebase,
     isPublished,
@@ -114,6 +126,7 @@
     openMergeWindow,
     openCompareWindow,
     popupContextMenu,
+    resolveConflict,
     setMenuState,
     revertCommits,
     rebaseOnto,
@@ -199,7 +212,10 @@
     changes: import("$lib/ipc").FileEntry[] | null;
   } | null>(null);
   let markedFiles = $state.raw<string[]>([]);
-  let repoTarget = $state.raw<import("$lib/ipc").RepoOverview | null>(null);
+  type RepoMenuSubject =
+    | { kind: "repository"; root: string; overview: import("$lib/ipc").RepoOverview | null }
+    | { kind: "submodule"; root: string; row: import("$lib/module-tree").ModuleRow };
+  let repoTarget = $state.raw<RepoMenuSubject | null>(null);
   let terminals = $state.raw<{ id: string; label: string }[]>([]);
   let groupTarget = $state<string | null>(null);
   /** Remembered per repository: a check command is worth typing once, not once per pause. */
@@ -963,24 +979,30 @@
     const id = repository.current?.repo;
     if (!id) return;
     const what = paths.length === 1 ? paths[0] : `${paths.length} files`;
-    const confirmed = await ask(`Discard changes in ${what}? Undo can bring them back.`, {
-      title: "Discard changes",
-      kind: "warning",
+    const confirmed = await confirmation.ask({
+      title: "Discard",
+      message: listedMessage(`Discard the changes in ${what}? Undo can bring them back.`, paths),
+      confirm: "Discard",
+      warning: true,
     });
     if (!confirmed) return;
     await mutate((repo) => worktree.discard(repo, paths), paths);
   }
 
+  /** To the Recycle Bin, from the menu and the list's own Delete button alike (#40). */
   async function deleteFromDisk(paths: string[]) {
     const id = repository.current?.repo;
-    if (!id) return;
-    const what = paths.length === 1 ? paths[0] : `${paths.length} untracked paths`;
-    const confirmed = await ask(
-      `Delete ${what} from disk? Untracked files are not in Git, so this cannot be undone.`,
-      { title: "Delete from disk", kind: "warning" },
-    );
+    if (!id || paths.length === 0) return;
+    const what = paths.length === 1 ? paths[0] : `${paths.length} files`;
+    const bin = (await desktop.load()).windowsShells ? "the Recycle Bin" : "the Trash";
+    const confirmed = await confirmation.ask({
+      title: "Delete",
+      message: listedMessage(`Move ${what} to ${bin}?`, paths),
+      confirm: "Delete",
+      warning: true,
+    });
     if (!confirmed) return;
-    await mutate((repo) => deleteUntracked(repo, paths), paths);
+    await mutate((repo) => fileMenus.moveToTrash(repo, paths), paths);
   }
 
   async function commitStaged(message: string, amend: boolean, noVerify: boolean) {
@@ -1282,26 +1304,6 @@
     if (go) await refreshSubmodule(row);
   }
 
-  async function moduleContext(row: import("$lib/module-tree").ModuleRow, x: number, y: number) {
-    const init = row.module.state === "notInitialised";
-    const chosen = await popupContextMenu(
-      [
-        { id: "open", label: "Open", enabled: !init },
-        { id: "update", label: init ? "Init and Update" : "Update", enabled: true },
-        { id: "reveal", label: "Show in Explorer", enabled: !init },
-      ],
-      x,
-      y,
-    );
-    const top = submodules.ownerRoot;
-    if (chosen === "open") await openModule(row);
-    if (chosen === "update") await refreshSubmodule(row);
-    if (chosen === "reveal" && top) {
-      const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
-      await revealItemInDir(`${top}/${row.key}`).catch(() => {});
-    }
-  }
-
   async function recoverCommit(lost: import("$lib/ipc").CommitRow) {
     const id = repository.current?.repo;
     if (!id) return;
@@ -1447,9 +1449,8 @@
   }
 
   /** Double-click opens the file in its own window, which survives a webview reload. */
-  function openInWindow(path: string) {
+  function openInWindow(path: string, spec = diff.spec) {
     const id = repository.current?.repo;
-    const spec = diff.spec;
     if (!id || !spec) return;
     void openCompareWindow(compareUrl(id, path, spec), `${path} — Cogit`).catch((err) =>
       errors.report(err, "Could not open the file window"),
@@ -1523,6 +1524,7 @@
       void health.check(opened.repo, opened.root, opened.name);
       session.setActive(opened.root);
       session.opened(opened.root);
+      repoList.opened(opened.root);
       if (restoreOid) void commit.select(opened.repo, restoreOid);
       void timed(story, "graph", () => reloadGraph());
       void refs.loadUrls(opened.repo);
@@ -1567,13 +1569,6 @@
     void worktrees.refresh(opened.repo);
     void flow.refresh(opened.repo);
     await afterMutation();
-  }
-
-  async function closeOne(entry: import("$lib/ipc").RepoOverview) {
-    await repository.closeOne(entry.repo);
-    const next = repository.openRepos[0];
-    if (next) await activate(next.root);
-    else graph.clear();
   }
 
   /** Restores a past version into the working tree; HEAD stays where it is. */
@@ -1748,7 +1743,8 @@
       so the node it was opened on has to be remembered until then. */
   let refTarget = $state.raw<RefNode | null>(null);
   let refActions = $state<ReturnType<typeof RefActions>>();
-  let fileTarget = $state.raw<string | null>(null);
+  let fileTarget = $state.raw<FileScope | null>(null);
+  let fileSection = $state<"worktree" | "index" | "commit">("worktree");
   let aboutOpen = $state(false);
   let configEdit = $state.raw<{
     scope: import("$lib/ipc").ConfigScope;
@@ -1799,59 +1795,207 @@
     return markedFiles.includes(path) ? [...markedFiles] : [path];
   }
 
-  async function fileContext(path: string, event: MouseEvent) {
-    fileTarget = path;
-    const staged = worktree.staged.some((file) => file.path === path);
-    const entry = [...worktree.staged, ...worktree.unstaged, ...commit.files].find(
-      (file) => file.path === path,
-    );
-    await popupContextMenu(
-      fileMenu({
-        status: entry?.status ?? "modified",
-        staged,
-        count: fileScope(path).length,
-        worktree: onWorkingTree,
-      }),
-      event.clientX,
-      event.clientY,
-    ).catch(() => {});
+  /** `section` is the list the row sits in: "Staged" is the index, the rest the working
+      tree (#40). A commit's files get their own menu (#41). */
+  async function fileContext(path: string, event: MouseEvent, section?: string) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    const { clientX: x, clientY: y } = event;
+    const paths = fileScope(path);
+    const info = await desktop.load();
+
+    if (!onWorkingTree) {
+      const statuses = paths.map((each) => commit.files.find((file) => file.path === each)?.status ?? "modified");
+      const clicked = commit.files.find((file) => file.path === path);
+      const present = await fileMenus.presentOnDisk(id, [path]).catch(() => [] as string[]);
+      fileTarget = { path, paths, statuses, rev: commit.oid, oldPath: clicked?.oldPath ?? null };
+      fileSection = "commit";
+      const items = commitFileMenu({
+        status: clicked?.status ?? "modified",
+        count: paths.length,
+        onDisk: present.includes(path),
+        fileManager: info.fileManager,
+      });
+      await popupContextMenu(items, x, y).catch(() => {});
+      return;
+    }
+
+    const index = section === "Staged";
+    const own = index ? worktree.staged : worktree.unstaged;
+    const every = [...own, ...worktree.staged, ...worktree.unstaged];
+    const statuses = paths.map((each) => every.find((file) => file.path === each)?.status ?? "modified");
+    fileTarget = { path, paths, statuses, rev: null, oldPath: null };
+    fileSection = index ? "index" : "worktree";
+    const items = worktreeFileMenu({
+      section: index ? "index" : "worktree",
+      statuses,
+      staged: paths.some((each) => worktree.staged.some((file) => file.path === each)),
+      unstaged: paths.some((each) => worktree.unstaged.some((file) => file.path === each)),
+      fileManager: info.fileManager,
+    });
+    await popupContextMenu(items, x, y).catch(() => {});
   }
 
   function runFileCommand(id: string): boolean {
-    const path = fileTarget;
-    if (path === null || !id.startsWith("file-")) return false;
-    const paths = fileScope(path);
-    switch (id) {
-      case "file-stage":
-        void stage(paths);
-        return true;
-      case "file-unstage":
-        void unstage(paths);
-        return true;
-      case "file-discard":
-        void discard(paths);
-        return true;
-      case "file-ignore":
-        void ignore(paths);
-        return true;
-      case "file-delete":
-        void deleteFromDisk(paths);
-        return true;
-      case "file-blame":
-        void blameOne(path);
-        return true;
-      case "file-history":
-        filterGraph({ ...graph.query, path });
-        return true;
-      case "file-explorer":
-        void revealFile(path);
-        return true;
-      case "file-copy-path":
-        void copyText(path);
-        return true;
-      default:
-        return false;
+    const scope = fileTarget;
+    const root = repository.current?.root;
+    if (scope === null || !root || !id.startsWith("file-")) return false;
+    return runFileMenuCommand(id, scope, fileActions, { root, separator: desktop.info.separator });
+  }
+
+  /** Where each file menu command lands; most are the panel's own actions. */
+  const fileActions: FileActions = {
+    openFile: (path) => void onDesktop((root) => fileMenus.openOnDesktop(`${root}/${path}`), "Could not open the file"),
+    openVersion: (path, rev) => void withRepo((id) => fileMenus.openReadOnly(id, rev, path), "Could not open the file"),
+    reveal: (path) => void onDesktop((root) => fileMenus.revealOnDesktop(`${root}/${path}`), "Could not reveal the file"),
+    showChanges: (path) => openInWindow(path, fileSpec(path)),
+    compareWithWorkTree: (path, rev) => openInWindow(path, { kind: "commitVsWorkTree", oid: rev }),
+    log: (path) => filterGraph({ ...graph.query, path }),
+    blame: (path) => void blameOne(path),
+    investigate: (path) => investigateFile(path),
+    commit: (paths) => void commitFiles(paths),
+    stash: (paths) => void stashFiles(paths),
+    stage: (paths) => void stage(paths),
+    unstage: (paths) => void unstage(paths),
+    indexEditor: (path) => void openIndexEditor(path),
+    move: (path) => void askMove(path),
+    resolve: (paths, side) => void mutate(async (id) => {
+      for (const path of paths) await resolveConflict(id, path, side);
+    }, paths),
+    ignore: (paths) => void ignore(paths),
+    discard: (paths) => void discard(paths),
+    remove: (paths) => (removingFiles = paths),
+    trash: (paths) => void deleteFromDisk(paths),
+    saveAs: (path, rev) => void saveVersionAs(path, rev),
+    applyChange: (path, oldPath, rev, reverse) => void applyFileChange(path, oldPath, rev, reverse),
+    copy: (text) => void copyText(text),
+    setFlag: (paths, flag, on) => void mutate((id) => fileMenus.setIndexFlag(id, paths, flag, on), paths),
+  };
+
+  /** What a double-click on that row shows: the side of the diff its list stands for. */
+  function fileSpec(path: string): import("$lib/ipc").DiffSpec | null {
+    if (fileSection === "commit") return commit.oid ? { kind: "commitVsParent", oid: commit.oid } : null;
+    const staged = worktree.staged.some((file) => file.path === path);
+    return fileSection === "index" && staged ? { kind: "indexVsHead" } : { kind: "workTreeVsIndex" };
+  }
+
+  async function withRepo(step: (id: import("$lib/ipc").RepoId) => Promise<unknown>, failure: string) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    await step(id).catch((err) => errors.report(err, failure));
+  }
+
+  async function onDesktop(step: (root: string) => Promise<unknown>, failure: string) {
+    const root = repository.current?.root;
+    if (!root) return;
+    await step(root).catch((err) => errors.report(err, failure));
+  }
+
+  /** Investigate is getting a window of its own (#15). Until its entry point lands, the
+      file's diff is put in front, where lines are picked and the toolbar button traces
+      them; this is the one function to point at that window. */
+  /** A working-tree file is investigated as it is on disk, a file of a commit at that commit. */
+  function investigateFile(path: string) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    void openInvestigate(id, path, commit.oid ?? null).catch((err) =>
+      errors.report(err, "Could not open Investigate"),
+    );
+  }
+
+  /** Commit… from a file row: the files go into the index and the message box takes the
+      cursor; the Commit panel commits what is staged, as it always does. */
+  async function commitFiles(paths: string[]) {
+    const pending = paths.filter((path) => worktree.unstaged.some((file) => file.path === path));
+    if (pending.length > 0) await stage(pending);
+    if (!layout.visible("commit")) layout.togglePanel("commit");
+    await tick();
+    document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Commit message"]')?.focus();
+  }
+
+  /** `stashSelected` for the rows a context menu names, which need not be the ticked ones. */
+  async function stashFiles(paths: string[]) {
+    const id = repository.current?.repo;
+    if (!id || paths.length === 0) return;
+    const message = await prompt.ask({
+      title: `Stash ${paths.length} file(s)`,
+      label: "Message",
+      confirm: "Stash",
+      validate: () => null,
+    });
+    if (message === null) return;
+    await stashSelection(id, paths, message)
+      .then(() => afterRefChange())
+      .catch((err) => errors.report(err, "Could not stash"));
+  }
+
+  let indexEditing = $state.raw<{
+    path: string;
+    sides: import("$lib/ipc/file-menus").IndexEditorSides;
+    saving: boolean;
+  } | null>(null);
+
+  async function openIndexEditor(path: string) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    try {
+      indexEditing = { path, sides: await fileMenus.indexEditorSides(id, path), saving: false };
+    } catch (err) {
+      errors.report(err, "Could not read the file for the Index Editor");
     }
+  }
+
+  async function saveIndexEditor(edited: { index: string | null; worktree: string | null }) {
+    const open = indexEditing;
+    if (!open) return;
+    indexEditing = { ...open, saving: true };
+    const saved = await mutate(
+      (id) => fileMenus.writeIndexEditor(id, open.path, edited.index, edited.worktree),
+      [open.path],
+    );
+    indexEditing = saved ? null : { ...open, saving: false };
+  }
+
+  async function askMove(path: string) {
+    const target = await prompt.ask({
+      title: "Move or Rename",
+      label: "New path, relative to the repository",
+      value: path.replace(/\/+$/, ""),
+      confirm: "Move",
+      validate: (value) => {
+        const next = value.trim().replace(/\\/g, "/");
+        if (next === "") return "Enter a path.";
+        if (next.startsWith("/") || /^[A-Za-z]:/.test(next) || next.split("/").includes("..")) {
+          return "Stay inside the repository.";
+        }
+        return next === path.replace(/\/+$/, "") ? "That is where it is now." : null;
+      },
+    });
+    if (target === null) return;
+    const to = target.trim().replace(/\\/g, "/");
+    await mutate((id) => fileMenus.movePath(id, path, to), [path, to]);
+  }
+
+  let removingFiles = $state.raw<string[] | null>(null);
+
+  async function removeFiles(paths: string[], deleteLocal: boolean) {
+    removingFiles = null;
+    await mutate((id) => fileMenus.removeFromRepository(id, paths, deleteLocal), paths);
+  }
+
+  async function saveVersionAs(path: string, rev: string) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    const { save } = await import("@tauri-apps/plugin-dialog");
+    const target = await save({ title: `Save ${fileName(path)} from ${shortOid(rev)}`, defaultPath: fileName(path) });
+    if (!target) return;
+    await fileMenus.saveBlob(id, rev, path, target).catch((err) => errors.report(err, "Could not save the file"));
+  }
+
+  /** Cherry-Pick and Revert of one file's change: a patch applied with a three-way
+      fallback, so the result is in the working tree and the index to review. */
+  async function applyFileChange(path: string, oldPath: string | null, rev: string, reverse: boolean) {
+    await mutate((id) => fileMenus.applyCommitFile(id, rev, path, oldPath, reverse), [path]);
   }
 
   /** Blame of any row in Files, in the Blame window like every other entry point. */
@@ -1860,15 +2004,6 @@
     if (!id) return;
     await openBlame(id, path, commit.oid ?? "HEAD").catch((err) =>
       errors.report(err, "Could not open blame"),
-    );
-  }
-
-  async function revealFile(path: string) {
-    const root = repository.current?.root;
-    if (!root) return;
-    const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
-    await revealItemInDir(`${root}/${path}`).catch(() =>
-      errors.report({ kind: "internal", data: path }, "Could not reveal the file"),
     );
   }
 
@@ -2175,40 +2310,197 @@
     }
   }
 
-  async function repoContext(entry: import("$lib/ipc").RepoOverview, x: number, y: number) {
-    repoTarget = entry;
-    const active = repo?.repo.valueOf() === entry.repo.valueOf();
-    await popupContextMenu(repoMenu({ active }), x, y).catch(() => {});
+  /** A row of the Repositories list, open or closed (#36). */
+  async function repoContext(row: ListedRepo, x: number, y: number) {
+    const info = await desktop.load();
+    repoTarget = { kind: "repository", root: row.root, overview: row.overview };
+    const items = repoMenu(
+      {
+        kind: "repository",
+        active: row.overview !== null && repo?.repo.valueOf() === row.overview.repo.valueOf(),
+        open: row.overview !== null,
+        missing: row.overview?.missing ?? false,
+        pinned: row.pinned,
+        group: repoGroups.groups.of[row.root] ?? UNGROUPED,
+        groups: groupChoices(repoGroups.groups),
+      },
+      info,
+    );
+    await popupContextMenu(items, x, y).catch(() => {});
+  }
+
+  /** A submodule node: the same menu, with the four list-only items explained away. */
+  async function moduleContext(row: import("$lib/module-tree").ModuleRow, x: number, y: number) {
+    const top = submodules.ownerRoot;
+    if (!top) return;
+    const info = await desktop.load();
+    const open = submodules.open === row.key;
+    repoTarget = { kind: "submodule", root: `${top}/${row.key}`, row };
+    const items = repoMenu(
+      {
+        kind: "submodule",
+        active: open,
+        open,
+        missing: false,
+        pinned: false,
+        group: UNGROUPED,
+        groups: [],
+      },
+      info,
+    );
+    await popupContextMenu(items, x, y).catch(() => {});
   }
 
   /** Returns true when the id belonged to the Repositories panel and was handled here. */
   function runRepoCommand(id: string): boolean {
-    const entry = repoTarget;
-    if (!entry) return false;
+    const target = repoTarget;
+    const command = parseRepoCommand(id);
+    if (!target || !command) return false;
+    const { root } = target;
 
-    switch (id) {
+    if (command.kind === "move") {
+      repoGroups.assign(root, command.group);
+      return true;
+    }
+    if (command.kind === "move-new") {
+      void prompt
+        .ask({ title: "New Group", label: "Name", confirm: "Create", validate: () => null })
+        .then((name) => {
+          if (name === null) return;
+          repoGroups.add(name);
+          const created = repoGroups.groups.order.at(-1);
+          if (created) repoGroups.assign(root, created);
+        });
+      return true;
+    }
+
+    const shell = (step: Promise<unknown>, failure: string) =>
+      void step.catch((err) => errors.report(err, failure));
+    switch (command.id) {
       case "repo-open":
-        void activate(entry.root);
+        if (target.kind === "submodule") void openModule(target.row);
+        else if (target.overview) void selectRepository(target.overview);
+        else {
+          repoList.opened(root);
+          void activate(root);
+        }
         return true;
-      case "repo-close":
-        void closeOne(entry);
+      case "repo-open-folder":
+        shell(fileMenus.openOnDesktop(root), "Could not open the folder");
         return true;
-      case "repo-explorer":
-        void import("@tauri-apps/plugin-opener")
-          .then((opener) => opener.revealItemInDir(entry.root))
-          .catch((err) => errors.report(err, "Could not reveal the repository"));
+      case "repo-reveal":
+        shell(fileMenus.revealOnDesktop(root), "Could not reveal the folder");
         return true;
       case "repo-terminal":
-        void openInTerminal(entry.root, settings.current.terminal).catch((err) =>
-          errors.report(err, "Could not open a terminal"),
-        );
+        shell(openInTerminal(root, settings.current.terminal), "Could not open a terminal");
         return true;
-      case "repo-copy-path":
-        void copyText(entry.root);
+      case "repo-powershell":
+        shell(fileMenus.openPowerShell(root), "Could not open PowerShell");
+        return true;
+      case "repo-git-shell":
+        shell(fileMenus.openGitShell(root), "Could not open Git Bash");
+        return true;
+      case "repo-close":
+        void closeListed(target);
+        return true;
+      case "repo-pull":
+      case "repo-push":
+        void syncListed(target, command.id === "repo-pull" ? "pull" : "push");
+        return true;
+      case "repo-pin":
+        repoList.togglePin(root);
+        return true;
+      case "repo-rename":
+        void renameListed(root, target.kind === "repository" ? target.overview?.name : undefined);
+        return true;
+      case "repo-remove":
+        void removeListed(target);
         return true;
       default:
         return false;
     }
+  }
+
+  function isActive(overview: import("$lib/ipc").RepoOverview | null): boolean {
+    return overview !== null && repo?.repo.valueOf() === overview.repo.valueOf();
+  }
+
+  /** The row stays in the list, closed; Remove is what takes it out. A submodule closes
+      back to the repository it belongs to. */
+  async function closeListed(target: RepoMenuSubject) {
+    if (target.kind === "submodule") {
+      const owner = repository.openRepos.find((entry) => entry.root === submodules.ownerRoot);
+      if (owner) await selectRepository(owner);
+      return;
+    }
+    const { overview } = target;
+    if (!overview) return;
+    repoList.closed(target.root);
+    const wasActive = isActive(overview);
+    if (wasActive) {
+      commit.clear();
+      diff.clear();
+      health.clear();
+    }
+    await repository.closeOne(overview.repo);
+    if (!wasActive) return;
+    const next = repository.openRepos[0];
+    if (next) await activate(next.root);
+    else graph.clear();
+  }
+
+  /** Pull or push the row's repository without bringing it to the front. */
+  async function syncListed(target: RepoMenuSubject, kind: "pull" | "push") {
+    if (target.kind === "repository" && isActive(target.overview)) {
+      await runNetwork(kind);
+      return;
+    }
+    const id =
+      target.kind === "repository"
+        ? (target.overview?.repo ?? null)
+        : ((await openedModule(target.row.key))?.repo ?? null);
+    if (id === null) return;
+    const remote = await primaryRemote(id);
+    if (!remote) {
+      errors.message("This repository has no remote.", `Could not ${kind}`);
+      return;
+    }
+    try {
+      if (kind === "pull") await network.pull(id, remote, true);
+      else await network.push(id, remote, false);
+    } catch (err) {
+      errors.report(err, `Could not ${kind}`);
+    }
+    await repository.refreshList();
+  }
+
+  async function renameListed(root: string, folder: string | undefined) {
+    const current = repoList.list.names[root] ?? folder ?? root;
+    const name = await prompt.ask({
+      title: "Rename",
+      label: "Name shown in the list; the folder keeps its name",
+      value: current,
+      confirm: "Rename",
+      validate: () => null,
+    });
+    if (name !== null) repoList.rename(root, name);
+  }
+
+  async function removeListed(target: RepoMenuSubject) {
+    if (target.kind !== "repository") return;
+    const name = repoList.list.names[target.root] ?? target.overview?.name ?? target.root;
+    const yes = await confirmation.ask({
+      title: "Remove",
+      message: `Remove ${name} from the list? Nothing is deleted: the folder and the repository stay as they are.`,
+      confirm: "Remove",
+    });
+    if (!yes) return;
+    if (target.overview) {
+      repoList.closed(target.root);
+      await closeListed(target);
+    }
+    repoList.forget(target.root);
+    repoGroups.assign(target.root, UNGROUPED);
   }
 
   /** Returns true when the id belonged to the References tree and was handled here. */
@@ -2363,6 +2655,8 @@
   async function closeCurrent() {
     const id = repository.current?.repo;
     if (!id) return;
+    const listed = repository.openRepos.find((entry) => entry.repo === id);
+    if (listed) repoList.closed(listed.root);
     commit.clear();
     diff.clear();
     health.clear();
@@ -2598,8 +2892,9 @@
             }}
             onopen={pickRepository}
             onselect={(entry) => void selectRepository(entry)}
-            onclose={(entry) => void closeOne(entry)}
-            oncontext={(entry, x, y) => void repoContext(entry, x, y)}
+            onclose={(entry) => void closeListed({ kind: "repository", root: entry.root, overview: entry })}
+            oncontext={(row, x, y) => void repoContext(row, x, y)}
+            onreopen={(root) => void activate(root)}
             onmarked={(roots) => (markedRepos = roots)}
             onaddgroup={askAddGroup}
             ongroupcontext={(id, x, y) => void groupContext(id, x, y)}
@@ -3148,15 +3443,33 @@
       value={prompt.open.value ?? ""}
       choices={prompt.open.choices}
       confirm={prompt.open.confirm}
-      validate={prompt.open.choices
+      validate={prompt.open.validate ?? (prompt.open.choices
         ? undefined
         : (name) =>
             branchNameProblem(
               name,
               repository.localBranches.map((entry) => entry.name),
-            )}
+            ))}
       onaccept={(value) => prompt.accept(value)}
       onclose={() => prompt.cancel()}
+    />
+  {/if}
+
+  {#if removingFiles}
+    <RemoveFilesDialog
+      paths={removingFiles}
+      onremove={(paths, deleteLocal) => void removeFiles(paths, deleteLocal)}
+      onclose={() => (removingFiles = null)}
+    />
+  {/if}
+
+  {#if indexEditing}
+    <IndexEditorDialog
+      path={indexEditing.path}
+      sides={indexEditing.sides}
+      saving={indexEditing.saving}
+      onsave={(edited) => void saveIndexEditor(edited)}
+      onclose={() => (indexEditing = null)}
     />
   {/if}
 

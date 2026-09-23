@@ -15,6 +15,8 @@
   import { submodules } from "$stores/submodules.svelte";
   import { UNGROUPED, groupRows } from "$lib/repo-groups";
   import type { RepoOverview } from "$lib/ipc";
+  import { listedRepos, type ListedRepo } from "$lib/repo-list";
+  import { repoList } from "$stores/repo-list.svelte";
   import { repoGroups } from "$stores/repo-groups.svelte";
   import { repository } from "$stores/repository.svelte";
   import { worktrees } from "$stores/worktrees.svelte";
@@ -28,7 +30,9 @@
     onscan: () => void;
     onselect: (entry: RepoOverview) => void;
     onclose: (entry: RepoOverview) => void;
-    oncontext: (entry: RepoOverview, x: number, y: number) => void;
+    oncontext: (row: ListedRepo, x: number, y: number) => void;
+    /** A closed row was clicked: open it again. */
+    onreopen: (root: string) => void;
     /** Ticked rows, for actions that work on several repositories at once (T3.3). */
     onmarked: (roots: string[]) => void;
     /** Renaming and deleting a group live in the caller's dialogs, not here. */
@@ -43,6 +47,7 @@
     onselect,
     onclose,
     oncontext,
+    onreopen,
     onmarked,
     ongroupcontext,
     onaddgroup,
@@ -62,7 +67,7 @@
 
   const active = $derived(repository.current?.repo);
   const entries = $derived(
-    repository.openRepos.filter((entry) =>
+    listedRepos(repository.openRepos, repoList.list).filter((entry) =>
       `${entry.name} ${entry.root}`.toLowerCase().includes(filter.trim().toLowerCase()),
     ),
   );
@@ -121,7 +126,7 @@
     </button>
   </div>
 
-  {#if repository.openRepos.length > 1}
+  {#if repository.openRepos.length + repoList.list.closed.length > 1}
     <input
       class="filter"
       type="search"
@@ -174,8 +179,9 @@
           <span class="truncate">{row.name} ({row.count})</span>
         </div>
       {:else}
-        {@const entry = byRoot.get(row.root)}
-        {#if entry}
+        {@const listed = byRoot.get(row.root)}
+        {@const entry = listed?.overview}
+        {#if listed && entry}
       <div
         class="row"
         draggable="true"
@@ -198,7 +204,7 @@
         onkeydown={(event) => event.key === "Enter" && onselect(entry)}
         oncontextmenu={(event) => {
           event.preventDefault();
-          oncontext(entry, event.clientX, event.clientY);
+          oncontext(listed, event.clientX, event.clientY);
         }}
       >
         <Disclosure
@@ -213,7 +219,8 @@
           }}
         />
         <KindIcon kind="repository" />
-        <span class="name truncate shrink-last">{entry.name}</span>
+        <span class="name truncate shrink-last">{listed.name}</span>
+        {#if listed.pinned}<span class="pin" title="Pinned to the top of its group">⊤</span>{/if}
         {#if worktrees.ownerRoot === entry.root && repository.current}
           <KindIcon kind="worktree" title="The panels show its worktree {repository.current.root}" />
         {/if}
@@ -294,6 +301,28 @@
           </div>
         {/each}
       {/if}
+        {:else if listed}
+          <div
+            class="row closed"
+            draggable="true"
+            role="button"
+            tabindex="0"
+            title="{listed.root} — closed; click to open"
+            style:padding-left="calc(var(--tree-base) + {row.depth} * var(--tree-step))"
+            ondragstart={(event) => event.dataTransfer?.setData("text/cogit-repo", listed.root)}
+            onclick={() => onreopen(listed.root)}
+            onkeydown={(event) => event.key === "Enter" && onreopen(listed.root)}
+            oncontextmenu={(event) => {
+              event.preventDefault();
+              oncontext(listed, event.clientX, event.clientY);
+            }}
+          >
+            <Disclosure empty />
+            <KindIcon kind="repository" />
+            <span class="name truncate shrink-last">{listed.name}</span>
+            {#if listed.pinned}<span class="pin" title="Pinned to the top of its group">⊤</span>{/if}
+            <span class="gone">closed</span>
+          </div>
         {/if}
       {/if}
     {/each}
@@ -313,6 +342,16 @@
 
   .row.module .where {
     flex-grow: 1;
+    color: var(--text-secondary);
+    font-size: 11px;
+  }
+
+  .row.closed {
+    color: var(--text-secondary);
+  }
+
+  .pin {
+    flex: none;
     color: var(--text-secondary);
     font-size: 11px;
   }

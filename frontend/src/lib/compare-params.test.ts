@@ -55,4 +55,13 @@ describe("compareUrl and parseCompare", () => {
   it("returns null when a commit comparison has no oid", () => {
     expect(parseCompare("?repo=1&path=a.txt&kind=commitVsParent")).toBeNull();
   });
+
+  it("round-trips a past version against the working tree", () => {
+    const url = compareUrl(2, "src/a.rs", { kind: "commitVsWorkTree", oid: "abc" });
+    expect(parseCompare(new URL(url, "http://x/").search)?.spec).toEqual({
+      kind: "commitVsWorkTree",
+      oid: "abc",
+    });
+    expect(parseCompare("?repo=1&path=a.txt&kind=commitVsWorkTree")).toBeNull();
+  });
 });

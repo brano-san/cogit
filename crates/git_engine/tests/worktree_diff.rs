@@ -137,3 +137,37 @@ fn a_bare_repository_has_no_worktree_side() {
 
     assert!(new.is_none());
 }
+
+#[test]
+fn a_past_commit_compares_with_the_file_on_disk_as_it_is_now() {
+    let f = test_fixtures::linear(2).unwrap();
+    std::fs::write(f.path().join("file0.txt"), "edited since\n").unwrap();
+    let first = f.oid("HEAD~1").unwrap();
+    let repo = open(&f);
+
+    let (old, new) = repo
+        .diff_sides(&DiffSpec::CommitVsWorkTree { oid: first }, "file0.txt")
+        .unwrap();
+
+    assert_eq!(text(old), "content 0\n");
+    assert_eq!(text(new), "edited since\n");
+}
+
+#[test]
+fn a_file_gone_from_disk_compares_with_nothing() {
+    let f = test_fixtures::linear(2).unwrap();
+    std::fs::remove_file(f.path().join("file1.txt")).unwrap();
+    let repo = open(&f);
+
+    let (old, new) = repo
+        .diff_sides(
+            &DiffSpec::CommitVsWorkTree {
+                oid: "HEAD".to_owned(),
+            },
+            "file1.txt",
+        )
+        .unwrap();
+
+    assert_eq!(text(old), "content 1\n");
+    assert!(new.is_none());
+}

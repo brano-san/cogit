@@ -16,6 +16,8 @@ use serde::Serialize;
 use std::path::PathBuf;
 use tauri::Manager as _;
 
+pub mod desktop;
+pub mod file_ops;
 pub mod investigate;
 pub mod ref_ops;
 pub mod remote_ops;
@@ -2435,10 +2437,15 @@ mod tests {
         let mut found = Vec::new();
         let mut armed = false;
         let mut marked_async = false;
-        let sources = include_str!("mod.rs")
-            .lines()
-            .chain(include_str!("ref_ops.rs").lines());
-        for line in sources {
+        let sources = [
+            include_str!("mod.rs"),
+            include_str!("desktop.rs"),
+            include_str!("file_ops.rs"),
+            include_str!("investigate.rs"),
+            include_str!("ref_ops.rs"),
+            include_str!("remote_ops.rs"),
+        ];
+        for line in sources.iter().flat_map(|source| source.lines()) {
             let line = line.trim_start();
             if let Some(rest) = line.strip_prefix("#[tauri::command") {
                 armed = true;
