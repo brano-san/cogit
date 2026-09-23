@@ -9,7 +9,7 @@ export interface CompareRequest {
 /** In the URL, not in shared state: the window has to survive a webview reload (T2.5). */
 export function compareUrl(repo: RepoId, path: string, spec: DiffSpec): string {
   const params = new URLSearchParams({ repo: String(repo), path, kind: spec.kind });
-  if (spec.kind === "commitVsParent") {
+  if (spec.kind === "commitVsParent" || spec.kind === "commitVsWorkTree") {
     params.set("oid", spec.oid);
   }
   if (spec.kind === "commitVsCommit") {
@@ -35,7 +35,8 @@ function specOf(kind: string, params: URLSearchParams): DiffSpec | null {
     case "workTreeVsIndex":
     case "indexVsHead":
       return { kind };
-    case "commitVsParent": {
+    case "commitVsParent":
+    case "commitVsWorkTree": {
       const oid = params.get("oid");
       return oid ? { kind, oid } : null;
     }

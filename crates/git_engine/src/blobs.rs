@@ -4,10 +4,19 @@ use serde::Deserialize;
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum DiffSpec {
-    CommitVsParent { oid: String },
-    CommitVsCommit { a: String, b: String },
+    CommitVsParent {
+        oid: String,
+    },
+    CommitVsCommit {
+        a: String,
+        b: String,
+    },
     WorkTreeVsIndex,
     IndexVsHead,
+    /// A past version against the file on disk now: Compare with Working Tree.
+    CommitVsWorkTree {
+        oid: String,
+    },
 }
 
 /// Old and new contents of one path; `None` on a side means it is absent there.
@@ -51,6 +60,9 @@ impl RepoHandle {
                 (self.checked_out_commit(path).or(staged.clone()), staged)
             }
             DiffSpec::IndexVsHead => (self.gitlink_in_index(path), self.gitlink_at("HEAD", path)),
+            DiffSpec::CommitVsWorkTree { oid } => {
+                (self.checked_out_commit(path), self.gitlink_at(oid, path))
+            }
         };
         let Some(recorded) = recorded.or_else(|| previous.clone()) else {
             return Ok(None);
@@ -116,10 +128,13 @@ impl RepoHandle {
                 };
                 Ok((old, self.blob_in_index(path)?))
             }
+            DiffSpec::CommitVsWorkTree { oid } => {
+                Ok((self.blob_at(oid, path)?, self.blob_on_disk(path)))
+            }
         }
     }
 
-    fn blob_in_index(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    pub(crate) fn blob_in_index(&self, path: &str) -> Result<Option<Vec<u8>>> {
         let index = self
             .repo
             .index_or_empty()
@@ -138,14 +153,14 @@ impl RepoHandle {
     }
 
     /// Bytes as they are on disk: the worktree side of a diff is not a Git object.
-    fn blob_on_disk(&self, path: &str) -> Option<Vec<u8>> {
+    pub(crate) fn blob_on_disk(&self, path: &str) -> Option<Vec<u8>> {
         if self.is_bare() {
             return None;
         }
         std::fs::read(self.root().join(path)).ok()
     }
 
-    fn first_parent(&self, rev: &str) -> Result<Option<String>> {
+    pub(crate) fn first_parent(&self, rev: &str) -> Result<Option<String>> {
         let id = self
             .repo
             .rev_parse_single(rev)
