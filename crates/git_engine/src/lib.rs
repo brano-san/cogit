@@ -9,6 +9,7 @@ mod config_file;
 mod conflicts;
 pub mod discover;
 mod error;
+mod file_ops;
 mod find;
 mod flow;
 mod gitlink;
@@ -53,6 +54,7 @@ pub use config_file::{
 };
 pub use conflicts::{ConflictSide, ConflictSides, ConflictText};
 pub use error::{GitCommandError, GitError};
+pub use file_ops::{IndexEditorSides, IndexFlag};
 pub use find::{Found, FoundKind};
 pub use flow::{FlowBranch, FlowConfig, FlowKind, FlowStatus};
 pub use gitlink::{ModuleProblem, is_foreign_path};

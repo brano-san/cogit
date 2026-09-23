@@ -1,7 +1,9 @@
 mod avatars;
 mod credentials;
+pub mod desktop;
 mod diffing;
 pub mod environment;
+mod file_actions;
 mod graph_cache;
 pub mod graph_wire;
 mod hooking;

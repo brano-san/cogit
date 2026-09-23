@@ -6,6 +6,7 @@ mod logging;
 mod menu;
 mod operations;
 mod profile;
+mod recycle_bin;
 #[cfg(windows)]
 mod renderer_failure;
 #[cfg(windows)]
@@ -199,6 +200,21 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::set_avatars,
             commands::terminal_choices,
             commands::open_in_terminal,
+            commands::desktop::desktop_info,
+            commands::desktop::open_path,
+            commands::desktop::reveal_path,
+            commands::desktop::open_power_shell,
+            commands::desktop::open_git_shell,
+            commands::desktop::move_to_trash,
+            commands::file_ops::remove_from_repository,
+            commands::file_ops::move_path,
+            commands::file_ops::set_index_flag,
+            commands::file_ops::index_editor_sides,
+            commands::file_ops::write_index_editor,
+            commands::file_ops::save_blob,
+            commands::file_ops::open_read_only,
+            commands::file_ops::apply_commit_file,
+            commands::file_ops::present_on_disk,
             commands::set_menu_state,
             commands::report_timing,
             commands::report_memory,

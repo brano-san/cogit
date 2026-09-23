@@ -95,6 +95,32 @@ impl RepoHandle {
         self.spawn(args, true)
     }
 
+    /// Standard output as bytes: a patch of a Latin-1 file must survive the round trip.
+    pub(crate) fn run_git_bytes(&self, args: &[&str]) -> Result<Vec<u8>> {
+        let mut process = base_command(self.root(), true);
+        process.args(args);
+        let output = crate::children::output(&mut process)?;
+        if output.status.success() {
+            return Ok(output.stdout);
+        }
+        let result = GitOutput::record(
+            self.root(),
+            redact_command(args),
+            output.status.code(),
+            &String::from_utf8_lossy(&output.stdout),
+            &String::from_utf8_lossy(&output.stderr),
+            0,
+        );
+        Err(GitError::Command(Box::new(GitCommandError::from_output(
+            result,
+        ))))
+    }
+
+    /// `args` with `input` on stdin; the journal records it like any other run.
+    pub(crate) fn run_git_fed(&self, args: &[&str], input: &[u8]) -> Result<GitOutput> {
+        self.spawn_fed(args, false, &[], Some(input))
+    }
+
     pub(crate) fn base_git(&self, args: &[&str]) -> Command {
         let mut command = base_command(self.root(), false);
         command.args(args);
