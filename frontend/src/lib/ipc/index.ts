@@ -635,6 +635,10 @@ export async function stashPush(repo: RepoId, options: StashOptions) {
   return unwrap(await commands.stashPush(repo, options));
 }
 
+export async function stashKeepingWorktree(repo: RepoId, message: string) {
+  return unwrap(await commands.stashKeepingWorktree(repo, message));
+}
+
 export async function stashApply(repo: RepoId, index: number, pop: boolean) {
   return unwrap(await commands.stashApply(repo, index, pop));
 }
@@ -756,6 +760,14 @@ export async function protectingRefs(repo: RepoId, rev: string) {
 
 export async function isPublished(repo: RepoId, rev: string) {
   return unwrap(await commands.isPublished(repo, rev));
+}
+
+export async function isMergedIntoHead(repo: RepoId, rev: string) {
+  return unwrap(await commands.isMergedIntoHead(repo, rev));
+}
+
+export async function deleteMergedBranches(repo: RepoId) {
+  return unwrap(await commands.deleteMergedBranches(repo));
 }
 
 export async function splitOff(

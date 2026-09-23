@@ -87,6 +87,8 @@ export const commands = {
 	continueOperation: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("continue_operation", { repo })),
 	stashes: (repo: RepoId) => typedError<StashEntry[], GitError>(__TAURI_INVOKE("stashes", { repo })),
 	stashPush: (repo: RepoId, options: StashOptions) => typedError<null, GitError>(__TAURI_INVOKE("stash_push", { repo, options })),
+	/**  Stash ▸ + Keep Working Tree: the stash is made, the files stay as they are (#29). */
+	stashKeepingWorktree: (repo: RepoId, message: string) => typedError<null, GitError>(__TAURI_INVOKE("stash_keeping_worktree", { repo, message })),
 	stashApply: (repo: RepoId, index: number, pop: boolean) => typedError<null, GitError>(__TAURI_INVOKE("stash_apply", { repo, index, pop })),
 	stashDrop: (repo: RepoId, index: number) => typedError<null, GitError>(__TAURI_INVOKE("stash_drop", { repo, index })),
 	createTag: (repo: RepoId, request: TagRequest) => typedError<null, GitError>(__TAURI_INVOKE("create_tag", { repo, request })),
@@ -328,6 +330,9 @@ export const commands = {
 	runHook: (repo: RepoId, name: string) => typedError<HookRun, GitError>(__TAURI_INVOKE("run_hook", { repo, name })),
 	rollbackTo: (repo: RepoId, rev: string, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("rollback_to", { repo, rev, paths })),
 	isPublished: (repo: RepoId, rev: string) => typedError<boolean, GitError>(__TAURI_INVOKE("is_published", { repo, rev })),
+	isMergedIntoHead: (repo: RepoId, rev: string) => typedError<boolean, GitError>(__TAURI_INVOKE("is_merged_into_head", { repo, rev })),
+	/**  After a pull: deletes merged branches whose upstream is gone; returns their names. */
+	deleteMergedBranches: (repo: RepoId) => typedError<string[], GitError>(__TAURI_INVOKE("delete_merged_branches", { repo })),
 	splitOff: (repo: RepoId, rev: string, paths: string[], message: string, splitFirst: boolean) => typedError<null, GitError>(__TAURI_INVOKE("split_off", { repo, rev, paths, message, splitFirst })),
 	rebaseTodo: (repo: RepoId, base: string) => typedError<TodoEntry[], GitError>(__TAURI_INVOKE("rebase_todo", { repo, base })),
 	interactiveRebase: (repo: RepoId, base: string, plan: TodoEntry[], paused: boolean) => typedError<null, GitError>(__TAURI_INVOKE("interactive_rebase", { repo, base, plan, paused })),

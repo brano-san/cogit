@@ -42,6 +42,8 @@
   import Toolbar from "$components/layout/Toolbar.svelte";
   import ScanDialog from "$components/repo-tree/ScanDialog.svelte";
   import PromptDialog from "$components/layout/PromptDialog.svelte";
+  import StashDialogs from "$components/layout/StashDialogs.svelte";
+  import ToolbarConfigDialog from "$components/layout/ToolbarConfigDialog.svelte";
   import RemoteOpsDialog from "$components/remote/RemoteOpsDialog.svelte";
   import RepoSettingsDialog from "$components/remote/RepoSettingsDialog.svelte";
   import { remoteCommands, submoduleScope } from "$lib/remote-menu";
@@ -56,6 +58,10 @@
   import { shortOid } from "$lib/format";
   import { checkedIds, disabledIds, type PaletteCommand } from "$lib/palette";
   import { reasonFor, type Context } from "$lib/availability";
+  import { refAt, splitMarked, targetsOf, type MenuContext, type ToolbarFacts } from "$lib/toolbar";
+  import { currentRemote, pullSteps, syncSteps, type SyncOrder } from "$lib/toolbar-prefs";
+  import { toolbar } from "$stores/toolbar.svelte";
+  import { stashDialog } from "$stores/stash-dialog.svelte";
   import { allowsSelectAll, settle, step } from "$lib/panel-focus";
   import { pullRequestUrl } from "$lib/pull-request";
   import { commitScope } from "$lib/commit-scope";
@@ -99,6 +105,7 @@
     findObject,
     interactiveRebase,
     isPublished,
+    deleteMergedBranches,
     protectingRefs,
     rebaseProgress,
     rebaseTodo,
@@ -322,6 +329,7 @@
       });
       void settings.loadBindings();
       void health.loadIgnored();
+      void toolbar.load();
       void terminalChoices().then((found) => (terminals = found));
       const wanted = session.active;
       const remembered = wanted === null ? null : session.selected(wanted);
@@ -458,12 +466,42 @@
     file: diff.path !== null,
   });
 
+  const headOid = $derived(repo && repo.head.kind !== "unborn" ? repo.head.oid : null);
+
+  $effect(() => {
+    void toolbar.checkMerged(currentRepo, commit.oid, headOid);
+  });
+
+  /** What the toolbar's rules read; recomputed on every selection change (task #31). */
+  const toolbarFacts = $derived<ToolbarFacts>({
+    repository: repo !== null,
+    remote: Boolean(network.primary),
+    onWorkingTree: onWorkingTree && stashView.contents === null,
+    ...splitMarked({ marked: markedFiles, unstaged: worktree.unstaged, staged: worktree.staged }),
+    unstaged: worktree.unstaged.map((file) => file.path),
+    staged: worktree.staged.map((file) => file.path),
+    commit: commit.oid,
+    head: headOid,
+    branch: repo?.head.kind === "branch",
+    merged: toolbar.merged,
+    stashes: stashes.entries.length,
+    undo: safety.last !== undefined,
+  });
+
+  const pullRemote = $derived(currentRemote(tracked?.upstream, network.remotes));
+
+  const toolbarMenus = $derived<MenuContext>({
+    remotes: network.remotes,
+    current: pullRemote,
+    prefs: toolbar.prefs,
+  });
+
   /** What Remote ▸ LFS ▸ Lock and Submodule act on: the ticked files, or the one in Diff. */
   const pickedFiles = $derived(markedFiles.length > 0 ? markedFiles : diff.path ? [diff.path] : []);
   const remoteActions = remoteOps.actions({
     files: () => pickedFiles,
     changed: afterRefChange,
-    synchronize: () => void synchronize(),
+    synchronize: () => void syncNow(),
     repoSettings: () => (repoSettingsOpen = true),
   });
 
@@ -475,7 +513,7 @@
     return [
       { id: "open", title: "Open Repository…", run: () => void pickRepository() },
       { id: "fetch", title: "Fetch", unavailable: noRepo ?? noRemote, run: () => void runNetwork("fetch") },
-      { id: "pull", title: "Pull", unavailable: noRepo ?? noRemote, run: () => void runNetwork("pull") },
+      { id: "pull", title: "Pull", unavailable: noRepo ?? noRemote, run: () => void pullNow() },
       { id: "push", title: "Push", unavailable: noRepo ?? noRemote, run: () => void runNetwork("push") },
       {
         id: "stash",
@@ -491,7 +529,7 @@
         shortcut: "Ctrl+Alt+S",
         synonyms: ["shelve some"],
         unavailable: noRepo ?? (markedFiles.length > 0 ? undefined : "No file is ticked"),
-        run: stashSelected,
+        run: () => void stashSelected(),
       },
       { id: "tag", title: "Create Tag", unavailable: noRepo, run: () => void refActions?.addTag(null) },
       { id: "commit", title: "Commit Staged", unavailable: noRepo ?? nothingStaged, run: () => {} },
@@ -502,6 +540,12 @@
         run: () => void undo(),
       },
       { id: "output", title: "Toggle Output Panel", shortcut: "Ctrl+Shift+7", run: () => output.toggle() },
+      {
+        id: "configure-toolbar",
+        title: "Configure Toolbar…",
+        synonyms: ["customize toolbar", "toolbar buttons"],
+        run: () => (toolbar.configuring = true),
+      },
       {
         id: "copy-path",
         title: "Copy the File Path",
@@ -989,6 +1033,19 @@
     await mutate((repo) => worktree.discard(repo, paths), paths);
   }
 
+  /** Toolbar Discard asks in the app's own modal, focus on Cancel (R-255). */
+  async function discardFromToolbar(paths: string[]) {
+    if (paths.length === 0) return;
+    const what = paths.length === 1 ? paths[0] : `${paths.length} files`;
+    const go = await confirmation.ask({
+      title: "Discard Changes",
+      message: `Discard the changes in ${what}? Undo can bring them back.`,
+      confirm: "Discard",
+      warning: true,
+    });
+    if (go) await mutate((repo) => worktree.discard(repo, paths), paths);
+  }
+
   /** To the Recycle Bin, from the menu and the list's own Delete button alike (#40). */
   async function deleteFromDisk(paths: string[]) {
     const id = repository.current?.repo;
@@ -1337,6 +1394,36 @@
     await afterRefChange();
   }
 
+  /** Toolbar Merge and Rebase act on the selection in Graph or Branches (task #31). */
+  async function mergeSelected() {
+    const id = repository.current?.repo;
+    const oid = commit.oid;
+    if (!id || !oid) return;
+    try {
+      await mergeInto(id, {
+        source: refAt(oid, repo?.branches ?? []),
+        noFastForward: false,
+        squash: false,
+        message: null,
+      });
+    } catch (err) {
+      errors.report(err, "Could not merge");
+    }
+    await afterRefChange();
+  }
+
+  async function rebaseSelected() {
+    const id = repository.current?.repo;
+    const oid = commit.oid;
+    if (!id || !oid) return;
+    try {
+      await rebaseOnto(id, { onto: refAt(oid, repo?.branches ?? []), autostash: true });
+    } catch (err) {
+      errors.report(err, "Could not rebase");
+    }
+    await afterRefChange();
+  }
+
   async function runNetwork(kind: "fetch" | "pull" | "push") {
     const id = repository.current?.repo;
     const remote = network.primary;
@@ -1357,19 +1444,52 @@
     await afterRefChange();
   }
 
-  /** Remote ▸ Synchronize (#45): the toolbar's Sync, pull then push; the push is skipped
-      when the pull fails. */
-  async function synchronize() {
-    const id = repository.current?.repo;
+  /** Pull as the toolbar's own choices say: which remotes to fetch first, whether to delete
+      merged branches afterwards, and the fast-forward setting from Preferences (#26). */
+  async function pullOnce(id: RepoId) {
+    if (!pullRemote) throw new Error("This repository has no remote.");
+    const plan = pullSteps(toolbar.prefs.pullScope, network.remotes, pullRemote);
+    for (const remote of plan.fetch) await network.fetch(id, remote);
+    await network.pull(id, plan.pull, settings.current.pullMode === "ffOnly");
+    if (toolbar.prefs.deleteMergedAfterPull) await deleteMergedBranches(id);
+  }
+
+  async function pushOnce(id: RepoId) {
     const remote = network.primary;
-    if (!id || !remote) return;
+    if (!remote) throw new Error("This repository has no remote.");
+    await network.push(id, remote, false);
+  }
+
+  /** Each step waits for the one before; the first failure stops the rest. */
+  async function runRemoteSteps(steps: readonly ("pull" | "push")[], failure: string) {
+    const id = repository.current?.repo;
+    if (!id) return;
     try {
-      await network.pull(id, remote, true);
-      await network.push(id, remote, false);
+      for (const step of steps) await (step === "pull" ? pullOnce(id) : pushOnce(id));
     } catch (err) {
-      errors.report(err, "Could not synchronize");
+      errors.report(err, failure);
       await afterMutation();
       return;
+    }
+    await afterRefChange();
+  }
+
+  function pullNow() {
+    return runRemoteSteps(["pull"], "Could not pull");
+  }
+
+  /** Sync ▸ an order: runs it, and the Sync button runs it from then on (#27). */
+  function syncNow(order: SyncOrder = toolbar.prefs.syncOrder) {
+    if (order !== toolbar.prefs.syncOrder) void toolbar.set("syncOrder", order);
+    return runRemoteSteps(syncSteps(order), "Could not sync");
+  }
+
+  /** One failure does not stop the other remotes. */
+  async function fetchRemotes(names: readonly string[]) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    for (const remote of names) {
+      await network.fetch(id, remote).catch((err) => errors.report(err, `Could not fetch ${remote}`));
     }
     await afterRefChange();
   }
@@ -1386,35 +1506,42 @@
     await afterRefChange();
   }
 
+  /** The Stash dialog: a name and Stash All, + Keep Index or + Keep Working Tree (#29). */
   async function stashAll() {
     const id = repository.current?.repo;
     if (!id) return;
-    const message = await prompt.ask({
-      title: "Stash everything",
-      label: "Message",
-      confirm: "Stash",
-    });
-    if (message === null) return;
+    const choice = await stashDialog.create();
+    if (choice === null) return;
     await stashes
-      .push(id, message, true)
+      .save(id, choice)
       .then(() => afterRefChange())
       .catch((err) => errors.report(err, "Could not stash"));
   }
 
-  /** Only the ticked rows; everything else stays in the working tree (T5.3). */
-  async function stashSelected() {
+  /** Everything, no dialog, Git's own message. */
+  async function quickStashAll() {
     const id = repository.current?.repo;
-    if (!id || markedFiles.length === 0) return;
-    const paths = [...markedFiles];
-    const message = await prompt.ask({
-      title: `Stash ${paths.length} file(s)`,
-      label: "Message",
-      confirm: "Stash",
-    });
+    if (!id) return;
+    await stashes
+      .save(id, { mode: "all", message: "" })
+      .then(() => afterRefChange())
+      .catch((err) => errors.report(err, "Could not stash"));
+  }
+
+  /** Only these files; everything else stays in the working tree (T5.3). With `confirm`,
+      the list is shown first. The toolbar and the file menu both come here (#29). */
+  async function stashPaths(paths: string[], confirm = true) {
+    const id = repository.current?.repo;
+    if (!id || paths.length === 0) return;
+    const message = confirm ? await stashDialog.selection(paths) : "";
     if (message === null) return;
     await stashSelection(id, paths, message)
       .then(() => afterRefChange())
       .catch((err) => errors.report(err, "Could not stash"));
+  }
+
+  function stashSelected(confirm = true) {
+    return stashPaths(targetsOf("stash-selection", toolbarFacts), confirm);
   }
 
   async function applyStash(index: number, pop: boolean) {
@@ -1426,6 +1553,17 @@
       errors.report(err, "Could not apply the stash");
       return;
     }
+    await afterRefChange();
+  }
+
+  /** Toolbar Apply Stash (#30). A conflicted apply still changed the working tree, so the
+      panels reload either way; Git's output reaches the notification window. */
+  async function applyNewestStash() {
+    const id = repository.current?.repo;
+    if (!id) return;
+    await stashes
+      .apply(id, 0, false)
+      .catch((err) => errors.report(err, "Could not apply stash@{0}"));
     await afterRefChange();
   }
 
@@ -1854,7 +1992,7 @@
     blame: (path) => void blameOne(path),
     investigate: (path) => investigateFile(path),
     commit: (paths) => void commitFiles(paths),
-    stash: (paths) => void stashFiles(paths),
+    stash: (paths) => void stashPaths(paths),
     stage: (paths) => void stage(paths),
     unstage: (paths) => void unstage(paths),
     indexEditor: (path) => void openIndexEditor(path),
@@ -1911,22 +2049,6 @@
     if (!layout.visible("commit")) layout.togglePanel("commit");
     await tick();
     document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Commit message"]')?.focus();
-  }
-
-  /** `stashSelected` for the rows a context menu names, which need not be the ticked ones. */
-  async function stashFiles(paths: string[]) {
-    const id = repository.current?.repo;
-    if (!id || paths.length === 0) return;
-    const message = await prompt.ask({
-      title: `Stash ${paths.length} file(s)`,
-      label: "Message",
-      confirm: "Stash",
-      validate: () => null,
-    });
-    if (message === null) return;
-    await stashSelection(id, paths, message)
-      .then(() => afterRefChange())
-      .catch((err) => errors.report(err, "Could not stash"));
   }
 
   let indexEditing = $state.raw<{
@@ -2833,20 +2955,42 @@
 
 <div class="app">
   <Toolbar
-    context={commands}
+    facts={toolbarFacts}
+    menus={toolbarMenus}
+    layout={toolbar.layout}
+    oncontext={(x, y) =>
+      void popupContextMenu(
+        [{ id: "configure-toolbar", label: "Configure Toolbar…", enabled: true }],
+        x,
+        y,
+      ).catch(() => {})}
     undoable={safety.last?.description}
-    onundo={undo}
     handlers={repo
       ? {
+          undo: () => void undo(),
           stash: stashAll,
-          "stash-selection": stashSelected,
+          "stash-selection": () => void stashSelected(),
+          "quick-stash-all": () => void quickStashAll(),
+          "quick-stash-selection": () => void stashSelected(false),
+          "apply-stash": () => void applyNewestStash(),
           tag: () => void refActions?.addTag(null),
           "push-to": () => refActions?.pushToCurrent(),
-          pull: () => void runNetwork("pull"),
+          pull: () => void pullNow(),
           push: () => void runNetwork("push"),
-          sync: () => void runNetwork("fetch"),
-          fetch: () => void runNetwork("fetch"),
-          "fetch-all": () => void fetchAll(),
+          sync: () => void syncNow(),
+          "sync-order": (order) =>
+            void syncNow(order === "pushThenPull" ? "pushThenPull" : "pullThenPush"),
+          "fetch-remote": (remote) => void fetchRemotes(remote ? [remote] : []),
+          "fetch-remotes": () => void fetchRemotes(network.remotes),
+          "pull-scope": (scope) =>
+            void toolbar.set("pullScope", scope === "all" ? "all" : "current"),
+          "delete-merged": () =>
+            void toolbar.set("deleteMergedAfterPull", !toolbar.prefs.deleteMergedAfterPull),
+          stage: () => void stage(targetsOf("stage", toolbarFacts)),
+          unstage: () => void unstage(targetsOf("unstage", toolbarFacts)),
+          discard: () => void discardFromToolbar(targetsOf("discard", toolbarFacts)),
+          merge: () => void mergeSelected(),
+          rebase: () => void rebaseSelected(),
           "rebase-i": () => void openRebase(),
         }
       : {}}
@@ -3413,6 +3557,11 @@
       onundo={(entry) => void undoEntry(entry)}
       onclose={() => (journalOpen = false)}
     />
+  {/if}
+
+  <StashDialogs />
+  {#if toolbar.configuring}
+    <ToolbarConfigDialog />
   {/if}
 
   {#if remoteOps.dialog}

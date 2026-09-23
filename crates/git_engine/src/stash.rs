@@ -46,11 +46,29 @@ impl RepoHandle {
         }
         let before = self.stash_top();
 
-        let args = ["stash", "push", "--include-untracked", "--message", message];
+        let mut args = vec!["stash", "push", "--include-untracked"];
+        if !message.trim().is_empty() {
+            args.extend(["--message", message]);
+        }
         self.run_git_paths(&args, paths)?;
 
         let after = self.stash_top();
         Ok(if after == before { None } else { after })
+    }
+
+    /// A stash that leaves the working tree as it is: `stash create` builds the commit
+    /// without touching a file, `stash store` lists it. Untracked files are not in it —
+    /// `stash create` has no `--include-untracked` (R-212).
+    pub fn stash_keeping_worktree(&self, message: &str) -> Result<()> {
+        let created = self.run_git(&["stash", "create", message])?;
+        let oid = created.stdout.trim();
+        if oid.is_empty() {
+            return Err(GitError::InvalidState(
+                "there is nothing to stash".to_owned(),
+            ));
+        }
+        self.run_git(&["stash", "store", "--message", message, oid])
+            .map(drop)
     }
 
     pub fn stash_apply(&self, oid: &str) -> Result<()> {
