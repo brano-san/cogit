@@ -376,7 +376,7 @@
     background: var(--surface-raised);
     border: 1px solid var(--field-border);
     border-radius: var(--r-sm);
-    box-shadow: 0 8px 24px rgb(0 0 0 / 45%);
+    box-shadow: var(--shadow-popover);
   }
 
   .menu.right {
