@@ -19,7 +19,9 @@ const FILTER_REFS = `input[aria-label="Filter references"]`;
 const WORKTREE_ROW = (index) => ({ sel: `[aria-label="Worktrees"] [role="option"]`, index });
 const HEAVY = { quiet: 400, timeout: 180_000 };
 
+/** The Working Tree row exists only while the list is scrolled to its top. */
 async function workingTree(ctx) {
+  await ctx.prep.run(`(() => { document.querySelector('.scroll[aria-label="Commits"]').scrollTop = 0; })()`);
   await ctx.prep.click({ sel: "button.row.header" });
 }
 
