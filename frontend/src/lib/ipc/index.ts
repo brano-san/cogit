@@ -17,7 +17,7 @@ import type {
   FlowConfig,
   FlowKind,
   GitError,
-  GraphChunk,
+  GraphProgress,
   MergeOptions,
   MergeResolved,
   ModuleProblem,
@@ -81,8 +81,9 @@ export type {
   GitCommandError,
   GitError,
   GitOutput,
-  GraphChunk,
+  GraphProgress,
   GraphRow,
+  GraphWindow,
   Head,
   Hook,
   HookOverview,
@@ -211,18 +212,24 @@ export const EMPTY_QUERY: CommitQuery = {
   visibleRefs: null,
 };
 
-export async function loadCommits(
+/** The walk reports how far it got; the rows stay in Rust until `graphWindow` (R-193). */
+export async function loadGraph(
   repo: RepoId,
-  onChunk: (chunk: GraphChunk) => void,
+  onProgress: (progress: GraphProgress) => void,
   query: CommitQuery = EMPTY_QUERY,
 ) {
-  const channel = new Channel<GraphChunk>();
-  channel.onmessage = onChunk;
-  const result = await commands.loadCommits(repo, query, channel);
-  if (result.status === "error") {
-    throw new CogitError(result.error);
-  }
-  return result.data;
+  const channel = new Channel<GraphProgress>();
+  channel.onmessage = onProgress;
+  return unwrap(await commands.loadCommits(repo, query, channel));
+}
+
+/** `null` once a newer walk replaced `generation`. */
+export async function graphWindow(repo: RepoId, generation: number, start: number, count: number) {
+  return unwrap(await commands.graphWindow(repo, generation, start, count));
+}
+
+export async function graphRowOf(repo: RepoId, generation: number, oid: string) {
+  return unwrap(await commands.graphRowOf(repo, generation, oid));
 }
 
 /** Hits stream in as the walk finds them; the promise resolves with the total. */

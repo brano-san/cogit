@@ -84,13 +84,13 @@
   });
 
   const headerRows = $derived(HEADER_ROWS + virtualRows.length);
-  const commitCount = $derived(graph.rows.length);
+  const commitCount = $derived(graph.total);
   const listRows = $derived(commitCount + headerRows);
   const range = $derived(
     visibleRange(scrollTop, viewportHeight, GRAPH.rowHeight, listRows, BUFFER_ROWS),
   );
   /** The Working Tree row and the rebase rows start where HEAD's line is. */
-  const headLane = $derived(graph.rows[0]?.layout.lane ?? null);
+  const headLane = $derived(graph.rowAt(0)?.layout.lane ?? null);
   const headerX = $derived(textX((headLane ?? 0) + 1));
 
   /** The window drives the queue: rows that scroll away stop being asked for. */
@@ -134,10 +134,15 @@
     const rows = [];
     for (let listRow = from; listRow < range.end; listRow++) {
       const commitRow = toCommitRow(listRow, headerRows);
-      const entry = commitRow === null ? undefined : graph.rows[commitRow];
+      const entry = commitRow === null ? undefined : graph.rowAt(commitRow);
       if (entry) rows.push({ listRow, entry });
     }
     return rows;
+  });
+
+  /** Only the rows on screen come over from Rust (R-193). */
+  $effect(() => {
+    graph.show(Math.max(range.start - headerRows, 0), Math.max(range.end - headerRows, 0));
   });
 
   const drawn = $derived(visible.map(({ listRow, entry }) => ({ listRow, layout: entry.layout })));
@@ -152,15 +157,13 @@
     const id = repository.current?.repo;
     if (!id) return;
 
-    const at = graph.rows.findIndex((row) => row.commit.oid === selection.oid);
+    const at = graph.loadedIndexOf(selection.oid);
     const page = Math.max(Math.floor(viewportHeight / GRAPH.rowHeight) - 1, 1);
-    const target = nextRow(at < 0 ? null : at, event.key, graph.rows.length, page);
+    const target = nextRow(at, event.key, graph.total, page);
     if (target === null) return;
 
     event.preventDefault();
-    const row = graph.rows[target];
-    if (!row) return;
-    void pick(id, row.commit.oid);
+    void graph.entry(target).then((row) => row && pick(id, row.commit.oid));
 
     const offset = scrollRowIntoView(
       target + headerRows,
@@ -189,11 +192,13 @@
     }
     if (!scroller || wanted.request === revealed) return;
 
-    const at = graph.rows.findIndex((row) => row.commit.oid === wanted.oid);
-    if (at < 0) return;
-
-    scroller.scrollTop = centreRow(at + headerRows, viewportHeight, GRAPH.rowHeight, listRows);
-    revealed = wanted.request;
+    // Read so that a commit the walk has not reached yet is looked for again.
+    void graph.total;
+    void graph.indexOf(wanted.oid).then((at) => {
+      if (at === null || !scroller || graph.reveal !== wanted || revealed === wanted.request) return;
+      scroller.scrollTop = centreRow(at + headerRows, viewportHeight, GRAPH.rowHeight, listRows);
+      revealed = wanted.request;
+    });
   });
 
   function onclick(event: MouseEvent) {
@@ -204,7 +209,7 @@
     const repo = repository.current?.repo;
     if (!repo) return;
     const commitRow = toCommitRow(hit.row, headerRows);
-    void pick(repo, commitRow === null ? null : (graph.rows[commitRow]?.commit.oid ?? null));
+    void pick(repo, commitRow === null ? null : (graph.rowAt(commitRow)?.commit.oid ?? null));
   }
 
   $effect(() => {

@@ -1,7 +1,9 @@
 import {
   CogitError,
   EMPTY_QUERY,
-  loadCommits,
+  graphRowOf,
+  graphWindow,
+  loadGraph,
   type CommitQuery,
   type CommitRow,
   type GraphRow,
@@ -13,16 +15,42 @@ export interface GraphEntry {
   layout: GraphRow;
 }
 
+/** Rows per request. A screen is about forty; the next block is asked for early. */
+const BLOCK = 128;
+const AHEAD = 64;
+/** Blocks kept per graph; the ones farthest from the screen go first. */
+const KEEP = 48;
+
+/** One walk of the history. Its rows stay in Rust and come over by block (R-193). */
+interface Walk {
+  repo: RepoId;
+  /** Rust's number for this walk, known from its first progress message. */
+  generation: number | null;
+  total: number;
+  complete: boolean;
+  blocks: Map<number, GraphEntry[]>;
+  asking: Set<number>;
+}
+
+const walk = (repo: RepoId): Walk => ({
+  repo,
+  generation: null,
+  total: 0,
+  complete: false,
+  blocks: new Map(),
+  asking: new Set(),
+});
+
+const asError = (err: unknown) =>
+  err instanceof CogitError ? err : new CogitError({ kind: "internal", data: String(err) });
+
 class GraphStore {
-  /** `$state.raw`: 50 000 commits would otherwise become 50 000 reactive proxies. */
-  rows = $state.raw<GraphEntry[]>([]);
+  /** Rows laid out so far: the list is this long while the rest is walked. */
+  total = $state(0);
   loading = $state(false);
   complete = $state(false);
   error = $state<CogitError | null>(null);
   skipped = $state.raw<import("$lib/ipc").SkippedRef[]>([]);
-
-  /** Discriminates concurrent loads; chunks from a superseded stream are dropped. */
-  #generation = 0;
 
   query = $state.raw<CommitQuery>(EMPTY_QUERY);
 
@@ -32,71 +60,180 @@ class GraphStore {
   /** Asking twice for the same commit has to scroll twice, hence the counter. */
   reveal = $state.raw<{ oid: string; request: number } | null>(null);
 
+  /** Bumped when rows arrive, so that whatever read `rowAt` reads again. */
+  #arrived = $state(0);
+
+  #shown: Walk | null = null;
+  /** A reload catching up; the old rows stay on screen until it covers them (R-186). */
+  #next: Walk | null = null;
+  #range = { start: 0, end: 0 };
+  #loads = 0;
+
   requestReveal(oid: string): void {
     this.reveal = { oid, request: (this.reveal?.request ?? 0) + 1 };
   }
 
-  #repo: RepoId | null = null;
+  rowAt(index: number): GraphEntry | undefined {
+    void this.#arrived;
+    return this.#shown?.blocks.get(Math.floor(index / BLOCK))?.[index % BLOCK];
+  }
+
+  /** How many rows are held here rather than in Rust. */
+  loadedRows(): number {
+    let rows = 0;
+    for (const block of this.#shown?.blocks.values() ?? []) rows += block.length;
+    return rows;
+  }
+
+  /** The list says which rows are on screen; the missing ones are asked for. */
+  show(start: number, end: number): void {
+    this.#range = { start, end };
+    this.#ask(this.#shown);
+    this.#ask(this.#next);
+  }
+
+  /** The row of `oid`, when it is among the rows at hand. */
+  loadedIndexOf(oid: string | null): number | null {
+    if (!oid || !this.#shown) return null;
+    for (const [index, block] of this.#shown.blocks) {
+      const at = block.findIndex((entry) => entry.commit.oid === oid);
+      if (at >= 0) return index * BLOCK + at;
+    }
+    return null;
+  }
+
+  async indexOf(oid: string): Promise<number | null> {
+    const near = this.loadedIndexOf(oid);
+    if (near !== null) return near;
+    const shown = this.#shown;
+    if (shown?.generation == null) return null;
+    return graphRowOf(shown.repo, shown.generation, oid);
+  }
+
+  /** A row a key press moves to may be off the loaded blocks. */
+  async entry(index: number): Promise<GraphEntry | undefined> {
+    const shown = this.#shown;
+    if (shown && !this.rowAt(index)) await this.#fetch(shown, Math.floor(index / BLOCK));
+    return this.rowAt(index);
+  }
 
   async load(repo: RepoId, query: CommitQuery = EMPTY_QUERY): Promise<void> {
-    const generation = ++this.#generation;
+    const load = ++this.#loads;
     this.query = query;
-    // Old rows stay until the new walk catches up: an empty list between flashed (R-186).
-    const onScreen = this.#repo === repo ? this.rows.length : 0;
-    if (onScreen === 0) this.rows = [];
-    this.#repo = repo;
+    const fresh = walk(repo);
+    if (this.#shown?.repo === repo && this.#shown.total > 0) {
+      this.#next = fresh;
+    } else {
+      this.#next = null;
+      this.#show(fresh);
+    }
     this.error = null;
     this.skipped = [];
-    this.complete = false;
     this.loading = true;
-    let pending: GraphEntry[] | null = onScreen > 0 ? [] : null;
 
     try {
-      const skipped = await loadCommits(repo, (chunk) => {
-        if (generation !== this.#generation) return;
-
-        const incoming = chunk.commits.map((commit, index) => ({
-          commit,
-          layout: chunk.rows[index]!,
-        }));
-        if (pending) {
-          pending.push(...incoming);
-          if (pending.length >= onScreen || chunk.isLast) {
-            this.rows = pending;
-            pending = null;
-          }
-        } else if (incoming.length > 0) {
-          this.rows = [...this.rows, ...incoming];
-        }
-        if (chunk.isLast) this.complete = true;
-      }, { ...query, visibleRefs: this.visibleRefs });
-      if (generation === this.#generation) {
-        if (pending) this.rows = pending;
-        this.skipped = skipped ?? [];
-      }
+      const skipped = await loadGraph(
+        repo,
+        (progress) => {
+          if (load !== this.#loads) return;
+          fresh.generation = progress.generation;
+          fresh.total = progress.total;
+          fresh.complete = progress.isLast;
+          if (fresh === this.#shown) this.#publish();
+          this.#ask(fresh);
+        },
+        { ...query, visibleRefs: this.visibleRefs },
+      );
+      if (load === this.#loads) this.skipped = skipped ?? [];
     } catch (err) {
-      if (generation === this.#generation) {
-        this.rows = [];
-        this.error =
-          err instanceof CogitError
-            ? err
-            : new CogitError({ kind: "internal", data: String(err) });
+      if (load === this.#loads) {
+        this.#next = null;
+        this.#show(walk(repo));
+        this.error = asError(err);
       }
     } finally {
-      if (generation === this.#generation) this.loading = false;
+      if (load === this.#loads) this.loading = false;
     }
   }
 
   clear(): void {
-    this.#generation += 1;
+    this.#loads += 1;
     this.query = EMPTY_QUERY;
     this.visibleRefs = null;
     this.reveal = null;
-    this.rows = [];
-    this.#repo = null;
+    this.#shown = null;
+    this.#next = null;
     this.loading = false;
-    this.complete = false;
     this.error = null;
+    this.#publish();
+  }
+
+  #show(next: Walk): void {
+    this.#shown = next;
+    if (this.#next === next) this.#next = null;
+    this.#publish();
+  }
+
+  #publish(): void {
+    this.total = this.#shown?.total ?? 0;
+    this.complete = this.#shown?.complete ?? false;
+    this.#arrived += 1;
+  }
+
+  /** Blocks around the screen that are missing, or were cut short by the walk. */
+  #wanted(of: Walk): number[] {
+    const end = Math.min(this.#range.end + AHEAD, of.total);
+    const wanted: number[] = [];
+    for (let index = Math.floor(Math.max(this.#range.start - AHEAD, 0) / BLOCK); index * BLOCK < end; index++) {
+      const expected = Math.min(BLOCK, of.total - index * BLOCK);
+      if ((of.blocks.get(index)?.length ?? 0) < expected) wanted.push(index);
+    }
+    return wanted;
+  }
+
+  #ask(of: Walk | null): void {
+    if (!of || of.generation === null) return;
+    for (const index of this.#wanted(of)) void this.#fetch(of, index);
+    this.#promote(of);
+  }
+
+  async #fetch(of: Walk, index: number): Promise<void> {
+    if (of.generation === null || of.asking.has(index)) return;
+    of.asking.add(index);
+    try {
+      const window = await graphWindow(of.repo, of.generation, index * BLOCK, BLOCK);
+      if (!window) return;
+      of.blocks.set(
+        index,
+        window.commits.map((commit, i) => ({ commit, layout: window.rows[i]! })),
+      );
+      this.#evict(of);
+    } catch (err) {
+      if (of === this.#shown) this.error = asError(err);
+      return;
+    } finally {
+      of.asking.delete(index);
+    }
+    if (of === this.#shown) {
+      this.#arrived += 1;
+      // The walk went on while this block was on its way.
+      if (this.#wanted(of).includes(index)) void this.#fetch(of, index);
+    }
+    this.#promote(of);
+  }
+
+  /** A reload takes over once it has every row on screen, or has no more to give. */
+  #promote(of: Walk): void {
+    if (of !== this.#next) return;
+    const long = of.complete || of.total >= this.#range.end;
+    if (long && this.#wanted(of).every((index) => index * BLOCK >= this.#range.end)) this.#show(of);
+  }
+
+  #evict(of: Walk): void {
+    if (of.blocks.size <= KEEP) return;
+    const middle = (this.#range.start + this.#range.end) / 2 / BLOCK;
+    const farthest = [...of.blocks.keys()].sort((a, b) => Math.abs(b - middle) - Math.abs(a - middle));
+    for (const index of farthest.slice(0, of.blocks.size - KEEP)) of.blocks.delete(index);
   }
 }
 
