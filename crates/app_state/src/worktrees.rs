@@ -49,7 +49,7 @@ impl AppState {
         create: bool,
         base: Option<&str>,
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?
             .add_worktree_at(path, branch, create, base)
     }
@@ -62,7 +62,7 @@ impl AppState {
         path: &str,
         force: bool,
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         let name = std::path::Path::new(path).file_name().map_or_else(
             || path.to_owned(),
@@ -81,17 +81,17 @@ impl AppState {
     }
 
     pub fn prune_worktrees(&self, repo: RepoId) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.prune_worktrees()
     }
 
     pub fn prune_worktree(&self, repo: RepoId, path: &str) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.prune_worktree(path)
     }
 
     pub fn repair_worktree(&self, repo: RepoId, path: &str) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.repair_worktree(path)
     }
 
@@ -101,12 +101,12 @@ impl AppState {
         path: &str,
         reason: Option<&str>,
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.lock_worktree(path, reason)
     }
 
     pub fn unlock_worktree(&self, repo: RepoId, path: &str) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.unlock_worktree(path)
     }
 

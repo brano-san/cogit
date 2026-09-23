@@ -18,7 +18,7 @@ impl AppState {
         name: &str,
         body: &str,
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.write_hook(name, body)
     }
 
@@ -28,14 +28,14 @@ impl AppState {
         name: &str,
         enabled: bool,
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.set_hook_enabled(name, enabled)
     }
 
     /// Wires a versioned hook directory up. Never automatic: a hooks path inside the tree
     /// turns repository content into code that runs on commit (doc/modules/M10-hooks.md).
     pub fn use_hooks_path(&self, repo: RepoId, path: &str) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?
             .run_git(&["config", "core.hooksPath", path])
             .map(drop)
@@ -156,7 +156,7 @@ impl AppState {
             .ok_or_else(|| {
                 git_engine::GitError::InvalidState(format!("there is no preset {id}"))
             })?;
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.install_preset(&preset)
     }
 }

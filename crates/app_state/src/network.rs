@@ -14,7 +14,7 @@ impl AppState {
         remote: &str,
         on_line: impl FnMut(&str),
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         let token = self.token_for(&handle, remote);
         handle.fetch(remote, token.as_deref(), on_line)
@@ -27,7 +27,7 @@ impl AppState {
         ff_only: bool,
         on_line: impl FnMut(&str),
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         let token = self.token_for(&handle, remote);
         handle.pull(remote, ff_only, token.as_deref(), on_line)
@@ -40,7 +40,7 @@ impl AppState {
         force: bool,
         on_line: impl FnMut(&str),
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         let token = self.token_for(&handle, remote);
         handle.push(remote, None, force, token.as_deref(), on_line)

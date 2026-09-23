@@ -91,7 +91,7 @@ impl AppState {
     }
 
     fn reverse(&self, repo: RepoId, held: Undoable) -> Result<SafetyEntry, git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         match &held.recovery {
             Recovery::Stash { oid } => handle.stash_apply(oid)?,
