@@ -267,3 +267,5 @@
 | F-293 | Граф не мигает при смене отметок | [F-293-graph-no-flash-on-reload.md](F-293-graph-no-flash-on-reload.md) |
 | F-294 | Одна подсветка у кнопок тулбара | [F-294-toolbar-single-hover.md](F-294-toolbar-single-hover.md) |
 | F-295 | Уровни деревьев выровнены | [F-295-tree-levels-aligned.md](F-295-tree-levels-aligned.md) |
+| F-300 | Окно Blame | [F-300-blame-window.md](F-300-blame-window.md) |
+| F-301 | Отдельные окна не ломают главное | [F-301-child-windows-isolated.md](F-301-child-windows-isolated.md) |
