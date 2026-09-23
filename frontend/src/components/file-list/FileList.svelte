@@ -5,6 +5,7 @@
   import {
     DEFAULT_VIEW,
     groupByDirectory,
+    shownSections,
     visibleFiles,
     type FileView,
   } from "$lib/file-view";
@@ -25,6 +26,7 @@
     actions?: readonly Action[];
     /** Each section can open its own side of the diff. */
     onselect?: (path: string) => void;
+    hideWhenEmpty?: boolean;
   }
 
   interface Props {
@@ -94,7 +96,7 @@
   const active = $derived(view ?? DEFAULT_VIEW);
   const pattern = $derived(compile(mask, active.regex));
   const groups = $derived(
-    sections.map((section) => {
+    shownSections(sections).map((section) => {
       const files = sortFiles(
         visibleFiles(section.files, active).filter((file) => matches(file, pattern)),
         "path",

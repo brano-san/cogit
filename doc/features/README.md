@@ -263,3 +263,7 @@
 | F-289 | Двойной клик по ворктри делает его активным | [F-289-open-worktree.md](F-289-open-worktree.md) |
 | F-290 | Устаревший ворктри: Prune или Repair в строке | [F-290-stale-worktree-prune-repair.md](F-290-stale-worktree-prune-repair.md) |
 | F-291 | Добавление и удаление ворктри | [F-291-worktree-dialogs.md](F-291-worktree-dialogs.md) |
+| F-292 | Staged не показывается без файлов | [F-292-staged-hidden-when-empty.md](F-292-staged-hidden-when-empty.md) |
+| F-293 | Граф не мигает при смене отметок | [F-293-graph-no-flash-on-reload.md](F-293-graph-no-flash-on-reload.md) |
+| F-294 | Одна подсветка у кнопок тулбара | [F-294-toolbar-single-hover.md](F-294-toolbar-single-hover.md) |
+| F-295 | Уровни деревьев выровнены | [F-295-tree-levels-aligned.md](F-295-tree-levels-aligned.md) |

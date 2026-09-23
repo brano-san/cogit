@@ -332,7 +332,7 @@
     align-items: stretch;
     height: var(--h-toolbar);
     flex: 0 0 var(--h-toolbar);
-    padding: 0 var(--sp-3);
+    padding: var(--sp-2) var(--sp-3);
     background: var(--surface-panel);
     border-bottom: 1px solid var(--divider);
   }
@@ -372,8 +372,9 @@
     border-radius: var(--r-md);
   }
 
+  /* One highlight for the whole button: the icon used to add a second one of its own. */
   .slot:hover:not(.disabled) {
-    background: var(--state-hover);
+    background: var(--state-selected);
   }
 
   .quick,
@@ -390,13 +391,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 26px;
+    height: 24px;
     padding: 0 var(--sp-3);
     border-radius: var(--r-sm);
-  }
-
-  .quick:hover:not(:disabled) {
-    background: var(--state-selected);
   }
 
   .icon {
@@ -456,7 +453,7 @@
   }
 
   .more:hover {
-    background: var(--state-hover);
+    background: var(--state-selected);
   }
 
   .backdrop {

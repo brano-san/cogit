@@ -148,3 +148,10 @@ export function mergeView(stored: unknown): FileView {
   }
   return merged;
 }
+
+/** An empty Staged pane is a splitter and a heading around nothing. */
+export function shownSections<S extends { files: readonly unknown[]; hideWhenEmpty?: boolean }>(
+  sections: readonly S[],
+): S[] {
+  return sections.filter((section) => section.files.length > 0 || !section.hideWhenEmpty);
+}

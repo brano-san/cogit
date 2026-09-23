@@ -69,7 +69,7 @@
   }
 </script>
 
-<div class="tree" role="tree" aria-label="References">
+<div class="tree tree-rows" role="tree" aria-label="References">
   {#each nodes as node (node.id)}
     {@const state = checkState(tree, node.id, visible)}
     {@const tickable = leavesUnder(tree, node.id).length > 0}
@@ -77,7 +77,7 @@
       class="row {node.kind}"
       class:selected={active === node.id}
       class:over={over === node.id}
-      style:padding-left="calc(var(--sp-4) + {node.depth * 12}px)"
+      style:padding-left="calc(var(--tree-base) + {node.depth} * var(--tree-step))"
       role="treeitem"
       aria-selected={active === node.id}
       aria-expanded={foldable(node) ? !input.collapsed.has(node.id) : undefined}
@@ -139,13 +139,15 @@
 
 <style>
   .tree {
+    --ref-box: 12px;
+    --tree-next: var(--ref-box);
     padding: var(--sp-3) 0;
   }
 
   .row {
     display: flex;
     align-items: center;
-    gap: var(--sp-2);
+    gap: var(--tree-gap);
     height: var(--h-row-dense);
     padding-right: var(--sp-4);
     font-size: var(--fs-dense);
@@ -174,8 +176,8 @@
 
   .box {
     flex: 0 0 auto;
-    width: 12px;
-    height: 12px;
+    width: var(--ref-box);
+    height: var(--ref-box);
     margin: 0;
     accent-color: var(--status-ref);
   }

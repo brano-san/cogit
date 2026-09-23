@@ -9,18 +9,15 @@
     oncollapse: (next: Set<string>) => void;
     /** Draws one row's content; the caret and the indent belong to this component. */
     row: Snippet<[Flattened<T>]>;
-    indent?: number;
-    /** Left padding of the shallowest row, so the caret never touches the panel edge. */
-    base?: number;
     label?: string;
   }
 
-  let { nodes, collapsed, oncollapse, row, indent = 12, base = 8, label }: Props = $props();
+  let { nodes, collapsed, oncollapse, row, label }: Props = $props();
 
   const rows = $derived(flatten(nodes, collapsed));
 </script>
 
-<div class="tree" role="tree" aria-label={label}>
+<div class="tree tree-rows" role="tree" aria-label={label}>
   {#each rows as node (node.id)}
     <div
       class="node"
@@ -28,7 +25,7 @@
       aria-expanded={node.open}
       aria-selected="false"
       tabindex="-1"
-      style:padding-left="{base + node.depth * indent}px"
+      style:padding-left="calc(var(--tree-base) + {node.depth} * var(--tree-step))"
     >
       <Disclosure
         empty={node.open === undefined}
@@ -42,10 +39,15 @@
 </div>
 
 <style>
+  /* Text follows the triangle here, so a child's triangle starts under the parent's text. */
+  .tree {
+    --tree-next: var(--disclosure-glyph);
+  }
+
   .node {
     display: flex;
     align-items: center;
-    gap: var(--sp-2, 3px);
+    gap: var(--tree-gap);
     height: var(--h-row-dense);
     font-size: var(--fs-dense);
     white-space: nowrap;
