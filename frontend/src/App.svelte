@@ -79,6 +79,7 @@
     openThirdPartyLicences,
     addToGitignore,
     cherryPick,
+    closeThisWindow,
     deleteUntracked,
     findObject,
     interactiveRebase,
@@ -650,9 +651,9 @@
         run: () => {
           // No window is being closed by hand, so the dialog must not say one is.
           exitFlow.fromCommand();
-          void import("@tauri-apps/api/window")
-            .then(({ getCurrentWindow }) => getCurrentWindow().close())
-            .catch(() => exitFlow.takeSource());
+          // Closed in Rust (R-86): the webview is not allowed `window.close`, and the refusal
+          // was silent — Exit from the menu, Alt+X and the palette did nothing (R-190).
+          void closeThisWindow().catch(() => exitFlow.takeSource());
         },
       },
       {
