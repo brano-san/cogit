@@ -36,31 +36,47 @@ class GraphStore {
     this.reveal = { oid, request: (this.reveal?.request ?? 0) + 1 };
   }
 
+  #repo: RepoId | null = null;
+
   async load(repo: RepoId, query: CommitQuery = EMPTY_QUERY): Promise<void> {
     const generation = ++this.#generation;
     this.query = query;
-    this.rows = [];
+    // Old rows stay until the new walk catches up: an empty list between flashed (R-186).
+    const onScreen = this.#repo === repo ? this.rows.length : 0;
+    if (onScreen === 0) this.rows = [];
+    this.#repo = repo;
     this.error = null;
     this.skipped = [];
     this.complete = false;
     this.loading = true;
+    let pending: GraphEntry[] | null = onScreen > 0 ? [] : null;
 
     try {
       const skipped = await loadCommits(repo, (chunk) => {
         if (generation !== this.#generation) return;
 
-        if (chunk.commits.length > 0) {
-          const incoming = chunk.commits.map((commit, index) => ({
-            commit,
-            layout: chunk.rows[index]!,
-          }));
+        const incoming = chunk.commits.map((commit, index) => ({
+          commit,
+          layout: chunk.rows[index]!,
+        }));
+        if (pending) {
+          pending.push(...incoming);
+          if (pending.length >= onScreen || chunk.isLast) {
+            this.rows = pending;
+            pending = null;
+          }
+        } else if (incoming.length > 0) {
           this.rows = [...this.rows, ...incoming];
         }
         if (chunk.isLast) this.complete = true;
       }, { ...query, visibleRefs: this.visibleRefs });
-      if (generation === this.#generation) this.skipped = skipped ?? [];
+      if (generation === this.#generation) {
+        if (pending) this.rows = pending;
+        this.skipped = skipped ?? [];
+      }
     } catch (err) {
       if (generation === this.#generation) {
+        this.rows = [];
         this.error =
           err instanceof CogitError
             ? err
@@ -77,6 +93,7 @@ class GraphStore {
     this.visibleRefs = null;
     this.reveal = null;
     this.rows = [];
+    this.#repo = null;
     this.loading = false;
     this.complete = false;
     this.error = null;

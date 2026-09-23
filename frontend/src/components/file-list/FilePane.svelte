@@ -56,7 +56,7 @@
   }
 </script>
 
-<div class="pane">
+<div class="pane tree-rows">
   {#if title}
     <div class="heading">
       <span class="grow">{title} ({paths.length})</span>
@@ -82,6 +82,7 @@
           <button
             type="button"
             class="row {file.status}"
+            class:nested={!showDirectory}
             class:selected={selected === file.path}
             class:marked={marked.has(file.path)}
             style:top="{at * GRAPH.rowHeight}px"
@@ -140,6 +141,8 @@
 
 <style>
   .pane {
+    --tree-gap: var(--sp-3);
+    --tree-next: var(--disclosure-glyph);
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -167,11 +170,22 @@
     right: 0;
     display: flex;
     align-items: center;
-    gap: var(--sp-3);
+    gap: var(--tree-gap);
     height: 22px;
     padding: 0 var(--sp-5);
     font-size: var(--fs-dense);
     white-space: nowrap;
+  }
+
+  /* Grouped by directory, a file is one level in: its icon where a child's triangle goes. */
+  .folder {
+    padding-left: var(--tree-base);
+  }
+
+  .row.nested {
+    padding-left: calc(
+      var(--tree-base) + var(--tree-step) + (var(--disclosure-hit) - var(--kind-icon)) / 2
+    );
   }
 
   .row {

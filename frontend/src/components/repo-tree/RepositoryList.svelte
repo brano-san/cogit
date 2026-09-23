@@ -77,7 +77,7 @@
   }
 </script>
 
-<div class="wrapper">
+<div class="wrapper tree-rows">
   <div class="actions" role="toolbar" aria-label="Repository list actions">
     <button
       type="button"
@@ -144,7 +144,7 @@
           role="button"
           tabindex="0"
           draggable={row.id !== UNGROUPED}
-          style:padding-left="calc(var(--sp-4) + {row.depth * 12}px)"
+          style:padding-left="calc(var(--tree-base) + {row.depth} * var(--tree-step))"
           ondragstart={(event) => event.dataTransfer?.setData("text/cogit-group", row.id)}
           onclick={() => repoGroups.collapse(row.id)}
           onkeydown={(event) => event.key === "Enter" && repoGroups.collapse(row.id)}
@@ -179,7 +179,7 @@
       <div
         class="row"
         draggable="true"
-        style:padding-left="calc(var(--sp-5) + {row.depth * 12}px)"
+        style:padding-left="calc(var(--tree-base) + {row.depth} * var(--tree-step))"
         ondragstart={(event) => event.dataTransfer?.setData("text/cogit-repo", entry.root)}
         class:selected={active?.valueOf() === entry.repo.valueOf()}
         class:holds-worktree={worktrees.ownerRoot === entry.root}
@@ -253,7 +253,7 @@
             role="button"
             tabindex="0"
             title="{node.path} — {node.module.url}"
-            style:padding-left="calc(var(--sp-5) + {(row.depth + 1 + node.depth) * 12}px)"
+            style:padding-left="calc(var(--tree-base) + {row.depth + 1 + node.depth} * var(--tree-step))"
             onclick={() => onopenmodule(node)}
             ondblclick={() => {
               onopenmodule(node);
@@ -298,6 +298,7 @@
 
 <style>
   .wrapper {
+    --tree-gap: var(--sp-3);
     padding: var(--sp-4) 0;
   }
 
@@ -404,7 +405,7 @@
   .row {
     display: flex;
     align-items: center;
-    gap: var(--sp-3);
+    gap: var(--tree-gap);
     height: 22px;
     padding: 0 var(--sp-5);
     font-size: var(--fs-dense);
@@ -424,7 +425,7 @@
   .group {
     display: flex;
     align-items: center;
-    gap: var(--sp-2);
+    gap: var(--tree-gap);
     height: var(--h-row-dense);
     padding: 0 var(--sp-5);
     background: var(--surface-raised);

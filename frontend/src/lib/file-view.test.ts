@@ -5,6 +5,7 @@ import {
   backendView,
   groupByDirectory,
   mergeView,
+  shownSections,
   visibleFiles,
   type FileView,
 } from "./file-view";
@@ -138,5 +139,24 @@ describe("mergeView", () => {
 
   it("survives a missing store", () => {
     expect(mergeView(null)).toEqual(DEFAULT_VIEW);
+  });
+});
+
+describe("shownSections", () => {
+  const unstaged = { title: "Unstaged", files: [file("a.txt", "modified")] };
+  const staged = { title: "Staged", files: [] as FileEntry[], hideWhenEmpty: true };
+
+  it("leaves out an empty section that asks to be hidden", () => {
+    expect(shownSections([unstaged, staged]).map((s) => s.title)).toEqual(["Unstaged"]);
+  });
+
+  it("keeps it once it has a file", () => {
+    const filled = { ...staged, files: [file("b.txt", "added")] };
+    expect(shownSections([unstaged, filled]).map((s) => s.title)).toEqual(["Unstaged", "Staged"]);
+  });
+
+  it("keeps an empty section that did not ask", () => {
+    const empty = { title: "Unstaged", files: [] as FileEntry[] };
+    expect(shownSections([empty, staged]).map((s) => s.title)).toEqual(["Unstaged"]);
   });
 });

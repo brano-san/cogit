@@ -117,6 +117,7 @@
         {
           title: "Staged",
           files: worktree.staged,
+          hideWhenEmpty: true,
           onselect: onopenstaged,
           actions: [{ label: "Unstage", title: "Unstage", run: unstage }],
         },
