@@ -231,6 +231,9 @@ pub enum FileStatus { Added, Modified, Deleted, Renamed, Copied }
 | `merge_conflict` | `repo, path` | `ThreeWayDiff` | M7 |
 | `file_before` | `repo, oid, path` | `string \| null` | M8 |
 | `investigate` | `repo, path, from, to, limit` | `InvestigationStep[]` | M8 |
+| `investigate_log` | `repo, path, rev: string \| null, follow, on_chunk: Channel<FileRevision[]>` | `number` (всего) | M8 |
+| `investigate_blame` | `repo, path, rev: string \| null, ignore_whitespace, on_chunk: Channel<BlameChunk>` | `number` (строк) | M8 |
+| `origin_candidates` | `repo, query: OriginQuery, on_event: Channel<OriginEvent>` | — | M8 |
 | `discard_selection` | `repo, request: PatchRequest` | — | M6 |
 
 `discard_selection` — обратная сторона `stage_selection`: тот же `PatchRequest`, но патч
@@ -240,7 +243,32 @@ pub enum FileStatus { Added, Modified, Deleted, Renamed, Copied }
 `investigate` — история диапазона строк, а не файла: `InvestigationStep { oid, summary,
 author, email, timestamp, path, diff }`, новые сверху. `path` — имя файла **на момент того
 коммита**, оно меняется при переименовании. Идёт через `git log -L`, а не через `gix`
-([R-104](12-risks.md)); `limit` зажимается в 1…1000.
+([R-104](12-risks.md)); `limit` зажимается в 1…1000. Окно Investigate (#15) им больше
+не пользуется — команда оставлена для будущего фильтра Navigation по выделенным строкам
+([R-282](12-risks.md)).
+
+Окно Investigate ([R-280](12-risks.md), [R-281](12-risks.md)):
+
+- `investigate_log` — коммиты, менявшие файл, новые сверху, от `rev` (HEAD, если `null`);
+  `follow` — через переименования (`git log --follow`). `FileRevision { oid, parents,
+  summary, author, email, timestamp, path, previousPath, change }`: `path` — имя файла в
+  этом коммите, `previousPath` — прежнее имя у переименования и копии. Чанки по 200, не
+  больше 10 000 записей; возвращает общее число — фронтенд ждёт и его, и последний чанк.
+- `investigate_blame` — файл на `rev` (рабочая копия, если `null`), `git blame --porcelain
+  -M -C -C` (`-w` при `ignore_whitespace`). Первый чанк — `header { commits, sources }`,
+  дальше `lines { lines }` по 200. `OriginLine { line, text, source, origLine, change }`:
+  `source` — индекс в `sources` (`BlameSource { commit, path, previous }` — коммит, файл,
+  в котором он написал строку, и тот же файл шагом раньше), `origLine` — номер строки в
+  той версии, `change` — `added` / `modified`. `BlameCommit { …, merge, boundary,
+  uncommitted }`; незакоммиченные строки — коммит из сорока нулей.
+- `origin_candidates` — фоновый поиск происхождения блока. `OriginQuery { commit, path,
+  from, to, line, previous }` — блок, внесённый одним коммитом. События: `started { id }`
+  (для `cancel_operation`), затем `done { report }` или `cancelled`. `OriginReport {
+  candidates, best }`; `OriginCandidate { kind: appeared | modified | moved | copied, rev,
+  path, from, to, score (проценты), likelihood: high | medium | low, deeper, block,
+  source }`, где `deeper { rev, path, line }` — куда ведёт Go Deeper (`null` — глубже
+  некуда), `block` и `source` — построчное сравнение (`same` / `changed` / `missing`) для
+  перспективы Origins.
 
 `diff_files` — та же работа, что `diff_file`, но сразу по всем файлам коммита: чтение
 объектов последовательное, само сравнение параллельное через `rayon` внутри
@@ -537,6 +565,12 @@ UI обновляет **только** соответствующую панел
 - Результат разрешения конфликта возвращается событием `merge-resolved`, главное окно
   обновляет список файлов.
 - Закрытие окна с несохранёнными правками требует подтверждения.
+
+Окно Investigate открывается командой `open_investigate_window(url, title)` — через тот же
+`child_window::open`, что и окна сравнения и слияния, с меткой `investigate-N`
+(разрешения — в `capabilities/default.json`). Команда `async`, в отличие от
+`open_compare_window` ([R-283](12-risks.md)). Параметры — в URL
+(`investigate.html?repo=1&path=…&rev=…&line=…`).
 
 ## 8. Чек-лист при добавлении команды
 
