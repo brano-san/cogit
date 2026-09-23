@@ -97,20 +97,26 @@ impl RepoHandle {
             hotfix: read("gitflow.prefix.hotfix").unwrap_or(fallback.hotfix),
         };
 
+        // Asked on every open, switch and close: two `git` processes were ~90 ms of it (R-200).
         let head = self
-            .run_git_reading(&["rev-parse", "--abbrev-ref", "HEAD"])?
-            .stdout
-            .trim()
-            .to_owned();
-        let listed = self.run_git_reading(&["branch", "--list", "--format=%(refname:short)"])?;
+            .repo
+            .head_name()
+            .ok()
+            .flatten()
+            .map_or_else(|| "HEAD".to_owned(), |name| name.shorten().to_string());
+        let mut listed: Vec<String> = self
+            .repo
+            .references()
+            .map_err(|err| GitError::Internal(format!("cannot read references: {err}")))?
+            .local_branches()
+            .map_err(|err| GitError::Internal(format!("cannot list local branches: {err}")))?
+            .filter_map(std::result::Result::ok)
+            .map(|reference| reference.name().shorten().to_string())
+            .collect();
+        listed.sort();
 
         let mut branches = Vec::new();
-        for line in listed
-            .stdout
-            .lines()
-            .map(str::trim)
-            .filter(|l| !l.is_empty())
-        {
+        for line in listed.iter().map(String::as_str) {
             for kind in [FlowKind::Feature, FlowKind::Release, FlowKind::Hotfix] {
                 let prefix = config.prefix(kind);
                 if prefix.is_empty() {
