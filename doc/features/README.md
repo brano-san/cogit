@@ -275,3 +275,4 @@
 | F-375 | Тулбар Diff отделён от содержимого | [F-375-diff-toolbar.md](F-375-diff-toolbar.md) |
 | F-377 | Полосы скрытых строк вместо `@@` | [F-377-diff-folds.md](F-377-diff-folds.md) |
 | F-376 | Стрелки изменений гаснут на краях | [F-376-change-arrows.md](F-376-change-arrows.md) |
+| F-378 | Маркеры `+` и `−` в своей колонке | [F-378-diff-sign-column.md](F-378-diff-sign-column.md) |
