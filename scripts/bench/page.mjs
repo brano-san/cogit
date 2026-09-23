@@ -34,6 +34,8 @@ export const PAGE = String.raw`(() => {
     if (!url.startsWith(IPC)) return nativeFetch(input, init);
     const cmd = decodeURIComponent(url.slice(IPC.length));
     const start = now();
+    state.posted.push({ cmd, at: start });
+    if (state.posted.length > 500) state.posted.splice(0, 250);
     state.inflight += 1;
     touch();
     const settle = () => {
