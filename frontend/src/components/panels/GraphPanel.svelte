@@ -23,6 +23,8 @@
     ondrop: (source: string, target: string) => void;
     oncontext: (oid: string, x: number, y: number) => void;
     onref: (text: string) => void;
+    onworktreecontext?: (x: number, y: number) => void;
+    onrefcontext?: (label: import("$lib/format").RefLabel, oid: string, x: number, y: number) => void;
   }
 
   let {
@@ -40,6 +42,8 @@
     ondrop,
     oncontext,
     onref,
+    onworktreecontext,
+    onrefcontext,
   }: Props = $props();
 
   const view = $derived(panelView(repository.phase));
@@ -51,7 +55,7 @@
   {#if progress}
     <PauseCheckBar {check} {oncheck} onrun={onruncheck} {verdict} running={checking} />
   {/if}
-  <CommitList rebase={progress} {ondrop} {oncontext} {onref} />
+  <CommitList rebase={progress} {ondrop} {oncontext} {onref} {onworktreecontext} {onrefcontext} />
 {:else}
   <StartScreen
     {recent}

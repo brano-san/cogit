@@ -33,10 +33,8 @@ impl TodoAction {
     }
 }
 
-/// `git rebase -i --root`: the plan then starts at the very first commit.
 const ROOT: &str = "--root";
 
-/// `Name <email>`, refused when either part could break out of the brackets.
 fn author_identity(name: &str, email: &str) -> Result<String> {
     let (name, email) = (name.trim(), email.trim());
     let unsafe_char = |c: char| matches!(c, '<' | '>' | '\n' | '\r');
@@ -93,7 +91,6 @@ fn render(plan: &[TodoEntry], paused: bool) -> String {
 
 impl RepoHandle {
     /// The plan Git itself would offer: every commit after `base`, oldest first, picked.
-    /// `--root` plans every commit, the first one included.
     pub fn rebase_todo(&self, base: &str) -> Result<Vec<TodoEntry>> {
         let range = if base == ROOT {
             "HEAD".to_owned()
@@ -124,8 +121,7 @@ impl RepoHandle {
         self.run_rebase(base, plan, true)
     }
 
-    /// Replays everything after the commit's parent with the new author stamped on by an
-    /// `exec`, the way `reword` gets its message without an editor.
+    /// An `exec` stamps the author on, the way `reword` gets its message without an editor.
     pub fn edit_author(&self, rev: &str, name: &str, email: &str) -> Result<()> {
         let identity = author_identity(name, email)?;
         let target = self.resolve_commit(rev)?;

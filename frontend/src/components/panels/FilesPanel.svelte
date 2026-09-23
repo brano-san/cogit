@@ -2,6 +2,7 @@
   import FileList from "$components/file-list/FileList.svelte";
   import type { FileView } from "$lib/file-view";
   import { commit } from "$stores/commit.svelte";
+  import { compareView } from "$stores/compare-view.svelte";
   import { diff } from "$stores/diff.svelte";
   import { filesView } from "$stores/files-view.svelte";
   import { layout } from "$stores/layout.svelte";
@@ -90,6 +91,20 @@
         },
       ]}
       empty="This stash is empty."
+      selected={diff.path}
+      onopen={onopenwindow}
+    />
+  {:else if compareView.showing(commit.oid)}
+    <FileList
+      {activePanel}
+      sections={[
+        {
+          title: `From ${compareView.from?.slice(0, 7)} to ${compareView.to?.slice(0, 7)}`,
+          files: compareView.files,
+          onselect: (path) => compareView.open(path),
+        },
+      ]}
+      empty={compareView.loading ? "Comparing…" : "Both commits have the same files."}
       selected={diff.path}
       onopen={onopenwindow}
     />

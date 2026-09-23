@@ -267,3 +267,10 @@
 | F-293 | Граф не мигает при смене отметок | [F-293-graph-no-flash-on-reload.md](F-293-graph-no-flash-on-reload.md) |
 | F-294 | Одна подсветка у кнопок тулбара | [F-294-toolbar-single-hover.md](F-294-toolbar-single-hover.md) |
 | F-295 | Уровни деревьев выровнены | [F-295-tree-levels-aligned.md](F-295-tree-levels-aligned.md) |
+| F-350 | Диалог Add Tag | [F-350-add-tag-dialog.md](F-350-add-tag-dialog.md) |
+| F-351 | Диалог Push To | [F-351-push-to-dialog.md](F-351-push-to-dialog.md) |
+| F-352 | Меню Working Tree в графе | [F-352-working-tree-menu.md](F-352-working-tree-menu.md) |
+| F-353 | Меню коммита в графе | [F-353-graph-commit-menu.md](F-353-graph-commit-menu.md) |
+| F-354 | Меню метки ветки или тега в графе | [F-354-graph-ref-menu.md](F-354-graph-ref-menu.md) |
+| F-355 | Меню ветки, тега и stash-а в Branches | [F-355-branches-menus.md](F-355-branches-menus.md) |
+| F-356 | Rename Stash на месте | [F-356-rename-stash.md](F-356-rename-stash.md) |
