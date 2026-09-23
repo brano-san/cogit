@@ -2,8 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { DiffRow, Hunk } from "$lib/ipc";
 import {
   expandedContext,
-  flatten,
-  gapBetween,
   lacksFinalNewline,
   pairRows,
   connectors,
@@ -19,9 +17,6 @@ function del(old: number, text: string): DiffRow {
 }
 function ins(nw: number, text: string): DiffRow {
   return { kind: "insert", new: nw, text, inline: [], moved: false };
-}
-function hunk(rows: DiffRow[], header = "@@ -1,1 +1,1 @@"): Hunk {
-  return { oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, header, rows };
 }
 
 describe("pairRows", () => {
@@ -95,58 +90,6 @@ describe("pairRows", () => {
 
   it("handles an empty row list", () => {
     expect(pairRows([])).toEqual([]);
-  });
-});
-
-describe("flatten", () => {
-  it("emits a header entry before each hunk", () => {
-    const rows = flatten([hunk([context(1, 1, "a")], "@@ -1 +1 @@"), hunk([context(9, 9, "b")])]);
-
-    expect(rows[0]).toMatchObject({ kind: "header", text: "@@ -1 +1 @@" });
-    expect(rows[1]).toMatchObject({ kind: "row" });
-    expect(rows[2]).toMatchObject({ kind: "header" });
-  });
-
-  it("numbers hunks so navigation can jump between them", () => {
-    const rows = flatten([hunk([context(1, 1, "a")]), hunk([context(9, 9, "b")])]);
-    const headers = rows.filter((r) => r.kind === "header");
-
-    expect(headers.map((h) => h.hunk)).toEqual([0, 1]);
-  });
-
-  it("gives every entry the index of the hunk it belongs to", () => {
-    const rows = flatten([hunk([context(1, 1, "a"), del(2, "b")]), hunk([ins(9, "c")])]);
-
-    expect(rows.map((r) => r.hunk)).toEqual([0, 0, 0, 1, 1]);
-  });
-
-  it("produces nothing for no hunks", () => {
-    expect(flatten([])).toEqual([]);
-  });
-});
-
-describe("gapBetween", () => {
-  const hunk = (oldStart: number, oldLines: number): Hunk =>
-    ({ oldStart, oldLines, newStart: oldStart, newLines: oldLines, header: "", rows: [] }) as Hunk;
-
-  it("counts the lines between two hunks", () => {
-    expect(gapBetween(hunk(1, 5), hunk(30, 5))).toBe(24);
-  });
-
-  it("is zero for hunks that touch", () => {
-    expect(gapBetween(hunk(1, 5), hunk(6, 5))).toBe(0);
-  });
-
-  it("is zero rather than negative for overlapping hunks", () => {
-    expect(gapBetween(hunk(1, 20), hunk(5, 5))).toBe(0);
-  });
-
-  it("counts the lines above the first hunk", () => {
-    expect(gapBetween(null, hunk(10, 3))).toBe(9);
-  });
-
-  it("is zero when the first hunk starts at the top", () => {
-    expect(gapBetween(null, hunk(1, 3))).toBe(0);
   });
 });
 

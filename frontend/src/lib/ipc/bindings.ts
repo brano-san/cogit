@@ -28,6 +28,17 @@ export const commands = {
 	 */
 	graphWindow: (repo: RepoId, generation: number, start: number, count: number) => typedError<string, GitError>(__TAURI_INVOKE("graph_window", { repo, generation, start, count })),
 	graphRowOf: (repo: RepoId, generation: number, oid: string) => typedError<number | null, GitError>(__TAURI_INVOKE("graph_row_of", { repo, generation, oid })),
+	/**  Every commit that changed the file, newest first, from `rev` (HEAD when absent). */
+	investigateLog: (repo: RepoId, path: string, rev: string | null, follow: boolean, onChunk: Channel<FileRevision[]>) => typedError<number, GitError>(__TAURI_INVOKE("investigate_log", { repo, path, rev, follow, onChunk })),
+	/**  The file at `rev` (the working tree when absent), each line with its origin. */
+	investigateBlame: (repo: RepoId, path: string, rev: string | null, ignoreWhitespace: boolean, onChunk: Channel<BlameChunk>) => typedError<number, GitError>(__TAURI_INVOKE("investigate_blame", { repo, path, rev, ignoreWhitespace, onChunk })),
+	/**  Searches in the background where a block came from; `cancel_operation` stops it. */
+	originCandidates: (repo: RepoId, query: OriginQuery, onEvent: Channel<OriginEvent>) => typedError<null, GitError>(__TAURI_INVOKE("origin_candidates", { repo, query, onEvent })),
+	/**
+	 *  The Investigate window with its own menu. Building a window blocks, so it happens on
+	 *  the blocking pool, never on the thread that delivers IPC (R-201, R-283).
+	 */
+	openInvestigateWindow: (url: string, title: string) => typedError<null, GitError>(__TAURI_INVOKE("open_investigate_window", { url, title })),
 	commitDetails: (repo: RepoId, rev: string) => typedError<CommitDetails, GitError>(__TAURI_INVOKE("commit_details", { repo, rev })),
 	commitFiles: (repo: RepoId, rev: string) => typedError<FileEntry[], GitError>(__TAURI_INVOKE("commit_files", { repo, rev })),
 	diffFile: (repo: RepoId, spec: DiffSpec, path: string, options: DiffOptions) => typedError<FileDiff, GitError>(__TAURI_INVOKE("diff_file", { repo, spec, path, options })),
@@ -225,6 +236,8 @@ export const commands = {
 	 *  a file that nothing happened to, the way SmartGit does.
 	 */
 	listAllRepoFiles: (repo: RepoId) => typedError<string[], GitError>(__TAURI_INVOKE("list_all_repo_files", { repo })),
+	/**  Every file of a commit's tree: the Files panel's Unchanged switch on a commit. */
+	commitTreeFiles: (repo: RepoId, rev: string) => typedError<string[], GitError>(__TAURI_INVOKE("commit_tree_files", { repo, rev })),
 	/**
 	 *  Searches inside files, streaming matches as they are found.
 	 * 
@@ -395,6 +408,23 @@ export type AvatarRow = {
 	image: string | null,
 };
 
+export type BlameChunk = 
+/**  Always first: the lines that follow index into these tables. */
+{ kind: "header"; commits: BlameCommit[]; sources: BlameSource[] } | { kind: "lines"; lines: OriginLine[] };
+
+export type BlameCommit = {
+	oid: string,
+	summary: string,
+	author: string,
+	email: string,
+	timestamp: number,
+	merge: boolean,
+	/**  A root commit: blame could look no further back. */
+	boundary: boolean,
+	/**  The working tree's own lines, which no commit holds yet. */
+	uncommitted: boolean,
+};
+
 export type BlameLine = {
 	line: number,
 	text: string,
@@ -403,6 +433,16 @@ export type BlameLine = {
 	author: string,
 	email: string,
 	timestamp: number,
+};
+
+/**
+ *  One commit and the file it wrote the lines into; `previous` is the same file one
+ *  step back, absent when the commit created it.
+ */
+export type BlameSource = {
+	commit: number,
+	path: string,
+	previous: PreviousFile | null,
 };
 
 export type Branch = {
@@ -535,6 +575,13 @@ export type ContextItem = {
 	accelerator?: string | null,
 };
 
+/**  Where Go Deeper continues: the source's version, file and the picked line in it. */
+export type DeeperTarget = {
+	rev: string,
+	path: string,
+	line: number,
+};
+
 /**
  *  What a batch diff came back with. A request the user has already moved on from stops
  *  between files rather than finishing work nobody will look at.
@@ -577,9 +624,15 @@ export type EolInfo = {
 	normalized: boolean,
 };
 
+export type FileChange = "added" | "modified" | "deleted" | "renamed" | "copied" | 
+/**  A type change, or a status this reader does not know yet. */
+"other";
+
 export type FileDiff = { kind: "text"; hunks: Hunk[]; eol: EolInfo; lossyEncoding: boolean; 
 /**  Language hint for Lezer. Highlighting itself is a frontend concern (INV-01). */
-language: string | null } | { kind: "eolOnly"; from: LineEnding; to: LineEnding } | { kind: "binary"; oldSize: number; newSize: number } | { kind: "image"; oldSize: number; newSize: number; mime: string } | { kind: "tooLarge"; size: number } | { kind: "unchanged" } | 
+language: string | null; 
+/**  Lines on each side, so the view can say how many follow the last hunk. */
+oldTotal: number; newTotal: number } | { kind: "eolOnly"; from: LineEnding; to: LineEnding } | { kind: "binary"; oldSize: number; newSize: number } | { kind: "image"; oldSize: number; newSize: number; mime: string } | { kind: "tooLarge"; size: number } | { kind: "unchanged" } | 
 /**
  *  Nothing but whitespace changed, and the active option hides it. Told apart from
  *  `Unchanged` so the UI can say the diff is being filtered (T7.10).
@@ -621,6 +674,20 @@ export type FileEntry = {
 };
 
 export type FileMode = "plain" | "executable" | "symlink" | "submodule";
+
+export type FileRevision = {
+	oid: string,
+	parents: string[],
+	summary: string,
+	author: string,
+	email: string,
+	timestamp: number,
+	/**  The name the file had at this commit. */
+	path: string,
+	/**  The name before this commit, for a rename or a copy. */
+	previousPath: string | null,
+	change: FileChange,
+};
 
 export type FileStatus = "added" | "modified" | "deleted" | "renamed" | "copied" | "untracked" | "conflicted" | 
 /**  Tracked and identical to the index; only listed when the panel asks for it. */
@@ -808,7 +875,18 @@ export type KeyBinding = {
 	defaultAccelerator: string | null,
 };
 
+export type Likelihood = "high" | "medium" | "low";
+
+/**  What the commit that introduced a line did to it. */
+export type LineChange = 
+/**  Nothing stood at this position in the parent. */
+"added" | 
+/**  The line replaced a different one at the same position. */
+"modified";
+
 export type LineEnding = "lf" | "crlf" | "cr" | "mixed" | "none";
+
+export type LineMatch = "same" | "changed" | "missing";
 
 /**  One version of a line: the commit that left it looking like this. */
 export type LineVersion = {
@@ -898,6 +976,71 @@ export type Origin =
  */
 "syntactic";
 
+export type OriginCandidate = {
+	kind: OriginKind,
+	/**  The commit whose tree holds the source lines. */
+	rev: string,
+	path: string,
+	from: number,
+	to: number,
+	/**  Percent. */
+	score: number,
+	likelihood: Likelihood,
+	deeper: DeeperTarget | null,
+	/**  Per block line: how it compares with the source. */
+	block: LineMatch[],
+	source: OriginText[],
+};
+
+/**  `Started` carries the id `cancel_operation` needs, long before the answer. */
+export type OriginEvent = { kind: "started"; id: number } | { kind: "done"; report: OriginReport } | { kind: "cancelled" };
+
+export type OriginKind = 
+/**  Nothing like it existed before: the lines first appeared at this position. */
+"appeared" | 
+/**  The lines replaced others at the same position. */
+"modified" | 
+/**  Similar lines were removed elsewhere by the same commit. */
+"moved" | 
+/**  Similar lines existed elsewhere and stayed there. */
+"copied";
+
+export type OriginLine = {
+	line: number,
+	text: string,
+	/**  Index into `BlameReport::sources`. */
+	source: number,
+	/**  The line's number in the source commit's version of the source file. */
+	origLine: number,
+	change: LineChange,
+};
+
+/**  A block of lines and the commit that introduced it, as blame reported them. */
+export type OriginQuery = {
+	/**  The commit that wrote the block; forty zeros for the working tree. */
+	commit: string,
+	path: string,
+	/**  The block, 1-based and inclusive, in that commit's version of `path`. */
+	from: number,
+	to: number,
+	/**  The line the user picked, inside the block. */
+	line: number,
+	previous: PreviousFile | null,
+};
+
+export type OriginReport = {
+	/**  In-place first, the rest by score. */
+	candidates: OriginCandidate[],
+	/**  Index of the highest-scoring candidate. */
+	best: number,
+};
+
+export type OriginText = {
+	line: number,
+	text: string,
+	status: LineMatch,
+};
+
 export type OsInfo = {
 	product: string,
 	edition: string | null,
@@ -946,6 +1089,12 @@ export type PresetStatus = {
 	/**  Where the tool was found, or `None` when it is not installed. */
 	toolPath: string | null,
 	user: boolean,
+};
+
+/**  The file a commit's lines were read from before that commit. */
+export type PreviousFile = {
+	oid: string,
+	path: string,
 };
 
 export type RebaseOptions = {

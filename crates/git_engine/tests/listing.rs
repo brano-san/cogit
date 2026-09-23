@@ -227,3 +227,47 @@ fn results_arrive_in_batches_rather_than_one_lump() {
 
     assert!(batches >= 1);
 }
+
+#[test]
+fn a_commit_lists_every_file_of_its_tree_and_no_directories() {
+    let f = test_fixtures::Fixture::init().unwrap();
+    f.commit_file(0, "top.txt", "a\n").unwrap();
+    let oid = f.commit_file(1, "src/deep/inner.rs", "b\n").unwrap();
+    let repo = open(&f);
+
+    let files = repo.tree_files(&oid).unwrap();
+
+    assert_eq!(
+        files,
+        vec!["src/deep/inner.rs".to_owned(), "top.txt".to_owned()]
+    );
+}
+
+#[test]
+fn a_commit_lists_its_own_tree_rather_than_the_working_tree() {
+    let f = test_fixtures::linear(3).unwrap();
+    f.write_file("brand-new.txt", "hello\n").unwrap();
+    std::fs::remove_file(f.path().join("file0.txt")).unwrap();
+    let repo = open(&f);
+
+    let first = repo.tree_files(&f.oid("HEAD~2").unwrap()).unwrap();
+    let head = repo.tree_files("HEAD").unwrap();
+
+    assert_eq!(first, vec!["file0.txt".to_owned()]);
+    assert!(head.contains(&"file0.txt".to_owned()), "{head:?}");
+    assert!(!head.contains(&"brand-new.txt".to_owned()), "{head:?}");
+}
+
+#[test]
+fn a_submodule_is_listed_as_one_entry() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let repo = open(&f);
+
+    let files = repo.tree_files("HEAD").unwrap();
+
+    assert!(files.contains(&"vendor/lib".to_owned()), "{files:?}");
+    assert!(
+        !files.iter().any(|path| path.starts_with("vendor/lib/")),
+        "{files:?}"
+    );
+}

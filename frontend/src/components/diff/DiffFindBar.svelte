@@ -28,6 +28,7 @@
 <div class="find">
   <input
     bind:this={box}
+    class:missing={find.missing}
     value={find.query}
     oninput={(event) => find.setQuery(event.currentTarget.value)}
     type="search"
@@ -81,6 +82,12 @@
     border: 1px solid var(--field-border);
     border-radius: var(--r-sm);
     font-size: var(--fs-dense);
+  }
+
+  /* Nothing found: a tint, not an error — the user is still typing (#12). */
+  .find input.missing {
+    border-color: var(--status-delete);
+    background: color-mix(in srgb, var(--status-delete) 14%, var(--surface-input));
   }
 
   .find button {

@@ -6,7 +6,8 @@
     "main",
     "compare-*",
     "merge-*",
-    "blame-*"
+    "blame-*",
+    "investigate-*"
   ],
   "permissions": [
     "core:default",

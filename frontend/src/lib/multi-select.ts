@@ -35,3 +35,13 @@ export function applyClick(
 
   return { paths: new Set([path]), anchor: path };
 }
+
+/** The shown file was let go — a re-clicked commit (#7) — so its marks go with it. Marks
+    made while nothing was shown are kept: a ctrl-click marks without opening. */
+export function afterDeselect(
+  previous: string | null,
+  next: string | null,
+  marked: FileSelection,
+): FileSelection {
+  return previous !== null && next === null ? EMPTY_SELECTION : marked;
+}

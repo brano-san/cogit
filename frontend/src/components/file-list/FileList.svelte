@@ -1,6 +1,9 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import FilesToolbar from "./FilesToolbar.svelte";
-  import { compile, matches } from "$lib/file-search";
+  import { contentQuery, keepFile, type ContentSearch } from "$lib/content-search.svelte";
+  import { compile } from "$lib/file-search";
+  import type { ListContext } from "$lib/file-switches";
   import { sortFiles } from "$lib/files";
   import {
     DEFAULT_VIEW,
@@ -10,7 +13,7 @@
     visibleFiles,
     type FileView,
   } from "$lib/file-view";
-  import { applyClick, EMPTY_SELECTION, type FileSelection } from "$lib/multi-select";
+  import { afterDeselect, applyClick, EMPTY_SELECTION, type FileSelection } from "$lib/multi-select";
   import FilePane from "$components/file-list/FilePane.svelte";
   import Splitter from "$components/layout/Splitter.svelte";
   import type { FileEntry } from "$lib/ipc";
@@ -54,6 +57,9 @@
     onmask?: (mask: string) => void;
     /** The ticked rows, for actions that live outside the list — stashing a selection. */
     onmarked?: (paths: string[]) => void;
+    /** Only the working tree is on disk to be searched inside. */
+    contents?: ContentSearch;
+    context?: ListContext;
   }
 
   let {
@@ -72,7 +78,11 @@
     onmarked,
     disabled = false,
     activePanel = false,
+    contents,
+    context = "worktree",
   }: Props = $props();
+
+  const NO_HITS: ReadonlyMap<string, number> = new Map();
 
   let marked = $state.raw<FileSelection>(EMPTY_SELECTION);
   let mask = $state("");
@@ -94,12 +104,36 @@
     onmarked?.([...marked.paths]);
   });
 
+  let shownBefore: string | null = null;
+  $effect(() => {
+    const shown = selected;
+    untrack(() => {
+      marked = afterDeselect(shownBefore, shown, marked);
+      shownBefore = shown;
+    });
+  });
+
   const active = $derived(view ?? DEFAULT_VIEW);
   const pattern = $derived(compile(mask, active.regex));
+  const query = $derived(contents ? contentQuery(active, mask) : null);
+  /** Until the first answer, a content search shows nothing rather than name matches. */
+  const hits = $derived(query === null ? null : (contents?.hits ?? NO_HITS));
+
+  $effect(() => {
+    contents?.set(query);
+  });
+
+  $effect(() => {
+    void sections;
+    untrack(() => contents?.refresh());
+  });
+
+  $effect(() => () => contents?.set(null));
+
   const groups = $derived(
     shownSections(sections).map((section) => {
       const files = sortFiles(
-        visibleFiles(section.files, active).filter((file) => matches(file, pattern)),
+        visibleFiles(section.files, active).filter((file) => keepFile(file, pattern, hits)),
         "path",
       );
       return {
@@ -138,6 +172,17 @@
     (section.onselect ?? onselect)?.(path);
   }
 
+  function contentStatus(search: ContentSearch, files: number): string {
+    if (search.error !== null) return search.error;
+    if (search.busy) return "Searching file contents…";
+    return `Found in ${files} file${files === 1 ? "" : "s"}`;
+  }
+
+  function nothingMatches(): string {
+    if (query === null) return "Nothing matches the filter and the switches above.";
+    return contents?.busy ? "" : "No file in this list contains the text.";
+  }
+
   function mark(path: string) {
     marked = applyClick(marked, path, order, { ctrl: true, shift: false });
   }
@@ -155,12 +200,20 @@
     hidden={total - shownCount}
     broken={pattern.broken}
     {disabled}
+    contentsReady={contents !== undefined}
+    {context}
   />
+
+  {#if query !== null && contents}
+    <p class="searching" class:error={contents.error !== null} role="status">
+      {contentStatus(contents, shownCount)}
+    </p>
+  {/if}
 
   {#if total === 0}
     <p class="message">{empty ?? "Nothing to show."}</p>
   {:else if shownCount === 0}
-    <p class="message">Nothing matches the filter and the switches above.</p>
+    <p class="message">{nothingMatches()}</p>
   {:else if apart}
     <div class="panes">
       {#each groups as group, index (group.section.title ?? index)}
@@ -238,6 +291,20 @@
 
   .slot.grow {
     flex: 1 1 auto;
+  }
+
+  .searching {
+    flex: 0 0 auto;
+    margin: 0;
+    padding: var(--sp-1) var(--sp-4);
+    border-bottom: 1px solid var(--divider);
+    color: var(--text-secondary);
+    font-size: var(--fs-header);
+  }
+
+  .searching.error {
+    color: var(--status-delete);
+    user-select: text;
   }
 
   .message {

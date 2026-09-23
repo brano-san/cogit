@@ -61,7 +61,8 @@ fn the_counts_in_front_are_left_alone() {
 
 #[test]
 fn a_change_with_nothing_declared_above_it_gets_no_context() {
-    let old = statements(12);
+    // Thirteen, not twelve: two lines left below the hunk would be shown, not folded.
+    let old = statements(13);
     let new = old.replace("let v6 = 6;", "let v6 = 66;");
 
     assert_eq!(headers(&old, &new)[0], "@@ -4,7 +4,7 @@");

@@ -55,6 +55,11 @@ class CommitStore {
     }
   }
 
+  /** The selected commit was clicked again: the Diff panel goes back to its details (#7). */
+  showDetails(): void {
+    this.onchange?.();
+  }
+
   clear(): void {
     this.#generation += 1;
     this.oid = null;
