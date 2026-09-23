@@ -30,6 +30,8 @@ import type {
   RepoChanged,
   RepoId,
   ScanHit,
+  SearchChunk,
+  SearchScope,
   WorktreeView,
   StashOptions,
   TagRequest,
@@ -109,6 +111,9 @@ export type {
   RebaseStep,
   ReflogEntry,
   ScanHit,
+  ContentMatch,
+  SearchChunk,
+  SearchScope,
   StashContents,
   WorktreeEntry,
   RepoChanged,
@@ -241,6 +246,24 @@ export async function scanForRepositories(
   const channel = new Channel<ScanHit>();
   channel.onmessage = onFound;
   return unwrap(await commands.scanForRepositories(path, maxDepth, channel));
+}
+
+/** Matches stream in; the first chunk carries the id `cancelOperation` takes. */
+export async function searchFileContents(
+  repo: RepoId,
+  query: string,
+  isRegex: boolean,
+  scope: SearchScope,
+  onChunk: (chunk: SearchChunk) => void,
+) {
+  const channel = new Channel<SearchChunk>();
+  channel.onmessage = onChunk;
+  return unwrap(await commands.searchFileContents(repo, query, isRegex, scope, channel));
+}
+
+/** `false` when the operation had already finished. */
+export async function cancelOperation(id: number) {
+  return commands.cancelOperation(id);
 }
 
 export async function commitDetails(repo: RepoId, rev: string) {
