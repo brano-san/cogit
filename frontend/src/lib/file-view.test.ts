@@ -5,6 +5,7 @@ import {
   backendView,
   groupByDirectory,
   mergeView,
+  paneLayout,
   shownSections,
   visibleFiles,
   type FileView,
@@ -158,5 +159,20 @@ describe("shownSections", () => {
   it("keeps an empty section that did not ask", () => {
     const empty = { title: "Unstaged", files: [] as FileEntry[] };
     expect(shownSections([empty, staged]).map((s) => s.title)).toEqual(["Unstaged"]);
+  });
+});
+
+describe("paneLayout", () => {
+  it("keeps the headings, and Stage all with them, when an empty Staged is hidden", () => {
+    expect(paneLayout(2, 1, true)).toEqual({ apart: true, titled: true });
+    expect(paneLayout(2, 1, false)).toEqual({ apart: false, titled: true });
+  });
+
+  it("splits two visible sections into two panes when asked", () => {
+    expect(paneLayout(2, 2, true)).toEqual({ apart: true, titled: true });
+  });
+
+  it("gives a single-section list, such as a commit's files, no heading", () => {
+    expect(paneLayout(1, 1, true)).toEqual({ apart: false, titled: false });
   });
 });
