@@ -44,8 +44,8 @@
       }}
     >
       <KindIcon kind="worktree" title="Worktree — {entry.path}" />
-      <span class="name truncate">{entry.name}</span>
-      {#if where}<span class="where truncate">{where}</span>{/if}
+      <span class="name truncate shrink-last">{entry.name}</span>
+      {#if where}<span class="where truncate shrink-first">{where}</span>{/if}
       {#each worktreeTags(entry) as tag (tag.id)}
         <span class="tag {tag.id}" title={tag.tooltip}>{tag.label}</span>
       {/each}
@@ -114,14 +114,7 @@
     font-weight: 600;
   }
 
-  .name {
-    flex: 0 1 auto;
-    min-width: 0;
-  }
-
   .where {
-    flex: 0 1 auto;
-    min-width: 0;
     color: var(--text-secondary);
   }
 

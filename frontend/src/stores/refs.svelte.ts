@@ -1,9 +1,21 @@
 import { defaultVisible, type RefNode } from "$lib/ref-nodes";
+import { parseRefSort, type RefSort } from "$lib/ref-sort";
 import { recall, remember } from "$lib/session-memory";
-import { listRemotes, remoteUrl, type RepoId } from "$lib/ipc";
+import { listRemotes, refDates, remoteUrl, type RepoId } from "$lib/ipc";
 
 /** Per repository, so ticking `master` in one does not change what another shows. */
 const STORAGE_KEY = "cogit.visible-refs.v2";
+/** One order for every repository: it is how the user reads lists, not a repository fact. */
+const SORT_KEY = "cogit.ref-sort.v1";
+
+function storedSort(): RefSort {
+  try {
+    const raw = localStorage.getItem(SORT_KEY);
+    return parseRefSort(raw === null ? null : JSON.parse(raw));
+  } catch {
+    return parseRefSort(null);
+  }
+}
 
 interface Saved {
   visible: string[];
@@ -30,6 +42,9 @@ class RefsStore {
   visible = $state.raw<ReadonlySet<string>>(new Set());
   filter = $state("");
   urls = $state.raw<Record<string, string>>({});
+  sort = $state.raw<RefSort>(storedSort());
+  /** Tip dates by full ref name, read only while the sort goes by date. */
+  dates = $state.raw<ReadonlyMap<string, number>>(new Map());
 
   #root: string | null = null;
   #expanded = $state.raw<ReadonlySet<string>>(new Set());
@@ -84,6 +99,25 @@ class RefsStore {
     }
   }
 
+  setSort(next: RefSort): void {
+    this.sort = next;
+    try {
+      localStorage.setItem(SORT_KEY, JSON.stringify(next));
+    } catch {
+      // Kept for this run; the next one starts from the default order.
+    }
+  }
+
+  /** A failed read leaves the old dates: a stale order beats a list that jumps to by-name. */
+  async loadDates(repo: RepoId): Promise<void> {
+    try {
+      const found = await refDates(repo);
+      this.dates = new Map(found.map((entry) => [entry.fullName, entry.timestamp]));
+    } catch {
+      // Nothing to report; the names still order what has no date.
+    }
+  }
+
   async loadUrls(repo: RepoId): Promise<void> {
     try {
       const names = await listRemotes(repo);
@@ -103,6 +137,7 @@ class RefsStore {
     this.#foldable = new Set();
     this.filter = "";
     this.urls = {};
+    this.dates = new Map();
   }
 }
 

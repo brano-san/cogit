@@ -1,4 +1,11 @@
+/** The app's one truncation rule (#5, doc/12-risks.md, R-243). Lists cut on the right, in
+    CSS: `.truncate` on the text, `.shrink-first` on what a row gives up first (a URL, a
+    path, a subject) and `.shrink-last` on its name. Only what has to keep both ends is cut
+    in the middle, here. */
 const ELLIPSIS = "…";
+
+/** How long a ref label in the graph may be before its middle goes. */
+export const REF_LABEL_MAX = 30;
 
 function charCut(text: string, max: number): string {
   if (max <= 0) return "";
@@ -8,8 +15,17 @@ function charCut(text: string, max: number): string {
   return text.slice(0, head) + ELLIPSIS + (tail > 0 ? text.slice(-tail) : "");
 }
 
+/** `feature/14340…new_toolchain`: the start and the end that tells branches apart. */
+export function truncateMiddle(text: string, max: number): string {
+  return text.length <= max ? text : charCut(text, max);
+}
+
+export function refLabelText(text: string): string {
+  return truncateMiddle(text, REF_LABEL_MAX);
+}
+
 /** `C:\Users\brano\…\logs\cogit.log`: whole folders dropped from the middle to fit `max`. */
-export function truncateMiddle(path: string, max: number): string {
+export function truncatePath(path: string, max: number): string {
   if (path.length <= max) return path;
   const sep = path.includes("\\") ? "\\" : "/";
   const root = path.match(sep === "\\" ? /^\\+/ : /^\/+/)?.[0] ?? "";
@@ -55,7 +71,7 @@ export function fitPath(node: HTMLElement, path: string) {
     const width = node.clientWidth;
     const glyph = charWidth(node);
     node.textContent =
-      width > 0 && glyph > 0 ? truncateMiddle(current, Math.floor(width / glyph)) : current;
+      width > 0 && glyph > 0 ? truncatePath(current, Math.floor(width / glyph)) : current;
   };
   const observer = new ResizeObserver(fit);
   observer.observe(node);
