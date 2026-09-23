@@ -33,10 +33,9 @@
     /** A commit was dropped on another commit; the caller offers squash or reorder. */
     ondrop?: (source: string, target: string) => void;
     oncontext?: (oid: string, x: number, y: number) => void;
-    onref?: (text: string) => void;
   }
 
-  let { rebase = null, ondrop, oncontext, onref }: Props = $props();
+  let { rebase = null, ondrop, oncontext }: Props = $props();
 
   let over = $state<string | null>(null);
 
@@ -327,17 +326,7 @@
             }}
           >
             {#each refs.shown as label (label.text)}
-              <span
-                class="capsule {label.kind}"
-                role="button"
-                tabindex="-1"
-                title={label.text}
-                onclick={(event) => {
-                  event.stopPropagation();
-                  onref?.(label.text);
-                }}
-                onkeydown={(event) => event.key === "Enter" && onref?.(label.text)}
-              >{label.text}</span>
+              <span class="capsule {label.kind}" title={label.text}>{label.text}</span>
             {/each}
             {#if refs.hidden.length > 0}
               <span class="capsule more" title={refs.hidden.map((l) => l.text).join("\n")}

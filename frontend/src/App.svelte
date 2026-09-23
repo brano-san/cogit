@@ -2868,7 +2868,6 @@
               {checking}
               ondrop={onCommitDrop}
               oncontext={(oid, x, y) => void commitContext(oid, x, y)}
-              onref={(text) => (refFilter = text)}
             />
           </Panel>
         </div>
