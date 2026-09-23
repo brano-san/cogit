@@ -267,3 +267,6 @@
 | F-293 | Граф не мигает при смене отметок | [F-293-graph-no-flash-on-reload.md](F-293-graph-no-flash-on-reload.md) |
 | F-294 | Одна подсветка у кнопок тулбара | [F-294-toolbar-single-hover.md](F-294-toolbar-single-hover.md) |
 | F-295 | Уровни деревьев выровнены | [F-295-tree-levels-aligned.md](F-295-tree-levels-aligned.md) |
+| F-340 | Папки веток и тегов в Branches | [F-340-branch-folders.md](F-340-branch-folders.md) |
+| F-341 | Натуральная сортировка и сортировка по дате в Branches | [F-341-branch-sort.md](F-341-branch-sort.md) |
+| F-342 | Ветка, взятая в worktree, помечена в Branches | [F-342-worktree-branches.md](F-342-worktree-branches.md) |

@@ -77,12 +77,12 @@ pub enum CogitError {
 
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
-| `open_repository` | `path: String` | `RepoSummary` | M1 |
+| `open_repository` | `path: String` | `RepoSummary`; в нём `tagGroupSeparator` — `cogit.tagGroupSeparator` из конфига репозитория, `/` если не задан, `""` — теги без папок; перечитывается при каждом открытии и обновлении (#11) | M1 |
 | `close_repository` | `repo: RepoId` | `()` | M1 |
 | `list_repositories` | — | `Vec<RepoEntry>` | M3 |
 | `repo_state` | `repo: RepoId` | `RepoState` | M1 |
 | `list_submodules` | `repo: RepoId` | `Vec<Submodule>` | M3 |
-| `worktrees` | `repo: RepoId` | `Vec<WorktreeEntry { path, name, branch, head, isMain, isCurrent, locked, missing, dirty }>`; из linked-ворктри основной — всё равно основной (R-184) | M3 |
+| `worktrees` | `repo: RepoId` | `Vec<WorktreeEntry { path, name, branch, head, isMain, isCurrent, locked, missing, dirty }>`; из linked-ворктри основной — всё равно основной (R-184); у `missing` ветка и HEAD читаются из записи `.git/worktrees/<id>/HEAD` (R-241) | M3 |
 | `open_worktree` | `owner: RepoId`, `path` — существующий ворктри владельца | `RepoSummary`, в списке Repositories не появляется; чужая папка — `InvalidState` | M3 |
 | `add_worktree` | `repo`, `path`, `branch`, `create`, `base: Option<String>` — откуда новая ветка, по умолчанию HEAD | `()` | M3 |
 | `remove_worktree` | `repo`, `path`, `force` | `()`; при `force` изменения сначала в stash, в журнале — Undo (INV-12) | M3 |
@@ -220,6 +220,7 @@ pub enum FileStatus { Added, Modified, Deleted, Renamed, Copied }
 | `list_stashes` | `repo` | `Vec<StashEntry>` | M5 |
 | `stash_contents` | `repo, index: usize` | `Vec<FileEntry>` | M5 |
 | `list_reflog` | `repo` | `Vec<ReflogEntry>` | M5 |
+| `ref_dates` | `repo` | `Vec<RefDate { fullName, timestamp }>` — дата вершины каждой ветки (локальной и remote) и тега в секундах Unix: у аннотированного тега — дата тега, иначе — committer-дата коммита; зовётся только при сортировке Branches по дате (#20) | M5 |
 
 ### Diff
 

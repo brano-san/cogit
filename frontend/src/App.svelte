@@ -6,6 +6,7 @@
 
   import DiffPanel from "$components/panels/DiffPanel.svelte";
   import ReferencesPanel from "$components/panels/ReferencesPanel.svelte";
+  import RefSortButtons from "$components/branch-tree/RefSortButtons.svelte";
   import SafetyJournal from "$components/layout/SafetyJournal.svelte";
   import RepositoriesPanel from "$components/panels/RepositoriesPanel.svelte";
   import GraphPanel from "$components/panels/GraphPanel.svelte";
@@ -994,6 +995,7 @@
     stashes: stashes.entries,
     lost: recovery.lost,
     remoteUrls: refs.urls,
+    tagSeparator: repo?.tagGroupSeparator,
   });
   const refTreeInput = $derived({ ...refTreeBase, collapsed: refs.collapsed, filter: refFilter });
 
@@ -1045,8 +1047,7 @@
   function activateRef(node: RefNode) {
     if (node.kind === "stash") void applyStash(Number(node.id.slice("stash:".length)), false);
     else if (node.kind === "tag") {
-      const found = repo?.tags.find((tag) => tag.name === node.label);
-      if (found) void checkoutTag(found);
+      if (node.tag) void checkoutTag(node.tag);
     } else if (node.kind === "lost" && node.oid) {
       const found = recovery.lost.find((row) => row.oid === node.oid);
       if (found) void recoverCommit(found);
@@ -2312,7 +2313,7 @@
         return true;
       case "checkout-tag":
       case "delete-tag": {
-        const tag = repo?.tags.find((entry) => entry.name === node.label);
+        const tag = node.tag;
         if (tag) void (id === "checkout-tag" ? checkoutTag(tag) : removeTag(tag));
         return true;
       }
@@ -2796,6 +2797,7 @@
                 placeholder="Filter refs or oid"
                 aria-label="Filter references"
               />
+              <RefSortButtons />
             {/if}
           {/snippet}
           <ReferencesPanel

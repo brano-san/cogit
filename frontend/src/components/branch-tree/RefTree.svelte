@@ -1,8 +1,10 @@
 <script lang="ts">
   import Disclosure from "$components/common/Disclosure.svelte";
+  import KindIcon from "$components/common/KindIcon.svelte";
   import {
     buildRefTree,
     checkState,
+    foldedWhileFiltering,
     leavesUnder,
     toggleNode,
     type RefNode,
@@ -11,6 +13,7 @@
   import { DRAG_TYPE, parseDrag, serialiseDrag } from "$lib/drop-target";
   import { flatten } from "$lib/tree";
   import { triState } from "$lib/tri-state-box";
+  import { worktreeMarkTooltip } from "$lib/worktree-list";
   import type { Branch } from "$lib/ipc";
 
   interface Props {
@@ -44,7 +47,7 @@
   /** Every row, folded or not: a heading's box is counted from this, never from the rows
       on screen, so folding a group cannot take its ticks away (R-158). */
   const tree = $derived(buildRefTree(input));
-  const nodes = $derived(flatten(tree, input.collapsed));
+  const nodes = $derived(flatten(tree, foldedWhileFiltering(input.collapsed, input.filter)));
 
   function toggle(id: string) {
     const next = toggleNode(tree, id, visible);
@@ -82,7 +85,7 @@
       aria-selected={active === node.id}
       aria-expanded={foldable(node) ? !input.collapsed.has(node.id) : undefined}
       tabindex="-1"
-      title={node.detail ?? node.label}
+      title={node.branch?.name ?? node.tag?.name ?? node.detail ?? node.label}
       draggable={node.branch !== undefined && ondrop !== undefined}
       ondragstart={(event) =>
         node.branch &&
@@ -120,17 +123,25 @@
         aria-label="Show {node.label} in the graph"
       />
 
-      {#if node.marker}<span class="marker" aria-hidden="true">{node.marker}</span>{/if}
+      {#if node.kind === "folder"}<KindIcon kind="directory" title="Folder" />{/if}
 
       <button
         type="button"
         class="label truncate"
+        class:current={node.current}
         onclick={() => pick(node)}
         ondblclick={() => {
           if (node.branch?.kind === "local") oncheckout?.(node.branch);
           else onactivate?.(node);
         }}>{node.label}</button
       >
+
+      {#if node.worktree}
+        <KindIcon kind="worktree" title={worktreeMarkTooltip(node.worktree)} />
+        <span class="wt-state {node.worktree.state}" title={worktreeMarkTooltip(node.worktree)}
+          >{node.worktree.state}</span
+        >
+      {/if}
 
       {#if node.detail}<span class="detail truncate">{node.detail}</span>{/if}
     </div>
@@ -182,10 +193,29 @@
     accent-color: var(--status-ref);
   }
 
-  .marker {
-    flex: 0 0 auto;
+  .label.current {
     color: var(--status-ref);
-    font-size: 9px;
+    font-weight: 600;
+  }
+
+  .wt-state {
+    flex: 0 0 auto;
+    padding: 0 var(--sp-2);
+    border: 1px solid var(--divider);
+    border-radius: var(--r-sm);
+    color: var(--text-secondary);
+    font-size: 10px;
+    line-height: 12px;
+  }
+
+  .wt-state.changes {
+    color: var(--status-modify);
+    border-color: var(--status-modify);
+  }
+
+  .wt-state.missing {
+    color: var(--status-delete);
+    border-color: var(--status-delete);
   }
 
   .label {

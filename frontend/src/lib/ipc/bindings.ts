@@ -99,6 +99,7 @@ export const commands = {
 	stageSelection: (repo: RepoId, request: PatchRequest, reverse: boolean) => typedError<null, GitError>(__TAURI_INVOKE("stage_selection", { repo, request, reverse })),
 	blame: (repo: RepoId, path: string, rev: string) => typedError<BlameLine[], GitError>(__TAURI_INVOKE("blame", { repo, path, rev })),
 	remoteUrl: (repo: RepoId, name: string) => typedError<string | null, GitError>(__TAURI_INVOKE("remote_url", { repo, name })),
+	refDates: (repo: RepoId) => typedError<RefDate[], GitError>(__TAURI_INVOKE("ref_dates", { repo })),
 	addToGitignore: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("add_to_gitignore", { repo, paths })),
 	deleteUntracked: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("delete_untracked", { repo, paths })),
 	imageSides: (repo: RepoId, spec: DiffSpec, path: string) => typedError<[string | null, string | null], GitError>(__TAURI_INVOKE("image_sides", { repo, spec, path })),
@@ -925,6 +926,13 @@ export type RebaseStep = {
 	summary: string,
 };
 
+/**  When a ref's tip was made, for sorting Branches by date. */
+export type RefDate = {
+	fullName: string,
+	/**  Unix seconds: the tagger's for an annotated tag, the committer's otherwise. */
+	timestamp: number,
+};
+
 export type ReflogEntry = {
 	selector: string,
 	oid: string,
@@ -1008,6 +1016,8 @@ export type RepoSummary = {
 	status: RepoStatus,
 	state: RepoState,
 	indexLock: string | null,
+	/**  `cogit.tagGroupSeparator`, `/` when unset; read on every open, so a refresh sees a change. */
+	tagGroupSeparator: string,
 };
 
 /**
