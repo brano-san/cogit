@@ -304,3 +304,34 @@ fn an_uninitialised_submodule_holds_nothing_anyone_can_see() {
     std::fs::remove_dir_all(&path).unwrap();
     assert!(!open(&f).submodules().unwrap().first().unwrap().nested);
 }
+
+/// The Repositories tree marks a submodule stopped half way through a merge, as it marks
+/// a repository (#22).
+#[test]
+fn a_submodule_reports_an_operation_stopped_inside_it() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let inner = f.path().join("vendor/lib");
+    let git_dir = f
+        .git_in(&inner, &["rev-parse", "--absolute-git-dir"])
+        .unwrap();
+    std::fs::write(
+        std::path::Path::new(git_dir.trim()).join("MERGE_HEAD"),
+        "0".repeat(40),
+    )
+    .unwrap();
+
+    let module = open(&f).submodules().unwrap().into_iter().next().unwrap();
+
+    assert_eq!(module.repo_state, Some(git_engine::RepoState::Merging));
+}
+
+#[test]
+fn an_uninitialised_submodule_has_no_repository_state() {
+    let f = test_fixtures::with_submodule().unwrap();
+    f.git(&["submodule", "deinit", "-f", "--", "vendor/lib"])
+        .unwrap();
+
+    let module = open(&f).submodules().unwrap().into_iter().next().unwrap();
+
+    assert_eq!(module.repo_state, None);
+}

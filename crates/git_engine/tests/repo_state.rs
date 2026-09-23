@@ -96,3 +96,28 @@ fn no_lock_file_means_no_lock() {
     let f = test_fixtures::linear(1).unwrap();
     assert!(open(&f).index_lock().is_none());
 }
+
+#[test]
+fn a_git_am_stopped_on_a_conflict_reports_applying_patches() {
+    let f = test_fixtures::linear(2).unwrap();
+    let patch = f.git(&["format-patch", "-1", "HEAD", "--stdout"]).unwrap();
+    let file = f.git_dir().join("incoming.patch");
+    std::fs::write(&file, patch).unwrap();
+    f.git(&["reset", "--hard", "HEAD~1"]).unwrap();
+    f.commit_file(5, "file1.txt", "in the way\n").unwrap();
+
+    let stopped = f.git(&["am", file.to_str().unwrap()]);
+
+    assert!(stopped.is_err(), "the patch must not apply cleanly");
+    assert_eq!(open(&f).state().unwrap(), RepoState::ApplyingPatches);
+}
+
+#[test]
+fn a_rebase_by_the_apply_backend_still_reports_rebasing() {
+    let f = test_fixtures::linear(2).unwrap();
+    let apply = f.git_dir().join("rebase-apply");
+    std::fs::create_dir_all(&apply).unwrap();
+    std::fs::write(apply.join("rebasing"), "").unwrap();
+
+    assert_eq!(open(&f).state().unwrap(), RepoState::Rebasing);
+}

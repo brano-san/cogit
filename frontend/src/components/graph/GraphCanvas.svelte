@@ -5,6 +5,8 @@
     canvasPixelSize,
     laneX,
     nodeCentre,
+    nodeFill,
+    nodeSquare,
     segmentCurve,
     textX,
   } from "$lib/graph-geometry";
@@ -14,7 +16,7 @@
   /** Only the rows on screen: every segment belongs to its own row, so nothing outside
       the view is ever needed to draw it (doc/07-graph-rendering.md). */
   interface Props {
-    rows: { listRow: number; layout: GraphRow }[];
+    rows: { listRow: number; layout: GraphRow; stash?: boolean }[];
     scrollTop: number;
     width: number;
     height: number;
@@ -22,8 +24,9 @@
     firstCommitRow: number;
     /** The column HEAD sits in, for the dashed line from the Working Tree row (T4.5). */
     headLane?: number | null;
-    /** A ring is filled with what is behind it, and a selected row is a different colour. */
+    /** A ring is filled with what is behind it: a stripe, a hovered or a selected row. */
     selectedRow?: number | null;
+    hoverRow?: number | null;
   }
 
   let {
@@ -34,6 +37,7 @@
     firstCommitRow,
     headLane = null,
     selectedRow = null,
+    hoverRow = null,
   }: Props = $props();
 
   let canvas: HTMLCanvasElement | undefined = $state();
@@ -108,21 +112,27 @@
       context.restore();
     }
 
-    // One hollow ring for every node, filled with what is behind it so no line shows through.
+    // One hollow ring for every node, filled with what is behind it so no line shows through;
+    // a stash is a square in the stash colour (#19).
     const panel = token("--surface-panel");
-    const selection = token("--state-selected");
+    const stash = token("--status-stash");
+    const fills = new Map<string, string>();
     for (const row of rows) {
-      const { x, y } = nodeCentre(row.layout.lane, row.listRow, scrollTop);
       context.beginPath();
-      context.arc(x, y, GRAPH.ringRadius, 0, Math.PI * 2);
-      context.fillStyle = panel;
-      context.fill();
-      if (row.listRow === selectedRow) {
-        context.fillStyle = selection;
+      if (row.stash) {
+        const square = nodeSquare(row.layout.lane, row.listRow, scrollTop);
+        context.rect(square.x, square.y, square.size, square.size);
+      } else {
+        const { x, y } = nodeCentre(row.layout.lane, row.listRow, scrollTop);
+        context.arc(x, y, GRAPH.ringRadius, 0, Math.PI * 2);
+      }
+      for (const layer of nodeFill(row.listRow, selectedRow, hoverRow)) {
+        if (!fills.has(layer)) fills.set(layer, token(layer));
+        context.fillStyle = fills.get(layer) ?? panel;
         context.fill();
       }
       context.lineWidth = GRAPH.ringStroke;
-      context.strokeStyle = stroke(row.layout.primary, row.layout.color);
+      context.strokeStyle = row.stash ? stash : stroke(row.layout.primary, row.layout.color);
       context.stroke();
     }
     context.restore();
@@ -144,7 +154,7 @@
 
   $effect(() => {
     // Theme, lane width and colour change the picture without changing the data.
-    void [rows, scrollTop, width, height, dpr, firstCommitRow, headLane, selectedRow];
+    void [rows, scrollTop, width, height, dpr, firstCommitRow, headLane, selectedRow, hoverRow];
     void [settings.current.theme, settings.current.laneWidth, settings.current.coloredLanes];
     schedule();
     return () => cancelAnimationFrame(frame);

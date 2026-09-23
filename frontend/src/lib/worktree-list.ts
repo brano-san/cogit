@@ -100,3 +100,32 @@ export function addProblem(input: {
   }
   return null;
 }
+
+export type WorktreeState = "clean" | "changes" | "missing";
+
+/** A branch another worktree has checked out, as Branches marks it (#25). */
+export interface WorktreeMark {
+  path: string;
+  state: WorktreeState;
+}
+
+/** The one on screen is left out: its branch is HEAD, which says so already. */
+export function worktreeMarks(entries: readonly WorktreeEntry[]): Map<string, WorktreeMark> {
+  const marks = new Map<string, WorktreeMark>();
+  for (const entry of entries) {
+    if (entry.isCurrent || !entry.branch) continue;
+    const state: WorktreeState = entry.missing ? "missing" : entry.dirty ? "changes" : "clean";
+    marks.set(entry.branch, { path: entry.path, state });
+  }
+  return marks;
+}
+
+export function worktreeMarkTooltip(mark: WorktreeMark): string {
+  const state =
+    mark.state === "missing"
+      ? "its folder is missing"
+      : mark.state === "changes"
+        ? "it has uncommitted changes"
+        : "it is clean";
+  return `Checked out in the worktree ${mark.path}; ${state}`;
+}
