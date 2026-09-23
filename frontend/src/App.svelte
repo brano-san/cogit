@@ -2702,9 +2702,9 @@
   <Toolbar
     facts={toolbarFacts}
     undoable={safety.last?.description}
-    onundo={undo}
     handlers={repo
       ? {
+          undo: () => void undo(),
           stash: stashAll,
           "stash-selection": stashSelected,
           tag: tagHead,
