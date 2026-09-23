@@ -553,7 +553,9 @@ export type EolInfo = {
 
 export type FileDiff = { kind: "text"; hunks: Hunk[]; eol: EolInfo; lossyEncoding: boolean; 
 /**  Language hint for Lezer. Highlighting itself is a frontend concern (INV-01). */
-language: string | null } | { kind: "eolOnly"; from: LineEnding; to: LineEnding } | { kind: "binary"; oldSize: number; newSize: number } | { kind: "image"; oldSize: number; newSize: number; mime: string } | { kind: "tooLarge"; size: number } | { kind: "unchanged" } | 
+language: string | null; 
+/**  Lines on each side, so the view can say how many follow the last hunk. */
+oldTotal: number; newTotal: number } | { kind: "eolOnly"; from: LineEnding; to: LineEnding } | { kind: "binary"; oldSize: number; newSize: number } | { kind: "image"; oldSize: number; newSize: number; mime: string } | { kind: "tooLarge"; size: number } | { kind: "unchanged" } | 
 /**
  *  Nothing but whitespace changed, and the active option hides it. Told apart from
  *  `Unchanged` so the UI can say the diff is being filtered (T7.10).

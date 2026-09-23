@@ -33,6 +33,8 @@ function textDiff() {
       eol: { old: "lf" as const, new: "lf" as const, normalized: false },
       lossyEncoding: false,
       language: null,
+      oldTotal: 0,
+      newTotal: 0,
     },
   };
 }

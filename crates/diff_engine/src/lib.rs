@@ -143,6 +143,9 @@ pub enum FileDiff {
         lossy_encoding: bool,
         /// Language hint for Lezer. Highlighting itself is a frontend concern (INV-01).
         language: Option<String>,
+        /// Lines on each side, so the view can say how many follow the last hunk.
+        old_total: u32,
+        new_total: u32,
     },
     EolOnly {
         from: LineEnding,
