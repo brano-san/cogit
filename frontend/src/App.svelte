@@ -43,6 +43,7 @@
   import ScanDialog from "$components/repo-tree/ScanDialog.svelte";
   import PromptDialog from "$components/layout/PromptDialog.svelte";
   import StashDialogs from "$components/layout/StashDialogs.svelte";
+  import ToolbarConfigDialog from "$components/layout/ToolbarConfigDialog.svelte";
   import WorktreesPanel from "$components/panels/WorktreesPanel.svelte";
   import AddWorktreeDialog from "$components/repo-tree/AddWorktreeDialog.svelte";
   import RemoveWorktreeDialog from "$components/repo-tree/RemoveWorktreeDialog.svelte";
@@ -508,6 +509,12 @@
         run: () => void undo(),
       },
       { id: "output", title: "Toggle Output Panel", shortcut: "Ctrl+Shift+7", run: () => output.toggle() },
+      {
+        id: "configure-toolbar",
+        title: "Configure Toolbar…",
+        synonyms: ["customize toolbar", "toolbar buttons"],
+        run: () => (toolbar.configuring = true),
+      },
       {
         id: "copy-path",
         title: "Copy the File Path",
@@ -2633,6 +2640,13 @@
   <Toolbar
     facts={toolbarFacts}
     menus={toolbarMenus}
+    layout={toolbar.layout}
+    oncontext={(x, y) =>
+      void popupContextMenu(
+        [{ id: "configure-toolbar", label: "Configure Toolbar…", enabled: true }],
+        x,
+        y,
+      ).catch(() => {})}
     undoable={safety.last?.description}
     handlers={repo
       ? {
@@ -3228,6 +3242,9 @@
   {/if}
 
   <StashDialogs />
+  {#if toolbar.configuring}
+    <ToolbarConfigDialog />
+  {/if}
 
   {#if prompt.open}
     <PromptDialog

@@ -24,6 +24,8 @@
     layout?: readonly string[];
     /** Remotes and remembered choices the dropdowns are built from. */
     menus?: MenuContext;
+    /** Right-click on the toolbar: where the Configure Toolbar menu opens. */
+    oncontext?: (x: number, y: number) => void;
   }
 
   let {
@@ -32,6 +34,7 @@
     facts,
     layout = DEFAULT_LAYOUT,
     menus = NO_MENU_CONTEXT,
+    oncontext,
   }: Props = $props();
 
   const groups = $derived(groupsOf(layout));
@@ -96,7 +99,15 @@
   }
 </script>
 
-<div class="toolbar" class:crowded>
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
+  class="toolbar"
+  class:crowded
+  oncontextmenu={(event) => {
+    event.preventDefault();
+    oncontext?.(event.clientX, event.clientY);
+  }}
+>
   <div class="row" bind:this={row}>
     {#each groups as group, index (index)}
       {#if index > 0}
