@@ -105,7 +105,7 @@ impl AppState {
                 "nothing selected".to_owned(),
             ));
         };
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.apply_patch(&patch, reverse)
     }
 
@@ -120,7 +120,7 @@ impl AppState {
                 "nothing selected".to_owned(),
             ));
         };
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?
             .apply_patch_to(&patch, true, git_engine::PatchTarget::WorkTree)?;
         self.record(

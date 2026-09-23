@@ -211,6 +211,17 @@ pub struct AppState {
     reachable: parking_lot::Mutex<HashMap<RepoId, git_engine::Reachable>>,
 }
 
+struct Quiet<'a> {
+    state: &'a AppState,
+    repo: RepoId,
+}
+
+impl Drop for Quiet<'_> {
+    fn drop(&mut self) {
+        self.state.silence(self.repo);
+    }
+}
+
 impl std::fmt::Debug for AppState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AppState")
@@ -544,7 +555,7 @@ impl AppState {
         repo: RepoId,
         rev: &str,
     ) -> Result<git_engine::CommitDetails, git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.commit_details(rev)
     }
 
@@ -565,7 +576,7 @@ impl AppState {
     }
 
     pub fn stage_paths(&self, repo: RepoId, paths: &[String]) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.stage(paths)
     }
 
@@ -574,7 +585,7 @@ impl AppState {
         repo: RepoId,
         paths: &[String],
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.unstage(paths)
     }
 
@@ -590,7 +601,7 @@ impl AppState {
             ));
         }
 
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         // A successful stash has already taken the changes out of the working tree, so
         // discarding again would only fail on paths Git no longer knows about.
@@ -614,6 +625,7 @@ impl AppState {
         repo: RepoId,
         request: &git_engine::CommitRequest,
     ) -> Result<String, git_engine::GitError> {
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.commit(request)
     }
 
@@ -622,7 +634,7 @@ impl AppState {
         repo: RepoId,
         target: &git_engine::CheckoutTarget,
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.checkout(target)?;
 
         let what = match target {
@@ -640,7 +652,7 @@ impl AppState {
         start: Option<&str>,
         switch: bool,
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.create_branch(name, start, switch)
     }
 
@@ -651,7 +663,7 @@ impl AppState {
         to: &str,
         force: bool,
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.rename_branch(from, to, force)
     }
 
@@ -661,7 +673,7 @@ impl AppState {
         branch: &str,
         upstream: Option<&str>,
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.set_upstream(branch, upstream)
     }
 
@@ -672,7 +684,7 @@ impl AppState {
         remote: &str,
         branch: &str,
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.delete_remote_branch(remote, branch)
     }
 
@@ -682,7 +694,7 @@ impl AppState {
         name: &str,
         force: bool,
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         let oid = handle
             .branches()?
@@ -727,9 +739,17 @@ impl AppState {
 
     /// Called before every mutation: the UI reloads itself afterwards, so reacting to our
     /// own writes only makes it reload twice (doc/12-risks.md, R-25).
-    fn quiet(&self, repo: RepoId) {
-        // Our own writes are the one change the watcher will not report, so the row has to
-        // be dropped here instead.
+    /// Our own writes are the one change the watcher must not report: the UI reloads
+    /// itself after a mutation. The window opens now and again when the guard drops, so a
+    /// mutation that outlasts it does not echo either (R-197).
+    #[must_use = "hold the guard until the mutation is done"]
+    fn quiet(&self, repo: RepoId) -> Quiet<'_> {
+        self.silence(repo);
+        Quiet { state: self, repo }
+    }
+
+    fn silence(&self, repo: RepoId) {
+        // The watcher will not report these writes, so the row has to be dropped here.
         self.forget_row(repo);
         if let Some(watcher) = self.watchers.read().get(&repo) {
             watcher.quiet_for(fs_watcher::DEFAULT_QUIET);
@@ -789,7 +809,7 @@ impl AppState {
     }
 
     pub fn abort_operation(&self, repo: RepoId) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.abort_operation()?;
         self.record(
             repo,
@@ -800,7 +820,7 @@ impl AppState {
     }
 
     pub fn continue_operation(&self, repo: RepoId) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.continue_operation()
     }
 
@@ -823,7 +843,7 @@ impl AppState {
                 "no paths given; refusing to stash the whole repository".to_owned(),
             ));
         }
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         handle.stash_paths(paths, message).map(drop)
     }
@@ -841,7 +861,7 @@ impl AppState {
         repo: RepoId,
         options: &git_engine::StashOptions,
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.stash_push(options)
     }
 
@@ -851,12 +871,12 @@ impl AppState {
         index: u32,
         pop: bool,
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.stash_apply_index(index, pop)
     }
 
     pub fn stash_drop(&self, repo: RepoId, index: u32) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         let oid = self.handle(repo)?.stash_drop(index)?;
         self.record(
             repo,
@@ -871,12 +891,12 @@ impl AppState {
         repo: RepoId,
         request: &git_engine::TagRequest,
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.create_tag(request)
     }
 
     pub fn delete_tag(&self, repo: RepoId, name: &str) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         let oid = handle
             .tags()?
@@ -903,7 +923,7 @@ impl AppState {
         rev: &str,
         paths: &[String],
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         let label = if paths.is_empty() {
             "the working tree".to_owned()
@@ -956,7 +976,7 @@ impl AppState {
         plan: &[git_engine::TodoEntry],
         paused: bool,
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         let before = handle.head()?;
         if paused {
@@ -989,7 +1009,7 @@ impl AppState {
         repo: RepoId,
         config: &git_engine::FlowConfig,
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.flow_init(config)
     }
 
@@ -999,7 +1019,7 @@ impl AppState {
         kind: git_engine::FlowKind,
         name: &str,
     ) -> Result<String, git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.flow_start(kind, name)
     }
 
@@ -1012,7 +1032,7 @@ impl AppState {
         name: &str,
         tag: Option<&str>,
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         let status = handle.flow_status()?;
         let full = match kind {
@@ -1067,7 +1087,7 @@ impl AppState {
             )));
         }
 
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         let before = handle.head()?;
         handle.split_off(rev, paths, message, split_first)?;
 
@@ -1089,7 +1109,7 @@ impl AppState {
         path: &str,
         executable: bool,
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.stage_mode(path, executable)
     }
 
@@ -1098,7 +1118,7 @@ impl AppState {
         repo: RepoId,
         options: &git_engine::MergeOptions,
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         let before = handle.head()?;
         handle.merge(options)?;
@@ -1116,7 +1136,7 @@ impl AppState {
         repo: RepoId,
         options: &git_engine::RebaseOptions,
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         let before = handle.head()?;
         handle.rebase(options)?;
@@ -1130,7 +1150,7 @@ impl AppState {
     }
 
     pub fn skip_operation(&self, repo: RepoId) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.skip_operation()
     }
 
@@ -1152,7 +1172,7 @@ impl AppState {
         commits: &[String],
         pick: bool,
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         let before = handle.head()?;
         if pick {
@@ -1383,7 +1403,7 @@ impl AppState {
         path: &str,
         init: bool,
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.update_submodule(path, init)
     }
 
@@ -1409,7 +1429,7 @@ impl AppState {
         repo: RepoId,
         paths: &[String],
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.add_to_gitignore(paths)
     }
 
@@ -1418,7 +1438,7 @@ impl AppState {
         repo: RepoId,
         paths: &[String],
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.delete_untracked(paths)?;
         self.record(
             repo,
@@ -1446,7 +1466,7 @@ impl AppState {
         path: &str,
         side: git_engine::ConflictSide,
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.resolve_with(path, side)
     }
 
@@ -1456,7 +1476,7 @@ impl AppState {
         path: &str,
         text: &str,
     ) -> Result<(), git_engine::GitError> {
-        self.quiet(repo);
+        let _quiet = self.quiet(repo);
         self.handle(repo)?.resolve_with_text(path, text)
     }
 

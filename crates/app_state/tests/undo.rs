@@ -282,3 +282,44 @@ fn discarding_a_long_list_of_files_is_undoable() {
 
     assert!(paths.iter().all(|path| f.path().join(path).exists()));
 }
+
+#[test]
+fn a_mutation_longer_than_the_quiet_window_does_not_echo_either() {
+    let f = test_fixtures::linear(1).unwrap();
+    let (state, repo) = open(&f);
+    std::fs::write(f.path().join("file0.txt"), "edited by us\n").unwrap();
+    state.stage_paths(repo, &["file0.txt".to_owned()]).unwrap();
+    // Slower than the window: the commit writes HEAD and the index after it would close.
+    std::fs::write(
+        f.path().join(".git/hooks/pre-commit"),
+        "#!/bin/sh\nsleep 1\n",
+    )
+    .unwrap();
+    let mut events = state.subscribe();
+    std::thread::sleep(std::time::Duration::from_millis(600));
+    while events.try_recv().is_ok() {}
+
+    state
+        .commit(
+            repo,
+            &git_engine::CommitRequest {
+                message: "slow hook".to_owned(),
+                amend: false,
+                no_verify: false,
+                only: Vec::new(),
+            },
+        )
+        .unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(500));
+
+    let mut reported = Vec::new();
+    while let Ok(event) = events.try_recv() {
+        if let app_state::AppEvent::RepoChanged { kind, .. } = event {
+            reported.push(kind);
+        }
+    }
+    assert!(
+        reported.is_empty(),
+        "the commit flow reloads everything itself, got {reported:?}"
+    );
+}
