@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyClick, EMPTY_SELECTION, type FileSelection } from "./multi-select";
+import { afterDeselect, applyClick, EMPTY_SELECTION, type FileSelection } from "./multi-select";
 
 const ORDER = ["a.txt", "b.txt", "c.txt", "d.txt"];
 const plain = { ctrl: false, shift: false };
@@ -69,5 +69,21 @@ describe("applyClick", () => {
     const before = select(["a.txt"], "a.txt");
     applyClick(before, "c.txt", ORDER, { ctrl: true, shift: false });
     expect([...before.paths]).toEqual(["a.txt"]);
+  });
+});
+
+describe("afterDeselect", () => {
+  it("drops the marks once the shown file is let go, as a re-clicked commit does (#7)", () => {
+    expect(afterDeselect("a.txt", null, select(["a.txt", "b.txt"], "a.txt"))).toBe(EMPTY_SELECTION);
+  });
+
+  it("keeps marks made while nothing was shown: ctrl-clicks do not open a file", () => {
+    const marked = select(["a.txt", "b.txt"], "b.txt");
+    expect(afterDeselect(null, null, marked)).toBe(marked);
+  });
+
+  it("keeps the marks when another file is shown", () => {
+    const marked = select(["a.txt"], "a.txt");
+    expect(afterDeselect("a.txt", "b.txt", marked)).toBe(marked);
   });
 });

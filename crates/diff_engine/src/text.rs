@@ -11,6 +11,10 @@ pub const MAX_TEXT_BYTES: u64 = 1024 * 1024;
 /// Git's own rule: a NUL byte anywhere in the first 8000 bytes means binary.
 const BINARY_SNIFF_BYTES: usize = 8000;
 
+/// A fold over this many lines costs more to read than the lines themselves, so they are
+/// shown instead: between hunks, above the first and below the last (#16).
+const SHOWN_GAP: u32 = 2;
+
 #[must_use]
 pub fn diff_bytes(old: &[u8], new: &[u8], options: &DiffOptions) -> FileDiff {
     let old_size = old.len() as u64;
@@ -117,6 +121,8 @@ pub fn diff_text(old: &str, new: &str, options: &DiffOptions) -> FileDiff {
         },
         lossy_encoding: false,
         language: None,
+        old_total: u32::try_from(old_lines.len()).unwrap_or(u32::MAX),
+        new_total: u32::try_from(new_lines.len()).unwrap_or(u32::MAX),
     }
 }
 
@@ -184,9 +190,9 @@ fn is_binary(data: &[u8]) -> bool {
 }
 
 /// Two changes closer than twice the context share their context lines, so emitting them
-/// apart would print the same lines in both hunks.
+/// apart would print the same lines in both hunks; SHOWN_GAP more are not worth a fold.
 fn group(changes: &[imara_diff::Hunk], context: usize) -> Vec<Vec<imara_diff::Hunk>> {
-    let gap = (context * 2) as u32;
+    let gap = (context * 2) as u32 + SHOWN_GAP;
     let mut groups: Vec<Vec<imara_diff::Hunk>> = Vec::new();
 
     for change in changes {
@@ -215,10 +221,18 @@ fn build(
     let first = &group[0];
     let last = &group[group.len() - 1];
 
-    let old_from = first.before.start.saturating_sub(context);
-    let old_to = (last.before.end + context).min(old_lines.len() as u32);
-    let new_from = first.after.start.saturating_sub(context);
-    let new_to = (last.after.end + context).min(new_lines.len() as u32);
+    // Around the changes both sides are the same lines, so one offset serves the two.
+    let mut old_from = first.before.start.saturating_sub(context);
+    if old_from <= SHOWN_GAP {
+        old_from = 0;
+    }
+    let old_len = old_lines.len() as u32;
+    let mut old_to = (last.before.end + context).min(old_len);
+    if old_len - old_to <= SHOWN_GAP {
+        old_to = old_len;
+    }
+    let new_from = first.after.start - (first.before.start - old_from);
+    let new_to = last.after.end + (old_to - last.before.end);
 
     let mut rows = Vec::new();
     let mut old_at = old_from;

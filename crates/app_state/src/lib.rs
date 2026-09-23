@@ -5,6 +5,7 @@ pub mod environment;
 mod graph_cache;
 pub mod graph_wire;
 mod hooking;
+pub mod investigation;
 pub mod licences;
 pub mod logging;
 mod network;
@@ -1411,6 +1412,10 @@ impl AppState {
     /// Every path in the repository, tracked and untracked, never ignored.
     pub fn all_files(&self, repo: RepoId) -> Result<Vec<String>, git_engine::GitError> {
         self.handle(repo)?.all_files()
+    }
+
+    pub fn tree_files(&self, repo: RepoId, rev: &str) -> Result<Vec<String>, git_engine::GitError> {
+        self.handle(repo)?.tree_files(rev)
     }
 
     /// Looks inside files, handing matches over in batches as they are found.
