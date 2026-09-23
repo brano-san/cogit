@@ -536,7 +536,8 @@ export type ContextItem = {
 /**  The platform's shell actions, for the menus that offer them. */
 export type DesktopInfo = {
 	fileManager: string,
-	powerShell: boolean,
+	/**  PowerShell and Git Bash are Windows programs; elsewhere their items are left out. */
+	windowsShells: boolean,
 	/**  Git Bash from Git for Windows, when one was found. */
 	gitShell: string | null,
 	/**  What "Copy Path" joins with. */
