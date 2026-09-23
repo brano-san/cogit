@@ -1,14 +1,13 @@
 <script lang="ts">
   import Caret from "$components/common/Caret.svelte";
   import Tooltip from "$components/common/Tooltip.svelte";
-  import { reasons, type Context, type Requires } from "$lib/availability";
+  import { reasonOf, type ToolbarFacts } from "$lib/toolbar";
 
   /** One entry of a split button's dropdown. */
   interface Choice {
     id: string;
     label: string;
     hint: string;
-    needs: Requires;
   }
 
   /** Inapplicable actions are disabled, not hidden, so buttons never move under the cursor. */
@@ -19,8 +18,6 @@
     icon: string;
     hint: string;
     shortcut?: string;
-    /** What the action needs; the one rule set decides whether it is offered (issue 2). */
-    needs: Requires;
     /** Absent means a plain button: no caret, no second click target (issue 9). */
     menu?: Choice[];
   }
@@ -49,11 +46,10 @@
         icon: ICONS.pull,
         hint: "Bring the remote's commits down",
         shortcut: "Ctrl+Shift+U",
-        needs: { remote: true },
         menu: [
-          { id: "fetch", label: "Fetch", hint: "Update the remote refs, change nothing here", needs: { remote: true } },
-          { id: "pull", label: "Pull", hint: "Fetch, then merge", needs: { remote: true } },
-          { id: "fetch-all", label: "Fetch All", hint: "Every remote of every open repository", needs: { remote: true } },
+          { id: "fetch", label: "Fetch", hint: "Update the remote refs, change nothing here" },
+          { id: "pull", label: "Pull", hint: "Fetch, then merge" },
+          { id: "fetch-all", label: "Fetch All", hint: "Every remote of every open repository" },
         ],
       },
       {
@@ -62,7 +58,6 @@
         icon: ICONS.push,
         hint: "Send your commits to the remote",
         shortcut: "Ctrl+Shift+O",
-        needs: { remote: true },
       },
       {
         id: "sync",
@@ -70,13 +65,12 @@
         icon: ICONS.sync,
         hint: "Fetch every remote",
         shortcut: "Ctrl+Shift+S",
-        needs: { remote: true },
       },
     ],
     [
-      { id: "stage", label: "Stage", icon: ICONS.stage, hint: "Move the ticked files into the index", shortcut: "Ctrl+T", needs: { selection: true } },
-      { id: "unstage", label: "Unstage", icon: ICONS.unstage, hint: "Take them back out of the index", shortcut: "Ctrl+Shift+T", needs: { staged: true } },
-      { id: "discard", label: "Discard", icon: ICONS.discard, hint: "Throw the changes away", shortcut: "Ctrl+Z", needs: { selection: true } },
+      { id: "stage", label: "Stage", icon: ICONS.stage, hint: "Move the ticked files into the index", shortcut: "Ctrl+T" },
+      { id: "unstage", label: "Unstage", icon: ICONS.unstage, hint: "Take them back out of the index", shortcut: "Ctrl+Shift+T" },
+      { id: "discard", label: "Discard", icon: ICONS.discard, hint: "Throw the changes away", shortcut: "Ctrl+Z" },
     ],
     [
       {
@@ -85,26 +79,24 @@
         icon: ICONS.stash,
         hint: "Put the working tree aside",
         shortcut: "Ctrl+S",
-        needs: { changes: true },
         menu: [
-          { id: "stash", label: "Stash All", hint: "Everything in the working tree", needs: { changes: true } },
-          { id: "stash-selection", label: "Stash Selection", hint: "Only the ticked files", needs: { selection: true } },
+          { id: "stash", label: "Stash All", hint: "Everything in the working tree" },
+          { id: "stash-selection", label: "Stash Selection", hint: "Only the ticked files" },
         ],
       },
-      { id: "merge", label: "Merge", icon: ICONS.merge, hint: "Merge the selected commit into HEAD", shortcut: "Ctrl+M", needs: { commit: true } },
+      { id: "merge", label: "Merge", icon: ICONS.merge, hint: "Merge the selected commit into HEAD", shortcut: "Ctrl+M" },
       {
         id: "rebase",
         label: "Rebase",
         icon: ICONS.rebase,
         hint: "Replay HEAD on the selected commit",
         shortcut: "Ctrl+R",
-        needs: { commit: true },
         menu: [
-          { id: "rebase", label: "Rebase", hint: "Replay HEAD on the selected commit", needs: { commit: true } },
-          { id: "rebase-i", label: "Interactive Rebase…", hint: "Edit the list of commits first", needs: { commit: true } },
+          { id: "rebase", label: "Rebase", hint: "Replay HEAD on the selected commit" },
+          { id: "rebase-i", label: "Interactive Rebase…", hint: "Edit the list of commits first" },
         ],
       },
-      { id: "tag", label: "Tag", icon: ICONS.tag, hint: "Tag the current commit", shortcut: "Shift+F7", needs: { repository: true } },
+      { id: "tag", label: "Tag", icon: ICONS.tag, hint: "Tag the current commit", shortcut: "Shift+F7" },
     ],
   ];
 
@@ -113,7 +105,6 @@
     label: "Undo",
     icon: ICONS.undo,
     hint: "Reverse the last operation",
-    needs: { repository: true, undo: true },
   };
 
   const EVERY: Action[] = [...GROUPS.flat(), UNDO];
@@ -124,34 +115,23 @@
     onundo?: () => void;
     /** Quick actions and menu entries alike, keyed by id. */
     handlers?: Partial<Record<string, () => void>>;
-    context: Context;
+    /** The selection and repository state the rules read (task #31). */
+    facts: ToolbarFacts;
   }
 
-  let { undoable, onundo, handlers = {}, context }: Props = $props();
-
-  const blocked = $derived(
-    reasons(
-      Object.fromEntries(
-        EVERY.flatMap((action) => [
-          [action.id, action.needs] as const,
-          ...(action.menu ?? []).map((choice) => [`menu:${choice.id}`, choice.needs] as const),
-        ]),
-      ),
-      context,
-    ),
-  );
+  let { undoable, onundo, handlers = {}, facts }: Props = $props();
 
   /** Unbuilt actions stay off whatever the state says, and say so rather than lying. */
-  function why(id: string, key: string): string | undefined {
+  function why(id: string): string | undefined {
     if (id !== "undo" && !handlers[id]) return "Not built yet";
-    return blocked[key];
+    return reasonOf(id, facts);
   }
 
-  const off = (action: Action) => why(action.id, action.id) !== undefined;
+  const off = (action: Action) => why(action.id) !== undefined;
 
   /** The caret is live while any one entry is, even when the quick action is not. */
   function menuOff(action: Action): boolean {
-    return (action.menu ?? []).every((choice) => why(choice.id, `menu:${choice.id}`) !== undefined);
+    return (action.menu ?? []).every((choice) => why(choice.id) !== undefined);
   }
 
   let open = $state<string | null>(null);
@@ -296,7 +276,7 @@
               type="button"
               role="menuitem"
               disabled={off(action)}
-              title={why(action.id, action.id) ?? action.hint}
+              title={why(action.id) ?? action.hint}
               onclick={() => (action.id === "undo" ? undoNow() : run(action.id))}
               >{action.label}</button
             >
@@ -316,8 +296,8 @@
         <button
           type="button"
           role="menuitem"
-          disabled={why(choice.id, `menu:${choice.id}`) !== undefined}
-          title={why(choice.id, `menu:${choice.id}`) ?? choice.hint}
+          disabled={why(choice.id) !== undefined}
+          title={why(choice.id) ?? choice.hint}
           onclick={() => run(choice.id)}>{choice.label}</button
         >
       {/each}
