@@ -341,3 +341,104 @@ fn without_the_option_a_reindent_is_an_ordinary_change() {
 
     assert!(matches!(diff, FileDiff::Text { .. }), "got {diff:?}");
 }
+
+fn last_old_line(hunk: &diff_engine::Hunk) -> u32 {
+    hunk.old_start + hunk.old_lines - 1
+}
+
+#[test]
+fn a_gap_of_two_lines_between_edits_is_shown_rather_than_hidden() {
+    // Three lines of context after line 3 and before line 12 leave only lines 7 and 8.
+    let old = numbered(30);
+    let new = old
+        .replace("line 3\n", "line three\n")
+        .replace("line 12\n", "line twelve\n");
+
+    let diff = diff_text(&old, &new, &DiffOptions::default());
+
+    assert_eq!(hunks(&diff).len(), 1, "{}", render(&diff));
+}
+
+#[test]
+fn a_gap_of_three_lines_between_edits_is_still_hidden() {
+    let old = numbered(30);
+    let new = old
+        .replace("line 3\n", "line three\n")
+        .replace("line 13\n", "line thirteen\n");
+
+    let diff = diff_text(&old, &new, &DiffOptions::default());
+
+    assert_eq!(hunks(&diff).len(), 2, "{}", render(&diff));
+}
+
+#[test]
+fn two_lines_above_the_first_hunk_are_shown_rather_than_hidden() {
+    let old = numbered(30);
+    let new = old.replace("line 6\n", "line six\n");
+
+    let diff = diff_text(&old, &new, &DiffOptions::default());
+
+    assert_eq!(hunks(&diff)[0].old_start, 1);
+    assert_eq!(hunks(&diff)[0].new_start, 1);
+}
+
+#[test]
+fn three_lines_above_the_first_hunk_are_still_hidden() {
+    let old = numbered(30);
+    let new = old.replace("line 7\n", "line seven\n");
+
+    let diff = diff_text(&old, &new, &DiffOptions::default());
+
+    assert_eq!(hunks(&diff)[0].old_start, 4);
+}
+
+#[test]
+fn two_lines_below_the_last_hunk_are_shown_rather_than_hidden() {
+    let old = numbered(20);
+    let new = old.replace("line 15\n", "line fifteen\nline fifteen and a half\n");
+
+    let diff = diff_text(&old, &new, &DiffOptions::default());
+    let hunk = &hunks(&diff)[0];
+
+    assert_eq!(last_old_line(hunk), 20, "{}", render(&diff));
+    assert_eq!(hunk.new_start + hunk.new_lines - 1, 21);
+}
+
+#[test]
+fn three_lines_below_the_last_hunk_are_still_hidden() {
+    let old = numbered(20);
+    let new = old.replace("line 14\n", "line fourteen\n");
+
+    let diff = diff_text(&old, &new, &DiffOptions::default());
+
+    assert_eq!(last_old_line(&hunks(&diff)[0]), 17);
+}
+
+#[test]
+fn a_text_diff_knows_how_long_each_side_is() {
+    let old = numbered(20);
+    let new = old.replace("line 5\n", "line five\nline five and a half\n");
+
+    let diff = diff_text(&old, &new, &DiffOptions::default());
+
+    match diff {
+        FileDiff::Text {
+            old_total,
+            new_total,
+            ..
+        } => assert_eq!((old_total, new_total), (20, 21)),
+        other => panic!("expected a text diff, got {other:?}"),
+    }
+}
+
+#[test]
+fn a_new_file_has_no_old_lines() {
+    match diff_text("", "a\nb", &DiffOptions::default()) {
+        FileDiff::Text {
+            old_total,
+            new_total,
+            ..
+        } => assert_eq!((old_total, new_total), (0, 2)),
+        other => panic!("expected a text diff, got {other:?}"),
+    }
+}

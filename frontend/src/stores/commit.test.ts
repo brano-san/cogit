@@ -107,4 +107,20 @@ describe("commit store", () => {
     expect(commit.details).toBeNull();
     expect(commit.loading).toBe(false);
   });
+
+  it("hands the Diff panel back to the details when the selected commit is clicked again (#7)", async () => {
+    commands.commitDetails.mockResolvedValue(details("abc"));
+    commands.commitFiles.mockResolvedValue(files("one.txt"));
+    await commit.select(REPO, "abc");
+    const onchange = vi.fn();
+    commit.onchange = onchange;
+    commands.commitDetails.mockClear();
+
+    commit.showDetails();
+
+    expect(onchange).toHaveBeenCalledOnce();
+    expect(commit.oid).toBe("abc");
+    expect(commands.commitDetails).not.toHaveBeenCalled();
+    commit.onchange = null;
+  });
 });

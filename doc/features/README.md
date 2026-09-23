@@ -204,7 +204,7 @@
 | F-208 | Перемещения можно смотреть как обычные правки | [F-208-moves-as-plain-edits.md](F-208-moves-as-plain-edits.md) |
 | F-209 | Поиск внутри diff | [F-209-diff-search.md](F-209-diff-search.md) |
 | F-210 | Соединительная полоса между панелями diff | [F-210-connector-band.md](F-210-connector-band.md) |
-| F-211 | Stage, Unstage и Discard прямо у ханка | [F-211-gutter-staging.md](F-211-gutter-staging.md) |
+| F-211 | Stage, Unstage и Discard прямо у блока изменений | [F-211-gutter-staging.md](F-211-gutter-staging.md) |
 | F-212 | Панель diff переживает стейджинг | [F-212-diff-survives-staging.md](F-212-diff-survives-staging.md) |
 | F-213 | Investigate от выделения в diff | [F-213-investigate-from-selection.md](F-213-investigate-from-selection.md) |
 | F-235 | Падение интерфейса объясняется своими словами | [F-235-renderer-crash-dialog.md](F-235-renderer-crash-dialog.md) |
@@ -288,3 +288,12 @@
 | F-354 | Меню метки ветки или тега в графе | [F-354-graph-ref-menu.md](F-354-graph-ref-menu.md) |
 | F-355 | Меню ветки, тега и stash-а в Branches | [F-355-branches-menus.md](F-355-branches-menus.md) |
 | F-356 | Rename Stash на месте | [F-356-rename-stash.md](F-356-rename-stash.md) |
+| F-370 | Поиск по содержимому файлов | [F-370-file-content-search.md](F-370-file-content-search.md) |
+| F-371 | Переключатели Files в коммите из истории | [F-371-commit-file-switches.md](F-371-commit-file-switches.md) |
+| F-372 | Повторный клик по коммиту возвращает его описание | [F-372-reclick-commit-shows-details.md](F-372-reclick-commit-shows-details.md) |
+| F-373 | Поиск по diff без совпадений | [F-373-diff-find-no-matches.md](F-373-diff-find-no-matches.md) |
+| F-374 | Индикатор окончаний строк | [F-374-line-ending-indicator.md](F-374-line-ending-indicator.md) |
+| F-375 | Тулбар Diff отделён от содержимого | [F-375-diff-toolbar.md](F-375-diff-toolbar.md) |
+| F-376 | Стрелки изменений гаснут на краях | [F-376-change-arrows.md](F-376-change-arrows.md) |
+| F-377 | Полосы скрытых строк вместо `@@` | [F-377-diff-folds.md](F-377-diff-folds.md) |
+| F-378 | Маркеры `+` и `−` в своей колонке | [F-378-diff-sign-column.md](F-378-diff-sign-column.md) |

@@ -1,23 +1,26 @@
 <script lang="ts">
   import { untrack } from "svelte";
+  import { connectors, type ConnectorRow, type SearchRow, type SideCell } from "$lib/diff-rows";
   import {
-    connectors,
-    flatten,
-    gapBetween,
-    pairRows,
-    type ConnectorRow,
-    type FlatEntry,
-    type SearchRow,
-    type SideCell,
-  } from "$lib/diff-rows";
+    blockKeys,
+    changeAt,
+    changeStarts,
+    foldDiff,
+    navState,
+    revealRange,
+    splitRows,
+    type Gap,
+    type LineRange,
+  } from "$lib/diff-fold";
   import { DiffSearch } from "$lib/diff-search.svelte";
   import { BAND_WIDTH, bandLeft, ribbonPath, ribbonsNear } from "$lib/diff-band";
   import DiffFindBar from "./DiffFindBar.svelte";
+  import { eolLabel, layoutTip } from "$lib/diff-toolbar";
   import { highlightLines, mergePieces, type Token } from "$lib/highlight";
-  import { hunkSelection, lineKey, selectedRange, toggleLine } from "$lib/selection";
+  import { lineKey, selectedRange, toggleLine } from "$lib/selection";
   import InvestigateView from "./InvestigateView.svelte";
   import { visibleRange } from "$lib/graph-geometry";
-  import type { FileDiff, Hunk } from "$lib/ipc";
+  import type { DiffRow, FileDiff, Hunk } from "$lib/ipc";
   // The panel above belongs to `master` and cannot grow props for the branch's own view
   // preferences, so the view reads them from the branch's own store.
   import { diff as diffStore } from "$stores/diff.svelte";
@@ -53,17 +56,22 @@
 
   const ROW_HEIGHT = 18;
   const BUFFER_ROWS = 12;
-  /** Must match `.num` and `.band` in the stylesheet: the overlay is positioned by hand. */
-
+  /** Rows of context a jump leaves above the change it lands on. */
+  const LEAD = 3;
 
   const mode = $derived(diffStore.layout);
   let findBar: ReturnType<typeof DiffFindBar> | undefined = $state();
-  /** The scan walks every row of the file. At typing speed that is a frame lost per
-      letter on a large diff, so the search runs on what was typed a moment ago. */
   let scroller: HTMLDivElement | undefined = $state();
   let scrollTop = $state(0);
   let viewportHeight = $state(0);
-  let current = $state(0);
+  /** The change the arrows and F6 step from; `-1` above the first one (#13). */
+  let current = $state(-1);
+  /** Set while a jump's own scroll is in flight, so it does not re-derive `current`. */
+  let jumping = false;
+  /** Lines the user opened out of the folds, by old line number (#16). */
+  let revealed = $state<LineRange[]>([]);
+  /** The row under the pointer, which carries its block's Stage, Unstage and Discard. */
+  let hoverRow = $state<number | null>(null);
 
   const hunks = $derived<Hunk[]>(diff.kind === "text" ? diff.hunks : []);
   const language = $derived(diff.kind === "text" ? diff.language : null);
@@ -95,35 +103,43 @@
     };
   });
 
-  function tokensFor(row: import("$lib/ipc").DiffRow): Token[] {
+  function tokensFor(row: DiffRow): Token[] {
     if (row.kind === "delete") return tokens.old[tokens.oldAt.get("d" + row.old) ?? -1] ?? [];
     if (row.kind === "insert") return tokens.new[tokens.newAt.get("i" + row.new) ?? -1] ?? [];
     if (row.kind === "context") return tokens.old[tokens.oldAt.get("c" + row.old) ?? -1] ?? [];
     return [];
   }
-  const unified = $derived(flatten(hunks));
-  const split = $derived.by(() => {
-    const out: { hunk: number; header?: string; pair?: ReturnType<typeof pairRows>[number] }[] = [];
-    hunks.forEach((hunk, index) => {
-      out.push({ hunk: index, header: hunk.header });
-      for (const pair of pairRows(hunk.rows)) out.push({ hunk: index, pair });
-    });
-    return out;
-  });
+
+  const unified = $derived(
+    diff.kind === "text"
+      ? foldDiff({
+          hunks,
+          oldTotal: diff.oldTotal,
+          newTotal: diff.newTotal,
+          context: diffStore.foldContext,
+          revealed,
+        })
+      : [],
+  );
+  const split = $derived(splitRows(unified));
 
   const total = $derived(mode === "unified" ? unified.length : split.length);
   const range = $derived(
     visibleRange(scrollTop, viewportHeight, ROW_HEIGHT, total, BUFFER_ROWS),
   );
-  const headerOffsets = $derived.by(() => {
-    const rows = mode === "unified" ? unified : split;
-    const offsets: number[] = [];
-    rows.forEach((row, index) => {
-      const isHeader = mode === "unified" ? (row as FlatEntry).kind === "header" : "header" in row;
-      if (isHeader) offsets.push(index);
-    });
-    return offsets;
-  });
+
+  const starts = $derived(
+    changeStarts(
+      mode === "unified"
+        ? unified.map((entry) => entry.kind === "row" && lineKey(entry.row) !== null)
+        : split.map(
+            (entry) =>
+              entry.kind === "pair" &&
+              (entry.pair.left?.kind === "delete" || entry.pair.right?.kind === "insert"),
+          ),
+    ),
+  );
+  const nav = $derived(navState(starts.length, current));
 
   let rowsWidth = $state(0);
 
@@ -133,7 +149,7 @@
       would cost the 60 FPS the product promises. */
   const allRibbons = $derived.by(() => {
     if (mode !== "split") return [];
-    const rows: ConnectorRow[] = split.map((entry) => entry.pair ?? null);
+    const rows: ConnectorRow[] = split.map((entry) => (entry.kind === "pair" ? entry.pair : null));
     return connectors(rows);
   });
 
@@ -141,7 +157,7 @@
     ribbonsNear(allRibbons, range.start - BUFFER_ROWS, range.end + BUFFER_ROWS),
   );
 
-  /** Only code is searchable: a hit on a hunk header would scroll to nothing useful. */
+  /** Only code is searchable: a hit on a fold would scroll to nothing useful. */
   const searchTexts = $derived.by<SearchRow[]>(() => {
     if (mode === "unified") {
       return unified.map((entry) => {
@@ -150,7 +166,7 @@
       });
     }
     return split.map((entry) =>
-      entry.pair ? [entry.pair.left?.text ?? null, entry.pair.right?.text ?? null] : [null, null],
+      entry.kind === "pair" ? [entry.pair.left?.text ?? null, entry.pair.right?.text ?? null] : [null, null],
     );
   });
 
@@ -166,26 +182,34 @@
     queueMicrotask(() => findBar?.focus());
   }
 
-  /** Lines the diff is not showing above each hunk, for the expander. */
-  const hidden = $derived(
-    hunks.map((hunk, index) => gapBetween(index === 0 ? null : (hunks[index - 1] ?? null), hunk)),
-  );
+  /** The block a fold row opens onto, for the Stage, Unstage and Discard it carries. */
+  function blockBelow(index: number): number | null {
+    const next = mode === "unified" ? unified[index + 1] : split[index + 1];
+    return next && next.kind !== "gap" ? next.block : null;
+  }
+
+  /** Ctrl+click opens every fold at once; a fold whose lines are not here asks for them. */
+  function openGap(gap: Gap, how: "up" | "down" | "all", event: MouseEvent) {
+    const whole = event.ctrlKey || event.metaKey;
+    revealed = [...revealed, whole ? { from: 1, to: Number.MAX_SAFE_INTEGER } : revealRange(gap, how)];
+    if (gap.loaded) return;
+    if (onexpand) onexpand(true);
+    else if (diffStore.repo !== null) void diffStore.expand(diffStore.repo, true);
+  }
 
   function sign(cell: SideCell | null): string {
     if (!cell) return "";
-    return cell.kind === "delete" ? "−" : cell.kind === "insert" ? "+" : " ";
+    return cell.kind === "delete" ? "−" : cell.kind === "insert" ? "+" : "";
   }
 
   /** Selecting works on any diff: a commit cannot be staged, but it can be investigated. */
-  function pick(row: import("$lib/ipc").DiffRow) {
+  function pick(row: DiffRow) {
     const key = lineKey(row);
     if (key) selected = toggleLine(selected, key);
   }
 
-  function pickHunk(index: number) {
-    const hunk = hunks[index];
-    if (!hunk) return;
-    const keys = hunkSelection(hunk);
+  function pickBlock(block: number) {
+    const keys = blockKeys(unified, block);
     const all = [...keys].every((key) => selected.has(key));
     const next = new Set(selected);
     for (const key of keys) {
@@ -201,11 +225,9 @@
     selected = new Set();
   }
 
-  /** Stage, Unstage and Discard act on one hunk without disturbing the line selection. */
-  function applyHunk(index: number, reverse: boolean) {
-    const hunk = hunks[index];
-    if (!hunk) return;
-    onstage?.(hunkSelection(hunk), reverse);
+  /** Stage, Unstage and Discard act on one block without disturbing the line selection. */
+  function applyBlock(block: number, reverse: boolean) {
+    onstage?.(blockKeys(unified, block), reverse);
   }
 
   /** The fragment being traced, or `null` while the diff itself is shown. */
@@ -250,10 +272,26 @@
     return mergePieces(cell.text, tokensFor(row), cell.inline, find.spansFor(index, side));
   }
 
+  function settle() {
+    const top = Math.floor(scrollTop / ROW_HEIGHT);
+    const bottom = Math.floor((scrollTop + viewportHeight) / ROW_HEIGHT) - 1;
+    current = changeAt(starts, top, bottom, LEAD);
+  }
+
   function jump(delta: number) {
-    if (headerOffsets.length === 0 || !scroller) return;
-    current = Math.min(Math.max(current + delta, 0), headerOffsets.length - 1);
-    scroller.scrollTop = (headerOffsets[current] ?? 0) * ROW_HEIGHT;
+    const target = current + delta;
+    if (!scroller || target < 0 || target >= starts.length) return;
+    const before = scroller.scrollTop;
+    scroller.scrollTop = Math.max((starts[target] ?? 0) - LEAD, 0) * ROW_HEIGHT;
+    jumping = scroller.scrollTop !== before;
+    current = target;
+  }
+
+  function onscroll() {
+    if (!scroller) return;
+    scrollTop = scroller.scrollTop;
+    if (jumping) jumping = false;
+    else settle();
   }
 
   function onkeydown(event: KeyboardEvent) {
@@ -296,10 +334,17 @@
 
   $effect(() => {
     void path;
-    current = 0;
     find.rewind();
     selected = new Set();
+    revealed = [];
     if (scroller) scroller.scrollTop = 0;
+  });
+
+  /** A new diff, a new layout or a resized view: the arrows follow what is on screen. */
+  $effect(() => {
+    void starts;
+    void viewportHeight;
+    untrack(settle);
   });
 
   /** Typing lands on the first hit. `untrack` keeps a resize from re-scrolling the view. */
@@ -315,24 +360,54 @@
 
 <svelte:window {onkeydown} />
 
-{#snippet hunkActions(index: number)}
+{#snippet blockActions(block: number)}
   {#if stageable}
     <span class="acts">
-      <button type="button" title="Stage this hunk" onclick={() => applyHunk(index, false)}
-        >Stage</button
+      <button type="button" title="Select every changed line of this block" onclick={() => pickBlock(block)}
+        >Select</button
       >
-      <button type="button" title="Unstage this hunk" onclick={() => applyHunk(index, true)}
+      <button type="button" title="Stage this block" onclick={() => applyBlock(block, false)}>Stage</button>
+      <button type="button" title="Unstage this block" onclick={() => applyBlock(block, true)}
         >Unstage</button
       >
       <button
         type="button"
         class="danger"
-        title="Throw this hunk away (always asks first)"
-        onclick={() => askDiscard(hunkSelection(hunks[index]!), `hunk ${index + 1}`)}
-        >Discard</button
+        title="Throw this block away (always asks first)"
+        onclick={() => askDiscard(blockKeys(unified, block), "this block")}>Discard</button
       >
     </span>
   {/if}
+{/snippet}
+
+{#snippet fold(gap: Gap, index: number)}
+  {@const below = blockBelow(index)}
+  <div class="fold" role="group" aria-label="{gap.hidden} lines hidden">
+    {#if gap.up}
+      <button
+        type="button"
+        class="arrow"
+        title="Show 20 more lines above the change below (Ctrl+click: every hidden line)"
+        onclick={(event) => openGap(gap, "up", event)}>▲</button
+      >
+    {/if}
+    <button
+      type="button"
+      class="count"
+      title="Show all {gap.hidden} hidden lines (Ctrl+click: every hidden line in the file)"
+      onclick={(event) => openGap(gap, "all", event)}>{gap.hidden} lines hidden · show</button
+    >
+    {#if gap.down}
+      <button
+        type="button"
+        class="arrow"
+        title="Show 20 more lines below the change above (Ctrl+click: every hidden line)"
+        onclick={(event) => openGap(gap, "down", event)}>▼</button
+      >
+    {/if}
+    {#if gap.context}<span class="where truncate">{gap.context}</span>{/if}
+    {#if below !== null}{@render blockActions(below)}{/if}
+  </div>
 {/snippet}
 
 {#if tracing && diffStore.repo !== null}
@@ -348,10 +423,13 @@
   <div class="bar">
     <span class="path mono truncate">{path}</span>
     {#if diff.kind === "text"}
-      <span class="eol">{diff.eol.old} → {diff.eol.new}</span>
+      {@const eol = eolLabel(diff.eol, diff.hunks)}
+      <span class="eol" title={eol.title}>{eol.text}</span>
       {#if diff.lossyEncoding}<span class="warn">not valid UTF-8</span>{/if}
-      <button type="button" onclick={() => jump(-1)} title="Previous change (Shift+F6)">▲</button>
-      <button type="button" onclick={() => jump(1)} title="Next change (F6)">▼</button>
+      <button type="button" disabled={!nav.prev} onclick={() => jump(-1)} title="Previous change (Shift+F6)"
+        >▲</button
+      >
+      <button type="button" disabled={!nav.next} onclick={() => jump(1)} title="Next change (F6)">▼</button>
       <button
         type="button"
         class:active={find.showing}
@@ -406,7 +484,7 @@
       <button
         type="button"
         class="mode"
-        title="Remembered between runs"
+        title={layoutTip(mode)}
         onclick={() => diffStore.setLayout(mode === "split" ? "unified" : "split")}
       >
         {mode === "split" ? "Unified" : "Side by side"}
@@ -449,7 +527,8 @@
   {:else if diff.kind === "tooLarge"}
     <p class="message">File is too large to diff ({diff.size} bytes).</p>
   {:else}
-    <div class="scroll" bind:this={scroller} onscroll={() => scroller && (scrollTop = scroller.scrollTop)}>
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="scroll" bind:this={scroller} {onscroll} onmouseleave={() => (hoverRow = null)}>
       <div class="rows" style:height="{total * ROW_HEIGHT}px" bind:clientWidth={rowsWidth}>
         {#if mode === "split" && ribbons.length > 0}
           <svg
@@ -467,100 +546,106 @@
         {#if mode === "unified"}
           {#each unified.slice(range.start, range.end) as entry, index (range.start + index)}
             {@const rowIndex = range.start + index}
-            {@const key = entry.kind === "row" ? lineKey(entry.row) : null}
-            <div
-              class="line"
-              class:staging={stageable && key !== null && selected.has(key)}
-              class:marked={!stageable && key !== null && selected.has(key)}
-              style:top="{rowIndex * ROW_HEIGHT}px"
-            >
-              {#if entry.kind === "header"}
-                <span
-                  class="header mono"
-                  class:clickable={stageable}
-                  role="button"
-                  tabindex="-1"
-                  onclick={() => pickHunk(entry.hunk)}
-                  onkeydown={(e) => e.key === "Enter" && pickHunk(entry.hunk)}>{entry.text}</span
-                >
-                {#if onexpand && hidden[entry.hunk]}
-                  <button
-                    type="button"
-                    class="expand mono"
-                    title="Click for 20 more lines, Ctrl+click for the whole file"
-                    onclick={(event) => onexpand?.(event.ctrlKey || event.metaKey)}
-                    >▲ {hidden[entry.hunk]} lines hidden ▲</button
+            {#if entry.kind === "gap"}
+              <div class="line" style:top="{rowIndex * ROW_HEIGHT}px">
+                {@render fold(entry.gap, rowIndex)}
+              </div>
+            {:else}
+              {@const key = lineKey(entry.row)}
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <div
+                class="line"
+                class:staging={stageable && key !== null && selected.has(key)}
+                class:marked={!stageable && key !== null && selected.has(key)}
+                style:top="{rowIndex * ROW_HEIGHT}px"
+                onmouseenter={() => (hoverRow = rowIndex)}
+              >
+                {#if entry.row.kind === "context"}
+                  <span class="gutter"></span>
+                  <span class="num">{entry.row.old}</span>
+                  <span class="num">{entry.row.new}</span>
+                  <span class="sign"></span>
+                  <span class="code mono"
+                    >{#each mergePieces(entry.row.text, tokensFor(entry.row), [], find.spansFor(rowIndex, "left")) as piece, i (i)}<span
+                        class={piece.cls}
+                        class:hit={piece.hit}
+                        class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
+                      >{/each}</span
+                  >
+                {:else if entry.row.kind === "delete"}
+                  {@const row = entry.row}
+                  <span
+                    class="gutter"
+                    class:picked={selected.has("d:" + row.old)}
+                    role="button"
+                    tabindex="-1"
+                    onclick={() => pick(row)}
+                    onkeydown={(e) => e.key === "Enter" && pick(row)}
+                    >{stageable ? (selected.has("d:" + row.old) ? "■" : "□") : ""}</span
+                  >
+                  <span class="num">{row.old}</span>
+                  <span class="num"></span>
+                  <span class="sign del" class:moved={row.moved}>−</span>
+                  <span class="code mono del" class:moved={row.moved}
+                    >{#each mergePieces(row.text, tokensFor(row), row.inline, find.spansFor(rowIndex, "left")) as piece, i (i)}<span
+                        class="{piece.cls}"
+                        class:word={piece.changed}
+                        class:hit={piece.hit}
+                        class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
+                      >{/each}</span
+                  >
+                {:else if entry.row.kind === "insert"}
+                  {@const row = entry.row}
+                  <span
+                    class="gutter"
+                    class:picked={selected.has("i:" + row.new)}
+                    role="button"
+                    tabindex="-1"
+                    onclick={() => pick(row)}
+                    onkeydown={(e) => e.key === "Enter" && pick(row)}
+                    >{stageable ? (selected.has("i:" + row.new) ? "■" : "□") : ""}</span
+                  >
+                  <span class="num"></span>
+                  <span class="num">{row.new}</span>
+                  <span class="sign add" class:moved={row.moved}>+</span>
+                  <span class="code mono add" class:moved={row.moved}
+                    >{#each mergePieces(row.text, tokensFor(row), row.inline, find.spansFor(rowIndex, "left")) as piece, i (i)}<span
+                        class="{piece.cls}"
+                        class:word={piece.changed}
+                        class:hit={piece.hit}
+                        class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
+                      >{/each}</span
                   >
                 {/if}
-                {@render hunkActions(entry.hunk)}
-              {:else if entry.row.kind === "context"}
-                <span class="gutter"></span>
-                <span class="num">{entry.row.old}</span>
-                <span class="num">{entry.row.new}</span>
-                <span class="code mono"
-                  > {#each mergePieces(entry.row.text, tokensFor(entry.row), [], find.spansFor(rowIndex, "left")) as piece, i (i)}<span
-                      class={piece.cls}
-                      class:hit={piece.hit}
-                      class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
-                    >{/each}</span
-                >
-              {:else if entry.row.kind === "delete"}
-                <span
-                  class="gutter"
-                  class:picked={selected.has("d:" + entry.row.old)}
-                  role="button"
-                  tabindex="-1"
-                  onclick={() => pick(entry.row)}
-                  onkeydown={(e) => e.key === "Enter" && pick(entry.row)}
-                  >{stageable ? (selected.has("d:" + entry.row.old) ? "■" : "□") : ""}</span
-                >
-                <span class="num">{entry.row.old}</span>
-                <span class="num"></span>
-                <span class="code mono del" class:moved={entry.row.moved}
-                  >−{#each mergePieces(entry.row.text, tokensFor(entry.row), entry.row.inline, find.spansFor(rowIndex, "left")) as piece, i (i)}<span
-                      class="{piece.cls}"
-                      class:word={piece.changed}
-                      class:hit={piece.hit}
-                      class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
-                    >{/each}</span
-                >
-              {:else if entry.row.kind === "insert"}
-                <span
-                  class="gutter"
-                  class:picked={selected.has("i:" + entry.row.new)}
-                  role="button"
-                  tabindex="-1"
-                  onclick={() => pick(entry.row)}
-                  onkeydown={(e) => e.key === "Enter" && pick(entry.row)}
-                  >{stageable ? (selected.has("i:" + entry.row.new) ? "■" : "□") : ""}</span
-                >
-                <span class="num"></span>
-                <span class="num">{entry.row.new}</span>
-                <span class="code mono add" class:moved={entry.row.moved}
-                  >+{#each mergePieces(entry.row.text, tokensFor(entry.row), entry.row.inline, find.spansFor(rowIndex, "left")) as piece, i (i)}<span
-                      class="{piece.cls}"
-                      class:word={piece.changed}
-                      class:hit={piece.hit}
-                      class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
-                    >{/each}</span
-                >
-              {/if}
-            </div>
+                {#if hoverRow === rowIndex}{@render blockActions(entry.block)}{/if}
+              </div>
+            {/if}
           {/each}
         {:else}
           {#each split.slice(range.start, range.end) as entry, index (range.start + index)}
             {@const rowIndex = range.start + index}
-            <div class="line" style:top="{rowIndex * ROW_HEIGHT}px">
-              {#if entry.header}
-                <span class="header mono">{entry.header}</span>
-                {@render hunkActions(entry.hunk)}
-              {:else if entry.pair}
+            {#if entry.kind === "gap"}
+              <div class="line" style:top="{rowIndex * ROW_HEIGHT}px">
+                {@render fold(entry.gap, rowIndex)}
+              </div>
+            {:else}
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <div
+                class="line"
+                style:top="{rowIndex * ROW_HEIGHT}px"
+                onmouseenter={() => (hoverRow = rowIndex)}
+              >
                 <span class="num">{entry.pair.left?.line ?? ""}</span>
+                <span
+                  class="sign"
+                  class:del={entry.pair.left?.kind === "delete"}
+                  class:moved={entry.pair.left?.moved}>{sign(entry.pair.left)}</span
+                >
                 <span
                   class="code mono side"
                   class:del={entry.pair.left?.kind === "delete"}
                   class:moved={entry.pair.left?.moved}
-                  >{sign(entry.pair.left)}{#each cells(entry.pair.left, rowIndex, "left") as piece, i (i)}<span
+                  >{#each cells(entry.pair.left, rowIndex, "left") as piece, i (i)}<span
                       class="{piece.cls}"
                       class:word={piece.changed}
                       class:hit={piece.hit}
@@ -570,18 +655,24 @@
                 <span class="gap"></span>
                 <span class="num">{entry.pair.right?.line ?? ""}</span>
                 <span
+                  class="sign"
+                  class:add={entry.pair.right?.kind === "insert"}
+                  class:moved={entry.pair.right?.moved}>{sign(entry.pair.right)}</span
+                >
+                <span
                   class="code mono side"
                   class:add={entry.pair.right?.kind === "insert"}
                   class:moved={entry.pair.right?.moved}
-                  >{sign(entry.pair.right)}{#each cells(entry.pair.right, rowIndex, "right") as piece, i (i)}<span
+                  >{#each cells(entry.pair.right, rowIndex, "right") as piece, i (i)}<span
                       class="{piece.cls}"
                       class:word={piece.changed}
                       class:hit={piece.hit}
                       class:current={find.isCurrent(rowIndex, "right", piece.start)}>{piece.text}</span
                     >{/each}</span
                 >
-              {/if}
-            </div>
+                {#if hoverRow === rowIndex}{@render blockActions(entry.block)}{/if}
+              </div>
+            {/if}
           {/each}
         {/if}
       </div>
@@ -598,12 +689,15 @@
     min-height: 0;
   }
 
+  /* Chrome, not content: the raised surface and a rule set it apart from the diff (#18). */
   .bar {
     display: flex;
     align-items: center;
     gap: var(--sp-3);
     flex: 0 0 auto;
-    padding: var(--sp-3) var(--sp-4);
+    min-height: 32px;
+    padding: var(--sp-2) var(--sp-4);
+    background: var(--surface-raised);
     border-bottom: 1px solid var(--divider);
     font-size: var(--fs-dense);
   }
@@ -693,9 +787,21 @@
 
   .acts {
     display: flex;
+    align-items: center;
     gap: var(--sp-2);
     flex: 0 0 auto;
+    margin-left: auto;
     padding-right: var(--sp-3);
+  }
+
+  /* On a code row the buttons float over the end of the line instead of pushing it. */
+  .line > .acts {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    padding-left: var(--sp-3);
+    background: var(--surface-panel);
   }
 
   .acts button {
@@ -748,10 +854,6 @@
     flex: 1 1 auto;
   }
 
-  .header.clickable:hover {
-    color: var(--status-add);
-  }
-
   .picked {
     color: var(--status-add);
     font-size: 10px;
@@ -773,6 +875,34 @@
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+    user-select: text;
+  }
+
+  /* The +/− column: its own, two spaces clear of the code, never copied with it (#9). */
+  .sign {
+    flex: 0 0 auto;
+    width: 3.5ch;
+    padding-left: 0.5ch;
+    box-sizing: border-box;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: var(--fs-code);
+    user-select: none;
+  }
+
+  .sign.del {
+    background: var(--c-deleted-bg, rgb(90 40 40 / 35%));
+    color: var(--status-delete);
+  }
+
+  .sign.add {
+    background: var(--c-added-bg, rgb(40 80 45 / 35%));
+    color: var(--status-add);
+  }
+
+  .sign.moved {
+    background: var(--c-stash-bg, rgb(70 60 95 / 35%));
+    color: var(--status-stash);
   }
 
   .side {
@@ -846,27 +976,51 @@
     color: var(--status-add);
   }
 
-  .expand {
-    margin-left: var(--sp-4);
-    padding: 0 var(--sp-3);
+  /* Where @@ used to be: one band across both halves, saying what is hidden (#16). */
+  .fold {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-left: var(--sp-4);
     background: var(--surface-raised);
+    box-shadow:
+      inset 0 1px 0 var(--divider),
+      inset 0 -1px 0 var(--divider);
     color: var(--text-secondary);
+    font-family: var(--font-ui);
+    font-size: var(--fs-header);
+  }
+
+  .fold > button {
+    flex: 0 0 auto;
+    height: 14px;
+    padding: 0 var(--sp-2);
+    background: none;
     border: 0;
     border-radius: var(--r-sm);
-    font-family: var(--font-mono);
-    font-size: var(--fs-header);
+    color: var(--text-secondary);
+    font: inherit;
+    line-height: 14px;
     cursor: default;
   }
 
-  .expand:hover {
+  .fold > button:hover {
+    background: var(--state-hover);
     color: var(--text-primary);
   }
 
-  .header {
-    flex: 1 1 auto;
-    padding-left: var(--sp-4);
-    color: var(--status-ref);
-    background: var(--surface-raised);
+  .fold .arrow {
+    font-size: 9px;
+  }
+
+  .where {
+    min-width: 0;
+    margin-left: var(--sp-3);
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    opacity: 0.8;
   }
 
   .message.warn {
