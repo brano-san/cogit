@@ -252,6 +252,17 @@ export const PAGE = String.raw`(() => {
       const r = el.getBoundingClientRect();
       return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
     },
+    /** Fixed work: how much slower than usual the renderer runs right now. */
+    calibrate() {
+      const start = now();
+      let h = 2166136261;
+      for (let i = 0; i < 8000000; i += 1) {
+        h ^= i;
+        h = Math.imul(h, 16777619);
+      }
+      window.__benchSink = h;
+      return now() - start;
+    },
     exists: (spec) => window.__bench.locate(spec) !== null,
     attr: (spec, name) => window.__bench.locate(spec)?.getAttribute(name) ?? null,
     state,
