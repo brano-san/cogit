@@ -52,6 +52,11 @@ class DiffStore {
     return this.#repo;
   }
 
+  /** Lines kept around a change when the view folds a diff that carries the whole file. */
+  get foldContext(): number {
+    return settings.diffOptions.contextLines;
+  }
+
   get stageable(): boolean {
     return this.spec?.kind === "workTreeVsIndex" || this.spec?.kind === "indexVsHead";
   }

@@ -263,7 +263,9 @@ author, email, timestamp, path, diff }`, новые сверху. `path` — и�
 
 `FileDiff` — размеченное объединение по полю `kind`: `text`, `eolOnly`, `binary`,
 `image`, `tooLarge`, `unchanged`. Вариант `text` несёт ханки, сведения об окончаниях
-строк, флаг `lossyEncoding` и подсказку грамматики для Lezer.
+строк, флаг `lossyEncoding`, подсказку грамматики для Lezer и `oldTotal`/`newTotal` —
+число строк каждой стороны: по ним панель знает, сколько строк скрыто под последним ханком
+(#16, R-271).
 
 `DiffOptions` — `algorithm`, `contextLines`, `ignoreWhitespace`, `ignoreBlankLines`,
 `wordDiff`, `detectMoves`. Значения приходят из настроек (F-078); `detectMoves`
