@@ -35,6 +35,17 @@ export function onWindowKey(event: KeyboardEvent): void {
   }
 }
 
+/** Items of the window's own menu bar other than Close: Rust dispatches them into this one
+    webview as `cogit-menu` DOM events (`child_window::on_menu`). */
+export function onMenuAction(target: EventTarget, handler: (action: string) => void): () => void {
+  const listener = (event: Event) => {
+    const action = (event as CustomEvent<unknown>).detail;
+    if (typeof action === "string") handler(action);
+  };
+  target.addEventListener("cogit-menu", listener);
+  return () => target.removeEventListener("cogit-menu", listener);
+}
+
 /** Read by the fallback in the window's HTML, which closes on `Esc` only while nothing
     else can. */
 interface ChildGlobals {

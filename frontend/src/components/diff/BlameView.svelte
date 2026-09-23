@@ -2,92 +2,50 @@
   import VirtualList from "$components/common/VirtualList.svelte";
   import { settings } from "$stores/settings.svelte";
   import { shortOid } from "$lib/format";
+  import { BLAME_ROW_HEIGHT as ROW_HEIGHT, startsBlock } from "$lib/blame-window";
   import type { BlameLine } from "$lib/ipc";
 
   interface Props {
     lines: readonly BlameLine[];
-    path: string;
-    onselect: (oid: string) => void;
-    onclose?: () => void;
+    /** Index of the current line, whose history the window shows. */
+    cursor: number;
+    /** Commits whose lines `Highlight: Changes Since` marks. */
+    highlighted: ReadonlySet<string>;
+    onpick: (at: number) => void;
   }
 
-  let { lines, path, onselect, onclose }: Props = $props();
-
-  const ROW_HEIGHT = 18;
-
-  /** Only the first line of a run shows the annotation, as `git blame` does. */
-  function startsRun(at: number): boolean {
-    return at === 0 || lines[at - 1]?.oid !== lines[at]?.oid;
-  }
+  let { lines, cursor, highlighted, onpick }: Props = $props();
 </script>
 
-<div class="blame">
-  <div class="bar">
-    <span class="path mono truncate">{path}</span>
-    <span class="count tabular">{lines.length} lines</span>
-    {#if onclose}
-      <button type="button" class="close" title="Close blame" onclick={() => onclose()}>✕</button>
-    {/if}
-  </div>
-
-  <VirtualList items={lines} rowHeight={ROW_HEIGHT} buffer={12} label="Blame">
-    {#snippet row(line, at)}
-        <div class="line" style:top="{at * ROW_HEIGHT}px">
-          {#if startsRun(at)}
-            <span
-              class="annotation truncate"
-              role="button"
-              tabindex="-1"
-              title="{line.summary} — {line.author}"
-              onclick={() => onselect(line.oid)}
-              onkeydown={(e) => e.key === "Enter" && onselect(line.oid)}
-            >
-              <span class="oid mono">{shortOid(line.oid)}</span>
-              <span class="author truncate">{line.author}</span>
-              <span class="date tabular">{settings.formatDate(line.timestamp, 0)}</span>
-            </span>
-          {:else}
-            <span class="annotation"></span>
-          {/if}
-          <span class="num tabular">{line.line}</span>
-          <span class="code mono">{line.text}</span>
-        </div>
-    {/snippet}
-  </VirtualList>
-</div>
+<VirtualList items={lines} rowHeight={ROW_HEIGHT} buffer={12} label="Blame" reveal={cursor}>
+  {#snippet row(line, at)}
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <div
+      class="line"
+      class:current={at === cursor}
+      class:changed={highlighted.has(line.oid)}
+      style:top="{at * ROW_HEIGHT}px"
+      role="option"
+      tabindex="-1"
+      aria-selected={at === cursor}
+      onclick={() => onpick(at)}
+    >
+      {#if startsBlock(lines, at)}
+        <span class="annotation truncate" title="{line.summary} — {line.author}">
+          <span class="oid mono">{shortOid(line.oid)}</span>
+          <span class="author truncate">{line.author}</span>
+          <span class="date tabular">{settings.formatDate(line.timestamp, 0)}</span>
+        </span>
+      {:else}
+        <span class="annotation"></span>
+      {/if}
+      <span class="num tabular">{line.line}</span>
+      <span class="code mono">{line.text}</span>
+    </div>
+  {/snippet}
+</VirtualList>
 
 <style>
-  .blame {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    min-height: 0;
-  }
-
-  .bar {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-3);
-    flex: 0 0 auto;
-    padding: var(--sp-3) var(--sp-4);
-    border-bottom: 1px solid var(--divider);
-    font-size: var(--fs-dense);
-  }
-
-  .path {
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-
-  .count {
-    color: var(--text-secondary);
-    font-size: 11px;
-  }
-
-  .close {
-    flex: 0 0 auto;
-  }
-
   .line {
     position: absolute;
     left: 0;
@@ -97,6 +55,15 @@
     height: 18px;
     font-size: var(--fs-code);
     white-space: pre;
+    cursor: default;
+  }
+
+  .line.changed {
+    background: var(--c-modified-bg);
+  }
+
+  .line.current {
+    background: var(--state-selected);
   }
 
   .annotation {
@@ -105,15 +72,11 @@
     gap: var(--sp-3);
     flex: 0 0 auto;
     width: 240px;
+    height: 100%;
     padding: 0 var(--sp-4);
     color: var(--text-secondary);
     font-size: 10px;
     border-right: 1px solid var(--divider);
-    cursor: default;
-  }
-
-  .annotation:hover {
-    color: var(--status-ref);
   }
 
   .oid {
@@ -137,6 +100,7 @@
     font-family: var(--font-mono);
     font-size: 10px;
     text-align: right;
+    user-select: none;
   }
 
   .code {
