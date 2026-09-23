@@ -231,6 +231,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::rollback_to,
             commands::is_published,
             commands::toolbar::is_merged_into_head,
+            commands::toolbar::delete_merged_branches,
             commands::split_off,
             commands::rebase_todo,
             commands::interactive_rebase,

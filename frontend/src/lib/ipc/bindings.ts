@@ -267,6 +267,11 @@ export const commands = {
 	isPublished: (repo: RepoId, rev: string) => typedError<boolean, GitError>(__TAURI_INVOKE("is_published", { repo, rev })),
 	/**  Merge is offered only for a commit HEAD does not already contain (task #31). */
 	isMergedIntoHead: (repo: RepoId, rev: string) => typedError<boolean, GitError>(__TAURI_INVOKE("is_merged_into_head", { repo, rev })),
+	/**
+	 *  After a pull: local branches merged into HEAD whose upstream the remote deleted.
+	 *  Returns the names that were deleted.
+	 */
+	deleteMergedBranches: (repo: RepoId) => typedError<string[], GitError>(__TAURI_INVOKE("delete_merged_branches", { repo })),
 	splitOff: (repo: RepoId, rev: string, paths: string[], message: string, splitFirst: boolean) => typedError<null, GitError>(__TAURI_INVOKE("split_off", { repo, rev, paths, message, splitFirst })),
 	rebaseTodo: (repo: RepoId, base: string) => typedError<TodoEntry[], GitError>(__TAURI_INVOKE("rebase_todo", { repo, base })),
 	interactiveRebase: (repo: RepoId, base: string, plan: TodoEntry[], paused: boolean) => typedError<null, GitError>(__TAURI_INVOKE("interactive_rebase", { repo, base, plan, paused })),
