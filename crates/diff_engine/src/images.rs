@@ -31,11 +31,12 @@ const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwx
 
 #[must_use]
 pub fn data_url(mime: &str, data: &[u8]) -> String {
-    let mut out = String::with_capacity(data.len().div_ceil(3) * 4 + mime.len() + 16);
-    out.push_str("data:");
-    out.push_str(mime);
-    out.push_str(";base64,");
+    format!("data:{mime};base64,{}", base64(data))
+}
 
+#[must_use]
+pub fn base64(data: &[u8]) -> String {
+    let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
     for chunk in data.chunks(3) {
         let b = [
             chunk[0],

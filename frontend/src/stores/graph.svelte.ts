@@ -5,15 +5,11 @@ import {
   graphWindow,
   loadGraph,
   type CommitQuery,
-  type CommitRow,
-  type GraphRow,
   type RepoId,
 } from "$lib/ipc";
+import type { GraphBlock, GraphEntry } from "$lib/graph-wire";
 
-export interface GraphEntry {
-  commit: CommitRow;
-  layout: GraphRow;
-}
+export type { GraphEntry };
 
 /** Rows per request. A screen is about forty; the next block is asked for early. */
 const BLOCK = 128;
@@ -28,7 +24,7 @@ interface Walk {
   generation: number | null;
   total: number;
   complete: boolean;
-  blocks: Map<number, GraphEntry[]>;
+  blocks: Map<number, GraphBlock>;
   asking: Set<number>;
 }
 
@@ -75,7 +71,9 @@ class GraphStore {
 
   rowAt(index: number): GraphEntry | undefined {
     void this.#arrived;
-    return this.#shown?.blocks.get(Math.floor(index / BLOCK))?.[index % BLOCK];
+    const block = this.#shown?.blocks.get(Math.floor(index / BLOCK));
+    const at = index % BLOCK;
+    return block && at < block.length ? block.entry(at) : undefined;
   }
 
   /** How many rows are held here rather than in Rust. */
@@ -96,7 +94,7 @@ class GraphStore {
   loadedIndexOf(oid: string | null): number | null {
     if (!oid || !this.#shown) return null;
     for (const [index, block] of this.#shown.blocks) {
-      const at = block.findIndex((entry) => entry.commit.oid === oid);
+      const at = block.find(oid);
       if (at >= 0) return index * BLOCK + at;
     }
     return null;
@@ -201,12 +199,9 @@ class GraphStore {
     if (of.generation === null || of.asking.has(index)) return;
     of.asking.add(index);
     try {
-      const window = await graphWindow(of.repo, of.generation, index * BLOCK, BLOCK);
-      if (!window) return;
-      of.blocks.set(
-        index,
-        window.commits.map((commit, i) => ({ commit, layout: window.rows[i]! })),
-      );
+      const block = await graphWindow(of.repo, of.generation, index * BLOCK, BLOCK);
+      if (!block) return;
+      of.blocks.set(index, block);
       this.#evict(of);
     } catch (err) {
       if (of === this.#shown) this.error = asError(err);

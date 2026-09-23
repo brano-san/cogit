@@ -28,8 +28,10 @@ const commands = {
         start,
         total: rows.length,
         complete: false,
-        commits: oids.map((oid) => ({ oid })),
-        rows: oids.map((_, i) => ({ row: start + i })),
+        length: oids.length,
+        oid: (row: number) => oids[row],
+        find: (oid: string) => oids.indexOf(oid),
+        entry: (row: number) => ({ commit: { oid: oids[row] }, layout: { row: start + row } }),
       },
     };
   }),
@@ -41,6 +43,7 @@ const commands = {
 
 vi.mock("@tauri-apps/api/core", () => ({ Channel }));
 vi.mock("$lib/ipc/bindings", () => ({ commands }));
+vi.mock("$lib/graph-wire", () => ({ decodeBase64Window: (block: unknown) => block }));
 
 const { graph } = await import("./graph.svelte");
 

@@ -25,6 +25,7 @@ app_state.workspace = true
 diff_engine.workspace = true
 fs_watcher.workspace = true
 git_engine.workspace = true
+graph_engine.workspace = true
 
 tauri.workspace = true
 tauri-specta.workspace = true

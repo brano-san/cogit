@@ -1,6 +1,6 @@
 use app_state::{
-    DEFAULT_CHUNK_SIZE, GraphProgress, GraphWindow, OperationKind, RepoId, RepoOverview,
-    RepoSummary, SafetyEntry,
+    DEFAULT_CHUNK_SIZE, GraphProgress, OperationKind, RepoId, RepoOverview, RepoSummary,
+    SafetyEntry,
 };
 use diff_engine::{DiffOptions, FileDiff, PatchRequest};
 use git_engine::{BlameLine, CommitRow, ConflictSide, Found, Submodule};
@@ -536,7 +536,9 @@ pub async fn load_commits(
     Ok(skipped)
 }
 
-/// `None` once a newer graph replaced `generation`: the answer would be for other rows.
+/// Columns of the rows (`app_state::graph_wire`) in base64: one string for the
+/// `postMessage` transport to carry, not a JSON array of numbers (R-192, R-194). Empty
+/// once a newer graph replaced `generation`, as the answer would be for other rows.
 #[tauri::command]
 #[specta::specta]
 pub async fn graph_window(
@@ -545,8 +547,12 @@ pub async fn graph_window(
     generation: u32,
     start: u32,
     count: u32,
-) -> Result<Option<GraphWindow>, GitError> {
-    Ok(state.state.graph_window(repo, generation, start, count))
+) -> Result<String, GitError> {
+    let window = state.state.graph_window(repo, generation, start, count);
+    let bytes = window
+        .map(|w| app_state::graph_wire::encode(&w))
+        .unwrap_or_default();
+    Ok(diff_engine::base64(&bytes))
 }
 
 #[tauri::command]
