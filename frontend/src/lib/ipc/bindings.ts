@@ -97,6 +97,15 @@ export const commands = {
 	updateSubmodule: (repo: RepoId, path: string, init: boolean) => typedError<null, GitError>(__TAURI_INVOKE("update_submodule", { repo, path, init })),
 	stageSelection: (repo: RepoId, request: PatchRequest, reverse: boolean) => typedError<null, GitError>(__TAURI_INVOKE("stage_selection", { repo, request, reverse })),
 	blame: (repo: RepoId, path: string, rev: string) => typedError<BlameLine[], GitError>(__TAURI_INVOKE("blame", { repo, path, rev })),
+	/**
+	 *  The Blame window for `path` at `rev`, titled with the commit `rev` resolves to. The one
+	 *  way blame opens, from every menu and button (#10).
+	 */
+	openBlameWindow: (repo: RepoId, path: string, rev: string) => typedError<null, GitError>(__TAURI_INVOKE("open_blame_window", { repo, path, rev })),
+	/**  The commits that made line `line` of `path` at `rev` what it is, newest first. */
+	lineHistory: (repo: RepoId, path: string, rev: string, line: number) => typedError<LineVersion[], GitError>(__TAURI_INVOKE("line_history", { repo, path, rev, line })),
+	/**  The versions of `path` up to `rev`: the commits that changed it, newest first. */
+	fileRevisions: (repo: RepoId, path: string, rev: string) => typedError<CommitRow[], GitError>(__TAURI_INVOKE("file_revisions", { repo, path, rev })),
 	remoteUrl: (repo: RepoId, name: string) => typedError<string | null, GitError>(__TAURI_INVOKE("remote_url", { repo, name })),
 	addToGitignore: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("add_to_gitignore", { repo, paths })),
 	deleteUntracked: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("delete_untracked", { repo, paths })),
@@ -781,6 +790,20 @@ export type KeyBinding = {
 };
 
 export type LineEnding = "lf" | "crlf" | "cr" | "mixed" | "none";
+
+/**  One version of a line: the commit that left it looking like this. */
+export type LineVersion = {
+	oid: string,
+	summary: string,
+	author: string,
+	email: string,
+	timestamp: number,
+	/**  The path the file had at this commit. */
+	path: string,
+	/**  Where the line stood in that version, from 1. */
+	line: number,
+	text: string,
+};
 
 /**
  *  A native menu item was chosen. The payload is the palette command id, so the frontend
