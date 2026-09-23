@@ -6,6 +6,9 @@ import {
   SEPARATOR,
   groupsOf,
   menuOf,
+  NO_MENU_CONTEXT,
+  type MenuContext,
+  type MenuEntry,
   reasonOf,
   refAt,
   splitMarked,
@@ -224,5 +227,50 @@ describe("every button", () => {
     for (const action of ACTIONS) {
       expect(menuOf(action.id).length > 0, action.id).toBe(Boolean(action.split));
     }
+  });
+});
+
+describe("the Pull menu", () => {
+  const menu = (over: Partial<MenuContext> = {}) =>
+    menuOf("pull", { ...NO_MENU_CONTEXT, remotes: ["origin", "custom-controls", "beta"], current: "origin", ...over });
+  const labels = (entries: MenuEntry[]) =>
+    entries.map((entry) => (entry.kind === "separator" ? "—" : entry.label));
+
+  it("lists Pull, the fetches with the current remote first, Fetch All, then the options", () => {
+    expect(labels(menu())).toEqual([
+      "Pull",
+      "—",
+      "Fetch 'origin' (current)",
+      "Fetch 'beta'",
+      "Fetch 'custom-controls'",
+      "Fetch All",
+      "—",
+      "Pull Uses the Current Remote",
+      "Pull Uses All Remotes",
+      "—",
+      "Delete Merged Branches after Pull",
+    ]);
+  });
+
+  it("builds one fetch per remote of the repository", () => {
+    const ids = menu({ remotes: ["upstream"], current: "upstream" })
+      .filter((entry) => entry.kind === "item")
+      .map((entry) => entry.id);
+    expect(ids).toEqual(["pull", "fetch-remote:upstream", "fetch-remotes"]);
+  });
+
+  it("ticks the remembered choices", () => {
+    const checked = menu({
+      prefs: { ...NO_MENU_CONTEXT.prefs, pullScope: "all", deleteMergedAfterPull: true },
+    })
+      .flatMap((entry) => (entry.kind === "radio" || entry.kind === "check" ? [entry] : []))
+      .filter((entry) => entry.checked)
+      .map((entry) => entry.id);
+    expect(checked).toEqual(["pull-scope:all", "delete-merged"]);
+  });
+
+  it("offers a per-remote fetch under the fetch rule", () => {
+    expect(reasonOf("fetch-remote:origin", facts({ remote: true }))).toBeUndefined();
+    expect(reasonOf("fetch-remote:origin", facts())).toBe("This repository has no remote");
   });
 });

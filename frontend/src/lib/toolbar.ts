@@ -4,6 +4,8 @@
  * Kept out of the component so the rules can be tested; the component only draws them.
  */
 
+import { DEFAULT_PREFS, remotesInOrder, type ToolbarPrefs } from "$lib/toolbar-prefs";
+
 /** Inapplicable actions are disabled, not hidden, so buttons never move under the cursor. */
 export interface ToolbarAction {
   id: string;
@@ -147,21 +149,74 @@ export type MenuEntry =
   | { kind: "radio" | "check"; id: string; label: string; hint: string; checked: boolean }
   | { kind: "separator" };
 
+/** What the dropdowns are built from besides the fixed entries. */
+export interface MenuContext {
+  remotes: readonly string[];
+  /** The remote Pull uses; see `currentRemote`. */
+  current: string | null;
+  prefs: ToolbarPrefs;
+}
+
+export const NO_MENU_CONTEXT: MenuContext = { remotes: [], current: null, prefs: DEFAULT_PREFS };
+
+const item = (id: string, label: string, hint: string): MenuEntry => ({
+  kind: "item",
+  id,
+  label,
+  hint,
+});
+
+function pullMenu(context: MenuContext): MenuEntry[] {
+  const { prefs } = context;
+  const fetches = remotesInOrder(context.remotes, context.current).map((remote) =>
+    item(
+      `fetch-remote:${remote}`,
+      remote === context.current ? `Fetch '${remote}' (current)` : `Fetch '${remote}'`,
+      `Update the refs of ${remote}; change nothing here`,
+    ),
+  );
+  return [
+    item(
+      "pull",
+      "Pull",
+      prefs.pullScope === "all"
+        ? "Fetch every remote, then merge from the current one"
+        : "Fetch the current remote, then merge",
+    ),
+    { kind: "separator" },
+    ...fetches,
+    item("fetch-remotes", "Fetch All", "Update the refs of every remote of this repository"),
+    { kind: "separator" },
+    {
+      kind: "radio",
+      id: "pull-scope:current",
+      label: "Pull Uses the Current Remote",
+      hint: "The Pull button fetches only the remote the branch tracks",
+      checked: prefs.pullScope === "current",
+    },
+    {
+      kind: "radio",
+      id: "pull-scope:all",
+      label: "Pull Uses All Remotes",
+      hint: "The Pull button fetches every remote before it merges",
+      checked: prefs.pullScope === "all",
+    },
+    { kind: "separator" },
+    {
+      kind: "check",
+      id: "delete-merged",
+      label: "Delete Merged Branches after Pull",
+      hint: "Delete local branches merged into HEAD whose upstream the remote deleted",
+      checked: prefs.deleteMergedAfterPull,
+    },
+  ];
+}
+
 /** The dropdown of a split button. */
-export function menuOf(id: string): MenuEntry[] {
-  const item = (entry: string, label: string, hint: string): MenuEntry => ({
-    kind: "item",
-    id: entry,
-    label,
-    hint,
-  });
+export function menuOf(id: string, context: MenuContext = NO_MENU_CONTEXT): MenuEntry[] {
   switch (id) {
     case "pull":
-      return [
-        item("fetch", "Fetch", "Update the remote refs, change nothing here"),
-        item("pull", "Pull", "Fetch, then merge"),
-        item("fetch-all", "Fetch All", "Every remote of every open repository"),
-      ];
+      return pullMenu(context);
     case "stash":
       return [
         item("stash", "Stash All", "Everything in the working tree"),
@@ -255,8 +310,10 @@ const RULES: Record<string, Rule> = {
   pull: needRemote,
   push: needRemote,
   sync: needRemote,
-  fetch: needRemote,
-  "fetch-all": needRemote,
+  "fetch-remote": needRemote,
+  "fetch-remotes": needRemote,
+  "pull-scope": needRemote,
+  "delete-merged": needRemote,
   stage: (f) =>
     needWorkingTree(f) ??
     (anyMarked(f)
@@ -296,9 +353,10 @@ const RULES: Record<string, Rule> = {
   undo: (f) => needRepository(f) ?? (f.undo ? undefined : "Nothing to undo"),
 };
 
-/** Why the action cannot run, or `undefined` when it can. An unknown id is never offered. */
+/** Why the action cannot run, or `undefined` when it can. An unknown id is never offered;
+    `fetch-remote:origin` follows the rule of `fetch-remote`. */
 export function reasonOf(id: string, facts: ToolbarFacts): string | undefined {
-  const rule = RULES[id];
+  const rule = RULES[id] ?? RULES[id.split(":")[0] ?? ""];
   return rule ? rule(facts) : "Not built yet";
 }
 

@@ -48,7 +48,8 @@
   import { shortOid } from "$lib/format";
   import { checkedIds, disabledIds, type PaletteCommand } from "$lib/palette";
   import { reasonFor, type Context } from "$lib/availability";
-  import { refAt, splitMarked, targetsOf, type ToolbarFacts } from "$lib/toolbar";
+  import { refAt, splitMarked, targetsOf, type MenuContext, type ToolbarFacts } from "$lib/toolbar";
+  import { currentRemote, pullSteps } from "$lib/toolbar-prefs";
   import { toolbar } from "$stores/toolbar.svelte";
   import { allowsSelectAll, settle, step } from "$lib/panel-focus";
   import { pullRequestUrl } from "$lib/pull-request";
@@ -86,6 +87,7 @@
     findObject,
     interactiveRebase,
     isPublished,
+    deleteMergedBranches,
     protectingRefs,
     rebaseProgress,
     rebaseTodo,
@@ -300,6 +302,7 @@
       });
       void settings.loadBindings();
       void health.loadIgnored();
+      void toolbar.load();
       void terminalChoices().then((found) => (terminals = found));
       const wanted = session.active;
       const remembered = wanted === null ? null : session.selected(wanted);
@@ -453,6 +456,14 @@
     undo: safety.last !== undefined,
   });
 
+  const pullRemote = $derived(currentRemote(tracked?.upstream, network.remotes));
+
+  const toolbarMenus = $derived<MenuContext>({
+    remotes: network.remotes,
+    current: pullRemote,
+    prefs: toolbar.prefs,
+  });
+
   const palette = $derived.by<PaletteCommand[]>(() => {
     const noRepo = reasonFor({ repository: true }, commands);
     const noRemote = reasonFor({ remote: true }, commands);
@@ -461,7 +472,7 @@
     return [
       { id: "open", title: "Open Repository…", run: () => void pickRepository() },
       { id: "fetch", title: "Fetch", unavailable: noRepo ?? noRemote, run: () => void runNetwork("fetch") },
-      { id: "pull", title: "Pull", unavailable: noRepo ?? noRemote, run: () => void runNetwork("pull") },
+      { id: "pull", title: "Pull", unavailable: noRepo ?? noRemote, run: () => void pullNow() },
       { id: "push", title: "Push", unavailable: noRepo ?? noRemote, run: () => void runNetwork("push") },
       {
         id: "stash",
@@ -1411,6 +1422,38 @@
       errors.report(err, `Could not ${kind}`);
       await afterMutation();
       return;
+    }
+    await afterRefChange();
+  }
+
+  /** Pull as the toolbar's own choices say: which remotes to fetch first, whether to delete
+      merged branches afterwards, and the fast-forward setting from Preferences (#26). */
+  async function pullNow() {
+    const id = repository.current?.repo;
+    if (!id) return;
+    if (!pullRemote) {
+      errors.message("This repository has no remote.", "Could not pull");
+      return;
+    }
+    const plan = pullSteps(toolbar.prefs.pullScope, network.remotes, pullRemote);
+    try {
+      for (const remote of plan.fetch) await network.fetch(id, remote);
+      await network.pull(id, plan.pull, settings.current.pullMode === "ffOnly");
+      if (toolbar.prefs.deleteMergedAfterPull) await deleteMergedBranches(id);
+    } catch (err) {
+      errors.report(err, "Could not pull");
+      await afterMutation();
+      return;
+    }
+    await afterRefChange();
+  }
+
+  /** One failure does not stop the other remotes. */
+  async function fetchRemotes(names: readonly string[]) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    for (const remote of names) {
+      await network.fetch(id, remote).catch((err) => errors.report(err, `Could not fetch ${remote}`));
     }
     await afterRefChange();
   }
@@ -2701,6 +2744,7 @@
 <div class="app">
   <Toolbar
     facts={toolbarFacts}
+    menus={toolbarMenus}
     undoable={safety.last?.description}
     handlers={repo
       ? {
@@ -2708,11 +2752,15 @@
           stash: stashAll,
           "stash-selection": stashSelected,
           tag: tagHead,
-          pull: () => void runNetwork("pull"),
+          pull: () => void pullNow(),
           push: () => void runNetwork("push"),
           sync: () => void runNetwork("fetch"),
-          fetch: () => void runNetwork("fetch"),
-          "fetch-all": () => void fetchAll(),
+          "fetch-remote": (remote) => void fetchRemotes(remote ? [remote] : []),
+          "fetch-remotes": () => void fetchRemotes(network.remotes),
+          "pull-scope": (scope) =>
+            void toolbar.set("pullScope", scope === "all" ? "all" : "current"),
+          "delete-merged": () =>
+            void toolbar.set("deleteMergedAfterPull", !toolbar.prefs.deleteMergedAfterPull),
           stage: () => void stage(targetsOf("stage", toolbarFacts)),
           unstage: () => void unstage(targetsOf("unstage", toolbarFacts)),
           discard: () => void discard(targetsOf("discard", toolbarFacts)),

@@ -268,3 +268,4 @@
 | F-294 | Одна подсветка у кнопок тулбара | [F-294-toolbar-single-hover.md](F-294-toolbar-single-hover.md) |
 | F-295 | Уровни деревьев выровнены | [F-295-tree-levels-aligned.md](F-295-tree-levels-aligned.md) |
 | F-310 | Кнопки тулбара следуют выбору | [F-310-toolbar-follows-selection.md](F-310-toolbar-follows-selection.md) |
+| F-311 | Меню Pull: remotes, режим Pull и удаление слитых веток | [F-311-pull-menu-remotes.md](F-311-pull-menu-remotes.md) |

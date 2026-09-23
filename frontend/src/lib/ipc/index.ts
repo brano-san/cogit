@@ -716,6 +716,10 @@ export async function isMergedIntoHead(repo: RepoId, rev: string) {
   return unwrap(await commands.isMergedIntoHead(repo, rev));
 }
 
+export async function deleteMergedBranches(repo: RepoId) {
+  return unwrap(await commands.deleteMergedBranches(repo));
+}
+
 export async function splitOff(
   repo: RepoId,
   rev: string,

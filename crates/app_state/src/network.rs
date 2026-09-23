@@ -46,6 +46,25 @@ impl AppState {
         handle.push(remote, None, force, token.as_deref(), on_line)
     }
 
+    /// Pull ▸ Delete merged branches after Pull (#26). Each deletion is journalled, so
+    /// Undo brings a branch back; one that refuses is logged and the rest still go.
+    pub fn delete_merged_branches(
+        &self,
+        repo: RepoId,
+    ) -> Result<Vec<String>, git_engine::GitError> {
+        let names = self.handle(repo)?.merged_gone_branches()?;
+        let mut deleted = Vec::with_capacity(names.len());
+        for name in names {
+            match self.delete_branch(repo, &name, false) {
+                Ok(()) => deleted.push(name),
+                Err(err) => {
+                    tracing::error!(error = ?err, branch = %name, context = "failed to delete a merged branch");
+                }
+            }
+        }
+        Ok(deleted)
+    }
+
     /// Only for an HTTP remote: SSH already authenticates through the agent, and handing
     /// a token to an unknown host would leak it.
     fn token_for(&self, handle: &git_engine::RepoHandle, remote: &str) -> Option<String> {

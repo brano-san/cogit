@@ -6,6 +6,8 @@
     groupsOf,
     menuOf,
     reasonOf,
+    NO_MENU_CONTEXT,
+    type MenuContext,
     type MenuEntry,
     type ToolbarAction,
     type ToolbarFacts,
@@ -19,9 +21,17 @@
     /** The selection and repository state the rules read (task #31). */
     facts: ToolbarFacts;
     layout?: readonly string[];
+    /** Remotes and remembered choices the dropdowns are built from. */
+    menus?: MenuContext;
   }
 
-  let { undoable, handlers = {}, facts, layout = DEFAULT_LAYOUT }: Props = $props();
+  let {
+    undoable,
+    handlers = {},
+    facts,
+    layout = DEFAULT_LAYOUT,
+    menus = NO_MENU_CONTEXT,
+  }: Props = $props();
 
   const groups = $derived(groupsOf(layout));
 
@@ -50,7 +60,7 @@
   let openAt = $state(0);
 
   const openMenuOf = $derived<MenuEntry[] | null>(
-    open === null || open === "overflow" ? null : menuOf(open),
+    open === null || open === "overflow" ? null : menuOf(open, menus),
   );
 
   function openMenu(id: string, event: MouseEvent) {
