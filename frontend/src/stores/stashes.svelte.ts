@@ -1,4 +1,13 @@
-import { listStashes, stashApply, stashDrop, stashPush, type RepoId, type StashEntry } from "$lib/ipc";
+import {
+  listStashes,
+  stashApply,
+  stashDrop,
+  stashKeepingWorktree,
+  stashPush,
+  type RepoId,
+  type StashEntry,
+} from "$lib/ipc";
+import { stashRequest, type StashChoice } from "$lib/stash-modes";
 
 class StashStore {
   entries = $state.raw<StashEntry[]>([]);
@@ -9,6 +18,17 @@ class StashStore {
 
   async push(repo: RepoId, message: string, includeUntracked: boolean): Promise<void> {
     await stashPush(repo, { message, includeUntracked, keepIndex: false });
+    await this.refresh(repo);
+  }
+
+  /** One of the Stash dialog's three modes (#29). */
+  async save(repo: RepoId, choice: StashChoice): Promise<void> {
+    const request = stashRequest(choice);
+    if (request.kind === "keepWorktree") await stashKeepingWorktree(repo, request.message);
+    else {
+      const { message, includeUntracked, keepIndex } = request;
+      await stashPush(repo, { message, includeUntracked, keepIndex });
+    }
     await this.refresh(repo);
   }
 

@@ -21,6 +21,7 @@ pub mod file_ops;
 pub mod investigate;
 pub mod ref_ops;
 pub mod remote_ops;
+pub mod toolbar;
 
 /// specta follows serde, so a DTO without `camelCase` reads `undefined` in the UI.
 #[derive(Debug, Clone, Serialize, specta::Type)]

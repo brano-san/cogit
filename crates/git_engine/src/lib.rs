@@ -1,3 +1,4 @@
+mod ancestry;
 mod apply;
 mod blame;
 mod blame_origins;

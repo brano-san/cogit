@@ -269,6 +269,12 @@
 | F-295 | Уровни деревьев выровнены | [F-295-tree-levels-aligned.md](F-295-tree-levels-aligned.md) |
 | F-300 | Окно Blame | [F-300-blame-window.md](F-300-blame-window.md) |
 | F-301 | Отдельные окна не ломают главное | [F-301-child-windows-isolated.md](F-301-child-windows-isolated.md) |
+| F-310 | Кнопки тулбара следуют выбору | [F-310-toolbar-follows-selection.md](F-310-toolbar-follows-selection.md) |
+| F-311 | Меню Pull: remotes, режим Pull и удаление слитых веток | [F-311-pull-menu-remotes.md](F-311-pull-menu-remotes.md) |
+| F-312 | Порядок Sync: Pull, then Push или Push, then Pull | [F-312-sync-order.md](F-312-sync-order.md) |
+| F-313 | Stash: диалог с тремя режимами и быстрые варианты | [F-313-stash-dialog-modes.md](F-313-stash-dialog-modes.md) |
+| F-314 | Кнопка Apply Stash | [F-314-apply-stash-button.md](F-314-apply-stash-button.md) |
+| F-315 | Настройка тулбара | [F-315-configure-toolbar.md](F-315-configure-toolbar.md) |
 | F-320 | Remote ▸ Synchronize | [F-320-remote-synchronize.md](F-320-remote-synchronize.md) |
 | F-321 | Remote ▸ Submodule | [F-321-remote-submodule-menu.md](F-321-remote-submodule-menu.md) |
 | F-322 | Remote ▸ Subtree | [F-322-remote-subtree-menu.md](F-322-remote-subtree-menu.md) |

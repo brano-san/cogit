@@ -876,6 +876,15 @@ impl AppState {
         self.handle(repo)?.stash_push(options)
     }
 
+    pub fn stash_keeping_worktree(
+        &self,
+        repo: RepoId,
+        message: &str,
+    ) -> Result<(), git_engine::GitError> {
+        let _quiet = self.quiet(repo);
+        self.handle(repo)?.stash_keeping_worktree(message)
+    }
+
     pub fn stash_apply(
         &self,
         repo: RepoId,
@@ -1078,6 +1087,14 @@ impl AppState {
 
     pub fn is_published(&self, repo: RepoId, rev: &str) -> Result<bool, git_engine::GitError> {
         self.handle(repo)?.is_published(rev)
+    }
+
+    pub fn is_merged_into_head(
+        &self,
+        repo: RepoId,
+        rev: &str,
+    ) -> Result<bool, git_engine::GitError> {
+        self.handle(repo)?.is_merged_into_head(rev)
     }
 
     pub fn split_off(

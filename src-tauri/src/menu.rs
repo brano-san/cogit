@@ -31,7 +31,10 @@ const REPOSITORY: &[Entry] = &[
 ];
 
 /// After the platform's own clipboard items, which `build` puts first.
-const EDIT: &[Entry] = &[Entry::Item("settings", "Preferences…", Some("CmdOrCtrl+,"))];
+const EDIT: &[Entry] = &[
+    Entry::Item("configure-toolbar", "Configure Toolbar…", None),
+    Entry::Item("settings", "Preferences…", Some("CmdOrCtrl+,")),
+];
 
 const VIEW: &[Entry] = &[
     Entry::Check("output", "Output", Some("CmdOrCtrl+Shift+7")),
@@ -933,5 +936,21 @@ mod context_tests {
             !tidied[1].enabled,
             "a submenu with nothing inside offers nothing"
         );
+    }
+}
+
+#[cfg(test)]
+mod edit_tests {
+    use super::*;
+
+    /// Edit ▸ Configure Toolbar… opens the button toolbar's dialog (#44).
+    #[test]
+    fn configure_toolbar_is_in_the_edit_menu() {
+        let row = default_keymap()
+            .into_iter()
+            .find(|row| row.id == "configure-toolbar")
+            .expect("listed");
+        assert_eq!(row.section, "Edit");
+        assert_eq!(row.label, "Configure Toolbar…");
     }
 }

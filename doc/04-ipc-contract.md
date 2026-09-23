@@ -369,6 +369,8 @@ snake_case и читаются на фронтенде как `undefined`.
 | `create_branch` / `delete_branch` | `repo, ...` | `()` | M5 |
 | `merge` / `rebase` / `cherry_pick` / `revert` | `repo, ...` | `()` | M5 |
 | `stash_push` / `apply` / `pop` / `drop` | `repo, ...` | `()` | M5 |
+| `stash_keeping_worktree` | `repo, message` | `()` — `git stash create` + `git stash store --message`: stash без очистки рабочей копии; untracked-файлы в него не входят; чистое дерево — `InvalidState` (R-212) | M5 |
+| `stash_selection` | `repo, paths, message` | `()` — пустое `message` не передаётся в Git: stash получает его собственное `WIP on …` | M5 |
 | `fetch` / `pull` / `push` | `repo, remote, refspec, channel: Channel<Progress>` | `()` | M1 |
 | `undo_last` | `repo` | `UndoResult` | M5 |
 
@@ -485,6 +487,8 @@ type SearchChunk =
 | `rollback_to` | `repo, rev, paths` | `()` | M12 |
 | `split_off` | `repo, rev, paths, message, splitFirst` | `()` | M12 |
 | `is_published` | `repo, rev` | `bool` | M12 |
+| `is_merged_into_head` | `repo, rev` | `bool` — HEAD уже содержит `rev` (равен или предок); через `gix`, спрашивается тулбаром при каждой смене выбора (R-210) | M2 |
+| `delete_merged_branches` | `repo` | `Vec<String>` — удалённые ветки: локальные, влитые в HEAD, чей upstream удалён на remote; каждая удаляется `branch -d` с записью в журнал Undo; ветки HEAD и других worktree не трогаются (R-211) | M5 |
 | `rebase_todo` | `repo, base` | `Vec<TodoEntry>` | M4 |
 | `interactive_rebase` | `repo, base, plan: Vec<TodoEntry>` | `()` | M4 |
 | `rebase_progress` | `repo` | `Option<RebaseProgress>` | M11 |
