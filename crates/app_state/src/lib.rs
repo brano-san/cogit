@@ -1426,6 +1426,27 @@ impl AppState {
         self.handle(repo)?.blame(path, rev)
     }
 
+    pub fn line_history(
+        &self,
+        repo: RepoId,
+        path: &str,
+        rev: &str,
+        line: u32,
+        limit: usize,
+    ) -> Result<Vec<git_engine::LineVersion>, git_engine::GitError> {
+        self.handle(repo)?.line_history(path, rev, line, limit)
+    }
+
+    pub fn file_revisions(
+        &self,
+        repo: RepoId,
+        path: &str,
+        rev: &str,
+        limit: usize,
+    ) -> Result<Vec<git_engine::CommitRow>, git_engine::GitError> {
+        self.handle(repo)?.file_revisions(path, rev, limit)
+    }
+
     pub fn remote_url(
         &self,
         repo: RepoId,
