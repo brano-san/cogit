@@ -16,12 +16,10 @@ export async function desktopInfo() {
   return unwrap(await commands.desktopInfo());
 }
 
-/** A folder opens itself; a file opens in the application the desktop pairs with it. */
 export async function openOnDesktop(path: string) {
   return unwrap(await commands.openPath(path));
 }
 
-/** The parent folder, with the item selected in it. */
 export async function revealOnDesktop(path: string) {
   return unwrap(await commands.revealPath(path));
 }

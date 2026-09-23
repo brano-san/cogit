@@ -17,18 +17,15 @@ export interface GroupChoice {
 
 export interface RepoMenuTarget {
   kind: "repository" | "submodule";
-  /** Shown in the panels right now. */
   active: boolean;
   /** Loaded, and so watched; a closed row is only remembered by the list. */
   open: boolean;
-  /** The folder is gone. */
   missing: boolean;
   pinned: boolean;
   group: string;
   groups: readonly GroupChoice[];
 }
 
-/** Every group in tree order, nested ones indented under their parent. */
 export function groupChoices(groups: RepoGroups): GroupChoice[] {
   const children = new Map<string | null, string[]>();
   for (const id of groups.order) {
@@ -103,7 +100,6 @@ export type RepoCommand =
   | { kind: "move-new" }
   | { kind: "plain"; id: string };
 
-/** Group ids ride inside the item id, so one parse serves every group. */
 export function parseRepoCommand(id: string): RepoCommand | null {
   if (id === REPO_MOVE_NEW) return { kind: "move-new" };
   if (id.startsWith(REPO_MOVE_PREFIX)) return { kind: "move", group: id.slice(REPO_MOVE_PREFIX.length) };

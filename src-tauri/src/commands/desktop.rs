@@ -1,6 +1,4 @@
-//! The desktop's own actions on a folder or a file (#36, #40): which ones this platform
-//! has, and starting them. The programs and their arguments are chosen in
-//! `app_state::desktop`; these only start them.
+//! Desktop actions (#36, #40); `app_state::desktop` chooses the program and arguments.
 
 use app_state::RepoId;
 use app_state::desktop::{self, DesktopInfo, Launch, Platform};
@@ -21,7 +19,6 @@ pub async fn desktop_info() -> Result<DesktopInfo, GitError> {
     blocking("desktop_info", || Ok(desktop::info())).await
 }
 
-/// A folder opens itself; a file opens in the application paired with it.
 #[tauri::command]
 #[specta::specta]
 pub async fn open_path(path: String) -> Result<(), GitError> {
@@ -35,7 +32,6 @@ pub async fn open_path(path: String) -> Result<(), GitError> {
     .await
 }
 
-/// The parent folder with the item selected.
 #[tauri::command]
 #[specta::specta]
 pub async fn reveal_path(path: String) -> Result<(), GitError> {
@@ -73,7 +69,6 @@ pub async fn open_git_shell(path: String) -> Result<(), GitError> {
     .await
 }
 
-/// Repository-relative paths, moved to the Recycle Bin (the bin of the desktop elsewhere).
 #[tauri::command]
 #[specta::specta]
 pub async fn move_to_trash(

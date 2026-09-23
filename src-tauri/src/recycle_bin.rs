@@ -1,5 +1,4 @@
-//! Delete to the Recycle Bin. `std::fs` can only destroy; the shell is what knows where the
-//! bin is. Off Windows the bin is a command (`gio trash`, Finder), built in `app_state`.
+//! Delete to the bin: `std::fs` only destroys; the shell knows where the bin is.
 
 use std::path::PathBuf;
 
@@ -16,7 +15,6 @@ pub fn move_to_trash(paths: &[PathBuf]) -> std::io::Result<()> {
         return Ok(());
     }
     let list = app_state::desktop::trash_list(paths)?;
-    // A drive without a bin would delete for good; NUKEWARNING asks first in that case.
     let flags =
         FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_NOERRORUI | FOF_SILENT | FOF_WANTNUKEWARNING;
     let mut operation = SHFILEOPSTRUCTW {

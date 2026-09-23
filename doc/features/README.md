@@ -267,3 +267,10 @@
 | F-293 | Граф не мигает при смене отметок | [F-293-graph-no-flash-on-reload.md](F-293-graph-no-flash-on-reload.md) |
 | F-294 | Одна подсветка у кнопок тулбара | [F-294-toolbar-single-hover.md](F-294-toolbar-single-hover.md) |
 | F-295 | Уровни деревьев выровнены | [F-295-tree-levels-aligned.md](F-295-tree-levels-aligned.md) |
+| F-360 | Контекстное меню репозитория | [F-360-repository-context-menu.md](F-360-repository-context-menu.md) |
+| F-361 | Закрытый репозиторий остаётся в списке | [F-361-closed-repositories-stay-listed.md](F-361-closed-repositories-stay-listed.md) |
+| F-362 | Контекстное меню файла рабочего дерева | [F-362-file-context-menu.md](F-362-file-context-menu.md) |
+| F-363 | Диалог Remove | [F-363-remove-files-dialog.md](F-363-remove-files-dialog.md) |
+| F-364 | Index Editor | [F-364-index-editor.md](F-364-index-editor.md) |
+| F-365 | Контекстное меню файла в коммите из истории | [F-365-commit-file-context-menu.md](F-365-commit-file-context-menu.md) |
+| F-366 | Delete — в Корзину | [F-366-delete-to-recycle-bin.md](F-366-delete-to-recycle-bin.md) |

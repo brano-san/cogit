@@ -1,13 +1,10 @@
-/** Logic of the two dialogs the file menu opens: Remove and the Index Editor (#40). */
 
 export interface RemoveRow {
   path: string;
   name: string;
-  /** Empty for a file at the repository root. */
   directory: string;
 }
 
-/** The table of the Remove dialog, in path order, one row per file. */
 export function removeRows(paths: readonly string[]): RemoveRow[] {
   return [...new Set(paths)]
     .sort((a, b) => a.localeCompare(b))
@@ -23,7 +20,6 @@ export function removeRows(paths: readonly string[]): RemoveRow[] {
 export interface EditorSide {
   text: string;
   crlf: boolean;
-  /** The file exists on this side at all. */
   present: boolean;
 }
 

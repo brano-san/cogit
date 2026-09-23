@@ -1,11 +1,9 @@
-//! What the file context menus of the Files panel do beyond staging: Remove, Move or
-//! Rename, the two index flags, the Index Editor, and one file's change out of a commit.
+//! The Files panel's context menus beyond staging (#40, #41).
 
 use crate::{GitError, Head, RepoHandle, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-/// The two `git update-index` switches that make Git stop looking at a file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum IndexFlag {
@@ -13,8 +11,7 @@ pub enum IndexFlag {
     SkipWorktree,
 }
 
-/// One file as HEAD, the index and the disk hold it. A side is `None` where the file is
-/// absent; all are `None` when any of them is not text, which the editor cannot show.
+/// `None` where the file is absent; every side `None` when any of them is not text.
 #[derive(Debug, Clone, Default, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct IndexEditorSides {
@@ -33,7 +30,6 @@ fn require(paths: &[String]) -> Result<()> {
     Ok(())
 }
 
-/// `Err(())` when the bytes are not text.
 fn as_text(bytes: Option<Vec<u8>>) -> std::result::Result<Option<String>, ()> {
     match bytes {
         None => Ok(None),
@@ -54,8 +50,7 @@ impl RepoHandle {
         self.run_git_paths(args, paths).map(drop)
     }
 
-    /// A tracked file moves with `git mv`, so the rename is staged; an untracked one is
-    /// only moved on disk. An existing target is never overwritten.
+    /// `git mv` when tracked, a move on disk otherwise; never over an existing file.
     pub fn move_path(&self, from: &str, to: &str) -> Result<()> {
         let (from, to) = (from.trim_end_matches('/'), to.trim_end_matches('/'));
         if from == to {
@@ -119,8 +114,7 @@ impl RepoHandle {
         }
     }
 
-    /// Stages exactly `text`, with no clean filter or line-ending conversion: the editor
-    /// shows the index as it is, so it writes it back as it is. The file mode is kept.
+    /// Exactly `text`, no filters: the editor shows the index as it is. Mode is kept.
     pub fn write_index_text(&self, path: &str, text: &str) -> Result<()> {
         let hashed = self.run_git_fed(
             &["hash-object", "-w", "--no-filters", "--stdin"],
@@ -167,8 +161,7 @@ impl RepoHandle {
         Ok(())
     }
 
-    /// A read-only copy under `dir/<commit>/<path>`. A commit's file never changes, so a
-    /// copy already there is handed back as it is.
+    /// Under `dir/<commit>/<path>`; a commit's file never changes, so a copy is reused.
     pub fn export_read_only(&self, rev: &str, path: &str, dir: &Path) -> Result<PathBuf> {
         let commit = self
             .repo
@@ -241,7 +234,6 @@ impl RepoHandle {
         self.run_git_fed(&args, &patch).map(drop)
     }
 
-    /// Which of `paths` exist in the working tree right now.
     #[must_use]
     pub fn present_on_disk(&self, paths: &[String]) -> Vec<String> {
         paths

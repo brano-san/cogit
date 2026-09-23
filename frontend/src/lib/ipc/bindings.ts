@@ -180,13 +180,10 @@ export const commands = {
 	openInTerminal: (path: string, terminal: string) => typedError<null, GitError>(__TAURI_INVOKE("open_in_terminal", { path, terminal })),
 	/**  Looks for Git Bash on disk and in the registry, so it stays off the main thread. */
 	desktopInfo: () => typedError<DesktopInfo, GitError>(__TAURI_INVOKE("desktop_info")),
-	/**  A folder opens itself; a file opens in the application paired with it. */
 	openPath: (path: string) => typedError<null, GitError>(__TAURI_INVOKE("open_path", { path })),
-	/**  The parent folder with the item selected. */
 	revealPath: (path: string) => typedError<null, GitError>(__TAURI_INVOKE("reveal_path", { path })),
 	openPowerShell: (path: string) => typedError<null, GitError>(__TAURI_INVOKE("open_power_shell", { path })),
 	openGitShell: (path: string) => typedError<null, GitError>(__TAURI_INVOKE("open_git_shell", { path })),
-	/**  Repository-relative paths, moved to the Recycle Bin (the bin of the desktop elsewhere). */
 	moveToTrash: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("move_to_trash", { repo, paths })),
 	/**  `git rm --cached` or, with `delete_local`, `git rm`. */
 	removeFromRepository: (repo: RepoId, paths: string[], deleteLocal: boolean) => typedError<null, GitError>(__TAURI_INVOKE("remove_from_repository", { repo, paths, deleteLocal })),
@@ -533,14 +530,11 @@ export type ContextItem = {
 	children?: ContextItem[],
 };
 
-/**  The platform's shell actions, for the menus that offer them. */
 export type DesktopInfo = {
 	fileManager: string,
 	/**  PowerShell and Git Bash are Windows programs; elsewhere their items are left out. */
 	windowsShells: boolean,
-	/**  Git Bash from Git for Windows, when one was found. */
 	gitShell: string | null,
-	/**  What "Copy Path" joins with. */
 	separator: string,
 };
 
@@ -797,10 +791,7 @@ export type Hunk = {
 	rows: DiffRow[],
 };
 
-/**
- *  One file as HEAD, the index and the disk hold it. A side is `None` where the file is
- *  absent; all are `None` when any of them is not text, which the editor cannot show.
- */
+/**  `None` where the file is absent; every side `None` when any of them is not text. */
 export type IndexEditorSides = {
 	head: string | null,
 	index: string | null,
@@ -808,7 +799,6 @@ export type IndexEditorSides = {
 	binary: boolean,
 };
 
-/**  The two `git update-index` switches that make Git stop looking at a file. */
 export type IndexFlag = "assumeUnchanged" | "skipWorktree";
 
 /**  One edit to the fragment under investigation. */

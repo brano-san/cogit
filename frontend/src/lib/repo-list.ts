@@ -12,11 +12,9 @@ export interface RepoList {
 
 export const EMPTY_LIST: RepoList = { closed: [], names: {}, pinned: [] };
 
-/** One row of the list, open or closed. */
 export interface ListedRepo {
   root: string;
   name: string;
-  /** `null` while the repository is closed. */
   overview: RepoOverview | null;
   pinned: boolean;
 }
@@ -27,7 +25,6 @@ function strings(value: unknown): string[] {
     : [];
 }
 
-/** Anything unrecognised is dropped: a stale record costs a name, never the list. */
 export function readRepoList(raw: unknown): RepoList {
   if (typeof raw !== "object" || raw === null) return { closed: [], names: {}, pinned: [] };
   const record = raw as Record<string, unknown>;
@@ -55,7 +52,6 @@ export function markOpened(list: RepoList, root: string): RepoList {
     : list;
 }
 
-/** Out of the list altogether: closed, name and pin go with it. */
 export function forget(list: RepoList, root: string): RepoList {
   const names = { ...list.names };
   delete names[root];
@@ -66,7 +62,6 @@ export function forget(list: RepoList, root: string): RepoList {
   };
 }
 
-/** An empty name, or the folder's own, clears the override. */
 export function rename(list: RepoList, root: string, name: string): RepoList {
   const trimmed = name.trim();
   const names = { ...list.names };
