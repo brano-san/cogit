@@ -16,7 +16,7 @@
     broken?: boolean;
     /** No repository behind the list. */
     disabled?: boolean;
-    /** Content search needs a backend command that is not there yet. */
+    /** Content search reads the files on disk, so only the working tree has it. */
     contentsReady?: boolean;
   }
 
@@ -159,7 +159,7 @@
       disabled={disabled || !contentsReady}
       title={contentsReady
         ? "Search in file contents"
-        : "Search in file contents — waiting on the backend command"}
+        : "Search in file contents — only the working tree is on disk to search"}
       onclick={() => set("contents", !view.contents)}
       >⌕</button
     >

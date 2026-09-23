@@ -1,10 +1,12 @@
 <script lang="ts">
   import FileList from "$components/file-list/FileList.svelte";
+  import { ContentSearch } from "$lib/content-search.svelte";
   import type { FileView } from "$lib/file-view";
   import { commit } from "$stores/commit.svelte";
   import { diff } from "$stores/diff.svelte";
   import { filesView } from "$stores/files-view.svelte";
   import { layout } from "$stores/layout.svelte";
+  import { repository } from "$stores/repository.svelte";
   import { stashView } from "$stores/stash-view.svelte";
   import { worktree } from "$stores/worktree.svelte";
 
@@ -56,6 +58,7 @@
   }: Props = $props();
 
   const fractions = $derived(layout.fractions);
+  const contents = new ContentSearch(() => repository.current?.repo ?? null);
 
   /** Three different nothings, and the panel used to say the same thing for all of them. */
   const nothing = $derived(
@@ -98,6 +101,7 @@
       {activePanel}
       view={filesView.current}
       onview={onviewchange}
+      {contents}
       split={fractions.filesSplit}
       onsplit={(delta) => layout.nudge("filesSplit", delta)}
       onsplitreset={() => layout.resetOne("filesSplit")}
