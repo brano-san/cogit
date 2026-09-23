@@ -323,3 +323,50 @@ fn a_mutation_longer_than_the_quiet_window_does_not_echo_either() {
         "the commit flow reloads everything itself, got {reported:?}"
     );
 }
+
+#[test]
+fn a_hard_reset_keeps_the_changes_it_throws_away_for_undo() {
+    let f = test_fixtures::linear(3).unwrap();
+    let (state, repo) = open(&f);
+    std::fs::write(f.path().join("file0.txt"), "work in progress\n").unwrap();
+    let target = f.oid("HEAD~1").unwrap();
+
+    state
+        .reset_to(repo, &target, git_engine::ResetMode::Hard)
+        .unwrap();
+    assert_eq!(f.oid("HEAD").unwrap(), target);
+    assert_eq!(
+        std::fs::read_to_string(f.path().join("file0.txt")).unwrap(),
+        "content 0\n"
+    );
+
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(
+        std::fs::read_to_string(f.path().join("file0.txt")).unwrap(),
+        "work in progress\n"
+    );
+}
+
+#[test]
+fn a_reset_is_journalled_with_where_the_branch_was() {
+    let f = test_fixtures::linear(3).unwrap();
+    let (state, repo) = open(&f);
+    let before = f.oid("HEAD").unwrap();
+
+    state
+        .reset_to(
+            repo,
+            &f.oid("HEAD~2").unwrap(),
+            git_engine::ResetMode::Mixed,
+        )
+        .unwrap();
+
+    let entry = state.safety_log().into_iter().next().unwrap();
+    assert!(
+        entry.description.contains(&before[..7]),
+        "{}",
+        entry.description
+    );
+    assert!(entry.description.contains("mixed"), "{}", entry.description);
+}

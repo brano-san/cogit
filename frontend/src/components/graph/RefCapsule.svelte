@@ -5,9 +5,11 @@
 
   interface Props {
     label: RefLabel;
+    /** Right-click: the label's own menu, not the row's (#39). */
+    onmenu?: (event: MouseEvent) => void;
   }
 
-  let { label }: Props = $props();
+  let { label, onmenu }: Props = $props();
 
   const tooltip = $derived(label.title ?? label.text);
   const prefix = $derived(label.remotes?.join(",") ?? "");
@@ -21,7 +23,8 @@
   {/if}
 {/snippet}
 
-<span class="capsule {label.kind}" class:joined={label.remotes} title={tooltip}>
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<span class="capsule {label.kind}" class:joined={label.remotes} title={tooltip} oncontextmenu={onmenu}>
   {#if label.remotes}
     <span class="prefix">{prefix}</span><span class="eq">=</span><span class="branch"
       >{@render held()}{branch}</span
