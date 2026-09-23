@@ -17,6 +17,7 @@
 | `repos` | Фокус в панели Repositories |
 | `diff` | Фокус в панели Diff |
 | `merge-window` | Окно 3-Way Merge |
+| `investigate-window` | Окно Investigate (§9a) |
 | `modal` | Открыт диалог или палитра |
 
 Разрешение конфликта: `modal` > конкретная панель > `global`.
@@ -129,7 +130,7 @@
 | Аккорд | Действие |
 |---|---|
 | `Ctrl+Shift+L` | Git Blame для файла |
-| `Ctrl+Alt+Shift+L` | Investigate — история правок фрагмента |
+| `Ctrl+Alt+Shift+L` | Investigate — окно происхождения строк для файла в Diff, на выделенной строке (#15; область `diff`) |
 | `Ctrl+Shift+E` | Open in Explorer |
 | `Ctrl+Shift+X` | Open in Terminal |
 | `Ctrl+Shift+Y` | Copy SHA выбранного коммита |
@@ -145,6 +146,27 @@
 | `Ctrl+3` | Взять версию Ours |
 | `Ctrl+Shift+1/2/3` | Взять версию для **всех** конфликтов |
 | `Ctrl+W` | Закрыть окно (с подтверждением при несохранённых правках) |
+
+## 9a. Окно Investigate
+
+Своё меню внутри окна ([R-283](12-risks.md)); у пунктов с шорткатом он показан справа.
+
+| Аккорд | Действие |
+|---|---|
+| `Esc`, `Ctrl+W` | Закрыть окно (`Esc` сначала закрывает открытое меню или справку) |
+| `Alt+←` / `Alt+→` | Back / Forward по шагам исследования |
+| `Alt+↑` / `Alt+↓` | Более новая / более старая версия файла в Navigation |
+| `Ctrl+1` … `Ctrl+5` | Перспектива Log, Diff, Blame, Blame+Origins, Origins |
+| `Ctrl+D` | Go Deeper — к версии до коммита-источника |
+| `F6` / `Shift+F6` | Следующее / предыдущее изменение этой версии в Blame |
+| `F5` | Перечитать лог и blame |
+| `Ctrl+Shift+C` | Копировать ID коммита выбранной строки |
+| `F1` | Как работает Investigate |
+| `↑` / `↓` | Строка в Blame, коммит в Navigation, кандидат в Origin Candidates |
+| `Enter` в Origin Candidates | Go Deeper в выбранного кандидата |
+
+Пересечения только с другими окнами: `Ctrl+1…5` и `F1` — отдельное окно, как у 3-Way
+Merge; `F6` в перспективе Diff остаётся за diff.
 
 ## 10. Навигация в списках
 
