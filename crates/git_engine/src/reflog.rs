@@ -1,6 +1,24 @@
-use crate::{CommitRow, RepoHandle, Result};
+use crate::{CommitRow, GitError, RepoHandle, Result};
 use serde::Serialize;
 use std::collections::HashSet;
+
+/// Every commit the graph tips reach, and the tips it was counted from. Kept between calls
+/// by the caller: after most operations the tips have not moved, or only moved forward.
+#[derive(Debug, Default, Clone)]
+pub struct Reachable {
+    tips: Vec<gix::ObjectId>,
+    set: HashSet<gix::ObjectId>,
+    counted: bool,
+    recounts: u32,
+}
+
+impl Reachable {
+    /// How many times the whole history was walked, rather than just its new top.
+    #[must_use]
+    pub fn recounts(&self) -> u32 {
+        self.recounts
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -52,12 +70,19 @@ impl RepoHandle {
     /// Commits the reflog remembers but no ref can reach — what a reset or a rebase left
     /// behind. This is the only way back to them from inside the client.
     pub fn lost_commits(&self, limit: usize) -> Result<Vec<CommitRow>> {
-        let reachable = self.reachable_oids()?;
+        self.lost_commits_with(limit, &mut Reachable::default())
+    }
+
+    /// As `lost_commits`, reusing what `cache` knows about reachability.
+    pub fn lost_commits_with(&self, limit: usize, cache: &mut Reachable) -> Result<Vec<CommitRow>> {
+        self.update_reachable(cache)?;
         let mut seen = HashSet::new();
         let mut lost = Vec::new();
 
         for entry in self.reflog(limit)? {
-            if reachable.contains(&entry.oid) || !seen.insert(entry.oid.clone()) {
+            let known = gix::ObjectId::from_hex(entry.oid.as_bytes())
+                .is_ok_and(|id| cache.set.contains(&id));
+            if known || !seen.insert(entry.oid.clone()) {
                 continue;
             }
             if let Ok(details) = self.commit_details(&entry.oid) {
@@ -75,14 +100,68 @@ impl RepoHandle {
         Ok(lost)
     }
 
-    fn reachable_oids(&self) -> Result<HashSet<String>> {
-        let mut reachable = HashSet::new();
-        self.search_commits(&crate::CommitQuery::default(), 500, |chunk| {
-            for row in chunk {
-                reachable.insert(row.oid);
+    /// Unmoved tips cost nothing; tips that only moved forward cost the walk down to the
+    /// commits already known. A tip that vanished unseen can shrink the set: recount.
+    fn update_reachable(&self, cache: &mut Reachable) -> Result<()> {
+        let tips = self.graph_tips()?;
+        if cache.counted && cache.tips == tips {
+            return Ok(());
+        }
+        if cache.counted {
+            let mut met = HashSet::new();
+            let mut added = HashSet::new();
+            let mut stack: Vec<gix::ObjectId> = tips.clone();
+            while let Some(id) = stack.pop() {
+                if cache.set.contains(&id) {
+                    met.insert(id);
+                    continue;
+                }
+                if !added.insert(id) {
+                    continue;
+                }
+                stack.extend(self.parents_of(id)?);
             }
-            true
-        })?;
-        Ok(reachable)
+            if cache
+                .tips
+                .iter()
+                .all(|old| tips.contains(old) || met.contains(old))
+            {
+                cache.set.extend(added);
+                cache.tips = tips;
+                return Ok(());
+            }
+        }
+        cache.set = self.reachable_from(&tips)?;
+        cache.tips = tips;
+        cache.counted = true;
+        cache.recounts += 1;
+        Ok(())
+    }
+
+    fn parents_of(&self, id: gix::ObjectId) -> Result<Vec<gix::ObjectId>> {
+        let commit = self
+            .repo
+            .find_commit(id)
+            .map_err(|err| GitError::Internal(format!("cannot read commit: {err}")))?;
+        Ok(commit.parent_ids().map(gix::Id::detach).collect())
+    }
+
+    /// Ids only: nothing here needs a message or an author decoded.
+    fn reachable_from(&self, tips: &[gix::ObjectId]) -> Result<HashSet<gix::ObjectId>> {
+        let walk = self
+            .repo
+            .rev_walk(tips.iter().copied())
+            .all()
+            .map_err(|err| GitError::Internal(format!("cannot walk history: {err}")))?;
+        let mut set = HashSet::new();
+        for step in walk {
+            match step {
+                Ok(info) => {
+                    set.insert(info.id);
+                }
+                Err(err) => tracing::warn!(error = %err, "skipping an unreadable commit"),
+            }
+        }
+        Ok(set)
     }
 }

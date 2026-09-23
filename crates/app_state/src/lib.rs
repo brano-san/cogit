@@ -195,6 +195,7 @@ pub struct AppState {
     queue: Queue,
     /// One graph is on screen at a time; a newer request makes the walk before it stop.
     graph_generation: AtomicU32,
+    reachable: parking_lot::Mutex<HashMap<RepoId, git_engine::Reachable>>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -233,6 +234,7 @@ impl AppState {
             rows_read: Arc::new(AtomicU32::new(0)),
             queue: Queue::default(),
             graph_generation: AtomicU32::new(0),
+            reachable: parking_lot::Mutex::new(HashMap::new()),
         }
     }
 
@@ -1171,7 +1173,12 @@ impl AppState {
         repo: RepoId,
         limit: u32,
     ) -> Result<Vec<git_engine::CommitRow>, git_engine::GitError> {
-        self.handle(repo)?.lost_commits(limit as usize)
+        let handle = self.handle(repo)?;
+        // Taken out, not held: a slow walk must not block another repository's refresh.
+        let mut cache = self.reachable.lock().remove(&repo).unwrap_or_default();
+        let lost = handle.lost_commits_with(limit as usize, &mut cache);
+        self.reachable.lock().insert(repo, cache);
+        lost
     }
 
     /// Sorted by name so the tree does not reshuffle when a repository is reopened.
