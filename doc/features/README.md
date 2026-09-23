@@ -269,3 +269,4 @@
 | F-295 | Уровни деревьев выровнены | [F-295-tree-levels-aligned.md](F-295-tree-levels-aligned.md) |
 | F-330 | Одна метка у ветки и её upstream | [F-330-joined-upstream-label.md](F-330-joined-upstream-label.md) |
 | F-331 | Stash в графе: метка и квадратный узел | [F-331-stash-in-graph.md](F-331-stash-in-graph.md) |
+| F-332 | Чередование строк графа | [F-332-graph-row-stripes.md](F-332-graph-row-stripes.md) |

@@ -25,6 +25,7 @@
 | `--c-bg-hover` | `#1e222b` | Наведение на строку |
 | `--c-bg-active` | `#242b38` | Выбранная строка |
 | `--c-bg-inset` | `#0c0e12` | Поля ввода, блоки терминального вывода |
+| `--c-row-stripe` | `rgba(255, 255, 255, 0.03)` (светлая тема `0.6`) | Каждая вторая строка графа поверх фона панели, роль `--row-stripe` |
 
 ### Границы
 
@@ -167,6 +168,7 @@
 высота          --h-row
 padding         0 --sp-5
 hover           background: --state-hover
+stripe          каждая вторая строка графа — --row-stripe; hover и selected перекрывают
 selected        background: --state-selected
                 + ::before — полоса 2px слева цветом --status-ref
 focus-visible   outline: 1px solid --state-focus-ring; outline-offset: -1px

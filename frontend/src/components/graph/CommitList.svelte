@@ -15,6 +15,7 @@
     hitTest,
     nextRow,
     scrollRowIntoView,
+    striped,
     textX,
     toCommitRow,
     visibleRange,
@@ -210,6 +211,14 @@
     });
   });
 
+  /** The canvas fills a node with what is behind it, and hover is behind it too. */
+  let hoverRow = $state<number | null>(null);
+  function onpointermove(event: PointerEvent) {
+    if (!scroller) return;
+    const box = scroller.getBoundingClientRect();
+    hoverRow = hitTest(event.clientX - box.left, event.clientY - box.top, scrollTop, listRows)?.row ?? null;
+  }
+
   function onclick(event: MouseEvent) {
     if (!scroller) return;
     const box = scroller.getBoundingClientRect();
@@ -249,6 +258,8 @@
     bind:this={scroller}
     {onscroll}
     {onclick}
+    {onpointermove}
+    onpointerleave={() => (hoverRow = null)}
     {onkeydown}
     role="listbox"
     aria-label="Commits"
@@ -264,6 +275,7 @@
           firstCommitRow={headerRows}
           {headLane}
           {selectedRow}
+          {hoverRow}
         />
       </div>
 
@@ -290,6 +302,7 @@
         {#each virtualRows as row, index (index)}
           <div
             class="row virtual {row.kind}"
+            class:striped={striped(HEADER_ROWS + index)}
             style:top="{(HEADER_ROWS + index) * GRAPH.rowHeight}px"
             style:padding-left="{headerX}px"
           >
@@ -303,6 +316,7 @@
           {@const refs = capsules(labels.get(item.entry.commit.oid) ?? [], CAPSULE_ROOM)}
           <div
             class="row"
+            class:striped={striped(item.listRow)}
             class:selected={selection.oid === item.entry.commit.oid}
             class:over={over === item.entry.commit.oid}
             style:top="{item.listRow * GRAPH.rowHeight}px"
@@ -422,6 +436,11 @@
     padding-right: var(--sp-5);
     font-size: var(--fs-dense);
     white-space: nowrap;
+  }
+
+  /* Before hover and selection, which cover it. */
+  .row.striped {
+    background: var(--row-stripe);
   }
 
   .row:hover {
