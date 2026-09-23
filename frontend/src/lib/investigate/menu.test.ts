@@ -1,55 +1,31 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { MENUS, commandForKey, matchesShortcut, visibleLines } from "./menu";
+import { ACTIONS, commandOf, perspectiveOf } from "./menu";
 
-const key = (key: string, mods: Partial<Record<"ctrl" | "shift" | "alt", boolean>> = {}) => ({
-  key,
-  ctrlKey: !!mods.ctrl,
-  metaKey: false,
-  shiftKey: !!mods.shift,
-  altKey: !!mods.alt,
-});
+/** The menu itself is built in Rust; the page must understand every item it can send. */
+function rustActions(): string[] {
+  const source = readFileSync(
+    fileURLToPath(new URL("../../../../src-tauri/src/commands/investigate.rs", import.meta.url)),
+    "utf8",
+  );
+  return [...source.matchAll(/item\(\s*"([a-z-]+)"/g)].map((match) => match[1]!);
+}
 
-describe("Investigate menu", () => {
-  it("has the six menus the window promises", () => {
-    expect(MENUS.map((menu) => menu.label)).toEqual([
-      "File",
-      "Edit",
-      "View",
-      "Go To",
-      "Window",
-      "Help",
-    ]);
+describe("Investigate menu actions", () => {
+  it("covers every item of the native menu but Close, which Rust answers", () => {
+    expect([...ACTIONS].sort()).toEqual(rustActions().sort());
   });
 
-  it("never gives two items the same shortcut", () => {
-    const shortcuts = MENUS.flatMap((menu) =>
-      menu.items.flatMap((line) => (line !== "separator" && line.shortcut ? [line.shortcut] : [])),
-    );
-    expect(new Set(shortcuts).size).toBe(shortcuts.length);
+  it("turns an action into a command and refuses anything else", () => {
+    expect(commandOf("go-deeper")).toBe("go-deeper");
+    expect(commandOf("close")).toBeNull();
+    expect(commandOf("rm -rf")).toBeNull();
   });
 
-  it("matches modifiers exactly", () => {
-    expect(matchesShortcut(key("C", { ctrl: true, shift: true }), "Ctrl+Shift+C")).toBe(true);
-    expect(matchesShortcut(key("c", { ctrl: true }), "Ctrl+Shift+C")).toBe(false);
-    expect(matchesShortcut(key("ArrowLeft", { alt: true }), "Alt+Left")).toBe(true);
-    expect(matchesShortcut(key("F6", { shift: true }), "F6")).toBe(false);
-  });
-
-  it("turns keys into commands", () => {
-    expect(commandForKey(key("ArrowLeft", { alt: true }))).toBe("back");
-    expect(commandForKey(key("F6"))).toBe("nextChange");
-    expect(commandForKey(key("F6", { shift: true }))).toBe("previousChange");
-    expect(commandForKey(key("4", { ctrl: true }))).toBe("perspective:blameOrigins");
-    expect(commandForKey(key("w", { ctrl: true }))).toBe("close");
-    expect(commandForKey(key("x"))).toBeNull();
-  });
-
-  it("drops leading, trailing and doubled separators", () => {
-    const item = { id: "back" as const, label: "Back" };
-    expect(visibleLines(["separator", item, "separator", "separator", item, "separator"])).toEqual([
-      item,
-      "separator",
-      item,
-    ]);
+  it("maps the Window menu to the five perspectives", () => {
+    expect(perspectiveOf("perspective-blame-origins")).toBe("blameOrigins");
+    expect(perspectiveOf("perspective-log")).toBe("log");
+    expect(perspectiveOf("back")).toBeNull();
   });
 });

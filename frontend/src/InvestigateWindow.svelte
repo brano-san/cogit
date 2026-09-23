@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount, untrack } from "svelte";
   import DiffView from "$components/diff/DiffView.svelte";
   import Dialog from "$components/common/Dialog.svelte";
   import TooltipLayer from "$components/common/TooltipLayer.svelte";
@@ -7,13 +8,11 @@
   import DeeperBar from "$components/investigate/DeeperBar.svelte";
   import InvestigateToolbar from "$components/investigate/InvestigateToolbar.svelte";
   import LogPanel from "$components/investigate/LogPanel.svelte";
-  import MenuBar from "$components/investigate/MenuBar.svelte";
   import NavigationPanel from "$components/investigate/NavigationPanel.svelte";
   import OriginCandidates from "$components/investigate/OriginCandidates.svelte";
   import OriginView from "$components/investigate/OriginView.svelte";
-  import { closesWindow } from "$lib/child-window";
-  import { onMount, untrack } from "svelte";
-  import { closeThisWindow, type DiffSpec, type RepoId } from "$lib/ipc";
+  import { installChildWindow, onMenuAction } from "$lib/child-window";
+  import type { DiffSpec, RepoId } from "$lib/ipc";
   import {
     cancelOriginSearch,
     investigateBlame,
@@ -21,11 +20,10 @@
     originCandidates,
   } from "$lib/ipc/investigate";
   import { commitOf } from "$lib/investigate/blame";
-  import { MENUS, commandForKey, type InvestigateCommand } from "$lib/investigate/menu";
+  import { commandOf, perspectiveOf, type InvestigateCommand } from "$lib/investigate/menu";
   import { investigateTitle, parseInvestigate } from "$lib/investigate/params";
-  import { panelsOf, type Perspective } from "$lib/investigate/perspectives";
+  import { panelsOf } from "$lib/investigate/perspectives";
   import { InvestigateSession, type InvestigateBackend } from "$lib/investigate/session.svelte";
-  import { suppressNativeMenu } from "$lib/native-menu";
   import { avatars } from "$stores/avatars.svelte";
   import { diff } from "$stores/diff.svelte";
   import { settings } from "$stores/settings.svelte";
@@ -43,23 +41,26 @@
 
   const session = request ? new InvestigateSession(backendFor(request.repo), request.start) : null;
 
-  let menuOpen = $state<string | null>(null);
   let helpOpen = $state(false);
   let navFraction = $state(0.34);
   let now = $state(Math.floor(Date.now() / 1000));
 
   const panels = $derived(session ? panelsOf(session.perspective) : null);
 
-  // Nothing in a Git client is a web page (R-127).
-  $effect(() => suppressNativeMenu(document));
-
   // `onMount` does not track: the session reads its own state while starting.
   onMount(() => {
     document.title = request ? investigateTitle(request.start.path, request.repoName) : "Investigate";
+    const undoWindow = installChildWindow(window);
+    const undoMenu = onMenuAction(window, (action) => {
+      const command = commandOf(action);
+      if (command) run(command);
+    });
     void settings.load().then(() => avatars.apply(settings.current.avatars === "gravatar"));
     void session?.start();
     const tick = setInterval(() => (now = Math.floor(Date.now() / 1000)), 60_000);
     return () => {
+      undoWindow();
+      undoMenu();
       clearInterval(tick);
       session?.dispose();
     };
@@ -80,32 +81,20 @@
     untrack(() => void diff.load(request.repo, spec, path));
   });
 
-  function stateOf(id: InvestigateCommand): { enabled: boolean; checked: boolean } {
-    if (!session) return { enabled: id === "close", checked: false };
-    const blame = panels?.blame ?? false;
-    if (id.startsWith("perspective:")) {
-      return { enabled: true, checked: session.perspective === id.slice("perspective:".length) };
-    }
-    switch (id) {
+  /** The native menu cannot grey items out, so a command that does not apply is ignored. */
+  function applies(command: InvestigateCommand): boolean {
+    if (!session) return false;
+    switch (command) {
       case "back":
-        return { enabled: session.canGoBack, checked: false };
+        return session.canGoBack;
       case "forward":
-        return { enabled: session.canGoForward, checked: false };
-      case "goDeeper":
-        return { enabled: !!session.candidate?.deeper, checked: false };
-      case "closeCard":
-        return { enabled: session.cardOpen, checked: false };
-      case "copyLine":
-        return { enabled: session.selectedLine !== null && !!session.blame, checked: false };
-      case "previousChange":
-      case "nextChange":
-        return { enabled: blame && session.changes.length > 0, checked: false };
-      case "followRenames":
-        return { enabled: true, checked: session.follow };
-      case "ignoreWhitespace":
-        return { enabled: true, checked: session.ignoreWhitespace };
+        return session.canGoForward;
+      case "go-deeper":
+        return !!session.candidate?.deeper;
+      case "copy-line":
+        return session.selectedLine !== null && !!session.blame;
       default:
-        return { enabled: true, checked: false };
+        return true;
     }
   }
 
@@ -122,37 +111,36 @@
     return session.location.rev;
   }
 
-  function run(id: InvestigateCommand) {
-    if (!session) {
-      if (id === "close") void closeThisWindow();
+  /** In the Diff perspective the change keys belong to the diff, which listens for them. */
+  function forwardToDiff(shiftKey: boolean) {
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "F6", shiftKey }));
+  }
+
+  function run(command: InvestigateCommand) {
+    if (!session || !applies(command)) return;
+    const perspective = perspectiveOf(command);
+    if (perspective) {
+      session.setPerspective(perspective);
       return;
     }
-    if (!stateOf(id).enabled) return;
-    if (id.startsWith("perspective:")) {
-      session.setPerspective(id.slice("perspective:".length) as Perspective);
-      return;
-    }
-    switch (id) {
-      case "close":
-        void closeThisWindow();
-        break;
-      case "copyLine": {
+    switch (command) {
+      case "copy-line": {
         const line = session.selectedLine === null ? null : session.blame?.lines[session.selectedLine];
         if (line) void copy(line.text);
         break;
       }
-      case "copyCommitId": {
+      case "copy-commit-id": {
         const oid = selectedCommitId();
         if (oid) void copy(oid);
         break;
       }
-      case "copyPath":
+      case "copy-path":
         void copy(session.location.path);
         break;
-      case "followRenames":
+      case "follow-renames":
         void session.setFollow(!session.follow);
         break;
-      case "ignoreWhitespace":
+      case "ignore-whitespace":
         void session.setIgnoreWhitespace(!session.ignoreWhitespace);
         break;
       case "refresh":
@@ -164,22 +152,21 @@
       case "forward":
         void session.forward();
         break;
-      case "goDeeper":
+      case "go-deeper":
         void session.goDeeper();
         break;
-      case "closeCard":
+      case "close-card":
         session.closeCard();
         break;
-      case "previousChange":
-        session.moveToChange(-1);
+      case "previous-change":
+      case "next-change":
+        if (session.perspective === "diff") forwardToDiff(command === "previous-change");
+        else session.moveToChange(command === "next-change" ? 1 : -1);
         break;
-      case "nextChange":
-        session.moveToChange(1);
-        break;
-      case "newerVersion":
+      case "newer-version":
         void session.step(-1);
         break;
-      case "olderVersion":
+      case "older-version":
         void session.step(1);
         break;
       case "help":
@@ -188,40 +175,14 @@
     }
   }
 
-  /** Capture phase: the window's own keys come before a view's, and Esc always closes
-      the window unless a menu or the help is open. */
-  function onkeydown(event: KeyboardEvent) {
-    if (helpOpen) return;
-    if (menuOpen !== null && event.key === "Escape") {
-      event.preventDefault();
-      event.stopPropagation();
-      menuOpen = null;
-      return;
-    }
-    if (closesWindow(event)) {
-      event.preventDefault();
-      void closeThisWindow();
-      return;
-    }
-    const command = commandForKey(event);
-    if (!command) return;
-    if (session?.perspective === "diff" && (command === "nextChange" || command === "previousChange")) return;
-    event.preventDefault();
-    run(command);
-  }
-
   function resize(delta: number) {
     navFraction = Math.min(0.8, Math.max(0.12, navFraction + delta));
   }
 </script>
 
-<svelte:window onkeydowncapture={onkeydown} />
-
 <TooltipLayer />
 
 <div class="window">
-  <MenuBar menus={MENUS} bind:open={menuOpen} {stateOf} oncommand={run} />
-
   {#if !session || !request || !panels}
     <p class="note">
       This window needs a file to investigate. Open it from the Diff panel or a file's context

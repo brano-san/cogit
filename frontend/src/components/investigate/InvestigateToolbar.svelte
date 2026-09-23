@@ -17,7 +17,17 @@
     listOpen = false;
     void session.jump(index);
   }
+
+  /** An open list takes `Esc` before the window does (`installChildWindow`). */
+  function onkeydown(event: KeyboardEvent) {
+    if (listOpen && event.key === "Escape") {
+      event.preventDefault();
+      listOpen = false;
+    }
+  }
 </script>
+
+<svelte:window {onkeydown} />
 
 {#if listOpen}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
@@ -63,6 +73,25 @@
     Forward
     <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3 5 5-5 5" /></svg>
   </button>
+
+  <span class="separator" aria-hidden="true"></span>
+  <button
+    type="button"
+    class="toggle"
+    aria-pressed={session.follow}
+    class:active={session.follow}
+    title="Follow the file across renames (View ▸ Follow Renames)"
+    onclick={() => void session.setFollow(!session.follow)}>Follow renames</button
+  >
+  <button
+    type="button"
+    class="toggle"
+    aria-pressed={session.ignoreWhitespace}
+    class:active={session.ignoreWhitespace}
+    title="Blame past whitespace-only changes (View ▸ Ignore Whitespace Changes)"
+    onclick={() => void session.setIgnoreWhitespace(!session.ignoreWhitespace)}
+    >Ignore whitespace</button
+  >
 
   <span class="grow"></span>
 
@@ -167,6 +196,17 @@
 
   .grow {
     flex: 1 1 auto;
+  }
+
+  .separator {
+    width: 1px;
+    height: 18px;
+    background: var(--divider);
+  }
+
+  .toggle.active {
+    background: var(--state-selected);
+    border-color: var(--field-border);
   }
 
   .perspectives {

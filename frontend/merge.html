@@ -40,9 +40,10 @@
         why.textContent = String(event.message || event.error || "unknown error");
         box.style.display = "block";
       });
-      // Esc has to work even when the module that normally handles it never ran.
+      // Esc has to work even when the module that normally handles it never ran, and only
+      // then: once it runs, an open find bar gets Esc before the window does.
       window.addEventListener("keydown", function (event) {
-        if (event.key !== "Escape") return;
+        if (event.key !== "Escape" || window.__cogitMounted) return;
         var tauri = window.__TAURI_INTERNALS__;
         if (tauri && typeof tauri.invoke === "function") tauri.invoke("close_this_window");
       });

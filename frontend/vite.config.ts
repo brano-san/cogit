@@ -76,12 +76,13 @@ export default defineConfig({
     outDir: "dist",
     emptyOutDir: true,
     rollupOptions: {
-      // A second entry point, so the compare window survives a webview reload (T2.5).
+      // One entry point per child window, so each survives a webview reload (T2.5).
       input: {
         main: resolve(fileURLToPath(new URL(".", import.meta.url)), "index.html"),
         compare: resolve(fileURLToPath(new URL(".", import.meta.url)), "compare.html"),
         merge: resolve(fileURLToPath(new URL(".", import.meta.url)), "merge.html"),
         investigate: resolve(fileURLToPath(new URL(".", import.meta.url)), "investigate.html"),
+        blame: resolve(fileURLToPath(new URL(".", import.meta.url)), "blame.html"),
       },
     },
   },
