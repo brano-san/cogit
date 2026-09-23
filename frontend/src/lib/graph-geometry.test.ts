@@ -11,6 +11,8 @@ import {
   nextRow,
   nodeCentre,
   nodeSquare,
+  nodeFill,
+  striped,
   rowY,
   scrollRowIntoView,
   setLaneWidth,
@@ -443,5 +445,22 @@ describe("a lane leaving a node's column", () => {
 
   it("would graze the ring if it turned over the whole row", () => {
     expect(closest(segmentCurve({ from: 2, to: 3, span: "through" }, 0, 0), 2)).toBeLessThan(1);
+  });
+});
+
+describe("row stripes", () => {
+  it("stripes every second row, starting with the one under the Working Tree row", () => {
+    expect([0, 1, 2, 3].map(striped)).toEqual([false, true, false, true]);
+  });
+
+  it("fills a ring with the panel, and with the stripe on a striped row", () => {
+    expect(nodeFill(2, null, null)).toEqual(["--surface-panel"]);
+    expect(nodeFill(3, null, null)).toEqual(["--surface-panel", "--row-stripe"]);
+  });
+
+  it("lets hover and then selection cover the stripe, as they do on the row", () => {
+    expect(nodeFill(3, null, 3).at(-1)).toBe("--state-hover");
+    expect(nodeFill(3, 3, 3).at(-1)).toBe("--state-selected");
+    expect(nodeFill(3, 5, 4)).toEqual(["--surface-panel", "--row-stripe"]);
   });
 });
