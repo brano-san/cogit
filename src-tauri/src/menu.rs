@@ -20,8 +20,6 @@ const REPOSITORY: &[Entry] = &[
     Entry::Item("scan", "Scan Folder for Repositories…", None),
     Entry::Item("close", "Close Repository", Some("CmdOrCtrl+W")),
     Entry::Separator,
-    Entry::Item("refresh", "Refresh", Some("F5")),
-    Entry::Separator,
     Entry::Item("worktree-add", "Add Worktree…", None),
     Entry::Item("worktree-remove", "Remove Worktree…", None),
     Entry::Item("worktree-prune", "Prune Obsolete Worktrees…", None),
@@ -131,6 +129,24 @@ const SECTIONS: &[(&str, &[Entry])] = &[
     ("Help", HELP),
 ];
 
+/// Keyed commands with no place on the bar (#43): the window still claims the key, or
+/// WebView2 would take F5 as "reload the page", and the keymap editor still lists them.
+const OFF_THE_BAR: &[(&str, &[Entry])] = &[(
+    "Repository",
+    &[Entry::Item("refresh", "Refresh", Some("F5"))],
+)];
+
+/// A section's keyed commands, the ones off the bar after the ones on it.
+fn keyed(section: &str, entries: &'static [Entry]) -> Vec<&'static Entry> {
+    let mut all = leaves(entries);
+    for (owner, extra) in OFF_THE_BAR {
+        if *owner == section {
+            all.extend(leaves(extra));
+        }
+    }
+    all
+}
+
 /// One row of the keymap editor.
 #[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -146,7 +162,7 @@ pub struct KeyBinding {
 pub fn default_keymap() -> Vec<KeyBinding> {
     let mut rows = Vec::new();
     for (section, entries) in SECTIONS {
-        for entry in leaves(entries) {
+        for entry in keyed(section, entries) {
             let (id, label, accelerator) = match entry {
                 Entry::Item(id, label, keys) | Entry::Check(id, label, keys) => (id, label, keys),
                 Entry::Separator | Entry::Nested(..) => continue,
@@ -169,8 +185,8 @@ pub fn default_keymap() -> Vec<KeyBinding> {
 #[must_use]
 pub fn default_keymap_pairs() -> Vec<(&'static str, Option<&'static str>)> {
     let mut rows = Vec::new();
-    for (_, entries) in SECTIONS {
-        for entry in leaves(entries) {
+    for (section, entries) in SECTIONS {
+        for entry in keyed(section, entries) {
             if let Entry::Item(id, _, keys) | Entry::Check(id, _, keys) = entry {
                 rows.push((*id, *keys));
             }
@@ -590,6 +606,22 @@ mod nested_tests {
             .collect();
         assert!(ids.contains(&"edit-config-repository"), "{ids:?}");
         assert!(ids.contains(&"edit-config-user"), "{ids:?}");
+    }
+
+    /// #43: Refresh left the bar, but F5 must stay the window's — otherwise WebView2 takes
+    /// it as "reload the page".
+    #[test]
+    fn refresh_is_off_the_bar_but_f5_still_belongs_to_the_window() {
+        let listed = leaves(REPOSITORY)
+            .into_iter()
+            .any(|entry| matches!(entry, Entry::Item("refresh", ..)));
+        assert!(!listed, "Repository ▸ Refresh is still in the menu");
+        assert!(default_keymap_pairs().contains(&("refresh", Some("F5"))));
+        let row = default_keymap()
+            .into_iter()
+            .find(|row| row.id == "refresh")
+            .expect("listed in the keymap editor");
+        assert_eq!(row.section, "Repository");
     }
 
     #[test]
