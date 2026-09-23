@@ -2,6 +2,8 @@
   import StartScreen from "$components/layout/StartScreen.svelte";
   import CommitList from "$components/graph/CommitList.svelte";
   import PauseCheckBar from "$components/graph/PauseCheckBar.svelte";
+  import StateBanner from "$components/layout/StateBanner.svelte";
+  import type { Banner, BannerAction } from "$lib/repo-state";
   import type { HookRun, RebaseProgress } from "$lib/ipc";
   import { panelView } from "$lib/repo-phase";
   import { repository } from "$stores/repository.svelte";
@@ -22,7 +24,10 @@
     checking: boolean;
     ondrop: (source: string, target: string) => void;
     oncontext: (oid: string, x: number, y: number) => void;
-    onref: (text: string) => void;
+    /** A merge, rebase or detached HEAD is said above the history, as SmartGit does (#22). */
+    banner: Banner | null;
+    busy: boolean;
+    onbanneraction: (action: BannerAction) => void;
   }
 
   let {
@@ -39,7 +44,9 @@
     checking,
     ondrop,
     oncontext,
-    onref,
+    banner,
+    busy,
+    onbanneraction,
   }: Props = $props();
 
   const view = $derived(panelView(repository.phase));
@@ -48,10 +55,13 @@
 {#if view === "opening"}
   <!-- Blank on purpose: the footer is the one place an open in progress is reported (#4). -->
 {:else if view === "content"}
+  {#if banner}
+    <StateBanner {banner} {busy} onaction={onbanneraction} />
+  {/if}
   {#if progress}
     <PauseCheckBar {check} {oncheck} onrun={onruncheck} {verdict} running={checking} />
   {/if}
-  <CommitList rebase={progress} {ondrop} {oncontext} {onref} />
+  <CommitList rebase={progress} {ondrop} {oncontext} />
 {:else}
   <StartScreen
     {recent}

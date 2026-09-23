@@ -3,6 +3,7 @@
   import SkeletonRows from "$components/common/SkeletonRows.svelte";
   import { settings } from "$stores/settings.svelte";
   import GraphCanvas from "$components/graph/GraphCanvas.svelte";
+  import RefCapsule from "$components/graph/RefCapsule.svelte";
   import { capsules, dateTooltip, refLabels, shortOid } from "$lib/format";
   import { DRAG_TYPE, parseDrag, serialiseDrag } from "$lib/drop-target";
   import { overlapLabel, overlapTooltip } from "$lib/overlap";
@@ -14,19 +15,22 @@
     hitTest,
     nextRow,
     scrollRowIntoView,
+    striped,
     textX,
     toCommitRow,
     visibleRange,
   } from "$lib/graph-geometry";
   import { measurer } from "$lib/timing";
-  import { refLabelText } from "$lib/truncate";
   import { subjectMinWidth } from "$lib/graph-panel";
+  import { workingTreeLabel } from "$lib/repo-state";
   import { reportTiming, type RebaseProgress, type RepoId } from "$lib/ipc";
   import Avatar from "$components/common/Avatar.svelte";
   import { avatars } from "$stores/avatars.svelte";
   import { commit as selection } from "$stores/commit.svelte";
   import { graph } from "$stores/graph.svelte";
   import { repository } from "$stores/repository.svelte";
+  import { stashes } from "$stores/stashes.svelte";
+  import { worktrees } from "$stores/worktrees.svelte";
 
   interface Props {
     /** Rows of this list, not a block above it: a rebase in flight is part of the history
@@ -35,10 +39,9 @@
     /** A commit was dropped on another commit; the caller offers squash or reorder. */
     ondrop?: (source: string, target: string) => void;
     oncontext?: (oid: string, x: number, y: number) => void;
-    onref?: (text: string) => void;
   }
 
-  let { rebase = null, ondrop, oncontext, onref }: Props = $props();
+  let { rebase = null, ondrop, oncontext }: Props = $props();
 
   let over = $state<string | null>(null);
 
@@ -117,19 +120,12 @@
       repository.current?.branches ?? [],
       repository.current?.tags ?? [],
       repository.current?.head,
+      { stashes: stashes.entries, worktrees: worktrees.entries },
     ),
   );
+  const stashOids = $derived(new Set(stashes.entries.map((entry) => entry.oid)));
 
-  const status = $derived(repository.current?.status);
-  const headerLabel = $derived.by(() => {
-    if (!status) return "Working Tree";
-    const parts: string[] = [];
-    if (status.staged > 0) parts.push(`${status.staged} staged`);
-    if (status.unstaged > 0) parts.push(`${status.unstaged} modified`);
-    if (status.untracked > 0) parts.push(`${status.untracked} untracked`);
-    if (status.conflicted > 0) parts.push(`${status.conflicted} conflicted`);
-    return parts.length > 0 ? `Working Tree (${parts.join(", ")})` : "Working Tree — clean";
-  });
+  const headerLabel = $derived(workingTreeLabel(repository.current?.status, repository.current?.state));
 
   const visible = $derived.by(() => {
     const from = Math.max(range.start, headerRows);
@@ -147,7 +143,13 @@
     graph.show(Math.max(range.start - headerRows, 0), Math.max(range.end - headerRows, 0));
   });
 
-  const drawn = $derived(visible.map(({ listRow, entry }) => ({ listRow, layout: entry.layout })));
+  const drawn = $derived(
+    visible.map(({ listRow, entry }) => ({
+      listRow,
+      layout: entry.layout,
+      stash: stashOids.has(entry.commit.oid),
+    })),
+  );
   /** The canvas only has to reach the widest row on screen. */
   const canvasWidth = $derived(
     Math.max(headerX, ...drawn.map(({ layout }) => textX(layout.width))),
@@ -203,6 +205,14 @@
     });
   });
 
+  /** The canvas fills a node with what is behind it, and hover is behind it too. */
+  let hoverRow = $state<number | null>(null);
+  function onpointermove(event: PointerEvent) {
+    if (!scroller) return;
+    const box = scroller.getBoundingClientRect();
+    hoverRow = hitTest(event.clientX - box.left, event.clientY - box.top, scrollTop, listRows)?.row ?? null;
+  }
+
   function onclick(event: MouseEvent) {
     if (!scroller) return;
     const box = scroller.getBoundingClientRect();
@@ -242,6 +252,8 @@
     bind:this={scroller}
     {onscroll}
     {onclick}
+    {onpointermove}
+    onpointerleave={() => (hoverRow = null)}
     {onkeydown}
     role="listbox"
     aria-label="Commits"
@@ -257,6 +269,7 @@
           firstCommitRow={headerRows}
           {headLane}
           {selectedRow}
+          {hoverRow}
         />
       </div>
 
@@ -284,6 +297,7 @@
         {#each virtualRows as row, index (index)}
           <div
             class="row virtual {row.kind}"
+            class:striped={striped(HEADER_ROWS + index)}
             style:top="{(HEADER_ROWS + index) * GRAPH.rowHeight}px"
             style:padding-left="{headerX}px"
           >
@@ -297,6 +311,7 @@
           {@const refs = capsules(labels.get(item.entry.commit.oid) ?? [], CAPSULE_ROOM)}
           <div
             class="row"
+            class:striped={striped(item.listRow)}
             class:selected={selection.oid === item.entry.commit.oid}
             class:over={over === item.entry.commit.oid}
             style:top="{item.listRow * GRAPH.rowHeight}px"
@@ -330,17 +345,7 @@
             }}
           >
             {#each refs.shown as label (label.text)}
-              <span
-                class="capsule {label.kind}"
-                role="button"
-                tabindex="-1"
-                title={label.text}
-                onclick={(event) => {
-                  event.stopPropagation();
-                  onref?.(label.text);
-                }}
-                onkeydown={(event) => event.key === "Enter" && onref?.(label.text)}
-              >{refLabelText(label.text)}</span>
+              <RefCapsule {label} />
             {/each}
             {#if refs.hidden.length > 0}
               <span class="capsule more" title={refs.hidden.map((l) => l.text).join("\n")}
@@ -428,6 +433,11 @@
     white-space: nowrap;
   }
 
+  /* Before hover and selection, which cover it. */
+  .row.striped {
+    background: var(--row-stripe);
+  }
+
   .row:hover {
     background: var(--state-hover);
   }
@@ -495,30 +505,6 @@
     font-family: var(--font-mono);
     font-size: 10px;
     line-height: 14px;
-  }
-
-  .capsule.head {
-    color: var(--c-bg-window);
-    background: var(--status-ref);
-    border-color: var(--status-ref);
-  }
-
-  .capsule.local {
-    color: var(--status-ref);
-    background: var(--c-branch-bg);
-    border-color: var(--status-ref);
-  }
-
-  .capsule.remote {
-    color: var(--text-secondary);
-    background: transparent;
-    border-color: var(--field-border);
-  }
-
-  .capsule.tag {
-    color: var(--status-stash);
-    background: var(--c-stash-bg);
-    border-color: var(--status-stash);
   }
 
   /* Kept, not squeezed to nothing: past it the row is cut by the panel's edge (#5). */
