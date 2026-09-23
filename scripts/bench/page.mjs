@@ -12,6 +12,14 @@ export const PAGE = String.raw`(() => {
     posted: [],
   };
   const now = () => performance.now();
+  // Main-thread tasks of 50 ms and more: the budget for "nothing blocks" (doc/15-benchmark.md).
+  const longTasks = [];
+  try {
+    new PerformanceObserver((list) => {
+      for (const e of list.getEntries()) longTasks.push({ start: e.startTime, end: e.startTime + e.duration });
+      if (longTasks.length > 500) longTasks.splice(0, 250);
+    }).observe({ type: "longtask", buffered: true });
+  } catch {}
   const touch = () => {
     state.lastActivity = now();
     state.dirty = true;
@@ -176,8 +184,9 @@ export const PAGE = String.raw`(() => {
     }
     const total = Math.max(end - start, 0);
     const ipc = union(calls, start, end);
+    const longest = longTasks.filter((t) => t.end > start && t.start < end).reduce((m, t) => Math.max(m, t.end - t.start), 0);
     state.armed = null;
-    return { total, ipc, front: Math.max(total - ipc, 0), timedOut, ipcCalls: calls.length, byCommand, marks };
+    return { total, ipc, front: Math.max(total - ipc, 0), longest, timedOut, ipcCalls: calls.length, byCommand, marks };
   }
 
   window.__bench = {

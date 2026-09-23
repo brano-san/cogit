@@ -279,6 +279,7 @@ function summarise(all) {
   const fronts = samples.map((s) => s.front ?? Math.max(s.total - (s.ipc ?? 0), 0)).sort((a, b) => a - b);
   const mid = quantile(totals, 0.5);
   const p95 = quantile(totals, 0.95);
+  const longest = samples.map((s) => s.longest ?? 0).sort((a, b) => a - b);
   return {
     n: totals.length,
     busy: all.length - samples.length,
@@ -288,6 +289,8 @@ function summarise(all) {
     max: round(totals.at(-1)),
     ipcMedian: round(quantile(ipcs, 0.5)),
     frontMedian: round(quantile(fronts, 0.5)),
+    longTaskMedian: round(quantile(longest, 0.5)),
+    longTaskMax: round(longest.at(-1)),
     spread: mid > 0 ? round((p95 - mid) / mid, 3) : 0,
   };
 }
@@ -432,7 +435,12 @@ async function exitApp(app) {
 /** A fresh process with the repository open, and a first read of what the page runs at. */
 async function session(set, exe) {
   await resetProfile();
-  const app = await launch(exe);
+  // The first start of a freshly built exe waits for the antivirus scan: one more try.
+  const app = await launch(exe).catch(async (error) => {
+    await note(`  ! launch failed, retrying: ${error.message}`);
+    await resetProfile();
+    return launch(exe);
+  });
   const ctx = new Context(app, set);
   await limited(openRepo(ctx), 120_000, "open");
   for (let i = 0; i < 12; i += 1) calibration.add(await calibrate(ctx));
@@ -719,7 +727,7 @@ function rowsOf() {
       retakes: r.retakes,
       calibMedian: kept.length ? round(median(kept.map((s) => s.calib ?? 0)), 2) : null,
       commands: commands(kept),
-      samples: r.samples.map((s) => ({ total: round(s.total), ipc: round(s.ipc ?? 0), front: round(s.front ?? 0), calib: s.calib, busy: s.busy || undefined })),
+      samples: r.samples.map((s) => ({ total: round(s.total), ipc: round(s.ipc ?? 0), front: round(s.front ?? 0), longest: round(s.longest ?? 0), calib: s.calib, busy: s.busy || undefined })),
       errors: r.errors,
     };
   });
@@ -790,10 +798,10 @@ async function main() {
 
   const rows = rowsOf();
   await save(env, started);
-  await note(`\n${"median".padStart(9)} ${"p95".padStart(9)}  spread  busy  scenario`);
+  await note(`\n${"median".padStart(9)} ${"p95".padStart(9)}  spread  busy  long  scenario`);
   for (const r of rows) {
     const flag = r.spread > 0.2 ? " ⚠ noisy" : "";
-    await note(`${String(r.median).padStart(9)} ${String(r.p95).padStart(9)}  ${String(r.spread).padStart(6)}  ${String(r.busy).padStart(4)}  ${r.id} · ${r.set} · ${r.condition}${r.errors.length ? ` (${r.errors.length} errors)` : ""}${flag}`);
+    await note(`${String(r.median).padStart(9)} ${String(r.p95).padStart(9)}  ${String(r.spread).padStart(6)}  ${String(r.busy).padStart(4)}  ${String(r.longTaskMax ?? 0).padStart(4)}  ${r.id} · ${r.set} · ${r.condition}${r.errors.length ? ` (${r.errors.length} errors)` : ""}${flag}`);
   }
   await note(`\nwritten ${OUT} in ${env.minutes} min`);
 
