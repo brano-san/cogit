@@ -64,7 +64,8 @@ impl Launch {
 #[serde(rename_all = "camelCase")]
 pub struct DesktopInfo {
     pub file_manager: String,
-    pub power_shell: bool,
+    /// PowerShell and Git Bash are Windows programs; elsewhere their items are left out.
+    pub windows_shells: bool,
     /// Git Bash from Git for Windows, when one was found.
     pub git_shell: Option<String>,
     /// What "Copy Path" joins with.
@@ -76,7 +77,7 @@ pub fn info() -> DesktopInfo {
     let platform = Platform::current();
     DesktopInfo {
         file_manager: platform.file_manager().to_owned(),
-        power_shell: power_shell_command(platform).is_some(),
+        windows_shells: power_shell_command(platform).is_some(),
         git_shell: find_git_bash().map(|path| path.to_string_lossy().into_owned()),
         separator: if platform == Platform::Windows {
             "\\"

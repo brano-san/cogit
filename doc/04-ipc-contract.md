@@ -442,7 +442,7 @@ type SearchChunk =
 
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
-| `desktop_info` | — | `DesktopInfo { fileManager, powerShell, gitShell: string \| null, separator }` — что умеет эта платформа | M3 |
+| `desktop_info` | — | `DesktopInfo { fileManager, windowsShells, gitShell: string \| null, separator }` — что умеет эта платформа | M3 |
 | `open_path` | `path` (абсолютный, `/`) | `()` — папка открывается сама, файл — связанной программой | M3 |
 | `reveal_path` | `path` | `()` — родительская папка с выделенным элементом | M3 |
 | `open_power_shell` / `open_git_shell` | `path` | `()`; только Windows, Git Bash ищется сам (R-261) | M3 |

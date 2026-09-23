@@ -25,7 +25,7 @@
     onopenwindow: (path: string) => void;
     onmask: (mask: string) => void;
     onmarked: (paths: string[]) => void;
-    oncontext: (path: string, event: MouseEvent) => void;
+    oncontext: (path: string, event: MouseEvent, section?: string) => void;
     stage: (paths: string[]) => void;
     stagemode: (paths: string[]) => void;
     unstage: (paths: string[]) => void;
