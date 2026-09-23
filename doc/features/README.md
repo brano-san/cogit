@@ -271,3 +271,4 @@
 | F-341 | Натуральная сортировка и сортировка по дате в Branches | [F-341-branch-sort.md](F-341-branch-sort.md) |
 | F-342 | Ветка, взятая в worktree, помечена в Branches | [F-342-worktree-branches.md](F-342-worktree-branches.md) |
 | F-343 | Одно правило усечения текста | [F-343-one-truncation-rule.md](F-343-one-truncation-rule.md) |
+| F-344 | Повторный клик по репозиторию ничего не перезагружает | [F-344-repository-reclick.md](F-344-repository-reclick.md) |
