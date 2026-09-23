@@ -41,9 +41,7 @@ export async function resetProfile() {
 }
 
 export async function launch() {
-  const spawnedAt = Date.now();
-  const child = spawn(EXE, [], { stdio: "ignore", env: { ...process.env } });
-  const exited = new Promise((ok) => child.on("exit", () => ok(Date.now())));
+  const { child, spawnedAt, exited } = hidden ? startHidden() : startShown();
   try {
     return await attach(child, spawnedAt, exited);
   } catch (error) {
@@ -52,6 +50,44 @@ export async function launch() {
     killStrayWebviews();
     throw error;
   }
+}
+
+let hidden = false;
+/** Runs on a desktop of its own, out of the way of whoever uses the machine (doc/15-benchmark.md). */
+export function runHidden(on) {
+  hidden = on;
+}
+
+function startShown() {
+  const spawnedAt = Date.now();
+  const child = spawn(EXE, [], { stdio: "ignore", env: { ...process.env } });
+  const exited = new Promise((ok) => child.on("exit", () => ok(Date.now())));
+  return { child, spawnedAt, exited };
+}
+
+function startHidden() {
+  const script = resolve("scripts/bench/hidden-desktop.ps1");
+  const r = spawnSync("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, "-Exe", EXE], { encoding: "utf8" });
+  const [pid, at] = r.stdout.trim().split(/\s+/).map(Number);
+  if (!pid) throw new Error(`hidden launch failed: ${r.stderr.trim() || r.stdout.trim()}`);
+  const alive = () => {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const exited = new Promise((ok) => {
+    const timer = setInterval(() => {
+      if (!alive()) {
+        clearInterval(timer);
+        ok(Date.now());
+      }
+    }, 25);
+  });
+  const child = { pid, kill: () => alive() && process.kill(pid) };
+  return { child, spawnedAt: at, exited };
 }
 
 async function attach(child, spawnedAt, exited) {
