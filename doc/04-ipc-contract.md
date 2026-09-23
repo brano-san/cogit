@@ -323,6 +323,7 @@ snake_case и читаются на фронтенде как `undefined`.
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
 | `list_all_repo_files` | `repo` | `Vec<String>` — tracked и untracked, без ignored | M6 |
+| `commit_tree_files` | `repo`, `rev` | `Vec<String>` — все файлы дерева коммита, отсортированы; подмодуль — одна запись | M6 |
 | `search_file_contents` | `repo`, `query`, `is_regex`, `scope`, `Channel<SearchChunk>` | `()` | M6 |
 | `list_submodules` | `repo`, `parent` (пусто — верхний уровень) | `Vec<Submodule>` | M3 |
 | `open_submodule` | `owner: RepoId`, `key` — путь узла от владельца дерева | `RepoSummary`; отказ — `GitError::ModuleUnavailable(ModuleProblem)` | M3 |
@@ -334,6 +335,9 @@ snake_case и читаются на фронтенде как `undefined`.
 
 `list_all_repo_files` отвечает на «где этот файл», а не «что изменилось»: панель ищет файл
 и тогда, когда с ним ничего не происходило.
+
+`commit_tree_files` нужен переключателю `Unchanged` в коммите из истории (#3): список
+запрашивается, только пока переключатель включён, и не чаще раза на коммит.
 
 `search_file_contents` стримит через `Channel`, а не возвращает список: совпадений бывает
 больше пятисот, и правило про порции ([03-git-semantics.md](03-git-semantics.md), INV-10)

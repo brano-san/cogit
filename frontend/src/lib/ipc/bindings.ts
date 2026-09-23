@@ -205,6 +205,8 @@ export const commands = {
 	 *  a file that nothing happened to, the way SmartGit does.
 	 */
 	listAllRepoFiles: (repo: RepoId) => typedError<string[], GitError>(__TAURI_INVOKE("list_all_repo_files", { repo })),
+	/**  Every file of a commit's tree: the Files panel's Unchanged switch on a commit. */
+	commitTreeFiles: (repo: RepoId, rev: string) => typedError<string[], GitError>(__TAURI_INVOKE("commit_tree_files", { repo, rev })),
 	/**
 	 *  Searches inside files, streaming matches as they are found.
 	 * 

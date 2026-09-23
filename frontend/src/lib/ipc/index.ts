@@ -266,6 +266,10 @@ export async function cancelOperation(id: number) {
   return commands.cancelOperation(id);
 }
 
+export async function commitTreeFiles(repo: RepoId, rev: string) {
+  return unwrap(await commands.commitTreeFiles(repo, rev));
+}
+
 export async function commitDetails(repo: RepoId, rev: string) {
   return unwrap(await commands.commitDetails(repo, rev));
 }

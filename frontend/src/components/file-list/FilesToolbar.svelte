@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { FileView } from "$lib/file-view";
+  import { stateSwitches, toolReason, type ListContext } from "$lib/file-switches";
 
   /**
    * The bar above the file list (issue 11). Left: what is hidden and how to search.
@@ -18,6 +19,8 @@
     disabled?: boolean;
     /** Content search reads the files on disk, so only the working tree has it. */
     contentsReady?: boolean;
+    /** A commit or a stash has fewer switches that mean anything (#3). */
+    context?: ListContext;
   }
 
   let {
@@ -29,6 +32,7 @@
     broken = false,
     disabled = false,
     contentsReady = false,
+    context = "worktree",
   }: Props = $props();
 
   let box: HTMLInputElement | undefined = $state();
@@ -84,37 +88,23 @@
     columns: "M4 7h16M4 12h16M4 17h16",
   } as const;
 
-  interface Switch {
-    key: keyof FileView;
-    icon: string;
-    title: string;
-  }
-
-  const STATES: Switch[] = [
-    { key: "unchanged", icon: I.unchanged, title: "If selected, unchanged files will be shown" },
-    { key: "untracked", icon: I.untracked, title: "If selected, untracked files will be shown" },
-    { key: "ignored", icon: I.ignored, title: "If selected, ignored files will be shown" },
-    { key: "modified", icon: I.modified, title: "If selected, modified files will be shown" },
-    { key: "skipped", icon: I.skipped, title: "If selected, skipped files will be shown" },
-    { key: "missing", icon: I.missing, title: "If selected, missing/removed files will be shown" },
-  ];
+  const switches = $derived(stateSwitches(context));
+  const splitReason = $derived(toolReason(context, "separateIndex"));
+  const contentsReason = $derived(
+    toolReason(context, "contents") ??
+      (contentsReady ? null : "Search in file contents — only the working tree is on disk to search"),
+  );
 
   const COLUMNS: { key: keyof FileView | "size"; label: string }[] = [
     { key: "renameSources", label: "Renamed Path" },
   ];
 
-  /** Everything hidden comes back: the switches go on and the filter text goes away. */
+  /** Everything hidden comes back: the live switches go on and the filter text goes away. */
   function showEverything() {
     onfilter("");
-    onview({
-      ...view,
-      unchanged: true,
-      untracked: true,
-      ignored: true,
-      modified: true,
-      skipped: true,
-      missing: true,
-    });
+    const next = { ...view };
+    for (const item of switches) if (item.reason === null) next[item.key] = true;
+    onview(next);
   }
 </script>
 
@@ -154,14 +144,13 @@
     <button
       type="button"
       class="chip"
-      class:on={view.contents}
-      aria-pressed={view.contents}
-      disabled={disabled || !contentsReady}
-      title={contentsReady
-        ? "Search in file contents"
-        : "Search in file contents — only the working tree is on disk to search"}
-      onclick={() => set("contents", !view.contents)}
-      >⌕</button
+      class:on={view.contents && contentsReason === null}
+      class:dead={contentsReason !== null}
+      aria-pressed={view.contents && contentsReason === null}
+      aria-disabled={contentsReason !== null}
+      title={contentsReason ?? "Search in file contents"}
+      {disabled}
+      onclick={() => contentsReason === null && set("contents", !view.contents)}>⌕</button
     >
   </div>
 
@@ -170,11 +159,13 @@
   <button
     type="button"
     class="tool"
-    class:on={view.separateIndex}
-    aria-pressed={view.separateIndex}
-    title="Separate Working Tree and Index"
+    class:on={view.separateIndex && splitReason === null}
+    class:dead={splitReason !== null}
+    aria-pressed={view.separateIndex && splitReason === null}
+    aria-disabled={splitReason !== null}
+    title={splitReason ?? "Separate Working Tree and Index"}
     {disabled}
-    onclick={() => set("separateIndex", !view.separateIndex)}
+    onclick={() => splitReason === null && set("separateIndex", !view.separateIndex)}
   >
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d={I.split} /></svg>
   </button>
@@ -206,18 +197,20 @@
 
   <span class="rule" aria-hidden="true"></span>
 
-  {#each crowded ? [] : STATES as item (item.key)}
+  {#each crowded ? [] : switches as item (item.slot)}
     <button
       type="button"
       class="tool"
-      class:on={view[item.key]}
-      aria-pressed={view[item.key]}
+      class:on={item.reason === null && view[item.key]}
+      class:dead={item.reason !== null}
+      aria-pressed={item.reason === null && view[item.key]}
+      aria-disabled={item.reason !== null}
       aria-label={item.title}
-      title={item.title}
+      title={item.reason ?? item.title}
       {disabled}
-      onclick={() => set(item.key, !view[item.key])}
+      onclick={() => item.reason === null && set(item.key, !view[item.key])}
     >
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d={item.icon} /></svg>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d={I[item.slot]} /></svg>
     </button>
   {/each}
 
@@ -241,16 +234,18 @@
       <div class="menu" role="menu">
         {#if crowded}
           <p class="group-label">Show files that are…</p>
-          {#each STATES as item (item.key)}
+          {#each switches as item (item.slot)}
             <button
               type="button"
               role="menuitemcheckbox"
-              aria-checked={view[item.key]}
-              title={item.title}
-              onclick={() => set(item.key, !view[item.key])}
+              class:dead={item.reason !== null}
+              aria-checked={item.reason === null && view[item.key]}
+              aria-disabled={item.reason !== null}
+              title={item.reason ?? item.title}
+              onclick={() => item.reason === null && set(item.key, !view[item.key])}
             >
-              <span class="tick">{view[item.key] ? "✓" : ""}</span>
-              {item.key.charAt(0).toUpperCase() + item.key.slice(1)}
+              <span class="tick">{item.reason === null && view[item.key] ? "✓" : ""}</span>
+              {item.key === "renameSources" ? "Rename Sources" : item.slot.charAt(0).toUpperCase() + item.slot.slice(1)}
             </button>
           {/each}
           <p class="group-label">Columns</p>
@@ -369,7 +364,8 @@
     color: var(--status-ref);
   }
 
-  .chip:disabled {
+  .chip:disabled,
+  .chip.dead {
     opacity: 0.4;
   }
 
@@ -403,7 +399,8 @@
     stroke-linejoin: round;
   }
 
-  .tool:hover:not(:disabled) {
+  /* A switch that means nothing here neither lights up nor presses (#3). */
+  .tool:hover:not(:disabled, .dead) {
     background: var(--state-hover);
     color: var(--text-primary);
   }
@@ -414,7 +411,8 @@
     color: var(--status-ref);
   }
 
-  .tool:disabled {
+  .tool:disabled,
+  .tool.dead {
     opacity: 0.4;
   }
 
@@ -465,11 +463,12 @@
     cursor: default;
   }
 
-  .menu button:hover:not(:disabled) {
+  .menu button:hover:not(:disabled, .dead) {
     background: var(--state-hover);
   }
 
-  .menu button:disabled {
+  .menu button:disabled,
+  .menu button.dead {
     opacity: 0.4;
   }
 

@@ -1,8 +1,10 @@
 <script lang="ts">
   import FileList from "$components/file-list/FileList.svelte";
   import { ContentSearch } from "$lib/content-search.svelte";
+  import { withUnchanged } from "$lib/file-switches";
   import type { FileView } from "$lib/file-view";
   import { commit } from "$stores/commit.svelte";
+  import { commitTree } from "$stores/commit-tree.svelte";
   import { diff } from "$stores/diff.svelte";
   import { filesView } from "$stores/files-view.svelte";
   import { layout } from "$stores/layout.svelte";
@@ -60,6 +62,20 @@
   const fractions = $derived(layout.fractions);
   const contents = new ContentSearch(() => repository.current?.repo ?? null);
 
+  /** A commit's whole tree is read only while its Unchanged switch asks for it. */
+  $effect(() => {
+    const id = repository.current?.repo;
+    const oid = commit.oid;
+    if (!onWorkingTree && filesView.commit.unchanged && id && oid) void commitTree.load(id, oid);
+  });
+
+  const commitList = $derived(
+    withUnchanged(
+      commit.files,
+      filesView.commit.unchanged && commitTree.oid === commit.oid ? commitTree.paths : null,
+    ),
+  );
+
   /** Three different nothings, and the panel used to say the same thing for all of them. */
   const nothing = $derived(
     view === "opening"
@@ -79,6 +95,9 @@
     {@const parts = stashView.contents}
     <FileList
       {activePanel}
+      context="stash"
+      view={{ ...filesView.commit, separateIndex: true }}
+      onview={(next) => filesView.setCommit(next)}
       sections={[
         {
           title: "Working tree",
@@ -136,7 +155,10 @@
   {:else}
     <FileList
       {activePanel}
-      sections={[{ files: commit.files }]}
+      context="commit"
+      view={filesView.commit}
+      onview={(next) => filesView.setCommit(next)}
+      sections={[{ files: commitList }]}
       empty={nothing}
       selected={diff.path}
       onselect={onopencommit}
