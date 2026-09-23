@@ -249,6 +249,25 @@ mod tag_names {
         let f = test_fixtures::linear(1).unwrap();
         assert!(open(&f).tag_name_problem("  ").unwrap().is_some());
     }
+
+    /// A journalled failure pops the Git error window over the dialog that asked.
+    #[test]
+    fn the_check_is_an_answer_not_a_failed_command() {
+        use std::sync::{Arc, Mutex};
+
+        let f = test_fixtures::linear(1).unwrap();
+        let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&log);
+        let repo = open(&f).with_journal(Arc::new(move |out: git_engine::GitOutput| {
+            if let Ok(mut entries) = sink.lock() {
+                entries.push(out.command);
+            }
+        }));
+
+        assert!(repo.tag_name_problem("two..dots").unwrap().is_some());
+        assert!(repo.tag_name_problem("fine").unwrap().is_none());
+        assert!(log.lock().unwrap().is_empty(), "{:?}", log.lock().unwrap());
+    }
 }
 
 mod tag_messages {
