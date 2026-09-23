@@ -438,6 +438,30 @@ type SearchChunk =
 Токен **никогда** не возвращается наружу: `has_token` отвечает только «есть или нет»,
 чтобы секрет не попадал в webview.
 
+### Контекстные меню графа и Branches
+
+Команды живут в `src-tauri/src/commands/ref_ops.rs`, логика — в `git_engine`
+(`reset.rs`, `tags.rs`, `stash_rename.rs`, `interactive.rs`).
+
+| Команда | Вход | Выход | Модуль |
+|---|---|---|---|
+| `reset_to` | `repo, rev, mode: soft\|mixed\|hard\|keep\|merge` | `()` | M5 |
+| `is_ancestor` | `repo, ancestor, descendant` | `bool` | M4 |
+| `compare_files` | `repo, from, to` | `Vec<FileEntry>` | M5 |
+| `tag_name_problem` | `repo, name` | `Option<String>` | M5 |
+| `tag_message` | `repo, name` | `Option<String>` | M5 |
+| `rename_tag` | `repo, from, to` | `()` | M5 |
+| `rename_stash` | `repo, index, message` | `()` | M5 |
+| `edit_author` | `repo, rev, name, email` | `()` | M12 |
+| `push_to` | `repo, remote, refspec, onProgress: Channel<String>` | `()` | M1 |
+
+`reset_to` с `hard` на грязном дереве сначала кладёт отслеживаемые правки в stash и
+пишет его в журнал безопасности — Undo возвращает их. `tag_name_problem` зовёт
+`git check-ref-format refs/tags/<имя>` один раз при подтверждении диалога, не на каждую
+букву. `rename_stash` сохраняет порядок списка (R-252), `edit_author` — rebase с `exec
+git commit --amend --author`, как `reword`. `push_to` — один refspec: Push To, Push Up To
+и push ветки или тега, которые не HEAD.
+
 ## 5. Стриминг истории
 
 Протокол `load_commits`:
