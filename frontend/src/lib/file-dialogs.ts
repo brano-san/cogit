@@ -1,4 +1,3 @@
-
 export interface RemoveRow {
   path: string;
   name: string;
@@ -13,6 +12,16 @@ export function removeRows(paths: readonly string[]): RemoveRow[] {
       const cut = bare.lastIndexOf("/");
       return { path, name: bare.slice(cut + 1), directory: cut < 0 ? "" : bare.slice(0, cut) };
     });
+}
+
+const LISTED = 12;
+
+/** A question about several files names them under it, as far as a dialog can hold. */
+export function listedMessage(question: string, paths: readonly string[]): string {
+  if (paths.length < 2) return question;
+  const shown = paths.slice(0, LISTED);
+  const rest = paths.length - shown.length;
+  return [question, "", ...shown, ...(rest > 0 ? [`and ${rest} more`] : [])].join("\n");
 }
 
 /** One pane of the Index Editor. A textarea only ever holds `\n`, so a file written with

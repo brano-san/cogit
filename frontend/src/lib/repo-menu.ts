@@ -1,6 +1,6 @@
 import type { ContextItem } from "./ipc";
 import type { DesktopInfo } from "./ipc/file-menus";
-import { SEPARATOR, dropStraySeparators, entry, explained, submenu } from "./menu-entries";
+import { SEPARATOR, item, offer, submenu, tidy } from "./context-menu";
 import { UNGROUPED, type RepoGroups } from "./repo-groups";
 
 export const REPO_MOVE_PREFIX = "repo-move:";
@@ -44,18 +44,18 @@ export function groupChoices(groups: RepoGroups): GroupChoice[] {
 }
 
 function moveTo(at: RepoMenuTarget): ContextItem {
-  if (at.kind === "submodule") return explained("repo-move", "Move To", SUBMODULE_REASON);
+  if (at.kind === "submodule") return offer("repo-move", "Move To", SUBMODULE_REASON);
   return submenu("repo-move", "Move To", [
-    entry(REPO_MOVE_PREFIX, "No Group", at.group !== UNGROUPED),
+    item(REPO_MOVE_PREFIX, "No Group", at.group !== UNGROUPED),
     ...at.groups.map((group) =>
-      entry(
+      item(
         `${REPO_MOVE_PREFIX}${group.id}`,
         `${"    ".repeat(group.depth)}${group.name}`,
         group.id !== at.group,
       ),
     ),
     SEPARATOR,
-    entry(REPO_MOVE_NEW, "New Group…"),
+    item(REPO_MOVE_NEW, "New Group…"),
   ]);
 }
 
@@ -68,30 +68,30 @@ export function repoMenu(at: RepoMenuTarget, desktop: DesktopInfo): ContextItem[
   const onlyActive = (chord: string) => (at.active ? chord : undefined);
   const manager = desktop.fileManager;
 
-  return dropStraySeparators([
-    entry("repo-open", "Open Repository", !at.active),
-    explained("repo-open-folder", `Open in ${manager}`, gone),
-    explained("repo-reveal", `Reveal in ${manager}`, gone),
-    explained("repo-terminal", "Open in Terminal", gone),
+  return tidy([
+    item("repo-open", "Open Repository", !at.active),
+    offer("repo-open-folder", `Open in ${manager}`, gone),
+    offer("repo-reveal", `Reveal in ${manager}`, gone),
+    offer("repo-terminal", "Open in Terminal", gone),
     ...(desktop.windowsShells
       ? [
-          explained("repo-powershell", "Open in PowerShell", gone),
-          explained(
+          offer("repo-powershell", "Open in PowerShell", gone),
+          offer(
             "repo-git-shell",
             "Open in Git Shell",
             gone ?? (desktop.gitShell === null ? "Git Bash not found" : null),
           ),
         ]
       : []),
-    entry("repo-close", "Close Repository", at.open, onlyActive("CmdOrCtrl+W")),
+    item("repo-close", "Close Repository", at.open, onlyActive("CmdOrCtrl+W")),
     SEPARATOR,
-    explained("repo-pull", "Pull", closed, onlyActive("CmdOrCtrl+Shift+U")),
-    explained("repo-push", "Push", closed, onlyActive("CmdOrCtrl+Shift+O")),
+    offer("repo-pull", "Pull", closed, onlyActive("CmdOrCtrl+Shift+U")),
+    offer("repo-push", "Push", closed, onlyActive("CmdOrCtrl+Shift+O")),
     SEPARATOR,
     moveTo(at),
-    explained("repo-pin", at.pinned ? "Unpin" : "Pin", listOnly),
-    explained("repo-rename", "Rename…", listOnly),
-    explained("repo-remove", "Remove…", listOnly),
+    offer("repo-pin", at.pinned ? "Unpin" : "Pin", listOnly),
+    offer("repo-rename", "Rename…", listOnly),
+    offer("repo-remove", "Remove…", listOnly),
   ]);
 }
 

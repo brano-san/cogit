@@ -18,6 +18,7 @@ use tauri::Manager as _;
 
 pub mod desktop;
 pub mod file_ops;
+pub mod ref_ops;
 
 /// specta follows serde, so a DTO without `camelCase` reads `undefined` in the UI.
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -2423,6 +2424,7 @@ mod tests {
             include_str!("mod.rs"),
             include_str!("desktop.rs"),
             include_str!("file_ops.rs"),
+            include_str!("ref_ops.rs"),
         ];
         for line in sources.iter().flat_map(|source| source.lines()) {
             let line = line.trim_start();

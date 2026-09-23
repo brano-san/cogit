@@ -33,6 +33,23 @@ impl TodoAction {
     }
 }
 
+const ROOT: &str = "--root";
+
+fn author_identity(name: &str, email: &str) -> Result<String> {
+    let (name, email) = (name.trim(), email.trim());
+    let unsafe_char = |c: char| matches!(c, '<' | '>' | '\n' | '\r');
+    if name.is_empty()
+        || email.is_empty()
+        || name.contains(unsafe_char)
+        || email.contains(unsafe_char)
+    {
+        return Err(GitError::InvalidState(
+            "an author needs a name and an email without angle brackets".to_owned(),
+        ));
+    }
+    Ok(format!("{name} <{email}>"))
+}
+
 fn shell_quote(text: &str) -> String {
     format!("'{}'", text.replace('\'', r"'\''"))
 }
@@ -75,7 +92,11 @@ fn render(plan: &[TodoEntry], paused: bool) -> String {
 impl RepoHandle {
     /// The plan Git itself would offer: every commit after `base`, oldest first, picked.
     pub fn rebase_todo(&self, base: &str) -> Result<Vec<TodoEntry>> {
-        let range = format!("{base}..HEAD");
+        let range = if base == ROOT {
+            "HEAD".to_owned()
+        } else {
+            format!("{base}..HEAD")
+        };
         let listing = self.run_git_reading(&["log", "--reverse", "--format=%H%x1f%s", &range])?;
 
         Ok(listing
@@ -100,10 +121,55 @@ impl RepoHandle {
         self.run_rebase(base, plan, true)
     }
 
+    /// An `exec` stamps the author on, the way `reword` gets its message without an editor.
+    pub fn edit_author(&self, rev: &str, name: &str, email: &str) -> Result<()> {
+        let identity = author_identity(name, email)?;
+        let target = self.resolve_commit(rev)?;
+        let has_parent = self
+            .repo
+            .find_commit(target)
+            .map_err(|err| GitError::Internal(format!("cannot read {rev}: {err}")))?
+            .parent_ids()
+            .next()
+            .is_some();
+        let base = if has_parent {
+            format!("{target}^")
+        } else {
+            ROOT.to_owned()
+        };
+        let plan = self.rebase_todo(&base)?;
+        let wanted = target.to_string();
+        if !plan.iter().any(|entry| entry.oid == wanted) {
+            return Err(GitError::InvalidState(format!(
+                "{wanted} is not on the checked-out branch"
+            )));
+        }
+
+        let mut body = String::new();
+        for entry in &plan {
+            body.push_str(&format!("pick {}\n", entry.oid));
+            if entry.oid == wanted {
+                body.push_str("exec git commit --amend --no-edit --no-verify --author=");
+                body.push_str(&shell_quote(&identity));
+                body.push('\n');
+            }
+        }
+        self.run_rebase_body(&base, &body)
+    }
+
     fn run_rebase(&self, base: &str, plan: &[TodoEntry], paused: bool) -> Result<()> {
         if plan.is_empty() {
             return Err(GitError::InvalidState("the plan is empty".to_owned()));
         }
+        let body = if paused {
+            render_todo_paused(plan)
+        } else {
+            render_todo(plan)
+        };
+        self.run_rebase_body(base, &body)
+    }
+
+    fn run_rebase_body(&self, base: &str, body: &str) -> Result<()> {
         let status = self.status()?;
         if status.staged > 0 || status.unstaged > 0 {
             return Err(GitError::InvalidState(
@@ -113,11 +179,6 @@ impl RepoHandle {
         }
 
         let todo = self.git_dir().join("cogit-rebase-todo");
-        let body = if paused {
-            render_todo_paused(plan)
-        } else {
-            render_todo(plan)
-        };
         std::fs::write(&todo, body)?;
 
         let head = self

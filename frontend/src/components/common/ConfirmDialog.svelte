@@ -1,70 +1,44 @@
 <script lang="ts">
   import Dialog from "$components/common/Dialog.svelte";
 
-  /** A yes/no question in the application's own modal. */
   interface Props {
     title: string;
     message: string;
-    items?: readonly string[];
     confirm: string;
-    danger?: boolean;
+    warning?: boolean;
     onanswer: (yes: boolean) => void;
   }
 
-  let { title, message, items = [], confirm, danger = false, onanswer }: Props = $props();
-
-  const SHOWN = 12;
+  let { title, message, confirm, warning = false, onanswer }: Props = $props();
 </script>
 
-<Dialog {title} onclose={() => onanswer(false)} onconfirm={() => onanswer(true)}>
-  <div class="body">
-    <p>{message}</p>
-    {#if items.length > 0}
-      <ul class="items mono">
-        {#each items.slice(0, SHOWN) as item (item)}<li class="truncate" title={item}>{item}</li>{/each}
-        {#if items.length > SHOWN}<li class="more">and {items.length - SHOWN} more</li>{/if}
-      </ul>
-    {/if}
-  </div>
+<Dialog {title} onclose={() => onanswer(false)} onconfirm={() => onanswer(true)} width="min(460px, 90vw)">
+  <p class="message">{message}</p>
 
   {#snippet footer()}
-    <span class="grow"></span>
-    <button type="button" class="btn" onclick={() => onanswer(false)}>Cancel</button>
-    <button type="button" class="btn" class:primary={!danger} class:warning={danger} data-autofocus onclick={() => onanswer(true)}>
+    <!-- A destructive question starts on Cancel: Enter must not be the way work is lost. -->
+    <button class="btn" type="button" data-autofocus={warning || undefined} onclick={() => onanswer(false)}>
+      Cancel
+    </button>
+    <button
+      type="button"
+      class="btn"
+      class:primary={!warning}
+      class:warning
+      data-autofocus={!warning || undefined}
+      onclick={() => onanswer(true)}
+    >
       {confirm}
     </button>
   {/snippet}
 </Dialog>
 
 <style>
-  .body {
-    display: flex;
-    flex-direction: column;
-    gap: var(--sp-3);
+  .message {
+    margin: 0;
     font-size: var(--fs-dense);
-  }
-
-  p {
-    margin: 0;
+    line-height: 1.5;
+    white-space: pre-line;
     overflow-wrap: anywhere;
-  }
-
-  .items {
-    max-height: 14em;
-    margin: 0;
-    padding: var(--sp-2) var(--sp-3);
-    overflow-y: auto;
-    list-style: none;
-    background: var(--surface-input);
-    border: 1px solid var(--divider);
-    border-radius: var(--r-sm);
-  }
-
-  .more {
-    color: var(--text-secondary);
-  }
-
-  .grow {
-    flex: 1 1 auto;
   }
 </style>
