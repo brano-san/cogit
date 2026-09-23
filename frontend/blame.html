@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Compare — Cogit</title>
+    <title>Blame — Cogit</title>
     <!-- Before any stylesheet: a window that fails to load its script showed a white
          page with no explanation, which looks like a hung application (R-111). -->
     <style>
@@ -48,6 +48,6 @@
         if (tauri && typeof tauri.invoke === "function") tauri.invoke("close_this_window");
       });
     </script>
-    <script type="module" src="/src/compare.ts"></script>
+    <script type="module" src="/src/blame.ts"></script>
   </body>
 </html>

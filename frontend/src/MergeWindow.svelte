@@ -3,14 +3,13 @@
   import TooltipLayer from "$components/common/TooltipLayer.svelte";
   import { parseMerge } from "$lib/merge-params";
   import { closeThisWindow, mergePreview, mergeResolved, resolveConflictText, type Region } from "$lib/ipc";
-  import { suppressNativeMenu } from "$lib/native-menu";
-  import { onWindowKey } from "$lib/child-window";
+  import { installChildWindow } from "$lib/child-window";
   import { settings } from "$stores/settings.svelte";
 
   const request = parseMerge(window.location.search);
 
-  // Nothing in a Git client is a web page (R-127).
-  $effect(() => suppressNativeMenu(document));
+  // No browser menu (R-127), and Esc / Ctrl+W close the window.
+  $effect(() => installChildWindow(window));
 
   let regions = $state.raw<Region[]>([]);
   let failed = $state<string | null>(null);
@@ -39,8 +38,6 @@
     }
   }
 </script>
-
-<svelte:window onkeydown={onWindowKey} />
 
 <TooltipLayer />
 
