@@ -36,7 +36,27 @@ pub struct Shape {
     pub min_height: f64,
 }
 
-/// Blocks until the window exists, so never call it on the main thread (R-201).
+/// One entry of a child window's own menu bar. [`CLOSE`] is answered in Rust; any other
+/// action reaches the page as a `cogit-menu` DOM event whose `detail` is the action.
+pub struct Item {
+    pub action: &'static str,
+    pub label: &'static str,
+    pub accelerator: Option<&'static str>,
+}
+
+pub struct Submenu {
+    pub title: &'static str,
+    pub items: &'static [Item],
+}
+
+pub const CLOSE: &str = "close";
+
+/// Every menu id of a child window starts with it: menu events reach every handler in the
+/// app, and the main window's must be able to tell them apart.
+const MENU_PREFIX: &str = "child:";
+
+/// A window with no menu bar at all. Blocks until the window exists, so never call it on
+/// the main thread (R-201).
 pub fn open<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     kind: &str,
@@ -44,14 +64,26 @@ pub fn open<R: tauri::Runtime>(
     title: String,
     shape: Shape,
 ) -> tauri::Result<()> {
+    open_with_menu(app, kind, url, title, shape, &[])
+}
+
+/// Same as [`open`], with a menu bar of the window's own.
+pub fn open_with_menu<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    kind: &str,
+    url: String,
+    title: String,
+    shape: Shape,
+    menu: &[Submenu],
+) -> tauri::Result<()> {
     let label = format!("{kind}-{}", NEXT.fetch_add(1, Ordering::Relaxed));
     // Without a menu of its own the window inherits the application's. An empty one still
     // draws a blank bar, so it is taken off again before the window is first shown.
-    let empty = tauri::menu::Menu::new(app)?;
+    let bar = build_menu(app, &label, menu)?;
 
     let mut builder = WebviewWindowBuilder::new(app, label, WebviewUrl::App(url.into()))
         .title(title)
-        .menu(empty)
+        .menu(bar)
         .visible(false)
         .background_color(BACKGROUND)
         .inner_size(shape.width, shape.height)
@@ -62,8 +94,66 @@ pub fn open<R: tauri::Runtime>(
         builder = builder.additional_browser_args(&args);
     }
     let window = builder.build()?;
-    window.remove_menu()?;
+    if menu.is_empty() {
+        window.remove_menu()?;
+    }
     window.show()
+}
+
+fn build_menu<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    label: &str,
+    menu: &[Submenu],
+) -> tauri::Result<tauri::menu::Menu<R>> {
+    let bar = tauri::menu::Menu::new(app)?;
+    for submenu in menu {
+        let entries = tauri::menu::Submenu::new(app, submenu.title, true)?;
+        for item in submenu.items {
+            entries.append(&tauri::menu::MenuItem::with_id(
+                app,
+                menu_id(label, item.action),
+                item.label,
+                true,
+                item.accelerator,
+            )?)?;
+        }
+        bar.append(&entries)?;
+    }
+    Ok(bar)
+}
+
+fn menu_id(label: &str, action: &str) -> String {
+    format!("{MENU_PREFIX}{label}:{action}")
+}
+
+fn parse_menu_id(id: &str) -> Option<(&str, &str)> {
+    id.strip_prefix(MENU_PREFIX)?.rsplit_once(':')
+}
+
+/// Actions are ids from our own tables (`[a-z-]`), so the debug form is valid JavaScript.
+fn menu_script(action: &str) -> String {
+    format!(r#"window.dispatchEvent(new CustomEvent("cogit-menu", {{ detail: {action:?} }}))"#)
+}
+
+/// Runs a child window's menu item; `false` when the id belongs to the main window.
+pub fn on_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>, id: &str) -> bool {
+    use tauri::Manager as _;
+
+    let Some((label, action)) = parse_menu_id(id) else {
+        return false;
+    };
+    let Some(window) = app.get_webview_window(label) else {
+        return true;
+    };
+    let done = if action == CLOSE {
+        window.close()
+    } else {
+        window.eval(menu_script(action))
+    };
+    if let Err(err) = done {
+        tracing::warn!(error = %err, label, action, "a child window's menu item failed");
+    }
+    true
 }
 
 /// The main window's browser arguments, which every other webview has to repeat.
@@ -109,6 +199,28 @@ mod tests {
         let mut taken = labels("compare", 2);
         taken.extend(labels("merge", 2));
         assert!(labels_are_unique(&taken));
+    }
+
+    #[test]
+    fn a_menu_id_names_its_window_and_action() {
+        let id = menu_id("blame-4", "refresh");
+        assert_eq!(parse_menu_id(&id), Some(("blame-4", "refresh")));
+    }
+
+    /// Menu events reach every handler in the app; the main window's must not run a child
+    /// window's item as a palette command.
+    #[test]
+    fn an_application_menu_id_is_not_a_child_one() {
+        assert_eq!(parse_menu_id("refresh"), None);
+        assert_eq!(parse_menu_id("copy-diagnostics"), None);
+    }
+
+    #[test]
+    fn a_menu_action_reaches_the_page_as_a_dom_event() {
+        assert_eq!(
+            menu_script("toggle-history"),
+            r#"window.dispatchEvent(new CustomEvent("cogit-menu", { detail: "toggle-history" }))"#
+        );
     }
 
     fn windows_of(config: &str) -> Vec<tauri::utils::config::WindowConfig> {
