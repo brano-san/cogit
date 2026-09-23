@@ -77,6 +77,16 @@ impl RepoWatcher {
         }
     }
 
+    /// Whether a quiet window is open right now.
+    #[must_use]
+    pub fn is_quiet(&self) -> bool {
+        self.quiet_until
+            .lock()
+            .ok()
+            .and_then(|slot| *slot)
+            .is_some_and(|until| Instant::now() < until)
+    }
+
     pub fn pause(&self) {
         self.paused.store(true, Ordering::Relaxed);
     }

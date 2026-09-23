@@ -310,7 +310,13 @@ fn a_mutation_longer_than_the_quiet_window_does_not_echo_either() {
             },
         )
         .unwrap();
-    std::thread::sleep(std::time::Duration::from_millis(500));
+    // The window is what the product promises: open through the whole mutation and for
+    // DEFAULT_QUIET after its last git process, however long the process took.
+    assert!(
+        state.watcher_is_quiet(repo),
+        "the window must still be open when the mutation returns"
+    );
+    std::thread::sleep(std::time::Duration::from_millis(150));
 
     let mut reported = Vec::new();
     while let Ok(event) = events.try_recv() {
@@ -321,6 +327,55 @@ fn a_mutation_longer_than_the_quiet_window_does_not_echo_either() {
     assert!(
         reported.is_empty(),
         "the commit flow reloads everything itself, got {reported:?}"
+    );
+}
+
+#[test]
+fn a_mutation_that_idles_after_its_last_write_does_not_echo() {
+    let f = test_fixtures::linear(1).unwrap();
+    let (state, repo) = open(&f);
+    std::fs::write(
+        f.path().join("file0.txt"),
+        "edited by us
+",
+    )
+    .unwrap();
+    state.stage_paths(repo, &["file0.txt".to_owned()]).unwrap();
+    // The refs and the reflog are written before this hook runs; git then idles past the
+    // window that opened when the mutation began, with the guard still held.
+    std::fs::write(
+        f.path().join(".git/hooks/post-commit"),
+        "#!/bin/sh
+sleep 1
+",
+    )
+    .unwrap();
+    let mut events = state.subscribe();
+    std::thread::sleep(std::time::Duration::from_millis(600));
+    while events.try_recv().is_ok() {}
+
+    state
+        .commit(
+            repo,
+            &git_engine::CommitRequest {
+                message: "slow after write".to_owned(),
+                amend: false,
+                no_verify: false,
+                only: Vec::new(),
+            },
+        )
+        .unwrap();
+    std::thread::sleep(fs_watcher::DEFAULT_QUIET - std::time::Duration::from_millis(50));
+
+    let mut reported = Vec::new();
+    while let Ok(event) = events.try_recv() {
+        if let app_state::AppEvent::RepoChanged { kind, .. } = event {
+            reported.push(kind);
+        }
+    }
+    assert!(
+        reported.is_empty(),
+        "the window must follow every git process, not only the start of the mutation, got {reported:?}"
     );
 }
 
