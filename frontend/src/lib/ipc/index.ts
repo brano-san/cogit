@@ -712,6 +712,10 @@ export async function isPublished(repo: RepoId, rev: string) {
   return unwrap(await commands.isPublished(repo, rev));
 }
 
+export async function isMergedIntoHead(repo: RepoId, rev: string) {
+  return unwrap(await commands.isMergedIntoHead(repo, rev));
+}
+
 export async function splitOff(
   repo: RepoId,
   rev: string,

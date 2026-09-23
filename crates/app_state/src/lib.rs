@@ -1069,6 +1069,14 @@ impl AppState {
         self.handle(repo)?.is_published(rev)
     }
 
+    pub fn is_merged_into_head(
+        &self,
+        repo: RepoId,
+        rev: &str,
+    ) -> Result<bool, git_engine::GitError> {
+        self.handle(repo)?.is_merged_into_head(rev)
+    }
+
     pub fn split_off(
         &self,
         repo: RepoId,

@@ -403,6 +403,7 @@ type SearchChunk =
 | `rollback_to` | `repo, rev, paths` | `()` | M12 |
 | `split_off` | `repo, rev, paths, message, splitFirst` | `()` | M12 |
 | `is_published` | `repo, rev` | `bool` | M12 |
+| `is_merged_into_head` | `repo, rev` | `bool` — HEAD уже содержит `rev` (равен или предок); через `gix`, спрашивается тулбаром при каждой смене выбора (R-210) | M2 |
 | `rebase_todo` | `repo, base` | `Vec<TodoEntry>` | M4 |
 | `interactive_rebase` | `repo, base, plan: Vec<TodoEntry>` | `()` | M4 |
 | `rebase_progress` | `repo` | `Option<RebaseProgress>` | M11 |

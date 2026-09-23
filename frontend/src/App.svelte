@@ -48,6 +48,8 @@
   import { shortOid } from "$lib/format";
   import { checkedIds, disabledIds, type PaletteCommand } from "$lib/palette";
   import { reasonFor, type Context } from "$lib/availability";
+  import { refAt, splitMarked, targetsOf, type ToolbarFacts } from "$lib/toolbar";
+  import { toolbar } from "$stores/toolbar.svelte";
   import { allowsSelectAll, settle, step } from "$lib/panel-focus";
   import { pullRequestUrl } from "$lib/pull-request";
   import { commitScope } from "$lib/commit-scope";
@@ -428,6 +430,27 @@
     branch: tracked !== undefined,
     undo: safety.last !== undefined,
     file: diff.path !== null,
+  });
+
+  const headOid = $derived(repo && repo.head.kind !== "unborn" ? repo.head.oid : null);
+
+  $effect(() => {
+    void toolbar.checkMerged(currentRepo, commit.oid, headOid);
+  });
+
+  /** What the toolbar's rules read; recomputed on every selection change (task #31). */
+  const toolbarFacts = $derived<ToolbarFacts>({
+    repository: repo !== null,
+    remote: Boolean(network.primary),
+    onWorkingTree: onWorkingTree && stashView.contents === null,
+    ...splitMarked({ marked: markedFiles, unstaged: worktree.unstaged, staged: worktree.staged }),
+    unstaged: worktree.unstaged.map((file) => file.path),
+    staged: worktree.staged.map((file) => file.path),
+    commit: commit.oid,
+    head: headOid,
+    merged: toolbar.merged,
+    stashes: stashes.entries.length,
+    undo: safety.last !== undefined,
   });
 
   const palette = $derived.by<PaletteCommand[]>(() => {
@@ -1338,6 +1361,36 @@
       errors.report(err, "Could not merge");
       await afterRefChange();
       return;
+    }
+    await afterRefChange();
+  }
+
+  /** Toolbar Merge and Rebase act on the selection in Graph or Branches (task #31). */
+  async function mergeSelected() {
+    const id = repository.current?.repo;
+    const oid = commit.oid;
+    if (!id || !oid) return;
+    try {
+      await mergeInto(id, {
+        source: refAt(oid, repo?.branches ?? []),
+        noFastForward: false,
+        squash: false,
+        message: null,
+      });
+    } catch (err) {
+      errors.report(err, "Could not merge");
+    }
+    await afterRefChange();
+  }
+
+  async function rebaseSelected() {
+    const id = repository.current?.repo;
+    const oid = commit.oid;
+    if (!id || !oid) return;
+    try {
+      await rebaseOnto(id, { onto: refAt(oid, repo?.branches ?? []), autostash: true });
+    } catch (err) {
+      errors.report(err, "Could not rebase");
     }
     await afterRefChange();
   }
@@ -2647,7 +2700,7 @@
 
 <div class="app">
   <Toolbar
-    context={commands}
+    facts={toolbarFacts}
     undoable={safety.last?.description}
     onundo={undo}
     handlers={repo
@@ -2660,6 +2713,11 @@
           sync: () => void runNetwork("fetch"),
           fetch: () => void runNetwork("fetch"),
           "fetch-all": () => void fetchAll(),
+          stage: () => void stage(targetsOf("stage", toolbarFacts)),
+          unstage: () => void unstage(targetsOf("unstage", toolbarFacts)),
+          discard: () => void discard(targetsOf("discard", toolbarFacts)),
+          merge: () => void mergeSelected(),
+          rebase: () => void rebaseSelected(),
           "rebase-i": () => void openRebase(),
         }
       : {}}
