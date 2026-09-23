@@ -62,3 +62,23 @@ fn a_selection_stash_without_a_message_gets_git_s_own() {
     let message = &repo.stashes().unwrap()[0].message;
     assert!(message.starts_with("WIP on "), "{message}");
 }
+
+/// Apply Stash (#30): a conflicted apply is a failed command, so its output — the
+/// `CONFLICT` lines — reaches the notification window whole.
+#[test]
+fn applying_the_newest_stash_over_a_conflicting_commit_fails_with_git_s_output() {
+    let f = test_fixtures::linear(2).unwrap();
+    std::fs::write(f.path().join("file0.txt"), "stashed side\n").unwrap();
+    let repo = open(&f);
+    repo.stash_keeping_worktree("wip").unwrap();
+    f.git(&["checkout", "--", "file0.txt"]).unwrap();
+    f.commit_file(30, "file0.txt", "committed side\n").unwrap();
+
+    let err = repo.stash_apply_index(0, false).unwrap_err();
+
+    let git_engine::GitError::Command(failure) = err else {
+        panic!("expected a command failure, got {err:?}");
+    };
+    let output = format!("{}{}", failure.stdout, failure.stderr);
+    assert!(output.contains("CONFLICT"), "{output}");
+}

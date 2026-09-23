@@ -31,6 +31,7 @@ export const ICONS = {
   unstage: "M5 12h14",
   discard: "M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5",
   stash: "M3 8h18M3 8l2-4h14l2 4M3 8v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8m-11 5h4",
+  applyStash: "M3 8h18M3 8l2-4h14l2 4M3 8v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8M12 17v-6m-3 3 3-3 3 3",
   merge:
     "M7 18V9a4 4 0 0 1 4-4h5M7 6.5a2.5 2.5 0 1 0 0-.1M18.5 7.5a2.5 2.5 0 1 0 0-.1M7 20.5a2.5 2.5 0 1 0 0-.1",
   rebase:
@@ -95,6 +96,12 @@ export const ACTIONS: readonly ToolbarAction[] = [
     split: true,
   },
   {
+    id: "apply-stash",
+    label: "Apply Stash",
+    icon: ICONS.applyStash,
+    hint: "Apply the newest stash (stash@{0}) and keep it in the list",
+  },
+  {
     id: "merge",
     label: "Merge",
     icon: ICONS.merge,
@@ -126,6 +133,7 @@ export const DEFAULT_LAYOUT: readonly string[] = [
   "discard",
   SEPARATOR,
   "stash",
+  "apply-stash",
   "merge",
   "rebase",
   "tag",
@@ -393,6 +401,7 @@ const RULES: Record<string, Rule> = {
   "quick-stash-all": needChanges,
   "stash-selection": needSelection,
   "quick-stash-selection": needSelection,
+  "apply-stash": (f) => needRepository(f) ?? (f.stashes > 0 ? undefined : "There are no stashes"),
   merge: (f) =>
     needCommit(f) ??
     (f.merged === undefined

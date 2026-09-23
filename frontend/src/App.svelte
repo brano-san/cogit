@@ -1501,6 +1501,17 @@
     await afterRefChange();
   }
 
+  /** Toolbar Apply Stash (#30). A conflicted apply still changed the working tree, so the
+      panels reload either way; Git's output reaches the notification window. */
+  async function applyNewestStash() {
+    const id = repository.current?.repo;
+    if (!id) return;
+    await stashes
+      .apply(id, 0, false)
+      .catch((err) => errors.report(err, "Could not apply stash@{0}"));
+    await afterRefChange();
+  }
+
   async function runBannerAction(action: BannerAction) {
     const id = repository.current?.repo;
     if (!id) return;
@@ -2630,6 +2641,7 @@
           "stash-selection": () => void stashSelected(),
           "quick-stash-all": () => void quickStashAll(),
           "quick-stash-selection": () => void stashSelected(false),
+          "apply-stash": () => void applyNewestStash(),
           tag: () => void refActions?.addTag(null),
           "push-to": () => refActions?.pushToCurrent(),
           pull: () => void pullNow(),

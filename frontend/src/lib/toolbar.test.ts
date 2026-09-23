@@ -207,7 +207,7 @@ describe("groupsOf", () => {
     expect(groups).toEqual([
       ["pull", "push", "sync"],
       ["stage", "unstage", "discard"],
-      ["stash", "merge", "rebase", "tag"],
+      ["stash", "apply-stash", "merge", "rebase", "tag"],
       ["undo"],
     ]);
   });
@@ -340,5 +340,17 @@ describe("the Push menu", () => {
   it("needs HEAD on a branch for Push To…", () => {
     expect(reasonOf("push-to", facts({ remote: true }))).toBe("HEAD is not on a branch");
     expect(reasonOf("push-to", facts({ remote: true, branch: true }))).toBeUndefined();
+  });
+});
+
+describe("Apply Stash", () => {
+  it("sits beside Stash", () => {
+    const at = DEFAULT_LAYOUT.indexOf("stash");
+    expect(DEFAULT_LAYOUT[at + 1]).toBe("apply-stash");
+  });
+
+  it("is off without a stash and on with one", () => {
+    expect(reasonOf("apply-stash", facts())).toBe("There are no stashes");
+    expect(reasonOf("apply-stash", facts({ stashes: 2 }))).toBeUndefined();
   });
 });
