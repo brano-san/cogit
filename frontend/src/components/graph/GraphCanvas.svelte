@@ -5,6 +5,7 @@
     canvasPixelSize,
     laneX,
     nodeCentre,
+    nodeSquare,
     segmentCurve,
     textX,
   } from "$lib/graph-geometry";
@@ -14,7 +15,7 @@
   /** Only the rows on screen: every segment belongs to its own row, so nothing outside
       the view is ever needed to draw it (doc/07-graph-rendering.md). */
   interface Props {
-    rows: { listRow: number; layout: GraphRow }[];
+    rows: { listRow: number; layout: GraphRow; stash?: boolean }[];
     scrollTop: number;
     width: number;
     height: number;
@@ -108,13 +109,20 @@
       context.restore();
     }
 
-    // One hollow ring for every node, filled with what is behind it so no line shows through.
+    // One hollow ring for every node, filled with what is behind it so no line shows through;
+    // a stash is a square in the stash colour (#19).
     const panel = token("--surface-panel");
     const selection = token("--state-selected");
+    const stash = token("--status-stash");
     for (const row of rows) {
-      const { x, y } = nodeCentre(row.layout.lane, row.listRow, scrollTop);
       context.beginPath();
-      context.arc(x, y, GRAPH.ringRadius, 0, Math.PI * 2);
+      if (row.stash) {
+        const square = nodeSquare(row.layout.lane, row.listRow, scrollTop);
+        context.rect(square.x, square.y, square.size, square.size);
+      } else {
+        const { x, y } = nodeCentre(row.layout.lane, row.listRow, scrollTop);
+        context.arc(x, y, GRAPH.ringRadius, 0, Math.PI * 2);
+      }
       context.fillStyle = panel;
       context.fill();
       if (row.listRow === selectedRow) {
@@ -122,7 +130,7 @@
         context.fill();
       }
       context.lineWidth = GRAPH.ringStroke;
-      context.strokeStyle = stroke(row.layout.primary, row.layout.color);
+      context.strokeStyle = row.stash ? stash : stroke(row.layout.primary, row.layout.color);
       context.stroke();
     }
     context.restore();

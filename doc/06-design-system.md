@@ -51,7 +51,8 @@
 | `--c-modified` | `#f59e0b` | `rgba(245, 158, 11, 0.12)` | Modified / внимание |
 | `--c-deleted` | `#ef4444` | `rgba(239, 68, 68, 0.12)` | Deleted / ошибка |
 | `--c-branch` | `#38bdf8` | `rgba(56, 189, 248, 0.12)` | Ветки, выделение, фокус |
-| `--c-stash` | `#a855f7` | `rgba(168, 85, 247, 0.12)` | Стэши и теги |
+| `--c-stash` | `#a855f7` | `rgba(168, 85, 247, 0.12)` | Стэши |
+| `--c-tag` | `#eab308` (светлая тема `#855d00`) | `rgba(234, 179, 8, 0.12)` | Теги |
 
 Контраст к `--c-bg-panel` у всех пяти акцентов выше 4.5:1 — их можно использовать как цвет текста,
 а не только как заливку.
@@ -100,6 +101,7 @@
 --status-delete       → --c-deleted
 --status-ref          → --c-branch
 --status-stash        → --c-stash
+--status-tag          → --c-tag
 ```
 
 ## 4. Типографика
@@ -199,8 +201,8 @@ focus-visible   outline: 1px solid --state-focus-ring; outline-offset: -1px
 | HEAD | `--status-ref`, насыщенный фон | `HEAD → dev` |
 | Удалённая ветка | `--status-ref` приглушённый | `origin/master` |
 | Ветка и её upstream на одном коммите | блок remote `--text-secondary` на `--surface-raised`, `=`, блок ветки — цветом ветки или HEAD | `origin=dev` |
-| Тег | `--status-stash` | `v1.2.0` |
-| Stash | `--status-stash` | `stash@{0}` |
+| Тег | `--status-tag` | `v1.2.0` |
+| Stash | `--status-stash`; узел в графе — квадрат того же цвета | `stash@{0}` |
 
 ### Кнопка тулбара
 

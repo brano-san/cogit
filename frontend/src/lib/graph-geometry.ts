@@ -64,6 +64,13 @@ export function nodeCentre(lane: number, row: number, scrollTop: number) {
   return { x: laneX(lane), y: rowY(row, scrollTop) };
 }
 
+/** A stash is drawn as a square, as SmartGit does, on the centre a ring would have. */
+export function nodeSquare(lane: number, row: number, scrollTop: number) {
+  const { x, y } = nodeCentre(lane, row, scrollTop);
+  const size = GRAPH.ringRadius * 2;
+  return { x: x - size / 2, y: y - size / 2, size };
+}
+
 export function textX(width: number): number {
   const columns = Math.min(Math.max(width, 1), GRAPH.maxColumns);
   return laneX(columns - 1) + GRAPH.laneWidth / 2 + GRAPH.textGap;

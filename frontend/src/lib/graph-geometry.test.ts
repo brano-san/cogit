@@ -10,6 +10,7 @@ import {
   laneX,
   nextRow,
   nodeCentre,
+  nodeSquare,
   rowY,
   scrollRowIntoView,
   setLaneWidth,
@@ -332,6 +333,20 @@ describe("nodeCentre", () => {
 
   it("follows the scroll", () => {
     expect(nodeCentre(0, 10, GRAPH.rowHeight * 10).y).toBe(GRAPH.rowHeight / 2);
+  });
+});
+
+describe("nodeSquare", () => {
+  it("is centred where a ring would be, so lines meet it the same way", () => {
+    const square = nodeSquare(3, 7, 0);
+    const centre = nodeCentre(3, 7, 0);
+
+    expect(square.x + square.size / 2).toBe(centre.x);
+    expect(square.y + square.size / 2).toBe(centre.y);
+  });
+
+  it("is as wide as a ring", () => {
+    expect(nodeSquare(0, 0, 0).size).toBe(GRAPH.ringRadius * 2);
   });
 });
 
