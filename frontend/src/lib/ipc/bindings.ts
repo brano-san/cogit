@@ -80,6 +80,15 @@ export const commands = {
 	stashDrop: (repo: RepoId, index: number) => typedError<null, GitError>(__TAURI_INVOKE("stash_drop", { repo, index })),
 	createTag: (repo: RepoId, request: TagRequest) => typedError<null, GitError>(__TAURI_INVOKE("create_tag", { repo, request })),
 	deleteTag: (repo: RepoId, name: string) => typedError<null, GitError>(__TAURI_INVOKE("delete_tag", { repo, name })),
+	resetTo: (repo: RepoId, rev: string, mode: ResetMode) => typedError<null, GitError>(__TAURI_INVOKE("reset_to", { repo, rev, mode })),
+	isAncestor: (repo: RepoId, ancestor: string, descendant: string) => typedError<boolean, GitError>(__TAURI_INVOKE("is_ancestor", { repo, ancestor, descendant })),
+	compareFiles: (repo: RepoId, from: string, to: string) => typedError<FileEntry[], GitError>(__TAURI_INVOKE("compare_files", { repo, from, to })),
+	tagNameProblem: (repo: RepoId, name: string) => typedError<string | null, GitError>(__TAURI_INVOKE("tag_name_problem", { repo, name })),
+	tagMessage: (repo: RepoId, name: string) => typedError<string | null, GitError>(__TAURI_INVOKE("tag_message", { repo, name })),
+	renameTag: (repo: RepoId, from: string, to: string) => typedError<null, GitError>(__TAURI_INVOKE("rename_tag", { repo, from, to })),
+	renameStash: (repo: RepoId, index: number, message: string) => typedError<null, GitError>(__TAURI_INVOKE("rename_stash", { repo, index, message })),
+	editAuthor: (repo: RepoId, rev: string, name: string, email: string) => typedError<null, GitError>(__TAURI_INVOKE("edit_author", { repo, rev, name, email })),
+	pushTo: (repo: RepoId, remote: string, refspec: string, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("push_to", { repo, remote, refspec, onProgress })),
 	remotes: (repo: RepoId) => typedError<string[], GitError>(__TAURI_INVOKE("remotes", { repo })),
 	fetch: (repo: RepoId, remote: string, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("fetch", { repo, remote, onProgress })),
 	pull: (repo: RepoId, remote: string, ffOnly: boolean, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("pull", { repo, remote, ffOnly, onProgress })),
@@ -1048,6 +1057,9 @@ export type RepoSummary = {
 	/**  `cogit.tagGroupSeparator`, `/` when unset; read on every open, so a refresh sees a change. */
 	tagGroupSeparator: string,
 };
+
+/**  The five modes of `git reset <commit>`: what happens to the index and the tree. */
+export type ResetMode = "soft" | "mixed" | "hard" | "keep" | "merge";
 
 /**
  *  What the journal shows. The means of undoing stays in `Undoable`, on this side of

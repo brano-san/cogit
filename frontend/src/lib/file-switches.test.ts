@@ -115,3 +115,11 @@ describe("withUnchanged", () => {
     expect(withUnchanged(changed, null)).toBe(changed);
   });
 });
+
+describe("a comparison of two commits", () => {
+  it("has the rename sources but no unchanged files to offer", () => {
+    const live = stateSwitches("compare").filter((s) => s.reason === null);
+    expect(live.map((s) => s.key)).toEqual(["renameSources"]);
+    expect(toolReason("compare", "separateIndex")).toMatch(/comparison/);
+  });
+});

@@ -63,6 +63,10 @@
         hint: "Send your commits to the remote",
         shortcut: "Ctrl+Shift+O",
         needs: { remote: true },
+        menu: [
+          { id: "push", label: "Push", hint: "The current branch to its upstream", needs: { remote: true } },
+          { id: "push-to", label: "Push To…", hint: "Choose the remote and the ref", needs: { remote: true, branch: true } },
+        ],
       },
       {
         id: "sync",
