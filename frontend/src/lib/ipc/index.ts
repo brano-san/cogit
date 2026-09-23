@@ -1,3 +1,4 @@
+import { decodeBase64Window } from "$lib/graph-wire";
 import { Channel } from "@tauri-apps/api/core";
 
 import { commands, events } from "./bindings";
@@ -83,7 +84,6 @@ export type {
   GitOutput,
   GraphProgress,
   GraphRow,
-  GraphWindow,
   Head,
   Hook,
   HookOverview,
@@ -223,9 +223,9 @@ export async function loadGraph(
   return unwrap(await commands.loadCommits(repo, query, channel));
 }
 
-/** `null` once a newer walk replaced `generation`. */
+/** `null` once a newer walk replaced `generation`. Rows are decoded when drawn (R-194). */
 export async function graphWindow(repo: RepoId, generation: number, start: number, count: number) {
-  return unwrap(await commands.graphWindow(repo, generation, start, count));
+  return decodeBase64Window(unwrap(await commands.graphWindow(repo, generation, start, count)));
 }
 
 export async function graphRowOf(repo: RepoId, generation: number, oid: string) {

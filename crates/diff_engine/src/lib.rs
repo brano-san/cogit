@@ -15,7 +15,7 @@ mod words;
 pub use batch::{FileDiffEntry, FileInput, diff_many, diff_one};
 pub use eol::{EolInfo, LineEnding, detect_line_ending, normalize_line_endings};
 pub use headers::with_hunk_context;
-pub use images::{data_url, image_mime};
+pub use images::{base64, data_url, image_mime};
 pub use language::language_for_path;
 pub use merge::{Origin, Region, merge3, merge3_with_syntax};
 pub use moves::{MIN_MOVED_LINES, detect_moves, link_moves_across_files};

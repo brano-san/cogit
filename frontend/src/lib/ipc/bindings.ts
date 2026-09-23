@@ -21,15 +21,12 @@ export const commands = {
 	 *  rows go out by `graph_window` (R-193). Dropping the channel cancels the walk.
 	 */
 	loadCommits: (repo: RepoId, query: CommitQuery, onProgress: Channel<GraphProgress>) => typedError<SkippedRef[], GitError>(__TAURI_INVOKE("load_commits", { repo, query, onProgress })),
-	/**  `None` once a newer graph replaced `generation`: the answer would be for other rows. */
-	graphWindow: (repo: RepoId, generation: number, start: number, count: number) => typedError<{
-	start: number,
-	total: number,
-	complete: boolean,
-	commits: CommitRow[],
-	/**  One per commit, in the same order. */
-	rows: GraphRow[],
-} | null, GitError>(__TAURI_INVOKE("graph_window", { repo, generation, start, count })),
+	/**
+	 *  Columns of the rows (`app_state::graph_wire`) in base64: one string for the
+	 *  `postMessage` transport to carry, not a JSON array of numbers (R-192, R-194). Empty
+	 *  once a newer graph replaced `generation`, as the answer would be for other rows.
+	 */
+	graphWindow: (repo: RepoId, generation: number, start: number, count: number) => typedError<string, GitError>(__TAURI_INVOKE("graph_window", { repo, generation, start, count })),
 	graphRowOf: (repo: RepoId, generation: number, oid: string) => typedError<number | null, GitError>(__TAURI_INVOKE("graph_row_of", { repo, generation, oid })),
 	commitDetails: (repo: RepoId, rev: string) => typedError<CommitDetails, GitError>(__TAURI_INVOKE("commit_details", { repo, rev })),
 	commitFiles: (repo: RepoId, rev: string) => typedError<FileEntry[], GitError>(__TAURI_INVOKE("commit_files", { repo, rev })),
@@ -701,15 +698,6 @@ export type GraphRow = {
 	/**  Columns used by the top edge, the node and the bottom edge together. */
 	width: number,
 	segments: Segment[],
-};
-
-export type GraphWindow = {
-	start: number,
-	total: number,
-	complete: boolean,
-	commits: CommitRow[],
-	/**  One per commit, in the same order. */
-	rows: GraphRow[],
 };
 
 /**  Assuming "HEAD is a branch" crashes on an unborn or detached checkout (INV-07). */

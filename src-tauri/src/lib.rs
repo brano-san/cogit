@@ -95,6 +95,8 @@ pub struct AppContext {
 
 fn specta_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new()
+        // What `graph_window` bytes decode to (R-194): no command returns it as JSON any more.
+        .typ::<graph_engine::GraphRow>()
         .events(collect_events![
             RepoChanged,
             MenuCommand,

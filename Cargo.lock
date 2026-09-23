@@ -684,6 +684,7 @@ dependencies = [
  "diff_engine",
  "fs_watcher",
  "git_engine",
+ "graph_engine",
  "parking_lot",
  "serde",
  "serde_json",

@@ -3,6 +3,7 @@ mod credentials;
 mod diffing;
 pub mod environment;
 mod graph_cache;
+pub mod graph_wire;
 mod hooking;
 pub mod licences;
 pub mod logging;
