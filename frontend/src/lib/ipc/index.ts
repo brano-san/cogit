@@ -594,6 +594,10 @@ export async function stashPush(repo: RepoId, options: StashOptions) {
   return unwrap(await commands.stashPush(repo, options));
 }
 
+export async function stashKeepingWorktree(repo: RepoId, message: string) {
+  return unwrap(await commands.stashKeepingWorktree(repo, message));
+}
+
 export async function stashApply(repo: RepoId, index: number, pop: boolean) {
   return unwrap(await commands.stashApply(repo, index, pop));
 }

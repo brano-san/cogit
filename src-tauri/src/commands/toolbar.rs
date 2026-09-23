@@ -19,6 +19,25 @@ pub async fn is_merged_into_head(
     .await
 }
 
+/// Stash ▸ + Keep Working Tree: the stash is made, the files stay as they are (#29).
+#[tauri::command]
+#[specta::specta]
+pub async fn stash_keeping_worktree(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    message: String,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Stash,
+        "stash_keeping_worktree",
+        move || app_state.stash_keeping_worktree(repo, &message),
+    )
+    .await
+}
+
 /// After a pull: local branches merged into HEAD whose upstream the remote deleted.
 /// Returns the names that were deleted.
 #[tauri::command]

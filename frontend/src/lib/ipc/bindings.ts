@@ -77,6 +77,8 @@ export const commands = {
 	continueOperation: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("continue_operation", { repo })),
 	stashes: (repo: RepoId) => typedError<StashEntry[], GitError>(__TAURI_INVOKE("stashes", { repo })),
 	stashPush: (repo: RepoId, options: StashOptions) => typedError<null, GitError>(__TAURI_INVOKE("stash_push", { repo, options })),
+	/**  Stash ▸ + Keep Working Tree: the stash is made, the files stay as they are (#29). */
+	stashKeepingWorktree: (repo: RepoId, message: string) => typedError<null, GitError>(__TAURI_INVOKE("stash_keeping_worktree", { repo, message })),
 	stashApply: (repo: RepoId, index: number, pop: boolean) => typedError<null, GitError>(__TAURI_INVOKE("stash_apply", { repo, index, pop })),
 	stashDrop: (repo: RepoId, index: number) => typedError<null, GitError>(__TAURI_INVOKE("stash_drop", { repo, index })),
 	createTag: (repo: RepoId, request: TagRequest) => typedError<null, GitError>(__TAURI_INVOKE("create_tag", { repo, request })),

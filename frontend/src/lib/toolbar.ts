@@ -254,8 +254,9 @@ export function menuOf(id: string, context: MenuContext = NO_MENU_CONTEXT): Menu
       return syncMenu(context);
     case "stash":
       return [
-        item("stash", "Stash All", "Everything in the working tree"),
-        item("stash-selection", "Stash Selection", "Only the selected files"),
+        item("stash-selection", "Stash Selection", "Stash the files selected in Files, after a look at the list"),
+        item("quick-stash-all", "Quick Stash All", "Stash every change now, with Git's own message"),
+        item("quick-stash-selection", "Quick Stash Selection", "Stash the selected files now, without asking"),
       ];
     case "rebase":
       return [
@@ -336,6 +337,13 @@ const needWorkingTree: Rule = (f) =>
 
 const anyMarked = (f: ToolbarFacts) => f.markedUnstaged.length + f.markedStaged.length > 0;
 
+const needChanges: Rule = (f) =>
+  needRepository(f) ??
+  (f.unstaged.length + f.staged.length > 0 ? undefined : "The working tree is clean");
+
+const needSelection: Rule = (f) =>
+  needWorkingTree(f) ?? (anyMarked(f) ? undefined : "No file is selected in Files");
+
 const needCommit: Rule = (f) =>
   needRepository(f) ??
   (f.commit === null ? "Select a commit or a branch first" : undefined) ??
@@ -371,11 +379,10 @@ const RULES: Record<string, Rule> = {
   discard: (f) =>
     needWorkingTree(f) ??
     (f.markedUnstaged.length > 0 ? undefined : "Select the changes to discard in Files"),
-  stash: (f) =>
-    needRepository(f) ??
-    (f.unstaged.length + f.staged.length > 0 ? undefined : "The working tree is clean"),
-  "stash-selection": (f) =>
-    needWorkingTree(f) ?? (anyMarked(f) ? undefined : "No file is selected in Files"),
+  stash: needChanges,
+  "quick-stash-all": needChanges,
+  "stash-selection": needSelection,
+  "quick-stash-selection": needSelection,
   merge: (f) =>
     needCommit(f) ??
     (f.merged === undefined
@@ -399,9 +406,12 @@ export function reasonOf(id: string, facts: ToolbarFacts): string | undefined {
 /** The files an action on the working tree applies to: the selection, or every file of
     the list when nothing is selected. */
 export function targetsOf(
-  action: "stage" | "unstage" | "discard",
+  action: "stage" | "unstage" | "discard" | "stash-selection",
   facts: ToolbarFacts,
 ): string[] {
+  if (action === "stash-selection") {
+    return [...new Set([...facts.markedUnstaged, ...facts.markedStaged])];
+  }
   const all = action === "unstage" ? facts.staged : facts.unstaged;
   const marked = action === "unstage" ? facts.markedStaged : facts.markedUnstaged;
   if (action === "discard") return [...marked];

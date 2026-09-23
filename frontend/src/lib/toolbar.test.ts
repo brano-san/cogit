@@ -300,3 +300,31 @@ describe("the Sync menu", () => {
     expect(reasonOf("sync-order:pushThenPull", facts())).toBe("This repository has no remote");
   });
 });
+
+describe("the Stash menu", () => {
+  it("offers Stash Selection and the two quick stashes; the button itself is Stash All", () => {
+    expect(menuOf("stash").map((entry) => (entry.kind === "separator" ? "—" : entry.label))).toEqual([
+      "Stash Selection",
+      "Quick Stash All",
+      "Quick Stash Selection",
+    ]);
+  });
+
+  it("turns the selection entries off without a file selected in Files", () => {
+    const none = tree({ unstaged: ["a"] });
+    expect(reasonOf("stash-selection", none)).toBe("No file is selected in Files");
+    expect(reasonOf("quick-stash-selection", none)).toBe("No file is selected in Files");
+    expect(reasonOf("quick-stash-all", none)).toBeUndefined();
+  });
+
+  it("stashes a selected file once even when it is in both lists", () => {
+    const both = tree({ unstaged: ["a", "b"], staged: ["a"], markedUnstaged: ["a"], markedStaged: ["a"] });
+    expect(targetsOf("stash-selection", both)).toEqual(["a"]);
+    expect(reasonOf("stash-selection", both)).toBeUndefined();
+  });
+
+  it("has nothing to stash on a clean tree", () => {
+    expect(reasonOf("stash", tree())).toBe("The working tree is clean");
+    expect(reasonOf("quick-stash-all", tree())).toBe("The working tree is clean");
+  });
+});

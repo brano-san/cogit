@@ -871,6 +871,15 @@ impl AppState {
         self.handle(repo)?.stash_push(options)
     }
 
+    pub fn stash_keeping_worktree(
+        &self,
+        repo: RepoId,
+        message: &str,
+    ) -> Result<(), git_engine::GitError> {
+        let _quiet = self.quiet(repo);
+        self.handle(repo)?.stash_keeping_worktree(message)
+    }
+
     pub fn stash_apply(
         &self,
         repo: RepoId,
