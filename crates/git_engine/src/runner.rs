@@ -107,6 +107,7 @@ impl RepoHandle {
     /// Standard output as bytes, for paths the user picked: a patch of a Latin-1 file must
     /// survive the round trip.
     pub(crate) fn run_git_bytes_literal(&self, args: &[&str]) -> Result<Vec<u8>> {
+        let started = std::time::Instant::now();
         let mut process = base_command(self.root(), true);
         for (key, value) in LITERAL {
             process.env(key, value);
@@ -122,8 +123,10 @@ impl RepoHandle {
             output.status.code(),
             &String::from_utf8_lossy(&output.stdout),
             &String::from_utf8_lossy(&output.stderr),
-            0,
+            elapsed_ms(started),
         );
+        // As `read_git` does: the error names this record, so the journal must have it.
+        self.journal_entry(result.clone());
         Err(GitError::Command(Box::new(GitCommandError::from_output(
             result,
         ))))
@@ -410,4 +413,39 @@ pub(crate) fn bare_git(args: &[&str]) -> Result<BareOutput> {
         stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
         stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)]
+
+    use crate::{GitError, RepoHandle};
+    use std::sync::{Arc, Mutex};
+
+    // A failed read of bytes built its record, numbered it, and never journalled it: the
+    // number in the error named a record the Output window did not have.
+    #[test]
+    fn a_failed_byte_read_is_in_the_journal_under_the_number_its_error_gives() {
+        let f = test_fixtures::linear(1).unwrap();
+        let ids: Arc<Mutex<Vec<u32>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&ids);
+        let repo = RepoHandle::open(f.path()).unwrap().with_journal(Arc::new(
+            move |out: crate::GitOutput| {
+                sink.lock().unwrap().push(out.id);
+            },
+        ));
+
+        let err = repo
+            .run_git_bytes_literal(&["cat-file", "-p", "no-such-object"])
+            .unwrap_err();
+
+        let GitError::Command(failure) = err else {
+            panic!("expected a command failure, got {err:?}");
+        };
+        assert!(
+            ids.lock().unwrap().contains(&failure.id),
+            "{:?}",
+            ids.lock().unwrap()
+        );
+    }
 }
