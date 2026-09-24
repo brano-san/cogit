@@ -154,7 +154,7 @@ impl RepoHandle {
 
         let range = format!("{from},{to}:{path}");
         let count = format!("-{}", limit.clamp(1, 1000));
-        let output = self.run_git_reading(&[
+        let output = self.read_git(&[
             "log",
             "-L",
             &range,
@@ -163,7 +163,7 @@ impl RepoHandle {
             &format!("--format={STEP}%H%x09%an%x09%ae%x09%at%x09%s"),
         ])?;
 
-        Ok(parse_investigation(&output.stdout))
+        Ok(parse_investigation(&output))
     }
 }
 
