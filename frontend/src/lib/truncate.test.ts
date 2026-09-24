@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { REF_LABEL_MAX, refLabelText, truncateMiddle, truncatePath } from "./truncate";
+import { REF_LABEL_MAX, middleCut, refLabelText, truncateMiddle, truncatePath } from "./truncate";
 
 const LOG = "C:\\Users\\brano\\AppData\\Local\\dev.branosan.cogit\\logs\\cogit.log";
 
@@ -70,5 +70,19 @@ describe("truncateMiddle", () => {
     const long = "x".repeat(REF_LABEL_MAX + 5);
     expect(refLabelText(long)).toHaveLength(REF_LABEL_MAX);
     expect(refLabelText(long)).toContain("…");
+  });
+});
+
+describe("middleCut", () => {
+  it("splits a label into a lead that gives way and a tail that stays", () => {
+    const { lead, tail } = middleCut("feature/14340_new_toolchain");
+
+    expect(lead + tail).toBe("feature/14340_new_toolchain");
+    expect(tail).toBe("_toolchain");
+  });
+
+  it("keeps half of a short label as its tail", () => {
+    expect(middleCut("main")).toEqual({ lead: "ma", tail: "in" });
+    expect(middleCut("")).toEqual({ lead: "", tail: "" });
   });
 });

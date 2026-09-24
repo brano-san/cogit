@@ -15,14 +15,34 @@
     hitTest,
     nextRow,
     scrollRowIntoView,
+    setGraphRowHeight,
     striped,
     textX,
     toCommitRow,
     visibleRange,
   } from "$lib/graph-geometry";
+  import {
+    COLUMN_WIDTH,
+    DENSITY_ROW_HEIGHT,
+    GRAPH_COLUMNS,
+    GRAPH_DENSITY,
+    GRAPH_STRIPES,
+    LONG_LINK_ROWS,
+    graphClipX,
+    graphTime,
+    rightCells,
+    rightColumnsWidth,
+    rowTextX,
+    timeWidth,
+    type GraphColumn,
+    type GraphDensity,
+    type GraphTimeFormat,
+  } from "$lib/graph-row";
+  import { linkStubs, linkTitle } from "$lib/graph-links";
   import { measurer } from "$lib/timing";
   import { anchoredScrollTop } from "$lib/graph-anchor";
-  import { subjectMinWidth } from "$lib/graph-panel";
+  import { subjectRoom } from "$lib/graph-panel";
+  import { untrack } from "svelte";
   import { workingTreeLabel } from "$lib/repo-state";
   import { reportTiming, type RebaseProgress, type RepoId } from "$lib/ipc";
   import Avatar from "$components/common/Avatar.svelte";
@@ -43,9 +63,37 @@
     oncontext?: (oid: string, x: number, y: number) => void;
     onworktreecontext?: (x: number, y: number) => void;
     onrefcontext?: (label: RefLabel, oid: string, x: number, y: number) => void;
+    /** The right columns shown, in order (#12). The defaults are the list as it always was. */
+    columns?: readonly GraphColumn[];
+    /** Unset: the app's own date format. */
+    timeFormat?: GraphTimeFormat;
+    density?: GraphDensity;
+    stripes?: boolean;
+    /** Links longer than this many rows are two stubs (R-330); 0 draws every link whole. */
+    longLinkRows?: number;
   }
 
-  let { rebase = null, ondrop, oncontext, onworktreecontext, onrefcontext }: Props = $props();
+  let {
+    rebase = null,
+    ondrop,
+    oncontext,
+    onworktreecontext,
+    onrefcontext,
+    columns = GRAPH_COLUMNS,
+    timeFormat,
+    density = GRAPH_DENSITY,
+    stripes = GRAPH_STRIPES,
+    longLinkRows = LONG_LINK_ROWS,
+  }: Props = $props();
+
+  const rowHeight = $derived(DENSITY_ROW_HEIGHT[density]);
+  const timeMode = $derived(timeFormat ?? settings.current.dateFormat);
+  const cells = $derived(rightCells(columns, overlap.enabled));
+
+  $effect(() => {
+    const rows = longLinkRows;
+    untrack(() => graph.setLongLinkRows(rows));
+  });
 
   /** The other end of a comparison stays marked while the graph shows it (#33). */
   const comparedFrom = $derived(compareView.showing(selection.oid) ? compareView.from : null);
@@ -68,8 +116,25 @@
   const BUFFER_ROWS = 10;
 
   let scroller: HTMLDivElement | undefined = $state();
+  let rowsLayer: HTMLDivElement | undefined = $state();
   let scrollTop = $state(0);
   let viewportHeight = $state(0);
+  let panelWidth = $state(0);
+  /** The row's gap and right padding and one digit of its font, read from the page. */
+  let metrics = $state({ gap: 6, padding: 12, char: 7 });
+
+  /** Geometry reads the row height outside Svelte; a new density keeps the top row (#13). */
+  let drawnRowHeight = GRAPH.rowHeight;
+  $effect.pre(() => setGraphRowHeight(rowHeight));
+  $effect(() => {
+    const next = rowHeight;
+    if (next === drawnRowHeight) return;
+    const before = { scrollTop: untrack(() => scrollTop), rowHeight: drawnRowHeight };
+    drawnRowHeight = next;
+    if (!scroller) return;
+    const after = { rowHeight: next, viewportHeight: untrack(() => viewportHeight), totalRows: untrack(() => listRows) };
+    scroller.scrollTop = anchoredScrollTop(before, after);
+  });
 
   /** Index and every pending step, sitting between Working Tree and the first commit. */
   const virtualRows = $derived.by(() => {
@@ -99,11 +164,27 @@
   const commitCount = $derived(graph.total);
   const listRows = $derived(commitCount + headerRows);
   const range = $derived(
-    visibleRange(scrollTop, viewportHeight, GRAPH.rowHeight, listRows, BUFFER_ROWS),
+    visibleRange(scrollTop, viewportHeight, rowHeight, listRows, BUFFER_ROWS),
   );
+
+  const rightWidth = $derived(
+    rightColumnsWidth({
+      columns,
+      avatars: avatars.enabled,
+      time: timeMode,
+      overlap: overlap.enabled,
+      gap: metrics.gap,
+      padding: metrics.padding,
+    }),
+  );
+  /** Past this the graph area is cut, so the right columns are never pushed out (#12). */
+  const clipX = $derived(
+    panelWidth > 0 ? graphClipX(panelWidth, rightWidth, subjectRoom(metrics.char)) : Number.POSITIVE_INFINITY,
+  );
+
   /** The Working Tree row and the rebase rows start where HEAD's line is. */
   const headLane = $derived(graph.rowAt(0)?.layout.lane ?? null);
-  const headerX = $derived(textX((headLane ?? 0) + 1));
+  const headerX = $derived(rowTextX((headLane ?? 0) + 1, clipX));
 
   /** The window drives the queue: rows that scroll away stop being asked for. */
   $effect(() => {
@@ -159,7 +240,7 @@
   );
   /** The canvas only has to reach the widest row on screen. */
   const canvasWidth = $derived(
-    Math.max(headerX, ...drawn.map(({ layout }) => textX(layout.width))),
+    Math.min(Math.max(headerX, ...drawn.map(({ layout }) => textX(layout.width))), clipX),
   );
   const selectedRow = $derived(visible.find(({ entry }) => entry.commit.oid === selection.oid)?.listRow ?? null);
 
@@ -169,7 +250,7 @@
     if (!id) return;
 
     const at = graph.loadedIndexOf(selection.oid);
-    const page = Math.max(Math.floor(viewportHeight / GRAPH.rowHeight) - 1, 1);
+    const page = Math.max(Math.floor(viewportHeight / rowHeight) - 1, 1);
     const target = nextRow(at, event.key, graph.total, page);
     if (target === null) return;
 
@@ -180,7 +261,7 @@
       target + headerRows,
       scrollTop,
       viewportHeight,
-      GRAPH.rowHeight,
+      rowHeight,
     );
     if (offset !== null && scroller) scroller.scrollTop = offset;
   }
@@ -207,7 +288,7 @@
     void graph.total;
     void graph.indexOf(wanted.oid).then((at) => {
       if (at === null || !scroller || graph.reveal !== wanted || revealed === wanted.request) return;
-      scroller.scrollTop = centreRow(at + headerRows, viewportHeight, GRAPH.rowHeight, listRows);
+      scroller.scrollTop = centreRow(at + headerRows, viewportHeight, rowHeight, listRows);
       revealed = wanted.request;
     });
   });
@@ -239,14 +320,47 @@
     const observer = new ResizeObserver(([entry]) => {
       if (!entry || !scroller) return;
       viewportHeight = entry.contentRect.height;
+      panelWidth = entry.contentRect.width;
       // The row at the top stays there when the panel changes height (#13).
-      const rowHeight = GRAPH.rowHeight;
       const kept = anchoredScrollTop({ scrollTop, rowHeight }, { rowHeight, viewportHeight, totalRows: listRows });
       if (scroller.scrollTop !== kept) scroller.scrollTop = kept;
     });
     observer.observe(scroller);
     return () => observer.disconnect();
   });
+
+  $effect(() => {
+    if (!rowsLayer) return;
+    const style = getComputedStyle(rowsLayer);
+    const context = document.createElement("canvas").getContext("2d");
+    if (context) context.font = style.font;
+    metrics = {
+      gap: parseFloat(style.getPropertyValue("--sp-3")) || 6,
+      padding: parseFloat(style.getPropertyValue("--sp-5")) || 12,
+      char: context?.measureText("0").width || 7,
+    };
+  });
+
+  /** A stub of a cut link takes the list to the commit at its other end (R-330). */
+  function jump(oid: string | undefined) {
+    const repo = repository.current?.repo;
+    if (!oid || repo === undefined) return;
+    graph.requestReveal(oid);
+    void pick(repo, oid);
+  }
+
+  function describeEnd(oid: string) {
+    const at = graph.loadedIndexOf(oid);
+    return { short: shortOid(oid), summary: (at === null ? undefined : graph.rowAt(at))?.commit.summary ?? null };
+  }
+
+  /** The far ends are rarely on screen; their rows are fetched while the tooltip waits. */
+  function prefetch(oids: readonly string[]) {
+    for (const oid of oids.slice(0, 6)) {
+      if (graph.loadedIndexOf(oid) !== null) continue;
+      void graph.indexOf(oid).then((at) => (at === null ? undefined : graph.entry(at)));
+    }
+  }
 </script>
 
 {#if graph.error}
@@ -284,14 +398,21 @@
           {headLane}
           {selectedRow}
           {hoverRow}
+          {clipX}
+          {stripes}
+          {rowHeight}
         />
       </div>
 
       <div
         class="rows"
+        bind:this={rowsLayer}
         style:transform="translateY({-scrollTop}px)"
-        style:--row-h="{GRAPH.rowHeight}px"
-        style:--subject-min={subjectMinWidth()}
+        style:--row-h="{rowHeight}px"
+        style:--author-max="{COLUMN_WIDTH.author}px"
+        style:--hash-w="{COLUMN_WIDTH.hash}px"
+        style:--overlap-w="{COLUMN_WIDTH.overlap}px"
+        style:--time-w="{timeWidth(timeMode)}px"
       >
         {#if range.start === 0}
           <button
@@ -317,8 +438,8 @@
         {#each virtualRows as row, index (index)}
           <div
             class="row virtual {row.kind}"
-            class:striped={striped(HEADER_ROWS + index)}
-            style:top="{(HEADER_ROWS + index) * GRAPH.rowHeight}px"
+            class:striped={stripes && striped(HEADER_ROWS + index)}
+            style:top="{(HEADER_ROWS + index) * rowHeight}px"
             style:padding-left="{headerX}px"
           >
             <span class="node" aria-hidden="true">{row.kind === "onto" ? "▶" : "◌"}</span>
@@ -331,11 +452,11 @@
           {@const refs = capsules(labels.get(item.entry.commit.oid) ?? [], CAPSULE_ROOM)}
           <div
             class="row"
-            class:striped={striped(item.listRow)}
+            class:striped={stripes && striped(item.listRow)}
             class:selected={selection.oid === item.entry.commit.oid || comparedFrom === item.entry.commit.oid}
             class:over={over === item.entry.commit.oid}
-            style:top="{item.listRow * GRAPH.rowHeight}px"
-            style:padding-left="{textX(item.entry.layout.width)}px"
+            style:top="{item.listRow * rowHeight}px"
+            style:padding-left="{rowTextX(item.entry.layout.width, clipX)}px"
             role="listitem"
             draggable={ondrop !== undefined}
             ondragstart={(event) =>
@@ -385,39 +506,62 @@
               >
             {/if}
             <span class="summary truncate">{item.entry.commit.summary}</span>
-            <span class="author truncate">{item.entry.commit.authorName}</span>
-            <Avatar
-              name={item.entry.commit.authorName}
-              email={item.entry.commit.authorEmail}
-            />
-            <span
-              class="date time tabular"
-              title={dateTooltip(
-                item.entry.commit.timestamp,
-                item.entry.commit.tzOffsetMinutes,
-              )}>{settings.formatDate(
-                item.entry.commit.timestamp,
-                item.entry.commit.tzOffsetMinutes,
-              )}</span
-            >
-            {#if overlap.enabled}
-              {@const row = overlap.rows.get(item.entry.commit.oid)}
-              <span
-                class="overlap {row?.overlap ?? 'none'}"
-                class:base={row?.isBase}
-                title={row ? overlapTooltip(row.shared, row.sharedTotal) : ""}
-              >
-                {row?.isBase ? "base" : row ? overlapLabel(row.overlap) : ""}
-              </span>
-            {/if}
-            <span class="oid mono tabular">{shortOid(item.entry.commit.oid)}</span>
+            {#each cells as cell (cell)}
+              {#if cell === "author"}
+                <span class="author truncate">{item.entry.commit.authorName}</span>
+              {:else if cell === "avatar"}
+                <Avatar name={item.entry.commit.authorName} email={item.entry.commit.authorEmail} />
+              {:else if cell === "time"}
+                <span
+                  class="date time tabular truncate"
+                  title={dateTooltip(item.entry.commit.timestamp, item.entry.commit.tzOffsetMinutes)}
+                  >{graphTime(
+                    item.entry.commit.timestamp,
+                    item.entry.commit.tzOffsetMinutes,
+                    Date.now() / 1000,
+                    timeMode,
+                  )}</span
+                >
+              {:else if cell === "overlap"}
+                {@const row = overlap.rows.get(item.entry.commit.oid)}
+                <span
+                  class="overlap {row?.overlap ?? 'none'}"
+                  class:base={row?.isBase}
+                  title={row ? overlapTooltip(row.shared, row.sharedTotal) : ""}
+                >
+                  {row?.isBase ? "base" : row ? overlapLabel(row.overlap) : ""}
+                </span>
+              {:else}
+                <span class="oid mono tabular">{shortOid(item.entry.commit.oid)}</span>
+              {/if}
+            {/each}
+            {#each linkStubs(item.entry.layout) as stub (stub.segment)}
+              {#if stub.box.left + stub.box.size <= clipX}
+                <button
+                  type="button"
+                  class="link-stub"
+                  tabindex="-1"
+                  style:left="{stub.box.left}px"
+                  style:top="{stub.box.top}px"
+                  style:width="{stub.box.size}px"
+                  style:height="{stub.box.size}px"
+                  aria-label="Go to the other end of this link"
+                  title={linkTitle(stub.oids, describeEnd)}
+                  onpointerenter={() => prefetch(stub.oids)}
+                  onclick={(event) => {
+                    event.stopPropagation();
+                    jump(stub.oids[0]);
+                  }}
+                ></button>
+              {/if}
+            {/each}
           </div>
         {/each}
       </div>
     </div>
     <div
       class="spacer"
-      style:height="{Math.max(listRows * GRAPH.rowHeight - viewportHeight, 0)}px"
+      style:height="{Math.max(listRows * rowHeight - viewportHeight, 0)}px"
     ></div>
   </div>
 {/if}
@@ -452,6 +596,7 @@
     position: absolute;
     inset: 0;
     z-index: 1;
+    font-size: var(--fs-dense);
     will-change: transform;
   }
 
@@ -542,21 +687,22 @@
     line-height: 14px;
   }
 
-  /* Kept, not squeezed to nothing: past it the row is cut by the panel's edge (#5). */
+  /* Gives way after the branch labels, which shrink first (#12, R-331); the right columns
+     never do, and past its room the graph area is cut instead. */
   .summary {
     flex: 1 1 auto;
-    min-width: var(--subject-min, 0);
+    min-width: 0;
   }
 
   .author {
     flex: 0 0 auto;
-    max-width: 140px;
+    max-width: var(--author-max);
     color: var(--text-secondary);
   }
 
   .date,
   .overlap {
-    flex: 0 0 74px;
+    flex: 0 0 var(--overlap-w);
     color: var(--text-secondary);
     font-size: var(--fs-header);
     text-align: right;
@@ -565,6 +711,7 @@
   /* Beside the avatar, one row gap from it (#14): right-aligned in its fixed column, a short
      date sat a whole column away from the face it belongs to. */
   .date.time {
+    flex-basis: var(--time-w);
     text-align: left;
   }
 
@@ -582,9 +729,19 @@
   }
 
   .oid {
-    flex: 0 0 auto;
+    flex: 0 0 var(--hash-w);
+    overflow: hidden;
     color: var(--text-secondary);
     font-size: 11px;
+  }
+
+  /* Over the arrow of a cut link, under the canvas that draws it (R-330). */
+  .link-stub {
+    position: absolute;
+    padding: 0;
+    background: none;
+    border: 0;
+    cursor: pointer;
   }
 
   .message {
