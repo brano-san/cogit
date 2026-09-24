@@ -152,14 +152,9 @@ pub async fn push_to(
         OperationKind::Push,
         "push_to",
         move || {
-            let mut timer = git_engine::phases::PhaseTimer::new();
-            let named = remote.clone();
-            let result = app_state.push_to(repo, &remote, &refspec, |line| {
-                timer.observe(line);
-                let _ = on_progress.send(line.to_owned());
-            });
-            crate::profile::network("push", &named, timer, result.is_ok());
-            result
+            super::network::with_progress("push", &remote, &on_progress, |on_line| {
+                app_state.push_to(repo, &remote, &refspec, on_line)
+            })
         },
     )
     .await

@@ -14,6 +14,23 @@ pub async fn remotes(
     blocking("remotes", move || app_state.remotes(repo)).await
 }
 
+/// A network command's own lines go to the page as they arrive, and its phases into the
+/// profile once it ends; every command that talks to a remote goes through here.
+pub(super) fn with_progress<T>(
+    operation: &'static str,
+    remote: &str,
+    channel: &tauri::ipc::Channel<String>,
+    run: impl FnOnce(&mut dyn FnMut(&str)) -> Result<T, GitError>,
+) -> Result<T, GitError> {
+    let mut timer = git_engine::phases::PhaseTimer::new();
+    let result = run(&mut |line: &str| {
+        timer.observe(line);
+        let _ = channel.send(line.to_owned());
+    });
+    crate::profile::network(operation, remote, timer, result.is_ok());
+    result
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn fetch(
@@ -29,14 +46,9 @@ pub async fn fetch(
         OperationKind::Fetch,
         "fetch",
         move || {
-            let mut timer = git_engine::phases::PhaseTimer::new();
-            let named = remote.clone();
-            let result = app_state.fetch(repo, &remote, |line| {
-                timer.observe(line);
-                let _ = on_progress.send(line.to_owned());
-            });
-            crate::profile::network("fetch", &named, timer, result.is_ok());
-            result
+            with_progress("fetch", &remote, &on_progress, |on_line| {
+                app_state.fetch(repo, &remote, on_line)
+            })
         },
     )
     .await
@@ -53,14 +65,9 @@ pub async fn pull(
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
     mutating(&state.state, repo, OperationKind::Pull, "pull", move || {
-        let mut timer = git_engine::phases::PhaseTimer::new();
-        let named = remote.clone();
-        let result = app_state.pull(repo, &remote, ff_only, |line| {
-            timer.observe(line);
-            let _ = on_progress.send(line.to_owned());
-        });
-        crate::profile::network("pull", &named, timer, result.is_ok());
-        result
+        with_progress("pull", &remote, &on_progress, |on_line| {
+            app_state.pull(repo, &remote, ff_only, on_line)
+        })
     })
     .await
 }
@@ -76,14 +83,9 @@ pub async fn push(
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
     mutating(&state.state, repo, OperationKind::Push, "push", move || {
-        let mut timer = git_engine::phases::PhaseTimer::new();
-        let named = remote.clone();
-        let result = app_state.push(repo, &remote, force, |line| {
-            timer.observe(line);
-            let _ = on_progress.send(line.to_owned());
-        });
-        crate::profile::network("push", &named, timer, result.is_ok());
-        result
+        with_progress("push", &remote, &on_progress, |on_line| {
+            app_state.push(repo, &remote, force, on_line)
+        })
     })
     .await
 }
