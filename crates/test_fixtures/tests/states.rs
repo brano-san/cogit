@@ -92,3 +92,17 @@ fn conflicted_index_holds_all_three_stages() {
         );
     }
 }
+
+// The bare remote and the second clone lived inside the fixture's own working tree: the
+// repository was never clean, a test of `dirty` passed whatever the code did, and a
+// `stash -u` or a clean would have taken the remote with it.
+#[test]
+fn a_repository_with_a_remote_starts_clean() {
+    let f = test_fixtures::with_remote().unwrap();
+
+    let status = f
+        .git(&["status", "--porcelain", "--untracked-files=all"])
+        .unwrap();
+
+    assert!(status.trim().is_empty(), "{status}");
+}

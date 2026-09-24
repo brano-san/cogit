@@ -273,8 +273,10 @@ pub fn unicode_paths() -> Result<Fixture> {
 
 /// A clone with an `origin` that has moved on: two commits ahead locally, one behind.
 pub fn with_remote() -> Result<Fixture> {
-    let f = linear(2)?;
-    let remote = f.dir.path().join("origin.git");
+    let mut f = linear(2)?;
+    // Beside the repository, not in it: inside, they were untracked files of its own.
+    let aux = TempDir::new()?;
+    let remote = aux.path().join("origin.git");
     run_git(
         f.path(),
         &[
@@ -289,9 +291,9 @@ pub fn with_remote() -> Result<Fixture> {
     f.git(&["push", "--set-upstream", "origin", "main"])?;
 
     // The remote moves on through a second clone, so `origin/main` is genuinely ahead.
-    let other = f.dir.path().join("other");
+    let other = aux.path().join("other");
     run_git(
-        f.dir.path(),
+        aux.path(),
         &["clone", &remote.to_string_lossy(), &other.to_string_lossy()],
         None,
     )?;
@@ -317,6 +319,7 @@ pub fn with_remote() -> Result<Fixture> {
 ",
     )?;
     f.git(&["fetch", "origin"])?;
+    f._aux.push(aux);
     Ok(f)
 }
 
