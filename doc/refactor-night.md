@@ -666,7 +666,12 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > сохранены реэкспортом. 956 строк → 773 + 192. Строку меню и раскладку клавиш не делил:
   > они держатся на общих `Entry`/`SECTIONS`, и перенос пришлось бы делать с правкой
   > видимости. Ссылка в 12-risks поправлена.
-- [ ] M6-02 app_state/lib.rs (перенос)
+- [x] M6-02 app_state/lib.rs (перенос)
+  > Итог: чистый перенос методов `AppState` без правок: `stashing.rs` (7), `flow.rs` (4),
+  > `rewrite.rs` (17 — merge, rebase, interactive rebase, split off, rollback, cherry-
+  > pick/revert, abort/continue/skip, is_published…). 1814 → 1532 строк в lib.rs. Реестр
+  > репозиториев и журнал команд не выносил: они держатся на приватных полях и `Steps`,
+  > перенос потянул бы правки видимости, а время ушло на фазу 3.
 - [x] M6-01 commands/mod.rs (перенос)
   > Итог: чистый перенос, тела команд не менялись, имена в биндингах те же (bindings.ts
   > после export-bindings без изменений): из `commands/mod.rs` вынесены `worktrees.rs` (11
