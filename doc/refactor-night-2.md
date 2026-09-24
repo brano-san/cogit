@@ -415,7 +415,11 @@ ST src-tauri, FS сторы и lib фронта, FA App.svelte/окна/layout, 
 - [x] 2.6 GE-2-09: split_off не выпрямляет merge
   > Итог: rebase после разделения идёт с `--rebase-merges`; тест «a merge after the split
   > commit stays a merge» (красный до правки).
-- [ ] 2.7 GE-2-10: surgery читает через read_git
+- [x] 2.7 GE-2-10: surgery читает через read_git
+  > Итог: список файлов коммита (`diff-tree -z`), `ls-tree -z` и `for-each-ref --contains`
+  > читаются через `read_git` (полностью, без маскировки секретов журналом); checkout и rm
+  > выбранных файлов — с точными путями. Тест с файлами `api/token.rs` и
+  > `data/year=2024/a.csv` (красный до правки).
 - [ ] 2.8 GE-2-11: ожидаемые отказы проверок — мимо журнала
 - [ ] 2.9 GE-2-12, GE-2-13, GE-2-14: lost commits — теги, reflog веток, shallow
 - [ ] 2.10 GE-2-15: worktree bare-репозитория
