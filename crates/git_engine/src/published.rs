@@ -1,6 +1,6 @@
 use crate::RepoHandle;
 use gix::ObjectId;
-use gix::hashtable::HashSet;
+use gix::hashtable::{HashMap, HashSet};
 
 type Walker<'repo, 'cache> = gix::revwalk::Graph<'repo, 'cache, ()>;
 
@@ -12,18 +12,18 @@ impl RepoHandle {
     #[must_use]
     pub fn published_in_process(&self, rev: &str) -> Option<bool> {
         let target = self.commit_of(rev)?;
-        let tips: Vec<ObjectId> = self
-            .remote_refs()?
-            .into_iter()
-            .map(|(_, tip)| tip)
-            .collect();
-        if tips.is_empty() {
+        if !self.has_remote_refs()? {
             return Some(false);
         }
         let cache = self.commit_graph()?;
+        let tips: Vec<ObjectId> = self
+            .remote_refs(&cache)?
+            .into_iter()
+            .map(|(_, tip)| tip)
+            .collect();
         let mut walker: Walker<'_, '_> = self.repo.revision_graph(Some(&cache));
         let floor = generation_floor(&mut walker, target)?;
-        reaches(&mut walker, tips, target, floor, &mut HashSet::default())
+        reaches(&mut walker, tips, target, floor)
     }
 
     /// `git for-each-ref --format=%(refname:short) --contains <rev> refs/remotes/` without
@@ -32,21 +32,20 @@ impl RepoHandle {
     #[must_use]
     pub fn remote_refs_containing_in_process(&self, rev: &str) -> Option<Vec<String>> {
         let target = self.commit_of(rev)?;
-        let remotes = self.remote_refs()?;
-        if remotes.is_empty() {
+        if !self.has_remote_refs()? {
             return Some(Vec::new());
         }
         let cache = self.commit_graph()?;
+        let remotes = self.remote_refs(&cache)?;
         let mut walker: Walker<'_, '_> = self.repo.revision_graph(Some(&cache));
         let floor = generation_floor(&mut walker, target)?;
-        // History one tip was walked through without finding the target is not walked again.
-        let mut dead = HashSet::default();
-        let mut holding = Vec::new();
-        for (name, tip) in remotes {
-            if reaches(&mut walker, vec![tip], target, floor, &mut dead)? {
-                holding.push(name);
-            }
-        }
+        let tips: Vec<ObjectId> = remotes.iter().map(|(_, tip)| *tip).collect();
+        let reach = reaching(&mut walker, &tips, target, floor)?;
+        let holding: Vec<String> = remotes
+            .into_iter()
+            .filter(|(_, tip)| reach.get(tip).copied().unwrap_or(false))
+            .map(|(name, _)| name)
+            .collect();
         if holding.is_empty() {
             return Some(holding);
         }
@@ -86,17 +85,28 @@ impl RepoHandle {
         }
     }
 
+    fn has_remote_refs(&self) -> Option<bool> {
+        let platform = self.repo.references().ok()?;
+        let mut remotes = platform.remote_branches().ok()?;
+        Some(remotes.next().is_some())
+    }
+
     /// Every remote-tracking ref with the commit it peels to, sorted by full name as git
-    /// sorts them. A ref that does not peel sends the question to git rather than
+    /// sorts them. A tip the commit-graph has is a commit and needs no object read (303
+    /// peels were 19 ms); a ref that does not peel sends the question to git rather than
     /// dropping a tip.
-    fn remote_refs(&self) -> Option<Vec<(String, ObjectId)>> {
+    fn remote_refs(&self, graph: &gix::commitgraph::Graph) -> Option<Vec<(String, ObjectId)>> {
         let platform = self.repo.references().ok()?;
         let remotes = platform.remote_branches().ok()?;
         let mut refs: Vec<(String, ObjectId)> = remotes
             .map(|reference| {
                 let mut reference = reference.ok()?;
                 let name = reference.name().as_bstr().to_string();
-                Some((name, reference.peel_to_id().ok()?.detach()))
+                let tip = match reference.try_id() {
+                    Some(id) if graph.lookup(id).is_some() => id.detach(),
+                    _ => reference.peel_to_id().ok()?.detach(),
+                };
+                Some((name, tip))
             })
             .collect::<Option<_>>()?;
         refs.sort_by(|a, b| a.0.as_bytes().cmp(b.0.as_bytes()));
@@ -170,14 +180,12 @@ fn generation_floor(walker: &mut Walker<'_, '_>, target: ObjectId) -> Option<u32
 }
 
 /// Whether any tip reaches `target`. A commit whose generation is at most `floor` and
-/// which is not the target cannot have it as an ancestor, so its history is skipped, as
-/// is `dead` history; a walk that finds nothing adds what it saw to `dead`.
+/// which is not the target cannot have it as an ancestor, so its history is skipped.
 fn reaches(
     walker: &mut Walker<'_, '_>,
     tips: Vec<ObjectId>,
     target: ObjectId,
     floor: u32,
-    dead: &mut HashSet<ObjectId>,
 ) -> Option<bool> {
     let mut seen = HashSet::default();
     let mut pending = tips;
@@ -185,28 +193,77 @@ fn reaches(
         if id == target {
             return Some(true);
         }
-        if dead.contains(&id) || !seen.insert(id) {
+        if !seen.insert(id) {
             continue;
         }
-        let commit = match walker.try_lookup(&id) {
-            Ok(Some(commit)) => commit,
-            // Not a commit, or missing in a shallow clone: nothing to walk.
-            Ok(None) => continue,
-            Err(err) => {
-                tracing::error!(error = ?err, context = "is_published walk");
-                return None;
-            }
+        let Some(parents) = parents_above(walker, id, floor)? else {
+            continue;
         };
-        if commit
-            .generation()
-            .is_some_and(|generation| generation <= floor)
-        {
+        pending.extend(parents);
+    }
+    Some(false)
+}
+
+/// For every commit walked from `tips`, whether it reaches `target` — each commit decided
+/// once, however many tips share its history: `git for-each-ref --contains` walks again
+/// for every ref, which is what makes an old commit on hundreds of branches slow.
+fn reaching(
+    walker: &mut Walker<'_, '_>,
+    tips: &[ObjectId],
+    target: ObjectId,
+    floor: u32,
+) -> Option<HashMap<ObjectId, bool>> {
+    let mut known: HashMap<ObjectId, bool> = HashMap::default();
+    known.insert(target, true);
+    let mut open: HashMap<ObjectId, Vec<ObjectId>> = HashMap::default();
+    let mut pending: Vec<ObjectId> = tips.to_vec();
+    while let Some(id) = pending.pop() {
+        if known.contains_key(&id) {
             continue;
         }
-        for parent in commit.iter_parents() {
-            pending.push(parent.ok()?);
+        if let Some(parents) = open.remove(&id) {
+            let reached = parents
+                .iter()
+                .any(|parent| known.get(parent).copied().unwrap_or(false));
+            known.insert(id, reached);
+            continue;
         }
+        let Some(parents) = parents_above(walker, id, floor)? else {
+            known.insert(id, false);
+            continue;
+        };
+        // Decided on the way back, once every parent is.
+        pending.push(id);
+        pending.extend(parents.iter().filter(|parent| !known.contains_key(*parent)));
+        open.insert(id, parents);
     }
-    dead.extend(seen);
-    Some(false)
+    Some(known)
+}
+
+/// The parents of `id` worth walking, or `None` when nothing below it can be the target:
+/// not a commit, missing in a shallow clone, or at or below the generation `floor`.
+fn parents_above(
+    walker: &mut Walker<'_, '_>,
+    id: ObjectId,
+    floor: u32,
+) -> Option<Option<Vec<ObjectId>>> {
+    let commit = match walker.try_lookup(&id) {
+        Ok(Some(commit)) => commit,
+        Ok(None) => return Some(None),
+        Err(err) => {
+            tracing::error!(error = ?err, context = "is_published walk");
+            return None;
+        }
+    };
+    if commit
+        .generation()
+        .is_some_and(|generation| generation <= floor)
+    {
+        return Some(None);
+    }
+    commit
+        .iter_parents()
+        .map(|parent| parent.ok())
+        .collect::<Option<Vec<_>>>()
+        .map(Some)
 }
