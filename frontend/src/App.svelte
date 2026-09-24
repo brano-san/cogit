@@ -4,6 +4,8 @@
   import { checkForUpdates, message, type UpdateOutcome } from "$lib/updates";
   import { leaveRepositoryDialogs } from "$lib/leaving";
   import { retryOf } from "$lib/retry";
+  import { publishedOrAssume } from "$lib/published";
+  import { menuStatePusher } from "$lib/menu-state";
   import { branchNameProblem, optional, textProblem } from "$lib/names";
   import { finder } from "$stores/finder.svelte";
   import { THIRD_PARTY_FILE } from "$lib/third-party";
@@ -38,7 +40,7 @@
   import CommandOutput from "$components/layout/CommandOutput.svelte";
   import { suppressNativeMenu } from "$lib/native-menu";
   import { footerRepository, panelView } from "$lib/repo-phase";
-  import { startTracing, timed, trace } from "$lib/trace";
+  import { flushTrace, startTracing, timed, trace } from "$lib/trace";
   import OutputPanel from "$components/layout/OutputPanel.svelte";
   import StateBanner from "$components/layout/StateBanner.svelte";
   import Splitter from "$components/layout/Splitter.svelte";
@@ -945,7 +947,7 @@
     );
     await settings.apply(next);
     await settings.setKeymap(keymap);
-    pushMenuState();
+    pushMenuState(true);
 
     const id = repository.current?.repo;
     if (!id || !diff.spec || !diff.path) return;
@@ -1074,7 +1076,7 @@
     const id = repository.current?.repo;
     if (!id) return false;
 
-    if (amend && (await isPublished(id, "HEAD").catch(() => false))) {
+    if (amend && (await publishedOrAssume(isPublished(id, "HEAD")))) {
       const go = await ask(
         "This commit is already on a remote. Amending it gives it a new id, so the branch " +
           "will need a force-push and anyone who pulled it will have to reset. Continue?",
@@ -1832,7 +1834,7 @@
 
     rebaseBase = base;
     rebasePlan = moved;
-    splitPublished = await isPublished(id, base).catch(() => false);
+    splitPublished = await publishedOrAssume(isPublished(id, base));
     rebaseOpen = true;
   }
 
@@ -1864,7 +1866,7 @@
       return;
     }
     rebaseBase = rev;
-    splitPublished = await isPublished(id, rev).catch(() => false);
+    splitPublished = await publishedOrAssume(isPublished(id, rev));
     rebaseOpen = true;
   }
 
@@ -2592,16 +2594,19 @@
     if (!overview) return;
     repoList.closed(target.root);
     const wasActive = isActive(overview);
+    const last = wasActive && repository.openRepos.every((entry) => entry.repo === overview.repo);
     if (wasActive) {
       commit.clear();
       diff.clear();
       health.clear();
     }
+    // In the frame the other panels empty in, not a round trip after them.
+    if (last) graph.clear();
     await repository.closeOne(overview.repo);
     if (!wasActive) return;
     const next = repository.openRepos[0];
     if (next) await activate(next.root);
-    else graph.clear();
+    else if (!last) graph.clear();
   }
 
   /** Pull or push the row's repository without bringing it to the front. */
@@ -2686,7 +2691,7 @@
     const id = repository.current?.repo;
     const rev = commit.oid;
     if (!id || !rev) return;
-    splitPublished = await isPublished(id, rev).catch(() => false);
+    splitPublished = await publishedOrAssume(isPublished(id, rev));
     splitOpen = true;
   }
 
@@ -2834,6 +2839,7 @@
       nobody wrote yet. Everything else is already on disk or in the draft store. */
   async function mayClose(): Promise<boolean> {
     const source = exitFlow.takeSource();
+    flushTrace();
     session.persist();
     const what = unsavedSummary({
       hook: hooks.dirty ? hooks.editing : null,
@@ -2850,6 +2856,7 @@
   /** No close request is pending here, so the window is destroyed rather than closed:
       closing would ask the same question a second time. */
   async function onSessionEnding() {
+    flushTrace();
     session.persist();
     if (!(await exitFlow.ask("system", settings.current.confirmExit, listOperations))) return;
     const { getCurrentWindow } = await import("@tauri-apps/api/window");
@@ -2928,6 +2935,7 @@
 
   $effect(() => {
     const pending = onMenuCommand((id) => {
+      pushMenuState(true);
       if (id === "toolbar-preferences") return openSettings("toolbar");
       if (refActions?.run(id)) return;
       if (runGroupCommand(id)) return;
@@ -2962,8 +2970,11 @@
     );
   });
 
-  /** A rebuilt bar starts with every tick cleared, so this runs again after a keymap save. */
-  function pushMenuState() {
+  const sendMenuState = menuStatePusher((disabled, checked) => setMenuState(disabled, checked));
+
+  /** A rebuilt bar starts with every tick cleared, so this runs again after a keymap save;
+      and after a menu command, since muda flips a clicked tick on its own. */
+  function pushMenuState(resend = false) {
     const checked = checkedIds({
       panels: PANELS.filter((panel) => layout.visible(panel)),
       output: output.open,
@@ -2972,7 +2983,7 @@
       avatars: avatars.enabled,
       perspective: layout.active,
     });
-    void setMenuState(disabledIds(palette), checked).catch(() => {});
+    sendMenuState(disabledIds(palette), checked, { resend });
   }
 
   // The native menu is not reactive, so the derived state is pushed to it. muda flips a

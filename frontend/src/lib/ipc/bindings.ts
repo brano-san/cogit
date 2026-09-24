@@ -118,7 +118,8 @@ export const commands = {
 	 *  async workers that carry IPC.
 	 */
 	repositories: () => typedError<RepoOverview[], GitError>(__TAURI_INVOKE("repositories")),
-	closeRepository: (repo: RepoId) => typedError<boolean, GitError>(__TAURI_INVOKE("close_repository", { repo })),
+	/**  Answers with the repositories left open, which the caller would otherwise ask for next. */
+	closeRepository: (repo: RepoId) => typedError<RepoOverview[], GitError>(__TAURI_INVOKE("close_repository", { repo })),
 	updateSubmodule: (repo: RepoId, path: string, init: boolean) => typedError<null, GitError>(__TAURI_INVOKE("update_submodule", { repo, path, init })),
 	/**  Empty `paths` means every submodule, for Initialize and Synchronize only. */
 	submoduleOp: (repo: RepoId, op: SubmoduleOp, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("submodule_op", { repo, op, paths })),
@@ -253,12 +254,12 @@ export const commands = {
 	reportTiming: (label: string, ms: number, detail: string) => __TAURI_INVOKE<void>("report_timing", { label, ms, detail }),
 	reportMemory: (sample: RendererMemory) => __TAURI_INVOKE<void>("report_memory", { sample }),
 	/**
-	 *  The webview's own log lines, into the same file.
+	 *  The webview's own log lines, into the same file, in batches.
 	 * 
 	 *  A JS error that only reaches the devtools console dies with the renderer — which is
 	 *  exactly the moment it was worth keeping.
 	 */
-	logFromFrontend: (level: string, message: string, context: string) => __TAURI_INVOKE<void>("log_from_frontend", { level, message, context }),
+	logFromFrontend: (lines: WebviewLogLine[]) => __TAURI_INVOKE<void>("log_from_frontend", { lines }),
 	/**
 	 *  Answered by the page to show it is still running while a close is pending.
 	 * 
@@ -1457,6 +1458,16 @@ export type TodoEntry = {
 	oid: string,
 	action: TodoAction,
 	message: string | null,
+};
+
+/**
+ *  One line of the webview's log. `message` starts with the webview's own `+Nms`: a
+ *  batch lands at once, so the file's timestamp is when it arrived, not when it was said.
+ */
+export type WebviewLogLine = {
+	level: string,
+	message: string,
+	context: string,
 };
 
 export type Whitespace = "none" | "trailing" | "all";
