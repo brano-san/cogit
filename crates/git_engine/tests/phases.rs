@@ -145,3 +145,12 @@ fn the_summary_names_every_phase_that_took_time() {
     assert!(summary.contains("receiving=300"), "{summary}");
     assert!(summary.contains("resolving=100"), "{summary}");
 }
+
+// The line names the machine's thread count; only an eight-thread machine matched.
+#[test]
+fn delta_compression_is_recognised_whatever_the_thread_count() {
+    for threads in [1, 8, 32] {
+        let line = format!("Delta compression using up to {threads} threads");
+        assert_eq!(phase_of(&line), Some(Phase::Compressing), "{line}");
+    }
+}

@@ -48,9 +48,9 @@ pub fn phase_of(line: &str) -> Option<Phase> {
     match label {
         "Enumerating objects" => Some(Phase::Enumerating),
         "Counting objects" => Some(Phase::Counting),
-        "Compressing objects" | "Delta compression using up to 8 threads" => {
-            Some(Phase::Compressing)
-        }
+        "Compressing objects" => Some(Phase::Compressing),
+        // Names the machine's thread count, so only the start is fixed.
+        _ if label.starts_with("Delta compression using up to") => Some(Phase::Compressing),
         "Receiving objects" | "Unpacking objects" => Some(Phase::Receiving),
         "Writing objects" => Some(Phase::Writing),
         "Resolving deltas" => Some(Phase::Resolving),
