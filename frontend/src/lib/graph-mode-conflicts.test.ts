@@ -1,31 +1,35 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS } from "./settings";
 import { blockedModes, MODE_CONFLICTS, type ModeConflict } from "./graph-mode-conflicts";
+import { MODE_CONFLICTS as GRAPH_CONFLICTS } from "./graph-modes";
 
 const table: ModeConflict[] = [
-  { a: "graphFirstParent", b: "graphCollapseMerged", reason: "Nothing merged is listed." },
+  { mode: "graphCollapseMerged", by: "graphFirstParent", reason: "Nothing merged is listed." },
 ];
 
 describe("blockedModes", () => {
-  it("blocks nothing with the placeholder table", () => {
-    expect(MODE_CONFLICTS).toEqual([]);
-    expect(blockedModes({ ...DEFAULT_SETTINGS, graphFirstParent: true })).toEqual([]);
+  it("reads the graph's own table", () => {
+    expect(MODE_CONFLICTS).toHaveLength(GRAPH_CONFLICTS.length);
+    expect(blockedModes({ ...DEFAULT_SETTINGS, graphFirstParent: true })).toEqual([
+      {
+        mode: "graphCollapseMerged",
+        reason: "First parents only already leaves every merged branch out.",
+      },
+    ]);
   });
 
-  it("blocks nothing while neither side is on", () => {
+  it("blocks nothing while the blocking side is off", () => {
     expect(blockedModes(DEFAULT_SETTINGS, table)).toEqual([]);
+    expect(blockedModes({ ...DEFAULT_SETTINGS, graphCollapseMerged: true }, table)).toEqual([]);
   });
 
-  it("greys out the other side of a conflict, with the reason", () => {
+  it("greys out the mode that does nothing, with the reason", () => {
     expect(blockedModes({ ...DEFAULT_SETTINGS, graphFirstParent: true }, table)).toEqual([
       { mode: "graphCollapseMerged", reason: "Nothing merged is listed." },
     ]);
-    expect(blockedModes({ ...DEFAULT_SETTINGS, graphCollapseMerged: true }, table)).toEqual([
-      { mode: "graphFirstParent", reason: "Nothing merged is listed." },
-    ]);
   });
 
-  it("leaves both live when a file already has both on, so either can be undone", () => {
+  it("leaves a mode live when a file already has it on, so it can be undone", () => {
     const both = { ...DEFAULT_SETTINGS, graphFirstParent: true, graphCollapseMerged: true };
     expect(blockedModes(both, table)).toEqual([]);
   });
@@ -33,7 +37,7 @@ describe("blockedModes", () => {
   it("names a blocked mode once, whichever rule blocked it first", () => {
     const two: ModeConflict[] = [
       ...table,
-      { a: "graphAncestry", b: "graphCollapseMerged", reason: "second" },
+      { mode: "graphCollapseMerged", by: "graphAncestry", reason: "second" },
     ];
     const state = { ...DEFAULT_SETTINGS, graphFirstParent: true, graphAncestry: true };
     expect(blockedModes(state, two)).toEqual([
