@@ -14,9 +14,18 @@ pub struct TagRequest {
 
 impl RepoHandle {
     pub fn create_tag(&self, request: &TagRequest) -> Result<()> {
+        self.write_tag(request, false)
+    }
+
+    /// `verbatim` keeps the message as given: a copy of an existing one must not lose its
+    /// `#` lines or trailing spaces to git's default cleanup.
+    fn write_tag(&self, request: &TagRequest, verbatim: bool) -> Result<()> {
         let name = require(&request.name)?;
 
         let mut args = vec!["tag"];
+        if verbatim {
+            args.push("--cleanup=verbatim");
+        }
         if request.force {
             args.push("--force");
         }
@@ -82,12 +91,15 @@ impl RepoHandle {
         let from = require(from)?;
         let to = require(to)?;
         let message = self.tag_message(from)?;
-        self.create_tag(&TagRequest {
-            name: to.to_owned(),
-            target: Some(format!("refs/tags/{from}^{{}}")),
-            message,
-            force: false,
-        })?;
+        self.write_tag(
+            &TagRequest {
+                name: to.to_owned(),
+                target: Some(format!("refs/tags/{from}^{{}}")),
+                message,
+                force: false,
+            },
+            true,
+        )?;
         self.delete_tag(from)
     }
 }
