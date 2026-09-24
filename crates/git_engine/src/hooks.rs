@@ -287,7 +287,12 @@ impl RepoHandle {
             )));
         }
 
-        let scratch = self.git_dir().join("COGIT_HOOK_MSG");
+        // One file per run: two dry runs at once must not delete each other's message.
+        static RUNS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        let run = RUNS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let scratch = self
+            .git_dir()
+            .join(format!("COGIT_HOOK_MSG-{}-{run}", std::process::id()));
         let args = sample_args(name, &scratch)?;
 
         let started = std::time::Instant::now();

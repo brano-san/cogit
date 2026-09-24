@@ -124,3 +124,31 @@ fn a_disabled_hook_is_not_run() {
 
     assert!(open(&f).run_hook("pre-commit").is_err());
 }
+
+// Two dry runs of commit-msg shared one message file: the first to finish deleted it
+// under the second, whose hook then failed on a message that was never missing.
+#[test]
+fn two_dry_runs_at_once_keep_their_own_message() {
+    let f = test_fixtures::linear(1).unwrap();
+    write_hook(
+        &f.path().join(".git/hooks"),
+        "commit-msg",
+        "#!/bin/sh\ntest -f \"$1\" || exit 3\nsleep 1\ntest -f \"$1\" || exit 4\n",
+    );
+
+    let first = std::thread::spawn({
+        let root = f.path().to_path_buf();
+        move || {
+            RepoHandle::open(&root)
+                .unwrap()
+                .run_hook("commit-msg")
+                .unwrap()
+        }
+    });
+    std::thread::sleep(std::time::Duration::from_millis(500));
+    let second = open(&f).run_hook("commit-msg").unwrap();
+    let first = first.join().unwrap();
+
+    assert_eq!(first.exit_code, Some(0), "{}", first.stderr);
+    assert_eq!(second.exit_code, Some(0), "{}", second.stderr);
+}
