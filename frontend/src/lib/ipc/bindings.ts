@@ -277,7 +277,6 @@ export const commands = {
 	searchFileContents: (repo: RepoId, query: string, isRegex: boolean, scope: SearchScope, onChunk: Channel<SearchChunk>) => typedError<null, GitError>(__TAURI_INVOKE("search_file_contents", { repo, query, isRegex, scope, onChunk })),
 	/**  The submodules directly under `parent`; empty `parent` means the top level. */
 	listSubmodules: (repo: RepoId, parent: string) => typedError<Submodule[], GitError>(__TAURI_INVOKE("list_submodules", { repo, parent })),
-	/**  The light submodule tree of any listed repository, open or closed. */
 	submoduleOutline: (root: string, parent: string) => typedError<Submodule[], GitError>(__TAURI_INVOKE("submodule_outline", { root, parent })),
 	repoPulse: (root: string) => typedError<RepoPulse, GitError>(__TAURI_INVOKE("repo_pulse", { root })),
 	backgroundFetch: (root: string) => typedError<null, GitError>(__TAURI_INVOKE("background_fetch", { root })),
@@ -1232,7 +1231,6 @@ export type RepoOverview = {
 	state: RepoState,
 };
 
-/**  What the indicators of a list row need, read without a status walk. */
 export type RepoPulse = {
 	missing: boolean,
 	branch: string | null,
@@ -1240,10 +1238,7 @@ export type RepoPulse = {
 	tracked: boolean,
 	ahead: number,
 	behind: number,
-	/**
-	 *  A tracked file whose size or modification time moved, a staged change or a
-	 *  conflict. Untracked files are not looked for: that takes a directory walk.
-	 */
+	/**  Tracked files, staged changes, conflicts; untracked ones take a directory walk. */
 	dirty: boolean,
 };
 

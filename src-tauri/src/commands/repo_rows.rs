@@ -4,7 +4,6 @@ use super::blocking;
 use git_engine::{GitError, Submodule};
 use std::path::PathBuf;
 
-/// The light submodule tree of any listed repository, open or closed.
 #[tauri::command]
 #[specta::specta]
 pub async fn submodule_outline(root: String, parent: String) -> Result<Vec<Submodule>, GitError> {
