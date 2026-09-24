@@ -21,6 +21,8 @@ impl Reachable {
 }
 
 pub(crate) struct ReflogLine {
+    /// Its place in the reflog, counting the entries skipped here: git's `@{n}`.
+    pub(crate) position: usize,
     pub(crate) oid: gix::ObjectId,
     pub(crate) message: String,
     pub(crate) author_time: i64,
@@ -43,12 +45,11 @@ impl RepoHandle {
         let lines = self.reflog_of("HEAD", limit)?;
         Ok(lines
             .into_iter()
-            .enumerate()
-            .map(|(index, line)| {
+            .map(|line| {
                 let (action, message) =
                     line.message.split_once(": ").unwrap_or((&line.message, ""));
                 ReflogEntry {
-                    selector: format!("HEAD@{{{index}}}"),
+                    selector: format!("HEAD@{{{}}}", line.position),
                     oid: line.oid.to_string(),
                     action: action.trim().to_owned(),
                     message: message.trim().to_owned(),
@@ -73,7 +74,7 @@ impl RepoHandle {
             return Ok(Vec::new());
         };
         let mut out = Vec::new();
-        for line in lines {
+        for (position, line) in lines.enumerate() {
             if out.len() == limit {
                 break;
             }
@@ -94,6 +95,7 @@ impl RepoHandle {
                 .and_then(|author| author.time().ok())
                 .map_or(0, |time| time.seconds);
             out.push(ReflogLine {
+                position,
                 oid: line.new_oid,
                 message: line.message.to_string(),
                 author_time,
