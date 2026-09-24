@@ -538,6 +538,11 @@ impl AppState {
     ) -> Result<Vec<git_engine::SkippedRef>, git_engine::GitError> {
         let handle = self.handle(repo)?;
         let flat = query.filters_rows();
+        let mailmap = if flat {
+            handle.mailmap()
+        } else {
+            Default::default()
+        };
 
         // Read once per load: a column that moved half way down would be worse than none.
         let mut cursor = graph_engine::LayoutCursor::with_mainline(mainline_of(&handle, query))
@@ -555,7 +560,7 @@ impl AppState {
                     hidden: if flat {
                         c.parents
                             .iter()
-                            .filter(|parent| !handle.shown_by(query, parent))
+                            .filter(|parent| !handle.shown_by_with(query, parent, &mailmap))
                             .cloned()
                             .collect()
                     } else {
