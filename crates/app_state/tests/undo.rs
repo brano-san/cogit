@@ -569,3 +569,32 @@ fn undoing_the_deletion_of_an_annotated_tag_brings_the_annotation_back() {
         .unwrap();
     assert_eq!(message.trim(), "first release");
 }
+
+// `rev-parse feature/login` prefers a tag of the same name to the branch, so the journal
+// kept the tag's commit and Undo recreated the finished branch in the wrong place.
+#[test]
+fn undoing_a_finished_feature_restores_the_branch_not_a_tag_of_that_name() {
+    let f = test_fixtures::linear(2).unwrap();
+    let (state, repo) = open(&f);
+    state
+        .flow_init(repo, &git_engine::FlowConfig::default())
+        .unwrap();
+    f.git(&["tag", "feature/login", "HEAD~1"]).unwrap();
+    state
+        .flow_start(repo, git_engine::FlowKind::Feature, "login")
+        .unwrap();
+    std::fs::write(f.path().join("login.rs"), "fn login() {}\n").unwrap();
+    f.git(&["add", "--", "login.rs"]).unwrap();
+    f.git(&["commit", "-m", "add login"]).unwrap();
+    let tip = f.git(&["rev-parse", "refs/heads/feature/login"]).unwrap();
+
+    state
+        .flow_finish(repo, git_engine::FlowKind::Feature, "login", None)
+        .unwrap();
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(
+        f.git(&["rev-parse", "refs/heads/feature/login"]).unwrap(),
+        tip
+    );
+}

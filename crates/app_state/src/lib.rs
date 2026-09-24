@@ -1126,11 +1126,13 @@ impl AppState {
             git_engine::FlowKind::Release => format!("{}{name}", status.config.release),
             git_engine::FlowKind::Hotfix => format!("{}{name}", status.config.hotfix),
         };
+        // From the branch list, as `delete_branch` does: `rev-parse <name>` would prefer a
+        // tag of the same name.
         let oid = handle
-            .run_git_reading(&["rev-parse", &full])
-            .ok()
-            .map(|out| out.stdout.trim().to_owned())
-            .filter(|oid| !oid.is_empty());
+            .branches()?
+            .into_iter()
+            .find(|branch| branch.name == full)
+            .map(|branch| branch.oid);
 
         handle.flow_finish(kind, name, tag)?;
 
