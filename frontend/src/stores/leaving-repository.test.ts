@@ -135,3 +135,40 @@ describe("two reads of the same list", () => {
     expect(stashes.entries).toEqual([{ index: 0, message: "from B" }]);
   });
 });
+
+// A re-read after a mutation wrote the whole tree from what it read before its await: a
+// node opened meanwhile lost its children, and of two re-reads the one to finish last won.
+describe("re-reading the submodule tree", () => {
+  it("keeps a node opened while the read was on its way", async () => {
+    const owning = submodules.own(A, "C:/a");
+    answer("submodules:1:", [{ path: "k" }]);
+    await owning;
+
+    const refresh = submodules.refresh();
+    const opening = submodules.toggle({ key: "k" } as never);
+    answer("submodules:1:k", [{ path: "k/inner" }]);
+    await opening;
+    answer("submodules:1:", [{ path: "k" }]);
+    await refresh;
+
+    expect(submodules.expanded.has("k")).toBe(true);
+    expect(submodules.children.get("k")).toEqual([{ path: "k/inner" }]);
+  });
+
+  it("keeps the newest of two re-reads", async () => {
+    const owning = submodules.own(A, "C:/untouched");
+    answer("submodules:1:", [{ path: "k" }]);
+    await owning;
+
+    const older = submodules.refresh();
+    const olderAnswer = held.get("submodules:1:")!;
+    held.delete("submodules:1:");
+    const newer = submodules.refresh();
+    answer("submodules:1:", [{ path: "k" }, { path: "new" }]);
+    await newer;
+    olderAnswer([{ path: "k" }]);
+    await older;
+
+    expect(submodules.top).toEqual([{ path: "k" }, { path: "new" }]);
+  });
+});

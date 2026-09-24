@@ -32,6 +32,8 @@ class SubmoduleStore {
   /** Changes whenever the tree changes hands; a read begun for the previous owner must
       not land in the new one's tree. */
   #generation = 0;
+  /** Only the newest re-read writes the tree. */
+  #refreshes = 0;
 
   /** The repository whose tree this is — the one in the list. Not the same as the one
       the other panels are showing once a submodule has been opened from it (R-129). */
@@ -80,12 +82,21 @@ class SubmoduleStore {
     const repo = this.#repo;
     if (repo === null) return;
     const generation = this.#generation;
-    const read = await Promise.all(
-      ["", ...this.expanded].map(
-        async (key) => [key, await listSubmodules(repo, key).catch(() => [])] as const,
+    const ticket = ++this.#refreshes;
+    const read = new Map(
+      await Promise.all(
+        ["", ...this.expanded].map(
+          async (key) => [key, await listSubmodules(repo, key).catch(() => [])] as const,
+        ),
       ),
     );
-    if (generation === this.#generation) this.children = new Map(read);
+    if (generation !== this.#generation || ticket !== this.#refreshes) return;
+    // A node opened while this read was on its way is not in it; its own read is newer.
+    for (const key of this.expanded) {
+      const opened = this.children.get(key);
+      if (!read.has(key) && opened) read.set(key, opened);
+    }
+    this.children = read;
   }
 
   async toggle(row: ModuleRow): Promise<void> {
