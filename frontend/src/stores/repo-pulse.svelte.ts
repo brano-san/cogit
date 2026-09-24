@@ -4,6 +4,8 @@ import { PulseQueue } from "$lib/pulse-queue";
 /** A server that has not answered in this long stops holding the queue; the process runs
     on and its result, whenever it comes, is not waited for. */
 const PROBE_TIMEOUT_MS = 120_000;
+/** Past the 150 ms of quiet that ends a switch or a close, so the read is not part of it. */
+const LEFT_READ_DELAY_MS = 500;
 
 function within<T>(work: Promise<T>, ms: number, fallback: T): Promise<T> {
   return new Promise((resolve) => {
@@ -71,11 +73,15 @@ class RepoPulseStore {
   }
 
   /** The row the panels show reads its full status itself. The one they leave has had
-      no pulse while it was on screen, so it gets one now. */
+      no pulse while it was on screen, so it gets one — once the switch or close that left
+      it has settled, not inside it: the read cost `repo.close` 3–7 ms. */
   setOwned(root: string | null): void {
     const left = this.#owned;
     this.#owned = root;
-    if (left !== null && left !== root && this.#roots.includes(left)) this.changed(left);
+    if (left === null || left === root || !this.#roots.includes(left)) return;
+    setTimeout(() => {
+      if (left !== this.#owned && this.#roots.includes(left)) this.changed(left);
+    }, LEFT_READ_DELAY_MS);
   }
 
   /** Every row of the list; a row never read is read once. */
