@@ -290,24 +290,30 @@ pub(crate) fn elapsed_ms(started: std::time::Instant) -> u32 {
 #[cfg(windows)]
 pub(crate) const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-fn base_command(root: &Path, reading: bool) -> Command {
+/// What every `git` Cogit starts has, inside a repository or not.
+fn git_command() -> Command {
     let mut command = Command::new("git");
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt as _;
         command.creation_flags(CREATE_NO_WINDOW);
     }
-    command.current_dir(root);
     command.env("GIT_TERMINAL_PROMPT", "0");
     command.env("LC_ALL", "C");
+    for variable in INHERITED_GIT_VARS {
+        command.env_remove(variable);
+    }
+    command
+}
+
+fn base_command(root: &Path, reading: bool) -> Command {
+    let mut command = git_command();
+    command.current_dir(root);
     // `--continue` opens an editor, and with no terminal it hangs forever (R-26).
     command.env("GIT_EDITOR", "true");
     command.env("GIT_SEQUENCE_EDITOR", "true");
     if reading {
         command.env("GIT_OPTIONAL_LOCKS", "0");
-    }
-    for variable in INHERITED_GIT_VARS {
-        command.env_remove(variable);
     }
     command
 }
@@ -368,17 +374,7 @@ pub(crate) struct BareOutput {
 /// parsed, so `LC_ALL=C`. The streams are never logged — this reads config files, and
 /// config files hold tokens in `url.*` and `http.*` (doc/12-risks.md, R-155).
 pub(crate) fn bare_git(args: &[&str]) -> Result<BareOutput> {
-    let mut command = Command::new("git");
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt as _;
-        command.creation_flags(CREATE_NO_WINDOW);
-    }
-    command.env("GIT_TERMINAL_PROMPT", "0");
-    command.env("LC_ALL", "C");
-    for variable in INHERITED_GIT_VARS {
-        command.env_remove(variable);
-    }
+    let mut command = git_command();
     let output = crate::children::output(command.args(args))?;
     tracing::debug!(command = %redact_command(args), exit_code = ?output.status.code(), "git without a repository");
     Ok(BareOutput {
