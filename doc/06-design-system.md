@@ -112,6 +112,9 @@
 --status-ref          → --c-branch
 --status-stash        → --c-stash
 --status-tag          → --c-tag
+
+--indicator-changes   → --status-modify   /* точка «есть изменения» у строк Repositories и Branches */
+--indicator-synced    → --status-add      /* точка «чисто и всё запушено» */
 ```
 
 ## 4. Типографика

@@ -91,6 +91,9 @@
   --graph-line: var(--text-secondary);
   --status-stash: var(--c-stash);
   --status-tag: var(--c-tag);
+  /* Row indicators in Repositories and Branches: uncommitted changes; clean and pushed. */
+  --indicator-changes: var(--status-modify);
+  --indicator-synced: var(--status-add);
 
   /* ---- typography ---- */
   --font-ui: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;

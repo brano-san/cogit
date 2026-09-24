@@ -129,12 +129,27 @@ describe("the Add Worktree dialog", () => {
 });
 
 describe("worktreeMarks", () => {
+  const local = (name: string, over: Partial<Branch> = {}): Branch => ({
+    name,
+    fullName: `refs/heads/${name}`,
+    kind: "local",
+    oid: OID,
+    isHead: false,
+    upstream: `origin/${name}`,
+    ahead: 0,
+    behind: 0,
+    ...over,
+  });
+
   it("marks a branch another worktree holds, with its path", () => {
-    const marks = worktreeMarks([
-      entry({ branch: "main", isMain: true, isCurrent: true, path: "E:/w/main" }),
-      entry({ branch: "feature", path: "E:/w/feature" }),
-    ]);
-    expect(marks.get("feature")).toEqual({ path: "E:/w/feature", state: "clean" });
+    const marks = worktreeMarks(
+      [
+        entry({ branch: "main", isMain: true, isCurrent: true, path: "E:/w/main" }),
+        entry({ branch: "feature", path: "E:/w/feature" }),
+      ],
+      [local("main"), local("feature")],
+    );
+    expect(marks.get("feature")).toEqual({ path: "E:/w/feature", state: "synced" });
   });
 
   it("leaves out the worktree on screen and a detached one", () => {
@@ -146,17 +161,43 @@ describe("worktreeMarks", () => {
   });
 
   it("says whether the worktree has changes or is missing", () => {
-    const marks = worktreeMarks([
-      entry({ branch: "dirty", dirty: true }),
-      entry({ branch: "gone", missing: true, dirty: true }),
-    ]);
+    const marks = worktreeMarks(
+      [entry({ branch: "dirty", dirty: true }), entry({ branch: "gone", missing: true, dirty: true })],
+      [local("dirty"), local("gone")],
+    );
     expect(marks.get("dirty")?.state).toBe("changes");
     expect(marks.get("gone")?.state).toBe("missing");
+  });
+
+  it("calls a clean worktree synced only when its branch has nothing left to push", () => {
+    const marks = worktreeMarks(
+      [
+        entry({ branch: "ahead", path: "E:/w/ahead" }),
+        entry({ branch: "local-only", path: "E:/w/local-only" }),
+        entry({ branch: "unknown", path: "E:/w/unknown" }),
+        entry({ branch: "behind", path: "E:/w/behind" }),
+      ],
+      [
+        local("ahead", { ahead: 2 }),
+        local("local-only", { upstream: null }),
+        local("behind", { behind: 3 }),
+      ],
+    );
+    expect(marks.get("ahead")?.state).toBe("unpushed");
+    expect(marks.get("local-only")?.state).toBe("unpushed");
+    expect(marks.get("unknown")?.state).toBe("unpushed");
+    expect(marks.get("behind")?.state).toBe("synced");
   });
 
   it("puts the path and the state in the tooltip", () => {
     expect(worktreeMarkTooltip({ path: "E:/w/x", state: "missing" })).toBe(
       "Checked out in the worktree E:/w/x; its folder is missing",
+    );
+    expect(worktreeMarkTooltip({ path: "E:/w/x", state: "synced" })).toBe(
+      "Checked out in the worktree E:/w/x; it is clean and pushed",
+    );
+    expect(worktreeMarkTooltip({ path: "E:/w/x", state: "unpushed" })).toBe(
+      "Checked out in the worktree E:/w/x; it is clean, with commits not pushed",
     );
   });
 });

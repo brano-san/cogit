@@ -101,7 +101,7 @@ export function addProblem(input: {
   return null;
 }
 
-export type WorktreeState = "clean" | "changes" | "missing";
+export type WorktreeState = "changes" | "synced" | "unpushed" | "missing";
 
 /** A branch another worktree has checked out, as Branches marks it (#25). */
 export interface WorktreeMark {
@@ -109,23 +109,39 @@ export interface WorktreeMark {
   state: WorktreeState;
 }
 
-/** The one on screen is left out: its branch is HEAD, which says so already. */
-export function worktreeMarks(entries: readonly WorktreeEntry[]): Map<string, WorktreeMark> {
+/** The one on screen is left out: its branch is HEAD, which says so already. A clean
+    worktree counts as synced only when its branch tracks something and is not ahead. */
+export function worktreeMarks(
+  entries: readonly WorktreeEntry[],
+  branches: readonly Branch[] = [],
+): Map<string, WorktreeMark> {
+  const locals = new Map(
+    branches.filter((branch) => branch.kind === "local").map((branch) => [branch.name, branch]),
+  );
   const marks = new Map<string, WorktreeMark>();
   for (const entry of entries) {
     if (entry.isCurrent || !entry.branch) continue;
-    const state: WorktreeState = entry.missing ? "missing" : entry.dirty ? "changes" : "clean";
+    const branch = locals.get(entry.branch);
+    const pushed = branch !== undefined && branch.upstream !== null && branch.ahead === 0;
+    const state: WorktreeState = entry.missing
+      ? "missing"
+      : entry.dirty
+        ? "changes"
+        : pushed
+          ? "synced"
+          : "unpushed";
     marks.set(entry.branch, { path: entry.path, state });
   }
   return marks;
 }
 
+const MARK_STATE: Record<WorktreeState, string> = {
+  missing: "its folder is missing",
+  changes: "it has uncommitted changes",
+  synced: "it is clean and pushed",
+  unpushed: "it is clean, with commits not pushed",
+};
+
 export function worktreeMarkTooltip(mark: WorktreeMark): string {
-  const state =
-    mark.state === "missing"
-      ? "its folder is missing"
-      : mark.state === "changes"
-        ? "it has uncommitted changes"
-        : "it is clean";
-  return `Checked out in the worktree ${mark.path}; ${state}`;
+  return `Checked out in the worktree ${mark.path}; ${MARK_STATE[mark.state]}`;
 }
