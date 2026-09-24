@@ -61,3 +61,16 @@ fn closing_a_repository_takes_its_row_with_it() {
     assert!(state.close_repository(repo));
     assert!(state.overviews().is_empty());
 }
+
+// Clicking through the graph reads a commit per keystroke; each read dropped every cached
+// row and silenced the watcher for the next 400 ms, as a write would.
+#[test]
+fn reading_a_commit_is_not_a_write() {
+    let (state, repo, _fixture) = opened();
+    let _ = state.overviews();
+
+    state.commit_details(repo, "HEAD").unwrap();
+    let _ = state.overviews();
+
+    assert_eq!(state.rows_read(), 1, "the row survived a read");
+}
