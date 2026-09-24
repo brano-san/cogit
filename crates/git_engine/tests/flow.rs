@@ -353,3 +353,32 @@ fn a_detached_head_is_no_flow_branch_being_checked_out() {
     assert_eq!(status.branches.len(), 1);
     assert!(!status.branches[0].is_head);
 }
+
+// Finish tags the main branch before it merges back into develop. When that merge
+// conflicted, the tag was already there, and the second Finish the conflict message
+// promises stopped on "tag already exists": the release branch could never be finished.
+#[test]
+fn a_release_finished_again_after_a_conflict_completes() {
+    let f = started();
+    open(&f).flow_start(FlowKind::Release, "1.0").unwrap();
+    f.commit_file(10, "notes.md", "1.0\n").unwrap();
+    f.git(&["switch", "-q", "main"]).unwrap();
+    f.commit_file(11, "x.txt", "main\n").unwrap();
+    f.git(&["switch", "-q", "develop"]).unwrap();
+    f.commit_file(12, "x.txt", "develop\n").unwrap();
+    assert!(
+        open(&f)
+            .flow_finish(FlowKind::Release, "1.0", Some("v1.0"))
+            .is_err(),
+        "main into develop must conflict on x.txt"
+    );
+    f.git(&["checkout", "--ours", "--", "x.txt"]).unwrap();
+    f.git(&["add", "--", "x.txt"]).unwrap();
+    f.git(&["commit", "-q", "--no-edit"]).unwrap();
+
+    open(&f)
+        .flow_finish(FlowKind::Release, "1.0", Some("v1.0"))
+        .unwrap();
+
+    assert!(!branches(&f).contains("release/1.0"), "{}", branches(&f));
+}

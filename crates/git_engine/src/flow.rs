@@ -195,7 +195,9 @@ impl RepoHandle {
             // A release and a hotfix both ship: they land on the main branch, get their
             // tag there, and come back to develop so the next work has them.
             self.merge_into(&config.main, &full)?;
-            if let Some(label) = tag {
+            // A Finish that stopped on the way back to develop already made the tag; the
+            // one repeating it finds it on the main branch's tip and goes on.
+            if let Some(label) = tag.filter(|label| !self.tags_tip(label, &config.main)) {
                 self.run_git(&["tag", "--annotate", "--message", label, label])?;
             }
             self.merge_into(&config.develop, &config.main)?;
@@ -220,6 +222,18 @@ impl RepoHandle {
         self.run_git(&["switch", target])?;
         self.run_git(&["merge", "--no-ff", "--no-edit", source])
             .map(drop)
+    }
+
+    fn tags_tip(&self, tag: &str, branch: &str) -> bool {
+        let peeled = |name: String| {
+            self.repo
+                .find_reference(name.as_str())
+                .ok()
+                .and_then(|mut reference| reference.peel_to_id().ok())
+                .map(gix::Id::detach)
+        };
+        let tagged = peeled(format!("refs/tags/{tag}"));
+        tagged.is_some() && tagged == peeled(format!("refs/heads/{branch}"))
     }
 
     /// Through `gix`: a "no" from `show-ref` was a failed command in the journal, and the
