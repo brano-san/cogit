@@ -49,12 +49,12 @@ pub fn detect_moves(diff: &mut FileDiff) {
         let best = candidates
             .iter()
             .map(|&begin| {
-                let free = moved_inserts[begin..]
+                let run = run_length(&deleted[start..], &inserted[begin..]);
+                let free = moved_inserts[begin..begin + run]
                     .iter()
                     .take_while(|taken| taken.is_none())
                     .count();
-                let run = run_length(&deleted[start..], &inserted[begin..]).min(free);
-                (begin, run)
+                (begin, free)
             })
             .max_by_key(|&(_, length)| length);
 
