@@ -138,3 +138,17 @@ fn a_damaged_file_is_kept_aside_before_the_next_write_replaces_it() {
         damaged
     );
 }
+
+// Saved by a text editor that writes a byte-order mark, settings.json no longer parsed: it
+// was put aside as damaged and every setting went back to its default.
+#[test]
+fn a_byte_order_mark_does_not_make_the_settings_damaged() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("settings.json"), "\u{feff}{\"a\":1}").unwrap();
+
+    app_state::settings::write_key(dir.path(), "b", serde_json::json!(2)).unwrap();
+
+    let document = app_state::settings::read_document(dir.path());
+    assert_eq!(document["a"], 1, "{document}");
+    assert_eq!(document["b"], 2, "{document}");
+}
