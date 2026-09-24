@@ -210,6 +210,9 @@ fn nul_separated(listing: &str) -> Vec<String> {
 impl RepoHandle {
     /// True when rewriting the commit will cost a force-push and divergence for others.
     pub fn is_published(&self, rev: &str) -> Result<bool> {
+        if let Some(published) = self.published_in_process(rev) {
+            return Ok(published);
+        }
         Ok(!self.containing_remote_refs(rev)?.is_empty())
     }
 
