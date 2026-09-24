@@ -34,10 +34,7 @@ const REPOSITORY: &[Entry] = &[
 ];
 
 /// After the platform's own clipboard items, which `build` puts first.
-const EDIT: &[Entry] = &[
-    Entry::Item("configure-toolbar", "Configure Toolbar…", None),
-    Entry::Item("settings", "Preferences…", Some("CmdOrCtrl+,")),
-];
+const EDIT: &[Entry] = &[Entry::Item("settings", "Preferences…", Some("CmdOrCtrl+,"))];
 
 const VIEW: &[Entry] = &[
     Entry::Check("output", "Output", Some("CmdOrCtrl+Shift+7")),
@@ -760,14 +757,22 @@ mod remote_tests {
 mod edit_tests {
     use super::*;
 
-    /// Edit ▸ Configure Toolbar… opens the button toolbar's dialog (#44).
+    /// The toolbar is set up in Preferences ▸ Toolbar only; Edit keeps Preferences….
     #[test]
-    fn configure_toolbar_is_in_the_edit_menu() {
-        let row = default_keymap()
-            .into_iter()
-            .find(|row| row.id == "configure-toolbar")
-            .expect("listed");
-        assert_eq!(row.section, "Edit");
-        assert_eq!(row.label, "Configure Toolbar…");
+    fn configure_toolbar_is_gone_from_the_edit_menu() {
+        assert!(
+            !default_keymap()
+                .iter()
+                .any(|row| row.id == "configure-toolbar")
+        );
+        assert!(
+            !EDIT
+                .iter()
+                .any(|entry| matches!(entry, Entry::Item("configure-toolbar", ..)))
+        );
+        assert!(
+            EDIT.iter()
+                .any(|entry| matches!(entry, Entry::Item("settings", "Preferences…", _)))
+        );
     }
 }

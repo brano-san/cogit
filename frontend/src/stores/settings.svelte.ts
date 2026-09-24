@@ -31,6 +31,7 @@ class SettingsStore {
     return displayDate(timestamp, offsetMinutes, Date.now() / 1000, this.current.dateFormat);
   }
 
+  /** The graph's time column, which has its own format (R-370). */
   /** Every window reads this on start, some from inside an effect that also reads the
       settings: a new object for an unchanged file would run that effect again, and the
       load with it, for ever. So what did not change keeps its object. */

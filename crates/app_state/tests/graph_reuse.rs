@@ -77,6 +77,68 @@ fn every_tick_lays_out_what_a_fresh_walk_would() {
     }
 }
 
+/// Rows held back to see how far their links reach (R-330) come out the same too, and a
+/// new threshold lays the copied commits out again instead of serving the old rows.
+#[test]
+fn ticks_and_thresholds_with_long_links_cut_lay_out_what_a_fresh_walk_would() {
+    let f = forked();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let cut = |rows: Option<u32>, query: CommitQuery| CommitQuery {
+        long_link_rows: rows,
+        ..query
+    };
+    let queries = [
+        cut(Some(2), CommitQuery::default()),
+        cut(
+            Some(2),
+            ticked(&["refs/heads/feat", "refs/heads/main", "HEAD"]),
+        ),
+        cut(
+            Some(1),
+            ticked(&["refs/heads/feat", "refs/heads/main", "HEAD"]),
+        ),
+        cut(
+            None,
+            ticked(&["refs/heads/feat", "refs/heads/main", "HEAD"]),
+        ),
+        cut(Some(3), CommitQuery::default()),
+    ];
+
+    for query in &queries {
+        let (_, _, laid) = build(&state, repo, query);
+        assert_eq!(laid, fresh(&f, query), "{query:?}");
+    }
+}
+
+#[test]
+fn a_tick_with_long_links_cut_keeps_only_rows_that_are_final_and_equal() {
+    let f = forked();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let cut = |refs: &[&str]| CommitQuery {
+        long_link_rows: Some(2),
+        ..ticked(refs)
+    };
+    let (before, _, old) = build(&state, repo, &cut(&["refs/heads/main", "HEAD"]));
+
+    let (_, progress, new) = build(
+        &state,
+        repo,
+        &cut(&["refs/heads/main", "HEAD", "refs/heads/feat"]),
+    );
+
+    let last = progress.last().unwrap();
+    assert_eq!(last.base, Some(before));
+    let kept = usize::try_from(last.kept).unwrap();
+    assert!(kept < new.len());
+    assert_eq!(new[..kept], old[..kept]);
+    assert!(
+        progress.iter().all(|p| p.kept <= p.total),
+        "never more kept than laid out"
+    );
+}
+
 #[test]
 fn commits_made_outside_are_read_and_the_rest_copied_the_same_as_fresh() {
     let f = forked();

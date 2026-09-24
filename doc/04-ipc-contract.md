@@ -84,7 +84,7 @@ pub enum GitError {
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
 | `open_repository` | `path: String` | `RepoSummary`; в нём `tagGroupSeparator` — `cogit.tagGroupSeparator` из конфига репозитория, `/` если не задан, `""` — теги без папок; перечитывается при каждом открытии и обновлении (#11) | M1 |
-| `close_repository` | `repo: RepoId` | `()` | M1 |
+| `close_repository` | `repo: RepoId` | `Result<Vec<RepoOverview>>` — открытые после закрытия, как у `repositories`: второй вызов за списком не нужен (R-323) | M1 |
 | `list_repositories` | — | `Vec<RepoEntry>` | M3 |
 | `repo_state` | `repo: RepoId` | `RepoState` — `clean | detachedHead { oid } | merging | rebasing | cherryPicking | reverting | bisecting | applyingPatches | empty | bare`; `applyingPatches` — `git am`, остановленный на патче (`rebase-apply/applying`) | M1 |
 | `repositories` | — | `Result<Vec<RepoOverview { repo, name, root, branch, ahead, behind, dirty, missing, state: RepoState }>>`; `state` — для меток `<merging>`/`<detached>` в дереве (#22). Читается в `spawn_blocking`, поэтому `Result` | M3 |
@@ -96,7 +96,7 @@ pub enum GitError {
 | `worktree_changes` | `repo`, `path` | `Vec<FileEntry>` — незакоммиченное в этом ворктри, для подтверждения Remove | M3 |
 | `prune_worktrees` | `repo` | `()` — `git worktree prune`, все устаревшие | M3 |
 | `prune_worktree` | `repo`, `path` | `()` — одна регистрация; папка на месте — `InvalidState` | M3 |
-| `repair_worktree` | `repo`, `path` — где папка теперь | `()` — `git worktree repair <path>` | M3 |
+| `repair_worktree` | `repo`, `path` — где папка теперь | `()` — `git worktree repair <path>`, затем `git update-index -q --refresh` в починенном и в текущем worktree; в очереди с подписью `Repairing worktree <name>` | M3 |
 | `lock_worktree` / `unlock_worktree` | `repo`, `path`, `reason: Option<String>` (только lock) | `()` | M3 |
 
 ### Хуки и пресеты (M10)
@@ -191,6 +191,7 @@ pub struct CommitQuery {
     pub path: Option<String>,
     pub visible_refs: Option<Vec<String>>, // отмеченное в панели References
     pub first_parent: bool,          // `git log --first-parent`; по умолчанию false
+    pub long_link_rows: Option<u32>, // не фильтр: связи длиннее — обрубками (R-330)
 }
 ```
 
@@ -215,6 +216,13 @@ pub struct CommitQuery {
 Сужение `visible_refs` — **исключение**: оно убирает вершины целиком, поэтому все предки
 выживших вершин на месте и дорожки остаются правдивыми. Решает это `CommitQuery::filters_rows()`,
 а не `is_empty()` ([R-51](12-risks.md)).
+
+`long_link_rows` — тоже не предикат, а параметр раскладки этой загрузки: связь коммита с
+родителем длиннее стольких строк рисуется двумя обрубками со стрелками, и её колонка
+освобождается ([07-graph-rendering.md §3](07-graph-rendering.md#3-алгоритм-раскладки), R-330).
+`None` и `0` — все связи целиком. `filters_rows()` и `is_empty()` его не видят. Чтобы решить,
+длинная ли связь, раскладке нужно заглянуть на столько коммитов вперёд, поэтому последние
+строки обхода приходят в чанке с `isLast` и `total` отстаёт от числа обойдённых коммитов.
 
 `rev` — любая ревизия в понимании `git rev-parse` (`HEAD`, `HEAD~2`, полный или сокращённый OID),
 а не только OID: панель деталей использует то же поле, что и будущая строка перехода.
@@ -404,6 +412,9 @@ snake_case и читаются на фронтенде как `undefined`.
 | `commit_tree_files` | `repo`, `rev` | `Vec<String>` — все файлы дерева коммита, отсортированы; подмодуль — одна запись | M6 |
 | `search_file_contents` | `repo`, `query`, `is_regex`, `scope`, `Channel<SearchChunk>` | `()` | M6 |
 | `list_submodules` | `repo`, `parent` (пусто — верхний уровень) | `Vec<Submodule>` | M3 |
+| `submodule_outline` | `root` — папка репозитория из списка, открытого или закрытого; `parent` — ключ узла от верха (пусто — верхний уровень) | `Vec<Submodule>` из `.gitmodules` и gitlink-записей HEAD: `state` — `notInitialised` или `unread`, `checkedOut`, `branch`, `subject` пусты, `nested` — проверка файла; сабмодули не открываются (R-352) | M3 |
+| `repo_pulse` | `root` — папка строки списка | `RepoPulse { missing, branch, tracked, ahead, behind, dirty }`: ahead/behind — по локальной remote-tracking ссылке HEAD через gix; `dirty` — размер и mtime файлов индекса, staged по cache-tree или сравнению индекса с деревом HEAD по id, конфликт; неотслеживаемые не ищутся, ничего не хешируется (R-353) | M3 |
+| `background_fetch` | `root` | `()`; `git fetch --all --quiet --no-auto-gc --recurse-submodules=no` без запросов: `GIT_TERMINAL_PROMPT=0`, пустой `GIT_ASKPASS`, `GCM_INTERACTIVE=never`, `SSH_ASKPASS_REQUIRE=never`, SSH в `BatchMode`, если пользователь не задал свою команду. В журнал Output не попадает, ошибка — в лог и отказом (R-353) | M3 |
 | `open_submodule` | `owner: RepoId`, `key` — путь узла от владельца дерева | `RepoSummary`; отказ — `GitError::ModuleUnavailable(ModuleProblem)` | M3 |
 | `repository_health` | `repo` | `Vec<HealthFinding { module, issue }>` — репозиторий и все подмодули; `issue`: `ignoreCaseMismatch`, `danglingModule`, `danglingWorktree`, `missingModuleCommit { commit }` (R-179) | M3 |
 | `read_git_config` | `repo: Option<RepoId>`, `scope: repository \| user` | `ConfigFile { path, text, crlf, exists }` | M3 |
@@ -435,9 +446,10 @@ type SearchChunk =
 `list_submodules` перечисляет **один уровень**. Репозиторий с девятью сабмодулями, у каждого
 свои, стоит одного обхода на уровень, а дереву нужен только раскрытый узел.
 
-`Submodule.state` — `notInitialised | inSync | ahead | behind | diverged | unknown`, с
+`Submodule.state` — `notInitialised | inSync | ahead | behind | diverged | unknown | unread`, с
 `ahead`/`behind` — числом коммитов по обе стороны общего предка (R-153). `unknown` —
-записанного коммита в подмодуле нет, и положение не угадывается. `Submodule.repoState` —
+записанного коммита в подмодуле нет, и положение не угадывается; `unread` — только у
+`submodule_outline`: выписан, внутрь не смотрели. `Submodule.repoState` —
 `RepoState` его собственного репозитория (`null`, пока он не выписан): дерево ставит на узел
 метку операции, остановленной внутри подмодуля (#22).
 
@@ -482,8 +494,9 @@ type SearchChunk =
 | `write_setting` | `key`, `value` (текст JSON) | `()` | M8 |
 | `command_log` | `limit` | `Vec<CommandLogEntry>` | M2 |
 | `open_in_explorer` / `open_in_terminal` | `path` | `()` | M3 |
-| `set_menu_state` | `disabled: Vec<String>` | `()` | M2 |
+| `set_menu_state` | `disabled: Vec<String>, checked: Vec<String>` — полное состояние строки меню | `()`; фронтенд шлёт последнее состояние в конце задачи и не шлёт уже показанное (R-322) | M2 |
 | `report_memory` | `RendererMemory { usedHeapKib, totalHeapKib, limitKib, domNodes, listeners, caches }` | `()` | — |
+| `log_from_frontend` | `lines: WebviewLogLine[] { level, message, context }` | `()`: строки вебвью в `cogit.log` пачкой, по одной записи `tracing` на строку (R-321) | — |
 
 `report_memory` шлёт вебвью раз в десять секунд и **только в отладочной сборке**; строка
 ложится в профиль как `kind=mem` ([14-profiling.md](14-profiling.md)). Величины идут в KiB,
@@ -620,7 +633,8 @@ git commit --amend --author`, как `reword`. `push_to` — один refspec: P
    фиксированной ширины, остальной текст — одним UTF-8-блоком со смещениями
    (`app_state::graph_wire`, раскладка описана там же). Поверх `postMessage` байты едут
    base64-строкой; фронтенд строит представления поверх буфера и декодирует строку, только
-   когда её рисуют (`$lib/graph-wire`, R-194).
+   когда её рисуют (`$lib/graph-wire`, R-194). Формат 2: у строки — список `links` (номер
+   сегмента-обрубка и oid коммита на другом конце связи, R-330).
 
 ```rust
 pub struct GraphProgress {

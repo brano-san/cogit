@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { GRAPH } from "$lib/graph-geometry";
+  import { LIST_ROW_HEIGHT } from "$lib/graph-geometry";
 
   interface Props {
     rows?: number;
   }
 
   let { rows = 8 }: Props = $props();
-  const height = GRAPH.rowHeight;
+  const height = LIST_ROW_HEIGHT;
 
   /** Uneven widths: a column of identical bars reads as a rendering fault, not as loading. */
   const WIDTHS = [72, 54, 83, 61, 91, 48, 77, 66];

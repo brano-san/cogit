@@ -634,6 +634,16 @@ describe("branches held by a worktree (#25)", () => {
     expect(nodes.find((node) => node.id === "local:main")?.worktree).toBeUndefined();
   });
 
+  it("reads whether the held branch is pushed from the branch list", () => {
+    const nodes = buildRefTree(
+      input({
+        branches: [branch("feature", { upstream: "origin/feature" })],
+        worktrees: [held({})],
+      }),
+    );
+    expect(nodes.find((node) => node.id === "local:feature")?.worktree?.state).toBe("synced");
+  });
+
   it("does not mark a remote branch of the same name", () => {
     const nodes = buildRefTree(
       input({

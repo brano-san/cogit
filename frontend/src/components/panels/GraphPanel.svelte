@@ -7,6 +7,7 @@
   import type { HookRun, RebaseProgress } from "$lib/ipc";
   import { panelView } from "$lib/repo-phase";
   import { repository } from "$stores/repository.svelte";
+  import { settings } from "$stores/settings.svelte";
 
   interface Props {
     /** Non-null while a rebase is in flight; its steps become rows of the list below. */
@@ -65,7 +66,18 @@
   {#if progress}
     <PauseCheckBar {check} {oncheck} onrun={onruncheck} {verdict} running={checking} />
   {/if}
-  <CommitList rebase={progress} {ondrop} {oncontext} {onworktreecontext} {onrefcontext} />
+  <CommitList
+    rebase={progress}
+    {ondrop}
+    {oncontext}
+    {onworktreecontext}
+    {onrefcontext}
+    columns={settings.current.graphColumns}
+    timeFormat={settings.current.graphTimeFormat}
+    density={settings.current.graphDensity}
+    stripes={settings.current.graphStripes}
+    longLinkRows={settings.current.graphLongLinkRows}
+  />
 {:else}
   <StartScreen
     {recent}
