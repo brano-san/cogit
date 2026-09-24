@@ -21,6 +21,8 @@
     stale?: boolean;
     /** The panel the keyboard is talking to; its header says so (issue 15). */
     active?: boolean;
+    /** The count is still growing: an ellipsis after it, nothing in the body (R-301). */
+    busy?: boolean;
   }
 
   let {
@@ -31,6 +33,7 @@
     children,
     stale = false,
     active = false,
+    busy = false,
   }: Props = $props();
 
   const ready = $derived(view === "content");
@@ -40,7 +43,7 @@
 <section class="panel" aria-busy={view === "opening"}>
   <header class="panel-header" class:active>
     <h2 class="panel-title">
-      {title}{#if ready && count}&nbsp;({count}){/if}
+      {title}{#if ready && count}&nbsp;({count}{#if busy}<span title="Loading the rest">…</span>{/if}){/if}
     </h2>
     {#if stale}
       <span class="stale" title="Something changed on disk; this is being reloaded">•</span>

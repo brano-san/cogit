@@ -215,6 +215,46 @@ describe("graph reload", () => {
     expect(oids()).toEqual(["x", "y", "z", "w", "v"]);
   });
 
+  /** A reload whose first `kept` rows Rust says are the rows of generation `base`. */
+  async function reloadKeeping(rows: string[], base: number, kept: number) {
+    const reload = graph.load(A);
+    const stream = streams.at(-1)!;
+    built.get(stream.generation)!.push(...rows);
+    walked.add(stream.generation);
+    stream.channel.onmessage?.({ generation: stream.generation, total: rows.length, isLast: true, base, kept });
+    await settle();
+    stream.finish({ status: "ok", data: [] });
+    await reload;
+    return commands.graphWindow.mock.calls
+      .filter(([, generation]) => generation === stream.generation)
+      .map(([, , start]) => start);
+  }
+
+  it("keeps the blocks a reload repeats row for row instead of asking for them", async () => {
+    const old = ids(300, "o");
+    await loaded(A, old);
+    const shown = streams.at(-1)!.generation;
+    commands.graphWindow.mockClear();
+
+    const asked = await reloadKeeping([...old.slice(0, 200), ...ids(100, "n")], shown, 200);
+
+    expect(asked).not.toContain(0);
+    expect(asked).toContain(128);
+    expect(graph.rowAt(0)?.commit.oid).toBe("o0");
+    expect(graph.rowAt(250)?.commit.oid).toBe("n50");
+  });
+
+  it("asks for every block when the rows kept belong to another walk", async () => {
+    await loaded(A, ids(300, "o"));
+    const shown = streams.at(-1)!.generation;
+    commands.graphWindow.mockClear();
+
+    const asked = await reloadKeeping(ids(300, "n"), shown - 1, 300);
+
+    expect(asked).toContain(0);
+    expect(graph.rowAt(0)?.commit.oid).toBe("n0");
+  });
+
   it("swaps in a shorter history once it is complete", async () => {
     await loaded(A, ["a", "b", "c"]);
 

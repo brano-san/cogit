@@ -313,7 +313,6 @@
             }}
           >
             <span class="summary truncate">{headerLabel}</span>
-            {#if graph.loading}<span class="date">loading…</span>{/if}
           </button>
         {/if}
 

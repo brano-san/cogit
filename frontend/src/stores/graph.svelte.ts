@@ -164,6 +164,7 @@ class GraphStore {
         repo,
         (progress) => {
           if (load !== this.#loads) return;
+          this.#inherit(fresh, progress.base ?? null, progress.kept ?? 0);
           fresh.generation = progress.generation;
           fresh.total = progress.total;
           fresh.complete = progress.isLast;
@@ -214,6 +215,15 @@ class GraphStore {
     this.total = this.#shown?.total ?? 0;
     this.complete = this.#shown?.complete ?? false;
     this.#arrived += 1;
+  }
+
+  /** Blocks of the history on screen that the new walk repeats row for row (R-301). */
+  #inherit(of: Walk, base: number | null, kept: number): void {
+    const shown = this.#shown;
+    if (base === null || !shown || shown === of || shown.repo !== of.repo || shown.generation !== base) return;
+    for (const [index, block] of shown.blocks) {
+      if (!of.blocks.has(index) && index * BLOCK + block.length <= kept) of.blocks.set(index, block);
+    }
   }
 
   /** Where `of` will be on screen: another repository's history opens at its top. */
