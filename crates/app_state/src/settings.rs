@@ -42,7 +42,9 @@ fn stored(config_dir: &Path) -> std::io::Result<Stored> {
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(Stored::Missing),
         Err(err) => return Err(err),
     };
-    Ok(match serde_json::from_str(&text) {
+    // An editor that saves with a byte-order mark leaves the JSON as it was.
+    let json = text.strip_prefix('\u{feff}').unwrap_or(&text);
+    Ok(match serde_json::from_str(json) {
         Ok(Value::Object(map)) => Stored::Document(map),
         _ => Stored::Damaged(text),
     })
