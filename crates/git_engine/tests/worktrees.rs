@@ -203,7 +203,7 @@ fn linked(f: &test_fixtures::Fixture) -> git_engine::WorktreeEntry {
         .worktrees()
         .unwrap()
         .into_iter()
-        .find(|entry| !entry.is_main)
+        .find(|entry| entry.branch.as_deref() == Some("feature-wt"))
         .unwrap()
 }
 
