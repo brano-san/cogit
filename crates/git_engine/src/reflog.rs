@@ -138,7 +138,7 @@ impl RepoHandle {
     /// Unmoved tips cost nothing; tips that only moved forward cost the walk down to the
     /// commits already known. A tip that vanished unseen can shrink the set: recount.
     fn update_reachable(&self, cache: &mut Reachable) -> Result<()> {
-        let tips = self.graph_tips()?;
+        let tips = self.keeping_tips()?;
         if cache.counted && cache.tips == tips {
             return Ok(());
         }
@@ -171,6 +171,29 @@ impl RepoHandle {
         cache.counted = true;
         cache.recounts += 1;
         Ok(())
+    }
+
+    /// What keeps a commit from being lost: the graph's tips, and every tag. The graph
+    /// itself does not walk from tags, so they are added here only.
+    fn keeping_tips(&self) -> Result<Vec<gix::ObjectId>> {
+        let mut tips = self.graph_tips()?;
+        let platform = self
+            .repo
+            .references()
+            .map_err(|err| GitError::Internal(format!("cannot read references: {err}")))?;
+        let tags = platform
+            .tags()
+            .map_err(|err| GitError::Internal(format!("cannot list tags: {err}")))?;
+        for mut tag in tags.flatten() {
+            // An annotated tag names a tag object; the commit is under it.
+            let Ok(id) = tag.peel_to_id() else { continue };
+            if self.repo.find_commit(id.detach()).is_ok() {
+                tips.push(id.detach());
+            }
+        }
+        tips.sort_unstable();
+        tips.dedup();
+        Ok(tips)
     }
 
     fn parents_of(&self, id: gix::ObjectId) -> Result<Vec<gix::ObjectId>> {

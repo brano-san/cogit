@@ -201,3 +201,63 @@ fn entries_are_named_from_head_at_zero_and_carry_the_commit_time() {
     assert_eq!(names[..2], ["HEAD@{0}", "HEAD@{1}"]);
     assert!(entries.iter().all(|e| e.timestamp > 0));
 }
+
+// A tag keeps its commit as surely as a branch does, but only branches and HEAD counted:
+// deleting the branch under a tagged commit listed it among the lost.
+#[test]
+fn a_commit_only_a_tag_holds_is_not_lost() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&["switch", "-q", "-c", "topic"]).unwrap();
+    let tagged = f.commit_file(2, "topic.txt", "t\n").unwrap();
+    f.git(&["tag", "v1"]).unwrap();
+    f.git(&["switch", "-q", "main"]).unwrap();
+    f.git(&["branch", "-D", "topic"]).unwrap();
+
+    let lost = lost(&open(&f), &mut Reachable::default());
+
+    assert!(!lost.contains(&tagged), "{lost:?}");
+}
+
+// A shallow clone: the parent of a newly fetched tip is not there. The fresh count skips
+// what it cannot read; the count that only walks from the new tips gave up instead.
+#[test]
+fn a_tip_fetched_into_a_shallow_clone_does_not_break_a_warm_cache() {
+    let upstream = test_fixtures::linear(3).unwrap();
+    upstream.git(&["switch", "-q", "-c", "other"]).unwrap();
+    upstream.commit_file(4, "other.txt", "o\n").unwrap();
+    upstream.git(&["switch", "-q", "main"]).unwrap();
+    let clone = tempfile::tempdir().unwrap();
+    let url = format!(
+        "file://{}",
+        upstream.path().to_string_lossy().replace('\\', "/")
+    );
+    let target = clone.path().join("shallow");
+    let status = std::process::Command::new("git")
+        .args(["clone", "-q", "--depth", "1", &url])
+        .arg(&target)
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let repo = RepoHandle::open(&target).unwrap();
+    let mut cache = Reachable::default();
+    repo.lost_commits_with(100, &mut cache).unwrap();
+
+    let fetched = std::process::Command::new("git")
+        .current_dir(&target)
+        .args([
+            "fetch",
+            "-q",
+            "--depth",
+            "1",
+            "origin",
+            "other:refs/remotes/origin/other",
+        ])
+        .status()
+        .unwrap();
+    assert!(fetched.success());
+
+    RepoHandle::open(&target)
+        .unwrap()
+        .lost_commits_with(100, &mut cache)
+        .unwrap();
+}
