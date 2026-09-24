@@ -149,6 +149,9 @@ const binary = (seed) => {
   return bytes;
 };
 
+const MEDIUM = { commits: 5000, files: tree(300, 30), fileLines: 40, mergeEvery: 250, sideLength: 10, branches: 12, tags: 25 };
+const LARGE = { commits: 50_000, files: tree(50, 10), fileLines: 8, mergeEvery: 500, sideLength: 6, branches: 300, tags: 100 };
+
 const SETS = {
   async small(root) {
     await build(join(root, "small"), { commits: 100, files: tree(20, 4), fileLines: 30, branches: 2, tags: 2 });
@@ -156,12 +159,23 @@ const SETS = {
 
   async medium(root) {
     const dir = join(root, "medium");
-    await build(dir, { commits: 5000, files: tree(300, 30), fileLines: 40, mergeEvery: 250, sideLength: 10, branches: 12, tags: 25 });
+    await build(dir, MEDIUM);
     await git(["worktree", "add", "--quiet", join(root, "medium-worktree"), "feature/005"], dir);
   },
 
   async large(root) {
-    await build(join(root, "large"), { commits: 50_000, files: tree(50, 10), fileLines: 8, mergeEvery: 500, sideLength: 6, branches: 300, tags: 100 });
+    await build(join(root, "large"), LARGE);
+  },
+
+  // The same histories with a commit-graph file, as `git gc` leaves most repositories.
+  async "medium-cg"(root) {
+    await build(join(root, "medium-cg"), MEDIUM);
+    await git(["commit-graph", "write", "--reachable"], join(root, "medium-cg"));
+  },
+
+  async "large-cg"(root) {
+    await build(join(root, "large-cg"), LARGE);
+    await git(["commit-graph", "write", "--reachable"], join(root, "large-cg"));
   },
 
   async dirty(root) {
@@ -269,7 +283,8 @@ export async function rebuild(names, root = ROOT) {
 
 /** A freshly written file is slow to read once (the antivirus sees it); no scenario pays that. */
 async function readAll(root, name) {
-  const dirs = (await readdir(root)).filter((d) => d.startsWith(name) || (name === "submodules" && d === "submodule-upstreams"));
+  const own = (d) => d.startsWith(name) && (name.endsWith("-cg") || !d.endsWith("-cg"));
+  const dirs = (await readdir(root)).filter((d) => own(d) || (name === "submodules" && d === "submodule-upstreams"));
   const walk = async (dir) => {
     for (const entry of await readdir(dir, { withFileTypes: true })) {
       const path = join(dir, entry.name);
