@@ -268,3 +268,33 @@ fn a_linked_worktree_hears_about_refs_in_the_common_directory() {
     }
     assert!(seen.iter().any(|c| c.kind == ChangeKind::Refs), "{seen:?}");
 }
+
+// A submodule keeps its git directory under the parent's `.git/modules`, outside its own
+// root; hooks were only ever heard through the root's recursive watch, so an edit to a
+// submodule's hook never reached the Hooks panel.
+#[test]
+fn a_hook_edited_in_a_git_directory_outside_the_root_is_heard() {
+    let dir = tempfile::tempdir().unwrap();
+    let git_dir = dir.path().join("parent/.git/modules/sub");
+    let root = dir.path().join("parent/sub");
+    std::fs::create_dir_all(git_dir.join("hooks")).unwrap();
+    std::fs::create_dir_all(git_dir.join("refs/heads")).unwrap();
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(git_dir.join("HEAD"), "ref: refs/heads/main\n").unwrap();
+
+    let (tx, events) = mpsc::channel();
+    let _watcher = RepoWatcher::start(&root, &git_dir, &git_dir, move |change| {
+        let _ = tx.send(change);
+    })
+    .unwrap();
+    std::thread::sleep(Duration::from_millis(300));
+    while events.try_recv().is_ok() {}
+
+    std::fs::write(git_dir.join("hooks/pre-commit"), "#!/bin/sh\n").unwrap();
+
+    let mut seen = Vec::new();
+    while let Ok(change) = events.recv_timeout(SETTLE) {
+        seen.push(change);
+    }
+    assert!(seen.iter().any(|c| c.kind == ChangeKind::Hooks), "{seen:?}");
+}

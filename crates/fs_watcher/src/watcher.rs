@@ -77,6 +77,18 @@ impl RepoWatcher {
                 watch(&mut debouncer, &path, RecursiveMode::Recursive)?;
             }
         }
+        // Inside the root the recursive watch already hears the hooks; a submodule's git
+        // directory and a linked worktree's common one are elsewhere.
+        let mut hooks = vec![git_dir.join("hooks")];
+        if linked {
+            hooks.push(common_dir.join("hooks"));
+        }
+        for path in hooks
+            .into_iter()
+            .filter(|path| path.is_dir() && !path.starts_with(root))
+        {
+            watch(&mut debouncer, &path, RecursiveMode::Recursive)?;
+        }
 
         Ok(Self {
             paused,
