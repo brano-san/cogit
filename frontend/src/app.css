@@ -133,11 +133,13 @@
   /* Tree triangles and menu carets are SVG in CSS px, so 125% and 150% scale them whole. */
   --disclosure-glyph: 10px;
   --disclosure-hit: 20px;
+  /* One space on both sides of a tree triangle, whatever gap its row uses (R-350). */
+  --disclosure-side: var(--sp-3);
   --menu-caret: 9px;
   --kind-icon: 14px;
   /* A tree level is one element wide: a child's triangle sits under whatever follows its
      parent's triangle — icon, box or text. Each tree names that element (R-185). */
-  --tree-base: var(--sp-4);
+  --tree-base: var(--disclosure-side);
   --tree-gap: var(--sp-2);
   --tree-next: var(--kind-icon);
   /* Header 28 + two message lines 50 + the Commit row 22 + padding and borders. */
@@ -346,7 +348,7 @@ a:hover {
 
 /* On the tree's own element, so a tree's --tree-gap and --tree-next count. */
 .tree-rows {
-  --tree-step: calc(var(--disclosure-hit) / 2 + var(--tree-gap) + var(--tree-next) / 2);
+  --tree-step: calc(var(--disclosure-glyph) / 2 + var(--disclosure-side) + var(--tree-next) / 2);
 }
 
 .truncate {
