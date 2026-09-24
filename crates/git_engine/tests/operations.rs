@@ -221,3 +221,30 @@ fn a_merge_stopped_inside_a_rebase_is_a_rebase() {
 
     assert_eq!(state, git_engine::RepoState::Rebasing);
 }
+
+// Committing a resolved conflict by hand in the middle of `cherry-pick A B C` removes
+// CHERRY_PICK_HEAD but leaves the sequencer. The state read Clean, so the banner with
+// Continue and Abort went away while two picks were still waiting.
+#[test]
+fn a_cherry_pick_with_picks_still_waiting_is_in_progress() {
+    let f = test_fixtures::linear(2).unwrap();
+    let sequencer = f.path().join(".git/sequencer");
+    std::fs::create_dir_all(&sequencer).unwrap();
+    std::fs::write(sequencer.join("todo"), "pick 1234567 the next one\n").unwrap();
+
+    let state = open(&f).state().unwrap();
+
+    assert_eq!(state, RepoState::CherryPicking);
+}
+
+#[test]
+fn a_revert_with_reverts_still_waiting_is_in_progress() {
+    let f = test_fixtures::linear(2).unwrap();
+    let sequencer = f.path().join(".git/sequencer");
+    std::fs::create_dir_all(&sequencer).unwrap();
+    std::fs::write(sequencer.join("todo"), "revert 1234567 the next one\n").unwrap();
+
+    let state = open(&f).state().unwrap();
+
+    assert_eq!(state, RepoState::Reverting);
+}

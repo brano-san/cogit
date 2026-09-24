@@ -584,7 +584,11 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > Итог: `checkout --force` и `reset --hard` при откате неудачного split —
   > `tracing::error!` на сбой (шаги и так видны в журнале Output); `rebase --abort` без
   > rebase падает законно — оставлен без лога. Без теста: меняется только лог.
-- [ ] B-26 sequencer/todo
+- [x] B-26 sequencer/todo
+  > Итог: после CHERRY_PICK_HEAD/REVERT_HEAD читается первая команда `sequencer/todo`
+  > (pick/p → CherryPicking, revert/r → Reverting), как это делает git status. Тесты
+  > `a_cherry_pick_with_picks_still_waiting_is_in_progress`,
+  > `a_revert_with_reverts_still_waiting_is_in_progress`.
 - [ ] D4-03 разбор через `read_git`
 - [ ] D4-04 apply через runner
 - [ ] S5-15 `declared()` видит все команды

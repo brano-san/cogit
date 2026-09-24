@@ -72,6 +72,15 @@ impl RepoHandle {
         if marker("REVERT_HEAD") {
             return Ok(RepoState::Reverting);
         }
+        // A conflict in `cherry-pick A B C` committed by hand removes CHERRY_PICK_HEAD and
+        // leaves the rest in the sequencer; git's status reads its next command the same way.
+        if let Ok(todo) = std::fs::read_to_string(git_dir.join("sequencer/todo")) {
+            match todo.split_whitespace().next() {
+                Some("pick" | "p") => return Ok(RepoState::CherryPicking),
+                Some("revert" | "r") => return Ok(RepoState::Reverting),
+                _ => {}
+            }
+        }
         if marker("BISECT_LOG") {
             return Ok(RepoState::Bisecting);
         }
