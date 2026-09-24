@@ -129,6 +129,10 @@ impl AppState {
             return None;
         }
         let row = cache.commits.iter().position(|commit| commit.oid == oid)?;
+        // A commit walked but not laid out yet (R-330) has no row to scroll to.
+        if row >= cache.rows.len() {
+            return None;
+        }
         u32::try_from(row).ok()
     }
 
