@@ -88,6 +88,7 @@
           if (look.layer !== layer) continue;
           context.strokeStyle = colour(look.token);
           context.lineWidth = look.width;
+          context.globalAlpha = look.alpha;
           context.beginPath();
           if (segment.arrow) {
             const stub = arrowStub(segment, row.listRow, scrollTop);
@@ -106,6 +107,7 @@
         }
       }
     }
+    context.globalAlpha = 1;
 
     if (headLane !== null && scrollTop < GRAPH.rowHeight * firstCommitRow) {
       const top = nodeCentre(headLane, 0, scrollTop);
@@ -140,9 +142,12 @@
         context.fillStyle = fills.get(layer) ?? panel;
         context.fill();
       }
+      const ring = nodeStroke(row.layout, row.paint, options);
       context.lineWidth = GRAPH.ringStroke;
-      context.strokeStyle = row.stash ? stash : colour(nodeStroke(row.layout, row.paint, options).token);
+      context.strokeStyle = row.stash ? stash : colour(ring.token);
+      context.globalAlpha = ring.alpha;
       context.stroke();
+      context.globalAlpha = 1;
     }
     context.restore();
 

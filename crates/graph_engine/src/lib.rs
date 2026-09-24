@@ -3,7 +3,7 @@ mod paint;
 mod view;
 
 pub use lanes::layout;
-pub use paint::{PAINT_SLOT, Paint, PaintSpec, paint};
+pub use paint::{PAINT_DIM, PAINT_SLOT, Paint, PaintSpec, paint};
 pub use view::ViewFilter;
 
 use serde::Serialize;

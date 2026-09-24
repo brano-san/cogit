@@ -4,8 +4,11 @@ import type { GraphOverlay, GraphRow, Segment } from "$lib/ipc";
 /** `--graph-branch-1` … `--graph-branch-8`: the colours of branches ticked in Branches. */
 export const BRANCH_SLOTS = 8;
 
-/** `graph_engine::PAINT_SLOT`. */
+/** `graph_engine::PAINT_SLOT` and `PAINT_DIM`. */
 const SLOT_BITS = 0x0f;
+const DIM_BIT = 0x10;
+/** Outside the ancestry of the chosen commit (#26) lines and rings are this faint. */
+export const DIM_ALPHA = 0.28;
 /** The branch of the chosen commit stands out from the main line too. */
 export const FOCUS_LINE_WIDTH = GRAPH.mainLineWidth + 1;
 
@@ -56,11 +59,12 @@ export interface StrokeOptions {
 export interface Stroke {
   token: string;
   width: number;
+  alpha: number;
   layer: number;
 }
 
-export const LAYERS = 4;
-const LAYER = { grey: 0, colour: 1, main: 2, focus: 3 } as const;
+export const LAYERS = 5;
+const LAYER = { dim: 0, grey: 1, colour: 2, main: 3, focus: 4 } as const;
 
 function stroke(
   style: number,
@@ -72,6 +76,7 @@ function stroke(
 ): Stroke {
   const slot = style & SLOT_BITS;
   const focused = options.focusLane != null && lane === options.focusLane;
+  const dim = (style & DIM_BIT) !== 0;
   const token =
     slot > 0
       ? branchToken(slot - 1)
@@ -85,7 +90,16 @@ function stroke(
   return {
     token,
     width: focused ? FOCUS_LINE_WIDTH : primary ? GRAPH.mainLineWidth : width,
-    layer: focused ? LAYER.focus : primary ? LAYER.main : slot > 0 ? LAYER.colour : LAYER.grey,
+    alpha: dim ? DIM_ALPHA : 1,
+    layer: dim
+      ? LAYER.dim
+      : focused
+        ? LAYER.focus
+        : primary
+          ? LAYER.main
+          : slot > 0
+            ? LAYER.colour
+            : LAYER.grey,
   };
 }
 
@@ -105,7 +119,7 @@ export function segmentStroke(
   );
 }
 
-/** A ring keeps its stroke width; only its colour follows the paint. */
+/** A ring keeps its stroke width; only its colour and faintness follow the paint. */
 export function nodeStroke(layout: GraphRow, paint: RowPaint | undefined, options: StrokeOptions): Stroke {
   return {
     ...stroke(paint?.nodeStyle ?? 0, paint?.nodeLane, layout.primary, layout.color, GRAPH.ringStroke, options),

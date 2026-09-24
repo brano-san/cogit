@@ -2,12 +2,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 //! Paint over a finished layout: lanes followed by their columns, branch colours along
-//! first parents. The layout itself is never touched.
+//! first parents, ancestry dimming. The layout itself is never touched.
 
 use std::collections::HashMap;
 
 use graph_engine::{
-    CommitNode, GraphRow, LayoutCursor, PAINT_SLOT, Paint, PaintSpec, Span, layout, paint,
+    CommitNode, GraphRow, LayoutCursor, PAINT_DIM, PAINT_SLOT, Paint, PaintSpec, Span, layout,
+    paint,
 };
 
 fn nodes(spec: &[(&str, &[&str])]) -> Vec<CommitNode> {
@@ -73,6 +74,7 @@ impl Painted {
 fn tips(list: &[(u32, u8)]) -> PaintSpec {
     PaintSpec {
         tips: list.to_vec(),
+        ancestry_of: None,
     }
 }
 
@@ -170,6 +172,45 @@ fn a_slot_past_the_palette_is_clamped_to_the_slot_bits() {
     let history = nodes(&[("m1", &["m0"]), ("t", &["m0"]), ("m0", &[])]);
     let painted = Painted::new(&history, Some("m1"), &tips(&[(1, 200)]));
     assert_eq!(painted.paint.node_style[1], PAINT_SLOT);
+}
+
+#[test]
+fn ancestry_dims_what_is_neither_ancestor_nor_descendant() {
+    let history = nodes(&[
+        ("e", &["d"]),
+        ("d", &["b", "c"]),
+        ("b", &["a"]),
+        ("c", &["a"]),
+        ("a", &[]),
+    ]);
+    let spec = PaintSpec {
+        tips: Vec::new(),
+        ancestry_of: Some(2),
+    };
+    let painted = Painted::new(&history, Some("e"), &spec);
+
+    let dimmed: Vec<bool> = painted
+        .paint
+        .node_style
+        .iter()
+        .map(|s| s & PAINT_DIM != 0)
+        .collect();
+    assert_eq!(dimmed, vec![false, false, false, true, false]);
+    let side = painted.paint.node_lane[3];
+    for (row, s, style, lane) in painted.segments() {
+        assert_eq!(style & PAINT_DIM != 0, lane == side, "row {row}: {s:?}");
+    }
+}
+
+#[test]
+fn ancestry_of_a_row_past_the_end_dims_everything() {
+    let history = nodes(&[("b", &["a"]), ("a", &[])]);
+    let spec = PaintSpec {
+        tips: Vec::new(),
+        ancestry_of: Some(9),
+    };
+    let painted = Painted::new(&history, Some("b"), &spec);
+    assert!(painted.paint.node_style.iter().all(|s| s & PAINT_DIM != 0));
 }
 
 /// Branches, merges, roots and hidden parents in random mixes.

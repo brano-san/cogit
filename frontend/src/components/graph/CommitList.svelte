@@ -61,6 +61,8 @@
     firstParent?: boolean;
     /** A click on a commit or its line brings its branch forward (`graphBranchOfCommit`). */
     branchOfCommit?: boolean;
+    /** The chosen commit's ancestors and descendants stand out (`graphAncestry`). */
+    ancestry?: boolean;
   }
 
   let {
@@ -72,9 +74,10 @@
     highlightChecked = GRAPH_MODE_DEFAULTS.highlightChecked,
     firstParent = GRAPH_MODE_DEFAULTS.firstParent,
     branchOfCommit = GRAPH_MODE_DEFAULTS.branchOfCommit,
+    ancestry = GRAPH_MODE_DEFAULTS.ancestry,
   }: Props = $props();
 
-  const modes = $derived({ highlightChecked, firstParent, branchOfCommit });
+  const modes = $derived({ highlightChecked, firstParent, branchOfCommit, ancestry });
   $effect(() => {
     const view = graphView(modes);
     untrack(() => graph.setView(view));
@@ -186,7 +189,11 @@
   /** A filtered list is flat, not a graph (R-51): nothing to colour along it. */
   const paint = $derived(
     isEmptyQuery(graph.query)
-      ? paintRequest(modes, checkedTips(repository.current?.branches ?? [], refTicks.visible))
+      ? paintRequest(
+          modes,
+          checkedTips(repository.current?.branches ?? [], refTicks.visible),
+          selection.oid,
+        )
       : null,
   );
   $effect(() => {

@@ -35,6 +35,10 @@ export class GraphOverlayStore {
   #key = "";
   #view: OverlayView | null = null;
   #blocks = new Map<number, GraphOverlay>();
+  /** The same rows under the previous request: shown until the new paint is in, so a
+      click that changes the request does not flash the graph grey. */
+  #stale = new Map<number, GraphOverlay>();
+  #walk = "";
   #asking = new Set<number>();
   #asked = new Map<number, number>();
   #timer: ReturnType<typeof setTimeout> | null = null;
@@ -48,14 +52,18 @@ export class GraphOverlayStore {
 
   paintAt(row: number): RowPaint | undefined {
     void this.#arrived;
-    const block = this.#blocks.get(Math.floor(row / BLOCK));
+    const index = Math.floor(row / BLOCK);
+    const block = this.#blocks.get(index) ?? this.#stale.get(index);
     return block ? rowPaint(block, row) : undefined;
   }
 
   show(view: OverlayView): void {
-    const key = JSON.stringify([view.repo, view.generation, view.request]);
+    const walk = JSON.stringify([view.repo, view.generation]);
+    const key = JSON.stringify([walk, view.request]);
     if (key !== this.#key) {
       this.#key = key;
+      this.#stale = walk === this.#walk && view.request ? new Map([...this.#stale, ...this.#blocks]) : new Map();
+      this.#walk = walk;
       this.#blocks = new Map();
       this.#asking.clear();
       this.#asked.clear();
@@ -104,15 +112,18 @@ export class GraphOverlayStore {
     this.#asking.delete(index);
     if (!overlay) return;
     this.#blocks.set(index, overlay);
+    this.#stale.delete(index);
     this.#arrived += 1;
     this.#fill();
   }
 
   #evict(view: OverlayView): void {
-    if (this.#blocks.size <= KEEP) return;
     const middle = (view.start + view.end) / 2 / BLOCK;
-    const farthest = [...this.#blocks.keys()].sort((a, b) => Math.abs(b - middle) - Math.abs(a - middle));
-    for (const index of farthest.slice(0, this.#blocks.size - KEEP)) this.#blocks.delete(index);
+    for (const blocks of [this.#blocks, this.#stale]) {
+      if (blocks.size <= KEEP) continue;
+      const farthest = [...blocks.keys()].sort((a, b) => Math.abs(b - middle) - Math.abs(a - middle));
+      for (const index of farthest.slice(0, blocks.size - KEEP)) blocks.delete(index);
+    }
   }
 }
 

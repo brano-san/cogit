@@ -19,6 +19,9 @@ pub struct PaintTip {
 pub struct GraphPaintRequest {
     #[serde(default)]
     pub tips: Vec<PaintTip>,
+    /// All but this commit's ancestors and descendants is dimmed.
+    #[serde(default)]
+    pub ancestry_of: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -28,7 +31,7 @@ pub struct GraphOverlay {
     /// Rows laid out when this was painted: a later row can still change it.
     pub total: u32,
     pub node_lanes: Vec<u32>,
-    /// `graph_engine::PAINT_SLOT` bits are the slot plus one; 0 is the default colour.
+    /// `graph_engine::PAINT_SLOT` bits are the slot plus one, 0 the default colour; `PAINT_DIM` dims.
     pub node_styles: Vec<u8>,
     pub segment_first: Vec<u32>,
     pub segment_lanes: Vec<u32>,
@@ -77,6 +80,10 @@ impl PaintMemo {
                 .iter()
                 .filter_map(|tip| self.index.get(&tip.oid).map(|row| (*row, tip.slot)))
                 .collect(),
+            ancestry_of: request
+                .ancestry_of
+                .as_ref()
+                .and_then(|oid| self.index.get(oid).copied()),
         };
         let watch = std::time::Instant::now();
         self.paint = graph_engine::paint(rows, &self.parents, &spec);

@@ -4,6 +4,7 @@
 use app_state::graph_overlay::{GraphPaintRequest, PaintTip};
 use app_state::{AppState, RepoId};
 use git_engine::CommitQuery;
+use graph_engine::PAINT_DIM;
 
 fn build(state: &AppState, repo: RepoId) -> u32 {
     let generation = state.begin_graph();
@@ -32,6 +33,7 @@ fn a_ticked_branch_comes_back_in_its_slot_and_the_main_line_does_not() {
             oid: dev[0].clone(),
             slot: 5,
         }],
+        ancestry_of: None,
     };
     let overlay = state
         .graph_overlay(repo, generation, 0, 100, &request)
@@ -71,6 +73,28 @@ fn a_window_of_paint_lines_up_with_the_window_of_rows() {
         .map(|row| u32::try_from(row.segments.len()).unwrap())
         .collect();
     assert_eq!(counts, expected);
+}
+
+#[test]
+fn ancestry_dims_the_other_branch() {
+    let f = test_fixtures::branched().unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let generation = build(&state, repo);
+    let order = oids(&state, repo, generation);
+    let main = f.oid("main").unwrap();
+
+    let request = GraphPaintRequest {
+        tips: Vec::new(),
+        ancestry_of: Some(f.oid("dev~1").unwrap()),
+    };
+    let overlay = state
+        .graph_overlay(repo, generation, 0, 100, &request)
+        .unwrap();
+
+    for (oid, style) in order.iter().zip(&overlay.node_styles) {
+        assert_eq!(style & PAINT_DIM != 0, *oid == main, "{oid}");
+    }
 }
 
 #[test]
