@@ -62,6 +62,7 @@
   import { resetChoice } from "$lib/reset-modes";
   import { baseBefore, fullMessage, modifyPlan, rewordPlan, squashPlan } from "$lib/rewrite-plans";
   import { tagRequest } from "$lib/tag-dialog";
+  import { branchNameProblem, textProblem } from "$lib/names";
   import { commit } from "$stores/commit.svelte";
   import { compareView } from "$stores/compare-view.svelte";
   import { confirmation } from "$stores/confirm.svelte";
@@ -543,7 +544,12 @@
   async function addBranch(id: RepoId, at: Target) {
     const oid = at.oid;
     if (!oid) return;
-    const name = await prompt.ask({ title: `Add Branch at ${shortOid(oid)}`, label: "Name", confirm: "Add Branch" });
+    const name = await prompt.ask({
+      title: `Add Branch at ${shortOid(oid)}`,
+      label: "Name",
+      confirm: "Add Branch",
+      validate: (value) => branchNameProblem(value, repository.localBranches.map((entry) => entry.name)),
+    });
     if (name === null) return;
     await attempt("Could not add the branch", () => createBranch(id, name, oid, false));
   }
@@ -657,7 +663,20 @@
   async function renameTarget(id: RepoId, at: Target) {
     const ref = at.ref;
     if (!ref || ref.kind === "remote") return;
-    const to = await prompt.ask({ title: `Rename ${ref.name}`, label: "New name", value: ref.name, confirm: "Rename" });
+    // A tag is checked by git on the way in; only a branch has the rule here.
+    const to = await prompt.ask({
+      title: `Rename ${ref.name}`,
+      label: "New name",
+      value: ref.name,
+      confirm: "Rename",
+      validate:
+        ref.kind === "tag"
+          ? textProblem
+          : (value) =>
+              value.trim() === ref.name
+                ? null
+                : branchNameProblem(value, repository.localBranches.map((entry) => entry.name)),
+    });
     if (to === null || to === ref.name) return;
     await attempt(`Could not rename the ${ref.kind === "tag" ? "tag" : "branch"}`, () =>
       ref.kind === "tag" ? renameTag(id, ref.name, to) : renameBranch(id, ref.name, to, false),
@@ -672,6 +691,7 @@
       label: "Message",
       value: stash.message,
       confirm: "Rename",
+      validate: textProblem,
     });
     if (message === null || message === stash.message) return;
     await attempt("Could not rename the stash", () => renameStash(id, stash.index, message), afterMutation);
