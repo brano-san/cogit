@@ -18,6 +18,9 @@ class WorktreeStore {
   error = $state<CogitError | null>(null);
 
   #generation = 0;
+  /** Bumped by `clear()`: a write that finishes after it reads nothing back, since the
+      panels it would read into belong to another repository by now. */
+  #cleared = 0;
 
   get total(): number {
     return this.staged.length + this.unstaged.length;
@@ -59,14 +62,16 @@ class WorktreeStore {
   /** A mutation is only believed once the working tree has been read back. */
   async mutate(repo: RepoId, run: () => Promise<unknown>): Promise<void> {
     this.error = null;
+    const cleared = this.#cleared;
     try {
       await run();
     } catch (err) {
+      if (cleared !== this.#cleared) return;
       this.error =
         err instanceof CogitError ? err : new CogitError({ kind: "internal", data: String(err) });
       return;
     }
-    await this.load(repo);
+    if (cleared === this.#cleared) await this.load(repo);
   }
 
   async commit(
@@ -81,6 +86,7 @@ class WorktreeStore {
 
   clear(): void {
     this.#generation += 1;
+    this.#cleared += 1;
     this.staged = [];
     this.unstaged = [];
     this.loading = false;

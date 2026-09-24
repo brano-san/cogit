@@ -30,6 +30,9 @@ class WorktreesStore {
   /** Only the newest read writes; `clear()` drops the ones in flight, which belong to the
       repository the panels are leaving. */
   #generation = 0;
+  /** Bumped by `clear()`: a write that finishes after it reads nothing back, since the
+      panels it would read into belong to another repository by now. */
+  #cleared = 0;
 
   async refresh(repo: RepoId): Promise<void> {
     const generation = ++this.#generation;
@@ -88,15 +91,17 @@ class WorktreesStore {
     this.entries = [];
     this.repo = null;
     this.selected = null;
+    this.#cleared += 1;
   }
 
   async #act(run: (repo: RepoId) => Promise<unknown>): Promise<void> {
     const repo = this.repo;
     if (repo === null) return;
+    const cleared = this.#cleared;
     try {
       await run(repo);
     } finally {
-      await this.refresh(repo);
+      if (cleared === this.#cleared) await this.refresh(repo);
     }
   }
 }

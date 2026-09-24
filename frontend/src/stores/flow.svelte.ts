@@ -17,6 +17,9 @@ class FlowStore {
   /** Only the newest read writes; `clear()` drops the ones in flight, which belong to the
       repository the panels are leaving. */
   #generation = 0;
+  /** Bumped by `clear()`: a write that finishes after it reads nothing back, since the
+      panels it would read into belong to another repository by now. */
+  #cleared = 0;
 
   async refresh(repo: RepoId): Promise<void> {
     const generation = ++this.#generation;
@@ -25,23 +28,28 @@ class FlowStore {
   }
 
   async init(repo: RepoId): Promise<void> {
-    await flowInit(repo, this.status.config);
-    await this.refresh(repo);
+    const config = this.status.config;
+    await this.#then(repo, () => flowInit(repo, config));
   }
 
   async start(repo: RepoId, kind: FlowKind, name: string): Promise<void> {
-    await flowStart(repo, kind, name);
-    await this.refresh(repo);
+    await this.#then(repo, () => flowStart(repo, kind, name));
   }
 
   async finish(repo: RepoId, kind: FlowKind, name: string, tag: string | null): Promise<void> {
-    await flowFinish(repo, kind, name, tag);
-    await this.refresh(repo);
+    await this.#then(repo, () => flowFinish(repo, kind, name, tag));
   }
 
   clear(): void {
     this.#generation += 1;
+    this.#cleared += 1;
     this.status = EMPTY;
+  }
+
+  async #then(repo: RepoId, write: () => Promise<unknown>): Promise<void> {
+    const cleared = this.#cleared;
+    await write();
+    if (cleared === this.#cleared) await this.refresh(repo);
   }
 }
 
