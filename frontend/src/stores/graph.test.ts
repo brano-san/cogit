@@ -326,3 +326,20 @@ describe("graph windows", () => {
     expect((await graph.entry(720))?.commit.oid).toBe("c720");
   });
 });
+
+// Closing the last repository clears the graph; the "Not in the graph: …" line of the
+// repository just closed stayed above the start screen.
+describe("clearing the graph", () => {
+  it("drops the refs the last walk skipped", async () => {
+    const done = graph.load(A);
+    const stream = last();
+    await stream.send(["a"], true);
+    streams.at(-1)!.finish({ status: "ok", data: [{ name: "refs/heads/odd", reason: "x" }] });
+    await done;
+    expect(graph.skipped.length).toBe(1);
+
+    graph.clear();
+
+    expect(graph.skipped).toEqual([]);
+  });
+});

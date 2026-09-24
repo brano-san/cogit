@@ -164,6 +164,7 @@ class GraphStore {
 
   clear(): void {
     this.#loads += 1;
+    this.skipped = [];
     this.query = EMPTY_QUERY;
     this.visibleRefs = null;
     this.reveal = null;
