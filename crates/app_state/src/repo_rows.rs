@@ -31,3 +31,12 @@ pub fn background_fetch(root: &Path) -> Result<(), GitError> {
     }
     fetched
 }
+
+/// Asks the server, writes nothing; a failure is logged and means "unknown" (R-354).
+pub fn pull_probe(root: &Path) -> Result<Option<bool>, GitError> {
+    let probed = RepoHandle::open(root).and_then(|handle| handle.pull_probe());
+    if let Err(err) = &probed {
+        tracing::warn!(root = %root.display(), error = %err, "pull probe failed");
+    }
+    probed
+}
