@@ -199,3 +199,25 @@ fn continuing_a_bisect_is_refused_before_git_is_started() {
     assert!(repo.continue_operation().is_err());
     assert!(commands(&log).is_empty(), "got {:?}", commands(&log));
 }
+
+// `git rebase -r` stopped on a conflicting merge commit leaves MERGE_HEAD beside
+// rebase-merge. Git calls that a rebase; reading it as a merge made Abort run
+// `merge --abort` and left the rebase hanging.
+#[test]
+fn a_merge_stopped_inside_a_rebase_is_a_rebase() {
+    let f = test_fixtures::linear(2).unwrap();
+    let git_dir = f.path().join(".git");
+    std::fs::create_dir_all(git_dir.join("rebase-merge")).unwrap();
+    std::fs::write(
+        git_dir.join("MERGE_HEAD"),
+        "0000000000000000000000000000000000000000\n",
+    )
+    .unwrap();
+
+    let state = git_engine::RepoHandle::open(f.path())
+        .unwrap()
+        .state()
+        .unwrap();
+
+    assert_eq!(state, git_engine::RepoState::Rebasing);
+}
