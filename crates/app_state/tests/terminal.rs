@@ -117,3 +117,15 @@ fn every_choice_has_a_name_a_human_picked() {
         assert!(kind.label().len() > 2, "{kind:?} has no label");
     }
 }
+
+// Opening Git Bash knew only the two Program Files folders. Git installed for one user, in
+// `%LOCALAPPDATA%\Programs\Git`, is found by the Git Shell menu item but not here: the
+// terminal failed to start.
+#[test]
+fn git_bash_comes_from_the_install_that_was_found() {
+    let found = std::path::Path::new("D:/Tools/Git/git-bash.exe");
+
+    let bash = app_state::terminal::bash_of(Some(found));
+
+    assert_eq!(bash, std::path::Path::new("D:/Tools/Git/bin/bash.exe"));
+}
