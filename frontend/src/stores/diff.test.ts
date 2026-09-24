@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const commands = { diffFile: vi.fn(), imageSides: vi.fn(), discardSelection: vi.fn() };
+const commands = { diffFile: vi.fn(), imageSides: vi.fn(), discardSelection: vi.fn(), stageSelection: vi.fn() };
 
 /** Stands in for the on-disk store: the branch keeps its view preferences there. */
 const stored = new Map<string, unknown>();
@@ -312,5 +312,36 @@ describe("line actions and the side of the index a diff shows", () => {
     await diff.discardLines(new Set(["d:1"]), diff.diff!);
 
     expect(commands.discardSelection).not.toHaveBeenCalled();
+  });
+});
+
+// Stage lines built its request in App from the path asked for last and the hunks on
+// screen, the discard's old mix-up: click b while a is shown and a's lines went to b.
+describe("staging lines", () => {
+  beforeEach(() => {
+    diff.clear();
+    commands.diffFile.mockReset();
+    commands.stageSelection.mockReset();
+    commands.stageSelection.mockResolvedValue({ status: "ok", data: null });
+    commands.diffFile.mockImplementation(async () => textDiff());
+  });
+
+  it("stages them in the file they were chosen in", async () => {
+    await diff.load(REPO, SPEC, "a.txt");
+    commands.diffFile.mockReturnValueOnce(new Promise(() => {}));
+    void diff.load(REPO, SPEC, "b.txt");
+
+    await diff.stageLines(new Set(["i:1"]), false);
+
+    expect(commands.stageSelection.mock.calls[0]?.[1].path).toBe("a.txt");
+  });
+
+  it("stages only from unstaged changes and unstages only from staged ones", async () => {
+    await diff.load(REPO, { kind: "indexVsHead" }, "a.txt");
+    await diff.stageLines(new Set(["i:1"]), false);
+    expect(commands.stageSelection).not.toHaveBeenCalled();
+
+    await diff.stageLines(new Set(["i:1"]), true);
+    expect(commands.stageSelection).toHaveBeenCalledOnce();
   });
 });
