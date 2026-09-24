@@ -192,3 +192,46 @@ fn a_new_mailmap_walks_an_author_filter_again() {
 
     assert_eq!(progress.last().unwrap().total, 4);
 }
+
+fn texts_reach(state: &AppState, repo: RepoId, rows: usize) -> bool {
+    let until = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    while std::time::Instant::now() < until {
+        if state.graph_texts_read(repo) >= rows {
+            return true;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    false
+}
+
+/// A jump through the list finds the rows' text read already (R-303).
+#[test]
+fn every_row_text_is_read_ahead_once_the_walk_is_over() {
+    let a = test_fixtures::linear(600).unwrap();
+    let state = AppState::new();
+    let ra = state.open_repository(a.path()).unwrap().repo;
+
+    build(&state, ra);
+
+    assert!(
+        texts_reach(&state, ra, 600),
+        "{}",
+        state.graph_texts_read(ra)
+    );
+}
+
+/// A rebuilt graph starts with the texts the last one read.
+#[test]
+fn a_rebuilt_graph_keeps_the_texts_read_for_the_last_one() {
+    let a = test_fixtures::linear(300).unwrap();
+    let state = AppState::new();
+    let ra = state.open_repository(a.path()).unwrap().repo;
+    build(&state, ra);
+    assert!(texts_reach(&state, ra, 300));
+
+    a.commit_file(400, "new.txt", "new\n").unwrap();
+    build(&state, ra);
+
+    assert!(state.graph_texts_read(ra) >= 300);
+    assert!(texts_reach(&state, ra, 301));
+}
