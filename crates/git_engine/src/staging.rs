@@ -59,14 +59,14 @@ fn require_paths(paths: &[String]) -> Result<()> {
 impl RepoHandle {
     /// Only the executable bit; `git add` would stage the content change with it.
     pub fn stage_mode(&self, path: &str, executable: bool) -> Result<()> {
-        let tracked = self.run_git_reading(&["ls-files", "--error-unmatch", "--", path]);
+        let tracked = self.run_git_reading_literal(&["ls-files", "--error-unmatch", "--", path]);
         if tracked.is_err() {
             return Err(GitError::InvalidState(format!("{path} is not tracked")));
         }
 
         // `--chmod` re-reads the file, so re-register with the blob already indexed.
         let staged = self
-            .run_git_reading(&["ls-files", "--stage", "--", path])?
+            .run_git_reading_literal(&["ls-files", "--stage", "--", path])?
             .stdout;
         let oid = staged
             .split_whitespace()

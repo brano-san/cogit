@@ -66,7 +66,7 @@ impl RepoHandle {
         args.push(rev.unwrap_or("HEAD"));
         args.extend(["--", path]);
 
-        Ok(parse_file_log(&self.read_git(&args)?))
+        Ok(parse_file_log(&self.read_git_literal(&args)?))
     }
 }
 

@@ -85,6 +85,10 @@ impl GitOutput {
     }
 }
 
+/// A file name the user picked is not a pattern: to git `[1]` is a character class, so
+/// `test[1].txt` also meant `test1.txt`.
+const LITERAL: &[(&str, &str)] = &[("GIT_LITERAL_PATHSPECS", "1")];
+
 impl RepoHandle {
     pub fn run_git(&self, args: &[&str]) -> Result<GitOutput> {
         self.spawn(args, false)
@@ -95,9 +99,23 @@ impl RepoHandle {
         self.spawn(args, true)
     }
 
-    /// Standard output as bytes: a patch of a Latin-1 file must survive the round trip.
-    pub(crate) fn run_git_bytes(&self, args: &[&str]) -> Result<Vec<u8>> {
+    /// `run_git` for a command whose paths are ones the user picked (see `LITERAL`).
+    pub(crate) fn run_git_literal(&self, args: &[&str]) -> Result<GitOutput> {
+        self.spawn_with(args, false, LITERAL)
+    }
+
+    /// `run_git_reading` for paths the user picked.
+    pub(crate) fn run_git_reading_literal(&self, args: &[&str]) -> Result<GitOutput> {
+        self.spawn_with(args, true, LITERAL)
+    }
+
+    /// Standard output as bytes, for paths the user picked: a patch of a Latin-1 file must
+    /// survive the round trip.
+    pub(crate) fn run_git_bytes_literal(&self, args: &[&str]) -> Result<Vec<u8>> {
         let mut process = base_command(self.root(), true);
+        for (key, value) in LITERAL {
+            process.env(key, value);
+        }
         process.args(args);
         let output = crate::children::output(&mut process)?;
         if output.status.success() {
@@ -130,9 +148,21 @@ impl RepoHandle {
     /// journal's record trims long output and rewrites `\r` (R-280). Failures still
     /// reach the journal with both streams.
     pub(crate) fn read_git(&self, args: &[&str]) -> Result<String> {
+        self.read_git_with(args, &[])
+    }
+
+    /// `read_git` for paths the user picked.
+    pub(crate) fn read_git_literal(&self, args: &[&str]) -> Result<String> {
+        self.read_git_with(args, LITERAL)
+    }
+
+    fn read_git_with(&self, args: &[&str], env: &[(&str, &str)]) -> Result<String> {
         let command = redact_command(args);
         let started = std::time::Instant::now();
         let mut process = base_command(self.root(), true);
+        for (key, value) in env {
+            process.env(key, value);
+        }
         process.args(args);
         let output = crate::children::output(&mut process)?;
         let duration_ms = elapsed_ms(started);
@@ -174,10 +204,8 @@ impl RepoHandle {
     /// `args`, `--` and the paths. A list too long for a Windows command line goes through
     /// stdin instead, still as one command (R-191).
     ///
-    /// The paths are file names the user picked, not patterns: `test[1].txt` must not also
-    /// mean `test1.txt`.
+    /// The paths are file names the user picked, not patterns (see `LITERAL`).
     pub(crate) fn run_git_paths(&self, args: &[&str], paths: &[String]) -> Result<GitOutput> {
-        const LITERAL: &[(&str, &str)] = &[("GIT_LITERAL_PATHSPECS", "1")];
         let mut all = args.to_vec();
         if fits_command_line(paths) {
             all.push("--");
