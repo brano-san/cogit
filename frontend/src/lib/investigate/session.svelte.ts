@@ -193,13 +193,22 @@ export class InvestigateSession {
     this.#cancelSearch();
   }
 
+  /** Only the newest re-read writes the sections. */
+  #sectionReads = 0;
+
   async #reloadSections(): Promise<void> {
+    const read = ++this.#sectionReads;
+    const before = this.sections;
     const reloaded = await Promise.all(
-      this.sections.map(async (section) =>
+      before.map(async (section) =>
         makeSection(section.path, section.start, await this.#log(section.path, section.start), section.workingTree),
       ),
     );
-    this.sections = reloaded;
+    if (read !== this.#sectionReads) return;
+    // A new start replaced the sections meanwhile: these rows belong to none of them.
+    if (!before.every((section, index) => this.sections[index] === section)) return;
+    // A section a navigation added while this read was on its way is newer than it.
+    this.sections = [...reloaded, ...this.sections.slice(before.length)];
   }
 
   async #log(path: string, rev: string | null): Promise<FileRevision[]> {

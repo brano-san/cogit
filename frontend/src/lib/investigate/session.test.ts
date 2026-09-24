@@ -223,3 +223,24 @@ describe("going back while a blame is still loading", () => {
     expect(session.loadingBlame).toBe(false);
   });
 });
+
+// Turning Follow off and straight back on: the first re-read answered last and left the
+// sections read without --follow under a session that says it follows renames.
+describe("re-reading the log sections", () => {
+  it("keeps the newest re-read", async () => {
+    const backend = fakeBackend();
+    const session = await started(backend);
+    let answerOff!: (rows: FileRevision[]) => void;
+    backend.log.mockImplementationOnce(() => new Promise((resolve) => (answerOff = resolve)));
+    backend.log.mockImplementationOnce(async () => [rev("followed", "main.rs")]);
+
+    const off = session.setFollow(false);
+    await session.setFollow(true);
+    answerOff([rev("unfollowed", "main.rs")]);
+    await off;
+
+    expect(session.follow).toBe(true);
+    expect(session.sections[0]?.rows.map((row) => row.oid)).toContain("followed");
+    expect(session.sections[0]?.rows.map((row) => row.oid)).not.toContain("unfollowed");
+  });
+});
