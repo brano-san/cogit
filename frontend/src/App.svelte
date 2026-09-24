@@ -115,7 +115,6 @@
     rollbackTo,
     splitOff,
     mergeInto,
-    stageSelection,
     stashSelection,
     fetchRemote,
     listRemotes,
@@ -1279,27 +1278,9 @@
   }
 
   async function stageLines(selected: ReadonlySet<string>, reverse: boolean) {
-    const id = repository.current?.repo;
-    const path = diff.path;
-    if (!id || !path) return;
-    const { splitSelection } = await import("$lib/selection");
-    const { deletes, inserts } = splitSelection(selected);
-
-    await mutate(
-      (repo) =>
-        stageSelection(
-          repo,
-          {
-            path,
-            hunks: diff.hunks,
-            selectedDeletes: deletes,
-            selectedInserts: inserts,
-            lineEnding: diff.diff?.kind === "text" ? diff.diff.eol.old : "lf",
-          },
-          reverse,
-        ),
-      [path],
-    );
+    const path = diff.shownPath;
+    if (!path) return;
+    await mutate(() => diff.stageLines(selected, reverse), [path]);
   }
 
   async function refreshSubmodule(row: import("$lib/module-tree").ModuleRow) {

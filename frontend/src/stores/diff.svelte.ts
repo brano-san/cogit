@@ -10,7 +10,7 @@ import {
   toCogitError,
 } from "$lib/ipc";
 import { readKey, writeKey } from "$lib/settings-file";
-import { discardSelection } from "$lib/ipc";
+import { discardSelection, stageSelection, type PatchRequest } from "$lib/ipc";
 import { expandedContext } from "$lib/diff-rows";
 import { splitSelection } from "$lib/selection";
 import { settings } from "./settings.svelte";
@@ -138,22 +138,41 @@ class DiffStore {
       `from` is the diff the lines were chosen in; once another has replaced it, their
       numbers mean other lines, and nothing is thrown away. */
   async discardLines(selected: ReadonlySet<string>, from?: FileDiff): Promise<void> {
-    const shown = this.#shown;
-    if (shown === null || this.diff?.kind !== "text") return;
     if (from !== undefined && from !== this.diff) return;
     // Discard reverses the patch in the working tree: only lines of that diff can go.
-    if (shown.spec.kind !== "workTreeVsIndex") return;
-    const { deletes, inserts } = splitSelection(selected);
-    if (deletes.length === 0 && inserts.length === 0) return;
-
-    await discardSelection(shown.repo, {
-      path: shown.path,
-      hunks: this.diff.hunks,
-      selectedDeletes: deletes,
-      selectedInserts: inserts,
-      lineEnding: this.diff.eol.old,
-    });
+    if (!this.lineActions.discard) return;
+    const lines = this.#lines(selected);
+    if (!lines) return;
+    await discardSelection(lines.repo, lines.request);
     await this.reload();
+  }
+
+  /** Stages (or, `reverse`, unstages) the selected lines of the diff on screen. The caller
+      reloads what the change touched, as for any other mutation. */
+  async stageLines(selected: ReadonlySet<string>, reverse: boolean): Promise<void> {
+    if (!(reverse ? this.lineActions.unstage : this.lineActions.stage)) return;
+    const lines = this.#lines(selected);
+    if (!lines) return;
+    await stageSelection(lines.repo, lines.request, reverse);
+  }
+
+  /** The request for lines chosen in the diff on screen: its file and its hunks, never the
+      file asked for next. */
+  #lines(selected: ReadonlySet<string>): { repo: RepoId; request: PatchRequest } | null {
+    const shown = this.#shown;
+    if (shown === null || this.diff?.kind !== "text") return null;
+    const { deletes, inserts } = splitSelection(selected);
+    if (deletes.length === 0 && inserts.length === 0) return null;
+    return {
+      repo: shown.repo,
+      request: {
+        path: shown.path,
+        hunks: this.diff.hunks,
+        selectedDeletes: deletes,
+        selectedInserts: inserts,
+        lineEnding: this.diff.eol.old,
+      },
+    };
   }
 
   /**
