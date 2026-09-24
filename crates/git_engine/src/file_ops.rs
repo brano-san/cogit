@@ -64,7 +64,7 @@ impl RepoHandle {
             std::fs::create_dir_all(parent)?;
         }
         let tracked = self
-            .run_git_reading(&["ls-files", "--error-unmatch", "--", from])
+            .run_git_reading_literal(&["ls-files", "--error-unmatch", "--", from])
             .is_ok();
         if tracked {
             return self.run_git(&["mv", "--", from, to]).map(drop);
@@ -202,7 +202,7 @@ impl RepoHandle {
             Some(parent) => {
                 let mut args = vec!["diff", "--binary", "--full-index", "-M", &parent, rev, "--"];
                 args.extend(&paths);
-                self.run_git_bytes(&args)?
+                self.run_git_bytes_literal(&args)?
             }
             None => {
                 let mut args = vec![
@@ -217,7 +217,7 @@ impl RepoHandle {
                     "--",
                 ];
                 args.extend(&paths);
-                self.run_git_bytes(&args)?
+                self.run_git_bytes_literal(&args)?
             }
         };
         if patch.iter().all(u8::is_ascii_whitespace) {

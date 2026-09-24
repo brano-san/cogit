@@ -30,13 +30,12 @@ impl RepoHandle {
         // `-m` takes the next argument verbatim, so a message starting with `--` is safe.
         args.push("-m");
         args.push(&request.message);
-        if !request.only.is_empty() {
+        if request.only.is_empty() {
+            self.run_git(&args)?;
+        } else {
             args.push("--only");
-            args.push("--");
-            args.extend(request.only.iter().map(String::as_str));
+            self.run_git_paths(&args, &request.only)?;
         }
-
-        self.run_git(&args)?;
         let oid = self
             .run_git_reading(&["rev-parse", "HEAD"])?
             .stdout

@@ -384,7 +384,14 @@ ST src-tauri, FS сторы и lib фронта, FA App.svelte/окна/layout, 
   > это одна функция, переписанная целиком. Не сделано: AS-2-04 (смешанные EOL) — у строки
   > диффа нет своего окончания, нужна новая форма DiffRow в IPC; `lacksFinalNewline` во
   > фронте остался без вызовов, но с тестами — не удаляю.
-- [ ] 2.2 GE-2-03, GE-2-04: точные пути и `--pathspec-from-file` в оставшихся командах
+- [x] 2.2 GE-2-03, GE-2-04: точные пути и `--pathspec-from-file` в оставшихся командах
+  > Итог: в runner — `LITERAL` на уровне модуля и `run_git_literal` /
+  > `run_git_reading_literal` / `read_git_literal` / `run_git_bytes_literal`; на них
+  > переведены stage_mode (оба ls-files), разрешение конфликта (add), file_log, проверка
+  > перед move и дифф apply_commit_file. `commit --only` идёт через `run_git_paths` — точные
+  > пути и stdin для длинного списка (GE-2-04). Пять тестов в tests/literal_paths.rs, все
+  > красные до правки (длинный список — 2500 путей, os error 206). Сабмодули и subtree не
+  > трогал: их нет в находке, а пути там — из .gitmodules, а не выбор пользователя.
 - [ ] 2.3 GE-2-06, GE-2-07, GE-2-08: interactive rebase — многострочный reword, squash,
   merge-коммиты
 - [ ] 2.4 GE-2-01, GE-2-02: .gitignore — байты и экранирование

@@ -94,7 +94,7 @@ impl RepoHandle {
     /// Write and stage in one step, or `git merge --continue` refuses a file that looks done.
     fn write_resolution(&self, path: &str, content: &[u8]) -> Result<()> {
         std::fs::write(self.root().join(path), content)?;
-        self.run_git(&["add", "--", path]).map(drop)
+        self.run_git_literal(&["add", "--", path]).map(drop)
     }
 
     fn stage_blob(&self, path: &str, side: ConflictSide) -> Option<Vec<u8>> {
