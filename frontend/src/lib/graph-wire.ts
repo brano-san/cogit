@@ -20,7 +20,7 @@ export interface GraphBlock {
   entry(row: number): GraphEntry;
 }
 
-const VERSION = 1;
+const VERSION = 2;
 const KINDS: readonly GraphRow["kind"][] = ["normal", "merge", "root", "workingTree"];
 const SPANS: readonly Segment["span"][] = ["top", "bottom", "through"];
 const utf8 = new TextDecoder();
@@ -52,17 +52,21 @@ export function decodeWindow(buffer: ArrayBuffer): GraphBlock | null {
   }
   const time = take(Float64Array, rows!);
   const firstSegment = take(Uint32Array, rows! + 1);
+  const firstLink = take(Uint32Array, rows! + 1);
+  const links = firstLink[rows!]!;
   const textAt = take(Uint32Array, rows! * 3 + 1);
   const zone = take(Int32Array, rows!);
   const lane = take(Uint16Array, rows!);
   const width = take(Uint16Array, rows!);
   const from = take(Uint16Array, segments!);
   const to = take(Uint16Array, segments!);
+  const linkSegment = take(Uint16Array, links);
   const colour = take(Uint8Array, rows!);
   const flags = take(Uint8Array, rows!);
   const segmentColour = take(Uint8Array, segments!);
   const segmentFlags = take(Uint8Array, segments!);
   const oids = take(Uint8Array, rows! * oidBytes!);
+  const linkOids = take(Uint8Array, links * oidBytes!);
   const text = take(Uint8Array, textBytes!);
 
   const field = (row: number, which: number) =>
@@ -101,6 +105,10 @@ export function decodeWindow(buffer: ArrayBuffer): GraphBlock | null {
           arrow: (bits & 8) !== 0,
         });
       }
+      const far: GraphRow["links"] = [];
+      for (let l = firstLink[row]!; l < firstLink[row + 1]!; l++) {
+        far.push({ segment: linkSegment[l]!, oid: utf8.decode(linkOids.subarray(l * oidBytes!, (l + 1) * oidBytes!)) });
+      }
       const entry: GraphEntry = {
         commit: {
           oid: oid(row),
@@ -118,6 +126,7 @@ export function decodeWindow(buffer: ArrayBuffer): GraphBlock | null {
           primary: (flags[row]! & 4) !== 0,
           width: width[row]!,
           segments: drawn,
+          links: far,
         },
       };
       decoded[row] = entry;
