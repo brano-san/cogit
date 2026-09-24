@@ -540,7 +540,11 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > `core.quotepath=true`, не дописывает таб после имени с пробелом и не применяет
   > `diff.noprefix` (проверено вручную и тестом, в том числе для папки `b/`). Кода не менял;
   > добавил тест-страховку `the_path_of_each_version_is_the_file_itself_whatever_its_name`.
-- [ ] B-13 surgery: `-z`
+- [x] B-13 surgery: `-z`
+  > Итог: `diff-tree` и `ls-tree` в split off — с `-z`, разбор по `\0`. Тест
+  > `a_file_with_a_non_ascii_name_can_be_split_off` (при `core.quotepath` по умолчанию до
+  > правки — «not one of the files this commit changed»). Остальные списки путей в
+  > git_engine уже с `-z` или не разбирают путь.
 - [ ] B-14 литеральные pathspec
 - [ ] B-15 hard reset: свой stash по сравнению вершин
 - [ ] B-16 Undo удаления аннотированного тега
