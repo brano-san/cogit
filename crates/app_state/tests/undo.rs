@@ -425,3 +425,70 @@ fn a_reset_is_journalled_with_where_the_branch_was() {
     );
     assert!(entry.description.contains("mixed"), "{}", entry.description);
 }
+
+fn head_oid(state: &AppState, repo: RepoId) -> String {
+    match state
+        .open_repository(&state.get(repo).unwrap().root)
+        .unwrap()
+        .head
+    {
+        git_engine::Head::Branch { oid, .. } => oid,
+        other => panic!("expected a branch, got {other:?}"),
+    }
+}
+
+// Undo recorded the branch as if it had been deleted and ran `git branch main <old>`,
+// which fails with "a branch named 'main' already exists" — every time.
+#[test]
+fn undoing_a_merge_puts_the_branch_back_where_it_was() {
+    let f = test_fixtures::branched().unwrap();
+    let (state, repo) = open(&f);
+    let before = head_oid(&state, repo);
+
+    state
+        .merge(
+            repo,
+            &git_engine::MergeOptions {
+                source: "dev".to_owned(),
+                no_fast_forward: true,
+                squash: false,
+                message: None,
+            },
+        )
+        .unwrap();
+    assert_ne!(head_oid(&state, repo), before);
+
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(head_oid(&state, repo), before);
+}
+
+#[test]
+fn undoing_a_merge_moves_the_branch_back_after_the_user_left_it() {
+    let f = test_fixtures::branched().unwrap();
+    let (state, repo) = open(&f);
+    let before = head_oid(&state, repo);
+    state
+        .merge(
+            repo,
+            &git_engine::MergeOptions {
+                source: "dev".to_owned(),
+                no_fast_forward: true,
+                squash: false,
+                message: None,
+            },
+        )
+        .unwrap();
+    let switched = std::process::Command::new("git")
+        .args(["switch", "--quiet", "dev"])
+        .current_dir(f.path())
+        .status()
+        .unwrap();
+    assert!(switched.success());
+
+    state.undo_last(repo).unwrap();
+
+    let summary = state.open_repository(f.path()).unwrap();
+    let main = summary.branches.iter().find(|b| b.name == "main").unwrap();
+    assert_eq!(main.oid, before);
+}

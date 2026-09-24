@@ -490,7 +490,12 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
 
 ### Категория 2
 
-- [ ] B-01 Undo merge/rebase двигает существующую ветку
+- [x] B-01 Undo merge/rebase двигает существующую ветку
+  > Итог: новый `Recovery::Moved` для merge, rebase, interactive rebase, split off, cherry-
+  > pick, revert; Undo зовёт `move_branch_back`: текущая ветка — `reset --keep` (не затирает
+  > локальные правки), другая — `branch --force`. `Recovery::Branch` остался для удалённых
+  > веток. Тесты `undoing_a_merge_puts_the_branch_back_where_it_was` (до правки — «already
+  > exists»), `…_after_the_user_left_it`.
 - [ ] B-02/B-03 discard и rollback не идут без резервного stash
 - [ ] B-04 settings.json: ошибка чтения не затирает файл
 - [ ] B-05 `.gitattributes`: дописывать, не перезаписывать
