@@ -310,6 +310,8 @@
   commit.onchange = () => {
     diff.clear();
     compareView.clear();
+    // A stash outranks a commit in Files; picking a commit in the graph leaves it.
+    stashView.clear();
   };
 
   $effect(() => {
