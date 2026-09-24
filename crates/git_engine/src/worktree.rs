@@ -228,35 +228,46 @@ fn worktree_status(status: &EntryStatus<(), gix::submodule::Status>) -> Option<F
 }
 
 impl RepoHandle {
-    /// Appends to `.gitignore`, skipping patterns it already contains.
+    /// Appends to `.gitignore`, skipping patterns it already contains. The file is read as
+    /// bytes and only ever added to: one in another encoding keeps every line it had.
     pub fn add_to_gitignore(&self, paths: &[String]) -> Result<()> {
         if paths.is_empty() {
             return Err(GitError::InvalidState("no paths to ignore".to_owned()));
         }
 
         let file = self.root().join(".gitignore");
-        let existing = std::fs::read_to_string(&file).unwrap_or_default();
-        let known: std::collections::HashSet<&str> = existing.lines().map(str::trim).collect();
+        let existing = match std::fs::read(&file) {
+            Ok(bytes) => bytes,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+            Err(err) => return Err(err.into()),
+        };
+        let text = String::from_utf8_lossy(&existing);
+        let known: std::collections::HashSet<&str> = text.lines().map(str::trim).collect();
 
         let mut added = String::new();
         for path in paths {
-            let pattern = path.trim();
-            if pattern.is_empty() || known.contains(pattern) {
+            if path.trim().is_empty() {
                 continue;
             }
-            added.push_str(pattern);
+            let pattern = ignore_pattern(path);
+            if known.contains(pattern.as_str()) || added.lines().any(|line| line == pattern) {
+                continue;
+            }
+            added.push_str(&pattern);
             added.push('\n');
         }
         if added.is_empty() {
             return Ok(());
         }
 
-        let mut text = existing;
-        if !text.is_empty() && !text.ends_with('\n') {
-            text.push('\n');
+        if !existing.is_empty() && !existing.ends_with(b"\n") {
+            added.insert(0, '\n');
         }
-        text.push_str(&added);
-        std::fs::write(&file, text)?;
+        let mut out = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&file)?;
+        std::io::Write::write_all(&mut out, added.as_bytes())?;
         Ok(())
     }
 
@@ -293,4 +304,25 @@ impl RepoHandle {
         }
         Ok(())
     }
+}
+
+/// The one path the user picked, as a `.gitignore` line: anchored to the top, so a file of
+/// the same name in a folder stays visible, and with the characters git reads as a pattern
+/// escaped, so `test[1].txt` is not a character class matching `test1.txt`.
+fn ignore_pattern(path: &str) -> String {
+    let mut pattern = String::from("/");
+    for c in path.chars() {
+        if matches!(c, '\\' | '[' | ']' | '*' | '?') {
+            pattern.push('\\');
+        }
+        pattern.push(c);
+    }
+    // Trailing spaces are dropped from a pattern unless escaped.
+    let body = pattern.trim_end_matches(' ');
+    let spaces = pattern.len() - body.len();
+    let mut out = body.to_owned();
+    for _ in 0..spaces {
+        out.push_str("\\ ");
+    }
+    out
 }

@@ -317,3 +317,54 @@ fn deleting_refuses_a_tracked_file() {
         "a tracked file must survive a refused delete"
     );
 }
+
+// A `.gitignore` that is not UTF-8 read as empty, and was written back as the one new line.
+#[test]
+fn ignoring_keeps_a_gitignore_that_is_not_utf8() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::write(f.path().join(".gitignore"), b"# \xe9t\xe9\nbuild/\n").unwrap();
+
+    open(&f).add_to_gitignore(&["x.log".to_owned()]).unwrap();
+
+    let bytes = std::fs::read(f.path().join(".gitignore")).unwrap();
+    assert!(bytes.starts_with(b"# \xe9t\xe9\nbuild/\n"), "{bytes:?}");
+}
+
+fn untracked(repo: &RepoHandle) -> Vec<String> {
+    repo.worktree_files()
+        .unwrap()
+        .unstaged
+        .into_iter()
+        .filter(|entry| entry.status == git_engine::FileStatus::Untracked)
+        .map(|entry| entry.path)
+        .collect()
+}
+
+// Written as a pattern, `test[1].txt` ignored `test1.txt` and not itself.
+#[test]
+fn ignoring_a_name_with_brackets_ignores_that_file_only() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::write(f.path().join("test[1].txt"), "chosen\n").unwrap();
+    std::fs::write(f.path().join("test1.txt"), "not chosen\n").unwrap();
+    let repo = open(&f);
+
+    repo.add_to_gitignore(&["test[1].txt".to_owned()]).unwrap();
+
+    let left = untracked(&repo);
+    assert!(!left.contains(&"test[1].txt".to_owned()), "{left:?}");
+    assert!(left.contains(&"test1.txt".to_owned()), "{left:?}");
+}
+
+#[test]
+fn ignoring_a_file_at_the_top_leaves_its_namesakes_in_folders_alone() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::create_dir_all(f.path().join("sub")).unwrap();
+    std::fs::write(f.path().join("secret.env"), "top\n").unwrap();
+    std::fs::write(f.path().join("sub/secret.env"), "nested\n").unwrap();
+    let repo = open(&f);
+
+    repo.add_to_gitignore(&["secret.env".to_owned()]).unwrap();
+
+    let left = untracked(&repo);
+    assert!(left.iter().any(|path| path.starts_with("sub/")), "{left:?}");
+}
