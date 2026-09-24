@@ -391,7 +391,7 @@
               email={item.entry.commit.authorEmail}
             />
             <span
-              class="date tabular"
+              class="date time tabular"
               title={dateTooltip(
                 item.entry.commit.timestamp,
                 item.entry.commit.tzOffsetMinutes,
@@ -560,6 +560,12 @@
     color: var(--text-secondary);
     font-size: var(--fs-header);
     text-align: right;
+  }
+
+  /* Beside the avatar, one row gap from it (#14): right-aligned in its fixed column, a short
+     date sat a whole column away from the face it belongs to. */
+  .date.time {
+    text-align: left;
   }
 
   .overlap.heavy {
