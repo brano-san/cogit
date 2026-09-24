@@ -9,6 +9,8 @@ import { DEFAULT_SETTINGS, merge, needsRestart, type Settings } from "$lib/setti
 const KEY = "settings";
 const KEYMAP_KEY = "keymap";
 
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
 class SettingsStore {
   current = $state<Settings>({ ...DEFAULT_SETTINGS });
   /** Only the commands the user changed; the defaults live in Rust with the menu. */
@@ -29,10 +31,15 @@ class SettingsStore {
     return displayDate(timestamp, offsetMinutes, Date.now() / 1000, this.current.dateFormat);
   }
 
+  /** Every window reads this on start, some from inside an effect that also reads the
+      settings: a new object for an unchanged file would run that effect again, and the
+      load with it, for ever. So what did not change keeps its object. */
   async load(): Promise<void> {
     try {
-      this.current = merge(await readKey<Partial<Settings>>(KEY));
-      this.keymap = mergeKeymap(await readKey<unknown>(KEYMAP_KEY));
+      const current = merge(await readKey<Partial<Settings>>(KEY));
+      if (!same(current, $state.snapshot(this.current))) this.current = current;
+      const keymap = mergeKeymap(await readKey<unknown>(KEYMAP_KEY));
+      if (!same(keymap, this.keymap)) this.keymap = keymap;
     } catch {
       // Unreadable store: a fresh install or a locked profile. Defaults still work.
       this.current = { ...DEFAULT_SETTINGS };
