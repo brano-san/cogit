@@ -46,11 +46,10 @@ pub enum ChangeKind {
     Hooks,
 }
 
-#[derive(Debug, Clone, Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
+/// What changed; the watcher says only the kind, which is all anything reads.
+#[derive(Debug, Clone)]
 pub struct RepoChanged {
     pub kind: ChangeKind,
-    pub path: String,
 }
 
 #[derive(Debug, thiserror::Error)]

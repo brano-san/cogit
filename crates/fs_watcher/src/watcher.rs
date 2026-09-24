@@ -186,10 +186,7 @@ impl Route {
             if relative.starts_with("objects/") || relative == "objects" {
                 return None;
             }
-            return classify_git_path(&relative).map(|kind| RepoChanged {
-                kind,
-                path: relative,
-            });
+            return classify_git_path(&relative).map(|kind| RepoChanged { kind });
         } else {
             path.strip_prefix(&self.root).ok()?
         };
@@ -199,7 +196,6 @@ impl Route {
         }
         Some(RepoChanged {
             kind: ChangeKind::WorkingTree,
-            path: to_slash(relative),
         })
     }
 }
