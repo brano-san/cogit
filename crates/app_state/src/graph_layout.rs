@@ -10,6 +10,8 @@ pub(crate) fn lay_out(
     handle: &git_engine::RepoHandle,
     query: &git_engine::CommitQuery,
     chunk_size: usize,
+    reuse: Option<git_engine::Reuse<'_>>,
+    record: Option<&mut git_engine::WalkedHistory>,
     mut on_chunk: impl FnMut(GraphChunk) -> bool,
 ) -> Result<Vec<git_engine::SkippedRef>, git_engine::GitError> {
     let flat = query.filters_rows();
@@ -48,7 +50,7 @@ pub(crate) fn lay_out(
         keep
     };
 
-    let skipped = handle.search_commits(query, chunk_size, on_commits)?;
+    let skipped = handle.graph_commits(query, chunk_size, reuse, record, on_commits)?;
 
     if !cancelled {
         on_chunk(GraphChunk {

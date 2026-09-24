@@ -177,6 +177,41 @@ fn fifty_thousand_commits_meet_the_product_promise() {
     );
 }
 
+/// Ticking a ref re-lays the graph from the rows the last walk read (R-301).
+#[test]
+fn fifty_thousand_commits_are_laid_out_again_from_the_last_graph() {
+    let f = test_fixtures::stress(50_000).unwrap();
+    f.git(&["branch", "side", "HEAD~25000"]).unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let walk = |query: &CommitQuery| {
+        let generation = state.begin_graph();
+        let started = Instant::now();
+        let mut rows = 0;
+        state
+            .build_graph(repo, query, generation, DEFAULT_CHUNK_SIZE, |p| {
+                rows = p.total;
+                true
+            })
+            .unwrap();
+        (started.elapsed(), rows)
+    };
+
+    let (full, _) = walk(&CommitQuery::default());
+    let (again, rows) = walk(&CommitQuery {
+        visible_refs: Some(vec!["refs/heads/main".to_owned(), "HEAD".to_owned()]),
+        ..CommitQuery::default()
+    });
+
+    assert_eq!(rows, 50_000);
+    println!("50k: first walk {:>7} ms", full.as_millis());
+    report(
+        "50k: walked again after a tick",
+        again,
+        Duration::from_millis(500),
+    );
+}
+
 #[test]
 fn status_on_a_large_repository_stays_inside_its_budget() {
     let f = test_fixtures::stress(COMMITS).unwrap();

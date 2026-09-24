@@ -817,6 +817,12 @@ export type GraphProgress = {
 	/**  Rows laid out so far: the list is this long while the rest is being walked. */
 	total: number,
 	isLast: boolean,
+	/**
+	 *  The graph this one replaces; its first `kept` rows are these rows, row for row, so
+	 *  the blocks already fetched of them stay good (R-301).
+	 */
+	base: number | null,
+	kept: number,
 };
 
 export type GraphRow = {
