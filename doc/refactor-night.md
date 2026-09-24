@@ -478,7 +478,10 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
 - [x] C1-15 уникальный файл сообщения для dry-run хука
   > Итог: имя файла сообщения — `COGIT_HOOK_MSG-<pid>-<n>`. Тест
   > `two_dry_runs_at_once_keep_their_own_message` (до правки второй прогон падал с exit 4).
-- [ ] C1-16 скан останавливается с закрытием канала
+- [x] C1-16 скан останавливается с закрытием канала
+  > Итог: `discover::scan_until`: `false` из колбэка ставит флаг, обход перестаёт спускаться
+  > и ничего больше не сообщает; `scan` — обёртка над ним; `scan_for_repositories` в
+  > app_state — через `scan_until`. Тест `a_scan_told_to_stop_reports_nothing_more`.
 - [ ] C1-17 release раньше Done
 
 ### Категория 2

@@ -1,6 +1,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use git_engine::discover::{ScanOptions, scan};
+use git_engine::discover::{ScanOptions, scan, scan_until};
 use std::fs;
 use std::path::Path;
 
@@ -236,4 +236,22 @@ fn a_folder_the_walk_cannot_read_costs_only_that_folder() {
     fs::write(dir.path().join("not-a-directory"), "").unwrap();
 
     assert_eq!(collect(dir.path(), &ScanOptions::default()), ["reachable"]);
+}
+
+// Closing the scan dialog only muted the results: the walk went on to the end on the rayon
+// pool the diffs and the graph share.
+#[test]
+fn a_scan_told_to_stop_reports_nothing_more() {
+    let dir = tempfile::tempdir().unwrap();
+    for n in 0..200 {
+        repo_at(dir.path(), &format!("group{}/project{n}", n % 10));
+    }
+
+    let mut reported = 0;
+    scan_until(dir.path(), &ScanOptions::default(), |_| {
+        reported += 1;
+        false
+    });
+
+    assert_eq!(reported, 1);
 }
