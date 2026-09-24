@@ -598,3 +598,57 @@ fn undoing_a_finished_feature_restores_the_branch_not_a_tag_of_that_name() {
         tip
     );
 }
+
+/// `main` and `side` both change `c.txt`, so merging `side` stops on a conflict.
+fn about_to_conflict() -> test_fixtures::Fixture {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&["switch", "-q", "-c", "side"]).unwrap();
+    f.commit_file(2, "c.txt", "side\n").unwrap();
+    f.git(&["switch", "-q", "main"]).unwrap();
+    f.commit_file(3, "c.txt", "main\n").unwrap();
+    f
+}
+
+// The merge was recorded only when it succeeded. One that stopped on a conflict and was
+// finished by a commit after the user resolved it left nothing to undo.
+#[test]
+fn a_merge_finished_after_its_conflict_can_be_undone() {
+    let f = about_to_conflict();
+    let (state, repo) = open(&f);
+    let before = head_oid(&state, repo);
+    assert!(
+        state
+            .merge(
+                repo,
+                &git_engine::MergeOptions {
+                    source: "side".to_owned(),
+                    no_fast_forward: false,
+                    squash: false,
+                    message: None,
+                },
+            )
+            .is_err()
+    );
+    f.write_file("c.txt", "resolved\n").unwrap();
+    f.git(&["add", "c.txt"]).unwrap();
+    f.git(&["commit", "-q", "--no-edit"]).unwrap();
+    assert_ne!(head_oid(&state, repo), before);
+
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(head_oid(&state, repo), before);
+}
+
+// A pull merges or rebases like the toolbar's Merge does, and was not recorded at all.
+#[test]
+fn a_pull_can_be_undone() {
+    let f = test_fixtures::with_remote().unwrap();
+    let (state, repo) = open(&f);
+    let before = head_oid(&state, repo);
+    state.pull(repo, "origin", false, |_| {}).unwrap();
+    assert_ne!(head_oid(&state, repo), before);
+
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(head_oid(&state, repo), before);
+}

@@ -34,7 +34,16 @@ impl AppState {
         let known = handle
             .wants_new_submodules()
             .then(|| handle.submodule_paths());
-        handle.pull(remote, ff_only, token.as_deref(), on_line)?;
+        let before = handle.head()?;
+        let result = handle.pull(remote, ff_only, token.as_deref(), on_line);
+        self.record_move(
+            repo,
+            &handle,
+            before,
+            format!("Pull from {remote}"),
+            &result,
+        );
+        result?;
         if let Some(known) = known {
             handle.init_submodules_added_since(&known)?;
         }

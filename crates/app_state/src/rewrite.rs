@@ -164,14 +164,15 @@ impl AppState {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         let before = handle.head()?;
-        handle.merge(options)?;
-
-        let recovery = match before {
-            git_engine::Head::Branch { name, oid } => Recovery::Moved { name, oid },
-            _ => Recovery::None,
-        };
-        self.record(repo, format!("Merge {}", options.source), recovery);
-        Ok(())
+        let result = handle.merge(options);
+        self.record_move(
+            repo,
+            &handle,
+            before,
+            format!("Merge {}", options.source),
+            &result,
+        );
+        result
     }
 
     pub fn rebase(
@@ -182,14 +183,15 @@ impl AppState {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         let before = handle.head()?;
-        handle.rebase(options)?;
-
-        let recovery = match before {
-            git_engine::Head::Branch { name, oid } => Recovery::Moved { name, oid },
-            _ => Recovery::None,
-        };
-        self.record(repo, format!("Rebase onto {}", options.onto), recovery);
-        Ok(())
+        let result = handle.rebase(options);
+        self.record_move(
+            repo,
+            &handle,
+            before,
+            format!("Rebase onto {}", options.onto),
+            &result,
+        );
+        result
     }
 
     pub fn skip_operation(&self, repo: RepoId) -> Result<(), git_engine::GitError> {
@@ -218,22 +220,39 @@ impl AppState {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         let before = handle.head()?;
-        if pick {
-            handle.cherry_pick(commits)?;
+        let result = if pick {
+            handle.cherry_pick(commits)
         } else {
-            handle.revert(commits)?;
-        }
+            handle.revert(commits)
+        };
+        let verb = if pick { "Cherry-pick" } else { "Revert" };
+        let what = format!("{verb} {} commit(s)", commits.len());
+        self.record_move(repo, &handle, before, what, &result);
+        result
+    }
 
+    /// Recorded when the branch moved, and also when the operation stopped on a conflict:
+    /// the user finishes that one later, by Continue or by a commit, and Undo must still
+    /// know where the branch was before it began (INV-12).
+    pub(crate) fn record_move<T>(
+        &self,
+        repo: RepoId,
+        handle: &git_engine::RepoHandle,
+        before: git_engine::Head,
+        what: String,
+        result: &Result<T, git_engine::GitError>,
+    ) {
+        let stopped = result.is_err()
+            && handle
+                .state()
+                .is_ok_and(|state| state.is_interrupted_operation());
+        if result.is_err() && !stopped {
+            return;
+        }
         let recovery = match before {
             git_engine::Head::Branch { name, oid } => Recovery::Moved { name, oid },
             _ => Recovery::None,
         };
-        let verb = if pick { "Cherry-pick" } else { "Revert" };
-        self.record(
-            repo,
-            format!("{verb} {} commit(s)", commits.len()),
-            recovery,
-        );
-        Ok(())
+        self.record(repo, what, recovery);
     }
 }
