@@ -46,16 +46,233 @@
   `target/bench/exes/night-final.exe` собран из 93b9bc4 и уже сравнён с `night-base` (все 85
   сценариев «same»). Он и есть база; новый полный прогон не нужен — в фазе 3 A/B
   `night-final` против итоговой сборки в одной сессии, как в первой итерации.
-  > Итог: база — `night-final.exe` (см. решение ниже), отдельный прогон не делал.
+  > Итог: база — `night-final.exe` (см. решение выше), отдельный прогон не делал.
 
 ## Фаза 1 — аудит
 
-Формат: `id · категория · файл:строка · что не так · как исправить · риск`. Номера с
-префиксом `N` (N1-…, N2-…), чтобы не путать с первой итерацией.
+Формат: `id · категория · файл:строка · что не так · как исправить · риск`. Номер — `<область>-<категория>-<nn>`: GE git_engine, AS app_state и малые крейты,
+ST src-tauri, FS сторы и lib фронта, FA App.svelte/окна/layout, FC остальные компоненты.
 
-- [ ] Аудит по шести категориям
+- [x] Аудит по шести категориям
+  > Итог: шесть агентов только на чтение, по областям (а не по категориям, как в первой
+  > итерации — другой срез даёт новое); 196 находок, из них 7 дублей между агентами. Каждую
+  > проверяю по коду перед правкой.
 
 ### Находки
+
+#### git_engine (GE)
+
+- GE-1-01 · гонки · crates/git_engine/src/stash_rename.rs:24-45 · drop…store без блокировки; падение store посреди цикла теряет записи после неё · собрать oid заранее, при ошибке дописать остальные · низкий · вероятно
+- GE-2-01 · проглочено · worktree.rs:238 add_to_gitignore · read_to_string().unwrap_or_default() → не-UTF-8/занятый .gitignore перезаписывается одной строкой (класс B-05) · fs::read, NotFound=пусто, append · высокий · проверено
+- GE-2-02 · баг · worktree.rs:242-248 · имя в .gitignore без экранирования: test[1].txt игнорирует test1.txt, #x/!x, без ведущего / · экранировать, ставить / · средний · проверено
+- GE-2-03 · баг · staging.rs:62,69-72; conflicts.rs:97; commit_write.rs:34-36; file_log.rs:67; file_ops.rs:67,203/217 · остаток B-14: пути как glob; stage_mode пишет blob test1.txt в test[1].txt · GIT_LITERAL_PATHSPECS везде; stage_mode — oid из gix-индекса · высокий · проверено
+- GE-2-04 · баг · commit_write.rs:143-147 · commit --only кладёт пути в командную строку (R-191) → os error 206 на тысячах · run_git_paths / pathspec-from-file · средний · проверено
+- GE-2-05 · баг · file_ops.rs:203 apply_commit_file · porcelain git diff читает diff.noprefix/color.ui/diff.external → apply падает · diff-tree -p или --no-color --no-ext-diff --src/dst-prefix · средний · проверено
+- GE-2-06 · баг · interactive.rs:78-81 · reword кладёт многострочное сообщение в exec одной строкой → todo невалиден, repo в незавершённом rebase · сообщение в файл, commit --amend -F · высокий · проверено
+- GE-2-07 · баг · interactive.rs:77,100-108 · rebase_todo даёт в message только %s: Reword в RebaseEditor стирает body, Squash заменяет объединённое сообщение subject'ом · exec только при явном сообщении, subject отдельным полем · высокий · проверено
+- GE-2-08 · баг · interactive.rs:100, edit_author :139 · log --reverse base..HEAD включает merge → pick <merge> падает, rebase остаётся посреди · --no-merges --topo-order или отказ · средний · проверено
+- GE-2-09 · баг · surgery.rs:72 · rebase --onto без --rebase-merges выпрямляет merge после target в split_off · --rebase-merges или отказ · средний · проверено
+- GE-2-10 · баг · surgery.rs:85,179,222 · остаток D4-03: -z вывод проходит normalise/redact (token/secret/password в имени → ***), for-each-ref --contains >20k обрезается · read_git · средний · проверено
+- GE-2-11 · несостыковка · flow.rs:225-233, file_ops.rs:66-68, staging.rs:62, stash.rs:75-76 · проверки с ожидаемым отказом идут через журнал → ложные уведомления об ошибке (flow_start каждый раз) · gix или children::output мимо журнала · средний · проверено
+- GE-2-12 · баг · history.rs:22-46 (reflog.rs:141) · graph_tips без тегов → Lost Commits показывает коммиты под тегом · добавить теги · средний · проверено
+- GE-2-13 · несостыковка · reflog.rs:117 · lost commits только по reflog HEAD, T5.6 обещает logs/refs · обходить logs/refs · средний · проверено
+- GE-2-14 · баг · reflog.rs:157 · инкрементальный Reachable падает на отсутствующем родителе (shallow), кэш остаётся → каждый вызов падает · считать листом · низкий · вероятно
+- GE-2-15 · баг · worktrees.rs:158-175 main_root · linked worktree bare-репозитория: текущий показан дважды, один раз как main · common dir bare = main · средний · проверено
+- GE-2-16 · баг · hooks.rs:130-148, 492-505 · core.hooksPath/commit.template через .string() без раскрытия ~ → template None, write_hook создаёт папку ~ · trusted_path · средний · проверено
+- GE-2-17 · несостыковка · hooks.rs:339-364, 405-418 · dry run/run_check наследуют GIT_DIR/GIT_WORK_TREE… (R-22); bash по PATH может быть WSL · env_remove(INHERITED_GIT_VARS); bash рядом с git · средний · env проверено, bash вероятно
+- GE-2-18 · баг · flow.rs:197-201 · конфликт merge в develop после создания тега → повторный finish падает «tag already exists» · не создавать тег, если уже на вершине main · средний · проверено
+- GE-2-19 · баг · tags.rs:81-91 · rename_tag пересоздаёт аннотацию с cleanup=strip → строки с # теряются · --cleanup=verbatim · низкий · проверено
+- GE-2-20 · баг · progress.rs:87-98 · done считает exec/break, todo их отбрасывает → 2/4 вместо 1/3 · тот же фильтр · низкий · проверено
+- GE-2-21 · несостыковка · commit.rs:265-273 · процент rename своей формулой, не stats.similarity gix · similarity*100 · низкий · проверено
+- GE-2-22 · несостыковка · network.rs:89-138 · doc/03 §3.6 требует таймаут и отмену сети, нет ни того, ни другого, нет в 12-risks · отмена/lowSpeed или запись в risks · средний · проверено
+- GE-2-23 · несостыковка · network.rs:94-98 · stream_git наследует stdin · Stdio::null · низкий · вероятно
+- GE-2-24 · баг · runner.rs:99-117 · run_git_bytes при ошибке не пишет запись в журнал, id в ошибке ведёт в никуда · journal_entry + elapsed_ms · низкий · проверено
+- GE-2-25 · баг · reflog.rs:80-90 + stash.rs:93-104 · нумерация stash после пропуска битых строк reflog расходится с stash@{n} · позиция до фильтрации · низкий · проверено
+- GE-2-26 · баг · phases.rs:51 · литерал «using up to 8 threads» · starts_with · низкий · проверено
+- GE-3-01 · неиспользуемое · error.rs:59 GitError::RepoBusy · не создаётся; фронт lib/ipc/index.ts:161 мёртвый case; doc/04 обещает · удалить или создавать при index.lock · польза: контракт честный
+- GE-3-02 · неиспользуемое · status.rs:23 RepoStatus::total() · 0 вызовов · удалить · польза: меньше API
+- GE-3-03 · неиспользуемое · state.rs:28 is_interrupted_operation · только свои тесты (как D3-06) · вместе с D3-06
+- GE-4-01 · дубль · ancestry.rs:55-66 = reset.rs:61-72 · commit_id = resolve_commit · оставить одно · польза: одно место
+- GE-4-02 · дубль · staging.rs:50 = file_ops.rs:24 (+ branches/tags/subtrees) · require_paths/require · один хелпер · польза: одна формулировка
+- GE-4-03 · дубль · surgery.rs:127-133, reset.rs:62-67 · rev-parse процессом vs gix · resolve_commit · польза: меньше процессов, нет ложных ошибок в журнале
+- GE-5-01 · упрощение · worktrees.rs:195-231,380-421 · worktrees() считает status каждого worktree ради dirty там, где нужен только branch/path · лёгкий листинг · A/B
+- GE-5-02 · упрощение · reflog.rs:112-136 · reflog()/ReflogEntry только для lost_commits · итерировать reflog_of · польза: меньше аллокаций
+- GE-6-01 · модули · hooks.rs (549) · hook_run.rs, bypass.rs, commit_template → commit_write.rs · польза: запуск shell в одном месте
+- GE-6-02 · модули · worktree.rs:230-296 · add_to_gitignore/delete_untracked → file_ops.rs · польза: модуль статуса только читает
+
+#### app_state и малые крейты (AS)
+
+- AS-1-01 · гонки · crates/app_state/src/lib.rs:592 commit_details · чистое чтение берёт `_quiet` и `forget_row`: каждый клик/↑↓ по коммиту глушит вотчер на ~400 мс и сбрасывает RowCache всех репозиториев · убрать _quiet · низкий · проверено (тест: после commit_details `!watcher_is_quiet`)
+- AS-2-01 · баг · crates/diff_engine/src/patch.rs:42-59 (app_state/diffing.rs:109,125) · build_patch всегда «прямой»: Unstage/Discard lines отказывают, если в ханке есть невыбранное изменение · направление в PatchRequest; обратный: невыбранный Insert→контекст, Delete→выбросить · высокий · проверено git 2.51
+- AS-2-02 · баг · diff_engine/text.rs:307, patch.rs:69-78 · при пустой стороне ханка start=0 → при context 0 Stage вставки кладёт строку в начало индекса · start = строка перед диапазоном · высокий · проверено
+- AS-2-03 · баг · patch.rs:92-94, App.svelte:1279, lib/diff-rows.ts:209 · маркер «No newline» одним флагом в конце патча → в файле без финального LF частичный Stage/Discard отказывает · маркер после каждой строки без LF · средний · проверено
+- AS-2-04 · баг · patch.rs:85,118 · одно окончание строк на весь патч; Mixed EOL → частичный Stage отказывает · окончание каждой строки · средний · проверено
+- AS-2-05 · баг · patch.rs:106-112 · частичный выбор удалённого/нового файла даёт /dev/null → «still has contents» · /dev/null только при полном выборе · средний · проверено
+- AS-2-06 · баг · diff_engine/text.rs:42-55 · lossy-декодирование сводит разные невалидные байты в U+FFFD → «Unchanged» при изменённом файле · не отдавать Unchanged при различии байтов; PUA-отображение · средний · проверено
+- AS-2-07 · баг · diff_engine/images.rs:15,24 · «<svg» где угодно в 1 КБ → svg; «BM» в начале → bmp; текстовые файлы (включая 5 компонентов репо) показываются картинкой · строже сигнатуры · средний · проверено
+- AS-2-08 · несостыковка · text.rs:180 · Whitespace::All работает как -b, не -w · выбрасывать все пробелы · низкий · проверено
+- AS-2-09 · баг INV-12 · app_state/rewrite.rs:167,185,222; network.rs:37 · Moved пишется только при успехе → merge/rebase/cherry-pick с конфликтом без Undo; pull не пишется · head до операции, запись и на Err · средний · проверено
+- AS-2-10 · баг · app_state/worktrees.rs:71-79 + safety.rs:104 · Undo «Remove worktree» применяет stash в дереве владельца · восстанавливать worktree или неотменяемо · средний · проверено
+- AS-2-11 · баг · app_state/logging.rs:7-15 · COGIT_CRATES без avatars → warn! avatars не в логе · добавить · низкий · проверено
+- AS-2-12 · баг · app_state/presets.rs:98-110 · quote = Debug, не TOML; ''' в скрипте → """ портит · toml-крейт · низкий · проверено
+- AS-2-13 · баг · app_state/settings.rs:45-48 · BOM → damaged → настройки сброшены · срезать BOM · низкий · проверено
+- AS-2-14 · баг фикстуры · test_fixtures/lib.rs:275,290 · with_remote кладёт origin.git в рабочее дерево → тест dirty вхолостую · в _aux · низкий · проверено
+- AS-2-15 · несостыковка · test_fixtures/lib.rs:160-180, crates/CLAUDE.md · код под тестом читает глобальный конфиг разработчика · GIT_CONFIG_GLOBAL/NOSYSTEM на прогон · средний · проверено
+- AS-2-16 · несостыковка · avatars/queue.rs:96-98 · noreply: запись index.json на каждый request · lookup сначала · низкий · проверено
+- AS-2-17 · баг · app_state/terminal.rs:83-90 vs desktop.rs:204 · Git Bash только из Program Files · find_git_bash · низкий · проверено
+- AS-2-18 · баг · diff_engine/language.rs:21 + syntax.rs:11 · .tsx парсится TS-грамматикой → синтаксическое слияние не работает · по расширению · низкий · проверено
+- AS-2-19 · баг · diff_engine/moves.rs:46-58 · внутрифайловые перемещения без taken · общий taken · низкий · проверено
+- AS-2-20 · баг · fs_watcher/watcher.rs:64-79 + lib.rs:16 · hooks/ и rebase-merge/ вне корня (сабмодуль, worktree) не видны · наблюдать hooks · низкий · проверено
+- AS-2-21 · зависание · diff_engine/words.rs:10 · word-diff без предела длины → минуты на минифицированных строках · предел/deadline · средний · вероятно
+- AS-2-22 · док · doc/01 §2,4.1,4.3; doc/08 §2,5,11 · устаревшие имена и пороги · привести к коду · низкий · проверено
+- AS-3-01 · неиспользуемое · diff_engine/lib.rs:49 DiffOptions.ignore_blank_lines · движок не читает · удалить · польза: нет ложной опции
+- AS-3-02 · неиспользуемое · app_state/lib.rs:409 AppState::tracked · только тесты; id пересекаются с очередью · удалить с тестами · (тесты не удаляю — см. решение)
+- AS-3-03 · неиспользуемое · app_state/lib.rs:1240 register/register_as · только юнит-тесты, обход find_or_register · тестам — find_or_register · польза: один путь регистрации
+- AS-3-04 · неиспользуемое · app_state/lib.rs:92 AppEvent::RepoOpened/RepoClosed · форвардер выбрасывает · удалить (тесты events/open читают) · польза
+- AS-3-05 · неиспользуемое · fs_watcher/lib.rs:51 RepoChanged.path + derive · никто не читает · отдавать ChangeKind · польза: без строки на событие
+- AS-4-01 · дубль · moves.rs:39-63 / 101-131 · два цикла поиска перемещений разошлись (AS-2-19) · один · польза
+- AS-4-02 · дубль · terminal.rs:83 / desktop.rs:204 · два поиска Git Bash (AS-2-17) · один · польза
+- AS-5-01 · упрощение, горячий · moves.rs:46 · O(D·C·L) на повторяющихся строках · A/B
+- AS-5-02 · упрощение · network.rs:65 → lib.rs:733 delete_merged_branches · branches() на каждую ветку · A/B
+
+#### src-tauri (ST)
+
+- ST-1-01 · гонки · src-tauri/src/commands/presets.rs:47 `install_preset` · пишет файл хука мимо очереди (C1-08 пропустил; нет в WRITERS commands/tests.rs:146) · `mutating(.., Other, "install_preset")` + в WRITERS · низкий · проверено
+- ST-1-02 · гонки · src-tauri/src/commands/hooks.rs:97 `run_hook`, :9 `run_check` · dry-run исполняет хук (lint-staged делает git stash/add) мимо очереди → параллельный commit `index.lock exists` · через `mutating` · низкий · вероятно
+- ST-1-03 · гонки · src-tauri/src/lib.rs:471–477 + app_state/src/queue.rs:209 · форвардер снимает блокировку выключения, только если `session_end_blocker()` пуст, а Done уходит раньше release → «1 operation is still running» висит после push · release до emit (C1-17) · низкий · вероятно
+- ST-1-04 · гонки · src-tauri/src/commands/network.rs:106,115,128 `has_token/store_token/forget_token` · keyring на воркере tokio без blocking (класс C1-10) · `blocking` · низкий · вероятно
+- ST-2-01 · баг · src-tauri/src/menu/mod.rs:503 `rebuild` → `app.set_menu` · Tauri ставит меню приложения всем окнам без своего меню; у compare/merge после `remove_menu()` оно None → после смены шортката в дочерних окнах полная строка меню главного · ставить меню главному окну (`main_window.set_menu`) на Windows/Linux · средний · проверено по исходникам tauri
+- ST-2-02 · баг · src-tauri/src/lib.rs:377, webview2.rs:54 · перехват AcceleratorKeyPressed только на main; в Investigate/Blame шорткаты — акселераторы меню, которые при фокусе в странице не срабатывают; `accelerators::virtual_key` не знает стрелок · install_accelerators для дочерних окон + стрелки/Enter/… в virtual_key · средний · проверено по коду
+- ST-2-03 · баг · src-tauri/src/menu/mod.rs:113 `CmdOrCtrl+Return` · muda знает только ENTER, ошибка глотается → Ctrl+Enter на Commit… не привязан · `CmdOrCtrl+Enter`; фронтовый NAMED.Enter · низкий · проверено
+- ST-2-04 · несостыковка · commands/mod.rs:119 `set_keymap` + frontend/src/lib/keymap.ts:52 · редактор пишет event.key (русская раскладка → `CmdOrCtrl+Ы`), бэк принимает без проверки, клавиша молча не работает · проверять в set_keymap через accelerators::parse; редактор по event.code · низкий · проверено
+- ST-2-05 · баг · src-tauri/src/webview2.rs:105 · AltGr = LCtrl+RAlt → AltGr+S (ś) совпадает с CmdOrCtrl+Alt+S, символ съедается, запускается Stash Selection · не заявлять чорд при VK_RMENU · низкий · проверено по коду
+- ST-2-06 · баг · src-tauri/src/renderer_failure.rs:51,77 · GPU/utility-процессы → «other-process-exited», can_reload=true → перезагрузка страницы (теряется набранное сообщение) при сбросе GPU · перезагружать только при RENDER_PROCESS_EXITED · низкий · проверено
+- ST-2-07 · баг · src-tauri/src/lib.rs:321 · закрытие главного окна при открытом дочернем не завершает процесс → поиски не отменяются, git не останавливается, второй запуск — второй процесс · на Destroyed у main — app.exit(0) · низкий · проверено по семантике tauri
+- ST-2-08 · баг · src-tauri/src/lib.rs:333/349 `log_path`, diagnostics.rs:33, renderer_failure.rs:273 · путь лога запомнен на часть 1; после ротации Copy Diagnostics отдаёт не тот файл · искать последнюю часть сессии в момент копирования · низкий · проверено
+- ST-2-09 · несостыковка · commands/mod.rs:708 `command_log` · синхронная на потоке окна (MAIN_THREAD_ONLY), клонирует весь журнал (до 100×1 МБ) на каждый command-recorded при открытом Output · `(async)` · низкий · проверено
+- ST-2-10 · несостыковка · renderer_failure.rs:211–249 · тексты диалогов на русском, CLAUDE.md: UI strings English · перевести · низкий · проверено
+- ST-2-11 · баг · src-tauri/build.rs:70 `watch_git_state` · при ветке только в packed-refs commit не перезапускает build.rs, About показывает прошлый коммит · наблюдать logs/HEAD · низкий · проверено
+- ST-2-12 · несостыковка · lib.rs:314, 380 · window-state с VISIBLE сам показывает окно до setup; комментарии «before the window is shown» неверны · `StateFlags::all() - VISIBLE` · низкий · проверено по исходникам
+- ST-2-13 · баг · src-tauri/tauri.debug.conf.json:5 · оверлей заменяет массив windows целиком: пропадают размеры/тема/фон, visible:true; scripts/oom/crash-test.mjs:51 ищет старое имя лога · повторить поля окна; путь · низкий · проверено
+- ST-2-14 · несостыковка · commands/mod.rs:107 · doc-комментарий report_timing висит над default_keymap (и в bindings.ts) · перенести · низкий · проверено
+- ST-2-15 · док · doc/04-ipc-contract.md:597 · graph_window описан как null, в коде пустая строка · привести к коду · низкий · проверено
+- ST-2-16 · баг · webview2.rs:95 · автоповтор клавиши не отсекается → удержание Ctrl+Shift+O ставит десятки push · пропускать WasKeyDown · низкий · вероятно
+- ST-2-17 · несостыковка · webview_memory.rs:82, renderer_failure.rs:178 · семплер только в debug, комментарий обещает цифры в релизе; обход процессов в async-задаче · поправить комментарий; spawn_blocking · низкий · проверено
+- ST-3-01 · неиспользуемое · tauri.conf.json:29 · CSP разрешает asset: при выключенном asset-протоколе · убрать · польза: CSP ровно по использованию · проверено
+- ST-3-02 · неиспользуемое · frontend/package.json:29 `@tauri-apps/plugin-window-state` · JS-пакет не импортируется · удалить · польза: минус зависимость · проверено
+- ST-4-01 · дубль · commands/network.rs:19–89, ref_ops.rs:141 · 4 одинаковых тела PhaseTimer+progress+profile::network; уже разошлись (push_to пишется как "push") · хелпер · польза: одно место · проверено
+- ST-4-02 · дубль · tauri.conf.json:4 version · дублирует Cargo.toml · удалить поле · польза: версии не разойдутся · проверено
+- ST-6-01 · модули · src-tauri/src/lib.rs (499) · события: 7 DTO + forward_repo_changes → events.rs · польза: контракт событий в одном файле · проверено
+
+#### Сторы и lib фронта (FS)
+
+- FS-1-01 · гонки · stores/worktrees.svelte.ts:93-99 (worktree:60-69, stashes:24-47, conflicts:54-65, flow:27-39) · мутации после await сами зовут refresh/load для прежнего репозитория после clear() → данные A в B; worktrees ставит repo=A; Drop stash удаляет чужой · счётчик сбросов до await · средний · проверено
+- FS-1-02 · гонки · stores/graph.svelte.ts:112-115,206 · entry(index) при уже запрошенном блоке отдаёт undefined · Map<index,Promise> · низкий · проверено
+- FS-1-03 · гонки · stores/diff.svelte.ts:76,89-92,116 · path/spec новой загрузки ставятся сразу, diff остаётся старым → discardLines шлёт path b с хунками a · показанный отдельно от запрошенного · низкий · проверено
+- FS-1-04 · гонки · stores/submodules.svelte.ts:79-88 · refresh заменяет children снимком до await → раскрытый за это время узел пропадает; побеждает последний завершившийся · слияние + ticket · низкий · проверено
+- FS-1-05 · гонки · stores/network.svelte.ts:64-87 (= FA-1-08) · общий running/progress; колбэк пишет после clear() · по операциям · низкий · проверено
+- FS-1-06 · гонки · stores/conflicts.svelte.ts:54-65 · take/write закрывают файл, открытый за это время · закрывать, если path тот же · низкий · проверено
+- FS-1-07 · гонки · lib/investigate/session.svelte.ts:196-202 · #reloadSections без поколения · поколение · низкий · проверено
+- FS-2-01 · баг · stores/notices.svelte.ts:40,102 (App.svelte:407-412) · report() в $effect читает и пишет #errors → (а) не-command ошибка: ~1000 прогонов и effect_update_depth_exceeded; (б) закрытое уведомление возвращается · untrack · высокий · проверено моделью svelte 5.57.1
+- FS-2-02 · баг · CompareWindow.svelte:15-18, BlameWindow.svelte:31-34 (diff.svelte.ts:74-87, settings.svelte.ts:32-41) (= FA-2-18) · settings.load() каждый раз новый объект → бесконечный цикл diff_file; blame дважды · onMount/untrack; settings.load идемпотентный · высокий · проверено моделью
+- FS-2-03 · проглочено · stores/hooks.svelte.ts:28,152 · hooks.error не сбрасывается; заголовок «Could not read» для записи · сбрасывать · низкий · проверено
+- FS-2-04 · проглочено · stores/compare-view.svelte.ts:30, stash-view.svelte.ts:27 · error не показывается; «Both commits have the same files.» при ошибке · report + текст · низкий · проверено
+- FS-2-05 · баг · stores/graph.svelte.ts:164 · clear() не обнуляет skipped · обнулить · низкий · проверено
+- FS-2-06 · несостыковка · lib/format.ts:62, lib/ref-nodes.ts:73,201 · remote-ветка режется по первому «/» (remote team/fork) · по списку remotes (splitUpstream) · низкий · проверено
+- FS-2-07 · баг · lib/child-window.ts:14 (App:925, FileList:93) · Ctrl+W по event.key → в русской раскладке не закрывает · event.code · низкий · проверено
+- FS-2-08 · несостыковка · lib/updates.ts:16 (= FA-2-23) · синхронный интерфейс → window.confirm/alert · Promise · низкий · проверено
+- FS-2-09 · баг · lib/pull-request.ts:16 · ssh://git@github.com/o/r.git не разбирается · третий вариант · низкий · проверено
+- FS-2-10 · несостыковка · lib/query.ts:68-70 · since:/until: от полуночи UTC, git — от локальной · на решение · низкий · проверено
+- FS-3-01 · неиспользуемое · frontend/package.json:29 (= ST-3-02) · @tauri-apps/plugin-window-state · удалить · польза
+- FS-3-02 · неиспользуемое · settings.reset/preview, safety.forRepo, files-view.reset, submodules.entries, refs.filter, layout.hidden, stash-view.index, ipc isCommandFailure · удалить · польза: нет ложного второго пути
+- FS-4-01 · дубли · 10 сторов + blame-window + investigate/session vs lib/notices.ts:68 · toCogitError ×10, разошлись · одна функция · польза: одна формулировка
+- FS-4-02 · дубли · lib/availability.ts vs lib/toolbar.ts:339-413 · две системы доступности, разошлись (Stash в палитре при чистом дереве) · одни правила · польза
+- FS-4-03 · дубли · lib/ref-menus.ts:312 localNameOf vs push-to.ts:72 splitUpstream · одна · польза
+- FS-4-04 · дубли · stores/confirm, prompt, stash-dialog · четыре копии «ожидаемой модалки» · asked<T>() · польза
+- FS-5-01 · упрощение · stores/worktree.svelte.ts:60-70 · mutate глотает ошибку в error, отчёт держится на порядке микрозадач · бросать · польза
+- FS-6-01 · модули · lib/ipc/index.ts (923) · группы по модулям commands · польза
+- FS-6-02 · модули · lib/toolbar.ts (451) · реестр / меню Pull-Sync / доступность · польза
+
+#### App.svelte, окна, layout (FA)
+
+- FA-1-01 · гонки · App.svelte:1481 runRemoteSteps, 1474 pushOnce, 1505 fetchRemotes · нет эпохи; pushOnce читает network.primary нового репозитория → Sync в A, клик по B → A пушится в remote B · remote/prefs до первого шага, эпоха после каждого await · средний · проверено
+- FA-1-02 · гонки · App.svelte:1209,1237,1250,1391,1410,1428,1440,1523,1534,1573,1584,1603,1799,1889,2197 · afterRefChange снимает эпоху после долгой операции → чистит commit/diff нового репозитория · эпоху снимать в начале вызывающего, передавать · низкий · проверено
+- FA-1-03 · гонки · App.svelte:429 mutate + discard 1033, discardFromToolbar 1048, deleteFromDisk 1061, askMove 2101, removeFiles 2123, saveIndexEditor 2090 · после подтверждения mutate читает repository.current заново; drop папки под модальным окном меняет репозиторий → discard README.md в B · id снимать до вопроса, проверять эпоху · высокий · проверено
+- FA-1-04 · гонки · App.svelte:1926 saveConfig, 3464–3507 HooksPanel, 3603 RepoSettingsDialog, 1876 runRebase · редакторы берут id при сохранении; activate их не закрывает → config A пишется в .git/config B · хранить repo в редакторе, закрывать при смене эпохи · высокий · проверено
+- FA-1-05 · гонки · App.svelte:1307 openModule, 2394 openWorktreeRow · adopt после await без проверки перебивает более новый activate(B) · ticket до await · средний · проверено
+- FA-1-06 · гонки · App.svelte:992 + repository.svelte.ts:199 · refresh во время opening выходит → вторая пачка событий теряется, Branches остаются старыми · флаг «перечитать после settle» · средний · вероятно
+- FA-1-07 · гонки · App.svelte:993,999,1006 · при выходе по left() метки stale не снимаются, activate их не сбрасывает → точка stale навсегда в B · сброс в forgetPanelsKeepingTheTree · низкий · проверено
+- FA-1-08 · гонки · App.svelte:2611 syncListed + stores/network.svelte.ts:75 · один слот running/progress на всё приложение; pull неактивного обнуляет running текущего · по repo · низкий · проверено
+- FA-1-09 · гонки · App.svelte:860 runFind + layout/FindObject.svelte:60 · finderBusy не сбрасывается на пустом запросе и в перебитом поиске → «Searching…» навсегда; эффект перезапускает поиск при смене current · сброс, report по token, untrack · низкий · проверено
+- FA-2-01 · баг · App.svelte:1779 runDropAction + lib/drop-target.ts:47 · «Merge X into Y»/«Rebase X onto Y» выполняются над HEAD, а не над Y · предлагать только при isHead · высокий · проверено
+- FA-2-02 · баг · App.svelte:541 · у команды palette commit пустой run → Local ▸ Commit… и «Commit Staged» ничего не делают · фокус/отправка через CommitBox · средний · проверено
+- FA-2-03 · баг · App.svelte:471,494 + stores/safety.svelte.ts:6 · last=null сравнивается с !== undefined → Undo всегда активна; last общий на все репозитории · != null и по текущему repo (forRepo) · низкий · проверено
+- FA-2-04 · баг · App.svelte:1279 stageLines · noTrailingNewline: false зашито → Stage lines в файле без конечного LF дописывает LF · считать как discardLines · средний · проверено
+- FA-2-05 · баг · App.svelte:444 afterMutation без worktree.load: Take side 3358, resolveText 3366, mergeResolved 2877, stageModeOnly 2782, undoEntry 2750, refreshSubmodule 1295 → файл остаётся unmerged в списке; Undo из журнала не видно · worktree.load в afterMutation · средний · проверено
+- FA-2-06 · баг · layout/SettingsPanel.svelte:114 · restarts сравнивает draft с живым value → заметка «after a restart» не появляется · снимок при открытии · низкий · проверено
+- FA-2-07 · баг · SettingsPanel.svelte:417 + KeymapEditor.svelte:27 + common/Dialog.svelte:60 · правки раскладки теряются на OK/Esc; Esc при захвате закрывает диалог; Cancel не откатывает · применять в onchange; Dialog пропускает defaultPrevented · средний · проверено
+- FA-2-08 · баг · App.svelte:3617 + PromptDialog.svelte:34 · без validate подставляется branchNameProblem → группа с пробелом, имя пресета отклоняются; пустой тег при finish нельзя · явный validate · средний · проверено
+- FA-2-09 · баг · App.svelte:2287 · Open Repository here… → Cancel переносит текущий репозиторий в группу · pickRepository → root|null · низкий · проверено
+- FA-2-10 · баг · App.svelte:2897 retryOf, 3685 · Retry не смотрит entry.repo и remote → пушится текущий B · по записи · средний · проверено
+- FA-2-11 · несостыковка · App.svelte:1454 runNetwork("pull"), 2611 syncListed · ffOnly зашит, remote = primary, тулбар берёт pullMode и upstream · один путь pull · средний · проверено
+- FA-2-12 · несостыковка · App.svelte:2799 closeCurrent vs 2572 closeListed · Ctrl+W не переходит к следующему, панели не чистятся · свести к closeListed · низкий · проверено
+- FA-2-13 · баг · App.svelte:918 + DiffView.svelte:301 · F6 обрабатывают оба (= FC-2-03) · DiffView по focused · низкий · проверено
+- FA-2-14 · баг · App.svelte:909, OutputPanel:23, CommandOutput:110, Dialog:60, HooksPanel:55, SafetyJournal:15, DropMenu:14 · Esc закрывает все слои сразу · верхний слой / defaultPrevented · низкий · проверено
+- FA-2-15 · баг · layout/CommandOutput.svelte:109 · немодальное окно перехватывает Ctrl+A/F/C/=/− во всём окне · только при фокусе внутри · низкий · проверено
+- FA-2-16 · баг · MergeWindow.svelte:37,47 · ошибка сохранения размонтирует MergeView → ручное разрешение пропадает; String(err) без stderr · держать смонтированным · средний · проверено
+- FA-2-17 · несостыковка · MergeWindow.svelte:12, MergeView.svelte:53 · закрытие без вопроса при несохранённом; клавиши §9 (= FC-2-09) · dirty · средний · проверено
+- FA-2-18 · баг · CompareWindow.svelte:15 · эффект читает settings.current внутри diff.load → settings.load() присваивает → бесконечный цикл diff_file · untrack/onMount · средний · проверено чтением
+- FA-2-19 · баг · App.svelte:3698 · StatusBar без encoding/lineEnding → всегда «UTF-8 • LF» · передавать из diff · низкий · проверено
+- FA-2-20 · док · doc/05 vs App.svelte:3138,3704, app.css · Branches/References, сводка статус-бара, высота тулбара · привести doc · низкий · проверено
+- FA-2-21 · несостыковка · doc/11 §4–8 vs menu/mod.rs · ~30 обещанных шорткатов не назначены; подсказки тулбара lib/toolbar.ts:73 обещают Ctrl+T/Ctrl+Z/… · назначить или убрать · средний · проверено
+- FA-2-22 · баг · commands/investigate.rs:179 + lib.rs:378 (= ST-2-02) · акселераторы дочерних окон при фокусе в странице · install_accelerators · средний · вероятно
+- FA-2-23 · несостыковка · App.svelte:276,277,1383,1595 · window.confirm/alert/prompt вопреки frontend/CLAUDE.md · сторы prompt/confirmation · низкий · проверено
+- FA-2-24 · баг · App.svelte:1229 offerAutostash · checkout после stash упал → изменения в stash, сообщение не говорит где · pop или сказать · низкий · вероятно
+- FA-3-01 · неиспользуемое · layout/CommandOutput.svelte:35,189,339 · technical=true и мёртвый CSS · удалить · польза −20 строк · проверено
+- FA-3-02 · неиспользуемое · layout/Panel.svelte:20 · проп empty · удалить · проверено
+- FA-3-03 · неиспользуемое · stores/safety.svelte.ts:27 forRepo · 0 вызовов, App дублирует фильтр · использовать · польза один фильтр · проверено
+- FA-3-04 · неиспользуемое · app.css · --h-menubar, --r-lg, --sp-8, --t-dialog, --t-medium не читаются · удалить/применить · проверено
+- FA-3-05 · неиспользуемое · App.svelte:300,414,894,1746,2052,2770 · устаревшие/не на месте комментарии · перенести/удалить · проверено
+- FA-3-06 · неиспользуемое · layout/StateBanner.svelte:44,48, HooksPanel:212,287,427, StartScreen:107 · мёртвые запасные литералы · удалить · проверено
+- FA-4-01 · дубли · App.svelte activate/comeBack/openModule/openWorktreeRow · четыре копии «показать репозиторий» · хелпер · польза: эпоха в одном месте · проверено
+- FA-4-02 · дубли · App.svelte:1033 discard / 1048 discardFromToolbar · одно подтверждение, разошлось · одна функция · проверено
+- FA-4-03 · дубли · App.svelte:1262 stageLines / diff.svelte.ts:116 discardLines · разошлись (FA-2-04) · diff.stageLines · проверено
+- FA-4-04 · дубли · App.svelte runNetwork/pullOnce/syncListed/primaryRemote · четыре пути pull · один · проверено
+- FA-4-05 · дубли · App.svelte openDropped/openScanned + repository.restore · три цикла «открыть несколько» · один · проверено
+- FA-4-06 · дубли · App.svelte:348,351 COMMIT_MIN_PX/WORKTREES_MIN_PX vs app.css, уже не сходятся · getComputedStyle · проверено
+- FA-5-01 · упрощение · App.svelte:2965 pushMenuState · IPC на каждое изменение выделения · горячий путь, A/B · проверено
+- FA-5-02 · упрощение · App.svelte:3275 onviewchange · два worktree_files на переключение · A/B · проверено
+- FA-5-03 · упрощение · SettingsPanel.svelte:183–420 · 20 веток if по key · данные · проверено
+- FA-6-01 · модули · App.svelte (3889) · сеть, события диска, файловые команды, repo-tree, rebase, exit → сторы/lib · польза: логика под тестами · проверено
+
+#### Компоненты фронта (FC)
+
+- FC-1-01 · гонки · frontend/src/components/file-list/CommitBox.svelte:43 (+ App.svelte:257, :2785) · при смене репозитория draftKey уже B, template ещё от A → шаблон A кладётся в поле и сохраняется черновиком B · шаблон связать с корнем, игнорировать при корне ≠ draftKey · низкий · проверено
+- FC-1-02 · гонки · frontend/src/components/diff/DiffView.svelte:243, :332 · pendingDiscard/selected/revealed переживают смену файла или spec → Discard выбрасывает строки B с номерами A; выделение Unstaged применяется к Staged · сбрасывать при смене diff/spec · средний · проверено
+- FC-2-01 · баг · CommitBox.svelte:26 · submit очищает сообщение/Amend/No verify до результата; Cancel в вопросе amend published или падение хука теряет текст; повтор без Amend → новый коммит. То же RefActions.svelte:522/535 · oncommit → Promise<boolean>, очищать при успехе · низкий · проверено
+- FC-2-02 · баг · DiffView.svelte:361-377, 427-443 (stores/diff.svelte.ts:60) · Stage/Unstage/Discard одинаковы для workTreeVsIndex и indexVsHead; Discard на Staged обращает патч HEAD→index в рабочем дереве → «выброшенное» уходит в коммит · для рабочего дерева Stage/Discard, для индекса Unstage, остальное disabled · средний · проверено
+- FC-2-03 · несостыковка · DiffView.svelte:297-317, 358 · клавиши на window без учёта фокуса панели/модалки/defaultPrevented (F6 двоится, Ctrl+F крадёт фокус у фильтра Files) · проп activePanel + defaultPrevented · низкий · проверено
+- FC-2-04 · баг · common/VirtualList.svelte:48-55 · эффект reveal перезапускается на каждой прокрутке (читает scrollTop) → в Blame прокрутка отскакивает к курсору · untrack · низкий · проверено
+- FC-2-05 · баг · file-list/FilesToolbar.svelte:283 overflow:hidden + :438 · меню Customize View обрезано полосой, невидимый backdrop съедает клик · position:fixed или убрать overflow · низкий · проверено по CSS
+- FC-2-06 · баг · file-list/FileList.svelte:99 + lib/commit-scope.ts:12 · «Commit What You See» считает видимое через matchesMask, а список фильтрует compile(); only=[] = коммит всего индекса → фильтр «modified»: «Commit 0 shown» коммитит всё · отдавать видимые пути Staged; при 0 — выключить · средний · проверено
+- FC-2-07 · баг · graph/CommitList.svelte:292 (stores/commit.svelte.ts:27,63) · клик по Working Tree не уводит Files из stash · сброс stashView · низкий · проверено
+- FC-2-08 · несостыковка · graph/CommitList.svelte:251 · фильтр без совпадений → «No commits yet», пропадает Working Tree (05 §7, §3.4) · различать пустой запрос, Clear filter · низкий · проверено
+- FC-2-09 · несостыковка · diff/MergeView.svelte:55 (MergeWindow.svelte) · нет F6/Ctrl+1..3 (11 §9); Esc/Ctrl+W закрывают без вопроса при несохранённом; Ctrl+S игнорирует ручную правку при left>0 · dirty + вопрос · низкий · проверено
+- FC-2-10 · несостыковка · DiffView.svelte:707 · у .bar button нет :disabled (06 §6) · правило · низкий · проверено
+- FC-2-11 · баг · panels/CommitDetailsPane.svelte:51, :139, graph/PauseCheckBar.svelte:28 · кнопки без стилей (потеряны при выносе из App в 0d49f07) · вернуть стили · низкий · проверено
+- FC-2-12 · несостыковка · RefTree:172, BlameView:65, BlamePanel:314, NavigationPanel:208, WorktreeList:104 · выбор только фоном, без полосы (06 §6) · inset 2px · низкий · проверено
+- FC-2-13 · несостыковка · common/Caret:24, Disclosure:53, investigate/DeeperBar:74 · литеральные длительности вместо токенов; pulse без reduced-motion (06 §8) · токены + media · низкий · проверено
+- FC-2-14 · баг · common/ConfigEditor.svelte:22-27 · textarea нормализует CRLF→LF: ввести и стереть символ → Save переписывает весь файл в LF · editorSide/forDisk из lib/file-dialogs · низкий · проверено
+- FC-2-15 · баг · repo-tree/ScanDialog.svelte:62 · Select All выбирает скрытые фильтром · по shown · низкий · проверено
+- FC-2-16 · несостыковка · FilesToolbar.svelte:98, 237 · в узкой панели два пункта переключают renameSources · убрать дубль · низкий · проверено
+- FC-3-01 · неиспользуемое · DiffView, FilePane, NavigationPanel, MergeView, CommitBox, GraphFilter, RepositoryList, EmptyState · мёртвые запасные значения var(--x, …) (все токены определены) · удалить · польза: нет литеральных цветов в компонентах · проверено
+- FC-3-02 · неиспользуемое · VirtualList `class`, SkeletonRows `height`, Select `id`, Checkbox `children` · неиспользуемые пропсы · удалить · польза: API = использование · проверено
+- FC-4-01 · дубли · DiffView.svelte:557-665 · пять копий вывода кусков строки · snippet · горячий рендер — A/B · проверено
+- FC-4-02 · дубли · малая кнопка в ≥8 компонентах, disabled расходится 0.4…0.55 · глобальные .btn/.btn-sm · польза: одно состояние disabled · проверено
+- FC-5-01 · упрощение · panels/RepositoriesPanel.svelte · прокладка с 12 пропсами · убрать · польза: событие правится в 2 файлах, не в 3 · проверено
+- FC-5-02 · упрощение · graph/CommitList.svelte:351,370 · фиктивный `0 as unknown as RepoId` · ранний выход · польза: нет IPC с несуществующим id · проверено
+- FC-6-01 · модули · menus/RefActions.svelte (811) · логика → lib/ref-actions.ts · польза: ветки становятся тестируемыми · проверено
+- FC-6-02 · модули · diff/DiffView.svelte (1023) · DiffToolbar, DiscardStrip · польза: независимые правки · проверено
 
 ## Фаза 2 — исправление
 
