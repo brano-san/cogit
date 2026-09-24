@@ -39,7 +39,7 @@
   import CommandOutput from "$components/layout/CommandOutput.svelte";
   import { suppressNativeMenu } from "$lib/native-menu";
   import { footerRepository, panelView } from "$lib/repo-phase";
-  import { startTracing, timed, trace } from "$lib/trace";
+  import { flushTrace, startTracing, timed, trace } from "$lib/trace";
   import OutputPanel from "$components/layout/OutputPanel.svelte";
   import StateBanner from "$components/layout/StateBanner.svelte";
   import Splitter from "$components/layout/Splitter.svelte";
@@ -2857,6 +2857,7 @@
       nobody wrote yet. Everything else is already on disk or in the draft store. */
   async function mayClose(): Promise<boolean> {
     const source = exitFlow.takeSource();
+    flushTrace();
     session.persist();
     const what = unsavedSummary({
       hook: hooks.dirty ? hooks.editing : null,
@@ -2873,6 +2874,7 @@
   /** No close request is pending here, so the window is destroyed rather than closed:
       closing would ask the same question a second time. */
   async function onSessionEnding() {
+    flushTrace();
     session.persist();
     if (!(await exitFlow.ask("system", settings.current.confirmExit, listOperations))) return;
     const { getCurrentWindow } = await import("@tauri-apps/api/window");
