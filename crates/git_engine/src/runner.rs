@@ -104,11 +104,6 @@ impl RepoHandle {
         self.spawn_with(args, false, LITERAL)
     }
 
-    /// `run_git_reading` for paths the user picked.
-    pub(crate) fn run_git_reading_literal(&self, args: &[&str]) -> Result<GitOutput> {
-        self.spawn_with(args, true, LITERAL)
-    }
-
     /// Standard output as bytes, for paths the user picked: a patch of a Latin-1 file must
     /// survive the round trip.
     pub(crate) fn run_git_bytes_literal(&self, args: &[&str]) -> Result<Vec<u8>> {

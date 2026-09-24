@@ -63,10 +63,7 @@ impl RepoHandle {
         if let Some(parent) = target.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let tracked = self
-            .run_git_reading_literal(&["ls-files", "--error-unmatch", "--", from])
-            .is_ok();
-        if tracked {
+        if self.tracks(from)? {
             return self.run_git(&["mv", "--", from, to]).map(drop);
         }
         std::fs::rename(self.root().join(from), target)?;
