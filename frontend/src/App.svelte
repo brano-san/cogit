@@ -442,6 +442,15 @@
     return true;
   }
 
+  /** For a change `mutate` did not make: resolving a conflict, an Undo from the journal,
+      a submodule update. `afterMutation` leaves the working tree to its callers, and the
+      watcher is quiet right after our own writes, so the file list would stay as it was. */
+  async function afterWorkingTreeChange(paths: string[] = []) {
+    const id = repository.current?.repo;
+    if (id) await worktree.load(id);
+    await afterMutation(paths);
+  }
+
   async function afterMutation(paths: string[] = []) {
     diff.dropIfAffected(paths);
     await repository.refreshStatus();
@@ -1280,7 +1289,7 @@
       row.parent === "" ? submodules.owner : ((await openedModule(row.parent))?.repo ?? null);
     if (!owner) return;
     await submodules.update(owner, row.path, init).catch((err) => errors.report(err, "Could not update the submodule"));
-    await afterMutation();
+    await afterWorkingTreeChange();
   }
 
   /** Opens a submodule in the panels without listing it as a repository of its own
@@ -2762,7 +2771,7 @@
     try {
       await safety.undoOne(id, entry.id);
       await repository.refresh();
-      await afterMutation();
+      await afterWorkingTreeChange();
     } catch (err) {
       errors.report(err, "Could not undo");
     } finally {
@@ -2793,7 +2802,7 @@
         errors.report(err, "Could not stage the mode change"),
       );
     }
-    await afterMutation(paths);
+    await afterWorkingTreeChange(paths);
   }
 
   async function loadTemplate() {
@@ -2888,7 +2897,7 @@
       mergeResolved: (event) => {
         if (repository.current?.repo.valueOf() !== event.repo.valueOf()) return;
         conflicts.close();
-        void afterMutation();
+        void afterWorkingTreeChange();
       },
       commandRecorded: (event) => void output.notice(event),
       closeRequested: mayClose,
@@ -3369,7 +3378,7 @@
             }}
             onresolve={(side) => {
               const id = repository.current?.repo;
-              if (id) void conflicts.take(id, side).then(() => afterMutation());
+              if (id) void conflicts.take(id, side).then(() => afterWorkingTreeChange());
             }}
             onpopoutmerge={() => {
               const id = repository.current?.repo;
@@ -3377,7 +3386,7 @@
             }}
             onresolveText={(text) => {
               const id = repository.current?.repo;
-              if (id) void conflicts.write(id, text).then(() => afterMutation());
+              if (id) void conflicts.write(id, text).then(() => afterWorkingTreeChange());
             }}
           >
             {#snippet fallback()}
