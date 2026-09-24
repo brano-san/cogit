@@ -233,7 +233,10 @@ class RepositoryStore {
 
   async refreshList(): Promise<void> {
     const asked = ++this.#listed;
-    const list = await listRepositories();
+    this.#takeList(asked, await listRepositories());
+  }
+
+  #takeList(asked: number, list: RepoOverview[]): void {
     if (asked !== this.#listed) return;
     this.openRepos = list;
     session.remember(this.openRepos.map((entry) => entry.root));
@@ -257,14 +260,17 @@ class RepositoryStore {
     trace("close", `asked to close repository ${repo}`);
     if (this.current?.repo === repo) this.close();
     this.openRepos = this.openRepos.filter((entry) => entry.repo !== repo);
+    // The close answers with the list that is left: a second call for it was one more
+    // round trip, and one more frame, after the panels had already settled.
+    const asked = ++this.#listed;
     try {
-      await closeRepository(repo);
-      trace("close", `backend released repository ${repo}`);
+      const left = await closeRepository(repo);
+      trace("close", `backend released repository ${repo}, ${left.length} left open`);
+      this.#takeList(asked, left);
     } catch (err) {
       trace("close", `backend refused to close ${repo}: ${String(err)}`);
+      await this.refreshList();
     }
-    await this.refreshList();
-    trace("close", "list refreshed");
   }
 
   close(): void {

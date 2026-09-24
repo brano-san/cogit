@@ -84,7 +84,7 @@ pub enum GitError {
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
 | `open_repository` | `path: String` | `RepoSummary`; в нём `tagGroupSeparator` — `cogit.tagGroupSeparator` из конфига репозитория, `/` если не задан, `""` — теги без папок; перечитывается при каждом открытии и обновлении (#11) | M1 |
-| `close_repository` | `repo: RepoId` | `()` | M1 |
+| `close_repository` | `repo: RepoId` | `Result<Vec<RepoOverview>>` — открытые после закрытия, как у `repositories`: второй вызов за списком не нужен (R-323) | M1 |
 | `list_repositories` | — | `Vec<RepoEntry>` | M3 |
 | `repo_state` | `repo: RepoId` | `RepoState` — `clean | detachedHead { oid } | merging | rebasing | cherryPicking | reverting | bisecting | applyingPatches | empty | bare`; `applyingPatches` — `git am`, остановленный на патче (`rebase-apply/applying`) | M1 |
 | `repositories` | — | `Result<Vec<RepoOverview { repo, name, root, branch, ahead, behind, dirty, missing, state: RepoState }>>`; `state` — для меток `<merging>`/`<detached>` в дереве (#22). Читается в `spawn_blocking`, поэтому `Result` | M3 |

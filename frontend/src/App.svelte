@@ -2616,16 +2616,19 @@
     if (!overview) return;
     repoList.closed(target.root);
     const wasActive = isActive(overview);
+    const last = wasActive && repository.openRepos.every((entry) => entry.repo === overview.repo);
     if (wasActive) {
       commit.clear();
       diff.clear();
       health.clear();
     }
+    // In the frame the other panels empty in, not a round trip after them.
+    if (last) graph.clear();
     await repository.closeOne(overview.repo);
     if (!wasActive) return;
     const next = repository.openRepos[0];
     if (next) await activate(next.root);
-    else graph.clear();
+    else if (!last) graph.clear();
   }
 
   /** Pull or push the row's repository without bringing it to the front. */
