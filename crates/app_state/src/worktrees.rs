@@ -68,6 +68,13 @@ impl AppState {
             || path.to_owned(),
             |name| name.to_string_lossy().into_owned(),
         );
+        // As `worktrees()` writes paths.
+        let wanted = path.replace('\\', "/");
+        let checkout = handle
+            .worktrees()?
+            .into_iter()
+            .find(|entry| entry.path == wanted)
+            .map(|entry| entry.branch.unwrap_or(entry.head));
         let stashed = if force {
             handle
                 .stash_worktree_changes(path, &format!("cogit: before removing worktree {name}"))?
@@ -75,7 +82,14 @@ impl AppState {
             None
         };
         handle.remove_worktree(path, force)?;
-        let recovery = stashed.map_or(Recovery::None, |oid| Recovery::Stash { oid });
+        let recovery = match (stashed, checkout) {
+            (Some(stash), Some(checkout)) => Recovery::Worktree {
+                path: path.to_owned(),
+                checkout,
+                stash,
+            },
+            _ => Recovery::None,
+        };
         self.record(repo, format!("Remove worktree {name}"), recovery);
         Ok(())
     }

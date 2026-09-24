@@ -37,6 +37,13 @@ pub enum Recovery {
         path: String,
         patch: String,
     },
+    /// A worktree removed by force: undo adds it back where it was, on its branch or its
+    /// commit, and applies the stash of its changes there, not in the owner's tree.
+    Worktree {
+        path: String,
+        checkout: String,
+        stash: String,
+    },
     /// Recorded for the journal, refused by undo: honesty beats a half-working restore.
     None,
 }
@@ -112,6 +119,15 @@ impl AppState {
             })?,
             Recovery::Patch { patch, .. } => {
                 handle.apply_patch_to(patch, false, git_engine::PatchTarget::WorkTree)?;
+            }
+            Recovery::Worktree {
+                path,
+                checkout,
+                stash,
+            } => {
+                handle.add_worktree(path, checkout, false)?;
+                git_engine::RepoHandle::open_exact(std::path::Path::new(path))?
+                    .stash_apply(stash)?;
             }
             Recovery::None => {
                 return Err(git_engine::GitError::InvalidState(

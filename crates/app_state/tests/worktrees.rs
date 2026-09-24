@@ -101,3 +101,27 @@ fn a_clean_worktree_is_removed_without_a_stash() {
     assert!(state.stashes(owner).unwrap().is_empty());
     assert!(!std::path::Path::new(&path).exists());
 }
+
+// Undo applied the stash of the removed worktree in the owner's working tree, on another
+// branch: the feature's changes landed in main's files, and the worktree stayed gone.
+#[test]
+fn undoing_a_forced_removal_brings_the_worktree_back_with_its_changes() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let (state, owner) = open(&f);
+    let path = linked(&state, owner).path;
+    std::fs::write(std::path::Path::new(&path).join("file0.txt"), "work\n").unwrap();
+    let main_before = std::fs::read_to_string(f.path().join("file0.txt")).unwrap();
+    state.remove_worktree(owner, &path, true).unwrap();
+
+    state.undo_last(owner).unwrap();
+
+    assert_eq!(
+        std::fs::read_to_string(f.path().join("file0.txt")).unwrap(),
+        main_before
+    );
+    assert_eq!(
+        std::fs::read_to_string(std::path::Path::new(&path).join("file0.txt")).unwrap(),
+        "work\n"
+    );
+    assert_eq!(state.worktrees(owner).unwrap().len(), 2);
+}
