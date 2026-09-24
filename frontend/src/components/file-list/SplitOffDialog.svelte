@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { shortOid } from "$lib/format";
   import { splitProblem, splitSummary } from "$lib/split-off";
 
   interface Props {
@@ -38,7 +39,7 @@
 
 <div class="dialog" role="dialog" aria-label="Split off files">
   <header>
-    <h2>Split off files from {oid.slice(0, 7)}</h2>
+    <h2>Split off files from {shortOid(oid)}</h2>
     <button type="button" class="icon" onclick={onclose} aria-label="Close">✕</button>
   </header>
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { shortOid } from "$lib/format";
   import Dialog from "$components/common/Dialog.svelte";
 
   interface Props {
@@ -27,7 +28,7 @@
   });
 </script>
 
-<Dialog title="Edit Message of {oid.slice(0, 7)}" {onclose} width="min(600px, 92vw)">
+<Dialog title="Edit Message of {shortOid(oid)}" {onclose} width="min(600px, 92vw)">
   <textarea bind:this={field} bind:value={text} rows="10" aria-label="Commit message"></textarea>
 
   {#snippet footer()}

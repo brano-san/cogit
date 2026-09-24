@@ -1,3 +1,4 @@
+import { shortOid } from "$lib/format";
 export type DragKind = "branch" | "commit";
 
 export interface DragPayload {
@@ -60,12 +61,12 @@ export function dropActions(
   return [
     {
       id: "squash",
-      title: `Squash ${source.id.slice(0, 7)} into ${target.id.slice(0, 7)}`,
+      title: `Squash ${shortOid(source.id)} into ${shortOid(target.id)}`,
       destructive: true,
     },
     {
       id: "reorder",
-      title: `Move ${source.id.slice(0, 7)} next to ${target.id.slice(0, 7)}`,
+      title: `Move ${shortOid(source.id)} next to ${shortOid(target.id)}`,
       destructive: true,
     },
   ];

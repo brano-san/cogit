@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { shortOid } from "$lib/format";
   import {
     commitDetails,
     commitFiles,
@@ -69,7 +70,7 @@
         <dd>{details.author.name} &lt;{details.author.email}&gt;, {dateOf(details.author.timestamp)}</dd>
         {#if details.parents.length > 0}
           <dt>{details.parents.length > 1 ? "Parents" : "Parent"}</dt>
-          <dd class="mono">{details.parents.map((parent) => parent.slice(0, 7)).join(", ")}</dd>
+          <dd class="mono">{details.parents.map((parent) => shortOid(parent)).join(", ")}</dd>
         {/if}
       </dl>
     </div>

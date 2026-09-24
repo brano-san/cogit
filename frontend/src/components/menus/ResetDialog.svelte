@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { shortOid } from "$lib/format";
   import Dialog from "$components/common/Dialog.svelte";
   import { RESET_CHOICES } from "$lib/reset-modes";
   import type { ResetMode } from "$lib/ipc/ref-ops";
@@ -23,7 +24,7 @@
   <div class="form">
     <p class="what">
       Reset <span class="mono">{moving}</span> to
-      <span class="mono">{oid.slice(0, 7)}</span>
+      <span class="mono">{shortOid(oid)}</span>
       <span class="subject">{subject}</span>
     </p>
 

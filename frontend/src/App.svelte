@@ -1396,7 +1396,7 @@
     const oid = commit.oid;
     if (!id || !oid) return;
     const verb = kind === "cherryPick" ? "Cherry-pick" : "Revert";
-    const confirmed = await ask(`${verb} ${oid.slice(0, 7)} onto the current branch?`, {
+    const confirmed = await ask(`${verb} ${shortOid(oid)} onto the current branch?`, {
       title: verb,
       kind: "warning",
     });

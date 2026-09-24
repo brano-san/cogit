@@ -82,12 +82,12 @@
       },
       ...rebase.todo.map((step) => ({
         kind: "todo",
-        label: step.summary || step.oid.slice(0, 7),
+        label: step.summary || shortOid(step.oid),
         detail: step.action,
       })),
       {
         kind: "onto",
-        label: `Replaying onto ${rebase.onto ? rebase.onto.slice(0, 7) : "the new base"}`,
+        label: `Replaying onto ${rebase.onto ? shortOid(rebase.onto) : "the new base"}`,
         detail: `${rebase.done} of ${rebase.total} done`,
       },
     ];
