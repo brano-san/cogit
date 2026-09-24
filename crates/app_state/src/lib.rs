@@ -56,6 +56,15 @@ pub async fn next_event(events: &mut broadcast::Receiver<AppEvent>) -> Option<Ap
     }
 }
 
+/// The confirmation promised Undo. Without the backup stash there is nothing to undo
+/// with, so the destructive step is not taken at all (INV-12).
+fn backup_failed(doing: &str, err: &git_engine::GitError) -> git_engine::GitError {
+    tracing::error!(error = ?err, context = "backup stash before a destructive step");
+    git_engine::GitError::InvalidState(format!(
+        "Nothing was changed: the changes could not be saved for Undo before {doing} them. {err}"
+    ))
+}
+
 fn short(rev: &str) -> &str {
     &rev[..rev.len().min(7)]
 }
@@ -654,7 +663,7 @@ impl AppState {
         // discarding again would only fail on paths Git no longer knows about.
         let stashed = handle
             .stash_paths(paths, &format!("cogit: discard {}", named(paths)))
-            .unwrap_or(None);
+            .map_err(|err| backup_failed("discarding", &err))?;
         if stashed.is_none() {
             handle.discard(paths)?;
         }
@@ -1013,7 +1022,7 @@ impl AppState {
         };
         let stashed = handle
             .stash_paths(paths, &format!("cogit: before rollback of {label}"))
-            .unwrap_or(None);
+            .map_err(|err| backup_failed("rolling back", &err))?;
 
         handle.rollback_to(rev, paths)?;
         self.record(
