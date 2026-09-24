@@ -17,7 +17,7 @@
   const rows = $derived(flatten(nodes, collapsed));
 </script>
 
-<div class="tree tree-rows" role="tree" aria-label={label}>
+<div class="tree tree-rows key-list" role="tree" aria-label={label}>
   {#each rows as node (node.id)}
     <div
       class="node"

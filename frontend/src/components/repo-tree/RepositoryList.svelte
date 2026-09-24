@@ -83,7 +83,7 @@
   }
 </script>
 
-<div class="wrapper tree-rows">
+<div class="wrapper tree-rows key-list">
   <div class="actions" role="toolbar" aria-label="Repository list actions">
     <button
       type="button"

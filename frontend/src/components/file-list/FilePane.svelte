@@ -56,7 +56,7 @@
   }
 </script>
 
-<div class="pane tree-rows">
+<div class="pane tree-rows key-list">
   {#if title}
     <div class="heading">
       <span class="grow">{title} ({paths.length})</span>
