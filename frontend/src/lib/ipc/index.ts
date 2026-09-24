@@ -87,6 +87,7 @@ export type {
   GitOutput,
   GraphOverlay,
   GraphPaintRequest,
+  GraphView,
   GraphProgress,
   GraphRow,
   Head,

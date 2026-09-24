@@ -23,6 +23,17 @@ pub struct CommitQuery {
     /// Refs the References panel ticked; `None` is every ref, `Some([])` is none.
     #[serde(default)]
     pub visible_refs: Option<Vec<String>>,
+    /// How the graph shows the walked history; a filtered list ignores it.
+    #[serde(default)]
+    pub view: GraphView,
+}
+
+/// Graph modes that decide which commits the graph shows (`graph_engine::ViewFilter`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase", default)]
+pub struct GraphView {
+    /// `--first-parent`: one line per ticked ref, merged branches left out.
+    pub first_parent: bool,
 }
 
 impl CommitQuery {
@@ -36,6 +47,7 @@ impl CommitQuery {
     pub fn filters_rows(&self) -> bool {
         Self {
             visible_refs: None,
+            view: GraphView::default(),
             ..self.clone()
         } != Self::default()
     }
@@ -69,6 +81,16 @@ impl CommitQuery {
 
 impl RepoHandle {
     /// Every tip peeled to a commit; a ref that names none is reported, not fatal (R-157).
+    /// The commits the walk for `query` starts from, as hex ids.
+    pub fn walk_tips(&self, query: &CommitQuery) -> Result<Vec<String>> {
+        Ok(self
+            .tips_for(query)?
+            .0
+            .iter()
+            .map(ToString::to_string)
+            .collect())
+    }
+
     fn tips_for(&self, query: &CommitQuery) -> Result<(Vec<gix::ObjectId>, Vec<SkippedRef>)> {
         let Some(names) = query.visible_refs.as_deref() else {
             return Ok((self.graph_tips()?, Vec::new()));

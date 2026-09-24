@@ -5,10 +5,12 @@ import {
   graphWindow,
   loadGraph,
   type CommitQuery,
+  type GraphView,
   type RepoId,
   toCogitError,
 } from "$lib/ipc";
 import type { GraphBlock, GraphEntry } from "$lib/graph-wire";
+import { GRAPH_MODE_DEFAULTS, graphView } from "$lib/graph-modes";
 
 export type { GraphEntry };
 
@@ -55,6 +57,9 @@ class GraphStore {
   /** `null` is every ref. Owned by the References panel, folded into every load. */
   visibleRefs = $state.raw<string[] | null>(null);
 
+  /** Graph modes that decide which commits are shown (#26), folded into every load. */
+  view = $state.raw<GraphView>(graphView(GRAPH_MODE_DEFAULTS));
+
   /** Asking twice for the same commit has to scroll twice, hence the counter. */
   reveal = $state.raw<{ oid: string; request: number } | null>(null);
 
@@ -71,6 +76,13 @@ class GraphStore {
   get walk(): { repo: RepoId; generation: number | null } | null {
     void this.#arrived;
     return this.#shown && { repo: this.#shown.repo, generation: this.#shown.generation };
+  }
+
+  /** Another view walks the graph on screen again. */
+  setView(next: GraphView): void {
+    if (JSON.stringify(next) === JSON.stringify(this.view)) return;
+    this.view = next;
+    if (this.#shown) void this.load(this.#shown.repo, this.query);
   }
 
   requestReveal(oid: string): void {
@@ -152,7 +164,7 @@ class GraphStore {
           if (fresh === this.#shown) this.#publish();
           this.#ask(fresh);
         },
-        { ...query, visibleRefs: this.visibleRefs },
+        { ...query, visibleRefs: this.visibleRefs, view: this.view },
       );
       if (load === this.#loads) this.skipped = skipped ?? [];
       if (load === this.#loads && !fresh.complete && !(await this.#settle(fresh, load)) && retry) {

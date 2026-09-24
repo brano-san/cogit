@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import EmptyState from "$components/common/EmptyState.svelte";
   import SkeletonRows from "$components/common/SkeletonRows.svelte";
   import { settings } from "$stores/settings.svelte";
@@ -29,7 +30,7 @@
   import { commit as selection } from "$stores/commit.svelte";
   import { compareView } from "$stores/compare-view.svelte";
   import { graph } from "$stores/graph.svelte";
-  import { GRAPH_MODE_DEFAULTS, checkedTips, paintRequest } from "$lib/graph-modes";
+  import { GRAPH_MODE_DEFAULTS, checkedTips, graphView, paintRequest } from "$lib/graph-modes";
   import { isEmptyQuery } from "$lib/query";
   import { graphOverlays } from "$stores/graph-overlay.svelte";
   import { refs as refTicks } from "$stores/refs.svelte";
@@ -48,6 +49,8 @@
     onrefcontext?: (label: RefLabel, oid: string, x: number, y: number) => void;
     /** Branches ticked in Branches in their own colours (setting `graphHighlightChecked`). */
     highlightChecked?: boolean;
+    /** First parents only (`graphFirstParent`). */
+    firstParent?: boolean;
   }
 
   let {
@@ -57,7 +60,14 @@
     onworktreecontext,
     onrefcontext,
     highlightChecked = GRAPH_MODE_DEFAULTS.highlightChecked,
+    firstParent = GRAPH_MODE_DEFAULTS.firstParent,
   }: Props = $props();
+
+  const modes = $derived({ highlightChecked, firstParent });
+  $effect(() => {
+    const view = graphView(modes);
+    untrack(() => graph.setView(view));
+  });
 
   /** The other end of a comparison stays marked while the graph shows it (#33). */
   const comparedFrom = $derived(compareView.showing(selection.oid) ? compareView.from : null);
@@ -165,7 +175,7 @@
   /** A filtered list is flat, not a graph (R-51): nothing to colour along it. */
   const paint = $derived(
     isEmptyQuery(graph.query)
-      ? paintRequest({ highlightChecked }, checkedTips(repository.current?.branches ?? [], refTicks.visible))
+      ? paintRequest(modes, checkedTips(repository.current?.branches ?? [], refTicks.visible))
       : null,
   );
   $effect(() => {
