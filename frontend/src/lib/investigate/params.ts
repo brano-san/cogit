@@ -50,7 +50,3 @@ export function investigateTitle(path: string, repoName: string): string {
   const repo = repoName ? ` [${repoName}]` : "";
   return `${fileName(path)}${repo} - Investigate`;
 }
-
-export function sameLocation(a: Location, b: Location): boolean {
-  return a.path === b.path && a.rev === b.rev && a.line === b.line;
-}

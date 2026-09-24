@@ -391,23 +391,15 @@ a:hover {
 }
 
 /* Lezer token classes. Colour only — a background here would fight the diff fill (T7.6). */
-.tok-keyword,
-.tok-modifier,
-.tok-controlKeyword,
-.tok-operatorKeyword {
+.tok-keyword {
   color: var(--c-lane-5, #c792ea);
 }
 
-.tok-string,
-.tok-string2,
-.tok-special {
+.tok-string {
   color: var(--c-lane-3, #c3e88d);
 }
 
-.tok-comment,
-.tok-lineComment,
-.tok-blockComment,
-.tok-docComment {
+.tok-comment {
   color: var(--text-secondary);
   font-style: italic;
 }
@@ -424,12 +416,10 @@ a:hover {
   color: var(--c-lane-2, #ffcb6b);
 }
 
-.tok-function,
 .tok-macroName {
   color: var(--c-lane-1, #82aaff);
 }
 
-.tok-propertyName,
-.tok-attributeName {
+.tok-propertyName {
   color: var(--c-lane-4, #89ddff);
 }
