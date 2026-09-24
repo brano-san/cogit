@@ -47,6 +47,7 @@ vi.mock("$lib/ipc/bindings", () => ({ commands }));
 vi.mock("$lib/graph-wire", () => ({ decodeBase64Window: (block: unknown) => block }));
 
 const { graph } = await import("./graph.svelte");
+const { repository } = await import("./repository.svelte");
 
 type RepoId = import("$lib/ipc").RepoId;
 const A = 1 as RepoId;
@@ -101,6 +102,7 @@ async function loaded(repo: RepoId, history: string[]) {
 }
 
 beforeEach(() => {
+  repository.phase = { kind: "closed" };
   graph.clear();
   streams.length = 0;
   built.clear();
@@ -235,12 +237,56 @@ describe("graph reload", () => {
     expect(oids()).toEqual([]);
   });
 
-  it("never shows one repository's history while another one loads", async () => {
+  // Switching blinked: A's graph, an empty list, then B's (R-300).
+  it("keeps the last repository's history on screen until the next one's arrives", async () => {
     await loaded(A, ["a", "b"]);
 
-    void graph.load(B);
+    const load = graph.load(B);
+    expect(oids()).toEqual(["a", "b"]);
+    expect(graph.shownRepo).toBe(A);
+    await last().send(["x", "y", "z"], true);
+    last().finish();
+    await load;
 
-    expect(oids()).toEqual([]);
+    expect(oids()).toEqual(["x", "y", "z"]);
+    expect(graph.shownRepo).toBe(B);
+  });
+
+  it("opens another repository's history at its top, wherever the last one was", async () => {
+    await loaded(A, ids(600, "a"));
+    graph.show(500, 540);
+    await settle();
+    const home = graph.home;
+
+    void graph.load(B);
+    await last().send(ids(40, "b"));
+
+    expect(graph.shownRepo).toBe(B);
+    expect(graph.home).toBe(home + 1);
+    expect(graph.rowAt(0)?.commit.oid).toBe("b0");
+  });
+
+  it("drops a load asked for by a repository the panels have left", async () => {
+    await loaded(A, ["a", "b"]);
+    repository.adopt({ repo: B, root: "/b" } as import("$lib/ipc").RepoSummary);
+    const started = streams.length;
+
+    await graph.load(A);
+
+    expect(streams.length).toBe(started);
+    expect(oids()).toEqual(["a", "b"]);
+  });
+
+  it("never lets a reload of the repository left take the screen after it", async () => {
+    await loaded(A, ["a", "b"]);
+    void graph.load(A);
+    const reload = last();
+
+    repository.adopt({ repo: B, root: "/b" } as import("$lib/ipc").RepoSummary);
+    await reload.send(["x", "y", "z"], true);
+
+    expect(oids()).toEqual(["a", "b"]);
+    expect(graph.loading).toBe(false);
   });
 
   it("shows a first history as it streams in", async () => {

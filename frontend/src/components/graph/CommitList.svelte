@@ -55,6 +55,8 @@
   const measure = measurer((label, ms, detail) => void reportTiming(label, ms, detail));
 
   async function pick(repo: RepoId, oid: string | null) {
+    // The last repository's rows stay on screen until the new ones arrive (R-300).
+    if (graph.shownRepo !== null && graph.shownRepo !== repo) return;
     const watch = measure("select-commit");
     await selection.select(repo, oid);
     watch.stop(`${selection.files.length} files`);
@@ -142,6 +144,12 @@
       if (entry) rows.push({ listRow, entry });
     }
     return rows;
+  });
+
+  /** Another repository's history opens at its top (R-300). */
+  $effect(() => {
+    void graph.home;
+    if (scroller) scroller.scrollTop = 0;
   });
 
   /** Only the rows on screen come over from Rust (R-193). */
