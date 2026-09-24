@@ -551,7 +551,12 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > `discarding_a_name_with_brackets_touches_only_that_file` (до правки `clean` удалял и
   > `test1.txt`); `staging_a_name_with_brackets_…` — страховка (git add и так брал точное
   > совпадение).
-- [ ] B-15 hard reset: свой stash по сравнению вершин
+- [x] B-15 hard reset: свой stash по сравнению вершин
+  > Итог: сценарий аудитора не происходит (`stash_push` уже сравнивал вершины), но тест
+  > нашёл другой баг: при сдвинутом только сабмодуле hard reset отказывал с «there is
+  > nothing to stash», хотя `reset --hard` сабмодуль не трогает. Новый `stash_push_if_any` →
+  > `Option<oid>`; reset без копии идёт дальше, `stashes().next()` убран. Тест
+  > `a_hard_reset_with_only_a_moved_submodule_goes_ahead_without_a_backup`.
 - [ ] B-16 Undo удаления аннотированного тега
 - [ ] B-18 `flow_finish` rev-parse
 - [ ] B-19 stderr сети целиком

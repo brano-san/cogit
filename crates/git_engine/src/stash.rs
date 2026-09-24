@@ -105,6 +105,17 @@ impl RepoHandle {
     }
 
     pub fn stash_push(&self, options: &StashOptions) -> Result<()> {
+        match self.stash_push_if_any(options)? {
+            Some(_) => Ok(()),
+            None => Err(GitError::InvalidState(
+                "there is nothing to stash".to_owned(),
+            )),
+        }
+    }
+
+    /// The new stash's oid, or `None` when git found nothing it stashes — a moved
+    /// submodule shows as a change and still leaves nothing to save.
+    pub fn stash_push_if_any(&self, options: &StashOptions) -> Result<Option<String>> {
         let mut args = vec!["stash", "push"];
         if options.include_untracked {
             args.push("--include-untracked");
@@ -119,12 +130,8 @@ impl RepoHandle {
 
         let before = self.stash_top();
         self.run_git(&args)?;
-        if self.stash_top() == before {
-            return Err(GitError::InvalidState(
-                "there is nothing to stash".to_owned(),
-            ));
-        }
-        Ok(())
+        let after = self.stash_top();
+        Ok(if after == before { None } else { after })
     }
 
     pub fn stash_apply_index(&self, index: u32, pop: bool) -> Result<()> {
