@@ -1,5 +1,7 @@
 //! Colour over a finished layout; the layout itself never changes for it (R-340).
 
+use std::collections::HashMap;
+
 use crate::{GraphRow, Segment, Span};
 
 pub const PAINT_SLOT: u8 = 0x0f;
@@ -37,7 +39,7 @@ struct Group {
 #[derive(Debug, Default)]
 struct Trace {
     groups: Vec<Group>,
-    joins: Vec<(u32, u32)>,
+    joins: Vec<(u32, u32, bool)>,
     node_lane: Vec<u32>,
     segment_first: Vec<u32>,
     segment_group: Vec<u32>,
@@ -77,8 +79,14 @@ impl Trace {
 
 /// Finds every line's lane by its columns (the three lists of `07-graph-rendering.md` §3);
 /// geometry it does not know becomes a lane of its own, never an error.
-fn trace(rows: &[GraphRow]) -> Trace {
+fn trace(
+    rows: &[GraphRow],
+    parents: &[Vec<Option<u32>>],
+    row_of: &dyn Fn(&str) -> Option<u32>,
+) -> Trace {
     let mut trace = Trace::default();
+    // Lane of the stub under a cut link's child, by (child, parent), for the stub above.
+    let mut stubs: HashMap<(u32, u32), u32> = HashMap::new();
     let mut next_lane = 0_u32;
     let mut fresh = || {
         next_lane += 1;
@@ -108,8 +116,30 @@ fn trace(rows: &[GraphRow]) -> Trace {
         let node_lane = own_in.map_or_else(&mut fresh, |group| trace.lane_of(group));
         trace.node_lane.push(node_lane);
 
+        let ends = |i: usize| {
+            row.links
+                .iter()
+                .filter(move |link| usize::from(link.segment) == i)
+                .filter_map(|link| row_of(&link.oid))
+        };
         for (i, s) in row.segments.iter().enumerate() {
             if s.span == Span::Bottom {
+                continue;
+            }
+            if s.arrow {
+                let children: Vec<u32> = ends(i).collect();
+                let own = |c: u32| first_parent(parents, c) == Some(r);
+                let Some(&lead) = children.iter().find(|c| own(**c)).or(children.first()) else {
+                    trace.segment_group[first + i] = trace.open(fresh(), NONE, false);
+                    continue;
+                };
+                let lane = stubs.get(&(lead, r)).copied().unwrap_or_else(&mut fresh);
+                let group = trace.open(lane, lead, own(lead));
+                trace.groups[group as usize].end = r;
+                for &child in children.iter().filter(|c| **c != lead) {
+                    trace.joins.push((group, child, own(child)));
+                }
+                trace.segment_group[first + i] = group;
                 continue;
             }
             let mut group = at(&above, s.from);
@@ -145,7 +175,16 @@ fn trace(rows: &[GraphRow]) -> Trace {
             }
             let group = if s.arrow {
                 let own = s.from == s.to;
-                trace.open(if own { node_lane } else { fresh() }, r, own)
+                let lane = if own { node_lane } else { fresh() };
+                let group = trace.open(lane, r, own);
+                for parent in ends(i) {
+                    stubs.insert((r, parent), lane);
+                    let end = &mut trace.groups[group as usize].end;
+                    if *end == NONE {
+                        *end = parent;
+                    }
+                }
+                group
             } else if !own_done {
                 own_done = true;
                 let group = trace.open(node_lane, r, true);
@@ -158,7 +197,7 @@ fn trace(rows: &[GraphRow]) -> Trace {
                     put(&mut below, s.to, group);
                     group
                 } else {
-                    trace.joins.push((joined, r));
+                    trace.joins.push((joined, r, false));
                     joined
                 }
             };
@@ -234,10 +273,16 @@ fn ancestry(parents: &[Vec<Option<u32>>], chosen: u32, len: usize) -> Vec<u8> {
     kin
 }
 
-/// `parents`: per row, the rows of its parents as laid out, `None` when not listed.
+/// `parents`: per row, the rows of its parents as laid out, `None` when not listed;
+/// `row_of` finds the row of a commit at the far end of a cut link.
 #[must_use]
-pub fn paint(rows: &[GraphRow], parents: &[Vec<Option<u32>>], spec: &PaintSpec) -> Paint {
-    let trace = trace(rows);
+pub fn paint(
+    rows: &[GraphRow],
+    parents: &[Vec<Option<u32>>],
+    row_of: &dyn Fn(&str) -> Option<u32>,
+    spec: &PaintSpec,
+) -> Paint {
+    let trace = trace(rows, parents, row_of);
     let claimed = chains(rows, parents, &spec.tips);
     let kin = spec
         .ancestry_of
@@ -278,9 +323,9 @@ pub fn paint(rows: &[GraphRow], parents: &[Vec<Option<u32>>], spec: &PaintSpec) 
             }
         })
         .collect();
-    for &(group, child) in &trace.joins {
+    for &(group, child, own) in &trace.joins {
         let end = trace.groups[group as usize].end;
-        let (slot, lit) = edge(child, false, end);
+        let (slot, lit) = edge(child, own, end);
         let style = &mut groups[group as usize];
         if style.0 == 0 {
             style.0 = slot;

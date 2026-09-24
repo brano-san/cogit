@@ -7,8 +7,8 @@
 use std::collections::HashMap;
 
 use graph_engine::{
-    CommitNode, GraphRow, LayoutCursor, PAINT_DIM, PAINT_SLOT, Paint, PaintSpec, Span, layout,
-    paint,
+    CommitNode, GraphRow, LayoutCursor, PAINT_DIM, PAINT_SLOT, Paint, PaintSpec, Span, finish,
+    paint, push,
 };
 
 fn nodes(spec: &[(&str, &[&str])]) -> Vec<CommitNode> {
@@ -47,12 +47,35 @@ struct Painted {
 
 impl Painted {
     fn new(nodes: &[CommitNode], mainline: Option<&str>, spec: &PaintSpec) -> Self {
-        let rows = layout(
-            nodes,
-            &mut LayoutCursor::with_mainline(mainline.map(str::to_owned)),
+        Self::cut(nodes, mainline, 0, spec)
+    }
+
+    /// Laid out with links longer than `long` rows cut into stubs.
+    fn cut(nodes: &[CommitNode], mainline: Option<&str>, long: u32, spec: &PaintSpec) -> Self {
+        let mut cursor =
+            LayoutCursor::with_mainline(mainline.map(str::to_owned)).with_long_links(long);
+        let mut rows = push(nodes.to_vec(), &mut cursor);
+        rows.extend(finish(&mut cursor));
+        let at: HashMap<&str, u32> = nodes
+            .iter()
+            .enumerate()
+            .map(|(i, n)| (n.oid.as_str(), u32::try_from(i).unwrap()))
+            .collect();
+        let paint = paint(
+            &rows,
+            &parent_rows(nodes),
+            &|oid| at.get(oid).copied(),
+            spec,
         );
-        let paint = paint(&rows, &parent_rows(nodes), spec);
         Self { rows, paint }
+    }
+
+    /// Whether segment `index` of `row` is a stub of a cut link.
+    fn stub(&self, row: usize, index: usize) -> bool {
+        self.rows[row]
+            .links
+            .iter()
+            .any(|link| usize::from(link.segment) == index)
     }
 
     /// Row, segment and the segment's style.
@@ -255,8 +278,11 @@ fn random_histories() -> Vec<(Vec<CommitNode>, Option<String>)> {
 /// first-parent chain, and a lane has one colour, the one the layout gave it.
 #[test]
 fn traced_lanes_are_the_layouts_lanes_on_random_histories() {
-    for (history, primary) in random_histories() {
-        let painted = Painted::new(&history, primary.as_deref(), &PaintSpec::default());
+    for ((history, primary), long) in random_histories()
+        .into_iter()
+        .zip([0, 3].into_iter().cycle())
+    {
+        let painted = Painted::cut(&history, primary.as_deref(), long, &PaintSpec::default());
         let parents = parent_rows(&history);
         let mut colour: HashMap<u32, u8> = HashMap::new();
         let mut last: HashMap<u32, usize> = HashMap::new();
@@ -277,6 +303,15 @@ fn traced_lanes_are_the_layouts_lanes_on_random_histories() {
             last.insert(lane, r);
         }
         for (r, s, _, lane) in painted.segments() {
+            // A stub takes the colour of its node, and the lane of the link it stands for.
+            let index = painted.rows[r]
+                .segments
+                .iter()
+                .position(|other| std::ptr::eq(other, s))
+                .unwrap();
+            if painted.stub(r, index) {
+                continue;
+            }
             assert_eq!(
                 *colour.entry(lane).or_insert(s.color),
                 s.color,
@@ -289,8 +324,11 @@ fn traced_lanes_are_the_layouts_lanes_on_random_histories() {
 
 #[test]
 fn a_node_goes_on_in_its_own_lane_on_random_histories() {
-    for (history, primary) in random_histories() {
-        let painted = Painted::new(&history, primary.as_deref(), &PaintSpec::default());
+    for ((history, primary), long) in random_histories()
+        .into_iter()
+        .zip([0, 3].into_iter().cycle())
+    {
+        let painted = Painted::cut(&history, primary.as_deref(), long, &PaintSpec::default());
         let parents = parent_rows(&history);
         for (r, row) in painted.rows.iter().enumerate() {
             if parents[r].is_empty() {
@@ -304,6 +342,75 @@ fn a_node_goes_on_in_its_own_lane_on_random_histories() {
                     && lane == painted.paint.node_lane[r]
             });
             assert!(own, "row {r}: {:?}\n{history:?}", row.segments);
+        }
+    }
+}
+
+/// Both stubs of a cut link are one lane, so the branch they belong to stays one line.
+#[test]
+fn the_two_stubs_of_a_cut_link_share_its_lane_on_random_histories() {
+    let mut stubs = 0;
+    for (history, primary) in random_histories() {
+        let painted = Painted::cut(&history, primary.as_deref(), 3, &PaintSpec::default());
+        let row_of = |oid: &str| history.iter().position(|n| n.oid == oid).unwrap();
+        let lane = |row: usize, index: u16| {
+            painted.paint.segment_lane
+                [painted.paint.segment_first[row] as usize + usize::from(index)]
+        };
+        for (p, row) in painted.rows.iter().enumerate() {
+            for link in &row.links {
+                let segment = &row.segments[usize::from(link.segment)];
+                if segment.span != Span::Top {
+                    continue;
+                }
+                stubs += 1;
+                let children: Vec<u32> = row
+                    .links
+                    .iter()
+                    .filter(|l| l.segment == link.segment)
+                    .flat_map(|l| {
+                        let c = row_of(&l.oid);
+                        painted.rows[c]
+                            .links
+                            .iter()
+                            .filter(|down| row_of(&down.oid) == p)
+                            .map(move |down| lane(c, down.segment))
+                            .collect::<Vec<_>>()
+                    })
+                    .collect();
+                assert!(
+                    children.contains(&lane(p, link.segment)),
+                    "row {p}: the stub above it has none of its children's lanes
+{history:?}"
+                );
+            }
+        }
+    }
+    assert!(stubs > 50, "the histories cut only {stubs} links");
+}
+
+#[test]
+fn a_ticked_branch_keeps_its_colour_across_a_cut_link() {
+    let history = nodes(&[
+        ("m6", &["m5"]),
+        ("b1", &["m0"]),
+        ("m5", &["m4"]),
+        ("m4", &["m3"]),
+        ("m3", &["m2"]),
+        ("m2", &["m1"]),
+        ("m1", &["m0"]),
+        ("m0", &[]),
+    ]);
+    let painted = Painted::cut(&history, Some("m6"), 2, &tips(&[(1, 5)]));
+    assert!(
+        !painted.rows[1].links.is_empty(),
+        "b1's link is cut: {:?}",
+        painted.rows[1]
+    );
+    for (row, s, style, lane) in painted.segments() {
+        if !s.primary {
+            assert_eq!(style, 6, "row {row}: {s:?}");
+            assert_eq!(lane, painted.paint.node_lane[1], "row {row}: {s:?}");
         }
     }
 }

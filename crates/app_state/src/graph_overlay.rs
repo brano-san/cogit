@@ -88,7 +88,8 @@ impl PaintMemo {
                 .and_then(|oid| self.index.get(oid).copied()),
         };
         let watch = std::time::Instant::now();
-        self.paint = graph_engine::paint(rows, &self.parents, &spec);
+        let row_of = |oid: &str| self.index.get(oid).copied();
+        self.paint = graph_engine::paint(rows, &self.parents, &row_of, &spec);
         tracing::debug!(
             rows = rows.len(),
             elapsed_us = watch.elapsed().as_micros(),
