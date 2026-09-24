@@ -93,6 +93,15 @@ describe("accelerator", () => {
     expect(accelerator(event({ key: " " }))).toBe("Space");
   });
 
+  // The recorder took the character the layout typed: on a Russian keyboard Ctrl+S was
+  // written down as CmdOrCtrl+Ы, which no menu can read, so the key silently did nothing.
+  it("records the key where it is, whatever the keyboard layout types there", () => {
+    expect(accelerator(event({ key: "ы", code: "KeyS", ctrlKey: true }))).toBe("CmdOrCtrl+S");
+    expect(accelerator(event({ key: "&", code: "Digit7", ctrlKey: true, shiftKey: true }))).toBe(
+      "CmdOrCtrl+Shift+7",
+    );
+  });
+
   it("refuses a bare modifier, which is not a shortcut", () => {
     expect(accelerator(event({ key: "Control", ctrlKey: true }))).toBeNull();
     expect(accelerator(event({ key: "Shift", shiftKey: true }))).toBeNull();
