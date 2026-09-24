@@ -988,11 +988,7 @@ impl AppState {
     pub fn delete_tag(&self, repo: RepoId, name: &str) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
-        let oid = handle
-            .tags()?
-            .into_iter()
-            .find(|tag| tag.name == name)
-            .map(|tag| tag.oid);
+        let oid = handle.tag_target(name);
         handle.delete_tag(name)?;
         self.record(
             repo,

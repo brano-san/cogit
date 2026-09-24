@@ -279,6 +279,15 @@ impl RepoHandle {
         tags.sort_by(|a, b| a.name.cmp(&b.name));
         Ok(tags)
     }
+
+    /// What `refs/tags/<name>` holds itself: an annotated tag's tag object rather than the
+    /// commit it names, so putting it back brings the annotation back too.
+    #[must_use]
+    pub fn tag_target(&self, name: &str) -> Option<String> {
+        let full = format!("refs/tags/{name}");
+        let reference = self.repo.find_reference(full.as_str()).ok()?;
+        reference.try_id().map(|id| id.detach().to_string())
+    }
 }
 
 fn collect<'a>(
