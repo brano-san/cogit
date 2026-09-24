@@ -458,7 +458,7 @@ fn forward_repo_changes(app: tauri::AppHandle, state: &Arc<AppState>) {
     #[cfg(windows)]
     let state = Arc::clone(state);
     tauri::async_runtime::spawn(async move {
-        while let Ok(event) = events.recv().await {
+        while let Some(event) = app_state::next_event(&mut events).await {
             match event {
                 app_state::AppEvent::RepoChanged { repo, kind } => {
                     let _ = RepoChanged { repo, kind }.emit(&app);

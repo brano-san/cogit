@@ -415,7 +415,10 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > Итог: `commit.onchange` (уже сбрасывает дифф и сравнение) теперь сбрасывает и
   > `stashView`; `commit.clear()` onchange не вызывает, поэтому показ stash из References не
   > задет. **Без юнит-теста** — проводка App.svelte; на решение: оставить или откатить.
-- [ ] C1-02 форвардер событий переживает `Lagged`
+- [x] C1-02 форвардер событий переживает `Lagged`
+  > Итог: `app_state::next_event`: `Lagged` → warn и дальше, `Closed` → конец; форвардер в
+  > src-tauri читает через него. Тесты
+  > `a_forwarding_loop_keeps_going_after_it_falls_behind`, `…_ends_when_the_bus_is_gone`.
 - [ ] C1-03 выключение аватаров без join под локом
 - [ ] C1-04/05 индекс аватаров: запись по очереди и атомарно, IO вне лока
 - [ ] C1-06 `row_for` не кладёт устаревшее

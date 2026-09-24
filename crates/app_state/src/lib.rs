@@ -39,6 +39,23 @@ use tokio::sync::broadcast;
 
 const EVENT_CHANNEL_CAPACITY: usize = 256;
 
+/// The next event for a long-lived subscriber. One that fell behind skips what it missed
+/// and carries on; only a closed bus ends it.
+pub async fn next_event(events: &mut broadcast::Receiver<AppEvent>) -> Option<AppEvent> {
+    loop {
+        match events.recv().await {
+            Ok(event) => return Some(event),
+            Err(broadcast::error::RecvError::Lagged(missed)) => {
+                tracing::warn!(
+                    missed,
+                    "event subscriber fell behind; the missed events are skipped"
+                );
+            }
+            Err(broadcast::error::RecvError::Closed) => return None,
+        }
+    }
+}
+
 fn short(rev: &str) -> &str {
     &rev[..rev.len().min(7)]
 }
