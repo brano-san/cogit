@@ -84,11 +84,8 @@ impl RepoHandle {
     pub fn rebase_progress(&self) -> Result<Option<RebaseProgress>> {
         let merge = self.git_dir().join("rebase-merge");
         if merge.is_dir() {
-            let done = std::fs::read_to_string(merge.join("done"))
-                .map(|text| u32::try_from(text.lines().filter(|l| !l.trim().is_empty()).count()))
-                .ok()
-                .and_then(std::result::Result::ok)
-                .unwrap_or(0);
+            // Counted as the steps left are: an `exec` or a `break` is not a commit.
+            let done = u32::try_from(parse_todo(&merge, "done").len()).unwrap_or(0);
             let todo = parse_todo(&merge, "git-rebase-todo");
 
             return Ok(Some(RebaseProgress {

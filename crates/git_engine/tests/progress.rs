@@ -169,3 +169,19 @@ mod damaged_todo {
         assert!(open(&f).rebase_progress().is_ok());
     }
 }
+
+// Cogit's own plans put an `exec` after a reword and a `break` after every step of a paused
+// rebase. The steps left were counted without them, the steps done with them.
+#[test]
+fn a_paused_rebase_counts_only_its_commits() {
+    let f = test_fixtures::linear(4).unwrap();
+    let repo = git_engine::RepoHandle::open(f.path()).unwrap();
+    let base = f.oid("HEAD~3").unwrap();
+    let plan = repo.rebase_todo(&base).unwrap();
+    assert_eq!(plan.len(), 3);
+    let _ = repo.interactive_rebase_paused(&base, &plan);
+
+    let progress = repo.rebase_progress().unwrap().unwrap();
+
+    assert_eq!((progress.done, progress.total), (1, 3));
+}
