@@ -1,3 +1,20 @@
+/// The tree-sitter grammar the three-way merge parses a path with. Not the Lezer name:
+/// highlighting treats `.tsx` as TypeScript, but the TypeScript parser reads JSX as an
+/// error, and a tree with an error settles nothing.
+#[must_use]
+pub fn merge_grammar_for_path(path: &str) -> Option<&'static str> {
+    let name = path.rsplit('/').next().unwrap_or(path);
+    if name.to_ascii_lowercase().ends_with(".tsx") {
+        return Some("tsx");
+    }
+    language_for_path(path).and_then(|name| match name.as_str() {
+        "typescript" => Some("typescript"),
+        "cpp" => Some("cpp"),
+        "c" => Some("c"),
+        _ => None,
+    })
+}
+
 /// Lezer grammar name for a path. Highlighting itself is a frontend concern (INV-01).
 #[must_use]
 pub fn language_for_path(path: &str) -> Option<String> {

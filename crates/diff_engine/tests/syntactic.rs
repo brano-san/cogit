@@ -179,3 +179,25 @@ fn plain_merge3_never_settles_anything_syntactically() {
 
     assert!(!kinds(&merge3(base, ours, theirs)).contains(&"syntactic"));
 }
+
+// A `.tsx` file was parsed with the TypeScript grammar, which reads JSX as an error: the
+// merge never settled anything in one.
+#[test]
+fn a_tsx_file_is_parsed_with_the_grammar_that_knows_jsx() {
+    let base = "function a() {\n  return <b className=\"x\">0</b>;\n}\nfunction b() {\n  return <i>0</i>;\n}\n";
+    let ours = base.replace("0</b>;\n}\n", "0</b>;\n} // a\n");
+    let theirs = base.replace("function b() {", "function b(): JSX.Element {");
+    assert!(
+        merge3(base, &ours, &theirs).iter().any(Region::is_conflict),
+        "the edits must be too close for a plain merge"
+    );
+
+    let grammar = diff_engine::merge_grammar_for_path("src/App.tsx");
+    let merged = merge3_with_syntax(base, &ours, &theirs, grammar);
+
+    assert!(
+        !merged.iter().any(Region::is_conflict),
+        "{:?}",
+        kinds(&merged)
+    );
+}
