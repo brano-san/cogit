@@ -50,7 +50,7 @@
     width: var(--disclosure-glyph);
     height: var(--disclosure-glyph);
     fill: currentColor;
-    transition: transform 0.12s ease-out;
+    transition: transform var(--t-medium) var(--ease-out);
   }
 
   .glyph.open {

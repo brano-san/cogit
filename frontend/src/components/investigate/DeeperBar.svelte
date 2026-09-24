@@ -91,4 +91,11 @@
       opacity: 1;
     }
   }
+
+  /* 06 §8: the tokens go to zero under reduced motion, an endless pulse does not. */
+  @media (prefers-reduced-motion: reduce) {
+    .searching .state {
+      animation: none;
+    }
+  }
 </style>
