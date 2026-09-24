@@ -2474,37 +2474,12 @@ mod tests {
     /// Each command with a flag: does it leave the main thread? An `async fn` does, and so
     /// does a plain `fn` marked `#[tauri::command(async)]` — tauri hands that one to the
     /// thread pool without demanding it return a `Result`.
+    /// Every file of the module, read from disk: a list of files here missed `toolbar.rs`.
     fn declared() -> Vec<(String, bool)> {
-        let mut found = Vec::new();
-        let mut armed = false;
-        let mut marked_async = false;
-        let sources = [
-            include_str!("mod.rs"),
-            include_str!("desktop.rs"),
-            include_str!("file_ops.rs"),
-            include_str!("investigate.rs"),
-            include_str!("ref_ops.rs"),
-            include_str!("remote_ops.rs"),
-        ];
-        for line in sources.iter().flat_map(|source| source.lines()) {
-            let line = line.trim_start();
-            if let Some(rest) = line.strip_prefix("#[tauri::command") {
-                armed = true;
-                marked_async = rest.starts_with("(async)");
-                continue;
-            }
-            if !armed {
-                continue;
-            }
-            if let Some(rest) = line.strip_prefix("pub async fn ") {
-                found.push((name_of(rest), true));
-                armed = false;
-            } else if let Some(rest) = line.strip_prefix("pub fn ") {
-                found.push((name_of(rest), marked_async));
-                armed = false;
-            }
-        }
-        found
+        all_commands()
+            .into_iter()
+            .map(|command| (command.name, command.off_thread))
+            .collect()
     }
 
     fn name_of(rest: &str) -> String {
@@ -2660,6 +2635,7 @@ mod tests {
             all.len()
         );
         assert!(all.iter().any(|(name, _)| name == "repositories"));
+        assert!(all.iter().any(|(name, _)| name == "delete_merged_branches"));
     }
 
     #[test]
