@@ -483,3 +483,34 @@ fn ignoring_all_whitespace_ignores_it_where_the_other_line_has_none() {
         "{diff:?}"
     );
 }
+
+// A minified bundle rebuilt with other names: one line of hundreds of kilobytes, words
+// different on both sides. The word diff had no limit, and Myers over those words is
+// quadratic in the differences: minutes on the blocking thread.
+#[test]
+fn a_rewritten_enormous_line_does_not_hang_the_word_diff() {
+    let words = |seed: u64| -> String {
+        let mut state = seed;
+        (0..40_000)
+            .map(|_| {
+                state = state
+                    .wrapping_mul(6_364_136_223_846_793_005)
+                    .wrapping_add(1);
+                format!("w{:x}", state >> 40)
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
+    let old = format!("{}\n", words(1));
+    let new = format!("{}\n", words(2));
+
+    let started = std::time::Instant::now();
+    let diff = diff_text(&old, &new, &DiffOptions::default());
+    let elapsed = started.elapsed();
+
+    assert_eq!(hunks(&diff).len(), 1);
+    assert!(
+        elapsed < std::time::Duration::from_secs(5),
+        "the word diff must give up in time, took {elapsed:?}"
+    );
+}
