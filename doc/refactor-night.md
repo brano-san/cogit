@@ -535,7 +535,11 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
 - [x] B-10 ошибки notify в лог
   > Итог: (fs_watcher получил `tracing.workspace = true` — крейт уже в сборке, нового ничего; правило «каждый fallback логирует Err») ошибка notify — `tracing::warn!` ("the file watcher lost events"); полный Refresh
   > на ошибку не добавлял — это новое поведение. Без теста: меняется только лог.
-- [ ] B-12 `log -L`: quotepath, префиксы, таб
+- [x] B-12 `log -L`: quotepath, префиксы, таб
+  > Итог: уже работало: git 2.51 в `log -L` не экранирует не-ASCII пути даже при
+  > `core.quotepath=true`, не дописывает таб после имени с пробелом и не применяет
+  > `diff.noprefix` (проверено вручную и тестом, в том числе для папки `b/`). Кода не менял;
+  > добавил тест-страховку `the_path_of_each_version_is_the_file_itself_whatever_its_name`.
 - [ ] B-13 surgery: `-z`
 - [ ] B-14 литеральные pathspec
 - [ ] B-15 hard reset: свой stash по сравнению вершин
