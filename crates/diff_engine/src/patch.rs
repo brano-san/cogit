@@ -25,6 +25,22 @@ pub struct PatchShape {
     pub new_exists: bool,
 }
 
+/// Whether a line of the diff holds bytes that were not UTF-8. The viewer shows each one
+/// as a stand-in character (see `text::decode`); a patch would write the stand-in into the
+/// file instead of the byte, so such a file is staged whole, never line by line.
+#[must_use]
+pub fn carries_undecoded_bytes(request: &PatchRequest) -> bool {
+    request.hunks.iter().flat_map(|hunk| &hunk.rows).any(|row| {
+        let text = match row {
+            DiffRow::Context { text, .. }
+            | DiffRow::Delete { text, .. }
+            | DiffRow::Insert { text, .. } => text,
+            DiffRow::Collapsed { .. } => return false,
+        };
+        text.chars().any(|c| ('\u{F780}'..='\u{F7FF}').contains(&c))
+    })
+}
+
 /// Only the selected lines. The envelope stays LF; content lines keep the file's own
 /// ending, or `git apply` rewrites every line (INV-08).
 #[must_use]

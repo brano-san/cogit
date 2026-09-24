@@ -289,3 +289,27 @@ fn unstaging_part_of_a_new_file_keeps_the_rest_of_it() {
 
     assert_eq!(index_text(&f, "fresh.txt"), "two\n");
 }
+
+// A line that is not UTF-8 reaches the viewer with its odd bytes replaced. Staged one line
+// at a time, the replacement went into the index instead of the bytes: the file was
+// changed silently. Line by line is refused there; the whole file still stages.
+#[test]
+fn a_line_that_is_not_utf8_is_not_staged_as_something_else() {
+    let f = test_fixtures::empty().unwrap();
+    f.commit_file(1, "latin.txt", "a\nb\n").unwrap();
+    std::fs::write(f.path().join("latin.txt"), b"a\ncaf\xe9\n").unwrap();
+    let (state, repo) = opened(&f);
+    let hunks = match diff_engine::diff_bytes(b"a\nb\n", b"a\ncaf\xe9\n", &DiffOptions::default()) {
+        FileDiff::Text { hunks, .. } => hunks,
+        other => panic!("expected a text diff, got {other:?}"),
+    };
+    let request = PatchRequest {
+        hunks,
+        ..request("latin.txt", "a\nb\n", "a\ncafe\n", vec![2], vec![2])
+    };
+
+    let result = state.stage_selection(repo, &request, false);
+
+    assert!(result.is_err(), "{result:?}");
+    assert_eq!(index_text(&f, "latin.txt"), "a\nb\n");
+}

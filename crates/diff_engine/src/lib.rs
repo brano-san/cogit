@@ -19,7 +19,7 @@ pub use images::{base64, data_url, image_mime};
 pub use language::language_for_path;
 pub use merge::{Origin, Region, merge3, merge3_with_syntax};
 pub use moves::{MIN_MOVED_LINES, detect_moves, link_moves_across_files};
-pub use patch::{PatchRequest, PatchShape, build_patch};
+pub use patch::{PatchRequest, PatchShape, build_patch, carries_undecoded_bytes};
 pub use text::{MAX_TEXT_BYTES, diff_bytes, diff_text};
 pub use words::{Spans, block_is_comparable, inline_spans};
 

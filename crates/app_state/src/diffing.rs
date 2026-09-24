@@ -143,6 +143,12 @@ impl AppState {
         spec: &git_engine::DiffSpec,
         reverse: bool,
     ) -> Result<String, git_engine::GitError> {
+        if diff_engine::carries_undecoded_bytes(request) {
+            return Err(git_engine::GitError::InvalidState(format!(
+                "{} is not valid UTF-8: stage or discard it whole, not line by line",
+                request.path
+            )));
+        }
         let (old, new) = self.handle(repo)?.diff_sides(spec, &request.path)?;
         let shape = diff_engine::PatchShape {
             reverse,
