@@ -545,7 +545,12 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > `a_file_with_a_non_ascii_name_can_be_split_off` (при `core.quotepath` по умолчанию до
   > правки — «not one of the files this commit changed»). Остальные списки путей в
   > git_engine уже с `-z` или не разбирают путь.
-- [ ] B-14 литеральные pathspec
+- [x] B-14 литеральные pathspec
+  > Итог: `run_git_paths` (stage, unstage, discard, clean, stash, restore для rollback)
+  > ставит `GIT_LITERAL_PATHSPECS=1` в обеих ветках (аргументы и stdin). Тест
+  > `discarding_a_name_with_brackets_touches_only_that_file` (до правки `clean` удалял и
+  > `test1.txt`); `staging_a_name_with_brackets_…` — страховка (git add и так брал точное
+  > совпадение).
 - [ ] B-15 hard reset: свой stash по сравнению вершин
 - [ ] B-16 Undo удаления аннотированного тега
 - [ ] B-18 `flow_finish` rev-parse
