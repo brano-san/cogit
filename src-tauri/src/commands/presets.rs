@@ -1,7 +1,7 @@
 //! Hook presets: list, export, remove, install (M10).
 
-use super::blocking;
-use app_state::RepoId;
+use super::{blocking, mutating};
+use app_state::{OperationKind, RepoId};
 use git_engine::GitError;
 
 #[tauri::command]
@@ -50,8 +50,12 @@ pub async fn install_preset(
     id: String,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("install_preset", move || {
-        app_state.install_preset(repo, &id)
-    })
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Other,
+        "install_preset",
+        move || app_state.install_preset(repo, &id),
+    )
     .await
 }

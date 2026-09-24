@@ -150,6 +150,9 @@ fn commands_that_write_the_repository_wait_for_its_lane() {
         "set_hook_enabled",
         "use_hooks_path",
         "move_to_trash",
+        "install_preset",
+        "run_hook",
+        "run_check",
     ];
     let all = all_commands();
     let unqueued: Vec<&str> = WRITERS
