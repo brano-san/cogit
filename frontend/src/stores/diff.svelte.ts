@@ -10,7 +10,7 @@ import {
 } from "$lib/ipc";
 import { readKey, writeKey } from "$lib/settings-file";
 import { discardSelection } from "$lib/ipc";
-import { expandedContext, lacksFinalNewline } from "$lib/diff-rows";
+import { expandedContext } from "$lib/diff-rows";
 import { splitSelection } from "$lib/selection";
 import { settings } from "./settings.svelte";
 
@@ -138,7 +138,6 @@ class DiffStore {
       selectedDeletes: deletes,
       selectedInserts: inserts,
       lineEnding: this.diff.eol.old,
-      noTrailingNewline: lacksFinalNewline(this.diff.hunks),
     });
     await this.reload();
   }

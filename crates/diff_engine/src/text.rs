@@ -244,6 +244,7 @@ fn build(
                 old: old_at + 1,
                 new: new_at + 1,
                 text: text(old_lines, old_at),
+                no_newline: open.old && old_at as usize + 1 == old_lines.len(),
             });
             old_at += 1;
             new_at += 1;
@@ -297,6 +298,7 @@ fn build(
             old: old_at + 1,
             new: new_at + 1,
             text: text(old_lines, old_at),
+            no_newline: open.old && old_at as usize + 1 == old_lines.len(),
         });
         old_at += 1;
         new_at += 1;

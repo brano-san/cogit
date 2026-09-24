@@ -630,7 +630,9 @@ export type DiffOptions = {
 	detectMoves: boolean,
 };
 
-export type DiffRow = { kind: "context"; old: number; new: number; text: string } | { kind: "delete"; old: number; text: string; inline: ([number, number])[]; moved?: boolean; 
+export type DiffRow = { kind: "context"; old: number; new: number; text: string; 
+/**  The last line of both sides, neither ending in a newline. */
+noNewline?: boolean } | { kind: "delete"; old: number; text: string; inline: ([number, number])[]; moved?: boolean; 
 /**  Both ends of one move carry the same number, so the UI can draw the pair. */
 moveId?: number | null; moveScope?: MoveScope | null; 
 /**
@@ -1116,7 +1118,6 @@ export type PatchRequest = {
 	selectedDeletes: number[],
 	selectedInserts: number[],
 	lineEnding: LineEnding,
-	noTrailingNewline: boolean,
 };
 
 export type PresetStatus = {

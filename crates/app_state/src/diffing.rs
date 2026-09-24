@@ -100,11 +100,14 @@ impl AppState {
         request: &diff_engine::PatchRequest,
         reverse: bool,
     ) -> Result<(), git_engine::GitError> {
-        let Some(patch) = diff_engine::build_patch(request) else {
-            return Err(git_engine::GitError::InvalidState(
-                "nothing selected".to_owned(),
-            ));
+        // Unstage is the reverse of the diff of the index against HEAD; Stage goes forward
+        // on the diff of the working tree against the index.
+        let spec = if reverse {
+            git_engine::DiffSpec::IndexVsHead
+        } else {
+            git_engine::DiffSpec::WorkTreeVsIndex
         };
+        let patch = self.selection_patch(repo, request, &spec, reverse)?;
         let _quiet = self.quiet(repo);
         self.handle(repo)?.apply_patch(&patch, reverse)
     }
@@ -115,11 +118,8 @@ impl AppState {
         repo: RepoId,
         request: &diff_engine::PatchRequest,
     ) -> Result<(), git_engine::GitError> {
-        let Some(patch) = diff_engine::build_patch(request) else {
-            return Err(git_engine::GitError::InvalidState(
-                "nothing selected".to_owned(),
-            ));
-        };
+        let spec = git_engine::DiffSpec::WorkTreeVsIndex;
+        let patch = self.selection_patch(repo, request, &spec, true)?;
         let _quiet = self.quiet(repo);
         self.handle(repo)?
             .apply_patch_to(&patch, true, git_engine::PatchTarget::WorkTree)?;
@@ -132,6 +132,25 @@ impl AppState {
             },
         );
         Ok(())
+    }
+
+    /// Whether the file is there on each side decides `/dev/null` in the envelope; the
+    /// hunks cannot tell a new file from lines added to the top of an empty-context diff.
+    fn selection_patch(
+        &self,
+        repo: RepoId,
+        request: &diff_engine::PatchRequest,
+        spec: &git_engine::DiffSpec,
+        reverse: bool,
+    ) -> Result<String, git_engine::GitError> {
+        let (old, new) = self.handle(repo)?.diff_sides(spec, &request.path)?;
+        let shape = diff_engine::PatchShape {
+            reverse,
+            old_exists: old.is_some(),
+            new_exists: new.is_some(),
+        };
+        diff_engine::build_patch(request, shape)
+            .ok_or_else(|| git_engine::GitError::InvalidState("nothing selected".to_owned()))
     }
 
     pub fn merge_preview(
