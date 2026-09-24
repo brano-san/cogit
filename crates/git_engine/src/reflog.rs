@@ -115,6 +115,7 @@ impl RepoHandle {
         self.update_reachable(cache)?;
         let mut seen = HashSet::new();
         let mut lost = Vec::new();
+        let mailmap = self.mailmap();
 
         for entry in self.reflog(limit)? {
             let known = gix::ObjectId::from_hex(entry.oid.as_bytes())
@@ -122,7 +123,7 @@ impl RepoHandle {
             if known || !seen.insert(entry.oid.clone()) {
                 continue;
             }
-            if let Ok(details) = self.commit_details(&entry.oid) {
+            if let Ok(details) = self.commit_details_with(&entry.oid, &mailmap) {
                 lost.push(CommitRow {
                     oid: details.oid,
                     parents: details.parents,

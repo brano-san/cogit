@@ -174,6 +174,7 @@ Blame открывается только отдельным окном (`blame.
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
 | `load_commits` | `repo, query: CommitQuery, channel: Channel<GraphChunk>` | `Vec<SkippedRef { name, reason }>` — отмеченные ссылки, не ставшие стартовой точкой; новый вызов останавливает предыдущий обход | M4 |
+| `graph_overlay` | `repo, generation, start, count, request: GraphPaintRequest { tips: [{ oid, slot }], ancestryOf? }` | `Option<GraphOverlay>` — стиль и полоса узла и каждого сегмента строк окна; `None`, если граф заменён | M4 |
 | `commit_details` | `repo, rev: String` | `CommitDetails` | M4 |
 | `commit_files` | `repo, rev: String` | `Vec<FileEntry>` | M6 |
 
@@ -390,7 +391,10 @@ snake_case и читаются на фронтенде как `undefined`.
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
 | `stage_paths` / `unstage_paths` | `repo, paths: Vec<String>` | `()` | M6 |
+| `stage_all` | `repo, files: u32` | `()` — `git add --all` без списка путей; фронтенд зовёт его, когда выбран весь список Unstaged без строк, показанных переключателями вида (R-311); `files` — сколько строк было в списке, от 200 блобы пишутся одним pack (R-312) | M6 |
 | `worktree_files` | `repo` | `WorktreeFiles` | M6 |
+| `working_state` | `repo` | `WorkingState { status: RepoStatus, conflicted: Vec<String> }` — счётчики и конфликтующие пути одним чтением статуса, для обновления после мутации (R-316) | M6 |
+| `repo_refs` | `repo` | `RepoRefs { head, branches, tags, state, indexLock }` — то, что двигает коммит, без статуса, регистрации и наблюдателя; фронтенд вливает это в `RepoSummary` (R-316) | M6 |
 | `stage_hunk` | `repo, patch: String` | `()` | M6 |
 | `discard_paths` | `repo, paths` | `()` | M6 |
 | `commit` | `repo, request: CommitRequest { message, amend, noVerify }` | `String` (oid) | M6 |
@@ -415,6 +419,7 @@ snake_case и читаются на фронтенде как `undefined`.
 | `submodule_outline` | `root` — папка репозитория из списка, открытого или закрытого; `parent` — ключ узла от верха (пусто — верхний уровень) | `Vec<Submodule>` из `.gitmodules` и gitlink-записей HEAD: `state` — `notInitialised` или `unread`, `checkedOut`, `branch`, `subject` пусты, `nested` — проверка файла; сабмодули не открываются (R-352) | M3 |
 | `repo_pulse` | `root` — папка строки списка | `RepoPulse { missing, branch, tracked, ahead, behind, dirty }`: ahead/behind — по локальной remote-tracking ссылке HEAD через gix; `dirty` — размер и mtime файлов индекса, staged по cache-tree или сравнению индекса с деревом HEAD по id, конфликт; неотслеживаемые не ищутся, ничего не хешируется (R-353) | M3 |
 | `background_fetch` | `root` | `()`; `git fetch --all --quiet --no-auto-gc --recurse-submodules=no` без запросов: `GIT_TERMINAL_PROMPT=0`, пустой `GIT_ASKPASS`, `GCM_INTERACTIVE=never`, `SSH_ASKPASS_REQUIRE=never`, SSH в `BatchMode`, если пользователь не задал свою команду. В журнал Output не попадает, ошибка — в лог и отказом (R-353) | M3 |
+| `pull_probe` | `root` | `Option<bool>`: `true` — вершина upstream-ветки HEAD на сервере (`git ls-remote --heads`, без записи) не содержится в HEAD; `null` — нет upstream или ветки на сервере; ошибка — «неизвестно», в лог (R-354) | M3 |
 | `open_submodule` | `owner: RepoId`, `key` — путь узла от владельца дерева | `RepoSummary`; отказ — `GitError::ModuleUnavailable(ModuleProblem)` | M3 |
 | `repository_health` | `repo` | `Vec<HealthFinding { module, issue }>` — репозиторий и все подмодули; `issue`: `ignoreCaseMismatch`, `danglingModule`, `danglingWorktree`, `missingModuleCommit { commit }` (R-179) | M3 |
 | `read_git_config` | `repo: Option<RepoId>`, `scope: repository \| user` | `ConfigFile { path, text, crlf, exists }` | M3 |
@@ -661,6 +666,20 @@ pub struct GraphProgress {
 запущенного для прежнего репозитория, отбрасываются, даже если успели прийти, а окно
 прежнего поколения бэкенд не отдаёт.
 
+**Раскраска — отдельным окном.** `graph_overlay(repo, generation, start, count, request)`
+отдаёт для тех же строк: полосу (`nodeLanes`, `segmentLanes`) и стиль (`nodeStyles`,
+`segmentStyles`: младшие 4 бита — слот палитры + 1, 0 — цвет по умолчанию; бит `0x10` —
+приглушено, вне родни `ancestryOf`) узла и каждого
+сегмента, `segmentFirst` — где начинаются сегменты каждой строки, `folds: [{ row, hidden }]` —
+свёрнутые merge среди строк окна и сколько коммитов в каждом. Считается в Rust по всему
+графу один раз на запрос и хранится, пока не изменились строки или запрос
+([07-graph-rendering.md §5](07-graph-rendering.md#раскраска)). Пустой запрос UI не шлёт.
+
+**Вид графа** едет в том же `CommitQuery`: `view: GraphView { firstParent, collapseMerged,
+expanded }` — какие из
+обойдённых коммитов граф показывает ([07-graph-rendering.md §10](07-graph-rendering.md#10-режимы-графа)).
+Строки фильтра (`filters_rows`) он не делает; отфильтрованный список его не учитывает.
+
 Отфильтрованный список тоже приходит с раскладкой: линия к родителю, которого фильтр не
 покажет, — сегмент с `arrow: true` (R-161).
 
@@ -710,7 +729,9 @@ type Operation = {
 целиком, а не с середины. Чтения в очередь не попадают — они идут параллельно и
 отменяются через `cancel_operation`.
 
-`ChangeKind`: `Head` · `Index` · `Refs` · `WorkingTree` · `Stash` · `Config` · `Hooks`.
+`ChangeKind`: `Head` · `Index` · `Refs` · `WorkingTree` · `Stash` · `Config` · `Hooks` ·
+`Mailmap` — `.mailmap` в корне рабочего дерева; приходит вместе с `WorkingTree`, интерфейс
+перезагружает граф и детали выбранного коммита ([R-390](12-risks.md)).
 
 Событий `repo-opened`/`repo-closed` в webview нет: `AppEvent::RepoOpened/RepoClosed` живут
 только на шине `app_state`. Сырое `renderer-failed` (`renderer_failure.rs`) шлётся без

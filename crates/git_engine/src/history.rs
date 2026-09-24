@@ -77,7 +77,12 @@ impl RepoHandle {
     }
 
     /// One row from an id and its parents, whichever walk produced them.
-    pub(crate) fn row_of(&self, id: gix::ObjectId, parents: &[gix::ObjectId]) -> Result<CommitRow> {
+    pub(crate) fn row_of(
+        &self,
+        id: gix::ObjectId,
+        parents: &[gix::ObjectId],
+        mailmap: &crate::Mailmap,
+    ) -> Result<CommitRow> {
         let commit = self
             .repo
             .find_commit(id)
@@ -93,12 +98,16 @@ impl RepoHandle {
             .time()
             .map_err(|err| GitError::Internal(format!("cannot read commit time: {err}")))?;
 
+        let (mut author_name, mut author_email) =
+            (author.name.to_string(), author.email.to_string());
+        mailmap.apply(&mut author_name, &mut author_email);
+
         Ok(CommitRow {
             oid: id.to_string(),
             parents: parents.iter().map(ToString::to_string).collect(),
             summary: message.summary().to_string(),
-            author_name: author.name.to_string(),
-            author_email: author.email.to_string(),
+            author_name,
+            author_email,
             timestamp: time.seconds,
             tz_offset_minutes: time.offset / SECONDS_PER_MINUTE,
         })

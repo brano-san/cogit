@@ -18,6 +18,7 @@ import type {
   FlowConfig,
   FlowKind,
   GitError,
+  GraphPaintRequest,
   GraphProgress,
   MergeOptions,
   MergeResolved,
@@ -84,6 +85,9 @@ export type {
   GitCommandError,
   GitError,
   GitOutput,
+  GraphOverlay,
+  GraphPaintRequest,
+  GraphView,
   GraphProgress,
   GraphRow,
   Head,
@@ -239,6 +243,17 @@ export async function graphRowOf(repo: RepoId, generation: number, oid: string) 
   return unwrap(await commands.graphRowOf(repo, generation, oid));
 }
 
+/** Paint for a window of the rows: `null` once a newer walk replaced `generation`. */
+export async function graphOverlay(
+  repo: RepoId,
+  generation: number,
+  start: number,
+  count: number,
+  request: GraphPaintRequest,
+) {
+  return unwrap(await commands.graphOverlay(repo, generation, start, count, request));
+}
+
 /** Hits stream in as the walk finds them; the promise resolves with the total. */
 export async function scanForRepositories(
   path: string,
@@ -301,12 +316,24 @@ export async function repoStatus(repo: RepoId) {
   return unwrap(await commands.repoStatus(repo));
 }
 
+export async function repoRefs(repo: RepoId) {
+  return unwrap(await commands.repoRefs(repo));
+}
+
+export async function workingState(repo: RepoId) {
+  return unwrap(await commands.workingState(repo));
+}
+
 export async function worktreeFiles(repo: RepoId, view: WorktreeView) {
   return unwrap(await commands.worktreeFiles(repo, view));
 }
 
 export async function stagePaths(repo: RepoId, paths: string[]) {
   return unwrap(await commands.stagePaths(repo, paths));
+}
+
+export async function stageAll(repo: RepoId, files: number) {
+  return unwrap(await commands.stageAll(repo, files));
 }
 
 export async function unstagePaths(repo: RepoId, paths: string[]) {

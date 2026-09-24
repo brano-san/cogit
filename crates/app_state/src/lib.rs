@@ -7,6 +7,7 @@ mod file_actions;
 mod flow;
 mod graph_cache;
 mod graph_layout;
+pub mod graph_overlay;
 pub mod graph_wire;
 mod handles;
 mod hooking;
@@ -164,6 +165,17 @@ pub struct RepoSummary {
     pub tag_group_separator: String,
 }
 
+/// What a commit moves besides the counters: the refs and the operation state (R-316).
+#[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoRefs {
+    pub head: git_engine::Head,
+    pub branches: Vec<git_engine::Branch>,
+    pub tags: Vec<git_engine::Tag>,
+    pub state: git_engine::RepoState,
+    pub index_lock: Option<String>,
+}
+
 /// One hit from a folder scan. Paths cross IPC as strings, like every other path.
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -225,6 +237,8 @@ pub struct GraphChunk {
     /// One per commit, in the same order: the node and every segment of its row. Cutting
     /// long links holds the last rows back, so a chunk can have fewer rows than commits.
     pub rows: Vec<graph_engine::GraphRow>,
+    /// Folded merges whose count grew with this chunk.
+    pub folds: Vec<graph_engine::Fold>,
     pub is_last: bool,
 }
 
@@ -461,6 +475,19 @@ impl AppState {
         self.open_with(handle, path, true, watch)
     }
 
+    /// `open_repository` without the status, the registration and the watcher: after a
+    /// commit only these moved, and the status is read by the refresh that follows.
+    pub fn repo_refs(&self, repo: RepoId) -> Result<RepoRefs, git_engine::GitError> {
+        let handle = self.handle(repo)?;
+        Ok(RepoRefs {
+            head: handle.head()?,
+            branches: handle.branches()?,
+            tags: handle.tags()?,
+            state: handle.state()?,
+            index_lock: handle.index_lock(),
+        })
+    }
+
     /// Opens a submodule from its node in the tree. `key` is the node's path from `owner`,
     /// the repository in the list — never from whichever submodule the panels show now.
     /// Already listed stays listed: asking for the same path by hand is a different request.
@@ -571,6 +598,11 @@ impl AppState {
     pub fn stage_paths(&self, repo: RepoId, paths: &[String]) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         self.handle(repo)?.stage(paths)
+    }
+
+    pub fn stage_all(&self, repo: RepoId, files: usize) -> Result<(), git_engine::GitError> {
+        let _quiet = self.quiet(repo);
+        self.handle(repo)?.stage_all(files)
     }
 
     pub fn unstage_paths(
@@ -824,6 +856,15 @@ impl AppState {
         repo: RepoId,
     ) -> Result<git_engine::RepoStatus, git_engine::GitError> {
         self.handle(repo)?.status()
+    }
+
+    /// `repo_status` and `conflicted_paths` in one read: after a mutation the cascade wants
+    /// both (doc/12-risks.md, R-316).
+    pub fn working_state(
+        &self,
+        repo: RepoId,
+    ) -> Result<git_engine::WorkingState, git_engine::GitError> {
+        self.handle(repo)?.working_state()
     }
 
     pub fn create_tag(

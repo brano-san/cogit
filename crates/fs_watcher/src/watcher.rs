@@ -164,10 +164,18 @@ impl Route {
             let Some(change) = self.classify(path) else {
                 continue;
             };
-            if batch.iter().any(|seen| seen.kind == change.kind) {
-                continue;
+            // The file is also a working-tree change; this says the authors have to be
+            // read again as well.
+            let mailmap = (change.kind == ChangeKind::WorkingTree
+                && path.strip_prefix(&self.root).ok() == Some(Path::new(".mailmap")))
+            .then_some(RepoChanged {
+                kind: ChangeKind::Mailmap,
+            });
+            for change in std::iter::once(change).chain(mailmap) {
+                if !batch.iter().any(|seen| seen.kind == change.kind) {
+                    batch.push(change);
+                }
             }
-            batch.push(change);
         }
         batch
     }
@@ -274,6 +282,26 @@ mod tests {
         assert!(kinds.contains(&ChangeKind::Head));
         assert!(kinds.contains(&ChangeKind::Index));
         assert!(kinds.contains(&ChangeKind::WorkingTree));
+    }
+
+    #[test]
+    fn a_mailmap_at_the_root_is_a_working_tree_change_and_a_mailmap_one() {
+        let route = route();
+
+        let batch = route.coalesce(&[route.root.join(".mailmap")]);
+        let kinds: Vec<ChangeKind> = batch.iter().map(|change| change.kind).collect();
+
+        assert_eq!(kinds, [ChangeKind::WorkingTree, ChangeKind::Mailmap]);
+    }
+
+    #[test]
+    fn a_mailmap_below_the_root_is_only_a_working_tree_change() {
+        let route = route();
+
+        let batch = route.coalesce(&[route.root.join("docs/.mailmap")]);
+        let kinds: Vec<ChangeKind> = batch.iter().map(|change| change.kind).collect();
+
+        assert_eq!(kinds, [ChangeKind::WorkingTree]);
     }
 
     #[test]

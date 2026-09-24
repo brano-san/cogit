@@ -4,11 +4,12 @@ import {
   CogitError,
   listRepositories,
   openRepository,
-  repoStatus,
+  repoRefs,
   type RepoId,
   type RepoOverview,
   type RepoSummary,
   toCogitError,
+  workingState,
 } from "$lib/ipc";
 import { trace } from "$lib/trace";
 import { session } from "$stores/session.svelte";
@@ -157,16 +158,21 @@ class RepositoryStore {
     this.#timer = null;
   }
 
-  /** Staging changes only the counters; re-reading every ref for that is waste (R-24). */
-  async refreshStatus(): Promise<void> {
+  /** Staging changes only the counters; re-reading every ref for that is waste (R-24).
+      The same read lists the conflicted paths, returned for the conflicts store; `null`
+      when the answer was dropped or never came (R-316). */
+  async refreshStatus(): Promise<string[] | null> {
     const repo = this.current?.repo;
-    if (!repo) return;
+    if (!repo) return null;
     try {
-      const status = await repoStatus(repo);
+      const { status, conflicted } = await workingState(repo);
       const open = this.current;
-      if (open && open.repo === repo) this.#replace({ ...open, status });
+      if (!open || open.repo !== repo) return null;
+      this.#replace({ ...open, status });
+      return conflicted;
     } catch {
       // Nothing actionable; the next full refresh reports it with its own error.
+      return null;
     }
   }
 
@@ -225,6 +231,29 @@ class RepositoryStore {
       const shown = await this.open(root);
       if (!shown || this.current?.root !== root) return;
     } while (this.#again);
+  }
+
+  #refsRead = 0;
+
+  /** After a commit: the refs and the state are what moved besides the counters, which
+      `refreshStatus` reads. Reopening read the status as well, went through `opening`,
+      and re-registered the repository (R-316). Anything but a settled open takes the
+      ordinary `refresh`, which knows how to wait for an open in flight. */
+  async refreshRefs(): Promise<void> {
+    if (this.phase.kind !== "open") return this.refresh();
+    const repo = this.phase.repo.repo;
+    const ticket = this.#ticket;
+    const asked = ++this.#refsRead;
+    try {
+      const refs = await repoRefs(repo);
+      // An open begun since brings newer contents; a later re-read of the refs, newer refs.
+      if (this.#ticket !== ticket || asked !== this.#refsRead) return;
+      const open = this.current;
+      if (open && open.repo === repo) this.#replace({ ...open, ...refs });
+    } catch (err) {
+      trace("refs", `re-reading the refs failed, reopening: ${String(err)}`);
+      if (this.#ticket === ticket) await this.refresh();
+    }
   }
 
   /** Closing one repository while another opens asks twice; the older answer must not

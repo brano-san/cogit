@@ -10,6 +10,7 @@ const AFFECTS: Record<ChangeKind, PanelId[]> = {
   stash: ["refs"],
   config: ["repositories"],
   hooks: [],
+  mailmap: ["graph", "commit"],
 };
 
 export function affected(kind: ChangeKind): PanelId[] {

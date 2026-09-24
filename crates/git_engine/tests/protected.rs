@@ -136,3 +136,27 @@ fn a_pattern_that_does_not_parse_is_skipped_not_fatal() {
     // The good half still protects; the broken half is ignored.
     assert!(!open(&f).protecting_refs(PUSHED).unwrap().is_empty());
 }
+
+// A tag named like the remote branch makes git print the branch as `remotes/origin/main`;
+// matched against that, `main` protected nothing and the rewrite went ahead.
+fn beside_a_tag_of_the_same_name(with_graph: bool) {
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&["tag", "origin/main", "HEAD"]).unwrap();
+    if with_graph {
+        f.git(&["commit-graph", "write", "--reachable"]).unwrap();
+    }
+
+    let refs = open(&f).protecting_refs(PUSHED).unwrap();
+
+    assert_eq!(refs, vec!["remotes/origin/main".to_owned()]);
+}
+
+#[test]
+fn a_remote_branch_beside_a_tag_of_its_name_is_still_protected() {
+    beside_a_tag_of_the_same_name(false);
+}
+
+#[test]
+fn a_remote_branch_beside_a_tag_of_its_name_is_still_protected_in_process() {
+    beside_a_tag_of_the_same_name(true);
+}

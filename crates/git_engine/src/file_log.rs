@@ -48,7 +48,7 @@ impl RepoHandle {
         }
 
         let count = format!("-{}", limit.clamp(1, 100_000));
-        let format = format!("--format={RECORD}%H{FIELD}%P{FIELD}%an{FIELD}%ae{FIELD}%at{FIELD}%s");
+        let format = format!("--format={RECORD}%H{FIELD}%P{FIELD}%aN{FIELD}%aE{FIELD}%at{FIELD}%s");
         let mut args = vec![
             "-c",
             "core.quotepath=off",

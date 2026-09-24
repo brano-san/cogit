@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rowSync, syncTooltip, UNKNOWN_PULL } from "./repo-sync";
+import { canPull, REMOTE_AHEAD, rowSync, syncTooltip, UNKNOWN_PULL } from "./repo-sync";
 import type { RepoOverview } from "$lib/ipc";
 import type { RepoPulse } from "$lib/ipc/bindings";
 
@@ -43,8 +43,33 @@ describe("the marks of a repository row", () => {
       ahead: 0,
       behind: 0,
       unknown: false,
+      remoteAhead: false,
       missing: false,
     });
+  });
+
+  it("offers a pull when the server moved on though the tracking ref is level", () => {
+    const sync = rowSync({
+      overview: null,
+      owned: false,
+      pulse: pulse({ behind: 0 }),
+      fetchFailed: false,
+      remoteAhead: true,
+    });
+    expect(canPull(sync)).toBe(true);
+    expect(syncTooltip(sync)).toContain(REMOTE_AHEAD);
+  });
+
+  it("claims no pull from a probe that failed", () => {
+    const sync = rowSync({
+      overview: null,
+      owned: false,
+      pulse: pulse({ behind: 0 }),
+      fetchFailed: true,
+      remoteAhead: true,
+    });
+    expect(canPull(sync)).toBe(false);
+    expect(sync.unknown).toBe(true);
   });
 
   it("says a closed row's folder is gone", () => {

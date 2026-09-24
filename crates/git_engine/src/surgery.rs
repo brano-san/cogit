@@ -216,26 +216,26 @@ impl RepoHandle {
         Ok(!self.containing_remote_refs(rev)?.is_empty())
     }
 
-    /// Every remote branch that already holds this commit. One graph walk per remote
-    /// ref, so callers ask when the user acts, never on every selection.
-    fn containing_remote_refs(&self, rev: &str) -> Result<Vec<String>> {
-        if self.no_remote_holds(rev) {
-            return Ok(Vec::new());
+    /// Every remote branch that already holds this commit, as `for-each-ref --contains`
+    /// lists it, (full name, short name); in-process when it can be (published.rs), else
+    /// by that very command.
+    fn containing_remote_refs(&self, rev: &str) -> Result<Vec<(String, String)>> {
+        if let Some(holding) = self.remote_refs_holding(rev) {
+            return Ok(holding);
         }
         let oid = self.rev_parse(rev)?;
         // Parsed in full: the journal's copy of a long listing is cut in the middle.
         let listed = self.read_git(&[
             "for-each-ref",
-            "--format=%(refname:short)",
+            "--format=%(refname) %(refname:short)",
             "--contains",
             &oid,
             "refs/remotes/",
         ])?;
         Ok(listed
             .lines()
-            .map(str::trim)
-            .filter(|name| !name.is_empty())
-            .map(str::to_owned)
+            .filter_map(|line| line.trim().split_once(' '))
+            .map(|(full, short)| (full.to_owned(), short.to_owned()))
             .collect())
     }
 }
@@ -249,14 +249,18 @@ impl RepoHandle {
     pub fn protecting_refs(&self, rev: &str) -> Result<Vec<String>> {
         let Some(patterns) = self.protected_set() else {
             // Still resolve the revision: an unknown one is an error, not an empty list.
-            self.rev_parse(rev)?;
+            if self.commit_of(rev).is_none() {
+                self.rev_parse(rev)?;
+            }
             return Ok(Vec::new());
         };
 
+        let remotes = self.remotes()?;
         Ok(self
             .containing_remote_refs(rev)?
             .into_iter()
-            .filter(|name| patterns.is_match(branch_of(name)))
+            .filter(|(full, _)| patterns.is_match(branch_of(full, &remotes)))
+            .map(|(_, short)| short)
             .collect())
     }
 
@@ -300,7 +304,15 @@ impl RepoHandle {
     }
 }
 
-/// `origin/release/1.0` is matched as `release/1.0`: the remote name is not part of it.
-fn branch_of(full: &str) -> &str {
-    full.split_once('/').map_or(full, |(_, rest)| rest)
+/// `refs/remotes/origin/release/1.0` is matched as `release/1.0`. From the full name, not
+/// the short one git prints: beside a tag `origin/main` that is `remotes/origin/main`. The
+/// longest configured remote wins, since a remote's name may itself hold a slash.
+fn branch_of<'a>(full: &'a str, remotes: &[String]) -> &'a str {
+    let rest = full.strip_prefix("refs/remotes/").unwrap_or(full);
+    remotes
+        .iter()
+        .filter_map(|remote| rest.strip_prefix(remote.as_str())?.strip_prefix('/'))
+        .min_by_key(|branch| branch.len())
+        .or_else(|| rest.split_once('/').map(|(_, branch)| branch))
+        .unwrap_or(rest)
 }

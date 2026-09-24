@@ -77,6 +77,27 @@ impl RepoHandle {
             .map(drop)
     }
 
+    /// Whether `--include-untracked` has anything to take. Without one it only makes `stash`
+    /// start two more processes of its own and record an empty third parent (R-315).
+    fn has_untracked(&self) -> Result<bool> {
+        let iter = self
+            .repo
+            .status(gix::progress::Discard)
+            .map_err(|err| GitError::Internal(format!("cannot start status: {err}")))?
+            .untracked_files(gix::status::UntrackedFiles::Collapsed)
+            .into_index_worktree_iter(Vec::<gix::bstr::BString>::new())
+            .map_err(|err| GitError::Internal(format!("cannot read status: {err}")))?;
+        for item in iter {
+            let item = item.map_err(|err| GitError::Internal(format!("status failed: {err}")))?;
+            if let gix::status::index_worktree::Item::DirectoryContents { entry, .. } = item
+                && entry.status == gix::dir::entry::Status::Untracked
+            {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     /// Through `gix`: a spawned `rev-parse` costs tens of milliseconds (R-24).
     fn stash_top(&self) -> Option<String> {
         self.repo
@@ -116,7 +137,7 @@ impl RepoHandle {
     /// submodule shows as a change and still leaves nothing to save.
     pub fn stash_push_if_any(&self, options: &StashOptions) -> Result<Option<String>> {
         let mut args = vec!["stash", "push"];
-        if options.include_untracked {
+        if options.include_untracked && self.has_untracked()? {
             args.push("--include-untracked");
         }
         if options.keep_index {

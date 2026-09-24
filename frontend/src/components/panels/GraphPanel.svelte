@@ -77,6 +77,11 @@
     density={settings.current.graphDensity}
     stripes={settings.current.graphStripes}
     longLinkRows={settings.current.graphLongLinkRows}
+    highlightChecked={settings.current.graphHighlightChecked}
+    firstParent={settings.current.graphFirstParent}
+    branchOfCommit={settings.current.graphBranchOfCommit}
+    ancestry={settings.current.graphAncestry}
+    collapseMerged={settings.current.graphCollapseMerged}
   />
 {:else}
   <StartScreen

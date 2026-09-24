@@ -5,6 +5,8 @@ const commands = {
   closeRepository: vi.fn(),
   repositories: vi.fn(),
   repoStatus: vi.fn(),
+  workingState: vi.fn(),
+  repoRefs: vi.fn(),
 };
 
 vi.mock("@tauri-apps/api/core", () => ({ Channel: class {} }));
@@ -447,5 +449,173 @@ describe("closing a repository", () => {
     await closing;
 
     expect(repository.openRepos.map((entry) => entry.root)).toEqual(["C:/repos/opened"]);
+  });
+});
+
+describe("the status refresh after a mutation", () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+    commands.openRepository.mockReset();
+    commands.workingState.mockReset();
+    commands.repositories.mockResolvedValue({ status: "ok", data: [] });
+    repository.close();
+  });
+
+  const state = (conflicted: string[]) => ({
+    status: "ok",
+    data: { status: { staged: 2, unstaged: 0, untracked: 0, conflicted: conflicted.length }, conflicted },
+  });
+
+  // `repo_status` and `conflicted_paths` were two full reads of the same status (R-316).
+  it("takes the counters and the conflicted paths from one read", async () => {
+    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
+    await repository.open("C:/repos/one");
+    commands.workingState.mockResolvedValue(state(["a.txt"]));
+
+    const conflicted = await repository.refreshStatus();
+
+    expect(commands.workingState).toHaveBeenCalledTimes(1);
+    expect(commands.repoStatus).not.toHaveBeenCalled();
+    expect(repository.current?.status.staged).toBe(2);
+    expect(conflicted).toEqual(["a.txt"]);
+  });
+
+  it("drops an answer for a repository the panels have left, and says so", async () => {
+    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
+    await repository.open("C:/repos/one");
+    const answer = pending<unknown>();
+    commands.workingState.mockReturnValue(answer.promise);
+
+    const refresh = repository.refreshStatus();
+    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/second") });
+    await repository.open("C:/repos/second");
+    answer.settle(state(["a.txt"]));
+
+    expect(await refresh).toBeNull();
+    expect(repository.current?.status.staged).toBe(0);
+  });
+
+  it("returns nothing when the read fails", async () => {
+    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
+    await repository.open("C:/repos/one");
+    commands.workingState.mockRejectedValue(new Error("locked"));
+
+    expect(await repository.refreshStatus()).toBeNull();
+  });
+});
+
+describe("the refs after a commit", () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+    commands.openRepository.mockReset();
+    commands.repoRefs.mockReset();
+    commands.repositories.mockResolvedValue({ status: "ok", data: [] });
+    repository.close();
+  });
+
+  const refs = (oid: string) => ({
+    status: "ok",
+    data: {
+      head: { kind: "branch", name: "master", oid },
+      branches: [{ name: "master", oid }],
+      tags: [],
+      state: { kind: "clean" },
+      indexLock: null,
+    },
+  });
+
+  async function opened(root = "C:/repos/one") {
+    commands.openRepository.mockResolvedValue({ status: "ok", data: summary(root) });
+    await repository.open(root);
+    commands.openRepository.mockClear();
+  }
+
+  it("reads the refs into the open repository, without reopening it", async () => {
+    await opened();
+    const phases: string[] = [];
+    commands.repoRefs.mockImplementation(async () => {
+      phases.push(repository.phase.kind);
+      return refs("b".repeat(40));
+    });
+
+    await repository.refreshRefs();
+
+    expect(commands.openRepository).not.toHaveBeenCalled();
+    expect(phases).toEqual(["open"]);
+    expect(repository.phase.kind).toBe("open");
+    expect(repository.current?.head).toEqual({ kind: "branch", name: "master", oid: "b".repeat(40) });
+    expect(repository.current?.name).toBe("one");
+  });
+
+  it("keeps the counters a later status read brought", async () => {
+    await opened();
+    const answer = pending<unknown>();
+    commands.repoRefs.mockReturnValue(answer.promise);
+    commands.workingState.mockResolvedValue({
+      status: "ok",
+      data: { status: { staged: 0, unstaged: 3, untracked: 0, conflicted: 0 }, conflicted: [] },
+    });
+
+    const reading = repository.refreshRefs();
+    await repository.refreshStatus();
+    answer.settle(refs("b".repeat(40)));
+    await reading;
+
+    expect(repository.current?.status.unstaged).toBe(3);
+    expect(repository.current?.head).toEqual({ kind: "branch", name: "master", oid: "b".repeat(40) });
+  });
+
+  it("drops refs that arrive after the panels moved to another repository", async () => {
+    await opened();
+    const answer = pending<unknown>();
+    commands.repoRefs.mockReturnValue(answer.promise);
+
+    const reading = repository.refreshRefs();
+    await opened("C:/repos/second");
+    answer.settle(refs("b".repeat(40)));
+    await reading;
+
+    expect(repository.current?.root).toBe("C:/repos/second");
+    expect(repository.current?.head).toEqual(summary("C:/repos/second").head);
+  });
+
+  it("lets the newer of two reads win whichever answers last", async () => {
+    await opened();
+    const first = pending<unknown>();
+    const second = pending<unknown>();
+    commands.repoRefs.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+
+    const one = repository.refreshRefs();
+    const two = repository.refreshRefs();
+    second.settle(refs("c".repeat(40)));
+    await two;
+    first.settle(refs("b".repeat(40)));
+    await one;
+
+    expect(repository.current?.head).toEqual({ kind: "branch", name: "master", oid: "c".repeat(40) });
+  });
+
+  it("falls back to reopening when the refs cannot be read", async () => {
+    await opened();
+    commands.repoRefs.mockRejectedValue(new Error("packed-refs locked"));
+    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
+
+    await repository.refreshRefs();
+
+    expect(commands.openRepository).toHaveBeenCalledTimes(1);
+    expect(repository.phase.kind).toBe("open");
+  });
+
+  it("while an open is in flight, leaves it to the open", async () => {
+    await opened();
+    const answer = pending<unknown>();
+    commands.openRepository.mockReturnValue(answer.promise);
+    const reopening = repository.refresh();
+
+    const reading = repository.refreshRefs();
+    answer.settle({ status: "ok", data: summary("C:/repos/one") });
+    await Promise.all([reopening, reading]);
+
+    expect(commands.repoRefs).not.toHaveBeenCalled();
   });
 });

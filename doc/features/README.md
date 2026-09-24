@@ -196,7 +196,7 @@
 | F-200 | Отсутствие финального перевода строки видно в diff | [F-200-final-newline.md](F-200-final-newline.md) |
 | F-201 | Перемещённый блок помечен с обоих концов | [F-201-move-pairing.md](F-201-move-pairing.md) |
 | F-202 | Перемещение между файлами отличается от внутрифайлового | [F-202-cross-file-moves.md](F-202-cross-file-moves.md) |
-| F-203 | Blame сводит авторов через .mailmap | [F-203-mailmap.md](F-203-mailmap.md) |
+| F-203 | Авторы сводятся через .mailmap | [F-203-mailmap.md](F-203-mailmap.md) |
 | F-204 | Blame пропускает косметические коммиты | [F-204-blame-ignore-revs.md](F-204-blame-ignore-revs.md) |
 | F-205 | Открыть файл в состоянии до коммита | [F-205-state-before-commit.md](F-205-state-before-commit.md) |
 | F-206 | Investigate: история выделенного фрагмента | [F-206-investigate.md](F-206-investigate.md) |
@@ -318,6 +318,11 @@
 | F-380 | Окно Investigate | [F-380-investigate-window.md](F-380-investigate-window.md) |
 | F-381 | Происхождение строки и Go Deeper | [F-381-origin-candidates.md](F-381-origin-candidates.md) |
 | F-382 | Investigate из Diff с выделенной строкой | [F-382-investigate-from-diff.md](F-382-investigate-from-diff.md) |
+| F-440 | Отмеченные ветки — своими цветами | [F-440-graph-branch-colours.md](F-440-graph-branch-colours.md) |
+| F-441 | Только первые родители | [F-441-graph-first-parent.md](F-441-graph-first-parent.md) |
+| F-442 | Ветка коммита по клику | [F-442-graph-branch-of-commit.md](F-442-graph-branch-of-commit.md) |
+| F-443 | Предки и потомки выбранного коммита | [F-443-graph-ancestry.md](F-443-graph-ancestry.md) |
+| F-444 | Сворачивание слитых веток | [F-444-graph-collapse-merged.md](F-444-graph-collapse-merged.md) |
 | F-430 | Длинные связи графа — обрубками | [F-430-graph-long-links.md](F-430-graph-long-links.md) |
 | F-431 | Строка графа: правые колонки на месте | [F-431-graph-row-columns.md](F-431-graph-row-columns.md) |
 | F-460 | Кнопка тулбара с открытым меню остаётся нажатой | [F-460-toolbar-menu-pressed.md](F-460-toolbar-menu-pressed.md) |

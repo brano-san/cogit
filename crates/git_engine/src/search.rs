@@ -24,12 +24,23 @@ pub struct CommitQuery {
     /// Refs the References panel ticked; `None` is every ref, `Some([])` is none.
     #[serde(default)]
     pub visible_refs: Option<Vec<String>>,
-    /// `git log --first-parent`: a merge's other parents and what only they reach stay out.
+    /// How the graph shows the walked history; a filtered list ignores it.
     #[serde(default)]
-    pub first_parent: bool,
+    pub view: GraphView,
     /// Not a filter: how the graph this load lays out cuts long links (R-330).
     #[serde(default)]
     pub long_link_rows: Option<u32>,
+}
+
+/// Graph modes that decide which commits the graph shows (`graph_engine::ViewFilter`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase", default)]
+pub struct GraphView {
+    /// `--first-parent`: one line per ticked ref, merged branches left out.
+    pub first_parent: bool,
+    /// A merged branch is one row at its merge, but for the merges in `expanded`.
+    pub collapse_merged: bool,
+    pub expanded: Vec<String>,
 }
 
 impl CommitQuery {
@@ -47,7 +58,7 @@ impl CommitQuery {
     pub fn filters_rows(&self) -> bool {
         Self {
             visible_refs: None,
-            first_parent: false,
+            view: GraphView::default(),
             long_link_rows: None,
             ..self.clone()
         } != Self::default()
@@ -82,6 +93,16 @@ impl CommitQuery {
 
 impl RepoHandle {
     /// Every tip peeled to a commit; a ref that names none is reported, not fatal (R-157).
+    /// The commits the walk for `query` starts from, as hex ids.
+    pub fn walk_tips(&self, query: &CommitQuery) -> Result<Vec<String>> {
+        Ok(self
+            .tips_for(query)?
+            .0
+            .iter()
+            .map(ToString::to_string)
+            .collect())
+    }
+
     pub(crate) fn tips_for(
         &self,
         query: &CommitQuery,
@@ -142,7 +163,9 @@ impl RepoHandle {
                     .and_then(|reuse| reuse.read(&id))
                     .or_else(|| reader.read(id))
             };
-            let walk = ByTime::new(tips, read, query.first_parent, self.shallow_commits());
+            // A filtered list shows matches from every line, the merged ones too (#26).
+            let first_parent = query.view.first_parent && !query.filters_rows();
+            let walk = ByTime::new(tips, read, first_parent, self.shallow_commits());
             let rows = Rows { reuse, record };
             self.stream_rows(
                 query,
@@ -175,11 +198,13 @@ impl RepoHandle {
         let chunk_size = chunk_size.max(1);
         let mut chunk = Vec::with_capacity(chunk_size);
         let mut listed = 0_u32;
+        // Once per walk: a `stat` per row would cost more than reading the commit.
+        let mailmap = self.mailmap();
 
         for (id, parents) in walk {
             let row = match rows.reuse.and_then(|reuse| reuse.row(&id)) {
-                Some(row) => row.clone(),
-                None => self.row_of(id, &parents)?,
+                Some(row) => reused(row, &parents),
+                None => self.row_of(id, &parents, &mailmap)?,
             };
             if !query.matches_row(&row) {
                 continue;
@@ -213,6 +238,11 @@ impl RepoHandle {
     /// Whether the list for `query` holds this commit: a match streams by before its
     /// parents do, and the graph has to know then whether a line to them will end.
     pub fn shown_by(&self, query: &CommitQuery, oid: &str) -> bool {
+        self.shown_by_with(query, oid, &self.mailmap())
+    }
+
+    /// `shown_by` for a loop over many commits, with the mailmap read once for all of them.
+    pub fn shown_by_with(&self, query: &CommitQuery, oid: &str, mailmap: &crate::Mailmap) -> bool {
         let Ok(id) = gix::ObjectId::from_hex(oid.as_bytes()) else {
             return false;
         };
@@ -220,7 +250,7 @@ impl RepoHandle {
             return false;
         };
         let parents: Vec<gix::ObjectId> = commit.parent_ids().map(gix::Id::detach).collect();
-        let Ok(row) = self.row_of(id, &parents) else {
+        let Ok(row) = self.row_of(id, &parents, mailmap) else {
             return false;
         };
         query.matches_row(&row)
@@ -269,4 +299,14 @@ fn contains_ignoring_case(haystack: &str, needle: &str) -> bool {
 struct Rows<'r, 'h> {
     reuse: Option<Reuse<'r>>,
     record: Option<&'h mut WalkedHistory>,
+}
+
+/// A row copied from the last graph, with every parent: a first-parent graph showed only
+/// the first (#26), and this walk may show them all.
+fn reused(row: &CommitRow, parents: &[gix::ObjectId]) -> CommitRow {
+    let mut row = row.clone();
+    if row.parents.len() != parents.len() {
+        row.parents = parents.iter().map(ToString::to_string).collect();
+    }
+    row
 }

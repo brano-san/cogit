@@ -447,14 +447,20 @@ describe("graph windows", () => {
 });
 
 describe("first parents only", () => {
+  const firstParent = (on: boolean) => ({ firstParent: on, collapseMerged: false, expanded: [] });
+  const view = graph.view;
+
   it("asks the walk for first parents while the setting is on", async () => {
     commands.loadCommits.mockClear();
-    graph.firstParent = true;
+    graph.view = firstParent(true);
     void graph.load(A);
-    graph.firstParent = false;
+    graph.view = firstParent(false);
     void graph.load(A);
+    graph.view = view;
 
-    const asked = commands.loadCommits.mock.calls.map(([, query]) => (query as { firstParent: boolean }).firstParent);
+    const asked = commands.loadCommits.mock.calls.map(
+      ([, query]) => (query as { view: { firstParent: boolean } }).view.firstParent,
+    );
     expect(asked).toEqual([true, false]);
   });
 
@@ -462,11 +468,11 @@ describe("first parents only", () => {
     await loaded(A, ["a", "b"]);
     const started = streams.length;
 
-    graph.setFirstParent(true);
-    graph.setFirstParent(true);
+    graph.setView(firstParent(true));
+    graph.setView(firstParent(true));
 
     expect(streams.length).toBe(started + 1);
-    graph.setFirstParent(false);
+    graph.view = view;
   });
 });
 
