@@ -206,18 +206,12 @@ fn a_stash_keeps_git_s_number_when_an_entry_above_it_is_unreadable() {
     let missing = "1234567890".repeat(4);
     let first_new = lines[0].split(' ').nth(1).unwrap().to_owned();
     let gone = format!(
-        "{first_new} {missing} T <t@example.com> 1700000000 +0000	On main: a stash whose commit is gone"
+        "{first_new} {missing} T <t@example.com> 1700000000 +0000\tOn main: a stash whose commit is gone"
     );
     let (_, second_rest) = lines[1].split_once(' ').unwrap();
     std::fs::write(
         &log,
-        format!(
-            "{}
-{gone}
-{missing} {second_rest}
-",
-            lines[0]
-        ),
+        format!("{}\n{gone}\n{missing} {second_rest}\n", lines[0]),
     )
     .unwrap();
 
