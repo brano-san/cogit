@@ -195,7 +195,8 @@ fn key<'a>(line: &'a str, options: &DiffOptions) -> Cow<'a, str> {
     match options.ignore_whitespace {
         Whitespace::None => Cow::Borrowed(body),
         Whitespace::Trailing => Cow::Borrowed(body.trim_end()),
-        Whitespace::All => Cow::Owned(body.split_whitespace().collect::<Vec<_>>().join(" ")),
+        // As `git diff -w`: whitespace does not count even where the other line has none.
+        Whitespace::All => Cow::Owned(body.split_whitespace().collect()),
     }
 }
 
