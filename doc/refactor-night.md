@@ -419,7 +419,10 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > Итог: `app_state::next_event`: `Lagged` → warn и дальше, `Closed` → конец; форвардер в
   > src-tauri читает через него. Тесты
   > `a_forwarding_loop_keeps_going_after_it_falls_behind`, `…_ends_when_the_bus_is_gone`.
-- [ ] C1-03 выключение аватаров без join под локом
+- [x] C1-03 выключение аватаров без join под локом
+  > Итог: сервис вынимается под локом (`take`/`replace`), дропается после; команда
+  > выключения — через `blocking`. Тест `turning_avatars_off_does_not_stall_the_readers` (до
+  > правки читатель ждал 1,8 с).
 - [ ] C1-04/05 индекс аватаров: запись по очереди и атомарно, IO вне лока
 - [ ] C1-06 `row_for` не кладёт устаревшее
 - [ ] C1-07 открытие одного пути — атомарно

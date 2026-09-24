@@ -2158,8 +2158,11 @@ pub async fn set_avatars(
 ) -> Result<(), GitError> {
     let state = state.state.clone();
     if !enabled {
-        state.disable_avatars();
-        return Ok(());
+        return blocking("set_avatars", move || {
+            state.disable_avatars();
+            Ok(())
+        })
+        .await;
     }
 
     let dir = app
