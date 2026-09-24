@@ -196,6 +196,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::commit_tree_files,
             commands::search_file_contents,
             commands::list_submodules,
+            commands::repo_rows::submodule_outline,
             commands::open_submodule,
             commands::repository_health,
             commands::read_git_config,

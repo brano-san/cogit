@@ -397,6 +397,7 @@ snake_case и читаются на фронтенде как `undefined`.
 | `commit_tree_files` | `repo`, `rev` | `Vec<String>` — все файлы дерева коммита, отсортированы; подмодуль — одна запись | M6 |
 | `search_file_contents` | `repo`, `query`, `is_regex`, `scope`, `Channel<SearchChunk>` | `()` | M6 |
 | `list_submodules` | `repo`, `parent` (пусто — верхний уровень) | `Vec<Submodule>` | M3 |
+| `submodule_outline` | `root` — папка репозитория из списка, открытого или закрытого; `parent` — ключ узла от верха (пусто — верхний уровень) | `Vec<Submodule>` из `.gitmodules` и gitlink-записей HEAD: `state` — `notInitialised` или `unread`, `checkedOut`, `branch`, `subject` пусты, `nested` — проверка файла; сабмодули не открываются (R-352) | M3 |
 | `open_submodule` | `owner: RepoId`, `key` — путь узла от владельца дерева | `RepoSummary`; отказ — `GitError::ModuleUnavailable(ModuleProblem)` | M3 |
 | `repository_health` | `repo` | `Vec<HealthFinding { module, issue }>` — репозиторий и все подмодули; `issue`: `ignoreCaseMismatch`, `danglingModule`, `danglingWorktree`, `missingModuleCommit { commit }` (R-179) | M3 |
 | `read_git_config` | `repo: Option<RepoId>`, `scope: repository \| user` | `ConfigFile { path, text, crlf, exists }` | M3 |
@@ -428,9 +429,10 @@ type SearchChunk =
 `list_submodules` перечисляет **один уровень**. Репозиторий с девятью сабмодулями, у каждого
 свои, стоит одного обхода на уровень, а дереву нужен только раскрытый узел.
 
-`Submodule.state` — `notInitialised | inSync | ahead | behind | diverged | unknown`, с
+`Submodule.state` — `notInitialised | inSync | ahead | behind | diverged | unknown | unread`, с
 `ahead`/`behind` — числом коммитов по обе стороны общего предка (R-153). `unknown` —
-записанного коммита в подмодуле нет, и положение не угадывается. `Submodule.repoState` —
+записанного коммита в подмодуле нет, и положение не угадывается; `unread` — только у
+`submodule_outline`: выписан, внутрь не смотрели. `Submodule.repoState` —
 `RepoState` его собственного репозитория (`null`, пока он не выписан): дерево ставит на узел
 метку операции, остановленной внутри подмодуля (#22).
 

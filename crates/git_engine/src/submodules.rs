@@ -14,6 +14,8 @@ pub enum SubmoduleState {
     Diverged,
     /// The recorded commit is not in the submodule, so where it stands cannot be told.
     Unknown,
+    /// Checked out, and not looked into: the outline of a repository not on screen (R-352).
+    Unread,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
@@ -82,28 +84,73 @@ impl Inside {
     }
 }
 
+fn recorded(module: &gix::Submodule<'_>) -> String {
+    module
+        .head_id()
+        .ok()
+        .flatten()
+        .map(|id| id.to_string())
+        .unwrap_or_default()
+}
+
+fn url(module: &gix::Submodule<'_>) -> String {
+    module
+        .url()
+        .map(|url| url.to_bstring().to_string())
+        .unwrap_or_default()
+}
+
 impl RepoHandle {
-    pub fn submodules(&self) -> Result<Vec<Submodule>> {
-        let Some(modules) = self
+    fn modules(&self) -> Result<Vec<gix::Submodule<'_>>> {
+        let modules = self
             .repo
             .submodules()
-            .map_err(|err| GitError::Internal(format!("cannot read .gitmodules: {err}")))?
-        else {
-            return Ok(Vec::new());
-        };
+            .map_err(|err| GitError::Internal(format!("cannot read .gitmodules: {err}")))?;
+        Ok(modules.map(Iterator::collect).unwrap_or_default())
+    }
 
+    /// `.gitmodules` and the gitlinks of HEAD, plus two file tests per row; no submodule is
+    /// opened, so no status and no history. For the trees of repositories not on screen.
+    pub fn submodule_outline(&self) -> Result<Vec<Submodule>> {
         let mut out = Vec::new();
-        for module in modules {
+        for module in self.modules()? {
             let Ok(path) = module.path() else {
                 continue;
             };
             let path = path.to_string();
-            let recorded = module
-                .head_id()
-                .ok()
-                .flatten()
-                .map(|id| id.to_string())
-                .unwrap_or_default();
+            let dir = self.root().join(&path);
+            let initialised = dir.join(".git").exists();
+            out.push(Submodule {
+                name: module.name().to_string(),
+                url: url(&module),
+                recorded: recorded(&module),
+                checked_out: None,
+                state: if initialised {
+                    SubmoduleState::Unread
+                } else {
+                    SubmoduleState::NotInitialised
+                },
+                branch: None,
+                subject: None,
+                nested: initialised && dir.join(".gitmodules").is_file(),
+                ahead: 0,
+                behind: 0,
+                repo_state: None,
+                path,
+            });
+        }
+        out.sort_by(|a, b| a.path.cmp(&b.path));
+        Ok(out)
+    }
+
+    pub fn submodules(&self) -> Result<Vec<Submodule>> {
+        let mut out = Vec::new();
+        for module in self.modules()? {
+            let Ok(path) = module.path() else {
+                continue;
+            };
+            let path = path.to_string();
+            let recorded = recorded(&module);
             let inside = self.submodule_state(&path);
             let checked_out = inside.as_ref().and_then(|found| found.oid.clone());
             // A file test, not a second repository open: this runs per row of the tree.
@@ -119,10 +166,7 @@ impl RepoHandle {
             out.push(Submodule {
                 name: module.name().to_string(),
                 path,
-                url: module
-                    .url()
-                    .map(|url| url.to_bstring().to_string())
-                    .unwrap_or_default(),
+                url: url(&module),
                 recorded,
                 checked_out,
                 state,

@@ -277,6 +277,8 @@ export const commands = {
 	searchFileContents: (repo: RepoId, query: string, isRegex: boolean, scope: SearchScope, onChunk: Channel<SearchChunk>) => typedError<null, GitError>(__TAURI_INVOKE("search_file_contents", { repo, query, isRegex, scope, onChunk })),
 	/**  The submodules directly under `parent`; empty `parent` means the top level. */
 	listSubmodules: (repo: RepoId, parent: string) => typedError<Submodule[], GitError>(__TAURI_INVOKE("list_submodules", { repo, parent })),
+	/**  The light submodule tree of any listed repository, open or closed. */
+	submoduleOutline: (root: string, parent: string) => typedError<Submodule[], GitError>(__TAURI_INVOKE("submodule_outline", { root, parent })),
 	/**
 	 *  Opens a submodule from its node in the tree: the panels follow it, the Repositories
 	 *  panel does not gain an entry for it (doc/12-risks.md, R-109).
@@ -1407,7 +1409,9 @@ export type SubmoduleState = "notInitialised" | "inSync" |
 /**  Neither contains the other; only a person can decide which side wins. */
 "diverged" | 
 /**  The recorded commit is not in the submodule, so where it stands cannot be told. */
-"unknown";
+"unknown" | 
+/**  Checked out, and not looked into: the outline of a repository not on screen (R-352). */
+"unread";
 
 export type SubtreeOp = { kind: "add"; prefix: string; repository: string; reference: string; squash: boolean } | 
 /**  `git subtree pull` from `repository`, or `git subtree merge` of a local commit. */

@@ -39,8 +39,10 @@ const LABELS: Partial<Record<Submodule["state"], string>> = {
   unknown: "not fetched",
 };
 
+/** Empty for a row of a light tree, which never looked inside the submodule (R-352). */
 export function describeModule(module: Submodule): string {
   if (module.state === "notInitialised") return "not initialised";
+  if (module.state === "unread") return "";
   const where =
     module.branch ??
     (module.checkedOut
@@ -57,6 +59,7 @@ function commits(count: number): string {
 export function moduleTooltip(module: Submodule): string {
   switch (module.state) {
     case "inSync":
+    case "unread":
       return "";
     case "notInitialised":
       return "Not checked out yet. Initialise it to get its files.";

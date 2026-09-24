@@ -1,34 +1,36 @@
 import { moduleRows, type ModuleRow } from "$lib/module-tree";
-import { recall, remember } from "$lib/session-memory";
 import { listSubmodules, updateSubmodule, type RepoId, type Submodule } from "$lib/ipc";
-
+import { moduleForest } from "$stores/module-forest.svelte";
+import { moduleMemory } from "$stores/module-memory.svelte";
 
 class SubmoduleStore {
   /** Keyed by the path from the top repository down; `""` is the repository itself.
       Only the nodes somebody opened are in here: a repository with nine submodules,
       each with its own, would otherwise cost nine reads nobody asked for (R-110). */
   children = $state.raw<ReadonlyMap<string, Submodule[]>>(new Map());
-  expanded = $state.raw<ReadonlySet<string>>(new Set());
   /** The submodule the panels are currently showing, by key; null for the repository. */
   open = $state<string | null>(null);
-  folded = $state(true);
+
+  /** Open nodes and the fold of the top live in the memory every tree of the list shares,
+      which is what keeps them across a restart (R-352). */
+  get expanded(): ReadonlySet<string> {
+    return this.#root === null ? new Set() : moduleMemory.expanded(this.#root);
+  }
+
+  get folded(): boolean {
+    return this.#root === null || !moduleMemory.isOpen(this.#root);
+  }
 
   get top(): readonly Submodule[] {
     return this.children.get("") ?? [];
   }
 
   foldTop(): void {
-    this.folded = !this.folded;
-    const root = this.#root;
-    if (root === null) return;
-    const open = new Set(recall("submodules-top", ""));
-    if (this.folded) open.delete(root);
-    else open.add(root);
-    remember("submodules-top", "", open);
+    if (this.#root !== null) moduleMemory.setOpen(this.#root, this.folded);
   }
 
   #repo = $state.raw<RepoId | null>(null);
-  #root: string | null = null;
+  #root = $state<string | null>(null);
   /** Changes whenever the tree changes hands; a read begun for the previous owner must
       not land in the new one's tree. */
   #generation = 0;
@@ -53,23 +55,18 @@ class SubmoduleStore {
       never when a submodule is opened from inside the tree. */
   async own(repo: RepoId, root: string): Promise<void> {
     const generation = ++this.#generation;
+    this.#handOver(root);
     this.#repo = repo;
     this.#root = root;
     this.open = null;
+    this.children = new Map();
     const top = await listSubmodules(repo, "").catch(() => []);
     if (generation !== this.#generation) return;
     this.children = new Map([["", top]]);
-    this.folded = !recall("submodules-top", "").has(root);
-    this.expanded = new Set();
-    for (const key of recall("submodules", root)) {
+    for (const key of moduleMemory.expanded(root)) {
       await this.#load(key);
       if (generation !== this.#generation) return;
-      this.expanded = new Set([...this.expanded, key]);
     }
-  }
-
-  #remember(): void {
-    if (this.#root !== null) remember("submodules", this.#root, this.expanded);
   }
 
   /** Re-reads what is on screen. Every mutation lands here, so collapsing the tree each
@@ -96,17 +93,11 @@ class SubmoduleStore {
   }
 
   async toggle(row: ModuleRow): Promise<void> {
-    const next = new Set(this.expanded);
-    if (next.has(row.key)) {
-      next.delete(row.key);
-      this.expanded = next;
-      this.#remember();
-      return;
-    }
-    next.add(row.key);
-    this.expanded = next;
-    await this.#load(row.key);
-    this.#remember();
+    const root = this.#root;
+    if (root === null) return;
+    const open = !this.expanded.has(row.key);
+    moduleMemory.setNode(root, row.key, open);
+    if (open) await this.#load(row.key);
   }
 
   /** Reads one node's children, once. A node that turns out to have none stays known as
@@ -124,10 +115,16 @@ class SubmoduleStore {
     await this.refresh();
   }
 
+  /** The light tree read before the panels owned a repository may be stale by the time
+      they let go of it. */
+  #handOver(next: string | null): void {
+    if (this.#root !== null && this.#root !== next) moduleForest.forget(this.#root);
+  }
+
   clear(): void {
+    this.#handOver(null);
     this.#generation += 1;
     this.children = new Map();
-    this.expanded = new Set();
     this.open = null;
     this.#repo = null;
     this.#root = null;
