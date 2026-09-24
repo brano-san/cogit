@@ -46,6 +46,8 @@ export const commands = {
 	repoStatus: (repo: RepoId) => typedError<RepoStatus, GitError>(__TAURI_INVOKE("repo_status", { repo })),
 	/**  The counters and the conflicted paths from one read, for the refresh after a mutation. */
 	workingState: (repo: RepoId) => typedError<WorkingState, GitError>(__TAURI_INVOKE("working_state", { repo })),
+	/**  Refs and state without reopening the repository, for the refresh after a commit. */
+	repoRefs: (repo: RepoId) => typedError<RepoRefs, GitError>(__TAURI_INVOKE("repo_refs", { repo })),
 	stagePaths: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("stage_paths", { repo, paths })),
 	/**
 	 *  Stage all: every change git sees, not a path list (doc/12-risks.md, R-311). `files` is
@@ -1233,6 +1235,15 @@ export type RepoOverview = {
 	missing: boolean,
 	/**  An operation stopped half way, or a detached HEAD: the row labels it (#22). */
 	state: RepoState,
+};
+
+/**  What a commit moves besides the counters: the refs and the operation state (R-316). */
+export type RepoRefs = {
+	head: Head,
+	branches: Branch[],
+	tags: Tag[],
+	state: RepoState,
+	indexLock: string | null,
 };
 
 export type RepoSetting = {

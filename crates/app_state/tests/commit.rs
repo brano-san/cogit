@@ -34,3 +34,51 @@ fn an_unknown_repo_id_is_an_error() {
     assert!(state.commit_details(RepoId(42), "HEAD").is_err());
     assert!(state.commit_files(RepoId(42), "HEAD").is_err());
 }
+
+// After a commit the panels reopened the repository: status, registration and watcher
+// included, and the status is re-read by the refresh that follows anyway (R-316).
+#[test]
+fn the_refs_after_a_commit_show_the_new_head_without_reopening() {
+    let f = test_fixtures::linear(2).unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    std::fs::write(f.path().join("fresh.txt"), "new\n").unwrap();
+    state.stage_paths(repo, &["fresh.txt".to_owned()]).unwrap();
+    let oid = state
+        .commit(
+            repo,
+            &git_engine::CommitRequest {
+                message: "add fresh.txt".to_owned(),
+                amend: false,
+                no_verify: false,
+                only: Vec::new(),
+            },
+        )
+        .unwrap();
+    let mut events = state.subscribe();
+    state.clear_command_log();
+
+    let refs = state.repo_refs(repo).unwrap();
+
+    assert_eq!(
+        refs.head,
+        git_engine::Head::Branch {
+            name: "main".to_owned(),
+            oid: oid.clone()
+        }
+    );
+    let main = refs
+        .branches
+        .iter()
+        .find(|branch| branch.name == "main")
+        .unwrap();
+    assert_eq!(main.oid, oid);
+    assert_eq!(refs.state, git_engine::RepoState::Clean);
+    assert!(state.command_log().is_empty(), "{:?}", state.command_log());
+    assert!(events.try_recv().is_err(), "a re-read is not an open");
+}
+
+#[test]
+fn the_refs_of_an_unknown_repository_are_an_error() {
+    assert!(AppState::new().repo_refs(RepoId(42)).is_err());
+}

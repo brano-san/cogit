@@ -1098,7 +1098,7 @@
     if (worktree.error) return false;
     if (repository.epoch !== epoch) return true;
     diff.clear();
-    await repository.refresh();
+    await repository.refreshRefs();
     await afterMutation();
     void graph.load(id, graph.query);
     return true;
