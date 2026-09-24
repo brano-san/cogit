@@ -21,6 +21,7 @@
     ),
   );
   const chosen = $derived(scan.selected);
+  const shownOpenable = $derived(shown.filter((hit) => !hit.alreadyOpen));
 
   /** "Open 0 Selected" reads like a broken button; with nothing ticked the button says
       what it is waiting for instead. */
@@ -59,8 +60,13 @@
         placeholder="Filter by name or path"
         aria-label="Filter results"
       />
-      <button class="btn" type="button" onclick={() => scan.toggleAll()} disabled={scan.openable.length === 0}>
-        {chosen.length === scan.openable.length ? "Select None" : "Select All"}
+      <button
+        class="btn"
+        type="button"
+        onclick={() => scan.toggleAll(shown.map((hit) => hit.root))}
+        disabled={shownOpenable.length === 0}
+      >
+        {shownOpenable.every((hit) => scan.chosen.has(hit.root)) ? "Select None" : "Select All"}
       </button>
     </div>
   {/if}

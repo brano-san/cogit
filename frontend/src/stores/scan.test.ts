@@ -90,3 +90,23 @@ describe("scan store", () => {
     expect(scan.hits.map((found) => found.name)).toEqual(["gamma"]);
   });
 });
+
+// With a filter on, Select All took every hit, the ones the filter hid among them: fifty
+// found, two shown, and the button said "Open 50 Repositories".
+describe("selecting everything with a filter on", () => {
+  beforeEach(() => {
+    commands.scanForRepositories.mockReset();
+    scan.clear();
+  });
+
+  it("acts on the rows shown only", async () => {
+    findsBackend([hit("/w/alpha"), hit("/w/beta"), hit("/w/gamma")]);
+    await scan.run("/w", 6);
+
+    scan.toggleAll(["/w/alpha"]);
+    expect([...scan.chosen].sort()).toEqual(["/w/beta", "/w/gamma"]);
+
+    scan.toggleAll(["/w/alpha"]);
+    expect([...scan.chosen].sort()).toEqual(["/w/alpha", "/w/beta", "/w/gamma"]);
+  });
+});
