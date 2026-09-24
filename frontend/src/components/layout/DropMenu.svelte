@@ -26,7 +26,13 @@
 
 <div class="menu" role="menu" style:left="{x}px" style:top="{y}px">
   {#each actions as action (action.id)}
-    <button type="button" role="menuitem" onclick={() => onpick(action)}>
+    <button
+      type="button"
+      role="menuitem"
+      disabled={action.disabled !== undefined}
+      title={action.disabled}
+      onclick={() => onpick(action)}
+    >
       {action.title}
       {#if action.destructive}<span class="mark" title="Rewrites history">rewrites</span>{/if}
     </button>
@@ -68,8 +74,12 @@
     cursor: default;
   }
 
-  button:hover {
+  button:hover:not(:disabled) {
     background: var(--state-hover);
+  }
+
+  button:disabled {
+    opacity: 0.4;
   }
 
   .mark {
