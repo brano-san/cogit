@@ -47,6 +47,8 @@ class RepositoryStore {
       in the panels, so clicking it again switches back without reopening it (#50). */
   #kept = new Map<string, RepoSummary>();
   #epoch = 0;
+  /** A change arrived while a re-read was on its way; that re-read may predate it. */
+  #again = false;
 
   /** Changes whenever the panels are about to show another repository, never on a
       re-read of the same one. Work begun under an older value belongs to a repository
@@ -210,9 +212,18 @@ class RepositoryStore {
   /** An open in flight already brings fresh contents, and `current` during it is the
       repository being left: re-reading that one would cancel the open. */
   async refresh(): Promise<void> {
-    if (this.phase.kind === "opening") return;
+    if (this.phase.kind === "opening") {
+      // A re-read of the repository on screen, begun before this change: one more after it.
+      if (this.phase.repo?.root === this.phase.root) this.#again = true;
+      return;
+    }
     const root = this.current?.root;
-    if (root) await this.open(root);
+    if (!root) return;
+    do {
+      this.#again = false;
+      const shown = await this.open(root);
+      if (!shown || this.current?.root !== root) return;
+    } while (this.#again);
   }
 
   /** Closing one repository while another opens asks twice; the older answer must not

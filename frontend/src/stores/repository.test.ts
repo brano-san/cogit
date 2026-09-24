@@ -276,6 +276,23 @@ describe("telling work for a repository the user has left (epoch)", () => {
     expect(heard).toBe(1);
   });
 
+  // `git fetch && git merge` in a terminal: the merge's events arrived while the re-read
+  // for the fetch was on its way, were dropped, and Branches kept the old tip.
+  it("re-reads once more when the repository changed during a re-read", async () => {
+    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
+    await repository.open("C:/repos/one");
+    const answer = pending<unknown>();
+    commands.openRepository.mockReturnValueOnce(answer.promise);
+    commands.openRepository.mockClear();
+
+    const first = repository.refresh();
+    await repository.refresh();
+    answer.settle({ status: "ok", data: summary("C:/repos/one") });
+    await first;
+
+    expect(commands.openRepository).toHaveBeenCalledTimes(2);
+  });
+
   it("tells the caller whose open was overtaken", async () => {
     const slow = pending<unknown>();
     commands.openRepository.mockReturnValueOnce(slow.promise);
