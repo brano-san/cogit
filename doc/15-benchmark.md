@@ -117,6 +117,8 @@ DOM не менялся, холст не рисовал `quiet` мс (150 по �
 | submodules | 400 коммитов, 7 submodules, вложенность до 3 уровней (как `dtv_device`), один указатель сдвинут |
 | dirty | 2 000 файлов, из них 1 500 изменены, 500 untracked, файл на 10 000 строк и бинарный |
 | network | клон bare-репозитория на том же диске и второй клон, который кладёт коммиты в remote |
+| published | как large, плюс 303 remote-tracking ветки (`origin/*` на всех feature-ветках, `origin/main` = `main~6`, `upstream/main` = `main~2000`, символический `origin/HEAD`), `packed-refs` и файл commit-graph — для `is_published` / `protecting_refs` (R-320). Не в наборах по умолчанию: `--sets published,published-nograph --only ui.context-menu` |
+| published-nograph | то же без commit-graph: путь через `git for-each-ref --contains` |
 
 ## 4. Сценарии
 

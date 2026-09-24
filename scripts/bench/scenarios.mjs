@@ -299,7 +299,7 @@ export const SCENARIOS = [
     id: "ui.context-menu",
     group: "Интерфейс",
     title: "контекстное меню коммита (до показа меню)",
-    sets: ["medium", "large"],
+    sets: ["medium", "large", "published", "published-nograph"],
     measure: (ctx) => ctx.measure.rightClick(COMMIT_ROW(4 + (ctx.iteration % 5)), { until: "popup_context_menu" }),
     reset: (ctx) => ctx.dismissNativeMenu(),
   },
