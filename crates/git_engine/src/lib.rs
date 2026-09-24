@@ -113,7 +113,7 @@ pub use repo::{Branch, BranchKind, Head, RepoHandle, Tag};
 pub use repo_settings::{REPO_SETTING_KEYS, RepoSetting, RepoSettingChange};
 pub use reset::ResetMode;
 pub use runner::{CommandSink, GitOutput, git_version, gix_version, redact_command};
-pub use search::{CommitQuery, SkippedRef};
+pub use search::{CommitQuery, GraphView, SkippedRef};
 pub use shared::SharedRepo;
 pub use stash::{StashContents, StashEntry, StashOptions};
 pub use state::RepoState;

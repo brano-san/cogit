@@ -6,6 +6,7 @@ pub mod environment;
 mod file_actions;
 mod flow;
 mod graph_cache;
+pub mod graph_overlay;
 pub mod graph_wire;
 mod handles;
 mod hooking;
@@ -235,6 +236,8 @@ pub struct GraphChunk {
     /// One per commit, in the same order: the node and every segment of its row. Cutting
     /// long links holds the last rows back, so a chunk can have fewer rows than commits.
     pub rows: Vec<graph_engine::GraphRow>,
+    /// Folded merges whose count grew with this chunk.
+    pub folds: Vec<graph_engine::Fold>,
     pub is_last: bool,
 }
 
@@ -576,10 +579,14 @@ impl AppState {
         let mut cursor = graph_engine::LayoutCursor::with_mainline(mainline_of(&handle, query))
             .with_long_links(query.long_link_rows.unwrap_or(0));
         let mut cancelled = false;
+        let mut view = graph_view(&handle, query, flat)?;
 
         // One order for the graph and the filtered list: by date, never a parent above a
         // child (R-162). A line to a parent the list will not show ends in an arrow (R-161).
-        let on_commits = |commits: Vec<git_engine::CommitRow>| {
+        let on_commits = |mut commits: Vec<git_engine::CommitRow>| {
+            if let Some(view) = view.as_mut() {
+                commits.retain_mut(|c| view.admit(&c.oid, &mut c.parents));
+            }
             let nodes: Vec<graph_engine::CommitNode> = commits
                 .iter()
                 .map(|c| graph_engine::CommitNode {
@@ -597,10 +604,15 @@ impl AppState {
                 })
                 .collect();
             let rows = graph_engine::push(nodes, &mut cursor);
+            let folds = view
+                .as_mut()
+                .map(graph_engine::ViewFilter::take_folds)
+                .unwrap_or_default();
 
             let keep = on_chunk(GraphChunk {
                 commits,
                 rows,
+                folds,
                 is_last: false,
             });
             cancelled = !keep;
@@ -614,6 +626,10 @@ impl AppState {
             on_chunk(GraphChunk {
                 commits: Vec::new(),
                 rows: graph_engine::finish(&mut cursor),
+                folds: view
+                    .as_mut()
+                    .map(graph_engine::ViewFilter::take_folds)
+                    .unwrap_or_default(),
                 is_last: true,
             });
         }
@@ -1513,6 +1529,24 @@ impl AppState {
 
 /// HEAD, then `master`, then `main` — of those the graph draws. A primary ref that is
 /// unticked or filtered out would hold column 0 empty for a line that never comes (R-161).
+/// A filtered list is flat already; the view shapes a graph (#26).
+fn graph_view(
+    handle: &git_engine::RepoHandle,
+    query: &git_engine::CommitQuery,
+    flat: bool,
+) -> Result<Option<graph_engine::ViewFilter>, git_engine::GitError> {
+    let view = &query.view;
+    if flat || !(view.first_parent || view.collapse_merged) {
+        return Ok(None);
+    }
+    let roots = handle.walk_tips(query)?;
+    Ok(Some(if view.first_parent {
+        graph_engine::ViewFilter::first_parent(roots)
+    } else {
+        graph_engine::ViewFilter::collapse_merged(roots, view.expanded.iter().cloned())
+    }))
+}
+
 fn mainline_of(handle: &git_engine::RepoHandle, query: &git_engine::CommitQuery) -> Option<String> {
     let ticked = |name: &str| {
         query

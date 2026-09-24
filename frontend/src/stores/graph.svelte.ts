@@ -5,10 +5,12 @@ import {
   graphWindow,
   loadGraph,
   type CommitQuery,
+  type GraphView,
   type RepoId,
   toCogitError,
 } from "$lib/ipc";
 import type { GraphBlock, GraphEntry } from "$lib/graph-wire";
+import { GRAPH_MODE_DEFAULTS, graphView } from "$lib/graph-modes";
 import { LONG_LINK_ROWS } from "$lib/graph-row";
 
 export type { GraphEntry };
@@ -56,6 +58,8 @@ class GraphStore {
   /** `null` is every ref. Owned by the References panel, folded into every load. */
   visibleRefs = $state.raw<string[] | null>(null);
 
+  /** Graph modes that decide which commits are shown (#26), folded into every load. */
+  view = $state.raw<GraphView>(graphView(GRAPH_MODE_DEFAULTS));
   /** Links longer than this many rows are drawn as two stubs (R-330); 0 draws them whole.
       Folded into every load, like the refs. */
   longLinkRows = $state(LONG_LINK_ROWS);
@@ -71,6 +75,19 @@ class GraphStore {
   #next: Walk | null = null;
   #range = { start: 0, end: 0 };
   #loads = 0;
+
+  /** The walk on screen, for what is fetched beside its rows (paint, #11). */
+  get walk(): { repo: RepoId; generation: number | null } | null {
+    void this.#arrived;
+    return this.#shown && { repo: this.#shown.repo, generation: this.#shown.generation };
+  }
+
+  /** Another view walks the graph on screen again. */
+  setView(next: GraphView): void {
+    if (JSON.stringify(next) === JSON.stringify(this.view)) return;
+    this.view = next;
+    if (this.#shown) void this.load(this.#shown.repo, this.query);
+  }
 
   requestReveal(oid: string): void {
     this.reveal = { oid, request: (this.reveal?.request ?? 0) + 1 };
@@ -151,7 +168,7 @@ class GraphStore {
           if (fresh === this.#shown) this.#publish();
           this.#ask(fresh);
         },
-        { ...query, visibleRefs: this.visibleRefs, longLinkRows: this.longLinkRows },
+        { ...query, visibleRefs: this.visibleRefs, view: this.view, longLinkRows: this.longLinkRows },
       );
       if (load === this.#loads) this.skipped = skipped ?? [];
       if (load === this.#loads && !fresh.complete && !(await this.#settle(fresh, load)) && retry) {

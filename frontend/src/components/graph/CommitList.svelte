@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import EmptyState from "$components/common/EmptyState.svelte";
   import SkeletonRows from "$components/common/SkeletonRows.svelte";
   import GraphCanvas from "$components/graph/GraphCanvas.svelte";
@@ -42,7 +43,6 @@
   import { measurer } from "$lib/timing";
   import { anchoredScrollTop } from "$lib/graph-anchor";
   import { subjectRoom } from "$lib/graph-panel";
-  import { untrack } from "svelte";
   import { workingTreeLabel } from "$lib/repo-state";
   import { reportTiming, type RebaseProgress, type RepoId } from "$lib/ipc";
   import Avatar from "$components/common/Avatar.svelte";
@@ -50,6 +50,21 @@
   import { commit as selection } from "$stores/commit.svelte";
   import { compareView } from "$stores/compare-view.svelte";
   import { graph } from "$stores/graph.svelte";
+  import {
+    GRAPH_MODE_DEFAULTS,
+    checkedTips,
+    effectiveModes,
+    focusLane,
+    graphView,
+    paintRequest,
+    type LanePick,
+  } from "$lib/graph-modes";
+  import FoldToggle from "$components/graph/FoldToggle.svelte";
+  import { graphFolds } from "$stores/graph-folds.svelte";
+  import { laneAt } from "$lib/graph-style";
+  import { isEmptyQuery } from "$lib/query";
+  import { graphOverlays } from "$stores/graph-overlay.svelte";
+  import { refs as refTicks } from "$stores/refs.svelte";
   import { repository } from "$stores/repository.svelte";
   import { stashes } from "$stores/stashes.svelte";
   import { worktrees } from "$stores/worktrees.svelte";
@@ -63,6 +78,16 @@
     oncontext?: (oid: string, x: number, y: number) => void;
     onworktreecontext?: (x: number, y: number) => void;
     onrefcontext?: (label: RefLabel, oid: string, x: number, y: number) => void;
+    /** Branches ticked in Branches in their own colours (setting `graphHighlightChecked`). */
+    highlightChecked?: boolean;
+    /** First parents only (`graphFirstParent`). */
+    firstParent?: boolean;
+    /** A click on a commit or its line brings its branch forward (`graphBranchOfCommit`). */
+    branchOfCommit?: boolean;
+    /** The chosen commit's ancestors and descendants stand out (`graphAncestry`). */
+    ancestry?: boolean;
+    /** A merged branch folds into its merge row (`graphCollapseMerged`). */
+    collapseMerged?: boolean;
     /** The right columns shown, in order (#12). The defaults are the list as it always was. */
     columns?: readonly GraphColumn[];
     timeFormat?: GraphTimeFormat;
@@ -78,6 +103,11 @@
     oncontext,
     onworktreecontext,
     onrefcontext,
+    highlightChecked = GRAPH_MODE_DEFAULTS.highlightChecked,
+    firstParent = GRAPH_MODE_DEFAULTS.firstParent,
+    branchOfCommit = GRAPH_MODE_DEFAULTS.branchOfCommit,
+    ancestry = GRAPH_MODE_DEFAULTS.ancestry,
+    collapseMerged = GRAPH_MODE_DEFAULTS.collapseMerged,
     columns = GRAPH_COLUMNS,
     timeFormat = GRAPH_TIME_FORMAT,
     density = GRAPH_DENSITY,
@@ -91,6 +121,15 @@
   $effect(() => {
     const rows = longLinkRows;
     untrack(() => graph.setLongLinkRows(rows));
+  });
+
+  const modes = $derived(
+    effectiveModes({ highlightChecked, firstParent, branchOfCommit, ancestry, collapseMerged }),
+  );
+  $effect(() => graphFolds.forRepo(repository.current?.repo ?? null));
+  $effect(() => {
+    const view = graphView(modes, graphFolds.expanded);
+    untrack(() => graph.setView(view));
   });
 
   /** The other end of a comparison stays marked while the graph shows it (#33). */
@@ -229,11 +268,43 @@
     graph.show(Math.max(range.start - headerRows, 0), Math.max(range.end - headerRows, 0));
   });
 
+  /** A filtered list is flat, not a graph (R-51): nothing to colour along it. */
+  const paint = $derived(
+    isEmptyQuery(graph.query)
+      ? paintRequest(
+          modes,
+          checkedTips(repository.current?.branches ?? [], refTicks.visible),
+          selection.oid,
+        )
+      : null,
+  );
+  $effect(() => {
+    const walk = graph.walk;
+    graphOverlays.show({
+      repo: walk?.repo ?? null,
+      generation: walk?.generation ?? null,
+      start: Math.max(range.start - headerRows, 0),
+      end: Math.max(range.end - headerRows, 0),
+      total: graph.total,
+      complete: graph.complete,
+      request: paint,
+    });
+  });
+
+  let lanePick = $state<LanePick | null>(null);
+  const selectedLane = $derived.by(() => {
+    void graph.walk;
+    const at = graph.loadedIndexOf(selection.oid);
+    return at === null ? null : (graphOverlays.paintAt(at)?.nodeLane ?? null);
+  });
+  const focus = $derived(focusLane(modes, selection.oid, selectedLane, lanePick));
+
   const drawn = $derived(
     visible.map(({ listRow, entry }) => ({
       listRow,
       layout: entry.layout,
       stash: stashOids.has(entry.commit.oid),
+      paint: graphOverlays.paintAt(entry.layout.row),
     })),
   );
   /** The canvas only has to reach the widest row on screen. */
@@ -308,6 +379,12 @@
     if (!repo) return;
     const commitRow = toCommitRow(hit.row, headerRows);
     const oid = commitRow === null ? null : (graph.rowAt(commitRow)?.commit.oid ?? null);
+    const layout = commitRow === null ? undefined : graph.rowAt(commitRow)?.layout;
+    if (branchOfCommit && oid !== null && layout && commitRow !== null) {
+      const upper = (event.clientY - box.top + scrollTop) % rowHeight < rowHeight / 2;
+      const lane = laneAt(layout, graphOverlays.paintAt(commitRow), hit.lane, upper);
+      lanePick = lane === null ? null : { oid, lane };
+    }
     // Clicking the selected commit again brings its details back into Diff (#7).
     if (oid !== null && oid === selection.oid) selection.showDetails();
     else void pick(repo, oid);
@@ -396,6 +473,7 @@
           {headLane}
           {selectedRow}
           {hoverRow}
+          focusLane={focus}
           {clipX}
           {stripes}
           {rowHeight}
@@ -484,6 +562,13 @@
               }
             }}
           >
+            {#if modes.collapseMerged}
+              {@const hidden = graphOverlays.foldAt(item.entry.layout.row)}
+              {@const open = graphFolds.expanded.has(item.entry.commit.oid)}
+              {#if hidden > 0 || open}
+                <FoldToggle {open} {hidden} ontoggle={() => graphFolds.toggle(item.entry.commit.oid)} />
+              {/if}
+            {/if}
             {#each refs.shown as label (label.text)}
               <RefCapsule
                 {label}

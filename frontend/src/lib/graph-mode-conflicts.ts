@@ -1,3 +1,4 @@
+import { MODE_CONFLICTS as CONFLICTS, type GraphMode as Mode } from "$lib/graph-modes";
 import type { Settings } from "$lib/settings";
 
 /** The graph modes of Preferences ▸ Graph & History, and the ticked-branch colours they
@@ -12,10 +13,10 @@ export const GRAPH_MODES = [
 export type GraphMode = (typeof GRAPH_MODES)[number];
 export type ModeKey = GraphMode | "graphHighlightChecked";
 
-/** Two switches that cannot both be on; either one being on greys out the other. */
+/** `mode` does nothing while `by` is on, so its switch is greyed out with `reason`. */
 export interface ModeConflict {
-  a: ModeKey;
-  b: ModeKey;
+  mode: ModeKey;
+  by: ModeKey;
   reason: string;
 }
 
@@ -24,8 +25,20 @@ export interface BlockedMode {
   reason: string;
 }
 
-/** Placeholder: the real table comes with the modes themselves. */
-export const MODE_CONFLICTS: readonly ModeConflict[] = [];
+const KEYS: Record<Mode, ModeKey> = {
+  highlightChecked: "graphHighlightChecked",
+  firstParent: "graphFirstParent",
+  branchOfCommit: "graphBranchOfCommit",
+  ancestry: "graphAncestry",
+  collapseMerged: "graphCollapseMerged",
+};
+
+/** The graph's own table (`$lib/graph-modes`), in settings keys: one table for both. */
+export const MODE_CONFLICTS: readonly ModeConflict[] = CONFLICTS.map(({ mode, by, reason }) => ({
+  mode: KEYS[mode],
+  by: KEYS[by],
+  reason,
+}));
 
 /** Only a switch that is off is blocked: one already on stays live, so a conflict read
     from an older file can still be undone from here. */
@@ -35,14 +48,9 @@ export function blockedModes(
 ): BlockedMode[] {
   const blocked: BlockedMode[] = [];
   for (const rule of table) {
-    for (const [mode, other] of [
-      [rule.a, rule.b],
-      [rule.b, rule.a],
-    ] as const) {
-      if (state[mode] || !state[other]) continue;
-      if (blocked.some((entry) => entry.mode === mode)) continue;
-      blocked.push({ mode, reason: rule.reason });
-    }
+    if (state[rule.mode] || !state[rule.by]) continue;
+    if (blocked.some((entry) => entry.mode === rule.mode)) continue;
+    blocked.push({ mode: rule.mode, reason: rule.reason });
   }
   return blocked;
 }

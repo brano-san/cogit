@@ -174,6 +174,7 @@ Blame открывается только отдельным окном (`blame.
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
 | `load_commits` | `repo, query: CommitQuery, channel: Channel<GraphChunk>` | `Vec<SkippedRef { name, reason }>` — отмеченные ссылки, не ставшие стартовой точкой; новый вызов останавливает предыдущий обход | M4 |
+| `graph_overlay` | `repo, generation, start, count, request: GraphPaintRequest { tips: [{ oid, slot }], ancestryOf? }` | `Option<GraphOverlay>` — стиль и полоса узла и каждого сегмента строк окна; `None`, если граф заменён | M4 |
 | `commit_details` | `repo, rev: String` | `CommitDetails` | M4 |
 | `commit_files` | `repo, rev: String` | `Vec<FileEntry>` | M6 |
 
@@ -647,6 +648,20 @@ pub struct GraphProgress {
 выглядеть завершённым. На фронтенде вдобавок есть счётчик `generation`: чанки потока,
 запущенного для прежнего репозитория, отбрасываются, даже если успели прийти, а окно
 прежнего поколения бэкенд не отдаёт.
+
+**Раскраска — отдельным окном.** `graph_overlay(repo, generation, start, count, request)`
+отдаёт для тех же строк: полосу (`nodeLanes`, `segmentLanes`) и стиль (`nodeStyles`,
+`segmentStyles`: младшие 4 бита — слот палитры + 1, 0 — цвет по умолчанию; бит `0x10` —
+приглушено, вне родни `ancestryOf`) узла и каждого
+сегмента, `segmentFirst` — где начинаются сегменты каждой строки, `folds: [{ row, hidden }]` —
+свёрнутые merge среди строк окна и сколько коммитов в каждом. Считается в Rust по всему
+графу один раз на запрос и хранится, пока не изменились строки или запрос
+([07-graph-rendering.md §5](07-graph-rendering.md#раскраска)). Пустой запрос UI не шлёт.
+
+**Вид графа** едет в том же `CommitQuery`: `view: GraphView { firstParent, collapseMerged,
+expanded }` — какие из
+обойдённых коммитов граф показывает ([07-graph-rendering.md §10](07-graph-rendering.md#10-режимы-графа)).
+Строки фильтра (`filters_rows`) он не делает; отфильтрованный список его не учитывает.
 
 Отфильтрованный список тоже приходит с раскладкой: линия к родителю, которого фильтр не
 покажет, — сегмент с `arrow: true` (R-161).
