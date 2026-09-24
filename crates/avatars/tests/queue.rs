@@ -303,3 +303,22 @@ fn an_empty_two_hundred_is_not_a_picture() {
         Fetched::Missing
     ));
 }
+
+// `request` runs on every scroll of the graph and promises to touch no file; for a noreply
+// address it wrote the cache index each time, most authors of a GitHub repository among them.
+#[test]
+fn a_noreply_address_already_known_writes_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = Recording::new(|_| Fetched::Image(b"png".to_vec()));
+    let queue = Queue::new(cache(&dir), Arc::clone(&source), |_: &str| {});
+    let noreply = ["12345+octocat@users.noreply.github.com".to_string()];
+    queue.request(&noreply);
+    queue.drain();
+    let index = dir.path().join("index.json");
+    let _ = std::fs::remove_file(&index);
+
+    queue.request(&noreply);
+    queue.drain();
+
+    assert!(!index.exists(), "the index was written again");
+}
