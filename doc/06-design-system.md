@@ -76,6 +76,9 @@
 ```
 
 Назначение цвета дорожке **стабильно** между перерисовками — см. [07-graph-rendering.md](07-graph-rendering.md).
+Те же восемь — цвета отмеченных в Branches веток (`--graph-branch-1…8`, слот — по имени
+ветки). Каждая тема держит их не ниже 3:1 к `--c-bg-panel` и `--c-bg-active`; в тёмно-серой
+фиолетовый и розовый светлее (`#c084fc`, `#f472b6`). Проверяет `graph-palette.test.ts`.
 
 ### Темы
 
@@ -112,6 +115,10 @@
 --status-ref          → --c-branch
 --status-stash        → --c-stash
 --status-tag          → --c-tag
+
+--graph-main          → --text-primary
+--graph-line          → --text-secondary
+--graph-branch-N      → --c-lane-N        N = 1…8, цвета отмеченных веток
 ```
 
 ## 4. Типографика

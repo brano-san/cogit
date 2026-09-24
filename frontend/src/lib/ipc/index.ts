@@ -18,6 +18,7 @@ import type {
   FlowConfig,
   FlowKind,
   GitError,
+  GraphPaintRequest,
   GraphProgress,
   MergeOptions,
   MergeResolved,
@@ -84,6 +85,8 @@ export type {
   GitCommandError,
   GitError,
   GitOutput,
+  GraphOverlay,
+  GraphPaintRequest,
   GraphProgress,
   GraphRow,
   Head,
@@ -237,6 +240,17 @@ export async function graphWindow(repo: RepoId, generation: number, start: numbe
 
 export async function graphRowOf(repo: RepoId, generation: number, oid: string) {
   return unwrap(await commands.graphRowOf(repo, generation, oid));
+}
+
+/** Paint for a window of the rows: `null` once a newer walk replaced `generation`. */
+export async function graphOverlay(
+  repo: RepoId,
+  generation: number,
+  start: number,
+  count: number,
+  request: GraphPaintRequest,
+) {
+  return unwrap(await commands.graphOverlay(repo, generation, start, count, request));
 }
 
 /** Hits stream in as the walk finds them; the promise resolves with the total. */

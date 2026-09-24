@@ -75,7 +75,10 @@ manual testing. This file applies to them; the task text does not repeat it.
 - Lane 0 is the first-parent chain of HEAD (else `master`, then `main`): continuous, never
   moves. Other lanes compact; a new lane goes right next to its commit's lane.
 - Lane changes are S-curves within one row; lines meet nodes at the centre.
-- Monochrome by default: main line bright, the rest grey.
+- Monochrome by default: main line bright, the rest grey; branches ticked in Branches
+  in their own colours, from the tip down its first parents to the line it joins.
+- Colour and emphasis are paint over the finished layout (`graph_engine::paint`); the
+  layout itself never changes for them.
 - This section is current. If `07-graph-rendering.md` disagrees, bring it in line in the
   same commit.
 

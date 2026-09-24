@@ -28,6 +28,21 @@ export const commands = {
 	 */
 	graphWindow: (repo: RepoId, generation: number, start: number, count: number) => typedError<string, GitError>(__TAURI_INVOKE("graph_window", { repo, generation, start, count })),
 	graphRowOf: (repo: RepoId, generation: number, oid: string) => typedError<number | null, GitError>(__TAURI_INVOKE("graph_row_of", { repo, generation, oid })),
+	/**
+	 *  Colours and dimming for rows of graph `generation`, painted over the whole graph and
+	 *  kept until the rows or the request change. `None` once a newer graph replaced it.
+	 */
+	graphOverlay: (repo: RepoId, generation: number, start: number, count: number, request: GraphPaintRequest) => typedError<{
+	start: number,
+	/**  Rows laid out when this was painted: a later row can still change it. */
+	total: number,
+	nodeLanes: number[],
+	/**  `graph_engine::PAINT_SLOT` bits are the slot plus one; 0 is the default colour. */
+	nodeStyles: number[],
+	segmentFirst: number[],
+	segmentLanes: number[],
+	segmentStyles: number[],
+} | null, GitError>(__TAURI_INVOKE("graph_overlay", { repo, generation, start, count, request })),
 	/**  Every commit that changed the file, newest first, from `rev` (HEAD when absent). */
 	investigateLog: (repo: RepoId, path: string, rev: string | null, follow: boolean, onChunk: Channel<FileRevision[]>) => typedError<number, GitError>(__TAURI_INVOKE("investigate_log", { repo, path, rev, follow, onChunk })),
 	/**  The file at `rev` (the working tree when absent), each line with its origin. */
@@ -811,6 +826,22 @@ export type GitOutput = {
 	startedAtMs: number,
 };
 
+export type GraphOverlay = {
+	start: number,
+	/**  Rows laid out when this was painted: a later row can still change it. */
+	total: number,
+	nodeLanes: number[],
+	/**  `graph_engine::PAINT_SLOT` bits are the slot plus one; 0 is the default colour. */
+	nodeStyles: number[],
+	segmentFirst: number[],
+	segmentLanes: number[],
+	segmentStyles: number[],
+};
+
+export type GraphPaintRequest = {
+	tips?: PaintTip[],
+};
+
 /**  How far the walk got. The rows themselves travel only when asked for, by window. */
 export type GraphProgress = {
 	generation: number,
@@ -1110,6 +1141,11 @@ export type OverlapRow = {
 	isBase: boolean,
 	shared: string[],
 	sharedTotal: number,
+};
+
+export type PaintTip = {
+	oid: string,
+	slot: number,
 };
 
 export type PatchRequest = {

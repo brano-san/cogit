@@ -29,6 +29,10 @@
   import { commit as selection } from "$stores/commit.svelte";
   import { compareView } from "$stores/compare-view.svelte";
   import { graph } from "$stores/graph.svelte";
+  import { GRAPH_MODE_DEFAULTS, checkedTips, paintRequest } from "$lib/graph-modes";
+  import { isEmptyQuery } from "$lib/query";
+  import { graphOverlays } from "$stores/graph-overlay.svelte";
+  import { refs as refTicks } from "$stores/refs.svelte";
   import { repository } from "$stores/repository.svelte";
   import { stashes } from "$stores/stashes.svelte";
   import { worktrees } from "$stores/worktrees.svelte";
@@ -42,9 +46,18 @@
     oncontext?: (oid: string, x: number, y: number) => void;
     onworktreecontext?: (x: number, y: number) => void;
     onrefcontext?: (label: RefLabel, oid: string, x: number, y: number) => void;
+    /** Branches ticked in Branches in their own colours (setting `graphHighlightChecked`). */
+    highlightChecked?: boolean;
   }
 
-  let { rebase = null, ondrop, oncontext, onworktreecontext, onrefcontext }: Props = $props();
+  let {
+    rebase = null,
+    ondrop,
+    oncontext,
+    onworktreecontext,
+    onrefcontext,
+    highlightChecked = GRAPH_MODE_DEFAULTS.highlightChecked,
+  }: Props = $props();
 
   /** The other end of a comparison stays marked while the graph shows it (#33). */
   const comparedFrom = $derived(compareView.showing(selection.oid) ? compareView.from : null);
@@ -149,11 +162,31 @@
     graph.show(Math.max(range.start - headerRows, 0), Math.max(range.end - headerRows, 0));
   });
 
+  /** A filtered list is flat, not a graph (R-51): nothing to colour along it. */
+  const paint = $derived(
+    isEmptyQuery(graph.query)
+      ? paintRequest({ highlightChecked }, checkedTips(repository.current?.branches ?? [], refTicks.visible))
+      : null,
+  );
+  $effect(() => {
+    const walk = graph.walk;
+    graphOverlays.show({
+      repo: walk?.repo ?? null,
+      generation: walk?.generation ?? null,
+      start: Math.max(range.start - headerRows, 0),
+      end: Math.max(range.end - headerRows, 0),
+      total: graph.total,
+      complete: graph.complete,
+      request: paint,
+    });
+  });
+
   const drawn = $derived(
     visible.map(({ listRow, entry }) => ({
       listRow,
       layout: entry.layout,
       stash: stashOids.has(entry.commit.oid),
+      paint: graphOverlays.paintAt(entry.layout.row),
     })),
   );
   /** The canvas only has to reach the widest row on screen. */

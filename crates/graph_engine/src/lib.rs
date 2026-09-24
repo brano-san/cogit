@@ -1,6 +1,8 @@
 mod lanes;
+mod paint;
 
 pub use lanes::layout;
+pub use paint::{PAINT_SLOT, Paint, PaintSpec, paint};
 
 use serde::Serialize;
 

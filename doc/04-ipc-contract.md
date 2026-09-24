@@ -174,6 +174,7 @@ Blame открывается только отдельным окном (`blame.
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
 | `load_commits` | `repo, query: CommitQuery, channel: Channel<GraphChunk>` | `Vec<SkippedRef { name, reason }>` — отмеченные ссылки, не ставшие стартовой точкой; новый вызов останавливает предыдущий обход | M4 |
+| `graph_overlay` | `repo, generation, start, count, request: GraphPaintRequest { tips: [{ oid, slot }] }` | `Option<GraphOverlay>` — стиль и полоса узла и каждого сегмента строк окна; `None`, если граф заменён | M4 |
 | `commit_details` | `repo, rev: String` | `CommitDetails` | M4 |
 | `commit_files` | `repo, rev: String` | `Vec<FileEntry>` | M6 |
 
@@ -629,6 +630,13 @@ pub struct GraphProgress {
 выглядеть завершённым. На фронтенде вдобавок есть счётчик `generation`: чанки потока,
 запущенного для прежнего репозитория, отбрасываются, даже если успели прийти, а окно
 прежнего поколения бэкенд не отдаёт.
+
+**Раскраска — отдельным окном.** `graph_overlay(repo, generation, start, count, request)`
+отдаёт для тех же строк: полосу (`nodeLanes`, `segmentLanes`) и стиль (`nodeStyles`,
+`segmentStyles`: младшие 4 бита — слот палитры + 1, 0 — цвет по умолчанию) узла и каждого
+сегмента, `segmentFirst` — где начинаются сегменты каждой строки. Считается в Rust по всему
+графу один раз на запрос и хранится, пока не изменились строки или запрос
+([07-graph-rendering.md §5](07-graph-rendering.md#раскраска)). Пустой запрос UI не шлёт.
 
 Отфильтрованный список тоже приходит с раскладкой: линия к родителю, которого фильтр не
 покажет, — сегмент с `arrow: true` (R-161).

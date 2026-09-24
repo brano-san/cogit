@@ -6,6 +6,7 @@ pub mod environment;
 mod file_actions;
 mod flow;
 mod graph_cache;
+pub mod graph_overlay;
 pub mod graph_wire;
 mod hooking;
 pub mod investigation;

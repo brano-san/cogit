@@ -63,6 +63,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::load_commits,
             commands::graph_window,
             commands::graph_row_of,
+            commands::graph_overlay,
             commands::investigate::investigate_log,
             commands::investigate::investigate_blame,
             commands::investigate::origin_candidates,

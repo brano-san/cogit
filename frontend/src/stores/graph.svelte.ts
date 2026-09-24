@@ -67,6 +67,12 @@ class GraphStore {
   #range = { start: 0, end: 0 };
   #loads = 0;
 
+  /** The walk on screen, for what is fetched beside its rows (paint, #11). */
+  get walk(): { repo: RepoId; generation: number | null } | null {
+    void this.#arrived;
+    return this.#shown && { repo: this.#shown.repo, generation: this.#shown.generation };
+  }
+
   requestReveal(oid: string): void {
     this.reveal = { oid, request: (this.reveal?.request ?? 0) + 1 };
   }
