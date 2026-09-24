@@ -3,6 +3,8 @@ import { suppressNativeMenu } from "$lib/native-menu";
 
 interface Keyed {
   key: string;
+  /** Where the key sits; a layout that types another letter there still means W. */
+  code?: string;
   ctrlKey: boolean;
   metaKey: boolean;
 }
@@ -11,7 +13,7 @@ interface Keyed {
     "close repository", but a compare or merge window has no repository to close. */
 export function closesWindow(event: Keyed): boolean {
   if (event.key === "Escape") return true;
-  return (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "w";
+  return (event.ctrlKey || event.metaKey) && (event.code === "KeyW" || event.key.toLowerCase() === "w");
 }
 
 /** `Esc` waits for the rest of the page: an open find bar inside the window takes it
