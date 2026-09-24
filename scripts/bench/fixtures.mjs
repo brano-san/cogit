@@ -138,6 +138,24 @@ async function build(dir, shape) {
   await git(["reset", "--hard", "main", "--quiet"], dir);
 }
 
+/** Every feature branch on `origin`, `origin/main` six commits behind HEAD (so the top
+    rows of the graph are unpublished and the ones below published), `upstream/main` far
+    behind, and `origin/HEAD` pointing at `origin/main`. */
+async function withRemoteRefs(dir, commitGraph) {
+  await build(dir, { commits: 50_000, files: tree(50, 10), fileLines: 8, mergeEvery: 500, sideLength: 6, branches: 300, tags: 100 });
+  const heads = (await git(["for-each-ref", "--format=%(objectname) %(refname:lstrip=2)", "refs/heads/feature/"], dir)).split("\n");
+  const script = heads.map((line) => {
+    const [oid, name] = line.split(" ");
+    return `create refs/remotes/origin/${name} ${oid}\n`;
+  });
+  script.push(`create refs/remotes/origin/main ${await git(["rev-parse", "main~6"], dir)}\n`);
+  script.push(`create refs/remotes/upstream/main ${await git(["rev-parse", "main~2000"], dir)}\n`);
+  await git(["update-ref", "--stdin"], dir, { input: script.join("") });
+  await git(["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main"], dir);
+  await git(["pack-refs", "--all"], dir);
+  if (commitGraph) await git(["commit-graph", "write", "--reachable"], dir);
+}
+
 const BIG = Array.from({ length: 10_000 }, (_, k) => `big line ${k}: ${"x".repeat(k % 60)}`).join("\n") + "\n";
 const binary = (seed) => {
   const bytes = Buffer.alloc(64 * 1024);
@@ -229,6 +247,17 @@ const SETS = {
     await git(["commit", "--quiet", "-m", "add submodules"], parent);
     await git(["-c", "protocol.file.allow=always", "submodule", "update", "--init", "--recursive", "--quiet"], parent);
     await git(["checkout", "--quiet", "HEAD~1"], join(parent, "import", "leaf0"));
+  },
+
+  /** `large` with remote-tracking refs (R-320): `is_published` and `protecting_refs` walk
+      from them, pruned by the commit-graph generations. */
+  async published(root) {
+    await withRemoteRefs(join(root, "published"), true);
+  },
+
+  /** The same without a commit-graph file: the walk falls back to `git for-each-ref`. */
+  async "published-nograph"(root) {
+    await withRemoteRefs(join(root, "published-nograph"), false);
   },
 
   /** A bare remote on the same disk, the clone the app works in, and a second clone that
