@@ -178,7 +178,10 @@ class RepositoryStore {
     this.phase = this.phase.kind === "open" ? { kind: "open", repo } : { ...this.phase, repo };
   }
 
+  /** An open in flight already brings fresh contents, and `current` during it is the
+      repository being left: re-reading that one would cancel the open. */
   async refresh(): Promise<void> {
+    if (this.phase.kind === "opening") return;
     const root = this.current?.root;
     if (root) await this.open(root);
   }

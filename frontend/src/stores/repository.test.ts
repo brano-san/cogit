@@ -131,6 +131,27 @@ describe("repository store, as a state machine", () => {
     expect(repository.phase.kind).toBe("open");
   });
 
+  // The watcher answers a `git commit` in the terminal with a refresh. Arriving while the
+  // user's click on another repository is opening, it used to reopen the old one and
+  // drop the click.
+  it("does not let a refresh during an open take the user back", async () => {
+    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
+    await repository.open("C:/repos/one");
+
+    const clicked = pending<unknown>();
+    commands.openRepository.mockReset();
+    commands.openRepository.mockReturnValueOnce(clicked.promise);
+    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
+    const opening = repository.open("C:/repos/two");
+    const refreshing = repository.refresh();
+
+    clicked.settle({ status: "ok", data: summary("C:/repos/two") });
+    await Promise.all([opening, refreshing]);
+
+    expect(repository.current?.root).toBe("C:/repos/two");
+    expect(commands.openRepository).toHaveBeenCalledTimes(1);
+  });
+
   it("does not let a superseded failure close what is open", async () => {
     const slow = pending<unknown>();
     commands.openRepository.mockReturnValueOnce(slow.promise);

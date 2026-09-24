@@ -379,7 +379,9 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
 
 ### Категория 1
 
-- [ ] C1F-01 `refresh` во время `opening`
+- [x] C1F-01 `refresh` во время `opening`
+  > Итог: `refresh` выходит, пока идёт `opening` — открытие в полёте и так принесёт свежее;
+  > тест `does not let a refresh during an open take the user back`.
 - [ ] C1F-08 перебитый `activate` выходит
 - [ ] C1F-02/03/04 проверка «репозиторий всё ещё текущий» после await в App
 - [ ] C1F-05/06/07/14 поколения в сторах stashes, recovery, network, flow, conflicts,
