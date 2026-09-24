@@ -45,12 +45,17 @@
     return () => observer.disconnect();
   });
 
+  // Only a change of `reveal` scrolls. The position is read from the element, not from
+  // the state the scroll handler writes: depending on that, every wheel turn ran this
+  // again and pulled the view back to the row.
   $effect(() => {
     if (reveal === null || !scroller) return;
     const top = reveal * rowHeight;
-    if (top < scrollTop) scroller.scrollTop = top;
-    else if (top + rowHeight > scrollTop + viewportHeight) {
-      scroller.scrollTop = top + rowHeight - viewportHeight;
+    const shown = scroller.scrollTop;
+    const height = scroller.clientHeight;
+    if (top < shown) scroller.scrollTop = top;
+    else if (top + rowHeight > shown + height) {
+      scroller.scrollTop = top + rowHeight - height;
     }
   });
 </script>
