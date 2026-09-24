@@ -89,6 +89,17 @@ group("checkForUpdates", () => {
     expect(side.relaunch).not.toHaveBeenCalled();
   });
 
+  // The question has to be the app's own dialog, which answers later; a pending answer
+  // is a truthy promise, and the update installed before the user said no.
+  it("waits for a no that comes later", async () => {
+    const found = handle();
+    const side = io({ check: vi.fn().mockResolvedValue(found), confirm: vi.fn(async () => false) });
+
+    await checkForUpdates(side);
+
+    expect(found.downloadAndInstall).not.toHaveBeenCalled();
+  });
+
   it("a failed check is told to the user, not swallowed", async () => {
     const side = io({ check: vi.fn().mockRejectedValue(new Error("no network")) });
 

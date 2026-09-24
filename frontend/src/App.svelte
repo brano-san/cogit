@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick, untrack } from "svelte";
-  import { ask, open as openFolderDialog } from "@tauri-apps/plugin-dialog";
+  import { ask, message as dialogMessage, open as openFolderDialog } from "@tauri-apps/plugin-dialog";
   import { checkForUpdates, message, type UpdateOutcome } from "$lib/updates";
   import { leaveRepositoryDialogs } from "$lib/leaving";
   import { finder } from "$stores/finder.svelte";
@@ -271,8 +271,8 @@
       {
         check: () => check(),
         relaunch,
-        confirm: (outcome) => window.confirm(message(outcome)),
-        report: (text) => window.alert(text),
+        confirm: (outcome) => ask(message(outcome), { title: "Check for Updates", kind: "info" }),
+        report: (text) => void dialogMessage(text, { title: "Check for Updates", kind: "info" }),
       },
       { quiet },
     );

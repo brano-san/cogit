@@ -13,8 +13,9 @@ export interface UpdateHandle {
 export interface Updates {
   check: () => Promise<UpdateHandle | null>;
   relaunch: () => Promise<void>;
-  confirm: (outcome: UpdateOutcome) => boolean;
-  report: (message: string) => void;
+  /** The app's own dialog answers later, so the answer may be a promise. */
+  confirm: (outcome: UpdateOutcome) => boolean | Promise<boolean>;
+  report: (message: string) => void | Promise<void>;
 }
 
 /** Split from the plugin so the branches can be tested without a release to point at. */
@@ -62,7 +63,7 @@ export async function checkForUpdates(
     return outcome;
   }
 
-  if (!io.confirm(outcome)) return outcome;
+  if (!(await io.confirm(outcome))) return outcome;
 
   try {
     await found.downloadAndInstall();
