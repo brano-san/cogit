@@ -12,7 +12,14 @@ pub async fn run_check(
     command: String,
 ) -> Result<git_engine::HookRun, GitError> {
     let app_state = state.state.clone();
-    blocking("run_check", move || app_state.run_check(repo, &command)).await
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Other,
+        "run_check",
+        move || app_state.run_check(repo, &command),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -100,7 +107,14 @@ pub async fn run_hook(
     name: String,
 ) -> Result<git_engine::HookRun, GitError> {
     let app_state = state.state.clone();
-    blocking("run_hook", move || app_state.run_hook(repo, &name)).await
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Other,
+        "run_hook",
+        move || app_state.run_hook(repo, &name),
+    )
+    .await
 }
 
 #[tauri::command]
