@@ -596,7 +596,11 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > blame и лога файла (R-280). Surgery оставлен на `run_git_reading`: там `-z`-списки
   > файлов одного коммита. Тест `a_long_history_of_a_wide_range_loses_no_step` (до правки 9
   > шагов из 60).
-- [ ] D4-04 apply через runner
+- [x] D4-04 apply через runner
+  > Итог: польза: один путь запуска git вместо копии на 30 строк; заодно команда в журнале
+  > проходит `redact_command`. Взаимоблокировки на stdin на деле нет (`git apply` дочитывает
+  > патч до вывода), поэтому `refactor`, не `fix`. `apply_patch_to` → `run_git_fed`; патч
+  > по-прежнему пишется в лог до запуска и при ошибке.
 - [ ] S5-15 `declared()` видит все команды
 - [ ] B-11, B-27…B-30 документация
 

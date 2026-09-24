@@ -1,6 +1,4 @@
-use crate::{GitCommandError, GitError, GitOutput, RepoHandle, Result};
-use std::io::Write as _;
-use std::process::Stdio;
+use crate::{GitError, RepoHandle, Result};
 
 /// What a patch is applied to. Staging never touches the file on disk; Discard only
 /// touches the file on disk.
@@ -33,39 +31,11 @@ impl RepoHandle {
         }
         args.push("-");
 
-        let command = format!("git {}", args.join(" "));
-        tracing::info!(command = %command, patch = %patch, "applying a patch");
-
-        let started = std::time::Instant::now();
-        let (mut child, _tracked) = crate::children::spawn(
-            self.base_git(&args)
-                .stdin(Stdio::piped())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped()),
-        )?;
-
-        if let Some(stdin) = child.stdin.as_mut() {
-            stdin.write_all(patch.as_bytes())?;
-        }
-        drop(child.stdin.take());
-
-        let output = child.wait_with_output()?;
-        let result = GitOutput::record(
-            self.root(),
-            command,
-            output.status.code(),
-            &String::from_utf8_lossy(&output.stdout),
-            &String::from_utf8_lossy(&output.stderr),
-            u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX),
-        );
-        self.journal_entry(result.clone());
-
-        if output.status.success() {
-            return Ok(());
-        }
-        tracing::error!(patch = %patch, stderr = %result.stderr, "the patch did not apply");
-        Err(GitError::Command(Box::new(GitCommandError::from_output(
-            result,
-        ))))
+        tracing::info!(patch = %patch, "applying a patch");
+        self.run_git_fed(&args, patch.as_bytes())
+            .map(drop)
+            .inspect_err(
+                |err| tracing::error!(patch = %patch, error = ?err, "the patch did not apply"),
+            )
     }
 }
