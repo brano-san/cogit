@@ -507,15 +507,7 @@ impl AppState {
             |n| n.to_string_lossy().into_owned(),
         );
 
-        let id = match self.find_by_root(&root) {
-            Some(id) => {
-                if listed && let Some(open) = self.repos.write().get_mut(&id) {
-                    open.listed = true;
-                }
-                id
-            }
-            None => self.register_as(root.clone(), name.clone(), listed),
-        };
+        let id = self.find_or_register(root.clone(), name.clone(), listed);
         self.start_watching(id, &root, handle.git_dir());
 
         Ok(RepoSummary {
@@ -788,7 +780,15 @@ impl AppState {
             });
         }) {
             Ok(watcher) => {
-                self.watchers.write().insert(repo, watcher);
+                // Checked again under the lock: a second open of the same repository or a
+                // close may have finished while this watcher was starting.
+                let mut watchers = self.watchers.write();
+                if watchers.contains_key(&repo) || !self.repos.read().contains_key(&repo) {
+                    drop(watchers);
+                    drop(watcher);
+                } else {
+                    watchers.insert(repo, watcher);
+                }
             }
             Err(err) => {
                 tracing::warn!(error = %err, repo = repo.0, "cannot watch the repository");
@@ -1376,6 +1376,10 @@ impl AppState {
         if removed {
             self.emit(AppEvent::RepoClosed { repo });
         }
+        // An open of this repository that was starting its watcher as the first removal
+        // ran has put one back by now, or sees the repository gone and drops it.
+        let late = self.watchers.write().remove(&repo);
+        drop(late);
         watch.done("unregister");
         watch.report_close(repo.0, removed);
         removed
@@ -1653,6 +1657,29 @@ impl AppState {
                 listed,
             },
         );
+        self.emit(AppEvent::RepoOpened { repo: id });
+        id
+    }
+
+    /// Looked up and registered under one lock, so two opens of one path at once end up
+    /// with one id. Asking for a listed repository lists it; the reverse never unlists.
+    fn find_or_register(&self, root: PathBuf, display_name: String, listed: bool) -> RepoId {
+        let mut repos = self.repos.write();
+        if let Some(open) = repos.values_mut().find(|open| open.root == root) {
+            open.listed |= listed;
+            return open.id;
+        }
+        let id = RepoId(self.next_repo_id.fetch_add(1, Ordering::Relaxed));
+        repos.insert(
+            id,
+            OpenRepo {
+                id,
+                root,
+                display_name,
+                listed,
+            },
+        );
+        drop(repos);
         self.emit(AppEvent::RepoOpened { repo: id });
         id
     }
