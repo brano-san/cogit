@@ -464,3 +464,22 @@ fn files_that_differ_only_in_bytes_that_are_not_utf8_still_differ() {
         "{diff:?}"
     );
 }
+
+// `git diff -w` ignores whitespace even where the other line has none; the key only
+// squeezed runs of it into one space, which is `-b`.
+#[test]
+fn ignoring_all_whitespace_ignores_it_where_the_other_line_has_none() {
+    let diff = diff_engine::diff_text(
+        "foo(a,b)\n",
+        "foo(a, b)\n",
+        &diff_engine::DiffOptions {
+            ignore_whitespace: diff_engine::Whitespace::All,
+            ..diff_engine::DiffOptions::default()
+        },
+    );
+
+    assert!(
+        matches!(diff, diff_engine::FileDiff::WhitespaceOnly),
+        "{diff:?}"
+    );
+}
