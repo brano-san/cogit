@@ -574,7 +574,12 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > Итог: в `redact_url` (команда) и `redact_urls` (вывод git) authority кончается на первом
   > `/`, учётные данные отделяются по последнему `@`. Тесты
   > `a_password_with_an_at_sign_is_hidden_whole` и `…_in_git_output_too`.
-- [ ] B-21 `blob_on_disk`: только NotFound — «нет файла»
+- [x] B-21 `blob_on_disk`: только NotFound — «нет файла»
+  > Итог: `blob_on_disk` → `Result<Option>`: нет файла или это каталог (сабмодуль) — `None`,
+  > иначе `GitError::Io`; три вызова пробрасывают ошибку. Тесты
+  > `a_working_file_that_cannot_be_read_is_an_error_not_a_deletion` (Windows, файл открыт
+  > без общего доступа) и страховка
+  > `a_directory_on_the_working_side_still_reads_as_nothing`.
 - [ ] B-24 ошибки `recover`
 - [ ] B-26 sequencer/todo
 - [ ] D4-03 разбор через `read_git`
