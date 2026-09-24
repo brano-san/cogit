@@ -10,7 +10,6 @@
     onscan: () => void;
     onopen: () => void;
     onselect: (entry: RepoOverview) => void;
-    onclose: (entry: RepoOverview) => void;
     oncontext: (row: ListedRepo, x: number, y: number) => void;
     onreopen: (root: string) => void;
     onmarked: (roots: string[]) => void;
@@ -18,7 +17,8 @@
     onaddgroup: () => void;
     onopenmodule: (row: ModuleRow) => void;
 
-    onmodulecontext: (row: ModuleRow, x: number, y: number) => void;
+    onopenforeignmodule: (root: string, row: ModuleRow) => void;
+    onmodulecontext: (row: ModuleRow, x: number, y: number, root?: string) => void;
   }
 
   let {
@@ -26,13 +26,13 @@
     onscan,
     onopen,
     onselect,
-    onclose,
     oncontext,
     onreopen,
     onmarked,
     ongroupcontext,
     onaddgroup,
     onopenmodule,
+    onopenforeignmodule,
 
     onmodulecontext,
   }: Props = $props();
@@ -43,12 +43,12 @@
   {onscan}
   {onopen}
   {onselect}
-  {onclose}
   {oncontext}
   {onreopen}
   {onmarked}
   {ongroupcontext}
   {onaddgroup}
   {onopenmodule}
+  {onopenforeignmodule}
   {onmodulecontext}
 />

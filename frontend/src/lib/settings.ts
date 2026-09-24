@@ -54,6 +54,10 @@ export interface Settings {
   graphBranchOfCommit: boolean;
   graphAncestry: boolean;
   graphCollapseMerged: boolean;
+
+  /** Minutes between background fetches of every listed repository; `0` is off, which is
+      the default: nothing reaches the network unasked (R-353). */
+  backgroundFetchMinutes: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -83,6 +87,8 @@ export const DEFAULT_SETTINGS: Settings = {
   graphBranchOfCommit: false,
   graphAncestry: false,
   graphCollapseMerged: false,
+
+  backgroundFetchMinutes: 0,
 };
 
 /** Read once at startup, so changing them needs a restart to take effect. */
@@ -103,6 +109,7 @@ const ENUMS: Partial<Record<keyof Settings, readonly string[]>> = {
 const RANGES: Partial<Record<keyof Settings, [number, number]>> = {
   contextLines: [0, 50],
   laneWidth: [8, 40],
+  backgroundFetchMinutes: [0, 1440],
 };
 
 export const LONG_LINK_ROWS_MAX = 1000;

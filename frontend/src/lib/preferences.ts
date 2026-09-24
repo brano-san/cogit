@@ -66,6 +66,12 @@ export const CATEGORIES: Category[] = [
             label: "When a pull cannot fast-forward",
             keywords: ["merge", "rebase", "fetch"],
           },
+          {
+            key: "backgroundFetchMinutes",
+            label: "Fetch in the background",
+            hint: "Keeps the pull arrows in Repositories current. Never asks for credentials; a repository whose fetch fails shows ? instead.",
+            keywords: ["fetch", "background", "interval", "remote", "pull", "arrow"],
+          },
         ],
       },
       {

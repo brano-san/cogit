@@ -184,7 +184,7 @@
 
   .row.nested {
     padding-left: calc(
-      var(--tree-base) + var(--tree-step) + (var(--disclosure-hit) - var(--kind-icon)) / 2
+      var(--tree-base) + var(--tree-step) + (var(--disclosure-glyph) - var(--kind-icon)) / 2
     );
   }
 

@@ -113,8 +113,11 @@
 --status-stash        → --c-stash
 --status-tag          → --c-tag
 
---indicator-changes   → --status-modify   /* точка «есть изменения» у строк Repositories и Branches */
---indicator-synced    → --status-add      /* точка «чисто и всё запушено» */
+--indicator-changes   → --status-modify    незакоммиченные изменения (Repositories, метка worktree)
+--indicator-synced    → --status-add       чисто и всё запушено (метка worktree)
+--indicator-push      → --status-add       стрелка «есть что пушить»
+--indicator-pull      → --status-ref       стрелка «есть что забрать»
+--indicator-unknown   → --text-secondary   fetch не удался, про pull неизвестно
 ```
 
 ## 4. Типографика

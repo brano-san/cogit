@@ -179,10 +179,10 @@ class RepositoryStore {
     this.phase = { kind: "open", repo };
   }
 
-  /** Called before a submodule or worktree takes the panels. */
-  keep(): void {
-    const open = this.current;
-    if (open) this.#kept.set(open.root, open);
+  /** Called before a submodule or worktree takes the panels. `repo` is for an owner that
+      was opened without ever being shown: a submodule reached from its light tree. */
+  keep(repo: RepoSummary | null = this.current): void {
+    if (repo) this.#kept.set(repo.root, repo);
   }
 
   /** Shows the kept summary at once and re-reads it quietly, with no `opening` phase: a
