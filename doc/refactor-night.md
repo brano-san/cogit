@@ -589,7 +589,13 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > (pick/p → CherryPicking, revert/r → Reverting), как это делает git status. Тесты
   > `a_cherry_pick_with_picks_still_waiting_is_in_progress`,
   > `a_revert_with_reverts_still_waiting_is_in_progress`.
-- [ ] D4-03 разбор через `read_git`
+- [x] D4-03 разбор через `read_git`
+  > Итог: Investigate (`log -L` диапазона), история строки и `rebase_todo` читают stdout
+  > через `read_git` целиком, а не копию для журнала (голова и хвост после 20 000 строк).
+  > Видимое следствие: успешные чтения больше не появляются в журнале Output — как уже у
+  > blame и лога файла (R-280). Surgery оставлен на `run_git_reading`: там `-z`-списки
+  > файлов одного коммита. Тест `a_long_history_of_a_wide_range_loses_no_step` (до правки 9
+  > шагов из 60).
 - [ ] D4-04 apply через runner
 - [ ] S5-15 `declared()` видит все команды
 - [ ] B-11, B-27…B-30 документация

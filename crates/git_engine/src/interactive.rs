@@ -97,10 +97,9 @@ impl RepoHandle {
         } else {
             format!("{base}..HEAD")
         };
-        let listing = self.run_git_reading(&["log", "--reverse", "--format=%H%x1f%s", &range])?;
+        let listing = self.read_git(&["log", "--reverse", "--format=%H%x1f%s", &range])?;
 
         Ok(listing
-            .stdout
             .lines()
             .filter_map(|line| line.split_once('\u{1f}'))
             .map(|(oid, subject)| TodoEntry {

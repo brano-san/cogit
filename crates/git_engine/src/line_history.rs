@@ -42,7 +42,7 @@ impl RepoHandle {
 
         let range = format!("-L{line},{line}:{path}");
         let count = format!("-{}", limit.clamp(1, 1000));
-        let output = self.run_git_reading(&[
+        let output = self.read_git(&[
             "log",
             &range,
             &count,
@@ -51,7 +51,7 @@ impl RepoHandle {
             rev,
         ])?;
 
-        Ok(parse_versions(&output.stdout))
+        Ok(parse_versions(&output))
     }
 
     /// The commits reachable from `rev` that changed `path`, newest first: the versions of

@@ -176,3 +176,24 @@ fn a_wider_range_still_reports_every_commit_that_touched_it() {
         "{steps:#?}"
     );
 }
+
+// `log -L` was parsed from the journal's copy of stdout, which keeps only the first and
+// last few thousand lines of a long output: on a wide range with a long history the steps
+// in the middle vanished from Investigate without a word.
+#[test]
+fn a_long_history_of_a_wide_range_loses_no_step() {
+    let f = test_fixtures::linear(1).unwrap();
+    let commits = 60;
+    for n in 0..commits {
+        let body: String = (0..400)
+            .map(|line| format!("line {line} of version {n}\n"))
+            .collect();
+        f.write_file("wide.txt", &body).unwrap();
+        f.git(&["add", "--", "wide.txt"]).unwrap();
+        f.commit_staged(10 + n, &format!("version {n}")).unwrap();
+    }
+
+    let steps = open(&f).investigate("wide.txt", 1, 400, 1000).unwrap();
+
+    assert_eq!(steps.len(), usize::try_from(commits).unwrap());
+}
