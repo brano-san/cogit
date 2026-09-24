@@ -4,6 +4,7 @@
   import { checkForUpdates, message, type UpdateOutcome } from "$lib/updates";
   import { leaveRepositoryDialogs } from "$lib/leaving";
   import { retryOf } from "$lib/retry";
+  import { publishedOrAssume } from "$lib/published";
   import { branchNameProblem, optional, textProblem } from "$lib/names";
   import { finder } from "$stores/finder.svelte";
   import { THIRD_PARTY_FILE } from "$lib/third-party";
@@ -1077,7 +1078,7 @@
     const id = repository.current?.repo;
     if (!id) return false;
 
-    if (amend && (await isPublished(id, "HEAD").catch(() => false))) {
+    if (amend && (await publishedOrAssume(isPublished(id, "HEAD")))) {
       const go = await ask(
         "This commit is already on a remote. Amending it gives it a new id, so the branch " +
           "will need a force-push and anyone who pulled it will have to reset. Continue?",
@@ -1854,7 +1855,7 @@
 
     rebaseBase = base;
     rebasePlan = moved;
-    splitPublished = await isPublished(id, base).catch(() => false);
+    splitPublished = await publishedOrAssume(isPublished(id, base));
     rebaseOpen = true;
   }
 
@@ -1886,7 +1887,7 @@
       return;
     }
     rebaseBase = rev;
-    splitPublished = await isPublished(id, rev).catch(() => false);
+    splitPublished = await publishedOrAssume(isPublished(id, rev));
     rebaseOpen = true;
   }
 
@@ -2708,7 +2709,7 @@
     const id = repository.current?.repo;
     const rev = commit.oid;
     if (!id || !rev) return;
-    splitPublished = await isPublished(id, rev).catch(() => false);
+    splitPublished = await publishedOrAssume(isPublished(id, rev));
     splitOpen = true;
   }
 

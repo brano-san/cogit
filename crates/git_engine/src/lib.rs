@@ -37,6 +37,7 @@ mod overlap;
 pub mod phases;
 mod presets;
 mod progress;
+mod published;
 mod ref_meta;
 mod reflog;
 mod replay;

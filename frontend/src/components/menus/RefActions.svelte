@@ -59,6 +59,7 @@
     type CommitFacts,
     type RefTarget,
   } from "$lib/ref-menus";
+  import { publishedOrAssume } from "$lib/published";
   import { resetChoice } from "$lib/reset-modes";
   import { baseBefore, fullMessage, modifyPlan, rewordPlan, squashPlan } from "$lib/rewrite-plans";
   import { tagRequest } from "$lib/tag-dialog";
@@ -140,7 +141,7 @@
     const [details, onHead, published] = await Promise.all([
       commitDetails(id, oid),
       isAncestor(id, oid, "HEAD").catch(() => false),
-      withPublished ? isPublished(id, oid).catch(() => false) : Promise.resolve(false),
+      withPublished ? publishedOrAssume(isPublished(id, oid)) : Promise.resolve(false),
     ]);
     const summary = repository.current;
     const facts = commitFacts({
