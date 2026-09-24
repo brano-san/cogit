@@ -263,7 +263,13 @@ impl RepoHandle {
             head: String::new(),
             is_main,
             locked,
-            missing: !path.is_dir(),
+            // Git's own test for a linked one is its `.git` file: a folder left without it
+            // is prunable, and opening it would find the main repository around it.
+            missing: if is_main {
+                !path.is_dir()
+            } else {
+                !path.join(".git").exists()
+            },
             dirty: false,
         };
 

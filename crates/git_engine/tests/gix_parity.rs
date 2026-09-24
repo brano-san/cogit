@@ -379,6 +379,17 @@ mod worktrees {
     }
 
     #[test]
+    fn a_folder_left_without_its_git_file_is_stale_even_inside_the_main_one() {
+        let f = test_fixtures::linear(2).unwrap();
+        let inner = add(&f, &f.path().join(".worktrees/inner"), &["-b", "inner"]);
+        std::fs::remove_file(Path::new(&inner).join(".git")).unwrap();
+
+        let (expected, _) = git(&f);
+        assert!(expected[1].stale, "{expected:#?}");
+        assert_eq!(ours(&f).0, expected);
+    }
+
+    #[test]
     fn a_bare_main_repository_is_listed_by_its_own_folder() {
         let f = test_fixtures::bare().unwrap();
         let aux = tempfile::TempDir::new().unwrap();
