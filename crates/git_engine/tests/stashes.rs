@@ -185,3 +185,54 @@ fn an_index_that_does_not_exist_is_a_typed_error() {
     assert!(repo.stash_drop(7).is_err());
     assert!(repo.stash_apply_index(7, false).is_err());
 }
+
+// Entries whose commit is gone are left out of the list, and the rest were numbered after
+// that: from there on the list's numbers were not git's `stash@{n}`, and Drop removed a
+// different stash from the one shown.
+#[test]
+fn a_stash_keeps_git_s_number_when_an_entry_above_it_is_unreadable() {
+    let f = test_fixtures::linear(1).unwrap();
+    for text in ["first", "second"] {
+        f.write_file("file0.txt", &format!("{text}\n")).unwrap();
+        f.git(&["stash", "push", "-q", "-m", text]).unwrap();
+    }
+    let log = f.git_dir().join("logs/refs/stash");
+    let lines: Vec<String> = std::fs::read_to_string(&log)
+        .unwrap()
+        .lines()
+        .map(str::to_owned)
+        .collect();
+    // A chain git itself accepts: each entry starts where the one before it ended.
+    let missing = "1234567890".repeat(4);
+    let first_new = lines[0].split(' ').nth(1).unwrap().to_owned();
+    let gone = format!(
+        "{first_new} {missing} T <t@example.com> 1700000000 +0000	On main: a stash whose commit is gone"
+    );
+    let (_, second_rest) = lines[1].split_once(' ').unwrap();
+    std::fs::write(
+        &log,
+        format!(
+            "{}
+{gone}
+{missing} {second_rest}
+",
+            lines[0]
+        ),
+    )
+    .unwrap();
+
+    let listed = git_engine::RepoHandle::open(f.path())
+        .unwrap()
+        .stashes()
+        .unwrap();
+
+    let first = listed
+        .iter()
+        .find(|entry| entry.message.contains("first"))
+        .unwrap();
+    assert_eq!(first.index, 2, "{listed:?}");
+    assert_eq!(
+        first.oid,
+        f.git(&["rev-parse", "stash@{2}"]).unwrap().trim()
+    );
+}

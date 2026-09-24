@@ -94,9 +94,8 @@ impl RepoHandle {
         Ok(self
             .reflog_of("refs/stash", usize::MAX)?
             .into_iter()
-            .enumerate()
-            .map(|(index, line)| StashEntry {
-                index: u32::try_from(index).unwrap_or(u32::MAX),
+            .map(|line| StashEntry {
+                index: u32::try_from(line.position).unwrap_or(u32::MAX),
                 oid: line.oid.to_string(),
                 message: line.message,
                 timestamp: line.author_time,
