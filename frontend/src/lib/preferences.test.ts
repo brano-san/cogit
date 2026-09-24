@@ -3,6 +3,7 @@ import { DEFAULT_SETTINGS, type Settings } from "./settings";
 import {
   CATEGORIES,
   disabledBy,
+  fieldDisabled,
   isSetting,
   firstMatch,
   matchingCategories,
@@ -179,5 +180,46 @@ describe("options that depend on another option", () => {
 
   it("treats a non-boolean parent as satisfied, since there is nothing to switch off", () => {
     expect(disabledBy(DEFAULT_SETTINGS, "theme")).toBe(false);
+  });
+
+  it("switches the time format off while the Time column is hidden (#23)", () => {
+    const format = every.find((field) => field.key === "graphTimeFormat");
+    expect(format).toBeDefined();
+    if (!format) return;
+    expect(fieldDisabled(DEFAULT_SETTINGS, format)).toBe(false);
+    expect(fieldDisabled({ ...DEFAULT_SETTINGS, graphColumns: ["author", "hash"] }, format)).toBe(
+      true,
+    );
+  });
+});
+
+describe("the graph page (#23)", () => {
+  const graph = CATEGORIES.find((category) => category.id === "graph");
+  const keys = graph?.groups.flatMap((group) => group.fields.map((field) => field.key)) ?? [];
+
+  it("holds every graph display key and every graph mode", () => {
+    const graphKeys = Object.keys(DEFAULT_SETTINGS).filter((key) => key.startsWith("graph"));
+    for (const key of graphKeys) expect(keys).toContain(key);
+  });
+
+  it("restores the columns and the modes with the rest of the page", () => {
+    const draft: Settings = {
+      ...DEFAULT_SETTINGS,
+      graphColumns: ["hash"],
+      graphFirstParent: true,
+      graphLongLinkRows: 0,
+    };
+    const restored = restoreCategory(draft, "graph");
+    expect(restored.graphColumns).toEqual(DEFAULT_SETTINGS.graphColumns);
+    expect(restored.graphFirstParent).toBe(false);
+    expect(restored.graphLongLinkRows).toBe(DEFAULT_SETTINGS.graphLongLinkRows);
+  });
+
+  it("does not call an equal column list a change", () => {
+    const draft = { ...DEFAULT_SETTINGS, graphColumns: [...DEFAULT_SETTINGS.graphColumns] };
+    expect(changedKeys(draft, DEFAULT_SETTINGS)).toEqual([]);
+    expect(changedKeys({ ...draft, graphColumns: ["hash"] }, DEFAULT_SETTINGS)).toEqual([
+      "graphColumns",
+    ]);
   });
 });

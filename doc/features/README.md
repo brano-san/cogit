@@ -318,3 +318,4 @@
 | F-380 | Окно Investigate | [F-380-investigate-window.md](F-380-investigate-window.md) |
 | F-381 | Происхождение строки и Go Deeper | [F-381-origin-candidates.md](F-381-origin-candidates.md) |
 | F-382 | Investigate из Diff с выделенной строкой | [F-382-investigate-from-diff.md](F-382-investigate-from-diff.md) |
+| F-470 | Настройки отображения графа | [F-470-graph-display-settings.md](F-470-graph-display-settings.md) |
