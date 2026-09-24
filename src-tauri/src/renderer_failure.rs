@@ -271,7 +271,7 @@ fn reveal_log(app: &tauri::AppHandle) {
     let Some(context) = app.try_state::<crate::AppContext>() else {
         return;
     };
-    let path = context.log_path.clone();
+    let path = app_state::logging::latest_part(&context.log_path);
     if let Err(err) = tauri_plugin_opener::OpenerExt::opener(app).reveal_item_in_dir(path) {
         tracing::warn!(error = %err, "cannot reveal the log file");
     }
