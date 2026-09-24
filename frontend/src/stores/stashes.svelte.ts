@@ -11,9 +11,14 @@ import { stashRequest, type StashChoice } from "$lib/stash-modes";
 
 class StashStore {
   entries = $state.raw<StashEntry[]>([]);
+  /** Only the newest read writes; `clear()` drops the ones in flight, which belong to the
+      repository the panels are leaving. */
+  #generation = 0;
 
   async refresh(repo: RepoId): Promise<void> {
-    this.entries = await listStashes(repo);
+    const generation = ++this.#generation;
+    const entries = await listStashes(repo);
+    if (generation === this.#generation) this.entries = entries;
   }
 
   async push(repo: RepoId, message: string, includeUntracked: boolean): Promise<void> {
@@ -43,6 +48,7 @@ class StashStore {
   }
 
   clear(): void {
+    this.#generation += 1;
     this.entries = [];
   }
 }

@@ -413,7 +413,9 @@
   /** Refreshed with the rest of the state, so the stack follows Continue and Abort. */
   async function refreshProgress() {
     const id = repository.current?.repo;
-    progress = id ? await rebaseProgress(id).catch(() => null) : null;
+    const epoch = repository.epoch;
+    const found = id ? await rebaseProgress(id).catch(() => null) : null;
+    if (repository.epoch === epoch) progress = found;
   }
 
   /** Every change to the working tree ends the same way: reload it and refresh what
@@ -2781,7 +2783,9 @@
   async function loadTemplate() {
     const id = repository.current?.repo;
     if (!id) return;
-    template = (await commitTemplate(id).catch(() => null)) ?? null;
+    const epoch = repository.epoch;
+    const found = (await commitTemplate(id).catch(() => null)) ?? null;
+    if (repository.epoch === epoch) template = found;
   }
 
   async function copyText(text: string) {

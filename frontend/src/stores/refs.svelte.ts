@@ -109,9 +109,16 @@ class RefsStore {
   }
 
   /** A failed read leaves the old dates: a stale order beats a list that jumps to by-name. */
+  /** Only the newest read of each writes; `clear()` drops the ones in flight, which
+      belong to the repository the panels are leaving. */
+  #datesAsked = 0;
+  #urlsAsked = 0;
+
   async loadDates(repo: RepoId): Promise<void> {
+    const asked = ++this.#datesAsked;
     try {
       const found = await refDates(repo);
+      if (asked !== this.#datesAsked) return;
       this.dates = new Map(found.map((entry) => [entry.fullName, entry.timestamp]));
     } catch {
       // Nothing to report; the names still order what has no date.
@@ -119,18 +126,23 @@ class RefsStore {
   }
 
   async loadUrls(repo: RepoId): Promise<void> {
+    const asked = ++this.#urlsAsked;
+    let urls: Record<string, string> = {};
     try {
       const names = await listRemotes(repo);
       const pairs = await Promise.all(
         names.map(async (name) => [name, (await remoteUrl(repo, name)) ?? ""] as const),
       );
-      this.urls = Object.fromEntries(pairs.filter(([, url]) => url !== ""));
+      urls = Object.fromEntries(pairs.filter(([, url]) => url !== ""));
     } catch {
-      this.urls = {};
+      // No remotes to link to; the branches are still listed.
     }
+    if (asked === this.#urlsAsked) this.urls = urls;
   }
 
   clear(): void {
+    this.#datesAsked += 1;
+    this.#urlsAsked += 1;
     this.#root = null;
     this.visible = new Set();
     this.#expanded = new Set();

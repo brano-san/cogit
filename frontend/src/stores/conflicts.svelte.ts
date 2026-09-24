@@ -22,9 +22,14 @@ class ConflictStore {
       user has moved on from lands on the file they are looking at now — and Save would
       then write one file's resolution into another. */
   #generation = 0;
+  /** The same for the list, which `clear()` also drops when the panels change repository. */
+  #listing = 0;
 
   async refresh(repo: RepoId): Promise<void> {
-    this.paths = await conflictedPaths(repo);
+    const listing = ++this.#listing;
+    const paths = await conflictedPaths(repo);
+    if (listing !== this.#listing) return;
+    this.paths = paths;
     if (this.path && !this.paths.includes(this.path)) this.close();
   }
 
@@ -70,6 +75,7 @@ class ConflictStore {
   }
 
   clear(): void {
+    this.#listing += 1;
     this.paths = [];
     this.close();
   }

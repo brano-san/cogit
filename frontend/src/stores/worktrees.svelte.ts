@@ -27,13 +27,16 @@ class WorktreesStore {
     return this.entries.find((entry) => entry.path === this.selected);
   }
 
+  /** Only the newest read writes; `clear()` drops the ones in flight, which belong to the
+      repository the panels are leaving. */
+  #generation = 0;
+
   async refresh(repo: RepoId): Promise<void> {
+    const generation = ++this.#generation;
     this.repo = repo;
-    try {
-      this.entries = await listWorktrees(repo);
-    } catch {
-      this.entries = [];
-    }
+    const entries = await listWorktrees(repo).catch(() => []);
+    if (generation !== this.#generation) return;
+    this.entries = entries;
     if (this.selected && !this.entries.some((entry) => entry.path === this.selected)) {
       this.selected = null;
     }
@@ -81,6 +84,7 @@ class WorktreesStore {
   }
 
   clear(): void {
+    this.#generation += 1;
     this.entries = [];
     this.repo = null;
     this.selected = null;

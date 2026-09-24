@@ -29,6 +29,9 @@ class SubmoduleStore {
 
   #repo = $state.raw<RepoId | null>(null);
   #root: string | null = null;
+  /** Changes whenever the tree changes hands; a read begun for the previous owner must
+      not land in the new one's tree. */
+  #generation = 0;
 
   /** The repository whose tree this is — the one in the list. Not the same as the one
       the other panels are showing once a submodule has been opened from it (R-129). */
@@ -51,14 +54,18 @@ class SubmoduleStore {
   /** Hands the tree to a repository. Called when one is activated from the list, and
       never when a submodule is opened from inside the tree. */
   async own(repo: RepoId, root: string): Promise<void> {
+    const generation = ++this.#generation;
     this.#repo = repo;
     this.#root = root;
     this.open = null;
-    this.children = new Map([["", await listSubmodules(repo, "").catch(() => [])]]);
+    const top = await listSubmodules(repo, "").catch(() => []);
+    if (generation !== this.#generation) return;
+    this.children = new Map([["", top]]);
     this.folded = !recall("submodules-top", "").has(root);
     this.expanded = new Set();
     for (const key of recall("submodules", root)) {
       await this.#load(key);
+      if (generation !== this.#generation) return;
       this.expanded = new Set([...this.expanded, key]);
     }
   }
@@ -72,12 +79,13 @@ class SubmoduleStore {
   async refresh(): Promise<void> {
     const repo = this.#repo;
     if (repo === null) return;
+    const generation = this.#generation;
     const read = await Promise.all(
       ["", ...this.expanded].map(
         async (key) => [key, await listSubmodules(repo, key).catch(() => [])] as const,
       ),
     );
-    this.children = new Map(read);
+    if (generation === this.#generation) this.children = new Map(read);
   }
 
   async toggle(row: ModuleRow): Promise<void> {
@@ -98,13 +106,10 @@ class SubmoduleStore {
       empty rather than being asked again on every expand. */
   async #load(key: string): Promise<void> {
     if (this.#repo === null || this.children.has(key)) return;
-    try {
-      const found = await listSubmodules(this.#repo, key);
-      this.children = new Map([...this.children, [key, found]]);
-    } catch {
-      // Not initialised: nothing to read, and the row already says why.
-      this.children = new Map([...this.children, [key, []]]);
-    }
+    const generation = this.#generation;
+    // Not initialised: nothing to read, and the row already says why.
+    const found = await listSubmodules(this.#repo, key).catch(() => []);
+    if (generation === this.#generation) this.children = new Map([...this.children, [key, found]]);
   }
 
   async update(repo: RepoId, path: string, init: boolean): Promise<void> {
@@ -113,6 +118,7 @@ class SubmoduleStore {
   }
 
   clear(): void {
+    this.#generation += 1;
     this.children = new Map();
     this.expanded = new Set();
     this.open = null;

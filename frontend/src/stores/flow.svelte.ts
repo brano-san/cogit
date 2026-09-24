@@ -14,12 +14,14 @@ class FlowStore {
     return this.status.branches.find((branch) => branch.isHead) ?? null;
   }
 
+  /** Only the newest read writes; `clear()` drops the ones in flight, which belong to the
+      repository the panels are leaving. */
+  #generation = 0;
+
   async refresh(repo: RepoId): Promise<void> {
-    try {
-      this.status = await flowStatus(repo);
-    } catch {
-      this.status = EMPTY;
-    }
+    const generation = ++this.#generation;
+    const status = await flowStatus(repo).catch(() => EMPTY);
+    if (generation === this.#generation) this.status = status;
   }
 
   async init(repo: RepoId): Promise<void> {
@@ -38,6 +40,7 @@ class FlowStore {
   }
 
   clear(): void {
+    this.#generation += 1;
     this.status = EMPTY;
   }
 }
