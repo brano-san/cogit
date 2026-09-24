@@ -17,9 +17,10 @@ export function commitScope(
   mask: string,
   visible: readonly string[] | null = null,
 ): CommitScope {
-  const shown = staged.filter((file) =>
-    visible === null ? matchesMask(file.path, mask) : visible.includes(file.path),
-  );
+  // A set, not `includes`: staging two thousand files made this 4 million comparisons,
+  // run on every read-back of the list (doc/12-risks.md, R-310).
+  const seen = visible === null ? null : new Set(visible);
+  const shown = staged.filter((file) => (seen === null ? matchesMask(file.path, mask) : seen.has(file.path)));
   const hidden = staged.length - shown.length;
 
   if (hidden === 0) {
