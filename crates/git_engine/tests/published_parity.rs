@@ -69,6 +69,12 @@ fn setup(with_graph: bool) -> Setup {
     // `remotes/origin/late` and `remotes/upstream/main`.
     f.git(&["branch", "origin/late", "main"]).unwrap();
     f.git(&["tag", "upstream/main", "main"]).unwrap();
+    // A remote ref at an annotated tag object: git peels it to the commit.
+    f.git(&["tag", "-a", "-m", "tagged", "tagged-side", "side~1"])
+        .unwrap();
+    let tag = f.oid("refs/tags/tagged-side").unwrap();
+    f.git(&["update-ref", "refs/remotes/upstream/tagged", &tag])
+        .unwrap();
     f.git(&["checkout", "-q", "main"]).unwrap();
     f.commit_file(31, "local.txt", "local\n").unwrap();
     f.git(&["checkout", "-q", "-b", "local-side", "side~1"])
