@@ -44,6 +44,8 @@ export const commands = {
 	diffFile: (repo: RepoId, spec: DiffSpec, path: string, options: DiffOptions) => typedError<FileDiff, GitError>(__TAURI_INVOKE("diff_file", { repo, spec, path, options })),
 	worktreeFiles: (repo: RepoId, view: WorktreeView) => typedError<WorktreeFiles, GitError>(__TAURI_INVOKE("worktree_files", { repo, view })),
 	repoStatus: (repo: RepoId) => typedError<RepoStatus, GitError>(__TAURI_INVOKE("repo_status", { repo })),
+	/**  The counters and the conflicted paths from one read, for the refresh after a mutation. */
+	workingState: (repo: RepoId) => typedError<WorkingState, GitError>(__TAURI_INVOKE("working_state", { repo })),
 	stagePaths: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("stage_paths", { repo, paths })),
 	/**
 	 *  Stage all: every change git sees, not a path list (doc/12-risks.md, R-311). `files` is
@@ -1455,6 +1457,13 @@ export type TodoEntry = {
 };
 
 export type Whitespace = "none" | "trailing" | "all";
+
+/**  The counters and the conflicted paths, from one read of the status (R-316). */
+export type WorkingState = {
+	status: RepoStatus,
+	/**  Sorted, each path once — what `conflicted_paths` lists. */
+	conflicted: string[],
+};
 
 /**  One checkout: the main one cannot be removed, a linked one can be locked or left behind. */
 export type WorktreeEntry = {

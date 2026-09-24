@@ -453,14 +453,14 @@
 
   async function afterMutation(paths: string[] = []) {
     diff.dropIfAffected(paths);
-    await repository.refreshStatus();
+    const conflicted = await repository.refreshStatus();
     const id = repository.current?.repo;
     await Promise.all([
       id ? stashes.refresh(id) : Promise.resolve(),
       id ? network.refresh(id) : Promise.resolve(),
       id ? recovery.refresh(id) : Promise.resolve(),
       submodules.refresh(),
-      id ? conflicts.refresh(id) : Promise.resolve(),
+      id ? conflicts.refresh(id, conflicted ?? undefined) : Promise.resolve(),
       output.refreshProblems(),
       safety.refresh(),
       refreshProgress(),

@@ -849,6 +849,17 @@ pub async fn repo_status(
     blocking("repo_status", move || app_state.repo_status(repo)).await
 }
 
+/// The counters and the conflicted paths from one read, for the refresh after a mutation.
+#[tauri::command]
+#[specta::specta]
+pub async fn working_state(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<git_engine::WorkingState, GitError> {
+    let app_state = state.state.clone();
+    blocking("working_state", move || app_state.working_state(repo)).await
+}
+
 macro_rules! repo_command {
     ($name:ident, $kind:ident) => {
         #[tauri::command]

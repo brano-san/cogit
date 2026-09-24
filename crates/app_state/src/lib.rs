@@ -871,6 +871,15 @@ impl AppState {
         self.handle(repo)?.status()
     }
 
+    /// `repo_status` and `conflicted_paths` in one read: after a mutation the cascade wants
+    /// both (doc/12-risks.md, R-316).
+    pub fn working_state(
+        &self,
+        repo: RepoId,
+    ) -> Result<git_engine::WorkingState, git_engine::GitError> {
+        self.handle(repo)?.working_state()
+    }
+
     pub fn create_tag(
         &self,
         repo: RepoId,
