@@ -424,12 +424,14 @@
   ): Promise<boolean> {
     const id = repository.current?.repo;
     if (!id) return false;
+    const epoch = repository.epoch;
     try {
       await step(id);
     } catch (err) {
       errors.report(err, "Could not change the working tree");
       return false;
     }
+    if (repository.epoch !== epoch) return true;
     await worktree.load(id);
     await afterMutation(paths);
     return true;
@@ -971,6 +973,8 @@
 
   async function applyDiskChanges() {
     const id = repository.current?.repo;
+    const epoch = repository.epoch;
+    const left = () => repository.epoch !== epoch;
     const plan = planFor(pending);
     pending = new Set();
     if (!id) return;
@@ -982,17 +986,20 @@
     if (plan.refs) {
       protection = new Map();
       await repository.refresh();
+      if (left()) return;
     }
     stale = freshen(stale, ["repositories", "refs"]);
 
     if (plan.worktree && commit.oid === null) {
       await worktree.load(id);
+      if (left()) return;
       stale = freshen(stale, ["files", "commit"]);
     }
     void worktrees.refresh(id);
 
     // Reads the status itself, which is why nothing above does it a second time.
     await afterMutation();
+    if (left()) return;
     stale = freshen(stale, ["diff", "files", "commit"]);
 
     if (plan.refs) await graph.load(id, graph.query);
@@ -1083,8 +1090,9 @@
       );
       if (!confirmed) return;
     }
+    const epoch = repository.epoch;
     await worktree.commit(id, message, amend, noVerify, scope.paths ?? []);
-    if (worktree.error) return;
+    if (worktree.error || repository.epoch !== epoch) return;
     diff.clear();
     await repository.refresh();
     await afterMutation();
@@ -1094,11 +1102,15 @@
   async function afterRefChange() {
     const id = repository.current?.repo;
     if (!id) return;
+    const epoch = repository.epoch;
     commit.clear();
     diff.clear();
     await repository.refresh();
+    if (repository.epoch !== epoch) return;
     await worktree.load(id);
+    if (repository.epoch !== epoch) return;
     await afterMutation();
+    if (repository.epoch !== epoch) return;
     void graph.load(id, graph.query);
   }
 
@@ -1432,16 +1444,17 @@
       errors.message("This repository has no remote.", `Could not ${kind}`);
       return;
     }
+    const epoch = repository.epoch;
     try {
       if (kind === "fetch") await network.fetch(id, remote);
       if (kind === "pull") await network.pull(id, remote, true);
       if (kind === "push") await network.push(id, remote, false);
     } catch (err) {
       errors.report(err, `Could not ${kind}`);
-      await afterMutation();
+      if (repository.epoch === epoch) await afterMutation();
       return;
     }
-    await afterRefChange();
+    if (repository.epoch === epoch) await afterRefChange();
   }
 
   /** Pull as the toolbar's own choices say: which remotes to fetch first, whether to delete
@@ -1653,7 +1666,10 @@
     forgetPanels();
     worktrees.ownerRoot = null;
     const watch = measure("open-repository");
-    await repository.open(root);
+    if (!(await repository.open(root))) {
+      trace(story, "activate: overtaken by a newer open, leaving the panels to it");
+      return;
+    }
     const opened = repository.current;
     trace(story, `activate: repository.current is ${opened ? opened.name : "null"}`);
     if (opened) {

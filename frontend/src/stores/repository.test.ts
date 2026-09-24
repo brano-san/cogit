@@ -206,6 +206,66 @@ describe("repository store, as a state machine", () => {
   });
 });
 
+// Work begun for one repository — a watcher cascade, a slow commit hook, a fetch — used
+// to finish by reloading panels that by then showed another one.
+describe("telling work for a repository the user has left (epoch)", () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+    commands.openRepository.mockReset();
+    repository.close();
+  });
+
+  it("stays the same across a re-read of the repository on screen", async () => {
+    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
+    await repository.open("C:/repos/one");
+    const epoch = repository.epoch;
+
+    await repository.refresh();
+
+    expect(repository.epoch).toBe(epoch);
+  });
+
+  it("changes as soon as another repository starts opening", async () => {
+    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
+    await repository.open("C:/repos/one");
+    const epoch = repository.epoch;
+
+    const answer = pending<unknown>();
+    commands.openRepository.mockReturnValue(answer.promise);
+    const opening = repository.open("C:/repos/two");
+
+    expect(repository.epoch).not.toBe(epoch);
+    answer.settle({ status: "ok", data: summary("C:/repos/two") });
+    await opening;
+  });
+
+  it("changes on a switch to a submodule and on close", async () => {
+    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
+    await repository.open("C:/repos/one");
+    const before = repository.epoch;
+
+    repository.adopt(summary("C:/repos/one/sub") as never);
+    const adopted = repository.epoch;
+    repository.close();
+
+    expect(adopted).not.toBe(before);
+    expect(repository.epoch).not.toBe(adopted);
+  });
+
+  it("tells the caller whose open was overtaken", async () => {
+    const slow = pending<unknown>();
+    commands.openRepository.mockReturnValueOnce(slow.promise);
+    const first = repository.open("C:/repos/slow");
+    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/two") });
+    const second = repository.open("C:/repos/two");
+
+    slow.settle({ status: "ok", data: summary("C:/repos/slow") });
+
+    expect(await first).toBe(false);
+    expect(await second).toBe(true);
+  });
+});
+
 describe("coming back to a listed repository (#50)", () => {
   beforeEach(() => {
     vi.useRealTimers();
