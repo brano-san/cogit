@@ -32,7 +32,6 @@
 
   let box = $state<Box | null>(null);
   let font = $state(12);
-  const technical = true;
   let wrap = $state(false);
   let allSelected = $state(false);
   let finding = $state(false);
@@ -186,18 +185,16 @@
     </header>
 
     <div class="body">
-      {#if technical}
-        <dl class="facts">
-          <dt>Command</dt>
-          <dd class="mono">{entry.command}</dd>
-          <dt>Exit code</dt>
-          <dd class="mono tabular">{entry.exitCode ?? "did not start"}</dd>
-          <dt>Duration</dt>
-          <dd class="tabular">{entry.durationMs} ms</dd>
-          <dt>Started</dt>
-          <dd class="tabular">{new Date(entry.startedAtMs).toLocaleString()}</dd>
-        </dl>
-      {/if}
+      <dl class="facts">
+        <dt>Command</dt>
+        <dd class="mono">{entry.command}</dd>
+        <dt>Exit code</dt>
+        <dd class="mono tabular">{entry.exitCode ?? "did not start"}</dd>
+        <dt>Duration</dt>
+        <dd class="tabular">{entry.durationMs} ms</dd>
+        <dt>Started</dt>
+        <dd class="tabular">{new Date(entry.startedAtMs).toLocaleString()}</dd>
+      </dl>
 
       {#if finding}
         <div class="find">
@@ -334,25 +331,6 @@
     flex: 1 1 auto;
     min-height: 0;
     padding: var(--sp-4) var(--sp-4) 0;
-  }
-
-  .technical,
-  .more {
-    align-self: flex-start;
-    padding: 0 var(--sp-2);
-    background: none;
-    border: 0;
-    color: var(--text-secondary);
-    font-size: var(--fs-header);
-  }
-
-  .more {
-    color: var(--status-delete);
-  }
-
-  .technical:hover,
-  .more:hover {
-    color: var(--text-primary);
   }
 
   .facts {

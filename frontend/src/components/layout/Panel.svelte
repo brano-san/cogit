@@ -17,7 +17,6 @@
     count?: number;
     actions?: Snippet;
     children?: Snippet;
-    empty?: string;
     /** Something changed on disk and this panel has not caught up yet. */
     stale?: boolean;
     /** The panel the keyboard is talking to; its header says so (issue 15). */
@@ -30,13 +29,12 @@
     count,
     actions,
     children,
-    empty,
     stale = false,
     active = false,
   }: Props = $props();
 
   const ready = $derived(view === "content");
-  const message = $derived(ready ? empty : idleMessage(view));
+  const message = $derived(ready ? undefined : idleMessage(view));
 </script>
 
 <section class="panel" aria-busy={view === "opening"}>
