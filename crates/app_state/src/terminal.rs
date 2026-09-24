@@ -71,21 +71,28 @@ pub fn command_for(kind: Terminal, path: &str) -> (String, Vec<String>) {
         Terminal::PowerShell => ("powershell.exe".to_owned(), vec!["-NoExit".to_owned()]),
         Terminal::Cmd => ("cmd.exe".to_owned(), vec!["/K".to_owned()]),
         Terminal::GitBash => (
-            git_bash().to_owned(),
+            bash_of(crate::desktop::find_git_bash().as_deref())
+                .to_string_lossy()
+                .into_owned(),
             vec!["--login".to_owned(), "-i".to_owned()],
         ),
         Terminal::System => system_terminal(path),
     }
 }
 
-/// The install layout is stable enough that a path is honest here; a missing one fails
-/// visibly with the spawn error rather than silently doing nothing.
-fn git_bash() -> &'static str {
+/// The bash beside the `git-bash.exe` the Git Shell item found (registry, PATH, the
+/// per-user install), else the usual install folder. A missing one fails visibly with the
+/// spawn error rather than silently doing nothing.
+#[must_use]
+pub fn bash_of(git_bash: Option<&std::path::Path>) -> std::path::PathBuf {
+    if let Some(root) = git_bash.and_then(std::path::Path::parent) {
+        return root.join("bin").join("bash.exe");
+    }
     const PREFERRED: &str = r"C:\Program Files\Git\bin\bash.exe";
     if std::path::Path::new(PREFERRED).is_file() {
-        PREFERRED
+        PREFERRED.into()
     } else {
-        r"C:\Program Files (x86)\Git\bin\bash.exe"
+        r"C:\Program Files (x86)\Git\bin\bash.exe".into()
     }
 }
 
