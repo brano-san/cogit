@@ -27,12 +27,18 @@ pub struct CommitQuery {
     /// `git log --first-parent`: a merge's other parents and what only they reach stay out.
     #[serde(default)]
     pub first_parent: bool,
+    /// Not a filter: how the graph this load lays out cuts long links (R-330).
+    #[serde(default)]
+    pub long_link_rows: Option<u32>,
 }
 
 impl CommitQuery {
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self == &Self::default()
+        Self {
+            long_link_rows: None,
+            ..self.clone()
+        } == Self::default()
     }
 
     /// A per-commit predicate forces a flat list; narrowing the ticked refs or following
@@ -42,6 +48,7 @@ impl CommitQuery {
         Self {
             visible_refs: None,
             first_parent: false,
+            long_link_rows: None,
             ..self.clone()
         } != Self::default()
     }

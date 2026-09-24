@@ -24,7 +24,7 @@
     layout?: readonly string[];
     /** Remotes and remembered choices the dropdowns are built from. */
     menus?: MenuContext;
-    /** Right-click on the toolbar: where the Configure Toolbar menu opens. */
+    /** Right-click on the toolbar: offers Preferences ▸ Toolbar. */
     oncontext?: (x: number, y: number) => void;
   }
 
@@ -121,6 +121,7 @@
           <div
             class="slot"
             class:disabled
+            class:pressed={open === action.id}
             data-tip={tipOf(action)}
             data-tip-hint={action.shortcut}
             data-tip-below=""
@@ -172,6 +173,7 @@
       <button
         type="button"
         class="more"
+        class:pressed={open === "overflow"}
         aria-haspopup="menu"
         aria-expanded={open === "overflow"}
         title="More actions"
@@ -327,7 +329,28 @@
     white-space: nowrap;
   }
 
+  /* Inline, not flex: the caret then sits on the middle of the lowercase letters
+     whatever font the system gives, where flex centred it on the line box, above them. */
+  .label.with-menu {
+    display: block;
+  }
+
+  .label.with-menu :global(.caret) {
+    margin-left: 2px;
+  }
+
   .label.with-menu:hover:not(:disabled) {
+    color: var(--status-ref);
+  }
+
+  /* While its menu is open the button stays down, so the menu reads as hanging from it. */
+  .slot.pressed,
+  .more.pressed {
+    background: var(--state-selected);
+    box-shadow: inset 0 0 0 1px var(--field-border);
+  }
+
+  .slot.pressed .label.with-menu {
     color: var(--status-ref);
   }
 

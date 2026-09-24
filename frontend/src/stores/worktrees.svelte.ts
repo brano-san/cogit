@@ -13,6 +13,8 @@ import {
   type RepoId,
   type WorktreeEntry,
 } from "$lib/ipc";
+import { repoNameOf } from "$lib/notices";
+import { notices } from "$stores/notices.svelte";
 
 class WorktreesStore {
   entries = $state.raw<WorktreeEntry[]>([]);
@@ -70,8 +72,10 @@ class WorktreesStore {
     await this.#act((repo) => pruneWorktree(repo, path));
   }
 
+  /** Queued like every write, so the footer says so; how it ended is a notification. */
   async repair(path: string): Promise<void> {
     await this.#act((repo) => repairWorktree(repo, path));
+    notices.inform("Worktree repaired", `Git knows ${repoNameOf(path)} is at ${path} again.`);
   }
 
   async lock(path: string, reason: string | null): Promise<void> {

@@ -77,6 +77,7 @@ function commitActions(facts: CommitFacts, onRef: RefTarget | null): ContextItem
     SEPARATOR,
     offer(id("reset"), "Reset", facts.isHeadCommit ? "HEAD is already here" : null),
     offer(id("reset-advanced"), "Reset Advanced…", null),
+    offer(id("rollback"), "Roll Back Tree", null),
   ];
 }
 

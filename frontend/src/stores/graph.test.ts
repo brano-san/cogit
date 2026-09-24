@@ -457,6 +457,17 @@ describe("first parents only", () => {
     const asked = commands.loadCommits.mock.calls.map(([, query]) => (query as { firstParent: boolean }).firstParent);
     expect(asked).toEqual([true, false]);
   });
+
+  it("walks the history on screen again when the setting changes, and only then", async () => {
+    await loaded(A, ["a", "b"]);
+    const started = streams.length;
+
+    graph.setFirstParent(true);
+    graph.setFirstParent(true);
+
+    expect(streams.length).toBe(started + 1);
+    graph.setFirstParent(false);
+  });
 });
 
 // Closing the last repository clears the graph; the "Not in the graph: …" line of the
@@ -473,5 +484,28 @@ describe("clearing the graph", () => {
     graph.clear();
 
     expect(graph.skipped).toEqual([]);
+  });
+});
+
+describe("long links", () => {
+  const sent = () => commands.loadCommits.mock.calls.at(-1)?.[1] as { longLinkRows?: number } | undefined;
+
+  it("asks for them to be cut with every load", async () => {
+    await loaded(A, ["a"]);
+
+    expect(sent()?.longLinkRows).toBe(graph.longLinkRows);
+  });
+
+  it("lays the history out again when the threshold changes, and only then", async () => {
+    await loaded(A, ["a", "b"]);
+    const before = commands.loadCommits.mock.calls.length;
+
+    graph.setLongLinkRows(graph.longLinkRows);
+    expect(commands.loadCommits.mock.calls.length).toBe(before);
+
+    graph.setLongLinkRows(0);
+    expect(commands.loadCommits.mock.calls.length).toBe(before + 1);
+    expect(sent()?.longLinkRows).toBe(0);
+    graph.setLongLinkRows(40);
   });
 });

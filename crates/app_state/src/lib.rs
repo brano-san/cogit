@@ -8,6 +8,7 @@ mod flow;
 mod graph_cache;
 mod graph_layout;
 pub mod graph_wire;
+mod handles;
 mod hooking;
 pub mod investigation;
 pub mod licences;
@@ -17,6 +18,7 @@ mod presets;
 mod queue;
 mod ref_ops;
 mod remote_ops;
+pub mod repo_rows;
 mod rewrite;
 mod safety;
 pub mod settings;
@@ -220,7 +222,8 @@ impl RowCache {
 #[serde(rename_all = "camelCase")]
 pub struct GraphChunk {
     pub commits: Vec<git_engine::CommitRow>,
-    /// One per commit, in the same order: the node and every segment of its row.
+    /// One per commit, in the same order: the node and every segment of its row. Cutting
+    /// long links holds the last rows back, so a chunk can have fewer rows than commits.
     pub rows: Vec<graph_engine::GraphRow>,
     pub is_last: bool,
 }
@@ -274,6 +277,7 @@ pub struct AppState {
     graph_generation: AtomicU32,
     graph: RwLock<graph_cache::GraphCache>,
     reachable: parking_lot::Mutex<HashMap<RepoId, git_engine::Reachable>>,
+    handles: handles::HandleCache,
 }
 
 struct Quiet<'a> {
@@ -325,6 +329,7 @@ impl AppState {
             graph_generation: AtomicU32::new(0),
             graph: RwLock::new(graph_cache::GraphCache::default()),
             reachable: parking_lot::Mutex::new(HashMap::new()),
+            handles: handles::HandleCache::default(),
         }
     }
 
@@ -909,6 +914,18 @@ impl AppState {
         self.rows_read.load(Ordering::Relaxed)
     }
 
+    /// How many times a command had to open its repository from disk.
+    #[must_use]
+    pub fn repositories_opened(&self) -> u32 {
+        self.handles.opened()
+    }
+
+    /// Open repositories kept for the next command.
+    #[must_use]
+    pub fn repositories_held(&self) -> usize {
+        self.handles.held()
+    }
+
     /// Closing froze the application with nothing in the log. Dropping a `RepoWatcher`
     /// joins the thread that delivers its events, and that was done **on the main thread
     /// and while holding the `watchers` lock** — so a delivery already in flight, which
@@ -1179,7 +1196,10 @@ impl AppState {
         let open = self
             .get(repo)
             .ok_or_else(|| git_engine::GitError::RepoNotFound(format!("id {}", repo.0)))?;
-        Ok(git_engine::RepoHandle::open(&open.root)?.with_journal(self.command_sink(repo)))
+        Ok(self
+            .handles
+            .handle(repo, &open.root)?
+            .with_journal(self.command_sink(repo)))
     }
 
     #[must_use]
@@ -1235,6 +1255,7 @@ impl AppState {
 
     pub fn unregister(&self, id: RepoId) -> bool {
         let removed = self.repos.write().remove(&id).is_some();
+        self.handles.forget(id);
         if removed {
             self.emit(AppEvent::RepoClosed { repo: id });
         }

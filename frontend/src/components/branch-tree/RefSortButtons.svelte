@@ -52,8 +52,8 @@
     flex: 0 0 auto;
     align-items: center;
     justify-content: center;
-    width: 18px;
-    height: 18px;
+    width: var(--h-button-sm);
+    height: var(--h-button-sm);
     padding: 0;
     background: none;
     border: 0;
@@ -73,8 +73,8 @@
   }
 
   svg {
-    width: 14px;
-    height: 14px;
+    width: var(--panel-icon);
+    height: var(--panel-icon);
     fill: none;
     stroke: currentColor;
     stroke-width: 1.2;

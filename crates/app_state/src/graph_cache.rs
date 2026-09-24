@@ -195,9 +195,8 @@ fn evicted<K: Copy + Eq>(graphs: &[(K, usize, u64)], keep: K, budget: usize) -> 
     out
 }
 
-fn row_bytes(commit: &CommitRow, row: &GraphRow) -> usize {
+fn commit_bytes(commit: &CommitRow) -> usize {
     size_of::<CommitRow>()
-        + size_of::<GraphRow>()
         + commit.oid.len()
         + commit.summary.len()
         + commit.author_name.len()
@@ -207,7 +206,10 @@ fn row_bytes(commit: &CommitRow, row: &GraphRow) -> usize {
             .iter()
             .map(|parent| size_of::<String>() + parent.len())
             .sum::<usize>()
-        + row.segments.len() * size_of::<graph_engine::Segment>()
+}
+
+fn row_bytes(row: &GraphRow) -> usize {
+    size_of::<GraphRow>() + row.segments.len() * size_of::<graph_engine::Segment>()
 }
 
 impl AppState {
@@ -299,12 +301,9 @@ impl AppState {
                     return false;
                 };
                 graph.ended |= chunk.is_last;
-                graph.bytes += chunk
-                    .commits
-                    .iter()
-                    .zip(&chunk.rows)
-                    .map(|(commit, row)| row_bytes(commit, row))
-                    .sum::<usize>();
+                // Rows lag commits by the long-link lookahead (R-330), so each is counted alone.
+                graph.bytes += chunk.commits.iter().map(commit_bytes).sum::<usize>()
+                    + chunk.rows.iter().map(row_bytes).sum::<usize>();
                 let from = graph.laid.rows.len();
                 let laid = Arc::make_mut(&mut graph.laid);
                 laid.commits.extend(chunk.commits);
@@ -382,6 +381,10 @@ impl AppState {
             .commits
             .iter()
             .position(|commit| commit.oid == oid)?;
+        // A commit walked but not laid out yet (R-330) has no row to scroll to.
+        if row >= view.laid.rows.len() {
+            return None;
+        }
         u32::try_from(row).ok()
     }
 

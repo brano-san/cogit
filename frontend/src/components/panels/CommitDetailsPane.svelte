@@ -8,16 +8,8 @@
 
   /** What the Diff panel shows when there is no file to diff: the selected commit, or
       what to do next. Why a repository would not open is told once, in the notification
-      (doc/12-risks.md, R-99) — not here as well. */
-  interface Props {
-    oncherrypick: () => void;
-    onrevert: () => void;
-    onsplit: () => void;
-    onrebase: () => void;
-    onrollback: () => void;
-  }
-
-  let { oncherrypick, onrevert, onsplit, onrebase, onrollback }: Props = $props();
+      (doc/12-risks.md, R-99) — not here as well. What to do with the commit is the graph's
+      context menu, not buttons here. */
 
   const repo = $derived(repository.current);
   const view = $derived(panelView(repository.phase));
@@ -48,13 +40,6 @@
           : details.parents.map(shortOid).join(", ")}
       </dd>
     </dl>
-    <div class="commit-actions">
-      <button type="button" onclick={oncherrypick}>Cherry-pick</button>
-      <button type="button" onclick={onrevert}>Revert</button>
-      <button type="button" onclick={onsplit}>Split Off…</button>
-      <button type="button" onclick={onrebase}>Rebase…</button>
-      <button type="button" onclick={onrollback}>Roll Back Tree</button>
-    </div>
   {:else if repo}
     <dl>
       <dt>Repository</dt>
@@ -83,28 +68,6 @@
     padding: var(--sp-5);
     font-size: var(--fs-dense);
     overflow: auto;
-  }
-
-  /* Left behind in App.svelte when the pane moved out (0d49f07); the buttons were drawn
-     with the system look on the dark panel since. */
-  .commit-actions {
-    display: flex;
-    gap: var(--sp-3);
-  }
-
-  .commit-actions button {
-    height: 20px;
-    padding: 0 var(--sp-4);
-    background: var(--surface-input);
-    color: var(--text-primary);
-    border: 1px solid var(--field-border);
-    border-radius: var(--r-sm);
-    font-size: var(--fs-dense);
-    cursor: default;
-  }
-
-  .commit-actions button:hover {
-    border-color: var(--status-ref);
   }
 
   .subject {
@@ -156,12 +119,5 @@
     padding: var(--sp-7) var(--sp-5);
     text-align: center;
     font-size: var(--fs-dense);
-  }
-
-  .commit-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--sp-3);
-    margin-top: var(--sp-5);
   }
 </style>

@@ -387,3 +387,35 @@ fn first_parents_only_leave_the_merged_side_out_and_end_its_line_in_an_arrow() {
             .all(|row| row.segments.iter().all(|s| !s.arrow))
     );
 }
+
+/// Cutting long links holds the last rows back until the walk ends (R-330); they come
+/// with the closing chunk, and every commit still gets its row, in order.
+#[test]
+fn rows_held_back_for_long_links_arrive_with_the_last_chunk() {
+    let f = test_fixtures::linear(12).unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let query = git_engine::CommitQuery {
+        long_link_rows: Some(4),
+        ..git_engine::CommitQuery::default()
+    };
+
+    let mut chunks = Vec::new();
+    state
+        .search_graph(repo, &query, 5, |chunk| {
+            chunks.push(chunk);
+            true
+        })
+        .unwrap();
+
+    let last = chunks.last().unwrap();
+    assert!(last.is_last);
+    assert_eq!(last.rows.len(), 4, "the lookahead is emptied at the end");
+    let rows: Vec<u32> = chunks
+        .iter()
+        .flat_map(|c| &c.rows)
+        .map(|row| row.row)
+        .collect();
+    assert_eq!(rows, (0..12).collect::<Vec<_>>());
+    assert!(!query.filters_rows(), "a layout option is not a filter");
+}

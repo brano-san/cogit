@@ -7,19 +7,22 @@
 //! | header: version, start, rows, total, complete, segments, text bytes, oid bytes | u32 | 8 |
 //! | commit time, Unix seconds | f64 | rows |
 //! | first segment of each row, then the end | u32 | rows + 1 |
+//! | first long link of each row, then the end | u32 | rows + 1 |
 //! | text offsets: summary, author name, author email of each row, then the end | u32 | 3 × rows + 1 |
 //! | time zone offset, minutes | i32 | rows |
 //! | node lane, row width | u16 | rows each |
 //! | segment from, segment to | u16 | segments each |
+//! | segment of each long link, counted within its row | u16 | links |
 //! | node colour, node flags: kind in bits 0–1, primary in bit 2 | u8 | rows each |
 //! | segment colour, segment flags: span in bits 0–1, primary in bit 2, arrow in bit 3 | u8 | segments each |
 //! | object ids, fixed width | ASCII | rows × oid bytes |
+//! | the far end of each long link | ASCII | links × oid bytes |
 //! | text | UTF-8 | text bytes |
 
 use crate::GraphWindow;
 use graph_engine::{NodeKind, Span};
 
-pub const WIRE_VERSION: u32 = 1;
+pub const WIRE_VERSION: u32 = 2;
 
 #[must_use]
 pub fn encode(window: &GraphWindow) -> Vec<u8> {
@@ -59,6 +62,12 @@ pub fn encode(window: &GraphWindow) -> Vec<u8> {
         first += row.segments.len();
     }
     out.extend_from_slice(&count(first).to_le_bytes());
+    let mut first_link = 0;
+    for row in rows {
+        out.extend_from_slice(&count(first_link).to_le_bytes());
+        first_link += row.links.len();
+    }
+    out.extend_from_slice(&count(first_link).to_le_bytes());
     let mut offset = 0;
     for commit in commits {
         for field in [&commit.summary, &commit.author_name, &commit.author_email] {
@@ -83,6 +92,9 @@ pub fn encode(window: &GraphWindow) -> Vec<u8> {
     for segment in rows.iter().flat_map(|row| &row.segments) {
         out.extend_from_slice(&segment.to.to_le_bytes());
     }
+    for link in rows.iter().flat_map(|row| &row.links) {
+        out.extend_from_slice(&link.segment.to_le_bytes());
+    }
 
     out.extend(rows.iter().map(|row| row.color));
     out.extend(
@@ -97,8 +109,9 @@ pub fn encode(window: &GraphWindow) -> Vec<u8> {
     );
 
     // One repository hashes every object the same way, so every id is as long as the first.
-    for commit in commits {
-        let mut id = commit.oid.as_bytes().to_vec();
+    let links = rows.iter().flat_map(|row| &row.links).map(|link| &link.oid);
+    for oid in commits.iter().map(|commit| &commit.oid).chain(links) {
+        let mut id = oid.as_bytes().to_vec();
         id.resize(oid_bytes, b'0');
         out.extend_from_slice(&id);
     }

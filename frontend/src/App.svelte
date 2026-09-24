@@ -4,6 +4,8 @@
   import { checkForUpdates, message, type UpdateOutcome } from "$lib/updates";
   import { leaveRepositoryDialogs } from "$lib/leaving";
   import { retryOf } from "$lib/retry";
+  import { publishedOrAssume } from "$lib/published";
+  import { menuStatePusher } from "$lib/menu-state";
   import { branchNameProblem, optional, textProblem } from "$lib/names";
   import { finder } from "$stores/finder.svelte";
   import { THIRD_PARTY_FILE } from "$lib/third-party";
@@ -38,7 +40,7 @@
   import CommandOutput from "$components/layout/CommandOutput.svelte";
   import { suppressNativeMenu } from "$lib/native-menu";
   import { footerRepository, panelView } from "$lib/repo-phase";
-  import { startTracing, timed, trace } from "$lib/trace";
+  import { flushTrace, startTracing, timed, trace } from "$lib/trace";
   import OutputPanel from "$components/layout/OutputPanel.svelte";
   import StateBanner from "$components/layout/StateBanner.svelte";
   import Splitter from "$components/layout/Splitter.svelte";
@@ -47,7 +49,6 @@
   import ScanDialog from "$components/repo-tree/ScanDialog.svelte";
   import PromptDialog from "$components/layout/PromptDialog.svelte";
   import StashDialogs from "$components/layout/StashDialogs.svelte";
-  import ToolbarConfigDialog from "$components/layout/ToolbarConfigDialog.svelte";
   import RemoteOpsDialog from "$components/remote/RemoteOpsDialog.svelte";
   import RepoSettingsDialog from "$components/remote/RepoSettingsDialog.svelte";
   import { remoteCommands, submoduleScope } from "$lib/remote-menu";
@@ -104,7 +105,6 @@
     getAppInfo,
     openThirdPartyLicences,
     addToGitignore,
-    cherryPick,
     closeThisWindow,
     interactiveRebase,
     isPublished,
@@ -137,7 +137,6 @@
     popupContextMenu,
     resolveConflict,
     setMenuState,
-    revertCommits,
     rebaseOnto,
     skipOperation,
     type AppInfo,
@@ -160,6 +159,8 @@
   import { safety } from "$stores/safety.svelte";
   import { stashes } from "$stores/stashes.svelte";
   import { submodules } from "$stores/submodules.svelte";
+  import { moduleMemory } from "$stores/module-memory.svelte";
+  import { repoPulse } from "$stores/repo-pulse.svelte";
   import { graph } from "$stores/graph.svelte";
   import { hooks } from "$stores/hooks.svelte";
   import { avatars } from "$stores/avatars.svelte";
@@ -223,7 +224,13 @@
   let markedFiles = $state.raw<string[]>([]);
   type RepoMenuSubject =
     | { kind: "repository"; root: string; overview: import("$lib/ipc").RepoOverview | null }
-    | { kind: "submodule"; root: string; row: import("$lib/module-tree").ModuleRow };
+    | {
+        kind: "submodule";
+        root: string;
+        row: import("$lib/module-tree").ModuleRow;
+        /** The repository it belongs to, when that is not the one the panels own. */
+        top?: string;
+      };
   let repoTarget = $state.raw<RepoMenuSubject | null>(null);
   let terminals = $state.raw<{ id: string; label: string }[]>([]);
   let groupTarget = $state<string | null>(null);
@@ -560,12 +567,6 @@
       },
       { id: "output", title: "Toggle Output Panel", shortcut: "Ctrl+Shift+7", run: () => output.toggle() },
       {
-        id: "configure-toolbar",
-        title: "Configure Toolbar…",
-        synonyms: ["customize toolbar", "toolbar buttons"],
-        run: () => (toolbar.configuring = true),
-      },
-      {
         id: "copy-path",
         title: "Copy the File Path",
         unavailable: diff.path ? undefined : "No file is open in the Diff panel",
@@ -768,7 +769,7 @@
         id: "settings",
         title: "Preferences",
         shortcut: "Ctrl+,",
-        synonyms: ["settings", "options"],
+        synonyms: ["settings", "options", "customise toolbar", "toolbar buttons"],
         run: () => openSettings(),
       },
       {
@@ -929,15 +930,21 @@
   /** What Cancel goes back to. Taken when the dialog opens, not when it closes: by the
       time it closes, everything has already been applied and saved (R-122). */
   let settingsAtOpen = $state.raw<Settings | null>(null);
+  let toolbarAtOpen: readonly string[] = [];
+  /** The page Preferences opens on: right-click on the toolbar lands on Toolbar. */
+  let settingsStart = $state<string | undefined>(undefined);
 
-  function openSettings() {
+  function openSettings(page?: string) {
     settingsAtOpen = { ...settings.current };
+    toolbarAtOpen = toolbar.layout;
+    settingsStart = page;
     settingsOpen = true;
   }
 
   async function revertSettings() {
     const before = settingsAtOpen;
     settingsOpen = false;
+    await toolbar.setLayout(toolbarAtOpen);
     if (before) await settings.apply(before);
   }
 
@@ -948,7 +955,7 @@
     );
     await settings.apply(next);
     await settings.setKeymap(keymap);
-    pushMenuState();
+    pushMenuState(true);
 
     const id = repository.current?.repo;
     if (!id || !diff.spec || !diff.path) return;
@@ -967,7 +974,11 @@
 
   function onDiskChange(change: import("$lib/ipc").RepoChanged) {
     const id = repository.current?.repo;
-    if (!id || id.valueOf() !== change.repo.valueOf()) return;
+    if (!id || id.valueOf() !== change.repo.valueOf()) {
+      const left = repository.openRepos.find((entry) => entry.repo.valueOf() === change.repo.valueOf());
+      if (left) repoPulse.changed(left.root);
+      return;
+    }
     if (change.kind !== "hooks") stale = markStale(stale, change.kind);
     pending.add(change.kind);
     clearTimeout(settling);
@@ -1077,7 +1088,7 @@
     const id = repository.current?.repo;
     if (!id) return false;
 
-    if (amend && (await isPublished(id, "HEAD").catch(() => false))) {
+    if (amend && (await publishedOrAssume(isPublished(id, "HEAD")))) {
       const go = await ask(
         "This commit is already on a remote. Amending it gives it a new id, so the branch " +
           "will need a force-push and anyone who pulled it will have to reset. Continue?",
@@ -1134,6 +1145,12 @@
     tagSeparator: repo?.tagGroupSeparator,
   });
   const refTreeInput = $derived({ ...refTreeBase, collapsed: refs.collapsed, filter: refFilter });
+
+  // The walk follows first parents only while the setting says so (R-301).
+  $effect(() => {
+    const on = settings.current.graphFirstParent;
+    untrack(() => graph.setFirstParent(on));
+  });
 
   // A heading that arrives after the open — stashes, lost commits — arrives folded (R-154).
   $effect(() => {
@@ -1323,6 +1340,27 @@
     await afterMutation();
   }
 
+  /** A submodule of a listed repository the panels do not own, open or closed (R-352): the
+      repository is opened without taking the panels, its tree becomes the full one, and
+      the submodule takes the panels. Clicking the repository afterwards comes back to it. */
+  async function openForeignModule(root: string, row: import("$lib/module-tree").ModuleRow) {
+    const epoch = repository.epoch;
+    let owner: import("$lib/ipc").RepoSummary;
+    try {
+      owner = await openRepository(root);
+    } catch (err) {
+      errors.report(err, "Could not open the repository");
+      return;
+    }
+    if (repository.epoch !== epoch) return;
+    repoList.opened(owner.root);
+    await submodules.own(owner.repo, owner.root);
+    if (repository.epoch !== epoch) return;
+    repository.keep(owner);
+    await openModule(submodules.rows.find((each) => each.key === row.key) ?? row);
+    void repository.refreshList();
+  }
+
   /** From the Diff panel, where a submodule that was never checked out says so. */
   async function initSubmoduleAt(path: string) {
     await mutate((id) => submodules.update(id, path, true));
@@ -1394,25 +1432,6 @@
     } catch (err) {
       errors.report(err, "Could not recover the commit");
       return;
-    }
-    await afterRefChange(id);
-  }
-
-  async function replaySelected(kind: "cherryPick" | "revert") {
-    const id = repository.current?.repo;
-    const oid = commit.oid;
-    if (!id || !oid) return;
-    const verb = kind === "cherryPick" ? "Cherry-pick" : "Revert";
-    const confirmed = await ask(`${verb} ${shortOid(oid)} onto the current branch?`, {
-      title: verb,
-      kind: "warning",
-    });
-    if (!confirmed) return;
-    try {
-      if (kind === "cherryPick") await cherryPick(id, [oid]);
-      else await revertCommits(id, [oid]);
-    } catch (err) {
-      errors.report(err, `${verb} failed`);
     }
     await afterRefChange(id);
   }
@@ -1854,7 +1873,7 @@
 
     rebaseBase = base;
     rebasePlan = moved;
-    splitPublished = await isPublished(id, base).catch(() => false);
+    splitPublished = await publishedOrAssume(isPublished(id, base));
     rebaseOpen = true;
   }
 
@@ -1886,7 +1905,7 @@
       return;
     }
     rebaseBase = rev;
-    splitPublished = await isPublished(id, rev).catch(() => false);
+    splitPublished = await publishedOrAssume(isPublished(id, rev));
     rebaseOpen = true;
   }
 
@@ -2507,12 +2526,17 @@
   }
 
   /** A submodule node: the same menu, with the four list-only items explained away. */
-  async function moduleContext(row: import("$lib/module-tree").ModuleRow, x: number, y: number) {
-    const top = submodules.ownerRoot;
+  async function moduleContext(
+    row: import("$lib/module-tree").ModuleRow,
+    x: number,
+    y: number,
+    foreign?: string,
+  ) {
+    const top = foreign ?? submodules.ownerRoot;
     if (!top) return;
     const info = await desktop.load();
-    const open = submodules.open === row.key;
-    repoTarget = { kind: "submodule", root: `${top}/${row.key}`, row };
+    const open = foreign === undefined && submodules.open === row.key;
+    repoTarget = { kind: "submodule", root: `${top}/${row.key}`, row, top: foreign };
     const items = repoMenu(
       {
         kind: "submodule",
@@ -2555,7 +2579,8 @@
       void step.catch((err) => errors.report(err, failure));
     switch (command.id) {
       case "repo-open":
-        if (target.kind === "submodule") void openModule(target.row);
+        if (target.kind === "submodule" && target.top) void openForeignModule(target.top, target.row);
+        else if (target.kind === "submodule") void openModule(target.row);
         else if (target.overview) void selectRepository(target.overview);
         else {
           repoList.opened(root);
@@ -2614,16 +2639,19 @@
     if (!overview) return;
     repoList.closed(target.root);
     const wasActive = isActive(overview);
+    const last = wasActive && repository.openRepos.every((entry) => entry.repo === overview.repo);
     if (wasActive) {
       commit.clear();
       diff.clear();
       health.clear();
     }
+    // In the frame the other panels empty in, not a round trip after them.
+    if (last) graph.clear();
     await repository.closeOne(overview.repo);
     if (!wasActive) return;
     const next = repository.openRepos[0];
     if (next) await activate(next.root);
-    else graph.clear();
+    else if (!last) graph.clear();
   }
 
   /** Pull or push the row's repository without bringing it to the front. */
@@ -2649,6 +2677,7 @@
       errors.report(err, `Could not ${kind}`);
     }
     await repository.refreshList();
+    if (target.kind === "repository") repoPulse.changed(target.root);
   }
 
   async function renameListed(root: string, folder: string | undefined) {
@@ -2677,6 +2706,8 @@
       await closeListed(target);
     }
     repoList.forget(target.root);
+    moduleMemory.forget(target.root);
+    repoPulse.forget(target.root);
     repoGroups.assign(target.root, UNGROUPED);
   }
 
@@ -2708,7 +2739,7 @@
     const id = repository.current?.repo;
     const rev = commit.oid;
     if (!id || !rev) return;
-    splitPublished = await isPublished(id, rev).catch(() => false);
+    splitPublished = await publishedOrAssume(isPublished(id, rev));
     splitOpen = true;
   }
 
@@ -2856,6 +2887,7 @@
       nobody wrote yet. Everything else is already on disk or in the draft store. */
   async function mayClose(): Promise<boolean> {
     const source = exitFlow.takeSource();
+    flushTrace();
     session.persist();
     const what = unsavedSummary({
       hook: hooks.dirty ? hooks.editing : null,
@@ -2872,6 +2904,7 @@
   /** No close request is pending here, so the window is destroyed rather than closed:
       closing would ask the same question a second time. */
   async function onSessionEnding() {
+    flushTrace();
     session.persist();
     if (!(await exitFlow.ask("system", settings.current.confirmExit, listOperations))) return;
     const { getCurrentWindow } = await import("@tauri-apps/api/window");
@@ -2897,6 +2930,19 @@
       void openDropped(droppedRepositories(event.paths));
     }
   }
+
+  // The rows of Repositories are read in the background, never while the repository on
+  // screen is busy (R-353).
+  repoPulse.setBusy(
+    () =>
+      running.size > 0 ||
+      repository.busy ||
+      network.running !== null ||
+      bulk !== undefined ||
+      graph.loading,
+  );
+  $effect(() => repoPulse.setOwned(repository.current?.root ?? null));
+  $effect(() => repoPulse.fetchEvery(settings.current.backgroundFetchMinutes));
 
   /** One subscription for everything the window hears from outside itself. */
   $effect(() =>
@@ -2950,6 +2996,8 @@
 
   $effect(() => {
     const pending = onMenuCommand((id) => {
+      pushMenuState(true);
+      if (id === "toolbar-preferences") return openSettings("toolbar");
       if (refActions?.run(id)) return;
       if (runGroupCommand(id)) return;
       if (runRepoCommand(id)) return;
@@ -2983,8 +3031,11 @@
     );
   });
 
-  /** A rebuilt bar starts with every tick cleared, so this runs again after a keymap save. */
-  function pushMenuState() {
+  const sendMenuState = menuStatePusher((disabled, checked) => setMenuState(disabled, checked));
+
+  /** A rebuilt bar starts with every tick cleared, so this runs again after a keymap save;
+      and after a menu command, since muda flips a clicked tick on its own. */
+  function pushMenuState(resend = false) {
     const checked = checkedIds({
       panels: PANELS.filter((panel) => layout.visible(panel)),
       output: output.open,
@@ -2993,7 +3044,7 @@
       avatars: avatars.enabled,
       perspective: layout.active,
     });
-    void setMenuState(disabledIds(palette), checked).catch(() => {});
+    sendMenuState(disabledIds(palette), checked, { resend });
   }
 
   // The native menu is not reactive, so the derived state is pushed to it. muda flips a
@@ -3018,7 +3069,7 @@
     layout={toolbar.layout}
     oncontext={(x, y) =>
       void popupContextMenu(
-        [{ id: "configure-toolbar", label: "Configure Toolbar…", enabled: true }],
+        [{ id: "toolbar-preferences", label: "Toolbar Preferences…", enabled: true }],
         x,
         y,
       ).catch(() => {})}
@@ -3094,14 +3145,14 @@
             }}
             onopen={pickRepository}
             onselect={(entry) => void selectRepository(entry)}
-            onclose={(entry) => void closeListed({ kind: "repository", root: entry.root, overview: entry })}
             oncontext={(row, x, y) => void repoContext(row, x, y)}
             onreopen={(root) => void activate(root)}
             onmarked={(roots) => (markedRepos = roots)}
             onaddgroup={askAddGroup}
             ongroupcontext={(id, x, y) => void groupContext(id, x, y)}
             onopenmodule={(row) => void openModule(row)}
-            onmodulecontext={(row, x, y) => void moduleContext(row, x, y)}
+            onopenforeignmodule={(root, row) => void openForeignModule(root, row)}
+            onmodulecontext={(row, x, y, root) => void moduleContext(row, x, y, root)}
           />
         </Panel>
       </div>
@@ -3405,13 +3456,7 @@
             }}
           >
             {#snippet fallback()}
-              <CommitDetailsPane
-                oncherrypick={() => void replaySelected("cherryPick")}
-                onrevert={() => void replaySelected("revert")}
-                onsplit={() => void openSplit()}
-                onrebase={() => void openRebase()}
-                onrollback={() => void rollbackFiles([])}
-              />
+              <CommitDetailsPane />
             {/snippet}
           </DiffPanel>
         </Panel>
@@ -3476,6 +3521,7 @@
     checkoutBranch={switchTo}
     {openSplit}
     {openRebase}
+    rollbackTree={() => rollbackFiles([])}
   />
 
   {#if splitOpen && commit.oid}
@@ -3564,6 +3610,9 @@
       onclose={() => (settingsOpen = false)}
       ignored={health.ignored}
       onunignore={(root, warning) => void health.unignore(root, warning)}
+      start={settingsStart}
+      toolbarLayout={toolbar.layout}
+      ontoolbar={(next) => void toolbar.setLayout(next)}
     />
   {/if}
 
@@ -3621,9 +3670,6 @@
   {/if}
 
   <StashDialogs />
-  {#if toolbar.configuring}
-    <ToolbarConfigDialog />
-  {/if}
 
   {#if remoteOps.dialog}
     {#key remoteOps.dialog}

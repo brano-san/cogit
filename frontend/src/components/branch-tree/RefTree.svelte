@@ -72,7 +72,7 @@
   }
 </script>
 
-<div class="tree tree-rows" role="tree" aria-label="References">
+<div class="tree tree-rows key-list" role="tree" aria-label="References">
   {#each nodes as node (node.id)}
     {@const state = checkState(tree, node.id, visible)}
     {@const tickable = leavesUnder(tree, node.id).length > 0}
@@ -137,9 +137,8 @@
       >
 
       {#if node.worktree}
-        <KindIcon kind="worktree" title={worktreeMarkTooltip(node.worktree)} />
-        <span class="wt-state {node.worktree.state}" title={worktreeMarkTooltip(node.worktree)}
-          >{node.worktree.state}</span
+        <span class="wt-mark {node.worktree.state}" title={worktreeMarkTooltip(node.worktree)}
+          >(<span class="wt-dot" aria-hidden="true"></span>worktree)</span
         >
       {/if}
 
@@ -198,24 +197,32 @@
     font-weight: 600;
   }
 
-  .wt-state {
+  .wt-mark {
     flex: 0 0 auto;
-    padding: 0 var(--sp-2);
-    border: 1px solid var(--divider);
-    border-radius: var(--r-sm);
+    display: inline-flex;
+    align-items: center;
     color: var(--text-secondary);
-    font-size: 10px;
-    line-height: 12px;
+    font-size: var(--fs-header);
   }
 
-  .wt-state.changes {
-    color: var(--status-modify);
-    border-color: var(--status-modify);
+  .wt-dot {
+    width: 6px;
+    height: 6px;
+    margin-right: var(--sp-2);
+    border-radius: 50%;
+    background: currentColor;
   }
 
-  .wt-state.missing {
+  .wt-mark.changes .wt-dot {
+    background: var(--indicator-changes);
+  }
+
+  .wt-mark.synced .wt-dot {
+    background: var(--indicator-synced);
+  }
+
+  .wt-mark.missing {
     color: var(--status-delete);
-    border-color: var(--status-delete);
   }
 
   .label {

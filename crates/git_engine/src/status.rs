@@ -26,16 +26,8 @@ impl RepoHandle {
             return Ok(RepoStatus::default());
         }
 
-        let iter = self
-            .repo
-            .status(gix::progress::Discard)
-            .map_err(|err| GitError::Internal(format!("cannot start status: {err}")))?
-            .untracked_files(UntrackedFiles::Files)
-            .into_iter(None::<gix::bstr::BString>)
-            .map_err(|err| GitError::Internal(format!("cannot read status: {err}")))?;
-
         let mut status = RepoStatus::default();
-        for item in iter {
+        for item in self.status_items()? {
             let item = item.map_err(|err| GitError::Internal(format!("status failed: {err}")))?;
             match item {
                 Item::TreeIndex(_) => status.staged += 1,
@@ -55,5 +47,38 @@ impl RepoHandle {
             }
         }
         Ok(status)
+    }
+
+    /// `!status().is_clean()`, stopping at the first change instead of counting them all.
+    pub fn has_changes(&self) -> Result<bool> {
+        if self.repo.is_bare() {
+            return Ok(false);
+        }
+        for item in self.status_items()? {
+            let item = item.map_err(|err| GitError::Internal(format!("status failed: {err}")))?;
+            let counts = match item {
+                Item::TreeIndex(_) => true,
+                Item::IndexWorktree(WorktreeItem::Modification { status: entry, .. }) => {
+                    matches!(entry, EntryStatus::Conflict { .. } | EntryStatus::Change(_))
+                }
+                Item::IndexWorktree(WorktreeItem::DirectoryContents { entry, .. }) => {
+                    matches!(entry.status, gix::dir::entry::Status::Untracked)
+                }
+                Item::IndexWorktree(_) => false,
+            };
+            if counts {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    fn status_items(&self) -> Result<gix::status::Iter> {
+        self.repo
+            .status(gix::progress::Discard)
+            .map_err(|err| GitError::Internal(format!("cannot start status: {err}")))?
+            .untracked_files(UntrackedFiles::Files)
+            .into_iter(None::<gix::bstr::BString>)
+            .map_err(|err| GitError::Internal(format!("cannot read status: {err}")))
     }
 }

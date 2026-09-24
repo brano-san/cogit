@@ -1,7 +1,7 @@
 <script lang="ts">
   import KindIcon from "$components/common/KindIcon.svelte";
   import type { RefLabel } from "$lib/format";
-  import { REF_LABEL_MAX, refLabelText, truncateMiddle } from "$lib/truncate";
+  import { REF_LABEL_MAX, middleCut, refLabelText, truncateMiddle } from "$lib/truncate";
 
   interface Props {
     label: RefLabel;
@@ -15,6 +15,10 @@
   const prefix = $derived(label.remotes?.join(",") ?? "");
   /** Middle-cut (#5): the remotes stay whole, the branch name gives up its middle. */
   const branch = $derived(truncateMiddle(label.name ?? "", Math.max(REF_LABEL_MAX - prefix.length - 1, 12)));
+  const text = $derived(middleCut(label.remotes ? branch : refLabelText(label.text)));
+  /** Characters a squeezed label keeps (#12): the tail, an ellipsis and the remotes. In `ch`
+      of the label's own monospace font, so the floor is exact. */
+  const floor = $derived((label.remotes ? prefix.length + 1 : 0) + text.tail.length + (text.lead ? 1 : 0));
 </script>
 
 {#snippet held()}
@@ -23,29 +27,59 @@
   {/if}
 {/snippet}
 
+{#snippet cut()}
+  <span class="lead">{text.lead}</span><span class="tail">{text.tail}</span>
+{/snippet}
+
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<span class="capsule {label.kind}" class:joined={label.remotes} title={tooltip} oncontextmenu={onmenu}>
+<span
+  class="capsule {label.kind}"
+  class:joined={label.remotes}
+  class:holds={label.worktree}
+  style:--floor="{floor}ch"
+  title={tooltip}
+  oncontextmenu={onmenu}
+>
   {#if label.remotes}
     <span class="prefix">{prefix}</span><span class="eq">=</span><span class="branch"
-      >{@render held()}{branch}</span
+      >{@render held()}{@render cut()}</span
     >
   {:else}
-    {@render held()}{refLabelText(label.text)}
+    {@render held()}{@render cut()}
   {/if}
 </span>
 
 <style>
+  /* Gives way before the subject does (#12), cut in the middle: the lead shrinks behind an
+     ellipsis and the tail, which tells branches apart, stays. */
   .capsule {
+    --chrome: calc(2 * var(--sp-3) + 2px);
     display: inline-flex;
     align-items: center;
-    flex: 0 0 auto;
+    flex: 0 100000 auto;
+    min-width: calc(var(--floor) + var(--chrome) + var(--held, 0px));
     height: 16px;
     padding: 0 var(--sp-3);
+    overflow: hidden;
     border: 1px solid;
     border-radius: var(--r-md);
     font-family: var(--font-mono);
     font-size: 10px;
     line-height: 14px;
+  }
+
+  .lead {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .tail {
+    flex: none;
+  }
+
+  .holds {
+    --held: 12px;
   }
 
   .head {
@@ -80,12 +114,13 @@
 
   /* `origin=feature/x`: the remotes in the remote colours, the branch in its own. */
   .joined {
+    --chrome: calc(2 * var(--sp-3) + 2 * var(--sp-1) + var(--sp-2) + 2px);
     padding: 0;
-    overflow: hidden;
   }
 
   .prefix,
   .eq {
+    flex: none;
     color: var(--text-secondary);
     background: var(--surface-raised);
   }
@@ -101,6 +136,8 @@
   .branch {
     display: inline-flex;
     align-items: center;
+    min-width: 0;
+    overflow: hidden;
     padding: 0 var(--sp-3) 0 var(--sp-2);
   }
 
@@ -108,6 +145,7 @@
   .held {
     --kind-icon: 10px;
     display: inline-flex;
+    flex: none;
     margin-right: var(--sp-1);
   }
 

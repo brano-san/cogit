@@ -16,6 +16,8 @@
     flex: none;
     width: var(--menu-caret);
     height: var(--menu-caret);
+    /* In running text: the middle of the x-height, not the top of the line. */
+    vertical-align: middle;
     fill: none;
     stroke: currentColor;
     stroke-width: 1.6;

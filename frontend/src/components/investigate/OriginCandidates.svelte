@@ -34,7 +34,7 @@
     <p class="note">Pick a line in Blame to search for where it came from.</p>
   {:else}
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-    <ul role="listbox" aria-label="Origin candidates" tabindex="0" {onkeydown}>
+    <ul class="key-list" role="listbox" aria-label="Origin candidates" tabindex="0" {onkeydown}>
       {#each session.report.candidates as candidate, index (index)}
         {@const words = describeCandidate(candidate, blockPath)}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -113,7 +113,6 @@
     padding: 0;
     overflow-y: auto;
     list-style: none;
-    outline: none;
   }
 
   li {

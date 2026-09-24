@@ -17,7 +17,8 @@ pub(crate) fn lay_out(
     let flat = query.filters_rows();
 
     // Read once per load: a column that moved half way down would be worse than none.
-    let mut cursor = graph_engine::LayoutCursor::with_mainline(mainline_of(handle, query));
+    let mut cursor = graph_engine::LayoutCursor::with_mainline(mainline_of(handle, query))
+        .with_long_links(query.long_link_rows.unwrap_or(0));
     let mut cancelled = false;
 
     // One order for the graph and the filtered list: by date, never a parent above a
@@ -41,7 +42,7 @@ pub(crate) fn lay_out(
                     .collect(),
             })
             .collect();
-        let rows = graph_engine::layout(&nodes, &mut cursor);
+        let rows = graph_engine::push(nodes, &mut cursor);
 
         let keep = on_chunk(GraphChunk {
             commits,
@@ -55,9 +56,10 @@ pub(crate) fn lay_out(
     let skipped = handle.graph_commits(query, chunk_size, reuse, record, on_commits)?;
 
     if !cancelled {
+        // The rows held back to see how far their links reach (R-330).
         on_chunk(GraphChunk {
             commits: Vec::new(),
-            rows: Vec::new(),
+            rows: graph_engine::finish(&mut cursor),
             is_last: true,
         });
     }
