@@ -332,7 +332,9 @@ ST src-tauri, FS сторы и lib фронта, FA App.svelte/окна/layout, 
   > после `clear()` строки идущей операции никуда не пишутся. `run` отдаёт колбэк прогресса
   > операции (RefActions больше не пишет `network.progress` сам). Тест network.test.ts: три
   > случая, красные до правки.
-- [ ] 1.10 FS-1-06: conflicts.take/write не закрывают другой файл
+- [x] 1.10 FS-1-06: conflicts.take/write не закрывают другой файл
+  > Итог: take/write закрывают вид, только если открыт тот же файл, что решали. Тест «leaves
+  > the next file open» в conflicts.test.ts (красный до правки).
 - [ ] 1.11 FS-1-07: поколение у #reloadSections
 - [ ] 1.12 FA-1-03, FA-1-04: подтверждения и редакторы привязаны к своему репозиторию
 - [ ] 1.13 FA-1-01, FA-1-02, FA-1-05: эпоха в сетевых шагах, afterRefChange, openModule
