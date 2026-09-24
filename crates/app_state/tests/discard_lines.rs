@@ -32,7 +32,6 @@ fn request(path: &str, inserts: Vec<u32>) -> PatchRequest {
         selected_deletes: Vec::new(),
         selected_inserts: inserts,
         line_ending: LineEnding::Lf,
-        no_trailing_newline: false,
     }
 }
 

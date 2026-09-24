@@ -22,7 +22,6 @@ fn request(path: &str, old: &str, new: &str, deletes: Vec<u32>, inserts: Vec<u32
         selected_deletes: deletes,
         selected_inserts: inserts,
         line_ending: LineEnding::Lf,
-        no_trailing_newline: false,
     }
 }
 
@@ -117,4 +116,176 @@ fn staging_the_removal_of_every_line_records_the_file_as_deleted() {
         "the deletion must be staged: {:?}",
         files.staged
     );
+}
+
+fn request_with(
+    path: &str,
+    old: &str,
+    new: &str,
+    options: &DiffOptions,
+    deletes: Vec<u32>,
+    inserts: Vec<u32>,
+) -> PatchRequest {
+    let hunks = match diff_text(old, new, options) {
+        FileDiff::Text { hunks, .. } => hunks,
+        other => panic!("expected a text diff, got {other:?}"),
+    };
+    PatchRequest {
+        hunks,
+        ..request(path, old, new, deletes, inserts)
+    }
+}
+
+fn opened(f: &test_fixtures::Fixture) -> (AppState, app_state::RepoId) {
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    (state, repo)
+}
+
+fn index_text(f: &test_fixtures::Fixture, path: &str) -> String {
+    f.git(&["show", &format!(":{path}")]).unwrap()
+}
+
+// The patch was always built to be applied forward. Discard applies it backwards to the
+// working tree, which already holds the unselected insertions and not the unselected
+// deletions: with any other change in the same hunk, git said "patch does not apply".
+#[test]
+fn discarding_one_change_keeps_the_other_change_in_its_hunk() {
+    let f = test_fixtures::empty().unwrap();
+    f.commit_file(1, "f.txt", "a\nb\nc\n").unwrap();
+    f.write_file("f.txt", "A\nb\nC\n").unwrap();
+    let (state, repo) = opened(&f);
+
+    state
+        .discard_selection(
+            repo,
+            &request("f.txt", "a\nb\nc\n", "A\nb\nC\n", vec![1], vec![1]),
+        )
+        .unwrap();
+
+    assert_eq!(
+        std::fs::read_to_string(f.path().join("f.txt")).unwrap(),
+        "a\nb\nC\n"
+    );
+}
+
+#[test]
+fn unstaging_one_change_keeps_the_other_change_in_its_hunk() {
+    let f = test_fixtures::empty().unwrap();
+    f.commit_file(1, "f.txt", "a\nb\nc\n").unwrap();
+    f.write_file("f.txt", "A\nb\nC\n").unwrap();
+    f.git(&["add", "f.txt"]).unwrap();
+    let (state, repo) = opened(&f);
+
+    state
+        .stage_selection(
+            repo,
+            &request("f.txt", "a\nb\nc\n", "A\nb\nC\n", vec![1], vec![1]),
+            true,
+        )
+        .unwrap();
+
+    assert_eq!(index_text(&f, "f.txt"), "a\nb\nC\n");
+}
+
+// With no context lines a hunk that only inserts has no old lines, and its header said
+// `-0,0`: git put the line at the top of the file instead of after line 5.
+#[test]
+fn a_line_added_mid_file_is_staged_where_it_was_added_with_no_context() {
+    let f = test_fixtures::empty().unwrap();
+    let old = "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n";
+    let new = "1\n2\n3\n4\n5\nX\n6\n7\n8\n9\n10\n";
+    f.commit_file(1, "f.txt", old).unwrap();
+    f.write_file("f.txt", new).unwrap();
+    let (state, repo) = opened(&f);
+    let options = DiffOptions {
+        context_lines: 0,
+        ..DiffOptions::default()
+    };
+
+    state
+        .stage_selection(
+            repo,
+            &request_with("f.txt", old, new, &options, Vec::new(), vec![6]),
+            false,
+        )
+        .unwrap();
+
+    assert_eq!(index_text(&f, "f.txt"), new);
+}
+
+// One marker at the very end of the patch fits neither a hunk that ends on context nor
+// a changed last line: git refused both.
+#[test]
+fn a_change_near_the_end_of_a_file_without_a_final_newline_stages() {
+    let f = test_fixtures::empty().unwrap();
+    f.commit_file(1, "f.txt", "a\nb\nc").unwrap();
+    f.write_file("f.txt", "A\nb\nc").unwrap();
+    let (state, repo) = opened(&f);
+
+    state
+        .stage_selection(
+            repo,
+            &request("f.txt", "a\nb\nc", "A\nb\nc", vec![1], vec![1]),
+            false,
+        )
+        .unwrap();
+
+    assert_eq!(index_text(&f, "f.txt"), "A\nb\nc");
+}
+
+#[test]
+fn a_changed_last_line_without_a_final_newline_stages() {
+    let f = test_fixtures::empty().unwrap();
+    f.commit_file(1, "f.txt", "a\nb").unwrap();
+    f.write_file("f.txt", "a\nB").unwrap();
+    let (state, repo) = opened(&f);
+
+    state
+        .stage_selection(
+            repo,
+            &request("f.txt", "a\nb", "a\nB", vec![2], vec![2]),
+            false,
+        )
+        .unwrap();
+
+    assert_eq!(index_text(&f, "f.txt"), "a\nB");
+}
+
+// Part of a deleted file: the patch said `+++ /dev/null` with lines still in it, and git
+// answered "deleted file still has contents".
+#[test]
+fn staging_part_of_a_deletion_keeps_the_rest_of_the_file() {
+    let f = test_fixtures::empty().unwrap();
+    f.commit_file(1, "h.txt", "x\ny\nz\n").unwrap();
+    std::fs::remove_file(f.path().join("h.txt")).unwrap();
+    let (state, repo) = opened(&f);
+
+    state
+        .stage_selection(
+            repo,
+            &request("h.txt", "x\ny\nz\n", "", vec![1], Vec::new()),
+            false,
+        )
+        .unwrap();
+
+    assert_eq!(index_text(&f, "h.txt"), "y\nz\n");
+}
+
+#[test]
+fn unstaging_part_of_a_new_file_keeps_the_rest_of_it() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file("fresh.txt", "one\ntwo\n").unwrap();
+    f.git(&["add", "fresh.txt"]).unwrap();
+    let (state, repo) = opened(&f);
+
+    state
+        .stage_selection(
+            repo,
+            &request("fresh.txt", "", "one\ntwo\n", Vec::new(), vec![1]),
+            true,
+        )
+        .unwrap();
+
+    assert_eq!(index_text(&f, "fresh.txt"), "two\n");
 }

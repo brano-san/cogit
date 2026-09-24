@@ -1262,7 +1262,6 @@
             selectedDeletes: deletes,
             selectedInserts: inserts,
             lineEnding: diff.diff?.kind === "text" ? diff.diff.eol.old : "lf",
-            noTrailingNewline: false,
           },
           reverse,
         ),
