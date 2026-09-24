@@ -970,6 +970,10 @@
   const SETTLE_MS = 120;
 
   function onDiskChange(change: import("$lib/ipc").RepoChanged) {
+    if (change.kind === "refs") {
+      const moved = repository.openRepos.find((entry) => entry.repo.valueOf() === change.repo.valueOf());
+      if (moved) repoPulse.refsMoved(moved.root);
+    }
     const id = repository.current?.repo;
     if (!id || id.valueOf() !== change.repo.valueOf()) {
       const left = repository.openRepos.find((entry) => entry.repo.valueOf() === change.repo.valueOf());

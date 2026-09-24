@@ -3,7 +3,7 @@
   import KindIcon from "$components/common/KindIcon.svelte";
   import { applyClick, EMPTY_SELECTION, type FileSelection } from "$lib/multi-select";
   import { MISSING_REPOSITORY } from "$lib/repo-labels";
-  import { rowSync, syncTooltip, type RowSync } from "$lib/repo-sync";
+  import { canPull, rowSync, syncTooltip, type RowSync } from "$lib/repo-sync";
   import { repoPulse } from "$stores/repo-pulse.svelte";
   import {
     describeModule,
@@ -113,7 +113,7 @@
       <span class="arrow unknown" role="img" aria-label="Unknown whether there is anything to pull"
         >?</span
       >
-    {:else if sync.behind > 0}
+    {:else if canPull(sync)}
       <svg class="arrow pull" viewBox="0 0 8 8" role="img" aria-label="Commits to pull"
         ><path d="M4 1v5.5M1.5 4 4 6.5 6.5 4" /></svg
       >
@@ -304,6 +304,7 @@
           owned: entry !== undefined && entry !== null && active?.valueOf() === entry.repo.valueOf(),
           pulse: repoPulse.pulses.get(row.root),
           fetchFailed: repoPulse.unknown.has(row.root),
+          remoteAhead: repoPulse.remoteAhead.has(row.root),
         })}
         {#if listed && entry}
       <div

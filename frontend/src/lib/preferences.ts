@@ -68,8 +68,8 @@ export const CATEGORIES: Category[] = [
           },
           {
             key: "backgroundFetchMinutes",
-            label: "Fetch in the background",
-            hint: "Keeps the pull arrows in Repositories current. Never asks for credentials; a repository whose fetch fails shows ? instead.",
+            label: "Check the remotes in the background",
+            hint: "Keeps the pull arrows in Repositories current by asking each remote what it has; nothing is fetched. Never asks for credentials; a remote that cannot be asked shows ? instead.",
             keywords: ["fetch", "background", "interval", "remote", "pull", "arrow"],
           },
         ],
