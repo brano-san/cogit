@@ -227,3 +227,14 @@ fn the_profile_target_survives_a_quiet_log_level() {
         );
     }
 }
+
+// A crate the filter does not name logs nothing at all: every `warn!` of the avatar cache
+// (an index that cannot be written, a picture that cannot be saved) was dropped.
+#[test]
+fn the_avatar_cache_is_in_the_log() {
+    assert!(
+        log_filter(None).contains("avatars=debug"),
+        "{}",
+        log_filter(None)
+    );
+}
