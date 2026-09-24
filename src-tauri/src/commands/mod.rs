@@ -712,6 +712,27 @@ macro_rules! path_command {
 }
 
 path_command!(stage_paths, stage_paths, Stage);
+
+/// Stage all: every change git sees, not a path list (doc/12-risks.md, R-311). `files` is
+/// how many rows the list showed, which decides how the blobs are written (R-312).
+#[tauri::command]
+#[specta::specta]
+pub async fn stage_all(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    files: u32,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Stage,
+        "stage_all",
+        move || app_state.stage_all(repo, files as usize),
+    )
+    .await
+}
+
 path_command!(unstage_paths, unstage_paths, Stage);
 path_command!(discard_paths, discard_paths, Discard);
 path_command!(add_to_gitignore, add_to_gitignore, Stage);
@@ -859,6 +880,28 @@ pub async fn repo_status(
 ) -> Result<RepoStatus, GitError> {
     let app_state = state.state.clone();
     blocking("repo_status", move || app_state.repo_status(repo)).await
+}
+
+/// Refs and state without reopening the repository, for the refresh after a commit.
+#[tauri::command]
+#[specta::specta]
+pub async fn repo_refs(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<app_state::RepoRefs, GitError> {
+    let app_state = state.state.clone();
+    blocking("repo_refs", move || app_state.repo_refs(repo)).await
+}
+
+/// The counters and the conflicted paths from one read, for the refresh after a mutation.
+#[tauri::command]
+#[specta::specta]
+pub async fn working_state(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<git_engine::WorkingState, GitError> {
+    let app_state = state.state.clone();
+    blocking("working_state", move || app_state.working_state(repo)).await
 }
 
 macro_rules! repo_command {

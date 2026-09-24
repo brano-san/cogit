@@ -28,9 +28,10 @@ class ConflictStore {
       panels it would read into belong to another repository by now. */
   #cleared = 0;
 
-  async refresh(repo: RepoId): Promise<void> {
+  /** `known`: the list a status read of the same moment already brought (R-316). */
+  async refresh(repo: RepoId, known?: readonly string[]): Promise<void> {
     const listing = ++this.#listing;
-    const paths = await conflictedPaths(repo);
+    const paths = known ? [...known] : await conflictedPaths(repo);
     if (listing !== this.#listing) return;
     this.paths = paths;
     if (this.path && !this.paths.includes(this.path)) this.close();

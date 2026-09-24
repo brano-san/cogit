@@ -301,12 +301,24 @@ export async function repoStatus(repo: RepoId) {
   return unwrap(await commands.repoStatus(repo));
 }
 
+export async function repoRefs(repo: RepoId) {
+  return unwrap(await commands.repoRefs(repo));
+}
+
+export async function workingState(repo: RepoId) {
+  return unwrap(await commands.workingState(repo));
+}
+
 export async function worktreeFiles(repo: RepoId, view: WorktreeView) {
   return unwrap(await commands.worktreeFiles(repo, view));
 }
 
 export async function stagePaths(repo: RepoId, paths: string[]) {
   return unwrap(await commands.stagePaths(repo, paths));
+}
+
+export async function stageAll(repo: RepoId, files: number) {
+  return unwrap(await commands.stageAll(repo, files));
 }
 
 export async function unstagePaths(repo: RepoId, paths: string[]) {

@@ -1,9 +1,11 @@
 import { backendView } from "$lib/file-view";
+import { stagesEverything } from "$lib/stage-all";
 import { filesView } from "$stores/files-view.svelte";
 import {
   type CogitError,
   createCommit,
   discardPaths,
+  stageAll,
   stagePaths,
   unstagePaths,
   worktreeFiles,
@@ -48,7 +50,8 @@ class WorktreeStore {
   }
 
   async stage(repo: RepoId, paths: string[]): Promise<void> {
-    await this.mutate(repo, () => stagePaths(repo, paths));
+    const everything = stagesEverything(paths, this.unstaged);
+    await this.mutate(repo, () => (everything ? stageAll(repo, paths.length) : stagePaths(repo, paths)));
   }
 
   async unstage(repo: RepoId, paths: string[]): Promise<void> {
