@@ -7,7 +7,7 @@
     /** What "Commit What You See" will actually commit, given the file filter. */
     scope: ReturnType<typeof import("$lib/commit-scope").commitScope>;
     template: string | null;
-    oncommit: (message: string, amend: boolean, noVerify: boolean) => void;
+    oncommit: (message: string, amend: boolean, noVerify: boolean) => Promise<boolean> | void;
   }
 
   let { scope, template, oncommit }: Props = $props();
