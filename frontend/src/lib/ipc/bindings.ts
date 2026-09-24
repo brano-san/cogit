@@ -528,6 +528,8 @@ export type CommitQuery = {
 	path?: string | null,
 	/**  Refs the References panel ticked; `None` is every ref, `Some([])` is none. */
 	visibleRefs?: string[] | null,
+	/**  `git log --first-parent`: a merge's other parents and what only they reach stay out. */
+	firstParent?: boolean,
 };
 
 export type CommitRequest = {

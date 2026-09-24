@@ -446,6 +446,19 @@ describe("graph windows", () => {
   });
 });
 
+describe("first parents only", () => {
+  it("asks the walk for first parents while the setting is on", async () => {
+    commands.loadCommits.mockClear();
+    graph.firstParent = true;
+    void graph.load(A);
+    graph.firstParent = false;
+    void graph.load(A);
+
+    const asked = commands.loadCommits.mock.calls.map(([, query]) => (query as { firstParent: boolean }).firstParent);
+    expect(asked).toEqual([true, false]);
+  });
+});
+
 // Closing the last repository clears the graph; the "Not in the graph: …" line of the
 // repository just closed stayed above the start screen.
 describe("clearing the graph", () => {

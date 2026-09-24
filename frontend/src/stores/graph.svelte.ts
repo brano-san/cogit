@@ -58,6 +58,9 @@ class GraphStore {
   /** `null` is every ref. Owned by the References panel, folded into every load. */
   visibleRefs = $state.raw<string[] | null>(null);
 
+  /** `git log --first-parent`, from the `graphFirstParent` setting; folded into every load. */
+  firstParent = $state(false);
+
   /** Asking twice for the same commit has to scroll twice, hence the counter. */
   reveal = $state.raw<{ oid: string; request: number } | null>(null);
 
@@ -176,7 +179,7 @@ class GraphStore {
           if (fresh === this.#shown) this.#publish();
           this.#ask(fresh);
         },
-        { ...query, visibleRefs: this.visibleRefs },
+        { ...query, visibleRefs: this.visibleRefs, firstParent: this.firstParent },
       );
       if (load === this.#loads) this.skipped = skipped ?? [];
       if (load === this.#loads && !fresh.complete && !(await this.#settle(fresh, load)) && retry) {

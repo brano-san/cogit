@@ -24,6 +24,9 @@ pub struct CommitQuery {
     /// Refs the References panel ticked; `None` is every ref, `Some([])` is none.
     #[serde(default)]
     pub visible_refs: Option<Vec<String>>,
+    /// `git log --first-parent`: a merge's other parents and what only they reach stay out.
+    #[serde(default)]
+    pub first_parent: bool,
 }
 
 impl CommitQuery {
@@ -32,11 +35,13 @@ impl CommitQuery {
         self == &Self::default()
     }
 
-    /// A per-commit predicate forces a flat list; narrowing the ticked refs does not (R-51).
+    /// A per-commit predicate forces a flat list; narrowing the ticked refs or following
+    /// first parents only does not (R-51).
     #[must_use]
     pub fn filters_rows(&self) -> bool {
         Self {
             visible_refs: None,
+            first_parent: false,
             ..self.clone()
         } != Self::default()
     }
@@ -130,7 +135,7 @@ impl RepoHandle {
                     .and_then(|reuse| reuse.read(&id))
                     .or_else(|| reader.read(id))
             };
-            let walk = ByTime::new(tips, read, false, self.shallow_commits());
+            let walk = ByTime::new(tips, read, query.first_parent, self.shallow_commits());
             let rows = Rows { reuse, record };
             self.stream_rows(
                 query,
