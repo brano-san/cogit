@@ -58,7 +58,7 @@
   import AddWorktreeDialog from "$components/repo-tree/AddWorktreeDialog.svelte";
   import RemoveWorktreeDialog from "$components/repo-tree/RemoveWorktreeDialog.svelte";
   import { branchChoices, hasStale, removable } from "$lib/worktree-list";
-  import { shortOid } from "$lib/format";
+  import { fileFormat, shortOid } from "$lib/format";
   import { checkedIds, disabledIds, type PaletteCommand } from "$lib/palette";
   import { reasonFor, type Context } from "$lib/availability";
   import { refAt, splitMarked, targetsOf, type MenuContext, type ToolbarFacts } from "$lib/toolbar";
@@ -3732,6 +3732,7 @@
     behind={tracked?.behind ?? 0}
     summary={repo ? `${graph.total} commits · ${repo.branches.length} refs` : undefined}
     fileOpen={diff.path !== null}
+    {...fileFormat(diff.diff)}
     activity={activity({
       operations: running,
       bulk,

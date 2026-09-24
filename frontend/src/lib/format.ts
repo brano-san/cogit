@@ -1,4 +1,4 @@
-import type { Branch, Head, StashEntry, Tag, WorktreeEntry } from "./ipc";
+import type { Branch, FileDiff, Head, LineEnding, StashEntry, Tag, WorktreeEntry } from "./ipc";
 
 const SHORT_OID = 7;
 
@@ -227,4 +227,22 @@ export function displayDate(
   if (mode === "smart") return smart;
   if (mode === "relative") return elapsed;
   return `${smart} · ${elapsed}`;
+}
+
+const LINE_ENDINGS: Record<LineEnding, string | undefined> = {
+  lf: "LF",
+  crlf: "CRLF",
+  cr: "CR",
+  mixed: "Mixed",
+  none: undefined,
+};
+
+/** What the status bar says about the file in the diff panel: nothing for a picture, a
+    binary or no file at all, and the line ending of the side on disk now. */
+export function fileFormat(diff: FileDiff | null): { encoding?: string; lineEnding?: string } {
+  if (diff?.kind !== "text") return {};
+  return {
+    encoding: diff.lossyEncoding ? "Not UTF-8" : "UTF-8",
+    lineEnding: LINE_ENDINGS[diff.eol.new] ?? LINE_ENDINGS[diff.eol.old] ?? "LF",
+  };
 }

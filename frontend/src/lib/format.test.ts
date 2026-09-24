@@ -1,16 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  displayDate,
-  smartDate,
-  capsules,
-  dateTooltip,
-  headLabel,
-  refLabels,
-  relativeDate,
-  shortOid,
-  splitBranches,
-  type RefLabel,
-} from "./format";
+import { displayDate, smartDate, capsules, dateTooltip, headLabel, refLabels, relativeDate, shortOid, splitBranches, type RefLabel, fileFormat } from "./format";
 import type { Tag } from "./ipc";
 import type { Branch, Head, WorktreeEntry } from "./ipc";
 
@@ -440,5 +429,25 @@ describe("displayDate", () => {
 
   it("shows both, smart first", () => {
     expect(displayDate(yesterday, 0, now, "both")).toBe("yesterday · 1 day ago");
+  });
+});
+
+// The status bar was never told either, so every file read "UTF-8 • LF", CRLF ones too.
+describe("fileFormat", () => {
+  const text = (eol: "lf" | "crlf" | "mixed" | "none", lossyEncoding = false) =>
+    ({ kind: "text", eol: { old: "lf", new: eol, normalized: false }, lossyEncoding }) as never;
+
+  it("names the line ending of the file as it is now", () => {
+    expect(fileFormat(text("crlf"))).toEqual({ encoding: "UTF-8", lineEnding: "CRLF" });
+    expect(fileFormat(text("mixed")).lineEnding).toBe("Mixed");
+  });
+
+  it("says so when the file is not UTF-8", () => {
+    expect(fileFormat(text("lf", true)).encoding).toBe("Not UTF-8");
+  });
+
+  it("says nothing for what is not a text diff", () => {
+    expect(fileFormat(null)).toEqual({});
+    expect(fileFormat({ kind: "binary" } as never)).toEqual({});
   });
 });
