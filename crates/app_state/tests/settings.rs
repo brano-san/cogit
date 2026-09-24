@@ -122,3 +122,19 @@ fn concurrent_writers_do_not_erase_each_other() {
         assert_eq!(document[format!("key{index}")], json!(index), "{document}");
     }
 }
+
+// One stray comma in a hand-edited file and the next change of any setting wrote a
+// document holding that one key: every other setting was gone, with no copy left.
+#[test]
+fn a_damaged_file_is_kept_aside_before_the_next_write_replaces_it() {
+    let home = dir();
+    let damaged = "{ \"settings\": { \"theme\": \"dark\", }, \"keymap\": {} }";
+    std::fs::write(home.path().join("settings.json"), damaged).unwrap();
+
+    write_key(home.path(), "window", json!({ "maximised": true })).unwrap();
+
+    assert_eq!(
+        std::fs::read_to_string(home.path().join("settings.json.damaged")).unwrap(),
+        damaged
+    );
+}
