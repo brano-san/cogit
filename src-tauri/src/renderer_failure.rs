@@ -72,9 +72,10 @@ fn is_hung(kind: &str) -> bool {
 }
 
 /// Only the render process can be brought back by reloading. If the browser process is
-/// gone the whole webview is, and there is nothing left here to reload into.
+/// gone the whole webview is, and there is nothing left here to reload into; a GPU or
+/// utility process WebView2 restarts itself, and the page never went away.
 fn can_reload(kind: &str) -> bool {
-    kind == "render-process-exited" || kind == "other-process-exited"
+    kind == "render-process-exited"
 }
 
 /// Reads the event arguments. `…Args2` carries the reason, the exit code and the process
@@ -284,6 +285,23 @@ mod tests {
     fn the_render_process_is_the_one_worth_reloading() {
         assert!(can_reload("render-process-exited"));
         assert!(!can_reload("browser-process-exited"));
+    }
+
+    // WebView2 restarts a GPU or utility process on its own and the page lives on. They
+    // all read as "other", which was reloaded: a driver reset or waking from sleep threw
+    // away the commit message being typed.
+    #[test]
+    fn a_lost_helper_process_is_not_a_reason_to_reload() {
+        use webview2_com::Microsoft::Web::WebView2::Win32::{
+            COREWEBVIEW2_PROCESS_FAILED_KIND_GPU_PROCESS_EXITED,
+            COREWEBVIEW2_PROCESS_FAILED_KIND_UTILITY_PROCESS_EXITED,
+        };
+        for kind in [
+            COREWEBVIEW2_PROCESS_FAILED_KIND_GPU_PROCESS_EXITED,
+            COREWEBVIEW2_PROCESS_FAILED_KIND_UTILITY_PROCESS_EXITED,
+        ] {
+            assert!(!can_reload(kind_name(kind)), "{}", kind_name(kind));
+        }
     }
 
     #[test]
