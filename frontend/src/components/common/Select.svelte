@@ -11,15 +11,13 @@
     onchange: (value: T) => void;
     label?: string;
     disabled?: boolean;
-    id?: string;
   }
 
-  let { value, options, onchange, label, disabled = false, id }: Props = $props();
+  let { value, options, onchange, label, disabled = false }: Props = $props();
 </script>
 
 <span class="select" class:disabled>
   <select
-    {id}
     {value}
     {disabled}
     aria-label={label}

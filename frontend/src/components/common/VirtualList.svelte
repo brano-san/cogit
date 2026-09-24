@@ -12,7 +12,6 @@
     label?: string;
     /** Scrolled to on change, if it is off screen. Null leaves the scroll alone. */
     reveal?: number | null;
-    class?: string;
   }
 
   let {
@@ -22,7 +21,6 @@
     buffer = 10,
     label,
     reveal = null,
-    class: extra = "",
   }: Props = $props();
 
   let scroller: HTMLDivElement | undefined = $state();
@@ -61,7 +59,7 @@
 </script>
 
 <div
-  class="scroll {extra}"
+  class="scroll"
   bind:this={scroller}
   onscroll={() => scroller && (scrollTop = scroller.scrollTop)}
   role={label ? "list" : undefined}

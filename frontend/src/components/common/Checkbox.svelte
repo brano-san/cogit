@@ -1,5 +1,4 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
 
   /** The app's own checkbox: the native one is a white system square on a dark panel.
       The real input stays underneath for Space, Tab and screen readers. */
@@ -8,10 +7,9 @@
     label?: string;
     disabled?: boolean;
     onchange?: (checked: boolean) => void;
-    children?: Snippet;
   }
 
-  let { checked = $bindable(false), label, disabled = false, onchange, children }: Props = $props();
+  let { checked = $bindable(false), label, disabled = false, onchange }: Props = $props();
 </script>
 
 <label class="checkbox" class:disabled>
@@ -25,7 +23,7 @@
   <span class="box" aria-hidden="true">
     <svg viewBox="0 0 10 10"><path d="M2 5.3 4.2 7.5 8 2.8" /></svg>
   </span>
-  {#if children}{@render children()}{:else if label}<span>{label}</span>{/if}
+  {#if label}<span>{label}</span>{/if}
 </label>
 
 <style>
