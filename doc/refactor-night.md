@@ -570,7 +570,10 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > полный текст — один раз в конце. Тесты
   > `a_character_split_between_two_reads_arrives_whole` (разрез посреди кириллической
   > буквы), `carriage_returns_split_progress_and_the_tail_is_delivered`.
-- [ ] B-20 редакция URL по последнему `@`
+- [x] B-20 редакция URL по последнему `@`
+  > Итог: в `redact_url` (команда) и `redact_urls` (вывод git) authority кончается на первом
+  > `/`, учётные данные отделяются по последнему `@`. Тесты
+  > `a_password_with_an_at_sign_is_hidden_whole` и `…_in_git_output_too`.
 - [ ] B-21 `blob_on_disk`: только NotFound — «нет файла»
 - [ ] B-24 ошибки `recover`
 - [ ] B-26 sequencer/todo

@@ -329,13 +329,15 @@ fn redact_url(arg: &str) -> String {
     let Some((scheme, rest)) = arg.split_once("://") else {
         return arg.to_owned();
     };
-    let Some((authority, tail)) = rest.split_once('@') else {
+    // The host follows the last `@` before the path: a password may contain one.
+    let (authority, path) = rest.split_at(rest.find('/').unwrap_or(rest.len()));
+    let Some((credentials, host)) = authority.rsplit_once('@') else {
         return arg.to_owned();
     };
-    let Some((user, _)) = authority.split_once(':') else {
+    let Some((user, _)) = credentials.split_once(':') else {
         return arg.to_owned();
     };
-    format!("{scheme}://{user}:{HIDDEN}@{tail}")
+    format!("{scheme}://{user}:{HIDDEN}@{host}{path}")
 }
 
 /// Which `git` the writes actually go through. Run outside any repository, so it answers
