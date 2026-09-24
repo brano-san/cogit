@@ -125,6 +125,20 @@ fn make_executable(_path: &Path) -> std::io::Result<()> {
 }
 
 impl RepoHandle {
+    /// A pathname setting as git reads it, `~/` expanded to the home folder. A value that
+    /// cannot be expanded is taken as written.
+    fn pathname_setting(&self, key: &str) -> Option<PathBuf> {
+        let config = self.repo.config_snapshot();
+        match config.trusted_path(key) {
+            Ok(Some(path)) => Some(path),
+            Ok(None) => None,
+            Err(err) => {
+                tracing::warn!(key, error = %err, "a path in the config could not be expanded");
+                config.string(key).map(|raw| PathBuf::from(raw.to_string()))
+            }
+        }
+    }
+
     /// `core.hooksPath` as written, relative or absolute.
     #[must_use]
     pub fn configured_hooks_path(&self) -> Option<String> {
@@ -135,8 +149,8 @@ impl RepoHandle {
 
     fn hooks_dir(&self) -> (PathBuf, HookSource) {
         match self.configured_hooks_path() {
-            Some(configured) => {
-                let path = PathBuf::from(&configured);
+            Some(_) => {
+                let path = self.pathname_setting("core.hooksPath").unwrap_or_default();
                 let resolved = if path.is_absolute() {
                     path
                 } else {
@@ -351,6 +365,7 @@ fn bash(root: &Path) -> std::process::Command {
     command.creation_flags(crate::runner::CREATE_NO_WINDOW);
     command.current_dir(root);
     command.env("GIT_TERMINAL_PROMPT", "0");
+    crate::runner::clear_inherited_git_vars(&mut command);
     command
 }
 
@@ -360,6 +375,7 @@ fn hook_command(path: &Path, root: &Path, args: &[String]) -> std::process::Comm
     command.args(args);
     command.current_dir(root);
     command.env("GIT_TERMINAL_PROMPT", "0");
+    crate::runner::clear_inherited_git_vars(&mut command);
     command
 }
 
@@ -414,6 +430,7 @@ fn shell_command(command: &str, root: &Path) -> std::process::Command {
     spawned.args(["-c", command]);
     spawned.current_dir(root);
     spawned.env("GIT_TERMINAL_PROMPT", "0");
+    crate::runner::clear_inherited_git_vars(&mut spawned);
     spawned
 }
 
@@ -490,12 +507,9 @@ impl RepoHandle {
 impl RepoHandle {
     /// `commit.template` as text, or `None` when it is unset or points nowhere.
     pub fn commit_template(&self) -> Result<Option<String>> {
-        let Some(configured) = self.repo.config_snapshot().string("commit.template") else {
+        let Some(path) = self.pathname_setting("commit.template") else {
             return Ok(None);
         };
-
-        let raw = configured.to_string();
-        let path = std::path::Path::new(&raw);
         let resolved = if path.is_absolute() {
             path.to_path_buf()
         } else {
