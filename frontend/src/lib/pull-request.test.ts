@@ -27,6 +27,12 @@ describe("parseRemote", () => {
     expect(parseRemote("git@git.internal.example:team/repo.git")).toBeNull();
   });
 
+  // The ssh:// form, with or without a port, found no match: no link to a pull request.
+  it("reads the ssh:// form of a remote too", () => {
+    expect(parseRemote("ssh://git@github.com/o/r.git")).toEqual({ host: "github", base: "https://github.com/o/r" });
+    expect(parseRemote("ssh://git@github.com:22/o/r.git")).toEqual({ host: "github", base: "https://github.com/o/r" });
+  });
+
   it("returns nothing for a local path", () => {
     expect(parseRemote("C:/repos/origin.git")).toBeNull();
   });

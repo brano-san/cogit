@@ -11,11 +11,13 @@ const HOSTS: Record<string, Forge> = {
   "bitbucket.org": "bitbucket",
 };
 
-/** `git@host:path.git` and `https://host/path.git` both become a browsable base URL. */
+/** `git@host:path.git`, `ssh://git@host[:port]/path.git` and `https://host/path.git` all
+    become a browsable base URL. */
 export function parseRemote(url: string): Remote | null {
-  const ssh = url.match(/^[\w.-]+@([\w.-]+):(.+?)(?:\.git)?$/);
+  const ssh = url.match(/^[\w.-]+@([\w.-]+):(?!\d+\/)(.+?)(?:\.git)?$/);
+  const sshUrl = url.match(/^ssh:\/\/(?:[^@/]+@)?([\w.-]+)(?::\d+)?\/(.+?)(?:\.git)?$/);
   const https = url.match(/^https?:\/\/(?:[^@/]+@)?([\w.-]+)\/(.+?)(?:\.git)?$/);
-  const match = ssh ?? https;
+  const match = ssh ?? sshUrl ?? https;
   if (!match) return null;
 
   const host = HOSTS[match[1]?.toLowerCase() ?? ""];
