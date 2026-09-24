@@ -1,9 +1,9 @@
-use crate::{GitError, RepoHandle, Result};
+use crate::{RepoHandle, Result};
 
 impl RepoHandle {
     /// HEAD already contains `rev`. Through `gix`: asked on every selection change (R-210).
     pub fn is_merged_into_head(&self, rev: &str) -> Result<bool> {
-        let target = self.commit_id(rev)?;
+        let target = self.resolve_commit(rev)?;
         let Ok(head) = self.repo.head_id() else {
             return Ok(false);
         };
@@ -50,18 +50,5 @@ impl RepoHandle {
             .collect();
         names.retain(|name| !held.contains(name));
         Ok(names)
-    }
-
-    fn commit_id(&self, rev: &str) -> Result<gix::ObjectId> {
-        let id = self
-            .repo
-            .rev_parse_single(rev)
-            .map_err(|err| GitError::InvalidState(format!("cannot resolve {rev}: {err}")))?;
-        let commit = id
-            .object()
-            .map_err(|err| GitError::Internal(format!("cannot read {rev}: {err}")))?
-            .peel_to_commit()
-            .map_err(|err| GitError::InvalidState(format!("{rev} is not a commit: {err}")))?;
-        Ok(commit.id)
     }
 }
