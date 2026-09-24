@@ -55,20 +55,23 @@ class ConflictStore {
   }
 
   async take(repo: RepoId, side: ConflictSide): Promise<void> {
-    if (!this.path) return;
+    const path = this.path;
+    if (!path) return;
     const cleared = this.#cleared;
-    await resolveConflict(repo, this.path, side);
+    await resolveConflict(repo, path, side);
     if (cleared !== this.#cleared) return;
-    this.close();
+    // The user may have opened the next file while Git was answering; that one stays.
+    if (this.path === path) this.close();
     await this.refresh(repo);
   }
 
   async write(repo: RepoId, text: string): Promise<void> {
-    if (!this.path) return;
+    const path = this.path;
+    if (!path) return;
     const cleared = this.#cleared;
-    await resolveConflictText(repo, this.path, text);
+    await resolveConflictText(repo, path, text);
     if (cleared !== this.#cleared) return;
-    this.close();
+    if (this.path === path) this.close();
     await this.refresh(repo);
   }
 
