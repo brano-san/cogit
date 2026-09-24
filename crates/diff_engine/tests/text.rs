@@ -442,3 +442,25 @@ fn a_new_file_has_no_old_lines() {
         other => panic!("expected a text diff, got {other:?}"),
     }
 }
+
+// Two different invalid bytes both decoded to U+FFFD, the texts compared equal, and a file
+// that had changed was shown as unchanged: the case 08 section 3 calls the worst of all.
+#[test]
+fn files_that_differ_only_in_bytes_that_are_not_utf8_still_differ() {
+    let diff = diff_engine::diff_bytes(
+        b"caf\xe9\n",
+        b"caf\xe8\n",
+        &diff_engine::DiffOptions::default(),
+    );
+
+    assert!(
+        matches!(
+            diff,
+            diff_engine::FileDiff::Text {
+                lossy_encoding: true,
+                ..
+            }
+        ),
+        "{diff:?}"
+    );
+}

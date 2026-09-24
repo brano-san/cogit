@@ -39,8 +39,8 @@ pub fn diff_bytes(old: &[u8], new: &[u8], options: &DiffOptions) -> FileDiff {
         return FileDiff::Binary { old_size, new_size };
     }
 
-    let old_text = String::from_utf8_lossy(old);
-    let new_text = String::from_utf8_lossy(new);
+    let old_text = decode(old);
+    let new_text = decode(new);
     let lossy = matches!(old_text, Cow::Owned(_)) || matches!(new_text, Cow::Owned(_));
 
     let mut diff = diff_text(&old_text, &new_text, options);
@@ -48,6 +48,24 @@ pub fn diff_bytes(old: &[u8], new: &[u8], options: &DiffOptions) -> FileDiff {
         *lossy_encoding = lossy;
     }
     diff
+}
+
+/// UTF-8 as it is; each byte that is not UTF-8 becomes a character of its own in the
+/// Private Use Area (U+F700 plus the byte). One replacement character for all of them made
+/// two files that differ only in such bytes compare equal, and a changed file read as
+/// unchanged.
+fn decode(bytes: &[u8]) -> Cow<'_, str> {
+    if let Ok(text) = std::str::from_utf8(bytes) {
+        return Cow::Borrowed(text);
+    }
+    let mut text = String::with_capacity(bytes.len());
+    for chunk in bytes.utf8_chunks() {
+        text.push_str(chunk.valid());
+        for &byte in chunk.invalid() {
+            text.push(char::from_u32(0xF700 + u32::from(byte)).unwrap_or('\u{FFFD}'));
+        }
+    }
+    Cow::Owned(text)
 }
 
 #[must_use]
