@@ -45,6 +45,7 @@
 |---|---|
 | Стейджинг файла | `git add -- <path>` |
 | Stage all (весь список Unstaged) | `git add --all`, без путей (R-311) |
+| Stage от 200 файлов | `git -c core.bigFileThreshold=1 add …` — блобы одним pack (R-312) |
 | Снятие со стейджинга | `git restore --staged -- <path>` |
 | Частичный стейджинг строк | `git apply --cached -` + патч на stdin ([08-diff-engine.md](08-diff-engine.md)) |
 | Откат изменений | `git restore -- <path>` |

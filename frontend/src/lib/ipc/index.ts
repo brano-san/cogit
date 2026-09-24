@@ -309,8 +309,8 @@ export async function stagePaths(repo: RepoId, paths: string[]) {
   return unwrap(await commands.stagePaths(repo, paths));
 }
 
-export async function stageAll(repo: RepoId) {
-  return unwrap(await commands.stageAll(repo));
+export async function stageAll(repo: RepoId, files: number) {
+  return unwrap(await commands.stageAll(repo, files));
 }
 
 export async function unstagePaths(repo: RepoId, paths: string[]) {

@@ -33,7 +33,7 @@ describe("staging from the Unstaged list", () => {
   it("stages every row with one git add --all, no path list", async () => {
     await worktree.stage(REPO, ["b.txt", "a.txt"]);
 
-    expect(ipc.stageAll).toHaveBeenCalledWith(REPO);
+    expect(ipc.stageAll).toHaveBeenCalledWith(REPO, 2);
     expect(ipc.stagePaths).not.toHaveBeenCalled();
   });
 

@@ -613,9 +613,9 @@ impl AppState {
         self.handle(repo)?.stage(paths)
     }
 
-    pub fn stage_all(&self, repo: RepoId) -> Result<(), git_engine::GitError> {
+    pub fn stage_all(&self, repo: RepoId, files: usize) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
-        self.handle(repo)?.stage_all()
+        self.handle(repo)?.stage_all(files)
     }
 
     pub fn unstage_paths(
