@@ -392,8 +392,8 @@
   }
 
   .tool svg {
-    width: 15px;
-    height: 15px;
+    width: var(--panel-icon);
+    height: var(--panel-icon);
     fill: none;
     stroke: currentColor;
     stroke-width: 1.7;

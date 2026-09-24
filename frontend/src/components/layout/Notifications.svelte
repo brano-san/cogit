@@ -47,6 +47,17 @@
               stroke-linecap="round"
             /></svg
           >
+        {:else if notice.severity === "info"}
+          <svg viewBox="0 0 16 16"
+            ><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5" /><path
+              d="M5.2 8.2 7.2 10.2 10.8 6"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            /></svg
+          >
         {:else}
           <svg viewBox="0 0 16 16"
             ><path
@@ -178,6 +189,10 @@
 
   .notice.error {
     --notice-accent: var(--status-delete);
+  }
+
+  .notice.info {
+    --notice-accent: var(--status-add);
   }
 
   /* Three zones: the icon, a title that wraps inside its own column, and a side that keeps

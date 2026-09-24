@@ -88,10 +88,18 @@
     /** Open App's dialogs for the selected commit. */
     openSplit: () => Promise<void>;
     openRebase: () => Promise<void>;
+    rollbackTree: () => Promise<void>;
   }
 
-  let { afterRefChange, afterMutation, reloadGraph, checkoutBranch, openSplit, openRebase }: Props =
-    $props();
+  let {
+    afterRefChange,
+    afterMutation,
+    reloadGraph,
+    checkoutBranch,
+    openSplit,
+    openRebase,
+    rollbackTree,
+  }: Props = $props();
 
   interface Target {
     oid: string | null;
@@ -398,6 +406,13 @@
           stashView.clear();
           await commit.select(id, oid);
           await openRebase();
+        }
+        return;
+      case "rollback":
+        if (oid) {
+          stashView.clear();
+          await commit.select(id, oid);
+          await rollbackTree();
         }
         return;
       case "add-branch":
