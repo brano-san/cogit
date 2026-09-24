@@ -30,7 +30,15 @@
   import { commit as selection } from "$stores/commit.svelte";
   import { compareView } from "$stores/compare-view.svelte";
   import { graph } from "$stores/graph.svelte";
-  import { GRAPH_MODE_DEFAULTS, checkedTips, graphView, paintRequest } from "$lib/graph-modes";
+  import {
+    GRAPH_MODE_DEFAULTS,
+    checkedTips,
+    focusLane,
+    graphView,
+    paintRequest,
+    type LanePick,
+  } from "$lib/graph-modes";
+  import { laneAt } from "$lib/graph-style";
   import { isEmptyQuery } from "$lib/query";
   import { graphOverlays } from "$stores/graph-overlay.svelte";
   import { refs as refTicks } from "$stores/refs.svelte";
@@ -51,6 +59,8 @@
     highlightChecked?: boolean;
     /** First parents only (`graphFirstParent`). */
     firstParent?: boolean;
+    /** A click on a commit or its line brings its branch forward (`graphBranchOfCommit`). */
+    branchOfCommit?: boolean;
   }
 
   let {
@@ -61,9 +71,10 @@
     onrefcontext,
     highlightChecked = GRAPH_MODE_DEFAULTS.highlightChecked,
     firstParent = GRAPH_MODE_DEFAULTS.firstParent,
+    branchOfCommit = GRAPH_MODE_DEFAULTS.branchOfCommit,
   }: Props = $props();
 
-  const modes = $derived({ highlightChecked, firstParent });
+  const modes = $derived({ highlightChecked, firstParent, branchOfCommit });
   $effect(() => {
     const view = graphView(modes);
     untrack(() => graph.setView(view));
@@ -191,6 +202,14 @@
     });
   });
 
+  let lanePick = $state<LanePick | null>(null);
+  const selectedLane = $derived.by(() => {
+    void graph.walk;
+    const at = graph.loadedIndexOf(selection.oid);
+    return at === null ? null : (graphOverlays.paintAt(at)?.nodeLane ?? null);
+  });
+  const focus = $derived(focusLane(modes, selection.oid, selectedLane, lanePick));
+
   const drawn = $derived(
     visible.map(({ listRow, entry }) => ({
       listRow,
@@ -271,6 +290,12 @@
     if (!repo) return;
     const commitRow = toCommitRow(hit.row, headerRows);
     const oid = commitRow === null ? null : (graph.rowAt(commitRow)?.commit.oid ?? null);
+    const layout = commitRow === null ? undefined : graph.rowAt(commitRow)?.layout;
+    if (branchOfCommit && oid !== null && layout && commitRow !== null) {
+      const upper = (event.clientY - box.top + scrollTop) % GRAPH.rowHeight < GRAPH.rowHeight / 2;
+      const lane = laneAt(layout, graphOverlays.paintAt(commitRow), hit.lane, upper);
+      lanePick = lane === null ? null : { oid, lane };
+    }
     // Clicking the selected commit again brings its details back into Diff (#7).
     if (oid !== null && oid === selection.oid) selection.showDetails();
     else void pick(repo, oid);
@@ -322,6 +347,7 @@
           {headLane}
           {selectedRow}
           {hoverRow}
+          focusLane={focus}
         />
       </div>
 

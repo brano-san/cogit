@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GRAPH_MODE_DEFAULTS, checkedTips, graphView, paintRequest } from "$lib/graph-modes";
+import { GRAPH_MODE_DEFAULTS, checkedTips, focusLane, graphView, paintRequest } from "$lib/graph-modes";
 import { branchSlot } from "$lib/graph-style";
 
 const branches = [
@@ -43,5 +43,24 @@ describe("graphView", () => {
   it("walks everything by default and first parents only when asked", () => {
     expect(graphView(GRAPH_MODE_DEFAULTS)).toEqual({ firstParent: false });
     expect(graphView({ ...GRAPH_MODE_DEFAULTS, firstParent: true })).toEqual({ firstParent: true });
+  });
+});
+
+describe("focusLane", () => {
+  const on = { ...GRAPH_MODE_DEFAULTS, branchOfCommit: true };
+
+  it("is the selected commit's lane, or the line clicked in its row", () => {
+    expect(focusLane(on, "a", 3, null)).toBe(3);
+    expect(focusLane(on, "a", 3, { oid: "a", lane: 8 })).toBe(8);
+    expect(focusLane(on, "b", 3, { oid: "a", lane: 8 })).toBe(3);
+  });
+
+  it("is nothing with the mode off or nothing selected", () => {
+    expect(focusLane(GRAPH_MODE_DEFAULTS, "a", 3, null)).toBeNull();
+    expect(focusLane(on, null, 3, null)).toBeNull();
+  });
+
+  it("asks for lanes even with no branch ticked", () => {
+    expect(paintRequest(on, [])).toEqual({ tips: [] });
   });
 });

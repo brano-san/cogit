@@ -6,6 +6,8 @@ export const BRANCH_SLOTS = 8;
 
 /** `graph_engine::PAINT_SLOT`. */
 const SLOT_BITS = 0x0f;
+/** The branch of the chosen commit stands out from the main line too. */
+export const FOCUS_LINE_WIDTH = GRAPH.mainLineWidth + 1;
 
 /** FNV-1a over the UTF-16 units: the same branch gets the same colour in every run and on
     every machine, whatever else is ticked. */
@@ -46,6 +48,8 @@ export function rowPaint(overlay: GraphOverlay, row: number): RowPaint | undefin
 export interface StrokeOptions {
   /** The `Coloured branch lines` setting: a colour per lane where no branch has one. */
   colouredLanes: boolean;
+  /** Drawn on top and wider: the branch of the chosen commit (#26). */
+  focusLane?: number | null;
 }
 
 /** How a line or a ring is stroked. Lower layers go first, so what matters is on top. */
@@ -55,23 +59,33 @@ export interface Stroke {
   layer: number;
 }
 
-export const LAYERS = 3;
-const LAYER = { grey: 0, colour: 1, main: 2 } as const;
+export const LAYERS = 4;
+const LAYER = { grey: 0, colour: 1, main: 2, focus: 3 } as const;
 
-function stroke(style: number, primary: boolean, laneColour: number, width: number, options: StrokeOptions): Stroke {
+function stroke(
+  style: number,
+  lane: number | undefined,
+  primary: boolean,
+  laneColour: number,
+  width: number,
+  options: StrokeOptions,
+): Stroke {
   const slot = style & SLOT_BITS;
+  const focused = options.focusLane != null && lane === options.focusLane;
   const token =
     slot > 0
       ? branchToken(slot - 1)
-      : options.colouredLanes
-        ? `--c-lane-${(laneColour % BRANCH_SLOTS) + 1}`
-        : primary
-          ? "--graph-main"
-          : "--graph-line";
+      : focused && !primary
+        ? "--graph-focus"
+        : options.colouredLanes
+          ? `--c-lane-${(laneColour % BRANCH_SLOTS) + 1}`
+          : primary
+            ? "--graph-main"
+            : "--graph-line";
   return {
     token,
-    width: primary ? GRAPH.mainLineWidth : width,
-    layer: primary ? LAYER.main : slot > 0 ? LAYER.colour : LAYER.grey,
+    width: focused ? FOCUS_LINE_WIDTH : primary ? GRAPH.mainLineWidth : width,
+    layer: focused ? LAYER.focus : primary ? LAYER.main : slot > 0 ? LAYER.colour : LAYER.grey,
   };
 }
 
@@ -81,13 +95,37 @@ export function segmentStroke(
   paint: RowPaint | undefined,
   options: StrokeOptions,
 ): Stroke {
-  return stroke(paint?.segmentStyles[index] ?? 0, segment.primary, segment.color, GRAPH.lineWidth, options);
+  return stroke(
+    paint?.segmentStyles[index] ?? 0,
+    paint?.segmentLanes[index],
+    segment.primary,
+    segment.color,
+    GRAPH.lineWidth,
+    options,
+  );
 }
 
 /** A ring keeps its stroke width; only its colour follows the paint. */
 export function nodeStroke(layout: GraphRow, paint: RowPaint | undefined, options: StrokeOptions): Stroke {
   return {
-    ...stroke(paint?.nodeStyle ?? 0, layout.primary, layout.color, GRAPH.ringStroke, options),
+    ...stroke(paint?.nodeStyle ?? 0, paint?.nodeLane, layout.primary, layout.color, GRAPH.ringStroke, options),
     width: GRAPH.ringStroke,
   };
+}
+
+/** The lane of the line at `column` in one half of a row, for a click on a line rather
+    than on a ring; `null` where no line runs. */
+export function laneAt(
+  layout: GraphRow,
+  paint: RowPaint | undefined,
+  column: number,
+  upperHalf: boolean,
+): number | null {
+  if (!paint) return null;
+  if (column === layout.lane) return paint.nodeLane;
+  for (const [index, segment] of layout.segments.entries()) {
+    if (segment.arrow || segment.span === (upperHalf ? "bottom" : "top")) continue;
+    if (segment.from === column || segment.to === column) return paint.segmentLanes[index] ?? null;
+  }
+  return null;
 }
