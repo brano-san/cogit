@@ -83,3 +83,24 @@ fn only_an_https_remote_gets_a_token() {
     assert!(!git_engine::wants_auth("ssh://git@github.com/o/r.git"));
     assert!(!git_engine::wants_auth("/srv/git/r.git"));
 }
+
+// Redaction cut at the first `@`, so a password containing one kept its tail in the
+// journal, the log file and the error dialog.
+#[test]
+fn a_password_with_an_at_sign_is_hidden_whole() {
+    let line = redact_command(&["push", "https://user:p@ss@github.com/o/r.git"]);
+
+    assert!(!line.contains("ss@"), "{line}");
+    assert!(line.contains("user:"), "{line}");
+    assert!(line.contains("@github.com/o/r.git"), "{line}");
+}
+
+#[test]
+fn a_password_with_an_at_sign_is_hidden_whole_in_git_output_too() {
+    let text = git_engine::output_text::redact_secrets(
+        "fatal: unable to access 'https://user:p@ss@github.com/o/r.git/'",
+    );
+
+    assert!(!text.contains("ss@"), "{text}");
+    assert!(text.contains("@github.com/o/r.git/"), "{text}");
+}

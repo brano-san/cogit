@@ -91,16 +91,18 @@ fn redact_urls(line: &str) -> String {
         let end = tail
             .find(|c: char| c.is_whitespace() || c == '"' || c == '\'')
             .unwrap_or(tail.len());
-        let (authority, after) = tail.split_at(end);
+        let (address, after) = tail.split_at(end);
+        // The host follows the last `@` before the path: a password may contain one.
+        let (authority, path) = address.split_at(address.find('/').unwrap_or(address.len()));
 
         out.push_str(before);
-        match authority.split_once('@').and_then(|(creds, host)| {
+        match authority.rsplit_once('@').and_then(|(creds, host)| {
             creds
                 .split_once(':')
-                .map(|(user, _)| format!("{user}:{HIDDEN}@{host}"))
+                .map(|(user, _)| format!("{user}:{HIDDEN}@{host}{path}"))
         }) {
             Some(safe) => out.push_str(&safe),
-            None => out.push_str(authority),
+            None => out.push_str(address),
         }
         rest = after;
     }
