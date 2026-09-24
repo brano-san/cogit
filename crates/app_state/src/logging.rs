@@ -12,6 +12,7 @@ const COGIT_CRATES: &[&str] = &[
     "graph_engine",
     "fs_watcher",
     "app_state",
+    "avatars",
 ];
 
 const QUIET: &str = "gix=warn,notify=warn,tauri=info";
