@@ -177,8 +177,8 @@ fn announce(app: &tauri::AppHandle, failure: &Failure, uptime: std::time::Durati
     );
 
     // The renderer is gone, so nothing in the page can report this: the record has to be
-    // written from here, and the figures from the host-side sampler are already in the
-    // same log under `kind=procmem`.
+    // written from here. In a debug build the host-side sampler's figures are in the same
+    // log under `kind=procmem`; a release build has none.
     let _ = app.emit("renderer-failed", failure.kind);
 
     // Everything below has to leave this callback first. It runs inside the COM event

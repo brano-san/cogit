@@ -104,8 +104,6 @@ pub async fn list_operations(
     Ok(state.state.operations())
 }
 
-/// The webview's own clock: how long the user waited between an action and the screen
-/// showing its result. Only the backend half is visible from Rust.
 #[tauri::command]
 #[specta::specta]
 pub fn default_keymap() -> Vec<crate::menu::KeyBinding> {
@@ -126,6 +124,8 @@ pub fn set_keymap(
         .map_err(|err| GitError::Internal(format!("cannot rebuild the menu: {err}")))
 }
 
+/// The webview's own clock: how long the user waited between an action and the screen
+/// showing its result. Only the backend half is visible from Rust.
 #[tauri::command]
 #[specta::specta]
 pub fn report_timing(label: String, ms: u32, detail: String) {
