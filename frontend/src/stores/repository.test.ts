@@ -266,6 +266,21 @@ describe("telling work for a repository the user has left (epoch)", () => {
   });
 });
 
+describe("the list of open repositories", () => {
+  it("keeps the newer answer when an older one arrives last", async () => {
+    const older = pending<unknown>();
+    commands.repositories.mockReturnValueOnce(older.promise);
+    const first = repository.refreshList();
+    commands.repositories.mockResolvedValueOnce([{ root: "C:/repos/two" }]);
+    await repository.refreshList();
+
+    older.settle([{ root: "C:/repos/closed" }]);
+    await first;
+
+    expect(repository.openRepos.map((entry) => entry.root)).toEqual(["C:/repos/two"]);
+  });
+});
+
 describe("coming back to a listed repository (#50)", () => {
   beforeEach(() => {
     vi.useRealTimers();
