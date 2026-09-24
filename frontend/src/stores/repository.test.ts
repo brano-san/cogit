@@ -399,3 +399,53 @@ describe("what the panels see, end to end", () => {
     expect(repository.busy).toBe(false);
   });
 });
+
+describe("closing a repository", () => {
+  beforeEach(() => {
+    commands.openRepository.mockReset();
+    commands.closeRepository.mockReset();
+    commands.repositories.mockReset();
+    commands.repositories.mockResolvedValue({ status: "ok", data: [] });
+  });
+
+  // The list came back from a second call after the close: one more round trip, and the
+  // frame it lands in was the extra one on screen.
+  it("takes the list that is left from the close itself", async () => {
+    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/last") });
+    await repository.open("C:/repos/last");
+    repository.openRepos = [{ repo: summary("C:/repos/last").repo, root: "C:/repos/last" }] as never;
+    commands.closeRepository.mockResolvedValue({ status: "ok", data: [] });
+
+    const closing = repository.closeOne(summary("C:/repos/last").repo as never);
+    expect(panelView(repository.phase)).toBe("start");
+    expect(repository.openRepos).toEqual([]);
+    await closing;
+
+    expect(commands.closeRepository).toHaveBeenCalledTimes(1);
+    expect(commands.repositories).not.toHaveBeenCalled();
+    expect(repository.openRepos).toEqual([]);
+  });
+
+  it("still reads the list when the backend refuses the close", async () => {
+    commands.closeRepository.mockRejectedValue(new Error("gone"));
+    commands.repositories.mockResolvedValue({ status: "ok", data: [{ root: "C:/repos/other" }] });
+
+    await repository.closeOne(7 as never);
+
+    expect(commands.repositories).toHaveBeenCalledTimes(1);
+    expect(repository.openRepos.map((entry) => entry.root)).toEqual(["C:/repos/other"]);
+  });
+
+  it("lets a list asked for after the close win over the close's own", async () => {
+    const closed = pending<unknown>();
+    commands.closeRepository.mockReturnValue(closed.promise);
+    const closing = repository.closeOne(7 as never);
+    commands.repositories.mockResolvedValue({ status: "ok", data: [{ root: "C:/repos/opened" }] });
+    await repository.refreshList();
+
+    closed.settle({ status: "ok", data: [] });
+    await closing;
+
+    expect(repository.openRepos.map((entry) => entry.root)).toEqual(["C:/repos/opened"]);
+  });
+});

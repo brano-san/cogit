@@ -952,17 +952,19 @@ pub async fn repositories(
     blocking("repositories", move || Ok(app_state.overviews())).await
 }
 
+/// Answers with the repositories left open, which the caller would otherwise ask for next.
 #[tauri::command]
 #[specta::specta]
 pub async fn close_repository(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,
-) -> Result<bool, GitError> {
+) -> Result<Vec<RepoOverview>, GitError> {
     let app_state = state.state.clone();
     // Off the main thread: stopping a watcher joins the thread that delivers its events,
     // and a join on the message loop is a frozen window (doc/12-risks.md, R-126).
     blocking("close_repository", move || {
-        Ok(app_state.close_repository(repo))
+        app_state.close_repository(repo);
+        Ok(app_state.overviews())
     })
     .await
 }

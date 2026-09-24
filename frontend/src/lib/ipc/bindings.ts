@@ -118,7 +118,8 @@ export const commands = {
 	 *  async workers that carry IPC.
 	 */
 	repositories: () => typedError<RepoOverview[], GitError>(__TAURI_INVOKE("repositories")),
-	closeRepository: (repo: RepoId) => typedError<boolean, GitError>(__TAURI_INVOKE("close_repository", { repo })),
+	/**  Answers with the repositories left open, which the caller would otherwise ask for next. */
+	closeRepository: (repo: RepoId) => typedError<RepoOverview[], GitError>(__TAURI_INVOKE("close_repository", { repo })),
 	updateSubmodule: (repo: RepoId, path: string, init: boolean) => typedError<null, GitError>(__TAURI_INVOKE("update_submodule", { repo, path, init })),
 	/**  Empty `paths` means every submodule, for Initialize and Synchronize only. */
 	submoduleOp: (repo: RepoId, op: SubmoduleOp, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("submodule_op", { repo, op, paths })),
