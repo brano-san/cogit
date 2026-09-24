@@ -21,7 +21,7 @@
     stroke-width: 1.6;
     stroke-linecap: round;
     stroke-linejoin: round;
-    transition: transform 0.12s ease-out;
+    transition: transform var(--t-medium) var(--ease-out);
   }
 
   .caret.open {
