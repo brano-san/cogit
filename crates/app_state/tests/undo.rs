@@ -510,3 +510,40 @@ fn a_discard_whose_backup_fails_throws_nothing_away() {
         "only copy\n"
     );
 }
+
+// A moved submodule counts as a change, but `git stash` saves nothing for it (exit 0), and
+// the hard reset stopped with "there is nothing to stash" — though `reset --hard` leaves
+// the submodule alone and there was nothing to lose. It goes ahead now, without a backup,
+// and the user's older stash is not mistaken for one.
+#[test]
+fn a_hard_reset_with_only_a_moved_submodule_goes_ahead_without_a_backup() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let (state, repo) = open(&f);
+    std::fs::write(f.path().join("README.md"), "parked earlier\n").unwrap();
+    f.git(&["stash", "push", "--message", "the user's own"])
+        .unwrap();
+    let module = f.path().join("vendor/lib");
+    let moved = std::process::Command::new("git")
+        .args([
+            "-c",
+            "user.name=a",
+            "-c",
+            "user.email=a@b",
+            "commit",
+            "--quiet",
+            "--allow-empty",
+            "-m",
+            "moved",
+        ])
+        .current_dir(&module)
+        .status()
+        .unwrap();
+    assert!(moved.success());
+
+    state
+        .reset_to(repo, "HEAD", git_engine::ResetMode::Hard)
+        .unwrap();
+
+    let entry = &state.safety_log()[0];
+    assert!(!entry.undoable, "{entry:?}");
+}

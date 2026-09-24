@@ -22,12 +22,11 @@ impl AppState {
 
         let status = handle.status()?;
         let stashed = if mode == ResetMode::Hard && (status.staged > 0 || status.unstaged > 0) {
-            handle.stash_push(&git_engine::StashOptions {
+            handle.stash_push_if_any(&git_engine::StashOptions {
                 message: format!("cogit: before hard reset to {}", short(rev)),
                 include_untracked: false,
                 keep_index: false,
-            })?;
-            handle.stashes()?.into_iter().next().map(|entry| entry.oid)
+            })?
         } else {
             None
         };
