@@ -1,9 +1,6 @@
 //! Canonical author identities, resolved the way `git check-mailmap` resolves them.
-//!
-//! `gix::mailmap::Snapshot` differs from git in two ways that show in real `.mailmap`
-//! files: a later `Name <addr>` line for an address erases the address an earlier
-//! `<new> <addr>` line gave it, and a match by address rewrites the address to the case
-//! the file spells it in. Git keeps both, so the lookup is git's own (R-390).
+//! `gix::mailmap::Snapshot` drops an address an earlier line gave and rewrites the case of
+//! a matched address; git does neither, so the lookup is git's own (R-390).
 
 use crate::RepoHandle;
 use gix::bstr::ByteSlice;
@@ -23,18 +20,15 @@ struct Rule {
 struct ByEmail {
     email: String,
     rule: Rule,
-    /// Sorted case-insensitively by the old name.
     by_name: Vec<(String, Rule)>,
 }
 
-/// Empty when the repository has no mailmap, which is what nearly every lookup meets.
 #[derive(Debug, Default)]
 pub struct Mailmap {
-    /// Sorted case-insensitively by the old address.
     entries: Vec<ByEmail>,
 }
 
-/// ASCII-only folding, as git's `strcasecmp`.
+/// Entries are sorted by this: ASCII-only folding, as git's `strcasecmp`.
 fn fold(a: &str, b: &str) -> Ordering {
     a.bytes()
         .map(|c| c.to_ascii_lowercase())
@@ -54,7 +48,6 @@ impl Mailmap {
         self.entries.is_empty()
     }
 
-    /// Lines a later source repeats override the earlier ones, as `read_mailmap` merges.
     fn merge(&mut self, bytes: &[u8]) {
         for entry in gix::mailmap::parse_ignore_errors(bytes) {
             let rule = Rule {
@@ -163,8 +156,7 @@ impl FileStamp {
     }
 }
 
-/// What the mailmap was read from. Equal stamps mean the same mailmap, so a handle kept
-/// open across commands still sees an edited `.mailmap` without being reopened.
+/// Equal stamps, same mailmap: a handle kept open still sees an edited `.mailmap`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Stamp {
     tree_file: Option<FileStamp>,
@@ -178,8 +170,7 @@ static LOADED: LazyLock<Mutex<Loaded>> = LazyLock::new(Mutex::default);
 
 impl RepoHandle {
     /// `.mailmap` in the working tree (`HEAD:.mailmap` in a bare repository), then
-    /// `mailmap.blob`, then `mailmap.file`. Read again only when one of them changed;
-    /// a missing or unreadable source counts as empty, as it does for git.
+    /// `mailmap.blob`, then `mailmap.file`; read again only when one of them changed.
     #[must_use]
     pub fn mailmap(&self) -> Arc<Mailmap> {
         let stamp = self.mailmap_stamp();
