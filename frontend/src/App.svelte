@@ -416,8 +416,8 @@
   $effect(() => errors.report(compareView.error, "Could not compare the commits"));
   $effect(() => errors.report(stashView.error, "Could not open the stash"));
 
-  /** One place after every mutation: the reactive version fired on each loading toggle. */
-  /** Refreshed with the rest of the state, so the stack follows Continue and Abort. */
+  /** Refreshed with the rest of the state after every mutation, so the stack follows
+      Continue and Abort; a reactive version fired on each loading toggle. */
   async function refreshProgress() {
     const id = repository.current?.repo;
     const epoch = repository.epoch;
@@ -1347,9 +1347,9 @@
     await mutate((id) => submodules.update(id, path, true));
   }
 
-  /** The repository behind a node of the submodule tree, opened but not listed. */
-  /** The key is from the tree's owner, not from whichever submodule the panels show: that
-      mix-up is what made every submodule after the first one fail (R-149). */
+  /** The repository behind a node of the submodule tree, opened but not listed. The key
+      is from the tree's owner, not from whichever submodule the panels show: that mix-up
+      is what made every submodule after the first one fail (R-149). */
   async function openedModule(key: string) {
     const owner = submodules.owner;
     if (!owner) return null;
@@ -1778,7 +1778,6 @@
     await mutate((repo) => rollbackTo(repo, rev, paths), paths);
   }
 
-  /** Opens the plan editor for everything after the selected commit. */
   /** A drop never acts on its own: the user picks from the menu it opens. */
   function onBranchDrop(sourceName: string, target: Branch) {
     const source = repository.localBranches.find((b) => b.name === sourceName);
@@ -1890,6 +1889,7 @@
     }
   }
 
+  /** Opens the plan editor for everything after the selected commit. */
   async function openRebase() {
     const id = repository.current?.repo;
     const rev = commit.oid;
@@ -2085,9 +2085,6 @@
     await step(root).catch((err) => errors.report(err, failure));
   }
 
-  /** Investigate is getting a window of its own (#15). Until its entry point lands, the
-      file's diff is put in front, where lines are picked and the toolbar button traces
-      them; this is the one function to point at that window. */
   /** A working-tree file is investigated as it is on disk, a file of a commit at that commit. */
   function investigateFile(path: string) {
     const id = repository.current?.repo;
@@ -2825,7 +2822,6 @@
     }
   }
 
-  /** Seeds an empty draft from `commit.template`, the way `git commit` would. */
   /** Stages only the executable bit, leaving the edits in the working tree (T6.4). */
   async function stageModeOnly(paths: string[]) {
     const id = repository.current?.repo;
@@ -2840,6 +2836,7 @@
     await afterWorkingTreeChange(paths);
   }
 
+  /** Seeds an empty draft from `commit.template`, the way `git commit` would. */
   async function loadTemplate() {
     const id = repository.current?.repo;
     if (!id) return;
