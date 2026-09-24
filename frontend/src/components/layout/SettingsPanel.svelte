@@ -14,6 +14,11 @@
   import type { Keymap } from "$lib/keymap";
   import type { KeyBinding } from "$lib/ipc";
   import KeymapEditor from "$components/layout/KeymapEditor.svelte";
+  import GraphField from "$components/layout/GraphField.svelte";
+  import ToolbarEditor from "$components/layout/ToolbarEditor.svelte";
+  import { DEFAULT_LAYOUT } from "$lib/toolbar";
+  import { sameLayout } from "$lib/toolbar-layout";
+  import { canUndo, emptyStack, record, undo, type UndoStack } from "$lib/undo-stack";
   import { parseChoice, suppressedChoices } from "$lib/suppressions";
 
   interface Props {
@@ -37,6 +42,11 @@
     ignored: import("$lib/suppressions").IgnoredWarnings;
     /** Brings an ignored warning back at once, outside the draft. */
     onunignore: (root: string, warning: string) => void;
+    /** The page to open on; the General page when absent. */
+    start?: string;
+    toolbarLayout: readonly string[];
+    /** Applies a toolbar layout at once, outside the draft. */
+    ontoolbar: (next: string[]) => void;
   }
 
   let {
@@ -53,6 +63,9 @@
     onclose,
     ignored,
     onunignore,
+    start,
+    toolbarLayout,
+    ontoolbar,
   }: Props = $props();
 
   // Labelled by example: the setting is about what the row will read, not about a term.
@@ -95,7 +108,10 @@
   let draftKeys = $state<Keymap>({ ...keymap });
   let token = $state("");
   let search = $state("");
-  let active = $state("git");
+  // svelte-ignore state_referenced_locally
+  let active = $state(start ?? "git");
+  /** The toolbar edits made since this window opened, for the Toolbar page's Undo. */
+  let toolbarHistory = $state.raw<UndoStack<readonly string[]>>(emptyStack());
   let collapsed = $state.raw<ReadonlySet<string>>(new Set());
 
   const visible = $derived(matchingCategories(search));
@@ -123,6 +139,18 @@
   function set<K extends keyof Settings>(key: K, next: Settings[K]) {
     draft = { ...draft, [key]: next };
     onapply(draft, draftKeys);
+  }
+
+  function changeToolbar(next: readonly string[]) {
+    toolbarHistory = record(toolbarHistory, toolbarLayout, next, sameLayout);
+    ontoolbar([...next]);
+  }
+
+  function undoToolbar() {
+    const step = undo(toolbarHistory);
+    if (!step) return;
+    toolbarHistory = step.stack;
+    ontoolbar([...step.state]);
   }
 
   function onsearch(text: string) {
@@ -410,6 +438,15 @@
                   onchange={(next) => set("logLevel", next)}
                 />
               </div>
+            {:else if field.key.startsWith("graph")}
+              <GraphField {field} value={draft} onset={set} />
+            {:else if field.key === "toolbar"}
+              <ToolbarEditor
+                layout={toolbarLayout}
+                onchange={changeToolbar}
+                canUndo={canUndo(toolbarHistory)}
+                onundo={undoToolbar}
+              />
             {:else if field.key === "keymap"}
               <KeymapEditor
                 {bindings}
@@ -459,6 +496,10 @@
     <button class="btn"
       type="button"
       onclick={() => {
+        if (active === "toolbar") {
+          changeToolbar(DEFAULT_LAYOUT);
+          return;
+        }
         draft = restoreCategory(draft, active);
         onapply(draft, draftKeys);
       }}

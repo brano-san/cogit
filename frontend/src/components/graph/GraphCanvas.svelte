@@ -126,7 +126,7 @@
         const { x, y } = nodeCentre(row.layout.lane, row.listRow, scrollTop);
         context.arc(x, y, GRAPH.ringRadius, 0, Math.PI * 2);
       }
-      for (const layer of nodeFill(row.listRow, selectedRow, hoverRow)) {
+      for (const layer of nodeFill(row.listRow, selectedRow, hoverRow, settings.current.graphStripes)) {
         if (!fills.has(layer)) fills.set(layer, token(layer));
         context.fillStyle = fills.get(layer) ?? panel;
         context.fill();
@@ -156,6 +156,7 @@
     // Theme, lane width and colour change the picture without changing the data.
     void [rows, scrollTop, width, height, dpr, firstCommitRow, headLane, selectedRow, hoverRow];
     void [settings.current.theme, settings.current.laneWidth, settings.current.coloredLanes];
+    void settings.current.graphStripes;
     schedule();
     return () => cancelAnimationFrame(frame);
   });

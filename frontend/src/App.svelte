@@ -47,7 +47,6 @@
   import ScanDialog from "$components/repo-tree/ScanDialog.svelte";
   import PromptDialog from "$components/layout/PromptDialog.svelte";
   import StashDialogs from "$components/layout/StashDialogs.svelte";
-  import ToolbarConfigDialog from "$components/layout/ToolbarConfigDialog.svelte";
   import RemoteOpsDialog from "$components/remote/RemoteOpsDialog.svelte";
   import RepoSettingsDialog from "$components/remote/RepoSettingsDialog.svelte";
   import { remoteCommands, submoduleScope } from "$lib/remote-menu";
@@ -560,12 +559,6 @@
       },
       { id: "output", title: "Toggle Output Panel", shortcut: "Ctrl+Shift+7", run: () => output.toggle() },
       {
-        id: "configure-toolbar",
-        title: "Configure Toolbar…",
-        synonyms: ["customize toolbar", "toolbar buttons"],
-        run: () => (toolbar.configuring = true),
-      },
-      {
         id: "copy-path",
         title: "Copy the File Path",
         unavailable: diff.path ? undefined : "No file is open in the Diff panel",
@@ -768,7 +761,7 @@
         id: "settings",
         title: "Preferences",
         shortcut: "Ctrl+,",
-        synonyms: ["settings", "options"],
+        synonyms: ["settings", "options", "customise toolbar", "toolbar buttons"],
         run: () => openSettings(),
       },
       {
@@ -929,15 +922,21 @@
   /** What Cancel goes back to. Taken when the dialog opens, not when it closes: by the
       time it closes, everything has already been applied and saved (R-122). */
   let settingsAtOpen = $state.raw<Settings | null>(null);
+  let toolbarAtOpen: readonly string[] = [];
+  /** The page Preferences opens on: right-click on the toolbar lands on Toolbar. */
+  let settingsStart = $state<string | undefined>(undefined);
 
-  function openSettings() {
+  function openSettings(page?: string) {
     settingsAtOpen = { ...settings.current };
+    toolbarAtOpen = toolbar.layout;
+    settingsStart = page;
     settingsOpen = true;
   }
 
   async function revertSettings() {
     const before = settingsAtOpen;
     settingsOpen = false;
+    await toolbar.setLayout(toolbarAtOpen);
     if (before) await settings.apply(before);
   }
 
@@ -2950,6 +2949,7 @@
 
   $effect(() => {
     const pending = onMenuCommand((id) => {
+      if (id === "toolbar-preferences") return openSettings("toolbar");
       if (refActions?.run(id)) return;
       if (runGroupCommand(id)) return;
       if (runRepoCommand(id)) return;
@@ -3018,7 +3018,7 @@
     layout={toolbar.layout}
     oncontext={(x, y) =>
       void popupContextMenu(
-        [{ id: "configure-toolbar", label: "Configure Toolbar…", enabled: true }],
+        [{ id: "toolbar-preferences", label: "Toolbar Preferences…", enabled: true }],
         x,
         y,
       ).catch(() => {})}
@@ -3563,6 +3563,9 @@
       onclose={() => (settingsOpen = false)}
       ignored={health.ignored}
       onunignore={(root, warning) => void health.unignore(root, warning)}
+      start={settingsStart}
+      toolbarLayout={toolbar.layout}
+      ontoolbar={(next) => void toolbar.setLayout(next)}
     />
   {/if}
 
@@ -3620,9 +3623,6 @@
   {/if}
 
   <StashDialogs />
-  {#if toolbar.configuring}
-    <ToolbarConfigDialog />
-  {/if}
 
   {#if remoteOps.dialog}
     {#key remoteOps.dialog}

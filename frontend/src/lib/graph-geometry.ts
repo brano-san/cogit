@@ -71,16 +71,22 @@ export function nodeSquare(lane: number, row: number, scrollTop: number) {
   return { x: x - size / 2, y: y - size / 2, size };
 }
 
-/** Every second row a shade lighter (#21); the Working Tree row is the first, unstriped. */
-export function striped(listRow: number): boolean {
-  return listRow % 2 === 1;
+/** Every second row a shade lighter (#21); the Working Tree row is the first, unstriped.
+    `stripes` is the Preferences switch that turns the banding off. */
+export function striped(listRow: number, stripes = true): boolean {
+  return stripes && listRow % 2 === 1;
 }
 
 /** What is behind a node, bottom up, so its fill hides the lines exactly as the row does:
     the panel, the stripe, then hover and selection, which cover the stripe. */
-export function nodeFill(listRow: number, selectedRow: number | null, hoverRow: number | null): string[] {
+export function nodeFill(
+  listRow: number,
+  selectedRow: number | null,
+  hoverRow: number | null,
+  stripes = true,
+): string[] {
   const layers = ["--surface-panel"];
-  if (striped(listRow)) layers.push("--row-stripe");
+  if (striped(listRow, stripes)) layers.push("--row-stripe");
   if (listRow === hoverRow) layers.push("--state-hover");
   if (listRow === selectedRow) layers.push("--state-selected");
   return layers;
