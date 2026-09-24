@@ -112,6 +112,9 @@
 --status-ref          → --c-branch
 --status-stash        → --c-stash
 --status-tag          → --c-tag
+
+--indicator-changes   → --status-modify   /* точка «есть изменения» у строк Repositories и Branches */
+--indicator-synced    → --status-add      /* точка «чисто и всё запушено» */
 ```
 
 ## 4. Типографика
@@ -276,6 +279,10 @@ Hover — `--state-hover`; active — `--state-selected`; disabled — `opacity:
 ## 9. Иконки
 
 Единый набор линейных иконок, штрих 1.5 px, сетка 16×16, выравнивание по пиксельной сетке.
+
+Размеры: главный тулбар — 22 px; кнопки в тулбарах панелей (Repositories, Files, Branches) —
+один токен `--panel-icon` (16 px) в кнопке `--h-button-sm` и крупнее; значок вида строки в
+дереве — `--kind-icon` (14 px).
 Иконки — inline SVG с `currentColor`, никаких иконочных шрифтов и никаких растровых иконок.
 Для символов Git (ветка, коммит, тег, стэш, слияние) используется собственный минимальный набор,
 согласованный по оптической плотности с Inter.
