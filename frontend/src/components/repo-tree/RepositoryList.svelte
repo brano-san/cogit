@@ -29,7 +29,6 @@
     onopen: () => void;
     onscan: () => void;
     onselect: (entry: RepoOverview) => void;
-    onclose: (entry: RepoOverview) => void;
     oncontext: (row: ListedRepo, x: number, y: number) => void;
     /** A closed row was clicked: open it again. */
     onreopen: (root: string) => void;
@@ -45,7 +44,6 @@
     onopen,
     onscan,
     onselect,
-    onclose,
     oncontext,
     onreopen,
     onmarked,
@@ -240,17 +238,6 @@
               : ""}</span
           >
         {/if}
-        <span
-          class="act"
-          role="button"
-          tabindex="-1"
-          title="Close {entry.name}"
-          onclick={(event) => {
-            event.stopPropagation();
-            onclose(entry);
-          }}
-          onkeydown={(event) => event.key === "Enter" && onclose(entry)}>✕</span
-        >
       </div>
 
       {#if submodules.owner?.valueOf() === entry.repo.valueOf()}
@@ -321,7 +308,6 @@
             <KindIcon kind="repository" />
             <span class="name truncate shrink-last">{listed.name}</span>
             {#if listed.pinned}<span class="pin" title="Pinned to the top of its group">⊤</span>{/if}
-            <span class="gone">closed</span>
           </div>
         {/if}
       {/if}
@@ -346,8 +332,13 @@
     font-size: 11px;
   }
 
+  /* Closed reads as dimmed, text and icon alike, with no word for it (R-351). */
   .row.closed {
     color: var(--text-secondary);
+  }
+
+  .row.closed :global(.kind) {
+    opacity: 0.5;
   }
 
   .pin {
@@ -509,21 +500,5 @@
     flex: 0 0 auto;
     color: var(--status-ref);
     font-size: 10px;
-  }
-
-  .act {
-    flex: 0 0 auto;
-    padding: 0 var(--sp-2);
-    color: var(--text-secondary);
-    opacity: 0;
-    cursor: default;
-  }
-
-  .row:hover .act {
-    opacity: 1;
-  }
-
-  .act:hover {
-    color: var(--status-delete);
   }
 </style>

@@ -3094,7 +3094,6 @@
             }}
             onopen={pickRepository}
             onselect={(entry) => void selectRepository(entry)}
-            onclose={(entry) => void closeListed({ kind: "repository", root: entry.root, overview: entry })}
             oncontext={(row, x, y) => void repoContext(row, x, y)}
             onreopen={(root) => void activate(root)}
             onmarked={(roots) => (markedRepos = roots)}
