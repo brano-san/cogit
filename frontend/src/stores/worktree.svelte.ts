@@ -1,7 +1,7 @@
 import { backendView } from "$lib/file-view";
 import { filesView } from "$stores/files-view.svelte";
 import {
-  CogitError,
+  type CogitError,
   createCommit,
   discardPaths,
   stagePaths,
@@ -9,6 +9,7 @@ import {
   worktreeFiles,
   type FileEntry,
   type RepoId,
+  toCogitError,
 } from "$lib/ipc";
 
 class WorktreeStore {
@@ -40,8 +41,7 @@ class WorktreeStore {
       if (generation !== this.#generation) return;
       this.staged = [];
       this.unstaged = [];
-      this.error =
-        err instanceof CogitError ? err : new CogitError({ kind: "internal", data: String(err) });
+      this.error = toCogitError(err);
     } finally {
       if (generation === this.#generation) this.loading = false;
     }
@@ -67,8 +67,7 @@ class WorktreeStore {
       await run();
     } catch (err) {
       if (cleared !== this.#cleared) return;
-      this.error =
-        err instanceof CogitError ? err : new CogitError({ kind: "internal", data: String(err) });
+      this.error = toCogitError(err);
       return;
     }
     if (cleared === this.#cleared) await this.load(repo);

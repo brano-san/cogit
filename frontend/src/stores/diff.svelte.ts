@@ -1,5 +1,5 @@
 import {
-  CogitError,
+  type CogitError,
   diffFile,
   imageSides,
   type DiffSpec,
@@ -7,6 +7,7 @@ import {
   type Hunk,
   type Whitespace,
   type RepoId,
+  toCogitError,
 } from "$lib/ipc";
 import { readKey, writeKey } from "$lib/settings-file";
 import { discardSelection } from "$lib/ipc";
@@ -115,8 +116,7 @@ class DiffStore {
       if (generation !== this.#generation) return;
       this.diff = null;
       this.#shown = null;
-      this.error =
-        err instanceof CogitError ? err : new CogitError({ kind: "internal", data: String(err) });
+      this.error = toCogitError(err);
     } finally {
       if (generation === this.#generation) this.loading = false;
     }

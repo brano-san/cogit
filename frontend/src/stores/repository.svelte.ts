@@ -8,6 +8,7 @@ import {
   type RepoId,
   type RepoOverview,
   type RepoSummary,
+  toCogitError,
 } from "$lib/ipc";
 import { trace } from "$lib/trace";
 import { session } from "$stores/session.svelte";
@@ -30,7 +31,7 @@ export type RepoPhase =
 const OPEN_TIMEOUT_MS = 30_000;
 
 function asCogitError(err: unknown): CogitError {
-  return err instanceof CogitError ? err : new CogitError({ kind: "internal", data: String(err) });
+  return toCogitError(err);
 }
 
 class RepositoryStore {
