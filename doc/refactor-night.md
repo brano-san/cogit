@@ -522,7 +522,9 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > чтения, кроме NotFound, пробрасывается. Тест
   > `a_gitattributes_that_is_not_utf8_keeps_its_bytes` (cp1251-комментарий: до правки файл
   > заменялся одной строкой).
-- [ ] B-07 rebase раньше merge в определении состояния
+- [x] B-07 rebase раньше merge в определении состояния
+  > Итог: rebase-merge/rebase-apply проверяются раньше MERGE_HEAD, как в wt-status.c. Тест
+  > `a_merge_stopped_inside_a_rebase_is_a_rebase`.
 - [ ] B-08/B-09 хуки и вотчер worktree — common dir
 - [ ] B-10 ошибки notify в лог
 - [ ] B-12 `log -L`: quotepath, префиксы, таб

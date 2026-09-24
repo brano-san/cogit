@@ -54,15 +54,17 @@ impl RepoHandle {
         let git_dir = self.git_dir();
         let marker = |name: &str| git_dir.join(name).exists();
 
-        if marker("MERGE_HEAD") {
-            return Ok(RepoState::Merging);
-        }
         // `git am` and the apply backend of rebase share `rebase-apply`; am leaves `applying`.
         if marker("rebase-apply/applying") {
             return Ok(RepoState::ApplyingPatches);
         }
+        // Before MERGE_HEAD, as git's own status does: `rebase -r` stopped on a merge
+        // commit leaves both, and only the rebase can be continued or aborted.
         if marker("rebase-merge") || marker("rebase-apply") {
             return Ok(RepoState::Rebasing);
+        }
+        if marker("MERGE_HEAD") {
+            return Ok(RepoState::Merging);
         }
         if marker("CHERRY_PICK_HEAD") {
             return Ok(RepoState::CherryPicking);
