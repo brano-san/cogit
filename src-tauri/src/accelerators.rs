@@ -23,6 +23,31 @@ pub struct Chord {
     pub key: u16,
 }
 
+/// The modifier keys as the keyboard reports them, with the right Alt apart: on a layout
+/// that has AltGr it arrives as Ctrl plus right Alt, and it types a character.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Modifiers {
+    pub ctrl: bool,
+    pub shift: bool,
+    pub alt: bool,
+    pub right_alt: bool,
+}
+
+/// The chord a key press stands for, or `None` for a press that is typing: AltGr+S is `ś`
+/// on a Polish keyboard, not `CmdOrCtrl+Alt+S`.
+#[must_use]
+pub fn chord_of(modifiers: Modifiers, key: u16) -> Option<Chord> {
+    if modifiers.right_alt && modifiers.ctrl {
+        return None;
+    }
+    Some(Chord {
+        ctrl: modifiers.ctrl,
+        shift: modifiers.shift,
+        alt: modifiers.alt,
+        key,
+    })
+}
+
 const VK_OEM_COMMA: u16 = 0xBC;
 const VK_OEM_PERIOD: u16 = 0xBE;
 const VK_OEM_MINUS: u16 = 0xBD;
@@ -129,6 +154,29 @@ pub fn table<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // AltGr arrives as left Ctrl with right Alt. Read as Ctrl+Alt it matched Stash
+    // Selection, and the `ś` being typed into the commit message was swallowed.
+    #[test]
+    fn a_character_typed_with_altgr_is_not_a_shortcut() {
+        let altgr = Modifiers {
+            ctrl: true,
+            alt: true,
+            right_alt: true,
+            ..Modifiers::default()
+        };
+        assert_eq!(chord_of(altgr, u16::from(b'S')), None);
+
+        let ctrl_alt = Modifiers {
+            ctrl: true,
+            alt: true,
+            ..Modifiers::default()
+        };
+        assert_eq!(
+            chord_of(ctrl_alt, u16::from(b'S')),
+            parse("CmdOrCtrl+Alt+S")
+        );
+    }
 
     fn no_overrides() -> HashMap<String, String> {
         HashMap::new()

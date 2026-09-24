@@ -16,11 +16,11 @@ use webview2_com::Microsoft::Web::WebView2::Win32::{
     COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN, GetAvailableCoreWebView2BrowserVersionString,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    GetKeyState, VIRTUAL_KEY, VK_CONTROL, VK_MENU, VK_SHIFT,
+    GetKeyState, VIRTUAL_KEY, VK_CONTROL, VK_MENU, VK_RMENU, VK_SHIFT,
 };
 use windows_core::{PCWSTR, PWSTR};
 
-use crate::accelerators::Chord;
+use crate::accelerators::Modifiers;
 
 /// `None` means the runtime is missing or too old to answer — which is itself the answer
 /// to a report about a window that never painted.
@@ -102,12 +102,15 @@ fn claimed(
     let mut key = 0_u32;
     unsafe { args.VirtualKey(&mut key) }.ok()?;
 
-    let pressed = Chord {
-        ctrl: is_down(VK_CONTROL),
-        shift: is_down(VK_SHIFT),
-        alt: is_down(VK_MENU),
-        key: u16::try_from(key).ok()?,
-    };
+    let pressed = crate::accelerators::chord_of(
+        Modifiers {
+            ctrl: is_down(VK_CONTROL),
+            shift: is_down(VK_SHIFT),
+            alt: is_down(VK_MENU),
+            right_alt: is_down(VK_RMENU),
+        },
+        u16::try_from(key).ok()?,
+    )?;
 
     // Rebuilt per press rather than cached: it is a few dozen short strings, it only runs
     // for accelerator keys, and a cache would have to be invalidated every time the user
