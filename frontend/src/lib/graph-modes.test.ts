@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GRAPH_MODE_DEFAULTS, checkedTips, paintRequest } from "$lib/graph-modes";
+import { GRAPH_MODE_DEFAULTS, checkedTips, graphView, paintRequest } from "$lib/graph-modes";
 import { branchSlot } from "$lib/graph-style";
 
 const branches = [
@@ -36,5 +36,12 @@ describe("paintRequest", () => {
   it("asks for nothing when switched off or when nothing is ticked", () => {
     expect(paintRequest({ ...GRAPH_MODE_DEFAULTS, highlightChecked: false }, tips)).toBeNull();
     expect(paintRequest(GRAPH_MODE_DEFAULTS, [])).toBeNull();
+  });
+});
+
+describe("graphView", () => {
+  it("walks everything by default and first parents only when asked", () => {
+    expect(graphView(GRAPH_MODE_DEFAULTS)).toEqual({ firstParent: false });
+    expect(graphView({ ...GRAPH_MODE_DEFAULTS, firstParent: true })).toEqual({ firstParent: true });
   });
 });

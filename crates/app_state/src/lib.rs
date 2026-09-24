@@ -542,10 +542,14 @@ impl AppState {
         // Read once per load: a column that moved half way down would be worse than none.
         let mut cursor = graph_engine::LayoutCursor::with_mainline(mainline_of(&handle, query));
         let mut cancelled = false;
+        let mut view = graph_view(&handle, query, flat)?;
 
         // One order for the graph and the filtered list: by date, never a parent above a
         // child (R-162). A line to a parent the list will not show ends in an arrow (R-161).
-        let on_commits = |commits: Vec<git_engine::CommitRow>| {
+        let on_commits = |mut commits: Vec<git_engine::CommitRow>| {
+            if let Some(view) = view.as_mut() {
+                commits.retain_mut(|c| view.admit(&c.oid, &mut c.parents));
+            }
             let nodes: Vec<graph_engine::CommitNode> = commits
                 .iter()
                 .map(|c| graph_engine::CommitNode {
@@ -1448,6 +1452,20 @@ impl AppState {
 
 /// HEAD, then `master`, then `main` — of those the graph draws. A primary ref that is
 /// unticked or filtered out would hold column 0 empty for a line that never comes (R-161).
+/// A filtered list is flat already; the view shapes a graph (#26).
+fn graph_view(
+    handle: &git_engine::RepoHandle,
+    query: &git_engine::CommitQuery,
+    flat: bool,
+) -> Result<Option<graph_engine::ViewFilter>, git_engine::GitError> {
+    if flat || !query.view.first_parent {
+        return Ok(None);
+    }
+    Ok(Some(graph_engine::ViewFilter::first_parent(
+        handle.walk_tips(query)?,
+    )))
+}
+
 fn mainline_of(handle: &git_engine::RepoHandle, query: &git_engine::CommitQuery) -> Option<String> {
     let ticked = |name: &str| {
         query

@@ -1,15 +1,18 @@
 import { branchSlot } from "$lib/graph-style";
-import type { Branch, GraphPaintRequest } from "$lib/ipc";
+import type { Branch, GraphPaintRequest, GraphView } from "$lib/ipc";
 
 /** The graph settings this module reads, by the parameter names of the settings contract
     (`graphHighlightChecked` → `highlightChecked`, …). */
 export interface GraphModes {
   highlightChecked: boolean;
+  /** `--first-parent`: one line per ticked ref, merged branches left out. */
+  firstParent: boolean;
 }
 
 /** As the graph looked before the settings existed, plus colour for ticked branches. */
 export const GRAPH_MODE_DEFAULTS: Readonly<GraphModes> = {
   highlightChecked: true,
+  firstParent: false,
 };
 
 export interface CheckedTip {
@@ -36,6 +39,11 @@ export function checkedTips(
     .filter((branch) => visible.has(`${branch.kind}:${branch.name}`))
     .map((branch) => ({ name: branch.name, oid: branch.oid, slot: branchSlot(colourName(branch)) }))
     .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+}
+
+/** The modes that decide which commits the walk shows; the rest only paint. */
+export function graphView(modes: GraphModes): GraphView {
+  return { firstParent: modes.firstParent };
 }
 
 /** What to ask Rust to paint; `null` when there is nothing, so no call is made at all. */

@@ -543,6 +543,8 @@ export type CommitQuery = {
 	path?: string | null,
 	/**  Refs the References panel ticked; `None` is every ref, `Some([])` is none. */
 	visibleRefs?: string[] | null,
+	/**  How the graph shows the walked history; a filtered list ignores it. */
+	view?: GraphView,
 };
 
 export type CommitRequest = {
@@ -859,6 +861,12 @@ export type GraphRow = {
 	/**  Columns used by the top edge, the node and the bottom edge together. */
 	width: number,
 	segments: Segment[],
+};
+
+/**  Graph modes that decide which commits the graph shows (`graph_engine::ViewFilter`). */
+export type GraphView = {
+	/**  `--first-parent`: one line per ticked ref, merged branches left out. */
+	firstParent?: boolean,
 };
 
 /**  Assuming "HEAD is a branch" crashes on an unborn or detached checkout (INV-07). */
