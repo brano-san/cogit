@@ -80,7 +80,6 @@ pub struct DiffOptions {
     pub algorithm: Algorithm,        // Histogram по умолчанию
     pub context_lines: u32,          // 3 по умолчанию
     pub ignore_whitespace: Whitespace, // None | Trailing | All
-    pub ignore_blank_lines: bool,
     pub word_diff: bool,             // включает шаг 4
 }
 ```

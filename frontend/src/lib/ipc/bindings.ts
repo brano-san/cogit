@@ -626,7 +626,6 @@ export type DiffOptions = {
 	algorithm: Algorithm,
 	contextLines: number,
 	ignoreWhitespace: Whitespace,
-	ignoreBlankLines: boolean,
 	wordDiff: boolean,
 	detectMoves: boolean,
 };

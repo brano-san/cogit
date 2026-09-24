@@ -281,7 +281,6 @@ export const DEFAULT_DIFF_OPTIONS: DiffOptions = {
   algorithm: "histogram",
   contextLines: 3,
   ignoreWhitespace: "none",
-  ignoreBlankLines: false,
   wordDiff: true,
   detectMoves: true,
 };

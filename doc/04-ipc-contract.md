@@ -335,7 +335,7 @@ author, email, timestamp, path, diff }`, новые сверху. `path` — и�
 число строк каждой стороны: по ним панель знает, сколько строк скрыто под последним ханком
 (#16, R-271).
 
-`DiffOptions` — `algorithm`, `contextLines`, `ignoreWhitespace`, `ignoreBlankLines`,
+`DiffOptions` — `algorithm`, `contextLines`, `ignoreWhitespace`,
 `wordDiff`, `detectMoves`. Значения приходят из настроек (F-078); `detectMoves`
 управляет пометкой перемещённых блоков, остальные — самим сравнением.
 
