@@ -30,3 +30,12 @@ pub async fn background_fetch(root: String) -> Result<(), GitError> {
     })
     .await
 }
+
+#[tauri::command]
+#[specta::specta]
+pub async fn pull_probe(root: String) -> Result<Option<bool>, GitError> {
+    blocking("pull_probe", move || {
+        app_state::repo_rows::pull_probe(&PathBuf::from(root))
+    })
+    .await
+}

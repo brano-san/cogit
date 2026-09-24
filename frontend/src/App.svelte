@@ -148,6 +148,7 @@
   import { commit } from "$stores/commit.svelte";
   import { conflicts } from "$stores/conflicts.svelte";
   import { worktree } from "$stores/worktree.svelte";
+  import { runMutation, type MutationContext } from "$lib/mutation";
   import { worktrees } from "$stores/worktrees.svelte";
   import { diff } from "$stores/diff.svelte";
   import { errors } from "$stores/errors.svelte";
@@ -431,25 +432,21 @@
     if (repository.epoch === epoch) progress = found;
   }
 
-  /** Every change to the working tree ends the same way: reload it and refresh what
-      depends on it, or report why not. `false` means nothing was done. */
+  const mutation: MutationContext = {
+    repo: () => repository.current?.repo ?? null,
+    epoch: () => repository.epoch,
+    report: (err) => errors.report(err, "Could not change the working tree"),
+    loadWorktree: (id) => worktree.load(id),
+    after: (paths) => afterMutation(paths),
+  };
+
+  /** See `runMutation`; `readsBack` for a worktree-store write that reads the list itself. */
   async function mutate(
     step: (repo: import("$lib/ipc").RepoId) => Promise<unknown>,
     paths: string[] = [],
+    readsBack = false,
   ): Promise<boolean> {
-    const id = repository.current?.repo;
-    if (!id) return false;
-    const epoch = repository.epoch;
-    try {
-      await step(id);
-    } catch (err) {
-      errors.report(err, "Could not change the working tree");
-      return false;
-    }
-    if (repository.epoch !== epoch) return true;
-    await worktree.load(id);
-    await afterMutation(paths);
-    return true;
+    return runMutation(mutation, step, paths, readsBack);
   }
 
   /** For a change `mutate` did not make: resolving a conflict, an Undo from the journal,
@@ -463,14 +460,14 @@
 
   async function afterMutation(paths: string[] = []) {
     diff.dropIfAffected(paths);
-    await repository.refreshStatus();
+    const conflicted = await repository.refreshStatus();
     const id = repository.current?.repo;
     await Promise.all([
       id ? stashes.refresh(id) : Promise.resolve(),
       id ? network.refresh(id) : Promise.resolve(),
       id ? recovery.refresh(id) : Promise.resolve(),
       submodules.refresh(),
-      id ? conflicts.refresh(id) : Promise.resolve(),
+      id ? conflicts.refresh(id, conflicted ?? undefined) : Promise.resolve(),
       output.refreshProblems(),
       safety.refresh(),
       refreshProgress(),
@@ -973,6 +970,10 @@
   const SETTLE_MS = 120;
 
   function onDiskChange(change: import("$lib/ipc").RepoChanged) {
+    if (change.kind === "refs") {
+      const moved = repository.openRepos.find((entry) => entry.repo.valueOf() === change.repo.valueOf());
+      if (moved) repoPulse.refsMoved(moved.root);
+    }
     const id = repository.current?.repo;
     if (!id || id.valueOf() !== change.repo.valueOf()) {
       const left = repository.openRepos.find((entry) => entry.repo.valueOf() === change.repo.valueOf());
@@ -1016,7 +1017,8 @@
     if (left()) return;
     stale = freshen(stale, ["diff", "files", "commit"]);
 
-    if (plan.refs) await graph.load(id, graph.query);
+    if (plan.authors && commit.oid) void commit.select(id, commit.oid);
+    if (plan.refs || plan.authors) await graph.load(id, graph.query);
     stale = freshen(stale, ["graph", "refs"]);
   }
 
@@ -1029,11 +1031,11 @@
   }
 
   async function stage(paths: string[]) {
-    await mutate((id) => worktree.stage(id, paths), paths);
+    await mutate((id) => worktree.stage(id, paths), paths, true);
   }
 
   async function unstage(paths: string[]) {
-    await mutate((id) => worktree.unstage(id, paths), paths);
+    await mutate((id) => worktree.unstage(id, paths), paths, true);
   }
 
   async function ignore(paths: string[]) {
@@ -1051,7 +1053,7 @@
       warning: true,
     });
     if (!confirmed) return;
-    await mutate((repo) => worktree.discard(repo, paths), paths);
+    await mutate((repo) => worktree.discard(repo, paths), paths, true);
   }
 
   /** Toolbar Discard asks in the app's own modal, focus on Cancel (R-255). */
@@ -1064,7 +1066,7 @@
       confirm: "Discard",
       warning: true,
     });
-    if (go) await mutate((repo) => worktree.discard(repo, paths), paths);
+    if (go) await mutate((repo) => worktree.discard(repo, paths), paths, true);
   }
 
   /** To the Recycle Bin, from the menu and the list's own Delete button alike (#40). */
@@ -1112,7 +1114,7 @@
     if (worktree.error) return false;
     if (repository.epoch !== epoch) return true;
     diff.clear();
-    await repository.refresh();
+    await repository.refreshRefs();
     await afterMutation();
     void graph.load(id, graph.query);
     return true;
@@ -1145,12 +1147,6 @@
     tagSeparator: repo?.tagGroupSeparator,
   });
   const refTreeInput = $derived({ ...refTreeBase, collapsed: refs.collapsed, filter: refFilter });
-
-  // The walk follows first parents only while the setting says so (R-301).
-  $effect(() => {
-    const on = settings.current.graphFirstParent;
-    untrack(() => graph.setFirstParent(on));
-  });
 
   // A heading that arrives after the open — stashes, lost commits — arrives folded (R-154).
   $effect(() => {

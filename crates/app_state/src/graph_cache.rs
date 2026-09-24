@@ -2,12 +2,18 @@
 //! is kept per repository shown recently, so switching back is a lookup, not a walk (R-300),
 //! and a new walk copies the rows of the last one instead of reading them again (R-301).
 
+use crate::graph_overlay::PaintMemo;
 use crate::{AppState, GraphChunk, RepoId};
+use git_engine::Mailmap;
 use git_engine::{CommitQuery, CommitRow, GitError, Reuse, SkippedRef, WalkedHistory};
 use graph_engine::GraphRow;
+use parking_lot::Mutex;
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
+
+/// A graph's rows and the paint of them the overlay last asked for.
+type Painted = (u32, Arc<Laid>, Arc<Mutex<PaintMemo>>);
 
 /// Graphs stay until together they pass this; the one asked for last always stays. A
 /// 50 000-commit history takes about 30 MB: three such repositories, or dozens of usual ones.
@@ -44,6 +50,8 @@ struct Laid {
     rows: Vec<GraphRow>,
     /// Filled once the walk is over; what the next walk copies rows from.
     history: WalkedHistory,
+    /// Merges folded by `collapse_merged` and how many commits each holds (#26).
+    folds: BTreeMap<u32, u32>,
 }
 
 impl Laid {
@@ -64,8 +72,11 @@ struct Graph {
     /// And so is the history: a walk may copy from this graph, a request be answered by it.
     complete: bool,
     laid: Arc<Laid>,
+    paint: Arc<Mutex<PaintMemo>>,
+    /// The names the rows were read with; another mailmap needs them read again (R-390).
+    mailmap: Arc<Mailmap>,
     /// The graph this walk replaces: still served by its generation until this one ends.
-    base: Option<(u32, Arc<Laid>)>,
+    base: Option<Painted>,
     /// Leading rows equal to `base`'s, and whether a row that differs has come yet.
     kept: u32,
     parted: bool,
@@ -78,14 +89,25 @@ impl Graph {
         self.laid.total()
     }
 
-    fn answers(&self, query: &CommitQuery, refs: Option<u64>) -> bool {
-        self.complete && refs.is_some() && self.refs == refs && self.query == *query
+    fn answers(&self, query: &CommitQuery, refs: Option<u64>, mailmap: &Arc<Mailmap>) -> bool {
+        self.complete
+            && refs.is_some()
+            && self.refs == refs
+            && self.query == *query
+            && Arc::ptr_eq(&self.mailmap, mailmap)
     }
 
     /// What a new walk copies from: this graph once complete, else the one it replaces.
-    fn reusable(&self) -> Option<(u32, Arc<Laid>)> {
+    fn reusable(&self, mailmap: &Arc<Mailmap>) -> Option<Painted> {
+        if !Arc::ptr_eq(&self.mailmap, mailmap) {
+            return None;
+        }
         if self.complete {
-            Some((self.generation, Arc::clone(&self.laid)))
+            Some((
+                self.generation,
+                Arc::clone(&self.laid),
+                Arc::clone(&self.paint),
+            ))
         } else {
             self.base.clone()
         }
@@ -93,7 +115,7 @@ impl Graph {
 
     /// Counts how far the rows from `from` on repeat `base`, up to the first that differs.
     fn compare(&mut self, from: usize) {
-        let Some((_, base)) = &self.base else {
+        let Some((_, base, _)) = &self.base else {
             self.parted = true;
             return;
         };
@@ -117,7 +139,7 @@ impl Graph {
             generation: self.generation,
             total: self.total(),
             is_last,
-            base: self.base.as_ref().map(|(generation, _)| *generation),
+            base: self.base.as_ref().map(|(generation, ..)| *generation),
             kept: self.kept,
         }
     }
@@ -127,6 +149,7 @@ impl Graph {
 struct View<'a> {
     laid: &'a Laid,
     complete: bool,
+    paint: &'a Mutex<PaintMemo>,
 }
 
 #[derive(Debug, Default)]
@@ -142,12 +165,14 @@ impl GraphCache {
             return Some(View {
                 laid: &graph.laid,
                 complete: graph.ended,
+                paint: &graph.paint,
             });
         }
         match &graph.base {
-            Some((base, laid)) if *base == generation => Some(View {
+            Some((base, laid, paint)) if *base == generation => Some(View {
                 laid,
                 complete: true,
+                paint,
             }),
             _ => None,
         }
@@ -233,6 +258,7 @@ impl AppState {
             .refs_fingerprint()
             .inspect_err(|err| tracing::error!(error = ?err, context = "graph cache: refs"))
             .ok();
+        let mailmap = handle.mailmap();
         let base = {
             let mut cache = self.graph.write();
             let used = cache.tick();
@@ -242,7 +268,7 @@ impl AppState {
                 if generation < graph.generation {
                     return Ok(Vec::new());
                 }
-                if graph.answers(query, refs) {
+                if graph.answers(query, refs, &mailmap) {
                     let progress = GraphProgress {
                         generation,
                         total: graph.total(),
@@ -262,7 +288,7 @@ impl AppState {
                     on_progress(progress);
                     return Ok(skipped);
                 }
-                base = graph.reusable();
+                base = graph.reusable(&mailmap);
             }
             // Retired already: a walk that would stop at its first chunk keeps the cache.
             if !self.is_current_graph(generation) {
@@ -276,6 +302,8 @@ impl AppState {
                 ended: false,
                 complete: false,
                 laid: Arc::default(),
+                paint: Arc::default(),
+                mailmap,
                 base: base.clone(),
                 kept: 0,
                 parted: false,
@@ -286,7 +314,7 @@ impl AppState {
             base
         };
 
-        let reuse = base.as_ref().map(|(_, laid)| Reuse {
+        let reuse = base.as_ref().map(|(_, laid, _)| Reuse {
             history: &laid.history,
             rows: &laid.commits,
         });
@@ -308,6 +336,8 @@ impl AppState {
                 let laid = Arc::make_mut(&mut graph.laid);
                 laid.commits.extend(chunk.commits);
                 laid.rows.extend(chunk.rows);
+                laid.folds
+                    .extend(chunk.folds.iter().map(|fold| (fold.row, fold.hidden)));
                 graph.compare(from);
                 graph.progress(chunk.is_last)
             };
@@ -355,7 +385,7 @@ impl AppState {
         count: u32,
     ) -> Option<GraphWindow> {
         let cache = self.graph.read();
-        let View { laid, complete } = cache.view(repo, generation)?;
+        let View { laid, complete, .. } = cache.view(repo, generation)?;
         let len = laid.rows.len();
         let from = usize::try_from(start).unwrap_or(usize::MAX).min(len);
         let to = from
@@ -386,6 +416,18 @@ impl AppState {
             return None;
         }
         u32::try_from(row).ok()
+    }
+
+    /// The rows of graph `generation` and its paint memo, read under the cache's lock.
+    pub(crate) fn read_graph<R>(
+        &self,
+        repo: RepoId,
+        generation: u32,
+        read: impl FnOnce(&[CommitRow], &[GraphRow], &BTreeMap<u32, u32>, &Mutex<PaintMemo>) -> R,
+    ) -> Option<R> {
+        let cache = self.graph.read();
+        let View { laid, paint, .. } = cache.view(repo, generation)?;
+        Some(read(&laid.commits, &laid.rows, &laid.folds, paint))
     }
 
     pub(crate) fn forget_graph(&self, repo: RepoId) {

@@ -28,6 +28,23 @@ export const commands = {
 	 */
 	graphWindow: (repo: RepoId, generation: number, start: number, count: number) => typedError<string, GitError>(__TAURI_INVOKE("graph_window", { repo, generation, start, count })),
 	graphRowOf: (repo: RepoId, generation: number, oid: string) => typedError<number | null, GitError>(__TAURI_INVOKE("graph_row_of", { repo, generation, oid })),
+	/**
+	 *  Colours and dimming for rows of graph `generation`, painted over the whole graph and
+	 *  kept until the rows or the request change. `None` once a newer graph replaced it.
+	 */
+	graphOverlay: (repo: RepoId, generation: number, start: number, count: number, request: GraphPaintRequest) => typedError<{
+	start: number,
+	/**  Rows laid out when this was painted: a later row can still change it. */
+	total: number,
+	nodeLanes: number[],
+	/**  `graph_engine::PAINT_SLOT` bits are the slot plus one, 0 the default colour; `PAINT_DIM` dims. */
+	nodeStyles: number[],
+	segmentFirst: number[],
+	segmentLanes: number[],
+	segmentStyles: number[],
+	/**  Folded merges among the window's rows. */
+	folds: Fold[],
+} | null, GitError>(__TAURI_INVOKE("graph_overlay", { repo, generation, start, count, request })),
 	/**  Every commit that changed the file, newest first, from `rev` (HEAD when absent). */
 	investigateLog: (repo: RepoId, path: string, rev: string | null, follow: boolean, onChunk: Channel<FileRevision[]>) => typedError<number, GitError>(__TAURI_INVOKE("investigate_log", { repo, path, rev, follow, onChunk })),
 	/**  The file at `rev` (the working tree when absent), each line with its origin. */
@@ -44,7 +61,16 @@ export const commands = {
 	diffFile: (repo: RepoId, spec: DiffSpec, path: string, options: DiffOptions) => typedError<FileDiff, GitError>(__TAURI_INVOKE("diff_file", { repo, spec, path, options })),
 	worktreeFiles: (repo: RepoId, view: WorktreeView) => typedError<WorktreeFiles, GitError>(__TAURI_INVOKE("worktree_files", { repo, view })),
 	repoStatus: (repo: RepoId) => typedError<RepoStatus, GitError>(__TAURI_INVOKE("repo_status", { repo })),
+	/**  The counters and the conflicted paths from one read, for the refresh after a mutation. */
+	workingState: (repo: RepoId) => typedError<WorkingState, GitError>(__TAURI_INVOKE("working_state", { repo })),
+	/**  Refs and state without reopening the repository, for the refresh after a commit. */
+	repoRefs: (repo: RepoId) => typedError<RepoRefs, GitError>(__TAURI_INVOKE("repo_refs", { repo })),
 	stagePaths: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("stage_paths", { repo, paths })),
+	/**
+	 *  Stage all: every change git sees, not a path list (doc/12-risks.md, R-311). `files` is
+	 *  how many rows the list showed, which decides how the blobs are written (R-312).
+	 */
+	stageAll: (repo: RepoId, files: number) => typedError<null, GitError>(__TAURI_INVOKE("stage_all", { repo, files })),
 	unstagePaths: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("unstage_paths", { repo, paths })),
 	discardPaths: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("discard_paths", { repo, paths })),
 	commit: (repo: RepoId, request: CommitRequest) => typedError<string, GitError>(__TAURI_INVOKE("commit", { repo, request })),
@@ -281,6 +307,7 @@ export const commands = {
 	submoduleOutline: (root: string, parent: string) => typedError<Submodule[], GitError>(__TAURI_INVOKE("submodule_outline", { root, parent })),
 	repoPulse: (root: string) => typedError<RepoPulse, GitError>(__TAURI_INVOKE("repo_pulse", { root })),
 	backgroundFetch: (root: string) => typedError<null, GitError>(__TAURI_INVOKE("background_fetch", { root })),
+	pullProbe: (root: string) => typedError<boolean | null, GitError>(__TAURI_INVOKE("pull_probe", { root })),
 	/**
 	 *  Opens a submodule from its node in the tree: the panels follow it, the Repositories
 	 *  panel does not gain an entry for it (doc/12-risks.md, R-109).
@@ -492,7 +519,9 @@ export type Bypass = {
 	at: number,
 };
 
-export type ChangeKind = "head" | "index" | "refs" | "workingTree" | "stash" | "config" | "hooks";
+export type ChangeKind = "head" | "index" | "refs" | "workingTree" | "stash" | "config" | "hooks" | 
+/**  `.mailmap` at the root of the working tree: names and addresses to read again. */
+"mailmap";
 
 export type CheckoutTarget = { kind: "branch"; name: string } | { kind: "commit"; oid: string };
 
@@ -532,8 +561,8 @@ export type CommitQuery = {
 	path?: string | null,
 	/**  Refs the References panel ticked; `None` is every ref, `Some([])` is none. */
 	visibleRefs?: string[] | null,
-	/**  `git log --first-parent`: a merge's other parents and what only they reach stay out. */
-	firstParent?: boolean,
+	/**  How the graph shows the walked history; a filtered list ignores it. */
+	view?: GraphView,
 	/**  Not a filter: how the graph this load lays out cuts long links (R-330). */
 	longLinkRows?: number | null,
 };
@@ -760,6 +789,12 @@ export type FlowStatus = {
 	branches: FlowBranch[],
 };
 
+/**  A merge shown as one row, and how many commits its fold holds so far. */
+export type Fold = {
+	row: number,
+	hidden: number,
+};
+
 export type Found = {
 	kind: FoundKind,
 	label: string,
@@ -819,6 +854,26 @@ export type GitOutput = {
 	startedAtMs: number,
 };
 
+export type GraphOverlay = {
+	start: number,
+	/**  Rows laid out when this was painted: a later row can still change it. */
+	total: number,
+	nodeLanes: number[],
+	/**  `graph_engine::PAINT_SLOT` bits are the slot plus one, 0 the default colour; `PAINT_DIM` dims. */
+	nodeStyles: number[],
+	segmentFirst: number[],
+	segmentLanes: number[],
+	segmentStyles: number[],
+	/**  Folded merges among the window's rows. */
+	folds: Fold[],
+};
+
+export type GraphPaintRequest = {
+	tips?: PaintTip[],
+	/**  All but this commit's ancestors and descendants is dimmed. */
+	ancestryOf?: string | null,
+};
+
 /**  How far the walk got. The rows themselves travel only when asked for, by window. */
 export type GraphProgress = {
 	generation: number,
@@ -844,6 +899,15 @@ export type GraphRow = {
 	segments: Segment[],
 	/**  Stubs standing for a link too long to draw whole (R-330), with the far end of each. */
 	links: LongLink[],
+};
+
+/**  Graph modes that decide which commits the graph shows (`graph_engine::ViewFilter`). */
+export type GraphView = {
+	/**  `--first-parent`: one line per ticked ref, merged branches left out. */
+	firstParent?: boolean,
+	/**  A merged branch is one row at its merge, but for the merges in `expanded`. */
+	collapseMerged?: boolean,
+	expanded?: string[],
 };
 
 /**  Assuming "HEAD is a branch" crashes on an unborn or detached checkout (INV-07). */
@@ -1134,6 +1198,11 @@ export type OverlapRow = {
 	sharedTotal: number,
 };
 
+export type PaintTip = {
+	oid: string,
+	slot: number,
+};
+
 export type PatchRequest = {
 	path: string,
 	hunks: Hunk[],
@@ -1259,6 +1328,15 @@ export type RepoPulse = {
 	behind: number,
 	/**  Tracked files, staged changes, conflicts; untracked ones take a directory walk. */
 	dirty: boolean,
+};
+
+/**  What a commit moves besides the counters: the refs and the operation state (R-316). */
+export type RepoRefs = {
+	head: Head,
+	branches: Branch[],
+	tags: Tag[],
+	state: RepoState,
+	indexLock: string | null,
 };
 
 export type RepoSetting = {
@@ -1495,6 +1573,13 @@ export type WebviewLogLine = {
 };
 
 export type Whitespace = "none" | "trailing" | "all";
+
+/**  The counters and the conflicted paths, from one read of the status (R-316). */
+export type WorkingState = {
+	status: RepoStatus,
+	/**  Sorted, each path once — what `conflicted_paths` lists. */
+	conflicted: string[],
+};
 
 /**  One checkout: the main one cannot be removed, a linked one can be locked or left behind. */
 export type WorktreeEntry = {

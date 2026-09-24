@@ -5,11 +5,13 @@ import {
   graphWindow,
   loadGraph,
   type CommitQuery,
+  type GraphView,
   type RepoId,
   toCogitError,
 } from "$lib/ipc";
 import type { GraphBlock, GraphEntry } from "$lib/graph-wire";
 import { repository } from "$stores/repository.svelte";
+import { GRAPH_MODE_DEFAULTS, graphView } from "$lib/graph-modes";
 import { LONG_LINK_ROWS } from "$lib/graph-row";
 
 export type { GraphEntry };
@@ -59,9 +61,8 @@ class GraphStore {
   /** `null` is every ref. Owned by the References panel, folded into every load. */
   visibleRefs = $state.raw<string[] | null>(null);
 
-  /** `git log --first-parent`, from the `graphFirstParent` setting; folded into every load. */
-  firstParent = $state(false);
-
+  /** Graph modes that decide which commits are shown (#26), folded into every load. */
+  view = $state.raw<GraphView>(graphView(GRAPH_MODE_DEFAULTS));
   /** Links longer than this many rows are drawn as two stubs (R-330); 0 draws them whole.
       Folded into every load, like the refs. */
   longLinkRows = $state(LONG_LINK_ROWS);
@@ -96,6 +97,19 @@ class GraphStore {
   /** The repository whose rows are on screen; it lags the one open while its graph loads. */
   get shownRepo(): RepoId | null {
     return this.#shown?.repo ?? null;
+  }
+
+  /** The walk on screen, for what is fetched beside its rows (paint, #11). */
+  get walk(): { repo: RepoId; generation: number | null } | null {
+    void this.#arrived;
+    return this.#shown && { repo: this.#shown.repo, generation: this.#shown.generation };
+  }
+
+  /** Another view walks the graph on screen again. */
+  setView(next: GraphView): void {
+    if (JSON.stringify(next) === JSON.stringify(this.view)) return;
+    this.view = next;
+    if (this.#shown) void this.load(this.#shown.repo, this.query);
   }
 
   requestReveal(oid: string): void {
@@ -184,12 +198,7 @@ class GraphStore {
           if (fresh === this.#shown) this.#publish();
           this.#ask(fresh);
         },
-        {
-          ...query,
-          visibleRefs: this.visibleRefs,
-          firstParent: this.firstParent,
-          longLinkRows: this.longLinkRows,
-        },
+        { ...query, visibleRefs: this.visibleRefs, view: this.view, longLinkRows: this.longLinkRows },
       );
       if (load === this.#loads) this.skipped = skipped ?? [];
       if (load === this.#loads && !fresh.complete && !(await this.#settle(fresh, load)) && retry) {
@@ -211,14 +220,6 @@ class GraphStore {
     const next = Math.max(Math.round(rows), 0);
     if (next === this.longLinkRows) return;
     this.longLinkRows = next;
-    const repo = this.#shown?.repo;
-    if (repo !== undefined) void this.load(repo, this.query);
-  }
-
-  /** `git log --first-parent` on or off; the history on screen is walked again. */
-  setFirstParent(on: boolean): void {
-    if (on === this.firstParent) return;
-    this.firstParent = on;
     const repo = this.#shown?.repo;
     if (repo !== undefined) void this.load(repo, this.query);
   }

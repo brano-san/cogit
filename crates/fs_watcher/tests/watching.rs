@@ -127,6 +127,19 @@ fn a_working_tree_edit_is_reported() {
 }
 
 #[test]
+fn an_edited_mailmap_is_reported_as_one() {
+    let harness = start();
+
+    std::fs::write(harness.root.join(".mailmap"), "Ann <ann@x> <a@x>\n").unwrap();
+
+    let seen = collect(&harness);
+    assert!(
+        seen.iter().any(|c| c.kind == ChangeKind::Mailmap),
+        "got {seen:?}"
+    );
+}
+
+#[test]
 fn a_paused_watcher_reports_nothing() {
     let harness = start();
     harness.watcher.pause();

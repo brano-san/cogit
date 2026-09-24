@@ -203,7 +203,7 @@ class Context {
     return dropScript(path);
   }
   async ensureOpen(set) {
-    const present = await this.exists({ sel: ".wrapper .row", text: set, exact: ".name" });
+    const present = await this.exists({ sel: ".wrapper .row:not(.closed)", text: set, exact: ".name" });
     if (!present) await this.prep.run(dropScript(join(REPOS, set).replaceAll("\\", "/")), { quiet: 300 });
   }
   searchScript(query) {

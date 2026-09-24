@@ -143,15 +143,30 @@ fn check(f: &test_fixtures::Fixture, distinct_times: bool) {
         &state,
         repo,
         &CommitQuery {
-            first_parent: true,
+            view: git_engine::GraphView {
+                first_parent: true,
+                ..git_engine::GraphView::default()
+            },
             ..CommitQuery::default()
         },
     );
-    let ours: HashSet<String> = lines(&first).into_iter().collect();
+    // `%P` still lists a merge's every parent; the graph draws the first line only (#26).
+    let first_line = |line: &str| line.split(' ').take(2).collect::<Vec<_>>().join(" ");
+    let ours: HashSet<String> = lines(&first).iter().map(|l| first_line(l)).collect();
     let theirs: HashSet<String> = git_lines(f, "--topo-order", &["--first-parent"])
-        .into_iter()
+        .iter()
+        .map(|l| first_line(l))
         .collect();
     assert_eq!(ours, theirs, "--first-parent");
+    assert_eq!(first.len(), ours.len());
+    if distinct_times {
+        let ours: Vec<String> = lines(&first).iter().map(|l| first_line(l)).collect();
+        let theirs: Vec<String> = git_lines(f, "--date-order", &["--first-parent"])
+            .iter()
+            .map(|l| first_line(l))
+            .collect();
+        assert_eq!(ours, theirs, "--first-parent --date-order");
+    }
     assert_topological(&first);
 }
 

@@ -1,6 +1,10 @@
 mod lanes;
+mod paint;
+mod view;
 
 pub use lanes::{finish, layout, push};
+pub use paint::{PAINT_DIM, PAINT_SLOT, Paint, PaintSpec, paint};
+pub use view::{Fold, ViewFilter};
 
 use serde::Serialize;
 use std::collections::{HashMap, HashSet, VecDeque};
