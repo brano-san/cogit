@@ -69,6 +69,12 @@ describe("describeModule", () => {
     expect(text).toBe("452e800: Merge branch 'feature'");
   });
 
+  // A light tree read only .gitmodules; "no commit checked out" would be a claim it cannot make.
+  it("says nothing about a module of a light tree", () => {
+    expect(describeModule(mod("lib", { state: "unread", checkedOut: null }))).toBe("");
+    expect(moduleTooltip(mod("lib", { state: "unread", checkedOut: null }))).toBe("");
+  });
+
   it("says a module has not been initialised rather than showing nothing", () => {
     expect(describeModule(mod("lib", { state: "notInitialised" }))).toBe("not initialised");
   });

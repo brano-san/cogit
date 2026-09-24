@@ -276,6 +276,25 @@
                   {/each}
                 </div>
               </div>
+            {:else if field.key === "backgroundFetchMinutes"}
+              <label class="row">
+                <span>{field.label}</span>
+                <span class="slider">
+                  <input
+                    type="range"
+                    min="0"
+                    max="60"
+                    step="5"
+                    value={draft.backgroundFetchMinutes}
+                    oninput={(e) => set("backgroundFetchMinutes", e.currentTarget.valueAsNumber)}
+                  />
+                  <output
+                    >{draft.backgroundFetchMinutes === 0
+                      ? "Off"
+                      : `every ${draft.backgroundFetchMinutes} min`}</output
+                  >
+                </span>
+              </label>
             {:else if field.key === "gitPath"}
               <label class="row">
                 <span>{field.label}</span>
