@@ -141,17 +141,46 @@ fn finish(pending: Pending) -> LineVersion {
 }
 
 fn header_of(header: &str) -> Option<LineVersion> {
-    let mut fields = header.splitn(5, '\t');
+    let LogHeader {
+        oid,
+        author,
+        email,
+        timestamp,
+        summary,
+    } = LogHeader::parse(header)?;
     Some(LineVersion {
-        oid: fields.next()?.to_owned(),
-        author: fields.next()?.to_owned(),
-        email: fields.next()?.to_owned(),
-        timestamp: fields.next()?.parse().ok()?,
-        summary: fields.next().unwrap_or_default().to_owned(),
+        oid,
+        summary,
+        author,
+        email,
+        timestamp,
         path: String::new(),
         line: 0,
         text: String::new(),
     })
+}
+
+/// The five tab-separated fields both `git log -L` readers ask for after their marker:
+/// `%H %an %ae %at %s`.
+pub(crate) struct LogHeader {
+    pub(crate) oid: String,
+    pub(crate) author: String,
+    pub(crate) email: String,
+    pub(crate) timestamp: i64,
+    pub(crate) summary: String,
+}
+
+impl LogHeader {
+    pub(crate) fn parse(header: &str) -> Option<Self> {
+        let mut fields = header.splitn(5, '\t');
+        Some(Self {
+            oid: fields.next()?.to_owned(),
+            author: fields.next()?.to_owned(),
+            email: fields.next()?.to_owned(),
+            timestamp: fields.next()?.parse().ok()?,
+            summary: fields.next().unwrap_or_default().to_owned(),
+        })
+    }
 }
 
 /// The first line on the new side of `@@ -a,b +c,d @@`.
@@ -163,7 +192,7 @@ fn hunk_start(line: &str) -> Option<u32> {
 }
 
 /// `+++ b/…` names the file at this commit; `--- a/…` when the commit deleted it.
-fn path_of(line: &str) -> Option<String> {
+pub(crate) fn path_of(line: &str) -> Option<String> {
     for (prefix, marker) in [("+++ ", "b/"), ("--- ", "a/")] {
         if let Some(rest) = line.strip_prefix(prefix) {
             if rest == "/dev/null" {
