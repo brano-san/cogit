@@ -83,30 +83,9 @@ pub fn write_preset(
 ) -> Result<PathBuf, GitError> {
     std::fs::create_dir_all(dir)?;
     let path = dir.join(format!("{id}.toml"));
-    let body = format!(
-        "id = {}\nname = {}\nhook = {}\ndescription = {}\nscript = {}\n",
-        quote(id),
-        quote(name),
-        quote(hook),
-        quote(description),
-        block(script),
-    );
+    let body = git_engine::preset_toml(id, name, hook, description, script)?;
     std::fs::write(&path, body)?;
     Ok(path)
-}
-
-fn quote(text: &str) -> String {
-    format!("{:?}", text)
-}
-
-/// A multi-line literal, so a shell script keeps its backslashes and quotes untouched.
-fn block(script: &str) -> String {
-    let fence = if script.contains("'''") {
-        "\"\"\""
-    } else {
-        "'''"
-    };
-    format!("{fence}\n{script}{fence}")
 }
 
 /// Ids become file names, so anything that could climb out of the directory is refused.
