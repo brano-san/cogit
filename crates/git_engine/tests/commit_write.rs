@@ -225,3 +225,40 @@ fn an_empty_path_list_still_commits_everything_staged() {
 
     assert!(repo.worktree_files().unwrap().staged.is_empty());
 }
+
+// `rev-parse HEAD` after the commit was a second process, 40 ms on Windows (R-313).
+#[test]
+fn committing_starts_one_process_and_still_returns_the_new_oid() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::write(f.path().join("fresh.txt"), "new\n").unwrap();
+    f.git(&["add", "--", "fresh.txt"]).unwrap();
+    let commands = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let sink = std::sync::Arc::clone(&commands);
+    let repo = open(&f).with_journal(std::sync::Arc::new(move |out: git_engine::GitOutput| {
+        sink.lock().unwrap().push(out.command);
+    }));
+
+    let oid = repo.commit(&request("add fresh.txt")).unwrap();
+
+    assert_eq!(oid, f.oid("HEAD").unwrap());
+    let commands = commands.lock().unwrap();
+    assert_eq!(commands.len(), 1, "{commands:?}");
+    assert!(commands[0].contains(" commit "), "{commands:?}");
+}
+
+#[test]
+fn amending_returns_the_oid_of_the_amended_commit() {
+    let f = test_fixtures::linear(2).unwrap();
+    let before = f.oid("HEAD").unwrap();
+    let repo = open(&f);
+
+    let oid = repo
+        .commit(&CommitRequest {
+            amend: true,
+            ..request("reworded")
+        })
+        .unwrap();
+
+    assert_ne!(oid, before);
+    assert_eq!(oid, f.oid("HEAD").unwrap());
+}
