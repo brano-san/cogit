@@ -46,7 +46,6 @@ pub struct DiffOptions {
     pub algorithm: Algorithm,
     pub context_lines: u32,
     pub ignore_whitespace: Whitespace,
-    pub ignore_blank_lines: bool,
     pub word_diff: bool,
     pub detect_moves: bool,
 }
@@ -57,7 +56,6 @@ impl Default for DiffOptions {
             algorithm: Algorithm::default(),
             context_lines: 3,
             ignore_whitespace: Whitespace::default(),
-            ignore_blank_lines: false,
             word_diff: true,
             detect_moves: true,
         }
