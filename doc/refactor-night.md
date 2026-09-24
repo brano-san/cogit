@@ -601,7 +601,11 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > проходит `redact_command`. Взаимоблокировки на stdin на деле нет (`git apply` дочитывает
   > патч до вывода), поэтому `refactor`, не `fix`. `apply_patch_to` → `run_git_fed`; патч
   > по-прежнему пишется в лог до запуска и при ошибке.
-- [ ] S5-15 `declared()` видит все команды
+- [x] S5-15 `declared()` видит все команды
+  > Итог: `declared()` строится из `all_commands()` (обход каталога) — `toolbar.rs` и
+  > будущие файлы при разнесении M6-01 проверяются; нарушений сейчас не было (все команды
+  > toolbar и макросов async). В `the_parser_sees_every_command` добавлена команда из
+  > toolbar.rs.
 - [ ] B-11, B-27…B-30 документация
 
 ### Категории 3–6
