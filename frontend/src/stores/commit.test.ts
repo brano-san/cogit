@@ -124,3 +124,19 @@ describe("commit store", () => {
     commit.onchange = null;
   });
 });
+
+// A stash shown in Files, then a click on the graph's Working Tree row: no commit was
+// selected before or after, so nothing told Files to leave the stash.
+describe("going back to the working tree", () => {
+  it("tells Files even when no commit was selected", () => {
+    const onchange = vi.fn();
+    commit.clear();
+    commit.onchange = onchange;
+
+    commit.showWorkingTree();
+
+    expect(onchange).toHaveBeenCalledOnce();
+    expect(commit.oid).toBeNull();
+    commit.onchange = null;
+  });
+});

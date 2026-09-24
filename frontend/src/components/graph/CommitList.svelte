@@ -296,11 +296,11 @@
             style:top="0px"
             style:padding-left="{headerX}px"
             title="Show the working tree in Files and Diff"
-            onclick={() => selection.clear()}
+            onclick={() => selection.showWorkingTree()}
             oncontextmenu={(event) => {
               if (!onworktreecontext) return;
               event.preventDefault();
-              selection.clear();
+              selection.showWorkingTree();
               onworktreecontext(event.clientX, event.clientY);
             }}
           >
