@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const commands = { diffFile: vi.fn() };
+const commands = { diffFile: vi.fn(), imageSides: vi.fn() };
 
 /** Stands in for the on-disk store: the branch keeps its view preferences there. */
 const stored = new Map<string, unknown>();
@@ -227,5 +227,26 @@ describe("diff view preferences", () => {
     await diff.setShowMoves(false);
 
     expect(stored.get("diffView")).toEqual({ layout: "split", showMoves: false });
+  });
+});
+
+describe("clicking from one image to another", () => {
+  beforeEach(() => diff.clear());
+
+  // The pictures take a second round trip; the first file's used to land under the second.
+  it("never shows the first image's pictures under the second", async () => {
+    commands.diffFile.mockResolvedValue({ status: "ok", data: { kind: "image" } });
+    let first!: (value: unknown) => void;
+    commands.imageSides.mockReturnValueOnce(new Promise((resolve) => (first = resolve)));
+    commands.imageSides.mockResolvedValueOnce({ status: "ok", data: ["b-old", "b-new"] });
+
+    const loadingA = diff.load(REPO, SPEC, "a.png");
+    await vi.waitFor(() => expect(commands.imageSides).toHaveBeenCalledOnce());
+    await diff.load(REPO, SPEC, "b.png");
+    first({ status: "ok", data: ["a-old", "a-new"] });
+    await loadingA;
+
+    expect(diff.path).toBe("b.png");
+    expect(diff.images).toEqual(["b-old", "b-new"]);
   });
 });
