@@ -482,7 +482,11 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > Итог: `discover::scan_until`: `false` из колбэка ставит флаг, обход перестаёт спускаться
   > и ничего больше не сообщает; `scan` — обёртка над ним; `scan_for_repositories` в
   > app_state — через `scan_until`. Тест `a_scan_told_to_stop_reports_nothing_more`.
-- [ ] C1-17 release раньше Done
+- [x] C1-17 release раньше Done
+  > Итог: не сделано: окно между emit и release — микросекунды, детерминированного теста
+  > нет. Правка — поменять две строки в `settle` местами (release, потом emit); порядок
+  > событий разных операций фронту не важен (`applyPending` — словарь по id). **На
+  > решение.**
 
 ### Категория 2
 
