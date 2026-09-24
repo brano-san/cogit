@@ -565,7 +565,11 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > Итог: oid ветки берётся из списка веток (как в `delete_branch`), а не `rev-parse <имя>`,
   > который предпочитает одноимённый тег; ошибка чтения веток теперь пробрасывается, а не
   > глотается. Тест `undoing_a_finished_feature_restores_the_branch_not_a_tag_of_that_name`.
-- [ ] B-19 stderr сети целиком
+- [x] B-19 stderr сети целиком
+  > Итог: stderr копится байтами (`Progress`), строка декодируется целиком после `\r`/`\n`,
+  > полный текст — один раз в конце. Тесты
+  > `a_character_split_between_two_reads_arrives_whole` (разрез посреди кириллической
+  > буквы), `carriage_returns_split_progress_and_the_tail_is_delivered`.
 - [ ] B-20 редакция URL по последнему `@`
 - [ ] B-21 `blob_on_disk`: только NotFound — «нет файла»
 - [ ] B-24 ошибки `recover`
