@@ -1228,12 +1228,24 @@
 
     try {
       await stashes.push(id, `cogit: autostash before switching to ${branch.name}`, true);
-      await checkout(id, { kind: "branch", name: branch.name });
-      // Popping can conflict; the state banner then takes over, which is the honest outcome.
-      await stashes.apply(id, 0, true);
     } catch (failed) {
-      errors.report(failed, "Could not switch branches");
+      errors.report(failed, "Could not stash the changes");
+      await afterRefChange(id);
+      return true;
     }
+    try {
+      await checkout(id, { kind: "branch", name: branch.name });
+    } catch (failed) {
+      // The changes are in the stash just made; left there, they would look lost.
+      await stashes
+        .apply(id, 0, true)
+        .catch((err) => errors.report(err, "Your changes are in stash@{0}: they could not be put back"));
+      errors.report(failed, "Could not switch branches");
+      await afterRefChange(id);
+      return true;
+    }
+    // Popping can conflict; the state banner then takes over, which is the honest outcome.
+    await stashes.apply(id, 0, true).catch((failed) => errors.report(failed, "Could not put the changes back"));
     await afterRefChange(id);
     return true;
   }
