@@ -31,6 +31,12 @@ impl RepoHandle {
     /// terms of [`RepoHandle::published_in_process`].
     #[must_use]
     pub fn remote_refs_containing_in_process(&self, rev: &str) -> Option<Vec<String>> {
+        let holding = self.remote_refs_holding(rev)?;
+        Some(holding.into_iter().map(|(_, short)| short).collect())
+    }
+
+    /// The same, each as (full name, short name).
+    pub(crate) fn remote_refs_holding(&self, rev: &str) -> Option<Vec<(String, String)>> {
         let target = self.commit_of(rev)?;
         if !self.has_remote_refs()? {
             return Some(Vec::new());
@@ -47,7 +53,7 @@ impl RepoHandle {
             .map(|(name, _)| name)
             .collect();
         if holding.is_empty() {
-            return Some(holding);
+            return Some(Vec::new());
         }
         let names = self.ref_names()?;
         let strict = self
@@ -64,8 +70,11 @@ impl RepoHandle {
         };
         Some(
             holding
-                .iter()
-                .map(|full| shorten(full, &exists, strict))
+                .into_iter()
+                .map(|full| {
+                    let short = shorten(&full, &exists, strict);
+                    (full, short)
+                })
                 .collect(),
         )
     }
