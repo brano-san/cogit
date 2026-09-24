@@ -26,6 +26,7 @@ mod lfs;
 mod line_history;
 mod line_match;
 mod listing;
+mod maintenance;
 mod merging;
 mod module_ops;
 mod network;

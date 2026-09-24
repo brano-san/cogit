@@ -49,7 +49,7 @@
 | Снятие со стейджинга | `git restore --staged -- <path>` |
 | Частичный стейджинг строк | `git apply --cached -` + патч на stdin ([08-diff-engine.md](08-diff-engine.md)) |
 | Откат изменений | `git restore -- <path>` |
-| Коммит | `git commit -m <msg>` (`--amend`, `--no-verify` — опционально) |
+| Коммит | `git -c maintenance.auto=false commit -m <msg>` (`--amend`, `--no-verify` — опционально); `git maintenance run --auto` — после него, в фоне (R-314) |
 | Checkout ветки | `git switch <branch>` / `git checkout <ref>` |
 | Создать ветку | `git branch <name> [<start>]` |
 | Удалить ветку | `git branch -d` / `-D` |
