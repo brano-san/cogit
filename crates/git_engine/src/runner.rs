@@ -135,7 +135,7 @@ impl RepoHandle {
         let mut process = base_command(self.root(), true);
         process.args(args);
         let output = crate::children::output(&mut process)?;
-        let duration_ms = u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX);
+        let duration_ms = elapsed_ms(started);
         tracing::debug!(%command, bytes = output.stdout.len(), duration_ms, "git read");
 
         if output.status.success() {
@@ -217,7 +217,7 @@ impl RepoHandle {
             None => crate::children::output(&mut process)?,
         };
 
-        let duration_ms = u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX);
+        let duration_ms = elapsed_ms(started);
         let result = GitOutput::record(
             self.root(),
             command,
@@ -279,6 +279,11 @@ fn started_at_ms() -> u64 {
         .map_or(0, |since| {
             u64::try_from(since.as_millis()).unwrap_or(u64::MAX)
         })
+}
+
+/// Milliseconds since `started`, saturating: the journal and the profiler store a `u32`.
+pub(crate) fn elapsed_ms(started: std::time::Instant) -> u32 {
+    u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX)
 }
 
 /// Without it every `git` call flashes a console window and pays for it (R-24).

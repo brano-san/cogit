@@ -124,7 +124,7 @@ impl RepoHandle {
             .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
             .unwrap_or_default();
 
-        let duration_ms = u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX);
+        let duration_ms = crate::runner::elapsed_ms(started);
         let result = GitOutput::record(
             self.root(),
             command,
