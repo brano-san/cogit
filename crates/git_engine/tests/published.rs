@@ -95,3 +95,13 @@ fn without_remote_branches_nothing_needs_walking() {
     assert_eq!(repo.published_in_process("HEAD"), Some(false));
     assert_eq!(repo.published_in_process("no-such-rev"), None);
 }
+
+#[test]
+fn without_remote_branches_nothing_protects_and_a_bad_revision_still_fails() {
+    let f = test_fixtures::linear(2).unwrap();
+    let repo = open(&f);
+
+    assert!(repo.protecting_refs("HEAD").unwrap().is_empty());
+    assert!(repo.protecting_refs("no-such-rev").is_err());
+    assert!(repo.is_published("no-such-rev").is_err());
+}

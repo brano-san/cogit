@@ -10,15 +10,7 @@ impl RepoHandle {
     /// the caller asks git, which also words the refusal.
     #[must_use]
     pub fn published_in_process(&self, rev: &str) -> Option<bool> {
-        let target = self
-            .repo
-            .rev_parse_single(rev)
-            .ok()?
-            .object()
-            .ok()?
-            .peel_to_commit()
-            .ok()?
-            .id;
+        let target = self.commit_of(rev)?;
         let tips = self.remote_tips()?;
         if tips.is_empty() {
             return Some(false);
@@ -33,6 +25,16 @@ impl RepoHandle {
         let mut walker: Walker<'_, '_> = self.repo.revision_graph(Some(&cache));
         let floor = generation_floor(&mut walker, target)?;
         reaches(&mut walker, tips, target, floor)
+    }
+
+    /// No remote branch can hold `rev`, because there is none; `rev` does resolve.
+    pub(crate) fn no_remote_holds(&self, rev: &str) -> bool {
+        self.commit_of(rev).is_some() && self.remote_tips().is_some_and(|tips| tips.is_empty())
+    }
+
+    fn commit_of(&self, rev: &str) -> Option<ObjectId> {
+        let object = self.repo.rev_parse_single(rev).ok()?.object().ok()?;
+        Some(object.peel_to_commit().ok()?.id)
     }
 
     fn remote_tips(&self) -> Option<Vec<ObjectId>> {

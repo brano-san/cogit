@@ -219,6 +219,9 @@ impl RepoHandle {
     /// Every remote branch that already holds this commit. One graph walk per remote
     /// ref, so callers ask when the user acts, never on every selection.
     fn containing_remote_refs(&self, rev: &str) -> Result<Vec<String>> {
+        if self.no_remote_holds(rev) {
+            return Ok(Vec::new());
+        }
         let oid = self.rev_parse(rev)?;
         // Parsed in full: the journal's copy of a long listing is cut in the middle.
         let listed = self.read_git(&[
