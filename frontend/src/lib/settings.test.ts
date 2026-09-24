@@ -78,3 +78,81 @@ describe("themes", () => {
     }
   });
 });
+
+describe("graph display settings (#23)", () => {
+  it("draws the graph as it looked before they existed", () => {
+    expect(DEFAULT_SETTINGS.graphColumns).toEqual(["author", "avatar", "time", "hash"]);
+    expect(DEFAULT_SETTINGS.graphTimeFormat).toBe("date");
+    expect(DEFAULT_SETTINGS.graphDensity).toBe("normal");
+    expect(DEFAULT_SETTINGS.graphStripes).toBe(true);
+    expect(DEFAULT_SETTINGS.graphHighlightChecked).toBe(true);
+    expect(DEFAULT_SETTINGS.graphLongLinkRows).toBe(40);
+  });
+
+  it("starts every graph mode off", () => {
+    expect(DEFAULT_SETTINGS.graphFirstParent).toBe(false);
+    expect(DEFAULT_SETTINGS.graphBranchOfCommit).toBe(false);
+    expect(DEFAULT_SETTINGS.graphAncestry).toBe(false);
+    expect(DEFAULT_SETTINGS.graphCollapseMerged).toBe(false);
+  });
+
+  it("fills in the defaults for a file written before the graph keys", () => {
+    const merged = merge({ theme: "light", laneWidth: 20, dateFormat: "smart" });
+    const graphKeys = Object.keys(DEFAULT_SETTINGS).filter((key) => key.startsWith("graph"));
+    for (const key of graphKeys as (keyof typeof DEFAULT_SETTINGS)[]) {
+      expect(merged[key]).toEqual(DEFAULT_SETTINGS[key]);
+    }
+    expect(merged.theme).toBe("light");
+  });
+
+  it("keeps a relative graph for a file whose only date setting said relative", () => {
+    expect(merge({ dateFormat: "relative" }).graphTimeFormat).toBe("relative");
+    expect(merge({ dateFormat: "both" }).graphTimeFormat).toBe("date");
+  });
+
+  it("lets a stored graph time format win over the old date setting", () => {
+    expect(merge({ dateFormat: "relative", graphTimeFormat: "dateTime" }).graphTimeFormat).toBe(
+      "dateTime",
+    );
+  });
+
+  it("falls back to the default for a value outside the allowed ones", () => {
+    const merged = merge({
+      graphTimeFormat: "iso",
+      graphDensity: "huge",
+      graphStripes: "yes",
+      graphFirstParent: 1,
+      graphColumns: "author",
+    } as never);
+    expect(merged.graphTimeFormat).toBe(DEFAULT_SETTINGS.graphTimeFormat);
+    expect(merged.graphDensity).toBe(DEFAULT_SETTINGS.graphDensity);
+    expect(merged.graphStripes).toBe(DEFAULT_SETTINGS.graphStripes);
+    expect(merged.graphFirstParent).toBe(DEFAULT_SETTINGS.graphFirstParent);
+    expect(merged.graphColumns).toEqual(DEFAULT_SETTINGS.graphColumns);
+  });
+
+  it("does not clamp a link threshold out of range: it goes back to the default", () => {
+    for (const bad of [-1, 1001, 12.5]) {
+      expect(merge({ graphLongLinkRows: bad }).graphLongLinkRows).toBe(40);
+    }
+    expect(merge({ graphLongLinkRows: 0 }).graphLongLinkRows).toBe(0);
+    expect(merge({ graphLongLinkRows: 120 }).graphLongLinkRows).toBe(120);
+  });
+
+  it("keeps the stored column order and what is hidden", () => {
+    expect(merge({ graphColumns: ["hash", "time"] }).graphColumns).toEqual(["hash", "time"]);
+    expect(merge({ graphColumns: [] }).graphColumns).toEqual([]);
+  });
+
+  it("drops unknown and repeated columns without losing the rest", () => {
+    expect(
+      merge({ graphColumns: ["time", "committer", "time", "author"] } as never).graphColumns,
+    ).toEqual(["time", "author"]);
+  });
+
+  it("never hands out the default column list itself", () => {
+    const merged = merge(null);
+    merged.graphColumns.push("hash");
+    expect(DEFAULT_SETTINGS.graphColumns).toEqual(["author", "avatar", "time", "hash"]);
+  });
+});

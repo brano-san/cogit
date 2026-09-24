@@ -14,6 +14,7 @@
   import type { Keymap } from "$lib/keymap";
   import type { KeyBinding } from "$lib/ipc";
   import KeymapEditor from "$components/layout/KeymapEditor.svelte";
+  import GraphField from "$components/layout/GraphField.svelte";
   import { parseChoice, suppressedChoices } from "$lib/suppressions";
 
   interface Props {
@@ -410,6 +411,8 @@
                   onchange={(next) => set("logLevel", next)}
                 />
               </div>
+            {:else if field.key.startsWith("graph")}
+              <GraphField {field} value={draft} onset={set} />
             {:else if field.key === "keymap"}
               <KeymapEditor
                 {bindings}

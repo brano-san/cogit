@@ -22,6 +22,7 @@
   } from "$lib/graph-geometry";
   import { measurer } from "$lib/timing";
   import { subjectMinWidth } from "$lib/graph-panel";
+  import { columnOrder, overlapOrder } from "$lib/graph-columns";
   import { workingTreeLabel } from "$lib/repo-state";
   import { reportTiming, type RebaseProgress, type RepoId } from "$lib/ipc";
   import Avatar from "$components/common/Avatar.svelte";
@@ -94,6 +95,8 @@
     return rows;
   });
 
+  /** Preferences ▸ Graph & History: which of the right-hand columns show, in what order. */
+  const columns = $derived(settings.current.graphColumns);
   const headerRows = $derived(HEADER_ROWS + virtualRows.length);
   const commitCount = $derived(graph.total);
   const listRows = $derived(commitCount + headerRows);
@@ -312,7 +315,7 @@
         {#each virtualRows as row, index (index)}
           <div
             class="row virtual {row.kind}"
-            class:striped={striped(HEADER_ROWS + index)}
+            class:striped={striped(HEADER_ROWS + index, settings.current.graphStripes)}
             style:top="{(HEADER_ROWS + index) * GRAPH.rowHeight}px"
             style:padding-left="{headerX}px"
           >
@@ -326,7 +329,7 @@
           {@const refs = capsules(labels.get(item.entry.commit.oid) ?? [], CAPSULE_ROOM)}
           <div
             class="row"
-            class:striped={striped(item.listRow)}
+            class:striped={striped(item.listRow, settings.current.graphStripes)}
             class:selected={selection.oid === item.entry.commit.oid || comparedFrom === item.entry.commit.oid}
             class:over={over === item.entry.commit.oid}
             style:top="{item.listRow * GRAPH.rowHeight}px"
@@ -380,24 +383,37 @@
               >
             {/if}
             <span class="summary truncate">{item.entry.commit.summary}</span>
-            <span class="author truncate">{item.entry.commit.authorName}</span>
-            <Avatar
-              name={item.entry.commit.authorName}
-              email={item.entry.commit.authorEmail}
-            />
-            <span
-              class="date tabular"
-              title={dateTooltip(
-                item.entry.commit.timestamp,
-                item.entry.commit.tzOffsetMinutes,
-              )}>{settings.formatDate(
-                item.entry.commit.timestamp,
-                item.entry.commit.tzOffsetMinutes,
-              )}</span
-            >
+            {#if columns.includes("author")}
+              <span class="author truncate" style:order={columnOrder(columns, "author")}
+                >{item.entry.commit.authorName}</span
+              >
+            {/if}
+            {#if columns.includes("avatar") && avatars.enabled}
+              <span class="avatar-cell" style:order={columnOrder(columns, "avatar")}>
+                <Avatar
+                  name={item.entry.commit.authorName}
+                  email={item.entry.commit.authorEmail}
+                />
+              </span>
+            {/if}
+            {#if columns.includes("time")}
+              <span
+                class="date tabular"
+                class:wide={settings.current.graphTimeFormat === "dateTime"}
+                style:order={columnOrder(columns, "time")}
+                title={dateTooltip(
+                  item.entry.commit.timestamp,
+                  item.entry.commit.tzOffsetMinutes,
+                )}>{settings.formatGraphTime(
+                  item.entry.commit.timestamp,
+                  item.entry.commit.tzOffsetMinutes,
+                )}</span
+              >
+            {/if}
             {#if overlap.enabled}
               {@const row = overlap.rows.get(item.entry.commit.oid)}
               <span
+                style:order={overlapOrder(columns)}
                 class="overlap {row?.overlap ?? 'none'}"
                 class:base={row?.isBase}
                 title={row ? overlapTooltip(row.shared, row.sharedTotal) : ""}
@@ -405,7 +421,11 @@
                 {row?.isBase ? "base" : row ? overlapLabel(row.overlap) : ""}
               </span>
             {/if}
-            <span class="oid mono tabular">{shortOid(item.entry.commit.oid)}</span>
+            {#if columns.includes("hash")}
+              <span class="oid mono tabular" style:order={columnOrder(columns, "hash")}
+                >{shortOid(item.entry.commit.oid)}</span
+              >
+            {/if}
           </div>
         {/each}
       </div>
@@ -565,6 +585,15 @@
   .overlap.base {
     color: var(--status-ref);
     font-weight: 600;
+  }
+
+  .date.wide {
+    flex-basis: 104px;
+  }
+
+  .avatar-cell {
+    display: flex;
+    flex: 0 0 auto;
   }
 
   .oid {
