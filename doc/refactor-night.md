@@ -557,7 +557,10 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > nothing to stash», хотя `reset --hard` сабмодуль не трогает. Новый `stash_push_if_any` →
   > `Option<oid>`; reset без копии идёт дальше, `stashes().next()` убран. Тест
   > `a_hard_reset_with_only_a_moved_submodule_goes_ahead_without_a_backup`.
-- [ ] B-16 Undo удаления аннотированного тега
+- [x] B-16 Undo удаления аннотированного тега
+  > Итог: в журнал пишется прямая цель `refs/tags/<name>` (`RepoHandle::tag_target`, gix) —
+  > у аннотированного это объект тега; `git tag <name> <tag-object>` восстанавливает ссылку
+  > на него же. Тест `undoing_the_deletion_of_an_annotated_tag_brings_the_annotation_back`.
 - [ ] B-18 `flow_finish` rev-parse
 - [ ] B-19 stderr сети целиком
 - [ ] B-20 редакция URL по последнему `@`

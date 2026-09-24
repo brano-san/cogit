@@ -547,3 +547,25 @@ fn a_hard_reset_with_only_a_moved_submodule_goes_ahead_without_a_backup() {
     let entry = &state.safety_log()[0];
     assert!(!entry.undoable, "{entry:?}");
 }
+
+// The journal kept the commit the tag pointed at, so Undo made a lightweight tag there:
+// the message, the tagger and any signature were gone.
+#[test]
+fn undoing_the_deletion_of_an_annotated_tag_brings_the_annotation_back() {
+    let f = test_fixtures::linear(2).unwrap();
+    f.git(&["tag", "--annotate", "v1", "--message", "first release"])
+        .unwrap();
+    let (state, repo) = open(&f);
+
+    state.delete_tag(repo, "v1").unwrap();
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(
+        f.git(&["cat-file", "-t", "refs/tags/v1"]).unwrap().trim(),
+        "tag"
+    );
+    let message = f
+        .git(&["tag", "--list", "--format=%(contents:subject)", "v1"])
+        .unwrap();
+    assert_eq!(message.trim(), "first release");
+}
