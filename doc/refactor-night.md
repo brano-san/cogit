@@ -459,7 +459,11 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > (async-команда с `State` обязана возвращать Result), `listRepositories` разворачивает
   > его; 04-ipc-contract обновлён. Тест `the_repository_list_is_read_off_the_async_workers`.
   > Попутно (в плане, раздел «Режим»): сбой со stash — см. ниже.
-- [ ] C1-11 отмена поисков только при фактическом выходе
+- [x] C1-11 отмена поисков только при фактическом выходе
+  > Итог: отмена чтений перенесена из `shutdown::watch` (CloseRequested) в
+  > `shutdown::exiting` на `RunEvent::ExitRequested` — его дают и согласие страницы, и
+  > `app.exit` сторожа. Тест `a_close_request_leaves_the_running_reads_alone` (по исходнику,
+  > как соседние тесты команд).
 - [ ] C1-12 тихое окно вотчера не теряет внешние события
 - [ ] C1-13 журнал безопасности не держит закрытый репозиторий
 - [ ] C1-15 уникальный файл сообщения для dry-run хука
