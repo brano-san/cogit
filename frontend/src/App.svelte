@@ -3,6 +3,7 @@
   import { ask, open as openFolderDialog } from "@tauri-apps/plugin-dialog";
   import { checkForUpdates, message, type UpdateOutcome } from "$lib/updates";
   import { leaveRepositoryDialogs } from "$lib/leaving";
+  import { finder } from "$stores/finder.svelte";
   import { THIRD_PARTY_FILE } from "$lib/third-party";
 
   import DiffPanel from "$components/panels/DiffPanel.svelte";
@@ -103,7 +104,6 @@
     addToGitignore,
     cherryPick,
     closeThisWindow,
-    findObject,
     interactiveRebase,
     isPublished,
     deleteMergedBranches,
@@ -238,9 +238,6 @@
   let settingsOpen = $state(false);
   let repoSettingsOpen = $state(false);
   let finderOpen = $state(false);
-  let finderBusy = $state(false);
-  let finderResults = $state.raw<import("$lib/ipc").Found[]>([]);
-  let finderToken = 0;
   let recentCommands = $state<string[]>([]);
   let dropMenu = $state.raw<{
     actions: DropAction[];
@@ -859,21 +856,7 @@
   }
 
   async function runFind(text: string) {
-    const id = repository.current?.repo;
-    const token = ++finderToken;
-    if (!id || text.trim() === "") {
-      finderResults = [];
-      return;
-    }
-    finderBusy = true;
-    try {
-      const found = await findObject(id, text);
-      if (token === finderToken) finderResults = found;
-    } catch (err) {
-      errors.report(err, "Could not search");
-    } finally {
-      if (token === finderToken) finderBusy = false;
-    }
+    await finder.run(repository.current?.repo ?? null, text).catch((err) => errors.report(err, "Could not search"));
   }
 
   function pickFound(item: import("$lib/ipc").Found) {
@@ -3414,8 +3397,8 @@
 
   {#if finderOpen}
     <FindObject
-      results={finderResults}
-      busy={finderBusy}
+      results={finder.results}
+      busy={finder.busy}
       onquery={(text) => void runFind(text)}
       onpick={pickFound}
       onclose={() => (finderOpen = false)}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import type { Found, FoundKind } from "$lib/ipc";
 
   interface Props {
@@ -35,8 +36,10 @@
     }
   }
 
+  // Only the query: whatever `onquery` happens to read must not start another search.
   $effect(() => {
-    onquery(query);
+    const text = query;
+    untrack(() => onquery(text));
   });
 
   $effect(() => {
