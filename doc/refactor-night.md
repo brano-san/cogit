@@ -391,8 +391,12 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > `runNetwork` после каждого await выходят, если эпоха сменилась. Тесты на эпоху — в
   > repository.test.ts; сама проводка в App.svelte юнит-тестами не покрыта (правило фронта:
   > тестируем сторы, не разметку).
-- [ ] C1F-05/06/07/14 поколения в сторах stashes, recovery, network, flow, conflicts,
+- [x] C1F-05/06/07/14 поколения в сторах stashes, recovery, network, flow, conflicts,
   worktrees, submodules, refs
+  > Итог: в stashes, recovery, network, flow, conflicts (список), worktrees, refs (даты,
+  > URL) — счётчик: пишет только последний запрос, `clear()` гасит летящие; submodules —
+  > поколение на смену владельца; `refreshProgress`/`loadTemplate` в App — по эпохе. Тесты
+  > `leaving-repository.test.ts` (9, все падали до правки).
 - [ ] C1F-09 картинки диффа по поколению
 - [ ] C1F-10 пропуск blame увеличивает поколение
 - [ ] C1F-12 тело хука по имени

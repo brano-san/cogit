@@ -29,11 +29,21 @@ class NetworkStore {
     return this.remotes.includes("origin") ? "origin" : (this.remotes[0] ?? null);
   }
 
+  /** Only the newest read writes; `clear()` drops the ones in flight, which belong to the
+      repository the panels are leaving. */
+  #generation = 0;
+
   async refresh(repo: RepoId): Promise<void> {
-    this.remotes = await listRemotes(repo);
-    this.url = this.primary ? await remoteUrl(repo, this.primary) : null;
+    const generation = ++this.#generation;
+    const remotes = await listRemotes(repo);
+    if (generation !== this.#generation) return;
+    this.remotes = remotes;
+    const url = this.primary ? await remoteUrl(repo, this.primary) : null;
+    if (generation !== this.#generation) return;
+    this.url = url;
     const host = this.tokenHost;
-    this.tokenStored = host !== null && (await hasToken(host));
+    const stored = host !== null && (await hasToken(host));
+    if (generation === this.#generation) this.tokenStored = stored;
   }
 
   async storeToken(token: string): Promise<void> {
@@ -75,6 +85,7 @@ class NetworkStore {
   }
 
   clear(): void {
+    this.#generation += 1;
     this.remotes = [];
     this.url = null;
     this.tokenStored = false;
