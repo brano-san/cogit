@@ -502,7 +502,11 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > отказывает, а не выбрасывается без Undo (**на решение**, если нужно иначе — например,
   > stash порциями). Тест `a_discard_whose_backup_fails_throws_nothing_away` (пустой
   > репозиторий: до правки файл удалялся).
-- [ ] B-04 settings.json: ошибка чтения не затирает файл
+- [x] B-04 settings.json: ошибка чтения не затирает файл
+  > Итог: `write_key`: файл, который не читается (не NotFound), — ошибка без записи;
+  > непарсящийся — сохраняется как `settings.json.damaged` и заменяется (существующий тест
+  > замены сохранён); `read_document` логирует ошибку чтения. Тест
+  > `a_damaged_file_is_kept_aside_before_the_next_write_replaces_it`.
 - [ ] B-05 `.gitattributes`: дописывать, не перезаписывать
 - [ ] B-07 rebase раньше merge в определении состояния
 - [ ] B-08/B-09 хуки и вотчер worktree — common dir
