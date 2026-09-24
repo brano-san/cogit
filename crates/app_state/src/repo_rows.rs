@@ -1,11 +1,9 @@
-//! Reads for rows of the Repositories list that are not on screen, open or closed: by
-//! folder, never by `RepoId`, because a closed repository has none (R-352).
+//! Rows of the Repositories list not on screen, by folder: a closed one has no `RepoId`.
 
 use git_engine::{GitError, RepoHandle, Submodule};
 use std::path::Path;
 
-/// The submodules under `parent` (a key from the top, `""` for the top) of the repository
-/// at `root`, from `.gitmodules` and the gitlinks alone.
+/// `parent` is a key from the top, `""` for the top (R-352).
 pub fn submodule_outline(root: &Path, parent: &str) -> Result<Vec<Submodule>, GitError> {
     let handle = if parent.is_empty() {
         RepoHandle::open(root)?
@@ -15,14 +13,12 @@ pub fn submodule_outline(root: &Path, parent: &str) -> Result<Vec<Submodule>, Gi
     handle.submodule_outline()
 }
 
-/// The indicators of a row: tracking and changes, read lightly (R-353).
 #[must_use]
 pub fn pulse(root: &Path) -> git_engine::RepoPulse {
     git_engine::pulse(root)
 }
 
-/// A fetch nobody asked for just now: it never prompts, never reaches the Output journal
-/// and never notifies. A failure is logged and returned, for the row to say "unknown".
+/// Never prompts, never reaches the Output journal; a failure is logged (R-353).
 pub fn background_fetch(root: &Path) -> Result<(), GitError> {
     let started = std::time::Instant::now();
     let fetched = RepoHandle::open(root).and_then(|handle| handle.background_fetch());

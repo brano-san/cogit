@@ -4,7 +4,6 @@ use crate::{RepoHandle, Result};
 use serde::Serialize;
 use std::path::Path;
 
-/// What the indicators of a list row need, read without a status walk.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RepoPulse {
@@ -14,13 +13,11 @@ pub struct RepoPulse {
     pub tracked: bool,
     pub ahead: u32,
     pub behind: u32,
-    /// A tracked file whose size or modification time moved, a staged change or a
-    /// conflict. Untracked files are not looked for: that takes a directory walk.
+    /// Tracked files, staged changes, conflicts; untracked ones take a directory walk.
     pub dirty: bool,
 }
 
-/// Never fails: a folder that is no longer a repository is `missing`, and a read that
-/// fails leaves its field at the answer that claims nothing.
+/// Never fails: a read that fails leaves its field at the answer that claims nothing.
 #[must_use]
 pub fn pulse(root: &Path) -> RepoPulse {
     let started = std::time::Instant::now();
@@ -45,9 +42,8 @@ pub fn pulse(root: &Path) -> RepoPulse {
     found
 }
 
-/// Nothing a fetch nobody watches may do is ask: no terminal, no askpass program (set and
-/// empty, git skips `core.askPass` too), no Credential Manager window, no SSH prompt.
-/// A helper that answers from its store still answers.
+/// No terminal, no askpass (set and empty, git skips `core.askPass` too), no Credential
+/// Manager window, no SSH prompt; a helper answering from its store still answers.
 const QUIET: &[(&str, &str)] = &[
     ("GIT_TERMINAL_PROMPT", "0"),
     ("GIT_ASKPASS", ""),
@@ -55,12 +51,10 @@ const QUIET: &[(&str, &str)] = &[
     ("GCM_INTERACTIVE", "never"),
 ];
 
-/// Used only where the user has not chosen an SSH command of their own.
 const BATCH_SSH: &str = "core.sshCommand=ssh -o BatchMode=yes";
 
 impl RepoHandle {
-    /// Every remote, no prune, no submodules, no maintenance: only the remote-tracking
-    /// refs move, so the row can tell whether there is something to pull.
+    /// Only the remote-tracking refs move: no prune, no submodules, no maintenance.
     pub fn background_fetch(&self) -> Result<()> {
         let mut args: Vec<&str> = Vec::new();
         if !self.has_own_ssh_command() {
@@ -112,13 +106,11 @@ impl RepoHandle {
         }
     }
 
-    /// The worktree against the index by stat data, then the index against HEAD by ids.
     fn changed_cheaply(&self) -> bool {
         if self.repo.is_bare() {
             return false;
         }
         let Ok(index) = self.repo.open_index() else {
-            // No index yet: a new repository with nothing added.
             return false;
         };
         worktree_moved(self.root(), &index) || self.staged(&index)
