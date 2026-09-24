@@ -56,3 +56,24 @@ describe("commitScope", () => {
     expect(commitScope([], "").label).toBe("Commit 0");
   });
 });
+
+// The list filters by name, path and status, by regex, by content and by the view's
+// switches; the scope guessed with a glob of its own. A filter for "modified" showed both
+// staged files and committed "0 shown", and a commit of no paths is a commit of all.
+describe("commitScope with the list's own rows", () => {
+  it("counts what the list shows, not what a glob would", () => {
+    const scope = commitScope(staged, "modified", ["a.rs", "b.rs", "c.ts"]);
+    expect(scope.hidden).toBe(0);
+    expect(scope.paths).toBeNull();
+  });
+
+  it("commits only the rows on screen", () => {
+    expect(commitScope(staged, "a", ["a.rs"]).paths).toEqual(["a.rs"]);
+  });
+
+  it("commits nothing when the filter hides every staged file", () => {
+    const scope = commitScope(staged, "zzz", []);
+    expect(scope.empty).toBe(true);
+    expect(scope.paths).toEqual([]);
+  });
+});

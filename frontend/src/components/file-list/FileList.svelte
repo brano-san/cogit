@@ -55,6 +55,8 @@
     oncontext?: (path: string, event: MouseEvent, section?: string) => void;
     /** Reported upward so Commit What You See knows what is hidden (T6.8). */
     onmask?: (mask: string) => void;
+    /** The paths each section shows once filtered, in the order of `sections`. */
+    onshown?: (shown: string[][]) => void;
     /** The ticked rows, for actions that live outside the list — stashing a selection. */
     onmarked?: (paths: string[]) => void;
     /** Only the working tree is on disk to be searched inside. */
@@ -75,6 +77,7 @@
     onopen,
     oncontext,
     onmask,
+    onshown,
     onmarked,
     disabled = false,
     activePanel = false,
@@ -144,6 +147,11 @@
       };
     }),
   );
+
+  $effect(() => {
+    const shown = sections.map((section) => groups.find((group) => group.section === section)?.paths ?? []);
+    untrack(() => onshown?.(shown));
+  });
 
   const layout = $derived(paneLayout(sections.length, groups.length, active.separateIndex));
   const apart = $derived(layout.apart);

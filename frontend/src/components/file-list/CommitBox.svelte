@@ -21,7 +21,7 @@
 
   const overflow = $derived(subjectState(message));
   const length = $derived([...subjectOf(message)].length);
-  const ready = $derived(message.trim() !== "" && (stagedCount > 0 || amend) && !busy);
+  const ready = $derived(message.trim() !== "" && (stagedCount > 0 || amend) && !busy && (amend || !scope.empty));
 
   function submit() {
     if (!ready) return;
