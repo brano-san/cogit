@@ -26,6 +26,8 @@ class HooksStore {
   /** What was on disk when the editor opened, so "changed" is a comparison, not a guess. */
   saved = $state("");
   error = $state<CogitError | null>(null);
+  /** What the failed action was, for the notice's title. */
+  failure = $state<string | null>(null);
   lastRun = $state.raw<HookRun | null>(null);
   running = $state(false);
   bypasses = $state.raw<Bypass[]>([]);
@@ -38,7 +40,7 @@ class HooksStore {
       this.bypasses = await bypassLog(repo);
       this.presets = await listPresets(repo);
     } catch (err) {
-      this.report(err);
+      this.report(err, "Could not read the hooks");
     }
   }
 
@@ -65,42 +67,46 @@ class HooksStore {
   }
 
   async save(repo: RepoId): Promise<void> {
+    this.#clear();
     if (this.editing === null) return;
     try {
       await writeHook(repo, this.editing, this.body);
       this.editing = null;
       await this.refresh(repo);
     } catch (err) {
-      this.report(err);
+      this.report(err, "Could not save the hook");
     }
   }
 
   async toggle(repo: RepoId, name: string, enabled: boolean): Promise<void> {
+    this.#clear();
     try {
       await setHookEnabled(repo, name, enabled);
       await this.refresh(repo);
     } catch (err) {
-      this.report(err);
+      this.report(err, "Could not switch the hook");
     }
   }
 
   async adopt(repo: RepoId, path: string): Promise<void> {
+    this.#clear();
     try {
       await useHooksPath(repo, path);
       await this.refresh(repo);
     } catch (err) {
-      this.report(err);
+      this.report(err, "Could not use that hooks folder");
     }
   }
 
   /** Runs the hook alone, with no commit behind it. */
   async dryRun(repo: RepoId, name: string): Promise<void> {
+    this.#clear();
     this.running = true;
     this.lastRun = null;
     try {
       this.lastRun = await runHook(repo, name);
     } catch (err) {
-      this.report(err);
+      this.report(err, "Could not run the hook");
     } finally {
       this.running = false;
     }
@@ -108,6 +114,7 @@ class HooksStore {
 
   /** The hook as it stands becomes a preset; the id is derived from the name given. */
   async export(repo: RepoId, hook: string, name: string): Promise<void> {
+    this.#clear();
     const id = name
       .trim()
       .toLowerCase()
@@ -118,26 +125,28 @@ class HooksStore {
       await exportPreset(repo, hook, id, name.trim(), `Saved from ${hook} in this repository`);
       await this.refresh(repo);
     } catch (err) {
-      this.report(err);
+      this.report(err, "Could not save the preset");
     }
   }
 
   async removeOwn(repo: RepoId, id: string): Promise<void> {
+    this.#clear();
     try {
       await removePreset(id);
       await this.refresh(repo);
     } catch (err) {
-      this.report(err);
+      this.report(err, "Could not remove the preset");
     }
   }
 
   async install(repo: RepoId, id: string): Promise<void> {
+    this.#clear();
     try {
       await installPreset(repo, id);
       this.showPresets = false;
       await this.refresh(repo);
     } catch (err) {
-      this.report(err);
+      this.report(err, "Could not install the preset");
     }
   }
 
@@ -149,9 +158,15 @@ class HooksStore {
     this.body = "";
   }
 
-  private report(err: unknown): void {
+  private report(err: unknown, title: string): void {
     this.error =
       err instanceof CogitError ? err : new CogitError({ kind: "internal", data: String(err) });
+    this.failure = title;
+  }
+
+  #clear(): void {
+    this.error = null;
+    this.failure = null;
   }
 }
 
