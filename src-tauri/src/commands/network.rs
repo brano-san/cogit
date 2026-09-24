@@ -107,7 +107,8 @@ pub async fn has_token(
     state: tauri::State<'_, crate::AppContext>,
     host: String,
 ) -> Result<bool, GitError> {
-    Ok(state.state.has_token(&host))
+    let app_state = state.state.clone();
+    blocking("has_token", move || Ok(app_state.has_token(&host))).await
 }
 
 #[tauri::command]
@@ -117,10 +118,13 @@ pub async fn store_token(
     host: String,
     token: String,
 ) -> Result<(), GitError> {
-    state
-        .state
-        .store_token(&host, &token)
-        .map_err(|err| GitError::InvalidState(err.to_string()))
+    let app_state = state.state.clone();
+    blocking("store_token", move || {
+        app_state
+            .store_token(&host, &token)
+            .map_err(|err| GitError::InvalidState(err.to_string()))
+    })
+    .await
 }
 
 #[tauri::command]
@@ -129,8 +133,11 @@ pub async fn forget_token(
     state: tauri::State<'_, crate::AppContext>,
     host: String,
 ) -> Result<(), GitError> {
-    state
-        .state
-        .forget_token(&host)
-        .map_err(|err| GitError::InvalidState(err.to_string()))
+    let app_state = state.state.clone();
+    blocking("forget_token", move || {
+        app_state
+            .forget_token(&host)
+            .map_err(|err| GitError::InvalidState(err.to_string()))
+    })
+    .await
 }
