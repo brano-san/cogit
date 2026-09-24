@@ -45,6 +45,37 @@ impl RepoHandle {
         Ok(tips)
     }
 
+    /// Every ref and where HEAD points, hashed. Equal prints mean the graph walk would start
+    /// from the same tips; only the ref store is read, never a commit.
+    pub fn refs_fingerprint(&self) -> Result<u64> {
+        use std::hash::{Hash as _, Hasher as _};
+        fn add(hasher: &mut impl std::hash::Hasher, reference: &gix::Reference<'_>) {
+            reference.name().as_bstr().hash(hasher);
+            match reference.target() {
+                gix::refs::TargetRef::Object(id) => id.as_bytes().hash(hasher),
+                gix::refs::TargetRef::Symbolic(name) => name.as_bstr().hash(hasher),
+            }
+        }
+
+        let platform = self
+            .repo
+            .references()
+            .map_err(|err| GitError::Internal(format!("cannot read references: {err}")))?;
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        for reference in platform
+            .all()
+            .map_err(|err| GitError::Internal(format!("cannot list references: {err}")))?
+        {
+            let reference = reference
+                .map_err(|err| GitError::Internal(format!("cannot read a reference: {err}")))?;
+            add(&mut hasher, &reference);
+        }
+        if let Ok(head) = self.repo.find_reference("HEAD") {
+            add(&mut hasher, &head);
+        }
+        Ok(hasher.finish())
+    }
+
     /// One row from an id and its parents, whichever walk produced them.
     pub(crate) fn row_of(&self, id: gix::ObjectId, parents: &[gix::ObjectId]) -> Result<CommitRow> {
         let commit = self
