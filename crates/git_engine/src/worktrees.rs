@@ -170,6 +170,9 @@ impl RepoHandle {
             Some(parent) if common.file_name().is_some_and(|name| name == ".git") => {
                 parent.to_path_buf()
             }
+            // A bare repository is its own folder, whatever it is called; asked from one of
+            // its worktrees, falling back to the asking root listed that one twice.
+            _ if gix::open(&common).is_ok_and(|repo| repo.is_bare()) => common,
             _ => self.root().to_path_buf(),
         }
     }

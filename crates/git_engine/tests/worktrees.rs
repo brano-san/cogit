@@ -400,3 +400,32 @@ fn a_missing_worktree_still_names_the_branch_it_holds() {
     assert_eq!(gone.branch.as_deref(), Some("feature-wt"), "{gone:?}");
     assert!(!gone.head.is_empty(), "{gone:?}");
 }
+
+// A bare repository's `.git` is not called `.git`: the main root fell back to the worktree
+// asking, which then showed up twice, once as the main one, and the bare one not at all.
+#[test]
+fn a_worktree_of_a_bare_repository_lists_the_bare_one_as_main() {
+    let bare = test_fixtures::bare().unwrap();
+    let place = tempfile::tempdir().unwrap();
+    let linked = place.path().join("wt");
+    bare.git(&[
+        "worktree",
+        "add",
+        "-q",
+        "-b",
+        "wtb",
+        &linked.to_string_lossy(),
+    ])
+    .unwrap();
+
+    let entries = RepoHandle::open(&linked).unwrap().worktrees().unwrap();
+
+    assert_eq!(entries.len(), 2, "{entries:?}");
+    assert_eq!(
+        entries.iter().filter(|entry| entry.is_current).count(),
+        1,
+        "{entries:?}"
+    );
+    let main = entries.iter().find(|entry| entry.is_main).unwrap();
+    assert!(!main.is_current, "{entries:?}");
+}
