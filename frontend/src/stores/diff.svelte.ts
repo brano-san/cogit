@@ -87,7 +87,9 @@ class DiffStore {
       });
       if (generation !== this.#generation) return;
       this.diff = result;
-      this.images = result.kind === "image" ? await imageSides(repo, spec, path) : [null, null];
+      const images = result.kind === "image" ? await imageSides(repo, spec, path) : null;
+      if (generation !== this.#generation) return;
+      this.images = images ?? [null, null];
     } catch (err) {
       if (generation !== this.#generation) return;
       this.diff = null;

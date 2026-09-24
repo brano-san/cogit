@@ -397,7 +397,9 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > URL) — счётчик: пишет только последний запрос, `clear()` гасит летящие; submodules —
   > поколение на смену владельца; `refreshProgress`/`loadTemplate` в App — по эпохе. Тесты
   > `leaving-repository.test.ts` (9, все падали до правки).
-- [ ] C1F-09 картинки диффа по поколению
+- [x] C1F-09 картинки диффа по поколению
+  > Итог: картинки пишутся только при текущем поколении; тест `never shows the first image's
+  > pictures under the second`.
 - [ ] C1F-10 пропуск blame увеличивает поколение
 - [ ] C1F-12 тело хука по имени
 - [ ] C1F-13 `refreshList` по ticket
