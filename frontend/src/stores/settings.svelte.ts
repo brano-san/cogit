@@ -4,7 +4,7 @@ import { setLaneWidth } from "$lib/graph-geometry";
 import { DEFAULT_DIFF_OPTIONS, type DiffOptions } from "$lib/ipc";
 import { mergeKeymap, type Keymap } from "$lib/keymap";
 import { defaultKeymap, setKeymap } from "$lib/ipc";
-import { DEFAULT_SETTINGS, merge, needsRestart, type Settings } from "$lib/settings";
+import { DEFAULT_SETTINGS, merge, type Settings } from "$lib/settings";
 
 const KEY = "settings";
 const KEYMAP_KEY = "keymap";
@@ -57,16 +57,6 @@ class SettingsStore {
     }
   }
 
-  async reset(): Promise<void> {
-    this.current = { ...DEFAULT_SETTINGS };
-    this.#apply();
-    try {
-      await writeKey(KEY, this.current);
-    } catch {
-      /* same */
-    }
-  }
-
   /** The defaults are Rust's, beside the menu they belong to; read once. */
   async loadBindings(): Promise<void> {
     try {
@@ -89,19 +79,6 @@ class SettingsStore {
     } catch {
       // Unsaved is still applied for this session.
     }
-  }
-
-  /** Shows a draft without keeping it. Picking a theme should recolour the window while
-      the list is still open; Cancel puts back whatever was there before (R-107).
-      Settings that are read once at startup are left out — previewing them would be a
-      lie about what is running. */
-  preview(draft: Settings): void {
-    const kept = { ...merge(draft) };
-    for (const key of Object.keys(kept) as (keyof Settings)[]) {
-      if (needsRestart(key)) kept[key] = this.current[key] as never;
-    }
-    this.current = kept;
-    this.#apply();
   }
 
   /** Writes a whole draft at once, so OK in the Preferences dialog is one save. */

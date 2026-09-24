@@ -3634,7 +3634,7 @@
 
   {#if journalOpen}
     <SafetyJournal
-      entries={repo ? safety.entries.filter((entry) => entry.repo === repo.repo) : []}
+      entries={repo ? safety.forRepo(repo.repo) : []}
       busy={journalBusy}
       onundo={(entry) => void undoEntry(entry)}
       onclose={() => (journalOpen = false)}

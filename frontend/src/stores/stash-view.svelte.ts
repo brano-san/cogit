@@ -3,7 +3,6 @@ import { CogitError, stashContents, type DiffSpec, type StashContents, type Repo
 /** The stash the Files panel is showing. Separate from `commit`: a stash is not a commit
     the user selected, and the two must not fight over the panel. */
 class StashViewStore {
-  index = $state<number | null>(null);
   contents = $state.raw<StashContents | null>(null);
   loading = $state(false);
   error = $state<CogitError | null>(null);
@@ -13,7 +12,6 @@ class StashViewStore {
 
   async select(repo: RepoId, index: number): Promise<void> {
     const generation = ++this.#generation;
-    this.index = index;
     this.error = null;
     this.loading = true;
 
@@ -44,7 +42,6 @@ class StashViewStore {
 
   clear(): void {
     this.#generation += 1;
-    this.index = null;
     this.contents = null;
     this.loading = false;
     this.error = null;

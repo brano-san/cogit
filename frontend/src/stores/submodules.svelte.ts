@@ -45,10 +45,6 @@ class SubmoduleStore {
     return this.#root;
   }
 
-  get entries(): readonly Submodule[] {
-    return this.children.get("") ?? [];
-  }
-
   get rows(): ModuleRow[] {
     return this.folded ? [] : moduleRows(this.children, this.expanded);
   }
