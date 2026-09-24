@@ -315,4 +315,14 @@ describe("graph windows", () => {
 
     expect((await graph.entry(600))?.commit.oid).toBe("c600");
   });
+
+  // PageDown held down: the scroll had already asked for the block, and the key press
+  // asking again got nothing back, so the selection stayed while the list moved on.
+  it("loads the row a key press moves to while a scroll is already fetching it", async () => {
+    await long();
+
+    graph.show(700, 740);
+
+    expect((await graph.entry(720))?.commit.oid).toBe("c720");
+  });
 });

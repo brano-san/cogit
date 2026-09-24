@@ -25,7 +25,8 @@ interface Walk {
   total: number;
   complete: boolean;
   blocks: Map<number, GraphBlock>;
-  asking: Set<number>;
+  /** Blocks on their way, so a second caller waits for the same answer. */
+  asking: Map<number, Promise<void>>;
 }
 
 const walk = (repo: RepoId): Walk => ({
@@ -34,7 +35,7 @@ const walk = (repo: RepoId): Walk => ({
   total: 0,
   complete: false,
   blocks: new Map(),
-  asking: new Set(),
+  asking: new Map(),
 });
 
 const asError = (err: unknown) =>
@@ -203,8 +204,16 @@ class GraphStore {
   }
 
   async #fetch(of: Walk, index: number): Promise<void> {
-    if (of.generation === null || of.asking.has(index)) return;
-    of.asking.add(index);
+    if (of.generation === null) return;
+    const pending = of.asking.get(index);
+    if (pending) return await pending;
+    const request = this.#window(of, index);
+    of.asking.set(index, request);
+    await request;
+  }
+
+  async #window(of: Walk, index: number): Promise<void> {
+    if (of.generation === null) return;
     let served: number;
     try {
       const block = await graphWindow(of.repo, of.generation, index * BLOCK, BLOCK);
