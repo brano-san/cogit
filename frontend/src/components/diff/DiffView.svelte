@@ -240,13 +240,13 @@
   }
 
   /** Which lines a Discard is about to throw away; `null` while nothing is pending. */
-  let pendingDiscard = $state<{ keys: Set<string>; label: string } | null>(null);
+  let pendingDiscard = $state<{ keys: Set<string>; label: string; of: FileDiff } | null>(null);
   let discardError = $state<string | null>(null);
 
   function askDiscard(keys: Set<string>, label: string) {
     if (keys.size === 0) return;
     discardError = null;
-    pendingDiscard = { keys, label };
+    pendingDiscard = { keys, label, of: diff };
   }
 
   async function confirmDiscard() {
@@ -254,7 +254,7 @@
     if (!pending) return;
     pendingDiscard = null;
     try {
-      await diffStore.discardLines(pending.keys);
+      await diffStore.discardLines(pending.keys, pending.of);
       selected = new Set();
     } catch (err) {
       discardError = err instanceof Error ? err.message : String(err);
@@ -329,11 +329,16 @@
     return () => observer.disconnect();
   });
 
+  // Lines are chosen by number in one diff: another file, or the same file on the other
+  // side of the index, makes them mean other lines.
   $effect(() => {
     void path;
+    void diffStore.spec?.kind;
     find.rewind();
     selected = new Set();
     revealed = [];
+    pendingDiscard = null;
+    discardError = null;
     if (scroller) scroller.scrollTop = 0;
   });
 

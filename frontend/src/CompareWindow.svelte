@@ -47,10 +47,10 @@
         newSize={diff.diff.newSize}
         mime={diff.diff.mime}
       />
-    {:else if diff.diff && diff.path}
+    {:else if diff.diff && diff.shownPath}
       <DiffView
         diff={diff.diff}
-        path={diff.path}
+        path={diff.shownPath}
         stageable={false}
         onstage={() => {}}
         whitespace={diff.whitespace}

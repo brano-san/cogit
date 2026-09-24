@@ -207,11 +207,11 @@
         {:else if panels.diff}
           {#if diff.error}
             <p class="note error">{diff.error.message}</p>
-          {:else if diff.diff && diff.path}
+          {:else if diff.diff && diff.shownPath}
             <div class="diff">
               <DiffView
                 diff={diff.diff}
-                path={diff.path}
+                path={diff.shownPath}
                 stageable={false}
                 whitespace={diff.whitespace}
                 onwhitespace={(mode) => void diff.setWhitespace(request.repo, mode)}
