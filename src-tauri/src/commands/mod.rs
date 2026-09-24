@@ -679,6 +679,24 @@ macro_rules! path_command {
 }
 
 path_command!(stage_paths, stage_paths, Stage);
+
+/// Stage all: every change git sees, not a path list (doc/12-risks.md, R-311).
+#[tauri::command]
+#[specta::specta]
+pub async fn stage_all(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Stage,
+        "stage_all",
+        move || app_state.stage_all(repo),
+    )
+    .await
+}
 path_command!(unstage_paths, unstage_paths, Stage);
 path_command!(discard_paths, discard_paths, Discard);
 path_command!(add_to_gitignore, add_to_gitignore, Stage);

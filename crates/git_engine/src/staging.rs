@@ -6,6 +6,12 @@ impl RepoHandle {
         self.run_paths(&["add", "--all"], paths)
     }
 
+    /// What git sees as changed, the whole tree: without a path list git matches nothing
+    /// against its entries, which on two thousand files is a tenth of the time (R-311).
+    pub fn stage_all(&self) -> Result<()> {
+        self.run_git(&["add", "--all"]).map(drop)
+    }
+
     pub fn unstage(&self, paths: &[String]) -> Result<()> {
         require_paths(paths)?;
         // `restore --staged` resolves HEAD, which does not exist before the first commit.
