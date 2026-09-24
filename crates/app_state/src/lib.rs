@@ -177,6 +177,32 @@ pub struct RepoOverview {
     pub state: git_engine::RepoState,
 }
 
+/// Tree rows by repository. A row read while its repository changed is not kept: the read
+/// began before the change and may describe the state before it.
+#[derive(Debug, Default)]
+struct RowCache {
+    rows: HashMap<RepoId, RepoOverview>,
+    forgotten: u64,
+}
+
+impl RowCache {
+    /// What `keep` needs to tell a read that raced a change.
+    fn begin(&self) -> u64 {
+        self.forgotten
+    }
+
+    fn keep(&mut self, since: u64, row: RepoOverview) {
+        if self.forgotten == since {
+            self.rows.insert(row.repo, row);
+        }
+    }
+
+    fn forget(&mut self, repo: RepoId) {
+        self.rows.remove(&repo);
+        self.forgotten += 1;
+    }
+}
+
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GraphChunk {
@@ -228,7 +254,7 @@ pub struct AppState {
     pub(crate) newest_diff: RwLock<HashMap<RepoId, u32>>,
     /// One tree row per repository, good until the watcher or one of our own mutations
     /// says otherwise (problem 5).
-    cached_rows: Arc<RwLock<HashMap<RepoId, RepoOverview>>>,
+    cached_rows: Arc<RwLock<RowCache>>,
     rows_read: Arc<AtomicU32>,
     queue: Queue,
     /// One graph is on screen at a time; a newer request makes the walk before it stop.
@@ -280,7 +306,7 @@ impl AppState {
             pictures: RwLock::new(None),
             preset_dir: RwLock::new(None),
             newest_diff: RwLock::new(HashMap::new()),
-            cached_rows: Arc::new(RwLock::new(HashMap::new())),
+            cached_rows: Arc::new(RwLock::new(RowCache::default())),
             rows_read: Arc::new(AtomicU32::new(0)),
             queue: Queue::default(),
             graph_generation: AtomicU32::new(0),
@@ -755,7 +781,7 @@ impl AppState {
         let events = self.events.clone();
         let rows = Arc::clone(&self.cached_rows);
         match fs_watcher::RepoWatcher::start(root, git_dir, move |change| {
-            rows.write().remove(&repo);
+            rows.write().forget(repo);
             let _ = events.send(AppEvent::RepoChanged {
                 repo,
                 kind: change.kind,
@@ -1298,18 +1324,22 @@ impl AppState {
     /// Reading a row costs a `head`, a `branches` and a `status`; the panel asks for the
     /// whole tree on every refresh, and most rows have not moved since it last asked.
     fn row_for(&self, open: &OpenRepo) -> RepoOverview {
-        if let Some(row) = self.cached_rows.read().get(&open.id) {
-            return row.clone();
-        }
+        let since = {
+            let cache = self.cached_rows.read();
+            if let Some(row) = cache.rows.get(&open.id) {
+                return row.clone();
+            }
+            cache.begin()
+        };
         let row = self.overview_of(open);
         self.rows_read.fetch_add(1, Ordering::Relaxed);
-        self.cached_rows.write().insert(open.id, row.clone());
+        self.cached_rows.write().keep(since, row.clone());
         row
     }
 
     /// Whatever this repository's row said is no longer true.
     pub fn forget_row(&self, repo: RepoId) {
-        self.cached_rows.write().remove(&repo);
+        self.cached_rows.write().forget(repo);
     }
 
     /// How many rows were built from git rather than served from the last look.
@@ -1653,6 +1683,39 @@ pub type SharedState = Arc<AppState>;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn row(repo: u32) -> RepoOverview {
+        RepoOverview {
+            repo: RepoId(repo),
+            name: "a".into(),
+            root: "/a".into(),
+            branch: None,
+            ahead: 0,
+            behind: 0,
+            dirty: false,
+            missing: false,
+            state: git_engine::RepoState::Clean,
+        }
+    }
+
+    // The watcher dropped the row while the tree was reading it, and the read then put back
+    // what it saw before the commit: the row stayed stale until the next change.
+    #[test]
+    fn a_row_read_across_a_change_is_not_kept() {
+        let mut cache = RowCache::default();
+        let since = cache.begin();
+        cache.forget(RepoId(1));
+        cache.keep(since, row(1));
+        assert!(cache.rows.is_empty());
+    }
+
+    #[test]
+    fn a_row_read_undisturbed_is_kept() {
+        let mut cache = RowCache::default();
+        let since = cache.begin();
+        cache.keep(since, row(1));
+        assert!(cache.rows.contains_key(&RepoId(1)));
+    }
 
     #[test]
     fn registered_repositories_get_distinct_ids() {
