@@ -93,11 +93,13 @@ impl Queue {
                     state.queued.insert(trimmed.to_string());
                     continue;
                 }
-                if is_noreply(trimmed) {
-                    let _ = self.inner.cache.store_missing(trimmed);
+                // Known first: a noreply address is written down as missing once, not on
+                // every scroll.
+                if self.inner.cache.lookup(trimmed) != Lookup::Unknown {
                     continue;
                 }
-                if self.inner.cache.lookup(trimmed) != Lookup::Unknown {
+                if is_noreply(trimmed) {
+                    let _ = self.inner.cache.store_missing(trimmed);
                     continue;
                 }
                 state.queued.insert(trimmed.to_string());
