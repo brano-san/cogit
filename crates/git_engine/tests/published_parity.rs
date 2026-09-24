@@ -65,6 +65,10 @@ fn setup(with_graph: bool) -> Setup {
     f.git(&["push", "-q", "origin", "HEAD:refs/heads/late"])
         .unwrap();
     f.git(&["fetch", "-q", "origin"]).unwrap();
+    // A local branch and a tag named like remote refs: git then prints those refs as
+    // `remotes/origin/late` and `remotes/upstream/main`.
+    f.git(&["branch", "origin/late", "main"]).unwrap();
+    f.git(&["tag", "upstream/main", "main"]).unwrap();
     f.git(&["checkout", "-q", "main"]).unwrap();
     f.commit_file(31, "local.txt", "local\n").unwrap();
     f.git(&["checkout", "-q", "-b", "local-side", "side~1"])
