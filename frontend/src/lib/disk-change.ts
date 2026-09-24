@@ -8,6 +8,8 @@ export type DiskPlan = {
   worktree: boolean;
   /** A hook file was edited; only the hooks panel cares. */
   hooks: boolean;
+  /** `.mailmap` changed: the graph rows and the commit details name authors anew. */
+  authors: boolean;
   /** Everything hanging off a mutation — stashes, submodules, network, conflicts. */
   cascade: boolean;
 };
@@ -24,6 +26,7 @@ export function planFor(kinds: Iterable<ChangeKind>): DiskPlan {
     refs: seen.has("head") || seen.has("refs"),
     worktree: seen.has("index") || seen.has("workingTree"),
     hooks: seen.has("hooks"),
+    authors: seen.has("mailmap"),
     cascade: real.length > 0,
   };
 }

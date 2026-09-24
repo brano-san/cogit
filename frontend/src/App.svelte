@@ -1013,7 +1013,8 @@
     if (left()) return;
     stale = freshen(stale, ["diff", "files", "commit"]);
 
-    if (plan.refs) await graph.load(id, graph.query);
+    if (plan.authors && commit.oid) void commit.select(id, commit.oid);
+    if (plan.refs || plan.authors) await graph.load(id, graph.query);
     stale = freshen(stale, ["graph", "refs"]);
   }
 

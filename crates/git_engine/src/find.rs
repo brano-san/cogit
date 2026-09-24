@@ -161,7 +161,7 @@ impl RepoHandle {
             &range,
             &count,
             "--no-color",
-            &format!("--format={STEP}%H%x09%an%x09%ae%x09%at%x09%s"),
+            &format!("--format={STEP}%H%x09%aN%x09%aE%x09%at%x09%s"),
         ])?;
 
         Ok(parse_investigation(&output))

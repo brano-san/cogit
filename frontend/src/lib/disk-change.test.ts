@@ -3,7 +3,13 @@ import { planFor } from "./disk-change";
 
 describe("planFor", () => {
   it("asks for nothing when nothing changed", () => {
-    expect(planFor([])).toEqual({ refs: false, worktree: false, hooks: false, cascade: false });
+    expect(planFor([])).toEqual({
+      refs: false,
+      worktree: false,
+      hooks: false,
+      authors: false,
+      cascade: false,
+    });
   });
 
   it("keeps a hook edit out of the cascade", () => {
@@ -11,6 +17,7 @@ describe("planFor", () => {
       refs: false,
       worktree: false,
       hooks: true,
+      authors: false,
       cascade: false,
     });
   });
@@ -44,6 +51,7 @@ describe("planFor", () => {
       refs: true,
       worktree: true,
       hooks: false,
+      authors: false,
       cascade: true,
     });
   });
@@ -56,5 +64,16 @@ describe("planFor", () => {
 
   it("does not care how often the same kind repeats", () => {
     expect(planFor(["index", "index", "index"])).toEqual(planFor(["index"]));
+  });
+
+  it("names the authors anew when .mailmap changed, without reopening the repository", () => {
+    const plan = planFor(["workingTree", "mailmap"]);
+    expect(plan.authors).toBe(true);
+    expect(plan.refs).toBe(false);
+    expect(plan.worktree).toBe(true);
+  });
+
+  it("leaves the authors alone for an ordinary working-tree edit", () => {
+    expect(planFor(["workingTree"]).authors).toBe(false);
   });
 });

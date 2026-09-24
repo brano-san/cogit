@@ -44,6 +44,8 @@ pub enum ChangeKind {
     Stash,
     Config,
     Hooks,
+    /// `.mailmap` at the root of the working tree: names and addresses to read again.
+    Mailmap,
 }
 
 /// What changed; the watcher says only the kind, which is all anything reads.

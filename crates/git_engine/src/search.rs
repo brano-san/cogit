@@ -161,9 +161,11 @@ impl RepoHandle {
     ) -> Result<()> {
         let chunk_size = chunk_size.max(1);
         let mut chunk = Vec::with_capacity(chunk_size);
+        // Once per walk: a `stat` per row would cost more than reading the commit.
+        let mailmap = self.mailmap();
 
         for (id, parents) in walk {
-            let row = self.row_of(id, &parents)?;
+            let row = self.row_of(id, &parents, &mailmap)?;
             if !query.matches_row(&row) {
                 continue;
             }
@@ -192,6 +194,11 @@ impl RepoHandle {
     /// Whether the list for `query` holds this commit: a match streams by before its
     /// parents do, and the graph has to know then whether a line to them will end.
     pub fn shown_by(&self, query: &CommitQuery, oid: &str) -> bool {
+        self.shown_by_with(query, oid, &self.mailmap())
+    }
+
+    /// `shown_by` for a loop over many commits, with the mailmap read once for all of them.
+    pub fn shown_by_with(&self, query: &CommitQuery, oid: &str, mailmap: &crate::Mailmap) -> bool {
         let Ok(id) = gix::ObjectId::from_hex(oid.as_bytes()) else {
             return false;
         };
@@ -199,7 +206,7 @@ impl RepoHandle {
             return false;
         };
         let parents: Vec<gix::ObjectId> = commit.parent_ids().map(gix::Id::detach).collect();
-        let Ok(row) = self.row_of(id, &parents) else {
+        let Ok(row) = self.row_of(id, &parents, mailmap) else {
             return false;
         };
         query.matches_row(&row)

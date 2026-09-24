@@ -15,6 +15,10 @@ describe("affected", () => {
   it("leaves the panels alone for a hook change, which none of them show", () => {
     expect(affected("hooks")).toEqual([]);
   });
+
+  it("puts a .mailmap edit on the panels that name authors", () => {
+    expect(affected("mailmap")).toEqual(["graph", "commit"]);
+  });
 });
 
 describe("mark", () => {
