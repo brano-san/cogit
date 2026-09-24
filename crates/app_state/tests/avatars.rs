@@ -203,3 +203,44 @@ fn reading_rows_no_longer_queues_anything() {
     // Nothing was asked for, so nothing arrived: the window is the only way in.
     assert!(state.avatars(&authors())[0].image.is_none());
 }
+
+/// A download that takes its time, like Gravatar on a slow network.
+struct Slow(std::sync::mpsc::Sender<()>);
+
+impl avatars::Source for Slow {
+    fn get(&self, _email: &str) -> avatars::Fetched {
+        let _ = self.0.send(());
+        std::thread::sleep(std::time::Duration::from_secs(2));
+        avatars::Fetched::Missing
+    }
+}
+
+// Turning avatars off dropped the download queue while holding the lock every avatar read
+// takes, and dropping it waits for the downloads in flight: the graph's avatars stalled.
+#[test]
+fn turning_avatars_off_does_not_stall_the_readers() {
+    let dir = tempfile::tempdir().unwrap();
+    let state = Arc::new(AppState::new());
+    let (started, downloading) = std::sync::mpsc::channel();
+    state
+        .enable_avatars_with(dir.path().to_path_buf(), Arc::new(Slow(started)))
+        .unwrap();
+    state.avatar_window(&["ada@example.com".to_string()]);
+    downloading.recv().unwrap();
+
+    let off = std::thread::spawn({
+        let state = Arc::clone(&state);
+        move || state.disable_avatars()
+    });
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    let asked = std::time::Instant::now();
+    let rows = state.avatars(&authors());
+    let waited = asked.elapsed();
+    off.join().unwrap();
+
+    assert_eq!(rows[0].initials, "AL");
+    assert!(
+        waited < std::time::Duration::from_secs(1),
+        "waited {waited:?}"
+    );
+}

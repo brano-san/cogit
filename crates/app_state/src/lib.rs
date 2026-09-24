@@ -320,12 +320,17 @@ impl AppState {
         source: std::sync::Arc<S>,
     ) -> Result<(), ::avatars::CacheError> {
         let service = Avatars::new(dir, source, self.events.clone())?;
-        *self.pictures.write() = Some(service);
+        let old = self.pictures.write().replace(service);
+        drop(old);
         Ok(())
     }
 
+    /// Dropping the service waits for the downloads in flight, so it happens after the lock
+    /// every avatar read takes is released, and never on an async worker (the command
+    /// calls it through `blocking`).
     pub fn disable_avatars(&self) {
-        *self.pictures.write() = None;
+        let old = self.pictures.write().take();
+        drop(old);
     }
 
     /// The addresses on screen, for the download queue. Reads nothing.
