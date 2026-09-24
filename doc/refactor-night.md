@@ -433,7 +433,13 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > репозиторий менялся, не кладётся. Тесты `a_row_read_across_a_change_is_not_kept` (логика
   > кэша; сама гонка с вотчером детерминированно не воспроизводится) и
   > `a_row_read_undisturbed_is_kept`.
-- [ ] C1-07 открытие одного пути — атомарно
+- [x] C1-07 открытие одного пути — атомарно
+  > Итог: `find_or_register` ищет и регистрирует под одним `repos.write()`; вотчер
+  > вставляется, только если записи ещё нет и репозиторий зарегистрирован;
+  > `close_repository` после unregister снимает вотчер ещё раз (ловит поставленный
+  > параллельным open). Тест `one_path_opened_twice_at_once_is_one_repository` (до правки —
+  > два id, стабильно). Попутно: `close_repository` шлёт `RepoClosed` дважды (unregister +
+  > сам) — в webview не пересылается, не трогал.
 - [ ] C1-08 записи через очередь
 - [ ] C1-10 `repositories` в blocking
 - [ ] C1-11 отмена поисков только при фактическом выходе

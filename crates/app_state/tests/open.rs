@@ -130,3 +130,28 @@ fn ref_dates_cover_branches_and_tags() {
     names.sort();
     assert_eq!(names, vec!["refs/heads/main", "refs/tags/v1"]);
 }
+
+// Open and a folder dropped on the window at the same moment both found nothing registered
+// and each registered the path: two ids, two watchers, two queues for one repository.
+#[test]
+fn one_path_opened_twice_at_once_is_one_repository() {
+    let f = test_fixtures::linear(3).unwrap();
+    let state = std::sync::Arc::new(AppState::new());
+    let start = std::sync::Arc::new(std::sync::Barrier::new(2));
+
+    let opens: Vec<_> = (0..2)
+        .map(|_| {
+            let state = std::sync::Arc::clone(&state);
+            let start = std::sync::Arc::clone(&start);
+            let path = f.path().to_path_buf();
+            std::thread::spawn(move || {
+                start.wait();
+                state.open_repository(&path).unwrap().repo
+            })
+        })
+        .collect();
+    let ids: Vec<_> = opens.into_iter().map(|open| open.join().unwrap()).collect();
+
+    assert_eq!(ids[0], ids[1]);
+    assert_eq!(state.list().len(), 1);
+}
