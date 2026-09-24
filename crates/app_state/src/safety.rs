@@ -16,7 +16,14 @@ pub enum Recovery {
     Stash {
         oid: String,
     },
+    /// The branch was deleted: undo creates it again.
     Branch {
+        name: String,
+        oid: String,
+    },
+    /// The branch still exists and was moved (merge, rebase, cherry-pick): undo moves it
+    /// back.
+    Moved {
         name: String,
         oid: String,
     },
@@ -96,6 +103,7 @@ impl AppState {
         match &held.recovery {
             Recovery::Stash { oid } => handle.stash_apply(oid)?,
             Recovery::Branch { name, oid } => handle.create_branch(name, Some(oid), false)?,
+            Recovery::Moved { name, oid } => handle.move_branch_back(name, oid)?,
             Recovery::Tag { name, oid } => handle.create_tag(&git_engine::TagRequest {
                 name: name.clone(),
                 target: Some(oid.clone()),

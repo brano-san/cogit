@@ -28,6 +28,19 @@ impl RepoHandle {
         }
     }
 
+    /// Puts an existing branch back at `oid`. The checked-out one goes through
+    /// `reset --keep`, which refuses rather than overwrites local changes; any other is
+    /// moved with `branch --force`.
+    pub fn move_branch_back(&self, name: &str, oid: &str) -> Result<()> {
+        let name = require_name(name)?;
+        match self.head()? {
+            crate::Head::Branch { name: current, .. } if current == name => {
+                self.reset(oid, crate::ResetMode::Keep)
+            }
+            _ => self.run_git(&["branch", "--force", name, oid]).map(drop),
+        }
+    }
+
     pub fn create_branch(&self, name: &str, start: Option<&str>, switch: bool) -> Result<()> {
         let name = require_name(name)?;
         let mut args = vec![if switch { "switch" } else { "branch" }];

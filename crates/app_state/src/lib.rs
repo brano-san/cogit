@@ -1067,7 +1067,7 @@ impl AppState {
         }
 
         let recovery = match before {
-            git_engine::Head::Branch { name, oid } => Recovery::Branch { name, oid },
+            git_engine::Head::Branch { name, oid } => Recovery::Moved { name, oid },
             _ => Recovery::None,
         };
         self.record(
@@ -1181,7 +1181,7 @@ impl AppState {
         handle.split_off(rev, paths, message, split_first)?;
 
         let recovery = match before {
-            git_engine::Head::Branch { name, oid } => Recovery::Branch { name, oid },
+            git_engine::Head::Branch { name, oid } => Recovery::Moved { name, oid },
             _ => Recovery::None,
         };
         self.record(
@@ -1213,7 +1213,7 @@ impl AppState {
         handle.merge(options)?;
 
         let recovery = match before {
-            git_engine::Head::Branch { name, oid } => Recovery::Branch { name, oid },
+            git_engine::Head::Branch { name, oid } => Recovery::Moved { name, oid },
             _ => Recovery::None,
         };
         self.record(repo, format!("Merge {}", options.source), recovery);
@@ -1231,7 +1231,7 @@ impl AppState {
         handle.rebase(options)?;
 
         let recovery = match before {
-            git_engine::Head::Branch { name, oid } => Recovery::Branch { name, oid },
+            git_engine::Head::Branch { name, oid } => Recovery::Moved { name, oid },
             _ => Recovery::None,
         };
         self.record(repo, format!("Rebase onto {}", options.onto), recovery);
@@ -1271,7 +1271,7 @@ impl AppState {
         }
 
         let recovery = match before {
-            git_engine::Head::Branch { name, oid } => Recovery::Branch { name, oid },
+            git_engine::Head::Branch { name, oid } => Recovery::Moved { name, oid },
             _ => Recovery::None,
         };
         let verb = if pick { "Cherry-pick" } else { "Revert" };
