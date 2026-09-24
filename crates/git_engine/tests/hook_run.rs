@@ -152,3 +152,69 @@ fn two_dry_runs_at_once_keep_their_own_message() {
     assert_eq!(first.exit_code, Some(0), "{}", first.stderr);
     assert_eq!(second.exit_code, Some(0), "{}", second.stderr);
 }
+
+// Cogit started from a terminal inside another repository's hook inherits its GIT_DIR.
+// Git's own commands drop it (R-22); the hook run did not, and the hook's `git` then
+// worked on that other repository.
+#[test]
+fn a_dry_run_does_not_hand_an_inherited_git_dir_to_the_hook() {
+    let f = test_fixtures::linear(1).unwrap();
+    let other = test_fixtures::linear(1).unwrap();
+    write_hook(
+        &f.path().join(".git/hooks"),
+        "pre-commit",
+        "#!/bin/sh\ngit rev-parse --absolute-git-dir\n",
+    );
+
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_probe-hook"))
+        .arg(f.path())
+        .arg("pre-commit")
+        .env("GIT_DIR", other.git_dir())
+        .output()
+        .unwrap();
+
+    let printed = String::from_utf8_lossy(&out.stdout)
+        .trim()
+        .replace('\\', "/");
+    let other_dir = other.git_dir().to_string_lossy().replace('\\', "/");
+    assert!(out.status.success(), "{out:?}");
+    assert!(
+        !printed.eq_ignore_ascii_case(&other_dir),
+        "the hook saw {printed}"
+    );
+}
+
+/// A file in the user's home folder, removed again when the test ends.
+struct InHome(std::path::PathBuf);
+
+impl InHome {
+    fn new(name: &str, text: &str) -> Self {
+        let home = std::env::var_os("HOME")
+            .or_else(|| std::env::var_os("USERPROFILE"))
+            .expect("a home folder");
+        let path = std::path::Path::new(&home).join(name);
+        std::fs::write(&path, text).unwrap();
+        Self(path)
+    }
+}
+
+impl Drop for InHome {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
+// `commit.template = ~/.gitmessage` is the way it is usually written. Read as a plain
+// string, `~` stayed a folder name under the repository and the template was not found.
+#[test]
+fn a_commit_template_under_the_home_folder_is_found() {
+    let f = test_fixtures::linear(1).unwrap();
+    let name = format!(".cogit-test-template-{}", std::process::id());
+    let _file = InHome::new(&name, "Subject\n\nWhy:\n");
+    f.git(&["config", "commit.template", &format!("~/{name}")])
+        .unwrap();
+
+    let template = open(&f).commit_template().unwrap();
+
+    assert_eq!(template.as_deref(), Some("Subject\n\nWhy:\n"));
+}

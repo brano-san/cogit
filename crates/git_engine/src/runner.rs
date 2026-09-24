@@ -323,10 +323,15 @@ fn git_command() -> Command {
     }
     command.env("GIT_TERMINAL_PROMPT", "0");
     command.env("LC_ALL", "C");
+    clear_inherited_git_vars(&mut command);
+    command
+}
+
+/// Also for what is not git but runs git: a hook, a check command (R-22).
+pub(crate) fn clear_inherited_git_vars(command: &mut Command) {
     for variable in INHERITED_GIT_VARS {
         command.env_remove(variable);
     }
-    command
 }
 
 fn base_command(root: &Path, reading: bool) -> Command {
