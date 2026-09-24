@@ -680,12 +680,14 @@ macro_rules! path_command {
 
 path_command!(stage_paths, stage_paths, Stage);
 
-/// Stage all: every change git sees, not a path list (doc/12-risks.md, R-311).
+/// Stage all: every change git sees, not a path list (doc/12-risks.md, R-311). `files` is
+/// how many rows the list showed, which decides how the blobs are written (R-312).
 #[tauri::command]
 #[specta::specta]
 pub async fn stage_all(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,
+    files: u32,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
     mutating(
@@ -693,10 +695,11 @@ pub async fn stage_all(
         repo,
         OperationKind::Stage,
         "stage_all",
-        move || app_state.stage_all(repo),
+        move || app_state.stage_all(repo, files as usize),
     )
     .await
 }
+
 path_command!(unstage_paths, unstage_paths, Stage);
 path_command!(discard_paths, discard_paths, Discard);
 path_command!(add_to_gitignore, add_to_gitignore, Stage);

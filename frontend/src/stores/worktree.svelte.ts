@@ -51,7 +51,7 @@ class WorktreeStore {
 
   async stage(repo: RepoId, paths: string[]): Promise<void> {
     const everything = stagesEverything(paths, this.unstaged);
-    await this.mutate(repo, () => (everything ? stageAll(repo) : stagePaths(repo, paths)));
+    await this.mutate(repo, () => (everything ? stageAll(repo, paths.length) : stagePaths(repo, paths)));
   }
 
   async unstage(repo: RepoId, paths: string[]): Promise<void> {

@@ -49,7 +49,7 @@ fn staging_everything_is_one_git_add_without_a_path_list() {
     state.clear_command_log();
 
     let started = Instant::now();
-    state.stage_all(repo).unwrap();
+    state.stage_all(repo, 3).unwrap();
     report("stage all", started.elapsed(), Duration::from_millis(400));
 
     let log = state.command_log();
