@@ -83,19 +83,20 @@ impl RepoHandle {
         // `-z`: without it a non-ASCII name comes back quoted and escaped.
         let mut listing = vec!["ls-tree", "-r", "-z", "--name-only", rev, "--"];
         listing.extend(paths.iter().map(String::as_str));
-        let present = nul_separated(&self.run_git(&listing)?.stdout);
+        // Parsed, so read in full and unaltered; the names are the user's, not patterns.
+        let present = nul_separated(&self.read_git_literal(&listing)?);
 
         if !present.is_empty() {
             let mut args = vec!["checkout", rev, "--"];
             args.extend(present.iter().map(String::as_str));
-            self.run_git(&args)?;
+            self.run_git_literal(&args)?;
         }
 
         let removed: Vec<&String> = paths.iter().filter(|p| !present.contains(p)).collect();
         if !removed.is_empty() {
             let mut args = vec!["rm", "-f", "--ignore-unmatch", "--"];
             args.extend(removed.iter().map(|p| p.as_str()));
-            self.run_git(&args)?;
+            self.run_git_literal(&args)?;
         }
         Ok(())
     }
@@ -175,18 +176,14 @@ impl RepoHandle {
             return Err(GitError::InvalidState("no files chosen".to_owned()));
         }
 
-        let touched = nul_separated(
-            &self
-                .run_git_reading(&[
-                    "diff-tree",
-                    "--no-commit-id",
-                    "--name-only",
-                    "-r",
-                    "-z",
-                    target,
-                ])?
-                .stdout,
-        );
+        let touched = nul_separated(&self.read_git(&[
+            "diff-tree",
+            "--no-commit-id",
+            "--name-only",
+            "-r",
+            "-z",
+            target,
+        ])?);
 
         if let Some(stranger) = paths.iter().find(|path| !touched.contains(path)) {
             return Err(GitError::InvalidState(format!(
@@ -220,7 +217,8 @@ impl RepoHandle {
     /// ref, so callers ask when the user acts, never on every selection.
     fn containing_remote_refs(&self, rev: &str) -> Result<Vec<String>> {
         let oid = self.rev_parse(rev)?;
-        let listed = self.run_git_reading(&[
+        // Parsed in full: the journal's copy of a long listing is cut in the middle.
+        let listed = self.read_git(&[
             "for-each-ref",
             "--format=%(refname:short)",
             "--contains",
@@ -228,7 +226,6 @@ impl RepoHandle {
             "refs/remotes/",
         ])?;
         Ok(listed
-            .stdout
             .lines()
             .map(str::trim)
             .filter(|name| !name.is_empty())

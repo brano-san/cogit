@@ -368,3 +368,20 @@ fn a_merge_after_the_split_commit_stays_a_merge() {
     let merges = f.git(&["rev-list", "--merges", "--count", "HEAD"]).unwrap();
     assert_eq!(merges.trim(), "1");
 }
+
+// The `-z` listing went through the journal's record, which masks what follows `=` on a
+// line that names a token or a secret: with no newlines the whole listing is one line.
+#[test]
+fn file_names_that_look_like_secrets_can_be_split_off() {
+    let f = test_fixtures::linear(1).unwrap();
+    for name in ["api/token.rs", "data/year=2024/a.csv", "z.txt"] {
+        f.write_file(name, "x\n").unwrap();
+        f.git(&["add", "--", name]).unwrap();
+    }
+    f.commit_staged(2, "three files").unwrap();
+    let target = f.oid("HEAD").unwrap();
+
+    open(&f)
+        .split_off(&target, &["z.txt".to_owned()], "split: z", true)
+        .unwrap();
+}
