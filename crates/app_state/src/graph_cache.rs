@@ -34,6 +34,7 @@ pub(crate) struct GraphCache {
     commits: Vec<CommitRow>,
     rows: Vec<GraphRow>,
     complete: bool,
+    paint: parking_lot::Mutex<crate::graph_overlay::PaintMemo>,
 }
 
 impl GraphCache {
@@ -130,6 +131,23 @@ impl AppState {
         }
         let row = cache.commits.iter().position(|commit| commit.oid == oid)?;
         u32::try_from(row).ok()
+    }
+
+    /// The rows of graph `generation` and its paint memo, read under the cache's lock.
+    pub(crate) fn read_graph<R>(
+        &self,
+        repo: RepoId,
+        generation: u32,
+        read: impl FnOnce(
+            &[CommitRow],
+            &[GraphRow],
+            &parking_lot::Mutex<crate::graph_overlay::PaintMemo>,
+        ) -> R,
+    ) -> Option<R> {
+        let cache = self.graph.read();
+        cache
+            .holds(repo, generation)
+            .then(|| read(&cache.commits, &cache.rows, &cache.paint))
     }
 
     pub(crate) fn forget_graph(&self, repo: RepoId) {

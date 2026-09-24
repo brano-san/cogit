@@ -10,13 +10,14 @@
     segmentCurve,
     textX,
   } from "$lib/graph-geometry";
+  import { LAYERS, nodeStroke, segmentStroke, type RowPaint } from "$lib/graph-style";
   import { settings } from "$stores/settings.svelte";
   import type { GraphRow } from "$lib/ipc";
 
   /** Only the rows on screen: every segment belongs to its own row, so nothing outside
       the view is ever needed to draw it (doc/07-graph-rendering.md). */
   interface Props {
-    rows: { listRow: number; layout: GraphRow; stash?: boolean }[];
+    rows: { listRow: number; layout: GraphRow; stash?: boolean; paint?: RowPaint }[];
     scrollTop: number;
     width: number;
     height: number;
@@ -62,9 +63,12 @@
     const token = (name: string) => styles.getPropertyValue(name).trim();
     const main = token("--graph-main");
     const line = token("--graph-line");
-    const colored = settings.current.coloredLanes;
-    const stroke = (primary: boolean, color: number) =>
-      colored ? token(`--c-lane-${(color % 8) + 1}`) || line : primary ? main : line;
+    const options = { colouredLanes: settings.current.coloredLanes };
+    const colours = new Map<string, string>();
+    const colour = (name: string) => {
+      if (!colours.has(name)) colours.set(name, token(name) || line);
+      return colours.get(name) ?? line;
+    };
 
     const edge = textX(GRAPH.maxColumns) - GRAPH.textGap;
     context.save();
@@ -72,13 +76,15 @@
     context.rect(0, 0, edge, height);
     context.clip();
 
-    // Grey first, the main line over it: where they cross, the one the eye follows wins.
-    for (const primary of [false, true]) {
+    // Grey first, branch colours over it, the main line on top: where lines cross, the one
+    // the eye follows wins.
+    for (let layer = 0; layer < LAYERS; layer++) {
       for (const row of rows) {
-        for (const segment of row.layout.segments) {
-          if (segment.primary !== primary) continue;
-          context.strokeStyle = stroke(segment.primary, segment.color);
-          context.lineWidth = primary ? GRAPH.mainLineWidth : GRAPH.lineWidth;
+        for (const [index, segment] of row.layout.segments.entries()) {
+          const look = segmentStroke(segment, index, row.paint, options);
+          if (look.layer !== layer) continue;
+          context.strokeStyle = colour(look.token);
+          context.lineWidth = look.width;
           context.beginPath();
           if (segment.arrow) {
             const stub = arrowStub(segment, row.listRow, scrollTop);
@@ -132,7 +138,7 @@
         context.fill();
       }
       context.lineWidth = GRAPH.ringStroke;
-      context.strokeStyle = row.stash ? stash : stroke(row.layout.primary, row.layout.color);
+      context.strokeStyle = row.stash ? stash : colour(nodeStroke(row.layout, row.paint, options).token);
       context.stroke();
     }
     context.restore();
