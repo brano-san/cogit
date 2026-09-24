@@ -21,15 +21,6 @@ pub struct IndexEditorSides {
     pub binary: bool,
 }
 
-fn require(paths: &[String]) -> Result<()> {
-    if paths.is_empty() {
-        return Err(GitError::InvalidState(
-            "no paths given; refusing to act on the whole repository".to_owned(),
-        ));
-    }
-    Ok(())
-}
-
 fn as_text(bytes: Option<Vec<u8>>) -> std::result::Result<Option<String>, ()> {
     match bytes {
         None => Ok(None),
@@ -41,7 +32,7 @@ fn as_text(bytes: Option<Vec<u8>>) -> std::result::Result<Option<String>, ()> {
 impl RepoHandle {
     /// `git rm --cached` keeps the files on disk, untracked; `git rm` deletes them too.
     pub fn remove_from_repository(&self, paths: &[String], delete_local: bool) -> Result<()> {
-        require(paths)?;
+        crate::staging::require_paths(paths)?;
         let args: &[&str] = if delete_local {
             &["rm", "-r"]
         } else {
@@ -71,7 +62,7 @@ impl RepoHandle {
     }
 
     pub fn set_index_flag(&self, paths: &[String], flag: IndexFlag, on: bool) -> Result<()> {
-        require(paths)?;
+        crate::staging::require_paths(paths)?;
         let option = match (flag, on) {
             (IndexFlag::AssumeUnchanged, true) => "--assume-unchanged",
             (IndexFlag::AssumeUnchanged, false) => "--no-assume-unchanged",

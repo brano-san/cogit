@@ -47,7 +47,8 @@ impl RepoHandle {
     }
 }
 
-fn require_paths(paths: &[String]) -> Result<()> {
+/// A path list for a command that would act on everything when given none.
+pub(crate) fn require_paths(paths: &[String]) -> Result<()> {
     if paths.is_empty() {
         return Err(GitError::InvalidState(
             "no paths given; refusing to act on the whole repository".to_owned(),
