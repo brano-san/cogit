@@ -55,8 +55,10 @@
 ### `diff_engine`
 - **Что:** превращает пару текстов (или blob-ов) в структуру `FileDiff` — блоки, ханки,
   внутристрочные изменения. Плюс синтаксическое 3-way слияние через `tree-sitter`.
-- **Как:** `diff_texts(old, new, opts)` возвращает `FileDiff`. Чистая функция,
-  без I/O и без состояния — идеальна для `rayon` и property-тестов.
+- **Как:** `diff_text(old, new, opts)` для текста и `diff_bytes` для содержимого файла
+  (картинки, бинарные, не UTF-8) возвращают `FileDiff`; `diff_one`/`diff_many` — то же для
+  файла по пути. Чистые функции, без I/O и без состояния — идеальны для `rayon` и
+  property-тестов.
 - **Зависит от:** `imara-diff`, `similar`, `tree-sitter`, `rayon`.
 - **Подробности:** [08-diff-engine.md](08-diff-engine.md).
 
@@ -64,14 +66,16 @@
 - **Что:** топологическая сортировка DAG коммитов и раскладка по дорожкам (lanes).
 - **Как:** `layout(commits, cursor)` возвращает `GraphRow` на каждый коммит — колонку
   узла и сегменты строки для Canvas.
-- **Зависит от:** только `serde`/`specta`/`rayon`. **Не зависит от `gix`** — на вход приходят
+- **Зависит от:** только `serde`/`specta`. **Не зависит от `gix`** — на вход приходят
   простые пары «oid + родители», что делает крейт тестируемым на голых id без единого репозитория.
 - **Подробности:** [07-graph-rendering.md](07-graph-rendering.md).
 
 ### `fs_watcher`
 - **Что:** следит за изменениями в `.git` и рабочей директории, отдаёт дебаунснутые события.
-- **Как:** `Watcher::spawn(repo_path, tx)` возвращает `WatcherHandle`; шлёт `RepoChanged { kind }`.
-- **Зависит от:** `notify`, `notify-debouncer-mini`, `ignore` (для фильтрации по `.gitignore`).
+- **Как:** `RepoWatcher::start(root, git_dir, common_dir, on_change)` возвращает хэндл, пока
+  он жив — идёт наблюдение; колбэк получает `RepoChanged { kind }`, где `kind` — один из
+  `ChangeKind` (Head, Index, Refs, WorkingTree, Stash, Config, Hooks).
+- **Зависит от:** `notify`, `notify-debouncer-mini`. `.gitignore` не читается — см. INV-06.
 - **Ограничения:** [INV-06](#inv-06).
 
 ### `app_state`
@@ -83,8 +87,9 @@
 
 ### `test_fixtures`
 - **Что:** программно создаёт временные Git-репозитории заданной формы.
-- **Как:** билдер вида `FixtureBuilder::new().commits(5).branch("dev").merge().build()`,
-  результат владеет `TempDir` и чистит его при drop.
+- **Как:** свободные функции по форме репозитория — `linear(n)`, `branched()`, `diamond()`,
+  `with_remote()`, `with_worktree()`, `conflicted()` и другие; результат (`Fixture`)
+  владеет `TempDir` и чистит его при drop.
 - **Зависит от:** `tempfile`, системный `git`.
 - **Используется только в `[dev-dependencies]`.**
 
@@ -120,7 +125,8 @@ UI: клик "Open"
         └─► app_state: регистрирует RepoHandle, запускает fs_watcher
               └─► git_engine (spawn_blocking): читает HEAD, refs, status
                     └─► ответ: RepoSummary { head, branches[], counts }
-        └─► параллельно: Event "repo-opened" → все окна обновляют дерево репозиториев
+        └─► затем UI перечитывает список командой `repositories` (событие открытия в
+            окна не пересылается)
 ```
 
 ### 4.2. Загрузка истории (стриминг)
