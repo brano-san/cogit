@@ -223,3 +223,24 @@ describe("the graph page (#23)", () => {
     ]);
   });
 });
+
+describe("the Toolbar page (#24)", () => {
+  it("sits under User Interface and holds the toolbar editor", () => {
+    const page = CATEGORIES.find((category) => category.id === "toolbar");
+    expect(page?.parent).toBe("ui");
+    expect(page?.groups.flatMap((group) => group.fields.map((field) => field.key))).toEqual([
+      "toolbar",
+    ]);
+  });
+
+  it("is found by the words of the old menu item", () => {
+    expect(firstMatch("configure")).toBe("toolbar");
+    expect(matchingCategories("toolbar")).toContain("toolbar");
+  });
+
+  it("is not a setting of the settings file: the layout lives with the toolbar", () => {
+    expect(isSetting("toolbar")).toBe(false);
+    const draft: Settings = { ...DEFAULT_SETTINGS, laneWidth: 30 };
+    expect(restoreCategory(draft, "toolbar")).toEqual(draft);
+  });
+});

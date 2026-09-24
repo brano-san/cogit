@@ -1,10 +1,11 @@
 import { DEFAULT_SETTINGS, type GraphColumn, type Settings } from "./settings";
 
-export type FieldKey = keyof Settings | "keymap" | "suppressions";
+export type FieldKey = keyof Settings | "keymap" | "suppressions" | "toolbar";
 
-/** Rows that show something other than a setting: the keymap, the hidden-dialogs list. */
+/** Rows that show something other than a setting: the keymap, the hidden-dialogs list,
+    the toolbar layout (kept with the toolbar's own choices). */
 export function isSetting(key: FieldKey): key is keyof Settings {
-  return key !== "keymap" && key !== "suppressions";
+  return key !== "keymap" && key !== "suppressions" && key !== "toolbar";
 }
 
 export interface Field {
@@ -210,6 +211,24 @@ export const CATEGORIES: Category[] = [
         title: "Shortcuts",
         fields: [
           { key: "keymap", label: "Shortcuts", keywords: ["keyboard", "shortcut", "accelerator", "binding"] },
+        ],
+      },
+    ],
+  },
+  {
+    id: "toolbar",
+    title: "Toolbar",
+    parent: "ui",
+    note: "Changes show on the toolbar at once. Undo takes them back one at a time.",
+    groups: [
+      {
+        title: "Buttons",
+        fields: [
+          {
+            key: "toolbar",
+            label: "Toolbar buttons",
+            keywords: ["toolbar", "buttons", "customise", "customize", "configure", "separator"],
+          },
         ],
       },
     ],
