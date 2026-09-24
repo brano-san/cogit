@@ -5,6 +5,7 @@
   import { leaveRepositoryDialogs } from "$lib/leaving";
   import { retryOf } from "$lib/retry";
   import { publishedOrAssume } from "$lib/published";
+  import { menuStatePusher } from "$lib/menu-state";
   import { branchNameProblem, optional, textProblem } from "$lib/names";
   import { finder } from "$stores/finder.svelte";
   import { THIRD_PARTY_FILE } from "$lib/third-party";
@@ -949,7 +950,7 @@
     );
     await settings.apply(next);
     await settings.setKeymap(keymap);
-    pushMenuState();
+    pushMenuState(true);
 
     const id = repository.current?.repo;
     if (!id || !diff.spec || !diff.path) return;
@@ -2953,6 +2954,7 @@
 
   $effect(() => {
     const pending = onMenuCommand((id) => {
+      pushMenuState(true);
       if (refActions?.run(id)) return;
       if (runGroupCommand(id)) return;
       if (runRepoCommand(id)) return;
@@ -2986,8 +2988,11 @@
     );
   });
 
-  /** A rebuilt bar starts with every tick cleared, so this runs again after a keymap save. */
-  function pushMenuState() {
+  const sendMenuState = menuStatePusher((disabled, checked) => setMenuState(disabled, checked));
+
+  /** A rebuilt bar starts with every tick cleared, so this runs again after a keymap save;
+      and after a menu command, since muda flips a clicked tick on its own. */
+  function pushMenuState(resend = false) {
     const checked = checkedIds({
       panels: PANELS.filter((panel) => layout.visible(panel)),
       output: output.open,
@@ -2996,7 +3001,7 @@
       avatars: avatars.enabled,
       perspective: layout.active,
     });
-    void setMenuState(disabledIds(palette), checked).catch(() => {});
+    sendMenuState(disabledIds(palette), checked, { resend });
   }
 
   // The native menu is not reactive, so the derived state is pushed to it. muda flips a
