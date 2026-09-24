@@ -285,3 +285,32 @@ describe("discarding lines while the diff changes", () => {
     expect(commands.discardSelection).not.toHaveBeenCalled();
   });
 });
+
+// Stage, Unstage and Discard were offered alike on both sides of the index. On the
+// staged diff, Discard reversed the index-against-HEAD patch in the working tree: the
+// working tree went back to HEAD and the change stayed staged, ready to be committed.
+describe("line actions and the side of the index a diff shows", () => {
+  beforeEach(() => {
+    diff.clear();
+    commands.diffFile.mockReset();
+    commands.discardSelection.mockReset();
+    commands.discardSelection.mockResolvedValue({ status: "ok", data: null });
+    commands.diffFile.mockImplementation(async () => textDiff());
+  });
+
+  it("offers Stage and Discard on unstaged changes, Unstage on staged ones", async () => {
+    await diff.load(REPO, SPEC, "a.txt");
+    expect(diff.lineActions).toEqual({ stage: true, unstage: false, discard: true });
+
+    await diff.load(REPO, { kind: "indexVsHead" }, "a.txt");
+    expect(diff.lineActions).toEqual({ stage: false, unstage: true, discard: false });
+  });
+
+  it("throws nothing away from a staged diff", async () => {
+    await diff.load(REPO, { kind: "indexVsHead" }, "a.txt");
+
+    await diff.discardLines(new Set(["d:1"]), diff.diff!);
+
+    expect(commands.discardSelection).not.toHaveBeenCalled();
+  });
+});
