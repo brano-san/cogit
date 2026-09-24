@@ -1,4 +1,4 @@
-import { CogitError, scanForRepositories, type ScanHit } from "$lib/ipc";
+import { type CogitError, scanForRepositories, type ScanHit, toCogitError } from "$lib/ipc";
 
 class ScanStore {
   folder = $state<string | null>(null);
@@ -37,8 +37,7 @@ class ScanStore {
       if (generation === this.#generation) this.done = true;
     } catch (err) {
       if (generation !== this.#generation) return;
-      this.error =
-        err instanceof CogitError ? err : new CogitError({ kind: "internal", data: String(err) });
+      this.error = toCogitError(err);
     } finally {
       if (generation === this.#generation) this.busy = false;
     }

@@ -1,4 +1,11 @@
-import { CogitError, stashContents, type DiffSpec, type StashContents, type RepoId } from "$lib/ipc";
+import {
+  type CogitError,
+  stashContents,
+  type DiffSpec,
+  type StashContents,
+  type RepoId,
+  toCogitError,
+} from "$lib/ipc";
 
 /** The stash the Files panel is showing. Separate from `commit`: a stash is not a commit
     the user selected, and the two must not fight over the panel. */
@@ -22,8 +29,7 @@ class StashViewStore {
     } catch (err) {
       if (generation !== this.#generation) return;
       this.contents = null;
-      this.error =
-        err instanceof CogitError ? err : new CogitError({ kind: "internal", data: String(err) });
+      this.error = toCogitError(err);
     } finally {
       if (generation === this.#generation) this.loading = false;
     }

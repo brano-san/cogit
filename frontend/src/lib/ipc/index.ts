@@ -149,6 +149,12 @@ export class CogitError extends Error {
 
 }
 
+/** What a store keeps as its `error`: a failure from the backend as it came, anything
+    else wrapped as internal. */
+export function toCogitError(err: unknown): CogitError {
+  return err instanceof CogitError ? err : new CogitError({ kind: "internal", data: String(err) });
+}
+
 function describeError(error: GitError): string {
   switch (error.kind) {
     case "command":

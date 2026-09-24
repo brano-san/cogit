@@ -4,6 +4,7 @@ const reads = vi.hoisted(() => new Map<string, (body: string) => void>());
 
 vi.mock("$lib/ipc", () => ({
   CogitError: class extends Error {},
+  toCogitError: (err: unknown) => err,
   readHook: vi.fn(
     (_repo: unknown, name: string) => new Promise((resolve) => reads.set(name, resolve)),
   ),

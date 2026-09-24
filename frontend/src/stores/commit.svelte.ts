@@ -1,10 +1,11 @@
 import {
-  CogitError,
+  type CogitError,
   commitDetails,
   commitFiles,
   type CommitDetails,
   type FileEntry,
   type RepoId,
+  toCogitError,
 } from "$lib/ipc";
 
 class CommitStore {
@@ -48,8 +49,7 @@ class CommitStore {
       if (generation !== this.#generation) return;
       this.details = null;
       this.files = [];
-      this.error =
-        err instanceof CogitError ? err : new CogitError({ kind: "internal", data: String(err) });
+      this.error = toCogitError(err);
     } finally {
       if (generation === this.#generation) this.loading = false;
     }

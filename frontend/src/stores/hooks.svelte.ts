@@ -4,7 +4,7 @@ import {
   installPreset,
   listPresets,
   removePreset,
-  CogitError,
+  type CogitError,
   listHooks,
   readHook,
   runHook,
@@ -16,6 +16,7 @@ import {
   type HookOverview,
   type HookRun,
   type RepoId,
+  toCogitError,
 } from "$lib/ipc";
 
 class HooksStore {
@@ -159,8 +160,7 @@ class HooksStore {
   }
 
   private report(err: unknown, title: string): void {
-    this.error =
-      err instanceof CogitError ? err : new CogitError({ kind: "internal", data: String(err) });
+    this.error = toCogitError(err);
     this.failure = title;
   }
 

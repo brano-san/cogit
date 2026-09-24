@@ -1,11 +1,12 @@
 import {
-  CogitError,
+  type CogitError,
   EMPTY_QUERY,
   graphRowOf,
   graphWindow,
   loadGraph,
   type CommitQuery,
   type RepoId,
+  toCogitError,
 } from "$lib/ipc";
 import type { GraphBlock, GraphEntry } from "$lib/graph-wire";
 
@@ -39,7 +40,7 @@ const walk = (repo: RepoId): Walk => ({
 });
 
 const asError = (err: unknown) =>
-  err instanceof CogitError ? err : new CogitError({ kind: "internal", data: String(err) });
+  toCogitError(err);
 
 class GraphStore {
   /** Rows laid out so far: the list is this long while the rest is walked. */

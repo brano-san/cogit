@@ -1,4 +1,4 @@
-import { CogitError, type DiffSpec, type FileEntry, type RepoId } from "$lib/ipc";
+import { type CogitError, type DiffSpec, type FileEntry, type RepoId, toCogitError } from "$lib/ipc";
 import { compareFiles } from "$lib/ipc/ref-ops";
 import { diff } from "$stores/diff.svelte";
 
@@ -27,8 +27,7 @@ class CompareViewStore {
       if (generation === this.#generation) this.files = found;
     } catch (err) {
       if (generation !== this.#generation) return;
-      this.error =
-        err instanceof CogitError ? err : new CogitError({ kind: "internal", data: String(err) });
+      this.error = toCogitError(err);
     } finally {
       if (generation === this.#generation) this.loading = false;
     }
