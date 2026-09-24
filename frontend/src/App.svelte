@@ -60,7 +60,7 @@
   import { checkedIds, disabledIds, type PaletteCommand } from "$lib/palette";
   import { reasonFor, type Context } from "$lib/availability";
   import { refAt, splitMarked, targetsOf, type MenuContext, type ToolbarFacts } from "$lib/toolbar";
-  import { currentRemote, pullSteps, syncSteps, type SyncOrder } from "$lib/toolbar-prefs";
+  import { currentRemote, remotePlan, syncSteps, type SyncOrder } from "$lib/toolbar-prefs";
   import { toolbar } from "$stores/toolbar.svelte";
   import { stashDialog } from "$stores/stash-dialog.svelte";
   import { allowsSelectAll, settle, step } from "$lib/panel-focus";
@@ -1104,9 +1104,11 @@
     void graph.load(id, graph.query);
   }
 
-  async function afterRefChange() {
+  /** `worked` is the repository the change was made in; once the panels show another,
+      reloading them would clear that one's selection and diff for nothing. */
+  async function afterRefChange(worked?: RepoId) {
     const id = repository.current?.repo;
-    if (!id) return;
+    if (!id || (worked !== undefined && worked !== id)) return;
     const epoch = repository.epoch;
     commit.clear();
     diff.clear();
@@ -1207,7 +1209,7 @@
       if (!(await offerAutostash(err, branch))) errors.report(err, "Could not switch branches");
       return;
     }
-    await afterRefChange();
+    await afterRefChange(id);
   }
 
   /** Stash, switch, put the changes back — what `--autostash` does for rebase and pull. */
@@ -1235,7 +1237,7 @@
     } catch (failed) {
       errors.report(failed, "Could not switch branches");
     }
-    await afterRefChange();
+    await afterRefChange(id);
     return true;
   }
 
@@ -1248,7 +1250,7 @@
       errors.report(err, "Could not undo");
       return;
     }
-    await afterRefChange();
+    await afterRefChange(id);
   }
 
   async function showBlame() {
@@ -1305,8 +1307,10 @@
       await refreshSubmodule(row);
       return;
     }
+    const epoch = repository.epoch;
     const opened = await openedModule(row.key);
-    if (!opened) return;
+    // Clicked somewhere else meanwhile: taking the submodule now would overtake that.
+    if (!opened || repository.epoch !== epoch) return;
 
     // Everything except the tree: it belongs to the repository in the list, and the click
     // came from it (doc/12-risks.md, R-129).
@@ -1389,7 +1393,7 @@
       errors.report(err, "Could not recover the commit");
       return;
     }
-    await afterRefChange();
+    await afterRefChange(id);
   }
 
   async function replaySelected(kind: "cherryPick" | "revert") {
@@ -1408,7 +1412,7 @@
     } catch (err) {
       errors.report(err, `${verb} failed`);
     }
-    await afterRefChange();
+    await afterRefChange(id);
   }
 
   /** Toolbar Merge and Rebase act on the selection in Graph or Branches (task #31). */
@@ -1426,7 +1430,7 @@
     } catch (err) {
       errors.report(err, "Could not merge");
     }
-    await afterRefChange();
+    await afterRefChange(id);
   }
 
   async function rebaseSelected() {
@@ -1438,7 +1442,7 @@
     } catch (err) {
       errors.report(err, "Could not rebase");
     }
-    await afterRefChange();
+    await afterRefChange(id);
   }
 
   async function runNetwork(kind: "fetch" | "pull" | "push") {
@@ -1459,37 +1463,37 @@
       if (repository.epoch === epoch) await afterMutation();
       return;
     }
-    if (repository.epoch === epoch) await afterRefChange();
+    if (repository.epoch === epoch) await afterRefChange(id);
   }
 
   /** Pull as the toolbar's own choices say: which remotes to fetch first, whether to delete
-      merged branches afterwards, and the fast-forward setting from Preferences (#26). */
-  async function pullOnce(id: RepoId) {
-    if (!pullRemote) throw new Error("This repository has no remote.");
-    const plan = pullSteps(toolbar.prefs.pullScope, network.remotes, pullRemote);
-    for (const remote of plan.fetch) await network.fetch(id, remote);
-    await network.pull(id, plan.pull, settings.current.pullMode === "ffOnly");
-    if (toolbar.prefs.deleteMergedAfterPull) await deleteMergedBranches(id);
-  }
-
-  async function pushOnce(id: RepoId) {
-    const remote = network.primary;
-    if (!remote) throw new Error("This repository has no remote.");
-    await network.push(id, remote, false);
-  }
-
-  /** Each step waits for the one before; the first failure stops the rest. */
+      merged branches afterwards, and the fast-forward setting from Preferences (#26). Each
+      step waits for the one before; the first failure stops the rest. */
   async function runRemoteSteps(steps: readonly ("pull" | "push")[], failure: string) {
     const id = repository.current?.repo;
     if (!id) return;
+    const epoch = repository.epoch;
     try {
-      for (const step of steps) await (step === "pull" ? pullOnce(id) : pushOnce(id));
+      const plan = remotePlan(steps, {
+        remotes: network.remotes,
+        pullRemote,
+        pushRemote: network.primary,
+        scope: toolbar.prefs.pullScope,
+        ffOnly: settings.current.pullMode === "ffOnly",
+        deleteMerged: toolbar.prefs.deleteMergedAfterPull,
+      });
+      for (const step of plan) {
+        if (step.kind === "fetch") await network.fetch(id, step.remote);
+        if (step.kind === "pull") await network.pull(id, step.remote, step.ffOnly);
+        if (step.kind === "deleteMerged") await deleteMergedBranches(id);
+        if (step.kind === "push") await network.push(id, step.remote, false);
+      }
     } catch (err) {
       errors.report(err, failure);
-      await afterMutation();
+      if (repository.epoch === epoch) await afterMutation();
       return;
     }
-    await afterRefChange();
+    await afterRefChange(id);
   }
 
   function pullNow() {
@@ -1509,7 +1513,7 @@
     for (const remote of names) {
       await network.fetch(id, remote).catch((err) => errors.report(err, `Could not fetch ${remote}`));
     }
-    await afterRefChange();
+    await afterRefChange(id);
   }
 
   async function checkoutTag(tag: Tag) {
@@ -1521,7 +1525,7 @@
       errors.report(err, "Could not check out the tag");
       return;
     }
-    await afterRefChange();
+    await afterRefChange(id);
   }
 
   /** The Stash dialog: a name and Stash All, + Keep Index or + Keep Working Tree (#29). */
@@ -1532,7 +1536,7 @@
     if (choice === null) return;
     await stashes
       .save(id, choice)
-      .then(() => afterRefChange())
+      .then(() => afterRefChange(id))
       .catch((err) => errors.report(err, "Could not stash"));
   }
 
@@ -1542,7 +1546,7 @@
     if (!id) return;
     await stashes
       .save(id, { mode: "all", message: "" })
-      .then(() => afterRefChange())
+      .then(() => afterRefChange(id))
       .catch((err) => errors.report(err, "Could not stash"));
   }
 
@@ -1554,7 +1558,7 @@
     const message = confirm ? await stashDialog.selection(paths) : "";
     if (message === null) return;
     await stashSelection(id, paths, message)
-      .then(() => afterRefChange())
+      .then(() => afterRefChange(id))
       .catch((err) => errors.report(err, "Could not stash"));
   }
 
@@ -1571,7 +1575,7 @@
       errors.report(err, "Could not apply the stash");
       return;
     }
-    await afterRefChange();
+    await afterRefChange(id);
   }
 
   /** Toolbar Apply Stash (#30). A conflicted apply still changed the working tree, so the
@@ -1582,7 +1586,7 @@
     await stashes
       .apply(id, 0, false)
       .catch((err) => errors.report(err, "Could not apply stash@{0}"));
-    await afterRefChange();
+    await afterRefChange(id);
   }
 
   async function runBannerAction(action: BannerAction) {
@@ -1601,7 +1605,7 @@
       errors.report(err, action === "createBranch" ? "Could not create the branch" : `Could not ${action}`);
       return;
     }
-    await afterRefChange();
+    await afterRefChange(id);
   }
 
   /** Double-click opens the file in its own window, which survives a webview reload. */
@@ -1797,7 +1801,7 @@
     } catch (err) {
       errors.report(err, `Could not ${action.id === "rebase" ? "rebase" : "merge"}`);
     }
-    await afterRefChange();
+    await afterRefChange(id);
   }
 
   function onCommitDrop(sourceOid: string, targetOid: string) {
@@ -1887,7 +1891,7 @@
     } finally {
       rebaseBusy = false;
     }
-    await afterRefChange();
+    await afterRefChange(id);
   }
 
   /** A real OS menu, not an HTML popup: the chosen id comes back as a menu command. */
@@ -2408,6 +2412,7 @@
     const owner = worktrees.repo;
     const listed = repository.current?.root ?? null;
     if (!owner || entry.missing || entry.isCurrent) return;
+    const epoch = repository.epoch;
     let opened;
     try {
       opened = await openWorktree(owner, entry.path);
@@ -2415,6 +2420,7 @@
       errors.report(err, "Could not open the worktree");
       return;
     }
+    if (repository.epoch !== epoch) return;
     const ownerRoot = worktrees.ownerRoot ?? listed;
     const same = (a: string, b: string | null) =>
       b !== null && a.replaceAll("\\", "/") === b.replaceAll("\\", "/");

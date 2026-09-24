@@ -62,3 +62,37 @@ export function pullSteps(
     pull: current,
   };
 }
+
+export type RemoteStep =
+  | { kind: "fetch"; remote: string }
+  | { kind: "pull"; remote: string; ffOnly: boolean }
+  | { kind: "deleteMerged" }
+  | { kind: "push"; remote: string };
+
+export interface RemoteFacts {
+  remotes: readonly string[];
+  pullRemote: string | null;
+  pushRemote: string | null;
+  scope: PullScope;
+  ffOnly: boolean;
+  deleteMerged: boolean;
+}
+
+/** Every step of a pull, a push or a Sync, decided before the first one runs: each takes
+    seconds, and by the time one ends the panels may show another repository. */
+export function remotePlan(steps: readonly ("pull" | "push")[], facts: RemoteFacts): RemoteStep[] {
+  const plan: RemoteStep[] = [];
+  for (const step of steps) {
+    const remote = step === "pull" ? facts.pullRemote : facts.pushRemote;
+    if (!remote) throw new Error("This repository has no remote.");
+    if (step === "push") {
+      plan.push({ kind: "push", remote });
+      continue;
+    }
+    const { fetch, pull } = pullSteps(facts.scope, facts.remotes, remote);
+    plan.push(...fetch.map((name) => ({ kind: "fetch" as const, remote: name })));
+    plan.push({ kind: "pull", remote: pull, ffOnly: facts.ffOnly });
+    if (facts.deleteMerged) plan.push({ kind: "deleteMerged" });
+  }
+  return plan;
+}

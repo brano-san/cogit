@@ -4,6 +4,7 @@ import {
   currentRemote,
   mergePrefs,
   pullSteps,
+  remotePlan,
   remotesInOrder,
   syncSteps,
 } from "./toolbar-prefs";
@@ -85,5 +86,38 @@ describe("syncSteps", () => {
   it("remembers the order and ignores a bad one", () => {
     expect(mergePrefs({ syncOrder: "pushThenPull" }).syncOrder).toBe("pushThenPull");
     expect(mergePrefs({ syncOrder: "sideways" }).syncOrder).toBe("pullThenPush");
+  });
+});
+
+// Sync ran its steps against whatever the panels showed when each began: move to B during
+// the pull, and A was pushed to the remote B's list named, or not at all.
+describe("remotePlan", () => {
+  const facts = {
+    remotes: ["origin", "fork"],
+    pullRemote: "origin",
+    pushRemote: "origin",
+    scope: "all" as const,
+    ffOnly: true,
+    deleteMerged: true,
+  };
+
+  it("names every remote of a Sync before the first step runs", () => {
+    expect(remotePlan(["pull", "push"], facts)).toEqual([
+      { kind: "fetch", remote: "fork" },
+      { kind: "pull", remote: "origin", ffOnly: true },
+      { kind: "deleteMerged" },
+      { kind: "push", remote: "origin" },
+    ]);
+  });
+
+  it("keeps the order chosen for Sync", () => {
+    const plan = remotePlan(["push", "pull"], { ...facts, scope: "current", deleteMerged: false });
+    expect(plan.map((step) => step.kind)).toEqual(["push", "pull"]);
+  });
+
+  it("refuses up front when there is no remote", () => {
+    expect(() => remotePlan(["pull"], { ...facts, remotes: [], pullRemote: null, pushRemote: null })).toThrow(
+      "This repository has no remote.",
+    );
   });
 });
