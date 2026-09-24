@@ -112,6 +112,12 @@
 --status-ref          → --c-branch
 --status-stash        → --c-stash
 --status-tag          → --c-tag
+
+--sync-dirty          → --status-modify    незакоммиченные изменения (Repositories, метка worktree)
+--sync-clean          → --status-add       чисто и всё запушено (метка worktree)
+--sync-push           → --status-add       стрелка «есть что пушить»
+--sync-pull           → --status-ref       стрелка «есть что забрать»
+--sync-unknown        → --text-secondary   fetch не удался, про pull неизвестно
 ```
 
 ## 4. Типографика

@@ -319,3 +319,4 @@
 | F-381 | Происхождение строки и Go Deeper | [F-381-origin-candidates.md](F-381-origin-candidates.md) |
 | F-382 | Investigate из Diff с выделенной строкой | [F-382-investigate-from-diff.md](F-382-investigate-from-diff.md) |
 | F-450 | Submodules любого репозитория без активации | [F-450-submodules-of-every-repository.md](F-450-submodules-of-every-repository.md) |
+| F-451 | Изменения, push и pull в строке Repositories | [F-451-repository-sync-marks.md](F-451-repository-sync-marks.md) |

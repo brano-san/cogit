@@ -279,6 +279,8 @@ export const commands = {
 	listSubmodules: (repo: RepoId, parent: string) => typedError<Submodule[], GitError>(__TAURI_INVOKE("list_submodules", { repo, parent })),
 	/**  The light submodule tree of any listed repository, open or closed. */
 	submoduleOutline: (root: string, parent: string) => typedError<Submodule[], GitError>(__TAURI_INVOKE("submodule_outline", { root, parent })),
+	repoPulse: (root: string) => typedError<RepoPulse, GitError>(__TAURI_INVOKE("repo_pulse", { root })),
+	backgroundFetch: (root: string) => typedError<null, GitError>(__TAURI_INVOKE("background_fetch", { root })),
 	/**
 	 *  Opens a submodule from its node in the tree: the panels follow it, the Repositories
 	 *  panel does not gain an entry for it (doc/12-risks.md, R-109).
@@ -1228,6 +1230,21 @@ export type RepoOverview = {
 	missing: boolean,
 	/**  An operation stopped half way, or a detached HEAD: the row labels it (#22). */
 	state: RepoState,
+};
+
+/**  What the indicators of a list row need, read without a status walk. */
+export type RepoPulse = {
+	missing: boolean,
+	branch: string | null,
+	/**  HEAD's branch has an upstream and its remote-tracking ref exists locally. */
+	tracked: boolean,
+	ahead: number,
+	behind: number,
+	/**
+	 *  A tracked file whose size or modification time moved, a staged change or a
+	 *  conflict. Untracked files are not looked for: that takes a directory walk.
+	 */
+	dirty: boolean,
 };
 
 export type RepoSetting = {

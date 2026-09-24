@@ -2,7 +2,9 @@
   import Disclosure from "$components/common/Disclosure.svelte";
   import KindIcon from "$components/common/KindIcon.svelte";
   import { applyClick, EMPTY_SELECTION, type FileSelection } from "$lib/multi-select";
-  import { DIRTY_REPOSITORY, MISSING_REPOSITORY, trackTooltip } from "$lib/repo-labels";
+  import { MISSING_REPOSITORY } from "$lib/repo-labels";
+  import { rowSync, syncTooltip, type RowSync } from "$lib/repo-sync";
+  import { repoPulse } from "$stores/repo-pulse.svelte";
   import {
     describeModule,
     mayExpand,
@@ -79,6 +81,10 @@
   const byRoot = $derived(new Map(entries.map((entry) => [entry.root, entry])));
   const rows = $derived(groupRows(repoGroups.groups, order, repoGroups.collapsed));
 
+  const everyRoot = $derived(listedRepos(repository.openRepos, repoList.list).map((each) => each.root));
+
+  $effect(() => repoPulse.watch(everyRoot));
+
   $effect(() => {
     void moduleForest.trees;
     void moduleForest.probe(order);
@@ -91,6 +97,36 @@
     for (const each of moving) repoGroups.assign(each, group);
   }
 </script>
+
+<!-- Push and pull sit on the corners of the icon, as SmartGit draws them; the changes dot has
+     a slot of its own in every row, so the names start on one line (R-353). -->
+{#snippet repoMarks(sync: RowSync)}
+  {@const tip = syncTooltip(sync)}
+  <span class="repo-icon">
+    <KindIcon kind="repository" title={tip || undefined} />
+    {#if sync.ahead > 0}
+      <svg class="arrow push" viewBox="0 0 8 8" role="img" aria-label="Commits to push"
+        ><path d="M4 7V1.5M1.5 4 4 1.5 6.5 4" /></svg
+      >
+    {/if}
+    {#if sync.unknown}
+      <span class="arrow unknown" role="img" aria-label="Unknown whether there is anything to pull"
+        >?</span
+      >
+    {:else if sync.behind > 0}
+      <svg class="arrow pull" viewBox="0 0 8 8" role="img" aria-label="Commits to pull"
+        ><path d="M4 1v5.5M1.5 4 4 6.5 6.5 4" /></svg
+      >
+    {/if}
+  </span>
+  <span
+    class="changes"
+    class:dirty={sync.dirty === true}
+    role={sync.dirty ? "img" : undefined}
+    title={sync.dirty ? tip : undefined}
+    aria-label={sync.dirty ? "Uncommitted changes" : undefined}
+  ></span>
+{/snippet}
 
 {#snippet topDisclosure(root: string, owned: boolean)}
   {@const open = owned ? !submodules.folded : moduleMemory.isOpen(root)}
@@ -263,6 +299,12 @@
       {:else}
         {@const listed = byRoot.get(row.root)}
         {@const entry = listed?.overview}
+        {@const sync = rowSync({
+          overview: entry ?? null,
+          owned: entry !== undefined && entry !== null && active?.valueOf() === entry.repo.valueOf(),
+          pulse: repoPulse.pulses.get(row.root),
+          fetchFailed: repoPulse.unknown.has(row.root),
+        })}
         {#if listed && entry}
       <div
         class="row"
@@ -290,7 +332,7 @@
         }}
       >
         {@render topDisclosure(entry.root, submodules.owner?.valueOf() === entry.repo.valueOf())}
-        <KindIcon kind="repository" />
+        {@render repoMarks(sync)}
         <span class="name truncate shrink-last">{listed.name}</span>
         {#if listed.pinned}<span class="pin" title="Pinned to the top of its group">⊤</span>{/if}
         {#if worktrees.ownerRoot === entry.root && repository.current}
@@ -299,19 +341,10 @@
         {#if repoStateTag(entry.state)}
           <span class="op" title={STATE_TAG_HINT}>{repoStateTag(entry.state)}</span>
         {/if}
-        {#if entry.missing}
+        {#if sync.missing}
           <span class="gone" title={MISSING_REPOSITORY}>missing</span>
-        {:else if entry.dirty}
-          <span class="dirty" title={DIRTY_REPOSITORY}>●</span>
         {/if}
         {#if entry.branch}<span class="branch truncate shrink-first">{entry.branch}</span>{/if}
-        {#if entry.ahead > 0 || entry.behind > 0}
-          <span class="track tabular" title={trackTooltip(entry.ahead, entry.behind)}
-            >{entry.ahead > 0 ? "↑" + entry.ahead : ""}{entry.behind > 0
-              ? "↓" + entry.behind
-              : ""}</span
-          >
-        {/if}
       </div>
 
       {@render moduleTree(entry.root, submodules.owner?.valueOf() === entry.repo.valueOf(), row.depth)}
@@ -332,9 +365,10 @@
             }}
           >
             {@render topDisclosure(listed.root, false)}
-            <KindIcon kind="repository" />
+            {@render repoMarks(sync)}
             <span class="name truncate shrink-last">{listed.name}</span>
             {#if listed.pinned}<span class="pin" title="Pinned to the top of its group">⊤</span>{/if}
+            {#if sync.missing}<span class="gone" title={MISSING_REPOSITORY}>missing</span>{/if}
           </div>
           {@render moduleTree(listed.root, false, row.depth)}
         {/if}
@@ -512,10 +546,56 @@
     font-size: 10px;
   }
 
-  .dirty {
-    flex: 0 0 auto;
-    color: var(--status-modify);
-    font-size: 9px;
+  .repo-icon {
+    position: relative;
+    display: inline-flex;
+    flex: none;
+  }
+
+  /* On the corners, with a halo of the panel colour, so they sit on the icon's edge
+     without covering it. */
+  .arrow {
+    position: absolute;
+    right: -3px;
+    width: 7px;
+    height: 7px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    filter: drop-shadow(0 0 1px var(--surface-panel));
+  }
+
+  .arrow.push {
+    top: -2px;
+    color: var(--sync-push);
+  }
+
+  .arrow.pull {
+    bottom: -2px;
+    color: var(--sync-pull);
+  }
+
+  .arrow.unknown {
+    bottom: -3px;
+    width: auto;
+    height: auto;
+    color: var(--sync-unknown);
+    font-size: 8px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .changes {
+    flex: 0 0 6px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+
+  .changes.dirty {
+    background: var(--sync-dirty);
   }
 
   .branch {
@@ -524,9 +604,4 @@
     font-size: 10px;
   }
 
-  .track {
-    flex: 0 0 auto;
-    color: var(--status-ref);
-    font-size: 10px;
-  }
 </style>

@@ -35,6 +35,9 @@ export interface Settings {
   autoUpdate: boolean;
   /** The Exit dialog's "Don't show again" and this checkbox are the same value (R-151). */
   confirmExit: boolean;
+  /** Minutes between background fetches of every listed repository; `0` is off, which is
+      the default: nothing reaches the network unasked (R-353). */
+  backgroundFetchMinutes: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -54,6 +57,7 @@ export const DEFAULT_SETTINGS: Settings = {
   avatars: "gravatar",
   autoUpdate: false,
   confirmExit: true,
+  backgroundFetchMinutes: 0,
 };
 
 /** Read once at startup, so changing them needs a restart to take effect. */
@@ -72,6 +76,7 @@ const ENUMS: Partial<Record<keyof Settings, readonly string[]>> = {
 const RANGES: Partial<Record<keyof Settings, [number, number]>> = {
   contextLines: [0, 50],
   laneWidth: [8, 40],
+  backgroundFetchMinutes: [0, 1440],
 };
 
 export function needsRestart(key: keyof Settings): boolean {
