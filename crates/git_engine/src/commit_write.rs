@@ -36,11 +36,12 @@ impl RepoHandle {
             args.push("--only");
             self.run_git_paths(&args, &request.only)?;
         }
+        // Through gix: `rev-parse HEAD` was a second process (R-313).
         let oid = self
-            .run_git_reading(&["rev-parse", "HEAD"])?
-            .stdout
-            .trim()
-            .to_owned();
+            .repo
+            .head_id()
+            .map_err(|err| GitError::Internal(format!("cannot read the new HEAD: {err}")))?
+            .to_string();
         if request.no_verify {
             self.record_bypass(&oid, &request.message);
         }
