@@ -73,6 +73,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::worktree_files,
             commands::repo_status,
             commands::working_state,
+            commands::repo_refs,
             commands::stage_paths,
             commands::stage_all,
             commands::unstage_paths,

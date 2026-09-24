@@ -161,6 +161,17 @@ pub struct RepoSummary {
     pub tag_group_separator: String,
 }
 
+/// What a commit moves besides the counters: the refs and the operation state (R-316).
+#[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoRefs {
+    pub head: git_engine::Head,
+    pub branches: Vec<git_engine::Branch>,
+    pub tags: Vec<git_engine::Tag>,
+    pub state: git_engine::RepoState,
+    pub index_lock: Option<String>,
+}
+
 /// One hit from a folder scan. Paths cross IPC as strings, like every other path.
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -453,6 +464,19 @@ impl AppState {
         let handle = git_engine::RepoHandle::open(path)?;
         watch.done("open");
         self.open_with(handle, path, true, watch)
+    }
+
+    /// `open_repository` without the status, the registration and the watcher: after a
+    /// commit only these moved, and the status is read by the refresh that follows.
+    pub fn repo_refs(&self, repo: RepoId) -> Result<RepoRefs, git_engine::GitError> {
+        let handle = self.handle(repo)?;
+        Ok(RepoRefs {
+            head: handle.head()?,
+            branches: handle.branches()?,
+            tags: handle.tags()?,
+            state: handle.state()?,
+            index_lock: handle.index_lock(),
+        })
     }
 
     /// Opens a submodule from its node in the tree. `key` is the node's path from `owner`,

@@ -301,6 +301,10 @@ export async function repoStatus(repo: RepoId) {
   return unwrap(await commands.repoStatus(repo));
 }
 
+export async function repoRefs(repo: RepoId) {
+  return unwrap(await commands.repoRefs(repo));
+}
+
 export async function workingState(repo: RepoId) {
   return unwrap(await commands.workingState(repo));
 }

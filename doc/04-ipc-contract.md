@@ -378,6 +378,7 @@ snake_case и читаются на фронтенде как `undefined`.
 | `stage_all` | `repo, files: u32` | `()` — `git add --all` без списка путей; фронтенд зовёт его, когда выбран весь список Unstaged без строк, показанных переключателями вида (R-311); `files` — сколько строк было в списке, от 200 блобы пишутся одним pack (R-312) | M6 |
 | `worktree_files` | `repo` | `WorktreeFiles` | M6 |
 | `working_state` | `repo` | `WorkingState { status: RepoStatus, conflicted: Vec<String> }` — счётчики и конфликтующие пути одним чтением статуса, для обновления после мутации (R-316) | M6 |
+| `repo_refs` | `repo` | `RepoRefs { head, branches, tags, state, indexLock }` — то, что двигает коммит, без статуса, регистрации и наблюдателя; фронтенд вливает это в `RepoSummary` (R-316) | M6 |
 | `stage_hunk` | `repo, patch: String` | `()` | M6 |
 | `discard_paths` | `repo, paths` | `()` | M6 |
 | `commit` | `repo, request: CommitRequest { message, amend, noVerify }` | `String` (oid) | M6 |

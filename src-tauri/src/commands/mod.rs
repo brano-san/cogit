@@ -849,6 +849,17 @@ pub async fn repo_status(
     blocking("repo_status", move || app_state.repo_status(repo)).await
 }
 
+/// Refs and state without reopening the repository, for the refresh after a commit.
+#[tauri::command]
+#[specta::specta]
+pub async fn repo_refs(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<app_state::RepoRefs, GitError> {
+    let app_state = state.state.clone();
+    blocking("repo_refs", move || app_state.repo_refs(repo)).await
+}
+
 /// The counters and the conflicted paths from one read, for the refresh after a mutation.
 #[tauri::command]
 #[specta::specta]
