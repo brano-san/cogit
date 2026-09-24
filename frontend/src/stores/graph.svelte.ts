@@ -16,8 +16,10 @@ export type { GraphEntry };
 /** Rows per request. A screen is about forty; the next block is asked for early. */
 const BLOCK = 128;
 const AHEAD = 64;
+/** Blocks asked for past that, the way the list is moving, so it finds them there. */
+const LEAD = 4;
 /** Blocks kept per graph; the ones farthest from the screen go first. */
-const KEEP = 48;
+const KEEP = 64;
 
 /** One walk of the history. Its rows stay in Rust and come over by block (R-193). */
 interface Walk {
@@ -69,6 +71,8 @@ class GraphStore {
   /** A reload catching up; the old rows stay on screen until it covers them (R-186). */
   #next: Walk | null = null;
   #range = { start: 0, end: 0 };
+  /** Which way the list last moved: 1 down, -1 up, 0 not since this history came on. */
+  #heading: -1 | 0 | 1 = 0;
   #loads = 0;
 
   constructor() {
@@ -106,6 +110,7 @@ class GraphStore {
 
   /** The list says which rows are on screen; the missing ones are asked for. */
   show(start: number, end: number): void {
+    if (start !== this.#range.start) this.#heading = start > this.#range.start ? 1 : -1;
     this.#range = { start, end };
     this.#ask(this.#shown);
     this.#ask(this.#next);
@@ -207,6 +212,7 @@ class GraphStore {
       this.home += 1;
     }
     this.#shown = next;
+    this.#heading = 0;
     if (this.#next === next) this.#next = null;
     this.#publish();
   }
@@ -247,7 +253,24 @@ class GraphStore {
   #ask(of: Walk | null): void {
     if (!of || of.generation === null) return;
     for (const index of this.#wanted(of)) void this.#fetch(of, index);
+    if (of === this.#shown) for (const index of this.#lead(of)) void this.#fetch(of, index);
     this.#promote(of);
+  }
+
+  /** The blocks just past the wanted ones, the way the list is moving; none at rest. */
+  #lead(of: Walk): number[] {
+    if (this.#heading === 0) return [];
+    const { start, end } = this.#range;
+    const first = Math.floor(Math.max(start - AHEAD, 0) / BLOCK);
+    const last = Math.floor((Math.min(end + AHEAD, of.total) - 1) / BLOCK);
+    const lead: number[] = [];
+    for (let step = 1; step <= LEAD; step++) {
+      const index = this.#heading > 0 ? last + step : first - step;
+      if (index < 0 || index * BLOCK >= of.total) break;
+      const expected = Math.min(BLOCK, of.total - index * BLOCK);
+      if ((of.blocks.get(index)?.length ?? 0) < expected) lead.push(index);
+    }
+    return lead;
   }
 
   async #fetch(of: Walk, index: number): Promise<void> {
