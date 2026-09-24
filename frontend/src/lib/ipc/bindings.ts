@@ -488,7 +488,9 @@ export type Bypass = {
 	at: number,
 };
 
-export type ChangeKind = "head" | "index" | "refs" | "workingTree" | "stash" | "config" | "hooks";
+export type ChangeKind = "head" | "index" | "refs" | "workingTree" | "stash" | "config" | "hooks" | 
+/**  `.mailmap` at the root of the working tree: names and addresses to read again. */
+"mailmap";
 
 export type CheckoutTarget = { kind: "branch"; name: string } | { kind: "commit"; oid: string };
 

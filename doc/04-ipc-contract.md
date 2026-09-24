@@ -688,7 +688,9 @@ type Operation = {
 целиком, а не с середины. Чтения в очередь не попадают — они идут параллельно и
 отменяются через `cancel_operation`.
 
-`ChangeKind`: `Head` · `Index` · `Refs` · `WorkingTree` · `Stash` · `Config` · `Hooks`.
+`ChangeKind`: `Head` · `Index` · `Refs` · `WorkingTree` · `Stash` · `Config` · `Hooks` ·
+`Mailmap` — `.mailmap` в корне рабочего дерева; приходит вместе с `WorkingTree`, интерфейс
+перезагружает граф и детали выбранного коммита ([R-390](12-risks.md)).
 
 Событий `repo-opened`/`repo-closed` в webview нет: `AppEvent::RepoOpened/RepoClosed` живут
 только на шине `app_state`. Сырое `renderer-failed` (`renderer_failure.rs`) шлётся без
