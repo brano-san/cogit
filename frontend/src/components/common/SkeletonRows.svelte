@@ -3,10 +3,10 @@
 
   interface Props {
     rows?: number;
-    height?: number;
   }
 
-  let { rows = 8, height = GRAPH.rowHeight }: Props = $props();
+  let { rows = 8 }: Props = $props();
+  const height = GRAPH.rowHeight;
 
   /** Uneven widths: a column of identical bars reads as a rendering fault, not as loading. */
   const WIDTHS = [72, 54, 83, 61, 91, 48, 77, 66];
