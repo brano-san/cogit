@@ -122,6 +122,11 @@ fn check(with_graph: bool) {
             !expected.is_empty(),
             "is_published {oid}, git says {expected:?}"
         );
+        let in_process = repo.remote_refs_containing_in_process(oid);
+        assert_eq!(in_process.is_some(), with_graph, "{oid}");
+        if let Some(listed) = in_process {
+            assert_eq!(listed, expected, "in-process list {oid}");
+        }
         // `**` protects every branch, so this is the containing list itself.
         assert_eq!(
             repo.protecting_refs(oid).unwrap(),

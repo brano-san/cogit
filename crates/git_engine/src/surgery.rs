@@ -216,11 +216,11 @@ impl RepoHandle {
         Ok(!self.containing_remote_refs(rev)?.is_empty())
     }
 
-    /// Every remote branch that already holds this commit. One graph walk per remote
-    /// ref, so callers ask when the user acts, never on every selection.
+    /// Every remote branch that already holds this commit, as `for-each-ref --contains`
+    /// lists it; in-process when it can be (published.rs), else by that very command.
     fn containing_remote_refs(&self, rev: &str) -> Result<Vec<String>> {
-        if self.no_remote_holds(rev) {
-            return Ok(Vec::new());
+        if let Some(holding) = self.remote_refs_containing_in_process(rev) {
+            return Ok(holding);
         }
         let oid = self.rev_parse(rev)?;
         // Parsed in full: the journal's copy of a long listing is cut in the middle.
@@ -249,7 +249,9 @@ impl RepoHandle {
     pub fn protecting_refs(&self, rev: &str) -> Result<Vec<String>> {
         let Some(patterns) = self.protected_set() else {
             // Still resolve the revision: an unknown one is an error, not an empty list.
-            self.rev_parse(rev)?;
+            if self.commit_of(rev).is_none() {
+                self.rev_parse(rev)?;
+            }
             return Ok(Vec::new());
         };
 
