@@ -119,3 +119,32 @@ fn every_byte_value_survives_the_round_trip() {
             .all(|c| c.is_ascii_alphanumeric() || "+/=".contains(c))
     );
 }
+
+// Any `<svg` in the first kilobyte made a file an image, and so did any file starting with
+// "BM": this crate's own images.rs and five Svelte components among them.
+#[test]
+fn text_that_mentions_svg_or_starts_with_bm_is_not_an_image() {
+    assert_eq!(
+        image_mime(b"<script lang=\"ts\"></script>\n<svg viewBox=\"0 0 8 8\"/>\n"),
+        None
+    );
+    assert_eq!(
+        image_mime(b"fn is_svg(data: &[u8]) -> bool { text.contains(\"<svg\") }"),
+        None
+    );
+    assert_eq!(image_mime(b"BMW M3\n"), None);
+}
+
+#[test]
+fn an_svg_is_still_an_svg_after_a_prolog_a_comment_and_a_doctype() {
+    let svg = b"\xef\xbb\xbf  <?xml version=\"1.0\"?>\n<!-- drawn by hand -->\n<!DOCTYPE svg>\n<svg xmlns=\"http://www.w3.org/2000/svg\"/>";
+    assert_eq!(image_mime(svg), Some("image/svg+xml"));
+}
+
+#[test]
+fn a_bitmap_header_is_still_a_bitmap() {
+    let mut bmp = b"BM".to_vec();
+    bmp.extend_from_slice(&[0x46, 0, 0, 0, 0, 0, 0, 0, 0x36, 0, 0, 0, 40, 0, 0, 0]);
+    bmp.extend_from_slice(&[0; 40]);
+    assert_eq!(image_mime(&bmp), Some("image/bmp"));
+}
