@@ -8,7 +8,7 @@ use git_engine::{
     CommitDetails, CommitQuery, CommitRequest, DiffSpec, FileEntry, GitError, WorktreeFiles,
 };
 use git_engine::{GitOutput, MergeOptions, RebaseOptions, RepoStatus};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 pub mod avatars;
@@ -132,18 +132,34 @@ pub fn report_timing(label: String, ms: u32, detail: String) {
     crate::profile::ui(&label, u64::from(ms), &detail);
 }
 
-/// The webview's own log lines, into the same file.
+/// One line of the webview's log. `message` starts with the webview's own `+Nms`: a
+/// batch lands at once, so the file's timestamp is when it arrived, not when it was said.
+#[derive(Debug, Deserialize, specta::Type)]
+pub struct WebviewLogLine {
+    pub level: String,
+    pub message: String,
+    pub context: String,
+}
+
+/// The webview's own log lines, into the same file, in batches.
 ///
 /// A JS error that only reaches the devtools console dies with the renderer — which is
 /// exactly the moment it was worth keeping.
 #[tauri::command]
 #[specta::specta]
-pub fn log_from_frontend(level: String, message: String, context: String) {
-    match level.as_str() {
-        "error" => tracing::error!(target: "cogit::webview", context, "{message}"),
-        "warn" => tracing::warn!(target: "cogit::webview", context, "{message}"),
-        "debug" => tracing::debug!(target: "cogit::webview", context, "{message}"),
-        _ => tracing::info!(target: "cogit::webview", context, "{message}"),
+pub fn log_from_frontend(lines: Vec<WebviewLogLine>) {
+    for WebviewLogLine {
+        level,
+        message,
+        context,
+    } in lines
+    {
+        match level.as_str() {
+            "error" => tracing::error!(target: "cogit::webview", context, "{message}"),
+            "warn" => tracing::warn!(target: "cogit::webview", context, "{message}"),
+            "debug" => tracing::debug!(target: "cogit::webview", context, "{message}"),
+            _ => tracing::info!(target: "cogit::webview", context, "{message}"),
+        }
     }
 }
 
