@@ -7,7 +7,7 @@ use test_fixtures::Fixture;
 fn walk(repo: &RepoHandle, chunk_size: usize) -> (Vec<CommitRow>, Vec<usize>) {
     let mut all = Vec::new();
     let mut sizes = Vec::new();
-    repo.stream_commits(chunk_size, |chunk| {
+    repo.search_commits(&git_engine::CommitQuery::default(), chunk_size, |chunk| {
         sizes.push(chunk.len());
         all.extend(chunk);
         true
@@ -110,7 +110,7 @@ fn returning_false_stops_the_walk_early() {
     let f = test_fixtures::linear(12).unwrap();
     let repo = open(&f);
     let mut seen = 0;
-    repo.stream_commits(10, |chunk| {
+    repo.search_commits(&git_engine::CommitQuery::default(), 10, |chunk| {
         seen += chunk.len();
         false
     })

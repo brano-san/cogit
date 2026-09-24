@@ -9,8 +9,7 @@ use git_engine::{
     WorktreeFiles,
 };
 use git_engine::{
-    GitOutput, MergeOptions, RebaseOptions, ReflogEntry, RepoStatus, StashEntry, StashOptions,
-    TagRequest,
+    GitOutput, MergeOptions, RebaseOptions, RepoStatus, StashEntry, StashOptions, TagRequest,
 };
 use serde::Serialize;
 use std::path::PathBuf;
@@ -160,20 +159,6 @@ pub enum SearchChunk {
         total: u32,
         cancelled: bool,
     },
-}
-
-/// Every path in the repository: tracked plus untracked, never ignored.
-///
-/// Not the change list. The Files panel searches what changed; this is what lets it find
-/// a file that nothing happened to, the way SmartGit does.
-#[tauri::command]
-#[specta::specta]
-pub async fn list_all_repo_files(
-    state: tauri::State<'_, crate::AppContext>,
-    repo: RepoId,
-) -> Result<Vec<String>, GitError> {
-    let app_state = state.state.clone();
-    blocking("list_all_repo_files", move || app_state.all_files(repo)).await
 }
 
 /// Every file of a commit's tree: the Files panel's Unchanged switch on a commit.
@@ -349,17 +334,6 @@ pub fn cancel_operation(
 #[specta::specta]
 pub fn closing_ping() {
     crate::shutdown::answered();
-}
-
-/// Everything `Help ▸ Copy Diagnostics` puts on the clipboard, as text.
-#[tauri::command(async)]
-#[specta::specta]
-pub fn diagnostics(state: tauri::State<'_, crate::AppContext>) -> String {
-    crate::diagnostics::report(
-        &state.log_path,
-        &state.config_dir,
-        crate::webview2::browser_version().as_deref(),
-    )
 }
 
 #[tauri::command]
@@ -1468,17 +1442,6 @@ replay_command!(revert);
 
 #[tauri::command]
 #[specta::specta]
-pub async fn reflog(
-    state: tauri::State<'_, crate::AppContext>,
-    repo: RepoId,
-    limit: u32,
-) -> Result<Vec<ReflogEntry>, GitError> {
-    let app_state = state.state.clone();
-    blocking("reflog", move || app_state.reflog(repo, limit)).await
-}
-
-#[tauri::command]
-#[specta::specta]
 pub async fn lost_commits(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,
@@ -1512,18 +1475,6 @@ pub async fn close_repository(
         Ok(app_state.close_repository(repo))
     })
     .await
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn submodules(
-    state: tauri::State<'_, crate::AppContext>,
-    repo: RepoId,
-) -> Result<Vec<Submodule>, GitError> {
-    let app_state = state.state.clone();
-    let found = blocking("submodules", move || app_state.submodules(repo)).await?;
-    tracing::info!(repo = repo.0, submodules = found.len(), "submodules listed");
-    Ok(found)
 }
 
 #[tauri::command]

@@ -45,13 +45,18 @@ fn a_ten_thousand_commit_repository_opens_and_streams() {
     let mut rows = 0_usize;
     let streaming = Instant::now();
     state
-        .stream_graph(repo, DEFAULT_CHUNK_SIZE, |chunk| {
-            if first_chunk.is_none() && !chunk.commits.is_empty() {
-                first_chunk = Some(streaming.elapsed());
-            }
-            rows += chunk.commits.len();
-            true
-        })
+        .search_graph(
+            repo,
+            &git_engine::CommitQuery::default(),
+            DEFAULT_CHUNK_SIZE,
+            |chunk| {
+                if first_chunk.is_none() && !chunk.commits.is_empty() {
+                    first_chunk = Some(streaming.elapsed());
+                }
+                rows += chunk.commits.len();
+                true
+            },
+        )
         .unwrap();
 
     assert_eq!(rows, COMMITS as usize);
@@ -145,13 +150,18 @@ fn fifty_thousand_commits_meet_the_product_promise() {
     let mut rows = 0_usize;
     let streaming = Instant::now();
     state
-        .stream_graph(repo, DEFAULT_CHUNK_SIZE, |chunk| {
-            if first.is_none() && !chunk.commits.is_empty() {
-                first = Some(streaming.elapsed());
-            }
-            rows += chunk.commits.len();
-            true
-        })
+        .search_graph(
+            repo,
+            &git_engine::CommitQuery::default(),
+            DEFAULT_CHUNK_SIZE,
+            |chunk| {
+                if first.is_none() && !chunk.commits.is_empty() {
+                    first = Some(streaming.elapsed());
+                }
+                rows += chunk.commits.len();
+                true
+            },
+        )
         .unwrap();
 
     assert_eq!(rows, 50_000);

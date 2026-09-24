@@ -68,15 +68,6 @@ impl CommitQuery {
 }
 
 impl RepoHandle {
-    pub fn stream_commits(
-        &self,
-        chunk_size: usize,
-        on_chunk: impl FnMut(Vec<CommitRow>) -> bool,
-    ) -> Result<()> {
-        self.search_commits(&CommitQuery::default(), chunk_size, on_chunk)
-            .map(drop)
-    }
-
     /// Every tip peeled to a commit; a ref that names none is reported, not fatal (R-157).
     fn tips_for(&self, query: &CommitQuery) -> Result<(Vec<gix::ObjectId>, Vec<SkippedRef>)> {
         let Some(names) = query.visible_refs.as_deref() else {

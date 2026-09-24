@@ -111,7 +111,6 @@ export const commands = {
 	skipOperation: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("skip_operation", { repo })),
 	cherryPick: (repo: RepoId, commits: string[]) => typedError<null, GitError>(__TAURI_INVOKE("cherry_pick", { repo, commits })),
 	revert: (repo: RepoId, commits: string[]) => typedError<null, GitError>(__TAURI_INVOKE("revert", { repo, commits })),
-	reflog: (repo: RepoId, limit: number) => typedError<ReflogEntry[], GitError>(__TAURI_INVOKE("reflog", { repo, limit })),
 	lostCommits: (repo: RepoId, limit: number) => typedError<CommitRow[], GitError>(__TAURI_INVOKE("lost_commits", { repo, limit })),
 	/**
 	 *  Each row not cached costs a `head`, a `branches` and a `status`, so it leaves the
@@ -119,7 +118,6 @@ export const commands = {
 	 */
 	repositories: () => typedError<RepoOverview[], GitError>(__TAURI_INVOKE("repositories")),
 	closeRepository: (repo: RepoId) => typedError<boolean, GitError>(__TAURI_INVOKE("close_repository", { repo })),
-	submodules: (repo: RepoId) => typedError<Submodule[], GitError>(__TAURI_INVOKE("submodules", { repo })),
 	updateSubmodule: (repo: RepoId, path: string, init: boolean) => typedError<null, GitError>(__TAURI_INVOKE("update_submodule", { repo, path, init })),
 	/**  Empty `paths` means every submodule, for Initialize and Synchronize only. */
 	submoduleOp: (repo: RepoId, op: SubmoduleOp, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("submodule_op", { repo, op, paths })),
@@ -256,8 +254,6 @@ export const commands = {
 	 *  exactly the moment it was worth keeping.
 	 */
 	logFromFrontend: (level: string, message: string, context: string) => __TAURI_INVOKE<void>("log_from_frontend", { level, message, context }),
-	/**  Everything `Help ▸ Copy Diagnostics` puts on the clipboard, as text. */
-	diagnostics: () => __TAURI_INVOKE<string>("diagnostics"),
 	/**
 	 *  Answered by the page to show it is still running while a close is pending.
 	 * 
@@ -265,13 +261,6 @@ export const commands = {
 	 *  it works without the page knowing about it (problem 13).
 	 */
 	closingPing: () => __TAURI_INVOKE<void>("closing_ping"),
-	/**
-	 *  Every path in the repository: tracked plus untracked, never ignored.
-	 * 
-	 *  Not the change list. The Files panel searches what changed; this is what lets it find
-	 *  a file that nothing happened to, the way SmartGit does.
-	 */
-	listAllRepoFiles: (repo: RepoId) => typedError<string[], GitError>(__TAURI_INVOKE("list_all_repo_files", { repo })),
 	/**  Every file of a commit's tree: the Files panel's Unchanged switch on a commit. */
 	commitTreeFiles: (repo: RepoId, rev: string) => typedError<string[], GitError>(__TAURI_INVOKE("commit_tree_files", { repo, rev })),
 	/**
@@ -1178,14 +1167,6 @@ export type RebaseStep = {
 export type RefDate = {
 	fullName: string,
 	/**  Unix seconds: the tagger's for an annotated tag, the committer's otherwise. */
-	timestamp: number,
-};
-
-export type ReflogEntry = {
-	selector: string,
-	oid: string,
-	action: string,
-	message: string,
 	timestamp: number,
 };
 

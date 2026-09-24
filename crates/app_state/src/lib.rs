@@ -335,15 +335,6 @@ impl AppState {
         self.graph_generation.load(Ordering::SeqCst) == generation
     }
 
-    /// Tests and a machine without a credential store share this constructor.
-    #[must_use]
-    pub fn with_secrets(secrets: Box<dyn SecretStore>) -> Self {
-        Self {
-            secrets,
-            ..Self::new()
-        }
-    }
-
     /// Turning avatars on is what creates the cache directory; `off` never gets here.
     pub fn enable_avatars(&self, dir: std::path::PathBuf) -> Result<(), ::avatars::CacheError> {
         self.enable_avatars_with(dir, std::sync::Arc::new(::avatars::Gravatar::new()))
@@ -528,22 +519,6 @@ impl AppState {
             index_lock,
             tag_group_separator,
         })
-    }
-
-    /// `on_chunk` returning `false` abandons the walk; no final chunk is sent.
-    pub fn stream_graph(
-        &self,
-        repo: RepoId,
-        chunk_size: usize,
-        on_chunk: impl FnMut(GraphChunk) -> bool,
-    ) -> Result<(), git_engine::GitError> {
-        self.search_graph(
-            repo,
-            &git_engine::CommitQuery::default(),
-            chunk_size,
-            on_chunk,
-        )
-        .map(drop)
     }
 
     /// A filtered history is a flat list, not a graph: the parents of a match are usually
@@ -1290,14 +1265,6 @@ impl AppState {
         Ok(())
     }
 
-    pub fn reflog(
-        &self,
-        repo: RepoId,
-        limit: u32,
-    ) -> Result<Vec<git_engine::ReflogEntry>, git_engine::GitError> {
-        self.handle(repo)?.reflog(limit as usize)
-    }
-
     pub fn lost_commits(
         &self,
         repo: RepoId,
@@ -1423,13 +1390,6 @@ impl AppState {
         row
     }
 
-    pub fn submodules(
-        &self,
-        repo: RepoId,
-    ) -> Result<Vec<git_engine::Submodule>, git_engine::GitError> {
-        self.handle(repo)?.submodules()
-    }
-
     /// Resolved here on every call: the frontend names a scope, never a path to write.
     fn config_target(
         &self,
@@ -1486,11 +1446,6 @@ impl AppState {
             return self.handle(repo)?.submodules();
         }
         git_engine::RepoHandle::open_exact(&self.module_root(repo, parent)?)?.submodules()
-    }
-
-    /// Every path in the repository, tracked and untracked, never ignored.
-    pub fn all_files(&self, repo: RepoId) -> Result<Vec<String>, git_engine::GitError> {
-        self.handle(repo)?.all_files()
     }
 
     pub fn tree_files(&self, repo: RepoId, rev: &str) -> Result<Vec<String>, git_engine::GitError> {
@@ -1707,8 +1662,6 @@ impl AppState {
         repos
     }
 }
-
-pub type SharedState = Arc<AppState>;
 
 #[cfg(test)]
 mod tests {
