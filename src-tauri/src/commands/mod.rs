@@ -705,7 +705,8 @@ pub async fn commit(
     Ok(oid)
 }
 
-#[tauri::command]
+/// Off the main thread: the whole journal can be a hundred megabyte-sized entries.
+#[tauri::command(async)]
 #[specta::specta]
 pub fn command_log(state: tauri::State<'_, crate::AppContext>) -> Vec<GitOutput> {
     state.state.command_log()
