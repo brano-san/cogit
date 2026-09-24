@@ -360,6 +360,7 @@ describe("graph reload", () => {
 });
 
 describe("graph windows", () => {
+  const BLOCK_ROWS = 128;
   const history = Array.from({ length: 1000 }, (_, i) => `c${i}`);
 
   async function long() {
@@ -386,6 +387,38 @@ describe("graph windows", () => {
     await settle();
 
     expect(graph.rowAt(720)?.commit.oid).toBe("c720");
+  });
+
+  const starts = () => commands.graphWindow.mock.calls.map(([, , start]) => start);
+
+  it("asks for the blocks past the screen the way the list is scrolling", async () => {
+    await long();
+    await settle();
+    commands.graphWindow.mockClear();
+
+    graph.show(300, 340);
+
+    expect(starts()).toEqual([128, 256, 384, 512, 640, 768, 896]);
+  });
+
+  it("asks ahead upwards when the list scrolls up", async () => {
+    await long();
+    graph.show(700, 740);
+    await settle();
+    commands.graphWindow.mockClear();
+
+    graph.show(690, 730);
+
+    expect(starts()).toEqual([384, 256, 128]);
+  });
+
+  it("asks nothing ahead while the list stands still", async () => {
+    commands.graphWindow.mockClear();
+    await long();
+    graph.show(0, 40);
+    await settle();
+
+    expect(Math.max(...starts())).toBeLessThan(BLOCK_ROWS);
   });
 
   it("finds a commit that is not loaded by asking for its row", async () => {
