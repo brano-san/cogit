@@ -613,6 +613,25 @@ pub async fn graph_row_of(
     Ok(state.state.graph_row_of(repo, generation, &oid))
 }
 
+/// Colours and dimming for rows of graph `generation`, painted over the whole graph and
+/// kept until the rows or the request change. `None` once a newer graph replaced it.
+#[tauri::command]
+#[specta::specta]
+pub async fn graph_overlay(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    generation: u32,
+    start: u32,
+    count: u32,
+    request: app_state::graph_overlay::GraphPaintRequest,
+) -> Result<Option<app_state::graph_overlay::GraphOverlay>, GitError> {
+    let app_state = state.state.clone();
+    blocking("graph_overlay", move || {
+        Ok(app_state.graph_overlay(repo, generation, start, count, &request))
+    })
+    .await
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn commit_details(

@@ -89,6 +89,18 @@
   /* The graph: the main line in the foreground colour, every other line one grey. */
   --graph-main: var(--text-primary);
   --graph-line: var(--text-secondary);
+  /* Branches ticked in Branches, each in its own colour (#11). Every theme keeps them at
+     3:1 or more against the panel and the selected row (graph-palette.test.ts). */
+  --graph-branch-1: var(--c-lane-1);
+  --graph-branch-2: var(--c-lane-2);
+  --graph-branch-3: var(--c-lane-3);
+  --graph-branch-4: var(--c-lane-4);
+  --graph-branch-5: var(--c-lane-5);
+  --graph-branch-6: var(--c-lane-6);
+  --graph-branch-7: var(--c-lane-7);
+  --graph-branch-8: var(--c-lane-8);
+  /* The branch of the chosen commit, where it has no colour of its own. */
+  --graph-focus: var(--status-ref);
   --status-stash: var(--c-stash);
   --status-tag: var(--c-tag);
   /* Where a repository stands: its row in Repositories, the worktree label in Branches
@@ -262,7 +274,8 @@
   --c-stash: #7042c9;
 }
 
-/* Red and violet a step lighter than dark: on a grey panel the dark ones fall below 4.5:1. */
+/* Red and violet a step lighter than dark: on a grey panel the dark ones fall below 4.5:1,
+   and the violet and pink branch colours below 3:1 on a selected row. */
 :root[data-theme="darkGrey"] {
   --c-bg-window: #25272c;
   --c-bg-panel: #2d3036;
@@ -284,6 +297,8 @@
 
   --c-deleted: #f87171;
   --c-stash: #c084fc;
+  --c-lane-4: #c084fc;
+  --c-lane-5: #f472b6;
 }
 
 @media (prefers-reduced-motion: reduce) {

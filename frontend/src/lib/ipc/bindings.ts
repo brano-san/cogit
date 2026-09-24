@@ -28,6 +28,23 @@ export const commands = {
 	 */
 	graphWindow: (repo: RepoId, generation: number, start: number, count: number) => typedError<string, GitError>(__TAURI_INVOKE("graph_window", { repo, generation, start, count })),
 	graphRowOf: (repo: RepoId, generation: number, oid: string) => typedError<number | null, GitError>(__TAURI_INVOKE("graph_row_of", { repo, generation, oid })),
+	/**
+	 *  Colours and dimming for rows of graph `generation`, painted over the whole graph and
+	 *  kept until the rows or the request change. `None` once a newer graph replaced it.
+	 */
+	graphOverlay: (repo: RepoId, generation: number, start: number, count: number, request: GraphPaintRequest) => typedError<{
+	start: number,
+	/**  Rows laid out when this was painted: a later row can still change it. */
+	total: number,
+	nodeLanes: number[],
+	/**  `graph_engine::PAINT_SLOT` bits are the slot plus one, 0 the default colour; `PAINT_DIM` dims. */
+	nodeStyles: number[],
+	segmentFirst: number[],
+	segmentLanes: number[],
+	segmentStyles: number[],
+	/**  Folded merges among the window's rows. */
+	folds: Fold[],
+} | null, GitError>(__TAURI_INVOKE("graph_overlay", { repo, generation, start, count, request })),
 	/**  Every commit that changed the file, newest first, from `rev` (HEAD when absent). */
 	investigateLog: (repo: RepoId, path: string, rev: string | null, follow: boolean, onChunk: Channel<FileRevision[]>) => typedError<number, GitError>(__TAURI_INVOKE("investigate_log", { repo, path, rev, follow, onChunk })),
 	/**  The file at `rev` (the working tree when absent), each line with its origin. */
@@ -544,6 +561,8 @@ export type CommitQuery = {
 	path?: string | null,
 	/**  Refs the References panel ticked; `None` is every ref, `Some([])` is none. */
 	visibleRefs?: string[] | null,
+	/**  How the graph shows the walked history; a filtered list ignores it. */
+	view?: GraphView,
 	/**  Not a filter: how the graph this load lays out cuts long links (R-330). */
 	longLinkRows?: number | null,
 };
@@ -770,6 +789,12 @@ export type FlowStatus = {
 	branches: FlowBranch[],
 };
 
+/**  A merge shown as one row, and how many commits its fold holds so far. */
+export type Fold = {
+	row: number,
+	hidden: number,
+};
+
 export type Found = {
 	kind: FoundKind,
 	label: string,
@@ -829,6 +854,26 @@ export type GitOutput = {
 	startedAtMs: number,
 };
 
+export type GraphOverlay = {
+	start: number,
+	/**  Rows laid out when this was painted: a later row can still change it. */
+	total: number,
+	nodeLanes: number[],
+	/**  `graph_engine::PAINT_SLOT` bits are the slot plus one, 0 the default colour; `PAINT_DIM` dims. */
+	nodeStyles: number[],
+	segmentFirst: number[],
+	segmentLanes: number[],
+	segmentStyles: number[],
+	/**  Folded merges among the window's rows. */
+	folds: Fold[],
+};
+
+export type GraphPaintRequest = {
+	tips?: PaintTip[],
+	/**  All but this commit's ancestors and descendants is dimmed. */
+	ancestryOf?: string | null,
+};
+
 /**  How far the walk got. The rows themselves travel only when asked for, by window. */
 export type GraphProgress = {
 	generation: number,
@@ -848,6 +893,15 @@ export type GraphRow = {
 	segments: Segment[],
 	/**  Stubs standing for a link too long to draw whole (R-330), with the far end of each. */
 	links: LongLink[],
+};
+
+/**  Graph modes that decide which commits the graph shows (`graph_engine::ViewFilter`). */
+export type GraphView = {
+	/**  `--first-parent`: one line per ticked ref, merged branches left out. */
+	firstParent?: boolean,
+	/**  A merged branch is one row at its merge, but for the merges in `expanded`. */
+	collapseMerged?: boolean,
+	expanded?: string[],
 };
 
 /**  Assuming "HEAD is a branch" crashes on an unborn or detached checkout (INV-07). */
@@ -1136,6 +1190,11 @@ export type OverlapRow = {
 	isBase: boolean,
 	shared: string[],
 	sharedTotal: number,
+};
+
+export type PaintTip = {
+	oid: string,
+	slot: number,
 };
 
 export type PatchRequest = {
