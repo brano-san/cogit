@@ -3286,6 +3286,7 @@
             active={focused === "graph"}
             view={panelState}
             count={graph.total}
+            busy={graph.loading}
             stale={stale.has("graph")}
           >
             {#snippet actions()}

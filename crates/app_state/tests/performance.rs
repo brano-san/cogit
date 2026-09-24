@@ -177,6 +177,82 @@ fn fifty_thousand_commits_meet_the_product_promise() {
     );
 }
 
+/// The walk takes parents and dates from the commit-graph file when there is one (R-302).
+#[test]
+fn fifty_thousand_commits_with_a_commit_graph_are_laid_out_in_the_budget() {
+    let f = test_fixtures::stress(50_000).unwrap();
+    f.git(&["commit-graph", "write", "--reachable"]).unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let generation = state.begin_graph();
+    let started = Instant::now();
+    let mut rows = 0;
+    state
+        .build_graph(
+            repo,
+            &CommitQuery::default(),
+            generation,
+            DEFAULT_CHUNK_SIZE,
+            |p| {
+                rows = p.total;
+                true
+            },
+        )
+        .unwrap();
+    let walked = started.elapsed();
+    let window = Instant::now();
+    let shown = state.graph_window(repo, generation, 0, 128).unwrap();
+
+    assert_eq!(rows, 50_000);
+    assert_eq!(shown.commits[0].summary, "commit 49999");
+    report(
+        "50k + commit-graph: laid out",
+        walked,
+        Duration::from_millis(500),
+    );
+    report(
+        "50k + commit-graph: first window",
+        window.elapsed(),
+        Duration::from_millis(100),
+    );
+}
+
+/// Ticking a ref re-lays the graph from the rows the last walk read (R-301).
+#[test]
+fn fifty_thousand_commits_are_laid_out_again_from_the_last_graph() {
+    let f = test_fixtures::stress(50_000).unwrap();
+    f.git(&["branch", "side", "HEAD~25000"]).unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let walk = |query: &CommitQuery| {
+        let generation = state.begin_graph();
+        let started = Instant::now();
+        let mut rows = 0;
+        state
+            .build_graph(repo, query, generation, DEFAULT_CHUNK_SIZE, |p| {
+                rows = p.total;
+                true
+            })
+            .unwrap();
+        (started.elapsed(), rows)
+    };
+
+    let (full, _) = walk(&CommitQuery::default());
+    let (again, rows) = walk(&CommitQuery {
+        visible_refs: Some(vec!["refs/heads/main".to_owned(), "HEAD".to_owned()]),
+        ..CommitQuery::default()
+    });
+
+    assert_eq!(rows, 50_000);
+    println!("50k: first walk {:>7} ms", full.as_millis());
+    report(
+        "50k: walked again after a tick",
+        again,
+        Duration::from_millis(500),
+    );
+}
+
 #[test]
 fn status_on_a_large_repository_stays_inside_its_budget() {
     let f = test_fixtures::stress(COMMITS).unwrap();

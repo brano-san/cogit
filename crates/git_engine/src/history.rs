@@ -16,6 +16,16 @@ pub struct CommitRow {
     pub tz_offset_minutes: i32,
 }
 
+/// The part of a row read from the commit object itself; the graph reads it for the rows
+/// on screen only (R-302).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CommitText {
+    pub summary: String,
+    pub author_name: String,
+    pub author_email: String,
+    pub tz_offset_minutes: i32,
+}
+
 const SECONDS_PER_MINUTE: i32 = 60;
 
 impl RepoHandle {
@@ -45,6 +55,37 @@ impl RepoHandle {
         Ok(tips)
     }
 
+    /// Every ref and where HEAD points, hashed. Equal prints mean the graph walk would start
+    /// from the same tips; only the ref store is read, never a commit.
+    pub fn refs_fingerprint(&self) -> Result<u64> {
+        use std::hash::{Hash as _, Hasher as _};
+        fn add(hasher: &mut impl std::hash::Hasher, reference: &gix::Reference<'_>) {
+            reference.name().as_bstr().hash(hasher);
+            match reference.target() {
+                gix::refs::TargetRef::Object(id) => id.as_bytes().hash(hasher),
+                gix::refs::TargetRef::Symbolic(name) => name.as_bstr().hash(hasher),
+            }
+        }
+
+        let platform = self
+            .repo
+            .references()
+            .map_err(|err| GitError::Internal(format!("cannot read references: {err}")))?;
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        for reference in platform
+            .all()
+            .map_err(|err| GitError::Internal(format!("cannot list references: {err}")))?
+        {
+            let reference = reference
+                .map_err(|err| GitError::Internal(format!("cannot read a reference: {err}")))?;
+            add(&mut hasher, &reference);
+        }
+        if let Ok(head) = self.repo.find_reference("HEAD") {
+            add(&mut hasher, &head);
+        }
+        Ok(hasher.finish())
+    }
+
     /// One row from an id and its parents, whichever walk produced them.
     pub(crate) fn row_of(
         &self,
@@ -52,6 +93,26 @@ impl RepoHandle {
         parents: &[gix::ObjectId],
         mailmap: &crate::Mailmap,
     ) -> Result<CommitRow> {
+        let (text, timestamp) = self.read_text(id, mailmap)?;
+        Ok(CommitRow {
+            oid: id.to_string(),
+            parents: parents.iter().map(ToString::to_string).collect(),
+            summary: text.summary,
+            author_name: text.author_name,
+            author_email: text.author_email,
+            timestamp,
+            tz_offset_minutes: text.tz_offset_minutes,
+        })
+    }
+
+    /// Subject, author through `mailmap`, and the committer time's offset of `oid`.
+    pub fn commit_text(&self, oid: &str, mailmap: &crate::Mailmap) -> Result<CommitText> {
+        let id = gix::ObjectId::from_hex(oid.as_bytes())
+            .map_err(|err| GitError::Internal(format!("not an object id {oid}: {err}")))?;
+        Ok(self.read_text(id, mailmap)?.0)
+    }
+
+    fn read_text(&self, id: gix::ObjectId, mailmap: &crate::Mailmap) -> Result<(CommitText, i64)> {
         let commit = self
             .repo
             .find_commit(id)
@@ -71,15 +132,13 @@ impl RepoHandle {
             (author.name.to_string(), author.email.to_string());
         mailmap.apply(&mut author_name, &mut author_email);
 
-        Ok(CommitRow {
-            oid: id.to_string(),
-            parents: parents.iter().map(ToString::to_string).collect(),
+        let text = CommitText {
             summary: message.summary().to_string(),
             author_name,
             author_email,
-            timestamp: time.seconds,
             tz_offset_minutes: time.offset / SECONDS_PER_MINUTE,
-        })
+        };
+        Ok((text, time.seconds))
     }
 }
 

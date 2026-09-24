@@ -1,5 +1,6 @@
+use crate::graph_walk::{ByTime, CommitReader, Reuse, WalkedHistory};
 use crate::topo::{LOOKAHEAD, in_date_order};
-use crate::{CommitRow, GitError, RepoHandle, Result};
+use crate::{CommitRow, RepoHandle, Result};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
@@ -51,7 +52,8 @@ impl CommitQuery {
         } == Self::default()
     }
 
-    /// A per-commit predicate forces a flat list; narrowing the ticked refs does not (R-51).
+    /// A per-commit predicate forces a flat list; narrowing the ticked refs or following
+    /// first parents only does not (R-51).
     #[must_use]
     pub fn filters_rows(&self) -> bool {
         Self {
@@ -101,7 +103,10 @@ impl RepoHandle {
             .collect())
     }
 
-    fn tips_for(&self, query: &CommitQuery) -> Result<(Vec<gix::ObjectId>, Vec<SkippedRef>)> {
+    pub(crate) fn tips_for(
+        &self,
+        query: &CommitQuery,
+    ) -> Result<(Vec<gix::ObjectId>, Vec<SkippedRef>)> {
         let Some(names) = query.visible_refs.as_deref() else {
             return Ok((self.graph_tips()?, Vec::new()));
         };
@@ -136,61 +141,96 @@ impl RepoHandle {
         chunk_size: usize,
         on_chunk: impl FnMut(Vec<CommitRow>) -> bool,
     ) -> Result<Vec<SkippedRef>> {
+        let rows = GraphRows {
+            reuse: None,
+            record: None,
+            text: true,
+        };
+        self.graph_commits(query, chunk_size, rows, on_chunk)
+    }
+
+    /// `search_commits` for the graph: time and parents of a commit `reuse` holds come from
+    /// there (R-301); `record` lists every row for the walk after it; without `text`, rows
+    /// carry no subject or author, only what the walk read (R-302).
+    pub fn graph_commits(
+        &self,
+        query: &CommitQuery,
+        chunk_size: usize,
+        rows: GraphRows<'_, '_>,
+        on_chunk: impl FnMut(Vec<CommitRow>) -> bool,
+    ) -> Result<Vec<SkippedRef>> {
+        let GraphRows {
+            reuse,
+            record,
+            text,
+        } = rows;
+        // Rows without text cannot be matched against a filter.
+        let text = text || query.filters_rows();
         let (tips, skipped) = self.tips_for(query)?;
         if !tips.is_empty() {
-            // Only a tip: `first` has to be in the walk, or the whole of it is read up front.
-            let head = self
-                .repo
-                .head_id()
-                .ok()
-                .map(gix::Id::detach)
-                .filter(|head| tips.contains(head));
+            let head = self.first_of(&tips);
+            let reader = CommitReader::new(&self.repo);
+            let read = |id| {
+                reuse
+                    .and_then(|reuse| reuse.read(&id))
+                    .or_else(|| reader.read(id))
+            };
+            // A filtered list shows matches from every line, the merged ones too (#26).
+            let first_parent = query.view.first_parent && !query.filters_rows();
+            let walk = ByTime::new(tips, read, first_parent, self.shallow_commits());
+            let rows = Rows { record, text };
             self.stream_rows(
                 query,
                 chunk_size,
-                in_date_order(self.by_date(tips)?, LOOKAHEAD, head),
+                in_date_order(walk, LOOKAHEAD, head),
+                rows,
                 on_chunk,
             )?;
         }
         Ok(skipped)
     }
 
-    /// Newest first by commit time; an unreadable object is logged and skipped.
-    fn by_date(
-        &self,
-        tips: Vec<gix::ObjectId>,
-    ) -> Result<impl Iterator<Item = (gix::ObjectId, Vec<gix::ObjectId>)> + '_> {
-        Ok(self
-            .repo
-            .rev_walk(tips)
-            .sorting(gix::revision::walk::Sorting::ByCommitTime(
-                gix::traverse::commit::simple::CommitTimeOrder::NewestFirst,
-            ))
-            .all()
-            .map_err(|err| GitError::Internal(format!("cannot walk history: {err}")))?
-            .filter_map(|step| match step {
-                Ok(info) => Some((info.id, info.parent_ids.into_iter().collect())),
-                Err(err) => {
-                    tracing::warn!(error = %err, "skipping an unreadable commit");
-                    None
-                }
-            }))
+    /// HEAD, when it is a tip: `first` has to be in the walk, or all of it is read up front.
+    pub(crate) fn first_of(&self, tips: &[gix::ObjectId]) -> Option<gix::ObjectId> {
+        self.repo
+            .head_id()
+            .ok()
+            .map(gix::Id::detach)
+            .filter(|head| tips.contains(head))
     }
 
     fn stream_rows(
         &self,
         query: &CommitQuery,
         chunk_size: usize,
-        walk: impl Iterator<Item = (gix::ObjectId, Vec<gix::ObjectId>)>,
+        walk: impl Iterator<Item = (gix::ObjectId, Vec<gix::ObjectId>, i64)>,
+        mut rows: Rows<'_>,
         mut on_chunk: impl FnMut(Vec<CommitRow>) -> bool,
     ) -> Result<()> {
         let chunk_size = chunk_size.max(1);
         let mut chunk = Vec::with_capacity(chunk_size);
+        let mut listed = 0_u32;
         // Once per walk: a `stat` per row would cost more than reading the commit.
-        let mailmap = self.mailmap();
+        let mailmap = if rows.text {
+            self.mailmap()
+        } else {
+            std::sync::Arc::default()
+        };
 
-        for (id, parents) in walk {
-            let row = self.row_of(id, &parents, &mailmap)?;
+        for (id, parents, time) in walk {
+            let row = if rows.text {
+                self.row_of(id, &parents, &mailmap)?
+            } else {
+                CommitRow {
+                    oid: id.to_string(),
+                    parents: parents.iter().map(ToString::to_string).collect(),
+                    summary: String::new(),
+                    author_name: String::new(),
+                    author_email: String::new(),
+                    timestamp: time,
+                    tz_offset_minutes: 0,
+                }
+            };
             if !query.matches_row(&row) {
                 continue;
             }
@@ -201,6 +241,10 @@ impl RepoHandle {
                 continue;
             }
 
+            if let Some(record) = rows.record.as_deref_mut() {
+                record.push(id, listed, row.timestamp, parents);
+            }
+            listed = listed.saturating_add(1);
             chunk.push(row);
             if chunk.len() >= chunk_size {
                 let full = std::mem::replace(&mut chunk, Vec::with_capacity(chunk_size));
@@ -274,4 +318,18 @@ impl RepoHandle {
 
 fn contains_ignoring_case(haystack: &str, needle: &str) -> bool {
     haystack.to_lowercase().contains(&needle.to_lowercase())
+}
+
+/// Where a walk lists its rows, and whether it reads their text.
+struct Rows<'h> {
+    record: Option<&'h mut WalkedHistory>,
+    text: bool,
+}
+
+/// How a graph walk gets and gives its rows (`graph_commits`).
+#[derive(Debug)]
+pub struct GraphRows<'r, 'h> {
+    pub reuse: Option<Reuse<'r>>,
+    pub record: Option<&'h mut WalkedHistory>,
+    pub text: bool,
 }

@@ -47,6 +47,7 @@ vi.mock("$lib/ipc/bindings", () => ({ commands }));
 vi.mock("$lib/graph-wire", () => ({ decodeBase64Window: (block: unknown) => block }));
 
 const { graph } = await import("./graph.svelte");
+const { repository } = await import("./repository.svelte");
 
 type RepoId = import("$lib/ipc").RepoId;
 const A = 1 as RepoId;
@@ -101,6 +102,7 @@ async function loaded(repo: RepoId, history: string[]) {
 }
 
 beforeEach(() => {
+  repository.phase = { kind: "closed" };
   graph.clear();
   streams.length = 0;
   built.clear();
@@ -213,6 +215,46 @@ describe("graph reload", () => {
     expect(oids()).toEqual(["x", "y", "z", "w", "v"]);
   });
 
+  /** A reload whose first `kept` rows Rust says are the rows of generation `base`. */
+  async function reloadKeeping(rows: string[], base: number, kept: number) {
+    const reload = graph.load(A);
+    const stream = streams.at(-1)!;
+    built.get(stream.generation)!.push(...rows);
+    walked.add(stream.generation);
+    stream.channel.onmessage?.({ generation: stream.generation, total: rows.length, isLast: true, base, kept });
+    await settle();
+    stream.finish({ status: "ok", data: [] });
+    await reload;
+    return commands.graphWindow.mock.calls
+      .filter(([, generation]) => generation === stream.generation)
+      .map(([, , start]) => start);
+  }
+
+  it("keeps the blocks a reload repeats row for row instead of asking for them", async () => {
+    const old = ids(300, "o");
+    await loaded(A, old);
+    const shown = streams.at(-1)!.generation;
+    commands.graphWindow.mockClear();
+
+    const asked = await reloadKeeping([...old.slice(0, 200), ...ids(100, "n")], shown, 200);
+
+    expect(asked).not.toContain(0);
+    expect(asked).toContain(128);
+    expect(graph.rowAt(0)?.commit.oid).toBe("o0");
+    expect(graph.rowAt(250)?.commit.oid).toBe("n50");
+  });
+
+  it("asks for every block when the rows kept belong to another walk", async () => {
+    await loaded(A, ids(300, "o"));
+    const shown = streams.at(-1)!.generation;
+    commands.graphWindow.mockClear();
+
+    const asked = await reloadKeeping(ids(300, "n"), shown - 1, 300);
+
+    expect(asked).toContain(0);
+    expect(graph.rowAt(0)?.commit.oid).toBe("n0");
+  });
+
   it("swaps in a shorter history once it is complete", async () => {
     await loaded(A, ["a", "b", "c"]);
 
@@ -235,12 +277,56 @@ describe("graph reload", () => {
     expect(oids()).toEqual([]);
   });
 
-  it("never shows one repository's history while another one loads", async () => {
+  // Switching blinked: A's graph, an empty list, then B's (R-300).
+  it("keeps the last repository's history on screen until the next one's arrives", async () => {
     await loaded(A, ["a", "b"]);
 
-    void graph.load(B);
+    const load = graph.load(B);
+    expect(oids()).toEqual(["a", "b"]);
+    expect(graph.shownRepo).toBe(A);
+    await last().send(["x", "y", "z"], true);
+    last().finish();
+    await load;
 
-    expect(oids()).toEqual([]);
+    expect(oids()).toEqual(["x", "y", "z"]);
+    expect(graph.shownRepo).toBe(B);
+  });
+
+  it("opens another repository's history at its top, wherever the last one was", async () => {
+    await loaded(A, ids(600, "a"));
+    graph.show(500, 540);
+    await settle();
+    const home = graph.home;
+
+    void graph.load(B);
+    await last().send(ids(40, "b"));
+
+    expect(graph.shownRepo).toBe(B);
+    expect(graph.home).toBe(home + 1);
+    expect(graph.rowAt(0)?.commit.oid).toBe("b0");
+  });
+
+  it("drops a load asked for by a repository the panels have left", async () => {
+    await loaded(A, ["a", "b"]);
+    repository.adopt({ repo: B, root: "/b" } as import("$lib/ipc").RepoSummary);
+    const started = streams.length;
+
+    await graph.load(A);
+
+    expect(streams.length).toBe(started);
+    expect(oids()).toEqual(["a", "b"]);
+  });
+
+  it("never lets a reload of the repository left take the screen after it", async () => {
+    await loaded(A, ["a", "b"]);
+    void graph.load(A);
+    const reload = last();
+
+    repository.adopt({ repo: B, root: "/b" } as import("$lib/ipc").RepoSummary);
+    await reload.send(["x", "y", "z"], true);
+
+    expect(oids()).toEqual(["a", "b"]);
+    expect(graph.loading).toBe(false);
   });
 
   it("shows a first history as it streams in", async () => {
@@ -274,6 +360,7 @@ describe("graph reload", () => {
 });
 
 describe("graph windows", () => {
+  const BLOCK_ROWS = 128;
   const history = Array.from({ length: 1000 }, (_, i) => `c${i}`);
 
   async function long() {
@@ -302,6 +389,38 @@ describe("graph windows", () => {
     expect(graph.rowAt(720)?.commit.oid).toBe("c720");
   });
 
+  const starts = () => commands.graphWindow.mock.calls.map(([, , start]) => start);
+
+  it("asks for the blocks past the screen the way the list is scrolling", async () => {
+    await long();
+    await settle();
+    commands.graphWindow.mockClear();
+
+    graph.show(300, 340);
+
+    expect(starts()).toEqual([128, 256, 384, 512, 640, 768, 896]);
+  });
+
+  it("asks ahead upwards when the list scrolls up", async () => {
+    await long();
+    graph.show(700, 740);
+    await settle();
+    commands.graphWindow.mockClear();
+
+    graph.show(690, 730);
+
+    expect(starts()).toEqual([384, 256, 128]);
+  });
+
+  it("asks nothing ahead while the list stands still", async () => {
+    commands.graphWindow.mockClear();
+    await long();
+    graph.show(0, 40);
+    await settle();
+
+    expect(Math.max(...starts())).toBeLessThan(BLOCK_ROWS);
+  });
+
   it("finds a commit that is not loaded by asking for its row", async () => {
     await long();
 
@@ -324,6 +443,36 @@ describe("graph windows", () => {
     graph.show(700, 740);
 
     expect((await graph.entry(720))?.commit.oid).toBe("c720");
+  });
+});
+
+describe("first parents only", () => {
+  const firstParent = (on: boolean) => ({ firstParent: on, collapseMerged: false, expanded: [] });
+  const view = graph.view;
+
+  it("asks the walk for first parents while the setting is on", async () => {
+    commands.loadCommits.mockClear();
+    graph.view = firstParent(true);
+    void graph.load(A);
+    graph.view = firstParent(false);
+    void graph.load(A);
+    graph.view = view;
+
+    const asked = commands.loadCommits.mock.calls.map(
+      ([, query]) => (query as { view: { firstParent: boolean } }).view.firstParent,
+    );
+    expect(asked).toEqual([true, false]);
+  });
+
+  it("walks the history on screen again when the setting changes, and only then", async () => {
+    await loaded(A, ["a", "b"]);
+    const started = streams.length;
+
+    graph.setView(firstParent(true));
+    graph.setView(firstParent(true));
+
+    expect(streams.length).toBe(started + 1);
+    graph.view = view;
   });
 });
 

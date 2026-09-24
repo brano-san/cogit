@@ -10,6 +10,7 @@ import {
   toCogitError,
 } from "$lib/ipc";
 import type { GraphBlock, GraphEntry } from "$lib/graph-wire";
+import { repository } from "$stores/repository.svelte";
 import { GRAPH_MODE_DEFAULTS, graphView } from "$lib/graph-modes";
 import { LONG_LINK_ROWS } from "$lib/graph-row";
 
@@ -18,8 +19,10 @@ export type { GraphEntry };
 /** Rows per request. A screen is about forty; the next block is asked for early. */
 const BLOCK = 128;
 const AHEAD = 64;
+/** Blocks asked for past that, the way the list is moving, so it finds them there. */
+const LEAD = 4;
 /** Blocks kept per graph; the ones farthest from the screen go first. */
-const KEEP = 48;
+const KEEP = 64;
 
 /** One walk of the history. Its rows stay in Rust and come over by block (R-193). */
 interface Walk {
@@ -70,11 +73,31 @@ class GraphStore {
   /** Bumped when rows arrive, so that whatever read `rowAt` reads again. */
   #arrived = $state(0);
 
+  /** Bumped when another repository's history takes the list: it starts at its top. */
+  home = $state(0);
+
   #shown: Walk | null = null;
   /** A reload catching up; the old rows stay on screen until it covers them (R-186). */
   #next: Walk | null = null;
   #range = { start: 0, end: 0 };
+  /** Which way the list last moved: 1 down, -1 up, 0 not since this history came on. */
+  #heading: -1 | 0 | 1 = 0;
   #loads = 0;
+
+  constructor() {
+    // A reload of the repository being left must not take the screen after it (R-300).
+    repository.onLeave(() => {
+      if (!this.#next) return;
+      this.#loads += 1;
+      this.#next = null;
+      this.loading = false;
+    });
+  }
+
+  /** The repository whose rows are on screen; it lags the one open while its graph loads. */
+  get shownRepo(): RepoId | null {
+    return this.#shown?.repo ?? null;
+  }
 
   /** The walk on screen, for what is fetched beside its rows (paint, #11). */
   get walk(): { repo: RepoId; generation: number | null } | null {
@@ -109,6 +132,7 @@ class GraphStore {
 
   /** The list says which rows are on screen; the missing ones are asked for. */
   show(start: number, end: number): void {
+    if (start !== this.#range.start) this.#heading = start > this.#range.start ? 1 : -1;
     this.#range = { start, end };
     this.#ask(this.#shown);
     this.#ask(this.#next);
@@ -144,10 +168,15 @@ class GraphStore {
   }
 
   async #load(repo: RepoId, query: CommitQuery, retry: boolean): Promise<void> {
+    // Asked for by work begun before the panels moved on to another repository.
+    const open = repository.current?.repo;
+    if (open !== undefined && open !== repo) return;
     const load = ++this.#loads;
     this.query = query;
     const fresh = walk(repo);
-    if (this.#shown?.repo === repo && this.#shown.total > 0) {
+    // Any history on screen stays until the new one covers it, another repository's too:
+    // an empty list between them is the blink R-300 removes.
+    if (this.#shown && this.#shown.total > 0) {
       this.#next = fresh;
     } else {
       this.#next = null;
@@ -162,6 +191,7 @@ class GraphStore {
         repo,
         (progress) => {
           if (load !== this.#loads) return;
+          this.#inherit(fresh, progress.base ?? null, progress.kept ?? 0);
           fresh.generation = progress.generation;
           fresh.total = progress.total;
           fresh.complete = progress.isLast;
@@ -208,7 +238,12 @@ class GraphStore {
   }
 
   #show(next: Walk): void {
+    if (this.#shown && this.#shown.repo !== next.repo) {
+      this.#range = this.#rangeOf(next);
+      this.home += 1;
+    }
     this.#shown = next;
+    this.#heading = 0;
     if (this.#next === next) this.#next = null;
     this.#publish();
   }
@@ -219,11 +254,27 @@ class GraphStore {
     this.#arrived += 1;
   }
 
+  /** Blocks of the history on screen that the new walk repeats row for row (R-301). */
+  #inherit(of: Walk, base: number | null, kept: number): void {
+    const shown = this.#shown;
+    if (base === null || !shown || shown === of || shown.repo !== of.repo || shown.generation !== base) return;
+    for (const [index, block] of shown.blocks) {
+      if (!of.blocks.has(index) && index * BLOCK + block.length <= kept) of.blocks.set(index, block);
+    }
+  }
+
+  /** Where `of` will be on screen: another repository's history opens at its top. */
+  #rangeOf(of: Walk): { start: number; end: number } {
+    if (!this.#shown || this.#shown.repo === of.repo) return this.#range;
+    return { start: 0, end: this.#range.end - this.#range.start };
+  }
+
   /** Blocks around the screen that are missing, or were cut short by the walk. */
   #wanted(of: Walk): number[] {
-    const end = Math.min(this.#range.end + AHEAD, of.total);
+    const range = this.#rangeOf(of);
+    const end = Math.min(range.end + AHEAD, of.total);
     const wanted: number[] = [];
-    for (let index = Math.floor(Math.max(this.#range.start - AHEAD, 0) / BLOCK); index * BLOCK < end; index++) {
+    for (let index = Math.floor(Math.max(range.start - AHEAD, 0) / BLOCK); index * BLOCK < end; index++) {
       const expected = Math.min(BLOCK, of.total - index * BLOCK);
       if ((of.blocks.get(index)?.length ?? 0) < expected) wanted.push(index);
     }
@@ -233,7 +284,24 @@ class GraphStore {
   #ask(of: Walk | null): void {
     if (!of || of.generation === null) return;
     for (const index of this.#wanted(of)) void this.#fetch(of, index);
+    if (of === this.#shown) for (const index of this.#lead(of)) void this.#fetch(of, index);
     this.#promote(of);
+  }
+
+  /** The blocks just past the wanted ones, the way the list is moving; none at rest. */
+  #lead(of: Walk): number[] {
+    if (this.#heading === 0) return [];
+    const { start, end } = this.#range;
+    const first = Math.floor(Math.max(start - AHEAD, 0) / BLOCK);
+    const last = Math.floor((Math.min(end + AHEAD, of.total) - 1) / BLOCK);
+    const lead: number[] = [];
+    for (let step = 1; step <= LEAD; step++) {
+      const index = this.#heading > 0 ? last + step : first - step;
+      if (index < 0 || index * BLOCK >= of.total) break;
+      const expected = Math.min(BLOCK, of.total - index * BLOCK);
+      if ((of.blocks.get(index)?.length ?? 0) < expected) lead.push(index);
+    }
+    return lead;
   }
 
   async #fetch(of: Walk, index: number): Promise<void> {
@@ -290,8 +358,9 @@ class GraphStore {
   /** A reload takes over once it has every row on screen, or has no more to give. */
   #promote(of: Walk): void {
     if (of !== this.#next) return;
-    const long = of.complete || of.total >= this.#range.end;
-    if (long && this.#wanted(of).every((index) => index * BLOCK >= this.#range.end)) this.#show(of);
+    const { end } = this.#rangeOf(of);
+    const long = of.complete || of.total >= end;
+    if (long && this.#wanted(of).every((index) => index * BLOCK >= end)) this.#show(of);
   }
 
   #evict(of: Walk): void {

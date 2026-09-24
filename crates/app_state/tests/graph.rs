@@ -361,6 +361,33 @@ fn a_tag_on_a_tree_is_reported_and_the_graph_is_drawn_without_it() {
     assert_eq!(skipped[0].name, "refs/tags/v-tree");
 }
 
+/// The walk itself follows first parents (R-301); the merge draws its first line only (#26).
+#[test]
+fn first_parents_only_leave_the_merged_side_out_and_draw_one_line() {
+    let f = test_fixtures::diamond().unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let query = git_engine::CommitQuery {
+        view: git_engine::GraphView {
+            first_parent: true,
+            ..git_engine::GraphView::default()
+        },
+        ..visible(&["refs/heads/main", "HEAD"])
+    };
+
+    let chunks = search(&state, repo, &query);
+    let summaries: Vec<&str> = chunks
+        .iter()
+        .flat_map(|c| c.commits.iter().map(|r| r.summary.as_str()))
+        .collect();
+    let rows: Vec<_> = chunks.iter().flat_map(|c| &c.rows).collect();
+
+    assert_eq!(summaries, ["merge dev into main", "commit 2", "commit 0"]);
+    assert!(rows.iter().all(|row| row.lane == 0 && row.width == 1));
+    assert!(rows.iter().all(|row| row.segments.iter().all(|s| !s.arrow)));
+    assert_eq!(chunks[0].commits[0].parents, [f.oid("main~1").unwrap()]);
+}
+
 /// Cutting long links holds the last rows back until the walk ends (R-330); they come
 /// with the closing chunk, and every commit still gets its row, in order.
 #[test]
