@@ -34,6 +34,7 @@ pub(crate) struct GraphCache {
     commits: Vec<CommitRow>,
     rows: Vec<GraphRow>,
     complete: bool,
+    folds: std::collections::BTreeMap<u32, u32>,
     paint: parking_lot::Mutex<crate::graph_overlay::PaintMemo>,
 }
 
@@ -83,6 +84,9 @@ impl AppState {
                 cache.complete |= chunk.is_last;
                 cache.commits.extend(chunk.commits);
                 cache.rows.extend(chunk.rows);
+                cache
+                    .folds
+                    .extend(chunk.folds.iter().map(|fold| (fold.row, fold.hidden)));
                 cache.total()
             };
             on_progress(GraphProgress {
@@ -141,13 +145,14 @@ impl AppState {
         read: impl FnOnce(
             &[CommitRow],
             &[GraphRow],
+            &std::collections::BTreeMap<u32, u32>,
             &parking_lot::Mutex<crate::graph_overlay::PaintMemo>,
         ) -> R,
     ) -> Option<R> {
         let cache = self.graph.read();
         cache
             .holds(repo, generation)
-            .then(|| read(&cache.commits, &cache.rows, &cache.paint))
+            .then(|| read(&cache.commits, &cache.rows, &cache.folds, &cache.paint))
     }
 
     pub(crate) fn forget_graph(&self, repo: RepoId) {

@@ -36,6 +36,8 @@ pub struct GraphOverlay {
     pub segment_first: Vec<u32>,
     pub segment_lanes: Vec<u32>,
     pub segment_styles: Vec<u8>,
+    /// Folded merges among the window's rows.
+    pub folds: Vec<graph_engine::Fold>,
 }
 
 /// The last paint, kept while neither the rows nor the request change.
@@ -119,6 +121,7 @@ impl PaintMemo {
                 .collect(),
             segment_lanes: self.paint.segment_lane[first..last].to_vec(),
             segment_styles: self.paint.segment_style[first..last].to_vec(),
+            folds: Vec::new(),
         }
     }
 }
@@ -134,10 +137,15 @@ impl AppState {
         count: u32,
         request: &GraphPaintRequest,
     ) -> Option<GraphOverlay> {
-        self.read_graph(repo, generation, |commits, rows, memo| {
+        self.read_graph(repo, generation, |commits, rows, folds, memo| {
             let mut memo = memo.lock();
             memo.refresh(commits, rows, request);
-            memo.window(start, count)
+            let mut window = memo.window(start, count);
+            window.folds = folds
+                .range(start..start.saturating_add(count))
+                .map(|(&row, &hidden)| graph_engine::Fold { row, hidden })
+                .collect();
+            window
         })
     }
 }

@@ -4,7 +4,7 @@ mod view;
 
 pub use lanes::layout;
 pub use paint::{PAINT_DIM, PAINT_SLOT, Paint, PaintSpec, paint};
-pub use view::ViewFilter;
+pub use view::{Fold, ViewFilter};
 
 use serde::Serialize;
 

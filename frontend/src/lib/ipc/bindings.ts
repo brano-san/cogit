@@ -42,6 +42,8 @@ export const commands = {
 	segmentFirst: number[],
 	segmentLanes: number[],
 	segmentStyles: number[],
+	/**  Folded merges among the window's rows. */
+	folds: Fold[],
 } | null, GitError>(__TAURI_INVOKE("graph_overlay", { repo, generation, start, count, request })),
 	/**  Every commit that changed the file, newest first, from `rev` (HEAD when absent). */
 	investigateLog: (repo: RepoId, path: string, rev: string | null, follow: boolean, onChunk: Channel<FileRevision[]>) => typedError<number, GitError>(__TAURI_INVOKE("investigate_log", { repo, path, rev, follow, onChunk })),
@@ -769,6 +771,12 @@ export type FlowStatus = {
 	branches: FlowBranch[],
 };
 
+/**  A merge shown as one row, and how many commits its fold holds so far. */
+export type Fold = {
+	row: number,
+	hidden: number,
+};
+
 export type Found = {
 	kind: FoundKind,
 	label: string,
@@ -838,6 +846,8 @@ export type GraphOverlay = {
 	segmentFirst: number[],
 	segmentLanes: number[],
 	segmentStyles: number[],
+	/**  Folded merges among the window's rows. */
+	folds: Fold[],
 };
 
 export type GraphPaintRequest = {
@@ -869,6 +879,9 @@ export type GraphRow = {
 export type GraphView = {
 	/**  `--first-parent`: one line per ticked ref, merged branches left out. */
 	firstParent?: boolean,
+	/**  A merged branch is one row at its merge, but for the merges in `expanded`. */
+	collapseMerged?: boolean,
+	expanded?: string[],
 };
 
 /**  Assuming "HEAD is a branch" crashes on an unborn or detached checkout (INV-07). */
