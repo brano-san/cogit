@@ -434,17 +434,13 @@ impl AppState {
         mut on_found: impl FnMut(ScanHit) -> bool + Send,
     ) {
         let options = git_engine::discover::ScanOptions { max_depth };
-        let mut wanted = true;
-        git_engine::discover::scan(root, &options, |found| {
-            if !wanted {
-                return;
-            }
-            wanted = on_found(ScanHit {
+        git_engine::discover::scan_until(root, &options, |found| {
+            on_found(ScanHit {
                 root: found.path.display().to_string(),
                 name: found.name,
                 bare: found.bare,
                 already_open: self.find_by_root(&found.path).is_some(),
-            });
+            })
         });
     }
 

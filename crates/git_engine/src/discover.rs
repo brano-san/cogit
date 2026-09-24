@@ -2,6 +2,7 @@ use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use rayon::prelude::*;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 /// Directories that hold thousands of files and never the repository the user meant.
@@ -46,24 +47,44 @@ impl Default for ScanOptions {
 
 /// Walks `root` in parallel and reports every repository it can reach. A repository is a
 /// leaf: the walk does not enter one, so a checkout full of vendored clones stays cheap.
-pub fn scan(root: &Path, options: &ScanOptions, on_found: impl FnMut(Found) + Send) {
-    let sink = Mutex::new(on_found);
+pub fn scan(root: &Path, options: &ScanOptions, mut on_found: impl FnMut(Found) + Send) {
+    scan_until(root, options, |found| {
+        on_found(found);
+        true
+    });
+}
+
+/// `scan` for a caller that may stop listening: once `on_found` says `false`, nothing more
+/// is reported and the walk stops descending, so it does not hold the rayon pool.
+pub fn scan_until(root: &Path, options: &ScanOptions, on_found: impl FnMut(Found) -> bool + Send) {
+    let sink = Sink {
+        emit: Mutex::new(on_found),
+        stopped: AtomicBool::new(false),
+    };
     walk(root, 0, options, &sink, &[]);
 }
 
-fn walk<F: FnMut(Found) + Send>(
+struct Sink<F> {
+    emit: Mutex<F>,
+    stopped: AtomicBool,
+}
+
+fn walk<F: FnMut(Found) -> bool + Send>(
     dir: &Path,
     depth: usize,
     options: &ScanOptions,
-    sink: &Mutex<F>,
+    sink: &Sink<F>,
     ignores: &[Arc<Gitignore>],
 ) {
-    if depth > options.max_depth {
+    if depth > options.max_depth || sink.stopped.load(Ordering::Relaxed) {
         return;
     }
     if let Some(found) = repository_at(dir) {
-        if let Ok(mut emit) = sink.lock() {
-            emit(found);
+        if let Ok(mut emit) = sink.emit.lock()
+            && !sink.stopped.load(Ordering::Relaxed)
+            && !emit(found)
+        {
+            sink.stopped.store(true, Ordering::Relaxed);
         }
         return;
     }
