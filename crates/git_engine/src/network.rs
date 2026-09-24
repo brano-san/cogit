@@ -106,30 +106,17 @@ impl RepoHandle {
             buffer
         });
 
-        let mut stderr_text = String::new();
+        let mut stderr = Progress::default();
         if let Some(pipe) = child.stderr.as_mut() {
             let mut chunk = [0_u8; 4096];
-            let mut pending = String::new();
             while let Ok(read) = pipe.read(&mut chunk) {
                 if read == 0 {
                     break;
                 }
-                let text = String::from_utf8_lossy(&chunk[..read]);
-                stderr_text.push_str(&text);
-                pending.push_str(&text);
-
-                while let Some(at) = pending.find(['\r', '\n']) {
-                    let line = pending[..at].trim_end().to_owned();
-                    pending.drain(..=at);
-                    if !line.is_empty() {
-                        on_line(&line);
-                    }
-                }
-            }
-            if !pending.trim().is_empty() {
-                on_line(pending.trim_end());
+                stderr.feed(&chunk[..read], &mut on_line);
             }
         }
+        let stderr_text = stderr.finish(&mut on_line);
 
         let status = child.wait()?;
         let stdout = stdout_reader
@@ -148,6 +135,40 @@ impl RepoHandle {
         );
         self.journal_entry(result.clone());
         Ok(result)
+    }
+}
+
+/// Git's progress on stderr, split into lines as it arrives. Kept as bytes until a line
+/// ends: a read can stop inside a multi-byte character (a hook's Cyrillic message), and
+/// decoding each read on its own turned that character into two U+FFFD.
+#[derive(Default)]
+struct Progress {
+    all: Vec<u8>,
+    pending: Vec<u8>,
+}
+
+impl Progress {
+    fn feed(&mut self, chunk: &[u8], on_line: &mut impl FnMut(&str)) {
+        self.all.extend_from_slice(chunk);
+        self.pending.extend_from_slice(chunk);
+        while let Some(at) = self.pending.iter().position(|b| matches!(b, b'\r' | b'\n')) {
+            let line = String::from_utf8_lossy(&self.pending[..at])
+                .trim_end()
+                .to_owned();
+            self.pending.drain(..=at);
+            if !line.is_empty() {
+                on_line(&line);
+            }
+        }
+    }
+
+    /// The last unterminated line, and everything as one text.
+    fn finish(self, on_line: &mut impl FnMut(&str)) -> String {
+        let rest = String::from_utf8_lossy(&self.pending);
+        if !rest.trim().is_empty() {
+            on_line(rest.trim_end());
+        }
+        String::from_utf8_lossy(&self.all).into_owned()
     }
 }
 
@@ -200,5 +221,38 @@ fn prefix(header: &Option<String>) -> Vec<&str> {
     match header {
         Some(value) => vec!["-c", value.as_str()],
         None => Vec::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_character_split_between_two_reads_arrives_whole() {
+        let text = "remote: Сборка отклонена\n".as_bytes();
+        let cut = text.iter().position(|b| *b >= 0x80).unwrap() + 1;
+        let mut lines = Vec::new();
+        let mut progress = Progress::default();
+
+        progress.feed(&text[..cut], &mut |line| lines.push(line.to_owned()));
+        progress.feed(&text[cut..], &mut |line| lines.push(line.to_owned()));
+        let all = progress.finish(&mut |line| lines.push(line.to_owned()));
+
+        assert_eq!(lines, ["remote: Сборка отклонена"]);
+        assert_eq!(all, "remote: Сборка отклонена\n");
+    }
+
+    #[test]
+    fn carriage_returns_split_progress_and_the_tail_is_delivered() {
+        let mut lines = Vec::new();
+        let mut progress = Progress::default();
+
+        progress.feed(b"Counting 1%\rCounting 2%\rdone", &mut |line| {
+            lines.push(line.to_owned())
+        });
+        let _ = progress.finish(&mut |line| lines.push(line.to_owned()));
+
+        assert_eq!(lines, ["Counting 1%", "Counting 2%", "done"]);
     }
 }
