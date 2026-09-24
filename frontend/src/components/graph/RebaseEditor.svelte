@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { shortOid } from "$lib/format";
   import { moveEntry, planProblem, previewCount } from "$lib/rebase-plan";
   import type { TodoAction, TodoEntry } from "$lib/ipc";
 
@@ -56,7 +57,7 @@
 
 <div class="dialog" role="dialog" aria-label="Interactive rebase">
   <header>
-    <h2>Rebase {plan.length} commits onto {base.slice(0, 7)}</h2>
+    <h2>Rebase {plan.length} commits onto {shortOid(base)}</h2>
     <button type="button" class="icon" onclick={onclose} aria-label="Close">✕</button>
   </header>
 
@@ -84,13 +85,13 @@
 
         <select
           value={entry.action}
-          aria-label="Action for {entry.oid.slice(0, 7)}"
+          aria-label="Action for {shortOid(entry.oid)}"
           onchange={(event) => setAction(index, event.currentTarget.value as TodoAction)}
         >
           {#each ACTIONS as action (action)}<option value={action}>{action}</option>{/each}
         </select>
 
-        <span class="oid">{entry.oid.slice(0, 7)}</span>
+        <span class="oid">{shortOid(entry.oid)}</span>
 
         {#if entry.action === "reword"}
           <input

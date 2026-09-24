@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { shortOid } from "$lib/format";
   import Avatar from "$components/common/Avatar.svelte";
   import VirtualList from "$components/common/VirtualList.svelte";
   import OriginCard from "./OriginCard.svelte";
@@ -53,7 +54,7 @@
     const commit = commitOf(tables, line);
     if (!commit) return "";
     if (commit.uncommitted) return "not committed yet";
-    return `${commit.oid.slice(0, 7)} · ${commit.author} · ${ageOf(commit.timestamp, now)} ago`;
+    return `${shortOid(commit.oid)} · ${commit.author} · ${ageOf(commit.timestamp, now)} ago`;
   }
 
   function startsRun(index: number): boolean {
@@ -93,12 +94,12 @@
       <dt>Commit</dt>
       <dd class="truncate">
         {#if version}
-          <span class="mono">{version.oid.slice(0, 7)}</span>
+          <span class="mono">{shortOid(version.oid)}</span>
           {version.author}, {dateOf(version.timestamp)}
         {:else if session.location.rev === null}
           Working Tree
         {:else}
-          <span class="mono">{session.location.rev.slice(0, 7)}</span>
+          <span class="mono">{shortOid(session.location.rev)}</span>
         {/if}
       </dd>
       <dt>Msg</dt>
@@ -153,7 +154,7 @@
             onclick={() => session.selectLine(index)}
           >
             <span class="hash mono" title={commit?.summary}
-              >{first && commit ? (commit.uncommitted ? "·······" : commit.oid.slice(0, 7)) : ""}</span
+              >{first && commit ? (commit.uncommitted ? "·······" : shortOid(commit.oid)) : ""}</span
             >
             <span
               class="marker mono"

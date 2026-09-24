@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { shortOid } from "$lib/format";
   import Dialog from "$components/common/Dialog.svelte";
   import { authorProblem } from "$lib/rewrite-plans";
 
@@ -33,7 +34,7 @@
   });
 </script>
 
-<Dialog title="Edit Author of {oid.slice(0, 7)}" {onclose} onconfirm={submit} width="min(480px, 92vw)">
+<Dialog title="Edit Author of {shortOid(oid)}" {onclose} onconfirm={submit} width="min(480px, 92vw)">
   <div class="form">
     <label class="field">
       <span class="caption">Name</span>

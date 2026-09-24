@@ -1,3 +1,4 @@
+import { shortOid } from "$lib/format";
 import { fileName, type Location } from "./params";
 
 /** Back and Forward over the places visited, as a browser keeps them. */
@@ -65,7 +66,7 @@ export function backList(history: History): { index: number; location: Location 
 }
 
 export function locationLabel(location: Location): string {
-  const version = location.rev ? location.rev.slice(0, 7) : "Working Tree";
+  const version = location.rev ? shortOid(location.rev) : "Working Tree";
   const line = location.line ? ` · line ${location.line}` : "";
   return `${fileName(location.path)} @ ${version}${line}`;
 }

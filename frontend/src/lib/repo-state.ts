@@ -1,3 +1,4 @@
+import { shortOid } from "$lib/format";
 import type { RepoState, RepoStatus } from "$lib/ipc";
 
 export type BannerAction = "continue" | "skip" | "abort" | "createBranch";
@@ -88,14 +89,14 @@ export function stateBanner(
     if (submodule) {
       return {
         title: "Detached HEAD",
-        detail: `On commit ${state.oid.slice(0, 7)}, the one the parent repository records.`,
+        detail: `On commit ${shortOid(state.oid)}, the one the parent repository records.`,
         severity: "info",
         actions: [],
       };
     }
     return {
       title: "Detached HEAD",
-      detail: `On commit ${state.oid.slice(0, 7)}. New commits belong to no branch and are easy to lose.`,
+      detail: `On commit ${shortOid(state.oid)}. New commits belong to no branch and are easy to lose.`,
       severity: "warning",
       actions: ["createBranch"],
     };

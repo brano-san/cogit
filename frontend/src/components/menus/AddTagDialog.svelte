@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { shortOid } from "$lib/format";
   import Dialog from "$components/common/Dialog.svelte";
   import { tagNameHint } from "$lib/tag-dialog";
 
@@ -52,7 +53,7 @@
     <div class="target">
       <span class="caption">Commit</span>
       <span class="commit truncate" title="{oid} {subject}">
-        <span class="mono">{oid.slice(0, 7)}</span>
+        <span class="mono">{shortOid(oid)}</span>
         <span class="subject truncate">{subject}</span>
       </span>
     </div>

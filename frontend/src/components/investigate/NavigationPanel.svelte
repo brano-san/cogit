@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { shortOid } from "$lib/format";
   import VirtualList from "$components/common/VirtualList.svelte";
   import { dateOf, shortAuthor } from "$lib/investigate/blame";
   import { segmentsOf, type GraphRow } from "$lib/investigate/graph";
@@ -130,7 +131,7 @@
               <span class="date muted">uncommitted</span>
             {:else}
               {@const note = renamed(item)}
-              <span class="hash mono">{item.row.oid.slice(0, 7)}</span>
+              <span class="hash mono">{shortOid(item.row.oid)}</span>
               <canvas
                 class="graph"
                 height={ROW}

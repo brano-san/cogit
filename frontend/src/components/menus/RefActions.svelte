@@ -41,7 +41,7 @@
     tagNameProblem,
     type ResetMode,
   } from "$lib/ipc/ref-ops";
-  import type { RefLabel } from "$lib/format";
+  import { shortOid, type RefLabel } from "$lib/format";
   import type { RefNode } from "$lib/ref-nodes";
   import { initialRemote, pushRefspec, pushUpTo, splitUpstream, type PushSource } from "$lib/push-to";
   import {
@@ -126,7 +126,6 @@
   let messageDialog = $state.raw<{ oid: string; message: string; parents: string[] } | null>(null);
   let authorDialog = $state.raw<{ oid: string; name: string; email: string } | null>(null);
 
-  const short = (oid: string) => oid.slice(0, 7);
 
   function repoId(): RepoId | null {
     return repository.current?.repo ?? null;
@@ -337,7 +336,7 @@
     return confirmation.ask({
       title: `${action} a Pushed Commit`,
       message:
-        `${short(at.oid)} is already on a remote branch. ${action} rewrites it and every commit ` +
+        `${shortOid(at.oid)} is already on a remote branch. ${action} rewrites it and every commit ` +
         "after it, so the branch will need a force-push and everyone who pulled it will have to reset.",
       confirm: action,
       warning: true,
@@ -479,7 +478,7 @@
     }
     const oid = at.oid;
     if (!oid) return;
-    const what = at.ref?.kind === "tag" ? `tag ${at.ref.name}` : `commit ${short(oid)}`;
+    const what = at.ref?.kind === "tag" ? `tag ${at.ref.name}` : `commit ${shortOid(oid)}`;
     const go = await confirmation.ask({
       title: "Check Out",
       message:
@@ -508,7 +507,7 @@
     if (!oid || !parent) return;
     const go = await confirmation.ask({
       title: "Squash",
-      message: `Squash ${short(oid)} into its parent ${short(parent)}? The two become one commit carrying both messages.`,
+      message: `Squash ${shortOid(oid)} into its parent ${shortOid(parent)}? The two become one commit carrying both messages.`,
       confirm: "Squash",
     });
     if (!go) return;
@@ -544,7 +543,7 @@
   async function addBranch(id: RepoId, at: Target) {
     const oid = at.oid;
     if (!oid) return;
-    const name = await prompt.ask({ title: `Add Branch at ${short(oid)}`, label: "Name", confirm: "Add Branch" });
+    const name = await prompt.ask({ title: `Add Branch at ${shortOid(oid)}`, label: "Name", confirm: "Add Branch" });
     if (name === null) return;
     await attempt("Could not add the branch", () => createBranch(id, name, oid, false));
   }
@@ -581,7 +580,7 @@
       const go = await confirmation.ask({
         title: "Reset Hard",
         message:
-          `Reset ${dialog.moving} to ${short(dialog.oid)} and throw away the uncommitted changes to ` +
+          `Reset ${dialog.moving} to ${shortOid(dialog.oid)} and throw away the uncommitted changes to ` +
           "tracked files? They are stashed first, so Undo can bring them back.",
         confirm: "Reset Hard",
         warning: true,
