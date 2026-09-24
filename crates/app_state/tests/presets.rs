@@ -189,3 +189,37 @@ fn a_damaged_user_preset_does_not_hide_the_catalogue() {
 
     assert!(!state.presets_for(repo).unwrap().is_empty());
 }
+
+// The file was written with Rust's `{:?}` escaping, which is not TOML: an emoji with a
+// variation selector made a file TOML refuses, and a script with `'''` in it went into a
+// basic string where `\d` is an error. Either way the preset vanished from the catalogue.
+#[test]
+fn an_exported_preset_reads_back_whatever_its_name_and_script_hold() {
+    let dir = tempfile::tempdir().unwrap();
+    let f = test_fixtures::linear(1).unwrap();
+    let (state, repo) = opened(&f);
+    state.use_preset_dir(dir.path().to_path_buf());
+    let script = "#!/usr/bin/env python3\n'''Checks.'''\nimport re\nre.compile(r'\\d+')\n";
+    state.write_hook(repo, "pre-commit", script).unwrap();
+
+    state
+        .export_preset(
+            repo,
+            "pre-commit",
+            "mine",
+            "Lint \u{2764}\u{fe0f}",
+            "Tab\there",
+        )
+        .unwrap();
+
+    let saved = state
+        .presets_for(repo)
+        .unwrap()
+        .into_iter()
+        .find(|preset| preset.id == "mine")
+        .expect("the exported preset is in the catalogue");
+    assert_eq!(saved.name, "Lint \u{2764}\u{fe0f}");
+    state.write_hook(repo, "pre-commit", "#!/bin/sh\n").unwrap();
+    state.install_preset(repo, "mine").unwrap();
+    assert_eq!(state.read_hook(repo, "pre-commit").unwrap(), script);
+}

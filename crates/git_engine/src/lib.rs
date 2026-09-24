@@ -94,7 +94,7 @@ pub use origin_search::{
 };
 pub use outcome::Severity;
 pub use overlap::{Overlap, OverlapRow, overlap_of, shared_paths};
-pub use presets::{Preset, PresetTool, builtin_presets, find_tool, parse_preset};
+pub use presets::{Preset, PresetTool, builtin_presets, find_tool, parse_preset, preset_toml};
 pub use progress::{RebaseProgress, RebaseStep};
 pub use ref_meta::RefDate;
 pub use reflog::{Reachable, ReflogEntry};

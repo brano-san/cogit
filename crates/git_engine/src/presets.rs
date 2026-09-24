@@ -32,6 +32,33 @@ pub struct Preset {
     pub tool: Option<PresetTool>,
 }
 
+/// A user's own preset as the file `parse_preset` reads back. Written by the TOML library,
+/// not by hand: any name and any script round-trip, emoji and `'''` in a docstring included.
+pub fn preset_toml(
+    id: &str,
+    name: &str,
+    hook: &str,
+    description: &str,
+    script: &str,
+) -> Result<String> {
+    #[derive(serde::Serialize)]
+    struct Written<'a> {
+        id: &'a str,
+        name: &'a str,
+        hook: &'a str,
+        description: &'a str,
+        script: &'a str,
+    }
+    toml::to_string(&Written {
+        id,
+        name,
+        hook,
+        description,
+        script,
+    })
+    .map_err(|err| GitError::Internal(format!("cannot write the preset: {err}")))
+}
+
 pub fn parse_preset(text: &str) -> Result<Preset> {
     toml::from_str(text).map_err(|err| GitError::InvalidState(format!("bad preset: {err}")))
 }
