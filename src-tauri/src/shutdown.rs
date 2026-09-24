@@ -55,14 +55,6 @@ pub fn watch(app: &tauri::AppHandle) {
     }
     ANSWERED.store(false, Ordering::SeqCst);
 
-    if let Some(cancellations) = app.try_state::<std::sync::Arc<crate::operations::Cancellations>>()
-    {
-        let stopped = cancellations.cancel_all();
-        if stopped > 0 {
-            tracing::debug!(stopped, "cancelled the reads still running");
-        }
-    }
-
     if let Some(window) = app.get_webview_window("main")
         && let Err(err) = window.eval(PING)
     {
@@ -96,6 +88,21 @@ pub fn watch(app: &tauri::AppHandle) {
     });
 }
 
+/// The app is going, whether the page agreed or the watchdog gave up on it: the reads
+/// still running have nobody to answer. Not on the close request itself, which the user
+/// may still cancel over the unsaved-work question.
+pub fn exiting(app: &tauri::AppHandle) {
+    use tauri::Manager as _;
+
+    if let Some(cancellations) = app.try_state::<std::sync::Arc<crate::operations::Cancellations>>()
+    {
+        let stopped = cancellations.cancel_all();
+        if stopped > 0 {
+            tracing::debug!(stopped, "cancelled the reads still running");
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -122,6 +129,30 @@ mod tests {
         assert!(!CLOSING.load(Ordering::SeqCst));
         assert!(arming(), "a cancelled close must not block the next one");
         reset();
+    }
+
+    /// The body of `fn name` in this file, up to the next top-level item.
+    fn body_of(name: &str) -> String {
+        let source = include_str!("shutdown.rs");
+        let start = source
+            .find(&format!("pub fn {name}("))
+            .unwrap_or(source.len());
+        let rest = &source[start..];
+        let end = rest[1..].find("\n}\n").map_or(rest.len(), |at| at + 3);
+        rest[..end].to_owned()
+    }
+
+    // Cancelling on the close request stopped the searches even when the user then chose
+    // Cancel in the unsaved-hooks dialog and kept the app.
+    #[test]
+    fn a_close_request_leaves_the_running_reads_alone() {
+        let watch = body_of("watch");
+        assert!(
+            watch.contains("ANSWERED"),
+            "the parser did not find `watch`"
+        );
+        assert!(!watch.contains("cancel_all"));
+        assert!(body_of("exiting").contains("cancel_all"));
     }
 
     #[test]

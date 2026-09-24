@@ -391,7 +391,10 @@ pub fn run() -> anyhow::Result<()> {
             Ok(())
         })
         .build(tauri::generate_context!())?
-        .run(|_app, event| {
+        .run(|app, event| {
+            if matches!(event, tauri::RunEvent::ExitRequested { .. }) {
+                shutdown::exiting(app);
+            }
             if matches!(event, tauri::RunEvent::Exit) {
                 git_engine::children::stop_all();
                 tracing::info!(version = env!("CARGO_PKG_VERSION"), "cogit stopped");
