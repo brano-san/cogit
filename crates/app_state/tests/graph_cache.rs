@@ -132,3 +132,63 @@ fn closing_a_repository_drops_its_graph() {
 
     assert!(state.graph_window(ra, generation, 0, 10).is_none());
 }
+
+/// Editing `.mailmap` renames the rows on screen; the layout is not walked again (R-302).
+#[test]
+fn a_new_mailmap_renames_the_cached_rows_without_a_walk() {
+    let a = test_fixtures::linear(6).unwrap();
+    let state = AppState::new();
+    let ra = state.open_repository(a.path()).unwrap().repo;
+    let (first, _) = build(&state, ra);
+    let before = state.graph_window(ra, first, 0, 1).unwrap().commits[0].clone();
+
+    std::fs::write(
+        a.path().join(".mailmap"),
+        format!(
+            "Someone Else <else@example.test> <{}>\n",
+            before.author_email
+        ),
+    )
+    .unwrap();
+    let (generation, progress) = build(&state, ra);
+
+    assert_eq!(totals(&progress), [6], "one message, no walk");
+    assert_eq!(
+        progress[0].kept, 0,
+        "blocks fetched with the old names are not kept"
+    );
+    let after = &state.graph_window(ra, generation, 0, 1).unwrap().commits[0];
+    assert_eq!(
+        (after.author_name.as_str(), after.author_email.as_str()),
+        ("Someone Else", "else@example.test")
+    );
+    assert_eq!(after.summary, before.summary);
+}
+
+/// A filter by author matches through the mailmap, so a new one walks again.
+#[test]
+fn a_new_mailmap_walks_an_author_filter_again() {
+    let a = test_fixtures::linear(4).unwrap();
+    let state = AppState::new();
+    let ra = state.open_repository(a.path()).unwrap().repo;
+    let query = CommitQuery {
+        author: Some("Someone Else".to_owned()),
+        ..CommitQuery::default()
+    };
+    let (_, progress) = build_with(&state, ra, &query);
+    assert_eq!(progress.last().unwrap().total, 0);
+    let email = a
+        .git(&["log", "-1", "--format=%ae"])
+        .unwrap()
+        .trim()
+        .to_owned();
+
+    std::fs::write(
+        a.path().join(".mailmap"),
+        format!("Someone Else <else@example.test> <{email}>\n"),
+    )
+    .unwrap();
+    let (_, progress) = build_with(&state, ra, &query);
+
+    assert_eq!(progress.last().unwrap().total, 4);
+}

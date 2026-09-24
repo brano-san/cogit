@@ -66,24 +66,18 @@ impl WalkedHistory {
     }
 }
 
-/// The rows of the last graph walk and what it listed of them: a walk copies these rows
-/// instead of reading the objects again (R-301).
+/// What the last graph walk listed: a walk takes time and parents from here instead of
+/// reading the objects again (R-301).
 #[derive(Debug, Clone, Copy)]
 pub struct Reuse<'a> {
     pub history: &'a WalkedHistory,
-    pub rows: &'a [CommitRow],
 }
 
-impl<'a> Reuse<'a> {
+impl Reuse<'_> {
     pub(crate) fn read(&self, id: &ObjectId) -> Option<(i64, Vec<ObjectId>)> {
         self.history
             .get(id)
             .map(|(_, time, parents)| (time, parents.to_vec()))
-    }
-
-    pub(crate) fn row(self, id: &ObjectId) -> Option<&'a CommitRow> {
-        let (at, ..) = self.history.get(id)?;
-        self.rows.get(usize::try_from(at).ok()?)
     }
 }
 
@@ -162,17 +156,17 @@ impl<F> Iterator for ByTime<F>
 where
     F: FnMut(ObjectId) -> Option<(i64, Vec<ObjectId>)>,
 {
-    type Item = (ObjectId, Vec<ObjectId>);
+    type Item = (ObjectId, Vec<ObjectId>, i64);
 
     fn next(&mut self) -> Option<Self::Item> {
-        let Queued { id, parents, .. } = self.queue.pop()?;
+        let Queued { id, parents, time } = self.queue.pop()?;
         if self.shallow.binary_search(&id).is_err() {
             let follow = if self.first_parent { 1 } else { parents.len() };
             for parent in parents.iter().take(follow) {
                 self.push(*parent);
             }
         }
-        Some((id, parents))
+        Some((id, parents, time))
     }
 }
 
@@ -264,7 +258,7 @@ mod tests {
         let tips: Vec<ObjectId> = tips.iter().map(|n| id(*n)).collect();
         let shallow = shallow.iter().map(|n| id(*n)).collect();
         ByTime::new(tips, |oid| by_id.get(&oid).cloned(), first_parent, shallow)
-            .map(|(oid, _)| back[&oid])
+            .map(|(oid, ..)| back[&oid])
             .collect()
     }
 

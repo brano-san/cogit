@@ -568,7 +568,12 @@ impl AppState {
         chunk_size: usize,
         on_chunk: impl FnMut(GraphChunk) -> bool,
     ) -> Result<Vec<git_engine::SkippedRef>, git_engine::GitError> {
-        crate::graph_layout::lay_out(&self.handle(repo)?, query, chunk_size, None, None, on_chunk)
+        let rows = git_engine::GraphRows {
+            reuse: None,
+            record: None,
+            text: true,
+        };
+        crate::graph_layout::lay_out(&self.handle(repo)?, query, chunk_size, rows, on_chunk)
     }
 
     pub fn commit_details(

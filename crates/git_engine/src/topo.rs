@@ -8,12 +8,39 @@ use std::hash::Hash;
 /// Read ahead: a clock skewed by fewer commits than this is put right.
 pub(crate) const LOOKAHEAD: usize = 2048;
 
-pub(crate) struct Ordered<Id, I> {
+/// What the order needs of a walked commit; the rest rides along.
+pub(crate) trait Walked<Id> {
+    fn id(&self) -> Id;
+    fn parents(&self) -> &[Id];
+}
+
+impl<Id: Copy> Walked<Id> for (Id, Vec<Id>) {
+    fn id(&self) -> Id {
+        self.0
+    }
+
+    fn parents(&self) -> &[Id] {
+        &self.1
+    }
+}
+
+/// With the commit time the walk read, so a row needs no second read for it.
+impl<Id: Copy> Walked<Id> for (Id, Vec<Id>, i64) {
+    fn id(&self) -> Id {
+        self.0
+    }
+
+    fn parents(&self) -> &[Id] {
+        &self.1
+    }
+}
+
+pub(crate) struct Ordered<Id, T, I> {
     source: I,
     drained: bool,
     lookahead: usize,
     arrived: u64,
-    window: HashMap<Id, (u64, Vec<Id>)>,
+    window: HashMap<Id, (u64, T)>,
     /// Unemitted children each commit still waits for; may exist before the commit.
     waiting: HashMap<Id, usize>,
     /// Earliest arrival first; an entry that gained a child to wait for is skipped.
@@ -24,10 +51,15 @@ pub(crate) struct Ordered<Id, I> {
 }
 
 /// `source` is newest first by commit time; `first` must be in it, or all of it is read first.
-pub(crate) fn in_date_order<Id, I>(source: I, lookahead: usize, first: Option<Id>) -> Ordered<Id, I>
+pub(crate) fn in_date_order<Id, T, I>(
+    source: I,
+    lookahead: usize,
+    first: Option<Id>,
+) -> Ordered<Id, T, I>
 where
     Id: Copy + Eq + Ord + Hash,
-    I: Iterator<Item = (Id, Vec<Id>)>,
+    T: Walked<Id>,
+    I: Iterator<Item = T>,
 {
     Ordered {
         source,
@@ -42,20 +74,22 @@ where
     }
 }
 
-impl<Id, I> Ordered<Id, I>
+impl<Id, T, I> Ordered<Id, T, I>
 where
     Id: Copy + Eq + Ord + Hash,
-    I: Iterator<Item = (Id, Vec<Id>)>,
+    T: Walked<Id>,
+    I: Iterator<Item = T>,
 {
     fn fill(&mut self) {
         while !self.drained
             && (self.window.len() < self.lookahead || self.first.is_some() && !self.first_arrived)
         {
-            let Some((id, parents)) = self.source.next() else {
+            let Some(item) = self.source.next() else {
                 self.drained = true;
                 return;
             };
-            for parent in &parents {
+            let id = item.id();
+            for parent in item.parents() {
                 *self.waiting.entry(*parent).or_insert(0) += 1;
             }
             self.first_arrived |= self.first == Some(id);
@@ -64,7 +98,7 @@ where
             if self.waiting.get(&id).copied().unwrap_or(0) == 0 {
                 self.ready.push(Reverse((seq, id)));
             }
-            self.window.insert(id, (seq, parents));
+            self.window.insert(id, (seq, item));
         }
     }
 
@@ -72,9 +106,9 @@ where
         self.window.contains_key(id) && self.waiting.get(id).copied().unwrap_or(0) == 0
     }
 
-    fn emit(&mut self, id: Id) -> Option<(Id, Vec<Id>)> {
-        let (_, parents) = self.window.remove(&id)?;
-        for parent in &parents {
+    fn emit(&mut self, id: Id) -> Option<T> {
+        let (_, item) = self.window.remove(&id)?;
+        for parent in item.parents() {
             let Some(count) = self.waiting.get_mut(parent) else {
                 continue;
             };
@@ -85,7 +119,7 @@ where
                 self.ready.push(Reverse((*seq, *parent)));
             }
         }
-        Some((id, parents))
+        Some(item)
     }
 
     /// Unreachable on an acyclic history; loud and deterministic rather than lossy.
@@ -101,12 +135,13 @@ where
     }
 }
 
-impl<Id, I> Iterator for Ordered<Id, I>
+impl<Id, T, I> Iterator for Ordered<Id, T, I>
 where
     Id: Copy + Eq + Ord + Hash,
-    I: Iterator<Item = (Id, Vec<Id>)>,
+    T: Walked<Id>,
+    I: Iterator<Item = T>,
 {
-    type Item = (Id, Vec<Id>);
+    type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {

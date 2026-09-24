@@ -141,19 +141,31 @@ impl RepoHandle {
         chunk_size: usize,
         on_chunk: impl FnMut(Vec<CommitRow>) -> bool,
     ) -> Result<Vec<SkippedRef>> {
-        self.graph_commits(query, chunk_size, None, None, on_chunk)
+        let rows = GraphRows {
+            reuse: None,
+            record: None,
+            text: true,
+        };
+        self.graph_commits(query, chunk_size, rows, on_chunk)
     }
 
-    /// `search_commits` for the graph: a commit `reuse` holds is copied from there, not
-    /// read, and `record` lists every row this walk gives for the walk after it (R-301).
+    /// `search_commits` for the graph: time and parents of a commit `reuse` holds come from
+    /// there (R-301); `record` lists every row for the walk after it; without `text`, rows
+    /// carry no subject or author, only what the walk read (R-302).
     pub fn graph_commits(
         &self,
         query: &CommitQuery,
         chunk_size: usize,
-        reuse: Option<Reuse<'_>>,
-        record: Option<&mut WalkedHistory>,
+        rows: GraphRows<'_, '_>,
         on_chunk: impl FnMut(Vec<CommitRow>) -> bool,
     ) -> Result<Vec<SkippedRef>> {
+        let GraphRows {
+            reuse,
+            record,
+            text,
+        } = rows;
+        // Rows without text cannot be matched against a filter.
+        let text = text || query.filters_rows();
         let (tips, skipped) = self.tips_for(query)?;
         if !tips.is_empty() {
             let head = self.first_of(&tips);
@@ -166,7 +178,7 @@ impl RepoHandle {
             // A filtered list shows matches from every line, the merged ones too (#26).
             let first_parent = query.view.first_parent && !query.filters_rows();
             let walk = ByTime::new(tips, read, first_parent, self.shallow_commits());
-            let rows = Rows { reuse, record };
+            let rows = Rows { record, text };
             self.stream_rows(
                 query,
                 chunk_size,
@@ -191,20 +203,33 @@ impl RepoHandle {
         &self,
         query: &CommitQuery,
         chunk_size: usize,
-        walk: impl Iterator<Item = (gix::ObjectId, Vec<gix::ObjectId>)>,
-        mut rows: Rows<'_, '_>,
+        walk: impl Iterator<Item = (gix::ObjectId, Vec<gix::ObjectId>, i64)>,
+        mut rows: Rows<'_>,
         mut on_chunk: impl FnMut(Vec<CommitRow>) -> bool,
     ) -> Result<()> {
         let chunk_size = chunk_size.max(1);
         let mut chunk = Vec::with_capacity(chunk_size);
         let mut listed = 0_u32;
         // Once per walk: a `stat` per row would cost more than reading the commit.
-        let mailmap = self.mailmap();
+        let mailmap = if rows.text {
+            self.mailmap()
+        } else {
+            std::sync::Arc::default()
+        };
 
-        for (id, parents) in walk {
-            let row = match rows.reuse.and_then(|reuse| reuse.row(&id)) {
-                Some(row) => reused(row, &parents),
-                None => self.row_of(id, &parents, &mailmap)?,
+        for (id, parents, time) in walk {
+            let row = if rows.text {
+                self.row_of(id, &parents, &mailmap)?
+            } else {
+                CommitRow {
+                    oid: id.to_string(),
+                    parents: parents.iter().map(ToString::to_string).collect(),
+                    summary: String::new(),
+                    author_name: String::new(),
+                    author_email: String::new(),
+                    timestamp: time,
+                    tz_offset_minutes: 0,
+                }
             };
             if !query.matches_row(&row) {
                 continue;
@@ -295,18 +320,16 @@ fn contains_ignoring_case(haystack: &str, needle: &str) -> bool {
     haystack.to_lowercase().contains(&needle.to_lowercase())
 }
 
-/// Where a walk's rows come from besides the objects, and where it lists them.
-struct Rows<'r, 'h> {
-    reuse: Option<Reuse<'r>>,
+/// Where a walk lists its rows, and whether it reads their text.
+struct Rows<'h> {
     record: Option<&'h mut WalkedHistory>,
+    text: bool,
 }
 
-/// A row copied from the last graph, with every parent: a first-parent graph showed only
-/// the first (#26), and this walk may show them all.
-fn reused(row: &CommitRow, parents: &[gix::ObjectId]) -> CommitRow {
-    let mut row = row.clone();
-    if row.parents.len() != parents.len() {
-        row.parents = parents.iter().map(ToString::to_string).collect();
-    }
-    row
+/// How a graph walk gets and gives its rows (`graph_commits`).
+#[derive(Debug)]
+pub struct GraphRows<'r, 'h> {
+    pub reuse: Option<Reuse<'r>>,
+    pub record: Option<&'h mut WalkedHistory>,
+    pub text: bool,
 }
