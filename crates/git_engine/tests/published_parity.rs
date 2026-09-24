@@ -154,9 +154,11 @@ fn matches_git_without_a_commit_graph() {
     check(false);
 }
 
-/// The default list, as `PROTECTED` in surgery.rs spells it.
-fn protected_by_default(short: &str) -> bool {
-    let branch = short.split_once('/').map_or(short, |(_, rest)| rest);
+/// The default list, as `PROTECTED` in surgery.rs spells it, against the branch in the
+/// full ref name: git's short form is `remotes/upstream/main` beside a tag `upstream/main`.
+fn protected_by_default(full: &str) -> bool {
+    let rest = full.strip_prefix("refs/remotes/").unwrap_or(full);
+    let branch = rest.split_once('/').map_or(rest, |(_, branch)| branch);
     matches!(branch, "main" | "master" | "develop")
         || branch
             .strip_prefix("release/")
@@ -172,9 +174,19 @@ fn the_default_patterns_pick_from_the_refs_git_lists() {
     let repo = RepoHandle::open(f.path()).unwrap();
 
     for oid in every_commit(f) {
-        let expected: Vec<String> = containing(f, &oid)
-            .into_iter()
-            .filter(|name| protected_by_default(name))
+        let expected: Vec<String> = f
+            .git(&[
+                "for-each-ref",
+                "--format=%(refname) %(refname:short)",
+                "--contains",
+                &oid,
+                "refs/remotes",
+            ])
+            .unwrap()
+            .lines()
+            .filter_map(|line| line.split_once(' '))
+            .filter(|(full, _)| protected_by_default(full))
+            .map(|(_, short)| short.to_owned())
             .collect();
         assert_eq!(repo.protecting_refs(&oid).unwrap(), expected, "{oid}");
     }
