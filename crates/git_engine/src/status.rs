@@ -18,11 +18,6 @@ impl RepoStatus {
     pub fn is_clean(&self) -> bool {
         self.staged == 0 && self.unstaged == 0 && self.untracked == 0 && self.conflicted == 0
     }
-
-    #[must_use]
-    pub fn total(&self) -> u32 {
-        self.staged + self.unstaged + self.untracked + self.conflicted
-    }
 }
 
 impl RepoHandle {
