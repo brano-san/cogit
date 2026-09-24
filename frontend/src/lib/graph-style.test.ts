@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { GRAPH } from "$lib/graph-geometry";
-import { BRANCH_SLOTS, branchSlot, nodeStroke, rowPaint, segmentStroke } from "$lib/graph-style";
+import {
+  BRANCH_SLOTS,
+  FOCUS_LINE_WIDTH,
+  LAYERS,
+  branchSlot,
+  laneAt,
+  nodeStroke,
+  rowPaint,
+  segmentStroke,
+} from "$lib/graph-style";
 import type { GraphOverlay, GraphRow, Segment } from "$lib/ipc";
 
 const segment = (primary: boolean, color = 3): Segment => ({
@@ -97,5 +106,49 @@ describe("strokes", () => {
       token: "--graph-main",
       width: GRAPH.ringStroke,
     });
+  });
+});
+
+describe("the branch of the chosen commit", () => {
+  const paint = { nodeLane: 7, nodeStyle: 0, segmentLanes: [7, 2], segmentStyles: [0, 0] };
+  const focus = { colouredLanes: false, focusLane: 7 };
+
+  it("is drawn on top of everything and wider than the main line", () => {
+    const focused = segmentStroke(segment(false), 0, paint, focus);
+    expect(focused).toMatchObject({ token: "--graph-focus", width: FOCUS_LINE_WIDTH });
+    expect(focused.layer).toBe(LAYERS - 1);
+    expect(FOCUS_LINE_WIDTH).toBeGreaterThan(GRAPH.mainLineWidth);
+    expect(segmentStroke(segment(false), 1, paint, focus)).toMatchObject({ token: "--graph-line" });
+  });
+
+  it("keeps its own colour when it is a ticked branch or the main line", () => {
+    const coloured = { ...paint, segmentStyles: [3, 0] };
+    expect(segmentStroke(segment(false), 0, coloured, focus).token).toBe("--graph-branch-3");
+    expect(segmentStroke(segment(true), 0, paint, focus).token).toBe("--graph-main");
+  });
+});
+
+describe("laneAt", () => {
+  const layout: GraphRow = {
+    ...row(false),
+    lane: 1,
+    segments: [
+      { from: 0, to: 0, span: "through", primary: true, color: 0, arrow: false },
+      { from: 2, to: 1, span: "top", primary: false, color: 4, arrow: false },
+      { from: 1, to: 3, span: "bottom", primary: false, color: 5, arrow: false },
+    ],
+  };
+  const paint = { nodeLane: 9, nodeStyle: 0, segmentLanes: [0, 4, 5], segmentStyles: [0, 0, 0] };
+
+  it("finds the line under a click by its column and half of the row", () => {
+    expect(laneAt(layout, paint, 0, true)).toBe(0);
+    expect(laneAt(layout, paint, 2, true)).toBe(4);
+    expect(laneAt(layout, paint, 3, false)).toBe(5);
+    expect(laneAt(layout, paint, 3, true)).toBeNull();
+  });
+
+  it("is the node's own lane on the ring's column, and nothing without paint", () => {
+    expect(laneAt(layout, paint, 1, false)).toBe(9);
+    expect(laneAt(layout, undefined, 0, true)).toBeNull();
   });
 });

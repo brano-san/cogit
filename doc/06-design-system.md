@@ -119,6 +119,7 @@
 --graph-main          → --text-primary
 --graph-line          → --text-secondary
 --graph-branch-N      → --c-lane-N        N = 1…8, цвета отмеченных веток
+--graph-focus         → --status-ref      ветка выбранного коммита без своего цвета
 ```
 
 ## 4. Типографика

@@ -320,3 +320,4 @@
 | F-382 | Investigate из Diff с выделенной строкой | [F-382-investigate-from-diff.md](F-382-investigate-from-diff.md) |
 | F-440 | Отмеченные ветки — своими цветами | [F-440-graph-branch-colours.md](F-440-graph-branch-colours.md) |
 | F-441 | Только первые родители | [F-441-graph-first-parent.md](F-441-graph-first-parent.md) |
+| F-442 | Ветка коммита по клику | [F-442-graph-branch-of-commit.md](F-442-graph-branch-of-commit.md) |

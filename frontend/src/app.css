@@ -99,6 +99,8 @@
   --graph-branch-6: var(--c-lane-6);
   --graph-branch-7: var(--c-lane-7);
   --graph-branch-8: var(--c-lane-8);
+  /* The branch of the chosen commit, where it has no colour of its own. */
+  --graph-focus: var(--status-ref);
   --status-stash: var(--c-stash);
   --status-tag: var(--c-tag);
 

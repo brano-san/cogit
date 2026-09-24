@@ -28,6 +28,8 @@
     /** A ring is filled with what is behind it: a stripe, a hovered or a selected row. */
     selectedRow?: number | null;
     hoverRow?: number | null;
+    /** The lane drawn in front: the branch of the chosen commit. */
+    focusLane?: number | null;
   }
 
   let {
@@ -39,6 +41,7 @@
     headLane = null,
     selectedRow = null,
     hoverRow = null,
+    focusLane = null,
   }: Props = $props();
 
   let canvas: HTMLCanvasElement | undefined = $state();
@@ -63,7 +66,7 @@
     const token = (name: string) => styles.getPropertyValue(name).trim();
     const main = token("--graph-main");
     const line = token("--graph-line");
-    const options = { colouredLanes: settings.current.coloredLanes };
+    const options = { colouredLanes: settings.current.coloredLanes, focusLane };
     const colours = new Map<string, string>();
     const colour = (name: string) => {
       if (!colours.has(name)) colours.set(name, token(name) || line);
@@ -160,7 +163,7 @@
 
   $effect(() => {
     // Theme, lane width and colour change the picture without changing the data.
-    void [rows, scrollTop, width, height, dpr, firstCommitRow, headLane, selectedRow, hoverRow];
+    void [rows, scrollTop, width, height, dpr, firstCommitRow, headLane, selectedRow, hoverRow, focusLane];
     void [settings.current.theme, settings.current.laneWidth, settings.current.coloredLanes];
     schedule();
     return () => cancelAnimationFrame(frame);

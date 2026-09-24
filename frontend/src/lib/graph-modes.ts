@@ -7,12 +7,15 @@ export interface GraphModes {
   highlightChecked: boolean;
   /** `--first-parent`: one line per ticked ref, merged branches left out. */
   firstParent: boolean;
+  /** A click on a commit or its line brings its branch forward. */
+  branchOfCommit: boolean;
 }
 
 /** As the graph looked before the settings existed, plus colour for ticked branches. */
 export const GRAPH_MODE_DEFAULTS: Readonly<GraphModes> = {
   highlightChecked: true,
   firstParent: false,
+  branchOfCommit: false,
 };
 
 export interface CheckedTip {
@@ -46,9 +49,28 @@ export function graphView(modes: GraphModes): GraphView {
   return { firstParent: modes.firstParent };
 }
 
-/** What to ask Rust to paint; `null` when there is nothing, so no call is made at all. */
+/** What to ask Rust to paint; `null` when there is nothing, so no call is made at all.
+    The branch of a commit needs only the lanes, which come with any paint. */
 export function paintRequest(modes: GraphModes, tips: readonly CheckedTip[]): GraphPaintRequest | null {
   const painted = modes.highlightChecked ? tips.map(({ oid, slot }) => ({ oid, slot })) : [];
-  if (painted.length === 0) return null;
+  if (painted.length === 0 && !modes.branchOfCommit) return null;
   return { tips: painted };
+}
+
+/** A lane chosen by clicking its line, in the row of `oid`. */
+export interface LanePick {
+  oid: string;
+  lane: number;
+}
+
+/** The lane to bring forward: the one clicked while its row stays selected, else the
+    selected commit's own. */
+export function focusLane(
+  modes: GraphModes,
+  selected: string | null,
+  selectedLane: number | null,
+  pick: LanePick | null,
+): number | null {
+  if (!modes.branchOfCommit || selected === null) return null;
+  return pick?.oid === selected ? pick.lane : selectedLane;
 }
