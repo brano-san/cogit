@@ -407,7 +407,7 @@
   $effect(() => errors.report(commit.error, "Could not load the commit"));
   $effect(() => errors.report(diff.error, "Could not show the diff"));
   $effect(() => errors.report(graph.error, "Could not load the graph"));
-  $effect(() => errors.report(hooks.error, "Could not read the hooks"));
+  $effect(() => errors.report(hooks.error, hooks.failure ?? "Could not read the hooks"));
 
   /** One place after every mutation: the reactive version fired on each loading toggle. */
   /** Refreshed with the rest of the state, so the stack follows Continue and Abort. */

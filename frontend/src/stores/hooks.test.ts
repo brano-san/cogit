@@ -44,3 +44,26 @@ describe("opening one hook after another", () => {
     expect(hooks.dirty).toBe(false);
   });
 });
+
+// One failed write left `error` set for the rest of the session; with every change to the
+// notification queue it was offered again, under "Could not read the hooks" although it
+// was a write that failed.
+describe("an action after one that failed", () => {
+  it("clears the old error and names what failed", async () => {
+    const ipc = await import("$lib/ipc");
+    vi.mocked(ipc.listHooks).mockResolvedValue({ hooks: [] } as never);
+    vi.mocked(ipc.bypassLog).mockResolvedValue([]);
+    vi.mocked(ipc.listPresets).mockResolvedValue([]);
+    vi.mocked(ipc.writeHook).mockRejectedValueOnce(new Error("locked"));
+    hooks.editing = "pre-commit";
+    hooks.body = "#!/bin/sh\n";
+
+    await hooks.save(1 as never);
+    expect(hooks.error).not.toBeNull();
+    expect(hooks.failure).toBe("Could not save the hook");
+
+    vi.mocked(ipc.writeHook).mockResolvedValueOnce(undefined as never);
+    await hooks.save(1 as never);
+    expect(hooks.error).toBeNull();
+  });
+});
