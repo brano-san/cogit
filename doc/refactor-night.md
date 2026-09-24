@@ -580,7 +580,10 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > `a_working_file_that_cannot_be_read_is_an_error_not_a_deletion` (Windows, файл открыт
   > без общего доступа) и страховка
   > `a_directory_on_the_working_side_still_reads_as_nothing`.
-- [ ] B-24 ошибки `recover`
+- [x] B-24 ошибки `recover`
+  > Итог: `checkout --force` и `reset --hard` при откате неудачного split —
+  > `tracing::error!` на сбой (шаги и так видны в журнале Output); `rebase --abort` без
+  > rebase падает законно — оставлен без лога. Без теста: меняется только лог.
 - [ ] B-26 sequencer/todo
 - [ ] D4-03 разбор через `read_git`
 - [ ] D4-04 apply через runner
