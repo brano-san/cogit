@@ -281,3 +281,166 @@ fn staging_a_name_with_brackets_stages_only_that_file() {
     let staged = f.git(&["diff", "--cached", "--name-only"]).unwrap();
     assert_eq!(staged.trim(), "test[1].txt");
 }
+
+// Stage all is one `git add --all`: no pathspec for git to match against every entry.
+#[test]
+fn staging_everything_takes_edits_deletions_and_new_files() {
+    let f = test_fixtures::linear(3).unwrap();
+    std::fs::write(f.path().join("file0.txt"), "edited\n").unwrap();
+    std::fs::remove_file(f.path().join("file1.txt")).unwrap();
+    std::fs::create_dir_all(f.path().join("new dir")).unwrap();
+    for name in ["new dir/two words.txt", "-leading.txt", "ünïcødé.txt"] {
+        std::fs::write(f.path().join(name), "fresh\n").unwrap();
+    }
+    let repo = open(&f);
+
+    repo.stage_all(5).unwrap();
+
+    assert_eq!(
+        staged(&repo),
+        [
+            "-leading.txt",
+            "file0.txt",
+            "file1.txt",
+            "new dir/two words.txt",
+            "ünïcødé.txt"
+        ]
+    );
+    assert!(unstaged(&repo).is_empty(), "{:?}", unstaged(&repo));
+}
+
+#[test]
+fn staging_everything_leaves_ignored_files_alone() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.commit_file(2, ".gitignore", "*.log\n").unwrap();
+    std::fs::write(f.path().join("build.log"), "noise\n").unwrap();
+    std::fs::write(f.path().join("file0.txt"), "edited\n").unwrap();
+    let repo = open(&f);
+
+    repo.stage_all(5).unwrap();
+
+    assert_eq!(staged(&repo), ["file0.txt"]);
+}
+
+#[test]
+fn staging_everything_reaches_into_nested_folders() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::create_dir_all(f.path().join("deep/er")).unwrap();
+    std::fs::write(f.path().join("deep/er/inner.txt"), "in\n").unwrap();
+    std::fs::write(f.path().join("file0.txt"), "edited\n").unwrap();
+    let repo = open(&f);
+
+    repo.stage_all(5).unwrap();
+
+    assert_eq!(staged(&repo), ["deep/er/inner.txt", "file0.txt"]);
+}
+
+fn packs(f: &test_fixtures::Fixture) -> usize {
+    std::fs::read_dir(f.git_dir().join("objects/pack"))
+        .map(|dir| {
+            dir.filter(|entry| {
+                entry
+                    .as_ref()
+                    .is_ok_and(|entry| entry.path().extension().is_some_and(|ext| ext == "pack"))
+            })
+            .count()
+        })
+        .unwrap_or(0)
+}
+
+fn loose(f: &test_fixtures::Fixture) -> usize {
+    std::fs::read_dir(f.git_dir().join("objects"))
+        .unwrap()
+        .flatten()
+        .filter(|entry| entry.file_name().len() == 2)
+        .map(|entry| std::fs::read_dir(entry.path()).unwrap().count())
+        .sum()
+}
+
+fn bulk_files(f: &test_fixtures::Fixture, count: usize) -> Vec<String> {
+    std::fs::create_dir_all(f.path().join("bulk")).unwrap();
+    (0..count)
+        .map(|i| {
+            let name = format!("bulk/file {i:04}.txt");
+            std::fs::write(f.path().join(&name), format!("line {i}\n")).unwrap();
+            name
+        })
+        .collect()
+}
+
+fn assert_same_blobs_as_git(f: &test_fixtures::Fixture, paths: &[String]) {
+    for path in [&paths[0], &paths[paths.len() - 1]] {
+        assert_eq!(
+            f.git(&["rev-parse", &format!(":{path}")]).unwrap(),
+            f.git(&["hash-object", "--", path]).unwrap()
+        );
+    }
+    f.git(&["fsck", "--no-dangling", "--no-progress"]).unwrap();
+}
+
+// Two thousand loose objects are two thousand files for the disk and the antivirus; one
+// pack is one (doc/12-risks.md, R-312).
+#[test]
+fn a_large_stage_writes_its_blobs_into_one_pack() {
+    let f = test_fixtures::linear(1).unwrap();
+    let paths = bulk_files(&f, 250);
+    let (packs_before, loose_before) = (packs(&f), loose(&f));
+    let repo = open(&f);
+
+    repo.stage(&paths).unwrap();
+
+    assert_eq!(staged(&repo).len(), 250);
+    assert_eq!(packs(&f), packs_before + 1);
+    assert_eq!(loose(&f), loose_before);
+    assert_same_blobs_as_git(&f, &paths);
+}
+
+#[test]
+fn staging_everything_of_many_files_writes_one_pack() {
+    let f = test_fixtures::linear(1).unwrap();
+    let paths = bulk_files(&f, 250);
+    let packs_before = packs(&f);
+    let repo = open(&f);
+
+    repo.stage_all(paths.len()).unwrap();
+
+    assert_eq!(staged(&repo).len(), 250);
+    assert_eq!(packs(&f), packs_before + 1);
+    assert_same_blobs_as_git(&f, &paths);
+}
+
+// A pack per click of Stage would reach `gc.autoPackLimit` long before loose objects
+// reach `gc.auto`.
+#[test]
+fn a_small_stage_writes_loose_objects_as_before() {
+    let f = test_fixtures::linear(1).unwrap();
+    let paths = bulk_files(&f, 3);
+    let (packs_before, loose_before) = (packs(&f), loose(&f));
+    let repo = open(&f);
+
+    repo.stage(&paths).unwrap();
+    repo.stage_all(3).unwrap();
+
+    assert_eq!(packs(&f), packs_before);
+    assert_eq!(loose(&f), loose_before + 3);
+}
+
+// Only content git stores as it is goes straight into the pack; a file it converts on the
+// way in takes the usual road and comes out converted.
+#[test]
+fn a_large_stage_still_converts_line_endings() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&["config", "core.autocrlf", "true"]).unwrap();
+    let paths = bulk_files(&f, 250);
+    std::fs::write(f.path().join(&paths[0]), "one\r\ntwo\r\n").unwrap();
+    let repo = open(&f);
+
+    repo.stage(&paths).unwrap();
+
+    assert_eq!(
+        f.git(&["cat-file", "-p", &format!(":{}", paths[0])])
+            .unwrap(),
+        "one\ntwo\n"
+    );
+    assert_same_blobs_as_git(&f, &paths);
+}

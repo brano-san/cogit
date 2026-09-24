@@ -230,3 +230,79 @@ fn a_stash_keeps_git_s_number_when_an_entry_above_it_is_unreadable() {
         f.git(&["rev-parse", "stash@{2}"]).unwrap().trim()
     );
 }
+
+fn journalled(
+    f: &test_fixtures::Fixture,
+) -> (RepoHandle, std::sync::Arc<std::sync::Mutex<Vec<String>>>) {
+    let commands = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let sink = std::sync::Arc::clone(&commands);
+    let repo = open(f).with_journal(std::sync::Arc::new(move |out: git_engine::GitOutput| {
+        sink.lock().unwrap().push(out.command);
+    }));
+    (repo, commands)
+}
+
+fn with_untracked(message: &str) -> StashOptions {
+    StashOptions {
+        message: message.to_owned(),
+        include_untracked: true,
+        keep_index: false,
+    }
+}
+
+// With nothing untracked, `--include-untracked` only made `stash` start two more processes
+// of its own, ≈100 ms (doc/12-risks.md, R-315).
+#[test]
+fn asked_for_untracked_with_none_there_the_edits_go_in_a_plain_push() {
+    let f = test_fixtures::linear(2).unwrap();
+    dirty(&f, "file0.txt", "work in progress\n");
+    let (repo, commands) = journalled(&f);
+
+    repo.stash_push(&with_untracked("wip")).unwrap();
+
+    assert_eq!(*commands.lock().unwrap(), ["git stash push --message wip"]);
+    assert!(repo.worktree_files().unwrap().unstaged.is_empty());
+    repo.stash_apply_index(0, true).unwrap();
+    assert_eq!(
+        std::fs::read_to_string(f.path().join("file0.txt")).unwrap(),
+        "work in progress\n"
+    );
+}
+
+#[test]
+fn an_untracked_file_deep_in_a_new_folder_is_still_taken() {
+    let f = test_fixtures::linear(2).unwrap();
+    dirty(&f, "file0.txt", "edit\n");
+    std::fs::create_dir_all(f.path().join("new/deeper")).unwrap();
+    dirty(&f, "new/deeper/fresh.txt", "untracked\n");
+    let (repo, commands) = journalled(&f);
+
+    repo.stash_push(&with_untracked("both")).unwrap();
+
+    assert_eq!(
+        *commands.lock().unwrap(),
+        ["git stash push --include-untracked --message both"]
+    );
+    assert!(!f.path().join("new/deeper/fresh.txt").exists());
+}
+
+#[test]
+fn an_ignored_file_is_not_an_untracked_one() {
+    let f = test_fixtures::linear(2).unwrap();
+    f.commit_file(3, ".gitignore", "*.log\n").unwrap();
+    dirty(&f, "build.log", "noise\n");
+    dirty(&f, "file0.txt", "edit\n");
+    let (repo, commands) = journalled(&f);
+
+    repo.stash_push(&with_untracked("edit")).unwrap();
+
+    assert_eq!(*commands.lock().unwrap(), ["git stash push --message edit"]);
+    assert!(f.path().join("build.log").exists());
+}
+
+#[test]
+fn a_clean_tree_is_still_refused_when_untracked_files_are_asked_for() {
+    let f = test_fixtures::linear(2).unwrap();
+
+    assert!(open(&f).stash_push(&with_untracked("nothing")).is_err());
+}

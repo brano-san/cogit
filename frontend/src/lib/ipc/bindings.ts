@@ -44,7 +44,16 @@ export const commands = {
 	diffFile: (repo: RepoId, spec: DiffSpec, path: string, options: DiffOptions) => typedError<FileDiff, GitError>(__TAURI_INVOKE("diff_file", { repo, spec, path, options })),
 	worktreeFiles: (repo: RepoId, view: WorktreeView) => typedError<WorktreeFiles, GitError>(__TAURI_INVOKE("worktree_files", { repo, view })),
 	repoStatus: (repo: RepoId) => typedError<RepoStatus, GitError>(__TAURI_INVOKE("repo_status", { repo })),
+	/**  The counters and the conflicted paths from one read, for the refresh after a mutation. */
+	workingState: (repo: RepoId) => typedError<WorkingState, GitError>(__TAURI_INVOKE("working_state", { repo })),
+	/**  Refs and state without reopening the repository, for the refresh after a commit. */
+	repoRefs: (repo: RepoId) => typedError<RepoRefs, GitError>(__TAURI_INVOKE("repo_refs", { repo })),
 	stagePaths: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("stage_paths", { repo, paths })),
+	/**
+	 *  Stage all: every change git sees, not a path list (doc/12-risks.md, R-311). `files` is
+	 *  how many rows the list showed, which decides how the blobs are written (R-312).
+	 */
+	stageAll: (repo: RepoId, files: number) => typedError<null, GitError>(__TAURI_INVOKE("stage_all", { repo, files })),
 	unstagePaths: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("unstage_paths", { repo, paths })),
 	discardPaths: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("discard_paths", { repo, paths })),
 	commit: (repo: RepoId, request: CommitRequest) => typedError<string, GitError>(__TAURI_INVOKE("commit", { repo, request })),
@@ -1253,6 +1262,15 @@ export type RepoPulse = {
 	dirty: boolean,
 };
 
+/**  What a commit moves besides the counters: the refs and the operation state (R-316). */
+export type RepoRefs = {
+	head: Head,
+	branches: Branch[],
+	tags: Tag[],
+	state: RepoState,
+	indexLock: string | null,
+};
+
 export type RepoSetting = {
 	key: string,
 	/**  Set in this repository's config (`.git/config`, or `config.worktree`). */
@@ -1487,6 +1505,13 @@ export type WebviewLogLine = {
 };
 
 export type Whitespace = "none" | "trailing" | "all";
+
+/**  The counters and the conflicted paths, from one read of the status (R-316). */
+export type WorkingState = {
+	status: RepoStatus,
+	/**  Sorted, each path once — what `conflicted_paths` lists. */
+	conflicted: string[],
+};
 
 /**  One checkout: the main one cannot be removed, a linked one can be locked or left behind. */
 export type WorktreeEntry = {
