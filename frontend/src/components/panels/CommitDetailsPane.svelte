@@ -85,6 +85,28 @@
     overflow: auto;
   }
 
+  /* Left behind in App.svelte when the pane moved out (0d49f07); the buttons were drawn
+     with the system look on the dark panel since. */
+  .commit-actions {
+    display: flex;
+    gap: var(--sp-3);
+  }
+
+  .commit-actions button {
+    height: 20px;
+    padding: 0 var(--sp-4);
+    background: var(--surface-input);
+    color: var(--text-primary);
+    border: 1px solid var(--field-border);
+    border-radius: var(--r-sm);
+    font-size: var(--fs-dense);
+    cursor: default;
+  }
+
+  .commit-actions button:hover {
+    border-color: var(--status-ref);
+  }
+
   .subject {
     margin: 0 0 var(--sp-4);
     font-weight: 600;

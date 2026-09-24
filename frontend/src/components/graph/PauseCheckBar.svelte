@@ -73,6 +73,26 @@
     border-color: var(--status-delete);
   }
 
+  /* The same small button as the commit actions beside the graph. */
+  .check button {
+    height: 20px;
+    padding: 0 var(--sp-4);
+    background: var(--surface-input);
+    color: var(--text-primary);
+    border: 1px solid var(--field-border);
+    border-radius: var(--r-sm);
+    font-size: var(--fs-dense);
+    cursor: default;
+  }
+
+  .check button:hover:not(:disabled) {
+    border-color: var(--status-ref);
+  }
+
+  .check button:disabled {
+    opacity: 0.4;
+  }
+
   .verdict {
     flex: 0 0 auto;
     color: var(--text-secondary);
