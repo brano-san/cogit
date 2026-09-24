@@ -24,6 +24,12 @@ describe("closesWindow", () => {
     expect(closesWindow(key("W", { ctrlKey: true }))).toBe(true);
   });
 
+  // The key was read as the character the layout types: on a Russian keyboard Ctrl+W
+  // is "ц", and the compare and merge windows, which have no menu to catch it, stayed open.
+  it("closes on Ctrl+W whatever the keyboard layout types there", () => {
+    expect(closesWindow({ ...key("ц", { ctrlKey: true }), code: "KeyW" })).toBe(true);
+  });
+
   it("leaves a bare W alone, which is a letter somebody is typing", () => {
     expect(closesWindow(key("w"))).toBe(false);
   });
