@@ -110,7 +110,7 @@ pub use runner::{CommandSink, GitOutput, git_version, gix_version, redact_comman
 pub use search::{CommitQuery, SkippedRef};
 pub use stash::{StashContents, StashEntry, StashOptions};
 pub use state::RepoState;
-pub use status::RepoStatus;
+pub use status::{RepoStatus, WorkingState};
 pub use submodules::{Submodule, SubmodulePointer, SubmoduleState};
 pub use subtrees::SubtreeOp;
 pub use tags::TagRequest;

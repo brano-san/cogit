@@ -5,6 +5,7 @@ const commands = {
   closeRepository: vi.fn(),
   repositories: vi.fn(),
   repoStatus: vi.fn(),
+  workingState: vi.fn(),
 };
 
 vi.mock("@tauri-apps/api/core", () => ({ Channel: class {} }));
@@ -397,5 +398,57 @@ describe("what the panels see, end to end", () => {
 
     expect(panelView(repository.phase)).toBe("content");
     expect(repository.busy).toBe(false);
+  });
+});
+
+describe("the status refresh after a mutation", () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+    commands.openRepository.mockReset();
+    commands.workingState.mockReset();
+    commands.repositories.mockResolvedValue({ status: "ok", data: [] });
+    repository.close();
+  });
+
+  const state = (conflicted: string[]) => ({
+    status: "ok",
+    data: { status: { staged: 2, unstaged: 0, untracked: 0, conflicted: conflicted.length }, conflicted },
+  });
+
+  // `repo_status` and `conflicted_paths` were two full reads of the same status (R-316).
+  it("takes the counters and the conflicted paths from one read", async () => {
+    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
+    await repository.open("C:/repos/one");
+    commands.workingState.mockResolvedValue(state(["a.txt"]));
+
+    const conflicted = await repository.refreshStatus();
+
+    expect(commands.workingState).toHaveBeenCalledTimes(1);
+    expect(commands.repoStatus).not.toHaveBeenCalled();
+    expect(repository.current?.status.staged).toBe(2);
+    expect(conflicted).toEqual(["a.txt"]);
+  });
+
+  it("drops an answer for a repository the panels have left, and says so", async () => {
+    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
+    await repository.open("C:/repos/one");
+    const answer = pending<unknown>();
+    commands.workingState.mockReturnValue(answer.promise);
+
+    const refresh = repository.refreshStatus();
+    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/second") });
+    await repository.open("C:/repos/second");
+    answer.settle(state(["a.txt"]));
+
+    expect(await refresh).toBeNull();
+    expect(repository.current?.status.staged).toBe(0);
+  });
+
+  it("returns nothing when the read fails", async () => {
+    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
+    await repository.open("C:/repos/one");
+    commands.workingState.mockRejectedValue(new Error("locked"));
+
+    expect(await repository.refreshStatus()).toBeNull();
   });
 });

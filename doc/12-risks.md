@@ -4490,3 +4490,9 @@ App.svelte, `repo_status` и `conflicted_paths` — последний тоже 
 
 **Решение:** `mutate` вынесен в `runMutation` (`lib/mutation.ts`, тесты); Stage, Unstage и
 Discard через стор помечены `readsBack` — второй раз список не читается.
+
+**Дополнение (`working_state`):** счётчики (`repo_status`) и список конфликтов
+(`conflicted_paths`) каскад теперь берёт одной командой `working_state` — один обход статуса
+вместо двух. `repository.refreshStatus` отдаёт список стору конфликтов
+(`conflicts.refresh(id, known)`), и тот ничего не спрашивает сам; ответ для репозитория,
+который панели уже покинули, отбрасывается и списка не даёт.

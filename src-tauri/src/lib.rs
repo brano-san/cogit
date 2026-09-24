@@ -72,6 +72,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::diff_file,
             commands::worktree_files,
             commands::repo_status,
+            commands::working_state,
             commands::stage_paths,
             commands::stage_all,
             commands::unstage_paths,
