@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { UNGROUPED } from "$lib/repo-groups";
 
 const store = new Map<string, string>();
@@ -9,6 +9,10 @@ vi.stubGlobal("localStorage", {
 });
 
 describe("repository groups", () => {
+  // The first import compiles the store and all it pulls in; on a busy machine that alone
+  // outlasts a test's timeout, and the cut-off test then runs on into the next one.
+  beforeAll(() => import("./repo-groups.svelte"), 60_000);
+
   beforeEach(() => {
     store.clear();
     vi.resetModules();

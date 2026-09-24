@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Submodule } from "$lib/ipc";
 
 const mod = (path: string, nested = false): Submodule => ({
@@ -48,6 +48,10 @@ async function fresh() {
 }
 
 describe("the submodule trees of repositories not on screen", () => {
+  // The first import compiles the store and all it pulls in; on a busy machine that alone
+  // outlasts a test's timeout, and the cut-off test then runs on into the next one.
+  beforeAll(() => import("./module-forest.svelte"), 60_000);
+
   beforeEach(() => {
     store.clear();
     outline.mockClear();
