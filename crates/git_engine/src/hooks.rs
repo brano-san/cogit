@@ -297,7 +297,7 @@ impl RepoHandle {
 
         let started = std::time::Instant::now();
         let output = crate::children::output(&mut hook_command(&path, self.root(), &args));
-        let duration_ms = u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX);
+        let duration_ms = crate::runner::elapsed_ms(started);
         let _ = std::fs::remove_file(&scratch);
         let output = output?;
 
@@ -337,11 +337,18 @@ fn sample_args(name: &str, scratch: &Path) -> Result<Vec<String>> {
 /// Git for Windows ships bash, and a hook's `#!` line only means something to a shell.
 #[cfg(windows)]
 fn hook_command(path: &Path, root: &Path, args: &[String]) -> std::process::Command {
-    use std::os::windows::process::CommandExt as _;
-    let mut command = std::process::Command::new("bash");
-    command.creation_flags(0x0800_0000);
+    let mut command = bash(root);
     command.arg(path);
     command.args(args);
+    command
+}
+
+/// Git's bash, in the repository, with no console window and no password prompt.
+#[cfg(windows)]
+fn bash(root: &Path) -> std::process::Command {
+    use std::os::windows::process::CommandExt as _;
+    let mut command = std::process::Command::new("bash");
+    command.creation_flags(crate::runner::CREATE_NO_WINDOW);
     command.current_dir(root);
     command.env("GIT_TERMINAL_PROMPT", "0");
     command
@@ -368,7 +375,7 @@ impl RepoHandle {
         let started = std::time::Instant::now();
         let output = crate::children::output(&mut shell_command(trimmed, self.root()))
             .map_err(|err| GitError::Io(format!("cannot run the check: {err}")))?;
-        let duration_ms = u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX);
+        let duration_ms = crate::runner::elapsed_ms(started);
 
         let run = HookRun {
             name: "check".to_owned(),
@@ -396,12 +403,8 @@ impl RepoHandle {
 /// The same shell the hooks use, so a check reads like the command line the user typed.
 #[cfg(windows)]
 fn shell_command(command: &str, root: &Path) -> std::process::Command {
-    use std::os::windows::process::CommandExt as _;
-    let mut spawned = std::process::Command::new("bash");
-    spawned.creation_flags(0x0800_0000);
+    let mut spawned = bash(root);
     spawned.args(["-lc", command]);
-    spawned.current_dir(root);
-    spawned.env("GIT_TERMINAL_PROMPT", "0");
     spawned
 }
 
