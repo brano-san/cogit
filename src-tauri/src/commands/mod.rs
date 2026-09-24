@@ -89,7 +89,23 @@ where
     T: Send + 'static,
     F: FnOnce() -> Result<T, GitError> + Send + 'static,
 {
-    let permit = state.enqueue(repo, kind, kind.title()).await;
+    mutating_titled(state, repo, kind, kind.title(), label, work).await
+}
+
+/// `mutating` with a footer line of its own, for work the kind's title says too little about.
+async fn mutating_titled<T, F>(
+    state: &std::sync::Arc<app_state::AppState>,
+    repo: RepoId,
+    kind: OperationKind,
+    title: &str,
+    label: &'static str,
+    work: F,
+) -> Result<T, GitError>
+where
+    T: Send + 'static,
+    F: FnOnce() -> Result<T, GitError> + Send + 'static,
+{
+    let permit = state.enqueue(repo, kind, title).await;
     let result = blocking(label, work).await;
     permit.finish(result.is_ok());
     result

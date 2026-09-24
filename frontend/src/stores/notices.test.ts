@@ -241,4 +241,23 @@ describe("a failed git command in the notification window", () => {
     expect(notices.current?.output).toBeUndefined();
     expect(notices.current?.outputLines).toBe(2000);
   });
+
+  it("tells how an operation ended without counting it as an error", () => {
+    notices.inform("Worktree repaired", "Git knows linked is at E:/w/linked again.");
+
+    expect(notices.current).toMatchObject({ severity: "info", title: "Worktree repaired" });
+    expect(notices.errorCount).toBe(0);
+    notices.dismiss();
+    expect(notices.current).toBeUndefined();
+  });
+
+  it("keeps a result behind every error and warning", async () => {
+    await warn(goneWorktree);
+    notices.inform("Worktree repaired", "done");
+    errors.report(refusal("first"), "Could not merge");
+
+    expect(notices.all.map((notice) => notice.severity)).toEqual(["error", "warning", "info"]);
+    notices.dismissAll();
+    expect(notices.all.map((notice) => notice.severity)).toEqual(["warning"]);
+  });
 });

@@ -96,7 +96,7 @@ pub enum GitError {
 | `worktree_changes` | `repo`, `path` | `Vec<FileEntry>` — незакоммиченное в этом ворктри, для подтверждения Remove | M3 |
 | `prune_worktrees` | `repo` | `()` — `git worktree prune`, все устаревшие | M3 |
 | `prune_worktree` | `repo`, `path` | `()` — одна регистрация; папка на месте — `InvalidState` | M3 |
-| `repair_worktree` | `repo`, `path` — где папка теперь | `()` — `git worktree repair <path>` | M3 |
+| `repair_worktree` | `repo`, `path` — где папка теперь | `()` — `git worktree repair <path>`, затем `git update-index -q --refresh` в починенном и в текущем worktree; в очереди с подписью `Repairing worktree <name>` | M3 |
 | `lock_worktree` / `unlock_worktree` | `repo`, `path`, `reason: Option<String>` (только lock) | `()` | M3 |
 
 ### Хуки и пресеты (M10)
