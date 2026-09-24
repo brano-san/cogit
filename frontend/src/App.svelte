@@ -3,6 +3,7 @@
   import { ask, message as dialogMessage, open as openFolderDialog } from "@tauri-apps/plugin-dialog";
   import { checkForUpdates, message, type UpdateOutcome } from "$lib/updates";
   import { leaveRepositoryDialogs } from "$lib/leaving";
+  import { retryOf } from "$lib/retry";
   import { finder } from "$stores/finder.svelte";
   import { THIRD_PARTY_FILE } from "$lib/third-party";
 
@@ -2922,9 +2923,9 @@
 
   /** Only the operations that mean the same thing when run again. Deleting a branch
       that is already gone is not a retry, it is a second, different failure. */
-  function retryOf(operation: string): (() => void) | undefined {
-    const kind = operation.toLowerCase();
-    if (kind !== "push" && kind !== "pull" && kind !== "fetch") return undefined;
+  function retryFor(entry: import("$lib/ipc").GitOutput): (() => void) | undefined {
+    const kind = retryOf(entry, repository.current?.root ?? null, network.primary);
+    if (kind === null) return undefined;
     return () => {
       output.close();
       void runNetwork(kind);
@@ -3710,7 +3711,7 @@
     <CommandOutput
       entry={output.shown}
       logPath={info?.logPath ?? ""}
-      onretry={retryOf(output.shown.operation)}
+      onretry={retryFor(output.shown)}
     />
   {/if}
 
