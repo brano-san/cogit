@@ -47,7 +47,17 @@
 - [x] Полный прогон тестов до правок
   > Итог: nextest 1645 ✓ / 1 skipped (74 с); `cargo test -p cogit --lib` 100 ✓; vitest 1653 ✓
   > (121 файл); svelte-check 0 ошибок / 0 предупреждений; clippy `-D warnings` чисто.
-- [ ] Бенчмарк до правок; exe сохранён как `target/bench/exes/night-base.exe` для A/B в фазе 3
+- [x] Бенчмарк до правок; exe сохранён как `target/bench/exes/night-base.exe` для A/B в фазе 3
+  > Итог: полный прогон `--hidden --cores 16-31` на 2e4ef36,
+  > `doc/benchmarks/2026-09-24-night-base.json`. Первая попытка сборки упала (`Allocation
+  > failed` в rustc при шести агентах), вторая — первый запуск свежего exe не дождался
+  > антивируса (у сценария запуска нет повтора, как у `session`), третья прошла. Шёл
+  > параллельно с моими тестами на тех же ядрах: 34 сценария `⚠ noisy`, 6 холодных запусков
+  > не дождались страницы — поэтому сравнение в фазе 3 — A/B `night-base.exe` против
+  > итоговой сборки в одной сессии, а не разность прогонов. Для ориентира (медиана, мс):
+  > app.ready medium cold 384; repo.open large warm 279; graph.full-layout large warm 274;
+  > repo.switch large warm 266; changes.stage-all dirty warm 321; changes.commit medium warm
+  > 143; files.status medium warm 12,6.
 
 ## Фаза 1 — аудит
 
