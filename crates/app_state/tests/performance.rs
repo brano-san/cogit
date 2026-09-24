@@ -177,6 +177,47 @@ fn fifty_thousand_commits_meet_the_product_promise() {
     );
 }
 
+/// The walk takes parents and dates from the commit-graph file when there is one (R-302).
+#[test]
+fn fifty_thousand_commits_with_a_commit_graph_are_laid_out_in_the_budget() {
+    let f = test_fixtures::stress(50_000).unwrap();
+    f.git(&["commit-graph", "write", "--reachable"]).unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let generation = state.begin_graph();
+    let started = Instant::now();
+    let mut rows = 0;
+    state
+        .build_graph(
+            repo,
+            &CommitQuery::default(),
+            generation,
+            DEFAULT_CHUNK_SIZE,
+            |p| {
+                rows = p.total;
+                true
+            },
+        )
+        .unwrap();
+    let walked = started.elapsed();
+    let window = Instant::now();
+    let shown = state.graph_window(repo, generation, 0, 128).unwrap();
+
+    assert_eq!(rows, 50_000);
+    assert_eq!(shown.commits[0].summary, "commit 49999");
+    report(
+        "50k + commit-graph: laid out",
+        walked,
+        Duration::from_millis(500),
+    );
+    report(
+        "50k + commit-graph: first window",
+        window.elapsed(),
+        Duration::from_millis(100),
+    );
+}
+
 /// Ticking a ref re-lays the graph from the rows the last walk read (R-301).
 #[test]
 fn fifty_thousand_commits_are_laid_out_again_from_the_last_graph() {
