@@ -12,6 +12,8 @@ const ALL = ["small", "medium", "large", "submodules", "dirty"];
 
 const COMMIT_ROW = (index) => ({ sel: `[role="listitem"]`, index });
 const REPO_ROW = (name) => ({ sel: `.wrapper .row`, text: name, exact: ".name" });
+// A closed repository keeps its row, dimmed; the row has no close button, only the menu.
+const OPEN_REPO_ROW = (name) => ({ sel: `.wrapper .row:not(.closed)`, text: name, exact: ".name" });
 const REF_GROUP = (label, child) => ({ sel: `[role="treeitem"].group`, text: label, child });
 // The name, not the row centre: the row's Stage and Discard buttons sit there on hover.
 const FILE_ROW = (name, section) => ({ sel: `.pane button.row`, text: name, section, child: ".name" });
@@ -42,7 +44,9 @@ export const SCENARIOS = [
     title: "открытие",
     sets: ALL,
     async prep(ctx) {
-      if (await ctx.exists(REPO_ROW(ctx.set))) await ctx.prep.click({ ...REPO_ROW(ctx.set), child: `.act[title^="Close"]` });
+      if (!(await ctx.exists(OPEN_REPO_ROW(ctx.set)))) return;
+      await ctx.prep.click(OPEN_REPO_ROW(ctx.set), { quiet: 300 });
+      await ctx.prep.menu("close", { quiet: 300 });
     },
     async measure(ctx) {
       const r = await ctx.measure.run(ctx.dropScript(ctx.repo), { quiet: 300, probes: { graph: GRAPH_ROWS, refs: REF_ROWS } });
@@ -340,8 +344,9 @@ export const SCENARIOS = [
     title: "открытие submodule",
     sets: ["submodules"],
     async prep(ctx) {
-      const folded = await ctx.exists({ sel: `button.disclosure[aria-label="Show submodules"]` });
-      if (folded) await ctx.prep.click({ sel: `button.disclosure[aria-label="Show submodules"]` });
+      // Every row with submodules has a triangle now; only this one's tree is the one to open.
+      const toggle = { ...REPO_ROW("submodules"), child: `button.disclosure[aria-label="Show submodules"]` };
+      if (await ctx.exists(toggle)) await ctx.prep.click(toggle);
     },
     measure: (ctx) => ctx.measure.click({ sel: `.row.module`, text: "libjam" }, { quiet: 300 }),
     reset: (ctx) => ctx.prep.click(REPO_ROW("submodules"), { quiet: 300 }),
@@ -359,7 +364,7 @@ export const SCENARIOS = [
     group: "Репозиторий",
     title: "закрытие",
     sets: ALL,
-    measure: (ctx) => ctx.measure.click({ ...REPO_ROW(ctx.set), child: `.act[title^="Close"]` }, { quiet: 300 }),
+    measure: (ctx) => ctx.measure.menu("close", { quiet: 300 }),
     reset: (ctx) => ctx.prep.run(ctx.dropScript(ctx.repo), { quiet: 300 }),
   },
 ];
