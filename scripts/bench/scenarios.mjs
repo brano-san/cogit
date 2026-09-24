@@ -34,6 +34,20 @@ async function setGroup(ctx, label, open, kind = "group") {
   if (expanded !== String(open)) await ctx.prep.click({ ...row, child: "button.disclosure" });
 }
 
+/** How the Repositories row learns whether there is anything to pull: `pull_probe`
+    (`ls-remote`, no write) where the build has it, else `background_fetch` + `repo_pulse`,
+    which is what came before it (R-354). The same scenario measures both sides of the A/B. */
+const PULL_CHECK = (root) => `(async () => {
+  const I = window.__TAURI_INTERNALS__;
+  try {
+    await I.invoke("pull_probe", { root: ${JSON.stringify(root)} });
+  } catch (err) {
+    if (!String(err).includes("not found")) throw err;
+    await I.invoke("background_fetch", { root: ${JSON.stringify(root)} });
+    await I.invoke("repo_pulse", { root: ${JSON.stringify(root)} });
+  }
+})()`;
+
 /** A branch leaf: `feature/003` sits under the folder `feature`, labelled `003`. */
 const BRANCH_BOX = { sel: `[role="treeitem"].local`, text: "003", exact: ".label", child: "input.box" };
 
@@ -290,6 +304,14 @@ export const SCENARIOS = [
     sets: ["network"],
     prep: (ctx) => ctx.git.remoteCommit(),
     measure: (ctx) => ctx.measure.menu("pull", HEAVY),
+  },
+  {
+    id: "net.pull-check",
+    group: "Сеть (локальный remote)",
+    title: "есть ли что забрать (строка Repositories)",
+    sets: ["network"],
+    prep: (ctx) => ctx.git.remoteCommit(),
+    measure: (ctx) => ctx.measure.run(PULL_CHECK(ctx.repo), HEAVY),
   },
   {
     id: "net.push",
