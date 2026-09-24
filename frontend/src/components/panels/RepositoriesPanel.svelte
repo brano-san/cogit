@@ -17,7 +17,8 @@
     onaddgroup: () => void;
     onopenmodule: (row: ModuleRow) => void;
 
-    onmodulecontext: (row: ModuleRow, x: number, y: number) => void;
+    onopenforeignmodule: (root: string, row: ModuleRow) => void;
+    onmodulecontext: (row: ModuleRow, x: number, y: number, root?: string) => void;
   }
 
   let {
@@ -31,6 +32,7 @@
     ongroupcontext,
     onaddgroup,
     onopenmodule,
+    onopenforeignmodule,
 
     onmodulecontext,
   }: Props = $props();
@@ -47,5 +49,6 @@
   {ongroupcontext}
   {onaddgroup}
   {onopenmodule}
+  {onopenforeignmodule}
   {onmodulecontext}
 />

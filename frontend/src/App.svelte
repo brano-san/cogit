@@ -160,6 +160,7 @@
   import { safety } from "$stores/safety.svelte";
   import { stashes } from "$stores/stashes.svelte";
   import { submodules } from "$stores/submodules.svelte";
+  import { moduleMemory } from "$stores/module-memory.svelte";
   import { graph } from "$stores/graph.svelte";
   import { hooks } from "$stores/hooks.svelte";
   import { avatars } from "$stores/avatars.svelte";
@@ -223,7 +224,13 @@
   let markedFiles = $state.raw<string[]>([]);
   type RepoMenuSubject =
     | { kind: "repository"; root: string; overview: import("$lib/ipc").RepoOverview | null }
-    | { kind: "submodule"; root: string; row: import("$lib/module-tree").ModuleRow };
+    | {
+        kind: "submodule";
+        root: string;
+        row: import("$lib/module-tree").ModuleRow;
+        /** The repository it belongs to, when that is not the one the panels own. */
+        top?: string;
+      };
   let repoTarget = $state.raw<RepoMenuSubject | null>(null);
   let terminals = $state.raw<{ id: string; label: string }[]>([]);
   let groupTarget = $state<string | null>(null);
@@ -1321,6 +1328,27 @@
     void worktrees.refresh(opened.repo);
     void flow.refresh(opened.repo);
     await afterMutation();
+  }
+
+  /** A submodule of a listed repository the panels do not own, open or closed (R-352): the
+      repository is opened without taking the panels, its tree becomes the full one, and
+      the submodule takes the panels. Clicking the repository afterwards comes back to it. */
+  async function openForeignModule(root: string, row: import("$lib/module-tree").ModuleRow) {
+    const epoch = repository.epoch;
+    let owner: import("$lib/ipc").RepoSummary;
+    try {
+      owner = await openRepository(root);
+    } catch (err) {
+      errors.report(err, "Could not open the repository");
+      return;
+    }
+    if (repository.epoch !== epoch) return;
+    repoList.opened(owner.root);
+    await submodules.own(owner.repo, owner.root);
+    if (repository.epoch !== epoch) return;
+    repository.keep(owner);
+    await openModule(submodules.rows.find((each) => each.key === row.key) ?? row);
+    void repository.refreshList();
   }
 
   /** From the Diff panel, where a submodule that was never checked out says so. */
@@ -2507,12 +2535,17 @@
   }
 
   /** A submodule node: the same menu, with the four list-only items explained away. */
-  async function moduleContext(row: import("$lib/module-tree").ModuleRow, x: number, y: number) {
-    const top = submodules.ownerRoot;
+  async function moduleContext(
+    row: import("$lib/module-tree").ModuleRow,
+    x: number,
+    y: number,
+    foreign?: string,
+  ) {
+    const top = foreign ?? submodules.ownerRoot;
     if (!top) return;
     const info = await desktop.load();
-    const open = submodules.open === row.key;
-    repoTarget = { kind: "submodule", root: `${top}/${row.key}`, row };
+    const open = foreign === undefined && submodules.open === row.key;
+    repoTarget = { kind: "submodule", root: `${top}/${row.key}`, row, top: foreign };
     const items = repoMenu(
       {
         kind: "submodule",
@@ -2555,7 +2588,8 @@
       void step.catch((err) => errors.report(err, failure));
     switch (command.id) {
       case "repo-open":
-        if (target.kind === "submodule") void openModule(target.row);
+        if (target.kind === "submodule" && target.top) void openForeignModule(target.top, target.row);
+        else if (target.kind === "submodule") void openModule(target.row);
         else if (target.overview) void selectRepository(target.overview);
         else {
           repoList.opened(root);
@@ -2677,6 +2711,7 @@
       await closeListed(target);
     }
     repoList.forget(target.root);
+    moduleMemory.forget(target.root);
     repoGroups.assign(target.root, UNGROUPED);
   }
 
@@ -3100,7 +3135,8 @@
             onaddgroup={askAddGroup}
             ongroupcontext={(id, x, y) => void groupContext(id, x, y)}
             onopenmodule={(row) => void openModule(row)}
-            onmodulecontext={(row, x, y) => void moduleContext(row, x, y)}
+            onopenforeignmodule={(root, row) => void openForeignModule(root, row)}
+            onmodulecontext={(row, x, y, root) => void moduleContext(row, x, y, root)}
           />
         </Panel>
       </div>

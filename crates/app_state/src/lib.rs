@@ -16,6 +16,7 @@ mod presets;
 mod queue;
 mod ref_ops;
 mod remote_ops;
+pub mod repo_rows;
 mod rewrite;
 mod safety;
 pub mod settings;

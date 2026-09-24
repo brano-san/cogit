@@ -13,6 +13,8 @@
   import { idleMessage, panelView } from "$lib/repo-phase";
   import { STATE_TAG_HINT, repoStateTag } from "$lib/repo-state";
   import { submodules } from "$stores/submodules.svelte";
+  import { moduleForest } from "$stores/module-forest.svelte";
+  import { moduleMemory } from "$stores/module-memory.svelte";
   import { UNGROUPED, groupRows } from "$lib/repo-groups";
   import type { RepoOverview } from "$lib/ipc";
   import { listedRepos, type ListedRepo } from "$lib/repo-list";
@@ -25,7 +27,10 @@
     /** Only the folder dialog changes the label; selecting a repository must not (R-35). */
     opening?: boolean;
     onopenmodule: (row: ModuleRow) => void;
-    onmodulecontext: (row: ModuleRow, x: number, y: number) => void;
+    /** A submodule of a repository the panels do not own: open both in one click. */
+    onopenforeignmodule: (root: string, row: ModuleRow) => void;
+    /** `root` names the owner when it is not the repository the panels own. */
+    onmodulecontext: (row: ModuleRow, x: number, y: number, root?: string) => void;
     onopen: () => void;
     onscan: () => void;
     onselect: (entry: RepoOverview) => void;
@@ -50,6 +55,7 @@
     ongroupcontext,
     onaddgroup,
     onopenmodule,
+    onopenforeignmodule,
     onmodulecontext,
   }: Props = $props();
 
@@ -73,6 +79,11 @@
   const byRoot = $derived(new Map(entries.map((entry) => [entry.root, entry])));
   const rows = $derived(groupRows(repoGroups.groups, order, repoGroups.collapsed));
 
+  $effect(() => {
+    void moduleForest.trees;
+    void moduleForest.probe(order);
+  });
+
   /** Dropping a repository that is part of a marked set moves the whole set. */
   function dropped(group: string, root: string) {
     over = null;
@@ -80,6 +91,79 @@
     for (const each of moving) repoGroups.assign(each, group);
   }
 </script>
+
+{#snippet topDisclosure(root: string, owned: boolean)}
+  {@const open = owned ? !submodules.folded : moduleMemory.isOpen(root)}
+  <Disclosure
+    empty={owned ? submodules.top.length === 0 : !moduleForest.hasModules(root)}
+    {open}
+    label={open ? "Hide submodules" : "Show submodules"}
+    onclick={(event) => {
+      event.stopPropagation();
+      if (owned) submodules.foldTop();
+      else void moduleForest.toggleTop(root);
+    }}
+  />
+{/snippet}
+
+<!-- The tree of the repository the panels own is read in full; every other one is the light
+     outline, and a click there opens the submodule in one go (R-352). -->
+{#snippet moduleTree(root: string, owned: boolean, depth: number)}
+  {@const children = owned ? submodules.children : (moduleForest.trees.get(root) ?? new Map())}
+  {@const toggle = (node: ModuleRow) =>
+    void (owned ? submodules.toggle(node) : moduleForest.toggle(root, node))}
+  {@const open = (node: ModuleRow) => (owned ? onopenmodule(node) : onopenforeignmodule(root, node))}
+  {#each owned ? submodules.rows : moduleForest.rows(root) as node (node.key)}
+    {@const parts = splitModulePath(node.path)}
+    {@const folder = parts.dir.replace(/[/\\]$/, "")}
+    {@const where = describeModule(node.module)}
+    <div
+      class="row module {node.module.state}"
+      class:selected={owned && submodules.open === node.key}
+      role="button"
+      tabindex="0"
+      title="{node.path} — {node.module.url}"
+      style:padding-left="calc(var(--tree-base) + {depth + 1 + node.depth} * var(--tree-step))"
+      onclick={() => open(node)}
+      ondblclick={() => {
+        if (!owned) return;
+        open(node);
+        toggle(node);
+      }}
+      onkeydown={(event) => {
+        if (event.key === "Enter") open(node);
+        if (event.key === "ArrowRight" && !node.expanded) toggle(node);
+        if (event.key === "ArrowLeft" && node.expanded) toggle(node);
+      }}
+      oncontextmenu={(event) => {
+        event.preventDefault();
+        onmodulecontext(node, event.clientX, event.clientY, owned ? undefined : root);
+      }}
+    >
+      <Disclosure
+        empty={!mayExpand(children, node.key, node.module)}
+        open={node.expanded}
+        label={node.expanded ? "Collapse" : "Expand"}
+        onclick={(event) => {
+          event.stopPropagation();
+          toggle(node);
+        }}
+      />
+      <KindIcon kind="submodule" />
+      <span class="modname truncate shrink-last"
+        >{#if folder}<span class="dir">{folder}/</span>{/if}{parts.name}</span
+      >
+      {#if repoStateTag(node.module.repoState, true)}
+        <span class="op" title={STATE_TAG_HINT}>{repoStateTag(node.module.repoState, true)}</span>
+      {/if}
+      {#if where}
+        <span class="where truncate shrink-first" title={moduleTooltip(node.module) || undefined}
+          >({where})</span
+        >
+      {/if}
+    </div>
+  {/each}
+{/snippet}
 
 <div class="wrapper tree-rows">
   <div class="actions" role="toolbar" aria-label="Repository list actions">
@@ -205,17 +289,7 @@
           oncontext(listed, event.clientX, event.clientY);
         }}
       >
-        <Disclosure
-          empty={!(
-            submodules.owner?.valueOf() === entry.repo.valueOf() && submodules.top.length > 0
-          )}
-          open={!submodules.folded}
-          label={submodules.folded ? "Show submodules" : "Hide submodules"}
-          onclick={(event) => {
-            event.stopPropagation();
-            submodules.foldTop();
-          }}
-        />
+        {@render topDisclosure(entry.root, submodules.owner?.valueOf() === entry.repo.valueOf())}
         <KindIcon kind="repository" />
         <span class="name truncate shrink-last">{listed.name}</span>
         {#if listed.pinned}<span class="pin" title="Pinned to the top of its group">⊤</span>{/if}
@@ -240,54 +314,7 @@
         {/if}
       </div>
 
-      {#if submodules.owner?.valueOf() === entry.repo.valueOf()}
-        {#each submodules.rows as node (node.key)}
-          {@const parts = splitModulePath(node.path)}
-          {@const folder = parts.dir.replace(/[/\\]$/, "")}
-          <div
-            class="row module {node.module.state}"
-            class:selected={submodules.open === node.key}
-            role="button"
-            tabindex="0"
-            title="{node.path} — {node.module.url}"
-            style:padding-left="calc(var(--tree-base) + {row.depth + 1 + node.depth} * var(--tree-step))"
-            onclick={() => onopenmodule(node)}
-            ondblclick={() => {
-              onopenmodule(node);
-              void submodules.toggle(node);
-            }}
-            onkeydown={(event) => {
-              if (event.key === "Enter") onopenmodule(node);
-              if (event.key === "ArrowRight" && !node.expanded) void submodules.toggle(node);
-              if (event.key === "ArrowLeft" && node.expanded) void submodules.toggle(node);
-            }}
-            oncontextmenu={(event) => {
-              event.preventDefault();
-              onmodulecontext(node, event.clientX, event.clientY);
-            }}
-          >
-            <Disclosure
-              empty={!mayExpand(submodules.children, node.key, node.module)}
-              open={node.expanded}
-              label={node.expanded ? "Collapse" : "Expand"}
-              onclick={(event) => {
-                event.stopPropagation();
-                void submodules.toggle(node);
-              }}
-            />
-            <KindIcon kind="submodule" />
-            <span class="modname truncate shrink-last"
-              >{#if folder}<span class="dir">{folder}/</span>{/if}{parts.name}</span
-            >
-            {#if repoStateTag(node.module.repoState, true)}
-              <span class="op" title={STATE_TAG_HINT}>{repoStateTag(node.module.repoState, true)}</span>
-            {/if}
-            <span class="where truncate shrink-first" title={moduleTooltip(node.module) || undefined}
-              >({describeModule(node.module)})</span
-            >
-          </div>
-        {/each}
-      {/if}
+      {@render moduleTree(entry.root, submodules.owner?.valueOf() === entry.repo.valueOf(), row.depth)}
         {:else if listed}
           <div
             class="row closed"
@@ -304,11 +331,12 @@
               oncontext(listed, event.clientX, event.clientY);
             }}
           >
-            <Disclosure empty />
+            {@render topDisclosure(listed.root, false)}
             <KindIcon kind="repository" />
             <span class="name truncate shrink-last">{listed.name}</span>
             {#if listed.pinned}<span class="pin" title="Pinned to the top of its group">⊤</span>{/if}
           </div>
+          {@render moduleTree(listed.root, false, row.depth)}
         {/if}
       {/if}
     {/each}
