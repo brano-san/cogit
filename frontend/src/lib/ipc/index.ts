@@ -317,10 +317,6 @@ export async function addToGitignore(repo: RepoId, paths: string[]) {
   return unwrap(await commands.addToGitignore(repo, paths));
 }
 
-export async function deleteUntracked(repo: RepoId, paths: string[]) {
-  return unwrap(await commands.deleteUntracked(repo, paths));
-}
-
 export async function discardPaths(repo: RepoId, paths: string[]) {
   return unwrap(await commands.discardPaths(repo, paths));
 }
@@ -348,11 +344,6 @@ export async function deleteBranch(repo: RepoId, name: string, force: boolean) {
 
 export async function renameBranch(repo: RepoId, from: string, to: string, force: boolean) {
   return unwrap(await commands.renameBranch(repo, from, to, force));
-}
-
-/** `null` stops the branch tracking anything rather than pointing it somewhere harmless. */
-export async function setUpstream(repo: RepoId, branch: string, upstream: string | null) {
-  return unwrap(await commands.setUpstream(repo, branch, upstream));
 }
 
 export async function deleteRemoteBranch(repo: RepoId, remote: string, branch: string) {
@@ -915,29 +906,9 @@ export async function installPreset(repo: RepoId, id: string) {
   return unwrap(await commands.installPreset(repo, id));
 }
 
-/** Every file of a commit in one round trip. Answers in the order the paths were given.
-    `request` must rise with every selection: an older one comes back `superseded`. */
-export async function diffFiles(
-  repo: RepoId,
-  spec: DiffSpec,
-  paths: string[],
-  options: DiffOptions,
-  request: number,
-) {
-  return unwrap(await commands.diffFiles(repo, spec, paths, options, request));
-}
-
-/** The types the branch added. The list above the divider belongs to `master`. */
-export type { DiffBatch, FileDiffEntry, InvestigationStep, MoveScope } from "./bindings";
-
 /** Throws the selected lines away in the working tree. Destructive: confirm it first. */
 export async function discardSelection(repo: RepoId, request: PatchRequest) {
   return unwrap(await commands.discardSelection(repo, request));
-}
-
-/** The file as it was before a commit; `null` when there was no such file to open. */
-export async function fileBefore(repo: RepoId, oid: string, path: string) {
-  return unwrap(await commands.fileBefore(repo, oid, path));
 }
 
 /** Every commit that changed lines `from..=to` of a file, newest first. */

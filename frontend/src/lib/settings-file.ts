@@ -27,8 +27,3 @@ export async function writeKey(key: string, value: unknown): Promise<void> {
   (await load())[key] = value;
   await writeSetting(key, JSON.stringify(value));
 }
-
-/** Tests only: the cache outlives a component, so it has to be emptied between cases. */
-export function forgetSettings(): void {
-  document = null;
-}

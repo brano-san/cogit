@@ -1,6 +1,5 @@
 import type {
   BlameCommit,
-  BlameSource,
   BlameTables,
   OriginLine,
   OriginQuery,
@@ -11,10 +10,6 @@ export const UNCOMMITTED = "0".repeat(40);
 export function commitOf(tables: BlameTables, line: OriginLine): BlameCommit | undefined {
   const source = tables.sources[line.source];
   return source ? tables.commits[source.commit] : undefined;
-}
-
-export function sourceOf(tables: BlameTables, line: OriginLine): BlameSource | undefined {
-  return tables.sources[line.source];
 }
 
 /** SmartGit Blame's Status column: `+` added, `~` modified, `M` for a merge commit. */
