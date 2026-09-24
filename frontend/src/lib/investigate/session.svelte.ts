@@ -216,6 +216,10 @@ export class InvestigateSession {
     const shown = this.blameOf;
     if (!shown || shown.path !== location.path || shown.rev !== location.rev) {
       if (!(await this.#loadBlame(location.path, location.rev))) return;
+    } else {
+      // What is on screen is the answer; a load still running for elsewhere is not.
+      this.#blameGeneration += 1;
+      this.loadingBlame = false;
     }
     if (location.line !== null && searchesOrigins(this.perspective)) {
       void this.#searchOrigins(location.line - 1);
