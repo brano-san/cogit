@@ -3,6 +3,7 @@
 use crate::{GraphRow, Segment, Span};
 
 pub const PAINT_SLOT: u8 = 0x0f;
+pub const PAINT_DIM: u8 = 0x10;
 
 const NONE: u32 = u32::MAX;
 
@@ -10,6 +11,8 @@ const NONE: u32 = u32::MAX;
 pub struct PaintSpec {
     /// Tips by row with their palette slot; a tip higher up claims its line first.
     pub tips: Vec<(u32, u8)>,
+    /// All but this commit, its ancestors and descendants is dimmed.
+    pub ancestry_of: Option<u32>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -195,29 +198,81 @@ fn chains(rows: &[GraphRow], parents: &[Vec<Option<u32>>], tips: &[(u32, u8)]) -
     claimed
 }
 
+const DESCENDANT: u8 = 1;
+const CHOSEN: u8 = 2;
+const ANCESTOR: u8 = 3;
+
+/// Rows sit below every child: one pass up finds the descendants, one pass down the ancestors.
+fn ancestry(parents: &[Vec<Option<u32>>], chosen: u32, len: usize) -> Vec<u8> {
+    let mut kin = vec![0_u8; len];
+    let chosen = chosen as usize;
+    if chosen >= len {
+        return kin;
+    }
+    kin[chosen] = CHOSEN;
+    for row in (0..chosen).rev() {
+        let leads_down = parents.get(row).is_some_and(|p| {
+            p.iter().flatten().any(|&parent| {
+                kin.get(parent as usize)
+                    .is_some_and(|k| *k == CHOSEN || *k == DESCENDANT)
+            })
+        });
+        if leads_down {
+            kin[row] = DESCENDANT;
+        }
+    }
+    for row in chosen..len {
+        if kin[row] < CHOSEN {
+            continue;
+        }
+        for &parent in parents.get(row).into_iter().flatten().flatten() {
+            if let Some(k) = kin.get_mut(parent as usize) {
+                *k = ANCESTOR;
+            }
+        }
+    }
+    kin
+}
+
 /// `parents`: per row, the rows of its parents as laid out, `None` when not listed.
 #[must_use]
 pub fn paint(rows: &[GraphRow], parents: &[Vec<Option<u32>>], spec: &PaintSpec) -> Paint {
     let trace = trace(rows);
     let claimed = chains(rows, parents, &spec.tips);
+    let kin = spec
+        .ancestry_of
+        .map(|chosen| ancestry(parents, chosen, rows.len()));
     let slot_of = |row: u32| claimed.get(row as usize).copied().unwrap_or(0);
-
-    // First-parent lines take their child's colour, merged-in ones their parent's.
-    let edge = |child: u32, own: bool, end: u32| -> u8 {
-        if own {
-            slot_of(child)
-        } else if end == NONE {
-            0
-        } else {
-            slot_of(end)
-        }
+    let kin_of = |row: u32| {
+        kin.as_ref()
+            .and_then(|k| k.get(row as usize).copied())
+            .unwrap_or(0)
     };
-    let mut groups: Vec<u8> = trace
+
+    // First-parent lines take their child's colour, merged-in ones their parent's; a line
+    // is lit when both its ends are kin of the chosen commit.
+    let edge = |child: u32, own: bool, end: u32| -> (u8, bool) {
+        let parent = if end != NONE {
+            Some(end)
+        } else if own {
+            first_parent(parents, child)
+        } else {
+            None
+        };
+        let slot = if own {
+            slot_of(child)
+        } else {
+            parent.map_or(0, slot_of)
+        };
+        let lit = kin_of(child) != 0 && parent.map_or(kin_of(child) >= CHOSEN, |p| kin_of(p) != 0);
+        (slot, lit)
+    };
+    let mut groups: Vec<(u8, bool)> = trace
         .groups
         .iter()
         .map(|g| {
             if g.child == NONE {
-                0
+                (0, g.end != NONE && kin_of(g.end) != 0)
             } else {
                 edge(g.child, g.own, g.end)
             }
@@ -225,13 +280,21 @@ pub fn paint(rows: &[GraphRow], parents: &[Vec<Option<u32>>], spec: &PaintSpec) 
         .collect();
     for &(group, child) in &trace.joins {
         let end = trace.groups[group as usize].end;
-        let slot = edge(child, false, end);
+        let (slot, lit) = edge(child, false, end);
         let style = &mut groups[group as usize];
-        if *style == 0 {
-            *style = slot;
+        if style.0 == 0 {
+            style.0 = slot;
         }
+        style.1 |= lit;
     }
 
+    let dim = |lit: bool| if kin.is_some() && !lit { PAINT_DIM } else { 0 };
+    let node_style = (0..rows.len())
+        .map(|row| {
+            let row = index(row);
+            slot_of(row) | dim(kin_of(row) != 0)
+        })
+        .collect();
     let segment_lane = trace
         .segment_group
         .iter()
@@ -240,11 +303,14 @@ pub fn paint(rows: &[GraphRow], parents: &[Vec<Option<u32>>], spec: &PaintSpec) 
     let segment_style = trace
         .segment_group
         .iter()
-        .map(|&group| groups[group as usize])
+        .map(|&group| {
+            let (slot, lit) = groups[group as usize];
+            slot | dim(lit)
+        })
         .collect();
     Paint {
         node_lane: trace.node_lane,
-        node_style: claimed,
+        node_style,
         segment_first: trace.segment_first,
         segment_lane,
         segment_style,

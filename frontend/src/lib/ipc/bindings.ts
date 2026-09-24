@@ -37,7 +37,7 @@ export const commands = {
 	/**  Rows laid out when this was painted: a later row can still change it. */
 	total: number,
 	nodeLanes: number[],
-	/**  `graph_engine::PAINT_SLOT` bits are the slot plus one; 0 is the default colour. */
+	/**  `graph_engine::PAINT_SLOT` bits are the slot plus one, 0 the default colour; `PAINT_DIM` dims. */
 	nodeStyles: number[],
 	segmentFirst: number[],
 	segmentLanes: number[],
@@ -833,7 +833,7 @@ export type GraphOverlay = {
 	/**  Rows laid out when this was painted: a later row can still change it. */
 	total: number,
 	nodeLanes: number[],
-	/**  `graph_engine::PAINT_SLOT` bits are the slot plus one; 0 is the default colour. */
+	/**  `graph_engine::PAINT_SLOT` bits are the slot plus one, 0 the default colour; `PAINT_DIM` dims. */
 	nodeStyles: number[],
 	segmentFirst: number[],
 	segmentLanes: number[],
@@ -842,6 +842,8 @@ export type GraphOverlay = {
 
 export type GraphPaintRequest = {
 	tips?: PaintTip[],
+	/**  All but this commit's ancestors and descendants is dimmed. */
+	ancestryOf?: string | null,
 };
 
 /**  How far the walk got. The rows themselves travel only when asked for, by window. */

@@ -64,3 +64,13 @@ describe("focusLane", () => {
     expect(paintRequest(on, [])).toEqual({ tips: [] });
   });
 });
+
+describe("ancestry in the paint request", () => {
+  const on = { ...GRAPH_MODE_DEFAULTS, ancestry: true };
+
+  it("names the selected commit, and asks for nothing while none is selected", () => {
+    expect(paintRequest(on, [], "abc")).toEqual({ tips: [], ancestryOf: "abc" });
+    expect(paintRequest(on, [], null)).toBeNull();
+    expect(paintRequest(GRAPH_MODE_DEFAULTS, [], "abc")).toBeNull();
+  });
+});

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { GRAPH } from "$lib/graph-geometry";
 import {
   BRANCH_SLOTS,
+  DIM_ALPHA,
   FOCUS_LINE_WIDTH,
   LAYERS,
   branchSlot,
@@ -150,5 +151,15 @@ describe("laneAt", () => {
   it("is the node's own lane on the ring's column, and nothing without paint", () => {
     expect(laneAt(layout, paint, 1, false)).toBe(9);
     expect(laneAt(layout, undefined, 0, true)).toBeNull();
+  });
+});
+
+describe("ancestry", () => {
+  it("draws what lies outside it faint and under everything else", () => {
+    const dimmed = { nodeLane: 1, nodeStyle: 0x10 | 2, segmentLanes: [1], segmentStyles: [0x10] };
+    const line = segmentStroke(segment(true), 0, dimmed, plain);
+    expect(line).toMatchObject({ alpha: DIM_ALPHA, layer: 0, token: "--graph-main" });
+    expect(nodeStroke(row(false), dimmed, plain)).toMatchObject({ alpha: DIM_ALPHA, token: "--graph-branch-2" });
+    expect(segmentStroke(segment(false), 0, undefined, plain).alpha).toBe(1);
   });
 });

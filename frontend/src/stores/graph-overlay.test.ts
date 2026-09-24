@@ -12,19 +12,27 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 /** Rust: one node style per row, the row number, so a test can tell windows apart. */
 function rust(total: () => number) {
   const calls: { generation: number; start: number }[] = [];
-  const fetch = vi.fn(async (_repo: RepoId, generation: number, start: number, count: number): Promise<GraphOverlay> => {
-    calls.push({ generation, start });
-    const rows = Math.max(Math.min(count, total() - start), 0);
-    return {
-      start,
-      total: total(),
-      nodeLanes: Array.from({ length: rows }, () => 0),
-      nodeStyles: Array.from({ length: rows }, (_, i) => (start + i) % 16),
-      segmentFirst: Array.from({ length: rows + 1 }, () => 0),
-      segmentLanes: [],
-      segmentStyles: [],
-    };
-  });
+  const fetch = vi.fn(
+    async (
+      _repo: RepoId,
+      generation: number,
+      start: number,
+      count: number,
+      _request?: GraphPaintRequest,
+    ): Promise<GraphOverlay> => {
+      calls.push({ generation, start });
+      const rows = Math.max(Math.min(count, total() - start), 0);
+      return {
+        start,
+        total: total(),
+        nodeLanes: Array.from({ length: rows }, () => 0),
+        nodeStyles: Array.from({ length: rows }, (_, i) => (start + i) % 16),
+        segmentFirst: Array.from({ length: rows + 1 }, () => 0),
+        segmentLanes: [],
+        segmentStyles: [],
+      };
+    },
+  );
   return { fetch, calls };
 }
 
@@ -109,5 +117,30 @@ describe("graph overlay", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("a new request for the same walk", () => {
+  it("keeps the old paint on screen until the new one is in", async () => {
+    let answer: (() => void) | null = null;
+    const { fetch } = rust(() => 1000);
+    const slow = vi.fn(async (...args: Parameters<typeof fetch>) => {
+      if (args[4]?.ancestryOf) await new Promise<void>((resolve) => (answer = resolve));
+      return fetch(...args);
+    });
+    const store = new GraphOverlayStore(slow);
+    store.show(view());
+    await settle();
+    expect(store.paintAt(3)?.nodeStyle).toBe(3);
+
+    store.show(view({ request: { ...REQUEST, ancestryOf: "b" } }));
+    await settle();
+    expect(store.paintAt(3)?.nodeStyle).toBe(3);
+    answer!();
+    await settle();
+    expect(slow).toHaveBeenCalledTimes(2);
+
+    store.show(view({ generation: 2 }));
+    expect(store.paintAt(3)).toBeUndefined();
   });
 });

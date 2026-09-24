@@ -9,6 +9,8 @@ export interface GraphModes {
   firstParent: boolean;
   /** A click on a commit or its line brings its branch forward. */
   branchOfCommit: boolean;
+  /** Everything but the chosen commit's ancestors and descendants is dimmed. */
+  ancestry: boolean;
 }
 
 /** As the graph looked before the settings existed, plus colour for ticked branches. */
@@ -16,6 +18,7 @@ export const GRAPH_MODE_DEFAULTS: Readonly<GraphModes> = {
   highlightChecked: true,
   firstParent: false,
   branchOfCommit: false,
+  ancestry: false,
 };
 
 export interface CheckedTip {
@@ -51,10 +54,15 @@ export function graphView(modes: GraphModes): GraphView {
 
 /** What to ask Rust to paint; `null` when there is nothing, so no call is made at all.
     The branch of a commit needs only the lanes, which come with any paint. */
-export function paintRequest(modes: GraphModes, tips: readonly CheckedTip[]): GraphPaintRequest | null {
+export function paintRequest(
+  modes: GraphModes,
+  tips: readonly CheckedTip[],
+  selected: string | null = null,
+): GraphPaintRequest | null {
   const painted = modes.highlightChecked ? tips.map(({ oid, slot }) => ({ oid, slot })) : [];
-  if (painted.length === 0 && !modes.branchOfCommit) return null;
-  return { tips: painted };
+  const ancestryOf = modes.ancestry ? selected : null;
+  if (painted.length === 0 && !modes.branchOfCommit && ancestryOf === null) return null;
+  return ancestryOf === null ? { tips: painted } : { tips: painted, ancestryOf };
 }
 
 /** A lane chosen by clicking its line, in the row of `oid`. */

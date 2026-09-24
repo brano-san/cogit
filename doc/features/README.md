@@ -321,3 +321,4 @@
 | F-440 | Отмеченные ветки — своими цветами | [F-440-graph-branch-colours.md](F-440-graph-branch-colours.md) |
 | F-441 | Только первые родители | [F-441-graph-first-parent.md](F-441-graph-first-parent.md) |
 | F-442 | Ветка коммита по клику | [F-442-graph-branch-of-commit.md](F-442-graph-branch-of-commit.md) |
+| F-443 | Предки и потомки выбранного коммита | [F-443-graph-ancestry.md](F-443-graph-ancestry.md) |
