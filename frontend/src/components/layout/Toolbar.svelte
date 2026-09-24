@@ -24,7 +24,7 @@
     layout?: readonly string[];
     /** Remotes and remembered choices the dropdowns are built from. */
     menus?: MenuContext;
-    /** Right-click on the toolbar: where the Configure Toolbar menu opens. */
+    /** Right-click on the toolbar: offers Preferences ▸ Toolbar. */
     oncontext?: (x: number, y: number) => void;
   }
 

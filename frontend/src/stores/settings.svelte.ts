@@ -1,5 +1,6 @@
 import { readKey, writeKey } from "$lib/settings-file";
 import { displayDate } from "$lib/format";
+import { graphTime } from "$lib/graph-columns";
 import { setLaneWidth } from "$lib/graph-geometry";
 import { DEFAULT_DIFF_OPTIONS, type DiffOptions } from "$lib/ipc";
 import { mergeKeymap, type Keymap } from "$lib/keymap";
@@ -29,6 +30,11 @@ class SettingsStore {
 
   formatDate(timestamp: number, offsetMinutes: number): string {
     return displayDate(timestamp, offsetMinutes, Date.now() / 1000, this.current.dateFormat);
+  }
+
+  /** The graph's time column, which has its own format (R-370). */
+  formatGraphTime(timestamp: number, offsetMinutes: number): string {
+    return graphTime(timestamp, offsetMinutes, Date.now() / 1000, this.current.graphTimeFormat);
   }
 
   /** Every window reads this on start, some from inside an effect that also reads the
