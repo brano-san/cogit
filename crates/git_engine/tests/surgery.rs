@@ -324,3 +324,27 @@ fn a_repository_without_a_remote_has_nothing_published() {
     let f = test_fixtures::linear(2).unwrap();
     assert!(!open(&f).is_published(&f.oid("HEAD").unwrap()).unwrap());
 }
+
+// With git's default `core.quotepath`, `--name-only` prints a non-ASCII path quoted and
+// escaped, so a Cyrillic file chosen in the dialog was "not one of the files this commit
+// changed" and could not be split off.
+#[test]
+fn a_file_with_a_non_ascii_name_can_be_split_off() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&["config", "core.quotepath", "true"]).unwrap();
+    for name in ["отчёт.txt", "plain.txt"] {
+        f.write_file(name, &format!("{name} content\n")).unwrap();
+        f.git(&["add", "--", name]).unwrap();
+    }
+    f.commit_staged(2, "add two files").unwrap();
+    let target = f.oid("HEAD").unwrap();
+
+    open(&f)
+        .split_off(
+            &target,
+            &["отчёт.txt".to_owned()],
+            "split: the report",
+            true,
+        )
+        .unwrap();
+}

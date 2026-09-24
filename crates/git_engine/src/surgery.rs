@@ -79,14 +79,10 @@ impl RepoHandle {
 
     /// Brings just `paths` to their state in `rev`, deleting the ones absent from it.
     fn materialise(&self, rev: &str, paths: &[String]) -> Result<()> {
-        let mut listing = vec!["ls-tree", "-r", "--name-only", rev, "--"];
+        // `-z`: without it a non-ASCII name comes back quoted and escaped.
+        let mut listing = vec!["ls-tree", "-r", "-z", "--name-only", rev, "--"];
         listing.extend(paths.iter().map(String::as_str));
-        let present: Vec<String> = self
-            .run_git(&listing)?
-            .stdout
-            .lines()
-            .map(str::to_owned)
-            .collect();
+        let present = nul_separated(&self.run_git(&listing)?.stdout);
 
         if !present.is_empty() {
             let mut args = vec!["checkout", rev, "--"];
@@ -167,12 +163,18 @@ impl RepoHandle {
             return Err(GitError::InvalidState("no files chosen".to_owned()));
         }
 
-        let touched: Vec<String> = self
-            .run_git_reading(&["diff-tree", "--no-commit-id", "--name-only", "-r", target])?
-            .stdout
-            .lines()
-            .map(str::to_owned)
-            .collect();
+        let touched = nul_separated(
+            &self
+                .run_git_reading(&[
+                    "diff-tree",
+                    "--no-commit-id",
+                    "--name-only",
+                    "-r",
+                    "-z",
+                    target,
+                ])?
+                .stdout,
+        );
 
         if let Some(stranger) = paths.iter().find(|path| !touched.contains(path)) {
             return Err(GitError::InvalidState(format!(
@@ -186,6 +188,14 @@ impl RepoHandle {
         }
         Ok(())
     }
+}
+
+fn nul_separated(listing: &str) -> Vec<String> {
+    listing
+        .split('\0')
+        .filter(|name| !name.is_empty())
+        .map(str::to_owned)
+        .collect()
 }
 
 impl RepoHandle {
