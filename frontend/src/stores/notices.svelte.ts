@@ -9,6 +9,7 @@ import {
 } from "$lib/notices";
 import { commandOutcome, type CommandNotice } from "$lib/ipc";
 import { health } from "$stores/health.svelte";
+import { untrack } from "svelte";
 
 /** The one notification window: failures and repository warnings in one queue, errors
     first (doc/12-risks.md, R-178). */
@@ -37,11 +38,16 @@ class NoticeStore {
     return this.#errors.length;
   }
 
+  /** Called from effects (App reports each store's error that way). Untracked, or the
+      effect would depend on the queue it writes: every report ran it again as a new
+      notice, and a dismissed one came straight back. */
   report(error: unknown, title: string): void {
-    const cogit = asCogitError(error);
-    if (!cogit) return;
-    this.#seq += 1;
-    this.#queueError(errorNotice(cogit, title, this.#seq));
+    untrack(() => {
+      const cogit = asCogitError(error);
+      if (!cogit) return;
+      this.#seq += 1;
+      this.#queueError(errorNotice(cogit, title, this.#seq));
+    });
   }
 
   message(text: string, title: string): void {
@@ -52,7 +58,8 @@ class NoticeStore {
       and is queued once. */
   async command(event: CommandNotice): Promise<void> {
     const key = `command:${event.id}`;
-    if (this.#errors.some((held) => held.key === key) || this.#loading.has(event.id)) return;
+    const known = untrack(() => this.#errors.some((held) => held.key === key));
+    if (known || this.#loading.has(event.id)) return;
 
     this.#loading.add(event.id);
     const run = await commandOutcome(event.id).catch(() => null);
