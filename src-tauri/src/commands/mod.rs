@@ -282,10 +282,23 @@ pub async fn write_git_config(
     crlf: bool,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("write_git_config", move || {
-        app_state.save_config_file(repo, scope, &text, crlf)
-    })
-    .await
+    let save = {
+        let app_state = app_state.clone();
+        move || app_state.save_config_file(repo, scope, &text, crlf)
+    };
+    match repo {
+        Some(id) => {
+            mutating(
+                &app_state,
+                id,
+                OperationKind::Other,
+                "write_git_config",
+                save,
+            )
+            .await
+        }
+        None => blocking("write_git_config", save).await,
+    }
 }
 
 /// Run in the background after a repository opens; nothing in it changes the repository.
@@ -1828,9 +1841,13 @@ pub async fn write_hook(
     body: String,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("write_hook", move || {
-        app_state.write_hook(repo, &name, &body)
-    })
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Other,
+        "write_hook",
+        move || app_state.write_hook(repo, &name, &body),
+    )
     .await
 }
 
@@ -1843,9 +1860,13 @@ pub async fn set_hook_enabled(
     enabled: bool,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("set_hook_enabled", move || {
-        app_state.set_hook_enabled(repo, &name, enabled)
-    })
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Other,
+        "set_hook_enabled",
+        move || app_state.set_hook_enabled(repo, &name, enabled),
+    )
     .await
 }
 
@@ -1857,7 +1878,14 @@ pub async fn use_hooks_path(
     path: String,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("use_hooks_path", move || app_state.adopt_hooks(repo, &path)).await
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Other,
+        "use_hooks_path",
+        move || app_state.adopt_hooks(repo, &path),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -2061,9 +2089,13 @@ pub async fn stage_mode(
     executable: bool,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    blocking("stage_mode", move || {
-        app_state.stage_mode(repo, &path, executable)
-    })
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Stage,
+        "stage_mode",
+        move || app_state.stage_mode(repo, &path, executable),
+    )
     .await
 }
 
@@ -2574,6 +2606,35 @@ mod tests {
         assert_eq!(found.len(), 1);
         assert!(!found[0].off_thread);
         assert!(found[0].body.contains("child_window::"));
+    }
+
+    // Toggling the exec bit while a commit held index.lock failed with "index.lock exists",
+    // and saving the Git config beside a queued `set_upstream` with "could not lock config
+    // file": these wrote the repository without waiting for its lane.
+    #[test]
+    fn commands_that_write_the_repository_wait_for_its_lane() {
+        const WRITERS: &[&str] = &[
+            "stage_mode",
+            "write_git_config",
+            "write_hook",
+            "set_hook_enabled",
+            "use_hooks_path",
+            "move_to_trash",
+        ];
+        let all = all_commands();
+        let unqueued: Vec<&str> = WRITERS
+            .iter()
+            .copied()
+            .filter(|name| {
+                !all.iter()
+                    .any(|command| command.name == *name && command.body.contains("mutating("))
+            })
+            .collect();
+
+        assert!(
+            unqueued.is_empty(),
+            "these write outside the lane: {unqueued:?}"
+        );
     }
 
     #[test]
