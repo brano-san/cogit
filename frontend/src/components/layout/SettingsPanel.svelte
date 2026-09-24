@@ -678,7 +678,7 @@
   }
 
   .ask {
-    margin: 0 0 var(--sp-2, 3px);
+    margin: 0 0 var(--sp-2);
     color: var(--status-modify);
     font-size: var(--fs-header);
   }

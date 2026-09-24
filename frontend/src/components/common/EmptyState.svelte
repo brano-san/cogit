@@ -25,7 +25,7 @@
     align-items: center;
     justify-content: center;
     gap: var(--sp-3);
-    padding: var(--sp-6, 16px) var(--sp-5);
+    padding: var(--sp-6) var(--sp-5);
     text-align: center;
   }
 

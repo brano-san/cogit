@@ -198,7 +198,7 @@
   .nav {
     display: flex;
     align-items: center;
-    gap: var(--sp-2, 3px);
+    gap: var(--sp-2);
     color: var(--text-secondary);
   }
 
@@ -268,12 +268,12 @@
   .result {
     display: flex;
     align-items: center;
-    gap: var(--sp-2, 3px);
+    gap: var(--sp-2);
   }
 
   .take button {
     height: 16px;
-    padding: 0 var(--sp-2, 3px);
+    padding: 0 var(--sp-2);
     font-size: 10px;
   }
 

@@ -41,11 +41,11 @@
   }
 
   .banner.warning {
-    background: var(--c-modified-bg, rgb(90 74 30 / 35%));
+    background: var(--c-modified-bg);
   }
 
   .banner.error {
-    background: var(--c-deleted-bg, rgb(90 40 40 / 35%));
+    background: var(--c-deleted-bg);
   }
 
   .title {
