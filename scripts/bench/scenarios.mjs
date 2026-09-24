@@ -9,6 +9,8 @@
 const GRAPH_ROWS = `document.querySelectorAll('[role="listitem"]').length > 0`;
 const REF_ROWS = `document.querySelectorAll('[role="treeitem"]').length > 0`;
 const ALL = ["small", "medium", "large", "submodules", "dirty"];
+/** medium and large with a commit-graph file: graph scenarios only, asked for with --sets. */
+const GRAPH_CG = ["medium-cg", "large-cg"];
 
 const COMMIT_ROW = (index) => ({ sel: `[role="listitem"]`, index });
 const REPO_ROW = (name) => ({ sel: `.wrapper .row`, text: name, exact: ".name" });
@@ -40,7 +42,7 @@ export const SCENARIOS = [
     id: "repo.open",
     group: "Репозиторий",
     title: "открытие",
-    sets: ALL,
+    sets: [...ALL, ...GRAPH_CG],
     async prep(ctx) {
       if (await ctx.exists(REPO_ROW(ctx.set))) await ctx.prep.click({ ...REPO_ROW(ctx.set), child: `.act[title^="Close"]` });
     },
@@ -73,7 +75,7 @@ export const SCENARIOS = [
     id: "graph.scroll",
     group: "Граф",
     title: "прокрутка на 1 000 строк",
-    sets: ["medium", "large"],
+    sets: ["medium", "large", ...GRAPH_CG],
     measure: (ctx) =>
       ctx.measure.run(`(() => { document.querySelector('.scroll[aria-label="Commits"]').scrollTop = ${((ctx.iteration % 4) + 1) * 24000}; })()`),
     reset: (ctx) => ctx.prep.run(`(() => { document.querySelector('.scroll[aria-label="Commits"]').scrollTop = 0; })()`),
@@ -98,7 +100,7 @@ export const SCENARIOS = [
     id: "graph.tick-branch",
     group: "Граф",
     title: "отметка ветки в Branches",
-    sets: ["medium", "large"],
+    sets: ["medium", "large", ...GRAPH_CG],
     async prep(ctx) {
       await setGroup(ctx, "Local", true);
       await setGroup(ctx, "feature", true, "folder");
@@ -110,7 +112,7 @@ export const SCENARIOS = [
     id: "graph.tick-tags",
     group: "Граф",
     title: "отметка группы тегов",
-    sets: ["medium", "large"],
+    sets: ["medium", "large", ...GRAPH_CG],
     measure: (ctx) => ctx.measure.click(REF_GROUP("Tags", "input.box"), HEAVY),
     reset: (ctx) => ctx.prep.click(REF_GROUP("Tags", "input.box"), HEAVY),
   },
@@ -327,7 +329,7 @@ export const SCENARIOS = [
     id: "repo.switch",
     group: "Репозиторий",
     title: "переключение между репозиториями",
-    sets: ["medium", "large", "dirty"],
+    sets: ["medium", "large", "dirty", ...GRAPH_CG],
     async prep(ctx) {
       await ctx.ensureOpen("small");
       await ctx.prep.click(REPO_ROW("small"), { quiet: 300 });
