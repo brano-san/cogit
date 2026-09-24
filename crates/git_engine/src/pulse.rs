@@ -56,10 +56,7 @@ const BATCH_SSH: &str = "core.sshCommand=ssh -o BatchMode=yes";
 impl RepoHandle {
     /// Only the remote-tracking refs move: no prune, no submodules, no maintenance.
     pub fn background_fetch(&self) -> Result<()> {
-        let mut args: Vec<&str> = Vec::new();
-        if !self.has_own_ssh_command() {
-            args.extend(["-c", BATCH_SSH]);
-        }
+        let mut args = self.quiet_ssh();
         args.extend([
             "fetch",
             "--all",
@@ -68,6 +65,72 @@ impl RepoHandle {
             "--recurse-submodules=no",
         ]);
         self.run_git_with_env(&args, QUIET).map(drop)
+    }
+
+    /// The server's branch tips, as `git ls-remote --heads` lists them; nothing is written.
+    pub fn remote_heads(&self, remote: &str) -> Result<Vec<(String, String)>> {
+        let mut args = self.quiet_ssh();
+        args.extend(["ls-remote", "--heads", remote]);
+        let out = self.run_git_with_env(&args, QUIET)?;
+        Ok(out
+            .stdout
+            .lines()
+            .filter_map(|line| {
+                let (oid, name) = line.split_once('\t')?;
+                Some((name.trim().to_owned(), oid.trim().to_owned()))
+            })
+            .collect())
+    }
+
+    /// Whether the server's tip of HEAD's upstream is missing from HEAD, asked of the
+    /// server without a fetch (R-354). `None`: no upstream, or no such branch there.
+    pub fn pull_probe(&self) -> Result<Option<bool>> {
+        let crate::Head::Branch { name, oid } = self.head()? else {
+            return Ok(None);
+        };
+        let Ok(full) = gix::refs::FullName::try_from(format!("refs/heads/{name}")) else {
+            return Ok(None);
+        };
+        let Some(remote) = self
+            .repo
+            .branch_remote_name(full.as_ref().shorten(), gix::remote::Direction::Fetch)
+        else {
+            return Ok(None);
+        };
+        let Some(Ok(merge)) = self
+            .repo
+            .branch_remote_ref_name(full.as_ref(), gix::remote::Direction::Fetch)
+        else {
+            return Ok(None);
+        };
+        let remote = remote.as_bstr().to_string();
+        let merge = merge.as_bstr().to_string();
+        let Some(tip) = self
+            .remote_heads(&remote)?
+            .into_iter()
+            .find_map(|(name, tip)| (name == merge).then_some(tip))
+        else {
+            return Ok(None);
+        };
+        let (Ok(tip), Ok(head)) = (
+            gix::ObjectId::from_hex(tip.as_bytes()),
+            gix::ObjectId::from_hex(oid.as_bytes()),
+        ) else {
+            return Ok(None);
+        };
+        if self.repo.find_header(tip).is_err() {
+            return Ok(Some(true));
+        }
+        let base = self.repo.merge_base(head, tip).map(gix::Id::detach);
+        Ok(Some(!matches!(base, Ok(base) if base == tip)))
+    }
+
+    fn quiet_ssh(&self) -> Vec<&'static str> {
+        if self.has_own_ssh_command() {
+            Vec::new()
+        } else {
+            vec!["-c", BATCH_SSH]
+        }
     }
 
     fn has_own_ssh_command(&self) -> bool {

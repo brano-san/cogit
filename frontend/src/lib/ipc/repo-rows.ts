@@ -12,6 +12,12 @@ export async function repoPulse(root: string) {
   return unwrap(await commands.repoPulse(root));
 }
 
+/** Whether the server has commits HEAD lacks, from `ls-remote`: no fetch, no write (R-354).
+    `null` — no upstream, or no such branch on the server. Never prompts. */
+export async function pullProbe(root: string) {
+  return unwrap(await commands.pullProbe(root));
+}
+
 /** Never prompts; a failure is logged by the backend and returned here only as a refusal. */
 export async function backgroundFetch(root: string) {
   unwrap(await commands.backgroundFetch(root));
