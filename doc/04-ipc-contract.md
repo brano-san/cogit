@@ -477,6 +477,7 @@ type SearchChunk =
 | `open_in_explorer` / `open_in_terminal` | `path` | `()` | M3 |
 | `set_menu_state` | `disabled: Vec<String>` | `()` | M2 |
 | `report_memory` | `RendererMemory { usedHeapKib, totalHeapKib, limitKib, domNodes, listeners, caches }` | `()` | — |
+| `log_from_frontend` | `lines: WebviewLogLine[] { level, message, context }` | `()`: строки вебвью в `cogit.log` пачкой, по одной записи `tracing` на строку (R-321) | — |
 
 `report_memory` шлёт вебвью раз в десять секунд и **только в отладочной сборке**; строка
 ложится в профиль как `kind=mem` ([14-profiling.md](14-profiling.md)). Величины идут в KiB,
