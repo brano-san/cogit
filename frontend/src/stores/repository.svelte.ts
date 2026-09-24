@@ -55,8 +55,21 @@ class RepositoryStore {
     return this.#epoch;
   }
 
+  #leaves = new Set<() => void>();
+
+  /** Called, synchronously, whenever `epoch` changes. Returns the unsubscribe. */
+  onLeave(listener: () => void): () => void {
+    this.#leaves.add(listener);
+    return () => this.#leaves.delete(listener);
+  }
+
   #leaving(root: string): void {
-    if (this.current?.root !== root) this.#epoch += 1;
+    if (this.current?.root !== root) this.#left();
+  }
+
+  #left(): void {
+    this.#epoch += 1;
+    for (const listener of [...this.#leaves]) listener();
   }
 
   get current(): RepoSummary | null {
@@ -244,7 +257,7 @@ class RepositoryStore {
 
   close(): void {
     this.#ticket += 1;
-    this.#epoch += 1;
+    this.#left();
     this.#disarm();
     this.phase = { kind: "closed" };
   }

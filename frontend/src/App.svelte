@@ -2,6 +2,7 @@
   import { tick, untrack } from "svelte";
   import { ask, open as openFolderDialog } from "@tauri-apps/plugin-dialog";
   import { checkForUpdates, message, type UpdateOutcome } from "$lib/updates";
+  import { leaveRepositoryDialogs } from "$lib/leaving";
   import { THIRD_PARTY_FILE } from "$lib/third-party";
 
   import DiffPanel from "$components/panels/DiffPanel.svelte";
@@ -2119,6 +2120,24 @@
   }
 
   let removingFiles = $state.raw<string[] | null>(null);
+
+  // Everything here was asked or opened about the repository on screen. Answered after
+  // the panels moved on (a folder dropped on the window, Ctrl+O), it acted on the next
+  // one: Discard in B, A's config saved over B's.
+  $effect(() =>
+    repository.onLeave(() => {
+      leaveRepositoryDialogs();
+      if (configEdit?.scope === "repository") configEdit = null;
+      indexEditing = null;
+      removingFiles = null;
+      dropMenu = null;
+      worktreeRemoval = null;
+      addWorktreeOpen = false;
+      repoSettingsOpen = false;
+      rebaseOpen = false;
+      splitOpen = false;
+    }),
+  );
 
   async function removeFiles(paths: string[], deleteLocal: boolean) {
     removingFiles = null;

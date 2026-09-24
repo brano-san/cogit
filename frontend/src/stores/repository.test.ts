@@ -252,6 +252,30 @@ describe("telling work for a repository the user has left (epoch)", () => {
     expect(repository.epoch).not.toBe(adopted);
   });
 
+  // A question or an editor about repository A stayed up while the panels moved to B
+  // (a folder dropped on the window, Ctrl+O), and its answer went to B: Discard threw away
+  // B's files, Save wrote A's config over B's. Listeners close those at the switch.
+  it("tells its listeners the moment the panels leave, and not on a re-read", async () => {
+    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
+    await repository.open("C:/repos/one");
+    let heard = 0;
+    const stop = repository.onLeave(() => (heard += 1));
+
+    await repository.refresh();
+    expect(heard).toBe(0);
+
+    const answer = pending<unknown>();
+    commands.openRepository.mockReturnValue(answer.promise);
+    const opening = repository.open("C:/repos/two");
+    expect(heard).toBe(1);
+    answer.settle({ status: "ok", data: summary("C:/repos/two") });
+    await opening;
+
+    stop();
+    repository.close();
+    expect(heard).toBe(1);
+  });
+
   it("tells the caller whose open was overtaken", async () => {
     const slow = pending<unknown>();
     commands.openRepository.mockReturnValueOnce(slow.promise);
