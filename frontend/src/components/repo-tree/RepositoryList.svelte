@@ -569,19 +569,19 @@
 
   .arrow.push {
     top: -2px;
-    color: var(--sync-push);
+    color: var(--indicator-push);
   }
 
   .arrow.pull {
     bottom: -2px;
-    color: var(--sync-pull);
+    color: var(--indicator-pull);
   }
 
   .arrow.unknown {
     bottom: -3px;
     width: auto;
     height: auto;
-    color: var(--sync-unknown);
+    color: var(--indicator-unknown);
     font-size: 8px;
     font-weight: 700;
     line-height: 1;
@@ -595,7 +595,7 @@
   }
 
   .changes.dirty {
-    background: var(--sync-dirty);
+    background: var(--indicator-changes);
   }
 
   .branch {
