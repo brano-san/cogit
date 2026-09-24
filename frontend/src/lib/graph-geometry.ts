@@ -3,11 +3,18 @@
 const LANE_WIDTH = { default: 16, min: 12, max: 48 } as const;
 let laneWidth: number = LANE_WIDTH.default;
 
+/** Rows of the lists that are not the graph; the graph's own follow its density (#12). */
+export const LIST_ROW_HEIGHT = 24;
+const ROW_HEIGHT = { min: 16, max: 40 } as const;
+let rowHeight: number = LIST_ROW_HEIGHT;
+
 /** CSS pixels; the canvas is scaled by `devicePixelRatio`, so 125% and 150% displays get
     the same shapes with more pixels in them. Lines and rings share one centre, so no
     width has to be nudged half a pixel to meet the other (R-114, R-161). */
 export const GRAPH = {
-  rowHeight: 24,
+  get rowHeight() {
+    return rowHeight;
+  },
   get laneWidth() {
     return laneWidth;
   },
@@ -50,6 +57,10 @@ export function setLaneWidth(px: number): void {
   laneWidth = Math.min(Math.max(Math.round(px), LANE_WIDTH.min), LANE_WIDTH.max);
 }
 
+export function setGraphRowHeight(px: number): void {
+  rowHeight = Math.min(Math.max(Math.round(px), ROW_HEIGHT.min), ROW_HEIGHT.max);
+}
+
 export function laneX(lane: number): number {
   return GRAPH.leftPad + GRAPH.laneWidth * lane;
 }
@@ -78,9 +89,14 @@ export function striped(listRow: number): boolean {
 
 /** What is behind a node, bottom up, so its fill hides the lines exactly as the row does:
     the panel, the stripe, then hover and selection, which cover the stripe. */
-export function nodeFill(listRow: number, selectedRow: number | null, hoverRow: number | null): string[] {
+export function nodeFill(
+  listRow: number,
+  selectedRow: number | null,
+  hoverRow: number | null,
+  stripes = true,
+): string[] {
   const layers = ["--surface-panel"];
-  if (striped(listRow)) layers.push("--row-stripe");
+  if (stripes && striped(listRow)) layers.push("--row-stripe");
   if (listRow === hoverRow) layers.push("--state-hover");
   if (listRow === selectedRow) layers.push("--state-selected");
   return layers;
@@ -120,22 +136,28 @@ export function segmentCurve(
   return { x1, y1, cx1: x1, cy1: middle, cx2: x2, cy2: middle, x2, y2 };
 }
 
-/** The line to a commit the list does not show: a stub under the ring, pointing on; it
-    leans right when it is not the first parent, whose line goes straight down. */
+/** The line to a commit the list does not show, or to the far end of a cut link: a stub
+    under the ring, pointing on; it leans right when it is not the first parent, whose line
+    goes straight down. A `top` stub is the parent's end of a cut link, coming down into the
+    ring from the upper right (R-330). */
 export function arrowStub(
-  segment: { from: number; to: number },
+  segment: { from: number; to: number; span?: "top" | "bottom" | "through" },
   listRow: number,
   scrollTop: number,
 ) {
   const { x, y } = nodeCentre(segment.from, listRow, scrollTop);
-  const dx = segment.to > segment.from ? Math.SQRT1_2 : 0;
-  const dy = dx > 0 ? Math.SQRT1_2 : 1;
+  const lean = segment.to > segment.from ? Math.SQRT1_2 : 0;
+  const down = lean > 0 ? Math.SQRT1_2 : 1;
+  const up = segment.span === "top";
   const start = GRAPH.ringRadius + GRAPH.ringStroke;
-  const length = Math.min(GRAPH.arrowLength, GRAPH.rowHeight / 2 / dy - start);
-  const x1 = x + dx * start;
-  const y1 = y + dy * start;
-  const x2 = x1 + dx * length;
-  const y2 = y1 + dy * length;
+  const length = Math.min(GRAPH.arrowLength, GRAPH.rowHeight / 2 / down - start);
+  const out = { x: lean, y: up ? -down : down };
+  const near = { x: x + out.x * start, y: y + out.y * start };
+  const far = { x: near.x + out.x * length, y: near.y + out.y * length };
+  const [x1, y1, x2, y2] = up ? [far.x, far.y, near.x, near.y] : [near.x, near.y, far.x, far.y];
+  // The way the arrow travels: away from the ring below it, into the ring above it.
+  const dx = up ? -out.x : out.x;
+  const dy = up ? -out.y : out.y;
   const h = GRAPH.arrowHead;
   return {
     x1,

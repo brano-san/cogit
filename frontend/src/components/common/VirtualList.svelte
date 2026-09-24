@@ -1,5 +1,5 @@
 <script lang="ts" generics="T">
-  import { GRAPH, visibleRange } from "$lib/graph-geometry";
+  import { LIST_ROW_HEIGHT, visibleRange } from "$lib/graph-geometry";
   import type { Snippet } from "svelte";
 
   interface Props {
@@ -17,7 +17,7 @@
   let {
     items,
     row,
-    rowHeight = GRAPH.rowHeight,
+    rowHeight = LIST_ROW_HEIGHT,
     buffer = 10,
     label,
     reveal = null,

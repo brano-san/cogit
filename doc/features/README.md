@@ -318,3 +318,5 @@
 | F-380 | Окно Investigate | [F-380-investigate-window.md](F-380-investigate-window.md) |
 | F-381 | Происхождение строки и Go Deeper | [F-381-origin-candidates.md](F-381-origin-candidates.md) |
 | F-382 | Investigate из Diff с выделенной строкой | [F-382-investigate-from-diff.md](F-382-investigate-from-diff.md) |
+| F-430 | Длинные связи графа — обрубками | [F-430-graph-long-links.md](F-430-graph-long-links.md) |
+| F-431 | Строка графа: правые колонки на месте | [F-431-graph-row-columns.md](F-431-graph-row-columns.md) |
