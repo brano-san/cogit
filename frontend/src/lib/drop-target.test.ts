@@ -68,3 +68,22 @@ describe("dropActions", () => {
     }
   });
 });
+
+// Merge and rebase run on the checked-out branch. With `dev` checked out, "Merge feature
+// into main" made a merge commit in dev, and "Rebase feature onto main" rebased dev.
+describe("a drop on branches that are not checked out", () => {
+  const feature = { kind: "branch", id: "feature" } as const;
+  const main = { kind: "branch", id: "main" } as const;
+  const find = (head: string | null, id: string) =>
+    dropActions(feature, main, false, head).find((action) => action.id === id);
+
+  it("offers the merge only into the checked-out branch", () => {
+    expect(find("dev", "merge")?.disabled).toBeTruthy();
+    expect(find("main", "merge")?.disabled).toBeUndefined();
+  });
+
+  it("offers the rebase only of the checked-out branch", () => {
+    expect(find("dev", "rebase")?.disabled).toBeTruthy();
+    expect(find("feature", "rebase")?.disabled).toBeUndefined();
+  });
+});

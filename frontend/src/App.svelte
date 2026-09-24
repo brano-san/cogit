@@ -1740,7 +1740,8 @@
     const canFastForward = target.isHead && source.oid !== target.oid;
     const payload = { kind: "branch" as const, id: sourceName };
     const onto = { kind: "branch" as const, id: target.name };
-    const actions = dropActions(payload, onto, canFastForward);
+    const head = repository.localBranches.find((b) => b.isHead)?.name ?? null;
+    const actions = dropActions(payload, onto, canFastForward, head);
     if (actions.length === 0) return;
     dropMenu = { actions, source: payload, target: onto, x: pointer.x, y: pointer.y };
   }
@@ -1749,7 +1750,7 @@
     const menu = dropMenu;
     dropMenu = null;
     const id = repository.current?.repo;
-    if (!menu || !id) return;
+    if (!menu || !id || action.disabled) return;
 
     if (menu.source.kind === "commit") {
       await replan(action, menu.source.id, menu.target.id);

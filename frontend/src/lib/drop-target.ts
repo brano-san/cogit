@@ -13,6 +13,8 @@ export interface DropAction {
   title: string;
   /** Rewrites history, so the caller confirms before running it. */
   destructive: boolean;
+  /** Why it cannot run from here; shown on the item, which stays in the menu. */
+  disabled?: string;
 }
 
 export const DRAG_TYPE = "application/x-cogit";
@@ -36,18 +38,22 @@ export function parseDrag(text: string): DragPayload | null {
   }
 }
 
+/** `head` is the checked-out branch: git merges into it and rebases it, and into or of
+    no other, so a merge into another branch or a rebase of one is offered disabled. */
 export function dropActions(
   source: DragPayload,
   target: DragPayload,
   canFastForward: boolean,
+  head: string | null = null,
 ): DropAction[] {
   if (source.kind !== target.kind || source.id === target.id) return [];
 
   if (source.kind === "branch") {
-    const actions: DropAction[] = [
-      { id: "merge", title: `Merge ${source.id} into ${target.id}`, destructive: false },
-      { id: "rebase", title: `Rebase ${source.id} onto ${target.id}`, destructive: true },
-    ];
+    const merge: DropAction = { id: "merge", title: `Merge ${source.id} into ${target.id}`, destructive: false };
+    if (target.id !== head) merge.disabled = `Check out ${target.id} first: a merge goes into the checked-out branch.`;
+    const rebase: DropAction = { id: "rebase", title: `Rebase ${source.id} onto ${target.id}`, destructive: true };
+    if (source.id !== head) rebase.disabled = `Check out ${source.id} first: a rebase moves the checked-out branch.`;
+    const actions: DropAction[] = [merge, rebase];
     if (canFastForward) {
       actions.push({
         id: "fastForward",
