@@ -59,23 +59,70 @@ fn require_paths(paths: &[String]) -> Result<()> {
 impl RepoHandle {
     /// Only the executable bit; `git add` would stage the content change with it.
     pub fn stage_mode(&self, path: &str, executable: bool) -> Result<()> {
-        let tracked = self.run_git_reading_literal(&["ls-files", "--error-unmatch", "--", path]);
-        if tracked.is_err() {
-            return Err(GitError::InvalidState(format!("{path} is not tracked")));
-        }
-
         // `--chmod` re-reads the file, so re-register with the blob already indexed.
-        let staged = self
-            .run_git_reading_literal(&["ls-files", "--stage", "--", path])?
-            .stdout;
-        let oid = staged
-            .split_whitespace()
-            .nth(1)
-            .ok_or_else(|| GitError::InvalidState(format!("{path} has no entry in the index")))?;
+        let oid = match self.index_blob(path)? {
+            IndexBlob::Staged(oid) => oid,
+            IndexBlob::Conflicted => {
+                return Err(GitError::InvalidState(format!(
+                    "{path} is conflicted; resolve it first"
+                )));
+            }
+            IndexBlob::Absent => {
+                return Err(GitError::InvalidState(format!("{path} is not tracked")));
+            }
+        };
 
         let mode = if executable { "100755" } else { "100644" };
         let entry = format!("{mode},{oid},{path}");
         self.run_git(&["update-index", "--cacheinfo", &entry])
             .map(drop)
+    }
+}
+
+pub(crate) enum IndexBlob {
+    Staged(String),
+    Conflicted,
+    Absent,
+}
+
+impl RepoHandle {
+    /// What the index holds at exactly `path`, read through `gix`. Asked of `ls-files`,
+    /// "not tracked" was a failed command in the journal, and a notification with it.
+    pub(crate) fn index_blob(&self, path: &str) -> Result<IndexBlob> {
+        let index = self
+            .repo
+            .index_or_empty()
+            .map_err(|err| GitError::Internal(format!("cannot read the index: {err}")))?;
+        let backing = index.path_backing();
+        let wanted = gix::bstr::BStr::new(path.as_bytes());
+        let mut conflicted = false;
+        for entry in index.entries() {
+            if entry.path_in(backing) != wanted {
+                continue;
+            }
+            if entry.stage() as u8 == 0 {
+                return Ok(IndexBlob::Staged(entry.id.to_string()));
+            }
+            conflicted = true;
+        }
+        Ok(if conflicted {
+            IndexBlob::Conflicted
+        } else {
+            IndexBlob::Absent
+        })
+    }
+
+    /// Whether the index has `path`, or anything under it when it is a folder.
+    pub(crate) fn tracks(&self, path: &str) -> Result<bool> {
+        let index = self
+            .repo
+            .index_or_empty()
+            .map_err(|err| GitError::Internal(format!("cannot read the index: {err}")))?;
+        let backing = index.path_backing();
+        let folder = format!("{path}/");
+        Ok(index.entries().iter().any(|entry| {
+            let name = entry.path_in(backing);
+            name == gix::bstr::BStr::new(path.as_bytes()) || name.starts_with(folder.as_bytes())
+        }))
     }
 }

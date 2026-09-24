@@ -222,13 +222,11 @@ impl RepoHandle {
             .map(drop)
     }
 
+    /// Through `gix`: a "no" from `show-ref` was a failed command in the journal, and the
+    /// notification with it came up on every start.
     fn branch_exists(&self, name: &str) -> bool {
-        self.run_git_reading(&[
-            "show-ref",
-            "--verify",
-            "--quiet",
-            &format!("refs/heads/{name}"),
-        ])
-        .is_ok()
+        self.repo
+            .find_reference(format!("refs/heads/{name}").as_str())
+            .is_ok()
     }
 }
