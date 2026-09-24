@@ -107,10 +107,21 @@ impl RepoHandle {
     }
 
     /// A failed rewrite must not leave the user detached in the middle of a rebase.
+    /// The steps land in the journal either way; a failed one is also logged, since the
+    /// user may be left detached. `rebase --abort` fails whenever no rebase was started.
     fn recover(&self, branch: &str, original: &str) {
         let _ = self.run_git(&["rebase", "--abort"]);
-        let _ = self.run_git(&["checkout", "--force", branch]);
-        let _ = self.run_git(&["reset", "--hard", original]);
+        for step in [
+            ["checkout", "--force", branch],
+            ["reset", "--hard", original],
+        ] {
+            if let Err(error) = self.run_git(&step) {
+                tracing::error!(
+                    ?error,
+                    context = "putting the branch back after a failed split"
+                );
+            }
+        }
     }
 
     fn rev_parse(&self, rev: &str) -> Result<String> {
