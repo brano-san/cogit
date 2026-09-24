@@ -42,27 +42,25 @@ const res = await commands.openRepository(path);   // тип известен к
 | OID | hex-строка, поле называется `oid` |
 | Пути файлов | относительно корня репозитория, разделитель `/` **на всех платформах** |
 | Время | Unix timestamp в секундах (`i64`) + отдельное поле смещения зоны в минутах |
-| Ошибки | Все команды возвращают `Result<T, CogitError>`; `CogitError` — размеченное объединение |
+| Ошибки | Команды возвращают `Result<T, GitError>` (`git_engine::GitError`); во фронтенде он оборачивается в класс `CogitError` (`$lib/ipc`) |
 | Отсутствие значения | `Option<T>` → `T \| null`, никаких «пустых строк вместо null» |
 
 ### Тип ошибки
 
 ```rust
-#[derive(Debug, thiserror::Error, serde::Serialize, specta::Type)]
-#[serde(tag = "kind", content = "data")]
-pub enum CogitError {
+// crates/git_engine/src/error.rs
+#[derive(Debug, thiserror::Error, Serialize, specta::Type)]
+#[serde(tag = "kind", content = "data", rename_all = "camelCase")]
+pub enum GitError {
     #[error(transparent)]
-    GitCommand(GitCommandError),          // ошибка CLI, показывается в Git Error Dialog
-    #[error("repository not found: {0}")]
-    RepoNotFound(String),
-    #[error("repository is busy: {0}")]
-    RepoBusy(String),                     // index.lock и подобное
-    #[error("invalid state: {0}")]
-    InvalidState(String),                 // detached HEAD там, где нужна ветка
-    #[error("io error: {0}")]
-    Io(String),
-    #[error("internal error: {0}")]
-    Internal(String),
+    Command(Box<GitCommandError>),        // "command": ошибка CLI, Git Error Dialog
+    RepoNotFound(String),                 // "repoNotFound"
+    RepoBusy(String),                     // "repoBusy": index.lock и подобное
+    InvalidState(String),                 // "invalidState": detached HEAD там, где нужна ветка
+    Io(String),                           // "io"
+    Internal(String),                     // "internal"
+    ModuleUnavailable(ModuleProblem),     // "moduleUnavailable": сабмодуль не открыть, с причиной
+    ConfigInvalid(ConfigProblem),         // "configInvalid": git отверг текст конфига, ничего не записано
 }
 ```
 
@@ -72,6 +70,15 @@ pub enum CogitError {
 ## 4. Команды
 
 Ниже — контракт. Реализуются по модулям; колонка «Модуль» указывает, когда команда появляется.
+
+> **Сверка 2026-09-24:** таблица отстаёт от кода — около 50 зарегистрированных команд в ней
+> нет (`repo_status`, `stashes`, `flow_*`, `graph_window`, `graph_row_of`, `safety_log`,
+> `undo_entry`, `conflict_*` и др.), часть строк описывает команды, которых нет
+> (`list_repositories`, `repo_state`, `list_refs`, `list_stashes`, `list_reflog`,
+> `diff_working_tree`, `merge_conflict`, `stage_hunk`, `open_in_explorer`), у части
+> расходятся сигнатуры (`fetch`, `pull`, `push`, `open_in_terminal`, `stage_selection`).
+> Источник истины по именам и типам — `collect_commands!` в `src-tauri/src/lib.rs` и
+> сгенерированный `frontend/src/lib/ipc/bindings.ts`; таблица — по назначению команд.
 
 ### Репозитории
 
@@ -628,8 +635,9 @@ pub struct GraphProgress {
 | Событие | Payload | Когда |
 |---|---|---|
 | `repo-changed` | `{ repo: RepoId, kind: ChangeKind }` | `fs_watcher` заметил изменение |
-| `repo-opened` / `repo-closed` | `{ repo: RepoId }` | Изменился состав открытых репозиториев |
-| `git-command-logged` | `CommandLogEntry` | Для панели Output |
+| `command-recorded` | `CommandNotice` | Команда git записана в журнал — для панели Output и уведомлений |
+| `avatar-ready` | `{ email: String }` | Картинка автора скачана |
+| `merge-resolved` | `{ repo: RepoId, path: String, … }` | Окно 3-way merge сохранило разрешение |
 | `menu-command` | `String` (id команды палитры) | Выбран пункт нативного меню |
 | `operation-changed` | `{ id, repo, kind, label, phase, success }` | Операция встала в очередь, началась или закончилась |
 | `session-ending` | `{ reason: String }` | Windows хочет завершить сеанс, а в очереди есть операции; сеанс удержан (R-168) |
@@ -664,7 +672,11 @@ type Operation = {
 целиком, а не с середины. Чтения в очередь не попадают — они идут параллельно и
 отменяются через `cancel_operation`.
 
-`ChangeKind`: `Head` · `Index` · `Refs` · `WorkingTree` · `Stash` · `Config`.
+`ChangeKind`: `Head` · `Index` · `Refs` · `WorkingTree` · `Stash` · `Config` · `Hooks`.
+
+Событий `repo-opened`/`repo-closed` в webview нет: `AppEvent::RepoOpened/RepoClosed` живут
+только на шине `app_state`. Сырое `renderer-failed` (`renderer_failure.rs`) шлётся без
+типа и страницей не слушается.
 UI обновляет **только** соответствующую панель — не перезагружает всё.
 
 ## 7. Окно File Compare / 3-Way Merge

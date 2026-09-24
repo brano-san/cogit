@@ -606,7 +606,16 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > будущие файлы при разнесении M6-01 проверяются; нарушений сейчас не было (все команды
   > toolbar и макросов async). В `the_parser_sees_every_command` добавлена команда из
   > toolbar.rs.
-- [ ] B-11, B-27…B-30 документация
+- [x] B-11, B-27…B-30 документация
+  > Итог: B-11: отступление от INV-06 записано фактом в 01-architecture и R-285 (**на
+  > решение**: сузить наблюдение или переписать INV-06), код не менялся. B-27/B-28: 04-ipc-
+  > contract §3 — настоящий `GitError` с `moduleUnavailable`/`configInvalid`; §6 — реальные
+  > 7 событий, `Hooks` в `ChangeKind`, нет `repo-opened/closed`, `renderer-failed` не
+  > слушается. B-29: в §4 — пометка о сверке со списком расхождений, источник истины —
+  > `collect_commands!` и bindings.ts (таблицу целиком не переписывал: ~50 строк, польза
+  > ниже цены ночью). B-30: 03-git-semantics — `GIT_EDITOR`=`true` (R-26), лимит окна 20 000
+  > строк / 2 МБ, fallback status на CLI не сделан. CLAUDE.md говорит «never truncated» — не
+  > трогал, **на решение**.
 
 ### Категории 3–6
 
