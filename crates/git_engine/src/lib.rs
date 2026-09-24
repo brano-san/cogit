@@ -26,6 +26,7 @@ mod lfs;
 mod line_history;
 mod line_match;
 mod listing;
+mod mailmap;
 mod merging;
 mod module_ops;
 mod network;
@@ -88,6 +89,7 @@ pub use line_history::LineVersion;
 pub use listing::{
     BATCH, ContentMatch, MAX_SEARCH_BYTES, PREVIEW_CHARS, SearchRequest, SearchScope,
 };
+pub use mailmap::Mailmap;
 pub use merging::MergeOptions;
 pub use module_ops::SubmoduleOp;
 pub use network::{auth_header, wants_auth};

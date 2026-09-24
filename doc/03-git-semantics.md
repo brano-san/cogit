@@ -69,6 +69,7 @@
 | Список стэшей | **`gix`** (чтение `refs/stash` + reflog) | Чтение |
 | `git status` на монорепо | **`gix`** (fallback на CLI не сделан — ошибка gix уходит пользователю) | Скорость критична |
 | Определение ahead/behind | **`gix`** | Подсчёт по merge-base |
+| Имена и адреса авторов (`.mailmap`, `mailmap.file`, `mailmap.blob`) | **`gix`** читает записи, поиск свой (`git_engine::Mailmap`), в CLI-чтениях — `%aN`/`%aE` | Snapshot gix расходится с `git` ([R-390](12-risks.md)) |
 | Разрешение конфликтов | **CLI** пишет, **`gix`** читает stage 1/2/3 из index | Запись — только CLI |
 
 ## 3. Запуск команд Git

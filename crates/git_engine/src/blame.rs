@@ -130,12 +130,12 @@ impl RepoHandle {
 
         // Empty when there is no `.mailmap`, and empty again when the file is unparsable:
         // a mistyped mapping must not cost the user their blame.
-        let mailmap = self.repo.open_mailmap();
+        let mailmap = self.mailmap();
 
         for entry in &outcome.entries {
             let oid = entry.commit_id.to_string();
-            let details = self.commit_details(&oid)?;
-            let (author, email) = canonical(&mailmap, &details.author);
+            let details = self.commit_details_with(&oid, &mailmap)?;
+            let (author, email) = (&details.author.name, &details.author.email);
             for offset in 0..entry.len.get() {
                 let index = (entry.start_in_blamed_file + offset) as usize;
                 out.push(BlameLine {
@@ -153,15 +153,4 @@ impl RepoHandle {
         out.sort_by_key(|line| line.line);
         Ok(out)
     }
-}
-
-/// The name and address `.mailmap` wants shown, or the ones the commit carries when the
-/// file says nothing about them.
-fn canonical(mailmap: &gix::mailmap::Snapshot, author: &crate::Signature) -> (String, String) {
-    let resolved = mailmap.resolve(gix::actor::SignatureRef {
-        name: gix::bstr::BStr::new(author.name.as_bytes()),
-        email: gix::bstr::BStr::new(author.email.as_bytes()),
-        time: "",
-    });
-    (resolved.name.to_string(), resolved.email.to_string())
 }
