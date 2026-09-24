@@ -91,6 +91,13 @@
   --graph-line: var(--text-secondary);
   --status-stash: var(--c-stash);
   --status-tag: var(--c-tag);
+  /* Where a repository stands: its row in Repositories, the worktree label in Branches
+     (R-353). Changes are a warning colour; being ahead is the user's own work. */
+  --sync-dirty: var(--status-modify);
+  --sync-clean: var(--status-add);
+  --sync-push: var(--status-add);
+  --sync-pull: var(--status-ref);
+  --sync-unknown: var(--text-secondary);
 
   /* ---- typography ---- */
   --font-ui: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;

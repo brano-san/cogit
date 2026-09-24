@@ -161,6 +161,7 @@
   import { stashes } from "$stores/stashes.svelte";
   import { submodules } from "$stores/submodules.svelte";
   import { moduleMemory } from "$stores/module-memory.svelte";
+  import { repoPulse } from "$stores/repo-pulse.svelte";
   import { graph } from "$stores/graph.svelte";
   import { hooks } from "$stores/hooks.svelte";
   import { avatars } from "$stores/avatars.svelte";
@@ -974,7 +975,11 @@
 
   function onDiskChange(change: import("$lib/ipc").RepoChanged) {
     const id = repository.current?.repo;
-    if (!id || id.valueOf() !== change.repo.valueOf()) return;
+    if (!id || id.valueOf() !== change.repo.valueOf()) {
+      const left = repository.openRepos.find((entry) => entry.repo.valueOf() === change.repo.valueOf());
+      if (left) repoPulse.changed(left.root);
+      return;
+    }
     if (change.kind !== "hooks") stale = markStale(stale, change.kind);
     pending.add(change.kind);
     clearTimeout(settling);
@@ -2683,6 +2688,7 @@
       errors.report(err, `Could not ${kind}`);
     }
     await repository.refreshList();
+    if (target.kind === "repository") repoPulse.changed(target.root);
   }
 
   async function renameListed(root: string, folder: string | undefined) {
@@ -2712,6 +2718,7 @@
     }
     repoList.forget(target.root);
     moduleMemory.forget(target.root);
+    repoPulse.forget(target.root);
     repoGroups.assign(target.root, UNGROUPED);
   }
 
@@ -2932,6 +2939,19 @@
       void openDropped(droppedRepositories(event.paths));
     }
   }
+
+  // The rows of Repositories are read in the background, never while the repository on
+  // screen is busy (R-353).
+  repoPulse.setBusy(
+    () =>
+      running.size > 0 ||
+      repository.busy ||
+      network.running !== null ||
+      bulk !== undefined ||
+      graph.loading,
+  );
+  $effect(() => repoPulse.setOwned(repository.current?.root ?? null));
+  $effect(() => repoPulse.fetchEvery(settings.current.backgroundFetchMinutes));
 
   /** One subscription for everything the window hears from outside itself. */
   $effect(() =>
