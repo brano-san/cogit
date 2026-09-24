@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import BlameView from "$components/diff/BlameView.svelte";
   import Select from "$components/common/Select.svelte";
   import TooltipLayer from "$components/common/TooltipLayer.svelte";
@@ -28,10 +29,13 @@
     }),
   );
 
-  $effect(() => {
-    void settings.load();
-    if (request) void blame.open(request);
-  });
+  // Once, on opening: what the loads read must not make this effect run them again.
+  $effect(() =>
+    untrack(() => {
+      void settings.load();
+      if (request) void blame.open(request);
+    }),
+  );
 
   const date = (row: CommitRow) => settings.formatDate(row.timestamp, row.tzOffsetMinutes);
   const highlighted = $derived(changedSince(blame.revisions, blame.since));

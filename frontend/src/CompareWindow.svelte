@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import DiffView from "$components/diff/DiffView.svelte";
   import ImageDiff from "$components/diff/ImageDiff.svelte";
   import TooltipLayer from "$components/common/TooltipLayer.svelte";
@@ -12,10 +13,13 @@
   // No browser menu (R-127), and Esc / Ctrl+W close the window.
   $effect(() => installChildWindow(window));
 
-  $effect(() => {
-    void settings.load();
-    if (request) void diff.load(request.repo, request.spec, request.path);
-  });
+  // Once, on opening: what the loads read must not make this effect run them again.
+  $effect(() =>
+    untrack(() => {
+      void settings.load();
+      if (request) void diff.load(request.repo, request.spec, request.path);
+    }),
+  );
 
   const title = $derived(request ? `${request.path} — ${request.spec.kind}` : "Compare");
 
