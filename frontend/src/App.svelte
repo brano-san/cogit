@@ -1381,7 +1381,13 @@
   async function recoverCommit(lost: import("$lib/ipc").CommitRow) {
     const id = repository.current?.repo;
     if (!id) return;
-    const name = window.prompt("Branch name for the recovered commit:", "recovered");
+    const name = await prompt.ask({
+      title: "Recover Commit",
+      label: "Branch name for the recovered commit",
+      value: "recovered",
+      confirm: "Create Branch",
+      validate: (value) => branchNameProblem(value, repository.localBranches.map((entry) => entry.name)),
+    });
     if (!name) return;
     try {
       await createBranch(id, name, lost.oid, false);
@@ -1593,7 +1599,12 @@
       if (action === "continue") await continueOperation(id);
       if (action === "skip") await skipOperation(id);
       if (action === "createBranch") {
-        const name = window.prompt("Name for the new branch at this commit:");
+        const name = await prompt.ask({
+          title: "Create Branch",
+          label: "Name for the new branch at this commit",
+          confirm: "Create Branch",
+          validate: (value) => branchNameProblem(value, repository.localBranches.map((entry) => entry.name)),
+        });
         if (!name) return;
         await createBranch(id, name, null, true);
       }
