@@ -1663,7 +1663,9 @@
     submodules.clear();
   }
 
-  async function activate(root: string, restoreOid: string | null = null) {
+  /** The root of the repository now on screen, or null when this open lost to a newer
+      one or failed. */
+  async function activate(root: string, restoreOid: string | null = null): Promise<string | null> {
     const story = `open:${root}`;
     trace(story, "activate: panels cleared");
     forgetPanels();
@@ -1671,7 +1673,7 @@
     const watch = measure("open-repository");
     if (!(await repository.open(root))) {
       trace(story, "activate: overtaken by a newer open, leaving the panels to it");
-      return;
+      return null;
     }
     const opened = repository.current;
     trace(story, `activate: repository.current is ${opened ? opened.name : "null"}`);
@@ -1695,6 +1697,8 @@
       graph.clear();
     }
     watch.stop(`${repository.current?.branches.length ?? 0} refs`);
+    // A failed open leaves the previous repository on screen.
+    return repository.error ? null : (repository.current?.root ?? null);
   }
 
   /** A click in the Repositories list (#50): the one on screen reloads nothing, the owner
@@ -2305,8 +2309,8 @@
 
     if (id === "group-open") {
       // Opened and filed in one step, so a fresh group is not a dead end (issue 7).
-      void pickRepository().then(() => {
-        const root = repository.current?.root;
+      // Cancelled, the repository already on screen is not the one to file there.
+      void pickRepository().then((root) => {
         if (root) repoGroups.assign(root, target);
       });
       return true;
@@ -2779,12 +2783,13 @@
     }
   }
 
-  async function pickRepository() {
+  /** The root opened, or null when the dialog was cancelled or the open did not win. */
+  async function pickRepository(): Promise<string | null> {
     const picked = await openFolderDialog({ directory: true, title: "Open Repository" });
-    if (typeof picked !== "string") return;
+    if (typeof picked !== "string") return null;
     opening = true;
     try {
-      await activate(picked);
+      return await activate(picked);
     } finally {
       opening = false;
     }
