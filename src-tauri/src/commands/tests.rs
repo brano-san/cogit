@@ -179,6 +179,24 @@ fn the_repository_list_is_read_off_the_async_workers() {
     assert!(list.is_some_and(|command| command.body.contains("blocking(")));
 }
 
+// The keyring is a system service: Secret Service waits on D-Bus for the keyring to unlock,
+// and that wait held an IPC worker.
+#[test]
+fn the_keyring_is_reached_off_the_async_workers() {
+    let all = all_commands();
+    let inline: Vec<&str> = ["has_token", "store_token", "forget_token"]
+        .into_iter()
+        .filter(|name| {
+            !all.iter()
+                .any(|command| command.name == *name && command.body.contains("blocking("))
+        })
+        .collect();
+    assert!(
+        inline.is_empty(),
+        "these reach the keyring inline: {inline:?}"
+    );
+}
+
 #[test]
 fn the_parser_sees_every_command() {
     let all = declared();

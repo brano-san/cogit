@@ -293,7 +293,9 @@ ST src-tauri, FS сторы и lib фронта, FA App.svelte/окна/layout, 
   > Итог: install_preset, run_hook, run_check идут через `mutating`; все три добавлены в
   > WRITERS теста `commands_that_write_the_repository_wait_for_its_lane` (красный до
   > правки).
-- [ ] 1.2 ST-1-04: keyring в blocking
+- [x] 1.2 ST-1-04: keyring в blocking
+  > Итог: has_token/store_token/forget_token — через `blocking`; тест
+  > `the_keyring_is_reached_off_the_async_workers` (красный до правки).
 - [ ] 1.3 AS-1-01: commit_details без тихого окна и без сброса RowCache
 - [ ] 1.4 GE-1-01: rename_stash не теряет записи при сбое посреди
 - [ ] 1.5 FS-1-01: мутации сторов не перечитывают прежний репозиторий после clear
