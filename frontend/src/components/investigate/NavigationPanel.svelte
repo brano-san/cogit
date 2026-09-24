@@ -97,7 +97,7 @@
     {#if session.logError}<span class="error truncate">{session.logError}</span>{/if}
   </header>
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-  <div class="list" tabindex="0" role="listbox" aria-label="Commits that changed the file" {onkeydown}>
+  <div class="list key-list" tabindex="0" role="listbox" aria-label="Commits that changed the file" {onkeydown}>
     <VirtualList items={session.items} rowHeight={ROW} {reveal}>
       {#snippet row(item: NavItem, index: number)}
         {#if item.kind === "header"}
@@ -185,7 +185,6 @@
     display: flex;
     flex: 1 1 auto;
     min-height: 0;
-    outline: none;
   }
 
   .row {

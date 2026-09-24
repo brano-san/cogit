@@ -319,6 +319,16 @@ body {
   outline-offset: -1px;
 }
 
+/* A list takes the keys as a whole (#27): the panel header says it has focus and the
+   selected row says where, so a ring round the list, or round the row already selected,
+   says nothing new. A row reached by Tab without being selected keeps the ring, and so
+   does every control inside a row. */
+.key-list:focus-visible,
+.key-list .selected:focus-visible,
+.key-list [aria-selected="true"]:focus-visible {
+  outline: none;
+}
+
 a {
   color: var(--link);
   text-decoration: none;

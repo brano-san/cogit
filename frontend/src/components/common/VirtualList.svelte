@@ -59,7 +59,7 @@
 </script>
 
 <div
-  class="scroll"
+  class="scroll key-list"
   bind:this={scroller}
   onscroll={() => scroller && (scrollTop = scroller.scrollTop)}
   role={label ? "list" : undefined}
