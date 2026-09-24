@@ -229,3 +229,33 @@ fn a_changed_symlink_in_the_working_tree_is_listed_as_a_symlink() {
 
     assert_eq!(link.mode, FileMode::Symlink);
 }
+
+// Cogit worked the percentage out from line counts of its own, gix decides the rename by
+// its similarity: the number shown was not git's, and could sit under the very threshold
+// that let the pair through.
+#[test]
+fn the_rename_percentage_is_the_one_git_reports() {
+    let f = test_fixtures::linear(1).unwrap();
+    let lines: Vec<String> = (0..10)
+        .map(|i| format!("line number {i} of the file"))
+        .collect();
+    f.commit_file(2, "old.txt", &(lines.join("\n") + "\n"))
+        .unwrap();
+    let mut changed = lines.clone();
+    for line in changed.iter_mut().take(4) {
+        *line = format!("{line}, rewritten");
+    }
+    std::fs::remove_file(f.path().join("old.txt")).unwrap();
+    f.write_file("new.txt", &(changed.join("\n") + "\n"))
+        .unwrap();
+    f.git(&["add", "-A"]).unwrap();
+    f.commit_staged(3, "rename and edit").unwrap();
+    let status = f
+        .git(&["diff", "-M", "--name-status", "HEAD~1", "HEAD"])
+        .unwrap();
+    let git: u32 = status.trim()[1..4].parse().unwrap();
+
+    let files = open(&f).commit_files("HEAD").unwrap();
+
+    assert_eq!(files[0].similarity, Some(git), "git said {status}");
+}

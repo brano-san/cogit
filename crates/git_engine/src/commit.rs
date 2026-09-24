@@ -262,14 +262,13 @@ fn to_entry(change: &gix::object::tree::diff::Change<'_, '_, '_>) -> Option<File
             diff,
             ..
         } => {
+            // The figure gix accepted the pair by, as git's `R<nnn>`: a count of our own
+            // could differ from git's and even sit under the threshold that let it through.
             let percent = diff.map_or(100, |stats| {
-                let changed = stats.removals + stats.insertions;
-                let total =
-                    changed + u32::try_from(stats.before.max(stats.after)).unwrap_or(u32::MAX);
-                changed
-                    .checked_mul(100)
-                    .and_then(|scaled| scaled.checked_div(total))
-                    .map_or(100, |ratio| 100 - ratio.min(100))
+                // In 0.0..=1.0, so the cast cannot truncate or wrap.
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                let percent = (stats.similarity.clamp(0.0, 1.0) * 100.0).floor() as u32;
+                percent
             });
             let changed =
                 (entry_mode.kind() != source_entry_mode.kind()).then(|| mode_of_entry(*entry_mode));
