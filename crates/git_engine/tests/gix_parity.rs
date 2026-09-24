@@ -251,3 +251,124 @@ mod staged {
         assert_eq!(ours(&f), expected);
     }
 }
+
+mod worktrees {
+    use super::*;
+    use std::path::Path;
+
+    /// One `worktree list --porcelain` record, reduced to what the client shows.
+    #[derive(Debug, PartialEq, Eq)]
+    struct Record {
+        path: String,
+        head: String,
+        branch: Option<String>,
+        locked: Option<String>,
+        stale: bool,
+    }
+
+    fn git(f: &Fixture) -> (Vec<Record>, Option<String>) {
+        let text = f.git(&["worktree", "list", "--porcelain"]).unwrap();
+        let mut records = Vec::new();
+        let mut bare = None;
+        for block in text.split("\n\n").filter(|block| !block.trim().is_empty()) {
+            let mut record = Record {
+                path: String::new(),
+                head: String::new(),
+                branch: None,
+                locked: None,
+                stale: false,
+            };
+            let mut is_bare = false;
+            for line in block.lines() {
+                let (key, value) = line.split_once(' ').unwrap_or((line, ""));
+                match key {
+                    "worktree" => record.path = value.to_owned(),
+                    "HEAD" => record.head = value.to_owned(),
+                    "branch" => {
+                        record.branch = Some(value.trim_start_matches("refs/heads/").to_owned());
+                    }
+                    "locked" => record.locked = Some(value.to_owned()),
+                    "prunable" => record.stale = true,
+                    "bare" => is_bare = true,
+                    "detached" => {}
+                    other => panic!("unexpected porcelain line {other:?}"),
+                }
+            }
+            if is_bare {
+                bare = Some(record.path);
+            } else {
+                records.push(record);
+            }
+        }
+        (records, bare)
+    }
+
+    fn ours(f: &Fixture) -> (Vec<Record>, Option<String>) {
+        let handle = open(f);
+        let bare = handle.is_bare();
+        let mut records = Vec::new();
+        let mut bare_path = None;
+        for entry in handle.worktrees().unwrap() {
+            if entry.is_main && bare {
+                bare_path = Some(entry.path);
+                continue;
+            }
+            // Git never calls a locked worktree prunable, whatever happened to its folder.
+            let stale = entry.missing && entry.locked.is_none();
+            records.push(Record {
+                path: entry.path,
+                head: entry.head,
+                branch: entry.branch,
+                locked: entry.locked,
+                stale,
+            });
+        }
+        (records, bare_path)
+    }
+
+    fn add(f: &Fixture, place: &Path, args: &[&str]) -> String {
+        let path = place.to_string_lossy().replace('\\', "/");
+        let mut all = vec!["worktree", "add"];
+        all.extend_from_slice(args);
+        all.push(&path);
+        f.git(&all).unwrap();
+        path
+    }
+
+    #[test]
+    fn locked_detached_and_stale_worktrees_match_worktree_list_porcelain() {
+        let f = test_fixtures::linear(3).unwrap();
+        let aux = tempfile::TempDir::new().unwrap();
+        let at = |rel: &str| aux.path().join(rel);
+
+        add(&f, &at("a/a-one"), &["-b", "one"]);
+        let two = add(&f, &at("b/b-two"), &["--detach"]);
+        f.git(&["-C", &two, "checkout", "--detach", "HEAD~1"])
+            .unwrap();
+        f.git(&["worktree", "lock", "--reason", "on a usb stick", &two])
+            .unwrap();
+        let three = add(&f, &at("c/c-three"), &["-b", "three"]);
+        f.git(&["worktree", "lock", &three]).unwrap();
+        let gone = add(&f, &at("d/d-gone"), &["-b", "gone"]);
+        std::fs::remove_dir_all(&gone).unwrap();
+        let gone_locked = add(&f, &at("e/e-gone-locked"), &["-b", "gone-locked"]);
+        f.git(&["worktree", "lock", &gone_locked]).unwrap();
+        std::fs::remove_dir_all(&gone_locked).unwrap();
+
+        let (expected, _) = git(&f);
+        assert_eq!(expected.len(), 6, "{expected:#?}");
+        assert_eq!(ours(&f).0, expected);
+    }
+
+    #[test]
+    fn a_bare_main_repository_is_listed_by_its_own_folder() {
+        let f = test_fixtures::bare().unwrap();
+        let aux = tempfile::TempDir::new().unwrap();
+        add(&f, &aux.path().join("checkout"), &["-b", "checkout"]);
+        add(&f, &aux.path().join("loose"), &["--detach"]);
+
+        let (expected, bare) = git(&f);
+        assert!(bare.is_some());
+        assert_eq!(ours(&f), (expected, bare));
+    }
+}
