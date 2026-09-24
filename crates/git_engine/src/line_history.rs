@@ -161,7 +161,7 @@ fn header_of(header: &str) -> Option<LineVersion> {
 }
 
 /// The five tab-separated fields both `git log -L` readers ask for after their marker:
-/// `%H %an %ae %at %s`.
+/// `%H %aN %aE %at %s`: the author as `.mailmap` names it.
 pub(crate) struct LogHeader {
     pub(crate) oid: String,
     pub(crate) author: String,
