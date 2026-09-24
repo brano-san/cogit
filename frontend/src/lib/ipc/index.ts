@@ -548,7 +548,7 @@ export async function updateSubmodule(repo: RepoId, path: string, init: boolean)
 }
 
 export async function listRepositories() {
-  return await commands.repositories();
+  return unwrap(await commands.repositories());
 }
 
 export async function closeRepository(repo: RepoId) {

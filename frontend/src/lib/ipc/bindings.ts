@@ -113,7 +113,11 @@ export const commands = {
 	revert: (repo: RepoId, commits: string[]) => typedError<null, GitError>(__TAURI_INVOKE("revert", { repo, commits })),
 	reflog: (repo: RepoId, limit: number) => typedError<ReflogEntry[], GitError>(__TAURI_INVOKE("reflog", { repo, limit })),
 	lostCommits: (repo: RepoId, limit: number) => typedError<CommitRow[], GitError>(__TAURI_INVOKE("lost_commits", { repo, limit })),
-	repositories: () => __TAURI_INVOKE<RepoOverview[]>("repositories"),
+	/**
+	 *  Each row not cached costs a `head`, a `branches` and a `status`, so it leaves the
+	 *  async workers that carry IPC.
+	 */
+	repositories: () => typedError<RepoOverview[], GitError>(__TAURI_INVOKE("repositories")),
 	closeRepository: (repo: RepoId) => typedError<boolean, GitError>(__TAURI_INVOKE("close_repository", { repo })),
 	submodules: (repo: RepoId) => typedError<Submodule[], GitError>(__TAURI_INVOKE("submodules", { repo })),
 	updateSubmodule: (repo: RepoId, path: string, init: boolean) => typedError<null, GitError>(__TAURI_INVOKE("update_submodule", { repo, path, init })),

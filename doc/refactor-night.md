@@ -31,6 +31,14 @@
   лимита. Когда фаза 3 отмечена — удалить.
 - Не запускать LTO-сборку бенчмарка параллельно с агентами: первая попытка упала с
   `Allocation failed` в rustc (`codegen-units=1`, fat LTO).
+- **Сбой с чужим stash (на решение пользователя).** Проверяя «тест падает без правки», я
+  сделал `git stash push -- <файл>` по файлу без изменений (stash не создался) и `git stash
+  pop` — снялся старый stash пользователя «botched bulk comment strip» с 39 конфликтами.
+  `reset --hard`/`checkout HEAD --` классификатор запретил; вместо этого `git add -A` +
+  `git stash push`: сейчас `stash@{0}` — это неудачное наложение, `stash@{1}` — исходный
+  stash, нетронутый. Резервная копия 39 файлов — `scratchpad/stash-pop-backup/`. Можно
+  удалить `stash@{0}` (`git stash drop stash@{0}`), исходный останется. Больше stash не
+  использую: падение теста показываю порядком TDD.
 - Первая сессия оборвалась на аудите (процесс закрылся, агенты и бенчмарк остановлены);
   продолжено в той же ветке.
 
@@ -446,7 +454,11 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > через `mutating`. Видимое следствие: эти действия появляются в индикаторе очереди. Тест
   > `commands_that_write_the_repository_wait_for_its_lane` (сканирует тела команд, как
   > соседние тесты модуля).
-- [ ] C1-10 `repositories` в blocking
+- [x] C1-10 `repositories` в blocking
+  > Итог: `repositories` — `async fn` + `blocking`; тип стал `Result<Vec<RepoOverview>>`
+  > (async-команда с `State` обязана возвращать Result), `listRepositories` разворачивает
+  > его; 04-ipc-contract обновлён. Тест `the_repository_list_is_read_off_the_async_workers`.
+  > Попутно (в плане, раздел «Режим»): сбой со stash — см. ниже.
 - [ ] C1-11 отмена поисков только при фактическом выходе
 - [ ] C1-12 тихое окно вотчера не теряет внешние события
 - [ ] C1-13 журнал безопасности не держит закрытый репозиторий

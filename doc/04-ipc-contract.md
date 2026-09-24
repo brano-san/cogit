@@ -81,7 +81,7 @@ pub enum CogitError {
 | `close_repository` | `repo: RepoId` | `()` | M1 |
 | `list_repositories` | — | `Vec<RepoEntry>` | M3 |
 | `repo_state` | `repo: RepoId` | `RepoState` — `clean | detachedHead { oid } | merging | rebasing | cherryPicking | reverting | bisecting | applyingPatches | empty | bare`; `applyingPatches` — `git am`, остановленный на патче (`rebase-apply/applying`) | M1 |
-| `repositories` | — | `Vec<RepoOverview { repo, name, root, branch, ahead, behind, dirty, missing, state: RepoState }>`; `state` — для меток `<merging>`/`<detached>` в дереве (#22) | M3 |
+| `repositories` | — | `Result<Vec<RepoOverview { repo, name, root, branch, ahead, behind, dirty, missing, state: RepoState }>>`; `state` — для меток `<merging>`/`<detached>` в дереве (#22). Читается в `spawn_blocking`, поэтому `Result` | M3 |
 | `list_submodules` | `repo: RepoId` | `Vec<Submodule>` | M3 |
 | `worktrees` | `repo: RepoId` | `Vec<WorktreeEntry { path, name, branch, head, isMain, isCurrent, locked, missing, dirty }>`; из linked-ворктри основной — всё равно основной (R-184); у `missing` ветка и HEAD читаются из записи `.git/worktrees/<id>/HEAD` (R-241) | M3 |
 | `open_worktree` | `owner: RepoId`, `path` — существующий ворктри владельца | `RepoSummary`, в списке Repositories не появляется; чужая папка — `InvalidState` | M3 |

@@ -1488,10 +1488,15 @@ pub async fn lost_commits(
     blocking("lost_commits", move || app_state.lost_commits(repo, limit)).await
 }
 
-#[tauri::command(async)]
+/// Each row not cached costs a `head`, a `branches` and a `status`, so it leaves the
+/// async workers that carry IPC.
+#[tauri::command]
 #[specta::specta]
-pub fn repositories(state: tauri::State<'_, crate::AppContext>) -> Vec<RepoOverview> {
-    state.state.overviews()
+pub async fn repositories(
+    state: tauri::State<'_, crate::AppContext>,
+) -> Result<Vec<RepoOverview>, GitError> {
+    let app_state = state.state.clone();
+    blocking("repositories", move || Ok(app_state.overviews())).await
 }
 
 #[tauri::command]
@@ -2635,6 +2640,15 @@ mod tests {
             unqueued.is_empty(),
             "these write outside the lane: {unqueued:?}"
         );
+    }
+
+    // `#[tauri::command(async)]` on a plain fn runs it on a tokio worker, the ones that
+    // carry IPC; reading every listed repository there stalled other commands after fetch.
+    #[test]
+    fn the_repository_list_is_read_off_the_async_workers() {
+        let all = all_commands();
+        let list = all.iter().find(|command| command.name == "repositories");
+        assert!(list.is_some_and(|command| command.body.contains("blocking(")));
     }
 
     #[test]
