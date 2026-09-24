@@ -361,6 +361,24 @@ mod worktrees {
     }
 
     #[test]
+    fn linked_worktrees_come_in_path_order_not_record_order() {
+        let f = test_fixtures::linear(2).unwrap();
+        let aux = tempfile::TempDir::new().unwrap();
+        add(&f, &aux.path().join("b/one"), &["-b", "one"]);
+        add(&f, &aux.path().join("a/two"), &["-b", "two"]);
+        add(&f, &aux.path().join("C/three"), &["-b", "three"]);
+
+        let (expected, _) = git(&f);
+        assert_eq!(expected.len(), 4, "{expected:#?}");
+        assert_eq!(ours(&f).0, expected);
+
+        f.git(&["config", "core.ignoreCase", "true"]).unwrap();
+        let (folded, _) = git(&f);
+        assert_ne!(folded, expected, "the case of C/ should matter to git");
+        assert_eq!(ours(&f).0, folded);
+    }
+
+    #[test]
     fn a_bare_main_repository_is_listed_by_its_own_folder() {
         let f = test_fixtures::bare().unwrap();
         let aux = tempfile::TempDir::new().unwrap();

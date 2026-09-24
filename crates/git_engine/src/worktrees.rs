@@ -55,6 +55,21 @@ impl RepoHandle {
             }
             entries.push(entry);
         }
+        // gix orders the records by name, git by path — case-folded under core.ignoreCase.
+        let fold = self
+            .repo
+            .config_snapshot()
+            .boolean("core.ignoreCase")
+            .unwrap_or(false);
+        entries[1..].sort_by(|a, b| {
+            if fold {
+                a.path
+                    .to_ascii_lowercase()
+                    .cmp(&b.path.to_ascii_lowercase())
+            } else {
+                a.path.cmp(&b.path)
+            }
+        });
         Ok(entries)
     }
 
