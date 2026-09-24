@@ -201,3 +201,25 @@ describe("Investigate session", () => {
     expect(session.history.entries).toHaveLength(1);
   });
 });
+
+describe("going back while a blame is still loading", () => {
+  // Back lands on the blame already on screen, so nothing is loaded — and the load for
+  // the place just left used to finish afterwards and replace it.
+  it("keeps the blame of the place it went back to", async () => {
+    const backend = fakeBackend();
+    const session = await started(backend);
+    let deeper!: (tables: BlameTables) => void;
+    backend.blame.mockReturnValueOnce(new Promise((resolve) => (deeper = resolve)));
+
+    const going = session.navigate({ path: "donor.rs", rev: "c0^", line: null });
+    await vi.waitFor(() => expect(backend.blame).toHaveBeenCalledTimes(2));
+    await session.back();
+    deeper(tables("c0", "donor.rs"));
+    await going;
+
+    expect(session.location.path).toBe("main.rs");
+    expect(session.blameOf).toEqual({ path: "main.rs", rev: null });
+    expect(session.blame?.commits[0]?.oid).toBe("wt");
+    expect(session.loadingBlame).toBe(false);
+  });
+});
