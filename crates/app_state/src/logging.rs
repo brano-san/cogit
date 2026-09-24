@@ -123,6 +123,32 @@ fn file_name(started: &str, part: u32) -> String {
     }
 }
 
+/// The part of the session `first` began that is being written now: past the size limit
+/// the log goes on in `.2.log`, `.3.log` and so on beside it. `first` when it never rolled.
+#[must_use]
+pub fn latest_part(first: &Path) -> PathBuf {
+    let Some((started, _)) = first
+        .file_name()
+        .and_then(|name| parse_name(&name.to_string_lossy()))
+    else {
+        return first.to_path_buf();
+    };
+    let Some(dir) = first.parent() else {
+        return first.to_path_buf();
+    };
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return first.to_path_buf();
+    };
+    entries
+        .flatten()
+        .filter_map(|entry| {
+            let (session, part) = parse_name(&entry.file_name().to_string_lossy())?;
+            (session == started).then(|| (part, entry.path()))
+        })
+        .max_by_key(|(part, _)| *part)
+        .map_or_else(|| first.to_path_buf(), |(_, path)| path)
+}
+
 fn parse_name(name: &str) -> Option<(String, u32)> {
     let stem = name.strip_prefix("cogit-")?.strip_suffix(".log")?;
     match stem.split_once('.') {

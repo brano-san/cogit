@@ -238,3 +238,41 @@ fn the_avatar_cache_is_in_the_log() {
         log_filter(None)
     );
 }
+
+// The path kept at start-up is part one. Past 10 MB the session writes part two, and
+// Copy Diagnostics went on sending the tail of part one, without the failure in it.
+#[test]
+fn the_latest_part_of_a_session_is_the_one_being_written() {
+    let dir = tempfile::tempdir().unwrap();
+    let first = dir.path().join("cogit-2026-01-01_00-00-00.log");
+    std::fs::write(&first, "old\n").unwrap();
+    std::fs::write(
+        dir.path().join("cogit-2026-01-01_00-00-00.2.log"),
+        "newer\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("cogit-2026-01-01_00-00-00.10.log"),
+        "newest\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("cogit-2027-01-01_00-00-00.3.log"),
+        "another run\n",
+    )
+    .unwrap();
+
+    assert_eq!(
+        app_state::logging::latest_part(&first),
+        dir.path().join("cogit-2026-01-01_00-00-00.10.log")
+    );
+}
+
+#[test]
+fn a_session_that_never_rolled_is_its_first_part() {
+    let dir = tempfile::tempdir().unwrap();
+    let first = dir.path().join("cogit-2026-01-01_00-00-00.log");
+    std::fs::write(&first, "only\n").unwrap();
+
+    assert_eq!(app_state::logging::latest_part(&first), first);
+}

@@ -31,6 +31,8 @@ fn read_tail(log_path: &Path, lines: usize) -> String {
 /// are answered by the path alone.
 #[must_use]
 pub fn report(log_path: &Path, config_dir: &Path, webview2: Option<&str>) -> String {
+    // The path kept at start-up is the first part; a long session has gone on past it.
+    let log_path = &app_state::logging::latest_part(log_path);
     let mut out = String::new();
 
     out.push_str(&format!("Cogit {}\n", env!("CARGO_PKG_VERSION")));
