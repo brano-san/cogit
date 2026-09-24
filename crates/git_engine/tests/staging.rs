@@ -251,3 +251,33 @@ fn a_list_too_long_to_stash_is_refused_before_anything_changes() {
     assert!(repo.stashes().unwrap().is_empty());
     assert_eq!(unstaged(&repo).len(), paths.len());
 }
+
+// Paths went to git as pathspecs, where `[1]` is a character class: discarding
+// `test[1].txt` also deleted the untracked `test1.txt` beside it.
+#[test]
+fn discarding_a_name_with_brackets_touches_only_that_file() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::write(f.path().join("test[1].txt"), "chosen\n").unwrap();
+    std::fs::write(f.path().join("test1.txt"), "not chosen\n").unwrap();
+
+    open(&f).discard(&["test[1].txt".to_owned()]).unwrap();
+
+    assert!(!f.path().join("test[1].txt").exists());
+    assert_eq!(
+        std::fs::read_to_string(f.path().join("test1.txt")).unwrap(),
+        "not chosen\n"
+    );
+}
+
+#[test]
+fn staging_a_name_with_brackets_stages_only_that_file() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::write(f.path().join("test[1].txt"), "chosen\n").unwrap();
+    std::fs::write(f.path().join("test1.txt"), "not chosen\n").unwrap();
+    let repo = open(&f);
+
+    repo.stage(&["test[1].txt".to_owned()]).unwrap();
+
+    let staged = f.git(&["diff", "--cached", "--name-only"]).unwrap();
+    assert_eq!(staged.trim(), "test[1].txt");
+}

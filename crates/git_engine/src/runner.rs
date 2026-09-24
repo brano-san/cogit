@@ -173,15 +173,19 @@ impl RepoHandle {
 
     /// `args`, `--` and the paths. A list too long for a Windows command line goes through
     /// stdin instead, still as one command (R-191).
+    ///
+    /// The paths are file names the user picked, not patterns: `test[1].txt` must not also
+    /// mean `test1.txt`.
     pub(crate) fn run_git_paths(&self, args: &[&str], paths: &[String]) -> Result<GitOutput> {
+        const LITERAL: &[(&str, &str)] = &[("GIT_LITERAL_PATHSPECS", "1")];
         let mut all = args.to_vec();
         if fits_command_line(paths) {
             all.push("--");
             all.extend(paths.iter().map(String::as_str));
-            return self.run_git(&all);
+            return self.spawn_fed(&all, false, LITERAL, None);
         }
         all.extend(["--pathspec-from-file=-", "--pathspec-file-nul"]);
-        self.spawn_fed(&all, false, &[], Some(paths.join("\0").as_bytes()))
+        self.spawn_fed(&all, false, LITERAL, Some(paths.join("\0").as_bytes()))
     }
 
     fn spawn(&self, args: &[&str], reading: bool) -> Result<GitOutput> {
