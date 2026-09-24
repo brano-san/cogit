@@ -1,26 +1,28 @@
 <script lang="ts">
-  import Dialog from "$components/common/Dialog.svelte";
-  import { DEFAULT_LAYOUT, SEPARATOR, actionOf } from "$lib/toolbar";
-  import {
-    addEntry,
-    hiddenActions,
-    moveEntry,
-    removeEntry,
-    sameLayout,
-  } from "$lib/toolbar-layout";
-  import { toolbar } from "$stores/toolbar.svelte";
+  import { SEPARATOR, actionOf } from "$lib/toolbar";
+  import { addEntry, hiddenActions, moveEntry, removeEntry, sameLayout } from "$lib/toolbar-layout";
 
-  /** Edit ▸ Configure Toolbar…: the button toolbar, not the menu bar (#44). Edits a draft;
-      OK keeps it. */
-  // svelte-ignore state_referenced_locally
-  let draft = $state.raw<string[]>([...toolbar.layout]);
+  /** Preferences ▸ Toolbar: the button toolbar, not the menu bar. Every edit is applied to
+      the toolbar at once; Undo takes the edits of this window back one by one. */
+  interface Props {
+    layout: readonly string[];
+    onchange: (next: string[]) => void;
+    canUndo: boolean;
+    onundo: () => void;
+  }
+
+  let { layout, onchange, canUndo, onundo }: Props = $props();
+
   let shownAt = $state<number | null>(null);
   let pick = $state<string | null>(null);
 
   const available = $derived([
-    ...hiddenActions(draft).map((action) => ({ id: action.id, label: action.label })),
+    ...hiddenActions(layout).map((action) => ({ id: action.id, label: action.label })),
     { id: SEPARATOR, label: "Separator" },
   ]);
+
+  /** Undo or Restore Defaults can shorten the list under the selection. */
+  const selected = $derived(shownAt !== null && shownAt < layout.length ? shownAt : null);
 
   function labelOf(entry: string): string {
     return entry === SEPARATOR ? "Separator" : (actionOf(entry)?.label ?? entry);
@@ -28,46 +30,33 @@
 
   function add(entry = pick) {
     if (entry === null) return;
-    draft = addEntry(draft, entry, shownAt);
-    shownAt = shownAt === null ? draft.length - 1 : shownAt + 1;
+    const next = addEntry(layout, entry, selected);
+    shownAt = selected === null ? next.length - 1 : selected + 1;
     pick = null;
+    onchange(next);
   }
 
-  function remove(index = shownAt) {
+  function remove(index = selected) {
     if (index === null) return;
-    draft = removeEntry(draft, index);
-    shownAt = draft.length === 0 ? null : Math.min(index, draft.length - 1);
+    const next = removeEntry(layout, index);
+    shownAt = next.length === 0 ? null : Math.min(index, next.length - 1);
+    onchange(next);
   }
 
   function move(delta: -1 | 1) {
-    if (shownAt === null) return;
-    const next = moveEntry(draft, shownAt, delta);
-    if (sameLayout(next, draft)) return;
-    draft = next;
-    shownAt += delta;
-  }
-
-  function reset() {
-    draft = [...DEFAULT_LAYOUT];
-    shownAt = null;
-    pick = null;
-  }
-
-  function close() {
-    toolbar.configuring = false;
-  }
-
-  function accept() {
-    void toolbar.setLayout(draft);
-    close();
+    if (selected === null) return;
+    const next = moveEntry(layout, selected, delta);
+    if (sameLayout(next, layout)) return;
+    shownAt = selected + delta;
+    onchange(next);
   }
 </script>
 
-<Dialog title="Configure Toolbar" width="min(560px, 92vw)" onclose={close} onconfirm={accept}>
-  <p class="lead">Choose the buttons of the toolbar and their order.</p>
+<div class="editor">
+  <p class="lead">Choose the buttons of the toolbar and their order. Changes show at once.</p>
   <div class="columns">
     <section>
-      <h3 id="toolbar-available">Available</h3>
+      <h4 id="toolbar-available">Available</h4>
       <ul class="list" role="listbox" aria-labelledby="toolbar-available">
         {#each available as entry (entry.id)}
           <li>
@@ -88,33 +77,40 @@
       <button type="button" class="btn" disabled={pick === null} onclick={() => add()}
         >Add →</button
       >
-      <button type="button" class="btn" disabled={shownAt === null} onclick={() => remove()}
+      <button type="button" class="btn" disabled={selected === null} onclick={() => remove()}
         >← Remove</button
       >
       <button
         type="button"
         class="btn"
-        disabled={shownAt === null || shownAt === 0}
+        disabled={selected === null || selected === 0}
         onclick={() => move(-1)}>Move Up</button
       >
       <button
         type="button"
         class="btn"
-        disabled={shownAt === null || shownAt === draft.length - 1}
+        disabled={selected === null || selected === layout.length - 1}
         onclick={() => move(1)}>Move Down</button
+      >
+      <button
+        type="button"
+        class="btn"
+        title="Take back the last change made to the toolbar in this window"
+        disabled={!canUndo}
+        onclick={onundo}>Undo</button
       >
     </div>
 
     <section>
-      <h3 id="toolbar-shown">Toolbar</h3>
+      <h4 id="toolbar-shown">Toolbar</h4>
       <ul class="list" role="listbox" aria-labelledby="toolbar-shown">
-        {#each draft as entry, index (`${entry}:${index}`)}
+        {#each layout as entry, index (`${entry}:${index}`)}
           <li>
             <button
               type="button"
               role="option"
-              aria-selected={shownAt === index}
-              class:selected={shownAt === index}
+              aria-selected={selected === index}
+              class:selected={selected === index}
               class:separator={entry === SEPARATOR}
               onclick={() => (shownAt = index)}
               ondblclick={() => remove(index)}>{labelOf(entry)}</button
@@ -126,19 +122,7 @@
       </ul>
     </section>
   </div>
-
-  {#snippet footer()}
-    <button
-      type="button"
-      class="btn"
-      disabled={sameLayout(draft, DEFAULT_LAYOUT)}
-      onclick={reset}>Reset to Default</button
-    >
-    <span class="grow"></span>
-    <button type="button" class="btn" onclick={close}>Cancel</button>
-    <button type="button" class="btn primary" onclick={accept}>OK</button>
-  {/snippet}
-</Dialog>
+</div>
 
 <style>
   .lead {
@@ -154,14 +138,14 @@
     align-items: stretch;
   }
 
-  h3 {
+  h4 {
     margin: 0 0 var(--sp-2);
     font-size: var(--fs-dense);
     font-weight: 600;
   }
 
   .list {
-    height: 260px;
+    height: 300px;
     margin: 0;
     padding: var(--sp-1) 0;
     overflow-y: auto;
@@ -211,9 +195,5 @@
     flex-direction: column;
     justify-content: center;
     gap: var(--sp-3);
-  }
-
-  .grow {
-    flex: 1 1 auto;
   }
 </style>

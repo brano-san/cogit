@@ -311,6 +311,63 @@ fn a_moved_worktree_is_found_again_by_repairing_it_with_its_new_folder() {
     assert_eq!(repaired.branch.as_deref(), Some("feature-wt"));
 }
 
+fn copy_tree(from: &std::path::Path, to: &std::path::Path) {
+    std::fs::create_dir_all(to).unwrap();
+    for entry in std::fs::read_dir(from).unwrap() {
+        let entry = entry.unwrap();
+        let target = to.join(entry.file_name());
+        if entry.file_type().unwrap().is_dir() {
+            copy_tree(&entry.path(), &target);
+        } else {
+            std::fs::copy(entry.path(), &target).unwrap();
+        }
+    }
+}
+
+/// Moved to another disk, a worktree's files are copies: every index entry is off by its
+/// stat data, and each status after that reads every file again. The listing that follows
+/// a repair runs a status per worktree, which is where `dtv_device` spent its time.
+#[test]
+fn repairing_a_worktree_moved_to_another_disk_leaves_its_index_fresh() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let old = linked(&f).path;
+    let aux = tempfile::tempdir().unwrap();
+    let moved = aux.path().join("moved");
+    // A fresh checkout is racy — written in the second its index was — and git reads such
+    // files whatever their stat says. Backdated, the copies differ from the index by
+    // creation time on Windows and by modification time elsewhere, as a real move does.
+    let hour_ago = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
+    for name in ["file0.txt", "file1.txt", "file2.txt"] {
+        let file = std::fs::File::options()
+            .write(true)
+            .open(std::path::Path::new(&old).join(name))
+            .unwrap();
+        let times = std::fs::FileTimes::new().set_modified(hour_ago);
+        #[cfg(windows)]
+        let times = std::os::windows::fs::FileTimesExt::set_created(times, hour_ago);
+        file.set_times(times).unwrap();
+    }
+    f.git_in(
+        std::path::Path::new(&old),
+        &["update-index", "-q", "--refresh"],
+    )
+    .unwrap();
+    copy_tree(std::path::Path::new(&old), &moved);
+    std::fs::remove_dir_all(&old).unwrap();
+    let stale = f.git_in(&moved, &["diff-files", "--name-only"]).unwrap();
+    assert!(!stale.trim().is_empty(), "the copy should be stat-dirty");
+
+    open(&f).repair_worktree(&slashed(&moved)).unwrap();
+
+    let after = f.git_in(&moved, &["diff-files", "--name-only"]).unwrap();
+    assert_eq!(
+        after.trim(),
+        "",
+        "the index still makes status read every file"
+    );
+    assert!(!linked(&f).dirty);
+}
+
 /// `dtv_device_master`, registered on Linux as `/home/user/work/…`: Windows reads that as
 /// `E:\home\user\work\…`, which is nowhere. Repair with the real folder closes it.
 #[test]

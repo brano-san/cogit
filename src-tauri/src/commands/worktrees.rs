@@ -1,6 +1,6 @@
 //! Linked worktrees: list, add, open, prune, repair, lock, remove (M3).
 
-use super::{blocking, mutating};
+use super::{blocking, mutating, mutating_titled};
 use app_state::{OperationKind, RepoId, RepoSummary};
 use git_engine::GitError;
 
@@ -106,10 +106,12 @@ pub async fn repair_worktree(
     path: String,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    mutating(
+    let name = path.rsplit('/').next().unwrap_or(&path).to_owned();
+    mutating_titled(
         &state.state,
         repo,
         OperationKind::Worktree,
+        &format!("Repairing worktree {name}"),
         "repair_worktree",
         move || app_state.repair_worktree(repo, &path),
     )

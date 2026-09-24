@@ -323,3 +323,9 @@
 | F-442 | Ветка коммита по клику | [F-442-graph-branch-of-commit.md](F-442-graph-branch-of-commit.md) |
 | F-443 | Предки и потомки выбранного коммита | [F-443-graph-ancestry.md](F-443-graph-ancestry.md) |
 | F-444 | Сворачивание слитых веток | [F-444-graph-collapse-merged.md](F-444-graph-collapse-merged.md) |
+| F-430 | Длинные связи графа — обрубками | [F-430-graph-long-links.md](F-430-graph-long-links.md) |
+| F-431 | Строка графа: правые колонки на месте | [F-431-graph-row-columns.md](F-431-graph-row-columns.md) |
+| F-460 | Кнопка тулбара с открытым меню остаётся нажатой | [F-460-toolbar-menu-pressed.md](F-460-toolbar-menu-pressed.md) |
+| F-470 | Настройки отображения графа | [F-470-graph-display-settings.md](F-470-graph-display-settings.md) |
+| F-450 | Submodules любого репозитория без активации | [F-450-submodules-of-every-repository.md](F-450-submodules-of-every-repository.md) |
+| F-451 | Изменения, push и pull в строке Repositories | [F-451-repository-sync-marks.md](F-451-repository-sync-marks.md) |

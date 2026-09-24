@@ -26,6 +26,9 @@ pub struct CommitQuery {
     /// How the graph shows the walked history; a filtered list ignores it.
     #[serde(default)]
     pub view: GraphView,
+    /// Not a filter: how the graph this load lays out cuts long links (R-330).
+    #[serde(default)]
+    pub long_link_rows: Option<u32>,
 }
 
 /// Graph modes that decide which commits the graph shows (`graph_engine::ViewFilter`).
@@ -42,7 +45,10 @@ pub struct GraphView {
 impl CommitQuery {
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self == &Self::default()
+        Self {
+            long_link_rows: None,
+            ..self.clone()
+        } == Self::default()
     }
 
     /// A per-commit predicate forces a flat list; narrowing the ticked refs does not (R-51).
@@ -51,6 +57,7 @@ impl CommitQuery {
         Self {
             visible_refs: None,
             view: GraphView::default(),
+            long_link_rows: None,
             ..self.clone()
         } != Self::default()
     }

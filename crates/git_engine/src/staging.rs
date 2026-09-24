@@ -3,7 +3,14 @@ use std::collections::HashSet;
 
 impl RepoHandle {
     pub fn stage(&self, paths: &[String]) -> Result<()> {
-        self.run_paths(&["add", "--all"], paths)
+        self.run_paths(add_command(paths.len()), paths)
+    }
+
+    /// What git sees as changed, the whole tree: without a path list git matches nothing
+    /// against its entries, which on two thousand files is a tenth of the time (R-311).
+    /// `files` is how many the list showed; it only picks how the blobs are written.
+    pub fn stage_all(&self, files: usize) -> Result<()> {
+        self.run_git(add_command(files)).map(drop)
     }
 
     pub fn unstage(&self, paths: &[String]) -> Result<()> {
@@ -44,6 +51,20 @@ impl RepoHandle {
     fn run_paths(&self, prefix: &[&str], paths: &[String]) -> Result<()> {
         require_paths(paths)?;
         self.run_git_paths(prefix, paths).map(drop)
+    }
+}
+
+/// From here on the blobs go into one pack rather than a loose file each: git streams a
+/// blob larger than `core.bigFileThreshold` straight into a pack, one per command, unless
+/// it converts the content on the way in. The bar keeps packs as rare as loose objects make
+/// `gc --auto`: 50 packs (`gc.autoPackLimit`) against 6 700 objects (`gc.auto`) (R-312).
+const PACKED_FROM: usize = 200;
+
+fn add_command(files: usize) -> &'static [&'static str] {
+    if files >= PACKED_FROM {
+        &["-c", "core.bigFileThreshold=1", "add", "--all"]
+    } else {
+        &["add", "--all"]
     }
 }
 

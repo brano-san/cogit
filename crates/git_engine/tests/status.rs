@@ -107,3 +107,29 @@ fn ignored_files_are_not_counted() {
 
     assert_eq!(status_of(&f).untracked, 0, "ignored files are not changes");
 }
+
+// The counters and the conflicted list came from two full reads of the status (R-316).
+#[test]
+fn one_read_gives_the_counters_and_the_conflicted_paths() {
+    let f = test_fixtures::conflicted().unwrap();
+    f.write_file("newcomer.txt", "hello\n").unwrap();
+    let repo = RepoHandle::open(f.path()).unwrap();
+
+    let state = repo.working_state().unwrap();
+
+    assert_eq!(state.status, repo.status().unwrap());
+    assert_eq!(state.status.conflicted, 1);
+    assert_eq!(state.status.untracked, 1);
+    assert_eq!(state.conflicted, repo.conflicted_paths().unwrap());
+    assert_eq!(state.conflicted, ["conflict.txt"]);
+}
+
+#[test]
+fn a_clean_repository_has_no_conflicted_paths_either() {
+    let f = test_fixtures::linear(2).unwrap();
+
+    let state = RepoHandle::open(f.path()).unwrap().working_state().unwrap();
+
+    assert!(state.status.is_clean());
+    assert!(state.conflicted.is_empty());
+}

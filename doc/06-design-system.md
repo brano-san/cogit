@@ -120,6 +120,12 @@
 --graph-line          → --text-secondary
 --graph-branch-N      → --c-lane-N        N = 1…8, цвета отмеченных веток
 --graph-focus         → --status-ref      ветка выбранного коммита без своего цвета
+
+--indicator-changes   → --status-modify    незакоммиченные изменения (Repositories, метка worktree)
+--indicator-synced    → --status-add       чисто и всё запушено (метка worktree)
+--indicator-push      → --status-add       стрелка «есть что пушить»
+--indicator-pull      → --status-ref       стрелка «есть что забрать»
+--indicator-unknown   → --text-secondary   fetch не удался, про pull неизвестно
 ```
 
 ## 4. Типографика
@@ -188,8 +194,14 @@ hover           background: --state-hover
 stripe          каждая вторая строка графа — --row-stripe; hover и selected перекрывают
 selected        background: --state-selected
                 + ::before — полоса 2px слева цветом --status-ref
-focus-visible   outline: 1px solid --state-focus-ring; outline-offset: -1px
+focus-visible   outline: 1px solid --state-focus-ring; outline-offset: -1px — только у строки,
+                до которой дошли Tab, не выбрав её
 ```
+
+Список — одна остановка клавиатуры (класс `.key-list` в `app.css`, #27): фокус панели
+показывает её заголовок, место в списке — выделенная строка. Поэтому ни сам прокручиваемый
+контейнер, ни уже выбранная строка рамку фокуса не рисуют; кнопки и поля внутри строки —
+рисуют, как везде.
 
 Индикатор выбора — **полоса, а не только цвет фона**: различие фона `#1e222b` и `#242b38`
 слишком мало, чтобы быть единственным сигналом.
@@ -284,6 +296,10 @@ Hover — `--state-hover`; active — `--state-selected`; disabled — `opacity:
 ## 9. Иконки
 
 Единый набор линейных иконок, штрих 1.5 px, сетка 16×16, выравнивание по пиксельной сетке.
+
+Размеры: главный тулбар — 22 px; кнопки в тулбарах панелей (Repositories, Files, Branches) —
+один токен `--panel-icon` (16 px) в кнопке `--h-button-sm` и крупнее; значок вида строки в
+дереве — `--kind-icon` (14 px).
 Иконки — inline SVG с `currentColor`, никаких иконочных шрифтов и никаких растровых иконок.
 Для символов Git (ветка, коммит, тег, стэш, слияние) используется собственный минимальный набор,
 согласованный по оптической плотности с Inter.

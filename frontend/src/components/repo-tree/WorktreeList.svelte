@@ -20,7 +20,7 @@
     $props();
 </script>
 
-<div class="list" role="listbox" aria-label="Worktrees">
+<div class="list key-list" role="listbox" aria-label="Worktrees">
   {#each entries as entry (entry.path)}
     {@const where = worktreeWhere(entry)}
     <div

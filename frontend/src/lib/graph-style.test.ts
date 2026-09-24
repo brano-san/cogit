@@ -30,6 +30,7 @@ const row = (primary: boolean): GraphRow => ({
   primary,
   width: 1,
   segments: [],
+  links: [],
 });
 
 const plain = { colouredLanes: false };

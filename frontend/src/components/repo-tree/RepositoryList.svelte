@@ -2,7 +2,9 @@
   import Disclosure from "$components/common/Disclosure.svelte";
   import KindIcon from "$components/common/KindIcon.svelte";
   import { applyClick, EMPTY_SELECTION, type FileSelection } from "$lib/multi-select";
-  import { DIRTY_REPOSITORY, MISSING_REPOSITORY, trackTooltip } from "$lib/repo-labels";
+  import { MISSING_REPOSITORY } from "$lib/repo-labels";
+  import { rowSync, syncTooltip, type RowSync } from "$lib/repo-sync";
+  import { repoPulse } from "$stores/repo-pulse.svelte";
   import {
     describeModule,
     mayExpand,
@@ -13,6 +15,8 @@
   import { idleMessage, panelView } from "$lib/repo-phase";
   import { STATE_TAG_HINT, repoStateTag } from "$lib/repo-state";
   import { submodules } from "$stores/submodules.svelte";
+  import { moduleForest } from "$stores/module-forest.svelte";
+  import { moduleMemory } from "$stores/module-memory.svelte";
   import { UNGROUPED, groupRows } from "$lib/repo-groups";
   import type { RepoOverview } from "$lib/ipc";
   import { listedRepos, type ListedRepo } from "$lib/repo-list";
@@ -25,11 +29,13 @@
     /** Only the folder dialog changes the label; selecting a repository must not (R-35). */
     opening?: boolean;
     onopenmodule: (row: ModuleRow) => void;
-    onmodulecontext: (row: ModuleRow, x: number, y: number) => void;
+    /** A submodule of a repository the panels do not own: open both in one click. */
+    onopenforeignmodule: (root: string, row: ModuleRow) => void;
+    /** `root` names the owner when it is not the repository the panels own. */
+    onmodulecontext: (row: ModuleRow, x: number, y: number, root?: string) => void;
     onopen: () => void;
     onscan: () => void;
     onselect: (entry: RepoOverview) => void;
-    onclose: (entry: RepoOverview) => void;
     oncontext: (row: ListedRepo, x: number, y: number) => void;
     /** A closed row was clicked: open it again. */
     onreopen: (root: string) => void;
@@ -45,13 +51,13 @@
     onopen,
     onscan,
     onselect,
-    onclose,
     oncontext,
     onreopen,
     onmarked,
     ongroupcontext,
     onaddgroup,
     onopenmodule,
+    onopenforeignmodule,
     onmodulecontext,
   }: Props = $props();
 
@@ -75,6 +81,15 @@
   const byRoot = $derived(new Map(entries.map((entry) => [entry.root, entry])));
   const rows = $derived(groupRows(repoGroups.groups, order, repoGroups.collapsed));
 
+  const everyRoot = $derived(listedRepos(repository.openRepos, repoList.list).map((each) => each.root));
+
+  $effect(() => repoPulse.watch(everyRoot));
+
+  $effect(() => {
+    void moduleForest.trees;
+    void moduleForest.probe(order);
+  });
+
   /** Dropping a repository that is part of a marked set moves the whole set. */
   function dropped(group: string, root: string) {
     over = null;
@@ -83,7 +98,110 @@
   }
 </script>
 
-<div class="wrapper tree-rows">
+<!-- Push and pull sit on the corners of the icon, as SmartGit draws them; the changes dot has
+     a slot of its own in every row, so the names start on one line (R-353). -->
+{#snippet repoMarks(sync: RowSync)}
+  {@const tip = syncTooltip(sync)}
+  <span class="repo-icon">
+    <KindIcon kind="repository" title={tip || undefined} />
+    {#if sync.ahead > 0}
+      <svg class="arrow push" viewBox="0 0 8 8" role="img" aria-label="Commits to push"
+        ><path d="M4 7V1.5M1.5 4 4 1.5 6.5 4" /></svg
+      >
+    {/if}
+    {#if sync.unknown}
+      <span class="arrow unknown" role="img" aria-label="Unknown whether there is anything to pull"
+        >?</span
+      >
+    {:else if sync.behind > 0}
+      <svg class="arrow pull" viewBox="0 0 8 8" role="img" aria-label="Commits to pull"
+        ><path d="M4 1v5.5M1.5 4 4 6.5 6.5 4" /></svg
+      >
+    {/if}
+  </span>
+  <span
+    class="changes"
+    class:dirty={sync.dirty === true}
+    role={sync.dirty ? "img" : undefined}
+    title={sync.dirty ? tip : undefined}
+    aria-label={sync.dirty ? "Uncommitted changes" : undefined}
+  ></span>
+{/snippet}
+
+{#snippet topDisclosure(root: string, owned: boolean)}
+  {@const open = owned ? !submodules.folded : moduleMemory.isOpen(root)}
+  <Disclosure
+    empty={owned ? submodules.top.length === 0 : !moduleForest.hasModules(root)}
+    {open}
+    label={open ? "Hide submodules" : "Show submodules"}
+    onclick={(event) => {
+      event.stopPropagation();
+      if (owned) submodules.foldTop();
+      else void moduleForest.toggleTop(root);
+    }}
+  />
+{/snippet}
+
+<!-- The tree of the repository the panels own is read in full; every other one is the light
+     outline, and a click there opens the submodule in one go (R-352). -->
+{#snippet moduleTree(root: string, owned: boolean, depth: number)}
+  {@const children = owned ? submodules.children : (moduleForest.trees.get(root) ?? new Map())}
+  {@const toggle = (node: ModuleRow) =>
+    void (owned ? submodules.toggle(node) : moduleForest.toggle(root, node))}
+  {@const open = (node: ModuleRow) => (owned ? onopenmodule(node) : onopenforeignmodule(root, node))}
+  {#each owned ? submodules.rows : moduleForest.rows(root) as node (node.key)}
+    {@const parts = splitModulePath(node.path)}
+    {@const folder = parts.dir.replace(/[/\\]$/, "")}
+    {@const where = describeModule(node.module)}
+    <div
+      class="row module {node.module.state}"
+      class:selected={owned && submodules.open === node.key}
+      role="button"
+      tabindex="0"
+      title="{node.path} — {node.module.url}"
+      style:padding-left="calc(var(--tree-base) + {depth + 1 + node.depth} * var(--tree-step))"
+      onclick={() => open(node)}
+      ondblclick={() => {
+        if (!owned) return;
+        open(node);
+        toggle(node);
+      }}
+      onkeydown={(event) => {
+        if (event.key === "Enter") open(node);
+        if (event.key === "ArrowRight" && !node.expanded) toggle(node);
+        if (event.key === "ArrowLeft" && node.expanded) toggle(node);
+      }}
+      oncontextmenu={(event) => {
+        event.preventDefault();
+        onmodulecontext(node, event.clientX, event.clientY, owned ? undefined : root);
+      }}
+    >
+      <Disclosure
+        empty={!mayExpand(children, node.key, node.module)}
+        open={node.expanded}
+        label={node.expanded ? "Collapse" : "Expand"}
+        onclick={(event) => {
+          event.stopPropagation();
+          toggle(node);
+        }}
+      />
+      <KindIcon kind="submodule" />
+      <span class="modname truncate shrink-last"
+        >{#if folder}<span class="dir">{folder}/</span>{/if}{parts.name}</span
+      >
+      {#if repoStateTag(node.module.repoState, true)}
+        <span class="op" title={STATE_TAG_HINT}>{repoStateTag(node.module.repoState, true)}</span>
+      {/if}
+      {#if where}
+        <span class="where truncate shrink-first" title={moduleTooltip(node.module) || undefined}
+          >({where})</span
+        >
+      {/if}
+    </div>
+  {/each}
+{/snippet}
+
+<div class="wrapper tree-rows key-list">
   <div class="actions" role="toolbar" aria-label="Repository list actions">
     <button
       type="button"
@@ -181,6 +299,12 @@
       {:else}
         {@const listed = byRoot.get(row.root)}
         {@const entry = listed?.overview}
+        {@const sync = rowSync({
+          overview: entry ?? null,
+          owned: entry !== undefined && entry !== null && active?.valueOf() === entry.repo.valueOf(),
+          pulse: repoPulse.pulses.get(row.root),
+          fetchFailed: repoPulse.unknown.has(row.root),
+        })}
         {#if listed && entry}
       <div
         class="row"
@@ -207,18 +331,8 @@
           oncontext(listed, event.clientX, event.clientY);
         }}
       >
-        <Disclosure
-          empty={!(
-            submodules.owner?.valueOf() === entry.repo.valueOf() && submodules.top.length > 0
-          )}
-          open={!submodules.folded}
-          label={submodules.folded ? "Show submodules" : "Hide submodules"}
-          onclick={(event) => {
-            event.stopPropagation();
-            submodules.foldTop();
-          }}
-        />
-        <KindIcon kind="repository" />
+        {@render topDisclosure(entry.root, submodules.owner?.valueOf() === entry.repo.valueOf())}
+        {@render repoMarks(sync)}
         <span class="name truncate shrink-last">{listed.name}</span>
         {#if listed.pinned}<span class="pin" title="Pinned to the top of its group">⊤</span>{/if}
         {#if worktrees.ownerRoot === entry.root && repository.current}
@@ -227,80 +341,13 @@
         {#if repoStateTag(entry.state)}
           <span class="op" title={STATE_TAG_HINT}>{repoStateTag(entry.state)}</span>
         {/if}
-        {#if entry.missing}
+        {#if sync.missing}
           <span class="gone" title={MISSING_REPOSITORY}>missing</span>
-        {:else if entry.dirty}
-          <span class="dirty" title={DIRTY_REPOSITORY}>●</span>
         {/if}
         {#if entry.branch}<span class="branch truncate shrink-first">{entry.branch}</span>{/if}
-        {#if entry.ahead > 0 || entry.behind > 0}
-          <span class="track tabular" title={trackTooltip(entry.ahead, entry.behind)}
-            >{entry.ahead > 0 ? "↑" + entry.ahead : ""}{entry.behind > 0
-              ? "↓" + entry.behind
-              : ""}</span
-          >
-        {/if}
-        <span
-          class="act"
-          role="button"
-          tabindex="-1"
-          title="Close {entry.name}"
-          onclick={(event) => {
-            event.stopPropagation();
-            onclose(entry);
-          }}
-          onkeydown={(event) => event.key === "Enter" && onclose(entry)}>✕</span
-        >
       </div>
 
-      {#if submodules.owner?.valueOf() === entry.repo.valueOf()}
-        {#each submodules.rows as node (node.key)}
-          {@const parts = splitModulePath(node.path)}
-          {@const folder = parts.dir.replace(/[/\\]$/, "")}
-          <div
-            class="row module {node.module.state}"
-            class:selected={submodules.open === node.key}
-            role="button"
-            tabindex="0"
-            title="{node.path} — {node.module.url}"
-            style:padding-left="calc(var(--tree-base) + {row.depth + 1 + node.depth} * var(--tree-step))"
-            onclick={() => onopenmodule(node)}
-            ondblclick={() => {
-              onopenmodule(node);
-              void submodules.toggle(node);
-            }}
-            onkeydown={(event) => {
-              if (event.key === "Enter") onopenmodule(node);
-              if (event.key === "ArrowRight" && !node.expanded) void submodules.toggle(node);
-              if (event.key === "ArrowLeft" && node.expanded) void submodules.toggle(node);
-            }}
-            oncontextmenu={(event) => {
-              event.preventDefault();
-              onmodulecontext(node, event.clientX, event.clientY);
-            }}
-          >
-            <Disclosure
-              empty={!mayExpand(submodules.children, node.key, node.module)}
-              open={node.expanded}
-              label={node.expanded ? "Collapse" : "Expand"}
-              onclick={(event) => {
-                event.stopPropagation();
-                void submodules.toggle(node);
-              }}
-            />
-            <KindIcon kind="submodule" />
-            <span class="modname truncate shrink-last"
-              >{#if folder}<span class="dir">{folder}/</span>{/if}{parts.name}</span
-            >
-            {#if repoStateTag(node.module.repoState, true)}
-              <span class="op" title={STATE_TAG_HINT}>{repoStateTag(node.module.repoState, true)}</span>
-            {/if}
-            <span class="where truncate shrink-first" title={moduleTooltip(node.module) || undefined}
-              >({describeModule(node.module)})</span
-            >
-          </div>
-        {/each}
-      {/if}
+      {@render moduleTree(entry.root, submodules.owner?.valueOf() === entry.repo.valueOf(), row.depth)}
         {:else if listed}
           <div
             class="row closed"
@@ -317,12 +364,13 @@
               oncontext(listed, event.clientX, event.clientY);
             }}
           >
-            <Disclosure empty />
-            <KindIcon kind="repository" />
+            {@render topDisclosure(listed.root, false)}
+            {@render repoMarks(sync)}
             <span class="name truncate shrink-last">{listed.name}</span>
             {#if listed.pinned}<span class="pin" title="Pinned to the top of its group">⊤</span>{/if}
-            <span class="gone">closed</span>
+            {#if sync.missing}<span class="gone" title={MISSING_REPOSITORY}>missing</span>{/if}
           </div>
+          {@render moduleTree(listed.root, false, row.depth)}
         {/if}
       {/if}
     {/each}
@@ -346,8 +394,13 @@
     font-size: 11px;
   }
 
+  /* Closed reads as dimmed, text and icon alike, with no word for it (R-351). */
   .row.closed {
     color: var(--text-secondary);
+  }
+
+  .row.closed :global(.kind) {
+    opacity: 0.5;
   }
 
   .pin {
@@ -392,8 +445,8 @@
   }
 
   .tool svg {
-    width: 15px;
-    height: 15px;
+    width: var(--panel-icon);
+    height: var(--panel-icon);
     fill: none;
     stroke: currentColor;
     stroke-width: 1.7;
@@ -493,10 +546,56 @@
     font-size: 10px;
   }
 
-  .dirty {
-    flex: 0 0 auto;
-    color: var(--status-modify);
-    font-size: 9px;
+  .repo-icon {
+    position: relative;
+    display: inline-flex;
+    flex: none;
+  }
+
+  /* On the corners, with a halo of the panel colour, so they sit on the icon's edge
+     without covering it. */
+  .arrow {
+    position: absolute;
+    right: -3px;
+    width: 7px;
+    height: 7px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    filter: drop-shadow(0 0 1px var(--surface-panel));
+  }
+
+  .arrow.push {
+    top: -2px;
+    color: var(--indicator-push);
+  }
+
+  .arrow.pull {
+    bottom: -2px;
+    color: var(--indicator-pull);
+  }
+
+  .arrow.unknown {
+    bottom: -3px;
+    width: auto;
+    height: auto;
+    color: var(--indicator-unknown);
+    font-size: 8px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .changes {
+    flex: 0 0 6px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+
+  .changes.dirty {
+    background: var(--indicator-changes);
   }
 
   .branch {
@@ -505,25 +604,4 @@
     font-size: 10px;
   }
 
-  .track {
-    flex: 0 0 auto;
-    color: var(--status-ref);
-    font-size: 10px;
-  }
-
-  .act {
-    flex: 0 0 auto;
-    padding: 0 var(--sp-2);
-    color: var(--text-secondary);
-    opacity: 0;
-    cursor: default;
-  }
-
-  .row:hover .act {
-    opacity: 1;
-  }
-
-  .act:hover {
-    color: var(--status-delete);
-  }
 </style>

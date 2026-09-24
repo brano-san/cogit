@@ -1,8 +1,46 @@
-use crate::{Above, CommitNode, GraphRow, Lane, LayoutCursor, NodeKind, Segment, Span};
+use crate::{Above, CommitNode, GraphRow, Lane, LayoutCursor, LongLink, NodeKind, Segment, Span};
 
+/// One row per commit, unless the cursor cuts long links: then as [`push`].
 #[must_use]
 pub fn layout(commits: &[CommitNode], cursor: &mut LayoutCursor) -> Vec<GraphRow> {
-    commits.iter().map(|node| place(node, cursor)).collect()
+    if cursor.long_links == 0 {
+        return commits.iter().map(|node| place(node, cursor)).collect();
+    }
+    push(commits.to_vec(), cursor)
+}
+
+/// Streams a chunk. Cutting long links needs `long_links` commits of lookahead, so that
+/// many stay back until the next chunk or [`finish`].
+#[must_use]
+pub fn push(commits: Vec<CommitNode>, cursor: &mut LayoutCursor) -> Vec<GraphRow> {
+    if cursor.long_links == 0 {
+        return commits.iter().map(|node| place(node, cursor)).collect();
+    }
+    let mut rows = Vec::with_capacity(commits.len());
+    for node in commits {
+        cursor.ahead.insert(node.oid.clone());
+        cursor.pending.push_back(node);
+        while cursor.pending.len() > cursor.long_links {
+            rows.extend(place_pending(cursor));
+        }
+    }
+    rows
+}
+
+/// The rows still held back when the history ends.
+#[must_use]
+pub fn finish(cursor: &mut LayoutCursor) -> Vec<GraphRow> {
+    let mut rows = Vec::with_capacity(cursor.pending.len());
+    while let Some(row) = place_pending(cursor) {
+        rows.push(row);
+    }
+    rows
+}
+
+fn place_pending(cursor: &mut LayoutCursor) -> Option<GraphRow> {
+    let node = cursor.pending.pop_front()?;
+    cursor.ahead.remove(&node.oid);
+    Some(place(&node, cursor))
 }
 
 #[expect(
@@ -72,7 +110,17 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
     // 3. The first parent continues the lane; the others join a lane already waiting for
     // them or open one right of the node, in parent order.
     let shown = |parent: &String| !node.hidden.contains(parent);
-    let first = node.parents.first().filter(|parent| shown(parent)).cloned();
+    // Column 0 is never cut: it is the one line the eye follows all the way down.
+    let cut_first = !on_main
+        && node
+            .parents
+            .first()
+            .is_some_and(|parent| shown(parent) && far(cursor, parent));
+    let first = node
+        .parents
+        .first()
+        .filter(|parent| shown(parent) && !cut_first)
+        .cloned();
     let node_index = cursor
         .lanes
         .iter()
@@ -89,11 +137,17 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
         leaving.push(node_id);
     }
     let mut insert_at = node_index + 1;
+    let mut cut_later = Vec::new();
     for parent in node.parents.iter().skip(1).filter(|parent| shown(parent)) {
         if let Some(lane) = cursor.lanes.iter().find(|lane| waits_for(lane, parent)) {
             if lane.id != node_id {
                 leaving.push(lane.id);
             }
+            continue;
+        }
+        // A lane already on its way costs nothing more; only a new one is worth cutting.
+        if far(cursor, parent) {
+            cut_later.push(parent);
             continue;
         }
         let lane = Lane {
@@ -179,6 +233,53 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
         });
     }
 
+    // A cut link: a stub under the node towards the parent, one above it from the children.
+    let mut links = Vec::new();
+    let into = cursor
+        .cut_into
+        .remove(&node.oid)
+        .map(|mut children| {
+            children.reverse();
+            children
+        })
+        .unwrap_or_default();
+    let first_cut: Vec<String> = node
+        .parents
+        .first()
+        .filter(|_| cut_first)
+        .cloned()
+        .into_iter()
+        .collect();
+    let later_cut: Vec<String> = cut_later.iter().map(|parent| (*parent).clone()).collect();
+    for (lean, span, ends) in [
+        (0, Span::Bottom, first_cut),
+        (1, Span::Bottom, later_cut),
+        (1, Span::Top, into),
+    ] {
+        if ends.is_empty() {
+            continue;
+        }
+        let segment = column(segments.len());
+        segments.push(Segment {
+            from: column(node_at),
+            to: column(node_at + lean),
+            span,
+            primary: false,
+            color,
+            arrow: true,
+        });
+        for oid in ends {
+            if span == Span::Bottom {
+                cursor
+                    .cut_into
+                    .entry(oid.clone())
+                    .or_default()
+                    .push(node.oid.clone());
+            }
+            links.push(LongLink { segment, oid });
+        }
+    }
+
     let width = segments
         .iter()
         .flat_map(|segment| {
@@ -212,7 +313,12 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
         primary: on_main,
         width,
         segments,
+        links,
     }
+}
+
+fn far(cursor: &LayoutCursor, parent: &str) -> bool {
+    cursor.long_links > 0 && !cursor.ahead.contains(parent)
 }
 
 /// A commit nobody was waiting for starts a lane of its own, beside the lane its first

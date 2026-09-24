@@ -117,3 +117,30 @@ JS-heap приходилась малая часть.
 
 Нагрузочный прогон, которым это ловится, — `scripts/oom/`, инструкция в
 [`scripts/oom/README.md`](../scripts/oom/README.md).
+
+## 8. Профиль записи: где время внутри `git`
+
+Снят 24.09.2026 через `GIT_TRACE2_PERF`, git 2.51.0.windows.1, набор dirty бенчмарка
+(`node scripts/bench/fixtures.mjs --root <папка> --only dirty,small`), ядра 16–31, медиана
+из 7 запусков через `spawnSync` (так же, как запускает Rust).
+
+| Что | мс | Из чего |
+|---|---|---|
+| `git version` | 41 | запуск процесса на Windows — столько стоит любой вызов |
+| `git add --all`, 2 003 пути через stdin, литерально | 368 | до `read_directory` 51 мс (запуск 31, preload индекса 9, обход 11); 290 мс — хэширование и запись 2 000 loose-объектов; запись индекса < 1 мс |
+| то же без списка путей (`git add --all`) | 328 | −40 мс: сверка каждой записи с каждым pathspec (R-311) |
+| то же с `-c core.bigFileThreshold=1` | 177 | блобы идут потоком в один pack вместо 2 000 файлов в `.git/objects` (R-312) |
+| `git hash-object --stdin-paths` (без записи) | ≈140 | чтение и хэширование тех же файлов |
+| `git commit -m`, small | ≈96 | 52 мс своей работы, 44 мс — дочерний `git maintenance run --auto --detach`, которого родитель ждёт (R-314) |
+| `git rev-parse HEAD` после коммита | 41 | один запуск процесса (R-313) |
+| `git stash push --include-untracked`, small | ≈265 | четыре дочерних процесса по ≈50 мс: `update-index` ×2, `clean`, `reset --hard` (R-315) |
+| `git stash push` без `-u` | ≈160 | два дочерних: `update-index`, `reset --hard` |
+
+Не дали ничего (в пределах шума ±15 мс): `-c index.threads=true` (индекс 2 003 записей
+читается за 0,2 мс, и `true` — уже умолчание), `-c core.fsmonitor=false`,
+`-c core.preloadIndex`, `-c core.fscache=false`, `core.fsync=none` и `core.fsyncMethod=batch`
+(loose-объекты по умолчанию не синхронизируются), `core.compression=0`.
+`core.untrackedCache` не пробовался как флаг: он пишет расширение `UNTR` в индекс, а формат
+индекса пользователя не меняется.
+
+Хуков в замерах нет; с хуком `commit` дольше ровно на его время — git ждёт его до конца.

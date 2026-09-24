@@ -8,7 +8,7 @@ use git_engine::{
     CommitDetails, CommitQuery, CommitRequest, DiffSpec, FileEntry, GitError, WorktreeFiles,
 };
 use git_engine::{GitOutput, MergeOptions, RebaseOptions, RepoStatus};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 pub mod avatars;
@@ -23,6 +23,7 @@ pub mod network;
 pub mod presets;
 pub mod ref_ops;
 pub mod remote_ops;
+pub mod repo_rows;
 pub mod stash;
 pub mod toolbar;
 pub mod worktrees;
@@ -89,7 +90,23 @@ where
     T: Send + 'static,
     F: FnOnce() -> Result<T, GitError> + Send + 'static,
 {
-    let permit = state.enqueue(repo, kind, kind.title()).await;
+    mutating_titled(state, repo, kind, kind.title(), label, work).await
+}
+
+/// `mutating` with a footer line of its own, for work the kind's title says too little about.
+async fn mutating_titled<T, F>(
+    state: &std::sync::Arc<app_state::AppState>,
+    repo: RepoId,
+    kind: OperationKind,
+    title: &str,
+    label: &'static str,
+    work: F,
+) -> Result<T, GitError>
+where
+    T: Send + 'static,
+    F: FnOnce() -> Result<T, GitError> + Send + 'static,
+{
+    let permit = state.enqueue(repo, kind, title).await;
     let result = blocking(label, work).await;
     permit.finish(result.is_ok());
     result
@@ -132,18 +149,34 @@ pub fn report_timing(label: String, ms: u32, detail: String) {
     crate::profile::ui(&label, u64::from(ms), &detail);
 }
 
-/// The webview's own log lines, into the same file.
+/// One line of the webview's log. `message` starts with the webview's own `+Nms`: a
+/// batch lands at once, so the file's timestamp is when it arrived, not when it was said.
+#[derive(Debug, Deserialize, specta::Type)]
+pub struct WebviewLogLine {
+    pub level: String,
+    pub message: String,
+    pub context: String,
+}
+
+/// The webview's own log lines, into the same file, in batches.
 ///
 /// A JS error that only reaches the devtools console dies with the renderer — which is
 /// exactly the moment it was worth keeping.
 #[tauri::command]
 #[specta::specta]
-pub fn log_from_frontend(level: String, message: String, context: String) {
-    match level.as_str() {
-        "error" => tracing::error!(target: "cogit::webview", context, "{message}"),
-        "warn" => tracing::warn!(target: "cogit::webview", context, "{message}"),
-        "debug" => tracing::debug!(target: "cogit::webview", context, "{message}"),
-        _ => tracing::info!(target: "cogit::webview", context, "{message}"),
+pub fn log_from_frontend(lines: Vec<WebviewLogLine>) {
+    for WebviewLogLine {
+        level,
+        message,
+        context,
+    } in lines
+    {
+        match level.as_str() {
+            "error" => tracing::error!(target: "cogit::webview", context, "{message}"),
+            "warn" => tracing::warn!(target: "cogit::webview", context, "{message}"),
+            "debug" => tracing::debug!(target: "cogit::webview", context, "{message}"),
+            _ => tracing::info!(target: "cogit::webview", context, "{message}"),
+        }
     }
 }
 
@@ -698,6 +731,27 @@ macro_rules! path_command {
 }
 
 path_command!(stage_paths, stage_paths, Stage);
+
+/// Stage all: every change git sees, not a path list (doc/12-risks.md, R-311). `files` is
+/// how many rows the list showed, which decides how the blobs are written (R-312).
+#[tauri::command]
+#[specta::specta]
+pub async fn stage_all(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    files: u32,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Stage,
+        "stage_all",
+        move || app_state.stage_all(repo, files as usize),
+    )
+    .await
+}
+
 path_command!(unstage_paths, unstage_paths, Stage);
 path_command!(discard_paths, discard_paths, Discard);
 path_command!(add_to_gitignore, add_to_gitignore, Stage);
@@ -847,6 +901,28 @@ pub async fn repo_status(
     blocking("repo_status", move || app_state.repo_status(repo)).await
 }
 
+/// Refs and state without reopening the repository, for the refresh after a commit.
+#[tauri::command]
+#[specta::specta]
+pub async fn repo_refs(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<app_state::RepoRefs, GitError> {
+    let app_state = state.state.clone();
+    blocking("repo_refs", move || app_state.repo_refs(repo)).await
+}
+
+/// The counters and the conflicted paths from one read, for the refresh after a mutation.
+#[tauri::command]
+#[specta::specta]
+pub async fn working_state(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<git_engine::WorkingState, GitError> {
+    let app_state = state.state.clone();
+    blocking("working_state", move || app_state.working_state(repo)).await
+}
+
 macro_rules! repo_command {
     ($name:ident, $kind:ident) => {
         #[tauri::command]
@@ -955,17 +1031,19 @@ pub async fn repositories(
     blocking("repositories", move || Ok(app_state.overviews())).await
 }
 
+/// Answers with the repositories left open, which the caller would otherwise ask for next.
 #[tauri::command]
 #[specta::specta]
 pub async fn close_repository(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,
-) -> Result<bool, GitError> {
+) -> Result<Vec<RepoOverview>, GitError> {
     let app_state = state.state.clone();
     // Off the main thread: stopping a watcher joins the thread that delivers its events,
     // and a join on the message loop is a frozen window (doc/12-risks.md, R-126).
     blocking("close_repository", move || {
-        Ok(app_state.close_repository(repo))
+        app_state.close_repository(repo);
+        Ok(app_state.overviews())
     })
     .await
 }

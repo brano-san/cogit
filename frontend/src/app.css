@@ -103,6 +103,13 @@
   --graph-focus: var(--status-ref);
   --status-stash: var(--c-stash);
   --status-tag: var(--c-tag);
+  /* Where a repository stands: its row in Repositories, the worktree label in Branches
+     (R-353). Changes are a warning colour; being ahead is the user's own work. */
+  --indicator-changes: var(--status-modify);
+  --indicator-synced: var(--status-add);
+  --indicator-push: var(--status-add);
+  --indicator-pull: var(--status-ref);
+  --indicator-unknown: var(--text-secondary);
 
   /* ---- typography ---- */
   --font-ui: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -145,11 +152,15 @@
   /* Tree triangles and menu carets are SVG in CSS px, so 125% and 150% scale them whole. */
   --disclosure-glyph: 10px;
   --disclosure-hit: 20px;
+  /* One space on both sides of a tree triangle, whatever gap its row uses (R-350). */
+  --disclosure-side: var(--sp-3);
   --menu-caret: 9px;
   --kind-icon: 14px;
+  /* Icon buttons in panel bars: read at a glance, a size below the main toolbar's 22px. */
+  --panel-icon: 16px;
   /* A tree level is one element wide: a child's triangle sits under whatever follows its
      parent's triangle — icon, box or text. Each tree names that element (R-185). */
-  --tree-base: var(--sp-4);
+  --tree-base: var(--disclosure-side);
   --tree-gap: var(--sp-2);
   --tree-next: var(--kind-icon);
   /* Header 28 + two message lines 50 + the Commit row 22 + padding and borders. */
@@ -334,6 +345,16 @@ body {
   outline-offset: -1px;
 }
 
+/* A list takes the keys as a whole (#27): the panel header says it has focus and the
+   selected row says where, so a ring round the list, or round the row already selected,
+   says nothing new. A row reached by Tab without being selected keeps the ring, and so
+   does every control inside a row. */
+.key-list:focus-visible,
+.key-list .selected:focus-visible,
+.key-list [aria-selected="true"]:focus-visible {
+  outline: none;
+}
+
 a {
   color: var(--link);
   text-decoration: none;
@@ -361,7 +382,7 @@ a:hover {
 
 /* On the tree's own element, so a tree's --tree-gap and --tree-next count. */
 .tree-rows {
-  --tree-step: calc(var(--disclosure-hit) / 2 + var(--tree-gap) + var(--tree-next) / 2);
+  --tree-step: calc(var(--disclosure-glyph) / 2 + var(--disclosure-side) + var(--tree-next) / 2);
 }
 
 .truncate {

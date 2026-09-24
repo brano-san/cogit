@@ -1,10 +1,11 @@
-import { DEFAULT_SETTINGS, type Settings } from "./settings";
+import { DEFAULT_SETTINGS, type GraphColumn, type Settings } from "./settings";
 
-export type FieldKey = keyof Settings | "keymap" | "suppressions";
+export type FieldKey = keyof Settings | "keymap" | "suppressions" | "toolbar";
 
-/** Rows that show something other than a setting: the keymap, the hidden-dialogs list. */
+/** Rows that show something other than a setting: the keymap, the hidden-dialogs list,
+    the toolbar layout (kept with the toolbar's own choices). */
 export function isSetting(key: FieldKey): key is keyof Settings {
-  return key !== "keymap" && key !== "suppressions";
+  return key !== "keymap" && key !== "suppressions" && key !== "toolbar";
 }
 
 export interface Field {
@@ -16,6 +17,8 @@ export interface Field {
   /** The option this one only makes sense under. Indenting a row in the markup is a
       claim about behaviour, and this is what makes the claim true (R-117). */
   dependsOn?: keyof Settings;
+  /** Same, for an option about a graph column: off while that column is hidden. */
+  dependsOnColumn?: GraphColumn;
 }
 
 export interface Group {
@@ -63,6 +66,12 @@ export const CATEGORIES: Category[] = [
             label: "When a pull cannot fast-forward",
             keywords: ["merge", "rebase", "fetch"],
           },
+          {
+            key: "backgroundFetchMinutes",
+            label: "Fetch in the background",
+            hint: "Keeps the pull arrows in Repositories current. Never asks for credentials; a repository whose fetch fails shows ? instead.",
+            keywords: ["fetch", "background", "interval", "remote", "pull", "arrow"],
+          },
         ],
       },
       {
@@ -97,6 +106,34 @@ export const CATEGORIES: Category[] = [
     parent: "ui",
     groups: [
       {
+        title: "Columns",
+        fields: [
+          {
+            key: "graphColumns",
+            label: "Columns",
+            hint: "Drag a row by its handle, or focus the handle and press Alt+↑ / Alt+↓, to change the order.",
+            keywords: ["author", "avatar", "time", "date", "hash", "sha", "order", "hide"],
+          },
+          {
+            key: "graphTimeFormat",
+            label: "Time",
+            keywords: ["relative", "date", "time", "clock"],
+            dependsOnColumn: "time",
+          },
+        ],
+      },
+      {
+        title: "Rows",
+        fields: [
+          { key: "graphDensity", label: "Row height", keywords: ["density", "compact", "comfortable"] },
+          {
+            key: "graphStripes",
+            label: "Alternate row background",
+            keywords: ["stripes", "zebra", "banded"],
+          },
+        ],
+      },
+      {
         title: "Graph",
         fields: [
           { key: "laneWidth", label: "Lane width", keywords: ["column", "spacing"] },
@@ -105,6 +142,44 @@ export const CATEGORIES: Category[] = [
             label: "Coloured branch lines",
             hint: "Off: the main line is light and every other line one grey.",
             keywords: ["colour", "color", "lanes", "branches", "rainbow"],
+          },
+          {
+            key: "graphHighlightChecked",
+            label: "Colour the branches ticked in Branches",
+            keywords: ["highlight", "checked", "ticked", "colour", "color"],
+          },
+          {
+            key: "graphLongLinkRows",
+            label: "Cut links longer than",
+            hint: "A longer link is drawn as two arrows, at the commit and at its parent. 0 draws every link whole.",
+            keywords: ["long", "link", "stub", "arrow", "threshold"],
+          },
+        ],
+      },
+      {
+        title: "Modes",
+        fields: [
+          {
+            key: "graphFirstParent",
+            label: "First parents only",
+            hint: "One line of history: what was merged in is not listed.",
+            keywords: ["first-parent", "linear", "mainline"],
+          },
+          {
+            key: "graphBranchOfCommit",
+            label: "Highlight the branch of the clicked commit",
+            keywords: ["branch", "highlight", "click"],
+          },
+          {
+            key: "graphAncestry",
+            label: "Dim everything but the ancestors and descendants of the selection",
+            keywords: ["ancestors", "descendants", "ancestry", "dim"],
+          },
+          {
+            key: "graphCollapseMerged",
+            label: "Collapse merged branches",
+            hint: "A merged branch folds into one row at its merge commit.",
+            keywords: ["collapse", "fold", "merged"],
           },
         ],
       },
@@ -124,7 +199,8 @@ export const CATEGORIES: Category[] = [
         fields: [
           {
             key: "dateFormat",
-            label: "Dates",
+            label: "Dates in Blame and commit details",
+            hint: "The graph's own time column is set under Columns above.",
             keywords: ["relative", "weekday", "yesterday", "time"],
           },
         ],
@@ -141,6 +217,24 @@ export const CATEGORIES: Category[] = [
         title: "Shortcuts",
         fields: [
           { key: "keymap", label: "Shortcuts", keywords: ["keyboard", "shortcut", "accelerator", "binding"] },
+        ],
+      },
+    ],
+  },
+  {
+    id: "toolbar",
+    title: "Toolbar",
+    parent: "ui",
+    note: "Changes show on the toolbar at once. Undo takes them back one at a time.",
+    groups: [
+      {
+        title: "Buttons",
+        fields: [
+          {
+            key: "toolbar",
+            label: "Toolbar buttons",
+            keywords: ["toolbar", "buttons", "customise", "customize", "configure", "separator"],
+          },
         ],
       },
     ],
@@ -284,8 +378,16 @@ export function firstMatch(query: string): string | null {
     hold the same bindings in another order. */
 export function changedKeys(draft: Settings, saved: Settings): (keyof Settings)[] {
   return (Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]).filter(
-    (key) => draft[key] !== saved[key],
+    (key) => !sameValue(draft[key], saved[key]),
   );
+}
+
+/** A list setting is a new array after every edit; equal items are an unchanged value. */
+function sameValue(a: unknown, b: unknown): boolean {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((item, index) => item === b[index]);
+  }
+  return a === b;
 }
 
 export function sameKeymap(
@@ -317,4 +419,9 @@ export function disabledBy(current: Settings, parent: keyof Settings | undefined
   if (parent === undefined) return false;
   const value = current[parent];
   return typeof value === "boolean" && !value;
+}
+
+export function fieldDisabled(current: Settings, field: Field): boolean {
+  if (disabledBy(current, field.dependsOn)) return true;
+  return field.dependsOnColumn !== undefined && !current.graphColumns.includes(field.dependsOnColumn);
 }

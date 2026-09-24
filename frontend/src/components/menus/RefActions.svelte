@@ -59,6 +59,7 @@
     type CommitFacts,
     type RefTarget,
   } from "$lib/ref-menus";
+  import { publishedOrAssume } from "$lib/published";
   import { resetChoice } from "$lib/reset-modes";
   import { baseBefore, fullMessage, modifyPlan, rewordPlan, squashPlan } from "$lib/rewrite-plans";
   import { tagRequest } from "$lib/tag-dialog";
@@ -88,10 +89,18 @@
     /** Open App's dialogs for the selected commit. */
     openSplit: () => Promise<void>;
     openRebase: () => Promise<void>;
+    rollbackTree: () => Promise<void>;
   }
 
-  let { afterRefChange, afterMutation, reloadGraph, checkoutBranch, openSplit, openRebase }: Props =
-    $props();
+  let {
+    afterRefChange,
+    afterMutation,
+    reloadGraph,
+    checkoutBranch,
+    openSplit,
+    openRebase,
+    rollbackTree,
+  }: Props = $props();
 
   interface Target {
     oid: string | null;
@@ -140,7 +149,7 @@
     const [details, onHead, published] = await Promise.all([
       commitDetails(id, oid),
       isAncestor(id, oid, "HEAD").catch(() => false),
-      withPublished ? isPublished(id, oid).catch(() => false) : Promise.resolve(false),
+      withPublished ? publishedOrAssume(isPublished(id, oid)) : Promise.resolve(false),
     ]);
     const summary = repository.current;
     const facts = commitFacts({
@@ -398,6 +407,13 @@
           stashView.clear();
           await commit.select(id, oid);
           await openRebase();
+        }
+        return;
+      case "rollback":
+        if (oid) {
+          stashView.clear();
+          await commit.select(id, oid);
+          await rollbackTree();
         }
         return;
       case "add-branch":

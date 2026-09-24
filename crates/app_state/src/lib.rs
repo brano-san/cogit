@@ -8,6 +8,7 @@ mod flow;
 mod graph_cache;
 pub mod graph_overlay;
 pub mod graph_wire;
+mod handles;
 mod hooking;
 pub mod investigation;
 pub mod licences;
@@ -17,6 +18,7 @@ mod presets;
 mod queue;
 mod ref_ops;
 mod remote_ops;
+pub mod repo_rows;
 mod rewrite;
 mod safety;
 pub mod settings;
@@ -162,6 +164,17 @@ pub struct RepoSummary {
     pub tag_group_separator: String,
 }
 
+/// What a commit moves besides the counters: the refs and the operation state (R-316).
+#[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoRefs {
+    pub head: git_engine::Head,
+    pub branches: Vec<git_engine::Branch>,
+    pub tags: Vec<git_engine::Tag>,
+    pub state: git_engine::RepoState,
+    pub index_lock: Option<String>,
+}
+
 /// One hit from a folder scan. Paths cross IPC as strings, like every other path.
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -220,7 +233,8 @@ impl RowCache {
 #[serde(rename_all = "camelCase")]
 pub struct GraphChunk {
     pub commits: Vec<git_engine::CommitRow>,
-    /// One per commit, in the same order: the node and every segment of its row.
+    /// One per commit, in the same order: the node and every segment of its row. Cutting
+    /// long links holds the last rows back, so a chunk can have fewer rows than commits.
     pub rows: Vec<graph_engine::GraphRow>,
     /// Folded merges whose count grew with this chunk.
     pub folds: Vec<graph_engine::Fold>,
@@ -276,6 +290,7 @@ pub struct AppState {
     graph_generation: AtomicU32,
     graph: RwLock<graph_cache::GraphCache>,
     reachable: parking_lot::Mutex<HashMap<RepoId, git_engine::Reachable>>,
+    handles: handles::HandleCache,
 }
 
 struct Quiet<'a> {
@@ -327,6 +342,7 @@ impl AppState {
             graph_generation: AtomicU32::new(0),
             graph: RwLock::new(graph_cache::GraphCache::default()),
             reachable: parking_lot::Mutex::new(HashMap::new()),
+            handles: handles::HandleCache::default(),
         }
     }
 
@@ -458,6 +474,19 @@ impl AppState {
         self.open_with(handle, path, true, watch)
     }
 
+    /// `open_repository` without the status, the registration and the watcher: after a
+    /// commit only these moved, and the status is read by the refresh that follows.
+    pub fn repo_refs(&self, repo: RepoId) -> Result<RepoRefs, git_engine::GitError> {
+        let handle = self.handle(repo)?;
+        Ok(RepoRefs {
+            head: handle.head()?,
+            branches: handle.branches()?,
+            tags: handle.tags()?,
+            state: handle.state()?,
+            index_lock: handle.index_lock(),
+        })
+    }
+
     /// Opens a submodule from its node in the tree. `key` is the node's path from `owner`,
     /// the repository in the list — never from whichever submodule the panels show now.
     /// Already listed stays listed: asking for the same path by hand is a different request.
@@ -542,7 +571,8 @@ impl AppState {
         let flat = query.filters_rows();
 
         // Read once per load: a column that moved half way down would be worse than none.
-        let mut cursor = graph_engine::LayoutCursor::with_mainline(mainline_of(&handle, query));
+        let mut cursor = graph_engine::LayoutCursor::with_mainline(mainline_of(&handle, query))
+            .with_long_links(query.long_link_rows.unwrap_or(0));
         let mut cancelled = false;
         let mut view = graph_view(&handle, query, flat)?;
 
@@ -568,7 +598,7 @@ impl AppState {
                     },
                 })
                 .collect();
-            let rows = graph_engine::layout(&nodes, &mut cursor);
+            let rows = graph_engine::push(nodes, &mut cursor);
             let folds = view
                 .as_mut()
                 .map(graph_engine::ViewFilter::take_folds)
@@ -587,10 +617,14 @@ impl AppState {
         let skipped = handle.search_commits(query, chunk_size, on_commits)?;
 
         if !cancelled {
+            // The rows held back to see how far their links reach (R-330).
             on_chunk(GraphChunk {
                 commits: Vec::new(),
-                rows: Vec::new(),
-                folds: Vec::new(),
+                rows: graph_engine::finish(&mut cursor),
+                folds: view
+                    .as_mut()
+                    .map(graph_engine::ViewFilter::take_folds)
+                    .unwrap_or_default(),
                 is_last: true,
             });
         }
@@ -624,6 +658,11 @@ impl AppState {
     pub fn stage_paths(&self, repo: RepoId, paths: &[String]) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         self.handle(repo)?.stage(paths)
+    }
+
+    pub fn stage_all(&self, repo: RepoId, files: usize) -> Result<(), git_engine::GitError> {
+        let _quiet = self.quiet(repo);
+        self.handle(repo)?.stage_all(files)
     }
 
     pub fn unstage_paths(
@@ -879,6 +918,15 @@ impl AppState {
         self.handle(repo)?.status()
     }
 
+    /// `repo_status` and `conflicted_paths` in one read: after a mutation the cascade wants
+    /// both (doc/12-risks.md, R-316).
+    pub fn working_state(
+        &self,
+        repo: RepoId,
+    ) -> Result<git_engine::WorkingState, git_engine::GitError> {
+        self.handle(repo)?.working_state()
+    }
+
     pub fn create_tag(
         &self,
         repo: RepoId,
@@ -965,6 +1013,18 @@ impl AppState {
     #[must_use]
     pub fn rows_read(&self) -> u32 {
         self.rows_read.load(Ordering::Relaxed)
+    }
+
+    /// How many times a command had to open its repository from disk.
+    #[must_use]
+    pub fn repositories_opened(&self) -> u32 {
+        self.handles.opened()
+    }
+
+    /// Open repositories kept for the next command.
+    #[must_use]
+    pub fn repositories_held(&self) -> usize {
+        self.handles.held()
     }
 
     /// Closing froze the application with nothing in the log. Dropping a `RepoWatcher`
@@ -1237,7 +1297,10 @@ impl AppState {
         let open = self
             .get(repo)
             .ok_or_else(|| git_engine::GitError::RepoNotFound(format!("id {}", repo.0)))?;
-        Ok(git_engine::RepoHandle::open(&open.root)?.with_journal(self.command_sink(repo)))
+        Ok(self
+            .handles
+            .handle(repo, &open.root)?
+            .with_journal(self.command_sink(repo)))
     }
 
     #[must_use]
@@ -1293,6 +1356,7 @@ impl AppState {
 
     pub fn unregister(&self, id: RepoId) -> bool {
         let removed = self.repos.write().remove(&id).is_some();
+        self.handles.forget(id);
         if removed {
             self.emit(AppEvent::RepoClosed { repo: id });
         }
