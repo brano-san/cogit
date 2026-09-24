@@ -403,7 +403,8 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
 - [x] C1F-10 пропуск blame увеличивает поколение
   > Итог: пропуск загрузки (на экране уже нужный blame) увеличивает поколение и снимает
   > loading; тест `keeps the blame of the place it went back to`.
-- [ ] C1F-12 тело хука по имени
+- [x] C1F-12 тело хука по имени
+  > Итог: тело пишется, только если редактор всё ещё на этом хуке; тест `hooks.test.ts`.
 - [ ] C1F-13 `refreshList` по ticket
 - [ ] C1F-15 PageDown по счётчику
 - [ ] C1F-17 выбор коммита сбрасывает stash
