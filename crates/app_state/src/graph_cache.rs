@@ -13,7 +13,11 @@ use graph_engine::GraphRow;
 use parking_lot::Mutex;
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Weak};
+
+/// Rows the background reader reads between two looks at whether it should stop.
+const PREFILL_BATCH: usize = 256;
 
 /// Graphs stay until together they pass this; the one asked for last always stays. A
 /// 50 000-commit history takes about 20 MB: four such repositories, or dozens of usual ones.
@@ -60,30 +64,50 @@ impl Laid {
     }
 }
 
-/// Subject and author of the rows handed out so far, through one mailmap (R-390).
+/// Subject and author by commit, through one mailmap (R-390). Shared by the graphs of a
+/// repository that read names the same way, so a rebuilt graph starts with them (R-303).
 #[derive(Debug)]
 struct Texts {
     mailmap: Arc<Mailmap>,
-    rows: HashMap<usize, CommitText>,
+    by_oid: HashMap<String, CommitText>,
+    bytes: usize,
+    /// A background reader is at work on these.
+    filling: bool,
+}
+
+fn text_bytes(oid: &str, text: &CommitText) -> usize {
+    size_of::<(String, CommitText)>()
+        + oid.len()
+        + text.summary.len()
+        + text.author_name.len()
+        + text.author_email.len()
+        + 16
 }
 
 impl Texts {
     fn new(mailmap: Arc<Mailmap>) -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(Self {
             mailmap,
-            rows: HashMap::new(),
+            by_oid: HashMap::new(),
+            bytes: 0,
+            filling: false,
         }))
     }
 
-    /// `row` with its text, read now if no window handed it out yet.
-    fn fill(&mut self, at: usize, row: &CommitRow, handle: Option<&RepoHandle>) -> CommitRow {
-        let text = match self.rows.get(&at) {
+    fn insert(&mut self, oid: String, text: CommitText) {
+        self.bytes += text_bytes(&oid, &text);
+        self.by_oid.insert(oid, text);
+    }
+
+    /// `row` with its text, read now if nothing read it yet.
+    fn fill(&mut self, row: &CommitRow, handle: Option<&RepoHandle>) -> CommitRow {
+        let text = match self.by_oid.get(&row.oid) {
             Some(text) => text.clone(),
             None => {
                 let read = handle.map(|handle| handle.commit_text(&row.oid, &self.mailmap));
                 match read {
                     Some(Ok(text)) => {
-                        self.rows.insert(at, text.clone());
+                        self.insert(row.oid.clone(), text.clone());
                         text
                     }
                     Some(Err(err)) => {
@@ -194,6 +218,93 @@ impl Graph {
     }
 }
 
+/// What the background reader needs: weak, so a dropped graph ends it.
+struct Prefill {
+    laid: Weak<Laid>,
+    texts: Weak<Mutex<Texts>>,
+    walks: Arc<AtomicU64>,
+    since: u64,
+}
+
+/// `None` when the rows carry their text or a reader is already on these texts.
+fn prefill_of(shown: &Shown, walks: &Arc<AtomicU64>) -> Option<Prefill> {
+    let texts = shown.texts.as_ref()?;
+    {
+        let mut texts = texts.lock();
+        if texts.filling {
+            return None;
+        }
+        texts.filling = true;
+    }
+    Some(Prefill {
+        laid: Arc::downgrade(&shown.laid),
+        texts: Arc::downgrade(texts),
+        walks: Arc::clone(walks),
+        since: walks.load(Ordering::SeqCst),
+    })
+}
+
+impl Prefill {
+    fn run(self, root: &std::path::Path) {
+        let started = std::time::Instant::now();
+        let read = self.read(root);
+        if let Some(texts) = self.texts.upgrade() {
+            texts.lock().filling = false;
+        }
+        match read {
+            Ok(rows) => tracing::info!(
+                rows,
+                elapsed_ms = started.elapsed().as_millis(),
+                "graph texts read ahead"
+            ),
+            Err(err) => tracing::error!(error = ?err, context = "graph text reader"),
+        }
+    }
+
+    fn read(&self, root: &std::path::Path) -> Result<usize, GitError> {
+        let handle = RepoHandle::open(root)?;
+        let mut from = 0;
+        let mut read = 0;
+        loop {
+            if self.walks.load(Ordering::SeqCst) != self.since {
+                return Ok(read);
+            }
+            let (Some(laid), Some(texts)) = (self.laid.upgrade(), self.texts.upgrade()) else {
+                return Ok(read);
+            };
+            let to = (from + PREFILL_BATCH).min(laid.commits.len());
+            if from >= to {
+                return Ok(read);
+            }
+            let (mailmap, wanted): (Arc<Mailmap>, Vec<&str>) = {
+                let texts = texts.lock();
+                let wanted = laid.commits[from..to]
+                    .iter()
+                    .map(|c| c.oid.as_str())
+                    .filter(|oid| !texts.by_oid.contains_key(*oid))
+                    .collect();
+                (Arc::clone(&texts.mailmap), wanted)
+            };
+            let got: Vec<(String, CommitText)> = wanted
+                .into_iter()
+                .filter_map(|oid| {
+                    handle
+                        .commit_text(oid, &mailmap)
+                        .inspect_err(|err| tracing::error!(error = ?err, context = "graph text"))
+                        .ok()
+                        .map(|text| (oid.to_owned(), text))
+                })
+                .collect();
+            read += got.len();
+            let mut texts = texts.lock();
+            for (oid, text) in got {
+                texts.insert(oid, text);
+            }
+            from = to;
+        }
+    }
+}
+
 /// Blocks fetched of `base` stay good only if their names were read through this mailmap.
 fn same_names(base: &Shown, mailmap: &Arc<Mailmap>) -> bool {
     base.texts
@@ -205,6 +316,8 @@ fn same_names(base: &Shown, mailmap: &Arc<Mailmap>) -> bool {
 pub(crate) struct GraphCache {
     graphs: HashMap<RepoId, Graph>,
     clock: u64,
+    /// Bumped by every walk: a background reader stops rather than compete with one.
+    walks: Arc<AtomicU64>,
 }
 
 impl GraphCache {
@@ -236,7 +349,10 @@ impl GraphCache {
         let sizes: Vec<(RepoId, usize, u64)> = self
             .graphs
             .iter()
-            .map(|(repo, graph)| (*repo, graph.bytes, graph.used))
+            .map(|(repo, graph)| {
+                let texts = graph.shown.texts.as_ref().map_or(0, |t| t.lock().bytes);
+                (*repo, graph.bytes + texts, graph.used)
+            })
             .collect();
         for repo in evicted(&sizes, keep, budget) {
             tracing::info!(repo = repo.0, "commit graph dropped from the cache");
@@ -308,6 +424,7 @@ impl AppState {
         let base = {
             let mut cache = self.graph.write();
             let used = cache.tick();
+            let walks = Arc::clone(&cache.walks);
             let mut base = None;
             if let Some(graph) = cache.graphs.get_mut(&repo) {
                 // A walk that started late must not wipe the graph of the request after it.
@@ -332,7 +449,9 @@ impl AppState {
                     graph.shown.generation = generation;
                     graph.used = used;
                     let skipped = graph.skipped.clone();
+                    let prefill = prefill_of(&graph.shown, &walks);
                     drop(cache);
+                    self.prefill(repo, prefill);
                     tracing::info!(
                         repo = repo.0,
                         rows = progress.total,
@@ -348,12 +467,19 @@ impl AppState {
                 return Ok(Vec::new());
             }
             let parted = !lazy || !base.as_ref().is_some_and(|b| same_names(b, &mailmap));
+            let texts = lazy.then(|| {
+                base.as_ref()
+                    .filter(|base| same_names(base, &mailmap))
+                    .and_then(|base| base.texts.clone())
+                    .unwrap_or_else(|| Texts::new(Arc::clone(&mailmap)))
+            });
+            cache.walks.fetch_add(1, Ordering::SeqCst);
             let graph = Graph {
                 shown: Shown {
                     generation,
                     laid: Arc::default(),
                     paint: Arc::default(),
-                    texts: lazy.then(|| Texts::new(Arc::clone(&mailmap))),
+                    texts,
                 },
                 query: query.clone(),
                 refs,
@@ -406,6 +532,8 @@ impl AppState {
         let skipped = crate::graph_layout::lay_out(&handle, query, chunk_size, rows, on_chunk)?;
 
         let mut cache = self.graph.write();
+        let walks = Arc::clone(&cache.walks);
+        let mut prefill = None;
         if let Some(graph) = cache.held_mut(repo, generation) {
             graph.skipped.clone_from(&skipped);
             if graph.ended {
@@ -413,6 +541,7 @@ impl AppState {
                 graph.bytes += record.bytes();
                 Arc::make_mut(&mut graph.shown.laid).history = record;
                 graph.base = None;
+                prefill = prefill_of(&graph.shown, &walks);
                 tracing::info!(
                     repo = repo.0,
                     rows = graph.total(),
@@ -424,7 +553,27 @@ impl AppState {
             }
         }
         cache.trim(repo, GRAPH_CACHE_BYTES);
+        drop(cache);
+        self.prefill(repo, prefill);
         Ok(skipped)
+    }
+
+    /// Reads the text of every row the graph has none for yet, top first, on a thread of
+    /// its own: a jump through the list then finds it read (R-303). Stops when another walk
+    /// starts or the graph is dropped; what it read stays.
+    fn prefill(&self, repo: RepoId, prefill: Option<Prefill>) {
+        let Some(prefill) = prefill else {
+            return;
+        };
+        let Some(root) = self.get(repo).map(|open| open.root) else {
+            return;
+        };
+        let spawned = std::thread::Builder::new()
+            .name("graph-text".to_owned())
+            .spawn(move || prefill.run(&root));
+        if let Err(err) = spawned {
+            tracing::error!(error = ?err, context = "graph text reader");
+        }
     }
 
     /// Rows `start..start + count` of graph `generation`, cut short at what is laid out;
@@ -453,8 +602,9 @@ impl AppState {
         let commits = match &shown.texts {
             Some(texts) => {
                 let mut texts = texts.lock();
-                (from..to)
-                    .map(|at| texts.fill(at, &laid.commits[at], handle.as_ref()))
+                laid.commits[from..to]
+                    .iter()
+                    .map(|row| texts.fill(row, handle.as_ref()))
                     .collect()
             }
             None => laid.commits[from..to].to_vec(),
@@ -498,6 +648,17 @@ impl AppState {
         let (shown, _) = cache.view(repo, generation)?;
         let laid = &shown.laid;
         Some(read(&laid.commits, &laid.rows, &laid.folds, &shown.paint))
+    }
+
+    /// How many commits of `repo` have their subject and author read: a count for tests.
+    #[must_use]
+    pub fn graph_texts_read(&self, repo: RepoId) -> usize {
+        let cache = self.graph.read();
+        cache
+            .graphs
+            .get(&repo)
+            .and_then(|graph| graph.shown.texts.as_ref())
+            .map_or(0, |texts| texts.lock().by_oid.len())
     }
 
     pub(crate) fn forget_graph(&self, repo: RepoId) {

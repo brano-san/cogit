@@ -203,9 +203,26 @@ fn fifty_thousand_commits_with_a_commit_graph_are_laid_out_in_the_budget() {
     let walked = started.elapsed();
     let window = Instant::now();
     let shown = state.graph_window(repo, generation, 0, 128).unwrap();
+    let first_window = window.elapsed();
+    // Far down, straight away: what a jump costs before the texts are read ahead (R-303).
+    let cold = Instant::now();
+    state.graph_window(repo, generation, 40_000, 128).unwrap();
+    let cold = cold.elapsed();
+    let until = Instant::now() + Duration::from_secs(20);
+    while state.graph_texts_read(repo) < 50_000 && Instant::now() < until {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    println!(
+        "50k: texts read ahead after    {:>7} ms",
+        started.elapsed().as_millis()
+    );
+    let warm = Instant::now();
+    state.graph_window(repo, generation, 30_000, 128).unwrap();
+    let warm = warm.elapsed();
 
     assert_eq!(rows, 50_000);
     assert_eq!(shown.commits[0].summary, "commit 49999");
+    assert_eq!(state.graph_texts_read(repo), 50_000);
     report(
         "50k + commit-graph: laid out",
         walked,
@@ -213,9 +230,12 @@ fn fifty_thousand_commits_with_a_commit_graph_are_laid_out_in_the_budget() {
     );
     report(
         "50k + commit-graph: first window",
-        window.elapsed(),
+        first_window,
         Duration::from_millis(100),
     );
+    println!("50k: a far window, texts unread {:>7} us", cold.as_micros());
+    println!("50k: a far window, read ahead   {:>7} us", warm.as_micros());
+    assert!(warm < Duration::from_millis(100) && cold < Duration::from_millis(100));
 }
 
 /// Ticking a ref re-lays the graph from the rows the last walk read (R-301).
