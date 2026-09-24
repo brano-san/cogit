@@ -9,6 +9,7 @@ import {
   toCogitError,
 } from "$lib/ipc";
 import type { GraphBlock, GraphEntry } from "$lib/graph-wire";
+import { LONG_LINK_ROWS } from "$lib/graph-row";
 
 export type { GraphEntry };
 
@@ -54,6 +55,10 @@ class GraphStore {
 
   /** `null` is every ref. Owned by the References panel, folded into every load. */
   visibleRefs = $state.raw<string[] | null>(null);
+
+  /** Links longer than this many rows are drawn as two stubs (R-330); 0 draws them whole.
+      Folded into every load, like the refs. */
+  longLinkRows = $state(LONG_LINK_ROWS);
 
   /** Asking twice for the same commit has to scroll twice, hence the counter. */
   reveal = $state.raw<{ oid: string; request: number } | null>(null);
@@ -146,7 +151,7 @@ class GraphStore {
           if (fresh === this.#shown) this.#publish();
           this.#ask(fresh);
         },
-        { ...query, visibleRefs: this.visibleRefs },
+        { ...query, visibleRefs: this.visibleRefs, longLinkRows: this.longLinkRows },
       );
       if (load === this.#loads) this.skipped = skipped ?? [];
       if (load === this.#loads && !fresh.complete && !(await this.#settle(fresh, load)) && retry) {
@@ -161,6 +166,15 @@ class GraphStore {
     } finally {
       if (load === this.#loads) this.loading = false;
     }
+  }
+
+  /** A new threshold lays the shown history out again. */
+  setLongLinkRows(rows: number): void {
+    const next = Math.max(Math.round(rows), 0);
+    if (next === this.longLinkRows) return;
+    this.longLinkRows = next;
+    const repo = this.#shown?.repo;
+    if (repo !== undefined) void this.load(repo, this.query);
   }
 
   clear(): void {

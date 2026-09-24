@@ -3,7 +3,7 @@
 
 use app_state::{GraphWindow, graph_wire};
 use git_engine::CommitRow;
-use graph_engine::{GraphRow, NodeKind, Segment, Span};
+use graph_engine::{GraphRow, LongLink, NodeKind, Segment, Span};
 
 /// The same bytes are decoded by `frontend/src/lib/graph-wire.test.ts`.
 const GOLDEN: &str = concat!(
@@ -55,6 +55,7 @@ fn sample() -> GraphWindow {
                     segment(0, 0, Span::Bottom, true, false),
                     segment(0, 1, Span::Bottom, false, false),
                 ],
+                links: Vec::new(),
             },
             GraphRow {
                 row: 41,
@@ -64,6 +65,10 @@ fn sample() -> GraphWindow {
                 primary: false,
                 width: 2,
                 segments: vec![segment(1, 1, Span::Top, false, true)],
+                links: vec![LongLink {
+                    segment: 0,
+                    oid: "c".repeat(40),
+                }],
             },
         ],
     }
@@ -94,10 +99,11 @@ fn the_buffer_is_as_long_as_its_columns() {
         .iter()
         .map(|c| c.summary.len() + c.author_name.len() + c.author_email.len())
         .sum();
-    let columns = rows * (8 + 4 + 4 + 2 + 2 + 1 + 1 + 40) + 4 + (rows * 3 + 1) * 4;
+    let links = 1;
+    let columns = rows * (8 + 4 + 4 + 4 + 2 + 2 + 1 + 1 + 40) + 4 + 4 + (rows * 3 + 1) * 4;
     assert_eq!(
         bytes.len(),
-        32 + columns + segments * (2 + 2 + 1 + 1) + text
+        32 + columns + segments * (2 + 2 + 1 + 1) + links * (2 + 40) + text
     );
 }
 
@@ -110,6 +116,6 @@ fn an_empty_window_is_a_header() {
         commits: Vec::new(),
         rows: Vec::new(),
     };
-    // The segment and text offset columns still end with their closing offset.
-    assert_eq!(graph_wire::encode(&window).len(), 32 + 4 + 4);
+    // The segment, link and text offset columns still end with their closing offset.
+    assert_eq!(graph_wire::encode(&window).len(), 32 + 4 + 4 + 4);
 }

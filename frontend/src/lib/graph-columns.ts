@@ -47,19 +47,6 @@ export function moveColumn(rows: readonly ColumnRow[], from: number, to: number)
   return next;
 }
 
-/** A flex `order` for a column of the commit list: after the subject, in the chosen order.
-    Odd numbers, so whatever sits beside a column (the overlap badge) can take the even one
-    after it. */
-export function columnOrder(columns: readonly GraphColumn[], id: GraphColumn): number {
-  return columns.indexOf(id) * 2 + 1;
-}
-
-/** The overlap badge stays right after the time, as it was drawn before columns moved. */
-export function overlapOrder(columns: readonly GraphColumn[]): number {
-  const time = columns.indexOf("time");
-  return time < 0 ? columns.length * 2 + 1 : time * 2 + 2;
-}
-
 const pad = (n: number) => String(n).padStart(2, "0");
 
 /** `date` is what the column always showed: today, yesterday, the weekday, then DD-MM-YY. */

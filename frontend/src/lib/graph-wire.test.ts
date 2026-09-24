@@ -34,6 +34,7 @@ describe("graph window format", () => {
           { from: 0, to: 0, span: "bottom", primary: true, color: 0, arrow: false },
           { from: 0, to: 1, span: "bottom", primary: false, color: 0, arrow: false },
         ],
+        links: [],
       },
     });
   });
@@ -45,6 +46,7 @@ describe("graph window format", () => {
     expect(row.commit.tzOffsetMinutes).toBe(-300);
     expect(row.layout).toMatchObject({ row: 41, lane: 1, color: 3, kind: "root", primary: false });
     expect(row.layout.segments).toEqual([{ from: 1, to: 1, span: "top", primary: false, color: 1, arrow: true }]);
+    expect(row.layout.links).toEqual([{ segment: 0, oid: "c".repeat(40) }]);
   });
 
   it("decodes a row once, however often it is asked for", () => {
@@ -60,6 +62,7 @@ describe("graph window format", () => {
     expect(block.find("b".repeat(40))).toBe(1);
     expect(block.find("b".repeat(7))).toBe(-1);
     expect(block.find("a".repeat(20) + "b".repeat(20))).toBe(-1);
+    expect(block.find("c".repeat(40)), "the far end of a link is not a row here").toBe(-1);
   });
 
   it("reads an empty buffer as a window of a replaced graph", () => {

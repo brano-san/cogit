@@ -5,7 +5,7 @@
   import { fileName, statusBadge, statusLabel, statusTooltip } from "$lib/files";
   import type { FileEntry } from "$lib/ipc";
   import type { ViewRow } from "$lib/file-view";
-  import { GRAPH } from "$lib/graph-geometry";
+  import { LIST_ROW_HEIGHT } from "$lib/graph-geometry";
 
   interface Action {
     label: string;
@@ -56,7 +56,7 @@
   }
 </script>
 
-<div class="pane tree-rows">
+<div class="pane tree-rows key-list">
   {#if title}
     <div class="heading">
       <span class="grow">{title} ({paths.length})</span>
@@ -72,7 +72,7 @@
     {#snippet row(entry, at)}
         {#if entry.kind === "dir"}
           {@const group = entry}
-          <div class="folder" style:top="{at * GRAPH.rowHeight}px">
+          <div class="folder" style:top="{at * LIST_ROW_HEIGHT}px">
             <Disclosure open />
             <span class="truncate">{group.path === "" ? "(root)" : group.path}</span>
             <span class="count">{group.count}</span>
@@ -85,7 +85,7 @@
             class:nested={!showDirectory}
             class:selected={selected === file.path}
             class:marked={marked.has(file.path)}
-            style:top="{at * GRAPH.rowHeight}px"
+            style:top="{at * LIST_ROW_HEIGHT}px"
             title={file.oldPath ? `${file.oldPath} → ${file.path}` : file.path}
             onclick={(event) => onclick(file.path, event)}
             onkeydown={(event) => {

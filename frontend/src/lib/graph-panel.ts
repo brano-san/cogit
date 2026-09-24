@@ -9,6 +9,8 @@ export function graphPanelMinWidth(): string {
   return `calc(${textX(1)}px + ${GRAPH_MIN_SUBJECT_CHARS}ch)`;
 }
 
-export function subjectMinWidth(): string {
-  return `${GRAPH_MIN_SUBJECT_CHARS}ch`;
+/** Pixels the subject keeps before the graph area is cut at its edge (#12, R-331): the same
+    characters, now a threshold rather than a floor, so the right columns always fit. */
+export function subjectRoom(charWidth: number): number {
+  return GRAPH_MIN_SUBJECT_CHARS * charWidth;
 }

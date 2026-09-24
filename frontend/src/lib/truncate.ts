@@ -24,6 +24,15 @@ export function refLabelText(text: string): string {
   return truncateMiddle(text, REF_LABEL_MAX);
 }
 
+/** The tail a squeezed ref label keeps whole; the lead gives way with an ellipsis in CSS,
+    which puts the cut in the middle at whatever width the row leaves it (#12). */
+const LABEL_TAIL = 10;
+
+export function middleCut(text: string): { lead: string; tail: string } {
+  const tail = Math.min(LABEL_TAIL, Math.floor(text.length / 2));
+  return { lead: text.slice(0, text.length - tail), tail: text.slice(text.length - tail) };
+}
+
 /** `C:\Users\brano\…\logs\cogit.log`: whole folders dropped from the middle to fit `max`. */
 export function truncatePath(path: string, max: number): string {
   if (path.length <= max) return path;

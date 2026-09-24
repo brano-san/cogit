@@ -219,7 +219,8 @@ impl RowCache {
 #[serde(rename_all = "camelCase")]
 pub struct GraphChunk {
     pub commits: Vec<git_engine::CommitRow>,
-    /// One per commit, in the same order: the node and every segment of its row.
+    /// One per commit, in the same order: the node and every segment of its row. Cutting
+    /// long links holds the last rows back, so a chunk can have fewer rows than commits.
     pub rows: Vec<graph_engine::GraphRow>,
     pub is_last: bool,
 }
@@ -539,7 +540,8 @@ impl AppState {
         let flat = query.filters_rows();
 
         // Read once per load: a column that moved half way down would be worse than none.
-        let mut cursor = graph_engine::LayoutCursor::with_mainline(mainline_of(&handle, query));
+        let mut cursor = graph_engine::LayoutCursor::with_mainline(mainline_of(&handle, query))
+            .with_long_links(query.long_link_rows.unwrap_or(0));
         let mut cancelled = false;
 
         // One order for the graph and the filtered list: by date, never a parent above a
@@ -561,7 +563,7 @@ impl AppState {
                     },
                 })
                 .collect();
-            let rows = graph_engine::layout(&nodes, &mut cursor);
+            let rows = graph_engine::push(nodes, &mut cursor);
 
             let keep = on_chunk(GraphChunk {
                 commits,
@@ -575,9 +577,10 @@ impl AppState {
         let skipped = handle.search_commits(query, chunk_size, on_commits)?;
 
         if !cancelled {
+            // The rows held back to see how far their links reach (R-330).
             on_chunk(GraphChunk {
                 commits: Vec::new(),
-                rows: Vec::new(),
+                rows: graph_engine::finish(&mut cursor),
                 is_last: true,
             });
         }
