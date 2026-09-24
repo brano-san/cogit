@@ -171,3 +171,25 @@ fn tags_come_back_sorted() {
     sorted.sort();
     assert_eq!(listed, sorted);
 }
+
+// The copy was made with git's default cleanup, which drops lines starting with `#` and
+// trailing spaces: renaming `v1` took "#42 fixed" out of its notes.
+#[test]
+fn renaming_an_annotated_tag_keeps_its_message_to_the_letter() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&[
+        "tag",
+        "-a",
+        "v1",
+        "--cleanup=verbatim",
+        "-m",
+        "Release\n#42 fixed\n",
+    ])
+    .unwrap();
+    let repo = git_engine::RepoHandle::open(f.path()).unwrap();
+
+    repo.rename_tag("v1", "v2").unwrap();
+
+    let message = repo.tag_message("v2").unwrap().unwrap();
+    assert!(message.contains("#42 fixed"), "{message:?}");
+}
