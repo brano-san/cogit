@@ -1,6 +1,6 @@
 //! The Files panel's context menus beyond staging (#40, #41).
 
-use crate::{GitError, Head, RepoHandle, Result};
+use crate::{FileStatus, GitError, Head, RepoHandle, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
@@ -241,4 +241,104 @@ impl RepoHandle {
             .cloned()
             .collect()
     }
+}
+
+impl RepoHandle {
+    /// Appends to `.gitignore`, skipping patterns it already contains. The file is read as
+    /// bytes and only ever added to: one in another encoding keeps every line it had.
+    pub fn add_to_gitignore(&self, paths: &[String]) -> Result<()> {
+        if paths.is_empty() {
+            return Err(GitError::InvalidState("no paths to ignore".to_owned()));
+        }
+
+        let file = self.root().join(".gitignore");
+        let existing = match std::fs::read(&file) {
+            Ok(bytes) => bytes,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+            Err(err) => return Err(err.into()),
+        };
+        let text = String::from_utf8_lossy(&existing);
+        let known: std::collections::HashSet<&str> = text.lines().map(str::trim).collect();
+
+        let mut added = String::new();
+        for path in paths {
+            if path.trim().is_empty() {
+                continue;
+            }
+            let pattern = ignore_pattern(path);
+            if known.contains(pattern.as_str()) || added.lines().any(|line| line == pattern) {
+                continue;
+            }
+            added.push_str(&pattern);
+            added.push('\n');
+        }
+        if added.is_empty() {
+            return Ok(());
+        }
+
+        if !existing.is_empty() && !existing.ends_with(b"\n") {
+            added.insert(0, '\n');
+        }
+        let mut out = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&file)?;
+        std::io::Write::write_all(&mut out, added.as_bytes())?;
+        Ok(())
+    }
+
+    /// Only untracked paths: deleting a tracked one is `discard`, which keeps a stash.
+    pub fn delete_untracked(&self, paths: &[String]) -> Result<()> {
+        if paths.is_empty() {
+            return Err(GitError::InvalidState("no paths to delete".to_owned()));
+        }
+
+        let untracked: std::collections::HashSet<String> = self
+            .worktree_files()?
+            .unstaged
+            .into_iter()
+            .filter(|entry| entry.status == FileStatus::Untracked)
+            .map(|entry| entry.path)
+            .collect();
+
+        for path in paths {
+            if !untracked.contains(path) {
+                return Err(GitError::InvalidState(format!(
+                    "{path} is tracked; use discard instead"
+                )));
+            }
+        }
+
+        for path in paths {
+            let target = self.root().join(path.trim_end_matches('/'));
+            let result = if target.is_dir() {
+                std::fs::remove_dir_all(&target)
+            } else {
+                std::fs::remove_file(&target)
+            };
+            result?;
+        }
+        Ok(())
+    }
+}
+
+/// The one path the user picked, as a `.gitignore` line: anchored to the top, so a file of
+/// the same name in a folder stays visible, and with the characters git reads as a pattern
+/// escaped, so `test[1].txt` is not a character class matching `test1.txt`.
+fn ignore_pattern(path: &str) -> String {
+    let mut pattern = String::from("/");
+    for c in path.chars() {
+        if matches!(c, '\\' | '[' | ']' | '*' | '?') {
+            pattern.push('\\');
+        }
+        pattern.push(c);
+    }
+    // Trailing spaces are dropped from a pattern unless escaped.
+    let body = pattern.trim_end_matches(' ');
+    let spaces = pattern.len() - body.len();
+    let mut out = body.to_owned();
+    for _ in 0..spaces {
+        out.push_str("\\ ");
+    }
+    out
 }
