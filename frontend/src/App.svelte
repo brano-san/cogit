@@ -2115,6 +2115,8 @@
     repository.onLeave(() => {
       leaveRepositoryDialogs();
       stale = new Set();
+      // The Commit box seeds an empty draft from it, under the next repository's key.
+      template = null;
       if (configEdit?.scope === "repository") configEdit = null;
       indexEditing = null;
       removingFiles = null;
