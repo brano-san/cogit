@@ -1,3 +1,4 @@
+use crate::line_history::{LogHeader, path_of};
 use crate::{CommitQuery, GitError, RepoHandle, Result};
 use serde::Serialize;
 
@@ -197,12 +198,13 @@ fn parse_investigation(stdout: &str) -> Vec<InvestigationStep> {
 }
 
 fn header_to_step(header: &str) -> Option<InvestigationStep> {
-    let mut fields = header.splitn(5, '\t');
-    let oid = fields.next()?.to_owned();
-    let author = fields.next()?.to_owned();
-    let email = fields.next()?.to_owned();
-    let timestamp = fields.next()?.parse().ok()?;
-    let summary = fields.next().unwrap_or_default().to_owned();
+    let LogHeader {
+        oid,
+        author,
+        email,
+        timestamp,
+        summary,
+    } = LogHeader::parse(header)?;
 
     Some(InvestigationStep {
         oid,
@@ -213,18 +215,4 @@ fn header_to_step(header: &str) -> Option<InvestigationStep> {
         path: String::new(),
         diff: String::new(),
     })
-}
-
-/// The path this commit knew the file by. `+++ b/…` names it, except where the commit
-/// deleted the file and the old name is all there is.
-fn path_of(line: &str) -> Option<String> {
-    for (prefix, marker) in [("+++ ", "b/"), ("--- ", "a/")] {
-        if let Some(rest) = line.strip_prefix(prefix) {
-            if rest == "/dev/null" {
-                continue;
-            }
-            return Some(rest.strip_prefix(marker).unwrap_or(rest).to_owned());
-        }
-    }
-    None
 }
