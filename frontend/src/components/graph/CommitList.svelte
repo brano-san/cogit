@@ -21,6 +21,7 @@
     visibleRange,
   } from "$lib/graph-geometry";
   import { measurer } from "$lib/timing";
+  import { anchoredScrollTop } from "$lib/graph-anchor";
   import { subjectMinWidth } from "$lib/graph-panel";
   import { workingTreeLabel } from "$lib/repo-state";
   import { reportTiming, type RebaseProgress, type RepoId } from "$lib/ipc";
@@ -236,8 +237,12 @@
   $effect(() => {
     if (!scroller) return;
     const observer = new ResizeObserver(([entry]) => {
-      if (!entry) return;
+      if (!entry || !scroller) return;
       viewportHeight = entry.contentRect.height;
+      // The row at the top stays there when the panel changes height (#13).
+      const rowHeight = GRAPH.rowHeight;
+      const kept = anchoredScrollTop({ scrollTop, rowHeight }, { rowHeight, viewportHeight, totalRows: listRows });
+      if (scroller.scrollTop !== kept) scroller.scrollTop = kept;
     });
     observer.observe(scroller);
     return () => observer.disconnect();
@@ -422,6 +427,9 @@
     position: relative;
     height: 100%;
     overflow: auto;
+    /* The sticky viewport is as tall as the panel, so resizing moved everything after it and
+       the browser scrolled to follow; the component keeps the top row itself (#13). */
+    overflow-anchor: none;
   }
 
   /* Text and graph move together, in the frame that draws the graph. Rows scrolled by the
