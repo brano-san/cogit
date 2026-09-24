@@ -253,12 +253,12 @@ export const commands = {
 	reportTiming: (label: string, ms: number, detail: string) => __TAURI_INVOKE<void>("report_timing", { label, ms, detail }),
 	reportMemory: (sample: RendererMemory) => __TAURI_INVOKE<void>("report_memory", { sample }),
 	/**
-	 *  The webview's own log lines, into the same file, in batches.
+	 *  The webview's own log lines, into the same file.
 	 * 
 	 *  A JS error that only reaches the devtools console dies with the renderer — which is
 	 *  exactly the moment it was worth keeping.
 	 */
-	logFromFrontend: (lines: WebviewLogLine[]) => __TAURI_INVOKE<void>("log_from_frontend", { lines }),
+	logFromFrontend: (level: string, message: string, context: string) => __TAURI_INVOKE<void>("log_from_frontend", { level, message, context }),
 	/**
 	 *  Answered by the page to show it is still running while a close is pending.
 	 * 
@@ -1447,16 +1447,6 @@ export type TodoEntry = {
 	oid: string,
 	action: TodoAction,
 	message: string | null,
-};
-
-/**
- *  One line of the webview's log. `message` starts with the webview's own `+Nms`: a
- *  batch lands at once, so the file's timestamp is when it arrived, not when it was said.
- */
-export type WebviewLogLine = {
-	level: string,
-	message: string,
-	context: string,
 };
 
 export type Whitespace = "none" | "trailing" | "all";

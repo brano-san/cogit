@@ -5,7 +5,6 @@
   import { leaveRepositoryDialogs } from "$lib/leaving";
   import { retryOf } from "$lib/retry";
   import { publishedOrAssume } from "$lib/published";
-  import { menuStatePusher } from "$lib/menu-state";
   import { branchNameProblem, optional, textProblem } from "$lib/names";
   import { finder } from "$stores/finder.svelte";
   import { THIRD_PARTY_FILE } from "$lib/third-party";
@@ -40,7 +39,7 @@
   import CommandOutput from "$components/layout/CommandOutput.svelte";
   import { suppressNativeMenu } from "$lib/native-menu";
   import { footerRepository, panelView } from "$lib/repo-phase";
-  import { flushTrace, startTracing, timed, trace } from "$lib/trace";
+  import { startTracing, timed, trace } from "$lib/trace";
   import OutputPanel from "$components/layout/OutputPanel.svelte";
   import StateBanner from "$components/layout/StateBanner.svelte";
   import Splitter from "$components/layout/Splitter.svelte";
@@ -950,7 +949,7 @@
     );
     await settings.apply(next);
     await settings.setKeymap(keymap);
-    pushMenuState(true);
+    pushMenuState();
 
     const id = repository.current?.repo;
     if (!id || !diff.spec || !diff.path) return;
@@ -2858,7 +2857,6 @@
       nobody wrote yet. Everything else is already on disk or in the draft store. */
   async function mayClose(): Promise<boolean> {
     const source = exitFlow.takeSource();
-    flushTrace();
     session.persist();
     const what = unsavedSummary({
       hook: hooks.dirty ? hooks.editing : null,
@@ -2875,7 +2873,6 @@
   /** No close request is pending here, so the window is destroyed rather than closed:
       closing would ask the same question a second time. */
   async function onSessionEnding() {
-    flushTrace();
     session.persist();
     if (!(await exitFlow.ask("system", settings.current.confirmExit, listOperations))) return;
     const { getCurrentWindow } = await import("@tauri-apps/api/window");
@@ -2987,10 +2984,8 @@
     );
   });
 
-  const sendMenuState = menuStatePusher((disabled, checked) => setMenuState(disabled, checked));
-
   /** A rebuilt bar starts with every tick cleared, so this runs again after a keymap save. */
-  function pushMenuState(rebuilt = false) {
+  function pushMenuState() {
     const checked = checkedIds({
       panels: PANELS.filter((panel) => layout.visible(panel)),
       output: output.open,
@@ -2999,7 +2994,7 @@
       avatars: avatars.enabled,
       perspective: layout.active,
     });
-    sendMenuState(disabledIds(palette), checked, { rebuilt });
+    void setMenuState(disabledIds(palette), checked).catch(() => {});
   }
 
   // The native menu is not reactive, so the derived state is pushed to it. muda flips a
