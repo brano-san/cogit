@@ -659,7 +659,13 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > only); объединять ветки значит спрятать место, где этот флаг нужен, — **на решение**,
   > нужен ли `--ff-only`; S5-06 — горячий путь графа, только с A/B; F5-02, S5-16 — косметика
   > без пользы.
-- [ ] M6-03 menu.rs (перенос)
+- [x] M6-03 menu.rs (перенос)
+  > Итог: чистый перенос: `menu.rs` → `menu/mod.rs` (git mv) и `menu/context.rs` —
+  > всплывающие контекстные меню (`ContextItem`, `tidy_items`, `ContextMenu`, `popup`,
+  > `append_context_item`) с их тестами; внешние пути `menu::ContextItem/ContextMenu/popup`
+  > сохранены реэкспортом. 956 строк → 773 + 192. Строку меню и раскладку клавиш не делил:
+  > они держатся на общих `Entry`/`SECTIONS`, и перенос пришлось бы делать с правкой
+  > видимости. Ссылка в 12-risks поправлена.
 - [ ] M6-02 app_state/lib.rs (перенос)
 - [ ] M6-01 commands/mod.rs (перенос)
 
