@@ -35,8 +35,8 @@ export interface Settings {
   autoUpdate: boolean;
   /** The Exit dialog's "Don't show again" and this checkbox are the same value (R-151). */
   confirmExit: boolean;
-  /** Minutes between background fetches of every listed repository; `0` is off, which is
-      the default: nothing reaches the network unasked (R-353). */
+  /** Minutes between asking the remote of every listed repository what it has (R-354);
+      `0` is off, which is the default: nothing reaches the network unasked. */
   backgroundFetchMinutes: number;
 }
 

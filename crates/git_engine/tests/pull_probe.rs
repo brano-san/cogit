@@ -78,9 +78,24 @@ fn remote_moves_on(f: &Fixture, reset_to: Option<&str>) {
     }
 }
 
+/// Every ref and `FETCH_HEAD`: the probe must leave all of them as they were.
+fn refs_of(f: &Fixture) -> (String, bool) {
+    (
+        f.git(&["for-each-ref", "--format=%(refname) %(objectname)"])
+            .unwrap(),
+        f.git_dir().join("FETCH_HEAD").exists(),
+    )
+}
+
 fn agree(f: &Fixture, expected: Option<bool>) {
     let truth = git_says(f);
     assert_eq!(truth, expected, "the fixture is not what the test thinks");
+    let before = refs_of(f);
+    assert_eq!(
+        RepoHandle::open(f.path()).unwrap().pull_probe().unwrap(),
+        truth
+    );
+    assert_eq!(refs_of(f), before, "the probe wrote something");
     assert_eq!(fetched_says(f), truth);
 }
 
@@ -119,5 +134,94 @@ fn a_remote_forced_back_to_a_commit_head_has_nothing_to_pull() {
 fn a_branch_without_an_upstream_has_no_answer() {
     let f = test_fixtures::linear(2).unwrap();
     assert_eq!(git_says(&f), None);
+    assert_eq!(
+        RepoHandle::open(f.path()).unwrap().pull_probe().unwrap(),
+        None
+    );
     assert!(!pulse(f.path()).tracked);
+}
+
+// Only the probe: a fetch without prune keeps the stale tracking ref and says "behind".
+#[test]
+fn an_upstream_deleted_on_the_server_has_no_answer() {
+    let f = test_fixtures::with_remote().unwrap();
+    let url = f
+        .git(&["remote", "get-url", "origin"])
+        .unwrap()
+        .trim()
+        .to_owned();
+    f.git_in(
+        std::path::Path::new(&url),
+        &["update-ref", "-d", "refs/heads/main"],
+    )
+    .unwrap();
+    assert_eq!(git_says(&f), None);
+    assert_eq!(
+        RepoHandle::open(f.path()).unwrap().pull_probe().unwrap(),
+        None
+    );
+}
+
+#[test]
+fn the_heads_are_what_git_ls_remote_lists() {
+    let f = test_fixtures::with_remote().unwrap();
+    remote_moves_on(&f, None);
+    let git: Vec<String> = f
+        .git(&["ls-remote", "--heads", "origin"])
+        .unwrap()
+        .lines()
+        .map(str::to_owned)
+        .collect();
+    let ours: Vec<String> = RepoHandle::open(f.path())
+        .unwrap()
+        .remote_heads("origin")
+        .unwrap()
+        .into_iter()
+        .map(|(name, oid)| format!("{oid}\t{name}"))
+        .collect();
+    assert_eq!(ours, git);
+}
+
+#[test]
+fn a_remote_that_is_gone_is_an_error_not_an_answer() {
+    let f = test_fixtures::linear(2).unwrap();
+    let gone = f.path().join("no-such-remote.git");
+    f.git(&["remote", "add", "origin", &gone.to_string_lossy()])
+        .unwrap();
+    f.git(&["config", "branch.main.remote", "origin"]).unwrap();
+    f.git(&["config", "branch.main.merge", "refs/heads/main"])
+        .unwrap();
+    assert!(RepoHandle::open(f.path()).unwrap().pull_probe().is_err());
+}
+
+/// A measurement against the local bare remote, run by hand with `--run-ignored only
+/// --no-capture`: the probe, a plain `git ls-remote`, and the fetch it replaces.
+#[test]
+#[ignore = "a measurement"]
+#[allow(clippy::print_stderr)]
+fn the_probe_against_ls_remote_and_fetch_takes() {
+    let f = test_fixtures::with_remote().unwrap();
+    let handle = RepoHandle::open(f.path()).unwrap();
+    let median = |mut work: Box<dyn FnMut()>| {
+        let mut times: Vec<u128> = (0..11)
+            .map(|_| {
+                let started = std::time::Instant::now();
+                work();
+                started.elapsed().as_micros()
+            })
+            .collect();
+        times.sort_unstable();
+        (times[5], times[9])
+    };
+    let probe = median(Box::new(|| {
+        handle.pull_probe().unwrap();
+    }));
+    let ls = median(Box::new(|| {
+        f.git(&["ls-remote", "--heads", "origin"]).unwrap();
+    }));
+    let fetch = median(Box::new(|| {
+        handle.background_fetch().unwrap();
+        let _ = pulse(f.path());
+    }));
+    eprintln!("median/p90 µs: probe {probe:?}, git ls-remote {ls:?}, fetch+pulse {fetch:?}");
 }

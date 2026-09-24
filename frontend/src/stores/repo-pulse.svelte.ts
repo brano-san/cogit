@@ -1,9 +1,9 @@
-import { backgroundFetch, repoPulse as readPulse, type RepoPulse } from "$lib/ipc/repo-rows";
+import { pullProbe, repoPulse as readPulse, type RepoPulse } from "$lib/ipc/repo-rows";
 import { PulseQueue } from "$lib/pulse-queue";
 
-/** A fetch that has not answered in this long stops holding the queue; the process runs
+/** A server that has not answered in this long stops holding the queue; the process runs
     on and its result, whenever it comes, is not waited for. */
-const FETCH_TIMEOUT_MS = 120_000;
+const PROBE_TIMEOUT_MS = 120_000;
 
 function within<T>(work: Promise<T>, ms: number, fallback: T): Promise<T> {
   return new Promise((resolve) => {
@@ -25,8 +25,10 @@ function within<T>(work: Promise<T>, ms: number, fallback: T): Promise<T> {
     closed, kept fresh in the background (R-353). */
 class RepoPulseStore {
   pulses = $state.raw<ReadonlyMap<string, RepoPulse>>(new Map());
-  /** Roots whose last background fetch failed: whether there is anything to pull is unknown. */
+  /** Roots whose last probe of the server failed: whether there is anything to pull is unknown. */
   unknown = $state.raw<ReadonlySet<string>>(new Set());
+  /** The server has commits HEAD lacks, whatever the local tracking ref says (R-354). */
+  remoteAhead = $state.raw<ReadonlySet<string>>(new Set());
 
   #busy: () => boolean = () => false;
   #owned: string | null = null;
@@ -37,10 +39,14 @@ class RepoPulseStore {
 
   readonly #queue = new PulseQueue({
     pulse: readPulse,
+    // The server is asked, nothing is fetched: `ls-remote` writes no ref (R-354).
     fetch: (root) =>
       within(
-        backgroundFetch(root).then(() => true),
-        FETCH_TIMEOUT_MS,
+        pullProbe(root).then((ahead) => {
+          this.#setAhead(root, ahead === true);
+          return true;
+        }),
+        PROBE_TIMEOUT_MS,
         false,
       ),
     busy: () => this.#busy(),
@@ -87,6 +93,19 @@ class RepoPulseStore {
     this.#queue.request(root, { first: true });
   }
 
+  /** Its refs moved (a fetch, a pull): the tracking ref speaks for the server again. */
+  refsMoved(root: string): void {
+    this.#setAhead(root, false);
+  }
+
+  #setAhead(root: string, ahead: boolean): void {
+    if (this.remoteAhead.has(root) === ahead) return;
+    const next = new Set(this.remoteAhead);
+    if (ahead) next.add(root);
+    else next.delete(root);
+    this.remoteAhead = next;
+  }
+
   forget(root: string): void {
     this.#queue.cancel(root);
     this.#seen.delete(root);
@@ -96,7 +115,7 @@ class RepoPulseStore {
     this.pulses = next;
   }
 
-  /** `0` stops the background fetch. Every tick fetches each row once, in list order. */
+  /** `0` stops the background check. Every tick asks each row's server once, in list order. */
   fetchEvery(minutes: number): void {
     if (minutes === this.#every) return;
     this.#every = minutes;
