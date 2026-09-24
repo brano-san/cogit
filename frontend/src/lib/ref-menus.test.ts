@@ -72,6 +72,7 @@ describe("graphCommitMenu (#38)", () => {
       "—",
       "Reset",
       "Reset Advanced…",
+      "Roll Back Tree",
       "—",
       "Push Up To",
       "—",
@@ -79,6 +80,21 @@ describe("graphCommitMenu (#38)", () => {
       "Copy ID",
     ]);
     wellFormed(menu);
+  });
+
+  // The Diff panel's commit buttons are gone: every one of them has to be here instead.
+  it("carries every action the commit details used to offer as buttons", () => {
+    for (const facts of [older, pushed, { ...older, isHeadCommit: true }]) {
+      const menu = graphCommitMenu(facts);
+      for (const label of ["Cherry-Pick", "Revert", "Split", "Rebase Interactive From", "Roll Back Tree"]) {
+        find(menu, label);
+      }
+    }
+    expect(find(graphCommitMenu(older), "Roll Back Tree")).toMatchObject({
+      id: "ref:rollback",
+      enabled: true,
+    });
+    expect(find(graphRefMenu(branch, older), "Roll Back Tree").enabled).toBe(true);
   });
 
   it("turns Squash off on a pushed commit and says why", () => {
@@ -160,6 +176,7 @@ describe("graphRefMenu (#39)", () => {
       "—",
       "Reset",
       "Reset Advanced…",
+      "Roll Back Tree",
       "—",
       "Push",
       "Push To…",

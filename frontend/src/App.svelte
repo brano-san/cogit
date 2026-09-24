@@ -104,7 +104,6 @@
     getAppInfo,
     openThirdPartyLicences,
     addToGitignore,
-    cherryPick,
     closeThisWindow,
     interactiveRebase,
     isPublished,
@@ -137,7 +136,6 @@
     popupContextMenu,
     resolveConflict,
     setMenuState,
-    revertCommits,
     rebaseOnto,
     skipOperation,
     type AppInfo,
@@ -1394,25 +1392,6 @@
     } catch (err) {
       errors.report(err, "Could not recover the commit");
       return;
-    }
-    await afterRefChange(id);
-  }
-
-  async function replaySelected(kind: "cherryPick" | "revert") {
-    const id = repository.current?.repo;
-    const oid = commit.oid;
-    if (!id || !oid) return;
-    const verb = kind === "cherryPick" ? "Cherry-pick" : "Revert";
-    const confirmed = await ask(`${verb} ${shortOid(oid)} onto the current branch?`, {
-      title: verb,
-      kind: "warning",
-    });
-    if (!confirmed) return;
-    try {
-      if (kind === "cherryPick") await cherryPick(id, [oid]);
-      else await revertCommits(id, [oid]);
-    } catch (err) {
-      errors.report(err, `${verb} failed`);
     }
     await afterRefChange(id);
   }
@@ -3404,13 +3383,7 @@
             }}
           >
             {#snippet fallback()}
-              <CommitDetailsPane
-                oncherrypick={() => void replaySelected("cherryPick")}
-                onrevert={() => void replaySelected("revert")}
-                onsplit={() => void openSplit()}
-                onrebase={() => void openRebase()}
-                onrollback={() => void rollbackFiles([])}
-              />
+              <CommitDetailsPane />
             {/snippet}
           </DiffPanel>
         </Panel>
@@ -3475,6 +3448,7 @@
     checkoutBranch={switchTo}
     {openSplit}
     {openRebase}
+    rollbackTree={() => rollbackFiles([])}
   />
 
   {#if splitOpen && commit.oid}
