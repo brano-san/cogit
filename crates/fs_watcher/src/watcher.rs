@@ -40,8 +40,14 @@ impl RepoWatcher {
         let mut debouncer = new_debouncer(
             Duration::from_millis(DEBOUNCE_MS),
             move |result: DebounceEventResult| {
-                let Ok(events) = result else {
-                    return;
+                let events = match result {
+                    Ok(events) => events,
+                    Err(error) => {
+                        // An overflowed ReadDirectoryChangesW buffer lands here: changes
+                        // were missed, and the panels are stale until the next event.
+                        tracing::warn!(?error, "the file watcher lost events");
+                        return;
+                    }
                 };
                 let paths: Vec<PathBuf> = events.into_iter().map(|event| event.path).collect();
                 for change in route.coalesce(&paths) {

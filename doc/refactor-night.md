@@ -532,7 +532,9 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > маршрутизация — сначала приватный каталог, потом общий. Тесты
   > `a_linked_worktree_lists_the_hooks_git_runs_there`,
   > `a_linked_worktree_hears_about_refs_in_the_common_directory`.
-- [ ] B-10 ошибки notify в лог
+- [x] B-10 ошибки notify в лог
+  > Итог: (fs_watcher получил `tracing.workspace = true` — крейт уже в сборке, нового ничего; правило «каждый fallback логирует Err») ошибка notify — `tracing::warn!` ("the file watcher lost events"); полный Refresh
+  > на ошибку не добавлял — это новое поведение. Без теста: меняется только лог.
 - [ ] B-12 `log -L`: quotepath, префиксы, таб
 - [ ] B-13 surgery: `-z`
 - [ ] B-14 литеральные pathspec
