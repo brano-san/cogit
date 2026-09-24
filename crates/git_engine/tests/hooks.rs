@@ -262,6 +262,23 @@ fn the_eol_rule_can_be_added_without_losing_what_is_there() {
     assert!(text.contains(".githooks/** eol=lf"), "{text}");
 }
 
+// A comment saved in cp1251 made the file unreadable as UTF-8, and the rule was written
+// over it: every other attribute the team had was gone.
+#[test]
+fn a_gitattributes_that_is_not_utf8_keeps_its_bytes() {
+    let f = test_fixtures::linear(1).unwrap();
+    let mut original = b"# \xcf\xf0\xe8\xec\xe5\xf0\n*.png binary\n".to_vec();
+    std::fs::write(f.path().join(".gitattributes"), &original).unwrap();
+
+    open(&f).add_eol_rule(".githooks").unwrap();
+
+    original.extend_from_slice(b".githooks/** eol=lf\n");
+    assert_eq!(
+        std::fs::read(f.path().join(".gitattributes")).unwrap(),
+        original
+    );
+}
+
 #[test]
 fn adding_the_rule_twice_does_not_repeat_it() {
     let f = test_fixtures::linear(1).unwrap();
