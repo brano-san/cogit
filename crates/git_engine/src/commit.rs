@@ -82,7 +82,17 @@ pub(crate) fn mode_of_entry(mode: gix::object::tree::EntryMode) -> FileMode {
 }
 
 impl RepoHandle {
+    /// Author and committer as `.mailmap` names them, like `git log --use-mailmap`.
     pub fn commit_details(&self, rev: &str) -> Result<CommitDetails> {
+        self.commit_details_with(rev, &self.mailmap())
+    }
+
+    /// For a loop over many commits: the mailmap is checked once, not per commit.
+    pub(crate) fn commit_details_with(
+        &self,
+        rev: &str,
+        mailmap: &crate::Mailmap,
+    ) -> Result<CommitDetails> {
         let commit = self.find_commit(rev)?;
 
         let message = commit
@@ -103,8 +113,8 @@ impl RepoHandle {
                 .body()
                 .map(|body| body.to_string().trim_end().to_owned())
                 .unwrap_or_default(),
-            author: signature(author),
-            committer: signature(committer),
+            author: signature(author, mailmap),
+            committer: signature(committer, mailmap),
         })
     }
 
@@ -185,11 +195,13 @@ impl RepoHandle {
     }
 }
 
-fn signature(sig: gix::actor::SignatureRef<'_>) -> Signature {
+fn signature(sig: gix::actor::SignatureRef<'_>, mailmap: &crate::Mailmap) -> Signature {
     let time = sig.time().unwrap_or_default();
+    let (mut name, mut email) = (sig.name.to_string(), sig.email.to_string());
+    mailmap.apply(&mut name, &mut email);
     Signature {
-        name: sig.name.to_string(),
-        email: sig.email.to_string(),
+        name,
+        email,
         timestamp: time.seconds,
         tz_offset_minutes: time.offset / SECONDS_PER_MINUTE,
     }

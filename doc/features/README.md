@@ -196,7 +196,7 @@
 | F-200 | Отсутствие финального перевода строки видно в diff | [F-200-final-newline.md](F-200-final-newline.md) |
 | F-201 | Перемещённый блок помечен с обоих концов | [F-201-move-pairing.md](F-201-move-pairing.md) |
 | F-202 | Перемещение между файлами отличается от внутрифайлового | [F-202-cross-file-moves.md](F-202-cross-file-moves.md) |
-| F-203 | Blame сводит авторов через .mailmap | [F-203-mailmap.md](F-203-mailmap.md) |
+| F-203 | Авторы сводятся через .mailmap | [F-203-mailmap.md](F-203-mailmap.md) |
 | F-204 | Blame пропускает косметические коммиты | [F-204-blame-ignore-revs.md](F-204-blame-ignore-revs.md) |
 | F-205 | Открыть файл в состоянии до коммита | [F-205-state-before-commit.md](F-205-state-before-commit.md) |
 | F-206 | Investigate: история выделенного фрагмента | [F-206-investigate.md](F-206-investigate.md) |
