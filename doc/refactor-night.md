@@ -475,7 +475,9 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > `a_mutation_finishing_after_its_repository_closed_leaves_no_undo_entry`. Ожидание
   > очереди при закрытии (мутации в очереди падают с RepoNotFound) — не трогал: это
   > изменение поведения закрытия, **на решение**.
-- [ ] C1-15 уникальный файл сообщения для dry-run хука
+- [x] C1-15 уникальный файл сообщения для dry-run хука
+  > Итог: имя файла сообщения — `COGIT_HOOK_MSG-<pid>-<n>`. Тест
+  > `two_dry_runs_at_once_keep_their_own_message` (до правки второй прогон падал с exit 4).
 - [ ] C1-16 скан останавливается с закрытием канала
 - [ ] C1-17 release раньше Done
 
