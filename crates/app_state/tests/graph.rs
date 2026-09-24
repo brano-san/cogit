@@ -360,3 +360,30 @@ fn a_tag_on_a_tree_is_reported_and_the_graph_is_drawn_without_it() {
     assert_eq!(skipped.len(), 1);
     assert_eq!(skipped[0].name, "refs/tags/v-tree");
 }
+
+#[test]
+fn first_parents_only_leave_the_merged_side_out_and_end_its_line_in_an_arrow() {
+    let f = test_fixtures::diamond().unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let query = git_engine::CommitQuery {
+        first_parent: true,
+        ..visible(&["refs/heads/main", "HEAD"])
+    };
+
+    let chunks = search(&state, repo, &query);
+    let summaries: Vec<&str> = chunks
+        .iter()
+        .flat_map(|c| c.commits.iter().map(|r| r.summary.as_str()))
+        .collect();
+    let rows: Vec<_> = chunks.iter().flat_map(|c| &c.rows).collect();
+
+    assert_eq!(summaries, ["merge dev into main", "commit 2", "commit 0"]);
+    assert!(rows.iter().all(|row| row.lane == 0));
+    assert!(rows[0].segments.iter().any(|s| s.arrow));
+    assert!(
+        rows[1..]
+            .iter()
+            .all(|row| row.segments.iter().all(|s| !s.arrow))
+    );
+}

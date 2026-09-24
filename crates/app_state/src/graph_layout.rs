@@ -28,15 +28,17 @@ pub(crate) fn lay_out(
             .map(|c| graph_engine::CommitNode {
                 oid: c.oid.clone(),
                 parents: c.parents.clone(),
-                hidden: if flat {
-                    c.parents
-                        .iter()
-                        .filter(|parent| !handle.shown_by(query, parent))
-                        .cloned()
-                        .collect()
-                } else {
-                    Vec::new()
-                },
+                // First parents only: the merged side is not walked, so its line ends in an
+                // arrow as a filtered-out parent's does (R-161).
+                hidden: c
+                    .parents
+                    .iter()
+                    .enumerate()
+                    .filter(|(at, parent)| {
+                        (query.first_parent && *at > 0) || (flat && !handle.shown_by(query, parent))
+                    })
+                    .map(|(_, parent)| parent.clone())
+                    .collect(),
             })
             .collect();
         let rows = graph_engine::layout(&nodes, &mut cursor);
