@@ -55,7 +55,6 @@ pub enum GitError {
     #[error(transparent)]
     Command(Box<GitCommandError>),        // "command": ошибка CLI, Git Error Dialog
     RepoNotFound(String),                 // "repoNotFound"
-    RepoBusy(String),                     // "repoBusy": index.lock и подобное
     InvalidState(String),                 // "invalidState": detached HEAD там, где нужна ветка
     Io(String),                           // "io"
     Internal(String),                     // "internal"

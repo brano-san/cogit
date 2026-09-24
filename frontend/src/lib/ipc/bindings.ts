@@ -784,7 +784,7 @@ export type GitError =
  *  Boxed: it carries both streams, and an unboxed variant makes every `Result` in
  *  the crate as wide as the largest failure it could ever hold.
  */
-{ kind: "command"; data: GitCommandError } | { kind: "repoNotFound"; data: string } | { kind: "repoBusy"; data: string } | { kind: "invalidState"; data: string } | { kind: "io"; data: string } | { kind: "internal"; data: string } | 
+{ kind: "command"; data: GitCommandError } | { kind: "repoNotFound"; data: string } | { kind: "invalidState"; data: string } | { kind: "io"; data: string } | { kind: "internal"; data: string } | 
 /**  A submodule that cannot be opened, with the reason rather than "not a repository". */
 { kind: "moduleUnavailable"; data: ModuleProblem } | 
 /**  Git refused a config file's text; nothing was written. */
