@@ -1127,7 +1127,6 @@ dependencies = [
  "similar 3.2.0",
  "specta",
  "specta-typescript",
- "thiserror 2.0.20",
  "tree-sitter",
  "tree-sitter-cpp",
  "tree-sitter-typescript",

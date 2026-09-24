@@ -111,7 +111,6 @@ export type {
   KeyBinding,
   RebaseStep,
   RefDate,
-  ReflogEntry,
   ScanHit,
   ContentMatch,
   SearchChunk,

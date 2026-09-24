@@ -6,10 +6,15 @@ use app_state::{AppState, GraphChunk, RepoId};
 fn stream(state: &AppState, repo: RepoId, chunk_size: usize) -> Vec<GraphChunk> {
     let mut chunks = Vec::new();
     state
-        .stream_graph(repo, chunk_size, |chunk| {
-            chunks.push(chunk);
-            true
-        })
+        .search_graph(
+            repo,
+            &git_engine::CommitQuery::default(),
+            chunk_size,
+            |chunk| {
+                chunks.push(chunk);
+                true
+            },
+        )
         .unwrap();
     chunks
 }
@@ -125,7 +130,7 @@ fn refusing_a_chunk_stops_the_stream() {
     let mut seen = 0;
     let mut saw_last = false;
     state
-        .stream_graph(repo, 10, |chunk| {
+        .search_graph(repo, &git_engine::CommitQuery::default(), 10, |chunk| {
             seen += chunk.commits.len();
             saw_last |= chunk.is_last;
             false
@@ -139,7 +144,9 @@ fn refusing_a_chunk_stops_the_stream() {
 #[test]
 fn an_unknown_repository_is_reported_as_missing() {
     let state = AppState::new();
-    let result = state.stream_graph(RepoId(999), 10, |_| true);
+    let result = state.search_graph(RepoId(999), &git_engine::CommitQuery::default(), 10, |_| {
+        true
+    });
     assert!(result.is_err());
 }
 

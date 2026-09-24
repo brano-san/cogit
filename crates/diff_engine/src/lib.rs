@@ -183,12 +183,3 @@ pub enum FileDiff {
         checked_out: bool,
     },
 }
-
-#[derive(Debug, thiserror::Error, Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub enum DiffError {
-    #[error("failed to decode {path}")]
-    Decode { path: String },
-    #[error("internal error: {0}")]
-    Internal(String),
-}

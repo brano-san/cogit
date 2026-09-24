@@ -387,7 +387,6 @@ snake_case и читаются на фронтенде как `undefined`.
 
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
-| `list_all_repo_files` | `repo` | `Vec<String>` — tracked и untracked, без ignored | M6 |
 | `commit_tree_files` | `repo`, `rev` | `Vec<String>` — все файлы дерева коммита, отсортированы; подмодуль — одна запись | M6 |
 | `search_file_contents` | `repo`, `query`, `is_regex`, `scope`, `Channel<SearchChunk>` | `()` | M6 |
 | `list_submodules` | `repo`, `parent` (пусто — верхний уровень) | `Vec<Submodule>` | M3 |

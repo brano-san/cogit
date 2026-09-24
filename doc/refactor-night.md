@@ -619,7 +619,15 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
 
 ### Категории 3–6
 
-- [ ] D3-01…07, D3-09, B-22 мёртвый Rust
+- [x] D3-01…07, D3-09, B-22 мёртвый Rust
+  > Итог: польза: −118 строк и 4 команды из IPC-поверхности, которые никто не вызывал (одна
+  > из них, `diagnostics`, ещё и не собиралась вне Windows — B-22). Удалены: команды
+  > `reflog`, `submodules`, `list_all_repo_files`, `diagnostics` с регистрацией и обёртками
+  > в app_state; `with_secrets`, `SharedState`, `stream_graph`/`stream_commits` (их тесты
+  > переведены на эквивалентный `search_*(&CommitQuery::default())`); `DiffError` и ставшая
+  > лишней зависимость `thiserror` у diff_engine; строка в 04-ipc-contract. Не сделано:
+  > D3-04 (`pause`/`resume`) и D3-06 (`allows_commit`) — удаление потянуло бы их тесты, а
+  > тесты не удаляю; D3-09 (фичи tokio) — tauri включает их сам, сборка не выиграет.
 - [ ] F3-01…06, F3-08 мёртвый фронт
 - [ ] D4-01, 02, 05, 06, 08…12 дубли Rust
 - [ ] F4-04…10 дубли фронта
