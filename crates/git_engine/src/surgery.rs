@@ -210,12 +210,18 @@ fn nul_separated(listing: &str) -> Vec<String> {
 impl RepoHandle {
     /// True when rewriting the commit will cost a force-push and divergence for others.
     pub fn is_published(&self, rev: &str) -> Result<bool> {
+        if let Some(published) = self.published_in_process(rev) {
+            return Ok(published);
+        }
         Ok(!self.containing_remote_refs(rev)?.is_empty())
     }
 
     /// Every remote branch that already holds this commit. One graph walk per remote
     /// ref, so callers ask when the user acts, never on every selection.
     fn containing_remote_refs(&self, rev: &str) -> Result<Vec<String>> {
+        if self.no_remote_holds(rev) {
+            return Ok(Vec::new());
+        }
         let oid = self.rev_parse(rev)?;
         // Parsed in full: the journal's copy of a long listing is cut in the middle.
         let listed = self.read_git(&[

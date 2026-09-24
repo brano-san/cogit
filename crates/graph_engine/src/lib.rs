@@ -2,11 +2,12 @@ mod lanes;
 mod paint;
 mod view;
 
-pub use lanes::layout;
+pub use lanes::{finish, layout, push};
 pub use paint::{PAINT_DIM, PAINT_SLOT, Paint, PaintSpec, paint};
 pub use view::{Fold, ViewFilter};
 
 use serde::Serialize;
+use std::collections::{HashMap, HashSet, VecDeque};
 
 const LANE_COLORS: u8 = 8;
 
@@ -58,6 +59,16 @@ pub struct GraphRow {
     /// Columns used by the top edge, the node and the bottom edge together.
     pub width: u16,
     pub segments: Vec<Segment>,
+    /// Stubs standing for a link too long to draw whole (R-330), with the far end of each.
+    pub links: Vec<LongLink>,
+}
+
+/// `segments[segment]` is one stub of a cut link; `oid` is the commit at its other end.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct LongLink {
+    pub segment: u16,
+    pub oid: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -90,6 +101,13 @@ pub struct LayoutCursor {
     pub(crate) converging: Vec<u64>,
     pub(crate) leaving: Vec<u64>,
     pub(crate) middle: Vec<u64>,
+    /// Links longer than this many rows are cut into two stubs; 0 draws every link whole.
+    pub(crate) long_links: usize,
+    /// The next `long_links` commits, not placed yet: they decide whether a link is long.
+    pub(crate) pending: VecDeque<CommitNode>,
+    pub(crate) ahead: HashSet<String>,
+    /// A parent whose links were cut, and the children at their upper ends.
+    pub(crate) cut_into: HashMap<String, Vec<String>>,
 }
 
 impl LayoutCursor {
@@ -111,6 +129,13 @@ impl LayoutCursor {
             cursor.next_color = 1;
         }
         cursor
+    }
+
+    /// Cuts links longer than `rows` rows (R-330); rows then come out `rows` commits late.
+    #[must_use]
+    pub fn with_long_links(mut self, rows: u32) -> Self {
+        self.long_links = usize::try_from(rows).unwrap_or(usize::MAX);
+        self
     }
 
     pub(crate) fn take_color(&mut self) -> u8 {

@@ -450,7 +450,7 @@ describe("a lane leaving a node's column", () => {
 
 describe("row stripes", () => {
   it("stripes every second row, starting with the one under the Working Tree row", () => {
-    expect([0, 1, 2, 3].map(striped)).toEqual([false, true, false, true]);
+    expect([0, 1, 2, 3].map((row) => striped(row))).toEqual([false, true, false, true]);
   });
 
   it("fills a ring with the panel, and with the stripe on a striped row", () => {
@@ -462,5 +462,11 @@ describe("row stripes", () => {
     expect(nodeFill(3, null, 3).at(-1)).toBe("--state-hover");
     expect(nodeFill(3, 3, 3).at(-1)).toBe("--state-selected");
     expect(nodeFill(3, 5, 4)).toEqual(["--surface-panel", "--row-stripe"]);
+  });
+
+  it("stripes nothing, rings included, once the banding is switched off", () => {
+    expect([0, 1, 2, 3].map((row) => striped(row, false))).toEqual([false, false, false, false]);
+    expect(nodeFill(3, null, null, false)).toEqual(["--surface-panel"]);
+    expect(nodeFill(3, 3, null, false)).toEqual(["--surface-panel", "--state-selected"]);
   });
 });

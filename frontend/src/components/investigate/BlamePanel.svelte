@@ -133,7 +133,7 @@
     <p class="note error">{session.blameError}</p>
   {:else if tables}
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-    <div class="lines" tabindex="0" role="listbox" aria-label="Lines with their origin" {onkeydown}>
+    <div class="lines key-list" tabindex="0" role="listbox" aria-label="Lines with their origin" {onkeydown}>
       <VirtualList items={tables.lines} rowHeight={ROW} reveal={session.selectedLine}>
         {#snippet row(line: OriginLine, index: number)}
           {@const commit = commitOf(tables, line)}
@@ -278,7 +278,6 @@
     display: flex;
     flex: 1 1 auto;
     min-height: 0;
-    outline: none;
   }
 
   .line {

@@ -104,3 +104,24 @@ describe("resolving a file and opening the next before Git answers", () => {
     expect(conflicts.ours).toBe("b.txt");
   });
 });
+
+describe("the list after a mutation", () => {
+  it("takes the paths a status read already brought, asking nothing", async () => {
+    const { conflictedPaths } = await import("$lib/ipc");
+    vi.mocked(conflictedPaths).mockClear();
+
+    await conflicts.refresh(1 as never, ["b.txt", "c.txt"]);
+
+    expect(conflictedPaths).not.toHaveBeenCalled();
+    expect(conflicts.paths).toEqual(["b.txt", "c.txt"]);
+  });
+
+  it("still asks when nobody brought the list", async () => {
+    const { conflictedPaths } = await import("$lib/ipc");
+    vi.mocked(conflictedPaths).mockClear();
+
+    await conflicts.refresh(1 as never);
+
+    expect(conflictedPaths).toHaveBeenCalledTimes(1);
+  });
+});

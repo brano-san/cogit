@@ -133,8 +133,33 @@ impl RepoHandle {
             .map(drop)
     }
 
+    /// A folder moved to another disk keeps its index but not its files' stat data, so
+    /// every status reads each file again until git refreshes the index; git status would,
+    /// gix never writes it. Refreshed here, once, while the repair holds the queue.
     pub fn repair_worktree(&self, path: &str) -> Result<()> {
-        self.run_git(&["worktree", "repair", path]).map(drop)
+        self.run_git(&["worktree", "repair", path])?;
+        let started = std::time::Instant::now();
+        for folder in [std::path::Path::new(path), self.root()] {
+            let refreshed = RepoHandle::open_exact(folder).and_then(|handle| {
+                if handle.repo.is_bare() {
+                    return Ok(());
+                }
+                handle
+                    .run_git(&[
+                        "update-index",
+                        "-q",
+                        "--unmerged",
+                        "--ignore-submodules",
+                        "--refresh",
+                    ])
+                    .map(drop)
+            });
+            if let Err(err) = refreshed {
+                tracing::error!(error = ?err, context = "refresh the index after a worktree repair");
+            }
+        }
+        tracing::info!(elapsed = ?started.elapsed(), "worktree indexes refreshed after repair");
+        Ok(())
     }
 
     pub fn worktree_changes(&self, path: &str) -> Result<Vec<crate::FileEntry>> {
@@ -245,8 +270,8 @@ impl RepoHandle {
                 crate::Head::Unborn { .. } => {}
             }
         }
-        if let Ok(status) = handle.status() {
-            entry.dirty = !status.is_clean();
+        if let Ok(dirty) = handle.has_changes() {
+            entry.dirty = dirty;
         }
         entry
     }

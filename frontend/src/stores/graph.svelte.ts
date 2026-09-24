@@ -11,6 +11,7 @@ import {
 } from "$lib/ipc";
 import type { GraphBlock, GraphEntry } from "$lib/graph-wire";
 import { GRAPH_MODE_DEFAULTS, graphView } from "$lib/graph-modes";
+import { LONG_LINK_ROWS } from "$lib/graph-row";
 
 export type { GraphEntry };
 
@@ -59,6 +60,9 @@ class GraphStore {
 
   /** Graph modes that decide which commits are shown (#26), folded into every load. */
   view = $state.raw<GraphView>(graphView(GRAPH_MODE_DEFAULTS));
+  /** Links longer than this many rows are drawn as two stubs (R-330); 0 draws them whole.
+      Folded into every load, like the refs. */
+  longLinkRows = $state(LONG_LINK_ROWS);
 
   /** Asking twice for the same commit has to scroll twice, hence the counter. */
   reveal = $state.raw<{ oid: string; request: number } | null>(null);
@@ -164,7 +168,7 @@ class GraphStore {
           if (fresh === this.#shown) this.#publish();
           this.#ask(fresh);
         },
-        { ...query, visibleRefs: this.visibleRefs, view: this.view },
+        { ...query, visibleRefs: this.visibleRefs, view: this.view, longLinkRows: this.longLinkRows },
       );
       if (load === this.#loads) this.skipped = skipped ?? [];
       if (load === this.#loads && !fresh.complete && !(await this.#settle(fresh, load)) && retry) {
@@ -179,6 +183,15 @@ class GraphStore {
     } finally {
       if (load === this.#loads) this.loading = false;
     }
+  }
+
+  /** A new threshold lays the shown history out again. */
+  setLongLinkRows(rows: number): void {
+    const next = Math.max(Math.round(rows), 0);
+    if (next === this.longLinkRows) return;
+    this.longLinkRows = next;
+    const repo = this.#shown?.repo;
+    if (repo !== undefined) void this.load(repo, this.query);
   }
 
   clear(): void {

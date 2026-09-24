@@ -28,18 +28,29 @@
 {/if}
 
 <style>
+  /* As wide as the glyph, so the row's padding on the left and this margin on the right
+     are the only spaces around it and both are `--disclosure-side` (R-350). */
   .disclosure {
+    position: relative;
     display: inline-flex;
-    flex: 0 0 var(--disclosure-hit);
+    flex: 0 0 var(--disclosure-glyph);
     align-items: center;
     justify-content: center;
-    width: var(--disclosure-hit);
+    width: var(--disclosure-glyph);
     height: var(--disclosure-hit);
+    margin-right: calc(var(--disclosure-side) - var(--tree-gap));
     padding: 0;
     background: none;
     border: 0;
     color: var(--text-secondary);
     cursor: default;
+  }
+
+  /* The hit area keeps its width across both spaces; only the layout box shrank. */
+  button.disclosure::before {
+    content: "";
+    position: absolute;
+    inset: 0 calc(-1 * var(--disclosure-side));
   }
 
   button.disclosure:hover {

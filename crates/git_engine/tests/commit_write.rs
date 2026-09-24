@@ -225,3 +225,115 @@ fn an_empty_path_list_still_commits_everything_staged() {
 
     assert!(repo.worktree_files().unwrap().staged.is_empty());
 }
+
+// `rev-parse HEAD` after the commit was a second process, 40 ms on Windows (R-313).
+#[test]
+fn committing_starts_one_process_and_still_returns_the_new_oid() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::write(f.path().join("fresh.txt"), "new\n").unwrap();
+    f.git(&["add", "--", "fresh.txt"]).unwrap();
+    let commands = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let sink = std::sync::Arc::clone(&commands);
+    let repo = open(&f).with_journal(std::sync::Arc::new(move |out: git_engine::GitOutput| {
+        sink.lock().unwrap().push(out.command);
+    }));
+
+    let oid = repo.commit(&request("add fresh.txt")).unwrap();
+
+    assert_eq!(oid, f.oid("HEAD").unwrap());
+    let commands = commands.lock().unwrap();
+    assert_eq!(commands.len(), 1, "{commands:?}");
+    assert!(commands[0].contains(" commit "), "{commands:?}");
+}
+
+#[test]
+fn amending_returns_the_oid_of_the_amended_commit() {
+    let f = test_fixtures::linear(2).unwrap();
+    let before = f.oid("HEAD").unwrap();
+    let repo = open(&f);
+
+    let oid = repo
+        .commit(&CommitRequest {
+            amend: true,
+            ..request("reworded")
+        })
+        .unwrap();
+
+    assert_ne!(oid, before);
+    assert_eq!(oid, f.oid("HEAD").unwrap());
+}
+
+fn packs(f: &test_fixtures::Fixture) -> usize {
+    std::fs::read_dir(f.git_dir().join("objects/pack"))
+        .unwrap()
+        .flatten()
+        .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "pack"))
+        .count()
+}
+
+/// Two packs and a limit of one: the next `maintenance run --auto` consolidates them. The
+/// fixtures turn `gc.auto` off; any other value lets the pack limit count.
+fn due_for_maintenance() -> test_fixtures::Fixture {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&["config", "gc.auto", "6700"]).unwrap();
+    f.git(&["config", "gc.autoPackLimit", "1"]).unwrap();
+    f.git(&["config", "gc.autoDetach", "false"]).unwrap();
+    f.git(&["config", "maintenance.autoDetach", "false"])
+        .unwrap();
+    f.git(&["repack", "-q"]).unwrap();
+    std::fs::write(f.path().join("fresh.txt"), "new\n").unwrap();
+    f.git(&["-c", "core.bigFileThreshold=1", "add", "--", "fresh.txt"])
+        .unwrap();
+    assert!(packs(&f) >= 2, "{} packs", packs(&f));
+    f
+}
+
+fn packs_after(f: &test_fixtures::Fixture, wait: std::time::Duration) -> usize {
+    let deadline = std::time::Instant::now() + wait;
+    while packs(f) > 1 && std::time::Instant::now() < deadline {
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    packs(f)
+}
+
+// Git waited for its own `maintenance run --auto` before `commit` returned, 44 ms of every
+// commit; it now runs after the commit, off the user's wait (R-314).
+#[test]
+fn auto_maintenance_still_runs_after_a_commit() {
+    let f = due_for_maintenance();
+    let repo = open(&f);
+
+    repo.commit(&request("add fresh.txt")).unwrap();
+
+    assert_eq!(packs_after(&f, std::time::Duration::from_secs(30)), 1);
+}
+
+#[test]
+fn a_repository_with_auto_maintenance_off_gets_none() {
+    let f = due_for_maintenance();
+    f.git(&["config", "maintenance.auto", "false"]).unwrap();
+    let repo = open(&f);
+
+    repo.commit(&request("add fresh.txt")).unwrap();
+
+    assert!(packs_after(&f, std::time::Duration::from_secs(2)) >= 2);
+}
+
+#[test]
+fn the_commit_itself_skips_the_maintenance_it_would_wait_for() {
+    let f = due_for_maintenance();
+    let commands = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let sink = std::sync::Arc::clone(&commands);
+    let repo = open(&f).with_journal(std::sync::Arc::new(move |out: git_engine::GitOutput| {
+        sink.lock().unwrap().push(out.command);
+    }));
+
+    repo.commit(&request("add fresh.txt")).unwrap();
+
+    let first = commands.lock().unwrap()[0].clone();
+    assert!(
+        first.starts_with("git -c maintenance.auto=false commit "),
+        "{first}"
+    );
+    assert_eq!(packs_after(&f, std::time::Duration::from_secs(30)), 1);
+}

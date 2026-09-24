@@ -2,7 +2,8 @@ import { CogitError, type GitCommandError, type GitError, type GitOutput } from 
 import type { HealthAction, HealthPlace, HealthWarning } from "$lib/health";
 import { logLines } from "$lib/output-highlight";
 
-export type NoticeSeverity = "error" | "warning";
+/** `info` is how an operation the user started ended; it never counts as an error. */
+export type NoticeSeverity = "error" | "warning" | "info";
 
 /** One entry of the notification window: a failure, or something wrong with a repository. */
 export interface Notice {
@@ -130,8 +131,12 @@ export function pushError(errors: readonly Notice[], notice: Notice): Notice[] {
   return [{ ...notice, repeats: counted }, ...errors.filter((held) => held !== same)];
 }
 
-export function queueOf(errors: readonly Notice[], warnings: readonly Notice[]): Notice[] {
-  return [...errors, ...warnings];
+export function queueOf(
+  errors: readonly Notice[],
+  warnings: readonly Notice[],
+  results: readonly Notice[] = [],
+): Notice[] {
+  return [...errors, ...warnings, ...results];
 }
 
 export function placesShown(

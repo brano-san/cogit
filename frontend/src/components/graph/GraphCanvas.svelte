@@ -30,6 +30,11 @@
     hoverRow?: number | null;
     /** The lane drawn in front: the branch of the chosen commit. */
     focusLane?: number | null;
+    /** Where the graph area is cut so the row's right columns fit (#12); a fade marks it. */
+    clipX?: number;
+    stripes?: boolean;
+    /** Only to redraw when the density changes: geometry reads it from `GRAPH`. */
+    rowHeight?: number;
   }
 
   let {
@@ -42,6 +47,9 @@
     selectedRow = null,
     hoverRow = null,
     focusLane = null,
+    clipX = Number.POSITIVE_INFINITY,
+    stripes = true,
+    rowHeight = GRAPH.rowHeight,
   }: Props = $props();
 
   let canvas: HTMLCanvasElement | undefined = $state();
@@ -73,7 +81,7 @@
       return colours.get(name) ?? line;
     };
 
-    const edge = textX(GRAPH.maxColumns) - GRAPH.textGap;
+    const edge = Math.min(textX(GRAPH.maxColumns), clipX) - GRAPH.textGap;
     context.save();
     context.beginPath();
     context.rect(0, 0, edge, height);
@@ -137,7 +145,7 @@
         const { x, y } = nodeCentre(row.layout.lane, row.listRow, scrollTop);
         context.arc(x, y, GRAPH.ringRadius, 0, Math.PI * 2);
       }
-      for (const layer of nodeFill(row.listRow, selectedRow, hoverRow)) {
+      for (const layer of nodeFill(row.listRow, selectedRow, hoverRow, stripes)) {
         if (!fills.has(layer)) fills.set(layer, token(layer));
         context.fillStyle = fills.get(layer) ?? panel;
         context.fill();
@@ -151,13 +159,13 @@
     }
     context.restore();
 
-    // A row wider than the cap is cut off with a fade, not a hard edge.
-    if (rows.some((row) => row.layout.width > GRAPH.maxColumns)) {
+    // A row wider than the cap or the room left is cut off with a fade, not a hard edge.
+    if (rows.some((row) => laneX(row.layout.width - 1) + GRAPH.laneWidth / 2 > edge)) {
       const fade = context.createLinearGradient(edge - GRAPH.laneWidth, 0, edge, 0);
       fade.addColorStop(0, "transparent");
       fade.addColorStop(1, panel);
       context.fillStyle = fade;
-      context.fillRect(laneX(GRAPH.maxColumns - 1), 0, GRAPH.laneWidth, height);
+      context.fillRect(edge - GRAPH.laneWidth, 0, GRAPH.laneWidth, height);
     }
   }
 
@@ -169,6 +177,7 @@
   $effect(() => {
     // Theme, lane width and colour change the picture without changing the data.
     void [rows, scrollTop, width, height, dpr, firstCommitRow, headLane, selectedRow, hoverRow, focusLane];
+    void [clipX, stripes, rowHeight];
     void [settings.current.theme, settings.current.laneWidth, settings.current.coloredLanes];
     schedule();
     return () => cancelAnimationFrame(frame);

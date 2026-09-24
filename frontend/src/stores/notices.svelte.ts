@@ -15,13 +15,14 @@ import { untrack } from "svelte";
     first (doc/12-risks.md, R-178). */
 class NoticeStore {
   #errors = $state.raw<Notice[]>([]);
+  #results = $state.raw<Notice[]>([]);
   #key = $state<string | null>(null);
   #index = $state(0);
   #seq = 0;
   #loading = new Set<number>();
 
   get all(): Notice[] {
-    return queueOf(this.#errors, health.warnings.map(warningNotice));
+    return queueOf(this.#errors, health.warnings.map(warningNotice), this.#results);
   }
 
   get at(): number {
@@ -47,6 +48,24 @@ class NoticeStore {
       if (!cogit) return;
       this.#seq += 1;
       this.#queueError(errorNotice(cogit, title, this.#seq));
+    });
+  }
+
+  /** How an operation ended, behind every error and warning; shown when nothing else is. */
+  inform(title: string, body: string): void {
+    untrack(() => {
+      this.#seq += 1;
+      const notice: Notice = {
+        key: `info:${this.#seq}`,
+        severity: "info",
+        title,
+        body,
+        report: `${title}\n${body}`,
+        repeats: 1,
+      };
+      const shown = this.current;
+      this.#results = [...this.#results, notice];
+      if (!shown) this.#key = notice.key;
     });
   }
 
@@ -85,6 +104,8 @@ class NoticeStore {
     const at = this.at;
     if (current.severity === "error") {
       this.#errors = this.#errors.filter((held) => held.key !== current.key);
+    } else if (current.severity === "info") {
+      this.#results = this.#results.filter((held) => held.key !== current.key);
     } else if (current.warning) {
       health.remindLater(current.warning);
     }
@@ -101,6 +122,7 @@ class NoticeStore {
 
   dismissAll(): void {
     this.#errors = [];
+    this.#results = [];
     this.#key = null;
     this.#index = 0;
   }

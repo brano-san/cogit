@@ -10,7 +10,6 @@ class ToolbarStore {
   merged = $state<boolean | undefined>(undefined);
   prefs = $state.raw<ToolbarPrefs>({ ...DEFAULT_PREFS });
   layout = $state.raw<string[]>([...DEFAULT_LAYOUT]);
-  configuring = $state(false);
   #asked = 0;
 
   /** Stale replies lose; a failed question offers the merge and lets Git say why. */

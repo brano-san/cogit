@@ -61,7 +61,16 @@ export const commands = {
 	diffFile: (repo: RepoId, spec: DiffSpec, path: string, options: DiffOptions) => typedError<FileDiff, GitError>(__TAURI_INVOKE("diff_file", { repo, spec, path, options })),
 	worktreeFiles: (repo: RepoId, view: WorktreeView) => typedError<WorktreeFiles, GitError>(__TAURI_INVOKE("worktree_files", { repo, view })),
 	repoStatus: (repo: RepoId) => typedError<RepoStatus, GitError>(__TAURI_INVOKE("repo_status", { repo })),
+	/**  The counters and the conflicted paths from one read, for the refresh after a mutation. */
+	workingState: (repo: RepoId) => typedError<WorkingState, GitError>(__TAURI_INVOKE("working_state", { repo })),
+	/**  Refs and state without reopening the repository, for the refresh after a commit. */
+	repoRefs: (repo: RepoId) => typedError<RepoRefs, GitError>(__TAURI_INVOKE("repo_refs", { repo })),
 	stagePaths: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("stage_paths", { repo, paths })),
+	/**
+	 *  Stage all: every change git sees, not a path list (doc/12-risks.md, R-311). `files` is
+	 *  how many rows the list showed, which decides how the blobs are written (R-312).
+	 */
+	stageAll: (repo: RepoId, files: number) => typedError<null, GitError>(__TAURI_INVOKE("stage_all", { repo, files })),
 	unstagePaths: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("unstage_paths", { repo, paths })),
 	discardPaths: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("discard_paths", { repo, paths })),
 	commit: (repo: RepoId, request: CommitRequest) => typedError<string, GitError>(__TAURI_INVOKE("commit", { repo, request })),
@@ -135,7 +144,8 @@ export const commands = {
 	 *  async workers that carry IPC.
 	 */
 	repositories: () => typedError<RepoOverview[], GitError>(__TAURI_INVOKE("repositories")),
-	closeRepository: (repo: RepoId) => typedError<boolean, GitError>(__TAURI_INVOKE("close_repository", { repo })),
+	/**  Answers with the repositories left open, which the caller would otherwise ask for next. */
+	closeRepository: (repo: RepoId) => typedError<RepoOverview[], GitError>(__TAURI_INVOKE("close_repository", { repo })),
 	updateSubmodule: (repo: RepoId, path: string, init: boolean) => typedError<null, GitError>(__TAURI_INVOKE("update_submodule", { repo, path, init })),
 	/**  Empty `paths` means every submodule, for Initialize and Synchronize only. */
 	submoduleOp: (repo: RepoId, op: SubmoduleOp, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("submodule_op", { repo, op, paths })),
@@ -270,12 +280,12 @@ export const commands = {
 	reportTiming: (label: string, ms: number, detail: string) => __TAURI_INVOKE<void>("report_timing", { label, ms, detail }),
 	reportMemory: (sample: RendererMemory) => __TAURI_INVOKE<void>("report_memory", { sample }),
 	/**
-	 *  The webview's own log lines, into the same file.
+	 *  The webview's own log lines, into the same file, in batches.
 	 * 
 	 *  A JS error that only reaches the devtools console dies with the renderer — which is
 	 *  exactly the moment it was worth keeping.
 	 */
-	logFromFrontend: (level: string, message: string, context: string) => __TAURI_INVOKE<void>("log_from_frontend", { level, message, context }),
+	logFromFrontend: (lines: WebviewLogLine[]) => __TAURI_INVOKE<void>("log_from_frontend", { lines }),
 	/**
 	 *  Answered by the page to show it is still running while a close is pending.
 	 * 
@@ -294,6 +304,9 @@ export const commands = {
 	searchFileContents: (repo: RepoId, query: string, isRegex: boolean, scope: SearchScope, onChunk: Channel<SearchChunk>) => typedError<null, GitError>(__TAURI_INVOKE("search_file_contents", { repo, query, isRegex, scope, onChunk })),
 	/**  The submodules directly under `parent`; empty `parent` means the top level. */
 	listSubmodules: (repo: RepoId, parent: string) => typedError<Submodule[], GitError>(__TAURI_INVOKE("list_submodules", { repo, parent })),
+	submoduleOutline: (root: string, parent: string) => typedError<Submodule[], GitError>(__TAURI_INVOKE("submodule_outline", { root, parent })),
+	repoPulse: (root: string) => typedError<RepoPulse, GitError>(__TAURI_INVOKE("repo_pulse", { root })),
+	backgroundFetch: (root: string) => typedError<null, GitError>(__TAURI_INVOKE("background_fetch", { root })),
 	/**
 	 *  Opens a submodule from its node in the tree: the panels follow it, the Repositories
 	 *  panel does not gain an entry for it (doc/12-risks.md, R-109).
@@ -547,6 +560,8 @@ export type CommitQuery = {
 	visibleRefs?: string[] | null,
 	/**  How the graph shows the walked history; a filtered list ignores it. */
 	view?: GraphView,
+	/**  Not a filter: how the graph this load lays out cuts long links (R-330). */
+	longLinkRows?: number | null,
 };
 
 export type CommitRequest = {
@@ -873,6 +888,8 @@ export type GraphRow = {
 	/**  Columns used by the top edge, the node and the bottom edge together. */
 	width: number,
 	segments: Segment[],
+	/**  Stubs standing for a link too long to draw whole (R-330), with the far end of each. */
+	links: LongLink[],
 };
 
 /**  Graph modes that decide which commits the graph shows (`graph_engine::ViewFilter`). */
@@ -1003,6 +1020,12 @@ export type LineVersion = {
 	/**  Where the line stood in that version, from 1. */
 	line: number,
 	text: string,
+};
+
+/**  `segments[segment]` is one stub of a cut link; `oid` is the commit at its other end. */
+export type LongLink = {
+	segment: number,
+	oid: string,
 };
 
 /**
@@ -1287,6 +1310,26 @@ export type RepoOverview = {
 	state: RepoState,
 };
 
+export type RepoPulse = {
+	missing: boolean,
+	branch: string | null,
+	/**  HEAD's branch has an upstream and its remote-tracking ref exists locally. */
+	tracked: boolean,
+	ahead: number,
+	behind: number,
+	/**  Tracked files, staged changes, conflicts; untracked ones take a directory walk. */
+	dirty: boolean,
+};
+
+/**  What a commit moves besides the counters: the refs and the operation state (R-316). */
+export type RepoRefs = {
+	head: Head,
+	branches: Branch[],
+	tags: Tag[],
+	state: RepoState,
+	indexLock: string | null,
+};
+
 export type RepoSetting = {
 	key: string,
 	/**  Set in this repository's config (`.git/config`, or `config.worktree`). */
@@ -1466,7 +1509,9 @@ export type SubmoduleState = "notInitialised" | "inSync" |
 /**  Neither contains the other; only a person can decide which side wins. */
 "diverged" | 
 /**  The recorded commit is not in the submodule, so where it stands cannot be told. */
-"unknown";
+"unknown" | 
+/**  Checked out, and not looked into: the outline of a repository not on screen (R-352). */
+"unread";
 
 export type SubtreeOp = { kind: "add"; prefix: string; repository: string; reference: string; squash: boolean } | 
 /**  `git subtree pull` from `repository`, or `git subtree merge` of a local commit. */
@@ -1508,7 +1553,24 @@ export type TodoEntry = {
 	message: string | null,
 };
 
+/**
+ *  One line of the webview's log. `message` starts with the webview's own `+Nms`: a
+ *  batch lands at once, so the file's timestamp is when it arrived, not when it was said.
+ */
+export type WebviewLogLine = {
+	level: string,
+	message: string,
+	context: string,
+};
+
 export type Whitespace = "none" | "trailing" | "all";
+
+/**  The counters and the conflicted paths, from one read of the status (R-316). */
+export type WorkingState = {
+	status: RepoStatus,
+	/**  Sorted, each path once — what `conflicted_paths` lists. */
+	conflicted: string[],
+};
 
 /**  One checkout: the main one cannot be removed, a linked one can be locked or left behind. */
 export type WorktreeEntry = {

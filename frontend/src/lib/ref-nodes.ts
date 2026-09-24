@@ -173,7 +173,7 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
     oid: headOid,
   });
 
-  const held = worktreeMarks(input.worktrees ?? []);
+  const held = worktreeMarks(input.worktrees ?? [], input.branches);
   const locals = input.branches
     .filter((branch) => branch.kind === "local")
     .map<RefNode>((branch) => ({

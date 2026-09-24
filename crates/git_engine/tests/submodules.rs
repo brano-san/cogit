@@ -335,3 +335,52 @@ fn an_uninitialised_submodule_has_no_repository_state() {
 
     assert_eq!(module.repo_state, None);
 }
+
+// The tree of a repository that is not on screen (R-352): `.gitmodules` and the gitlinks,
+// nothing read from inside the submodules.
+#[test]
+fn an_outline_lists_a_submodule_without_looking_inside_it() {
+    let f = test_fixtures::with_submodule().unwrap();
+
+    let modules = open(&f).submodule_outline().unwrap();
+
+    assert_eq!(modules.len(), 1);
+    let module = &modules[0];
+    assert_eq!(module.path, "vendor/lib");
+    assert!(!module.url.is_empty());
+    assert_eq!(module.recorded, f.oid("HEAD:vendor/lib").unwrap());
+    assert_eq!(module.state, SubmoduleState::Unread);
+    assert!(module.checked_out.is_none());
+    assert!(module.branch.is_none() && module.subject.is_none());
+    assert!(!module.nested);
+}
+
+#[test]
+fn an_outline_tells_an_uninitialised_submodule() {
+    let f = test_fixtures::with_submodule().unwrap();
+    f.git(&["submodule", "deinit", "-f", "--", "vendor/lib"])
+        .unwrap();
+
+    let modules = open(&f).submodule_outline().unwrap();
+
+    assert_eq!(modules[0].state, SubmoduleState::NotInitialised);
+}
+
+#[test]
+fn an_outline_knows_which_submodules_have_their_own() {
+    let f = test_fixtures::with_nested_submodule().unwrap();
+
+    let top = open(&f).submodule_outline().unwrap();
+    assert!(top[0].nested);
+
+    let middle = RepoHandle::open_exact(&f.path().join("vendor/middle")).unwrap();
+    let deep = middle.submodule_outline().unwrap();
+    assert_eq!(deep[0].path, "deep/inner");
+    assert!(!deep[0].nested);
+}
+
+#[test]
+fn an_outline_of_a_repository_without_submodules_is_empty() {
+    let f = test_fixtures::linear(2).unwrap();
+    assert!(open(&f).submodule_outline().unwrap().is_empty());
+}

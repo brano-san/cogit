@@ -343,3 +343,26 @@ describe("clearing the graph", () => {
     expect(graph.skipped).toEqual([]);
   });
 });
+
+describe("long links", () => {
+  const sent = () => commands.loadCommits.mock.calls.at(-1)?.[1] as { longLinkRows?: number } | undefined;
+
+  it("asks for them to be cut with every load", async () => {
+    await loaded(A, ["a"]);
+
+    expect(sent()?.longLinkRows).toBe(graph.longLinkRows);
+  });
+
+  it("lays the history out again when the threshold changes, and only then", async () => {
+    await loaded(A, ["a", "b"]);
+    const before = commands.loadCommits.mock.calls.length;
+
+    graph.setLongLinkRows(graph.longLinkRows);
+    expect(commands.loadCommits.mock.calls.length).toBe(before);
+
+    graph.setLongLinkRows(0);
+    expect(commands.loadCommits.mock.calls.length).toBe(before + 1);
+    expect(sent()?.longLinkRows).toBe(0);
+    graph.setLongLinkRows(40);
+  });
+});
