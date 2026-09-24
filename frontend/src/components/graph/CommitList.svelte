@@ -348,7 +348,8 @@
             oncontextmenu={(event) => {
               if (!oncontext) return;
               event.preventDefault();
-              void pick(repository.current?.repo ?? (0 as unknown as RepoId), item.entry.commit.oid);
+              const repo = repository.current?.repo;
+              if (repo !== undefined) void pick(repo, item.entry.commit.oid);
               oncontext(item.entry.commit.oid, event.clientX, event.clientY);
             }}
             ondrop={(event) => {
@@ -367,7 +368,8 @@
                     event.preventDefault();
                     event.stopPropagation();
                     const oid = item.entry.commit.oid;
-                    void pick(repository.current?.repo ?? (0 as unknown as RepoId), oid);
+                    const repo = repository.current?.repo;
+                    if (repo !== undefined) void pick(repo, oid);
                     onrefcontext(label, oid, event.clientX, event.clientY);
                   })}
               />
