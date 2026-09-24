@@ -60,6 +60,13 @@ class CommitStore {
     this.onchange?.();
   }
 
+  /** The graph's Working Tree row: Files and Diff go back to the working tree, whatever
+      they showed — a commit, or a stash picked in References, which no commit change ends. */
+  showWorkingTree(): void {
+    this.onchange?.();
+    this.clear();
+  }
+
   clear(): void {
     this.#generation += 1;
     this.oid = null;
