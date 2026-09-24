@@ -488,7 +488,15 @@ ST src-tauri, FS сторы и lib фронта, FA App.svelte/окна/layout, 
   > скрипт с `'''` и `\d` читаются обратно как были; AS-2-16 noreply-адрес, уже известный
   > кэшу, больше не переписывает index.json на каждой прокрутке; AS-2-17 bash для терминала
   > Git Bash — рядом с `git-bash.exe`, найденным `find_git_bash` (`terminal::bash_of`).
-- [ ] 2.17 AS-2-14, AS-2-15: фикстуры — remote вне дерева, глобальный конфиг
+- [x] 2.17 AS-2-14, AS-2-15: фикстуры — remote вне дерева, глобальный конфиг
+  > Итог: AS-2-14: bare-remote и второй клон `with_remote` — во вспомогательном TempDir
+  > рядом с репозиторием; тест «a repository with a remote starts clean» (красный до
+  > правки), весь воркспейс зелёный. AS-2-15 — на решение: код под тестом читает глобальный
+  > конфиг разработчика; задать `GIT_CONFIG_GLOBAL`/`GIT_CONFIG_NOSYSTEM` на весь прогон
+  > можно только setup-скриптом nextest (экспериментальная возможность) — в процессе теста
+  > `set_var` запрещён (`unsafe_code = deny`), а `.cargo/config.toml [env]` задел бы и
+  > `cargo run` приложения. Строка crates/CLAUDE.md верна: там речь о git-вызовах самих
+  > фикстур.
 - [ ] 2.18 AS-2-18, 19, 20, 21: tsx, перемещения, хуки вне корня, word-diff длинных строк
 - [ ] 2.19 ST-2-*: src-tauri (меню дочерних окон, акселераторы, Return, раскладка, AltGr,
   GPU-сбой, выход, лог, command_log, build.rs, window-state, debug-конфиг, автоповтор)
