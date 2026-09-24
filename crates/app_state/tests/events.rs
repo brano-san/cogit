@@ -111,6 +111,31 @@ async fn a_subscriber_that_falls_behind_recovers_instead_of_dying() {
     );
 }
 
+// The webview forwarder read with `while let Ok(..)`, so the first lag ended it for the
+// rest of the session: no more repository changes, operations or recorded commands.
+#[tokio::test]
+async fn a_forwarding_loop_keeps_going_after_it_falls_behind() {
+    let state = AppState::new();
+    let mut slow = state.subscribe();
+
+    for _ in 0..600 {
+        state.emit(AppEvent::RepoOpened {
+            repo: app_state::RepoId(1),
+        });
+    }
+
+    assert!(app_state::next_event(&mut slow).await.is_some());
+}
+
+#[tokio::test]
+async fn a_forwarding_loop_ends_when_the_bus_is_gone() {
+    let state = AppState::new();
+    let mut rx = state.subscribe();
+    drop(state);
+
+    assert!(app_state::next_event(&mut rx).await.is_none());
+}
+
 #[tokio::test]
 async fn one_slow_subscriber_does_not_stop_another() {
     let state = AppState::new();
