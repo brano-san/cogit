@@ -368,14 +368,23 @@
       <button type="button" title="Select every changed line of this block" onclick={() => pickBlock(block)}
         >Select</button
       >
-      <button type="button" title="Stage this block" onclick={() => applyBlock(block, false)}>Stage</button>
-      <button type="button" title="Unstage this block" onclick={() => applyBlock(block, true)}
-        >Unstage</button
+      <button
+        type="button"
+        title="Stage this block"
+        disabled={!diffStore.lineActions.stage}
+        onclick={() => applyBlock(block, false)}>Stage</button
+      >
+      <button
+        type="button"
+        title="Unstage this block"
+        disabled={!diffStore.lineActions.unstage}
+        onclick={() => applyBlock(block, true)}>Unstage</button
       >
       <button
         type="button"
         class="danger"
         title="Throw this block away (always asks first)"
+        disabled={!diffStore.lineActions.discard}
         onclick={() => askDiscard(blockKeys(unified, block), "this block")}>Discard</button
       >
     </span>
@@ -431,16 +440,20 @@
       >
       {#if stageable}
         <span class="picked tabular">{selected.size ? `${selected.size} selected` : ""}</span>
-        <button type="button" disabled={selected.size === 0} onclick={() => apply(false)}
-          >Stage lines</button
+        <button
+          type="button"
+          disabled={selected.size === 0 || !diffStore.lineActions.stage}
+          onclick={() => apply(false)}>Stage lines</button
         >
-        <button type="button" disabled={selected.size === 0} onclick={() => apply(true)}
-          >Unstage lines</button
+        <button
+          type="button"
+          disabled={selected.size === 0 || !diffStore.lineActions.unstage}
+          onclick={() => apply(true)}>Unstage lines</button
         >
         <button
           type="button"
           class="danger"
-          disabled={selected.size === 0}
+          disabled={selected.size === 0 || !diffStore.lineActions.discard}
           title="Throw the selected lines away (always asks first)"
           onclick={() => askDiscard(new Set(selected), `${selected.size} selected lines`)}
           >Discard lines</button
@@ -725,8 +738,14 @@
     border-color: var(--status-modify);
   }
 
-  .bar button:hover {
+  .bar button:hover:not(:disabled) {
     background: var(--state-hover);
+  }
+
+  /* 06 §6: a control that cannot act says so, and does not light up under the pointer. */
+  .bar button:disabled,
+  .acts button:disabled {
+    opacity: 0.4;
   }
 
   .scroll {
@@ -808,7 +827,7 @@
     cursor: default;
   }
 
-  .acts button:hover {
+  .acts button:hover:not(:disabled) {
     color: var(--text-primary);
   }
 

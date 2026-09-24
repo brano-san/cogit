@@ -43,7 +43,7 @@ class DiffStore {
   #repo: RepoId | null = null;
   /** The file `diff` belongs to. `path` and `spec` move to the next file at once; this
       stays with the lines on screen until that file's diff arrives. */
-  #shown = $state.raw<{ repo: RepoId; path: string } | null>(null);
+  #shown = $state.raw<{ repo: RepoId; path: string; spec: DiffSpec } | null>(null);
 
   /** The file the lines on screen belong to; `path` is the one asked for last. */
   get shownPath(): string | null {
@@ -63,6 +63,18 @@ class DiffStore {
   /** Lines kept around a change when the view folds a diff that carries the whole file. */
   get foldContext(): number {
     return settings.diffOptions.contextLines;
+  }
+
+  /** Which of the line actions make sense on the side of the index on screen: the
+      working tree against the index stages and discards, the index against HEAD only
+      unstages. The patch is cut from this diff, so on the other side it means other lines. */
+  get lineActions(): { stage: boolean; unstage: boolean; discard: boolean } {
+    const kind = this.spec?.kind;
+    return {
+      stage: kind === "workTreeVsIndex",
+      unstage: kind === "indexVsHead",
+      discard: kind === "workTreeVsIndex",
+    };
   }
 
   get stageable(): boolean {
@@ -98,7 +110,7 @@ class DiffStore {
       if (generation !== this.#generation) return;
       this.diff = result;
       this.images = images ?? [null, null];
-      this.#shown = { repo, path };
+      this.#shown = { repo, path, spec };
     } catch (err) {
       if (generation !== this.#generation) return;
       this.diff = null;
@@ -129,6 +141,8 @@ class DiffStore {
     const shown = this.#shown;
     if (shown === null || this.diff?.kind !== "text") return;
     if (from !== undefined && from !== this.diff) return;
+    // Discard reverses the patch in the working tree: only lines of that diff can go.
+    if (shown.spec.kind !== "workTreeVsIndex") return;
     const { deletes, inserts } = splitSelection(selected);
     if (deletes.length === 0 && inserts.length === 0) return;
 
