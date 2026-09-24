@@ -412,7 +412,9 @@ ST src-tauri, FS сторы и lib фронта, FA App.svelte/окна/layout, 
   > Итог: патч коммита с родителем тоже через plumbing `diff-tree -p`, как уже было для
   > корневого; тест с `diff.noprefix` и `color.ui=always` в tests/file_ops.rs (красный до
   > правки).
-- [ ] 2.6 GE-2-09: split_off не выпрямляет merge
+- [x] 2.6 GE-2-09: split_off не выпрямляет merge
+  > Итог: rebase после разделения идёт с `--rebase-merges`; тест «a merge after the split
+  > commit stays a merge» (красный до правки).
 - [ ] 2.7 GE-2-10: surgery читает через read_git
 - [ ] 2.8 GE-2-11: ожидаемые отказы проверок — мимо журнала
 - [ ] 2.9 GE-2-12, GE-2-13, GE-2-14: lost commits — теги, reflog веток, shallow

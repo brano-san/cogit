@@ -69,7 +69,8 @@ impl RepoHandle {
         }
 
         let tip = self.rev_parse("HEAD")?;
-        self.run_git(&["rebase", "--onto", &tip, target, branch])
+        // Without --rebase-merges every merge after `target` comes back flattened.
+        self.run_git(&["rebase", "--rebase-merges", "--onto", &tip, target, branch])
             .map(drop)
     }
 

@@ -348,3 +348,23 @@ fn a_file_with_a_non_ascii_name_can_be_split_off() {
         )
         .unwrap();
 }
+
+// The branch was rebased onto the split without --rebase-merges: every merge after the
+// split commit was flattened into a line.
+#[test]
+fn a_merge_after_the_split_commit_stays_a_merge() {
+    let f = wide();
+    let target = f.oid("HEAD").unwrap();
+    f.git(&["switch", "-q", "-c", "side"]).unwrap();
+    f.commit_file(3, "side.txt", "side\n").unwrap();
+    f.git(&["switch", "-q", "-"]).unwrap();
+    f.commit_file(4, "main.txt", "main\n").unwrap();
+    f.merge(5, &["side"], "merge side").unwrap();
+
+    open(&f)
+        .split_off(&target, &["a.txt".to_owned()], "split: a", true)
+        .unwrap();
+
+    let merges = f.git(&["rev-list", "--merges", "--count", "HEAD"]).unwrap();
+    assert_eq!(merges.trim(), "1");
+}
