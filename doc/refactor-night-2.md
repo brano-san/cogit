@@ -675,3 +675,171 @@ ST src-tauri, FS сторы и lib фронта, FA App.svelte/окна/layout, 
   > вынос логики из разметки, отдельная работа.
 
 ## Фаза 3 — итог
+
+- [x] Полный прогон тестов после правок
+  > Итог: всё зелёное. nextest 1742 (было 1678, +64), 1 пропущен, как и в базе; cogitlib
+  > 108 (было 103); vitest 1726 в 131 файле (было 1671); svelte-check и clippy
+  > `-D warnings` чистые. Ни один тест не удалён и не ослаблен.
+- [x] Бенчмарк: A/B `night-final` против `night2-final` в одной сессии
+  > Итог: 6 раундов, все наборы (`night2-ab`, 36,9 мин): 84 сценария `same`, один `SLOWER` —
+  > `changes.stage-all|dirty` 420,3 → 445,7 мс (×1,06, [1,038; 1,09]). Коммит-виновник найден в
+  > партии 24.09 (g2, R-310): `commitScope` звал `visible.includes()` на каждый staged-файл —
+  > ≈4 млн сравнений и ≈14 мс главного потока на каждое перечитывание списка, пришло вместе с
+  > `onshownstaged` этой итерации. Не откатывал, а исправил (`Set`, `e375350`, в ветке
+  > `tasks/2026-09-24`): откат убрал бы и исправленное вместе с `onshownstaged`. A/B после правки:
+  > 403,7 → 374,4 мс против `night2-final`, против `night-final` — `same` (366,4 → 372,8).
+- [x] Итоговые таблицы
+
+### По категориям
+
+«Исправлено» — с коммитом; «не сделано» — с причиной в шаге фазы 2; «решение» — ниже;
+«не подтвердилось» — проверено тестом или кодом, ошибки нет; «дубль» — та же находка у
+другого агента, посчитана один раз.
+
+| Категория | Найдено | Исправлено | Не сделано | На решение | Не подтвердилось | Дубль |
+|---|---|---|---|---|---|---|
+| 1. Гонки | 24 | 22 | 0 | 1 | 0 | 1 |
+| 2. Баги и несостыковки | 116 (+1 новая по ходу) | 78 | 20 | 11 | 3 | 4 |
+| 3. Неиспользуемое | 20 | 15 | 4 | 0 | 0 | 1 |
+| 4. Дубли | 19 | 7 | 10 | 2 | 0 | 0 |
+| 5. Упрощение | 10 | 1 | 9 | 0 | 0 | 0 |
+| 6. Модули | 8 | 3 | 5 | 0 | 0 | 0 |
+
+Коммитов в итерации: 122 — 82 `fix`, 20 `refactor`, 3 `test`, 17 документов и плана.
+
+### Найденные баги — по коммитам
+
+Каждый `fix` — с тестом, который падал до правки, кроме отмеченных «без теста» (там
+правка в разметке App или компонента, а эффекты Svelte в тестовой среде не выполняются —
+см. шаг 2.20).
+
+- `a6e105e` fix(hooks): installing a preset and dry-running a hook wait for the repository lane
+- `c1d549c` fix(network): reach the keyring off the async IPC workers
+- `b0cb76a` fix(app_state): reading a commit no longer silences the watcher and drops cached rows
+- `fbb2537` fix(stash): a rename that fails part way stores back every entry it dropped
+- `a7d7e65` fix(stores): a write that finishes after the panels left its repository reads nothing back into them
+- `a3d4aae` fix(graph): a key press waits for the block a scroll is already fetching
+- `86d0971` fix(diff): lines chosen in one diff are never thrown away in the next file
+- `cf81aae` fix(submodules): a re-read keeps a node opened meanwhile and the newest answer wins
+- `5e17ab5` fix(network): each network operation keeps its own status, and the first to finish no longer blanks the other
+- `c012b2a` fix(conflicts): resolving one file no longer closes the next one opened meanwhile
+- `9dc1671` fix(investigate): the newest log re-read wins, so Follow shows what it says
+- `4e23719` fix(app): questions and editors about a repository close when the panels leave it
+- `14a43c8` fix(app): a Sync keeps the remotes it started with, and slow operations stop reloading the next repository
+- `a23f1b8` fix(repository): a change that arrives during a re-read gets a re-read of its own
+- `7ea5816` fix(find): an emptied or replaced search no longer leaves Find Object searching
+- `d374aca` fix(app): stale marks of the repository left behind are dropped with it — без теста
+- `58ae1f5` fix(commit): the commit template of the repository left behind no longer seeds the next one's draft — без теста
+- `5b5ceda` fix(diff): line patches follow the way they are applied, mark each missing newline and use /dev/null only for a missing file
+- `535f6d2` fix(git): the rest of the commands that take a picked file treat its name literally, and commit --only fits any list
+- `f2104ac` fix(rebase): messages of several lines, untouched squash messages and merges in the range no longer break an interactive rebase
+- `1bc168b` fix(ignore): Ignore keeps a .gitignore in another encoding and ignores exactly the picked file
+- `40e6723` fix(file-ops): applying one file of a commit no longer depends on the user's diff settings
+- `3411290` fix(split): splitting a commit keeps the merges that come after it
+- `1fce10d` fix(split): the file list of a commit is read whole, so names that look like secrets or long listings no longer break it
+- `b56ce4b` fix(git): asking whether a branch exists or a file is tracked no longer records a failed command
+- `8caa60f` fix(recovery): a commit that only a tag holds is no longer listed as lost
+- `95585b1` fix(worktrees): a worktree of a bare repository lists the bare one as main, not itself twice
+- `2562523` fix(hooks): ~ in hook and template paths is the home folder, and a dry run no longer hands the hook an inherited GIT_DIR
+- `28402c6` fix(flow): finishing a release again after a conflict no longer stops on its own tag
+- `570e74a` fix(tags): renaming an annotated tag keeps its message to the letter
+- `9cb2cb5` fix(rebase): progress counts the commits done as it counts the ones left
+- `e09f320` fix(commit): the rename percentage is the similarity gix accepted the pair by, as git reports it
+- `e3dde29` fix(runner): a failed byte read is journalled under the number its error gives
+- `fb146b2` fix(stash): a stash keeps git's own number when an entry above it cannot be shown
+- `0370bbf` fix(network): delta compression is recognised as a phase whatever the thread count
+- `d977bdd` fix(diff): files that differ only in bytes that are not UTF-8 no longer read as unchanged
+- `2379544` fix(diff): Ignore all whitespace ignores it where the other line has none, as git diff -w does
+- `fae9566` fix(diff): only a real SVG document or bitmap header makes a file an image
+- `e217e65` fix(diff): lines of a file that is not UTF-8 are no longer staged with stand-ins for its bytes
+- `ccb4227` fix(undo): an operation that stopped on a conflict, and a pull, can be undone once finished
+- `de5be65` fix(undo): undoing a forced worktree removal brings the worktree back with its changes, not into the owner's tree
+- `008232e` fix(log): the avatar cache's warnings reach the log
+- `9dc77d1` fix(settings): a settings file saved with a byte-order mark is no longer treated as damaged
+- `9547ec9` fix(presets): a preset of the user's own is written by the TOML library, so any name and script read back
+- `b501f1f` fix(avatars): a noreply address already known no longer rewrites the cache index on every scroll
+- `1092f17` fix(terminal): Git Bash opens from the install the Git Shell item finds, a per-user one included
+- `3959bb6` fix(fixtures): the remote of a fixture lives beside its repository, which now starts clean
+- `a19f83c` fix(merge): a .tsx file is parsed with the grammar that knows JSX, so its merges can settle
+- `a554f25` fix(diff): one inserted block ends one move, not every deleted copy of it
+- `d78f3ce` fix(diff): check paired insertions only as far as the matching run reaches — результат тот же, что у min(run, free); уточнение a554f25 под его тестом
+- `63decad` fix(watcher): hooks in a git directory outside the root, a submodule's or a worktree's common one, are watched
+- `aa6518f` fix(webview): only a lost renderer reloads the page, not a GPU or utility process WebView2 restarts itself
+- `f972796` fix(output): the command log is read off the thread that paints the window
+- `468789f` fix(config): the debug overlay repeats every field of the main window, and the crash test names today's log file
+- `f4caf1b` fix(keys): a character typed with AltGr is no longer taken for a Ctrl+Alt shortcut
+- `430ddd1` fix(keymap): a shortcut is recorded by the key pressed, not the character the keyboard layout types
+- `7f4ecb0` fix(diagnostics): Copy Diagnostics and Open Log take the part of the session log being written
+- `edb7278` fix(windows): Compare and Blame load once on opening instead of reloading in a loop
+- `ccb41ce` fix(notices): an error reported from an effect is queued once and stays closed when dismissed — без теста
+- `f809c51` fix(hooks): a hook action starts without the last one's error and names what failed
+- `171784a` fix(files): a failed commit comparison or stash read is reported instead of passing silently — без теста
+- `6f36aa3` fix(graph): clearing the graph drops the refs the last walk skipped
+- `3d336dc` fix(windows): Ctrl+W closes a compare or merge window whatever the keyboard layout
+- `40df213` fix(updates): the update question waits for its answer and is asked in a Tauri dialog, not window.confirm
+- `52f8cb0` fix(remotes): an ssh:// remote, with or without a port, is recognised for pull request links
+- `e45e2a4` fix(drag): merge and rebase from a drop are offered only where git runs them, the checked-out branch
+- `5a485a9` fix(undo): the Undo button offers only what can be undone in the repository on screen
+- `7d3e60c` fix(app): resolving a conflict, an Undo from the journal and a mode or submodule change reload the file list — без теста
+- `884ea40` fix(repositories): Open Repository here… cancelled no longer files the repository on screen into the group — без теста
+- `9e05b54` fix(output): Retry repeats a network operation only in the repository and to the remote it ran against
+- `9214965` fix(status): the status bar names the encoding and line ending of the file in the diff
+- `f239fac` fix(prompts): each prompt checks its own kind of value, so group and preset names and an empty release tag are accepted
+- `fe5d9db` fix(app): recovering a commit and branching at a stopped commit ask in the app's own dialog, not window.prompt — без теста
+- `76e4ddf` fix(checkout): a switch that fails after the autostash puts the changes back instead of leaving them in the stash — без теста
+- `ddd51c0` fix(diff): each side of the index offers only its own line actions, so Discard never reverses a staged diff in the working tree
+- `06d7b4b` fix(commit): Commit What You See commits the staged rows the list shows, and nothing when the filter hides them all
+- `614c12c` fix(scan): Select All and Select None act on the rows the filter shows
+- `44f93fb` fix(graph): the Working Tree row brings Files back from a stash as well as from a commit
+- `c0d83ef` fix(commit): the message, Amend and No verify stay until the commit is made
+- `bf602b4` fix(lists): a list scrolls to its revealed row only when that row changes, not on every wheel turn — без теста
+- `212e4bb` fix(style): the commit actions and the pause check's Run button get back the small button style lost in a move — без теста
+- `344be00` fix(motion): carets and disclosures animate by the motion tokens, and the search pulse stops under reduced motion — без теста
+
+### Сознательно не сделано и почему
+
+- **Скорость на горячих путях** (FA-5-01, FA-5-02, GE-5-01, AS-5-01, AS-5-02, FC-4-01,
+  GE-4-03, AS-4-01, GE-5-02): правило проекта — только с A/B на каждую правку.
+- **Разметка без способа написать тест** (FA-2-06, 07, 12, 13, 14, 15, 16; FC-2-03, 05, 08,
+  09, 12, 16): vitest здесь работает в node с серверной сборкой Svelte, где `$effect` не
+  выполняется; включить клиентскую сборку без новой зависимости не удалось (шаг 2.20).
+- **Не проверить без тестового рантайма Tauri или сборки** (ST-2-01, 02, 07, 11, 12).
+- **Удаление потянуло бы тесты** (AS-3-02, 03, 04): тесты не удаляю.
+- **Не воспроизвелось**: GE-2-14 (shallow-клон), AS-2-21 (word-diff длинных строк) — тесты
+  оставлены страховкой; FC-2-14 — не баг.
+- **Отказались по оценке пользы**: FS-6-01/02, FA-6-01, FC-6-01/02, FA-3-04, FC-5-01, FA-5-03,
+  FA-4-01/02/05/06, FS-4-03/04, FC-4-02; GE-2-23, AS-2-04 (новая форма DiffRow), FS-2-06
+  (новое поле DTO).
+
+### Требует решения пользователя
+
+1. **Решения первой итерации** (14 пунктов в конце `doc/refactor-night.md`) по-прежнему
+   открыты; к п. 9 (C1-17, порядок `release` и `emit`) добавился довод ST-1-03: форвардер
+   снимает блокировку завершения сеанса, только если очередь пуста, а Done уходит раньше
+   release — «1 operation is still running» может остаться на экране выключения.
+2. **Тесты эффектов Svelte** — нужна клиентская сборка в vitest, то есть jsdom или
+   happy-dom (новая dev-зависимость). Без неё не проверить FS-2-01 и половину находок
+   разметки.
+3. **«Commit…» в меню и Ctrl+Enter** (FA-2-02, ST-2-03): пункт меню ничего не делает, а
+   `CmdOrCtrl+Return` muda не разбирает. Что должен делать пункт — фокус в поле или коммит?
+   Как только окно начнёт перехватывать Ctrl+Enter, пустая команда сломает коммит из поля.
+4. **Шорткаты из doc/11, которых нет** (FA-2-21, ≈30 штук, подсказки тулбара их обещают):
+   назначить или убрать из документа и подсказок.
+5. **Таймаут и отмена сетевых команд** (GE-2-22): doc/03 требует, кода нет — сделать или
+   записать отступление в 12-risks.
+6. **Lost Commits по reflog веток** (GE-2-13): M5 T5.6 обещает `logs/refs`, код читает
+   только HEAD; чтение reflog каждой ветки меняет стоимость обновления панели.
+7. **Глобальный git-конфиг в тестах** (AS-2-15): изолировать код под тестом можно только
+   setup-скриптом nextest (экспериментальная возможность).
+8. **Pull из разных мест ведёт себя по-разному** (FA-2-11, FA-4-04): тулбар — по
+   настройке `pullMode` и upstream, контекстное меню — `--ff-only` к primary.
+9. **Правила доступности тулбара и палитры** (FS-4-02) разошлись: Stash в палитре включён
+   на чистом дереве. Объединение меняет поведение палитры.
+10. **Автоповтор клавиш** (ST-2-16): удержание Ctrl+Shift+O ставит десятки push; какие
+    команды должны повторяться при удержании?
+11. **Тексты диалогов сбоя WebView на русском** (ST-2-10) при правиле «UI strings: English».
+12. **References или Branches** (FA-2-20): заголовок панели, сводка статус-бара и высота
+    тулбара расходятся с doc/05 — что править, документ или интерфейс.
+13. **`since:` от полуночи UTC** (FS-2-10), а `git log --since` — от локальной.
+14. **Проверка раскладки на бэкенде** (ST-2-04): принимать в `set_keymap` только то, что
+    умеет `virtual_key`?
