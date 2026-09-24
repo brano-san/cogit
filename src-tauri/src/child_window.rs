@@ -247,6 +247,28 @@ mod tests {
         );
     }
 
+    /// An overlay config replaces the `windows` array whole (RFC 7396). The debug one set
+    /// only its browser arguments, and the main window came up with no size, no minimum,
+    /// no theme and no background.
+    #[test]
+    fn an_overlay_repeats_every_field_of_the_main_window() {
+        let base: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        let fields = base["app"]["windows"][0].as_object().unwrap();
+        for (name, overlay) in [
+            ("debug", include_str!("../tauri.debug.conf.json")),
+            ("bench", include_str!("../tauri.bench.conf.json")),
+        ] {
+            let overlay: serde_json::Value = serde_json::from_str(overlay).unwrap();
+            let window = overlay["app"]["windows"][0].as_object().unwrap();
+            let missing: Vec<&String> = fields
+                .keys()
+                .filter(|key| !window.contains_key(*key))
+                .collect();
+            assert!(missing.is_empty(), "the {name} overlay drops {missing:?}");
+        }
+    }
+
     /// Closing a diff window used to arm the shutdown watchdog of the whole app (#8).
     #[test]
     fn a_window_opened_here_is_never_the_main_one() {

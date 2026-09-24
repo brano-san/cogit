@@ -48,5 +48,5 @@ socket.close();
 
 console.log(
   "\nNow check the log for the handler's line:\n" +
-    "  grep 'lost a process' %LOCALAPPDATA%\\dev.branosan.cogit-oomtest\\logs\\cogit.log",
+    "  grep 'lost a process' %LOCALAPPDATA%\\dev.branosan.cogit-oomtest\\logs\\cogit-*.log",
 );
