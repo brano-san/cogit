@@ -40,7 +40,6 @@ function strings(value: unknown): string[] {
 
 class RefsStore {
   visible = $state.raw<ReadonlySet<string>>(new Set());
-  filter = $state("");
   urls = $state.raw<Record<string, string>>({});
   sort = $state.raw<RefSort>(storedSort());
   /** Tip dates by full ref name, read only while the sort goes by date. */
@@ -147,7 +146,6 @@ class RefsStore {
     this.visible = new Set();
     this.#expanded = new Set();
     this.#foldable = new Set();
-    this.filter = "";
     this.urls = {};
     this.dates = new Map();
   }

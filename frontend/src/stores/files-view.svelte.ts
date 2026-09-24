@@ -1,5 +1,5 @@
 import { commitView } from "$lib/file-switches";
-import { DEFAULT_VIEW, mergeView, type FileView } from "$lib/file-view";
+import { mergeView, type FileView } from "$lib/file-view";
 
 const STORAGE_KEY = "cogit.files-view.v1";
 /** Apart from the working tree's, so a commit never changes the switches of the other (#3). */
@@ -37,9 +37,6 @@ class FilesViewStore {
     remember(COMMIT_STORAGE_KEY, this.commit);
   }
 
-  reset(): void {
-    this.set({ ...DEFAULT_VIEW });
-  }
 }
 
 export const filesView = new FilesViewStore();

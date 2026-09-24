@@ -147,9 +147,6 @@ export class CogitError extends Error {
     this.detail = detail;
   }
 
-  get isCommandFailure(): boolean {
-    return this.detail.kind === "command";
-  }
 }
 
 function describeError(error: GitError): string {
