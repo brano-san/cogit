@@ -232,3 +232,34 @@ fn the_limit_caps_the_versions() {
     assert_eq!(revisions.len(), 2);
     assert_eq!(revisions[0].oid, story.pushed_down);
 }
+
+// The path each version is shown under comes from the `+++ b/…` line of `log -L`, whose
+// form could depend on the user's config. Pinned with the settings that would change it:
+// quoting on (git's default, the fixtures turn it off), `diff.noprefix`, and a folder
+// that looks like the prefix.
+#[test]
+fn the_path_of_each_version_is_the_file_itself_whatever_its_name() {
+    let f = test_fixtures::unicode_paths().unwrap();
+    f.git(&["config", "core.quotepath", "true"]).unwrap();
+    f.write_file("b/inner.txt", "in a folder called b\n")
+        .unwrap();
+    f.git(&["add", "--", "b/inner.txt"]).unwrap();
+    f.commit_staged(10, "a folder that looks like a prefix")
+        .unwrap();
+    f.git(&["config", "diff.noprefix", "true"]).unwrap();
+    let repo = open(&f);
+
+    for path in [
+        "файл.txt",
+        "with space.txt",
+        "каталог/вложенный.txt",
+        "b/inner.txt",
+    ] {
+        let versions = repo.line_history(path, "HEAD", 1, 10).unwrap();
+        assert!(!versions.is_empty(), "{path}: no history");
+        assert!(
+            versions.iter().all(|v| v.path == path),
+            "{path}: {versions:?}"
+        );
+    }
+}
