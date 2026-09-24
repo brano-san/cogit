@@ -13,7 +13,6 @@ const MAIN_THREAD_ONLY: &[&str] = &[
     "closing_ping",
     "cancel_operation",
     "terminal_choices",
-    "command_log",
     "command_problems",
     "clear_command_log",
     "safety_log",
@@ -195,6 +194,16 @@ fn the_keyring_is_reached_off_the_async_workers() {
         inline.is_empty(),
         "these reach the keyring inline: {inline:?}"
     );
+}
+
+// The whole journal is cloned and serialised on every `command-recorded` while Output is
+// open: up to a hundred entries of a megabyte each, on the thread that paints the window.
+#[test]
+fn the_command_log_is_read_off_the_main_thread() {
+    let log = declared()
+        .into_iter()
+        .find(|(name, _)| name == "command_log");
+    assert_eq!(log, Some(("command_log".to_owned(), true)));
 }
 
 #[test]
