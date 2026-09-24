@@ -1,0 +1,446 @@
+# Ночной рефакторинг, 2026-09-24
+
+Источник истины для автономной работы. После сжатия контекста или авто-продолжения —
+сначала перечитать этот файл, потом продолжать со следующего неотмеченного шага.
+
+## Задание (сжато)
+
+Автономно, без вопросов; спорные решения — самому, одной строкой здесь.
+
+- Без push, force и переписывания истории.
+- Шаг: правка → затронутые тесты → clippy → коммит (этот файл — в том же коммите) → отметка
+  `[x]` и строка `> Итог:`. Три неудачные попытки → `не сделано: причина`, дальше.
+- Поведение не меняется. Найденный баг — отдельный коммит `fix(...)` с тестом, который его
+  воспроизводит. Тесты не удалять и не ослаблять; флап тестов с замером времени — не
+  регрессия, отметить здесь.
+- Фаза 0 — полный прогон и бенчмарк (`doc/15-benchmark.md`). Фаза 1 — аудит (≤ ~15 %
+  работы), категории: 1 гонки, 2 баги/несостыковки, 3 неиспользуемое, 4 дубли,
+  5 упрощение, 6 модули. Фаза 2 — исправление в порядке 1 → 6; перенос кода — отдельным
+  коммитом без логики; у правок 3–6 — польза одной строкой, без пользы не делать, без
+  переименований по вкусу, без новых зависимостей. Фаза 3 — прогон и бенчмарк, сравнение,
+  регрессия скорости → найти коммит и откатить; итоговые таблицы (ниже).
+
+## Режим
+
+- Ветка `refactor/night` от `master` 2e4ef36 (задание говорило «ветка уже отдельная», но
+  текущей была `master` — отделил, чтобы не коммитить в основную).
+- Тяжёлое — на ядрах 16–31: `cmd //c <scratchpad>\aff.cmd <команда>` (внутри
+  `start /affinity FFFF0000 /b /wait cmd /c`); бенчмарк — `--hidden --cores 16-31`.
+- Коммиты — одна строка без трейлеров (правило проекта и пользователя важнее атрибуции).
+- В сессии стоит cron (:17 и :47) с подсказкой «перечитай план и продолжай» — на случай
+  лимита. Когда фаза 3 отмечена — удалить.
+- Не запускать LTO-сборку бенчмарка параллельно с агентами: первая попытка упала с
+  `Allocation failed` в rustc (`codegen-units=1`, fat LTO).
+- Первая сессия оборвалась на аудите (процесс закрылся, агенты и бенчмарк остановлены);
+  продолжено в той же ветке.
+
+## Фаза 0 — базовая точка
+
+- [x] Полный прогон тестов до правок
+  > Итог: nextest 1645 ✓ / 1 skipped (74 с); `cargo test -p cogit --lib` 100 ✓; vitest 1653 ✓
+  > (121 файл); svelte-check 0 ошибок / 0 предупреждений; clippy `-D warnings` чисто.
+- [ ] Бенчмарк до правок; exe сохранён как `target/bench/exes/night-base.exe` для A/B в фазе 3
+
+## Фаза 1 — аудит
+
+Формат: `id · категория · файл:строка · что не так · как исправить · риск`.
+
+- [x] 1. Гонки и конкурентность
+- [x] 2. Баги и несостыковки
+- [x] 3. Неиспользуемый код
+- [x] 4. Дубли
+- [x] 5. Упрощение
+- [x] 6. Разнесение по модулям
+  > Итог: шесть параллельных агентов только на чтение, находки проверены выборочно по коду
+  > (C1F-01…04, 08 — вручную); всего ~150 пунктов, ниже.
+
+Miri: в `graph_engine` и `diff_engine` нет ни одного `unsafe`, nightly не установлен, на C
+мало места — не запускал; весь `unsafe` в `src-tauri` (COM, subclass окна), там Miri
+неприменим — инварианты проверены чтением (ниже).
+
+### Находки
+
+#### 1. Гонки — фронтенд
+
+Корень C1F-01…08 один: `id` текущего репозитория захвачен до `await`, после — запись без
+проверки, что репозиторий всё ещё тот же.
+
+- C1F-01 · гонки · stores/repository.svelte.ts:181 · `refresh()` во время `opening` B берёт
+  `current` = прежний A, выдаёт новый ticket и отменяет открытие B; клик по B теряется
+  (триггер: `git commit` в терминале → watcher → `applyDiskChanges`) · в `refresh` ничего
+  не делать, пока идёт `opening` · низкий · проверено
+- C1F-02 · гонки · App.svelte:972 `applyDiskChanges` · после await зовёт `worktree.load(id)`
+  / `graph.load(id)` для прежнего репозитория — у сторов побеждает последний запуск ·
+  проверка «репозиторий всё ещё текущий» после каждого await · низкий · проверено
+- C1F-03 · гонки · App.svelte:421 `mutate`, :1065 `commitStaged`, :1094 `afterRefChange` ·
+  то же после медленного шага (pre-commit хук) · тот же guard · низкий · проверено
+- C1F-04 · гонки · App.svelte:1427 `runNetwork` · fetch в A, переход в B → `afterRefChange`
+  чистит выделение и дифф B · guard по id · низкий · проверено
+- C1F-05 · гонки · stores/stashes, recovery, network, flow, conflicts; App `refreshProgress`,
+  `loadTemplate` · результат IPC пишется без поколения; stash’и/прогресс rebase/шаблон A
+  в панелях B · поколение, которое `clear()` увеличивает · средний
+- C1F-06 · гонки · stores/worktrees.svelte.ts:30 · `entries` после await без guard ·
+  поколение · низкий
+- C1F-07 · гонки · stores/submodules.svelte.ts:53 · `own()` пишет `children` после await,
+  цикл `#load` читает уже новый `#repo` · проверка root после каждого await · средний
+- C1F-08 · гонки · App.svelte:1650 `activate` · после перебитого `open(A)` продолжает с
+  `current` = прежний/следующий репозиторий · `open` сообщает, выиграл ли его ticket;
+  проигравший `activate` выходит · низкий · проверено
+- C1F-09 · гонки · stores/diff.svelte.ts:89 · `images` после второго await без поколения ·
+  проверка поколения · низкий
+- C1F-10 · гонки · lib/investigate/session.svelte.ts:215 · пропуск загрузки blame не
+  увеличивает поколение → Back во время загрузки оставляет blame другой строки · `++gen`
+  при пропуске · низкий
+- C1F-11 · гонки · lib/investigate/session.svelte.ts:97 · `navigate` без токена · токен ·
+  низкий · вероятно
+- C1F-12 · гонки · stores/hooks.svelte.ts:50 · `edit()`: тело хука A в редакторе B, Save
+  пишет его в B · писать `body` только при `editing === name` · низкий
+- C1F-13 · гонки · stores/repository.svelte.ts:186 · `refreshList` без ticket, пишет в
+  сессию · ticket · низкий · вероятно
+- C1F-14 · гонки · stores/refs.svelte.ts:112 · `loadDates`/`loadUrls` без поколения ·
+  поколение в `clear()` · низкий
+- C1F-15 · гонки · components/graph/CommitList.svelte:176 · `graph.entry(t).then(pick)` без
+  токена — выделение прыгает после ↑ · счётчик · низкий
+- C1F-16 · гонки · stores/avatars.svelte.ts:17 · `apply(false)` не гасит таймер и запрос ·
+  низкий · вероятно
+- C1F-17 · гонки · App.svelte:1136 · клик по коммиту не сбрасывает `stashView`, Files
+  показывает stash · `stashView.clear()` при выборе коммита · низкий
+- C1F-18 · гонки · components/layout/CommandOutput.svelte:93 · drag снимается только на
+  `pointerup` · и на `pointercancel`/`lostpointercapture` · низкий · вероятно
+
+#### 1. Гонки — бэкенд
+
+- C1-01 · гонки · app_state/src/queue.rs:153 · место в очереди берётся при первом poll, а не
+  при invoke; два быстрых invoke могут выполниться в обратном порядке · `seq` с фронта или
+  синхронный билет · высокий · по конструкции
+- C1-02 · гонки · src-tauri/src/lib.rs:461 · `while let Ok(..) = recv()` — `Lagged` навсегда
+  глушит форвардер событий (RepoChanged, Operation…) · `Lagged` → warn и дальше · низкий ·
+  проверено
+- C1-03 · гонки · app_state/src/lib.rs:311 · `disable_avatars` дропает очередь (join воркеров
+  до ~10 с) под write-локом и на воркере tokio · `take()` под локом, drop вне его, в
+  blocking · низкий · проверено
+- C1-04 · гонки · avatars/src/cache.rs:200 · `save()` пишет индекс без лока и не атомарно
+  из 4 воркеров · мьютекс записи + tmp/rename · низкий
+- C1-05 · гонки · avatars/src/queue.rs:83 · файловый IO под `state`-локом · вынести IO за
+  лок · низкий
+- C1-06 · гонки · app_state/src/lib.rs:1278 `row_for` · промах → медленное чтение → insert
+  поверх инвалидации · поколение на репозиторий · низкий · проверено
+- C1-07 · гонки · app_state/src/lib.rs:462, 729 · open одного пути дважды / open ∥ close →
+  два RepoId или вотчер-сирота · проверка и регистрация под одним локом · средний
+- C1-08 · гонки · commands/mod.rs:2064, 277, 1824–1860, desktop.rs:80 · записи мимо очереди
+  (chmod, config, hooks, trash) · через `mutating` · низкий · проверено
+- C1-09 · гонки · app_state/src/queue.rs:83 · очередь по RepoId, а не по git-dir: worktree и
+  основной репозиторий, сабмодуль и родитель пишут параллельно · ключ — common-dir ·
+  средний · вероятно
+- C1-10 · гонки · commands/mod.rs:1478 `repositories` · синхронная команда на воркере tokio
+  с чтением head/branches/status · `blocking()` · низкий · проверено
+- C1-11 · гонки · src-tauri/src/shutdown.rs:58 · `cancel_all()` на каждый CloseRequested до
+  решения страницы → «Отмена» закрытия оставляет поиски отменёнными · отменять при
+  фактическом выходе · низкий · проверено
+- C1-12 · гонки · fs_watcher/src/watcher.rs:145 · тихое окно глушит и внешние события, не
+  откладывая их → сохранение файла сразу после мутации теряется · копить подавленное и
+  выдать по окончании окна · средний · проверено
+- C1-13 · гонки · app_state/src/lib.rs:1309 `close_repository` · не ждёт очередь; запись
+  Undoable с мёртвым id остаётся в журнале · в `record` проверять репозиторий · средний
+- C1-14 · гонки · git_engine/src/children.rs:49 · хэндл закрыт раньше удаления из RUNNING →
+  `taskkill` по переиспользованному PID · удалять до закрытия · низкий · вероятно
+- C1-15 · гонки · git_engine/src/hooks.rs:291 · общий `COGIT_HOOK_MSG` у параллельных
+  dry-run · уникальное имя · низкий · вероятно
+- C1-16 · гонки · app_state/src/lib.rs:386, git_engine/src/discover.rs:92 · скан после
+  закрытия диалога идёт до конца на общем пуле rayon · флаг остановки · низкий
+- C1-17 · гонки · app_state/src/queue.rs:209 · Done уходит раньше `release` · сначала
+  release · низкий · вероятно
+
+`unsafe` (session_end, renderer_failure, webview2, recycle_bin): инварианты выписаны и
+держатся — Box контекста subclass освобождается ровно раз в `WM_NCDESTROY`, вызовы COM —
+внутри коллбеков на UI-потоке, PWSTR освобождаются `take_pwstr`, список путей для
+`SHFileOperationW` с двойным NUL. Гарда `parking_lot` через `await` нет; разного порядка
+захвата пар локов нет; `par_iter` только внутри `spawn_blocking`.
+
+#### 1. Гонки — фронтенд, проверено как корректное
+
+Проверено и корректно: `connect()`/`onMenuCommand` (отписка через `pending.then`),
+поколения в `commit`/`worktree`/`stashView`/`compareView`/`commitTree`/`graph`,
+content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
+
+#### 2. Баги и несостыковки
+
+Проверено: 183 команды против биндингов и вызовов фронта (вызовов несуществующих команд
+нет), 7 событий (все слушаются и эмитятся).
+
+- B-01 · баг · app_state/src/safety.rs:98 · Undo для merge/rebase/cherry-pick/revert/
+  interactive_rebase/split_off делает `git branch <текущая> <old>` → «already exists»,
+  Undo всегда падает · для существующей ветки — `update-ref` с проверкой прежнего значения ·
+  высокий · проверено
+- B-02 · проглочено · app_state/src/lib.rs:621 `discard_paths` · `stash_paths(..)
+  .unwrap_or(None)`: stash не удался → discard без резервной копии · отказать в discard ·
+  высокий · проверено
+- B-03 · проглочено · app_state/src/lib.rs:972 `rollback_to` · то же · пробрасывать Err ·
+  высокий · проверено
+- B-04 · проглочено · app_state/src/settings.rs:22 · битый/занятый settings.json читается
+  как `{}`, `write_key` затирает остальные настройки · при ошибке чтения не писать · высокий
+- B-05 · баг · git_engine/src/hooks.rs:519 `add_eol_rule` · не-UTF-8 `.gitattributes`
+  заменяется одной строкой · читать байтами, дописывать `append` · высокий · проверено
+- B-06 = C1-02
+- B-07 · баг · git_engine/src/state.rs:57 · MERGE_HEAD проверяется раньше rebase-merge →
+  конфликт на merge-коммите в `rebase -r` определяется как Merging · сначала rebase ·
+  средний · проверено
+- B-08 · баг · git_engine/src/hooks.rs:146 · хуки в linked worktree берутся из приватного
+  git_dir, git — из common dir · `common_dir()` · средний
+- B-09 · баг · fs_watcher/src/watcher.rs:57 · в linked worktree refs/packed-refs/config
+  (common dir) не наблюдаются · common dir · средний
+- B-10 · проглочено · fs_watcher/src/watcher.rs:39 · ошибки notify выбрасываются без лога ·
+  warn · низкий
+- B-11 · несостыковка · fs_watcher/src/watcher.rs:54 · корень рабочего дерева —
+  `RecursiveMode::Recursive`, INV-06 запрещает; фильтр при маршрутизации · записать
+  отступление в 01-architecture/12-risks (поведение не менять) · низкий
+- B-12 · баг · git_engine line_history.rs:46, find.rs:158 · `log -L` без
+  `core.quotepath=off`/фиксированных префиксов: Unicode-пути в кавычках, у пути с пробелом —
+  хвостовой `\t`, `diff.noprefix` ломает срез · флаги + trim · средний
+- B-13 · баг · git_engine/src/surgery.rs:171, :82 · `--name-only` без `-z` → Split Off
+  отказывает для не-ASCII пути · `-z` · низкий
+- B-14 · баг · git_engine/src/staging.rs:36 и др. · пути из UI как pathspec без
+  `GIT_LITERAL_PATHSPECS` → discard `test[1].txt` задевает `test1.txt` · env · средний
+- B-15 · баг · app_state/src/ref_ops.rs:30 · hard reset берёт `stashes().next()` без
+  сравнения с вершиной до операции · сравнивать · средний · вероятно
+- B-16 · баг · git_engine/src/repo.rs:264 · Undo удаления аннотированного тега создаёт
+  лёгкий · хранить oid объекта тега · средний
+- B-17 · несостыковка · app_state/src/ref_ops.rs:44, 79, 105; lib.rs:842 · reset mixed/soft,
+  edit_author, rename_tag, abort, `rename_branch -M` без записи Recovery (INV-12) · средний
+  — отложить (новое поведение Undo)
+- B-18 · проглочено · app_state/src/lib.rs:1082 `flow_finish` · `rev-parse` через `.ok()` ·
+  `--verify refs/heads/..^{commit}` · низкий
+- B-19 · баг · git_engine/src/network.rs:117 · stderr декодируется кусками по 4096 байт →
+  U+FFFD на границе многобайтного символа (INV-05) · копить байты · низкий
+- B-20 · баг · runner.rs:324, output_text.rs:97 · редакция URL по первому `@` → часть
+  пароля с `@` в журнале · последний `@` в authority · низкий
+- B-21 · проглочено · git_engine/src/blobs.rs:160 · занятый файл показывается удалённым ·
+  NotFound → None, прочее → Io · средний
+- B-22 · баг · commands/mod.rs:348 `diagnostics` · `crate::webview2` есть только под
+  `cfg(windows)` → не собирается на macOS/Linux · команда мертва (D3-05) — удалить · низкий
+- B-23 = D3-05
+- B-24 · проглочено · git_engine/src/surgery.rs:116 `recover` · `let _ =` на восстановлении ·
+  добавлять ошибки восстановления в ответ · низкий
+- B-25 · проглочено · git_engine/src/stash.rs:76 · повтор без `--index` на любую ошибку ·
+  низкий · вероятно
+- B-26 · баг · git_engine/src/state.rs:66 · многокоммитный cherry-pick после ручного Commit
+  → Clean, баннер пропадает · учитывать `sequencer/todo` · низкий · вероятно
+- B-27…B-30 · док-устарел · 04-ipc-contract §3, §4, §6; 03-git-semantics §3 · привести к
+  коду · низкий
+- B-31 · несостыковка · git_engine/src/network.rs:193 · токен в `-c http.extraHeader` виден
+  в командной строке и уходит на все хосты вызова · средний · **на решение**
+
+#### 3. Неиспользуемое
+
+Чисто: ни одного `#[allow(dead_code)]`/`#[allow(unused…)]`, нет `[features]`, каждая
+зависимость каждого крейта используется (по grep; `cargo machete` не установлен), `git`
+запускается только через `git_engine::runner`.
+
+- D3-01 · app_state/src/lib.rs:288 `with_secrets` · 0 вызовов · удалить · низкий
+- D3-02 · diff_engine/src/lib.rs:189 `DiffError` · 0 ссылок; единственный пользователь
+  `thiserror` в крейте · удалить enum и зависимость · низкий
+- D3-03 · app_state/src/lib.rs:1629 `SharedState` · 0 · удалить · низкий
+- D3-04 · fs_watcher/src/watcher.rs:90 `pause`/`resume` · только тесты, в продукте их
+  заменили quiet-окна · удалить (тесты этих методов уходят вместе с ними) · низкий
+- D3-05 · commands/mod.rs:1458, 1501, 171 · команды `reflog`, `submodules`,
+  `list_all_repo_files` (+ обёртки в app_state) фронт не вызывает; плюс `diagnostics`
+  (S5-13) · удалить, перегенерировать биндинги, 04-ipc-contract · низкий
+- D3-06 · git_engine/src/state.rs:41 `allows_commit` · только юнит-тест · удалить · низкий
+- D3-07 · search.rs:71 `stream_commits`, app_state lib.rs:489 `stream_graph` · только
+  тесты · тестам звать `search_*` · низкий
+- D3-08 = F3-07 · lib/settings.ts:26 `gitPath` · настройка сохраняется, никто не читает ·
+  **на решение пользователя** (подключить в runner или убрать из панели) · средний
+- D3-09 · Cargo.toml:21 · фичи tokio `process`, `fs`, `io-util` не используются · убрать ·
+  низкий (tauri может включать их сам — выигрыша в сборке может не быть)
+- F3-01 · components/common/Tooltip.svelte · не импортируется; Toolbar ставит `data-tip`
+  руками · перевести Toolbar на него или удалить · низкий
+- F3-02 · lib/links.ts · только свой тест · удалить с тестом · низкий
+- F3-03 · lib/ipc/index.ts:321, 355, 921, 940 · `deleteUntracked`, `setUpstream`,
+  `diffFiles`, `fileBefore` и реэкспорт типов :931 — 0 вызовов · удалить · низкий
+- F3-04 · lib/investigate/blame.ts:16 `sourceOf`, params.ts:54 `sameLocation` · 0 ·
+  удалить · низкий
+- F3-05 · lib/settings-file.ts:32 `forgetSettings` · 0 · удалить · низкий
+- F3-06 · экспорты только для своих тестов: availability `NOTHING`/`reasons`, selection
+  `hunkSelection`/`selectedRange`, preferences `changedKeys`/`sameKeymap`, tri-state-box
+  `faceOf`, toolbar `NO_FACTS`, repo-list `EMPTY_LIST`, graph-geometry `toListRow`,
+  file-view `TOGGLES` · проверить по одному; удалять только функции, которые не нужны
+  продукту (тесты удаляемой функции уходят вместе с ней) · низкий
+- F3-08 · app.css:394–435 · 9 селекторов `.tok-*`, которых `classHighlighter` не выдаёт ·
+  удалить · низкий
+
+#### 4. Дубли
+
+- D4-01 · diff_engine/src/images.rs:38 + git_engine/src/network.rs:156 · две копии `base64`
+  · одна копия (новая зависимость не нужна) · низкий
+- D4-02 · git_engine find.rs:220 + line_history.rs:166 · одинаковые `path_of` и разбор
+  заголовка `git log -L` · общий модуль · низкий
+- D4-03 · **баг** · git_engine find.rs:157, line_history.rs:45, interactive.rs:95,
+  surgery.rs:165, 200 · разбирают `run_git_reading(..).stdout` — вывод для журнала, который
+  `output_text::trim` режет на длинном выводе; для разбора есть `read_git` (R-280) ·
+  перевести на `read_git` · низкий
+- D4-04 · **баг** · git_engine/src/apply.rs:36 · свой spawn мимо runner: команда без
+  `redact_command`, stdin пишется в том же потоке (риск взаимной блокировки на большом
+  патче) · `run_git_fed` · низкий
+- D4-05 · runner.rs:284 `base_command` + :359 `bare_git` · общее ядро настройки · низкий
+- D4-06 · hooks.rs:334 + :393 · почти одинаковые `bash`-команды, литерал `0x0800_0000`
+  вместо `CREATE_NO_WINDOW` (третья копия в app_state/desktop.rs:315) · один хелпер · низкий
+- D4-07 · app_state terminal.rs:67 + desktop.rs:160 · две абстракции запуска терминала;
+  `open_in_terminal` зовёт `Command::new` сам · средний (меняет запуск терминала) — отложить
+- D4-08 · commands/mod.rs:1590, 2017, 2350, investigate.rs:143 · 4 одинаковых открытия
+  дочернего окна · общий хелпер · низкий
+- D4-09 · git_engine: 6 копий `u32::try_from(elapsed.as_millis()).unwrap_or(MAX)` ·
+  `elapsed_ms` · низкий
+- D4-10 · 9 ручных `replace('\\', "/")` для IPC-путей · `ipc_path` в git_engine · низкий
+- D4-11 · commands/desktop.rs:85, mod.rs:1786, 1798 · ручные `map_err` при наличии `From` ·
+  `From` · низкий
+- D4-12 · app_state/src/settings.rs:9, 14 · `path` = обёртка над `file_in` · одна · низкий
+- F4-01 = F3-01
+- F4-02 · SplitOffDialog, RebaseEditor, HooksPanel, SafetyJournal · свои модалки вместо
+  `Dialog.svelte` · средний (видимое поведение Enter/фокус) — отложить
+- F4-03 · 5 своих всплывающих меню в тулбарах; `Esc` закрывает только два · общий
+  `PopupMenu` · средний — отложить (это новая подсистема UI)
+- F4-04 · App.svelte:2248, 2396, 2962 · контекстные меню литералами мимо `item()`/`tidy()`
+  · в lib, с тестом · низкий
+- F4-05 · 3 вызова `revealItemInDir` мимо `fileMenus.revealOnDesktop` · низкий
+- F4-06 · 4–6 копий копирования в буфер · `lib/clipboard.ts` · низкий
+- F4-07 · ~27 мест `.slice(0, 7)` вместо `shortOid` · низкий
+- F4-08 · 6 функций «последний сегмент пути» · одна `baseName` · низкий
+- F4-09 · App.svelte:2380 + repo-click.ts:19 · `samePath` дважды · низкий
+- F4-10 · lib/investigate/blame.ts:43 `shortAuthor` режет строку сам · низкий
+- F4-11 · нативные checkbox/select в обход `Checkbox`/`Select` · средний (видимый UI) —
+  отложить
+- F4-12 · подписи сочетаний клавиш зашиты строками, после переназначения врут · средний —
+  баг, на решение (затрагивает много UI)
+
+#### 5. Упрощение — фронтенд
+
+- F5-01 · App.svelte:1757 · ветки `merge` и `fastForward` одинаковы · объединить (или это
+  баг ff-only — проверить) · низкий
+- F5-02 · App.svelte:2455 · повтор `isActive()` · низкий
+- F5-03 · App.svelte:508–841 · палитра команд — `$derived.by` на 333 строки · вынести в
+  `lib/palette-commands.ts` · средний
+
+#### 5. Упрощение — бэкенд
+
+Горячий путь меняется только с A/B (правило проекта); ночью A/B на каждый пункт не
+уложить — берутся только правки без изменения API движков.
+
+- S5-01 · упрощение · app_state/src/lib.rs:524 `search_graph` · копии `oid`/`parents` на
+  коммит ради `CommitNode` · заимствования в `CommitNode<'a>` · средний (API graph_engine) ·
+  измеримо
+- S5-02 · упрощение · git_engine/src/history.rs:55 `row_of` · заголовок коммита разбирается
+  трижды · один проход `commit.iter()` · низкий · вероятно измеримо
+- S5-03 · упрощение · git_engine/src/search.rs:245, :56 · lowercase иглы на каждом коммите
+  в фильтре · готовить иглы один раз · низкий · измеримо в фильтре
+- S5-04 · упрощение · git_engine/src/search.rs:196 `shown_by` · полный `row_of` родителя ·
+  кеш на загрузку · средний · измеримо в фильтре
+- S5-05 · упрощение · search.rs:149, topo.rs:30 · Vec родителей на коммит · обобщить
+  `Ordered` · низкий · слабо
+- S5-06 · упрощение · graph_engine/src/lanes.rs:53, :76 · два одинаковых поиска · один ·
+  низкий · нет
+- S5-07 · упрощение · app_state/src/graph_cache.rs:118 · копия 128 строк ради `encode` ·
+  кодировать из среза · низкий · нет
+- S5-08 · упрощение · diff_engine/src/batch.rs:29 · `from_utf8_lossy` для бинарных файлов ·
+  только для `FileDiff::Text` · низкий · измеримо на бинарных
+- S5-09…S5-11 · упрощение · diff_engine text.rs:251, moves.rs:19, text.rs:180 · лишние копии
+  строк · `into_iter`, `&str` · низкий · слабо
+- S5-12 · упрощение · git_engine/src/origin_search.rs:104 · `Found.source` — копия файла на
+  каждое совпадение · `Rc<[String]>` · низкий · измеримо на крупных файлах
+- S5-13 · неиспользуемое · commands/mod.rs:1501, :171, :1458, :344 · команды `submodules`,
+  `list_all_repo_files`, `reflog`, `diagnostics` фронт не вызывает · удалить (см. кат. 3)
+- S5-14 · неиспользуемое · search.rs:71 `stream_commits`, app_state lib.rs:489
+  `stream_graph` · вызывают только тесты · тестам звать `search_*` · низкий
+- S5-15 · баг · commands/mod.rs:2441 `declared()` · список файлов для проверки main-thread
+  без `toolbar.rs`; макросные команды не видны · строить из фактического списка · низкий
+- S5-16 · упрощение · git_engine/src/commit.rs:198 `to_entry` · 4 повторные ветки · общий
+  хелпер · низкий
+
+Длинные функции: `place` (lanes.rs:20, 197 строк, 4 шага), `origin_candidates`
+(origin_search.rs:114, 155, 3 фазы), `diff_engine::text::build` (106, повтор цикла контекста),
+`to_entry` (102), `run` (lib.rs:306, 97), `merge3_with_syntax` (89). Не делятся:
+`specta_builder`, `graph_wire::encode`.
+
+#### 6. Модули
+
+- M6-01 · модули · src-tauri/src/commands/mod.rs (2612) · по файлам меню/панелей:
+  worktrees, stash, rewrite, hooks, conflicts, diff, blame, flow, presets, avatars, app;
+  ref_ops/remote_ops/desktop/investigate уже есть — дособрать; тесты в `tests.rs` · чистый
+  перенос, сначала S5-15 · низкий
+- M6-02 · модули · app_state/src/lib.rs (1814) · registry, journal, stashing, rewrite, flow;
+  дособрать в существующие graph_cache, ref_ops, investigation, diffing · низкий
+- M6-03 · модули · src-tauri/src/menu.rs (956) · `menu/keymap.rs`, `menu/context.rs`,
+  тесты · низкий
+- M6-04 · модули · test_fixtures/src/lib.rs (846) · `import.rs` (fast-import) · польза
+  мала, крейт тестовый · не делать
+
+## Фаза 2 — исправление
+
+Каждый баг — `fix(...)` с тестом, который его воспроизводит. Отложенное — в итоге.
+
+### Категория 1
+
+- [ ] C1F-01 `refresh` во время `opening`
+- [ ] C1F-08 перебитый `activate` выходит
+- [ ] C1F-02/03/04 проверка «репозиторий всё ещё текущий» после await в App
+- [ ] C1F-05/06/07/14 поколения в сторах stashes, recovery, network, flow, conflicts,
+  worktrees, submodules, refs
+- [ ] C1F-09 картинки диффа по поколению
+- [ ] C1F-10 пропуск blame увеличивает поколение
+- [ ] C1F-12 тело хука по имени
+- [ ] C1F-13 `refreshList` по ticket
+- [ ] C1F-15 PageDown по счётчику
+- [ ] C1F-17 выбор коммита сбрасывает stash
+- [ ] C1-02 форвардер событий переживает `Lagged`
+- [ ] C1-03 выключение аватаров без join под локом
+- [ ] C1-04/05 индекс аватаров: запись по очереди и атомарно, IO вне лока
+- [ ] C1-06 `row_for` не кладёт устаревшее
+- [ ] C1-07 открытие одного пути — атомарно
+- [ ] C1-08 записи через очередь
+- [ ] C1-10 `repositories` в blocking
+- [ ] C1-11 отмена поисков только при фактическом выходе
+- [ ] C1-12 тихое окно вотчера не теряет внешние события
+- [ ] C1-13 журнал безопасности не держит закрытый репозиторий
+- [ ] C1-15 уникальный файл сообщения для dry-run хука
+- [ ] C1-16 скан останавливается с закрытием канала
+- [ ] C1-17 release раньше Done
+
+### Категория 2
+
+- [ ] B-01 Undo merge/rebase двигает существующую ветку
+- [ ] B-02/B-03 discard и rollback не идут без резервного stash
+- [ ] B-04 settings.json: ошибка чтения не затирает файл
+- [ ] B-05 `.gitattributes`: дописывать, не перезаписывать
+- [ ] B-07 rebase раньше merge в определении состояния
+- [ ] B-08/B-09 хуки и вотчер worktree — common dir
+- [ ] B-10 ошибки notify в лог
+- [ ] B-12 `log -L`: quotepath, префиксы, таб
+- [ ] B-13 surgery: `-z`
+- [ ] B-14 литеральные pathspec
+- [ ] B-15 hard reset: свой stash по сравнению вершин
+- [ ] B-16 Undo удаления аннотированного тега
+- [ ] B-18 `flow_finish` rev-parse
+- [ ] B-19 stderr сети целиком
+- [ ] B-20 редакция URL по последнему `@`
+- [ ] B-21 `blob_on_disk`: только NotFound — «нет файла»
+- [ ] B-24 ошибки `recover`
+- [ ] B-26 sequencer/todo
+- [ ] D4-03 разбор через `read_git`
+- [ ] D4-04 apply через runner
+- [ ] S5-15 `declared()` видит все команды
+- [ ] B-11, B-27…B-30 документация
+
+### Категории 3–6
+
+- [ ] D3-01…07, D3-09, B-22 мёртвый Rust
+- [ ] F3-01…06, F3-08 мёртвый фронт
+- [ ] D4-01, 02, 05, 06, 08…12 дубли Rust
+- [ ] F4-04…10 дубли фронта
+- [ ] F5-01, F5-02, S5-06, S5-16 упрощение
+- [ ] M6-03 menu.rs (перенос)
+- [ ] M6-02 app_state/lib.rs (перенос)
+- [ ] M6-01 commands/mod.rs (перенос)
+
+## Фаза 3 — итог
+
+- [ ] Полный прогон тестов и бенчмарк, сравнение с фазой 0
+- [ ] Итоговые таблицы
