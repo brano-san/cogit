@@ -54,6 +54,19 @@ fn shell_quote(text: &str) -> String {
     format!("'{}'", text.replace('\'', r"'\''"))
 }
 
+/// One todo line carries one argument. A message of several lines goes through `printf
+/// %b` with its line breaks written as `\n`, so no break reaches the todo itself.
+fn message_argument(message: &str) -> String {
+    if !message.contains(['\n', '\r']) {
+        return shell_quote(message);
+    }
+    let escaped = message
+        .replace('\\', "\\\\")
+        .replace('\r', "")
+        .replace('\n', "\\n");
+    format!("\"$(printf '%b' {})\"", shell_quote(&escaped))
+}
+
 #[must_use]
 pub fn render_todo(plan: &[TodoEntry]) -> String {
     render(plan, false)
@@ -77,7 +90,7 @@ fn render(plan: &[TodoEntry], paused: bool) -> String {
         let rewrites = matches!(entry.action, TodoAction::Reword | TodoAction::Squash);
         if let Some(message) = entry.message.as_deref().filter(|_| rewrites) {
             out.push_str("exec git commit --amend --no-verify -m ");
-            out.push_str(&shell_quote(message));
+            out.push_str(&message_argument(message));
             out.push('\n');
         }
 
@@ -97,7 +110,15 @@ impl RepoHandle {
         } else {
             format!("{base}..HEAD")
         };
-        let listing = self.read_git(&["log", "--reverse", "--format=%H%x1f%s", &range])?;
+        // What git lists itself: no merge commits, parents before children.
+        let listing = self.read_git(&[
+            "log",
+            "--reverse",
+            "--no-merges",
+            "--topo-order",
+            "--format=%H%x1f%s",
+            &range,
+        ])?;
 
         Ok(listing
             .lines()
@@ -136,6 +157,18 @@ impl RepoHandle {
         } else {
             ROOT.to_owned()
         };
+        let range = if base == ROOT {
+            "HEAD".to_owned()
+        } else {
+            format!("{base}..HEAD")
+        };
+        let merges = self.read_git(&["rev-list", "--merges", "--count", &range])?;
+        if merges.trim() != "0" {
+            return Err(GitError::InvalidState(
+                "a merge commit comes after this one: rewriting under it would flatten the merge"
+                    .to_owned(),
+            ));
+        }
         let plan = self.rebase_todo(&base)?;
         let wanted = target.to_string();
         if !plan.iter().any(|entry| entry.oid == wanted) {
@@ -160,12 +193,57 @@ impl RepoHandle {
         if plan.is_empty() {
             return Err(GitError::InvalidState("the plan is empty".to_owned()));
         }
+        let plan = self.settled_messages(plan)?;
         let body = if paused {
-            render_todo_paused(plan)
+            render_todo_paused(&plan)
         } else {
-            render_todo(plan)
+            render_todo(&plan)
         };
         self.run_rebase_body(base, &body)
+    }
+
+    /// The editor hands every row its subject back. A message the user left alone is not
+    /// a new one: rewriting a squash with it would throw away the message git combined. A
+    /// new subject on its own replaces the subject and keeps the body under it.
+    fn settled_messages(&self, plan: &[TodoEntry]) -> Result<Vec<TodoEntry>> {
+        plan.iter()
+            .map(|entry| {
+                let Some(asked) = entry.message.as_deref() else {
+                    return Ok(entry.clone());
+                };
+                if !matches!(entry.action, TodoAction::Reword | TodoAction::Squash) {
+                    return Ok(entry.clone());
+                }
+                let current = self.full_message(&entry.oid)?;
+                let (subject, body) = current.split_once('\n').unwrap_or((current.as_str(), ""));
+                let message = if asked.trim() == subject.trim() {
+                    None
+                } else if entry.action == TodoAction::Reword
+                    && !asked.contains('\n')
+                    && !body.trim().is_empty()
+                {
+                    Some(format!("{}\n\n{}", asked.trim(), body.trim()))
+                } else {
+                    Some(asked.to_owned())
+                };
+                Ok(TodoEntry {
+                    message,
+                    ..entry.clone()
+                })
+            })
+            .collect()
+    }
+
+    fn full_message(&self, oid: &str) -> Result<String> {
+        let id = self.resolve_commit(oid)?;
+        let commit = self
+            .repo
+            .find_commit(id)
+            .map_err(|err| GitError::Internal(format!("cannot read {oid}: {err}")))?;
+        let raw = commit.message_raw().map_err(|err| {
+            GitError::Internal(format!("cannot read the message of {oid}: {err}"))
+        })?;
+        Ok(String::from_utf8_lossy(raw).trim_end().to_owned())
     }
 
     fn run_rebase_body(&self, base: &str, body: &str) -> Result<()> {

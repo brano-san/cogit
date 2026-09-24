@@ -280,3 +280,114 @@ fn continuing_a_paused_rebase_reaches_the_end() {
 
     assert_eq!(subjects(&f)[0], "commit 3", "{:?}", subjects(&f));
 }
+
+fn message(f: &test_fixtures::Fixture, rev: &str) -> String {
+    f.git(&["log", "-1", "--format=%B", rev])
+        .unwrap()
+        .trim_end()
+        .to_owned()
+}
+
+// Edit Message sends the whole message: its line breaks went into the todo as they were,
+// git refused the todo, and the repository was left in the middle of a rebase.
+#[test]
+fn rewording_with_a_message_of_several_lines_keeps_every_line() {
+    let f = test_fixtures::linear(2).unwrap();
+    let base = f.oid("HEAD~1").unwrap();
+    let repo = open(&f);
+
+    repo.interactive_rebase(
+        &base,
+        &[TodoEntry {
+            oid: f.oid("HEAD").unwrap(),
+            action: TodoAction::Reword,
+            message: Some("Subject\n\nFirst paragraph.\nIt's two lines.".to_owned()),
+        }],
+    )
+    .unwrap();
+
+    assert_eq!(
+        message(&f, "HEAD"),
+        "Subject\n\nFirst paragraph.\nIt's two lines."
+    );
+    assert_eq!(repo.state().unwrap(), git_engine::RepoState::Clean);
+}
+
+// The editor offers the subject alone to change; the body went with the old subject.
+#[test]
+fn rewording_the_subject_keeps_the_body() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file(
+        "worded.txt",
+        "w
+",
+    )
+    .unwrap();
+    f.git(&["add", "worded.txt"]).unwrap();
+    f.git(&["commit", "-q", "-m", "Old subject", "-m", "The body."])
+        .unwrap();
+    let base = f.oid("HEAD~1").unwrap();
+    let repo = open(&f);
+    let mut plan = repo.rebase_todo(&base).unwrap();
+    plan[0].action = TodoAction::Reword;
+    plan[0].message = Some("New subject".to_owned());
+
+    repo.interactive_rebase(&base, &plan).unwrap();
+
+    assert_eq!(message(&f, "HEAD"), "New subject\n\nThe body.");
+}
+
+// Marking a row Squash in the editor left its subject in the entry, and that one line
+// replaced the message git had combined from both commits.
+#[test]
+fn squashing_from_the_default_plan_keeps_both_messages() {
+    let f = test_fixtures::linear(3).unwrap();
+    let base = f.oid("HEAD~2").unwrap();
+    let repo = open(&f);
+    let mut plan = repo.rebase_todo(&base).unwrap();
+    plan[1].action = TodoAction::Squash;
+
+    repo.interactive_rebase(&base, &plan).unwrap();
+
+    let combined = message(&f, "HEAD");
+    assert!(
+        combined.contains("commit 1") && combined.contains("commit 2"),
+        "{combined}"
+    );
+}
+
+/// base — before — merge of `side` — after, on the checked-out branch.
+fn with_a_merge() -> test_fixtures::Fixture {
+    let f = test_fixtures::linear(1).unwrap();
+    f.commit_file(2, "before.txt", "b\n").unwrap();
+    f.git(&["checkout", "-q", "-b", "side"]).unwrap();
+    f.commit_file(3, "side.txt", "s\n").unwrap();
+    f.git(&["checkout", "-q", "-"]).unwrap();
+    f.merge(4, &["side"], "merge side").unwrap();
+    f.commit_file(5, "after.txt", "a\n").unwrap();
+    f
+}
+
+// `pick <merge>` stops with "is a merge but no -m option was given".
+#[test]
+fn the_default_plan_leaves_merge_commits_out_as_git_does() {
+    let f = with_a_merge();
+    let merge = f.oid("HEAD~1").unwrap();
+
+    let plan = open(&f).rebase_todo(&f.oid("HEAD~3").unwrap()).unwrap();
+
+    assert!(plan.iter().all(|entry| entry.oid != merge), "{plan:?}");
+}
+
+#[test]
+fn a_new_author_under_a_merge_is_refused_before_anything_moves() {
+    let f = with_a_merge();
+    let repo = open(&f);
+    let head = f.oid("HEAD").unwrap();
+
+    let result = repo.edit_author(&f.oid("HEAD~2").unwrap(), "New", "new@example.com");
+
+    assert!(result.is_err());
+    assert_eq!(repo.state().unwrap(), git_engine::RepoState::Clean);
+    assert_eq!(f.oid("HEAD").unwrap(), head);
+}
