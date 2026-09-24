@@ -11,15 +11,31 @@ import {
   type RepoId,
 } from "$lib/ipc";
 
+type Running = { id: number; repo: RepoId; label: string; progress: string | null };
+
 class NetworkStore {
   remotes = $state.raw<string[]>([]);
   url = $state<string | null>(null);
-  /** The last line Git printed, shown in the status bar while the operation runs. */
-  progress = $state<string | null>(null);
-  running = $state<string | null>(null);
-  /** Whose progress `progress` is; the Exit dialog must not give it to another repository. */
-  repo = $state.raw<RepoId | null>(null);
   tokenStored = $state(false);
+  /** Every operation on the network now, newest last. Each keeps its own line: the first
+      to finish must not blank the status of one still running. */
+  #running = $state.raw<Running[]>([]);
+  #started = 0;
+
+  /** The newest operation's label, shown in the status bar while it runs. */
+  get running(): string | null {
+    return this.#running.at(-1)?.label ?? null;
+  }
+
+  /** The last line Git printed for that operation. */
+  get progress(): string | null {
+    return this.#running.at(-1)?.progress ?? null;
+  }
+
+  /** Whose progress `progress` is; the Exit dialog must not give it to another repository. */
+  get repo(): RepoId | null {
+    return this.#running.at(-1)?.repo ?? null;
+  }
 
   get tokenHost(): string | null {
     return authHost(this.url);
@@ -61,26 +77,33 @@ class NetworkStore {
   }
 
   async fetch(repo: RepoId, remote: string): Promise<void> {
-    await this.run(repo, "Fetching", () => fetchRemote(repo, remote, (l) => (this.progress = l)));
+    await this.run(repo, "Fetching", (onLine) => fetchRemote(repo, remote, onLine));
   }
 
   async pull(repo: RepoId, remote: string, ffOnly: boolean): Promise<void> {
-    await this.run(repo, "Pulling", () => pullRemote(repo, remote, ffOnly, (l) => (this.progress = l)));
+    await this.run(repo, "Pulling", (onLine) => pullRemote(repo, remote, ffOnly, onLine));
   }
 
   async push(repo: RepoId, remote: string, force: boolean): Promise<void> {
-    await this.run(repo, "Pushing", () => pushRemote(repo, remote, force, (l) => (this.progress = l)));
+    await this.run(repo, "Pushing", (onLine) => pushRemote(repo, remote, force, onLine));
   }
 
-  async run(repo: RepoId, label: string, operation: () => Promise<unknown>): Promise<void> {
-    this.running = label;
-    this.repo = repo;
-    this.progress = null;
+  async run(
+    repo: RepoId,
+    label: string,
+    operation: (onLine: (line: string) => void) => Promise<unknown>,
+  ): Promise<void> {
+    const id = ++this.#started;
+    this.#running = [...this.#running, { id, repo, label, progress: null }];
+    // After `clear()` the operation is no longer listed, and its lines go nowhere.
+    const onLine = (line: string) => {
+      if (!this.#running.some((entry) => entry.id === id)) return;
+      this.#running = this.#running.map((entry) => (entry.id === id ? { ...entry, progress: line } : entry));
+    };
     try {
-      await operation();
+      await operation(onLine);
     } finally {
-      this.running = null;
-      this.progress = null;
+      this.#running = this.#running.filter((entry) => entry.id !== id);
     }
   }
 
@@ -89,8 +112,7 @@ class NetworkStore {
     this.remotes = [];
     this.url = null;
     this.tokenStored = false;
-    this.progress = null;
-    this.running = null;
+    this.#running = [];
   }
 }
 

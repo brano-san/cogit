@@ -600,7 +600,7 @@
 
   async function push(id: RepoId, remote: string, refspec: string) {
     await attempt("Could not push", () =>
-      network.run(id, "Pushing", () => pushTo(id, remote, refspec, (line) => (network.progress = line))),
+      network.run(id, "Pushing", (onLine) => pushTo(id, remote, refspec, onLine)),
     );
   }
 
