@@ -20,7 +20,8 @@ impl RepoHandle {
             ));
         }
 
-        let mut args = vec!["commit"];
+        // Cogit runs it after the commit returns (`maintain_after_commit`).
+        let mut args = vec!["-c", "maintenance.auto=false", "commit"];
         if request.amend {
             args.push("--amend");
         }
@@ -45,6 +46,7 @@ impl RepoHandle {
         if request.no_verify {
             self.record_bypass(&oid, &request.message);
         }
+        self.maintain_after_commit();
         Ok(oid)
     }
 }
