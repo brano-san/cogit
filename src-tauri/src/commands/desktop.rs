@@ -4,7 +4,7 @@ use app_state::RepoId;
 use app_state::desktop::{self, DesktopInfo, Launch, Platform};
 use git_engine::GitError;
 
-use super::blocking;
+use super::{blocking, mutating};
 
 fn start(label: &'static str, launch: Launch, cwd: Option<String>) -> Result<(), GitError> {
     tracing::info!(program = %launch.program, args = ?launch.args, label, "starting a desktop program");
@@ -77,12 +77,19 @@ pub async fn move_to_trash(
     paths: Vec<String>,
 ) -> Result<(), GitError> {
     let root = state.state.root_of(repo)?;
-    blocking("move_to_trash", move || {
-        let absolute: Vec<std::path::PathBuf> = paths
-            .iter()
-            .map(|path| root.join(path.trim_end_matches('/')))
-            .collect();
-        crate::recycle_bin::move_to_trash(&absolute).map_err(|err| GitError::Io(err.to_string()))
-    })
+    mutating(
+        &state.state,
+        repo,
+        app_state::OperationKind::Discard,
+        "move_to_trash",
+        move || {
+            let absolute: Vec<std::path::PathBuf> = paths
+                .iter()
+                .map(|path| root.join(path.trim_end_matches('/')))
+                .collect();
+            crate::recycle_bin::move_to_trash(&absolute)
+                .map_err(|err| GitError::Io(err.to_string()))
+        },
+    )
     .await
 }

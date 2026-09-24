@@ -440,7 +440,12 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > параллельным open). Тест `one_path_opened_twice_at_once_is_one_repository` (до правки —
   > два id, стабильно). Попутно: `close_repository` шлёт `RepoClosed` дважды (unregister +
   > сам) — в webview не пересылается, не трогал.
-- [ ] C1-08 записи через очередь
+- [x] C1-08 записи через очередь
+  > Итог: stage_mode (Stage), write_git_config (Other, если есть репозиторий; глобальный —
+  > как было), write_hook/set_hook_enabled/use_hooks_path (Other), move_to_trash (Discard) —
+  > через `mutating`. Видимое следствие: эти действия появляются в индикаторе очереди. Тест
+  > `commands_that_write_the_repository_wait_for_its_lane` (сканирует тела команд, как
+  > соседние тесты модуля).
 - [ ] C1-10 `repositories` в blocking
 - [ ] C1-11 отмена поисков только при фактическом выходе
 - [ ] C1-12 тихое окно вотчера не теряет внешние события
