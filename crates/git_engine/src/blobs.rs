@@ -120,7 +120,7 @@ impl RepoHandle {
             DiffSpec::CommitVsCommit { a, b } => {
                 Ok((self.blob_at(a, path)?, self.blob_at(b, path)?))
             }
-            DiffSpec::WorkTreeVsIndex => Ok((self.blob_in_index(path)?, self.blob_on_disk(path))),
+            DiffSpec::WorkTreeVsIndex => Ok((self.blob_in_index(path)?, self.blob_on_disk(path)?)),
             DiffSpec::IndexVsHead => {
                 let old = match self.head()? {
                     crate::Head::Unborn { .. } => None,
@@ -129,7 +129,7 @@ impl RepoHandle {
                 Ok((old, self.blob_in_index(path)?))
             }
             DiffSpec::CommitVsWorkTree { oid } => {
-                Ok((self.blob_at(oid, path)?, self.blob_on_disk(path)))
+                Ok((self.blob_at(oid, path)?, self.blob_on_disk(path)?))
             }
         }
     }
@@ -153,11 +153,19 @@ impl RepoHandle {
     }
 
     /// Bytes as they are on disk: the worktree side of a diff is not a Git object.
-    pub(crate) fn blob_on_disk(&self, path: &str) -> Option<Vec<u8>> {
+    ///
+    /// Only a missing file, or a directory (a submodule), is "nothing here". A file that
+    /// exists and cannot be read is an error: shown as absent it looks deleted.
+    pub(crate) fn blob_on_disk(&self, path: &str) -> Result<Option<Vec<u8>>> {
         if self.is_bare() {
-            return None;
+            return Ok(None);
         }
-        std::fs::read(self.root().join(path)).ok()
+        let file = self.root().join(path);
+        match std::fs::read(&file) {
+            Ok(bytes) => Ok(Some(bytes)),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound || file.is_dir() => Ok(None),
+            Err(err) => Err(GitError::Io(format!("cannot read {path}: {err}"))),
+        }
     }
 
     pub(crate) fn first_parent(&self, rev: &str) -> Result<Option<String>> {

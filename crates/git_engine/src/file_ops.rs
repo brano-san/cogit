@@ -98,7 +98,7 @@ impl RepoHandle {
         let sides = (
             as_text(head),
             as_text(self.blob_in_index(path)?),
-            as_text(self.blob_on_disk(path)),
+            as_text(self.blob_on_disk(path)?),
         );
         match sides {
             (Ok(head), Ok(index), Ok(worktree)) => Ok(IndexEditorSides {

@@ -139,3 +139,40 @@ fn a_directory_is_not_mistaken_for_a_file() {
 
     assert!(repo.blob_at("HEAD", "src").unwrap().is_none());
 }
+
+// A file another program holds open without sharing (an editor mid-save, a scanner) read
+// as absent: the diff showed it deleted, and discarding hunks from that diff acted on a
+// deletion nobody made.
+#[cfg(windows)]
+#[test]
+fn a_working_file_that_cannot_be_read_is_an_error_not_a_deletion() {
+    use std::os::windows::fs::OpenOptionsExt as _;
+
+    let f = test_fixtures::linear(1).unwrap();
+    let path = f.path().join("file0.txt");
+    std::fs::write(&path, "changed\n").unwrap();
+    let _held = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .share_mode(0)
+        .open(&path)
+        .unwrap();
+
+    assert!(
+        open(&f)
+            .diff_sides(&DiffSpec::WorkTreeVsIndex, "file0.txt")
+            .is_err()
+    );
+}
+
+#[test]
+fn a_directory_on_the_working_side_still_reads_as_nothing() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::create_dir_all(f.path().join("folder")).unwrap();
+
+    let (_, worktree) = open(&f)
+        .diff_sides(&DiffSpec::WorkTreeVsIndex, "folder")
+        .unwrap();
+
+    assert!(worktree.is_none());
+}
