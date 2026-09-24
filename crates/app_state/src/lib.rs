@@ -1369,10 +1369,10 @@ impl AppState {
         self.forget_row(repo);
         self.forget_graph(repo);
         self.reachable.lock().remove(&repo);
-        self.safety.write().retain(|held| held.entry.repo != repo);
         watch.done("forget-state");
 
         let removed = self.unregister(repo);
+        self.safety.write().retain(|held| held.entry.repo != repo);
         if removed {
             self.emit(AppEvent::RepoClosed { repo });
         }
@@ -1742,6 +1742,19 @@ mod tests {
         let since = cache.begin();
         cache.keep(since, row(1));
         assert!(cache.rows.contains_key(&RepoId(1)));
+    }
+
+    // Close does not wait for the lane, so a reset still running when the repository was
+    // closed recorded its Undo afterwards — for an id nothing would ever clear again.
+    #[test]
+    fn a_mutation_finishing_after_its_repository_closed_leaves_no_undo_entry() {
+        let state = AppState::new();
+        let id = state.register(PathBuf::from("/a"), "a".into());
+        state.close_repository(id);
+
+        state.record(id, "Hard reset".into(), safety::Recovery::None);
+
+        assert!(state.safety_log().is_empty());
     }
 
     #[test]
