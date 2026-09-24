@@ -507,26 +507,40 @@ impl RepoHandle {
     /// the team setup offers the `.gitattributes` rule (doc/modules/M10-hooks.md, T10.6).
     pub fn needs_eol_rule(&self, dir: &str) -> Result<bool> {
         let rule = format!("{dir}/**");
-        let Ok(text) = std::fs::read_to_string(self.root().join(".gitattributes")) else {
+        // Bytes, not UTF-8: a comment in another code page must not hide the rules.
+        let Some(bytes) = self.gitattributes()? else {
             return Ok(true);
         };
-        Ok(!text
+        Ok(!String::from_utf8_lossy(&bytes)
             .lines()
             .any(|line| line.starts_with(&rule) && line.contains("eol=lf")))
     }
 
+    /// Appended, never rewritten: the file is the team's, in whatever encoding they saved.
     pub fn add_eol_rule(&self, dir: &str) -> Result<()> {
         if !self.needs_eol_rule(dir)? {
             return Ok(());
         }
 
-        let path = self.root().join(".gitattributes");
-        let mut text = std::fs::read_to_string(&path).unwrap_or_default();
-        if !text.is_empty() && !text.ends_with('\n') {
-            text.push('\n');
+        let existing = self.gitattributes()?.unwrap_or_default();
+        let mut addition = String::new();
+        if !existing.is_empty() && !existing.ends_with(b"\n") {
+            addition.push('\n');
         }
-        text.push_str(&format!("{dir}/** eol=lf\n"));
-        std::fs::write(&path, text)?;
+        addition.push_str(&format!("{dir}/** eol=lf\n"));
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(self.root().join(".gitattributes"))?;
+        std::io::Write::write_all(&mut file, addition.as_bytes())?;
         Ok(())
+    }
+
+    fn gitattributes(&self) -> Result<Option<Vec<u8>>> {
+        match std::fs::read(self.root().join(".gitattributes")) {
+            Ok(bytes) => Ok(Some(bytes)),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(err) => Err(err.into()),
+        }
     }
 }

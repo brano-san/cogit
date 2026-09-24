@@ -507,7 +507,11 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > непарсящийся — сохраняется как `settings.json.damaged` и заменяется (существующий тест
   > замены сохранён); `read_document` логирует ошибку чтения. Тест
   > `a_damaged_file_is_kept_aside_before_the_next_write_replaces_it`.
-- [ ] B-05 `.gitattributes`: дописывать, не перезаписывать
+- [x] B-05 `.gitattributes`: дописывать, не перезаписывать
+  > Итог: `.gitattributes` читается байтами, правило дописывается через `append`, ошибка
+  > чтения, кроме NotFound, пробрасывается. Тест
+  > `a_gitattributes_that_is_not_utf8_keeps_its_bytes` (cp1251-комментарий: до правки файл
+  > заменялся одной строкой).
 - [ ] B-07 rebase раньше merge в определении состояния
 - [ ] B-08/B-09 хуки и вотчер worktree — common dir
 - [ ] B-10 ошибки notify в лог
