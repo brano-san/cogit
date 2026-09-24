@@ -131,6 +131,16 @@ impl AppState {
             undoable = entry.undoable,
             "destructive operation recorded"
         );
-        self.safety.write().push(Undoable { entry, recovery });
+        // Checked under the journal's lock: close clears the journal after unregistering,
+        // so an entry is either cleared by it or never pushed.
+        let mut safety = self.safety.write();
+        if self.repos.read().contains_key(&repo) {
+            safety.push(Undoable { entry, recovery });
+        } else {
+            tracing::info!(
+                repo = repo.0,
+                "the repository closed meanwhile; not kept for Undo"
+            );
+        }
     }
 }
