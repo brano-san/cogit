@@ -382,8 +382,15 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
 - [x] C1F-01 `refresh` во время `opening`
   > Итог: `refresh` выходит, пока идёт `opening` — открытие в полёте и так принесёт свежее;
   > тест `does not let a refresh during an open take the user back`.
-- [ ] C1F-08 перебитый `activate` выходит
-- [ ] C1F-02/03/04 проверка «репозиторий всё ещё текущий» после await в App
+- [x] C1F-08 перебитый `activate` выходит
+  > Итог: `open` возвращает, выиграл ли его ticket; перебитый `activate` выходит. Тест
+  > `tells the caller whose open was overtaken`.
+- [x] C1F-02/03/04 проверка «репозиторий всё ещё текущий» после await в App
+  > Итог: `repository.epoch` меняется только при переходе на другой репозиторий (не при
+  > перечитывании); `applyDiskChanges`, `mutate`, `commitStaged`, `afterRefChange`,
+  > `runNetwork` после каждого await выходят, если эпоха сменилась. Тесты на эпоху — в
+  > repository.test.ts; сама проводка в App.svelte юнит-тестами не покрыта (правило фронта:
+  > тестируем сторы, не разметку).
 - [ ] C1F-05/06/07/14 поколения в сторах stashes, recovery, network, flow, conflicts,
   worktrees, submodules, refs
 - [ ] C1F-09 картинки диффа по поколению

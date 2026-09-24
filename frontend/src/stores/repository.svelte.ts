@@ -46,6 +46,18 @@ class RepositoryStore {
   /** What a listed repository looked like when a submodule or worktree of it replaced it
       in the panels, so clicking it again switches back without reopening it (#50). */
   #kept = new Map<string, RepoSummary>();
+  #epoch = 0;
+
+  /** Changes whenever the panels are about to show another repository, never on a
+      re-read of the same one. Work begun under an older value belongs to a repository
+      the user has left and must not write its answer. */
+  get epoch(): number {
+    return this.#epoch;
+  }
+
+  #leaving(root: string): void {
+    if (this.current?.root !== root) this.#epoch += 1;
+  }
 
   get current(): RepoSummary | null {
     return this.phase.kind === "closed" ? null : this.phase.repo;
@@ -71,15 +83,16 @@ class RepositoryStore {
     return headLabel(this.current?.head);
   }
 
-  async open(path: string): Promise<void> {
+  /** `false` when a newer open overtook this one and its answer was dropped. */
+  async open(path: string): Promise<boolean> {
     const ticket = this.#begin(path);
     try {
       const repo = await openRepository(path);
       trace(`open:${path}`, `backend answered, ticket ${ticket}, ${repo.branches.length} refs`);
-      this.#settle(ticket, { kind: "open", repo });
+      return this.#settle(ticket, { kind: "open", repo });
     } catch (err) {
       trace(`open:${path}`, `backend refused, ticket ${ticket}: ${String(err)}`);
-      this.#settle(ticket, {
+      return this.#settle(ticket, {
         kind: "failed",
         root: path,
         error: asCogitError(err),
@@ -90,6 +103,7 @@ class RepositoryStore {
 
   #begin(root: string): number {
     const ticket = ++this.#ticket;
+    this.#leaving(root);
     this.#disarm();
     this.phase = { kind: "opening", root, repo: this.current };
     trace(`open:${root}`, `phase → opening, ticket ${ticket}`);
@@ -111,14 +125,15 @@ class RepositoryStore {
     return ticket;
   }
 
-  #settle(ticket: number, phase: RepoPhase): void {
+  #settle(ticket: number, phase: RepoPhase): boolean {
     if (this.#ticket !== ticket) {
       trace("open", `ticket ${ticket} is stale, ${this.#ticket} is current; answer dropped`);
-      return;
+      return false;
     }
     this.#disarm();
     this.phase = phase;
     trace("open", `phase → ${phase.kind}, ticket ${ticket}`);
+    return true;
   }
 
   #disarm(): void {
@@ -143,6 +158,7 @@ class RepositoryStore {
       without asking the backend to open it again. */
   adopt(repo: RepoSummary): void {
     this.#ticket += 1;
+    this.#leaving(repo.root);
     this.#disarm();
     this.phase = { kind: "open", repo };
   }
@@ -221,6 +237,7 @@ class RepositoryStore {
 
   close(): void {
     this.#ticket += 1;
+    this.#epoch += 1;
     this.#disarm();
     this.phase = { kind: "closed" };
   }
