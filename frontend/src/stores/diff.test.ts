@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const commands = { diffFile: vi.fn(), imageSides: vi.fn() };
+const commands = { diffFile: vi.fn(), imageSides: vi.fn(), discardSelection: vi.fn() };
 
 /** Stands in for the on-disk store: the branch keeps its view preferences there. */
 const stored = new Map<string, unknown>();
@@ -248,5 +248,40 @@ describe("clicking from one image to another", () => {
 
     expect(diff.path).toBe("b.png");
     expect(diff.images).toEqual(["b-old", "b-new"]);
+  });
+});
+
+// Discard names the lines of the diff on screen. The store used to send them with the path
+// of whatever was asked for last: click b while a is still shown, confirm a's Discard, and
+// a's line numbers were thrown away in b.
+describe("discarding lines while the diff changes", () => {
+  beforeEach(() => {
+    diff.clear();
+    commands.diffFile.mockReset();
+    commands.discardSelection.mockReset();
+    commands.discardSelection.mockResolvedValue({ status: "ok", data: null });
+    commands.diffFile.mockImplementation(async () => textDiff());
+  });
+
+  it("throws away the lines in the file they were chosen in", async () => {
+    await diff.load(REPO, SPEC, "a.txt");
+    const chosen = diff.diff!;
+    commands.diffFile.mockReturnValueOnce(new Promise(() => {}));
+    void diff.load(REPO, SPEC, "b.txt");
+
+    await diff.discardLines(new Set(["d:1"]), chosen);
+
+    expect(commands.discardSelection).toHaveBeenCalledOnce();
+    expect(commands.discardSelection.mock.calls[0]?.[1].path).toBe("a.txt");
+  });
+
+  it("does nothing once another diff has replaced the one they were chosen in", async () => {
+    await diff.load(REPO, SPEC, "a.txt");
+    const chosen = diff.diff!;
+    await diff.load(REPO, SPEC, "b.txt");
+
+    await diff.discardLines(new Set(["d:1"]), chosen);
+
+    expect(commands.discardSelection).not.toHaveBeenCalled();
   });
 });

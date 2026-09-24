@@ -41,6 +41,14 @@ class DiffStore {
   #prefsRead = false;
   /** Which repository the shown diff came from, so a toggle can recompute it. */
   #repo: RepoId | null = null;
+  /** The file `diff` belongs to. `path` and `spec` move to the next file at once; this
+      stays with the lines on screen until that file's diff arrives. */
+  #shown = $state.raw<{ repo: RepoId; path: string } | null>(null);
+
+  /** The file the lines on screen belong to; `path` is the one asked for last. */
+  get shownPath(): string | null {
+    return this.#shown?.path ?? null;
+  }
 
   get hunks(): Hunk[] {
     return this.diff?.kind === "text" ? this.diff.hunks : [];
@@ -86,13 +94,15 @@ class DiffStore {
         detectMoves: settings.diffOptions.detectMoves && this.showMoves,
       });
       if (generation !== this.#generation) return;
-      this.diff = result;
       const images = result.kind === "image" ? await imageSides(repo, spec, path) : null;
       if (generation !== this.#generation) return;
+      this.diff = result;
       this.images = images ?? [null, null];
+      this.#shown = { repo, path };
     } catch (err) {
       if (generation !== this.#generation) return;
       this.diff = null;
+      this.#shown = null;
       this.error =
         err instanceof CogitError ? err : new CogitError({ kind: "internal", data: String(err) });
     } finally {
@@ -112,14 +122,18 @@ class DiffStore {
     await this.load(this.#repo, this.spec, this.path);
   }
 
-  /** Throws the selected lines away in the working tree. The caller confirms first. */
-  async discardLines(selected: ReadonlySet<string>): Promise<void> {
-    if (this.#repo === null || this.path === null || this.diff?.kind !== "text") return;
+  /** Throws the selected lines away in the working tree. The caller confirms first.
+      `from` is the diff the lines were chosen in; once another has replaced it, their
+      numbers mean other lines, and nothing is thrown away. */
+  async discardLines(selected: ReadonlySet<string>, from?: FileDiff): Promise<void> {
+    const shown = this.#shown;
+    if (shown === null || this.diff?.kind !== "text") return;
+    if (from !== undefined && from !== this.diff) return;
     const { deletes, inserts } = splitSelection(selected);
     if (deletes.length === 0 && inserts.length === 0) return;
 
-    await discardSelection(this.#repo, {
-      path: this.path,
+    await discardSelection(shown.repo, {
+      path: shown.path,
       hunks: this.diff.hunks,
       selectedDeletes: deletes,
       selectedInserts: inserts,
@@ -201,6 +215,7 @@ class DiffStore {
   clear(): void {
     this.#generation += 1;
     this.#repo = null;
+    this.#shown = null;
     this.path = null;
     this.spec = null;
     this.context = null;
