@@ -635,11 +635,13 @@ pub struct GraphProgress {
 отдаёт для тех же строк: полосу (`nodeLanes`, `segmentLanes`) и стиль (`nodeStyles`,
 `segmentStyles`: младшие 4 бита — слот палитры + 1, 0 — цвет по умолчанию; бит `0x10` —
 приглушено, вне родни `ancestryOf`) узла и каждого
-сегмента, `segmentFirst` — где начинаются сегменты каждой строки. Считается в Rust по всему
+сегмента, `segmentFirst` — где начинаются сегменты каждой строки, `folds: [{ row, hidden }]` —
+свёрнутые merge среди строк окна и сколько коммитов в каждом. Считается в Rust по всему
 графу один раз на запрос и хранится, пока не изменились строки или запрос
 ([07-graph-rendering.md §5](07-graph-rendering.md#раскраска)). Пустой запрос UI не шлёт.
 
-**Вид графа** едет в том же `CommitQuery`: `view: GraphView { firstParent }` — какие из
+**Вид графа** едет в том же `CommitQuery`: `view: GraphView { firstParent, collapseMerged,
+expanded }` — какие из
 обойдённых коммитов граф показывает ([07-graph-rendering.md §10](07-graph-rendering.md#10-режимы-графа)).
 Строки фильтра (`filters_rows`) он не делает; отфильтрованный список его не учитывает.
 

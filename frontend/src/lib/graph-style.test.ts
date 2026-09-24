@@ -55,6 +55,7 @@ describe("rowPaint", () => {
     segmentFirst: [0, 1, 3],
     segmentLanes: [4, 5, 6],
     segmentStyles: [0, 3, 1],
+    folds: [],
   };
 
   it("cuts one row's segments out of the window", () => {

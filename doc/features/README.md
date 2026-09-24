@@ -322,3 +322,4 @@
 | F-441 | Только первые родители | [F-441-graph-first-parent.md](F-441-graph-first-parent.md) |
 | F-442 | Ветка коммита по клику | [F-442-graph-branch-of-commit.md](F-442-graph-branch-of-commit.md) |
 | F-443 | Предки и потомки выбранного коммита | [F-443-graph-ancestry.md](F-443-graph-ancestry.md) |
+| F-444 | Сворачивание слитых веток | [F-444-graph-collapse-merged.md](F-444-graph-collapse-merged.md) |

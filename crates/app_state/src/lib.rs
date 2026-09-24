@@ -222,6 +222,8 @@ pub struct GraphChunk {
     pub commits: Vec<git_engine::CommitRow>,
     /// One per commit, in the same order: the node and every segment of its row.
     pub rows: Vec<graph_engine::GraphRow>,
+    /// Folded merges whose count grew with this chunk.
+    pub folds: Vec<graph_engine::Fold>,
     pub is_last: bool,
 }
 
@@ -567,10 +569,15 @@ impl AppState {
                 })
                 .collect();
             let rows = graph_engine::layout(&nodes, &mut cursor);
+            let folds = view
+                .as_mut()
+                .map(graph_engine::ViewFilter::take_folds)
+                .unwrap_or_default();
 
             let keep = on_chunk(GraphChunk {
                 commits,
                 rows,
+                folds,
                 is_last: false,
             });
             cancelled = !keep;
@@ -583,6 +590,7 @@ impl AppState {
             on_chunk(GraphChunk {
                 commits: Vec::new(),
                 rows: Vec::new(),
+                folds: Vec::new(),
                 is_last: true,
             });
         }
@@ -1458,12 +1466,16 @@ fn graph_view(
     query: &git_engine::CommitQuery,
     flat: bool,
 ) -> Result<Option<graph_engine::ViewFilter>, git_engine::GitError> {
-    if flat || !query.view.first_parent {
+    let view = &query.view;
+    if flat || !(view.first_parent || view.collapse_merged) {
         return Ok(None);
     }
-    Ok(Some(graph_engine::ViewFilter::first_parent(
-        handle.walk_tips(query)?,
-    )))
+    let roots = handle.walk_tips(query)?;
+    Ok(Some(if view.first_parent {
+        graph_engine::ViewFilter::first_parent(roots)
+    } else {
+        graph_engine::ViewFilter::collapse_merged(roots, view.expanded.iter().cloned())
+    }))
 }
 
 fn mainline_of(handle: &git_engine::RepoHandle, query: &git_engine::CommitQuery) -> Option<String> {

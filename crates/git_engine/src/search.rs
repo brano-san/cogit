@@ -34,6 +34,9 @@ pub struct CommitQuery {
 pub struct GraphView {
     /// `--first-parent`: one line per ticked ref, merged branches left out.
     pub first_parent: bool,
+    /// A merged branch is one row at its merge, but for the merges in `expanded`.
+    pub collapse_merged: bool,
+    pub expanded: Vec<String>,
 }
 
 impl CommitQuery {

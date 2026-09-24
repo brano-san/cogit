@@ -11,7 +11,11 @@ export interface GraphModes {
   branchOfCommit: boolean;
   /** Everything but the chosen commit's ancestors and descendants is dimmed. */
   ancestry: boolean;
+  /** A branch merged in is one row at its merge, opened with a button there. */
+  collapseMerged: boolean;
 }
+
+export type GraphMode = keyof GraphModes;
 
 /** As the graph looked before the settings existed, plus colour for ticked branches. */
 export const GRAPH_MODE_DEFAULTS: Readonly<GraphModes> = {
@@ -19,7 +23,30 @@ export const GRAPH_MODE_DEFAULTS: Readonly<GraphModes> = {
   firstParent: false,
   branchOfCommit: false,
   ancestry: false,
+  collapseMerged: false,
 };
+
+/** Modes that cannot both apply: `mode` does nothing while `by` is on. Every other pair
+    works together, and with the colours of ticked branches. */
+export const MODE_CONFLICTS: readonly { mode: GraphMode; by: GraphMode; reason: string }[] = [
+  {
+    mode: "collapseMerged",
+    by: "firstParent",
+    reason: "First parents only already leaves every merged branch out.",
+  },
+];
+
+/** The modes that are inactive under `modes`, and why: Preferences greys them out. */
+export function conflictingModes(modes: GraphModes): { mode: GraphMode; reason: string }[] {
+  return MODE_CONFLICTS.filter((conflict) => modes[conflict.by]).map(({ mode, reason }) => ({ mode, reason }));
+}
+
+/** `modes` as the graph applies them: an inactive mode is off. */
+export function effectiveModes(modes: GraphModes): GraphModes {
+  const effective = { ...modes };
+  for (const { mode } of conflictingModes(modes)) effective[mode] = false;
+  return effective;
+}
 
 export interface CheckedTip {
   name: string;
@@ -47,13 +74,20 @@ export function checkedTips(
     .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 }
 
-/** The modes that decide which commits the walk shows; the rest only paint. */
-export function graphView(modes: GraphModes): GraphView {
-  return { firstParent: modes.firstParent };
+/** The modes that decide which commits the walk shows; the rest only paint. The opened
+    merges count only while merged branches fold, so opening one elsewhere walks nothing. */
+export function graphView(modes: GraphModes, expanded: ReadonlySet<string> = new Set()): GraphView {
+  const effective = effectiveModes(modes);
+  return {
+    firstParent: effective.firstParent,
+    collapseMerged: effective.collapseMerged,
+    expanded: effective.collapseMerged ? [...expanded].sort() : [],
+  };
 }
 
 /** What to ask Rust to paint; `null` when there is nothing, so no call is made at all.
-    The branch of a commit needs only the lanes, which come with any paint. */
+    The branch of a commit needs only the lanes and a fold only its count, which come
+    with any paint. */
 export function paintRequest(
   modes: GraphModes,
   tips: readonly CheckedTip[],
@@ -61,7 +95,8 @@ export function paintRequest(
 ): GraphPaintRequest | null {
   const painted = modes.highlightChecked ? tips.map(({ oid, slot }) => ({ oid, slot })) : [];
   const ancestryOf = modes.ancestry ? selected : null;
-  if (painted.length === 0 && !modes.branchOfCommit && ancestryOf === null) return null;
+  const bare = modes.branchOfCommit || effectiveModes(modes).collapseMerged;
+  if (painted.length === 0 && !bare && ancestryOf === null) return null;
   return ancestryOf === null ? { tips: painted } : { tips: painted, ancestryOf };
 }
 

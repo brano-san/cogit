@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { GRAPH_MODE_DEFAULTS, checkedTips, focusLane, graphView, paintRequest } from "$lib/graph-modes";
+import {
+  GRAPH_MODE_DEFAULTS,
+  MODE_CONFLICTS,
+  checkedTips,
+  conflictingModes,
+  effectiveModes,
+  focusLane,
+  graphView,
+  paintRequest,
+} from "$lib/graph-modes";
 import { branchSlot } from "$lib/graph-style";
 
 const branches = [
@@ -41,8 +50,15 @@ describe("paintRequest", () => {
 
 describe("graphView", () => {
   it("walks everything by default and first parents only when asked", () => {
-    expect(graphView(GRAPH_MODE_DEFAULTS)).toEqual({ firstParent: false });
-    expect(graphView({ ...GRAPH_MODE_DEFAULTS, firstParent: true })).toEqual({ firstParent: true });
+    expect(graphView(GRAPH_MODE_DEFAULTS)).toEqual({ firstParent: false, collapseMerged: false, expanded: [] });
+    expect(graphView({ ...GRAPH_MODE_DEFAULTS, firstParent: true })).toMatchObject({ firstParent: true });
+  });
+
+  it("sends the opened merges only while merged branches fold, in one order", () => {
+    const opened = new Set(["b", "a"]);
+    const folding = { ...GRAPH_MODE_DEFAULTS, collapseMerged: true };
+    expect(graphView(folding, opened)).toEqual({ firstParent: false, collapseMerged: true, expanded: ["a", "b"] });
+    expect(graphView(GRAPH_MODE_DEFAULTS, opened).expanded).toEqual([]);
   });
 });
 
@@ -72,5 +88,42 @@ describe("ancestry in the paint request", () => {
     expect(paintRequest(on, [], "abc")).toEqual({ tips: [], ancestryOf: "abc" });
     expect(paintRequest(on, [], null)).toBeNull();
     expect(paintRequest(GRAPH_MODE_DEFAULTS, [], "abc")).toBeNull();
+  });
+});
+
+describe("conflicting modes", () => {
+  const every = {
+    highlightChecked: true,
+    firstParent: true,
+    branchOfCommit: true,
+    ancestry: true,
+    collapseMerged: true,
+  };
+
+  it("leave only folding merged branches out, while first parents hide them anyway", () => {
+    expect(conflictingModes(every)).toEqual([
+      { mode: "collapseMerged", reason: "First parents only already leaves every merged branch out." },
+    ]);
+    expect(effectiveModes(every)).toEqual({ ...every, collapseMerged: false });
+    expect(graphView(every)).toEqual({ firstParent: true, collapseMerged: false, expanded: [] });
+  });
+
+  it("are none while the blocking mode is off", () => {
+    expect(conflictingModes({ ...every, firstParent: false })).toEqual([]);
+    expect(conflictingModes(GRAPH_MODE_DEFAULTS)).toEqual([]);
+  });
+
+  it("name real modes and never a mode against itself", () => {
+    for (const { mode, by } of MODE_CONFLICTS) {
+      expect(Object.keys(GRAPH_MODE_DEFAULTS)).toContain(mode);
+      expect(Object.keys(GRAPH_MODE_DEFAULTS)).toContain(by);
+      expect(mode).not.toBe(by);
+    }
+  });
+
+  it("ask for folds even with nothing to colour", () => {
+    expect(paintRequest({ ...GRAPH_MODE_DEFAULTS, highlightChecked: false, collapseMerged: true }, [])).toEqual({
+      tips: [],
+    });
   });
 });

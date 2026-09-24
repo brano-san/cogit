@@ -1,6 +1,7 @@
 // clippy.toml's allow-unwrap-in-tests does not reach helpers beside `#[test]` fns.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
+use app_state::graph_overlay::GraphPaintRequest;
 use app_state::{AppState, GraphChunk};
 use git_engine::{CommitQuery, GraphView};
 
@@ -18,7 +19,10 @@ fn search(state: &AppState, repo: app_state::RepoId, query: &CommitQuery) -> Vec
 fn first_parent(refs: Option<&[&str]>) -> CommitQuery {
     CommitQuery {
         visible_refs: refs.map(|refs| refs.iter().map(|r| (*r).to_owned()).collect()),
-        view: GraphView { first_parent: true },
+        view: GraphView {
+            first_parent: true,
+            ..GraphView::default()
+        },
         ..CommitQuery::default()
     }
 }
@@ -81,4 +85,46 @@ fn a_filtered_list_ignores_the_view() {
         rows, 3,
         "commit 0, 1 and 2 match, whatever line they are on"
     );
+}
+
+fn collapsed(expanded: &[String]) -> CommitQuery {
+    CommitQuery {
+        visible_refs: Some(vec!["refs/heads/main".to_owned()]),
+        view: GraphView {
+            collapse_merged: true,
+            expanded: expanded.to_vec(),
+            ..GraphView::default()
+        },
+        ..CommitQuery::default()
+    }
+}
+
+#[test]
+fn a_merged_branch_folds_into_its_merge_and_the_window_says_how_many() {
+    let f = test_fixtures::diamond().unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let generation = state.begin_graph();
+    state
+        .build_graph(repo, &collapsed(&[]), generation, 100, |_| true)
+        .unwrap();
+
+    let window = state.graph_window(repo, generation, 0, 10).unwrap();
+    assert_eq!(window.commits.len(), 3, "dev's commit is folded");
+    let overlay = state
+        .graph_overlay(repo, generation, 0, 10, &GraphPaintRequest::default())
+        .unwrap();
+    assert_eq!(overlay.folds, [graph_engine::Fold { row: 0, hidden: 1 }]);
+}
+
+#[test]
+fn an_expanded_merge_shows_what_it_brought_in() {
+    let f = test_fixtures::diamond().unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let chunks = search(&state, repo, &collapsed(&[f.oid("main").unwrap()]));
+    let rows: usize = chunks.iter().map(|c| c.rows.len()).sum();
+    assert_eq!(rows, 4);
+    assert!(chunks.iter().all(|c| c.folds.is_empty()));
 }

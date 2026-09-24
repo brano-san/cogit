@@ -57,6 +57,14 @@ export class GraphOverlayStore {
     return block ? rowPaint(block, row) : undefined;
   }
 
+  /** Commits folded into the merge on `row` so far; 0 for any other row. */
+  foldAt(row: number): number {
+    void this.#arrived;
+    const index = Math.floor(row / BLOCK);
+    const block = this.#blocks.get(index) ?? this.#stale.get(index);
+    return block?.folds.find((fold) => fold.row === row)?.hidden ?? 0;
+  }
+
   show(view: OverlayView): void {
     const walk = JSON.stringify([view.repo, view.generation]);
     const key = JSON.stringify([walk, view.request]);

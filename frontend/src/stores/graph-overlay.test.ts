@@ -30,6 +30,7 @@ function rust(total: () => number) {
         segmentFirst: Array.from({ length: rows + 1 }, () => 0),
         segmentLanes: [],
         segmentStyles: [],
+        folds: start === 0 ? [{ row: 2, hidden: 5 }] : [],
       };
     },
   );
@@ -117,6 +118,17 @@ describe("graph overlay", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("folds", () => {
+  it("say how many commits a merge row holds", async () => {
+    const { fetch } = rust(() => 1000);
+    const store = new GraphOverlayStore(fetch);
+    store.show(view());
+    await settle();
+    expect(store.foldAt(2)).toBe(5);
+    expect(store.foldAt(3)).toBe(0);
   });
 });
 

@@ -3,7 +3,7 @@
 
 //! The view decides which walked commits the graph shows before anything is laid out.
 
-use graph_engine::ViewFilter;
+use graph_engine::{Fold, ViewFilter};
 
 type History<'a> = &'a [(&'a str, &'a [&'a str])];
 
@@ -69,4 +69,67 @@ fn first_parent_of_a_history_without_merges_keeps_everything() {
     let linear: History = &[("c", &["b"]), ("b", &["a"]), ("a", &[])];
     let kept = run(&mut ViewFilter::first_parent(["c".to_owned()]), linear, 100);
     assert_eq!(oids(&kept), ["c", "b", "a"]);
+}
+
+fn collapse(roots: &[&str], expanded: &[&str]) -> ViewFilter {
+    ViewFilter::collapse_merged(
+        roots.iter().map(|r| (*r).to_owned()),
+        expanded.iter().map(|e| (*e).to_owned()),
+    )
+}
+
+#[test]
+fn a_merged_branch_folds_into_its_merge_with_a_count() {
+    let mut view = collapse(&["m3"], &[]);
+    let kept = run(&mut view, MERGED, 100);
+    assert_eq!(oids(&kept), ["m3", "m2", "m1", "m0"]);
+    assert_eq!(kept[0].1, ["m2"]);
+    assert_eq!(view.take_folds(), [Fold { row: 0, hidden: 2 }]);
+    assert_eq!(view.take_folds(), [], "reported once, until it grows again");
+}
+
+#[test]
+fn an_expanded_merge_shows_its_branch() {
+    let mut view = collapse(&["m3"], &["m3"]);
+    let kept = run(&mut view, MERGED, 100);
+    assert_eq!(kept.len(), MERGED.len());
+    assert_eq!(kept[0].1, ["m2", "t2"]);
+    assert_eq!(view.take_folds(), []);
+}
+
+#[test]
+fn a_ticked_branch_the_merge_brought_in_keeps_its_line() {
+    let mut view = collapse(&["m3", "t2"], &[]);
+    let kept = run(&mut view, MERGED, 100);
+    assert_eq!(kept.len(), MERGED.len());
+    assert_eq!(
+        kept[0].1,
+        ["m2", "t2"],
+        "the merge still draws its line to it"
+    );
+    assert_eq!(view.take_folds(), []);
+}
+
+#[test]
+fn a_branch_merged_into_a_merged_branch_folds_with_it() {
+    let nested: History = &[
+        ("m2", &["m1", "t3"]),
+        ("t3", &["t2", "u1"]),
+        ("u1", &["t1"]),
+        ("t2", &["t1"]),
+        ("t1", &["m1"]),
+        ("m1", &["m0"]),
+        ("m0", &[]),
+    ];
+    let mut view = collapse(&["m2"], &[]);
+    let kept = run(&mut view, nested, 2);
+    assert_eq!(oids(&kept), ["m2", "m1", "m0"]);
+    assert_eq!(view.take_folds(), [Fold { row: 0, hidden: 4 }]);
+}
+
+#[test]
+fn first_parent_folds_nothing_it_could_open() {
+    let mut view = ViewFilter::first_parent(["m3".to_owned()]);
+    run(&mut view, MERGED, 100);
+    assert_eq!(view.take_folds(), []);
 }

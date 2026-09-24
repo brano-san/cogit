@@ -33,11 +33,14 @@
   import {
     GRAPH_MODE_DEFAULTS,
     checkedTips,
+    effectiveModes,
     focusLane,
     graphView,
     paintRequest,
     type LanePick,
   } from "$lib/graph-modes";
+  import FoldToggle from "$components/graph/FoldToggle.svelte";
+  import { graphFolds } from "$stores/graph-folds.svelte";
   import { laneAt } from "$lib/graph-style";
   import { isEmptyQuery } from "$lib/query";
   import { graphOverlays } from "$stores/graph-overlay.svelte";
@@ -63,6 +66,8 @@
     branchOfCommit?: boolean;
     /** The chosen commit's ancestors and descendants stand out (`graphAncestry`). */
     ancestry?: boolean;
+    /** A merged branch folds into its merge row (`graphCollapseMerged`). */
+    collapseMerged?: boolean;
   }
 
   let {
@@ -75,11 +80,15 @@
     firstParent = GRAPH_MODE_DEFAULTS.firstParent,
     branchOfCommit = GRAPH_MODE_DEFAULTS.branchOfCommit,
     ancestry = GRAPH_MODE_DEFAULTS.ancestry,
+    collapseMerged = GRAPH_MODE_DEFAULTS.collapseMerged,
   }: Props = $props();
 
-  const modes = $derived({ highlightChecked, firstParent, branchOfCommit, ancestry });
+  const modes = $derived(
+    effectiveModes({ highlightChecked, firstParent, branchOfCommit, ancestry, collapseMerged }),
+  );
+  $effect(() => graphFolds.forRepo(repository.current?.repo ?? null));
   $effect(() => {
-    const view = graphView(modes);
+    const view = graphView(modes, graphFolds.expanded);
     untrack(() => graph.setView(view));
   });
 
@@ -436,6 +445,13 @@
               }
             }}
           >
+            {#if modes.collapseMerged}
+              {@const hidden = graphOverlays.foldAt(item.entry.layout.row)}
+              {@const open = graphFolds.expanded.has(item.entry.commit.oid)}
+              {#if hidden > 0 || open}
+                <FoldToggle {open} {hidden} ontoggle={() => graphFolds.toggle(item.entry.commit.oid)} />
+              {/if}
+            {/if}
             {#each refs.shown as label (label.text)}
               <RefCapsule
                 {label}
