@@ -199,8 +199,19 @@ impl RepoHandle {
         paths.push(path);
 
         let patch = match self.first_parent(rev)? {
+            // Plumbing, like the root case below: porcelain `git diff` follows the user's
+            // diff.noprefix, color.ui and diff.external, and `git apply` cannot read that.
             Some(parent) => {
-                let mut args = vec!["diff", "--binary", "--full-index", "-M", &parent, rev, "--"];
+                let mut args = vec![
+                    "diff-tree",
+                    "-p",
+                    "--binary",
+                    "--full-index",
+                    "-M",
+                    &parent,
+                    rev,
+                    "--",
+                ];
                 args.extend(&paths);
                 self.run_git_bytes_literal(&args)?
             }

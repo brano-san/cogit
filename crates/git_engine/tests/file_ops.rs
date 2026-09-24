@@ -345,3 +345,25 @@ fn only_the_paths_still_on_disk_are_reported_present() {
     let present = open(&f).present_on_disk(&paths(&["file0.txt", "file1.txt", "gone.txt"]));
     assert_eq!(present, ["file0.txt"]);
 }
+
+// The patch came from porcelain `git diff`, which follows the user's diff.noprefix and
+// color.ui: without `a/` and `b/`, or in colour, `git apply` could not read it.
+#[test]
+fn cherry_picking_one_file_ignores_how_the_user_likes_diffs_shown() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&["switch", "-c", "dev"]).unwrap();
+    std::fs::create_dir_all(f.path().join("src")).unwrap();
+    f.write_file("src/a.txt", "from dev\n").unwrap();
+    f.git(&["add", "--all"]).unwrap();
+    f.git_at(5, &["commit", "-m", "dev work"]).unwrap();
+    let dev = f.oid("HEAD").unwrap();
+    f.git(&["switch", "main"]).unwrap();
+    f.git(&["config", "diff.noprefix", "true"]).unwrap();
+    f.git(&["config", "color.ui", "always"]).unwrap();
+
+    open(&f)
+        .apply_commit_file(&dev, "src/a.txt", None, false)
+        .unwrap();
+
+    assert_eq!(read(&f, "src/a.txt"), "from dev\n");
+}
