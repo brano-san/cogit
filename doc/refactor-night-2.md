@@ -296,7 +296,10 @@ ST src-tauri, FS сторы и lib фронта, FA App.svelte/окна/layout, 
 - [x] 1.2 ST-1-04: keyring в blocking
   > Итог: has_token/store_token/forget_token — через `blocking`; тест
   > `the_keyring_is_reached_off_the_async_workers` (красный до правки).
-- [ ] 1.3 AS-1-01: commit_details без тихого окна и без сброса RowCache
+- [x] 1.3 AS-1-01: commit_details без тихого окна и без сброса RowCache
+  > Итог: `_quiet` у `commit_details` появился в 0d6e587 вместе с тихими окнами мутаций —
+  > чтение через gix ничего не пишет. Убран; тест `reading_a_commit_is_not_a_write` в
+  > tree_rows.rs (красный до правки).
 - [ ] 1.4 GE-1-01: rename_stash не теряет записи при сбое посреди
 - [ ] 1.5 FS-1-01: мутации сторов не перечитывают прежний репозиторий после clear
 - [ ] 1.6 FS-1-02: graph.entry ждёт уже идущий запрос блока

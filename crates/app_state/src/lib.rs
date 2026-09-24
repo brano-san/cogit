@@ -589,7 +589,6 @@ impl AppState {
         repo: RepoId,
         rev: &str,
     ) -> Result<git_engine::CommitDetails, git_engine::GitError> {
-        let _quiet = self.quiet(repo);
         self.handle(repo)?.commit_details(rev)
     }
 
