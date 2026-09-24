@@ -1,0 +1,502 @@
+[
+ {
+  "id": "DF-011",
+  "verdict": "confirmed",
+  "severity": "medium",
+  "category": "ux",
+  "evidence": "App.svelte:915 (walks panels) and DiffView.svelte:301 (jump) both listen on svelte:window. Neither checks focus or defaultPrevented, and neither stops propagation. The main menu has no F6 accelerator, so both handlers run. Ctrl+F at :307 has no typing() check. doc/11 §7 scopes these keys to diff, and the F6 panel walk is not documented. Already recorded as FC-2-03/FA-2-13 in refactor-night-2.md:255,803 and left unfixed.",
+  "owner_files": [
+   "frontend/src/components/diff/DiffView.svelte",
+   "frontend/src/components/panels/DiffPanel.svelte",
+   "frontend/src/App.svelte",
+   "doc/11-keybindings.md"
+  ]
+ },
+ {
+  "id": "DF-012",
+  "verdict": "confirmed",
+  "severity": "medium",
+  "category": "bug",
+  "evidence": "gix-object 0.64.1 is_blob() is mode&IFMT==0o100000, so 0o120000 fails and blobs.rs:190 returns None on both sides. Trace: diffing.rs:14 → :15 → pointer_diff → gitlink_at is_commit false → Err 'absent from both sides'. Files shows symlinks (commit.rs:73). Test: fast-import a commit changing a 120000 entry; diff_file(CommitVsParent) must return Text, not Err.",
+  "owner_files": [
+   "crates/git_engine/src/blobs.rs"
+  ]
+ },
+ {
+  "id": "DF-013",
+  "verdict": "confirmed",
+  "severity": "medium",
+  "category": "bug",
+  "evidence": "commands/mod.rs:684 calls diffing.rs:14, which calls blobs.rs diff_sides. blob_on_disk reads the whole file with std::fs::read, and blob_in_index/blob_in read the whole blob. text.rs:23 checks MAX_TEXT_BYTES only after that. Nothing checks size earlier (FileEntry carries no size). diff_files at diffing.rs:52 reads every file of a batch the same way. Test: in app_state, a sparse 2 GiB untracked file gives TooLarge without being read (for example, by timing or a counted reader).",
+  "owner_files": [
+   "crates/git_engine/src/blobs.rs",
+   "crates/app_state/src/diffing.rs"
+  ]
+ },
+ {
+  "id": "DF-014",
+  "verdict": "confirmed",
+  "severity": "low",
+  "category": "inconsistency",
+  "evidence": "The crates never read attributes for diffs: git grep finds only hooks.rs writing .gitattributes. Binary detection is is_binary at text.rs:207 (NUL only). doc/08:31, INV-08 (doc/01:228), doc/03 §5 and crates/CLAUDE.md:9 promise it. doc/12-risks has no decision on it. Impact is small: `binary`/`-diff` files show a text diff, and nothing is damaged.",
+  "owner_files": [
+   "crates/git_engine/src/blobs.rs",
+   "crates/app_state/src/diffing.rs",
+   "crates/diff_engine/src/text.rs",
+   "crates/diff_engine/src/lib.rs"
+  ]
+ },
+ {
+  "id": "DF-015",
+  "verdict": "confirmed",
+  "severity": "medium",
+  "category": "bug",
+  "evidence": "merge.rs:99-101 normalizes all sides to LF, and Region carries no line ending. merge-view.ts:85 joins with \\n and adds a final \\n. The result then goes MergeView.svelte:40 → app_state lib.rs:1229 → conflicts.rs:87 write_resolution, which writes the bytes as is and runs git add. With autocrlf=false and CRLF in the blobs, every line changes. The final newline is intended by merge-view.test.ts:126, but that loses a missing-newline state.",
+  "owner_files": [
+   "crates/git_engine/src/conflicts.rs",
+   "frontend/src/lib/merge-view.ts"
+  ]
+ },
+ {
+  "id": "DF-006",
+  "verdict": "confirmed",
+  "severity": "low",
+  "category": "bug",
+  "evidence": "Slider min=0 (SettingsPanel.svelte:346), passed as-is (settings.svelte.ts:24, diff.svelte.ts:104). text.rs:243-248: old_from=old_to=5, so old_count=0 and old_start=0 at :328; git writes -5,0. diff-fold.ts:101 gives oldTo=-1, so the gap is skipped; :170 gives oldFrom=0, hidden=11. eolLabel (diff-toolbar.ts:14) hides the old side whatever old_start is, so it needs oldTotal. Test: tests/text.rs U0 header -5,0 +6,2; diff-fold.test gaps 1-5/6-10.",
+  "owner_files": [
+   "crates/diff_engine/src/text.rs",
+   "frontend/src/lib/diff-fold.ts",
+   "frontend/src/lib/diff-toolbar.ts"
+  ]
+ },
+ {
+  "id": "DF-007",
+  "verdict": "confirmed",
+  "severity": "medium",
+  "category": "bug",
+  "evidence": "diff.svelte.ts:173 sends eol.old. eol.rs:50 returns Mixed, and patch.rs:169-173 turns Mixed into \\n for every row (:137). No Mixed guard exists in diffing.rs:139-159. Checked by hand with git 2.51: index a\\r\\nb\\nc\\r\\nd\\n, patch ' a\\n-b\\n+B\\n c\\n d\\n', apply --cached --unidiff-zero fails with 'patch does not apply'. Test: app_state/tests/stage_lines.rs, stage B in a mixed-EOL file.",
+  "owner_files": [
+   "crates/diff_engine/src/patch.rs",
+   "crates/app_state/src/diffing.rs",
+   "frontend/src/stores/diff.svelte.ts"
+  ]
+ },
+ {
+  "id": "DF-008",
+  "verdict": "confirmed",
+  "severity": "medium",
+  "category": "bug",
+  "evidence": "With ws=All the keys match (text.rs:209), so the Context row carries the old text (text.rs:262-266). patch.rs:78-80 emits it as ' '. For reverse (diffing.rs:122, apply.rs:29) it must match the new side, and apply.rs:25 has no --ignore-whitespace. The ws toggle has no line-action guard (diff.svelte.ts:72-79). Git 2.51 by hand: reverse apply fails. Test: app_state/tests/discard_lines.rs with ignore_whitespace All.",
+  "owner_files": [
+   "crates/diff_engine/src/patch.rs",
+   "crates/app_state/src/diffing.rs"
+  ]
+ },
+ {
+  "id": "DF-009",
+  "verdict": "confirmed",
+  "severity": "medium",
+  "category": "bug",
+  "evidence": "Trace: DiffView.svelte:257 → diff.svelte.ts:146-147 (IPC call, then only reload of the diff). diffing.rs:123 silences the watcher, and safety.rs:145-168 records without emitting any event. So worktree.load, safety.refresh and recovery.refresh (App.svelte:461-477) never run. Stage goes through mutate (App.svelte:1296). The error lands in the inline bar with only its message (:260), not in the errors queue. Test: vitest that the confirmed discard calls the panel callback.",
+  "owner_files": [
+   "frontend/src/components/diff/DiffView.svelte",
+   "frontend/src/components/panels/DiffPanel.svelte",
+   "frontend/src/App.svelte",
+   "frontend/src/stores/diff.svelte.ts"
+  ]
+ },
+ {
+  "id": "DF-010",
+  "verdict": "confirmed",
+  "severity": "medium",
+  "category": "ux",
+  "evidence": "The split branch (DiffView.svelte:631-680) has no .gutter and no class:staging. Only unified has them (:564-610), and it has since ce31533. The layout defaults to split (diff.svelte.ts:38). The selection survives a layout switch, because the effect at :341 watches path/spec only. Block Select (:370) fills the selection invisibly in split. F-057 and F-211 promise a gutter and highlight, and no R-decision excludes split. Discard still asks with a count.",
+  "owner_files": [
+   "frontend/src/components/diff/DiffView.svelte"
+  ]
+ },
+ {
+  "id": "DF-016",
+  "verdict": "confirmed",
+  "severity": "medium",
+  "category": "bug",
+  "evidence": "diffing.rs:170 passes the deleted side as \"\". merge3 always returns at least one region (merge.rs:173), so DiffPanel.svelte:41 opens MergeView and never reaches ConflictView's 'Absent on this side'. ours=[] gives mergedText \"\" (merge-view.ts:85), then write_resolution does fs::write(\"\") + git add (conflicts.rs:96-97), which stages an empty file. Test: modify/delete fixture, resolve_with_text(path, \"\"), then ls-files still lists the path.",
+  "owner_files": [
+   "crates/app_state/src/diffing.rs",
+   "crates/git_engine/src/conflicts.rs"
+  ]
+ },
+ {
+  "id": "DF-017",
+  "verdict": "confirmed",
+  "severity": "medium",
+  "category": "bug",
+  "evidence": "stage_blob returns the raw blob (conflicts.rs:108) and write_resolution writes it with std::fs::write (conflicts.rs:96), with no worktree filters. Result: with autocrlf=true (the Git for Windows default) the file ends up LF; an LFS file gets its pointer text. The text path is worse: mergedText joins with \\n (merge-view.ts:85), so a CRLF blob with autocrlf=false is committed as LF. Test: conflicts.rs fixture with autocrlf=true, resolve_with Ours, assert the file contains \\r\\n.",
+  "owner_files": [
+   "crates/git_engine/src/conflicts.rs"
+  ]
+ },
+ {
+  "id": "DF-018",
+  "verdict": "confirmed",
+  "severity": "low",
+  "category": "inconsistency",
+  "evidence": "Only bindings.ts:390 mentions diffFiles; its wrapper was removed in 457ba9a. moveScope is never read in frontend/src, while F-202 says 'the viewer draws them differently' and doc/04:336 says the frontend must bump request. Not new: doc/refactor-night.md:776 already lists diff_files as a command with no frontend caller, awaiting a decision. The only user impact is F-202 overpromising, so severity is low.",
+  "owner_files": [
+   "doc/features/F-202-cross-file-moves.md",
+   "crates/app_state/src/diffing.rs",
+   "src-tauri/src/commands/mod.rs"
+  ]
+ },
+ {
+  "id": "DF-019",
+  "verdict": "confirmed",
+  "severity": "medium",
+  "category": "ux",
+  "evidence": "text.rs:23 returns TooLarge before image_mime runs at text.rs:31. diff.svelte.ts:110 fetches imageSides only when kind==='image', so an image over 1 MiB shows 'File is too large to diff' (DiffView.svelte:534). R-101 justifies the limit by the cost of text markup in the webview, not images, and no risk entry covers images. Test: diff_bytes on a PNG header + 2 MiB should return Image.",
+  "owner_files": [
+   "crates/diff_engine/src/text.rs",
+   "crates/app_state/src/diffing.rs"
+  ]
+ },
+ {
+  "id": "DF-020",
+  "verdict": "confirmed",
+  "severity": "low",
+  "category": "bug",
+  "evidence": "pairRows gives the right context cell line=row.new (diff-rows.ts:72). cells() builds {kind:'context', old: cell.line} (DiffView.svelte:270), and tokensFor looks up oldAt('c'+old) (DiffView.svelte:109). So on the right side it resolves by the new number: that gives another line's tokens, or no colour when old != new (after inserts above). Fix: map the right cell to newAt('c'+line)/tokens.new, or reuse the left cell's row.",
+  "owner_files": [
+   "frontend/src/components/diff/DiffView.svelte"
+  ]
+ },
+ {
+  "id": "DF-001",
+  "verdict": "confirmed",
+  "severity": "high",
+  "category": "bug",
+  "evidence": "text.rs:180 keys the open last line apart -> rows Context a, Delete x(no_newline), Insert x, Insert y. patch.rs:93 keeps unselected Delete as context with marker (138), Insert x skipped (108), +y appended. Built this patch in a temp repo: git apply --cached --unidiff-zero exit 0, index 'a\\nxy\\n'. Test in stage_lines.rs: commit 'a\\nx', write 'a\\nx\\ny\\n', stage inserts [3], expect 'a\\nx\\ny\\n'.",
+  "owner_files": [
+   "crates/diff_engine/src/patch.rs"
+  ]
+ },
+ {
+  "id": "DF-002",
+  "verdict": "confirmed",
+  "severity": "high",
+  "category": "bug",
+  "evidence": "onDiskChange App.svelte:986 -> applyDiskChanges -> afterMutation() at 1016 -> App.svelte:462 dropIfAffected([]) -> diff.svelte.ts:188 returns; 1018 freshens 'diff' anyway, contradicting staleness.ts:4 and F-223. Clicking the file again cannot refresh it either (App.svelte:1668 diff.shows -> return). stageLines (diff.svelte.ts:170) sends old hunks. No risks entry. Test: vitest, workingTree event reloads the shown workTreeVsIndex diff.",
+  "owner_files": [
+   "frontend/src/App.svelte"
+  ]
+ },
+ {
+  "id": "DF-003",
+  "verdict": "confirmed",
+  "severity": "high",
+  "category": "bug",
+  "evidence": "MergeView.svelte:142 edited = mergedText(regions, {}) -> merge-view.ts:83 puts base in undecided conflicts, no markers. Footer Save at 147 has no disabled (top bar at 95 checks left > 0, Ctrl+S at 59 does too) -> conflicts.write -> resolve_with_text + git add. Breaks F-216 and the promise in merge-view.test.ts:122 ('caller refuses to save while anything is unresolved'). Test: lib test, hand-edit text of undecided conflict contains markers.",
+  "owner_files": [
+   "frontend/src/lib/merge-view.ts",
+   "frontend/src/components/diff/MergeView.svelte"
+  ]
+ },
+ {
+  "id": "DF-004",
+  "verdict": "confirmed",
+  "severity": "high",
+  "category": "bug",
+  "evidence": "conflicts.open -> mergePreview -> diffing.rs:167 conflict_sides().to_text() (conflicts.rs:35 from_utf8_lossy); merge3_with_syntax (merge.rs:99) normalises EOL, has no binary check. Non-empty regions -> DiffPanel.svelte:41 MergeView; Take all ours + Save -> mergedText joined with \\n -> resolve_with_text writes bytes and runs git add. No risks entry. Test: merge_preview.rs with a NUL / cp1251 conflict must return a binary result.",
+  "owner_files": [
+   "crates/app_state/src/diffing.rs",
+   "crates/git_engine/src/conflicts.rs",
+   "frontend/src/components/panels/DiffPanel.svelte"
+  ]
+ },
+ {
+  "id": "DF-005",
+  "verdict": "confirmed",
+  "severity": "medium",
+  "category": "bug",
+  "evidence": "commit.rs:159 tracks renames, so Files shows R with oldPath. openDiff App.svelte:1642 -> diff.load(commitVsParent, path) -> diffing.rs:14 diff_sides -> blobs.rs:115 blob_at(parent, new path) = None, so every line is '+'. IndexVsHead is the same (blobs.rs:127, HEAD by new path). No risks entry. Wrong view only, no data loss, so medium. Test: app_state diff.rs, rename + edit in a commit, expect one changed line.",
+  "owner_files": [
+   "crates/git_engine/src/blobs.rs",
+   "crates/app_state/src/diffing.rs",
+   "src-tauri/src/commands/mod.rs",
+   "frontend/src/stores/diff.svelte.ts",
+   "frontend/src/App.svelte"
+  ]
+ },
+ {
+  "id": "DF-026",
+  "verdict": "confirmed",
+  "severity": "low",
+  "category": "ux",
+  "evidence": "Mode-only change: blobs.rs:111-118 returns equal bytes, then diffing.rs:19 diff_one, then text.rs:28 old==new gives Unchanged, and DiffView.svelte:519 says 'No change'. Empty add: diffing.rs:21-22 unwrap_or_default turns None into [], so [] vs [] is Unchanged too. FilePane.svelte:115 marks +x. doc/08 §3: showing 'no change' for a changed file is worse than noise. Test: filemode_change() → diff_file is not Unchanged.",
+  "owner_files": [
+   "crates/app_state/src/diffing.rs",
+   "crates/diff_engine/src/lib.rs",
+   "crates/git_engine/src/blobs.rs",
+   "frontend/src/components/diff/DiffView.svelte"
+  ]
+ },
+ {
+  "id": "DF-027",
+  "verdict": "confirmed",
+  "severity": "low",
+  "category": "inconsistency",
+  "evidence": "doc/08-diff-engine.md:38 promises TooLarge 'с кнопкой «показать всё равно»'. DiffOptions (lib.rs:45-51) has no override, text.rs:23 refuses unconditionally, and DiffView.svelte:534 is plain text. R-101 says the limit protects the webview, which argues for fixing the doc rather than adding a bypass. No decision drops the button, so the doc is stale.",
+  "owner_files": [
+   "doc/08-diff-engine.md"
+  ]
+ },
+ {
+  "id": "DF-028",
+  "verdict": "confirmed",
+  "severity": "low",
+  "category": "ux",
+  "evidence": "LineEnding serialises camelCase (eol.rs:6, bindings.ts:1016: 'lf'|'crlf'|...), and DiffView.svelte:527 prints {diff.from} → {diff.to} raw, so the banner reads 'crlf → lf' (or 'mixed', 'none'). doc/08:59 says 'CRLF → LF', and the toolbar maps through ENDING (diff-toolbar.ts:3-9, not exported). Fix: export a label helper from diff-toolbar.ts and use it at :527.",
+  "owner_files": [
+   "frontend/src/components/diff/DiffView.svelte",
+   "frontend/src/lib/diff-toolbar.ts"
+  ]
+ },
+ {
+  "id": "DF-029",
+  "verdict": "confirmed",
+  "severity": "low",
+  "category": "bug",
+  "evidence": "text.rs:57-58 borrows valid UTF-8 as it is, so a literal U+F780..U+F7FF (e.g. Nerd Font glyphs in shell configs) reaches the rows. patch.rs:40 scans every row of every hunk, context included, and diffing.rs:146 refuses with 'not valid UTF-8'. No decision in doc/ covers literal PUA (see refactor-night-2.md:468 for AS-2-23). Fix: after the read at diffing.rs:152, refuse only if from_utf8 fails on old or new. Test in app_state/tests/stage_lines.rs.",
+  "owner_files": [
+   "crates/app_state/src/diffing.rs",
+   "crates/diff_engine/src/patch.rs"
+  ]
+ },
+ {
+  "id": "DF-030",
+  "verdict": "confirmed",
+  "severity": "low",
+  "category": "bug",
+  "evidence": "Select C and open X (commitVsParent). Then compare-head: RefActions.svelte:453→746 commit.select(C) with the same oid, so onchange (App.svelte:317, diff.clear) does not fire. The list highlights X (FilesPanel.svelte:136, selected=diff.path). Clicking X: compare-view.svelte.ts:49 path-only match → diff.clear(), panel empty. Better fix: `if (diff.shows(spec, path)) return;` like App.svelte:1647/1668 (#7). A toggle also breaks double-click.",
+  "owner_files": [
+   "frontend/src/stores/compare-view.svelte.ts"
+  ]
+ },
+ {
+  "id": "DF-021",
+  "verdict": "confirmed",
+  "severity": "low",
+  "category": "ux",
+  "evidence": "Code spans always carry del/add plus moved (DiffView.svelte:595,617,652,670). .code.moved at :975 and .code.del/.code.add at :980/:985 have equal specificity (0,2,0), so the later rules win on background and colour. .sign.moved at :914 comes after .sign.del/.add, so only the sign column turns purple. Broken since 1b40b4e6. It is CSS, so there is no unit test; check by eye in all four themes.",
+  "owner_files": [
+   "frontend/src/components/diff/DiffView.svelte"
+  ]
+ },
+ {
+  "id": "DF-022",
+  "verdict": "confirmed",
+  "severity": "low",
+  "category": "bug",
+  "evidence": "detect_moves flattens all Delete/Insert rows (moves.rs:16-24). run_length at :231 zips them without checking adjacency, and cross_run (:241) does the same. With histogram, git keeps A..D and gives three separate -} and three +}; the run of 3 reaches MIN_MOVED_LINES, so all six are marked. connectors() (diff-rows.ts:172) then draws one dashed ribbon over the context rows. git --color-moved marks nothing here. Test: tests/moves.rs, assert moved==0 for this input.",
+  "owner_files": [
+   "crates/diff_engine/src/moves.rs"
+  ]
+ },
+ {
+  "id": "DF-023",
+  "verdict": "confirmed",
+  "severity": "low",
+  "category": "race",
+  "evidence": "load() sets spec at once (diff.svelte.ts:98), but diff/#shown change only after the await (:112-114). DiffPanel.svelte:76 keeps the old DiffView. The reset effect (DiffView.svelte:334) clears only the selection; hover-block Unstage (:380 → applyBlock :230) passes. stageLines (:153) → #lines takes the old hunks → apply --cached --reverse --unidiff-zero. Test in diff.test.ts: leave the second diffFile pending, then stageLines(true) must not call stageSelection.",
+  "owner_files": [
+   "frontend/src/stores/diff.svelte.ts"
+  ]
+ },
+ {
+  "id": "DF-024",
+  "verdict": "confirmed",
+  "severity": "low",
+  "category": "race",
+  "evidence": "While the next file loads, diff.path is already new (diff.svelte.ts:97) and diff.diff is still the old submodule diff (:112). DiffPanel.svelte:60-66 renders SubmoduleDiff with path={diff.path}, so it shows the new name with the old OIDs. Initialise → App.svelte:1361 → update_submodule on the new path. For a plain file the backend refuses with 'no submodule at X' (git_engine/src/submodules.rs:187) and git never runs. The DiffView branch at :79 was already moved to shownPath in 86d0971.",
+  "owner_files": [
+   "frontend/src/components/panels/DiffPanel.svelte"
+  ]
+ },
+ {
+  "id": "DF-025",
+  "verdict": "confirmed",
+  "severity": "low",
+  "category": "ux",
+  "evidence": "Partly refuted: R-106 in doc/12-risks.md records the choice of an inline bar over a modal, and R-74 keeps the confirmation. Confirmed: the text 'This cannot be undone' (DiffView.svelte:503) is false, because discard_selection journals Recovery::Patch (diffing.rs:129) and safety.rs:120 reapplies it. Also, toggling Moves or Whitespace while the bar is open reloads the diff (the :334 effect does not fire), so discardLines returns silently at :141.",
+  "owner_files": [
+   "frontend/src/components/diff/DiffView.svelte",
+   "frontend/src/stores/diff.svelte.ts"
+  ]
+ },
+ {
+  "id": "DF-031",
+  "verdict": "confirmed",
+  "severity": "low",
+  "category": "bug",
+  "evidence": "CompareWindow.svelte:19 starts settings.load() and does not await it. readKey goes over IPC (settings-file.ts:10), so when diff.load reaches diff.svelte.ts:103-107 it builds the options from DEFAULT_SETTINGS (context 3), and whitespace stays \"none\" (:34). Nothing sets it the way App.svelte:335 does. A submodule reaches it through FilePane.svelte:96 → App:1634, then DiffView falls into the else branch at :535 with 0 rows, an empty view. Test: a store test that awaits settings before the diff request.",
+  "owner_files": [
+   "frontend/src/CompareWindow.svelte"
+  ]
+ },
+ {
+  "id": "DF-032",
+  "verdict": "confirmed",
+  "severity": "low",
+  "category": "inconsistency",
+  "evidence": "doc/11-keybindings.md:125-127 declares Ctrl+Alt+T, Ctrl+Alt+Shift+T and Ctrl+Space in scope diff, and doc/modules/M6-staging.md:36 ticks Ctrl+Alt+T as done. Grepping crates, src-tauri and frontend/src finds none of them; the only hit is a test in accelerators.rs:217. DiffView.svelte:297-315 handles only F6, Ctrl+Shift+D, Ctrl+F, Ctrl+Alt+Shift+L and Esc, and no Rust menu entry covers them. No decision in 12-risks.",
+  "owner_files": [
+   "frontend/src/components/diff/DiffView.svelte",
+   "doc/11-keybindings.md",
+   "doc/modules/M6-staging.md"
+  ]
+ },
+ {
+  "id": "DF-033",
+  "verdict": "confirmed",
+  "severity": "low",
+  "category": "ux",
+  "evidence": "MergeView.svelte:125 shows the buttons only while entry.result === null. Once a side is picked, merge-view.ts:34/48 fills result on the first row, so the buttons go away. The only ways back are Take all at :82-86, which overwrites every choice, Cancel, or editing by hand. The Ctrl+1/2/3 keys from doc/11 §9, which would allow a change, are missing too (FC-2-09). The one exception is a chosen empty side (result=[]): there the buttons stay.",
+  "owner_files": [
+   "frontend/src/components/diff/MergeView.svelte"
+  ]
+ },
+ {
+  "id": "DF-034",
+  "verdict": "confirmed",
+  "severity": "low",
+  "category": "dead-code",
+  "evidence": "Grepping crates and src-tauri finds DiffRow::Collapsed only in the declaration at lib.rs:118 and in match arms: patch.rs:38,111 and tests/text.rs:27. git log -S shows the variant has never been constructed since ce31533, so the cause is not R-271 as the finding says. The frontend only sends the backend's own hunks back (diff.svelte.ts:170), so the variant never arrives. doc/04-ipc-contract.md:371 needs editing as well.",
+  "owner_files": [
+   "crates/diff_engine/src/lib.rs",
+   "crates/diff_engine/src/patch.rs",
+   "crates/diff_engine/tests/text.rs",
+   "frontend/src/lib/diff-rows.ts",
+   "frontend/src/lib/diff-fold.ts",
+   "frontend/src/components/diff/DiffView.svelte",
+   "frontend/src/lib/ipc/bindings.ts",
+   "doc/08-diff-engine.md",
+   "doc/04-ipc-contract.md"
+  ]
+ },
+ {
+  "id": "DF-035",
+  "verdict": "confirmed",
+  "severity": "low",
+  "category": "dead-code",
+  "evidence": "git grep finds lacksFinalNewline only at diff-rows.ts:209 and in diff-rows.test.ts. It has had no callers since 5b5ceda, when noTrailingNewline left PatchRequest and patch.rs build_patch took over the markers. This is already known: doc/refactor-night-2.md:386-387 says 'left without callers, but with tests, not deleting'. That note gives no reason and is not a 12-risks decision, so the code is still dead.",
+  "owner_files": [
+   "frontend/src/lib/diff-rows.ts",
+   "frontend/src/lib/diff-rows.test.ts"
+  ]
+ },
+ {
+  "id": "DF-036",
+  "verdict": "confirmed",
+  "severity": "high",
+  "category": "bug",
+  "evidence": "highlight.ts:110: для каждого куска tokens.find идёт с начала, до ~T сравнений, итого ~T²/2. Длина строки нигде не ограничена: text.rs:9 проверяет только файл целиком (1 МБ), MAX_HIGHLIGHT_LINES считает строки. 300 КБ минифицированного JS ≈ 10^5 токенов ≈ 5·10^9 шагов на сторону, в split вдвое больше; всё повторяется на каждый ввод в Find. Тест: mergePieces на строке 500 КБ с 10^5 токенов укладывается в 50 мс (highlight.test.ts).",
+  "owner_files": [
+   "frontend/src/lib/highlight.ts",
+   "frontend/src/lib/highlight.test.ts"
+  ]
+ },
+ {
+  "id": "DF-037",
+  "verdict": "confirmed",
+  "severity": "medium",
+  "category": "ux",
+  "evidence": "DiffView.svelte:762-771: .line position:absolute, left:0, right:0 — ширина равна вьюпорту. :884-890: .code overflow:hidden + ellipsis. Горизонтальной прокрутки нет, scrollToRow (:177) двигает только по вертикали. MergeView.svelte:120-123: все четыре ячейки .truncate, полный текст — только у Result через textarea. Решения в doc/12-risks.md нет: многоточие стоит с 7f1fa86.",
+  "owner_files": [
+   "frontend/src/components/diff/DiffView.svelte",
+   "frontend/src/components/diff/MergeView.svelte"
+  ]
+ },
+ {
+  "id": "DF-038",
+  "verdict": "confirmed",
+  "severity": "medium",
+  "category": "ux",
+  "evidence": "Кнопка пробелов (DiffView.svelte:462-470) стоит внутри {#if diff.kind === \"text\"} (:427-498). Для whitespaceOnly (text.rs: пустой diff при ignore_whitespace != None) рисуется только путь, а плашка :521-523 велит нажать эту кнопку. DiffPanel.svelte:77-86 другой кнопки не даёт. Обход: Preferences или другой файл. То же в CompareWindow и InvestigateWindow.",
+  "owner_files": [
+   "frontend/src/components/diff/DiffView.svelte"
+  ]
+ },
+ {
+  "id": "DF-039",
+  "verdict": "confirmed",
+  "severity": "medium",
+  "category": "bug",
+  "evidence": "applyBlock :229 не трогает selected. App.svelte:1296 mutate → afterMutation :462 → dropIfAffected → reload: тот же spec, DiffView не пересоздаётся, эффект сброса :334 не срабатывает. Стейдж блока +2 после строки 3 индекса: удаления 20-25 становятся d:22..27, так что d:24,d:25 теперь L22,L23. #lines (diff.svelte.ts:161) режет патч из нового diff. Тест: чистая shiftSelection в selection.test.ts.",
+  "owner_files": [
+   "frontend/src/components/diff/DiffView.svelte",
+   "frontend/src/lib/selection.ts"
+  ]
+ },
+ {
+  "id": "DF-040",
+  "verdict": "confirmed",
+  "severity": "medium",
+  "category": "bug",
+  "evidence": "FileList.svelte:174-180: onselect вызывается на каждый клик, проверки на тот же путь нет (для обычного diff она есть: App.svelte:1668 diff.shows). App.svelte:1662 → conflicts.open, conflicts.svelte.ts:50 ставит regions=[] → DiffPanel.svelte:41 размонтирует MergeView, и choices/edited (MergeView.svelte:31-32, локальные) теряются. mayClose (App.svelte:2889) считает это несохранённой работой. Решения в risks нет.",
+  "owner_files": [
+   "frontend/src/App.svelte",
+   "frontend/src/stores/conflicts.svelte.ts"
+  ]
+ },
+ {
+  "id": "DF-051",
+  "verdict": "confirmed",
+  "severity": "medium",
+  "category": "bug",
+  "evidence": "eol.rs:59 → text.rs:79-87: lone CR splits lines, git splits on LF only. Temp-repo check: a\\rb\\rc\\r plus the patch.rs:137/171 line → 'corrupt patch at line 4'. Worse: x\\ny\\n→x\\ny\\rz\\n, Stage insert z → index becomes x\\ny\\nz\\n (exit 0) while worktree has y\\rz; the diff then shows EolOnly. headers.rs:10 splits raw text with lines(). Test: stage_lines with mixed CR.",
+  "owner_files": [
+   "crates/diff_engine/src/eol.rs",
+   "crates/diff_engine/src/patch.rs"
+  ]
+ },
+ {
+  "id": "DF-052",
+  "verdict": "refuted",
+  "severity": "low",
+  "category": "ux",
+  "evidence": "Intended. The patch.rs:28-30 docstring says such a file 'is staged whole, never line by line'. Decision AS-2-23 in doc/refactor-night-2.md reads 'построчно такой файл не накладывать, только целиком'. The error text at diffing.rs:146-150 says the same. The refusal is conservative and no wrong bytes are written. Narrowing it would change a recorded decision, not fix a bug.",
+  "owner_files": [
+   "crates/diff_engine/src/patch.rs"
+  ]
+ },
+ {
+  "id": "DF-053",
+  "verdict": "confirmed",
+  "severity": "low",
+  "category": "bug",
+  "evidence": "language.rs:38-39 maps tsx→typescript and jsx→javascript. batch.rs:27 sets diff.language. DiffView.svelte:77,99 → highlight.ts:28 uses javascript.configure({dialect:'ts'}); plain javascript has no jsx. The @lezer/javascript build has dialects {jsx, ts}, but jsx is never enabled. The language.rs:1-3 comment itself notes the TS parser reads JSX as an error. Test: highlightLines on a .tsx line with a </div> tag.",
+  "owner_files": [
+   "crates/diff_engine/src/language.rs",
+   "frontend/src/lib/highlight.ts"
+  ]
+ },
+ {
+  "id": "DF-054",
+  "verdict": "confirmed",
+  "severity": "low",
+  "category": "bug",
+  "evidence": "diff-rows.ts:116-120 returns offsets into text.toLowerCase(), and highlight.ts:97-112 cuts the original text at those offsets. node check: 'İstanbul foo' has length 12, its lowercase 13; indexOf('foo')=10, so slice(10,13)='oo'. In practice only U+0130 changes length under toLowerCase. Test: searchRows([['İstanbul foo',null]],'foo') should give from=9.",
+  "owner_files": [
+   "frontend/src/lib/diff-rows.ts"
+  ]
+ },
+ {
+  "id": "DF-055",
+  "verdict": "confirmed",
+  "severity": "low",
+  "category": "ux",
+  "evidence": "CompareWindow.svelte:24 builds document.title from `${path} — ${spec.kind}`, which overrides the '${path} — Cogit' title set at App.svelte:1637. :41 shows raw spec.kind in the header. Callers: App.svelte:2041 showChanges → fileSpec, and :2042 compareWithWorkTree → {kind:'commitVsWorkTree', oid}. The oid is in the request but never shown.",
+  "owner_files": [
+   "frontend/src/CompareWindow.svelte"
+  ]
+ }
+]
