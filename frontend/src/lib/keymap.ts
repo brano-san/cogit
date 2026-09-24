@@ -57,9 +57,16 @@ export function accelerator(event: KeyboardEvent): string | null {
   if (event.altKey) parts.push("Alt");
   if (event.shiftKey) parts.push("Shift");
 
-  const key = NAMED[event.key] ?? (event.key.length === 1 ? event.key.toUpperCase() : event.key);
-  parts.push(key);
+  parts.push(keyName(event));
   return parts.join("+");
+}
+
+/** A letter or a digit by where it sits (`KeyS`, `Digit7`), not by what the layout types
+    there: `Ы` or `&` is no accelerator the menu can read. */
+function keyName(event: KeyboardEvent): string {
+  const place = /^(?:Key([A-Z])|Digit(\d))$/.exec(event.code ?? "");
+  if (place) return place[1] ?? place[2] ?? "";
+  return NAMED[event.key] ?? (event.key.length === 1 ? event.key.toUpperCase() : event.key);
 }
 
 export function prettyKeys(keys: string, onMac: boolean): string {
