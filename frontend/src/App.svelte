@@ -378,7 +378,9 @@
     repo ? stateBanner(repo.state, repo.indexLock, submodules.open !== null) : null,
   );
   const tracked = $derived(repository.localBranches.find((b) => b.isHead));
-  const scope = $derived(commitScope(worktree.staged, fileMask));
+  /** The staged rows the Files list shows; null until it has said. */
+  let shownStaged = $state.raw<string[] | null>(null);
+  const scope = $derived(commitScope(worktree.staged, fileMask, shownStaged));
   const prUrl = $derived.by(() => {
     const head = tracked?.name;
     const base = tracked?.upstream?.split("/").slice(1).join("/") ?? "main";
@@ -1084,6 +1086,8 @@
       if (!go) return;
     }
 
+    // An empty list would commit every staged file, the hidden ones included.
+    if (scope.empty) return;
     if (scope.paths) {
       const listed = scope.paths.join("\n");
       const confirmed = await ask(
@@ -3333,6 +3337,7 @@
               onopenstash={openStashDiff}
               onopenwindow={openInWindow}
               onmask={(mask) => (fileMask = mask)}
+              onshownstaged={(paths) => (shownStaged = paths)}
               onmarked={(paths) => (markedFiles = paths)}
               oncontext={fileContext}
               {stage}

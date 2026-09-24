@@ -30,6 +30,8 @@
     onopenstash: (part: "worktree" | "index" | "untracked", path: string) => void;
     onopenwindow: (path: string) => void;
     onmask: (mask: string) => void;
+    /** The staged files the working-tree list shows once filtered. */
+    onshownstaged?: (paths: string[]) => void;
     onmarked: (paths: string[]) => void;
     oncontext: (path: string, event: MouseEvent, section?: string) => void;
     stage: (paths: string[]) => void;
@@ -51,6 +53,7 @@
     onopenstash,
     onopenwindow,
     onmask,
+    onshownstaged,
     onmarked,
     oncontext,
     stage,
@@ -166,6 +169,7 @@
       selected={diff.path}
       onopen={onopenwindow}
       {onmask}
+      onshown={(shown) => onshownstaged?.(shown[1] ?? [])}
       {onmarked}
       {oncontext}
     />
