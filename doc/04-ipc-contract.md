@@ -84,7 +84,7 @@ pub enum GitError {
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
 | `open_repository` | `path: String` | `RepoSummary`; в нём `tagGroupSeparator` — `cogit.tagGroupSeparator` из конфига репозитория, `/` если не задан, `""` — теги без папок; перечитывается при каждом открытии и обновлении (#11) | M1 |
-| `close_repository` | `repo: RepoId` | `()` | M1 |
+| `close_repository` | `repo: RepoId` | `Result<Vec<RepoOverview>>` — открытые после закрытия, как у `repositories`: второй вызов за списком не нужен (R-323) | M1 |
 | `list_repositories` | — | `Vec<RepoEntry>` | M3 |
 | `repo_state` | `repo: RepoId` | `RepoState` — `clean | detachedHead { oid } | merging | rebasing | cherryPicking | reverting | bisecting | applyingPatches | empty | bare`; `applyingPatches` — `git am`, остановленный на патче (`rebase-apply/applying`) | M1 |
 | `repositories` | — | `Result<Vec<RepoOverview { repo, name, root, branch, ahead, behind, dirty, missing, state: RepoState }>>`; `state` — для меток `<merging>`/`<detached>` в дереве (#22). Читается в `spawn_blocking`, поэтому `Result` | M3 |
@@ -483,8 +483,9 @@ type SearchChunk =
 | `write_setting` | `key`, `value` (текст JSON) | `()` | M8 |
 | `command_log` | `limit` | `Vec<CommandLogEntry>` | M2 |
 | `open_in_explorer` / `open_in_terminal` | `path` | `()` | M3 |
-| `set_menu_state` | `disabled: Vec<String>` | `()` | M2 |
+| `set_menu_state` | `disabled: Vec<String>, checked: Vec<String>` — полное состояние строки меню | `()`; фронтенд шлёт последнее состояние в конце задачи и не шлёт уже показанное (R-322) | M2 |
 | `report_memory` | `RendererMemory { usedHeapKib, totalHeapKib, limitKib, domNodes, listeners, caches }` | `()` | — |
+| `log_from_frontend` | `lines: WebviewLogLine[] { level, message, context }` | `()`: строки вебвью в `cogit.log` пачкой, по одной записи `tracing` на строку (R-321) | — |
 
 `report_memory` шлёт вебвью раз в десять секунд и **только в отладочной сборке**; строка
 ложится в профиль как `kind=mem` ([14-profiling.md](14-profiling.md)). Величины идут в KiB,
