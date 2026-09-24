@@ -3528,7 +3528,7 @@ rust, python, html, css, json) — около 370 КБ скрипта, — хо�
   главный поток создаёт окно вне всякого обработчика WebView2. `close_this_window` — тоже
   `async`. Прежний комментарий «окно надо создавать на главном потоке» был неверен: Tauri
   сам переносит создание на главный поток.
-- Тест `a_window_is_never_opened_or_closed_on_the_main_thread` разбирает `commands/mod.rs`
+- Тест `a_window_is_never_opened_or_closed_on_the_main_thread` разбирает все файлы `src-tauri/src/commands/`
   и падает, если тело синхронной команды вызывает `child_window::`, `WebviewWindowBuilder`
   или `window.close()`.
 
