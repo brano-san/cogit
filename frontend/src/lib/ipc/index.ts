@@ -158,8 +158,6 @@ function describeError(error: GitError): string {
       return `${error.data.command} failed with exit code ${error.data.exitCode ?? "unknown"}`;
     case "repoNotFound":
       return `Not a Git repository: ${error.data}`;
-    case "repoBusy":
-      return `Repository is busy: ${error.data}`;
     case "invalidState":
       return `Invalid repository state: ${error.data}`;
     case "io":

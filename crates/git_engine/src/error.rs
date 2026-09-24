@@ -55,9 +55,6 @@ pub enum GitError {
     #[error("repository not found at {0}")]
     RepoNotFound(String),
 
-    #[error("repository is busy: {0}")]
-    RepoBusy(String),
-
     #[error("invalid repository state: {0}")]
     InvalidState(String),
 
