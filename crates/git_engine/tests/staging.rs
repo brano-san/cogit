@@ -281,3 +281,56 @@ fn staging_a_name_with_brackets_stages_only_that_file() {
     let staged = f.git(&["diff", "--cached", "--name-only"]).unwrap();
     assert_eq!(staged.trim(), "test[1].txt");
 }
+
+// Stage all is one `git add --all`: no pathspec for git to match against every entry.
+#[test]
+fn staging_everything_takes_edits_deletions_and_new_files() {
+    let f = test_fixtures::linear(3).unwrap();
+    std::fs::write(f.path().join("file0.txt"), "edited\n").unwrap();
+    std::fs::remove_file(f.path().join("file1.txt")).unwrap();
+    std::fs::create_dir_all(f.path().join("new dir")).unwrap();
+    for name in ["new dir/two words.txt", "-leading.txt", "ünïcødé.txt"] {
+        std::fs::write(f.path().join(name), "fresh\n").unwrap();
+    }
+    let repo = open(&f);
+
+    repo.stage_all().unwrap();
+
+    assert_eq!(
+        staged(&repo),
+        [
+            "-leading.txt",
+            "file0.txt",
+            "file1.txt",
+            "new dir/two words.txt",
+            "ünïcødé.txt"
+        ]
+    );
+    assert!(unstaged(&repo).is_empty(), "{:?}", unstaged(&repo));
+}
+
+#[test]
+fn staging_everything_leaves_ignored_files_alone() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.commit_file(2, ".gitignore", "*.log\n").unwrap();
+    std::fs::write(f.path().join("build.log"), "noise\n").unwrap();
+    std::fs::write(f.path().join("file0.txt"), "edited\n").unwrap();
+    let repo = open(&f);
+
+    repo.stage_all().unwrap();
+
+    assert_eq!(staged(&repo), ["file0.txt"]);
+}
+
+#[test]
+fn staging_everything_reaches_into_nested_folders() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::create_dir_all(f.path().join("deep/er")).unwrap();
+    std::fs::write(f.path().join("deep/er/inner.txt"), "in\n").unwrap();
+    std::fs::write(f.path().join("file0.txt"), "edited\n").unwrap();
+    let repo = open(&f);
+
+    repo.stage_all().unwrap();
+
+    assert_eq!(staged(&repo), ["deep/er/inner.txt", "file0.txt"]);
+}

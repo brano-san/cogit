@@ -375,6 +375,7 @@ snake_case и читаются на фронтенде как `undefined`.
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
 | `stage_paths` / `unstage_paths` | `repo, paths: Vec<String>` | `()` | M6 |
+| `stage_all` | `repo` | `()` — `git add --all` без списка путей; фронтенд зовёт его, когда выбран весь список Unstaged без строк, показанных переключателями вида (R-311) | M6 |
 | `worktree_files` | `repo` | `WorktreeFiles` | M6 |
 | `stage_hunk` | `repo, patch: String` | `()` | M6 |
 | `discard_paths` | `repo, paths` | `()` | M6 |

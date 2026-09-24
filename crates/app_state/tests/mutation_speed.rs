@@ -34,6 +34,30 @@ fn staging_a_file_is_a_single_git_invocation() {
 }
 
 #[test]
+fn staging_everything_is_one_git_add_without_a_path_list() {
+    let f = test_fixtures::linear(3).unwrap();
+    for name in ["file0.txt", "file1.txt", "fresh.txt"] {
+        std::fs::write(
+            f.path().join(name),
+            "edited
+",
+        )
+        .unwrap();
+    }
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    state.clear_command_log();
+
+    let started = Instant::now();
+    state.stage_all(repo).unwrap();
+    report("stage all", started.elapsed(), Duration::from_millis(400));
+
+    let log = state.command_log();
+    let commands: Vec<&str> = log.iter().map(|entry| entry.command.as_str()).collect();
+    assert_eq!(commands, ["git add --all"]);
+}
+
+#[test]
 fn unstaging_a_file_is_a_single_git_invocation() {
     let f = test_fixtures::linear(1).unwrap();
     let state = AppState::new();
