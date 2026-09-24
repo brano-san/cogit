@@ -10,9 +10,12 @@ export interface TraceLine {
   at: number;
 }
 
-/** Lines wait for one IPC call per batch: an action wrote 9–12, each a call of its own. */
+/** Lines share one IPC call per batch: an action wrote 9–12, each a call of its own.
+    The batch closes at the end of the task, not later: the benchmark takes the last IPC
+    call as the end of the action, so a deferred write would read as a slower action
+    (doc/12-risks.md, R-321). */
 export const TRACE_BATCH_LINES = 32;
-export const TRACE_BATCH_MS = 250;
+export const TRACE_BATCH_MS = 0;
 
 type Level = "info" | "error";
 

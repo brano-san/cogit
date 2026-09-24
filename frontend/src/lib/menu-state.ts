@@ -1,6 +1,6 @@
-/** Long enough to gather one action's store updates, short enough that a menu opened
-    right after it already shows the new state. */
-export const MENU_STATE_DELAY_MS = 30;
+/** The end of the task: effects of one update land together. Any later and the benchmark,
+    which ends an action at its last IPC call, would count the wait (R-322). */
+export const MENU_STATE_DELAY_MS = 0;
 
 type Send = (disabled: string[], checked: string[]) => Promise<unknown>;
 

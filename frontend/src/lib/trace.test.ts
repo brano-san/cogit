@@ -83,7 +83,7 @@ describe("trace batching", () => {
   });
 
   // Opening a repository wrote 9–12 lines, each its own IPC call.
-  it("sends the lines of one action in a single call once the timer fires", async () => {
+  it("sends the lines written in one task as a single call", async () => {
     for (let step = 0; step < 12; step += 1) trace("open:C:/repos/one", `step ${step}`);
     expect(commands.logFromFrontend).not.toHaveBeenCalled();
 
@@ -93,6 +93,30 @@ describe("trace batching", () => {
     expect(sent().map((entry) => entry.message.replace(/^\+\d+ms /, ""))).toEqual(
       Array.from({ length: 12 }, (_, step) => `step ${step}`),
     );
+  });
+
+  // The shape of an open: lines between the backend's answers, which arrive as tasks.
+  it("costs an action one call per backend answer, not one per line", async () => {
+    const answer = () => new Promise((resolve) => setTimeout(resolve, 3));
+    const action = (async () => {
+      trace("open", "repository click: open");
+      trace("open", "phase → opening, ticket 1");
+      await answer();
+      trace("open", "backend answered, ticket 1, 16 refs");
+      trace("open", "phase → open, ticket 1");
+      trace("open", "activate: panels cleared");
+      trace("open", "activate: repository.current is one");
+      await answer();
+      trace("open", "repository list ok in 3ms");
+      await answer();
+      trace("open", "everything else ok in 3ms");
+      trace("open", "activate: done");
+    })();
+    await vi.advanceTimersByTimeAsync(20);
+    await action;
+
+    expect(sent()).toHaveLength(9);
+    expect(commands.logFromFrontend).toHaveBeenCalledTimes(4);
   });
 
   it("sends a full batch without waiting for the timer", () => {
