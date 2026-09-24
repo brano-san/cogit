@@ -405,7 +405,9 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > loading; тест `keeps the blame of the place it went back to`.
 - [x] C1F-12 тело хука по имени
   > Итог: тело пишется, только если редактор всё ещё на этом хуке; тест `hooks.test.ts`.
-- [ ] C1F-13 `refreshList` по ticket
+- [x] C1F-13 `refreshList` по ticket
+  > Итог: пишет и запоминает в сессии только ответ последнего запроса; тест `keeps the newer
+  > answer when an older one arrives last`.
 - [ ] C1F-15 PageDown по счётчику
 - [ ] C1F-17 выбор коммита сбрасывает stash
 - [ ] C1-02 форвардер событий переживает `Lagged`

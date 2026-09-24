@@ -202,8 +202,15 @@ class RepositoryStore {
     if (root) await this.open(root);
   }
 
+  /** Closing one repository while another opens asks twice; the older answer must not
+      bring back what was closed, nor drop what was opened, from the next session too. */
+  #listed = 0;
+
   async refreshList(): Promise<void> {
-    this.openRepos = await listRepositories();
+    const asked = ++this.#listed;
+    const list = await listRepositories();
+    if (asked !== this.#listed) return;
+    this.openRepos = list;
     session.remember(this.openRepos.map((entry) => entry.root));
   }
 
