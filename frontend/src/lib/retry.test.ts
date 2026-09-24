@@ -8,7 +8,7 @@ const pushed = { operation: "Push", repo: "C:/repos/a", command: "git push --pro
 describe("what Retry repeats", () => {
   it("repeats a network operation in the repository it ran in, to the same remote", () => {
     expect(retryOf(pushed, "C:/repos/a", "origin")).toBe("push");
-    expect(retryOf(pushed, "C:\repos\a", "origin")).toBe("push");
+    expect(retryOf(pushed, "C:\\repos\\a", "origin")).toBe("push");
   });
 
   it("offers nothing once another repository is on screen", () => {
