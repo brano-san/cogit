@@ -1,14 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
-  columnOrder,
   columnRows,
   graphTime,
   moveColumn,
-  overlapOrder,
   reconcileRows,
   toggleColumn,
   visibleColumns,
 } from "./graph-columns";
+import { rightCells } from "./graph-row";
 
 describe("the column editor", () => {
   it("lists the visible columns in order, then the hidden ones", () => {
@@ -54,21 +53,15 @@ describe("the column editor", () => {
 
 describe("column order in the commit list", () => {
   it("puts the columns after the subject in the chosen order", () => {
-    const columns = ["hash", "author"] as const;
-    expect(columnOrder(columns, "hash")).toBeLessThan(columnOrder(columns, "author"));
-    expect(columnOrder(columns, "hash")).toBeGreaterThan(0);
+    expect(rightCells(["hash", "author"], false)).toEqual(["hash", "author"]);
   });
 
   it("keeps the overlap badge right after the time", () => {
-    const columns = ["author", "time", "hash"] as const;
-    const overlap = overlapOrder(columns);
-    expect(overlap).toBeGreaterThan(columnOrder(columns, "time"));
-    expect(overlap).toBeLessThan(columnOrder(columns, "hash"));
+    expect(rightCells(["author", "time", "hash"], true)).toEqual(["author", "time", "overlap", "hash"]);
   });
 
-  it("puts the overlap badge last when the time is hidden", () => {
-    const columns = ["author", "hash"] as const;
-    expect(overlapOrder(columns)).toBeGreaterThan(columnOrder(columns, "hash"));
+  it("keeps the overlap badge when the time is hidden", () => {
+    expect(rightCells(["author", "hash"], true)).toContain("overlap");
   });
 });
 

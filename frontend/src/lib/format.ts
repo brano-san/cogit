@@ -195,7 +195,7 @@ function dayNumber(timestamp: number, offsetMinutes: number): number {
 }
 
 /** `DD-MM-YY`: the short form for anything the weekday can no longer place. */
-function shortDate(timestamp: number, offsetMinutes: number): string {
+export function shortDate(timestamp: number, offsetMinutes: number): string {
   const shifted = new Date((timestamp + offsetMinutes * 60) * 1000);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${pad(shifted.getUTCDate())}-${pad(shifted.getUTCMonth() + 1)}-${pad(

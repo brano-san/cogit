@@ -528,6 +528,8 @@ export type CommitQuery = {
 	path?: string | null,
 	/**  Refs the References panel ticked; `None` is every ref, `Some([])` is none. */
 	visibleRefs?: string[] | null,
+	/**  Not a filter: how the graph this load lays out cuts long links (R-330). */
+	longLinkRows?: number | null,
 };
 
 export type CommitRequest = {
@@ -828,6 +830,8 @@ export type GraphRow = {
 	/**  Columns used by the top edge, the node and the bottom edge together. */
 	width: number,
 	segments: Segment[],
+	/**  Stubs standing for a link too long to draw whole (R-330), with the far end of each. */
+	links: LongLink[],
 };
 
 /**  Assuming "HEAD is a branch" crashes on an unborn or detached checkout (INV-07). */
@@ -949,6 +953,12 @@ export type LineVersion = {
 	/**  Where the line stood in that version, from 1. */
 	line: number,
 	text: string,
+};
+
+/**  `segments[segment]` is one stub of a cut link; `oid` is the commit at its other end. */
+export type LongLink = {
+	segment: number,
+	oid: string,
 };
 
 /**

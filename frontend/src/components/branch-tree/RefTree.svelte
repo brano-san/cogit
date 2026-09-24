@@ -72,7 +72,7 @@
   }
 </script>
 
-<div class="tree tree-rows" role="tree" aria-label="References">
+<div class="tree tree-rows key-list" role="tree" aria-label="References">
   {#each nodes as node (node.id)}
     {@const state = checkState(tree, node.id, visible)}
     {@const tickable = leavesUnder(tree, node.id).length > 0}

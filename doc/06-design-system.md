@@ -183,8 +183,14 @@ hover           background: --state-hover
 stripe          каждая вторая строка графа — --row-stripe; hover и selected перекрывают
 selected        background: --state-selected
                 + ::before — полоса 2px слева цветом --status-ref
-focus-visible   outline: 1px solid --state-focus-ring; outline-offset: -1px
+focus-visible   outline: 1px solid --state-focus-ring; outline-offset: -1px — только у строки,
+                до которой дошли Tab, не выбрав её
 ```
+
+Список — одна остановка клавиатуры (класс `.key-list` в `app.css`, #27): фокус панели
+показывает её заголовок, место в списке — выделенная строка. Поэтому ни сам прокручиваемый
+контейнер, ни уже выбранная строка рамку фокуса не рисуют; кнопки и поля внутри строки —
+рисуют, как везде.
 
 Индикатор выбора — **полоса, а не только цвет фона**: различие фона `#1e222b` и `#242b38`
 слишком мало, чтобы быть единственным сигналом.

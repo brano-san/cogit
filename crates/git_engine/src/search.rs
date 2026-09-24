@@ -23,12 +23,18 @@ pub struct CommitQuery {
     /// Refs the References panel ticked; `None` is every ref, `Some([])` is none.
     #[serde(default)]
     pub visible_refs: Option<Vec<String>>,
+    /// Not a filter: how the graph this load lays out cuts long links (R-330).
+    #[serde(default)]
+    pub long_link_rows: Option<u32>,
 }
 
 impl CommitQuery {
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self == &Self::default()
+        Self {
+            long_link_rows: None,
+            ..self.clone()
+        } == Self::default()
     }
 
     /// A per-commit predicate forces a flat list; narrowing the ticked refs does not (R-51).
@@ -36,6 +42,7 @@ impl CommitQuery {
     pub fn filters_rows(&self) -> bool {
         Self {
             visible_refs: None,
+            long_link_rows: None,
             ..self.clone()
         } != Self::default()
     }
