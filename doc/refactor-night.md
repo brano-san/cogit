@@ -561,7 +561,10 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > Итог: в журнал пишется прямая цель `refs/tags/<name>` (`RepoHandle::tag_target`, gix) —
   > у аннотированного это объект тега; `git tag <name> <tag-object>` восстанавливает ссылку
   > на него же. Тест `undoing_the_deletion_of_an_annotated_tag_brings_the_annotation_back`.
-- [ ] B-18 `flow_finish` rev-parse
+- [x] B-18 `flow_finish` rev-parse
+  > Итог: oid ветки берётся из списка веток (как в `delete_branch`), а не `rev-parse <имя>`,
+  > который предпочитает одноимённый тег; ошибка чтения веток теперь пробрасывается, а не
+  > глотается. Тест `undoing_a_finished_feature_restores_the_branch_not_a_tag_of_that_name`.
 - [ ] B-19 stderr сети целиком
 - [ ] B-20 редакция URL по последнему `@`
 - [ ] B-21 `blob_on_disk`: только NotFound — «нет файла»
