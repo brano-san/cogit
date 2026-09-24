@@ -16,7 +16,7 @@ describe("leaving a repository", () => {
     leaveRepositoryDialogs();
     expect(await asked).toBe(false);
 
-    const typed = prompt.ask({ title: "Rename", label: "Name", confirm: "Rename" });
+    const typed = prompt.ask({ title: "Rename", label: "Name", confirm: "Rename", validate: () => null });
     leaveRepositoryDialogs();
     expect(await typed).toBeNull();
 

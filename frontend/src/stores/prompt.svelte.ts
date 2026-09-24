@@ -5,8 +5,9 @@ export interface PromptRequest {
   /** A list to pick from instead of a free text field. */
   choices?: string[];
   confirm: string;
-  /** Why the value will not do, or null; without it the field is checked as a branch name. */
-  validate?: (value: string) => string | null;
+  /** Why the value will not do, or null. Every caller names its rule (`$lib/names`): a
+      default one checked group names, preset names and an optional tag as branch names. */
+  validate: (value: string) => string | null;
 }
 
 interface Pending extends PromptRequest {

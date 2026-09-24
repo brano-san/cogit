@@ -4,6 +4,7 @@
   import { checkForUpdates, message, type UpdateOutcome } from "$lib/updates";
   import { leaveRepositoryDialogs } from "$lib/leaving";
   import { retryOf } from "$lib/retry";
+  import { branchNameProblem, optional, textProblem } from "$lib/names";
   import { finder } from "$stores/finder.svelte";
   import { THIRD_PARTY_FILE } from "$lib/third-party";
 
@@ -2186,15 +2187,6 @@
     await popupContextMenu(items, x, y).catch(() => {});
   }
 
-  /** Git refuses most of these itself; the dialog only spares the round trip. */
-  function branchNameProblem(name: string, taken: readonly string[]): string | null {
-    const trimmed = name.trim();
-    if (trimmed === "") return "Enter a name.";
-    if (taken.includes(trimmed)) return `${trimmed} already exists.`;
-    if (/[\s~^:?*\[\\]/.test(trimmed)) return "A branch name cannot contain spaces or ~^:?*[\\.";
-    if (trimmed.startsWith("-") || trimmed.endsWith(".lock")) return "Git will refuse that name.";
-    return null;
-  }
 
   /** One failure must not stop the rest: the point of Fetch All is not doing it by hand. */
   async function fetchAll() {
@@ -2261,7 +2253,12 @@
   async function askFlowStart(kind: import("$lib/ipc").FlowKind) {
     const id = repository.current?.repo;
     if (!id) return;
-    const name = await prompt.ask({ title: `Start a ${kind}`, label: "Name", confirm: "Start" });
+    const name = await prompt.ask({
+      title: `Start a ${kind}`,
+      label: "Name",
+      confirm: "Start",
+      validate: (value) => branchNameProblem(value, repository.localBranches.map((entry) => entry.name)),
+    });
     if (name === null) return;
     await runFlow(() => flow.start(id, kind, name));
   }
@@ -2279,13 +2276,14 @@
       label: "Tag for the release, or empty for none",
       value: branch.name,
       confirm: "Finish",
+      validate: optional,
     });
     if (tag === null) return;
     await runFlow(() => flow.finish(id, branch.kind, branch.name, tag.trim() || null));
   }
 
   async function askAddGroup() {
-    const name = await prompt.ask({ title: "Add a group", label: "Name", confirm: "Add" });
+    const name = await prompt.ask({ title: "Add a group", label: "Name", confirm: "Add", validate: textProblem });
     if (name !== null) repoGroups.add(name);
   }
 
@@ -2323,6 +2321,7 @@
           label: "Name",
           value: repoGroups.groups.names[target] ?? "",
           confirm: "Rename",
+          validate: textProblem,
         })
         .then((name) => {
           if (name !== null) repoGroups.rename(target, name);
@@ -3526,6 +3525,7 @@
             label: `A name for the preset made from ${hook}`,
             value: hook,
             confirm: "Save",
+            validate: textProblem,
           })
           .then((name) => {
             if (name !== null) void hooks.export(repo, hook, name);
@@ -3643,13 +3643,7 @@
       value={prompt.open.value ?? ""}
       choices={prompt.open.choices}
       confirm={prompt.open.confirm}
-      validate={prompt.open.validate ?? (prompt.open.choices
-        ? undefined
-        : (name) =>
-            branchNameProblem(
-              name,
-              repository.localBranches.map((entry) => entry.name),
-            ))}
+      validate={prompt.open.validate}
       onaccept={(value) => prompt.accept(value)}
       onclose={() => prompt.cancel()}
     />
