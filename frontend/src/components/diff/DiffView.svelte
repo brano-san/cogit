@@ -902,17 +902,17 @@
   }
 
   .sign.del {
-    background: var(--c-deleted-bg, rgb(90 40 40 / 35%));
+    background: var(--c-deleted-bg);
     color: var(--status-delete);
   }
 
   .sign.add {
-    background: var(--c-added-bg, rgb(40 80 45 / 35%));
+    background: var(--c-added-bg);
     color: var(--status-add);
   }
 
   .sign.moved {
-    background: var(--c-stash-bg, rgb(70 60 95 / 35%));
+    background: var(--c-stash-bg);
     color: var(--status-stash);
   }
 
@@ -932,7 +932,7 @@
   }
 
   .ribbon {
-    fill: var(--c-added-bg, rgb(40 80 45 / 35%));
+    fill: var(--c-added-bg);
     stroke: none;
   }
 
@@ -973,17 +973,17 @@
 
   /* A moved block is one fact, not a deletion plus an addition (T7.9). */
   .code.moved {
-    background: var(--c-stash-bg, rgb(70 60 95 / 35%));
+    background: var(--c-stash-bg);
     color: var(--status-stash);
   }
 
   .code.del {
-    background: var(--c-deleted-bg, rgb(90 40 40 / 35%));
+    background: var(--c-deleted-bg);
     color: var(--status-delete);
   }
 
   .code.add {
-    background: var(--c-added-bg, rgb(40 80 45 / 35%));
+    background: var(--c-added-bg);
     color: var(--status-add);
   }
 

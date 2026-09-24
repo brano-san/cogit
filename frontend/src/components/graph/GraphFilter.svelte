@@ -85,7 +85,7 @@
 
   button {
     height: 16px;
-    padding: 0 var(--sp-2, 3px);
+    padding: 0 var(--sp-2);
     background: none;
     color: var(--text-secondary);
     border: 0;

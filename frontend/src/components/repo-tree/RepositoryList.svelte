@@ -413,7 +413,7 @@
   /* One line, the same shape every other empty panel uses. */
   .none {
     margin: 0;
-    padding: var(--sp-6, 16px) var(--sp-5);
+    padding: var(--sp-6) var(--sp-5);
     text-align: center;
     color: var(--text-secondary);
     font-size: var(--fs-dense);
@@ -513,7 +513,7 @@
 
   .act {
     flex: 0 0 auto;
-    padding: 0 var(--sp-2, 3px);
+    padding: 0 var(--sp-2);
     color: var(--text-secondary);
     opacity: 0;
     cursor: default;

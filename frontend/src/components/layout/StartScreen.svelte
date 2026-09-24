@@ -55,7 +55,7 @@
     align-items: center;
     justify-content: center;
     height: 100%;
-    padding: var(--sp-6, 16px) var(--sp-5);
+    padding: var(--sp-6) var(--sp-5);
     overflow: auto;
   }
 
@@ -120,7 +120,7 @@
   .recent li {
     display: flex;
     align-items: center;
-    gap: var(--sp-2, 3px);
+    gap: var(--sp-2);
   }
 
   .entry {

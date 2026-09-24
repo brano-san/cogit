@@ -130,7 +130,7 @@
   }
 
   .group {
-    padding: var(--sp-3) var(--sp-5) var(--sp-2, 3px);
+    padding: var(--sp-3) var(--sp-5) var(--sp-2);
     background: var(--surface-raised);
     color: var(--text-secondary);
     font-size: var(--fs-header);

@@ -290,7 +290,7 @@
 
   .row.conflicted .badge {
     color: var(--status-delete);
-    background: var(--c-deleted-bg, rgb(90 40 40 / 45%));
+    background: var(--c-deleted-bg);
   }
 
   .renamed {
