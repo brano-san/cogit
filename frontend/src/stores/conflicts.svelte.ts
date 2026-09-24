@@ -24,6 +24,9 @@ class ConflictStore {
   #generation = 0;
   /** The same for the list, which `clear()` also drops when the panels change repository. */
   #listing = 0;
+  /** Bumped by `clear()`: a write that finishes after it reads nothing back, since the
+      panels it would read into belong to another repository by now. */
+  #cleared = 0;
 
   async refresh(repo: RepoId): Promise<void> {
     const listing = ++this.#listing;
@@ -53,14 +56,18 @@ class ConflictStore {
 
   async take(repo: RepoId, side: ConflictSide): Promise<void> {
     if (!this.path) return;
+    const cleared = this.#cleared;
     await resolveConflict(repo, this.path, side);
+    if (cleared !== this.#cleared) return;
     this.close();
     await this.refresh(repo);
   }
 
   async write(repo: RepoId, text: string): Promise<void> {
     if (!this.path) return;
+    const cleared = this.#cleared;
     await resolveConflictText(repo, this.path, text);
+    if (cleared !== this.#cleared) return;
     this.close();
     await this.refresh(repo);
   }
@@ -76,6 +83,7 @@ class ConflictStore {
 
   clear(): void {
     this.#listing += 1;
+    this.#cleared += 1;
     this.paths = [];
     this.close();
   }
