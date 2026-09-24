@@ -2114,6 +2114,7 @@
   $effect(() =>
     repository.onLeave(() => {
       leaveRepositoryDialogs();
+      stale = new Set();
       if (configEdit?.scope === "repository") configEdit = null;
       indexEditing = null;
       removingFiles = null;
