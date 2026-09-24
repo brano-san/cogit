@@ -43,9 +43,19 @@ pub fn detect_moves(diff: &mut FileDiff) {
             continue;
         };
 
+        // An insertion already paired with an earlier deletion is the end of that move;
+        // offered again, a second copy of the block pointed at it too and the first move
+        // was left with nothing on the other side.
         let best = candidates
             .iter()
-            .map(|&begin| (begin, run_length(&deleted[start..], &inserted[begin..])))
+            .map(|&begin| {
+                let free = moved_inserts[begin..]
+                    .iter()
+                    .take_while(|taken| taken.is_none())
+                    .count();
+                let run = run_length(&deleted[start..], &inserted[begin..]).min(free);
+                (begin, run)
+            })
             .max_by_key(|&(_, length)| length);
 
         match best {

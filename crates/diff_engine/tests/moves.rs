@@ -202,3 +202,26 @@ fn every_row_marked_moved_carries_an_identifier() {
         assert_eq!(flagged, id.is_some(), "{row:?}");
     }
 }
+
+// Two deleted copies of one block and one place it was added: both copies were paired
+// with the same insertion, so one move had a deletion and no insertion to point at.
+#[test]
+fn one_insertion_is_the_end_of_one_move_only() {
+    let block = "alpha();\nbeta();\ngamma();\n";
+    let old = format!("{block}middle();\n{block}");
+    // Indented where it went, so neither copy lines up with it as unchanged context.
+    let indented: String = block.lines().map(|line| format!("    {line}\n")).collect();
+    let new = format!("middle();\n{indented}");
+    let rows = rows(&old, &new);
+
+    let ids = |deleting: bool| -> std::collections::BTreeSet<u32> {
+        rows.iter()
+            .filter_map(|row| match row {
+                DiffRow::Delete { move_id, .. } if deleting => *move_id,
+                DiffRow::Insert { move_id, .. } if !deleting => *move_id,
+                _ => None,
+            })
+            .collect()
+    };
+    assert_eq!(ids(true), ids(false), "{rows:?}");
+}
