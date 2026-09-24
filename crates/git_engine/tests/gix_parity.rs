@@ -250,6 +250,40 @@ mod staged {
         );
         assert_eq!(ours(&f), expected);
     }
+
+    #[test]
+    fn of_two_similar_sources_the_closer_one_is_the_rename() {
+        let f = test_fixtures::linear(1).unwrap();
+        let body = |changed: usize| {
+            (0..20)
+                .map(|i| {
+                    if i < changed {
+                        format!("changed {i}\n")
+                    } else {
+                        format!("line {i}\n")
+                    }
+                })
+                .collect::<String>()
+        };
+        f.write_file("a/far.txt", &body(7)).unwrap();
+        f.write_file("b/near.txt", &body(2)).unwrap();
+        f.git(&["add", "--", "."]).unwrap();
+        f.commit_staged(1, "two relatives").unwrap();
+        f.git(&["rm", "-q", "--", "a/far.txt", "b/near.txt"])
+            .unwrap();
+        f.write_file("c/new.txt", &body(0)).unwrap();
+        f.git(&["add", "--", "c/new.txt"]).unwrap();
+
+        let expected = git(&f, "-M");
+        assert_eq!(
+            expected,
+            vec![
+                "D\ta/far.txt".to_owned(),
+                "R\tb/near.txt\tc/new.txt".to_owned()
+            ]
+        );
+        assert_eq!(ours(&f), expected);
+    }
 }
 
 mod worktrees {
