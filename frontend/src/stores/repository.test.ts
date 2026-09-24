@@ -271,10 +271,10 @@ describe("the list of open repositories", () => {
     const older = pending<unknown>();
     commands.repositories.mockReturnValueOnce(older.promise);
     const first = repository.refreshList();
-    commands.repositories.mockResolvedValueOnce([{ root: "C:/repos/two" }]);
+    commands.repositories.mockResolvedValueOnce({ status: "ok", data: [{ root: "C:/repos/two" }] });
     await repository.refreshList();
 
-    older.settle([{ root: "C:/repos/closed" }]);
+    older.settle({ status: "ok", data: [{ root: "C:/repos/closed" }] });
     await first;
 
     expect(repository.openRepos.map((entry) => entry.root)).toEqual(["C:/repos/two"]);
