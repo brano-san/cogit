@@ -525,7 +525,13 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
 - [x] B-07 rebase раньше merge в определении состояния
   > Итог: rebase-merge/rebase-apply проверяются раньше MERGE_HEAD, как в wt-status.c. Тест
   > `a_merge_stopped_inside_a_rebase_is_a_rebase`.
-- [ ] B-08/B-09 хуки и вотчер worktree — common dir
+- [x] B-08/B-09 хуки и вотчер worktree — common dir
+  > Итог: `RepoHandle::common_dir` (gix `common_dir`, сверено с исходником 0.87.1); хуки без
+  > `core.hooksPath` — из common dir; вотчер получил `common_dir`: в linked worktree
+  > дополнительно наблюдает `<common>/refs` и верх common dir (packed-refs, config),
+  > маршрутизация — сначала приватный каталог, потом общий. Тесты
+  > `a_linked_worktree_lists_the_hooks_git_runs_there`,
+  > `a_linked_worktree_hears_about_refs_in_the_common_directory`.
 - [ ] B-10 ошибки notify в лог
 - [ ] B-12 `log -L`: quotepath, префиксы, таб
 - [ ] B-13 surgery: `-z`

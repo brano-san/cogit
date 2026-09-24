@@ -24,7 +24,7 @@ fn start() -> Harness {
     std::fs::write(git_dir.join("index"), "").unwrap();
 
     let (tx, events) = mpsc::channel();
-    let watcher = RepoWatcher::start(&root, &git_dir, move |change| {
+    let watcher = RepoWatcher::start(&root, &git_dir, &git_dir, move |change| {
         let _ = tx.send(change);
     })
     .unwrap();
@@ -157,7 +157,12 @@ fn resuming_starts_reporting_again() {
 fn a_missing_repository_fails_instead_of_panicking() {
     let missing = std::path::Path::new("C:/no/such/repository/anywhere");
 
-    let result = RepoWatcher::start(missing, &missing.join(".git"), |_| {});
+    let result = RepoWatcher::start(
+        missing,
+        &missing.join(".git"),
+        &missing.join(".git"),
+        |_| {},
+    );
 
     assert!(result.is_err());
 }
@@ -228,4 +233,38 @@ fn a_hundred_files_at_once_do_not_become_a_hundred_events() {
         seen.len()
     );
     assert!(seen.iter().all(|c| c.kind == ChangeKind::WorkingTree));
+}
+
+// In a linked worktree the refs live in the common git directory, and only the private
+// one was watched: a commit or a fetch from the terminal never refreshed Branches.
+#[test]
+fn a_linked_worktree_hears_about_refs_in_the_common_directory() {
+    let dir = tempfile::tempdir().unwrap();
+    let common = dir.path().join("main/.git");
+    let private = common.join("worktrees/linked");
+    let root = dir.path().join("linked");
+    std::fs::create_dir_all(common.join("refs/heads")).unwrap();
+    std::fs::create_dir_all(&private).unwrap();
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(private.join("HEAD"), "ref: refs/heads/wt\n").unwrap();
+
+    let (tx, events) = mpsc::channel();
+    let _watcher = RepoWatcher::start(&root, &private, &common, move |change| {
+        let _ = tx.send(change);
+    })
+    .unwrap();
+    std::thread::sleep(Duration::from_millis(300));
+    while events.try_recv().is_ok() {}
+
+    std::fs::write(
+        common.join("refs/heads/main"),
+        "0000000000000000000000000000000000000000\n",
+    )
+    .unwrap();
+
+    let mut seen = Vec::new();
+    while let Ok(change) = events.recv_timeout(SETTLE) {
+        seen.push(change);
+    }
+    assert!(seen.iter().any(|c| c.kind == ChangeKind::Refs), "{seen:?}");
 }
