@@ -496,7 +496,12 @@ content-search, таймеры Investigate/GraphCanvas/TooltipLayer.
   > локальные правки), другая — `branch --force`. `Recovery::Branch` остался для удалённых
   > веток. Тесты `undoing_a_merge_puts_the_branch_back_where_it_was` (до правки — «already
   > exists»), `…_after_the_user_left_it`.
-- [ ] B-02/B-03 discard и rollback не идут без резервного stash
+- [x] B-02/B-03 discard и rollback не идут без резервного stash
+  > Итог: ошибка резервного stash прерывает discard и rollback до изменения файлов
+  > (`backup_failed`, с логом); R-284 в 12-risks — отступление: огромное выделение теперь
+  > отказывает, а не выбрасывается без Undo (**на решение**, если нужно иначе — например,
+  > stash порциями). Тест `a_discard_whose_backup_fails_throws_nothing_away` (пустой
+  > репозиторий: до правки файл удалялся).
 - [ ] B-04 settings.json: ошибка чтения не затирает файл
 - [ ] B-05 `.gitattributes`: дописывать, не перезаписывать
 - [ ] B-07 rebase раньше merge в определении состояния

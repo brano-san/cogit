@@ -492,3 +492,21 @@ fn undoing_a_merge_moves_the_branch_back_after_the_user_left_it() {
     let main = summary.branches.iter().find(|b| b.name == "main").unwrap();
     assert_eq!(main.oid, before);
 }
+
+// The dialog says "Undo can bring them back". When the backup stash failed — here because
+// a repository without a first commit cannot stash — the files were deleted anyway, with
+// nothing to bring back.
+#[test]
+fn a_discard_whose_backup_fails_throws_nothing_away() {
+    let f = test_fixtures::empty().unwrap();
+    let (state, repo) = open(&f);
+    std::fs::write(f.path().join("draft.txt"), "only copy\n").unwrap();
+
+    let refused = state.discard_paths(repo, &["draft.txt".to_owned()]);
+
+    assert!(refused.is_err());
+    assert_eq!(
+        std::fs::read_to_string(f.path().join("draft.txt")).unwrap(),
+        "only copy\n"
+    );
+}
