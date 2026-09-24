@@ -366,6 +366,7 @@
   const reposColumn = $derived(shown.repositories || shown.worktrees);
   const leftColumn = $derived(reposColumn || shown.refs);
   const repo = $derived(repository.current);
+  const lastUndo = $derived(safety.lastFor(repo?.repo ?? null));
   /** One field for every panel that depends on an open repository. The panel decides
       from it both what its header counts and what its body says (R-119). */
   const panelState = $derived(panelView(repository.phase));
@@ -468,7 +469,7 @@
     staged: worktree.staged.length > 0,
     commit: commit.oid !== null,
     branch: tracked !== undefined,
-    undo: safety.last !== undefined,
+    undo: lastUndo !== null,
     file: diff.path !== null,
   });
 
@@ -491,7 +492,7 @@
     branch: repo?.head.kind === "branch",
     merged: toolbar.merged,
     stashes: stashes.entries.length,
-    undo: safety.last !== undefined,
+    undo: lastUndo !== null,
   });
 
   const pullRemote = $derived(currentRemote(tracked?.upstream, network.remotes));
@@ -542,7 +543,7 @@
       {
         id: "undo",
         title: "Undo Last Operation",
-        unavailable: safety.last ? undefined : "Nothing to undo",
+        unavailable: lastUndo ? undefined : "Nothing to undo",
         run: () => void undo(),
       },
       { id: "output", title: "Toggle Output Panel", shortcut: "Ctrl+Shift+7", run: () => output.toggle() },
@@ -2999,7 +3000,7 @@
         x,
         y,
       ).catch(() => {})}
-    undoable={safety.last?.description}
+    undoable={lastUndo?.description}
     handlers={repo
       ? {
           undo: () => void undo(),
