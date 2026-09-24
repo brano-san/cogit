@@ -51,9 +51,17 @@ class ScanStore {
     this.chosen = next;
   }
 
-  toggleAll(): void {
-    const all = this.openable.map((hit) => hit.root);
-    this.chosen = this.chosen.size === all.length ? new Set() : new Set(all);
+  /** Select All and Select None act on `shown`, the rows a filter leaves; what it hides
+      keeps its tick either way. */
+  toggleAll(shown: readonly string[] | null = null): void {
+    const rows = this.openable.map((hit) => hit.root).filter((root) => shown === null || shown.includes(root));
+    const next = new Set(this.chosen);
+    const all = rows.every((root) => next.has(root));
+    for (const root of rows) {
+      if (all) next.delete(root);
+      else next.add(root);
+    }
+    this.chosen = next;
   }
 
   clear(): void {
