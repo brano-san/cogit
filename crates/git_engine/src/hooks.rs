@@ -144,7 +144,7 @@ impl RepoHandle {
                 };
                 (resolved, HookSource::HooksPath)
             }
-            None => (self.git_dir().join("hooks"), HookSource::GitHooks),
+            None => (self.common_dir().join("hooks"), HookSource::GitHooks),
         }
     }
 

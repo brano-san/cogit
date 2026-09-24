@@ -111,6 +111,13 @@ impl RepoHandle {
         self.repo.git_dir()
     }
 
+    /// Where refs, config and hooks live. The same as `git_dir`, except in a linked
+    /// worktree, whose own git directory holds only HEAD, the index and the like.
+    #[must_use]
+    pub fn common_dir(&self) -> &Path {
+        self.repo.common_dir()
+    }
+
     #[must_use]
     pub fn is_bare(&self) -> bool {
         self.repo.is_bare()

@@ -305,3 +305,35 @@ fn every_hook_in_the_active_directory_is_checked_for_the_execution_bit() {
 
     assert_eq!(present.len(), 1);
 }
+
+// A linked worktree has a private git directory, but git runs the hooks from the common
+// one. The panel read `<private>/hooks`, which does not exist, and showed every hook
+// missing while git kept running them.
+#[test]
+fn a_linked_worktree_lists_the_hooks_git_runs_there() {
+    let f = test_fixtures::linear(1).unwrap();
+    let aux = tempfile::tempdir().unwrap();
+    let linked = aux.path().join("linked");
+    f.git(&[
+        "worktree",
+        "add",
+        "-b",
+        "wt",
+        &linked.to_string_lossy().replace('\\', "/"),
+    ])
+    .unwrap();
+    write_hook(
+        &f.path().join(".git/hooks"),
+        "pre-commit",
+        "#!/bin/sh\nexit 0\n",
+    );
+
+    let overview = RepoHandle::open(&linked).unwrap().hooks().unwrap();
+    let hook = overview
+        .hooks
+        .iter()
+        .find(|hook| hook.name == "pre-commit")
+        .unwrap();
+
+    assert_eq!(hook.state, HookState::Enabled);
+}

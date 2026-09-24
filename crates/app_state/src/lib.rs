@@ -513,7 +513,7 @@ impl AppState {
         );
 
         let id = self.find_or_register(root.clone(), name.clone(), listed);
-        self.start_watching(id, &root, handle.git_dir());
+        self.start_watching(id, &root, handle.git_dir(), handle.common_dir());
 
         Ok(RepoSummary {
             repo: id,
@@ -771,13 +771,13 @@ impl AppState {
     }
 
     /// A repository is watched once; reopening the same path must not stack watchers.
-    fn start_watching(&self, repo: RepoId, root: &Path, git_dir: &Path) {
+    fn start_watching(&self, repo: RepoId, root: &Path, git_dir: &Path, common_dir: &Path) {
         if self.watchers.read().contains_key(&repo) {
             return;
         }
         let events = self.events.clone();
         let rows = Arc::clone(&self.cached_rows);
-        match fs_watcher::RepoWatcher::start(root, git_dir, move |change| {
+        match fs_watcher::RepoWatcher::start(root, git_dir, common_dir, move |change| {
             rows.write().forget(repo);
             let _ = events.send(AppEvent::RepoChanged {
                 repo,

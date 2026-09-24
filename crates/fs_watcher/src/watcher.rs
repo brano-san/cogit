@@ -19,9 +19,12 @@ pub struct RepoWatcher {
 }
 
 impl RepoWatcher {
+    /// `common_dir` is where refs and config live: `git_dir` itself, except in a linked
+    /// worktree.
     pub fn start(
         root: &Path,
         git_dir: &Path,
+        common_dir: &Path,
         on_change: impl Fn(RepoChanged) + Send + 'static,
     ) -> Result<Self, WatchError> {
         let paused = Arc::new(AtomicBool::new(false));
@@ -29,6 +32,7 @@ impl RepoWatcher {
         let route = Route {
             root: root.to_path_buf(),
             git_dir: git_dir.to_path_buf(),
+            common_dir: common_dir.to_path_buf(),
             paused: Arc::clone(&paused),
             quiet_until: Arc::clone(&quiet_until),
         };
@@ -53,9 +57,17 @@ impl RepoWatcher {
         // The INV-06 noise is filtered when routing, not by narrowing the watch.
         watch(&mut debouncer, root, RecursiveMode::Recursive)?;
         watch(&mut debouncer, git_dir, RecursiveMode::NonRecursive)?;
+        let linked = common_dir != git_dir;
+        if linked {
+            // packed-refs and config sit at the top of the common directory.
+            watch(&mut debouncer, common_dir, RecursiveMode::NonRecursive)?;
+        }
         for name in crate::WATCHED_GIT_PATHS {
-            let path = git_dir.join(name);
-            if path.exists() {
+            let mut places = vec![git_dir.join(name)];
+            if linked && *name == "refs" {
+                places.push(common_dir.join(name));
+            }
+            for path in places.into_iter().filter(|path| path.exists()) {
                 watch(&mut debouncer, &path, RecursiveMode::Recursive)?;
             }
         }
@@ -107,6 +119,7 @@ impl std::fmt::Debug for RepoWatcher {
 struct Route {
     root: PathBuf,
     git_dir: PathBuf,
+    common_dir: PathBuf,
     paused: Arc<AtomicBool>,
     quiet_until: Arc<Mutex<Option<Instant>>>,
 }
@@ -146,7 +159,11 @@ impl Route {
             return None;
         }
 
-        let relative = if let Ok(inside) = path.strip_prefix(&self.git_dir) {
+        // The private directory first: in a linked worktree it lies inside the common one.
+        let inside_git = path
+            .strip_prefix(&self.git_dir)
+            .or_else(|_| path.strip_prefix(&self.common_dir));
+        let relative = if let Ok(inside) = inside_git {
             let relative = to_slash(inside);
             if relative.starts_with("objects/") || relative == "objects" {
                 return None;
@@ -196,6 +213,7 @@ mod tests {
         let root = PathBuf::from("C:/repo");
         Route {
             git_dir: root.join(".git"),
+            common_dir: root.join(".git"),
             root,
             paused: Arc::new(AtomicBool::new(false)),
             quiet_until: Arc::new(Mutex::new(None)),
