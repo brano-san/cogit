@@ -1073,9 +1073,10 @@
     await mutate((repo) => fileMenus.moveToTrash(repo, paths), paths);
   }
 
-  async function commitStaged(message: string, amend: boolean, noVerify: boolean) {
+  /** False when nothing was committed: the box keeps the message for another try. */
+  async function commitStaged(message: string, amend: boolean, noVerify: boolean): Promise<boolean> {
     const id = repository.current?.repo;
-    if (!id) return;
+    if (!id) return false;
 
     if (amend && (await isPublished(id, "HEAD").catch(() => false))) {
       const go = await ask(
@@ -1083,26 +1084,28 @@
           "will need a force-push and anyone who pulled it will have to reset. Continue?",
         { title: "Amend a published commit", kind: "warning" },
       );
-      if (!go) return;
+      if (!go) return false;
     }
 
     // An empty list would commit every staged file, the hidden ones included.
-    if (scope.empty) return;
+    if (scope.empty) return false;
     if (scope.paths) {
       const listed = scope.paths.join("\n");
       const confirmed = await ask(
         `Commit only these ${scope.paths.length} file(s)?\n\n${listed}\n\n${scope.warning}.`,
         { title: "Commit what you see", kind: "warning" },
       );
-      if (!confirmed) return;
+      if (!confirmed) return false;
     }
     const epoch = repository.epoch;
     await worktree.commit(id, message, amend, noVerify, scope.paths ?? []);
-    if (worktree.error || repository.epoch !== epoch) return;
+    if (worktree.error) return false;
+    if (repository.epoch !== epoch) return true;
     diff.clear();
     await repository.refresh();
     await afterMutation();
     void graph.load(id, graph.query);
+    return true;
   }
 
   /** `worked` is the repository the change was made in; once the panels show another,

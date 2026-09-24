@@ -9,7 +9,8 @@
     draftKey: string;
     /** `commit.template` from the config; seeds an empty draft, never overwrites one. */
     template?: string | null;
-    oncommit: (message: string, amend: boolean, noVerify: boolean) => void;
+    /** `false` means nothing was committed (a question was cancelled, a hook refused). */
+    oncommit: (message: string, amend: boolean, noVerify: boolean) => Promise<boolean> | void;
   }
 
   let { scope, stagedCount, busy = false, draftKey, template = null, oncommit }: Props =
@@ -23,9 +24,11 @@
   const length = $derived([...subjectOf(message)].length);
   const ready = $derived(message.trim() !== "" && (stagedCount > 0 || amend) && !busy && (amend || !scope.empty));
 
-  function submit() {
+  // Cleared once the commit is made, not before: a cancelled question or a hook that
+  // refused left the box empty, and a retry without Amend made a new commit instead.
+  async function submit() {
     if (!ready) return;
-    oncommit(message, amend, noVerify);
+    if ((await oncommit(message, amend, noVerify)) === false) return;
     message = "";
     amend = false;
     noVerify = false;
@@ -34,7 +37,7 @@
   function onkeydown(event: KeyboardEvent) {
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
       event.preventDefault();
-      submit();
+      void submit();
     }
   }
 
