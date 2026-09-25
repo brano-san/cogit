@@ -22,7 +22,7 @@ pub use moves::{MIN_MOVED_LINES, detect_moves, link_moves_across_files};
 pub use patch::{
     PatchError, PatchRequest, PatchShape, PatchSides, build_patch, carries_undecoded_bytes,
 };
-pub use text::{MAX_TEXT_BYTES, diff_bytes, diff_text};
+pub use text::{MAX_IMAGE_BYTES, MAX_TEXT_BYTES, diff_bytes, diff_text};
 pub use words::{Spans, block_is_comparable, inline_spans};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, specta::Type, Deserialize)]

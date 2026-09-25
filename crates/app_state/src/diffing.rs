@@ -256,11 +256,12 @@ fn sizes(old: &Option<Vec<u8>>, new: &Option<Vec<u8>>) -> (u64, u64) {
     (size(old), size(new))
 }
 
-/// The larger side, when it is past what the diff shows: then neither side is read, or a
-/// multi-gigabyte file goes into memory only to be summarised.
+/// The larger side, when it is past anything the diff shows — an image's cap, the larger
+/// one: then neither side is read, or a multi-gigabyte file goes into memory only to be
+/// summarised. Text past its own limit is told apart once read.
 fn too_large((old, new): (Option<u64>, Option<u64>)) -> Option<u64> {
     let size = old.unwrap_or(0).max(new.unwrap_or(0));
-    (size > diff_engine::MAX_TEXT_BYTES).then_some(size)
+    (size > diff_engine::MAX_IMAGE_BYTES).then_some(size)
 }
 
 /// A gitlink has no content on either side, nor has a missing path: this tells them apart.
