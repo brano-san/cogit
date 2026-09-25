@@ -415,7 +415,7 @@ impl AppState {
         let handle = self.handle(repo)?;
         // Before the walk: a ref moving during it leaves an older print, never a newer one.
         let refs = handle
-            .refs_fingerprint()
+            .refs_fingerprint(query.visible_refs.as_deref())
             .inspect_err(|err| tracing::error!(error = ?err, context = "graph cache: refs"))
             .ok();
         let mailmap = handle.mailmap();

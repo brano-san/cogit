@@ -55,9 +55,11 @@ impl RepoHandle {
         Ok(tips)
     }
 
-    /// Every ref and where HEAD points, hashed. Equal prints mean the graph walk would start
-    /// from the same tips; only the ref store is read, never a commit.
-    pub fn refs_fingerprint(&self) -> Result<u64> {
+    /// Every ref and where HEAD points, hashed, with what each reflog selector among
+    /// `visible_refs` names: `stash drop stash@{1}` moves no ref, yet `stash@{1}` is another
+    /// commit after it. Equal prints mean the graph walk would start from the same tips;
+    /// only the ref store and the reflogs are read, never a commit.
+    pub fn refs_fingerprint(&self, visible_refs: Option<&[String]>) -> Result<u64> {
         use std::hash::{Hash as _, Hasher as _};
         fn add(hasher: &mut impl std::hash::Hasher, reference: &gix::Reference<'_>) {
             reference.name().as_bstr().hash(hasher);
@@ -82,6 +84,14 @@ impl RepoHandle {
         }
         if let Ok(head) = self.repo.find_reference("HEAD") {
             add(&mut hasher, &head);
+        }
+        for rev in visible_refs.into_iter().flatten() {
+            if rev.contains("@{") {
+                rev.hash(&mut hasher);
+                if let Ok(id) = self.repo.rev_parse_single(rev.as_str()) {
+                    id.as_bytes().hash(&mut hasher);
+                }
+            }
         }
         Ok(hasher.finish())
     }
