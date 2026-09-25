@@ -62,19 +62,26 @@ impl GitOutput {
         stderr: &str,
         duration_ms: u32,
     ) -> Self {
-        let stdout = crate::output_text::normalise(stdout);
-        let stderr = crate::output_text::normalise(stderr);
-        // The log file keeps what the window cannot show, and it is written here rather
-        // than at the five call sites so that no path can capture output and lose it.
-        tracing::debug!(%command, exit_code = ?exit_code, %stdout, %stderr, "git output");
-        let stdout = crate::output_text::trim(&stdout);
-        let stderr = crate::output_text::trim(&stderr);
+        let full_stdout = crate::output_text::normalise(stdout);
+        let full_stderr = crate::output_text::normalise(stderr);
+        let stdout = crate::output_text::trim(&full_stdout);
+        let stderr = crate::output_text::trim(&full_stderr);
+        let summary = crate::outcome::summarise(&stderr, &stdout);
+        let trimmed = stdout.len() != full_stdout.len() || stderr.len() != full_stderr.len();
+        log_finish(
+            &command,
+            exit_code,
+            duration_ms,
+            &summary,
+            (&full_stdout, &full_stderr),
+            trimmed,
+        );
         Self {
             id: NEXT_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             repo: repo.display().to_string(),
             operation: crate::outcome::operation_label(&command),
             severity: crate::outcome::severity_of(exit_code, &stderr),
-            summary: crate::outcome::summarise(&stderr, &stdout),
+            summary,
             started_at_ms: started_at_ms(),
             command,
             exit_code,
@@ -82,6 +89,27 @@ impl GitOutput {
             stderr,
             duration_ms,
         }
+    }
+}
+
+/// The log file keeps what the window cannot show, and it is written here rather than at
+/// the call sites, so that no path can capture output and lose it. At `info`, the level
+/// Preferences sets, a failure and output the window trims carry both streams whole.
+fn log_finish(
+    command: &str,
+    exit_code: Option<i32>,
+    duration_ms: u32,
+    summary: &str,
+    (stdout, stderr): (&str, &str),
+    trimmed: bool,
+) {
+    if exit_code != Some(0) {
+        tracing::error!(%command, ?exit_code, duration_ms, %summary, %stdout, %stderr, "git failed");
+    } else if trimmed {
+        tracing::warn!(%command, ?exit_code, duration_ms, %stdout, %stderr, "git finished; the window shows only part of this");
+    } else {
+        tracing::info!(%command, ?exit_code, duration_ms, "git finished");
+        tracing::debug!(%command, %stdout, %stderr, "git output");
     }
 }
 
@@ -178,7 +206,6 @@ impl RepoHandle {
             duration_ms,
         );
         self.journal_entry(result.clone());
-        tracing::error!(command = %result.command, exit_code = ?result.exit_code, "git read failed");
         Err(GitError::Command(Box::new(GitCommandError::from_output(
             result,
         ))))
@@ -282,14 +309,6 @@ impl RepoHandle {
         if output.status.success() {
             return Ok(result);
         }
-
-        tracing::error!(
-            command = %result.command,
-            exit_code = ?result.exit_code,
-            duration_ms,
-            summary = %result.summary,
-            "git failed"
-        );
         Err(GitError::Command(Box::new(GitCommandError::from_output(
             result,
         ))))
