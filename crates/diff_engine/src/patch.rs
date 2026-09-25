@@ -121,6 +121,7 @@ pub fn build_patch(request: &PatchRequest, shape: PatchShape) -> Option<String> 
         if !changed {
             continue;
         }
+        let lines = close_open_ends(lines);
 
         let (pre_from, post_from) = if shape.reverse {
             (new_from - applied, new_from)
@@ -161,6 +162,33 @@ pub fn build_patch(request: &PatchRequest, shape: PatchShape) -> Option<String> 
         format!("b/{path}")
     };
     Some(format!("--- {from}\n+++ {to}\n{body}"))
+}
+
+/// A line without a final newline can only be the last one of its side. Cutting a selection
+/// can put lines after it — the insertions after an unselected last line, the context after
+/// a selected one in reverse — and git then glues the next line onto it. There the line
+/// gains its newline, as git-gui writes it: a context line splits into `-` and `+`.
+fn close_open_ends(lines: Vec<(char, &str, bool)>) -> Vec<(char, &str, bool)> {
+    let mut out = Vec::with_capacity(lines.len() + 1);
+    for (at, &(marker, text, no_newline)) in lines.iter().enumerate() {
+        if !no_newline {
+            out.push((marker, text, false));
+            continue;
+        }
+        let rest = &lines[at + 1..];
+        let old_goes_on = rest.iter().any(|(m, ..)| *m != '+');
+        let new_goes_on = rest.iter().any(|(m, ..)| *m != '-');
+        match marker {
+            ' ' if old_goes_on || new_goes_on => {
+                out.push(('-', text, !old_goes_on));
+                out.push(('+', text, !new_goes_on));
+            }
+            '-' => out.push((marker, text, !old_goes_on)),
+            '+' => out.push((marker, text, !new_goes_on)),
+            _ => out.push((marker, text, true)),
+        }
+    }
+    out
 }
 
 impl LineEnding {
