@@ -311,3 +311,19 @@ fn a_hook_edited_in_a_git_directory_outside_the_root_is_heard() {
     }
     assert!(seen.iter().any(|c| c.kind == ChangeKind::Hooks), "{seen:?}");
 }
+
+// Windows refuses to rename a folder while a handle is open on anything inside it: the
+// watches of their own on .git and .git/refs kept the repository's folder from being
+// renamed, moved or put in the Recycle Bin, with the repository not even on screen.
+#[test]
+fn a_watched_repository_folder_can_still_be_renamed() {
+    let harness = start();
+    let moved = harness.root.with_extension("moved");
+
+    let renamed = std::fs::rename(&harness.root, &moved);
+    if renamed.is_ok() {
+        std::fs::rename(&moved, &harness.root).unwrap();
+    }
+
+    renamed.unwrap();
+}
