@@ -16,8 +16,9 @@ impl RepoHandle {
     pub fn unstage(&self, paths: &[String]) -> Result<()> {
         require_paths(paths)?;
         // `restore --staged` resolves HEAD, which does not exist before the first commit.
+        // `-f` passes a file edited since `add`; with `--cached` the disk is never touched.
         if matches!(self.head()?, Head::Unborn { .. }) {
-            return self.run_paths(&["rm", "--cached", "-r"], paths);
+            return self.run_paths(&["rm", "--cached", "-r", "-f"], paths);
         }
         self.run_paths(&["restore", "--staged"], paths)
     }
