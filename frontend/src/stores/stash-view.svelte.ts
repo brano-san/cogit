@@ -3,6 +3,7 @@ import {
   stashContents,
   type DiffSpec,
   type StashContents,
+  type StashEntry,
   type RepoId,
   toCogitError,
 } from "$lib/ipc";
@@ -44,6 +45,16 @@ class StashViewStore {
     return held.untrackedRev === null
       ? null
       : { kind: "commitVsCommit", a: held.base, b: held.untrackedRev };
+  }
+
+  /** After the stash list was read again: a stash dropped, popped or cleared elsewhere
+      takes the Files panel with it. Matched by commit, since the indices move. True when
+      it went, so the caller can let go of its file in Diff too. */
+  forgetIfGone(entries: readonly StashEntry[]): boolean {
+    const shown = this.contents?.worktreeRev;
+    if (shown === undefined || entries.some((entry) => entry.oid === shown)) return false;
+    this.clear();
+    return true;
   }
 
   clear(): void {
