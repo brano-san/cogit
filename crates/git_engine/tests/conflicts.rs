@@ -145,3 +145,64 @@ fn resolving_a_path_that_is_not_conflicted_is_refused() {
             .is_err()
     );
 }
+
+/// `three_sided`, with every text file checked out with CRLF.
+fn three_sided_crlf() -> (test_fixtures::Fixture, String) {
+    let f = test_fixtures::empty().unwrap();
+    f.write_file(".gitattributes", "*.txt text eol=crlf\n")
+        .unwrap();
+    f.write_file("shared.txt", "base line\nkeep\n").unwrap();
+    f.git(&["add", "--", ".gitattributes", "shared.txt"])
+        .unwrap();
+    f.commit_staged(10, "add shared.txt").unwrap();
+
+    f.git(&["switch", "-c", "theirs"]).unwrap();
+    f.write_file("shared.txt", "their line\r\nkeep\r\n")
+        .unwrap();
+    f.git(&["add", "--", "shared.txt"]).unwrap();
+    f.commit_staged(11, "their change").unwrap();
+
+    f.git(&["switch", "main"]).unwrap();
+    f.write_file("shared.txt", "our line\r\nkeep\r\n").unwrap();
+    f.git(&["add", "--", "shared.txt"]).unwrap();
+    f.commit_staged(12, "our change").unwrap();
+
+    let _ = f.git(&["merge", "theirs"]);
+    (f, "shared.txt".to_owned())
+}
+
+// The stage's raw blob went to disk past the eol and smudge filters: LF where the
+// attributes ask for CRLF, and the text of an LFS pointer instead of the file.
+#[test]
+fn taking_a_side_writes_the_file_as_a_checkout_would() {
+    let (f, path) = three_sided_crlf();
+    let repo = open(&f);
+
+    repo.resolve_with(&path, git_engine::ConflictSide::Theirs)
+        .unwrap();
+
+    assert_eq!(
+        std::fs::read(f.path().join(&path)).unwrap(),
+        b"their line\r\nkeep\r\n"
+    );
+    assert_eq!(
+        f.git(&["show", ":shared.txt"]).unwrap(),
+        "their line\nkeep\n"
+    );
+    assert!(repo.conflicted_paths().unwrap().is_empty());
+}
+
+#[test]
+fn taking_the_base_writes_it_as_a_checkout_would() {
+    let (f, path) = three_sided_crlf();
+    let repo = open(&f);
+
+    repo.resolve_with(&path, git_engine::ConflictSide::Base)
+        .unwrap();
+
+    assert_eq!(
+        std::fs::read(f.path().join(&path)).unwrap(),
+        b"base line\r\nkeep\r\n"
+    );
+    assert!(repo.conflicted_paths().unwrap().is_empty());
+}

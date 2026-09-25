@@ -95,11 +95,17 @@ impl RepoHandle {
         })
     }
 
+    /// Checked out by git, not written from the blob: the eol and smudge filters (LFS)
+    /// apply to a stage as they do to any checkout.
     pub fn resolve_with(&self, path: &str, side: ConflictSide) -> Result<()> {
-        let content = self
-            .stage_blob(path, side)
-            .ok_or_else(|| GitError::InvalidState(format!("{path} has no {side:?} side")))?;
-        self.write_resolution(path, &content)
+        if self.stage_blob(path, side).is_none() {
+            return Err(GitError::InvalidState(format!(
+                "{path} has no {side:?} side"
+            )));
+        }
+        let stage = format!("--stage={}", side.stage());
+        self.run_git_literal(&["checkout-index", "-f", &stage, "--", path])?;
+        self.run_git_literal(&["add", "--", path]).map(drop)
     }
 
     pub fn resolve_with_text(&self, path: &str, text: &str) -> Result<()> {
