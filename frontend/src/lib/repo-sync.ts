@@ -1,4 +1,4 @@
-import type { RepoOverview } from "$lib/ipc";
+import type { RepoOverview, RepoSummary } from "$lib/ipc";
 import type { RepoPulse } from "$lib/ipc/bindings";
 import { DIRTY_REPOSITORY, trackTooltip } from "$lib/repo-labels";
 
@@ -40,6 +40,24 @@ export function rowSync(input: RowSyncInput): RowSync {
     unknown: fetchFailed,
     remoteAhead,
     missing: false,
+  };
+}
+
+/** The list is read again on open, fetch and the like; what the panels show is read after
+    every write and every change on disk, so the row on screen takes its marks from that. */
+export function freshOverview(overview: RepoOverview, current: RepoSummary | null): RepoOverview {
+  if (!current || current.repo !== overview.repo) return overview;
+  const head = current.head.kind === "branch" ? current.head.name : null;
+  const tracked = head === null ? undefined : current.branches.find((b) => b.kind === "local" && b.name === head);
+  const { staged, unstaged, untracked, conflicted } = current.status;
+  return {
+    ...overview,
+    branch: head,
+    ahead: tracked?.ahead ?? 0,
+    behind: tracked?.behind ?? 0,
+    dirty: staged + unstaged + untracked + conflicted > 0,
+    missing: false,
+    state: current.state,
   };
 }
 
