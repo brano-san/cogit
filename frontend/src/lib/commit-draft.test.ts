@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasOwnText } from "./commit-draft";
+import { draftToSave, hasOwnText, initialMessage, messageAfterCommit } from "./commit-draft";
 
 const template = "\n\n# Explain why, not what\n# Wrap at 72\n";
 
@@ -30,5 +30,26 @@ describe("hasOwnText", () => {
   it("without a template is only about blank text", () => {
     expect(hasOwnText("  \n", null)).toBe(false);
     expect(hasOwnText("# a heading", null)).toBe(true);
+  });
+});
+
+describe("the draft around a commit", () => {
+  it("opens with the saved draft, else the template", () => {
+    expect(initialMessage("half a message", template)).toBe("half a message");
+    expect(initialMessage(null, template)).toBe(template);
+    expect(initialMessage(null, null)).toBe("");
+  });
+
+  // The seeding ran only when the repository or the template changed: after a commit the
+  // field stayed empty until a restart, although `git commit` opens the template each time.
+  it("is the template again once a commit is made", () => {
+    expect(messageAfterCommit(template)).toBe(template);
+    expect(messageAfterCommit(null)).toBe("");
+  });
+
+  it("keeps nothing for an empty field or the untouched template", () => {
+    expect(draftToSave("", template)).toBeNull();
+    expect(draftToSave(template, template)).toBeNull();
+    expect(draftToSave(`Fix${template}`, template)).toBe(`Fix${template}`);
   });
 });

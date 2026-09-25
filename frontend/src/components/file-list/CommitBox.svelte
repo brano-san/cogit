@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { hasOwnText } from "$lib/commit-draft";
+  import { draftToSave, hasOwnText, initialMessage, messageAfterCommit } from "$lib/commit-draft";
   import { SUBJECT_HARD, SUBJECT_SOFT, subjectOf, subjectState } from "$lib/commit-message";
 
   interface Props {
@@ -8,7 +8,8 @@
     stagedCount: number;
     busy?: boolean;
     draftKey: string;
-    /** `commit.template` from the config; seeds an empty draft, never overwrites one. */
+    /** `commit.template` from the config; seeds an empty draft and the field after each
+        commit, never overwrites a draft. */
     template?: string | null;
     /** `false` means nothing was committed (a question was cancelled, a hook refused). */
     oncommit: (message: string, amend: boolean, noVerify: boolean) => Promise<boolean> | void;
@@ -32,7 +33,7 @@
   async function submit() {
     if (!ready) return;
     if ((await oncommit(message, amend, noVerify)) === false) return;
-    message = "";
+    message = messageAfterCommit(template);
     amend = false;
     noVerify = false;
   }
@@ -48,16 +49,17 @@
   // than the cost of one key per repository in browser storage.
   $effect(() => {
     try {
-      message = localStorage.getItem(draftKey) ?? template ?? "";
+      message = initialMessage(localStorage.getItem(draftKey), template);
     } catch {
-      message = template ?? "";
+      message = initialMessage(null, template);
     }
   });
 
   $effect(() => {
     try {
-      if (message === "") localStorage.removeItem(draftKey);
-      else localStorage.setItem(draftKey, message);
+      const kept = draftToSave(message, template);
+      if (kept === null) localStorage.removeItem(draftKey);
+      else localStorage.setItem(draftKey, kept);
     } catch {
       // Private windows and blocked site data are not a reason to break committing.
     }
