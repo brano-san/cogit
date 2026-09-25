@@ -48,10 +48,8 @@ impl RepoHandle {
         self.run_streaming(&args, on_line)
     }
 
-    /// `--ff-only`: a pull that cannot fast-forward is a merge, and a merge started behind
-    /// the user's back is exactly the surprise a Git client must not produce. The other mode
-    /// is an explicit merge, `--no-rebase`: without it `pull.rebase` rebases, and with no
-    /// `pull.*` set at all git refuses diverged branches.
+    /// `--ff-only` or an explicit merge, `--no-rebase`: without it `pull.rebase` rebases, and
+    /// with no `pull.*` set git refuses diverged branches.
     pub fn pull(
         &self,
         remote: &str,
@@ -61,7 +59,6 @@ impl RepoHandle {
     ) -> Result<()> {
         let header = self.auth_arg(remote, gix::remote::Direction::Fetch, token);
         let mut args = prefix(&header);
-        // As Fetch does: Delete Merged Branches after Pull looks for upstreams that are gone.
         args.extend(["pull", "--progress", "--prune", remote]);
         args.push(if ff_only { "--ff-only" } else { "--no-rebase" });
         self.run_streaming(&args, on_line)
@@ -96,8 +93,7 @@ impl RepoHandle {
         self.run_streaming(&args, on_line)
     }
 
-    /// The checked-out branch has no upstream. A bare `git push` then fails under the
-    /// default `push.default=simple`; it gets what `push.autoSetupRemote` would do.
+    /// The checked-out branch has no upstream, so a bare `git push` fails (R-414).
     fn branch_never_pushed(&self) -> bool {
         let Ok(Some(name)) = self.repo.head_name() else {
             return false;
@@ -107,8 +103,7 @@ impl RepoHandle {
             .is_none()
     }
 
-    /// The token of the URL this direction contacts: a fetch with the push host's token
-    /// handed it to the fetch host.
+    /// The token of the URL this direction contacts, not of the push URL for all (R-410).
     fn auth_arg(
         &self,
         remote: &str,
