@@ -46,7 +46,7 @@ class CompareViewStore {
   open(path: string): void {
     const spec = this.spec;
     if (!spec || this.repo === null) return;
-    if (diff.path === path) {
+    if (diff.shows(spec, path)) {
       diff.clear();
       return;
     }

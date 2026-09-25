@@ -6,7 +6,7 @@
 //! to the other, which is where the envelope for a created or deleted file gets decided.
 
 use app_state::AppState;
-use diff_engine::{DiffOptions, FileDiff, LineEnding, PatchRequest, diff_text};
+use diff_engine::{DiffOptions, FileDiff, PatchRequest, diff_text};
 
 fn hunks_of(old: &str, new: &str) -> Vec<diff_engine::Hunk> {
     match diff_text(old, new, &DiffOptions::default()) {
@@ -21,7 +21,6 @@ fn request(path: &str, old: &str, new: &str, deletes: Vec<u32>, inserts: Vec<u32
         hunks: hunks_of(old, new),
         selected_deletes: deletes,
         selected_inserts: inserts,
-        line_ending: LineEnding::Lf,
     }
 }
 
@@ -312,4 +311,249 @@ fn a_line_that_is_not_utf8_is_not_staged_as_something_else() {
 
     assert!(result.is_err(), "{result:?}");
     assert_eq!(index_text(&f, "latin.txt"), "a\nb\n");
+}
+
+// The index ends on `x` without a newline; the working file adds a newline and `y`. An
+// unselected `-x` became context carrying the marker, and the `+y` after it was glued onto
+// that line: the index got `xy`.
+#[test]
+fn a_line_added_after_a_last_line_without_a_newline_stages_on_a_line_of_its_own() {
+    let f = test_fixtures::empty().unwrap();
+    f.commit_file(1, "f.txt", "a\nx").unwrap();
+    f.write_file("f.txt", "a\nx\ny\n").unwrap();
+    let (state, repo) = opened(&f);
+
+    state
+        .stage_selection(
+            repo,
+            &request("f.txt", "a\nx", "a\nx\ny\n", Vec::new(), vec![3]),
+            false,
+        )
+        .unwrap();
+
+    assert_eq!(index_text(&f, "f.txt"), "a\nx\ny\n");
+}
+
+// The mirror of it on Unstage: the patch goes on in reverse, so the unselected insertions
+// are context after a `-x` that carried the marker, and git refused the patch.
+#[test]
+fn unstaging_the_removal_of_a_last_line_without_a_newline_keeps_the_lines_after_it() {
+    let f = test_fixtures::empty().unwrap();
+    f.commit_file(1, "f.txt", "a\nx").unwrap();
+    f.write_file("f.txt", "a\nx\ny\n").unwrap();
+    f.git(&["add", "f.txt"]).unwrap();
+    let (state, repo) = opened(&f);
+
+    state
+        .stage_selection(
+            repo,
+            &request("f.txt", "a\nx", "a\nx\ny\n", vec![2], Vec::new()),
+            true,
+        )
+        .unwrap();
+
+    assert_eq!(index_text(&f, "f.txt"), "a\nx\nx\ny\n");
+}
+
+// The same on Unstage: the patch goes on the index in reverse, and its context must be
+// the index's own text, not HEAD's.
+#[test]
+fn unstaging_next_to_lines_that_differ_only_in_whitespace_applies() {
+    let f = test_fixtures::empty().unwrap();
+    let old = "p\n  x\nq\n";
+    let new = "p\n    x\n    z\nq\n";
+    f.commit_file(1, "f.txt", old).unwrap();
+    f.write_file("f.txt", new).unwrap();
+    f.git(&["add", "f.txt"]).unwrap();
+    let (state, repo) = opened(&f);
+    let options = DiffOptions {
+        ignore_whitespace: diff_engine::Whitespace::All,
+        ..DiffOptions::default()
+    };
+
+    state
+        .stage_selection(
+            repo,
+            &request_with("f.txt", old, new, &options, Vec::new(), vec![3]),
+            true,
+        )
+        .unwrap();
+
+    assert_eq!(index_text(&f, "f.txt"), "p\n    x\nq\n");
+}
+
+// One ending for every line of the patch — the old side's, and LF for a mixed file — did
+// not match the CRLF lines around the change: "patch does not apply".
+#[test]
+fn a_change_in_a_file_with_mixed_line_endings_stages() {
+    let f = test_fixtures::empty().unwrap();
+    std::fs::write(f.path().join("f.txt"), "a\r\nb\nc\r\nd\n").unwrap();
+    f.git(&["add", "f.txt"]).unwrap();
+    f.commit_staged(1, "mixed").unwrap();
+    std::fs::write(f.path().join("f.txt"), "a\r\nB\nc\r\nd\n").unwrap();
+    let (state, repo) = opened(&f);
+
+    state
+        .stage_selection(
+            repo,
+            &request("f.txt", "a\nb\nc\nd\n", "a\nB\nc\nd\n", vec![2], vec![2]),
+            false,
+        )
+        .unwrap();
+
+    assert_eq!(index_text(&f, "f.txt"), "a\r\nB\nc\r\nd\n");
+}
+
+// Unstage goes onto the index, whose lines are CRLF here; the patch carried HEAD's LF.
+#[test]
+fn unstaging_writes_the_lines_with_the_endings_the_index_has() {
+    let f = test_fixtures::empty().unwrap();
+    f.commit_file(1, "f.txt", "a\nb\n").unwrap();
+    std::fs::write(f.path().join("f.txt"), "a\r\nB\r\n").unwrap();
+    f.git(&["add", "f.txt"]).unwrap();
+    let (state, repo) = opened(&f);
+
+    state
+        .stage_selection(
+            repo,
+            &request("f.txt", "a\nb\n", "a\nB\n", vec![2], vec![2]),
+            true,
+        )
+        .unwrap();
+
+    assert_eq!(index_text(&f, "f.txt"), "a\r\nb\n");
+}
+
+// The usual Windows checkout: LF in the index, CRLF on disk. The patch is cut from what git
+// itself compares — the file as `git add` would store it — so the index keeps LF.
+#[test]
+fn staging_under_autocrlf_keeps_lf_in_the_index() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&["config", "core.autocrlf", "true"]).unwrap();
+    std::fs::write(
+        f.path().join("file0.txt"),
+        "content 0\r\nfirst\r\nsecond\r\n",
+    )
+    .unwrap();
+    let (state, repo) = opened(&f);
+
+    state
+        .stage_selection(
+            repo,
+            &request(
+                "file0.txt",
+                "content 0\n",
+                "content 0\nfirst\nsecond\n",
+                Vec::new(),
+                vec![2],
+            ),
+            false,
+        )
+        .unwrap();
+
+    assert_eq!(index_text(&f, "file0.txt"), "content 0\nfirst\n");
+}
+
+#[test]
+fn discarding_under_autocrlf_keeps_crlf_on_disk() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&["config", "core.autocrlf", "true"]).unwrap();
+    std::fs::write(
+        f.path().join("file0.txt"),
+        "content 0\r\nfirst\r\nsecond\r\n",
+    )
+    .unwrap();
+    let (state, repo) = opened(&f);
+
+    state
+        .discard_selection(
+            repo,
+            &request(
+                "file0.txt",
+                "content 0\n",
+                "content 0\nfirst\nsecond\n",
+                Vec::new(),
+                vec![2],
+            ),
+        )
+        .unwrap();
+
+    assert_eq!(
+        std::fs::read(f.path().join("file0.txt")).unwrap(),
+        b"content 0\r\nsecond\r\n"
+    );
+}
+
+// The lines were chosen in a diff that no longer describes the files: here the index
+// gained a line after it was drawn. With no context in the patch git had nothing to miss
+// and put the line one place too high; a selection from another diff is refused instead.
+#[test]
+fn a_selection_from_a_diff_the_index_has_moved_past_is_refused() {
+    let f = test_fixtures::empty().unwrap();
+    let old = "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n";
+    let new = "1\n2\n3\n4\n5\nX\n6\n7\n8\nY\n9\n10\n";
+    f.commit_file(1, "f.txt", old).unwrap();
+    let options = DiffOptions {
+        context_lines: 0,
+        ..DiffOptions::default()
+    };
+    let shown = request_with("f.txt", old, new, &options, Vec::new(), vec![10]);
+    f.write_file("f.txt", "1\n2\n3\n4\n5\nX\n6\n7\n8\n9\n10\n")
+        .unwrap();
+    f.git(&["add", "f.txt"]).unwrap();
+    f.write_file("f.txt", new).unwrap();
+    let (state, repo) = opened(&f);
+
+    let staged = state.stage_selection(repo, &shown, false);
+
+    assert!(staged.is_err(), "{staged:?}");
+    assert_eq!(
+        index_text(&f, "f.txt"),
+        "1\n2\n3\n4\n5\nX\n6\n7\n8\n9\n10\n"
+    );
+}
+
+#[test]
+fn a_selection_from_a_diff_the_working_file_has_moved_past_is_not_discarded() {
+    let f = test_fixtures::empty().unwrap();
+    let old = "1\n2\n3\n4\n5\n6\n";
+    let new = "1\n2\nX\n3\n4\n5\n6\n";
+    f.commit_file(1, "f.txt", old).unwrap();
+    let options = DiffOptions {
+        context_lines: 0,
+        ..DiffOptions::default()
+    };
+    let shown = request_with("f.txt", old, new, &options, Vec::new(), vec![3]);
+    f.write_file("f.txt", "1\n2\nnew\nX\n3\n4\n5\n6\n").unwrap();
+    let (state, repo) = opened(&f);
+
+    let discarded = state.discard_selection(repo, &shown);
+
+    assert!(discarded.is_err(), "{discarded:?}");
+    assert_eq!(
+        std::fs::read_to_string(f.path().join("f.txt")).unwrap(),
+        "1\n2\nnew\nX\n3\n4\n5\n6\n"
+    );
+}
+
+// A character of the Private Use Area written in valid UTF-8 (icon fonts do this) looked
+// like a stand-in for an undecodable byte, and line staging was refused as "not valid UTF-8".
+#[test]
+fn a_private_use_character_in_valid_utf8_stages_line_by_line() {
+    let f = test_fixtures::empty().unwrap();
+    let old = "a\n.icon::before { content: \"\u{F7A2}\"; }\n";
+    let new = "a\n.icon::before { content: \"\u{F7A3}\"; }\n";
+    f.commit_file(1, "icons.css", old).unwrap();
+    f.write_file("icons.css", new).unwrap();
+    let (state, repo) = opened(&f);
+
+    state
+        .stage_selection(
+            repo,
+            &request("icons.css", old, new, vec![2], vec![2]),
+            false,
+        )
+        .unwrap();
+
+    assert_eq!(index_text(&f, "icons.css"), new);
 }

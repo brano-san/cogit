@@ -19,8 +19,10 @@ pub use images::{base64, data_url, image_mime};
 pub use language::{language_for_path, merge_grammar_for_path};
 pub use merge::{Origin, Region, merge3, merge3_with_syntax};
 pub use moves::{MIN_MOVED_LINES, detect_moves, link_moves_across_files};
-pub use patch::{PatchRequest, PatchShape, build_patch, carries_undecoded_bytes};
-pub use text::{MAX_TEXT_BYTES, diff_bytes, diff_text};
+pub use patch::{
+    PatchError, PatchRequest, PatchShape, PatchSides, build_patch, carries_undecoded_bytes,
+};
+pub use text::{MAX_IMAGE_BYTES, MAX_TEXT_BYTES, diff_bytes, diff_text};
 pub use words::{Spans, block_is_comparable, inline_spans};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, specta::Type, Deserialize)]
@@ -176,6 +178,11 @@ pub enum FileDiff {
     /// A gitlink: what changed is which commit the parent records, not any file. A
     /// submodule that was never checked out has nothing else to show, and that is a
     /// normal state of a repository rather than a broken one (doc/12-risks.md, R-139).
+    /// A folder on disk Git tracks nothing in: one untracked entry, or a repository cloned
+    /// inside this one without being its submodule. A normal state, not a missing path.
+    Folder {
+        repository: bool,
+    },
     Submodule {
         /// The commit the parent records now, and the one it recorded before.
         recorded: String,

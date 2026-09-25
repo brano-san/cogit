@@ -8,6 +8,10 @@ use std::borrow::Cow;
 /// Above this a file is shown as a summary: rendering it would cost more than it tells.
 pub const MAX_TEXT_BYTES: u64 = 1024 * 1024;
 
+/// The text limit is about rows in the webview; an image is one element, and past this
+/// only its data URL is the cost.
+pub const MAX_IMAGE_BYTES: u64 = 20 * 1024 * 1024;
+
 /// Git's own rule: a NUL byte anywhere in the first 8000 bytes means binary.
 const BINARY_SNIFF_BYTES: usize = 8000;
 
@@ -20,15 +24,20 @@ pub fn diff_bytes(old: &[u8], new: &[u8], options: &DiffOptions) -> FileDiff {
     let old_size = old.len() as u64;
     let new_size = new.len() as u64;
 
-    if old_size > MAX_TEXT_BYTES || new_size > MAX_TEXT_BYTES {
-        return FileDiff::TooLarge {
-            size: old_size.max(new_size),
-        };
+    let size = old_size.max(new_size);
+    let image = crate::image_mime(old).or_else(|| crate::image_mime(new));
+    let limit = if image.is_some() {
+        MAX_IMAGE_BYTES
+    } else {
+        MAX_TEXT_BYTES
+    };
+    if size > limit {
+        return FileDiff::TooLarge { size };
     }
     if old == new {
         return FileDiff::Unchanged;
     }
-    if let Some(mime) = crate::image_mime(old).or_else(|| crate::image_mime(new)) {
+    if let Some(mime) = image {
         return FileDiff::Image {
             old_size,
             new_size,

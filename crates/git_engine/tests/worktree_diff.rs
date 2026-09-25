@@ -171,3 +171,44 @@ fn a_file_gone_from_disk_compares_with_nothing() {
     assert_eq!(text(old), "content 1\n");
     assert!(new.is_none());
 }
+
+/// Makes `link` point at `target`; false where this machine may not (Windows without
+/// Developer Mode), and the test has nothing to check there.
+fn symlink(f: &test_fixtures::Fixture, target: &str, link: &str) -> bool {
+    let at = f.path().join(link);
+    #[cfg(unix)]
+    let made = std::os::unix::fs::symlink(target, at);
+    #[cfg(windows)]
+    let made = std::os::windows::fs::symlink_file(target, at);
+    made.is_ok()
+}
+
+// git records a link as its target path (blob mode 120000); reading through the link
+// compared that path with the whole text of the file it points at.
+#[test]
+fn a_symlink_on_disk_is_compared_by_its_target_as_git_records_it() {
+    let f = test_fixtures::linear(1).unwrap();
+    if !symlink(&f, "file0.txt", "link") {
+        return;
+    }
+
+    let (_, new) = open(&f)
+        .diff_sides(&DiffSpec::WorkTreeVsIndex, "link")
+        .unwrap();
+
+    assert_eq!(new.as_deref(), Some(b"file0.txt".as_slice()));
+}
+
+#[test]
+fn a_dangling_symlink_is_there_rather_than_deleted() {
+    let f = test_fixtures::linear(1).unwrap();
+    if !symlink(&f, "elsewhere", "link") {
+        return;
+    }
+
+    let (_, new) = open(&f)
+        .diff_sides(&DiffSpec::WorkTreeVsIndex, "link")
+        .unwrap();
+
+    assert_eq!(new.as_deref(), Some(b"elsewhere".as_slice()));
+}

@@ -367,3 +367,57 @@ fn cherry_picking_one_file_ignores_how_the_user_likes_diffs_shown() {
 
     assert_eq!(read(&f, "src/a.txt"), "from dev\n");
 }
+
+// The Index Editor saved its working-tree side through the link, into the file it points
+// at, which can be outside the repository.
+#[test]
+fn the_working_tree_side_of_a_symlink_is_not_written_through_it() {
+    let f = test_fixtures::linear(1).unwrap();
+    let at = f.path().join("link");
+    #[cfg(unix)]
+    let made = std::os::unix::fs::symlink("file0.txt", &at);
+    #[cfg(windows)]
+    let made = std::os::windows::fs::symlink_file("file0.txt", &at);
+    if made.is_err() {
+        return;
+    }
+    let repo = open(&f);
+
+    let written = repo.write_worktree_text("link", "typed in\n");
+
+    assert!(written.is_err(), "{written:?}");
+    assert_eq!(read(&f, "file0.txt"), "content 0\n");
+}
+
+fn names_on_disk(f: &test_fixtures::Fixture) -> Vec<String> {
+    std::fs::read_dir(f.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .collect()
+}
+
+// On a case-insensitive file system (Windows, macOS) the new name found the file itself,
+// and a rename that only changes case was refused as "already exists".
+#[test]
+fn a_tracked_file_can_be_renamed_to_another_case_of_its_name() {
+    let f = test_fixtures::linear(1).unwrap();
+    let repo = open(&f);
+
+    repo.move_path("file0.txt", "FILE0.txt").unwrap();
+
+    assert_eq!(f.git(&["ls-files"]).unwrap().trim(), "FILE0.txt");
+    assert!(names_on_disk(&f).contains(&"FILE0.txt".to_owned()));
+}
+
+#[test]
+fn an_untracked_file_can_be_renamed_to_another_case_of_its_name() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file("notes.txt", "loose\n").unwrap();
+    let repo = open(&f);
+
+    repo.move_path("notes.txt", "Notes.txt").unwrap();
+
+    let names = names_on_disk(&f);
+    assert!(names.contains(&"Notes.txt".to_owned()), "{names:?}");
+    assert!(!names.contains(&"notes.txt".to_owned()), "{names:?}");
+}

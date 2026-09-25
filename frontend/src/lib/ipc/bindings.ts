@@ -616,6 +616,8 @@ export type ConflictText = {
 	base: string | null,
 	ours: string | null,
 	theirs: string | null,
+	/**  A side is binary or not UTF-8: it is taken whole, never merged or edited as text. */
+	binary: boolean,
 };
 
 export type ContentMatch = {
@@ -720,8 +722,10 @@ oldTotal: number; newTotal: number } | { kind: "eolOnly"; from: LineEnding; to: 
  *  A gitlink: what changed is which commit the parent records, not any file. A
  *  submodule that was never checked out has nothing else to show, and that is a
  *  normal state of a repository rather than a broken one (doc/12-risks.md, R-139).
+ *  A folder on disk Git tracks nothing in: one untracked entry, or a repository cloned
+ *  inside this one without being its submodule. A normal state, not a missing path.
  */
-{ kind: "submodule"; 
+{ kind: "folder"; repository: boolean } | { kind: "submodule"; 
 /**  The commit the parent records now, and the one it recorded before. */
 recorded: string; previous: string | null; 
 /**  False when the submodule's own repository is not on disk. */
@@ -1214,7 +1218,6 @@ export type PatchRequest = {
 	hunks: Hunk[],
 	selectedDeletes: number[],
 	selectedInserts: number[],
-	lineEnding: LineEnding,
 };
 
 export type PresetStatus = {

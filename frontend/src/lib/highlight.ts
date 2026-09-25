@@ -82,36 +82,81 @@ export interface Piece {
   start: number;
 }
 
-/** One segmentation for all three overlays, cut at every boundary any of them introduces. */
+/** Past this a line is minified code: its tens of thousands of token spans cost the
+    renderer more than the colour tells anyone. Changed words and search hits still show. */
+export const MAX_HIGHLIGHT_CHARS = 10_000;
+
+/**
+ * One segmentation for all three overlays, cut at every boundary any of them introduces.
+ *
+ * One sweep over the sorted cuts: looking up the covering range for every piece made a
+ * minified line quadratic.
+ */
 export function mergePieces(
   text: string,
   tokens: readonly Token[],
   inline: readonly [number, number][],
   hits: readonly [number, number][] = [],
 ): Piece[] {
-  const cuts = new Set<number>([0, text.length]);
-  for (const token of tokens) {
-    cuts.add(Math.min(token.start, text.length));
-    cuts.add(Math.min(token.end, text.length));
+  const length = text.length;
+  const spans = length > MAX_HIGHLIGHT_CHARS ? [] : byStart(tokens);
+  const cuts = new Set<number>([0, length]);
+  for (const token of spans) {
+    cuts.add(Math.min(token.start, length));
+    cuts.add(Math.min(token.end, length));
   }
   for (const [from, to] of [...inline, ...hits]) {
-    cuts.add(Math.min(from, text.length));
-    cuts.add(Math.min(to, text.length));
+    cuts.add(Math.min(from, length));
+    cuts.add(Math.min(to, length));
   }
 
   const bounds = [...cuts].sort((a, b) => a - b);
+  const changed = coverage(bounds, inline, length);
+  const hit = coverage(bounds, hits, length);
   const pieces: Piece[] = [];
+  let next = 0;
   for (let i = 0; i < bounds.length - 1; i++) {
     const start = bounds[i] ?? 0;
     const end = bounds[i + 1] ?? 0;
     if (end <= start) continue;
+    while (next < spans.length && Math.min(spans[next]!.end, length) <= start) next += 1;
+    const span = spans[next];
     pieces.push({
       text: text.slice(start, end),
-      cls: tokens.find((t) => t.start <= start && t.end >= end)?.cls ?? "",
-      changed: inline.some(([from, to]) => from <= start && to >= end),
-      hit: hits.some(([from, to]) => from <= start && to >= end),
+      cls: span && span.start <= start && span.end >= end ? span.cls : "",
+      changed: changed[i] ?? false,
+      hit: hit[i] ?? false,
       start,
     });
   }
   return pieces;
+}
+
+function byStart(tokens: readonly Token[]): readonly Token[] {
+  for (let i = 1; i < tokens.length; i++) {
+    if (tokens[i]!.start < tokens[i - 1]!.start) return [...tokens].sort((a, b) => a.start - b.start);
+  }
+  return tokens;
+}
+
+/** Per piece between `bounds`, whether any of `ranges` covers it. Every range edge is a
+    cut, so a range that touches a piece covers all of it. */
+function coverage(bounds: readonly number[], ranges: readonly [number, number][], length: number): boolean[] {
+  const covered: boolean[] = [];
+  if (ranges.length === 0) return covered;
+  const at = new Map(bounds.map((bound, index) => [bound, index]));
+  const delta = new Array<number>(bounds.length).fill(0);
+  for (const [from, to] of ranges) {
+    const start = at.get(Math.min(from, length));
+    const end = at.get(Math.min(to, length));
+    if (start === undefined || end === undefined || start >= end) continue;
+    delta[start]! += 1;
+    delta[end]! -= 1;
+  }
+  let open = 0;
+  for (let i = 0; i < bounds.length - 1; i++) {
+    open += delta[i]!;
+    covered.push(open > 0);
+  }
+  return covered;
 }
