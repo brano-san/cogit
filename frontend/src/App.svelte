@@ -68,7 +68,7 @@
   import { toolbar } from "$stores/toolbar.svelte";
   import { stashDialog } from "$stores/stash-dialog.svelte";
   import { allowsSelectAll, settle, step } from "$lib/panel-focus";
-  import { pullRequestUrl } from "$lib/pull-request";
+  import { needsPush, pullRequestFor } from "$lib/pull-request";
   import { commitScope } from "$lib/commit-scope";
   import { activity, applyOperation } from "$lib/operations";
   import { measurer } from "$lib/timing";
@@ -392,12 +392,15 @@
   /** The staged rows the Files list shows; null until it has said. */
   let shownStaged = $state.raw<string[] | null>(null);
   const scope = $derived(commitScope(worktree.staged, fileMask, shownStaged));
-  const prUrl = $derived.by(() => {
-    const head = tracked?.name;
-    const base = tracked?.upstream?.split("/").slice(1).join("/") ?? "main";
-    if (!network.url || !head) return null;
-    return pullRequestUrl(network.url, base, head, commit.details?.summary ?? head);
+  /** The subject of HEAD's commit titles the pull request; the graph has it loaded. */
+  const headSummary = $derived.by(() => {
+    const oid = repo && repo.head.kind !== "unborn" ? repo.head.oid : null;
+    const at = graph.loadedIndexOf(oid);
+    return at === null ? null : (graph.rowAt(at)?.commit.summary ?? null);
   });
+  const prPlan = $derived(pullRequestFor({ remoteUrl: network.url, branch: tracked, title: headSummary }));
+  const prUrl = $derived("url" in prPlan ? prPlan.url : null);
+  const prReason = $derived("reason" in prPlan ? prPlan.reason : undefined);
 
   const onWorkingTree = $derived(repo !== undefined && repo !== null && commit.oid === null);
   const filesColumn = $derived(shown.files || (shown.commit && onWorkingTree));
@@ -835,7 +838,7 @@
         id: "pr",
         title: "Create Pull Request",
         synonyms: ["merge request", "pr", "mr"],
-        unavailable: prUrl ? undefined : "No GitHub, GitLab or Bitbucket remote",
+        unavailable: prReason,
         run: () => void openPullRequest(),
       },
       {
@@ -875,7 +878,7 @@
       {
         id: "copy-pr",
         title: "Copy Pull Request Link",
-        unavailable: prUrl ? undefined : "No GitHub, GitLab or Bitbucket remote",
+        unavailable: prReason,
         run: () => {
           if (prUrl) void import("@tauri-apps/plugin-clipboard-manager").then((m) => m.writeText(prUrl));
         },
@@ -912,16 +915,19 @@
   });
 
   async function openPullRequest() {
-    if (!prUrl) return;
-    if (tracked && tracked.ahead > 0) {
+    const url = prUrl;
+    if (!url) return;
+    if (tracked && needsPush(tracked)) {
       const push = await ask(
-        `${tracked.name} has ${tracked.ahead} commit(s) the remote has not seen. Push first?`,
+        tracked.upstream === null
+          ? `${tracked.name} is not on the remote yet, so the form would have nothing to compare. Push it first?`
+          : `${tracked.name} has ${tracked.ahead} commit(s) the remote has not seen. Push first?`,
         { title: "Create pull request", kind: "info" },
       );
       if (push) await runNetwork("push");
     }
     const { openUrl } = await import("@tauri-apps/plugin-opener");
-    await openUrl(prUrl);
+    await openUrl(url);
   }
 
   async function runFind(text: string) {

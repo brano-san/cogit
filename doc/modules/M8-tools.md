@@ -86,9 +86,10 @@ Investigate по образцу DeepGit — Navigation, перспективы, 
 
 - [x] Определение провайдера по URL remote: GitHub, GitLab, Bitbucket, иначе — пункт скрыт
 - [x] Сборка URL с ветками и предзаполненным заголовком из последнего коммита:
-      - GitHub — `/compare/<base>...<head>?expand=1&title=…`
+      - GitHub — `/compare/<head>?expand=1&title=…`
       - GitLab — `/-/merge_requests/new?merge_request[source_branch]=…`
-      - Bitbucket — `/pull-requests/new?source=…&dest=…`
+      - Bitbucket — `/pull-requests/new?source=…`
+      - цель — ветка по умолчанию, которую подставляет сам forge (R-460)
 - [x] Открытие через `tauri-plugin-opener`
 - [x] Если ветка ещё не отправлена — сначала предложить push, иначе форма откроется пустой
 - [x] Ссылку можно скопировать вместо открытия
