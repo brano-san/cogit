@@ -16,6 +16,8 @@ export interface Updates {
   /** The app's own dialog answers later, so the answer may be a promise. */
   confirm: (outcome: UpdateOutcome) => boolean | Promise<boolean>;
   report: (message: string) => void | Promise<void>;
+  /** Unsaved work and running operations: false keeps the app as it is (the Exit question). */
+  mayInstall: () => Promise<boolean>;
 }
 
 /** Split from the plugin so the branches can be tested without a release to point at. */
@@ -64,6 +66,8 @@ export async function checkForUpdates(
   }
 
   if (!(await io.confirm(outcome))) return outcome;
+  // Installing ends the app like Exit does, so it asks what Exit asks first.
+  if (!(await io.mayInstall())) return outcome;
 
   try {
     await found.downloadAndInstall();

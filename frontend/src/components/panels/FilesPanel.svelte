@@ -2,6 +2,7 @@
   import FileList from "$components/file-list/FileList.svelte";
   import { ContentSearch } from "$lib/content-search.svelte";
   import { withUnchanged } from "$lib/file-switches";
+  import { filesPanelList } from "$lib/files-panel";
   import type { FileView } from "$lib/file-view";
   import { idleMessage } from "$lib/repo-phase";
   import { commit } from "$stores/commit.svelte";
@@ -28,6 +29,8 @@
     onopencommit: (path: string) => void;
     /** A stash file names which of the three parts it came from. */
     onopenstash: (part: "worktree" | "index" | "untracked", path: string) => void;
+    /** A file of the comparison (Compare with HEAD / with Selected Commit). */
+    onopencompare: (path: string) => void;
     onopenwindow: (path: string) => void;
     onmask: (mask: string) => void;
     /** The staged files the working-tree list shows once filtered. */
@@ -40,6 +43,8 @@
     discard: (paths: string[]) => void;
     ignore: (paths: string[]) => void;
     remove: (paths: string[]) => void;
+    /** The rows of the list on screen, for the panel header. */
+    oncount?: (count: number | undefined) => void;
   }
 
   let {
@@ -51,6 +56,7 @@
     onopenstaged,
     onopencommit,
     onopenstash,
+    onopencompare,
     onopenwindow,
     onmask,
     onshownstaged,
@@ -62,6 +68,7 @@
     discard,
     ignore,
     remove,
+    oncount,
   }: Props = $props();
 
   const fractions = $derived(layout.fractions);
@@ -81,6 +88,19 @@
     ),
   );
 
+  const shown = $derived(
+    filesPanelList({
+      content: view === "content",
+      stash: stashView.contents,
+      compare: compareView.showing(commit.oid) ? compareView.files : null,
+      onWorkingTree,
+      worktree: worktree.total,
+      commit: commitList.length,
+    }),
+  );
+
+  $effect(() => oncount?.(shown.count));
+
   /** Three different nothings, and the panel used to say the same thing for all of them. */
   const nothing = $derived(
     view !== "content"
@@ -92,9 +112,9 @@
 </script>
 
 <div class="files">
-  {#if view !== "content"}
+  {#if shown.kind === "none"}
     <FileList sections={[{ files: [] }]} empty={nothing} disabled {activePanel} />
-  {:else if stashView.contents}
+  {:else if shown.kind === "stash" && stashView.contents}
     {@const parts = stashView.contents}
     <FileList
       {activePanel}
@@ -117,8 +137,9 @@
       empty="This stash is empty."
       selected={diff.path}
       onopen={onopenwindow}
+      {onmarked}
     />
-  {:else if compareView.showing(commit.oid)}
+  {:else if shown.kind === "compare"}
     <FileList
       {activePanel}
       context="compare"
@@ -128,14 +149,15 @@
         {
           title: `From ${compareView.from?.slice(0, 7)} to ${compareView.to?.slice(0, 7)}`,
           files: compareView.files,
-          onselect: (path) => compareView.open(path),
+          onselect: onopencompare,
         },
       ]}
       empty={compareView.loading ? "Comparing…" : "Both commits have the same files."}
       selected={diff.path}
       onopen={onopenwindow}
+      {onmarked}
     />
-  {:else if onWorkingTree}
+  {:else if shown.kind === "worktree"}
     <FileList
       {activePanel}
       view={filesView.current}
@@ -184,6 +206,7 @@
       selected={diff.path}
       onselect={onopencommit}
       onopen={onopenwindow}
+      {onmarked}
       {oncontext}
     />
   {/if}

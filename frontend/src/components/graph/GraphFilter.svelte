@@ -1,36 +1,47 @@
+
 <script lang="ts">
-  import { isEmptyQuery, parseQuery } from "$lib/query";
+  import { untrack } from "svelte";
+  import { formatQuery, parseQuery, sameQuery } from "$lib/query";
   import type { CommitQuery } from "$lib/ipc";
 
   interface Props {
     onchange: (query: CommitQuery) => void;
     matches?: number;
+    /** The filter the graph is loaded with, wherever it was set: here or by File ▸ Log. */
+    query: CommitQuery;
   }
 
-  let { onchange, matches }: Props = $props();
+  let { onchange, matches, query }: Props = $props();
 
   const PLACEHOLDER = "Filter: author:brano path:src since:2026-01-01 free text";
 
-  let text = $state("");
-  let applied = $state("");
+  // svelte-ignore state_referenced_locally
+  let text = $state(formatQuery(query));
 
-  const active = $derived(applied.trim() !== "");
+  const active = $derived(!sameQuery(query, parseQuery("")));
+
+  // One source for the field and the graph: a filter set elsewhere shows here, with its
+  // count and ✕, instead of an empty field over a filtered graph.
+  $effect(() => {
+    const now = query;
+    untrack(() => {
+      if (!sameQuery(parseQuery(text), now)) text = formatQuery(now);
+    });
+  });
 
   function apply() {
-    if (text === applied) return;
-    applied = text;
-    onchange(parseQuery(text));
+    const next = parseQuery(text);
+    if (!sameQuery(next, query)) onchange(next);
   }
 
   function reset() {
     text = "";
-    applied = "";
-    onchange(parseQuery(""));
+    if (active) onchange(parseQuery(""));
   }
 
   function onkeydown(event: KeyboardEvent) {
     if (event.key === "Enter") apply();
-    if (event.key === "Escape" && text !== "") reset();
+    if (event.key === "Escape" && (text !== "" || active)) reset();
   }
 </script>
 
@@ -46,7 +57,8 @@
   {#if active}
     <span class="count tabular">{matches ?? 0}</span>
     <button type="button" onclick={reset} title="Clear filter (Esc)">✕</button>
-  {:else if !isEmptyQuery(parseQuery(text)) && text !== ""}
+  {/if}
+  {#if text.trim() !== "" && !sameQuery(parseQuery(text), query)}
     <span class="hint">Enter</span>
   {/if}
 </div>

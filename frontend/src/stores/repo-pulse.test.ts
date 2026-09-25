@@ -93,3 +93,55 @@ describe("a row the panels take over", () => {
     expect(repoPulse.pulses.has("C:/repos/a")).toBe(false);
   });
 });
+
+// A closed row has no watcher: it was read once a session, so a file changed in it
+// outside Cogit never lit its dot until a restart (F-451).
+describe("the rows no watcher covers", () => {
+  beforeAll(() => import("./repo-pulse.svelte"), 60_000);
+  afterEach(() => vi.useRealTimers());
+
+  it("are read again when the window comes back into focus", async () => {
+    vi.useFakeTimers();
+    vi.resetModules();
+    const { repoPulse } = await import("./repo-pulse.svelte");
+    repoPulse.watch(["C:/repos/closed"]);
+    await vi.advanceTimersByTimeAsync(2_000);
+    readPulse.mockClear();
+
+    repoPulse.revisit();
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    expect(readPulse).toHaveBeenCalledWith("C:/repos/closed");
+  });
+
+  it("are not read again on every focus change", async () => {
+    vi.useFakeTimers();
+    vi.resetModules();
+    const { repoPulse } = await import("./repo-pulse.svelte");
+    repoPulse.watch(["C:/repos/closed"]);
+    await vi.advanceTimersByTimeAsync(2_000);
+    repoPulse.revisit();
+    await vi.advanceTimersByTimeAsync(2_000);
+    readPulse.mockClear();
+
+    repoPulse.revisit();
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    expect(readPulse).not.toHaveBeenCalled();
+  });
+
+  it("leave out the one the panels own", async () => {
+    vi.useFakeTimers();
+    vi.resetModules();
+    const { repoPulse } = await import("./repo-pulse.svelte");
+    repoPulse.setOwned("C:/repos/open");
+    repoPulse.watch(["C:/repos/open"]);
+    await vi.advanceTimersByTimeAsync(2_000);
+    readPulse.mockClear();
+
+    repoPulse.revisit();
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    expect(readPulse).not.toHaveBeenCalled();
+  });
+});

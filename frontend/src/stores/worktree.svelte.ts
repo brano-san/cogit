@@ -62,16 +62,17 @@ class WorktreeStore {
     await this.mutate(repo, () => discardPaths(repo, paths));
   }
 
-  /** A mutation is only believed once the working tree has been read back. */
+  /** A mutation is only believed once the working tree has been read back. A refused write
+      is thrown to the caller, which reports it as the write it was; `error` is only ever a
+      failed read, so a read failing after a good write does not undo the write's success. */
   async mutate(repo: RepoId, run: () => Promise<unknown>): Promise<void> {
-    this.error = null;
     const cleared = this.#cleared;
     try {
       await run();
     } catch (err) {
+      // The panels show another repository now: nobody there asked.
       if (cleared !== this.#cleared) return;
-      this.error = toCogitError(err);
-      return;
+      throw toCogitError(err);
     }
     if (cleared === this.#cleared) await this.load(repo);
   }

@@ -45,6 +45,7 @@
     onsave={(text) => onresolveText(text)}
     oncancel={() => conflicts.close()}
     onpopout={onpopoutmerge}
+    onunsaved={(unsaved) => conflicts.markUnsaved(unsaved)}
   />
 {:else if conflicts.path}
   <ConflictView
@@ -55,6 +56,7 @@
     binary={conflicts.binary}
     onresolve={(side) => onresolve(side)}
     onresolveText={(text) => onresolveText(text)}
+    onunsaved={(unsaved) => conflicts.markUnsaved(unsaved)}
   />
 {:else if diff.error && diff.path}
   <p class="error detail">{diff.error.message}</p>

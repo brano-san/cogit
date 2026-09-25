@@ -10,12 +10,16 @@
     binary?: boolean;
     onresolve: (side: ConflictSide) => void;
     onresolveText: (text: string) => void;
+    /** Whether a hand edit is open and not saved, whenever that changes. */
+    onunsaved?: (unsaved: boolean) => void;
   }
 
-  let { path, base, ours, theirs, binary = false, onresolve, onresolveText }: Props = $props();
+  let { path, base, ours, theirs, binary = false, onresolve, onresolveText, onunsaved }: Props = $props();
 
   let editing = $state(false);
   let draft = $state("");
+
+  $effect(() => onunsaved?.(editing));
 
   const sides: { id: ConflictSide; label: string; text: string | null }[] = $derived([
     { id: "base", label: "Base", text: base },

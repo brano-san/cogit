@@ -1,7 +1,7 @@
 <script lang="ts">
   import Disclosure from "$components/common/Disclosure.svelte";
   import KindIcon from "$components/common/KindIcon.svelte";
-  import { applyClick, EMPTY_SELECTION, type FileSelection } from "$lib/multi-select";
+  import { EMPTY_SELECTION, markRow, type FileSelection } from "$lib/multi-select";
   import { MISSING_REPOSITORY } from "$lib/repo-labels";
   import { canPull, freshOverview, rowSync, syncTooltip, type RowSync } from "$lib/repo-sync";
   import { repoPulse } from "$stores/repo-pulse.svelte";
@@ -339,7 +339,7 @@
         tabindex="0"
         title={entry.root}
         onclick={(event) => {
-          marked = applyClick(marked, entry.root, order, {
+          marked = markRow(marked, entry.root, order, {
             ctrl: event.ctrlKey || event.metaKey,
             shift: event.shiftKey,
           });

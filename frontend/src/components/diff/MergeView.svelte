@@ -30,9 +30,11 @@
         the native menu owns Ctrl+S for Stash All and Ctrl+1…7 for the panels, and an
         accelerator cannot be preventDefault-ed from here. */
     saveShortcut?: boolean;
+    /** Whether there are sides picked or edits not saved yet, whenever that changes. */
+    onunsaved?: (unsaved: boolean) => void;
   }
 
-  let { path, regions, onsave, oncancel, onpopout, saveShortcut = false }: Props = $props();
+  let { path, regions, onsave, oncancel, onpopout, saveShortcut = false, onunsaved }: Props = $props();
 
   let choices = $state.raw<Choices>({});
   let edited = $state<string | null>(null);
@@ -63,6 +65,8 @@
   export function unsaved(): boolean {
     return unsavedResolution(choices, edited);
   }
+
+  $effect(() => onunsaved?.(unsavedResolution(choices, edited)));
 
   /** The conflict under the cursor, or the first one when none is. */
   function take(side: Choice) {

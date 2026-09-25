@@ -149,3 +149,106 @@ describe("a conflict that is not text", () => {
     expect(conflicts.binary).toBe(false);
   });
 });
+
+async function opened(path: string): Promise<void> {
+  const opening = conflicts.open(1 as never, path);
+  calls.text.get(path)?.(sides(path));
+  await vi.waitFor(() => expect(calls.preview.has(path)).toBe(true));
+  calls.preview.get(path)?.(region(path));
+  await opening;
+}
+
+// a popped out to its window, b open in the main one with sides picked: Save in a's
+// window closed b's merge view, and the picks went with it.
+describe("a file resolved in the merge window", () => {
+  it("closes its own view in the main window", async () => {
+    await opened("a.txt");
+
+    conflicts.resolvedElsewhere("a.txt");
+
+    expect(conflicts.path).toBeNull();
+  });
+
+  it("leaves another file's view open", async () => {
+    await opened("b.txt");
+
+    conflicts.resolvedElsewhere("a.txt");
+
+    expect(conflicts.path).toBe("b.txt");
+    expect(conflicts.regions).toEqual(region("b.txt"));
+  });
+});
+
+// A second click on the open conflicted file — the second click of a double-click too —
+// opened it again: the merge view was rebuilt and every side picked was gone.
+describe("clicking the conflicted file that is open", () => {
+  it("keeps the merge on screen as it is", async () => {
+    const ipc = await import("$lib/ipc");
+    await opened("a.txt");
+    vi.mocked(ipc.conflictText).mockClear();
+
+    await conflicts.open(1 as never, "a.txt");
+
+    expect(ipc.conflictText).not.toHaveBeenCalled();
+    expect(conflicts.regions).toEqual(region("a.txt"));
+  });
+});
+
+// Opening any other file — another conflict, a staged file, a commit's file — replaced
+// the merge without a word, or never replaced it at all.
+describe("leaving an open merge", () => {
+  it("closes it at once when nothing was picked", async () => {
+    const { confirmation } = await import("./confirm.svelte");
+    await opened("a.txt");
+
+    expect(await conflicts.leave()).toBe(true);
+
+    expect(conflicts.path).toBeNull();
+    expect(confirmation.open).toBeNull();
+  });
+
+  it("asks first when sides were picked, and stays when told to", async () => {
+    const { confirmation } = await import("./confirm.svelte");
+    await opened("a.txt");
+    conflicts.markUnsaved(true);
+
+    const leaving = conflicts.leave();
+    expect(confirmation.open?.title).toBe("Discard the Resolution");
+    confirmation.answer(false);
+
+    expect(await leaving).toBe(false);
+    expect(conflicts.path).toBe("a.txt");
+  });
+
+  it("goes once the user agrees", async () => {
+    const { confirmation } = await import("./confirm.svelte");
+    await opened("a.txt");
+    conflicts.markUnsaved(true);
+
+    const leaving = conflicts.leave();
+    confirmation.answer(true);
+
+    expect(await leaving).toBe(true);
+    expect(conflicts.path).toBeNull();
+    expect(conflicts.unsaved).toBe(false);
+  });
+
+  it("is nothing to ask about when no merge is open", async () => {
+    expect(await conflicts.leave()).toBe(true);
+  });
+});
+
+// Staged files, a commit's files, a stash's and a comparison's all loaded their diff
+// under the merge, which was checked first and stayed on screen until Cancel.
+describe("another commit picked in the graph", () => {
+  it("closes a merge with nothing picked, and keeps one with picks", async () => {
+    await opened("a.txt");
+    conflicts.markUnsaved(true);
+    conflicts.closeUnlessUnsaved();
+    expect(conflicts.path).toBe("a.txt");
+
+    conflicts.markUnsaved(false);
+    conflicts.closeUnlessUnsaved();
+    expect(conflicts.path).toBeNull();
+  });
+});

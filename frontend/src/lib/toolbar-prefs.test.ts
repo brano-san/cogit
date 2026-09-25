@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_PREFS,
   currentRemote,
+  headRemote,
   mergePrefs,
   pullSteps,
   remotePlan,
@@ -151,5 +152,23 @@ describe("remotePlan", () => {
     expect(remotePlan(["pull"], { ...facts, scope: "current", deleteMerged: false, branch: behind })).toEqual([
       { kind: "pull", remote: "origin", ffOnly: true },
     ]);
+  });
+});
+
+// Pull from a row's menu went to origin while main tracked upstream/main: git refused
+// with "You asked to pull from the remote 'origin', but did not specify a branch".
+describe("headRemote", () => {
+  const branch = (name: string, upstream: string | null) =>
+    ({ name, fullName: `refs/heads/${name}`, kind: "local", oid: "c1", isHead: false, upstream, ahead: 0, behind: 0 }) as const;
+
+  it("is the remote HEAD's branch tracks", () => {
+    const refs = { head: { kind: "branch", name: "main", oid: "c1" } as const, branches: [branch("main", "upstream/main")] };
+    expect(headRemote(refs, ["origin", "upstream"])).toBe("upstream");
+  });
+
+  it("falls back like currentRemote on a detached HEAD or an untracked branch", () => {
+    expect(headRemote({ head: { kind: "detached", oid: "c1" }, branches: [] }, ["origin", "upstream"])).toBe("origin");
+    const refs = { head: { kind: "branch", name: "topic", oid: "c1" } as const, branches: [branch("topic", null)] };
+    expect(headRemote(refs, ["fork"])).toBe("fork");
   });
 });

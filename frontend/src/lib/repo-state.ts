@@ -122,3 +122,31 @@ export function stateBanner(
 
   return null;
 }
+
+/** Abort and Skip write no journal entry Undo could use (`Recovery::None`): what was
+    resolved or done so far goes for good, so they ask first. Continue does not. */
+export function bannerQuestion(
+  action: BannerAction,
+  state: RepoState,
+): { title: string; message: string; confirm: string; warning: true } | null {
+  const operation = INTERRUPTED[state.kind] ?? "operation";
+  if (action === "abort") {
+    return {
+      title: `Abort the ${operation}`,
+      message:
+        `Abort the ${operation} in progress? The conflicts resolved so far and the steps ` +
+        "already done are thrown away, and Undo cannot bring them back.",
+      confirm: "Abort",
+      warning: true,
+    };
+  }
+  if (action === "skip") {
+    return {
+      title: "Skip This Commit",
+      message: `Skip the commit the ${operation} stopped at? Its changes are left out, and Undo cannot bring them back.`,
+      confirm: "Skip",
+      warning: true,
+    };
+  }
+  return null;
+}

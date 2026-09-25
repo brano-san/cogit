@@ -125,7 +125,8 @@ pub enum GitError {
 Окно слияния — второй входной файл `merge.html`, как и окно сравнения: параметры идут в
 URL, чтобы окно пережило перезагрузку вебвью. Записав результат, оно зовёт
 `merge_resolved`, а тот шлёт событие `merge-resolved` всем окнам; главное закрывает
-панель конфликта и перечитывает состояние.
+панель конфликта, если в ней открыт тот же `path` (слияние другого файла с выбранными
+сторонами остаётся), и перечитывает состояние.
 
 Конфликт, у которого хоть одна сторона бинарная (NUL в первых 8000 байт) или не UTF-8,
 текстом не сливается: `merge_preview` отказывает `InvalidState`, `conflict_text` несёт
@@ -430,7 +431,7 @@ snake_case и читаются на фронтенде как `undefined`.
 | `stash_keeping_worktree` | `repo, message` | `()` — `git stash create` + `git stash store --message`: stash без очистки рабочей копии; untracked-файлы в него не входят; чистое дерево — `InvalidState` (R-212) | M5 |
 | `stash_selection` | `repo, paths, message` | `()` — пустое `message` не передаётся в Git: stash получает его собственное `WIP on …` | M5 |
 | `fetch` / `pull` / `push` | `repo, remote, refspec, channel: Channel<Progress>` | `()` | M1 |
-| `undo_last` | `repo` | `UndoResult` | M5 |
+| `undo_last` | `repo` | `UndoResult` — запись выбирается в момент исполнения в очереди; фронтенд её больше не зовёт: Undo тулбара и палитры шлёт `undo_entry` с id записи из подсказки, иначе отменялась бы запись, вставшая в очередь позже | M5 |
 
 Все мутации возвращают `Result<_, GitError>` и при неуспехе CLI — вариант `command`.
 

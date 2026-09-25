@@ -202,6 +202,19 @@ class DiffStore {
    */
   async dropIfAffected(paths: readonly string[]): Promise<void> {
     if (this.path === null || !paths.includes(this.path)) return;
+    await this.#rediff();
+  }
+
+  /** The watcher saw the working tree, the index or HEAD move: a diff that reads any of
+      them is out of date, and Stage would cut its patch from the old hunks. A diff between
+      two commits cannot change. */
+  async refreshFromDisk(): Promise<void> {
+    const kind = this.spec?.kind;
+    if (kind === undefined || kind === "commitVsParent" || kind === "commitVsCommit") return;
+    await this.#rediff();
+  }
+
+  async #rediff(): Promise<void> {
     await this.reload();
     if (this.error !== null || this.diff === null || this.diff.kind === "unchanged") {
       this.clear();

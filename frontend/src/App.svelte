@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick, untrack } from "svelte";
-  import { ask, message as dialogMessage, open as openFolderDialog } from "@tauri-apps/plugin-dialog";
+  import { open as openFolderDialog } from "@tauri-apps/plugin-dialog";
   import { checkForUpdates, message, type UpdateOutcome } from "$lib/updates";
   import { leaveRepositoryDialogs } from "$lib/leaving";
   import { retryOf } from "$lib/retry";
@@ -64,11 +64,11 @@
   import { checkedIds, disabledIds, type PaletteCommand } from "$lib/palette";
   import { reasonFor, type Context } from "$lib/availability";
   import { reasonOf, refAt, splitMarked, targetsOf, type MenuContext, type ToolbarFacts } from "$lib/toolbar";
-  import { currentRemote, remotePlan, syncSteps, type SyncOrder } from "$lib/toolbar-prefs";
+  import { currentRemote, headRemote, remotePlan, syncSteps, type SyncOrder } from "$lib/toolbar-prefs";
   import { toolbar } from "$stores/toolbar.svelte";
   import { stashDialog } from "$stores/stash-dialog.svelte";
   import { allowsSelectAll, settle, step } from "$lib/panel-focus";
-  import { pullRequestUrl } from "$lib/pull-request";
+  import { needsPush, pullRequestFor } from "$lib/pull-request";
   import { commitScope } from "$lib/commit-scope";
   import { activity, applyOperation } from "$lib/operations";
   import { measurer } from "$lib/timing";
@@ -85,17 +85,24 @@
   import * as fileMenus from "$lib/ipc/file-menus";
   import { desktop } from "$stores/desktop.svelte";
   import { groupChoices, parseRepoCommand, repoMenu } from "$lib/repo-menu";
-  import type { ListedRepo } from "$lib/repo-list";
+  import { fetchAllTargets, type ListedRepo } from "$lib/repo-list";
   import { UNGROUPED } from "$lib/repo-groups";
   import { repoList } from "$stores/repo-list.svelte";
   import { compareUrl } from "$lib/compare-params";
   import { dropActions, type DropAction, type DragPayload } from "$lib/drop-target";
   import { moveEntry } from "$lib/rebase-plan";
-  import { stateBanner, type BannerAction } from "$lib/repo-state";
+  import { bannerQuestion, stateBanner, type BannerAction } from "$lib/repo-state";
   import { blockedByLocalChanges } from "$lib/checkout-refusal";
+  import { switchWithAutostash } from "$lib/autostash";
+  import { foundStep } from "$lib/found";
+  import { revealRef } from "$lib/ref-reveal";
+  import { applyPreferences, type ApplyHost } from "$lib/preferences-apply";
   import { capFraction, floorFraction, PANELS, type PanelId } from "$lib/perspectives";
   import { graphPanelMinWidth } from "$lib/graph-panel";
   import { repoClick } from "$lib/repo-click";
+  import { ModuleInitialiser, moduleClick } from "$lib/module-init";
+  import { parseWorktreeCommand, worktreeMenu } from "$lib/worktree-menu";
+  import { answerMergeResolved } from "$lib/merge-save";
   import { browserSources, start as startMemoryProbe } from "$lib/mem-probe";
   import { liveListeners } from "$lib/listener-count";
   import type { Settings } from "$lib/settings";
@@ -121,6 +128,7 @@
     stashSelection,
     fetchRemote,
     listRemotes,
+    repoRefs,
     onMenuCommand,
     openInTerminal,
     runCheck,
@@ -174,6 +182,7 @@
   import { droppedRepositories } from "$lib/drop-open";
   import { connect } from "$lib/wiring";
   import { planFor } from "$lib/disk-change";
+  import { DiskPasses } from "$lib/disk-refresh";
   import { clear as freshen, mark as markStale } from "$lib/staleness";
   import { unsavedSummary } from "$lib/unsaved";
   import { overlap } from "$stores/overlap.svelte";
@@ -186,14 +195,6 @@
   import { refs } from "$stores/refs.svelte";
   import { stashView } from "$stores/stash-view.svelte";
   import { buildRefTree, visibleTips, type RefNode } from "$lib/ref-nodes";
-
-  /** Settings the open diff was computed with: changing one has to re-run it. */
-  const REDIFF: readonly (keyof Settings)[] = [
-    "algorithm",
-    "contextLines",
-    "wordDiff",
-    "detectMoves",
-  ];
 
   const PANEL_TITLES: Record<PanelId, string> = {
     repositories: "Repositories",
@@ -226,6 +227,8 @@
     changes: import("$lib/ipc").FileEntry[] | null;
   } | null>(null);
   let markedFiles = $state.raw<string[]>([]);
+  /** The rows of the list the Files panel shows, as it counts them itself. */
+  let filesCount = $state<number | undefined>(undefined);
   type RepoMenuSubject =
     | { kind: "repository"; root: string; overview: import("$lib/ipc").RepoOverview | null }
     | {
@@ -283,8 +286,10 @@
       {
         check: () => check(),
         relaunch,
-        confirm: (outcome) => ask(message(outcome), { title: "Check for Updates", kind: "info" }),
-        report: (text) => void dialogMessage(text, { title: "Check for Updates", kind: "info" }),
+        confirm: (outcome) =>
+          confirmation.ask({ title: "Check for Updates", message: message(outcome), confirm: "Install" }),
+        report: (text) => notices.inform("Check for Updates", text),
+        mayInstall: () => mayInstallUpdate(),
       },
       { quiet },
     );
@@ -321,6 +326,7 @@
     compareView.clear();
     // A stash outranks a commit in Files; picking a commit in the graph leaves it.
     stashView.clear();
+    conflicts.closeUnlessUnsaved();
   };
 
   $effect(() => {
@@ -390,12 +396,15 @@
   /** The staged rows the Files list shows; null until it has said. */
   let shownStaged = $state.raw<string[] | null>(null);
   const scope = $derived(commitScope(worktree.staged, fileMask, shownStaged));
-  const prUrl = $derived.by(() => {
-    const head = tracked?.name;
-    const base = tracked?.upstream?.split("/").slice(1).join("/") ?? "main";
-    if (!network.url || !head) return null;
-    return pullRequestUrl(network.url, base, head, commit.details?.summary ?? head);
+  /** The subject of HEAD's commit titles the pull request; the graph has it loaded. */
+  const headSummary = $derived.by(() => {
+    const oid = repo && repo.head.kind !== "unborn" ? repo.head.oid : null;
+    const at = graph.loadedIndexOf(oid);
+    return at === null ? null : (graph.rowAt(at)?.commit.summary ?? null);
   });
+  const prPlan = $derived(pullRequestFor({ remoteUrl: network.url, branch: tracked, title: headSummary }));
+  const prUrl = $derived("url" in prPlan ? prPlan.url : null);
+  const prReason = $derived("reason" in prPlan ? prPlan.reason : undefined);
 
   const onWorkingTree = $derived(repo !== undefined && repo !== null && commit.oid === null);
   const filesColumn = $derived(shown.files || (shown.commit && onWorkingTree));
@@ -424,6 +433,15 @@
   $effect(() => errors.report(hooks.error, hooks.failure ?? "Could not read the hooks"));
   $effect(() => errors.report(compareView.error, "Could not compare the commits"));
   $effect(() => errors.report(stashView.error, "Could not open the stash"));
+
+  // Every change to the list — Drop in References, a pop, `git stash drop` in a terminal —
+  // ends here, so the Files panel never lists a stash that is gone.
+  $effect(() => {
+    const entries = stashes.entries;
+    untrack(() => {
+      if (stashView.forgetIfGone(entries)) diff.clear();
+    });
+  });
 
   /** Refreshed with the rest of the state after every mutation, so the stack follows
       Continue and Abort; a reactive version fired on each loading toggle. */
@@ -469,6 +487,8 @@
       id ? stashes.refresh(id) : Promise.resolve(),
       id ? network.refresh(id) : Promise.resolve(),
       id ? recovery.refresh(id) : Promise.resolve(),
+      // A checkout anywhere, in Branches or a terminal, moves which flow branch HEAD is on.
+      id ? flow.refresh(id) : Promise.resolve(),
       submodules.refresh(),
       id ? conflicts.refresh(id, conflicted ?? undefined) : Promise.resolve(),
       output.refreshProblems(),
@@ -553,7 +573,8 @@
         title: "Stash Selection",
         shortcut: "Ctrl+Alt+S",
         synonyms: ["shelve some"],
-        unavailable: noRepo ?? (markedFiles.length > 0 ? undefined : "No file is ticked"),
+        // The ticks may be a commit's files now; only the working tree's can be stashed.
+        unavailable: noRepo ?? reasonOf("stash-selection", toolbarFacts),
         run: () => void stashSelected(),
       },
       { id: "tag", title: "Create Tag", shortcut: "Shift+F7", unavailable: noRepo, run: () => void refActions?.addTag(null) },
@@ -821,7 +842,7 @@
         id: "pr",
         title: "Create Pull Request",
         synonyms: ["merge request", "pr", "mr"],
-        unavailable: prUrl ? undefined : "No GitHub, GitLab or Bitbucket remote",
+        unavailable: prReason,
         run: () => void openPullRequest(),
       },
       {
@@ -861,7 +882,7 @@
       {
         id: "copy-pr",
         title: "Copy Pull Request Link",
-        unavailable: prUrl ? undefined : "No GitHub, GitLab or Bitbucket remote",
+        unavailable: prReason,
         run: () => {
           if (prUrl) void import("@tauri-apps/plugin-clipboard-manager").then((m) => m.writeText(prUrl));
         },
@@ -898,16 +919,23 @@
   });
 
   async function openPullRequest() {
-    if (!prUrl) return;
-    if (tracked && tracked.ahead > 0) {
-      const push = await ask(
-        `${tracked.name} has ${tracked.ahead} commit(s) the remote has not seen. Push first?`,
-        { title: "Create pull request", kind: "info" },
-      );
-      if (push) await runNetwork("push");
+    const url = prUrl;
+    if (!url) return;
+    if (tracked && needsPush(tracked)) {
+      // Cancel opens nothing; Copy Pull Request Link is there for a form without the push.
+      const push = await confirmation.ask({
+        title: "Create Pull Request",
+        message:
+          tracked.upstream === null
+            ? `${tracked.name} is not on the remote yet, so the form would have nothing to compare. Push it, then open the form?`
+            : `${tracked.name} has ${tracked.ahead} commit(s) the remote has not seen. Push them, then open the form?`,
+        confirm: "Push and Open",
+      });
+      if (!push) return;
+      await runNetwork("push");
     }
     const { openUrl } = await import("@tauri-apps/plugin-opener");
-    await openUrl(prUrl);
+    await openUrl(url);
   }
 
   async function runFind(text: string) {
@@ -918,10 +946,13 @@
     finderOpen = false;
     const id = repository.current?.repo;
     if (!id) return;
-    if (item.kind === "commit") void commit.select(id, item.oid);
-    if (item.kind === "branch") void switchTo({ name: item.label } as Branch);
-    if (item.kind === "tag" && item.oid) void commit.select(id, item.oid);
-    if (item.kind === "file" && commit.oid) openDiff(item.label);
+    const step = foundStep(item, commit.oid !== null);
+    if (step?.kind === "file") void openDiff(step.path);
+    if (step?.kind === "reveal") {
+      stashView.clear();
+      void commit.select(id, step.oid);
+      graph.requestReveal(step.oid);
+    }
   }
 
   function runCommand(command: PaletteCommand) {
@@ -976,12 +1007,14 @@
       time it closes, everything has already been applied and saved (R-122). */
   let settingsAtOpen = $state.raw<Settings | null>(null);
   let toolbarAtOpen: readonly string[] = [];
+  let keymapAtOpen: import("$lib/keymap").Keymap = {};
   /** The page Preferences opens on: right-click on the toolbar lands on Toolbar. */
   let settingsStart = $state<string | undefined>(undefined);
 
   function openSettings(page?: string) {
     settingsAtOpen = { ...settings.current };
     toolbarAtOpen = toolbar.layout;
+    keymapAtOpen = { ...settings.keymap };
     settingsStart = page;
     settingsOpen = true;
   }
@@ -990,32 +1023,27 @@
     const before = settingsAtOpen;
     settingsOpen = false;
     await toolbar.setLayout(toolbarAtOpen);
-    if (before) await settings.apply(before);
+    await applySettings(before ?? settings.current, keymapAtOpen);
   }
 
-  async function applySettings(next: Settings, keymap: import("$lib/keymap").Keymap) {
-    const before = settings.current;
-    const touched = (Object.keys(next) as (keyof Settings)[]).filter(
-      (key) => next[key] !== before[key],
-    );
-    await settings.apply(next);
-    await settings.setKeymap(keymap);
-    pushMenuState(true);
+  const preferencesHost: ApplyHost = {
+    current: () => settings.current,
+    apply: (next) => settings.apply(next),
+    setKeymap: (keymap) => settings.setKeymap(keymap),
+    rebuiltMenu: () => pushMenuState(true),
+    repo: () => repository.current?.repo ?? null,
+    diff,
+  };
 
-    const id = repository.current?.repo;
-    if (!id || !diff.spec || !diff.path) return;
-    if (touched.includes("ignoreWhitespace")) {
-      await diff.setWhitespace(id, settings.current.ignoreWhitespace);
-    } else if (touched.some((key) => REDIFF.includes(key))) {
-      await diff.load(id, diff.spec, diff.path);
-    }
+  function applySettings(next: Settings, keymap: import("$lib/keymap").Keymap) {
+    return applyPreferences(next, keymap, preferencesHost);
   }
 
   // The watcher is the only way Cogit learns about work done in a terminal alongside it.
-  // One `git commit` arrives as four events, so they are collected and answered once.
-  let pending = new Set<import("$lib/ipc").ChangeKind>();
-  let settling: ReturnType<typeof setTimeout> | undefined;
+  // One `git commit` arrives as four events, so they are collected and answered once, and
+  // never while the answer to the last burst is still reading.
   const SETTLE_MS = 120;
+  const diskPasses = new DiskPasses(SETTLE_MS, (kinds, arrived) => applyDiskChanges(kinds, arrived));
 
   function onDiskChange(change: import("$lib/ipc").RepoChanged) {
     if (change.kind === "refs") {
@@ -1029,17 +1057,19 @@
       return;
     }
     if (change.kind !== "hooks") stale = markStale(stale, change.kind);
-    pending.add(change.kind);
-    clearTimeout(settling);
-    settling = setTimeout(() => void applyDiskChanges(), SETTLE_MS);
+    diskPasses.add(change.kind);
   }
 
-  async function applyDiskChanges() {
+  async function applyDiskChanges(
+    kinds: ReadonlySet<import("$lib/ipc").ChangeKind>,
+    arrived: () => ReadonlySet<import("$lib/ipc").ChangeKind>,
+  ) {
     const id = repository.current?.repo;
     const epoch = repository.epoch;
     const left = () => repository.epoch !== epoch;
-    const plan = planFor(pending);
-    pending = new Set();
+    const plan = planFor(kinds);
+    // What changed again while this pass read stays marked for the pass after it.
+    const freshened = (panels: PanelId[]) => (stale = freshen(stale, panels, arrived()));
     if (!id) return;
 
     // A hook edited outside Cogit is only interesting while the panel is open.
@@ -1051,23 +1081,26 @@
       await repository.refresh();
       if (left()) return;
     }
-    stale = freshen(stale, ["repositories", "refs"]);
+    freshened(["repositories", "refs"]);
 
     if (plan.worktree && commit.oid === null) {
       await worktree.load(id);
       if (left()) return;
-      stale = freshen(stale, ["files", "commit"]);
+      freshened(["files", "commit"]);
     }
     void worktrees.refresh(id);
 
     // Reads the status itself, which is why nothing above does it a second time.
     await afterMutation();
     if (left()) return;
-    stale = freshen(stale, ["diff", "files", "commit"]);
+    freshened(["files", "commit"]);
+    if (plan.worktree || plan.refs) await diff.refreshFromDisk();
+    if (left()) return;
+    freshened(["diff"]);
 
     if (plan.authors && commit.oid) void commit.select(id, commit.oid);
     if (plan.refs || plan.authors) await graph.load(id, graph.query);
-    stale = freshen(stale, ["graph", "refs"]);
+    freshened(["graph", "refs"]);
   }
 
   function filterGraph(query: import("$lib/ipc").CommitQuery) {
@@ -1139,27 +1172,40 @@
     if (!id) return false;
 
     if (amend && (await publishedOrAssume(isPublished(id, "HEAD")))) {
-      const go = await ask(
-        "This commit is already on a remote. Amending it gives it a new id, so the branch " +
+      const go = await confirmation.ask({
+        title: "Amend a Published Commit",
+        message:
+          "This commit is already on a remote. Amending it gives it a new id, so the branch " +
           "will need a force-push and anyone who pulled it will have to reset. Continue?",
-        { title: "Amend a published commit", kind: "warning" },
-      );
+        confirm: "Amend",
+        warning: true,
+      });
       if (!go) return false;
     }
 
     // An empty list would commit every staged file, the hidden ones included.
     if (scope.empty) return false;
     if (scope.paths) {
-      const listed = scope.paths.join("\n");
-      const confirmed = await ask(
-        `Commit only these ${scope.paths.length} file(s)?\n\n${listed}\n\n${scope.warning}.`,
-        { title: "Commit what you see", kind: "warning" },
-      );
+      const confirmed = await confirmation.ask({
+        title: "Commit What You See",
+        message: `${
+          scope.paths.length === 1
+            ? `Commit only ${scope.paths[0]}?`
+            : listedMessage(`Commit only these ${scope.paths.length} files?`, scope.paths)
+        }\n\n${scope.warning}.`,
+        confirm: "Commit",
+        warning: true,
+      });
       if (!confirmed) return false;
     }
     const epoch = repository.epoch;
-    await worktree.commit(id, message, amend, noVerify, scope.paths ?? []);
-    if (worktree.error) return false;
+    try {
+      await worktree.commit(id, message, amend, noVerify, scope.paths ?? []);
+    } catch (err) {
+      // A hook's refusal: the message stays in the box for another try.
+      errors.report(err, "Could not commit");
+      return false;
+    }
     if (repository.epoch !== epoch) return true;
     diff.clear();
     await repository.refreshRefs();
@@ -1230,15 +1276,28 @@
     stashView.clear();
     if (!node.oid) return;
     void commit.select(id, node.oid);
-    graph.requestReveal(node.oid);
+    void revealRef(node.oid, {
+      inWalk: async (oid) => (await graph.indexOf(oid)) !== null,
+      tickable: node.rev !== undefined && !node.disabled && !refs.visible.has(node.id),
+      tick: async () => {
+        refs.set(new Set([...refs.visible, node.id]));
+        await reloadGraph();
+      },
+      reveal: (oid) => graph.requestReveal(oid),
+    });
   }
 
   /** One side of a stash part against the commit it was taken from. */
-  function openStashDiff(part: "worktree" | "index" | "untracked", path: string) {
+  async function openStashDiff(part: "worktree" | "index" | "untracked", path: string) {
     const id = repo?.repo;
     const spec = stashView.spec(part);
-    if (!id || !spec) return;
+    if (!id || !spec || !(await conflicts.leave()) || repo?.repo !== id) return;
     void diff.load(id, spec, path);
+  }
+
+  /** The merge on screen gives way to any other file, asking first if sides are picked. */
+  async function openCompareDiff(path: string) {
+    if (await conflicts.leave()) compareView.open(path);
   }
 
   function activateRef(node: RefNode) {
@@ -1257,11 +1316,15 @@
 
     const elsewhere = await worktrees.holding(id, branch.name);
     if (elsewhere && !elsewhere.missing) {
-      const go = await ask(
-        `${branch.name} is checked out in the worktree at ${elsewhere.path}. Switch to it?`,
-        { title: "Branch is in another worktree", kind: "info" },
-      );
-      if (go) await activate(elsewhere.path);
+      const go = await confirmation.ask({
+        title: "Branch Is in Another Worktree",
+        message: `${branch.name} is checked out in the worktree at ${elsewhere.path}. Switch to it?`,
+        confirm: "Switch",
+      });
+      // A worktree of this repository opens in the panels, as a double-click in Worktrees
+      // does; activating its folder made it a repository of its own in the list (R-184).
+      const row = worktrees.entries.find((entry) => entry.path === elsewhere.path);
+      if (go) await (row ? openWorktreeRow(row) : activate(elsewhere.path));
       return;
     }
 
@@ -1283,36 +1346,14 @@
     const blocked = blockedByLocalChanges(err.detail.data.stderr);
     if (!blocked) return false;
 
-    const what =
-      blocked.length === 0
-        ? "Local changes are in the way"
-        : `${blocked.length} file(s) are in the way: ${blocked.slice(0, 5).join(", ")}`;
-    const confirmed = await ask(
-      `${what}. Stash them, switch to ${branch.name}, then put them back?`,
-      { title: "Switch branch", kind: "warning" },
-    );
-    if (!confirmed) return false;
-
-    try {
-      await stashes.push(id, `cogit: autostash before switching to ${branch.name}`, true);
-    } catch (failed) {
-      errors.report(failed, "Could not stash the changes");
-      await afterRefChange(id);
-      return true;
-    }
-    try {
-      await checkout(id, { kind: "branch", name: branch.name });
-    } catch (failed) {
-      // The changes are in the stash just made; left there, they would look lost.
-      await stashes
-        .apply(id, 0, true)
-        .catch((err) => errors.report(err, "Your changes are in stash@{0}: they could not be put back"));
-      errors.report(failed, "Could not switch branches");
-      await afterRefChange(id);
-      return true;
-    }
-    // Popping can conflict; the state banner then takes over, which is the honest outcome.
-    await stashes.apply(id, 0, true).catch((failed) => errors.report(failed, "Could not put the changes back"));
+    const outcome = await switchWithAutostash(branch.name, blocked, {
+      ask: (question) => confirmation.ask({ title: "Switch Branch", message: question, confirm: "Stash and Switch" }),
+      stash: () => stashes.push(id, `cogit: autostash before switching to ${branch.name}`, true),
+      checkout: () => checkout(id, { kind: "branch", name: branch.name }),
+      pop: () => stashes.apply(id, 0, true),
+      report: (failed, title) => errors.report(failed, title),
+    });
+    if (outcome === "declined") return false;
     await afterRefChange(id);
     return true;
   }
@@ -1320,13 +1361,14 @@
   async function undo() {
     const id = repository.current?.repo;
     if (!id) return;
+    let undone;
     try {
-      await safety.undo(id);
+      undone = await safety.undoShown(id);
     } catch (err) {
       errors.report(err, "Could not undo");
       return;
     }
-    await afterRefChange(id);
+    if (undone) await afterRefChange(id);
   }
 
   async function showBlame() {
@@ -1359,9 +1401,8 @@
       (doc/12-risks.md, R-109). The tree keeps showing it where it is, and the tree is
       the one thing not forgotten, because it is what the click came from. */
   async function openModule(row: import("$lib/module-tree").ModuleRow) {
-    // Nothing to open until it has been checked out; a double-click there means "get it".
-    if (row.module.state === "notInitialised") {
-      await refreshSubmodule(row);
+    if (moduleClick(row.module.state) === "offer") {
+      await offerInitialise(row.key);
       return;
     }
     const epoch = repository.epoch;
@@ -1380,7 +1421,6 @@
     void reloadGraph();
     void refs.loadUrls(opened.repo);
     void worktrees.refresh(opened.repo);
-    void flow.refresh(opened.repo);
     await afterMutation();
   }
 
@@ -1437,7 +1477,7 @@
     for (const key of action.targets) {
       try {
         const opened = await openSubmodule(owner, key);
-        const remote = await primaryRemote(opened.repo);
+        const remote = await trackedRemote(opened.repo);
         if (remote) await fetchRemote(opened.repo, remote, () => {});
       } catch (err) {
         errors.report(err, `Could not fetch in ${key}`);
@@ -1448,16 +1488,22 @@
   }
 
   /** Never changes the repository unasked: the answer is a question (R-149). */
-  async function offerInitialise(key: string) {
-    const row = submodules.rows.find((entry) => entry.key === key);
-    if (!row) return;
-    const go = await ask(`Submodule ${key} is not initialised. Initialise and check it out now?`, {
-      title: "Submodule is not initialised",
-      kind: "info",
-      okLabel: "Initialise",
-      cancelLabel: "Cancel",
-    });
-    if (go) await refreshSubmodule(row);
+  const initialiser = new ModuleInitialiser({
+    ask: (key) =>
+      confirmation.ask({
+        title: "Submodule is not initialised",
+        message: `Submodule ${key} is not initialised. Initialise and check it out now?`,
+        confirm: "Initialise",
+      }),
+    update: async (key) => {
+      const row = submodules.rows.find((entry) => entry.key === key);
+      if (row) await refreshSubmodule(row);
+    },
+  });
+
+  function offerInitialise(key: string) {
+    if (!submodules.rows.some((entry) => entry.key === key)) return Promise.resolve();
+    return initialiser.offer(key);
   }
 
   async function recoverCommit(lost: import("$lib/ipc").CommitRow) {
@@ -1511,8 +1557,10 @@
   }
 
   async function runNetwork(kind: "fetch" | "pull" | "push") {
+    // One Pull everywhere: the remote HEAD tracks and the fast-forward setting (#26).
+    if (kind === "pull") return pullNow();
     const id = repository.current?.repo;
-    const remote = network.primary;
+    const remote = kind === "fetch" ? pullRemote : network.primary;
     if (!id) return;
     if (!remote) {
       errors.message("This repository has no remote.", `Could not ${kind}`);
@@ -1521,8 +1569,7 @@
     const epoch = repository.epoch;
     try {
       if (kind === "fetch") await network.fetch(id, remote);
-      if (kind === "pull") await network.pull(id, remote, true);
-      if (kind === "push") await network.push(id, remote, false);
+      else await network.push(id, remote, false);
     } catch (err) {
       errors.report(err, `Could not ${kind}`);
       if (repository.epoch === epoch) await afterMutation();
@@ -1657,7 +1704,11 @@
 
   async function runBannerAction(action: BannerAction) {
     const id = repository.current?.repo;
-    if (!id) return;
+    const state = repository.current?.state;
+    if (!id || !state) return;
+    const question = bannerQuestion(action, state);
+    if (question && !(await confirmation.ask(question))) return;
+    if (repository.current?.repo !== id) return;
     try {
       if (action === "abort") await abortOperation(id);
       if (action === "continue") await continueOperation(id);
@@ -1688,34 +1739,38 @@
     );
   }
 
-  function openDiff(path: string) {
+  async function openDiff(path: string) {
     const id = repository.current?.repo;
     const oid = commit.oid;
     if (!id || !oid) return;
     const spec = { kind: "commitVsParent", oid } as const;
     if (diff.shows(spec, path)) return;
+    if (!(await conflicts.leave()) || commit.oid !== oid) return;
     void diff.load(id, spec, path);
   }
 
-  function openStagedDiff(path: string) {
+  async function openStagedDiff(path: string) {
     const id = repository.current?.repo;
     if (!id) return;
     if (diff.shows({ kind: "indexVsHead" }, path)) return;
+    if (!(await conflicts.leave()) || repository.current?.repo !== id) return;
     void diff.load(id, { kind: "indexVsHead" }, path);
   }
 
-  function openWorktreeDiff(path: string) {
+  async function openWorktreeDiff(path: string) {
     const id = repository.current?.repo;
     if (!id) return;
     // A conflicted file has three sides; a two-sided diff of it says nothing useful.
     if (conflicts.paths.includes(path)) {
+      if (conflicts.path === path || !(await conflicts.leave())) return;
+      if (repository.current?.repo !== id) return;
       diff.clear();
       void conflicts.open(id, path);
       return;
     }
     // A second click is not a toggle: it would fight the double-click that opens a window (#7).
     if (diff.shows({ kind: "workTreeVsIndex" }, path)) return;
-    conflicts.close();
+    if (!(await conflicts.leave()) || repository.current?.repo !== id) return;
     const watch = measure("open-diff");
     void diff.load(id, { kind: "workTreeVsIndex" }, path).then(() => watch.stop(path));
   }
@@ -1731,6 +1786,7 @@
     recovery.clear();
     conflicts.clear();
     stashView.clear();
+    flow.clear();
     if (!keepWorktrees) worktrees.clear();
     refs.clear();
   }
@@ -1765,7 +1821,6 @@
       void timed(story, "graph", () => reloadGraph());
       void refs.loadUrls(opened.repo);
       void worktrees.refresh(opened.repo);
-      void flow.refresh(opened.repo);
       await timed(story, "repository list", () => repository.refreshList());
       await timed(story, "everything else", () => afterMutation());
       trace(story, "activate: done");
@@ -1805,7 +1860,6 @@
     void reloadGraph();
     void refs.loadUrls(opened.repo);
     void worktrees.refresh(opened.repo);
-    void flow.refresh(opened.repo);
     await afterMutation();
   }
 
@@ -1815,9 +1869,11 @@
     const rev = commit.oid;
     if (!id || !rev) return;
     const what = paths.length > 0 ? paths.join(", ") : "every file";
-    const go = await ask(`Restore ${what} as it was in ${shortOid(rev)}?`, {
-      title: "Roll back",
-      kind: "warning",
+    const go = await confirmation.ask({
+      title: "Roll Back",
+      message: `Restore ${what} as it was in ${shortOid(rev)}? The changes in the working tree are stashed first, so Undo can bring them back.`,
+      confirm: "Roll Back",
+      warning: true,
     });
     if (!go) return;
     await mutate((repo) => rollbackTo(repo, rev, paths), paths);
@@ -1848,9 +1904,11 @@
     }
 
     if (action.destructive) {
-      const go = await ask(`${action.title}. This rewrites history. Continue?`, {
-        title: "Rewrite history",
-        kind: "warning",
+      const go = await confirmation.ask({
+        title: "Rewrite History",
+        message: `${action.title}. This rewrites history. Continue?`,
+        confirm: "Rewrite",
+        warning: true,
       });
       if (!go) return;
     }
@@ -2263,8 +2321,7 @@
 
   /** One failure must not stop the rest: the point of Fetch All is not doing it by hand. */
   async function fetchAll() {
-    const roots = markedRepos.length > 0 ? markedRepos : repository.openRepos.map((e) => e.root);
-    const targets = repository.openRepos.filter((entry) => roots.includes(entry.root));
+    const targets = fetchAllTargets(markedRepos, repository.openRepos);
     if (targets.length === 0) return;
 
     const watch = measure("fetch-all");
@@ -2273,7 +2330,7 @@
 
     for (const [index, entry] of targets.entries()) {
       try {
-        const remote = await primaryRemote(entry.repo);
+        const remote = await trackedRemote(entry.repo);
         if (remote) await fetchRemote(entry.repo, remote, () => {});
       } catch (err) {
         failed += 1;
@@ -2288,10 +2345,14 @@
     await afterRefChange();
   }
 
-  /** The remote a bulk fetch should use: the tracked one, else the only one there is. */
-  async function primaryRemote(id: import("$lib/ipc").RepoId): Promise<string | null> {
-    const names = await listRemotes(id).catch(() => [] as string[]);
-    return names.includes("origin") ? "origin" : (names[0] ?? null);
+  /** For a repository the panels may not show: the remote its HEAD branch tracks, else
+      `origin`, else the first — what Pull in the toolbar uses for the one on screen. */
+  async function trackedRemote(id: import("$lib/ipc").RepoId): Promise<string | null> {
+    const [names, refs] = await Promise.all([
+      listRemotes(id).catch(() => [] as string[]),
+      repoRefs(id).catch(() => null),
+    ]);
+    return refs ? headRemote(refs, names) : currentRemote(null, names);
   }
 
   /** The verdict is information. Nothing is aborted, continued or skipped on its account. */
@@ -2338,10 +2399,22 @@
 
   async function askFlowFinish() {
     const id = repository.current?.repo;
-    const branch = flow.current;
-    if (!id || !branch) return;
+    if (!id) return;
+    const branch = await flow.headNow(id);
+    if (repository.current?.repo !== id) return;
+    if (!branch) {
+      errors.message("HEAD is not on a Git-Flow branch.", "Could not finish the branch");
+      return;
+    }
     if (branch.kind === "feature") {
-      void runFlow(() => flow.finish(id, branch.kind, branch.name, null));
+      const develop = flow.status.config.develop;
+      const go = await confirmation.ask({
+        title: `Finish ${branch.full}`,
+        message: `Merge ${branch.full} into ${develop} and delete it?`,
+        confirm: "Finish",
+        warning: true,
+      });
+      if (go) await runFlow(() => flow.finish(id, branch.kind, branch.name, null));
       return;
     }
     const tag = await prompt.ask({
@@ -2437,21 +2510,25 @@
     const stale = worktrees.entries.filter((entry) => entry.missing);
     if (stale.length === 0) return;
     const names = stale.map((entry) => entry.name).join(", ");
-    const confirmed = await ask(
-      `Forget ${stale.length === 1 ? "the missing worktree" : `${stale.length} missing worktrees`} (${names})? ` +
+    const confirmed = await confirmation.ask({
+      title: "Prune Obsolete Worktrees",
+      message:
+        `Forget ${stale.length === 1 ? "the missing worktree" : `${stale.length} missing worktrees`} (${names})? ` +
         "Only Git's registration is removed; nothing on disk is touched. Locked ones are kept.",
-      { title: "Prune Obsolete Worktrees", kind: "info", okLabel: "Prune", cancelLabel: "Cancel" },
-    );
+      confirm: "Prune",
+    });
     if (!confirmed) return;
     await worktrees.prune().catch((err) => errors.report(err, "Could not prune worktrees"));
   }
 
   async function pruneWorktreeAt(entry: import("$lib/ipc").WorktreeEntry) {
-    const confirmed = await ask(
-      `Forget the worktree ${entry.name} at ${entry.path}? ` +
+    const confirmed = await confirmation.ask({
+      title: "Prune Worktree",
+      message:
+        `Forget the worktree ${entry.name} at ${entry.path}? ` +
         "Only Git's registration of it is removed; nothing on disk is touched.",
-      { title: "Prune Worktree", kind: "info", okLabel: "Prune", cancelLabel: "Cancel" },
-    );
+      confirm: "Prune",
+    });
     if (!confirmed) return;
     await worktrees
       .pruneOne(entry.path)
@@ -2508,48 +2585,52 @@
     void reloadGraph();
     void refs.loadUrls(opened.repo);
     void worktrees.refresh(opened.repo);
-    void flow.refresh(opened.repo);
     await afterMutation();
   }
 
-  async function worktreeContext(entry: import("$lib/ipc").WorktreeEntry, x: number, y: number) {
-    const chosen = await popupContextMenu(
-      entry.missing
-        ? [
-            { id: "prune", label: "Prune", enabled: entry.locked === null },
-            { id: "repair", label: "Repair…", enabled: true },
-            { id: "", label: "", enabled: false, separator: true },
-            { id: "copy", label: "Copy Path", enabled: true },
-          ]
-        : [
-            { id: "open", label: "Open", enabled: !entry.isCurrent },
-            { id: "reveal", label: "Reveal in File Manager", enabled: true },
-            { id: "copy", label: "Copy Path", enabled: true },
-            { id: "", label: "", enabled: false, separator: true },
-            entry.locked === null
-              ? { id: "lock", label: "Lock", enabled: !entry.isMain }
-              : { id: "unlock", label: "Unlock", enabled: true },
-            { id: "remove", label: "Remove…", enabled: removable(entry) },
-          ],
-      x,
-      y,
-    ).catch(() => null);
+  /** The row the menu was opened on, until its choice comes back as a menu command. */
+  let worktreeTarget = $state.raw<import("$lib/ipc").WorktreeEntry | null>(null);
 
-    if (chosen === "open") await openWorktreeRow(entry);
-    if (chosen === "copy") await copyText(entry.path);
-    if (chosen === "remove") await removeWorktreeAt(entry);
-    if (chosen === "prune") await pruneWorktreeAt(entry);
-    if (chosen === "repair") await repairWorktreeAt(entry);
-    if (chosen === "lock") {
-      await worktrees.lock(entry.path, null).catch((err) => errors.report(err, "Could not lock the worktree"));
+  async function worktreeContext(entry: import("$lib/ipc").WorktreeEntry, x: number, y: number) {
+    worktreeTarget = entry;
+    await popupContextMenu(worktreeMenu(entry), x, y).catch(() => {});
+  }
+
+  /** Returns true when the id belonged to a Worktrees row's menu and was handled here. */
+  function runWorktreeCommand(id: string): boolean {
+    const entry = worktreeTarget;
+    const command = parseWorktreeCommand(id);
+    if (!entry || !command) return false;
+    const failed = (what: string) => (err: unknown) => errors.report(err, `Could not ${what} the worktree`);
+    switch (command) {
+      case "open":
+        void openWorktreeRow(entry);
+        break;
+      case "copy":
+        void copyText(entry.path);
+        break;
+      case "remove":
+        void removeWorktreeAt(entry);
+        break;
+      case "prune":
+        void pruneWorktreeAt(entry);
+        break;
+      case "repair":
+        void repairWorktreeAt(entry);
+        break;
+      case "lock":
+        void worktrees.lock(entry.path, null).catch(failed("lock"));
+        break;
+      case "unlock":
+        void worktrees.unlock(entry.path).catch(failed("unlock"));
+        break;
+      case "reveal":
+        void import("@tauri-apps/plugin-opener").then(({ revealItemInDir }) =>
+          revealItemInDir(entry.path).catch(failed("reveal")),
+        );
+        break;
     }
-    if (chosen === "unlock") {
-      await worktrees.unlock(entry.path).catch((err) => errors.report(err, "Could not unlock the worktree"));
-    }
-    if (chosen === "reveal") {
-      const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
-      await revealItemInDir(entry.path).catch((err) => errors.report(err, "Could not reveal the worktree"));
-    }
+    return true;
   }
 
   /** A row of the Repositories list, open or closed (#36). */
@@ -2628,10 +2709,9 @@
         if (target.kind === "submodule" && target.top) void openForeignModule(target.top, target.row);
         else if (target.kind === "submodule") void openModule(target.row);
         else if (target.overview) void selectRepository(target.overview);
-        else {
-          repoList.opened(root);
-          void activate(root);
-        }
+        // Like a click on the closed row: activate takes it off the closed list only once it
+        // opened, so a folder that moved keeps its row.
+        else void activate(root);
         return true;
       case "repo-open-folder":
         shell(fileMenus.openOnDesktop(root), "Could not open the folder");
@@ -2711,13 +2791,18 @@
         ? (target.overview?.repo ?? null)
         : ((await openedModule(target.row.key))?.repo ?? null);
     if (id === null) return;
-    const remote = await primaryRemote(id);
+    // As the toolbar does for the one on screen: pull from the tracked remote, push to
+    // origin (a fork's upstream is rarely writable).
+    const remote =
+      kind === "pull"
+        ? await trackedRemote(id)
+        : currentRemote(null, await listRemotes(id).catch(() => [] as string[]));
     if (!remote) {
       errors.message("This repository has no remote.", `Could not ${kind}`);
       return;
     }
     try {
-      if (kind === "pull") await network.pull(id, remote, true);
+      if (kind === "pull") await network.pull(id, remote, settings.current.pullMode === "ffOnly");
       else await network.push(id, remote, false);
     } catch (err) {
       errors.report(err, `Could not ${kind}`);
@@ -2931,20 +3016,35 @@
 
   /** Closing throws away whatever is only in the window: an edited hook, a resolution
       nobody wrote yet. Everything else is already on disk or in the draft store. */
+  function unsavedWork(): string | null {
+    return unsavedSummary({
+      hook: hooks.dirty ? hooks.editing : null,
+      merge: conflicts.regions.length > 0 ? conflicts.path : null,
+    });
+  }
+
   async function mayClose(): Promise<boolean> {
     const source = exitFlow.takeSource();
     flushTrace();
     session.persist();
-    const what = unsavedSummary({
-      hook: hooks.dirty ? hooks.editing : null,
-      merge: conflicts.regions.length > 0 ? conflicts.path : null,
-    });
-    if (what && !(await ask(`${what} Close anyway?`, { title: "Cogit", kind: "warning" }))) {
-      return false;
-    }
+    const what = unsavedWork();
+    const question = { title: "Unsaved Work", message: `${what} Close anyway?`, confirm: "Close", warning: true };
+    if (what && !(await confirmation.ask(question))) return false;
     // Someone who just said "close anyway" has been asked once already.
     const confirm = what ? false : settings.current.confirmExit;
     return exitFlow.ask(source, confirm, listOperations);
+  }
+
+  /** Installing an update restarts the app, which loses the same things closing does and
+      stops whatever git runs. The plugin exits on its own on Windows, past `RunEvent::Exit`. */
+  async function mayInstallUpdate(): Promise<boolean> {
+    const what = unsavedWork();
+    const question = { title: "Unsaved Work", message: `${what} Restart anyway?`, confirm: "Restart", warning: true };
+    if (what && !(await confirmation.ask(question))) return false;
+    flushTrace();
+    session.persist();
+    // Asks only while operations run: "Exit When Done" installs once they are over.
+    return exitFlow.ask("command", false, listOperations);
   }
 
   /** No close request is pending here, so the window is destroyed rather than closed:
@@ -2999,11 +3099,12 @@
         exitFlow.observe(event);
       },
       avatarReady: (email) => void avatars.refresh(email),
-      mergeResolved: (event) => {
-        if (repository.current?.repo.valueOf() !== event.repo.valueOf()) return;
-        conflicts.close();
-        void afterWorkingTreeChange();
-      },
+      mergeResolved: (event) =>
+        void answerMergeResolved(event, {
+          shown: () => repository.current?.repo ?? null,
+          resolvedElsewhere: (path) => conflicts.resolvedElsewhere(path),
+          reload: () => afterWorkingTreeChange(),
+        }),
       revealCommit: (event) => {
         if (repository.current?.repo.valueOf() !== event.repo.valueOf()) return;
         stashView.clear();
@@ -3054,6 +3155,7 @@
       if (refActions?.run(id)) return;
       if (runGroupCommand(id)) return;
       if (runRepoCommand(id)) return;
+      if (runWorktreeCommand(id)) return;
       if (runFileCommand(id)) return;
       if (runRefCommand(id)) return;
       const command = palette.find((entry) => entry.id === id);
@@ -3105,7 +3207,8 @@
   $effect(pushMenuState);
 </script>
 
-<svelte:window {onkeydown} />
+<!-- A closed repository has no watcher: its row is read again when the user comes back. -->
+<svelte:window {onkeydown} onfocus={() => repoPulse.revisit()} />
 
 <TooltipLayer />
 
@@ -3342,7 +3445,7 @@
           >
             {#snippet actions()}
               {#if repo}
-                <GraphFilter onchange={filterGraph} matches={graph.total} />
+                <GraphFilter onchange={filterGraph} matches={graph.total} query={graph.query} />
               {/if}
             {/snippet}
             {#if describeSkipped(graph.skipped)}
@@ -3400,7 +3503,7 @@
             title="Files"
             active={focused === "files"}
             view={panelState}
-            count={onWorkingTree ? worktree.total : commit.files.length}
+            count={filesCount}
             stale={stale.has("files")}
           >
             <FilesPanel
@@ -3415,10 +3518,12 @@
               onopenstaged={openStagedDiff}
               onopencommit={openDiff}
               onopenstash={openStashDiff}
+              onopencompare={openCompareDiff}
               onopenwindow={openInWindow}
               onmask={(mask) => (fileMask = mask)}
               onshownstaged={(paths) => (shownStaged = paths)}
               onmarked={(paths) => (markedFiles = paths)}
+              oncount={(count) => (filesCount = count)}
               oncontext={fileContext}
               {stage}
               stagemode={stageModeOnly}

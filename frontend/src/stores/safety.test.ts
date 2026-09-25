@@ -24,3 +24,48 @@ describe("what Undo offers", () => {
     expect(safety.lastFor(A)).toBeNull();
   });
 });
+
+// Undo showed one entry in its tooltip and undid whichever was newest when its turn came
+// in the queue: a Discard queued behind a push was undone instead of the Delete branch
+// the tooltip named, and a double-click undid two.
+describe("Undo in the toolbar", () => {
+  it("undoes the entry it shows, by its id", async () => {
+    const ipc = await import("$lib/ipc");
+    vi.mocked(ipc.undoEntry).mockResolvedValue({} as never);
+    vi.mocked(ipc.safetyLog).mockResolvedValue([]);
+    safety.entries = [
+      { id: 7, repo: A, description: "Delete branch foo", undoable: true },
+      { id: 6, repo: A, description: "Discard a.txt", undoable: true },
+    ] as never;
+
+    await safety.undoShown(A);
+
+    expect(ipc.undoEntry).toHaveBeenCalledWith(A, 7);
+    expect(ipc.undoLast).not.toHaveBeenCalled();
+  });
+
+  it("undoes once for a second click while the first is on its way", async () => {
+    const ipc = await import("$lib/ipc");
+    vi.mocked(ipc.undoEntry).mockClear();
+    let done: () => void = () => {};
+    vi.mocked(ipc.undoEntry).mockReturnValueOnce(new Promise((resolve) => (done = () => resolve({} as never))));
+    vi.mocked(ipc.safetyLog).mockResolvedValue([]);
+    safety.entries = [{ id: 7, repo: A, description: "Delete branch foo", undoable: true }] as never;
+
+    const first = safety.undoShown(A);
+    await safety.undoShown(A);
+    done();
+    await first;
+
+    expect(ipc.undoEntry).toHaveBeenCalledOnce();
+  });
+
+  it("does nothing when there is nothing to undo", async () => {
+    const ipc = await import("$lib/ipc");
+    vi.mocked(ipc.undoEntry).mockClear();
+    safety.entries = [];
+
+    expect(await safety.undoShown(A)).toBeNull();
+    expect(ipc.undoEntry).not.toHaveBeenCalled();
+  });
+});
