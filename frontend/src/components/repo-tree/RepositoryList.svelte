@@ -17,7 +17,7 @@
   import { submodules } from "$stores/submodules.svelte";
   import { moduleForest } from "$stores/module-forest.svelte";
   import { moduleMemory } from "$stores/module-memory.svelte";
-  import { UNGROUPED, groupRows } from "$lib/repo-groups";
+  import { UNGROUPED, groupRows, showsFilter } from "$lib/repo-groups";
   import type { RepoOverview } from "$lib/ipc";
   import { listedRepos, type ListedRepo } from "$lib/repo-list";
   import { repoList } from "$stores/repo-list.svelte";
@@ -244,7 +244,7 @@
     </button>
   </div>
 
-  {#if repository.openRepos.length + repoList.list.closed.length > 1}
+  {#if showsFilter(repository.openRepos.length + repoList.list.closed.length, filter)}
     <input
       class="filter"
       type="search"

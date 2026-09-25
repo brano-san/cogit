@@ -104,6 +104,12 @@ export function assign(groups: RepoGroups, root: string, group: string): RepoGro
   return { ...groups, of };
 }
 
+/** Once there is something to choose between, and while a filter is typed: hiding the box
+    then would leave the filter hiding rows with nothing to clear it in. */
+export function showsFilter(listed: number, filter: string): boolean {
+  return listed > 1 || filter !== "";
+}
+
 /** Headings and rows in one flat list, the way the panel draws them. */
 export function groupRows(
   groups: RepoGroups,
