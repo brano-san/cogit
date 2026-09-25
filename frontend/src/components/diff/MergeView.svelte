@@ -11,6 +11,7 @@
     nextConflict,
     syntacticCount,
     unresolvedCount,
+    unsavedResolution,
     type Choice,
     type Choices,
   } from "$lib/merge-view";
@@ -53,6 +54,11 @@
 
   function save() {
     if (saveable) onsave(text);
+  }
+
+  /** Read by the merge window before it closes (04 §7). */
+  export function unsaved(): boolean {
+    return unsavedResolution(choices, edited);
   }
 
   function onkeydown(event: KeyboardEvent) {

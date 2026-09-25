@@ -37,6 +37,32 @@ export function onWindowKey(event: KeyboardEvent): void {
   }
 }
 
+interface CloseRequest {
+  preventDefault(): void;
+}
+
+/** For `onCloseRequested`: the ✕, `Esc`, `Ctrl+W` and a Cancel button all end in one close
+    request, so a window with unsaved work asks here, and only once at a time. */
+export function closeGuard(
+  unsaved: () => boolean,
+  ask: () => Promise<boolean>,
+): (request: CloseRequest) => Promise<void> {
+  let asking = false;
+  return async (request) => {
+    if (!unsaved()) return;
+    if (asking) {
+      request.preventDefault();
+      return;
+    }
+    asking = true;
+    try {
+      if (!(await ask())) request.preventDefault();
+    } finally {
+      asking = false;
+    }
+  };
+}
+
 /** Items of the window's own menu bar other than Close: Rust dispatches them into this one
     webview as `cogit-menu` DOM events (`child_window::on_menu`). */
 export function onMenuAction(target: EventTarget, handler: (action: string) => void): () => void {

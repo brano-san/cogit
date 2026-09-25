@@ -1,15 +1,38 @@
 <script lang="ts">
+  import { getCurrentWindow } from "@tauri-apps/api/window";
+  import ConfirmDialog from "$components/common/ConfirmDialog.svelte";
   import MergeView from "$components/diff/MergeView.svelte";
   import TooltipLayer from "$components/common/TooltipLayer.svelte";
   import { failureText, parseMerge } from "$lib/merge-params";
   import { closeThisWindow, mergePreview, mergeResolved, resolveConflictText, type Region } from "$lib/ipc";
-  import { installChildWindow } from "$lib/child-window";
+  import { closeGuard, installChildWindow } from "$lib/child-window";
+  import { confirmation } from "$stores/confirm.svelte";
   import { settings } from "$stores/settings.svelte";
 
   const request = parseMerge(window.location.search);
 
   // No browser menu (R-127), and Esc / Ctrl+W close the window.
   $effect(() => installChildWindow(window));
+
+  let view = $state<ReturnType<typeof MergeView>>();
+  /** Written to the index: the window closes behind its own Save without asking. */
+  let saved = false;
+
+  // Esc, Ctrl+W, Cancel and the ✕ all come here as one close request (04 §7).
+  $effect(() => {
+    const guard = closeGuard(
+      () => !saved && (view?.unsaved() ?? false),
+      () =>
+        confirmation.ask({
+          title: "Discard the Resolution",
+          message: "The sides picked and the edits to the result are not saved. Close the window and lose them?",
+          confirm: "Discard",
+          warning: true,
+        }),
+    );
+    const pending = getCurrentWindow().onCloseRequested(guard);
+    return () => void pending.then((stop) => stop()).catch(() => {});
+  });
 
   let regions = $state.raw<Region[]>([]);
   /** Nothing to show without the three sides, so this one takes the window. */
@@ -36,6 +59,7 @@
     try {
       await resolveConflictText(request.repo, request.path, text);
       await mergeResolved(request.repo, request.path);
+      saved = true;
       await closeThisWindow();
     } catch (err) {
       saveFailed = failureText(err);
@@ -60,6 +84,7 @@
       </div>
     {/if}
     <MergeView
+      bind:this={view}
       path={request.path}
       {regions}
       saveShortcut
@@ -68,6 +93,16 @@
     />
   {/if}
 </div>
+
+{#if confirmation.open}
+  <ConfirmDialog
+    title={confirmation.open.title}
+    message={confirmation.open.message}
+    confirm={confirmation.open.confirm}
+    warning={confirmation.open.warning}
+    onanswer={(yes) => confirmation.answer(yes)}
+  />
+{/if}
 
 <style>
   .window {

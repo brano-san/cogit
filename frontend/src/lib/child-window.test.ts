@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { closesWindow, onMenuAction, whenCloses } from "./child-window";
+import { closeGuard, closesWindow, onMenuAction, whenCloses } from "./child-window";
 
 const key = (k: string, mods: { ctrlKey?: boolean; metaKey?: boolean } = {}) => ({
   key: k,
@@ -87,5 +87,46 @@ describe("onMenuAction", () => {
     target.dispatchEvent(menu("refresh"));
 
     expect(handler).not.toHaveBeenCalled();
+  });
+});
+
+// Every way out of a window — its ✕, Esc, Ctrl+W, a Cancel button — arrives as one close
+// request; a window with work in it asks there, once.
+describe("closeGuard", () => {
+  const request = () => ({ prevented: false, preventDefault() { this.prevented = true; } });
+
+  it("lets a window with nothing unsaved close without asking", async () => {
+    const ask = vi.fn(async () => false);
+    const closing = request();
+    await closeGuard(() => false, ask)(closing);
+    expect(ask).not.toHaveBeenCalled();
+    expect(closing.prevented).toBe(false);
+  });
+
+  it("keeps the window open when the answer is no", async () => {
+    const closing = request();
+    await closeGuard(() => true, async () => false)(closing);
+    expect(closing.prevented).toBe(true);
+  });
+
+  it("closes the window when the answer is yes", async () => {
+    const closing = request();
+    await closeGuard(() => true, async () => true)(closing);
+    expect(closing.prevented).toBe(false);
+  });
+
+  it("does not ask a second time while the question is on screen", async () => {
+    let answer: (yes: boolean) => void = () => {};
+    const ask = vi.fn(() => new Promise<boolean>((resolve) => (answer = resolve)));
+    const guard = closeGuard(() => true, ask);
+    const first = request();
+    const pending = guard(first);
+    const second = request();
+    await guard(second);
+    expect(second.prevented).toBe(true);
+    answer(true);
+    await pending;
+    expect(first.prevented).toBe(false);
+    expect(ask).toHaveBeenCalledTimes(1);
   });
 });
