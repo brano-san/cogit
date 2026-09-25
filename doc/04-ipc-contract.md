@@ -96,7 +96,7 @@ pub enum GitError {
 | `worktree_changes` | `repo`, `path` | `Vec<FileEntry>` — незакоммиченное в этом ворктри, для подтверждения Remove | M3 |
 | `prune_worktrees` | `repo` | `()` — `git worktree prune`, все устаревшие | M3 |
 | `prune_worktree` | `repo`, `path` | `()` — одна регистрация; папка на месте — `InvalidState` | M3 |
-| `repair_worktree` | `repo`, `path` — где папка теперь | `()` — `git worktree repair <path>`, затем `git update-index -q --refresh` в починенном и в текущем worktree; в очереди с подписью `Repairing worktree <name>` | M3 |
+| `repair_worktree` | `repo`, `path` — где папка теперь | `()` — `git worktree repair <path>`, затем `git update-index -q --unmerged --ignore-submodules --refresh` в починенном и в текущем worktree; в очереди с подписью `Repairing worktree <name>` | M3 |
 | `lock_worktree` / `unlock_worktree` | `repo`, `path`, `reason: Option<String>` (только lock) | `()` | M3 |
 
 ### Хуки и пресеты (M10)
@@ -182,7 +182,7 @@ Blame открывается только отдельным окном (`blame.
 
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
-| `load_commits` | `repo, query: CommitQuery, channel: Channel<GraphChunk>` | `Vec<SkippedRef { name, reason }>` — отмеченные ссылки, не ставшие стартовой точкой; новый вызов останавливает предыдущий обход | M4 |
+| `load_commits` | `repo, query: CommitQuery, onProgress: Channel<GraphProgress>` | `Vec<SkippedRef { name, reason }>` — отмеченные ссылки, не ставшие стартовой точкой; новый вызов останавливает предыдущий обход | M4 |
 | `graph_overlay` | `repo, generation, start, count, request: GraphPaintRequest { tips: [{ oid, slot }], ancestryOf? }` | `Option<GraphOverlay>` — стиль и полоса узла и каждого сегмента строк окна; `None`, если граф заменён | M4 |
 | `commit_details` | `repo, rev: String` | `CommitDetails` | M4 |
 | `commit_files` | `repo, rev: String` | `Vec<FileEntry>` | M6 |
@@ -345,7 +345,7 @@ author, email, timestamp, path, diff }`, новые сверху. `path` — и�
 
 `diff_files` — та же работа, что `diff_file`, но сразу по всем файлам коммита: чтение
 объектов последовательное, само сравнение параллельное через `rayon` внутри
-`spawn_blocking` ([INV-01](01-architecture.md), [§9 08-diff-engine.md](08-diff-engine.md)). Фронтенд
+`spawn_blocking` ([§3 01-architecture.md](01-architecture.md#3-модель-потоков-исполнения), [§9 08-diff-engine.md](08-diff-engine.md)). Фронтенд
 её пока не вызывает: панель Diff грузит файлы по одному через `diff_file`, поэтому
 перемещения между файлами (`moveScope: acrossFiles`) не показываются ([R-447](12-risks.md)).
 
@@ -422,7 +422,7 @@ snake_case и читаются на фронтенде как `undefined`.
 | `repo_refs` | `repo` | `RepoRefs { head, branches, tags, state, indexLock }` — то, что двигает коммит, без статуса, регистрации и наблюдателя; фронтенд вливает это в `RepoSummary` (R-316) | M6 |
 | `stage_hunk` | `repo, patch: String` | `()` | M6 |
 | `discard_paths` | `repo, paths` | `()` | M6 |
-| `commit` | `repo, request: CommitRequest { message, amend, noVerify }` | `String` (oid) | M6 |
+| `commit` | `repo, request: CommitRequest { message, amend, noVerify, only }` | `String` (oid); `only` пуст — всё проиндексированное, иначе только эти пути | M6 |
 | `checkout` | `repo, target: CheckoutTarget` | `()` | M5 |
 | `create_branch` / `delete_branch` | `repo, ...` | `()` | M5 |
 | `merge` / `rebase` / `cherry_pick` / `revert` | `repo, ...` | `()` | M5 |
@@ -432,7 +432,7 @@ snake_case и читаются на фронтенде как `undefined`.
 | `fetch` / `pull` / `push` | `repo, remote, refspec, channel: Channel<Progress>` | `()` | M1 |
 | `undo_last` | `repo` | `UndoResult` | M5 |
 
-Все мутации возвращают `Result<_, CogitError>` и при неуспехе CLI — вариант `GitCommand`.
+Все мутации возвращают `Result<_, GitError>` и при неуспехе CLI — вариант `command`.
 
 ### Поиск в панели Files
 
@@ -452,14 +452,11 @@ snake_case и читаются на фронтенде как `undefined`.
 | `cancel_operation` | `id` | `bool` — `false`, если уже закончилась | — |
 | `list_operations` | — | `Vec<Operation>` — всё, что в очереди и в работе | — |
 
-`list_all_repo_files` отвечает на «где этот файл», а не «что изменилось»: панель ищет файл
-и тогда, когда с ним ничего не происходило.
-
 `commit_tree_files` нужен переключателю `Unchanged` в коммите из истории (#3): список
 запрашивается, только пока переключатель включён, и не чаще раза на коммит.
 
 `search_file_contents` стримит через `Channel`, а не возвращает список: совпадений бывает
-больше пятисот, и правило про порции ([03-git-semantics.md](03-git-semantics.md), INV-10)
+больше пятисот, и правило про порции ([03-git-semantics.md](03-git-semantics.md), [INV-02](01-architecture.md#inv-02))
 распространяется и на них. Порция — сто совпадений.
 
 ```ts
@@ -545,6 +542,11 @@ type SearchChunk =
 | `set_hook_enabled` | `repo, name, enabled` | `()` | M10 |
 | `use_hooks_path` | `repo, path` | `()` | M10 |
 | `run_hook` | `repo, name` | `HookRun` | M10 |
+| `has_token` | `host` | `bool` | M1 |
+| `store_token` / `forget_token` | `host[, token]` | `()` | M1 |
+
+Токен **никогда** не возвращается наружу: `has_token` отвечает только «есть или нет»,
+чтобы секрет не попадал в webview.
 
 ### Хирургия коммитов и rebase
 
@@ -564,7 +566,6 @@ type SearchChunk =
 | `open_compare_window` | `url, title` | `()` | M2 |
 | `commit_template` | `repo` | `Option<String>` | M6 |
 | `stage_mode` | `repo, path, executable` | `()` | M6 |
-| `list_presets` | — | `Vec<PresetStatus>` | M10 |
 | `install_preset` | `repo, id` | `()` | M10 |
 
 `PresetStatus` плоский: форма TOML — дело каталога, а не webview. `toolPath` — где
@@ -585,7 +586,7 @@ Tauri сам переносит создание окна на главный п
 
 `interactive_rebase` принимает `paused`: план дописывается строками `break` после каждого
 применённого коммита. `overlap_window` считается только по видимому окну и фанится
-`rayon` внутри `spawn_blocking` ([INV-01](01-architecture.md#inv-01)).
+`rayon` внутри `spawn_blocking` ([§3 01-architecture.md](01-architecture.md#3-модель-потоков-исполнения)).
 
 `TodoEntry` — `{ oid, action: pick|reword|edit|squash|fixup|drop, message }`.
 Сообщение для `reword` уезжает в план строкой `exec git commit --amend -m …`, чтобы редактор
@@ -594,11 +595,6 @@ commit-msg при этом идут, как у `reword` в `git rebase -i`: ху
 останавливает rebase на этой строке с его выводом. Edit Author (`edit_author`) идёт с
 `--no-verify`: ни дерево, ни сообщение не меняются — механическая перезапись, как и коммиты
 Split-Off.
-| `has_token` | `host` | `bool` | M1 |
-| `store_token` / `forget_token` | `host[, token]` | `()` | M1 |
-
-Токен **никогда** не возвращается наружу: `has_token` отвечает только «есть или нет»,
-чтобы секрет не попадал в webview.
 
 ### Контекстные меню графа и Branches
 
@@ -660,7 +656,8 @@ git commit --amend --author`, как `reword`. `push_to` — один refspec: P
    хэш всех ссылок и HEAD и коммитов, которые называют селекторы reflog вроде `stash@{1}`
    среди `visibleRefs`, и границы shallow-клона, без чтения коммитов) отвечается сразу одним сообщением
    `{ total, isLast: true }` без обхода; поколение графа при этом новое. Иначе обход
-   копирует строки прошлого графа репозитория и читает только новые коммиты (R-301).
+   берёт из прошлого графа репозитория время и родителей уже прочитанных коммитов и читает
+   только новые (R-301); тексты строк читаются окнами, как их показывают (R-302).
 3. По каналу уходит только прогресс: первый чанк — сразу, дальше не чаще раза в 50 мс,
    последнее сообщение — с `isLast: true`.
 4. Строки UI берёт окнами: `graph_window(repo, generation, start, count)` — срез готового
