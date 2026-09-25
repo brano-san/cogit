@@ -275,8 +275,17 @@ fn pointer_diff(
             previous: pointer.previous,
             checked_out: pointer.checked_out,
         }),
-        None => Err(git_engine::GitError::InvalidState(format!(
-            "{path} is absent from both sides of the diff"
-        ))),
+        None => match spec {
+            git_engine::DiffSpec::WorkTreeVsIndex
+            | git_engine::DiffSpec::CommitVsWorkTree { .. } => handle
+                .folder_on_disk(path)
+                .map(|repository| diff_engine::FileDiff::Folder { repository })
+                .ok_or_else(|| absent(path)),
+            _ => Err(absent(path)),
+        },
     }
+}
+
+fn absent(path: &str) -> git_engine::GitError {
+    git_engine::GitError::InvalidState(format!("{path} is absent from both sides of the diff"))
 }

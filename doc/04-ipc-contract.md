@@ -361,7 +361,10 @@ author, email, timestamp, path, diff }`, новые сверху. `path` — и�
 `StashVsParent` придёт с M5.
 
 `FileDiff` — размеченное объединение по полю `kind`: `text`, `eolOnly`, `binary`,
-`image`, `tooLarge`, `unchanged`. Вариант `text` несёт ханки, сведения об окончаниях
+`image`, `tooLarge`, `unchanged`, `whitespaceOnly`, `submodule`, `folder`. `folder {
+repository }` — папка в рабочем дереве, в которой Git ничего не отслеживает: неотслеживаемая
+целиком или вложенный репозиторий, который не submodule (у пути нет gitlink ни на одной
+стороне). Вариант `text` несёт ханки, сведения об окончаниях
 строк, флаг `lossyEncoding`, подсказку грамматики для Lezer и `oldTotal`/`newTotal` —
 число строк каждой стороны: по ним панель знает, сколько строк скрыто под последним ханком
 (#16, R-271).

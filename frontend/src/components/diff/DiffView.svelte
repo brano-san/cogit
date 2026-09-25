@@ -549,6 +549,12 @@
     <p class="message">Image ({diff.mime}) — {diff.oldSize} bytes → {diff.newSize} bytes.</p>
   {:else if diff.kind === "tooLarge"}
     <p class="message">File is too large to diff ({diff.size} bytes).</p>
+  {:else if diff.kind === "folder"}
+    <p class="message">
+      {diff.repository
+        ? "A repository nested inside this one, not a submodule: Git tracks none of its files. Add it as a submodule or ignore it."
+        : "An untracked folder: Git tracks none of its files yet. Stage it to add them all, or ignore it."}
+    </p>
   {:else}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="scroll" bind:this={scroller} {onscroll} onmouseleave={() => (hoverRow = null)}>
