@@ -13,6 +13,15 @@ export function textProblem(value: string): string | null {
   return value.trim() === "" ? "Enter a value." : null;
 }
 
+/** The validator decides, an empty value included; without one the value only has to be
+    there. */
+export function promptProblem(
+  value: string,
+  validate?: (value: string) => string | null,
+): string | null {
+  return validate ? validate(value) : textProblem(value);
+}
+
 /** A field that may be left empty. */
 export function optional(): string | null {
   return null;
