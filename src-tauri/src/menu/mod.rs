@@ -94,7 +94,7 @@ const LFS: &[Entry] = &[
 
 const REMOTE: &[Entry] = &[
     Entry::Item("fetch", "Fetch", Some("CmdOrCtrl+Shift+F")),
-    Entry::Item("fetch-all", "Fetch All", None),
+    Entry::Item("fetch-all", "Fetch All", Some("CmdOrCtrl+Alt+Shift+F")),
     Entry::Item("pull", "Pull", Some("CmdOrCtrl+Shift+U")),
     Entry::Item("push", "Push", Some("CmdOrCtrl+Shift+O")),
     Entry::Item("synchronize", "Synchronize", Some("CmdOrCtrl+Shift+S")),
@@ -108,6 +108,8 @@ const REMOTE: &[Entry] = &[
 
 const LOCAL: &[Entry] = &[
     Entry::Item("commit", "Commit…", Some("CmdOrCtrl+Enter")),
+    Entry::Item("stage", "Stage", Some("CmdOrCtrl+T")),
+    Entry::Item("unstage", "Unstage", Some("CmdOrCtrl+Shift+T")),
     Entry::Item("stash", "Stash All", Some("CmdOrCtrl+S")),
     Entry::Item(
         "stash-selection",
@@ -126,21 +128,25 @@ const LOCAL: &[Entry] = &[
     Entry::Item("flow-hotfix", "Git-Flow: Start Hotfix…", None),
     Entry::Item("flow-finish", "Git-Flow: Finish This Branch…", None),
     Entry::Separator,
-    Entry::Item("rebase-i", "Rebase Commits After This One…", None),
+    Entry::Item(
+        "rebase-i",
+        "Rebase Commits After This One…",
+        Some("CmdOrCtrl+Shift+R"),
+    ),
     Entry::Item("split-off", "Split Off Files…", None),
     Entry::Item("rollback", "Roll Back Tree To This Commit", None),
 ];
 
 const BRANCH: &[Entry] = &[
-    Entry::Item("branch", "New Branch…", None),
-    Entry::Item("tag", "Create Tag", None),
+    Entry::Item("branch", "New Branch…", Some("F7")),
+    Entry::Item("tag", "Create Tag", Some("Shift+F7")),
 ];
 
 const QUERY: &[Entry] = &[
     Entry::Item("find", "Find Object…", Some("CmdOrCtrl+P")),
     Entry::Item("palette", "Find Command…", Some("CmdOrCtrl+Shift+P")),
     Entry::Separator,
-    Entry::Item("blame", "Blame This File", None),
+    Entry::Item("blame", "Blame This File", Some("CmdOrCtrl+Shift+L")),
 ];
 
 const TOOLS: &[Entry] = &[
@@ -178,6 +184,14 @@ const OFF_THE_BAR: &[(&str, &[Entry])] = &[
     (
         "Repository",
         &[Entry::Item("refresh", "Refresh", Some("F5"))],
+    ),
+    (
+        "Edit",
+        &[Entry::Item(
+            "copy-sha",
+            "Copy the Commit SHA",
+            Some("CmdOrCtrl+Shift+Y"),
+        )],
     ),
     (
         "Local",
@@ -656,6 +670,24 @@ mod nested_tests {
             .find(|row| row.id == "commit-amend")
             .expect("listed");
         assert_eq!(row.section, "Local");
+    }
+
+    /// 11 promised these and the toolbar and file menus showed them, but no item had them.
+    #[test]
+    fn the_registry_keys_are_the_window_s() {
+        let pairs = default_keymap_pairs();
+        for pair in [
+            ("stage", Some("CmdOrCtrl+T")),
+            ("unstage", Some("CmdOrCtrl+Shift+T")),
+            ("fetch-all", Some("CmdOrCtrl+Alt+Shift+F")),
+            ("blame", Some("CmdOrCtrl+Shift+L")),
+            ("copy-sha", Some("CmdOrCtrl+Shift+Y")),
+            ("branch", Some("F7")),
+            ("tag", Some("Shift+F7")),
+            ("rebase-i", Some("CmdOrCtrl+Shift+R")),
+        ] {
+            assert!(pairs.contains(&pair), "{pair:?}");
+        }
     }
 
     #[test]

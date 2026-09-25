@@ -63,7 +63,7 @@
   import { fileFormat, shortOid } from "$lib/format";
   import { checkedIds, disabledIds, type PaletteCommand } from "$lib/palette";
   import { reasonFor, type Context } from "$lib/availability";
-  import { refAt, splitMarked, targetsOf, type MenuContext, type ToolbarFacts } from "$lib/toolbar";
+  import { reasonOf, refAt, splitMarked, targetsOf, type MenuContext, type ToolbarFacts } from "$lib/toolbar";
   import { currentRemote, remotePlan, syncSteps, type SyncOrder } from "$lib/toolbar-prefs";
   import { toolbar } from "$stores/toolbar.svelte";
   import { stashDialog } from "$stores/stash-dialog.svelte";
@@ -555,7 +555,21 @@
         unavailable: noRepo ?? (markedFiles.length > 0 ? undefined : "No file is ticked"),
         run: () => void stashSelected(),
       },
-      { id: "tag", title: "Create Tag", unavailable: noRepo, run: () => void refActions?.addTag(null) },
+      { id: "tag", title: "Create Tag", shortcut: "Shift+F7", unavailable: noRepo, run: () => void refActions?.addTag(null) },
+      {
+        id: "stage",
+        title: "Stage",
+        shortcut: "Ctrl+T",
+        unavailable: reasonOf("stage", toolbarFacts),
+        run: () => void stage(targetsOf("stage", toolbarFacts)),
+      },
+      {
+        id: "unstage",
+        title: "Unstage",
+        shortcut: "Ctrl+Shift+T",
+        unavailable: reasonOf("unstage", toolbarFacts),
+        run: () => void unstage(targetsOf("unstage", toolbarFacts)),
+      },
       // The box decides whether it can commit: with Amend ticked nothing has to be staged.
       {
         id: "commit",
@@ -600,12 +614,14 @@
       {
         id: "copy-sha",
         title: "Copy the Commit SHA",
+        shortcut: "Ctrl+Shift+Y",
         unavailable: commit.oid ? undefined : "Select a commit first",
         run: () => void copyText(commit.oid ?? ""),
       },
       {
         id: "rebase-i",
         title: "Rebase Commits After This One…",
+        shortcut: "Ctrl+Shift+R",
         synonyms: ["interactive rebase", "squash", "reorder"],
         unavailable: commit.oid ? undefined : "Select a commit first",
         run: () => void openRebase(),
@@ -660,6 +676,7 @@
       {
         id: "branch",
         title: "New Branch…",
+        shortcut: "F7",
         unavailable: noRepo,
         run: () => void runBannerAction("createBranch"),
       },
@@ -828,6 +845,7 @@
       {
         id: "fetch-all",
         title: "Fetch All",
+        shortcut: "Ctrl+Alt+Shift+F",
         synonyms: ["update every repository"],
         unavailable: repository.openRepos.length > 0 ? undefined : "No repository is open",
         run: () => void fetchAll(),
@@ -850,6 +868,7 @@
       {
         id: "blame",
         title: "Blame This File",
+        shortcut: "Ctrl+Shift+L",
         unavailable: diff.path ? undefined : "No file is open in the Diff panel",
         run: () => void showBlame(),
       },
@@ -934,6 +953,15 @@
     if (event.key === "F6") {
       event.preventDefault();
       focused = step(focused, (panel) => layout.visible(panel), event.shiftKey ? -1 : 1);
+      return;
+    }
+
+    // Discard is Ctrl+Z in Files alone; everywhere else Ctrl+Z is the field's undo (11 §4).
+    if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.code === "KeyZ") {
+      if (focused === "files" && !typing(event)) {
+        event.preventDefault();
+        void discardFromToolbar(targetsOf("discard", toolbarFacts));
+      }
       return;
     }
 
@@ -2738,7 +2766,7 @@
         if (found) void recoverCommit(found);
         return true;
       }
-      case "copy-sha":
+      case "lost-copy-sha":
         if (node.oid) void copyText(node.oid);
         return true;
       default:
