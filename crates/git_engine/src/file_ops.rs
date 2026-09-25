@@ -47,17 +47,33 @@ impl RepoHandle {
         if from == to {
             return Ok(());
         }
-        let target = self.root().join(to);
-        if std::fs::symlink_metadata(&target).is_ok() {
+        let (source, target) = (self.root().join(from), self.root().join(to));
+        // On a case-insensitive file system another case of the name is the file itself.
+        let recase = same_file(&source, &target);
+        if !recase && std::fs::symlink_metadata(&target).is_ok() {
             return Err(GitError::InvalidState(format!("{to} already exists")));
         }
         if let Some(parent) = target.parent() {
             std::fs::create_dir_all(parent)?;
         }
         if self.tracks(from)? {
-            return self.run_git(&["mv", "--", from, to]).map(drop);
+            // Without `core.ignorecase` git sees the file itself as the destination.
+            let args: &[&str] = if recase {
+                &["mv", "-f", "--", from, to]
+            } else {
+                &["mv", "--", from, to]
+            };
+            return self.run_git(args).map(drop);
         }
-        std::fs::rename(self.root().join(from), target)?;
+        if recase {
+            // Through a name of its own: a file system may keep the old case on a rename
+            // to the same file.
+            let step = target.with_file_name(format!(".cogit-rename-{}", std::process::id()));
+            std::fs::rename(&source, &step)?;
+            std::fs::rename(&step, &target)?;
+        } else {
+            std::fs::rename(&source, &target)?;
+        }
         Ok(())
     }
 
@@ -349,4 +365,24 @@ fn ignore_pattern(path: &str) -> String {
         out.push_str("\\ ");
     }
     out
+}
+
+/** The same file under two names: by device and inode on Unix, by the canonical path
+elsewhere, where the file system reports the name in its stored case. */
+fn same_file(a: &Path, b: &Path) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt as _;
+        match (std::fs::symlink_metadata(a), std::fs::symlink_metadata(b)) {
+            (Ok(a), Ok(b)) => a.dev() == b.dev() && a.ino() == b.ino(),
+            _ => false,
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
+            (Ok(a), Ok(b)) => a == b,
+            _ => false,
+        }
+    }
 }

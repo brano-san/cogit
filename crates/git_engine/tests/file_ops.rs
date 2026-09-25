@@ -388,3 +388,36 @@ fn the_working_tree_side_of_a_symlink_is_not_written_through_it() {
     assert!(written.is_err(), "{written:?}");
     assert_eq!(read(&f, "file0.txt"), "content 0\n");
 }
+
+fn names_on_disk(f: &test_fixtures::Fixture) -> Vec<String> {
+    std::fs::read_dir(f.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .collect()
+}
+
+// On a case-insensitive file system (Windows, macOS) the new name found the file itself,
+// and a rename that only changes case was refused as "already exists".
+#[test]
+fn a_tracked_file_can_be_renamed_to_another_case_of_its_name() {
+    let f = test_fixtures::linear(1).unwrap();
+    let repo = open(&f);
+
+    repo.move_path("file0.txt", "FILE0.txt").unwrap();
+
+    assert_eq!(f.git(&["ls-files"]).unwrap().trim(), "FILE0.txt");
+    assert!(names_on_disk(&f).contains(&"FILE0.txt".to_owned()));
+}
+
+#[test]
+fn an_untracked_file_can_be_renamed_to_another_case_of_its_name() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file("notes.txt", "loose\n").unwrap();
+    let repo = open(&f);
+
+    repo.move_path("notes.txt", "Notes.txt").unwrap();
+
+    let names = names_on_disk(&f);
+    assert!(names.contains(&"Notes.txt".to_owned()), "{names:?}");
+    assert!(!names.contains(&"notes.txt".to_owned()), "{names:?}");
+}
