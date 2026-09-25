@@ -22,13 +22,14 @@ impl RepoHandle {
             .map(|url| url.to_bstring().to_string())
     }
 
+    /// `token` is asked for the URL git will contact and answers with its token, if any.
     pub fn fetch(
         &self,
         remote: &str,
-        token: Option<&str>,
+        token: impl FnOnce(&str) -> Option<String>,
         on_line: impl FnMut(&str),
     ) -> Result<()> {
-        let header = auth_arg(token);
+        let header = self.auth_arg(remote, token);
         let mut args = prefix(&header);
         args.extend(["fetch", "--progress", "--prune", remote]);
         self.run_streaming(&args, on_line)
@@ -40,10 +41,10 @@ impl RepoHandle {
         &self,
         remote: &str,
         ff_only: bool,
-        token: Option<&str>,
+        token: impl FnOnce(&str) -> Option<String>,
         on_line: impl FnMut(&str),
     ) -> Result<()> {
-        let header = auth_arg(token);
+        let header = self.auth_arg(remote, token);
         let mut args = prefix(&header);
         args.extend(["pull", "--progress", remote]);
         if ff_only {
@@ -57,10 +58,10 @@ impl RepoHandle {
         remote: &str,
         refspec: Option<&str>,
         force: bool,
-        token: Option<&str>,
+        token: impl FnOnce(&str) -> Option<String>,
         on_line: impl FnMut(&str),
     ) -> Result<()> {
-        let header = auth_arg(token);
+        let header = self.auth_arg(remote, token);
         let mut args = prefix(&header);
         args.push("push");
         args.push("--progress");
@@ -73,6 +74,11 @@ impl RepoHandle {
             args.push(refspec);
         }
         self.run_streaming(&args, on_line)
+    }
+
+    fn auth_arg(&self, remote: &str, token: impl FnOnce(&str) -> Option<String>) -> Option<String> {
+        let url = self.remote_url(remote)?;
+        auth_config(&url, &token(&url)?)
     }
 
     fn run_streaming(&self, args: &[&str], on_line: impl FnMut(&str)) -> Result<()> {
@@ -213,8 +219,26 @@ pub fn wants_auth(url: &str) -> bool {
     url.starts_with("https://") || url.starts_with("http://")
 }
 
-fn auth_arg(token: Option<&str>) -> Option<String> {
-    token.map(|value| format!("http.extraHeader={}", auth_header(value)))
+/// The `-c` argument that hands `token` to git for the host of `url` only. Git passes
+/// every `-c` on to the git processes it starts, a submodule's fetch among them, so a bare
+/// `http.extraHeader` went to every host that fetch contacted.
+#[must_use]
+pub fn auth_config(url: &str, token: &str) -> Option<String> {
+    if !wants_auth(url) {
+        return None;
+    }
+    let (scheme, rest) = url.split_once("://")?;
+    let authority = rest.split(['/', '?', '#']).next()?;
+    let host = authority
+        .rsplit_once('@')
+        .map_or(authority, |(_, host)| host);
+    if host.is_empty() {
+        return None;
+    }
+    Some(format!(
+        "http.{scheme}://{host}/.extraHeader={}",
+        auth_header(token)
+    ))
 }
 
 fn prefix(header: &Option<String>) -> Vec<&str> {

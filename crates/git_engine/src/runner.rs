@@ -358,8 +358,9 @@ pub fn redact_command(args: &[&str]) -> String {
 }
 
 fn redact_arg(arg: &str) -> String {
+    // `http.extraHeader` and its URL-scoped form `http.<url>.extraHeader`.
     if let Some((key, _)) = arg.split_once('=')
-        && key.eq_ignore_ascii_case("http.extraheader")
+        && key.to_ascii_lowercase().ends_with(".extraheader")
     {
         return format!("{key}={HIDDEN}");
     }
