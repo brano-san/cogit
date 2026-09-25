@@ -70,8 +70,8 @@ export function moduleTooltip(module: Submodule): string {
       );
     case "behind":
       return (
-        `${commits(module.behind)} older than the one the parent records. Run ` +
-        "git submodule update (Update) to check out the recorded commit."
+        `${commits(module.behind)} older than the one the parent records. ` +
+        "Remote ▸ Submodule ▸ Reset… runs git submodule update to check out the recorded commit."
       );
     case "diverged":
       return (
