@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authHost, parseRemote, pullRequestUrl } from "./pull-request";
+import { authHost, needsPush, parseRemote, pullRequestFor, pullRequestUrl } from "./pull-request";
 
 describe("parseRemote", () => {
   it("reads an ssh GitHub remote", () => {
@@ -107,5 +107,57 @@ describe("authHost", () => {
   it("has no host for a local path or for nothing", () => {
     expect(authHost("/srv/git/repo.git")).toBeNull();
     expect(authHost(null)).toBeNull();
+  });
+});
+
+// base came from the branch's own upstream: feature tracking origin/feature compared with
+// itself, and Create Pull Request went off with "No GitHub, GitLab or Bitbucket remote".
+describe("pullRequestFor", () => {
+  const github = "git@github.com:a/b.git";
+  const feature = { name: "feature", upstream: "origin/feature", ahead: 0 };
+
+  it("opens the form for a pushed branch, against the forge's default branch", () => {
+    const plan = pullRequestFor({ remoteUrl: github, branch: feature, title: "Add the thing" });
+
+    expect("url" in plan && plan.url).toContain("https://github.com/a/b/compare/feature?");
+    expect("url" in plan && plan.url).toContain("title=Add+the+thing");
+  });
+
+  it("leaves the target to GitLab and Bitbucket too", () => {
+    const lab = pullRequestFor({ remoteUrl: "git@gitlab.com:a/b.git", branch: feature, title: "x" });
+    const bucket = pullRequestFor({ remoteUrl: "https://bitbucket.org/a/b.git", branch: feature, title: "x" });
+
+    expect("url" in lab && lab.url).not.toContain("target_branch");
+    expect("url" in bucket && bucket.url).not.toContain("dest=");
+  });
+
+  it("titles the form with the branch name when there is no subject", () => {
+    const plan = pullRequestFor({ remoteUrl: github, branch: feature, title: null });
+    expect("url" in plan && plan.url).toContain("title=feature");
+  });
+
+  it("says why when HEAD is on no branch, or the remote is no forge", () => {
+    expect(pullRequestFor({ remoteUrl: github, branch: undefined, title: null })).toEqual({
+      reason: "HEAD is not on a branch",
+    });
+    expect(pullRequestFor({ remoteUrl: "git@internal:a/b.git", branch: feature, title: null })).toEqual({
+      reason: "No GitHub, GitLab or Bitbucket remote",
+    });
+    expect(pullRequestFor({ remoteUrl: null, branch: feature, title: null })).toEqual({
+      reason: "No GitHub, GitLab or Bitbucket remote",
+    });
+  });
+});
+
+// A branch never pushed has no upstream, and ahead is 0 then: the push was not offered and
+// the browser opened a compare form for a branch the remote does not have.
+describe("needsPush", () => {
+  it("is true for a branch never pushed and for one with commits the remote lacks", () => {
+    expect(needsPush({ name: "new", upstream: null, ahead: 0 })).toBe(true);
+    expect(needsPush({ name: "topic", upstream: "origin/topic", ahead: 2 })).toBe(true);
+  });
+
+  it("is false for a branch the remote has in full", () => {
+    expect(needsPush({ name: "topic", upstream: "origin/topic", ahead: 0 })).toBe(false);
   });
 });
