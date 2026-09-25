@@ -65,12 +65,11 @@ impl RepoHandle {
                     entry: found,
                     ..
                 }) => {
-                    if let Some(status) = worktree_status(&status) {
-                        files.unstaged.push(entry_of(
-                            rela_path.to_string(),
-                            status,
-                            mode_of(found.mode),
-                        ));
+                    if let Some(file_status) = worktree_status(&status) {
+                        let mut row =
+                            entry_of(rela_path.to_string(), file_status, mode_of(found.mode));
+                        row.mode_change = executable_bit_change(&status, found.mode);
+                        files.unstaged.push(row);
                     }
                 }
                 Item::IndexWorktree(WorktreeItem::DirectoryContents { entry: found, .. }) => {
@@ -191,12 +190,16 @@ fn staged_entry(change: &gix::diff::index::Change) -> FileEntry {
         Change::Modification {
             location,
             entry_mode,
+            previous_entry_mode,
             ..
-        } => entry_of(
-            location.to_string(),
-            FileStatus::Modified,
-            mode_of(*entry_mode),
-        ),
+        } => FileEntry {
+            mode_change: (entry_mode != previous_entry_mode).then(|| mode_of(*entry_mode)),
+            ..entry_of(
+                location.to_string(),
+                FileStatus::Modified,
+                mode_of(*entry_mode),
+            )
+        },
         Change::Rewrite {
             location,
             source_location,
@@ -215,6 +218,25 @@ fn staged_entry(change: &gix::diff::index::Change) -> FileEntry {
             mode_change: None,
             similarity: None,
         },
+    }
+}
+
+/// The mode the file on disk has when only its executable bit differs from the index. A
+/// type change (file to symlink) gets none: the `+x` button would stage a plain mode for it.
+fn executable_bit_change(
+    status: &EntryStatus<(), gix::submodule::Status>,
+    indexed: gix::index::entry::Mode,
+) -> Option<crate::FileMode> {
+    match status {
+        EntryStatus::Change(WorktreeChange::Modification {
+            executable_bit_changed: true,
+            ..
+        }) => Some(if indexed == gix::index::entry::Mode::FILE_EXECUTABLE {
+            crate::FileMode::Plain
+        } else {
+            crate::FileMode::Executable
+        }),
+        _ => None,
     }
 }
 
