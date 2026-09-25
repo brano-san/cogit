@@ -133,6 +133,14 @@ describe("buildRefTree", () => {
     expect(detail).toMatch(/^(19|20|21)-09-26 · /);
   });
 
+  // F-042: the tag list marked annotated tags; the one tree dropped the marker (R-47).
+  it("tells an annotated tag from a lightweight one", () => {
+    const nodes = buildRefTree(input({ tags: [tag("v1", { isAnnotated: true }), tag("v2")] }));
+    const detail = (name: string) => nodes.find((node) => node.id === `tag:${name}`)?.detail;
+    expect(detail("v1")).toBe("annotated");
+    expect(detail("v2")).toBeUndefined();
+  });
+
   it("shows the remote url beside its name", () => {
     const remote = branch("origin/master", { kind: "remote", fullName: "refs/remotes/origin/master" });
     const nodes = buildRefTree(

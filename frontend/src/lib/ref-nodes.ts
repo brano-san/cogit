@@ -235,6 +235,7 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
       rev: tag.fullName,
       oid: tag.oid,
       tag,
+      detail: tag.isAnnotated ? "annotated" : undefined,
       disabled: tag.pointsToCommit ? undefined : "Tag does not point to a commit",
     }))
     .filter((node) => matches(node, input.filter));
