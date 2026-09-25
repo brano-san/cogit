@@ -167,14 +167,26 @@ fn dropping_a_stash_removes_it_without_touching_the_working_tree() {
 }
 
 #[test]
-fn dropping_reports_the_oid_so_undo_can_bring_it_back() {
+fn dropping_reports_the_entry_so_undo_can_bring_it_back() {
     let f = test_fixtures::with_stashes(1).unwrap();
     let repo = open(&f);
-    let oid = repo.stashes().unwrap()[0].oid.clone();
+    let entry = repo.stashes().unwrap()[0].clone();
 
     let dropped = repo.stash_drop(0).unwrap();
 
-    assert_eq!(dropped, oid);
+    assert_eq!(dropped, entry);
+}
+
+#[test]
+fn a_dropped_stash_goes_back_to_its_place_in_the_list() {
+    let f = test_fixtures::with_stashes(3).unwrap();
+    let repo = open(&f);
+    let before = repo.stashes().unwrap();
+
+    let dropped = repo.stash_drop(1).unwrap();
+    repo.restore_stash(&dropped).unwrap();
+
+    assert_eq!(repo.stashes().unwrap(), before);
 }
 
 #[test]

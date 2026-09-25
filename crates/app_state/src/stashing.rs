@@ -65,11 +65,11 @@ impl AppState {
 
     pub fn stash_drop(&self, repo: RepoId, index: u32) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
-        let oid = self.handle(repo)?.stash_drop(index)?;
+        let entry = self.handle(repo)?.stash_drop(index)?;
         self.record(
             repo,
             format!("Drop stash@{{{index}}}"),
-            Recovery::Stash { oid },
+            Recovery::DroppedStash { entry },
         );
         Ok(())
     }

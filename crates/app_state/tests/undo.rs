@@ -772,3 +772,20 @@ fn a_rollback_of_a_clean_file_can_be_undone_too() {
 
     assert_eq!(text(&f, "a.txt"), "v2\n");
 }
+
+// Undo applied the dropped stash to the working tree instead of listing it again.
+#[test]
+fn undoing_a_stash_drop_lists_the_stash_again_in_its_place() {
+    let f = test_fixtures::with_stashes(3).unwrap();
+    let (state, repo) = open(&f);
+    let before = state.stashes(repo).unwrap();
+
+    state.stash_drop(repo, 1).unwrap();
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(state.stashes(repo).unwrap(), before);
+    assert!(
+        f.git(&["status", "--porcelain"]).unwrap().is_empty(),
+        "the working tree is left alone"
+    );
+}
