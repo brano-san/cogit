@@ -513,7 +513,7 @@
 
   {#if pendingDiscard}
     <div class="confirm" role="alertdialog" aria-label="Confirm discard">
-      <span class="grow">Throw away {pendingDiscard.label}? This cannot be undone.</span>
+      <span class="grow">Throw away {pendingDiscard.label}? Undo can put them back.</span>
       <button type="button" onclick={() => (pendingDiscard = null)}>Cancel</button>
       <button type="button" class="danger" onclick={confirmDiscard}>Discard</button>
     </div>

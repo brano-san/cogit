@@ -345,3 +345,42 @@ describe("staging lines", () => {
     expect(commands.stageSelection).toHaveBeenCalledOnce();
   });
 });
+
+// Discard lines went straight to the backend from the view. The file list stayed as it was
+// (the watcher is quiet after our own writes) and the journal behind Undo was not read
+// again, so Undo said "Nothing to undo" while undo_last would have put the lines back.
+describe("discarding lines ends like any other change to the working tree", () => {
+  beforeEach(() => {
+    diff.clear();
+    commands.diffFile.mockReset();
+    commands.discardSelection.mockReset();
+    commands.discardSelection.mockResolvedValue({ status: "ok", data: null });
+    commands.diffFile.mockImplementation(async () => textDiff());
+  });
+
+  it("reads the file list and the journal again afterwards", async () => {
+    const loadWorktree = vi.fn(async () => {});
+    const after = vi.fn(async () => {});
+    diff.useMutation({ repo: () => REPO, epoch: () => 0, report: vi.fn(), loadWorktree, after });
+    await diff.load(REPO, SPEC, "a.txt");
+
+    await diff.discardLines(new Set(["d:1"]), diff.diff!);
+    diff.useMutation(null);
+
+    expect(commands.discardSelection).toHaveBeenCalledOnce();
+    expect(loadWorktree).toHaveBeenCalledWith(REPO);
+    expect(after).toHaveBeenCalledWith(["a.txt"]);
+  });
+
+  it("reports a refusal where every other failed change goes", async () => {
+    const report = vi.fn();
+    commands.discardSelection.mockResolvedValue({ status: "error", error: { kind: "invalidState", message: "stale" } });
+    diff.useMutation({ repo: () => REPO, epoch: () => 0, report, loadWorktree: vi.fn(), after: vi.fn() });
+    await diff.load(REPO, SPEC, "a.txt");
+
+    await diff.discardLines(new Set(["d:1"]), diff.diff!);
+    diff.useMutation(null);
+
+    expect(report).toHaveBeenCalledOnce();
+  });
+});
