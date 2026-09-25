@@ -98,6 +98,7 @@
   import { repoClick } from "$lib/repo-click";
   import { ModuleInitialiser, moduleClick } from "$lib/module-init";
   import { parseWorktreeCommand, worktreeMenu } from "$lib/worktree-menu";
+  import { answerMergeResolved } from "$lib/merge-save";
   import { browserSources, start as startMemoryProbe } from "$lib/mem-probe";
   import { liveListeners } from "$lib/listener-count";
   import type { Settings } from "$lib/settings";
@@ -3035,11 +3036,12 @@
         exitFlow.observe(event);
       },
       avatarReady: (email) => void avatars.refresh(email),
-      mergeResolved: (event) => {
-        if (repository.current?.repo.valueOf() !== event.repo.valueOf()) return;
-        conflicts.resolvedElsewhere(event.path);
-        void afterWorkingTreeChange();
-      },
+      mergeResolved: (event) =>
+        void answerMergeResolved(event, {
+          shown: () => repository.current?.repo ?? null,
+          resolvedElsewhere: (path) => conflicts.resolvedElsewhere(path),
+          reload: () => afterWorkingTreeChange(),
+        }),
       revealCommit: (event) => {
         if (repository.current?.repo.valueOf() !== event.repo.valueOf()) return;
         stashView.clear();
