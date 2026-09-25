@@ -71,10 +71,24 @@ impl RepoHandle {
             .map(drop)
     }
 
+    /// Without `--index` only after a refusal that changed nothing: an attempt that stopped
+    /// on a conflict has written its markers, and a retry could only report "needs merge"
+    /// in place of git's account of the conflict (INV-05).
     pub fn stash_apply(&self, oid: &str) -> Result<()> {
-        self.run_git(&["stash", "apply", "--index", oid])
-            .or_else(|_| self.run_git(&["stash", "apply", oid]))
-            .map(drop)
+        let Err(first) = self.run_git(&["stash", "apply", "--index", oid]) else {
+            return Ok(());
+        };
+        let conflicted = self.conflicted_paths().map_or_else(
+            |err| {
+                tracing::error!(error = ?err, context = "cannot tell whether stash apply left a conflict");
+                true
+            },
+            |paths| !paths.is_empty(),
+        );
+        if conflicted {
+            return Err(first);
+        }
+        self.run_git(&["stash", "apply", oid]).map(drop)
     }
 
     /// Whether `--include-untracked` has anything to take. Without one it only makes `stash`

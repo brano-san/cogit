@@ -652,3 +652,28 @@ fn a_pull_can_be_undone() {
 
     assert_eq!(head_oid(&state, repo), before);
 }
+
+fn command_output(err: &git_engine::GitError) -> String {
+    match err {
+        git_engine::GitError::Command(command) => format!("{}{}", command.stdout, command.stderr),
+        other => panic!("expected git's own output, got {other:?}"),
+    }
+}
+
+// `stash apply --index` stopped on the conflict and wrote its markers; the retry without
+// `--index` then failed with "needs merge", and that was all the user saw.
+#[test]
+fn undoing_a_discard_over_a_conflicting_commit_shows_the_conflict() {
+    let f = test_fixtures::linear(1).unwrap();
+    let (state, repo) = open(&f);
+    f.write_file("file0.txt", "work in progress\n").unwrap();
+    state
+        .discard_paths(repo, &["file0.txt".to_owned()])
+        .unwrap();
+    f.commit_file(5, "file0.txt", "committed meanwhile\n")
+        .unwrap();
+
+    let err = state.undo_last(repo).unwrap_err();
+
+    assert!(command_output(&err).contains("CONFLICT"), "{err:?}");
+}
