@@ -14,7 +14,7 @@
     oncheckout: (branch: Branch) => void;
     onactivate: (node: RefNode) => void;
     oncontext: (node: RefNode, x: number, y: number) => void;
-    ondrop: (source: string, target: Branch) => void;
+    ondrop: (source: string, target: Branch, x: number, y: number) => void;
   }
 
   let { input, onvisible, onselect, oncheckout, onactivate, oncontext, ondrop }: Props =

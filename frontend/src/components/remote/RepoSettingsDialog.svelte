@@ -1,6 +1,7 @@
 <script lang="ts">
   import Dialog from "$components/common/Dialog.svelte";
   import Checkbox from "$components/common/Checkbox.svelte";
+  import Radio from "$components/common/Radio.svelte";
   import type { RepoId } from "$lib/ipc";
   import { repoSettings, writeRepoSettings, type RepoSetting } from "$lib/ipc/remote-ops";
   import {
@@ -141,15 +142,7 @@
               <fieldset>
                 <legend class="label">{field.label}</legend>
                 {#each field.control.options as [value, title] (value)}
-                  <label class="radio">
-                    <input
-                      type="radio"
-                      name={field.key}
-                      checked={current(field) === value}
-                      onchange={() => set(field, value)}
-                    />
-                    <span>{title}</span>
-                  </label>
+                  <Radio name={field.key} checked={current(field) === value} onchange={() => set(field, value)} label={title} />
                 {/each}
               </fieldset>
             {/if}
@@ -275,18 +268,6 @@
   legend {
     padding: 0;
     margin-bottom: var(--sp-2);
-  }
-
-  .radio {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--sp-3);
-    line-height: 1.35;
-  }
-
-  .radio input {
-    flex: 0 0 auto;
-    margin-top: 2px;
   }
 
   .meta {

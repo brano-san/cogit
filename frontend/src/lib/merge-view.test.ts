@@ -5,11 +5,13 @@ import {
   canSave,
   conflictRows,
   editableText,
+  mergeKey,
   mergeRows,
   mergedText,
   nextConflict,
   syntacticCount,
   unresolvedCount,
+  unsavedResolution,
 } from "./merge-view";
 import type { Region } from "$lib/ipc";
 
@@ -224,5 +226,60 @@ describe("canSave", () => {
 
   it("does not mistake a line of equals signs inside other text for a marker", () => {
     expect(canSave(regions, {}, "title\n======= and more\n")).toBe(true);
+  });
+});
+
+// The merge window closed on Esc, Ctrl+W or its ✕ at once, and the sides picked and the
+// text typed into the result were gone without a word (04 §7, 11 §9).
+describe("unsavedResolution", () => {
+  it("is nothing while no side is picked and nothing typed", () => {
+    expect(unsavedResolution({}, null)).toBe(false);
+  });
+
+  it("is a side picked for a conflict", () => {
+    expect(unsavedResolution({ 1: "ours" }, null)).toBe(true);
+  });
+
+  it("is text typed into the result", () => {
+    expect(unsavedResolution({}, "resolved by hand")).toBe(true);
+  });
+});
+
+// 11 §9 promised F6 and Ctrl+1…3 in the merge window; only Ctrl+S did anything.
+describe("mergeKey", () => {
+  const press = (key: string, code: string, mods: { ctrl?: boolean; shift?: boolean; alt?: boolean } = {}) => ({
+    key,
+    code,
+    ctrl: mods.ctrl ?? false,
+    shift: mods.shift ?? false,
+    alt: mods.alt ?? false,
+  });
+
+  it("walks the conflicts with F6 and Shift+F6", () => {
+    expect(mergeKey(press("F6", "F6"))).toEqual({ step: 1 });
+    expect(mergeKey(press("F6", "F6", { shift: true }))).toEqual({ step: -1 });
+  });
+
+  it("takes a side for the current conflict with Ctrl+1, Ctrl+2 and Ctrl+3, in column order", () => {
+    expect(mergeKey(press("1", "Digit1", { ctrl: true }))).toEqual({ take: "theirs", all: false });
+    expect(mergeKey(press("2", "Digit2", { ctrl: true }))).toEqual({ take: "both", all: false });
+    expect(mergeKey(press("3", "Digit3", { ctrl: true }))).toEqual({ take: "ours", all: false });
+  });
+
+  it("takes it for every conflict with Shift, whatever the layout types there", () => {
+    expect(mergeKey(press("!", "Digit1", { ctrl: true, shift: true }))).toEqual({ take: "theirs", all: true });
+    expect(mergeKey(press("#", "Digit3", { ctrl: true, shift: true }))).toEqual({ take: "ours", all: true });
+  });
+
+  it("saves with Ctrl+S on any layout", () => {
+    expect(mergeKey(press("s", "KeyS", { ctrl: true }))).toBe("save");
+    expect(mergeKey(press("ы", "KeyS", { ctrl: true }))).toBe("save");
+  });
+
+  it("leaves every other key alone", () => {
+    expect(mergeKey(press("1", "Digit1"))).toBeNull();
+    expect(mergeKey(press("4", "Digit4", { ctrl: true }))).toBeNull();
+    expect(mergeKey(press("1", "Digit1", { ctrl: true, alt: true }))).toBeNull();
+    expect(mergeKey(press("a", "KeyA", { ctrl: true }))).toBeNull();
   });
 });

@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { onDestroy } from "svelte";
+  import Checkbox from "$components/common/Checkbox.svelte";
+  import { commitBox } from "$stores/commit-box.svelte";
   import { canCommit, draftToSave, initialMessage, messageAfterCommit } from "$lib/commit-draft";
   import { SUBJECT_HARD, SUBJECT_SOFT, subjectOf, subjectState } from "$lib/commit-message";
 
@@ -46,6 +49,20 @@
     noVerify = false;
   }
 
+  let field: HTMLTextAreaElement | undefined = $state();
+
+  // Local ▸ Commit… (Ctrl+Enter), Commit with Amend (Ctrl+Shift+Enter) and Ctrl+K reach the
+  // box from anywhere in the window (11 §4).
+  onDestroy(
+    commitBox.attach({
+      focus: () => field?.focus(),
+      submit: async (withAmend) => {
+        if (withAmend) amend = true;
+        await submit();
+      },
+    }),
+  );
+
   function onkeydown(event: KeyboardEvent) {
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
       event.preventDefault();
@@ -76,6 +93,7 @@
 
 <div class="box">
   <textarea
+    bind:this={field}
     bind:value={message}
     {onkeydown}
     rows="3"
@@ -93,8 +111,8 @@
       title="Length of the subject line (the first line): {length} characters. Keep it under {SUBJECT_SOFT}; past {SUBJECT_HARD} tools cut it off."
       >Subject <span class="tabular">{length}</span></span
     >
-    <label><input type="checkbox" bind:checked={amend} /> Amend</label>
-    <label><input type="checkbox" bind:checked={noVerify} /> No verify</label>
+    <span class="option"><Checkbox bind:checked={amend} label="Amend" /></span>
+    <span class="option"><Checkbox bind:checked={noVerify} label="No verify" /></span>
     <span class="grow"></span>
     <button type="button" disabled={!ready} onclick={submit}>
       {amend ? "Amend" : scope.label}
@@ -151,10 +169,7 @@
     flex: 1 1 auto;
   }
 
-  label {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-2);
+  .option {
     color: var(--text-secondary);
   }
 

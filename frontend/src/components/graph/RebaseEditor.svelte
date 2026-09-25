@@ -1,6 +1,10 @@
 <script lang="ts">
+  import { modalLayer, modals } from "$lib/modal-stack";
   import { shortOid } from "$lib/format";
   import { moveEntry, planProblem, previewCount } from "$lib/rebase-plan";
+  import { pointerDrag } from "$lib/pointer-drag";
+  import Checkbox from "$components/common/Checkbox.svelte";
+  import Select from "$components/common/Select.svelte";
   import type { TodoAction, TodoEntry } from "$lib/ipc";
 
   interface Props {
@@ -23,7 +27,12 @@
   const problem = $derived(planProblem(plan));
   const remaining = $derived(previewCount(plan));
 
-  let dragging = $state<number | null>(null);
+  /** The row an entry is being dragged over (R-450). */
+  let over = $state<number | null>(null);
+  const entryDrag = {
+    onover: (target: string | null) => (over = target === null ? null : Number(target)),
+    ondrop: (source: string, target: string) => onplan(moveEntry(plan, Number(source), Number(target))),
+  };
 
   function setAction(index: number, action: TodoAction) {
     onplan(plan.map((entry, at) => (at === index ? { ...entry, action } : entry)));
@@ -33,17 +42,15 @@
     onplan(plan.map((entry, at) => (at === index ? { ...entry, message } : entry)));
   }
 
-  function drop(to: number) {
-    if (dragging !== null) onplan(moveEntry(plan, dragging, to));
-    dragging = null;
-  }
-
   function nudge(index: number, delta: number) {
     onplan(moveEntry(plan, index, index + delta));
   }
 
+  /** A modal layer: Esc is its own only while nothing is open above it (R-451). */
+  const layer = modalLayer();
+
   function onkeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
+    if (event.key === "Escape" && modals.isTop(layer) && !event.defaultPrevented) {
       event.preventDefault();
       onclose();
     }
@@ -68,28 +75,25 @@
     </p>
   {/if}
 
-  <div class="list">
+  <div class="list" use:pointerDrag={entryDrag}>
     {#each plan as entry, index (entry.oid)}
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div
         class="row"
         class:dropped={entry.action === "drop"}
-        class:over={dragging !== null && dragging !== index}
-        draggable="true"
-        ondragstart={() => (dragging = index)}
-        ondragover={(event) => event.preventDefault()}
-        ondrop={() => drop(index)}
-        ondragend={() => (dragging = null)}
+        class:over={over === index}
+        data-drag={index}
+        data-drop={index}
       >
         <span class="grip" aria-hidden="true">⠿</span>
 
-        <select
-          value={entry.action}
-          aria-label="Action for {shortOid(entry.oid)}"
-          onchange={(event) => setAction(index, event.currentTarget.value as TodoAction)}
-        >
-          {#each ACTIONS as action (action)}<option value={action}>{action}</option>{/each}
-        </select>
+        <span class="action">
+          <Select
+            value={entry.action}
+            label="Action for {shortOid(entry.oid)}"
+            options={ACTIONS.map((action) => [action, action] as const)}
+            onchange={(action) => setAction(index, action)}
+          />
+        </span>
 
         <span class="oid">{shortOid(entry.oid)}</span>
 
@@ -124,14 +128,9 @@
 
   <footer>
     <span class="preview">{remaining} commits will remain</span>
-    <label class="pause">
-      <input
-        type="checkbox"
-        checked={paused}
-        onchange={(event) => onpaused(event.currentTarget.checked)}
-      />
-      Pause after each commit
-    </label>
+    <span class="pause">
+      <Checkbox checked={paused} onchange={(checked) => onpaused(checked)} label="Pause after each commit" />
+    </span>
     {#if problem}<span class="problem">{problem}</span>{/if}
     <button type="button" onclick={onclose}>Cancel</button>
     <button type="button" class="primary" disabled={problem !== null || busy} onclick={onrun}>
@@ -223,13 +222,9 @@
     cursor: grab;
   }
 
-  select {
+  .action {
+    display: flex;
     flex: 0 0 92px;
-    height: 22px;
-    background: var(--surface-input);
-    color: var(--text-primary);
-    border: 1px solid var(--field-border);
-    border-radius: var(--r-sm);
     font-size: var(--fs-header);
   }
 

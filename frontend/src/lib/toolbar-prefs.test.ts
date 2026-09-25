@@ -120,4 +120,36 @@ describe("remotePlan", () => {
       "This repository has no remote.",
     );
   });
+
+  // F-320: one commit ahead and one behind, Pull set to fast-forward only (the default).
+  // `git pull --ff-only` failed with "Not possible to fast-forward" and Synchronize stopped
+  // there, saying nothing about what to do.
+  const diverged = { name: "main", upstream: "origin/main", ahead: 1, behind: 1 };
+
+  it("refuses a diverged branch before anything runs when Pull only fast-forwards, and says why", () => {
+    expect(() => remotePlan(["pull", "push"], { ...facts, branch: diverged })).toThrow(
+      /main and origin\/main have diverged \(1 ahead, 1 behind\).*Preferences ▸ Pull/,
+    );
+  });
+
+  it("merges a diverged branch, then pushes, when Pull is set to merge", () => {
+    const plan = remotePlan(["pull", "push"], {
+      ...facts,
+      scope: "current",
+      deleteMerged: false,
+      ffOnly: false,
+      branch: diverged,
+    });
+    expect(plan).toEqual([
+      { kind: "pull", remote: "origin", ffOnly: false },
+      { kind: "push", remote: "origin" },
+    ]);
+  });
+
+  it("pulls a branch that is only behind, however Pull is set", () => {
+    const behind = { ...diverged, ahead: 0, behind: 2 };
+    expect(remotePlan(["pull"], { ...facts, scope: "current", deleteMerged: false, branch: behind })).toEqual([
+      { kind: "pull", remote: "origin", ffOnly: true },
+    ]);
+  });
 });

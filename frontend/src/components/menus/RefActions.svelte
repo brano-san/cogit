@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { tick } from "svelte";
   import ConfirmDialog from "$components/common/ConfirmDialog.svelte";
   import AddTagDialog from "./AddTagDialog.svelte";
   import EditAuthorDialog from "./EditAuthorDialog.svelte";
@@ -71,6 +70,9 @@
   import { graph } from "$stores/graph.svelte";
   import { network } from "$stores/network.svelte";
   import { prompt } from "$stores/prompt.svelte";
+  import { refDialogs } from "$stores/ref-dialogs.svelte";
+  import { commitBox } from "$stores/commit-box.svelte";
+  import { runWorkingTreeAction } from "$lib/working-tree-actions";
   import { refs } from "$stores/refs.svelte";
   import { repository } from "$stores/repository.svelte";
   import { stashView } from "$stores/stash-view.svelte";
@@ -83,6 +85,8 @@
   interface Props {
     afterRefChange: () => Promise<void>;
     afterMutation: () => Promise<void>;
+    /** App's write to the working tree: it names the paths, so the open diff is read again. */
+    mutate: (step: (repo: RepoId) => Promise<unknown>, paths: string[], readsBack: boolean) => Promise<boolean>;
     reloadGraph: () => Promise<void>;
     /** App's switch: it knows about worktrees holding the branch and about autostash. */
     checkoutBranch: (branch: Branch) => Promise<void>;
@@ -95,6 +99,7 @@
   let {
     afterRefChange,
     afterMutation,
+    mutate,
     reloadGraph,
     checkoutBranch,
     openSplit,
@@ -130,11 +135,6 @@
   /** A second right-click before the first menu's facts arrive wins. */
   let asked = 0;
 
-  let tagDialog = $state.raw<{ oid: string; subject: string } | null>(null);
-  let pushDialog = $state.raw<PushSource | null>(null);
-  let resetDialog = $state.raw<{ oid: string; subject: string; moving: string } | null>(null);
-  let messageDialog = $state.raw<{ oid: string; message: string; parents: string[] } | null>(null);
-  let authorDialog = $state.raw<{ oid: string; name: string; email: string } | null>(null);
 
 
   function repoId(): RepoId | null {
@@ -296,7 +296,7 @@
     }
     try {
       const details = await commitDetails(id, at);
-      tagDialog = { oid: details.oid, subject: details.summary };
+      refDialogs.tag = { oid: details.oid, subject: details.summary };
     } catch (err) {
       errors.report(err, "Could not add a tag");
     }
@@ -311,7 +311,7 @@
       return;
     }
     const branch = summary.branches.find((entry) => entry.kind === "local" && entry.name === head.name);
-    pushDialog = { kind: "branch", name: head.name, upstream: branch?.upstream ?? null };
+    refDialogs.push = { kind: "branch", name: head.name, upstream: branch?.upstream ?? null };
   }
 
   async function attempt(
@@ -394,12 +394,12 @@
         return squash(id, at);
       case "edit-message":
         if (oid && at.details && (await publishedOk(at, "Edit Message"))) {
-          messageDialog = { oid, message: fullMessage(at.details), parents: at.details.parents };
+          refDialogs.message = { oid, message: fullMessage(at.details), parents: at.details.parents };
         }
         return;
       case "edit-author":
         if (oid && at.details && (await publishedOk(at, "Edit Author"))) {
-          authorDialog = { oid, name: at.details.author.name, email: at.details.author.email };
+          refDialogs.author = { oid, name: at.details.author.name, email: at.details.author.email };
         }
         return;
       case "rebase-i":
@@ -424,7 +424,7 @@
         if (oid) await attempt("Could not reset", () => resetTo(id, oid, "mixed"));
         return;
       case "reset-advanced":
-        if (oid) resetDialog = { oid, subject: at.details?.summary ?? "", moving: movingRef() };
+        if (oid) refDialogs.reset = { oid, subject: at.details?.summary ?? "", moving: movingRef() };
         return;
       case "push-up-to":
         return pushUpToTarget(id, at);
@@ -432,7 +432,7 @@
         return pushTarget(id, at);
       case "push-to": {
         const source = pushSourceOf(at);
-        if (source) pushDialog = source;
+        if (source) refDialogs.push = source;
         return;
       }
       case "delete":
@@ -542,8 +542,8 @@
 
   async function saveMessage(message: string) {
     const id = repoId();
-    const dialog = messageDialog;
-    messageDialog = null;
+    const dialog = refDialogs.message;
+    refDialogs.message = null;
     if (!id || !dialog) return;
     const base = baseBefore(dialog.oid, dialog.parents);
     await attempt("Could not edit the message", async () => {
@@ -555,8 +555,8 @@
 
   async function saveAuthor(name: string, email: string) {
     const id = repoId();
-    const dialog = authorDialog;
-    authorDialog = null;
+    const dialog = refDialogs.author;
+    refDialogs.author = null;
     if (!id || !dialog) return;
     await attempt("Could not edit the author", () => editAuthor(id, dialog.oid, name, email));
   }
@@ -576,7 +576,7 @@
 
   async function createTagFrom(name: string, message: string) {
     const id = repoId();
-    const dialog = tagDialog;
+    const dialog = refDialogs.tag;
     if (!id || !dialog) return;
     try {
       await createTag(id, tagRequest(name, message, dialog.oid));
@@ -584,7 +584,7 @@
       errors.report(err, "Could not add the tag");
       return;
     }
-    tagDialog = null;
+    refDialogs.tag = null;
     await afterRefChange();
   }
 
@@ -599,8 +599,8 @@
 
   async function resetWith(mode: ResetMode) {
     const id = repoId();
-    const dialog = resetDialog;
-    resetDialog = null;
+    const dialog = refDialogs.reset;
+    refDialogs.reset = null;
     if (!id || !dialog) return;
     if (resetChoice(mode).destructive) {
       const go = await confirmation.ask({
@@ -649,7 +649,7 @@
 
   async function sendPushTo(remote: string, refspec: string) {
     const id = repoId();
-    pushDialog = null;
+    refDialogs.push = null;
     if (id) await push(id, remote, refspec);
   }
 
@@ -760,33 +760,24 @@
   }
 
   async function worktreeAction(id: RepoId, name: string) {
-    if (name === "wt-commit") {
-      commit.clear();
-      await tick();
-      document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Commit message"]')?.focus();
-      return;
-    }
-    await worktree.load(id);
-    if (name === "wt-stage") {
-      await worktree.stage(id, worktree.unstaged.map((file) => file.path));
-    } else if (name === "wt-unstage") {
-      await worktree.unstage(id, worktree.staged.map((file) => file.path));
-    } else if (name === "wt-discard") {
-      const paths = worktree.unstaged.filter((file) => file.status !== "untracked").map((file) => file.path);
-      if (paths.length === 0) return;
-      const go = await confirmation.ask({
-        title: "Discard",
-        message:
-          `Discard the changes in ${paths.length === 1 ? paths[0] : `${paths.length} files`}? ` +
-          "Staged changes and untracked files are kept. Undo can bring the changes back.",
-        confirm: "Discard",
-        warning: true,
-      });
-      if (!go) return;
-      await worktree.discard(id, paths);
-    }
-    if (worktree.error) errors.report(worktree.error, "Could not change the working tree");
-    await afterMutation();
+    if (name === "wt-commit") commit.clear();
+    else await worktree.load(id);
+    await runWorkingTreeAction(name, worktree, {
+      stage: (repo, paths) => worktree.stage(repo, paths),
+      unstage: (repo, paths) => worktree.unstage(repo, paths),
+      discard: (repo, paths) => worktree.discard(repo, paths),
+      mutate,
+      confirmDiscard: (paths) =>
+        confirmation.ask({
+          title: "Discard",
+          message:
+            `Discard the changes in ${paths.length === 1 ? paths[0] : `${paths.length} files`}? ` +
+            "Staged changes and untracked files are kept. Undo can bring the changes back.",
+          confirm: "Discard",
+          warning: true,
+        }),
+      focusCommit: () => commitBox.focus(),
+    });
   }
 </script>
 
@@ -800,52 +791,52 @@
   />
 {/if}
 
-{#if tagDialog}
+{#if refDialogs.tag}
   <AddTagDialog
-    oid={tagDialog.oid}
-    subject={tagDialog.subject}
+    oid={refDialogs.tag.oid}
+    subject={refDialogs.tag.subject}
     taken={(repository.current?.tags ?? []).map((tag) => tag.name)}
     check={checkTagName}
     onadd={createTagFrom}
-    onclose={() => (tagDialog = null)}
+    onclose={() => (refDialogs.tag = null)}
   />
 {/if}
 
-{#if pushDialog}
+{#if refDialogs.push}
   <PushToDialog
-    source={pushDialog}
+    source={refDialogs.push}
     remotes={network.remotes}
     primary={network.primary}
     onpush={(remote, refspec) => void sendPushTo(remote, refspec)}
-    onclose={() => (pushDialog = null)}
+    onclose={() => (refDialogs.push = null)}
   />
 {/if}
 
-{#if resetDialog}
+{#if refDialogs.reset}
   <ResetDialog
-    moving={resetDialog.moving}
-    oid={resetDialog.oid}
-    subject={resetDialog.subject}
+    moving={refDialogs.reset.moving}
+    oid={refDialogs.reset.oid}
+    subject={refDialogs.reset.subject}
     onreset={(mode) => void resetWith(mode)}
-    onclose={() => (resetDialog = null)}
+    onclose={() => (refDialogs.reset = null)}
   />
 {/if}
 
-{#if messageDialog}
+{#if refDialogs.message}
   <EditMessageDialog
-    oid={messageDialog.oid}
-    message={messageDialog.message}
+    oid={refDialogs.message.oid}
+    message={refDialogs.message.message}
     onsave={(message) => void saveMessage(message)}
-    onclose={() => (messageDialog = null)}
+    onclose={() => (refDialogs.message = null)}
   />
 {/if}
 
-{#if authorDialog}
+{#if refDialogs.author}
   <EditAuthorDialog
-    oid={authorDialog.oid}
-    name={authorDialog.name}
-    email={authorDialog.email}
+    oid={refDialogs.author.oid}
+    name={refDialogs.author.name}
+    email={refDialogs.author.email}
     onsave={(name, email) => void saveAuthor(name, email)}
-    onclose={() => (authorDialog = null)}
+    onclose={() => (refDialogs.author = null)}
   />
 {/if}

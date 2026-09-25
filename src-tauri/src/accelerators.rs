@@ -53,6 +53,7 @@ const VK_OEM_PERIOD: u16 = 0xBE;
 const VK_OEM_MINUS: u16 = 0xBD;
 const VK_OEM_PLUS: u16 = 0xBB;
 const VK_F1: u16 = 0x70;
+const VK_RETURN: u16 = 0x0D;
 const VK_LEFT: u16 = 0x25;
 const VK_UP: u16 = 0x26;
 const VK_RIGHT: u16 = 0x27;
@@ -110,6 +111,8 @@ fn virtual_key(name: &str) -> Option<u16> {
     }
 
     match upper.as_str() {
+        // muda reads only `Enter`; `Return` is what an older keymap editor recorded.
+        "ENTER" | "RETURN" => return Some(VK_RETURN),
         "LEFT" => return Some(VK_LEFT),
         "UP" => return Some(VK_UP),
         "RIGHT" => return Some(VK_RIGHT),
@@ -231,6 +234,26 @@ mod tests {
         assert_eq!(parse("Alt+Down").expect("parses").key, 0x28);
     }
 
+    // Local ▸ Commit… was `CmdOrCtrl+Return`, which neither muda nor this module reads:
+    // the item showed no key, and Ctrl+Enter reached the commit field alone.
+    #[test]
+    fn enter_is_recognised() {
+        let chord = parse("CmdOrCtrl+Enter").expect("parses");
+        assert!(chord.ctrl && !chord.shift && !chord.alt);
+        assert_eq!(chord.key, 0x0D);
+        assert_eq!(parse("CmdOrCtrl+Shift+Enter").expect("parses").key, 0x0D);
+    }
+
+    /// A default the table cannot read is a key the window never claims.
+    #[test]
+    fn every_default_accelerator_can_be_claimed() {
+        for (id, keys) in crate::menu::default_keymap_pairs() {
+            if let Some(keys) = keys {
+                assert!(parse(keys).is_some(), "{id}: {keys}");
+            }
+        }
+    }
+
     #[test]
     fn punctuation_the_menu_uses_is_recognised() {
         assert_eq!(parse("CmdOrCtrl+,").expect("parses").key, VK_OEM_COMMA);
@@ -281,7 +304,16 @@ mod tests {
     fn the_keys_the_panels_need_are_never_claimed() {
         let claimed = table(crate::menu::default_keymap_pairs(), &no_overrides());
 
-        for keys in ["CmdOrCtrl+A", "CmdOrCtrl+F", "CmdOrCtrl+C", "CmdOrCtrl+V"] {
+        for keys in [
+            "CmdOrCtrl+A",
+            "CmdOrCtrl+F",
+            "CmdOrCtrl+C",
+            "CmdOrCtrl+V",
+            "CmdOrCtrl+X",
+            "CmdOrCtrl+Z",
+            "CmdOrCtrl+Shift+Z",
+            "CmdOrCtrl+Y",
+        ] {
             let chord = parse(keys).expect("parses");
             assert!(!claimed.contains_key(&chord), "{keys} must reach the panel");
         }

@@ -63,7 +63,7 @@
   import { fileFormat, shortOid } from "$lib/format";
   import { checkedIds, disabledIds, type PaletteCommand } from "$lib/palette";
   import { reasonFor, type Context } from "$lib/availability";
-  import { refAt, splitMarked, targetsOf, type MenuContext, type ToolbarFacts } from "$lib/toolbar";
+  import { reasonOf, refAt, splitMarked, targetsOf, type MenuContext, type ToolbarFacts } from "$lib/toolbar";
   import { currentRemote, remotePlan, syncSteps, type SyncOrder } from "$lib/toolbar-prefs";
   import { toolbar } from "$stores/toolbar.svelte";
   import { stashDialog } from "$stores/stash-dialog.svelte";
@@ -76,6 +76,9 @@
   import RefActions from "$components/menus/RefActions.svelte";
   import { compareView } from "$stores/compare-view.svelte";
   import { confirmation } from "$stores/confirm.svelte";
+  import { menuCommandRuns, modals } from "$lib/modal-stack";
+  import { keyLetter } from "$lib/key-letter";
+  import { commitBox } from "$stores/commit-box.svelte";
   import { commitFileMenu, worktreeFileMenu } from "$lib/file-menu";
   import { fileName, runFileMenuCommand, type FileActions, type FileScope } from "$lib/file-actions";
   import { listedMessage } from "$lib/file-dialogs";
@@ -299,7 +302,6 @@
   /** Panels a disk event has outdated; cleared as each reload lands. */
   let stale = $state.raw<ReadonlySet<PanelId>>(new Set());
   let splitBusy = $state(false);
-  const pointer = { x: 0, y: 0 };
   let refFilter = $state("");
   let dropping = $state(false);
   let fileMask = $state("");
@@ -532,7 +534,6 @@
   const palette = $derived.by<PaletteCommand[]>(() => {
     const noRepo = reasonFor({ repository: true }, commands);
     const noRemote = reasonFor({ remote: true }, commands);
-    const nothingStaged = reasonFor({ staged: true }, commands);
 
     return [
       { id: "open", title: "Open Repository…", run: () => void pickRepository() },
@@ -555,8 +556,43 @@
         unavailable: noRepo ?? (markedFiles.length > 0 ? undefined : "No file is ticked"),
         run: () => void stashSelected(),
       },
-      { id: "tag", title: "Create Tag", unavailable: noRepo, run: () => void refActions?.addTag(null) },
-      { id: "commit", title: "Commit Staged", unavailable: noRepo ?? nothingStaged, run: () => {} },
+      { id: "tag", title: "Create Tag", shortcut: "Shift+F7", unavailable: noRepo, run: () => void refActions?.addTag(null) },
+      {
+        id: "stage",
+        title: "Stage",
+        shortcut: "Ctrl+T",
+        unavailable: reasonOf("stage", toolbarFacts),
+        run: () => void stage(targetsOf("stage", toolbarFacts)),
+      },
+      {
+        id: "unstage",
+        title: "Unstage",
+        shortcut: "Ctrl+Shift+T",
+        unavailable: reasonOf("unstage", toolbarFacts),
+        run: () => void unstage(targetsOf("unstage", toolbarFacts)),
+      },
+      // The box decides whether it can commit: with Amend ticked nothing has to be staged.
+      {
+        id: "commit",
+        title: "Commit Staged",
+        shortcut: "Ctrl+Enter",
+        unavailable: noRepo,
+        run: () => void commitBox.commit(),
+      },
+      {
+        id: "commit-amend",
+        title: "Commit with Amend",
+        shortcut: "Ctrl+Shift+Enter",
+        unavailable: noRepo,
+        run: () => void commitBox.commit(true),
+      },
+      {
+        id: "commit-message",
+        title: "Go to the Commit Message",
+        shortcut: "Ctrl+K",
+        unavailable: noRepo,
+        run: () => void commitBox.focus(),
+      },
       {
         id: "undo",
         title: "Undo Last Operation",
@@ -579,12 +615,14 @@
       {
         id: "copy-sha",
         title: "Copy the Commit SHA",
+        shortcut: "Ctrl+Shift+Y",
         unavailable: commit.oid ? undefined : "Select a commit first",
         run: () => void copyText(commit.oid ?? ""),
       },
       {
         id: "rebase-i",
         title: "Rebase Commits After This One…",
+        shortcut: "Ctrl+Shift+R",
         synonyms: ["interactive rebase", "squash", "reorder"],
         unavailable: commit.oid ? undefined : "Select a commit first",
         run: () => void openRebase(),
@@ -639,6 +677,7 @@
       {
         id: "branch",
         title: "New Branch…",
+        shortcut: "F7",
         unavailable: noRepo,
         run: () => void runBannerAction("createBranch"),
       },
@@ -807,6 +846,7 @@
       {
         id: "fetch-all",
         title: "Fetch All",
+        shortcut: "Ctrl+Alt+Shift+F",
         synonyms: ["update every repository"],
         unavailable: repository.openRepos.length > 0 ? undefined : "No repository is open",
         run: () => void fetchAll(),
@@ -829,6 +869,7 @@
       {
         id: "blame",
         title: "Blame This File",
+        shortcut: "Ctrl+Shift+L",
         unavailable: diff.path ? undefined : "No file is open in the Diff panel",
         run: () => void showBlame(),
       },
@@ -904,12 +945,9 @@
   }
 
   function onkeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
-      settingsOpen = false;
-      paletteOpen = false;
-      finderOpen = false;
-      return;
-    }
+    // A dialog, the palette and Find Object close on their own Esc; nothing behind a modal
+    // answers a key (11 §1).
+    if (modals.any) return;
 
     // F6 walks the panels. Ctrl+Tab is left to the window: the menu agent owns the
     // accelerators, and browsers and hosts both claim that pair (issue 15).
@@ -919,8 +957,17 @@
       return;
     }
 
+    // Discard is Ctrl+Z in Files alone; everywhere else Ctrl+Z is the field's undo (11 §4).
+    if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.code === "KeyZ") {
+      if (focused === "files" && !typing(event)) {
+        event.preventDefault();
+        void discardFromToolbar(targetsOf("discard", toolbarFacts));
+      }
+      return;
+    }
+
     // Select All belongs to the focused panel, and the graph declines it on purpose.
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a" && !typing(event)) {
+    if ((event.ctrlKey || event.metaKey) && keyLetter(event) === "a" && !typing(event)) {
       if (!allowsSelectAll(focused)) event.preventDefault();
     }
   }
@@ -1499,6 +1546,7 @@
         scope: toolbar.prefs.pullScope,
         ffOnly: settings.current.pullMode === "ffOnly",
         deleteMerged: toolbar.prefs.deleteMergedAfterPull,
+        branch: tracked,
       });
       for (const step of plan) {
         if (step.kind === "fetch") await network.fetch(id, step.remote);
@@ -1776,7 +1824,7 @@
   }
 
   /** A drop never acts on its own: the user picks from the menu it opens. */
-  function onBranchDrop(sourceName: string, target: Branch) {
+  function onBranchDrop(sourceName: string, target: Branch, x: number, y: number) {
     const source = repository.localBranches.find((b) => b.name === sourceName);
     if (!source) return;
     const canFastForward = target.isHead && source.oid !== target.oid;
@@ -1785,7 +1833,7 @@
     const head = repository.localBranches.find((b) => b.isHead)?.name ?? null;
     const actions = dropActions(payload, onto, canFastForward, head);
     if (actions.length === 0) return;
-    dropMenu = { actions, source: payload, target: onto, x: pointer.x, y: pointer.y };
+    dropMenu = { actions, source: payload, target: onto, x, y };
   }
 
   async function runDropAction(action: DropAction) {
@@ -1831,12 +1879,12 @@
     await afterRefChange(id);
   }
 
-  function onCommitDrop(sourceOid: string, targetOid: string) {
+  function onCommitDrop(sourceOid: string, targetOid: string, x: number, y: number) {
     const source = { kind: "commit" as const, id: sourceOid };
     const target = { kind: "commit" as const, id: targetOid };
     const actions = dropActions(source, target, false);
     if (actions.length === 0) return;
-    dropMenu = { actions, source, target, x: pointer.x, y: pointer.y };
+    dropMenu = { actions, source, target, x, y };
   }
 
   /** Squash and reorder are both one interactive rebase with a two-line plan. */
@@ -2168,6 +2216,7 @@
       repoSettingsOpen = false;
       rebaseOpen = false;
       splitOpen = false;
+      finderOpen = false;
     }),
   );
 
@@ -2719,7 +2768,7 @@
         if (found) void recoverCommit(found);
         return true;
       }
-      case "copy-sha":
+      case "lost-copy-sha":
         if (node.oid) void copyText(node.oid);
         return true;
       default:
@@ -3000,6 +3049,7 @@
   $effect(() => {
     const pending = onMenuCommand((id) => {
       pushMenuState(true);
+      if (!menuCommandRuns(id, modals)) return;
       if (id === "toolbar-preferences") return openSettings("toolbar");
       if (refActions?.run(id)) return;
       if (runGroupCommand(id)) return;
@@ -3055,13 +3105,7 @@
   $effect(pushMenuState);
 </script>
 
-<svelte:window
-  {onkeydown}
-  ondragover={(event) => {
-    pointer.x = event.clientX;
-    pointer.y = event.clientY;
-  }}
-/>
+<svelte:window {onkeydown} />
 
 <TooltipLayer />
 
@@ -3520,6 +3564,7 @@
     bind:this={refActions}
     {afterRefChange}
     afterMutation={() => afterMutation()}
+    {mutate}
     {reloadGraph}
     checkoutBranch={switchTo}
     {openSplit}

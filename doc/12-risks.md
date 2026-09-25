@@ -5492,3 +5492,137 @@ Push To (свой refspec) не меняются. Отдельный пункт 
 по-прежнему решение постановщика; этот путь его не заменяет. Тест —
 `the_first_push_of_a_branch_publishes_it_and_sets_its_upstream`
 (`crates/git_engine/tests/network.rs`).
+
+## R-450 · Строки перетаскиваются на pointer-событиях, а не HTML5 drag-and-drop · В
+
+Главное окно держит Tauri-обработчик брошенных файлов (`dragDropEnabled`, по умолчанию): wry
+0.55 снимает drop target WebView2 (`RevokeDragDrop`) и ставит свой, который принимает только
+файлы (`HDROP`). Внутреннее HTML5-перетаскивание страницы до неё не доходит: `dragover` и
+`drop` не приходят, и меню Merge / Rebase / Squash / Move (F-091), перенос групп и
+репозиториев в Repositories, порядок строк в редакторе rebase и колонок графа в Preferences
+не работали. Tauri сам пишет, что для HTML5 DnD на Windows обработчик надо выключить, но тогда
+теряется путь брошенной папки (F-154): WebView2 не отдаёт странице путей файлов.
+
+**Решение:** обработчик файлов остаётся; строки тащатся на pointer-событиях
+(`lib/pointer-drag.ts`). Нажатие становится перетаскиванием после 4 px (иначе остаётся
+щелчком), указатель захватывается списком только с этого момента, отпускание над строкой
+того же списка — бросок, щелчок после броска гасится, `Esc` отменяет. Строку под указателем
+в графе считает геометрия (`graphDropTarget` — строка из координаты, как у щелчка, T4.4),
+в остальных списках — `elementFromPoint` и разметка `data-drag` / `data-drop`. Меню броска
+открывается там, где отпущена кнопка. Тесты — `drop-target.test.ts` «a drag on pointer events»,
+`graphDropTarget`. Проверить в сборке: коммит на коммит, ветка на ветку в Branches, группа на
+группу в Repositories.
+
+## R-451 · Клавиши и меню под модальным окном: отвечает только верхний слой · С
+
+Каждый диалог слушал `keydown` на `window` в порядке монтирования: `Esc` в «Save as preset»
+закрывал и запрос имени, и окно Hooks под ним; `Enter` исполнял нижний диалог (он слушал
+раньше и гасил событие для верхнего); аккорды меню (`Ctrl+S`, `Ctrl+W`, `Ctrl+,`) и пункты
+строки меню выполнялись под диалогом — Stash All поверх Edit Author, закрытие репозитория под
+диалогом, новый снимок Preferences, после которого Cancel ничего не откатывал. 11 §1 требует
+`modal` > панель > `global`.
+
+**Решение:** стек модальных слоёв окна (`lib/modal-stack.ts`). Слой открывают `Dialog` и
+самописные модальные окна (Hooks, Safety Journal, редактор rebase, Split Off, меню броска,
+палитра, Find Object); клавишу отвечает только верхний слой и только нажатую в нём (или без
+фокуса) — окно Output, которое плавает над диалогами и не модально, свои клавиши сохраняет.
+`Esc` слоя уступает тому, что внутри уже его обработало. Пока стек не пуст, глобальные
+клавиши App и панелей (Diff, Files, `Ctrl+S` окна слияния) молчат, а команды меню не
+выполняются, кроме `exit` — выход сам спрашивает про несохранённое. Перехватчик WebView2
+аккорды меню по-прежнему забирает (флага из страницы в Rust нет): отпущенный под диалогом
+`F5` перезагрузил бы страницу, остальные аккорды меню текстовым полям не нужны. Тест —
+`modal-stack.test.ts`. Проверить в сборке: Hooks ▸ Save as preset ▸ `Esc`; Edit Author ▸
+`Ctrl+S`; любой диалог ▸ `Ctrl+W`.
+
+## R-452 · Commit из меню, палитры и `Ctrl+Enter` идёт через поле коммита · Н
+
+Команда `commit` палитры была `() => {}`, в неё же приходил `Local ▸ Commit…`; ускоритель
+`CmdOrCtrl+Return` не читали ни muda, ни `accelerators.rs`, и `Ctrl+Enter` работал только в
+самом поле. Глобальных `Ctrl+Shift+Enter` и `Ctrl+K` из 11 §4 не было.
+
+**Решение:** поле коммита регистрируется в `stores/commit-box.svelte.ts`; `commit` показывает
+панель Commit Message, если она скрыта, ставит курсор в поле и коммитит, если поле готово
+(`canCommit`: сообщение, застейдженное или Amend). `commit-amend` сначала ставит Amend,
+`commit-message` только фокусирует. Аккорды — `CmdOrCtrl+Enter` у `Local ▸ Commit…` и
+`OFF_THE_BAR` для двух остальных; окно забирает их у страницы, поэтому `Ctrl+Enter` в самом
+поле идёт тем же путём. Команда `commit` больше не выключена «нечего коммитить»: с Amend
+застейдживать ничего не нужно, а решает поле. Редактор клавиш записывает `Enter`, а не
+`Return` (muda читает только `Enter`); `accelerators.rs` понимает оба. Тесты —
+`commit-box.test.ts`, `menu::tests::the_commit_keys_belong_to_the_window`,
+`accelerators::tests::every_default_accelerator_can_be_claimed`.
+
+## R-453 · Реестр клавиш сведён к назначенному: часть аккордов назначена, остальные убраны · С
+
+Около тридцати аккордов 11 не были назначены нигде, а тултипы тулбара и меню файла их
+показывали (`Ctrl+T` у Stage, `Ctrl+M` у Merge, `Ctrl+Shift+E` у Reveal). Окно забирает у
+WebView2 только аккорды пунктов меню (`accelerators::table`), поэтому аккорд без пункта
+не работает, пока его не поймает сама страница.
+
+**Назначено** (пункт меню или `OFF_THE_BAR`): `Ctrl+T` / `Ctrl+Shift+T` — `Local ▸ Stage` /
+`Unstage` (отмеченные файлы, без отметок — все, как кнопки тулбара), `Ctrl+Alt+Shift+F` —
+Fetch All, `Ctrl+Shift+L` — Blame This File, `Ctrl+Shift+Y` — Copy the Commit SHA, `F7` —
+New Branch…, `Shift+F7` — Create Tag, `Ctrl+Shift+R` — Rebase Commits After This One…
+Всё это открывает диалог или не переписывает историю. `Ctrl+Z` (Discard) ловит сама страница
+и только при фокусе в Files: окно этот аккорд не забирает никогда — в полях ввода и в Diff это
+отмена ввода; тест `the_keys_the_panels_need_are_never_claimed` держит `Ctrl+Z`,
+`Ctrl+Shift+Z`, `Ctrl+X`, `Ctrl+Y` за страницей. Окно слияния получило свои `F6`,
+`Ctrl+1…3`, `Ctrl+Shift+1…3` (`mergeKey`); `Ctrl+2` — обе стороны: отдельной версии Base у
+выбора нет.
+
+**Убрано из 11 и из подсказок:** масштаб `Ctrl+=/-/0` и `F1` (своего масштаба и справки нет),
+Checkout `Ctrl+G`, Merge `Ctrl+M`, Rebase `Ctrl+R` (тулбар делает их без вопроса — одиночный
+аккорд слишком лёгок), Cherry-Pick `Ctrl+Shift+C`, Revert `Ctrl+Shift+V`, Undo
+`Ctrl+Shift+Z` (в полях это повтор ввода), Apply / Pop stash `Ctrl+Shift+A` / `Ctrl+Alt+P`,
+Open in Explorer / Terminal `Ctrl+Shift+E` / `Ctrl+Shift+X`. Правило 11 §12 п.4 («у каждого
+действия тулбара шорткат») смягчено: тултип не обещает аккорда, которого нет. Пункт
+контекстного меню потерянного коммита «Copy the full SHA» получил свой id `lost-copy-sha`:
+общий с командой `copy-sha` id подменял бы копируемый коммит после `Ctrl+Shift+Y`. Тесты —
+`menu::…::the_registry_keys_are_the_window_s`, `merge-view.test.ts` `mergeKey`,
+`file-menu.test.ts`.
+
+## R-454 · Клавиатура списков: одна функция, различия панелей — в 11 §10 · С
+
+11 §10 обещал всем панелям-спискам одинаковые ↑/↓, `Ctrl+↑/↓`, `Shift+↑/↓`, Home/End,
+PageUp/PageDown, ←/→, Enter, `Ctrl+A` и поиск по вводу. Клавиши были только у графа (стрелки,
+Page, Home/End); в Files — `Space`, в Branches — ни одной, в Repositories и Worktrees — `Enter`.
+
+**Решение:** одна чистая функция `listKey` (движение делегирует `nextRow` графа), поиск по
+вводу (`TypeAhead`, `findTyped`) и `moveFocus` для списков из фокусируемых строк
+(`lib/list-keys.ts`). Branches: стрелки, Page, Home/End выбирают узел и центрируют граф на
+нём, ←/→ сворачивают (← на листе — к заголовку), Enter — двойной щелчок узла (checkout
+локальной ветки), ввод — к узлу по имени. Files: стрелки двигают выделение (файл уходит в
+Diff), `Shift` расширяет отметку, `Ctrl+A` отмечает всё показанное. Worktrees: стрелки
+выбирают, Enter открывает. Repositories: стрелки и ввод двигают только фокус — выбор открыл
+бы каждый репозиторий на пути, — открывает Enter. Не сделано и убрано из §10: `Ctrl+↑/↓`
+(курсор отдельно от выделения — у списков нет такого курсора) и поиск по вводу в графе (там
+фильтр). Тест — `list-keys.test.ts`. Проверить в сборке: щелчок по ветке в Branches, затем
+↓ и «ma»; щелчок по файлу в Files, затем ↓ и Shift+↓.
+
+## R-455 · Общие `Checkbox` с `mixed` и `Radio` вместо нативных элементов формы · Н
+
+Галочки Branches (`input` с одним `accent-color`), Scan, Remove Worktree, Split Off, редактора
+rebase и панели Output, радио Add Worktree, Repository Settings, Push To и Reset были нативными;
+`color-scheme` не задан, и на тёмных темах неотмеченные — светлые системные квадраты и круги
+(frontend/CLAUDE.md: no native form controls). `Checkbox` не умел `mixed`, `Radio` не было.
+
+**Решение:** `Checkbox` получил проп `tri` — `triState` на скрытом input, `mixed` рисуется тире, —
+`title`, `ariaLabel`, `wide` и содержимое подписи через `children`; `Radio` — тот же рисунок
+кругом. Рамка выравнивается по первой строке подписи (`1lh`), поэтому длинные подписи Reset и
+Remove Worktree не требуют своих правил. Строка, которая сама была `<label>` (Scan, Split Off),
+стала `div`: вложенный `label` HTML не допускает, подпись целиком теперь внутри `Checkbox`.
+Действие строки rebase — общий `Select`. Проверить в сборке: четыре темы, панель Branches
+(галочки групп в `mixed`), Scan Folder, Reset Advanced…, Push To…
+
+## R-456 · Pull и Sync отказывают разошедшейся ветке заранее, если Pull только перематывает · Н
+
+При настройке по умолчанию (`pullMode = ffOnly`) ветка, которая и опережает, и отстаёт,
+на Synchronize получала `git pull --ff-only` → «Not possible to fast-forward, aborting»; Push
+не шёл, и объяснения, что делать, не было (F-320). Слить сам Sync не вправе: fast-forward only —
+явный выбор пользователя в Preferences ▸ Pull.
+
+**Решение:** `remotePlan` получает выписанную ветку с ahead/behind последнего fetch и, если
+она разошлась со своим upstream, а Pull только перематывает, отказывает до первого шага:
+«main and origin/main have diverged (1 ahead, 1 behind), and Pull only fast-forwards
+(Preferences ▸ Pull). Merge or rebase the branch first, or let Pull merge it.» Если расхождение
+обнаружит только fetch внутри pull, остаётся полный вывод git. С Pull = merge Sync сливает
+(`--no-rebase`) и пушит. Тест — `toolbar-prefs.test.ts` `remotePlan`.

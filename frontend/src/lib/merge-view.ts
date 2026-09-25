@@ -106,6 +106,11 @@ export function editableText(regions: readonly Region[], choices: Choices): stri
 
 const MARKER = /^(<{7}|\|{7}|>{7})( |$)|^={7}$/m;
 
+/** Work that closing the window would throw away: a side picked, or the result edited. */
+export function unsavedResolution(choices: Choices, edited: string | null): boolean {
+  return edited !== null || Object.keys(choices).length > 0;
+}
+
 /** The panels save once every conflict has a side; hand-edited text once no marker is left. */
 export function canSave(regions: readonly Region[], choices: Choices, edited: string | null): boolean {
   if (edited === null) return unresolvedCount(regions, choices) === 0;
@@ -137,4 +142,18 @@ export function nextConflict(
     return at.find((row) => row > current) ?? at[0] ?? null;
   }
   return [...at].reverse().find((row) => row < current) ?? at.at(-1) ?? null;
+}
+
+export type MergeKey = "save" | { step: 1 | -1 } | { take: Choice; all: boolean };
+
+const SIDE_KEYS: Record<string, Choice> = { Digit1: "theirs", Digit2: "both", Digit3: "ours" };
+
+/** The keys of the merge window (11 §9). Digits by where they sit: with Shift the layout
+    types `!` or `#` there. */
+export function mergeKey(press: { key: string; code?: string; ctrl: boolean; shift: boolean; alt: boolean }): MergeKey | null {
+  if (press.key === "F6" && !press.ctrl && !press.alt) return { step: press.shift ? -1 : 1 };
+  if (!press.ctrl || press.alt) return null;
+  if (!press.shift && (press.code === "KeyS" || press.key === "s")) return "save";
+  const take = SIDE_KEYS[press.code ?? ""];
+  return take ? { take, all: press.shift } : null;
 }

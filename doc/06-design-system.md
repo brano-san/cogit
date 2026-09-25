@@ -247,6 +247,16 @@ Hover — `--state-hover`; active — `--state-selected`; disabled — `opacity:
 При фокусе граница меняется на `--state-focus-ring`. Плейсхолдер — `--text-secondary`.
 Крестик очистки появляется только при непустом значении.
 
+### Галочка и радиокнопка
+
+Только `Checkbox.svelte` и `Radio.svelte`, нативных `<input type="checkbox">` и `"radio"` нет:
+системный квадрат белый на тёмной панели. Под рисунком — настоящий скрытый input (Space, стрелки,
+Tab, экранный диктор). Квадрат 14 px (`--checkbox-size` меняет его, в Branches — 12 px), фон
+`--surface-input`, граница `--field-border`; отмечено и `mixed` — заливка `--status-ref`, галочка
+или тире цветом `--surface-base`. Радио — круг того же размера с точкой `--status-ref`. Подпись
+справа, рамка выровнена по первой строке подписи. Состояние, вычисленное из модели (галочка
+заголовка в Branches), — проп `tri` с `triState` (R-158, [R-455](12-risks.md)).
+
 ### Заголовок панели
 
 Высота `--h-panel-hdr`, фон `--surface-raised`, нижняя граница 1 px `--divider`.

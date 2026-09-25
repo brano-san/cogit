@@ -36,7 +36,7 @@ export function conflicts(
 const MODIFIER_KEYS = new Set(["Control", "Shift", "Alt", "Meta", "OS"]);
 
 const NAMED: Record<string, string> = {
-  Enter: "Return",
+  Enter: "Enter",
   " ": "Space",
   Escape: "Esc",
   ArrowUp: "Up",

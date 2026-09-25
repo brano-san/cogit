@@ -31,12 +31,7 @@ export function worktreeFileMenu(at: WorktreeFileTarget): ContextItem[] {
 
   return tidy([
     offer("file-open", "Open File", single ?? (onDisk ? null : "not on disk")),
-    offer(
-      "file-reveal",
-      `Reveal in ${at.fileManager}`,
-      single ?? (onDisk ? null : "not on disk"),
-      "CmdOrCtrl+Shift+E",
-    ),
+    offer("file-reveal", `Reveal in ${at.fileManager}`, single ?? (onDisk ? null : "not on disk")),
     offer("file-changes", "Show Changes", single),
     item("file-log", "Log", history),
     item("file-blame", "Blame", history, "CmdOrCtrl+Shift+L"),

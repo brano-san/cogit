@@ -1,5 +1,6 @@
 <script lang="ts">
   import Checkbox from "$components/common/Checkbox.svelte";
+  import Radio from "$components/common/Radio.svelte";
   import {
     COLUMN_LABELS,
     moveColumn,
@@ -11,6 +12,7 @@
   import { blockedModes, GRAPH_MODES, type GraphMode } from "$lib/graph-mode-conflicts";
   import { fieldDisabled, type Field } from "$lib/preferences";
   import { LONG_LINK_ROWS_MAX, type Settings } from "$lib/settings";
+  import { pointerDrag } from "$lib/pointer-drag";
 
   /** One graph setting of Preferences ▸ Graph & History (#23). Applied as it changes. */
   interface Props {
@@ -39,7 +41,12 @@
   /** Where the hidden columns sit, as last arranged here; the setting only keeps the rest. */
   let arranged = $state.raw<ColumnRow[]>([]);
   const rows = $derived(reconcileRows(arranged, value.graphColumns));
-  let dragging = $state<number | null>(null);
+  /** The row a column is being dragged over (R-450). */
+  let over = $state<number | null>(null);
+  const columnDrag = {
+    onover: (target: string | null) => (over = target === null ? null : Number(target)),
+    ondrop: (source: string, target: string) => arrange(moveColumn(rows, Number(source), Number(target))),
+  };
 
   function arrange(next: ColumnRow[]) {
     arranged = next;
@@ -67,21 +74,14 @@
 {#if field.key === "graphColumns"}
   <div class="row choice">
     <span>{field.label}</span>
-    <div class="columns" role="list" aria-label="Graph columns, in order">
+    <div class="columns" role="list" aria-label="Graph columns, in order" use:pointerDrag={columnDrag}>
       {#each rows as row, index (row.id)}
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
           class="column"
           role="listitem"
-          class:over={dragging !== null && dragging !== index}
-          draggable="true"
-          ondragstart={() => (dragging = index)}
-          ondragover={(event) => event.preventDefault()}
-          ondrop={() => {
-            if (dragging !== null) arrange(moveColumn(rows, dragging, index));
-            dragging = null;
-          }}
-          ondragend={() => (dragging = null)}
+          class:over={over === index}
+          data-drag={index}
+          data-drop={index}
         >
           <button
             type="button"
@@ -123,15 +123,11 @@
     <span class:off={disabled}>{field.label}</span>
     <div class="options">
       {#each TIME_FORMATS as [id, example] (id)}
-        <label class:off={disabled}>
-          <input
-            type="radio"
-            checked={value.graphTimeFormat === id}
-            {disabled}
-            onchange={() => onset("graphTimeFormat", id)}
-          />
-          <span class="mono">{example}</span>
-        </label>
+        <span class:off={disabled}>
+          <Radio name="graphTimeFormat" checked={value.graphTimeFormat === id} {disabled} onchange={() => onset("graphTimeFormat", id)}>
+            <span class="mono">{example}</span>
+          </Radio>
+        </span>
       {/each}
       {#if disabled}<span class="why">The Time column is hidden.</span>{/if}
     </div>
@@ -141,14 +137,7 @@
     <span>{field.label}</span>
     <div class="options">
       {#each DENSITIES as [id, title] (id)}
-        <label>
-          <input
-            type="radio"
-            checked={value.graphDensity === id}
-            onchange={() => onset("graphDensity", id)}
-          />
-          <span>{title}</span>
-        </label>
+        <Radio name="graphDensity" checked={value.graphDensity === id} onchange={() => onset("graphDensity", id)} label={title} />
       {/each}
     </div>
   </div>
@@ -275,12 +264,6 @@
     gap: var(--sp-2);
   }
 
-  .options label {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-3);
-  }
-
   .slider {
     display: flex;
     align-items: center;
@@ -296,12 +279,5 @@
   .off {
     color: var(--text-secondary);
     opacity: 0.6;
-  }
-
-  input[type="radio"] {
-    accent-color: var(--status-ref);
-    width: 13px;
-    height: 13px;
-    margin: 0;
   }
 </style>

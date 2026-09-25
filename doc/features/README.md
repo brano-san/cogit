@@ -333,3 +333,7 @@
 | F-481 | Конфликт «изменён / удалён» разрешается удалением файла | [F-481-conflict-deleted-side.md](F-481-conflict-deleted-side.md) |
 | F-482 | Бинарный конфликт берётся стороной целиком | [F-482-binary-conflict.md](F-482-binary-conflict.md) |
 | F-483 | Ручная правка слияния с маркерами конфликта | [F-483-merge-hand-edit-markers.md](F-483-merge-hand-edit-markers.md) |
+| F-505 | Окно слияния спрашивает, прежде чем закрыться с несохранённым разрешением | [F-505-merge-window-asks-before-closing.md](F-505-merge-window-asks-before-closing.md) |
+| F-506 | Клавиши окна слияния | [F-506-merge-window-keys.md](F-506-merge-window-keys.md) |
+| F-507 | Аккорды стейджинга и инструментов | [F-507-registry-keys.md](F-507-registry-keys.md) |
+| F-508 | Клавиатура в списках | [F-508-list-keyboard.md](F-508-list-keyboard.md) |

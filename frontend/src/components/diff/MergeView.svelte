@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { modals } from "$lib/modal-stack";
   import VirtualList from "$components/common/VirtualList.svelte";
   import {
     autoResolvedCount,
@@ -6,11 +7,13 @@
     chooseAll,
     conflictRows,
     editableText,
+    mergeKey,
     mergeRows,
     mergedText,
     nextConflict,
     syntacticCount,
     unresolvedCount,
+    unsavedResolution,
     type Choice,
     type Choices,
   } from "$lib/merge-view";
@@ -23,8 +26,9 @@
     oncancel: () => void;
     /** Absent in the window of its own, where there is nowhere to pop out to. */
     onpopout?: () => void;
-    /** Only the separate window may take Ctrl+S: in the main one the native menu owns
-        it for Stash All, and an accelerator cannot be preventDefault-ed from here. */
+    /** Only the separate window may take its keys (Ctrl+S, F6, Ctrl+1…3): in the main one
+        the native menu owns Ctrl+S for Stash All and Ctrl+1…7 for the panels, and an
+        accelerator cannot be preventDefault-ed from here. */
     saveShortcut?: boolean;
   }
 
@@ -55,11 +59,38 @@
     if (saveable) onsave(text);
   }
 
+  /** Read by the merge window before it closes (04 §7). */
+  export function unsaved(): boolean {
+    return unsavedResolution(choices, edited);
+  }
+
+  /** The conflict under the cursor, or the first one when none is. */
+  function take(side: Choice) {
+    const row = at ?? nextConflict(conflicts, null, 1);
+    const region = row === null ? undefined : rows[row]?.region;
+    if (region === undefined) return;
+    pick(region, side);
+    at = row;
+    step(1);
+  }
+
   function onkeydown(event: KeyboardEvent) {
-    if (!saveShortcut) return;
-    if (!(event.ctrlKey || event.metaKey) || event.key !== "s") return;
+    if (!saveShortcut || modals.any) return;
+    const action = mergeKey({
+      key: event.key,
+      code: event.code,
+      ctrl: event.ctrlKey || event.metaKey,
+      shift: event.shiftKey,
+      alt: event.altKey,
+    });
+    if (action === null) return;
     event.preventDefault();
-    save();
+    if (action === "save") save();
+    else if ("step" in action) step(action.step);
+    // Hand-edited text is the result now; a side picked would not show in it.
+    else if (edited !== null) return;
+    else if (action.all) choices = chooseAll(regions, action.take);
+    else take(action.take);
   }
 </script>
 

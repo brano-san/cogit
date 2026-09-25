@@ -39,8 +39,8 @@
 **DoD:** случайно удалённый стэш восстанавливается через Undo.
 
 ### T5.4 · Операции над ветками
-- [x] `Checkout` (`Ctrl+G`), `Merge` (`Ctrl+M`), `Fast-Forward`
-- [x] `Rebase` (`Ctrl+R`), `Cherry-Pick`, `Revert`
+- [x] `Checkout`, `Merge`, `Fast-Forward` — меню веток и тулбар; аккордов нет ([R-453](../12-risks.md))
+- [x] `Rebase`, `Cherry-Pick`, `Revert`
 - [x] `Branch` (`F7`), `Tag` (`Shift+F7`), удаление с различением `-d` и `-D`
 - [x] `Set Upstream`, `Rename`, `Push`, `Delete Remote Branch`
 - [x] Предупреждение при checkout с несохранёнными изменениями и предложение автоstash

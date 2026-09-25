@@ -5,7 +5,7 @@ use tauri::menu::{
     CheckMenuItem, CheckMenuItemBuilder, Menu, MenuItem, MenuItemBuilder, PredefinedMenuItem,
     Submenu, SubmenuBuilder,
 };
-use tauri::{AppHandle, Runtime};
+use tauri::{AppHandle, Manager as _, Runtime};
 
 mod context;
 pub use context::{ContextItem, ContextMenu, popup};
@@ -94,7 +94,7 @@ const LFS: &[Entry] = &[
 
 const REMOTE: &[Entry] = &[
     Entry::Item("fetch", "Fetch", Some("CmdOrCtrl+Shift+F")),
-    Entry::Item("fetch-all", "Fetch All", None),
+    Entry::Item("fetch-all", "Fetch All", Some("CmdOrCtrl+Alt+Shift+F")),
     Entry::Item("pull", "Pull", Some("CmdOrCtrl+Shift+U")),
     Entry::Item("push", "Push", Some("CmdOrCtrl+Shift+O")),
     Entry::Item("synchronize", "Synchronize", Some("CmdOrCtrl+Shift+S")),
@@ -107,7 +107,9 @@ const REMOTE: &[Entry] = &[
 ];
 
 const LOCAL: &[Entry] = &[
-    Entry::Item("commit", "Commit…", Some("CmdOrCtrl+Return")),
+    Entry::Item("commit", "Commit…", Some("CmdOrCtrl+Enter")),
+    Entry::Item("stage", "Stage", Some("CmdOrCtrl+T")),
+    Entry::Item("unstage", "Unstage", Some("CmdOrCtrl+Shift+T")),
     Entry::Item("stash", "Stash All", Some("CmdOrCtrl+S")),
     Entry::Item(
         "stash-selection",
@@ -126,21 +128,25 @@ const LOCAL: &[Entry] = &[
     Entry::Item("flow-hotfix", "Git-Flow: Start Hotfix…", None),
     Entry::Item("flow-finish", "Git-Flow: Finish This Branch…", None),
     Entry::Separator,
-    Entry::Item("rebase-i", "Rebase Commits After This One…", None),
+    Entry::Item(
+        "rebase-i",
+        "Rebase Commits After This One…",
+        Some("CmdOrCtrl+Shift+R"),
+    ),
     Entry::Item("split-off", "Split Off Files…", None),
     Entry::Item("rollback", "Roll Back Tree To This Commit", None),
 ];
 
 const BRANCH: &[Entry] = &[
-    Entry::Item("branch", "New Branch…", None),
-    Entry::Item("tag", "Create Tag", None),
+    Entry::Item("branch", "New Branch…", Some("F7")),
+    Entry::Item("tag", "Create Tag", Some("Shift+F7")),
 ];
 
 const QUERY: &[Entry] = &[
     Entry::Item("find", "Find Object…", Some("CmdOrCtrl+P")),
     Entry::Item("palette", "Find Command…", Some("CmdOrCtrl+Shift+P")),
     Entry::Separator,
-    Entry::Item("blame", "Blame This File", None),
+    Entry::Item("blame", "Blame This File", Some("CmdOrCtrl+Shift+L")),
 ];
 
 const TOOLS: &[Entry] = &[
@@ -174,10 +180,31 @@ const SECTIONS: &[(&str, &[Entry])] = &[
 
 /// Keyed commands with no place on the bar (#43): the window still claims the key, or
 /// WebView2 would take F5 as "reload the page", and the keymap editor still lists them.
-const OFF_THE_BAR: &[(&str, &[Entry])] = &[(
-    "Repository",
-    &[Entry::Item("refresh", "Refresh", Some("F5"))],
-)];
+const OFF_THE_BAR: &[(&str, &[Entry])] = &[
+    (
+        "Repository",
+        &[Entry::Item("refresh", "Refresh", Some("F5"))],
+    ),
+    (
+        "Edit",
+        &[Entry::Item(
+            "copy-sha",
+            "Copy the Commit SHA",
+            Some("CmdOrCtrl+Shift+Y"),
+        )],
+    ),
+    (
+        "Local",
+        &[
+            Entry::Item(
+                "commit-amend",
+                "Commit with Amend",
+                Some("CmdOrCtrl+Shift+Enter"),
+            ),
+            Entry::Item("commit-message", "Commit Message", Some("CmdOrCtrl+K")),
+        ],
+    ),
+];
 
 fn keyed(section: &str, entries: &'static [Entry]) -> Vec<&'static Entry> {
     let mut all = leaves(entries);
@@ -489,6 +516,9 @@ impl<R: Runtime> From<Collected<R>> for MenuItems<R> {
 
 /// Rebuilds the whole bar: muda cannot change an accelerator after an item is built, so the
 /// held item handles are replaced along with it.
+///
+/// The main window gets it, not the app: `App::set_menu` also hands it to every window
+/// without a menu, and Compare and Merge dropped theirs (`child_window::open`).
 pub fn rebuild<R: Runtime>(
     app: &AppHandle<R>,
     keymap: &Keymap,
@@ -497,7 +527,15 @@ pub fn rebuild<R: Runtime>(
 ) -> tauri::Result<()> {
     keymap.set(overrides);
     let (menu, collected) = build(app, &keymap.snapshot())?;
-    app.set_menu(menu)?;
+    match app.get_webview_window(crate::child_window::MAIN) {
+        // macOS has one bar for the whole app.
+        Some(main) if cfg!(not(target_os = "macos")) => {
+            main.set_menu(menu)?;
+        }
+        _ => {
+            app.set_menu(menu)?;
+        }
+    }
     items.replace(collected);
     Ok(())
 }
@@ -624,6 +662,43 @@ mod nested_tests {
             .find(|row| row.id == "refresh")
             .expect("listed in the keymap editor");
         assert_eq!(row.section, "Repository");
+    }
+
+    /// 11 §4: Commit, Commit with Amend and the message field answer anywhere in the window.
+    #[test]
+    fn the_commit_keys_belong_to_the_window() {
+        let pairs = default_keymap_pairs();
+        assert!(pairs.contains(&("commit", Some("CmdOrCtrl+Enter"))));
+        assert!(pairs.contains(&("commit-amend", Some("CmdOrCtrl+Shift+Enter"))));
+        assert!(pairs.contains(&("commit-message", Some("CmdOrCtrl+K"))));
+        let claimed = crate::accelerators::table(pairs, &HashMap::new());
+        for keys in ["CmdOrCtrl+Enter", "CmdOrCtrl+Shift+Enter", "CmdOrCtrl+K"] {
+            let chord = crate::accelerators::parse(keys).expect("parses");
+            assert!(claimed.contains_key(&chord), "{keys}");
+        }
+        let row = default_keymap()
+            .into_iter()
+            .find(|row| row.id == "commit-amend")
+            .expect("listed");
+        assert_eq!(row.section, "Local");
+    }
+
+    /// 11 promised these and the toolbar and file menus showed them, but no item had them.
+    #[test]
+    fn the_registry_keys_are_the_window_s() {
+        let pairs = default_keymap_pairs();
+        for pair in [
+            ("stage", Some("CmdOrCtrl+T")),
+            ("unstage", Some("CmdOrCtrl+Shift+T")),
+            ("fetch-all", Some("CmdOrCtrl+Alt+Shift+F")),
+            ("blame", Some("CmdOrCtrl+Shift+L")),
+            ("copy-sha", Some("CmdOrCtrl+Shift+Y")),
+            ("branch", Some("F7")),
+            ("tag", Some("Shift+F7")),
+            ("rebase-i", Some("CmdOrCtrl+Shift+R")),
+        ] {
+            assert!(pairs.contains(&pair), "{pair:?}");
+        }
     }
 
     #[test]
