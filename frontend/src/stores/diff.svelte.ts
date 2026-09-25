@@ -13,6 +13,7 @@ import { readKey, writeKey } from "$lib/settings-file";
 import { discardSelection, stageSelection, type PatchRequest } from "$lib/ipc";
 import { expandedContext } from "$lib/diff-rows";
 import { splitSelection } from "$lib/selection";
+import { runMutation, type MutationContext } from "$lib/mutation";
 import { settings } from "./settings.svelte";
 
 const DEFAULT_CONTEXT = 3;
@@ -40,6 +41,8 @@ class DiffStore {
   showMoves = $state(true);
 
   #prefsRead = false;
+  /** How App ends a change to the working tree; see `useMutation`. */
+  #mutation: MutationContext | null = null;
   /** Which repository the shown diff came from, so a toggle can recompute it. */
   #repo: RepoId | null = null;
   /** The file `diff` belongs to. `path` and `spec` move to the next file at once; this
@@ -134,6 +137,12 @@ class DiffStore {
     await this.load(this.#repo, this.spec, this.path);
   }
 
+  /** Every change to the working tree ends the same way (`runMutation`): the file list,
+      the journal behind Undo and the rest read again. App hands its own over once. */
+  useMutation(context: MutationContext | null): void {
+    this.#mutation = context;
+  }
+
   /** Throws the selected lines away in the working tree. The caller confirms first.
       `from` is the diff the lines were chosen in; once another has replaced it, their
       numbers mean other lines, and nothing is thrown away. */
@@ -143,6 +152,11 @@ class DiffStore {
     if (!this.lineActions.discard) return;
     const lines = this.#lines(selected);
     if (!lines) return;
+    const context = this.#mutation;
+    if (context) {
+      await runMutation(context, () => discardSelection(lines.repo, lines.request), [lines.request.path], false);
+      return;
+    }
     await discardSelection(lines.repo, lines.request);
     await this.reload();
   }

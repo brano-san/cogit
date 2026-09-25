@@ -439,6 +439,7 @@
     loadWorktree: (id) => worktree.load(id),
     after: (paths) => afterMutation(paths),
   };
+  diff.useMutation(mutation);
 
   /** See `runMutation`; `readsBack` for a worktree-store write that reads the list itself. */
   async function mutate(
