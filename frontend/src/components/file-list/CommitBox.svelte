@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { hasOwnText } from "$lib/commit-draft";
   import { SUBJECT_HARD, SUBJECT_SOFT, subjectOf, subjectState } from "$lib/commit-message";
 
   interface Props {
@@ -22,7 +23,9 @@
 
   const overflow = $derived(subjectState(message));
   const length = $derived([...subjectOf(message)].length);
-  const ready = $derived(message.trim() !== "" && (stagedCount > 0 || amend) && !busy && (amend || !scope.empty));
+  const ready = $derived(
+    hasOwnText(message, template) && (stagedCount > 0 || amend) && !busy && (amend || !scope.empty),
+  );
 
   // Cleared once the commit is made, not before: a cancelled question or a hook that
   // refused left the box empty, and a retry without Amend made a new commit instead.

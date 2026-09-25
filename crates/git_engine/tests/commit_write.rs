@@ -91,6 +91,68 @@ fn an_empty_message_is_refused_before_git_is_even_started() {
     );
 }
 
+/// `commit.template` with two hint lines, and one file staged to commit.
+fn with_template() -> test_fixtures::Fixture {
+    let f = test_fixtures::linear(1).unwrap();
+    let template = f.git_dir().join("cogit-test-template");
+    std::fs::write(&template, "\n\n# Explain why, not what\n# Wrap at 72\n").unwrap();
+    f.git(&[
+        "config",
+        "commit.template",
+        &template.to_string_lossy().replace('\\', "/"),
+    ])
+    .unwrap();
+    std::fs::write(f.path().join("fresh.txt"), "new\n").unwrap();
+    f.git(&["add", "--", "fresh.txt"]).unwrap();
+    f
+}
+
+fn last_message(f: &test_fixtures::Fixture) -> String {
+    f.git(&["log", "-1", "--format=%B"])
+        .unwrap()
+        .trim_end()
+        .to_owned()
+}
+
+// F-103: the template seeds the field hints and all, and `-m` keeps `#` lines, so the
+// template's own hints went into the commit. `git commit` with the editor strips them.
+#[test]
+fn the_hints_of_the_commit_template_stay_out_of_the_commit() {
+    let f = with_template();
+
+    open(&f)
+        .commit(&request(
+            "Fix the parser\n\nIt lost a token.\n# Explain why, not what\n# Wrap at 72\n",
+        ))
+        .unwrap();
+
+    assert_eq!(last_message(&f), "Fix the parser\n\nIt lost a token.");
+}
+
+// `--cleanup=strip` would have taken this one too: an issue number is not a hint.
+#[test]
+fn a_hash_line_of_the_users_own_is_kept() {
+    let f = with_template();
+
+    open(&f)
+        .commit(&request("#123 fix the parser\n\n# Explain why, not what\n"))
+        .unwrap();
+
+    assert_eq!(last_message(&f), "#123 fix the parser");
+}
+
+#[test]
+fn the_untouched_template_is_refused_as_an_empty_message() {
+    let f = with_template();
+
+    let result = open(&f).commit(&request("\n\n# Explain why, not what\n# Wrap at 72\n"));
+
+    assert!(
+        matches!(result, Err(git_engine::GitError::InvalidState(_))),
+        "{result:?}"
+    );
+}
+
 #[test]
 fn amend_replaces_the_previous_commit_instead_of_adding_one() {
     let f = test_fixtures::linear(3).unwrap();

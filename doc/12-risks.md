@@ -5213,3 +5213,19 @@ pid ещё не освобождён и не может достаться чу�
 **Не сделано:** отмена пользователем. Нужна команда `cancel_network` и кнопка у операции в
 футере — это IPC и оболочка, не `git_engine`. На Linux и macOS `stop_tree` посылает `TERM`
 только самому git; его ssh или `git-remote-https` git гасит сам при выходе.
+
+## R-413 · Подсказки шаблона коммита вырезаются по шаблону, не `--cleanup=strip` · С
+
+Поле сообщения засевается `commit.template` целиком, а коммит идёт `git commit -m`, у которого
+очистка по умолчанию — `whitespace`: строки-подсказки шаблона (`# Explain why`) попадали в
+сообщение. `git commit` с редактором их вырезает (`strip`).
+
+**Решение:** `commit_write` убирает из сообщения только строки, совпадающие со строками шаблона,
+которые начинаются с префикса комментария (`core.commentString`, `core.commentChar`; `auto` и
+пусто — `#`). `--cleanup=strip` для всех не включён: он съел бы и строки пользователя —
+тему `#123 fix the parser`, заголовок Markdown в теле. Сообщение, пустое после вырезания,
+отвергается до запуска git, как пустое. Во фронтенде та же логика (`lib/commit-draft.ts`,
+префикс `#`) выключает кнопку для нетронутого шаблона — `git commit` отказывает ему как
+неотредактированному. Тесты — `the_hints_of_the_commit_template_stay_out_of_the_commit`,
+`a_hash_line_of_the_users_own_is_kept` (`crates/git_engine/tests/commit_write.rs`),
+`commit-draft.test.ts`.
