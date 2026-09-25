@@ -58,13 +58,13 @@
   />
 {:else if diff.error && diff.path}
   <p class="error detail">{diff.error.message}</p>
-{:else if diff.diff?.kind === "submodule" && diff.path}
+{:else if diff.diff?.kind === "submodule" && diff.shownPath}
   <SubmoduleDiff
-    path={diff.path}
+    path={diff.shownPath}
     recorded={diff.diff.recorded}
     previous={diff.diff.previous}
     checkedOut={diff.diff.checkedOut}
-    oninit={() => oninitsubmodule(diff.path ?? "")}
+    oninit={() => oninitsubmodule(diff.shownPath ?? "")}
   />
 {:else if diff.diff?.kind === "image"}
   <ImageDiff
