@@ -168,13 +168,19 @@ impl AppState {
         spec: &git_engine::DiffSpec,
         reverse: bool,
     ) -> Result<String, git_engine::GitError> {
-        if diff_engine::carries_undecoded_bytes(request) {
+        let (old, new) = self.handle(repo)?.patch_sides(spec, &request.path)?;
+        // A stand-in character only means a lost byte where a side is not UTF-8: the same
+        // character written in valid UTF-8 is just text (an icon font's, say).
+        let lossy = |side: &Option<Vec<u8>>| {
+            side.as_deref()
+                .is_some_and(|b| std::str::from_utf8(b).is_err())
+        };
+        if diff_engine::carries_undecoded_bytes(request) && (lossy(&old) || lossy(&new)) {
             return Err(git_engine::GitError::InvalidState(format!(
                 "{} is not valid UTF-8: stage or discard it whole, not line by line",
                 request.path
             )));
         }
-        let (old, new) = self.handle(repo)?.patch_sides(spec, &request.path)?;
         let shape = diff_engine::PatchShape {
             reverse,
             old_exists: old.is_some(),
