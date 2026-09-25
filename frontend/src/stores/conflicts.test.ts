@@ -178,3 +178,62 @@ describe("a file resolved in the merge window", () => {
     expect(conflicts.regions).toEqual(region("b.txt"));
   });
 });
+
+// A second click on the open conflicted file — the second click of a double-click too —
+// opened it again: the merge view was rebuilt and every side picked was gone.
+describe("clicking the conflicted file that is open", () => {
+  it("keeps the merge on screen as it is", async () => {
+    const ipc = await import("$lib/ipc");
+    await opened("a.txt");
+    vi.mocked(ipc.conflictText).mockClear();
+
+    await conflicts.open(1 as never, "a.txt");
+
+    expect(ipc.conflictText).not.toHaveBeenCalled();
+    expect(conflicts.regions).toEqual(region("a.txt"));
+  });
+});
+
+// Opening any other file — another conflict, a staged file, a commit's file — replaced
+// the merge without a word, or never replaced it at all.
+describe("leaving an open merge", () => {
+  it("closes it at once when nothing was picked", async () => {
+    const { confirmation } = await import("./confirm.svelte");
+    await opened("a.txt");
+
+    expect(await conflicts.leave()).toBe(true);
+
+    expect(conflicts.path).toBeNull();
+    expect(confirmation.open).toBeNull();
+  });
+
+  it("asks first when sides were picked, and stays when told to", async () => {
+    const { confirmation } = await import("./confirm.svelte");
+    await opened("a.txt");
+    conflicts.markUnsaved(true);
+
+    const leaving = conflicts.leave();
+    expect(confirmation.open?.title).toBe("Discard the Resolution");
+    confirmation.answer(false);
+
+    expect(await leaving).toBe(false);
+    expect(conflicts.path).toBe("a.txt");
+  });
+
+  it("goes once the user agrees", async () => {
+    const { confirmation } = await import("./confirm.svelte");
+    await opened("a.txt");
+    conflicts.markUnsaved(true);
+
+    const leaving = conflicts.leave();
+    confirmation.answer(true);
+
+    expect(await leaving).toBe(true);
+    expect(conflicts.path).toBeNull();
+    expect(conflicts.unsaved).toBe(false);
+  });
+
+  it("is nothing to ask about when no merge is open", async () => {
+    expect(await conflicts.leave()).toBe(true);
+  });
+});
