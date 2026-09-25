@@ -69,7 +69,7 @@
 | `Ctrl+Enter` | `global` | Commit — `Local ▸ Commit…`: показывает панель Commit Message, ставит в поле курсор и коммитит, если коммит готов (R-452) |
 | `Ctrl+Shift+Enter` | `global` | Commit --amend — то же с галочкой Amend; команда без пункта в меню (`OFF_THE_BAR`, `commit-amend`) |
 | `Ctrl+K` | `global` | Фокус на поле сообщения коммита; показывает панель, если она скрыта (`OFF_THE_BAR`, `commit-message`) |
-| `Space` | `files` | Переключить стейджинг строки списка |
+| `Space` | `files` | Отметить строку или снять отметку (множественный выбор, F-101); ставит в индекс `Ctrl+T` |
 | `Ctrl+A` | `files` | Выделить все файлы |
 
 > **Предупреждение о `Ctrl+Z`.**
