@@ -168,13 +168,16 @@ describe("worktreeMarks", () => {
     ...over,
   });
 
+  const tracking = (name: string): Branch =>
+    local(name, { kind: "remote", fullName: `refs/remotes/${name}`, upstream: null });
+
   it("marks a branch another worktree holds, with its path", () => {
     const marks = worktreeMarks(
       [
         entry({ branch: "main", isMain: true, isCurrent: true, path: "E:/w/main" }),
         entry({ branch: "feature", path: "E:/w/feature" }),
       ],
-      [local("main"), local("feature")],
+      [local("main"), local("feature"), tracking("origin/main"), tracking("origin/feature")],
     );
     expect(marks.get("feature")).toEqual({ path: "E:/w/feature", state: "synced" });
   });
@@ -208,12 +211,19 @@ describe("worktreeMarks", () => {
         local("ahead", { ahead: 2 }),
         local("local-only", { upstream: null }),
         local("behind", { behind: 3 }),
+        tracking("origin/ahead"),
+        tracking("origin/behind"),
       ],
     );
     expect(marks.get("ahead")?.state).toBe("unpushed");
     expect(marks.get("local-only")?.state).toBe("unpushed");
     expect(marks.get("unknown")?.state).toBe("unpushed");
     expect(marks.get("behind")?.state).toBe("synced");
+  });
+
+  it("does not call a worktree pushed when its upstream is gone from the server", () => {
+    const marks = worktreeMarks([entry({ branch: "feature", path: "E:/w/feature" })], [local("feature")]);
+    expect(marks.get("feature")?.state).toBe("unpushed");
   });
 
   it("puts the path and the state in the tooltip", () => {

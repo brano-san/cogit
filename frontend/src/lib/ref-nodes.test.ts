@@ -15,6 +15,11 @@ import { flatten } from "./tree";
 
 const OID = "a".repeat(40);
 
+/** The remote-tracking branch an upstream names; without it the upstream is gone. */
+function tracking(name: string): Branch {
+  return branch(name, { kind: "remote", fullName: `refs/remotes/${name}` });
+}
+
 function branch(name: string, over: Partial<Branch> = {}): Branch {
   return {
     name,
@@ -101,13 +106,21 @@ describe("buildRefTree", () => {
   });
 
   it("says a branch is level with its upstream", () => {
-    const nodes = buildRefTree(input({ branches: [branch("master", { upstream: "origin/master" })] }));
+    const nodes = buildRefTree(
+      input({ branches: [branch("master", { upstream: "origin/master" }), tracking("origin/master")] }),
+    );
     expect(nodes.find((node) => node.id === "local:master")?.detail).toBe("= origin");
+  });
+
+  // Fetch prunes the remote-tracking branch, the config still names it: `[origin/x: gone]`.
+  it("says an upstream deleted on the server is gone, not level", () => {
+    const nodes = buildRefTree(input({ branches: [branch("feature", { upstream: "origin/feature" })] }));
+    expect(nodes.find((node) => node.id === "local:feature")?.detail).toBe("origin: gone");
   });
 
   it("counts divergence instead when there is any", () => {
     const diverged = branch("master", { upstream: "origin/master", ahead: 2, behind: 1 });
-    const nodes = buildRefTree(input({ branches: [diverged] }));
+    const nodes = buildRefTree(input({ branches: [diverged, tracking("origin/master")] }));
     expect(nodes.find((node) => node.id === "local:master")?.detail).toBe("↑2 ↓1");
   });
 
@@ -638,7 +651,7 @@ describe("branches held by a worktree (#25)", () => {
   it("reads whether the held branch is pushed from the branch list", () => {
     const nodes = buildRefTree(
       input({
-        branches: [branch("feature", { upstream: "origin/feature" })],
+        branches: [branch("feature", { upstream: "origin/feature" }), tracking("origin/feature")],
         worktrees: [held({})],
       }),
     );
