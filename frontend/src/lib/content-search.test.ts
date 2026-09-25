@@ -69,6 +69,12 @@ describe("keepFile", () => {
     expect(keepFile(entry("src/main.rs"), pattern, hits)).toBe(true);
     expect(keepFile(entry("docs/readme.md"), pattern, hits)).toBe(false);
   });
+
+  it("keeps a new folder's collapsed row when a file inside it matches", () => {
+    const hits = new Map([["newdir/deeper/a.ts", 1]]);
+    expect(keepFile(entry("newdir/"), pattern, hits)).toBe(true);
+    expect(keepFile(entry("new/"), pattern, hits)).toBe(false);
+  });
 });
 
 describe("ContentSearch", () => {
