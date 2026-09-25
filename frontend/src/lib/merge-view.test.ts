@@ -10,6 +10,7 @@ import {
   nextConflict,
   syntacticCount,
   unresolvedCount,
+  unsavedResolution,
 } from "./merge-view";
 import type { Region } from "$lib/ipc";
 
@@ -224,5 +225,21 @@ describe("canSave", () => {
 
   it("does not mistake a line of equals signs inside other text for a marker", () => {
     expect(canSave(regions, {}, "title\n======= and more\n")).toBe(true);
+  });
+});
+
+// The merge window closed on Esc, Ctrl+W or its ✕ at once, and the sides picked and the
+// text typed into the result were gone without a word (04 §7, 11 §9).
+describe("unsavedResolution", () => {
+  it("is nothing while no side is picked and nothing typed", () => {
+    expect(unsavedResolution({}, null)).toBe(false);
+  });
+
+  it("is a side picked for a conflict", () => {
+    expect(unsavedResolution({ 1: "ours" }, null)).toBe(true);
+  });
+
+  it("is text typed into the result", () => {
+    expect(unsavedResolution({}, "resolved by hand")).toBe(true);
   });
 });

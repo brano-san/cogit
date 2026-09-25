@@ -106,6 +106,11 @@ export function editableText(regions: readonly Region[], choices: Choices): stri
 
 const MARKER = /^(<{7}|\|{7}|>{7})( |$)|^={7}$/m;
 
+/** Work that closing the window would throw away: a side picked, or the result edited. */
+export function unsavedResolution(choices: Choices, edited: string | null): boolean {
+  return edited !== null || Object.keys(choices).length > 0;
+}
+
 /** The panels save once every conflict has a side; hand-edited text once no marker is left. */
 export function canSave(regions: readonly Region[], choices: Choices, edited: string | null): boolean {
   if (edited === null) return unresolvedCount(regions, choices) === 0;
