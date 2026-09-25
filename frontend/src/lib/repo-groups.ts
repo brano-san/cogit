@@ -136,23 +136,29 @@ export function groupRows(
     else children.set(parent, [id]);
   }
 
-  const walk = (parent: string | null, depth: number) => {
+  // A collapsed group is still walked: its children's repositories belong to them, not to
+  // Ungrouped. Collapsing only decides what is drawn.
+  const walk = (parent: string | null, depth: number, shown: boolean) => {
     for (const id of children.get(parent) ?? []) {
       const inside = inGroup.get(id) ?? [];
       for (const root of inside) claimed.add(root);
-      rows.push({
-        kind: "group",
-        id,
-        name: groups.names[id] ?? id,
-        count: inside.length,
-        depth,
-      });
-      if (collapsed.has(id)) continue;
-      for (const root of inside) rows.push({ kind: "repo", root, group: id, depth: depth + 1 });
-      walk(id, depth + 1);
+      const open = shown && !collapsed.has(id);
+      if (shown) {
+        rows.push({
+          kind: "group",
+          id,
+          name: groups.names[id] ?? id,
+          count: inside.length,
+          depth,
+        });
+      }
+      if (open) {
+        for (const root of inside) rows.push({ kind: "repo", root, group: id, depth: depth + 1 });
+      }
+      walk(id, depth + 1, open);
     }
   };
-  walk(null, 0);
+  walk(null, 0, true);
 
   const loose = roots.filter((root) => !claimed.has(root));
   if (loose.length === 0) return rows;
