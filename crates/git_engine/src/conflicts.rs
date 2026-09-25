@@ -55,6 +55,21 @@ impl ConflictSides {
     }
 }
 
+/// The merge view joins its lines with LF and ends on a newline. The file keeps what our
+/// side has instead: its dominant line ending, and no final newline where it had none.
+fn shaped_like(text: &str, like: &[u8]) -> String {
+    let crlf = like.windows(2).filter(|pair| *pair == b"\r\n").count();
+    let lf = like.iter().filter(|&&byte| byte == b'\n').count() - crlf;
+    let mut out = text.replace("\r\n", "\n");
+    if !like.is_empty() && !like.ends_with(b"\n") && out.ends_with('\n') {
+        out.pop();
+    }
+    if crlf > lf {
+        out = out.replace('\n', "\r\n");
+    }
+    out
+}
+
 /// Git's binary rule — a NUL in the first 8000 bytes — and valid UTF-8.
 fn is_text(bytes: &[u8]) -> bool {
     !bytes.iter().take(8000).any(|&byte| byte == 0) && std::str::from_utf8(bytes).is_ok()
@@ -108,19 +123,26 @@ impl RepoHandle {
         self.run_git_literal(&["add", "--", path]).map(drop)
     }
 
+    /// Written and staged in one step, or `git merge --continue` refuses a file that looks
+    /// done; then checked out again, so the eol and smudge filters apply as to any file.
     pub fn resolve_with_text(&self, path: &str, text: &str) -> Result<()> {
-        if !self.conflict_sides(path)?.is_text() {
+        let sides = self.conflict_sides(path)?;
+        if !sides.is_text() {
             return Err(GitError::InvalidState(format!(
                 "{path} is binary or not UTF-8: take one side whole"
             )));
         }
-        self.write_resolution(path, text.as_bytes())
-    }
-
-    /// Write and stage in one step, or `git merge --continue` refuses a file that looks done.
-    fn write_resolution(&self, path: &str, content: &[u8]) -> Result<()> {
-        std::fs::write(self.root().join(path), content)?;
-        self.run_git_literal(&["add", "--", path]).map(drop)
+        let like = [&sides.ours, &sides.theirs, &sides.base]
+            .into_iter()
+            .find_map(Option::as_deref)
+            .unwrap_or_default();
+        let file = self.root().join(path);
+        std::fs::write(&file, shaped_like(text, like))?;
+        self.run_git_literal(&["add", "--", path])?;
+        // `checkout-index` passes over a file that matches the index, however it is written.
+        std::fs::remove_file(&file)?;
+        self.run_git_literal(&["checkout-index", "--", path])
+            .map(drop)
     }
 
     fn stage_blob(&self, path: &str, side: ConflictSide) -> Option<Vec<u8>> {
