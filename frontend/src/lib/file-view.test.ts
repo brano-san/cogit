@@ -35,6 +35,28 @@ describe("backendView", () => {
       skipped: false,
     });
   });
+
+  // The toolbar has no switch of its own for them; without this a file flagged from the
+  // menu vanished, and the flag could not be cleared.
+  it("asks for assume-unchanged files along with skipped ones", () => {
+    expect(backendView(view({ skipped: true }))).toMatchObject({ assumeUnchanged: true, skipped: true });
+  });
+});
+
+describe("visibleFiles with the Skipped switch", () => {
+  const flagged = [file("skip.rs", "skipped"), file("assume.rs", "assumeUnchanged"), file("a.rs", "modified")];
+
+  it("shows skip-worktree and assume-unchanged files while it is on", () => {
+    expect(visibleFiles(flagged, view({ skipped: true })).map((f) => f.path)).toEqual([
+      "skip.rs",
+      "assume.rs",
+      "a.rs",
+    ]);
+  });
+
+  it("hides both while it is off", () => {
+    expect(visibleFiles(flagged, view({ skipped: false })).map((f) => f.path)).toEqual(["a.rs"]);
+  });
 });
 
 describe("visibleFiles", () => {

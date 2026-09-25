@@ -698,6 +698,18 @@ SmartGit предлагает восемь переключателей над �
 отбрасывает остальные. Переключение «каталоги» или «источники переименований» не ходит на
 бэкенд вообще. Граница закреплена тестом `the_extra_views_leave_the_ordinary_lists_alone`.
 
+## R-420 · Assume-unchanged показывает переключатель Skipped · Н
+
+С новым тулбаром Files (f76ba57) переключателей состояний шесть, своего для
+`assume-unchanged` среди них нет, а `DEFAULT_VIEW` держал его выключенным: файл, помеченный
+из меню Assume Unchanged, пропадал из списка, и снять флаг из интерфейса было нельзя.
+
+**Решение:** Skipped показывает оба флага — `skip-worktree` и `assume-unchanged`: в обоих
+случаях Git не смотрит на файл в рабочей копии, и искать его пойдут в одно место. Поле
+`assumeUnchanged` из `FileView` убрано, `backendView()` просит его у бэкенда вместе со
+`skipped`; `WorktreeView` в IPC (R-43) не менялся. Тесты `asks for assume-unchanged files
+along with skipped ones`, `shows skip-worktree and assume-unchanged files while it is on`.
+
 ## R-44 · `FileList` разделён на два компонента · Н
 
 С появлением второй панели и виртуализации в каждой `FileList` стал делать три вещи сразу:
