@@ -54,6 +54,27 @@ export function isEmptyQuery(query: CommitQuery): boolean {
   return Object.values(query).every((value) => value === null);
 }
 
+/** The text `parseQuery` reads back as `query`: what the filter field shows for a filter
+    set elsewhere (File ▸ Log). */
+export function formatQuery(query: CommitQuery): string {
+  const quote = (value: string) => (/\s/.test(value) ? `"${value}"` : value);
+  const day = (seconds: number) => new Date(seconds * 1000).toISOString().slice(0, 10);
+  const { author, path, oidPrefix, since, until, message } = query;
+  const parts: string[] = [];
+  if (author != null) parts.push(`author:${quote(author)}`);
+  if (path != null) parts.push(`path:${quote(path)}`);
+  if (oidPrefix != null) parts.push(`oid:${quote(oidPrefix)}`);
+  if (since != null) parts.push(`since:${day(since)}`);
+  if (until != null) parts.push(`until:${day(until)}`);
+  if (message != null) parts.push(message);
+  return parts.join(" ");
+}
+
+/** The same filter: the fields a user types, not how the graph lays the result out. */
+export function sameQuery(a: CommitQuery, b: CommitQuery): boolean {
+  return (Object.keys(EMPTY) as (keyof CommitQuery)[]).every((key) => (a[key] ?? null) === (b[key] ?? null));
+}
+
 /** Splits on whitespace but keeps `field:"two words"` in one piece. */
 function tokenize(input: string): string[] {
   return input.match(/(?:[^\s"]|"[^"]*")+/g) ?? [];

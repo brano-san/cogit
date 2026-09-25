@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isEmptyQuery, parseQuery } from "./query";
+import { formatQuery, isEmptyQuery, parseQuery } from "./query";
 
 describe("parseQuery", () => {
   it("treats bare words as a message filter", () => {
@@ -65,5 +65,25 @@ describe("isEmptyQuery", () => {
   it("is true only when nothing is set", () => {
     expect(isEmptyQuery(parseQuery(""))).toBe(true);
     expect(isEmptyQuery(parseQuery("path:src"))).toBe(false);
+  });
+});
+
+// File ▸ Log filtered the graph by path while the field stayed empty, with no count and no
+// ✕: the filter could not be seen, nor cleared from where filters are typed.
+describe("formatQuery", () => {
+  it("writes a query as the field would have been typed", () => {
+    expect(formatQuery(parseQuery("path:src/lib"))).toBe("path:src/lib");
+    expect(formatQuery(parseQuery(""))).toBe("");
+  });
+
+  it("reads back as the same query", () => {
+    for (const text of [
+      'author:"Brano San" path:src since:2026-01-01 until:2026-02-01 fix the graph',
+      "oid:abc123",
+      'path:"docs/with space/a.md"',
+    ]) {
+      const query = parseQuery(text);
+      expect(parseQuery(formatQuery(query))).toEqual(query);
+    }
   });
 });

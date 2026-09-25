@@ -3394,7 +3394,7 @@
           >
             {#snippet actions()}
               {#if repo}
-                <GraphFilter onchange={filterGraph} matches={graph.total} />
+                <GraphFilter onchange={filterGraph} matches={graph.total} query={graph.query} />
               {/if}
             {/snippet}
             {#if describeSkipped(graph.skipped)}
