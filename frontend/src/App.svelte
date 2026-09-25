@@ -64,7 +64,7 @@
   import { checkedIds, disabledIds, type PaletteCommand } from "$lib/palette";
   import { reasonFor, type Context } from "$lib/availability";
   import { reasonOf, refAt, splitMarked, targetsOf, type MenuContext, type ToolbarFacts } from "$lib/toolbar";
-  import { currentRemote, remotePlan, syncSteps, type SyncOrder } from "$lib/toolbar-prefs";
+  import { currentRemote, headRemote, remotePlan, syncSteps, type SyncOrder } from "$lib/toolbar-prefs";
   import { toolbar } from "$stores/toolbar.svelte";
   import { stashDialog } from "$stores/stash-dialog.svelte";
   import { allowsSelectAll, settle, step } from "$lib/panel-focus";
@@ -124,6 +124,7 @@
     stashSelection,
     fetchRemote,
     listRemotes,
+    repoRefs,
     onMenuCommand,
     openInTerminal,
     runCheck,
@@ -1449,7 +1450,7 @@
     for (const key of action.targets) {
       try {
         const opened = await openSubmodule(owner, key);
-        const remote = await primaryRemote(opened.repo);
+        const remote = await trackedRemote(opened.repo);
         if (remote) await fetchRemote(opened.repo, remote, () => {});
       } catch (err) {
         errors.report(err, `Could not fetch in ${key}`);
@@ -1529,8 +1530,10 @@
   }
 
   async function runNetwork(kind: "fetch" | "pull" | "push") {
+    // One Pull everywhere: the remote HEAD tracks and the fast-forward setting (#26).
+    if (kind === "pull") return pullNow();
     const id = repository.current?.repo;
-    const remote = network.primary;
+    const remote = kind === "fetch" ? pullRemote : network.primary;
     if (!id) return;
     if (!remote) {
       errors.message("This repository has no remote.", `Could not ${kind}`);
@@ -1539,8 +1542,7 @@
     const epoch = repository.epoch;
     try {
       if (kind === "fetch") await network.fetch(id, remote);
-      if (kind === "pull") await network.pull(id, remote, true);
-      if (kind === "push") await network.push(id, remote, false);
+      else await network.push(id, remote, false);
     } catch (err) {
       errors.report(err, `Could not ${kind}`);
       if (repository.epoch === epoch) await afterMutation();
@@ -2293,7 +2295,7 @@
 
     for (const [index, entry] of targets.entries()) {
       try {
-        const remote = await primaryRemote(entry.repo);
+        const remote = await trackedRemote(entry.repo);
         if (remote) await fetchRemote(entry.repo, remote, () => {});
       } catch (err) {
         failed += 1;
@@ -2308,10 +2310,14 @@
     await afterRefChange();
   }
 
-  /** The remote a bulk fetch should use: the tracked one, else the only one there is. */
-  async function primaryRemote(id: import("$lib/ipc").RepoId): Promise<string | null> {
-    const names = await listRemotes(id).catch(() => [] as string[]);
-    return names.includes("origin") ? "origin" : (names[0] ?? null);
+  /** For a repository the panels may not show: the remote its HEAD branch tracks, else
+      `origin`, else the first — what Pull in the toolbar uses for the one on screen. */
+  async function trackedRemote(id: import("$lib/ipc").RepoId): Promise<string | null> {
+    const [names, refs] = await Promise.all([
+      listRemotes(id).catch(() => [] as string[]),
+      repoRefs(id).catch(() => null),
+    ]);
+    return refs ? headRemote(refs, names) : currentRemote(null, names);
   }
 
   /** The verdict is information. Nothing is aborted, continued or skipped on its account. */
@@ -2746,13 +2752,18 @@
         ? (target.overview?.repo ?? null)
         : ((await openedModule(target.row.key))?.repo ?? null);
     if (id === null) return;
-    const remote = await primaryRemote(id);
+    // As the toolbar does for the one on screen: pull from the tracked remote, push to
+    // origin (a fork's upstream is rarely writable).
+    const remote =
+      kind === "pull"
+        ? await trackedRemote(id)
+        : currentRemote(null, await listRemotes(id).catch(() => [] as string[]));
     if (!remote) {
       errors.message("This repository has no remote.", `Could not ${kind}`);
       return;
     }
     try {
-      if (kind === "pull") await network.pull(id, remote, true);
+      if (kind === "pull") await network.pull(id, remote, settings.current.pullMode === "ffOnly");
       else await network.push(id, remote, false);
     } catch (err) {
       errors.report(err, `Could not ${kind}`);
