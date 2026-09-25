@@ -690,6 +690,17 @@ impl AppState {
         self.handle(repo)?.commit(request)
     }
 
+    pub fn wants_maintenance(&self, repo: RepoId) -> Result<bool, git_engine::GitError> {
+        Ok(self.handle(repo)?.wants_maintenance())
+    }
+
+    /// After a commit, as a write of its own: gc packs refs and expires reflogs (R-444).
+    pub fn maintain_after_commit(&self, repo: RepoId) -> Result<(), git_engine::GitError> {
+        let _quiet = self.quiet(repo);
+        self.handle(repo)?.maintain_after_commit();
+        Ok(())
+    }
+
     pub fn checkout(
         &self,
         repo: RepoId,

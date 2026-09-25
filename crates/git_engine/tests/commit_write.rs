@@ -461,6 +461,18 @@ fn packs_after(f: &test_fixtures::Fixture, wait: std::time::Duration) -> usize {
     packs(f)
 }
 
+// Started from a thread of its own after the commit, gc went on beside the next write in
+// the repository's queue, unseen by the exit dialog (R-444).
+#[test]
+fn a_commit_leaves_maintenance_to_a_turn_of_its_own() {
+    let f = due_for_maintenance();
+    let repo = open(&f);
+
+    repo.commit(&request("add fresh.txt")).unwrap();
+
+    assert!(packs_after(&f, std::time::Duration::from_secs(3)) >= 2);
+}
+
 // Git waited for its own `maintenance run --auto` before `commit` returned, 44 ms of every
 // commit; it now runs after the commit, off the user's wait (R-314).
 #[test]
@@ -469,6 +481,7 @@ fn auto_maintenance_still_runs_after_a_commit() {
     let repo = open(&f);
 
     repo.commit(&request("add fresh.txt")).unwrap();
+    repo.maintain_after_commit();
 
     assert_eq!(packs_after(&f, std::time::Duration::from_secs(30)), 1);
 }
@@ -480,6 +493,8 @@ fn a_repository_with_auto_maintenance_off_gets_none() {
     let repo = open(&f);
 
     repo.commit(&request("add fresh.txt")).unwrap();
+    assert!(!repo.wants_maintenance());
+    repo.maintain_after_commit();
 
     assert!(packs_after(&f, std::time::Duration::from_secs(2)) >= 2);
 }
@@ -494,6 +509,7 @@ fn the_commit_itself_skips_the_maintenance_it_would_wait_for() {
     }));
 
     repo.commit(&request("add fresh.txt")).unwrap();
+    repo.maintain_after_commit();
 
     let first = commands.lock().unwrap()[0].clone();
     assert!(
