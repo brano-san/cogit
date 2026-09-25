@@ -1,5 +1,73 @@
 import { describe, expect, it } from "vitest";
-import { dropActions, parseDrag, serialiseDrag } from "./drop-target";
+import {
+  DRAG_THRESHOLD,
+  dropActions,
+  dropOn,
+  graphDropTarget,
+  moveDrag,
+  parseDrag,
+  pressDrag,
+  serialiseDrag,
+} from "./drop-target";
+
+// WebView2 hands HTML5 drag-and-drop to the native drop target while Tauri's file drop is
+// on, so `drop` never reached a row and the Merge/Rebase/Squash menu never opened. Rows
+// are dragged on pointer events now: press, move past the threshold, release over a row.
+describe("a drag on pointer events", () => {
+  it("stays a click until the pointer moves past the threshold", () => {
+    const pressed = pressDrag("feature", 100, 50);
+    const nudged = moveDrag(pressed, 100 + DRAG_THRESHOLD, 50);
+    expect(nudged.moving).toBe(false);
+    expect(dropOn(nudged, "main")).toBeNull();
+  });
+
+  it("drops on the row it is released over once it has moved", () => {
+    const drag = moveDrag(pressDrag("feature", 100, 50), 100, 50 + DRAG_THRESHOLD + 1);
+    expect(drag.moving).toBe(true);
+    expect(dropOn(drag, "main")).toBe("main");
+  });
+
+  it("keeps moving after coming back near where it started", () => {
+    const away = moveDrag(pressDrag("feature", 0, 0), 40, 0);
+    expect(moveDrag(away, 1, 0).moving).toBe(true);
+  });
+
+  it("drops nowhere off every row, or back on its own", () => {
+    const drag = moveDrag(pressDrag("feature", 0, 0), 0, 30);
+    expect(dropOn(drag, null)).toBeNull();
+    expect(dropOn(drag, "feature")).toBeNull();
+    expect(dropOn(null, "main")).toBeNull();
+  });
+});
+
+describe("graphDropTarget", () => {
+  const rowHeight = 22;
+  const oids = ["c0", "c1", "c2", "c3"];
+  const oidAt = (row: number) => oids[row];
+  // One Working Tree row above four commits.
+  const at = (y: number, scrollTop = 0, headerRows = 1) =>
+    graphDropTarget(y, scrollTop, rowHeight, oids.length + headerRows, headerRows, oidAt);
+
+  it("is the commit of the row under the pointer", () => {
+    expect(at(rowHeight * 1 + 1)).toBe("c0");
+    expect(at(rowHeight * 3 + rowHeight - 1)).toBe("c2");
+  });
+
+  it("counts the rows scrolled away above the viewport", () => {
+    expect(at(5, rowHeight * 2)).toBe("c1");
+  });
+
+  it("is nothing on the Working Tree row, on a rebase row or past the last commit", () => {
+    expect(at(5)).toBeNull();
+    expect(at(rowHeight * 1 + 5, 0, 2)).toBeNull();
+    expect(at(rowHeight * 5 + 1)).toBeNull();
+    expect(at(-1)).toBeNull();
+  });
+
+  it("is nothing on a row whose commit has not arrived yet", () => {
+    expect(graphDropTarget(rowHeight * 2 + 1, 0, rowHeight, 10, 1, () => undefined)).toBeNull();
+  });
+});
 
 describe("serialiseDrag and parseDrag", () => {
   it("round-trips a branch", () => {

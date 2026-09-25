@@ -5,7 +5,8 @@
   import GraphCanvas from "$components/graph/GraphCanvas.svelte";
   import RefCapsule from "$components/graph/RefCapsule.svelte";
   import { capsules, dateTooltip, refLabelKey, refLabels, shortOid, type RefLabel } from "$lib/format";
-  import { DRAG_TYPE, parseDrag, serialiseDrag } from "$lib/drop-target";
+  import { graphDropTarget } from "$lib/drop-target";
+  import { pointerDrag } from "$lib/pointer-drag";
   import { overlapLabel, overlapTooltip } from "$lib/overlap";
   import { overlap } from "$stores/overlap.svelte";
   import {
@@ -76,8 +77,9 @@
     /** Rows of this list, not a block above it: a rebase in flight is part of the history
         the user is reading, and the graph has to draw lines into it. */
     rebase?: RebaseProgress | null;
-    /** A commit was dropped on another commit; the caller offers squash or reorder. */
-    ondrop?: (source: string, target: string) => void;
+    /** A commit was dropped on another commit; the caller offers squash or reorder where
+        the pointer was released. */
+    ondrop?: (source: string, target: string, x: number, y: number) => void;
     oncontext?: (oid: string, x: number, y: number) => void;
     onworktreecontext?: (x: number, y: number) => void;
     onrefcontext?: (label: RefLabel, oid: string, x: number, y: number) => void;
@@ -392,6 +394,27 @@
     });
   });
 
+  function commitAt(clientY: number): string | null {
+    if (!scroller) return null;
+    const y = clientY - scroller.getBoundingClientRect().top;
+    return graphDropTarget(y, scroller.scrollTop, rowHeight, listRows, headerRows, (row) => graph.rowAt(row)?.commit.oid);
+  }
+
+  /** A commit dragged onto another (R-450): only from a commit row, never the scrollbar. */
+  const commitDrag = $derived(
+    ondrop
+      ? {
+          sourceAt: (event: PointerEvent) =>
+            (event.target as Element | null)?.closest(".row:not(.header):not(.virtual)")
+              ? commitAt(event.clientY)
+              : null,
+          targetAt: (_x: number, y: number) => commitAt(y),
+          onover: (target: string | null) => (over = target),
+          ondrop,
+        }
+      : null,
+  );
+
   /** The canvas fills a node with what is behind it, and hover is behind it too. */
   let hoverRow = $state<number | null>(null);
   function onpointermove(event: PointerEvent) {
@@ -484,6 +507,7 @@
   <div
     class="scroll key-list"
     bind:this={scroller}
+    use:pointerDrag={commitDrag}
     {onscroll}
     {onclick}
     {onpointermove}
@@ -567,32 +591,12 @@
             style:top="{item.listRow * rowHeight}px"
             style:padding-left="{rowTextX(item.entry.layout.width, clipX)}px"
             role="listitem"
-            draggable={ondrop !== undefined}
-            ondragstart={(event) =>
-              event.dataTransfer?.setData(
-                DRAG_TYPE,
-                serialiseDrag({ kind: "commit", id: item.entry.commit.oid }),
-              )}
-            ondragover={(event) => {
-              if (ondrop) {
-                event.preventDefault();
-                over = item.entry.commit.oid;
-              }
-            }}
-            ondragleave={() => (over = null)}
             oncontextmenu={(event) => {
               if (!oncontext) return;
               event.preventDefault();
               const repo = repository.current?.repo;
               if (repo !== undefined) void pick(repo, item.entry.commit.oid);
               oncontext(item.entry.commit.oid, event.clientX, event.clientY);
-            }}
-            ondrop={(event) => {
-              over = null;
-              const payload = parseDrag(event.dataTransfer?.getData(DRAG_TYPE) ?? "");
-              if (payload?.kind === "commit" && payload.id !== item.entry.commit.oid) {
-                ondrop?.(payload.id, item.entry.commit.oid);
-              }
             }}
           >
             {#if modes.collapseMerged}

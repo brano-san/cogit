@@ -24,6 +24,7 @@
   import { repoGroups } from "$stores/repo-groups.svelte";
   import { repository } from "$stores/repository.svelte";
   import { worktrees } from "$stores/worktrees.svelte";
+  import { pointerDrag } from "$lib/pointer-drag";
 
   interface Props {
     /** Only the folder dialog changes the label; selecting a repository must not (R-35). */
@@ -96,6 +97,21 @@
     const moving = marked.paths.has(root) && marked.paths.size > 1 ? [...marked.paths] : [root];
     for (const each of moving) repoGroups.assign(each, group);
   }
+
+  const GROUP_DRAG = "group:";
+  const REPO_DRAG = "repo:";
+
+  /** A group or a repository dropped on a group row (R-450). */
+  const rowDrag = {
+    onover: (group: string | null) => (over = group),
+    ondrop: (source: string, group: string) => {
+      if (source.startsWith(GROUP_DRAG)) {
+        repoGroups.nest(source.slice(GROUP_DRAG.length), group === UNGROUPED ? null : group);
+      } else if (source.startsWith(REPO_DRAG)) {
+        dropped(group, source.slice(REPO_DRAG.length));
+      }
+    },
+  };
 </script>
 
 <!-- Push and pull sit on the corners of the icon, as SmartGit draws them; the changes dot has
@@ -203,7 +219,7 @@
   {/each}
 {/snippet}
 
-<div class="wrapper tree-rows key-list">
+<div class="wrapper tree-rows key-list" use:pointerDrag={rowDrag}>
   <div class="actions" role="toolbar" aria-label="Repository list actions">
     <button
       type="button"
@@ -268,30 +284,15 @@
           class:over={over === row.id}
           role="button"
           tabindex="0"
-          draggable={row.id !== UNGROUPED}
+          data-drag={row.id === UNGROUPED ? undefined : GROUP_DRAG + row.id}
+          data-drop={row.id}
           style:padding-left="calc(var(--tree-base) + {row.depth} * var(--tree-step))"
-          ondragstart={(event) => event.dataTransfer?.setData("text/cogit-group", row.id)}
           onclick={() => repoGroups.collapse(row.id)}
           onkeydown={(event) => event.key === "Enter" && repoGroups.collapse(row.id)}
           oncontextmenu={(event) => {
             if (row.id === UNGROUPED) return;
             event.preventDefault();
             ongroupcontext(row.id, event.clientX, event.clientY);
-          }}
-          ondragover={(event) => {
-            event.preventDefault();
-            over = row.id;
-          }}
-          ondragleave={() => (over = null)}
-          ondrop={(event) => {
-            over = null;
-            const moved = event.dataTransfer?.getData("text/cogit-group") ?? "";
-            if (moved) {
-              repoGroups.nest(moved, row.id === UNGROUPED ? null : row.id);
-              return;
-            }
-            const root = event.dataTransfer?.getData("text/cogit-repo") ?? "";
-            if (root) dropped(row.id, root);
           }}
         >
           <Disclosure open={!repoGroups.collapsed.has(row.id)} />
@@ -311,9 +312,8 @@
         {#if listed && entry}
       <div
         class="row"
-        draggable="true"
+        data-drag={REPO_DRAG + entry.root}
         style:padding-left="calc(var(--tree-base) + {row.depth} * var(--tree-step))"
-        ondragstart={(event) => event.dataTransfer?.setData("text/cogit-repo", entry.root)}
         class:selected={active?.valueOf() === entry.repo.valueOf()}
         class:holds-worktree={worktrees.ownerRoot === entry.root}
         class:marked={marked.paths.has(entry.root)}
@@ -354,12 +354,11 @@
         {:else if listed}
           <div
             class="row closed"
-            draggable="true"
+            data-drag={REPO_DRAG + listed.root}
             role="button"
             tabindex="0"
             title="{listed.root} — closed; click to open"
             style:padding-left="calc(var(--tree-base) + {row.depth} * var(--tree-step))"
-            ondragstart={(event) => event.dataTransfer?.setData("text/cogit-repo", listed.root)}
             onclick={() => onreopen(listed.root)}
             onkeydown={(event) => event.key === "Enter" && onreopen(listed.root)}
             oncontextmenu={(event) => {

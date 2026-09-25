@@ -1,5 +1,49 @@
 import { shortOid } from "$lib/format";
+import { clickedCommit } from "$lib/graph-geometry";
 export type DragKind = "branch" | "commit";
+
+/** Past this many pixels a press is a drag; short of it, it stays a click. */
+export const DRAG_THRESHOLD = 4;
+
+/** A row dragged on pointer events (`lib/pointer-drag.ts`): WebView2 gives HTML5
+    drag-and-drop to Tauri's native file drop, and `drop` never reaches the page (R-450). */
+export interface PointerDrag {
+  readonly source: string;
+  readonly x: number;
+  readonly y: number;
+  readonly moving: boolean;
+}
+
+export function pressDrag(source: string, x: number, y: number): PointerDrag {
+  return { source, x, y, moving: false };
+}
+
+export function moveDrag(drag: PointerDrag, x: number, y: number, threshold = DRAG_THRESHOLD): PointerDrag {
+  if (drag.moving || Math.hypot(x - drag.x, y - drag.y) <= threshold) return drag;
+  return { ...drag, moving: true };
+}
+
+/** Where a release drops: nowhere for a click, off every row, or back on its own row. */
+export function dropOn(drag: PointerDrag | null, target: string | null): string | null {
+  if (!drag?.moving || target === null || target === drag.source) return null;
+  return target;
+}
+
+/** The commit under `y` (from the top of the graph's viewport). The Working Tree row, the
+    rows of a rebase in flight and a commit not loaded yet are nothing to drop on. */
+export function graphDropTarget(
+  y: number,
+  scrollTop: number,
+  rowHeight: number,
+  listRows: number,
+  headerRows: number,
+  oidAt: (commitRow: number) => string | undefined,
+): string | null {
+  if (y < 0 || rowHeight <= 0) return null;
+  const row = Math.floor((y + scrollTop) / rowHeight);
+  if (row >= listRows) return null;
+  return clickedCommit(row, headerRows, oidAt) ?? null;
+}
 
 export interface DragPayload {
   kind: DragKind;

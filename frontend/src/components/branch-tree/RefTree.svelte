@@ -10,7 +10,7 @@
     type RefNode,
     type RefTreeInput,
   } from "$lib/ref-nodes";
-  import { DRAG_TYPE, parseDrag, serialiseDrag } from "$lib/drop-target";
+  import { pointerDrag } from "$lib/pointer-drag";
   import { flatten } from "$lib/tree";
   import { triState } from "$lib/tri-state-box";
   import { worktreeMarkTooltip } from "$lib/worktree-list";
@@ -26,7 +26,8 @@
     oncheckout?: (branch: Branch) => void;
     onactivate?: (node: RefNode) => void;
     oncontext?: (node: RefNode, x: number, y: number) => void;
-    ondrop?: (source: string, target: Branch) => void;
+    /** `x` and `y`: where the pointer was released, for the menu of what to do. */
+    ondrop?: (source: string, target: Branch, x: number, y: number) => void;
   }
 
   let {
@@ -65,14 +66,17 @@
     else if (node.rev) onselect?.(node);
   }
 
-  function dropped(event: DragEvent, target: Branch) {
-    over = null;
-    const payload = parseDrag(event.dataTransfer?.getData(DRAG_TYPE) ?? "");
-    if (payload?.kind === "branch" && payload.id !== target.name) ondrop?.(payload.id, target);
+  function dropped(source: string, target: string, x: number, y: number) {
+    const from = nodes.find((node) => node.id === source)?.branch;
+    const onto = nodes.find((node) => node.id === target)?.branch;
+    if (from && onto && from.name !== onto.name) ondrop?.(from.name, onto, x, y);
   }
+
+  /** A branch dropped on a branch (R-450); rows are marked with their node id. */
+  const branchDrag = $derived(ondrop ? { onover: (id: string | null) => (over = id), ondrop: dropped } : null);
 </script>
 
-<div class="tree tree-rows key-list" role="tree" aria-label="References">
+<div class="tree tree-rows key-list" role="tree" aria-label="References" use:pointerDrag={branchDrag}>
   {#each nodes as node (node.id)}
     {@const state = checkState(tree, node.id, visible)}
     {@const tickable = leavesUnder(tree, node.id).length > 0}
@@ -86,21 +90,8 @@
       aria-expanded={foldable(node) ? !input.collapsed.has(node.id) : undefined}
       tabindex="-1"
       title={node.branch?.name ?? node.tag?.name ?? node.detail ?? node.label}
-      draggable={node.branch !== undefined && ondrop !== undefined}
-      ondragstart={(event) =>
-        node.branch &&
-        event.dataTransfer?.setData(
-          DRAG_TYPE,
-          serialiseDrag({ kind: "branch", id: node.branch.name }),
-        )}
-      ondragover={(event) => {
-        if (ondrop && node.branch) {
-          event.preventDefault();
-          over = node.id;
-        }
-      }}
-      ondragleave={() => (over = null)}
-      ondrop={(event) => node.branch && dropped(event, node.branch)}
+      data-drag={node.branch && ondrop ? node.id : undefined}
+      data-drop={node.branch && ondrop ? node.id : undefined}
       oncontextmenu={(event) => {
         if (!oncontext) return;
         event.preventDefault();
