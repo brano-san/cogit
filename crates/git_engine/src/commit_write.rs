@@ -60,13 +60,7 @@ impl RepoHandle {
     /// is built in a scratch index instead: HEAD, plus what the real index holds at those
     /// paths. The real index then already matches the new HEAD there and stays untouched.
     fn commit_from_index(&self, commit: &[&str], paths: &[String]) -> Result<()> {
-        static RUNS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
-        let run = RUNS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let scratch = Scratch(
-            self.repo
-                .index_path()
-                .with_file_name(format!("cogit-only-index-{}-{run}", std::process::id())),
-        );
+        let scratch = Scratch::beside_index(self, "only");
         let base: &[&str] = if matches!(self.head()?, crate::Head::Unborn { .. }) {
             &["read-tree", "--empty"]
         } else {
@@ -99,7 +93,17 @@ impl RepoHandle {
     }
 }
 
-struct Scratch(std::path::PathBuf);
+/// An index file of Cogit's own next to the repository's, removed when dropped.
+pub(crate) struct Scratch(pub(crate) std::path::PathBuf);
+
+impl Scratch {
+    pub(crate) fn beside_index(handle: &RepoHandle, name: &str) -> Self {
+        static RUNS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        let run = RUNS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let file = format!("cogit-{name}-index-{}-{run}", std::process::id());
+        Self(handle.repo.index_path().with_file_name(file))
+    }
+}
 
 impl Drop for Scratch {
     fn drop(&mut self) {

@@ -4387,6 +4387,7 @@ initial commit yet») и при выделении, чей список путе
 **Отступление от прежнего поведения:** discard тысяч файлов с длинными путями теперь
 отказывает вместо того, чтобы выбросить их без возможности вернуть; такое выделение
 нужно сбрасывать частями. Тест `a_discard_whose_backup_fails_throws_nothing_away`.
+Конфликт в индексе копию больше не блокирует — см. R-441.
 
 ## R-285 · Корень рабочей директории наблюдается рекурсивно, вопреки INV-06 · С
 
@@ -5509,3 +5510,22 @@ Push To (свой refspec) не меняются. Отдельный пункт 
 выбрасывая, даже если файл правили после Discard), затем применяет stash Discard. Цена — ещё
 одна страховочная запись в списке stash. Тест — `undo.rs`:
 `discarding_keeps_the_staged_part_of_a_file_and_undo_brings_back_the_rest`.
+
+## R-441 · Копия для Undo рядом с конфликтом — `stash push` на копии индекса · Н
+
+Пока в индексе есть хоть одна unmerged-запись, `git stash push` отказывает целиком («could not
+write index / needs merge»), даже если пути указывают на другой файл. Копия перед Reset Hard,
+Discard и Roll back не создавалась, и операции не выполнялись: главный выход из неудачного
+слияния, Reset Hard на HEAD, давал «Could not reset: git stash push failed», а ошибка у Reset
+выходила сырой, мимо «Nothing was changed…» (R-284).
+
+**Решение:** если `gix` видит в индексе unmerged-записи (без процесса; в обычном случае путь
+прежний, один процесс), stash делается на копии индекса рядом с настоящим
+(`GIT_INDEX_FILE`), где эти записи сброшены к HEAD (`git reset -q`), — конфликтный файл
+попадает в stash как изменение со своими маркерами. Настоящий индекс не трогается; для путей
+Discard и Roll back затем `git reset -q -- <пути>` — то, что сделал бы с индексом сам `stash
+push`. Конфликт других файлов остаётся как был. Undo такой записи применяет stash, когда
+конфликт разрешён или слияние прервано: `stash apply` при unmerged-записях отказывает сам.
+Ошибка копии у Reset теперь тоже идёт через «Nothing was changed…». Тесты — `undo.rs`:
+`a_hard_reset_goes_ahead_while_a_merge_is_stopped_on_its_conflict`,
+`discarding_beside_a_conflict_keeps_the_conflict`, `a_rollback_beside_a_conflict_goes_ahead`.
