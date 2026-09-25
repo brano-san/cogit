@@ -492,6 +492,7 @@ pub fn with_submodule() -> Result<Fixture> {
         "vendor/lib",
     ])?;
     f.commit_staged(1, "add vendor/lib submodule")?;
+    allow_local_submodules(&f)?;
 
     f._aux.push(source.into_temp_dir());
     Ok(f)
@@ -786,9 +787,18 @@ pub fn with_nested_submodule() -> Result<Fixture> {
         "--recursive",
     ])?;
 
+    allow_local_submodules(&f)?;
+
     f._aux.push(middle.into_temp_dir());
     f._aux.push(inner.into_temp_dir());
     Ok(f)
+}
+
+/// The submodules here are on local paths, which git clones only where the user allowed
+/// it (CVE-2022-39253). This is that permission, in the repository's own config.
+fn allow_local_submodules(f: &Fixture) -> Result<()> {
+    f.git(&["config", "protocol.file.allow", "always"])
+        .map(drop)
 }
 
 #[cfg(test)]

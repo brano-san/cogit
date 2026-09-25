@@ -24,6 +24,9 @@ impl SubmoduleOp {
 }
 
 /// A local path is how a submodule on the same disk is written; git refuses it by default.
+/// Lifted only for the URL the user typed into Add: a local path in a `.gitmodules` that
+/// came from elsewhere is what CVE-2022-39253 abuses, so updates keep git's ban (R-442)
+/// unless the user lifted it (`submodule_update`).
 const ALLOW_FILE: [&str; 2] = ["-c", "protocol.file.allow=always"];
 
 struct Named {
@@ -41,21 +44,11 @@ impl RepoHandle {
         }
         let chosen = self.chosen_modules(paths)?;
         match op {
-            SubmoduleOp::Initialize => self.run_on_paths(
-                &[
-                    &ALLOW_FILE[..],
-                    &["submodule", "update", "--init", "--recursive"],
-                ]
-                .concat(),
-                paths,
-            ),
+            SubmoduleOp::Initialize => self.submodule_update(&["--init", "--recursive"], paths),
             SubmoduleOp::Synchronize => {
                 self.run_on_paths(&["submodule", "sync", "--recursive"], paths)
             }
-            SubmoduleOp::Reset => self.run_on_paths(
-                &[&ALLOW_FILE[..], &["submodule", "update", "--checkout"]].concat(),
-                paths,
-            ),
+            SubmoduleOp::Reset => self.submodule_update(&["--checkout"], paths),
             SubmoduleOp::Deactivate => chosen.iter().try_for_each(|module| {
                 let key = format!("submodule.{}.active", module.name);
                 self.run_git(&["config", "--local", &key, "false"])
@@ -100,6 +93,23 @@ impl RepoHandle {
             self.submodule_op(SubmoduleOp::Initialize, &added)?;
         }
         Ok(added)
+    }
+
+    /// With the repository's own `protocol.file.allow` handed on: git reads it for the clone
+    /// of a submodule from the global and system files only, so a local opt-in went unheard.
+    pub(crate) fn submodule_update(&self, flags: &[&str], paths: &[String]) -> Result<()> {
+        let allow = self
+            .repo
+            .config_snapshot()
+            .string("protocol.file.allow")
+            .map(|value| format!("protocol.file.allow={value}"));
+        let mut args = match &allow {
+            Some(allow) => vec!["-c", allow.as_str()],
+            None => Vec::new(),
+        };
+        args.extend(["submodule", "update"]);
+        args.extend(flags);
+        self.run_on_paths(&args, paths)
     }
 
     fn run_on_paths(&self, args: &[&str], paths: &[String]) -> Result<()> {
