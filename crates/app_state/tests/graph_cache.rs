@@ -105,6 +105,32 @@ fn a_ref_moved_back_outside_is_noticed_too() {
     assert_eq!(summaries(&state, ra, generation)[0], "commit 2");
 }
 
+/// Dropping a stash below the top leaves `refs/stash` where it was, but `stash@{1}` then
+/// names the stash under the dropped one.
+#[test]
+fn a_ticked_stash_is_walked_again_after_a_drop_below_the_top() {
+    let a = test_fixtures::linear(2).unwrap();
+    for name in ["one", "two", "three"] {
+        a.write_file("file0.txt", &format!("{name}\n")).unwrap();
+        a.git(&["stash", "push", "--message", name]).unwrap();
+    }
+    let state = AppState::new();
+    let ra = state.open_repository(a.path()).unwrap().repo;
+    let query = CommitQuery {
+        visible_refs: Some(vec!["stash@{1}".to_owned()]),
+        ..CommitQuery::default()
+    };
+    let (generation, _) = build_with(&state, ra, &query);
+    assert!(summaries(&state, ra, generation).contains(&"On main: two".to_owned()));
+
+    a.git(&["stash", "drop", "stash@{1}"]).unwrap();
+    let (generation, _) = build_with(&state, ra, &query);
+
+    let shown = summaries(&state, ra, generation);
+    assert!(shown.contains(&"On main: one".to_owned()), "{shown:?}");
+    assert!(!shown.contains(&"On main: two".to_owned()), "{shown:?}");
+}
+
 #[test]
 fn another_query_is_walked_not_served() {
     let a = test_fixtures::linear(6).unwrap();
