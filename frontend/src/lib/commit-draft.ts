@@ -27,3 +27,20 @@ export function hasOwnText(message: string, template: string | null): boolean {
   if (own === "") return false;
   return template === null || own !== withoutHints(template, template).trim();
 }
+
+/** What the field opens with: the saved draft, else the template. */
+export function initialMessage(saved: string | null, template: string | null): string {
+  return saved ?? template ?? "";
+}
+
+/** What the field holds once a commit is made: the template again, as the next
+    `git commit` would open with it. */
+export function messageAfterCommit(template: string | null): string {
+  return template ?? "";
+}
+
+/** What to keep in storage for the next start; `null` keeps nothing. The untouched
+    template is not a draft: kept, it would outlive a change to the template itself. */
+export function draftToSave(message: string, template: string | null): string | null {
+  return message === "" || message === template ? null : message;
+}
