@@ -50,3 +50,25 @@ describe("staging from the Unstaged list", () => {
     expect(ipc.worktreeFiles).toHaveBeenCalledTimes(1);
   });
 });
+
+// A pre-commit hook's refusal, or a failed stage, came out as "Could not read the working
+// tree", and the step counted as done; a failed read after a real commit counted as a
+// failed commit, so the box kept the message and a retry committed twice.
+describe("a write and the read after it", () => {
+  it("hands a refused write to the caller and keeps the read error clear", async () => {
+    ipc.stagePaths.mockRejectedValueOnce(new Error("index.lock exists"));
+
+    await expect(worktree.stage(REPO, ["a.txt"])).rejects.toThrow("index.lock exists");
+
+    expect(worktree.error).toBeNull();
+    expect(ipc.worktreeFiles).not.toHaveBeenCalled();
+  });
+
+  it("does not call a commit failed when only the read after it failed", async () => {
+    ipc.worktreeFiles.mockRejectedValueOnce(new Error("cannot read"));
+
+    await expect(worktree.commit(REPO, "message", false, false)).resolves.toBeUndefined();
+
+    expect(worktree.error).not.toBeNull();
+  });
+});
