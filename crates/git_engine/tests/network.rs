@@ -183,6 +183,31 @@ fn a_pull_that_cannot_fast_forward_is_refused_rather_than_merging_silently() {
     );
 }
 
+// Preferences ▸ Pull ▸ Merge ran a bare `git pull`: with no `pull.rebase` git 2.33+ refuses
+// diverged branches, and with `pull.rebase=true` (Git for Windows' installer default) it
+// rebased instead.
+#[test]
+fn a_pull_in_merge_mode_merges_whatever_pull_rebase_says() {
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&["config", "pull.rebase", "true"]).unwrap();
+    let local = f.oid("HEAD").unwrap();
+    let repo = open(&f);
+
+    repo.pull("origin", false, no_token, |_| {}).unwrap();
+
+    let parents = f
+        .git(&["rev-list", "--parents", "-n", "1", "HEAD"])
+        .unwrap();
+    let parents: Vec<&str> = parents.split_whitespace().skip(1).collect();
+    assert_eq!(
+        parents,
+        [
+            local.as_str(),
+            f.oid("refs/remotes/origin/main").unwrap().as_str()
+        ]
+    );
+}
+
 #[test]
 fn the_remote_list_is_read_without_spawning_a_process() {
     let f = test_fixtures::with_remote().unwrap();

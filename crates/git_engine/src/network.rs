@@ -44,7 +44,9 @@ impl RepoHandle {
     }
 
     /// `--ff-only`: a pull that cannot fast-forward is a merge, and a merge started behind
-    /// the user's back is exactly the surprise a Git client must not produce.
+    /// the user's back is exactly the surprise a Git client must not produce. The other mode
+    /// is an explicit merge, `--no-rebase`: without it `pull.rebase` rebases, and with no
+    /// `pull.*` set at all git refuses diverged branches.
     pub fn pull(
         &self,
         remote: &str,
@@ -55,9 +57,7 @@ impl RepoHandle {
         let header = self.auth_arg(remote, token);
         let mut args = prefix(&header);
         args.extend(["pull", "--progress", remote]);
-        if ff_only {
-            args.push("--ff-only");
-        }
+        args.push(if ff_only { "--ff-only" } else { "--no-rebase" });
         self.run_streaming(&args, on_line)
     }
 

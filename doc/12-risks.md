@@ -3804,8 +3804,9 @@ gix) и кнопку «Use inherited» у заданной. Ключи `cogit.*`
 `REPO_SETTING_KEYS`; чужой ключ отвергается до записи.
 
 Честные оговорки в подсказках: Fetch в Cogit всегда идёт с `--prune`, поэтому `fetch.prune`
-влияет на Pull и на git из терминала; Pull в Cogit только fast-forward, поэтому `pull.rebase`
-действует на `git pull` вне Cogit; `i18n.commitEncoding` git лишь записывает в коммит, а
+влияет на Pull и на git из терминала; Pull в Cogit идёт по Preferences ▸ Pull —
+`--ff-only` или `--no-rebase` (слияние), поэтому `pull.rebase` действует только на `git pull`
+вне Cogit; `i18n.commitEncoding` git лишь записывает в коммит, а
 Cogit передаёт сообщение в UTF-8.
 
 **Не сделано:** кодировка отображения файлов. Diff декодирует файлы как UTF-8 и помечает
