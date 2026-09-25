@@ -25,6 +25,7 @@
   import { repository } from "$stores/repository.svelte";
   import { worktrees } from "$stores/worktrees.svelte";
   import { pointerDrag } from "$lib/pointer-drag";
+  import { TypeAhead, moveFocus } from "$lib/list-keys";
 
   interface Props {
     /** Only the folder dialog changes the label; selecting a repository must not (R-35). */
@@ -96,6 +97,15 @@
     over = null;
     const moving = marked.paths.has(root) && marked.paths.size > 1 ? [...marked.paths] : [root];
     for (const each of moving) repoGroups.assign(each, group);
+  }
+
+  let wrapper: HTMLDivElement | undefined = $state();
+  const typing = new TypeAhead();
+
+  /** 11 §10: the arrows and typing move the focus; Enter on a row opens it. Selecting on
+      every arrow would open every repository on the way. */
+  function onkeydown(event: KeyboardEvent) {
+    if (wrapper) moveFocus(wrapper, event, typing);
   }
 
   const GROUP_DRAG = "group:";
@@ -174,6 +184,8 @@
       class:selected={owned && submodules.open === node.key}
       role="button"
       tabindex="0"
+      data-key-row={node.key}
+      data-key-label={parts.name}
       title="{node.path} — {node.module.url}"
       style:padding-left="calc(var(--tree-base) + {depth + 1 + node.depth} * var(--tree-step))"
       onclick={() => open(node)}
@@ -219,7 +231,8 @@
   {/each}
 {/snippet}
 
-<div class="wrapper tree-rows key-list" use:pointerDrag={rowDrag}>
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="wrapper tree-rows key-list" bind:this={wrapper} use:pointerDrag={rowDrag} {onkeydown}>
   <div class="actions" role="toolbar" aria-label="Repository list actions">
     <button
       type="button"
@@ -286,6 +299,8 @@
           tabindex="0"
           data-drag={row.id === UNGROUPED ? undefined : GROUP_DRAG + row.id}
           data-drop={row.id}
+          data-key-row={GROUP_DRAG + row.id}
+          data-key-label={row.name}
           style:padding-left="calc(var(--tree-base) + {row.depth} * var(--tree-step))"
           onclick={() => repoGroups.collapse(row.id)}
           onkeydown={(event) => event.key === "Enter" && repoGroups.collapse(row.id)}
@@ -313,6 +328,8 @@
       <div
         class="row"
         data-drag={REPO_DRAG + entry.root}
+        data-key-row={entry.root}
+        data-key-label={listed.name}
         style:padding-left="calc(var(--tree-base) + {row.depth} * var(--tree-step))"
         class:selected={active?.valueOf() === entry.repo.valueOf()}
         class:holds-worktree={worktrees.ownerRoot === entry.root}
@@ -355,6 +372,8 @@
           <div
             class="row closed"
             data-drag={REPO_DRAG + listed.root}
+            data-key-row={listed.root}
+            data-key-label={listed.name}
             role="button"
             tabindex="0"
             title="{listed.root} — closed; click to open"

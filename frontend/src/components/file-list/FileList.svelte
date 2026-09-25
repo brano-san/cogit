@@ -94,6 +94,12 @@
 
   function onkeydown(event: KeyboardEvent) {
     if (!activePanel || modals.any) return;
+    // Ctrl+A ticks every file shown (11 §4); in a field it selects the text.
+    if ((event.ctrlKey || event.metaKey) && event.code === "KeyA" && !typingIn(event.target)) {
+      event.preventDefault();
+      marked = { paths: new Set(order), anchor: order[0] ?? null };
+      return;
+    }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
       event.preventDefault();
       bar?.focus();
@@ -174,7 +180,7 @@
     }));
   }
 
-  function clicked(section: Section, path: string, event: MouseEvent) {
+  function clicked(section: Section, path: string, event: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) {
     marked = applyClick(marked, path, order, {
       ctrl: event.ctrlKey || event.metaKey,
       shift: event.shiftKey,
@@ -192,6 +198,10 @@
   function nothingMatches(): string {
     if (query === null) return "Nothing matches the filter and the switches above.";
     return contents?.busy ? "" : "No file in this list contains the text.";
+  }
+
+  function typingIn(target: EventTarget | null): boolean {
+    return target instanceof HTMLTextAreaElement || (target instanceof HTMLInputElement && target.type !== "checkbox");
   }
 
   function mark(path: string) {

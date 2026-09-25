@@ -11,6 +11,7 @@
     type RefTreeInput,
   } from "$lib/ref-nodes";
   import { pointerDrag } from "$lib/pointer-drag";
+  import { TypeAhead, findTyped, listKey, pageRows, pressOf, typedChar } from "$lib/list-keys";
   import { flatten } from "$lib/tree";
   import { triState } from "$lib/tri-state-box";
   import { worktreeMarkTooltip } from "$lib/worktree-list";
@@ -74,9 +75,71 @@
 
   /** A branch dropped on a branch (R-450); rows are marked with their node id. */
   const branchDrag = $derived(ondrop ? { onover: (id: string | null) => (over = id), ondrop: dropped } : null);
+
+  let treeEl: HTMLDivElement | undefined = $state();
+  const typing = new TypeAhead();
+
+  /** A double-click: checkout for a local branch, the node's own action for the rest. */
+  function activate(node: RefNode) {
+    if (node.branch?.kind === "local") oncheckout?.(node.branch);
+    else onactivate?.(node);
+  }
+
+  function goTo(index: number) {
+    const node = nodes[index];
+    if (!node) return;
+    pick(node);
+    treeEl?.querySelector<HTMLElement>(`[data-node="${CSS.escape(node.id)}"]`)?.focus();
+  }
+
+  function fold(at: number, open: boolean) {
+    const node = nodes[at];
+    if (!node) return;
+    if (foldable(node) && input.collapsed.has(node.id) === open) {
+      oncollapse(node.id);
+      return;
+    }
+    // ← on a leaf, or on a folded heading, goes up to the heading it is under.
+    if (open) return;
+    const parent = nodes.slice(0, at).findLastIndex((above) => above.depth < node.depth);
+    if (parent >= 0) goTo(parent);
+  }
+
+  /** 11 §10. The fold triangle and the tick box keep their own Enter and Space. */
+  function onkeydown(event: KeyboardEvent) {
+    const onControl = event.target instanceof HTMLElement && event.target.closest("button:not(.label), input");
+    const press = pressOf(event);
+    const found = nodes.findIndex((node) => node.id === active);
+    const at = found === -1 ? null : found;
+    const char = typedChar(press);
+    if (char !== null) {
+      const to = findTyped(nodes.map((node) => node.label), at, typing.type(char, event.timeStamp));
+      if (to === null) return;
+      event.preventDefault();
+      goTo(to);
+      return;
+    }
+    const row = treeEl?.querySelector<HTMLElement>(".row");
+    const action = listKey(press, at, nodes.length, pageRows(treeEl?.parentElement, row?.offsetHeight ?? 22));
+    if (action === null || (action.kind === "activate" && onControl)) return;
+    event.preventDefault();
+    if (action.kind === "move") goTo(action.to);
+    else if (at === null) return;
+    else if (action.kind === "fold") fold(at, action.open);
+    else if (nodes[at]) activate(nodes[at]);
+  }
 </script>
 
-<div class="tree tree-rows key-list" role="tree" aria-label="References" use:pointerDrag={branchDrag}>
+<!-- Roving focus: the rows take it one at a time, the tree itself never does. -->
+<!-- svelte-ignore a11y_interactive_supports_focus -->
+<div
+  class="tree tree-rows key-list"
+  role="tree"
+  aria-label="References"
+  bind:this={treeEl}
+  use:pointerDrag={branchDrag}
+  {onkeydown}
+>
   {#each nodes as node (node.id)}
     {@const state = checkState(tree, node.id, visible)}
     {@const tickable = leavesUnder(tree, node.id).length > 0}
@@ -89,6 +152,7 @@
       aria-selected={active === node.id}
       aria-expanded={foldable(node) ? !input.collapsed.has(node.id) : undefined}
       tabindex="-1"
+      data-node={node.id}
       title={node.branch?.name ?? node.tag?.name ?? node.detail ?? node.label}
       data-drag={node.branch && ondrop ? node.id : undefined}
       data-drop={node.branch && ondrop ? node.id : undefined}
@@ -121,10 +185,7 @@
         class="label truncate shrink-last"
         class:current={node.current}
         onclick={() => pick(node)}
-        ondblclick={() => {
-          if (node.branch?.kind === "local") oncheckout?.(node.branch);
-          else onactivate?.(node);
-        }}>{node.label}</button
+        ondblclick={() => activate(node)}>{node.label}</button
       >
 
       {#if node.worktree}
