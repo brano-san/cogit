@@ -51,12 +51,21 @@ class HooksStore {
   }
 
   async edit(repo: RepoId, name: string): Promise<void> {
+    this.#clear();
     this.editing = name;
     const present = this.overview?.hooks.find((hook) => hook.name === name);
-    const body =
-      present && present.state !== "missing"
-        ? await readHook(repo, name).catch(() => "")
-        : "#!/bin/sh\nset -e\n\n";
+    let body = "#!/bin/sh\nset -e\n\n";
+    if (present && present.state !== "missing") {
+      try {
+        body = await readHook(repo, name);
+      } catch (err) {
+        // Opened empty, Save would replace the real hook with whatever was typed.
+        if (this.editing !== name) return;
+        this.editing = null;
+        this.report(err, "Could not read the hook");
+        return;
+      }
+    }
     // Another hook opened meanwhile; Save would write this body into that one.
     if (this.editing !== name) return;
     this.body = body;
