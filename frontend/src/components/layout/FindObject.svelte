@@ -20,7 +20,9 @@
   ];
 
   let query = $state("");
+  let cursor = $state(0);
   let field: HTMLInputElement | undefined = $state();
+  let list: HTMLDivElement | undefined = $state();
 
   const grouped = $derived(
     GROUPS.map((group) => ({
@@ -28,13 +30,42 @@
       items: results.filter((item) => item.kind === group.kind),
     })).filter((group) => group.items.length > 0),
   );
+  /** The rows in the order they are drawn, which is the order the arrows walk. */
+  const rows = $derived(grouped.flatMap((group) => group.items));
+  const shown = $derived(!busy && query.trim() !== "" && rows.length > 0);
 
   function onkeydown(event: KeyboardEvent) {
     if (event.key === "Escape") {
       event.preventDefault();
       onclose();
     }
+    // The field is all there is to focus here; Tab would leave for the panels behind.
+    if (event.key === "Tab") event.preventDefault();
+    if (!shown) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      cursor = Math.min(cursor + 1, rows.length - 1);
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      cursor = Math.max(cursor - 1, 0);
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      const picked = rows[cursor];
+      if (picked) onpick(picked);
+    }
   }
+
+  $effect(() => {
+    void results;
+    cursor = 0;
+  });
+
+  $effect(() => {
+    void cursor;
+    list?.querySelector(".row.active")?.scrollIntoView({ block: "nearest" });
+  });
 
   // Only the query: whatever `onquery` happens to read must not start another search.
   $effect(() => {
@@ -67,14 +98,16 @@
   {:else if grouped.length === 0}
     <p class="note">Nothing matches “{query}”.</p>
   {:else}
-    <div class="list">
+    <div class="list" bind:this={list}>
       {#each grouped as group (group.kind)}
         <div class="group">{group.title}</div>
         {#each group.items as item (item.kind + item.label + item.oid)}
           <div
             class="row"
+            class:active={rows.indexOf(item) === cursor}
             role="button"
             tabindex="-1"
+            onmouseenter={() => (cursor = rows.indexOf(item))}
             onclick={() => onpick(item)}
             onkeydown={(event) => event.key === "Enter" && onpick(item)}
           >
@@ -149,8 +182,8 @@
     cursor: default;
   }
 
-  .row:hover {
-    background: var(--state-hover);
+  .row.active {
+    background: var(--state-selected);
   }
 
   .label {
