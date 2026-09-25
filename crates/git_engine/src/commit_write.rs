@@ -14,7 +14,13 @@ pub struct CommitRequest {
 
 impl RepoHandle {
     pub fn commit(&self, request: &CommitRequest) -> Result<String> {
-        if request.message.trim().is_empty() {
+        let message = match self.commit_template()? {
+            Some(template) => {
+                without_template_hints(&request.message, &template, &self.comment_prefix())
+            }
+            None => request.message.clone(),
+        };
+        if message.trim().is_empty() {
             return Err(GitError::InvalidState(
                 "a commit message cannot be empty".to_owned(),
             ));
@@ -30,7 +36,7 @@ impl RepoHandle {
         }
         // `-m` takes the next argument verbatim, so a message starting with `--` is safe.
         args.push("-m");
-        args.push(&request.message);
+        args.push(&message);
         if request.only.is_empty() {
             self.run_git(&args)?;
         } else {
@@ -43,7 +49,7 @@ impl RepoHandle {
             .map_err(|err| GitError::Internal(format!("cannot read the new HEAD: {err}")))?
             .to_string();
         if request.no_verify {
-            self.record_bypass(&oid, &request.message);
+            self.record_bypass(&oid, &message);
         }
         self.maintain_after_commit();
         Ok(oid)
@@ -101,7 +107,39 @@ impl Drop for Scratch {
     }
 }
 
+/// `message` without the hint lines of `template`: its lines that start with the comment
+/// prefix, as `git commit` strips them after the editor. Only those — `-m` keeps every
+/// other line, and `#123 fix the parser` is a subject, not a comment.
+fn without_template_hints(message: &str, template: &str, prefix: &str) -> String {
+    let hints: std::collections::HashSet<&str> = template
+        .lines()
+        .map(str::trim_end)
+        .filter(|line| line.starts_with(prefix))
+        .collect();
+    if hints.is_empty() {
+        return message.to_owned();
+    }
+    message
+        .split_inclusive('\n')
+        .filter(|line| !hints.contains(line.trim_end()))
+        .collect()
+}
+
 impl RepoHandle {
+    /// `core.commentString` (git 2.45) or `core.commentChar`. `auto` picks a character per
+    /// message, which a template written beforehand cannot know, so it reads as `#`.
+    fn comment_prefix(&self) -> String {
+        let config = self.repo.config_snapshot();
+        let value = config
+            .string("core.commentString")
+            .or_else(|| config.string("core.commentChar"))
+            .map(|value| value.to_string());
+        match value {
+            Some(text) if !text.is_empty() && text != "auto" => text,
+            _ => "#".to_owned(),
+        }
+    }
+
     /// `commit.template` as text, or `None` when it is unset or points nowhere.
     pub fn commit_template(&self) -> Result<Option<String>> {
         let Some(path) = self.pathname_setting("commit.template") else {
