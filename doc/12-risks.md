@@ -5230,3 +5230,15 @@ Undo. Тесты — `worktrees.rs` `a_worktree_with_its_submodules_checked_out_
 остаётся видна. Stash не хранит часовой пояс, дата — по часам этой машины. Тесты —
 `ref-menus.test.ts` «branchesStashMenu Pop (F-040)», `ref-nodes.test.ts` «gives a stash its
 message and its date».
+
+## R-436 · Путь submodule в Repositories: папка уступает ширину раньше имени · Н
+
+R-243 свёл путь `папка/имя` в одну строку, усекаемую справа, и при нехватке ширины
+`cmake/cmake-conan` и `cmake/cmake-useful` стали одинаковыми `cmake/cmake-…` — пропадало
+ровно то, что их различает (F-242, п. 9). Левое усечение (R-124) не возвращается: правило
+одно — только справа, вторичный текст раньше имени (`frontend/CLAUDE.md`). Папка — вторичный
+текст, поэтому путь теперь два соседних элемента во flex-обёртке без зазора: папка
+`.shrink-first`, имя `.shrink-last`, оба `.truncate`. Сначала сжимается описание `(ветка)`,
+затем папка (`cma…`), имя — последним. Наложения, из-за которого отменили R-124, нет: у
+обоих `min-width: 0` и `overflow: hidden`. Проверить в сборке: узкая панель Repositories,
+два submodule одной папки.
