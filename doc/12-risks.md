@@ -5597,3 +5597,18 @@ Diff), `Shift` расширяет отметку, `Ctrl+A` отмечает вс
 (курсор отдельно от выделения — у списков нет такого курсора) и поиск по вводу в графе (там
 фильтр). Тест — `list-keys.test.ts`. Проверить в сборке: щелчок по ветке в Branches, затем
 ↓ и «ma»; щелчок по файлу в Files, затем ↓ и Shift+↓.
+
+## R-455 · Общие `Checkbox` с `mixed` и `Radio` вместо нативных элементов формы · Н
+
+Галочки Branches (`input` с одним `accent-color`), Scan, Remove Worktree, Split Off, редактора
+rebase и панели Output, радио Add Worktree, Repository Settings, Push To и Reset были нативными;
+`color-scheme` не задан, и на тёмных темах неотмеченные — светлые системные квадраты и круги
+(frontend/CLAUDE.md: no native form controls). `Checkbox` не умел `mixed`, `Radio` не было.
+
+**Решение:** `Checkbox` получил проп `tri` — `triState` на скрытом input, `mixed` рисуется тире, —
+`title`, `ariaLabel`, `wide` и содержимое подписи через `children`; `Radio` — тот же рисунок
+кругом. Рамка выравнивается по первой строке подписи (`1lh`), поэтому длинные подписи Reset и
+Remove Worktree не требуют своих правил. Строка, которая сама была `<label>` (Scan, Split Off),
+стала `div`: вложенный `label` HTML не допускает, подпись целиком теперь внутри `Checkbox`.
+Действие строки rebase — общий `Select`. Проверить в сборке: четыре темы, панель Branches
+(галочки групп в `mixed`), Scan Folder, Reset Advanced…, Push To…

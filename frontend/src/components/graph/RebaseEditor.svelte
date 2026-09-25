@@ -3,6 +3,8 @@
   import { shortOid } from "$lib/format";
   import { moveEntry, planProblem, previewCount } from "$lib/rebase-plan";
   import { pointerDrag } from "$lib/pointer-drag";
+  import Checkbox from "$components/common/Checkbox.svelte";
+  import Select from "$components/common/Select.svelte";
   import type { TodoAction, TodoEntry } from "$lib/ipc";
 
   interface Props {
@@ -84,13 +86,14 @@
       >
         <span class="grip" aria-hidden="true">⠿</span>
 
-        <select
-          value={entry.action}
-          aria-label="Action for {shortOid(entry.oid)}"
-          onchange={(event) => setAction(index, event.currentTarget.value as TodoAction)}
-        >
-          {#each ACTIONS as action (action)}<option value={action}>{action}</option>{/each}
-        </select>
+        <span class="action">
+          <Select
+            value={entry.action}
+            label="Action for {shortOid(entry.oid)}"
+            options={ACTIONS.map((action) => [action, action] as const)}
+            onchange={(action) => setAction(index, action)}
+          />
+        </span>
 
         <span class="oid">{shortOid(entry.oid)}</span>
 
@@ -125,14 +128,9 @@
 
   <footer>
     <span class="preview">{remaining} commits will remain</span>
-    <label class="pause">
-      <input
-        type="checkbox"
-        checked={paused}
-        onchange={(event) => onpaused(event.currentTarget.checked)}
-      />
-      Pause after each commit
-    </label>
+    <span class="pause">
+      <Checkbox checked={paused} onchange={(checked) => onpaused(checked)} label="Pause after each commit" />
+    </span>
     {#if problem}<span class="problem">{problem}</span>{/if}
     <button type="button" onclick={onclose}>Cancel</button>
     <button type="button" class="primary" disabled={problem !== null || busy} onclick={onrun}>
@@ -224,13 +222,9 @@
     cursor: grab;
   }
 
-  select {
+  .action {
+    display: flex;
     flex: 0 0 92px;
-    height: 22px;
-    background: var(--surface-input);
-    color: var(--text-primary);
-    border: 1px solid var(--field-border);
-    border-radius: var(--r-sm);
     font-size: var(--fs-header);
   }
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Checkbox from "$components/common/Checkbox.svelte";
   import Disclosure from "$components/common/Disclosure.svelte";
   import KindIcon from "$components/common/KindIcon.svelte";
   import {
@@ -13,7 +14,6 @@
   import { pointerDrag } from "$lib/pointer-drag";
   import { TypeAhead, findTyped, listKey, pageRows, pressOf, typedChar } from "$lib/list-keys";
   import { flatten } from "$lib/tree";
-  import { triState } from "$lib/tri-state-box";
   import { worktreeMarkTooltip } from "$lib/worktree-list";
   import type { Branch } from "$lib/ipc";
 
@@ -169,13 +169,11 @@
         onclick={() => oncollapse(node.id)}
       />
 
-      <input
-        type="checkbox"
-        class="box"
-        use:triState={{ state, toggle: () => toggle(node.id) }}
+      <Checkbox
+        tri={{ state, toggle: () => toggle(node.id) }}
         disabled={!tickable}
         title={node.disabled}
-        aria-label="Show {node.label} in the graph"
+        ariaLabel="Show {node.label} in the graph"
       />
 
       {#if node.kind === "folder"}<KindIcon kind="directory" title="Folder" />{/if}
@@ -202,6 +200,7 @@
 <style>
   .tree {
     --ref-box: 12px;
+    --checkbox-size: var(--ref-box);
     --tree-next: var(--ref-box);
     padding: var(--sp-3) 0;
   }
@@ -234,14 +233,6 @@
     font-size: var(--fs-header);
     font-weight: 600;
     letter-spacing: 0.03em;
-  }
-
-  .box {
-    flex: 0 0 auto;
-    width: var(--ref-box);
-    height: var(--ref-box);
-    margin: 0;
-    accent-color: var(--status-ref);
   }
 
   .label.current {

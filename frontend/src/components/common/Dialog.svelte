@@ -293,7 +293,7 @@
   }
 
   .dialog :global(input[type="checkbox"]:not(.native)),
-  .dialog :global(input[type="radio"]) {
+  .dialog :global(input[type="radio"]:not(.native)) {
     accent-color: var(--status-ref);
     width: 13px;
     height: 13px;
