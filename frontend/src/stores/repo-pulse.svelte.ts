@@ -56,6 +56,8 @@ class RepoPulseStore {
     owned: (root) => root === this.#owned,
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     onPulse: (root, pulse) => {
+      // Read before the panels took it over; they keep it current now.
+      if (root === this.#owned) return;
       this.pulses = new Map([...this.pulses, [root, pulse]]);
     },
     onFetch: (root, ok) => {
@@ -79,6 +81,12 @@ class RepoPulseStore {
   setOwned(root: string | null): void {
     const left = this.#owned;
     this.#owned = root;
+    // Kept, it would outlive what the panels do there and show once the row is let go.
+    if (root !== null && this.pulses.has(root)) {
+      const next = new Map(this.pulses);
+      next.delete(root);
+      this.pulses = next;
+    }
     if (left === null || left === root || !this.#roots.includes(left)) return;
     setTimeout(() => {
       if (left !== this.#owned && this.#roots.includes(left)) this.changed(left);
