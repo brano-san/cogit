@@ -95,6 +95,7 @@
   import { blockedByLocalChanges } from "$lib/checkout-refusal";
   import { switchWithAutostash } from "$lib/autostash";
   import { foundStep } from "$lib/found";
+  import { revealRef } from "$lib/ref-reveal";
   import { applyPreferences, type ApplyHost } from "$lib/preferences-apply";
   import { capFraction, floorFraction, PANELS, type PanelId } from "$lib/perspectives";
   import { graphPanelMinWidth } from "$lib/graph-panel";
@@ -1259,7 +1260,15 @@
     stashView.clear();
     if (!node.oid) return;
     void commit.select(id, node.oid);
-    graph.requestReveal(node.oid);
+    void revealRef(node.oid, {
+      inWalk: async (oid) => (await graph.indexOf(oid)) !== null,
+      tickable: node.rev !== undefined && !node.disabled && !refs.visible.has(node.id),
+      tick: async () => {
+        refs.set(new Set([...refs.visible, node.id]));
+        await reloadGraph();
+      },
+      reveal: (oid) => graph.requestReveal(oid),
+    });
   }
 
   /** One side of a stash part against the commit it was taken from. */
