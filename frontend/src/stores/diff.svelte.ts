@@ -71,9 +71,11 @@ class DiffStore {
 
   /** Which of the line actions make sense on the side of the index on screen: the
       working tree against the index stages and discards, the index against HEAD only
-      unstages. The patch is cut from this diff, so on the other side it means other lines. */
+      unstages. The patch is cut from this diff, so on the other side it means other lines.
+      The diff on screen decides, not the one asked for next: until it arrives, the lines
+      and hunks are the old one's. */
   get lineActions(): { stage: boolean; unstage: boolean; discard: boolean } {
-    const kind = this.spec?.kind;
+    const kind = this.#shown?.spec.kind;
     return {
       stage: kind === "workTreeVsIndex",
       unstage: kind === "indexVsHead",
@@ -82,7 +84,8 @@ class DiffStore {
   }
 
   get stageable(): boolean {
-    return this.spec?.kind === "workTreeVsIndex" || this.spec?.kind === "indexVsHead";
+    const kind = this.#shown?.spec.kind;
+    return kind === "workTreeVsIndex" || kind === "indexVsHead";
   }
 
   /** This file under this spec is on screen already, so clicking it again changes nothing. */
