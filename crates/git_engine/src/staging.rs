@@ -1,5 +1,30 @@
 use crate::{FileStatus, GitError, Head, RepoHandle, Result};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+
+/// The names directly in `folder` of `tree`, or `None` when HEAD has no such folder.
+fn names_in(tree: &gix::Tree<'_>, folder: &str) -> Option<HashSet<Vec<u8>>> {
+    let owned;
+    let folder_tree = if folder.is_empty() {
+        tree
+    } else {
+        owned = tree
+            .lookup_entry_by_path(folder)
+            .ok()??
+            .object()
+            .ok()?
+            .try_into_tree()
+            .ok()?;
+        &owned
+    };
+    let decoded = folder_tree.decode().ok()?;
+    Some(
+        decoded
+            .entries
+            .iter()
+            .map(|entry| entry.filename.to_vec())
+            .collect(),
+    )
+}
 
 impl RepoHandle {
     pub fn stage(&self, paths: &[String]) -> Result<()> {
@@ -31,10 +56,21 @@ impl RepoHandle {
             return Ok(paths.to_vec());
         };
         // A rename's new name is not in HEAD; when every path is, there is nothing to diff.
+        // One tree read per folder: a lookup per path decoded the trees from the root each
+        // time, thousands of them on a large unstage.
+        let mut folders: HashMap<&str, Option<HashSet<Vec<u8>>>> = HashMap::new();
         let added: HashSet<&str> = paths
             .iter()
             .map(String::as_str)
-            .filter(|path| matches!(tree.lookup_entry_by_path(path), Ok(None)))
+            .filter(|path| {
+                let (folder, name) = path.rsplit_once('/').unwrap_or(("", path));
+                let names = folders
+                    .entry(folder)
+                    .or_insert_with(|| names_in(&tree, folder));
+                names
+                    .as_ref()
+                    .is_none_or(|names| !names.contains(name.as_bytes()))
+            })
             .collect();
         if added.is_empty() {
             return Ok(paths.to_vec());
