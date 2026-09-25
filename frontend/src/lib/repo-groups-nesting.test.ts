@@ -58,6 +58,27 @@ describe("groupRows with nesting", () => {
     expect(rows.some((row) => row.kind === "group" && row.id === inner)).toBe(false);
   });
 
+  // Every group starts collapsed (R-160), so after each restart the repositories of a
+  // nested group stood under Ungrouped until its parent was opened.
+  it("keeps a nested group's repositories out of Ungrouped while its parent is collapsed", () => {
+    const { groups, outer, inner } = twoGroups();
+    const next = { ...nest(groups, inner, outer), of: { "C:/b": inner } };
+
+    const rows = groupRows(next, ["C:/b"], new Set([outer]));
+
+    expect(rows.some((row) => row.kind === "group" && row.id === "")).toBe(false);
+    expect(rows.some((row) => row.kind === "repo")).toBe(false);
+  });
+
+  it("keeps them out of Ungrouped when both levels are collapsed", () => {
+    const { groups, outer, inner } = twoGroups();
+    const next = { ...nest(groups, inner, outer), of: { "C:/b": inner } };
+
+    const rows = groupRows(next, ["C:/b"], new Set([outer, inner]));
+
+    expect(rows.map((row) => (row.kind === "group" ? row.id : row.root))).toEqual([outer]);
+  });
+
   it("counts a parent's own repositories, not its children's", () => {
     const { groups, outer, inner } = twoGroups();
     let next = nest(groups, inner, outer);
