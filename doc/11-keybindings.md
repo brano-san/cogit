@@ -120,9 +120,9 @@ Checkout, Merge, Rebase, Cherry-Pick, Revert и Undo аккордов не им�
 | `Shift+F6` | `diff`, `merge-window` | Предыдущее изменение |
 | `Ctrl+Shift+D` | `global` | Переключить Side-by-Side / Unified |
 | `Ctrl+F` | `diff` | Поиск в diff |
-| `Ctrl+Alt+T` | `diff` | Stage выделенных строк |
-| `Ctrl+Alt+Shift+T` | `diff` | Unstage выделенных строк |
-| `Ctrl+Space` | `diff` | Развернуть свёрнутый блок под курсором |
+
+Stage и Unstage выделенных строк — кнопки над diff, свёрнутый блок разворачивает щелчок: аккордов
+у них нет (`Ctrl+Alt+T` на части раскладок — AltGr, то есть ввод символа).
 
 ## 8. Инструменты
 
