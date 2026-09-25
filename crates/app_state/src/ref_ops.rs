@@ -118,15 +118,20 @@ impl AppState {
         let handle = self.handle(repo)?;
         let before = handle.head()?;
         handle.edit_author(rev, name, email)?;
-        let was = match before {
-            git_engine::Head::Branch { name, oid } => format!(" ({name} was at {})", short(&oid)),
-            git_engine::Head::Detached { oid } => format!(" (HEAD was at {})", short(&oid)),
-            git_engine::Head::Unborn { .. } => String::new(),
+        let (was, recovery) = match before {
+            git_engine::Head::Branch { name, oid } => (
+                format!(" ({name} was at {})", short(&oid)),
+                Recovery::Moved { name, oid },
+            ),
+            git_engine::Head::Detached { oid } => {
+                (format!(" (HEAD was at {})", short(&oid)), Recovery::None)
+            }
+            git_engine::Head::Unborn { .. } => (String::new(), Recovery::None),
         };
         self.record(
             repo,
             format!("Edit the author of {}{was}", short(rev)),
-            Recovery::None,
+            recovery,
         );
         Ok(())
     }

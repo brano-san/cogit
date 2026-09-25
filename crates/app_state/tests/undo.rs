@@ -838,3 +838,50 @@ fn undoing_a_soft_reset_puts_the_branch_back() {
     assert_eq!(head_oid(&state, repo), tip);
     assert!(f.git(&["status", "--porcelain"]).unwrap().is_empty());
 }
+
+// The rebase returned early on its conflict, before anything was recorded: once the user
+// resolved it and continued, there was nothing to undo.
+#[test]
+fn an_interactive_rebase_finished_after_its_conflict_can_be_undone() {
+    let f = test_fixtures::linear(1).unwrap();
+    let base = f.commit_file(2, "c.txt", "a\n").unwrap();
+    let middle = f.commit_file(3, "c.txt", "b\n").unwrap();
+    let tip = f.commit_file(4, "c.txt", "c\n").unwrap();
+    let (state, repo) = open(&f);
+    let plan = [
+        git_engine::TodoEntry {
+            oid: middle,
+            action: git_engine::TodoAction::Drop,
+            message: None,
+        },
+        git_engine::TodoEntry {
+            oid: tip.clone(),
+            action: git_engine::TodoAction::Pick,
+            message: None,
+        },
+    ];
+    assert!(state.interactive_rebase(repo, &base, &plan, false).is_err());
+    f.write_file("c.txt", "c\n").unwrap();
+    f.git(&["add", "c.txt"]).unwrap();
+    state.continue_operation(repo).unwrap();
+    assert_ne!(head_oid(&state, repo), tip);
+
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(head_oid(&state, repo), tip);
+}
+
+#[test]
+fn an_author_edit_can_be_undone() {
+    let f = test_fixtures::linear(3).unwrap();
+    let (state, repo) = open(&f);
+    let tip = head_oid(&state, repo);
+
+    state
+        .edit_author(repo, "HEAD~1", "Someone Else", "else@example.com")
+        .unwrap();
+    assert_ne!(head_oid(&state, repo), tip);
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(head_oid(&state, repo), tip);
+}

@@ -5190,3 +5190,19 @@ stash она переносится как у `Moved` (`branch --force`), со s
 Reset на тот же коммит без stash отменять нечего — запись без Undo, как раньше. Тесты —
 `undo.rs`: `undoing_a_hard_reset_puts_the_branch_back_with_the_work_on_it`,
 `undoing_a_mixed_reset_puts_the_branch_back`, `undoing_a_soft_reset_puts_the_branch_back`.
+
+## R-433 · Остановленная операция: запись в журнале сразу, Undo ждёт её конца · Н
+
+Merge, rebase, cherry-pick, revert, pull при остановке на конфликте пишут `Moved` сразу
+(INV-12: иначе после Continue или коммита отменить нечем). Так же теперь и `Rebase Commits
+After This One…` (interactive rebase): он выходил по ошибке до записи. `Edit Author` — тот же
+rebase с `exec`, и ветку после него можно вернуть так же, поэтому его запись — `Moved`, а не
+«без Undo» (отложенный B-17 из refactor-night в части Edit Author). `Split Off` не
+останавливается — при сбое он сам откатывается (`recover`), запись не нужна.
+Пока операция не закончена, Undo такой записи отказывает своим текстом «an operation is in
+progress: continue or abort it, then undo», а не сырым отказом git (`reset --keep` посреди
+merge, `branch --force` ветки, занятой rebase). Abort за пользователя не делается: он
+выбросил бы уже сделанные разрешения. Запись остаётся в журнале и срабатывает после Continue
+или Abort. Тесты — `undo.rs`: `undo_waits_for_a_merge_stopped_on_its_conflict`,
+`undo_waits_for_a_rebase_stopped_on_its_conflict`,
+`an_interactive_rebase_finished_after_its_conflict_can_be_undone`, `an_author_edit_can_be_undone`.

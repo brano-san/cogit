@@ -86,22 +86,19 @@ impl AppState {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         let before = handle.head()?;
-        if paused {
-            handle.interactive_rebase_paused(base, plan)?;
+        let result = if paused {
+            handle.interactive_rebase_paused(base, plan)
         } else {
-            handle.interactive_rebase(base, plan)?;
-        }
-
-        let recovery = match before {
-            git_engine::Head::Branch { name, oid } => Recovery::Moved { name, oid },
-            _ => Recovery::None,
+            handle.interactive_rebase(base, plan)
         };
-        self.record(
+        self.record_move(
             repo,
+            &handle,
+            before,
             format!("Interactive rebase onto {}", short(base)),
-            recovery,
+            &result,
         );
-        Ok(())
+        result
     }
 
     /// The shared branches that already contain this commit; empty means safe to rewrite.
