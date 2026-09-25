@@ -5174,3 +5174,19 @@ Discard; см. BE-039 аудита). Тесты — `undo.rs`: `undoing_a_rollba
 Если с тех пор записей выше стало меньше, запись встаёт ниже всех. Тесты — `stashes.rs`
 `a_dropped_stash_goes_back_to_its_place_in_the_list`, `undo.rs`
 `undoing_a_stash_drop_lists_the_stash_again_in_its_place`, модульные — `stash_rename.rs`.
+
+## R-432 · Undo `Reset` возвращает ветку; hard — ветку и затем выброшенные правки · Н
+
+Уточняет R-253. Журнал хранил у `hard` только stash, а у остальных режимов — ничего: Undo
+применял stash, снятый на старой вершине, поверх новой, ветка оставалась на месте, а если
+ушедшие коммиты меняли те же строки — в файле оставались маркеры конфликта (INV-12, DoD M5:
+ссылки и status как до операции). Теперь запись `Recovery::Reset` хранит ветку (или
+detached HEAD), прежний коммит, режим и stash. Undo: `soft` и `mixed` отменяются тем же
+режимом на прежний коммит — они не трогали файлы; `hard`, `keep`, `merge` — через
+`reset --keep`, который откажет, а не затрёт то, что изменилось с тех пор, затем применяется
+stash (он снят на прежнем коммите, конфликта нет). Не `reset --hard`: записи отменяются в
+любом порядке (T5.7), и hard снёс бы более поздние правки. Если ветку с тех пор сменили, без
+stash она переносится как у `Moved` (`branch --force`), со stash — отказ «check out <ветка>».
+Reset на тот же коммит без stash отменять нечего — запись без Undo, как раньше. Тесты —
+`undo.rs`: `undoing_a_hard_reset_puts_the_branch_back_with_the_work_on_it`,
+`undoing_a_mixed_reset_puts_the_branch_back`, `undoing_a_soft_reset_puts_the_branch_back`.
