@@ -4,6 +4,7 @@
   import MergeView from "$components/diff/MergeView.svelte";
   import TooltipLayer from "$components/common/TooltipLayer.svelte";
   import { failureText, parseMerge } from "$lib/merge-params";
+  import { saveResolution } from "$lib/merge-save";
   import { closeThisWindow, mergePreview, mergeResolved, resolveConflictText, type Region } from "$lib/ipc";
   import { closeGuard, installChildWindow } from "$lib/child-window";
   import { confirmation } from "$stores/confirm.svelte";
@@ -52,18 +53,16 @@
     document.title = request ? `${request.path} — Cogit` : "Merge — Cogit";
   });
 
-  /** Written here, announced to the main window, and the window closes behind itself. */
   async function save(text: string) {
     if (!request) return;
+    const { repo, path } = request;
     saveFailed = null;
-    try {
-      await resolveConflictText(request.repo, request.path, text);
-      await mergeResolved(request.repo, request.path);
-      saved = true;
-      await closeThisWindow();
-    } catch (err) {
-      saveFailed = failureText(err);
-    }
+    saveFailed = await saveResolution({
+      resolve: () => resolveConflictText(repo, path, text),
+      announce: () => mergeResolved(repo, path),
+      saved: () => (saved = true),
+      close: () => closeThisWindow(),
+    });
   }
 </script>
 
