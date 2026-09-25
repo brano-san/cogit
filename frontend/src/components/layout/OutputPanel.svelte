@@ -1,5 +1,6 @@
 <script lang="ts">
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+  import Checkbox from "$components/common/Checkbox.svelte";
   import type { GitOutput } from "$lib/ipc";
   import { isFailure, isWarning, output } from "$stores/output.svelte";
 
@@ -34,7 +35,7 @@
 <div class="output" bind:this={panel} tabindex="-1">
   <header>
     <span class="title">Output</span>
-    <label><input type="checkbox" bind:checked={output.errorsOnly} /> Problems only</label>
+    <span class="problems"><Checkbox bind:checked={output.errorsOnly} label="Problems only" /></span>
     <span class="grow"></span>
     <button type="button" onclick={() => void writeText(output.shownEntries.map(asText).join("\n\n"))}>
       Copy log
@@ -97,10 +98,7 @@
     color: var(--text-secondary);
   }
 
-  label {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-2);
+  .problems {
     color: var(--text-secondary);
   }
 

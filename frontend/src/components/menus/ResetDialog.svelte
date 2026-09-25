@@ -1,6 +1,7 @@
 <script lang="ts">
   import { shortOid } from "$lib/format";
   import Dialog from "$components/common/Dialog.svelte";
+  import Radio from "$components/common/Radio.svelte";
   import { RESET_CHOICES } from "$lib/reset-modes";
   import type { ResetMode } from "$lib/ipc/ref-ops";
 
@@ -31,18 +32,12 @@
     <fieldset>
       <legend class="caption">Mode</legend>
       {#each RESET_CHOICES as choice (choice.mode)}
-        <label class="choice">
-          <input
-            type="radio"
-            name="reset-mode"
-            checked={mode === choice.mode}
-            onchange={() => (mode = choice.mode)}
-          />
+        <Radio name="reset-mode" checked={mode === choice.mode} onchange={() => (mode = choice.mode)}>
           <span class="text">
             <span class="label">{choice.label}</span>
             <span class="explanation">{choice.explanation}</span>
           </span>
-        </label>
+        </Radio>
       {/each}
     </fieldset>
   </div>
@@ -95,16 +90,6 @@
   legend {
     padding: 0;
     margin-bottom: var(--sp-2);
-  }
-
-  .choice {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--sp-3);
-  }
-
-  .choice input {
-    margin-top: 2px;
   }
 
   .text {

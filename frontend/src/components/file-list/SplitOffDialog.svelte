@@ -1,5 +1,7 @@
 <script lang="ts">
   import { modalLayer, modals } from "$lib/modal-stack";
+  import Checkbox from "$components/common/Checkbox.svelte";
+  import Radio from "$components/common/Radio.svelte";
   import { shortOid } from "$lib/format";
   import { splitProblem, splitSummary } from "$lib/split-off";
 
@@ -56,10 +58,11 @@
 
   <div class="files">
     {#each changed as path (path)}
-      <label class="row">
-        <input type="checkbox" checked={chosen.includes(path)} onchange={() => toggle(path)} />
-        <span class="truncate">{path}</span>
-      </label>
+      <div class="row">
+        <Checkbox wide checked={chosen.includes(path)} onchange={() => toggle(path)}>
+          <span class="truncate">{path}</span>
+        </Checkbox>
+      </div>
     {/each}
   </div>
 
@@ -72,14 +75,8 @@
     <div class="field">
       <span>Position</span>
       <div class="choice">
-        <label>
-          <input type="radio" checked={splitFirst} onchange={() => (splitFirst = true)} />
-          Before the original
-        </label>
-        <label>
-          <input type="radio" checked={!splitFirst} onchange={() => (splitFirst = false)} />
-          After the original
-        </label>
+        <Radio name="split-position" checked={splitFirst} onchange={() => (splitFirst = true)} label="Before the original" />
+        <Radio name="split-position" checked={!splitFirst} onchange={() => (splitFirst = false)} label="After the original" />
       </div>
     </div>
 
@@ -204,12 +201,6 @@
   .choice {
     display: flex;
     gap: var(--sp-6);
-  }
-
-  .choice label {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-3);
   }
 
   .summary {

@@ -1,5 +1,6 @@
 <script lang="ts">
   import Dialog from "$components/common/Dialog.svelte";
+  import Radio from "$components/common/Radio.svelte";
   import Select from "$components/common/Select.svelte";
   import {
     customRefProblem,
@@ -67,14 +68,8 @@
 
     <fieldset>
       <legend class="caption">Push To:</legend>
-      <label class="choice">
-        <input type="radio" name="push-to" checked={mode === "tracked"} onchange={() => (mode = "tracked")} />
-        <span>Tracked or matching branch</span>
-      </label>
-      <label class="choice">
-        <input type="radio" name="push-to" checked={mode === "custom"} onchange={() => (mode = "custom")} />
-        <span>Custom Ref</span>
-      </label>
+      <Radio name="push-to" checked={mode === "tracked"} onchange={() => (mode = "tracked")} label="Tracked or matching branch" />
+      <Radio name="push-to" checked={mode === "custom"} onchange={() => (mode = "custom")} label="Custom Ref" />
       <div class="nested">
         <input
           bind:this={field}
@@ -146,12 +141,6 @@
   legend {
     padding: 0;
     margin-bottom: var(--sp-2);
-  }
-
-  .choice {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-3);
   }
 
   .nested {

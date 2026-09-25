@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Checkbox from "$components/common/Checkbox.svelte";
   import Dialog from "$components/common/Dialog.svelte";
   import { statusBadge, statusTooltip } from "$lib/files";
   import type { FileEntry, WorktreeEntry } from "$lib/ipc";
@@ -59,12 +60,12 @@
         </p>
       {/if}
       {#if needs.force}
-        <label class="force">
-          <input type="checkbox" bind:checked={force} />
-          {needs.dirty
+        <Checkbox
+          bind:checked={force}
+          label={needs.dirty
             ? "Remove it anyway (--force). The changes are put in a stash first; Undo applies it."
             : "Remove it anyway (--force), with its submodules."}
-        </label>
+        />
       {/if}
     {/if}
   </div>
@@ -122,12 +123,6 @@
     flex: none;
     width: 12px;
     text-align: center;
-  }
-
-  .force {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--sp-3);
   }
 
   .hint {

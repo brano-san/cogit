@@ -1,5 +1,6 @@
 <script lang="ts">
   import Dialog from "$components/common/Dialog.svelte";
+  import Radio from "$components/common/Radio.svelte";
   import Select from "$components/common/Select.svelte";
   import { addProblem, type BranchChoice } from "$lib/worktree-list";
 
@@ -59,10 +60,7 @@
 
     <fieldset>
       <legend>Branch</legend>
-      <label class="choice">
-        <input type="radio" name="worktree-branch" checked={create} onchange={() => (create = true)} />
-        New branch
-      </label>
+      <Radio name="worktree-branch" checked={create} onchange={() => (create = true)} label="New branch" />
       {#if create}
         <div class="nested">
           <label class="field">
@@ -76,10 +74,7 @@
         </div>
       {/if}
 
-      <label class="choice">
-        <input type="radio" name="worktree-branch" checked={!create} onchange={() => (create = false)} />
-        Existing branch
-      </label>
+      <Radio name="worktree-branch" checked={!create} onchange={() => (create = false)} label="Existing branch" />
       {#if !create}
         <div class="nested">
           <Select
@@ -142,12 +137,6 @@
   legend {
     padding: 0;
     margin-bottom: var(--sp-2);
-  }
-
-  .choice {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-3);
   }
 
   .nested {

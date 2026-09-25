@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Checkbox from "$components/common/Checkbox.svelte";
   import Dialog from "$components/common/Dialog.svelte";
   import { scan } from "$stores/scan.svelte";
 
@@ -89,18 +90,19 @@
       </div>
     {:else}
       {#each shown as hit (hit.root)}
-        <label class="row" class:disabled={hit.alreadyOpen}>
-          <input
-            type="checkbox"
+        <div class="row" class:disabled={hit.alreadyOpen}>
+          <Checkbox
+            wide
             checked={scan.chosen.has(hit.root)}
             disabled={hit.alreadyOpen}
             onchange={() => scan.toggle(hit.root)}
-          />
-          <span class="name">{hit.name}</span>
-          {#if hit.bare}<span class="tag">bare</span>{/if}
-          {#if hit.alreadyOpen}<span class="tag">already open</span>{/if}
-          <span class="path truncate" title={hit.root}>{hit.root}</span>
-        </label>
+          >
+            <span class="name">{hit.name}</span>
+            {#if hit.bare}<span class="tag">bare</span>{/if}
+            {#if hit.alreadyOpen}<span class="tag">already open</span>{/if}
+            <span class="path truncate" title={hit.root}>{hit.root}</span>
+          </Checkbox>
+        </div>
       {/each}
     {/if}
   </div>
