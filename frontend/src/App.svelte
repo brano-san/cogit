@@ -1063,7 +1063,10 @@
     // Reads the status itself, which is why nothing above does it a second time.
     await afterMutation();
     if (left()) return;
-    stale = freshen(stale, ["diff", "files", "commit"]);
+    stale = freshen(stale, ["files", "commit"]);
+    if (plan.worktree || plan.refs) await diff.refreshFromDisk();
+    if (left()) return;
+    stale = freshen(stale, ["diff"]);
 
     if (plan.authors && commit.oid) void commit.select(id, commit.oid);
     if (plan.refs || plan.authors) await graph.load(id, graph.query);
