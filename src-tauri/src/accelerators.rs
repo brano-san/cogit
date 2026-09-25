@@ -304,7 +304,16 @@ mod tests {
     fn the_keys_the_panels_need_are_never_claimed() {
         let claimed = table(crate::menu::default_keymap_pairs(), &no_overrides());
 
-        for keys in ["CmdOrCtrl+A", "CmdOrCtrl+F", "CmdOrCtrl+C", "CmdOrCtrl+V"] {
+        for keys in [
+            "CmdOrCtrl+A",
+            "CmdOrCtrl+F",
+            "CmdOrCtrl+C",
+            "CmdOrCtrl+V",
+            "CmdOrCtrl+X",
+            "CmdOrCtrl+Z",
+            "CmdOrCtrl+Shift+Z",
+            "CmdOrCtrl+Y",
+        ] {
             let chord = parse(keys).expect("parses");
             assert!(!claimed.contains_key(&chord), "{keys} must reach the panel");
         }

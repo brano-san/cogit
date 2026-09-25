@@ -33,7 +33,7 @@ describe("refMenu", () => {
     items.filter((entry) => !entry.separator).map((entry) => entry.id);
 
   it("offers a lost commit the way back", () => {
-    expect(ids(refMenu({ kind: "lost" }))).toEqual(["restore-lost", "copy-sha"]);
+    expect(ids(refMenu({ kind: "lost" }))).toEqual(["restore-lost", "lost-copy-sha"]);
   });
 
   it("has nothing to offer for a heading", () => {

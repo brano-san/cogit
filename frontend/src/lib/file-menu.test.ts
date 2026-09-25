@@ -54,7 +54,8 @@ describe("worktreeFileMenu", () => {
     expect(find(menu, "file-unstage")?.accelerator).toBe("CmdOrCtrl+Shift+T");
     expect(find(menu, "file-discard")?.accelerator).toBe("CmdOrCtrl+Z");
     expect(find(menu, "file-blame")?.accelerator).toBe("CmdOrCtrl+Shift+L");
-    expect(find(menu, "file-reveal")?.accelerator).toBe("CmdOrCtrl+Shift+E");
+    // No key reveals a file: the menu must not show one it does not have (R-453).
+    expect(find(menu, "file-reveal")?.accelerator ?? null).toBeNull();
   });
 
   it("stages what is unstaged and unstages what is staged", () => {

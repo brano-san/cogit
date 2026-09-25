@@ -5550,3 +5550,32 @@ Push To (свой refspec) не меняются. Отдельный пункт 
 `Return` (muda читает только `Enter`); `accelerators.rs` понимает оба. Тесты —
 `commit-box.test.ts`, `menu::tests::the_commit_keys_belong_to_the_window`,
 `accelerators::tests::every_default_accelerator_can_be_claimed`.
+
+## R-453 · Реестр клавиш сведён к назначенному: часть аккордов назначена, остальные убраны · С
+
+Около тридцати аккордов 11 не были назначены нигде, а тултипы тулбара и меню файла их
+показывали (`Ctrl+T` у Stage, `Ctrl+M` у Merge, `Ctrl+Shift+E` у Reveal). Окно забирает у
+WebView2 только аккорды пунктов меню (`accelerators::table`), поэтому аккорд без пункта
+не работает, пока его не поймает сама страница.
+
+**Назначено** (пункт меню или `OFF_THE_BAR`): `Ctrl+T` / `Ctrl+Shift+T` — `Local ▸ Stage` /
+`Unstage` (отмеченные файлы, без отметок — все, как кнопки тулбара), `Ctrl+Alt+Shift+F` —
+Fetch All, `Ctrl+Shift+L` — Blame This File, `Ctrl+Shift+Y` — Copy the Commit SHA, `F7` —
+New Branch…, `Shift+F7` — Create Tag, `Ctrl+Shift+R` — Rebase Commits After This One…
+Всё это открывает диалог или не переписывает историю. `Ctrl+Z` (Discard) ловит сама страница
+и только при фокусе в Files: окно этот аккорд не забирает никогда — в полях ввода и в Diff это
+отмена ввода; тест `the_keys_the_panels_need_are_never_claimed` держит `Ctrl+Z`,
+`Ctrl+Shift+Z`, `Ctrl+X`, `Ctrl+Y` за страницей. Окно слияния получило свои `F6`,
+`Ctrl+1…3`, `Ctrl+Shift+1…3` (`mergeKey`); `Ctrl+2` — обе стороны: отдельной версии Base у
+выбора нет.
+
+**Убрано из 11 и из подсказок:** масштаб `Ctrl+=/-/0` и `F1` (своего масштаба и справки нет),
+Checkout `Ctrl+G`, Merge `Ctrl+M`, Rebase `Ctrl+R` (тулбар делает их без вопроса — одиночный
+аккорд слишком лёгок), Cherry-Pick `Ctrl+Shift+C`, Revert `Ctrl+Shift+V`, Undo
+`Ctrl+Shift+Z` (в полях это повтор ввода), Apply / Pop stash `Ctrl+Shift+A` / `Ctrl+Alt+P`,
+Open in Explorer / Terminal `Ctrl+Shift+E` / `Ctrl+Shift+X`. Правило 11 §12 п.4 («у каждого
+действия тулбара шорткат») смягчено: тултип не обещает аккорда, которого нет. Пункт
+контекстного меню потерянного коммита «Copy the full SHA» получил свой id `lost-copy-sha`:
+общий с командой `copy-sha` id подменял бы копируемый коммит после `Ctrl+Shift+Y`. Тесты —
+`menu::…::the_registry_keys_are_the_window_s`, `merge-view.test.ts` `mergeKey`,
+`file-menu.test.ts`.
