@@ -160,3 +160,42 @@ fn the_journal_calls_a_line_discard_undoable() {
     let entry = state.safety_log().into_iter().next().unwrap();
     assert!(entry.undoable, "{entry:?}");
 }
+
+// With whitespace ignored the re-indented lines are context, and their text came from the
+// old side: applied in reverse to the working tree, which has the new indentation, git said
+// "patch does not apply".
+#[test]
+fn discarding_next_to_lines_that_differ_only_in_whitespace_applies() {
+    let f = test_fixtures::empty().unwrap();
+    let old = "p\n  x\n  y\nq\n";
+    let new = "p\n    x\n    y\n    z\nq\n";
+    f.commit_file(1, "f.txt", old).unwrap();
+    f.write_file("f.txt", new).unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let options = DiffOptions {
+        ignore_whitespace: diff_engine::Whitespace::All,
+        ..DiffOptions::default()
+    };
+    let FileDiff::Text { hunks, .. } = diff_text(old, new, &options) else {
+        panic!("expected a text diff");
+    };
+
+    state
+        .discard_selection(
+            repo,
+            &PatchRequest {
+                path: "f.txt".to_owned(),
+                hunks,
+                selected_deletes: Vec::new(),
+                selected_inserts: vec![4],
+                line_ending: LineEnding::Lf,
+            },
+        )
+        .unwrap();
+
+    assert_eq!(
+        std::fs::read_to_string(f.path().join("f.txt")).unwrap(),
+        "p\n    x\n    y\nq\n"
+    );
+}

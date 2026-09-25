@@ -355,3 +355,30 @@ fn unstaging_the_removal_of_a_last_line_without_a_newline_keeps_the_lines_after_
 
     assert_eq!(index_text(&f, "f.txt"), "a\nx\nx\ny\n");
 }
+
+// The same on Unstage: the patch goes on the index in reverse, and its context must be
+// the index's own text, not HEAD's.
+#[test]
+fn unstaging_next_to_lines_that_differ_only_in_whitespace_applies() {
+    let f = test_fixtures::empty().unwrap();
+    let old = "p\n  x\nq\n";
+    let new = "p\n    x\n    z\nq\n";
+    f.commit_file(1, "f.txt", old).unwrap();
+    f.write_file("f.txt", new).unwrap();
+    f.git(&["add", "f.txt"]).unwrap();
+    let (state, repo) = opened(&f);
+    let options = DiffOptions {
+        ignore_whitespace: diff_engine::Whitespace::All,
+        ..DiffOptions::default()
+    };
+
+    state
+        .stage_selection(
+            repo,
+            &request_with("f.txt", old, new, &options, Vec::new(), vec![3]),
+            true,
+        )
+        .unwrap();
+
+    assert_eq!(index_text(&f, "f.txt"), "p\n    x\nq\n");
+}
