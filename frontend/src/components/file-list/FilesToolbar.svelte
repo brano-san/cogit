@@ -53,7 +53,7 @@
   const ROOM_FOR_SWITCHES = 420;
 
   /** The Files panel is often a narrow column. Rather than clip the switches, they move
-      into the Customize View menu, where they are still one click away (issue 12). */
+      into the Customise View menu, where they are still one click away (issue 12). */
   $effect(() => {
     const element = bar;
     if (!element) return;
@@ -232,7 +232,7 @@
       class="tool"
       aria-haspopup="menu"
       aria-expanded={columnsOpen}
-      title="Customize View"
+      title="Customise View"
       {disabled}
       onclick={toggleMenu}
     >
