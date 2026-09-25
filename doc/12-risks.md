@@ -4113,7 +4113,10 @@ Untracked-файлы `reset --hard` и так не трогает, поэтом�
 успехе) не проверяется. macOS — `open` / `open -R`, Linux — `xdg-open` и `ShowItems` сервиса
 `org.freedesktop.FileManager1` через `dbus-send`, подпись пунктов — `File Manager`.
 Меню подмодуля переписано на общий путь `menu-command`. **Меню ворктри** (`worktreeContext`
-в `App.svelte`) страдает тем же, что пункт 2, — не входит в #36 и оставлено как есть.
+в `App.svelte`) страдало тем же, что пункт 2; аудит 25.09 перевёл и его: пункты
+`worktree-row-*` (`lib/worktree-menu.ts`), строка запоминается до прихода команды
+(`runWorktreeCommand`). Не `worktree-*`: так названы команды палитры Remove Worktree… и
+Prune Obsolete Worktrees…, и пункт главного меню не должен попасть в обработчик строки.
 
 Проверено тестами команд (`crates/app_state/tests/desktop.rs`); в запущенной сборке не
 проверено — запуск с портом отладки для CDP в этой сессии не разрешили.

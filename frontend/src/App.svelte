@@ -97,6 +97,7 @@
   import { graphPanelMinWidth } from "$lib/graph-panel";
   import { repoClick } from "$lib/repo-click";
   import { ModuleInitialiser, moduleClick } from "$lib/module-init";
+  import { parseWorktreeCommand, worktreeMenu } from "$lib/worktree-menu";
   import { browserSources, start as startMemoryProbe } from "$lib/mem-probe";
   import { liveListeners } from "$lib/listener-count";
   import type { Settings } from "$lib/settings";
@@ -2521,44 +2522,49 @@
     await afterMutation();
   }
 
-  async function worktreeContext(entry: import("$lib/ipc").WorktreeEntry, x: number, y: number) {
-    const chosen = await popupContextMenu(
-      entry.missing
-        ? [
-            { id: "prune", label: "Prune", enabled: entry.locked === null },
-            { id: "repair", label: "Repair…", enabled: true },
-            { id: "", label: "", enabled: false, separator: true },
-            { id: "copy", label: "Copy Path", enabled: true },
-          ]
-        : [
-            { id: "open", label: "Open", enabled: !entry.isCurrent },
-            { id: "reveal", label: "Reveal in File Manager", enabled: true },
-            { id: "copy", label: "Copy Path", enabled: true },
-            { id: "", label: "", enabled: false, separator: true },
-            entry.locked === null
-              ? { id: "lock", label: "Lock", enabled: !entry.isMain }
-              : { id: "unlock", label: "Unlock", enabled: true },
-            { id: "remove", label: "Remove…", enabled: removable(entry) },
-          ],
-      x,
-      y,
-    ).catch(() => null);
+  /** The row the menu was opened on, until its choice comes back as a menu command. */
+  let worktreeTarget = $state.raw<import("$lib/ipc").WorktreeEntry | null>(null);
 
-    if (chosen === "open") await openWorktreeRow(entry);
-    if (chosen === "copy") await copyText(entry.path);
-    if (chosen === "remove") await removeWorktreeAt(entry);
-    if (chosen === "prune") await pruneWorktreeAt(entry);
-    if (chosen === "repair") await repairWorktreeAt(entry);
-    if (chosen === "lock") {
-      await worktrees.lock(entry.path, null).catch((err) => errors.report(err, "Could not lock the worktree"));
+  async function worktreeContext(entry: import("$lib/ipc").WorktreeEntry, x: number, y: number) {
+    worktreeTarget = entry;
+    await popupContextMenu(worktreeMenu(entry), x, y).catch(() => {});
+  }
+
+  /** Returns true when the id belonged to a Worktrees row's menu and was handled here. */
+  function runWorktreeCommand(id: string): boolean {
+    const entry = worktreeTarget;
+    const command = parseWorktreeCommand(id);
+    if (!entry || !command) return false;
+    const failed = (what: string) => (err: unknown) => errors.report(err, `Could not ${what} the worktree`);
+    switch (command) {
+      case "open":
+        void openWorktreeRow(entry);
+        break;
+      case "copy":
+        void copyText(entry.path);
+        break;
+      case "remove":
+        void removeWorktreeAt(entry);
+        break;
+      case "prune":
+        void pruneWorktreeAt(entry);
+        break;
+      case "repair":
+        void repairWorktreeAt(entry);
+        break;
+      case "lock":
+        void worktrees.lock(entry.path, null).catch(failed("lock"));
+        break;
+      case "unlock":
+        void worktrees.unlock(entry.path).catch(failed("unlock"));
+        break;
+      case "reveal":
+        void import("@tauri-apps/plugin-opener").then(({ revealItemInDir }) =>
+          revealItemInDir(entry.path).catch(failed("reveal")),
+        );
+        break;
     }
-    if (chosen === "unlock") {
-      await worktrees.unlock(entry.path).catch((err) => errors.report(err, "Could not unlock the worktree"));
-    }
-    if (chosen === "reveal") {
-      const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
-      await revealItemInDir(entry.path).catch((err) => errors.report(err, "Could not reveal the worktree"));
-    }
+    return true;
   }
 
   /** A row of the Repositories list, open or closed (#36). */
@@ -3063,6 +3069,7 @@
       if (refActions?.run(id)) return;
       if (runGroupCommand(id)) return;
       if (runRepoCommand(id)) return;
+      if (runWorktreeCommand(id)) return;
       if (runFileCommand(id)) return;
       if (runRefCommand(id)) return;
       const command = palette.find((entry) => entry.id === id);
