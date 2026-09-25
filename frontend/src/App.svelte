@@ -93,6 +93,7 @@
   import { moveEntry } from "$lib/rebase-plan";
   import { stateBanner, type BannerAction } from "$lib/repo-state";
   import { blockedByLocalChanges } from "$lib/checkout-refusal";
+  import { switchWithAutostash } from "$lib/autostash";
   import { capFraction, floorFraction, PANELS, type PanelId } from "$lib/perspectives";
   import { graphPanelMinWidth } from "$lib/graph-panel";
   import { repoClick } from "$lib/repo-click";
@@ -1301,36 +1302,14 @@
     const blocked = blockedByLocalChanges(err.detail.data.stderr);
     if (!blocked) return false;
 
-    const what =
-      blocked.length === 0
-        ? "Local changes are in the way"
-        : `${blocked.length} file(s) are in the way: ${blocked.slice(0, 5).join(", ")}`;
-    const confirmed = await ask(
-      `${what}. Stash them, switch to ${branch.name}, then put them back?`,
-      { title: "Switch branch", kind: "warning" },
-    );
-    if (!confirmed) return false;
-
-    try {
-      await stashes.push(id, `cogit: autostash before switching to ${branch.name}`, true);
-    } catch (failed) {
-      errors.report(failed, "Could not stash the changes");
-      await afterRefChange(id);
-      return true;
-    }
-    try {
-      await checkout(id, { kind: "branch", name: branch.name });
-    } catch (failed) {
-      // The changes are in the stash just made; left there, they would look lost.
-      await stashes
-        .apply(id, 0, true)
-        .catch((err) => errors.report(err, "Your changes are in stash@{0}: they could not be put back"));
-      errors.report(failed, "Could not switch branches");
-      await afterRefChange(id);
-      return true;
-    }
-    // Popping can conflict; the state banner then takes over, which is the honest outcome.
-    await stashes.apply(id, 0, true).catch((failed) => errors.report(failed, "Could not put the changes back"));
+    const outcome = await switchWithAutostash(branch.name, blocked, {
+      ask: (question) => ask(question, { title: "Switch branch", kind: "warning" }),
+      stash: () => stashes.push(id, `cogit: autostash before switching to ${branch.name}`, true),
+      checkout: () => checkout(id, { kind: "branch", name: branch.name }),
+      pop: () => stashes.apply(id, 0, true),
+      report: (failed, title) => errors.report(failed, title),
+    });
+    if (outcome === "declined") return false;
     await afterRefChange(id);
     return true;
   }
