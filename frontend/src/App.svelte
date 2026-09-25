@@ -323,6 +323,7 @@
     compareView.clear();
     // A stash outranks a commit in Files; picking a commit in the graph leaves it.
     stashView.clear();
+    conflicts.closeUnlessUnsaved();
   };
 
   $effect(() => {
@@ -925,7 +926,7 @@
     if (item.kind === "commit") void commit.select(id, item.oid);
     if (item.kind === "branch") void switchTo({ name: item.label } as Branch);
     if (item.kind === "tag" && item.oid) void commit.select(id, item.oid);
-    if (item.kind === "file" && commit.oid) openDiff(item.label);
+    if (item.kind === "file" && commit.oid) void openDiff(item.label);
   }
 
   function runCommand(command: PaletteCommand) {
@@ -1241,11 +1242,16 @@
   }
 
   /** One side of a stash part against the commit it was taken from. */
-  function openStashDiff(part: "worktree" | "index" | "untracked", path: string) {
+  async function openStashDiff(part: "worktree" | "index" | "untracked", path: string) {
     const id = repo?.repo;
     const spec = stashView.spec(part);
-    if (!id || !spec) return;
+    if (!id || !spec || !(await conflicts.leave()) || repo?.repo !== id) return;
     void diff.load(id, spec, path);
+  }
+
+  /** The merge on screen gives way to any other file, asking first if sides are picked. */
+  async function openCompareDiff(path: string) {
+    if (await conflicts.leave()) compareView.open(path);
   }
 
   function activateRef(node: RefNode) {
@@ -1699,19 +1705,21 @@
     );
   }
 
-  function openDiff(path: string) {
+  async function openDiff(path: string) {
     const id = repository.current?.repo;
     const oid = commit.oid;
     if (!id || !oid) return;
     const spec = { kind: "commitVsParent", oid } as const;
     if (diff.shows(spec, path)) return;
+    if (!(await conflicts.leave()) || commit.oid !== oid) return;
     void diff.load(id, spec, path);
   }
 
-  function openStagedDiff(path: string) {
+  async function openStagedDiff(path: string) {
     const id = repository.current?.repo;
     if (!id) return;
     if (diff.shows({ kind: "indexVsHead" }, path)) return;
+    if (!(await conflicts.leave()) || repository.current?.repo !== id) return;
     void diff.load(id, { kind: "indexVsHead" }, path);
   }
 
@@ -3444,6 +3452,7 @@
               onopenstaged={openStagedDiff}
               onopencommit={openDiff}
               onopenstash={openStashDiff}
+              onopencompare={openCompareDiff}
               onopenwindow={openInWindow}
               onmask={(mask) => (fileMask = mask)}
               onshownstaged={(paths) => (shownStaged = paths)}

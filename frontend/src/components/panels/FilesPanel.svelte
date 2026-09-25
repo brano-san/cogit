@@ -28,6 +28,8 @@
     onopencommit: (path: string) => void;
     /** A stash file names which of the three parts it came from. */
     onopenstash: (part: "worktree" | "index" | "untracked", path: string) => void;
+    /** A file of the comparison (Compare with HEAD / with Selected Commit). */
+    onopencompare: (path: string) => void;
     onopenwindow: (path: string) => void;
     onmask: (mask: string) => void;
     /** The staged files the working-tree list shows once filtered. */
@@ -51,6 +53,7 @@
     onopenstaged,
     onopencommit,
     onopenstash,
+    onopencompare,
     onopenwindow,
     onmask,
     onshownstaged,
@@ -128,7 +131,7 @@
         {
           title: `From ${compareView.from?.slice(0, 7)} to ${compareView.to?.slice(0, 7)}`,
           files: compareView.files,
-          onselect: (path) => compareView.open(path),
+          onselect: onopencompare,
         },
       ]}
       empty={compareView.loading ? "Comparing…" : "Both commits have the same files."}
