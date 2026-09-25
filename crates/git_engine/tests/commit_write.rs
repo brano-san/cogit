@@ -269,6 +269,32 @@ fn a_staged_deletion_among_the_shown_paths_is_committed() {
     );
 }
 
+// The row of a staged rename carries its new path only: the commit recorded a copy and
+// left the deletion of the old name staged.
+#[test]
+fn committing_a_shown_rename_takes_its_old_name_along() {
+    let f = test_fixtures::linear(1).unwrap();
+    let old = f
+        .git(&["ls-files"])
+        .unwrap()
+        .lines()
+        .next()
+        .unwrap()
+        .to_owned();
+    f.git(&["mv", "--", &old, "moved.txt"]).unwrap();
+    std::fs::write(f.path().join("hidden.txt"), "hidden\n").unwrap();
+    f.git(&["add", "--", "hidden.txt"]).unwrap();
+
+    open(&f).commit(&only(&["moved.txt"], "move")).unwrap();
+
+    assert!(f.git(&["cat-file", "-e", &format!("HEAD:{old}")]).is_err());
+    assert!(f.git(&["cat-file", "-e", "HEAD:moved.txt"]).is_ok());
+    assert_eq!(
+        f.git(&["diff", "--cached", "--name-only"]).unwrap().trim(),
+        "hidden.txt"
+    );
+}
+
 #[test]
 fn the_first_commit_can_take_only_the_shown_paths() {
     let f = test_fixtures::Fixture::init().unwrap();
