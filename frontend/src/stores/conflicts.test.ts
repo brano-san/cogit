@@ -149,3 +149,32 @@ describe("a conflict that is not text", () => {
     expect(conflicts.binary).toBe(false);
   });
 });
+
+async function opened(path: string): Promise<void> {
+  const opening = conflicts.open(1 as never, path);
+  calls.text.get(path)?.(sides(path));
+  await vi.waitFor(() => expect(calls.preview.has(path)).toBe(true));
+  calls.preview.get(path)?.(region(path));
+  await opening;
+}
+
+// a popped out to its window, b open in the main one with sides picked: Save in a's
+// window closed b's merge view, and the picks went with it.
+describe("a file resolved in the merge window", () => {
+  it("closes its own view in the main window", async () => {
+    await opened("a.txt");
+
+    conflicts.resolvedElsewhere("a.txt");
+
+    expect(conflicts.path).toBeNull();
+  });
+
+  it("leaves another file's view open", async () => {
+    await opened("b.txt");
+
+    conflicts.resolvedElsewhere("a.txt");
+
+    expect(conflicts.path).toBe("b.txt");
+    expect(conflicts.regions).toEqual(region("b.txt"));
+  });
+});

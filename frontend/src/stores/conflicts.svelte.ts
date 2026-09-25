@@ -80,6 +80,12 @@ class ConflictStore {
     await this.refresh(repo);
   }
 
+  /** The merge window saved `path`; the main window may be showing another file by now,
+      with sides picked in it. */
+  resolvedElsewhere(path: string): void {
+    if (this.path === path) this.close();
+  }
+
   close(): void {
     this.#generation += 1;
     this.path = null;
