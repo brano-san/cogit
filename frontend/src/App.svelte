@@ -1344,13 +1344,14 @@
   async function undo() {
     const id = repository.current?.repo;
     if (!id) return;
+    let undone;
     try {
-      await safety.undo(id);
+      undone = await safety.undoShown(id);
     } catch (err) {
       errors.report(err, "Could not undo");
       return;
     }
-    await afterRefChange(id);
+    if (undone) await afterRefChange(id);
   }
 
   async function showBlame() {

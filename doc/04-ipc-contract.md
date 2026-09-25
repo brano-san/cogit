@@ -431,7 +431,7 @@ snake_case и читаются на фронтенде как `undefined`.
 | `stash_keeping_worktree` | `repo, message` | `()` — `git stash create` + `git stash store --message`: stash без очистки рабочей копии; untracked-файлы в него не входят; чистое дерево — `InvalidState` (R-212) | M5 |
 | `stash_selection` | `repo, paths, message` | `()` — пустое `message` не передаётся в Git: stash получает его собственное `WIP on …` | M5 |
 | `fetch` / `pull` / `push` | `repo, remote, refspec, channel: Channel<Progress>` | `()` | M1 |
-| `undo_last` | `repo` | `UndoResult` | M5 |
+| `undo_last` | `repo` | `UndoResult` — запись выбирается в момент исполнения в очереди; фронтенд её больше не зовёт: Undo тулбара и палитры шлёт `undo_entry` с id записи из подсказки, иначе отменялась бы запись, вставшая в очередь позже | M5 |
 
 Все мутации возвращают `Result<_, GitError>` и при неуспехе CLI — вариант `command`.
 
