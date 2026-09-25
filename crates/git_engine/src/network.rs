@@ -61,7 +61,8 @@ impl RepoHandle {
     ) -> Result<()> {
         let header = self.auth_arg(remote, gix::remote::Direction::Fetch, token);
         let mut args = prefix(&header);
-        args.extend(["pull", "--progress", remote]);
+        // As Fetch does: Delete Merged Branches after Pull looks for upstreams that are gone.
+        args.extend(["pull", "--progress", "--prune", remote]);
         args.push(if ff_only { "--ff-only" } else { "--no-rebase" });
         self.run_streaming(&args, on_line)
     }

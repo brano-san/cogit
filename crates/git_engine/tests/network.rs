@@ -183,6 +183,32 @@ fn a_pull_that_cannot_fast_forward_is_refused_rather_than_merging_silently() {
     );
 }
 
+// F-311: Delete Merged Branches after Pull looks for branches whose upstream is gone, and a
+// pull without `--prune` kept `origin/<branch>` after the server deleted it.
+#[test]
+fn a_pull_forgets_a_branch_the_remote_deleted() {
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&["reset", "--hard", "origin/main"]).unwrap();
+    f.git(&["branch", "topic", "HEAD~1"]).unwrap();
+    f.git(&["push", "--set-upstream", "origin", "topic"])
+        .unwrap();
+    let server = f.git(&["remote", "get-url", "origin"]).unwrap();
+    f.git_in(
+        std::path::Path::new(server.trim()),
+        &["branch", "-D", "topic"],
+    )
+    .unwrap();
+    let repo = open(&f);
+
+    repo.pull("origin", true, no_token, |_| {}).unwrap();
+
+    assert!(
+        f.git(&["rev-parse", "--verify", "-q", "refs/remotes/origin/topic"])
+            .is_err()
+    );
+    assert_eq!(repo.merged_gone_branches().unwrap(), ["topic"]);
+}
+
 // Preferences ▸ Pull ▸ Merge ran a bare `git pull`: with no `pull.rebase` git 2.33+ refuses
 // diverged branches, and with `pull.rebase=true` (Git for Windows' installer default) it
 // rebased instead.

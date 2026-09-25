@@ -51,3 +51,25 @@ fn nothing_to_delete_is_an_empty_list_not_an_error() {
     let (state, repo) = open(&f);
     assert!(state.delete_merged_branches(repo).unwrap().is_empty());
 }
+
+// F-311 end to end: the teammate deletes the merged branch on the server, and only Pull
+// runs here — no `fetch --prune` of the fixture's own.
+#[test]
+fn a_branch_the_remote_deleted_goes_after_a_pull() {
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&["reset", "--hard", "origin/main"]).unwrap();
+    f.git(&["branch", "topic", "main~1"]).unwrap();
+    f.git(&["push", "--set-upstream", "origin", "topic"])
+        .unwrap();
+    let server = f.git(&["remote", "get-url", "origin"]).unwrap();
+    f.git_in(
+        std::path::Path::new(server.trim()),
+        &["branch", "-D", "topic"],
+    )
+    .unwrap();
+    let (state, repo) = open(&f);
+
+    state.pull(repo, "origin", true, |_| {}).unwrap();
+
+    assert_eq!(state.delete_merged_branches(repo).unwrap(), ["topic"]);
+}
