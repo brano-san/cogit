@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { DiffRow, Hunk } from "$lib/ipc";
 import {
   expandedContext,
+  cellKey,
   lacksFinalNewline,
+  pairPicked,
   pairRows,
   connectors,
   searchRows,
@@ -352,5 +354,29 @@ describe("pairRows and the final newline", () => {
 
     expect(pairs[0]?.left?.noNewline).toBe(true);
     expect(pairs[0]?.right?.noNewline).toBe(true);
+  });
+});
+
+// Side by side is the default view, and it had no gutter: no line could be picked there,
+// and lines picked in Unified were not marked, though Discard lines threw them away.
+describe("picking lines side by side", () => {
+  const [pair] = pairRows([del(3, "old"), ins(4, "new")]);
+  const [same] = pairRows([context(5, 6, "same")]);
+
+  it("keys each changed cell by its own side and number, as Unified does", () => {
+    expect(cellKey(pair!.left)).toBe("d:3");
+    expect(cellKey(pair!.right)).toBe("i:4");
+  });
+
+  it("has nothing to pick on a context line or a padding cell", () => {
+    expect(cellKey(same!.left)).toBeNull();
+    expect(cellKey(null)).toBeNull();
+  });
+
+  it("marks a row when either of its cells is picked", () => {
+    expect(pairPicked(pair!, new Set(["i:4"]))).toBe(true);
+    expect(pairPicked(pair!, new Set(["d:3"]))).toBe(true);
+    expect(pairPicked(pair!, new Set(["i:3"]))).toBe(false);
+    expect(pairPicked(same!, new Set(["d:5"]))).toBe(false);
   });
 });
