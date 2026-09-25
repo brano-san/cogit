@@ -57,7 +57,7 @@
 | `Ctrl+Shift+U` | Pull |
 | `Ctrl+Shift+O` | Push |
 | `Ctrl+Shift+S` | Sync (pull, затем push) — `Remote ▸ Synchronize`; аккорд перехватывает окно (#45) |
-| `Ctrl+Alt+Shift+F` | Fetch All (все открытые репозитории) — `Remote ▸ Fetch All` |
+| `Ctrl+Alt+Shift+F` | Fetch All (все открытые репозитории; если в Repositories отмечены строки `Ctrl`/`Shift`-кликом — только они) — `Remote ▸ Fetch All` |
 
 ## 4. Индекс и коммит
 
