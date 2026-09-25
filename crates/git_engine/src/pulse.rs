@@ -21,7 +21,7 @@ pub struct RepoPulse {
 #[must_use]
 pub fn pulse(root: &Path) -> RepoPulse {
     let started = std::time::Instant::now();
-    let Ok(handle) = RepoHandle::open(root) else {
+    let Ok(handle) = RepoHandle::open_root(root) else {
         return RepoPulse {
             missing: true,
             ..RepoPulse::default()

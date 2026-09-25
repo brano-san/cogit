@@ -39,17 +39,22 @@ impl std::fmt::Debug for SharedRepo {
 }
 
 impl SharedRepo {
-    pub fn open(path: &Path) -> Result<Self> {
+    /// Opens the repository whose root is `root`, as [`RepoHandle::open_root`] does.
+    pub fn open(root: &Path) -> Result<Self> {
         let options = env_free();
         let mut template = gix::ThreadSafeRepository::discover_opts(
-            path,
+            root,
             gix::discover::upwards::Options::default(),
             gix::sec::trust::Mapping {
                 full: options.clone(),
                 reduced: options,
             },
         )
-        .map_err(|err| GitError::RepoNotFound(format!("{}: {err}", path.display())))?;
+        .map_err(|err| GitError::RepoNotFound(format!("{}: {err}", root.display())))?;
+        crate::repo::rooted_at(
+            template.work_dir().unwrap_or_else(|| template.git_dir()),
+            root,
+        )?;
         template.refs.set_packed_buffer_mmap_threshold(u64::MAX);
         let stamps = config_sources(&template.to_thread_local())
             .into_iter()
