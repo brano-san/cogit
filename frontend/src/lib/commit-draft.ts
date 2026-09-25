@@ -44,3 +44,27 @@ export function messageAfterCommit(template: string | null): string {
 export function draftToSave(message: string, template: string | null): string | null {
   return message === "" || message === template ? null : message;
 }
+
+export interface CommitBoxState {
+  message: string;
+  template: string | null;
+  stagedCount: number;
+  amend: boolean;
+  /** The file list is being read back. */
+  busy: boolean;
+  /** A commit this box started has not returned yet. */
+  committing: boolean;
+  /** Every staged file is hidden by the filter (T6.8). */
+  scopeEmpty: boolean;
+}
+
+/** Whether the Commit button and Ctrl+Enter may start a commit. */
+export function canCommit(box: CommitBoxState): boolean {
+  return (
+    !box.committing &&
+    hasOwnText(box.message, box.template) &&
+    (box.stagedCount > 0 || box.amend) &&
+    !box.busy &&
+    (box.amend || !box.scopeEmpty)
+  );
+}
