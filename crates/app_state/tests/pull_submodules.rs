@@ -63,17 +63,48 @@ fn pull(scene: &Scene) {
     state.pull(repo, "origin", true, |_| {}).unwrap();
 }
 
-#[test]
-fn a_submodule_the_pull_brings_is_checked_out_when_the_repository_asks_for_it() {
-    let scene = scene();
+fn ask_for_new_submodules(scene: &Scene) {
     scene
         .seed
         .git_in(&scene.mine, &["config", "cogit.initNewSubmodules", "true"])
+        .unwrap();
+}
+
+// The scene's submodule is on a local path, which git clones only where the user allowed
+// it (CVE-2022-39253); the next test is the same pull without that. Cogit dropped the ban
+// for every submodule a pull brought.
+#[test]
+fn a_submodule_the_pull_brings_is_checked_out_when_the_repository_asks_for_it() {
+    let scene = scene();
+    ask_for_new_submodules(&scene);
+    scene
+        .seed
+        .git_in(&scene.mine, &["config", "protocol.file.allow", "always"])
         .unwrap();
 
     pull(&scene);
 
     assert!(scene.mine.join("vendor/lib/file1.txt").is_file());
+}
+
+#[test]
+fn a_submodule_on_a_local_path_the_pull_brings_is_left_to_git_s_refusal() {
+    let scene = scene();
+    ask_for_new_submodules(&scene);
+    let state = AppState::new();
+    let repo = state.open_repository(&scene.mine).unwrap().repo;
+
+    let refused = state.pull(repo, "origin", true, |_| {}).unwrap_err();
+
+    assert!(
+        matches!(&refused, git_engine::GitError::Command(failed) if failed.stderr.contains("transport 'file' not allowed")),
+        "{refused:?}"
+    );
+    assert!(
+        scene.mine.join(".gitmodules").is_file(),
+        "the pull did not happen"
+    );
+    assert!(!scene.mine.join("vendor/lib/file1.txt").exists());
 }
 
 #[test]

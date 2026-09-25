@@ -5529,3 +5529,22 @@ push`. Конфликт других файлов остаётся как был
 Ошибка копии у Reset теперь тоже идёт через «Nothing was changed…». Тесты — `undo.rs`:
 `a_hard_reset_goes_ahead_while_a_merge_is_stopped_on_its_conflict`,
 `discarding_beside_a_conflict_keeps_the_conflict`, `a_rollback_beside_a_conflict_goes_ahead`.
+
+## R-442 · `protocol.file.allow=always` — только на Add и по разрешению репозитория · Н
+
+`-c protocol.file.allow=always` стоял не только на Add, где URL вводит сам пользователь, но и
+на Initialize, Reset, обновлении submodule и автоинициализации после pull
+(`cogit.initNewSubmodules`). Так снималась защита git от CVE-2022-39253: локальные пути из
+чужого `.gitmodules`, в том числе вложенного, клонировались без вопроса, хотя консольный
+`git submodule update --init` на том же клоне отказывает («transport 'file' not allowed»).
+
+**Решение:** флаг остаётся только на Add. Update и init идут без него, и отказ git показывается
+как есть. Исключение — `protocol.file.allow`, заданный в конфиге самого репозитория (или
+выше): git для клона submodule читает его только из глобального и системного файлов, поэтому
+Cogit передаёт значение через `-c` — локальный конфиг не приходит с клоном, это решение
+пользователя. Фикстуры `with_submodule` и `with_nested_submodule` записывают это разрешение в
+`.git/config` родителя. Вопрос «разрешить локальный путь для этого submodule?» с повтором —
+не сделан (нужен текст диалога). Тесты — `initializing_a_clone_keeps_git_s_ban_on_local_paths`
+(`crates/git_engine/tests/submodule_ops.rs`),
+`a_submodule_on_a_local_path_the_pull_brings_is_left_to_git_s_refusal`
+(`crates/app_state/tests/pull_submodules.rs`).
