@@ -5595,3 +5595,20 @@ R-197 обещает тишину на всю мутацию, но окно от
 удержание прятало бы от панелей правки, сделанные тем временем в редакторе. Тесты —
 `crates/fs_watcher/tests/watching.rs`: `a_held_watcher_stays_quiet_however_long_the_mutation_takes`,
 `letting_go_keeps_the_window_open_for_the_debounced_tail`.
+
+## R-446 · Take Ours / Take Theirs и сохранение слияния — с записью для Undo · Н
+
+INV-12 требует сначала записать изменение рабочего дерева в журнал, а `Resolve ▸ Take Ours /
+Take Theirs` (меню Files и кнопки вида конфликта) и сохранение из окна слияния писали стадию
+или текст поверх файла и сразу делали `git add` — без записи и без подтверждения. Правки,
+сделанные в конфликтном файле внешним редактором, пропадали без Undo.
+
+**Решение:** запись в журнал, а не подтверждение (разрешение конфликта — частое действие,
+вопрос на каждый файл мешал бы). Перед разрешением файл, как он есть, кладётся в хранилище
+объектов (`git hash-object -w --no-filters`); не вышло — разрешение не выполняется
+(«Nothing was changed…», как у Discard). Undo делает `git checkout -m -- <путь>` —
+конфликт с маркерами возвращается из resolve-undo индекса — и пишет файл обратно байт в байт.
+Где git конфликт уже не воссоздаёт (взята сторона, удалившая файл: «does not have all
+necessary versions»), возвращается хотя бы файл. Тесты — `undo.rs`:
+`taking_one_side_of_a_conflict_can_be_undone_hand_edits_and_all`,
+`saving_a_merge_over_hand_edits_can_be_undone`.

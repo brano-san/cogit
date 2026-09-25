@@ -974,3 +974,37 @@ fn a_rollback_beside_a_conflict_goes_ahead() {
     assert_eq!(text(&f, "file0.txt"), "content 0\n");
     assert_eq!(state.working_state(repo).unwrap().conflicted, ["c.txt"]);
 }
+
+// Take Ours wrote the stage over the file and staged it with no journal entry: hand edits
+// made in an editor during the conflict were gone, with nothing to undo (INV-12).
+#[test]
+fn taking_one_side_of_a_conflict_can_be_undone_hand_edits_and_all() {
+    let f = about_to_conflict();
+    let (state, repo) = open(&f);
+    assert!(merge_side(&state, repo).is_err());
+    f.write_file("c.txt", "half resolved by hand\n").unwrap();
+
+    state
+        .resolve_conflict(repo, "c.txt", git_engine::ConflictSide::Ours)
+        .unwrap();
+    assert_eq!(text(&f, "c.txt"), "main\n");
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(text(&f, "c.txt"), "half resolved by hand\n");
+    assert_eq!(state.working_state(repo).unwrap().conflicted, ["c.txt"]);
+}
+
+#[test]
+fn saving_a_merge_over_hand_edits_can_be_undone() {
+    let f = about_to_conflict();
+    let (state, repo) = open(&f);
+    assert!(merge_side(&state, repo).is_err());
+    f.write_file("c.txt", "half resolved by hand\n").unwrap();
+
+    state
+        .resolve_conflict_text(repo, "c.txt", "merged\n")
+        .unwrap();
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(text(&f, "c.txt"), "half resolved by hand\n");
+}
