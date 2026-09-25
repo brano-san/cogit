@@ -22,7 +22,7 @@ const TITLES: Record<StateSlot, string> = {
   untracked: "If selected, untracked files will be shown",
   ignored: "If selected, ignored files will be shown",
   modified: "If selected, modified files will be shown",
-  skipped: "If selected, skipped files will be shown",
+  skipped: "If selected, skip-worktree and assume-unchanged files will be shown",
   missing: "If selected, missing/removed files will be shown",
 };
 
@@ -58,7 +58,7 @@ function deadReason(context: Exclude<ListContext, "worktree">, slot: StateSlot):
     case "modified":
       return `Every file ${noun.toLowerCase()} changed is always listed`;
     case "skipped":
-      return "Skip-worktree flags belong to the working tree";
+      return "Skip-worktree and assume-unchanged flags belong to the working tree";
     case "missing":
       return null;
   }
@@ -92,7 +92,6 @@ export const COMMIT_VIEW: FileView = {
   unchanged: false,
   untracked: true,
   ignored: false,
-  assumeUnchanged: false,
   skipped: false,
   renameSources: false,
   separateIndex: false,

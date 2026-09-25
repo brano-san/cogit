@@ -1,11 +1,11 @@
 import type { FileEntry } from "./ipc/bindings";
 
-/** The eight switches SmartGit puts above its file list, in its order and its words. */
+/** The switches SmartGit puts above its file list, in its order and its words. */
 export interface FileView {
   unchanged: boolean;
   untracked: boolean;
   ignored: boolean;
-  assumeUnchanged: boolean;
+  /** Skip-worktree and assume-unchanged alike: Git does not look at either file (R-420). */
   skipped: boolean;
   renameSources: boolean;
   directories: boolean;
@@ -23,7 +23,6 @@ export const DEFAULT_VIEW: FileView = {
   unchanged: false,
   untracked: true,
   ignored: false,
-  assumeUnchanged: false,
   skipped: false,
   renameSources: false,
   directories: false,
@@ -46,7 +45,7 @@ export function backendView(view: FileView): BackendView {
   return {
     unchanged: view.unchanged,
     ignored: view.ignored,
-    assumeUnchanged: view.assumeUnchanged,
+    assumeUnchanged: view.skipped,
     skipped: view.skipped,
   };
 }
@@ -55,7 +54,7 @@ const GATED: Partial<Record<FileEntry["status"], keyof FileView>> = {
   untracked: "untracked",
   unchanged: "unchanged",
   ignored: "ignored",
-  assumeUnchanged: "assumeUnchanged",
+  assumeUnchanged: "skipped",
   skipped: "skipped",
   modified: "modified",
   deleted: "missing",
