@@ -639,16 +639,30 @@ impl AppState {
         let stashed = handle
             .stash_paths(paths, &format!("cogit: discard {}", named(paths)))
             .map_err(|err| backup_failed("discarding", &err))?;
-        if stashed.is_none() {
+        let Some(oid) = stashed else {
             handle.discard(paths)?;
-        }
+            self.record(repo, format!("Discard {}", named(paths)), Recovery::None);
+            return Ok(());
+        };
 
+        // A stash of paths takes their staged side too, and only the unstaged one goes.
+        let staged = handle.staged_in_stash(&oid, paths)?;
+        if staged.is_empty() {
+            self.record(
+                repo,
+                format!("Discard {}", named(paths)),
+                Recovery::Stash { oid },
+            );
+            return Ok(());
+        }
+        let restored = handle.restore_staged_from(&oid, &staged);
+        // Recorded whatever came of it: until the restore, the staged side is in the stash only.
         self.record(
             repo,
             format!("Discard {}", named(paths)),
-            stashed.map_or(Recovery::None, |oid| Recovery::Stash { oid }),
+            Recovery::Discard { staged, stash: oid },
         );
-        Ok(())
+        restored
     }
 
     pub fn commit(

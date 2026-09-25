@@ -885,3 +885,36 @@ fn an_author_edit_can_be_undone() {
 
     assert_eq!(head_oid(&state, repo), tip);
 }
+
+fn staged(f: &test_fixtures::Fixture, name: &str) -> String {
+    f.git(&["show", &format!(":{name}")]).unwrap()
+}
+
+// A stash with paths takes their staged side with it: Discard in Unstaged threw away the
+// staged edit too, which the confirmation promises to keep.
+#[test]
+fn discarding_keeps_the_staged_part_of_a_file_and_undo_brings_back_the_rest() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file("file0.txt", "content 0\nstaged\n").unwrap();
+    f.write_file("fresh.txt", "new\n").unwrap();
+    f.git(&["add", "--", "file0.txt", "fresh.txt"]).unwrap();
+    f.write_file("file0.txt", "content 0\nstaged\nunstaged\n")
+        .unwrap();
+    f.write_file("fresh.txt", "new\nmore\n").unwrap();
+    let (state, repo) = open(&f);
+    let paths = ["file0.txt".to_owned(), "fresh.txt".to_owned()];
+
+    state.discard_paths(repo, &paths).unwrap();
+
+    assert_eq!(text(&f, "file0.txt"), "content 0\nstaged\n");
+    assert_eq!(staged(&f, "file0.txt"), "content 0\nstaged\n");
+    assert_eq!(text(&f, "fresh.txt"), "new\n");
+    assert_eq!(staged(&f, "fresh.txt"), "new\n");
+
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(text(&f, "file0.txt"), "content 0\nstaged\nunstaged\n");
+    assert_eq!(staged(&f, "file0.txt"), "content 0\nstaged\n");
+    assert_eq!(text(&f, "fresh.txt"), "new\nmore\n");
+    assert_eq!(staged(&f, "fresh.txt"), "new\n");
+}
