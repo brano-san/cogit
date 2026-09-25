@@ -18,6 +18,7 @@
   import { eolLabel, layoutTip } from "$lib/diff-toolbar";
   import { highlightLines, mergePieces, type Token } from "$lib/highlight";
   import { lineKey, toggleLine } from "$lib/selection";
+  import { keepSelection } from "$lib/diff-selection";
   import { investigateTarget, openInvestigate } from "$lib/investigate/open";
   import { visibleRange } from "$lib/graph-geometry";
   import type { DiffRow, FileDiff, Hunk } from "$lib/ipc";
@@ -340,6 +341,18 @@
     pendingDiscard = null;
     discardError = null;
     if (scroller) scroller.scrollTop = 0;
+  });
+
+  /** The hunks `selected` was chosen in. Staging a block re-diffs the file under the
+      selection; only the lines that still mean the same line stay selected. */
+  let selectedIn: readonly Hunk[] = [];
+  $effect(() => {
+    const now = hunks;
+    untrack(() => {
+      if (now === selectedIn) return;
+      selected = keepSelection(selected, selectedIn, now);
+      selectedIn = now;
+    });
   });
 
   /** A new diff, a new layout or a resized view: the arrows follow what is on screen. */

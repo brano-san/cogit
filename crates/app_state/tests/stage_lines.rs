@@ -483,3 +483,55 @@ fn discarding_under_autocrlf_keeps_crlf_on_disk() {
         b"content 0\r\nsecond\r\n"
     );
 }
+
+// The lines were chosen in a diff that no longer describes the files: here the index
+// gained a line after it was drawn. With no context in the patch git had nothing to miss
+// and put the line one place too high; a selection from another diff is refused instead.
+#[test]
+fn a_selection_from_a_diff_the_index_has_moved_past_is_refused() {
+    let f = test_fixtures::empty().unwrap();
+    let old = "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n";
+    let new = "1\n2\n3\n4\n5\nX\n6\n7\n8\nY\n9\n10\n";
+    f.commit_file(1, "f.txt", old).unwrap();
+    let options = DiffOptions {
+        context_lines: 0,
+        ..DiffOptions::default()
+    };
+    let shown = request_with("f.txt", old, new, &options, Vec::new(), vec![10]);
+    f.write_file("f.txt", "1\n2\n3\n4\n5\nX\n6\n7\n8\n9\n10\n")
+        .unwrap();
+    f.git(&["add", "f.txt"]).unwrap();
+    f.write_file("f.txt", new).unwrap();
+    let (state, repo) = opened(&f);
+
+    let staged = state.stage_selection(repo, &shown, false);
+
+    assert!(staged.is_err(), "{staged:?}");
+    assert_eq!(
+        index_text(&f, "f.txt"),
+        "1\n2\n3\n4\n5\nX\n6\n7\n8\n9\n10\n"
+    );
+}
+
+#[test]
+fn a_selection_from_a_diff_the_working_file_has_moved_past_is_not_discarded() {
+    let f = test_fixtures::empty().unwrap();
+    let old = "1\n2\n3\n4\n5\n6\n";
+    let new = "1\n2\nX\n3\n4\n5\n6\n";
+    f.commit_file(1, "f.txt", old).unwrap();
+    let options = DiffOptions {
+        context_lines: 0,
+        ..DiffOptions::default()
+    };
+    let shown = request_with("f.txt", old, new, &options, Vec::new(), vec![3]);
+    f.write_file("f.txt", "1\n2\nnew\nX\n3\n4\n5\n6\n").unwrap();
+    let (state, repo) = opened(&f);
+
+    let discarded = state.discard_selection(repo, &shown);
+
+    assert!(discarded.is_err(), "{discarded:?}");
+    assert_eq!(
+        std::fs::read_to_string(f.path().join("f.txt")).unwrap(),
+        "1\n2\nnew\nX\n3\n4\n5\n6\n"
+    );
+}
