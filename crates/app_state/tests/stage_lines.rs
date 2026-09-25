@@ -535,3 +535,25 @@ fn a_selection_from_a_diff_the_working_file_has_moved_past_is_not_discarded() {
         "1\n2\nnew\nX\n3\n4\n5\n6\n"
     );
 }
+
+// A character of the Private Use Area written in valid UTF-8 (icon fonts do this) looked
+// like a stand-in for an undecodable byte, and line staging was refused as "not valid UTF-8".
+#[test]
+fn a_private_use_character_in_valid_utf8_stages_line_by_line() {
+    let f = test_fixtures::empty().unwrap();
+    let old = "a\n.icon::before { content: \"\u{F7A2}\"; }\n";
+    let new = "a\n.icon::before { content: \"\u{F7A3}\"; }\n";
+    f.commit_file(1, "icons.css", old).unwrap();
+    f.write_file("icons.css", new).unwrap();
+    let (state, repo) = opened(&f);
+
+    state
+        .stage_selection(
+            repo,
+            &request("icons.css", old, new, vec![2], vec![2]),
+            false,
+        )
+        .unwrap();
+
+    assert_eq!(index_text(&f, "icons.css"), new);
+}
