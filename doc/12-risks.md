@@ -4412,7 +4412,9 @@ HEAD (`RepoHandle::refs_fingerprint`, только хранилище ссыло
 неизменяемы, поэтому граф может изменить только сдвинутая ссылка — или селектор reflog среди
 отмеченных: `stash drop stash@{1}` не двигает `refs/stash`, а `stash@{1}` уже другой коммит, поэтому
 коммит каждого такого селектора тоже входит в отпечаток (тест
-`a_ticked_stash_is_walked_again_after_a_drop_below_the_top`). `load_commits` с тем же
+`a_ticked_stash_is_walked_again_after_a_drop_below_the_top`), как и граница shallow-клона:
+`fetch --unshallow` ссылок тоже не двигает (тест `a_deepened_clone_is_walked_again`).
+`load_commits` с тем же
 запросом и тем же отпечатком отвечает из кэша одним сообщением прогресса. Отпечаток
 снимается при каждом `load_commits`, поэтому git из терминала, пока репозиторий не на экране
 и watcher его не слышит, замечается при переключении (тест

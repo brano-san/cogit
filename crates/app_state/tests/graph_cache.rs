@@ -105,6 +105,39 @@ fn a_ref_moved_back_outside_is_noticed_too() {
     assert_eq!(summaries(&state, ra, generation)[0], "commit 2");
 }
 
+/// `fetch --unshallow` brings the history below the boundary and moves no ref.
+#[test]
+fn a_deepened_clone_is_walked_again() {
+    let upstream = test_fixtures::linear(5).unwrap();
+    let clone = tempfile::tempdir().unwrap();
+    let url = format!(
+        "file://{}",
+        upstream.path().to_string_lossy().replace('\\', "/")
+    );
+    let target = clone.path().join("shallow");
+    let git = |args: &[&str], at: &std::path::Path| {
+        let status = std::process::Command::new("git")
+            .current_dir(at)
+            .args(args)
+            .status()
+            .unwrap();
+        assert!(status.success(), "{args:?}");
+    };
+    git(
+        &["clone", "-q", "--depth", "2", &url, "shallow"],
+        clone.path(),
+    );
+    let state = AppState::new();
+    let repo = state.open_repository(&target).unwrap().repo;
+    let (_, before) = build(&state, repo);
+
+    git(&["fetch", "-q", "--unshallow"], &target);
+    let (_, after) = build(&state, repo);
+
+    assert_eq!(before.last().unwrap().total, 2);
+    assert_eq!(after.last().unwrap().total, 5);
+}
+
 /// Dropping a stash below the top leaves `refs/stash` where it was, but `stash@{1}` then
 /// names the stash under the dropped one.
 #[test]

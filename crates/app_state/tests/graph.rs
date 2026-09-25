@@ -212,6 +212,53 @@ fn a_filtered_result_links_what_it_shows_and_ends_the_rest_in_an_arrow() {
     assert!(rows.iter().all(|row| row.width == 1), "{rows:?}");
 }
 
+/// A shallow clone has no parents for its boundary commits. Their lines end in an arrow,
+/// as a filtered list's do, rather than wait for a commit the walk never brings: column 0
+/// ran on past HEAD's last commit to the bottom of the list.
+#[test]
+fn a_shallow_boundary_ends_its_lines_in_arrows() {
+    let upstream = test_fixtures::linear(6).unwrap();
+    upstream
+        .git(&["switch", "-q", "-c", "side", "HEAD~3"])
+        .unwrap();
+    upstream.commit_file(10, "side.txt", "side\n").unwrap();
+    upstream.git(&["switch", "-q", "main"]).unwrap();
+    let clone = tempfile::tempdir().unwrap();
+    let url = format!(
+        "file://{}",
+        upstream.path().to_string_lossy().replace('\\', "/")
+    );
+    let target = clone.path().join("shallow");
+    let status = std::process::Command::new("git")
+        .args(["clone", "-q", "--depth", "2", "--no-single-branch", &url])
+        .arg(&target)
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let state = AppState::new();
+    let repo = state.open_repository(&target).unwrap().repo;
+
+    let chunks = stream(&state, repo, 100);
+    let commits: Vec<_> = chunks.iter().flat_map(|c| c.commits.iter()).collect();
+    let rows: Vec<_> = chunks.iter().flat_map(|c| c.rows.iter()).collect();
+    let row_of = |summary: &str| {
+        let at = commits.iter().position(|c| c.summary == summary).unwrap();
+        rows[at]
+    };
+
+    for boundary in ["commit 4", "commit 2"] {
+        let row = row_of(boundary);
+        assert!(row.segments.iter().any(|s| s.arrow), "{boundary}: {row:?}");
+    }
+    let last_main = row_of("commit 4").row;
+    for row in rows.iter().filter(|row| row.row > last_main) {
+        assert!(
+            row.segments.iter().all(|s| !s.primary || s.arrow),
+            "{row:?}"
+        );
+    }
+}
+
 #[test]
 fn rows_keep_counting_across_chunks_when_filtered() {
     let f = test_fixtures::linear(5).unwrap();
