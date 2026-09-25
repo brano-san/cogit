@@ -158,6 +158,8 @@
   --kind-icon: 14px;
   /* Icon buttons in panel bars: read at a glance, a size below the main toolbar's 22px. */
   --panel-icon: 16px;
+  /* The box of Checkbox and Radio; Branches draws it smaller. */
+  --checkbox-size: 14px;
   /* A tree level is one element wide: a child's triangle sits under whatever follows its
      parent's triangle — icon, box or text. Each tree names that element (R-185). */
   --tree-base: var(--disclosure-side);
