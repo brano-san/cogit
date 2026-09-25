@@ -14,6 +14,7 @@
     centreRow,
     headNode,
     hitTest,
+    keyTarget,
     nextRow,
     scrollRowIntoView,
     setGraphRowHeight,
@@ -351,21 +352,16 @@
     const id = repository.current?.repo;
     if (!id) return;
 
-    const at = graph.loadedIndexOf(selection.oid);
     const page = Math.max(Math.floor(viewportHeight / rowHeight) - 1, 1);
-    const target = nextRow(at, event.key, graph.total, page);
-    if (target === null) return;
+    if (nextRow(0, event.key, graph.total, page) === null) return;
 
     event.preventDefault();
-    void graph.entry(target).then((row) => row && pick(id, row.commit.oid));
-
-    const offset = scrollRowIntoView(
-      target + headerRows,
-      scrollTop,
-      viewportHeight,
-      rowHeight,
-    );
-    if (offset !== null && scroller) scroller.scrollTop = offset;
+    void keyTarget(graph, selection.oid, event.key, graph.total, page).then((target) => {
+      if (target === null) return;
+      void graph.entry(target).then((row) => row && pick(id, row.commit.oid));
+      const offset = scrollRowIntoView(target + headerRows, scrollTop, viewportHeight, rowHeight);
+      if (offset !== null && scroller) scroller.scrollTop = offset;
+    });
   }
 
   function onscroll() {

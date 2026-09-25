@@ -255,6 +255,20 @@ export function nextRow(
   }
 }
 
+/** Where a key press lands, counted from the selected commit. Its block may be evicted or
+    not inherited by a reload, so Rust is asked for its row (R-193); only a commit this
+    graph lacks starts from the top. */
+export async function keyTarget(
+  rows: { loadedIndexOf(oid: string | null): number | null; indexOf(oid: string): Promise<number | null> },
+  selected: string | null,
+  key: string,
+  total: number,
+  pageRows: number,
+): Promise<number | null> {
+  const at = rows.loadedIndexOf(selected) ?? (selected === null ? null : await rows.indexOf(selected));
+  return nextRow(at, key, total, pageRows);
+}
+
 export function scrollRowIntoView(
   row: number,
   scrollTop: number,
