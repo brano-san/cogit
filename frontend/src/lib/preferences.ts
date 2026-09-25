@@ -414,6 +414,16 @@ export function restoreCategory(draft: Settings, id: string): Settings {
   return restored;
 }
 
+/** The keymap half of Restore Defaults: the page that edits shortcuts drops every override. */
+export function restoreKeys(
+  keymap: Readonly<Record<string, string>>,
+  id: string,
+): Record<string, string> {
+  const category = CATEGORIES.find((entry) => entry.id === id);
+  const holds = category?.groups.some((group) => group.fields.some((field) => field.key === "keymap"));
+  return holds ? {} : { ...keymap };
+}
+
 /** Is this field switched off because the option above it is? */
 export function disabledBy(current: Settings, parent: keyof Settings | undefined): boolean {
   if (parent === undefined) return false;
