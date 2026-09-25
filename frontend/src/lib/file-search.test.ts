@@ -86,6 +86,16 @@ describe("matches", () => {
     expect(matches(svelte, compile("^App\\.svelte src", true))).toBe(false);
   });
 
+  it("reads a mask with * or ? as a glob over the name or the path", () => {
+    const rust = file({ path: "src/deep/main.rs" });
+    expect(matches(rust, compile("*.rs", false))).toBe(true);
+    expect(matches(rust, compile("*.RS", false))).toBe(true);
+    expect(matches(rust, compile("src/*.rs", false))).toBe(true);
+    expect(matches(rust, compile("main.r?", false))).toBe(true);
+    expect(matches(rust, compile("*.ts", false))).toBe(false);
+    expect(matches(file({ path: "src/main.rs.bak" }), compile("*.rs", false))).toBe(false);
+  });
+
   it("finds no text across the seam between two parts", () => {
     expect(matches(file({ path: "src/App.svelte" }), compile("svelte src", false))).toBe(false);
   });
