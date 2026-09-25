@@ -111,6 +111,7 @@
   function onkeydown(event: KeyboardEvent) {
     const action = outputKey({
       key: event.key,
+      code: event.code,
       ctrl: event.ctrlKey || event.metaKey,
       inside: frame !== undefined && event.target instanceof Node && frame.contains(event.target),
       handled: event.defaultPrevented,

@@ -1,7 +1,11 @@
 export type OutputKey = "close" | "end-find" | "find" | "select-all" | "copy" | "bigger" | "smaller";
 
+import { keyLetter } from "$lib/key-letter";
+
 export interface OutputKeyPress {
   key: string;
+  /** Where the key sits: a letter is read from it, whatever the layout types there. */
+  code?: string;
   /** Ctrl, or ⌘ on macOS. */
   ctrl: boolean;
   /** Focus is inside the output window. */
@@ -18,7 +22,7 @@ export function outputKey(press: OutputKeyPress): OutputKey | null {
   if (!press.inside || press.handled) return null;
   if (press.key === "Escape") return press.finding ? "end-find" : "close";
   if (!press.ctrl) return null;
-  switch (press.key) {
+  switch (keyLetter(press)) {
     case "f":
       return "find";
     case "a":
