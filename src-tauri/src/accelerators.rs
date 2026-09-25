@@ -53,6 +53,10 @@ const VK_OEM_PERIOD: u16 = 0xBE;
 const VK_OEM_MINUS: u16 = 0xBD;
 const VK_OEM_PLUS: u16 = 0xBB;
 const VK_F1: u16 = 0x70;
+const VK_LEFT: u16 = 0x25;
+const VK_UP: u16 = 0x26;
+const VK_RIGHT: u16 = 0x27;
+const VK_DOWN: u16 = 0x28;
 
 /// One accelerator as the menu writes it: `CmdOrCtrl+Shift+7`, `Shift+F11`, `F5`.
 ///
@@ -103,6 +107,14 @@ fn virtual_key(name: &str) -> Option<u16> {
         && (1..=24).contains(&index)
     {
         return Some(VK_F1 + index - 1);
+    }
+
+    match upper.as_str() {
+        "LEFT" => return Some(VK_LEFT),
+        "UP" => return Some(VK_UP),
+        "RIGHT" => return Some(VK_RIGHT),
+        "DOWN" => return Some(VK_DOWN),
+        _ => {}
     }
 
     let mut chars = upper.chars();
@@ -205,6 +217,18 @@ mod tests {
         let chord = parse("Shift+F11").expect("parses");
         assert!(chord.shift && !chord.ctrl);
         assert_eq!(chord.key, 0x7A);
+    }
+
+    // Investigate's Back, Forward, Newer and Older Version are Alt and an arrow. Read as
+    // nothing, they were never claimed, and WebView2 kept them from the menu.
+    #[test]
+    fn arrow_keys_are_recognised() {
+        let chord = parse("Alt+Left").expect("parses");
+        assert!(chord.alt && !chord.ctrl && !chord.shift);
+        assert_eq!(chord.key, 0x25);
+        assert_eq!(parse("Alt+Up").expect("parses").key, 0x26);
+        assert_eq!(parse("Alt+Right").expect("parses").key, 0x27);
+        assert_eq!(parse("Alt+Down").expect("parses").key, 0x28);
     }
 
     #[test]

@@ -53,7 +53,48 @@ pub fn browser_version() -> Option<String> {
 /// drift apart.
 pub fn install_accelerators(window: &tauri::WebviewWindow) {
     let app = window.app_handle().clone();
+    install(
+        window,
+        {
+            let app = app.clone();
+            move |pressed| {
+                // Rebuilt per press rather than cached: it is a few dozen short strings, it
+                // only runs for accelerator keys, and a cache would have to be invalidated
+                // every time the user edits the keymap.
+                let overrides = app.state::<crate::menu::Keymap>().current();
+                crate::accelerators::table(crate::menu::default_keymap_pairs(), &overrides)
+                    .get(&pressed)
+                    .cloned()
+            }
+        },
+        move |id| crate::dispatch_menu_command(&app, id),
+    );
+}
 
+/// The same for a child window with a menu of its own (Investigate, Blame): its table is
+/// fixed, `child_window::accelerator_table`, and a claimed key runs its menu item.
+pub fn install_child_accelerators<R: tauri::Runtime>(
+    window: &tauri::WebviewWindow<R>,
+    table: std::collections::HashMap<crate::accelerators::Chord, String>,
+) {
+    if table.is_empty() {
+        return;
+    }
+    let app = window.app_handle().clone();
+    install(
+        window,
+        move |pressed| table.get(&pressed).cloned(),
+        move |id| {
+            crate::child_window::on_menu(&app, id);
+        },
+    );
+}
+
+fn install<R: tauri::Runtime>(
+    window: &tauri::WebviewWindow<R>,
+    claim: impl Fn(crate::accelerators::Chord) -> Option<String> + Send + 'static,
+    run: impl Fn(&str) + Send + 'static,
+) {
     let installed = window.with_webview(move |platform| {
         let controller = platform.controller();
 
@@ -63,10 +104,10 @@ pub fn install_accelerators(window: &tauri::WebviewWindow) {
                 return Ok(());
             };
 
-            if let Some(id) = claimed(&app, &args) {
+            if let Some(id) = pressed(&args).and_then(&claim) {
                 // Told first, so the page never sees a key the window has taken.
                 unsafe { args.SetHandled(true) }?;
-                crate::dispatch_menu_command(&app, &id);
+                run(&id);
             }
 
             Ok(())
@@ -84,11 +125,10 @@ pub fn install_accelerators(window: &tauri::WebviewWindow) {
     }
 }
 
-/// The menu id this key press stands for, or `None` to leave it to the page.
-fn claimed(
-    app: &tauri::AppHandle,
+/// The chord this key press stands for, or `None` for one no menu can claim.
+fn pressed(
     args: &webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2AcceleratorKeyPressedEventArgs,
-) -> Option<String> {
+) -> Option<crate::accelerators::Chord> {
     let mut kind = COREWEBVIEW2_KEY_EVENT_KIND::default();
     unsafe { args.KeyEventKind(&mut kind) }.ok()?;
 
@@ -102,7 +142,7 @@ fn claimed(
     let mut key = 0_u32;
     unsafe { args.VirtualKey(&mut key) }.ok()?;
 
-    let pressed = crate::accelerators::chord_of(
+    crate::accelerators::chord_of(
         Modifiers {
             ctrl: is_down(VK_CONTROL),
             shift: is_down(VK_SHIFT),
@@ -110,15 +150,7 @@ fn claimed(
             right_alt: is_down(VK_RMENU),
         },
         u16::try_from(key).ok()?,
-    )?;
-
-    // Rebuilt per press rather than cached: it is a few dozen short strings, it only runs
-    // for accelerator keys, and a cache would have to be invalidated every time the user
-    // edits the keymap.
-    let overrides = app.state::<crate::menu::Keymap>().current();
-    let table = crate::accelerators::table(crate::menu::default_keymap_pairs(), &overrides);
-
-    table.get(&pressed).cloned()
+    )
 }
 
 /// The event says which key, never which modifiers, so they are read from the keyboard.
