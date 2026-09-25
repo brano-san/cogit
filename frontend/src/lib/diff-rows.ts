@@ -86,6 +86,21 @@ export function pairRows(rows: readonly DiffRow[]): SidePair[] {
   return pairs;
 }
 
+/** The selection key of a side-by-side cell: the same `d:`/`i:` key its row has in Unified. */
+export function cellKey(cell: SideCell | null): string | null {
+  if (cell?.kind === "delete") return `d:${cell.line}`;
+  if (cell?.kind === "insert") return `i:${cell.line}`;
+  return null;
+}
+
+/** A side-by-side row is marked when either of its cells is selected. */
+export function pairPicked(pair: SidePair, selected: ReadonlySet<string>): boolean {
+  return [pair.left, pair.right].some((cell) => {
+    const key = cellKey(cell);
+    return key !== null && selected.has(key);
+  });
+}
+
 export interface Segment {
   text: string;
   changed: boolean;

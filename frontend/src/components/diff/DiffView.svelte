@@ -1,6 +1,13 @@
 <script lang="ts">
   import { untrack } from "svelte";
-  import { connectors, type ConnectorRow, type SearchRow, type SideCell } from "$lib/diff-rows";
+  import {
+    cellKey,
+    connectors,
+    pairPicked,
+    type ConnectorRow,
+    type SearchRow,
+    type SideCell,
+  } from "$lib/diff-rows";
   import {
     blockKeys,
     changeAt,
@@ -209,6 +216,11 @@
     if (key) selected = toggleLine(selected, key);
   }
 
+  function pickCell(cell: SideCell | null) {
+    const key = cellKey(cell);
+    if (key) selected = toggleLine(selected, key);
+  }
+
   function pickBlock(block: number) {
     const keys = blockKeys(unified, block);
     const all = [...keys].every((key) => selected.has(key));
@@ -377,6 +389,19 @@
 
 {#snippet eof(open: boolean | undefined)}
   {#if open}<span class="eof" title="No newline at end of file">\ no newline</span>{/if}
+{/snippet}
+
+{#snippet cellGutter(cell: SideCell | null)}
+  {@const key = cellKey(cell)}
+  <span
+    class="gutter"
+    class:picked={key !== null && selected.has(key)}
+    role="button"
+    tabindex="-1"
+    onclick={() => pickCell(cell)}
+    onkeydown={(e) => e.key === "Enter" && pickCell(cell)}
+    >{stageable && key !== null ? (selected.has(key) ? "■" : "□") : ""}</span
+  >
 {/snippet}
 
 {#snippet blockActions(block: number)}
@@ -658,12 +683,16 @@
                 {@render fold(entry.gap, rowIndex)}
               </div>
             {:else}
+              {@const picked = pairPicked(entry.pair, selected)}
               <!-- svelte-ignore a11y_no_static_element_interactions -->
               <div
                 class="line"
+                class:staging={stageable && picked}
+                class:marked={!stageable && picked}
                 style:top="{rowIndex * ROW_HEIGHT}px"
                 onmouseenter={() => (hoverRow = rowIndex)}
               >
+                {@render cellGutter(entry.pair.left)}
                 <span class="num">{entry.pair.left?.line ?? ""}</span>
                 <span
                   class="sign"
@@ -682,6 +711,7 @@
                     >{/each}{@render eof(entry.pair.left?.noNewline)}</span
                 >
                 <span class="gap"></span>
+                {@render cellGutter(entry.pair.right)}
                 <span class="num">{entry.pair.right?.line ?? ""}</span>
                 <span
                   class="sign"
