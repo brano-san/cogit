@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ContextItem, WorktreeEntry } from "./ipc";
-import { parseWorktreeCommand, worktreeMenu } from "./worktree-menu";
+import { parseWorktreeCommand, pruneBlocked, worktreeMenu } from "./worktree-menu";
 
 const LINKED: WorktreeEntry = {
   path: "D:/src/wt",
@@ -52,5 +52,28 @@ describe("the menu of a Worktrees row", () => {
     const items = worktreeMenu({ ...LINKED, locked: "on a USB disk" });
     expect(find(items, "worktree-row-unlock")?.enabled).toBe(true);
     expect(find(items, "worktree-row-lock")).toBeUndefined();
+  });
+});
+
+// `git worktree remove --force` refuses a locked worktree, and a missing one had no
+// Unlock anywhere: it could not be got rid of from Cogit at all.
+describe("a missing worktree that is locked", () => {
+  const gone = { ...LINKED, missing: true, locked: "" };
+
+  it("can be unlocked from its menu", () => {
+    expect(find(worktreeMenu(gone), "worktree-row-unlock")?.enabled).toBe(true);
+  });
+
+  it("cannot be pruned until it is, and says why", () => {
+    const prune = find(worktreeMenu(gone), "worktree-row-prune");
+    expect(prune?.enabled).toBe(false);
+    expect(prune?.label).toContain("unlock");
+    expect(pruneBlocked(gone)).not.toBeNull();
+    expect(pruneBlocked({ ...gone, locked: null })).toBeNull();
+  });
+
+  it("offers no Unlock while it is not locked", () => {
+    expect(find(worktreeMenu({ ...LINKED, missing: true }), "worktree-row-unlock")).toBeUndefined();
+    expect(find(worktreeMenu({ ...LINKED, missing: true }), "worktree-row-prune")?.enabled).toBe(true);
   });
 });

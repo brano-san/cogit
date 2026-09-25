@@ -2,6 +2,7 @@
   import KindIcon from "$components/common/KindIcon.svelte";
   import type { WorktreeEntry } from "$lib/ipc";
   import { worktreeTags, worktreeWhere } from "$lib/worktree-list";
+  import { pruneBlocked } from "$lib/worktree-menu";
   import { TypeAhead, moveFocus } from "$lib/list-keys";
 
   /** The rows of the Worktrees panel: one per checkout, the active one marked, a missing
@@ -66,11 +67,15 @@
         <span class="tag {tag.id}" title={tag.tooltip}>{tag.label}</span>
       {/each}
       {#if entry.missing}
+        {@const blocked = pruneBlocked(entry)}
         <span class="grow"></span>
         <button
           type="button"
           class="inline"
-          title="Forget this registration; nothing on disk is touched"
+          disabled={blocked !== null}
+          title={blocked === null
+            ? "Forget this registration; nothing on disk is touched"
+            : `Git keeps a locked worktree: ${blocked} (right-click ▸ Unlock)`}
           onclick={(event) => {
             event.stopPropagation();
             onprune(entry);
@@ -177,8 +182,12 @@
     cursor: default;
   }
 
-  .inline:hover {
+  .inline:hover:not(:disabled) {
     border-color: var(--status-ref);
+  }
+
+  .inline:disabled {
+    opacity: 0.45;
   }
 
   .empty {
