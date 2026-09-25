@@ -430,3 +430,66 @@ fn a_file_too_large_to_show_is_summarised_without_being_read() {
         "{diff:?}"
     );
 }
+
+// `.gitattributes` was never read for a diff: a file marked `binary` or `-diff` showed as
+// text and offered line staging, where git shows "Binary files differ".
+#[test]
+fn a_file_the_attributes_mark_binary_is_summarised_as_binary() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file(".gitattributes", "*.dat binary\n*.lock -diff\n")
+        .unwrap();
+    f.write_file("table.dat", "one\n").unwrap();
+    f.write_file("deps.lock", "one\n").unwrap();
+    f.git(&["add", "--", ".gitattributes", "table.dat", "deps.lock"])
+        .unwrap();
+    f.commit_staged(1, "attributes").unwrap();
+    f.write_file("table.dat", "two\n").unwrap();
+    f.write_file("deps.lock", "two\n").unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    for path in ["table.dat", "deps.lock"] {
+        let diff = state
+            .diff_file(
+                repo,
+                &DiffSpec::WorkTreeVsIndex,
+                path,
+                &DiffOptions::default(),
+            )
+            .unwrap();
+        assert!(matches!(diff, FileDiff::Binary { .. }), "{path}: {diff:?}");
+    }
+}
+
+#[test]
+fn a_batch_of_files_honours_the_attributes_too() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file(".gitattributes", "*.dat binary\n").unwrap();
+    f.write_file("table.dat", "one\n").unwrap();
+    f.git(&["add", "--", ".gitattributes", "table.dat"])
+        .unwrap();
+    f.commit_staged(1, "attributes").unwrap();
+    f.write_file("table.dat", "two\n").unwrap();
+    f.git(&["add", "--", "table.dat"]).unwrap();
+    f.commit_staged(2, "change").unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let batch = state
+        .diff_files(
+            repo,
+            &head_vs_parent(&f),
+            &["table.dat".to_owned()],
+            &DiffOptions::default(),
+            1,
+        )
+        .unwrap();
+
+    let app_state::DiffBatch::Ready { files } = batch else {
+        panic!("expected the batch to be ready");
+    };
+    assert!(
+        matches!(files[0].diff, FileDiff::Binary { .. }),
+        "{files:?}"
+    );
+}

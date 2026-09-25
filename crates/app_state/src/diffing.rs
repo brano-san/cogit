@@ -19,12 +19,17 @@ impl AppState {
             return pointer_diff(&handle, spec, path);
         }
 
-        Ok(diff_engine::diff_one(
+        let diff = diff_engine::diff_one(
             path,
             old.as_deref().unwrap_or_default(),
             new.as_deref().unwrap_or_default(),
             options,
-        ))
+        );
+        let binary = handle
+            .diff_attributes()
+            .marks_binary(path)
+            .then(|| sizes(&old, &new));
+        Ok(as_attributes_say(diff, binary))
     }
 
     /// Every file of a commit in one call. Blocking: reads are sequential, only the diffing
@@ -42,6 +47,8 @@ impl AppState {
         }
 
         let handle = self.handle(repo)?;
+        let mut attributes = handle.diff_attributes();
+        let mut binary = std::collections::HashMap::new();
         let mut inputs = Vec::with_capacity(paths.len());
         // `None` stands for the next text diff, so the answer keeps the order it was asked in.
         let mut slots = Vec::with_capacity(paths.len());
@@ -67,6 +74,9 @@ impl AppState {
                 }));
                 continue;
             }
+            if attributes.marks_binary(path) {
+                binary.insert(path.clone(), sizes(&old, &new));
+            }
             slots.push(None);
             inputs.push(diff_engine::FileInput {
                 path: path.clone(),
@@ -75,7 +85,12 @@ impl AppState {
             });
         }
 
-        let mut texts = diff_engine::diff_many(inputs, options).into_iter();
+        let mut texts = diff_engine::diff_many(inputs, options)
+            .into_iter()
+            .map(|entry| diff_engine::FileDiffEntry {
+                diff: as_attributes_say(entry.diff, binary.get(&entry.path).copied()),
+                path: entry.path,
+            });
         let files = slots
             .into_iter()
             .filter_map(|slot| slot.or_else(|| texts.next()))
@@ -218,6 +233,27 @@ impl AppState {
         };
         Ok((encode(old), encode(new)))
     }
+}
+
+/// `binary` or `-diff` in `.gitattributes` (the sizes are given then): shown as git
+/// shows it, never as lines to stage.
+fn as_attributes_say(
+    diff: diff_engine::FileDiff,
+    binary: Option<(u64, u64)>,
+) -> diff_engine::FileDiff {
+    use diff_engine::FileDiff;
+    match (diff, binary) {
+        (
+            FileDiff::Text { .. } | FileDiff::EolOnly { .. } | FileDiff::WhitespaceOnly,
+            Some((old_size, new_size)),
+        ) => FileDiff::Binary { old_size, new_size },
+        (diff, _) => diff,
+    }
+}
+
+fn sizes(old: &Option<Vec<u8>>, new: &Option<Vec<u8>>) -> (u64, u64) {
+    let size = |side: &Option<Vec<u8>>| side.as_ref().map_or(0, |bytes| bytes.len() as u64);
+    (size(old), size(new))
 }
 
 /// The larger side, when it is past what the diff shows: then neither side is read, or a
