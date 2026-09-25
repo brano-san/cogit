@@ -571,7 +571,8 @@
         title: "Stash Selection",
         shortcut: "Ctrl+Alt+S",
         synonyms: ["shelve some"],
-        unavailable: noRepo ?? (markedFiles.length > 0 ? undefined : "No file is ticked"),
+        // The ticks may be a commit's files now; only the working tree's can be stashed.
+        unavailable: noRepo ?? reasonOf("stash-selection", toolbarFacts),
         run: () => void stashSelected(),
       },
       { id: "tag", title: "Create Tag", shortcut: "Shift+F7", unavailable: noRepo, run: () => void refActions?.addTag(null) },
