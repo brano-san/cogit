@@ -561,8 +561,12 @@ Tauri сам переносит создание окна на главный п
 `rayon` внутри `spawn_blocking` ([INV-01](01-architecture.md#inv-01)).
 
 `TodoEntry` — `{ oid, action: pick|reword|edit|squash|fixup|drop, message }`.
-Сообщение для `reword` уезжает в план строкой `exec git commit --amend`, чтобы редактор
-не открывался: терминала, в котором он мог бы открыться, у приложения нет.
+Сообщение для `reword` уезжает в план строкой `exec git commit --amend -m …`, чтобы редактор
+не открывался: терминала, в котором он мог бы открыться, у приложения нет. Хуки pre-commit и
+commit-msg при этом идут, как у `reword` в `git rebase -i`: хук, отвергший сообщение,
+останавливает rebase на этой строке с его выводом. Edit Author (`edit_author`) идёт с
+`--no-verify`: ни дерево, ни сообщение не меняются — механическая перезапись, как и коммиты
+Split-Off.
 | `has_token` | `host` | `bool` | M1 |
 | `store_token` / `forget_token` | `host[, token]` | `()` | M1 |
 
