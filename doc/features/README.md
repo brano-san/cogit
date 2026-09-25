@@ -329,3 +329,7 @@
 | F-470 | Настройки отображения графа | [F-470-graph-display-settings.md](F-470-graph-display-settings.md) |
 | F-450 | Submodules любого репозитория без активации | [F-450-submodules-of-every-repository.md](F-450-submodules-of-every-repository.md) |
 | F-451 | Изменения, push и pull в строке Repositories | [F-451-repository-sync-marks.md](F-451-repository-sync-marks.md) |
+| F-480 | Diff описывает неотслеживаемую папку и вложенный репозиторий | [F-480-diff-untracked-folder.md](F-480-diff-untracked-folder.md) |
+| F-481 | Конфликт «изменён / удалён» разрешается удалением файла | [F-481-conflict-deleted-side.md](F-481-conflict-deleted-side.md) |
+| F-482 | Бинарный конфликт берётся стороной целиком | [F-482-binary-conflict.md](F-482-binary-conflict.md) |
+| F-483 | Ручная правка слияния с маркерами конфликта | [F-483-merge-hand-edit-markers.md](F-483-merge-hand-edit-markers.md) |
