@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { draftToSave, hasOwnText, initialMessage, messageAfterCommit } from "$lib/commit-draft";
+  import { canCommit, draftToSave, initialMessage, messageAfterCommit } from "$lib/commit-draft";
   import { SUBJECT_HARD, SUBJECT_SOFT, subjectOf, subjectState } from "$lib/commit-message";
 
   interface Props {
@@ -21,18 +21,26 @@
   let message = $state("");
   let amend = $state(false);
   let noVerify = $state(false);
+  let committing = $state(false);
 
   const overflow = $derived(subjectState(message));
   const length = $derived([...subjectOf(message)].length);
   const ready = $derived(
-    hasOwnText(message, template) && (stagedCount > 0 || amend) && !busy && (amend || !scope.empty),
+    canCommit({ message, template, stagedCount, amend, busy, committing, scopeEmpty: scope.empty }),
   );
 
   // Cleared once the commit is made, not before: a cancelled question or a hook that
   // refused left the box empty, and a retry without Amend made a new commit instead.
   async function submit() {
     if (!ready) return;
-    if ((await oncommit(message, amend, noVerify)) === false) return;
+    committing = true;
+    let made: boolean | void;
+    try {
+      made = await oncommit(message, amend, noVerify);
+    } finally {
+      committing = false;
+    }
+    if (made === false) return;
     message = messageAfterCommit(template);
     amend = false;
     noVerify = false;

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { draftToSave, hasOwnText, initialMessage, messageAfterCommit } from "./commit-draft";
+import {
+  type CommitBoxState,
+  canCommit,
+  draftToSave,
+  hasOwnText,
+  initialMessage,
+  messageAfterCommit,
+} from "./commit-draft";
 
 const template = "\n\n# Explain why, not what\n# Wrap at 72\n";
 
@@ -51,5 +58,37 @@ describe("the draft around a commit", () => {
     expect(draftToSave("", template)).toBeNull();
     expect(draftToSave(template, template)).toBeNull();
     expect(draftToSave(`Fix${template}`, template)).toBe(`Fix${template}`);
+  });
+});
+
+describe("canCommit", () => {
+  const box: CommitBoxState = {
+    message: "Fix the parser",
+    template: null,
+    stagedCount: 1,
+    amend: false,
+    busy: false,
+    committing: false,
+    scopeEmpty: false,
+  };
+
+  it("lets a written message with something staged go", () => {
+    expect(canCommit(box)).toBe(true);
+  });
+
+  // Hooks take seconds, and the list is only marked busy once it is read back: a second
+  // Ctrl+Enter meanwhile started another commit ("nothing to commit", or a second amend).
+  it("holds while the commit it started is running", () => {
+    expect(canCommit({ ...box, committing: true })).toBe(false);
+  });
+
+  it("needs something staged, unless amending", () => {
+    expect(canCommit({ ...box, stagedCount: 0 })).toBe(false);
+    expect(canCommit({ ...box, stagedCount: 0, amend: true })).toBe(true);
+  });
+
+  it("holds while the list is read back or the filter hides every staged file", () => {
+    expect(canCommit({ ...box, busy: true })).toBe(false);
+    expect(canCommit({ ...box, scopeEmpty: true })).toBe(false);
   });
 });
