@@ -1,5 +1,5 @@
 import type { FileEntry } from "./ipc/bindings";
-import { fileName, statusLabel } from "./files";
+import { fileName, globToRegExp, statusLabel } from "./files";
 
 /**
  * One field to search them all: the name, the path and the state at once, because a
@@ -28,6 +28,11 @@ export function compile(text: string, regex: boolean): Pattern {
   }
 
   const lower = needle.toLowerCase();
+  // A mask like `*.rs` (F-010) matches a whole name or path, not a piece of one.
+  if (/[*?]/.test(lower)) {
+    const glob = globToRegExp(lower);
+    return { test: (subject) => glob.test(subject.toLowerCase()), broken: false };
+  }
   return { test: (subject) => subject.toLowerCase().includes(lower), broken: false };
 }
 
