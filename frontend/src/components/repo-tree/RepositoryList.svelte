@@ -3,7 +3,7 @@
   import KindIcon from "$components/common/KindIcon.svelte";
   import { applyClick, EMPTY_SELECTION, type FileSelection } from "$lib/multi-select";
   import { MISSING_REPOSITORY } from "$lib/repo-labels";
-  import { canPull, rowSync, syncTooltip, type RowSync } from "$lib/repo-sync";
+  import { canPull, freshOverview, rowSync, syncTooltip, type RowSync } from "$lib/repo-sync";
   import { repoPulse } from "$stores/repo-pulse.svelte";
   import {
     describeModule,
@@ -298,7 +298,7 @@
         </div>
       {:else}
         {@const listed = byRoot.get(row.root)}
-        {@const entry = listed?.overview}
+        {@const entry = listed?.overview && freshOverview(listed.overview, repository.current)}
         {@const sync = rowSync({
           overview: entry ?? null,
           owned: entry !== undefined && entry !== null && active?.valueOf() === entry.repo.valueOf(),
