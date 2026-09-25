@@ -23,7 +23,7 @@
     onruncheck: () => void;
     verdict: HookRun | null;
     checking: boolean;
-    ondrop: (source: string, target: string) => void;
+    ondrop: (source: string, target: string, x: number, y: number) => void;
     oncontext: (oid: string, x: number, y: number) => void;
     /** A merge, rebase or detached HEAD is said above the history, as SmartGit does (#22). */
     banner: Banner | null;

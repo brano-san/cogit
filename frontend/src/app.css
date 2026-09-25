@@ -338,6 +338,12 @@ body {
   height: 100%;
 }
 
+/* A row being dragged (lib/pointer-drag.ts): the cursor says so wherever it goes. */
+:root.pointer-dragging,
+:root.pointer-dragging * {
+  cursor: grabbing !important;
+}
+
 /* Keyboard focus must always be visible; `outline: none` makes the app unusable
    without a mouse. */
 :focus-visible {

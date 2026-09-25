@@ -1,6 +1,7 @@
 <script lang="ts">
   import { shortOid } from "$lib/format";
   import { moveEntry, planProblem, previewCount } from "$lib/rebase-plan";
+  import { pointerDrag } from "$lib/pointer-drag";
   import type { TodoAction, TodoEntry } from "$lib/ipc";
 
   interface Props {
@@ -23,7 +24,12 @@
   const problem = $derived(planProblem(plan));
   const remaining = $derived(previewCount(plan));
 
-  let dragging = $state<number | null>(null);
+  /** The row an entry is being dragged over (R-450). */
+  let over = $state<number | null>(null);
+  const entryDrag = {
+    onover: (target: string | null) => (over = target === null ? null : Number(target)),
+    ondrop: (source: string, target: string) => onplan(moveEntry(plan, Number(source), Number(target))),
+  };
 
   function setAction(index: number, action: TodoAction) {
     onplan(plan.map((entry, at) => (at === index ? { ...entry, action } : entry)));
@@ -31,11 +37,6 @@
 
   function setMessage(index: number, message: string) {
     onplan(plan.map((entry, at) => (at === index ? { ...entry, message } : entry)));
-  }
-
-  function drop(to: number) {
-    if (dragging !== null) onplan(moveEntry(plan, dragging, to));
-    dragging = null;
   }
 
   function nudge(index: number, delta: number) {
@@ -68,18 +69,14 @@
     </p>
   {/if}
 
-  <div class="list">
+  <div class="list" use:pointerDrag={entryDrag}>
     {#each plan as entry, index (entry.oid)}
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div
         class="row"
         class:dropped={entry.action === "drop"}
-        class:over={dragging !== null && dragging !== index}
-        draggable="true"
-        ondragstart={() => (dragging = index)}
-        ondragover={(event) => event.preventDefault()}
-        ondrop={() => drop(index)}
-        ondragend={() => (dragging = null)}
+        class:over={over === index}
+        data-drag={index}
+        data-drop={index}
       >
         <span class="grip" aria-hidden="true">⠿</span>
 

@@ -299,7 +299,6 @@
   /** Panels a disk event has outdated; cleared as each reload lands. */
   let stale = $state.raw<ReadonlySet<PanelId>>(new Set());
   let splitBusy = $state(false);
-  const pointer = { x: 0, y: 0 };
   let refFilter = $state("");
   let dropping = $state(false);
   let fileMask = $state("");
@@ -1776,7 +1775,7 @@
   }
 
   /** A drop never acts on its own: the user picks from the menu it opens. */
-  function onBranchDrop(sourceName: string, target: Branch) {
+  function onBranchDrop(sourceName: string, target: Branch, x: number, y: number) {
     const source = repository.localBranches.find((b) => b.name === sourceName);
     if (!source) return;
     const canFastForward = target.isHead && source.oid !== target.oid;
@@ -1785,7 +1784,7 @@
     const head = repository.localBranches.find((b) => b.isHead)?.name ?? null;
     const actions = dropActions(payload, onto, canFastForward, head);
     if (actions.length === 0) return;
-    dropMenu = { actions, source: payload, target: onto, x: pointer.x, y: pointer.y };
+    dropMenu = { actions, source: payload, target: onto, x, y };
   }
 
   async function runDropAction(action: DropAction) {
@@ -1831,12 +1830,12 @@
     await afterRefChange(id);
   }
 
-  function onCommitDrop(sourceOid: string, targetOid: string) {
+  function onCommitDrop(sourceOid: string, targetOid: string, x: number, y: number) {
     const source = { kind: "commit" as const, id: sourceOid };
     const target = { kind: "commit" as const, id: targetOid };
     const actions = dropActions(source, target, false);
     if (actions.length === 0) return;
-    dropMenu = { actions, source, target, x: pointer.x, y: pointer.y };
+    dropMenu = { actions, source, target, x, y };
   }
 
   /** Squash and reorder are both one interactive rebase with a two-line plan. */
@@ -3055,13 +3054,7 @@
   $effect(pushMenuState);
 </script>
 
-<svelte:window
-  {onkeydown}
-  ondragover={(event) => {
-    pointer.x = event.clientX;
-    pointer.y = event.clientY;
-  }}
-/>
+<svelte:window {onkeydown} />
 
 <TooltipLayer />
 
