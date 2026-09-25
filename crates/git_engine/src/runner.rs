@@ -214,6 +214,20 @@ impl RepoHandle {
         self.spawn_fed(&all, false, LITERAL, Some(paths.join("\0").as_bytes()))
     }
 
+    /// `args` against a scratch index rather than the repository's own. The journal line
+    /// names it: a `git read-tree HEAD` copied from Output would wipe the user's staging.
+    pub(crate) fn run_git_indexed(
+        &self,
+        index: &Path,
+        args: &[&str],
+        input: Option<&[u8]>,
+    ) -> Result<GitOutput> {
+        let index = index.to_string_lossy();
+        let command = format!("GIT_INDEX_FILE='{index}' {}", redact_command(args));
+        let env = [("GIT_INDEX_FILE", index.as_ref()), LITERAL[0]];
+        self.spawn_as(command, args, false, &env, input)
+    }
+
     fn spawn(&self, args: &[&str], reading: bool) -> Result<GitOutput> {
         self.spawn_with(args, reading, &[])
     }
@@ -229,7 +243,17 @@ impl RepoHandle {
         env: &[(&str, &str)],
         input: Option<&[u8]>,
     ) -> Result<GitOutput> {
-        let command = redact_command(args);
+        self.spawn_as(redact_command(args), args, reading, env, input)
+    }
+
+    fn spawn_as(
+        &self,
+        command: String,
+        args: &[&str],
+        reading: bool,
+        env: &[(&str, &str)],
+        input: Option<&[u8]>,
+    ) -> Result<GitOutput> {
         let started = std::time::Instant::now();
 
         tracing::info!(command = %command, "running git");

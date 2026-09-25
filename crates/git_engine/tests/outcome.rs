@@ -125,3 +125,12 @@ fn something_that_is_not_a_git_command_still_gets_a_name() {
     assert_eq!(operation_label(""), "Git");
     assert_eq!(operation_label("git"), "Git");
 }
+
+// Commit What You See runs git on a scratch index, and the journal line says so.
+#[test]
+fn an_environment_before_git_is_not_taken_for_the_subcommand() {
+    assert_eq!(
+        operation_label("GIT_INDEX_FILE='D:/my git repo/.git/x' git -c a=b commit -m wip"),
+        "Commit"
+    );
+}
