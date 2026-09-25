@@ -94,6 +94,7 @@
   import { stateBanner, type BannerAction } from "$lib/repo-state";
   import { blockedByLocalChanges } from "$lib/checkout-refusal";
   import { switchWithAutostash } from "$lib/autostash";
+  import { foundStep } from "$lib/found";
   import { capFraction, floorFraction, PANELS, type PanelId } from "$lib/perspectives";
   import { graphPanelMinWidth } from "$lib/graph-panel";
   import { repoClick } from "$lib/repo-click";
@@ -926,10 +927,13 @@
     finderOpen = false;
     const id = repository.current?.repo;
     if (!id) return;
-    if (item.kind === "commit") void commit.select(id, item.oid);
-    if (item.kind === "branch") void switchTo({ name: item.label } as Branch);
-    if (item.kind === "tag" && item.oid) void commit.select(id, item.oid);
-    if (item.kind === "file" && commit.oid) void openDiff(item.label);
+    const step = foundStep(item, commit.oid !== null);
+    if (step?.kind === "file") void openDiff(step.path);
+    if (step?.kind === "reveal") {
+      stashView.clear();
+      void commit.select(id, step.oid);
+      graph.requestReveal(step.oid);
+    }
   }
 
   function runCommand(command: PaletteCommand) {
