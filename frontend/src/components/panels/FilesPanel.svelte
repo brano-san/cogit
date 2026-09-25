@@ -120,6 +120,7 @@
       empty="This stash is empty."
       selected={diff.path}
       onopen={onopenwindow}
+      {onmarked}
     />
   {:else if compareView.showing(commit.oid)}
     <FileList
@@ -137,6 +138,7 @@
       empty={compareView.loading ? "Comparing…" : "Both commits have the same files."}
       selected={diff.path}
       onopen={onopenwindow}
+      {onmarked}
     />
   {:else if onWorkingTree}
     <FileList
@@ -187,6 +189,7 @@
       selected={diff.path}
       onselect={onopencommit}
       onopen={onopenwindow}
+      {onmarked}
       {oncontext}
     />
   {/if}

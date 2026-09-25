@@ -115,6 +115,10 @@
     onmarked?.([...visibleMarks.paths]);
   });
 
+  // The Files panel swaps one list for another; the ticks of the one that went must not
+  // stay behind as the ticks of the one that came (a commit's menu acting on them).
+  $effect(() => () => onmarked?.([]));
+
   let shownBefore: string | null = null;
   $effect(() => {
     const shown = selected;
