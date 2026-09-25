@@ -174,16 +174,15 @@ impl RepoHandle {
         self.run_git(&["stash", verb, &reference]).map(drop)
     }
 
-    /// Returns the dropped commit so Undo can put the entry back.
-    pub fn stash_drop(&self, index: u32) -> Result<String> {
-        let oid = self
+    /// Returns the dropped entry so Undo can put it back (`restore_stash`).
+    pub fn stash_drop(&self, index: u32) -> Result<StashEntry> {
+        let entry = self
             .stashes()?
             .into_iter()
             .find(|entry| entry.index == index)
-            .ok_or_else(|| GitError::InvalidState(format!("no stash at index {index}")))?
-            .oid;
+            .ok_or_else(|| GitError::InvalidState(format!("no stash at index {index}")))?;
         self.run_git(&["stash", "drop", &self.stash_ref(index)?])?;
-        Ok(oid)
+        Ok(entry)
     }
 
     fn stash_ref(&self, index: u32) -> Result<String> {

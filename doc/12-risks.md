@@ -5163,3 +5163,14 @@ Discard, ничего не выбрасывая, даже если после о
 stash прежних правок. Цена — ещё одна страховочная запись в списке stash (тот же выбор, что у
 Discard; см. BE-039 аудита). Тесты — `undo.rs`: `undoing_a_rollback_brings_back_the_work_it_replaced`,
 `a_rollback_of_a_clean_file_can_be_undone_too`.
+
+## R-431 · Undo «Drop stash» возвращает запись в список на прежнее место · Н
+
+Журнал хранил только oid выброшенного stash, и Undo делал `stash apply`: запись в список не
+возвращалась, а её правки ложились на рабочее дерево (при другой базе — с конфликтом). Теперь
+`stash_drop` отдаёт всю запись (oid, сообщение, место), и Undo кладёт её обратно тем же
+способом, что переименование (R-252): снимает записи выше прежнего места, `stash store
+--message <прежнее> <oid>`, возвращает снятые в прежнем порядке. Рабочее дерево не трогается.
+Если с тех пор записей выше стало меньше, запись встаёт ниже всех. Тесты — `stashes.rs`
+`a_dropped_stash_goes_back_to_its_place_in_the_list`, `undo.rs`
+`undoing_a_stash_drop_lists_the_stash_again_in_its_place`, модульные — `stash_rename.rs`.

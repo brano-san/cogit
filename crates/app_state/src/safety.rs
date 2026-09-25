@@ -16,6 +16,11 @@ pub enum Recovery {
     Stash {
         oid: String,
     },
+    /// A stash taken off the list: undo lists it again at the place it had, and leaves the
+    /// working tree alone.
+    DroppedStash {
+        entry: git_engine::StashEntry,
+    },
     /// A past version written over the paths. Undo stashes it away, as a discard keeps
     /// what it removes, then applies the stash of the work it replaced, if there was any.
     Rollback {
@@ -115,6 +120,7 @@ impl AppState {
         let handle = self.handle(repo)?;
         match &held.recovery {
             Recovery::Stash { oid } => handle.stash_apply(oid)?,
+            Recovery::DroppedStash { entry } => handle.restore_stash(entry)?,
             Recovery::Rollback { paths, stash } => {
                 handle
                     .stash_paths(paths, "cogit: before undoing a rollback")
