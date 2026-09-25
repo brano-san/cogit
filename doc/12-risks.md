@@ -5548,3 +5548,19 @@ Cogit передаёт значение через `-c` — локальный �
 (`crates/git_engine/tests/submodule_ops.rs`),
 `a_submodule_on_a_local_path_the_pull_brings_is_left_to_git_s_refusal`
 (`crates/app_state/tests/pull_submodules.rs`).
+
+## R-443 · `Git executable` читается на старте и отдаётся каждому запуску git · Н
+
+Поле Preferences ▸ Git executable сохранялось в `settings.json`, но в Rust его никто не читал:
+каждая команда запускала `git` из PATH, вопреки R-107 и R-122 («читается на старте»). С
+Portable Git вне PATH все записи падали, а About показывал «not found».
+
+**Решение:** `settings::read_git_program` берёт `settings.gitPath` до первого запуска git (пусто
+или `git` — PATH), `git_engine::use_git_program` ставит его один раз на процесс, и все запуски
+(`git_command`) идут через него. Ставится на старте, как и прежде обещала звёздочка «after
+restart». На старте `--version` проверяется и пишется в лог; не запустившийся git не
+подменяется тем, что в PATH, — выбор пользователя, — а ошибка запуска называет программу
+(«cannot run D:\…\git.exe: …»). Уведомления на старте нет. Тесты —
+`the_git_set_at_startup_is_the_one_every_command_runs` (`crates/git_engine/tests/git_program.rs`,
+свой бинарь: настройка на весь процесс), `the_git_executable_is_read_from_the_settings_file`
+(`crates/app_state/tests/settings.rs`).

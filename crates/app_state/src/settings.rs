@@ -29,6 +29,15 @@ pub fn read_document(config_dir: &Path) -> Value {
     }
 }
 
+/// Preferences ▸ Git executable, read before the first git runs. Empty or plain `git`
+/// is the one on PATH.
+#[must_use]
+pub fn read_git_program(config_dir: &Path) -> Option<PathBuf> {
+    let document = read_document(config_dir);
+    let program = document.get("settings")?.get("gitPath")?.as_str()?.trim();
+    (!program.is_empty() && program != "git").then(|| PathBuf::from(program))
+}
+
 enum Stored {
     Document(Map<String, Value>),
     Missing,
