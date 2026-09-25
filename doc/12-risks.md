@@ -5579,3 +5579,19 @@ expire, repack) шёл параллельно со следующей запис
 тот же `maintenance run --auto` под окном тишины наблюдателя. Коммит по-прежнему его не ждёт,
 следующая запись ждёт его в очереди, диалог выхода о нём знает. Тест —
 `a_commit_leaves_maintenance_to_a_turn_of_its_own` (`crates/git_engine/tests/commit_write.rs`).
+
+## R-445 · Тишина наблюдателя держится всю мутацию, а не таймером на процесс · Н
+
+R-197 обещает тишину на всю мутацию, но окно открывалось таймером на 400 мс — при входе, при
+выходе каждого процесса git и при конце мутации. Процесс дольше окна (коммит, чей pre-commit
+хук ждёт, а `.git/index` git переписывает до хука) писал уже при закрытом окне: лишнее
+`RepoChanged { Index }`, перезагрузка панелей и флап
+`undo::a_mutation_longer_than_the_quiet_window_does_not_echo_either`.
+
+**Решение:** `RepoWatcher::hold()` — охранник со счётчиком: пока хоть один жив, наблюдатель
+молчит; на drop окно продлевается ещё на `DEFAULT_QUIET` для хвоста дебаунса. Охранник
+мутации (`AppState::quiet`) держит его всю мутацию. Исключение — fetch, pull и push
+(`quiet_briefly`, прежний таймер): разговор с сервером идёт минутами и пишет в конце, а
+удержание прятало бы от панелей правки, сделанные тем временем в редакторе. Тесты —
+`crates/fs_watcher/tests/watching.rs`: `a_held_watcher_stays_quiet_however_long_the_mutation_takes`,
+`letting_go_keeps_the_window_open_for_the_debounced_tail`.

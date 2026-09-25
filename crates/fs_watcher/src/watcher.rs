@@ -4,7 +4,7 @@ use notify_debouncer_mini::{DebounceEventResult, Debouncer, new_debouncer};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 /// Our own writes arrive one debounce after the command finished, so the window has to
@@ -14,6 +14,7 @@ pub const DEFAULT_QUIET: Duration = Duration::from_millis(DEBOUNCE_MS * 4);
 pub struct RepoWatcher {
     paused: Arc<AtomicBool>,
     quiet_until: Arc<Mutex<Option<Instant>>>,
+    held: Arc<AtomicUsize>,
     /// Dropping the debouncer stops the background thread, so it has to be held.
     _debouncer: Debouncer<notify::RecommendedWatcher>,
 }
@@ -29,12 +30,14 @@ impl RepoWatcher {
     ) -> Result<Self, WatchError> {
         let paused = Arc::new(AtomicBool::new(false));
         let quiet_until = Arc::new(Mutex::new(None));
+        let held = Arc::new(AtomicUsize::new(0));
         let route = Route {
             root: root.to_path_buf(),
             git_dir: git_dir.to_path_buf(),
             common_dir: common_dir.to_path_buf(),
             paused: Arc::clone(&paused),
             quiet_until: Arc::clone(&quiet_until),
+            held: Arc::clone(&held),
         };
 
         let mut debouncer = new_debouncer(
@@ -101,28 +104,31 @@ impl RepoWatcher {
         Ok(Self {
             paused,
             quiet_until,
+            held,
             _debouncer: debouncer,
         })
     }
 
     /// Only ever extends: a second mutation must not cut the first one's window short.
     pub fn quiet_for(&self, duration: Duration) {
-        let until = Instant::now() + duration;
-        if let Ok(mut slot) = self.quiet_until.lock()
-            && slot.is_none_or(|current| current < until)
-        {
-            *slot = Some(until);
+        extend(&self.quiet_until, duration);
+    }
+
+    /// Quiet for as long as the guard lives, then for the debounce that trails the last
+    /// write (R-445). A timer alone closed in the middle of a long git process.
+    #[must_use]
+    pub fn hold(&self) -> QuietHold {
+        self.held.fetch_add(1, Ordering::SeqCst);
+        QuietHold {
+            held: Arc::clone(&self.held),
+            quiet_until: Arc::clone(&self.quiet_until),
         }
     }
 
     /// Whether a quiet window is open right now.
     #[must_use]
     pub fn is_quiet(&self) -> bool {
-        self.quiet_until
-            .lock()
-            .ok()
-            .and_then(|slot| *slot)
-            .is_some_and(|until| Instant::now() < until)
+        quiet(&self.held, &self.quiet_until)
     }
 
     pub fn pause(&self) {
@@ -142,21 +148,50 @@ impl std::fmt::Debug for RepoWatcher {
     }
 }
 
+/// See [`RepoWatcher::hold`].
+#[derive(Debug)]
+pub struct QuietHold {
+    held: Arc<AtomicUsize>,
+    quiet_until: Arc<Mutex<Option<Instant>>>,
+}
+
+impl Drop for QuietHold {
+    fn drop(&mut self) {
+        extend(&self.quiet_until, DEFAULT_QUIET);
+        self.held.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+fn extend(quiet_until: &Mutex<Option<Instant>>, duration: Duration) {
+    let until = Instant::now() + duration;
+    if let Ok(mut slot) = quiet_until.lock()
+        && slot.is_none_or(|current| current < until)
+    {
+        *slot = Some(until);
+    }
+}
+
+fn quiet(held: &AtomicUsize, quiet_until: &Mutex<Option<Instant>>) -> bool {
+    held.load(Ordering::SeqCst) > 0
+        || quiet_until
+            .lock()
+            .ok()
+            .and_then(|slot| *slot)
+            .is_some_and(|until| Instant::now() < until)
+}
+
 struct Route {
     root: PathBuf,
     git_dir: PathBuf,
     common_dir: PathBuf,
     paused: Arc<AtomicBool>,
     quiet_until: Arc<Mutex<Option<Instant>>>,
+    held: Arc<AtomicUsize>,
 }
 
 impl Route {
     fn is_quiet(&self) -> bool {
-        self.quiet_until
-            .lock()
-            .ok()
-            .and_then(|slot| *slot)
-            .is_some_and(|until| Instant::now() < until)
+        quiet(&self.held, &self.quiet_until)
     }
 
     /// One debounce window, one event per kind.
@@ -247,6 +282,7 @@ mod tests {
             root,
             paused: Arc::new(AtomicBool::new(false)),
             quiet_until: Arc::new(Mutex::new(None)),
+            held: Arc::new(AtomicUsize::new(0)),
         }
     }
 
