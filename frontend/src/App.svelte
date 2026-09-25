@@ -1276,7 +1276,10 @@
         `${branch.name} is checked out in the worktree at ${elsewhere.path}. Switch to it?`,
         { title: "Branch is in another worktree", kind: "info" },
       );
-      if (go) await activate(elsewhere.path);
+      // A worktree of this repository opens in the panels, as a double-click in Worktrees
+      // does; activating its folder made it a repository of its own in the list (R-184).
+      const row = worktrees.entries.find((entry) => entry.path === elsewhere.path);
+      if (go) await (row ? openWorktreeRow(row) : activate(elsewhere.path));
       return;
     }
 
