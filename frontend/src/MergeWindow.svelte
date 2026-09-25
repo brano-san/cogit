@@ -1,7 +1,7 @@
 <script lang="ts">
   import MergeView from "$components/diff/MergeView.svelte";
   import TooltipLayer from "$components/common/TooltipLayer.svelte";
-  import { parseMerge } from "$lib/merge-params";
+  import { failureText, parseMerge } from "$lib/merge-params";
   import { closeThisWindow, mergePreview, mergeResolved, resolveConflictText, type Region } from "$lib/ipc";
   import { installChildWindow } from "$lib/child-window";
   import { settings } from "$stores/settings.svelte";
@@ -12,14 +12,17 @@
   $effect(() => installChildWindow(window));
 
   let regions = $state.raw<Region[]>([]);
-  let failed = $state<string | null>(null);
+  /** Nothing to show without the three sides, so this one takes the window. */
+  let loadFailed = $state<string | null>(null);
+  /** Shown above the editor, which keeps the choices and the edits for another Save. */
+  let saveFailed = $state<string | null>(null);
 
   $effect(() => {
     void settings.load();
     if (!request) return;
     void mergePreview(request.repo, request.path)
       .then((found) => (regions = found))
-      .catch((err) => (failed = String(err)));
+      .catch((err) => (loadFailed = failureText(err)));
   });
 
   $effect(() => {
@@ -29,12 +32,13 @@
   /** Written here, announced to the main window, and the window closes behind itself. */
   async function save(text: string) {
     if (!request) return;
+    saveFailed = null;
     try {
       await resolveConflictText(request.repo, request.path, text);
       await mergeResolved(request.repo, request.path);
       await closeThisWindow();
     } catch (err) {
-      failed = String(err);
+      saveFailed = failureText(err);
     }
   }
 </script>
@@ -44,11 +48,17 @@
 <div class="window">
   {#if !request}
     <p class="note">This window needs a conflicted file. Open it from the Files panel.</p>
-  {:else if failed}
-    <p class="note error">{failed}</p>
+  {:else if loadFailed}
+    <p class="note error">{loadFailed}</p>
   {:else if regions.length === 0}
     <p class="note">Reading the three sides…</p>
   {:else}
+    {#if saveFailed}
+      <div class="failure" role="alert">
+        <p>The resolution was not saved. It is still here: fix the cause and save again.</p>
+        <pre class="error">{saveFailed}</pre>
+      </div>
+    {/if}
     <MergeView
       path={request.path}
       {regions}
@@ -78,5 +88,25 @@
   .error {
     color: var(--status-delete);
     user-select: text;
+  }
+
+  .failure {
+    flex: none;
+    padding: var(--sp-3) var(--sp-5);
+    font-size: var(--fs-dense);
+    background: var(--surface-raised);
+    border-bottom: 1px solid var(--divider);
+  }
+
+  .failure p {
+    margin: 0 0 var(--sp-2);
+  }
+
+  .failure pre {
+    max-height: 10em;
+    margin: 0;
+    overflow: auto;
+    font-family: var(--font-mono);
+    white-space: pre-wrap;
   }
 </style>
