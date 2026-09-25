@@ -16,6 +16,7 @@ function io(over: Partial<Updates> = {}): Updates {
     relaunch: vi.fn().mockResolvedValue(undefined),
     confirm: vi.fn().mockReturnValue(true),
     report: vi.fn(),
+    mayInstall: vi.fn().mockResolvedValue(true),
     ...over,
   };
 }
@@ -157,5 +158,28 @@ group("the start-up check", () => {
     await checkForUpdates(side, { quiet: true });
 
     expect(vi.mocked(side.report).mock.calls[0]?.[0]).toContain("disk full");
+  });
+});
+
+// Install restarted the app past everything Exit asks about: an unsaved hook or merge was
+// lost, and a push running at the time was cut off.
+group("installing while there is something to lose", () => {
+  it("installs nothing when the exit question says to stay", async () => {
+    const found = handle();
+    const side = io({ check: vi.fn().mockResolvedValue(found), mayInstall: vi.fn(async () => false) });
+
+    await checkForUpdates(side);
+
+    expect(found.downloadAndInstall).not.toHaveBeenCalled();
+    expect(side.relaunch).not.toHaveBeenCalled();
+  });
+
+  it("asks only once the user wants the update", async () => {
+    const found = handle();
+    const side = io({ check: vi.fn().mockResolvedValue(found), confirm: vi.fn(() => false) });
+
+    await checkForUpdates(side);
+
+    expect(side.mayInstall).not.toHaveBeenCalled();
   });
 });
