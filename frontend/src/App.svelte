@@ -3142,7 +3142,8 @@
   $effect(pushMenuState);
 </script>
 
-<svelte:window {onkeydown} />
+<!-- A closed repository has no watcher: its row is read again when the user comes back. -->
+<svelte:window {onkeydown} onfocus={() => repoPulse.revisit()} />
 
 <TooltipLayer />
 
