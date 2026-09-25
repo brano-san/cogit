@@ -493,3 +493,69 @@ fn a_batch_of_files_honours_the_attributes_too() {
         "{files:?}"
     );
 }
+
+// Normal states of a working tree ended in an error or in something untrue: a folder Git
+// sees as one untracked entry was "absent from both sides of the diff", and a repository
+// cloned inside this one was called a submodule.
+#[test]
+fn an_untracked_folder_is_described_rather_than_refused() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file("generated/a.txt", "a\n").unwrap();
+    f.write_file("generated/b.txt", "b\n").unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let shown = state
+        .diff_file(
+            repo,
+            &DiffSpec::WorkTreeVsIndex,
+            "generated/",
+            &DiffOptions::default(),
+        )
+        .expect("an untracked folder is a normal state, not an error");
+
+    assert!(
+        matches!(shown, FileDiff::Folder { repository: false }),
+        "{shown:?}"
+    );
+}
+
+#[test]
+fn a_repository_nested_inside_is_not_called_a_submodule() {
+    let f = test_fixtures::linear(1).unwrap();
+    let nested = f.path().join("vendor/x");
+    std::fs::create_dir_all(&nested).unwrap();
+    f.git_in(&nested, &["init", "-q"]).unwrap();
+    std::fs::write(nested.join("n.txt"), "n\n").unwrap();
+    f.git_in(&nested, &["add", "n.txt"]).unwrap();
+    f.git_in(
+        &nested,
+        &[
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@t",
+            "commit",
+            "-q",
+            "-m",
+            "n",
+        ],
+    )
+    .unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let shown = state
+        .diff_file(
+            repo,
+            &DiffSpec::WorkTreeVsIndex,
+            "vendor/x",
+            &DiffOptions::default(),
+        )
+        .unwrap();
+
+    assert!(
+        matches!(shown, FileDiff::Folder { repository: true }),
+        "{shown:?}"
+    );
+}

@@ -114,13 +114,23 @@ impl RepoHandle {
             DiffSpec::CommitVsCommit { a, b } => {
                 (self.gitlink_at(b, path), self.gitlink_at(a, path))
             }
+            // A repository on disk is a submodule only where a side records its gitlink.
             DiffSpec::WorkTreeVsIndex => {
-                let staged = self.gitlink_in_index(path);
-                (self.checked_out_commit(path).or(staged.clone()), staged)
+                let Some(staged) = self.gitlink_in_index(path) else {
+                    return Ok(None);
+                };
+                (
+                    self.checked_out_commit(path).or(Some(staged.clone())),
+                    Some(staged),
+                )
             }
             DiffSpec::IndexVsHead => (self.gitlink_in_index(path), self.gitlink_at("HEAD", path)),
             DiffSpec::CommitVsWorkTree { oid } => {
-                (self.checked_out_commit(path), self.gitlink_at(oid, path))
+                let then = self.gitlink_at(oid, path);
+                if then.is_none() && self.gitlink_in_index(path).is_none() {
+                    return Ok(None);
+                }
+                (self.checked_out_commit(path), then)
             }
         };
         let Some(recorded) = recorded.or_else(|| previous.clone()) else {
@@ -133,6 +143,13 @@ impl RepoHandle {
             previous: previous.filter(|before| *before != recorded),
             recorded,
         }))
+    }
+
+    /// A folder at `path` in the working tree, and whether it holds a repository of its own.
+    #[must_use]
+    pub fn folder_on_disk(&self, path: &str) -> Option<bool> {
+        let folder = self.root().join(path);
+        (!self.is_bare() && folder.is_dir()).then(|| folder.join(".git").exists())
     }
 
     fn gitlink_in_index(&self, path: &str) -> Option<String> {
