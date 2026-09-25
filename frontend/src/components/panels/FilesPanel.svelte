@@ -2,6 +2,7 @@
   import FileList from "$components/file-list/FileList.svelte";
   import { ContentSearch } from "$lib/content-search.svelte";
   import { withUnchanged } from "$lib/file-switches";
+  import { filesPanelList } from "$lib/files-panel";
   import type { FileView } from "$lib/file-view";
   import { idleMessage } from "$lib/repo-phase";
   import { commit } from "$stores/commit.svelte";
@@ -42,6 +43,8 @@
     discard: (paths: string[]) => void;
     ignore: (paths: string[]) => void;
     remove: (paths: string[]) => void;
+    /** The rows of the list on screen, for the panel header. */
+    oncount?: (count: number | undefined) => void;
   }
 
   let {
@@ -65,6 +68,7 @@
     discard,
     ignore,
     remove,
+    oncount,
   }: Props = $props();
 
   const fractions = $derived(layout.fractions);
@@ -84,6 +88,19 @@
     ),
   );
 
+  const shown = $derived(
+    filesPanelList({
+      content: view === "content",
+      stash: stashView.contents,
+      compare: compareView.showing(commit.oid) ? compareView.files : null,
+      onWorkingTree,
+      worktree: worktree.total,
+      commit: commitList.length,
+    }),
+  );
+
+  $effect(() => oncount?.(shown.count));
+
   /** Three different nothings, and the panel used to say the same thing for all of them. */
   const nothing = $derived(
     view !== "content"
@@ -95,9 +112,9 @@
 </script>
 
 <div class="files">
-  {#if view !== "content"}
+  {#if shown.kind === "none"}
     <FileList sections={[{ files: [] }]} empty={nothing} disabled {activePanel} />
-  {:else if stashView.contents}
+  {:else if shown.kind === "stash" && stashView.contents}
     {@const parts = stashView.contents}
     <FileList
       {activePanel}
@@ -122,7 +139,7 @@
       onopen={onopenwindow}
       {onmarked}
     />
-  {:else if compareView.showing(commit.oid)}
+  {:else if shown.kind === "compare"}
     <FileList
       {activePanel}
       context="compare"
@@ -140,7 +157,7 @@
       onopen={onopenwindow}
       {onmarked}
     />
-  {:else if onWorkingTree}
+  {:else if shown.kind === "worktree"}
     <FileList
       {activePanel}
       view={filesView.current}
