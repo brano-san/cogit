@@ -358,7 +358,10 @@ author, email, timestamp, path, diff }`, новые сверху. `path` — и�
 `DiffSpec` описывает, что с чем сравнивается: `WorkTreeVsIndex`, `IndexVsHead`,
 `CommitVsParent { oid }`, `CommitVsCommit { a, b }`, `StashVsParent { index }`.
 Реализованы `CommitVsParent`, `CommitVsCommit`, `WorkTreeVsIndex` и `IndexVsHead`;
-`StashVsParent` придёт с M5.
+`StashVsParent` придёт с M5. Путь — имя на новой стороне; если на старой его нет, а список
+файлов показывает переименование или копию (`← old.txt`), старая сторона читается по
+исходному имени — тем же поиском переименований, что и список (для коммитов, пары коммитов
+и индекса против HEAD).
 
 `FileDiff` — размеченное объединение по полю `kind`: `text`, `eolOnly`, `binary`,
 `image`, `tooLarge`, `unchanged`, `whitespaceOnly`, `submodule`, `folder`. `folder {

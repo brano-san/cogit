@@ -559,3 +559,58 @@ fn a_repository_nested_inside_is_not_called_a_submodule() {
         "{shown:?}"
     );
 }
+
+fn renamed_with_one_edit(f: &test_fixtures::Fixture) {
+    let body = (0..20).map(|i| format!("line {i}\n")).collect::<String>();
+    f.commit_file(1, "a.txt", &body).unwrap();
+    f.git(&["mv", "a.txt", "b.txt"]).unwrap();
+    f.write_file("b.txt", &body.replace("line 7\n", "line seven\n"))
+        .unwrap();
+    f.git(&["add", "--", "b.txt"]).unwrap();
+}
+
+fn changed_rows(diff: &FileDiff) -> (usize, usize) {
+    let FileDiff::Text { hunks, .. } = diff else {
+        panic!("expected a text diff, got {diff:?}");
+    };
+    let rows = hunks.iter().flat_map(|hunk| &hunk.rows);
+    rows.fold((0, 0), |(deleted, inserted), row| match row {
+        diff_engine::DiffRow::Delete { .. } => (deleted + 1, inserted),
+        diff_engine::DiffRow::Insert { .. } => (deleted, inserted + 1),
+        _ => (deleted, inserted),
+    })
+}
+
+#[test]
+fn a_renamed_file_is_diffed_against_its_old_name() {
+    let f = test_fixtures::linear(1).unwrap();
+    renamed_with_one_edit(&f);
+    f.commit_staged(2, "rename a.txt to b.txt").unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let diff = state
+        .diff_file(repo, &head_vs_parent(&f), "b.txt", &DiffOptions::default())
+        .unwrap();
+
+    assert_eq!(changed_rows(&diff), (1, 1));
+}
+
+#[test]
+fn a_staged_rename_is_diffed_against_its_old_name() {
+    let f = test_fixtures::linear(1).unwrap();
+    renamed_with_one_edit(&f);
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let diff = state
+        .diff_file(
+            repo,
+            &DiffSpec::IndexVsHead,
+            "b.txt",
+            &DiffOptions::default(),
+        )
+        .unwrap();
+
+    assert_eq!(changed_rows(&diff), (1, 1));
+}

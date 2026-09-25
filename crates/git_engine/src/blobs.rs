@@ -183,24 +183,35 @@ impl RepoHandle {
     }
 
     pub fn diff_sides(&self, spec: &DiffSpec, path: &str) -> Result<DiffSides> {
+        let source = self.rename_source(spec, path)?;
+        self.diff_sides_from(spec, source.as_deref().unwrap_or(path), path)
+    }
+
+    /// The sides with the old one read at `old_path`: the source of a rename or copy.
+    pub fn diff_sides_from(
+        &self,
+        spec: &DiffSpec,
+        old_path: &str,
+        path: &str,
+    ) -> Result<DiffSides> {
         match spec {
             DiffSpec::CommitVsParent { oid } => {
                 let new = self.blob_at(oid, path)?;
                 let parent = self.first_parent(oid)?;
                 let old = match parent {
-                    Some(parent) => self.blob_at(&parent, path)?,
+                    Some(parent) => self.blob_at(&parent, old_path)?,
                     None => None,
                 };
                 Ok((old, new))
             }
             DiffSpec::CommitVsCommit { a, b } => {
-                Ok((self.blob_at(a, path)?, self.blob_at(b, path)?))
+                Ok((self.blob_at(a, old_path)?, self.blob_at(b, path)?))
             }
             DiffSpec::WorkTreeVsIndex => Ok((self.blob_in_index(path)?, self.worktree_side(path)?)),
             DiffSpec::IndexVsHead => {
                 let old = match self.head()? {
                     crate::Head::Unborn { .. } => None,
-                    _ => self.blob_at("HEAD", path)?,
+                    _ => self.blob_at("HEAD", old_path)?,
                 };
                 Ok((old, self.blob_in_index(path)?))
             }
@@ -210,25 +221,30 @@ impl RepoHandle {
         }
     }
 
-    /// What `diff_sides` would read, by size alone: a side too large to show is never read.
-    pub fn side_sizes(&self, spec: &DiffSpec, path: &str) -> Result<(Option<u64>, Option<u64>)> {
+    /// What `diff_sides_from` would read, by size alone: a side too large to show is never read.
+    pub fn side_sizes_from(
+        &self,
+        spec: &DiffSpec,
+        old_path: &str,
+        path: &str,
+    ) -> Result<(Option<u64>, Option<u64>)> {
         match spec {
             DiffSpec::CommitVsParent { oid } => {
                 let new = self.size_at(oid, path)?;
                 let old = match self.first_parent(oid)? {
-                    Some(parent) => self.size_at(&parent, path)?,
+                    Some(parent) => self.size_at(&parent, old_path)?,
                     None => None,
                 };
                 Ok((old, new))
             }
             DiffSpec::CommitVsCommit { a, b } => {
-                Ok((self.size_at(a, path)?, self.size_at(b, path)?))
+                Ok((self.size_at(a, old_path)?, self.size_at(b, path)?))
             }
             DiffSpec::WorkTreeVsIndex => Ok((self.size_in_index(path)?, self.worktree_size(path)?)),
             DiffSpec::IndexVsHead => {
                 let old = match self.head()? {
                     crate::Head::Unborn { .. } => None,
-                    _ => self.size_at("HEAD", path)?,
+                    _ => self.size_at("HEAD", old_path)?,
                 };
                 Ok((old, self.size_in_index(path)?))
             }
@@ -236,6 +252,83 @@ impl RepoHandle {
                 Ok((self.size_at(oid, path)?, self.worktree_size(path)?))
             }
         }
+    }
+
+    /// Where the old side keeps a file it has no `path` for: the source of the rename or
+    /// copy the file list shows as `← old.txt`. Looked for only then, since finding it
+    /// costs a tree diff with rename tracking.
+    pub fn rename_source(&self, spec: &DiffSpec, path: &str) -> Result<Option<String>> {
+        match spec {
+            DiffSpec::CommitVsParent { oid } => match self.first_parent(oid)? {
+                Some(parent) => self.rename_between(&parent, oid, path),
+                None => Ok(None),
+            },
+            DiffSpec::CommitVsCommit { a, b } => self.rename_between(a, b, path),
+            DiffSpec::IndexVsHead => self.staged_rename_source(path),
+            DiffSpec::WorkTreeVsIndex | DiffSpec::CommitVsWorkTree { .. } => Ok(None),
+        }
+    }
+
+    fn rename_between(&self, before: &str, after: &str, path: &str) -> Result<Option<String>> {
+        let tree_of = |rev: &str| {
+            self.find_commit(rev)?
+                .tree()
+                .map_err(|err| GitError::Internal(format!("cannot read the tree of {rev}: {err}")))
+        };
+        let before = tree_of(before)?;
+        if !matches!(before.lookup_entry_by_path(path), Ok(None)) {
+            return Ok(None);
+        }
+        let files =
+            self.files_between_trees(&before, &tree_of(after)?, crate::DEFAULT_SIMILARITY)?;
+        Ok(files
+            .into_iter()
+            .find(|file| file.path == path)
+            .and_then(|file| file.old_path))
+    }
+
+    /// The same rename tracking the Staged list gets from status.
+    fn staged_rename_source(&self, path: &str) -> Result<Option<String>> {
+        let Ok(tree) = self.repo.head_tree() else {
+            return Ok(None);
+        };
+        if !matches!(tree.lookup_entry_by_path(path), Ok(None)) {
+            return Ok(None);
+        }
+        let index = self
+            .repo
+            .index_or_empty()
+            .map_err(|err| GitError::Internal(format!("cannot read the index: {err}")))?;
+        let mut source = None;
+        self.repo
+            .tree_index_status(
+                &tree.id,
+                &index,
+                None,
+                gix::status::tree_index::TrackRenames::AsConfigured,
+                |change, _, _| {
+                    if let gix::diff::index::ChangeRef::Rewrite {
+                        source_location,
+                        location,
+                        ..
+                    } = change
+                        && location.as_ref() == path
+                    {
+                        source = Some(source_location.to_string());
+                    }
+                    Ok::<_, std::convert::Infallible>(std::ops::ControlFlow::Continue(()))
+                },
+            )
+            .map_err(|err| {
+                GitError::Internal(format!("cannot compare the index with HEAD: {err}"))
+            })?;
+        Ok(source)
+    }
+
+    /// What `diff_sides` would read, by size alone.
+    pub fn side_sizes(&self, spec: &DiffSpec, path: &str) -> Result<(Option<u64>, Option<u64>)> {
+        let source = self.rename_source(spec, path)?;
+        self.side_sizes_from(spec, source.as_deref().unwrap_or(path), path)
     }
 
     /// The working-tree side as git reads it. An entry marked skip-worktree (sparse
