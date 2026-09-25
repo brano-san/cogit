@@ -76,20 +76,13 @@ pub async fn move_to_trash(
     repo: RepoId,
     paths: Vec<String>,
 ) -> Result<(), GitError> {
-    let root = state.state.root_of(repo)?;
+    let app_state = state.state.clone();
     mutating(
         &state.state,
         repo,
         app_state::OperationKind::Discard,
         "move_to_trash",
-        move || {
-            let absolute: Vec<std::path::PathBuf> = paths
-                .iter()
-                .map(|path| root.join(path.trim_end_matches('/')))
-                .collect();
-            crate::recycle_bin::move_to_trash(&absolute)
-                .map_err(|err| GitError::Io(err.to_string()))
-        },
+        move || app_state.move_to_trash(repo, &paths, crate::recycle_bin::move_to_trash),
     )
     .await
 }
