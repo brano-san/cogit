@@ -20,14 +20,18 @@
       .join("\n");
   }
 
+  let panel: HTMLElement | undefined = $state();
+
+  /** Only an Esc pressed inside it: one that closes a dialog or a search is not for it. */
   function onkeydown(event: KeyboardEvent) {
-    if (event.key === "Escape" && output.open) output.open = false;
+    const inside = panel !== undefined && event.target instanceof Node && panel.contains(event.target);
+    if (event.key === "Escape" && output.open && inside && !event.defaultPrevented) output.open = false;
   }
 </script>
 
 <svelte:window {onkeydown} />
 
-<div class="output">
+<div class="output" bind:this={panel} tabindex="-1">
   <header>
     <span class="title">Output</span>
     <label><input type="checkbox" bind:checked={output.errorsOnly} /> Problems only</label>
