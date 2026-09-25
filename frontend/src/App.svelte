@@ -1715,18 +1715,20 @@
     void diff.load(id, { kind: "indexVsHead" }, path);
   }
 
-  function openWorktreeDiff(path: string) {
+  async function openWorktreeDiff(path: string) {
     const id = repository.current?.repo;
     if (!id) return;
     // A conflicted file has three sides; a two-sided diff of it says nothing useful.
     if (conflicts.paths.includes(path)) {
+      if (conflicts.path === path || !(await conflicts.leave())) return;
+      if (repository.current?.repo !== id) return;
       diff.clear();
       void conflicts.open(id, path);
       return;
     }
     // A second click is not a toggle: it would fight the double-click that opens a window (#7).
     if (diff.shows({ kind: "workTreeVsIndex" }, path)) return;
-    conflicts.close();
+    if (!(await conflicts.leave()) || repository.current?.repo !== id) return;
     const watch = measure("open-diff");
     void diff.load(id, { kind: "workTreeVsIndex" }, path).then(() => watch.stop(path));
   }
