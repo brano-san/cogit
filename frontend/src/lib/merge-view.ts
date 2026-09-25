@@ -85,6 +85,33 @@ export function mergedText(regions: readonly Region[], choices: Choices): string
   return lines.length === 0 ? "" : `${lines.join("\n")}\n`;
 }
 
+/** What the hand editor starts from: an undecided conflict keeps both sides between the
+    markers git writes, so editing by hand cannot drop either side without seeing it. */
+export function editableText(regions: readonly Region[], choices: Choices): string {
+  const lines = regions.flatMap((region, index) => {
+    const resolved = resolvedLines(region, choices[index]);
+    if (resolved !== null || region.kind !== "conflict") return resolved ?? [];
+    return [
+      "<<<<<<< ours",
+      ...region.ours,
+      "||||||| base",
+      ...region.base,
+      "=======",
+      ...region.theirs,
+      ">>>>>>> theirs",
+    ];
+  });
+  return lines.length === 0 ? "" : `${lines.join("\n")}\n`;
+}
+
+const MARKER = /^(<{7}|\|{7}|>{7})( |$)|^={7}$/m;
+
+/** The panels save once every conflict has a side; hand-edited text once no marker is left. */
+export function canSave(regions: readonly Region[], choices: Choices, edited: string | null): boolean {
+  if (edited === null) return unresolvedCount(regions, choices) === 0;
+  return !MARKER.test(edited.replaceAll("\r\n", "\n"));
+}
+
 /** Regions the merge settled on its own. They are correct, and still worth a look. */
 export function autoResolvedCount(regions: readonly Region[]): number {
   return regions.filter((region) => region.kind === "clean" && region.origin !== "unchanged")
