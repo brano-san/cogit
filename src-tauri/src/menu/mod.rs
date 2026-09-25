@@ -5,7 +5,7 @@ use tauri::menu::{
     CheckMenuItem, CheckMenuItemBuilder, Menu, MenuItem, MenuItemBuilder, PredefinedMenuItem,
     Submenu, SubmenuBuilder,
 };
-use tauri::{AppHandle, Runtime};
+use tauri::{AppHandle, Manager as _, Runtime};
 
 mod context;
 pub use context::{ContextItem, ContextMenu, popup};
@@ -516,6 +516,9 @@ impl<R: Runtime> From<Collected<R>> for MenuItems<R> {
 
 /// Rebuilds the whole bar: muda cannot change an accelerator after an item is built, so the
 /// held item handles are replaced along with it.
+///
+/// The main window gets it, not the app: `App::set_menu` also hands it to every window
+/// without a menu, and Compare and Merge dropped theirs (`child_window::open`).
 pub fn rebuild<R: Runtime>(
     app: &AppHandle<R>,
     keymap: &Keymap,
@@ -524,7 +527,15 @@ pub fn rebuild<R: Runtime>(
 ) -> tauri::Result<()> {
     keymap.set(overrides);
     let (menu, collected) = build(app, &keymap.snapshot())?;
-    app.set_menu(menu)?;
+    match app.get_webview_window(crate::child_window::MAIN) {
+        // macOS has one bar for the whole app.
+        Some(main) if cfg!(not(target_os = "macos")) => {
+            main.set_menu(menu)?;
+        }
+        _ => {
+            app.set_menu(menu)?;
+        }
+    }
     items.replace(collected);
     Ok(())
 }
