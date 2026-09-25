@@ -282,6 +282,57 @@ fn a_host_scoped_header_is_hidden_in_the_journal_line() {
     assert!(!line.contains("c2VjcmV0"), "{line}");
 }
 
+/// The URL each command asked a token for.
+fn asked_for(run: impl FnOnce(&RepoHandle, &dyn Fn(&str) -> Option<String>)) -> Vec<String> {
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&[
+        "remote",
+        "set-url",
+        "origin",
+        "https://127.0.0.1:1/fetch/r.git",
+    ])
+    .unwrap();
+    f.git(&[
+        "remote",
+        "set-url",
+        "--push",
+        "origin",
+        "https://127.0.0.1:2/push/r.git",
+    ])
+    .unwrap();
+    let asked: Lines = Arc::new(Mutex::new(Vec::new()));
+    let sink = Arc::clone(&asked);
+    run(&open(&f), &move |url: &str| {
+        sink.lock().unwrap().push(url.to_owned());
+        None
+    });
+    seen(&asked)
+}
+
+// The token was looked up by the push URL for fetch and pull too, and the header with the
+// push host's token went to the fetch host.
+#[test]
+fn fetch_and_pull_ask_for_the_token_of_the_fetch_url() {
+    let fetched = asked_for(|repo, token| {
+        let _ = repo.fetch("origin", |url| token(url), |_| {});
+    });
+    let pulled = asked_for(|repo, token| {
+        let _ = repo.pull("origin", true, |url| token(url), |_| {});
+    });
+
+    assert_eq!(fetched, ["https://127.0.0.1:1/fetch/r.git"]);
+    assert_eq!(pulled, ["https://127.0.0.1:1/fetch/r.git"]);
+}
+
+#[test]
+fn push_asks_for_the_token_of_the_push_url() {
+    let pushed = asked_for(|repo, token| {
+        let _ = repo.push("origin", None, false, |url| token(url), |_| {});
+    });
+
+    assert_eq!(pushed, ["https://127.0.0.1:2/push/r.git"]);
+}
+
 #[test]
 fn no_token_means_no_extra_argument() {
     let f = test_fixtures::with_remote().unwrap();

@@ -5165,9 +5165,13 @@ Cogit «в шаге». Оба оставлены как есть: ни одно 
 `-c http.<scheme>://<host>/.extraHeader=…` — git применяет его только к адресам этого хоста
 (`git config --get-urlmatch`). `git_engine` сам выбирает URL, к которому пойдёт команда, и
 спрашивает токен для него (`fetch/pull/push(remote, token: FnOnce(&url) -> Option<String>)`),
-поэтому хост ключа и хост токена не расходятся. `redact_command` прячет значение любого
-ключа, оканчивающегося на `.extraheader`. Тесты — `a_token_is_sent_only_to_the_host_of_the_remote`,
-`a_token_reaches_git_as_a_header_but_not_the_journal` (`crates/git_engine/tests/network.rs`).
+поэтому хост ключа и хост токена не расходятся. Fetch и pull берут URL fetch, push — URL
+push (`pushurl`, `pushInsteadOf`): при разных хостах токен хоста push уходил хосту fetch.
+Панель токена во фронтенде по-прежнему спрашивает хост push — при одном хосте, обычном
+случае, это тот же. `redact_command` прячет значение любого ключа, оканчивающегося на
+`.extraheader`. Тесты — `a_token_is_sent_only_to_the_host_of_the_remote`,
+`a_token_reaches_git_as_a_header_but_not_the_journal`,
+`fetch_and_pull_ask_for_the_token_of_the_fetch_url` (`crates/git_engine/tests/network.rs`).
 
 ## R-411 · Commit What You See — из индекса, а не `commit --only` · В
 
