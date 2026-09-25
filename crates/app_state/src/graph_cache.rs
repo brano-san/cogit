@@ -504,6 +504,7 @@ impl AppState {
             }),
             record: Some(&mut record),
             text: !lazy,
+            cut: None,
         };
         let on_chunk = |chunk: GraphChunk| {
             if !self.is_current_graph(generation) {

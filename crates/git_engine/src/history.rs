@@ -57,8 +57,9 @@ impl RepoHandle {
 
     /// Every ref and where HEAD points, hashed, with what each reflog selector among
     /// `visible_refs` names: `stash drop stash@{1}` moves no ref, yet `stash@{1}` is another
-    /// commit after it. Equal prints mean the graph walk would start from the same tips;
-    /// only the ref store and the reflogs are read, never a commit.
+    /// commit after it. The shallow boundary too: `fetch --unshallow` moves no ref either.
+    /// Equal prints mean the graph walk would start from the same tips and stop at the same
+    /// commits; only the ref store, the reflogs and `shallow` are read, never a commit.
     pub fn refs_fingerprint(&self, visible_refs: Option<&[String]>) -> Result<u64> {
         use std::hash::{Hash as _, Hasher as _};
         fn add(hasher: &mut impl std::hash::Hasher, reference: &gix::Reference<'_>) {
@@ -93,6 +94,7 @@ impl RepoHandle {
                 }
             }
         }
+        self.shallow_commits().hash(&mut hasher);
         Ok(hasher.finish())
     }
 

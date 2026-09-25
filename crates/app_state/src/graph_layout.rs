@@ -27,6 +27,12 @@ pub(crate) fn lay_out(
         .with_long_links(query.long_link_rows.unwrap_or(0));
     let mut cancelled = false;
     let mut view = graph_view(handle, query, flat)?;
+    // A shallow boundary or an unreadable parent: a line to it ends in an arrow (07 §4).
+    let cut = git_engine::CutParents::default();
+    let rows = git_engine::GraphRows {
+        cut: Some(&cut),
+        ..rows
+    };
 
     // One order for the graph and the filtered list: by date, never a parent above a
     // child (R-162). A line to a parent the list will not show ends in an arrow (R-161).
@@ -50,8 +56,14 @@ pub(crate) fn lay_out(
                         .filter(|parent| !handle.shown_by_with(query, parent, &mailmap))
                         .cloned()
                         .collect()
-                } else {
+                } else if cut.is_empty() {
                     Vec::new()
+                } else {
+                    c.parents
+                        .iter()
+                        .filter(|parent| cut.contains(parent))
+                        .cloned()
+                        .collect()
                 },
             })
             .collect();

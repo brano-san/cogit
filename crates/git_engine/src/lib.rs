@@ -84,7 +84,7 @@ pub use file_ops::{IndexEditorSides, IndexFlag};
 pub use find::{Found, FoundKind};
 pub use flow::{FlowBranch, FlowConfig, FlowKind, FlowStatus};
 pub use gitlink::{ModuleProblem, is_foreign_path};
-pub use graph_walk::{Reuse, WalkedHistory};
+pub use graph_walk::{CutParents, Reuse, WalkedHistory};
 pub use health::{HealthFinding, HealthIssue, case_sensitive};
 pub use history::{CommitRow, CommitText};
 pub use hook_run::HookRun;

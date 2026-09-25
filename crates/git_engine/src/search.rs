@@ -1,4 +1,4 @@
-use crate::graph_walk::{ByTime, CommitReader, Reuse, WalkedHistory};
+use crate::graph_walk::{ByTime, CommitReader, CutParents, Reuse, WalkedHistory};
 use crate::topo::{LOOKAHEAD, in_date_order};
 use crate::{CommitRow, RepoHandle, Result};
 use serde::{Deserialize, Serialize};
@@ -145,13 +145,15 @@ impl RepoHandle {
             reuse: None,
             record: None,
             text: true,
+            cut: None,
         };
         self.graph_commits(query, chunk_size, rows, on_chunk)
     }
 
     /// `search_commits` for the graph: time and parents of a commit `reuse` holds come from
     /// there (R-301); `record` lists every row for the walk after it; without `text`, rows
-    /// carry no subject or author, only what the walk read (R-302).
+    /// carry no subject or author, only what the walk read (R-302); `cut` hears of the
+    /// parents the walk will never list, before the row that names them.
     pub fn graph_commits(
         &self,
         query: &CommitQuery,
@@ -163,6 +165,7 @@ impl RepoHandle {
             reuse,
             record,
             text,
+            cut,
         } = rows;
         // Rows without text cannot be matched against a filter.
         let text = text || query.filters_rows();
@@ -171,13 +174,28 @@ impl RepoHandle {
             let head = self.first_of(&tips);
             let reader = CommitReader::new(&self.repo);
             let read = |id| {
-                reuse
+                let found = reuse
                     .and_then(|reuse| reuse.read(&id))
-                    .or_else(|| reader.read(id))
+                    .or_else(|| reader.read(id));
+                if found.is_none()
+                    && let Some(cut) = cut
+                {
+                    cut.insert(id);
+                }
+                found
             };
             // A filtered list shows matches from every line, the merged ones too (#26).
             let first_parent = query.view.first_parent && !query.filters_rows();
-            let walk = ByTime::new(tips, read, first_parent, self.shallow_commits());
+            let shallow = self.shallow_commits();
+            let walk = ByTime::new(tips, read, first_parent, shallow.clone()).inspect(
+                |(id, parents, _)| {
+                    if let Some(cut) = cut
+                        && shallow.binary_search(id).is_ok()
+                    {
+                        parents.iter().for_each(|parent| cut.insert(*parent));
+                    }
+                },
+            );
             let rows = Rows { record, text };
             self.stream_rows(
                 query,
@@ -332,4 +350,5 @@ pub struct GraphRows<'r, 'h> {
     pub reuse: Option<Reuse<'r>>,
     pub record: Option<&'h mut WalkedHistory>,
     pub text: bool,
+    pub cut: Option<&'h CutParents>,
 }

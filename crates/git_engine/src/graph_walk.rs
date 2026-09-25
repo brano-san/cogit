@@ -66,6 +66,28 @@ impl WalkedHistory {
     }
 }
 
+/// Parents a walk never lists: those of a shallow commit and those it could not read. The
+/// walk names them before the row that has them as parents goes out, so the layout can end
+/// their lines in an arrow instead of waiting for a commit that never comes.
+#[derive(Debug, Default)]
+pub struct CutParents(std::cell::RefCell<HashSet<String>>);
+
+impl CutParents {
+    #[must_use]
+    pub fn contains(&self, oid: &str) -> bool {
+        self.0.borrow().contains(oid)
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.borrow().is_empty()
+    }
+
+    pub(crate) fn insert(&self, id: ObjectId) {
+        self.0.borrow_mut().insert(id.to_string());
+    }
+}
+
 /// What the last graph walk listed: a walk takes time and parents from here instead of
 /// reading the objects again (R-301).
 #[derive(Debug, Clone, Copy)]

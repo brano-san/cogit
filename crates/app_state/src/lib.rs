@@ -572,6 +572,7 @@ impl AppState {
             reuse: None,
             record: None,
             text: true,
+            cut: None,
         };
         crate::graph_layout::lay_out(&self.handle(repo)?, query, chunk_size, rows, on_chunk)
     }
