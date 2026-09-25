@@ -1022,9 +1022,6 @@ impl AppState {
         // for it after it is cleared below.
         let removed = self.unregister(repo);
         self.safety.write().retain(|held| held.entry.repo != repo);
-        if removed {
-            self.emit(AppEvent::RepoClosed { repo });
-        }
         watch.done("unregister");
 
         // A watcher an open was starting sees the repository gone and drops itself.
