@@ -4653,8 +4653,8 @@ small, даже когда делать нечего (`GIT_TRACE2_PERF`, `doc/14
 **Решение:** коммит идёт с `-c maintenance.auto=false`, а тот же `maintenance run --auto
 --no-quiet --detach|--no-detach` (флаг — как решил бы git: `maintenance.autoDetach`, затем
 `gc.autoDetach`, по умолчанию да; флаг есть только с git 2.47 — более старому он не
-передаётся, тот решает по `gc.autoDetach` сам) запускается сразу после него из своего потока,
-и коммит его не ждёт. Если в конфиге `maintenance.auto=false`, не запускается ничего, как и у git.
+передаётся, тот решает по `gc.autoDetach` сам) запускается сразу после него отдельной
+записью очереди репозитория (R-444), и коммит его не ждёт. Если в конфиге `maintenance.auto=false`, не запускается ничего, как и у git.
 Молчаливый прогон в журнал не пишется; прогон, который что-то сказал или упал, — пишется
 отдельной записью (раньше этот текст был в stderr коммита).
 Тесты `commit_write.rs`: обслуживание по-прежнему приходит (два pack при
@@ -5564,3 +5564,18 @@ restart». На старте `--version` проверяется и пишетс�
 `the_git_set_at_startup_is_the_one_every_command_runs` (`crates/git_engine/tests/git_program.rs`,
 свой бинарь: настройка на весь процесс), `the_git_executable_is_read_from_the_settings_file`
 (`crates/app_state/tests/settings.rs`).
+
+## R-444 · Обслуживание после коммита — своя запись в очереди репозитория · Н
+
+Обслуживание после коммита (R-314) шло из своего потока уже после того, как коммит отпустил
+полосу очереди. На Windows `--detach` не отсоединяется, и `gc --auto` (pack-refs, reflog
+expire, repack) шёл параллельно со следующей записью очереди — вопреки «writes in order».
+Его не видели ни список операций, ни диалог выхода, а выход убивал его (`taskkill /F`),
+оставляя `objects/maintenance.lock`.
+
+**Решение:** `commit` в `git_engine` больше не запускает обслуживание сам. Команда `commit`
+после ответа ставит в очередь репозитория отдельную операцию «Maintaining the repository»
+(`OperationKind::Other`), если `maintenance.auto` не выключен, и в ней синхронно выполняет
+тот же `maintenance run --auto` под окном тишины наблюдателя. Коммит по-прежнему его не ждёт,
+следующая запись ждёт его в очереди, диалог выхода о нём знает. Тест —
+`a_commit_leaves_maintenance_to_a_turn_of_its_own` (`crates/git_engine/tests/commit_write.rs`).
