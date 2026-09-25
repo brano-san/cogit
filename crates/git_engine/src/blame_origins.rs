@@ -1,5 +1,5 @@
 use crate::line_match::{line_hunks, normalise, replaced_lines};
-use crate::{GitError, RepoHandle, Result};
+use crate::{RepoHandle, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -113,11 +113,7 @@ impl RepoHandle {
     /// Lines as text, `\r` dropped; `None` when the file is absent there.
     pub(crate) fn text_lines(&self, rev: &str, path: &str) -> Result<Option<Vec<String>>> {
         let bytes = if rev == UNCOMMITTED {
-            match std::fs::read(self.root().join(path)) {
-                Ok(bytes) => Some(bytes),
-                Err(err) if err.kind() == std::io::ErrorKind::NotFound => None,
-                Err(err) => return Err(GitError::Io(format!("cannot read {path}: {err}"))),
-            }
+            self.blob_on_disk(path)?
         } else {
             self.blob_at(rev, path)?
         };

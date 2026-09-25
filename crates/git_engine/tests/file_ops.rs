@@ -367,3 +367,24 @@ fn cherry_picking_one_file_ignores_how_the_user_likes_diffs_shown() {
 
     assert_eq!(read(&f, "src/a.txt"), "from dev\n");
 }
+
+// The Index Editor saved its working-tree side through the link, into the file it points
+// at, which can be outside the repository.
+#[test]
+fn the_working_tree_side_of_a_symlink_is_not_written_through_it() {
+    let f = test_fixtures::linear(1).unwrap();
+    let at = f.path().join("link");
+    #[cfg(unix)]
+    let made = std::os::unix::fs::symlink("file0.txt", &at);
+    #[cfg(windows)]
+    let made = std::os::windows::fs::symlink_file("file0.txt", &at);
+    if made.is_err() {
+        return;
+    }
+    let repo = open(&f);
+
+    let written = repo.write_worktree_text("link", "typed in\n");
+
+    assert!(written.is_err(), "{written:?}");
+    assert_eq!(read(&f, "file0.txt"), "content 0\n");
+}
