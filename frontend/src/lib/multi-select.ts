@@ -45,3 +45,14 @@ export function afterDeselect(
 ): FileSelection {
   return previous !== null && next === null ? EMPTY_SELECTION : marked;
 }
+
+/** The marks an action may touch: only rows on screen. A file the filter hides or a commit
+    took away stays marked for when it is back, but nothing acts on it unseen. */
+export function shownMarks(marked: FileSelection, order: readonly string[]): FileSelection {
+  if (marked.paths.size === 0) return marked;
+  const shown = new Set(order);
+  const paths = [...marked.paths].filter((path) => shown.has(path));
+  if (paths.length === marked.paths.size) return marked;
+  const anchor = marked.anchor !== null && shown.has(marked.anchor) ? marked.anchor : null;
+  return { paths: new Set(paths), anchor };
+}
