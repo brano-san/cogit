@@ -237,3 +237,18 @@ describe("leaving an open merge", () => {
     expect(await conflicts.leave()).toBe(true);
   });
 });
+
+// Staged files, a commit's files, a stash's and a comparison's all loaded their diff
+// under the merge, which was checked first and stayed on screen until Cancel.
+describe("another commit picked in the graph", () => {
+  it("closes a merge with nothing picked, and keeps one with picks", async () => {
+    await opened("a.txt");
+    conflicts.markUnsaved(true);
+    conflicts.closeUnlessUnsaved();
+    expect(conflicts.path).toBe("a.txt");
+
+    conflicts.markUnsaved(false);
+    conflicts.closeUnlessUnsaved();
+    expect(conflicts.path).toBeNull();
+  });
+});

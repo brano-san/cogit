@@ -123,6 +123,12 @@ class ConflictStore {
     return true;
   }
 
+  /** Another commit picked in the graph: a merge with nothing picked in it gives way, one
+      with picks stays until a file is opened in its place, which asks. */
+  closeUnlessUnsaved(): void {
+    if (!this.unsaved) this.close();
+  }
+
   close(): void {
     this.#generation += 1;
     this.#wanted = null;
