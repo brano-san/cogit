@@ -22,6 +22,7 @@
   import { DiffSearch } from "$lib/diff-search.svelte";
   import { BAND_WIDTH, bandLeft, ribbonPath, ribbonsNear } from "$lib/diff-band";
   import DiffFindBar from "./DiffFindBar.svelte";
+  import ConfirmDialog from "$components/common/ConfirmDialog.svelte";
   import { eolLabel, layoutTip } from "$lib/diff-toolbar";
   import { highlightLines, mergePieces, type Token } from "$lib/highlight";
   import { lineKey, toggleLine } from "$lib/selection";
@@ -547,12 +548,15 @@
   </div>
 
   {#if pendingDiscard}
-    <div class="confirm" role="alertdialog" aria-label="Confirm discard">
-      <span class="grow">Throw away {pendingDiscard.label}? Undo can put them back.</span>
-      <button type="button" onclick={() => (pendingDiscard = null)}>Cancel</button>
-      <button type="button" class="danger" onclick={confirmDiscard}>Discard</button>
-    </div>
-  {:else if discardError}
+    <ConfirmDialog
+      title="Discard lines"
+      message="Throw away {pendingDiscard.label} in {path}? Undo can put them back."
+      confirm="Discard"
+      warning
+      onanswer={(yes) => (yes ? void confirmDiscard() : (pendingDiscard = null))}
+    />
+  {/if}
+  {#if discardError}
     <div class="confirm">
       <span class="grow warn">{discardError}</span>
       <button type="button" onclick={() => (discardError = null)}>Dismiss</button>
