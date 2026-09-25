@@ -134,6 +134,87 @@ impl RepoHandle {
         }
     }
 
+    /// What `diff_sides` would read, by size alone: a side too large to show is never read.
+    pub fn side_sizes(&self, spec: &DiffSpec, path: &str) -> Result<(Option<u64>, Option<u64>)> {
+        match spec {
+            DiffSpec::CommitVsParent { oid } => {
+                let new = self.size_at(oid, path)?;
+                let old = match self.first_parent(oid)? {
+                    Some(parent) => self.size_at(&parent, path)?,
+                    None => None,
+                };
+                Ok((old, new))
+            }
+            DiffSpec::CommitVsCommit { a, b } => {
+                Ok((self.size_at(a, path)?, self.size_at(b, path)?))
+            }
+            DiffSpec::WorkTreeVsIndex => Ok((self.size_in_index(path)?, self.size_on_disk(path)?)),
+            DiffSpec::IndexVsHead => {
+                let old = match self.head()? {
+                    crate::Head::Unborn { .. } => None,
+                    _ => self.size_at("HEAD", path)?,
+                };
+                Ok((old, self.size_in_index(path)?))
+            }
+            DiffSpec::CommitVsWorkTree { oid } => {
+                Ok((self.size_at(oid, path)?, self.size_on_disk(path)?))
+            }
+        }
+    }
+
+    fn size_at(&self, rev: &str, path: &str) -> Result<Option<u64>> {
+        let id = self
+            .repo
+            .rev_parse_single(rev)
+            .map_err(|err| GitError::InvalidState(format!("cannot resolve {rev}: {err}")))?;
+        let tree = self
+            .repo
+            .find_commit(id.detach())
+            .map_err(|err| GitError::InvalidState(format!("{rev} is not a commit: {err}")))?
+            .tree()
+            .map_err(|err| GitError::Internal(format!("cannot read the tree of {rev}: {err}")))?;
+        let Some(entry) = tree
+            .lookup_entry_by_path(path)
+            .map_err(|err| GitError::Internal(format!("cannot look up {path}: {err}")))?
+        else {
+            return Ok(None);
+        };
+        if !entry.mode().is_blob() {
+            return Ok(None);
+        }
+        self.blob_size(entry.object_id(), path).map(Some)
+    }
+
+    fn size_in_index(&self, path: &str) -> Result<Option<u64>> {
+        let index = self
+            .repo
+            .index_or_empty()
+            .map_err(|err| GitError::Internal(format!("cannot read the index: {err}")))?;
+        match index.entry_by_path(path.into()) {
+            Some(entry) if !entry.mode.is_submodule() => self.blob_size(entry.id, path).map(Some),
+            _ => Ok(None),
+        }
+    }
+
+    fn blob_size(&self, id: gix::ObjectId, path: &str) -> Result<u64> {
+        self.repo
+            .find_header(id)
+            .map(|header| header.size())
+            .map_err(|err| GitError::Internal(format!("cannot read {path}: {err}")))
+    }
+
+    fn size_on_disk(&self, path: &str) -> Result<Option<u64>> {
+        if self.is_bare() {
+            return Ok(None);
+        }
+        match std::fs::symlink_metadata(self.root().join(path)) {
+            Ok(meta) if meta.is_dir() => Ok(None),
+            Ok(meta) => Ok(Some(meta.len())),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(err) => Err(GitError::Io(format!("cannot read {path}: {err}"))),
+        }
+    }
+
     /// The sides as git's own diff compares them, for a patch cut from them: the working
     /// file through the clean filters (eol, autocrlf, drivers), as `git add` would store it.
     /// `git apply` cleans the working file the same way before it patches it.

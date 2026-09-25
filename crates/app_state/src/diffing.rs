@@ -11,6 +11,9 @@ impl AppState {
         options: &diff_engine::DiffOptions,
     ) -> Result<diff_engine::FileDiff, git_engine::GitError> {
         let handle = self.handle(repo)?;
+        if let Some(size) = too_large(handle.side_sizes(spec, path)?) {
+            return Ok(diff_engine::FileDiff::TooLarge { size });
+        }
         let (old, new) = handle.diff_sides(spec, path)?;
         if old.is_none() && new.is_none() {
             return pointer_diff(&handle, spec, path);
@@ -49,6 +52,13 @@ impl AppState {
                 return Ok(DiffBatch::Superseded);
             }
 
+            if let Some(size) = too_large(handle.side_sizes(spec, path)?) {
+                slots.push(Some(diff_engine::FileDiffEntry {
+                    path: path.clone(),
+                    diff: diff_engine::FileDiff::TooLarge { size },
+                }));
+                continue;
+            }
             let (old, new) = handle.diff_sides(spec, path)?;
             if old.is_none() && new.is_none() {
                 slots.push(Some(diff_engine::FileDiffEntry {
@@ -201,6 +211,13 @@ impl AppState {
         };
         Ok((encode(old), encode(new)))
     }
+}
+
+/// The larger side, when it is past what the diff shows: then neither side is read, or a
+/// multi-gigabyte file goes into memory only to be summarised.
+fn too_large((old, new): (Option<u64>, Option<u64>)) -> Option<u64> {
+    let size = old.unwrap_or(0).max(new.unwrap_or(0));
+    (size > diff_engine::MAX_TEXT_BYTES).then_some(size)
 }
 
 /// A gitlink has no content on either side, nor has a missing path: this tells them apart.

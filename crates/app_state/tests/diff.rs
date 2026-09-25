@@ -382,3 +382,51 @@ fn a_staged_submodule_pointer_shows_both_commits() {
         other => panic!("expected a submodule diff, got {other:?}"),
     }
 }
+
+/// Opens `path` so that nobody else may read it while the guard lives: whatever reads the
+/// file's bytes fails, and only a look at its size still works.
+#[cfg(windows)]
+fn unreadable(path: &std::path::Path) -> Option<std::fs::File> {
+    use std::os::windows::fs::OpenOptionsExt as _;
+    let exclusive = std::fs::OpenOptions::new()
+        .read(true)
+        .share_mode(0)
+        .open(path);
+    Some(exclusive.unwrap())
+}
+
+#[cfg(unix)]
+fn unreadable(path: &std::path::Path) -> Option<std::fs::File> {
+    use std::os::unix::fs::PermissionsExt as _;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o000)).unwrap();
+    None
+}
+
+// A multi-gigabyte file in the working tree was read whole — memory grew by its size —
+// before its size said it would only be summarised.
+#[test]
+fn a_file_too_large_to_show_is_summarised_without_being_read() {
+    let f = test_fixtures::linear(1).unwrap();
+    let big = f.path().join("dump.bin");
+    std::fs::File::create(&big)
+        .unwrap()
+        .set_len(32 * 1024 * 1024)
+        .unwrap();
+    let _guard = unreadable(&big);
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let diff = state
+        .diff_file(
+            repo,
+            &DiffSpec::WorkTreeVsIndex,
+            "dump.bin",
+            &DiffOptions::default(),
+        )
+        .unwrap();
+
+    assert!(
+        matches!(diff, FileDiff::TooLarge { size } if size == 32 * 1024 * 1024),
+        "{diff:?}"
+    );
+}
