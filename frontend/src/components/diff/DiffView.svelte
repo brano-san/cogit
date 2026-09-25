@@ -276,6 +276,12 @@
 
   function cells(cell: SideCell | null, index: number, side: "left" | "right") {
     if (!cell) return [];
+    // A context cell on the right carries its new-side number; the old-side lookup would
+    // colour it with another line's tokens.
+    if (cell.kind === "context" && side === "right") {
+      const own = tokens.new[tokens.newAt.get("c" + cell.line) ?? -1] ?? [];
+      return mergePieces(cell.text, own, cell.inline, find.spansFor(index, side));
+    }
     const row =
       cell.kind === "delete"
         ? ({ kind: "delete", old: cell.line, text: cell.text, inline: cell.inline } as const)
