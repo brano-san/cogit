@@ -176,3 +176,35 @@ fn a_directory_on_the_working_side_still_reads_as_nothing() {
 
     assert!(worktree.is_none());
 }
+
+// Sparse checkout, or Skip worktree from the file menu: the file is clean for git though it
+// is not on disk. Read from disk it looked deleted, and a Stage of that "deletion" took it
+// out of the index for the next commit to delete.
+#[test]
+fn a_skip_worktree_file_missing_from_disk_is_unchanged() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&["update-index", "--skip-worktree", "--", "file0.txt"])
+        .unwrap();
+    std::fs::remove_file(f.path().join("file0.txt")).unwrap();
+
+    let (old, new) = open(&f)
+        .diff_sides(&DiffSpec::WorkTreeVsIndex, "file0.txt")
+        .unwrap();
+
+    assert_eq!(text(new.clone()), "content 0\n");
+    assert_eq!(old, new);
+}
+
+#[test]
+fn an_assume_unchanged_file_is_compared_as_git_compares_it() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&["update-index", "--assume-unchanged", "--", "file0.txt"])
+        .unwrap();
+    std::fs::write(f.path().join("file0.txt"), "edited\n").unwrap();
+
+    let (old, new) = open(&f)
+        .diff_sides(&DiffSpec::WorkTreeVsIndex, "file0.txt")
+        .unwrap();
+
+    assert_eq!(old, new);
+}

@@ -6,11 +6,13 @@
     base: string | null;
     ours: string | null;
     theirs: string | null;
+    /** Binary or not UTF-8: the text above is a rendering, and writing it back corrupts. */
+    binary?: boolean;
     onresolve: (side: ConflictSide) => void;
     onresolveText: (text: string) => void;
   }
 
-  let { path, base, ours, theirs, onresolve, onresolveText }: Props = $props();
+  let { path, base, ours, theirs, binary = false, onresolve, onresolveText }: Props = $props();
 
   let editing = $state(false);
   let draft = $state("");
@@ -41,13 +43,22 @@
       <button type="button" onclick={() => (editing = false)}>Cancel</button>
       <button type="button" onclick={save}>Save resolution</button>
     {:else}
-      <button type="button" onclick={() => startEditing(ours)}>Edit by hand</button>
-      <button type="button" disabled={ours === null} onclick={() => onresolve("ours")}>
-        Take ours
-      </button>
-      <button type="button" disabled={theirs === null} onclick={() => onresolve("theirs")}>
-        Take theirs
-      </button>
+      <button
+        type="button"
+        disabled={binary}
+        title={binary ? "Binary or not UTF-8: take one side whole" : undefined}
+        onclick={() => startEditing(ours)}>Edit by hand</button
+      >
+      <button
+        type="button"
+        title={ours === null ? "Ours deleted the file: taking it deletes the file" : undefined}
+        onclick={() => onresolve("ours")}>{ours === null ? "Take ours (delete)" : "Take ours"}</button
+      >
+      <button
+        type="button"
+        title={theirs === null ? "Theirs deleted the file: taking it deletes the file" : undefined}
+        onclick={() => onresolve("theirs")}>{theirs === null ? "Take theirs (delete)" : "Take theirs"}</button
+      >
     {/if}
   </div>
 
@@ -60,6 +71,8 @@
           <div class="head">{side.label}</div>
           {#if side.text === null}
             <p class="message">Absent on this side.</p>
+          {:else if binary}
+            <p class="message">Binary or not UTF-8 — take one side whole.</p>
           {:else}
             <pre class="body mono">{side.text}</pre>
           {/if}

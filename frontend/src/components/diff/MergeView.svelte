@@ -2,8 +2,10 @@
   import VirtualList from "$components/common/VirtualList.svelte";
   import {
     autoResolvedCount,
+    canSave,
     chooseAll,
     conflictRows,
+    editableText,
     mergeRows,
     mergedText,
     nextConflict,
@@ -38,6 +40,7 @@
   const auto = $derived(autoResolvedCount(regions));
   const parsed = $derived(syntacticCount(regions));
   const text = $derived(edited ?? mergedText(regions, choices));
+  const saveable = $derived(canSave(regions, choices, edited));
   const current = $derived(at === null ? 0 : conflicts.indexOf(at) + 1);
 
   function pick(region: number, side: Choice) {
@@ -49,14 +52,14 @@
   }
 
   function save() {
-    onsave(text);
+    if (saveable) onsave(text);
   }
 
   function onkeydown(event: KeyboardEvent) {
     if (!saveShortcut) return;
     if (!(event.ctrlKey || event.metaKey) || event.key !== "s") return;
     event.preventDefault();
-    if (left === 0) save();
+    save();
   }
 </script>
 
@@ -92,7 +95,7 @@
     <button
       type="button"
       class="primary"
-      disabled={left > 0}
+      disabled={!saveable}
       onclick={save}
       title={saveShortcut ? "Ctrl+S" : "Write the resolution and stage the file"}
     >
@@ -139,12 +142,13 @@
 
   <div class="foot">
     {#if edited === null}
-      <button type="button" onclick={() => (edited = mergedText(regions, choices))}>
+      <button type="button" onclick={() => (edited = editableText(regions, choices))}>
         Edit result by hand
       </button>
     {:else}
       <button type="button" onclick={() => (edited = null)}>Back to the panels</button>
-      <button type="button" class="primary" onclick={save}>Save resolution</button>
+      {#if !saveable}<span class="hint">Remove every conflict marker to save</span>{/if}
+      <button type="button" class="primary" disabled={!saveable} onclick={save}>Save resolution</button>
     {/if}
   </div>
 </div>
@@ -184,6 +188,10 @@
 
   .count {
     color: var(--status-delete);
+  }
+
+  .hint {
+    color: var(--text-secondary);
   }
 
   .count.clean {

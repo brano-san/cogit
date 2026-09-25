@@ -1,6 +1,13 @@
 <script lang="ts">
   import { untrack } from "svelte";
-  import { connectors, type ConnectorRow, type SearchRow, type SideCell } from "$lib/diff-rows";
+  import {
+    cellKey,
+    connectors,
+    pairPicked,
+    type ConnectorRow,
+    type SearchRow,
+    type SideCell,
+  } from "$lib/diff-rows";
   import {
     blockKeys,
     changeAt,
@@ -15,9 +22,11 @@
   import { DiffSearch } from "$lib/diff-search.svelte";
   import { BAND_WIDTH, bandLeft, ribbonPath, ribbonsNear } from "$lib/diff-band";
   import DiffFindBar from "./DiffFindBar.svelte";
+  import ConfirmDialog from "$components/common/ConfirmDialog.svelte";
   import { eolLabel, layoutTip } from "$lib/diff-toolbar";
   import { highlightLines, mergePieces, type Token } from "$lib/highlight";
   import { lineKey, toggleLine } from "$lib/selection";
+  import { keepSelection } from "$lib/diff-selection";
   import { investigateTarget, openInvestigate } from "$lib/investigate/open";
   import { visibleRange } from "$lib/graph-geometry";
   import type { DiffRow, FileDiff, Hunk } from "$lib/ipc";
@@ -208,6 +217,11 @@
     if (key) selected = toggleLine(selected, key);
   }
 
+  function pickCell(cell: SideCell | null) {
+    const key = cellKey(cell);
+    if (key) selected = toggleLine(selected, key);
+  }
+
   function pickBlock(block: number) {
     const keys = blockKeys(unified, block);
     const all = [...keys].every((key) => selected.has(key));
@@ -263,6 +277,12 @@
 
   function cells(cell: SideCell | null, index: number, side: "left" | "right") {
     if (!cell) return [];
+    // A context cell on the right carries its new-side number; the old-side lookup would
+    // colour it with another line's tokens.
+    if (cell.kind === "context" && side === "right") {
+      const own = tokens.new[tokens.newAt.get("c" + cell.line) ?? -1] ?? [];
+      return mergePieces(cell.text, own, cell.inline, find.spansFor(index, side));
+    }
     const row =
       cell.kind === "delete"
         ? ({ kind: "delete", old: cell.line, text: cell.text, inline: cell.inline } as const)
@@ -342,6 +362,18 @@
     if (scroller) scroller.scrollTop = 0;
   });
 
+  /** The hunks `selected` was chosen in. Staging a block re-diffs the file under the
+      selection; only the lines that still mean the same line stay selected. */
+  let selectedIn: readonly Hunk[] = [];
+  $effect(() => {
+    const now = hunks;
+    untrack(() => {
+      if (now === selectedIn) return;
+      selected = keepSelection(selected, selectedIn, now);
+      selectedIn = now;
+    });
+  });
+
   /** A new diff, a new layout or a resized view: the arrows follow what is on screen. */
   $effect(() => {
     void starts;
@@ -361,6 +393,23 @@
 </script>
 
 <svelte:window {onkeydown} />
+
+{#snippet eof(open: boolean | undefined)}
+  {#if open}<span class="eof" title="No newline at end of file">\ no newline</span>{/if}
+{/snippet}
+
+{#snippet cellGutter(cell: SideCell | null)}
+  {@const key = cellKey(cell)}
+  <span
+    class="gutter"
+    class:picked={key !== null && selected.has(key)}
+    role="button"
+    tabindex="-1"
+    onclick={() => pickCell(cell)}
+    onkeydown={(e) => e.key === "Enter" && pickCell(cell)}
+    >{stageable && key !== null ? (selected.has(key) ? "■" : "□") : ""}</span
+  >
+{/snippet}
 
 {#snippet blockActions(block: number)}
   {#if stageable}
@@ -499,12 +548,15 @@
   </div>
 
   {#if pendingDiscard}
-    <div class="confirm" role="alertdialog" aria-label="Confirm discard">
-      <span class="grow">Throw away {pendingDiscard.label}? This cannot be undone.</span>
-      <button type="button" onclick={() => (pendingDiscard = null)}>Cancel</button>
-      <button type="button" class="danger" onclick={confirmDiscard}>Discard</button>
-    </div>
-  {:else if discardError}
+    <ConfirmDialog
+      title="Discard lines"
+      message="Throw away {pendingDiscard.label} in {path}? Undo can put them back."
+      confirm="Discard"
+      warning
+      onanswer={(yes) => (yes ? void confirmDiscard() : (pendingDiscard = null))}
+    />
+  {/if}
+  {#if discardError}
     <div class="confirm">
       <span class="grow warn">{discardError}</span>
       <button type="button" onclick={() => (discardError = null)}>Dismiss</button>
@@ -532,6 +584,12 @@
     <p class="message">Image ({diff.mime}) — {diff.oldSize} bytes → {diff.newSize} bytes.</p>
   {:else if diff.kind === "tooLarge"}
     <p class="message">File is too large to diff ({diff.size} bytes).</p>
+  {:else if diff.kind === "folder"}
+    <p class="message">
+      {diff.repository
+        ? "A repository nested inside this one, not a submodule: Git tracks none of its files. Add it as a submodule or ignore it."
+        : "An untracked folder: Git tracks none of its files yet. Stage it to add them all, or ignore it."}
+    </p>
   {:else}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="scroll" bind:this={scroller} {onscroll} onmouseleave={() => (hoverRow = null)}>
@@ -576,7 +634,7 @@
                         class={piece.cls}
                         class:hit={piece.hit}
                         class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
-                      >{/each}</span
+                      >{/each}{@render eof(entry.row.noNewline)}</span
                   >
                 {:else if entry.row.kind === "delete"}
                   {@const row = entry.row}
@@ -598,7 +656,7 @@
                         class:word={piece.changed}
                         class:hit={piece.hit}
                         class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
-                      >{/each}</span
+                      >{/each}{@render eof(row.noNewline)}</span
                   >
                 {:else if entry.row.kind === "insert"}
                   {@const row = entry.row}
@@ -620,7 +678,7 @@
                         class:word={piece.changed}
                         class:hit={piece.hit}
                         class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
-                      >{/each}</span
+                      >{/each}{@render eof(row.noNewline)}</span
                   >
                 {/if}
                 {#if hoverRow === rowIndex}{@render blockActions(entry.block)}{/if}
@@ -635,12 +693,16 @@
                 {@render fold(entry.gap, rowIndex)}
               </div>
             {:else}
+              {@const picked = pairPicked(entry.pair, selected)}
               <!-- svelte-ignore a11y_no_static_element_interactions -->
               <div
                 class="line"
+                class:staging={stageable && picked}
+                class:marked={!stageable && picked}
                 style:top="{rowIndex * ROW_HEIGHT}px"
                 onmouseenter={() => (hoverRow = rowIndex)}
               >
+                {@render cellGutter(entry.pair.left)}
                 <span class="num">{entry.pair.left?.line ?? ""}</span>
                 <span
                   class="sign"
@@ -656,9 +718,10 @@
                       class:word={piece.changed}
                       class:hit={piece.hit}
                       class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
-                    >{/each}</span
+                    >{/each}{@render eof(entry.pair.left?.noNewline)}</span
                 >
                 <span class="gap"></span>
+                {@render cellGutter(entry.pair.right)}
                 <span class="num">{entry.pair.right?.line ?? ""}</span>
                 <span
                   class="sign"
@@ -674,7 +737,7 @@
                       class:word={piece.changed}
                       class:hit={piece.hit}
                       class:current={find.isCurrent(rowIndex, "right", piece.start)}>{piece.text}</span
-                    >{/each}</span
+                    >{/each}{@render eof(entry.pair.right?.noNewline)}</span
                 >
                 {#if hoverRow === rowIndex}{@render blockActions(entry.block)}{/if}
               </div>
@@ -1032,6 +1095,14 @@
     color: var(--text-secondary);
     font-family: var(--font-mono);
     opacity: 0.8;
+  }
+
+  /* What `git diff` prints under the line; here at its end, and never copied with it. */
+  .eof {
+    margin-left: 1ch;
+    color: var(--text-secondary);
+    font-style: italic;
+    user-select: none;
   }
 
   .message.warn {

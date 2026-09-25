@@ -10,6 +10,8 @@ export interface SideCell {
   moved: boolean;
   /** Both ends of one move share it, which is what ties the two sides together. */
   moveId: number | null;
+  /** The file ends on this line without a newline (`\ No newline at end of file`). */
+  noNewline: boolean;
 }
 
 export interface SidePair {
@@ -44,6 +46,7 @@ export function pairRows(rows: readonly DiffRow[]): SidePair[] {
           inline: row.inline,
           moved: row.moved ?? false,
           moveId: row.moveId ?? null,
+          noNewline: row.noNewline ?? false,
         });
         break;
       case "insert":
@@ -54,6 +57,7 @@ export function pairRows(rows: readonly DiffRow[]): SidePair[] {
           inline: row.inline,
           moved: row.moved ?? false,
           moveId: row.moveId ?? null,
+          noNewline: row.noNewline ?? false,
         });
         break;
       case "context": {
@@ -65,6 +69,7 @@ export function pairRows(rows: readonly DiffRow[]): SidePair[] {
           inline: [],
           moved: false,
           moveId: null,
+          noNewline: row.noNewline ?? false,
         };
         pairs.push({
           left: { ...cell, line: row.old },
@@ -79,6 +84,21 @@ export function pairRows(rows: readonly DiffRow[]): SidePair[] {
   }
   flushBlock();
   return pairs;
+}
+
+/** The selection key of a side-by-side cell: the same `d:`/`i:` key its row has in Unified. */
+export function cellKey(cell: SideCell | null): string | null {
+  if (cell?.kind === "delete") return `d:${cell.line}`;
+  if (cell?.kind === "insert") return `i:${cell.line}`;
+  return null;
+}
+
+/** A side-by-side row is marked when either of its cells is selected. */
+export function pairPicked(pair: SidePair, selected: ReadonlySet<string>): boolean {
+  return [pair.left, pair.right].some((cell) => {
+    const key = cellKey(cell);
+    return key !== null && selected.has(key);
+  });
 }
 
 export interface Segment {

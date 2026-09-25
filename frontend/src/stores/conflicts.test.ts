@@ -21,7 +21,7 @@ vi.mock("$lib/ipc", () => ({
 
 const { conflicts } = await import("./conflicts.svelte");
 
-const sides = (name: string) => ({ base: name, ours: name, theirs: name });
+const sides = (name: string) => ({ base: name, ours: name, theirs: name, binary: false });
 const region = (name: string) => [{ kind: "clean", lines: [name], origin: "ours" }];
 
 beforeEach(() => {
@@ -123,5 +123,29 @@ describe("the list after a mutation", () => {
     await conflicts.refresh(1 as never);
 
     expect(conflictedPaths).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("a conflict that is not text", () => {
+  it("is marked binary and never offered to the merge view", async () => {
+    const ipc = await import("$lib/ipc");
+    vi.mocked(ipc.mergePreview).mockClear();
+    const opening = conflicts.open(1 as never, "pic.png");
+    calls.text.get("pic.png")?.({ ...sides("pic.png"), binary: true });
+    await opening;
+
+    expect(conflicts.binary).toBe(true);
+    expect(conflicts.regions).toEqual([]);
+    expect(ipc.mergePreview).not.toHaveBeenCalled();
+  });
+
+  it("forgets the mark once the panel closes", async () => {
+    const opening = conflicts.open(1 as never, "pic.png");
+    calls.text.get("pic.png")?.({ ...sides("pic.png"), binary: true });
+    await opening;
+
+    conflicts.close();
+
+    expect(conflicts.binary).toBe(false);
   });
 });

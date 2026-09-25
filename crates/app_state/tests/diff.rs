@@ -382,3 +382,180 @@ fn a_staged_submodule_pointer_shows_both_commits() {
         other => panic!("expected a submodule diff, got {other:?}"),
     }
 }
+
+/// Opens `path` so that nobody else may read it while the guard lives: whatever reads the
+/// file's bytes fails, and only a look at its size still works.
+#[cfg(windows)]
+fn unreadable(path: &std::path::Path) -> Option<std::fs::File> {
+    use std::os::windows::fs::OpenOptionsExt as _;
+    let exclusive = std::fs::OpenOptions::new()
+        .read(true)
+        .share_mode(0)
+        .open(path);
+    Some(exclusive.unwrap())
+}
+
+#[cfg(unix)]
+fn unreadable(path: &std::path::Path) -> Option<std::fs::File> {
+    use std::os::unix::fs::PermissionsExt as _;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o000)).unwrap();
+    None
+}
+
+// A multi-gigabyte file in the working tree was read whole — memory grew by its size —
+// before its size said it would only be summarised.
+#[test]
+fn a_file_too_large_to_show_is_summarised_without_being_read() {
+    let f = test_fixtures::linear(1).unwrap();
+    let big = f.path().join("dump.bin");
+    std::fs::File::create(&big)
+        .unwrap()
+        .set_len(32 * 1024 * 1024)
+        .unwrap();
+    let _guard = unreadable(&big);
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let diff = state
+        .diff_file(
+            repo,
+            &DiffSpec::WorkTreeVsIndex,
+            "dump.bin",
+            &DiffOptions::default(),
+        )
+        .unwrap();
+
+    assert!(
+        matches!(diff, FileDiff::TooLarge { size } if size == 32 * 1024 * 1024),
+        "{diff:?}"
+    );
+}
+
+// `.gitattributes` was never read for a diff: a file marked `binary` or `-diff` showed as
+// text and offered line staging, where git shows "Binary files differ".
+#[test]
+fn a_file_the_attributes_mark_binary_is_summarised_as_binary() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file(".gitattributes", "*.dat binary\n*.lock -diff\n")
+        .unwrap();
+    f.write_file("table.dat", "one\n").unwrap();
+    f.write_file("deps.lock", "one\n").unwrap();
+    f.git(&["add", "--", ".gitattributes", "table.dat", "deps.lock"])
+        .unwrap();
+    f.commit_staged(1, "attributes").unwrap();
+    f.write_file("table.dat", "two\n").unwrap();
+    f.write_file("deps.lock", "two\n").unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    for path in ["table.dat", "deps.lock"] {
+        let diff = state
+            .diff_file(
+                repo,
+                &DiffSpec::WorkTreeVsIndex,
+                path,
+                &DiffOptions::default(),
+            )
+            .unwrap();
+        assert!(matches!(diff, FileDiff::Binary { .. }), "{path}: {diff:?}");
+    }
+}
+
+#[test]
+fn a_batch_of_files_honours_the_attributes_too() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file(".gitattributes", "*.dat binary\n").unwrap();
+    f.write_file("table.dat", "one\n").unwrap();
+    f.git(&["add", "--", ".gitattributes", "table.dat"])
+        .unwrap();
+    f.commit_staged(1, "attributes").unwrap();
+    f.write_file("table.dat", "two\n").unwrap();
+    f.git(&["add", "--", "table.dat"]).unwrap();
+    f.commit_staged(2, "change").unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let batch = state
+        .diff_files(
+            repo,
+            &head_vs_parent(&f),
+            &["table.dat".to_owned()],
+            &DiffOptions::default(),
+            1,
+        )
+        .unwrap();
+
+    let app_state::DiffBatch::Ready { files } = batch else {
+        panic!("expected the batch to be ready");
+    };
+    assert!(
+        matches!(files[0].diff, FileDiff::Binary { .. }),
+        "{files:?}"
+    );
+}
+
+// Normal states of a working tree ended in an error or in something untrue: a folder Git
+// sees as one untracked entry was "absent from both sides of the diff", and a repository
+// cloned inside this one was called a submodule.
+#[test]
+fn an_untracked_folder_is_described_rather_than_refused() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file("generated/a.txt", "a\n").unwrap();
+    f.write_file("generated/b.txt", "b\n").unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let shown = state
+        .diff_file(
+            repo,
+            &DiffSpec::WorkTreeVsIndex,
+            "generated/",
+            &DiffOptions::default(),
+        )
+        .expect("an untracked folder is a normal state, not an error");
+
+    assert!(
+        matches!(shown, FileDiff::Folder { repository: false }),
+        "{shown:?}"
+    );
+}
+
+#[test]
+fn a_repository_nested_inside_is_not_called_a_submodule() {
+    let f = test_fixtures::linear(1).unwrap();
+    let nested = f.path().join("vendor/x");
+    std::fs::create_dir_all(&nested).unwrap();
+    f.git_in(&nested, &["init", "-q"]).unwrap();
+    std::fs::write(nested.join("n.txt"), "n\n").unwrap();
+    f.git_in(&nested, &["add", "n.txt"]).unwrap();
+    f.git_in(
+        &nested,
+        &[
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@t",
+            "commit",
+            "-q",
+            "-m",
+            "n",
+        ],
+    )
+    .unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let shown = state
+        .diff_file(
+            repo,
+            &DiffSpec::WorkTreeVsIndex,
+            "vendor/x",
+            &DiffOptions::default(),
+        )
+        .unwrap();
+
+    assert!(
+        matches!(shown, FileDiff::Folder { repository: true }),
+        "{shown:?}"
+    );
+}

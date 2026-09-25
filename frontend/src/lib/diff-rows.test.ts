@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { DiffRow, Hunk } from "$lib/ipc";
 import {
   expandedContext,
+  cellKey,
   lacksFinalNewline,
+  pairPicked,
   pairRows,
   connectors,
   searchRows,
@@ -232,7 +234,7 @@ describe("lacksFinalNewline", () => {
 
 describe("connectors between the two columns", () => {
   function cell(kind: "delete" | "insert" | "context", moveId: number | null = null) {
-    return { kind, line: 1, text: "x", inline: [], moved: moveId !== null, moveId };
+    return { kind, line: 1, text: "x", inline: [], moved: moveId !== null, moveId, noNewline: false };
   }
   const ctx = () => ({ left: cell("context"), right: cell("context") });
   const header = () => null;
@@ -331,5 +333,50 @@ describe("connectors between the two columns", () => {
     ];
 
     expect(connectors(rows)).toHaveLength(2);
+  });
+});
+
+// The viewer never read `noNewline`: a change of nothing but the final newline showed as
+// `− b` / `+ b`, the same text twice with nothing to tell them apart.
+describe("pairRows and the final newline", () => {
+  it("carries which cell ends its file without a newline", () => {
+    const pairs = pairRows([
+      { kind: "delete", old: 2, text: "b", inline: [], moved: false, noNewline: true },
+      ins(2, "b"),
+    ]);
+
+    expect(pairs[0]?.left?.noNewline).toBe(true);
+    expect(pairs[0]?.right?.noNewline).toBe(false);
+  });
+
+  it("carries it on a context line both sides end on", () => {
+    const pairs = pairRows([{ kind: "context", old: 3, new: 3, text: "c", noNewline: true }]);
+
+    expect(pairs[0]?.left?.noNewline).toBe(true);
+    expect(pairs[0]?.right?.noNewline).toBe(true);
+  });
+});
+
+// Side by side is the default view, and it had no gutter: no line could be picked there,
+// and lines picked in Unified were not marked, though Discard lines threw them away.
+describe("picking lines side by side", () => {
+  const [pair] = pairRows([del(3, "old"), ins(4, "new")]);
+  const [same] = pairRows([context(5, 6, "same")]);
+
+  it("keys each changed cell by its own side and number, as Unified does", () => {
+    expect(cellKey(pair!.left)).toBe("d:3");
+    expect(cellKey(pair!.right)).toBe("i:4");
+  });
+
+  it("has nothing to pick on a context line or a padding cell", () => {
+    expect(cellKey(same!.left)).toBeNull();
+    expect(cellKey(null)).toBeNull();
+  });
+
+  it("marks a row when either of its cells is picked", () => {
+    expect(pairPicked(pair!, new Set(["i:4"]))).toBe(true);
+    expect(pairPicked(pair!, new Set(["d:3"]))).toBe(true);
+    expect(pairPicked(pair!, new Set(["i:3"]))).toBe(false);
+    expect(pairPicked(same!, new Set(["d:5"]))).toBe(false);
   });
 });

@@ -1,4 +1,4 @@
-use crate::{DiffRow, Hunk, LineEnding};
+use crate::{DiffRow, Hunk};
 use serde::Deserialize;
 use std::collections::HashSet;
 
@@ -9,7 +9,6 @@ pub struct PatchRequest {
     pub hunks: Vec<Hunk>,
     pub selected_deletes: Vec<u32>,
     pub selected_inserts: Vec<u32>,
-    pub line_ending: LineEnding,
 }
 
 /// How the patch goes on, and which sides of the diff exist as files.
@@ -24,6 +23,43 @@ pub struct PatchShape {
     pub old_exists: bool,
     pub new_exists: bool,
 }
+
+/// The two files the diff was cut from, as they are now and as git holds them — the working
+/// file cleaned as `git add` would store it. The patch is written in their own lines and
+/// endings: with whitespace ignored a context line differs between the sides, only the side
+/// the patch goes onto has the text `git apply` will look for, and a mixed file has no one
+/// ending to put back.
+#[derive(Debug, Clone, Copy)]
+pub struct PatchSides<'a> {
+    pub old: &'a [u8],
+    pub new: &'a [u8],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PatchError {
+    NothingSelected,
+    /// The file is not the one the diff was cut from any more.
+    Stale,
+    /// A line the patch carries is not UTF-8.
+    NotUtf8,
+    /// A lone CR ends a line for the diff but not for git, so the lines do not line up.
+    BareCarriageReturn,
+}
+
+impl std::fmt::Display for PatchError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::NothingSelected => "nothing selected",
+            Self::Stale => "the file changed since its diff was shown: look at it again first",
+            Self::NotUtf8 => "a selected line is not valid UTF-8: stage it whole instead",
+            Self::BareCarriageReturn => {
+                "a line ends in a lone CR, which git does not count as a line break: stage it whole instead"
+            }
+        })
+    }
+}
+
+impl std::error::Error for PatchError {}
 
 /// Whether a line of the diff holds bytes that were not UTF-8. The viewer shows each one
 /// as a stand-in character (see `text::decode`); a patch would write the stand-in into the
@@ -41,14 +77,141 @@ pub fn carries_undecoded_bytes(request: &PatchRequest) -> bool {
     })
 }
 
-/// Only the selected lines. The envelope stays LF; content lines keep the file's own
-/// ending, or `git apply` rewrites every line (INV-08).
-#[must_use]
-pub fn build_patch(request: &PatchRequest, shape: PatchShape) -> Option<String> {
+/// One line of a side as the diff numbered it; `ending` is empty on a last line without one.
+#[derive(Debug, Clone, Copy)]
+struct Line<'a> {
+    body: &'a [u8],
+    ending: &'a [u8],
+}
+
+/// Split where the diff split, after CRLF and LF; a lone CR, which the diff splits at too
+/// and git does not, is refused.
+fn split_lines(bytes: &[u8]) -> Result<Vec<Line<'_>>, PatchError> {
+    let mut lines = Vec::new();
+    let mut start = 0;
+    for (at, &byte) in bytes.iter().enumerate() {
+        if byte == b'\r' && bytes.get(at + 1) != Some(&b'\n') {
+            return Err(PatchError::BareCarriageReturn);
+        }
+        if byte == b'\n' {
+            let cr = at > start && bytes[at - 1] == b'\r';
+            let end = if cr { at - 1 } else { at };
+            lines.push(Line {
+                body: &bytes[start..end],
+                ending: &bytes[end..=at],
+            });
+            start = at + 1;
+        }
+    }
+    if start < bytes.len() {
+        lines.push(Line {
+            body: &bytes[start..],
+            ending: &[],
+        });
+    }
+    Ok(lines)
+}
+
+/// Whether the hunks are a diff of these very sides: each line a row names is that line,
+/// and the lines between the rows pair up one to one. A selection cut from an older diff
+/// otherwise lands on other lines, silently where the patch has no context to miss.
+struct Walk<'s, 'a> {
+    old: &'s [Line<'a>],
+    new: &'s [Line<'a>],
+    o: usize,
+    n: usize,
+}
+
+impl Walk<'_, '_> {
+    /// Lines no row names: the same on both sides, as a whitespace option compared them.
+    fn unchanged(&mut self, count: usize) -> Option<()> {
+        for _ in 0..count {
+            let (a, b) = (self.old.get(self.o)?, self.new.get(self.n)?);
+            alike(a.body, b.body).then_some(())?;
+            self.o += 1;
+            self.n += 1;
+        }
+        Some(())
+    }
+
+    fn row(&mut self, row: &DiffRow) -> Option<()> {
+        match row {
+            DiffRow::Context { old, new, text, .. } => {
+                let gap = (*old as usize).checked_sub(1 + self.o)?;
+                ((*new as usize).checked_sub(1 + self.n)? == gap).then_some(())?;
+                self.unchanged(gap)?;
+                (self.old.get(self.o)?.body == text.as_bytes()).then_some(())?;
+                alike(self.new.get(self.n)?.body, text.as_bytes()).then_some(())?;
+                self.o += 1;
+                self.n += 1;
+            }
+            DiffRow::Delete { old, text, .. } => {
+                self.unchanged((*old as usize).checked_sub(1 + self.o)?)?;
+                (self.old.get(self.o)?.body == text.as_bytes()).then_some(())?;
+                self.o += 1;
+            }
+            DiffRow::Insert { new, text, .. } => {
+                self.unchanged((*new as usize).checked_sub(1 + self.n)?)?;
+                (self.new.get(self.n)?.body == text.as_bytes()).then_some(())?;
+                self.n += 1;
+            }
+            DiffRow::Collapsed { .. } => {}
+        }
+        Some(())
+    }
+
+    fn rest(&mut self) -> Option<()> {
+        let left = self.old.len() - self.o;
+        (self.new.len() - self.n == left).then_some(())?;
+        self.unchanged(left)
+    }
+}
+
+fn alike(a: &[u8], b: &[u8]) -> bool {
+    let squeezed = |bytes| {
+        String::from_utf8_lossy(bytes)
+            .chars()
+            .filter(|c| !c.is_whitespace())
+            .collect::<String>()
+    };
+    a == b || squeezed(a) == squeezed(b)
+}
+
+/// Line `number` (from 1) of a side: its text and its ending.
+fn line<'a>(side: &[Line<'a>], number: u32) -> Result<(&'a str, &'a str), PatchError> {
+    let line = number
+        .checked_sub(1)
+        .and_then(|index| side.get(index as usize))
+        .ok_or(PatchError::Stale)?;
+    let text = std::str::from_utf8(line.body).map_err(|_| PatchError::NotUtf8)?;
+    let ending = std::str::from_utf8(line.ending).map_err(|_| PatchError::NotUtf8)?;
+    Ok((text, ending))
+}
+
+/// Only the selected lines. The envelope stays LF; each content line keeps the ending it
+/// has on its own side, or `git apply` rewrites every line (INV-08).
+pub fn build_patch(
+    request: &PatchRequest,
+    shape: PatchShape,
+    sides: PatchSides<'_>,
+) -> Result<String, PatchError> {
     let deletes: HashSet<u32> = request.selected_deletes.iter().copied().collect();
     let inserts: HashSet<u32> = request.selected_inserts.iter().copied().collect();
     if deletes.is_empty() && inserts.is_empty() {
-        return None;
+        return Err(PatchError::NothingSelected);
+    }
+    let old_lines = split_lines(sides.old)?;
+    let new_lines = split_lines(sides.new)?;
+    let mut walk = Walk {
+        old: &old_lines,
+        new: &new_lines,
+        o: 0,
+        n: 0,
+    };
+    let fits =
+        (request.hunks.iter().flat_map(|hunk| &hunk.rows)).all(|row| walk.row(row).is_some());
+    if !fits || walk.rest().is_none() {
+        return Err(PatchError::Stale);
     }
 
     let mut body = String::new();
@@ -70,40 +233,36 @@ pub fn build_patch(request: &PatchRequest, shape: PatchShape) -> Option<String> 
         };
         offset += i64::from(hunk.new_lines) - i64::from(hunk.old_lines);
 
-        let mut lines: Vec<(char, &str, bool)> = Vec::new();
+        let mut lines: Vec<(char, &str, &str)> = Vec::new();
         let (mut pre, mut post) = (0_u32, 0_u32);
         let mut changed = false;
         for row in &hunk.rows {
-            let (marker, text, no_newline) = match row {
-                DiffRow::Context {
-                    text, no_newline, ..
-                } => (' ', text, *no_newline),
-                DiffRow::Delete {
-                    old,
-                    text,
-                    no_newline,
-                    ..
-                } => {
+            let (marker, (text, ending)) = match row {
+                // The side the patch goes onto: its text is what `git apply` matches.
+                DiffRow::Context { old, new, .. } => (
+                    ' ',
+                    if shape.reverse {
+                        line(&new_lines, *new)?
+                    } else {
+                        line(&old_lines, *old)?
+                    },
+                ),
+                DiffRow::Delete { old, .. } => {
                     if deletes.contains(old) {
                         changed = true;
-                        ('-', text, *no_newline)
+                        ('-', line(&old_lines, *old)?)
                     } else if shape.reverse {
                         continue;
                     } else {
-                        (' ', text, *no_newline)
+                        (' ', line(&old_lines, *old)?)
                     }
                 }
-                DiffRow::Insert {
-                    new,
-                    text,
-                    no_newline,
-                    ..
-                } => {
+                DiffRow::Insert { new, .. } => {
                     if inserts.contains(new) {
                         changed = true;
-                        ('+', text, *no_newline)
+                        ('+', line(&new_lines, *new)?)
                     } else if shape.reverse {
-                        (' ', text, *no_newline)
+                        (' ', line(&new_lines, *new)?)
                     } else {
                         continue;
                     }
@@ -116,11 +275,12 @@ pub fn build_patch(request: &PatchRequest, shape: PatchShape) -> Option<String> 
             if marker != '-' {
                 post += 1;
             }
-            lines.push((marker, text, no_newline));
+            lines.push((marker, text, ending));
         }
         if !changed {
             continue;
         }
+        let lines = close_open_ends(lines);
 
         let (pre_from, post_from) = if shape.reverse {
             (new_from - applied, new_from)
@@ -131,12 +291,13 @@ pub fn build_patch(request: &PatchRequest, shape: PatchShape) -> Option<String> 
         let pre_start = pre_from + i64::from(pre > 0);
         let post_start = post_from + i64::from(post > 0);
         body.push_str(&format!("@@ -{pre_start},{pre} +{post_start},{post} @@\n"));
-        for (marker, text, no_newline) in lines {
+        for (marker, text, ending) in lines {
             body.push(marker);
             body.push_str(text);
-            body.push_str(request.line_ending.as_str());
-            if no_newline {
-                body.push_str("\\ No newline at end of file\n");
+            if ending.is_empty() {
+                body.push_str("\n\\ No newline at end of file\n");
+            } else {
+                body.push_str(ending);
             }
         }
         applied += i64::from(post) - i64::from(pre);
@@ -145,7 +306,7 @@ pub fn build_patch(request: &PatchRequest, shape: PatchShape) -> Option<String> 
     }
 
     if body.is_empty() {
-        return None;
+        return Err(PatchError::NothingSelected);
     }
     // `/dev/null` means the file is not there on that side: not before the patch when it
     // does not exist yet, not after it when every one of its lines goes.
@@ -160,16 +321,40 @@ pub fn build_patch(request: &PatchRequest, shape: PatchShape) -> Option<String> 
     } else {
         format!("b/{path}")
     };
-    Some(format!("--- {from}\n+++ {to}\n{body}"))
+    Ok(format!("--- {from}\n+++ {to}\n{body}"))
 }
 
-impl LineEnding {
-    #[must_use]
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Crlf => "\r\n",
-            Self::Cr => "\r",
-            _ => "\n",
+/// A line without a final newline can only be the last one of its side. Cutting a selection
+/// can put lines after it — the insertions after an unselected last line, the context after
+/// a selected one in reverse — and git then glues the next line onto it. There the line
+/// gains its newline, as git-gui writes it: a context line splits into `-` and `+`. The
+/// ending is the one of the line before it.
+fn close_open_ends<'a>(lines: Vec<(char, &'a str, &'a str)>) -> Vec<(char, &'a str, &'a str)> {
+    let mut out: Vec<(char, &str, &str)> = Vec::with_capacity(lines.len() + 1);
+    for (at, &(marker, text, ending)) in lines.iter().enumerate() {
+        if !ending.is_empty() {
+            out.push((marker, text, ending));
+            continue;
+        }
+        let rest = &lines[at + 1..];
+        let old_goes_on = rest.iter().any(|(m, ..)| *m != '+');
+        let new_goes_on = rest.iter().any(|(m, ..)| *m != '-');
+        let closed = lines[..at]
+            .iter()
+            .rev()
+            .map(|(_, _, ending)| *ending)
+            .find(|ending| !ending.is_empty())
+            .unwrap_or("\n");
+        let end = |goes_on: bool| if goes_on { closed } else { "" };
+        match marker {
+            ' ' if old_goes_on || new_goes_on => {
+                out.push(('-', text, end(old_goes_on)));
+                out.push(('+', text, end(new_goes_on)));
+            }
+            '-' => out.push((marker, text, end(old_goes_on))),
+            '+' => out.push((marker, text, end(new_goes_on))),
+            _ => out.push((marker, text, "")),
         }
     }
+    out
 }

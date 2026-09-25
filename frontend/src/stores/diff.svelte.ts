@@ -13,6 +13,7 @@ import { readKey, writeKey } from "$lib/settings-file";
 import { discardSelection, stageSelection, type PatchRequest } from "$lib/ipc";
 import { expandedContext } from "$lib/diff-rows";
 import { splitSelection } from "$lib/selection";
+import { runMutation, type MutationContext } from "$lib/mutation";
 import { settings } from "./settings.svelte";
 
 const DEFAULT_CONTEXT = 3;
@@ -40,6 +41,8 @@ class DiffStore {
   showMoves = $state(true);
 
   #prefsRead = false;
+  /** How App ends a change to the working tree; see `useMutation`. */
+  #mutation: MutationContext | null = null;
   /** Which repository the shown diff came from, so a toggle can recompute it. */
   #repo: RepoId | null = null;
   /** The file `diff` belongs to. `path` and `spec` move to the next file at once; this
@@ -68,9 +71,11 @@ class DiffStore {
 
   /** Which of the line actions make sense on the side of the index on screen: the
       working tree against the index stages and discards, the index against HEAD only
-      unstages. The patch is cut from this diff, so on the other side it means other lines. */
+      unstages. The patch is cut from this diff, so on the other side it means other lines.
+      The diff on screen decides, not the one asked for next: until it arrives, the lines
+      and hunks are the old one's. */
   get lineActions(): { stage: boolean; unstage: boolean; discard: boolean } {
-    const kind = this.spec?.kind;
+    const kind = this.#shown?.spec.kind;
     return {
       stage: kind === "workTreeVsIndex",
       unstage: kind === "indexVsHead",
@@ -79,7 +84,8 @@ class DiffStore {
   }
 
   get stageable(): boolean {
-    return this.spec?.kind === "workTreeVsIndex" || this.spec?.kind === "indexVsHead";
+    const kind = this.#shown?.spec.kind;
+    return kind === "workTreeVsIndex" || kind === "indexVsHead";
   }
 
   /** This file under this spec is on screen already, so clicking it again changes nothing. */
@@ -134,6 +140,12 @@ class DiffStore {
     await this.load(this.#repo, this.spec, this.path);
   }
 
+  /** Every change to the working tree ends the same way (`runMutation`): the file list,
+      the journal behind Undo and the rest read again. App hands its own over once. */
+  useMutation(context: MutationContext | null): void {
+    this.#mutation = context;
+  }
+
   /** Throws the selected lines away in the working tree. The caller confirms first.
       `from` is the diff the lines were chosen in; once another has replaced it, their
       numbers mean other lines, and nothing is thrown away. */
@@ -143,6 +155,11 @@ class DiffStore {
     if (!this.lineActions.discard) return;
     const lines = this.#lines(selected);
     if (!lines) return;
+    const context = this.#mutation;
+    if (context) {
+      await runMutation(context, () => discardSelection(lines.repo, lines.request), [lines.request.path], false);
+      return;
+    }
     await discardSelection(lines.repo, lines.request);
     await this.reload();
   }
@@ -170,7 +187,6 @@ class DiffStore {
         hunks: this.diff.hunks,
         selectedDeletes: deletes,
         selectedInserts: inserts,
-        lineEnding: this.diff.eol.old,
       },
     };
   }

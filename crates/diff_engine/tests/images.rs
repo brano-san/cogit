@@ -148,3 +148,35 @@ fn a_bitmap_header_is_still_a_bitmap() {
     bmp.extend_from_slice(&[0; 40]);
     assert_eq!(image_mime(&bmp), Some("image/bmp"));
 }
+
+fn png_of(size: usize) -> Vec<u8> {
+    let mut data = PNG.to_vec();
+    data.resize(size, 0);
+    data
+}
+
+// A 1.5 MB screenshot hit the 1 MiB text limit before anyone looked at what it was, and
+// showed "File is too large to diff" instead of the image views. The limit is about text
+// rows in the webview; an image has a cap of its own.
+#[test]
+fn an_image_past_the_text_limit_is_still_shown_as_an_image() {
+    let old = png_of(1_500_000);
+    let mut new = old.clone();
+    new[100] = 1;
+
+    let diff = diff_bytes(&old, &new, &DiffOptions::default());
+
+    assert!(matches!(diff, FileDiff::Image { .. }), "{diff:?}");
+}
+
+#[test]
+fn an_image_past_its_own_cap_is_summarised() {
+    let size = usize::try_from(diff_engine::MAX_IMAGE_BYTES).unwrap() + 1;
+    let old = png_of(size);
+    let mut new = old.clone();
+    new[100] = 1;
+
+    let diff = diff_bytes(&old, &new, &DiffOptions::default());
+
+    assert!(matches!(diff, FileDiff::TooLarge { .. }), "{diff:?}");
+}

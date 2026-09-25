@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   autoResolvedCount,
   chooseAll,
+  canSave,
   conflictRows,
+  editableText,
   mergeRows,
   mergedText,
   nextConflict,
@@ -191,5 +193,36 @@ describe("syntacticCount", () => {
 describe("autoResolvedCount with a parser", () => {
   it("counts a parser-settled region too: it still wants a look", () => {
     expect(autoResolvedCount([clean(["a"], "syntactic")])).toBe(1);
+  });
+});
+
+describe("editableText", () => {
+  it("writes an undecided conflict out with the markers git uses", () => {
+    expect(editableText(regions, {})).toBe(
+      "a\n<<<<<<< ours\nOURS\n||||||| base\nb\n=======\nTHEIRS\n>>>>>>> theirs\nc\n",
+    );
+  });
+
+  it("is the merged text once every conflict has a side", () => {
+    expect(editableText(regions, { 1: "theirs" })).toBe(mergedText(regions, { 1: "theirs" }));
+  });
+});
+
+describe("canSave", () => {
+  it("refuses the panels while a conflict is undecided", () => {
+    expect(canSave(regions, {}, null)).toBe(false);
+    expect(canSave(regions, { 1: "ours" }, null)).toBe(true);
+  });
+
+  it("refuses hand-edited text that still carries conflict markers", () => {
+    expect(canSave(regions, {}, editableText(regions, {}))).toBe(false);
+  });
+
+  it("takes hand-edited text once the markers are gone", () => {
+    expect(canSave(regions, {}, "a\nmine\nc\n")).toBe(true);
+  });
+
+  it("does not mistake a line of equals signs inside other text for a marker", () => {
+    expect(canSave(regions, {}, "title\n======= and more\n")).toBe(true);
   });
 });
