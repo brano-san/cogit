@@ -384,3 +384,22 @@ describe("discarding lines ends like any other change to the working tree", () =
     expect(report).toHaveBeenCalledOnce();
   });
 });
+
+// The buttons followed the diff asked for last while the lines on screen still belonged to
+// the one before: Unstage was live on a working-tree diff and sent its hunks to the index.
+describe("line actions while the next diff loads", () => {
+  beforeEach(() => {
+    diff.clear();
+    commands.diffFile.mockReset();
+    commands.diffFile.mockImplementation(async () => textDiff());
+  });
+
+  it("stay those of the diff on screen", async () => {
+    await diff.load(REPO, SPEC, "a.txt");
+    commands.diffFile.mockReturnValueOnce(new Promise(() => {}));
+    void diff.load(REPO, { kind: "indexVsHead" }, "a.txt");
+
+    expect(diff.lineActions).toEqual({ stage: true, unstage: false, discard: true });
+    expect(diff.stageable).toBe(true);
+  });
+});
