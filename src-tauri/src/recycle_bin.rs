@@ -49,3 +49,32 @@ pub fn move_to_trash(paths: &[PathBuf]) -> std::io::Result<()> {
         None => Err(std::io::Error::other("no bin on this platform")),
     }
 }
+
+#[cfg(all(test, windows))]
+mod tests {
+    #![allow(clippy::unwrap_used)]
+
+    use super::move_to_trash;
+
+    fn scratch(name: &str) -> std::path::PathBuf {
+        let unique = format!("cogit-bin-{}-{name}", std::process::id());
+        std::env::temp_dir().join(unique)
+    }
+
+    #[test]
+    fn a_file_moved_to_the_bin_is_gone_from_its_folder() {
+        let file = scratch("gone.txt");
+        std::fs::write(&file, "to the Recycle Bin\n").unwrap();
+
+        move_to_trash(std::slice::from_ref(&file)).unwrap();
+
+        assert!(!file.exists());
+    }
+
+    #[test]
+    fn a_refusal_of_the_shell_comes_back_as_an_error() {
+        let missing = scratch("never-there.txt");
+
+        assert!(move_to_trash(&[missing]).is_err());
+    }
+}

@@ -248,3 +248,34 @@ fn the_paths_listed_are_the_ones_in_gitmodules() {
     let listed = open(&f).submodule_paths();
     assert_eq!(listed, [MODULE.to_owned()].into());
 }
+
+fn fresh_clone(f: &test_fixtures::Fixture) -> tempfile::TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    let into = dir.path().join("clone");
+    f.git(&["clone", "-q", "--", &url_of(f), &into.to_string_lossy()])
+        .unwrap();
+    dir
+}
+
+fn transport_refused(result: Result<(), GitError>) -> bool {
+    matches!(result, Err(GitError::Command(ref failed)) if failed.stderr.contains("transport 'file' not allowed"))
+}
+
+// A local path in someone else's `.gitmodules` is what CVE-2022-39253 abuses, so git
+// refuses it unless the user allowed it; Cogit lifted that ban for every submodule.
+#[test]
+fn initializing_a_clone_keeps_git_s_ban_on_local_paths() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let dir = fresh_clone(&f);
+    let clone = RepoHandle::open(&dir.path().join("clone")).unwrap();
+
+    assert!(transport_refused(
+        clone.submodule_op(SubmoduleOp::Initialize, &[])
+    ));
+    assert!(transport_refused(clone.update_submodule(MODULE, true)));
+    assert!(transport_refused(
+        clone
+            .init_submodules_added_since(&BTreeSet::new())
+            .map(drop)
+    ));
+}

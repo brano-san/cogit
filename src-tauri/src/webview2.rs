@@ -61,10 +61,12 @@ pub fn install_accelerators(window: &tauri::WebviewWindow) {
                 // Rebuilt per press rather than cached: it is a few dozen short strings, it
                 // only runs for accelerator keys, and a cache would have to be invalidated
                 // every time the user edits the keymap.
-                let overrides = app.state::<crate::menu::Keymap>().current();
-                crate::accelerators::table(crate::menu::default_keymap_pairs(), &overrides)
-                    .get(&pressed)
-                    .cloned()
+                app.state::<crate::key_capture::KeyCapture>().claim(|| {
+                    let overrides = app.state::<crate::menu::Keymap>().current();
+                    crate::accelerators::table(crate::menu::default_keymap_pairs(), &overrides)
+                        .get(&pressed)
+                        .cloned()
+                })
             }
         },
         move |id| crate::dispatch_menu_command(&app, id),

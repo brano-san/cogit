@@ -50,10 +50,107 @@ impl RepoHandle {
         if !message.trim().is_empty() {
             args.extend(["--message", message]);
         }
-        self.run_git_paths(&args, paths)?;
+        let unmerged = self.unmerged_paths()?;
+        if unmerged.is_empty() {
+            self.run_git_paths(&args, paths)?;
+        } else {
+            self.push_beside_a_conflict(&args, &unmerged, Some(paths))?;
+            // What push does to the index at the paths, had it been let (R-441).
+            self.run_git_paths(&["reset", "-q"], paths)?;
+        }
 
         let after = self.stash_top();
         Ok(if after == before { None } else { after })
+    }
+
+    /// The backup of a hard reset: the tracked changes, even beside a conflict — resetting
+    /// is how a stopped merge is left behind, and it throws those away.
+    pub fn stash_before_reset(&self, message: &str) -> Result<Option<String>> {
+        let unmerged = self.unmerged_paths()?;
+        if unmerged.is_empty() {
+            return self.stash_push_if_any(&StashOptions {
+                message: message.to_owned(),
+                include_untracked: false,
+                keep_index: false,
+            });
+        }
+        let before = self.stash_top();
+        self.push_beside_a_conflict(&["stash", "push", "--message", message], &unmerged, None)?;
+        let after = self.stash_top();
+        Ok(if after == before { None } else { after })
+    }
+
+    /// `stash push` refuses while any index entry is unmerged ("needs merge"), whatever the
+    /// paths: it rewrites the index. It runs on a scratch copy then, those entries reset to
+    /// HEAD; the conflicted files go into the stash as changes to them.
+    fn push_beside_a_conflict(
+        &self,
+        push: &[&str],
+        unmerged: &[String],
+        paths: Option<&[String]>,
+    ) -> Result<()> {
+        const FROM_STDIN: [&str; 2] = ["--pathspec-from-file=-", "--pathspec-file-nul"];
+        let scratch = crate::commit_write::Scratch::beside_index(self, "stash");
+        std::fs::copy(self.repo.index_path(), &scratch.0)
+            .map_err(|err| GitError::Io(format!("cannot copy the index: {err}")))?;
+        let reset = [&["reset", "-q"][..], &FROM_STDIN[..]].concat();
+        self.run_git_indexed(&scratch.0, &reset, Some(unmerged.join("\0").as_bytes()))?;
+        match paths {
+            Some(paths) => self.run_git_indexed(
+                &scratch.0,
+                &[push, &FROM_STDIN[..]].concat(),
+                Some(paths.join("\0").as_bytes()),
+            ),
+            None => self.run_git_indexed(&scratch.0, push, None),
+        }
+        .map(drop)
+    }
+
+    /// Read by `gix`, which costs no process: the common case has none.
+    fn unmerged_paths(&self) -> Result<Vec<String>> {
+        let index = self
+            .repo
+            .index_or_empty()
+            .map_err(|err| GitError::Internal(format!("cannot read the index: {err}")))?;
+        let mut paths: Vec<String> = index
+            .entries()
+            .iter()
+            .filter(|entry| entry.stage_raw() != 0)
+            .map(|entry| entry.path(&index).to_string())
+            .collect();
+        paths.dedup();
+        Ok(paths)
+    }
+
+    /// Those of `paths` whose staged side `stash` recorded: its index commit (`^2`) differs
+    /// from HEAD at the time (`^1`) there.
+    pub fn staged_in_stash(&self, stash: &str, paths: &[String]) -> Result<Vec<String>> {
+        let commit = self.find_commit(stash)?;
+        let parents: Vec<gix::ObjectId> = commit.parent_ids().map(|id| id.detach()).collect();
+        let (Some(&base), Some(&index)) = (parents.first(), parents.get(1)) else {
+            return Err(GitError::InvalidState(format!("{stash} is not a stash")));
+        };
+        let (base, index) = (self.tree_of(base)?, self.tree_of(index)?);
+        let entry = |tree: &gix::Tree<'_>, path: &str| {
+            tree.lookup_entry_by_path(path)
+                .map_err(|err| GitError::Internal(format!("cannot look up {path}: {err}")))
+                .map(|entry| entry.map(|entry| (entry.mode(), entry.object_id())))
+        };
+        let mut staged = Vec::new();
+        for path in paths.iter().filter(|path| !path.ends_with('/')) {
+            if entry(&base, path)? != entry(&index, path)? {
+                staged.push(path.clone());
+            }
+        }
+        Ok(staged)
+    }
+
+    /// Puts the staged side `stash` recorded for `paths` back into the index and the
+    /// working tree, a deletion included.
+    pub fn restore_staged_from(&self, stash: &str, paths: &[String]) -> Result<()> {
+        let source = format!("--source={stash}^2");
+        self.run_git_paths(&["restore", &source, "--staged", "--worktree"], paths)
+            .map(drop)
     }
 
     /// A stash that leaves the working tree as it is: `stash create` builds the commit

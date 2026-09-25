@@ -141,7 +141,7 @@ impl RepoHandle {
             process.env(key, value);
         }
         process.args(args);
-        let output = crate::children::output(&mut process)?;
+        let output = crate::children::output(&mut process).map_err(not_started)?;
         if output.status.success() {
             return Ok(output.stdout);
         }
@@ -190,7 +190,7 @@ impl RepoHandle {
             process.env(key, value);
         }
         process.args(args);
-        let output = crate::children::output(&mut process)?;
+        let output = crate::children::output(&mut process).map_err(not_started)?;
         let duration_ms = elapsed_ms(started);
         tracing::debug!(%command, bytes = output.stdout.len(), duration_ms, "git read");
 
@@ -290,9 +290,10 @@ impl RepoHandle {
         }
         process.args(args);
         let output = match input {
-            Some(bytes) => crate::children::output_fed(&mut process, bytes)?,
-            None => crate::children::output(&mut process)?,
-        };
+            Some(bytes) => crate::children::output_fed(&mut process, bytes),
+            None => crate::children::output(&mut process),
+        }
+        .map_err(not_started)?;
 
         let duration_ms = elapsed_ms(started);
         let result = GitOutput::record(
@@ -359,9 +360,30 @@ pub(crate) fn elapsed_ms(started: std::time::Instant) -> u32 {
 #[cfg(windows)]
 pub(crate) const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
+/// Preferences ▸ Git executable, set once at startup; until then, the `git` on PATH.
+static GIT_PROGRAM: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+
+/// The git every command runs from now on. Once per process: a later call is ignored.
+pub fn use_git_program(program: std::path::PathBuf) {
+    if let Err(ignored) = GIT_PROGRAM.set(program) {
+        tracing::warn!(program = %ignored.display(), "the git program is set already");
+    }
+}
+
+fn git_program() -> &'static Path {
+    GIT_PROGRAM
+        .get()
+        .map_or_else(|| Path::new("git"), std::path::PathBuf::as_path)
+}
+
+/// A git that does not start says which one: set in Preferences, it may not exist.
+fn not_started(err: std::io::Error) -> GitError {
+    GitError::Io(format!("cannot run {}: {err}", git_program().display()))
+}
+
 /// What every `git` Cogit starts has, inside a repository or not.
 fn git_command() -> Command {
-    let mut command = Command::new("git");
+    let mut command = Command::new(git_program());
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt as _;
@@ -452,7 +474,7 @@ pub(crate) struct BareOutput {
 /// config files hold tokens in `url.*` and `http.*` (doc/12-risks.md, R-155).
 pub(crate) fn bare_git(args: &[&str]) -> Result<BareOutput> {
     let mut command = git_command();
-    let output = crate::children::output(command.args(args))?;
+    let output = crate::children::output(command.args(args)).map_err(not_started)?;
     tracing::debug!(command = %redact_command(args), exit_code = ?output.status.code(), "git without a repository");
     Ok(BareOutput {
         exit_code: output.status.code(),

@@ -152,3 +152,32 @@ fn a_byte_order_mark_does_not_make_the_settings_damaged() {
     assert_eq!(document["a"], 1, "{document}");
     assert_eq!(document["b"], 2, "{document}");
 }
+#[test]
+fn the_git_executable_is_read_from_the_settings_file() {
+    let dir = tempfile::tempdir().unwrap();
+    app_state::settings::write_key(
+        dir.path(),
+        "settings",
+        serde_json::json!({ "gitPath": "D:/PortableGit/cmd/git.exe" }),
+    )
+    .unwrap();
+
+    assert_eq!(
+        app_state::settings::read_git_program(dir.path()),
+        Some(std::path::PathBuf::from("D:/PortableGit/cmd/git.exe"))
+    );
+}
+
+#[test]
+fn plain_git_or_nothing_means_the_one_on_path() {
+    let dir = tempfile::tempdir().unwrap();
+    assert_eq!(app_state::settings::read_git_program(dir.path()), None);
+
+    app_state::settings::write_key(
+        dir.path(),
+        "settings",
+        serde_json::json!({ "gitPath": " git " }),
+    )
+    .unwrap();
+    assert_eq!(app_state::settings::read_git_program(dir.path()), None);
+}

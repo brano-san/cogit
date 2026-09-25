@@ -141,6 +141,13 @@ pub fn set_keymap(
         .map_err(|err| GitError::Internal(format!("cannot rebuild the menu: {err}")))
 }
 
+/// Preferences ▸ Keyboard, while it records a shortcut: the menu lets every key through.
+#[tauri::command]
+#[specta::specta]
+pub fn capture_keys(capture: tauri::State<'_, crate::key_capture::KeyCapture>, on: bool) {
+    capture.set(on);
+}
+
 /// The webview's own clock: how long the user waited between an action and the screen
 /// showing its result. Only the backend half is visible from Rust.
 #[tauri::command]
@@ -775,6 +782,25 @@ pub async fn commit(
     .await?;
 
     tracing::info!(repo = repo.0, oid = %oid, "commit created");
+    if state.state.wants_maintenance(repo).unwrap_or(false) {
+        // The commit's caller does not wait for it; the queue does (R-444).
+        let app_state = state.state.clone();
+        tauri::async_runtime::spawn(async move {
+            let ran = app_state.clone();
+            let maintained = mutating_titled(
+                &app_state,
+                repo,
+                OperationKind::Other,
+                "Maintaining the repository",
+                "maintenance",
+                move || ran.maintain_after_commit(repo),
+            )
+            .await;
+            if let Err(err) = maintained {
+                tracing::error!(error = ?err, context = "auto maintenance after a commit");
+            }
+        });
+    }
     Ok(oid)
 }
 

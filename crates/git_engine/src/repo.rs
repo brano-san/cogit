@@ -49,6 +49,22 @@ pub struct Tag {
 /// Enough for the topological window of the graph walk several times over.
 const OBJECT_CACHE_BYTES: usize = 4 * 1024 * 1024;
 
+pub(crate) fn rooted_at(found: &Path, root: &Path) -> Result<()> {
+    let same = found == root
+        || matches!(
+            (std::fs::canonicalize(found), std::fs::canonicalize(root)),
+            (Ok(found), Ok(root)) if found == root
+        );
+    if same {
+        Ok(())
+    } else {
+        Err(GitError::RepoNotFound(format!(
+            "{} is no longer a repository",
+            root.display()
+        )))
+    }
+}
+
 pub(crate) fn env_free() -> gix::open::Options {
     let mut options = gix::open::Options::default();
     options.permissions.env.git_prefix = gix::sec::Permission::Deny;
@@ -74,6 +90,14 @@ impl RepoHandle {
         let repo = gix::discover_opts(path, gix::discover::upwards::Options::default(), env_free())
             .map_err(|err| GitError::RepoNotFound(format!("{}: {err}", path.display())))?;
         Ok(Self::from_repo(repo))
+    }
+
+    /// The repository whose root is `root`, never one above it: once `root/.git` is gone,
+    /// the search upwards finds whatever repository holds the folder.
+    pub fn open_root(root: &Path) -> Result<Self> {
+        let handle = Self::open(root)?;
+        rooted_at(handle.root(), root)?;
+        Ok(handle)
     }
 
     pub(crate) fn from_repo(mut repo: gix::Repository) -> Self {
