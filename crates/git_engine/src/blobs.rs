@@ -134,6 +134,46 @@ impl RepoHandle {
         }
     }
 
+    /// The sides as git's own diff compares them, for a patch cut from them: the working
+    /// file through the clean filters (eol, autocrlf, drivers), as `git add` would store it.
+    /// `git apply` cleans the working file the same way before it patches it.
+    pub fn patch_sides(&self, spec: &DiffSpec, path: &str) -> Result<DiffSides> {
+        let (old, new) = self.diff_sides(spec, path)?;
+        let on_disk = matches!(
+            spec,
+            DiffSpec::WorkTreeVsIndex | DiffSpec::CommitVsWorkTree { .. }
+        );
+        match new {
+            Some(bytes) if on_disk && !is_symlink(&self.root().join(path)) => {
+                Ok((old, Some(self.cleaned(path, bytes)?)))
+            }
+            new => Ok((old, new)),
+        }
+    }
+
+    fn cleaned(&self, path: &str, bytes: Vec<u8>) -> Result<Vec<u8>> {
+        use gix::filter::plumbing::pipeline::convert::ToGitOutcome;
+        use std::io::Read as _;
+
+        let failed = |err: &dyn std::fmt::Display| {
+            GitError::Internal(format!("cannot clean {path} as git add would: {err}"))
+        };
+        let (mut pipeline, index) = self.repo.filter_pipeline(None).map_err(|e| failed(&e))?;
+        let outcome = pipeline
+            .convert_to_git(bytes.as_slice(), std::path::Path::new(path), &index)
+            .map_err(|e| failed(&e))?;
+        let cleaned = match outcome {
+            ToGitOutcome::Unchanged(_) => None,
+            ToGitOutcome::Buffer(buffer) => Some(buffer.to_vec()),
+            ToGitOutcome::Process(mut stream) => {
+                let mut out = Vec::new();
+                stream.read_to_end(&mut out).map_err(|e| failed(&e))?;
+                Some(out)
+            }
+        };
+        Ok(cleaned.unwrap_or(bytes))
+    }
+
     pub(crate) fn blob_in_index(&self, path: &str) -> Result<Option<Vec<u8>>> {
         let index = self
             .repo

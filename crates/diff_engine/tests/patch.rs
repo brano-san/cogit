@@ -2,8 +2,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use diff_engine::{
-    DiffOptions, FileDiff, LineEnding, PatchError, PatchRequest, PatchShape, PatchSides,
-    build_patch, diff_text,
+    DiffOptions, FileDiff, PatchError, PatchRequest, PatchShape, PatchSides, build_patch, diff_text,
 };
 
 /// Stage: forward, onto a file both sides of the diff have.
@@ -34,7 +33,6 @@ fn request(old: &str, new: &str, selected: &[(u32, bool)]) -> PatchRequest {
             .filter(|(_, is_delete)| !*is_delete)
             .map(|(line, _)| *line)
             .collect(),
-        line_ending: LineEnding::Lf,
     }
 }
 
@@ -116,10 +114,12 @@ fn selecting_nothing_produces_no_patch_at_all() {
 
 #[test]
 fn crlf_is_restored_so_git_apply_does_not_rewrite_the_file() {
-    let mut req = request("a\nb\n", "a\nB\n", &[(2, true), (2, false)]);
-    req.line_ending = LineEnding::Crlf;
-
-    let patch = build_patch(&req, FORWARD, sides("a\nb\n", "a\nB\n")).unwrap();
+    let patch = patch(
+        "a\r\nb\r\n",
+        "a\r\nB\r\n",
+        &[(2, true), (2, false)],
+        FORWARD,
+    );
 
     assert!(patch.contains("-b\r\n"), "INV-08: {patch:?}");
     assert!(patch.contains("+B\r\n"), "INV-08: {patch:?}");
@@ -183,4 +183,23 @@ fn every_line_of_the_patch_ends_with_a_newline() {
     let patch = patch("a\nb\nc\n", "a\nB\nc\n", &[(2, true), (2, false)], FORWARD);
 
     assert!(patch.ends_with('\n'), "git apply refuses a truncated patch");
+}
+
+#[test]
+fn each_line_keeps_the_ending_it_has_on_its_own_side() {
+    let old = "a\r\nb\nc\r\n";
+    let new = "a\r\nB\r\nc\r\n";
+
+    let patch = patch(old, new, &[(2, true), (2, false)], FORWARD);
+
+    assert!(patch.contains(" a\r\n-b\n+B\r\n c\r\n"), "{patch:?}");
+}
+
+#[test]
+fn a_lone_cr_is_refused_rather_than_misnumbered() {
+    let (old, new) = ("a\rb\n", "a\rB\n");
+
+    let refused = build_patch(&request(old, new, &[(2, true)]), FORWARD, sides(old, new));
+
+    assert_eq!(refused, Err(PatchError::BareCarriageReturn));
 }
