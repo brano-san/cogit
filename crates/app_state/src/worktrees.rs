@@ -34,11 +34,12 @@ impl AppState {
                 "{path} is not an existing worktree of this repository"
             )));
         }
+        let began = self.closes_so_far();
         let mut watch = Steps::new();
         let folder = std::path::Path::new(path);
         let handle = git_engine::RepoHandle::open_exact(folder)?;
         watch.done("open");
-        self.open_with(handle, folder, false, watch)
+        self.open_with(handle, folder, false, watch, began)
     }
 
     pub fn add_worktree(
