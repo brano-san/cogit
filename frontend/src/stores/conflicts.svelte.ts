@@ -15,6 +15,8 @@ class ConflictStore {
   base = $state<string | null>(null);
   ours = $state<string | null>(null);
   theirs = $state<string | null>(null);
+  /** A side is binary or not UTF-8: only taking one side whole can resolve it. */
+  binary = $state(false);
   /** The three sides already merged; empty until a conflicted file is opened. */
   regions = $state.raw<Region[]>([]);
 
@@ -47,7 +49,9 @@ class ConflictStore {
     this.base = sides.base;
     this.ours = sides.ours;
     this.theirs = sides.theirs;
+    this.binary = sides.binary;
     this.regions = [];
+    if (sides.binary) return;
 
     // A failed merge leaves the three raw sides, which are still worth showing.
     const regions = await mergePreview(repo, path).catch(() => []);
@@ -82,6 +86,7 @@ class ConflictStore {
     this.base = null;
     this.ours = null;
     this.theirs = null;
+    this.binary = false;
     this.regions = [];
   }
 

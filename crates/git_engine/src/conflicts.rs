@@ -25,9 +25,21 @@ pub struct ConflictText {
     pub base: Option<String>,
     pub ours: Option<String>,
     pub theirs: Option<String>,
+    /// A side is binary or not UTF-8: it is taken whole, never merged or edited as text.
+    pub binary: bool,
 }
 
 impl ConflictSides {
+    /// Merging and editing work on text; a byte they cannot hold would be written back as
+    /// a replacement character and staged.
+    #[must_use]
+    pub fn is_text(&self) -> bool {
+        [&self.base, &self.ours, &self.theirs]
+            .into_iter()
+            .flatten()
+            .all(|side| is_text(side))
+    }
+
     /// Lossy on purpose: a conflict the user cannot see is worse than one rendered oddly.
     pub fn to_text(&self) -> ConflictText {
         let text = |side: &Option<Vec<u8>>| {
@@ -38,8 +50,14 @@ impl ConflictSides {
             base: text(&self.base),
             ours: text(&self.ours),
             theirs: text(&self.theirs),
+            binary: !self.is_text(),
         }
     }
+}
+
+/// Git's binary rule — a NUL in the first 8000 bytes — and valid UTF-8.
+fn is_text(bytes: &[u8]) -> bool {
+    !bytes.iter().take(8000).any(|&byte| byte == 0) && std::str::from_utf8(bytes).is_ok()
 }
 
 impl ConflictSide {
@@ -85,8 +103,10 @@ impl RepoHandle {
     }
 
     pub fn resolve_with_text(&self, path: &str, text: &str) -> Result<()> {
-        if !self.conflicted_paths()?.iter().any(|p| p == path) {
-            return Err(GitError::InvalidState(format!("{path} is not conflicted")));
+        if !self.conflict_sides(path)?.is_text() {
+            return Err(GitError::InvalidState(format!(
+                "{path} is binary or not UTF-8: take one side whole"
+            )));
         }
         self.write_resolution(path, text.as_bytes())
     }

@@ -52,6 +52,7 @@
     base={conflicts.base}
     ours={conflicts.ours}
     theirs={conflicts.theirs}
+    binary={conflicts.binary}
     onresolve={(side) => onresolve(side)}
     onresolveText={(text) => onresolveText(text)}
   />
