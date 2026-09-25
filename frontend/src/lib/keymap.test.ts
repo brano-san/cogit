@@ -87,8 +87,9 @@ describe("accelerator", () => {
     expect(accelerator(event({ key: "F5" }))).toBe("F5");
   });
 
+  // muda reads `Enter` and not `Return`: a recorded Ctrl+Return was dropped from the menu.
   it("names the named keys tauri expects", () => {
-    expect(accelerator(event({ key: "Enter" }))).toBe("Return");
+    expect(accelerator(event({ key: "Enter" }))).toBe("Enter");
     expect(accelerator(event({ key: "ArrowLeft" }))).toBe("Left");
     expect(accelerator(event({ key: " " }))).toBe("Space");
   });

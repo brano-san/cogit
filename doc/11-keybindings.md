@@ -46,7 +46,8 @@
 
 Аккорды, у которых есть пункт нативного меню, обрабатывает меню, а не webview:
 иначе одно нажатие срабатывало бы дважды. Так же окно перехватывает аккорды команд без
-пункта в меню (`OFF_THE_BAR` в `menu.rs`, сейчас это `F5`).
+пункта в меню (`OFF_THE_BAR` в `menu.rs`: `F5`, `Ctrl+Shift+Enter`, `Ctrl+K`). Клавишу `Enter` меню пишет
+`Enter`, а не `Return` — `Return` muda не читает, и пункт остаётся без аккорда.
 
 ## 3. Сеть и синхронизация
 
@@ -65,9 +66,9 @@
 | `Ctrl+T` | `global` | Stage — проиндексировать выделенное |
 | `Ctrl+Shift+T` | `global` | Unstage |
 | `Ctrl+Z` | `files`, `diff` | **Discard** — откатить изменения (см. предупреждение ниже) |
-| `Ctrl+Enter` | `global` | Commit |
-| `Ctrl+Shift+Enter` | `global` | Commit --amend |
-| `Ctrl+K` | `global` | Фокус на поле сообщения коммита |
+| `Ctrl+Enter` | `global` | Commit — `Local ▸ Commit…`: показывает панель Commit Message, ставит в поле курсор и коммитит, если коммит готов (R-452) |
+| `Ctrl+Shift+Enter` | `global` | Commit --amend — то же с галочкой Amend; команда без пункта в меню (`OFF_THE_BAR`, `commit-amend`) |
+| `Ctrl+K` | `global` | Фокус на поле сообщения коммита; показывает панель, если она скрыта (`OFF_THE_BAR`, `commit-message`) |
 | `Space` | `files` | Переключить стейджинг строки списка |
 | `Ctrl+A` | `files` | Выделить все файлы |
 

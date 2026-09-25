@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { onDestroy } from "svelte";
+  import { commitBox } from "$stores/commit-box.svelte";
   import { canCommit, draftToSave, initialMessage, messageAfterCommit } from "$lib/commit-draft";
   import { SUBJECT_HARD, SUBJECT_SOFT, subjectOf, subjectState } from "$lib/commit-message";
 
@@ -46,6 +48,20 @@
     noVerify = false;
   }
 
+  let field: HTMLTextAreaElement | undefined = $state();
+
+  // Local ▸ Commit… (Ctrl+Enter), Commit with Amend (Ctrl+Shift+Enter) and Ctrl+K reach the
+  // box from anywhere in the window (11 §4).
+  onDestroy(
+    commitBox.attach({
+      focus: () => field?.focus(),
+      submit: async (withAmend) => {
+        if (withAmend) amend = true;
+        await submit();
+      },
+    }),
+  );
+
   function onkeydown(event: KeyboardEvent) {
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
       event.preventDefault();
@@ -76,6 +92,7 @@
 
 <div class="box">
   <textarea
+    bind:this={field}
     bind:value={message}
     {onkeydown}
     rows="3"

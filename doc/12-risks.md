@@ -5533,3 +5533,20 @@ Push To (свой refspec) не меняются. Отдельный пункт 
 `F5` перезагрузил бы страницу, остальные аккорды меню текстовым полям не нужны. Тест —
 `modal-stack.test.ts`. Проверить в сборке: Hooks ▸ Save as preset ▸ `Esc`; Edit Author ▸
 `Ctrl+S`; любой диалог ▸ `Ctrl+W`.
+
+## R-452 · Commit из меню, палитры и `Ctrl+Enter` идёт через поле коммита · Н
+
+Команда `commit` палитры была `() => {}`, в неё же приходил `Local ▸ Commit…`; ускоритель
+`CmdOrCtrl+Return` не читали ни muda, ни `accelerators.rs`, и `Ctrl+Enter` работал только в
+самом поле. Глобальных `Ctrl+Shift+Enter` и `Ctrl+K` из 11 §4 не было.
+
+**Решение:** поле коммита регистрируется в `stores/commit-box.svelte.ts`; `commit` показывает
+панель Commit Message, если она скрыта, ставит курсор в поле и коммитит, если поле готово
+(`canCommit`: сообщение, застейдженное или Amend). `commit-amend` сначала ставит Amend,
+`commit-message` только фокусирует. Аккорды — `CmdOrCtrl+Enter` у `Local ▸ Commit…` и
+`OFF_THE_BAR` для двух остальных; окно забирает их у страницы, поэтому `Ctrl+Enter` в самом
+поле идёт тем же путём. Команда `commit` больше не выключена «нечего коммитить»: с Amend
+застейдживать ничего не нужно, а решает поле. Редактор клавиш записывает `Enter`, а не
+`Return` (muda читает только `Enter`); `accelerators.rs` понимает оба. Тесты —
+`commit-box.test.ts`, `menu::tests::the_commit_keys_belong_to_the_window`,
+`accelerators::tests::every_default_accelerator_can_be_claimed`.

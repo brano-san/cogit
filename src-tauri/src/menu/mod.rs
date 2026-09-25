@@ -107,7 +107,7 @@ const REMOTE: &[Entry] = &[
 ];
 
 const LOCAL: &[Entry] = &[
-    Entry::Item("commit", "Commit…", Some("CmdOrCtrl+Return")),
+    Entry::Item("commit", "Commit…", Some("CmdOrCtrl+Enter")),
     Entry::Item("stash", "Stash All", Some("CmdOrCtrl+S")),
     Entry::Item(
         "stash-selection",
@@ -174,10 +174,23 @@ const SECTIONS: &[(&str, &[Entry])] = &[
 
 /// Keyed commands with no place on the bar (#43): the window still claims the key, or
 /// WebView2 would take F5 as "reload the page", and the keymap editor still lists them.
-const OFF_THE_BAR: &[(&str, &[Entry])] = &[(
-    "Repository",
-    &[Entry::Item("refresh", "Refresh", Some("F5"))],
-)];
+const OFF_THE_BAR: &[(&str, &[Entry])] = &[
+    (
+        "Repository",
+        &[Entry::Item("refresh", "Refresh", Some("F5"))],
+    ),
+    (
+        "Local",
+        &[
+            Entry::Item(
+                "commit-amend",
+                "Commit with Amend",
+                Some("CmdOrCtrl+Shift+Enter"),
+            ),
+            Entry::Item("commit-message", "Commit Message", Some("CmdOrCtrl+K")),
+        ],
+    ),
+];
 
 fn keyed(section: &str, entries: &'static [Entry]) -> Vec<&'static Entry> {
     let mut all = leaves(entries);
@@ -624,6 +637,25 @@ mod nested_tests {
             .find(|row| row.id == "refresh")
             .expect("listed in the keymap editor");
         assert_eq!(row.section, "Repository");
+    }
+
+    /// 11 §4: Commit, Commit with Amend and the message field answer anywhere in the window.
+    #[test]
+    fn the_commit_keys_belong_to_the_window() {
+        let pairs = default_keymap_pairs();
+        assert!(pairs.contains(&("commit", Some("CmdOrCtrl+Enter"))));
+        assert!(pairs.contains(&("commit-amend", Some("CmdOrCtrl+Shift+Enter"))));
+        assert!(pairs.contains(&("commit-message", Some("CmdOrCtrl+K"))));
+        let claimed = crate::accelerators::table(pairs, &HashMap::new());
+        for keys in ["CmdOrCtrl+Enter", "CmdOrCtrl+Shift+Enter", "CmdOrCtrl+K"] {
+            let chord = crate::accelerators::parse(keys).expect("parses");
+            assert!(claimed.contains_key(&chord), "{keys}");
+        }
+        let row = default_keymap()
+            .into_iter()
+            .find(|row| row.id == "commit-amend")
+            .expect("listed");
+        assert_eq!(row.section, "Local");
     }
 
     #[test]

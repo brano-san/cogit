@@ -77,6 +77,7 @@
   import { compareView } from "$stores/compare-view.svelte";
   import { confirmation } from "$stores/confirm.svelte";
   import { menuCommandRuns, modals } from "$lib/modal-stack";
+  import { commitBox } from "$stores/commit-box.svelte";
   import { commitFileMenu, worktreeFileMenu } from "$lib/file-menu";
   import { fileName, runFileMenuCommand, type FileActions, type FileScope } from "$lib/file-actions";
   import { listedMessage } from "$lib/file-dialogs";
@@ -532,7 +533,6 @@
   const palette = $derived.by<PaletteCommand[]>(() => {
     const noRepo = reasonFor({ repository: true }, commands);
     const noRemote = reasonFor({ remote: true }, commands);
-    const nothingStaged = reasonFor({ staged: true }, commands);
 
     return [
       { id: "open", title: "Open Repository…", run: () => void pickRepository() },
@@ -556,7 +556,28 @@
         run: () => void stashSelected(),
       },
       { id: "tag", title: "Create Tag", unavailable: noRepo, run: () => void refActions?.addTag(null) },
-      { id: "commit", title: "Commit Staged", unavailable: noRepo ?? nothingStaged, run: () => {} },
+      // The box decides whether it can commit: with Amend ticked nothing has to be staged.
+      {
+        id: "commit",
+        title: "Commit Staged",
+        shortcut: "Ctrl+Enter",
+        unavailable: noRepo,
+        run: () => void commitBox.commit(),
+      },
+      {
+        id: "commit-amend",
+        title: "Commit with Amend",
+        shortcut: "Ctrl+Shift+Enter",
+        unavailable: noRepo,
+        run: () => void commitBox.commit(true),
+      },
+      {
+        id: "commit-message",
+        title: "Go to the Commit Message",
+        shortcut: "Ctrl+K",
+        unavailable: noRepo,
+        run: () => void commitBox.focus(),
+      },
       {
         id: "undo",
         title: "Undo Last Operation",
