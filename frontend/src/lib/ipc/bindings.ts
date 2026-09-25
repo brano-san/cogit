@@ -610,6 +610,8 @@ export type ConflictText = {
 	base: string | null,
 	ours: string | null,
 	theirs: string | null,
+	/**  A side is binary or not UTF-8: it is taken whole, never merged or edited as text. */
+	binary: boolean,
 };
 
 export type ContentMatch = {

@@ -32,7 +32,7 @@ vi.mock("$lib/ipc", () => {
     ),
     resolveConflict: vi.fn(later("take")),
     conflictedPaths: vi.fn(read("conflicts", (repo) => [`of ${String(repo)}`])),
-    conflictText: vi.fn(async () => ({ base: "", ours: "", theirs: "" })),
+    conflictText: vi.fn(async () => ({ base: "", ours: "", theirs: "", binary: false })),
     mergePreview: vi.fn(async () => []),
   };
 });

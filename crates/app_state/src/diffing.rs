@@ -164,7 +164,13 @@ impl AppState {
         repo: RepoId,
         path: &str,
     ) -> Result<Vec<diff_engine::Region>, git_engine::GitError> {
-        let sides = self.handle(repo)?.conflict_sides(path)?.to_text();
+        let sides = self.handle(repo)?.conflict_sides(path)?;
+        if !sides.is_text() {
+            return Err(git_engine::GitError::InvalidState(format!(
+                "{path} is binary or not UTF-8: take one side whole"
+            )));
+        }
+        let sides = sides.to_text();
         Ok(diff_engine::merge3_with_syntax(
             sides.base.as_deref().unwrap_or_default(),
             sides.ours.as_deref().unwrap_or_default(),
