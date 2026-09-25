@@ -1,3 +1,5 @@
+import type { Branch, Head } from "$lib/ipc";
+
 export type PullScope = "current" | "all";
 
 export type SyncOrder = "pullThenPush" | "pushThenPull";
@@ -45,6 +47,16 @@ export function currentRemote(
     if (tracked) return tracked;
   }
   return remotes.includes("origin") ? "origin" : (remotes[0] ?? null);
+}
+
+/** `currentRemote` of a repository the panels do not show, from its refs alone. */
+export function headRemote(
+  refs: { head: Head; branches: readonly Branch[] },
+  remotes: readonly string[],
+): string | null {
+  const head = refs.head.kind === "branch" ? refs.head.name : null;
+  const branch = refs.branches.find((each) => each.kind === "local" && each.name === head);
+  return currentRemote(branch?.upstream, remotes);
 }
 
 export function remotesInOrder(remotes: readonly string[], current: string | null): string[] {
