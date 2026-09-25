@@ -25,6 +25,11 @@ pub const MENU: &[Submenu] = &[
                 label: "History of Current Line",
                 accelerator: None,
             },
+            Item {
+                action: "show-commit",
+                label: "Show Commit",
+                accelerator: None,
+            },
         ],
     },
 ];
@@ -108,6 +113,17 @@ mod tests {
         distinct.sort_unstable();
         distinct.dedup();
         assert_eq!(distinct.len(), actions.len());
+    }
+
+    // F-062: nothing in the window opened the commit that wrote a line.
+    #[test]
+    fn the_view_menu_shows_the_commit_of_the_current_line() {
+        assert!(
+            MENU.iter()
+                .filter(|submenu| submenu.title == "View")
+                .flat_map(|submenu| submenu.items)
+                .any(|item| item.action == "show-commit")
+        );
     }
 
     #[test]

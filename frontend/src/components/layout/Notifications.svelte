@@ -1,6 +1,7 @@
 <script lang="ts">
   import QueueNav from "$components/common/QueueNav.svelte";
   import type { HealthAction } from "$lib/health";
+  import { splitLinks } from "$lib/links";
   import { placesShown } from "$lib/notices";
   import { notices } from "$stores/notices.svelte";
 
@@ -102,7 +103,8 @@
       <p class="text">{notice.body}</p>
 
       {#if notice.output}
-        <pre class="output mono">{notice.output}</pre>
+        <!-- On one line: a <pre> keeps every space between the tags. -->
+        <pre class="output mono">{#each splitLinks(notice.output) as part, index (index)}{#if part.href}<a class="url" href={part.href} title={part.href} onclick={(event) => { event.preventDefault(); onopenurl(part.href ?? ""); }}>{part.text}</a>{:else}{part.text}{/if}{/each}</pre>
       {:else if notice.outputLines}
         <p class="hint">{notice.outputLines} lines of output — Show Output reads them all.</p>
       {/if}
@@ -272,6 +274,10 @@
   .text {
     overflow-wrap: anywhere;
     user-select: text;
+  }
+
+  .url {
+    color: var(--link);
   }
 
   .output {

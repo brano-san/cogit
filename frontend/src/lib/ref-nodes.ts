@@ -1,7 +1,7 @@
 import type { Branch, CommitRow, Head, StashEntry, Tag, WorktreeEntry } from "$lib/ipc";
-import { shortOid } from "$lib/format";
+import { shortDate, shortOid } from "$lib/format";
 import { compareDated, compareNames, DEFAULT_REF_SORT, type RefSort } from "$lib/ref-sort";
-import { worktreeMarks, type WorktreeMark } from "$lib/worktree-list";
+import { upstreamGone, worktreeMarks, type WorktreeMark } from "$lib/worktree-list";
 
 export type RefKind =
   | "head"
@@ -67,12 +67,17 @@ function matches(node: { label: string; oid?: string }, filter: string): boolean
   );
 }
 
-function upstreamDetail(branch: Branch): string | undefined {
+/** The date first: a long message is what the row cuts short. A stash keeps no timezone,
+    so it is this machine's. */
+function stashDate(timestamp: number): string {
+  return shortDate(timestamp, -new Date(timestamp * 1000).getTimezoneOffset());
+}
+
+function upstreamDetail(branch: Branch, branches: readonly Branch[]): string | undefined {
   if (branch.upstream === null) return undefined;
-  if (branch.ahead === 0 && branch.behind === 0) {
-    const remote = branch.upstream.split("/")[0] ?? branch.upstream;
-    return `= ${remote}`;
-  }
+  const remote = branch.upstream.split("/")[0] ?? branch.upstream;
+  if (upstreamGone(branch, branches)) return `${remote}: gone`;
+  if (branch.ahead === 0 && branch.behind === 0) return `= ${remote}`;
   return `↑${branch.ahead} ↓${branch.behind}`;
 }
 
@@ -182,7 +187,7 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
       label: branch.name,
       depth: 1,
       current: branch.isHead || undefined,
-      detail: upstreamDetail(branch),
+      detail: upstreamDetail(branch, input.branches),
       rev: branch.fullName,
       oid: branch.oid,
       branch,
@@ -230,6 +235,7 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
       rev: tag.fullName,
       oid: tag.oid,
       tag,
+      detail: tag.isAnnotated ? "annotated" : undefined,
       disabled: tag.pointsToCommit ? undefined : "Tag does not point to a commit",
     }))
     .filter((node) => matches(node, input.filter));
@@ -244,7 +250,7 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
       kind: "stash",
       label: `stash@{${entry.index}}`,
       depth: 1,
-      detail: entry.message,
+      detail: `${stashDate(entry.timestamp)} · ${entry.message}`,
       rev: `stash@{${entry.index}}`,
       oid: entry.oid,
     }))

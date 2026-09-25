@@ -59,6 +59,13 @@ export function changedSince(
   return new Set(at <= 0 ? [] : revisions.slice(0, at).map((row) => row.oid));
 }
 
+/** The commit to show for a line; `null` past the end or for a line no commit wrote yet,
+    which git blames on the all-zero id. */
+export function commitOfLine(lines: readonly { oid: string }[], at: number): string | null {
+  const oid = lines[at]?.oid;
+  return oid === undefined || /^0+$/.test(oid) ? null : oid;
+}
+
 /** Only the first line of a run from one commit carries the annotation, as `git blame`. */
 export function startsBlock(lines: readonly { oid: string }[], at: number): boolean {
   return at === 0 || lines[at - 1]?.oid !== lines[at]?.oid;

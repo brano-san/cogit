@@ -202,6 +202,11 @@ export const commands = {
 	locked: string | null,
 	missing: boolean,
 	dirty: boolean,
+	/**
+	 *  Submodules checked out in it: git removes such a worktree only with `--force`, which
+	 *  deletes their repositories too.
+	 */
+	hasSubmodules: boolean,
 } | null, GitError>(__TAURI_INVOKE("worktree_holding", { repo, branch })),
 	addWorktree: (repo: RepoId, path: string, branch: string, create: boolean, base: string | null) => typedError<null, GitError>(__TAURI_INVOKE("add_worktree", { repo, path, branch, create, base })),
 	removeWorktree: (repo: RepoId, path: string, force: boolean) => typedError<null, GitError>(__TAURI_INVOKE("remove_worktree", { repo, path, force })),
@@ -410,6 +415,7 @@ export const events = {
 	mergeResolved: makeEvent<MergeResolved>("merge-resolved"),
 	operationChanged: makeEvent<OperationChanged>("operation-changed"),
 	repoChanged: makeEvent<RepoChanged>("repo-changed"),
+	revealCommit: makeEvent<RevealCommit>("reveal-commit"),
 	sessionEnding: makeEvent<SessionEnding>("session-ending"),
 };
 
@@ -1381,6 +1387,15 @@ export type RepoSummary = {
 export type ResetMode = "soft" | "mixed" | "hard" | "keep" | "merge";
 
 /**
+ *  The Blame window asks the main one to select this commit and scroll the graph to it.
+ *  The page emits it itself: nothing on this side has to happen in between.
+ */
+export type RevealCommit = {
+	repo: RepoId,
+	oid: string,
+};
+
+/**
  *  What the journal shows. The means of undoing stays in `Undoable`, on this side of
  *  the boundary: it can be as large as the change itself and the panel never reads it.
  */
@@ -1595,6 +1610,11 @@ export type WorktreeEntry = {
 	locked: string | null,
 	missing: boolean,
 	dirty: boolean,
+	/**
+	 *  Submodules checked out in it: git removes such a worktree only with `--force`, which
+	 *  deletes their repositories too.
+	 */
+	hasSubmodules: boolean,
 };
 
 export type WorktreeFiles = {

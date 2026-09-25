@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { branchNameProblem, optional, textProblem } from "./names";
+import { branchNameProblem, optional, promptProblem, textProblem } from "./names";
 
 describe("branchNameProblem", () => {
   it("refuses what git refuses and a name already taken", () => {
@@ -21,5 +21,24 @@ describe("rules for what is not a branch", () => {
 
   it("lets an optional field stay empty", () => {
     expect(optional()).toBeNull();
+  });
+});
+
+describe("promptProblem", () => {
+  // `validate?.(text) ?? emptyCheck`: optional() answers null, and `??` fell through to
+  // "Enter a value." — a release could not be finished without a tag.
+  it("lets the validator accept an empty value", () => {
+    expect(promptProblem("", optional)).toBeNull();
+  });
+
+  it("goes by the validator's answer when it has one", () => {
+    expect(promptProblem("main", (value) => (value === "main" ? "main already exists." : null))).toBe(
+      "main already exists.",
+    );
+  });
+
+  it("asks for something when there is no validator", () => {
+    expect(promptProblem("  ")).toBe("Enter a value.");
+    expect(promptProblem("x")).toBeNull();
   });
 });

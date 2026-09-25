@@ -317,6 +317,7 @@ describe("branchesStashMenu (#35)", () => {
     const menu = branchesStashMenu(elsewhere, rows);
     expect(shape(menu)).toEqual([
       "Apply Stash",
+      "Pop Stash",
       "—",
       "Reveal Commit",
       "Compare with HEAD",
@@ -331,6 +332,13 @@ describe("branchesStashMenu (#35)", () => {
       "Toggle",
     ]);
     wellFormed(menu);
+  });
+});
+
+describe("branchesStashMenu Pop (F-040)", () => {
+  it("offers Pop beside Apply: apply and drop the entry in one go", () => {
+    const pop = find(branchesStashMenu(elsewhere, rows), "Pop Stash");
+    expect(pop.enabled).toBe(true);
   });
 });
 

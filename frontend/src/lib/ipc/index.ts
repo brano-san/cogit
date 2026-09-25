@@ -24,6 +24,7 @@ import type {
   MergeResolved,
   ModuleProblem,
   CommandNotice,
+  RevealCommit,
   OperationChanged,
   PatchRequest,
   RebaseOptions,
@@ -105,6 +106,7 @@ export type {
   MergeResolved,
   OperationChanged,
   Origin,
+  RevealCommit,
   Overlap,
   OverlapRow,
   PresetStatus,
@@ -856,6 +858,15 @@ export async function mergeResolved(repo: RepoId, path: string) {
 
 export async function onMergeResolved(handler: (event: MergeResolved) => void) {
   return await counted(events.mergeResolved.listen((event) => handler(event.payload)));
+}
+
+/** From the Blame window: the main one selects the commit and scrolls the graph to it. */
+export async function revealCommit(repo: RepoId, oid: string) {
+  await events.revealCommit.emit({ repo, oid });
+}
+
+export async function onRevealCommit(handler: (event: RevealCommit) => void) {
+  return await counted(events.revealCommit.listen((event) => handler(event.payload)));
 }
 
 /** The three sides already merged into regions, for the four-panel merge view. */

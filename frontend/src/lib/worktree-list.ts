@@ -1,5 +1,5 @@
 import { shortOid } from "$lib/format";
-import type { Branch, WorktreeEntry } from "$lib/ipc";
+import type { Branch, FileEntry, WorktreeEntry } from "$lib/ipc";
 
 export interface WorktreeTag {
   id: "main" | "locked" | "missing" | "dirty";
@@ -60,6 +60,25 @@ export function removable(entry: WorktreeEntry | undefined): entry is WorktreeEn
   return entry !== undefined && !entry.isMain && !entry.isCurrent && !entry.missing;
 }
 
+export interface RemovalNeeds {
+  dirty: boolean;
+  submodules: boolean;
+  /** Git removes the worktree only with `--force`, which the dialog asks for separately. */
+  force: boolean;
+}
+
+/** `changes` is `null` while they are still being read. Git refuses a worktree with
+    submodules checked out however clean it is, so that takes `--force` too. */
+export function removalNeeds(
+  entry: WorktreeEntry,
+  changes: readonly FileEntry[] | null,
+): RemovalNeeds {
+  if (changes === null) return { dirty: false, submodules: false, force: false };
+  const dirty = changes.length > 0;
+  const submodules = entry.hasSubmodules;
+  return { dirty, submodules, force: dirty || submodules };
+}
+
 export interface BranchChoice {
   name: string;
   /** Where the branch is checked out already; such a branch cannot go in a new worktree. */
@@ -101,6 +120,12 @@ export function addProblem(input: {
   return null;
 }
 
+/** `[origin/x: gone]`: the config still names the tracking branch, but a pruning fetch
+    took its ref, so ahead and behind count against nothing. */
+export function upstreamGone(branch: Branch, branches: readonly Branch[]): boolean {
+  return branch.upstream !== null && !branches.some((other) => other.name === branch.upstream);
+}
+
 export type WorktreeState = "changes" | "synced" | "unpushed" | "missing";
 
 /** A branch another worktree has checked out, as Branches marks it (#25). */
@@ -122,7 +147,11 @@ export function worktreeMarks(
   for (const entry of entries) {
     if (entry.isCurrent || !entry.branch) continue;
     const branch = locals.get(entry.branch);
-    const pushed = branch !== undefined && branch.upstream !== null && branch.ahead === 0;
+    const pushed =
+      branch !== undefined &&
+      branch.upstream !== null &&
+      !upstreamGone(branch, branches) &&
+      branch.ahead === 0;
     const state: WorktreeState = entry.missing
       ? "missing"
       : entry.dirty

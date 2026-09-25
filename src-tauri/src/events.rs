@@ -22,6 +22,15 @@ pub struct MergeResolved {
     pub path: String,
 }
 
+/// The Blame window asks the main one to select this commit and scroll the graph to it.
+/// The page emits it itself: nothing on this side has to happen in between.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
+#[serde(rename_all = "camelCase")]
+pub struct RevealCommit {
+    pub repo: app_state::RepoId,
+    pub oid: String,
+}
+
 /// A native menu item was chosen. The payload is the palette command id, so the frontend
 /// runs the same code path the palette would.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]

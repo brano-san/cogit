@@ -16,6 +16,17 @@ pub enum Recovery {
     Stash {
         oid: String,
     },
+    /// A stash taken off the list: undo lists it again at the place it had, and leaves the
+    /// working tree alone.
+    DroppedStash {
+        entry: git_engine::StashEntry,
+    },
+    /// A past version written over the paths. Undo stashes it away, as a discard keeps
+    /// what it removes, then applies the stash of the work it replaced, if there was any.
+    Rollback {
+        paths: Vec<String>,
+        stash: Option<String>,
+    },
     /// The branch was deleted: undo creates it again.
     Branch {
         name: String,
@@ -26,6 +37,14 @@ pub enum Recovery {
     Moved {
         name: String,
         oid: String,
+    },
+    /// HEAD was reset from `oid`; `branch` is `None` when it was detached. A hard reset
+    /// also keeps the stash of what it threw away, taken on `oid`.
+    Reset {
+        branch: Option<String>,
+        oid: String,
+        mode: git_engine::ResetMode,
+        stash: Option<String>,
     },
     Tag {
         name: String,
@@ -109,8 +128,29 @@ impl AppState {
         let handle = self.handle(repo)?;
         match &held.recovery {
             Recovery::Stash { oid } => handle.stash_apply(oid)?,
+            Recovery::DroppedStash { entry } => handle.restore_stash(entry)?,
+            Recovery::Rollback { paths, stash } => {
+                handle
+                    .stash_paths(paths, "cogit: before undoing a rollback")
+                    .map_err(|err| crate::backup_failed("undoing the rollback of", &err))?;
+                if let Some(oid) = stash {
+                    handle.stash_apply(oid)?;
+                }
+            }
             Recovery::Branch { name, oid } => handle.create_branch(name, Some(oid), false)?,
-            Recovery::Moved { name, oid } => handle.move_branch_back(name, oid)?,
+            Recovery::Moved { name, oid } => {
+                wait_for_the_operation(&handle)?;
+                handle.move_branch_back(name, oid)?;
+            }
+            Recovery::Reset {
+                branch,
+                oid,
+                mode,
+                stash,
+            } => {
+                wait_for_the_operation(&handle)?;
+                undo_reset(&handle, branch.as_deref(), oid, *mode, stash.as_deref())?;
+            }
             Recovery::Tag { name, oid } => handle.create_tag(&git_engine::TagRequest {
                 name: name.clone(),
                 target: Some(oid.clone()),
@@ -167,4 +207,54 @@ impl AppState {
             );
         }
     }
+}
+
+/// Git refuses to move a branch under a stopped merge or rebase and says nothing of what to
+/// do; aborting on the user's behalf would throw away what they have resolved so far.
+fn wait_for_the_operation(handle: &git_engine::RepoHandle) -> Result<(), git_engine::GitError> {
+    if handle.state()?.is_interrupted_operation() {
+        return Err(git_engine::GitError::InvalidState(
+            "an operation is in progress: continue or abort it, then undo".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+/// Soft and mixed never touched the files, so the same mode reverses them exactly; the
+/// others go back through `keep`, which refuses rather than overwrites what changed since.
+/// A hard reset's stash was taken on the old tip, so it goes back once HEAD is there.
+fn undo_reset(
+    handle: &git_engine::RepoHandle,
+    branch: Option<&str>,
+    oid: &str,
+    mode: git_engine::ResetMode,
+    stash: Option<&str>,
+) -> Result<(), git_engine::GitError> {
+    use git_engine::{Head, ResetMode};
+    let on_it = match (handle.head()?, branch) {
+        (Head::Branch { name, .. }, Some(branch)) => name == branch,
+        (Head::Detached { .. }, None) => true,
+        _ => false,
+    };
+    match (on_it, branch, stash) {
+        (true, ..) => {}
+        (false, Some(branch), None) => return handle.move_branch_back(branch, oid),
+        (false, Some(branch), Some(_)) => {
+            return Err(git_engine::GitError::InvalidState(format!(
+                "check out {branch} to undo its reset: the changes it saved belong there"
+            )));
+        }
+        (false, None, _) => {
+            return Err(git_engine::GitError::InvalidState(
+                "HEAD is on a branch now; the reset of the detached HEAD cannot be undone here"
+                    .to_owned(),
+            ));
+        }
+    }
+    let back = match mode {
+        ResetMode::Soft | ResetMode::Mixed => mode,
+        ResetMode::Hard | ResetMode::Keep | ResetMode::Merge => ResetMode::Keep,
+    };
+    handle.reset(oid, back)?;
+    stash.map_or(Ok(()), |stash| handle.stash_apply(stash))
 }

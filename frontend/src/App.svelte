@@ -2561,7 +2561,7 @@
     }
     if (command.kind === "move-new") {
       void prompt
-        .ask({ title: "New Group", label: "Name", confirm: "Create", validate: () => null })
+        .ask({ title: "New Group", label: "Name", confirm: "Create", validate: textProblem })
         .then((name) => {
           if (name === null) return;
           repoGroups.add(name);
@@ -2683,7 +2683,7 @@
       label: "Name shown in the list; the folder keeps its name",
       value: current,
       confirm: "Rename",
-      validate: () => null,
+      validate: textProblem,
     });
     if (name !== null) repoList.rename(root, name);
   }
@@ -2953,6 +2953,12 @@
         if (repository.current?.repo.valueOf() !== event.repo.valueOf()) return;
         conflicts.close();
         void afterWorkingTreeChange();
+      },
+      revealCommit: (event) => {
+        if (repository.current?.repo.valueOf() !== event.repo.valueOf()) return;
+        stashView.clear();
+        void commit.select(event.repo, event.oid);
+        graph.requestReveal(event.oid);
       },
       commandRecorded: (event) => void output.notice(event),
       closeRequested: mayClose,

@@ -652,3 +652,236 @@ fn a_pull_can_be_undone() {
 
     assert_eq!(head_oid(&state, repo), before);
 }
+
+fn command_output(err: &git_engine::GitError) -> String {
+    match err {
+        git_engine::GitError::Command(command) => format!("{}{}", command.stdout, command.stderr),
+        other => panic!("expected git's own output, got {other:?}"),
+    }
+}
+
+// `stash apply --index` stopped on the conflict and wrote its markers; the retry without
+// `--index` then failed with "needs merge", and that was all the user saw.
+#[test]
+fn undoing_a_discard_over_a_conflicting_commit_shows_the_conflict() {
+    let f = test_fixtures::linear(1).unwrap();
+    let (state, repo) = open(&f);
+    f.write_file("file0.txt", "work in progress\n").unwrap();
+    state
+        .discard_paths(repo, &["file0.txt".to_owned()])
+        .unwrap();
+    f.commit_file(5, "file0.txt", "committed meanwhile\n")
+        .unwrap();
+
+    let err = state.undo_last(repo).unwrap_err();
+
+    assert!(command_output(&err).contains("CONFLICT"), "{err:?}");
+}
+
+fn merge_side(state: &AppState, repo: RepoId) -> Result<(), git_engine::GitError> {
+    state.merge(
+        repo,
+        &git_engine::MergeOptions {
+            source: "side".to_owned(),
+            no_fast_forward: false,
+            squash: false,
+            message: None,
+        },
+    )
+}
+
+// `reset --keep` refuses in the middle of a merge and `branch --force` refuses a branch a
+// rebase has checked out: Undo failed with git's refusal and no word of what to do.
+#[test]
+fn undo_waits_for_a_merge_stopped_on_its_conflict() {
+    let f = about_to_conflict();
+    let (state, repo) = open(&f);
+    assert!(merge_side(&state, repo).is_err());
+
+    let err = state.undo_last(repo).unwrap_err();
+
+    assert!(
+        matches!(&err, git_engine::GitError::InvalidState(why) if why.contains("abort")),
+        "{err:?}"
+    );
+    assert!(
+        f.git_dir().join("MERGE_HEAD").exists(),
+        "the merge is left alone"
+    );
+    assert!(
+        state.safety_log()[0].undoable,
+        "Undo still works once it is over"
+    );
+}
+
+#[test]
+fn undo_waits_for_a_rebase_stopped_on_its_conflict() {
+    let f = about_to_conflict();
+    let (state, repo) = open(&f);
+    let rebased = state.rebase(
+        repo,
+        &git_engine::RebaseOptions {
+            onto: "side".to_owned(),
+            autostash: false,
+        },
+    );
+    assert!(rebased.is_err());
+
+    let err = state.undo_last(repo).unwrap_err();
+
+    assert!(
+        matches!(&err, git_engine::GitError::InvalidState(why) if why.contains("abort")),
+        "{err:?}"
+    );
+}
+
+fn text(f: &test_fixtures::Fixture, name: &str) -> String {
+    std::fs::read_to_string(f.path().join(name)).unwrap()
+}
+
+// The rollback leaves the paths changed, so applying the stash of the work it replaced
+// was refused with "would be overwritten by merge" every time.
+#[test]
+fn undoing_a_rollback_brings_back_the_work_it_replaced() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.commit_file(2, "a.txt", "v1\n").unwrap();
+    f.commit_file(3, "a.txt", "v2\n").unwrap();
+    let (state, repo) = open(&f);
+    f.write_file("a.txt", "work in progress\n").unwrap();
+
+    state
+        .rollback_to(repo, "HEAD~1", &["a.txt".to_owned()])
+        .unwrap();
+    assert_eq!(text(&f, "a.txt"), "v1\n");
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(text(&f, "a.txt"), "work in progress\n");
+}
+
+#[test]
+fn a_rollback_of_a_clean_file_can_be_undone_too() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.commit_file(2, "a.txt", "v1\n").unwrap();
+    f.commit_file(3, "a.txt", "v2\n").unwrap();
+    let (state, repo) = open(&f);
+
+    state
+        .rollback_to(repo, "HEAD~1", &["a.txt".to_owned()])
+        .unwrap();
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(text(&f, "a.txt"), "v2\n");
+}
+
+// Undo applied the dropped stash to the working tree instead of listing it again.
+#[test]
+fn undoing_a_stash_drop_lists_the_stash_again_in_its_place() {
+    let f = test_fixtures::with_stashes(3).unwrap();
+    let (state, repo) = open(&f);
+    let before = state.stashes(repo).unwrap();
+
+    state.stash_drop(repo, 1).unwrap();
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(state.stashes(repo).unwrap(), before);
+    assert!(
+        f.git(&["status", "--porcelain"]).unwrap().is_empty(),
+        "the working tree is left alone"
+    );
+}
+
+// Undo applied the stash taken at the old tip on top of the new one: the branch stayed
+// where the reset put it and the file got conflict markers.
+#[test]
+fn undoing_a_hard_reset_puts_the_branch_back_with_the_work_on_it() {
+    let f = test_fixtures::linear(1).unwrap();
+    let target = f.commit_file(2, "f.txt", "v1\n").unwrap();
+    let tip = f.commit_file(3, "f.txt", "v2\n").unwrap();
+    let (state, repo) = open(&f);
+    f.write_file("f.txt", "v2 and work\n").unwrap();
+
+    state
+        .reset_to(repo, &target, git_engine::ResetMode::Hard)
+        .unwrap();
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(head_oid(&state, repo), tip);
+    assert_eq!(text(&f, "f.txt"), "v2 and work\n");
+}
+
+#[test]
+fn undoing_a_mixed_reset_puts_the_branch_back() {
+    let f = test_fixtures::linear(3).unwrap();
+    let (state, repo) = open(&f);
+    let tip = head_oid(&state, repo);
+
+    state
+        .reset_to(repo, "HEAD~2", git_engine::ResetMode::Mixed)
+        .unwrap();
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(head_oid(&state, repo), tip);
+    assert!(f.git(&["status", "--porcelain"]).unwrap().is_empty());
+}
+
+#[test]
+fn undoing_a_soft_reset_puts_the_branch_back() {
+    let f = test_fixtures::linear(3).unwrap();
+    let (state, repo) = open(&f);
+    let tip = head_oid(&state, repo);
+
+    state
+        .reset_to(repo, "HEAD~2", git_engine::ResetMode::Soft)
+        .unwrap();
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(head_oid(&state, repo), tip);
+    assert!(f.git(&["status", "--porcelain"]).unwrap().is_empty());
+}
+
+// The rebase returned early on its conflict, before anything was recorded: once the user
+// resolved it and continued, there was nothing to undo.
+#[test]
+fn an_interactive_rebase_finished_after_its_conflict_can_be_undone() {
+    let f = test_fixtures::linear(1).unwrap();
+    let base = f.commit_file(2, "c.txt", "a\n").unwrap();
+    let middle = f.commit_file(3, "c.txt", "b\n").unwrap();
+    let tip = f.commit_file(4, "c.txt", "c\n").unwrap();
+    let (state, repo) = open(&f);
+    let plan = [
+        git_engine::TodoEntry {
+            oid: middle,
+            action: git_engine::TodoAction::Drop,
+            message: None,
+        },
+        git_engine::TodoEntry {
+            oid: tip.clone(),
+            action: git_engine::TodoAction::Pick,
+            message: None,
+        },
+    ];
+    assert!(state.interactive_rebase(repo, &base, &plan, false).is_err());
+    f.write_file("c.txt", "c\n").unwrap();
+    f.git(&["add", "c.txt"]).unwrap();
+    state.continue_operation(repo).unwrap();
+    assert_ne!(head_oid(&state, repo), tip);
+
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(head_oid(&state, repo), tip);
+}
+
+#[test]
+fn an_author_edit_can_be_undone() {
+    let f = test_fixtures::linear(3).unwrap();
+    let (state, repo) = open(&f);
+    let tip = head_oid(&state, repo);
+
+    state
+        .edit_author(repo, "HEAD~1", "Someone Else", "else@example.com")
+        .unwrap();
+    assert_ne!(head_oid(&state, repo), tip);
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(head_oid(&state, repo), tip);
+}
