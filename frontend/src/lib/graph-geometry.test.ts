@@ -19,6 +19,7 @@ import {
   visibleRange,
   HEADER_ROWS,
   headNode,
+  keyTarget,
   toCommitRow,
   toListRow,
 } from "./graph-geometry";
@@ -194,6 +195,28 @@ describe("setLaneWidth", () => {
   it("rounds to whole pixels so lines stay crisp", () => {
     setLaneWidth(16.4);
     expect(GRAPH.laneWidth).toBe(16);
+  });
+});
+
+describe("keyTarget", () => {
+  // Scrolled 10 000 rows away: the selected commit's block was evicted.
+  const rows = {
+    loadedIndexOf: (oid: string | null) => (oid === "near" ? 3 : null),
+    indexOf: async (oid: string) => ({ near: 3, far: 600 })[oid] ?? null,
+  };
+
+  it("moves from a selected commit whose block is not loaded, not from the top", async () => {
+    expect(await keyTarget(rows, "far", "ArrowDown", 1000, 20)).toBe(601);
+    expect(await keyTarget(rows, "far", "PageUp", 1000, 20)).toBe(580);
+  });
+
+  it("moves from a loaded selection as before", async () => {
+    expect(await keyTarget(rows, "near", "ArrowUp", 1000, 20)).toBe(2);
+  });
+
+  it("starts at the top with nothing selected or a commit this graph lacks", async () => {
+    expect(await keyTarget(rows, null, "ArrowDown", 1000, 20)).toBe(0);
+    expect(await keyTarget(rows, "gone", "ArrowDown", 1000, 20)).toBe(0);
   });
 });
 
