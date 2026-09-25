@@ -27,6 +27,13 @@ class FlowStore {
     if (generation === this.#generation) this.status = status;
   }
 
+  /** Read again before Finish: a checkout in Branches or a terminal moves HEAD off the
+      branch the last read found, and Finish merges and deletes what it names. */
+  async headNow(repo: RepoId) {
+    await this.refresh(repo);
+    return this.current;
+  }
+
   async init(repo: RepoId): Promise<void> {
     const config = this.status.config;
     await this.#then(repo, () => flowInit(repo, config));

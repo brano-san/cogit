@@ -471,6 +471,8 @@
       id ? stashes.refresh(id) : Promise.resolve(),
       id ? network.refresh(id) : Promise.resolve(),
       id ? recovery.refresh(id) : Promise.resolve(),
+      // A checkout anywhere, in Branches or a terminal, moves which flow branch HEAD is on.
+      id ? flow.refresh(id) : Promise.resolve(),
       submodules.refresh(),
       id ? conflicts.refresh(id, conflicted ?? undefined) : Promise.resolve(),
       output.refreshProblems(),
@@ -1384,7 +1386,6 @@
     void reloadGraph();
     void refs.loadUrls(opened.repo);
     void worktrees.refresh(opened.repo);
-    void flow.refresh(opened.repo);
     await afterMutation();
   }
 
@@ -1741,6 +1742,7 @@
     recovery.clear();
     conflicts.clear();
     stashView.clear();
+    flow.clear();
     if (!keepWorktrees) worktrees.clear();
     refs.clear();
   }
@@ -1775,7 +1777,6 @@
       void timed(story, "graph", () => reloadGraph());
       void refs.loadUrls(opened.repo);
       void worktrees.refresh(opened.repo);
-      void flow.refresh(opened.repo);
       await timed(story, "repository list", () => repository.refreshList());
       await timed(story, "everything else", () => afterMutation());
       trace(story, "activate: done");
@@ -1815,7 +1816,6 @@
     void reloadGraph();
     void refs.loadUrls(opened.repo);
     void worktrees.refresh(opened.repo);
-    void flow.refresh(opened.repo);
     await afterMutation();
   }
 
@@ -2348,10 +2348,22 @@
 
   async function askFlowFinish() {
     const id = repository.current?.repo;
-    const branch = flow.current;
-    if (!id || !branch) return;
+    if (!id) return;
+    const branch = await flow.headNow(id);
+    if (repository.current?.repo !== id) return;
+    if (!branch) {
+      errors.message("HEAD is not on a Git-Flow branch.", "Could not finish the branch");
+      return;
+    }
     if (branch.kind === "feature") {
-      void runFlow(() => flow.finish(id, branch.kind, branch.name, null));
+      const develop = flow.status.config.develop;
+      const go = await confirmation.ask({
+        title: `Finish ${branch.full}`,
+        message: `Merge ${branch.full} into ${develop} and delete it?`,
+        confirm: "Finish",
+        warning: true,
+      });
+      if (go) await runFlow(() => flow.finish(id, branch.kind, branch.name, null));
       return;
     }
     const tag = await prompt.ask({
@@ -2518,7 +2530,6 @@
     void reloadGraph();
     void refs.loadUrls(opened.repo);
     void worktrees.refresh(opened.repo);
-    void flow.refresh(opened.repo);
     await afterMutation();
   }
 
