@@ -85,6 +85,29 @@ fn several_bypasses_accumulate_newest_first() {
     assert_eq!(log[0].summary, "bypass for b.txt", "{log:?}");
 }
 
+// F-094 keeps one log per clone, but a linked worktree has a git directory of its own:
+// its bypasses never reached the main one's summary and went with `worktree remove`.
+#[test]
+fn a_bypass_in_a_linked_worktree_is_in_the_clones_log() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let listing = f.git(&["worktree", "list", "--porcelain"]).unwrap();
+    let linked = listing
+        .lines()
+        .filter_map(|line| line.strip_prefix("worktree "))
+        .nth(1)
+        .map(std::path::PathBuf::from)
+        .unwrap();
+    std::fs::write(linked.join("wt.txt"), "content\n").unwrap();
+    f.git_in(&linked, &["add", "--", "wt.txt"]).unwrap();
+
+    RepoHandle::open(&linked)
+        .unwrap()
+        .commit(&request("skip in the worktree", true))
+        .unwrap();
+
+    assert_eq!(open(&f).bypass_log().unwrap().len(), 1);
+}
+
 #[test]
 fn a_corrupt_record_is_skipped_rather_than_failing_the_read() {
     let f = test_fixtures::linear(1).unwrap();
