@@ -1,7 +1,9 @@
-import { safetyLog, undoEntry, undoLast, type RepoId, type SafetyEntry } from "$lib/ipc";
+import { safetyLog, undoEntry, type RepoId, type SafetyEntry } from "$lib/ipc";
 
 class SafetyStore {
   entries = $state.raw<SafetyEntry[]>([]);
+
+  #undoing = false;
 
   /** What Undo would undo in `repo`: the journal holds every repository's entries, and
       Undo acts on the one on screen. */
@@ -14,10 +16,18 @@ class SafetyStore {
     this.entries = await safetyLog();
   }
 
-  async undo(repo: RepoId): Promise<SafetyEntry> {
-    const entry = await undoLast(repo);
-    await this.refresh();
-    return entry;
+  /** Undo in the toolbar and the palette: the entry its tooltip names, by id. The newest
+      one when the queue gets to it may be a write queued since, which is not what the user
+      saw. A click while one runs is dropped. Null when nothing was undone. */
+  async undoShown(repo: RepoId): Promise<SafetyEntry | null> {
+    const shown = this.lastFor(repo);
+    if (!shown || this.#undoing) return null;
+    this.#undoing = true;
+    try {
+      return await this.undoOne(repo, shown.id);
+    } finally {
+      this.#undoing = false;
+    }
   }
 
   /** Undoing an older entry is allowed: each recovery restores its own thing (T5.7). */
