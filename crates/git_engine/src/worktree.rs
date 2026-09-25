@@ -223,6 +223,8 @@ fn worktree_status(status: &EntryStatus<(), gix::submodule::Status>) -> Option<F
         EntryStatus::Conflict { .. } => Some(FileStatus::Conflicted),
         EntryStatus::Change(WorktreeChange::Removed) => Some(FileStatus::Deleted),
         EntryStatus::Change(_) => Some(FileStatus::Modified),
-        EntryStatus::NeedsUpdate(_) | EntryStatus::IntentToAdd => None,
+        // `git add -N`: git lists it as a new file not staged for commit.
+        EntryStatus::IntentToAdd => Some(FileStatus::Added),
+        EntryStatus::NeedsUpdate(_) => None,
     }
 }

@@ -133,3 +133,16 @@ fn a_clean_repository_has_no_conflicted_paths_either() {
     assert!(state.status.is_clean());
     assert!(state.conflicted.is_empty());
 }
+
+// A clean status let a hard reset go without its safety stash, and git's `reset --hard`
+// deletes an intent-to-add file.
+#[test]
+fn an_intent_to_add_file_is_an_unstaged_change() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file("planned.txt", "soon\n").unwrap();
+    f.git(&["add", "-N", "--", "planned.txt"]).unwrap();
+    let repo = RepoHandle::open(f.path()).unwrap();
+
+    assert_eq!(repo.status().unwrap().unstaged, 1);
+    assert!(repo.has_changes().unwrap());
+}

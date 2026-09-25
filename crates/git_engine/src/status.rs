@@ -54,8 +54,8 @@ impl RepoHandle {
                         status.conflicted += 1;
                         conflicted.push(rela_path.to_string());
                     }
-                    EntryStatus::Change(_) => status.unstaged += 1,
-                    EntryStatus::NeedsUpdate(_) | EntryStatus::IntentToAdd => {}
+                    EntryStatus::Change(_) | EntryStatus::IntentToAdd => status.unstaged += 1,
+                    EntryStatus::NeedsUpdate(_) => {}
                 },
                 Item::IndexWorktree(WorktreeItem::DirectoryContents { entry, .. }) => {
                     if matches!(entry.status, gix::dir::entry::Status::Untracked) {
@@ -80,7 +80,12 @@ impl RepoHandle {
             let counts = match item {
                 Item::TreeIndex(_) => true,
                 Item::IndexWorktree(WorktreeItem::Modification { status: entry, .. }) => {
-                    matches!(entry, EntryStatus::Conflict { .. } | EntryStatus::Change(_))
+                    matches!(
+                        entry,
+                        EntryStatus::Conflict { .. }
+                            | EntryStatus::Change(_)
+                            | EntryStatus::IntentToAdd
+                    )
                 }
                 Item::IndexWorktree(WorktreeItem::DirectoryContents { entry, .. }) => {
                     matches!(entry.status, gix::dir::entry::Status::Untracked)
