@@ -163,6 +163,8 @@ pub enum DiffRow {
       плюс `staging_only_deletions_while_insertions_exist_in_the_same_hunk` на сборку патча
 - [x] Файл с CRLF — `a_crlf_file_keeps_its_line_endings_after_partial_staging`
 - [x] Файл без завершающего перевода строки (`\ No newline at end of file`)
+- [x] Выбранные строки после последней строки без перевода: она его получает, как у
+      git-gui — `a_line_added_after_a_last_line_without_a_newline_stages_on_a_line_of_its_own`
 - [x] Новый файл (нет старой версии) —
       `staging_a_line_of_a_file_that_has_no_committed_version_creates_it_in_the_index`
 - [x] Удалённый файл — `staging_the_removal_of_every_line_records_the_file_as_deleted`

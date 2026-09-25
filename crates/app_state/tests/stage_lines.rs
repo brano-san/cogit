@@ -313,3 +313,45 @@ fn a_line_that_is_not_utf8_is_not_staged_as_something_else() {
     assert!(result.is_err(), "{result:?}");
     assert_eq!(index_text(&f, "latin.txt"), "a\nb\n");
 }
+
+// The index ends on `x` without a newline; the working file adds a newline and `y`. An
+// unselected `-x` became context carrying the marker, and the `+y` after it was glued onto
+// that line: the index got `xy`.
+#[test]
+fn a_line_added_after_a_last_line_without_a_newline_stages_on_a_line_of_its_own() {
+    let f = test_fixtures::empty().unwrap();
+    f.commit_file(1, "f.txt", "a\nx").unwrap();
+    f.write_file("f.txt", "a\nx\ny\n").unwrap();
+    let (state, repo) = opened(&f);
+
+    state
+        .stage_selection(
+            repo,
+            &request("f.txt", "a\nx", "a\nx\ny\n", Vec::new(), vec![3]),
+            false,
+        )
+        .unwrap();
+
+    assert_eq!(index_text(&f, "f.txt"), "a\nx\ny\n");
+}
+
+// The mirror of it on Unstage: the patch goes on in reverse, so the unselected insertions
+// are context after a `-x` that carried the marker, and git refused the patch.
+#[test]
+fn unstaging_the_removal_of_a_last_line_without_a_newline_keeps_the_lines_after_it() {
+    let f = test_fixtures::empty().unwrap();
+    f.commit_file(1, "f.txt", "a\nx").unwrap();
+    f.write_file("f.txt", "a\nx\ny\n").unwrap();
+    f.git(&["add", "f.txt"]).unwrap();
+    let (state, repo) = opened(&f);
+
+    state
+        .stage_selection(
+            repo,
+            &request("f.txt", "a\nx", "a\nx\ny\n", vec![2], Vec::new()),
+            true,
+        )
+        .unwrap();
+
+    assert_eq!(index_text(&f, "f.txt"), "a\nx\nx\ny\n");
+}
