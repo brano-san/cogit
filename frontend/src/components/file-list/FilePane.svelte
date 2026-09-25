@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import Disclosure from "$components/common/Disclosure.svelte";
   import KindIcon, { type Kind } from "$components/common/KindIcon.svelte";
   import VirtualList from "$components/common/VirtualList.svelte";
@@ -6,6 +7,7 @@
   import type { FileEntry } from "$lib/ipc";
   import type { ViewRow } from "$lib/file-view";
   import { LIST_ROW_HEIGHT } from "$lib/graph-geometry";
+  import { TypeAhead, findTyped, listKey, pageRows, pressOf, typedChar } from "$lib/list-keys";
 
   interface Action {
     label: string;
@@ -23,7 +25,8 @@
     paths: readonly string[];
     /** Full paths are redundant once the list groups by directory. */
     showDirectory?: boolean;
-    onclick: (path: string, event: MouseEvent) => void;
+    /** A click, or the arrows (11 §10): Shift extends the ticked range. */
+    onclick: (path: string, event: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) => void;
     onmark: (path: string) => void;
     onopen?: (path: string) => void;
     oncontext?: (path: string, event: MouseEvent) => void;
@@ -54,9 +57,50 @@
     const cut = path.lastIndexOf("/");
     return cut === -1 ? "" : path.slice(0, cut + 1);
   }
+
+  let pane: HTMLDivElement | undefined = $state();
+  let reveal = $state<number | null>(null);
+  /** Where the keyboard is: the shown file, or the far end of a Shift+arrow range. */
+  let cursor = $state<string | null>(null);
+  const typing = new TypeAhead();
+
+  const files = $derived(
+    rows.flatMap((entry, index) => (entry.kind === "dir" ? [] : [{ path: entry.file.path, index }])),
+  );
+
+  async function goTo(to: number, extend: boolean) {
+    const target = files[to];
+    if (!target) return;
+    cursor = target.path;
+    onclick(target.path, { ctrlKey: false, metaKey: false, shiftKey: extend });
+    reveal = target.index;
+    await tick();
+    pane?.querySelector<HTMLElement>(`[data-path="${CSS.escape(target.path)}"]`)?.focus();
+  }
+
+  /** Enter is the focused row's own click, and a pane has nothing to fold. */
+  function onkeydown(event: KeyboardEvent) {
+    const press = pressOf(event);
+    const from = cursor !== null && files.some((file) => file.path === cursor) ? cursor : selected;
+    const found = files.findIndex((file) => file.path === from);
+    const at = found === -1 ? null : found;
+    const char = typedChar(press);
+    if (char !== null) {
+      const to = findTyped(files.map((file) => fileName(file.path)), at, typing.type(char, event.timeStamp));
+      if (to === null) return;
+      event.preventDefault();
+      void goTo(to, false);
+      return;
+    }
+    const action = listKey(press, at, files.length, pageRows(pane, LIST_ROW_HEIGHT));
+    if (action?.kind !== "move") return;
+    event.preventDefault();
+    void goTo(action.to, action.extend);
+  }
 </script>
 
-<div class="pane tree-rows key-list">
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="pane tree-rows key-list" bind:this={pane} {onkeydown}>
   {#if title}
     <div class="heading">
       <span class="grow">{title} ({paths.length})</span>
@@ -68,7 +112,7 @@
     </div>
   {/if}
 
-  <VirtualList items={rows} label={title ?? "Files"}>
+  <VirtualList items={rows} label={title ?? "Files"} {reveal}>
     {#snippet row(entry, at)}
         {#if entry.kind === "dir"}
           {@const group = entry}
@@ -87,7 +131,11 @@
             class:marked={marked.has(file.path)}
             style:top="{at * LIST_ROW_HEIGHT}px"
             title={file.oldPath ? `${file.oldPath} → ${file.path}` : file.path}
-            onclick={(event) => onclick(file.path, event)}
+            data-path={file.path}
+            onclick={(event) => {
+              cursor = file.path;
+              onclick(file.path, event);
+            }}
             onkeydown={(event) => {
               if (event.key !== " ") return;
               event.preventDefault();

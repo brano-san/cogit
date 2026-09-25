@@ -2,6 +2,7 @@
   import KindIcon from "$components/common/KindIcon.svelte";
   import type { WorktreeEntry } from "$lib/ipc";
   import { worktreeTags, worktreeWhere } from "$lib/worktree-list";
+  import { TypeAhead, moveFocus } from "$lib/list-keys";
 
   /** The rows of the Worktrees panel: one per checkout, the active one marked, a missing
       one with its two ways out right in the row (doc/12-risks.md, R-184). */
@@ -18,9 +19,22 @@
 
   let { entries, selected, onselect, onopen, oncontext, onprune, onrepair, onadd }: Props =
     $props();
+
+  let list: HTMLDivElement | undefined = $state();
+  const typing = new TypeAhead();
+
+  /** 11 §10: the arrows and typing move the selection; Enter opens, as before. */
+  function onkeydown(event: KeyboardEvent) {
+    if (!list) return;
+    const row = moveFocus(list, event, typing);
+    const entry = entries.find((each) => each.path === row?.dataset.keyRow);
+    if (entry) onselect(entry);
+  }
 </script>
 
-<div class="list key-list" role="listbox" aria-label="Worktrees">
+<!-- Roving focus: the rows take it one at a time, the list itself never does. -->
+<!-- svelte-ignore a11y_interactive_supports_focus -->
+<div class="list key-list" role="listbox" aria-label="Worktrees" bind:this={list} {onkeydown}>
   {#each entries as entry (entry.path)}
     {@const where = worktreeWhere(entry)}
     <div
@@ -32,6 +46,8 @@
       aria-selected={selected === entry.path}
       tabindex="0"
       title={entry.path}
+      data-key-row={entry.path}
+      data-key-label={entry.name}
       onclick={() => onselect(entry)}
       ondblclick={() => !entry.missing && onopen(entry)}
       onkeydown={(event) => {
