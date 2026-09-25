@@ -432,6 +432,15 @@
   $effect(() => errors.report(compareView.error, "Could not compare the commits"));
   $effect(() => errors.report(stashView.error, "Could not open the stash"));
 
+  // Every change to the list — Drop in References, a pop, `git stash drop` in a terminal —
+  // ends here, so the Files panel never lists a stash that is gone.
+  $effect(() => {
+    const entries = stashes.entries;
+    untrack(() => {
+      if (stashView.forgetIfGone(entries)) diff.clear();
+    });
+  });
+
   /** Refreshed with the rest of the state after every mutation, so the stack follows
       Continue and Abort; a reactive version fired on each loading toggle. */
   async function refreshProgress() {
