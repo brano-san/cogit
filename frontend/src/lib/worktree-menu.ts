@@ -1,5 +1,5 @@
 import type { ContextItem, WorktreeEntry } from "./ipc";
-import { SEPARATOR, item, tidy } from "./context-menu";
+import { SEPARATOR, item, offer, tidy } from "./context-menu";
 import { removable } from "./worktree-list";
 
 /** Not `worktree-`: the palette's Remove Worktree… and Prune Obsolete Worktrees… are
@@ -11,6 +11,11 @@ export type WorktreeCommand = (typeof COMMANDS)[number];
 
 const id = (command: WorktreeCommand) => `${PREFIX}${command}`;
 
+/** Git refuses to forget a locked worktree, gone or not, until it is unlocked. */
+export function pruneBlocked(entry: WorktreeEntry): string | null {
+  return entry.locked === null ? null : "locked: unlock it first";
+}
+
 /** The chosen item comes back as a `menu-command`, like every popup menu (R-260). */
 export function worktreeMenu(entry: WorktreeEntry): ContextItem[] {
   const lock =
@@ -19,8 +24,9 @@ export function worktreeMenu(entry: WorktreeEntry): ContextItem[] {
       : item(id("unlock"), "Unlock", true);
   if (entry.missing) {
     return tidy([
-      item(id("prune"), "Prune", entry.locked === null),
+      offer(id("prune"), "Prune", pruneBlocked(entry)),
       item(id("repair"), "Repair…"),
+      ...(entry.locked === null ? [] : [lock]),
       SEPARATOR,
       item(id("copy"), "Copy Path"),
     ]);
