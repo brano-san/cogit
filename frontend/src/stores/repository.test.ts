@@ -14,6 +14,9 @@ vi.mock("$lib/ipc/bindings", () => ({ commands, events: {} }));
 
 const { repository } = await import("./repository.svelte");
 const { panelView } = await import("$lib/repo-phase");
+const { session } = await import("./session.svelte");
+const { repoList } = await import("./repo-list.svelte");
+const { notices } = await import("./notices.svelte");
 
 const summary = (root: string) => ({
   repo: root.length,
@@ -617,5 +620,41 @@ describe("the refs after a commit", () => {
     await Promise.all([reopening, reading]);
 
     expect(commands.repoRefs).not.toHaveBeenCalled();
+  });
+});
+
+describe("repository store, restoring the last session", () => {
+  beforeEach(() => {
+    commands.openRepository.mockReset();
+    commands.repositories.mockResolvedValue({ status: "ok", data: [] });
+    notices.dismissAll();
+    for (const root of repoList.list.closed) repoList.forget(root);
+  });
+
+  it("reopens every repository the session had, in its order", async () => {
+    session.remember(["C:/repos/one", "C:/repos/two"]);
+    commands.openRepository.mockImplementation(async (root: string) => ({ status: "ok", data: summary(root) }));
+
+    const failed = await repository.restore();
+
+    expect(failed).toEqual([]);
+    expect(commands.openRepository.mock.calls.map((call) => call[0])).toEqual(["C:/repos/one", "C:/repos/two"]);
+  });
+
+  it("keeps a folder that did not open as a closed row, and says so", async () => {
+    session.remember(["C:/repos/one", "Z:/unmounted"]);
+    commands.openRepository.mockImplementation(async (root: string) =>
+      root.startsWith("Z:")
+        ? { status: "error", error: { kind: "repoNotFound", data: "Z:/unmounted: not found" } }
+        : { status: "ok", data: summary(root) },
+    );
+
+    const failed = await repository.restore();
+
+    expect(failed).toEqual(["Z:/unmounted"]);
+    expect(repoList.list.closed).toContain("Z:/unmounted");
+    expect(repoList.list.closed).not.toContain("C:/repos/one");
+    const said = notices.all.map((notice) => `${notice.title}\n${notice.body}`).join("\n");
+    expect(said).toContain("Z:/unmounted");
   });
 });
