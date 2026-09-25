@@ -110,11 +110,11 @@ class Git {
   }
   /** On top of what the remote has now: the scenarios before this one put commits there,
       and a push of a branch behind its remote is refused (fetch first) — a refusal is not
-      what net.push measures. `--keep` also drops a local commit an earlier failed round
-      left behind. */
+      what net.push measures. `--hard` also drops a local commit an earlier failed round
+      left behind; `--keep` refused once the pull scenarios had left a file stat-dirty. */
   async localCommit() {
     git(["fetch", "-q", "origin"], this.dir);
-    git(["reset", "-q", "--keep", "origin/main"], this.dir);
+    git(["reset", "-q", "--hard", "origin/main"], this.dir);
     await this.touch("src/d01/file0001.txt");
     git(["commit", "-q", "-am", "local change"], this.dir);
     await this.settle();
