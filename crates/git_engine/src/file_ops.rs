@@ -121,7 +121,15 @@ impl RepoHandle {
                 "a bare repository has no working tree".to_owned(),
             ));
         }
-        std::fs::write(self.root().join(path), text)?;
+        let file = self.root().join(path);
+        // Written through, the text would land in the file the link points at, which may
+        // be outside the repository.
+        if crate::blobs::is_symlink(&file) {
+            return Err(GitError::InvalidState(format!(
+                "{path} is a symbolic link: edit the file it points at instead"
+            )));
+        }
+        std::fs::write(file, text)?;
         Ok(())
     }
 

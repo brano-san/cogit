@@ -155,12 +155,19 @@ impl RepoHandle {
     /// Bytes as they are on disk: the worktree side of a diff is not a Git object.
     ///
     /// Only a missing file, or a directory (a submodule), is "nothing here". A file that
-    /// exists and cannot be read is an error: shown as absent it looks deleted.
+    /// exists and cannot be read is an error: shown as absent it looks deleted. A symbolic
+    /// link is its target path, as git records it, never the file it points at.
     pub(crate) fn blob_on_disk(&self, path: &str) -> Result<Option<Vec<u8>>> {
         if self.is_bare() {
             return Ok(None);
         }
         let file = self.root().join(path);
+        if is_symlink(&file) {
+            let target = std::fs::read_link(&file)
+                .map_err(|err| GitError::Io(format!("cannot read the link {path}: {err}")))?;
+            let target = gix::path::to_unix_separators_on_windows(gix::path::into_bstr(target));
+            return Ok(Some(target.into_owned().into()));
+        }
         match std::fs::read(&file) {
             Ok(bytes) => Ok(Some(bytes)),
             Err(err) if err.kind() == std::io::ErrorKind::NotFound || file.is_dir() => Ok(None),
@@ -196,4 +203,8 @@ impl RepoHandle {
             .map_err(|err| GitError::Internal(format!("cannot read {path}: {err}")))?;
         Ok(Some(object.into_blob().data.clone()))
     }
+}
+
+pub(crate) fn is_symlink(path: &std::path::Path) -> bool {
+    std::fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_symlink())
 }
