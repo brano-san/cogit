@@ -24,6 +24,35 @@ fn seen(lines: &Lines) -> Vec<String> {
     lines.lock().map(|l| l.clone()).unwrap_or_default()
 }
 
+fn no_token(_url: &str) -> Option<String> {
+    None
+}
+
+fn commands_of(repo: RepoHandle) -> (RepoHandle, Lines) {
+    let log: Lines = Arc::new(Mutex::new(Vec::new()));
+    let sink = Arc::clone(&log);
+    let repo = repo.with_journal(Arc::new(move |out: git_engine::GitOutput| {
+        if let Ok(mut entries) = sink.lock() {
+            entries.push(out.command);
+        }
+    }));
+    (repo, log)
+}
+
+/// What git makes of one `-c` argument for a URL, as a submodule's fetch would see it.
+fn header_git_sends(arg: &str, url: &str) -> String {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&[
+        "-c",
+        arg,
+        "config",
+        "--get-urlmatch",
+        "http.extraheader",
+        url,
+    ])
+    .unwrap_or_default()
+}
+
 #[test]
 fn fetch_brings_the_remote_tracking_branch_up_to_date() {
     let f = test_fixtures::with_remote().unwrap();
@@ -32,7 +61,7 @@ fn fetch_brings_the_remote_tracking_branch_up_to_date() {
     let repo = open(&f);
     let (_, on_line) = collector();
 
-    repo.fetch("origin", None, on_line).unwrap();
+    repo.fetch("origin", no_token, on_line).unwrap();
 
     assert!(
         repo.branches()
@@ -51,7 +80,7 @@ fn fetch_reports_what_git_says_while_it_runs() {
     let repo = open(&f);
     let (lines, on_line) = collector();
 
-    repo.fetch("origin", None, on_line).unwrap();
+    repo.fetch("origin", no_token, on_line).unwrap();
 
     assert!(
         seen(&lines).iter().any(|l| !l.trim().is_empty()),
@@ -65,7 +94,7 @@ fn fetching_an_unknown_remote_reports_gits_own_words() {
     let repo = open(&f);
     let (_, on_line) = collector();
 
-    let err = repo.fetch("nowhere", None, on_line).unwrap_err();
+    let err = repo.fetch("nowhere", no_token, on_line).unwrap_err();
 
     match err {
         git_engine::GitError::Command(details) => {
@@ -84,7 +113,7 @@ fn push_sends_local_commits_to_the_remote() {
     let local = f.oid("HEAD").unwrap();
     let (_, on_line) = collector();
 
-    repo.push("origin", None, false, None, on_line).unwrap();
+    repo.push("origin", None, false, no_token, on_line).unwrap();
 
     f.git(&["fetch", "origin"]).unwrap();
     assert_eq!(f.oid("refs/remotes/origin/main").unwrap(), local);
@@ -96,7 +125,9 @@ fn a_rejected_push_reports_the_reason_in_full() {
     let repo = open(&f);
     let (_, on_line) = collector();
 
-    let err = repo.push("origin", None, false, None, on_line).unwrap_err();
+    let err = repo
+        .push("origin", None, false, no_token, on_line)
+        .unwrap_err();
 
     match err {
         git_engine::GitError::Command(details) => {
@@ -117,7 +148,7 @@ fn a_forced_push_overwrites_the_remote() {
     let local = f.oid("HEAD").unwrap();
     let (_, on_line) = collector();
 
-    repo.push("origin", None, true, None, on_line).unwrap();
+    repo.push("origin", None, true, no_token, on_line).unwrap();
 
     f.git(&["fetch", "origin"]).unwrap();
     assert_eq!(f.oid("refs/remotes/origin/main").unwrap(), local);
@@ -130,7 +161,7 @@ fn pull_fast_forwards_when_nothing_is_local() {
     let repo = open(&f);
     let (_, on_line) = collector();
 
-    repo.pull("origin", true, None, on_line).unwrap();
+    repo.pull("origin", true, no_token, on_line).unwrap();
 
     assert_eq!(
         f.oid("HEAD").unwrap(),
@@ -144,7 +175,7 @@ fn a_pull_that_cannot_fast_forward_is_refused_rather_than_merging_silently() {
     let repo = open(&f);
     let (_, on_line) = collector();
 
-    let err = repo.pull("origin", true, None, on_line);
+    let err = repo.pull("origin", true, no_token, on_line);
 
     assert!(
         err.is_err(),
@@ -174,25 +205,56 @@ fn the_remote_list_is_read_without_spawning_a_process() {
 #[test]
 fn a_token_reaches_git_as_a_header_but_not_the_journal() {
     let f = test_fixtures::with_remote().unwrap();
-    let log: Lines = Arc::new(Mutex::new(Vec::new()));
-    let sink = Arc::clone(&log);
-    let repo = RepoHandle::open(f.path()).unwrap().with_journal(Arc::new(
-        move |out: git_engine::GitOutput| {
-            if let Ok(mut entries) = sink.lock() {
-                entries.push(out.command);
-            }
-        },
-    ));
+    f.git(&["remote", "set-url", "origin", "https://127.0.0.1:1/o/r.git"])
+        .unwrap();
+    let (repo, log) = commands_of(open(&f));
 
-    repo.fetch("origin", Some("s3cr3t"), |_| {}).unwrap();
+    let _ = repo.fetch("origin", |_| Some("s3cr3t".to_owned()), |_| {});
 
     let lines = seen(&log).join("\n");
-    assert!(lines.contains("http.extraHeader="), "{lines}");
+    assert!(
+        lines.contains("-c http.https://127.0.0.1:1/.extraHeader=<redacted> fetch"),
+        "{lines}"
+    );
     assert!(!lines.contains("s3cr3t"), "{lines}");
     assert!(
         !lines.contains(&git_engine::auth_header("s3cr3t")),
         "{lines}"
     );
+}
+
+// Git hands every `-c` to the git processes it starts (GIT_CONFIG_PARAMETERS), a
+// submodule's fetch among them: a bare `http.extraHeader` sent the token to whatever host
+// the submodule lives on.
+#[test]
+fn a_token_is_sent_only_to_the_host_of_the_remote() {
+    let arg = git_engine::auth_config("https://github.com/o/r.git", "s3cr3t").unwrap();
+
+    assert_eq!(
+        header_git_sends(&arg, "https://github.com/o/r.git").trim(),
+        git_engine::auth_header("s3cr3t")
+    );
+    assert_eq!(
+        header_git_sends(&arg, "https://git.example.org/team/sub.git").trim(),
+        ""
+    );
+}
+
+#[test]
+fn a_remote_that_is_not_http_gets_no_token() {
+    assert!(git_engine::auth_config("git@github.com:o/r.git", "s3cr3t").is_none());
+    assert!(git_engine::auth_config("/srv/git/r.git", "s3cr3t").is_none());
+}
+
+#[test]
+fn a_host_scoped_header_is_hidden_in_the_journal_line() {
+    let line = git_engine::redact_command(&[
+        "-c",
+        "http.https://github.com/.extraheader=Authorization: Basic c2VjcmV0",
+        "fetch",
+    ]);
+
+    assert!(!line.contains("c2VjcmV0"), "{line}");
 }
 
 #[test]
@@ -208,9 +270,9 @@ fn no_token_means_no_extra_argument() {
         },
     ));
 
-    repo.fetch("origin", None, |_| {}).unwrap();
+    repo.fetch("origin", no_token, |_| {}).unwrap();
 
-    assert!(!seen(&log).join("\n").contains("http.extraHeader"));
+    assert!(!seen(&log).join("\n").contains("extraHeader"));
 }
 
 /// End to end, with a real `git push` against a URL that carries a token: nothing the
@@ -234,7 +296,7 @@ fn a_token_in_a_remote_url_never_leaves_the_runner() {
     let repo = open(&f);
     let (lines, sink) = collector();
     let err = repo
-        .push("leaky", Some("master"), false, None, sink)
+        .push("leaky", Some("master"), false, no_token, sink)
         .expect_err("pushing at a dead port must fail");
 
     let git_engine::GitError::Command(details) = err else {
@@ -294,7 +356,9 @@ fn a_failing_pre_push_hook_delivers_its_whole_log() {
     let repo = open(&f);
     let (_, on_line) = collector();
 
-    let err = repo.push("origin", None, false, None, on_line).unwrap_err();
+    let err = repo
+        .push("origin", None, false, no_token, on_line)
+        .unwrap_err();
 
     let git_engine::GitError::Command(details) = err else {
         panic!("a rejected push must be a command failure");

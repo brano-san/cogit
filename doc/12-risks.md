@@ -5152,3 +5152,18 @@ Cogit «в шаге». Оба оставлены как есть: ни одно 
 / p90): всё дерево 33–45 / 35–47 мс, лёгкое 2,6–3,3 / 2,9–4,4 мс, `git submodule status
 --recursive` 7,3 / 8,9–9,7 с (скрипт, процесс на каждый submodule). Ускорять нечего — сравнение
 показывает, что уже есть.
+
+## R-410 · Токен — только хосту remote, а не всей команде · В
+
+Уточняет R-31. Git передаёт каждый
+`-c` запущенным им процессам git (`GIT_CONFIG_PARAMETERS`), в том числе fetch подмодулей
+(`fetch.recurseSubmodules=on-demand` по умолчанию, pull, submodule update). Голый
+`-c http.extraHeader=Authorization: Basic …` уходил поэтому на хост каждого подмодуля.
+
+**Решение:** ключ ограничен URL-ом, как у actions/checkout:
+`-c http.<scheme>://<host>/.extraHeader=…` — git применяет его только к адресам этого хоста
+(`git config --get-urlmatch`). `git_engine` сам выбирает URL, к которому пойдёт команда, и
+спрашивает токен для него (`fetch/pull/push(remote, token: FnOnce(&url) -> Option<String>)`),
+поэтому хост ключа и хост токена не расходятся. `redact_command` прячет значение любого
+ключа, оканчивающегося на `.extraheader`. Тесты — `a_token_is_sent_only_to_the_host_of_the_remote`,
+`a_token_reaches_git_as_a_header_but_not_the_journal` (`crates/git_engine/tests/network.rs`).
