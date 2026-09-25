@@ -116,3 +116,48 @@ describe("mergePieces", () => {
     expect(pieces.map((p) => p.hit)).toEqual([false, false, true, true]);
   });
 });
+
+describe("mergePieces on a minified line", () => {
+  // One line of minified JavaScript: tens of thousands of alternating tokens. Every piece
+  // searched the whole token list, and the window froze for seconds (rule of 50 ms).
+  const line = "a=1;".repeat(75_000);
+  const tokens = Array.from({ length: 150_000 }, (_, i) => ({
+    start: i * 2,
+    end: i * 2 + 1,
+    cls: i % 2 ? "tok-number" : "tok-variableName",
+  }));
+
+  it("cuts a 300 KB line in one pass", () => {
+    const started = performance.now();
+    mergePieces(line, tokens, [[10, 20]], [[100, 104]]);
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+
+  it("keeps the changed words and the hits of a line too long to colour", () => {
+    const pieces = mergePieces(line, tokens, [[10, 20]], [[100, 104]]);
+
+    expect(pieces.every((piece) => piece.cls === "")).toBe(true);
+    expect(pieces.filter((piece) => piece.changed).map((piece) => piece.text).join("")).toBe(line.slice(10, 20));
+    expect(pieces.filter((piece) => piece.hit).map((piece) => piece.text).join("")).toBe(line.slice(100, 104));
+    expect(pieces.map((piece) => piece.text).join("")).toBe(line);
+  });
+
+  it("colours a short line exactly as before", () => {
+    const text = "let x = 1;";
+    const short = [
+      { start: 0, end: 3, cls: "tok-keyword" },
+      { start: 4, end: 5, cls: "tok-variableName" },
+      { start: 8, end: 9, cls: "tok-number" },
+    ];
+    const pieces = mergePieces(text, short, [[4, 9]], [[8, 10]]);
+
+    expect(pieces).toEqual([
+      { text: "let", cls: "tok-keyword", changed: false, hit: false, start: 0 },
+      { text: " ", cls: "", changed: false, hit: false, start: 3 },
+      { text: "x", cls: "tok-variableName", changed: true, hit: false, start: 4 },
+      { text: " = ", cls: "", changed: true, hit: false, start: 5 },
+      { text: "1", cls: "tok-number", changed: true, hit: true, start: 8 },
+      { text: ";", cls: "", changed: false, hit: true, start: 9 },
+    ]);
+  });
+});
