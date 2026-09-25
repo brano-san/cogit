@@ -5230,3 +5230,18 @@ pid ещё не освобождён и не может достаться чу�
 неотредактированному. Тесты — `the_hints_of_the_commit_template_stay_out_of_the_commit`,
 `a_hash_line_of_the_users_own_is_kept` (`crates/git_engine/tests/commit_write.rs`),
 `commit-draft.test.ts`.
+
+## R-414 · Первый push ветки назначает ей upstream · С
+
+Push в тулбаре — `git push --progress <remote>` без refspec. У ветки, которую ещё не пушили,
+при `push.default=simple` (по умолчанию) и без `push.autoSetupRemote` git отказывает: «The
+current branch feature has no upstream branch» — на первом push каждой новой ветки, хотя это
+обычное состояние (CLAUDE.md, Errors), а исправление git подсказывает сам.
+
+**Решение:** если refspec не задан и у выписанной ветки нет `branch.<name>.merge`, push идёт
+`--set-upstream <remote> HEAD` — ровно то, что сделал бы `push.autoSetupRemote=true`: ветка
+уходит под тем же именем и дальше отслеживает его. Ветка с upstream, detached HEAD и
+Push To (свой refspec) не меняются. Отдельный пункт или флажок upstream в Push To (R-254) —
+по-прежнему решение постановщика; этот путь его не заменяет. Тест —
+`the_first_push_of_a_branch_publishes_it_and_sets_its_upstream`
+(`crates/git_engine/tests/network.rs`).

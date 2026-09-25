@@ -76,9 +76,13 @@ impl RepoHandle {
         on_line: impl FnMut(&str),
     ) -> Result<()> {
         let header = self.auth_arg(remote, gix::remote::Direction::Push, token);
+        let first = refspec.is_none() && self.branch_never_pushed();
         let mut args = prefix(&header);
         args.push("push");
         args.push("--progress");
+        if first {
+            args.push("--set-upstream");
+        }
         if force {
             // Never a bare `--force`: it overwrites work that arrived after our last fetch.
             args.push("--force-with-lease");
@@ -86,8 +90,21 @@ impl RepoHandle {
         args.push(remote);
         if let Some(refspec) = refspec {
             args.push(refspec);
+        } else if first {
+            args.push("HEAD");
         }
         self.run_streaming(&args, on_line)
+    }
+
+    /// The checked-out branch has no upstream. A bare `git push` then fails under the
+    /// default `push.default=simple`; it gets what `push.autoSetupRemote` would do.
+    fn branch_never_pushed(&self) -> bool {
+        let Ok(Some(name)) = self.repo.head_name() else {
+            return false;
+        };
+        self.repo
+            .branch_remote_ref_name(name.as_ref(), gix::remote::Direction::Fetch)
+            .is_none()
     }
 
     /// The token of the URL this direction contacts: a fetch with the push host's token

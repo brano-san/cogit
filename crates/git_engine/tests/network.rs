@@ -141,6 +141,44 @@ fn a_rejected_push_reports_the_reason_in_full() {
     }
 }
 
+// Push in the toolbar on a branch never pushed: with `push.default=simple` git refused,
+// "The current branch feature has no upstream branch", on the first push of every branch.
+#[test]
+fn the_first_push_of_a_branch_publishes_it_and_sets_its_upstream() {
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&["config", "push.default", "simple"]).unwrap();
+    f.git(&["config", "push.autoSetupRemote", "false"]).unwrap();
+    f.git(&["switch", "-c", "feature"]).unwrap();
+    f.commit_file(40, "feature.txt", "new\n").unwrap();
+    let repo = open(&f);
+
+    repo.push("origin", None, false, no_token, |_| {}).unwrap();
+
+    assert_eq!(
+        f.git(&["rev-parse", "--abbrev-ref", "feature@{upstream}"])
+            .unwrap()
+            .trim(),
+        "origin/feature"
+    );
+    assert_eq!(
+        f.oid("refs/remotes/origin/feature").unwrap(),
+        f.oid("HEAD").unwrap()
+    );
+}
+
+#[test]
+fn a_branch_with_an_upstream_is_pushed_as_configured() {
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&["reset", "--hard", "origin/main"]).unwrap();
+    f.commit_file(40, "to-push.txt", "pushed\n").unwrap();
+    let (repo, log) = commands_of(open(&f));
+
+    repo.push("origin", None, false, no_token, |_| {}).unwrap();
+
+    let lines = seen(&log).join("\n");
+    assert!(!lines.contains("--set-upstream"), "{lines}");
+}
+
 #[test]
 fn a_forced_push_overwrites_the_remote() {
     let f = test_fixtures::with_remote().unwrap();
