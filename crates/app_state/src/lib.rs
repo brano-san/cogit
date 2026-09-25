@@ -478,7 +478,7 @@ impl AppState {
         let options = git_engine::discover::ScanOptions { max_depth };
         git_engine::discover::scan_until(root, &options, |found| {
             on_found(ScanHit {
-                root: found.path.display().to_string(),
+                root: found.path.to_string_lossy().replace('\\', "/"),
                 name: found.name,
                 bare: found.bare,
                 already_open: self.find_by_root(&found.path).is_some(),
