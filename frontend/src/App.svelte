@@ -85,7 +85,7 @@
   import * as fileMenus from "$lib/ipc/file-menus";
   import { desktop } from "$stores/desktop.svelte";
   import { groupChoices, parseRepoCommand, repoMenu } from "$lib/repo-menu";
-  import type { ListedRepo } from "$lib/repo-list";
+  import { fetchAllTargets, type ListedRepo } from "$lib/repo-list";
   import { UNGROUPED } from "$lib/repo-groups";
   import { repoList } from "$stores/repo-list.svelte";
   import { compareUrl } from "$lib/compare-params";
@@ -2284,8 +2284,7 @@
 
   /** One failure must not stop the rest: the point of Fetch All is not doing it by hand. */
   async function fetchAll() {
-    const roots = markedRepos.length > 0 ? markedRepos : repository.openRepos.map((e) => e.root);
-    const targets = repository.openRepos.filter((entry) => roots.includes(entry.root));
+    const targets = fetchAllTargets(markedRepos, repository.openRepos);
     if (targets.length === 0) return;
 
     const watch = measure("fetch-all");

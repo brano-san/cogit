@@ -104,3 +104,10 @@ export function listedRepos(open: readonly RepoOverview[], list: RepoList): List
       a.root.localeCompare(b.root),
   );
 }
+
+/** Fetch All: the rows ticked with Ctrl or Shift that are still open, else every open one
+    (doc/11 §3). A tick left on a row since closed narrows nothing. */
+export function fetchAllTargets<T extends { root: string }>(marked: readonly string[], open: readonly T[]): T[] {
+  const ticked = open.filter((entry) => marked.includes(entry.root));
+  return ticked.length > 0 ? ticked : [...open];
+}

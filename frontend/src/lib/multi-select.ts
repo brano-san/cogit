@@ -56,3 +56,15 @@ export function shownMarks(marked: FileSelection, order: readonly string[]): Fil
   const anchor = marked.anchor !== null && shown.has(marked.anchor) ? marked.anchor : null;
   return { paths: new Set(paths), anchor };
 }
+
+/** The Repositories list: a plain click opens the row and ticks nothing, so the ticks are
+    only the rows picked on purpose; it still anchors a later Shift range. */
+export function markRow(
+  current: FileSelection,
+  path: string,
+  order: readonly string[],
+  modifiers: Modifiers,
+): FileSelection {
+  if (modifiers.ctrl || modifiers.shift) return applyClick(current, path, order, modifiers);
+  return order.includes(path) ? { paths: new Set(), anchor: path } : current;
+}
