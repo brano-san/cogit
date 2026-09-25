@@ -108,10 +108,22 @@ class Git {
     git(["commit", "-q", "-am", "remote change"], pusher);
     git(["push", "-q", "origin", "main"], pusher);
   }
+  /** On top of what the remote has now: the scenarios before this one put commits there,
+      and a push of a branch behind its remote is refused (fetch first) — a refusal is not
+      what net.push measures. `--keep` also drops a local commit an earlier failed round
+      left behind. */
   async localCommit() {
+    git(["fetch", "-q", "origin"], this.dir);
+    git(["reset", "-q", "--keep", "origin/main"], this.dir);
     await this.touch("src/d01/file0001.txt");
     git(["commit", "-q", "-am", "local change"], this.dir);
     await this.settle();
+  }
+  /** The remote's main is the clone's HEAD, or the push did not happen. */
+  pushed() {
+    const head = git(["rev-parse", "HEAD"], this.dir);
+    const remote = git(["ls-remote", "origin", "refs/heads/main"], this.dir).split(/\s+/)[0];
+    if (head !== remote) throw new Error(`the push did not reach the remote: HEAD ${head}, remote main ${remote}`);
   }
 }
 
@@ -400,7 +412,11 @@ async function attempt(scenario, ctx, condition, keep) {
       const named = r && typeof r.total === "number" ? { [scenario.id]: r } : r;
       for (const [id, sample] of Object.entries(named)) {
         if (sample.timedOut) throw new Error(`${id} timed out`);
+        // A command that answered with an error is timed as fast as one that worked.
+        const refused = (scenario.mustSucceed ?? []).filter((cmd) => sample.failed?.includes(cmd));
+        if (refused.length > 0) throw new Error(`${id}: ${refused.join(", ")} failed`);
       }
+      await scenario.verify?.(ctx);
       if (busy && tries < retries) {
         if (keep) entry(scenario.id, ctx.set, condition, meta).retakes += 1;
         continue;

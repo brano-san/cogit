@@ -298,6 +298,7 @@ export const SCENARIOS = [
     sets: ["network"],
     prep: (ctx) => ctx.git.remoteCommit(),
     measure: (ctx) => ctx.measure.menu("fetch", HEAVY),
+    mustSucceed: ["fetch"],
   },
   {
     id: "net.pull",
@@ -306,6 +307,7 @@ export const SCENARIOS = [
     sets: ["network"],
     prep: (ctx) => ctx.git.remoteCommit(),
     measure: (ctx) => ctx.measure.menu("pull", HEAVY),
+    mustSucceed: ["pull"],
   },
   {
     id: "net.pull-check",
@@ -322,6 +324,8 @@ export const SCENARIOS = [
     sets: ["network"],
     prep: (ctx) => ctx.git.localCommit(),
     measure: (ctx) => ctx.measure.menu("push", HEAVY),
+    mustSucceed: ["push"],
+    verify: (ctx) => ctx.git.pushed(),
   },
   {
     id: "ui.context-menu",
