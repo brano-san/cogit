@@ -709,6 +709,11 @@ export async function setKeymap(overrides: Record<string, string>) {
   return unwrap(await commands.setKeymap(overrides));
 }
 
+/** While on, the window's menu takes no key, so a shortcut it has can be recorded. */
+export async function captureKeys(on: boolean) {
+  await commands.captureKeys(on);
+}
+
 /** Lands in the profile log beside the backend's own numbers (F-116). */
 export async function reportTiming(label: string, ms: number, detail: string) {
   return await commands.reportTiming(label, ms, detail);

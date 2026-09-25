@@ -522,6 +522,7 @@ type SearchChunk =
 | `write_setting` | `key`, `value` (текст JSON) | `()` | M8 |
 | `command_log` | `limit` | `Vec<CommandLogEntry>` | M2 |
 | `open_in_explorer` / `open_in_terminal` | `path` | `()` | M3 |
+| `capture_keys` | `on: bool` | `()`: пока Preferences ▸ Keyboard записывает сочетание, окно не забирает у страницы ни одной клавиши меню (на Windows — перехватчик WebView2), иначе занятое сочетание запускало свою команду и не записывалось | M2 |
 | `set_menu_state` | `disabled: Vec<String>, checked: Vec<String>` — полное состояние строки меню | `()`; фронтенд шлёт последнее состояние в конце задачи и не шлёт уже показанное (R-322) | M2 |
 | `report_memory` | `RendererMemory { usedHeapKib, totalHeapKib, limitKib, domNodes, listeners, caches }` | `()` | — |
 | `log_from_frontend` | `lines: WebviewLogLine[] { level, message, context }` | `()`: строки вебвью в `cogit.log` пачкой, по одной записи `tracing` на строку (R-321) | — |

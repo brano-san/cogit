@@ -1,6 +1,6 @@
 <script lang="ts">
   import { accelerator, conflicts, effective, prettyKeys, type Keymap } from "$lib/keymap";
-  import type { KeyBinding } from "$lib/ipc";
+  import { captureKeys, type KeyBinding } from "$lib/ipc";
 
   interface Props {
     bindings: readonly KeyBinding[];
@@ -12,6 +12,13 @@
 
   let capturing = $state<string | null>(null);
   let filter = $state("");
+
+  // The menu takes a key it has before the page sees it, and runs its command instead.
+  $effect(() => {
+    if (capturing === null) return;
+    void captureKeys(true);
+    return () => void captureKeys(false);
+  });
 
   const onMac = typeof navigator !== "undefined" && navigator.platform.startsWith("Mac");
   const keys = $derived(effective(bindings, overrides));
@@ -67,6 +74,7 @@
           class:capturing={capturing === binding.id}
           onclick={() => (capturing = capturing === binding.id ? null : binding.id)}
           onkeydown={(event) => capturing === binding.id && capture(event, binding.id)}
+          onblur={() => capturing === binding.id && (capturing = null)}
           title={clash ? `Also bound to ${clash.join(", ")}` : "Click, then press the keys"}
         >
           {capturing === binding.id ? "Press keys…" : prettyKeys(keys[binding.id] ?? "", onMac)}

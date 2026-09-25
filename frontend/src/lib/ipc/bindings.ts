@@ -340,6 +340,8 @@ export const commands = {
 	 *  way to change an accelerator once an item exists.
 	 */
 	setKeymap: (overrides: { [key in string]: string }) => typedError<null, GitError>(__TAURI_INVOKE("set_keymap", { overrides })),
+	/**  Preferences ▸ Keyboard, while it records a shortcut: the menu lets every key through. */
+	captureKeys: (on: boolean) => __TAURI_INVOKE<void>("capture_keys", { on }),
 	/**
 	 *  A folder can hold hundreds of repositories, so hits stream in as they are found and
 	 *  dropping the channel stops the walk.
