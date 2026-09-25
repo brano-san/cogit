@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick, untrack } from "svelte";
-  import { ask, message as dialogMessage, open as openFolderDialog } from "@tauri-apps/plugin-dialog";
+  import { open as openFolderDialog } from "@tauri-apps/plugin-dialog";
   import { checkForUpdates, message, type UpdateOutcome } from "$lib/updates";
   import { leaveRepositoryDialogs } from "$lib/leaving";
   import { retryOf } from "$lib/retry";
@@ -286,8 +286,9 @@
       {
         check: () => check(),
         relaunch,
-        confirm: (outcome) => ask(message(outcome), { title: "Check for Updates", kind: "info" }),
-        report: (text) => void dialogMessage(text, { title: "Check for Updates", kind: "info" }),
+        confirm: (outcome) =>
+          confirmation.ask({ title: "Check for Updates", message: message(outcome), confirm: "Install" }),
+        report: (text) => notices.inform("Check for Updates", text),
         mayInstall: () => mayInstallUpdate(),
       },
       { quiet },
@@ -921,13 +922,17 @@
     const url = prUrl;
     if (!url) return;
     if (tracked && needsPush(tracked)) {
-      const push = await ask(
-        tracked.upstream === null
-          ? `${tracked.name} is not on the remote yet, so the form would have nothing to compare. Push it first?`
-          : `${tracked.name} has ${tracked.ahead} commit(s) the remote has not seen. Push first?`,
-        { title: "Create pull request", kind: "info" },
-      );
-      if (push) await runNetwork("push");
+      // Cancel opens nothing; Copy Pull Request Link is there for a form without the push.
+      const push = await confirmation.ask({
+        title: "Create Pull Request",
+        message:
+          tracked.upstream === null
+            ? `${tracked.name} is not on the remote yet, so the form would have nothing to compare. Push it, then open the form?`
+            : `${tracked.name} has ${tracked.ahead} commit(s) the remote has not seen. Push them, then open the form?`,
+        confirm: "Push and Open",
+      });
+      if (!push) return;
+      await runNetwork("push");
     }
     const { openUrl } = await import("@tauri-apps/plugin-opener");
     await openUrl(url);
@@ -1167,22 +1172,30 @@
     if (!id) return false;
 
     if (amend && (await publishedOrAssume(isPublished(id, "HEAD")))) {
-      const go = await ask(
-        "This commit is already on a remote. Amending it gives it a new id, so the branch " +
+      const go = await confirmation.ask({
+        title: "Amend a Published Commit",
+        message:
+          "This commit is already on a remote. Amending it gives it a new id, so the branch " +
           "will need a force-push and anyone who pulled it will have to reset. Continue?",
-        { title: "Amend a published commit", kind: "warning" },
-      );
+        confirm: "Amend",
+        warning: true,
+      });
       if (!go) return false;
     }
 
     // An empty list would commit every staged file, the hidden ones included.
     if (scope.empty) return false;
     if (scope.paths) {
-      const listed = scope.paths.join("\n");
-      const confirmed = await ask(
-        `Commit only these ${scope.paths.length} file(s)?\n\n${listed}\n\n${scope.warning}.`,
-        { title: "Commit what you see", kind: "warning" },
-      );
+      const confirmed = await confirmation.ask({
+        title: "Commit What You See",
+        message: `${
+          scope.paths.length === 1
+            ? `Commit only ${scope.paths[0]}?`
+            : listedMessage(`Commit only these ${scope.paths.length} files?`, scope.paths)
+        }\n\n${scope.warning}.`,
+        confirm: "Commit",
+        warning: true,
+      });
       if (!confirmed) return false;
     }
     const epoch = repository.epoch;
@@ -1303,10 +1316,11 @@
 
     const elsewhere = await worktrees.holding(id, branch.name);
     if (elsewhere && !elsewhere.missing) {
-      const go = await ask(
-        `${branch.name} is checked out in the worktree at ${elsewhere.path}. Switch to it?`,
-        { title: "Branch is in another worktree", kind: "info" },
-      );
+      const go = await confirmation.ask({
+        title: "Branch Is in Another Worktree",
+        message: `${branch.name} is checked out in the worktree at ${elsewhere.path}. Switch to it?`,
+        confirm: "Switch",
+      });
       // A worktree of this repository opens in the panels, as a double-click in Worktrees
       // does; activating its folder made it a repository of its own in the list (R-184).
       const row = worktrees.entries.find((entry) => entry.path === elsewhere.path);
@@ -1333,7 +1347,7 @@
     if (!blocked) return false;
 
     const outcome = await switchWithAutostash(branch.name, blocked, {
-      ask: (question) => ask(question, { title: "Switch branch", kind: "warning" }),
+      ask: (question) => confirmation.ask({ title: "Switch Branch", message: question, confirm: "Stash and Switch" }),
       stash: () => stashes.push(id, `cogit: autostash before switching to ${branch.name}`, true),
       checkout: () => checkout(id, { kind: "branch", name: branch.name }),
       pop: () => stashes.apply(id, 0, true),
@@ -1855,9 +1869,11 @@
     const rev = commit.oid;
     if (!id || !rev) return;
     const what = paths.length > 0 ? paths.join(", ") : "every file";
-    const go = await ask(`Restore ${what} as it was in ${shortOid(rev)}?`, {
-      title: "Roll back",
-      kind: "warning",
+    const go = await confirmation.ask({
+      title: "Roll Back",
+      message: `Restore ${what} as it was in ${shortOid(rev)}? The changes in the working tree are stashed first, so Undo can bring them back.`,
+      confirm: "Roll Back",
+      warning: true,
     });
     if (!go) return;
     await mutate((repo) => rollbackTo(repo, rev, paths), paths);
@@ -1888,9 +1904,11 @@
     }
 
     if (action.destructive) {
-      const go = await ask(`${action.title}. This rewrites history. Continue?`, {
-        title: "Rewrite history",
-        kind: "warning",
+      const go = await confirmation.ask({
+        title: "Rewrite History",
+        message: `${action.title}. This rewrites history. Continue?`,
+        confirm: "Rewrite",
+        warning: true,
       });
       if (!go) return;
     }
@@ -2492,21 +2510,25 @@
     const stale = worktrees.entries.filter((entry) => entry.missing);
     if (stale.length === 0) return;
     const names = stale.map((entry) => entry.name).join(", ");
-    const confirmed = await ask(
-      `Forget ${stale.length === 1 ? "the missing worktree" : `${stale.length} missing worktrees`} (${names})? ` +
+    const confirmed = await confirmation.ask({
+      title: "Prune Obsolete Worktrees",
+      message:
+        `Forget ${stale.length === 1 ? "the missing worktree" : `${stale.length} missing worktrees`} (${names})? ` +
         "Only Git's registration is removed; nothing on disk is touched. Locked ones are kept.",
-      { title: "Prune Obsolete Worktrees", kind: "info", okLabel: "Prune", cancelLabel: "Cancel" },
-    );
+      confirm: "Prune",
+    });
     if (!confirmed) return;
     await worktrees.prune().catch((err) => errors.report(err, "Could not prune worktrees"));
   }
 
   async function pruneWorktreeAt(entry: import("$lib/ipc").WorktreeEntry) {
-    const confirmed = await ask(
-      `Forget the worktree ${entry.name} at ${entry.path}? ` +
+    const confirmed = await confirmation.ask({
+      title: "Prune Worktree",
+      message:
+        `Forget the worktree ${entry.name} at ${entry.path}? ` +
         "Only Git's registration of it is removed; nothing on disk is touched.",
-      { title: "Prune Worktree", kind: "info", okLabel: "Prune", cancelLabel: "Cancel" },
-    );
+      confirm: "Prune",
+    });
     if (!confirmed) return;
     await worktrees
       .pruneOne(entry.path)
@@ -3006,9 +3028,8 @@
     flushTrace();
     session.persist();
     const what = unsavedWork();
-    if (what && !(await ask(`${what} Close anyway?`, { title: "Cogit", kind: "warning" }))) {
-      return false;
-    }
+    const question = { title: "Unsaved Work", message: `${what} Close anyway?`, confirm: "Close", warning: true };
+    if (what && !(await confirmation.ask(question))) return false;
     // Someone who just said "close anyway" has been asked once already.
     const confirm = what ? false : settings.current.confirmExit;
     return exitFlow.ask(source, confirm, listOperations);
@@ -3018,9 +3039,8 @@
       stops whatever git runs. The plugin exits on its own on Windows, past `RunEvent::Exit`. */
   async function mayInstallUpdate(): Promise<boolean> {
     const what = unsavedWork();
-    if (what && !(await ask(`${what} Restart anyway?`, { title: "Check for Updates", kind: "warning" }))) {
-      return false;
-    }
+    const question = { title: "Unsaved Work", message: `${what} Restart anyway?`, confirm: "Restart", warning: true };
+    if (what && !(await confirmation.ask(question))) return false;
     flushTrace();
     session.persist();
     // Asks only while operations run: "Exit When Done" installs once they are over.
