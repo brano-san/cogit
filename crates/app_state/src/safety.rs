@@ -110,7 +110,10 @@ impl AppState {
         match &held.recovery {
             Recovery::Stash { oid } => handle.stash_apply(oid)?,
             Recovery::Branch { name, oid } => handle.create_branch(name, Some(oid), false)?,
-            Recovery::Moved { name, oid } => handle.move_branch_back(name, oid)?,
+            Recovery::Moved { name, oid } => {
+                wait_for_the_operation(&handle)?;
+                handle.move_branch_back(name, oid)?;
+            }
             Recovery::Tag { name, oid } => handle.create_tag(&git_engine::TagRequest {
                 name: name.clone(),
                 target: Some(oid.clone()),
@@ -167,4 +170,15 @@ impl AppState {
             );
         }
     }
+}
+
+/// Git refuses to move a branch under a stopped merge or rebase and says nothing of what to
+/// do; aborting on the user's behalf would throw away what they have resolved so far.
+fn wait_for_the_operation(handle: &git_engine::RepoHandle) -> Result<(), git_engine::GitError> {
+    if handle.state()?.is_interrupted_operation() {
+        return Err(git_engine::GitError::InvalidState(
+            "an operation is in progress: continue or abort it, then undo".to_owned(),
+        ));
+    }
+    Ok(())
 }
