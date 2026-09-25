@@ -1,5 +1,6 @@
 <script lang="ts">
   import Checkbox from "$components/common/Checkbox.svelte";
+  import Radio from "$components/common/Radio.svelte";
   import {
     COLUMN_LABELS,
     moveColumn,
@@ -122,15 +123,11 @@
     <span class:off={disabled}>{field.label}</span>
     <div class="options">
       {#each TIME_FORMATS as [id, example] (id)}
-        <label class:off={disabled}>
-          <input
-            type="radio"
-            checked={value.graphTimeFormat === id}
-            {disabled}
-            onchange={() => onset("graphTimeFormat", id)}
-          />
-          <span class="mono">{example}</span>
-        </label>
+        <span class:off={disabled}>
+          <Radio name="graphTimeFormat" checked={value.graphTimeFormat === id} {disabled} onchange={() => onset("graphTimeFormat", id)}>
+            <span class="mono">{example}</span>
+          </Radio>
+        </span>
       {/each}
       {#if disabled}<span class="why">The Time column is hidden.</span>{/if}
     </div>
@@ -140,14 +137,7 @@
     <span>{field.label}</span>
     <div class="options">
       {#each DENSITIES as [id, title] (id)}
-        <label>
-          <input
-            type="radio"
-            checked={value.graphDensity === id}
-            onchange={() => onset("graphDensity", id)}
-          />
-          <span>{title}</span>
-        </label>
+        <Radio name="graphDensity" checked={value.graphDensity === id} onchange={() => onset("graphDensity", id)} label={title} />
       {/each}
     </div>
   </div>
@@ -274,12 +264,6 @@
     gap: var(--sp-2);
   }
 
-  .options label {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-3);
-  }
-
   .slider {
     display: flex;
     align-items: center;
@@ -295,12 +279,5 @@
   .off {
     color: var(--text-secondary);
     opacity: 0.6;
-  }
-
-  input[type="radio"] {
-    accent-color: var(--status-ref);
-    width: 13px;
-    height: 13px;
-    margin: 0;
   }
 </style>

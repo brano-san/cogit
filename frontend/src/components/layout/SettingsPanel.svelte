@@ -1,5 +1,7 @@
 <script lang="ts">
   import Dialog from "$components/common/Dialog.svelte";
+  import Checkbox from "$components/common/Checkbox.svelte";
+  import Radio from "$components/common/Radio.svelte";
   import Select from "$components/common/Select.svelte";
   import Tree from "$components/common/Tree.svelte";
   import {
@@ -223,14 +225,7 @@
                     <p class="ask">Not decided yet — nothing is fetched until you choose.</p>
                   {/if}
                   {#each AVATARS as [id, title] (id)}
-                    <label>
-                      <input
-                        type="radio"
-                        checked={draft.avatars === id}
-                        onchange={() => set("avatars", id)}
-                      />
-                      <span>{title}</span>
-                    </label>
+                    <Radio name="avatars" checked={draft.avatars === id} onchange={() => set("avatars", id)} label={title} />
                   {/each}
                 </div>
               </div>
@@ -249,14 +244,9 @@
                 <span>{field.label}</span>
                 <div class="options">
                   {#each DATE_FORMATS as [id, example] (id)}
-                    <label>
-                      <input
-                        type="radio"
-                        checked={draft.dateFormat === id}
-                        onchange={() => set("dateFormat", id)}
-                      />
+                    <Radio name="dateFormat" checked={draft.dateFormat === id} onchange={() => set("dateFormat", id)}>
                       <span class="mono">{example}</span>
-                    </label>
+                    </Radio>
                   {/each}
                 </div>
               </div>
@@ -265,14 +255,7 @@
                 <span>{field.label}</span>
                 <div class="options">
                   {#each PULL_MODES as [id, title] (id)}
-                    <label>
-                      <input
-                        type="radio"
-                        checked={draft.pullMode === id}
-                        onchange={() => set("pullMode", id)}
-                      />
-                      <span>{title}</span>
-                    </label>
+                    <Radio name="pullMode" checked={draft.pullMode === id} onchange={() => set("pullMode", id)} label={title} />
                   {/each}
                 </div>
               </div>
@@ -310,14 +293,7 @@
                 <span>{field.label}</span>
                 <div class="options">
                   {#each ALGORITHMS as [id, title] (id)}
-                    <label>
-                      <input
-                        type="radio"
-                        checked={draft.algorithm === id}
-                        onchange={() => set("algorithm", id)}
-                      />
-                      <span>{title}</span>
-                    </label>
+                    <Radio name="algorithm" checked={draft.algorithm === id} onchange={() => set("algorithm", id)} label={title} />
                   {/each}
                 </div>
               </div>
@@ -326,14 +302,7 @@
                 <span>{field.label}</span>
                 <div class="options">
                   {#each WHITESPACE as [id, title] (id)}
-                    <label>
-                      <input
-                        type="radio"
-                        checked={draft.ignoreWhitespace === id}
-                        onchange={() => set("ignoreWhitespace", id)}
-                      />
-                      <span>{title}</span>
-                    </label>
+                    <Radio name="ignoreWhitespace" checked={draft.ignoreWhitespace === id} onchange={() => set("ignoreWhitespace", id)} label={title} />
                   {/each}
                 </div>
               </div>
@@ -366,32 +335,17 @@
                 </span>
               </label>
             {:else if field.key === "coloredLanes"}
-              <label class="row check">
-                <input
-                  type="checkbox"
-                  checked={draft.coloredLanes}
-                  onchange={(e) => set("coloredLanes", e.currentTarget.checked)}
-                />
-                <span>{field.label}</span>
-              </label>
+              <div class="row check">
+                <Checkbox checked={draft.coloredLanes} onchange={(checked) => set("coloredLanes", checked)} label={field.label} />
+              </div>
             {:else if field.key === "detectMoves"}
-              <label class="row check">
-                <input
-                  type="checkbox"
-                  checked={draft.detectMoves}
-                  onchange={(e) => set("detectMoves", e.currentTarget.checked)}
-                />
-                <span>{field.label}</span>
-              </label>
+              <div class="row check">
+                <Checkbox checked={draft.detectMoves} onchange={(checked) => set("detectMoves", checked)} label={field.label} />
+              </div>
             {:else if field.key === "confirmExit"}
-              <label class="row check">
-                <input
-                  type="checkbox"
-                  checked={draft.confirmExit}
-                  onchange={(e) => set("confirmExit", e.currentTarget.checked)}
-                />
-                <span>{field.label}</span>
-              </label>
+              <div class="row check">
+                <Checkbox checked={draft.confirmExit} onchange={(checked) => set("confirmExit", checked)} label={field.label} />
+              </div>
             {:else if field.key === "suppressions"}
               {@const choices = suppressedChoices(draft.confirmExit, ignored)}
               <p class="row">{field.label}</p>
@@ -419,24 +373,13 @@
                 </ul>
               {/if}
             {:else if field.key === "autoUpdate"}
-              <label class="row check">
-                <input
-                  type="checkbox"
-                  checked={draft.autoUpdate}
-                  onchange={(e) => set("autoUpdate", e.currentTarget.checked)}
-                />
-                <span>{field.label}</span>
-              </label>
+              <div class="row check">
+                <Checkbox checked={draft.autoUpdate} onchange={(checked) => set("autoUpdate", checked)} label={field.label} />
+              </div>
             {:else if field.key === "wordDiff"}
-              <label class="row check nested">
-                <input
-                  type="checkbox"
-                  checked={draft.wordDiff}
-                  disabled={disabledBy(draft, field.dependsOn)}
-                  onchange={(e) => set("wordDiff", e.currentTarget.checked)}
-                />
-                <span>{field.label}</span>
-              </label>
+              <div class="row check nested">
+                <Checkbox checked={draft.wordDiff} disabled={disabledBy(draft, field.dependsOn)} onchange={(checked) => set("wordDiff", checked)} label={field.label} />
+              </div>
             {:else if field.key === "terminal"}
               <div class="row">
                 <span>{field.label}</span>
@@ -699,12 +642,6 @@
     gap: var(--sp-2);
   }
 
-  .options label {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-3);
-  }
-
   .slider {
     display: flex;
     align-items: center;
@@ -756,17 +693,9 @@
     font-size: 11px;
   }
 
-  input[type="checkbox"],
-  input[type="radio"] {
-    accent-color: var(--status-ref);
-    width: 13px;
-    height: 13px;
-    margin: 0;
-  }
-
   /* A nested option that its parent has switched off says so rather than looking live. */
   label:has(input:disabled),
-  .row:has(> input:disabled) {
+  .row:has(:global(input:disabled)) {
     color: var(--text-secondary);
     opacity: 0.6;
   }
