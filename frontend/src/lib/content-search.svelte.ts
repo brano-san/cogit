@@ -29,13 +29,18 @@ function sameQuery(a: ContentQuery | null, b: ContentQuery | null): boolean {
   return a.text === b.text && a.regex === b.regex && a.scope === b.scope;
 }
 
-/** Searching contents replaces the name filter rather than adding to it (R-270). */
+/** Searching contents replaces the name filter rather than adding to it (R-270). A new
+    folder is one `dir/` row: it stays when a file inside it matches. */
 export function keepFile(
   file: FileEntry,
   pattern: Pattern,
   hits: ReadonlyMap<string, number> | null,
 ): boolean {
-  return hits === null ? matches(file, pattern) : hits.has(file.path);
+  if (hits === null) return matches(file, pattern);
+  if (hits.has(file.path)) return true;
+  if (!file.path.endsWith("/")) return false;
+  for (const path of hits.keys()) if (path.startsWith(file.path)) return true;
+  return false;
 }
 
 export type Runner = (

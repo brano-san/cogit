@@ -189,6 +189,25 @@ fn the_changed_scope_looks_only_at_what_changed() {
 }
 
 #[test]
+fn the_changed_scope_looks_inside_a_new_untracked_folder() {
+    // Status collapses the folder into one `newdir/` entry, which cannot be read as a file.
+    let f = test_fixtures::linear(2).unwrap();
+    f.write_file("newdir/a.ts", "needle\n").unwrap();
+    f.write_file("newdir/deeper/b.ts", "a needle too\n")
+        .unwrap();
+    f.write_file(".gitignore", "newdir/built.js\n").unwrap();
+    f.write_file("newdir/built.js", "needle\n").unwrap();
+    let repo = open(&f);
+
+    let mut paths: Vec<String> = find(&repo, &literal("needle", SearchScope::Changed))
+        .into_iter()
+        .map(|found| found.path)
+        .collect();
+    paths.sort();
+    assert_eq!(paths, ["newdir/a.ts", "newdir/deeper/b.ts"]);
+}
+
+#[test]
 fn a_cancelled_search_stops_early() {
     let f = test_fixtures::linear(50).unwrap();
     let repo = open(&f);
