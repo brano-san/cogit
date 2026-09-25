@@ -23,8 +23,15 @@ export function mark(stale: ReadonlySet<PanelId>, kind: ChangeKind): Set<PanelId
   return next;
 }
 
-export function clear(stale: ReadonlySet<PanelId>, panels: readonly PanelId[]): Set<PanelId> {
+/** `since`: changes that arrived after the reload began; the panels they touch stay stale
+    until a reload that began after them. */
+export function clear(
+  stale: ReadonlySet<PanelId>,
+  panels: readonly PanelId[],
+  since: Iterable<ChangeKind> = [],
+): Set<PanelId> {
+  const kept = new Set([...since].flatMap(affected));
   const next = new Set(stale);
-  for (const panel of panels) next.delete(panel);
+  for (const panel of panels) if (!kept.has(panel)) next.delete(panel);
   return next;
 }
