@@ -120,7 +120,7 @@ impl RepoHandle {
             DiffSpec::CommitVsCommit { a, b } => {
                 Ok((self.blob_at(a, path)?, self.blob_at(b, path)?))
             }
-            DiffSpec::WorkTreeVsIndex => Ok((self.blob_in_index(path)?, self.blob_on_disk(path)?)),
+            DiffSpec::WorkTreeVsIndex => Ok((self.blob_in_index(path)?, self.worktree_side(path)?)),
             DiffSpec::IndexVsHead => {
                 let old = match self.head()? {
                     crate::Head::Unborn { .. } => None,
@@ -129,7 +129,7 @@ impl RepoHandle {
                 Ok((old, self.blob_in_index(path)?))
             }
             DiffSpec::CommitVsWorkTree { oid } => {
-                Ok((self.blob_at(oid, path)?, self.blob_on_disk(path)?))
+                Ok((self.blob_at(oid, path)?, self.worktree_side(path)?))
             }
         }
     }
@@ -148,7 +148,7 @@ impl RepoHandle {
             DiffSpec::CommitVsCommit { a, b } => {
                 Ok((self.size_at(a, path)?, self.size_at(b, path)?))
             }
-            DiffSpec::WorkTreeVsIndex => Ok((self.size_in_index(path)?, self.size_on_disk(path)?)),
+            DiffSpec::WorkTreeVsIndex => Ok((self.size_in_index(path)?, self.worktree_size(path)?)),
             DiffSpec::IndexVsHead => {
                 let old = match self.head()? {
                     crate::Head::Unborn { .. } => None,
@@ -157,9 +157,39 @@ impl RepoHandle {
                 Ok((old, self.size_in_index(path)?))
             }
             DiffSpec::CommitVsWorkTree { oid } => {
-                Ok((self.size_at(oid, path)?, self.size_on_disk(path)?))
+                Ok((self.size_at(oid, path)?, self.worktree_size(path)?))
             }
         }
+    }
+
+    /// The working-tree side as git reads it. An entry marked skip-worktree (sparse
+    /// checkout) or assume-unchanged stands for the file, whatever is on disk or is not:
+    /// read from disk, a missing one looked deleted, and staging that deleted it.
+    fn worktree_side(&self, path: &str) -> Result<Option<Vec<u8>>> {
+        if self.index_stands_in(path)? {
+            return self.blob_in_index(path);
+        }
+        self.blob_on_disk(path)
+    }
+
+    fn worktree_size(&self, path: &str) -> Result<Option<u64>> {
+        if self.index_stands_in(path)? {
+            return self.size_in_index(path);
+        }
+        self.size_on_disk(path)
+    }
+
+    fn index_stands_in(&self, path: &str) -> Result<bool> {
+        use gix::index::entry::Flags;
+        let index = self
+            .repo
+            .index_or_empty()
+            .map_err(|err| GitError::Internal(format!("cannot read the index: {err}")))?;
+        Ok(index.entry_by_path(path.into()).is_some_and(|entry| {
+            entry
+                .flags
+                .intersects(Flags::SKIP_WORKTREE | Flags::ASSUME_VALID)
+        }))
     }
 
     fn size_at(&self, rev: &str, path: &str) -> Result<Option<u64>> {
