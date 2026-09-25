@@ -49,14 +49,14 @@ describe("compile", () => {
 
 describe("haystack", () => {
   it("carries the name, the path and the state", () => {
-    const text = haystack(file());
-    expect(text).toContain("graph.ts");
-    expect(text).toContain("src/lib/graph.ts");
-    expect(text.toLowerCase()).toContain("modified");
+    const parts = haystack(file());
+    expect(parts).toContain("graph.ts");
+    expect(parts).toContain("src/lib/graph.ts");
+    expect(parts.map((part) => part.toLowerCase())).toContain("modified");
   });
 
   it("carries the old path of a rename too", () => {
-    expect(haystack(file({ oldPath: "src/old-name.ts" }))).toContain("old-name.ts");
+    expect(haystack(file({ oldPath: "src/old-name.ts" }))).toContain("src/old-name.ts");
   });
 });
 
@@ -76,5 +76,27 @@ describe("matches", () => {
 
   it("keeps everything when nothing is typed", () => {
     expect(matches(file(), compile("", false))).toBe(true);
+  });
+
+  it("anchors an expression to the name, the path or the state, not to their join", () => {
+    const svelte = file({ path: "src/App.svelte" });
+    expect(matches(svelte, compile("\\.svelte$", true))).toBe(true);
+    expect(matches(svelte, compile("^src/", true))).toBe(true);
+    expect(matches(svelte, compile("^modified$", true))).toBe(true);
+    expect(matches(svelte, compile("^App\\.svelte src", true))).toBe(false);
+  });
+
+  it("reads a mask with * or ? as a glob over the name or the path", () => {
+    const rust = file({ path: "src/deep/main.rs" });
+    expect(matches(rust, compile("*.rs", false))).toBe(true);
+    expect(matches(rust, compile("*.RS", false))).toBe(true);
+    expect(matches(rust, compile("src/*.rs", false))).toBe(true);
+    expect(matches(rust, compile("main.r?", false))).toBe(true);
+    expect(matches(rust, compile("*.ts", false))).toBe(false);
+    expect(matches(file({ path: "src/main.rs.bak" }), compile("*.rs", false))).toBe(false);
+  });
+
+  it("finds no text across the seam between two parts", () => {
+    expect(matches(file({ path: "src/App.svelte" }), compile("svelte src", false))).toBe(false);
   });
 });

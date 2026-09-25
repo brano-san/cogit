@@ -105,6 +105,65 @@ fn a_ref_moved_back_outside_is_noticed_too() {
     assert_eq!(summaries(&state, ra, generation)[0], "commit 2");
 }
 
+/// `fetch --unshallow` brings the history below the boundary and moves no ref.
+#[test]
+fn a_deepened_clone_is_walked_again() {
+    let upstream = test_fixtures::linear(5).unwrap();
+    let clone = tempfile::tempdir().unwrap();
+    let url = format!(
+        "file://{}",
+        upstream.path().to_string_lossy().replace('\\', "/")
+    );
+    let target = clone.path().join("shallow");
+    let git = |args: &[&str], at: &std::path::Path| {
+        let status = std::process::Command::new("git")
+            .current_dir(at)
+            .args(args)
+            .status()
+            .unwrap();
+        assert!(status.success(), "{args:?}");
+    };
+    git(
+        &["clone", "-q", "--depth", "2", &url, "shallow"],
+        clone.path(),
+    );
+    let state = AppState::new();
+    let repo = state.open_repository(&target).unwrap().repo;
+    let (_, before) = build(&state, repo);
+
+    git(&["fetch", "-q", "--unshallow"], &target);
+    let (_, after) = build(&state, repo);
+
+    assert_eq!(before.last().unwrap().total, 2);
+    assert_eq!(after.last().unwrap().total, 5);
+}
+
+/// Dropping a stash below the top leaves `refs/stash` where it was, but `stash@{1}` then
+/// names the stash under the dropped one.
+#[test]
+fn a_ticked_stash_is_walked_again_after_a_drop_below_the_top() {
+    let a = test_fixtures::linear(2).unwrap();
+    for name in ["one", "two", "three"] {
+        a.write_file("file0.txt", &format!("{name}\n")).unwrap();
+        a.git(&["stash", "push", "--message", name]).unwrap();
+    }
+    let state = AppState::new();
+    let ra = state.open_repository(a.path()).unwrap().repo;
+    let query = CommitQuery {
+        visible_refs: Some(vec!["stash@{1}".to_owned()]),
+        ..CommitQuery::default()
+    };
+    let (generation, _) = build_with(&state, ra, &query);
+    assert!(summaries(&state, ra, generation).contains(&"On main: two".to_owned()));
+
+    a.git(&["stash", "drop", "stash@{1}"]).unwrap();
+    let (generation, _) = build_with(&state, ra, &query);
+
+    let shown = summaries(&state, ra, generation);
+    assert!(shown.contains(&"On main: one".to_owned()), "{shown:?}");
+    assert!(!shown.contains(&"On main: two".to_owned()), "{shown:?}");
+}
+
 #[test]
 fn another_query_is_walked_not_served() {
     let a = test_fixtures::linear(6).unwrap();

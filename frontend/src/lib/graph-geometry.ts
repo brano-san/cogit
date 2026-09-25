@@ -215,6 +215,30 @@ export function toCommitRow(listRow: number, headerRows: number = HEADER_ROWS): 
   return row >= 0 ? row : null;
 }
 
+/** HEAD's ring, where the dashed line from the Working Tree row ends (07 §4). It is not
+    always the first commit: HEAD comes under whatever of its descendants is shown (R-164). */
+export function headNode(
+  headRow: number | null,
+  laneAt: (commitRow: number) => number | undefined,
+  headerRows: number = HEADER_ROWS,
+): { lane: number; listRow: number } | null {
+  if (headRow === null) return null;
+  const lane = laneAt(headRow);
+  return lane === undefined ? null : { lane, listRow: toListRow(headRow, headerRows) };
+}
+
+/** What a click on a list row selects: a commit, the working tree (`null`, the first row),
+    or nothing — a rebase row, or a commit whose block has not arrived yet. */
+export function clickedCommit(
+  listRow: number,
+  headerRows: number,
+  oidAt: (commitRow: number) => string | undefined,
+): string | null | undefined {
+  const row = toCommitRow(listRow, headerRows);
+  if (row === null) return listRow === 0 ? null : undefined;
+  return oidAt(row);
+}
+
 export function nextRow(
   current: number | null,
   key: string,
@@ -241,6 +265,20 @@ export function nextRow(
     default:
       return null;
   }
+}
+
+/** Where a key press lands, counted from the selected commit. Its block may be evicted or
+    not inherited by a reload, so Rust is asked for its row (R-193); only a commit this
+    graph lacks starts from the top. */
+export async function keyTarget(
+  rows: { loadedIndexOf(oid: string | null): number | null; indexOf(oid: string): Promise<number | null> },
+  selected: string | null,
+  key: string,
+  total: number,
+  pageRows: number,
+): Promise<number | null> {
+  const at = rows.loadedIndexOf(selected) ?? (selected === null ? null : await rows.indexOf(selected));
+  return nextRow(at, key, total, pageRows);
 }
 
 export function scrollRowIntoView(

@@ -13,7 +13,7 @@
     visibleFiles,
     type FileView,
   } from "$lib/file-view";
-  import { afterDeselect, applyClick, EMPTY_SELECTION, type FileSelection } from "$lib/multi-select";
+  import { afterDeselect, applyClick, EMPTY_SELECTION, shownMarks, type FileSelection } from "$lib/multi-select";
   import FilePane from "$components/file-list/FilePane.svelte";
   import Splitter from "$components/layout/Splitter.svelte";
   import type { FileEntry } from "$lib/ipc";
@@ -104,7 +104,7 @@
   });
 
   $effect(() => {
-    onmarked?.([...marked.paths]);
+    onmarked?.([...visibleMarks.paths]);
   });
 
   let shownBefore: string | null = null;
@@ -158,10 +158,12 @@
   const total = $derived(sections.reduce((n, section) => n + section.files.length, 0));
   const shownCount = $derived(groups.reduce((n, group) => n + group.files.length, 0));
   const order = $derived(groups.flatMap((group) => group.paths));
+  const visibleMarks = $derived(shownMarks(marked, order));
 
   /** The paths an action applies to: the marked set when the clicked file is in it. */
   function scopeOf(path: string): string[] {
-    return marked.paths.has(path) && marked.paths.size > 1 ? [...marked.paths] : [path];
+    const paths = visibleMarks.paths;
+    return paths.has(path) && paths.size > 1 ? [...paths] : [path];
   }
 
   function scoped(actions: readonly Action[]): Action[] {
@@ -242,7 +244,7 @@
             actions={scoped(group.section.actions ?? [])}
             showDirectory={!active.directories}
             {selected}
-            marked={marked.paths}
+            marked={visibleMarks.paths}
             onclick={(path, event) => clicked(group.section, path, event)}
             onmark={mark}
             {onopen}
@@ -263,7 +265,7 @@
               actions={scoped(group.section.actions ?? [])}
               showDirectory={!active.directories}
               {selected}
-              marked={marked.paths}
+              marked={visibleMarks.paths}
               onclick={(path, event) => clicked(group.section, path, event)}
               onmark={mark}
               {onopen}

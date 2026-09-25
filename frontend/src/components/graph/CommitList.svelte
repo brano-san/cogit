@@ -4,7 +4,7 @@
   import SkeletonRows from "$components/common/SkeletonRows.svelte";
   import GraphCanvas from "$components/graph/GraphCanvas.svelte";
   import RefCapsule from "$components/graph/RefCapsule.svelte";
-  import { capsules, dateTooltip, refLabels, shortOid, type RefLabel } from "$lib/format";
+  import { capsules, dateTooltip, refLabelKey, refLabels, shortOid, type RefLabel } from "$lib/format";
   import { DRAG_TYPE, parseDrag, serialiseDrag } from "$lib/drop-target";
   import { overlapLabel, overlapTooltip } from "$lib/overlap";
   import { overlap } from "$stores/overlap.svelte";
@@ -12,7 +12,10 @@
     GRAPH,
     HEADER_ROWS,
     centreRow,
+    clickedCommit,
+    headNode,
     hitTest,
+    keyTarget,
     nextRow,
     scrollRowIntoView,
     setGraphRowHeight,
@@ -221,8 +224,32 @@
     panelWidth > 0 ? graphClipX(panelWidth, rightWidth, subjectRoom(metrics.char)) : Number.POSITIVE_INFINITY,
   );
 
+  const headOid = $derived.by(() => {
+    const head = repository.current?.head;
+    return head && head.kind !== "unborn" ? head.oid : null;
+  });
+  const headKey = $derived(`${graph.walk?.generation ?? ""}:${graph.complete}:${headOid ?? ""}`);
+  const headNear = $derived(graph.loadedIndexOf(headOid));
+  /** HEAD far below the loaded rows, asked for once per walk and once more when it ends. */
+  let headFar = $state.raw<{ key: string; row: number; lane: number } | null>(null);
+  $effect(() => {
+    const oid = headOid;
+    const key = headKey;
+    if (oid === null || headNear !== null) return;
+    void graph.locate(oid).then((place) => {
+      headFar = place && { key, ...place };
+    });
+  });
+  const far = $derived(headFar?.key === headKey ? headFar : null);
+  const head = $derived(
+    headNode(
+      headNear ?? far?.row ?? null,
+      (row) => graph.rowAt(row)?.layout.lane ?? (row === far?.row ? far.lane : undefined),
+      headerRows,
+    ),
+  );
   /** The Working Tree row and the rebase rows start where HEAD's line is. */
-  const headLane = $derived(graph.rowAt(0)?.layout.lane ?? null);
+  const headLane = $derived(head?.lane ?? null);
   const headerX = $derived(rowTextX((headLane ?? 0) + 1, clipX));
 
   /** The window drives the queue: rows that scroll away stop being asked for. */
@@ -326,21 +353,16 @@
     const id = repository.current?.repo;
     if (!id) return;
 
-    const at = graph.loadedIndexOf(selection.oid);
     const page = Math.max(Math.floor(viewportHeight / rowHeight) - 1, 1);
-    const target = nextRow(at, event.key, graph.total, page);
-    if (target === null) return;
+    if (nextRow(0, event.key, graph.total, page) === null) return;
 
     event.preventDefault();
-    void graph.entry(target).then((row) => row && pick(id, row.commit.oid));
-
-    const offset = scrollRowIntoView(
-      target + headerRows,
-      scrollTop,
-      viewportHeight,
-      rowHeight,
-    );
-    if (offset !== null && scroller) scroller.scrollTop = offset;
+    void keyTarget(graph, selection.oid, event.key, graph.total, page).then((target) => {
+      if (target === null) return;
+      void graph.entry(target).then((row) => row && pick(id, row.commit.oid));
+      const offset = scrollRowIntoView(target + headerRows, scrollTop, viewportHeight, rowHeight);
+      if (offset !== null && scroller) scroller.scrollTop = offset;
+    });
   }
 
   function onscroll() {
@@ -386,7 +408,8 @@
     const repo = repository.current?.repo;
     if (!repo) return;
     const commitRow = toCommitRow(hit.row, headerRows);
-    const oid = commitRow === null ? null : (graph.rowAt(commitRow)?.commit.oid ?? null);
+    const oid = clickedCommit(hit.row, headerRows, (row) => graph.rowAt(row)?.commit.oid);
+    if (oid === undefined) return;
     const layout = commitRow === null ? undefined : graph.rowAt(commitRow)?.layout;
     if (branchOfCommit && oid !== null && layout && commitRow !== null) {
       const upper = (event.clientY - box.top + scrollTop) % rowHeight < rowHeight / 2;
@@ -477,7 +500,7 @@
           {scrollTop}
           width={canvasWidth}
           height={viewportHeight}
-          firstCommitRow={headerRows}
+          headRow={head?.listRow ?? null}
           {headLane}
           {selectedRow}
           {hoverRow}
@@ -506,7 +529,10 @@
             style:top="0px"
             style:padding-left="{headerX}px"
             title="Show the working tree in Files and Diff"
-            onclick={() => selection.showWorkingTree()}
+            onclick={(event) => {
+              event.stopPropagation();
+              selection.showWorkingTree();
+            }}
             oncontextmenu={(event) => {
               if (!onworktreecontext) return;
               event.preventDefault();
@@ -576,7 +602,7 @@
                 <FoldToggle {open} {hidden} ontoggle={() => graphFolds.toggle(item.entry.commit.oid)} />
               {/if}
             {/if}
-            {#each refs.shown as label (label.text)}
+            {#each refs.shown as label (refLabelKey(label))}
               <RefCapsule
                 {label}
                 onmenu={onrefcontext &&

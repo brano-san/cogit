@@ -32,7 +32,7 @@ const commands = {
         length: oids.length,
         oid: (row: number) => oids[row],
         find: (oid: string) => oids.indexOf(oid),
-        entry: (row: number) => ({ commit: { oid: oids[row] }, layout: { row: start + row } }),
+        entry: (row: number) => ({ commit: { oid: oids[row] }, layout: { row: start + row, lane: (start + row) % 3 } }),
       },
     };
   }),
@@ -394,6 +394,15 @@ describe("graph windows", () => {
     expect(await graph.indexOf("c10")).toBe(10);
     expect(await graph.indexOf("c950")).toBe(950);
     expect(await graph.indexOf("nowhere")).toBeNull();
+  });
+
+  it("places a commit far off the screen without keeping its block", async () => {
+    await long();
+
+    expect(await graph.locate("c950")).toEqual({ row: 950, lane: 950 % 3 });
+    expect(graph.rowAt(950)).toBeUndefined();
+    expect(await graph.locate("c10")).toEqual({ row: 10, lane: 10 % 3 });
+    expect(await graph.locate("nowhere")).toBeNull();
   });
 
   it("loads the row a key press moves to", async () => {

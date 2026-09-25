@@ -18,6 +18,9 @@ import {
   setLaneWidth,
   visibleRange,
   HEADER_ROWS,
+  clickedCommit,
+  headNode,
+  keyTarget,
   toCommitRow,
   toListRow,
 } from "./graph-geometry";
@@ -196,6 +199,42 @@ describe("setLaneWidth", () => {
   });
 });
 
+describe("clickedCommit", () => {
+  const oidAt = (row: number) => (row < 3 ? `c${row}` : undefined);
+
+  it("selects the commit of a loaded row, and the working tree from the first row", () => {
+    expect(clickedCommit(4, 3, oidAt)).toBe("c1");
+    expect(clickedCommit(0, 3, oidAt)).toBeNull();
+  });
+
+  it("selects nothing on a rebase row or a row whose block has not arrived", () => {
+    expect(clickedCommit(1, 3, oidAt)).toBeUndefined();
+    expect(clickedCommit(9, 3, oidAt)).toBeUndefined();
+  });
+});
+
+describe("keyTarget", () => {
+  // Scrolled 10 000 rows away: the selected commit's block was evicted.
+  const rows = {
+    loadedIndexOf: (oid: string | null) => (oid === "near" ? 3 : null),
+    indexOf: async (oid: string) => ({ near: 3, far: 600 })[oid] ?? null,
+  };
+
+  it("moves from a selected commit whose block is not loaded, not from the top", async () => {
+    expect(await keyTarget(rows, "far", "ArrowDown", 1000, 20)).toBe(601);
+    expect(await keyTarget(rows, "far", "PageUp", 1000, 20)).toBe(580);
+  });
+
+  it("moves from a loaded selection as before", async () => {
+    expect(await keyTarget(rows, "near", "ArrowUp", 1000, 20)).toBe(2);
+  });
+
+  it("starts at the top with nothing selected or a commit this graph lacks", async () => {
+    expect(await keyTarget(rows, null, "ArrowDown", 1000, 20)).toBe(0);
+    expect(await keyTarget(rows, "gone", "ArrowDown", 1000, 20)).toBe(0);
+  });
+});
+
 describe("nextRow", () => {
   it("moves down and up by one", () => {
     expect(nextRow(5, "ArrowDown", 100, 20)).toBe(6);
@@ -277,6 +316,25 @@ describe("centreRow", () => {
 
   it("survives a viewport that has not been measured yet", () => {
     expect(centreRow(10, 0, rowHeight, 1000)).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe("HEAD's ring under the Working Tree row", () => {
+  // A ticked origin/main two commits ahead: its tip opens beside lane 0, HEAD comes third.
+  const lanes = [1, 1, 0, 0];
+  const laneAt = (row: number) => lanes[row];
+
+  it("is HEAD's own node when newer commits are drawn above it", () => {
+    expect(headNode(2, laneAt, 1)).toEqual({ lane: 0, listRow: 3 });
+  });
+
+  it("counts the rebase rows above the first commit", () => {
+    expect(headNode(0, () => 0, 4)).toEqual({ lane: 0, listRow: 4 });
+  });
+
+  it("is nowhere while HEAD is not in the graph or its row is not at hand", () => {
+    expect(headNode(null, laneAt, 1)).toBeNull();
+    expect(headNode(9, laneAt, 1)).toBeNull();
   });
 });
 

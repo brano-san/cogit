@@ -1,11 +1,11 @@
 import type { FileEntry } from "./ipc/bindings";
 
-/** The eight switches SmartGit puts above its file list, in its order and its words. */
+/** The switches SmartGit puts above its file list, in its order and its words. */
 export interface FileView {
   unchanged: boolean;
   untracked: boolean;
   ignored: boolean;
-  assumeUnchanged: boolean;
+  /** Skip-worktree and assume-unchanged alike: Git does not look at either file (R-420). */
   skipped: boolean;
   renameSources: boolean;
   directories: boolean;
@@ -23,7 +23,6 @@ export const DEFAULT_VIEW: FileView = {
   unchanged: false,
   untracked: true,
   ignored: false,
-  assumeUnchanged: false,
   skipped: false,
   renameSources: false,
   directories: false,
@@ -33,40 +32,6 @@ export const DEFAULT_VIEW: FileView = {
   regex: false,
   contents: false,
 };
-
-export interface Toggle {
-  key: keyof FileView;
-  icon: string;
-  title: string;
-}
-
-export const TOGGLES: readonly Toggle[] = [
-  { key: "unchanged", icon: "=", title: "If selected, unchanged files will be shown" },
-  {
-    key: "untracked",
-    icon: "?",
-    title: "If selected, not yet version controlled files will be shown",
-  },
-  { key: "ignored", icon: "∅", title: "If selected, ignored files will be shown" },
-  {
-    key: "assumeUnchanged",
-    icon: "≈",
-    title: "If selected, files having the 'assume-unchanged' flag will be shown",
-  },
-  { key: "skipped", icon: "⤳", title: "If selected, skipped files will be shown" },
-  {
-    key: "renameSources",
-    icon: "↤",
-    title: "If selected, removed/missing source files of detected renames will be shown",
-  },
-  { key: "directories", icon: "🗀", title: "If selected, the directories will be shown" },
-  {
-    key: "separateIndex",
-    icon: "⇅",
-    title:
-      "If selected and index as well as working tree changes are available, show them separately",
-  },
-];
 
 export interface BackendView {
   unchanged: boolean;
@@ -80,7 +45,7 @@ export function backendView(view: FileView): BackendView {
   return {
     unchanged: view.unchanged,
     ignored: view.ignored,
-    assumeUnchanged: view.assumeUnchanged,
+    assumeUnchanged: view.skipped,
     skipped: view.skipped,
   };
 }
@@ -89,7 +54,7 @@ const GATED: Partial<Record<FileEntry["status"], keyof FileView>> = {
   untracked: "untracked",
   unchanged: "unchanged",
   ignored: "ignored",
-  assumeUnchanged: "assumeUnchanged",
+  assumeUnchanged: "skipped",
   skipped: "skipped",
   modified: "modified",
   deleted: "missing",

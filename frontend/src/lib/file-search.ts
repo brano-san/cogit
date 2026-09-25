@@ -1,5 +1,5 @@
 import type { FileEntry } from "./ipc/bindings";
-import { fileName, statusLabel } from "./files";
+import { fileName, globToRegExp, statusLabel } from "./files";
 
 /**
  * One field to search them all: the name, the path and the state at once, because a
@@ -28,17 +28,24 @@ export function compile(text: string, regex: boolean): Pattern {
   }
 
   const lower = needle.toLowerCase();
+  // A mask like `*.rs` (F-010) matches a whole name or path, not a piece of one.
+  if (/[*?]/.test(lower)) {
+    const glob = globToRegExp(lower);
+    return { test: (subject) => glob.test(subject.toLowerCase()), broken: false };
+  }
   return { test: (subject) => subject.toLowerCase().includes(lower), broken: false };
 }
 
-/** Everything the row shows, joined, so the filter sees what the eye sees. */
-export function haystack(file: FileEntry): string {
+/** Everything the row shows, so the filter sees what the eye sees. Each part is tested on
+    its own: joined, `$` would meet the state and `^` the name instead of the path. */
+export function haystack(file: FileEntry): string[] {
   const parts = [fileName(file.path), file.path, statusLabel(file.status)];
   if (file.oldPath) parts.push(file.oldPath);
-  return parts.join(" ");
+  return parts;
 }
 
 export function matches(file: FileEntry, pattern: Pattern): boolean {
-  if (pattern.test === null) return true;
-  return pattern.test(haystack(file));
+  const test = pattern.test;
+  if (test === null) return true;
+  return haystack(file).some((part) => test(part));
 }

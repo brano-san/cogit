@@ -205,14 +205,46 @@ impl RepoHandle {
         Ok(())
     }
 
-    /// The paths the Files panel already shows.
+    /// The paths the Files panel already shows. A new folder is one collapsed `dir/` row
+    /// there, and a folder cannot be read: its untracked files are searched instead.
     fn changed_file_paths(&self) -> Result<Vec<String>> {
         let files = self.worktree_files()?;
         let mut paths: BTreeSet<String> = BTreeSet::new();
+        let mut folders: Vec<gix::bstr::BString> = Vec::new();
         for file in files.staged.iter().chain(files.unstaged.iter()) {
-            paths.insert(file.path.clone());
+            if file.path.ends_with('/') {
+                folders.push(file.path.as_str().into());
+            } else {
+                paths.insert(file.path.clone());
+            }
+        }
+        if !folders.is_empty() {
+            paths.extend(self.untracked_files_in(folders)?);
         }
         Ok(paths.into_iter().collect())
+    }
+
+    fn untracked_files_in(&self, folders: Vec<gix::bstr::BString>) -> Result<Vec<String>> {
+        let iter = self
+            .repo
+            .status(gix::progress::Discard)
+            .map_err(|err| GitError::Internal(format!("cannot start status: {err}")))?
+            .untracked_files(gix::status::UntrackedFiles::Files)
+            .into_iter(folders)
+            .map_err(|err| GitError::Internal(format!("cannot read status: {err}")))?;
+
+        let mut paths = Vec::new();
+        for item in iter {
+            let item = item.map_err(|err| GitError::Internal(format!("status failed: {err}")))?;
+            if let gix::status::Item::IndexWorktree(
+                gix::status::index_worktree::Item::DirectoryContents { entry, .. },
+            ) = item
+                && entry.status == gix::dir::entry::Status::Untracked
+            {
+                paths.push(entry.rela_path.to_string());
+            }
+        }
+        Ok(paths)
     }
 
     /// `None` for anything not worth opening: missing, too big, or binary.
