@@ -50,9 +50,15 @@ class HooksStore {
     await this.refresh(repo);
   }
 
+  /** The hook whose script is still on its way; Save waits for it. */
+  #reading: string | null = null;
+
   async edit(repo: RepoId, name: string): Promise<void> {
     this.#clear();
     this.editing = name;
+    this.#reading = name;
+    this.body = "";
+    this.saved = "";
     const present = this.overview?.hooks.find((hook) => hook.name === name);
     let body = "#!/bin/sh\nset -e\n\n";
     if (present && present.state !== "missing") {
@@ -70,6 +76,7 @@ class HooksStore {
     if (this.editing !== name) return;
     this.body = body;
     this.saved = body;
+    this.#reading = null;
   }
 
   get dirty(): boolean {
@@ -78,7 +85,7 @@ class HooksStore {
 
   async save(repo: RepoId): Promise<void> {
     this.#clear();
-    if (this.editing === null) return;
+    if (this.editing === null || this.#reading === this.editing) return;
     try {
       await writeHook(repo, this.editing, this.body);
       this.editing = null;
