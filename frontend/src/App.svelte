@@ -95,6 +95,7 @@
   import { blockedByLocalChanges } from "$lib/checkout-refusal";
   import { switchWithAutostash } from "$lib/autostash";
   import { foundStep } from "$lib/found";
+  import { applyPreferences, type ApplyHost } from "$lib/preferences-apply";
   import { capFraction, floorFraction, PANELS, type PanelId } from "$lib/perspectives";
   import { graphPanelMinWidth } from "$lib/graph-panel";
   import { repoClick } from "$lib/repo-click";
@@ -192,14 +193,6 @@
   import { refs } from "$stores/refs.svelte";
   import { stashView } from "$stores/stash-view.svelte";
   import { buildRefTree, visibleTips, type RefNode } from "$lib/ref-nodes";
-
-  /** Settings the open diff was computed with: changing one has to re-run it. */
-  const REDIFF: readonly (keyof Settings)[] = [
-    "algorithm",
-    "contextLines",
-    "wordDiff",
-    "detectMoves",
-  ];
 
   const PANEL_TITLES: Record<PanelId, string> = {
     repositories: "Repositories",
@@ -1016,27 +1009,20 @@
     const before = settingsAtOpen;
     settingsOpen = false;
     await toolbar.setLayout(toolbarAtOpen);
-    if (before) await settings.apply(before);
-    await settings.setKeymap(keymapAtOpen);
-    pushMenuState(true);
+    await applySettings(before ?? settings.current, keymapAtOpen);
   }
 
-  async function applySettings(next: Settings, keymap: import("$lib/keymap").Keymap) {
-    const before = settings.current;
-    const touched = (Object.keys(next) as (keyof Settings)[]).filter(
-      (key) => next[key] !== before[key],
-    );
-    await settings.apply(next);
-    await settings.setKeymap(keymap);
-    pushMenuState(true);
+  const preferencesHost: ApplyHost = {
+    current: () => settings.current,
+    apply: (next) => settings.apply(next),
+    setKeymap: (keymap) => settings.setKeymap(keymap),
+    rebuiltMenu: () => pushMenuState(true),
+    repo: () => repository.current?.repo ?? null,
+    diff,
+  };
 
-    const id = repository.current?.repo;
-    if (!id || !diff.spec || !diff.path) return;
-    if (touched.includes("ignoreWhitespace")) {
-      await diff.setWhitespace(id, settings.current.ignoreWhitespace);
-    } else if (touched.some((key) => REDIFF.includes(key))) {
-      await diff.load(id, diff.spec, diff.path);
-    }
+  function applySettings(next: Settings, keymap: import("$lib/keymap").Keymap) {
+    return applyPreferences(next, keymap, preferencesHost);
   }
 
   // The watcher is the only way Cogit learns about work done in a terminal alongside it.
