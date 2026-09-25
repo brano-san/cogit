@@ -136,7 +136,9 @@ impl RepoHandle {
                 let admin = entry.path();
                 let target = std::fs::read_to_string(admin.join("gitdir")).ok()?;
                 let target = target.trim().to_owned();
-                (!Path::new(&target).exists()).then(|| HealthIssue::DanglingWorktree {
+                // Relative to the admin entry with `worktree.useRelativePaths`; `join` keeps an
+                // absolute one as it is.
+                (!admin.join(&target).exists()).then(|| HealthIssue::DanglingWorktree {
                     name: entry.file_name().to_string_lossy().into_owned(),
                     foreign: is_foreign_path(&target),
                     target,
