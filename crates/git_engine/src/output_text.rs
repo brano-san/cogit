@@ -81,7 +81,14 @@ fn redact_line(line: &str) -> String {
     redact_assignment(&line)
 }
 
-/// `scheme://user:secret@host`, anywhere in the line.
+/// Whether the scheme (or what ends in it, `url=https`) is HTTP, where a user alone before
+/// the host is a token.
+pub(crate) fn is_http(scheme: &str) -> bool {
+    let lower = scheme.to_ascii_lowercase();
+    lower.ends_with("http") || lower.ends_with("https")
+}
+
+/// `scheme://user:secret@host` and `http(s)://token@host`, anywhere in the line.
 fn redact_urls(line: &str) -> String {
     let mut out = String::with_capacity(line.len());
     let mut rest = line;
@@ -96,11 +103,14 @@ fn redact_urls(line: &str) -> String {
         let (authority, path) = address.split_at(address.find('/').unwrap_or(address.len()));
 
         out.push_str(before);
-        match authority.rsplit_once('@').and_then(|(creds, host)| {
-            creds
-                .split_once(':')
-                .map(|(user, _)| format!("{user}:{HIDDEN}@{host}{path}"))
-        }) {
+        let http = is_http(&before[..before.len() - 3]);
+        match authority
+            .rsplit_once('@')
+            .and_then(|(creds, host)| match creds.split_once(':') {
+                Some((user, _)) => Some(format!("{user}:{HIDDEN}@{host}{path}")),
+                None if http => Some(format!("{HIDDEN}@{host}{path}")),
+                None => None,
+            }) {
             Some(safe) => out.push_str(&safe),
             None => out.push_str(address),
         }
