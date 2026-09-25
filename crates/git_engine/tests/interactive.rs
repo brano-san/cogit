@@ -173,6 +173,46 @@ fn rewording_replaces_the_subject() {
     assert_eq!(subjects(&f)[0], "a much better subject");
 }
 
+// Native `git rebase -i` runs commit-msg on a reword; Cogit's exec line had --no-verify,
+// so a Conventional Commits hook never saw the new message and nothing recorded the bypass.
+#[test]
+fn a_commit_msg_hook_checks_a_reworded_message() {
+    let f = test_fixtures::linear(3).unwrap();
+    let hooks = f.path().join(".git").join("hooks");
+    std::fs::create_dir_all(&hooks).unwrap();
+    let hook = hooks.join("commit-msg");
+    std::fs::write(
+        &hook,
+        "#!/bin/sh\necho 'not a conventional subject' >&2\nexit 1\n",
+    )
+    .unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        let mut mode = std::fs::metadata(&hook).unwrap().permissions();
+        mode.set_mode(0o755);
+        std::fs::set_permissions(&hook, mode).unwrap();
+    }
+    let base = f.oid("HEAD~1").unwrap();
+
+    let result = open(&f).interactive_rebase(
+        &base,
+        &[TodoEntry {
+            oid: f.oid("HEAD").unwrap(),
+            action: TodoAction::Reword,
+            message: Some("stuff".to_owned()),
+        }],
+    );
+
+    let Err(git_engine::GitError::Command(failure)) = result else {
+        panic!("the hook refused the message, so the rebase must stop: {result:?}");
+    };
+    assert!(
+        failure.stderr.contains("not a conventional subject"),
+        "{failure:?}"
+    );
+}
+
 #[test]
 fn an_empty_plan_is_refused() {
     let f = test_fixtures::linear(3).unwrap();
