@@ -1348,11 +1348,12 @@ impl AppState {
     }
 
     #[must_use]
+    /// Listed in Repositories: a worktree or submodule open only in the panels is not.
     pub fn find_by_root(&self, root: &Path) -> Option<RepoId> {
         self.repos
             .read()
             .values()
-            .find(|r| r.root == root)
+            .find(|r| r.listed && r.root == root)
             .map(|r| r.id)
     }
 
