@@ -45,7 +45,8 @@ class RepoPulseStore {
     fetch: (root) =>
       within(
         pullProbe(root).then((ahead) => {
-          this.#setAhead(root, ahead === true);
+          // Removed, or the check turned off, while the server took its time.
+          if (this.#seen.has(root) && this.#every > 0) this.#setAhead(root, ahead === true);
           return true;
         }),
         PROBE_TIMEOUT_MS,
@@ -115,6 +116,12 @@ class RepoPulseStore {
   forget(root: string): void {
     this.#queue.cancel(root);
     this.#seen.delete(root);
+    this.#setAhead(root, false);
+    if (this.unknown.has(root)) {
+      const next = new Set(this.unknown);
+      next.delete(root);
+      this.unknown = next;
+    }
     if (!this.pulses.has(root)) return;
     const next = new Map(this.pulses);
     next.delete(root);
@@ -127,7 +134,12 @@ class RepoPulseStore {
     this.#every = minutes;
     if (this.#timer !== null) clearInterval(this.#timer);
     this.#timer = null;
-    if (minutes <= 0) return;
+    if (minutes <= 0) {
+      // What the servers said is no longer being kept current.
+      this.unknown = new Set();
+      this.remoteAhead = new Set();
+      return;
+    }
     this.#timer = setInterval(
       () => {
         for (const root of this.#roots) this.#queue.request(root, { fetch: true });
