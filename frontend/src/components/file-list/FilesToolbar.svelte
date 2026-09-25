@@ -37,6 +37,15 @@
 
   let box: HTMLInputElement | undefined = $state();
   let columnsOpen = $state(false);
+  let menuButton: HTMLButtonElement | undefined = $state();
+  /** The bar clips what overflows it, so the menu is placed on the page, not in the bar. */
+  let menuAt = $state({ top: 0, right: 0 });
+
+  function toggleMenu() {
+    const box = menuButton?.getBoundingClientRect();
+    if (!columnsOpen && box) menuAt = { top: box.bottom + 2, right: window.innerWidth - box.right };
+    columnsOpen = !columnsOpen;
+  }
   let bar: HTMLDivElement | undefined = $state();
   let crowded = $state(false);
 
@@ -218,20 +227,21 @@
 
   <div class="menu-host">
     <button
+      bind:this={menuButton}
       type="button"
       class="tool"
       aria-haspopup="menu"
       aria-expanded={columnsOpen}
       title="Customize View"
       {disabled}
-      onclick={() => (columnsOpen = !columnsOpen)}
+      onclick={toggleMenu}
     >
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d={I.columns} /></svg>
     </button>
     {#if columnsOpen}
       <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
       <div class="backdrop" onclick={() => (columnsOpen = false)}></div>
-      <div class="menu" role="menu">
+      <div class="menu" role="menu" style:top="{menuAt.top}px" style:right="{menuAt.right}px">
         {#if crowded}
           <p class="group-label">Show files that are…</p>
           {#each switches as item (item.slot)}
@@ -436,10 +446,8 @@
   }
 
   .menu {
-    position: absolute;
+    position: fixed;
     z-index: 31;
-    top: calc(100% + 2px);
-    right: 0;
     min-width: 170px;
     padding: var(--sp-2) 0;
     background: var(--surface-raised);
