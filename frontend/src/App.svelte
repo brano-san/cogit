@@ -2664,10 +2664,9 @@
         if (target.kind === "submodule" && target.top) void openForeignModule(target.top, target.row);
         else if (target.kind === "submodule") void openModule(target.row);
         else if (target.overview) void selectRepository(target.overview);
-        else {
-          repoList.opened(root);
-          void activate(root);
-        }
+        // Like a click on the closed row: activate takes it off the closed list only once it
+        // opened, so a folder that moved keeps its row.
+        else void activate(root);
         return true;
       case "repo-open-folder":
         shell(fileMenus.openOnDesktop(root), "Could not open the folder");
