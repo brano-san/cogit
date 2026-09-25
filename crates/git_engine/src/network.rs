@@ -1,6 +1,14 @@
 use crate::{GitCommandError, GitError, GitOutput, RepoHandle, Result};
 use std::io::Read as _;
 use std::process::Stdio;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, Instant};
+
+/// How long git may say nothing before a network command is stopped: a server that took
+/// the connection and went quiet, ssh over a dropped VPN. Long enough for a sign-in in the
+/// browser (Git Credential Manager) and for a pre-push hook between two lines of output.
+const SILENCE: Duration = Duration::from_secs(300);
 
 impl RepoHandle {
     pub fn remotes(&self) -> Result<Vec<String>> {
@@ -82,7 +90,16 @@ impl RepoHandle {
     }
 
     fn run_streaming(&self, args: &[&str], on_line: impl FnMut(&str)) -> Result<()> {
-        let out = self.stream_git(args, on_line)?;
+        self.run_streaming_within(args, on_line, SILENCE)
+    }
+
+    fn run_streaming_within(
+        &self,
+        args: &[&str],
+        on_line: impl FnMut(&str),
+        silence: Duration,
+    ) -> Result<()> {
+        let out = self.stream_git(args, on_line, silence)?;
         if out.exit_code == Some(0) {
             return Ok(());
         }
@@ -92,9 +109,14 @@ impl RepoHandle {
     }
 
     /// Delivered as it appears, not after the process exits.
-    fn stream_git(&self, args: &[&str], mut on_line: impl FnMut(&str)) -> Result<GitOutput> {
+    fn stream_git(
+        &self,
+        args: &[&str],
+        mut on_line: impl FnMut(&str),
+        silence: Duration,
+    ) -> Result<GitOutput> {
         let command = crate::redact_command(args);
-        let started = std::time::Instant::now();
+        let started = Instant::now();
         tracing::info!(command = %command, "running git");
 
         let (mut child, _tracked) = crate::children::spawn(
@@ -103,26 +125,40 @@ impl RepoHandle {
                 .stderr(Stdio::piped()),
         )?;
 
+        let heard = Arc::new(AtomicU64::new(0));
+        let (finished, watching) = std::sync::mpsc::channel::<()>();
+        let watchdog = {
+            let (heard, pid) = (Arc::clone(&heard), child.id());
+            std::thread::spawn(move || watch(pid, started, &heard, silence, &watching))
+        };
         let mut stdout_pipe = child.stdout.take();
-        let stdout_reader = std::thread::spawn(move || {
-            let mut buffer = Vec::new();
-            if let Some(pipe) = stdout_pipe.as_mut() {
-                let _ = pipe.read_to_end(&mut buffer);
-            }
-            buffer
-        });
+        let stdout_reader = {
+            let heard = Arc::clone(&heard);
+            std::thread::spawn(move || {
+                let mut buffer = Vec::new();
+                if let Some(pipe) = stdout_pipe.as_mut() {
+                    let mut chunk = [0_u8; 4096];
+                    while let Ok(read @ 1..) = pipe.read(&mut chunk) {
+                        mark(&heard, started);
+                        buffer.extend_from_slice(&chunk[..read]);
+                    }
+                }
+                buffer
+            })
+        };
 
         let mut stderr = Progress::default();
         if let Some(pipe) = child.stderr.as_mut() {
             let mut chunk = [0_u8; 4096];
-            while let Ok(read) = pipe.read(&mut chunk) {
-                if read == 0 {
-                    break;
-                }
+            while let Ok(read @ 1..) = pipe.read(&mut chunk) {
+                mark(&heard, started);
                 stderr.feed(&chunk[..read], &mut on_line);
             }
         }
         let stderr_text = stderr.finish(&mut on_line);
+        // Before `wait`: an unreaped child keeps its pid, so the watchdog cannot hit another.
+        drop(finished);
+        let stopped = watchdog.join().unwrap_or(false);
 
         let status = child.wait()?;
         let stdout = stdout_reader
@@ -131,7 +167,7 @@ impl RepoHandle {
             .unwrap_or_default();
 
         let duration_ms = crate::runner::elapsed_ms(started);
-        let result = GitOutput::record(
+        let mut result = GitOutput::record(
             self.root(),
             command,
             status.code(),
@@ -139,8 +175,48 @@ impl RepoHandle {
             &stderr_text,
             duration_ms,
         );
+        if stopped {
+            result.summary = format!(
+                "Stopped after {} s with no output from git",
+                silence.as_secs()
+            );
+            tracing::warn!(command = %result.command, silence_s = silence.as_secs(), "stopped a silent network command");
+        }
         self.journal_entry(result.clone());
         Ok(result)
+    }
+}
+
+fn mark(heard: &AtomicU64, started: Instant) {
+    heard.store(
+        u64::from(crate::runner::elapsed_ms(started)),
+        Ordering::Relaxed,
+    );
+}
+
+/// `true` when it stopped the process tree: nothing heard from it for `silence`.
+fn watch(
+    pid: u32,
+    started: Instant,
+    heard: &AtomicU64,
+    silence: Duration,
+    finished: &std::sync::mpsc::Receiver<()>,
+) -> bool {
+    loop {
+        let last = Duration::from_millis(heard.load(Ordering::Relaxed));
+        let quiet = started.elapsed().saturating_sub(last);
+        if quiet >= silence {
+            if let Err(err) = crate::children::stop_tree(pid) {
+                tracing::error!(error = ?err, pid, context = "stopping a silent network command");
+            }
+            return true;
+        }
+        if !matches!(
+            finished.recv_timeout(silence - quiet),
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+        ) {
+            return false;
+        }
     }
 }
 
@@ -250,7 +326,55 @@ fn prefix(header: &Option<String>) -> Vec<&str> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+
     use super::*;
+
+    // The queue of writes waits for a network command, so one that never ends held every
+    // commit and stage of the repository until Cogit exited (03 §3 п.6).
+    #[test]
+    fn a_fetch_from_a_server_that_never_answers_is_stopped() {
+        let f = test_fixtures::linear(1).unwrap();
+        let server = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = server.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            let held: Vec<_> = server.incoming().take(4).collect();
+            std::thread::sleep(Duration::from_secs(120));
+            drop(held);
+        });
+        f.git(&[
+            "remote",
+            "add",
+            "quiet",
+            &format!("git://127.0.0.1:{port}/x.git"),
+        ])
+        .unwrap();
+        let repo = RepoHandle::open(f.path()).unwrap();
+        let (done, finished) = std::sync::mpsc::channel();
+        let started = std::time::Instant::now();
+
+        std::thread::spawn(move || {
+            let result = repo.run_streaming_within(
+                &["fetch", "--progress", "quiet"],
+                |_| {},
+                Duration::from_secs(2),
+            );
+            let _ = done.send(result);
+        });
+        let result = finished
+            .recv_timeout(Duration::from_secs(40))
+            .expect("the fetch was still waiting for the server after 40 s");
+
+        let Err(GitError::Command(failure)) = result else {
+            panic!("a stopped fetch is a failed one: {result:?}");
+        };
+        assert!(
+            started.elapsed() < Duration::from_secs(30),
+            "{:?}",
+            started.elapsed()
+        );
+        assert!(failure.summary.contains("no output"), "{failure:?}");
+    }
 
     #[test]
     fn a_character_split_between_two_reads_arrives_whole() {
