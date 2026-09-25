@@ -1,6 +1,7 @@
 <script lang="ts">
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
   import VirtualList from "$components/common/VirtualList.svelte";
+  import { splitLinks } from "$lib/links";
   import { commandReport, repoNameOf } from "$lib/notices";
   import { findMatches, logLines } from "$lib/output-highlight";
   import { outputKey } from "$lib/output-keys";
@@ -142,6 +143,13 @@
     await revealItemInDir(logPath).catch(() => {});
   }
 
+  /** A link git printed (the pull request a push offers) opens in the browser (F-028). */
+  async function openLink(event: MouseEvent, href: string) {
+    event.preventDefault();
+    const { openUrl } = await import("@tauri-apps/plugin-opener");
+    await openUrl(href).catch(() => {});
+  }
+
   function step(by: number) {
     if (hits.length === 0) return;
     at = (at + by + hits.length) % hits.length;
@@ -149,6 +157,9 @@
 </script>
 
 <svelte:window {onkeydown} />
+
+<!-- On one line: the rows keep their whitespace, so a line break here would show. -->
+{#snippet linked(text: string)}{#if text.includes("://")}{#each splitLinks(text) as part, index (index)}{#if part.href}<a class="url" href={part.href} title={part.href} onclick={(event) => void openLink(event, part.href ?? "")}>{part.text}</a>{:else}{part.text}{/if}{/each}{:else}{text || " "}{/if}{/snippet}
 
 {#if box}
   <!-- Non-modal by choice: the reader compares the output against the graph and the
@@ -221,7 +232,7 @@
           <div class="flowed" role="list" aria-label="Output">
             {#each lines as line, index (index)}
               <div class="ln flow {line.kind}" class:hit={hitSet.has(index)} class:cursor={index === cursor}>
-                {line.text || " "}
+                {@render linked(line.text)}
               </div>
             {/each}
           </div>
@@ -234,7 +245,7 @@
                 class:cursor={index === cursor}
                 style:top="{index * ROW}px"
               >
-                {line.text || " "}
+                {@render linked(line.text)}
               </div>
             {/snippet}
           </VirtualList>
@@ -399,6 +410,10 @@
     flex: 1 1 auto;
     min-width: 0;
     overflow: auto;
+  }
+
+  .url {
+    color: var(--link);
   }
 
   .ln.flow {
