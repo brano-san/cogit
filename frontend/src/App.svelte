@@ -1169,8 +1169,13 @@
       if (!confirmed) return false;
     }
     const epoch = repository.epoch;
-    await worktree.commit(id, message, amend, noVerify, scope.paths ?? []);
-    if (worktree.error) return false;
+    try {
+      await worktree.commit(id, message, amend, noVerify, scope.paths ?? []);
+    } catch (err) {
+      // A hook's refusal: the message stays in the box for another try.
+      errors.report(err, "Could not commit");
+      return false;
+    }
     if (repository.epoch !== epoch) return true;
     diff.clear();
     await repository.refreshRefs();
