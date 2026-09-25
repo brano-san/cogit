@@ -67,7 +67,7 @@ impl RepoHandle {
             &["read-tree", "HEAD"]
         };
         self.run_git_indexed(&scratch.0, base, None)?;
-        let entries = self.index_entries_of(paths)?;
+        let entries = self.index_entries_of(&self.with_rename_sources(paths)?)?;
         self.run_git_indexed(
             &scratch.0,
             &["update-index", "-z", "--index-info"],
