@@ -375,6 +375,10 @@
 
 <svelte:window {onkeydown} />
 
+{#snippet eof(open: boolean | undefined)}
+  {#if open}<span class="eof" title="No newline at end of file">\ no newline</span>{/if}
+{/snippet}
+
 {#snippet blockActions(block: number)}
   {#if stageable}
     <span class="acts">
@@ -589,7 +593,7 @@
                         class={piece.cls}
                         class:hit={piece.hit}
                         class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
-                      >{/each}</span
+                      >{/each}{@render eof(entry.row.noNewline)}</span
                   >
                 {:else if entry.row.kind === "delete"}
                   {@const row = entry.row}
@@ -611,7 +615,7 @@
                         class:word={piece.changed}
                         class:hit={piece.hit}
                         class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
-                      >{/each}</span
+                      >{/each}{@render eof(row.noNewline)}</span
                   >
                 {:else if entry.row.kind === "insert"}
                   {@const row = entry.row}
@@ -633,7 +637,7 @@
                         class:word={piece.changed}
                         class:hit={piece.hit}
                         class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
-                      >{/each}</span
+                      >{/each}{@render eof(row.noNewline)}</span
                   >
                 {/if}
                 {#if hoverRow === rowIndex}{@render blockActions(entry.block)}{/if}
@@ -669,7 +673,7 @@
                       class:word={piece.changed}
                       class:hit={piece.hit}
                       class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
-                    >{/each}</span
+                    >{/each}{@render eof(entry.pair.left?.noNewline)}</span
                 >
                 <span class="gap"></span>
                 <span class="num">{entry.pair.right?.line ?? ""}</span>
@@ -687,7 +691,7 @@
                       class:word={piece.changed}
                       class:hit={piece.hit}
                       class:current={find.isCurrent(rowIndex, "right", piece.start)}>{piece.text}</span
-                    >{/each}</span
+                    >{/each}{@render eof(entry.pair.right?.noNewline)}</span
                 >
                 {#if hoverRow === rowIndex}{@render blockActions(entry.block)}{/if}
               </div>
@@ -1045,6 +1049,14 @@
     color: var(--text-secondary);
     font-family: var(--font-mono);
     opacity: 0.8;
+  }
+
+  /* What `git diff` prints under the line; here at its end, and never copied with it. */
+  .eof {
+    margin-left: 1ch;
+    color: var(--text-secondary);
+    font-style: italic;
+    user-select: none;
   }
 
   .message.warn {
