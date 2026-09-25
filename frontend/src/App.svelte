@@ -1545,6 +1545,7 @@
         scope: toolbar.prefs.pullScope,
         ffOnly: settings.current.pullMode === "ffOnly",
         deleteMerged: toolbar.prefs.deleteMergedAfterPull,
+        branch: tracked,
       });
       for (const step of plan) {
         if (step.kind === "fetch") await network.fetch(id, step.remote);

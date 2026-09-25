@@ -5612,3 +5612,17 @@ Remove Worktree не требуют своих правил. Строка, ко�
 стала `div`: вложенный `label` HTML не допускает, подпись целиком теперь внутри `Checkbox`.
 Действие строки rebase — общий `Select`. Проверить в сборке: четыре темы, панель Branches
 (галочки групп в `mixed`), Scan Folder, Reset Advanced…, Push To…
+
+## R-456 · Pull и Sync отказывают разошедшейся ветке заранее, если Pull только перематывает · Н
+
+При настройке по умолчанию (`pullMode = ffOnly`) ветка, которая и опережает, и отстаёт,
+на Synchronize получала `git pull --ff-only` → «Not possible to fast-forward, aborting»; Push
+не шёл, и объяснения, что делать, не было (F-320). Слить сам Sync не вправе: fast-forward only —
+явный выбор пользователя в Preferences ▸ Pull.
+
+**Решение:** `remotePlan` получает выписанную ветку с ahead/behind последнего fetch и, если
+она разошлась со своим upstream, а Pull только перематывает, отказывает до первого шага:
+«main and origin/main have diverged (1 ahead, 1 behind), and Pull only fast-forwards
+(Preferences ▸ Pull). Merge or rebase the branch first, or let Pull merge it.» Если расхождение
+обнаружит только fetch внутри pull, остаётся полный вывод git. С Pull = merge Sync сливает
+(`--no-rebase`) и пушит. Тест — `toolbar-prefs.test.ts` `remotePlan`.
