@@ -56,6 +56,37 @@ impl RepoHandle {
         Ok(if after == before { None } else { after })
     }
 
+    /// Those of `paths` whose staged side `stash` recorded: its index commit (`^2`) differs
+    /// from HEAD at the time (`^1`) there.
+    pub fn staged_in_stash(&self, stash: &str, paths: &[String]) -> Result<Vec<String>> {
+        let commit = self.find_commit(stash)?;
+        let parents: Vec<gix::ObjectId> = commit.parent_ids().map(|id| id.detach()).collect();
+        let (Some(&base), Some(&index)) = (parents.first(), parents.get(1)) else {
+            return Err(GitError::InvalidState(format!("{stash} is not a stash")));
+        };
+        let (base, index) = (self.tree_of(base)?, self.tree_of(index)?);
+        let entry = |tree: &gix::Tree<'_>, path: &str| {
+            tree.lookup_entry_by_path(path)
+                .map_err(|err| GitError::Internal(format!("cannot look up {path}: {err}")))
+                .map(|entry| entry.map(|entry| (entry.mode(), entry.object_id())))
+        };
+        let mut staged = Vec::new();
+        for path in paths.iter().filter(|path| !path.ends_with('/')) {
+            if entry(&base, path)? != entry(&index, path)? {
+                staged.push(path.clone());
+            }
+        }
+        Ok(staged)
+    }
+
+    /// Puts the staged side `stash` recorded for `paths` back into the index and the
+    /// working tree, a deletion included.
+    pub fn restore_staged_from(&self, stash: &str, paths: &[String]) -> Result<()> {
+        let source = format!("--source={stash}^2");
+        self.run_git_paths(&["restore", &source, "--staged", "--worktree"], paths)
+            .map(drop)
+    }
+
     /// A stash that leaves the working tree as it is: `stash create` builds the commit
     /// without touching a file, `stash store` lists it. Untracked files are not in it —
     /// `stash create` has no `--include-untracked` (R-212).
