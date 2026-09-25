@@ -493,6 +493,10 @@ impl AppState {
                 bytes: 0,
                 used,
             };
+            // Closed meanwhile: close has cleared the cache already, and nothing would again.
+            if !self.repos.read().contains_key(&repo) {
+                return Ok(Vec::new());
+            }
             cache.graphs.insert(repo, graph);
             base
         };
