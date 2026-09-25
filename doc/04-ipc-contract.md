@@ -343,7 +343,9 @@ author, email, timestamp, path, diff }`, новые сверху. `path` — и�
 
 `diff_files` — та же работа, что `diff_file`, но сразу по всем файлам коммита: чтение
 объектов последовательное, само сравнение параллельное через `rayon` внутри
-`spawn_blocking` ([INV-01](01-architecture.md), [§9 08-diff-engine.md](08-diff-engine.md)).
+`spawn_blocking` ([INV-01](01-architecture.md), [§9 08-diff-engine.md](08-diff-engine.md)). Фронтенд
+её пока не вызывает: панель Diff грузит файлы по одному через `diff_file`, поэтому
+перемещения между файлами (`moveScope: acrossFiles`) не показываются ([R-447](12-risks.md)).
 
 `DiffBatch` — объединение по `kind`: `ready` со списком `FileDiffEntry { path, diff }`
 **в порядке запроса**, либо `superseded`. Путь, которого нет ни на одной стороне, даёт
