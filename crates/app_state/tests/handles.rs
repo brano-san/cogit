@@ -86,3 +86,50 @@ fn a_repository_deleted_under_us_is_an_error_not_a_stale_answer() {
     assert!(state.remotes(repo).is_err());
     assert_eq!(state.repositories_held(), 0);
 }
+
+/// `outer/inner`, each a repository with a commit of its own; `inner` is the one open.
+fn nested() -> (test_fixtures::Fixture, std::path::PathBuf) {
+    let outer = test_fixtures::linear(1).unwrap();
+    let inner = outer.path().join("inner");
+    std::fs::create_dir_all(&inner).unwrap();
+    outer.git_in(&inner, &["init", "-q"]).unwrap();
+    std::fs::write(inner.join("i.txt"), "inner\n").unwrap();
+    outer.git_in(&inner, &["add", "i.txt"]).unwrap();
+    outer
+        .git_in(
+            &inner,
+            &[
+                "-c",
+                "user.name=t",
+                "-c",
+                "user.email=t@t",
+                "commit",
+                "-q",
+                "-m",
+                "i",
+            ],
+        )
+        .unwrap();
+    (outer, inner)
+}
+
+// Reopened by a search upwards, the id of `inner` went on pointing at `outer`: its status,
+// Stage, Discard and Reset all went there, and its row showed `outer`'s branch.
+#[test]
+fn a_root_that_stopped_being_a_repository_does_not_become_the_one_above_it() {
+    let (_outer, inner) = nested();
+    let state = AppState::new();
+    let repo = state.open_repository(&inner).unwrap().repo;
+    state.remotes(repo).unwrap();
+
+    std::fs::remove_dir_all(inner.join(".git")).unwrap();
+
+    assert!(
+        state
+            .worktree_files(repo, git_engine::WorktreeView::default())
+            .is_err()
+    );
+    assert!(state.overviews()[0].missing);
+    assert!(app_state::repo_rows::pulse(&inner).missing);
+    assert!(app_state::repo_rows::submodule_outline(&inner, "").is_err());
+}

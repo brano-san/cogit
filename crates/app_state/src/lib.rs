@@ -1037,7 +1037,7 @@ impl AppState {
             state: git_engine::RepoState::Clean,
         };
 
-        let Ok(handle) = git_engine::RepoHandle::open(&open.root) else {
+        let Ok(handle) = git_engine::RepoHandle::open_root(&open.root) else {
             row.missing = true;
             return row;
         };

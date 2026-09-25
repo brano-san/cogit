@@ -262,7 +262,7 @@ impl Prefill {
     }
 
     fn read(&self, root: &std::path::Path) -> Result<usize, GitError> {
-        let handle = RepoHandle::open(root)?;
+        let handle = RepoHandle::open_root(root)?;
         let mut from = 0;
         let mut read = 0;
         loop {
