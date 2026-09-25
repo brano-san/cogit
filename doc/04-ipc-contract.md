@@ -631,7 +631,7 @@ git commit --amend --author`, как `reword`. `push_to` — один refspec: P
 | `open_path` | `path` (абсолютный, `/`) | `()` — папка открывается сама, файл — связанной программой | M3 |
 | `reveal_path` | `path` | `()` — родительская папка с выделенным элементом | M3 |
 | `open_power_shell` / `open_git_shell` | `path` | `()`; только Windows, Git Bash ищется сам (R-261) | M3 |
-| `move_to_trash` | `repo, paths` | `()` — в Корзину, не безвозвратно | M6 |
+| `move_to_trash` | `repo, paths` | `()` — в Корзину, не безвозвратно; файлы сначала копируются в хранилище объектов, и запись журнала даёт Undo (папка — только Корзина, R-448) | M6 |
 | `remove_from_repository` | `repo, paths, deleteLocal` | `()` — `git rm --cached` / `git rm` | M6 |
 | `move_path` | `repo, from, to` | `()` — `git mv` для отслеживаемого, перенос на диске для остального; занятое имя — `InvalidState` | M6 |
 | `set_index_flag` | `repo, paths, flag: "assumeUnchanged" \| "skipWorktree", on` | `()` | M6 |

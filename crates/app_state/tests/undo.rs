@@ -1008,3 +1008,61 @@ fn saving_a_merge_over_hand_edits_can_be_undone() {
 
     assert_eq!(text(&f, "c.txt"), "half resolved by hand\n");
 }
+
+/// Stands in for the Recycle Bin: the shell's own move is tested in `src-tauri`.
+fn thrown_away(paths: &[std::path::PathBuf]) -> std::io::Result<()> {
+    paths.iter().try_for_each(|path| {
+        if path.is_dir() {
+            std::fs::remove_dir_all(path)
+        } else {
+            std::fs::remove_file(path)
+        }
+    })
+}
+
+// Delete moved a changed tracked file to the bin with nothing in the journal: its edits
+// were only in the bin, and Undo knew nothing of them (F-071).
+#[test]
+fn deleting_a_changed_file_can_be_undone() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file("file0.txt", "work in progress\n").unwrap();
+    f.write_file("scratch.txt", "not added yet\n").unwrap();
+    let (state, repo) = open(&f);
+    let paths = ["file0.txt".to_owned(), "scratch.txt".to_owned()];
+
+    state.move_to_trash(repo, &paths, thrown_away).unwrap();
+    assert!(!f.path().join("file0.txt").exists());
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(text(&f, "file0.txt"), "work in progress\n");
+    assert_eq!(text(&f, "scratch.txt"), "not added yet\n");
+}
+
+#[test]
+fn undoing_a_delete_never_writes_over_a_file_made_since() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file("scratch.txt", "first\n").unwrap();
+    let (state, repo) = open(&f);
+    state
+        .move_to_trash(repo, &["scratch.txt".to_owned()], thrown_away)
+        .unwrap();
+    f.write_file("scratch.txt", "made again\n").unwrap();
+
+    assert!(state.undo_last(repo).is_err());
+    assert_eq!(text(&f, "scratch.txt"), "made again\n");
+}
+
+#[test]
+fn a_deleted_folder_is_left_to_the_bin() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file("generated/out.txt", "built\n").unwrap();
+    let (state, repo) = open(&f);
+
+    state
+        .move_to_trash(repo, &["generated/".to_owned()], thrown_away)
+        .unwrap();
+
+    assert!(!f.path().join("generated").exists());
+    assert!(state.undo_last(repo).is_err());
+    assert!(!state.safety_log().is_empty());
+}

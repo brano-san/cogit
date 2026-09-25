@@ -1,4 +1,4 @@
-use crate::{AppState, Recovery, RepoId, named};
+use crate::{AppState, Recovery, RepoId, backup_failed, named};
 use git_engine::{GitError, IndexEditorSides, IndexFlag};
 use std::path::{Path, PathBuf};
 
@@ -10,6 +10,36 @@ impl AppState {
         self.get(repo)
             .map(|open| open.root)
             .ok_or_else(|| GitError::RepoNotFound(format!("id {}", repo.0)))
+    }
+
+    /// Delete, to the bin (`trash`). The files are kept in the object store first, so Undo
+    /// writes them back whatever became of the bin; a folder is left to the bin (F-071).
+    pub fn move_to_trash(
+        &self,
+        repo: RepoId,
+        paths: &[String],
+        trash: impl FnOnce(&[PathBuf]) -> std::io::Result<()>,
+    ) -> Result<()> {
+        let _quiet = self.quiet(repo);
+        let root = self.root_of(repo)?;
+        let absolute: Vec<PathBuf> = paths
+            .iter()
+            .map(|path| root.join(path.trim_end_matches('/')))
+            .collect();
+        let recovery = if absolute.iter().any(|path| path.is_dir()) {
+            Recovery::None
+        } else {
+            let kept = self
+                .handle(repo)?
+                .keep_files(paths)
+                .map_err(|err| backup_failed("deleting", &err))?;
+            Recovery::Files {
+                kept: paths.iter().cloned().zip(kept).collect(),
+            }
+        };
+        trash(&absolute).map_err(|err| GitError::Io(err.to_string()))?;
+        self.record(repo, format!("Delete {}", named(paths)), recovery);
+        Ok(())
     }
 
     pub fn remove_from_repository(

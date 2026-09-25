@@ -39,6 +39,10 @@ pub enum Recovery {
         path: String,
         kept: Option<String>,
     },
+    /// Files deleted to the bin, each kept in the object store: undo writes them back.
+    Files {
+        kept: Vec<(String, String)>,
+    },
     /// The branch was deleted: undo creates it again.
     Branch {
         name: String,
@@ -158,6 +162,7 @@ impl AppState {
                 handle.stash_apply(stash)?;
             }
             Recovery::Resolution { path, kept } => handle.unresolve(path, kept.as_deref())?,
+            Recovery::Files { kept } => handle.write_back(kept)?,
             Recovery::Branch { name, oid } => handle.create_branch(name, Some(oid), false)?,
             Recovery::Moved { name, oid } => {
                 wait_for_the_operation(&handle)?;

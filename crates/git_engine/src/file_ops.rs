@@ -118,6 +118,53 @@ impl RepoHandle {
         }
     }
 
+    /// Each file as it is on disk, kept in the object store: what Delete throws away, for
+    /// Undo to write back. Read whole, not through the journal's trimmed record.
+    pub fn keep_files(&self, paths: &[String]) -> Result<Vec<String>> {
+        let mut kept = Vec::with_capacity(paths.len());
+        for batch in crate::runner::command_line_batches(paths) {
+            let mut args = vec!["hash-object", "-w", "--no-filters", "--"];
+            args.extend(batch.iter().map(String::as_str));
+            kept.extend(self.read_git_literal(&args)?.lines().map(str::to_owned));
+        }
+        if kept.len() != paths.len() {
+            return Err(GitError::Internal(format!(
+                "git kept {} of {} files",
+                kept.len(),
+                paths.len()
+            )));
+        }
+        Ok(kept)
+    }
+
+    /// What `keep_files` kept, written back — never over a file that is there again.
+    pub fn write_back(&self, kept: &[(String, String)]) -> Result<()> {
+        if let Some((path, _)) = kept
+            .iter()
+            .find(|(path, _)| self.root().join(path).exists())
+        {
+            return Err(GitError::InvalidState(format!(
+                "{path} is there again: Undo would write over it"
+            )));
+        }
+        for (path, oid) in kept {
+            let id = gix::ObjectId::from_hex(oid.as_bytes())
+                .map_err(|err| GitError::Internal(format!("bad kept object {oid}: {err}")))?;
+            let bytes = self
+                .repo
+                .find_object(id)
+                .map_err(|err| GitError::Internal(format!("cannot read the kept {path}: {err}")))?
+                .detach()
+                .data;
+            let file = self.root().join(path);
+            if let Some(folder) = file.parent() {
+                std::fs::create_dir_all(folder)?;
+            }
+            std::fs::write(file, bytes)?;
+        }
+        Ok(())
+    }
+
     /// Exactly `text`, no filters: the editor shows the index as it is. Mode is kept.
     pub fn write_index_text(&self, path: &str, text: &str) -> Result<()> {
         let hashed = self.run_git_fed(
