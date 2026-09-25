@@ -486,3 +486,50 @@ fn a_worktree_of_a_bare_repository_lists_the_bare_one_as_main() {
     let main = entries.iter().find(|entry| entry.is_main).unwrap();
     assert!(!main.is_current, "{entries:?}");
 }
+
+/// A worktree of `with_submodule` with its submodule checked out, as `submodule update
+/// --init` inside it leaves it.
+fn worktree_with_a_submodule() -> (test_fixtures::Fixture, tempfile::TempDir, String) {
+    let f = test_fixtures::with_submodule().unwrap();
+    let aux = tempfile::TempDir::new().unwrap();
+    let path = slashed(&aux.path().join("modules-wt"));
+    f.git(&["worktree", "add", "-b", "modules-wt", &path])
+        .unwrap();
+    f.git_in(
+        aux.path().join("modules-wt").as_path(),
+        &[
+            "-c",
+            "protocol.file.allow=always",
+            "submodule",
+            "update",
+            "--init",
+        ],
+    )
+    .unwrap();
+    (f, aux, path)
+}
+
+// `worktree remove` refuses one with submodules checked out unless forced, however clean
+// it is, and the dialog offered --force only for uncommitted changes.
+#[test]
+fn a_worktree_with_its_submodules_checked_out_says_so() {
+    let (f, _aux, path) = worktree_with_a_submodule();
+
+    let entry = open(&f)
+        .worktrees()
+        .unwrap()
+        .into_iter()
+        .find(|entry| entry.path == path)
+        .unwrap();
+
+    assert!(entry.has_submodules, "{entry:?}");
+    assert!(!entry.dirty, "{entry:?}");
+    assert!(open(&f).remove_worktree(&path, false).is_err());
+    open(&f).remove_worktree(&path, true).unwrap();
+}
+
+#[test]
+fn a_worktree_without_submodules_says_so_too() {
+    let f = test_fixtures::with_worktree().unwrap();
+    assert!(!linked(&f).has_submodules);
+}

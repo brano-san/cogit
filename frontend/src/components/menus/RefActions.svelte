@@ -469,9 +469,13 @@
         }
         return;
       case "apply-stash":
+      case "pop-stash":
         if (at.stash) {
           const index = at.stash.index;
-          await attempt("Could not apply the stash", () => stashes.apply(id, index, false));
+          const pop = name === "pop-stash";
+          await attempt(pop ? "Could not pop the stash" : "Could not apply the stash", () =>
+            stashes.apply(id, index, pop),
+          );
         }
         return;
       case "rename-stash":

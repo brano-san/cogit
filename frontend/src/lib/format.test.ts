@@ -295,6 +295,7 @@ describe("refLabels for branches held by worktrees", () => {
     locked: null,
     missing: false,
     dirty: false,
+    hasSubmodules: false,
     ...over,
   });
   const label = (entry: WorktreeEntry) => refLabels([dev], [], null, { worktrees: [entry] }).get(A)?.[0];

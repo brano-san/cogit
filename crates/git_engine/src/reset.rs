@@ -1,8 +1,8 @@
 use crate::{GitError, RepoHandle, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// The five modes of `git reset <commit>`: what happens to the index and the tree.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum ResetMode {
     Soft,

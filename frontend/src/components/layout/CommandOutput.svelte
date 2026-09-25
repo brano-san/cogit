@@ -1,8 +1,10 @@
 <script lang="ts">
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
   import VirtualList from "$components/common/VirtualList.svelte";
+  import { splitLinks } from "$lib/links";
   import { commandReport, repoNameOf } from "$lib/notices";
   import { findMatches, logLines } from "$lib/output-highlight";
+  import { outputKey } from "$lib/output-keys";
   import { readKey, writeKey } from "$lib/settings-file";
   import { clampBox, defaultBox, type Box } from "$lib/window-box";
   import type { GitOutput } from "$lib/ipc";
@@ -40,6 +42,7 @@
   let copied = $state(false);
   let findInput: HTMLInputElement | undefined = $state();
   let closer: HTMLButtonElement | undefined = $state();
+  let frame: HTMLElement | undefined = $state();
 
   const hits = $derived(finding ? findMatches(lines, needle) : []);
   const hitSet = $derived(new Set(hits));
@@ -106,43 +109,31 @@
   }
 
   function onkeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
-      if (finding) {
-        finding = false;
-        needle = "";
-        return;
-      }
+    const action = outputKey({
+      key: event.key,
+      ctrl: event.ctrlKey || event.metaKey,
+      inside: frame !== undefined && event.target instanceof Node && frame.contains(event.target),
+      handled: event.defaultPrevented,
+      finding,
+      allSelected,
+    });
+    if (action === null) return;
+    if (action === "end-find") {
+      finding = false;
+      needle = "";
+      return;
+    }
+    if (action === "close") {
       output.close();
       return;
     }
-    if (!event.ctrlKey && !event.metaKey) return;
-
-    switch (event.key) {
-      case "f":
-        event.preventDefault();
-        finding = true;
-        queueMicrotask(() => findInput?.select());
-        break;
-      case "a":
-        event.preventDefault();
-        allSelected = true;
-        break;
-      case "c":
-        if (allSelected) {
-          event.preventDefault();
-          void copy();
-        }
-        break;
-      case "=":
-      case "+":
-        event.preventDefault();
-        resize(FONT.step);
-        break;
-      case "-":
-        event.preventDefault();
-        resize(-FONT.step);
-        break;
-    }
+    event.preventDefault();
+    if (action === "find") {
+      finding = true;
+      queueMicrotask(() => findInput?.select());
+    } else if (action === "select-all") allSelected = true;
+    else if (action === "copy") void copy();
+    else resize(action === "bigger" ? FONT.step : -FONT.step);
   }
 
   /** Imported here rather than at the top: the opener is one call on one button, and a
@@ -150,6 +141,13 @@
   async function openLog() {
     const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
     await revealItemInDir(logPath).catch(() => {});
+  }
+
+  /** A link git printed (the pull request a push offers) opens in the browser (F-028). */
+  async function openLink(event: MouseEvent, href: string) {
+    event.preventDefault();
+    const { openUrl } = await import("@tauri-apps/plugin-opener");
+    await openUrl(href).catch(() => {});
   }
 
   function step(by: number) {
@@ -160,14 +158,20 @@
 
 <svelte:window {onkeydown} />
 
+<!-- On one line: the rows keep their whitespace, so a line break here would show. -->
+{#snippet linked(text: string)}{#if text.includes("://")}{#each splitLinks(text) as part, index (index)}{#if part.href}<a class="url" href={part.href} title={part.href} onclick={(event) => void openLink(event, part.href ?? "")}>{part.text}</a>{:else}{part.text}{/if}{/each}{:else}{text || " "}{/if}{/snippet}
+
 {#if box}
   <!-- Non-modal by choice: the reader compares the output against the graph and the
        files while it is up (doc/12-risks.md, R-89). -->
   <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
+  <!-- Focusable, so a click in the output keeps its keys here and not on the page. -->
   <section
+    bind:this={frame}
     class="window"
     class:warned={!failed}
     role="dialog"
+    tabindex="-1"
     aria-label={heading}
     style:left="{box.x}px"
     style:top="{box.y}px"
@@ -228,7 +232,7 @@
           <div class="flowed" role="list" aria-label="Output">
             {#each lines as line, index (index)}
               <div class="ln flow {line.kind}" class:hit={hitSet.has(index)} class:cursor={index === cursor}>
-                {line.text || " "}
+                {@render linked(line.text)}
               </div>
             {/each}
           </div>
@@ -241,7 +245,7 @@
                 class:cursor={index === cursor}
                 style:top="{index * ROW}px"
               >
-                {line.text || " "}
+                {@render linked(line.text)}
               </div>
             {/snippet}
           </VirtualList>
@@ -406,6 +410,10 @@
     flex: 1 1 auto;
     min-width: 0;
     overflow: auto;
+  }
+
+  .url {
+    color: var(--link);
   }
 
   .ln.flow {

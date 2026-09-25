@@ -3,7 +3,7 @@
   import KindIcon from "$components/common/KindIcon.svelte";
   import { applyClick, EMPTY_SELECTION, type FileSelection } from "$lib/multi-select";
   import { MISSING_REPOSITORY } from "$lib/repo-labels";
-  import { canPull, rowSync, syncTooltip, type RowSync } from "$lib/repo-sync";
+  import { canPull, freshOverview, rowSync, syncTooltip, type RowSync } from "$lib/repo-sync";
   import { repoPulse } from "$stores/repo-pulse.svelte";
   import {
     describeModule,
@@ -17,7 +17,7 @@
   import { submodules } from "$stores/submodules.svelte";
   import { moduleForest } from "$stores/module-forest.svelte";
   import { moduleMemory } from "$stores/module-memory.svelte";
-  import { UNGROUPED, groupRows } from "$lib/repo-groups";
+  import { UNGROUPED, groupRows, showsFilter } from "$lib/repo-groups";
   import type { RepoOverview } from "$lib/ipc";
   import { listedRepos, type ListedRepo } from "$lib/repo-list";
   import { repoList } from "$stores/repo-list.svelte";
@@ -186,8 +186,10 @@
         }}
       />
       <KindIcon kind="submodule" />
-      <span class="modname truncate shrink-last"
-        >{#if folder}<span class="dir">{folder}/</span>{/if}{parts.name}</span
+      <span class="modpath shrink-last"
+        >{#if folder}<span class="dir truncate shrink-first">{folder}/</span>{/if}<span
+          class="modname truncate shrink-last">{parts.name}</span
+        ></span
       >
       {#if repoStateTag(node.module.repoState, true)}
         <span class="op" title={STATE_TAG_HINT}>{repoStateTag(node.module.repoState, true)}</span>
@@ -244,7 +246,7 @@
     </button>
   </div>
 
-  {#if repository.openRepos.length + repoList.list.closed.length > 1}
+  {#if showsFilter(repository.openRepos.length + repoList.list.closed.length, filter)}
     <input
       class="filter"
       type="search"
@@ -298,7 +300,7 @@
         </div>
       {:else}
         {@const listed = byRoot.get(row.root)}
-        {@const entry = listed?.overview}
+        {@const entry = listed?.overview && freshOverview(listed.overview, repository.current)}
         {@const sync = rowSync({
           overview: entry ?? null,
           owned: entry !== undefined && entry !== null && active?.valueOf() === entry.repo.valueOf(),
@@ -384,7 +386,13 @@
     padding: var(--sp-4) 0;
   }
 
-  /* One run of text cut on the right like every list (R-243, which replaces R-124). */
+  /* Cut on the right like every list (R-243), the folder first: it is the secondary text,
+     and the name is what tells two modules of one folder apart (F-242, R-436). */
+  .modpath {
+    display: flex;
+    overflow: hidden;
+  }
+
   .dir {
     color: var(--text-secondary);
   }

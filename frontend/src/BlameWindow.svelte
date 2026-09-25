@@ -8,13 +8,14 @@
     BLAME_ROW_HEIGHT,
     age,
     changedSince,
+    commitOfLine,
     cursorAfter,
     parseBlame,
     sinceOptions,
     viewOptions,
   } from "$lib/blame-window";
   import { shortOid } from "$lib/format";
-  import type { CommitRow, LineVersion } from "$lib/ipc";
+  import { revealCommit, type CommitRow, type LineVersion } from "$lib/ipc";
   import { blameWindow as blame } from "$stores/blame-window.svelte";
   import { settings } from "$stores/settings.svelte";
 
@@ -26,6 +27,7 @@
     onMenuAction(window, (action) => {
       if (action === "refresh") void blame.refresh();
       else if (action === "toggle-history") blame.toggleHistory();
+      else if (action === "show-commit") showCommit(blame.cursor);
     }),
   );
 
@@ -61,6 +63,12 @@
     if (next === null) return;
     event.preventDefault();
     blame.moveTo(next);
+  }
+
+  /** In the main window's graph, which is where a commit is looked at (F-062). */
+  function showCommit(at: number) {
+    const oid = commitOfLine(blame.lines, at);
+    if (request && oid) void revealCommit(request.repo, oid);
   }
 
   /** Only a version under today's name can be opened: blame reads the file by its path. */
@@ -113,6 +121,7 @@
           cursor={blame.cursor}
           {highlighted}
           onpick={(at) => blame.moveTo(at)}
+          onopen={showCommit}
         />
       {/if}
     </div>

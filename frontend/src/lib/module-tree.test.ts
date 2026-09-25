@@ -124,6 +124,14 @@ describe("moduleTooltip", () => {
     );
   });
 
+  // F-056: it pointed at an "(Update)" button no row has; the command that runs it is
+  // Remote ▸ Submodule ▸ Reset… (git submodule update --checkout).
+  it("names the command that brings a module that is behind to the recorded commit", () => {
+    const tip = moduleTooltip(mod("lib", { state: "behind", behind: 1 }));
+    expect(tip).toContain("Remote ▸ Submodule ▸ Reset…");
+    expect(tip).not.toContain("(Update)");
+  });
+
   it("says a diverged module needs a person, with both counts", () => {
     const tip = moduleTooltip(mod("lib", { state: "diverged", ahead: 3, behind: 2 }));
     expect(tip).toContain("3");

@@ -97,6 +97,8 @@ pub fn open_with_menu<R: tauri::Runtime>(
     if menu.is_empty() {
         window.remove_menu()?;
     }
+    #[cfg(windows)]
+    crate::webview2::install_child_accelerators(&window, accelerator_table(window.label(), menu));
     window.show()
 }
 
@@ -120,6 +122,24 @@ fn build_menu<R: tauri::Runtime>(
         bar.append(&entries)?;
     }
     Ok(bar)
+}
+
+/// The keys of this window's own menu, claimed ahead of WebView2 the way the main window's
+/// are: while the page has focus the menu's accelerators never fire otherwise.
+#[must_use]
+pub fn accelerator_table(
+    label: &str,
+    menu: &[Submenu],
+) -> std::collections::HashMap<crate::accelerators::Chord, String> {
+    let ids: Vec<(String, Option<&str>)> = menu
+        .iter()
+        .flat_map(|submenu| submenu.items.iter())
+        .map(|item| (menu_id(label, item.action), item.accelerator))
+        .collect();
+    crate::accelerators::table(
+        ids.iter().map(|(id, keys)| (id.as_str(), *keys)),
+        &std::collections::HashMap::new(),
+    )
 }
 
 fn menu_id(label: &str, action: &str) -> String {
@@ -177,6 +197,38 @@ mod tests {
         (0..count)
             .map(|_| format!("{kind}-{}", NEXT.fetch_add(1, Ordering::Relaxed)))
             .collect()
+    }
+
+    // The keys of a child window's own menu were claimed nowhere: WebView2 took them while
+    // the page had focus, so Ctrl+2, Alt+Left or F1 in Investigate did nothing.
+    #[test]
+    fn a_child_windows_menu_keys_are_claimed_for_that_window() {
+        let table = accelerator_table("investigate-3", crate::commands::investigate::MENU);
+        let claimed = |keys: &str| {
+            let chord = crate::accelerators::parse(keys).expect("parses");
+            table.get(&chord).cloned()
+        };
+        assert_eq!(
+            claimed("Alt+Left").as_deref(),
+            Some("child:investigate-3:back")
+        );
+        assert_eq!(
+            claimed("CmdOrCtrl+2").as_deref(),
+            Some("child:investigate-3:perspective-diff")
+        );
+        assert_eq!(
+            claimed("F5").as_deref(),
+            Some("child:investigate-3:refresh")
+        );
+        assert_eq!(
+            claimed("CmdOrCtrl+W").as_deref(),
+            Some("child:investigate-3:close")
+        );
+    }
+
+    #[test]
+    fn a_window_without_a_menu_claims_nothing() {
+        assert!(accelerator_table("merge-1", &[]).is_empty());
     }
 
     #[test]

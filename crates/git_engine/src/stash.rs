@@ -71,10 +71,24 @@ impl RepoHandle {
             .map(drop)
     }
 
+    /// Without `--index` only after a refusal that changed nothing: an attempt that stopped
+    /// on a conflict has written its markers, and a retry could only report "needs merge"
+    /// in place of git's account of the conflict (INV-05).
     pub fn stash_apply(&self, oid: &str) -> Result<()> {
-        self.run_git(&["stash", "apply", "--index", oid])
-            .or_else(|_| self.run_git(&["stash", "apply", oid]))
-            .map(drop)
+        let Err(first) = self.run_git(&["stash", "apply", "--index", oid]) else {
+            return Ok(());
+        };
+        let conflicted = self.conflicted_paths().map_or_else(
+            |err| {
+                tracing::error!(error = ?err, context = "cannot tell whether stash apply left a conflict");
+                true
+            },
+            |paths| !paths.is_empty(),
+        );
+        if conflicted {
+            return Err(first);
+        }
+        self.run_git(&["stash", "apply", oid]).map(drop)
     }
 
     /// Whether `--include-untracked` has anything to take. Without one it only makes `stash`
@@ -160,16 +174,15 @@ impl RepoHandle {
         self.run_git(&["stash", verb, &reference]).map(drop)
     }
 
-    /// Returns the dropped commit so Undo can put the entry back.
-    pub fn stash_drop(&self, index: u32) -> Result<String> {
-        let oid = self
+    /// Returns the dropped entry so Undo can put it back (`restore_stash`).
+    pub fn stash_drop(&self, index: u32) -> Result<StashEntry> {
+        let entry = self
             .stashes()?
             .into_iter()
             .find(|entry| entry.index == index)
-            .ok_or_else(|| GitError::InvalidState(format!("no stash at index {index}")))?
-            .oid;
+            .ok_or_else(|| GitError::InvalidState(format!("no stash at index {index}")))?;
         self.run_git(&["stash", "drop", &self.stash_ref(index)?])?;
-        Ok(oid)
+        Ok(entry)
     }
 
     fn stash_ref(&self, index: u32) -> Result<String> {

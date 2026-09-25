@@ -227,10 +227,11 @@ export function branchesTagMenu(
   ]);
 }
 
-/** #35: a stash in Branches. */
+/** #35: a stash in Branches, with Pop beside Apply (F-040, R-435). */
 export function branchesStashMenu(facts: CommitFacts, at: BranchesContext): ContextItem[] {
   return tidy([
     offer(id("apply-stash"), "Apply Stash", null),
+    offer(id("pop-stash"), "Pop Stash", null),
     SEPARATOR,
     ...compareRows(at, facts),
     SEPARATOR,

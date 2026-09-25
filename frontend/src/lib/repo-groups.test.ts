@@ -7,6 +7,7 @@ import {
   mergeGroups,
   removeGroup,
   renameGroup,
+  showsFilter,
   type RepoGroups,
 } from "./repo-groups";
 
@@ -148,5 +149,18 @@ describe("mergeGroups", () => {
   it("drops an order entry with no name behind it", () => {
     const stored = { order: ["g1", "ghost"], names: { g1: "Work" }, of: {} };
     expect(mergeGroups(stored).order).toEqual(["g1"]);
+  });
+});
+
+describe("showsFilter", () => {
+  it("shows the box once there are two repositories to choose between", () => {
+    expect(showsFilter(1, "")).toBe(false);
+    expect(showsFilter(2, "")).toBe(true);
+  });
+
+  // Removing the match left one repository hidden by a filter with no box to clear it in.
+  it("keeps the box while a filter is typed, however few repositories are left", () => {
+    expect(showsFilter(1, "beta")).toBe(true);
+    expect(showsFilter(0, "beta")).toBe(true);
   });
 });

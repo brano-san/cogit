@@ -9,16 +9,20 @@ impl AppState {
     pub fn reset_to(&self, repo: RepoId, rev: &str, mode: ResetMode) -> Result<(), GitError> {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
-        let before = handle.head()?;
-        let from = match &before {
-            git_engine::Head::Branch { name, oid } => format!("{name} from {}", short(oid)),
-            git_engine::Head::Detached { oid } => format!("HEAD from {}", short(oid)),
+        let (branch, before) = match handle.head()? {
+            git_engine::Head::Branch { name, oid } => (Some(name), oid),
+            git_engine::Head::Detached { oid } => (None, oid),
             git_engine::Head::Unborn { .. } => {
                 return Err(GitError::InvalidState(
                     "there is no commit to reset yet".to_owned(),
                 ));
             }
         };
+        let from = format!(
+            "{} from {}",
+            branch.as_deref().unwrap_or("HEAD"),
+            short(&before)
+        );
 
         let status = handle.status()?;
         let stashed = if mode == ResetMode::Hard && (status.staged > 0 || status.unstaged > 0) {
@@ -40,10 +44,27 @@ impl AppState {
             }
             return Err(err);
         }
+        // A reset to where HEAD already was, with nothing stashed, has nothing to undo.
+        let moved = match handle.head()? {
+            git_engine::Head::Branch { oid, .. } | git_engine::Head::Detached { oid } => {
+                oid != before
+            }
+            git_engine::Head::Unborn { .. } => true,
+        };
+        let recovery = if moved || stashed.is_some() {
+            Recovery::Reset {
+                branch,
+                oid: before,
+                mode,
+                stash: stashed,
+            }
+        } else {
+            Recovery::None
+        };
         self.record(
             repo,
             format!("Reset {from} to {} ({})", short(rev), mode_name(mode)),
-            stashed.map_or(Recovery::None, |oid| Recovery::Stash { oid }),
+            recovery,
         );
         Ok(())
     }
@@ -97,15 +118,20 @@ impl AppState {
         let handle = self.handle(repo)?;
         let before = handle.head()?;
         handle.edit_author(rev, name, email)?;
-        let was = match before {
-            git_engine::Head::Branch { name, oid } => format!(" ({name} was at {})", short(&oid)),
-            git_engine::Head::Detached { oid } => format!(" (HEAD was at {})", short(&oid)),
-            git_engine::Head::Unborn { .. } => String::new(),
+        let (was, recovery) = match before {
+            git_engine::Head::Branch { name, oid } => (
+                format!(" ({name} was at {})", short(&oid)),
+                Recovery::Moved { name, oid },
+            ),
+            git_engine::Head::Detached { oid } => {
+                (format!(" (HEAD was at {})", short(&oid)), Recovery::None)
+            }
+            git_engine::Head::Unborn { .. } => (String::new(), Recovery::None),
         };
         self.record(
             repo,
             format!("Edit the author of {}{was}", short(rev)),
-            Recovery::None,
+            recovery,
         );
         Ok(())
     }

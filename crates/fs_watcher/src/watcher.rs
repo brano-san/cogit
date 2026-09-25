@@ -62,9 +62,16 @@ impl RepoWatcher {
 
         // The INV-06 noise is filtered when routing, not by narrowing the watch.
         watch(&mut debouncer, root, RecursiveMode::Recursive)?;
-        watch(&mut debouncer, git_dir, RecursiveMode::NonRecursive)?;
+        // Inside the root the recursive watch already hears the git directory; a submodule's
+        // and a linked worktree's are elsewhere. A watch of its own inside the root would
+        // hold a folder open there, and Windows refuses to rename or move a folder with a
+        // handle open anywhere below it (R-438).
+        let outside = |path: &Path| !path.starts_with(root);
+        if outside(git_dir) {
+            watch(&mut debouncer, git_dir, RecursiveMode::NonRecursive)?;
+        }
         let linked = common_dir != git_dir;
-        if linked {
+        if linked && outside(common_dir) {
             // packed-refs and config sit at the top of the common directory.
             watch(&mut debouncer, common_dir, RecursiveMode::NonRecursive)?;
         }
@@ -73,19 +80,20 @@ impl RepoWatcher {
             if linked && *name == "refs" {
                 places.push(common_dir.join(name));
             }
-            for path in places.into_iter().filter(|path| path.exists()) {
+            for path in places
+                .into_iter()
+                .filter(|path| path.exists() && outside(path))
+            {
                 watch(&mut debouncer, &path, RecursiveMode::Recursive)?;
             }
         }
-        // Inside the root the recursive watch already hears the hooks; a submodule's git
-        // directory and a linked worktree's common one are elsewhere.
         let mut hooks = vec![git_dir.join("hooks")];
         if linked {
             hooks.push(common_dir.join("hooks"));
         }
         for path in hooks
             .into_iter()
-            .filter(|path| path.is_dir() && !path.starts_with(root))
+            .filter(|path| path.is_dir() && outside(path))
         {
             watch(&mut debouncer, &path, RecursiveMode::Recursive)?;
         }

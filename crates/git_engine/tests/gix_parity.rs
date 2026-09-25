@@ -435,3 +435,272 @@ mod worktrees {
         assert_eq!(ours(&f), (expected, bare));
     }
 }
+
+mod unstaged {
+    use super::*;
+    use git_engine::FileStatus;
+
+    /// `status --porcelain=v2 --untracked-files=all`, the worktree half of each entry: what
+    /// the Files panel lists under Changes. A type change counts as `M`, as the client has
+    /// no type change of its own.
+    fn git(f: &Fixture) -> Vec<String> {
+        let text = f
+            .git(&["status", "--porcelain=v2", "--untracked-files=all", "-z"])
+            .unwrap();
+        let mut fields = text.split('\0').filter(|field| !field.is_empty());
+        let mut out = Vec::new();
+        while let Some(entry) = fields.next() {
+            let kind = &entry[..1];
+            match kind {
+                "?" => out.push(format!("?\t{}", &entry[2..])),
+                "u" => out.push(format!("U\t{}", entry.splitn(11, ' ').nth(10).unwrap())),
+                "1" | "2" => {
+                    let parts: Vec<&str> = entry
+                        .splitn(if kind == "1" { 9 } else { 10 }, ' ')
+                        .collect();
+                    if kind == "2" {
+                        fields.next();
+                    }
+                    let worktree = &parts[1][1..2];
+                    let letter = if worktree == "T" { "M" } else { worktree };
+                    if letter != "." {
+                        out.push(format!("{letter}\t{}", parts.last().unwrap()));
+                    }
+                }
+                _ => {}
+            }
+        }
+        out.sort();
+        out
+    }
+
+    fn ours(f: &Fixture) -> Vec<String> {
+        let mut out: Vec<String> = open(f)
+            .worktree_files()
+            .unwrap()
+            .unstaged
+            .iter()
+            .map(|file| {
+                let letter = match file.status {
+                    FileStatus::Added => "A",
+                    FileStatus::Modified => "M",
+                    FileStatus::Deleted => "D",
+                    FileStatus::Untracked => "?",
+                    FileStatus::Conflicted => "U",
+                    other => panic!("{other:?} in the unstaged list"),
+                };
+                format!("{letter}\t{}", file.path)
+            })
+            .collect();
+        out.sort();
+        out
+    }
+
+    /// The panel shows a folder of nothing but new files as one row, as `git status` does by
+    /// default; git's files under such a row fold into it. A row with no new file of git's
+    /// under it still differs. `-unormal` itself is no reference: it drops a folder that
+    /// took a deleted file's name.
+    fn matches(f: &Fixture, count: usize) {
+        let ours = ours(f);
+        let folders: Vec<&str> = ours
+            .iter()
+            .filter_map(|entry| entry.strip_prefix("?\t"))
+            .filter(|path| path.ends_with('/'))
+            .collect();
+        let mut expected: Vec<String> = git(f)
+            .into_iter()
+            .map(|entry| {
+                let folder = entry
+                    .strip_prefix("?\t")
+                    .and_then(|path| folders.iter().find(|folder| path.starts_with(**folder)));
+                folder.map_or(entry.clone(), |folder| format!("?\t{folder}"))
+            })
+            .collect();
+        expected.sort();
+        expected.dedup();
+        assert_eq!(expected.len(), count, "{expected:#?}");
+        assert_eq!(ours, expected);
+    }
+
+    #[test]
+    fn edits_deletions_and_untracked_files_deep_in_new_folders_match_status() {
+        let f = test_fixtures::linear(3).unwrap();
+        f.write_file("file0.txt", "edited\n").unwrap();
+        std::fs::remove_file(f.path().join("file1.txt")).unwrap();
+        f.write_file("new/deeper/still/a.txt", "fresh\n").unwrap();
+        f.write_file("new/b.txt", "fresh\n").unwrap();
+
+        matches(&f, 3);
+    }
+
+    #[test]
+    fn an_exception_in_gitignore_is_listed_and_the_rest_left_out() {
+        let f = test_fixtures::linear(1).unwrap();
+        f.write_file(".gitignore", "*.log\n!keep.log\nbuild/\n")
+            .unwrap();
+        f.write_file("drop.log", "noise\n").unwrap();
+        f.write_file("keep.log", "wanted\n").unwrap();
+        f.write_file("build/out.txt", "artefact\n").unwrap();
+        f.write_file("sub/keep.log", "wanted too\n").unwrap();
+
+        matches(&f, 3);
+    }
+
+    #[test]
+    fn a_file_deleted_and_written_again_is_clean_or_modified_as_its_content_says() {
+        let f = test_fixtures::linear(3).unwrap();
+        std::fs::remove_file(f.path().join("file0.txt")).unwrap();
+        f.write_file("file0.txt", "content 0\n").unwrap();
+        std::fs::remove_file(f.path().join("file1.txt")).unwrap();
+        f.write_file("file1.txt", "something else\n").unwrap();
+
+        matches(&f, 1);
+    }
+
+    #[test]
+    fn a_file_turned_folder_is_a_deletion_and_new_files() {
+        let f = test_fixtures::linear(2).unwrap();
+        std::fs::remove_file(f.path().join("file0.txt")).unwrap();
+        f.write_file("file0.txt/inside.txt", "now a folder\n")
+            .unwrap();
+
+        matches(&f, 2);
+    }
+
+    #[test]
+    fn a_dirty_submodule_is_a_modified_entry() {
+        let f = test_fixtures::with_submodule().unwrap();
+        f.write_file("vendor/lib/file0.txt", "edited in the module\n")
+            .unwrap();
+        f.write_file("vendor/lib/loose.txt", "untracked in the module\n")
+            .unwrap();
+
+        matches(&f, 1);
+    }
+
+    #[test]
+    fn a_submodule_with_only_untracked_files_matches_status() {
+        let f = test_fixtures::with_submodule().unwrap();
+        f.write_file("vendor/lib/loose.txt", "untracked in the module\n")
+            .unwrap();
+
+        let expected = git(&f);
+        assert_eq!(ours(&f), expected);
+    }
+
+    // The entry's own time is in the future, so it is racily clean: size and time match,
+    // and only the content says the file changed.
+    #[test]
+    fn a_racily_clean_file_of_the_same_length_is_modified() {
+        let f = test_fixtures::linear(1).unwrap();
+        let path = f.path().join("racy.txt");
+        let ahead = std::time::SystemTime::now() + std::time::Duration::from_secs(3600);
+        std::fs::write(&path, "aaaa\n").unwrap();
+        std::fs::File::options()
+            .write(true)
+            .open(&path)
+            .unwrap()
+            .set_modified(ahead)
+            .unwrap();
+        f.git(&["add", "--", "racy.txt"]).unwrap();
+        f.commit_staged(2, "racy").unwrap();
+        std::fs::write(&path, "bbbb\n").unwrap();
+        std::fs::File::options()
+            .write(true)
+            .open(&path)
+            .unwrap()
+            .set_modified(ahead)
+            .unwrap();
+
+        matches(&f, 1);
+    }
+
+    // Git 2.51 lists the CRLF copy of an LF blob `.M` with equal ids, though `diff` shows
+    // nothing in it; the client lists what `status` lists.
+    #[test]
+    fn crlf_in_the_tree_under_autocrlf_matches_status() {
+        let f = test_fixtures::linear(1).unwrap();
+        f.commit_file(2, "text.txt", "one\ntwo\n").unwrap();
+        f.git(&["config", "core.autocrlf", "true"]).unwrap();
+        std::fs::write(f.path().join("text.txt"), "one\r\ntwo\r\n").unwrap();
+        std::fs::write(f.path().join("file0.txt"), "content 0\r\nmore\r\n").unwrap();
+
+        matches(&f, 2);
+    }
+
+    #[test]
+    #[ignore = "GE-021: an intent-to-add file is listed nowhere yet; its fix makes this pass"]
+    fn an_intent_to_add_file_is_listed_as_git_lists_it() {
+        let f = test_fixtures::linear(1).unwrap();
+        f.write_file("later.txt", "intent only\n").unwrap();
+        f.git(&["add", "-N", "--", "later.txt"]).unwrap();
+
+        matches(&f, 1);
+    }
+
+    #[test]
+    fn a_conflict_is_listed_once_as_unmerged() {
+        let f = test_fixtures::conflicted().unwrap();
+        matches(&f, 1);
+    }
+
+    /// The four counters of `status()` from the same porcelain. They count untracked files,
+    /// not the folder rows the list folds them into.
+    fn counters(f: &Fixture) -> (git_engine::RepoStatus, git_engine::RepoStatus) {
+        let text = f
+            .git(&["status", "--porcelain=v2", "--untracked-files=all", "-z"])
+            .unwrap();
+        let mut git = git_engine::RepoStatus::default();
+        let mut fields = text.split('\0').filter(|field| !field.is_empty());
+        while let Some(entry) = fields.next() {
+            match &entry[..1] {
+                "?" => git.untracked += 1,
+                "u" => git.conflicted += 1,
+                kind @ ("1" | "2") => {
+                    if kind == "2" {
+                        fields.next();
+                    }
+                    let xy = entry.split(' ').nth(1).unwrap();
+                    git.staged += u32::from(&xy[..1] != ".");
+                    git.unstaged += u32::from(&xy[1..2] != ".");
+                }
+                _ => {}
+            }
+        }
+        (open(f).status().unwrap(), git)
+    }
+
+    #[test]
+    fn the_counters_match_status() {
+        let f = test_fixtures::linear(4).unwrap();
+        f.write_file("file0.txt", "staged edit\n").unwrap();
+        f.git(&["add", "--", "file0.txt"]).unwrap();
+        f.git(&["rm", "-q", "--", "file1.txt"]).unwrap();
+        f.write_file("file2.txt", "unstaged edit\n").unwrap();
+        f.write_file("file0.txt", "staged, then edited again\n")
+            .unwrap();
+        f.write_file("loose.txt", "new\n").unwrap();
+        f.write_file("fresh/a.txt", "new\n").unwrap();
+        f.write_file("fresh/b.txt", "new\n").unwrap();
+
+        let (ours, git) = counters(&f);
+        assert_eq!(
+            git,
+            git_engine::RepoStatus {
+                staged: 2,
+                unstaged: 2,
+                untracked: 3,
+                conflicted: 0
+            }
+        );
+        assert_eq!(ours, git);
+    }
+
+    #[test]
+    fn the_counters_of_a_conflict_match_status() {
+        let f = test_fixtures::conflicted().unwrap();
+        let (ours, git) = counters(&f);
+        assert_eq!(git.conflicted, 1, "{git:?}");
+        assert_eq!(ours, git);
+    }
+}
