@@ -22,7 +22,66 @@ pub enum DiffSpec {
 /// Old and new contents of one path; `None` on a side means it is absent there.
 pub type DiffSides = (Option<Vec<u8>>, Option<Vec<u8>>);
 
+/// What `.gitattributes` says about showing paths as a diff, read once for a whole batch.
+/// Unreadable attributes are logged and read as saying nothing.
+pub struct DiffAttributes<'repo> {
+    stack: Option<gix::AttributeStack<'repo>>,
+}
+
+impl std::fmt::Debug for DiffAttributes<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DiffAttributes")
+            .field("read", &self.stack.is_some())
+            .finish()
+    }
+}
+
+impl DiffAttributes<'_> {
+    /// `-diff`, or `binary`, which unsets it: git shows the file as binary, whatever it holds.
+    pub fn marks_binary(&mut self, path: &str) -> bool {
+        let Some(stack) = self.stack.as_mut() else {
+            return false;
+        };
+        let mut outcome = stack.selected_attribute_matches(["diff"]);
+        match stack.at_entry(path, None) {
+            Ok(platform) => platform.matching_attributes(&mut outcome),
+            Err(err) => {
+                tracing::error!(error = ?err, path, context = "reading .gitattributes for a diff");
+                return false;
+            }
+        };
+        outcome
+            .iter_selected()
+            .any(|found| found.assignment.state == gix::attrs::StateRef::Unset)
+    }
+}
+
 impl RepoHandle {
+    pub fn diff_attributes(&self) -> DiffAttributes<'_> {
+        use gix::worktree::stack::state::attributes::Source;
+        let source = if self.is_bare() {
+            Source::IdMapping
+        } else {
+            Source::WorktreeThenIdMapping
+        };
+        let stack = self
+            .repo
+            .index_or_empty()
+            .map_err(|err| err.to_string())
+            .and_then(|index| {
+                self.repo
+                    .attributes_only(&index, source)
+                    .map_err(|err| err.to_string())
+            });
+        match stack {
+            Ok(stack) => DiffAttributes { stack: Some(stack) },
+            Err(err) => {
+                tracing::error!(error = %err, context = "reading .gitattributes for a diff");
+                DiffAttributes { stack: None }
+            }
+        }
+    }
+
     /// `None` when the path is absent from that tree: an addition, not an empty file.
     pub fn blob_at(&self, rev: &str, path: &str) -> Result<Option<Vec<u8>>> {
         let id = self
