@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { afterDeselect, applyClick, EMPTY_SELECTION, type FileSelection } from "./multi-select";
+import { afterDeselect, applyClick, EMPTY_SELECTION, shownMarks, type FileSelection } from "./multi-select";
 
 const ORDER = ["a.txt", "b.txt", "c.txt", "d.txt"];
 const plain = { ctrl: false, shift: false };
@@ -85,5 +85,19 @@ describe("afterDeselect", () => {
   it("keeps the marks when another file is shown", () => {
     const marked = select(["a.txt"], "a.txt");
     expect(afterDeselect("a.txt", "b.txt", marked)).toBe(marked);
+  });
+});
+
+describe("shownMarks", () => {
+  it("leaves out the marked files the list no longer shows", () => {
+    const marked = select(["a.txt", "gone.txt", "c.txt"], "gone.txt");
+    const shown = shownMarks(marked, ORDER);
+    expect([...shown.paths]).toEqual(["a.txt", "c.txt"]);
+    expect(shown.anchor).toBeNull();
+  });
+
+  it("keeps a selection that is all on screen as it is", () => {
+    const marked = select(["a.txt", "b.txt"], "b.txt");
+    expect(shownMarks(marked, ORDER)).toBe(marked);
   });
 });
