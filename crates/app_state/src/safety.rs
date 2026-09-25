@@ -43,10 +43,11 @@ pub enum Recovery {
     Files {
         kept: Vec<(String, String)>,
     },
-    /// The branch was deleted: undo creates it again.
+    /// The branch was deleted: undo creates it again, tracking what it tracked.
     Branch {
         name: String,
         oid: String,
+        upstream: Option<String>,
     },
     /// The branch still exists and was moved (merge, rebase, cherry-pick): undo moves it
     /// back.
@@ -163,7 +164,19 @@ impl AppState {
             }
             Recovery::Resolution { path, kept } => handle.unresolve(path, kept.as_deref())?,
             Recovery::Files { kept } => handle.write_back(kept)?,
-            Recovery::Branch { name, oid } => handle.create_branch(name, Some(oid), false)?,
+            Recovery::Branch {
+                name,
+                oid,
+                upstream,
+            } => {
+                handle.create_branch(name, Some(oid), false)?;
+                // `branch -d` took the config section; a remote branch gone since stays gone.
+                if let Some(upstream) = upstream
+                    && let Err(err) = handle.set_upstream(name, Some(upstream))
+                {
+                    tracing::warn!(error = ?err, branch = %name, "the branch is back without its upstream");
+                }
+            }
             Recovery::Moved { name, oid } => {
                 wait_for_the_operation(&handle)?;
                 handle.move_branch_back(name, oid)?;
