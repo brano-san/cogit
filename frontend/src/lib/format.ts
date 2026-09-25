@@ -155,6 +155,11 @@ export function relativeDate(timestamp: number, _offsetMinutes: number, now: num
   return "just now";
 }
 
+/** A branch and a tag may share a name on one commit, so the text alone repeats. */
+export function refLabelKey(label: RefLabel): string {
+  return `${label.kind}:${label.text}`;
+}
+
 /** A commit with ten refs must not stretch the row; the rest go into a tooltip (T4.6). */
 export function capsules(
   labels: readonly RefLabel[],

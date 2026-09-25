@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayDate, smartDate, capsules, dateTooltip, headLabel, refLabels, relativeDate, shortOid, splitBranches, type RefLabel, fileFormat } from "./format";
+import { displayDate, smartDate, capsules, dateTooltip, headLabel, refLabelKey, refLabels, relativeDate, shortOid, splitBranches, type RefLabel, fileFormat } from "./format";
 import type { Tag } from "./ipc";
 import type { Branch, Head, WorktreeEntry } from "./ipc";
 
@@ -136,6 +136,23 @@ describe("refLabels", () => {
 
   it("returns nothing for a commit with no refs", () => {
     expect(refLabels(branches, tags, head).get("c".repeat(40))).toBeUndefined();
+  });
+
+  it("gives a branch and a tag of the same name on one commit different keys", () => {
+    const release: Branch = {
+      name: "v1.0",
+      fullName: "refs/heads/v1.0",
+      kind: "local",
+      oid: "a".repeat(40),
+      isHead: false,
+      upstream: null,
+      ahead: 0,
+      behind: 0,
+    };
+    const labels = refLabels([...branches, release], tags, head).get("a".repeat(40)) ?? [];
+    const keys = labels.map(refLabelKey);
+    expect(labels.filter((l) => l.text === "v1.0")).toHaveLength(2);
+    expect(new Set(keys).size).toBe(keys.length);
   });
 
   it("does not mark anything as HEAD when the head is detached", () => {

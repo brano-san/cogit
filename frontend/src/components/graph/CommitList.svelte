@@ -4,7 +4,7 @@
   import SkeletonRows from "$components/common/SkeletonRows.svelte";
   import GraphCanvas from "$components/graph/GraphCanvas.svelte";
   import RefCapsule from "$components/graph/RefCapsule.svelte";
-  import { capsules, dateTooltip, refLabels, shortOid, type RefLabel } from "$lib/format";
+  import { capsules, dateTooltip, refLabelKey, refLabels, shortOid, type RefLabel } from "$lib/format";
   import { DRAG_TYPE, parseDrag, serialiseDrag } from "$lib/drop-target";
   import { overlapLabel, overlapTooltip } from "$lib/overlap";
   import { overlap } from "$stores/overlap.svelte";
@@ -576,7 +576,7 @@
                 <FoldToggle {open} {hidden} ontoggle={() => graphFolds.toggle(item.entry.commit.oid)} />
               {/if}
             {/if}
-            {#each refs.shown as label (label.text)}
+            {#each refs.shown as label (refLabelKey(label))}
               <RefCapsule
                 {label}
                 onmenu={onrefcontext &&
