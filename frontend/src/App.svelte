@@ -2167,6 +2167,7 @@
       repoSettingsOpen = false;
       rebaseOpen = false;
       splitOpen = false;
+      finderOpen = false;
     }),
   );
 
