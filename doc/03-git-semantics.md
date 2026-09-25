@@ -50,6 +50,7 @@
 | Частичный стейджинг строк | `git apply --cached -` + патч на stdin ([08-diff-engine.md](08-diff-engine.md)) |
 | Откат изменений | `git restore -- <path>` |
 | Коммит | `git -c maintenance.auto=false commit -m <msg>` (`--amend`, `--no-verify` — опционально); `git maintenance run --auto` — после него, в фоне (R-314) |
+| Коммит видимых файлов (T6.8) | во временном индексе: `GIT_INDEX_FILE=<tmp> git read-tree HEAD`, записи путей из настоящего индекса (`ls-files --stage` → `update-index -z --index-info`), затем тот же `git commit` без путей (R-411) |
 | Checkout ветки | `git switch <branch>` / `git checkout <ref>` |
 | Создать ветку | `git branch <name> [<start>]` |
 | Удалить ветку | `git branch -d` / `-D` |

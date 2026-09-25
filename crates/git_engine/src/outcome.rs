@@ -87,7 +87,9 @@ fn clip(line: &str) -> String {
 /// What to call the command in a title, read off the command line itself.
 #[must_use]
 pub fn operation_label(command_line: &str) -> String {
-    let mut words = command_line.split_whitespace().peekable();
+    let mut words = after_environment(command_line)
+        .split_whitespace()
+        .peekable();
     if words.peek() == Some(&"git") {
         words.next();
     }
@@ -128,6 +130,21 @@ pub fn operation_label(command_line: &str) -> String {
         "push" if flags.iter().any(|f| f.starts_with("--force")) => "Force Push".to_owned(),
         _ => title_case(name),
     }
+}
+
+/// `GIT_INDEX_FILE='…' git commit` → `git commit`; the quoted value may hold spaces.
+fn after_environment(line: &str) -> &str {
+    let Some((name, value)) = line.split_once('=') else {
+        return line;
+    };
+    if name.is_empty() || !name.chars().all(|c| c.is_ascii_uppercase() || c == '_') {
+        return line;
+    }
+    let rest = match value.strip_prefix('\'') {
+        Some(quoted) => quoted.split_once('\'').map_or("", |(_, rest)| rest),
+        None => value.split_once(' ').map_or("", |(_, rest)| rest),
+    };
+    rest.trim_start()
 }
 
 /// `cherry-pick` reads as `Cherry-pick`, not `Cherry-Pick`: it is one word to a user.

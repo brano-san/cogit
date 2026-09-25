@@ -212,6 +212,83 @@ fn committing_only_named_paths_leaves_the_rest_staged() {
     );
 }
 
+fn only(paths: &[&str], message: &str) -> CommitRequest {
+    CommitRequest {
+        only: paths.iter().map(|path| (*path).to_owned()).collect(),
+        ..request(message)
+    }
+}
+
+// `commit --only` takes the named paths from the working tree: the edit made after
+// `git add` went into "Commit 1 shown" although the Staged list showed the older text.
+#[test]
+fn committing_shown_paths_takes_what_is_staged_not_the_working_tree() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::write(f.path().join("a.txt"), "staged\n").unwrap();
+    std::fs::write(f.path().join("b.txt"), "hidden\n").unwrap();
+    f.git(&["add", "--", "a.txt", "b.txt"]).unwrap();
+    std::fs::write(f.path().join("a.txt"), "staged\nnot staged\n").unwrap();
+
+    open(&f).commit(&only(&["a.txt"], "a only")).unwrap();
+
+    assert_eq!(f.git(&["show", "HEAD:a.txt"]).unwrap(), "staged\n");
+    assert_eq!(f.git(&["show", ":a.txt"]).unwrap(), "staged\n");
+    assert_eq!(
+        std::fs::read_to_string(f.path().join("a.txt")).unwrap(),
+        "staged\nnot staged\n"
+    );
+    assert_eq!(
+        f.git(&["diff", "--cached", "--name-only"]).unwrap().trim(),
+        "b.txt"
+    );
+}
+
+#[test]
+fn a_staged_deletion_among_the_shown_paths_is_committed() {
+    let f = test_fixtures::linear(2).unwrap();
+    let doomed = f
+        .git(&["ls-files"])
+        .unwrap()
+        .lines()
+        .next()
+        .unwrap()
+        .to_owned();
+    f.git(&["rm", "-q", "--", &doomed]).unwrap();
+    std::fs::write(f.path().join("kept.txt"), "kept\n").unwrap();
+    f.git(&["add", "--", "kept.txt"]).unwrap();
+
+    open(&f).commit(&only(&[&doomed], "drop one")).unwrap();
+
+    assert!(
+        f.git(&["cat-file", "-e", &format!("HEAD:{doomed}")])
+            .is_err()
+    );
+    assert_eq!(
+        f.git(&["diff", "--cached", "--name-only"]).unwrap().trim(),
+        "kept.txt"
+    );
+}
+
+#[test]
+fn the_first_commit_can_take_only_the_shown_paths() {
+    let f = test_fixtures::Fixture::init().unwrap();
+    for name in ["one.txt", "two.txt"] {
+        std::fs::write(f.path().join(name), "new\n").unwrap();
+    }
+    f.git(&["add", "--", "one.txt", "two.txt"]).unwrap();
+
+    open(&f).commit(&only(&["one.txt"], "first")).unwrap();
+
+    assert_eq!(
+        f.git(&["ls-tree", "--name-only", "HEAD"]).unwrap().trim(),
+        "one.txt"
+    );
+    assert_eq!(
+        f.git(&["diff", "--cached", "--name-only"]).unwrap().trim(),
+        "two.txt"
+    );
+}
+
 #[test]
 fn an_empty_path_list_still_commits_everything_staged() {
     let f = test_fixtures::linear(1).unwrap();
