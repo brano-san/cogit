@@ -17,6 +17,9 @@ pub struct WorktreeEntry {
     pub locked: Option<String>,
     pub missing: bool,
     pub dirty: bool,
+    /// Submodules checked out in it: git removes such a worktree only with `--force`, which
+    /// deletes their repositories too.
+    pub has_submodules: bool,
 }
 
 impl RepoHandle {
@@ -47,6 +50,7 @@ impl RepoHandle {
                     locked,
                     missing: true,
                     dirty: false,
+                    has_submodules: false,
                 },
             };
             // The folder is gone but its record is not, and git still keeps the branch there.
@@ -271,6 +275,7 @@ impl RepoHandle {
                 !path.join(".git").exists()
             },
             dirty: false,
+            has_submodules: false,
         };
 
         // Discovery would climb to whatever repository holds the parent folder.
@@ -294,7 +299,27 @@ impl RepoHandle {
         if let Ok(dirty) = handle.has_changes() {
             entry.dirty = dirty;
         }
+        entry.has_submodules = !is_main && handle.checks_out_submodules();
         entry
+    }
+
+    /// Git's own test before it refuses to remove a worktree: a `modules` folder in its git
+    /// directory, or a gitlink of its index with a repository in the folder.
+    fn checks_out_submodules(&self) -> bool {
+        if self.repo.git_dir().join("modules").is_dir() {
+            return true;
+        }
+        let Ok(index) = self.repo.index_or_empty() else {
+            return false;
+        };
+        index.entries().iter().any(|entry| {
+            entry.mode.is_submodule()
+                && self
+                    .root()
+                    .join(gix::path::from_bstr(entry.path(&index)))
+                    .join(".git")
+                    .exists()
+        })
     }
 }
 

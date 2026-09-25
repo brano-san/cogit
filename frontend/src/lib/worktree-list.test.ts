@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { Branch, WorktreeEntry } from "$lib/ipc";
+import type { Branch, FileEntry, WorktreeEntry } from "$lib/ipc";
 import {
   addProblem,
   branchChoices,
   hasStale,
   removable,
+  removalNeeds,
   worktreeTags,
   worktreeWhere,
   worktreeMarks,
@@ -24,6 +25,7 @@ function entry(over: Partial<WorktreeEntry> = {}): WorktreeEntry {
     locked: null,
     missing: false,
     dirty: false,
+    hasSubmodules: false,
     ...over,
   };
 }
@@ -88,6 +90,31 @@ describe("what the panel offers", () => {
     expect(removable(entry({ missing: true }))).toBe(false);
     expect(removable(entry({ isCurrent: true }))).toBe(false);
     expect(removable(undefined)).toBe(false);
+  });
+});
+
+describe("the Remove Worktree dialog", () => {
+  const change = { path: "a.txt", status: "modified" } as FileEntry;
+
+  it("waits for the changes before it asks anything", () => {
+    expect(removalNeeds(entry(), null)).toEqual({ dirty: false, submodules: false, force: false });
+  });
+
+  it("asks for --force when there are uncommitted changes", () => {
+    expect(removalNeeds(entry(), [change])).toEqual({ dirty: true, submodules: false, force: true });
+  });
+
+  // Git refuses a clean worktree with submodules checked out unless forced.
+  it("asks for --force when submodules are checked out in it, clean as it is", () => {
+    expect(removalNeeds(entry({ hasSubmodules: true }), [])).toEqual({
+      dirty: false,
+      submodules: true,
+      force: true,
+    });
+  });
+
+  it("removes a clean worktree without submodules plainly", () => {
+    expect(removalNeeds(entry(), [])).toEqual({ dirty: false, submodules: false, force: false });
   });
 });
 
