@@ -789,3 +789,52 @@ fn undoing_a_stash_drop_lists_the_stash_again_in_its_place() {
         "the working tree is left alone"
     );
 }
+
+// Undo applied the stash taken at the old tip on top of the new one: the branch stayed
+// where the reset put it and the file got conflict markers.
+#[test]
+fn undoing_a_hard_reset_puts_the_branch_back_with_the_work_on_it() {
+    let f = test_fixtures::linear(1).unwrap();
+    let target = f.commit_file(2, "f.txt", "v1\n").unwrap();
+    let tip = f.commit_file(3, "f.txt", "v2\n").unwrap();
+    let (state, repo) = open(&f);
+    f.write_file("f.txt", "v2 and work\n").unwrap();
+
+    state
+        .reset_to(repo, &target, git_engine::ResetMode::Hard)
+        .unwrap();
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(head_oid(&state, repo), tip);
+    assert_eq!(text(&f, "f.txt"), "v2 and work\n");
+}
+
+#[test]
+fn undoing_a_mixed_reset_puts_the_branch_back() {
+    let f = test_fixtures::linear(3).unwrap();
+    let (state, repo) = open(&f);
+    let tip = head_oid(&state, repo);
+
+    state
+        .reset_to(repo, "HEAD~2", git_engine::ResetMode::Mixed)
+        .unwrap();
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(head_oid(&state, repo), tip);
+    assert!(f.git(&["status", "--porcelain"]).unwrap().is_empty());
+}
+
+#[test]
+fn undoing_a_soft_reset_puts_the_branch_back() {
+    let f = test_fixtures::linear(3).unwrap();
+    let (state, repo) = open(&f);
+    let tip = head_oid(&state, repo);
+
+    state
+        .reset_to(repo, "HEAD~2", git_engine::ResetMode::Soft)
+        .unwrap();
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(head_oid(&state, repo), tip);
+    assert!(f.git(&["status", "--porcelain"]).unwrap().is_empty());
+}

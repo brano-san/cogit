@@ -38,6 +38,14 @@ pub enum Recovery {
         name: String,
         oid: String,
     },
+    /// HEAD was reset from `oid`; `branch` is `None` when it was detached. A hard reset
+    /// also keeps the stash of what it threw away, taken on `oid`.
+    Reset {
+        branch: Option<String>,
+        oid: String,
+        mode: git_engine::ResetMode,
+        stash: Option<String>,
+    },
     Tag {
         name: String,
         oid: String,
@@ -134,6 +142,15 @@ impl AppState {
                 wait_for_the_operation(&handle)?;
                 handle.move_branch_back(name, oid)?;
             }
+            Recovery::Reset {
+                branch,
+                oid,
+                mode,
+                stash,
+            } => {
+                wait_for_the_operation(&handle)?;
+                undo_reset(&handle, branch.as_deref(), oid, *mode, stash.as_deref())?;
+            }
             Recovery::Tag { name, oid } => handle.create_tag(&git_engine::TagRequest {
                 name: name.clone(),
                 target: Some(oid.clone()),
@@ -201,4 +218,43 @@ fn wait_for_the_operation(handle: &git_engine::RepoHandle) -> Result<(), git_eng
         ));
     }
     Ok(())
+}
+
+/// Soft and mixed never touched the files, so the same mode reverses them exactly; the
+/// others go back through `keep`, which refuses rather than overwrites what changed since.
+/// A hard reset's stash was taken on the old tip, so it goes back once HEAD is there.
+fn undo_reset(
+    handle: &git_engine::RepoHandle,
+    branch: Option<&str>,
+    oid: &str,
+    mode: git_engine::ResetMode,
+    stash: Option<&str>,
+) -> Result<(), git_engine::GitError> {
+    use git_engine::{Head, ResetMode};
+    let on_it = match (handle.head()?, branch) {
+        (Head::Branch { name, .. }, Some(branch)) => name == branch,
+        (Head::Detached { .. }, None) => true,
+        _ => false,
+    };
+    match (on_it, branch, stash) {
+        (true, ..) => {}
+        (false, Some(branch), None) => return handle.move_branch_back(branch, oid),
+        (false, Some(branch), Some(_)) => {
+            return Err(git_engine::GitError::InvalidState(format!(
+                "check out {branch} to undo its reset: the changes it saved belong there"
+            )));
+        }
+        (false, None, _) => {
+            return Err(git_engine::GitError::InvalidState(
+                "HEAD is on a branch now; the reset of the detached HEAD cannot be undone here"
+                    .to_owned(),
+            ));
+        }
+    }
+    let back = match mode {
+        ResetMode::Soft | ResetMode::Mixed => mode,
+        ResetMode::Hard | ResetMode::Keep | ResetMode::Merge => ResetMode::Keep,
+    };
+    handle.reset(oid, back)?;
+    stash.map_or(Ok(()), |stash| handle.stash_apply(stash))
 }
