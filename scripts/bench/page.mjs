@@ -38,15 +38,15 @@ export const PAGE = String.raw`(() => {
     if (state.posted.length > 500) state.posted.splice(0, 250);
     state.inflight += 1;
     touch();
-    const settle = () => {
+    const settle = (failed) => {
       state.inflight -= 1;
       touch();
-      state.calls.push({ cmd, start, end: now() });
+      state.calls.push({ cmd, start, end: now(), failed });
     };
     return nativeFetch(input, init).then(
-      (response) => (settle(), response),
+      (response) => (settle(response.headers.get("Tauri-Response") !== "ok"), response),
       (error) => {
-        settle();
+        settle(true);
         throw error;
       },
     );
@@ -69,18 +69,18 @@ export const PAGE = String.raw`(() => {
         state.inflight += 1;
         touch();
         let settled = false;
-        const settle = () => {
+        const settle = (failed) => {
           if (settled) return;
           settled = true;
           state.inflight -= 1;
           touch();
-          state.calls.push({ cmd, start, end: now() });
+          state.calls.push({ cmd, start, end: now(), failed });
         };
         for (const id of [Number(ok), Number(fail)]) {
           const original = internals.callbacks.get(id);
           if (original) {
             internals.callbacks.set(id, (data) => {
-              settle();
+              settle(id === Number(fail));
               return original(data);
             });
           }
@@ -188,7 +188,8 @@ export const PAGE = String.raw`(() => {
     const ipc = union(calls, start, end);
     const longest = longTasks.filter((t) => t.end > start && t.start < end).reduce((m, t) => Math.max(m, t.end - t.start), 0);
     state.armed = null;
-    return { total, ipc, front: Math.max(total - ipc, 0), longest, timedOut, ipcCalls: calls.length, byCommand, marks };
+    const failed = calls.filter((c) => c.failed).map((c) => c.cmd);
+    return { total, ipc, front: Math.max(total - ipc, 0), longest, timedOut, ipcCalls: calls.length, byCommand, marks, failed };
   }
 
   window.__bench = {
