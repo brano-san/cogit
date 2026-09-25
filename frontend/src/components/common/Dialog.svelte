@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, tick, type Snippet } from "svelte";
+  import { keyIsFor, modalLayer, modals } from "$lib/modal-stack";
 
   /** The shell every modal in Cogit is made of: one scrim, one panel, one title bar with
       a close button, one footer. It also owns the look of the controls inside it, so a
@@ -32,6 +33,7 @@
   }: Props = $props();
 
   let panel: HTMLDivElement | undefined = $state();
+  const layer = modalLayer();
   // Read before anything inside mounts: a dialog that focuses its own field does so first.
   const before = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
@@ -56,8 +58,12 @@
     (event.shiftKey ? last : first).focus();
   }
 
+  /** Only the top modal answers, and only for a key pressed in it: every dialog listens on
+      the window, and Esc closed a dialog and the Hooks window under it at once (R-451). */
   function onkeydown(event: KeyboardEvent) {
+    if (!modals.isTop(layer) || !keyIsFor(panel, event.target)) return;
     if (event.key === "Escape") {
+      if (event.defaultPrevented) return;
       event.preventDefault();
       onclose();
       return;

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { modals } from "$lib/modal-stack";
   import VirtualList from "$components/common/VirtualList.svelte";
   import {
     autoResolvedCount,
@@ -62,7 +63,7 @@
   }
 
   function onkeydown(event: KeyboardEvent) {
-    if (!saveShortcut) return;
+    if (!saveShortcut || modals.any) return;
     if (!(event.ctrlKey || event.metaKey) || event.key !== "s") return;
     event.preventDefault();
     save();

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { modals } from "$lib/modal-stack";
   import { untrack } from "svelte";
   import FilesToolbar from "./FilesToolbar.svelte";
   import { contentQuery, keepFile, type ContentSearch } from "$lib/content-search.svelte";
@@ -92,7 +93,7 @@
   let bar: ReturnType<typeof FilesToolbar> | undefined = $state();
 
   function onkeydown(event: KeyboardEvent) {
-    if (!activePanel) return;
+    if (!activePanel || modals.any) return;
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
       event.preventDefault();
       bar?.focus();
