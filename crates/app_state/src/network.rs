@@ -14,7 +14,7 @@ impl AppState {
         remote: &str,
         on_line: impl FnMut(&str),
     ) -> Result<(), git_engine::GitError> {
-        let _quiet = self.quiet(repo);
+        let _quiet = self.quiet_briefly(repo);
         let handle = self.handle(repo)?;
         handle.fetch(remote, |url| self.token_for(url), on_line)
     }
@@ -26,7 +26,7 @@ impl AppState {
         ff_only: bool,
         on_line: impl FnMut(&str),
     ) -> Result<(), git_engine::GitError> {
-        let _quiet = self.quiet(repo);
+        let _quiet = self.quiet_briefly(repo);
         let handle = self.handle(repo)?;
         // Listed before the pull: a submodule the user deinitialised stays that way (#42).
         let known = handle
@@ -55,7 +55,7 @@ impl AppState {
         force: bool,
         on_line: impl FnMut(&str),
     ) -> Result<(), git_engine::GitError> {
-        let _quiet = self.quiet(repo);
+        let _quiet = self.quiet_briefly(repo);
         let handle = self.handle(repo)?;
         handle.push(remote, None, force, |url| self.token_for(url), on_line)
     }
@@ -87,7 +87,7 @@ impl AppState {
         refspec: &str,
         on_line: impl FnMut(&str),
     ) -> Result<(), git_engine::GitError> {
-        let _quiet = self.quiet(repo);
+        let _quiet = self.quiet_briefly(repo);
         let handle = self.handle(repo)?;
         handle.push(
             remote,

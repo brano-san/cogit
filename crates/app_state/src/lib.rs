@@ -301,6 +301,8 @@ pub struct AppState {
 struct Quiet<'a> {
     state: &'a AppState,
     repo: RepoId,
+    /// The whole mutation, not a timer per git process (R-445).
+    _held: Option<fs_watcher::QuietHold>,
 }
 
 impl Drop for Quiet<'_> {
@@ -820,12 +822,33 @@ impl AppState {
     /// Called before every mutation: the UI reloads itself afterwards, so reacting to our
     /// own writes only makes it reload twice (doc/12-risks.md, R-25).
     /// Our own writes are the one change the watcher must not report: the UI reloads
-    /// itself after a mutation. The window opens now and again when the guard drops, so a
-    /// mutation that outlasts it does not echo either (R-197).
+    /// itself after a mutation. The watcher stays quiet while the guard lives and for one
+    /// window after it drops, so a mutation that outlasts the window does not echo (R-445).
     #[must_use = "hold the guard until the mutation is done"]
     fn quiet(&self, repo: RepoId) -> Quiet<'_> {
         self.silence(repo);
-        Quiet { state: self, repo }
+        let held = self
+            .watchers
+            .read()
+            .get(&repo)
+            .map(fs_watcher::RepoWatcher::hold);
+        Quiet {
+            state: self,
+            repo,
+            _held: held,
+        }
+    }
+
+    /// For a talk with a remote, minutes long, that writes at its end: a hold would keep
+    /// the edits made meanwhile in an editor off the panels until it finished.
+    #[must_use = "hold the guard until the mutation is done"]
+    pub(crate) fn quiet_briefly(&self, repo: RepoId) -> Quiet<'_> {
+        self.silence(repo);
+        Quiet {
+            state: self,
+            repo,
+            _held: None,
+        }
     }
 
     fn silence(&self, repo: RepoId) {

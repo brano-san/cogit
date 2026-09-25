@@ -6,7 +6,7 @@
 
 mod watcher;
 
-pub use watcher::{DEFAULT_QUIET, RepoWatcher};
+pub use watcher::{DEFAULT_QUIET, QuietHold, RepoWatcher};
 
 use serde::{Deserialize, Serialize};
 use std::path::Path;
