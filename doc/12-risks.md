@@ -5633,8 +5633,15 @@ rebase и панели Output, радио Add Worktree, Repository Settings, Pus
 кругом. Рамка выравнивается по первой строке подписи (`1lh`), поэтому длинные подписи Reset и
 Remove Worktree не требуют своих правил. Строка, которая сама была `<label>` (Scan, Split Off),
 стала `div`: вложенный `label` HTML не допускает, подпись целиком теперь внутри `Checkbox`.
-Действие строки rebase — общий `Select`. Проверить в сборке: четыре темы, панель Branches
-(галочки групп в `mixed`), Scan Folder, Reset Advanced…, Push To…
+Действие строки rebase — общий `Select`. Проверить в сборке: четыре темы, Scan Folder,
+Reset Advanced…, Push To…
+
+**Исключение — дерево Branches.** Общий `Checkbox` в каждой из сотен строк замедлил
+`branches.load` / `graph.first-screen` на large на 13–14 % (A/B `tasks-final3` → `audit-final`:
+46,7 → 53,0 мс; бисекция — коммит 04bb506), и отрисовка галочки маской вместо inline-SVG
+выигрыша не дала. Дерево Branches вернулось к нативному `input` с `accent-color` (аудит 26.09);
+отступление от правила frontend/CLAUDE.md остаётся только здесь. Дешёвая своя галочка для
+длинных списков (стилизованный `input` с `appearance: none`, без обёртки) — на решение.
 
 ## R-456 · Pull и Sync отказывают разошедшейся ветке заранее, если Pull только перематывает · Н
 
