@@ -4,7 +4,7 @@
 //! Discarding a line range: the destructive half of gutter staging (T6.7).
 
 use app_state::AppState;
-use diff_engine::{DiffOptions, FileDiff, LineEnding, PatchRequest, diff_text};
+use diff_engine::{DiffOptions, FileDiff, PatchRequest, diff_text};
 
 /// Two lines added on top of the committed content.
 fn two_added_lines() -> test_fixtures::Fixture {
@@ -31,7 +31,6 @@ fn request(path: &str, inserts: Vec<u32>) -> PatchRequest {
         hunks,
         selected_deletes: Vec::new(),
         selected_inserts: inserts,
-        line_ending: LineEnding::Lf,
     }
 }
 
@@ -189,7 +188,6 @@ fn discarding_next_to_lines_that_differ_only_in_whitespace_applies() {
                 hunks,
                 selected_deletes: Vec::new(),
                 selected_inserts: vec![4],
-                line_ending: LineEnding::Lf,
             },
         )
         .unwrap();

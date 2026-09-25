@@ -149,7 +149,7 @@ impl AppState {
                 request.path
             )));
         }
-        let (old, new) = self.handle(repo)?.diff_sides(spec, &request.path)?;
+        let (old, new) = self.handle(repo)?.patch_sides(spec, &request.path)?;
         let shape = diff_engine::PatchShape {
             reverse,
             old_exists: old.is_some(),

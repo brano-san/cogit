@@ -1210,7 +1210,6 @@ export type PatchRequest = {
 	hunks: Hunk[],
 	selectedDeletes: number[],
 	selectedInserts: number[],
-	lineEnding: LineEnding,
 };
 
 export type PresetStatus = {

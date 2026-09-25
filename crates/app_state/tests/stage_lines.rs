@@ -6,7 +6,7 @@
 //! to the other, which is where the envelope for a created or deleted file gets decided.
 
 use app_state::AppState;
-use diff_engine::{DiffOptions, FileDiff, LineEnding, PatchRequest, diff_text};
+use diff_engine::{DiffOptions, FileDiff, PatchRequest, diff_text};
 
 fn hunks_of(old: &str, new: &str) -> Vec<diff_engine::Hunk> {
     match diff_text(old, new, &DiffOptions::default()) {
@@ -21,7 +21,6 @@ fn request(path: &str, old: &str, new: &str, deletes: Vec<u32>, inserts: Vec<u32
         hunks: hunks_of(old, new),
         selected_deletes: deletes,
         selected_inserts: inserts,
-        line_ending: LineEnding::Lf,
     }
 }
 
@@ -381,4 +380,106 @@ fn unstaging_next_to_lines_that_differ_only_in_whitespace_applies() {
         .unwrap();
 
     assert_eq!(index_text(&f, "f.txt"), "p\n    x\nq\n");
+}
+
+// One ending for every line of the patch — the old side's, and LF for a mixed file — did
+// not match the CRLF lines around the change: "patch does not apply".
+#[test]
+fn a_change_in_a_file_with_mixed_line_endings_stages() {
+    let f = test_fixtures::empty().unwrap();
+    std::fs::write(f.path().join("f.txt"), "a\r\nb\nc\r\nd\n").unwrap();
+    f.git(&["add", "f.txt"]).unwrap();
+    f.commit_staged(1, "mixed").unwrap();
+    std::fs::write(f.path().join("f.txt"), "a\r\nB\nc\r\nd\n").unwrap();
+    let (state, repo) = opened(&f);
+
+    state
+        .stage_selection(
+            repo,
+            &request("f.txt", "a\nb\nc\nd\n", "a\nB\nc\nd\n", vec![2], vec![2]),
+            false,
+        )
+        .unwrap();
+
+    assert_eq!(index_text(&f, "f.txt"), "a\r\nB\nc\r\nd\n");
+}
+
+// Unstage goes onto the index, whose lines are CRLF here; the patch carried HEAD's LF.
+#[test]
+fn unstaging_writes_the_lines_with_the_endings_the_index_has() {
+    let f = test_fixtures::empty().unwrap();
+    f.commit_file(1, "f.txt", "a\nb\n").unwrap();
+    std::fs::write(f.path().join("f.txt"), "a\r\nB\r\n").unwrap();
+    f.git(&["add", "f.txt"]).unwrap();
+    let (state, repo) = opened(&f);
+
+    state
+        .stage_selection(
+            repo,
+            &request("f.txt", "a\nb\n", "a\nB\n", vec![2], vec![2]),
+            true,
+        )
+        .unwrap();
+
+    assert_eq!(index_text(&f, "f.txt"), "a\r\nb\n");
+}
+
+// The usual Windows checkout: LF in the index, CRLF on disk. The patch is cut from what git
+// itself compares — the file as `git add` would store it — so the index keeps LF.
+#[test]
+fn staging_under_autocrlf_keeps_lf_in_the_index() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&["config", "core.autocrlf", "true"]).unwrap();
+    std::fs::write(
+        f.path().join("file0.txt"),
+        "content 0\r\nfirst\r\nsecond\r\n",
+    )
+    .unwrap();
+    let (state, repo) = opened(&f);
+
+    state
+        .stage_selection(
+            repo,
+            &request(
+                "file0.txt",
+                "content 0\n",
+                "content 0\nfirst\nsecond\n",
+                Vec::new(),
+                vec![2],
+            ),
+            false,
+        )
+        .unwrap();
+
+    assert_eq!(index_text(&f, "file0.txt"), "content 0\nfirst\n");
+}
+
+#[test]
+fn discarding_under_autocrlf_keeps_crlf_on_disk() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&["config", "core.autocrlf", "true"]).unwrap();
+    std::fs::write(
+        f.path().join("file0.txt"),
+        "content 0\r\nfirst\r\nsecond\r\n",
+    )
+    .unwrap();
+    let (state, repo) = opened(&f);
+
+    state
+        .discard_selection(
+            repo,
+            &request(
+                "file0.txt",
+                "content 0\n",
+                "content 0\nfirst\nsecond\n",
+                Vec::new(),
+                vec![2],
+            ),
+        )
+        .unwrap();
+
+    assert_eq!(
+        std::fs::read(f.path().join("file0.txt")).unwrap(),
+        b"content 0\r\nsecond\r\n"
+    );
 }

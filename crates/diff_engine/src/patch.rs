@@ -1,4 +1,4 @@
-use crate::{DiffRow, Hunk, LineEnding};
+use crate::{DiffRow, Hunk};
 use serde::Deserialize;
 use std::collections::HashSet;
 
@@ -9,7 +9,6 @@ pub struct PatchRequest {
     pub hunks: Vec<Hunk>,
     pub selected_deletes: Vec<u32>,
     pub selected_inserts: Vec<u32>,
-    pub line_ending: LineEnding,
 }
 
 /// How the patch goes on, and which sides of the diff exist as files.
@@ -25,9 +24,11 @@ pub struct PatchShape {
     pub new_exists: bool,
 }
 
-/// The two files the diff was cut from, as they are now. The patch is written in their own
-/// lines: with whitespace ignored a context line differs between the sides, and only the
-/// side the patch goes onto has the text `git apply` will look for.
+/// The two files the diff was cut from, as they are now and as git holds them — the working
+/// file cleaned as `git add` would store it. The patch is written in their own lines and
+/// endings: with whitespace ignored a context line differs between the sides, only the side
+/// the patch goes onto has the text `git apply` will look for, and a mixed file has no one
+/// ending to put back.
 #[derive(Debug, Clone, Copy)]
 pub struct PatchSides<'a> {
     pub old: &'a [u8],
@@ -41,6 +42,8 @@ pub enum PatchError {
     Stale,
     /// A line the patch carries is not UTF-8.
     NotUtf8,
+    /// A lone CR ends a line for the diff but not for git, so the lines do not line up.
+    BareCarriageReturn,
 }
 
 impl std::fmt::Display for PatchError {
@@ -49,6 +52,9 @@ impl std::fmt::Display for PatchError {
             Self::NothingSelected => "nothing selected",
             Self::Stale => "the file changed since its diff was shown: look at it again first",
             Self::NotUtf8 => "a selected line is not valid UTF-8: stage it whole instead",
+            Self::BareCarriageReturn => {
+                "a line ends in a lone CR, which git does not count as a line break: stage it whole instead"
+            }
         })
     }
 }
@@ -71,64 +77,54 @@ pub fn carries_undecoded_bytes(request: &PatchRequest) -> bool {
     })
 }
 
-/// One line of a side as the diff numbered it; `open` on a last line without a newline.
+/// One line of a side as the diff numbered it; `ending` is empty on a last line without one.
 #[derive(Debug, Clone, Copy)]
 struct Line<'a> {
     body: &'a [u8],
-    open: bool,
+    ending: &'a [u8],
 }
 
-/// Split where the diff split: after CRLF, LF and a lone CR alike (`normalize_line_endings`).
-fn split_lines(bytes: &[u8]) -> Vec<Line<'_>> {
+/// Split where the diff split, after CRLF and LF; a lone CR, which the diff splits at too
+/// and git does not, is refused.
+fn split_lines(bytes: &[u8]) -> Result<Vec<Line<'_>>, PatchError> {
     let mut lines = Vec::new();
     let mut start = 0;
-    let mut at = 0;
-    while at < bytes.len() {
-        match bytes[at] {
-            b'\n' => {
-                lines.push(Line {
-                    body: &bytes[start..at],
-                    open: false,
-                });
-                at += 1;
-                start = at;
-            }
-            b'\r' => {
-                lines.push(Line {
-                    body: &bytes[start..at],
-                    open: false,
-                });
-                at += if bytes.get(at + 1) == Some(&b'\n') {
-                    2
-                } else {
-                    1
-                };
-                start = at;
-            }
-            _ => at += 1,
+    for (at, &byte) in bytes.iter().enumerate() {
+        if byte == b'\r' && bytes.get(at + 1) != Some(&b'\n') {
+            return Err(PatchError::BareCarriageReturn);
+        }
+        if byte == b'\n' {
+            let cr = at > start && bytes[at - 1] == b'\r';
+            let end = if cr { at - 1 } else { at };
+            lines.push(Line {
+                body: &bytes[start..end],
+                ending: &bytes[end..=at],
+            });
+            start = at + 1;
         }
     }
     if start < bytes.len() {
         lines.push(Line {
             body: &bytes[start..],
-            open: true,
+            ending: &[],
         });
     }
-    lines
+    Ok(lines)
 }
 
-/// Line `number` (from 1) of a side, as text.
-fn line<'a>(side: &[Line<'a>], number: u32) -> Result<(&'a str, bool), PatchError> {
+/// Line `number` (from 1) of a side: its text and its ending.
+fn line<'a>(side: &[Line<'a>], number: u32) -> Result<(&'a str, &'a str), PatchError> {
     let line = number
         .checked_sub(1)
         .and_then(|index| side.get(index as usize))
         .ok_or(PatchError::Stale)?;
     let text = std::str::from_utf8(line.body).map_err(|_| PatchError::NotUtf8)?;
-    Ok((text, line.open))
+    let ending = std::str::from_utf8(line.ending).map_err(|_| PatchError::NotUtf8)?;
+    Ok((text, ending))
 }
 
-/// Only the selected lines. The envelope stays LF; content lines keep the file's own
-/// ending, or `git apply` rewrites every line (INV-08).
+/// Only the selected lines. The envelope stays LF; each content line keeps the ending it
+/// has on its own side, or `git apply` rewrites every line (INV-08).
 pub fn build_patch(
     request: &PatchRequest,
     shape: PatchShape,
@@ -139,8 +135,8 @@ pub fn build_patch(
     if deletes.is_empty() && inserts.is_empty() {
         return Err(PatchError::NothingSelected);
     }
-    let old_lines = split_lines(sides.old);
-    let new_lines = split_lines(sides.new);
+    let old_lines = split_lines(sides.old)?;
+    let new_lines = split_lines(sides.new)?;
 
     let mut body = String::new();
     let (mut pre_total, mut post_total) = (0_u32, 0_u32);
@@ -161,11 +157,11 @@ pub fn build_patch(
         };
         offset += i64::from(hunk.new_lines) - i64::from(hunk.old_lines);
 
-        let mut lines: Vec<(char, &str, bool)> = Vec::new();
+        let mut lines: Vec<(char, &str, &str)> = Vec::new();
         let (mut pre, mut post) = (0_u32, 0_u32);
         let mut changed = false;
         for row in &hunk.rows {
-            let (marker, (text, open)) = match row {
+            let (marker, (text, ending)) = match row {
                 // The side the patch goes onto: its text is what `git apply` matches.
                 DiffRow::Context { old, new, .. } => (
                     ' ',
@@ -203,7 +199,7 @@ pub fn build_patch(
             if marker != '-' {
                 post += 1;
             }
-            lines.push((marker, text, open));
+            lines.push((marker, text, ending));
         }
         if !changed {
             continue;
@@ -219,12 +215,13 @@ pub fn build_patch(
         let pre_start = pre_from + i64::from(pre > 0);
         let post_start = post_from + i64::from(post > 0);
         body.push_str(&format!("@@ -{pre_start},{pre} +{post_start},{post} @@\n"));
-        for (marker, text, no_newline) in lines {
+        for (marker, text, ending) in lines {
             body.push(marker);
             body.push_str(text);
-            body.push_str(request.line_ending.as_str());
-            if no_newline {
-                body.push_str("\\ No newline at end of file\n");
+            if ending.is_empty() {
+                body.push_str("\n\\ No newline at end of file\n");
+            } else {
+                body.push_str(ending);
             }
         }
         applied += i64::from(post) - i64::from(pre);
@@ -254,37 +251,34 @@ pub fn build_patch(
 /// A line without a final newline can only be the last one of its side. Cutting a selection
 /// can put lines after it — the insertions after an unselected last line, the context after
 /// a selected one in reverse — and git then glues the next line onto it. There the line
-/// gains its newline, as git-gui writes it: a context line splits into `-` and `+`.
-fn close_open_ends(lines: Vec<(char, &str, bool)>) -> Vec<(char, &str, bool)> {
-    let mut out = Vec::with_capacity(lines.len() + 1);
-    for (at, &(marker, text, no_newline)) in lines.iter().enumerate() {
-        if !no_newline {
-            out.push((marker, text, false));
+/// gains its newline, as git-gui writes it: a context line splits into `-` and `+`. The
+/// ending is the one of the line before it.
+fn close_open_ends<'a>(lines: Vec<(char, &'a str, &'a str)>) -> Vec<(char, &'a str, &'a str)> {
+    let mut out: Vec<(char, &str, &str)> = Vec::with_capacity(lines.len() + 1);
+    for (at, &(marker, text, ending)) in lines.iter().enumerate() {
+        if !ending.is_empty() {
+            out.push((marker, text, ending));
             continue;
         }
         let rest = &lines[at + 1..];
         let old_goes_on = rest.iter().any(|(m, ..)| *m != '+');
         let new_goes_on = rest.iter().any(|(m, ..)| *m != '-');
+        let closed = lines[..at]
+            .iter()
+            .rev()
+            .map(|(_, _, ending)| *ending)
+            .find(|ending| !ending.is_empty())
+            .unwrap_or("\n");
+        let end = |goes_on: bool| if goes_on { closed } else { "" };
         match marker {
             ' ' if old_goes_on || new_goes_on => {
-                out.push(('-', text, !old_goes_on));
-                out.push(('+', text, !new_goes_on));
+                out.push(('-', text, end(old_goes_on)));
+                out.push(('+', text, end(new_goes_on)));
             }
-            '-' => out.push((marker, text, !old_goes_on)),
-            '+' => out.push((marker, text, !new_goes_on)),
-            _ => out.push((marker, text, true)),
+            '-' => out.push((marker, text, end(old_goes_on))),
+            '+' => out.push((marker, text, end(new_goes_on))),
+            _ => out.push((marker, text, "")),
         }
     }
     out
-}
-
-impl LineEnding {
-    #[must_use]
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Crlf => "\r\n",
-            Self::Cr => "\r",
-            _ => "\n",
-        }
-    }
 }

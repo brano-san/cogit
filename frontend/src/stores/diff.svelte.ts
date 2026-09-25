@@ -170,7 +170,6 @@ class DiffStore {
         hunks: this.diff.hunks,
         selectedDeletes: deletes,
         selectedInserts: inserts,
-        lineEnding: this.diff.eol.old,
       },
     };
   }
