@@ -2954,6 +2954,12 @@
         conflicts.close();
         void afterWorkingTreeChange();
       },
+      revealCommit: (event) => {
+        if (repository.current?.repo.valueOf() !== event.repo.valueOf()) return;
+        stashView.clear();
+        void commit.select(event.repo, event.oid);
+        graph.requestReveal(event.oid);
+      },
       commandRecorded: (event) => void output.notice(event),
       closeRequested: mayClose,
       sessionEnding: () => void onSessionEnding(),

@@ -12,9 +12,11 @@
     /** Commits whose lines `Highlight: Changes Since` marks. */
     highlighted: ReadonlySet<string>;
     onpick: (at: number) => void;
+    /** A double click on an annotation: show the commit that wrote those lines. */
+    onopen?: (at: number) => void;
   }
 
-  let { lines, cursor, highlighted, onpick }: Props = $props();
+  let { lines, cursor, highlighted, onpick, onopen }: Props = $props();
 </script>
 
 <VirtualList items={lines} rowHeight={ROW_HEIGHT} buffer={12} label="Blame" reveal={cursor}>
@@ -31,7 +33,12 @@
       onclick={() => onpick(at)}
     >
       {#if startsBlock(lines, at)}
-        <span class="annotation truncate" title="{line.summary} — {line.author}">
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <span
+          class="annotation truncate"
+          title="{line.summary} — {line.author}{onopen ? '. Double-click to show the commit.' : ''}"
+          ondblclick={() => onopen?.(at)}
+        >
           <span class="oid mono">{shortOid(line.oid)}</span>
           <span class="author truncate">{line.author}</span>
           <span class="date tabular">{settings.formatDate(line.timestamp, 0)}</span>
