@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { modalLayer, modals } from "$lib/modal-stack";
   import { rankCommands, type PaletteCommand } from "$lib/palette";
 
   interface Props {
@@ -15,6 +16,15 @@
   let field: HTMLInputElement | undefined = $state();
 
   const shown = $derived(rankCommands(commands, query, recent));
+
+  /** A modal layer (11 §1): Esc closes it wherever the focus went inside it. */
+  const layer = modalLayer();
+
+  function onwindowkey(event: KeyboardEvent) {
+    if (event.key !== "Escape" || !modals.isTop(layer) || event.defaultPrevented) return;
+    event.preventDefault();
+    onclose();
+  }
 
   function onkeydown(event: KeyboardEvent) {
     if (event.key === "Escape") {
@@ -45,6 +55,8 @@
     field?.focus();
   });
 </script>
+
+<svelte:window onkeydown={onwindowkey} />
 
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 <div class="backdrop" onclick={onclose}></div>

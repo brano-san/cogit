@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { modalLayer, modals } from "$lib/modal-stack";
   import { untrack } from "svelte";
   import type { Found, FoundKind } from "$lib/ipc";
 
@@ -33,6 +34,15 @@
   /** The rows in the order they are drawn, which is the order the arrows walk. */
   const rows = $derived(grouped.flatMap((group) => group.items));
   const shown = $derived(!busy && query.trim() !== "" && rows.length > 0);
+
+  /** A modal layer (11 §1): Esc closes it wherever the focus went inside it. */
+  const layer = modalLayer();
+
+  function onwindowkey(event: KeyboardEvent) {
+    if (event.key !== "Escape" || !modals.isTop(layer) || event.defaultPrevented) return;
+    event.preventDefault();
+    onclose();
+  }
 
   function onkeydown(event: KeyboardEvent) {
     if (event.key === "Escape") {
@@ -77,6 +87,8 @@
     field?.focus();
   });
 </script>
+
+<svelte:window onkeydown={onwindowkey} />
 
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 <div class="backdrop" onclick={onclose}></div>

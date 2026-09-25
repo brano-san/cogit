@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { modalLayer, modals } from "$lib/modal-stack";
   import type { DropAction } from "$lib/drop-target";
 
   interface Props {
@@ -11,8 +12,11 @@
 
   let { actions, x, y, onpick, onclose }: Props = $props();
 
+  /** A modal layer: Esc is its own only while nothing is open above it (R-451). */
+  const layer = modalLayer();
+
   function onkeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
+    if (event.key === "Escape" && modals.isTop(layer) && !event.defaultPrevented) {
       event.preventDefault();
       onclose();
     }

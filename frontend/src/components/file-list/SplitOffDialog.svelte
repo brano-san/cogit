@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { modalLayer, modals } from "$lib/modal-stack";
   import { shortOid } from "$lib/format";
   import { splitProblem, splitSummary } from "$lib/split-off";
 
@@ -24,8 +25,11 @@
     chosen = chosen.includes(path) ? chosen.filter((p) => p !== path) : [...chosen, path];
   }
 
+  /** A modal layer: Esc is its own only while nothing is open above it (R-451). */
+  const layer = modalLayer();
+
   function onkeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
+    if (event.key === "Escape" && modals.isTop(layer) && !event.defaultPrevented) {
       event.preventDefault();
       onclose();
     }

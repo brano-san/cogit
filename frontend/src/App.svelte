@@ -76,6 +76,7 @@
   import RefActions from "$components/menus/RefActions.svelte";
   import { compareView } from "$stores/compare-view.svelte";
   import { confirmation } from "$stores/confirm.svelte";
+  import { menuCommandRuns, modals } from "$lib/modal-stack";
   import { commitFileMenu, worktreeFileMenu } from "$lib/file-menu";
   import { fileName, runFileMenuCommand, type FileActions, type FileScope } from "$lib/file-actions";
   import { listedMessage } from "$lib/file-dialogs";
@@ -903,12 +904,9 @@
   }
 
   function onkeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
-      settingsOpen = false;
-      paletteOpen = false;
-      finderOpen = false;
-      return;
-    }
+    // A dialog, the palette and Find Object close on their own Esc; nothing behind a modal
+    // answers a key (11 §1).
+    if (modals.any) return;
 
     // F6 walks the panels. Ctrl+Tab is left to the window: the menu agent owns the
     // accelerators, and browsers and hosts both claim that pair (issue 15).
@@ -3000,6 +2998,7 @@
   $effect(() => {
     const pending = onMenuCommand((id) => {
       pushMenuState(true);
+      if (!menuCommandRuns(id, modals)) return;
       if (id === "toolbar-preferences") return openSettings("toolbar");
       if (refActions?.run(id)) return;
       if (runGroupCommand(id)) return;
