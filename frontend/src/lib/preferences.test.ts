@@ -8,6 +8,7 @@ import {
   firstMatch,
   matchingCategories,
   restoreCategory,
+  restoreKeys,
   changedKeys,
   sameKeymap,
 } from "./preferences";
@@ -242,5 +243,20 @@ describe("the Toolbar page (#24)", () => {
     expect(isSetting("toolbar")).toBe(false);
     const draft: Settings = { ...DEFAULT_SETTINGS, laneWidth: 30 };
     expect(restoreCategory(draft, "toolbar")).toEqual(draft);
+  });
+});
+
+// Restore Defaults on the Keyboard page skipped the keymap: the shortcuts stayed, and a
+// half-made draft was applied instead.
+describe("restoreKeys", () => {
+  const edited = { fetch: "CmdOrCtrl+Shift+G" };
+
+  it("clears every override on the page that holds the keymap", () => {
+    const page = CATEGORIES.find((category) => category.groups.some((group) => group.fields.some((field) => field.key === "keymap")));
+    expect(restoreKeys(edited, page!.id)).toEqual({});
+  });
+
+  it("leaves the keymap alone on any other page", () => {
+    expect(restoreKeys(edited, "graph")).toEqual(edited);
   });
 });

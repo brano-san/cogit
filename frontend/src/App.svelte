@@ -1000,12 +1000,14 @@
       time it closes, everything has already been applied and saved (R-122). */
   let settingsAtOpen = $state.raw<Settings | null>(null);
   let toolbarAtOpen: readonly string[] = [];
+  let keymapAtOpen: import("$lib/keymap").Keymap = {};
   /** The page Preferences opens on: right-click on the toolbar lands on Toolbar. */
   let settingsStart = $state<string | undefined>(undefined);
 
   function openSettings(page?: string) {
     settingsAtOpen = { ...settings.current };
     toolbarAtOpen = toolbar.layout;
+    keymapAtOpen = { ...settings.keymap };
     settingsStart = page;
     settingsOpen = true;
   }
@@ -1015,6 +1017,8 @@
     settingsOpen = false;
     await toolbar.setLayout(toolbarAtOpen);
     if (before) await settings.apply(before);
+    await settings.setKeymap(keymapAtOpen);
+    pushMenuState(true);
   }
 
   async function applySettings(next: Settings, keymap: import("$lib/keymap").Keymap) {

@@ -10,6 +10,7 @@
     matchingCategories,
     disabledBy,
     restoreCategory,
+    restoreKeys,
   } from "$lib/preferences";
   import type { TreeNode } from "$lib/tree";
   import { needsRestart, DEFAULT_SETTINGS, THEMES, type Settings } from "$lib/settings";
@@ -34,7 +35,7 @@
     tokenStored: boolean;
     onstoretoken: (token: string) => void;
     onforgettoken: () => void;
-    /** Applies the whole draft at once; nothing is written before OK. */
+    /** Applies and saves the whole draft, keymap included, each time a field changes (R-122). */
     onapply: (next: Settings, keymap: Keymap) => void;
     /** Puts everything back to how it was when the dialog opened, and closes. */
     onrevert: () => void;
@@ -413,7 +414,11 @@
               <KeymapEditor
                 {bindings}
                 overrides={draftKeys}
-                onchange={(next) => (draftKeys = next)}
+                onchange={(next) => {
+                  // Applied as it is chosen, like every other field here (R-122).
+                  draftKeys = next;
+                  onapply(draft, draftKeys);
+                }}
               />
             {/if}
 
@@ -463,6 +468,7 @@
           return;
         }
         draft = restoreCategory(draft, active);
+        draftKeys = restoreKeys(draftKeys, active);
         onapply(draft, draftKeys);
       }}
     >
