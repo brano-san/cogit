@@ -182,6 +182,7 @@
   import { droppedRepositories } from "$lib/drop-open";
   import { connect } from "$lib/wiring";
   import { planFor } from "$lib/disk-change";
+  import { DiskPasses } from "$lib/disk-refresh";
   import { clear as freshen, mark as markStale } from "$lib/staleness";
   import { unsavedSummary } from "$lib/unsaved";
   import { overlap } from "$stores/overlap.svelte";
@@ -1034,10 +1035,10 @@
   }
 
   // The watcher is the only way Cogit learns about work done in a terminal alongside it.
-  // One `git commit` arrives as four events, so they are collected and answered once.
-  let pending = new Set<import("$lib/ipc").ChangeKind>();
-  let settling: ReturnType<typeof setTimeout> | undefined;
+  // One `git commit` arrives as four events, so they are collected and answered once, and
+  // never while the answer to the last burst is still reading.
   const SETTLE_MS = 120;
+  const diskPasses = new DiskPasses(SETTLE_MS, (kinds, arrived) => applyDiskChanges(kinds, arrived));
 
   function onDiskChange(change: import("$lib/ipc").RepoChanged) {
     if (change.kind === "refs") {
@@ -1051,17 +1052,19 @@
       return;
     }
     if (change.kind !== "hooks") stale = markStale(stale, change.kind);
-    pending.add(change.kind);
-    clearTimeout(settling);
-    settling = setTimeout(() => void applyDiskChanges(), SETTLE_MS);
+    diskPasses.add(change.kind);
   }
 
-  async function applyDiskChanges() {
+  async function applyDiskChanges(
+    kinds: ReadonlySet<import("$lib/ipc").ChangeKind>,
+    arrived: () => ReadonlySet<import("$lib/ipc").ChangeKind>,
+  ) {
     const id = repository.current?.repo;
     const epoch = repository.epoch;
     const left = () => repository.epoch !== epoch;
-    const plan = planFor(pending);
-    pending = new Set();
+    const plan = planFor(kinds);
+    // What changed again while this pass read stays marked for the pass after it.
+    const freshened = (panels: PanelId[]) => (stale = freshen(stale, panels, arrived()));
     if (!id) return;
 
     // A hook edited outside Cogit is only interesting while the panel is open.
@@ -1073,26 +1076,26 @@
       await repository.refresh();
       if (left()) return;
     }
-    stale = freshen(stale, ["repositories", "refs"]);
+    freshened(["repositories", "refs"]);
 
     if (plan.worktree && commit.oid === null) {
       await worktree.load(id);
       if (left()) return;
-      stale = freshen(stale, ["files", "commit"]);
+      freshened(["files", "commit"]);
     }
     void worktrees.refresh(id);
 
     // Reads the status itself, which is why nothing above does it a second time.
     await afterMutation();
     if (left()) return;
-    stale = freshen(stale, ["files", "commit"]);
+    freshened(["files", "commit"]);
     if (plan.worktree || plan.refs) await diff.refreshFromDisk();
     if (left()) return;
-    stale = freshen(stale, ["diff"]);
+    freshened(["diff"]);
 
     if (plan.authors && commit.oid) void commit.select(id, commit.oid);
     if (plan.refs || plan.authors) await graph.load(id, graph.query);
-    stale = freshen(stale, ["graph", "refs"]);
+    freshened(["graph", "refs"]);
   }
 
   function filterGraph(query: import("$lib/ipc").CommitQuery) {
