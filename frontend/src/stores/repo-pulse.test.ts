@@ -77,3 +77,19 @@ describe("what the background check learnt of a row", () => {
     repoPulse.fetchEvery(0);
   });
 });
+
+// A row the panels take over keeps the pulse read before: released again, it showed that
+// old dot and arrow for seconds, until the next read.
+describe("a row the panels take over", () => {
+  beforeAll(() => import("./repo-pulse.svelte"), 60_000);
+
+  it("drops the pulse read while it was in the list only", async () => {
+    vi.resetModules();
+    const { repoPulse } = await import("./repo-pulse.svelte");
+    repoPulse.pulses = new Map([["C:/repos/a", { missing: false } as never]]);
+
+    repoPulse.setOwned("C:/repos/a");
+
+    expect(repoPulse.pulses.has("C:/repos/a")).toBe(false);
+  });
+});
