@@ -782,19 +782,19 @@ impl AppState {
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
-        let oid = handle
+        let deleted = handle
             .branches()?
             .into_iter()
-            .find(|branch| branch.name == name)
-            .map(|branch| branch.oid);
+            .find(|branch| branch.name == name);
         handle.delete_branch(name, force)?;
 
         self.record(
             repo,
             format!("Delete branch {name}"),
-            oid.map_or(Recovery::None, |oid| Recovery::Branch {
+            deleted.map_or(Recovery::None, |branch| Recovery::Branch {
                 name: name.to_owned(),
-                oid,
+                oid: branch.oid,
+                upstream: branch.upstream,
             }),
         );
         Ok(())

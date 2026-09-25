@@ -1066,3 +1066,19 @@ fn a_deleted_folder_is_left_to_the_bin() {
     assert!(state.undo_last(repo).is_err());
     assert!(!state.safety_log().is_empty());
 }
+
+// `git branch -d` drops the branch's section from the config, and Undo recreated only the
+// name and the commit: ahead/behind and Pull were gone from it.
+#[test]
+fn undoing_a_branch_delete_brings_its_upstream_back() {
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&["branch", "--track", "topic", "origin/main"])
+        .unwrap();
+    let (state, repo) = open(&f);
+
+    state.delete_branch(repo, "topic", true).unwrap();
+    state.undo_last(repo).unwrap();
+
+    let upstream = f.git(&["config", "--get", "branch.topic.merge"]).ok();
+    assert_eq!(upstream.as_deref().map(str::trim), Some("refs/heads/main"));
+}

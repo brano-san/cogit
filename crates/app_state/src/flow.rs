@@ -48,18 +48,21 @@ impl AppState {
         };
         // From the branch list, as `delete_branch` does: `rev-parse <name>` would prefer a
         // tag of the same name.
-        let oid = handle
+        let finished = handle
             .branches()?
             .into_iter()
-            .find(|branch| branch.name == full)
-            .map(|branch| branch.oid);
+            .find(|branch| branch.name == full);
 
         handle.flow_finish(kind, name, tag)?;
 
         self.record(
             repo,
             format!("Finish {full}"),
-            oid.map_or(Recovery::None, |oid| Recovery::Branch { name: full, oid }),
+            finished.map_or(Recovery::None, |branch| Recovery::Branch {
+                name: full,
+                oid: branch.oid,
+                upstream: branch.upstream,
+            }),
         );
         Ok(())
     }
