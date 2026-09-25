@@ -403,3 +403,43 @@ describe("line actions while the next diff loads", () => {
     expect(diff.stageable).toBe(true);
   });
 });
+
+// An edit in the editor or `git add` in a terminal left the Unstaged diff on its old
+// hunks, and Stage built its patch from them: the old line went into the index.
+describe("a change on disk", () => {
+  beforeEach(() => {
+    commands.diffFile.mockReset();
+    commands.diffFile.mockResolvedValue(textDiff());
+    diff.clear();
+  });
+
+  it("re-reads a diff of the working tree or the index", async () => {
+    for (const spec of [SPEC, { kind: "indexVsHead" }, { kind: "commitVsWorkTree", oid: "c1" }] as const) {
+      await diff.load(REPO, spec, "a.txt");
+      commands.diffFile.mockClear();
+
+      await diff.refreshFromDisk();
+
+      expect(commands.diffFile).toHaveBeenCalledOnce();
+      expect(diff.path).toBe("a.txt");
+    }
+  });
+
+  it("leaves a diff between two commits alone", async () => {
+    await diff.load(REPO, { kind: "commitVsParent", oid: "c1" }, "a.txt");
+    commands.diffFile.mockClear();
+
+    await diff.refreshFromDisk();
+
+    expect(commands.diffFile).not.toHaveBeenCalled();
+  });
+
+  it("clears the panel once the file no longer differs", async () => {
+    await diff.load(REPO, SPEC, "a.txt");
+    commands.diffFile.mockResolvedValue({ status: "ok", data: { kind: "unchanged" } });
+
+    await diff.refreshFromDisk();
+
+    expect(diff.path).toBeNull();
+  });
+});
