@@ -12,6 +12,7 @@
     GRAPH,
     HEADER_ROWS,
     centreRow,
+    clickedCommit,
     headNode,
     hitTest,
     keyTarget,
@@ -407,7 +408,8 @@
     const repo = repository.current?.repo;
     if (!repo) return;
     const commitRow = toCommitRow(hit.row, headerRows);
-    const oid = commitRow === null ? null : (graph.rowAt(commitRow)?.commit.oid ?? null);
+    const oid = clickedCommit(hit.row, headerRows, (row) => graph.rowAt(row)?.commit.oid);
+    if (oid === undefined) return;
     const layout = commitRow === null ? undefined : graph.rowAt(commitRow)?.layout;
     if (branchOfCommit && oid !== null && layout && commitRow !== null) {
       const upper = (event.clientY - box.top + scrollTop) % rowHeight < rowHeight / 2;
@@ -527,7 +529,10 @@
             style:top="0px"
             style:padding-left="{headerX}px"
             title="Show the working tree in Files and Diff"
-            onclick={() => selection.showWorkingTree()}
+            onclick={(event) => {
+              event.stopPropagation();
+              selection.showWorkingTree();
+            }}
             oncontextmenu={(event) => {
               if (!onworktreecontext) return;
               event.preventDefault();

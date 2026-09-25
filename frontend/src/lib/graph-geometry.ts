@@ -227,6 +227,18 @@ export function headNode(
   return lane === undefined ? null : { lane, listRow: toListRow(headRow, headerRows) };
 }
 
+/** What a click on a list row selects: a commit, the working tree (`null`, the first row),
+    or nothing — a rebase row, or a commit whose block has not arrived yet. */
+export function clickedCommit(
+  listRow: number,
+  headerRows: number,
+  oidAt: (commitRow: number) => string | undefined,
+): string | null | undefined {
+  const row = toCommitRow(listRow, headerRows);
+  if (row === null) return listRow === 0 ? null : undefined;
+  return oidAt(row);
+}
+
 export function nextRow(
   current: number | null,
   key: string,

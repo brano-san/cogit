@@ -18,6 +18,7 @@ import {
   setLaneWidth,
   visibleRange,
   HEADER_ROWS,
+  clickedCommit,
   headNode,
   keyTarget,
   toCommitRow,
@@ -195,6 +196,20 @@ describe("setLaneWidth", () => {
   it("rounds to whole pixels so lines stay crisp", () => {
     setLaneWidth(16.4);
     expect(GRAPH.laneWidth).toBe(16);
+  });
+});
+
+describe("clickedCommit", () => {
+  const oidAt = (row: number) => (row < 3 ? `c${row}` : undefined);
+
+  it("selects the commit of a loaded row, and the working tree from the first row", () => {
+    expect(clickedCommit(4, 3, oidAt)).toBe("c1");
+    expect(clickedCommit(0, 3, oidAt)).toBeNull();
+  });
+
+  it("selects nothing on a rebase row or a row whose block has not arrived", () => {
+    expect(clickedCommit(1, 3, oidAt)).toBeUndefined();
+    expect(clickedCommit(9, 3, oidAt)).toBeUndefined();
   });
 });
 
