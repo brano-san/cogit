@@ -21,9 +21,8 @@
     scrollTop: number;
     width: number;
     height: number;
-    /** The list row of the first commit, below the Working Tree row. */
-    firstCommitRow: number;
-    /** The column HEAD sits in, for the dashed line from the Working Tree row (T4.5). */
+    /** HEAD's list row and column: the dashed line from the Working Tree row ends there (T4.5). */
+    headRow?: number | null;
     headLane?: number | null;
     /** A ring is filled with what is behind it: a stripe, a hovered or a selected row. */
     selectedRow?: number | null;
@@ -42,7 +41,7 @@
     scrollTop,
     width,
     height,
-    firstCommitRow,
+    headRow = null,
     headLane = null,
     selectedRow = null,
     hoverRow = null,
@@ -117,9 +116,9 @@
     }
     context.globalAlpha = 1;
 
-    if (headLane !== null && scrollTop < GRAPH.rowHeight * firstCommitRow) {
+    if (headLane !== null && headRow !== null && scrollTop < GRAPH.rowHeight * headRow) {
       const top = nodeCentre(headLane, 0, scrollTop);
-      const foot = nodeCentre(headLane, firstCommitRow, scrollTop);
+      const foot = nodeCentre(headLane, headRow, scrollTop);
       context.save();
       context.setLineDash([3, 3]);
       context.strokeStyle = main;
@@ -176,7 +175,7 @@
 
   $effect(() => {
     // Theme, lane width and colour change the picture without changing the data.
-    void [rows, scrollTop, width, height, dpr, firstCommitRow, headLane, selectedRow, hoverRow, focusLane];
+    void [rows, scrollTop, width, height, dpr, headRow, headLane, selectedRow, hoverRow, focusLane];
     void [clipX, stripes, rowHeight];
     void [settings.current.theme, settings.current.laneWidth, settings.current.coloredLanes];
     schedule();

@@ -12,6 +12,7 @@
     GRAPH,
     HEADER_ROWS,
     centreRow,
+    headNode,
     hitTest,
     nextRow,
     scrollRowIntoView,
@@ -221,8 +222,32 @@
     panelWidth > 0 ? graphClipX(panelWidth, rightWidth, subjectRoom(metrics.char)) : Number.POSITIVE_INFINITY,
   );
 
+  const headOid = $derived.by(() => {
+    const head = repository.current?.head;
+    return head && head.kind !== "unborn" ? head.oid : null;
+  });
+  const headKey = $derived(`${graph.walk?.generation ?? ""}:${graph.complete}:${headOid ?? ""}`);
+  const headNear = $derived(graph.loadedIndexOf(headOid));
+  /** HEAD far below the loaded rows, asked for once per walk and once more when it ends. */
+  let headFar = $state.raw<{ key: string; row: number; lane: number } | null>(null);
+  $effect(() => {
+    const oid = headOid;
+    const key = headKey;
+    if (oid === null || headNear !== null) return;
+    void graph.locate(oid).then((place) => {
+      headFar = place && { key, ...place };
+    });
+  });
+  const far = $derived(headFar?.key === headKey ? headFar : null);
+  const head = $derived(
+    headNode(
+      headNear ?? far?.row ?? null,
+      (row) => graph.rowAt(row)?.layout.lane ?? (row === far?.row ? far.lane : undefined),
+      headerRows,
+    ),
+  );
   /** The Working Tree row and the rebase rows start where HEAD's line is. */
-  const headLane = $derived(graph.rowAt(0)?.layout.lane ?? null);
+  const headLane = $derived(head?.lane ?? null);
   const headerX = $derived(rowTextX((headLane ?? 0) + 1, clipX));
 
   /** The window drives the queue: rows that scroll away stop being asked for. */
@@ -477,7 +502,7 @@
           {scrollTop}
           width={canvasWidth}
           height={viewportHeight}
-          firstCommitRow={headerRows}
+          headRow={head?.listRow ?? null}
           {headLane}
           {selectedRow}
           {hoverRow}
