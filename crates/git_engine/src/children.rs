@@ -99,7 +99,7 @@ pub fn stop_all() -> usize {
 }
 
 #[cfg(windows)]
-fn stop_tree(pid: u32) -> std::io::Result<()> {
+pub(crate) fn stop_tree(pid: u32) -> std::io::Result<()> {
     use std::os::windows::process::CommandExt as _;
     // `/T` for sh, ssh and git-remote-https; `/F` since a windowless process cannot close.
     let status = Command::new("taskkill")
@@ -117,7 +117,7 @@ fn stop_tree(pid: u32) -> std::io::Result<()> {
 }
 
 #[cfg(not(windows))]
-fn stop_tree(pid: u32) -> std::io::Result<()> {
+pub(crate) fn stop_tree(pid: u32) -> std::io::Result<()> {
     let status = Command::new("kill")
         .args(["-TERM", &pid.to_string()])
         .status()?;
