@@ -6,7 +6,8 @@ use serde::Serialize;
 const BYPASS_FILE: &str = "cogit-hook-bypasses";
 const SEPARATOR: char = '\u{1f}';
 
-/// Git records nothing about `--no-verify`, so Cogit keeps its own note per clone.
+/// Git records nothing about `--no-verify`, so Cogit keeps its own note per clone: in the
+/// common git directory, which a linked worktree shares.
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Bypass {
@@ -19,7 +20,7 @@ pub struct Bypass {
 impl RepoHandle {
     /// Newest first; an unparsable line is skipped, never fatal.
     pub fn bypass_log(&self) -> Result<Vec<Bypass>> {
-        let Ok(text) = std::fs::read_to_string(self.git_dir().join(BYPASS_FILE)) else {
+        let Ok(text) = std::fs::read_to_string(self.common_dir().join(BYPASS_FILE)) else {
             return Ok(Vec::new());
         };
 
@@ -51,7 +52,7 @@ impl RepoHandle {
         let written = std::fs::OpenOptions::new()
             .create(true)
             .append(true)
-            .open(self.git_dir().join(BYPASS_FILE))
+            .open(self.common_dir().join(BYPASS_FILE))
             .and_then(|mut file| file.write_all(line.as_bytes()));
         if let Err(err) = written {
             tracing::error!(error = ?err, context = "failed to record a hook bypass");

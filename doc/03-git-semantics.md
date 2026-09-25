@@ -46,10 +46,11 @@
 | Стейджинг файла | `git add -- <path>` |
 | Stage all (весь список Unstaged) | `git add --all`, без путей (R-311) |
 | Stage от 200 файлов | `git -c core.bigFileThreshold=1 add …` — блобы одним pack (R-312) |
-| Снятие со стейджинга | `git restore --staged -- <path>` |
+| Снятие со стейджинга | `git restore --staged -- <path>` (у staged-переименования — и старое имя); до первого коммита — `git rm --cached -r -f -- <path>` (файл на диске не трогается) |
 | Частичный стейджинг строк | `git apply --cached -` + патч на stdin ([08-diff-engine.md](08-diff-engine.md)) |
 | Откат изменений | `git restore -- <path>` |
 | Коммит | `git -c maintenance.auto=false commit -m <msg>` (`--amend`, `--no-verify` — опционально); `git maintenance run --auto` — после него, в фоне (R-314) |
+| Коммит видимых файлов (T6.8) | во временном индексе: `GIT_INDEX_FILE=<tmp> git read-tree HEAD`, записи путей из настоящего индекса (`ls-files --stage` → `update-index -z --index-info`), затем тот же `git commit` без путей (R-411) |
 | Checkout ветки | `git switch <branch>` / `git checkout <ref>` |
 | Создать ветку | `git branch <name> [<start>]` |
 | Удалить ветку | `git branch -d` / `-D` |
@@ -57,7 +58,7 @@
 | Rebase | `git rebase` (`-i` через `GIT_SEQUENCE_EDITOR`) |
 | Cherry-pick / Revert | `git cherry-pick` / `git revert` |
 | Stash | `git stash push/apply/pop/drop/show` |
-| Fetch / Pull / Push | `git fetch/pull/push` |
+| Fetch / Pull / Push | `git fetch --prune`; `git pull --prune` с `--ff-only` или `--no-rebase` — по Preferences ▸ Pull, явный выбор перекрывает `pull.rebase`; `git push` (`--force-with-lease`; у ветки без upstream — `--set-upstream <remote> HEAD`, R-414) |
 | Теги | `git tag` |
 | Сабмодули | `git submodule update/init/sync` |
 | Worktree | `git worktree add/list/remove/prune` |
@@ -118,9 +119,14 @@ GIT_NAMESPACE  GIT_CEILING_DIRECTORIES  GIT_CONFIG_PARAMETERS  GIT_CONFIG_COUNT
    само по себе стоит десятки миллисекунд, так что это не только мигание, но и задержка.
 5. **Отсутствие шелла** — аргументы передаются массивом, не строкой. Никакой конкатенации
    путей в командную строку: имена веток и файлов могут содержать пробелы и спецсимволы.
-6. **Таймаут** — сетевые операции получают таймаут с возможностью отмены пользователем.
+6. **Таймаут** — сетевая операция (fetch, pull, push), от которой git 5 минут не написал ни
+   байта, останавливается вместе с деревом процессов; ошибка — обычная `GitCommandError` с
+   выводом git и строкой «Stopped after 300 s with no output from git». Отмены пользователем
+   пока нет ([R-412](12-risks.md)).
 7. **Логирование** — `tracing::info!` на старте (команда и аргументы), на финише — код возврата
-   и `elapsed`. Полные `stdout`/`stderr` — на уровне `debug`, при ошибке — `error`.
+   и `elapsed` (`GitOutput::record`, одна точка для всех записей журнала). Полные `stdout`/`stderr`
+   — на уровне `debug`; при ошибке — в строке `error`, а когда окно их обрезало — в строке `warn`,
+   поэтому на уровне `info` из Preferences обрезанная середина остаётся в лог-файле.
 
 ### Тип ошибки
 

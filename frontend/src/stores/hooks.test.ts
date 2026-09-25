@@ -68,3 +68,48 @@ describe("an action after one that failed", () => {
     expect(hooks.error).toBeNull();
   });
 });
+
+// A hook the antivirus held opened as an empty editor, and Save then replaced the real
+// hook with whatever was typed there.
+describe("a hook that cannot be read", () => {
+  it("is reported and never opened as an empty script", async () => {
+    const ipc = await import("$lib/ipc");
+    vi.mocked(ipc.readHook).mockRejectedValueOnce(new Error("sharing violation"));
+    vi.mocked(ipc.writeHook).mockClear();
+    hooks.overview = { hooks: [{ name: "pre-commit", state: "enabled" }] } as never;
+
+    await hooks.edit(1 as never, "pre-commit");
+
+    expect(hooks.editing).toBeNull();
+    expect(hooks.failure).toBe("Could not read the hook");
+    await hooks.save(1 as never);
+    expect(ipc.writeHook).not.toHaveBeenCalled();
+  });
+});
+
+// Until the second hook's script arrived, the editor showed the first one's under the
+// second one's name, and Save wrote it there.
+describe("a hook still being read", () => {
+  it("shows no other hook's script and cannot be saved yet", async () => {
+    const ipc = await import("$lib/ipc");
+    vi.mocked(ipc.writeHook).mockClear();
+    hooks.overview = {
+      hooks: [
+        { name: "pre-commit", state: "enabled" },
+        { name: "commit-msg", state: "enabled" },
+      ],
+    } as never;
+    const first = hooks.edit(1 as never, "pre-commit");
+    reads.get("pre-commit")?.("commit script");
+    await first;
+
+    const second = hooks.edit(1 as never, "commit-msg");
+    expect(hooks.body).toBe("");
+    await hooks.save(1 as never);
+    expect(ipc.writeHook).not.toHaveBeenCalled();
+
+    reads.get("commit-msg")?.("message script");
+    await second;
+    expect(hooks.body).toBe("message script");
+  });
+});

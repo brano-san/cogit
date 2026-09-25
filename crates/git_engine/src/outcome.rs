@@ -16,15 +16,23 @@ pub enum Severity {
     Failure,
 }
 
+/// What git says, with exit code 0 and no `warning:`, when `--autostash` (or
+/// `rebase.autoStash`, `merge.autoStash`) could not put the work back cleanly: the files
+/// are left conflicted and the work waits in the stash.
+const AUTOSTASH: &[&str] = &[
+    "Applying autostash resulted in conflicts.",
+    "Autostash exists; creating a new stash entry.",
+];
+
 /// Progress is not a warning; git says both on `stderr` and only one is worth a notice.
 #[must_use]
 pub fn severity_of(exit_code: Option<i32>, stderr: &str) -> Severity {
     if exit_code != Some(0) {
         return Severity::Failure;
     }
-    let spoken = stderr
-        .lines()
-        .any(|line| line.starts_with("warning:") || line.starts_with("hint:"));
+    let spoken = stderr.lines().any(|line| {
+        line.starts_with("warning:") || line.starts_with("hint:") || AUTOSTASH.contains(&line)
+    });
     if spoken {
         Severity::Warning
     } else {
@@ -59,7 +67,7 @@ pub fn summarise(stderr: &str, stdout: &str) -> String {
         .copied()
         .filter(|line| {
             let lower = line.to_ascii_lowercase();
-            MARKERS.iter().any(|marker| lower.contains(marker))
+            MARKERS.iter().any(|marker| lower.contains(marker)) || AUTOSTASH.contains(line)
         })
         .collect();
 
@@ -87,7 +95,9 @@ fn clip(line: &str) -> String {
 /// What to call the command in a title, read off the command line itself.
 #[must_use]
 pub fn operation_label(command_line: &str) -> String {
-    let mut words = command_line.split_whitespace().peekable();
+    let mut words = after_environment(command_line)
+        .split_whitespace()
+        .peekable();
     if words.peek() == Some(&"git") {
         words.next();
     }
@@ -128,6 +138,21 @@ pub fn operation_label(command_line: &str) -> String {
         "push" if flags.iter().any(|f| f.starts_with("--force")) => "Force Push".to_owned(),
         _ => title_case(name),
     }
+}
+
+/// `GIT_INDEX_FILE='…' git commit` → `git commit`; the quoted value may hold spaces.
+fn after_environment(line: &str) -> &str {
+    let Some((name, value)) = line.split_once('=') else {
+        return line;
+    };
+    if name.is_empty() || !name.chars().all(|c| c.is_ascii_uppercase() || c == '_') {
+        return line;
+    }
+    let rest = match value.strip_prefix('\'') {
+        Some(quoted) => quoted.split_once('\'').map_or("", |(_, rest)| rest),
+        None => value.split_once(' ').map_or("", |(_, rest)| rest),
+    };
+    rest.trim_start()
 }
 
 /// `cherry-pick` reads as `Cherry-pick`, not `Cherry-Pick`: it is one word to a user.

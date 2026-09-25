@@ -50,17 +50,33 @@ class HooksStore {
     await this.refresh(repo);
   }
 
+  /** The hook whose script is still on its way; Save waits for it. */
+  #reading: string | null = null;
+
   async edit(repo: RepoId, name: string): Promise<void> {
+    this.#clear();
     this.editing = name;
+    this.#reading = name;
+    this.body = "";
+    this.saved = "";
     const present = this.overview?.hooks.find((hook) => hook.name === name);
-    const body =
-      present && present.state !== "missing"
-        ? await readHook(repo, name).catch(() => "")
-        : "#!/bin/sh\nset -e\n\n";
+    let body = "#!/bin/sh\nset -e\n\n";
+    if (present && present.state !== "missing") {
+      try {
+        body = await readHook(repo, name);
+      } catch (err) {
+        // Opened empty, Save would replace the real hook with whatever was typed.
+        if (this.editing !== name) return;
+        this.editing = null;
+        this.report(err, "Could not read the hook");
+        return;
+      }
+    }
     // Another hook opened meanwhile; Save would write this body into that one.
     if (this.editing !== name) return;
     this.body = body;
     this.saved = body;
+    this.#reading = null;
   }
 
   get dirty(): boolean {
@@ -69,7 +85,7 @@ class HooksStore {
 
   async save(repo: RepoId): Promise<void> {
     this.#clear();
-    if (this.editing === null) return;
+    if (this.editing === null || this.#reading === this.editing) return;
     try {
       await writeHook(repo, this.editing, this.body);
       this.editing = null;

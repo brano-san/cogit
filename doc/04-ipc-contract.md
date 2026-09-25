@@ -486,6 +486,8 @@ type SearchChunk =
 `cancel_operation` останавливает **чтения**, не мутации: операция, брошенная на середине,
 оставила бы репозиторий в состоянии, которого никто не просил. При закрытии приложения все
 идущие чтения гасятся автоматически.
+Сетевые fetch, pull и push тоже не отменяются; зависшую останавливает сторож молчания
+в `git_engine` — 5 минут без вывода git ([R-412](12-risks.md)).
 
 ### Remote ▸ Submodule, Subtree, LFS и Repository ▸ Settings (#42, #45, #46)
 
@@ -578,8 +580,12 @@ Tauri сам переносит создание окна на главный п
 `rayon` внутри `spawn_blocking` ([INV-01](01-architecture.md#inv-01)).
 
 `TodoEntry` — `{ oid, action: pick|reword|edit|squash|fixup|drop, message }`.
-Сообщение для `reword` уезжает в план строкой `exec git commit --amend`, чтобы редактор
-не открывался: терминала, в котором он мог бы открыться, у приложения нет.
+Сообщение для `reword` уезжает в план строкой `exec git commit --amend -m …`, чтобы редактор
+не открывался: терминала, в котором он мог бы открыться, у приложения нет. Хуки pre-commit и
+commit-msg при этом идут, как у `reword` в `git rebase -i`: хук, отвергший сообщение,
+останавливает rebase на этой строке с его выводом. Edit Author (`edit_author`) идёт с
+`--no-verify`: ни дерево, ни сообщение не меняются — механическая перезапись, как и коммиты
+Split-Off.
 | `has_token` | `host` | `bool` | M1 |
 | `store_token` / `forget_token` | `host[, token]` | `()` | M1 |
 

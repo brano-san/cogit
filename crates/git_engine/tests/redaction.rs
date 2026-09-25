@@ -104,3 +104,35 @@ fn a_password_with_an_at_sign_is_hidden_whole_in_git_output_too() {
     assert!(!text.contains("ss@"), "{text}");
     assert!(text.contains("@github.com/o/r.git/"), "{text}");
 }
+
+// GitHub's own form for a token in a URL has no user: `https://<token>@github.com/…`.
+#[test]
+fn a_token_alone_before_the_host_is_hidden() {
+    let line = redact_command(&[
+        "subtree",
+        "push",
+        "--prefix=lib",
+        "https://ghp_deadbeef@github.com/o/r.git",
+        "main",
+    ]);
+
+    assert!(!line.contains("ghp_deadbeef"), "{line}");
+    assert!(line.contains("@github.com/o/r.git"), "{line}");
+}
+
+#[test]
+fn a_token_alone_before_the_host_is_hidden_in_git_output_too() {
+    let text = git_engine::output_text::redact_secrets(
+        "git push using:  https://ghp_deadbeef@github.com/o/r.git main\n",
+    );
+
+    assert!(!text.contains("ghp_deadbeef"), "{text}");
+    assert!(text.contains("@github.com/o/r.git main"), "{text}");
+}
+
+#[test]
+fn the_user_of_an_ssh_url_is_not_a_secret() {
+    let url = "ssh://git@github.com/o/r.git";
+    assert!(redact_command(&["push", url]).contains(url));
+    assert!(git_engine::output_text::redact_secrets(url).contains(url));
+}

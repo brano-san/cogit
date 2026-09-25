@@ -89,7 +89,8 @@ fn render(plan: &[TodoEntry], paused: bool) -> String {
 
         let rewrites = matches!(entry.action, TodoAction::Reword | TodoAction::Squash);
         if let Some(message) = entry.message.as_deref().filter(|_| rewrites) {
-            out.push_str("exec git commit --amend --no-verify -m ");
+            // No --no-verify: a native reword runs pre-commit and commit-msg, and so does this.
+            out.push_str("exec git commit --amend -m ");
             out.push_str(&message_argument(message));
             out.push('\n');
         }
@@ -181,6 +182,8 @@ impl RepoHandle {
         for entry in &plan {
             body.push_str(&format!("pick {}\n", entry.oid));
             if entry.oid == wanted {
+                // Hooks judge a tree and a message, and neither changes here: a mechanical
+                // rewrite, like Split-Off's commits (surgery.rs).
                 body.push_str("exec git commit --amend --no-edit --no-verify --author=");
                 body.push_str(&shell_quote(&identity));
                 body.push('\n');

@@ -49,7 +49,7 @@ export const FIELDS: readonly SettingField[] = [
       ],
     },
     fallback: "false",
-    hint: "How git pull joins diverged branches. Cogit's own Pull fast-forwards only.",
+    hint: "How git pull joins diverged branches. Cogit's own Pull follows Preferences ▸ Pull instead.",
   },
   {
     key: "fetch.prune",

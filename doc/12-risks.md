@@ -3816,8 +3816,9 @@ gix) и кнопку «Use inherited» у заданной. Ключи `cogit.*`
 `REPO_SETTING_KEYS`; чужой ключ отвергается до записи.
 
 Честные оговорки в подсказках: Fetch в Cogit всегда идёт с `--prune`, поэтому `fetch.prune`
-влияет на Pull и на git из терминала; Pull в Cogit только fast-forward, поэтому `pull.rebase`
-действует на `git pull` вне Cogit; `i18n.commitEncoding` git лишь записывает в коммит, а
+влияет на Pull и на git из терминала; Pull в Cogit идёт по Preferences ▸ Pull —
+`--ff-only` или `--no-rebase` (слияние), поэтому `pull.rebase` действует только на `git pull`
+вне Cogit; `i18n.commitEncoding` git лишь записывает в коммит, а
 Cogit передаёт сообщение в UTF-8.
 
 **Не сделано:** кодировка отображения файлов. Diff декодирует файлы как UTF-8 и помечает
@@ -4650,8 +4651,9 @@ small, даже когда делать нечего (`GIT_TRACE2_PERF`, `doc/14
 
 **Решение:** коммит идёт с `-c maintenance.auto=false`, а тот же `maintenance run --auto
 --no-quiet --detach|--no-detach` (флаг — как решил бы git: `maintenance.autoDetach`, затем
-`gc.autoDetach`, по умолчанию да) запускается сразу после него из своего потока, и коммит
-его не ждёт. Если в конфиге `maintenance.auto=false`, не запускается ничего, как и у git.
+`gc.autoDetach`, по умолчанию да; флаг есть только с git 2.47 — более старому он не
+передаётся, тот решает по `gc.autoDetach` сам) запускается сразу после него из своего потока,
+и коммит его не ждёт. Если в конфиге `maintenance.auto=false`, не запускается ничего, как и у git.
 Молчаливый прогон в журнал не пишется; прогон, который что-то сказал или упал, — пишется
 отдельной записью (раньше этот текст был в stderr коммита).
 Тесты `commit_write.rs`: обслуживание по-прежнему приходит (два pack при
@@ -5399,3 +5401,94 @@ hooks linked-worktree): внутри корня изменения `.git` слы
 внутри неё. Снимать наблюдение неактивных репозиториев при уходе с них (и перечитывать
 строку и граф по `refs_fingerprint` при возврате) — отдельное решение о цене R-351, в этой
 правке не сделано.
+
+## R-410 · Токен — только хосту remote, а не всей команде · В
+
+Уточняет R-31. Git передаёт каждый
+`-c` запущенным им процессам git (`GIT_CONFIG_PARAMETERS`), в том числе fetch подмодулей
+(`fetch.recurseSubmodules=on-demand` по умолчанию, pull, submodule update). Голый
+`-c http.extraHeader=Authorization: Basic …` уходил поэтому на хост каждого подмодуля.
+
+**Решение:** ключ ограничен URL-ом, как у actions/checkout:
+`-c http.<scheme>://<host>/.extraHeader=…` — git применяет его только к адресам этого хоста
+(`git config --get-urlmatch`). `git_engine` сам выбирает URL, к которому пойдёт команда, и
+спрашивает токен для него (`fetch/pull/push(remote, token: FnOnce(&url) -> Option<String>)`),
+поэтому хост ключа и хост токена не расходятся. Fetch и pull берут URL fetch, push — URL
+push (`pushurl`, `pushInsteadOf`): при разных хостах токен хоста push уходил хосту fetch.
+Панель токена во фронтенде по-прежнему спрашивает хост push — при одном хосте, обычном
+случае, это тот же. `redact_command` прячет значение любого ключа, оканчивающегося на
+`.extraheader`. Тесты — `a_token_is_sent_only_to_the_host_of_the_remote`,
+`a_token_reaches_git_as_a_header_but_not_the_journal`,
+`fetch_and_pull_ask_for_the_token_of_the_fetch_url` (`crates/git_engine/tests/network.rs`).
+
+## R-411 · Commit What You See — из индекса, а не `commit --only` · В
+
+`git commit --only -- <пути>` берёт содержимое путей из рабочего дерева, а не из индекса: у
+файла, застейдженного частично (Stage lines, правка после `add`), в коммит уходили и
+неиндексированные правки, а индекс перезаписывался рабочей копией. Список Staged показывал
+одно, коммит записывал другое.
+
+**Решение:** коммит собирается во временном индексе рядом с настоящим
+(`cogit-only-index-<pid>-<n>`): `read-tree HEAD` (`--empty` до первого коммита), затем для
+каждого пути — строка удаления и записи настоящего индекса из `ls-files --stage -z`, конфликтные
+стадии тоже (git откажет в коммите, как откажет и обычный). `git commit` идёт с
+`GIT_INDEX_FILE` на этот индекс и без путей, хуки видят его — как и при `--only`, который тоже
+коммитит из временного индекса. Настоящий индекс не трогается: на закоммиченных путях он уже
+совпадает с новым HEAD, остальное остаётся staged. В журнале строки этих команд начинаются с
+`GIT_INDEX_FILE='…'`: скопированный из Output `git read-tree HEAD` без него стёр бы стейджинг.
+Цена — четыре процесса вместо одного, только на этом пути. Тесты —
+`committing_shown_paths_takes_what_is_staged_not_the_working_tree` и соседние в
+`crates/git_engine/tests/commit_write.rs`.
+
+## R-412 · Сетевые команды: сторож молчания вместо отмены · С
+
+03 §3 п.6 обещал сетевым операциям таймаут и отмену пользователем, а `stream_git` ждал git
+без срока. Fetch, pull и push идут очередью записей репозитория, поэтому сервер, принявший
+соединение и замолчавший (ssh через упавший VPN, `git://` без ответа), держал все коммиты и
+стейджинг этого репозитория до выхода из Cogit.
+
+**Решение:** сторож молчания в `stream_git`. Каждый прочитанный байт stdout или stderr
+отодвигает срок; 300 секунд без единого байта — `children::stop_tree` на дерево процессов и
+обычная `GitCommandError` с полным выводом git, в `summary` — «Stopped after 300 s with no
+output from git». Срок взят с запасом: `--progress` пишет каждые несколько сотен миллисекунд,
+пока идут данные, а молчат дольше минуты только вход через браузер (Git Credential Manager) и
+хук pre-push, который долго ничего не печатает. Сторож останавливается до `wait`, поэтому
+pid ещё не освобождён и не может достаться чужому процессу. Транспортные таймауты git
+(`http.lowSpeedLimit`) не выбраны: они есть только у HTTP, а `-c` перебил бы настройку
+пользователя. Тест — `a_fetch_from_a_server_that_never_answers_is_stopped`
+(`crates/git_engine/src/network.rs`, молчащий `git://` на локальном порту, срок 2 с).
+
+**Не сделано:** отмена пользователем. Нужна команда `cancel_network` и кнопка у операции в
+футере — это IPC и оболочка, не `git_engine`. На Linux и macOS `stop_tree` посылает `TERM`
+только самому git; его ssh или `git-remote-https` git гасит сам при выходе.
+
+## R-413 · Подсказки шаблона коммита вырезаются по шаблону, не `--cleanup=strip` · С
+
+Поле сообщения засевается `commit.template` целиком, а коммит идёт `git commit -m`, у которого
+очистка по умолчанию — `whitespace`: строки-подсказки шаблона (`# Explain why`) попадали в
+сообщение. `git commit` с редактором их вырезает (`strip`).
+
+**Решение:** `commit_write` убирает из сообщения только строки, совпадающие со строками шаблона,
+которые начинаются с префикса комментария (`core.commentString`, `core.commentChar`; `auto` и
+пусто — `#`). `--cleanup=strip` для всех не включён: он съел бы и строки пользователя —
+тему `#123 fix the parser`, заголовок Markdown в теле. Сообщение, пустое после вырезания,
+отвергается до запуска git, как пустое. Во фронтенде та же логика (`lib/commit-draft.ts`,
+префикс `#`) выключает кнопку для нетронутого шаблона — `git commit` отказывает ему как
+неотредактированному. Тесты — `the_hints_of_the_commit_template_stay_out_of_the_commit`,
+`a_hash_line_of_the_users_own_is_kept` (`crates/git_engine/tests/commit_write.rs`),
+`commit-draft.test.ts`.
+
+## R-414 · Первый push ветки назначает ей upstream · С
+
+Push в тулбаре — `git push --progress <remote>` без refspec. У ветки, которую ещё не пушили,
+при `push.default=simple` (по умолчанию) и без `push.autoSetupRemote` git отказывает: «The
+current branch feature has no upstream branch» — на первом push каждой новой ветки, хотя это
+обычное состояние (CLAUDE.md, Errors), а исправление git подсказывает сам.
+
+**Решение:** если refspec не задан и у выписанной ветки нет `branch.<name>.merge`, push идёт
+`--set-upstream <remote> HEAD` — ровно то, что сделал бы `push.autoSetupRemote=true`: ветка
+уходит под тем же именем и дальше отслеживает его. Ветка с upstream, detached HEAD и
+Push To (свой refspec) не меняются. Отдельный пункт или флажок upstream в Push To (R-254) —
+по-прежнему решение постановщика; этот путь его не заменяет. Тест —
+`the_first_push_of_a_branch_publishes_it_and_sets_its_upstream`
+(`crates/git_engine/tests/network.rs`).
