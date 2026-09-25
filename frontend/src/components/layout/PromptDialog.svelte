@@ -1,6 +1,7 @@
 <script lang="ts">
   import Dialog from "$components/common/Dialog.svelte";
   import Select from "$components/common/Select.svelte";
+  import { promptProblem } from "$lib/names";
 
   /** One line of input or one choice from a list — the two things `ask` cannot do. */
   interface Props {
@@ -31,7 +32,7 @@
   let text = $state(value || choices?.[0] || "");
   let field: HTMLInputElement | undefined = $state();
 
-  const problem = $derived(validate?.(text) ?? (text.trim() === "" ? "Enter a value." : null));
+  const problem = $derived(promptProblem(text, validate));
 
   function submit() {
     if (problem === null) onaccept(text.trim());
