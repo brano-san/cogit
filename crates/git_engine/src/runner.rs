@@ -391,7 +391,8 @@ fn redact_arg(arg: &str) -> String {
     redact_url(arg)
 }
 
-/// Only `scheme://user:secret@host` counts: a refspec and an SSH path also carry colons.
+/// `scheme://user:secret@host`, and over HTTP `scheme://token@host` too — GitHub's form
+/// of a token. An SSH user (`ssh://git@host`) is no secret; a refspec also carries colons.
 fn redact_url(arg: &str) -> String {
     let Some((scheme, rest)) = arg.split_once("://") else {
         return arg.to_owned();
@@ -401,10 +402,11 @@ fn redact_url(arg: &str) -> String {
     let Some((credentials, host)) = authority.rsplit_once('@') else {
         return arg.to_owned();
     };
-    let Some((user, _)) = credentials.split_once(':') else {
-        return arg.to_owned();
-    };
-    format!("{scheme}://{user}:{HIDDEN}@{host}{path}")
+    match credentials.split_once(':') {
+        Some((user, _)) => format!("{scheme}://{user}:{HIDDEN}@{host}{path}"),
+        None if crate::output_text::is_http(scheme) => format!("{scheme}://{HIDDEN}@{host}{path}"),
+        None => arg.to_owned(),
+    }
 }
 
 /// Which `git` the writes actually go through. Run outside any repository, so it answers
