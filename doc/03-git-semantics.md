@@ -58,7 +58,7 @@
 | Rebase | `git rebase` (`-i` через `GIT_SEQUENCE_EDITOR`) |
 | Cherry-pick / Revert | `git cherry-pick` / `git revert` |
 | Stash | `git stash push/apply/pop/drop/show` |
-| Fetch / Pull / Push | `git fetch --prune`; `git pull --ff-only` или `--no-rebase` — по Preferences ▸ Pull, явный выбор перекрывает `pull.rebase`; `git push` (`--force-with-lease`) |
+| Fetch / Pull / Push | `git fetch --prune`; `git pull --prune` с `--ff-only` или `--no-rebase` — по Preferences ▸ Pull, явный выбор перекрывает `pull.rebase`; `git push` (`--force-with-lease`) |
 | Теги | `git tag` |
 | Сабмодули | `git submodule update/init/sync` |
 | Worktree | `git worktree add/list/remove/prune` |
