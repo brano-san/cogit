@@ -96,6 +96,7 @@
   import { capFraction, floorFraction, PANELS, type PanelId } from "$lib/perspectives";
   import { graphPanelMinWidth } from "$lib/graph-panel";
   import { repoClick } from "$lib/repo-click";
+  import { ModuleInitialiser, moduleClick } from "$lib/module-init";
   import { browserSources, start as startMemoryProbe } from "$lib/mem-probe";
   import { liveListeners } from "$lib/listener-count";
   import type { Settings } from "$lib/settings";
@@ -1362,9 +1363,8 @@
       (doc/12-risks.md, R-109). The tree keeps showing it where it is, and the tree is
       the one thing not forgotten, because it is what the click came from. */
   async function openModule(row: import("$lib/module-tree").ModuleRow) {
-    // Nothing to open until it has been checked out; a double-click there means "get it".
-    if (row.module.state === "notInitialised") {
-      await refreshSubmodule(row);
+    if (moduleClick(row.module.state) === "offer") {
+      await offerInitialise(row.key);
       return;
     }
     const epoch = repository.epoch;
@@ -1451,16 +1451,22 @@
   }
 
   /** Never changes the repository unasked: the answer is a question (R-149). */
-  async function offerInitialise(key: string) {
-    const row = submodules.rows.find((entry) => entry.key === key);
-    if (!row) return;
-    const go = await ask(`Submodule ${key} is not initialised. Initialise and check it out now?`, {
-      title: "Submodule is not initialised",
-      kind: "info",
-      okLabel: "Initialise",
-      cancelLabel: "Cancel",
-    });
-    if (go) await refreshSubmodule(row);
+  const initialiser = new ModuleInitialiser({
+    ask: (key) =>
+      confirmation.ask({
+        title: "Submodule is not initialised",
+        message: `Submodule ${key} is not initialised. Initialise and check it out now?`,
+        confirm: "Initialise",
+      }),
+    update: async (key) => {
+      const row = submodules.rows.find((entry) => entry.key === key);
+      if (row) await refreshSubmodule(row);
+    },
+  });
+
+  function offerInitialise(key: string) {
+    if (!submodules.rows.some((entry) => entry.key === key)) return Promise.resolve();
+    return initialiser.offer(key);
   }
 
   async function recoverCommit(lost: import("$lib/ipc").CommitRow) {
