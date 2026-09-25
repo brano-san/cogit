@@ -629,7 +629,6 @@ mod unstaged {
     }
 
     #[test]
-    #[ignore = "GE-021: an intent-to-add file is listed nowhere yet; its fix makes this pass"]
     fn an_intent_to_add_file_is_listed_as_git_lists_it() {
         let f = test_fixtures::linear(1).unwrap();
         f.write_file("later.txt", "intent only\n").unwrap();
