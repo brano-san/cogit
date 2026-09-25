@@ -42,7 +42,10 @@ impl AppState {
         self.record(
             repo,
             format!("Roll back {label} to {}", short(rev)),
-            stashed.map_or(Recovery::None, |oid| Recovery::Stash { oid }),
+            Recovery::Rollback {
+                paths: paths.to_vec(),
+                stash: stashed,
+            },
         );
         Ok(())
     }

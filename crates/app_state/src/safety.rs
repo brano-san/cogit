@@ -16,6 +16,12 @@ pub enum Recovery {
     Stash {
         oid: String,
     },
+    /// A past version written over the paths. Undo stashes it away, as a discard keeps
+    /// what it removes, then applies the stash of the work it replaced, if there was any.
+    Rollback {
+        paths: Vec<String>,
+        stash: Option<String>,
+    },
     /// The branch was deleted: undo creates it again.
     Branch {
         name: String,
@@ -109,6 +115,14 @@ impl AppState {
         let handle = self.handle(repo)?;
         match &held.recovery {
             Recovery::Stash { oid } => handle.stash_apply(oid)?,
+            Recovery::Rollback { paths, stash } => {
+                handle
+                    .stash_paths(paths, "cogit: before undoing a rollback")
+                    .map_err(|err| crate::backup_failed("undoing the rollback of", &err))?;
+                if let Some(oid) = stash {
+                    handle.stash_apply(oid)?;
+                }
+            }
             Recovery::Branch { name, oid } => handle.create_branch(name, Some(oid), false)?,
             Recovery::Moved { name, oid } => {
                 wait_for_the_operation(&handle)?;

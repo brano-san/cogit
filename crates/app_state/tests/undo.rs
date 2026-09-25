@@ -734,3 +734,41 @@ fn undo_waits_for_a_rebase_stopped_on_its_conflict() {
         "{err:?}"
     );
 }
+
+fn text(f: &test_fixtures::Fixture, name: &str) -> String {
+    std::fs::read_to_string(f.path().join(name)).unwrap()
+}
+
+// The rollback leaves the paths changed, so applying the stash of the work it replaced
+// was refused with "would be overwritten by merge" every time.
+#[test]
+fn undoing_a_rollback_brings_back_the_work_it_replaced() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.commit_file(2, "a.txt", "v1\n").unwrap();
+    f.commit_file(3, "a.txt", "v2\n").unwrap();
+    let (state, repo) = open(&f);
+    f.write_file("a.txt", "work in progress\n").unwrap();
+
+    state
+        .rollback_to(repo, "HEAD~1", &["a.txt".to_owned()])
+        .unwrap();
+    assert_eq!(text(&f, "a.txt"), "v1\n");
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(text(&f, "a.txt"), "work in progress\n");
+}
+
+#[test]
+fn a_rollback_of_a_clean_file_can_be_undone_too() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.commit_file(2, "a.txt", "v1\n").unwrap();
+    f.commit_file(3, "a.txt", "v2\n").unwrap();
+    let (state, repo) = open(&f);
+
+    state
+        .rollback_to(repo, "HEAD~1", &["a.txt".to_owned()])
+        .unwrap();
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(text(&f, "a.txt"), "v2\n");
+}
