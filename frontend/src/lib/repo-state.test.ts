@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { repoStateTag, stateBanner, workingTreeLabel } from "./repo-state";
+import { bannerQuestion, repoStateTag, stateBanner, workingTreeLabel } from "./repo-state";
 
 describe("stateBanner", () => {
   it("shows nothing for a clean repository", () => {
@@ -151,5 +151,22 @@ describe("repoStateTag", () => {
     expect(repoStateTag({ kind: "clean" })).toBeNull();
     expect(repoStateTag({ kind: "empty" })).toBeNull();
     expect(repoStateTag(null)).toBeNull();
+  });
+});
+
+// Abort and Skip ran on the click, one button away from Continue: five resolved conflicts
+// gone, and the journal said "cannot be undone".
+describe("bannerQuestion", () => {
+  const rebasing = { kind: "rebasing" } as never;
+
+  it("asks before Abort and Skip, which Undo cannot take back", () => {
+    expect(bannerQuestion("abort", rebasing)).toMatchObject({ confirm: "Abort", warning: true });
+    expect(bannerQuestion("abort", rebasing)?.message).toContain("Rebase");
+    expect(bannerQuestion("skip", rebasing)).toMatchObject({ confirm: "Skip", warning: true });
+  });
+
+  it("lets Continue and Create Branch run at once", () => {
+    expect(bannerQuestion("continue", rebasing)).toBeNull();
+    expect(bannerQuestion("createBranch", rebasing)).toBeNull();
   });
 });
