@@ -5219,3 +5219,14 @@ trees containing submodules cannot be moved or removed»), даже без ед�
 просит ту же галочку `--force`. Stash при чистом дереве не делается, запись в журнале — без
 Undo. Тесты — `worktrees.rs` `a_worktree_with_its_submodules_checked_out_says_so`,
 `worktree-list.test.ts` «the Remove Worktree dialog».
+
+## R-435 · В меню stash в Branches — `Pop Stash` рядом с `Apply Stash`; в строке — дата · Н
+
+Список #35 перенесён дословно (R-254), и Pop в нём не было, хотя F-040 его обещает, а
+старый `StashList` его предлагал до единого дерева (R-47). `Pop Stash` встал сразу под
+`Apply Stash`, в ту же группу, — единственное отступление от списка задачи. Pop — это
+`git stash pop`, при конфликте git сам оставляет запись в списке. Строка stash показывает
+дату перед сообщением (`DD-MM-YY · <сообщение>`): длинное сообщение режется справа, а дата
+остаётся видна. Stash не хранит часовой пояс, дата — по часам этой машины. Тесты —
+`ref-menus.test.ts` «branchesStashMenu Pop (F-040)», `ref-nodes.test.ts` «gives a stash its
+message and its date».

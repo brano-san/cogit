@@ -124,6 +124,15 @@ describe("buildRefTree", () => {
     expect(nodes.find((node) => node.id === "local:master")?.detail).toBe("↑2 ↓1");
   });
 
+  // F-040: the message and the date, as the stash list had them before the one tree (R-47).
+  it("gives a stash its message and its date", () => {
+    const made = Date.UTC(2026, 8, 20, 12) / 1000;
+    const nodes = buildRefTree(input({ stashes: [{ index: 0, oid: OID, message: "On main: wip", timestamp: made }] }));
+    const detail = nodes.find((node) => node.id === "stash:0")?.detail ?? "";
+    expect(detail).toContain("On main: wip");
+    expect(detail).toMatch(/^(19|20|21)-09-26 · /);
+  });
+
   it("shows the remote url beside its name", () => {
     const remote = branch("origin/master", { kind: "remote", fullName: "refs/remotes/origin/master" });
     const nodes = buildRefTree(
