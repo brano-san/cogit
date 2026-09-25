@@ -120,6 +120,12 @@ export function addProblem(input: {
   return null;
 }
 
+/** `[origin/x: gone]`: the config still names the tracking branch, but a pruning fetch
+    took its ref, so ahead and behind count against nothing. */
+export function upstreamGone(branch: Branch, branches: readonly Branch[]): boolean {
+  return branch.upstream !== null && !branches.some((other) => other.name === branch.upstream);
+}
+
 export type WorktreeState = "changes" | "synced" | "unpushed" | "missing";
 
 /** A branch another worktree has checked out, as Branches marks it (#25). */
@@ -141,7 +147,11 @@ export function worktreeMarks(
   for (const entry of entries) {
     if (entry.isCurrent || !entry.branch) continue;
     const branch = locals.get(entry.branch);
-    const pushed = branch !== undefined && branch.upstream !== null && branch.ahead === 0;
+    const pushed =
+      branch !== undefined &&
+      branch.upstream !== null &&
+      !upstreamGone(branch, branches) &&
+      branch.ahead === 0;
     const state: WorktreeState = entry.missing
       ? "missing"
       : entry.dirty
