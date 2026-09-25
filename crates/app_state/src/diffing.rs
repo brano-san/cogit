@@ -188,6 +188,13 @@ impl AppState {
                 "{path} is binary or not UTF-8: take one side whole"
             )));
         }
+        // An absent side merged as an empty file reads as "every line deleted", and taking
+        // it would keep the file, empty, instead of deleting it.
+        if sides.ours.is_none() || sides.theirs.is_none() {
+            return Err(git_engine::GitError::InvalidState(format!(
+                "{path} was deleted on one side: keep one side or delete the file"
+            )));
+        }
         let sides = sides.to_text();
         Ok(diff_engine::merge3_with_syntax(
             sides.base.as_deref().unwrap_or_default(),
