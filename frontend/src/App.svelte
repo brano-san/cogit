@@ -91,7 +91,7 @@
   import { compareUrl } from "$lib/compare-params";
   import { dropActions, type DropAction, type DragPayload } from "$lib/drop-target";
   import { moveEntry } from "$lib/rebase-plan";
-  import { stateBanner, type BannerAction } from "$lib/repo-state";
+  import { bannerQuestion, stateBanner, type BannerAction } from "$lib/repo-state";
   import { blockedByLocalChanges } from "$lib/checkout-refusal";
   import { switchWithAutostash } from "$lib/autostash";
   import { foundStep } from "$lib/found";
@@ -1690,7 +1690,11 @@
 
   async function runBannerAction(action: BannerAction) {
     const id = repository.current?.repo;
-    if (!id) return;
+    const state = repository.current?.state;
+    if (!id || !state) return;
+    const question = bannerQuestion(action, state);
+    if (question && !(await confirmation.ask(question))) return;
+    if (repository.current?.repo !== id) return;
     try {
       if (action === "abort") await abortOperation(id);
       if (action === "continue") await continueOperation(id);
