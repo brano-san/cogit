@@ -22,11 +22,16 @@ impl RepoHandle {
         Ok(names)
     }
 
+    /// Where a push goes: `pushurl` if set, `insteadOf` and `pushInsteadOf` applied.
     pub fn remote_url(&self, name: &str) -> Option<String> {
+        self.url_of(name, gix::remote::Direction::Push)
+    }
+
+    fn url_of(&self, name: &str, direction: gix::remote::Direction) -> Option<String> {
         self.repo
             .find_remote(name)
             .ok()?
-            .url(gix::remote::Direction::Push)
+            .url(direction)
             .map(|url| url.to_bstring().to_string())
     }
 
@@ -37,7 +42,7 @@ impl RepoHandle {
         token: impl FnOnce(&str) -> Option<String>,
         on_line: impl FnMut(&str),
     ) -> Result<()> {
-        let header = self.auth_arg(remote, token);
+        let header = self.auth_arg(remote, gix::remote::Direction::Fetch, token);
         let mut args = prefix(&header);
         args.extend(["fetch", "--progress", "--prune", remote]);
         self.run_streaming(&args, on_line)
@@ -54,7 +59,7 @@ impl RepoHandle {
         token: impl FnOnce(&str) -> Option<String>,
         on_line: impl FnMut(&str),
     ) -> Result<()> {
-        let header = self.auth_arg(remote, token);
+        let header = self.auth_arg(remote, gix::remote::Direction::Fetch, token);
         let mut args = prefix(&header);
         args.extend(["pull", "--progress", remote]);
         args.push(if ff_only { "--ff-only" } else { "--no-rebase" });
@@ -69,7 +74,7 @@ impl RepoHandle {
         token: impl FnOnce(&str) -> Option<String>,
         on_line: impl FnMut(&str),
     ) -> Result<()> {
-        let header = self.auth_arg(remote, token);
+        let header = self.auth_arg(remote, gix::remote::Direction::Push, token);
         let mut args = prefix(&header);
         args.push("push");
         args.push("--progress");
@@ -84,8 +89,15 @@ impl RepoHandle {
         self.run_streaming(&args, on_line)
     }
 
-    fn auth_arg(&self, remote: &str, token: impl FnOnce(&str) -> Option<String>) -> Option<String> {
-        let url = self.remote_url(remote)?;
+    /// The token of the URL this direction contacts: a fetch with the push host's token
+    /// handed it to the fetch host.
+    fn auth_arg(
+        &self,
+        remote: &str,
+        direction: gix::remote::Direction,
+        token: impl FnOnce(&str) -> Option<String>,
+    ) -> Option<String> {
+        let url = self.url_of(remote, direction)?;
         auth_config(&url, &token(&url)?)
     }
 
