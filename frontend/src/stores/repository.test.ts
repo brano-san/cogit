@@ -621,6 +621,29 @@ describe("the refs after a commit", () => {
 
     expect(commands.repoRefs).not.toHaveBeenCalled();
   });
+
+  const counts = (staged: number, conflicted: string[] = []) => ({
+    status: "ok",
+    data: { status: { staged, unstaged: 0, untracked: 0, conflicted: conflicted.length }, conflicted },
+  });
+
+  // Reads run side by side: the first answer arriving last put back the counters from
+  // before the second stage, and its conflicted list went on to the conflicts store.
+  it("lets the newer of two status reads win whichever answers last", async () => {
+    await opened();
+    const first = pending<unknown>();
+    const second = pending<unknown>();
+    commands.workingState.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+
+    const one = repository.refreshStatus();
+    const two = repository.refreshStatus();
+    second.settle(counts(2));
+    await two;
+    first.settle(counts(1, ["stale.txt"]));
+
+    expect(await one).toBeNull();
+    expect(repository.current?.status.staged).toBe(2);
+  });
 });
 
 describe("repository store, restoring the last session", () => {

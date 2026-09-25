@@ -160,14 +160,20 @@ class RepositoryStore {
     this.#timer = null;
   }
 
+  #statusRead = 0;
+
   /** Staging changes only the counters; re-reading every ref for that is waste (R-24).
       The same read lists the conflicted paths, returned for the conflicts store; `null`
       when the answer was dropped or never came (R-316). */
   async refreshStatus(): Promise<string[] | null> {
     const repo = this.current?.repo;
     if (!repo) return null;
+    const ticket = this.#ticket;
+    const asked = ++this.#statusRead;
     try {
       const { status, conflicted } = await workingState(repo);
+      // Reads run side by side: an older answer arriving last holds older counters.
+      if (this.#ticket !== ticket || asked !== this.#statusRead) return null;
       const open = this.current;
       if (!open || open.repo !== repo) return null;
       this.#replace({ ...open, status });
