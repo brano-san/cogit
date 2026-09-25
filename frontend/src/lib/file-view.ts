@@ -34,40 +34,6 @@ export const DEFAULT_VIEW: FileView = {
   contents: false,
 };
 
-export interface Toggle {
-  key: keyof FileView;
-  icon: string;
-  title: string;
-}
-
-export const TOGGLES: readonly Toggle[] = [
-  { key: "unchanged", icon: "=", title: "If selected, unchanged files will be shown" },
-  {
-    key: "untracked",
-    icon: "?",
-    title: "If selected, not yet version controlled files will be shown",
-  },
-  { key: "ignored", icon: "∅", title: "If selected, ignored files will be shown" },
-  {
-    key: "assumeUnchanged",
-    icon: "≈",
-    title: "If selected, files having the 'assume-unchanged' flag will be shown",
-  },
-  { key: "skipped", icon: "⤳", title: "If selected, skipped files will be shown" },
-  {
-    key: "renameSources",
-    icon: "↤",
-    title: "If selected, removed/missing source files of detected renames will be shown",
-  },
-  { key: "directories", icon: "🗀", title: "If selected, the directories will be shown" },
-  {
-    key: "separateIndex",
-    icon: "⇅",
-    title:
-      "If selected and index as well as working tree changes are available, show them separately",
-  },
-];
-
 export interface BackendView {
   unchanged: boolean;
   ignored: boolean;

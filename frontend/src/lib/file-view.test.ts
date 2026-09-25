@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_VIEW,
-  TOGGLES,
   backendView,
   groupByDirectory,
   mergeView,
@@ -16,22 +15,6 @@ const file = (path: string, status: FileEntry["status"], oldPath: string | null 
   ({ path, status, oldPath, modeChange: null, similarity: null }) as FileEntry;
 
 const view = (over: Partial<FileView> = {}): FileView => ({ ...DEFAULT_VIEW, ...over });
-
-describe("TOGGLES", () => {
-  it("offers the eight switches SmartGit does", () => {
-    expect(TOGGLES).toHaveLength(8);
-  });
-
-  it("gives every switch a distinct key", () => {
-    expect(new Set(TOGGLES.map((t) => t.key)).size).toBe(8);
-  });
-
-  it("explains each switch in words the user can act on", () => {
-    for (const toggle of TOGGLES) {
-      expect(toggle.title.length).toBeGreaterThan(12);
-    }
-  });
-});
 
 describe("backendView", () => {
   it("asks for nothing extra by default", () => {
