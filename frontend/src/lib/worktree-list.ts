@@ -1,5 +1,5 @@
 import { shortOid } from "$lib/format";
-import type { Branch, WorktreeEntry } from "$lib/ipc";
+import type { Branch, FileEntry, WorktreeEntry } from "$lib/ipc";
 
 export interface WorktreeTag {
   id: "main" | "locked" | "missing" | "dirty";
@@ -58,6 +58,25 @@ export function hasStale(entries: readonly WorktreeEntry[]): boolean {
     missing one is pruned, not removed. */
 export function removable(entry: WorktreeEntry | undefined): entry is WorktreeEntry {
   return entry !== undefined && !entry.isMain && !entry.isCurrent && !entry.missing;
+}
+
+export interface RemovalNeeds {
+  dirty: boolean;
+  submodules: boolean;
+  /** Git removes the worktree only with `--force`, which the dialog asks for separately. */
+  force: boolean;
+}
+
+/** `changes` is `null` while they are still being read. Git refuses a worktree with
+    submodules checked out however clean it is, so that takes `--force` too. */
+export function removalNeeds(
+  entry: WorktreeEntry,
+  changes: readonly FileEntry[] | null,
+): RemovalNeeds {
+  if (changes === null) return { dirty: false, submodules: false, force: false };
+  const dirty = changes.length > 0;
+  const submodules = entry.hasSubmodules;
+  return { dirty, submodules, force: dirty || submodules };
 }
 
 export interface BranchChoice {

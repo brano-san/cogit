@@ -202,6 +202,11 @@ export const commands = {
 	locked: string | null,
 	missing: boolean,
 	dirty: boolean,
+	/**
+	 *  Submodules checked out in it: git removes such a worktree only with `--force`, which
+	 *  deletes their repositories too.
+	 */
+	hasSubmodules: boolean,
 } | null, GitError>(__TAURI_INVOKE("worktree_holding", { repo, branch })),
 	addWorktree: (repo: RepoId, path: string, branch: string, create: boolean, base: string | null) => typedError<null, GitError>(__TAURI_INVOKE("add_worktree", { repo, path, branch, create, base })),
 	removeWorktree: (repo: RepoId, path: string, force: boolean) => typedError<null, GitError>(__TAURI_INVOKE("remove_worktree", { repo, path, force })),
@@ -1595,6 +1600,11 @@ export type WorktreeEntry = {
 	locked: string | null,
 	missing: boolean,
 	dirty: boolean,
+	/**
+	 *  Submodules checked out in it: git removes such a worktree only with `--force`, which
+	 *  deletes their repositories too.
+	 */
+	hasSubmodules: boolean,
 };
 
 export type WorktreeFiles = {

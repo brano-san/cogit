@@ -5206,3 +5206,16 @@ merge, `branch --force` ветки, занятой rebase). Abort за поль�
 или Abort. Тесты — `undo.rs`: `undo_waits_for_a_merge_stopped_on_its_conflict`,
 `undo_waits_for_a_rebase_stopped_on_its_conflict`,
 `an_interactive_rebase_finished_after_its_conflict_can_be_undone`, `an_author_edit_can_be_undone`.
+
+## R-434 · Ворктри с выписанными submodules удаляется только с `--force` и отдельной галочкой · Н
+
+`git worktree remove` без `--force` отказывает ворктри, где выписаны submodules («working
+trees containing submodules cannot be moved or removed»), даже без единой правки, а диалог
+предлагал `--force` только при незакоммиченных изменениях — такой ворктри из Cogit было не
+удалить. Бэкенд сам `--force` не добавляет: с ним git удаляет и репозитории submodules
+(`.git/worktrees/<id>/modules`) вместе с их неотправленными коммитами. Поэтому
+`WorktreeEntry.hasSubmodules` — тот же признак, что проверяет git (папка `modules` в git-папке
+ворктри или gitlink индекса с репозиторием в папке), а диалог при нём предупреждает об этом и
+просит ту же галочку `--force`. Stash при чистом дереве не делается, запись в журнале — без
+Undo. Тесты — `worktrees.rs` `a_worktree_with_its_submodules_checked_out_says_so`,
+`worktree-list.test.ts` «the Remove Worktree dialog».

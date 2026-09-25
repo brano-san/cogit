@@ -2,9 +2,10 @@
   import Dialog from "$components/common/Dialog.svelte";
   import { statusBadge, statusTooltip } from "$lib/files";
   import type { FileEntry, WorktreeEntry } from "$lib/ipc";
+  import { removalNeeds } from "$lib/worktree-list";
 
-  /** Removing a worktree with work in it needs a second, separate yes: the list of what is
-      uncommitted, and a box for `--force` (R-184). */
+  /** Removing a worktree with work or submodules in it needs a second, separate yes: what
+      is at stake, and a box for `--force` (R-184, R-434). */
   interface Props {
     entry: WorktreeEntry;
     /** `null` while the changes are still being read. */
@@ -18,11 +19,11 @@
   const SHOWN = 40;
   let force = $state(false);
 
-  const dirty = $derived((changes?.length ?? 0) > 0);
-  const ready = $derived(changes !== null && (!dirty || force));
+  const needs = $derived(removalNeeds(entry, changes));
+  const ready = $derived(changes !== null && (!needs.force || force));
 
   function submit() {
-    if (ready) onremove(dirty);
+    if (ready) onremove(needs.force);
   }
 </script>
 
@@ -36,23 +37,35 @@
 
     {#if changes === null}
       <p class="hint">Reading its changes…</p>
-    {:else if dirty}
-      <p class="warning">It has {changes.length} uncommitted change{changes.length === 1 ? "" : "s"}:</p>
-      <ul class="changes">
-        {#each changes.slice(0, SHOWN) as file (file.path)}
-          <li>
-            <span class="badge mono" title={statusTooltip(file.status)}>{statusBadge(file.status)}</span>
-            <span class="mono truncate">{file.path}</span>
-          </li>
-        {/each}
-        {#if changes.length > SHOWN}<li class="hint">and {changes.length - SHOWN} more</li>{/if}
-      </ul>
-      <label class="force">
-        <input type="checkbox" bind:checked={force} />
-        Remove it anyway (--force). The changes are put in a stash first; Undo applies it.
-      </label>
     {:else}
-      <p class="hint">It has no uncommitted changes.</p>
+      {#if needs.dirty}
+        <p class="warning">It has {changes.length} uncommitted change{changes.length === 1 ? "" : "s"}:</p>
+        <ul class="changes">
+          {#each changes.slice(0, SHOWN) as file (file.path)}
+            <li>
+              <span class="badge mono" title={statusTooltip(file.status)}>{statusBadge(file.status)}</span>
+              <span class="mono truncate">{file.path}</span>
+            </li>
+          {/each}
+          {#if changes.length > SHOWN}<li class="hint">and {changes.length - SHOWN} more</li>{/if}
+        </ul>
+      {:else}
+        <p class="hint">It has no uncommitted changes.</p>
+      {/if}
+      {#if needs.submodules}
+        <p class="warning">
+          Submodules are checked out in it. Git removes it only with --force, which deletes their
+          repositories too: commits not pushed from them are lost.
+        </p>
+      {/if}
+      {#if needs.force}
+        <label class="force">
+          <input type="checkbox" bind:checked={force} />
+          {needs.dirty
+            ? "Remove it anyway (--force). The changes are put in a stash first; Undo applies it."
+            : "Remove it anyway (--force), with its submodules."}
+        </label>
+      {/if}
     {/if}
   </div>
 
@@ -60,7 +73,7 @@
     <span class="grow"></span>
     <button type="button" class="btn" onclick={onclose}>Cancel</button>
     <button type="button" class="btn primary" disabled={!ready} onclick={submit}>
-      {dirty ? "Remove with --force" : "Remove"}
+      {needs.force ? "Remove with --force" : "Remove"}
     </button>
   {/snippet}
 </Dialog>

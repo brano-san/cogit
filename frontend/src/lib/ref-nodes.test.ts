@@ -620,6 +620,7 @@ describe("branches held by a worktree (#25)", () => {
     locked: null,
     missing: false,
     dirty: false,
+    hasSubmodules: false,
     ...over,
   });
 
