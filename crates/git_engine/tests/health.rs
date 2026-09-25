@@ -236,3 +236,30 @@ fn worktree_path(f: &test_fixtures::Fixture) -> std::path::PathBuf {
         .unwrap()
         .to_path_buf()
 }
+
+// With `worktree.useRelativePaths` (git 2.48+) the admin entry records the worktree
+// relative to itself; checked from the process's own folder, every such worktree was
+// reported as gone.
+#[test]
+fn a_worktree_recorded_by_a_relative_path_is_not_reported_as_gone() {
+    let f = test_fixtures::linear(1).unwrap();
+    as_git_writes_it(&f, f.path());
+    f.git(&[
+        "-c",
+        "worktree.useRelativePaths=true",
+        "worktree",
+        "add",
+        "-q",
+        "inner/linked",
+    ])
+    .unwrap();
+    let gitdir = std::fs::read_to_string(only_worktree_admin(&f).join("gitdir")).unwrap();
+    assert!(
+        std::path::Path::new(gitdir.trim()).is_relative(),
+        "{gitdir}"
+    );
+
+    let found = issues(&RepoHandle::open(f.path()).unwrap());
+
+    assert!(found.is_empty(), "{found:?}");
+}
