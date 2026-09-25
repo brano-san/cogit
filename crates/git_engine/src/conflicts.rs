@@ -111,12 +111,16 @@ impl RepoHandle {
     }
 
     /// Checked out by git, not written from the blob: the eol and smudge filters (LFS)
-    /// apply to a stage as they do to any checkout.
+    /// apply to a stage as they do to any checkout. Ours or theirs missing is the side that
+    /// deleted the file, and taking it deletes the file.
     pub fn resolve_with(&self, path: &str, side: ConflictSide) -> Result<()> {
         if self.stage_blob(path, side).is_none() {
-            return Err(GitError::InvalidState(format!(
-                "{path} has no {side:?} side"
-            )));
+            if side == ConflictSide::Base || !self.conflicted_paths()?.iter().any(|p| p == path) {
+                return Err(GitError::InvalidState(format!(
+                    "{path} has no {side:?} side"
+                )));
+            }
+            return self.run_git_literal(&["rm", "-q", "--", path]).map(drop);
         }
         let stage = format!("--stage={}", side.stage());
         self.run_git_literal(&["checkout-index", "-f", &stage, "--", path])?;

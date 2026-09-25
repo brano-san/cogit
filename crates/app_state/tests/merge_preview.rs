@@ -155,3 +155,41 @@ fn a_binary_conflict_is_still_resolved_by_taking_a_side_whole() {
     );
     assert!(state.conflicted_paths(repo).unwrap().is_empty());
 }
+
+// Deleted on our side, changed on theirs. The missing side read as an empty file, so the
+// merge view offered "all lines deleted"; choosing it wrote an empty file and staged it,
+// and the file stayed in the tree instead of going.
+#[test]
+fn a_file_deleted_on_one_side_is_not_merged_as_text() {
+    let f = conflict_of("f.txt", b"base\n", None, Some(b"theirs\n"));
+    let (state, repo) = opened(&f);
+
+    assert!(state.merge_preview(repo, "f.txt").is_err());
+}
+
+#[test]
+fn taking_the_side_that_deleted_the_file_deletes_it() {
+    let f = conflict_of("f.txt", b"base\n", None, Some(b"theirs\n"));
+    let (state, repo) = opened(&f);
+
+    state
+        .resolve_conflict(repo, "f.txt", git_engine::ConflictSide::Ours)
+        .unwrap();
+
+    assert!(state.conflicted_paths(repo).unwrap().is_empty());
+    assert_eq!(f.git(&["ls-files", "--", "f.txt"]).unwrap(), "");
+    assert!(!f.path().join("f.txt").exists());
+}
+
+#[test]
+fn taking_the_side_that_kept_the_file_keeps_it() {
+    let f = conflict_of("f.txt", b"base\n", Some(b"ours\n"), None);
+    let (state, repo) = opened(&f);
+
+    state
+        .resolve_conflict(repo, "f.txt", git_engine::ConflictSide::Ours)
+        .unwrap();
+
+    assert!(state.conflicted_paths(repo).unwrap().is_empty());
+    assert_eq!(std::fs::read(f.path().join("f.txt")).unwrap(), b"ours\n");
+}

@@ -49,12 +49,16 @@
         title={binary ? "Binary or not UTF-8: take one side whole" : undefined}
         onclick={() => startEditing(ours)}>Edit by hand</button
       >
-      <button type="button" disabled={ours === null} onclick={() => onresolve("ours")}>
-        Take ours
-      </button>
-      <button type="button" disabled={theirs === null} onclick={() => onresolve("theirs")}>
-        Take theirs
-      </button>
+      <button
+        type="button"
+        title={ours === null ? "Ours deleted the file: taking it deletes the file" : undefined}
+        onclick={() => onresolve("ours")}>{ours === null ? "Take ours (delete)" : "Take ours"}</button
+      >
+      <button
+        type="button"
+        title={theirs === null ? "Theirs deleted the file: taking it deletes the file" : undefined}
+        onclick={() => onresolve("theirs")}>{theirs === null ? "Take theirs (delete)" : "Take theirs"}</button
+      >
     {/if}
   </div>
 
