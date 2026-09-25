@@ -3027,7 +3027,7 @@
       avatarReady: (email) => void avatars.refresh(email),
       mergeResolved: (event) => {
         if (repository.current?.repo.valueOf() !== event.repo.valueOf()) return;
-        conflicts.close();
+        conflicts.resolvedElsewhere(event.path);
         void afterWorkingTreeChange();
       },
       revealCommit: (event) => {
