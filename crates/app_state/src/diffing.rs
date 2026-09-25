@@ -11,10 +11,12 @@ impl AppState {
         options: &diff_engine::DiffOptions,
     ) -> Result<diff_engine::FileDiff, git_engine::GitError> {
         let handle = self.handle(repo)?;
-        if let Some(size) = too_large(handle.side_sizes(spec, path)?) {
+        let source = handle.rename_source(spec, path)?;
+        let old_path = source.as_deref().unwrap_or(path);
+        if let Some(size) = too_large(handle.side_sizes_from(spec, old_path, path)?) {
             return Ok(diff_engine::FileDiff::TooLarge { size });
         }
-        let (old, new) = handle.diff_sides(spec, path)?;
+        let (old, new) = handle.diff_sides_from(spec, old_path, path)?;
         if old.is_none() && new.is_none() {
             return pointer_diff(&handle, spec, path);
         }
@@ -59,14 +61,16 @@ impl AppState {
                 return Ok(DiffBatch::Superseded);
             }
 
-            if let Some(size) = too_large(handle.side_sizes(spec, path)?) {
+            let source = handle.rename_source(spec, path)?;
+            let old_path = source.as_deref().unwrap_or(path);
+            if let Some(size) = too_large(handle.side_sizes_from(spec, old_path, path)?) {
                 slots.push(Some(diff_engine::FileDiffEntry {
                     path: path.clone(),
                     diff: diff_engine::FileDiff::TooLarge { size },
                 }));
                 continue;
             }
-            let (old, new) = handle.diff_sides(spec, path)?;
+            let (old, new) = handle.diff_sides_from(spec, old_path, path)?;
             if old.is_none() && new.is_none() {
                 slots.push(Some(diff_engine::FileDiffEntry {
                     path: path.clone(),
