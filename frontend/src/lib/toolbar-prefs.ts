@@ -76,6 +76,20 @@ export interface RemoteFacts {
   scope: PullScope;
   ffOnly: boolean;
   deleteMerged: boolean;
+  /** The checked-out branch, as the last fetch left it. */
+  branch?: { name: string; upstream: string | null; ahead: number; behind: number } | null;
+}
+
+/** A pull that is sure to fail says so before it starts: `--ff-only` cannot join two
+    branches that have both moved (F-320, R-456). */
+function pullProblem(facts: RemoteFacts): string | null {
+  const branch = facts.branch;
+  if (!facts.ffOnly || !branch?.upstream || branch.ahead === 0 || branch.behind === 0) return null;
+  return (
+    `${branch.name} and ${branch.upstream} have diverged (${branch.ahead} ahead, ${branch.behind} behind), ` +
+    "and Pull only fast-forwards (Preferences ▸ Pull). Merge or rebase the branch first, " +
+    "or let Pull merge it."
+  );
 }
 
 /** Every step of a pull, a push or a Sync, decided before the first one runs: each takes
@@ -89,6 +103,8 @@ export function remotePlan(steps: readonly ("pull" | "push")[], facts: RemoteFac
       plan.push({ kind: "push", remote });
       continue;
     }
+    const problem = pullProblem(facts);
+    if (problem) throw new Error(problem);
     const { fetch, pull } = pullSteps(facts.scope, facts.remotes, remote);
     plan.push(...fetch.map((name) => ({ kind: "fetch" as const, remote: name })));
     plan.push({ kind: "pull", remote: pull, ffOnly: facts.ffOnly });
