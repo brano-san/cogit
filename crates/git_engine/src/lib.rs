@@ -98,7 +98,7 @@ pub use listing::{
 pub use mailmap::Mailmap;
 pub use merging::MergeOptions;
 pub use module_ops::SubmoduleOp;
-pub use network::{auth_header, wants_auth};
+pub use network::{auth_config, auth_header, wants_auth};
 pub use operations::RebaseOptions;
 pub use origin_search::{
     DeeperTarget, Likelihood, LineMatch, OriginCandidate, OriginKind, OriginQuery, OriginReport,

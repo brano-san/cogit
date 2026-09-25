@@ -91,6 +91,68 @@ fn an_empty_message_is_refused_before_git_is_even_started() {
     );
 }
 
+/// `commit.template` with two hint lines, and one file staged to commit.
+fn with_template() -> test_fixtures::Fixture {
+    let f = test_fixtures::linear(1).unwrap();
+    let template = f.git_dir().join("cogit-test-template");
+    std::fs::write(&template, "\n\n# Explain why, not what\n# Wrap at 72\n").unwrap();
+    f.git(&[
+        "config",
+        "commit.template",
+        &template.to_string_lossy().replace('\\', "/"),
+    ])
+    .unwrap();
+    std::fs::write(f.path().join("fresh.txt"), "new\n").unwrap();
+    f.git(&["add", "--", "fresh.txt"]).unwrap();
+    f
+}
+
+fn last_message(f: &test_fixtures::Fixture) -> String {
+    f.git(&["log", "-1", "--format=%B"])
+        .unwrap()
+        .trim_end()
+        .to_owned()
+}
+
+// F-103: the template seeds the field hints and all, and `-m` keeps `#` lines, so the
+// template's own hints went into the commit. `git commit` with the editor strips them.
+#[test]
+fn the_hints_of_the_commit_template_stay_out_of_the_commit() {
+    let f = with_template();
+
+    open(&f)
+        .commit(&request(
+            "Fix the parser\n\nIt lost a token.\n# Explain why, not what\n# Wrap at 72\n",
+        ))
+        .unwrap();
+
+    assert_eq!(last_message(&f), "Fix the parser\n\nIt lost a token.");
+}
+
+// `--cleanup=strip` would have taken this one too: an issue number is not a hint.
+#[test]
+fn a_hash_line_of_the_users_own_is_kept() {
+    let f = with_template();
+
+    open(&f)
+        .commit(&request("#123 fix the parser\n\n# Explain why, not what\n"))
+        .unwrap();
+
+    assert_eq!(last_message(&f), "#123 fix the parser");
+}
+
+#[test]
+fn the_untouched_template_is_refused_as_an_empty_message() {
+    let f = with_template();
+
+    let result = open(&f).commit(&request("\n\n# Explain why, not what\n# Wrap at 72\n"));
+
+    assert!(
+        matches!(result, Err(git_engine::GitError::InvalidState(_))),
+        "{result:?}"
+    );
+}
+
 #[test]
 fn amend_replaces_the_previous_commit_instead_of_adding_one() {
     let f = test_fixtures::linear(3).unwrap();
@@ -209,6 +271,109 @@ fn committing_only_named_paths_leaves_the_rest_staged() {
             .collect::<Vec<_>>(),
         ["two.txt"],
         "the hidden file must stay staged"
+    );
+}
+
+fn only(paths: &[&str], message: &str) -> CommitRequest {
+    CommitRequest {
+        only: paths.iter().map(|path| (*path).to_owned()).collect(),
+        ..request(message)
+    }
+}
+
+// `commit --only` takes the named paths from the working tree: the edit made after
+// `git add` went into "Commit 1 shown" although the Staged list showed the older text.
+#[test]
+fn committing_shown_paths_takes_what_is_staged_not_the_working_tree() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::write(f.path().join("a.txt"), "staged\n").unwrap();
+    std::fs::write(f.path().join("b.txt"), "hidden\n").unwrap();
+    f.git(&["add", "--", "a.txt", "b.txt"]).unwrap();
+    std::fs::write(f.path().join("a.txt"), "staged\nnot staged\n").unwrap();
+
+    open(&f).commit(&only(&["a.txt"], "a only")).unwrap();
+
+    assert_eq!(f.git(&["show", "HEAD:a.txt"]).unwrap(), "staged\n");
+    assert_eq!(f.git(&["show", ":a.txt"]).unwrap(), "staged\n");
+    assert_eq!(
+        std::fs::read_to_string(f.path().join("a.txt")).unwrap(),
+        "staged\nnot staged\n"
+    );
+    assert_eq!(
+        f.git(&["diff", "--cached", "--name-only"]).unwrap().trim(),
+        "b.txt"
+    );
+}
+
+#[test]
+fn a_staged_deletion_among_the_shown_paths_is_committed() {
+    let f = test_fixtures::linear(2).unwrap();
+    let doomed = f
+        .git(&["ls-files"])
+        .unwrap()
+        .lines()
+        .next()
+        .unwrap()
+        .to_owned();
+    f.git(&["rm", "-q", "--", &doomed]).unwrap();
+    std::fs::write(f.path().join("kept.txt"), "kept\n").unwrap();
+    f.git(&["add", "--", "kept.txt"]).unwrap();
+
+    open(&f).commit(&only(&[&doomed], "drop one")).unwrap();
+
+    assert!(
+        f.git(&["cat-file", "-e", &format!("HEAD:{doomed}")])
+            .is_err()
+    );
+    assert_eq!(
+        f.git(&["diff", "--cached", "--name-only"]).unwrap().trim(),
+        "kept.txt"
+    );
+}
+
+// The row of a staged rename carries its new path only: the commit recorded a copy and
+// left the deletion of the old name staged.
+#[test]
+fn committing_a_shown_rename_takes_its_old_name_along() {
+    let f = test_fixtures::linear(1).unwrap();
+    let old = f
+        .git(&["ls-files"])
+        .unwrap()
+        .lines()
+        .next()
+        .unwrap()
+        .to_owned();
+    f.git(&["mv", "--", &old, "moved.txt"]).unwrap();
+    std::fs::write(f.path().join("hidden.txt"), "hidden\n").unwrap();
+    f.git(&["add", "--", "hidden.txt"]).unwrap();
+
+    open(&f).commit(&only(&["moved.txt"], "move")).unwrap();
+
+    assert!(f.git(&["cat-file", "-e", &format!("HEAD:{old}")]).is_err());
+    assert!(f.git(&["cat-file", "-e", "HEAD:moved.txt"]).is_ok());
+    assert_eq!(
+        f.git(&["diff", "--cached", "--name-only"]).unwrap().trim(),
+        "hidden.txt"
+    );
+}
+
+#[test]
+fn the_first_commit_can_take_only_the_shown_paths() {
+    let f = test_fixtures::Fixture::init().unwrap();
+    for name in ["one.txt", "two.txt"] {
+        std::fs::write(f.path().join(name), "new\n").unwrap();
+    }
+    f.git(&["add", "--", "one.txt", "two.txt"]).unwrap();
+
+    open(&f).commit(&only(&["one.txt"], "first")).unwrap();
+
+    assert_eq!(
+        f.git(&["ls-tree", "--name-only", "HEAD"]).unwrap().trim(),
+        "one.txt"
+    );
+    assert_eq!(
+        f.git(&["diff", "--cached", "--name-only"]).unwrap().trim(),
+        "two.txt"
     );
 }
 

@@ -16,10 +16,58 @@ impl RepoHandle {
     pub fn unstage(&self, paths: &[String]) -> Result<()> {
         require_paths(paths)?;
         // `restore --staged` resolves HEAD, which does not exist before the first commit.
+        // `-f` passes a file edited since `add`; with `--cached` the disk is never touched.
         if matches!(self.head()?, Head::Unborn { .. }) {
-            return self.run_paths(&["rm", "--cached", "-r"], paths);
+            return self.run_paths(&["rm", "--cached", "-r", "-f"], paths);
         }
-        self.run_paths(&["restore", "--staged"], paths)
+        self.run_paths(&["restore", "--staged"], &self.with_rename_sources(paths)?)
+    }
+
+    /// `paths` plus the old name of each staged rename among them. The Staged list shows a
+    /// rename as one row under its new name, and acting on that name alone left the
+    /// deletion of the old one staged.
+    pub(crate) fn with_rename_sources(&self, paths: &[String]) -> Result<Vec<String>> {
+        let Ok(tree) = self.repo.head_tree() else {
+            return Ok(paths.to_vec());
+        };
+        // A rename's new name is not in HEAD; when every path is, there is nothing to diff.
+        let added: HashSet<&str> = paths
+            .iter()
+            .map(String::as_str)
+            .filter(|path| matches!(tree.lookup_entry_by_path(path), Ok(None)))
+            .collect();
+        if added.is_empty() {
+            return Ok(paths.to_vec());
+        }
+        let index = self
+            .repo
+            .open_index()
+            .map_err(|err| GitError::Internal(format!("cannot read the index: {err}")))?;
+        let mut all = paths.to_vec();
+        self.repo
+            .tree_index_status(
+                &tree.id,
+                &index,
+                None,
+                gix::status::tree_index::TrackRenames::AsConfigured,
+                |change, _, _| {
+                    if let gix::diff::index::ChangeRef::Rewrite {
+                        source_location,
+                        location,
+                        copy: false,
+                        ..
+                    } = change
+                        && added.contains(location.to_string().as_str())
+                    {
+                        all.push(source_location.to_string());
+                    }
+                    Ok::<_, std::convert::Infallible>(std::ops::ControlFlow::Continue(()))
+                },
+            )
+            .map_err(|err| {
+                GitError::Internal(format!("cannot compare the index with HEAD: {err}"))
+            })?;
+        Ok(all)
     }
 
     /// A tracked file comes back from the index; an untracked one is removed outright.

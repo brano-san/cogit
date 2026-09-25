@@ -16,8 +16,7 @@ impl AppState {
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
-        let token = self.token_for(&handle, remote);
-        handle.fetch(remote, token.as_deref(), on_line)
+        handle.fetch(remote, |url| self.token_for(url), on_line)
     }
 
     pub fn pull(
@@ -29,13 +28,12 @@ impl AppState {
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
-        let token = self.token_for(&handle, remote);
         // Listed before the pull: a submodule the user deinitialised stays that way (#42).
         let known = handle
             .wants_new_submodules()
             .then(|| handle.submodule_paths());
         let before = handle.head()?;
-        let result = handle.pull(remote, ff_only, token.as_deref(), on_line);
+        let result = handle.pull(remote, ff_only, |url| self.token_for(url), on_line);
         self.record_move(
             repo,
             &handle,
@@ -59,8 +57,7 @@ impl AppState {
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
-        let token = self.token_for(&handle, remote);
-        handle.push(remote, None, force, token.as_deref(), on_line)
+        handle.push(remote, None, force, |url| self.token_for(url), on_line)
     }
 
     /// Pull ▸ Delete merged branches after Pull (#26). Each deletion is journalled, so
@@ -92,17 +89,21 @@ impl AppState {
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
-        let token = self.token_for(&handle, remote);
-        handle.push(remote, Some(refspec), false, token.as_deref(), on_line)
+        handle.push(
+            remote,
+            Some(refspec),
+            false,
+            |url| self.token_for(url),
+            on_line,
+        )
     }
 
     /// Only for an HTTP remote: SSH already authenticates through the agent, and handing
     /// a token to an unknown host would leak it.
-    fn token_for(&self, handle: &git_engine::RepoHandle, remote: &str) -> Option<String> {
-        let url = handle.remote_url(remote)?;
-        if !git_engine::wants_auth(&url) {
+    fn token_for(&self, url: &str) -> Option<String> {
+        if !git_engine::wants_auth(url) {
             return None;
         }
-        self.secrets.get(&host_of(&url)?)
+        self.secrets.get(&host_of(url)?)
     }
 }

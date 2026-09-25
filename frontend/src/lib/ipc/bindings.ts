@@ -518,7 +518,10 @@ export type Branch = {
 
 export type BranchKind = "local" | "remote";
 
-/**  Git records nothing about `--no-verify`, so Cogit keeps its own note per clone. */
+/**
+ *  Git records nothing about `--no-verify`, so Cogit keeps its own note per clone: in the
+ *  common git directory, which a linked worktree shares.
+ */
 export type Bypass = {
 	oid: string,
 	summary: string,

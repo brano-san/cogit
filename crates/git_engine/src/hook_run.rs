@@ -40,7 +40,8 @@ impl RepoHandle {
         let args = sample_args(name, &scratch)?;
 
         let started = std::time::Instant::now();
-        let output = crate::children::output(&mut hook_command(&path, self.root(), &args));
+        let output = hook_command(&path, self.root(), &args)
+            .and_then(|mut command| crate::children::output(&mut command));
         let duration_ms = crate::runner::elapsed_ms(started);
         let _ = std::fs::remove_file(&scratch);
         let output = output?;
@@ -80,33 +81,78 @@ fn sample_args(name: &str, scratch: &Path) -> Result<Vec<String>> {
 
 /// Git for Windows ships bash, and a hook's `#!` line only means something to a shell.
 #[cfg(windows)]
-fn hook_command(path: &Path, root: &Path, args: &[String]) -> std::process::Command {
-    let mut command = bash(root);
+fn hook_command(
+    path: &Path,
+    root: &Path,
+    args: &[String],
+) -> std::io::Result<std::process::Command> {
+    let mut command = bash(root)?;
     command.arg(path);
     command.args(args);
-    command
+    Ok(command)
 }
 
 /// Git's bash, in the repository, with no console window and no password prompt.
 #[cfg(windows)]
-fn bash(root: &Path) -> std::process::Command {
+fn bash(root: &Path) -> std::io::Result<std::process::Command> {
     use std::os::windows::process::CommandExt as _;
-    let mut command = std::process::Command::new("bash");
+    let mut command = std::process::Command::new(git_bash()?);
     command.creation_flags(crate::runner::CREATE_NO_WINDOW);
     command.current_dir(root);
     command.env("GIT_TERMINAL_PROMPT", "0");
     crate::runner::clear_inherited_git_vars(&mut command);
-    command
+    Ok(command)
+}
+
+/// The bash beside the git that runs everything else. Not `bash` by name: Windows looks in
+/// System32 before PATH, and Git for Windows puts only `Git\cmd` on PATH, so the name finds
+/// WSL's bash (System32 or WindowsApps) or nothing.
+#[cfg(windows)]
+fn git_bash() -> std::io::Result<std::path::PathBuf> {
+    static FOUND: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+    if let Some(found) = FOUND.get() {
+        return Ok(found.clone());
+    }
+    let exec_path = crate::runner::bare_git(&["--exec-path"])
+        .map_err(|err| std::io::Error::other(err.to_string()))?
+        .stdout;
+    let found = bash_near(Path::new(exec_path.trim())).ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("no bash.exe of Git for Windows above {}", exec_path.trim()),
+        )
+    })?;
+    Ok(FOUND.get_or_init(|| found).clone())
+}
+
+/// `<Git>/mingw64/libexec/git-core` (or `mingw32`, `clangarm64`) → `<Git>/bin/bash.exe`.
+#[cfg(windows)]
+fn bash_near(exec_path: &Path) -> Option<std::path::PathBuf> {
+    exec_path
+        .ancestors()
+        .skip(1)
+        .take(4)
+        .flat_map(|dir| {
+            [
+                dir.join("bin").join("bash.exe"),
+                dir.join("usr").join("bin").join("bash.exe"),
+            ]
+        })
+        .find(|candidate| candidate.is_file())
 }
 
 #[cfg(not(windows))]
-fn hook_command(path: &Path, root: &Path, args: &[String]) -> std::process::Command {
+fn hook_command(
+    path: &Path,
+    root: &Path,
+    args: &[String],
+) -> std::io::Result<std::process::Command> {
     let mut command = std::process::Command::new(path);
     command.args(args);
     command.current_dir(root);
     command.env("GIT_TERMINAL_PROMPT", "0");
     crate::runner::clear_inherited_git_vars(&mut command);
-    command
+    Ok(command)
 }
 
 impl RepoHandle {
@@ -119,7 +165,8 @@ impl RepoHandle {
         }
 
         let started = std::time::Instant::now();
-        let output = crate::children::output(&mut shell_command(trimmed, self.root()))
+        let output = shell_command(trimmed, self.root())
+            .and_then(|mut command| crate::children::output(&mut command))
             .map_err(|err| GitError::Io(format!("cannot run the check: {err}")))?;
         let duration_ms = crate::runner::elapsed_ms(started);
 
@@ -148,18 +195,18 @@ impl RepoHandle {
 
 /// The same shell the hooks use, so a check reads like the command line the user typed.
 #[cfg(windows)]
-fn shell_command(command: &str, root: &Path) -> std::process::Command {
-    let mut spawned = bash(root);
+fn shell_command(command: &str, root: &Path) -> std::io::Result<std::process::Command> {
+    let mut spawned = bash(root)?;
     spawned.args(["-lc", command]);
-    spawned
+    Ok(spawned)
 }
 
 #[cfg(not(windows))]
-fn shell_command(command: &str, root: &Path) -> std::process::Command {
+fn shell_command(command: &str, root: &Path) -> std::io::Result<std::process::Command> {
     let mut spawned = std::process::Command::new("sh");
     spawned.args(["-c", command]);
     spawned.current_dir(root);
     spawned.env("GIT_TERMINAL_PROMPT", "0");
     crate::runner::clear_inherited_git_vars(&mut spawned);
-    spawned
+    Ok(spawned)
 }

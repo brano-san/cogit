@@ -107,6 +107,60 @@ fn unstaging_on_an_unborn_head_still_works() {
     );
 }
 
+/// A committed file, then `git mv` of it to `moved.txt`.
+fn staged_rename() -> (test_fixtures::Fixture, String) {
+    let f = test_fixtures::linear(1).unwrap();
+    let old = f
+        .git(&["ls-files"])
+        .unwrap()
+        .lines()
+        .next()
+        .unwrap()
+        .to_owned();
+    f.git(&["mv", "--", &old, "moved.txt"]).unwrap();
+    (f, old)
+}
+
+// A staged rename is one row named by its new path; unstaging only that path left the
+// deletion of the old one staged.
+#[test]
+fn unstaging_a_rename_takes_back_both_of_its_sides() {
+    let (f, old) = staged_rename();
+    let repo = open(&f);
+
+    repo.unstage(&["moved.txt".to_owned()]).unwrap();
+
+    assert_eq!(
+        f.git(&["diff", "--cached", "--name-only"]).unwrap().trim(),
+        ""
+    );
+    assert!(f.path().join("moved.txt").exists());
+    assert!(
+        !f.path().join(&old).exists(),
+        "unstaging never touches the disk"
+    );
+}
+
+// Before the first commit unstaging went through `rm --cached`, which refuses a file edited
+// after `add`: "staged content different from both the file and the HEAD".
+#[test]
+fn unstaging_before_the_first_commit_takes_a_file_edited_since_add() {
+    let f = test_fixtures::empty().unwrap();
+    std::fs::write(f.path().join("first.txt"), "content\n").unwrap();
+    f.git(&["add", "--", "first.txt"]).unwrap();
+    std::fs::write(f.path().join("first.txt"), "content\nmore\n").unwrap();
+    let repo = open(&f);
+
+    repo.unstage(&["first.txt".to_owned()]).unwrap();
+
+    assert!(staged(&repo).is_empty());
+    assert_eq!(unstaged(&repo), ["first.txt"]);
+    assert_eq!(
+        std::fs::read_to_string(f.path().join("first.txt")).unwrap(),
+        "content\nmore\n"
+    );
+}
+
 #[test]
 fn discarding_restores_the_file_from_the_index() {
     let f = test_fixtures::linear(1).unwrap();

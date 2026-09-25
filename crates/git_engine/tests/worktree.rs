@@ -368,3 +368,20 @@ fn ignoring_a_file_at_the_top_leaves_its_namesakes_in_folders_alone() {
     let left = untracked(&repo);
     assert!(left.iter().any(|path| path.starts_with("sub/")), "{left:?}");
 }
+
+// `git add -N` leaves an entry gix's tree-to-index diff skips and its index-to-worktree
+// status calls IntentToAdd: the file was in neither section, so Cogit could not stage it.
+#[test]
+fn an_intent_to_add_file_is_an_addition_waiting_to_be_staged() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file("planned.txt", "soon\n").unwrap();
+    f.git(&["add", "-N", "--", "planned.txt"]).unwrap();
+
+    let files = open(&f).worktree_files().unwrap();
+
+    assert_eq!(
+        status_of(&files, "unstaged", "planned.txt"),
+        &FileStatus::Added
+    );
+    assert!(paths(&files.staged).is_empty(), "{:?}", files.staged);
+}

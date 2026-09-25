@@ -24,6 +24,35 @@ fn seen(lines: &Lines) -> Vec<String> {
     lines.lock().map(|l| l.clone()).unwrap_or_default()
 }
 
+fn no_token(_url: &str) -> Option<String> {
+    None
+}
+
+fn commands_of(repo: RepoHandle) -> (RepoHandle, Lines) {
+    let log: Lines = Arc::new(Mutex::new(Vec::new()));
+    let sink = Arc::clone(&log);
+    let repo = repo.with_journal(Arc::new(move |out: git_engine::GitOutput| {
+        if let Ok(mut entries) = sink.lock() {
+            entries.push(out.command);
+        }
+    }));
+    (repo, log)
+}
+
+/// What git makes of one `-c` argument for a URL, as a submodule's fetch would see it.
+fn header_git_sends(arg: &str, url: &str) -> String {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&[
+        "-c",
+        arg,
+        "config",
+        "--get-urlmatch",
+        "http.extraheader",
+        url,
+    ])
+    .unwrap_or_default()
+}
+
 #[test]
 fn fetch_brings_the_remote_tracking_branch_up_to_date() {
     let f = test_fixtures::with_remote().unwrap();
@@ -32,7 +61,7 @@ fn fetch_brings_the_remote_tracking_branch_up_to_date() {
     let repo = open(&f);
     let (_, on_line) = collector();
 
-    repo.fetch("origin", None, on_line).unwrap();
+    repo.fetch("origin", no_token, on_line).unwrap();
 
     assert!(
         repo.branches()
@@ -51,7 +80,7 @@ fn fetch_reports_what_git_says_while_it_runs() {
     let repo = open(&f);
     let (lines, on_line) = collector();
 
-    repo.fetch("origin", None, on_line).unwrap();
+    repo.fetch("origin", no_token, on_line).unwrap();
 
     assert!(
         seen(&lines).iter().any(|l| !l.trim().is_empty()),
@@ -65,7 +94,7 @@ fn fetching_an_unknown_remote_reports_gits_own_words() {
     let repo = open(&f);
     let (_, on_line) = collector();
 
-    let err = repo.fetch("nowhere", None, on_line).unwrap_err();
+    let err = repo.fetch("nowhere", no_token, on_line).unwrap_err();
 
     match err {
         git_engine::GitError::Command(details) => {
@@ -84,7 +113,7 @@ fn push_sends_local_commits_to_the_remote() {
     let local = f.oid("HEAD").unwrap();
     let (_, on_line) = collector();
 
-    repo.push("origin", None, false, None, on_line).unwrap();
+    repo.push("origin", None, false, no_token, on_line).unwrap();
 
     f.git(&["fetch", "origin"]).unwrap();
     assert_eq!(f.oid("refs/remotes/origin/main").unwrap(), local);
@@ -96,7 +125,9 @@ fn a_rejected_push_reports_the_reason_in_full() {
     let repo = open(&f);
     let (_, on_line) = collector();
 
-    let err = repo.push("origin", None, false, None, on_line).unwrap_err();
+    let err = repo
+        .push("origin", None, false, no_token, on_line)
+        .unwrap_err();
 
     match err {
         git_engine::GitError::Command(details) => {
@@ -110,6 +141,44 @@ fn a_rejected_push_reports_the_reason_in_full() {
     }
 }
 
+// Push in the toolbar on a branch never pushed: with `push.default=simple` git refused,
+// "The current branch feature has no upstream branch", on the first push of every branch.
+#[test]
+fn the_first_push_of_a_branch_publishes_it_and_sets_its_upstream() {
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&["config", "push.default", "simple"]).unwrap();
+    f.git(&["config", "push.autoSetupRemote", "false"]).unwrap();
+    f.git(&["switch", "-c", "feature"]).unwrap();
+    f.commit_file(40, "feature.txt", "new\n").unwrap();
+    let repo = open(&f);
+
+    repo.push("origin", None, false, no_token, |_| {}).unwrap();
+
+    assert_eq!(
+        f.git(&["rev-parse", "--abbrev-ref", "feature@{upstream}"])
+            .unwrap()
+            .trim(),
+        "origin/feature"
+    );
+    assert_eq!(
+        f.oid("refs/remotes/origin/feature").unwrap(),
+        f.oid("HEAD").unwrap()
+    );
+}
+
+#[test]
+fn a_branch_with_an_upstream_is_pushed_as_configured() {
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&["reset", "--hard", "origin/main"]).unwrap();
+    f.commit_file(40, "to-push.txt", "pushed\n").unwrap();
+    let (repo, log) = commands_of(open(&f));
+
+    repo.push("origin", None, false, no_token, |_| {}).unwrap();
+
+    let lines = seen(&log).join("\n");
+    assert!(!lines.contains("--set-upstream"), "{lines}");
+}
+
 #[test]
 fn a_forced_push_overwrites_the_remote() {
     let f = test_fixtures::with_remote().unwrap();
@@ -117,7 +186,7 @@ fn a_forced_push_overwrites_the_remote() {
     let local = f.oid("HEAD").unwrap();
     let (_, on_line) = collector();
 
-    repo.push("origin", None, true, None, on_line).unwrap();
+    repo.push("origin", None, true, no_token, on_line).unwrap();
 
     f.git(&["fetch", "origin"]).unwrap();
     assert_eq!(f.oid("refs/remotes/origin/main").unwrap(), local);
@@ -130,7 +199,7 @@ fn pull_fast_forwards_when_nothing_is_local() {
     let repo = open(&f);
     let (_, on_line) = collector();
 
-    repo.pull("origin", true, None, on_line).unwrap();
+    repo.pull("origin", true, no_token, on_line).unwrap();
 
     assert_eq!(
         f.oid("HEAD").unwrap(),
@@ -144,11 +213,62 @@ fn a_pull_that_cannot_fast_forward_is_refused_rather_than_merging_silently() {
     let repo = open(&f);
     let (_, on_line) = collector();
 
-    let err = repo.pull("origin", true, None, on_line);
+    let err = repo.pull("origin", true, no_token, on_line);
 
     assert!(
         err.is_err(),
         "diverged history must not be merged behind the user's back"
+    );
+}
+
+// F-311: Delete Merged Branches after Pull looks for branches whose upstream is gone, and a
+// pull without `--prune` kept `origin/<branch>` after the server deleted it.
+#[test]
+fn a_pull_forgets_a_branch_the_remote_deleted() {
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&["reset", "--hard", "origin/main"]).unwrap();
+    f.git(&["branch", "topic", "HEAD~1"]).unwrap();
+    f.git(&["push", "--set-upstream", "origin", "topic"])
+        .unwrap();
+    let server = f.git(&["remote", "get-url", "origin"]).unwrap();
+    f.git_in(
+        std::path::Path::new(server.trim()),
+        &["branch", "-D", "topic"],
+    )
+    .unwrap();
+    let repo = open(&f);
+
+    repo.pull("origin", true, no_token, |_| {}).unwrap();
+
+    assert!(
+        f.git(&["rev-parse", "--verify", "-q", "refs/remotes/origin/topic"])
+            .is_err()
+    );
+    assert_eq!(repo.merged_gone_branches().unwrap(), ["topic"]);
+}
+
+// Preferences ▸ Pull ▸ Merge ran a bare `git pull`: with no `pull.rebase` git 2.33+ refuses
+// diverged branches, and with `pull.rebase=true` (Git for Windows' installer default) it
+// rebased instead.
+#[test]
+fn a_pull_in_merge_mode_merges_whatever_pull_rebase_says() {
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&["config", "pull.rebase", "true"]).unwrap();
+    let local = f.oid("HEAD").unwrap();
+    let repo = open(&f);
+
+    repo.pull("origin", false, no_token, |_| {}).unwrap();
+
+    let parents = f
+        .git(&["rev-list", "--parents", "-n", "1", "HEAD"])
+        .unwrap();
+    let parents: Vec<&str> = parents.split_whitespace().skip(1).collect();
+    assert_eq!(
+        parents,
+        [
+            local.as_str(),
+            f.oid("refs/remotes/origin/main").unwrap().as_str()
+        ]
     );
 }
 
@@ -174,25 +294,107 @@ fn the_remote_list_is_read_without_spawning_a_process() {
 #[test]
 fn a_token_reaches_git_as_a_header_but_not_the_journal() {
     let f = test_fixtures::with_remote().unwrap();
-    let log: Lines = Arc::new(Mutex::new(Vec::new()));
-    let sink = Arc::clone(&log);
-    let repo = RepoHandle::open(f.path()).unwrap().with_journal(Arc::new(
-        move |out: git_engine::GitOutput| {
-            if let Ok(mut entries) = sink.lock() {
-                entries.push(out.command);
-            }
-        },
-    ));
+    f.git(&["remote", "set-url", "origin", "https://127.0.0.1:1/o/r.git"])
+        .unwrap();
+    let (repo, log) = commands_of(open(&f));
 
-    repo.fetch("origin", Some("s3cr3t"), |_| {}).unwrap();
+    let _ = repo.fetch("origin", |_| Some("s3cr3t".to_owned()), |_| {});
 
     let lines = seen(&log).join("\n");
-    assert!(lines.contains("http.extraHeader="), "{lines}");
+    assert!(
+        lines.contains("-c http.https://127.0.0.1:1/.extraHeader=<redacted> fetch"),
+        "{lines}"
+    );
     assert!(!lines.contains("s3cr3t"), "{lines}");
     assert!(
         !lines.contains(&git_engine::auth_header("s3cr3t")),
         "{lines}"
     );
+}
+
+// Git hands every `-c` to the git processes it starts (GIT_CONFIG_PARAMETERS), a
+// submodule's fetch among them: a bare `http.extraHeader` sent the token to whatever host
+// the submodule lives on.
+#[test]
+fn a_token_is_sent_only_to_the_host_of_the_remote() {
+    let arg = git_engine::auth_config("https://github.com/o/r.git", "s3cr3t").unwrap();
+
+    assert_eq!(
+        header_git_sends(&arg, "https://github.com/o/r.git").trim(),
+        git_engine::auth_header("s3cr3t")
+    );
+    assert_eq!(
+        header_git_sends(&arg, "https://git.example.org/team/sub.git").trim(),
+        ""
+    );
+}
+
+#[test]
+fn a_remote_that_is_not_http_gets_no_token() {
+    assert!(git_engine::auth_config("git@github.com:o/r.git", "s3cr3t").is_none());
+    assert!(git_engine::auth_config("/srv/git/r.git", "s3cr3t").is_none());
+}
+
+#[test]
+fn a_host_scoped_header_is_hidden_in_the_journal_line() {
+    let line = git_engine::redact_command(&[
+        "-c",
+        "http.https://github.com/.extraheader=Authorization: Basic c2VjcmV0",
+        "fetch",
+    ]);
+
+    assert!(!line.contains("c2VjcmV0"), "{line}");
+}
+
+/// The URL each command asked a token for.
+fn asked_for(run: impl FnOnce(&RepoHandle, &dyn Fn(&str) -> Option<String>)) -> Vec<String> {
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&[
+        "remote",
+        "set-url",
+        "origin",
+        "https://127.0.0.1:1/fetch/r.git",
+    ])
+    .unwrap();
+    f.git(&[
+        "remote",
+        "set-url",
+        "--push",
+        "origin",
+        "https://127.0.0.1:2/push/r.git",
+    ])
+    .unwrap();
+    let asked: Lines = Arc::new(Mutex::new(Vec::new()));
+    let sink = Arc::clone(&asked);
+    run(&open(&f), &move |url: &str| {
+        sink.lock().unwrap().push(url.to_owned());
+        None
+    });
+    seen(&asked)
+}
+
+// The token was looked up by the push URL for fetch and pull too, and the header with the
+// push host's token went to the fetch host.
+#[test]
+fn fetch_and_pull_ask_for_the_token_of_the_fetch_url() {
+    let fetched = asked_for(|repo, token| {
+        let _ = repo.fetch("origin", |url| token(url), |_| {});
+    });
+    let pulled = asked_for(|repo, token| {
+        let _ = repo.pull("origin", true, |url| token(url), |_| {});
+    });
+
+    assert_eq!(fetched, ["https://127.0.0.1:1/fetch/r.git"]);
+    assert_eq!(pulled, ["https://127.0.0.1:1/fetch/r.git"]);
+}
+
+#[test]
+fn push_asks_for_the_token_of_the_push_url() {
+    let pushed = asked_for(|repo, token| {
+        let _ = repo.push("origin", None, false, |url| token(url), |_| {});
+    });
+
+    assert_eq!(pushed, ["https://127.0.0.1:2/push/r.git"]);
 }
 
 #[test]
@@ -208,9 +410,9 @@ fn no_token_means_no_extra_argument() {
         },
     ));
 
-    repo.fetch("origin", None, |_| {}).unwrap();
+    repo.fetch("origin", no_token, |_| {}).unwrap();
 
-    assert!(!seen(&log).join("\n").contains("http.extraHeader"));
+    assert!(!seen(&log).join("\n").contains("extraHeader"));
 }
 
 /// End to end, with a real `git push` against a URL that carries a token: nothing the
@@ -234,7 +436,7 @@ fn a_token_in_a_remote_url_never_leaves_the_runner() {
     let repo = open(&f);
     let (lines, sink) = collector();
     let err = repo
-        .push("leaky", Some("master"), false, None, sink)
+        .push("leaky", Some("master"), false, no_token, sink)
         .expect_err("pushing at a dead port must fail");
 
     let git_engine::GitError::Command(details) = err else {
@@ -294,7 +496,9 @@ fn a_failing_pre_push_hook_delivers_its_whole_log() {
     let repo = open(&f);
     let (_, on_line) = collector();
 
-    let err = repo.push("origin", None, false, None, on_line).unwrap_err();
+    let err = repo
+        .push("origin", None, false, no_token, on_line)
+        .unwrap_err();
 
     let git_engine::GitError::Command(details) = err else {
         panic!("a rejected push must be a command failure");

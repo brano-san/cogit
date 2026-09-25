@@ -15,13 +15,7 @@ impl RepoHandle {
             .boolean("maintenance.autoDetach")
             .or_else(|| config.boolean("gc.autoDetach"))
             .unwrap_or(true);
-        let args = [
-            "maintenance",
-            "run",
-            "--auto",
-            "--no-quiet",
-            if detach { "--detach" } else { "--no-detach" },
-        ];
+        let args = maintenance_args(detach, git_release());
         let mut command = self.base_git(&args);
         let root = self.root().to_path_buf();
         let journal = self.journal().cloned();
@@ -57,5 +51,86 @@ impl RepoHandle {
         if let Err(err) = spawned {
             tracing::error!(error = ?err, context = "auto maintenance thread");
         }
+    }
+}
+
+/// The running git as (major, minor), asked once per process.
+fn git_release() -> Option<(u32, u32)> {
+    static RELEASE: std::sync::OnceLock<Option<(u32, u32)>> = std::sync::OnceLock::new();
+    *RELEASE.get_or_init(|| match crate::runner::git_version() {
+        Ok(line) => release_of(&line),
+        Err(err) => {
+            tracing::error!(error = ?err, context = "git version for auto maintenance");
+            None
+        }
+    })
+}
+
+/// `git version 2.51.0.windows.1` → (2, 51).
+fn release_of(line: &str) -> Option<(u32, u32)> {
+    let mut numbers = line
+        .strip_prefix("git version ")?
+        .split(|c: char| !c.is_ascii_digit())
+        .map(str::parse::<u32>);
+    Some((numbers.next()?.ok()?, numbers.next()?.ok()?))
+}
+
+/// `--[no-]detach` came with git 2.47, and an older git exits 129 on it. Without the flag
+/// an older git decides by `gc.autoDetach` itself, as it did inside the commit.
+fn maintenance_args(detach: bool, release: Option<(u32, u32)>) -> Vec<&'static str> {
+    let mut args = vec!["maintenance", "run", "--auto", "--no-quiet"];
+    if release.is_some_and(|release| release >= (2, 47)) {
+        args.push(if detach { "--detach" } else { "--no-detach" });
+    }
+    args
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Ubuntu 24.04 ships git 2.43: `--no-detach` was "unknown option", exit 129, a failed
+    // command in the journal after every commit and no maintenance at all.
+    #[test]
+    fn a_git_older_than_2_47_is_not_given_the_detach_flag() {
+        assert_eq!(
+            maintenance_args(true, Some((2, 43))),
+            ["maintenance", "run", "--auto", "--no-quiet"]
+        );
+        assert_eq!(
+            maintenance_args(false, Some((2, 46))),
+            ["maintenance", "run", "--auto", "--no-quiet"]
+        );
+    }
+
+    #[test]
+    fn git_2_47_and_later_are_told_whether_to_detach() {
+        assert_eq!(
+            maintenance_args(true, Some((2, 47))),
+            ["maintenance", "run", "--auto", "--no-quiet", "--detach"]
+        );
+        assert_eq!(
+            maintenance_args(false, Some((3, 0))),
+            ["maintenance", "run", "--auto", "--no-quiet", "--no-detach"]
+        );
+    }
+
+    #[test]
+    fn an_unknown_version_gets_the_form_every_git_understands() {
+        assert_eq!(
+            maintenance_args(true, None),
+            ["maintenance", "run", "--auto", "--no-quiet"]
+        );
+    }
+
+    #[test]
+    fn a_version_line_is_read_as_major_and_minor() {
+        assert_eq!(release_of("git version 2.51.0.windows.1"), Some((2, 51)));
+        assert_eq!(release_of("git version 2.43.0"), Some((2, 43)));
+        assert_eq!(
+            release_of("git version 2.39.5 (Apple Git-154)"),
+            Some((2, 39))
+        );
+        assert_eq!(release_of("something else"), None);
     }
 }
