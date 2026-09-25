@@ -3534,6 +3534,7 @@
     bind:this={refActions}
     {afterRefChange}
     afterMutation={() => afterMutation()}
+    {mutate}
     {reloadGraph}
     checkoutBranch={switchTo}
     {openSplit}

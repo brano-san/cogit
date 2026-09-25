@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { tick } from "svelte";
   import ConfirmDialog from "$components/common/ConfirmDialog.svelte";
   import AddTagDialog from "./AddTagDialog.svelte";
   import EditAuthorDialog from "./EditAuthorDialog.svelte";
@@ -72,6 +71,8 @@
   import { network } from "$stores/network.svelte";
   import { prompt } from "$stores/prompt.svelte";
   import { refDialogs } from "$stores/ref-dialogs.svelte";
+  import { commitBox } from "$stores/commit-box.svelte";
+  import { runWorkingTreeAction } from "$lib/working-tree-actions";
   import { refs } from "$stores/refs.svelte";
   import { repository } from "$stores/repository.svelte";
   import { stashView } from "$stores/stash-view.svelte";
@@ -84,6 +85,8 @@
   interface Props {
     afterRefChange: () => Promise<void>;
     afterMutation: () => Promise<void>;
+    /** App's write to the working tree: it names the paths, so the open diff is read again. */
+    mutate: (step: (repo: RepoId) => Promise<unknown>, paths: string[], readsBack: boolean) => Promise<boolean>;
     reloadGraph: () => Promise<void>;
     /** App's switch: it knows about worktrees holding the branch and about autostash. */
     checkoutBranch: (branch: Branch) => Promise<void>;
@@ -96,6 +99,7 @@
   let {
     afterRefChange,
     afterMutation,
+    mutate,
     reloadGraph,
     checkoutBranch,
     openSplit,
@@ -756,33 +760,24 @@
   }
 
   async function worktreeAction(id: RepoId, name: string) {
-    if (name === "wt-commit") {
-      commit.clear();
-      await tick();
-      document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Commit message"]')?.focus();
-      return;
-    }
-    await worktree.load(id);
-    if (name === "wt-stage") {
-      await worktree.stage(id, worktree.unstaged.map((file) => file.path));
-    } else if (name === "wt-unstage") {
-      await worktree.unstage(id, worktree.staged.map((file) => file.path));
-    } else if (name === "wt-discard") {
-      const paths = worktree.unstaged.filter((file) => file.status !== "untracked").map((file) => file.path);
-      if (paths.length === 0) return;
-      const go = await confirmation.ask({
-        title: "Discard",
-        message:
-          `Discard the changes in ${paths.length === 1 ? paths[0] : `${paths.length} files`}? ` +
-          "Staged changes and untracked files are kept. Undo can bring the changes back.",
-        confirm: "Discard",
-        warning: true,
-      });
-      if (!go) return;
-      await worktree.discard(id, paths);
-    }
-    if (worktree.error) errors.report(worktree.error, "Could not change the working tree");
-    await afterMutation();
+    if (name === "wt-commit") commit.clear();
+    else await worktree.load(id);
+    await runWorkingTreeAction(name, worktree, {
+      stage: (repo, paths) => worktree.stage(repo, paths),
+      unstage: (repo, paths) => worktree.unstage(repo, paths),
+      discard: (repo, paths) => worktree.discard(repo, paths),
+      mutate,
+      confirmDiscard: (paths) =>
+        confirmation.ask({
+          title: "Discard",
+          message:
+            `Discard the changes in ${paths.length === 1 ? paths[0] : `${paths.length} files`}? ` +
+            "Staged changes and untracked files are kept. Undo can bring the changes back.",
+          confirm: "Discard",
+          warning: true,
+        }),
+      focusCommit: () => commitBox.focus(),
+    });
   }
 </script>
 
