@@ -232,7 +232,7 @@ describe("lacksFinalNewline", () => {
 
 describe("connectors between the two columns", () => {
   function cell(kind: "delete" | "insert" | "context", moveId: number | null = null) {
-    return { kind, line: 1, text: "x", inline: [], moved: moveId !== null, moveId };
+    return { kind, line: 1, text: "x", inline: [], moved: moveId !== null, moveId, noNewline: false };
   }
   const ctx = () => ({ left: cell("context"), right: cell("context") });
   const header = () => null;
@@ -331,5 +331,26 @@ describe("connectors between the two columns", () => {
     ];
 
     expect(connectors(rows)).toHaveLength(2);
+  });
+});
+
+// The viewer never read `noNewline`: a change of nothing but the final newline showed as
+// `− b` / `+ b`, the same text twice with nothing to tell them apart.
+describe("pairRows and the final newline", () => {
+  it("carries which cell ends its file without a newline", () => {
+    const pairs = pairRows([
+      { kind: "delete", old: 2, text: "b", inline: [], moved: false, noNewline: true },
+      ins(2, "b"),
+    ]);
+
+    expect(pairs[0]?.left?.noNewline).toBe(true);
+    expect(pairs[0]?.right?.noNewline).toBe(false);
+  });
+
+  it("carries it on a context line both sides end on", () => {
+    const pairs = pairRows([{ kind: "context", old: 3, new: 3, text: "c", noNewline: true }]);
+
+    expect(pairs[0]?.left?.noNewline).toBe(true);
+    expect(pairs[0]?.right?.noNewline).toBe(true);
   });
 });
