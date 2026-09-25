@@ -25,8 +25,8 @@ pub fn diff_one(path: &str, old: &[u8], new: &[u8], options: &DiffOptions) -> Fi
     let mut diff = crate::diff_bytes(old, new, options);
     if let FileDiff::Text { language, .. } = &mut diff {
         *language = crate::language_for_path(path);
+        crate::with_hunk_context(&mut diff, &String::from_utf8_lossy(old));
     }
-    crate::with_hunk_context(&mut diff, &String::from_utf8_lossy(old));
     if options.detect_moves {
         crate::detect_moves(&mut diff);
     }
