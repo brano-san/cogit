@@ -112,6 +112,71 @@ fn split_lines(bytes: &[u8]) -> Result<Vec<Line<'_>>, PatchError> {
     Ok(lines)
 }
 
+/// Whether the hunks are a diff of these very sides: each line a row names is that line,
+/// and the lines between the rows pair up one to one. A selection cut from an older diff
+/// otherwise lands on other lines, silently where the patch has no context to miss.
+struct Walk<'s, 'a> {
+    old: &'s [Line<'a>],
+    new: &'s [Line<'a>],
+    o: usize,
+    n: usize,
+}
+
+impl Walk<'_, '_> {
+    /// Lines no row names: the same on both sides, as a whitespace option compared them.
+    fn unchanged(&mut self, count: usize) -> Option<()> {
+        for _ in 0..count {
+            let (a, b) = (self.old.get(self.o)?, self.new.get(self.n)?);
+            alike(a.body, b.body).then_some(())?;
+            self.o += 1;
+            self.n += 1;
+        }
+        Some(())
+    }
+
+    fn row(&mut self, row: &DiffRow) -> Option<()> {
+        match row {
+            DiffRow::Context { old, new, text, .. } => {
+                let gap = (*old as usize).checked_sub(1 + self.o)?;
+                ((*new as usize).checked_sub(1 + self.n)? == gap).then_some(())?;
+                self.unchanged(gap)?;
+                (self.old.get(self.o)?.body == text.as_bytes()).then_some(())?;
+                alike(self.new.get(self.n)?.body, text.as_bytes()).then_some(())?;
+                self.o += 1;
+                self.n += 1;
+            }
+            DiffRow::Delete { old, text, .. } => {
+                self.unchanged((*old as usize).checked_sub(1 + self.o)?)?;
+                (self.old.get(self.o)?.body == text.as_bytes()).then_some(())?;
+                self.o += 1;
+            }
+            DiffRow::Insert { new, text, .. } => {
+                self.unchanged((*new as usize).checked_sub(1 + self.n)?)?;
+                (self.new.get(self.n)?.body == text.as_bytes()).then_some(())?;
+                self.n += 1;
+            }
+            DiffRow::Collapsed { .. } => {}
+        }
+        Some(())
+    }
+
+    fn rest(&mut self) -> Option<()> {
+        let left = self.old.len() - self.o;
+        (self.new.len() - self.n == left).then_some(())?;
+        self.unchanged(left)
+    }
+}
+
+fn alike(a: &[u8], b: &[u8]) -> bool {
+    let squeezed = |bytes| {
+        String::from_utf8_lossy(bytes)
+            .chars()
+            .filter(|c| !c.is_whitespace())
+            .collect::<String>()
+    };
+    a == b || squeezed(a) == squeezed(b)
+}
+
 /// Line `number` (from 1) of a side: its text and its ending.
 fn line<'a>(side: &[Line<'a>], number: u32) -> Result<(&'a str, &'a str), PatchError> {
     let line = number
@@ -137,6 +202,17 @@ pub fn build_patch(
     }
     let old_lines = split_lines(sides.old)?;
     let new_lines = split_lines(sides.new)?;
+    let mut walk = Walk {
+        old: &old_lines,
+        new: &new_lines,
+        o: 0,
+        n: 0,
+    };
+    let fits =
+        (request.hunks.iter().flat_map(|hunk| &hunk.rows)).all(|row| walk.row(row).is_some());
+    if !fits || walk.rest().is_none() {
+        return Err(PatchError::Stale);
+    }
 
     let mut body = String::new();
     let (mut pre_total, mut post_total) = (0_u32, 0_u32);
