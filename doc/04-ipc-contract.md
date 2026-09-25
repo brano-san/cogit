@@ -694,6 +694,7 @@ expanded }` — какие из
 | `command-recorded` | `CommandNotice` | Команда git записана в журнал — для панели Output и уведомлений |
 | `avatar-ready` | `{ email: String }` | Картинка автора скачана |
 | `merge-resolved` | `{ repo: RepoId, path: String, … }` | Окно 3-way merge сохранило разрешение |
+| `reveal-commit` | `{ repo: RepoId, oid: String }` | Окно Blame просит главное выбрать коммит строки и прокрутить к нему граф; шлёт сама страница (`events.revealCommit.emit`), команды нет (R-437) |
 | `menu-command` | `String` (id команды палитры) | Выбран пункт нативного меню |
 | `operation-changed` | `{ id, repo, kind, label, phase, success }` | Операция встала в очередь, началась или закончилась |
 | `session-ending` | `{ reason: String }` | Windows хочет завершить сеанс, а в очереди есть операции; сеанс удержан (R-168) |

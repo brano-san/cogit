@@ -7,11 +7,13 @@ import {
   onMergeResolved,
   onOperationChanged,
   onRepoChanged,
+  onRevealCommit,
   onSessionEnding,
   type CommandNotice,
   type MergeResolved,
   type OperationChanged,
   type RepoChanged,
+  type RevealCommit,
 } from "$lib/ipc";
 import { counted } from "$lib/listener-count";
 
@@ -22,6 +24,8 @@ export interface Handlers {
   operationChanged: (event: OperationChanged) => void;
   avatarReady: (email: string) => void;
   mergeResolved: (event: MergeResolved) => void;
+  /** The Blame window asked to show the commit behind a line. */
+  revealCommit: (event: RevealCommit) => void;
   /** One per git command, whatever it did. */
   commandRecorded: (event: CommandNotice) => void;
   /** Return false to keep the window open. */
@@ -45,6 +49,7 @@ export function connect(handlers: Handlers): Stop {
     onOperationChanged(handlers.operationChanged),
     onAvatarReady((event) => handlers.avatarReady(event.email)),
     onMergeResolved(handlers.mergeResolved),
+    onRevealCommit(handlers.revealCommit),
     onCommandRecorded(handlers.commandRecorded),
     onSessionEnding(handlers.sessionEnding),
     counted(

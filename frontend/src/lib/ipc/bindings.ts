@@ -415,6 +415,7 @@ export const events = {
 	mergeResolved: makeEvent<MergeResolved>("merge-resolved"),
 	operationChanged: makeEvent<OperationChanged>("operation-changed"),
 	repoChanged: makeEvent<RepoChanged>("repo-changed"),
+	revealCommit: makeEvent<RevealCommit>("reveal-commit"),
 	sessionEnding: makeEvent<SessionEnding>("session-ending"),
 };
 
@@ -1384,6 +1385,15 @@ export type RepoSummary = {
 
 /**  The five modes of `git reset <commit>`: what happens to the index and the tree. */
 export type ResetMode = "soft" | "mixed" | "hard" | "keep" | "merge";
+
+/**
+ *  The Blame window asks the main one to select this commit and scroll the graph to it.
+ *  The page emits it itself: nothing on this side has to happen in between.
+ */
+export type RevealCommit = {
+	repo: RepoId,
+	oid: string,
+};
 
 /**
  *  What the journal shows. The means of undoing stays in `Undoable`, on this side of

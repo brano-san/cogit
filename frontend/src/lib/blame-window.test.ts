@@ -8,6 +8,7 @@ const {
   age,
   changedSince,
   clampLine,
+  commitOfLine,
   cursorAfter,
   openBlame,
   parseBlame,
@@ -154,5 +155,19 @@ describe("openBlame", () => {
       error: { kind: "invalidState", data: "cannot resolve nope" },
     });
     await expect(openBlame(2, "src/a.rs", "nope")).rejects.toThrow();
+  });
+});
+
+// F-062: the annotation only moved the cursor; nothing opened the commit behind a line.
+describe("commitOfLine", () => {
+  const OID = "0123456789abcdef0123456789abcdef01234567";
+
+  it("names the commit that wrote the line", () => {
+    expect(commitOfLine([row(OID)], 0)).toBe(OID);
+  });
+
+  it("has nothing to show for a line no commit wrote yet, or past the end", () => {
+    expect(commitOfLine([row("0".repeat(40))], 0)).toBeNull();
+    expect(commitOfLine([row(OID)], 3)).toBeNull();
   });
 });
