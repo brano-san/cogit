@@ -12,6 +12,8 @@ import {
   workingState,
 } from "$lib/ipc";
 import { trace } from "$lib/trace";
+import { notices } from "$stores/notices.svelte";
+import { repoList } from "$stores/repo-list.svelte";
 import { session } from "$stores/session.svelte";
 
 /** Opening a repository is one transition, and every panel reads the result of it from
@@ -158,14 +160,20 @@ class RepositoryStore {
     this.#timer = null;
   }
 
+  #statusRead = 0;
+
   /** Staging changes only the counters; re-reading every ref for that is waste (R-24).
       The same read lists the conflicted paths, returned for the conflicts store; `null`
       when the answer was dropped or never came (R-316). */
   async refreshStatus(): Promise<string[] | null> {
     const repo = this.current?.repo;
     if (!repo) return null;
+    const ticket = this.#ticket;
+    const asked = ++this.#statusRead;
     try {
       const { status, conflicted } = await workingState(repo);
+      // Reads run side by side: an older answer arriving last holds older counters.
+      if (this.#ticket !== ticket || asked !== this.#statusRead) return null;
       const open = this.current;
       if (!open || open.repo !== repo) return null;
       this.#replace({ ...open, status });
@@ -271,17 +279,27 @@ class RepositoryStore {
     session.remember(this.openRepos.map((entry) => entry.root));
   }
 
-  /** Reopens everything the previous session had, ignoring paths that are gone. */
+  /** Reopens everything the previous session had. One that does not open — its folder
+      moved, its drive not mounted yet — stays in the list as a closed row, which its pulse
+      marks missing, and is named in a notice: dropped, it was gone for good (T3.7). */
   async restore(): Promise<string[]> {
     const failed: string[] = [];
+    const reasons: string[] = [];
     for (const root of session.repositories) {
       try {
         await openRepository(root);
-      } catch {
+      } catch (err) {
         failed.push(root);
+        reasons.push(`${root}: ${asCogitError(err).message}`);
       }
     }
+    for (const root of failed) repoList.closed(root);
     await this.refreshList();
+    if (failed.length > 0) {
+      const title =
+        failed.length === 1 ? "A repository did not reopen" : `${failed.length} repositories did not reopen`;
+      notices.inform(title, ["They stay in the list, closed.", ...reasons].join("\n"));
+    }
     return failed;
   }
 

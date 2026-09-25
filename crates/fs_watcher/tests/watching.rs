@@ -327,3 +327,33 @@ fn a_watched_repository_folder_can_still_be_renamed() {
 
     renamed.unwrap();
 }
+
+// The window was a timer re-armed per git process: one process running longer than it
+// (a commit whose pre-commit hook sleeps) wrote the index into a closed window (R-445).
+#[test]
+fn a_held_watcher_stays_quiet_however_long_the_mutation_takes() {
+    let harness = start();
+    let hold = harness.watcher.hold();
+    std::thread::sleep(fs_watcher::DEFAULT_QUIET + Duration::from_millis(300));
+
+    std::fs::write(
+        harness.root.join("ours.txt"),
+        "written late in the mutation\n",
+    )
+    .unwrap();
+
+    assert!(collect(&harness).is_empty());
+    drop(hold);
+}
+
+#[test]
+fn letting_go_keeps_the_window_open_for_the_debounced_tail() {
+    let harness = start();
+    let hold = harness.watcher.hold();
+    std::fs::write(harness.root.join("ours.txt"), "the last write\n").unwrap();
+    drop(hold);
+
+    assert!(collect(&harness).is_empty());
+    std::fs::write(harness.root.join("theirs.txt"), "written in a terminal\n").unwrap();
+    assert!(!collect(&harness).is_empty());
+}

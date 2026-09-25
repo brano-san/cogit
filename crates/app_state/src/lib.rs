@@ -41,7 +41,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use tokio::sync::broadcast;
 
 const EVENT_CHANNEL_CAPACITY: usize = 256;
@@ -70,6 +70,17 @@ fn backup_failed(doing: &str, err: &git_engine::GitError) -> git_engine::GitErro
     git_engine::GitError::InvalidState(format!(
         "Nothing was changed: the changes could not be saved for Undo before {doing} them. {err}"
     ))
+}
+
+/// The working file before a resolution writes over it (INV-12); without the copy the
+/// resolution does not go ahead.
+fn keep_for_undo(
+    handle: &git_engine::RepoHandle,
+    path: &str,
+) -> Result<Option<String>, git_engine::GitError> {
+    handle
+        .keep_worktree_file(path)
+        .map_err(|err| backup_failed("resolving", &err))
 }
 
 fn short(rev: &str) -> &str {
@@ -209,24 +220,25 @@ pub struct RepoOverview {
 #[derive(Debug, Default)]
 struct RowCache {
     rows: HashMap<RepoId, RepoOverview>,
-    forgotten: u64,
+    /// Per repository: a change in one says nothing about a row of another.
+    forgotten: HashMap<RepoId, u64>,
 }
 
 impl RowCache {
-    /// What `keep` needs to tell a read that raced a change.
-    fn begin(&self) -> u64 {
-        self.forgotten
+    /// What `keep` needs to tell a read that raced a change of `repo`.
+    fn begin(&self, repo: RepoId) -> u64 {
+        self.forgotten.get(&repo).copied().unwrap_or(0)
     }
 
     fn keep(&mut self, since: u64, row: RepoOverview) {
-        if self.forgotten == since {
+        if self.begin(row.repo) == since {
             self.rows.insert(row.repo, row);
         }
     }
 
     fn forget(&mut self, repo: RepoId) {
         self.rows.remove(&repo);
-        self.forgotten += 1;
+        *self.forgotten.entry(repo).or_default() += 1;
     }
 }
 
@@ -271,6 +283,10 @@ pub fn record(
 pub struct AppState {
     repos: RwLock<HashMap<RepoId, OpenRepo>>,
     next_repo_id: AtomicU32,
+    /// Closes so far, and the count each root was closed at. Written under `repos`: an
+    /// open begun before a close of its root must not register it again.
+    closes: AtomicU64,
+    closed_at: parking_lot::Mutex<HashMap<PathBuf, u64>>,
     events: broadcast::Sender<AppEvent>,
     watchers: Arc<RwLock<HashMap<RepoId, fs_watcher::RepoWatcher>>>,
     journal: Arc<RwLock<std::collections::VecDeque<git_engine::GitOutput>>>,
@@ -297,6 +313,8 @@ pub struct AppState {
 struct Quiet<'a> {
     state: &'a AppState,
     repo: RepoId,
+    /// The whole mutation, not a timer per git process (R-445).
+    _held: Option<fs_watcher::QuietHold>,
 }
 
 impl Drop for Quiet<'_> {
@@ -326,6 +344,8 @@ impl AppState {
         Self {
             repos: RwLock::new(HashMap::new()),
             next_repo_id: AtomicU32::new(1),
+            closes: AtomicU64::new(0),
+            closed_at: parking_lot::Mutex::new(HashMap::new()),
             events,
             watchers: Arc::new(RwLock::new(HashMap::new())),
             journal: Arc::new(RwLock::new(std::collections::VecDeque::with_capacity(
@@ -459,7 +479,7 @@ impl AppState {
         let options = git_engine::discover::ScanOptions { max_depth };
         git_engine::discover::scan_until(root, &options, |found| {
             on_found(ScanHit {
-                root: found.path.display().to_string(),
+                root: found.path.to_string_lossy().replace('\\', "/"),
                 name: found.name,
                 bare: found.bare,
                 already_open: self.find_by_root(&found.path).is_some(),
@@ -469,10 +489,11 @@ impl AppState {
 
     /// Blocking by design; the Tauri layer wraps it in `spawn_blocking`.
     pub fn open_repository(&self, path: &Path) -> Result<RepoSummary, git_engine::GitError> {
+        let began = self.closes_so_far();
         let mut watch = Steps::new();
         let handle = git_engine::RepoHandle::open(path)?;
         watch.done("open");
-        self.open_with(handle, path, true, watch)
+        self.open_with(handle, path, true, watch, began)
     }
 
     /// `open_repository` without the status, the registration and the watcher: after a
@@ -496,11 +517,12 @@ impl AppState {
         owner: RepoId,
         key: &str,
     ) -> Result<RepoSummary, git_engine::GitError> {
+        let began = self.closes_so_far();
         let path = self.module_root(owner, key)?;
         let mut watch = Steps::new();
         let handle = git_engine::RepoHandle::open_exact(&path)?;
         watch.done("open");
-        self.open_with(handle, &path, false, watch)
+        self.open_with(handle, &path, false, watch, began)
     }
 
     /// The one place a tree key becomes a directory, shared by listing and opening so the
@@ -509,12 +531,14 @@ impl AppState {
         Ok(self.handle(owner)?.root().join(key))
     }
 
+    /// `began`: `closes_so_far` before the first read.
     fn open_with(
         &self,
         handle: git_engine::RepoHandle,
         path: &Path,
         listed: bool,
         mut watch: Steps,
+        began: u64,
     ) -> Result<RepoSummary, git_engine::GitError> {
         // Timed step by step: the log of the three-monitor machine showed this command
         // taking 7.7 s on a repository with sixteen branches, and one number for the whole
@@ -539,7 +563,13 @@ impl AppState {
             |n| n.to_string_lossy().into_owned(),
         );
 
-        let id = self.find_or_register(root.clone(), name.clone(), listed);
+        let Some(id) = self.find_or_register(root.clone(), name.clone(), listed, began) else {
+            tracing::info!(root = %root.display(), "closed while it was opening; not registered");
+            return Err(git_engine::GitError::InvalidState(format!(
+                "{} was closed while it was opening",
+                root.display()
+            )));
+        };
         self.start_watching(id, &root, handle.git_dir(), handle.common_dir());
 
         Ok(RepoSummary {
@@ -639,16 +669,30 @@ impl AppState {
         let stashed = handle
             .stash_paths(paths, &format!("cogit: discard {}", named(paths)))
             .map_err(|err| backup_failed("discarding", &err))?;
-        if stashed.is_none() {
+        let Some(oid) = stashed else {
             handle.discard(paths)?;
-        }
+            self.record(repo, format!("Discard {}", named(paths)), Recovery::None);
+            return Ok(());
+        };
 
+        // A stash of paths takes their staged side too, and only the unstaged one goes.
+        let staged = handle.staged_in_stash(&oid, paths)?;
+        if staged.is_empty() {
+            self.record(
+                repo,
+                format!("Discard {}", named(paths)),
+                Recovery::Stash { oid },
+            );
+            return Ok(());
+        }
+        let restored = handle.restore_staged_from(&oid, &staged);
+        // Recorded whatever came of it: until the restore, the staged side is in the stash only.
         self.record(
             repo,
             format!("Discard {}", named(paths)),
-            stashed.map_or(Recovery::None, |oid| Recovery::Stash { oid }),
+            Recovery::Discard { staged, stash: oid },
         );
-        Ok(())
+        restored
     }
 
     pub fn commit(
@@ -658,6 +702,17 @@ impl AppState {
     ) -> Result<String, git_engine::GitError> {
         let _quiet = self.quiet(repo);
         self.handle(repo)?.commit(request)
+    }
+
+    pub fn wants_maintenance(&self, repo: RepoId) -> Result<bool, git_engine::GitError> {
+        Ok(self.handle(repo)?.wants_maintenance())
+    }
+
+    /// After a commit, as a write of its own: gc packs refs and expires reflogs (R-444).
+    pub fn maintain_after_commit(&self, repo: RepoId) -> Result<(), git_engine::GitError> {
+        let _quiet = self.quiet(repo);
+        self.handle(repo)?.maintain_after_commit();
+        Ok(())
     }
 
     pub fn checkout(
@@ -727,19 +782,19 @@ impl AppState {
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
-        let oid = handle
+        let deleted = handle
             .branches()?
             .into_iter()
-            .find(|branch| branch.name == name)
-            .map(|branch| branch.oid);
+            .find(|branch| branch.name == name);
         handle.delete_branch(name, force)?;
 
         self.record(
             repo,
             format!("Delete branch {name}"),
-            oid.map_or(Recovery::None, |oid| Recovery::Branch {
+            deleted.map_or(Recovery::None, |branch| Recovery::Branch {
                 name: name.to_owned(),
-                oid,
+                oid: branch.oid,
+                upstream: branch.upstream,
             }),
         );
         Ok(())
@@ -779,12 +834,33 @@ impl AppState {
     /// Called before every mutation: the UI reloads itself afterwards, so reacting to our
     /// own writes only makes it reload twice (doc/12-risks.md, R-25).
     /// Our own writes are the one change the watcher must not report: the UI reloads
-    /// itself after a mutation. The window opens now and again when the guard drops, so a
-    /// mutation that outlasts it does not echo either (R-197).
+    /// itself after a mutation. The watcher stays quiet while the guard lives and for one
+    /// window after it drops, so a mutation that outlasts the window does not echo (R-445).
     #[must_use = "hold the guard until the mutation is done"]
     fn quiet(&self, repo: RepoId) -> Quiet<'_> {
         self.silence(repo);
-        Quiet { state: self, repo }
+        let held = self
+            .watchers
+            .read()
+            .get(&repo)
+            .map(fs_watcher::RepoWatcher::hold);
+        Quiet {
+            state: self,
+            repo,
+            _held: held,
+        }
+    }
+
+    /// For a talk with a remote, minutes long, that writes at its end: a hold would keep
+    /// the edits made meanwhile in an editor off the panels until it finished.
+    #[must_use = "hold the guard until the mutation is done"]
+    pub(crate) fn quiet_briefly(&self, repo: RepoId) -> Quiet<'_> {
+        self.silence(repo);
+        Quiet {
+            state: self,
+            repo,
+            _held: None,
+        }
     }
 
     fn silence(&self, repo: RepoId) {
@@ -917,7 +993,11 @@ impl AppState {
         // Taken out, not held: a slow walk must not block another repository's refresh.
         let mut cache = self.reachable.lock().remove(&repo).unwrap_or_default();
         let lost = handle.lost_commits_with(limit as usize, &mut cache);
-        self.reachable.lock().insert(repo, cache);
+        // Checked under the lock close clears it with, after unregistering.
+        let mut reachable = self.reachable.lock();
+        if self.repos.read().contains_key(&repo) {
+            reachable.insert(repo, cache);
+        }
         lost
     }
 
@@ -942,7 +1022,7 @@ impl AppState {
             if let Some(row) = cache.rows.get(&open.id) {
                 return row.clone();
             }
-            cache.begin()
+            cache.begin(open.id)
         };
         let row = self.overview_of(open);
         self.rows_read.fetch_add(1, Ordering::Relaxed);
@@ -984,6 +1064,13 @@ impl AppState {
         let mut watch = Steps::new();
         tracing::info!(repo = repo.0, "closing repository");
 
+        // First, so that nothing begun from here on reaches the id, nor fills a cache
+        // for it after it is cleared below.
+        let removed = self.unregister(repo);
+        self.safety.write().retain(|held| held.entry.repo != repo);
+        watch.done("unregister");
+
+        // A watcher an open was starting sees the repository gone and drops itself.
         let watcher = self.watchers.write().remove(&repo);
         watch.done("unhook-watcher");
         // Outside the lock, and said out loud: this is the join that used to hang.
@@ -995,17 +1082,6 @@ impl AppState {
         self.forget_graph(repo);
         self.reachable.lock().remove(&repo);
         watch.done("forget-state");
-
-        let removed = self.unregister(repo);
-        self.safety.write().retain(|held| held.entry.repo != repo);
-        if removed {
-            self.emit(AppEvent::RepoClosed { repo });
-        }
-        // An open of this repository that was starting its watcher as the first removal
-        // ran has put one back by now, or sees the repository gone and drops it.
-        let late = self.watchers.write().remove(&repo);
-        drop(late);
-        watch.done("unregister");
         watch.report_close(repo.0, removed);
         removed
     }
@@ -1023,7 +1099,7 @@ impl AppState {
             state: git_engine::RepoState::Clean,
         };
 
-        let Ok(handle) = git_engine::RepoHandle::open(&open.root) else {
+        let Ok(handle) = git_engine::RepoHandle::open_root(&open.root) else {
             row.missing = true;
             return row;
         };
@@ -1217,7 +1293,12 @@ impl AppState {
         side: git_engine::ConflictSide,
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
-        self.handle(repo)?.resolve_with(path, side)
+        let handle = self.handle(repo)?;
+        let kept = keep_for_undo(&handle, path)?;
+        handle.resolve_with(path, side)?;
+        let taken = format!("{side:?}").to_lowercase();
+        self.record_resolution(repo, format!("Take {taken} for {path}"), path, kept);
+        Ok(())
     }
 
     pub fn resolve_conflict_text(
@@ -1227,7 +1308,25 @@ impl AppState {
         text: &str,
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
-        self.handle(repo)?.resolve_with_text(path, text)
+        let handle = self.handle(repo)?;
+        let kept = keep_for_undo(&handle, path)?;
+        handle.resolve_with_text(path, text)?;
+        self.record_resolution(repo, format!("Resolve {path}"), path, kept);
+        Ok(())
+    }
+
+    fn record_resolution(
+        &self,
+        repo: RepoId,
+        description: String,
+        path: &str,
+        kept: Option<String>,
+    ) {
+        let recovery = Recovery::Resolution {
+            path: path.to_owned(),
+            kept,
+        };
+        self.record(repo, description, recovery);
     }
 
     pub fn find(
@@ -1250,11 +1349,12 @@ impl AppState {
     }
 
     #[must_use]
+    /// Listed in Repositories: a worktree or submodule open only in the panels is not.
     pub fn find_by_root(&self, root: &Path) -> Option<RepoId> {
         self.repos
             .read()
             .values()
-            .find(|r| r.root == root)
+            .find(|r| r.listed && r.root == root)
             .map(|r| r.id)
     }
 
@@ -1277,13 +1377,33 @@ impl AppState {
         id
     }
 
+    /// How many closes there have been; an open takes it before its first read.
+    pub(crate) fn closes_so_far(&self) -> u64 {
+        self.closes.load(Ordering::SeqCst)
+    }
+
     /// Looked up and registered under one lock, so two opens of one path at once end up
     /// with one id. Asking for a listed repository lists it; the reverse never unlists.
-    fn find_or_register(&self, root: PathBuf, display_name: String, listed: bool) -> RepoId {
+    /// `None` when `root` was closed after `began`: the open is older than the close.
+    fn find_or_register(
+        &self,
+        root: PathBuf,
+        display_name: String,
+        listed: bool,
+        began: u64,
+    ) -> Option<RepoId> {
         let mut repos = self.repos.write();
         if let Some(open) = repos.values_mut().find(|open| open.root == root) {
             open.listed |= listed;
-            return open.id;
+            return Some(open.id);
+        }
+        if self
+            .closed_at
+            .lock()
+            .get(&root)
+            .is_some_and(|&at| at > began)
+        {
+            return None;
         }
         let id = RepoId(self.next_repo_id.fetch_add(1, Ordering::Relaxed));
         repos.insert(
@@ -1297,11 +1417,19 @@ impl AppState {
         );
         drop(repos);
         self.emit(AppEvent::RepoOpened { repo: id });
-        id
+        Some(id)
     }
 
     pub fn unregister(&self, id: RepoId) -> bool {
-        let removed = self.repos.write().remove(&id).is_some();
+        let removed = {
+            let mut repos = self.repos.write();
+            let gone = repos.remove(&id);
+            if let Some(gone) = &gone {
+                let at = self.closes.fetch_add(1, Ordering::SeqCst) + 1;
+                self.closed_at.lock().insert(gone.root.clone(), at);
+            }
+            gone.is_some()
+        };
         self.handles.forget(id);
         if removed {
             self.emit(AppEvent::RepoClosed { repo: id });
@@ -1345,16 +1473,27 @@ mod tests {
     #[test]
     fn a_row_read_across_a_change_is_not_kept() {
         let mut cache = RowCache::default();
-        let since = cache.begin();
+        let since = cache.begin(RepoId(1));
         cache.forget(RepoId(1));
         cache.keep(since, row(1));
         assert!(cache.rows.is_empty());
     }
 
+    // One counter for every repository: a change in a noisy one threw away rows of all the
+    // others read meanwhile, and the next list read them again with a full status.
+    #[test]
+    fn a_change_in_another_repository_does_not_throw_the_row_away() {
+        let mut cache = RowCache::default();
+        let since = cache.begin(RepoId(1));
+        cache.forget(RepoId(2));
+        cache.keep(since, row(1));
+        assert!(cache.rows.contains_key(&RepoId(1)));
+    }
+
     #[test]
     fn a_row_read_undisturbed_is_kept() {
         let mut cache = RowCache::default();
-        let since = cache.begin();
+        let since = cache.begin(RepoId(1));
         cache.keep(since, row(1));
         assert!(cache.rows.contains_key(&RepoId(1)));
     }
@@ -1370,6 +1509,45 @@ mod tests {
         state.record(id, "Hard reset".into(), safety::Recovery::None);
 
         assert!(state.safety_log().is_empty());
+    }
+
+    // A re-read of the open repository (open_repository by its root) running while it
+    // closed registered it again under a new id, and the next list showed it open.
+    #[test]
+    fn an_open_begun_before_a_close_of_its_root_does_not_register_it_again() {
+        let state = AppState::new();
+        let root = PathBuf::from("/a");
+        let id = state.register(root.clone(), "a".into());
+        let began = state.closes_so_far();
+
+        state.close_repository(id);
+
+        assert_eq!(
+            state.find_or_register(root.clone(), "a".into(), true, began),
+            None
+        );
+        assert!(state.list().is_empty());
+        let now = state.closes_so_far();
+        assert!(
+            state
+                .find_or_register(root, "a".into(), true, now)
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn a_close_of_another_root_does_not_stop_an_open() {
+        let state = AppState::new();
+        let other = state.register(PathBuf::from("/b"), "b".into());
+        let began = state.closes_so_far();
+
+        state.close_repository(other);
+
+        assert!(
+            state
+                .find_or_register(PathBuf::from("/a"), "a".into(), true, began)
+                .is_some()
+        );
     }
 
     #[test]

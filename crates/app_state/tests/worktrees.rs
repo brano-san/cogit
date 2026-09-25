@@ -125,3 +125,39 @@ fn undoing_a_forced_removal_brings_the_worktree_back_with_its_changes() {
     );
     assert_eq!(state.worktrees(owner).unwrap().len(), 2);
 }
+
+// The scan greyed out a worktree opened from the panel as "already open", though it was in
+// no list: a registration kept for the panels counted as one in Repositories.
+#[test]
+fn a_worktree_open_only_in_the_panels_can_still_be_added_from_a_scan() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let (state, owner) = open(&f);
+    let path = linked(&state, owner).path;
+    state.open_worktree(owner, &path).unwrap();
+    let parent = std::path::Path::new(&path).parent().unwrap().to_path_buf();
+
+    let mut hits = Vec::new();
+    state.scan_for_repositories(&parent, 2, |hit| {
+        hits.push(hit);
+        true
+    });
+
+    let hit = hits.iter().find(|hit| hit.name == "linked").unwrap();
+    assert!(!hit.already_open, "{hit:?}");
+}
+
+#[test]
+fn a_scan_names_its_finds_with_forward_slashes_as_every_other_path_over_ipc() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let (state, owner) = open(&f);
+    let path = linked(&state, owner).path;
+    let parent = std::path::Path::new(&path).parent().unwrap().to_path_buf();
+
+    let mut roots = Vec::new();
+    state.scan_for_repositories(&parent, 2, |hit| {
+        roots.push(hit.root);
+        true
+    });
+
+    assert!(roots.contains(&path), "{roots:?}");
+}

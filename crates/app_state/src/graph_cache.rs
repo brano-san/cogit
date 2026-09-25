@@ -262,7 +262,7 @@ impl Prefill {
     }
 
     fn read(&self, root: &std::path::Path) -> Result<usize, GitError> {
-        let handle = RepoHandle::open(root)?;
+        let handle = RepoHandle::open_root(root)?;
         let mut from = 0;
         let mut read = 0;
         loop {
@@ -493,6 +493,10 @@ impl AppState {
                 bytes: 0,
                 used,
             };
+            // Closed meanwhile: close has cleared the cache already, and nothing would again.
+            if !self.repos.read().contains_key(&repo) {
+                return Ok(Vec::new());
+            }
             cache.graphs.insert(repo, graph);
             base
         };

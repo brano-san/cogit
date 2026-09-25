@@ -4,6 +4,7 @@ mod child_window;
 mod commands;
 mod diagnostics;
 mod events;
+mod key_capture;
 mod logging;
 mod menu;
 mod operations;
@@ -41,6 +42,22 @@ pub struct AppContext {
     pub state: Arc<AppState>,
     pub log_path: PathBuf,
     pub config_dir: PathBuf,
+}
+
+/// Before the first git runs: Preferences ▸ Git executable is read once, at startup.
+fn use_git_from_settings(config_dir: &std::path::Path) {
+    let Some(program) = app_state::settings::read_git_program(config_dir) else {
+        return;
+    };
+    git_engine::use_git_program(program.clone());
+    match git_engine::git_version() {
+        Ok(version) => {
+            tracing::info!(program = %program.display(), %version, "git from Preferences")
+        }
+        Err(err) => {
+            tracing::error!(error = ?err, context = "the git set in Preferences does not run")
+        }
+    }
 }
 
 fn specta_builder() -> Builder<tauri::Wry> {
@@ -215,6 +232,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::write_setting,
             commands::default_keymap,
             commands::set_keymap,
+            commands::capture_keys,
             commands::scan_for_repositories,
             commands::network::has_token,
             commands::network::store_token,
@@ -290,6 +308,7 @@ pub fn run() -> anyhow::Result<()> {
             let (guard, log_path) = logging::init(&log_dir, &config_dir)?;
             logging::install_panic_hook(&log_dir);
             webview_memory::spawn(std::process::id());
+            use_git_from_settings(&config_dir);
 
             tracing::info!(
                 version = env!("CARGO_PKG_VERSION"),
@@ -322,6 +341,7 @@ pub fn run() -> anyhow::Result<()> {
             let keymap = menu::Keymap::default();
             keymap.set(stored);
             app.manage(keymap);
+            app.manage(key_capture::KeyCapture::default());
             app.on_menu_event(|app, event| dispatch_menu_command(app, &event.id().0));
 
             if let Some(window) = app.get_webview_window("main") {

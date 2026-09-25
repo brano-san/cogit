@@ -149,6 +149,44 @@ impl RepoHandle {
             .map(drop)
     }
 
+    /// The working file as it is, kept in the object store before a resolution writes over
+    /// it: hand edits made in an editor are in it (INV-12). `None` when there is no file.
+    pub fn keep_worktree_file(&self, path: &str) -> Result<Option<String>> {
+        if !self.root().join(path).is_file() {
+            return Ok(None);
+        }
+        let kept = self.run_git_literal(&["hash-object", "-w", "--no-filters", "--", path])?;
+        Ok(Some(kept.stdout.trim().to_owned()))
+    }
+
+    /// A resolution undone: the conflict again where git still has its sides (resolve-undo),
+    /// then the working file as it was kept.
+    pub fn unresolve(&self, path: &str, kept: Option<&str>) -> Result<()> {
+        let conflict = self.run_git_literal(&["checkout", "-m", "--", path]);
+        let Some(kept) = kept else {
+            return conflict.map(drop);
+        };
+        if let Err(err) = conflict {
+            // A deletion taken leaves too little to conflict again ("does not have all
+            // necessary versions"); the file itself still comes back.
+            tracing::warn!(error = ?err, path, "the conflict cannot be recreated");
+        }
+        let id = gix::ObjectId::from_hex(kept.as_bytes())
+            .map_err(|err| GitError::Internal(format!("bad kept object {kept}: {err}")))?;
+        let bytes = self
+            .repo
+            .find_object(id)
+            .map_err(|err| GitError::Internal(format!("cannot read the kept {path}: {err}")))?
+            .detach()
+            .data;
+        let file = self.root().join(path);
+        if let Some(folder) = file.parent() {
+            std::fs::create_dir_all(folder)?;
+        }
+        std::fs::write(file, bytes)?;
+        Ok(())
+    }
+
     fn stage_blob(&self, path: &str, side: ConflictSide) -> Option<Vec<u8>> {
         let index = self.repo.index_or_empty().ok()?;
         let backing = index.path_backing();

@@ -27,10 +27,27 @@ pub enum Recovery {
         paths: Vec<String>,
         stash: Option<String>,
     },
-    /// The branch was deleted: undo creates it again.
+    /// Unstaged changes discarded from paths that keep their staged side: undo stashes
+    /// those paths away, as a rollback's undo does, then applies the stash of the discard.
+    Discard {
+        staged: Vec<String>,
+        stash: String,
+    },
+    /// A conflict resolved over the working file: undo recreates the conflict where git
+    /// can and writes the file back as it was, hand edits included.
+    Resolution {
+        path: String,
+        kept: Option<String>,
+    },
+    /// Files deleted to the bin, each kept in the object store: undo writes them back.
+    Files {
+        kept: Vec<(String, String)>,
+    },
+    /// The branch was deleted: undo creates it again, tracking what it tracked.
     Branch {
         name: String,
         oid: String,
+        upstream: Option<String>,
     },
     /// The branch still exists and was moved (merge, rebase, cherry-pick): undo moves it
     /// back.
@@ -137,7 +154,29 @@ impl AppState {
                     handle.stash_apply(oid)?;
                 }
             }
-            Recovery::Branch { name, oid } => handle.create_branch(name, Some(oid), false)?,
+            // Applied over the staged side it would conflict with itself: both sides of
+            // the merge add the same lines.
+            Recovery::Discard { staged, stash } => {
+                handle
+                    .stash_paths(staged, "cogit: before undoing a discard")
+                    .map_err(|err| crate::backup_failed("undoing the discard of", &err))?;
+                handle.stash_apply(stash)?;
+            }
+            Recovery::Resolution { path, kept } => handle.unresolve(path, kept.as_deref())?,
+            Recovery::Files { kept } => handle.write_back(kept)?,
+            Recovery::Branch {
+                name,
+                oid,
+                upstream,
+            } => {
+                handle.create_branch(name, Some(oid), false)?;
+                // `branch -d` took the config section; a remote branch gone since stays gone.
+                if let Some(upstream) = upstream
+                    && let Err(err) = handle.set_upstream(name, Some(upstream))
+                {
+                    tracing::warn!(error = ?err, branch = %name, "the branch is back without its upstream");
+                }
+            }
             Recovery::Moved { name, oid } => {
                 wait_for_the_operation(&handle)?;
                 handle.move_branch_back(name, oid)?;

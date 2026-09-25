@@ -187,13 +187,8 @@ impl RepoHandle {
         if !self.submodules()?.iter().any(|module| module.path == path) {
             return Err(GitError::InvalidState(format!("no submodule at {path}")));
         }
-        let mut args = vec!["-c", "protocol.file.allow=always", "submodule", "update"];
-        if init {
-            args.push("--init");
-        }
-        args.push("--");
-        args.push(path);
-        self.run_git(&args).map(drop)
+        let flags: &[&str] = if init { &["--init"] } else { &[] };
+        self.submodule_update(flags, &[path.to_owned()])
     }
 
     /// A deinitialised submodule leaves an empty directory; `open_exact` refuses it rather

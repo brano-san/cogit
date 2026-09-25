@@ -885,3 +885,200 @@ fn an_author_edit_can_be_undone() {
 
     assert_eq!(head_oid(&state, repo), tip);
 }
+
+fn staged(f: &test_fixtures::Fixture, name: &str) -> String {
+    f.git(&["show", &format!(":{name}")]).unwrap()
+}
+
+// A stash with paths takes their staged side with it: Discard in Unstaged threw away the
+// staged edit too, which the confirmation promises to keep.
+#[test]
+fn discarding_keeps_the_staged_part_of_a_file_and_undo_brings_back_the_rest() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file("file0.txt", "content 0\nstaged\n").unwrap();
+    f.write_file("fresh.txt", "new\n").unwrap();
+    f.git(&["add", "--", "file0.txt", "fresh.txt"]).unwrap();
+    f.write_file("file0.txt", "content 0\nstaged\nunstaged\n")
+        .unwrap();
+    f.write_file("fresh.txt", "new\nmore\n").unwrap();
+    let (state, repo) = open(&f);
+    let paths = ["file0.txt".to_owned(), "fresh.txt".to_owned()];
+
+    state.discard_paths(repo, &paths).unwrap();
+
+    assert_eq!(text(&f, "file0.txt"), "content 0\nstaged\n");
+    assert_eq!(staged(&f, "file0.txt"), "content 0\nstaged\n");
+    assert_eq!(text(&f, "fresh.txt"), "new\n");
+    assert_eq!(staged(&f, "fresh.txt"), "new\n");
+
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(text(&f, "file0.txt"), "content 0\nstaged\nunstaged\n");
+    assert_eq!(staged(&f, "file0.txt"), "content 0\nstaged\n");
+    assert_eq!(text(&f, "fresh.txt"), "new\nmore\n");
+    assert_eq!(staged(&f, "fresh.txt"), "new\n");
+}
+
+/// Stopped on the conflict in `c.txt`, with `d.txt` merged cleanly and staged beside it.
+fn stopped_beside_a_clean_merge() -> (test_fixtures::Fixture, AppState, RepoId) {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&["switch", "-q", "-c", "side"]).unwrap();
+    f.commit_file(2, "c.txt", "side\n").unwrap();
+    f.commit_file(3, "d.txt", "from side\n").unwrap();
+    f.git(&["switch", "-q", "main"]).unwrap();
+    f.commit_file(4, "c.txt", "main\n").unwrap();
+    let (state, repo) = open(&f);
+    assert!(merge_side(&state, repo).is_err());
+    (f, state, repo)
+}
+
+// `git stash push` refuses while any index entry is unmerged ("needs merge"), so the
+// backup failed and the main way out of a failed merge did nothing.
+#[test]
+fn a_hard_reset_goes_ahead_while_a_merge_is_stopped_on_its_conflict() {
+    let (f, state, repo) = stopped_beside_a_clean_merge();
+    let head = head_oid(&state, repo);
+
+    state
+        .reset_to(repo, &head, git_engine::ResetMode::Hard)
+        .unwrap();
+
+    assert_eq!(text(&f, "c.txt"), "main\n");
+    assert!(!f.path().join("d.txt").exists());
+    assert!(state.working_state(repo).unwrap().conflicted.is_empty());
+}
+
+#[test]
+fn discarding_beside_a_conflict_keeps_the_conflict() {
+    let (f, state, repo) = stopped_beside_a_clean_merge();
+    f.write_file("file0.txt", "work in progress\n").unwrap();
+
+    state
+        .discard_paths(repo, &["file0.txt".to_owned()])
+        .unwrap();
+
+    assert_eq!(text(&f, "file0.txt"), "content 0\n");
+    assert!(text(&f, "c.txt").contains("<<<<<<<"));
+    assert_eq!(state.working_state(repo).unwrap().conflicted, ["c.txt"]);
+}
+
+#[test]
+fn a_rollback_beside_a_conflict_goes_ahead() {
+    let (f, state, repo) = stopped_beside_a_clean_merge();
+    f.write_file("file0.txt", "work in progress\n").unwrap();
+
+    state
+        .rollback_to(repo, "HEAD", &["file0.txt".to_owned()])
+        .unwrap();
+
+    assert_eq!(text(&f, "file0.txt"), "content 0\n");
+    assert_eq!(state.working_state(repo).unwrap().conflicted, ["c.txt"]);
+}
+
+// Take Ours wrote the stage over the file and staged it with no journal entry: hand edits
+// made in an editor during the conflict were gone, with nothing to undo (INV-12).
+#[test]
+fn taking_one_side_of_a_conflict_can_be_undone_hand_edits_and_all() {
+    let f = about_to_conflict();
+    let (state, repo) = open(&f);
+    assert!(merge_side(&state, repo).is_err());
+    f.write_file("c.txt", "half resolved by hand\n").unwrap();
+
+    state
+        .resolve_conflict(repo, "c.txt", git_engine::ConflictSide::Ours)
+        .unwrap();
+    assert_eq!(text(&f, "c.txt"), "main\n");
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(text(&f, "c.txt"), "half resolved by hand\n");
+    assert_eq!(state.working_state(repo).unwrap().conflicted, ["c.txt"]);
+}
+
+#[test]
+fn saving_a_merge_over_hand_edits_can_be_undone() {
+    let f = about_to_conflict();
+    let (state, repo) = open(&f);
+    assert!(merge_side(&state, repo).is_err());
+    f.write_file("c.txt", "half resolved by hand\n").unwrap();
+
+    state
+        .resolve_conflict_text(repo, "c.txt", "merged\n")
+        .unwrap();
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(text(&f, "c.txt"), "half resolved by hand\n");
+}
+
+/// Stands in for the Recycle Bin: the shell's own move is tested in `src-tauri`.
+fn thrown_away(paths: &[std::path::PathBuf]) -> std::io::Result<()> {
+    paths.iter().try_for_each(|path| {
+        if path.is_dir() {
+            std::fs::remove_dir_all(path)
+        } else {
+            std::fs::remove_file(path)
+        }
+    })
+}
+
+// Delete moved a changed tracked file to the bin with nothing in the journal: its edits
+// were only in the bin, and Undo knew nothing of them (F-071).
+#[test]
+fn deleting_a_changed_file_can_be_undone() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file("file0.txt", "work in progress\n").unwrap();
+    f.write_file("scratch.txt", "not added yet\n").unwrap();
+    let (state, repo) = open(&f);
+    let paths = ["file0.txt".to_owned(), "scratch.txt".to_owned()];
+
+    state.move_to_trash(repo, &paths, thrown_away).unwrap();
+    assert!(!f.path().join("file0.txt").exists());
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(text(&f, "file0.txt"), "work in progress\n");
+    assert_eq!(text(&f, "scratch.txt"), "not added yet\n");
+}
+
+#[test]
+fn undoing_a_delete_never_writes_over_a_file_made_since() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file("scratch.txt", "first\n").unwrap();
+    let (state, repo) = open(&f);
+    state
+        .move_to_trash(repo, &["scratch.txt".to_owned()], thrown_away)
+        .unwrap();
+    f.write_file("scratch.txt", "made again\n").unwrap();
+
+    assert!(state.undo_last(repo).is_err());
+    assert_eq!(text(&f, "scratch.txt"), "made again\n");
+}
+
+#[test]
+fn a_deleted_folder_is_left_to_the_bin() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file("generated/out.txt", "built\n").unwrap();
+    let (state, repo) = open(&f);
+
+    state
+        .move_to_trash(repo, &["generated/".to_owned()], thrown_away)
+        .unwrap();
+
+    assert!(!f.path().join("generated").exists());
+    assert!(state.undo_last(repo).is_err());
+    assert!(!state.safety_log().is_empty());
+}
+
+// `git branch -d` drops the branch's section from the config, and Undo recreated only the
+// name and the commit: ahead/behind and Pull were gone from it.
+#[test]
+fn undoing_a_branch_delete_brings_its_upstream_back() {
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&["branch", "--track", "topic", "origin/main"])
+        .unwrap();
+    let (state, repo) = open(&f);
+
+    state.delete_branch(repo, "topic", true).unwrap();
+    state.undo_last(repo).unwrap();
+
+    let upstream = f.git(&["config", "--get", "branch.topic.merge"]).ok();
+    assert_eq!(upstream.as_deref().map(str::trim), Some("refs/heads/main"));
+}
