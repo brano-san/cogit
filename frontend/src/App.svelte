@@ -232,6 +232,8 @@
     changes: import("$lib/ipc").FileEntry[] | null;
   } | null>(null);
   let markedFiles = $state.raw<string[]>([]);
+  /** The rows of the list the Files panel shows, as it counts them itself. */
+  let filesCount = $state<number | undefined>(undefined);
   type RepoMenuSubject =
     | { kind: "repository"; root: string; overview: import("$lib/ipc").RepoOverview | null }
     | {
@@ -3450,7 +3452,7 @@
             title="Files"
             active={focused === "files"}
             view={panelState}
-            count={onWorkingTree ? worktree.total : commit.files.length}
+            count={filesCount}
             stale={stale.has("files")}
           >
             <FilesPanel
@@ -3470,6 +3472,7 @@
               onmask={(mask) => (fileMask = mask)}
               onshownstaged={(paths) => (shownStaged = paths)}
               onmarked={(paths) => (markedFiles = paths)}
+              oncount={(count) => (filesCount = count)}
               oncontext={fileContext}
               {stage}
               stagemode={stageModeOnly}
