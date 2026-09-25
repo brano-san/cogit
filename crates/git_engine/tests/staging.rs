@@ -107,6 +107,26 @@ fn unstaging_on_an_unborn_head_still_works() {
     );
 }
 
+// Before the first commit unstaging went through `rm --cached`, which refuses a file edited
+// after `add`: "staged content different from both the file and the HEAD".
+#[test]
+fn unstaging_before_the_first_commit_takes_a_file_edited_since_add() {
+    let f = test_fixtures::empty().unwrap();
+    std::fs::write(f.path().join("first.txt"), "content\n").unwrap();
+    f.git(&["add", "--", "first.txt"]).unwrap();
+    std::fs::write(f.path().join("first.txt"), "content\nmore\n").unwrap();
+    let repo = open(&f);
+
+    repo.unstage(&["first.txt".to_owned()]).unwrap();
+
+    assert!(staged(&repo).is_empty());
+    assert_eq!(unstaged(&repo), ["first.txt"]);
+    assert_eq!(
+        std::fs::read_to_string(f.path().join("first.txt")).unwrap(),
+        "content\nmore\n"
+    );
+}
+
 #[test]
 fn discarding_restores_the_file_from_the_index() {
     let f = test_fixtures::linear(1).unwrap();
