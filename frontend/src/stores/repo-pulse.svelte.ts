@@ -6,6 +6,7 @@ import { PulseQueue } from "$lib/pulse-queue";
 const PROBE_TIMEOUT_MS = 120_000;
 /** Past the 150 ms of quiet that ends a switch or a close, so the read is not part of it. */
 const LEFT_READ_DELAY_MS = 500;
+const REVISIT_MS = 60_000;
 
 function within<T>(work: Promise<T>, ms: number, fallback: T): Promise<T> {
   return new Promise((resolve) => {
@@ -38,6 +39,7 @@ class RepoPulseStore {
   #roots: readonly string[] = [];
   #timer: ReturnType<typeof setInterval> | null = null;
   #every = 0;
+  #revisited = -Infinity;
 
   readonly #queue = new PulseQueue({
     pulse: readPulse,
@@ -100,6 +102,18 @@ class RepoPulseStore {
       if (this.#seen.has(root)) continue;
       this.#seen.add(root);
       this.#queue.request(root);
+    }
+  }
+
+  /** The window came back into focus. Whatever was done meanwhile in a closed repository
+      has no watcher to report it, so every row the panels do not own is read again — at
+      most once a minute, through the same queue (F-451). */
+  revisit(): void {
+    const now = Date.now();
+    if (now - this.#revisited < REVISIT_MS) return;
+    this.#revisited = now;
+    for (const root of this.#roots) {
+      if (root !== this.#owned) this.#queue.request(root);
     }
   }
 
