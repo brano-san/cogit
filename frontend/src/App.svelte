@@ -286,6 +286,7 @@
         relaunch,
         confirm: (outcome) => ask(message(outcome), { title: "Check for Updates", kind: "info" }),
         report: (text) => void dialogMessage(text, { title: "Check for Updates", kind: "info" }),
+        mayInstall: () => mayInstallUpdate(),
       },
       { quiet },
     );
@@ -2976,20 +2977,37 @@
 
   /** Closing throws away whatever is only in the window: an edited hook, a resolution
       nobody wrote yet. Everything else is already on disk or in the draft store. */
+  function unsavedWork(): string | null {
+    return unsavedSummary({
+      hook: hooks.dirty ? hooks.editing : null,
+      merge: conflicts.regions.length > 0 ? conflicts.path : null,
+    });
+  }
+
   async function mayClose(): Promise<boolean> {
     const source = exitFlow.takeSource();
     flushTrace();
     session.persist();
-    const what = unsavedSummary({
-      hook: hooks.dirty ? hooks.editing : null,
-      merge: conflicts.regions.length > 0 ? conflicts.path : null,
-    });
+    const what = unsavedWork();
     if (what && !(await ask(`${what} Close anyway?`, { title: "Cogit", kind: "warning" }))) {
       return false;
     }
     // Someone who just said "close anyway" has been asked once already.
     const confirm = what ? false : settings.current.confirmExit;
     return exitFlow.ask(source, confirm, listOperations);
+  }
+
+  /** Installing an update restarts the app, which loses the same things closing does and
+      stops whatever git runs. The plugin exits on its own on Windows, past `RunEvent::Exit`. */
+  async function mayInstallUpdate(): Promise<boolean> {
+    const what = unsavedWork();
+    if (what && !(await ask(`${what} Restart anyway?`, { title: "Check for Updates", kind: "warning" }))) {
+      return false;
+    }
+    flushTrace();
+    session.persist();
+    // Asks only while operations run: "Exit When Done" installs once they are over.
+    return exitFlow.ask("command", false, listOperations);
   }
 
   /** No close request is pending here, so the window is destroyed rather than closed:
