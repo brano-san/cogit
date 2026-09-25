@@ -46,9 +46,7 @@
       onchange={() => onchange?.(checked)}
     />
   {/if}
-  <span class="box" aria-hidden="true">
-    <svg viewBox="0 0 10 10"><path class="tick" d="M2 5.3 4.2 7.5 8 2.8" /><path class="dash" d="M2.5 5h5" /></svg>
-  </span>
+  <span class="box" aria-hidden="true"></span>
   {#if children}{@render children()}{:else if label}<span>{label}</span>{/if}
 </label>
 
@@ -121,22 +119,18 @@
     transition: none;
   }
 
-  .box svg {
+  /* A mask, not an inline <svg>: the Branches tree draws a box on every one of hundreds of
+     rows, and an SVG in each cost its first screen 6 ms on the large set. */
+  .box::after {
+    content: "";
     width: 10px;
     height: 10px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.6;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+    background: currentColor;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 5.3 4.2 7.5 8 2.8'/%3E%3C/svg%3E")
+      center / contain no-repeat;
   }
 
-  .dash,
-  .native:indeterminate + .box .tick {
-    display: none;
-  }
-
-  .native:indeterminate + .box .dash {
-    display: inline;
+  .native:indeterminate + .box::after {
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round'%3E%3Cpath d='M2.5 5h5'/%3E%3C/svg%3E");
   }
 </style>
