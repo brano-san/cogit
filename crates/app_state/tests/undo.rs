@@ -677,3 +677,60 @@ fn undoing_a_discard_over_a_conflicting_commit_shows_the_conflict() {
 
     assert!(command_output(&err).contains("CONFLICT"), "{err:?}");
 }
+
+fn merge_side(state: &AppState, repo: RepoId) -> Result<(), git_engine::GitError> {
+    state.merge(
+        repo,
+        &git_engine::MergeOptions {
+            source: "side".to_owned(),
+            no_fast_forward: false,
+            squash: false,
+            message: None,
+        },
+    )
+}
+
+// `reset --keep` refuses in the middle of a merge and `branch --force` refuses a branch a
+// rebase has checked out: Undo failed with git's refusal and no word of what to do.
+#[test]
+fn undo_waits_for_a_merge_stopped_on_its_conflict() {
+    let f = about_to_conflict();
+    let (state, repo) = open(&f);
+    assert!(merge_side(&state, repo).is_err());
+
+    let err = state.undo_last(repo).unwrap_err();
+
+    assert!(
+        matches!(&err, git_engine::GitError::InvalidState(why) if why.contains("abort")),
+        "{err:?}"
+    );
+    assert!(
+        f.git_dir().join("MERGE_HEAD").exists(),
+        "the merge is left alone"
+    );
+    assert!(
+        state.safety_log()[0].undoable,
+        "Undo still works once it is over"
+    );
+}
+
+#[test]
+fn undo_waits_for_a_rebase_stopped_on_its_conflict() {
+    let f = about_to_conflict();
+    let (state, repo) = open(&f);
+    let rebased = state.rebase(
+        repo,
+        &git_engine::RebaseOptions {
+            onto: "side".to_owned(),
+            autostash: false,
+        },
+    );
+    assert!(rebased.is_err());
+
+    let err = state.undo_last(repo).unwrap_err();
+
+    assert!(
+        matches!(&err, git_engine::GitError::InvalidState(why) if why.contains("abort")),
+        "{err:?}"
+    );
+}
