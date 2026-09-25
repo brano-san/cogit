@@ -220,24 +220,25 @@ pub struct RepoOverview {
 #[derive(Debug, Default)]
 struct RowCache {
     rows: HashMap<RepoId, RepoOverview>,
-    forgotten: u64,
+    /// Per repository: a change in one says nothing about a row of another.
+    forgotten: HashMap<RepoId, u64>,
 }
 
 impl RowCache {
-    /// What `keep` needs to tell a read that raced a change.
-    fn begin(&self) -> u64 {
-        self.forgotten
+    /// What `keep` needs to tell a read that raced a change of `repo`.
+    fn begin(&self, repo: RepoId) -> u64 {
+        self.forgotten.get(&repo).copied().unwrap_or(0)
     }
 
     fn keep(&mut self, since: u64, row: RepoOverview) {
-        if self.forgotten == since {
+        if self.begin(row.repo) == since {
             self.rows.insert(row.repo, row);
         }
     }
 
     fn forget(&mut self, repo: RepoId) {
         self.rows.remove(&repo);
-        self.forgotten += 1;
+        *self.forgotten.entry(repo).or_default() += 1;
     }
 }
 
@@ -1021,7 +1022,7 @@ impl AppState {
             if let Some(row) = cache.rows.get(&open.id) {
                 return row.clone();
             }
-            cache.begin()
+            cache.begin(open.id)
         };
         let row = self.overview_of(open);
         self.rows_read.fetch_add(1, Ordering::Relaxed);
@@ -1472,16 +1473,27 @@ mod tests {
     #[test]
     fn a_row_read_across_a_change_is_not_kept() {
         let mut cache = RowCache::default();
-        let since = cache.begin();
+        let since = cache.begin(RepoId(1));
         cache.forget(RepoId(1));
         cache.keep(since, row(1));
         assert!(cache.rows.is_empty());
     }
 
+    // One counter for every repository: a change in a noisy one threw away rows of all the
+    // others read meanwhile, and the next list read them again with a full status.
+    #[test]
+    fn a_change_in_another_repository_does_not_throw_the_row_away() {
+        let mut cache = RowCache::default();
+        let since = cache.begin(RepoId(1));
+        cache.forget(RepoId(2));
+        cache.keep(since, row(1));
+        assert!(cache.rows.contains_key(&RepoId(1)));
+    }
+
     #[test]
     fn a_row_read_undisturbed_is_kept() {
         let mut cache = RowCache::default();
-        let since = cache.begin();
+        let since = cache.begin(RepoId(1));
         cache.keep(since, row(1));
         assert!(cache.rows.contains_key(&RepoId(1)));
     }
