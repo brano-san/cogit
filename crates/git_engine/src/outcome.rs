@@ -16,15 +16,23 @@ pub enum Severity {
     Failure,
 }
 
+/// What git says, with exit code 0 and no `warning:`, when `--autostash` (or
+/// `rebase.autoStash`, `merge.autoStash`) could not put the work back cleanly: the files
+/// are left conflicted and the work waits in the stash.
+const AUTOSTASH: &[&str] = &[
+    "Applying autostash resulted in conflicts.",
+    "Autostash exists; creating a new stash entry.",
+];
+
 /// Progress is not a warning; git says both on `stderr` and only one is worth a notice.
 #[must_use]
 pub fn severity_of(exit_code: Option<i32>, stderr: &str) -> Severity {
     if exit_code != Some(0) {
         return Severity::Failure;
     }
-    let spoken = stderr
-        .lines()
-        .any(|line| line.starts_with("warning:") || line.starts_with("hint:"));
+    let spoken = stderr.lines().any(|line| {
+        line.starts_with("warning:") || line.starts_with("hint:") || AUTOSTASH.contains(&line)
+    });
     if spoken {
         Severity::Warning
     } else {
@@ -59,7 +67,7 @@ pub fn summarise(stderr: &str, stdout: &str) -> String {
         .copied()
         .filter(|line| {
             let lower = line.to_ascii_lowercase();
-            MARKERS.iter().any(|marker| lower.contains(marker))
+            MARKERS.iter().any(|marker| lower.contains(marker)) || AUTOSTASH.contains(line)
         })
         .collect();
 

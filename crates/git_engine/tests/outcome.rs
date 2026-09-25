@@ -134,3 +134,27 @@ fn an_environment_before_git_is_not_taken_for_the_subcommand() {
         "Commit"
     );
 }
+
+// Rebase from the menu runs with --autostash: git exits 0 when putting the stash back
+// conflicts, with no `warning:` prefix, so the conflicted files came with no notice at all.
+#[test]
+fn an_autostash_that_came_back_with_conflicts_is_a_warning() {
+    let stderr = "Successfully rebased and updated refs/heads/main.\n\
+                  Applying autostash resulted in conflicts.\n\
+                  Your changes are safe in the stash.\n\
+                  You can run \"git stash pop\" or \"git stash drop\" at any time.\n";
+
+    assert_eq!(severity_of(Some(0), stderr), Severity::Warning);
+    assert_eq!(
+        summarise(stderr, ""),
+        "Applying autostash resulted in conflicts."
+    );
+}
+
+#[test]
+fn an_autostash_kept_as_a_new_stash_entry_is_a_warning() {
+    assert_eq!(
+        severity_of(Some(0), "Autostash exists; creating a new stash entry.\n"),
+        Severity::Warning
+    );
+}
