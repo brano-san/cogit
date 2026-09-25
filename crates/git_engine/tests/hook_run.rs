@@ -184,6 +184,43 @@ fn a_dry_run_does_not_hand_an_inherited_git_dir_to_the_hook() {
     );
 }
 
+// Started from the Start menu, Cogit has only Git\cmd from Git on PATH, and `bash` there
+// is WSL's (System32 or WindowsApps\bash.exe): the dry run went into WSL or found nothing.
+#[cfg(windows)]
+#[test]
+fn a_dry_run_uses_the_bash_of_git_for_windows_whatever_bash_path_finds() {
+    let f = test_fixtures::linear(1).unwrap();
+    write_hook(
+        &f.path().join(".git/hooks"),
+        "pre-commit",
+        "#!/bin/sh\necho from-git-bash\n",
+    );
+    let exec_path = std::process::Command::new("git")
+        .arg("--exec-path")
+        .output()
+        .unwrap();
+    let exec_path = std::path::PathBuf::from(String::from_utf8_lossy(&exec_path.stdout).trim());
+    let git_cmd = exec_path.ancestors().nth(3).unwrap().join("cmd");
+    assert!(git_cmd.join("git.exe").is_file(), "{}", git_cmd.display());
+    let impostor = tempfile::tempdir().unwrap();
+    std::fs::copy(
+        r"C:\Windows\System32\whoami.exe",
+        impostor.path().join("bash.exe"),
+    )
+    .unwrap();
+    let path = std::env::join_paths([impostor.path(), git_cmd.as_path()]).unwrap();
+
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_probe-hook"))
+        .arg(f.path())
+        .arg("pre-commit")
+        .env("PATH", path)
+        .output()
+        .unwrap();
+
+    assert!(out.status.success(), "{out:?}");
+    assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "from-git-bash");
+}
+
 /// A file in the user's home folder, removed again when the test ends.
 struct InHome(std::path::PathBuf);
 
