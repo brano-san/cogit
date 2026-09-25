@@ -155,8 +155,16 @@ impl AppState {
             old_exists: old.is_some(),
             new_exists: new.is_some(),
         };
-        diff_engine::build_patch(request, shape)
-            .ok_or_else(|| git_engine::GitError::InvalidState("nothing selected".to_owned()))
+        let sides = diff_engine::PatchSides {
+            old: old.as_deref().unwrap_or_default(),
+            new: new.as_deref().unwrap_or_default(),
+        };
+        diff_engine::build_patch(request, shape, sides).map_err(|err| match err {
+            diff_engine::PatchError::NothingSelected => {
+                git_engine::GitError::InvalidState(err.to_string())
+            }
+            _ => git_engine::GitError::InvalidState(format!("{}: {err}", request.path)),
+        })
     }
 
     pub fn merge_preview(
