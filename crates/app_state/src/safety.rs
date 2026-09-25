@@ -33,6 +33,12 @@ pub enum Recovery {
         staged: Vec<String>,
         stash: String,
     },
+    /// A conflict resolved over the working file: undo recreates the conflict where git
+    /// can and writes the file back as it was, hand edits included.
+    Resolution {
+        path: String,
+        kept: Option<String>,
+    },
     /// The branch was deleted: undo creates it again.
     Branch {
         name: String,
@@ -151,6 +157,7 @@ impl AppState {
                     .map_err(|err| crate::backup_failed("undoing the discard of", &err))?;
                 handle.stash_apply(stash)?;
             }
+            Recovery::Resolution { path, kept } => handle.unresolve(path, kept.as_deref())?,
             Recovery::Branch { name, oid } => handle.create_branch(name, Some(oid), false)?,
             Recovery::Moved { name, oid } => {
                 wait_for_the_operation(&handle)?;

@@ -72,6 +72,17 @@ fn backup_failed(doing: &str, err: &git_engine::GitError) -> git_engine::GitErro
     ))
 }
 
+/// The working file before a resolution writes over it (INV-12); without the copy the
+/// resolution does not go ahead.
+fn keep_for_undo(
+    handle: &git_engine::RepoHandle,
+    path: &str,
+) -> Result<Option<String>, git_engine::GitError> {
+    handle
+        .keep_worktree_file(path)
+        .map_err(|err| backup_failed("resolving", &err))
+}
+
 fn short(rev: &str) -> &str {
     &rev[..rev.len().min(7)]
 }
@@ -1281,7 +1292,12 @@ impl AppState {
         side: git_engine::ConflictSide,
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
-        self.handle(repo)?.resolve_with(path, side)
+        let handle = self.handle(repo)?;
+        let kept = keep_for_undo(&handle, path)?;
+        handle.resolve_with(path, side)?;
+        let taken = format!("{side:?}").to_lowercase();
+        self.record_resolution(repo, format!("Take {taken} for {path}"), path, kept);
+        Ok(())
     }
 
     pub fn resolve_conflict_text(
@@ -1291,7 +1307,25 @@ impl AppState {
         text: &str,
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
-        self.handle(repo)?.resolve_with_text(path, text)
+        let handle = self.handle(repo)?;
+        let kept = keep_for_undo(&handle, path)?;
+        handle.resolve_with_text(path, text)?;
+        self.record_resolution(repo, format!("Resolve {path}"), path, kept);
+        Ok(())
+    }
+
+    fn record_resolution(
+        &self,
+        repo: RepoId,
+        description: String,
+        path: &str,
+        kept: Option<String>,
+    ) {
+        let recovery = Recovery::Resolution {
+            path: path.to_owned(),
+            kept,
+        };
+        self.record(repo, description, recovery);
     }
 
     pub fn find(
