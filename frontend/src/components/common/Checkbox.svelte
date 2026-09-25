@@ -56,7 +56,7 @@
   /* Top-aligned, the box centred on the first line: a label that wraps keeps its box
      beside its first line. */
   .checkbox {
-    --checkbox-box: var(--checkbox-size, 14px);
+    --checkbox-box: var(--checkbox-size);
     position: relative;
     display: inline-flex;
     align-items: flex-start;

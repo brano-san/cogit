@@ -24,7 +24,7 @@
 
 <style>
   .radio {
-    --radio-box: 14px;
+    --radio-box: var(--checkbox-size);
     position: relative;
     display: inline-flex;
     align-items: flex-start;
