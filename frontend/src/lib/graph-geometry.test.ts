@@ -18,6 +18,7 @@ import {
   setLaneWidth,
   visibleRange,
   HEADER_ROWS,
+  headNode,
   toCommitRow,
   toListRow,
 } from "./graph-geometry";
@@ -277,6 +278,25 @@ describe("centreRow", () => {
 
   it("survives a viewport that has not been measured yet", () => {
     expect(centreRow(10, 0, rowHeight, 1000)).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe("HEAD's ring under the Working Tree row", () => {
+  // A ticked origin/main two commits ahead: its tip opens beside lane 0, HEAD comes third.
+  const lanes = [1, 1, 0, 0];
+  const laneAt = (row: number) => lanes[row];
+
+  it("is HEAD's own node when newer commits are drawn above it", () => {
+    expect(headNode(2, laneAt, 1)).toEqual({ lane: 0, listRow: 3 });
+  });
+
+  it("counts the rebase rows above the first commit", () => {
+    expect(headNode(0, () => 0, 4)).toEqual({ lane: 0, listRow: 4 });
+  });
+
+  it("is nowhere while HEAD is not in the graph or its row is not at hand", () => {
+    expect(headNode(null, laneAt, 1)).toBeNull();
+    expect(headNode(9, laneAt, 1)).toBeNull();
   });
 });
 

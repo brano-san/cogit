@@ -135,6 +135,7 @@ class GraphStore {
 
   /** The row of `oid`, when it is among the rows at hand. */
   loadedIndexOf(oid: string | null): number | null {
+    void this.#arrived;
     if (!oid || !this.#shown) return null;
     for (const [index, block] of this.#shown.blocks) {
       const at = block.find(oid);
@@ -149,6 +150,19 @@ class GraphStore {
     const shown = this.#shown;
     if (shown?.generation == null) return null;
     return graphRowOf(shown.repo, shown.generation, oid);
+  }
+
+  /** Row and column of `oid` without keeping its block: the dashed line to HEAD reaches
+      rows far below the screen, and a block kept for it would be the first evicted. */
+  async locate(oid: string): Promise<{ row: number; lane: number } | null> {
+    const shown = this.#shown;
+    const row = await this.indexOf(oid);
+    if (row === null || !shown || shown !== this.#shown) return null;
+    const near = this.rowAt(row);
+    if (near) return { row, lane: near.layout.lane };
+    if (shown.generation === null) return null;
+    const block = await graphWindow(shown.repo, shown.generation, row, 1).catch(() => null);
+    return block && block.length > 0 ? { row, lane: block.entry(0).layout.lane } : null;
   }
 
   /** A row a key press moves to may be off the loaded blocks. */

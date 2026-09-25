@@ -215,6 +215,18 @@ export function toCommitRow(listRow: number, headerRows: number = HEADER_ROWS): 
   return row >= 0 ? row : null;
 }
 
+/** HEAD's ring, where the dashed line from the Working Tree row ends (07 §4). It is not
+    always the first commit: HEAD comes under whatever of its descendants is shown (R-164). */
+export function headNode(
+  headRow: number | null,
+  laneAt: (commitRow: number) => number | undefined,
+  headerRows: number = HEADER_ROWS,
+): { lane: number; listRow: number } | null {
+  if (headRow === null) return null;
+  const lane = laneAt(headRow);
+  return lane === undefined ? null : { lane, listRow: toListRow(headRow, headerRows) };
+}
+
 export function nextRow(
   current: number | null,
   key: string,
