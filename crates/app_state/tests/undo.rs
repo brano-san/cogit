@@ -918,3 +918,59 @@ fn discarding_keeps_the_staged_part_of_a_file_and_undo_brings_back_the_rest() {
     assert_eq!(text(&f, "fresh.txt"), "new\nmore\n");
     assert_eq!(staged(&f, "fresh.txt"), "new\n");
 }
+
+/// Stopped on the conflict in `c.txt`, with `d.txt` merged cleanly and staged beside it.
+fn stopped_beside_a_clean_merge() -> (test_fixtures::Fixture, AppState, RepoId) {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&["switch", "-q", "-c", "side"]).unwrap();
+    f.commit_file(2, "c.txt", "side\n").unwrap();
+    f.commit_file(3, "d.txt", "from side\n").unwrap();
+    f.git(&["switch", "-q", "main"]).unwrap();
+    f.commit_file(4, "c.txt", "main\n").unwrap();
+    let (state, repo) = open(&f);
+    assert!(merge_side(&state, repo).is_err());
+    (f, state, repo)
+}
+
+// `git stash push` refuses while any index entry is unmerged ("needs merge"), so the
+// backup failed and the main way out of a failed merge did nothing.
+#[test]
+fn a_hard_reset_goes_ahead_while_a_merge_is_stopped_on_its_conflict() {
+    let (f, state, repo) = stopped_beside_a_clean_merge();
+    let head = head_oid(&state, repo);
+
+    state
+        .reset_to(repo, &head, git_engine::ResetMode::Hard)
+        .unwrap();
+
+    assert_eq!(text(&f, "c.txt"), "main\n");
+    assert!(!f.path().join("d.txt").exists());
+    assert!(state.working_state(repo).unwrap().conflicted.is_empty());
+}
+
+#[test]
+fn discarding_beside_a_conflict_keeps_the_conflict() {
+    let (f, state, repo) = stopped_beside_a_clean_merge();
+    f.write_file("file0.txt", "work in progress\n").unwrap();
+
+    state
+        .discard_paths(repo, &["file0.txt".to_owned()])
+        .unwrap();
+
+    assert_eq!(text(&f, "file0.txt"), "content 0\n");
+    assert!(text(&f, "c.txt").contains("<<<<<<<"));
+    assert_eq!(state.working_state(repo).unwrap().conflicted, ["c.txt"]);
+}
+
+#[test]
+fn a_rollback_beside_a_conflict_goes_ahead() {
+    let (f, state, repo) = stopped_beside_a_clean_merge();
+    f.write_file("file0.txt", "work in progress\n").unwrap();
+
+    state
+        .rollback_to(repo, "HEAD", &["file0.txt".to_owned()])
+        .unwrap();
+
+    assert_eq!(text(&f, "file0.txt"), "content 0\n");
+    assert_eq!(state.working_state(repo).unwrap().conflicted, ["c.txt"]);
+}
