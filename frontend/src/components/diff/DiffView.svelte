@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { keyLetter } from "$lib/key-letter";
   import { modals } from "$lib/modal-stack";
   import { untrack } from "svelte";
   import {
@@ -319,7 +320,7 @@
     // A dialog above the panel has the keys (11 §1).
     if (modals.any) return;
     const ctrl = event.ctrlKey || event.metaKey;
-    const key = event.key.toLowerCase();
+    const key = keyLetter(event);
 
     if (event.key === "F6") {
       event.preventDefault();

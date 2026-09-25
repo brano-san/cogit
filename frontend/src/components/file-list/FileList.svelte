@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { keyLetter } from "$lib/key-letter";
   import { modals } from "$lib/modal-stack";
   import { untrack } from "svelte";
   import FilesToolbar from "./FilesToolbar.svelte";
@@ -100,7 +101,7 @@
       marked = { paths: new Set(order), anchor: order[0] ?? null };
       return;
     }
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
+    if ((event.ctrlKey || event.metaKey) && keyLetter(event) === "f") {
       event.preventDefault();
       bar?.focus();
     }

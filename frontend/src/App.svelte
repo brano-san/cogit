@@ -77,6 +77,7 @@
   import { compareView } from "$stores/compare-view.svelte";
   import { confirmation } from "$stores/confirm.svelte";
   import { menuCommandRuns, modals } from "$lib/modal-stack";
+  import { keyLetter } from "$lib/key-letter";
   import { commitBox } from "$stores/commit-box.svelte";
   import { commitFileMenu, worktreeFileMenu } from "$lib/file-menu";
   import { fileName, runFileMenuCommand, type FileActions, type FileScope } from "$lib/file-actions";
@@ -966,7 +967,7 @@
     }
 
     // Select All belongs to the focused panel, and the graph declines it on purpose.
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a" && !typing(event)) {
+    if ((event.ctrlKey || event.metaKey) && keyLetter(event) === "a" && !typing(event)) {
       if (!allowsSelectAll(focused)) event.preventDefault();
     }
   }
