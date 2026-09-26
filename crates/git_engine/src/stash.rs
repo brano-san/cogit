@@ -34,7 +34,43 @@ pub struct StashContents {
     pub untracked_rev: Option<String>,
 }
 
+/// Where the copies Undo puts back are kept: out of `refs/stash`, so the user's list, its
+/// numbers and `git stash pop` never meet them (R-514).
+pub const BACKUP_REFS: &str = "refs/cogit/backup/";
+
 impl RepoHandle {
+    /// `stash_paths` whose stash is kept as a backup for Undo instead of listed.
+    pub fn backup_paths(&self, paths: &[String], message: &str) -> Result<Option<String>> {
+        let made = self.stash_paths(paths, message)?;
+        self.keep_as_backup(made)
+    }
+
+    /// `stash_before_reset`, kept as a backup for Undo instead of listed.
+    pub fn backup_before_reset(&self, message: &str) -> Result<Option<String>> {
+        let made = self.stash_before_reset(message)?;
+        self.keep_as_backup(made)
+    }
+
+    /// The stash just made on top of the list moves to a ref of its own, and the list is
+    /// left as the user had it. The ref comes first: a failed drop only lists it as well.
+    fn keep_as_backup(&self, made: Option<String>) -> Result<Option<String>> {
+        let Some(oid) = made else {
+            return Ok(None);
+        };
+        self.run_git(&["update-ref", &format!("{BACKUP_REFS}{oid}"), &oid])?;
+        if self.stash_top().as_deref() == Some(oid.as_str()) {
+            self.run_git(&["stash", "drop", "--quiet", "stash@{0}"])?;
+        }
+        Ok(Some(oid))
+    }
+
+    /// Undo put it back, so nothing is left to keep it for; a failure only leaves it kept.
+    pub fn forget_backup(&self, oid: &str) {
+        if let Err(err) = self.run_git(&["update-ref", "-d", &format!("{BACKUP_REFS}{oid}")]) {
+            tracing::warn!(error = ?err, oid, "a backup for Undo stays kept");
+        }
+    }
+
     pub fn stash_paths(&self, paths: &[String], message: &str) -> Result<Option<String>> {
         // Git hands the list on to a `git clean` of its own, on a command line: past its
         // limit the stash is made and the files stay (R-191).

@@ -221,10 +221,11 @@ impl RepoHandle {
             .collect())
     }
 
-    /// Uncommitted work, untracked included, into a stash that outlives the worktree.
+    /// Uncommitted work, untracked included, into a backup that outlives the worktree: its
+    /// ref lives in the common git directory.
     pub fn stash_worktree_changes(&self, path: &str, message: &str) -> Result<Option<String>> {
         self.linked_handle(path)?
-            .stash_paths(&[".".to_owned()], message)
+            .backup_paths(&[".".to_owned()], message)
     }
 
     /// Around the shared `.git`, which a linked worktree reports as `.git/worktrees/<n>/../..`.
