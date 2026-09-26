@@ -18,6 +18,8 @@ class WorktreeStore {
   staged = $state.raw<FileEntry[]>([]);
   unstaged = $state.raw<FileEntry[]>([]);
   loading = $state(false);
+  /** An answer came since `clear()`: until then an empty list says nothing about the tree. */
+  loaded = $state(false);
   error = $state<CogitError | null>(null);
 
   #generation = 0;
@@ -39,6 +41,7 @@ class WorktreeStore {
       if (generation !== this.#generation) return;
       this.staged = files.staged;
       this.unstaged = files.unstaged;
+      this.loaded = true;
     } catch (err) {
       if (generation !== this.#generation) return;
       this.staged = [];
@@ -93,6 +96,7 @@ class WorktreeStore {
     this.staged = [];
     this.unstaged = [];
     this.loading = false;
+    this.loaded = false;
     this.error = null;
   }
 }

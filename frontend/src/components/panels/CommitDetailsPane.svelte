@@ -42,7 +42,7 @@
           : details.parents.map(shortOid).join(", ")}
       </dd>
     </dl>
-  {:else if repo}
+  {:else if repo && commit.oid === null}
     <dl>
       <dt>Repository</dt>
       <dd class="mono">{repo.root}</dd>

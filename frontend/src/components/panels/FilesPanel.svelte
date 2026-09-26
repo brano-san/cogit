@@ -2,7 +2,7 @@
   import FileList from "$components/file-list/FileList.svelte";
   import { ContentSearch } from "$lib/content-search.svelte";
   import { withUnchanged } from "$lib/file-switches";
-  import { filesPanelList } from "$lib/files-panel";
+  import { emptyText, filesPanelList } from "$lib/files-panel";
   import type { FileView } from "$lib/file-view";
   import { idleMessage } from "$lib/repo-phase";
   import { commit } from "$stores/commit.svelte";
@@ -110,7 +110,7 @@
       ? (idleMessage(view) ?? "")
       : commit.oid === null
         ? "Select a commit to see the files it changed."
-        : "This commit changed no files.",
+        : emptyText({ settled: !commit.loading, failed: commit.error !== null }, "This commit changed no files."),
   );
 </script>
 
@@ -162,7 +162,10 @@
           onselect: onopencompare,
         },
       ]}
-      empty={compareView.loading ? "Comparing…" : "Both commits have the same files."}
+      empty={emptyText(
+        { settled: !compareView.loading, failed: compareView.error !== null },
+        "Both commits have the same files.",
+      )}
       selected={diff.path}
       onopen={onopenwindow}
       {onmarked}
@@ -199,7 +202,10 @@
           actions: [{ label: "Unstage", title: "Unstage", run: unstage }],
         },
       ]}
-      empty="The working tree is clean."
+      empty={emptyText(
+        { settled: worktree.loaded, failed: worktree.error !== null },
+        "The working tree is clean.",
+      )}
       selected={diff.path}
       onopen={onopenwindow}
       {onmask}
