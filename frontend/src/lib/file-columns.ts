@@ -118,6 +118,24 @@ export function shownColumns(columns: FileColumns, directories: boolean): Column
   return COLUMN_KEYS.filter((key) => key === "name" || (columns[key] && columnReason(key, directories) === null));
 }
 
+/** The Columns group of Customise View (#34): a column that cannot change here is off, with why. */
+export function columnItems(
+  columns: FileColumns,
+  directories: boolean,
+): { key: ColumnKey; label: string; checked: boolean; reason: string | null }[] {
+  const shown = new Set(shownColumns(columns, directories));
+  return COLUMN_KEYS.map((key) => ({
+    key,
+    label: COLUMN_LABELS[key],
+    checked: shown.has(key),
+    reason: columnReason(key, directories),
+  }));
+}
+
+export function toggleColumn(columns: FileColumns, key: ColumnKey): FileColumns {
+  return key === "name" ? columns : { ...columns, [key]: !columns[key] };
+}
+
 /** Every path starts at one vertical: the columns between the name and the path have a
     fixed width, and the name and the path share what is left, two parts to three. */
 export function gridColumns(shown: readonly ColumnKey[]): string {

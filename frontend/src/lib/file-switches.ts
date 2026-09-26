@@ -26,7 +26,7 @@ const TITLES: Record<StateSlot, string> = {
   missing: "If selected, missing/removed files will be shown",
 };
 
-const RENAME_SOURCES_TITLE =
+export const RENAME_SOURCES_TITLE =
   "If selected, removed/missing source files of detected renames will be shown";
 
 const SLOTS: readonly StateSlot[] = [
