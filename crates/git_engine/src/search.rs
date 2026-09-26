@@ -47,8 +47,7 @@ pub struct GraphView {
     /// A merged branch is one row at its merge, but for the merges in `expanded`.
     pub collapse_merged: bool,
     pub expanded: Vec<String>,
-    /// A filtered list drawn with lines between its matches, through the commits it leaves
-    /// out, instead of flat (Show Graph While Filtering, F-561).
+    /// Show Graph While Filtering: a filtered list keeps lines between its matches (R-575).
     pub filtered_graph: bool,
 }
 
@@ -184,8 +183,7 @@ impl RepoHandle {
         self.graph_commits_passing(query, chunk_size, rows, None, on_chunk)
     }
 
-    /// `graph_commits` that also lists, in `passed`, the commits the filter left out, where
-    /// they fell between the rows it gives.
+    /// `graph_commits` that lists in `passed` the commits the filter left out, in order.
     pub fn graph_commits_passing(
         &self,
         query: &CommitQuery,
@@ -340,8 +338,7 @@ impl RepoHandle {
         self.shown_filter(query).shows(self, oid)
     }
 
-    /// `shown_by` for a loop over many commits: the mailmap and the ref names the text may
-    /// match are read once for all of them.
+    /// `shown_by` for many commits: the mailmap and the ref names are read once for all.
     #[must_use]
     pub fn shown_filter<'q>(&self, query: &'q CommitQuery) -> ShownBy<'q> {
         ShownBy {
@@ -429,8 +426,7 @@ struct Rows<'h> {
     passed: Option<&'h PassedCommits>,
 }
 
-/// A commit a filter left out: `before` is the index, in the chunk being filled, of the row
-/// that comes after it.
+/// A commit a filter left out, before the row `before` of the chunk being filled.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Passed {
     pub before: usize,
@@ -438,8 +434,7 @@ pub struct Passed {
     pub first_parent: Option<String>,
 }
 
-/// The commits a filtered walk left out, in walk order, for a graph that draws its lines
-/// through them (F-561). Taken chunk by chunk.
+/// What a filtered walk left out, taken chunk by chunk for lines drawn through it (R-575).
 #[derive(Debug, Default)]
 pub struct PassedCommits(std::cell::RefCell<Vec<Passed>>);
 
