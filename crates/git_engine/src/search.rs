@@ -97,41 +97,50 @@ impl RepoHandle {
     pub fn walk_tips(&self, query: &CommitQuery) -> Result<Vec<String>> {
         Ok(self
             .tips_for(query)?
-            .0
+            .ids
             .iter()
             .map(ToString::to_string)
             .collect())
     }
 
-    pub(crate) fn tips_for(
-        &self,
-        query: &CommitQuery,
-    ) -> Result<(Vec<gix::ObjectId>, Vec<SkippedRef>)> {
+    pub(crate) fn tips_for(&self, query: &CommitQuery) -> Result<Tips> {
         let Some(names) = query.visible_refs.as_deref() else {
-            return Ok((self.graph_tips()?, Vec::new()));
+            return Ok(Tips {
+                ids: self.graph_tips()?,
+                ..Tips::default()
+            });
         };
 
-        let mut tips = Vec::with_capacity(names.len());
-        let mut skipped = Vec::new();
+        let mut tips = Tips::default();
         for rev in names {
             let Ok(id) = self.repo.rev_parse_single(rev.as_str()) else {
                 tracing::debug!(rev, "a ticked ref no longer resolves");
                 continue;
             };
             match id.object().map(gix::Object::peel_to_commit) {
-                Ok(Ok(commit)) => tips.push(commit.id),
-                _ => skipped.push(SkippedRef {
+                Ok(Ok(commit)) => {
+                    if is_stash(rev) {
+                        tips.stashes.push(commit.id);
+                    }
+                    tips.ids.push(commit.id);
+                }
+                _ => tips.skipped.push(SkippedRef {
                     name: rev.clone(),
                     reason: "Tag does not point to a commit".to_owned(),
                 }),
             }
         }
-        if !skipped.is_empty() {
-            tracing::warn!(skipped = skipped.len(), "ticked refs left out of the graph");
+        if !tips.skipped.is_empty() {
+            tracing::warn!(
+                skipped = tips.skipped.len(),
+                "ticked refs left out of the graph"
+            );
         }
-        tips.sort_unstable();
-        tips.dedup();
-        Ok((tips, skipped))
+        tips.ids.sort_unstable();
+        tips.ids.dedup();
+        tips.stashes.sort_unstable();
+        tips.stashes.dedup();
+        Ok(tips)
     }
 
     /// Newest first by commit time, as `git log` reads: for search, history, Investigate.
@@ -169,7 +178,11 @@ impl RepoHandle {
         } = rows;
         // Rows without text cannot be matched against a filter.
         let text = text || query.filters_rows();
-        let (tips, skipped) = self.tips_for(query)?;
+        let Tips {
+            ids: tips,
+            skipped,
+            stashes,
+        } = self.tips_for(query)?;
         if !tips.is_empty() {
             let head = self.first_of(&tips);
             let reader = CommitReader::new(&self.repo);
@@ -187,16 +200,20 @@ impl RepoHandle {
             // A filtered list shows matches from every line, the merged ones too (#26).
             let first_parent = query.view.first_parent && !query.filters_rows();
             let shallow = self.shallow_commits();
-            let walk = ByTime::new(tips, read, first_parent, shallow.clone()).inspect(
-                |(id, parents, _)| {
+            let walk = ByTime::new(tips, read, first_parent, shallow.clone())
+                .first_parent_of(stashes.clone())
+                .inspect(|(id, parents, _)| {
                     if let Some(cut) = cut
                         && shallow.binary_search(id).is_ok()
                     {
                         parents.iter().for_each(|parent| cut.insert(*parent));
                     }
-                },
-            );
-            let rows = Rows { record, text };
+                });
+            let rows = Rows {
+                record,
+                text,
+                stashes: &stashes,
+            };
             self.stream_rows(
                 query,
                 chunk_size,
@@ -227,7 +244,6 @@ impl RepoHandle {
     ) -> Result<()> {
         let chunk_size = chunk_size.max(1);
         let mut chunk = Vec::with_capacity(chunk_size);
-        let mut listed = 0_u32;
         // Once per walk: a `stat` per row would cost more than reading the commit.
         let mailmap = if rows.text {
             self.mailmap()
@@ -249,6 +265,11 @@ impl RepoHandle {
                     tz_offset_minutes: 0,
                 }
             };
+            let mut row = row;
+            // The walk follows a stash's first parent only; its other lines would go nowhere.
+            if !rows.stashes.is_empty() && rows.stashes.binary_search(&id).is_ok() {
+                row.parents.truncate(1);
+            }
             if !query.matches_row(&row) {
                 continue;
             }
@@ -260,9 +281,8 @@ impl RepoHandle {
             }
 
             if let Some(record) = rows.record.as_deref_mut() {
-                record.push(id, listed, row.timestamp, parents);
+                record.push(id, row.timestamp, parents);
             }
-            listed = listed.saturating_add(1);
             chunk.push(row);
             if chunk.len() >= chunk_size {
                 let full = std::mem::replace(&mut chunk, Vec::with_capacity(chunk_size));
@@ -342,6 +362,23 @@ fn contains_ignoring_case(haystack: &str, needle: &str) -> bool {
 struct Rows<'h> {
     record: Option<&'h mut WalkedHistory>,
     text: bool,
+    /// Sorted: ticked stashes, one row each with only the first parent (F-331).
+    stashes: &'h [gix::ObjectId],
+}
+
+/// The commits a walk starts from.
+#[derive(Debug, Default)]
+pub(crate) struct Tips {
+    pub(crate) ids: Vec<gix::ObjectId>,
+    pub(crate) skipped: Vec<SkippedRef>,
+    /// Sorted. Ticked by a `refs/stash` selector: `git stash` keeps the index and the
+    /// untracked files in commits of its own, second and third parents that are no history.
+    pub(crate) stashes: Vec<gix::ObjectId>,
+}
+
+/// `stash@{N}`, `refs/stash@{N}` or `refs/stash` itself.
+fn is_stash(rev: &str) -> bool {
+    rev == "refs/stash" || rev.starts_with("stash@{") || rev.starts_with("refs/stash@{")
 }
 
 /// How a graph walk gets and gives its rows (`graph_commits`).

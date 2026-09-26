@@ -1,6 +1,6 @@
 /** Single-sourced so the list and the canvas cannot drift apart (doc/12-risks.md, R-03). */
 
-const LANE_WIDTH = { default: 16, min: 12, max: 48 } as const;
+export const LANE_WIDTH = { default: 16, min: 12, max: 48 } as const;
 let laneWidth: number = LANE_WIDTH.default;
 
 /** Rows of the lists that are not the graph; the graph's own follow its density (#12). */
@@ -89,17 +89,18 @@ export function striped(listRow: number, stripes = true): boolean {
 }
 
 /** What is behind a node, bottom up, so its fill hides the lines exactly as the row does:
-    the panel, the stripe, then hover and selection, which cover the stripe. */
+    the panel, the stripe, then hover and selection, which cover the stripe. `selectedRows`
+    are every row drawn selected: the selection and the other end of a comparison. */
 export function nodeFill(
   listRow: number,
-  selectedRow: number | null,
+  selectedRows: readonly number[],
   hoverRow: number | null,
   stripes = true,
 ): string[] {
   const layers = ["--surface-panel"];
   if (striped(listRow, stripes)) layers.push("--row-stripe");
   if (listRow === hoverRow) layers.push("--state-hover");
-  if (listRow === selectedRow) layers.push("--state-selected");
+  if (selectedRows.includes(listRow)) layers.push("--state-selected");
   return layers;
 }
 

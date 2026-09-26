@@ -2,12 +2,11 @@
   import { untrack } from "svelte";
   import EmptyState from "$components/common/EmptyState.svelte";
   import SkeletonRows from "$components/common/SkeletonRows.svelte";
+  import CommitRow from "$components/graph/CommitRow.svelte";
   import GraphCanvas from "$components/graph/GraphCanvas.svelte";
-  import RefCapsule from "$components/graph/RefCapsule.svelte";
-  import { capsules, dateTooltip, refLabelKey, refLabels, shortOid, type RefLabel } from "$lib/format";
+  import { refLabels, shortOid, type RefLabel } from "$lib/format";
   import { graphDropTarget } from "$lib/drop-target";
   import { pointerDrag } from "$lib/pointer-drag";
-  import { overlapLabel, overlapTooltip } from "$lib/overlap";
   import { overlap } from "$stores/overlap.svelte";
   import {
     GRAPH,
@@ -34,22 +33,18 @@
     GRAPH_TIME_FORMAT,
     LONG_LINK_ROWS,
     graphClipX,
-    graphTime,
     rightCells,
     rightColumnsWidth,
     rowTextX,
-    timeWidth,
     type GraphColumn,
     type GraphDensity,
     type GraphTimeFormat,
   } from "$lib/graph-row";
-  import { linkStubs, linkTitle } from "$lib/graph-links";
   import { measurer } from "$lib/timing";
   import { anchoredScrollTop } from "$lib/graph-anchor";
-  import { subjectRoom } from "$lib/graph-panel";
+  import { emptyHistory, subjectRoom } from "$lib/graph-panel";
   import { workingTreeLabel } from "$lib/repo-state";
   import { reportTiming, type RebaseProgress, type RepoId } from "$lib/ipc";
-  import Avatar from "$components/common/Avatar.svelte";
   import { avatars } from "$stores/avatars.svelte";
   import { commit as selection } from "$stores/commit.svelte";
   import { compareView } from "$stores/compare-view.svelte";
@@ -63,7 +58,6 @@
     paintRequest,
     type LanePick,
   } from "$lib/graph-modes";
-  import FoldToggle from "$components/graph/FoldToggle.svelte";
   import { graphFolds } from "$stores/graph-folds.svelte";
   import { laneAt } from "$lib/graph-style";
   import { isEmptyQuery } from "$lib/query";
@@ -71,6 +65,7 @@
   import { refs as refTicks } from "$stores/refs.svelte";
   import { repository } from "$stores/repository.svelte";
   import { stashes } from "$stores/stashes.svelte";
+  import { stashView } from "$stores/stash-view.svelte";
   import { worktrees } from "$stores/worktrees.svelte";
 
   interface Props {
@@ -83,6 +78,8 @@
     oncontext?: (oid: string, x: number, y: number) => void;
     onworktreecontext?: (x: number, y: number) => void;
     onrefcontext?: (label: RefLabel, oid: string, x: number, y: number) => void;
+    /** A filter left the list empty; its button clears the filter. */
+    onclearfilter?: () => void;
     /** Branches ticked in Branches in their own colours (setting `graphHighlightChecked`). */
     highlightChecked?: boolean;
     /** First parents only (`graphFirstParent`). */
@@ -108,6 +105,7 @@
     oncontext,
     onworktreecontext,
     onrefcontext,
+    onclearfilter,
     highlightChecked = GRAPH_MODE_DEFAULTS.highlightChecked,
     firstParent = GRAPH_MODE_DEFAULTS.firstParent,
     branchOfCommit = GRAPH_MODE_DEFAULTS.branchOfCommit,
@@ -147,14 +145,12 @@
 
   async function pick(repo: RepoId, oid: string | null) {
     // The last repository's rows stay on screen until the new ones arrive (R-300).
-    if (graph.shownRepo !== null && graph.shownRepo !== repo) return;
+    if (graph.stale) return;
     const watch = measure("select-commit");
     await selection.select(repo, oid);
     watch.stop(`${selection.files.length} files`);
   }
 
-  /** Enough for HEAD plus its upstream plus a tag; the rest fold into a `+N` capsule. */
-  const CAPSULE_ROOM = 3;
 
   /** Rows rendered beyond the viewport so a fast scroll does not show blanks. */
   const BUFFER_ROWS = 10;
@@ -283,6 +279,15 @@
 
   const headerLabel = $derived(workingTreeLabel(repository.current?.status, repository.current?.state));
 
+  /** What relative times and "today" count from; a minute is their finest step. Read in the
+      markup, `Date.now()` changed nothing until a row scrolled away and back. */
+  let now = $state(Date.now() / 1000);
+  $effect(() => {
+    const clock = setInterval(() => (now = Date.now() / 1000), 60_000);
+    return () => clearInterval(clock);
+  });
+  const empty = $derived(emptyHistory(!isEmptyQuery(graph.query), graph.visibleRefs));
+
   const visible = $derived.by(() => {
     const from = Math.max(range.start, headerRows);
     const rows = [];
@@ -305,9 +310,10 @@
     graph.show(Math.max(range.start - headerRows, 0), Math.max(range.end - headerRows, 0));
   });
 
-  /** A filtered list is flat, not a graph (R-51): nothing to colour along it. */
+  /** A filtered list is flat, not a graph (R-51): nothing to colour or fold along it. */
+  const filterless = $derived(isEmptyQuery(graph.query));
   const paint = $derived(
-    isEmptyQuery(graph.query)
+    filterless
       ? paintRequest(
           modes,
           checkedTips(repository.current?.branches ?? [], refTicks.visible),
@@ -325,16 +331,19 @@
       total: graph.total,
       complete: graph.complete,
       request: paint,
+      base: walk?.base ?? null,
+      kept: walk?.kept ?? 0,
     });
   });
 
   let lanePick = $state<LanePick | null>(null);
+  const walkKey = $derived(`${graph.walk?.repo ?? ""}:${graph.walk?.generation ?? ""}`);
   const selectedLane = $derived.by(() => {
     void graph.walk;
     const at = graph.loadedIndexOf(selection.oid);
     return at === null ? null : (graphOverlays.paintAt(at)?.nodeLane ?? null);
   });
-  const focus = $derived(focusLane(modes, selection.oid, selectedLane, lanePick));
+  const focus = $derived(focusLane(modes, selection.oid, selectedLane, lanePick, walkKey));
 
   const drawn = $derived(
     visible.map(({ listRow, entry }) => ({
@@ -348,7 +357,12 @@
   const canvasWidth = $derived(
     Math.min(Math.max(headerX, ...drawn.map(({ layout }) => textX(layout.width))), clipX),
   );
-  const selectedRow = $derived(visible.find(({ entry }) => entry.commit.oid === selection.oid)?.listRow ?? null);
+  /** Rows drawn selected: the selection and the other end of a comparison (#33). */
+  const selectedRows = $derived(
+    visible
+      .filter(({ entry }) => entry.commit.oid === selection.oid || entry.commit.oid === comparedFrom)
+      .map(({ listRow }) => listRow),
+  );
 
   /** Selection and scroll move together: an arrow key that selects off-screen is useless. */
   function onkeydown(event: KeyboardEvent) {
@@ -395,7 +409,7 @@
   });
 
   function commitAt(clientY: number): string | null {
-    if (!scroller) return null;
+    if (!scroller || graph.stale) return null;
     const y = clientY - scroller.getBoundingClientRect().top;
     return graphDropTarget(y, scroller.scrollTop, rowHeight, listRows, headerRows, (row) => graph.rowAt(row)?.commit.oid);
   }
@@ -437,7 +451,7 @@
     if (branchOfCommit && oid !== null && layout && commitRow !== null) {
       const upper = (event.clientY - box.top + scrollTop) % rowHeight < rowHeight / 2;
       const lane = laneAt(layout, graphOverlays.paintAt(commitRow), hit.lane, upper);
-      lanePick = lane === null ? null : { oid, lane };
+      lanePick = lane === null ? null : { oid, lane, walk: walkKey };
     }
     // Clicking the selected commit again brings its details back into Diff (#7).
     if (oid !== null && oid === selection.oid) selection.showDetails();
@@ -490,17 +504,23 @@
       void graph.indexOf(oid).then((at) => (at === null ? undefined : graph.entry(at)));
     }
   }
+
+  /** A label's own menu, not the row's (#39). */
+  function refMenu(label: RefLabel, oid: string, event: MouseEvent) {
+    if (!onrefcontext) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (graph.stale) return;
+    const repo = repository.current?.repo;
+    if (repo !== undefined) void pick(repo, oid);
+    onrefcontext(label, oid, event.clientX, event.clientY);
+  }
 </script>
 
 {#if graph.error}
   <p class="message error">{graph.error.message}</p>
 {:else if commitCount === 0 && graph.loading}
   <SkeletonRows rows={14} />
-{:else if commitCount === 0}
-  <EmptyState
-    title="No commits yet"
-    hint="The first commit you make in this repository shows up here."
-  />
 {:else}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
@@ -526,7 +546,7 @@
           height={viewportHeight}
           headRow={head?.listRow ?? null}
           {headLane}
-          {selectedRow}
+          {selectedRows}
           {hoverRow}
           focusLane={focus}
           {clipX}
@@ -540,16 +560,13 @@
         bind:this={rowsLayer}
         style:transform="translateY({-scrollTop}px)"
         style:--row-h="{rowHeight}px"
-        style:--author-max="{COLUMN_WIDTH.author}px"
-        style:--hash-w="{COLUMN_WIDTH.hash}px"
         style:--overlap-w="{COLUMN_WIDTH.overlap}px"
-        style:--time-w="{timeWidth(timeFormat)}px"
       >
         {#if range.start === 0}
           <button
             type="button"
             class="row header"
-            class:selected={selection.oid === null}
+            class:selected={selection.oid === null && stashView.contents === null}
             style:top="0px"
             style:padding-left="{headerX}px"
             title="Show the working tree in Files and Diff"
@@ -582,7 +599,6 @@
         {/each}
 
         {#each visible as item (item.entry.commit.oid)}
-          {@const refs = capsules(labels.get(item.entry.commit.oid) ?? [], CAPSULE_ROOM)}
           <div
             class="row"
             class:striped={stripes && striped(item.listRow)}
@@ -594,90 +610,39 @@
             oncontextmenu={(event) => {
               if (!oncontext) return;
               event.preventDefault();
+              if (graph.stale) return;
               const repo = repository.current?.repo;
               if (repo !== undefined) void pick(repo, item.entry.commit.oid);
               oncontext(item.entry.commit.oid, event.clientX, event.clientY);
             }}
           >
-            {#if modes.collapseMerged}
-              {@const hidden = graphOverlays.foldAt(item.entry.layout.row)}
-              {@const open = graphFolds.expanded.has(item.entry.commit.oid)}
-              {#if hidden > 0 || open}
-                <FoldToggle {open} {hidden} ontoggle={() => graphFolds.toggle(item.entry.commit.oid)} />
-              {/if}
-            {/if}
-            {#each refs.shown as label (refLabelKey(label))}
-              <RefCapsule
-                {label}
-                onmenu={onrefcontext &&
-                  ((event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    const oid = item.entry.commit.oid;
-                    const repo = repository.current?.repo;
-                    if (repo !== undefined) void pick(repo, oid);
-                    onrefcontext(label, oid, event.clientX, event.clientY);
-                  })}
-              />
-            {/each}
-            {#if refs.hidden.length > 0}
-              <span class="capsule more" title={refs.hidden.map((l) => l.text).join("\n")}
-                >+{refs.hidden.length}</span
-              >
-            {/if}
-            <span class="summary truncate">{item.entry.commit.summary}</span>
-            {#each cells as cell (cell)}
-              {#if cell === "author"}
-                <span class="author truncate">{item.entry.commit.authorName}</span>
-              {:else if cell === "avatar"}
-                <Avatar name={item.entry.commit.authorName} email={item.entry.commit.authorEmail} />
-              {:else if cell === "time"}
-                <span
-                  class="date time tabular truncate"
-                  title={dateTooltip(item.entry.commit.timestamp, item.entry.commit.tzOffsetMinutes)}
-                  >{graphTime(
-                    item.entry.commit.timestamp,
-                    item.entry.commit.tzOffsetMinutes,
-                    Date.now() / 1000,
-                    timeFormat,
-                  )}</span
-                >
-              {:else if cell === "overlap"}
-                {@const row = overlap.rows.get(item.entry.commit.oid)}
-                <span
-                  class="overlap {row?.overlap ?? 'none'}"
-                  class:base={row?.isBase}
-                  title={row ? overlapTooltip(row.shared, row.sharedTotal) : ""}
-                >
-                  {row?.isBase ? "base" : row ? overlapLabel(row.overlap) : ""}
-                </span>
-              {:else}
-                <span class="oid mono tabular">{shortOid(item.entry.commit.oid)}</span>
-              {/if}
-            {/each}
-            {#each linkStubs(item.entry.layout) as stub (stub.segment)}
-              {#if stub.box.left + stub.box.size <= clipX}
-                <button
-                  type="button"
-                  class="link-stub"
-                  tabindex="-1"
-                  style:left="{stub.box.left}px"
-                  style:top="{stub.box.top}px"
-                  style:width="{stub.box.size}px"
-                  style:height="{stub.box.size}px"
-                  aria-label="Go to the other end of this link"
-                  title={linkTitle(stub.oids, describeEnd)}
-                  onpointerenter={() => prefetch(stub.oids)}
-                  onclick={(event) => {
-                    event.stopPropagation();
-                    jump(stub.oids[0]);
-                  }}
-                ></button>
-              {/if}
-            {/each}
+            <CommitRow
+              entry={item.entry}
+              labels={labels.get(item.entry.commit.oid) ?? []}
+              folds={modes.collapseMerged && filterless}
+              {cells}
+              {timeFormat}
+              {now}
+              {clipX}
+              onrefmenu={onrefcontext && ((label, event) => refMenu(label, item.entry.commit.oid, event))}
+              {describeEnd}
+              onprefetch={prefetch}
+              onjump={jump}
+            />
           </div>
         {/each}
       </div>
+      <!-- The Working Tree row stays above an empty list: it is always the first (doc/05 §3.4). -->
+      {#if commitCount === 0}
+        <div class="empty" style:top="{headerRows * rowHeight}px">
+          <EmptyState
+            title={empty.title}
+            hint={empty.hint}
+            action={empty.clears ? "Clear Filter" : undefined}
+            onaction={onclearfilter}
+          />
+        </div>
+      {/if}
     </div>
     <div
       class="spacer"
@@ -791,82 +756,24 @@
     color: var(--status-modify);
   }
 
-  .capsule.more {
-    background: var(--surface-raised);
-    color: var(--text-secondary);
-  }
-
-  .capsule {
-    flex: 0 0 auto;
-    height: 16px;
-    padding: 0 var(--sp-3);
-    border: 1px solid;
-    border-radius: var(--r-md);
-    font-family: var(--font-mono);
-    font-size: 10px;
-    line-height: 14px;
-  }
-
-  /* Gives way after the branch labels, which shrink first (#12, R-331); the right columns
-     never do, and past its room the graph area is cut instead. */
+  /* The Working Tree and rebase rows; a commit's row styles its own (CommitRow). */
   .summary {
     flex: 1 1 auto;
     min-width: 0;
   }
 
-  .author {
-    flex: 0 0 auto;
-    max-width: var(--author-max);
-    color: var(--text-secondary);
-  }
-
-  .date,
-  .overlap {
+  .date {
     flex: 0 0 var(--overlap-w);
     color: var(--text-secondary);
     font-size: var(--fs-header);
     text-align: right;
   }
 
-  /* Beside the avatar, one row gap from it (#14): right-aligned in its fixed column, a short
-     date sat a whole column away from the face it belongs to. */
-  .date.time {
-    flex-basis: var(--time-w);
-    text-align: left;
-  }
-
-  .overlap.heavy {
-    color: var(--status-modify);
-  }
-
-  .overlap.same {
-    color: var(--status-delete);
-  }
-
-  .overlap.base {
-    color: var(--status-ref);
-    font-weight: 600;
-  }
-
-  .avatar-cell {
-    display: flex;
-    flex: 0 0 auto;
-  }
-
-  .oid {
-    flex: 0 0 var(--hash-w);
-    overflow: hidden;
-    color: var(--text-secondary);
-    font-size: 11px;
-  }
-
-  /* Over the arrow of a cut link, under the canvas that draws it (R-330). */
-  .link-stub {
+  .empty {
     position: absolute;
-    padding: 0;
-    background: none;
-    border: 0;
-    cursor: pointer;
+    left: 0;
+    right: 0;
+    z-index: 1;
   }
 
   .message {

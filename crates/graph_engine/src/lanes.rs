@@ -75,6 +75,11 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
     cursor.lanes.retain(|lane| !lane.ended);
 
     // 1. The node: the leftmost lane waiting for it, or a new one for a branch tip.
+    let across = if cursor.cut_colour.is_empty() {
+        None
+    } else {
+        cursor.cut_colour.remove(&node.oid)
+    };
     let on_main = cursor.reserved
         && cursor
             .lanes
@@ -86,7 +91,7 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
         .position(|lane| waits_for(lane, &node.oid))
     {
         Some(at) => cursor.lanes[at].id,
-        None => open_tip(node, cursor),
+        None => open_tip(node, cursor, across),
     };
     let node_at = cursor
         .lanes
@@ -275,6 +280,9 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
                     .entry(oid.clone())
                     .or_default()
                     .push(node.oid.clone());
+                if lean == 0 {
+                    cursor.cut_colour.insert(oid.clone(), color);
+                }
             }
             links.push(LongLink { segment, oid });
         }
@@ -322,8 +330,9 @@ fn far(cursor: &LayoutCursor, parent: &str) -> bool {
 }
 
 /// A commit nobody was waiting for starts a lane of its own, beside the lane its first
-/// parent is already on when there is one, else at the right; never in column 0.
-fn open_tip(node: &CommitNode, cursor: &mut LayoutCursor) -> u64 {
+/// parent is already on when there is one, else at the right; never in column 0. Below a
+/// cut first-parent link it takes the colour of the child above the cut, `across`.
+fn open_tip(node: &CommitNode, cursor: &mut LayoutCursor, across: Option<u8>) -> u64 {
     let beside = node
         .parents
         .first()
@@ -333,10 +342,12 @@ fn open_tip(node: &CommitNode, cursor: &mut LayoutCursor) -> u64 {
     let at = beside
         .map_or(cursor.lanes.len(), |lane| lane + 1)
         .max(floor);
+    // Taken either way, so the lanes after it keep their colours.
+    let next = cursor.take_color();
     let lane = Lane {
         id: cursor.take_id(),
         waits: Some(node.oid.clone()),
-        color: cursor.take_color(),
+        color: across.unwrap_or(next),
         drawn: true,
         primary: false,
         ended: false,

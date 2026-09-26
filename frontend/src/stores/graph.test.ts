@@ -101,8 +101,12 @@ async function loaded(repo: RepoId, history: string[]) {
   await settle();
 }
 
+/** The panels move on to `repo`, as they do before its graph is asked for. */
+const open = (repo: RepoId) =>
+  repository.adopt({ repo, root: `/${repo}` } as import("$lib/ipc").RepoSummary);
+
 beforeEach(() => {
-  repository.phase = { kind: "closed" };
+  repository.phase = { kind: "open", repo: { repo: A, root: `/${A}` } as import("$lib/ipc").RepoSummary };
   graph.clear();
   streams.length = 0;
   built.clear();
@@ -281,6 +285,7 @@ describe("graph reload", () => {
   it("keeps the last repository's history on screen until the next one's arrives", async () => {
     await loaded(A, ["a", "b"]);
 
+    open(B);
     const load = graph.load(B);
     expect(oids()).toEqual(["a", "b"]);
     expect(graph.shownRepo).toBe(A);
@@ -298,6 +303,7 @@ describe("graph reload", () => {
     await settle();
     const home = graph.home;
 
+    open(B);
     void graph.load(B);
     await last().send(ids(40, "b"));
 
@@ -308,7 +314,7 @@ describe("graph reload", () => {
 
   it("drops a load asked for by a repository the panels have left", async () => {
     await loaded(A, ["a", "b"]);
-    repository.adopt({ repo: B, root: "/b" } as import("$lib/ipc").RepoSummary);
+    open(B);
     const started = streams.length;
 
     await graph.load(A);
@@ -322,7 +328,7 @@ describe("graph reload", () => {
     void graph.load(A);
     const reload = last();
 
-    repository.adopt({ repo: B, root: "/b" } as import("$lib/ipc").RepoSummary);
+    open(B);
     await reload.send(["x", "y", "z"], true);
 
     expect(oids()).toEqual(["a", "b"]);
@@ -489,5 +495,139 @@ describe("long links", () => {
     expect(commands.loadCommits.mock.calls.length).toBe(before + 1);
     expect(sent()?.longLinkRows).toBe(0);
     graph.setLongLinkRows(40);
+  });
+});
+
+// Switching to a large repository and changing a graph mode before its graph came walked
+// the repository left, and that load was dropped: the new graph came without the mode.
+describe("a setting changed while the next repository's graph loads", () => {
+  const view = graph.view;
+  const rows = graph.longLinkRows;
+
+  async function switching() {
+    await loaded(A, ["a", "b"]);
+    open(B);
+    void graph.load(B);
+    commands.loadCommits.mockClear();
+  }
+  const walked = () => commands.loadCommits.mock.calls.map(([repo]) => repo);
+
+  it("walks that repository again for another view", async () => {
+    await switching();
+
+    graph.setView({ firstParent: true, collapseMerged: false, expanded: [] });
+
+    expect(walked()).toEqual([B]);
+    graph.view = view;
+  });
+
+  it("walks that repository again for another long-link threshold", async () => {
+    await switching();
+
+    graph.setLongLinkRows(rows + 1);
+
+    expect(walked()).toEqual([B]);
+    graph.setLongLinkRows(rows);
+  });
+});
+
+// Ctrl+W right after opening a large repository: Rust dropped the graph with the repository,
+// the first load walked it again and reported "Could not load the graph" for a closed one.
+describe("a repository closed while its first graph loads", () => {
+  it("is not walked again, and its load reports nothing", async () => {
+    const load = graph.load(A);
+    const stream = last();
+    const { generation } = streams.at(-1)!;
+    await stream.send(["a"]);
+    const started = streams.length;
+
+    repository.close();
+    built.delete(generation);
+    stream.finish();
+    await load;
+    await settle();
+
+    expect(streams.length).toBe(started);
+    expect(graph.error).toBeNull();
+    expect(graph.loading).toBe(false);
+  });
+
+  it("is not walked for work that finishes after it closed", async () => {
+    repository.close();
+
+    await graph.load(A);
+
+    expect(streams.length).toBe(0);
+  });
+});
+
+// A right click on the last repository's rows opened the menu of the one open, for a commit
+// it does not have: "Could not open the commit menu".
+describe("the rows of the repository left", () => {
+  it("are stale until the next repository's rows take the screen", async () => {
+    await loaded(A, ["a", "b"]);
+    expect(graph.stale).toBe(false);
+
+    open(B);
+    const load = graph.load(B);
+    expect(graph.stale).toBe(true);
+    await last().send(["x"], true);
+    last().finish();
+    await load;
+
+    expect(graph.stale).toBe(false);
+  });
+});
+
+// Opening a fold in search results walked the whole search again, for a flat list the view
+// does not change (R-51).
+describe("a view changed while a filter is on", () => {
+  const view = graph.view;
+  const folding = { firstParent: false, collapseMerged: true, expanded: ["m"] };
+
+  it("walks nothing until the filter is cleared, which takes the view", async () => {
+    await loaded(A, ["a", "b"]);
+    const search = graph.load(A, { ...graph.query, message: "fix" });
+    await last().send(["a"], true);
+    last().finish();
+    await search;
+    commands.loadCommits.mockClear();
+
+    graph.setView(folding);
+    expect(commands.loadCommits).not.toHaveBeenCalled();
+
+    void graph.load(A);
+    const sent = commands.loadCommits.mock.calls.at(-1)?.[1] as { view: unknown } | undefined;
+    expect(sent?.view).toEqual(folding);
+    graph.view = view;
+  });
+});
+
+// A filter typed 3000 rows down kept the scroll there, above or past its first matches.
+describe("another filter", () => {
+  it("opens its matches at the top, wherever the list was", async () => {
+    await loaded(A, ids(600, "a"));
+    graph.show(500, 540);
+    await settle();
+    const home = graph.home;
+
+    void graph.load(A, { ...graph.query, author: "x" });
+    await last().send(ids(40, "m"), true);
+
+    expect(graph.home).toBe(home + 1);
+    expect(graph.rowAt(0)?.commit.oid).toBe("m0");
+  });
+
+  it("keeps the place for a reload of the same filter", async () => {
+    await loaded(A, ids(600, "a"));
+    graph.show(500, 540);
+    await settle();
+    const home = graph.home;
+
+    void graph.load(A, graph.query);
+    await last().send(ids(600, "n"), true);
+
+    expect(graph.home).toBe(home);
+    expect(graph.rowAt(520)?.commit.oid).toBe("n520");
   });
 });

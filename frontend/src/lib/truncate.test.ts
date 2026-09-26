@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { REF_LABEL_MAX, middleCut, refLabelText, truncateMiddle, truncatePath } from "./truncate";
+import { middleCut, truncateMiddle, truncatePath } from "./truncate";
 
 const LOG = "C:\\Users\\brano\\AppData\\Local\\dev.branosan.cogit\\logs\\cogit.log";
 
@@ -65,12 +65,6 @@ describe("truncateMiddle", () => {
       expect(truncateMiddle(label, max).length).toBeLessThanOrEqual(max);
     }
   });
-
-  it("cuts graph labels at one shared length", () => {
-    const long = "x".repeat(REF_LABEL_MAX + 5);
-    expect(refLabelText(long)).toHaveLength(REF_LABEL_MAX);
-    expect(refLabelText(long)).toContain("…");
-  });
 });
 
 describe("middleCut", () => {
@@ -84,5 +78,37 @@ describe("middleCut", () => {
   it("keeps half of a short label as its tail", () => {
     expect(middleCut("main")).toEqual({ lead: "ma", tail: "in" });
     expect(middleCut("")).toEqual({ lead: "", tail: "" });
+  });
+
+  // A label cut to 30 characters first, then again by the row, showed two ellipses.
+  it("is the only cut: the lead of a long label is whole, for CSS to shorten", () => {
+    const long = `feature/${"x".repeat(40)}_toolchain`;
+    const { lead, tail } = middleCut(long);
+
+    expect(lead + tail).toBe(long);
+    expect(lead).not.toContain("…");
+  });
+});
+
+// Half an emoji on each side of the cut drew two replacement marks in the capsule.
+describe("a character outside the Basic Multilingual Plane", () => {
+  const lone = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+
+  it("is never split by the middle cut", () => {
+    const { lead, tail } = middleCut("a🔥b");
+    expect(lead + tail).toBe("a🔥b");
+    expect(lead).not.toMatch(lone);
+    expect(tail).not.toMatch(lone);
+  });
+
+  it("is never split by a cut to a length", () => {
+    for (let max = 0; max <= 12; max++) {
+      expect(truncateMiddle("🔥".repeat(12), max)).not.toMatch(lone);
+      expect(truncatePath("C:\\🔥🔥🔥\\🔥🔥🔥🔥.txt", max)).not.toMatch(lone);
+    }
+  });
+
+  it("counts as one character against the length", () => {
+    expect(truncateMiddle("🔥🔥🔥", 3)).toBe("🔥🔥🔥");
   });
 });

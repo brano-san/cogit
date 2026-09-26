@@ -45,6 +45,8 @@ const view = (over: Partial<Parameters<InstanceType<typeof GraphOverlayStore>["s
   total: 1000,
   complete: true,
   request: REQUEST,
+  base: null,
+  kept: 0,
   ...over,
 });
 
@@ -153,6 +155,42 @@ describe("a new request for the same walk", () => {
     expect(slow).toHaveBeenCalledTimes(2);
 
     store.show(view({ generation: 2 }));
+    expect(store.paintAt(3)).toBeUndefined();
+  });
+});
+
+// A commit or a fetch walks again; the rows the new walk repeats flashed grey until their
+// paint came, ticked branches and all (R-301).
+describe("a new walk of the same repository", () => {
+  function slowAfter(generation: number) {
+    const { fetch } = rust(() => 1000);
+    const slow = vi.fn(async (...args: Parameters<typeof fetch>) => {
+      if (args[1] >= generation) await new Promise<void>(() => {});
+      return fetch(...args);
+    });
+    return new GraphOverlayStore(slow);
+  }
+
+  it("keeps the paint of the blocks it repeats until its own is in", async () => {
+    const store = slowAfter(2);
+    store.show(view({ start: 0, end: 300 }));
+    await settle();
+
+    store.show(view({ start: 0, end: 300, generation: 2, base: 1, kept: 300 }));
+    await settle();
+
+    expect(store.paintAt(3)?.nodeStyle).toBe(3);
+    expect(store.paintAt(200)?.nodeStyle).toBe(200 % 16);
+    expect(store.paintAt(290), "a block the new walk only partly repeats").toBeUndefined();
+  });
+
+  it("keeps nothing of a walk it does not follow", async () => {
+    const store = slowAfter(2);
+    store.show(view());
+    await settle();
+
+    store.show(view({ generation: 2, base: 7, kept: 300 }));
+
     expect(store.paintAt(3)).toBeUndefined();
   });
 });

@@ -19,7 +19,10 @@ vi.mock("$lib/ipc/bindings", () => ({ commands }));
 vi.mock("$lib/graph-wire", () => ({ decodeBase64Window: (block: unknown) => block }));
 
 const { graph } = await import("./graph.svelte");
+const { repository } = await import("./repository.svelte");
 const REPO = 1 as import("$lib/ipc").RepoId;
+// The panels are on the repository before its graph is asked for.
+repository.adopt({ repo: REPO, root: "/1" } as import("$lib/ipc").RepoSummary);
 
 describe("graph view", () => {
   it("goes with every load and walks the graph again when it changes", async () => {

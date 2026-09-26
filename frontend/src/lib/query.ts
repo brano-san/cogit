@@ -9,8 +9,6 @@ const EMPTY: CommitQuery = {
   path: null,
 };
 
-const SECONDS_PER_DAY = 86_400;
-
 /** `author:name path:src since:2026-01-01 free words`; anything left over is the message. */
 export function parseQuery(input: string): CommitQuery {
   const query: CommitQuery = { ...EMPTY };
@@ -58,7 +56,11 @@ export function isEmptyQuery(query: CommitQuery): boolean {
     set elsewhere (File ▸ Log). */
 export function formatQuery(query: CommitQuery): string {
   const quote = (value: string) => (/\s/.test(value) ? `"${value}"` : value);
-  const day = (seconds: number) => new Date(seconds * 1000).toISOString().slice(0, 10);
+  const two = (n: number) => String(n).padStart(2, "0");
+  const day = (seconds: number) => {
+    const date = new Date(seconds * 1000);
+    return `${date.getFullYear()}-${two(date.getMonth() + 1)}-${two(date.getDate())}`;
+  };
   const { author, path, oidPrefix, since, until, message } = query;
   const parts: string[] = [];
   if (author != null) parts.push(`author:${quote(author)}`);
@@ -86,13 +88,23 @@ function unquote(value: string): string {
     : value;
 }
 
+/** Midnight `days` after the start of `value`, a day of the user's own time zone: the
+    graph dates a commit in its own zone, not in UTC. Counted in days, not seconds, so a
+    day that changes the clock is still one day. */
+function localMidnight(value: string, days = 0): number | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  const [year, month, day] = [Number(match[1]), Number(match[2]) - 1, Number(match[3])];
+  const date = new Date(year, month, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month || date.getDate() !== day) return null;
+  return new Date(year, month, day + days).getTime() / 1000;
+}
+
 function startOfDay(value: string): number | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  const parsed = Date.parse(`${value}T00:00:00Z`);
-  return Number.isNaN(parsed) ? null : parsed / 1000;
+  return localMidnight(value);
 }
 
 function endOfDay(value: string): number | null {
-  const start = startOfDay(value);
-  return start === null ? null : start + SECONDS_PER_DAY - 1;
+  const next = localMidnight(value, 1);
+  return next === null ? null : next - 1;
 }

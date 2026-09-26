@@ -13,6 +13,7 @@ import type { GraphBlock, GraphEntry } from "$lib/graph-wire";
 import { repository } from "$stores/repository.svelte";
 import { GRAPH_MODE_DEFAULTS, graphView } from "$lib/graph-modes";
 import { LONG_LINK_ROWS } from "$lib/graph-row";
+import { isEmptyQuery, sameQuery } from "$lib/query";
 
 export type { GraphEntry };
 
@@ -25,8 +26,12 @@ const KEEP = 48;
 /** One walk of the history. Its rows stay in Rust and come over by block (R-193). */
 interface Walk {
   repo: RepoId;
+  query: CommitQuery;
   /** Rust's number for this walk, known from its first progress message. */
   generation: number | null;
+  /** The walk this one replaces in Rust, and how many of its first rows it repeats (R-301). */
+  base: number | null;
+  kept: number;
   total: number;
   complete: boolean;
   blocks: Map<number, GraphBlock>;
@@ -34,9 +39,12 @@ interface Walk {
   asking: Map<number, Promise<void>>;
 }
 
-const walk = (repo: RepoId): Walk => ({
+const walk = (repo: RepoId, query: CommitQuery = EMPTY_QUERY): Walk => ({
   repo,
+  query,
   generation: null,
+  base: null,
+  kept: 0,
   total: 0,
   complete: false,
   blocks: new Map(),
@@ -81,9 +89,9 @@ class GraphStore {
   #loads = 0;
 
   constructor() {
-    // A reload of the repository being left must not take the screen after it (R-300).
+    // No load of the repository being left may take the screen or report after it, its
+    // first one included: that one walks as the history on screen (R-300).
     repository.onLeave(() => {
-      if (!this.#next) return;
       this.#loads += 1;
       this.#next = null;
       this.loading = false;
@@ -95,17 +103,33 @@ class GraphStore {
     return this.#shown?.repo ?? null;
   }
 
-  /** The walk on screen, for what is fetched beside its rows (paint, #11). */
-  get walk(): { repo: RepoId; generation: number | null } | null {
-    void this.#arrived;
-    return this.#shown && { repo: this.#shown.repo, generation: this.#shown.generation };
+  /** The rows on screen are the last repository's: nothing done to them may reach the one
+      open, which does not have their commits (R-300). */
+  get stale(): boolean {
+    return this.#shown !== null && this.#shown.repo !== repository.current?.repo;
   }
 
-  /** Another view walks the graph on screen again. */
+  /** The walk on screen, for what is fetched beside its rows (paint, #11). */
+  get walk(): { repo: RepoId; generation: number | null; base: number | null; kept: number } | null {
+    void this.#arrived;
+    const shown = this.#shown;
+    return shown && { repo: shown.repo, generation: shown.generation, base: shown.base, kept: shown.kept };
+  }
+
+  /** The repository whose graph is loading, else the one on screen: while another
+      repository's graph catches up, the rows on screen are still the last one's (R-300). */
+  get #loadingRepo(): RepoId | undefined {
+    return this.#next?.repo ?? this.#shown?.repo;
+  }
+
+  /** Another view walks the graph again. A filtered list is flat (R-51) and the view
+      changes nothing in it: the load that clears the filter takes the view. */
   setView(next: GraphView): void {
     if (JSON.stringify(next) === JSON.stringify(this.view)) return;
     this.view = next;
-    if (this.#shown) void this.load(this.#shown.repo, this.query);
+    if (!isEmptyQuery(this.query)) return;
+    const repo = this.#loadingRepo;
+    if (repo !== undefined) void this.load(repo, this.query);
   }
 
   requestReveal(oid: string): void {
@@ -177,12 +201,11 @@ class GraphStore {
   }
 
   async #load(repo: RepoId, query: CommitQuery, retry: boolean): Promise<void> {
-    // Asked for by work begun before the panels moved on to another repository.
-    const open = repository.current?.repo;
-    if (open !== undefined && open !== repo) return;
+    // Asked for by work begun before the panels moved on to another repository, or closed it.
+    if (repository.current?.repo !== repo) return;
     const load = ++this.#loads;
     this.query = query;
-    const fresh = walk(repo);
+    const fresh = walk(repo, query);
     // Any history on screen stays until the new one covers it, another repository's too:
     // an empty list between them is the blink R-300 removes.
     if (this.#shown && this.#shown.total > 0) {
@@ -201,6 +224,8 @@ class GraphStore {
         (progress) => {
           if (load !== this.#loads) return;
           this.#inherit(fresh, progress.base ?? null, progress.kept ?? 0);
+          fresh.base = progress.base ?? null;
+          fresh.kept = progress.kept ?? 0;
           fresh.generation = progress.generation;
           fresh.total = progress.total;
           fresh.complete = progress.isLast;
@@ -216,7 +241,7 @@ class GraphStore {
     } catch (err) {
       if (load === this.#loads) {
         this.#next = null;
-        this.#show(walk(repo));
+        this.#show(walk(repo, query));
         this.error = asError(err);
       }
     } finally {
@@ -229,7 +254,7 @@ class GraphStore {
     const next = Math.max(Math.round(rows), 0);
     if (next === this.longLinkRows) return;
     this.longLinkRows = next;
-    const repo = this.#shown?.repo;
+    const repo = this.#loadingRepo;
     if (repo !== undefined) void this.load(repo, this.query);
   }
 
@@ -247,7 +272,7 @@ class GraphStore {
   }
 
   #show(next: Walk): void {
-    if (this.#shown && this.#shown.repo !== next.repo) {
+    if (this.#opensAtTop(next)) {
       this.#range = this.#rangeOf(next);
       this.home += 1;
     }
@@ -271,9 +296,16 @@ class GraphStore {
     }
   }
 
-  /** Where `of` will be on screen: another repository's history opens at its top. */
+  /** Another repository's history, and another filter's matches, open at their top: a row
+      number of the list on screen means nothing in them. */
+  #opensAtTop(of: Walk): boolean {
+    const shown = this.#shown;
+    return shown !== null && shown !== of && (shown.repo !== of.repo || !sameQuery(shown.query, of.query));
+  }
+
+  /** Where `of` will be on screen. */
   #rangeOf(of: Walk): { start: number; end: number } {
-    if (!this.#shown || this.#shown.repo === of.repo) return this.#range;
+    if (!this.#opensAtTop(of)) return this.#range;
     return { start: 0, end: this.#range.end - this.#range.start };
   }
 
