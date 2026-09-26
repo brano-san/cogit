@@ -38,7 +38,7 @@
     onmask: (mask: string) => void;
     /** The staged files the working-tree list shows once filtered. */
     onshownstaged?: (paths: string[]) => void;
-    onmarked: (paths: string[]) => void;
+    onmarked: (paths: string[], bySection: Record<string, string[]>) => void;
     oncontext: (path: string, event: MouseEvent, section?: string, rows?: readonly FileEntry[]) => void;
     stage: (paths: string[]) => void;
     stagemode: (paths: string[]) => void;

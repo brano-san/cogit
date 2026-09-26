@@ -240,6 +240,8 @@
     changes: import("$lib/ipc").FileEntry[] | null;
   } | null>(null);
   let markedFiles = $state.raw<string[]>([]);
+  /** The same ticks by the title of the list they are in: Unstaged, Staged. */
+  let markedBySection = $state.raw<Record<string, string[]>>({});
   /** The rows of the list the Files panel shows, as it counts them itself. */
   let filesCount = $state<number | undefined>(undefined);
   type RepoMenuSubject =
@@ -538,7 +540,12 @@
     repository: repo !== null,
     remote: Boolean(network.primary),
     onWorkingTree: onWorkingTree && stashView.contents === null,
-    ...splitMarked({ marked: markedFiles, unstaged: worktree.unstaged, staged: worktree.staged }),
+    ...splitMarked({
+      marked: markedFiles,
+      unstaged: worktree.unstaged,
+      staged: worktree.staged,
+      bySection: markedBySection,
+    }),
     unstaged: worktree.unstaged.map((file) => file.path),
     staged: worktree.staged.map((file) => file.path),
     commit: commit.oid,
@@ -2178,10 +2185,11 @@
     }
   }
 
-  /** Right-clicking a ticked row acts on the whole tick; right-clicking any other row
-      acts on that one, which is what every file manager does. */
-  function fileScope(path: string): string[] {
-    return markedFiles.includes(path) ? [...markedFiles] : [path];
+  /** Right-clicking a ticked row acts on the whole tick of its list; right-clicking any
+      other row acts on that one, which is what every file manager does. */
+  function fileScope(path: string, section?: string): string[] {
+    const ticked = section === undefined ? markedFiles : (markedBySection[section] ?? []);
+    return ticked.includes(path) ? [...ticked] : [path];
   }
 
   /** `section` is the list the row sits in: "Staged" is the index, the rest the working
@@ -2195,7 +2203,7 @@
     const id = repository.current?.repo;
     if (!id) return;
     const { clientX: x, clientY: y } = event;
-    const paths = fileScope(path);
+    const paths = fileScope(path, section);
     const info = await desktop.load();
 
     if (!onWorkingTree) {
@@ -3714,7 +3722,10 @@
               onopenwindow={openInWindow}
               onmask={(mask) => (fileMask = mask)}
               onshownstaged={(paths) => (shownStaged = paths)}
-              onmarked={(paths) => (markedFiles = paths)}
+              onmarked={(paths, bySection) => {
+                markedFiles = paths;
+                markedBySection = bySection;
+              }}
               oncount={(count) => (filesCount = count)}
               oncontext={fileContext}
               {stage}
