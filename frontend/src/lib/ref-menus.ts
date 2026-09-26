@@ -13,6 +13,9 @@ export interface CommitFacts {
   /** Where Push Up To sends HEAD's branch: its upstream, e.g. `origin/main`. */
   upstream: string | null;
   hasRemote: boolean;
+  /** Protected remote branches that already have the commit (`protecting_refs`): Split
+      refuses them. Asked only for the graph's menus. */
+  protectedBy?: readonly string[];
 }
 
 export interface RefTarget {
@@ -53,6 +56,12 @@ function replayBlocked(facts: CommitFacts): string | null {
   return facts.parents > 1 ? "a merge commit" : null;
 }
 
+/** Split refuses a commit a protected branch already has, as the palette says up front. */
+function splitBlocked(facts: CommitFacts): string | null {
+  const on = facts.protectedBy ?? [];
+  return rewriteBlocked(facts) ?? (on.length > 0 ? `already on ${on.join(", ")}` : null);
+}
+
 function commitActions(facts: CommitFacts, onRef: RefTarget | null): ContextItem[] {
   const current = onRef?.kind === "branch" && onRef.isHead ? "the current branch" : null;
   return [
@@ -62,7 +71,7 @@ function commitActions(facts: CommitFacts, onRef: RefTarget | null): ContextItem
     offer(id("rebase"), "Rebase", current ?? (facts.onHead ? IN_HEAD : null)),
     SEPARATOR,
     offer(id("modify"), "Modify", rewriteBlocked(facts)),
-    offer(id("split"), "Split", rewriteBlocked(facts)),
+    offer(id("split"), "Split", splitBlocked(facts)),
     offer(id("squash"), "Squash", squashBlocked(facts)),
     offer(id("edit-message"), "Edit Message", rewriteBlocked(facts)),
     offer(id("edit-author"), "Edit Author", rewriteBlocked(facts)),
@@ -264,6 +273,7 @@ export function commitFacts(input: {
   onHead: boolean;
   published: boolean;
   hasRemote: boolean;
+  protectedBy?: readonly string[];
 }): CommitFacts {
   const head = input.head;
   const headOid = head && head.kind !== "unborn" ? head.oid : null;
@@ -279,6 +289,7 @@ export function commitFacts(input: {
     parents: input.parents,
     upstream: headBranch?.upstream ?? null,
     hasRemote: input.hasRemote,
+    protectedBy: input.protectedBy ?? [],
   };
 }
 
