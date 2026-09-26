@@ -18,20 +18,6 @@ pub fn pulse(root: &Path) -> git_engine::RepoPulse {
     git_engine::pulse(root)
 }
 
-/// Never prompts, never reaches the Output journal; a failure is logged (R-353).
-pub fn background_fetch(root: &Path) -> Result<(), GitError> {
-    let started = std::time::Instant::now();
-    let fetched = RepoHandle::open_root(root).and_then(|handle| handle.background_fetch());
-    let elapsed_ms = started.elapsed().as_millis();
-    match &fetched {
-        Ok(()) => tracing::info!(root = %root.display(), elapsed_ms, "background fetch done"),
-        Err(err) => {
-            tracing::warn!(root = %root.display(), elapsed_ms, error = %err, "background fetch failed");
-        }
-    }
-    fetched
-}
-
 /// Asks the server, writes nothing; a failure is logged and means "unknown" (R-354).
 pub fn pull_probe(root: &Path) -> Result<Option<bool>, GitError> {
     let probed = RepoHandle::open_root(root).and_then(|handle| handle.pull_probe());

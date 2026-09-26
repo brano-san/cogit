@@ -73,7 +73,7 @@ pub enum GitError {
 Ниже — контракт. Реализуются по модулям; колонка «Модуль» указывает, когда команда появляется.
 
 > **Сверка 2026-09-24:** таблица отстаёт от кода — около 50 зарегистрированных команд в ней
-> нет (`repo_status`, `stashes`, `flow_*`, `graph_window`, `graph_row_of`, `safety_log`,
+> нет (`stashes`, `flow_*`, `graph_window`, `graph_row_of`, `safety_log`,
 > `undo_entry`, `conflict_*` и др.), часть строк описывает команды, которых нет
 > (`list_repositories`, `repo_state`, `list_refs`, `list_stashes`, `list_reflog`,
 > `diff_working_tree`, `merge_conflict`, `stage_hunk`, `open_in_explorer`), у части
@@ -456,7 +456,6 @@ snake_case и читаются на фронтенде как `undefined`.
 | `list_submodules` | `repo`, `parent` (пусто — верхний уровень) | `Vec<Submodule>` | M3 |
 | `submodule_outline` | `root` — папка репозитория из списка, открытого или закрытого; `parent` — ключ узла от верха (пусто — верхний уровень) | `Vec<Submodule>` из `.gitmodules` и gitlink-записей HEAD (нет в HEAD — индекса): `state` — `notInitialised` или `unread`, `checkedOut`, `branch`, `subject` пусты, `nested` — проверка файла; сабмодули не открываются (R-352) | M3 |
 | `repo_pulse` | `root` — папка строки списка | `RepoPulse { missing, branch, tracked, ahead, behind, dirty }`: ahead/behind — по локальной remote-tracking ссылке HEAD через gix; `dirty` — размер и mtime файлов индекса, staged по cache-tree или сравнению индекса с деревом HEAD по id, конфликт; неотслеживаемые не ищутся, ничего не хешируется (R-353). Открытый, но не наблюдаемый репозиторий: пульс, противоречащий снимку его строки, сбрасывает снимок — следующий `repositories` читает строку заново (R-351) | M3 |
-| `background_fetch` | `root` | `()`; `git fetch --all --quiet --no-auto-gc --recurse-submodules=no` без запросов: `GIT_TERMINAL_PROMPT=0`, пустой `GIT_ASKPASS`, `GCM_INTERACTIVE=never`, `SSH_ASKPASS_REQUIRE=never`, SSH в `BatchMode`, если пользователь не задал свою команду. В журнал Output не попадает, ошибка — в лог и отказом (R-353) | M3 |
 | `pull_probe` | `root` | `Option<bool>`: `true` — вершина upstream-ветки HEAD на сервере (`git ls-remote --heads`, без записи) не содержится в HEAD; `null` — нет upstream или ветки на сервере; ошибка — «неизвестно», в лог (R-354) | M3 |
 | `open_submodule` | `owner: RepoId`, `key` — путь узла от владельца дерева | `RepoSummary`; отказ — `GitError::ModuleUnavailable(ModuleProblem)` | M3 |
 | `repository_health` | `repo` | `Vec<HealthFinding { module, issue }>` — репозиторий и все подмодули; `issue`: `ignoreCaseMismatch`, `danglingModule`, `danglingWorktree`, `missingModuleCommit { commit }` (R-179) | M3 |

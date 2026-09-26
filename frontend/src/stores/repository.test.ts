@@ -4,7 +4,6 @@ const commands = {
   openRepository: vi.fn(),
   closeRepository: vi.fn(),
   repositories: vi.fn(),
-  repoStatus: vi.fn(),
   workingState: vi.fn(),
   repoRefs: vi.fn(),
 };
@@ -496,7 +495,6 @@ describe("the status refresh after a mutation", () => {
     const conflicted = await repository.refreshStatus();
 
     expect(commands.workingState).toHaveBeenCalledTimes(1);
-    expect(commands.repoStatus).not.toHaveBeenCalled();
     expect(repository.current?.status.staged).toBe(2);
     expect(conflicted).toEqual(["a.txt"]);
   });

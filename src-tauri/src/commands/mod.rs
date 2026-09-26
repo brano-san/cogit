@@ -7,7 +7,7 @@ use git_engine::{BlameLine, CommitRow, Found, Submodule};
 use git_engine::{
     CommitDetails, CommitQuery, CommitRequest, DiffSpec, FileEntry, GitError, WorktreeFiles,
 };
-use git_engine::{GitOutput, MergeOptions, RebaseOptions, RepoStatus};
+use git_engine::{GitOutput, MergeOptions, RebaseOptions};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -967,16 +967,6 @@ pub async fn undo_last(
 
     tracing::info!(repo = repo.0, entry = %entry.description, "operation undone");
     Ok(entry)
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn repo_status(
-    state: tauri::State<'_, crate::AppContext>,
-    repo: RepoId,
-) -> Result<RepoStatus, GitError> {
-    let app_state = state.state.clone();
-    blocking("repo_status", move || app_state.repo_status(repo)).await
 }
 
 /// Refs and state without reopening the repository, for the refresh after a commit.

@@ -331,10 +331,6 @@ export async function diffFile(
   return unwrap(await commands.diffFile(repo, spec, path, options));
 }
 
-export async function repoStatus(repo: RepoId) {
-  return unwrap(await commands.repoStatus(repo));
-}
-
 export async function repoRefs(repo: RepoId) {
   return unwrap(await commands.repoRefs(repo));
 }
