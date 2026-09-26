@@ -1,6 +1,7 @@
 use crate::graph_walk::{ByTime, CommitReader, CutParents, Reuse, WalkedHistory};
+use crate::text_search::TextMatch;
 use crate::topo::{LOOKAHEAD, in_date_order};
-use crate::{CommitRow, RepoHandle, Result};
+use crate::{CommitRow, Mailmap, RepoHandle, Result, TextFields};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
@@ -21,6 +22,10 @@ pub struct CommitQuery {
     #[specta(type = Option<specta_typescript::Number>)]
     pub until: Option<i64>,
     pub path: Option<String>,
+    /// The filter's free text, looked for in the fields of `text_in` (F-560).
+    pub text: Option<String>,
+    #[serde(default)]
+    pub text_in: TextFields,
     /// Refs the References panel ticked; `None` is every ref, `Some([])` is none.
     #[serde(default)]
     pub visible_refs: Option<Vec<String>>,
@@ -49,18 +54,20 @@ impl CommitQuery {
     pub fn is_empty(&self) -> bool {
         Self {
             long_link_rows: None,
+            text_in: TextFields::default(),
             ..self.clone()
         } == Self::default()
     }
 
     /// A per-commit predicate forces a flat list; narrowing the ticked refs or following
-    /// first parents only does not (R-51).
+    /// first parents only does not (R-51). The fields to search mean nothing without text.
     #[must_use]
     pub fn filters_rows(&self) -> bool {
         Self {
             visible_refs: None,
             view: GraphView::default(),
             long_link_rows: None,
+            text_in: TextFields::default(),
             ..self.clone()
         } != Self::default()
     }
@@ -251,6 +258,7 @@ impl RepoHandle {
         } else {
             std::sync::Arc::default()
         };
+        let text = self.text_match(query);
 
         for (id, parents, time) in walk {
             let row = if rows.text {
@@ -272,6 +280,11 @@ impl RepoHandle {
                 row.parents.truncate(1);
             }
             if !query.matches_row(&row) {
+                continue;
+            }
+            if let Some(text) = &text
+                && !text.matches(self, id, &row, &mailmap)
+            {
                 continue;
             }
             // Last, because it costs two tree lookups per candidate.
@@ -302,26 +315,18 @@ impl RepoHandle {
     /// Whether the list for `query` holds this commit: a match streams by before its
     /// parents do, and the graph has to know then whether a line to them will end.
     pub fn shown_by(&self, query: &CommitQuery, oid: &str) -> bool {
-        self.shown_by_with(query, oid, &self.mailmap())
+        self.shown_filter(query).shows(self, oid)
     }
 
-    /// `shown_by` for a loop over many commits, with the mailmap read once for all of them.
-    pub fn shown_by_with(&self, query: &CommitQuery, oid: &str, mailmap: &crate::Mailmap) -> bool {
-        let Ok(id) = gix::ObjectId::from_hex(oid.as_bytes()) else {
-            return false;
-        };
-        let Ok(commit) = self.repo.find_commit(id) else {
-            return false;
-        };
-        let parents: Vec<gix::ObjectId> = commit.parent_ids().map(gix::Id::detach).collect();
-        let Ok(row) = self.row_of(id, &parents, mailmap) else {
-            return false;
-        };
-        query.matches_row(&row)
-            && query
-                .path
-                .as_deref()
-                .is_none_or(|path| self.touches(&id, path))
+    /// `shown_by` for a loop over many commits: the mailmap and the ref names the text may
+    /// match are read once for all of them.
+    #[must_use]
+    pub fn shown_filter<'q>(&self, query: &'q CommitQuery) -> ShownBy<'q> {
+        ShownBy {
+            query,
+            mailmap: self.mailmap(),
+            text: self.text_match(query),
+        }
     }
 
     /// Against the first parent, as `git log -- path` does before following renames.
@@ -352,6 +357,40 @@ impl RepoHandle {
             .ok()
             .flatten()
             .map(|entry| entry.id().detach())
+    }
+}
+
+/// Whether commits are in the list for one query (`RepoHandle::shown_filter`).
+#[derive(Debug)]
+pub struct ShownBy<'q> {
+    query: &'q CommitQuery,
+    mailmap: std::sync::Arc<Mailmap>,
+    text: Option<TextMatch>,
+}
+
+impl ShownBy<'_> {
+    #[must_use]
+    pub fn shows(&self, handle: &RepoHandle, oid: &str) -> bool {
+        let Ok(id) = gix::ObjectId::from_hex(oid.as_bytes()) else {
+            return false;
+        };
+        let Ok(commit) = handle.repo.find_commit(id) else {
+            return false;
+        };
+        let parents: Vec<gix::ObjectId> = commit.parent_ids().map(gix::Id::detach).collect();
+        let Ok(row) = handle.row_of(id, &parents, &self.mailmap) else {
+            return false;
+        };
+        self.query.matches_row(&row)
+            && self
+                .text
+                .as_ref()
+                .is_none_or(|text| text.matches(handle, id, &row, &self.mailmap))
+            && self
+                .query
+                .path
+                .as_deref()
+                .is_none_or(|path| handle.touches(&id, path))
     }
 }
 

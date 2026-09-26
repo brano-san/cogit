@@ -14,11 +14,7 @@ pub(crate) fn lay_out(
     mut on_chunk: impl FnMut(GraphChunk) -> bool,
 ) -> Result<Vec<git_engine::SkippedRef>, git_engine::GitError> {
     let flat = query.filters_rows();
-    let mailmap = if flat {
-        handle.mailmap()
-    } else {
-        std::sync::Arc::default()
-    };
+    let shown = flat.then(|| handle.shown_filter(query));
     // The walk follows first parents itself (R-301); a merge shows its first line only (#26).
     let first_parent = query.view.first_parent && !flat;
 
@@ -50,10 +46,10 @@ pub(crate) fn lay_out(
             .map(|c| graph_engine::CommitNode {
                 oid: c.oid.clone(),
                 parents: c.parents.clone(),
-                hidden: if flat {
+                hidden: if let Some(shown) = &shown {
                     c.parents
                         .iter()
-                        .filter(|parent| !handle.shown_by_with(query, parent, &mailmap))
+                        .filter(|parent| !shown.shows(handle, parent))
                         .cloned()
                         .collect()
                 } else if cut.is_empty() {

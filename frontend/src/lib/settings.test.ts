@@ -172,3 +172,22 @@ describe("graph display settings (#23)", () => {
     expect(DEFAULT_SETTINGS.graphColumns).toEqual(["author", "avatar", "time", "hash"]);
   });
 });
+
+describe("graphFilterFields", () => {
+  it("defaults to every switch but Name and Content", () => {
+    expect(DEFAULT_SETTINGS.graphFilterFields).toEqual(["author", "committer", "message", "refs", "id"]);
+  });
+
+  it("keeps the switches a file saved, known ones only", () => {
+    expect(merge({ graphFilterFields: ["content", "nonsense", "id"] } as never).graphFilterFields).toEqual([
+      "id",
+      "content",
+    ]);
+    expect(merge({ graphFilterFields: "id" } as never).graphFilterFields).toEqual(DEFAULT_SETTINGS.graphFilterFields);
+  });
+
+  it("never lends the defaults' own list to a merged copy", () => {
+    merge({}).graphFilterFields.push("content");
+    expect(DEFAULT_SETTINGS.graphFilterFields).not.toContain("content");
+  });
+});

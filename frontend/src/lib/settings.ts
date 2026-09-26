@@ -1,6 +1,7 @@
 import type { DateMode } from "$lib/format";
 import type { Algorithm, Whitespace } from "$lib/ipc";
 import { LANE_WIDTH } from "$lib/graph-geometry";
+import { DEFAULT_FILTER_FIELDS, knownFields, type FilterField } from "$lib/filter-fields";
 
 /** Lightest first; the grey ones sit between the extremes (#24). */
 export const THEMES = [
@@ -55,6 +56,8 @@ export interface Settings {
   graphBranchOfCommit: boolean;
   graphAncestry: boolean;
   graphCollapseMerged: boolean;
+  /** Where the graph filter looks for its text: the switches under the field (F-560). */
+  graphFilterFields: FilterField[];
 
   /** Minutes between asking the remote of every listed repository what it has (R-354);
       `0` is off, which is the default: nothing reaches the network unasked. */
@@ -88,6 +91,7 @@ export const DEFAULT_SETTINGS: Settings = {
   graphBranchOfCommit: false,
   graphAncestry: false,
   graphCollapseMerged: false,
+  graphFilterFields: [...DEFAULT_FILTER_FIELDS],
 
   backgroundFetchMinutes: 0,
 };
@@ -143,7 +147,11 @@ export function needsRestart(key: keyof Settings): boolean {
 
 /** Every stored value is re-checked: one bad key must not leave an unusable window. */
 export function merge(stored: Partial<Settings> | null | undefined): Settings {
-  const merged = { ...DEFAULT_SETTINGS, graphColumns: [...DEFAULT_SETTINGS.graphColumns] };
+  const merged = {
+    ...DEFAULT_SETTINGS,
+    graphColumns: [...DEFAULT_SETTINGS.graphColumns],
+    graphFilterFields: [...DEFAULT_SETTINGS.graphFilterFields],
+  };
   if (typeof stored !== "object" || stored === null) return merged;
   const record = stored as Record<string, unknown>;
 
@@ -152,6 +160,10 @@ export function merge(stored: Partial<Settings> | null | undefined): Settings {
     const fallback = DEFAULT_SETTINGS[key];
     if (key === "graphColumns") {
       merged.graphColumns = knownColumns(value) ?? merged.graphColumns;
+      continue;
+    }
+    if (key === "graphFilterFields") {
+      merged.graphFilterFields = knownFields(value) ?? merged.graphFilterFields;
       continue;
     }
     if (value === undefined || typeof value !== typeof fallback) continue;
