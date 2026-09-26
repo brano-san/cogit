@@ -5,6 +5,7 @@ import {
   changeAt,
   changeStarts,
   foldDiff,
+  highlightedRows,
   navState,
   revealRange,
   splitRows,
@@ -188,6 +189,27 @@ describe("foldDiff: folding a diff that carries the whole file", () => {
   it("gives the gap above nothing declared no context", () => {
     const entries = foldDiff({ ...BASE, hunks: [whole], oldTotal: 60, newTotal: 60 });
     expect(gaps(entries)[0]?.context).toBeNull();
+  });
+});
+
+// DF-049: opening one band loads the whole file; past the parser's limit that turned the
+// colour off for every line of the diff.
+describe("highlightedRows", () => {
+  const whole = hunk([...context(1, 20), d(21), i(21), ...context(22, 60)]);
+  const shownRows = foldDiff({ ...BASE, hunks: [whole], oldTotal: 60, newTotal: 60 });
+
+  it("takes every loaded row while each side fits", () => {
+    let asked = false;
+    const rows = highlightedRows([whole], () => ((asked = true), shownRows), 100);
+    expect(rows).toHaveLength(61);
+    expect(asked).toBe(false);
+  });
+
+  it("takes only the rows on show once a side is past the limit", () => {
+    const rows = highlightedRows([whole], () => shownRows, 30);
+    expect(rows.map((row) => (row.kind === "context" ? row.old : row.kind))).toEqual([
+      18, 19, 20, "delete", "insert", 22, 23, 24,
+    ]);
   });
 });
 

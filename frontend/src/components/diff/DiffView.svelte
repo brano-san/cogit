@@ -15,6 +15,7 @@
     changeAt,
     changeStarts,
     foldDiff,
+    highlightedRows,
     navState,
     revealRange,
     splitRows,
@@ -37,7 +38,7 @@
   } from "$lib/code-scroll";
   import ConfirmDialog from "$components/common/ConfirmDialog.svelte";
   import { eolChangeText, eolLabel, layoutTip, modeChangeText } from "$lib/diff-toolbar";
-  import { highlightLines, mergePieces, type Token } from "$lib/highlight";
+  import { MAX_HIGHLIGHT_LINES, highlightLines, mergePieces, type Token } from "$lib/highlight";
   import { lineKey, toggleLine } from "$lib/selection";
   import { keepSelection } from "$lib/diff-selection";
   import { investigateTarget, openInvestigate } from "$lib/investigate/open";
@@ -105,16 +106,14 @@
     const oldAt = new Map<string, number>();
     const newAt = new Map<string, number>();
 
-    for (const hunk of hunks) {
-      for (const row of hunk.rows) {
-        if (row.kind === "context") {
-          oldAt.set("c" + row.old, oldLines.push(row.text) - 1);
-          newAt.set("c" + row.new, newLines.push(row.text) - 1);
-        } else if (row.kind === "delete") {
-          oldAt.set("d" + row.old, oldLines.push(row.text) - 1);
-        } else if (row.kind === "insert") {
-          newAt.set("i" + row.new, newLines.push(row.text) - 1);
-        }
+    for (const row of highlightedRows(hunks, () => unified, MAX_HIGHLIGHT_LINES)) {
+      if (row.kind === "context") {
+        oldAt.set("c" + row.old, oldLines.push(row.text) - 1);
+        newAt.set("c" + row.new, newLines.push(row.text) - 1);
+      } else if (row.kind === "delete") {
+        oldAt.set("d" + row.old, oldLines.push(row.text) - 1);
+      } else if (row.kind === "insert") {
+        newAt.set("i" + row.new, newLines.push(row.text) - 1);
       }
     }
     return {
