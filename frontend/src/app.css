@@ -110,6 +110,8 @@
   --indicator-push: var(--status-add);
   --indicator-pull: var(--status-ref);
   --indicator-unknown: var(--text-secondary);
+  /* Diff side by side: the stripes where the other side has lines this one lacks (R-533). */
+  --diff-filler: color-mix(in srgb, var(--c-text-muted) 30%, transparent);
 
   /* ---- typography ---- */
   --font-ui: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;

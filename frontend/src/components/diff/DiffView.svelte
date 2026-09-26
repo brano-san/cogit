@@ -797,11 +797,13 @@
                 <span
                   class="sign"
                   class:del={entry.pair.left?.kind === "delete"}
+                  class:empty={!entry.pair.left}
                   class:moved={entry.pair.left?.moved}>{sign(entry.pair.left)}</span
                 >
                 <span
                   class="code mono side"
                   class:del={entry.pair.left?.kind === "delete"}
+                  class:empty={!entry.pair.left}
                   class:moved={entry.pair.left?.moved}
                   ><span class="text"
                     >{#each cells(entry.pair, rowIndex, "left") as piece, i (i)}<span
@@ -818,11 +820,13 @@
                 <span
                   class="sign"
                   class:add={entry.pair.right?.kind === "insert"}
+                  class:empty={!entry.pair.right}
                   class:moved={entry.pair.right?.moved}>{sign(entry.pair.right)}</span
                 >
                 <span
                   class="code mono side"
                   class:add={entry.pair.right?.kind === "insert"}
+                  class:empty={!entry.pair.right}
                   class:moved={entry.pair.right?.moved}
                   ><span class="text"
                     >{#each cells(entry.pair, rowIndex, "right") as piece, i (i)}<span
@@ -1095,6 +1099,23 @@
 
   .side {
     flex: 1 1 50%;
+  }
+
+  /* Where the other side has lines this one lacks: hatched, as VS Code does. 18 px rows
+     over a 45° stripe with a 6/√2 px period repeat every third of a row, so the stripes
+     run on unbroken from row to row. */
+  .sign.empty,
+  .code.empty {
+    background: repeating-linear-gradient(
+      -45deg,
+      var(--diff-filler) 0 1px,
+      transparent 1px 4.2426px
+    );
+  }
+
+  /* From the sign column's edge, so the stripes do not break where the code column starts. */
+  .code.empty {
+    background-position: -3.5ch 0;
   }
 
   /* Reserves the strip the ribbons are drawn over. Width must match `BAND_WIDTH`. */
