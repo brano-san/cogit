@@ -50,6 +50,12 @@ pub struct Cache {
     /// Use times changed since the last write. They only order eviction, so they are
     /// worth a flush at the end, never a file write per row of a scrolling list.
     touched: AtomicBool,
+    /// Entries changed since the last write: written once the downloads settle, not once
+    /// per picture — the index is the whole cache.
+    dirty: AtomicBool,
+    /// Four download threads store at once; one writer at a time, each with a snapshot
+    /// taken inside, so an older one can never land after a newer one.
+    writing: Mutex<()>,
 }
 
 impl std::fmt::Debug for Cache {
@@ -75,6 +81,8 @@ impl Cache {
             limit: DEFAULT_LIMIT,
             clock: Box::new(now),
             touched: AtomicBool::new(false),
+            dirty: AtomicBool::new(false),
+            writing: Mutex::new(()),
         })
     }
 
@@ -140,8 +148,12 @@ impl Cache {
                 missing: false,
             },
         );
-        self.evict();
-        self.save();
+        // A deleted picture must not stay in the index on disk until the next settle.
+        if self.evict() {
+            self.save();
+        } else {
+            self.dirty.store(true, Ordering::SeqCst);
+        }
         Ok(path)
     }
 
@@ -156,14 +168,25 @@ impl Cache {
                 missing: true,
             },
         );
-        self.save();
+        self.dirty.store(true, Ordering::SeqCst);
         Ok(())
     }
 
-    /// Writes the use times if any changed. Called when the window settles, and on drop.
+    /// Writes what the downloads stored since the last write. Called when they settle.
+    pub fn settle(&self) {
+        let _writing = self.writing.lock();
+        if self.dirty.swap(false, Ordering::SeqCst) {
+            self.touched.store(false, Ordering::SeqCst);
+            self.write_index();
+        }
+    }
+
+    /// Writes the use times as well. Called on drop.
     pub fn flush(&self) {
-        if self.touched.swap(false, Ordering::Relaxed) {
-            self.save();
+        let _writing = self.writing.lock();
+        let dirty = self.dirty.swap(false, Ordering::SeqCst);
+        if self.touched.swap(false, Ordering::SeqCst) || dirty {
+            self.write_index();
         }
     }
 
@@ -172,11 +195,12 @@ impl Cache {
     }
 
     /// Oldest use first, until the pictures fit. Misses weigh nothing and are never evicted.
-    fn evict(&self) {
+    /// Whether anything went.
+    fn evict(&self) -> bool {
         let mut index = self.index.lock();
         let mut total: u64 = index.values().map(|e| e.bytes).sum();
         if total <= self.limit {
-            return;
+            return false;
         }
 
         let mut order: Vec<(String, u64, u64)> = index
@@ -194,20 +218,29 @@ impl Cache {
             index.remove(&key);
             total = total.saturating_sub(bytes);
         }
+        true
     }
 
-    /// Losing the index costs a refetch, never the run, so a failed write is only logged.
     fn save(&self) {
-        self.touched.store(false, Ordering::Relaxed);
+        let _writing = self.writing.lock();
+        self.dirty.store(false, Ordering::SeqCst);
+        self.touched.store(false, Ordering::SeqCst);
+        self.write_index();
+    }
+
+    /// Under `writing`. Through a temporary file: a write cut short, or read half-way by
+    /// the next run, would cost the whole cache. Losing the index costs a refetch, never
+    /// the run, so a failed write is only logged.
+    fn write_index(&self) {
         let path = self.dir.join(INDEX);
+        let partial = self.dir.join(format!("{INDEX}.partial"));
         let snapshot = self.index.lock().clone();
-        match serde_json::to_vec(&snapshot) {
-            Ok(bytes) => {
-                if let Err(error) = std::fs::write(&path, bytes) {
-                    tracing::warn!(?error, ?path, "could not write the avatar cache index");
-                }
-            }
-            Err(error) => tracing::warn!(?error, "could not serialise the avatar cache index"),
+        let written = serde_json::to_vec(&snapshot)
+            .map_err(std::io::Error::other)
+            .and_then(|bytes| std::fs::write(&partial, bytes))
+            .and_then(|()| std::fs::rename(&partial, &path));
+        if let Err(error) = written {
+            tracing::warn!(?error, ?path, "could not write the avatar cache index");
         }
     }
 }
