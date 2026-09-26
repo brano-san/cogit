@@ -474,6 +474,16 @@ export type AvatarRow = {
 	image: string | null,
 };
 
+/**  Why a file is shown as binary, in the terms SmartGit words it (R-531). */
+export type BinaryCause = 
+/**  `.gitattributes` says so: `binary`, or `-diff`. */
+{ kind: "attribute"; name: string } | 
+/**
+ *  A control character text does not hold, first found on `side`; `line` and
+ *  `position` count from 1, `position` in characters.
+ */
+{ kind: "character"; code: number; line: number; position: number; side: DiffSide };
+
 export type BlameChunk = 
 /**  Always first: the lines that follow index into these tables. */
 { kind: "header"; commits: BlameCommit[]; sources: BlameSource[] } | { kind: "lines"; lines: OriginLine[] };
@@ -509,6 +519,16 @@ export type BlameSource = {
 	commit: number,
 	path: string,
 	previous: PreviousFile | null,
+};
+
+/**  One side of a file shown as a summary: its size and the object id git gives it. */
+export type BlobSide = {
+	size: number,
+	/**
+	 *  `None` until the caller that read the side fills it in, and for a working-tree file
+	 *  too large to read.
+	 */
+	id: string | null,
 };
 
 export type Branch = {
@@ -696,6 +716,8 @@ moveId?: number | null; moveScope?: MoveScope | null;
  */
 noNewline?: boolean } | { kind: "insert"; new: number; text: string; inline: ([number, number])[]; moved?: boolean; moveId?: number | null; moveScope?: MoveScope | null; noNewline?: boolean } | { kind: "collapsed"; count: number };
 
+export type DiffSide = "old" | "new";
+
 export type DiffSpec = { kind: "commitVsParent"; oid: string } | { kind: "commitVsCommit"; a: string; b: string } | { kind: "workTreeVsIndex" } | { kind: "indexVsHead" } | 
 /**  A past version against the file on disk now: Compare with Working Tree. */
 { kind: "commitVsWorkTree"; oid: string };
@@ -728,7 +750,11 @@ oldTotal: number; newTotal: number;
  *  as broken code (R-530). Only for a language the frontend has a parser for, and a
  *  side of at most `MAX_HIGHLIGHT_LINES` lines.
  */
-oldText: string | null; newText: string | null } | { kind: "eolOnly"; from: LineEnding; to: LineEnding } | { kind: "binary"; oldSize: number; newSize: number } | { kind: "image"; oldSize: number; newSize: number; mime: string } | { kind: "tooLarge"; size: number } | { kind: "unchanged" } | 
+oldText: string | null; newText: string | null } | { kind: "eolOnly"; from: LineEnding; to: LineEnding } | 
+/**  Shown as a summary, never as lines; `None` on a side the file is absent from. */
+{ kind: "binary"; old: BlobSide | null; new: BlobSide | null; cause: BinaryCause } | { kind: "image"; oldSize: number; newSize: number; mime: string } | 
+/**  A side of `limit` bytes or more, summarised as a binary file is. */
+{ kind: "tooLarge"; old: BlobSide | null; new: BlobSide | null; limit: number } | { kind: "unchanged" } | 
 /**  The same content, and only the mode changed: `100644` to `100755`, as git prints it. */
 { kind: "modeOnly"; oldMode: string; newMode: string } | 
 /**

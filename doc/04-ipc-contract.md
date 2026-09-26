@@ -371,7 +371,12 @@ author, email, timestamp, path, diff }`, новые сверху. `path` — и�
 
 `FileDiff` — размеченное объединение по полю `kind`: `text`, `eolOnly`, `binary`,
 `image`, `tooLarge`, `unchanged`, `modeOnly`, `emptyFile`, `whitespaceOnly`, `submodule`,
-`folder`. Байты сторон равны, а файл в списке изменён: `modeOnly { oldMode, newMode }` —
+`folder`. `binary { old, new, cause }` и `tooLarge { old, new, limit }` — сводка вместо строк:
+`old`/`new` — `BlobSide { size, id }` или `null`, где файла на стороне нет; `id` — id объекта
+(у рабочего файла — как `git hash-object`), `null`, если рабочий файл больше 20 МиБ; `cause` —
+`attribute { name }` (`binary`, `-diff`) или `character { code, line, position, side }` — первый
+управляющий символ, которого не бывает в тексте; `limit` — предел в байтах, от которого сторона
+слишком велика ([R-531](12-risks.md)). Байты сторон равны, а файл в списке изменён: `modeOnly { oldMode, newMode }` —
 сменился только режим (`100644` → `100755`, как пишет git; рабочее дерево берёт бит с диска,
 только где его хранит файловая система и включён `core.fileMode`), `emptyFile { added }` —
 пустой файл добавлен или удалён; `unchanged` остаётся для действительно неизменённого. `submodule {

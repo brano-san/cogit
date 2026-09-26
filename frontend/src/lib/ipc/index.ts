@@ -74,6 +74,8 @@ export type {
   DiffRow,
   DiffSpec,
   EolInfo,
+  BinaryCause,
+  BlobSide,
   FileDiff,
   FileEntry,
   FileStatus,

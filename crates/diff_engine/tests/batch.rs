@@ -10,6 +10,7 @@ fn input(path: &str, old: &str, new: &str) -> FileInput {
         path: path.to_owned(),
         old: old.as_bytes().to_vec(),
         new: new.as_bytes().to_vec(),
+        content: diff_engine::Content::Detect,
     }
 }
 
@@ -96,6 +97,7 @@ fn a_binary_file_beside_text_files_does_not_derail_the_batch() {
             path: "logo.bin".to_owned(),
             old: vec![0, 1, 2, 3],
             new: vec![0, 4, 5, 6],
+            content: diff_engine::Content::Detect,
         },
         input("b.rs", "three\n", "four\n"),
     ];
