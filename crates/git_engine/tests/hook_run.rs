@@ -221,6 +221,24 @@ fn a_dry_run_uses_the_bash_of_git_for_windows_whatever_bash_path_finds() {
     assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "from-git-bash");
 }
 
+// `bash <file>` reads the file as bash whatever its `#!` says: a Perl or Python hook that
+// git runs fine failed its dry run with bash's syntax errors.
+#[cfg(windows)]
+#[test]
+fn a_dry_run_honours_the_interpreter_the_hook_names() {
+    let f = test_fixtures::linear(1).unwrap();
+    write_hook(
+        &f.path().join(".git/hooks"),
+        "commit-msg",
+        "#!/usr/bin/env perl\nprint \"ok\\n\";\n",
+    );
+
+    let run = open(&f).run_hook("commit-msg").unwrap();
+
+    assert_eq!(run.exit_code, Some(0), "{run:?}");
+    assert_eq!(run.stdout.trim(), "ok", "{run:?}");
+}
+
 /// A file in the user's home folder, removed again when the test ends.
 struct InHome(std::path::PathBuf);
 
