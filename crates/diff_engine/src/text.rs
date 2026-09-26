@@ -334,8 +334,17 @@ fn build(
 
     let old_count = old_to - old_from;
     let new_count = new_to - new_from;
-    let old_start = if old_count == 0 { 0 } else { old_from + 1 };
-    let new_start = if new_count == 0 { 0 } else { new_from + 1 };
+    // As git: a side with no lines names the line it follows, zero at the top of the file.
+    let old_start = if old_count == 0 {
+        old_from
+    } else {
+        old_from + 1
+    };
+    let new_start = if new_count == 0 {
+        new_from
+    } else {
+        new_from + 1
+    };
 
     Hunk {
         old_start,

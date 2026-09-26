@@ -98,6 +98,36 @@ describe("foldDiff: gaps between the hunks the backend sent", () => {
     expect(gaps(foldDiff({ ...BASE, hunks: [h], oldTotal: 2, newTotal: 0 }))).toEqual([]);
   });
 
+  // DF-006: with no context lines git writes an empty side as the line it follows,
+  // `@@ -5,0 +6,2 @@` for two lines inserted after line 5.
+  it("folds the lines around a change that has an empty side", () => {
+    const inserted: Hunk = { oldStart: 5, oldLines: 0, newStart: 6, newLines: 2, header: "", rows: [i(6), i(7)] };
+    expect(
+      gaps(foldDiff({ ...BASE, context: 0, hunks: [inserted], oldTotal: 10, newTotal: 12 })).map((g) => [
+        g.oldFrom,
+        g.oldTo,
+        g.newFrom,
+        g.hidden,
+      ]),
+    ).toEqual([
+      [1, 5, 1, 5],
+      [6, 10, 8, 5],
+    ]);
+
+    const deleted: Hunk = { oldStart: 6, oldLines: 2, newStart: 5, newLines: 0, header: "", rows: [d(6), d(7)] };
+    expect(
+      gaps(foldDiff({ ...BASE, context: 0, hunks: [deleted], oldTotal: 12, newTotal: 10 })).map((g) => [
+        g.oldFrom,
+        g.oldTo,
+        g.newFrom,
+        g.hidden,
+      ]),
+    ).toEqual([
+      [1, 5, 1, 5],
+      [8, 12, 6, 5],
+    ]);
+  });
+
   it("numbers the blocks between gaps", () => {
     const first = hunk([...context(1, 3), d(4), ...context(5, 7)]);
     const second = hunk([...context(20, 22, -1), i(22), ...context(23, 25)]);
