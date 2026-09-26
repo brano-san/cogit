@@ -87,7 +87,7 @@
   import * as fileMenus from "$lib/ipc/file-menus";
   import { desktop } from "$stores/desktop.svelte";
   import { groupChoices, parseRepoCommand, repoMenu } from "$lib/repo-menu";
-  import { fetchAllTargets, listedName, type ListedRepo } from "$lib/repo-list";
+  import { fetchAllTargets, listedName, listedRepos, type ListedRepo } from "$lib/repo-list";
   import { rowSync } from "$lib/repo-sync";
   import { UNGROUPED } from "$lib/repo-groups";
   import { repoList } from "$stores/repo-list.svelte";
@@ -3375,7 +3375,7 @@
         <Panel
           title="Repositories"
           active={focused === "repositories"}
-          count={repository.openRepos.length}
+          count={listedRepos(repository.openRepos, repoList.list).length}
           stale={stale.has("repositories")}
         >
           <RepositoriesPanel
