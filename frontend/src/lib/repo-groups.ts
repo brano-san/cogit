@@ -13,7 +13,7 @@ export interface RepoGroups {
 export const UNGROUPED = "";
 
 export type GroupRow =
-  | { kind: "group"; id: string; name: string; count: number; depth: number }
+  | { kind: "group"; id: string; name: string; count: number; depth: number; open: boolean }
   | { kind: "repo"; root: string; group: string; depth: number };
 
 export function addGroup(
@@ -110,11 +110,13 @@ export function showsFilter(listed: number, filter: string): boolean {
   return listed > 1 || filter !== "";
 }
 
-/** Headings and rows in one flat list, the way the panel draws them. */
+/** Headings and rows in one flat list, the way the panel draws them. While `roots` are
+    the matches of a filter, a group with none inside it is left out (R-485). */
 export function groupRows(
   groups: RepoGroups,
   roots: readonly string[],
   collapsed: ReadonlySet<string>,
+  filtering = false,
 ): GroupRow[] {
   if (groups.order.length === 0) {
     return roots.map((root) => ({ kind: "repo", root, group: UNGROUPED, depth: 0 }));
@@ -142,20 +144,32 @@ export function groupRows(
     else children.set(parent, [id]);
   }
 
+  const matched = new Map<string, boolean>();
+  const holdsMatch = (id: string): boolean => {
+    let found = matched.get(id);
+    if (found === undefined) {
+      found = inGroup.has(id) || (children.get(id) ?? []).some(holdsMatch);
+      matched.set(id, found);
+    }
+    return found;
+  };
+
   // A collapsed group is still walked: its children's repositories belong to them, not to
   // Ungrouped. Collapsing only decides what is drawn.
   const walk = (parent: string | null, depth: number, shown: boolean) => {
     for (const id of children.get(parent) ?? []) {
       const inside = inGroup.get(id) ?? [];
       for (const root of inside) claimed.add(root);
-      const open = shown && !collapsed.has(id);
-      if (shown) {
+      const drawn = shown && (!filtering || holdsMatch(id));
+      const open = drawn && !collapsed.has(id);
+      if (drawn) {
         rows.push({
           kind: "group",
           id,
           name: groups.names[id] ?? id,
           count: inside.length,
           depth,
+          open,
         });
       }
       if (open) {
@@ -169,8 +183,9 @@ export function groupRows(
   const loose = roots.filter((root) => !claimed.has(root));
   if (loose.length === 0) return rows;
 
-  rows.push({ kind: "group", id: UNGROUPED, name: "Ungrouped", count: loose.length, depth: 0 });
-  if (!collapsed.has(UNGROUPED)) {
+  const open = !collapsed.has(UNGROUPED);
+  rows.push({ kind: "group", id: UNGROUPED, name: "Ungrouped", count: loose.length, depth: 0, open });
+  if (open) {
     for (const root of loose) rows.push({ kind: "repo", root, group: UNGROUPED, depth: 1 });
   }
   return rows;
