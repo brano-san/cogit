@@ -74,6 +74,21 @@ where
     joined
 }
 
+/// `blocking` for a command whose answer is not a `Result`: a task that failed to run is
+/// logged and answers the default.
+async fn blocking_or_default<T, F>(label: &'static str, work: F) -> T
+where
+    T: Default + Send + 'static,
+    F: FnOnce() -> T + Send + 'static,
+{
+    blocking(label, move || Ok(work()))
+        .await
+        .unwrap_or_else(|err| {
+            tracing::error!(error = ?err, context = label);
+            T::default()
+        })
+}
+
 /// A mutation waits for its turn in the repository's lane before it starts (P1.3).
 ///
 /// Three clicks on push are three pushes, one after the other, in the order they landed —
@@ -389,15 +404,21 @@ pub fn report_memory(sample: crate::profile::RendererMemory) {
 
 /// The settings document as JSON text. Rust owns the file because the menu and the
 /// logger read it before there is a window to ask.
-#[tauri::command(async)]
+#[tauri::command]
 #[specta::specta]
-pub fn read_settings(state: tauri::State<'_, crate::AppContext>) -> String {
-    app_state::settings::read_document(&state.config_dir).to_string()
+pub async fn read_settings(app: tauri::AppHandle) -> String {
+    let dir = tauri::Manager::state::<crate::AppContext>(&app)
+        .config_dir
+        .clone();
+    blocking_or_default("read_settings", move || {
+        app_state::settings::read_document(&dir).to_string()
+    })
+    .await
 }
 
-#[tauri::command(async)]
+#[tauri::command]
 #[specta::specta]
-pub fn write_setting(
+pub async fn write_setting(
     state: tauri::State<'_, crate::AppContext>,
     key: String,
     value: String,
@@ -406,9 +427,12 @@ pub fn write_setting(
     // the menu, and a malformed value would take both down with it.
     let parsed = serde_json::from_str(&value)
         .map_err(|err| GitError::Internal(format!("settings value is not JSON: {err}")))?;
-
-    app_state::settings::write_key(&state.config_dir, &key, parsed)
-        .map_err(|err| GitError::Io(format!("cannot write the settings: {err}")))
+    let dir = state.config_dir.clone();
+    blocking("write_setting", move || {
+        app_state::settings::write_key(&dir, &key, parsed)
+            .map_err(|err| GitError::Io(format!("cannot write the settings: {err}")))
+    })
+    .await
 }
 
 /// Async: it spawns `git --version` and reads the registry, neither of which belongs on
@@ -830,18 +854,24 @@ pub async fn commit(
     Ok(oid)
 }
 
-/// Off the main thread: the whole journal can be a hundred megabyte-sized entries.
-#[tauri::command(async)]
+/// In the blocking pool: the whole journal can be a hundred megabyte-sized entries.
+#[tauri::command]
 #[specta::specta]
-pub fn command_log(state: tauri::State<'_, crate::AppContext>) -> Vec<GitOutput> {
-    state.state.command_log()
+pub async fn command_log(app: tauri::AppHandle) -> Vec<GitOutput> {
+    let state = tauri::Manager::state::<crate::AppContext>(&app)
+        .state
+        .clone();
+    blocking_or_default("command_log", move || state.command_log()).await
 }
 
 /// One entry in full. The notice that opened the window carried only its summary.
-#[tauri::command(async)]
+#[tauri::command]
 #[specta::specta]
-pub fn command_outcome(state: tauri::State<'_, crate::AppContext>, id: u32) -> Option<GitOutput> {
-    state.state.command_outcome(id)
+pub async fn command_outcome(app: tauri::AppHandle, id: u32) -> Option<GitOutput> {
+    let state = tauri::Manager::state::<crate::AppContext>(&app)
+        .state
+        .clone();
+    blocking_or_default("command_outcome", move || state.command_outcome(id)).await
 }
 
 #[tauri::command]

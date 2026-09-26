@@ -22,8 +22,9 @@ const MAIN_THREAD_ONLY: &[&str] = &[
 ];
 
 /// Each command with a flag: does it leave the main thread? An `async fn` does, and so
-/// does a plain `fn` marked `#[tauri::command(async)]` — tauri hands that one to the
-/// thread pool without demanding it return a `Result`.
+/// does a plain `fn` marked `#[tauri::command(async)]` — but that one runs on a tokio
+/// worker, one of those that carry IPC, not in the pool of blocking threads: anything slow
+/// in it still goes through `blocking(...)`.
 /// Every file of the module, read from disk: a list of files here missed `toolbar.rs`.
 fn declared() -> Vec<(String, bool)> {
     all_commands()
@@ -224,6 +225,26 @@ fn the_command_log_is_read_off_the_main_thread() {
     assert_eq!(log, Some(("command_log".to_owned(), true)));
 }
 
+// `#[tauri::command(async)]` on these ran the journal's clone and serialisation, and the
+// settings file's read and rename, on the workers that carry every other command's answer.
+#[test]
+fn the_journal_and_the_settings_are_read_in_the_blocking_pool() {
+    let all = all_commands();
+    let inline: Vec<&str> = [
+        "command_log",
+        "command_outcome",
+        "read_settings",
+        "write_setting",
+    ]
+    .into_iter()
+    .filter(|name| {
+        !all.iter()
+            .any(|command| command.name == *name && command.body.contains("blocking"))
+    })
+    .collect();
+    assert!(inline.is_empty(), "these run on an IPC worker: {inline:?}");
+}
+
 #[test]
 fn the_parser_sees_every_command() {
     let all = declared();
@@ -246,8 +267,8 @@ fn nothing_heavy_runs_on_the_main_thread() {
 
     assert!(
         stragglers.is_empty(),
-        "these commands block the window's message loop; mark them \
-         `#[tauri::command(async)]` or justify them in MAIN_THREAD_ONLY: {stragglers:?}"
+        "these commands block the window's message loop; make them `async fn` with the work \
+         in `blocking(...)`, or justify them in MAIN_THREAD_ONLY: {stragglers:?}"
     );
 }
 
