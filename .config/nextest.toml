@@ -1,4 +1,4 @@
-# Test runner configuration. See doc/09-testing.md section 6.
+# Test runner configuration. How and when the suite runs: doc/09-testing.md §9.
 #
 # `cargo test` runs one test binary at a time; this workspace has eighty of them and most
 # of the time goes on spawning `git`, not on computing. nextest runs every test from every
@@ -9,14 +9,13 @@
 # wide turns into hundreds of processes and the desktop stops responding (R-57).
 test-threads = 12
 # The fixtures create temporary repositories and spawn git; a hung process must not hang
-# the commit.
+# the run.
 slow-timeout = { period = "30s", terminate-after = 4 }
 failure-output = "immediate-final"
 fail-fast = false
 
 # Tests that assert a duration cannot share the machine with thirty others: the number they
-# measure stops being about the code. They run one at a time, and the pre-commit hook skips
-# them entirely (doc/09-testing.md).
+# measure stops being about the code. They run one at a time. No hook runs any test.
 [test-groups]
 timing = { max-threads = 1 }
 
@@ -26,8 +25,3 @@ timing = { max-threads = 1 }
 filter = "binary(mutation_speed) | binary(performance) | binary(selection_speed) | test(/budget/) | test(/does_not_(hang|block|stall)/) | (binary(undo) & test(/echo|watcher/))"
 test-group = "timing"
 threads-required = "num-cpus"
-
-# The hook's profile: correctness only, and nothing that measures time.
-[profile.quick]
-fail-fast = true
-failure-output = "immediate-final"
