@@ -9,13 +9,14 @@
     type ConnectorRow,
     type SearchRow,
     type SideCell,
+    type SidePair,
   } from "$lib/diff-rows";
+  import { cellTokens, diffTokens, rowTokens } from "$lib/diff-highlight";
   import {
     blockKeys,
     changeAt,
     changeStarts,
     foldDiff,
-    highlightedRows,
     navState,
     revealRange,
     splitRows,
@@ -38,7 +39,7 @@
   } from "$lib/code-scroll";
   import ConfirmDialog from "$components/common/ConfirmDialog.svelte";
   import { eolChangeText, eolLabel, layoutTip, modeChangeText } from "$lib/diff-toolbar";
-  import { MAX_HIGHLIGHT_LINES, highlightLines, mergePieces, type Token } from "$lib/highlight";
+  import { mergePieces, type Token } from "$lib/highlight";
   import { lineKey, toggleLine } from "$lib/selection";
   import { keepSelection } from "$lib/diff-selection";
   import { investigateTarget, openInvestigate } from "$lib/investigate/open";
@@ -104,35 +105,20 @@
   const language = $derived(diff.kind === "text" ? diff.language : null);
 
   /** Parsed once per diff, per side: a block comment must survive the line it opened on. */
-  const tokens = $derived.by(() => {
-    const oldLines: string[] = [];
-    const newLines: string[] = [];
-    const oldAt = new Map<string, number>();
-    const newAt = new Map<string, number>();
-
-    for (const row of highlightedRows(hunks, () => unified, MAX_HIGHLIGHT_LINES)) {
-      if (row.kind === "context") {
-        oldAt.set("c" + row.old, oldLines.push(row.text) - 1);
-        newAt.set("c" + row.new, newLines.push(row.text) - 1);
-      } else if (row.kind === "delete") {
-        oldAt.set("d" + row.old, oldLines.push(row.text) - 1);
-      } else if (row.kind === "insert") {
-        newAt.set("i" + row.new, newLines.push(row.text) - 1);
-      }
-    }
-    return {
-      old: highlightLines(oldLines, language),
-      new: highlightLines(newLines, language),
-      oldAt,
-      newAt,
-    };
-  });
+  const tokens = $derived(
+    diffTokens(
+      {
+        hunks,
+        language,
+        oldText: diff.kind === "text" ? diff.oldText : null,
+        newText: diff.kind === "text" ? diff.newText : null,
+      },
+      () => unified,
+    ),
+  );
 
   function tokensFor(row: DiffRow): Token[] {
-    if (row.kind === "delete") return tokens.old[tokens.oldAt.get("d" + row.old) ?? -1] ?? [];
-    if (row.kind === "insert") return tokens.new[tokens.newAt.get("i" + row.new) ?? -1] ?? [];
-    if (row.kind === "context") return tokens.old[tokens.oldAt.get("c" + row.old) ?? -1] ?? [];
-    return [];
+    return rowTokens(tokens, row);
   }
 
   const unified = $derived(
@@ -332,21 +318,10 @@
     }
   }
 
-  function cells(cell: SideCell | null, index: number, side: "left" | "right") {
+  function cells(pair: SidePair, index: number, side: "left" | "right") {
+    const cell = pair[side];
     if (!cell) return [];
-    // A context cell on the right carries its new-side number; the old-side lookup would
-    // colour it with another line's tokens.
-    if (cell.kind === "context" && side === "right") {
-      const own = tokens.new[tokens.newAt.get("c" + cell.line) ?? -1] ?? [];
-      return mergePieces(cell.text, own, cell.inline, find.spansFor(index, side));
-    }
-    const row =
-      cell.kind === "delete"
-        ? ({ kind: "delete", old: cell.line, text: cell.text, inline: cell.inline } as const)
-        : cell.kind === "insert"
-          ? ({ kind: "insert", new: cell.line, text: cell.text, inline: cell.inline } as const)
-          : ({ kind: "context", old: cell.line, new: cell.line, text: cell.text } as const);
-    return mergePieces(cell.text, tokensFor(row), cell.inline, find.spansFor(index, side));
+    return mergePieces(cell.text, cellTokens(tokens, pair, side), cell.inline, find.spansFor(index, side));
   }
 
   function settle() {
@@ -813,7 +788,7 @@
                   class:del={entry.pair.left?.kind === "delete"}
                   class:moved={entry.pair.left?.moved}
                   ><span class="text"
-                    >{#each cells(entry.pair.left, rowIndex, "left") as piece, i (i)}<span
+                    >{#each cells(entry.pair, rowIndex, "left") as piece, i (i)}<span
                         class="{piece.cls}"
                         class:word={piece.changed}
                         class:hit={piece.hit}
@@ -834,7 +809,7 @@
                   class:add={entry.pair.right?.kind === "insert"}
                   class:moved={entry.pair.right?.moved}
                   ><span class="text"
-                    >{#each cells(entry.pair.right, rowIndex, "right") as piece, i (i)}<span
+                    >{#each cells(entry.pair, rowIndex, "right") as piece, i (i)}<span
                         class="{piece.cls}"
                         class:word={piece.changed}
                         class:hit={piece.hit}
@@ -1136,13 +1111,17 @@
     font-weight: 600;
   }
 
+  /* The changed word is marked over the syntax colour, never instead of it (R-530). */
   .code.del .word {
     background: color-mix(in srgb, var(--c-deleted) 45%, transparent);
-    color: var(--text-primary);
   }
 
   .code.add .word {
     background: color-mix(in srgb, var(--c-added) 45%, transparent);
+  }
+
+  .code.del .word:not([class*="tok-"]),
+  .code.add .word:not([class*="tok-"]) {
     color: var(--text-primary);
   }
 

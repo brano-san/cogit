@@ -722,7 +722,13 @@ export type FileDiff = { kind: "text"; hunks: Hunk[]; eol: EolInfo; lossyEncodin
 /**  Language hint for Lezer. Highlighting itself is a frontend concern (INV-01). */
 language: string | null; 
 /**  Lines on each side, so the view can say how many follow the last hunk. */
-oldTotal: number; newTotal: number } | { kind: "eolOnly"; from: LineEnding; to: LineEnding } | { kind: "binary"; oldSize: number; newSize: number } | { kind: "image"; oldSize: number; newSize: number; mime: string } | { kind: "tooLarge"; size: number } | { kind: "unchanged" } | 
+oldTotal: number; newTotal: number; 
+/**
+ *  Each side whole, as the rows quote it, for the highlighter: the hunks alone parse
+ *  as broken code (R-530). Only for a language the frontend has a parser for, and a
+ *  side of at most `MAX_HIGHLIGHT_LINES` lines.
+ */
+oldText: string | null; newText: string | null } | { kind: "eolOnly"; from: LineEnding; to: LineEnding } | { kind: "binary"; oldSize: number; newSize: number } | { kind: "image"; oldSize: number; newSize: number; mime: string } | { kind: "tooLarge"; size: number } | { kind: "unchanged" } | 
 /**  The same content, and only the mode changed: `100644` to `100755`, as git prints it. */
 { kind: "modeOnly"; oldMode: string; newMode: string } | 
 /**

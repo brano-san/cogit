@@ -35,6 +35,8 @@ function textDiff() {
       language: null,
       oldTotal: 0,
       newTotal: 0,
+      oldText: null,
+      newText: null,
     },
   };
 }
