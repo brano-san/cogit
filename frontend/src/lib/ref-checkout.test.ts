@@ -81,3 +81,12 @@ describe("checkoutPlan", () => {
     });
   });
 });
+
+describe("nodeTarget of a branch held by another worktree", () => {
+  it("names the worktree, so the menu can refuse Delete", () => {
+    const local = branch("topic", "local");
+    const found = nodeTarget(node({ branch: local, oid: local.oid, worktree: { path: "D:/work/topic", state: "synced" } }), []);
+    expect(found?.ref?.worktree).toBe("D:/work/topic");
+    expect(nodeTarget(node({ branch: local, oid: local.oid }), [])?.ref).not.toHaveProperty("worktree");
+  });
+});
