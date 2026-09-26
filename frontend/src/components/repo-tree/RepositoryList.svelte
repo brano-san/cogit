@@ -630,43 +630,45 @@
     font-size: 10px;
   }
 
+  /* The arrows reach past the icon's right edge; the margin keeps them off the dot. */
   .repo-icon {
     position: relative;
     display: inline-flex;
     flex: none;
+    margin-right: 2px;
   }
 
   /* On the corners, with a halo of the panel colour, so they sit on the icon's edge
      without covering it. */
   .arrow {
     position: absolute;
-    right: -3px;
-    width: 7px;
-    height: 7px;
+    right: -5px;
+    width: var(--sync-arrow);
+    height: var(--sync-arrow);
     fill: none;
     stroke: currentColor;
     stroke-width: 1.6;
     stroke-linecap: round;
     stroke-linejoin: round;
-    filter: drop-shadow(0 0 1px var(--surface-panel));
+    filter: drop-shadow(0 0 1px var(--surface-panel)) drop-shadow(0 0 1px var(--surface-panel));
   }
 
   .arrow.push {
-    top: -2px;
+    top: -3px;
     color: var(--indicator-push);
   }
 
   .arrow.pull {
-    bottom: -2px;
+    bottom: -3px;
     color: var(--indicator-pull);
   }
 
   .arrow.unknown {
-    bottom: -3px;
+    bottom: -4px;
     width: auto;
     height: auto;
     color: var(--indicator-unknown);
-    font-size: 8px;
+    font-size: var(--sync-arrow);
     font-weight: 700;
     line-height: 1;
   }

@@ -159,6 +159,8 @@
   --disclosure-side: var(--sp-3);
   --menu-caret: 9px;
   --kind-icon: 14px;
+  /* Push and pull on the corners of a Repositories icon: at 7 px they were hard to see (R-547). */
+  --sync-arrow: 10px;
   /* Icon buttons in panel bars: read at a glance, a size below the main toolbar's 22px. */
   --panel-icon: 16px;
   /* The box of Checkbox and Radio; Branches draws it smaller. */
