@@ -59,6 +59,18 @@ export const CATEGORIES: Category[] = [
         ],
       },
       {
+        // Where the Checkout dialog's "Don't show again" is taken back, beside the list.
+        title: "Check Out",
+        fields: [
+          {
+            key: "confirmLocalCheckout",
+            label: "Show the Check Out dialog for a local branch",
+            hint: "Off: a double click or Check Out on a local branch switches to it at once.",
+            keywords: ["checkout", "check out", "switch", "branch", "dialog", "confirm", "dont show"],
+          },
+        ],
+      },
+      {
         title: "Pull",
         fields: [
           {
