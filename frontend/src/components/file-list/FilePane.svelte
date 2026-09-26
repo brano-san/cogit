@@ -243,7 +243,8 @@
     display: flex;
     align-items: center;
     gap: var(--tree-gap);
-    height: 22px;
+    /* The step the rows are placed at (LIST_ROW_HEIGHT): shorter left a dead gap between. */
+    height: var(--h-row);
     padding: 0 var(--sp-5);
     font-size: var(--fs-dense);
     white-space: nowrap;
