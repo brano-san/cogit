@@ -226,7 +226,7 @@
       class="tool"
       aria-haspopup="menu"
       aria-expanded={columnsOpen}
-      title="Customise View"
+      title="Customize View"
       {disabled}
       onclick={toggleMenu}
     >

@@ -23,7 +23,7 @@
 - Truncation: list rows on the right only; graph branch labels in the middle; secondary
   text before the name; never overlapping. One shared utility.
 - American spelling in UI strings (`Colors`, `license`, `Initialize`, `canceled`, `gray`);
-  identifiers and stored keys keep theirs.
+  identifiers and stored keys keep theirs (`lib/ui-spelling.test.ts`).
 
 ## Tests
 
