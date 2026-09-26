@@ -491,3 +491,36 @@ describe("long links", () => {
     graph.setLongLinkRows(40);
   });
 });
+
+// Switching to a large repository and changing a graph mode before its graph came walked
+// the repository left, and that load was dropped: the new graph came without the mode.
+describe("a setting changed while the next repository's graph loads", () => {
+  const view = graph.view;
+  const rows = graph.longLinkRows;
+
+  async function switching() {
+    await loaded(A, ["a", "b"]);
+    repository.adopt({ repo: B, root: "/b" } as import("$lib/ipc").RepoSummary);
+    void graph.load(B);
+    commands.loadCommits.mockClear();
+  }
+  const walked = () => commands.loadCommits.mock.calls.map(([repo]) => repo);
+
+  it("walks that repository again for another view", async () => {
+    await switching();
+
+    graph.setView({ firstParent: true, collapseMerged: false, expanded: [] });
+
+    expect(walked()).toEqual([B]);
+    graph.view = view;
+  });
+
+  it("walks that repository again for another long-link threshold", async () => {
+    await switching();
+
+    graph.setLongLinkRows(rows + 1);
+
+    expect(walked()).toEqual([B]);
+    graph.setLongLinkRows(rows);
+  });
+});
