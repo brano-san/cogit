@@ -10,6 +10,7 @@
   import {
     DEFAULT_VIEW,
     groupByDirectory,
+    hiddenCount,
     hidingSwitches,
     paneLayout,
     shownSections,
@@ -190,7 +191,9 @@
   const total = $derived(sections.reduce((n, section) => n + section.files.length, 0));
   const shownCount = $derived(groups.reduce((n, group) => n + group.files.length, 0));
   const order = $derived(groups.flatMap((group) => group.keys));
-  const hiding = $derived(hidingSwitches(sections.flatMap((section) => section.files), active));
+  const came = $derived(sections.flatMap((section) => section.files));
+  const hidden = $derived(hiddenCount(came, active, (file) => keepFile(file, pattern, hits)));
+  const hiding = $derived(hidingSwitches(came, active));
   const visibleMarks = $derived(shownMarks(marked, order));
   const marks = $derived(markedRows(visibleMarks.paths));
 
@@ -245,7 +248,7 @@
     onview={(next) => onview?.(next)}
     filter={mask}
     onfilter={(text) => (mask = text)}
-    hidden={total - shownCount}
+    {hidden}
     {hiding}
     broken={pattern.broken}
     {disabled}

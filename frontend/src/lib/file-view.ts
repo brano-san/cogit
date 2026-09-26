@@ -73,6 +73,21 @@ export function visibleFiles(files: readonly FileEntry[], view: FileView): FileE
   return shown;
 }
 
+/** Rows that came and are not shown. The sources `renameSources` adds are not rows that
+    came, so they cannot make up for hidden ones. */
+export function hiddenCount(
+  files: readonly FileEntry[],
+  view: FileView,
+  keep: (file: FileEntry) => boolean,
+): number {
+  let hidden = 0;
+  for (const file of files) {
+    const gate = GATED[file.status];
+    if ((gate && !view[gate]) || !keep(file)) hidden += 1;
+  }
+  return hidden;
+}
+
 /** The switches keeping rows that came out of sight. Unchanged and ignored rows only come
     while their switch is on, so those two are never among them. */
 export function hidingSwitches(files: readonly FileEntry[], view: FileView): (keyof FileView)[] {
