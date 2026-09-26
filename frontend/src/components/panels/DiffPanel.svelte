@@ -23,6 +23,8 @@
     oninitsubmodule: (path: string) => void;
     /** Shown when there is nothing to diff: commit details, or why there is nothing. */
     fallback: Snippet;
+    /** The Diff panel has the focus, so the keys of the diff are its (11 §7). */
+    active: boolean;
   }
 
   let {
@@ -35,6 +37,7 @@
     onpopoutmerge,
     onresolveText,
     fallback,
+    active,
   }: Props = $props();
 </script>
 
@@ -87,6 +90,7 @@
     whitespace={diff.whitespace}
     onwhitespace={(mode) => onwhitespace(mode)}
     onexpand={(whole) => onexpand(whole)}
+    {active}
   />
 {:else}
   {@render fallback()}

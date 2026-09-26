@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { keyLetter } from "$lib/key-letter";
+  import { diffKey } from "$lib/diff-keys";
   import { modals } from "$lib/modal-stack";
   import { untrack } from "svelte";
   import {
@@ -59,6 +59,9 @@
     onwhitespace?: (mode: import("$lib/ipc").Whitespace) => void;
     /** Show more of the file around the hunks; `whole` opens all of it (T7.3). */
     onexpand?: (whole: boolean) => void;
+    /** Whether the window's keys are the diff's (11 §7): in the main window only while the
+        Diff panel has the focus; a window of its own has nothing else to give them to. */
+    active?: boolean;
   }
 
   let {
@@ -70,6 +73,7 @@
     whitespace = "none",
     onwhitespace,
     onexpand,
+    active = true,
   }: Props = $props();
 
   const WHITESPACE_LABEL = { none: "Whitespace", trailing: "Trailing ws", all: "Ignore ws" };
@@ -367,28 +371,26 @@
     else settle();
   }
 
+  /** Listens in the capture phase, ahead of the main window's own F6: a key the diff takes
+      is marked handled before the panel walk looks at it. */
   function onkeydown(event: KeyboardEvent) {
     // A dialog above the panel has the keys (11 §1).
     if (modals.any) return;
-    const ctrl = event.ctrlKey || event.metaKey;
-    const key = keyLetter(event);
-
-    if (event.key === "F6") {
-      event.preventDefault();
-      jump(event.shiftKey ? -1 : 1);
-    } else if (ctrl && event.shiftKey && key === "d") {
-      event.preventDefault();
-      void diffStore.setLayout(mode === "split" ? "unified" : "split");
-    } else if (ctrl && !event.shiftKey && key === "f") {
-      event.preventDefault();
-      openFind();
-    } else if (ctrl && event.altKey && event.shiftKey && key === "l") {
-      event.preventDefault();
-      startInvestigate();
-    } else if (find.showing && event.key === "Escape") {
-      event.preventDefault();
-      find.close();
-    }
+    const press = {
+      key: event.key,
+      code: event.code,
+      ctrl: event.ctrlKey || event.metaKey,
+      shift: event.shiftKey,
+      alt: event.altKey,
+    };
+    const action = diffKey(press, { active, findShowing: find.showing, prev: nav.prev, next: nav.next });
+    if (action === null) return;
+    event.preventDefault();
+    if (action.kind === "jump") jump(action.by);
+    else if (action.kind === "layout") void diffStore.setLayout(mode === "split" ? "unified" : "split");
+    else if (action.kind === "find") openFind();
+    else if (action.kind === "investigate") startInvestigate();
+    else find.close();
   }
 
   $effect(() => {
@@ -447,7 +449,7 @@
   });
 </script>
 
-<svelte:window {onkeydown} />
+<svelte:window onkeydowncapture={onkeydown} />
 
 {#snippet eof(open: boolean | undefined)}
   {#if open}<span class="eof" title="No newline at end of file">\ no newline</span>{/if}
