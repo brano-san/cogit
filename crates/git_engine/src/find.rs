@@ -31,7 +31,7 @@ impl RepoHandle {
         }
 
         let mut found = Vec::new();
-        for branch in self.branches()? {
+        for branch in self.branches_without_divergence()? {
             if branch.name.to_lowercase().contains(&needle) {
                 found.push(Found {
                     kind: FoundKind::Branch,
