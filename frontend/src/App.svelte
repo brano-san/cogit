@@ -154,7 +154,6 @@
     type AppInfo,
     type Branch,
     type RepoId,
-    type Tag,
   } from "$lib/ipc";
   import { openBlame } from "$lib/blame-window";
   import { ShownRepository } from "$lib/shown-repository";
@@ -1307,9 +1306,9 @@
 
   function activateRef(node: RefNode) {
     if (node.kind === "stash") void applyStash(Number(node.id.slice("stash:".length)), false);
-    else if (node.kind === "tag") {
-      if (node.tag) void checkoutTag(node.tag);
-    } else if (node.kind === "lost" && node.oid) {
+    // The menu's Check Out, question and all (doc/05 §3.3).
+    else if (node.kind === "tag" || node.kind === "remote") void refActions?.checkOutNode(node);
+    else if (node.kind === "lost" && node.oid) {
       const found = recovery.lost.find((row) => row.oid === node.oid);
       if (found) void recoverCommit(found);
     }
@@ -1630,18 +1629,6 @@
     if (!id) return;
     for (const remote of names) {
       await network.fetch(id, remote).catch((err) => errors.report(err, `Could not fetch ${remote}`));
-    }
-    await afterRefChange(id);
-  }
-
-  async function checkoutTag(tag: Tag) {
-    const id = repository.current?.repo;
-    if (!id) return;
-    try {
-      await checkout(id, { kind: "commit", oid: tag.oid });
-    } catch (err) {
-      errors.report(err, "Could not check out the tag");
-      return;
     }
     await afterRefChange(id);
   }
