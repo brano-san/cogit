@@ -47,6 +47,9 @@ pub struct GraphView {
     /// A merged branch is one row at its merge, but for the merges in `expanded`.
     pub collapse_merged: bool,
     pub expanded: Vec<String>,
+    /// A filtered list drawn with lines between its matches, through the commits it leaves
+    /// out, instead of flat (Show Graph While Filtering, F-561).
+    pub filtered_graph: bool,
 }
 
 impl CommitQuery {
@@ -178,6 +181,19 @@ impl RepoHandle {
         rows: GraphRows<'_, '_>,
         on_chunk: impl FnMut(Vec<CommitRow>) -> bool,
     ) -> Result<Vec<SkippedRef>> {
+        self.graph_commits_passing(query, chunk_size, rows, None, on_chunk)
+    }
+
+    /// `graph_commits` that also lists, in `passed`, the commits the filter left out, where
+    /// they fell between the rows it gives.
+    pub fn graph_commits_passing(
+        &self,
+        query: &CommitQuery,
+        chunk_size: usize,
+        rows: GraphRows<'_, '_>,
+        passed: Option<&PassedCommits>,
+        on_chunk: impl FnMut(Vec<CommitRow>) -> bool,
+    ) -> Result<Vec<SkippedRef>> {
         let GraphRows {
             reuse,
             record,
@@ -221,6 +237,7 @@ impl RepoHandle {
                 record,
                 text,
                 stashes: &stashes,
+                passed,
             };
             self.stream_rows(
                 query,
@@ -279,18 +296,23 @@ impl RepoHandle {
             if !rows.stashes.is_empty() && rows.stashes.binary_search(&id).is_ok() {
                 row.parents.truncate(1);
             }
-            if !query.matches_row(&row) {
-                continue;
-            }
-            if let Some(text) = &text
-                && !text.matches(self, id, &row, &mailmap)
-            {
-                continue;
-            }
-            // Last, because it costs two tree lookups per candidate.
-            if let Some(path) = &query.path
-                && !self.touches(&id, path)
-            {
+            // The path last, because it costs two tree lookups per candidate.
+            let shown = query.matches_row(&row)
+                && text
+                    .as_ref()
+                    .is_none_or(|text| text.matches(self, id, &row, &mailmap))
+                && query
+                    .path
+                    .as_ref()
+                    .is_none_or(|path| self.touches(&id, path));
+            if !shown {
+                if let Some(passed) = rows.passed {
+                    passed.0.borrow_mut().push(Passed {
+                        before: chunk.len(),
+                        oid: row.oid,
+                        first_parent: row.parents.into_iter().next(),
+                    });
+                }
                 continue;
             }
 
@@ -404,6 +426,28 @@ struct Rows<'h> {
     text: bool,
     /// Sorted: ticked stashes, one row each with only the first parent (F-331).
     stashes: &'h [gix::ObjectId],
+    passed: Option<&'h PassedCommits>,
+}
+
+/// A commit a filter left out: `before` is the index, in the chunk being filled, of the row
+/// that comes after it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Passed {
+    pub before: usize,
+    pub oid: String,
+    pub first_parent: Option<String>,
+}
+
+/// The commits a filtered walk left out, in walk order, for a graph that draws its lines
+/// through them (F-561). Taken chunk by chunk.
+#[derive(Debug, Default)]
+pub struct PassedCommits(std::cell::RefCell<Vec<Passed>>);
+
+impl PassedCommits {
+    #[must_use]
+    pub fn take(&self) -> Vec<Passed> {
+        std::mem::take(&mut self.0.borrow_mut())
+    }
 }
 
 /// The commits a walk starts from.

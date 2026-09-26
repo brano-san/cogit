@@ -601,6 +601,27 @@ describe("a view changed while a filter is on", () => {
     expect(sent?.view).toEqual(folding);
     graph.view = view;
   });
+  it("walks the filter again for the lines between its matches, and sends them", async () => {
+    await loaded(A, ["a", "b"]);
+    const search = graph.load(A, { ...graph.query, message: "fix" });
+    await last().send(["a"], true);
+    last().finish();
+    await search;
+    commands.loadCommits.mockClear();
+
+    graph.setView({ ...graph.view, filteredGraph: true });
+    const sent = commands.loadCommits.mock.calls.at(-1)?.[1] as { view: { filteredGraph?: boolean } } | undefined;
+    expect(sent?.view.filteredGraph).toBe(true);
+    graph.view = view;
+  });
+
+  it("leaves the lines out of a walk without a filter", async () => {
+    graph.view = { ...view, filteredGraph: true };
+    await loaded(A, ["a", "b"]);
+    const sent = commands.loadCommits.mock.calls.at(-1)?.[1] as { view: object } | undefined;
+    expect(sent?.view).not.toHaveProperty("filteredGraph");
+    graph.view = view;
+  });
 });
 
 // A filter typed 3000 rows down kept the scroll there, above or past its first matches.

@@ -7,7 +7,7 @@ import type { Settings } from "$lib/settings";
 
 /** The graph modes of Preferences ▸ Graph & History, and the ticked-branch colours they
     have to get along with. */
-export const GRAPH_MODES = ["graphFirstParent", "graphAncestry", "graphCollapseMerged"] as const;
+export const GRAPH_MODES = ["graphFirstParent", "graphAncestry", "graphCollapseMerged", "graphWhileFiltering"] as const;
 
 export type GraphMode = (typeof GRAPH_MODES)[number];
 export type ModeKey = GraphMode | "graphHighlightChecked";
@@ -29,6 +29,7 @@ const KEYS: Record<Mode, ModeKey> = {
   firstParent: "graphFirstParent",
   ancestry: "graphAncestry",
   collapseMerged: "graphCollapseMerged",
+  filteredGraph: "graphWhileFiltering",
 };
 
 /** The graph's own table (`$lib/graph-modes`), in settings keys: one table for both. */

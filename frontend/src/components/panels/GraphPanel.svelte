@@ -91,6 +91,7 @@
     coloring={settings.current.graphColoring}
     ancestry={settings.current.graphAncestry}
     collapseMerged={settings.current.graphCollapseMerged}
+    filteredGraph={settings.current.graphWhileFiltering}
     selectedRefsOnly={settings.current.graphSelectedRefsOnly}
     includeTracked={settings.current.graphIncludeTracked}
     workingTreeAlways={settings.current.graphWorkingTreeAlways}

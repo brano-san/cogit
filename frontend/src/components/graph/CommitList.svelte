@@ -94,6 +94,8 @@
     ancestry?: boolean;
     /** A merged branch folds into its merge row (`graphCollapseMerged`). */
     collapseMerged?: boolean;
+    /** A filtered list keeps lines between its matches (`graphWhileFiltering`). */
+    filteredGraph?: boolean;
     /** Labels only for refs ticked in Branches (`graphSelectedRefsOnly`). */
     selectedRefsOnly?: boolean;
     /** A ticked branch brings its upstream along (`graphIncludeTracked`). */
@@ -121,6 +123,7 @@
     coloring = GRAPH_MODE_DEFAULTS.coloring,
     ancestry = GRAPH_MODE_DEFAULTS.ancestry,
     collapseMerged = GRAPH_MODE_DEFAULTS.collapseMerged,
+    filteredGraph = GRAPH_MODE_DEFAULTS.filteredGraph,
     selectedRefsOnly = false,
     includeTracked = false,
     workingTreeAlways = true,
@@ -140,7 +143,7 @@
   });
 
   const modes = $derived(
-    effectiveModes({ highlightChecked, firstParent, coloring, ancestry, collapseMerged }),
+    effectiveModes({ highlightChecked, firstParent, coloring, ancestry, collapseMerged, filteredGraph }),
   );
   $effect(() => graphFolds.forRepo(repository.current?.repo ?? null));
   $effect(() => {
