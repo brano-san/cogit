@@ -648,7 +648,7 @@ fn a_fetch_asked_to_stop_ends_as_cancelled() {
     assert!(!stop.stop(), "nothing is left to stop");
     let records = log.lock().unwrap();
     let last = records.last().expect("the stopped run is journalled");
-    assert!(last.summary.contains("Cancelled"), "{last:?}");
+    assert!(last.summary.contains("Canceled"), "{last:?}");
 }
 
 #[test]
