@@ -3,7 +3,7 @@
   import { ContentSearch } from "$lib/content-search.svelte";
   import { rowActionBlocked, type RowAction } from "$lib/file-menu";
   import { withUnchanged } from "$lib/file-switches";
-  import { emptyText, filesPanelList } from "$lib/files-panel";
+  import { emptyText, filesPanelList, mergedSide, mergeIndex, stagedShown } from "$lib/files-panel";
   import type { FileView } from "$lib/file-view";
   import type { FileEntry } from "$lib/ipc";
   import { idleMessage } from "$lib/repo-phase";
@@ -106,6 +106,10 @@
 
   $effect(() => oncount?.(shown.count));
 
+  /** Unstaged and Staged, or one list of both while the index is not shown apart (#32). */
+  const separate = $derived(filesView.current.separateIndex);
+  const merged = $derived(separate ? [] : mergeIndex(worktree.unstaged, worktree.staged));
+
   /** A row button off where the Files menu has its item off (#40). */
   const rowBlocked = (action: RowAction) => (file: FileEntry) => rowActionBlocked(action, file);
 
@@ -184,34 +188,43 @@
       split={fractions.filesSplit}
       onsplit={(delta) => layout.nudge("filesSplit", delta)}
       onsplitreset={() => layout.resetOne("filesSplit")}
-      sections={[
-        {
-          title: "Unstaged",
-          files: worktree.unstaged,
-          selected: diff.pathFor({ kind: "workTreeVsIndex" }),
-          onselect: onopenworktree,
-          actions: [
-            { label: "Stage", title: "Stage", run: stage },
-            { label: "+x", title: "Stage only the mode change", run: stagemode, blocked: rowBlocked("mode") },
-            { label: "Discard", title: "Discard changes", run: discard, blocked: rowBlocked("discard") },
-            { label: "Ignore", title: "Add to .gitignore", run: ignore, blocked: rowBlocked("ignore") },
+      sections={separate
+        ? [
             {
-              label: "Delete",
-              title: "Move to the Recycle Bin (the Trash off Windows)",
-              run: remove,
-              blocked: rowBlocked("delete"),
+              title: "Unstaged",
+              files: worktree.unstaged,
+              selected: diff.pathFor({ kind: "workTreeVsIndex" }),
+              onselect: onopenworktree,
+              actions: [
+                { label: "Stage", title: "Stage", run: stage },
+                { label: "+x", title: "Stage only the mode change", run: stagemode, blocked: rowBlocked("mode") },
+                { label: "Discard", title: "Discard changes", run: discard, blocked: rowBlocked("discard") },
+                { label: "Ignore", title: "Add to .gitignore", run: ignore, blocked: rowBlocked("ignore") },
+                {
+                  label: "Delete",
+                  title: "Move to the Recycle Bin (the Trash off Windows)",
+                  run: remove,
+                  blocked: rowBlocked("delete"),
+                },
+              ],
             },
-          ],
-        },
-        {
-          title: "Staged",
-          files: worktree.staged,
-          hideWhenEmpty: true,
-          selected: diff.pathFor({ kind: "indexVsHead" }),
-          onselect: onopenstaged,
-          actions: [{ label: "Unstage", title: "Unstage", run: unstage }],
-        },
-      ]}
+            {
+              title: "Staged",
+              files: worktree.staged,
+              hideWhenEmpty: true,
+              selected: diff.pathFor({ kind: "indexVsHead" }),
+              onselect: onopenstaged,
+              actions: [{ label: "Unstage", title: "Unstage", run: unstage }],
+            },
+          ]
+        : [
+            {
+              files: merged,
+              selected: diff.pathFor({ kind: "workTreeVsIndex" }) ?? diff.pathFor({ kind: "indexVsHead" }),
+              onselect: (path: string) =>
+                mergedSide(path, worktree.unstaged) === "worktree" ? onopenworktree(path) : onopenstaged(path),
+            },
+          ]}
       empty={emptyText(
         { settled: worktree.loaded, failed: worktree.error !== null },
         "The working tree is clean.",
@@ -219,7 +232,7 @@
       selected={diff.path}
       onopen={onopenwindow}
       {onmask}
-      onshown={(shown) => onshownstaged?.(shown[1] ?? [])}
+      onshown={(shown) => onshownstaged?.(stagedShown(shown, separate, worktree.staged))}
       {onmarked}
       {oncontext}
     />
