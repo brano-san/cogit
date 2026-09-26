@@ -37,6 +37,7 @@ const LABELS: Partial<Record<Submodule["state"], string>> = {
   behind: "behind",
   diverged: "diverged",
   unknown: "not fetched",
+  unrecorded: "not recorded",
 };
 
 /** Empty for a row of a light tree, which never looked inside the submodule (R-352). */
@@ -83,6 +84,11 @@ export function moduleTooltip(module: Submodule): string {
       return (
         "Not fetched: the parent records a commit this submodule does not have, so it " +
         "cannot be compared with it. Fetch in the submodule."
+      );
+    case "unrecorded":
+      return (
+        "Not recorded: .gitmodules lists it, but neither HEAD nor the index holds a commit " +
+        "for it. Stage it in the parent to record the commit it is on."
       );
   }
 }
@@ -131,6 +137,8 @@ export function moduleUpdate(module: Submodule): ModuleUpdate {
       return { kind: "off", reason: "recorded commit not fetched" };
     case "unread":
       return { kind: "off", reason: "open its repository first" };
+    case "unrecorded":
+      return { kind: "off", reason: "the parent records no commit" };
   }
 }
 

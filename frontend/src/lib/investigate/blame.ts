@@ -101,9 +101,9 @@ export function nextChange(blocks: readonly Block[], index: number, direction: 1
 const LANGUAGES: Record<string, string> = {
   rs: "rust",
   ts: "typescript",
-  tsx: "typescript",
+  tsx: "tsx",
   js: "javascript",
-  jsx: "javascript",
+  jsx: "jsx",
   mjs: "javascript",
   cjs: "javascript",
   svelte: "html",

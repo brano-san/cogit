@@ -10,7 +10,12 @@ pub fn with_hunk_context(diff: &mut FileDiff, old_text: &str) {
     let lines: Vec<&str> = old_text.lines().collect();
 
     for hunk in hunks.iter_mut() {
-        let above = hunk.old_start.saturating_sub(1) as usize;
+        // An empty old side starts at the line it follows, which is above the change too.
+        let above = if hunk.old_lines == 0 {
+            hunk.old_start
+        } else {
+            hunk.old_start.saturating_sub(1)
+        } as usize;
         let Some(context) = lines[..above.min(lines.len())]
             .iter()
             .rev()

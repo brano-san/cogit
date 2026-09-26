@@ -1,41 +1,58 @@
 import { describe, expect, it } from "vitest";
-import type { EolInfo, Hunk } from "./ipc/bindings";
-import { eolLabel, layoutTip } from "./diff-toolbar";
+import type { EolInfo } from "./ipc/bindings";
+import { eolChangeText, eolLabel, layoutTip, modeChangeText } from "./diff-toolbar";
 
 function eol(old: EolInfo["old"], next: EolInfo["new"]): EolInfo {
   return { old, new: next, normalized: old !== next };
 }
 
-function hunk(oldStart: number, oldLines: number, newStart: number, newLines: number): Hunk {
-  return { oldStart, oldLines, newStart, newLines, header: "", rows: [] };
-}
-
 describe("eolLabel (#17)", () => {
   it("names both sides in capitals", () => {
-    expect(eolLabel(eol("lf", "lf"), [hunk(3, 4, 3, 5)])).toEqual({
+    expect(eolLabel(eol("lf", "lf"), 10, 11)).toEqual({
       text: "LF → LF",
       title: "Line endings: LF → LF",
     });
-    expect(eolLabel(eol("crlf", "lf"), [hunk(3, 4, 3, 5)]).text).toBe("CRLF → LF");
+    expect(eolLabel(eol("crlf", "lf"), 10, 11).text).toBe("CRLF → LF");
   });
 
   it("shows only the new ending for a new file", () => {
-    expect(eolLabel(eol("none", "lf"), [hunk(0, 0, 1, 12)])).toEqual({
+    expect(eolLabel(eol("none", "lf"), 0, 12)).toEqual({
       text: "LF",
       title: "Line endings: LF",
     });
   });
 
   it("shows only the old ending for a deleted file", () => {
-    expect(eolLabel(eol("crlf", "none"), [hunk(1, 12, 0, 0)])).toEqual({
+    expect(eolLabel(eol("crlf", "none"), 12, 0)).toEqual({
       text: "CRLF",
       title: "Line endings: CRLF",
     });
   });
 
   it("spells out the rarer endings", () => {
-    expect(eolLabel(eol("mixed", "cr"), [hunk(1, 2, 1, 2)]).text).toBe("Mixed → CR");
-    expect(eolLabel(eol("none", "lf"), [hunk(1, 1, 1, 2)]).text).toBe("None → LF");
+    expect(eolLabel(eol("mixed", "cr"), 2, 2).text).toBe("Mixed → CR");
+    expect(eolLabel(eol("none", "lf"), 1, 2).text).toBe("None → LF");
+  });
+
+  // DF-006: without context a pure insertion's hunk has no old lines, and the file is
+  // still there on both sides.
+  it("names both endings when a hunk has an empty side in the middle of the file", () => {
+    expect(eolLabel(eol("crlf", "lf"), 10, 12).text).toBe("CRLF → LF");
+  });
+});
+
+describe("eolChangeText (DF-028)", () => {
+  it("spells the endings as the toolbar does, not as the wire does", () => {
+    expect(eolChangeText("crlf", "lf")).toBe("CRLF → LF");
+    expect(eolChangeText("mixed", "none")).toBe("Mixed → None");
+  });
+});
+
+describe("modeChangeText (DF-026)", () => {
+  it("names both modes and what the executable bit did", () => {
+    expect(modeChangeText("100644", "100755")).toBe("100644 → 100755 (now executable)");
+    expect(modeChangeText("100755", "100644")).toBe("100755 → 100644 (no longer executable)");
+    expect(modeChangeText("100644", "120000")).toBe("100644 → 120000");
   });
 });
 

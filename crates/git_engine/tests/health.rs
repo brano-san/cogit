@@ -193,6 +193,33 @@ fn a_recorded_commit_the_submodule_has_not_fetched_is_reported_under_its_path() 
 }
 
 #[test]
+fn a_submodule_added_but_not_committed_is_not_reported() {
+    let f = test_fixtures::with_submodule().unwrap();
+    f.git(&["reset", "-q", "--soft", "HEAD~1"]).unwrap();
+
+    let report = RepoHandle::open(f.path()).unwrap().health_report();
+
+    assert!(
+        report.iter().all(|finding| finding.module != "vendor/lib"),
+        "{report:?}"
+    );
+}
+
+#[test]
+fn a_submodule_nothing_records_is_not_missing_a_commit() {
+    let f = test_fixtures::with_submodule().unwrap();
+    f.git(&["rm", "-q", "--cached", "vendor/lib"]).unwrap();
+    f.commit_staged(2, "stop recording vendor/lib").unwrap();
+
+    let report = RepoHandle::open(f.path()).unwrap().health_report();
+
+    assert!(
+        report.iter().all(|finding| finding.module != "vendor/lib"),
+        "{report:?}"
+    );
+}
+
+#[test]
 fn a_submodule_that_has_its_recorded_commit_is_not_reported() {
     let f = test_fixtures::with_submodule().unwrap();
     f.git(&["-C", "vendor/lib", "checkout", "-q", "HEAD~1"])

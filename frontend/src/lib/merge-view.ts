@@ -68,6 +68,16 @@ export function unresolvedCount(regions: readonly Region[], choices: Choices): n
   return regions.filter((region, index) => region.kind === "conflict" && !choices[index]).length;
 }
 
+/** The sides a conflict can take, in the order its buttons show them. */
+export const CHOICES: readonly Choice[] = ["theirs", "ours", "both"];
+
+/** Undecided again: the conflict counts as unresolved, and its result is empty. */
+export function clearChoice(choices: Choices, region: number): Choices {
+  const next = { ...choices };
+  delete next[region];
+  return next;
+}
+
 export function chooseAll(regions: readonly Region[], side: Choice): Choices {
   const choices: Choices = {};
   regions.forEach((region, index) => {

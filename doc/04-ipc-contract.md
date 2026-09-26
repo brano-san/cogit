@@ -370,7 +370,15 @@ author, email, timestamp, path, diff }`, новые сверху. `path` — и�
 и индекса против HEAD).
 
 `FileDiff` — размеченное объединение по полю `kind`: `text`, `eolOnly`, `binary`,
-`image`, `tooLarge`, `unchanged`, `whitespaceOnly`, `submodule`, `folder`. `folder {
+`image`, `tooLarge`, `unchanged`, `modeOnly`, `emptyFile`, `whitespaceOnly`, `submodule`,
+`folder`. Байты сторон равны, а файл в списке изменён: `modeOnly { oldMode, newMode }` —
+сменился только режим (`100644` → `100755`, как пишет git; рабочее дерево берёт бит с диска,
+только где его хранит файловая система и включён `core.fileMode`), `emptyFile { added }` —
+пустой файл добавлен или удалён; `unchanged` остаётся для действительно неизменённого. `submodule {
+recorded, previous, checkedOut, inIndex }` — gitlink на каждой стороне: `recorded` — `null`
+там, где submodule удалён (коммит с `git rm`, такое же удаление в индексе), `inIndex` — есть
+ли gitlink в индексе: без него Initialise не предлагается, `submodule update --init` ответил
+бы «pathspec did not match». `folder {
 repository }` — папка в рабочем дереве, в которой Git ничего не отслеживает: неотслеживаемая
 целиком или вложенный репозиторий, который не submodule (у пути нет gitlink ни на одной
 стороне). Вариант `text` несёт ханки, сведения об окончаниях
@@ -444,7 +452,7 @@ snake_case и читаются на фронтенде как `undefined`.
 | `commit_tree_files` | `repo`, `rev` | `Vec<String>` — все файлы дерева коммита, отсортированы; подмодуль — одна запись | M6 |
 | `search_file_contents` | `repo`, `query`, `is_regex`, `scope`, `Channel<SearchChunk>` | `()` | M6 |
 | `list_submodules` | `repo`, `parent` (пусто — верхний уровень) | `Vec<Submodule>` | M3 |
-| `submodule_outline` | `root` — папка репозитория из списка, открытого или закрытого; `parent` — ключ узла от верха (пусто — верхний уровень) | `Vec<Submodule>` из `.gitmodules` и gitlink-записей HEAD: `state` — `notInitialised` или `unread`, `checkedOut`, `branch`, `subject` пусты, `nested` — проверка файла; сабмодули не открываются (R-352) | M3 |
+| `submodule_outline` | `root` — папка репозитория из списка, открытого или закрытого; `parent` — ключ узла от верха (пусто — верхний уровень) | `Vec<Submodule>` из `.gitmodules` и gitlink-записей HEAD (нет в HEAD — индекса): `state` — `notInitialised` или `unread`, `checkedOut`, `branch`, `subject` пусты, `nested` — проверка файла; сабмодули не открываются (R-352) | M3 |
 | `repo_pulse` | `root` — папка строки списка | `RepoPulse { missing, branch, tracked, ahead, behind, dirty }`: ahead/behind — по локальной remote-tracking ссылке HEAD через gix; `dirty` — размер и mtime файлов индекса, staged по cache-tree или сравнению индекса с деревом HEAD по id, конфликт; неотслеживаемые не ищутся, ничего не хешируется (R-353). Открытый, но не наблюдаемый репозиторий: пульс, противоречащий снимку его строки, сбрасывает снимок — следующий `repositories` читает строку заново (R-351) | M3 |
 | `background_fetch` | `root` | `()`; `git fetch --all --quiet --no-auto-gc --recurse-submodules=no` без запросов: `GIT_TERMINAL_PROMPT=0`, пустой `GIT_ASKPASS`, `GCM_INTERACTIVE=never`, `SSH_ASKPASS_REQUIRE=never`, SSH в `BatchMode`, если пользователь не задал свою команду. В журнал Output не попадает, ошибка — в лог и отказом (R-353) | M3 |
 | `pull_probe` | `root` | `Option<bool>`: `true` — вершина upstream-ветки HEAD на сервере (`git ls-remote --heads`, без записи) не содержится в HEAD; `null` — нет upstream или ветки на сервере; ошибка — «неизвестно», в лог (R-354) | M3 |
@@ -476,11 +484,13 @@ type SearchChunk =
 `list_submodules` перечисляет **один уровень**. Репозиторий с девятью сабмодулями, у каждого
 свои, стоит одного обхода на уровень, а дереву нужен только раскрытый узел.
 
-`Submodule.state` — `notInitialised | inSync | ahead | behind | diverged | unknown | unread`, с
-`ahead`/`behind` — числом коммитов по обе стороны общего предка (R-153). `unknown` —
-записанного коммита в подмодуле нет, и положение не угадывается; `unread` — только у
-`submodule_outline`: выписан, внутрь не смотрели. `Submodule.repoState` —
-`RepoState` его собственного репозитория (`null`, пока он не выписан): дерево ставит на узел
+`Submodule.state` — `notInitialised | inSync | ahead | behind | diverged | unknown | unread |
+unrecorded`, с `ahead`/`behind` — числом коммитов по обе стороны общего предка (R-153).
+`unknown` — записанного коммита в подмодуле нет, и положение не угадывается; `unread` — только
+у `submodule_outline`: выписан, внутрь не смотрели; `unrecorded` — в `.gitmodules` есть, а
+gitlink нет ни в HEAD, ни в индексе (`recorded` пуст, в предупреждения не попадает).
+`recorded` — gitlink HEAD, у добавленного и ещё не закоммиченного — индекса.
+`Submodule.repoState` — `RepoState` его собственного репозитория (`null`, пока он не выписан): дерево ставит на узел
 метку операции, остановленной внутри подмодуля (#22).
 
 `open_submodule` принимает ключ, а не путь: путь из ключа собирает бэкенд тем же

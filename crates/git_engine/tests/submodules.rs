@@ -131,6 +131,34 @@ fn a_recorded_commit_the_submodule_does_not_have_is_not_guessed_at() {
     assert_eq!(modules[0].state, SubmoduleState::Unknown);
 }
 
+/// Added and not committed yet: the gitlink is only in the index, where `git submodule
+/// status` reads it too. Read from HEAD alone it was "", which no commit matches.
+#[test]
+fn a_submodule_added_but_not_committed_is_in_step_with_its_staged_pointer() {
+    let f = test_fixtures::with_submodule().unwrap();
+    f.git(&["reset", "-q", "--soft", "HEAD~1"]).unwrap();
+
+    let module = open(&f).submodules().unwrap().remove(0);
+
+    assert_eq!(module.state, SubmoduleState::InSync, "{module:?}");
+    assert_eq!(Some(&module.recorded), module.checked_out.as_ref());
+}
+
+/// Still in `.gitmodules`, but no gitlink in HEAD or the index: nothing is recorded, and
+/// that is not a commit the submodule is missing.
+#[test]
+fn a_submodule_neither_head_nor_the_index_records_says_so() {
+    let f = test_fixtures::with_submodule().unwrap();
+    f.git(&["rm", "-q", "--cached", "vendor/lib"]).unwrap();
+    f.commit_staged(2, "stop recording vendor/lib").unwrap();
+
+    let modules = open(&f).submodules().unwrap();
+
+    assert_eq!(modules.len(), 1, "still listed in .gitmodules: {modules:?}");
+    assert_eq!(modules[0].state, SubmoduleState::Unrecorded);
+    assert!(modules[0].recorded.is_empty());
+}
+
 #[test]
 fn the_submodule_can_be_opened_as_a_repository_of_its_own() {
     let f = test_fixtures::with_submodule().unwrap();

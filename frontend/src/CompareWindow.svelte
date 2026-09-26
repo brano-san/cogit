@@ -52,6 +52,7 @@
         recorded={diff.diff.recorded}
         previous={diff.diff.previous}
         checkedOut={diff.diff.checkedOut}
+        inIndex={diff.diff.inIndex}
       />
     {:else if diff.diff?.kind === "image"}
       <ImageDiff
