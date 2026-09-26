@@ -6,7 +6,9 @@
   import { contentQuery, keepFile, type ContentSearch } from "$lib/content-search.svelte";
   import { compile } from "$lib/file-search";
   import type { ListContext } from "$lib/file-switches";
-  import { sortFiles } from "$lib/files";
+  import Caret from "$components/common/Caret.svelte";
+  import { COLUMN_LABELS, gridColumns, nextSort, shownColumns, sortRows, type ColumnKey } from "$lib/file-columns";
+  import { filesView } from "$stores/files-view.svelte";
   import {
     DEFAULT_VIEW,
     groupByDirectory,
@@ -168,7 +170,8 @@
   const groups = $derived(
     shownSections(sections).map((section) => {
       const index = sections.indexOf(section);
-      const files = sortFiles(visibleFiles(section.files, active).filter((file) => keepFile(file, pattern, hits)));
+      const kept = visibleFiles(section.files, active).filter((file) => keepFile(file, pattern, hits));
+      const files = sortRows(kept, filesView.sort, active.directories);
       const paths = files.map((file) => file.path);
       return {
         section,
@@ -188,6 +191,13 @@
   });
 
   const layout = $derived(paneLayout(sections.length, groups.length, active.separateIndex));
+  const columns = $derived(shownColumns(filesView.columns, active.directories));
+
+  function sortLabel(key: ColumnKey): string {
+    const sort = filesView.sort;
+    if (sort.key !== key) return `Sort by ${COLUMN_LABELS[key]}`;
+    return `Sorted by ${COLUMN_LABELS[key]}, ${sort.descending ? "descending" : "ascending"}; click to turn round`;
+  }
   const apart = $derived(layout.apart);
   const total = $derived(sections.reduce((n, section) => n + section.files.length, 0));
   const shownCount = $derived(groups.reduce((n, group) => n + group.files.length, 0));
@@ -273,46 +283,42 @@
     <p class="message">{empty ?? "Nothing to show."}</p>
   {:else if shownCount === 0}
     <p class="message">{nothingMatches()}</p>
-  {:else if apart}
-    <div class="panes">
-      {#each groups as group, index (group.section.title ?? index)}
-        {#if index > 0}
-          <Splitter
-            direction="horizontal"
-            value={split}
-            label="Resize the {group.section.title ?? 'file'} list"
-            onchange={(delta) => onsplit?.(delta)}
-            onreset={() => onsplitreset?.()}
-          />
-        {/if}
-        <div class="slot" style:flex={index === 0 && groups.length > 1 ? `0 0 ${split * 100}%` : "1 1 auto"}>
-          <FilePane
-            rows={group.rows}
-            title={group.section.title}
-            paths={group.paths}
-            actions={scoped(group, group.section.actions ?? [])}
-            showDirectory={!active.directories}
-            selected={selectedIn(group)}
-            marked={marks.bySection.get(group.index) ?? NO_MARKS}
-            onclick={(path, event) => clicked(group, path, event)}
-            onmark={(path) => mark(group, path)}
-            {onopen}
-            oncontext={oncontext && ((path, event) => oncontext(path, event, group.section.title))}
-          />
-        </div>
+  {:else}
+    <div class="columns" style:--file-grid={gridColumns(columns)}>
+      {#each columns as key (key)}
+        <button
+          type="button"
+          class="column"
+          class:sorted={filesView.sort.key === key}
+          title={sortLabel(key)}
+          aria-label={sortLabel(key)}
+          onclick={() => filesView.setSort(nextSort(filesView.sort, key))}
+        >
+          <span class="truncate">{COLUMN_LABELS[key]}</span>
+          {#if filesView.sort.key === key}<Caret open={!filesView.sort.descending} />{/if}
+        </button>
       {/each}
     </div>
-  {:else}
-    <div class="panes">
-      {#each groups as group, index (group.section.title ?? index)}
-        {#if group.files.length > 0}
-          <div class="slot grow">
+    {#if apart}
+      <div class="panes">
+        {#each groups as group, index (group.section.title ?? index)}
+          {#if index > 0}
+            <Splitter
+              direction="horizontal"
+              value={split}
+              label="Resize the {group.section.title ?? 'file'} list"
+              onchange={(delta) => onsplit?.(delta)}
+              onreset={() => onsplitreset?.()}
+            />
+          {/if}
+          <div class="slot" style:flex={index === 0 && groups.length > 1 ? `0 0 ${split * 100}%` : "1 1 auto"}>
             <FilePane
               rows={group.rows}
-              title={layout.titled ? group.section.title : undefined}
+              title={group.section.title}
               paths={group.paths}
               actions={scoped(group, group.section.actions ?? [])}
-              showDirectory={!active.directories}
+              {columns}
+              nested={active.directories}
               selected={selectedIn(group)}
               marked={marks.bySection.get(group.index) ?? NO_MARKS}
               onclick={(path, event) => clicked(group, path, event)}
@@ -321,9 +327,32 @@
               oncontext={oncontext && ((path, event) => oncontext(path, event, group.section.title))}
             />
           </div>
-        {/if}
-      {/each}
-    </div>
+        {/each}
+      </div>
+    {:else}
+      <div class="panes">
+        {#each groups as group, index (group.section.title ?? index)}
+          {#if group.files.length > 0}
+            <div class="slot grow">
+              <FilePane
+                rows={group.rows}
+                title={layout.titled ? group.section.title : undefined}
+                paths={group.paths}
+                actions={scoped(group, group.section.actions ?? [])}
+                {columns}
+                nested={active.directories}
+                selected={selectedIn(group)}
+                marked={marks.bySection.get(group.index) ?? NO_MARKS}
+                onclick={(path, event) => clicked(group, path, event)}
+                onmark={(path) => mark(group, path)}
+                {onopen}
+                oncontext={oncontext && ((path, event) => oncontext(path, event, group.section.title))}
+              />
+            </div>
+          {/if}
+        {/each}
+      </div>
+    {/if}
   {/if}
 </div>
 
@@ -333,6 +362,38 @@
     flex-direction: column;
     height: 100%;
     min-height: 0;
+  }
+
+  /* In line with the rows of FilePane: the same grid, gap and padding, and the room of the
+     list's scrollbar, which FilePane keeps whether it shows or not (#33). */
+  .columns {
+    display: grid;
+    grid-template-columns: var(--file-grid);
+    column-gap: var(--file-column-gap);
+    flex: 0 0 auto;
+    height: var(--h-row-dense);
+    padding: 0 calc(var(--sp-5) + var(--scrollbar-size)) 0 var(--sp-5);
+    border-bottom: 1px solid var(--divider);
+  }
+
+  .column {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    min-width: 0;
+    padding: 0;
+    background: none;
+    border: 0;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: var(--fs-header);
+    text-align: left;
+    cursor: default;
+  }
+
+  .column:hover,
+  .column.sorted {
+    color: var(--text-primary);
   }
 
   .panes {
