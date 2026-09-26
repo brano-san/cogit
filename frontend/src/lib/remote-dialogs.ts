@@ -70,7 +70,7 @@ const SUBMODULE_TEXT: Record<Chosen, { title: string; intro: string; confirm: st
   deactivate: {
     title: "Deactivate Submodule",
     intro:
-      "Sets submodule.<name>.active to false in .git/config: recursive commands skip it, its files stay. Initialise brings it back.",
+      "Sets submodule.<name>.active to false in .git/config: recursive commands skip it, its files stay. Initialize brings it back.",
     confirm: "Deactivate",
   },
   deinit: {

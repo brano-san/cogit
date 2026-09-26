@@ -114,7 +114,7 @@ function describe(issue: HealthIssue): Omit<HealthWarning, "id" | "places"> {
           ? "The submodule's .git file names its repository by an absolute path written on " +
             "another system, so Git cannot find it here. Absorbing the git directory into the " +
             "parent rewrites the path as a relative one that works on both."
-          : "The folder the submodule's .git file names is gone. Initialising the submodule " +
+          : "The folder the submodule's .git file names is gone. Initializing the submodule " +
             "again recreates it.",
         docs: DOCS.submodule,
         fixes: issue.foreign
