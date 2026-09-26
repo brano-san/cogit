@@ -339,3 +339,4 @@
 | F-572 | Customise View: колонки таблицы Files | [F-572-files-customise-columns.md](F-572-files-customise-columns.md) |
 | F-573 | Каталоги или плоский список — одна кнопка | [F-573-files-layout-toggle.md](F-573-files-layout-toggle.md) |
 | F-574 | Кнопки Files — в заголовках, видны всегда | [F-574-files-heading-buttons.md](F-574-files-heading-buttons.md) |
+| F-575 | Clone: мастер из трёх страниц | [F-575-clone.md](F-575-clone.md) |

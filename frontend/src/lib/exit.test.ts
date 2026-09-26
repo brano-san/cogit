@@ -219,6 +219,16 @@ describe("exitRows", () => {
       { id: 1, text: "Operation · running" },
     ]);
   });
+
+  it("gives a clone, which has no repository yet, the progress of the run without one", () => {
+    const clone = op({ repo: null, kind: "clone" });
+    expect(exitRows([clone], names, { repo: null, line: "Receiving objects:  30% (3/10)" })).toEqual([
+      { id: 1, text: "Clone · 30%" },
+    ]);
+    expect(exitRows([clone], names, { repo: repo(1), line: "Writing objects:  45%" })).toEqual([
+      { id: 1, text: "Clone · running" },
+    ]);
+  });
 });
 
 describe("the live queue", () => {

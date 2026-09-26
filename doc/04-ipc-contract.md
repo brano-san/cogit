@@ -463,8 +463,12 @@ snake_case и читаются на фронтенде как `undefined`.
 | `read_git_config` | `repo: Option<RepoId>`, `scope: repository \| user` | `ConfigFile { path, text, crlf, exists }` | M3 |
 | `write_git_config` | `repo`, `scope`, `text`, `crlf` | `()`; отказ git — `GitError::ConfigInvalid { line, message }` | M3 |
 | `scan_for_repositories` | `path`, `maxDepth` (1–12), `onFound: Channel<ScanChunk>` | `u32` — сколько найдено; в канале первым `started { id }`, затем `found { hit: ScanHit }`. Cancel диалога и новый скан зовут `cancel_operation(id)`: обход кончается сразу, а не на следующей находке | M3 |
+| `remote_branches` | `source` — URL или полный путь репозитория | `RemoteBranches { defaultBranch: Option<String>, branches: Vec<String> }` — `git ls-remote --symref -- <source> HEAD refs/heads/*` во временной папке, без записи и без запросов: окружение фоновой проверки (R-353, R-354), токен Cogit для HTTP-хоста; `defaultBranch` — ветка, которую называет HEAD сервера (у пустого репозитория веток нет). Отказ git — `GitCommandError` с обоими потоками, запись в журнале. Одним ответом, не `Channel` (R-600) | M3 |
+| `clone_destination` | `path` — полный путь папки клона | `CloneDestination`: `missing` \| `empty` \| `notEmpty` \| `file` \| `unreadable`; клонировать можно в `missing` и `empty` | M3 |
+| `clipboard_repository_url` | — | `Option<String>` — текст буфера обмена, только если это ссылка на репозиторий (`git_engine::repository_url_in`); остальной текст в страницу не попадает, права на чтение буфера у окон нет (R-600) | M3 |
+| `clone_repository` | `request: CloneRequest { source, target, submodules, allBranches, branch: Option<String>, skipLargerThanMb: Option<u32> }`, `onProgress: Channel<String>` | `String` — корень нового репозитория; открывает его фронтенд (`open_repository`, как Open). Операция очереди `kind: "clone"`, `repo: null`, в своей полосе по папке назначения; `git clone --progress [--recurse-submodules] [--single-branch] [--branch] [--filter=blob:limit=<N>m [--also-filter-submodules]] -- <source> <target>` (R-601); `cancel_network` останавливает и убирает созданное клоном (R-602) | M3 |
 | `cancel_operation` | `id` | `bool` — `false`, если уже закончилась | — |
-| `cancel_network` | `operation: u32` — `id` из `Operation` (`operation-changed`, `list_operations`) | `bool`: `true` — git остановлен, вызов `fetch` / `pull` / `push` / `push_to` этой операции отклоняется с `GitError::Cancelled`, полоса очереди свободна, в журнале — предупреждение «Cancelled by the user»; `false` — отменять нечего: операция закончилась, ещё ждёт в очереди, не сетевая (`kind` не `fetch` / `pull` / `push`) или уже отменена (R-506) | M1 |
+| `cancel_network` | `operation: u32` — `id` из `Operation` (`operation-changed`, `list_operations`) | `bool`: `true` — git остановлен, вызов `fetch` / `pull` / `push` / `push_to` / `clone_repository` этой операции отклоняется с `GitError::Cancelled`, полоса очереди свободна, в журнале — предупреждение «Cancelled by the user»; `false` — отменять нечего: операция закончилась, ещё ждёт в очереди, не сетевая (`kind` не `fetch` / `pull` / `push` / `clone`) или уже отменена (R-506) | M1 |
 | `list_operations` | — | `Vec<Operation>` — всё, что в очереди и в работе | — |
 
 `commit_tree_files` нужен переключателю `Unchanged` в коммите из истории (#3): список
@@ -760,7 +764,7 @@ expanded }` — какие из
 | `operation_queued` | `phase: "queued"` |
 | `operation_started` | `phase: "running"` |
 | `operation_finished` | `phase: "done"`, `success` — true или false |
-| `operation_progress` | не в этом потоке — прогресс идёт своим `Channel` у `fetch`/`pull`/`push` |
+| `operation_progress` | не в этом потоке — прогресс идёт своим `Channel` у `fetch`/`pull`/`push`/`clone_repository` |
 
 Одно событие вместо четырёх потому, что индикатору нужен один поток сообщений с одним
 `id`, а не четыре подписки, которые надо сшивать на стороне панели.
@@ -768,7 +772,7 @@ expanded }` — какие из
 ```ts
 type Operation = {
   id: number,
-  repo: RepoId | null,   // null — работа, не привязанная к репозиторию
+  repo: RepoId | null,   // null — работа, не привязанная к репозиторию: клон (R-600)
   kind: OperationKind,   // "fetch" | "push" | "commit" | "merge" | …
   label: string,         // "Pushing", "Committing" — то, что показывает тулбар
   phase: "queued" | "running" | "done",

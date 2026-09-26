@@ -83,6 +83,25 @@ describe("leaving the repository", () => {
     op("fetch:1").finish();
     await fetching;
   });
+
+  it("keeps a clone's line: it belongs to no repository the panels leave", async () => {
+    let finish: (root: string) => void = () => {};
+    let line: (text: string) => void = () => {};
+    const cloning = network.run(null, "Cloning", (onLine) => {
+      line = onLine;
+      return new Promise<string>((resolve) => (finish = resolve));
+    });
+    network.clear();
+
+    line("Receiving objects:  30%");
+
+    expect(network.running).toBe("Cloning");
+    expect(network.repo).toBeNull();
+    expect(network.progress).toBe("Receiving objects:  30%");
+    finish("D:/src/app");
+    expect(await cloning).toBe("D:/src/app");
+    expect(network.running).toBeNull();
+  });
 });
 
 // Store and Forget in Preferences ▸ Authentication did nothing when the keychain refused:
