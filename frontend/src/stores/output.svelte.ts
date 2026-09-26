@@ -30,8 +30,15 @@ class OutputStore {
   /** The one warning worth a toast; a second replaces it rather than stacking. */
   warning = $state.raw<CommandNotice | null>(null);
 
+  /** Reads run side by side and answer in any order: only the newest may write, and Clear
+      retires every read begun before it finished. */
+  #logRead = 0;
+  #countRead = 0;
+
   async refreshProblems(): Promise<void> {
-    this.problems = await commandProblems();
+    const asked = ++this.#countRead;
+    const problems = await commandProblems();
+    if (asked === this.#countRead) this.problems = problems;
   }
 
   get shownEntries(): GitOutput[] {
@@ -41,11 +48,15 @@ class OutputStore {
   }
 
   async refresh(): Promise<void> {
-    this.entries = await commandLog();
+    const asked = ++this.#logRead;
+    const entries = await commandLog();
+    if (asked === this.#logRead) this.entries = entries;
   }
 
   async clear(): Promise<void> {
     await clearCommandLog();
+    this.#logRead += 1;
+    this.#countRead += 1;
     this.entries = [];
     this.problems = 0;
   }
