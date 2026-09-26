@@ -107,7 +107,9 @@ pub use origin_search::{
 };
 pub use outcome::Severity;
 pub use overlap::{Overlap, OverlapRow, overlap_of, shared_paths};
-pub use presets::{Preset, PresetTool, builtin_presets, find_tool, parse_preset, preset_toml};
+pub use presets::{
+    Preset, PresetTool, builtin_presets, find_tool, parse_preset, preset_toml, tool_search_places,
+};
 pub use progress::{RebaseProgress, RebaseStep};
 pub use pulse::{RepoPulse, pulse};
 pub use ref_meta::RefDate;

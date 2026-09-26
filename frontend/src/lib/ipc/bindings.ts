@@ -1272,6 +1272,8 @@ export type PresetStatus = {
 	installHint: string | null,
 	/**  Where the tool was found, or `None` when it is not installed. */
 	toolPath: string | null,
+	/**  Where it was looked for, in order, `PATH` last; empty without a tool. */
+	searched: string[],
 	user: boolean,
 };
 
