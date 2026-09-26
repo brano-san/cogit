@@ -2,8 +2,10 @@
 export type Selected = string | null;
 
 /** Home (F-562): from the Working Tree to HEAD's commit, from anywhere else to the Working
-    Tree. Without a HEAD commit (an empty repository) Home stays on the Working Tree. */
-export function homeTarget(selected: Selected, head: string | null): Selected {
+    Tree. Without a HEAD commit (an empty repository) Home stays on the Working Tree; with
+    no Working Tree row (a clean tree, F-561) it always goes to HEAD. */
+export function homeTarget(selected: Selected, head: string | null, workingTreeRow = true): Selected {
+  if (!workingTreeRow && head !== null) return head;
   return selected === null ? head : null;
 }
 

@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { showsWorkingTree } from "$lib/graph-panel";
   import { homeTarget, type Selected } from "$lib/selection-history";
+  import { settings } from "$stores/settings.svelte";
   import { commit as selection } from "$stores/commit.svelte";
   import { graph } from "$stores/graph.svelte";
   import { graphNav } from "$stores/graph-nav.svelte";
@@ -13,10 +15,13 @@
 
   $effect(() => graphNav.track(repository.current?.repo ?? null, selection.oid));
 
-  const homeOff = $derived(selection.oid === null && headOid === null ? "No commit yet" : null);
-  const homeTitle = $derived(
-    homeOff ?? (selection.oid === null ? "Go to the HEAD commit" : "Go to the Working Tree"),
+  const workingTreeRow = $derived(
+    showsWorkingTree(settings.current.graphWorkingTreeAlways, repository.current?.status, repository.current?.state),
   );
+
+  const target = $derived(homeTarget(selection.oid, headOid, workingTreeRow));
+  const homeOff = $derived(selection.oid === null && headOid === null ? "No commit yet" : null);
+  const homeTitle = $derived(homeOff ?? (target === null ? "Go to the Working Tree" : "Go to the HEAD commit"));
 
   function show(target: Selected) {
     const repo = repository.current?.repo;
@@ -31,7 +36,7 @@
   }
 
   function home() {
-    if (homeOff === null) show(homeTarget(selection.oid, headOid));
+    if (homeOff === null) show(target);
   }
 
   function back() {

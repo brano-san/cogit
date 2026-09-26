@@ -38,7 +38,14 @@ describe("graphOptions", () => {
       "Follow Only First Parent",
       "Show Only Selected Branches and Tags",
       "Include Tracked Remote Branches",
+      "Show Working Tree Permanently",
     ]);
+  });
+
+  it("ends with the Working Tree switch, on by default, after a separator", () => {
+    const menu = graphOptions(DEFAULT_SETTINGS);
+    expect(menu.at(-2)?.kind).toBe("separator");
+    expect(menu.at(-1)).toMatchObject({ kind: "switch", label: "Show Working Tree Permanently", checked: true });
   });
 
   it("neither starts nor ends with a separator, nor doubles one", () => {

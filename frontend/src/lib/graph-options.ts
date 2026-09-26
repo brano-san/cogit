@@ -2,7 +2,7 @@ import { COLORING_LABELS, GRAPH_COLORINGS, type GraphColoring } from "$lib/graph
 import type { Settings } from "$lib/settings";
 
 /** Switches of the options menu that are not graph modes; Preferences shows them as well. */
-export const GRAPH_SWITCHES = ["graphSelectedRefsOnly", "graphIncludeTracked"] as const;
+export const GRAPH_SWITCHES = ["graphSelectedRefsOnly", "graphIncludeTracked", "graphWorkingTreeAlways"] as const;
 export type GraphSwitch = (typeof GRAPH_SWITCHES)[number];
 
 /** The switches of the graph's options menu: each is a setting Preferences shows too. */
@@ -32,6 +32,12 @@ const SWITCHES: readonly { key: GraphOptionKey; label: string; hint: string }[] 
   },
 ];
 
+const WORKING_TREE = {
+  key: "graphWorkingTreeAlways",
+  label: "Show Working Tree Permanently",
+  hint: "Off: the Working Tree row is left out while the working tree has no changes.",
+} as const;
+
 /** The menu beside the graph filter, as SmartGit orders it (F-561). The values are the
     settings themselves, so the menu and Preferences never disagree. */
 export function graphOptions(settings: Pick<Settings, "graphColoring" | GraphOptionKey>): GraphOptionEntry[] {
@@ -50,5 +56,7 @@ export function graphOptions(settings: Pick<Settings, "graphColoring" | GraphOpt
     },
     { kind: "separator" },
     ...SWITCHES.map((entry) => ({ kind: "switch" as const, ...entry, checked: settings[entry.key] })),
+    { kind: "separator" },
+    { kind: "switch", ...WORKING_TREE, checked: settings.graphWorkingTreeAlways },
   ];
 }

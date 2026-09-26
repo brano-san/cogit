@@ -17,6 +17,12 @@ describe("homeTarget", () => {
   it("stays on the Working Tree when there is no commit yet", () => {
     expect(homeTarget(null, null)).toBeNull();
   });
+
+  it("goes to HEAD from anywhere while there is no Working Tree row", () => {
+    expect(homeTarget("other", "head", false)).toBe("head");
+    expect(homeTarget(null, "head", false)).toBe("head");
+    expect(homeTarget("head", "head", false)).toBe("head");
+  });
 });
 
 describe("SelectionHistory", () => {

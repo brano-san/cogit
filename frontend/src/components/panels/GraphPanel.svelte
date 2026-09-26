@@ -93,6 +93,7 @@
     collapseMerged={settings.current.graphCollapseMerged}
     selectedRefsOnly={settings.current.graphSelectedRefsOnly}
     includeTracked={settings.current.graphIncludeTracked}
+    workingTreeAlways={settings.current.graphWorkingTreeAlways}
   />
 {:else}
   <StartScreen

@@ -188,6 +188,12 @@ export const CATEGORIES: Category[] = [
             hint: "A branch ticked in Branches brings the remote branch it tracks into the graph.",
             keywords: ["tracked", "upstream", "remote", "origin", "branches"],
           },
+          {
+            key: "graphWorkingTreeAlways",
+            label: "Show the Working Tree row permanently",
+            hint: "Off: the row is left out while the working tree has no changes.",
+            keywords: ["working tree", "index", "row", "clean", "permanently"],
+          },
         ],
       },
       {
