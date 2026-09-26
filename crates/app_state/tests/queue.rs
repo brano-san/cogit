@@ -222,3 +222,47 @@ async fn the_session_end_counts_what_waits_behind_it() {
     held.finish(true);
     waiting.await.unwrap();
 }
+
+#[tokio::test]
+async fn an_empty_queue_is_idle_at_once() {
+    let (state, _) = opened();
+    tokio::time::timeout(Duration::from_secs(1), state.until_idle())
+        .await
+        .unwrap();
+}
+
+// The close watchdog exited two seconds after a silent page with a rebase running, and
+// the exit killed git half-way: index.lock left behind, a rebase half done.
+#[tokio::test]
+async fn idle_waits_for_the_operation_running_and_the_one_behind_it() {
+    let (state, repo) = opened();
+    let held = state.enqueue(repo, OperationKind::Rebase, "Rebasing").await;
+    let second = Arc::clone(&state);
+    let (go, wait) = tokio::sync::oneshot::channel::<()>();
+    let behind = tokio::spawn(async move {
+        let permit = second
+            .enqueue(repo, OperationKind::Commit, "Committing")
+            .await;
+        let _ = wait.await;
+        permit.finish(true);
+    });
+    until(&state, 2).await;
+    let waiter = Arc::clone(&state);
+    let idle = tokio::spawn(async move { waiter.until_idle().await });
+
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert!(!idle.is_finished(), "two operations are still in the queue");
+    held.finish(true);
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert!(
+        !idle.is_finished(),
+        "the commit behind the rebase is running now"
+    );
+
+    go.send(()).unwrap();
+    behind.await.unwrap();
+    tokio::time::timeout(Duration::from_secs(5), idle)
+        .await
+        .unwrap()
+        .unwrap();
+}

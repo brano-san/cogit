@@ -83,9 +83,38 @@ pub fn watch(app: &tauri::AppHandle) {
         if let Some(window) = app.get_webview_window("main") {
             let _ = window.hide();
         }
+        until_the_writes_are_done(&app).await;
 
         app.exit(0);
     });
+}
+
+/// How long a hidden app waits for its queue before it stops the rest anyway: a hook that
+/// never returns must not leave an invisible process behind for good.
+pub const WRITES_LIMIT: Duration = Duration::from_secs(5 * 60);
+
+/// The exit stops every git process (R-170), and one stopped mid-write leaves an
+/// `index.lock` or a rebase half done; the page that would have asked is not answering.
+async fn until_the_writes_are_done(app: &tauri::AppHandle) {
+    use tauri::Manager as _;
+
+    let Some(context) = app.try_state::<crate::AppContext>() else {
+        return;
+    };
+    let state = std::sync::Arc::clone(&context.state);
+    let Some(blocker) = state.session_end_blocker() else {
+        return;
+    };
+    tracing::warn!(%blocker, "waiting for the queue before exiting");
+    if tokio::time::timeout(WRITES_LIMIT, state.until_idle())
+        .await
+        .is_err()
+    {
+        tracing::error!(
+            limit_s = WRITES_LIMIT.as_secs(),
+            "the queue did not empty in time; exiting anyway"
+        );
+    }
 }
 
 /// The app is going, whether the page agreed or the watchdog gave up on it: the reads
@@ -140,6 +169,19 @@ mod tests {
         let rest = &source[start..];
         let end = rest[1..].find("\n}\n").map_or(rest.len(), |at| at + 3);
         rest[..end].to_owned()
+    }
+
+    // Two seconds of a silent page with a rebase running, and the exit killed git half-way.
+    #[test]
+    fn a_silent_page_does_not_cut_a_write_short() {
+        let watch = body_of("watch");
+        let waits = watch.find("until_the_writes_are_done(&app).await");
+        let exits = watch.find("app.exit(0)");
+        assert!(
+            waits.zip(exits).is_some_and(|(waits, exits)| waits < exits),
+            "the watchdog must wait for the queue before it exits:\n{watch}"
+        );
+        assert!(include_str!("shutdown.rs").contains("state.until_idle()"));
     }
 
     // Cancelling on the close request stopped the searches even when the user then chose
