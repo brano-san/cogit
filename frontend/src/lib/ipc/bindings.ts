@@ -1543,7 +1543,9 @@ export type SubmoduleState = "notInitialised" | "inSync" |
 /**  The recorded commit is not in the submodule, so where it stands cannot be told. */
 "unknown" | 
 /**  Checked out, and not looked into: the outline of a repository not on screen (R-352). */
-"unread";
+"unread" | 
+/**  Listed in `.gitmodules`, with no gitlink in HEAD or the index to compare with. */
+"unrecorded";
 
 export type SubtreeOp = { kind: "add"; prefix: string; repository: string; reference: string; squash: boolean } | 
 /**  `git subtree pull` from `repository`, or `git subtree merge` of a local commit. */
