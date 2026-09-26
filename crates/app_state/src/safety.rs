@@ -84,6 +84,23 @@ pub enum Recovery {
     None,
 }
 
+impl Recovery {
+    /// The backups (`refs/cogit/backup`) this recovery puts back.
+    fn backups(&self) -> Vec<&str> {
+        match self {
+            Self::Stash { oid }
+            | Self::Discard { stash: oid, .. }
+            | Self::Worktree { stash: oid, .. } => {
+                vec![oid.as_str()]
+            }
+            Self::Rollback { stash, .. } | Self::Reset { stash, .. } => {
+                stash.as_deref().into_iter().collect()
+            }
+            _ => Vec::new(),
+        }
+    }
+}
+
 /// What the journal shows. The means of undoing stays in `Undoable`, on this side of
 /// the boundary: it can be as large as the change itself and the panel never reads it.
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -148,7 +165,7 @@ impl AppState {
             Recovery::DroppedStash { entry } => handle.restore_stash(entry)?,
             Recovery::Rollback { paths, stash } => {
                 handle
-                    .stash_paths(paths, "cogit: before undoing a rollback")
+                    .backup_paths(paths, "cogit: before undoing a rollback")
                     .map_err(|err| crate::backup_failed("undoing the rollback of", &err))?;
                 if let Some(oid) = stash {
                     handle.stash_apply(oid)?;
@@ -158,7 +175,7 @@ impl AppState {
             // the merge add the same lines.
             Recovery::Discard { staged, stash } => {
                 handle
-                    .stash_paths(staged, "cogit: before undoing a discard")
+                    .backup_paths(staged, "cogit: before undoing a discard")
                     .map_err(|err| crate::backup_failed("undoing the discard of", &err))?;
                 handle.stash_apply(stash)?;
             }
@@ -215,6 +232,9 @@ impl AppState {
             }
         }
 
+        for oid in held.recovery.backups() {
+            handle.forget_backup(oid);
+        }
         self.safety
             .write()
             .retain(|kept| kept.entry.id != held.entry.id);

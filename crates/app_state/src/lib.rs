@@ -678,7 +678,8 @@ impl AppState {
         self.handle(repo)?.unstage(paths)
     }
 
-    /// Discarded work goes into a hidden stash first, so Undo has something to put back.
+    /// Discarded work goes into a backup first (`refs/cogit/backup`), so Undo has something
+    /// to put back.
     pub fn discard_paths(
         &self,
         repo: RepoId,
@@ -697,7 +698,7 @@ impl AppState {
         // A successful stash has already taken the changes out of the working tree, so
         // discarding again would only fail on paths Git no longer knows about.
         let stashed = handle
-            .stash_paths(paths, &format!("cogit: discard {}", named(paths)))
+            .backup_paths(paths, &format!("cogit: discard {}", named(paths)))
             .map_err(|err| backup_failed("discarding", &err))?;
         let Some(oid) = stashed else {
             handle.discard(paths)?;

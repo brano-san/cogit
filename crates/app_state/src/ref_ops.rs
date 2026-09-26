@@ -27,17 +27,20 @@ impl AppState {
         let status = handle.status()?;
         let stashed = if mode == ResetMode::Hard && (status.staged > 0 || status.unstaged > 0) {
             handle
-                .stash_before_reset(&format!("cogit: before hard reset to {}", short(rev)))
+                .backup_before_reset(&format!("cogit: before hard reset to {}", short(rev)))
                 .map_err(|err| crate::backup_failed("resetting", &err))?
         } else {
             None
         };
 
         if let Err(err) = handle.reset(rev, mode) {
-            if stashed.is_some() {
+            if let Some(oid) = &stashed {
                 // The reset never happened, so the work goes back where it was.
-                if let Err(restore) = handle.stash_apply_index(0, true) {
-                    tracing::error!(error = ?restore, context = "could not restore the pre-reset stash");
+                match handle.stash_apply(oid) {
+                    Ok(()) => handle.forget_backup(oid),
+                    Err(restore) => {
+                        tracing::error!(error = ?restore, context = "could not restore the pre-reset backup");
+                    }
                 }
             }
             return Err(err);

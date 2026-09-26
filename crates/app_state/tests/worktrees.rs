@@ -91,13 +91,12 @@ fn a_dirty_worktree_removed_by_force_leaves_its_changes_in_a_stash() {
     state.remove_worktree(owner, &path, true).unwrap();
 
     assert_eq!(state.worktrees(owner).unwrap().len(), 1);
-    let stashes = state.stashes(owner).unwrap();
-    assert!(
-        stashes
-            .iter()
-            .any(|entry| entry.message.contains("before removing worktree linked")),
-        "{stashes:?}"
-    );
+    // A backup for Undo, not an entry of the user's stash list (R-514).
+    assert!(state.stashes(owner).unwrap().is_empty());
+    let kept = f
+        .git(&["for-each-ref", "--format=%(subject)", "refs/cogit/backup/"])
+        .unwrap();
+    assert!(kept.contains("before removing worktree linked"), "{kept}");
     let journal = state.safety_log();
     assert!(journal[0].description.contains("linked"), "{journal:?}");
     assert!(journal[0].undoable, "{journal:?}");
