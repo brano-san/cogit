@@ -13,10 +13,11 @@ pub async fn reset_to(
     mode: ResetMode,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    mutating(
+    super::mutating_titled(
         &state.state,
         repo,
         OperationKind::Checkout,
+        "Resetting",
         "reset_to",
         move || app_state.reset_to(repo, &rev, mode),
     )

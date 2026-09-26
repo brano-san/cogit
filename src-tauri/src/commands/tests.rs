@@ -225,6 +225,29 @@ fn the_command_log_is_read_off_the_main_thread() {
     assert_eq!(log, Some(("command_log".to_owned(), true)));
 }
 
+// The footer said "Checking out" for a reset, "Undoing" for a rollback and "Committing" for
+// a split: the title of the kind, not of what ran (BE-016).
+#[test]
+fn the_footer_names_what_runs() {
+    let all = all_commands();
+    let wrong: Vec<&str> = [
+        ("reset_to", "\"Resetting\""),
+        ("rollback_to", "\"Rolling back\""),
+        ("split_off", "\"Splitting\""),
+    ]
+    .into_iter()
+    .filter(|(name, title)| {
+        !all.iter().any(|command| {
+            command.name == *name
+                && command.body.contains("mutating_titled(")
+                && command.body.contains(title)
+        })
+    })
+    .map(|(name, _)| name)
+    .collect();
+    assert!(wrong.is_empty(), "the footer mislabels: {wrong:?}");
+}
+
 // `#[tauri::command(async)]` on these ran the journal's clone and serialisation, and the
 // settings file's read and rename, on the workers that carry every other command's answer.
 #[test]
