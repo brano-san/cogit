@@ -31,10 +31,13 @@ export function rowToken(look: BisectLook | undefined): string | null {
   return look?.row ? ROW_TOKENS[look.row] : null;
 }
 
-/** One entry per commit the bisect knows; a later rule overrides an earlier one. */
+const NONE: ReadonlyMap<string, BisectLook> = new Map();
+
+/** One entry per commit the bisect knows; a later rule overrides an earlier one. Outside a
+    bisect always the same empty map, so nothing downstream is recomputed for it. */
 export function bisectLooks(bisect: BisectState | null): ReadonlyMap<string, BisectLook> {
+  if (!bisect) return NONE;
   const looks = new Map<string, BisectLook>();
-  if (!bisect) return looks;
   const put = (oid: string, change: Partial<BisectLook>) => {
     const was = looks.get(oid) ?? { dot: null, row: null, tag: "" };
     looks.set(oid, { ...was, ...change });

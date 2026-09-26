@@ -23,8 +23,9 @@ function state(over: Partial<BisectState> = {}): BisectState {
 }
 
 describe("bisectLooks", () => {
-  it("has nothing to show outside a bisect", () => {
+  it("has nothing to show outside a bisect, always the same nothing", () => {
     expect(bisectLooks(null).size).toBe(0);
+    expect(bisectLooks(null)).toBe(bisectLooks(null));
   });
 
   it("dots good commits green, the bad one red and skipped ones grey", () => {
