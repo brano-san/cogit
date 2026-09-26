@@ -10,6 +10,13 @@ export interface FilesPanelInput {
   commit: number;
 }
 
+/** What an empty list says: nothing while its answer is on the way, and nothing that passes
+    for an answer when reading failed — the notification says why. */
+export function emptyText(read: { settled: boolean; failed: boolean }, empty: string): string {
+  if (read.failed) return "The files could not be listed.";
+  return read.settled ? empty : "";
+}
+
 export type FilesPanelList = "none" | "stash" | "compare" | "worktree" | "commit";
 
 /** Which list the Files panel shows and how many rows it has: the header and the body
