@@ -1,6 +1,8 @@
 <script lang="ts">
   import { modals } from "$lib/modal-stack";
   import VirtualList from "$components/common/VirtualList.svelte";
+  import SidewaysScrollbar from "$components/common/SidewaysScrollbar.svelte";
+  import { TRAILING_COLUMNS, clampOffset, maxOffset, textColumns, wheelSideways } from "$lib/code-scroll";
   import {
     autoResolvedCount,
     canSave,
@@ -48,6 +50,30 @@
   const text = $derived(edited ?? mergedText(regions, choices));
   const saveable = $derived(canSave(regions, choices, edited));
   const current = $derived(at === null ? 0 : conflicts.indexOf(at) + 1);
+
+  /** The four columns move sideways together, as the two halves of a diff do (R-470). */
+  const PROBE = "0".repeat(100);
+  let cellWidth = $state(0);
+  let probeWidth = $state(0);
+  let sideways = $state(0);
+  const widest = $derived.by(() => {
+    let most = 0;
+    for (const row of rows) {
+      for (const text of [row.theirs, row.base, row.ours, row.result]) {
+        if (text) most = Math.max(most, textColumns(text));
+      }
+    }
+    return most + TRAILING_COLUMNS;
+  });
+  const sidewaysMax = $derived(maxOffset(widest, probeWidth / PROBE.length, cellWidth));
+  const shift = $derived(clampOffset(sideways, sidewaysMax));
+
+  function onwheel(event: WheelEvent) {
+    const delta = wheelSideways(event, 22);
+    if (delta === 0 || sidewaysMax === 0) return;
+    event.preventDefault();
+    sideways = clampOffset(shift + delta, sidewaysMax);
+  }
 
   function pick(region: number, side: Choice) {
     choices = { ...choices, [region]: side };
@@ -146,31 +172,40 @@
   </div>
 
   {#if edited === null}
-    <VirtualList items={rows} reveal={at} label="Merge">
-      {#snippet row(entry, index)}
-        <div
-          class="line"
-          class:conflict={entry.conflict}
-          class:auto={entry.origin !== null && entry.origin !== "unchanged"}
-          class:here={at !== null && entry.region === rows[at]?.region}
-          style:top="{index * 22}px"
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="panes" style:--shift="{shift}px" {onwheel}>
+      <div class="line ruler" aria-hidden="true">
+        <span class="cell mono" bind:clientWidth={cellWidth}
+          ><span class="probe" bind:offsetWidth={probeWidth}>{PROBE}</span></span
         >
-          <span class="cell mono truncate">{entry.theirs ?? ""}</span>
-          <span class="cell mono truncate">{entry.base ?? ""}</span>
-          <span class="cell mono truncate">{entry.ours ?? ""}</span>
-          <span class="cell mono truncate result">
-            {entry.result ?? ""}
-            {#if entry.conflict && entry.result === null && conflicts.includes(index)}
-              <span class="take">
-                <button type="button" onclick={() => pick(entry.region, "theirs")}>theirs</button>
-                <button type="button" onclick={() => pick(entry.region, "ours")}>ours</button>
-                <button type="button" onclick={() => pick(entry.region, "both")}>both</button>
-              </span>
-            {/if}
-          </span>
-        </div>
-      {/snippet}
-    </VirtualList>
+      </div>
+      <VirtualList items={rows} reveal={at} label="Merge">
+        {#snippet row(entry, index)}
+          <div
+            class="line"
+            class:conflict={entry.conflict}
+            class:auto={entry.origin !== null && entry.origin !== "unchanged"}
+            class:here={at !== null && entry.region === rows[at]?.region}
+            style:top="{index * 22}px"
+          >
+            <span class="cell mono"><span class="text">{entry.theirs ?? ""}</span></span>
+            <span class="cell mono"><span class="text">{entry.base ?? ""}</span></span>
+            <span class="cell mono"><span class="text">{entry.ours ?? ""}</span></span>
+            <span class="cell mono result"
+              ><span class="text">{entry.result ?? ""}</span
+              >{#if entry.conflict && entry.result === null && conflicts.includes(index)}
+                <span class="take">
+                  <button type="button" onclick={() => pick(entry.region, "theirs")}>theirs</button>
+                  <button type="button" onclick={() => pick(entry.region, "ours")}>ours</button>
+                  <button type="button" onclick={() => pick(entry.region, "both")}>both</button>
+                </span>
+              {/if}
+            </span>
+          </div>
+        {/snippet}
+      </VirtualList>
+    </div>
+    <SidewaysScrollbar offset={shift} max={sidewaysMax} onscroll={(offset) => (sideways = offset)} />
   {:else}
     <textarea bind:value={edited} spellcheck="false" aria-label="Resolved content"></textarea>
   {/if}
@@ -304,14 +339,54 @@
     box-shadow: inset 0 0 0 1px var(--status-ref);
   }
 
+  .panes {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  /* Clipped, not cut with an ellipsis: a conflict that differs at the end of a line
+     scrolls into view (R-470). */
   .cell {
     min-width: 0;
+    overflow: hidden;
+    white-space: pre;
+  }
+
+  .text {
+    display: inline-block;
+    vertical-align: top;
+    transform: translateX(calc(-1 * var(--shift, 0px)));
+  }
+
+  /* The layout of a row, never seen: it measures a column and one character. */
+  .ruler {
+    top: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .probe {
+    display: inline-block;
   }
 
   .result {
+    position: relative;
+  }
+
+  /* Over the end of the result, where scrolling does not move it. */
+  .take {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
     display: flex;
     align-items: center;
     gap: var(--sp-2);
+    padding-left: var(--sp-2);
+    background: var(--surface-panel);
   }
 
   .take button {
