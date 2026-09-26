@@ -177,6 +177,12 @@ export const CATEGORIES: Category[] = [
             keywords: ["collapse", "fold", "merged"],
           },
           {
+            key: "graphWhileFiltering",
+            label: "Show the graph while filtering",
+            hint: "Off: a filtered list is flat. On: its matches are joined by lines down their first parents.",
+            keywords: ["filter", "search", "graph", "lines", "flat"],
+          },
+          {
             key: "graphSelectedRefsOnly",
             label: "Show only selected branches and tags",
             hint: "Labels only for the refs ticked in Branches.",

@@ -6,7 +6,7 @@ export const GRAPH_SWITCHES = ["graphSelectedRefsOnly", "graphIncludeTracked", "
 export type GraphSwitch = (typeof GRAPH_SWITCHES)[number];
 
 /** The switches of the graph's options menu: each is a setting Preferences shows too. */
-export type GraphOptionKey = "graphFirstParent" | GraphSwitch;
+export type GraphOptionKey = "graphFirstParent" | "graphWhileFiltering" | GraphSwitch;
 
 export type GraphOptionEntry =
   | { kind: "coloring"; coloring: GraphColoring; label: string; hint: string; checked: boolean }
@@ -29,6 +29,11 @@ const SWITCHES: readonly { key: GraphOptionKey; label: string; hint: string }[] 
     key: "graphIncludeTracked",
     label: "Include Tracked Remote Branches",
     hint: "A branch ticked in Branches brings the remote branch it tracks into the graph.",
+  },
+  {
+    key: "graphWhileFiltering",
+    label: "Show Graph While Filtering",
+    hint: "A filtered list keeps its lines: each match joins the next one down its first parents.",
   },
 ];
 

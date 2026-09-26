@@ -38,6 +38,7 @@ describe("graphOptions", () => {
       "Follow Only First Parent",
       "Show Only Selected Branches and Tags",
       "Include Tracked Remote Branches",
+      "Show Graph While Filtering",
       "Show Working Tree Permanently",
     ]);
   });

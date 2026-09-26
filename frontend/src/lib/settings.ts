@@ -62,6 +62,8 @@ export interface Settings {
   graphSelectedRefsOnly: boolean;
   /** Include Tracked Remote Branches: a ticked branch walks its upstream too (F-561). */
   graphIncludeTracked: boolean;
+  /** Show Graph While Filtering: lines between a filter's matches, not a flat list (F-561). */
+  graphWhileFiltering: boolean;
   /** Show Working Tree Permanently: off, no Working Tree row while it is clean (F-561). */
   graphWorkingTreeAlways: boolean;
   /** Where the graph filter looks for its text: the switches under the field (F-560). */
@@ -102,6 +104,7 @@ export const DEFAULT_SETTINGS: Settings = {
   graphCollapseMerged: false,
   graphSelectedRefsOnly: false,
   graphIncludeTracked: false,
+  graphWhileFiltering: false,
   graphWorkingTreeAlways: true,
   graphFilterFields: [...DEFAULT_FILTER_FIELDS],
   graphFilterPatterns: [],

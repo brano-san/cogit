@@ -1,6 +1,7 @@
 import type { GraphColoring } from "$lib/graph-coloring";
 import { branchSlot } from "$lib/graph-style";
-import type { Branch, GraphPaintRequest, GraphView } from "$lib/ipc";
+import type { Branch, CommitQuery, GraphPaintRequest, GraphView } from "$lib/ipc";
+import { isEmptyQuery } from "$lib/query";
 
 /** The graph settings this module reads, by the parameter names of the settings contract
     (`graphHighlightChecked` → `highlightChecked`, …). */
@@ -15,6 +16,8 @@ export interface GraphModes {
   ancestry: boolean;
   /** A branch merged in is one row at its merge, opened with a button there. */
   collapseMerged: boolean;
+  /** A filtered list is drawn with lines between its matches instead of flat. */
+  filteredGraph: boolean;
 }
 
 /** The modes that are switches; the coloring is a choice of four. */
@@ -27,6 +30,7 @@ export const GRAPH_MODE_DEFAULTS: Readonly<GraphModes> = {
   coloring: "default",
   ancestry: false,
   collapseMerged: false,
+  filteredGraph: false,
 };
 
 /** Modes that cannot both apply: `mode` does nothing while `by` is on. Every other pair
@@ -96,7 +100,26 @@ export function graphView(modes: GraphModes, expanded: ReadonlySet<string> = new
     firstParent: effective.firstParent,
     collapseMerged: effective.collapseMerged,
     expanded: effective.collapseMerged ? [...expanded].sort() : [],
+    ...(effective.filteredGraph ? { filteredGraph: true } : {}),
   };
+}
+
+/** The view a load sends: the lines between matches only with a filter, so switching them
+    on leaves the whole history's walk, and the graph kept in Rust for it, as it was. */
+export function walkedView(view: GraphView, query: CommitQuery): GraphView {
+  if (!isEmptyQuery(query) || view.filteredGraph === undefined) return view;
+  const walk = { ...view };
+  delete walk.filteredGraph;
+  return walk;
+}
+
+/** Whether a new view needs a new walk: a filtered list takes only the lines between its
+    matches from it, the whole history everything but those (R-51, R-575). */
+export function viewReloads(before: GraphView, after: GraphView, filtered: boolean): boolean {
+  const lines = (view: GraphView) => view.filteredGraph ?? false;
+  if (filtered) return lines(before) !== lines(after);
+  const walked = (view: GraphView) => JSON.stringify({ ...view, filteredGraph: undefined });
+  return walked(before) !== walked(after);
 }
 
 /** What to ask Rust to paint; `null` when there is nothing, so no call is made at all.

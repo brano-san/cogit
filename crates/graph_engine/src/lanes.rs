@@ -356,3 +356,17 @@ fn open_tip(node: &CommitNode, cursor: &mut LayoutCursor, across: Option<u8>) ->
     cursor.lanes.insert(at.min(cursor.lanes.len()), lane);
     id
 }
+
+/// A commit a filter leaves out of a graph drawn with lines (F-561): every line waiting for
+/// it goes on to its first parent, so a match joins the nearest match down that path. No
+/// parent keeps the line waiting: the history goes on below the list.
+pub fn pass_through(cursor: &mut LayoutCursor, oid: &str, first_parent: Option<&str>) {
+    let Some(parent) = first_parent else {
+        return;
+    };
+    for lane in &mut cursor.lanes {
+        if waits_for(lane, oid) {
+            lane.waits = Some(parent.to_owned());
+        }
+    }
+}

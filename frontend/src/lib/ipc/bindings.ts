@@ -951,6 +951,11 @@ export type GraphView = {
 	/**  A merged branch is one row at its merge, but for the merges in `expanded`. */
 	collapseMerged?: boolean,
 	expanded?: string[],
+	/**
+	 *  A filtered list drawn with lines between its matches, through the commits it leaves
+	 *  out, instead of flat (Show Graph While Filtering, F-561).
+	 */
+	filteredGraph?: boolean,
 };
 
 /**  Assuming "HEAD is a branch" crashes on an unborn or detached checkout (INV-07). */

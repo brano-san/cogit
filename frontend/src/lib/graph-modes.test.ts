@@ -8,6 +8,8 @@ import {
   focusLane,
   graphView,
   paintRequest,
+  viewReloads,
+  walkedView,
 } from "$lib/graph-modes";
 import { branchSlot } from "$lib/graph-style";
 
@@ -62,6 +64,32 @@ describe("graphView", () => {
   });
 });
 
+describe("viewReloads", () => {
+  const plain = graphView(GRAPH_MODE_DEFAULTS);
+  const lines = graphView({ ...GRAPH_MODE_DEFAULTS, filteredGraph: true });
+  const folding = graphView({ ...GRAPH_MODE_DEFAULTS, collapseMerged: true });
+
+  it("sends the lines only when they are on, so the whole history's walk is the same", () => {
+    expect(plain).not.toHaveProperty("filteredGraph");
+    expect(lines).toMatchObject({ filteredGraph: true });
+  });
+
+  it("leaves the lines out of a load without a filter", () => {
+    expect(walkedView(lines, { path: null })).toEqual(plain);
+    expect(walkedView(lines, { path: "src" })).toEqual(lines);
+  });
+
+  it("walks a filtered list again only for its lines", () => {
+    expect(viewReloads(plain, lines, true)).toBe(true);
+    expect(viewReloads(plain, folding, true)).toBe(false);
+  });
+
+  it("walks the whole history again for anything but the lines", () => {
+    expect(viewReloads(plain, lines, false)).toBe(false);
+    expect(viewReloads(plain, folding, false)).toBe(true);
+  });
+});
+
 describe("focusLane", () => {
   const on = { ...GRAPH_MODE_DEFAULTS, coloring: "branch" as const };
 
@@ -103,6 +131,7 @@ describe("conflicting modes", () => {
     coloring: "branch" as const,
     ancestry: true,
     collapseMerged: true,
+    filteredGraph: true,
   };
 
   it("leave only folding merged branches out, while first parents hide them anyway", () => {
@@ -110,7 +139,7 @@ describe("conflicting modes", () => {
       { mode: "collapseMerged", reason: "First parents only already leaves every merged branch out." },
     ]);
     expect(effectiveModes(every)).toEqual({ ...every, collapseMerged: false });
-    expect(graphView(every)).toEqual({ firstParent: true, collapseMerged: false, expanded: [] });
+    expect(graphView(every)).toEqual({ firstParent: true, collapseMerged: false, expanded: [], filteredGraph: true });
   });
 
   it("are none while the blocking mode is off", () => {

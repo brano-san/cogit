@@ -119,7 +119,7 @@ pub use reset::ResetMode;
 pub use runner::{
     CommandSink, GitOutput, git_version, gix_version, redact_command, use_git_program,
 };
-pub use search::{CommitQuery, GraphRows, GraphView, ShownBy, SkippedRef};
+pub use search::{CommitQuery, GraphRows, GraphView, Passed, PassedCommits, ShownBy, SkippedRef};
 pub use shared::SharedRepo;
 pub use stash::{StashContents, StashEntry, StashOptions};
 pub use state::RepoState;

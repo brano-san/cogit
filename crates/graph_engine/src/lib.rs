@@ -2,7 +2,7 @@ mod lanes;
 mod paint;
 mod view;
 
-pub use lanes::{finish, layout, push};
+pub use lanes::{finish, layout, pass_through, push};
 pub use paint::{PAINT_DIM, PAINT_SLOT, Paint, PaintSpec, paint};
 pub use view::{Fold, ViewFilter};
 
