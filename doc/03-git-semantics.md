@@ -63,6 +63,7 @@
 | Сабмодули | `git submodule update/init/sync` |
 | Worktree | `git worktree add/list/remove/prune` |
 | Reset | `git reset --soft/--mixed/--hard` |
+| Bisect | `git bisect start <bad> [<good>] --`, `git bisect <good|bad|skip> [<id>]` (слова — из `BISECT_TERMS`), `git bisect reset`; состояние читается из `BISECT_*` и `refs/bisect/*` (§4) |
 
 ### Пограничные случаи
 
@@ -199,7 +200,7 @@ URL в выводе кликабельны — именно там `git` отд�
 | `git am` in progress | `.git/rebase-apply/applying` | `Continue`, `Skip`, `Abort` (`git am --continue/--skip/--abort`) |
 | Cherry-pick in progress | `.git/CHERRY_PICK_HEAD` | `Continue`, `Skip`, `Abort` |
 | Revert in progress | `.git/REVERT_HEAD` | `Continue`, `Skip`, `Abort` |
-| Bisect in progress | `.git/BISECT_LOG` | `Abort` = `git bisect reset` (`--continue` у bisect нет, Continue отказывает без запуска git) |
+| Bisect in progress | `.git/BISECT_LOG`; метки — `refs/bisect/*`, откуда вернуться — `BISECT_START`, конец поиска — `# first bad commit` в `BISECT_LOG` (всё — в git-каталоге worktree) | `Mark as Good`, `Mark as Bad`, `Skip` (для HEAD) и `Reset` = `git bisect reset`; найден первый плохой — `Show Commit` и `Reset` (R-580). `--continue` у bisect нет, Continue отказывает без запуска git; `Abort Operation In Progress` делает Reset |
 | Пустой репозиторий | `HEAD` указывает на несуществующий ref | Подсказка «сделайте первый коммит» |
 | Bare-репозиторий | нет рабочей директории | Скрыть панели стейджинга |
 | Index заблокирован | `.git/index.lock` существует | Кнопок нет: красный баннер поверх остальных состояний с полным путём к lock-файлу и советом удалить его, только убедившись, что git не работает. Наблюдатель `index.lock` не видит — баннер уходит, когда репозиторий перечитан (`F5`, смена ссылок) (R-502) |

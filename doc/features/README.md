@@ -339,6 +339,9 @@
 | F-561 | Меню настроек графа | [F-561-graph-options-menu.md](F-561-graph-options-menu.md) |
 | F-562 | «Домой» и «Назад» в графе | [F-562-graph-home-back.md](F-562-graph-home-back.md) |
 | F-563 | Запомненные фильтры графа | [F-563-filter-patterns.md](F-563-filter-patterns.md) |
+| F-565 | Bisect: старт, отметки, Reset | [F-565-bisect.md](F-565-bisect.md) |
+| F-567 | Bisect в баннере Graph и в Repositories | [F-567-bisect-banner.md](F-567-bisect-banner.md) |
+| F-568 | Bisect: первый плохой коммит и Leave Bisect | [F-568-bisect-first-bad.md](F-568-bisect-first-bad.md) |
 | F-570 | Рабочая копия одним списком без раздельного индекса | [F-570-one-worktree-list.md](F-570-one-worktree-list.md) |
 | F-571 | Таблица Files: имя, тип, состояние, путь | [F-571-files-table.md](F-571-files-table.md) |
 | F-572 | Customise View: колонки таблицы Files | [F-572-files-customise-columns.md](F-572-files-customise-columns.md) |

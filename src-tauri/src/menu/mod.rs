@@ -137,9 +137,22 @@ const LOCAL: &[Entry] = &[
     Entry::Item("rollback", "Roll Back Tree To This Commit", None),
 ];
 
+/// SmartGit's Branch | Bisect: the marks act on HEAD, the commit git checked out to test.
+const BISECT: &[Entry] = &[
+    Entry::Item("bisect-start", "Start…", None),
+    Entry::Separator,
+    Entry::Item("bisect-good", "Mark HEAD as Good", None),
+    Entry::Item("bisect-bad", "Mark HEAD as Bad", None),
+    Entry::Item("bisect-skip", "Skip HEAD", None),
+    Entry::Separator,
+    Entry::Item("bisect-reset", "Reset", None),
+];
+
 const BRANCH: &[Entry] = &[
     Entry::Item("branch", "New Branch…", Some("F7")),
     Entry::Item("tag", "Create Tag", Some("Shift+F7")),
+    Entry::Separator,
+    Entry::Nested("Bisect", BISECT),
 ];
 
 const QUERY: &[Entry] = &[
@@ -777,6 +790,29 @@ mod remote_tests {
             })
             .collect();
         assert_eq!(titles, ["Submodule", "Subtree", "LFS"]);
+    }
+
+    #[test]
+    fn bisect_is_under_branch_as_in_smartgit() {
+        let bisect = BRANCH
+            .iter()
+            .find_map(|entry| match entry {
+                Entry::Nested("Bisect", inner) => Some(*inner),
+                _ => None,
+            })
+            .expect("Branch has a Bisect submenu");
+        assert_eq!(
+            outline(bisect),
+            [
+                "Start…",
+                "-",
+                "Mark HEAD as Good",
+                "Mark HEAD as Bad",
+                "Skip HEAD",
+                "-",
+                "Reset"
+            ]
+        );
     }
 
     #[test]

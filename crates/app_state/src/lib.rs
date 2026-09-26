@@ -1,4 +1,5 @@
 mod avatars;
+mod bisect;
 mod credentials;
 pub mod desktop;
 mod diffing;

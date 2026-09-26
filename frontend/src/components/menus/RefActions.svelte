@@ -59,6 +59,7 @@
     type CommitFacts,
     type RefTarget,
   } from "$lib/ref-menus";
+  import { bisectCommitMenu } from "$lib/bisect";
   import { checkoutPlan, nodeTarget, type NodeTarget } from "$lib/ref-checkout";
   import { worktreeMarks } from "$lib/worktree-list";
   import { publishedOrAssume } from "$lib/published";
@@ -215,7 +216,8 @@
     try {
       const { details, facts } = await factsOf(id, oid, true);
       if (token !== asked) return;
-      await show({ ...blank(), oid, details, facts }, graphCommitMenu(facts), x, y);
+      const bisect = bisectCommitMenu(repository.current?.state, oid);
+      await show({ ...blank(), oid, details, facts }, graphCommitMenu(facts, bisect), x, y);
     } catch (err) {
       errors.report(err, "Could not open the commit menu");
     }
