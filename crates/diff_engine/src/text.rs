@@ -59,6 +59,12 @@ pub fn diff_bytes(old: &[u8], new: &[u8], options: &DiffOptions) -> FileDiff {
     diff
 }
 
+/// One side as the rows of its diff quote it: decoded as `diff_bytes` decodes it, with LF
+/// line endings.
+pub(crate) fn side_text(bytes: &[u8]) -> String {
+    normalize_line_endings(&decode(bytes)).into_owned()
+}
+
 /// UTF-8 as it is; each byte that is not UTF-8 becomes a character of its own in the
 /// Private Use Area (U+F700 plus the byte). One replacement character for all of them made
 /// two files that differ only in such bytes compare equal, and a changed file read as
@@ -150,6 +156,8 @@ pub fn diff_text(old: &str, new: &str, options: &DiffOptions) -> FileDiff {
         language: None,
         old_total: u32::try_from(old_lines.len()).unwrap_or(u32::MAX),
         new_total: u32::try_from(new_lines.len()).unwrap_or(u32::MAX),
+        old_text: None,
+        new_text: None,
     }
 }
 

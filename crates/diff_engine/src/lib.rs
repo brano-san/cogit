@@ -16,7 +16,7 @@ pub use batch::{FileDiffEntry, FileInput, diff_many, diff_one};
 pub use eol::{EolInfo, LineEnding, detect_line_ending, normalize_line_endings};
 pub use headers::with_hunk_context;
 pub use images::{base64, data_url, image_mime};
-pub use language::{language_for_path, merge_grammar_for_path};
+pub use language::{MAX_HIGHLIGHT_LINES, highlighted, language_for_path, merge_grammar_for_path};
 pub use merge::{Origin, Region, merge3, merge3_with_syntax};
 pub use moves::{MIN_MOVED_LINES, detect_moves, link_moves_across_files};
 pub use patch::{
@@ -149,6 +149,11 @@ pub enum FileDiff {
         /// Lines on each side, so the view can say how many follow the last hunk.
         old_total: u32,
         new_total: u32,
+        /// Each side whole, as the rows quote it, for the highlighter: the hunks alone parse
+        /// as broken code (R-530). Only for a language the frontend has a parser for, and a
+        /// side of at most `MAX_HIGHLIGHT_LINES` lines.
+        old_text: Option<String>,
+        new_text: Option<String>,
     },
     EolOnly {
         from: LineEnding,

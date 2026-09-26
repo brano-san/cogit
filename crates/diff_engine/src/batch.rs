@@ -23,8 +23,23 @@ pub struct FileDiffEntry {
 #[must_use]
 pub fn diff_one(path: &str, old: &[u8], new: &[u8], options: &DiffOptions) -> FileDiff {
     let mut diff = crate::diff_bytes(old, new, options);
-    if let FileDiff::Text { language, .. } = &mut diff {
+    if let FileDiff::Text {
+        language,
+        old_total,
+        new_total,
+        old_text,
+        new_text,
+        ..
+    } = &mut diff
+    {
         *language = crate::language_for_path(path);
+        if language.as_deref().is_some_and(crate::highlighted) {
+            let whole = |lines: u32, bytes: &[u8]| {
+                (lines <= crate::MAX_HIGHLIGHT_LINES).then(|| crate::text::side_text(bytes))
+            };
+            *old_text = whole(*old_total, old);
+            *new_text = whole(*new_total, new);
+        }
         crate::with_hunk_context(&mut diff, &String::from_utf8_lossy(old));
     }
     if options.detect_moves {
