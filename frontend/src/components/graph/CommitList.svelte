@@ -46,7 +46,7 @@
   import { linkStubs, linkTitle } from "$lib/graph-links";
   import { measurer } from "$lib/timing";
   import { anchoredScrollTop } from "$lib/graph-anchor";
-  import { subjectRoom } from "$lib/graph-panel";
+  import { emptyHistory, subjectRoom } from "$lib/graph-panel";
   import { workingTreeLabel } from "$lib/repo-state";
   import { reportTiming, type RebaseProgress, type RepoId } from "$lib/ipc";
   import Avatar from "$components/common/Avatar.svelte";
@@ -83,6 +83,8 @@
     oncontext?: (oid: string, x: number, y: number) => void;
     onworktreecontext?: (x: number, y: number) => void;
     onrefcontext?: (label: RefLabel, oid: string, x: number, y: number) => void;
+    /** A filter left the list empty; its button clears the filter. */
+    onclearfilter?: () => void;
     /** Branches ticked in Branches in their own colours (setting `graphHighlightChecked`). */
     highlightChecked?: boolean;
     /** First parents only (`graphFirstParent`). */
@@ -108,6 +110,7 @@
     oncontext,
     onworktreecontext,
     onrefcontext,
+    onclearfilter,
     highlightChecked = GRAPH_MODE_DEFAULTS.highlightChecked,
     firstParent = GRAPH_MODE_DEFAULTS.firstParent,
     branchOfCommit = GRAPH_MODE_DEFAULTS.branchOfCommit,
@@ -282,6 +285,7 @@
   const stashOids = $derived(new Set(stashes.entries.map((entry) => entry.oid)));
 
   const headerLabel = $derived(workingTreeLabel(repository.current?.status, repository.current?.state));
+  const empty = $derived(emptyHistory(!isEmptyQuery(graph.query), graph.visibleRefs));
 
   const visible = $derived.by(() => {
     const from = Math.max(range.start, headerRows);
@@ -497,11 +501,6 @@
   <p class="message error">{graph.error.message}</p>
 {:else if commitCount === 0 && graph.loading}
   <SkeletonRows rows={14} />
-{:else if commitCount === 0}
-  <EmptyState
-    title="No commits yet"
-    hint="The first commit you make in this repository shows up here."
-  />
 {:else}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
@@ -681,6 +680,17 @@
           </div>
         {/each}
       </div>
+      <!-- The Working Tree row stays above an empty list: it is always the first (doc/05 §3.4). -->
+      {#if commitCount === 0}
+        <div class="empty" style:top="{headerRows * rowHeight}px">
+          <EmptyState
+            title={empty.title}
+            hint={empty.hint}
+            action={empty.clears ? "Clear Filter" : undefined}
+            onaction={onclearfilter}
+          />
+        </div>
+      {/if}
     </div>
     <div
       class="spacer"
@@ -861,6 +871,13 @@
     overflow: hidden;
     color: var(--text-secondary);
     font-size: 11px;
+  }
+
+  .empty {
+    position: absolute;
+    left: 0;
+    right: 0;
+    z-index: 1;
   }
 
   /* Over the arrow of a cut link, under the canvas that draws it (R-330). */

@@ -31,6 +31,8 @@
     onbanneraction: (action: BannerAction) => void;
     onworktreecontext?: (x: number, y: number) => void;
     onrefcontext?: (label: import("$lib/format").RefLabel, oid: string, x: number, y: number) => void;
+    /** A filter left the list empty; its button clears the filter. */
+    onclearfilter?: () => void;
   }
 
   let {
@@ -52,6 +54,7 @@
     onbanneraction,
     onworktreecontext,
     onrefcontext,
+    onclearfilter,
   }: Props = $props();
 
   const view = $derived(panelView(repository.phase));
@@ -72,6 +75,7 @@
     {oncontext}
     {onworktreecontext}
     {onrefcontext}
+    {onclearfilter}
     columns={settings.current.graphColumns}
     timeFormat={settings.current.graphTimeFormat}
     density={settings.current.graphDensity}

@@ -4,6 +4,7 @@
   import { checkForUpdates, message, type UpdateOutcome } from "$lib/updates";
   import { leaveRepositoryDialogs } from "$lib/leaving";
   import { retryOf } from "$lib/retry";
+  import { parseQuery } from "$lib/query";
   import { publishedOrAssume } from "$lib/published";
   import { menuStatePusher } from "$lib/menu-state";
   import { branchNameProblem, optional, textProblem } from "$lib/names";
@@ -3470,6 +3471,7 @@
               onbanneraction={runBannerAction}
               onworktreecontext={(x, y) => void refActions?.worktreeContext(x, y)}
               onrefcontext={(label, oid, x, y) => void refActions?.labelContext(label, oid, x, y)}
+              onclearfilter={() => filterGraph(parseQuery(""))}
             />
           </Panel>
         </div>
