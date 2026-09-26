@@ -79,6 +79,34 @@ fn a_commit_is_found_by_words_from_its_message() {
     );
 }
 
+// "added", "cafe" and "feed" look like hashes: they were looked up only as a prefix.
+#[test]
+fn a_word_made_of_hex_letters_finds_commits_by_their_message() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::write(f.path().join("parser.rs"), "fn main() {}\n").unwrap();
+    f.git(&["add", "--", "parser.rs"]).unwrap();
+    f.commit_staged(1, "Added parser").unwrap();
+
+    let found = open(&f).find("added", 20).unwrap();
+
+    assert!(
+        found
+            .iter()
+            .any(|item| item.kind == FoundKind::Commit && item.label == "Added parser"),
+        "{found:?}"
+    );
+}
+
+#[test]
+fn a_hash_prefix_names_no_object_that_is_not_a_commit() {
+    let f = test_fixtures::linear(2).unwrap();
+    let tree = f.oid("HEAD^{tree}").unwrap();
+
+    let found = open(&f).find(&tree[..12], 20).unwrap();
+
+    assert!(found.iter().all(|item| item.oid != tree), "{found:?}");
+}
+
 #[test]
 fn a_file_is_found_by_part_of_its_path() {
     let f = test_fixtures::linear(1).unwrap();
