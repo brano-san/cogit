@@ -66,7 +66,7 @@ export function visibleFiles(files: readonly FileEntry[], view: FileView): FileE
     const gate = GATED[file.status];
     if (gate && !view[gate]) continue;
     shown.push(file);
-    if (view.renameSources && file.oldPath) {
+    if (view.renameSources && file.status === "renamed" && file.oldPath) {
       shown.push({ ...file, path: file.oldPath, oldPath: null, status: "deleted" });
     }
   }

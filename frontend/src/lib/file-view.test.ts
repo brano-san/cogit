@@ -98,6 +98,16 @@ describe("visibleFiles", () => {
     expect(shown).toContain("old.rs");
   });
 
+  // A copy's source is still there: it was listed as deleted, and twice when it changed too.
+  it("does not list the source of a copy as removed", () => {
+    const files = [file("b.rs", "copied", "a.rs"), file("a.rs", "modified")];
+    const shown = visibleFiles(files, view({ renameSources: true }));
+    expect(shown.map((f) => [f.path, f.status])).toEqual([
+      ["b.rs", "copied"],
+      ["a.rs", "modified"],
+    ]);
+  });
+
   it("does not invent a source for a file that was not renamed", () => {
     const shown = visibleFiles([file("a.rs", "modified")], view({ renameSources: true }));
     expect(shown).toHaveLength(1);
