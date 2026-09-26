@@ -414,3 +414,28 @@ fn a_ticked_branch_keeps_its_colour_across_a_cut_link() {
         }
     }
 }
+
+/// A cut first-parent link is still the branch's line (07 §5): the commit below the arrow
+/// goes on in its child's lane, and in its colour.
+#[test]
+fn a_branch_goes_on_in_one_lane_below_a_cut_first_parent_link() {
+    let history = nodes(&[
+        ("m6", &["m5"]),
+        ("c", &["p"]),
+        ("m5", &["m4"]),
+        ("m4", &["m3"]),
+        ("m3", &["m2"]),
+        ("p", &["m1"]),
+        ("m2", &["m1"]),
+        ("m1", &[]),
+    ]);
+    let painted = Painted::cut(&history, Some("m6"), 2, &PaintSpec::default());
+    assert!(
+        !painted.rows[1].links.is_empty(),
+        "c's link to p is cut: {:?}",
+        painted.rows[1]
+    );
+
+    assert_eq!(painted.paint.node_lane[5], painted.paint.node_lane[1]);
+    assert_eq!(painted.rows[5].color, painted.rows[1].color);
+}

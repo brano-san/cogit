@@ -108,6 +108,9 @@ pub struct LayoutCursor {
     pub(crate) ahead: HashSet<String>,
     /// A parent whose links were cut, and the children at their upper ends.
     pub(crate) cut_into: HashMap<String, Vec<String>>,
+    /// A parent whose first-parent link was cut, and the colour of the child: the line goes
+    /// on in it below the arrow.
+    pub(crate) cut_colour: HashMap<String, u8>,
 }
 
 impl LayoutCursor {
