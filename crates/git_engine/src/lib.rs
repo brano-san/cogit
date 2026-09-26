@@ -51,6 +51,7 @@ mod reset;
 mod runner;
 mod search;
 mod shared;
+mod side_modes;
 mod staging;
 mod stash;
 mod stash_rename;

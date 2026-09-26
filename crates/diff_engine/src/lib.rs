@@ -172,6 +172,16 @@ pub enum FileDiff {
         size: u64,
     },
     Unchanged,
+    /// The same content, and only the mode changed: `100644` to `100755`, as git prints it.
+    ModeOnly {
+        old_mode: String,
+        new_mode: String,
+    },
+    /// A file with no content, added or deleted: both sides read as nothing, yet the file
+    /// is there on one of them only.
+    EmptyFile {
+        added: bool,
+    },
     /// Nothing but whitespace changed, and the active option hides it. Told apart from
     /// `Unchanged` so the UI can say the diff is being filtered (T7.10).
     WhitespaceOnly,

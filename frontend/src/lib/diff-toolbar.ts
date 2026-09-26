@@ -17,6 +17,14 @@ export function eolLabel(eol: EolInfo, oldTotal: number, newTotal: number): { te
   return { text, title: `Line endings: ${text}` };
 }
 
+/** `100644 → 100755 (now executable)`: the modes as git prints them, and what the bit means. */
+export function modeChangeText(oldMode: string, newMode: string): string {
+  const executable = "100755";
+  const what =
+    newMode === executable ? " (now executable)" : oldMode === executable ? " (no longer executable)" : "";
+  return `${oldMode} → ${newMode}${what}`;
+}
+
 /** The button names the view it switches to; the tooltip says what that view is (#14). */
 export function layoutTip(current: "split" | "unified"): string {
   const action =
