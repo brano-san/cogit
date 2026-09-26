@@ -412,6 +412,65 @@ a:hover {
   flex-shrink: 1;
 }
 
+/* The shared Checkbox for rows by the hundred (R-455): the input itself, with no component,
+   label or SVG around it. The tick and the dash are its ::before, cut out to the paths the
+   Checkbox strokes in its 10 px box. `--tick-box-size` on a parent sizes it. */
+input.tick-box {
+  appearance: none;
+  display: inline-grid;
+  place-content: center;
+  flex: 0 0 auto;
+  width: var(--tick-box-size, var(--checkbox-size));
+  height: var(--tick-box-size, var(--checkbox-size));
+  margin: 0;
+  background: var(--surface-input);
+  border: 1px solid var(--field-border);
+  border-radius: var(--r-sm);
+  color: var(--surface-base);
+  transition:
+    background var(--t-fast) var(--ease-out),
+    border-color var(--t-fast) var(--ease-out);
+}
+
+input.tick-box::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  background: currentColor;
+  visibility: hidden;
+  clip-path: polygon(
+    21.8% 42.8%, 41.3% 62.3%, 77.2% 18%, 90.4% 28.7%, 48.6% 80.3%, 42.5% 83.5%, 36% 81%, 9.8% 54.8%
+  );
+}
+
+input.tick-box:hover:not(:disabled) {
+  border-color: var(--state-focus-ring);
+}
+
+input.tick-box:checked,
+input.tick-box:indeterminate {
+  background: var(--status-ref);
+  border-color: var(--status-ref);
+}
+
+input.tick-box:checked::before,
+input.tick-box:indeterminate::before {
+  visibility: visible;
+}
+
+input.tick-box:indeterminate::before {
+  clip-path: inset(42% 17% round 0.8px);
+}
+
+input.tick-box:focus-visible {
+  outline-offset: 1px;
+}
+
+input.tick-box:disabled {
+  opacity: 0.5;
+  transition: none;
+}
+
 /* ---- scrollbars ---- */
 ::-webkit-scrollbar {
   width: 10px;

@@ -179,7 +179,7 @@
 
       <input
         type="checkbox"
-        class="box"
+        class="tick-box"
         use:triState={{ state: tick?.state ?? "off", toggle: () => toggle(node.id) }}
         disabled={!tick?.tickable}
         title={node.disabled}
@@ -210,6 +210,7 @@
 <style>
   .tree {
     --ref-box: 12px;
+    --tick-box-size: var(--ref-box);
     --tree-next: var(--ref-box);
     padding: var(--sp-3) 0;
   }
@@ -242,14 +243,6 @@
     font-size: var(--fs-header);
     font-weight: 600;
     letter-spacing: 0.03em;
-  }
-
-  .box {
-    flex: 0 0 auto;
-    width: var(--ref-box);
-    height: var(--ref-box);
-    margin: 0;
-    accent-color: var(--status-ref);
   }
 
   .label.current {
