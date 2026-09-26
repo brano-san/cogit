@@ -560,3 +560,21 @@ describe("a repository closed while its first graph loads", () => {
     expect(streams.length).toBe(0);
   });
 });
+
+// A right click on the last repository's rows opened the menu of the one open, for a commit
+// it does not have: "Could not open the commit menu".
+describe("the rows of the repository left", () => {
+  it("are stale until the next repository's rows take the screen", async () => {
+    await loaded(A, ["a", "b"]);
+    expect(graph.stale).toBe(false);
+
+    open(B);
+    const load = graph.load(B);
+    expect(graph.stale).toBe(true);
+    await last().send(["x"], true);
+    last().finish();
+    await load;
+
+    expect(graph.stale).toBe(false);
+  });
+});
