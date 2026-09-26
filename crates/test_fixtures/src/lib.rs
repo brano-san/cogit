@@ -34,7 +34,14 @@ impl Fixture {
             dir,
             _aux: Vec::new(),
         };
-        fixture.git(&["init", "--initial-branch=main"])?;
+        // Pinned: the config below replaces git's, and with it any `[extensions]` a
+        // reftable or sha256 default would have needed.
+        fixture.git(&[
+            "init",
+            "--initial-branch=main",
+            "--ref-format=files",
+            "--object-format=sha1",
+        ])?;
 
         std::fs::write(
             fixture.git_dir().join("config"),
@@ -155,6 +162,8 @@ const AMBIENT_GIT_VARS: &[&str] = &[
     "GIT_CONFIG_COUNT",
     "GIT_EDITOR",
     "GIT_SEQUENCE_EDITOR",
+    "GIT_DEFAULT_REF_FORMAT",
+    "GIT_DEFAULT_HASH",
 ];
 
 fn git_command(cwd: &Path) -> Command {
