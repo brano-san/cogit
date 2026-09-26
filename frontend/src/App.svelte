@@ -94,6 +94,7 @@
   import { compareUrl } from "$lib/compare-params";
   import { dropActions, type DropAction, type DragPayload } from "$lib/drop-target";
   import { moveEntry, planPublished } from "$lib/rebase-plan";
+  import { splitRequest } from "$lib/split-off";
   import { bannerQuestion, stateBanner, type BannerAction } from "$lib/repo-state";
   import { blockedByLocalChanges } from "$lib/checkout-refusal";
   import { switchWithAutostash } from "$lib/autostash";
@@ -127,6 +128,7 @@
     rebaseTodo,
     rollbackTo,
     splitOff,
+    commitFiles as readCommitFiles,
     mergeInto,
     stashSelection,
     fetchRemote,
@@ -275,8 +277,8 @@
   /** A commit the plan rewrites is on a remote: the editor warns about the force-push. */
   let rebasePublished = $state(false);
   let template = $state<string | null>(null);
-  let splitOpen = $state(false);
-  let splitPublished = $state(false);
+  /** The commit Split Off is open on, as it was when it opened. */
+  let split = $state.raw<import("$lib/split-off").SplitRequest | null>(null);
   /** Which shared branches hold a commit, once asked. Answering costs a graph walk per
       remote ref, so it is asked when the user opens a menu, not on every selection. */
   let protection = $state.raw<ReadonlyMap<string, readonly string[]>>(new Map());
@@ -2305,7 +2307,7 @@
       addWorktreeOpen = false;
       repoSettingsOpen = false;
       rebaseOpen = false;
-      splitOpen = false;
+      split = null;
       finderOpen = false;
     }),
   );
@@ -2918,18 +2920,31 @@
     const id = repository.current?.repo;
     const rev = commit.oid;
     if (!id || !rev) return;
-    splitPublished = await publishedOrAssume(isPublished(id, rev));
-    splitOpen = true;
+    const epoch = repository.epoch;
+    let request;
+    try {
+      request = await splitRequest(rev, {
+        files: async (oid) =>
+          (commit.oid === oid && !commit.loading ? commit.files : await readCommitFiles(id, oid)).map(
+            (file) => file.path,
+          ),
+        published: (oid) => publishedOrAssume(isPublished(id, oid)),
+      });
+    } catch (err) {
+      errors.report(err, "Could not read the commit");
+      return;
+    }
+    if (repository.epoch === epoch) split = request;
   }
 
   async function runSplit(paths: string[], message: string, splitFirst: boolean) {
     const id = repository.current?.repo;
-    const rev = commit.oid;
+    const rev = split?.oid;
     if (!id || !rev) return;
     splitBusy = true;
     try {
       await splitOff(id, rev, paths, message, splitFirst);
-      splitOpen = false;
+      split = null;
       await repository.refresh();
       commit.clear();
     } catch (err) {
@@ -3729,14 +3744,14 @@
     rollbackTree={() => rollbackFiles([])}
   />
 
-  {#if splitOpen && commit.oid}
+  {#if split}
     <SplitOffDialog
-      oid={commit.oid}
-      changed={commit.files.map((file) => file.path)}
-      published={splitPublished}
+      oid={split.oid}
+      changed={split.changed}
+      published={split.published}
       busy={splitBusy}
       onsplit={(paths, message, first) => void runSplit(paths, message, first)}
-      onclose={() => (splitOpen = false)}
+      onclose={() => (split = null)}
     />
   {/if}
 
