@@ -61,8 +61,8 @@ const VIEW: &[Entry] = &[
 ];
 
 const SUBMODULE: &[Entry] = &[
-    Entry::Item("submodule-init", "Initialize", None),
-    Entry::Item("submodule-sync", "Synchronize", None),
+    Entry::Item("submodule-init", "Initialise", None),
+    Entry::Item("submodule-sync", "Synchronise", None),
     Entry::Item("submodule-reset", "Reset…", None),
     Entry::Separator,
     Entry::Item("submodule-add", "Add…", None),
@@ -97,7 +97,7 @@ const REMOTE: &[Entry] = &[
     Entry::Item("fetch-all", "Fetch All", Some("CmdOrCtrl+Alt+Shift+F")),
     Entry::Item("pull", "Pull", Some("CmdOrCtrl+Shift+U")),
     Entry::Item("push", "Push", Some("CmdOrCtrl+Shift+O")),
-    Entry::Item("synchronize", "Synchronize", Some("CmdOrCtrl+Shift+S")),
+    Entry::Item("synchronize", "Synchronise", Some("CmdOrCtrl+Shift+S")),
     Entry::Separator,
     Entry::Nested("Submodule", SUBMODULE),
     Entry::Nested("Subtree", SUBTREE),
@@ -741,8 +741,8 @@ mod remote_tests {
         assert_eq!(
             outline(nested("Submodule")),
             [
-                "Initialize",
-                "Synchronize",
+                "Initialise",
+                "Synchronise",
                 "Reset…",
                 "-",
                 "Add…",

@@ -6258,3 +6258,14 @@ Lezer. `highlightLines` не разбирает сторону длиннее `M
 на Mac — `CmdOrCtrl` значит не его). Сверх правила отказано `Ctrl+A/C/V/X/Z/Shift+Z/Y/F` — они
 нужны полям и панелям (11 §11), и `Alt+F4` — системный. Отказ пишется под списком, кнопка ждёт
 дальше; `Tab` уходит с кнопки. Записанное раньше неработающее сочетание в списке красное.
+
+## R-517 · Initialise и Synchronise — британское написание в подписях · Н
+
+Одно действие звучало по-разному: `Remote ▸ Submodule ▸ Initialize`, `Initialize new submodules`
+в Repository Settings и «Initialize brings it back» против «Initialise this submodule» в Diff и
+вопроса о submodule в главном окне; `Remote ▸ Synchronize` (FR-029 аудита). R-221 и R-224 лишь
+перечисляли названия пунктов из задачи.
+
+**Решение:** правило `frontend/CLAUDE.md` — британское написание в строках интерфейса — выше
+текста задачи. Все подписи — `Initialise`, `Synchronise` (меню, палитра, Repository Settings,
+подсказки); id команд (`submodule-init`, `synchronize`, `initialize`) и имена в коде прежние.
