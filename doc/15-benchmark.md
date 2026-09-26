@@ -119,6 +119,14 @@ remote (`fetch`, `reset --keep origin/main`): сценарии набора `net
 `scripts/bench/fixtures.mjs`, всё через `git fast-import`, одинаковые даты и авторы —
 одинаковые object id при каждом запуске.
 
+Системный и глобальный конфиг git при сборке наборов и при подготовке сценариев
+(`git()` в `run.mjs`) отключены (`NO_MACHINE_CONFIG`), клоны `network` берут
+`core.autocrlf=false` до checkout, у каждого submodule он записан в свой конфиг. До этого
+на машине с глобальным `core.autocrlf=true` рабочие файлы `network` и submodules
+выписывались в CRLF, а `remoteCommit` коммитил файл целиком; object id remote от этого не
+менялись, A/B в одной сессии не страдал, но замеры `net.*` и `submodules`, снятые до этой
+правки, с новыми не сравнивать — базу снять заново.
+
 | Набор | Что внутри |
 |---|---|
 | small | 100 коммитов, 20 файлов |
