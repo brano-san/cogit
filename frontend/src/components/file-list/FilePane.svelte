@@ -174,7 +174,7 @@
             >
             <span class="name truncate shrink-last">{fileName(file.path)}</span>
             {#if file.oldPath}
-              <span class="renamed truncate shrink-first" title="from {file.oldPath}"
+              <span class="from truncate shrink-first" title="from {file.oldPath}"
                 >← {fileName(file.oldPath)}{file.similarity !== null
                   ? ` ${file.similarity}%`
                   : ""}</span
@@ -387,7 +387,8 @@
     background: var(--c-deleted-bg);
   }
 
-  .renamed {
+  /* Not `.renamed`: that is also the status class of the row, which then took this style. */
+  .from {
     color: var(--status-ref);
     font-size: 10px;
   }
