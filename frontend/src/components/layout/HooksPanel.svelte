@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { modalLayer, modals } from "$lib/modal-stack";
+  import Dialog from "$components/common/Dialog.svelte";
   import type { Bypass, Hook, HookOverview, HookRun, PresetStatus } from "$lib/ipc";
 
   interface Props {
@@ -50,37 +50,21 @@
 
   const present = $derived(overview?.hooks.filter((hook) => hook.state !== "missing") ?? []);
   const absent = $derived(overview?.hooks.filter((hook) => hook.state === "missing") ?? []);
-
-  /** A modal layer: Esc is its own only while nothing is open above it (R-451). */
-  const layer = modalLayer();
-
-  function onkeydown(event: KeyboardEvent) {
-    if (event.key === "Escape" && modals.isTop(layer) && !event.defaultPrevented) {
-      event.preventDefault();
-      if (editing !== null) oncancel();
-      else onclose();
-    }
-  }
+  const inEditor = $derived(editing !== null && !showPresets);
 
   function label(hook: Hook): string {
     return hook.state === "disabled" ? "Enable" : "Disable";
   }
 </script>
 
-<svelte:window {onkeydown} />
-
-<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div class="backdrop" onclick={onclose}></div>
-
-<div class="dialog" role="dialog" aria-label="Hooks">
-  <header>
-    <h2>Hooks</h2>
-    <button type="button" onclick={ontogglepresets}>
-      {showPresets ? "Back to hooks" : "Presets…"}
-    </button>
-    <button type="button" class="icon" onclick={onclose} aria-label="Close hooks">✕</button>
-  </header>
-
+<!-- Esc, the ✕ and the scrim leave the editor first: an unsaved hook is not lost to a stray click. -->
+<Dialog
+  title="Hooks"
+  onclose={() => (inEditor ? oncancel() : onclose())}
+  width="min(760px, 92vw)"
+  height="min(720px, 84vh)"
+  flush
+>
   {#if overview}
     <p class="source">
       Git runs hooks from <code>{overview.activeDir}</code>
@@ -97,7 +81,7 @@
           This repository ships hooks in <code>{overview.availablePath}</code>, but nothing points
           at them. Read them before you turn them on: they run on every commit.
         </span>
-        <button type="button" onclick={() => onadopt(overview.availablePath ?? "")}>
+        <button type="button" class="btn" onclick={() => onadopt(overview.availablePath ?? "")}>
           Use {overview.availablePath}
         </button>
       </div>
@@ -129,9 +113,9 @@
               >no {entry.missingConfig.join(", ")}</span
             >
           {/if}
-          <button type="button" onclick={() => oninstall(entry.id)}>Install</button>
+          <button type="button" class="btn" onclick={() => oninstall(entry.id)}>Install</button>
           {#if entry.user}
-            <button type="button" onclick={() => onremovepreset(entry.id)}>Remove</button>
+            <button type="button" class="btn" onclick={() => onremovepreset(entry.id)}>Remove</button>
           {/if}
         </div>
       {/each}
@@ -145,10 +129,6 @@
         value={body}
         oninput={(event) => onbody(event.currentTarget.value)}
       ></textarea>
-      <div class="actions">
-        <button type="button" onclick={oncancel}>Cancel</button>
-        <button type="button" class="primary" onclick={onsave}>Save</button>
-      </div>
     </div>
   {:else}
     <div class="list">
@@ -157,7 +137,7 @@
         {#each present as hook (hook.name)}
           <div class="row">
             <span class="name" class:off={hook.state === "disabled"}>{hook.name}</span>
-            <button type="button" class="act" title="Save this hook as a preset"
+            <button type="button" class="btn" title="Save this hook as a preset"
               onclick={() => onexport(hook.name)}>Save as preset</button
             >
             <span class="detail truncate">{hook.description}</span>
@@ -168,11 +148,12 @@
             {/if}
             <button
               type="button"
+              class="btn"
               disabled={running || hook.state !== "enabled"}
               onclick={() => onrun(hook.name)}>Run</button
             >
-            <button type="button" onclick={() => onedit(hook.name)}>Edit</button>
-            <button type="button" onclick={() => ontoggle(hook.name, hook.state === "disabled")}>
+            <button type="button" class="btn" onclick={() => onedit(hook.name)}>Edit</button>
+            <button type="button" class="btn" onclick={() => ontoggle(hook.name, hook.state === "disabled")}>
               {label(hook)}
             </button>
           </div>
@@ -184,7 +165,7 @@
         <div class="row">
           <span class="name muted">{hook.name}</span>
           <span class="detail truncate">{hook.description}</span>
-          <button type="button" onclick={() => onedit(hook.name)}>Create</button>
+          <button type="button" class="btn" onclick={() => onedit(hook.name)}>Create</button>
         </div>
       {/each}
     </div>
@@ -201,13 +182,26 @@
       {#if lastRun.stderr}<pre class="err">{lastRun.stderr}</pre>{/if}
     </div>
   {/if}
-</div>
+
+  {#snippet footer()}
+    {#if inEditor}
+      <button type="button" class="btn" onclick={oncancel}>Cancel</button>
+      <button type="button" class="btn primary" onclick={onsave}>Save</button>
+    {:else}
+      <button type="button" class="btn" onclick={ontogglepresets}>
+        {showPresets ? "Back to hooks" : "Presets…"}
+      </button>
+      <span class="grow"></span>
+      <button type="button" class="btn primary" data-autofocus onclick={onclose}>Close</button>
+    {/if}
+  {/snippet}
+</Dialog>
 
 <style>
   .result {
     flex: 0 0 auto;
     max-height: 30vh;
-    padding: var(--sp-4) var(--sp-5);
+    padding: var(--sp-4) var(--dialog-inset);
     border-top: 1px solid var(--divider);
     overflow: auto;
   }
@@ -232,52 +226,9 @@
     color: var(--status-delete);
   }
 
-  button:disabled {
-    opacity: 0.45;
-  }
-
-  .backdrop {
-    position: absolute;
-    inset: 0;
-    z-index: 20;
-    background: var(--scrim);
-  }
-
-  .dialog {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 21;
-    display: flex;
-    flex-direction: column;
-    width: min(760px, 92vw);
-    max-height: 84vh;
-    background: var(--surface-panel);
-    border: 1px solid var(--field-border);
-    border-radius: var(--r-md);
-    box-shadow: var(--shadow-popover);
-    overflow: hidden;
-  }
-
-  header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: var(--h-toolbar);
-    padding: 0 var(--sp-5);
-    border-bottom: 1px solid var(--divider);
-  }
-
-  h2 {
-    margin: 0;
-    font-size: var(--fs-ui);
-    font-weight: 600;
-  }
-
   .source {
     margin: 0;
-    padding: var(--sp-4) var(--sp-5);
+    padding: var(--sp-4) var(--dialog-inset);
     color: var(--text-secondary);
     font-size: var(--fs-dense);
     border-bottom: 1px solid var(--divider);
@@ -287,20 +238,20 @@
     display: flex;
     align-items: center;
     gap: var(--sp-5);
-    padding: var(--sp-4) var(--sp-5);
+    padding: var(--sp-4) var(--dialog-inset);
     background: var(--c-modified-bg);
     color: var(--text-primary);
     font-size: var(--fs-dense);
     border-bottom: 1px solid var(--divider);
   }
 
-  .offer button {
+  .offer .btn {
     flex: 0 0 auto;
   }
 
   .bypasses {
     margin: 0;
-    padding: var(--sp-4) var(--sp-5);
+    padding: var(--sp-4) var(--dialog-inset);
     color: var(--text-secondary);
     font-size: var(--fs-dense);
     border-bottom: 1px solid var(--divider);
@@ -313,7 +264,7 @@
   }
 
   .group {
-    padding: var(--sp-3) var(--sp-5) var(--sp-2);
+    padding: var(--sp-3) var(--dialog-inset) var(--sp-2);
     background: var(--surface-raised);
     color: var(--text-secondary);
     font-size: var(--fs-header);
@@ -327,7 +278,7 @@
     align-items: center;
     gap: var(--sp-4);
     min-height: var(--h-row);
-    padding: var(--sp-2) var(--sp-5);
+    padding: var(--sp-2) var(--dialog-inset);
     font-size: var(--fs-dense);
   }
 
@@ -376,7 +327,7 @@
     flex-direction: column;
     gap: var(--sp-3);
     min-height: 0;
-    padding: var(--sp-5);
+    padding: var(--sp-5) var(--dialog-inset);
   }
 
   .editor label {
@@ -400,43 +351,12 @@
     white-space: pre;
   }
 
-  .actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--sp-4);
+  .grow {
+    flex: 1 1 auto;
   }
 
   code {
     font-family: var(--font-mono);
     font-size: var(--fs-header);
-  }
-
-  button {
-    height: var(--h-input);
-    padding: 0 var(--sp-4);
-    background: var(--surface-raised);
-    color: var(--text-primary);
-    border: 1px solid var(--field-border);
-    border-radius: var(--r-sm);
-    font-size: var(--fs-dense);
-    cursor: default;
-  }
-
-  button:hover {
-    background: var(--state-hover);
-  }
-
-  button.primary {
-    background: var(--status-ref);
-    color: var(--c-text-inverse);
-    border-color: transparent;
-  }
-
-  button.icon {
-    height: 22px;
-    padding: 0 var(--sp-3);
-    background: none;
-    border: 0;
-    color: var(--text-secondary);
   }
 </style>
