@@ -9,7 +9,7 @@ use diff_engine::{DiffOptions, DiffRow, FileDiff, FileDiffEntry, FileInput, Move
 
 /// A block long enough to count as a move.
 fn block() -> String {
-    "fn helper() {\n    one();\n    two();\n    three();\n}\n".to_owned()
+    "fn helper() {\n    first();\n    second();\n    third();\n}\n".to_owned()
 }
 
 fn filler(tag: &str) -> String {

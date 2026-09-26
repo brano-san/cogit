@@ -1,8 +1,13 @@
 use crate::{DiffRow, FileDiff, FileDiffEntry, MoveScope};
 use std::collections::HashMap;
 
-/// Git's own floor for `--color-moved`: shorter runs are coincidence, not a move.
+/// Cogit's own floor: a line or two that match are coincidence more often than a move.
+/// Git's default mode has none, only the letters-and-digits rule below.
 pub const MIN_MOVED_LINES: usize = 3;
+
+/// Git's `COLOR_MOVED_MIN_ALNUM_COUNT`: a block with fewer letters and digits is braces
+/// and blank lines that happen to repeat.
+pub const MIN_MOVED_ALNUM: usize = 20;
 
 /// Marks deletions and additions that carry the same lines, so a function moved across a
 /// file reads as one fact instead of two blocks of noise.
@@ -59,7 +64,10 @@ pub fn detect_moves(diff: &mut FileDiff) {
             .max_by_key(|&(_, length)| length);
 
         match best {
-            Some((begin, length)) if length >= MIN_MOVED_LINES => {
+            Some((begin, length))
+                if length >= MIN_MOVED_LINES
+                    && enough_text(deleted[start..start + length].iter().map(|row| &row.2)) =>
+            {
                 let id = next_id;
                 next_id += 1;
                 for offset in 0..length {
@@ -123,7 +131,12 @@ pub fn link_moves_across_files(entries: &mut [FileDiffEntry]) {
             .max_by_key(|&(_, length)| length);
 
         match best {
-            Some((begin, length)) if length >= MIN_MOVED_LINES => {
+            Some((begin, length))
+                if length >= MIN_MOVED_LINES
+                    && enough_text(
+                        deleted[start..start + length].iter().map(|site| &site.text),
+                    ) =>
+            {
                 let id = next_id;
                 next_id += 1;
                 for offset in 0..length {
@@ -228,12 +241,39 @@ fn mark(entries: &mut [FileDiffEntry], site: &Site, id: u32, deletes: bool) {
     set(target, id, deletes, MoveScope::AcrossFiles);
 }
 
+/// Equal rows in step on both sides. A run never spans a line that stayed: the rows of each
+/// side must follow one another in one hunk, or three braces far apart pair up with three
+/// together.
 fn run_length(deleted: &[(usize, usize, String)], inserted: &[(usize, usize, String)]) -> usize {
-    deleted
-        .iter()
-        .zip(inserted)
-        .take_while(|((_, _, a), (_, _, b))| a == b && !a.is_empty())
+    let mut length = 0;
+    while let (Some(delete), Some(insert)) = (deleted.get(length), inserted.get(length)) {
+        if delete.2 != insert.2 || delete.2.is_empty() {
+            break;
+        }
+        if length > 0 {
+            let (before, after) = (&deleted[length - 1], &inserted[length - 1]);
+            if !follows((before.0, before.1), (delete.0, delete.1))
+                || !follows((after.0, after.1), (insert.0, insert.1))
+            {
+                break;
+            }
+        }
+        length += 1;
+    }
+    length
+}
+
+/// `(hunk, row)` of the row right after the other one.
+fn follows(previous: (usize, usize), next: (usize, usize)) -> bool {
+    previous.0 == next.0 && previous.1 + 1 == next.1
+}
+
+fn enough_text<'a>(rows: impl Iterator<Item = &'a String>) -> bool {
+    rows.flat_map(|text| text.chars())
+        .filter(|c| c.is_alphanumeric())
+        .take(MIN_MOVED_ALNUM)
         .count()
+        >= MIN_MOVED_ALNUM
 }
 
 /// Like `run_length`, but a run may not cross a file boundary on either side, and may not
@@ -255,6 +295,14 @@ fn cross_run(
         let same = delete.text == insert.text && !delete.text.is_empty();
         if !same || delete.file != from || insert.file != to || taken[begin + length] {
             break;
+        }
+        if length > 0 {
+            let (before, after) = (&deleted[start + length - 1], &inserted[begin + length - 1]);
+            if !follows((before.hunk, before.row), (delete.hunk, delete.row))
+                || !follows((after.hunk, after.row), (insert.hunk, insert.row))
+            {
+                break;
+            }
         }
         length += 1;
     }
