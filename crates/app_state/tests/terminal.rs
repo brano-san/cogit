@@ -98,6 +98,30 @@ mod windows {
         assert!(args.iter().any(|arg| arg == "/K"), "{args:?}");
     }
 
+    // Spawned bare from the Tauri layer, a console shell sat down in the console of `tauri
+    // dev` instead of opening a window of its own, and took the app's handles (BE-008).
+    #[test]
+    fn a_console_shell_opens_in_a_console_of_its_own() {
+        for kind in [Terminal::PowerShell, Terminal::Cmd, Terminal::GitBash] {
+            let (program, args) = command_for(kind, PATH);
+            let launch = app_state::terminal::launch_for(kind, PATH);
+            assert_eq!(launch.program, "cmd.exe", "{kind:?}");
+            assert_eq!(launch.args[..3], ["/C", "start", ""], "{kind:?}");
+            assert_eq!(launch.args[3], program, "{kind:?}");
+            assert_eq!(launch.args[4..], args[..], "{kind:?}");
+            assert!(launch.hidden, "the relaying cmd shows no window: {kind:?}");
+        }
+    }
+
+    #[test]
+    fn windows_terminal_and_the_system_choice_start_as_they_are() {
+        let wt = app_state::terminal::launch_for(Terminal::WindowsTerminal, PATH);
+        assert_eq!(wt.program, "wt.exe");
+        let system = app_state::terminal::launch_for(Terminal::System, PATH);
+        assert_eq!(system.args[..2], ["/C", "start"]);
+        assert!(system.hidden);
+    }
+
     #[test]
     fn git_bash_is_an_interactive_login_shell_and_nothing_else() {
         let (program, args) = command_for(Terminal::GitBash, PATH);
