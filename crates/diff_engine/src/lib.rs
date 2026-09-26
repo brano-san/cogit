@@ -117,9 +117,6 @@ pub enum DiffRow {
         #[serde(default)]
         no_newline: bool,
     },
-    Collapsed {
-        count: u32,
-    },
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type, Deserialize)]

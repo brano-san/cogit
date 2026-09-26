@@ -171,12 +171,12 @@ class RepositoryStore {
     const ticket = this.#ticket;
     const asked = ++this.#statusRead;
     try {
-      const { status, conflicted } = await workingState(repo);
+      const { status, conflicted, indexLock } = await workingState(repo);
       // Reads run side by side: an older answer arriving last holds older counters.
       if (this.#ticket !== ticket || asked !== this.#statusRead) return null;
       const open = this.current;
       if (!open || open.repo !== repo) return null;
-      this.#replace({ ...open, status });
+      this.#replace({ ...open, status, indexLock });
       return conflicted;
     } catch {
       // Nothing actionable; the next full refresh reports it with its own error.

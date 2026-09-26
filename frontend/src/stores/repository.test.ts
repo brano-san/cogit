@@ -4,7 +4,6 @@ const commands = {
   openRepository: vi.fn(),
   closeRepository: vi.fn(),
   repositories: vi.fn(),
-  repoStatus: vi.fn(),
   workingState: vi.fn(),
   repoRefs: vi.fn(),
 };
@@ -464,9 +463,27 @@ describe("the status refresh after a mutation", () => {
     repository.close();
   });
 
-  const state = (conflicted: string[]) => ({
+  const state = (conflicted: string[], indexLock: string | null = null) => ({
     status: "ok",
-    data: { status: { staged: 2, unstaged: 0, untracked: 0, conflicted: conflicted.length }, conflicted },
+    data: {
+      status: { staged: 2, unstaged: 0, untracked: 0, conflicted: conflicted.length },
+      conflicted,
+      indexLock,
+    },
+  });
+
+  // The watcher now hears index.lock; the banner has to follow the read it triggers (F-039).
+  it("shows an index.lock that appeared and drops one that went", async () => {
+    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
+    await repository.open("C:/repos/one");
+
+    commands.workingState.mockResolvedValue(state([], "C:/repos/one/.git/index.lock"));
+    await repository.refreshStatus();
+    expect(repository.current?.indexLock).toBe("C:/repos/one/.git/index.lock");
+
+    commands.workingState.mockResolvedValue(state([]));
+    await repository.refreshStatus();
+    expect(repository.current?.indexLock).toBeNull();
   });
 
   // `repo_status` and `conflicted_paths` were two full reads of the same status (R-316).
@@ -478,7 +495,6 @@ describe("the status refresh after a mutation", () => {
     const conflicted = await repository.refreshStatus();
 
     expect(commands.workingState).toHaveBeenCalledTimes(1);
-    expect(commands.repoStatus).not.toHaveBeenCalled();
     expect(repository.current?.status.staged).toBe(2);
     expect(conflicted).toEqual(["a.txt"]);
   });

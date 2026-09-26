@@ -91,6 +91,18 @@ fn a_locked_index_is_reported_with_the_path_to_the_lock() {
     assert!(lock.unwrap().ends_with("index.lock"));
 }
 
+// The watcher's index refresh reads only the working state: the banner must follow it.
+#[test]
+fn the_working_state_carries_the_index_lock() {
+    let f = test_fixtures::linear(1).unwrap();
+    assert!(open(&f).working_state().unwrap().index_lock.is_none());
+
+    std::fs::write(f.git_dir().join("index.lock"), "").unwrap();
+
+    let lock = open(&f).working_state().unwrap().index_lock;
+    assert!(lock.is_some_and(|path| path.ends_with("index.lock")));
+}
+
 #[test]
 fn no_lock_file_means_no_lock() {
     let f = test_fixtures::linear(1).unwrap();

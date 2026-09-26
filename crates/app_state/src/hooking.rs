@@ -83,10 +83,7 @@ impl AppState {
 
     /// The catalogue told against one repository: tools resolved and config files checked.
     pub fn presets_for(&self, repo: RepoId) -> Result<Vec<PresetStatus>, git_engine::GitError> {
-        let root = self
-            .get(repo)
-            .ok_or_else(|| git_engine::GitError::RepoNotFound(format!("id {}", repo.0)))?
-            .root;
+        let root = self.get(repo).ok_or_else(|| crate::not_open(repo))?.root;
 
         let mut all: Vec<PresetStatus> = git_engine::builtin_presets()
             .into_iter()

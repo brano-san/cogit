@@ -5,6 +5,7 @@
   import EditMessageDialog from "./EditMessageDialog.svelte";
   import PushToDialog from "./PushToDialog.svelte";
   import ResetDialog from "./ResetDialog.svelte";
+  import SetUpstreamDialog from "./SetUpstreamDialog.svelte";
   import {
     CogitError,
     checkout,
@@ -24,6 +25,7 @@
     rebaseTodo,
     renameBranch,
     revertCommits,
+    setUpstream,
     type Branch,
     type CommitDetails,
     type ContextItem,
@@ -343,7 +345,7 @@
   }
 
   function notOnBranch(): CogitError {
-    return new CogitError({ kind: "invalidState", data: "the commit is not on the checked-out branch" });
+    return new CogitError({ kind: "invalidState", data: "The commit is not on the checked-out branch." });
   }
 
   /** "With a warning if pushed": rewriting shared history is asked about first. */
@@ -441,6 +443,17 @@
         if (source) refDialogs.push = source;
         return;
       }
+      case "set-upstream":
+        if (at.ref?.kind === "branch") {
+          refDialogs.upstream = { branch: at.ref.name, current: at.ref.upstream ?? null };
+        }
+        return;
+      case "stop-tracking":
+        if (at.ref?.kind === "branch") {
+          const branch = at.ref.name;
+          await attempt("Could not stop tracking", () => setUpstream(id, branch, null));
+        }
+        return;
       case "delete":
         return deleteTarget(id, at);
       case "rename":
@@ -663,6 +676,14 @@
     if (id) await push(id, remote, refspec);
   }
 
+  async function saveUpstream(upstream: string) {
+    const id = repoId();
+    const dialog = refDialogs.upstream;
+    refDialogs.upstream = null;
+    if (!id || !dialog) return;
+    await attempt("Could not set the upstream", () => setUpstream(id, dialog.branch, upstream));
+  }
+
   async function deleteTarget(id: RepoId, at: Target) {
     const ref = at.ref;
     if (!ref) return;
@@ -825,6 +846,17 @@
     primary={network.primary}
     onpush={(remote, refspec) => void sendPushTo(remote, refspec)}
     onclose={() => (refDialogs.push = null)}
+  />
+{/if}
+
+{#if refDialogs.upstream}
+  <SetUpstreamDialog
+    branch={refDialogs.upstream.branch}
+    current={refDialogs.upstream.current}
+    choices={(repository.current?.branches ?? []).filter((entry) => entry.kind === "remote").map((entry) => entry.name)}
+    primary={network.primary}
+    onset={(upstream) => void saveUpstream(upstream)}
+    onclose={() => (refDialogs.upstream = null)}
   />
 {/if}
 

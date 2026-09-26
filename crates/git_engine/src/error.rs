@@ -71,6 +71,11 @@ pub enum GitError {
     /// Git refused a config file's text; nothing was written.
     #[error("{0}")]
     ConfigInvalid(crate::ConfigProblem),
+
+    /// The user stopped it: a fetch, pull or push cancelled from the footer. Carries the
+    /// command, as the journal wrote it.
+    #[error("cancelled: {0}")]
+    Cancelled(String),
 }
 
 impl From<std::io::Error> for GitError {

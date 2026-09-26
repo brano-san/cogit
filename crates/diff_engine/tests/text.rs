@@ -24,7 +24,6 @@ fn render(diff: &FileDiff) -> String {
                 DiffRow::Context { text, .. } => out.push_str(&format!(" {text}\n")),
                 DiffRow::Delete { text, .. } => out.push_str(&format!("-{text}\n")),
                 DiffRow::Insert { text, .. } => out.push_str(&format!("+{text}\n")),
-                DiffRow::Collapsed { count } => out.push_str(&format!("...{count}\n")),
             }
         }
     }

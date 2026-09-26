@@ -435,18 +435,12 @@ fn the_changes_of_a_worktree_can_be_put_in_a_stash_before_it_goes() {
 
     assert!(stashed.is_some());
     assert!(open(&f).worktree_changes(&path).unwrap().is_empty());
-    let messages: Vec<String> = open(&f)
-        .stashes()
-        .unwrap()
-        .into_iter()
-        .map(|entry| entry.message)
-        .collect();
-    assert!(
-        messages
-            .iter()
-            .any(|message| message.contains("before removing worktree linked")),
-        "{messages:?}"
-    );
+    // Kept for Undo under refs/cogit/backup, out of the stash list (R-514).
+    assert!(open(&f).stashes().unwrap().is_empty());
+    let kept = f
+        .git(&["for-each-ref", "--format=%(subject)", "refs/cogit/backup/"])
+        .unwrap();
+    assert!(kept.contains("before removing worktree linked"), "{kept}");
 }
 
 /// Branches marks a branch whose worktree folder is gone as `missing`, so the branch has to

@@ -84,6 +84,15 @@ cargo check -p git_engine             # без сборки тестов
   указывающими на несуществующие файлы, и без унаследованных `GIT_*`, иначе `.gitconfig`
   разработчика (`core.autocrlf`, хуки, шаблоны) исказит результаты. `HOME` не меняется, и код
   под тестом (`git_engine`, gix) читает глобальный конфиг как обычно (TS-003 аудита).
+  Репозиторий фикстуры — `files` и sha1 (`init --ref-format=files --object-format=sha1`):
+  её конфиг пишется поверх git-овского, и `[extensions]` для reftable или sha256 пропали бы.
+- `core.quotepath` — умолчание git (`true`), как у пользователя: разбор путей из вывода git
+  без `-z` проверяется на экранированных не-ASCII именах (1493aa7 прошёл тесты с `false`).
+- Свой git теста (clone, fetch рядом с фикстурой) — `test_fixtures::git_command_in`, с той же
+  изоляцией, или `user_git_command` — конфиг разработчика, но без унаследованных `GIT_*`.
+  Голый `Command::new("git")` в `tests/` под хуком или в терминале внутри хука унаследовал бы
+  `GIT_DIR` и писал бы в настоящий репозиторий; его ловит
+  `test_fixtures::isolation::tests_spawn_git_only_through_the_fixtures`.
 - `GIT_AUTHOR_DATE` и `GIT_COMMITTER_DATE` задаются явно.
 
 Последний пункт критичен: тест, зелёный на одной машине и красный на другой из-за

@@ -7,7 +7,7 @@
 
 | Механизм | Направление | Когда применять |
 |---|---|---|
-| `invoke` (команда) | UI → Rust → UI | Запрос/ответ, результат до ~500 элементов |
+| `invoke` (команда) | UI → Rust → UI | Запрос/ответ, результат до ~500 элементов; списки файлов и строк blame — одним ответом по исключению INV-02 ([R-511](12-risks.md)) |
 | `Channel<T>` | Rust → UI, потоком | Длинные списки, прогресс долгих операций ([INV-02](01-architecture.md#inv-02)) |
 | `Event` | Rust → UI, широковещательно | Изменения, которые UI не запрашивал: ФС, завершение фоновой задачи |
 
@@ -55,11 +55,13 @@ pub enum GitError {
     #[error(transparent)]
     Command(Box<GitCommandError>),        // "command": ошибка CLI, Git Error Dialog
     RepoNotFound(String),                 // "repoNotFound"
-    InvalidState(String),                 // "invalidState": detached HEAD там, где нужна ветка
+    InvalidState(String),                 // "invalidState": отказ своими словами — detached HEAD там, где нужна ветка,
+                                          // репозиторий, закрытый в Cogit; фронтенд показывает текст без префикса
     Io(String),                           // "io"
     Internal(String),                     // "internal"
     ModuleUnavailable(ModuleProblem),     // "moduleUnavailable": сабмодуль не открыть, с причиной
     ConfigInvalid(ConfigProblem),         // "configInvalid": git отверг текст конфига, ничего не записано
+    Cancelled(String),                    // "cancelled": fetch/pull/push остановлен cancel_network, в data — команда
 }
 ```
 
@@ -71,7 +73,7 @@ pub enum GitError {
 Ниже — контракт. Реализуются по модулям; колонка «Модуль» указывает, когда команда появляется.
 
 > **Сверка 2026-09-24:** таблица отстаёт от кода — около 50 зарегистрированных команд в ней
-> нет (`repo_status`, `stashes`, `flow_*`, `graph_window`, `graph_row_of`, `safety_log`,
+> нет (`stashes`, `flow_*`, `graph_window`, `graph_row_of`, `safety_log`,
 > `undo_entry`, `conflict_*` и др.), часть строк описывает команды, которых нет
 > (`list_repositories`, `repo_state`, `list_refs`, `list_stashes`, `list_reflog`,
 > `diff_working_tree`, `merge_conflict`, `stage_hunk`, `open_in_explorer`), у части
@@ -84,7 +86,7 @@ pub enum GitError {
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
 | `open_repository` | `path: String` | `RepoSummary`; в нём `tagGroupSeparator` — `cogit.tagGroupSeparator` из конфига репозитория, `/` если не задан, `""` — теги без папок; перечитывается при каждом открытии и обновлении (#11). Наблюдатель не ставит — это делает `show_repository` (R-351) | M1 |
-| `close_repository` | `repo: RepoId` | `Result<Vec<RepoOverview>>` — открытые после закрытия, как у `repositories`: второй вызов за списком не нужен (R-323) | M1 |
+| `close_repository` | `repo: RepoId` | `Result<Vec<RepoOverview>>` — открытые после закрытия, как у `repositories`: второй вызов за списком не нужен (R-323). Вместе с ним закрываются открытые из его дерева submodules и worktrees, которых нет в списке, — кроме показанного и того, у кого есть работа в очереди (R-508) | M1 |
 | `show_repository` | `repo: Option<RepoId>` — что показывают панели, `null` — ничего | `()`; наблюдается только он: остальные наблюдатели останавливаются, его — запускается, снимок его строки сбрасывается (R-351). Фронтенд шлёт по одному вызову, последний побеждает | M3 |
 | `list_repositories` | — | `Vec<RepoEntry>` | M3 |
 | `repo_state` | `repo: RepoId` | `RepoState` — `clean | detachedHead { oid } | merging | rebasing | cherryPicking | reverting | bisecting | applyingPatches | empty | bare`; `applyingPatches` — `git am`, остановленный на патче (`rebase-apply/applying`) | M1 |
@@ -404,7 +406,6 @@ pub enum DiffRow {
     Context { old: u32, new: u32, text: String },
     Delete  { old: u32, text: String, inline: Vec<(u32, u32)> },
     Insert  { new: u32, text: String, inline: Vec<(u32, u32)> },
-    Collapsed { count: u32 },
 }
 ```
 
@@ -428,7 +429,7 @@ snake_case и читаются на фронтенде как `undefined`.
 | `stage_paths` / `unstage_paths` | `repo, paths: Vec<String>` | `()` | M6 |
 | `stage_all` | `repo, files: u32` | `()` — `git add --all` без списка путей; фронтенд зовёт его, когда выбран весь список Unstaged без строк, показанных переключателями вида (R-311); `files` — сколько строк было в списке, от 200 блобы пишутся одним pack (R-312) | M6 |
 | `worktree_files` | `repo` | `WorktreeFiles` | M6 |
-| `working_state` | `repo` | `WorkingState { status: RepoStatus, conflicted: Vec<String> }` — счётчики и конфликтующие пути одним чтением статуса, для обновления после мутации (R-316) | M6 |
+| `working_state` | `repo` | `WorkingState { status: RepoStatus, conflicted: Vec<String>, indexLock: Option<String> }` — счётчики и конфликтующие пути одним чтением статуса, для обновления после мутации (R-316); `indexLock` — путь к `index.lock`, как в `RepoSummary`: баннер следует за этим чтением (R-507) | M6 |
 | `repo_refs` | `repo` | `RepoRefs { head, branches, tags, state, indexLock }` — то, что двигает коммит, без статуса, регистрации и наблюдателя; фронтенд вливает это в `RepoSummary` (R-316) | M6 |
 | `stage_hunk` | `repo, patch: String` | `()` | M6 |
 | `discard_paths` | `repo, paths` | `()` | M6 |
@@ -436,6 +437,7 @@ snake_case и читаются на фронтенде как `undefined`.
 | `checkout` | `repo, target: CheckoutTarget` | `()` | M5 |
 | `create_branch` / `delete_branch` | `repo, ...` | `()` | M5 |
 | `delete_remote_branch` | `repo, remote, branch` (`origin/topic` или `topic`) | `RemoteDeletion`: `"deleted"` — `push --delete` по полному имени; `"alreadyGone"` — на сервере ветки уже не было, удалена только устаревшая remote-tracking ссылка (R-480) | M5 |
+| `set_upstream` | `repo, branch, upstream: Option<String>` (`origin/main`) | `()` — `git branch --set-upstream-to <upstream> <branch>`, `null` — `git branch --unset-upstream <branch>`; в очереди записей. Зовут `Set Upstream…` и `Stop Tracking` меню ветки (F-130, R-505) | M5 |
 | `merge` / `rebase` / `cherry_pick` / `revert` | `repo, ...` | `()` | M5 |
 | `stash_push` / `apply` / `pop` / `drop` | `repo, ...` | `()` | M5 |
 | `stash_keeping_worktree` | `repo, message` | `()` — `git stash create` + `git stash store --message`: stash без очистки рабочей копии; untracked-файлы в него не входят; чистое дерево — `InvalidState` (R-212) | M5 |
@@ -454,13 +456,14 @@ snake_case и читаются на фронтенде как `undefined`.
 | `list_submodules` | `repo`, `parent` (пусто — верхний уровень) | `Vec<Submodule>` | M3 |
 | `submodule_outline` | `root` — папка репозитория из списка, открытого или закрытого; `parent` — ключ узла от верха (пусто — верхний уровень) | `Vec<Submodule>` из `.gitmodules` и gitlink-записей HEAD (нет в HEAD — индекса): `state` — `notInitialised` или `unread`, `checkedOut`, `branch`, `subject` пусты, `nested` — проверка файла; сабмодули не открываются (R-352) | M3 |
 | `repo_pulse` | `root` — папка строки списка | `RepoPulse { missing, branch, tracked, ahead, behind, dirty }`: ahead/behind — по локальной remote-tracking ссылке HEAD через gix; `dirty` — размер и mtime файлов индекса, staged по cache-tree или сравнению индекса с деревом HEAD по id, конфликт; неотслеживаемые не ищутся, ничего не хешируется (R-353). Открытый, но не наблюдаемый репозиторий: пульс, противоречащий снимку его строки, сбрасывает снимок — следующий `repositories` читает строку заново (R-351) | M3 |
-| `background_fetch` | `root` | `()`; `git fetch --all --quiet --no-auto-gc --recurse-submodules=no` без запросов: `GIT_TERMINAL_PROMPT=0`, пустой `GIT_ASKPASS`, `GCM_INTERACTIVE=never`, `SSH_ASKPASS_REQUIRE=never`, SSH в `BatchMode`, если пользователь не задал свою команду. В журнал Output не попадает, ошибка — в лог и отказом (R-353) | M3 |
 | `pull_probe` | `root` | `Option<bool>`: `true` — вершина upstream-ветки HEAD на сервере (`git ls-remote --heads`, без записи) не содержится в HEAD; `null` — нет upstream или ветки на сервере; ошибка — «неизвестно», в лог (R-354) | M3 |
 | `open_submodule` | `owner: RepoId`, `key` — путь узла от владельца дерева | `RepoSummary`; отказ — `GitError::ModuleUnavailable(ModuleProblem)` | M3 |
 | `repository_health` | `repo` | `Vec<HealthFinding { module, issue }>` — репозиторий и все подмодули; `issue`: `ignoreCaseMismatch`, `danglingModule`, `danglingWorktree`, `missingModuleCommit { commit }` (R-179) | M3 |
 | `read_git_config` | `repo: Option<RepoId>`, `scope: repository \| user` | `ConfigFile { path, text, crlf, exists }` | M3 |
 | `write_git_config` | `repo`, `scope`, `text`, `crlf` | `()`; отказ git — `GitError::ConfigInvalid { line, message }` | M3 |
+| `scan_for_repositories` | `path`, `maxDepth` (1–12), `onFound: Channel<ScanChunk>` | `u32` — сколько найдено; в канале первым `started { id }`, затем `found { hit: ScanHit }`. Cancel диалога и новый скан зовут `cancel_operation(id)`: обход кончается сразу, а не на следующей находке | M3 |
 | `cancel_operation` | `id` | `bool` — `false`, если уже закончилась | — |
+| `cancel_network` | `operation: u32` — `id` из `Operation` (`operation-changed`, `list_operations`) | `bool`: `true` — git остановлен, вызов `fetch` / `pull` / `push` / `push_to` этой операции отклоняется с `GitError::Cancelled`, полоса очереди свободна, в журнале — предупреждение «Cancelled by the user»; `false` — отменять нечего: операция закончилась, ещё ждёт в очереди, не сетевая (`kind` не `fetch` / `pull` / `push`) или уже отменена (R-506) | M1 |
 | `list_operations` | — | `Vec<Operation>` — всё, что в очереди и в работе | — |
 
 `commit_tree_files` нужен переключателю `Unchanged` в коммите из истории (#3): список
@@ -503,8 +506,8 @@ gitlink нет ни в HEAD, ни в индексе (`recorded` пуст, в п�
 `cancel_operation` останавливает **чтения**, не мутации: операция, брошенная на середине,
 оставила бы репозиторий в состоянии, которого никто не просил. При закрытии приложения все
 идущие чтения гасятся автоматически.
-Сетевые fetch, pull и push тоже не отменяются; зависшую останавливает сторож молчания
-в `git_engine` — 5 минут без вывода git ([R-412](12-risks.md)).
+Сетевые fetch, pull и push отменяет `cancel_network` по `id` операции очереди (R-506); зависшую
+без отмены останавливает сторож молчания в `git_engine` — 5 минут без вывода git ([R-412](12-risks.md)).
 
 ### Remote ▸ Submodule, Subtree, LFS и Repository ▸ Settings (#42, #45, #46)
 
@@ -582,7 +585,9 @@ gitlink нет ни в HEAD, ни в индексе (`recorded` пуст, в п�
 | `install_preset` | `repo, id` | `()` | M10 |
 
 `PresetStatus` плоский: форма TOML — дело каталога, а не webview. `toolPath` — где
-инструмент нашёлся, `null` — не установлен; `installHint` тогда говорит, что делать.
+инструмент нашёлся, `null` — не установлен; `installHint` тогда говорит, что делать, а
+`searched` — где искали: объявленные папки пресета после подстановки переменных, затем `PATH`
+(пусто у пресета без инструмента). Строка пресета показывает оба в подсказке к «not found».
 
 `stage_mode` перерегистрирует запись индекса через `update-index --cacheinfo` с тем же
 блобом: `--chmod` перечитал бы файл и затянул в индекс ещё и правки содержимого.

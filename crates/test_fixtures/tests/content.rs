@@ -80,7 +80,8 @@ fn filemode_change_keeps_the_content_identical() {
 #[test]
 fn unicode_paths_are_tracked_verbatim() {
     let f = unicode_paths().unwrap();
-    let files = f.git(&["ls-files"]).unwrap();
+    // `-z`: git's default `core.quotepath` would print the Cyrillic name escaped.
+    let files = f.git(&["ls-files", "-z"]).unwrap();
     assert!(
         files.contains("файл.txt"),
         "cyrillic path missing from:\n{files}"

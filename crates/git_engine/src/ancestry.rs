@@ -20,7 +20,7 @@ impl RepoHandle {
     /// Merged into HEAD, upstream deleted on the remote; not HEAD's nor another worktree's
     /// branch, which `git branch -d` would refuse (R-211).
     pub fn merged_gone_branches(&self) -> Result<Vec<String>> {
-        let branches = self.branches()?;
+        let branches = self.branches_without_divergence()?;
         let remote: std::collections::HashSet<&str> = branches
             .iter()
             .filter(|branch| branch.kind == crate::BranchKind::Remote)

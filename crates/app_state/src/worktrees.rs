@@ -39,7 +39,7 @@ impl AppState {
         let folder = std::path::Path::new(path);
         let handle = git_engine::RepoHandle::open_exact(folder)?;
         watch.done("open");
-        self.open_with(handle, folder, false, watch, began)
+        self.open_with(handle, folder, Some(owner), watch, began)
     }
 
     pub fn add_worktree(

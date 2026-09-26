@@ -90,7 +90,6 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::commit_files,
             commands::diff_file,
             commands::worktree_files,
-            commands::repo_status,
             commands::working_state,
             commands::repo_refs,
             commands::stage_paths,
@@ -130,6 +129,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::network::fetch,
             commands::network::pull,
             commands::network::push,
+            commands::network::cancel_network,
             commands::merge,
             commands::rebase,
             commands::skip_operation,
@@ -221,7 +221,6 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::list_submodules,
             commands::repo_rows::submodule_outline,
             commands::repo_rows::repo_pulse,
-            commands::repo_rows::background_fetch,
             commands::repo_rows::pull_probe,
             commands::open_submodule,
             commands::repository_health,
@@ -288,8 +287,14 @@ pub fn run() -> anyhow::Result<()> {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(
+            // Without VISIBLE: the plugin would show the window as it is created, before
+            // `setup` settles its geometry and subscribes to its failures (R-113, R-118).
             tauri_plugin_window_state::Builder::new()
                 .with_filter(child_window::is_main)
+                .with_state_flags(
+                    tauri_plugin_window_state::StateFlags::all()
+                        - tauri_plugin_window_state::StateFlags::VISIBLE,
+                )
                 .build(),
         )
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -300,6 +305,17 @@ pub fn run() -> anyhow::Result<()> {
                 && child_window::is_main(window.label())
             {
                 shutdown::watch(window.app_handle());
+            }
+            // The main window gone, the app goes: a Blame window left open kept the process
+            // alive without it. Each child is asked, so Merge still asks about its choices.
+            if matches!(event, tauri::WindowEvent::Destroyed) && child_window::is_main(window.label()) {
+                for (label, child) in window.app_handle().webview_windows() {
+                    if !child_window::is_main(&label)
+                        && let Err(err) = child.close()
+                    {
+                        tracing::warn!(error = %err, window = %label, "cannot close a child window after the main one");
+                    }
+                }
             }
         })
         .invoke_handler(specta_builder.invoke_handler())
@@ -328,7 +344,7 @@ pub fn run() -> anyhow::Result<()> {
                 log_path,
                 config_dir: config_dir.clone(),
             });
-            app.manage(guard);
+            app.manage(logging::LogGuard::new(guard));
             app.manage(Arc::new(operations::Cancellations::default()));
 
             specta_builder.mount_events(app);
@@ -372,6 +388,9 @@ pub fn run() -> anyhow::Result<()> {
             if matches!(event, tauri::RunEvent::Exit) {
                 git_engine::children::stop_all();
                 tracing::info!(version = env!("CARGO_PKG_VERSION"), "cogit stopped");
+                if let Some(guard) = app.try_state::<logging::LogGuard>() {
+                    guard.finish();
+                }
             }
         });
 

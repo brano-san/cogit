@@ -7,7 +7,7 @@ use git_engine::{BlameLine, CommitRow, Found, Submodule};
 use git_engine::{
     CommitDetails, CommitQuery, CommitRequest, DiffSpec, FileEntry, GitError, WorktreeFiles,
 };
-use git_engine::{GitOutput, MergeOptions, RebaseOptions, RepoStatus};
+use git_engine::{GitOutput, MergeOptions, RebaseOptions};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -72,6 +72,21 @@ where
         .map_err(|err| GitError::Internal(format!("{label} task failed: {err}")))?;
     crate::profile::call(label, started.elapsed(), joined.is_ok());
     joined
+}
+
+/// `blocking` for a command whose answer is not a `Result`: a task that failed to run is
+/// logged and answers the default.
+async fn blocking_or_default<T, F>(label: &'static str, work: F) -> T
+where
+    T: Default + Send + 'static,
+    F: FnOnce() -> T + Send + 'static,
+{
+    blocking(label, move || Ok(work()))
+        .await
+        .unwrap_or_else(|err| {
+            tracing::error!(error = ?err, context = label);
+            T::default()
+        })
 }
 
 /// A mutation waits for its turn in the repository's lane before it starts (P1.3).
@@ -389,15 +404,21 @@ pub fn report_memory(sample: crate::profile::RendererMemory) {
 
 /// The settings document as JSON text. Rust owns the file because the menu and the
 /// logger read it before there is a window to ask.
-#[tauri::command(async)]
+#[tauri::command]
 #[specta::specta]
-pub fn read_settings(state: tauri::State<'_, crate::AppContext>) -> String {
-    app_state::settings::read_document(&state.config_dir).to_string()
+pub async fn read_settings(app: tauri::AppHandle) -> String {
+    let dir = tauri::Manager::state::<crate::AppContext>(&app)
+        .config_dir
+        .clone();
+    blocking_or_default("read_settings", move || {
+        app_state::settings::read_document(&dir).to_string()
+    })
+    .await
 }
 
-#[tauri::command(async)]
+#[tauri::command]
 #[specta::specta]
-pub fn write_setting(
+pub async fn write_setting(
     state: tauri::State<'_, crate::AppContext>,
     key: String,
     value: String,
@@ -406,9 +427,12 @@ pub fn write_setting(
     // the menu, and a malformed value would take both down with it.
     let parsed = serde_json::from_str(&value)
         .map_err(|err| GitError::Internal(format!("settings value is not JSON: {err}")))?;
-
-    app_state::settings::write_key(&state.config_dir, &key, parsed)
-        .map_err(|err| GitError::Internal(format!("cannot write settings: {err}")))
+    let dir = state.config_dir.clone();
+    blocking("write_setting", move || {
+        app_state::settings::write_key(&dir, &key, parsed)
+            .map_err(|err| GitError::Io(format!("cannot write the settings: {err}")))
+    })
+    .await
 }
 
 /// Async: it spawns `git --version` and reads the registry, neither of which belongs on
@@ -489,12 +513,12 @@ pub async fn open_third_party_licences(
     );
     let path = blocking("open_third_party_licences", move || {
         app_state::licences::write(&std::env::temp_dir(), &text)
-            .map_err(|err| GitError::Internal(format!("cannot write the licence list: {err}")))
+            .map_err(|err| GitError::Io(format!("cannot write the licence list: {err}")))
     })
     .await?;
     tauri_plugin_opener::OpenerExt::opener(&app)
         .open_path(path.display().to_string(), None::<&str>)
-        .map_err(|err| GitError::Internal(format!("cannot open {}: {err}", path.display())))
+        .map_err(|err| GitError::Io(format!("cannot open {}: {err}", path.display())))
 }
 
 #[tauri::command]
@@ -520,29 +544,50 @@ pub async fn open_repository(
     Ok(summary)
 }
 
-/// A folder can hold hundreds of repositories, so hits stream in as they are found and
-/// dropping the channel stops the walk.
+/// What travels up the channel while a folder scan runs; `Started` carries the id
+/// `cancel_operation` takes.
+#[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase", tag = "kind")]
+pub enum ScanChunk {
+    Started { id: u32 },
+    Found { hit: app_state::ScanHit },
+}
+
+/// A folder can hold hundreds of repositories, so hits stream in as they are found.
+/// The walk ends on `cancel_operation`: a channel the page stopped listening to still
+/// accepts every send.
 #[tauri::command]
 #[specta::specta]
 pub async fn scan_for_repositories(
     state: tauri::State<'_, crate::AppContext>,
+    cancellations: tauri::State<'_, std::sync::Arc<crate::operations::Cancellations>>,
     path: String,
     max_depth: u32,
-    on_found: tauri::ipc::Channel<app_state::ScanHit>,
+    on_found: tauri::ipc::Channel<ScanChunk>,
 ) -> Result<u32, GitError> {
     let app_state = state.state.clone();
     let path = PathBuf::from(path);
     let depth = max_depth.clamp(1, 12) as usize;
+    let cancellations = std::sync::Arc::clone(&cancellations);
+    let (id, cancel) = cancellations.start();
+    let _ = on_found.send(ScanChunk::Started { id });
 
-    blocking("scan_for_repositories", move || {
+    let found = blocking("scan_for_repositories", move || {
         let mut found = 0_u32;
-        app_state.scan_for_repositories(&path, depth, |hit| {
-            found += 1;
-            on_found.send(hit).is_ok()
-        });
+        app_state.scan_for_repositories(
+            &path,
+            depth,
+            || cancel.is_cancelled(),
+            |hit| {
+                found += 1;
+                on_found.send(ScanChunk::Found { hit }).is_ok()
+            },
+        );
         Ok(found)
     })
-    .await
+    .await;
+    cancellations.finish(id);
+    found
 }
 
 /// Between two progress messages after the first: often enough for the scrollbar, rare
@@ -602,11 +647,16 @@ pub async fn graph_window(
     start: u32,
     count: u32,
 ) -> Result<String, GitError> {
-    let window = state.state.graph_window(repo, generation, start, count);
-    let bytes = window
-        .map(|w| app_state::graph_wire::encode(&w))
-        .unwrap_or_default();
-    Ok(diff_engine::base64(&bytes))
+    let app_state = state.state.clone();
+    // Blocking: a window with texts nobody read yet reads up to `count` commits from disk.
+    blocking("graph_window", move || {
+        let window = app_state.graph_window(repo, generation, start, count);
+        let bytes = window
+            .map(|w| app_state::graph_wire::encode(&w))
+            .unwrap_or_default();
+        Ok(diff_engine::base64(&bytes))
+    })
+    .await
 }
 
 #[tauri::command]
@@ -804,18 +854,24 @@ pub async fn commit(
     Ok(oid)
 }
 
-/// Off the main thread: the whole journal can be a hundred megabyte-sized entries.
-#[tauri::command(async)]
+/// In the blocking pool: the whole journal can be a hundred megabyte-sized entries.
+#[tauri::command]
 #[specta::specta]
-pub fn command_log(state: tauri::State<'_, crate::AppContext>) -> Vec<GitOutput> {
-    state.state.command_log()
+pub async fn command_log(app: tauri::AppHandle) -> Vec<GitOutput> {
+    let state = tauri::Manager::state::<crate::AppContext>(&app)
+        .state
+        .clone();
+    blocking_or_default("command_log", move || state.command_log()).await
 }
 
 /// One entry in full. The notice that opened the window carried only its summary.
-#[tauri::command(async)]
+#[tauri::command]
 #[specta::specta]
-pub fn command_outcome(state: tauri::State<'_, crate::AppContext>, id: u32) -> Option<GitOutput> {
-    state.state.command_outcome(id)
+pub async fn command_outcome(app: tauri::AppHandle, id: u32) -> Option<GitOutput> {
+    let state = tauri::Manager::state::<crate::AppContext>(&app)
+        .state
+        .clone();
+    blocking_or_default("command_outcome", move || state.command_outcome(id)).await
 }
 
 #[tauri::command]
@@ -862,15 +918,11 @@ pub struct TerminalChoice {
 #[specta::specta]
 pub async fn open_in_terminal(path: String, terminal: String) -> Result<(), GitError> {
     let kind = app_state::terminal::Terminal::from_id(&terminal).unwrap_or_default();
-    let (program, args) = app_state::terminal::command_for(kind, &path);
+    let launch = app_state::terminal::launch_for(kind, &path);
 
     blocking("open_in_terminal", move || {
-        std::process::Command::new(&program)
-            .args(&args)
-            .current_dir(&path)
-            .spawn()
-            .map(drop)
-            .map_err(|err| GitError::Io(format!("cannot start {program}: {err}")))
+        app_state::desktop::spawn(&launch, Some(std::path::Path::new(&path)))
+            .map_err(|err| GitError::Io(format!("cannot start {}: {err}", launch.program)))
     })
     .await
 }
@@ -917,16 +969,6 @@ pub async fn undo_last(
     Ok(entry)
 }
 
-#[tauri::command]
-#[specta::specta]
-pub async fn repo_status(
-    state: tauri::State<'_, crate::AppContext>,
-    repo: RepoId,
-) -> Result<RepoStatus, GitError> {
-    let app_state = state.state.clone();
-    blocking("repo_status", move || app_state.repo_status(repo)).await
-}
-
 /// Refs and state without reopening the repository, for the refresh after a commit.
 #[tauri::command]
 #[specta::specta]
@@ -950,7 +992,7 @@ pub async fn working_state(
 }
 
 macro_rules! repo_command {
-    ($name:ident, $kind:ident) => {
+    ($name:ident, $kind:ident, $title:literal) => {
         #[tauri::command]
         #[specta::specta]
         pub async fn $name(
@@ -958,10 +1000,11 @@ macro_rules! repo_command {
             repo: RepoId,
         ) -> Result<(), GitError> {
             let app_state = state.state.clone();
-            mutating(
+            mutating_titled(
                 &state.state,
                 repo,
                 OperationKind::$kind,
+                $title,
                 stringify!($name),
                 move || app_state.$name(repo),
             )
@@ -970,9 +1013,10 @@ macro_rules! repo_command {
     };
 }
 
-repo_command!(abort_operation, Merge);
-repo_command!(continue_operation, Merge);
-repo_command!(skip_operation, Merge);
+// Merge, rebase, cherry-pick, revert or `git am`: the footer says what is done to it.
+repo_command!(abort_operation, Merge, "Aborting");
+repo_command!(continue_operation, Merge, "Continuing");
+repo_command!(skip_operation, Merge, "Skipping");
 
 #[tauri::command]
 #[specta::specta]
@@ -1011,7 +1055,7 @@ pub async fn rebase(
 }
 
 macro_rules! replay_command {
-    ($name:ident) => {
+    ($name:ident, $title:literal) => {
         #[tauri::command]
         #[specta::specta]
         pub async fn $name(
@@ -1020,10 +1064,11 @@ macro_rules! replay_command {
             commits: Vec<String>,
         ) -> Result<(), GitError> {
             let app_state = state.state.clone();
-            mutating(
+            mutating_titled(
                 &state.state,
                 repo,
                 OperationKind::Commit,
+                $title,
                 stringify!($name),
                 move || app_state.$name(repo, &commits),
             )
@@ -1032,8 +1077,8 @@ macro_rules! replay_command {
     };
 }
 
-replay_command!(cherry_pick);
-replay_command!(revert);
+replay_command!(cherry_pick, "Cherry-picking");
+replay_command!(revert, "Reverting");
 
 #[tauri::command]
 #[specta::specta]
@@ -1280,10 +1325,11 @@ pub async fn rollback_to(
     paths: Vec<String>,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    mutating(
+    mutating_titled(
         &state.state,
         repo,
         OperationKind::Undo,
+        "Rolling back",
         "rollback_to",
         move || app_state.rollback_to(repo, &rev, &paths),
     )
@@ -1312,10 +1358,11 @@ pub async fn split_off(
     split_first: bool,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    mutating(
+    mutating_titled(
         &state.state,
         repo,
         OperationKind::Commit,
+        "Splitting",
         "split_off",
         move || app_state.split_off(repo, &rev, &paths, &message, split_first),
     )

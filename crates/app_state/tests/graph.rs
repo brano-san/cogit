@@ -1,22 +1,38 @@
 // clippy.toml's allow-unwrap-in-tests does not reach helpers beside `#[test]` fns.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use app_state::{AppState, GraphChunk, RepoId};
+use app_state::{AppState, GraphProgress, RepoId};
 
-fn stream(state: &AppState, repo: RepoId, chunk_size: usize) -> Vec<GraphChunk> {
-    let mut chunks = Vec::new();
+/// What the product shows: `build_graph`, then one window over every row (R-193).
+struct Laid {
+    commits: Vec<git_engine::CommitRow>,
+    rows: Vec<graph_engine::GraphRow>,
+}
+
+fn laid_out(
+    state: &AppState,
+    repo: RepoId,
+    query: &git_engine::CommitQuery,
+    chunk_size: usize,
+) -> (Vec<Laid>, Vec<GraphProgress>) {
+    let generation = state.begin_graph();
+    let mut progress = Vec::new();
     state
-        .search_graph(
-            repo,
-            &git_engine::CommitQuery::default(),
-            chunk_size,
-            |chunk| {
-                chunks.push(chunk);
-                true
-            },
-        )
+        .build_graph(repo, query, generation, chunk_size, |p| {
+            progress.push(p);
+            true
+        })
         .unwrap();
-    chunks
+    let window = state.graph_window(repo, generation, 0, u32::MAX).unwrap();
+    let laid = Laid {
+        commits: window.commits,
+        rows: window.rows,
+    };
+    (vec![laid], progress)
+}
+
+fn stream(state: &AppState, repo: RepoId, chunk_size: usize) -> Vec<Laid> {
+    laid_out(state, repo, &git_engine::CommitQuery::default(), chunk_size).0
 }
 
 #[test]
@@ -38,12 +54,12 @@ fn the_stream_ends_with_a_chunk_marked_last() {
     let state = AppState::new();
     let repo = state.open_repository(f.path()).unwrap().repo;
 
-    let chunks = stream(&state, repo, 100);
+    let (_, progress) = laid_out(&state, repo, &git_engine::CommitQuery::default(), 1);
     assert!(
-        chunks.last().unwrap().is_last,
+        progress.last().unwrap().is_last,
         "the UI needs to know when to stop waiting"
     );
-    assert_eq!(chunks.iter().filter(|c| c.is_last).count(), 1);
+    assert_eq!(progress.iter().filter(|p| p.is_last).count(), 1);
 }
 
 #[test]
@@ -52,10 +68,10 @@ fn an_empty_repository_still_reports_completion() {
     let state = AppState::new();
     let repo = state.open_repository(f.path()).unwrap().repo;
 
-    let chunks = stream(&state, repo, 100);
-    assert_eq!(chunks.len(), 1);
-    assert!(chunks[0].is_last);
-    assert!(chunks[0].commits.is_empty());
+    let (laid, progress) = laid_out(&state, repo, &git_engine::CommitQuery::default(), 100);
+    assert_eq!(progress.len(), 1);
+    assert!(progress[0].is_last);
+    assert!(laid[0].commits.is_empty());
 }
 
 #[test]
@@ -127,38 +143,45 @@ fn refusing_a_chunk_stops_the_stream() {
     let state = AppState::new();
     let repo = state.open_repository(f.path()).unwrap().repo;
 
+    let generation = state.begin_graph();
     let mut seen = 0;
     let mut saw_last = false;
     state
-        .search_graph(repo, &git_engine::CommitQuery::default(), 10, |chunk| {
-            seen += chunk.commits.len();
-            saw_last |= chunk.is_last;
-            false
-        })
+        .build_graph(
+            repo,
+            &git_engine::CommitQuery::default(),
+            generation,
+            10,
+            |progress| {
+                seen = progress.total;
+                saw_last |= progress.is_last;
+                false
+            },
+        )
         .unwrap();
 
     assert_eq!(seen, 10);
     assert!(!saw_last, "a cancelled stream must not claim it finished");
+    let window = state.graph_window(repo, generation, 0, 100).unwrap();
+    assert!(!window.complete);
 }
 
 #[test]
 fn an_unknown_repository_is_reported_as_missing() {
     let state = AppState::new();
-    let result = state.search_graph(RepoId(999), &git_engine::CommitQuery::default(), 10, |_| {
-        true
-    });
+    let generation = state.begin_graph();
+    let result = state.build_graph(
+        RepoId(999),
+        &git_engine::CommitQuery::default(),
+        generation,
+        10,
+        |_| true,
+    );
     assert!(result.is_err());
 }
 
-fn search(state: &AppState, repo: RepoId, query: &git_engine::CommitQuery) -> Vec<GraphChunk> {
-    let mut chunks = Vec::new();
-    state
-        .search_graph(repo, query, 100, |chunk| {
-            chunks.push(chunk);
-            true
-        })
-        .unwrap();
-    chunks
+fn search(state: &AppState, repo: RepoId, query: &git_engine::CommitQuery) -> Vec<Laid> {
+    laid_out(state, repo, query, 100).0
 }
 
 #[test]
@@ -229,7 +252,7 @@ fn a_shallow_boundary_ends_its_lines_in_arrows() {
         upstream.path().to_string_lossy().replace('\\', "/")
     );
     let target = clone.path().join("shallow");
-    let status = std::process::Command::new("git")
+    let status = test_fixtures::git_command_in(clone.path())
         .args(["clone", "-q", "--depth", "2", "--no-single-branch", &url])
         .arg(&target)
         .status()
@@ -269,14 +292,10 @@ fn rows_keep_counting_across_chunks_when_filtered() {
         author: Some("fixture".to_owned()),
         ..git_engine::CommitQuery::default()
     };
-    let mut rows = Vec::new();
-    state
-        .search_graph(repo, &query, 2, |chunk| {
-            rows.extend(chunk.rows.iter().map(|l| l.row));
-            true
-        })
-        .unwrap();
+    let (laid, progress) = laid_out(&state, repo, &query, 2);
+    let rows: Vec<u32> = laid[0].rows.iter().map(|l| l.row).collect();
 
+    assert!(progress.len() > 1, "more than one chunk: {progress:?}");
     assert_eq!(rows, [0, 1, 2, 3, 4]);
 }
 
@@ -395,13 +414,15 @@ fn a_tag_on_a_tree_is_reported_and_the_graph_is_drawn_without_it() {
         ..git_engine::CommitQuery::default()
     };
 
-    let mut commits = 0;
+    let generation = state.begin_graph();
     let skipped = state
-        .search_graph(repo, &query, 50, |chunk| {
-            commits += chunk.commits.len();
-            true
-        })
+        .build_graph(repo, &query, generation, 50, |_| true)
         .unwrap();
+    let commits = state
+        .graph_window(repo, generation, 0, 100)
+        .unwrap()
+        .commits
+        .len();
 
     assert_eq!(commits, 2);
     assert_eq!(skipped.len(), 1);
@@ -447,22 +468,16 @@ fn rows_held_back_for_long_links_arrive_with_the_last_chunk() {
         ..git_engine::CommitQuery::default()
     };
 
-    let mut chunks = Vec::new();
-    state
-        .search_graph(repo, &query, 5, |chunk| {
-            chunks.push(chunk);
-            true
-        })
-        .unwrap();
+    let (laid, progress) = laid_out(&state, repo, &query, 5);
 
-    let last = chunks.last().unwrap();
-    assert!(last.is_last);
-    assert_eq!(last.rows.len(), 4, "the lookahead is emptied at the end");
-    let rows: Vec<u32> = chunks
-        .iter()
-        .flat_map(|c| &c.rows)
-        .map(|row| row.row)
-        .collect();
+    let totals: Vec<u32> = progress.iter().map(|p| p.total).collect();
+    assert!(progress.last().unwrap().is_last);
+    assert_eq!(totals.last(), Some(&12));
+    assert!(
+        totals[totals.len() - 2] <= 12 - 4,
+        "the lookahead is emptied at the end: {totals:?}"
+    );
+    let rows: Vec<u32> = laid[0].rows.iter().map(|row| row.row).collect();
     assert_eq!(rows, (0..12).collect::<Vec<_>>());
     assert!(!query.filters_rows(), "a layout option is not a filter");
 }

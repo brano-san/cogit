@@ -260,6 +260,73 @@ fn opening_a_listed_repository_as_a_submodule_leaves_it_listed() {
     assert_eq!(state.overviews().len(), 2);
 }
 
+// Every submodule visited from the tree stayed registered, its handle held, until exit.
+#[test]
+fn closing_a_repository_closes_the_submodules_opened_from_it() {
+    let f = test_fixtures::with_nested_submodule().unwrap();
+    let state = AppState::new();
+    let parent = state.open_repository(f.path()).unwrap().repo;
+    let middle = state.open_submodule(parent, "vendor/middle").unwrap().repo;
+    let deep = state.open_submodule(middle, "deep/inner").unwrap().repo;
+    assert!(state.repo_status(deep).is_ok());
+
+    state.close_repository(parent);
+
+    for gone in [middle, deep] {
+        assert!(
+            state.repo_status(gone).is_err(),
+            "a submodule goes with the repository it was opened from"
+        );
+    }
+    assert_eq!(state.repositories_held(), 0);
+}
+
+#[test]
+fn the_submodule_on_screen_stays_open_when_its_parent_closes() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let state = AppState::new();
+    let parent = state.open_repository(f.path()).unwrap().repo;
+    let child = state.open_submodule(parent, "vendor/lib").unwrap().repo;
+    state.show_repository(Some(child));
+
+    state.close_repository(parent);
+
+    assert!(state.repo_status(child).is_ok(), "the panels still show it");
+}
+
+// A Blame window left open, its repository closed in the main window: F5 said "Not a Git
+// repository: id 3" (BE-013).
+#[test]
+fn a_call_on_a_closed_repository_says_it_was_closed() {
+    let f = test_fixtures::linear(1).unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    state.close_repository(repo);
+
+    let refused = state.repo_status(repo).unwrap_err();
+
+    assert!(
+        matches!(&refused, GitError::InvalidState(text) if text.contains("closed in Cogit")),
+        "{refused:?}"
+    );
+}
+
+#[test]
+fn a_submodule_opened_by_hand_as_well_outlives_its_parent() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let state = AppState::new();
+    let parent = state.open_repository(f.path()).unwrap().repo;
+    let child = state.open_submodule(parent, "vendor/lib").unwrap().repo;
+    state.open_repository(&f.path().join("vendor/lib")).unwrap();
+
+    state.close_repository(parent);
+
+    assert!(
+        state.repo_status(child).is_ok(),
+        "it is an entry of its own"
+    );
+}
+
 // --- one resolution for listing and opening (doc/12-risks.md, R-149) --------------------
 
 /// The reported case: after one submodule was opened, every other one failed, because the

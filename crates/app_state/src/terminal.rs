@@ -80,6 +80,35 @@ pub fn command_for(kind: Terminal, path: &str) -> (String, Vec<String>) {
     }
 }
 
+/// `command_for` as the one desktop launcher starts it (`desktop::spawn`). A console
+/// program started from a GUI goes through `cmd /C start`, hidden, as PowerShell of the
+/// repository menu does (R-261): started bare it would share whatever console the app has.
+#[must_use]
+pub fn launch_for(kind: Terminal, path: &str) -> crate::desktop::Launch {
+    let (program, args) = command_for(kind, path);
+    let console = cfg!(windows)
+        && matches!(
+            kind,
+            Terminal::PowerShell | Terminal::Cmd | Terminal::GitBash
+        );
+    if console {
+        let mut relayed = vec!["/C".to_owned(), "start".to_owned(), String::new(), program];
+        relayed.extend(args);
+        return crate::desktop::Launch {
+            program: "cmd.exe".to_owned(),
+            args: relayed,
+            verbatim: false,
+            hidden: true,
+        };
+    }
+    crate::desktop::Launch {
+        hidden: cfg!(windows) && kind == Terminal::System,
+        program,
+        args,
+        verbatim: false,
+    }
+}
+
 /// The bash beside the `git-bash.exe` the Git Shell item found (registry, PATH, the
 /// per-user install), else the usual install folder. A missing one fails visibly with the
 /// spawn error rather than silently doing nothing.

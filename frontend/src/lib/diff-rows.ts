@@ -77,9 +77,6 @@ export function pairRows(rows: readonly DiffRow[]): SidePair[] {
         });
         break;
       }
-      case "collapsed":
-        flushBlock();
-        break;
     }
   }
   flushBlock();

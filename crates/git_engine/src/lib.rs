@@ -99,7 +99,7 @@ pub use listing::{
 pub use mailmap::Mailmap;
 pub use merging::MergeOptions;
 pub use module_ops::SubmoduleOp;
-pub use network::{auth_config, auth_header, wants_auth};
+pub use network::{NetworkStop, auth_config, auth_header, wants_auth};
 pub use operations::RebaseOptions;
 pub use origin_search::{
     DeeperTarget, Likelihood, LineMatch, OriginCandidate, OriginKind, OriginQuery, OriginReport,
@@ -107,7 +107,9 @@ pub use origin_search::{
 };
 pub use outcome::Severity;
 pub use overlap::{Overlap, OverlapRow, overlap_of, shared_paths};
-pub use presets::{Preset, PresetTool, builtin_presets, find_tool, parse_preset, preset_toml};
+pub use presets::{
+    Preset, PresetTool, builtin_presets, find_tool, parse_preset, preset_toml, tool_search_places,
+};
 pub use progress::{RebaseProgress, RebaseStep};
 pub use pulse::{RepoPulse, pulse};
 pub use ref_meta::RefDate;

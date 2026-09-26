@@ -18,7 +18,3 @@ export async function pullProbe(root: string) {
   return unwrap(await commands.pullProbe(root));
 }
 
-/** Never prompts; a failure is logged by the backend and returned here only as a refusal. */
-export async function backgroundFetch(root: string) {
-  unwrap(await commands.backgroundFetch(root));
-}
