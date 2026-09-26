@@ -141,7 +141,8 @@ export const CATEGORIES: Category[] = [
           {
             key: "graphStripes",
             label: "Alternate row background",
-            keywords: ["stripes", "zebra", "banded"],
+            hint: "Also in Files, Repositories, Branches and Worktrees.",
+            keywords: ["stripes", "zebra", "banded", "lists", "files", "repositories", "branches", "worktrees"],
           },
         ],
       },

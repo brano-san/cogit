@@ -22,8 +22,9 @@
   import { directoryOf, fileType, gridColumns, TYPE_LABELS, type ColumnKey } from "$lib/file-columns";
   import { fileName, indexNote, statusBadge, statusLabel, statusTooltip } from "$lib/files";
   import type { ViewRow } from "$lib/file-view";
-  import { LIST_ROW_HEIGHT } from "$lib/graph-geometry";
+  import { LIST_ROW_HEIGHT, striped } from "$lib/graph-geometry";
   import { TypeAhead, findTyped, listKey, pageRows, pressOf, typedChar } from "$lib/list-keys";
+  import { settings } from "$stores/settings.svelte";
 
   interface Props {
     rows: readonly ViewRow[];
@@ -68,6 +69,8 @@
 
   const template = $derived(gridColumns(columns));
   const shows = $derived(new Set(columns));
+  /** One switch for every list's banding, the graph's (#41). */
+  const stripes = $derived(settings.current.graphStripes);
 
   let pane: HTMLDivElement | undefined = $state();
   let reveal = $state<number | null>(null);
@@ -151,7 +154,7 @@
     {#snippet row(entry, at)}
         {#if entry.kind === "dir"}
           {@const group = entry}
-          <div class="folder" style:top="{at * LIST_ROW_HEIGHT}px">
+          <div class="folder" class:striped={striped(at, stripes)} style:top="{at * LIST_ROW_HEIGHT}px">
             <Disclosure open />
             <span class="truncate">{group.path === "" ? "(root)" : group.path}</span>
             <span class="count">{group.count}</span>
@@ -162,6 +165,7 @@
             type="button"
             class="row {file.status}"
             class:nested
+            class:striped={striped(at, stripes)}
             class:selected={selected === file.path}
             class:marked={marked.has(file.path)}
             style:top="{at * LIST_ROW_HEIGHT}px"
@@ -301,6 +305,12 @@
     font: inherit;
     text-align: left;
     cursor: default;
+  }
+
+  /* By the row's place in the list (#41), before hover and selection, which cover it. */
+  .row.striped,
+  .folder.striped {
+    background: var(--row-stripe);
   }
 
   .row:hover {
