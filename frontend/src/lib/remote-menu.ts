@@ -98,7 +98,6 @@ export function remoteCommands(
     {
       id: "synchronize",
       title: "Synchronise",
-      shortcut: "Ctrl+Shift+S",
       synonyms: ["sync", "pull then push"],
       unavailable: !context.repository
         ? NO_REPOSITORY

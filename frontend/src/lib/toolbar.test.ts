@@ -13,6 +13,7 @@ import {
   type MenuEntry,
   reasonOf,
   refAt,
+  shortcutOfAction,
   branchRevision,
   localRevision,
   splitMarked,
@@ -390,5 +391,29 @@ describe("Apply Stash", () => {
   it("is off without a stash and on with one", () => {
     expect(reasonOf("apply-stash", facts())).toBe("There are no stashes");
     expect(reasonOf("apply-stash", facts({ stashes: 2 }))).toBeUndefined();
+  });
+});
+
+// The Stash button said Ctrl+S after Stash All moved to another key.
+describe("shortcutOfAction", () => {
+  const keys = { stash: "CmdOrCtrl+Shift+H", pull: "CmdOrCtrl+Shift+U", synchronize: "" };
+  const action = (id: string) => ACTIONS.find((entry) => entry.id === id)!;
+
+  it("shows the key of the button's command as the keymap has it", () => {
+    expect(shortcutOfAction(action("stash"), keys, false)).toBe("Ctrl+Shift+H");
+    expect(shortcutOfAction(action("pull"), keys, true)).toBe("Cmd+Shift+U");
+  });
+
+  it("shows no key for a command whose key was removed", () => {
+    expect(shortcutOfAction(action("sync"), keys, false)).toBeUndefined();
+  });
+
+  it("shows the page's own key for Discard, which no menu item has", () => {
+    expect(shortcutOfAction(action("discard"), keys, false)).toBe("Ctrl+Z");
+    expect(shortcutOfAction(action("discard"), keys, true)).toBe("Cmd+Z");
+  });
+
+  it("shows nothing for a button without a key", () => {
+    expect(shortcutOfAction(action("merge"), keys, false)).toBeUndefined();
   });
 });

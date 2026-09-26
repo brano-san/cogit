@@ -76,6 +76,7 @@
   import RefActions from "$components/menus/RefActions.svelte";
   import { compareView } from "$stores/compare-view.svelte";
   import { confirmation } from "$stores/confirm.svelte";
+  import { ON_MAC, effective, withShortcuts } from "$lib/keymap";
   import { menuCommandRuns, modals } from "$lib/modal-stack";
   import { keyLetter } from "$lib/key-letter";
   import { commitBox } from "$stores/commit-box.svelte";
@@ -553,6 +554,9 @@
     repoSettings: () => (repoSettingsOpen = true),
   });
 
+  /** The palette shows each command's keys as the menu has them (11 §12, rule 5). */
+  const menuKeys = $derived(effective(settings.bindings, settings.keymap));
+
   const palette = $derived.by<PaletteCommand[]>(() => {
     const noRepo = reasonFor({ repository: true }, commands);
     const noRemote = reasonFor({ remote: true }, commands);
@@ -565,7 +569,6 @@
       {
         id: "stash",
         title: "Stash All",
-        shortcut: "Ctrl+S",
         synonyms: ["shelve"],
         unavailable: noRepo,
         run: stashAll,
@@ -573,24 +576,21 @@
       {
         id: "stash-selection",
         title: "Stash Selection",
-        shortcut: "Ctrl+Alt+S",
         synonyms: ["shelve some"],
         // The ticks may be a commit's files now; only the working tree's can be stashed.
         unavailable: noRepo ?? reasonOf("stash-selection", toolbarFacts),
         run: () => void stashSelected(),
       },
-      { id: "tag", title: "Create Tag", shortcut: "Shift+F7", unavailable: noRepo, run: () => void refActions?.addTag(null) },
+      { id: "tag", title: "Create Tag", unavailable: noRepo, run: () => void refActions?.addTag(null) },
       {
         id: "stage",
         title: "Stage",
-        shortcut: "Ctrl+T",
         unavailable: reasonOf("stage", toolbarFacts),
         run: () => void stage(targetsOf("stage", toolbarFacts)),
       },
       {
         id: "unstage",
         title: "Unstage",
-        shortcut: "Ctrl+Shift+T",
         unavailable: reasonOf("unstage", toolbarFacts),
         run: () => void unstage(targetsOf("unstage", toolbarFacts)),
       },
@@ -598,21 +598,18 @@
       {
         id: "commit",
         title: "Commit Staged",
-        shortcut: "Ctrl+Enter",
         unavailable: noRepo,
         run: () => void commitBox.commit(),
       },
       {
         id: "commit-amend",
         title: "Commit with Amend",
-        shortcut: "Ctrl+Shift+Enter",
         unavailable: noRepo,
         run: () => void commitBox.commit(true),
       },
       {
         id: "commit-message",
         title: "Go to the Commit Message",
-        shortcut: "Ctrl+K",
         unavailable: noRepo,
         run: () => void commitBox.focus(),
       },
@@ -622,7 +619,7 @@
         unavailable: lastUndo ? undefined : "Nothing to undo",
         run: () => void undo(),
       },
-      { id: "output", title: "Toggle Output Panel", shortcut: "Ctrl+Shift+7", run: () => output.toggle() },
+      { id: "output", title: "Toggle Output Panel", run: () => output.toggle() },
       {
         id: "copy-path",
         title: "Copy the File Path",
@@ -638,14 +635,12 @@
       {
         id: "copy-sha",
         title: "Copy the Commit SHA",
-        shortcut: "Ctrl+Shift+Y",
         unavailable: commit.oid ? undefined : "Select a commit first",
         run: () => void copyText(commit.oid ?? ""),
       },
       {
         id: "rebase-i",
         title: "Rebase Commits After This One…",
-        shortcut: "Ctrl+Shift+R",
         synonyms: ["interactive rebase", "squash", "reorder"],
         unavailable: commit.oid ? undefined : "Select a commit first",
         run: () => void openRebase(),
@@ -692,15 +687,13 @@
       {
         id: "close",
         title: "Close Repository",
-        shortcut: "Ctrl+W",
         unavailable: noRepo,
         run: () => void closeCurrent(),
       },
-      { id: "refresh", title: "Refresh", shortcut: "F5", unavailable: noRepo, run: () => void repository.refresh() },
+      { id: "refresh", title: "Refresh", unavailable: noRepo, run: () => void repository.refresh() },
       {
         id: "branch",
         title: "New Branch…",
-        shortcut: "F7",
         unavailable: noRepo,
         run: () => void runBannerAction("createBranch"),
       },
@@ -744,7 +737,6 @@
       {
         id: "maximize-panel",
         title: "Maximise Panel",
-        shortcut: "Shift+F11",
         synonyms: ["zoom", "full screen panel"],
         run: () => layout.toggleMaximized(focused),
       },
@@ -783,7 +775,6 @@
       {
         id: "palette",
         title: "Find Command",
-        shortcut: "Ctrl+Shift+P",
         run: () => {
           if (commit.oid) void learnProtection(commit.oid);
           paletteOpen = true;
@@ -810,7 +801,6 @@
       {
         id: "exit",
         title: "Exit",
-        shortcut: "Alt+X",
         synonyms: ["quit", "close"],
         run: () => {
           // No window is being closed by hand, so the dialog must not say one is.
@@ -828,14 +818,12 @@
       {
         id: "settings",
         title: "Preferences",
-        shortcut: "Ctrl+,",
         synonyms: ["settings", "options", "customise toolbar", "toolbar buttons"],
         run: () => openSettings(),
       },
       {
         id: "find",
         title: "Find Object",
-        shortcut: "Ctrl+P",
         synonyms: ["goto", "jump"],
         unavailable: noRepo,
         run: () => (finderOpen = true),
@@ -869,7 +857,6 @@
       {
         id: "fetch-all",
         title: "Fetch All",
-        shortcut: "Ctrl+Alt+Shift+F",
         synonyms: ["update every repository"],
         unavailable: repository.openRepos.length > 0 ? undefined : "No repository is open",
         run: () => void fetchAll(),
@@ -892,7 +879,6 @@
       {
         id: "blame",
         title: "Blame This File",
-        shortcut: "Ctrl+Shift+L",
         unavailable: diff.path ? undefined : "No file is open in the Diff panel",
         run: () => void showBlame(),
       },
@@ -3634,7 +3620,7 @@
 
   {#if paletteOpen}
     <CommandPalette
-      commands={palette}
+      commands={withShortcuts(palette, menuKeys, ON_MAC)}
       recent={recentCommands}
       onrun={runCommand}
       onclose={() => (paletteOpen = false)}
