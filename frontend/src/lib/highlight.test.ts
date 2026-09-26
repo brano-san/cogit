@@ -59,6 +59,18 @@ describe("highlightLines", () => {
   it("survives text that does not parse", () => {
     expect(() => highlightLines(["!!! not rust @@@"], "rust")).not.toThrow();
   });
+
+  // DF-053: without the JSX dialect `</div>` opened a regular expression and the colours
+  // after the tag were wrong.
+  it("reads JSX tags in .tsx and .jsx as tags, not as a regular expression", () => {
+    const line = 'return <div className="a">x</div>;';
+    for (const language of ["tsx", "jsx"]) {
+      const tokens = highlightLines([line], language)[0] ?? [];
+      const at = (text: string) => tokens.find((t) => t.start === line.indexOf(text))?.cls;
+      expect(at("div"), language).toBe("tok-typeName");
+      expect(tokens.some((t) => t.cls.includes("string2")), language).toBe(false);
+    }
+  });
 });
 
 describe("mergePieces", () => {
