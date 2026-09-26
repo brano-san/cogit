@@ -3198,7 +3198,8 @@
     return unsavedSummary({
       hook: hooks.dirty ? hooks.editing : null,
       merge: conflicts.regions.length > 0 ? conflicts.path : null,
-      dialogs: modals.unsaved,
+      // The Hooks dialog is dirty for the same hook, which is named already.
+      dialogs: modals.unsaved.filter((title) => !(hooks.dirty && title === "Hooks")),
     });
   }
 
