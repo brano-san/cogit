@@ -103,7 +103,7 @@
   import { applyPreferences, type ApplyHost } from "$lib/preferences-apply";
   import { capFraction, floorFraction, PANELS, type PanelId } from "$lib/perspectives";
   import { graphPanelMinWidth } from "$lib/graph-panel";
-  import { holdsPanels, reopenClick, repoClick } from "$lib/repo-click";
+  import { closeStep, holdsPanels, reopenClick, repoClick } from "$lib/repo-click";
   import { ModuleInitialiser, moduleClick } from "$lib/module-init";
   import { parseWorktreeCommand, worktreeMenu } from "$lib/worktree-menu";
   import { answerMergeResolved } from "$lib/merge-save";
@@ -2806,12 +2806,16 @@
     return overview !== null && repo?.repo.valueOf() === overview.repo.valueOf();
   }
 
+  async function backToModuleOwner() {
+    const owner = repository.openRepos.find((entry) => entry.root === submodules.ownerRoot);
+    if (owner) await selectRepository(owner);
+  }
+
   /** The row stays in the list, closed; Remove is what takes it out. A submodule closes
       back to the repository it belongs to. */
   async function closeListed(target: RepoMenuSubject) {
     if (target.kind === "submodule") {
-      const owner = repository.openRepos.find((entry) => entry.root === submodules.ownerRoot);
-      if (owner) await selectRepository(owner);
+      await backToModuleOwner();
       return;
     }
     const { overview } = target;
@@ -3068,15 +3072,26 @@
     await writeText(text);
   }
 
+  /** Ctrl+W: Close Repository of the row the panels show, which its menu names with the
+      same chord (F-361). */
   async function closeCurrent() {
-    const id = repository.current?.repo;
-    if (!id) return;
-    const listed = repository.openRepos.find((entry) => entry.repo === id);
-    if (listed) repoList.closed(listed.root);
-    commit.clear();
-    diff.clear();
-    health.clear();
-    await repository.closeOne(id);
+    const step = closeStep(panelsNow());
+    if (step.kind === "worktree") {
+      const owner = repository.openRepos.find((entry) => entry.root === step.owner);
+      await (owner ? selectRepository(owner) : comeBack(step.owner));
+    } else if (step.kind === "module") {
+      await backToModuleOwner();
+    } else if (step.kind === "repository") {
+      const listed = repository.openRepos.find((entry) => entry.repo === step.repo);
+      if (listed) {
+        await closeListed({ kind: "repository", root: listed.root, overview: listed });
+        return;
+      }
+      commit.clear();
+      diff.clear();
+      health.clear();
+      await repository.closeOne(step.repo);
+    }
   }
 
   /** Where the user was last: written as it changes, not only on the way out, because a
