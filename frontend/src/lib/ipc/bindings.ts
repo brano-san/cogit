@@ -181,7 +181,7 @@ export const commands = {
 	findObject: (repo: RepoId, query: string, limit: number) => typedError<Found[], GitError>(__TAURI_INVOKE("find_object", { repo, query, limit })),
 	renameBranch: (repo: RepoId, from: string, to: string, force: boolean) => typedError<null, GitError>(__TAURI_INVOKE("rename_branch", { repo, from, to, force })),
 	setUpstream: (repo: RepoId, branch: string, upstream: string | null) => typedError<null, GitError>(__TAURI_INVOKE("set_upstream", { repo, branch, upstream })),
-	deleteRemoteBranch: (repo: RepoId, remote: string, branch: string) => typedError<null, GitError>(__TAURI_INVOKE("delete_remote_branch", { repo, remote, branch })),
+	deleteRemoteBranch: (repo: RepoId, remote: string, branch: string) => typedError<RemoteDeletion, GitError>(__TAURI_INVOKE("delete_remote_branch", { repo, remote, branch })),
 	/**  Any entry from the journal, not only the newest (T5.7). */
 	undoEntry: (repo: RepoId, id: number) => typedError<SafetyEntry, GitError>(__TAURI_INVOKE("undo_entry", { repo, id })),
 	/**  The three parts of a stash, read without applying it (T5.2). */
@@ -1282,6 +1282,11 @@ export type Region = { kind: "clean"; lines: string[];
  *  before the merge is committed (doc/08-diff-engine.md §8).
  */
 origin: Origin } | { kind: "conflict"; base: string[]; ours: string[]; theirs: string[] };
+
+/**  What deleting a branch on the server came to (R-480). */
+export type RemoteDeletion = "deleted" | 
+/**  The server no longer had it; only the stale remote-tracking ref went. */
+"alreadyGone";
 
 /**
  *  What the renderer reports every ten seconds in a debug build.
