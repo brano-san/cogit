@@ -26,6 +26,8 @@ const PARSERS: Record<string, LRParser> = {
   python,
   rust,
   typescript: javascript.configure({ dialect: "ts" }) as LRParser,
+  jsx: javascript.configure({ dialect: "jsx" }) as LRParser,
+  tsx: javascript.configure({ dialect: "ts jsx" }) as LRParser,
 };
 
 /** Parsed as one document so a comment spanning lines survives onto the next one. */

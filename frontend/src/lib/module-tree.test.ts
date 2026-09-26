@@ -144,6 +144,14 @@ describe("moduleTooltip", () => {
     expect(moduleTooltip(mod("lib", { state: "unknown" }))).toMatch(/fetch/i);
   });
 
+  // GE-036: no gitlink anywhere is not a commit to fetch.
+  it("tells a module nothing records apart from one not fetched", () => {
+    expect(describeModule(mod("lib", { state: "unrecorded" }))).toMatch(/· not recorded$/);
+    const tip = moduleTooltip(mod("lib", { state: "unrecorded" }));
+    expect(tip).toMatch(/stage/i);
+    expect(tip).not.toMatch(/fetch/i);
+  });
+
   it("offers to initialise a module that is not checked out", () => {
     expect(moduleTooltip(mod("lib", { state: "notInitialised" }))).toMatch(/initiali[sz]e/i);
   });
@@ -258,7 +266,7 @@ describe("moduleUpdate", () => {
   });
 
   it("is off, with the reason, where there is nothing to do or nothing known", () => {
-    for (const state of ["inSync", "unknown", "unread"] as const) {
+    for (const state of ["inSync", "unknown", "unread", "unrecorded"] as const) {
       const plan = moduleUpdate(mod("lib", { state }));
       expect(plan.kind, state).toBe("off");
       expect(plan.kind === "off" ? plan.reason : "", state).not.toBe("");

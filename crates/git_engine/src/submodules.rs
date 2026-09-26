@@ -16,6 +16,8 @@ pub enum SubmoduleState {
     Unknown,
     /// Checked out, and not looked into: the outline of a repository not on screen (R-352).
     Unread,
+    /// Listed in `.gitmodules`, with no gitlink in HEAD or the index to compare with.
+    Unrecorded,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
@@ -43,12 +45,15 @@ pub struct Submodule {
     pub repo_state: Option<RepoState>,
 }
 
-/// Which commit a gitlink points at on each side of a diff.
+/// Which commit a gitlink points at on each side of a diff; `recorded` is `None` on the
+/// side that removed it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SubmodulePointer {
-    pub recorded: String,
+    pub recorded: Option<String>,
     pub previous: Option<String>,
     pub checked_out: bool,
+    /// The index has the gitlink, which `git submodule update --init` needs.
+    pub in_index: bool,
 }
 
 /// What the submodule's own repository says about itself.
@@ -84,11 +89,14 @@ impl Inside {
     }
 }
 
+/// HEAD's gitlink, else the index's: a submodule just added is recorded only there until
+/// the commit. Empty when neither side has one.
 fn recorded(module: &gix::Submodule<'_>) -> String {
     module
         .head_id()
         .ok()
         .flatten()
+        .or_else(|| module.index_id().ok().flatten())
         .map(|id| id.to_string())
         .unwrap_or_default()
 }
@@ -159,6 +167,7 @@ impl RepoHandle {
 
             let (state, ahead, behind) = match (&checked_out, &inside) {
                 (None, _) | (_, None) => (SubmoduleState::NotInitialised, 0, 0),
+                _ if recorded.is_empty() => (SubmoduleState::Unrecorded, 0, 0),
                 (Some(actual), _) if *actual == recorded => (SubmoduleState::InSync, 0, 0),
                 (Some(actual), Some(found)) => found.place(actual, &recorded),
             };

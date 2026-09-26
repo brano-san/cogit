@@ -212,7 +212,7 @@ fn a_hunk_header_names_the_function_it_is_inside() {
 
 #[test]
 fn move_detection_can_be_turned_off() {
-    let block = "alpha\nbeta\ngamma\n";
+    let block = "alpha_step\nbeta_step\ngamma_step\n";
     let body = "one\ntwo\nthree\nfour\nfive\n";
     let f = test_fixtures::linear(1).unwrap();
     std::fs::write(f.path().join("moved.txt"), format!("{block}{body}")).unwrap();
@@ -251,7 +251,7 @@ fn move_detection_can_be_turned_off() {
 
 #[test]
 fn move_detection_is_on_by_default() {
-    let block = "alpha\nbeta\ngamma\n";
+    let block = "alpha_step\nbeta_step\ngamma_step\n";
     let body = "one\ntwo\nthree\nfour\nfive\n";
     let f = test_fixtures::linear(1).unwrap();
     std::fs::write(f.path().join("moved.txt"), format!("{block}{body}")).unwrap();
@@ -308,8 +308,14 @@ fn a_submodule_that_is_not_checked_out_is_described_rather_than_refused() {
         .expect("a missing submodule must not be an error");
 
     match shown {
-        diff_engine::FileDiff::Submodule { recorded, .. } => {
-            assert!(!recorded.is_empty(), "the recorded pointer is the diff");
+        diff_engine::FileDiff::Submodule {
+            recorded, in_index, ..
+        } => {
+            assert!(
+                recorded.is_some_and(|oid| !oid.is_empty()),
+                "the recorded pointer is the diff"
+            );
+            assert!(in_index, "there is a gitlink to initialise");
         }
         other => panic!("expected a submodule diff, got {other:?}"),
     }
@@ -343,7 +349,7 @@ fn a_submodule_moved_in_the_working_tree_shows_both_commits() {
             previous,
             ..
         } => {
-            assert_eq!(now, moved.trim());
+            assert_eq!(now.as_deref(), Some(moved.trim()));
             assert_eq!(previous.as_deref(), Some(recorded.as_str()));
         }
         other => panic!("expected a submodule diff, got {other:?}"),
@@ -376,10 +382,55 @@ fn a_staged_submodule_pointer_shows_both_commits() {
             previous,
             ..
         } => {
-            assert_eq!(now, staged);
+            assert_eq!(now.as_deref(), Some(staged.as_str()));
             assert_eq!(previous.as_deref(), Some(recorded.as_str()));
         }
         other => panic!("expected a submodule diff, got {other:?}"),
+    }
+}
+
+/// The commit that removed a submodule records nothing on its new side. Showing the old
+/// pointer as "Now", with Initialise beside it, offered what git answers with "pathspec
+/// did not match".
+#[test]
+fn a_removed_submodule_shows_what_it_was() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let was = f.oid("HEAD:vendor/lib").unwrap();
+    f.git(&["rm", "-q", "vendor/lib"]).unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let staged = state
+        .diff_file(
+            repo,
+            &DiffSpec::IndexVsHead,
+            "vendor/lib",
+            &DiffOptions::default(),
+        )
+        .unwrap();
+    f.commit_staged(2, "remove vendor/lib").unwrap();
+    let committed = state
+        .diff_file(
+            repo,
+            &head_vs_parent(&f),
+            "vendor/lib",
+            &DiffOptions::default(),
+        )
+        .unwrap();
+
+    for shown in [staged, committed] {
+        match shown {
+            FileDiff::Submodule {
+                recorded,
+                previous,
+                in_index,
+                ..
+            } => {
+                assert_eq!(recorded, None, "nothing is recorded where it was removed");
+                assert_eq!(previous.as_deref(), Some(was.as_str()));
+                assert!(!in_index, "no gitlink is left to initialise");
+            }
+            other => panic!("expected a submodule diff, got {other:?}"),
+        }
     }
 }
 
@@ -613,4 +664,95 @@ fn a_staged_rename_is_diffed_against_its_old_name() {
         .unwrap();
 
     assert_eq!(changed_rows(&diff), (1, 1));
+}
+
+/// Equal bytes are not "no change" when the file list shows a change: `chmod +x` changed
+/// the mode, which is all there is to show.
+#[test]
+fn a_mode_change_alone_names_both_modes() {
+    let f = test_fixtures::filemode_change().unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let committed = state
+        .diff_file(
+            repo,
+            &head_vs_parent(&f),
+            "script.sh",
+            &DiffOptions::default(),
+        )
+        .unwrap();
+    f.git(&["update-index", "--chmod=-x", "script.sh"]).unwrap();
+    let staged = state
+        .diff_file(
+            repo,
+            &DiffSpec::IndexVsHead,
+            "script.sh",
+            &DiffOptions::default(),
+        )
+        .unwrap();
+
+    assert!(
+        matches!(&committed, FileDiff::ModeOnly { old_mode, new_mode }
+            if old_mode == "100644" && new_mode == "100755"),
+        "{committed:?}"
+    );
+    assert!(
+        matches!(&staged, FileDiff::ModeOnly { old_mode, new_mode }
+            if old_mode == "100755" && new_mode == "100644"),
+        "{staged:?}"
+    );
+}
+
+#[test]
+fn an_empty_file_added_or_deleted_says_which() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.commit_file(1, "empty.txt", "").unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let added = state
+        .diff_file(
+            repo,
+            &head_vs_parent(&f),
+            "empty.txt",
+            &DiffOptions::default(),
+        )
+        .unwrap();
+    f.git(&["rm", "-q", "empty.txt"]).unwrap();
+    f.commit_staged(2, "remove empty.txt").unwrap();
+    let deleted = state
+        .diff_file(
+            repo,
+            &head_vs_parent(&f),
+            "empty.txt",
+            &DiffOptions::default(),
+        )
+        .unwrap();
+
+    assert!(
+        matches!(added, FileDiff::EmptyFile { added: true }),
+        "{added:?}"
+    );
+    assert!(
+        matches!(deleted, FileDiff::EmptyFile { added: false }),
+        "{deleted:?}"
+    );
+}
+
+#[test]
+fn a_file_nothing_changed_in_is_still_unchanged() {
+    let f = test_fixtures::filemode_change().unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let shown = state
+        .diff_file(
+            repo,
+            &DiffSpec::WorkTreeVsIndex,
+            "script.sh",
+            &DiffOptions::default(),
+        )
+        .unwrap();
+
+    assert!(matches!(shown, FileDiff::Unchanged), "{shown:?}");
 }

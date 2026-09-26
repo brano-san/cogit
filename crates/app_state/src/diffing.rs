@@ -27,6 +27,13 @@ impl AppState {
             new.as_deref().unwrap_or_default(),
             options,
         );
+        let diff = explain_unchanged(
+            diff,
+            &handle,
+            spec,
+            (old_path, path),
+            (old.is_some(), new.is_some()),
+        );
         let binary = handle
             .diff_attributes()
             .marks_binary(path)
@@ -51,6 +58,8 @@ impl AppState {
         let handle = self.handle(repo)?;
         let mut attributes = handle.diff_attributes();
         let mut binary = std::collections::HashMap::new();
+        // Where the old side is and which sides exist, for a file whose bytes are equal.
+        let mut sides = std::collections::HashMap::new();
         let mut inputs = Vec::with_capacity(paths.len());
         // `None` stands for the next text diff, so the answer keeps the order it was asked in.
         let mut slots = Vec::with_capacity(paths.len());
@@ -81,6 +90,10 @@ impl AppState {
             if attributes.marks_binary(path) {
                 binary.insert(path.clone(), sizes(&old, &new));
             }
+            sides.insert(
+                path.clone(),
+                (old_path.to_owned(), (old.is_some(), new.is_some())),
+            );
             slots.push(None);
             inputs.push(diff_engine::FileInput {
                 path: path.clone(),
@@ -91,9 +104,21 @@ impl AppState {
 
         let mut texts = diff_engine::diff_many(inputs, options)
             .into_iter()
-            .map(|entry| diff_engine::FileDiffEntry {
-                diff: as_attributes_say(entry.diff, binary.get(&entry.path).copied()),
-                path: entry.path,
+            .map(|entry| {
+                let diff = match sides.get(&entry.path) {
+                    Some((old_path, present)) => explain_unchanged(
+                        entry.diff,
+                        &handle,
+                        spec,
+                        (old_path, &entry.path),
+                        *present,
+                    ),
+                    None => entry.diff,
+                };
+                diff_engine::FileDiffEntry {
+                    diff: as_attributes_say(diff, binary.get(&entry.path).copied()),
+                    path: entry.path,
+                }
             });
         let files = slots
             .into_iter()
@@ -245,6 +270,32 @@ impl AppState {
     }
 }
 
+/// Equal bytes, and yet the file list shows the file as changed: its mode changed, or an
+/// empty file came or went.
+fn explain_unchanged(
+    diff: diff_engine::FileDiff,
+    handle: &git_engine::RepoHandle,
+    spec: &git_engine::DiffSpec,
+    (old_path, path): (&str, &str),
+    present: (bool, bool),
+) -> diff_engine::FileDiff {
+    use diff_engine::FileDiff;
+    if !matches!(diff, FileDiff::Unchanged) {
+        return diff;
+    }
+    match present {
+        (false, true) => return FileDiff::EmptyFile { added: true },
+        (true, false) => return FileDiff::EmptyFile { added: false },
+        _ => {}
+    }
+    match handle.side_modes(spec, old_path, path) {
+        (Some(old_mode), Some(new_mode)) if old_mode != new_mode => {
+            FileDiff::ModeOnly { old_mode, new_mode }
+        }
+        _ => diff,
+    }
+}
+
 /// `binary` or `-diff` in `.gitattributes` (the sizes are given then): shown as git
 /// shows it, never as lines to stage.
 fn as_attributes_say(
@@ -285,6 +336,7 @@ fn pointer_diff(
             recorded: pointer.recorded,
             previous: pointer.previous,
             checked_out: pointer.checked_out,
+            in_index: pointer.in_index,
         }),
         None => match spec {
             git_engine::DiffSpec::WorkTreeVsIndex

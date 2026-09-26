@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   autoResolvedCount,
   chooseAll,
+  clearChoice,
   canSave,
   conflictRows,
   editableText,
@@ -96,6 +97,24 @@ describe("unresolvedCount", () => {
 
   it("ignores a choice recorded against a clean region", () => {
     expect(unresolvedCount(regions, { 0: "ours" })).toBe(1);
+  });
+});
+
+// DF-033: a side picked by mistake could not be taken back one conflict at a time.
+describe("clearChoice", () => {
+  it("makes one conflict undecided again and leaves the others", () => {
+    const two = [...regions, conflict(["d"], ["O2"], ["T2"])];
+    const cleared = clearChoice({ 1: "ours", 3: "theirs" }, 1);
+
+    expect(cleared).toEqual({ 3: "theirs" });
+    expect(unresolvedCount(two, cleared)).toBe(1);
+    expect(mergeRows(two, cleared).find((row) => row.region === 1)?.result).toBeNull();
+  });
+
+  it("does not change the choices it was given", () => {
+    const choices = { 1: "ours" as const };
+    clearChoice(choices, 1);
+    expect(choices).toEqual({ 1: "ours" });
   });
 });
 

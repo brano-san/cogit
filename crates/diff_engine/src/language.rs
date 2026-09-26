@@ -1,21 +1,18 @@
-/// The tree-sitter grammar the three-way merge parses a path with. Not the Lezer name:
-/// highlighting treats `.tsx` as TypeScript, but the TypeScript parser reads JSX as an
-/// error, and a tree with an error settles nothing.
+/// The tree-sitter grammar the three-way merge parses a path with. `.tsx` has its own:
+/// the TypeScript parser reads JSX as an error, and a tree with an error settles nothing.
 #[must_use]
 pub fn merge_grammar_for_path(path: &str) -> Option<&'static str> {
-    let name = path.rsplit('/').next().unwrap_or(path);
-    if name.to_ascii_lowercase().ends_with(".tsx") {
-        return Some("tsx");
-    }
     language_for_path(path).and_then(|name| match name.as_str() {
         "typescript" => Some("typescript"),
+        "tsx" => Some("tsx"),
         "cpp" => Some("cpp"),
         "c" => Some("c"),
         _ => None,
     })
 }
 
-/// Lezer grammar name for a path. Highlighting itself is a frontend concern (INV-01).
+/// Lezer grammar name for a path. Highlighting itself is a frontend concern (INV-01). JSX
+/// has names of its own: without the dialect a closing tag reads as a regular expression.
 #[must_use]
 pub fn language_for_path(path: &str) -> Option<String> {
     let name = path.rsplit('/').next().unwrap_or(path);
@@ -35,8 +32,10 @@ pub fn language_for_path(path: &str) -> Option<String> {
         .to_ascii_lowercase();
     let language = match extension.as_str() {
         "rs" => "rust",
-        "ts" | "tsx" => "typescript",
-        "js" | "jsx" | "mjs" | "cjs" => "javascript",
+        "ts" => "typescript",
+        "tsx" => "tsx",
+        "js" | "mjs" | "cjs" => "javascript",
+        "jsx" => "jsx",
         "py" | "pyi" => "python",
         "c" | "h" => "c",
         "cc" | "cpp" | "cxx" | "hpp" | "hxx" | "hh" => "cpp",
@@ -71,10 +70,9 @@ mod tests {
     #[test]
     fn maps_common_extensions() {
         assert_eq!(language_for_path("src/main.rs").as_deref(), Some("rust"));
-        assert_eq!(
-            language_for_path("a/b/app.tsx").as_deref(),
-            Some("typescript")
-        );
+        assert_eq!(language_for_path("a/b/app.tsx").as_deref(), Some("tsx"));
+        assert_eq!(language_for_path("view.jsx").as_deref(), Some("jsx"));
+        assert_eq!(language_for_path("app.ts").as_deref(), Some("typescript"));
         assert_eq!(language_for_path("engine.hpp").as_deref(), Some("cpp"));
     }
 

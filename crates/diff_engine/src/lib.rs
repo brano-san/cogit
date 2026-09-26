@@ -172,22 +172,35 @@ pub enum FileDiff {
         size: u64,
     },
     Unchanged,
+    /// The same content, and only the mode changed: `100644` to `100755`, as git prints it.
+    ModeOnly {
+        old_mode: String,
+        new_mode: String,
+    },
+    /// A file with no content, added or deleted: both sides read as nothing, yet the file
+    /// is there on one of them only.
+    EmptyFile {
+        added: bool,
+    },
     /// Nothing but whitespace changed, and the active option hides it. Told apart from
     /// `Unchanged` so the UI can say the diff is being filtered (T7.10).
     WhitespaceOnly,
-    /// A gitlink: what changed is which commit the parent records, not any file. A
-    /// submodule that was never checked out has nothing else to show, and that is a
-    /// normal state of a repository rather than a broken one (doc/12-risks.md, R-139).
     /// A folder on disk Git tracks nothing in: one untracked entry, or a repository cloned
     /// inside this one without being its submodule. A normal state, not a missing path.
     Folder {
         repository: bool,
     },
+    /// A gitlink: what changed is which commit the parent records, not any file. A
+    /// submodule that was never checked out has nothing else to show, and that is a
+    /// normal state of a repository rather than a broken one (doc/12-risks.md, R-139).
     Submodule {
-        /// The commit the parent records now, and the one it recorded before.
-        recorded: String,
+        /// The commit the parent records now, `None` where it removed the submodule, and
+        /// the one it recorded before.
+        recorded: Option<String>,
         previous: Option<String>,
         /// False when the submodule's own repository is not on disk.
         checked_out: bool,
+        /// Whether the index has the gitlink: without it there is nothing to initialise.
+        in_index: bool,
     },
 }

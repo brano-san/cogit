@@ -1,4 +1,4 @@
-import type { DiffRow, Hunk } from "$lib/ipc";
+import type { DiffRow } from "$lib/ipc";
 
 export type SideKind = "context" | "delete" | "insert";
 
@@ -121,23 +121,23 @@ export type SearchRow = readonly [string | null, string | null];
 /**
  * Case-insensitive plain-text search over the rows as rendered.
  *
- * Plain text, not a regular expression: a stray `(` in a search box should find a
- * bracket, not throw. Matches do not overlap — `aa` in `aaaa` is two hits, not three.
+ * Plain text: the query is escaped, so a stray `(` in a search box finds a bracket
+ * rather than throwing. Matches do not overlap — `aa` in `aaaa` is two hits, not three.
+ * Matched in the line as written: lowering it first can change its length ("İ" becomes
+ * two code units), and the offsets would mark the wrong characters.
  */
 export function searchRows(rows: readonly SearchRow[], query: string): SearchHit[] {
-  const needle = query.trim().toLowerCase();
+  const needle = query.trim();
   if (needle.length === 0) return [];
+  const pattern = new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "giu");
 
   const hits: SearchHit[] = [];
   rows.forEach((row, index) => {
     (["left", "right"] as const).forEach((side, column) => {
       const text = row[column];
       if (text === null || text === undefined) return;
-      const haystack = text.toLowerCase();
-      let at = haystack.indexOf(needle);
-      while (at !== -1) {
-        hits.push({ index, side, from: at, to: at + needle.length });
-        at = haystack.indexOf(needle, at + needle.length);
+      for (const match of text.matchAll(pattern)) {
+        hits.push({ index, side, from: match.index, to: match.index + match[0].length });
       }
     });
   });
@@ -218,19 +218,6 @@ export function connectors(rows: readonly ConnectorRow[]): Connector[] {
   }
 
   return out.sort((a, b) => a.fromTop - b.fromTop);
-}
-
-/**
- * Whether a patch built from these hunks must carry `\ No newline at end of file`.
- *
- * `git apply` silently adds the newline back when the marker is missing, which rewrites
- * a line the user did not touch.
- */
-export function lacksFinalNewline(hunks: readonly Hunk[]): boolean {
-  const hunk = hunks[hunks.length - 1];
-  const row = hunk?.rows[hunk.rows.length - 1];
-  if (row?.kind !== "delete" && row?.kind !== "insert") return false;
-  return row.noNewline ?? false;
 }
 
 const EXPAND_BY = 20;

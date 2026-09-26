@@ -80,6 +80,17 @@ function inside(line: number, ranges: readonly LineRange[]): boolean {
   return ranges.some((range) => line >= range.from && line <= range.to);
 }
 
+/** The first line past a hunk on one side. A side with no lines starts at the line it
+    follows, as git writes it (`-5,0`), so the next one is the line after that. */
+function after(start: number, lines: number): number {
+  return lines === 0 ? start + 1 : start + lines;
+}
+
+/** The last line before a hunk on its old side. */
+function before(hunk: Hunk): number {
+  return hunk.oldLines === 0 ? hunk.oldStart : hunk.oldStart - 1;
+}
+
 export function foldDiff(input: FoldInput): FoldEntry[] {
   const { hunks, oldTotal, newTotal, context, revealed } = input;
   const out: FoldEntry[] = [];
@@ -95,11 +106,10 @@ export function foldDiff(input: FoldInput): FoldEntry[] {
 
   hunks.forEach((hunk, index) => {
     const previous = hunks[index - 1];
-    const from = previous ? previous.oldStart + previous.oldLines : 1;
     gap({
-      oldFrom: from,
-      oldTo: hunk.oldStart - 1,
-      newFrom: previous ? previous.newStart + previous.newLines : 1,
+      oldFrom: previous ? after(previous.oldStart, previous.oldLines) : 1,
+      oldTo: before(hunk),
+      newFrom: previous ? after(previous.newStart, previous.newLines) : 1,
       loaded: false,
       up: true,
       down: previous !== undefined,
@@ -167,9 +177,9 @@ export function foldDiff(input: FoldInput): FoldEntry[] {
   const last = hunks[hunks.length - 1];
   if (last) {
     gap({
-      oldFrom: last.oldStart + last.oldLines,
+      oldFrom: after(last.oldStart, last.oldLines),
       oldTo: oldTotal,
-      newFrom: last.newStart + last.newLines,
+      newFrom: after(last.newStart, last.newLines),
       loaded: false,
       up: false,
       down: true,
@@ -188,6 +198,28 @@ export function revealRange(gap: Gap, how: "up" | "down" | "all"): LineRange {
   if (how === "up") return { from: Math.max(gap.oldFrom, gap.oldTo - STEP + 1), to: gap.oldTo };
   if (how === "down") return { from: gap.oldFrom, to: Math.min(gap.oldTo, gap.oldFrom + STEP - 1) };
   return { from: gap.oldFrom, to: gap.oldTo };
+}
+
+/**
+ * The rows to highlight. All the loaded ones while each side fits under `max`, parsed as
+ * one text so a comment opened above a fold still colours the lines under it. Past that —
+ * the whole file, once a fold asked for it — only the rows on show: the parser gives up on
+ * a side over `max`, and the whole diff went grey the moment a band was opened. `shown`
+ * is asked only then, so opening a band in a small file does not parse it again.
+ */
+export function highlightedRows(
+  hunks: readonly Hunk[],
+  shown: () => readonly FoldEntry[],
+  max: number,
+): DiffRow[] {
+  let old = 0;
+  let next = 0;
+  for (const hunk of hunks) {
+    old += hunk.oldLines;
+    next += hunk.newLines;
+  }
+  if (old <= max && next <= max) return hunks.flatMap((hunk) => hunk.rows);
+  return shown().flatMap((entry) => (entry.kind === "row" ? [entry.row] : []));
 }
 
 /** Side by side pairs each block on its own; a gap spans both halves. */

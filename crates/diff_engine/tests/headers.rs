@@ -169,3 +169,23 @@ fn a_change_inside_a_cpp_class_method_names_the_class() {
     let header = headers(&old, &new).remove(0);
     assert!(header.ends_with("@@ class Widget {"), "{header:?}");
 }
+
+/// With no context an insertion's old side is empty and starts at the line it follows:
+/// that line is above the change too, and may be the declaration itself.
+#[test]
+fn an_insertion_without_context_finds_the_declaration_just_above_it() {
+    let body = "    one();\n    two();\n    three();\n}\n";
+    let old = format!("fn first() {{\n}}\n\nfn second() {{\n{body}");
+    let new = format!("fn first() {{\n}}\n\nfn second() {{\n    added();\n{body}");
+    let options = DiffOptions {
+        context_lines: 0,
+        ..DiffOptions::default()
+    };
+    let mut diff = diff_text(&old, &new, &options);
+    with_hunk_context(&mut diff, &old);
+
+    let FileDiff::Text { hunks, .. } = diff else {
+        panic!("expected a text diff");
+    };
+    assert_eq!(hunks[0].header, "@@ -4,0 +5,1 @@ fn second() {");
+}

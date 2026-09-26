@@ -723,23 +723,38 @@ export type FileDiff = { kind: "text"; hunks: Hunk[]; eol: EolInfo; lossyEncodin
 language: string | null; 
 /**  Lines on each side, so the view can say how many follow the last hunk. */
 oldTotal: number; newTotal: number } | { kind: "eolOnly"; from: LineEnding; to: LineEnding } | { kind: "binary"; oldSize: number; newSize: number } | { kind: "image"; oldSize: number; newSize: number; mime: string } | { kind: "tooLarge"; size: number } | { kind: "unchanged" } | 
+/**  The same content, and only the mode changed: `100644` to `100755`, as git prints it. */
+{ kind: "modeOnly"; oldMode: string; newMode: string } | 
+/**
+ *  A file with no content, added or deleted: both sides read as nothing, yet the file
+ *  is there on one of them only.
+ */
+{ kind: "emptyFile"; added: boolean } | 
 /**
  *  Nothing but whitespace changed, and the active option hides it. Told apart from
  *  `Unchanged` so the UI can say the diff is being filtered (T7.10).
  */
 { kind: "whitespaceOnly" } | 
 /**
- *  A gitlink: what changed is which commit the parent records, not any file. A
- *  submodule that was never checked out has nothing else to show, and that is a
- *  normal state of a repository rather than a broken one (doc/12-risks.md, R-139).
  *  A folder on disk Git tracks nothing in: one untracked entry, or a repository cloned
  *  inside this one without being its submodule. A normal state, not a missing path.
  */
-{ kind: "folder"; repository: boolean } | { kind: "submodule"; 
-/**  The commit the parent records now, and the one it recorded before. */
-recorded: string; previous: string | null; 
+{ kind: "folder"; repository: boolean } | 
+/**
+ *  A gitlink: what changed is which commit the parent records, not any file. A
+ *  submodule that was never checked out has nothing else to show, and that is a
+ *  normal state of a repository rather than a broken one (doc/12-risks.md, R-139).
+ */
+{ kind: "submodule"; 
+/**
+ *  The commit the parent records now, `None` where it removed the submodule, and
+ *  the one it recorded before.
+ */
+recorded: string | null; previous: string | null; 
 /**  False when the submodule's own repository is not on disk. */
-checkedOut: boolean };
+checkedOut: boolean; 
+/**  Whether the index has the gitlink: without it there is nothing to initialise. */
+inIndex: boolean };
 
 /**
  *  Named rather than a tuple: a positional pair crossing IPC reads as `[string, FileDiff]`
@@ -1553,7 +1568,9 @@ export type SubmoduleState = "notInitialised" | "inSync" |
 /**  The recorded commit is not in the submodule, so where it stands cannot be told. */
 "unknown" | 
 /**  Checked out, and not looked into: the outline of a repository not on screen (R-352). */
-"unread";
+"unread" | 
+/**  Listed in `.gitmodules`, with no gitlink in HEAD or the index to compare with. */
+"unrecorded";
 
 export type SubtreeOp = { kind: "add"; prefix: string; repository: string; reference: string; squash: boolean } | 
 /**  `git subtree pull` from `repository`, or `git subtree merge` of a local commit. */
