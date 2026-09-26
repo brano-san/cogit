@@ -3,6 +3,8 @@ export interface PushSource {
   kind: "branch" | "tag";
   name: string;
   upstream: string | null;
+  /** The remote Push To opens on: the one whose heading in Branches it was asked from. */
+  remote?: string;
 }
 
 export type PushTarget = { mode: "tracked" } | { mode: "custom"; ref: string };
@@ -24,6 +26,7 @@ export function initialRemote(
   remotes: readonly string[],
   primary: string | null,
 ): string | null {
+  if (source.remote !== undefined && remotes.includes(source.remote)) return source.remote;
   const tracked = source.upstream ? splitUpstream(source.upstream, remotes) : null;
   return tracked?.remote ?? primary ?? remotes[0] ?? null;
 }

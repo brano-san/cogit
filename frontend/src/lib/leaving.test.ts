@@ -8,6 +8,7 @@ const { stashDialog } = await import("$stores/stash-dialog.svelte");
 const { hooks } = await import("$stores/hooks.svelte");
 const { remoteOps } = await import("$stores/remote-ops.svelte");
 const { refDialogs } = await import("$stores/ref-dialogs.svelte");
+const { remoteDialogs } = await import("$stores/remote-dialogs.svelte");
 const { leaveRepositoryDialogs } = await import("./leaving");
 
 // Every one of these was asked about the repository on screen; once the panels show
@@ -57,5 +58,14 @@ describe("leaving a repository", () => {
     expect(refDialogs.message).toBeNull();
     expect(refDialogs.author).toBeNull();
     expect(remoteOps.dialog).toBeNull();
+  });
+
+  // Properties of B's origin saved A's URL into B.
+  it("closes the Properties of a remote", () => {
+    remoteDialogs.properties = { name: "origin", url: "x", pushUrl: null, backgroundFetch: true, shallow: false };
+
+    leaveRepositoryDialogs();
+
+    expect(remoteDialogs.properties).toBeNull();
   });
 });

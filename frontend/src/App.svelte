@@ -75,6 +75,7 @@
   import { measurer } from "$lib/timing";
   import { refMenu } from "$lib/context-menu";
   import RefActions from "$components/menus/RefActions.svelte";
+  import RefGroupActions from "$components/menus/RefGroupActions.svelte";
   import { compareView } from "$stores/compare-view.svelte";
   import { confirmation } from "$stores/confirm.svelte";
   import { ON_MAC, effective, withShortcuts } from "$lib/keymap";
@@ -2144,6 +2145,7 @@
       so the node it was opened on has to be remembered until then. */
   let refTarget = $state.raw<RefNode | null>(null);
   let refActions = $state<ReturnType<typeof RefActions>>();
+  let refGroupActions = $state<ReturnType<typeof RefGroupActions>>();
   let fileTarget = $state.raw<FileScope | null>(null);
   let fileSection = $state<"worktree" | "index" | "commit">("worktree");
   let aboutOpen = $state(false);
@@ -2421,6 +2423,10 @@
   async function refContext(node: RefNode, x: number, y: number) {
     if (refActions?.claims(node)) {
       await refActions.branchesContext(node, x, y);
+      return;
+    }
+    if (refGroupActions?.claims(node)) {
+      await refGroupActions.context(node, x, y);
       return;
     }
     const items = refMenu({ kind: node.kind });
@@ -3014,6 +3020,9 @@
       case "lost-copy-sha":
         if (node.oid) void copyText(node.oid);
         return true;
+      case "lost-toggle":
+        void refGroupActions?.toggle(node);
+        return true;
       default:
         return false;
     }
@@ -3359,6 +3368,7 @@
       if (!menuCommandRuns(id, modals)) return;
       if (id === "toolbar-preferences") return openSettings("toolbar");
       if (refActions?.run(id)) return;
+      if (refGroupActions?.run(id)) return;
       if (runGroupCommand(id)) return;
       if (runRepoCommand(id)) return;
       if (runWorktreeCommand(id)) return;
@@ -3893,6 +3903,15 @@
     {openSplit}
     {openRebase}
     rollbackTree={() => rollbackFiles([])}
+  />
+
+  <RefGroupActions
+    bind:this={refGroupActions}
+    input={refTreeInput}
+    {afterRefChange}
+    {afterFetch}
+    {reloadGraph}
+    addTag={() => void refActions?.addTag(null)}
   />
 
   {#if split}

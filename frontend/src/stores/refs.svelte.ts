@@ -34,6 +34,16 @@ function stored(): Record<string, Saved> {
   }
 }
 
+/** A row of remote `from` as it is called once the remote is `to`. */
+function renamed(id: string, from: string, to: string): string {
+  if (id === `remote-group:${from}`) return `remote-group:${to}`;
+  for (const kind of ["remote:", "folder:"]) {
+    const prefix = `${kind}${from}/`;
+    if (id.startsWith(prefix)) return `${kind}${to}/${id.slice(prefix.length)}`;
+  }
+  return id;
+}
+
 function strings(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((entry) => typeof entry === "string") : [];
 }
@@ -85,6 +95,14 @@ class RefsStore {
     if (!next.delete(id)) next.add(id);
     this.#expanded = next;
     if (this.#root !== null) remember("refs", this.#root, next);
+  }
+
+  /** Remote ▸ Rename: its rows keep their ticks and folds under the new name. */
+  renameRemote(from: string, to: string): void {
+    this.visible = new Set([...this.visible].map((id) => renamed(id, from, to)));
+    this.persist();
+    this.#expanded = new Set([...this.#expanded].map((id) => renamed(id, from, to)));
+    if (this.#root !== null) remember("refs", this.#root, this.#expanded);
   }
 
   private persist(): void {
