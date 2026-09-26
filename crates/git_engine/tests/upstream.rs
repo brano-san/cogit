@@ -66,6 +66,75 @@ fn remote_branches_never_claim_an_upstream_of_their_own() {
     assert!(remotes.iter().all(|b| b.upstream.is_none()));
 }
 
+/// `git rev-list --left-right --count local...upstream`.
+fn git_counts(f: &test_fixtures::Fixture, local: &str, upstream: &str) -> (u32, u32) {
+    let out = f
+        .git(&[
+            "rev-list",
+            "--left-right",
+            "--count",
+            &format!("{local}...{upstream}"),
+        ])
+        .unwrap();
+    let (ahead, behind) = out.trim().split_once('\t').unwrap();
+    (ahead.parse().unwrap(), behind.parse().unwrap())
+}
+
+// Counted from the merge base, a history rewritten on the server (filter-repo, an orphan
+// branch) had none and showed 0/0, "in step", where git says the two have diverged.
+#[test]
+fn an_upstream_that_shares_no_history_counts_every_commit_on_both_sides() {
+    let f = test_fixtures::with_remote().unwrap();
+    let tree = f.oid("HEAD^{tree}").unwrap();
+    let root = f
+        .git_at(40, &["commit-tree", &tree, "-m", "rewritten root"])
+        .unwrap();
+    let tip = f
+        .git_at(
+            41,
+            &["commit-tree", &tree, "-p", root.trim(), "-m", "rewritten"],
+        )
+        .unwrap();
+    f.git(&["update-ref", "refs/remotes/origin/main", tip.trim()])
+        .unwrap();
+
+    let branch = head_branch(&open(&f));
+
+    assert_eq!(
+        (branch.ahead, branch.behind),
+        git_counts(&f, "main", "origin/main")
+    );
+    assert_eq!(branch.behind, 2);
+}
+
+// A criss-cross merge has two merge bases; counting from the first one put the commits of
+// the second on both sides.
+#[test]
+fn a_criss_cross_history_counts_as_git_does() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&["branch", "other"]).unwrap();
+    let mine = f.commit_file(10, "mine.txt", "m\n").unwrap();
+    f.git(&["switch", "-q", "other"]).unwrap();
+    let theirs = f.commit_file(11, "theirs.txt", "t\n").unwrap();
+    f.merge(12, &[&mine], "theirs takes mine").unwrap();
+    f.git(&["switch", "-q", "main"]).unwrap();
+    f.merge(13, &[&theirs], "mine takes theirs").unwrap();
+    f.git(&["remote", "add", "origin", &f.path().to_string_lossy()])
+        .unwrap();
+    f.git(&["update-ref", "refs/remotes/origin/main", "other"])
+        .unwrap();
+    f.git(&["branch", "--set-upstream-to=origin/main", "main"])
+        .unwrap();
+
+    let branch = head_branch(&open(&f));
+
+    assert_eq!(
+        (branch.ahead, branch.behind),
+        git_counts(&f, "main", "origin/main")
+    );
+    assert_eq!((branch.ahead, branch.behind), (1, 1));
+}
+
 #[test]
 fn an_unborn_head_does_not_panic() {
     let f = test_fixtures::empty().unwrap();
