@@ -20,8 +20,8 @@
   import GraphField from "$components/layout/GraphField.svelte";
   import ToolbarEditor from "$components/layout/ToolbarEditor.svelte";
   import { DEFAULT_LAYOUT } from "$lib/toolbar";
-  import { sameLayout } from "$lib/toolbar-layout";
-  import { canUndo, emptyStack, record, undo, type UndoStack } from "$lib/undo-stack";
+  import { recordEdit } from "$lib/toolbar-layout";
+  import { canUndo, emptyStack, undo, type UndoStack } from "$lib/undo-stack";
   import { parseChoice, suppressedChoices } from "$lib/suppressions";
 
   interface Props {
@@ -145,8 +145,9 @@
   }
 
   function changeToolbar(next: readonly string[]) {
-    toolbarHistory = record(toolbarHistory, toolbarLayout, next, sameLayout);
-    ontoolbar([...next]);
+    const edit = recordEdit(toolbarHistory, toolbarLayout, next);
+    toolbarHistory = edit.history;
+    ontoolbar(edit.layout);
   }
 
   function undoToolbar() {

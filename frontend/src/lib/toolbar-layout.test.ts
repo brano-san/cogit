@@ -5,9 +5,30 @@ import {
   hiddenActions,
   moveEntry,
   normalizeLayout,
+  recordEdit,
   removeEntry,
   sameLayout,
 } from "./toolbar-layout";
+import { canUndo, emptyStack } from "./undo-stack";
+
+// Add → Separator at the end made an Undo step the toolbar never showed (R-371).
+describe("recordEdit", () => {
+  const layout = normalizeLayout(DEFAULT_LAYOUT);
+
+  it("is no step when the toolbar would drop the edit", () => {
+    const { history, layout: kept } = recordEdit(emptyStack(), layout, addEntry(layout, SEPARATOR, null));
+
+    expect(canUndo(history)).toBe(false);
+    expect(kept).toEqual(layout);
+  });
+
+  it("is a step for an edit the toolbar keeps", () => {
+    const { history, layout: kept } = recordEdit(emptyStack(), layout, removeEntry(layout, 0));
+
+    expect(canUndo(history)).toBe(true);
+    expect(kept).toEqual(layout.slice(1));
+  });
+});
 
 describe("normalizeLayout", () => {
   it("is the default when nothing was stored", () => {

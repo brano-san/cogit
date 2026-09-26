@@ -1,6 +1,13 @@
 <script lang="ts">
   import { SEPARATOR, actionOf } from "$lib/toolbar";
-  import { addEntry, hiddenActions, moveEntry, removeEntry, sameLayout } from "$lib/toolbar-layout";
+  import {
+    addEntry,
+    hiddenActions,
+    moveEntry,
+    normalizeLayout,
+    removeEntry,
+    sameLayout,
+  } from "$lib/toolbar-layout";
 
   /** Preferences ▸ Toolbar: the button toolbar, not the menu bar. Every edit is applied to
       the toolbar at once; Undo takes the edits of this window back one by one. */
@@ -28,8 +35,13 @@
     return entry === SEPARATOR ? "Separator" : (actionOf(entry)?.label ?? entry);
   }
 
+  /** A separator at the end or beside another is dropped by the toolbar: not offered. */
+  function adds(entry: string | null): entry is string {
+    return entry !== null && !sameLayout(normalizeLayout(addEntry(layout, entry, selected)), layout);
+  }
+
   function add(entry = pick) {
-    if (entry === null) return;
+    if (!adds(entry)) return;
     const next = addEntry(layout, entry, selected);
     shownAt = selected === null ? next.length - 1 : selected + 1;
     pick = null;
@@ -74,7 +86,7 @@
     </section>
 
     <div class="moves">
-      <button type="button" class="btn" disabled={pick === null} onclick={() => add()}
+      <button type="button" class="btn" disabled={!adds(pick)} onclick={() => add()}
         >Add →</button
       >
       <button type="button" class="btn" disabled={selected === null} onclick={() => remove()}
