@@ -51,12 +51,14 @@ pub fn detect_line_ending(text: &str) -> LineEnding {
     }
 }
 
+/// CRLF to LF. A lone CR stays inside its line: git ends lines at LF only, and the line
+/// numbers must be the ones blame and `log -L` use.
 #[must_use]
 pub fn normalize_line_endings(text: &str) -> std::borrow::Cow<'_, str> {
-    if !text.contains('\r') {
+    if !text.contains("\r\n") {
         return std::borrow::Cow::Borrowed(text);
     }
-    std::borrow::Cow::Owned(text.replace("\r\n", "\n").replace('\r', "\n"))
+    std::borrow::Cow::Owned(text.replace("\r\n", "\n"))
 }
 
 #[cfg(test)]
@@ -82,8 +84,8 @@ mod tests {
     }
 
     #[test]
-    fn normalization_converts_every_style_to_lf() {
-        assert_eq!(normalize_line_endings("a\r\nb\rc\nd"), "a\nb\nc\nd");
+    fn normalization_turns_crlf_into_lf_and_keeps_a_lone_cr() {
+        assert_eq!(normalize_line_endings("a\r\nb\rc\nd"), "a\nb\rc\nd");
     }
 
     #[test]

@@ -60,6 +60,32 @@ fn line_endings_are_normalized_before_comparing() {
     assert!(!rendered.contains("-a"), "line a is unchanged: {rendered}");
 }
 
+/// Git ends a line at LF only: `x\ny\rz\nw\n` is three lines to it, and blame, Investigate
+/// and `log -L` number them so. A lone CR stays inside its line here too.
+#[test]
+fn a_lone_cr_does_not_end_a_line() {
+    let diff = diff_text("x\ny\rz\nw\n", "x\ny\rz\nW\n", &DiffOptions::default());
+
+    let FileDiff::Text {
+        hunks, old_total, ..
+    } = &diff
+    else {
+        panic!("expected a text diff, got {diff:?}");
+    };
+    assert_eq!(*old_total, 3);
+    let rows = &hunks[0].rows;
+    assert!(
+        rows.iter()
+            .any(|row| matches!(row, DiffRow::Context { old: 2, text, .. } if text == "y\rz")),
+        "{rows:?}"
+    );
+    assert!(
+        rows.iter()
+            .any(|row| matches!(row, DiffRow::Delete { old: 3, text, .. } if text == "w")),
+        "{rows:?}"
+    );
+}
+
 #[test]
 fn a_single_edit_becomes_one_hunk_with_context() {
     let old = numbered(20);
