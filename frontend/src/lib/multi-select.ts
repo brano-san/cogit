@@ -113,7 +113,17 @@ export function scopeBlocked<F>(
   files: ReadonlyMap<string, F>,
   blocked: (file: F) => string | null,
 ): string | null {
-  for (const path of actionScope(marked, { row })) {
+  return requestBlocked(marked, { row }, files, blocked);
+}
+
+/** The same for any button: a row's, or a heading's "all" over the rows it lists. */
+export function requestBlocked<F>(
+  marked: ReadonlySet<string>,
+  request: ActionRequest,
+  files: ReadonlyMap<string, F>,
+  blocked: (file: F) => string | null,
+): string | null {
+  for (const path of actionScope(marked, request)) {
     const file = files.get(path);
     const reason = file === undefined ? null : blocked(file);
     if (reason !== null) return reason;
