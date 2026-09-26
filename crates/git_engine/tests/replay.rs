@@ -220,8 +220,19 @@ fn an_empty_list_is_refused_before_git_is_started() {
 fn an_unknown_commit_reports_gits_words() {
     let f = test_fixtures::linear(2).unwrap();
     let repo = open(&f);
+    let before = f.oid("HEAD").unwrap();
+    let unknown = "0".repeat(40);
 
-    assert!(repo.cherry_pick(&["0".repeat(40)]).is_err());
+    match repo.cherry_pick(std::slice::from_ref(&unknown)) {
+        Err(git_engine::GitError::Command(details)) => assert!(
+            details.stderr.contains("bad object") && details.stderr.contains(&unknown),
+            "INV-05: {:?}",
+            details.stderr
+        ),
+        other => panic!("expected git's own words, got {other:?}"),
+    }
+    assert_eq!(f.oid("HEAD").unwrap(), before);
+    assert_eq!(repo.state().unwrap(), RepoState::Clean);
 }
 
 #[test]
