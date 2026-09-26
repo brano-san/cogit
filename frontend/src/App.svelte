@@ -96,6 +96,7 @@
   import { dropActions, type DropAction, type DragPayload } from "$lib/drop-target";
   import { moveEntry, planPublished } from "$lib/rebase-plan";
   import { splitRequest } from "$lib/split-off";
+  import { readsAgain } from "$lib/file-view";
   import { bannerQuestion, stateBanner, type BannerAction } from "$lib/repo-state";
   import { blockedByLocalChanges } from "$lib/checkout-refusal";
   import { switchWithAutostash } from "$lib/autostash";
@@ -3641,8 +3642,9 @@
               activePanel={focused === "files"}
               {onWorkingTree}
               onviewchange={(next) => {
+                const again = readsAgain(filesView.current, next);
                 filesView.set(next);
-                if (repo) void worktree.load(repo.repo);
+                if (repo && again) void worktree.load(repo.repo);
               }}
               onopenworktree={openWorktreeDiff}
               onopenstaged={openStagedDiff}
