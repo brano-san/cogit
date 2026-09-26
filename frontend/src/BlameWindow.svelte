@@ -17,12 +17,15 @@
   import { shortOid } from "$lib/format";
   import { revealCommit, type CommitRow, type LineVersion } from "$lib/ipc";
   import { blameWindow as blame } from "$stores/blame-window.svelte";
+  import { followSettings } from "$lib/settings-sync";
   import { settings } from "$stores/settings.svelte";
 
   const request = parseBlame(window.location.search);
 
   // No browser menu (R-127), Esc / Ctrl+W close, and the window's own menu bar reaches here.
   $effect(() => installChildWindow(window));
+  // What Preferences changes in the main window reaches this one too (F-335).
+  $effect(() => followSettings(() => void settings.reload()));
   $effect(() =>
     onMenuAction(window, (action) => {
       if (action === "refresh") void blame.refresh();

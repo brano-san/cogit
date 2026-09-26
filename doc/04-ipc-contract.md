@@ -742,6 +742,7 @@ expanded }` — какие из
 | `menu-command` | `String` (id команды палитры) | Выбран пункт нативного меню |
 | `operation-changed` | `{ id, repo, kind, label, phase, success }` | Операция встала в очередь, началась или закончилась |
 | `session-ending` | `{ reason: String }` | Windows хочет завершить сеанс, а в очереди есть операции; сеанс удержан (R-168) |
+| `cogit://settings-changed` | `String` — метка окна-автора | Окно записало настройки (`settings.set`, `apply`, `setKeymap`): дочерние окна перечитывают файл (`followSettings`), тема и формат даты меняются без переоткрытия. Шлёт и слушает сама страница (`lib/settings-sync.ts`); в Rust не объявлено ([R-518](12-risks.md)) |
 
 ### Очередь операций
 

@@ -8,12 +8,15 @@
   import { closeThisWindow, mergePreview, mergeResolved, resolveConflictText, type Region } from "$lib/ipc";
   import { closeGuard, installChildWindow } from "$lib/child-window";
   import { confirmation } from "$stores/confirm.svelte";
+  import { followSettings } from "$lib/settings-sync";
   import { settings } from "$stores/settings.svelte";
 
   const request = parseMerge(window.location.search);
 
   // No browser menu (R-127), and Esc / Ctrl+W close the window.
   $effect(() => installChildWindow(window));
+  // What Preferences changes in the main window reaches this one too (F-335).
+  $effect(() => followSettings(() => void settings.reload()));
 
   let view = $state<ReturnType<typeof MergeView>>();
   /** Written to the index: the window closes behind its own Save without asking. */

@@ -19,6 +19,11 @@ async function load(): Promise<Document> {
   return document;
 }
 
+/** Another window wrote the file: the next read goes to disk. */
+export function forgetSettings(): void {
+  document = null;
+}
+
 export async function readKey<T>(key: string): Promise<T | undefined> {
   return (await load())[key] as T | undefined;
 }
