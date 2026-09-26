@@ -1191,3 +1191,17 @@ fn undoing_a_rollback_adds_nothing_to_the_stash_list() {
     assert_eq!(text(&f, "a.txt"), "work in progress\n");
     assert!(state.stashes(repo).unwrap().is_empty());
 }
+
+#[test]
+fn a_copy_kept_for_undo_writes_no_reflog_of_its_own() {
+    let f = test_fixtures::linear(1).unwrap();
+    let (state, repo) = open(&f);
+    std::fs::write(f.path().join("file0.txt"), "work in progress\n").unwrap();
+
+    state
+        .discard_paths(repo, &["file0.txt".to_owned()])
+        .unwrap();
+
+    assert_eq!(backups(&f).len(), 1);
+    assert!(!f.git_dir().join("logs/refs/cogit").exists());
+}
