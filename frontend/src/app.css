@@ -64,6 +64,9 @@
   --state-selected: var(--c-bg-active);
   --row-stripe: var(--c-row-stripe);
   --state-focus-ring: var(--c-branch);
+  /* A switch that is on (`aria-pressed`): the one look every switch has, hovered or not. */
+  --state-pressed: var(--c-bg-active);
+  --state-pressed-text: var(--c-branch);
 
   --divider: var(--c-border);
   /* The rail between two panels. Darker than either in both themes, so the blocks
@@ -363,6 +366,14 @@ body {
 .key-list .selected:focus-visible,
 .key-list [aria-selected="true"]:focus-visible {
   outline: none;
+}
+
+/* Pressed is a state, not a hover (#31): a switch that is on looks on under the pointer too.
+   Important because every component's own hover rule outranks any one global selector; a
+   switch that does not apply is never pressed (`aria-pressed` false), so it never lights. */
+[aria-pressed="true"]:not(:disabled) {
+  background: var(--state-pressed) !important;
+  color: var(--state-pressed-text) !important;
 }
 
 a {

@@ -100,6 +100,8 @@
 --state-hover         → --c-bg-hover
 --state-selected      → --c-bg-active
 --state-focus-ring    → --c-branch
+--state-pressed       → --c-bg-active    включённый переключатель (`aria-pressed`)
+--state-pressed-text  → --c-branch
 
 --divider             → --c-border
 --field-border        → --c-border-strong
@@ -240,6 +242,15 @@ focus-visible   outline: 1px solid --state-focus-ring; outline-offset: -1px — 
 Высота 28 px, padding `0 --sp-5`, радиус `--r-md`, прозрачный фон, иконка 14 px + текст.
 Hover — `--state-hover`; active — `--state-selected`; disabled — `opacity: 0.4`, курсор по умолчанию.
 Кнопка с меню получает `▾` 8 px справа.
+
+### Переключатель
+
+Кнопка с состоянием вкл/выкл — `aria-pressed`, другого признака нет. Включённая — фон
+`--state-pressed`, иконка и текст `--state-pressed-text`, при наведении тоже: одно правило
+`[aria-pressed="true"]` в `app.css` с `!important`, потому что hover-правило любого компонента
+специфичнее глобального селектора, и наведение прятало нажатое состояние (R-592). Неприменимый
+переключатель (`aria-disabled`, `.dead`) не бывает нажатым. Фон и цвет нажатого — только из этого
+правила; своё у компонента — разве что рамка (Investigate, окно слияния).
 
 ### Поле ввода / фильтр
 

@@ -151,7 +151,6 @@
     <button
       type="button"
       class="chip"
-      class:on={view.regex}
       aria-pressed={view.regex}
       title="Use Regular Expressions"
       {disabled}
@@ -160,7 +159,6 @@
     <button
       type="button"
       class="chip"
-      class:on={view.contents && contentsReason === null}
       class:dead={contentsReason !== null}
       aria-pressed={view.contents && contentsReason === null}
       aria-disabled={contentsReason !== null}
@@ -175,7 +173,6 @@
   <button
     type="button"
     class="tool"
-    class:on={view.separateIndex && splitReason === null}
     class:dead={splitReason !== null}
     aria-pressed={view.separateIndex && splitReason === null}
     aria-disabled={splitReason !== null}
@@ -191,7 +188,6 @@
   <button
     type="button"
     class="tool"
-    class:on={view.directories}
     aria-pressed={view.directories}
     title="Show Directories"
     {disabled}
@@ -202,7 +198,6 @@
   <button
     type="button"
     class="tool"
-    class:on={!view.directories}
     aria-pressed={!view.directories}
     title="Show Flat List"
     {disabled}
@@ -217,7 +212,6 @@
     <button
       type="button"
       class="tool"
-      class:on={item.reason === null && view[item.key]}
       class:dead={item.reason !== null}
       aria-pressed={item.reason === null && view[item.key]}
       aria-disabled={item.reason !== null}
@@ -376,11 +370,6 @@
     cursor: default;
   }
 
-  .chip.on {
-    background: var(--state-selected);
-    color: var(--status-ref);
-  }
-
   .chip:disabled,
   .chip.dead {
     opacity: 0.4;
@@ -422,12 +411,7 @@
     color: var(--text-primary);
   }
 
-  /* Pressed is a state, not a hover: it has to read without the pointer on it. */
-  .tool.on {
-    background: var(--state-selected);
-    color: var(--status-ref);
-  }
-
+  /* A switch that is on keeps that look under the pointer: `[aria-pressed]` in app.css. */
   .tool:disabled,
   .tool.dead {
     opacity: 0.4;
