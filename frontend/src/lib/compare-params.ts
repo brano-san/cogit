@@ -1,9 +1,26 @@
+import { shortOid } from "./format";
 import type { DiffSpec, RepoId } from "./ipc";
 
 export interface CompareRequest {
   repo: RepoId;
   path: string;
   spec: DiffSpec;
+}
+
+/** The two sides in the title and the header of the compare window. */
+export function compareLabel(spec: DiffSpec): string {
+  switch (spec.kind) {
+    case "workTreeVsIndex":
+      return "Working tree ↔ index";
+    case "indexVsHead":
+      return "Staged ↔ HEAD";
+    case "commitVsParent":
+      return `${shortOid(spec.oid)} ↔ parent`;
+    case "commitVsWorkTree":
+      return `${shortOid(spec.oid)} ↔ working tree`;
+    case "commitVsCommit":
+      return `${shortOid(spec.a)} ↔ ${shortOid(spec.b)}`;
+  }
 }
 
 /** In the URL, not in shared state: the window has to survive a webview reload (T2.5). */
