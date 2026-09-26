@@ -36,8 +36,8 @@ class StashStore {
     });
   }
 
-  async apply(repo: RepoId, index: number, pop: boolean): Promise<void> {
-    await this.#then(repo, () => stashApply(repo, index, pop));
+  async apply(repo: RepoId, index: number, pop: boolean, restoreIndex = false): Promise<void> {
+    await this.#then(repo, () => stashApply(repo, index, pop, restoreIndex));
   }
 
   async drop(repo: RepoId, index: number): Promise<void> {

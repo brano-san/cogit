@@ -348,10 +348,17 @@ impl RepoHandle {
         Ok(if after == before { None } else { after })
     }
 
-    pub fn stash_apply_index(&self, index: u32, pop: bool) -> Result<()> {
+    /// `pop` drops the entry only after it applied cleanly: git keeps it on a conflict.
+    /// `restore_index` puts the staged side back staged, where git can (`--index`).
+    pub fn stash_apply_index(&self, index: u32, pop: bool, restore_index: bool) -> Result<()> {
         let reference = self.stash_ref(index)?;
         let verb = if pop { "pop" } else { "apply" };
-        self.run_git(&["stash", verb, &reference]).map(drop)
+        let mut args = vec!["stash", verb];
+        if restore_index {
+            args.push("--index");
+        }
+        args.push(&reference);
+        self.run_git(&args).map(drop)
     }
 
     /// `stash pop` of the entry that is `oid`, looked up as it runs: a stash made or dropped

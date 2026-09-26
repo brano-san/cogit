@@ -73,6 +73,7 @@ pub async fn stash_apply(
     repo: RepoId,
     index: u32,
     pop: bool,
+    restore_index: bool,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
     mutating(
@@ -80,7 +81,7 @@ pub async fn stash_apply(
         repo,
         OperationKind::Stash,
         "stash_apply",
-        move || app_state.stash_apply(repo, index, pop),
+        move || app_state.stash_apply(repo, index, pop, restore_index),
     )
     .await
 }

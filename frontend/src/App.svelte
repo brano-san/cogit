@@ -1344,7 +1344,7 @@
   function activateRef(node: RefNode) {
     const action = refActivation(node);
     if (action === "checkout") refActions?.checkOutNode(node);
-    else if (action === "apply-stash") void applyStash(Number(node.id.slice("stash:".length)), false);
+    else if (action === "apply-stash") refActions?.applyStashNode(node);
     else if (action === "recover") {
       const found = recovery.lost.find((row) => row.oid === node.oid);
       if (found) void recoverCommit(found);
@@ -1747,18 +1747,6 @@
 
   function stashSelected(confirm = true) {
     return stashPaths(targetsOf("stash-selection", toolbarFacts), confirm);
-  }
-
-  async function applyStash(index: number, pop: boolean) {
-    const id = repository.current?.repo;
-    if (!id) return;
-    try {
-      await stashes.apply(id, index, pop);
-    } catch (err) {
-      errors.report(err, "Could not apply the stash");
-      return;
-    }
-    await afterRefChange(id);
   }
 
   /** Toolbar Apply Stash (#30). A conflicted apply still changed the working tree, so the

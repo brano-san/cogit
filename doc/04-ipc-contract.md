@@ -441,6 +441,7 @@ snake_case и читаются на фронтенде как `undefined`.
 | `set_upstream` | `repo, branch, upstream: Option<String>` (`origin/main`) | `()` — `git branch --set-upstream-to <upstream> <branch>`, `null` — `git branch --unset-upstream <branch>`; в очереди записей. Зовут `Set Upstream…` и `Stop Tracking` меню ветки (F-130, R-505) | M5 |
 | `merge` / `rebase` / `cherry_pick` / `revert` | `repo, ...` | `()` | M5 |
 | `stash_push` / `apply` / `pop` / `drop` | `repo, ...` | `()` | M5 |
+| `stash_apply` | `repo, index, pop, restore_index` | `()` — `git stash apply` или `pop` записи `stash@{index}`; `restore_index` — с `--index`. `pop` git удаляет запись только после чистого применения (F-556, R-562) | M5 |
 | `stash_keeping_worktree` | `repo, message` | `()` — `git stash create` + `git stash store --message`: stash без очистки рабочей копии; untracked-файлы в него не входят; чистое дерево — `InvalidState` (R-212) | M5 |
 | `stash_selection` | `repo, paths, message` | `()` — пустое `message` не передаётся в Git: stash получает его собственное `WIP on …` | M5 |
 | `fetch` / `pull` / `push` | `repo, remote, refspec, channel: Channel<Progress>` | `()` | M1 |
