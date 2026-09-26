@@ -26,7 +26,7 @@
 | `--c-bg-hover` | `#1e222b` | Наведение на строку |
 | `--c-bg-active` | `#242b38` | Выбранная строка |
 | `--c-bg-inset` | `#0c0e12` | Поля ввода, блоки терминального вывода |
-| `--c-row-stripe` | `rgba(255, 255, 255, 0.03)` (светлая тема `0.6`) | Каждая вторая строка графа поверх фона панели, роль `--row-stripe` |
+| `--c-row-stripe` | `rgba(255, 255, 255, 0.03)` (светлая тема `0.6`) | Каждая вторая строка графа, Files, Repositories, Branches и Worktrees поверх фона панели, роль `--row-stripe` |
 
 ### Границы
 
@@ -86,7 +86,7 @@
 темнит поверхности и границы (`--c-bg-panel` `#e6e8ec`), а акценты делает на шаг темнее,
 чтобы на сером фоне контраст оставался выше 4.5:1. Тёмно-серая берёт тёмную и светлит
 поверхности (`--c-bg-panel` `#2d3036`), красный и фиолетовый — на шаг светлее по той же
-причине. Полоса строк графа `--c-row-stripe` задана в каждой теме.
+причине. Полоса строк графа и списков `--c-row-stripe` задана в каждой теме.
 
 ## 3. Семантический слой
 
@@ -201,7 +201,10 @@
 высота          --h-row
 padding         0 --sp-5
 hover           background: --state-hover
-stripe          каждая вторая строка графа — --row-stripe; hover и selected перекрывают
+stripe          каждая вторая строка графа, Files, Repositories, Branches, Worktrees —
+                --row-stripe, класс .striped по striped(место строки в списке как нарисован,
+                не в DOM), до правил hover, selected и menu, которые его перекрывают;
+                отметки — box-shadow, видны поверх (F-580)
 selected        background: --state-selected
                 + ::before — полоса 2px слева цветом --status-ref
 focus-visible   outline: 1px solid --state-focus-ring; outline-offset: -1px — только у строки,

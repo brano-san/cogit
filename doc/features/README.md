@@ -355,3 +355,4 @@
 | F-573 | Каталоги или плоский список — одна кнопка | [F-573-files-layout-toggle.md](F-573-files-layout-toggle.md) |
 | F-574 | Кнопки Files — в заголовках, видны всегда | [F-574-files-heading-buttons.md](F-574-files-heading-buttons.md) |
 | F-575 | Clone: мастер из трёх страниц | [F-575-clone.md](F-575-clone.md) |
+| F-580 | Чередование строк в Files, Repositories, Branches и Worktrees | [F-580-list-row-stripes.md](F-580-list-row-stripes.md) |
