@@ -107,6 +107,8 @@
   import { graphPanelMinWidth } from "$lib/graph-panel";
   import { closeStep, holdsPanels, reopenClick, repoClick } from "$lib/repo-click";
   import { ModuleInitialiser, moduleClick } from "$lib/module-init";
+  import { updateModule } from "$lib/module-tree";
+  import { moduleForest } from "$stores/module-forest.svelte";
   import { parseWorktreeCommand, worktreeMenu } from "$lib/worktree-menu";
   import { answerMergeResolved } from "$lib/merge-save";
   import { browserSources, start as startMemoryProbe } from "$lib/mem-probe";
@@ -143,6 +145,7 @@
     terminalChoices,
     openRepository,
     openSubmodule,
+    updateSubmodule,
     openWorktree,
     listOperations,
     readGitConfig,
@@ -1506,6 +1509,22 @@
     if (reopenClick(root, phase.kind === "opening" ? phase.root : null) === "open") void activate(root);
   }
 
+  /** Update of a submodule in the light tree of a repository the panels do not own: its
+      repository opens into the list, the panels and the tree they own stay as they are. */
+  async function updateForeignModule(top: string, row: import("$lib/module-tree").ModuleRow, init: boolean) {
+    try {
+      const owner = await openRepository(top);
+      repoList.opened(owner.root);
+      // A nested module is updated by the submodule above it.
+      const parent = row.parent === "" ? owner.repo : (await openSubmodule(owner.repo, row.parent)).repo;
+      await updateSubmodule(parent, row.path, init);
+    } catch (err) {
+      errors.report(err, "Could not update the submodule");
+    }
+    moduleForest.forget(top);
+    void repository.refreshList();
+  }
+
   /** From the Diff panel, where a submodule that was never checked out says so. */
   async function initSubmoduleAt(path: string) {
     await mutate((id) => submodules.update(id, path, true));
@@ -2775,6 +2794,7 @@
         pinned: false,
         group: UNGROUPED,
         groups: [],
+        module: row.module,
       },
       info,
     );
@@ -2836,6 +2856,15 @@
       case "repo-pull":
       case "repo-push":
         void syncListed(target, command.id === "repo-pull" ? "pull" : "push");
+        return true;
+      case "repo-update":
+        if (target.kind === "submodule") {
+          const { row, top } = target;
+          void updateModule(row.module, {
+            ask: (request) => confirmation.ask(request),
+            update: (init) => (top ? updateForeignModule(top, row, init) : refreshSubmodule(row)),
+          });
+        }
         return true;
       case "repo-pin":
         repoList.togglePin(root);
