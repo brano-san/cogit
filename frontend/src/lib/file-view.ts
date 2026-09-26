@@ -50,6 +50,13 @@ export function backendView(view: FileView): BackendView {
   };
 }
 
+/** A switch that changes what the backend is asked for; the others need no new read (R-43). */
+export function readsAgain(before: FileView, after: FileView): boolean {
+  const was = backendView(before);
+  const now = backendView(after);
+  return (Object.keys(now) as (keyof BackendView)[]).some((key) => was[key] !== now[key]);
+}
+
 const GATED: Partial<Record<FileEntry["status"], keyof FileView>> = {
   untracked: "untracked",
   unchanged: "unchanged",

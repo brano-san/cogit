@@ -7,6 +7,7 @@ import {
   hidingSwitches,
   mergeView,
   paneLayout,
+  readsAgain,
   shownSections,
   visibleFiles,
   type FileView,
@@ -17,6 +18,20 @@ const file = (path: string, status: FileEntry["status"], oldPath: string | null 
   ({ path, status, oldPath, modeChange: null, similarity: null }) as FileEntry;
 
 const view = (over: Partial<FileView> = {}): FileView => ({ ...DEFAULT_VIEW, ...over });
+
+// Show Directories, Missing and the rest read the whole status again, though R-43 says only
+// the four backend switches go to the backend.
+describe("readsAgain", () => {
+  it("is false for a switch the list applies itself", () => {
+    expect(readsAgain(view(), view({ directories: true }))).toBe(false);
+    expect(readsAgain(view(), view({ renameSources: true, untracked: false }))).toBe(false);
+  });
+
+  it("is true for one of the four the backend reads", () => {
+    expect(readsAgain(view(), view({ unchanged: true }))).toBe(true);
+    expect(readsAgain(view(), view({ skipped: true }))).toBe(true);
+  });
+});
 
 describe("backendView", () => {
   it("asks for nothing extra by default", () => {
