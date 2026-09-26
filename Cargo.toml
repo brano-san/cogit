@@ -115,7 +115,7 @@ sysinfo = { version = "0.39", default-features = false, features = ["system"] }
 # WebView2 `ProcessFailed`, so the renderer dying never shows Edge's own error page.
 # Versions must match what tauri 2.11 already resolves, or the COM types are two
 # incompatible copies of themselves (R-88).
-webview2-com = "0.38"
+webview2-com = "0.39"
 windows-core = "0.61"
 # `GetKeyState`: the accelerator event says which key, never which modifiers. The rest
 # holds a shutdown while operations run: a window subclass and the block reason (R-168).
