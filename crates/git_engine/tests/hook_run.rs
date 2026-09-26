@@ -94,6 +94,20 @@ fn a_commit_msg_hook_is_given_a_draft_message_to_read() {
 }
 
 #[test]
+fn an_applypatch_msg_hook_is_given_a_message_and_reference_transaction_a_state() {
+    let f = test_fixtures::linear(1).unwrap();
+    let hooks = f.path().join(".git/hooks");
+    write_hook(&hooks, "applypatch-msg", "#!/bin/sh\ncat \"$1\"\n");
+    write_hook(&hooks, "reference-transaction", "#!/bin/sh\necho \"$1\"\n");
+
+    let message = open(&f).run_hook("applypatch-msg").unwrap();
+    let transaction = open(&f).run_hook("reference-transaction").unwrap();
+
+    assert!(!message.stdout.trim().is_empty(), "{message:?}");
+    assert_eq!(transaction.stdout.trim(), "prepared", "{transaction:?}");
+}
+
+#[test]
 fn the_run_is_timed_so_a_slow_hook_can_be_spotted() {
     let f = test_fixtures::linear(1).unwrap();
     write_hook(
@@ -219,6 +233,24 @@ fn a_dry_run_uses_the_bash_of_git_for_windows_whatever_bash_path_finds() {
 
     assert!(out.status.success(), "{out:?}");
     assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "from-git-bash");
+}
+
+// `bash <file>` reads the file as bash whatever its `#!` says: a Perl or Python hook that
+// git runs fine failed its dry run with bash's syntax errors.
+#[cfg(windows)]
+#[test]
+fn a_dry_run_honours_the_interpreter_the_hook_names() {
+    let f = test_fixtures::linear(1).unwrap();
+    write_hook(
+        &f.path().join(".git/hooks"),
+        "commit-msg",
+        "#!/usr/bin/env perl\nprint \"ok\\n\";\n",
+    );
+
+    let run = open(&f).run_hook("commit-msg").unwrap();
+
+    assert_eq!(run.exit_code, Some(0), "{run:?}");
+    assert_eq!(run.stdout.trim(), "ok", "{run:?}");
 }
 
 /// A file in the user's home folder, removed again when the test ends.

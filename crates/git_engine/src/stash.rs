@@ -143,10 +143,7 @@ impl RepoHandle {
 
     /// Read by `gix`, which costs no process: the common case has none.
     fn unmerged_paths(&self) -> Result<Vec<String>> {
-        let index = self
-            .repo
-            .index_or_empty()
-            .map_err(|err| GitError::Internal(format!("cannot read the index: {err}")))?;
+        let index = self.current_index()?;
         let mut paths: Vec<String> = index
             .entries()
             .iter()
@@ -227,9 +224,7 @@ impl RepoHandle {
     /// start two more processes of its own and record an empty third parent (R-315).
     fn has_untracked(&self) -> Result<bool> {
         let iter = self
-            .repo
-            .status(gix::progress::Discard)
-            .map_err(|err| GitError::Internal(format!("cannot start status: {err}")))?
+            .status_platform()?
             .untracked_files(gix::status::UntrackedFiles::Collapsed)
             .into_index_worktree_iter(Vec::<gix::bstr::BString>::new())
             .map_err(|err| GitError::Internal(format!("cannot read status: {err}")))?;

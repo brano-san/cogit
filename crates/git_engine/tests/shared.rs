@@ -59,6 +59,33 @@ fn a_repository_that_went_away_is_stale() {
     assert!(!shared.is_current());
 }
 
+// Every handle of one SharedRepo shares gix's index snapshot, reread only on a strictly
+// newer mtime. Two stages within one tick of a coarse clock (FAT32 keeps 2 s) left the
+// second file unstaged in every status read after them.
+#[test]
+fn an_index_rewritten_within_the_same_mtime_is_read_again() {
+    let f = test_fixtures::linear(1).unwrap();
+    let shared = SharedRepo::open(f.path()).unwrap();
+    f.write_file("a.txt", "a\n").unwrap();
+    f.write_file("b.txt", "b\n").unwrap();
+    f.git(&["add", "--", "a.txt"]).unwrap();
+    let index = f.git_dir().join("index");
+    let first = std::fs::metadata(&index).unwrap().modified().unwrap();
+    shared.handle().unwrap().worktree_files().unwrap();
+
+    f.git(&["add", "--", "b.txt"]).unwrap();
+    std::fs::File::options()
+        .write(true)
+        .open(&index)
+        .unwrap()
+        .set_modified(first)
+        .unwrap();
+
+    let files = shared.handle().unwrap().worktree_files().unwrap();
+    let staged: Vec<&str> = files.staged.iter().map(|file| file.path.as_str()).collect();
+    assert_eq!(staged, ["a.txt", "b.txt"]);
+}
+
 /// Big enough that gix would map `packed-refs` rather than read it (32 KiB).
 fn many_packed_branches(f: &test_fixtures::Fixture) {
     let head = f.oid("HEAD").unwrap();

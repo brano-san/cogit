@@ -56,15 +56,23 @@ export interface CommitBoxState {
   committing: boolean;
   /** Every staged file is hidden by the filter (T6.8). */
   scopeEmpty: boolean;
+  /** HEAD has no commit yet, so there is nothing to amend. */
+  unborn: boolean;
+}
+
+/** Amend as it will be sent: ticked, and with a commit there to amend. */
+export function amends(box: Pick<CommitBoxState, "amend" | "unborn">): boolean {
+  return box.amend && !box.unborn;
 }
 
 /** Whether the Commit button and Ctrl+Enter may start a commit. */
 export function canCommit(box: CommitBoxState): boolean {
+  const amend = amends(box);
   return (
     !box.committing &&
     hasOwnText(box.message, box.template) &&
-    (box.stagedCount > 0 || box.amend) &&
+    (box.stagedCount > 0 || amend) &&
     !box.busy &&
-    (box.amend || !box.scopeEmpty)
+    (amend || !box.scopeEmpty)
   );
 }

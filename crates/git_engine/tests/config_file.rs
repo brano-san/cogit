@@ -80,6 +80,75 @@ fn text_git_rejects_names_the_line_and_is_not_saved() {
     assert_eq!(leftovers.len(), 1, "the checked copy is removed");
 }
 
+// Git writes a config through `config.lock` and renames it over; a save that went past the
+// lock replaced the file under a `git config` in the middle of writing it, and one of the
+// two changes was lost.
+#[test]
+fn a_config_git_is_writing_is_left_to_git() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("config");
+    std::fs::write(&path, "[core]\n\tbare = false\n").unwrap();
+    let lock = dir.path().join("config.lock");
+    std::fs::write(&lock, "[core]\n\tbare = false\n[x]\n\ty = 1\n").unwrap();
+
+    let result = save_config(&path, "[core]\n\tbare = true\n", false);
+
+    assert!(result.is_err(), "{result:?}");
+    assert_eq!(
+        std::fs::read_to_string(&path).unwrap(),
+        "[core]\n\tbare = false\n"
+    );
+    assert!(
+        std::fs::read_to_string(&lock).unwrap().contains("[x]"),
+        "git's lock is git's to finish"
+    );
+}
+
+#[test]
+fn a_save_takes_the_lock_git_takes_and_lets_it_go() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("config");
+
+    save_config(&path, "[core]\n\tbare = true\n", false).unwrap();
+
+    let left: Vec<_> = std::fs::read_dir(dir.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect();
+    assert_eq!(left, ["config"]);
+}
+
+// A `git.exe` reading the config holds it without FILE_SHARE_DELETE, and Windows then
+// refuses to replace it: "Access is denied (os error 5)" for a moment's overlap.
+#[cfg(windows)]
+#[test]
+fn a_config_another_process_is_reading_is_saved_once_it_lets_go() {
+    use std::os::windows::fs::OpenOptionsExt as _;
+    const FILE_SHARE_READ: u32 = 1;
+    const FILE_SHARE_WRITE: u32 = 2;
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("config");
+    std::fs::write(&path, "[core]\n\tbare = false\n").unwrap();
+    let held = std::fs::OpenOptions::new()
+        .read(true)
+        .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
+        .open(&path)
+        .unwrap();
+    let reader = std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        drop(held);
+    });
+
+    let result = save_config(&path, "[core]\n\tbare = true\n", false);
+    reader.join().unwrap();
+
+    assert!(result.is_ok(), "{result:?}");
+    assert_eq!(
+        std::fs::read_to_string(&path).unwrap(),
+        "[core]\n\tbare = true\n"
+    );
+}
+
 #[test]
 fn a_missing_user_config_is_created_with_its_folder() {
     let dir = tempfile::tempdir().unwrap();

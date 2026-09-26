@@ -159,10 +159,7 @@ impl RepoHandle {
     /// What the index holds at exactly `path`, read through `gix`. Asked of `ls-files`,
     /// "not tracked" was a failed command in the journal, and a notification with it.
     pub(crate) fn index_blob(&self, path: &str) -> Result<IndexBlob> {
-        let index = self
-            .repo
-            .index_or_empty()
-            .map_err(|err| GitError::Internal(format!("cannot read the index: {err}")))?;
+        let index = self.current_index()?;
         let backing = index.path_backing();
         let wanted = gix::bstr::BStr::new(path.as_bytes());
         let mut conflicted = false;
@@ -184,10 +181,7 @@ impl RepoHandle {
 
     /// Whether the index has `path`, or anything under it when it is a folder.
     pub(crate) fn tracks(&self, path: &str) -> Result<bool> {
-        let index = self
-            .repo
-            .index_or_empty()
-            .map_err(|err| GitError::Internal(format!("cannot read the index: {err}")))?;
+        let index = self.current_index()?;
         let backing = index.path_backing();
         let folder = format!("{path}/");
         Ok(index.entries().iter().any(|entry| {

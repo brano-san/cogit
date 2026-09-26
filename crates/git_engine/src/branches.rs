@@ -1,5 +1,14 @@
 use crate::{GitError, RepoHandle, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+
+/// What deleting a branch on the server came to (R-480).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum RemoteDeletion {
+    Deleted,
+    /// The server no longer had it; only the stale remote-tracking ref went.
+    AlreadyGone,
+}
 
 #[derive(Debug, Clone, Deserialize, specta::Type)]
 #[serde(
@@ -85,13 +94,42 @@ impl RepoHandle {
     }
 
     /// `push --delete` rather than deleting the tracking ref: only the push reaches the
-    /// server's hooks and permissions, and a local ref deletion would quietly lie.
-    pub fn delete_remote_branch(&self, remote: &str, branch: &str) -> Result<()> {
+    /// server's hooks and permissions, and a local ref deletion would quietly lie. The
+    /// server is asked first: a branch already gone is done, not a failure (R-480).
+    pub fn delete_remote_branch(&self, remote: &str, branch: &str) -> Result<RemoteDeletion> {
         let remote = require_name(remote)?;
         let branch = require_name(branch)?;
-        // The panel shows `origin/topic`; the server wants `topic`.
+        // The panel shows `origin/topic`; the tracking ref under it is the one to map.
         let short = branch.strip_prefix(&format!("{remote}/")).unwrap_or(branch);
-        self.run_git(&["push", "--delete", remote, short]).map(drop)
+        let tracking = format!("refs/remotes/{remote}/{short}");
+        // In full: beside a tag of the same name, `topic` alone matches more than one.
+        let on_server = self
+            .tracked_name(remote, &tracking)
+            .unwrap_or_else(|| format!("refs/heads/{short}"));
+        let listed = self.read_git(&["ls-remote", remote, &on_server])?;
+        let there = listed.lines().any(|line| {
+            line.split_once('\t')
+                .is_some_and(|(_, name)| name == on_server)
+        });
+        if there {
+            self.run_git(&["push", "--delete", remote, &on_server])?;
+            return Ok(RemoteDeletion::Deleted);
+        }
+        if self.repo.find_reference(tracking.as_str()).is_ok() {
+            self.run_git(&["update-ref", "-d", &tracking])?;
+        }
+        Ok(RemoteDeletion::AlreadyGone)
+    }
+
+    /// The server's name for what `tracking` follows, by `remote`'s fetch refspecs.
+    fn tracked_name(&self, remote: &str, tracking: &str) -> Option<String> {
+        let name = gix::refs::FullName::try_from(tracking).ok()?;
+        let (upstream, found) = self
+            .repo
+            .upstream_branch_and_remote_for_tracking_branch(name.as_ref())
+            .ok()??;
+        let same = found.name().is_some_and(|name| name.as_bstr() == remote);
+        same.then(|| upstream.as_bstr().to_string())
     }
 }
 

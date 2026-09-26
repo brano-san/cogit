@@ -69,6 +69,7 @@
   import { errors } from "$stores/errors.svelte";
   import { graph } from "$stores/graph.svelte";
   import { network } from "$stores/network.svelte";
+  import { notices } from "$stores/notices.svelte";
   import { prompt } from "$stores/prompt.svelte";
   import { refDialogs } from "$stores/ref-dialogs.svelte";
   import { commitBox } from "$stores/commit-box.svelte";
@@ -664,7 +665,13 @@
         confirm: "Delete",
         warning: true,
       });
-      if (go) await attempt("Could not delete the remote branch", () => deleteRemoteBranch(id, remote, ref.name));
+      if (!go) return;
+      await attempt("Could not delete the remote branch", async () => {
+        // Someone else deleted it first: what was asked for is done (R-480).
+        if ((await deleteRemoteBranch(id, remote, ref.name)) === "alreadyGone") {
+          notices.inform("Branch already deleted", `${ref.name} was no longer on ${remote}.`);
+        }
+      });
       return;
     }
     const what = ref.kind === "tag" ? "tag" : "branch";

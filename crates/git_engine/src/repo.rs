@@ -240,8 +240,10 @@ impl RepoHandle {
         }
     }
 
-    /// Commits on each side of the merge base. Through `gix`: a `rev-list` per branch
-    /// would mean one process per row in a 500-branch repository.
+    /// Commits each side has that the other lacks, as `rev-list --left-right --count`: not
+    /// from one merge base, which unrelated histories lack and a criss-cross has two of.
+    /// Through `gix`: a `rev-list` per branch would mean one process per row in a
+    /// 500-branch repository.
     pub(crate) fn count_divergence(
         &self,
         local: gix::ObjectId,
@@ -250,21 +252,17 @@ impl RepoHandle {
         if local == upstream {
             return Some((0, 0));
         }
-        let base = self.repo.merge_base(local, upstream).ok()?.detach();
         Some((
-            self.count_between(local, base)?,
-            self.count_between(upstream, base)?,
+            self.count_only(local, upstream)?,
+            self.count_only(upstream, local)?,
         ))
     }
 
-    fn count_between(&self, tip: gix::ObjectId, base: gix::ObjectId) -> Option<u32> {
-        if tip == base {
-            return Some(0);
-        }
+    fn count_only(&self, tip: gix::ObjectId, hidden: gix::ObjectId) -> Option<u32> {
         let walk = self
             .repo
             .rev_walk(Some(tip))
-            .with_hidden(Some(base))
+            .with_hidden(Some(hidden))
             .all()
             .ok()?;
         u32::try_from(walk.filter_map(std::result::Result::ok).count()).ok()

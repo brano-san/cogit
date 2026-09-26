@@ -65,8 +65,7 @@ impl RepoHandle {
             Source::WorktreeThenIdMapping
         };
         let stack = self
-            .repo
-            .index_or_empty()
+            .current_index()
             .map_err(|err| err.to_string())
             .and_then(|index| {
                 self.repo
@@ -153,7 +152,7 @@ impl RepoHandle {
     }
 
     fn gitlink_in_index(&self, path: &str) -> Option<String> {
-        let index = self.repo.index_or_empty().ok()?;
+        let index = self.current_index().ok()?;
         let entry = index.entry_by_path(path.into())?;
         entry.mode.is_submodule().then(|| entry.id.to_string())
     }
@@ -295,10 +294,7 @@ impl RepoHandle {
         if !matches!(tree.lookup_entry_by_path(path), Ok(None)) {
             return Ok(None);
         }
-        let index = self
-            .repo
-            .index_or_empty()
-            .map_err(|err| GitError::Internal(format!("cannot read the index: {err}")))?;
+        let index = self.current_index()?;
         let mut source = None;
         self.repo
             .tree_index_status(
@@ -350,10 +346,7 @@ impl RepoHandle {
 
     fn index_stands_in(&self, path: &str) -> Result<bool> {
         use gix::index::entry::Flags;
-        let index = self
-            .repo
-            .index_or_empty()
-            .map_err(|err| GitError::Internal(format!("cannot read the index: {err}")))?;
+        let index = self.current_index()?;
         Ok(index.entry_by_path(path.into()).is_some_and(|entry| {
             entry
                 .flags
@@ -385,10 +378,7 @@ impl RepoHandle {
     }
 
     fn size_in_index(&self, path: &str) -> Result<Option<u64>> {
-        let index = self
-            .repo
-            .index_or_empty()
-            .map_err(|err| GitError::Internal(format!("cannot read the index: {err}")))?;
+        let index = self.current_index()?;
         match index.entry_by_path(path.into()) {
             Some(entry) if !entry.mode.is_submodule() => self.blob_size(entry.id, path).map(Some),
             _ => Ok(None),
@@ -455,10 +445,7 @@ impl RepoHandle {
     }
 
     pub(crate) fn blob_in_index(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        let index = self
-            .repo
-            .index_or_empty()
-            .map_err(|err| GitError::Internal(format!("cannot read the index: {err}")))?;
+        let index = self.current_index()?;
         let Some(entry) = index.entry_by_path(path.into()) else {
             return Ok(None);
         };

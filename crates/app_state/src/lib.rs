@@ -771,7 +771,7 @@ impl AppState {
         repo: RepoId,
         remote: &str,
         branch: &str,
-    ) -> Result<(), git_engine::GitError> {
+    ) -> Result<git_engine::RemoteDeletion, git_engine::GitError> {
         let _quiet = self.quiet(repo);
         self.handle(repo)?.delete_remote_branch(remote, branch)
     }

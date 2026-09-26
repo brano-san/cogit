@@ -120,10 +120,18 @@ fn redact_urls(line: &str) -> String {
     out
 }
 
-/// The byte range of the value after `Authorization:`, if the line carries one.
+/// What an echoed header follows: git's `remote:`, curl's `>`/`<`, a trace's `Send
+/// header:`, an `http.extraHeader` setting. After anything else it is a word in a sentence.
+const HEADER_LEADS: &[&str] = &["remote:", ">", "<", "header:", "extraheader="];
+
+/// The byte range of the value after an `Authorization:` or `Proxy-Authorization:` header.
 fn header_value_at(line: &str) -> Option<(usize, usize)> {
     let lower = line.to_ascii_lowercase();
-    let at = lower.find("authorization:")?;
+    let (at, _) = lower.match_indices("authorization:").find(|(at, _)| {
+        let name = lower[..*at].strip_suffix("proxy-").unwrap_or(&lower[..*at]);
+        let lead = name.trim_end();
+        lead.is_empty() || HEADER_LEADS.iter().any(|mark| lead.ends_with(mark))
+    })?;
     let value = at + "authorization:".len();
     let end = line.len() - line[value..].len() + line[value..].trim_end().len();
     Some((
@@ -134,16 +142,24 @@ fn header_value_at(line: &str) -> Option<(usize, usize)> {
 
 const SECRET_WORDS: &[&str] = &["token", "password", "passwd", "secret", "apikey", "api_key"];
 
-/// `NAME=value` where the name says the value is a secret.
+/// `NAME=value` in an environment or config dump, where the name says the value is a
+/// secret. A name with spaces or a `/` is a sentence or a URL, not a variable.
 fn redact_assignment(line: &str) -> String {
     let Some((name, _)) = line.split_once('=') else {
         return line.to_owned();
     };
-    let bare = name
-        .trim()
-        .trim_start_matches(|c: char| !c.is_alphanumeric() && c != '_');
+    let bare = name.trim_start();
+    let bare = bare.strip_prefix("remote:").unwrap_or(bare).trim_start();
+    let bare = ["export ", "declare -x "]
+        .iter()
+        .find_map(|prefix| bare.strip_prefix(prefix))
+        .unwrap_or(bare);
+    let is_variable = bare.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
+        && bare
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'));
     let lower = bare.to_ascii_lowercase();
-    if !SECRET_WORDS.iter().any(|word| lower.contains(word)) {
+    if !is_variable || !SECRET_WORDS.iter().any(|word| lower.contains(word)) {
         return line.to_owned();
     }
 

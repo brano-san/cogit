@@ -28,6 +28,74 @@ fn every_git_hook_is_listed_even_when_the_repository_has_none() {
     );
 }
 
+// githooks(5) of git 2.51. Fourteen of them were missing, pre-merge-commit among them,
+// which every Merge from Cogit runs: it could not be seen, opened, turned off or tried.
+#[test]
+fn the_list_is_the_one_githooks_documents() {
+    let f = test_fixtures::linear(1).unwrap();
+
+    let listed: Vec<String> = open(&f)
+        .hooks()
+        .unwrap()
+        .hooks
+        .into_iter()
+        .map(|hook| hook.name)
+        .collect();
+
+    assert_eq!(
+        listed,
+        [
+            "applypatch-msg",
+            "pre-applypatch",
+            "post-applypatch",
+            "pre-commit",
+            "pre-merge-commit",
+            "prepare-commit-msg",
+            "commit-msg",
+            "post-commit",
+            "pre-rebase",
+            "post-checkout",
+            "post-merge",
+            "pre-push",
+            "pre-receive",
+            "update",
+            "proc-receive",
+            "post-receive",
+            "post-update",
+            "reference-transaction",
+            "push-to-checkout",
+            "pre-auto-gc",
+            "post-rewrite",
+            "sendemail-validate",
+            "fsmonitor-watchman",
+            "p4-changelist",
+            "p4-prepare-changelist",
+            "p4-post-changelist",
+            "p4-pre-submit",
+            "post-index-change",
+        ]
+    );
+}
+
+#[test]
+fn a_pre_merge_commit_hook_can_be_opened_and_turned_off() {
+    let f = test_fixtures::linear(1).unwrap();
+    let repo = open(&f);
+    repo.write_hook("pre-merge-commit", "#!/bin/sh\nexit 1\n")
+        .unwrap();
+
+    assert_eq!(
+        repo.read_hook("pre-merge-commit").unwrap(),
+        "#!/bin/sh\nexit 1\n"
+    );
+    repo.set_hook_enabled("pre-merge-commit", false).unwrap();
+    assert!(
+        f.git_dir()
+            .join("hooks/pre-merge-commit.disabled")
+            .is_file()
+    );
+}
+
 #[test]
 fn every_hook_carries_a_description_of_when_it_runs() {
     let f = test_fixtures::linear(1).unwrap();
