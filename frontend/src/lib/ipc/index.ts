@@ -171,7 +171,7 @@ function describeError(error: GitError): string {
       return `Not a Git repository: ${error.data}`;
     // A refusal says what is wrong in its own words; most are not about the repository.
     case "invalidState":
-      return error.data.charAt(0).toUpperCase() + error.data.slice(1);
+      return error.data;
     case "io":
       return `I/O error: ${error.data}`;
     case "internal":

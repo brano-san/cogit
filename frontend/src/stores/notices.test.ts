@@ -107,7 +107,7 @@ describe("the notification window", () => {
 
     expect(notices.all.map((notice) => notice.body)).toEqual([
       "This repository has no remote.",
-      "Window blocked",
+      "window blocked",
       "Internal error: C:/x.log",
     ]);
   });
@@ -115,8 +115,10 @@ describe("the notification window", () => {
   // "Invalid repository state:" stood before every refusal, "Git Bash was not found" and a
   // keyring failure among them (BE-013).
   it("says a refusal in its own words, without calling it a repository state", () => {
-    errors.report(refusal("the commit is not on the checked-out branch"), "Could not edit the message");
-    expect(notices.current?.body).toBe("The commit is not on the checked-out branch");
+    errors.report(refusal("Git Bash was not found"), "Could not open Git Shell");
+    expect(notices.current?.body).toBe("Git Bash was not found");
+    errors.report(refusal("index.lock exists"), "Could not stage");
+    expect(notices.current?.body).toBe("index.lock exists");
   });
 
   it("puts the newest error in front and moves to the next when one is closed", () => {
