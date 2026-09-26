@@ -145,3 +145,52 @@ describe("the rows no watcher covers", () => {
     expect(readPulse).not.toHaveBeenCalled();
   });
 });
+
+// A server that takes the connection and never answers held each probe past its 120 s, and
+// every tick started one more: an hour of it was dozens of `git ls-remote` processes.
+describe("a server that does not answer", () => {
+  beforeAll(() => import("./repo-pulse.svelte"), 60_000);
+  afterEach(() => vi.useRealTimers());
+
+  async function silentServer() {
+    vi.useFakeTimers();
+    vi.resetModules();
+    const ipc = await import("$lib/ipc/repo-rows");
+    const probe = vi.mocked(ipc.pullProbe);
+    const answers: ((ahead: boolean) => void)[] = [];
+    probe.mockClear();
+    probe.mockImplementation(() => new Promise<boolean>((resolve) => answers.push(resolve)) as never);
+    const { repoPulse } = await import("./repo-pulse.svelte");
+    repoPulse.watch(["C:/repos/silent"]);
+    repoPulse.fetchEvery(1);
+    const done = () => {
+      repoPulse.fetchEvery(0);
+      probe.mockImplementation(async () => false);
+    };
+    return { repoPulse, probe, answers, done };
+  }
+
+  it("is asked again only once the probe before has ended", async () => {
+    const { probe, answers, done } = await silentServer();
+
+    await vi.advanceTimersByTimeAsync(5 * 61_000);
+    expect(probe).toHaveBeenCalledTimes(1);
+
+    answers[0]?.(false);
+    await vi.advanceTimersByTimeAsync(61_000);
+    expect(probe).toHaveBeenCalledTimes(2);
+    done();
+  });
+
+  it("is not listened to once the wait for it was given up", async () => {
+    const { repoPulse, answers, done } = await silentServer();
+    await vi.advanceTimersByTimeAsync(61_000 + 121_000);
+    expect(repoPulse.unknown.has("C:/repos/silent")).toBe(true);
+
+    answers[0]?.(true);
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(repoPulse.remoteAhead.has("C:/repos/silent")).toBe(false);
+    done();
+  });
+});

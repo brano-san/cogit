@@ -144,6 +144,33 @@ fn a_background_fetch_from_a_remote_that_is_gone_fails() {
     );
 }
 
+// A server that takes the connection and then says nothing held a background check for as
+// long as it liked: the list stopped waiting after 120 s, the process never did (R-482).
+#[test]
+fn a_background_check_gives_up_on_a_server_that_stops_sending() {
+    let f = test_fixtures::linear(2).unwrap();
+    let gone = f.path().join("no-such-remote.git");
+    f.git(&["remote", "add", "origin", &gone.to_string_lossy()])
+        .unwrap();
+    f.git(&["config", "branch.main.remote", "origin"]).unwrap();
+    f.git(&["config", "branch.main.merge", "refs/heads/main"])
+        .unwrap();
+    let handle = RepoHandle::open(f.path()).unwrap();
+
+    for err in [
+        handle.background_fetch().unwrap_err(),
+        handle.pull_probe().unwrap_err(),
+    ] {
+        let text = format!("{err:?}");
+        assert!(text.contains("-c http.lowSpeedLimit=1"), "{text}");
+        assert!(text.contains("-c http.lowSpeedTime=60"), "{text}");
+        if text.contains("BatchMode=yes") {
+            assert!(text.contains("-o ConnectTimeout=20"), "{text}");
+            assert!(text.contains("-o ServerAliveInterval=15"), "{text}");
+        }
+    }
+}
+
 /// A measurement on the benchmark's `large` set, run by hand: `COGIT_BENCH_LARGE=… cargo
 /// nextest run -p git_engine --test pulse --run-ignored only --no-capture`.
 #[test]

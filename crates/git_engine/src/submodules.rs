@@ -78,8 +78,8 @@ impl Inside {
             Some((ahead, 0)) => (SubmoduleState::Ahead, ahead, 0),
             Some((0, behind)) => (SubmoduleState::Behind, 0, behind),
             Some((ahead, behind)) => (SubmoduleState::Diverged, ahead, behind),
-            // Both commits exist and share nothing: histories that were never related.
-            None => (SubmoduleState::Diverged, 0, 0),
+            // Unrelated histories are counted; this is a history that could not be walked.
+            None => (SubmoduleState::Unknown, 0, 0),
         }
     }
 }

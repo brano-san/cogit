@@ -198,7 +198,7 @@ impl RepoHandle {
 
     fn index_mode(&self, path: &str) -> Option<&'static str> {
         use gix::index::entry::Mode;
-        let index = self.repo.index_or_empty().ok()?;
+        let index = self.current_index().ok()?;
         let mode = index.entry_by_path(path.into())?.mode;
         Some(if mode == Mode::FILE_EXECUTABLE {
             "100755"

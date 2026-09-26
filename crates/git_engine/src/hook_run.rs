@@ -66,7 +66,10 @@ fn sample_args(name: &str, scratch: &Path) -> Result<Vec<String>> {
     };
 
     Ok(match name {
-        "commit-msg" => message_file()?,
+        "commit-msg" | "applypatch-msg" | "p4-changelist" | "p4-prepare-changelist" => {
+            message_file()?
+        }
+        "reference-transaction" => vec!["prepared".to_owned()],
         "prepare-commit-msg" => {
             let mut args = message_file()?;
             args.push("message".to_owned());
@@ -79,7 +82,8 @@ fn sample_args(name: &str, scratch: &Path) -> Result<Vec<String>> {
     })
 }
 
-/// Git for Windows ships bash, and a hook's `#!` line only means something to a shell.
+/// Git for Windows ships bash, and a hook's `#!` line only means something to its exec.
+/// Executed rather than handed to bash as a script, which would ignore that line.
 #[cfg(windows)]
 fn hook_command(
     path: &Path,
@@ -87,6 +91,7 @@ fn hook_command(
     args: &[String],
 ) -> std::io::Result<std::process::Command> {
     let mut command = bash(root)?;
+    command.args(["-c", r#""$0" "$@""#]);
     command.arg(path);
     command.args(args);
     Ok(command)

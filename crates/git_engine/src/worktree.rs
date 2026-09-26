@@ -39,9 +39,7 @@ impl RepoHandle {
         }
 
         let mut platform = self
-            .repo
-            .status(gix::progress::Discard)
-            .map_err(|err| GitError::Internal(format!("cannot start status: {err}")))?
+            .status_platform()?
             .untracked_files(UntrackedFiles::Collapsed);
         if view.ignored {
             platform = platform.index_worktree_options_mut(|options| {
@@ -102,10 +100,7 @@ impl RepoHandle {
     /// The quiet side of the index: files status never mentions because nothing happened to
     /// them, plus the two flags that deliberately silence a file.
     fn add_index_entries(&self, files: &mut WorktreeFiles, view: WorktreeView) -> Result<()> {
-        let index = self
-            .repo
-            .index()
-            .map_err(|err| GitError::Internal(format!("cannot read the index: {err}")))?;
+        let index = self.current_index()?;
 
         let mentioned: BTreeSet<String> = files
             .staged

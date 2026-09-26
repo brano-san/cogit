@@ -2,7 +2,7 @@
   import { onDestroy } from "svelte";
   import Checkbox from "$components/common/Checkbox.svelte";
   import { commitBox } from "$stores/commit-box.svelte";
-  import { canCommit, draftToSave, initialMessage, messageAfterCommit } from "$lib/commit-draft";
+  import { amends, canCommit, draftToSave, initialMessage, messageAfterCommit } from "$lib/commit-draft";
   import { SUBJECT_HARD, SUBJECT_SOFT, subjectOf, subjectState } from "$lib/commit-message";
 
   interface Props {
@@ -14,11 +14,13 @@
     /** `commit.template` from the config; seeds an empty draft and the field after each
         commit, never overwrites a draft. */
     template?: string | null;
+    /** HEAD has no commit yet: nothing to amend. */
+    unborn?: boolean;
     /** `false` means nothing was committed (a question was cancelled, a hook refused). */
     oncommit: (message: string, amend: boolean, noVerify: boolean) => Promise<boolean> | void;
   }
 
-  let { scope, stagedCount, busy = false, draftKey, template = null, oncommit }: Props =
+  let { scope, stagedCount, busy = false, draftKey, template = null, unborn = false, oncommit }: Props =
     $props();
 
   let message = $state("");
@@ -28,8 +30,13 @@
 
   const overflow = $derived(subjectState(message));
   const length = $derived([...subjectOf(message)].length);
+  const amending = $derived(amends({ amend, unborn }));
+  // Ticked in a repository that had commits, it would sit there disabled and ticked.
+  $effect(() => {
+    if (unborn) amend = false;
+  });
   const ready = $derived(
-    canCommit({ message, template, stagedCount, amend, busy, committing, scopeEmpty: scope.empty }),
+    canCommit({ message, template, stagedCount, amend, busy, committing, scopeEmpty: scope.empty, unborn }),
   );
 
   // Cleared once the commit is made, not before: a cancelled question or a hook that
@@ -39,7 +46,7 @@
     committing = true;
     let made: boolean | void;
     try {
-      made = await oncommit(message, amend, noVerify);
+      made = await oncommit(message, amending, noVerify);
     } finally {
       committing = false;
     }
@@ -57,7 +64,11 @@
     commitBox.attach({
       focus: () => field?.focus(),
       submit: async (withAmend) => {
-        if (withAmend) amend = true;
+        if (withAmend) {
+          // Commit with Amend before the first commit: there is nothing to amend.
+          if (unborn) return;
+          amend = true;
+        }
         await submit();
       },
     }),
@@ -111,11 +122,18 @@
       title="Length of the subject line (the first line): {length} characters. Keep it under {SUBJECT_SOFT}; past {SUBJECT_HARD} tools cut it off."
       >Subject <span class="tabular">{length}</span></span
     >
-    <span class="option"><Checkbox bind:checked={amend} label="Amend" /></span>
+    <span class="option"
+      ><Checkbox
+        bind:checked={amend}
+        label="Amend"
+        disabled={unborn}
+        title={unborn ? "Nothing to amend: this branch has no commits yet" : undefined}
+      /></span
+    >
     <span class="option"><Checkbox bind:checked={noVerify} label="No verify" /></span>
     <span class="grow"></span>
     <button type="button" disabled={!ready} onclick={submit}>
-      {amend ? "Amend" : scope.label}
+      {amending ? "Amend" : scope.label}
     </button>
   </div>
 </div>

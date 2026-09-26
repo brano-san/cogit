@@ -18,6 +18,7 @@
   {template}
   stagedCount={worktree.staged.length}
   busy={worktree.loading}
+  unborn={repository.current?.head.kind === "unborn"}
   draftKey={`cogit:draft:${repository.current?.root ?? ""}`}
   {oncommit}
 />

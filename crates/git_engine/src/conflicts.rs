@@ -188,7 +188,7 @@ impl RepoHandle {
     }
 
     fn stage_blob(&self, path: &str, side: ConflictSide) -> Option<Vec<u8>> {
-        let index = self.repo.index_or_empty().ok()?;
+        let index = self.current_index().ok()?;
         let backing = index.path_backing();
         let entry = index.entries().iter().find(|entry| {
             entry.stage() as u8 == side.stage()

@@ -2,7 +2,7 @@ import { pullProbe, repoPulse as readPulse, type RepoPulse } from "$lib/ipc/repo
 import { PulseQueue } from "$lib/pulse-queue";
 
 /** A server that has not answered in this long stops holding the queue; the process runs
-    on and its result, whenever it comes, is not waited for. */
+    on, its answer is not listened to, and its root is not asked again until it ends. */
 const PROBE_TIMEOUT_MS = 120_000;
 /** Past the 150 ms of quiet that ends a switch or a close, so the read is not part of it. */
 const LEFT_READ_DELAY_MS = 500;
@@ -40,20 +40,12 @@ class RepoPulseStore {
   #timer: ReturnType<typeof setInterval> | null = null;
   #every = 0;
   #revisited = -Infinity;
+  /** Roots whose probe has not ended, answered in time or not (R-482). */
+  #probing = new Set<string>();
 
   readonly #queue = new PulseQueue({
     pulse: readPulse,
-    // The server is asked, nothing is fetched: `ls-remote` writes no ref (R-354).
-    fetch: (root) =>
-      within(
-        pullProbe(root).then((ahead) => {
-          // Removed, or the check turned off, while the server took its time.
-          if (this.#seen.has(root) && this.#every > 0) this.#setAhead(root, ahead === true);
-          return true;
-        }),
-        PROBE_TIMEOUT_MS,
-        false,
-      ),
+    fetch: (root) => this.#probe(root),
     busy: () => this.#busy(),
     owned: (root) => root === this.#owned,
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
@@ -125,6 +117,25 @@ class RepoPulseStore {
   /** Its refs moved (a fetch, a pull): the tracking ref speaks for the server again. */
   refsMoved(root: string): void {
     this.#setAhead(root, false);
+  }
+
+  /** The server is asked, nothing is fetched: `ls-remote` writes no ref (R-354). `false`
+      while the one before is still out: whether there is anything to pull is still unknown. */
+  #probe(root: string): Promise<boolean> {
+    if (this.#probing.has(root)) return Promise.resolve(false);
+    this.#probing.add(root);
+    let waiting = true;
+    const asked = pullProbe(root)
+      .then((ahead) => {
+        // Given up on, removed, or the check turned off while the server took its time.
+        if (waiting && this.#seen.has(root) && this.#every > 0) this.#setAhead(root, ahead === true);
+        return true;
+      })
+      .finally(() => this.#probing.delete(root));
+    return within(asked, PROBE_TIMEOUT_MS, false).then((ok) => {
+      waiting = false;
+      return ok;
+    });
   }
 
   #setAhead(root: string, ahead: boolean): void {

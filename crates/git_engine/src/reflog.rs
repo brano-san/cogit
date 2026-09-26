@@ -146,6 +146,8 @@ impl RepoHandle {
             return Ok(());
         }
         if cache.counted {
+            // Where a shallow clone ends: the parents are not here, as the full walk knows.
+            let shallow = self.shallow_commits();
             let mut met = HashSet::new();
             let mut added = HashSet::new();
             let mut stack: Vec<gix::ObjectId> = tips.clone();
@@ -154,10 +156,15 @@ impl RepoHandle {
                     met.insert(id);
                     continue;
                 }
-                if !added.insert(id) {
+                if !added.insert(id) || shallow.binary_search(&id).is_ok() {
                     continue;
                 }
-                stack.extend(self.parents_of(id)?);
+                match self.parents_of(id) {
+                    Ok(parents) => stack.extend(parents),
+                    Err(err) => {
+                        tracing::error!(error = ?err, context = "lost commits: skipping an unreadable commit")
+                    }
+                }
             }
             if cache
                 .tips

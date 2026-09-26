@@ -51,12 +51,18 @@ const QUIET: &[(&str, &str)] = &[
     ("GCM_INTERACTIVE", "never"),
 ];
 
-const BATCH_SSH: &str = "core.sshCommand=ssh -o BatchMode=yes";
+/// A server that took the connection and fell silent held the check for as long as it liked
+/// (R-482): under a byte a second for 60 s ends an HTTP transfer, three keep-alives left
+/// unanswered 15 s apart end an SSH one.
+const STALL_LIMITS: &[&str] = &["-c", "http.lowSpeedLimit=1", "-c", "http.lowSpeedTime=60"];
+
+const BATCH_SSH: &str =
+    "core.sshCommand=ssh -o BatchMode=yes -o ConnectTimeout=20 -o ServerAliveInterval=15";
 
 impl RepoHandle {
     /// Only the remote-tracking refs move: no prune, no submodules, no maintenance.
     pub fn background_fetch(&self) -> Result<()> {
-        let mut args = self.quiet_ssh();
+        let mut args = self.background_options();
         args.extend([
             "fetch",
             "--all",
@@ -69,11 +75,17 @@ impl RepoHandle {
 
     /// The server's branch tips, as `git ls-remote --heads` lists them; nothing is written.
     pub fn remote_heads(&self, remote: &str) -> Result<Vec<(String, String)>> {
-        let mut args = self.quiet_ssh();
+        self.heads_matching(remote, &[])
+    }
+
+    /// Read whole, not through the journal's record: that one is cut past 20 000 lines and
+    /// has its secrets masked (R-280).
+    fn heads_matching(&self, remote: &str, patterns: &[&str]) -> Result<Vec<(String, String)>> {
+        let mut args = self.background_options();
         args.extend(["ls-remote", "--heads", remote]);
-        let out = self.run_git_with_env(&args, QUIET)?;
+        args.extend(patterns);
+        let out = self.read_git_with(&args, QUIET)?;
         Ok(out
-            .stdout
             .lines()
             .filter_map(|line| {
                 let (oid, name) = line.split_once('\t')?;
@@ -106,7 +118,7 @@ impl RepoHandle {
         let remote = remote.as_bstr().to_string();
         let merge = merge.as_bstr().to_string();
         let Some(tip) = self
-            .remote_heads(&remote)?
+            .heads_matching(&remote, &[&merge])?
             .into_iter()
             .find_map(|(name, tip)| (name == merge).then_some(tip))
         else {
@@ -125,12 +137,12 @@ impl RepoHandle {
         Ok(Some(!matches!(base, Ok(base) if base == tip)))
     }
 
-    fn quiet_ssh(&self) -> Vec<&'static str> {
-        if self.has_own_ssh_command() {
-            Vec::new()
-        } else {
-            vec!["-c", BATCH_SSH]
+    fn background_options(&self) -> Vec<&'static str> {
+        let mut args = STALL_LIMITS.to_vec();
+        if !self.has_own_ssh_command() {
+            args.extend(["-c", BATCH_SSH]);
         }
+        args
     }
 
     fn has_own_ssh_command(&self) -> bool {

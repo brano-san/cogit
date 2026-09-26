@@ -95,7 +95,10 @@ pub fn read_config(path: &Path) -> Result<ConfigFile> {
     })
 }
 
-/// Checked beside the file, so a relative `[include]` resolves as it will for real.
+/// Written the way git writes it (R-483): into `config.lock`, taken exclusively, then
+/// renamed over the file. A `git config` in the middle of its own write keeps its lock and
+/// the save fails, instead of one of the two changes being lost. Checked in the lock, beside
+/// the file, so a relative `[include]` resolves as it will for real.
 pub fn save_config(path: &Path, text: &str, crlf: bool) -> Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
@@ -106,9 +109,24 @@ pub fn save_config(path: &Path, text: &str, crlf: bool) -> Result<()> {
         text.to_owned()
     };
     let mut candidate = path.as_os_str().to_owned();
-    candidate.push(".cogit-new");
+    candidate.push(".lock");
     let candidate = PathBuf::from(candidate);
-    std::fs::write(&candidate, body)?;
+    let mut lock = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&candidate)
+        .map_err(|err| {
+            GitError::Io(format!(
+                "could not lock config file {}: {err}",
+                path.display()
+            ))
+        })?;
+    let written = std::io::Write::write_all(&mut lock, body.as_bytes());
+    drop(lock);
+    if let Err(err) = written {
+        let _ = std::fs::remove_file(&candidate);
+        return Err(err.into());
+    }
 
     let checked = bare_git(&["config", "--file", &candidate.to_string_lossy(), "--list"]);
     let refusal = match checked {
@@ -125,10 +143,30 @@ pub fn save_config(path: &Path, text: &str, crlf: bool) -> Result<()> {
                 .replace(&*candidate.to_string_lossy(), &path.to_string_lossy()),
         }));
     }
-    std::fs::rename(&candidate, path).map_err(|err| {
+    rename_when_let_go(&candidate, path).map_err(|err| {
         let _ = std::fs::remove_file(&candidate);
         GitError::from(err)
     })
+}
+
+/// A `git.exe` reading the file holds it without `FILE_SHARE_DELETE`, and Windows refuses
+/// to replace it until it lets go; git's own `mingw_rename` waits that out too.
+fn rename_when_let_go(from: &Path, to: &Path) -> std::io::Result<()> {
+    const WAITS_MS: [u64; 7] = [10, 20, 50, 100, 200, 400, 800];
+    let mut waits = WAITS_MS.iter();
+    loop {
+        let err = match std::fs::rename(from, to) {
+            Ok(()) => return Ok(()),
+            Err(err) => err,
+        };
+        // 32: ERROR_SHARING_VIOLATION, which has no `ErrorKind` of its own.
+        let busy = err.kind() == std::io::ErrorKind::PermissionDenied
+            || (cfg!(windows) && err.raw_os_error() == Some(32));
+        match waits.next() {
+            Some(ms) if busy => std::thread::sleep(std::time::Duration::from_millis(*ms)),
+            _ => return Err(err),
+        }
+    }
 }
 
 /// `fatal: bad config line 3 in file …`
