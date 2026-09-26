@@ -1,6 +1,6 @@
 <script lang="ts">
   import { untrack } from "svelte";
-  import { shortOid } from "$lib/format";
+  import { shortOid, shortRev } from "$lib/format";
   import { moveEntry, planChanged, planProblem, previewCount } from "$lib/rebase-plan";
   import { pointerDrag } from "$lib/pointer-drag";
   import Checkbox from "$components/common/Checkbox.svelte";
@@ -57,7 +57,7 @@
 </script>
 
 <Dialog
-  title="Rebase {plan.length} commits onto {shortOid(base)}"
+  title="Rebase {plan.length} commits onto {shortRev(base)}"
   {onclose}
   onconfirm={run}
   dirty={planChanged(initial, plan)}
