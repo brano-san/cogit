@@ -1002,7 +1002,7 @@ pub async fn working_state(
 }
 
 macro_rules! repo_command {
-    ($name:ident, $kind:ident) => {
+    ($name:ident, $kind:ident, $title:literal) => {
         #[tauri::command]
         #[specta::specta]
         pub async fn $name(
@@ -1010,10 +1010,11 @@ macro_rules! repo_command {
             repo: RepoId,
         ) -> Result<(), GitError> {
             let app_state = state.state.clone();
-            mutating(
+            mutating_titled(
                 &state.state,
                 repo,
                 OperationKind::$kind,
+                $title,
                 stringify!($name),
                 move || app_state.$name(repo),
             )
@@ -1022,9 +1023,10 @@ macro_rules! repo_command {
     };
 }
 
-repo_command!(abort_operation, Merge);
-repo_command!(continue_operation, Merge);
-repo_command!(skip_operation, Merge);
+// Merge, rebase, cherry-pick, revert or `git am`: the footer says what is done to it.
+repo_command!(abort_operation, Merge, "Aborting");
+repo_command!(continue_operation, Merge, "Continuing");
+repo_command!(skip_operation, Merge, "Skipping");
 
 #[tauri::command]
 #[specta::specta]
@@ -1063,7 +1065,7 @@ pub async fn rebase(
 }
 
 macro_rules! replay_command {
-    ($name:ident) => {
+    ($name:ident, $title:literal) => {
         #[tauri::command]
         #[specta::specta]
         pub async fn $name(
@@ -1072,10 +1074,11 @@ macro_rules! replay_command {
             commits: Vec<String>,
         ) -> Result<(), GitError> {
             let app_state = state.state.clone();
-            mutating(
+            mutating_titled(
                 &state.state,
                 repo,
                 OperationKind::Commit,
+                $title,
                 stringify!($name),
                 move || app_state.$name(repo, &commits),
             )
@@ -1084,8 +1087,8 @@ macro_rules! replay_command {
     };
 }
 
-replay_command!(cherry_pick);
-replay_command!(revert);
+replay_command!(cherry_pick, "Cherry-picking");
+replay_command!(revert, "Reverting");
 
 #[tauri::command]
 #[specta::specta]
@@ -1332,10 +1335,11 @@ pub async fn rollback_to(
     paths: Vec<String>,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    mutating(
+    mutating_titled(
         &state.state,
         repo,
         OperationKind::Undo,
+        "Rolling back",
         "rollback_to",
         move || app_state.rollback_to(repo, &rev, &paths),
     )
@@ -1364,10 +1368,11 @@ pub async fn split_off(
     split_first: bool,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    mutating(
+    mutating_titled(
         &state.state,
         repo,
         OperationKind::Commit,
+        "Splitting",
         "split_off",
         move || app_state.split_off(repo, &rev, &paths, &message, split_first),
     )
