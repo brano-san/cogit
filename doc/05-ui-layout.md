@@ -94,7 +94,7 @@
 |---|---|
 | `HEAD` | Текущий коммит, короткий хеш, подсказка о detached |
 | `Local Branches (N)` | Ветки, `= origin` при синхронизации, `↑N ↓N` при расхождении |
-| `Remote` | Группировка по remote, вложенные ветки |
+| `<remote> (N)` | Узел у каждого настроенного remote (`origin`, `upstream`…), даже если с него ещё ничего не получено (`upstream (0)`); его remote-ветки внутри, имя remote с `/` узнаётся по списку remotes; своё меню |
 | `Tags` | Lightweight и annotated, разными иконками |
 | `Stashes (N)` | `stash@{N}: сообщение` |
 | `Lost Commits` | Коммиты из reflog, недостижимые из refs |

@@ -1279,6 +1279,7 @@
     stashes: stashes.entries,
     lost: recovery.lost,
     remoteUrls: refs.urls,
+    remotes: network.remotes,
     tagSeparator: repo?.tagGroupSeparator,
   });
   const refTreeInput = $derived({ ...refTreeBase, collapsed: refs.collapsed, filter: refFilter });
