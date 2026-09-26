@@ -63,6 +63,23 @@ impl AppState {
         self.handle(repo)?.stash_apply_index(index, pop)
     }
 
+    /// Stash, switch, put back: one call, which the command runs as one operation (R-521).
+    pub fn switch_with_autostash(
+        &self,
+        repo: RepoId,
+        target: &git_engine::CheckoutTarget,
+        message: &str,
+    ) -> Result<(), git_engine::GitError> {
+        let _quiet = self.quiet(repo);
+        self.handle(repo)?.switch_with_autostash(target, message)?;
+        let what = match target {
+            git_engine::CheckoutTarget::Branch { name } => name.clone(),
+            git_engine::CheckoutTarget::Commit { oid } => oid.clone(),
+        };
+        self.record(repo, format!("Check out {what}"), Recovery::None);
+        Ok(())
+    }
+
     pub fn stash_drop(&self, repo: RepoId, index: u32) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         let entry = self.handle(repo)?.stash_drop(index)?;

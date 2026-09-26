@@ -22,6 +22,26 @@ pub async fn checkout(
     .await
 }
 
+/// Stash, switch, put the changes back: one operation of the lane (R-521).
+#[tauri::command]
+#[specta::specta]
+pub async fn switch_with_autostash(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    target: CheckoutTarget,
+    message: String,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Checkout,
+        "switch_with_autostash",
+        move || app_state.switch_with_autostash(repo, &target, &message),
+    )
+    .await
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn create_branch(

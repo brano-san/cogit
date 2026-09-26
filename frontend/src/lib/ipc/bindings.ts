@@ -75,6 +75,8 @@ export const commands = {
 	discardPaths: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("discard_paths", { repo, paths })),
 	commit: (repo: RepoId, request: CommitRequest) => typedError<string, GitError>(__TAURI_INVOKE("commit", { repo, request })),
 	checkout: (repo: RepoId, target: CheckoutTarget) => typedError<null, GitError>(__TAURI_INVOKE("checkout", { repo, target })),
+	/**  Stash, switch, put the changes back: one operation of the lane (R-521). */
+	switchWithAutostash: (repo: RepoId, target: CheckoutTarget, message: string) => typedError<null, GitError>(__TAURI_INVOKE("switch_with_autostash", { repo, target, message })),
 	createBranch: (repo: RepoId, name: string, start: string | null, switchTo: boolean) => typedError<null, GitError>(__TAURI_INVOKE("create_branch", { repo, name, start, switchTo })),
 	deleteBranch: (repo: RepoId, name: string, force: boolean) => typedError<null, GitError>(__TAURI_INVOKE("delete_branch", { repo, name, force })),
 	/**  Off the main thread: the whole journal can be a hundred megabyte-sized entries. */

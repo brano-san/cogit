@@ -128,6 +128,7 @@
     rebaseTodo,
     rollbackTo,
     splitOff,
+    switchWithAutostash as runSwitchWithAutostash,
     commitFiles as readCommitFiles,
     mergeInto,
     stashSelection,
@@ -1357,9 +1358,12 @@
 
     const outcome = await switchWithAutostash(branch.name, blocked, {
       ask: (question) => confirmation.ask({ title: "Switch Branch", message: question, confirm: "Stash and Switch" }),
-      stash: () => stashes.push(id, `cogit: autostash before switching to ${branch.name}`, true),
-      checkout: () => checkout(id, { kind: "branch", name: branch.name }),
-      pop: () => stashes.apply(id, 0, true),
+      run: () =>
+        runSwitchWithAutostash(
+          id,
+          { kind: "branch", name: branch.name },
+          `cogit: autostash before switching to ${branch.name}`,
+        ),
       report: (failed, title) => errors.report(failed, title),
     });
     if (outcome === "declined") return false;
