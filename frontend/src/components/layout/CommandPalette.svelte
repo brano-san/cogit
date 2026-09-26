@@ -14,6 +14,7 @@
   let query = $state("");
   let cursor = $state(0);
   let field: HTMLInputElement | undefined = $state();
+  let list: HTMLDivElement | undefined = $state();
 
   const shown = $derived(rankCommands(commands, query, recent));
 
@@ -51,6 +52,12 @@
     cursor = 0;
   });
 
+  // Twenty rows fit and there are ninety: Enter ran a command scrolled out of sight.
+  $effect(() => {
+    void cursor;
+    list?.querySelector(".row.active")?.scrollIntoView({ block: "nearest" });
+  });
+
   $effect(() => {
     field?.focus();
   });
@@ -74,7 +81,7 @@
   {#if shown.length === 0}
     <p class="empty">Nothing matches “{query}”.</p>
   {:else}
-    <div class="list">
+    <div class="list" bind:this={list}>
       {#each shown as command, index (command.id)}
         <div
           class="row"
