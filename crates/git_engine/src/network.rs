@@ -1,14 +1,72 @@
 use crate::{GitCommandError, GitError, GitOutput, RepoHandle, Result};
 use std::io::Read as _;
 use std::process::Stdio;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
 /// How long git may say nothing before a network command is stopped: a server that took
 /// the connection and went quiet, ssh over a dropped VPN. Long enough for a sign-in in the
 /// browser (Git Credential Manager) and for a pre-push hook between two lines of output.
 const SILENCE: Duration = Duration::from_secs(300);
+
+/// Asks a running fetch, pull or push to stop: its git process tree is ended and the
+/// command fails with `GitError::Cancelled` (03 §3 п.6).
+#[derive(Debug, Clone, Default)]
+pub struct NetworkStop(Arc<Mutex<Stop>>);
+
+#[derive(Debug, Default)]
+struct Stop {
+    asked: bool,
+    pid: Option<u32>,
+}
+
+impl NetworkStop {
+    /// `false` when it had been asked already.
+    pub fn stop(&self) -> bool {
+        let mut stop = self.lock();
+        if stop.asked {
+            return false;
+        }
+        stop.asked = true;
+        // Under the lock: the command reaps its child only after `release`, so this pid
+        // cannot have gone to another process yet.
+        if let Some(pid) = stop.pid {
+            end(pid);
+        }
+        true
+    }
+
+    #[must_use]
+    pub fn is_stopped(&self) -> bool {
+        self.lock().asked
+    }
+
+    fn hold(&self, pid: u32) {
+        let mut stop = self.lock();
+        stop.pid = Some(pid);
+        if stop.asked {
+            end(pid);
+        }
+    }
+
+    fn release(&self) {
+        self.lock().pid = None;
+    }
+
+    fn lock(&self) -> MutexGuard<'_, Stop> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+fn end(pid: u32) {
+    match crate::children::stop_tree(pid) {
+        Ok(()) => tracing::info!(pid, "stopped a network command on request"),
+        Err(err) => {
+            tracing::error!(error = ?err, pid, context = "stopping a cancelled network command")
+        }
+    }
+}
 
 impl RepoHandle {
     pub fn remotes(&self) -> Result<Vec<String>> {
@@ -128,6 +186,9 @@ impl RepoHandle {
         if out.exit_code == Some(0) {
             return Ok(());
         }
+        if self.cancelled() {
+            return Err(GitError::Cancelled(out.command));
+        }
         Err(GitError::Command(Box::new(GitCommandError::from_output(
             out,
         ))))
@@ -141,6 +202,9 @@ impl RepoHandle {
         silence: Duration,
     ) -> Result<GitOutput> {
         let command = crate::redact_command(args);
+        if self.cancelled() {
+            return Err(GitError::Cancelled(command));
+        }
         let started = Instant::now();
         tracing::info!(command = %command, "running git");
 
@@ -149,6 +213,9 @@ impl RepoHandle {
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped()),
         )?;
+        if let Some(stop) = &self.stop {
+            stop.hold(child.id());
+        }
 
         let heard = Arc::new(AtomicU64::new(0));
         let (finished, watching) = std::sync::mpsc::channel::<()>();
@@ -184,6 +251,9 @@ impl RepoHandle {
         // Before `wait`: an unreaped child keeps its pid, so the watchdog cannot hit another.
         drop(finished);
         let stopped = watchdog.join().unwrap_or(false);
+        if let Some(stop) = &self.stop {
+            stop.release();
+        }
 
         let status = child.wait()?;
         let stdout = stdout_reader
@@ -200,7 +270,10 @@ impl RepoHandle {
             &stderr_text,
             duration_ms,
         );
-        if stopped {
+        if result.exit_code != Some(0) && self.cancelled() {
+            result.summary = "Cancelled by the user".to_owned();
+            result.severity = crate::Severity::Warning;
+        } else if stopped {
             result.summary = format!(
                 "Stopped after {} s with no output from git",
                 silence.as_secs()
@@ -209,6 +282,12 @@ impl RepoHandle {
         }
         self.journal_entry(result.clone());
         Ok(result)
+    }
+}
+
+impl RepoHandle {
+    fn cancelled(&self) -> bool {
+        self.stop.as_ref().is_some_and(NetworkStop::is_stopped)
     }
 }
 

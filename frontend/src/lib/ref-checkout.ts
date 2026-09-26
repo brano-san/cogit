@@ -25,9 +25,12 @@ export function nodeTarget(node: RefNode, tags: readonly Tag[]): NodeTarget | nu
   }
   const branch = node.branch;
   if (!branch || (node.kind !== "local" && node.kind !== "remote")) return null;
-  const ref: RefTarget = { kind: node.kind === "local" ? "branch" : "remote", name: branch.name, isHead: branch.isHead };
+  if (node.kind === "remote") {
+    return { ref: { kind: "remote", name: branch.name, isHead: branch.isHead }, branch, tag: null, oid: node.oid ?? null };
+  }
+  const ref: RefTarget = { kind: "branch", name: branch.name, isHead: branch.isHead, upstream: branch.upstream };
   return {
-    ref: node.kind === "local" && node.worktree ? { ...ref, worktree: node.worktree.path } : ref,
+    ref: node.worktree ? { ...ref, worktree: node.worktree.path } : ref,
     branch,
     tag: null,
     oid: node.oid ?? null,

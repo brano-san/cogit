@@ -35,7 +35,7 @@ impl AppState {
             named(paths)
         };
         let stashed = handle
-            .stash_paths(paths, &format!("cogit: before rollback of {label}"))
+            .backup_paths(paths, &format!("cogit: before rollback of {label}"))
             .map_err(|err| backup_failed("rolling back", &err))?;
 
         handle.rollback_to(rev, paths)?;

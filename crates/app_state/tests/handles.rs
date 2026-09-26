@@ -133,3 +133,32 @@ fn a_root_that_stopped_being_a_repository_does_not_become_the_one_above_it() {
     assert!(app_state::repo_rows::pulse(&inner).missing);
     assert!(app_state::repo_rows::submodule_outline(&inner, "").is_err());
 }
+
+fn upstream_of(state: &AppState, repo: app_state::RepoId, branch: &str) -> Option<String> {
+    let refs = state.repo_refs(repo).unwrap();
+    refs.branches
+        .into_iter()
+        .find(|entry| entry.kind == git_engine::BranchKind::Local && entry.name == branch)
+        .and_then(|entry| entry.upstream)
+}
+
+/// Set Upstream… and Stop Tracking (F-130) write the config through git; the next read of
+/// the refs must not come from the handle opened before.
+#[test]
+fn an_upstream_set_or_stopped_here_is_read_back() {
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&["branch", "solo"]).unwrap();
+    let (state, repo) = open(&f);
+    assert_eq!(upstream_of(&state, repo, "solo"), None);
+
+    state
+        .set_upstream(repo, "solo", Some("origin/main"))
+        .unwrap();
+    assert_eq!(
+        upstream_of(&state, repo, "solo").as_deref(),
+        Some("origin/main")
+    );
+
+    state.set_upstream(repo, "solo", None).unwrap();
+    assert_eq!(upstream_of(&state, repo, "solo"), None);
+}

@@ -1,6 +1,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use git_engine::discover::{ScanOptions, scan, scan_until};
+use git_engine::discover::{ScanOptions, scan, scan_cancellable, scan_until};
 use std::fs;
 use std::path::Path;
 
@@ -254,4 +254,48 @@ fn a_scan_told_to_stop_reports_nothing_more() {
     });
 
     assert_eq!(reported, 1);
+}
+
+// Cancel in the scan dialog and a second scan over the first: the walk ends at the flag,
+// not at the next hit it could refuse — a tree without one went on to the end.
+#[test]
+fn a_cancelled_scan_stops_between_hits() {
+    let dir = tempfile::tempdir().unwrap();
+    for n in 0..200 {
+        repo_at(dir.path(), &format!("group{}/project{n}", n % 10));
+    }
+    let cancelled = std::sync::atomic::AtomicBool::new(false);
+
+    let mut reported = 0;
+    scan_cancellable(
+        dir.path(),
+        &ScanOptions::default(),
+        || cancelled.load(std::sync::atomic::Ordering::Relaxed),
+        |_| {
+            reported += 1;
+            cancelled.store(true, std::sync::atomic::Ordering::Relaxed);
+            true
+        },
+    );
+
+    assert_eq!(reported, 1);
+}
+
+#[test]
+fn a_scan_cancelled_before_it_starts_finds_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    repo_at(dir.path(), "alpha");
+
+    let mut reported = 0;
+    scan_cancellable(
+        dir.path(),
+        &ScanOptions::default(),
+        || true,
+        |_| {
+            reported += 1;
+            true
+        },
+    );
+
+    assert_eq!(reported, 0);
 }

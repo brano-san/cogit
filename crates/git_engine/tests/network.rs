@@ -534,3 +534,88 @@ fn a_failing_pre_push_hook_delivers_its_whole_log() {
     );
     assert_eq!(details.operation, "Push");
 }
+
+/// A remote that takes the connection and never says a word: a fetch waits on it until
+/// it is stopped.
+fn silent_remote(f: &test_fixtures::Fixture) {
+    let server = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = server.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+        let held: Vec<_> = server.incoming().take(4).collect();
+        std::thread::sleep(std::time::Duration::from_secs(120));
+        drop(held);
+    });
+    f.git(&[
+        "remote",
+        "add",
+        "quiet",
+        &format!("git://127.0.0.1:{port}/x.git"),
+    ])
+    .unwrap();
+}
+
+type Records = Arc<Mutex<Vec<git_engine::GitOutput>>>;
+
+fn journalled(repo: RepoHandle) -> (RepoHandle, Records) {
+    let log: Records = Arc::new(Mutex::new(Vec::new()));
+    let sink = Arc::clone(&log);
+    let repo = repo.with_journal(Arc::new(move |out: git_engine::GitOutput| {
+        if let Ok(mut entries) = sink.lock() {
+            entries.push(out);
+        }
+    }));
+    (repo, log)
+}
+
+// The footer's cancel (DC-001): the git process goes, the command ends as cancelled and
+// the journal says so, long before the silence watchdog would have stepped in.
+#[test]
+fn a_fetch_asked_to_stop_ends_as_cancelled() {
+    let f = test_fixtures::linear(1).unwrap();
+    silent_remote(&f);
+    let stop = git_engine::NetworkStop::default();
+    let (repo, log) = journalled(open(&f).with_stop(stop.clone()));
+    let (done, finished) = std::sync::mpsc::channel();
+    let started = std::time::Instant::now();
+
+    std::thread::spawn(move || {
+        let _ = done.send(repo.fetch("quiet", no_token, |_| {}));
+    });
+    while git_engine::children::running() == 0 {
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(20),
+            "git never started"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    assert!(stop.stop(), "the first request is the one that stops it");
+    let result = finished
+        .recv_timeout(std::time::Duration::from_secs(20))
+        .expect("the fetch was still running 20 s after it was stopped");
+
+    assert!(
+        matches!(result, Err(git_engine::GitError::Cancelled(_))),
+        "{result:?}"
+    );
+    assert!(!stop.stop(), "nothing is left to stop");
+    let records = log.lock().unwrap();
+    let last = records.last().expect("the stopped run is journalled");
+    assert!(last.summary.contains("Cancelled"), "{last:?}");
+}
+
+#[test]
+fn a_fetch_stopped_before_it_starts_never_runs_git() {
+    let f = test_fixtures::linear(1).unwrap();
+    silent_remote(&f);
+    let stop = git_engine::NetworkStop::default();
+    stop.stop();
+    let (repo, log) = commands_of(open(&f).with_stop(stop));
+
+    let result = repo.fetch("quiet", no_token, |_| {});
+
+    assert!(
+        matches!(result, Err(git_engine::GitError::Cancelled(_))),
+        "{result:?}"
+    );
+    assert!(seen(&log).is_empty(), "{:?}", seen(&log));
+}

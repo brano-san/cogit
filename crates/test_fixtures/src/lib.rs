@@ -34,7 +34,14 @@ impl Fixture {
             dir,
             _aux: Vec::new(),
         };
-        fixture.git(&["init", "--initial-branch=main"])?;
+        // Pinned: the config below replaces git's, and with it any `[extensions]` a
+        // reftable or sha256 default would have needed.
+        fixture.git(&[
+            "init",
+            "--initial-branch=main",
+            "--ref-format=files",
+            "--object-format=sha1",
+        ])?;
 
         std::fs::write(
             fixture.git_dir().join("config"),
@@ -45,7 +52,6 @@ impl Fixture {
                  \tbare = false\n\
                  \tautocrlf = false\n\
                  \tsymlinks = false\n\
-                 \tquotepath = false\n\
                  [user]\n\
                  \tname = {AUTHOR_NAME}\n\
                  \temail = {AUTHOR_EMAIL}\n\
@@ -155,6 +161,8 @@ const AMBIENT_GIT_VARS: &[&str] = &[
     "GIT_CONFIG_COUNT",
     "GIT_EDITOR",
     "GIT_SEQUENCE_EDITOR",
+    "GIT_DEFAULT_REF_FORMAT",
+    "GIT_DEFAULT_HASH",
 ];
 
 fn git_command(cwd: &Path) -> Command {
@@ -173,6 +181,25 @@ fn git_command(cwd: &Path) -> Command {
         .env("GIT_COMMITTER_EMAIL", AUTHOR_EMAIL)
         .env("LC_ALL", "C");
 
+    for name in AMBIENT_GIT_VARS {
+        cmd.env_remove(name);
+    }
+    cmd
+}
+
+/// `git` in `cwd` as the fixtures run it: no inherited `GIT_*`, no global or system
+/// config. For a test's own git — a clone, a fetch — beside a fixture.
+#[must_use]
+pub fn git_command_in(cwd: &Path) -> Command {
+    git_command(cwd)
+}
+
+/// `git` in `cwd` with the developer's own global and system config, still without an
+/// inherited `GIT_*`: to compare with what the code under test reads from them.
+#[must_use]
+pub fn user_git_command(cwd: &Path) -> Command {
+    let mut cmd = Command::new("git");
+    cmd.current_dir(cwd).env("LC_ALL", "C");
     for name in AMBIENT_GIT_VARS {
         cmd.env_remove(name);
     }

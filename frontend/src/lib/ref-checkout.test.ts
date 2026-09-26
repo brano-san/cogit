@@ -33,6 +33,16 @@ describe("nodeTarget", () => {
     });
   });
 
+  it("carries a local branch's upstream, which Stop Tracking reads", () => {
+    const local = { ...branch("feature", "local"), upstream: "origin/feature" };
+    expect(nodeTarget(node({ kind: "local", branch: local }), [])?.ref).toEqual({
+      kind: "branch",
+      name: "feature",
+      isHead: false,
+      upstream: "origin/feature",
+    });
+  });
+
   it("finds a tag row's tag by its full name, and no commit for a tag on a tree", () => {
     const tree = tag("docs", false);
     const found = nodeTarget(node({ kind: "tag", label: "docs", rev: "refs/tags/docs" }), [tree]);

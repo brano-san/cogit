@@ -28,15 +28,6 @@ pub async fn repo_pulse(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn background_fetch(root: String) -> Result<(), GitError> {
-    blocking("background_fetch", move || {
-        app_state::repo_rows::background_fetch(&PathBuf::from(root))
-    })
-    .await
-}
-
-#[tauri::command]
-#[specta::specta]
 pub async fn pull_probe(root: String) -> Result<Option<bool>, GitError> {
     blocking("pull_probe", move || {
         app_state::repo_rows::pull_probe(&PathBuf::from(root))

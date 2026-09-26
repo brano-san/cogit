@@ -24,6 +24,8 @@ export interface RefTarget {
   isHead: boolean;
   /** The other worktree that has this local branch checked out: git will not delete it. */
   worktree?: string;
+  /** A local branch's tracking branch, e.g. `origin/main`. */
+  upstream?: string | null;
 }
 
 export interface WorkingTreeCounts {
@@ -133,6 +135,15 @@ function pushBlocked(ref: RefTarget, facts: CommitFacts): string | null {
   return facts.hasRemote ? null : "no remote";
 }
 
+/** F-130: only a local branch tracks, and only a branch of a remote. */
+function upstreamRows(ref: RefTarget, facts: CommitFacts): ContextItem[] {
+  const notLocal = ref.kind === "remote" ? "a remote branch" : ref.kind === "tag" ? "a tag" : null;
+  return [
+    offer(id("set-upstream"), "Set Upstream…", notLocal ?? (facts.hasRemote ? null : "no remote")),
+    offer(id("stop-tracking"), "Stop Tracking", notLocal ?? (ref.upstream ? null : "no upstream")),
+  ];
+}
+
 /** #39: a branch or tag label on a graph row. */
 export function graphRefMenu(ref: RefTarget, facts: CommitFacts): ContextItem[] {
   return tidy([
@@ -141,6 +152,7 @@ export function graphRefMenu(ref: RefTarget, facts: CommitFacts): ContextItem[] 
     SEPARATOR,
     offer(id("push"), "Push", pushBlocked(ref, facts)),
     offer(id("push-to"), "Push To…", pushBlocked(ref, facts)),
+    ...upstreamRows(ref, facts),
     SEPARATOR,
     offer(id("delete"), "Delete", deleteBlocked(ref)),
     offer(
@@ -205,6 +217,7 @@ export function branchesBranchMenu(
     SEPARATOR,
     offer(id("push"), "Push", pushBlocked(ref, facts)),
     offer(id("push-to"), "Push To…", pushBlocked(ref, facts)),
+    ...upstreamRows(ref, facts),
     SEPARATOR,
     ...resetRows(at, facts),
     SEPARATOR,
@@ -318,8 +331,9 @@ export function labelTarget(
   const name = label.name ?? label.text;
   const branch = branches.find((entry) => entry.kind === wanted && entry.name === name);
   if (!branch) return null;
-  const ref: RefTarget = { kind: wanted === "remote" ? "remote" : "branch", name: branch.name, isHead: branch.isHead };
-  const path = wanted === "local" ? held.get(branch.name)?.path : undefined;
+  if (wanted === "remote") return { ref: { kind: "remote", name: branch.name, isHead: branch.isHead }, branch, tag: null };
+  const ref: RefTarget = { kind: "branch", name: branch.name, isHead: branch.isHead, upstream: branch.upstream };
+  const path = held.get(branch.name)?.path;
   return { ref: path ? { ...ref, worktree: path } : ref, branch, tag: null };
 }
 

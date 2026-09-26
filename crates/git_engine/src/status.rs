@@ -20,6 +20,8 @@ pub struct WorkingState {
     pub status: RepoStatus,
     /// Sorted, each path once — what `conflicted_paths` lists.
     pub conflicted: Vec<String>,
+    /// `index_lock`: the watcher's index refresh reads only this, and the banner follows it.
+    pub index_lock: Option<String>,
 }
 
 impl RepoStatus {
@@ -67,7 +69,11 @@ impl RepoHandle {
         }
         conflicted.sort();
         conflicted.dedup();
-        Ok(WorkingState { status, conflicted })
+        Ok(WorkingState {
+            status,
+            conflicted,
+            index_lock: self.index_lock(),
+        })
     }
 
     /// `!status().is_clean()`, stopping at the first change instead of counting them all.

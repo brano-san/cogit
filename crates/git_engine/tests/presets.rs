@@ -277,3 +277,24 @@ fn installing_a_preset_makes_the_hook_executable() {
         .unwrap();
     assert!(hook.executable);
 }
+
+// "<tool> not found" alone left the user guessing where Cogit had looked (F-107).
+#[test]
+fn a_missing_tool_names_every_place_that_was_searched() {
+    let dir = tempfile::tempdir().unwrap();
+    let tool = git_engine::PresetTool {
+        command: "nowhere-to-be-found".to_owned(),
+        install_hint: "n/a".to_owned(),
+        search_paths: vec![
+            dir.path().to_string_lossy().into_owned(),
+            "$COGIT_SURELY_UNSET_VARIABLE/bin".to_owned(),
+        ],
+    };
+
+    assert_eq!(git_engine::find_tool(&tool), None);
+    assert_eq!(
+        git_engine::tool_search_places(&tool),
+        vec![dir.path().to_string_lossy().into_owned(), "PATH".to_owned()],
+        "declared directories as expanded, one with an unset variable skipped, then PATH"
+    );
+}

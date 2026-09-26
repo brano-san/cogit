@@ -13,10 +13,11 @@ pub async fn reset_to(
     mode: ResetMode,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    mutating(
+    super::mutating_titled(
         &state.state,
         repo,
         OperationKind::Checkout,
+        "Resetting",
         "reset_to",
         move || app_state.reset_to(repo, &rev, mode),
     )
@@ -146,14 +147,14 @@ pub async fn push_to(
     on_progress: tauri::ipc::Channel<String>,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    mutating(
+    super::network::networking(
         &state.state,
         repo,
         OperationKind::Push,
         "push_to",
-        move || {
+        move |stop| {
             super::network::with_progress("push", &remote, &on_progress, |on_line| {
-                app_state.push_to(repo, &remote, &refspec, on_line)
+                app_state.push_to(repo, &remote, &refspec, &stop, on_line)
             })
         },
     )

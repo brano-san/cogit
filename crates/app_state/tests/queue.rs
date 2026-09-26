@@ -266,3 +266,71 @@ async fn idle_waits_for_the_operation_running_and_the_one_behind_it() {
         .unwrap()
         .unwrap();
 }
+
+async fn waits_behind(state: &Arc<AppState>, running: RepoId, next: RepoId) {
+    let held = state.enqueue(running, OperationKind::Push, "Pushing").await;
+    let second = Arc::clone(state);
+    let waiting = tokio::spawn(async move {
+        second
+            .enqueue(next, OperationKind::Worktree, "Removing worktree")
+            .await
+            .finish(true);
+    });
+    until(state, 2).await;
+    assert!(
+        !waiting.is_finished(),
+        "two git processes at once in one repository's files"
+    );
+    held.finish(true);
+    waiting.await.unwrap();
+}
+
+// A worktree or submodule opened from the tree had a lane of its own: the owner's Remove
+// --force or Update Submodule ran in its folder beside its own push or commit (CC-007).
+#[tokio::test]
+async fn a_worktree_opened_from_its_owner_waits_in_the_owners_lane() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let state = Arc::new(AppState::new());
+    let owner = state.open_repository(f.path()).unwrap().repo;
+    let path = state
+        .worktrees(owner)
+        .unwrap()
+        .into_iter()
+        .find(|entry| !entry.is_main)
+        .unwrap()
+        .path;
+    let linked = state.open_worktree(owner, &path).unwrap().repo;
+
+    waits_behind(&state, linked, owner).await;
+    waits_behind(&state, owner, linked).await;
+}
+
+#[tokio::test]
+async fn a_linked_worktree_opened_by_hand_shares_its_repository_lane() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let state = Arc::new(AppState::new());
+    let owner = state.open_repository(f.path()).unwrap().repo;
+    let path = state
+        .worktrees(owner)
+        .unwrap()
+        .into_iter()
+        .find(|entry| !entry.is_main)
+        .unwrap()
+        .path;
+    let linked = state
+        .open_repository(std::path::Path::new(&path))
+        .unwrap()
+        .repo;
+
+    waits_behind(&state, linked, owner).await;
+}
+
+#[tokio::test]
+async fn a_submodule_opened_from_its_parent_waits_in_the_parents_lane() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let state = Arc::new(AppState::new());
+    let parent = state.open_repository(f.path()).unwrap().repo;
+    let child = state.open_submodule(parent, "vendor/lib").unwrap().repo;
+
+    waits_behind(&state, child, parent).await;
+}

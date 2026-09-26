@@ -20,6 +20,8 @@ pub struct PresetStatus {
     pub install_hint: Option<String>,
     /// Where the tool was found, or `None` when it is not installed.
     pub tool_path: Option<String>,
+    /// Where it was looked for, in order, `PATH` last; empty without a tool.
+    pub searched: Vec<String>,
     pub user: bool,
 }
 
@@ -37,6 +39,14 @@ pub fn status_for(preset: Preset, root: &Path, user: bool) -> PresetStatus {
             .as_ref()
             .and_then(git_engine::find_tool)
             .map(|path| path.to_string_lossy().replace(char::from(92), "/")),
+        searched: preset
+            .tool
+            .as_ref()
+            .map(git_engine::tool_search_places)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|place| place.replace(char::from(92), "/"))
+            .collect(),
         tool: preset.tool.as_ref().map(|tool| tool.command.clone()),
         install_hint: preset.tool.as_ref().map(|tool| tool.install_hint.clone()),
         id: preset.id,

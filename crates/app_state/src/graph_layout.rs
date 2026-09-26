@@ -127,7 +127,7 @@ fn mainline_of(handle: &git_engine::RepoHandle, query: &git_engine::CommitQuery)
             .as_ref()
             .is_none_or(|refs| refs.iter().any(|rev| rev == name))
     };
-    let branches = handle.branches().ok()?;
+    let branches = handle.branches_without_divergence().ok()?;
     let locals: Vec<(&str, &str)> = branches
         .iter()
         .filter(|branch| {

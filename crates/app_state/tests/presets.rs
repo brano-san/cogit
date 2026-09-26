@@ -223,3 +223,20 @@ fn an_exported_preset_reads_back_whatever_its_name_and_script_hold() {
     state.install_preset(repo, "mine").unwrap();
     assert_eq!(state.read_hook(repo, "pre-commit").unwrap(), script);
 }
+
+#[test]
+fn a_preset_with_a_tool_says_where_the_tool_was_looked_for() {
+    let f = test_fixtures::linear(1).unwrap();
+    let (state, repo) = opened(&f);
+
+    for preset in state.presets_for(repo).unwrap() {
+        match preset.tool {
+            Some(_) => assert_eq!(
+                preset.searched.last().map(String::as_str),
+                Some("PATH"),
+                "{preset:?}"
+            ),
+            None => assert!(preset.searched.is_empty(), "{preset:?}"),
+        }
+    }
+}

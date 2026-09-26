@@ -90,6 +90,11 @@ describe("the notification window", () => {
     expect(notices.all).toHaveLength(1);
   });
 
+  it("says nothing about a network command the user cancelled: the journal has it", () => {
+    errors.report(new CogitError({ kind: "cancelled", data: "git fetch --progress origin" }), "Could not fetch");
+    expect(notices.all).toHaveLength(0);
+  });
+
   it("ignores a null, which is what a store with no error hands over", () => {
     errors.report(null, "Could not show the diff");
     expect(notices.all).toHaveLength(0);
@@ -101,24 +106,33 @@ describe("the notification window", () => {
     errors.report({ message: "This repository has no remote." }, "Could not fetch");
 
     expect(notices.all.map((notice) => notice.body)).toEqual([
-      "Invalid repository state: This repository has no remote.",
-      "Invalid repository state: window blocked",
+      "This repository has no remote.",
+      "window blocked",
       "Internal error: C:/x.log",
     ]);
   });
 
+  // "Invalid repository state:" stood before every refusal, "Git Bash was not found" and a
+  // keyring failure among them (BE-013).
+  it("says a refusal in its own words, without calling it a repository state", () => {
+    errors.report(refusal("Git Bash was not found"), "Could not open Git Shell");
+    expect(notices.current?.body).toBe("Git Bash was not found");
+    errors.report(refusal("index.lock exists"), "Could not stage");
+    expect(notices.current?.body).toBe("index.lock exists");
+  });
+
   it("puts the newest error in front and moves to the next when one is closed", () => {
-    errors.report(refusal("first"), "Could not merge");
-    errors.report(refusal("second"), "Could not rebase");
-    expect(notices.current?.body).toContain("second");
+    errors.report(refusal("First"), "Could not merge");
+    errors.report(refusal("Second"), "Could not rebase");
+    expect(notices.current?.body).toContain("Second");
 
     notices.dismiss();
-    expect(notices.current?.body).toContain("first");
+    expect(notices.current?.body).toContain("First");
   });
 
   it("closes after the last entry and clears the footer's error", () => {
-    errors.report(refusal("first"), "Could not merge");
-    errors.report(refusal("second"), "Could not rebase");
+    errors.report(refusal("First"), "Could not merge");
+    errors.report(refusal("Second"), "Could not rebase");
 
     notices.dismiss();
     notices.dismiss();
@@ -129,8 +143,8 @@ describe("the notification window", () => {
 
   it("puts every error ahead of every warning", async () => {
     await warn(goneWorktree, ignoreCase);
-    errors.report(refusal("first"), "Could not merge");
-    errors.report(refusal("second"), "Could not rebase");
+    errors.report(refusal("First"), "Could not merge");
+    errors.report(refusal("Second"), "Could not rebase");
 
     expect(notices.all.map((notice) => notice.severity)).toEqual([
       "error",
@@ -138,7 +152,7 @@ describe("the notification window", () => {
       "warning",
       "warning",
     ]);
-    expect(notices.all[0]?.body).toContain("second");
+    expect(notices.all[0]?.body).toContain("Second");
   });
 
   it("switches to an error that arrives while a warning is open, and keeps the warning", async () => {
@@ -259,7 +273,7 @@ describe("a failed git command in the notification window", () => {
   it("keeps a result behind every error and warning", async () => {
     await warn(goneWorktree);
     notices.inform("Worktree repaired", "done");
-    errors.report(refusal("first"), "Could not merge");
+    errors.report(refusal("First"), "Could not merge");
 
     expect(notices.all.map((notice) => notice.severity)).toEqual(["error", "warning", "info"]);
     notices.dismissAll();

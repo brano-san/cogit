@@ -191,6 +191,8 @@ describe("graphRefMenu (#39)", () => {
       "—",
       "Push",
       "Push To…",
+      "Set Upstream…",
+      "Stop Tracking",
       "—",
       "Delete",
       "Rename",
@@ -242,6 +244,8 @@ describe("branchesBranchMenu (#33)", () => {
       "—",
       "Push",
       "Push To…",
+      "Set Upstream…",
+      "Stop Tracking",
       "—",
       "Reset",
       "Reset Advanced…",
@@ -277,6 +281,47 @@ describe("branchesBranchMenu (#33)", () => {
   it("toggles only what can be ticked", () => {
     const menu = branchesBranchMenu(branch, elsewhere, { ...rows, untickable: "no commit" });
     expect(find(menu, "Toggle").enabled).toBe(false);
+  });
+});
+
+describe("upstream rows (F-130)", () => {
+  const tracking: RefTarget = { ...branch, upstream: "origin/topic" };
+  const menus = (ref: RefTarget, facts: CommitFacts) => [
+    graphRefMenu(ref, facts),
+    branchesBranchMenu(ref, facts, rows),
+  ];
+
+  it("sets and stops the upstream of a local branch that tracks one", () => {
+    for (const menu of menus(tracking, older)) {
+      expect(find(menu, "Set Upstream…").enabled).toBe(true);
+      expect(find(menu, "Stop Tracking").enabled).toBe(true);
+    }
+  });
+
+  it("has nothing to stop tracking on a branch without an upstream", () => {
+    for (const menu of menus({ ...branch, upstream: null }, older)) {
+      expect(find(menu, "Set Upstream…").enabled).toBe(true);
+      const stop = find(menu, "Stop Tracking");
+      expect(stop.enabled).toBe(false);
+      expect(stop.label).toMatch(/no upstream/);
+    }
+  });
+
+  it("has no remote branch to track without a remote", () => {
+    for (const menu of menus(tracking, { ...older, hasRemote: false })) {
+      expect(find(menu, "Set Upstream…").label).toMatch(/no remote/);
+    }
+  });
+
+  it("gives a remote branch or a tag no upstream to set or stop", () => {
+    const remote: RefTarget = { kind: "remote", name: "origin/topic", isHead: false };
+    for (const menu of menus(remote, older)) {
+      expect(find(menu, "Set Upstream…").label).toMatch(/a remote branch/);
+      expect(find(menu, "Stop Tracking").label).toMatch(/a remote branch/);
+    }
+    const tag = graphRefMenu({ kind: "tag", name: "v1", isHead: false }, older);
+    expect(find(tag, "Set Upstream…").label).toMatch(/a tag/);
+    expect(find(tag, "Stop Tracking").label).toMatch(/a tag/);
   });
 });
 
@@ -425,6 +470,7 @@ describe("labelTarget", () => {
       kind: "branch",
       name: "topic",
       isHead: true,
+      upstream: null,
     });
     expect(labelTarget({ text: "origin/topic", kind: "remote" }, branches, tags)?.ref.kind).toBe("remote");
     expect(labelTarget({ text: "v1", kind: "tag" }, branches, tags)?.tag?.name).toBe("v1");
@@ -433,6 +479,13 @@ describe("labelTarget", () => {
   it("acts on the local branch of a joined origin=branch label", () => {
     const joined = { text: "origin=topic", kind: "head", remotes: ["origin"], name: "topic" } as const;
     expect(labelTarget(joined, branches, tags)?.branch?.kind).toBe("local");
+  });
+
+  it("carries a local branch's upstream for Stop Tracking", () => {
+    const tracked = branches.map((entry) =>
+      entry.kind === "local" ? { ...entry, upstream: "origin/topic" } : entry,
+    );
+    expect(labelTarget({ text: "topic", kind: "local" }, tracked, tags)?.ref.upstream).toBe("origin/topic");
   });
 
   it("leaves a stash label to the stash menu", () => {

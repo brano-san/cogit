@@ -32,6 +32,7 @@ import type {
   RepoChanged,
   RepoId,
   ScanHit,
+  ScanChunk,
   SearchChunk,
   SearchScope,
   WorktreeView,
@@ -118,6 +119,7 @@ export type {
   RebaseStep,
   RefDate,
   ScanHit,
+  ScanChunk,
   ContentMatch,
   SearchChunk,
   SearchScope,
@@ -167,8 +169,9 @@ function describeError(error: GitError): string {
       return `${error.data.command} failed with exit code ${error.data.exitCode ?? "unknown"}`;
     case "repoNotFound":
       return `Not a Git repository: ${error.data}`;
+    // A refusal says what is wrong in its own words; most are not about the repository.
     case "invalidState":
-      return `Invalid repository state: ${error.data}`;
+      return error.data;
     case "io":
       return `I/O error: ${error.data}`;
     case "internal":
@@ -179,6 +182,8 @@ function describeError(error: GitError): string {
       return error.data.line === null
         ? `Git refused the config: ${error.data.message}`
         : `Git refused the config at line ${error.data.line}: ${error.data.message}`;
+    case "cancelled":
+      return `Cancelled: ${error.data}`;
   }
 }
 
@@ -256,14 +261,19 @@ export async function graphOverlay(
   return unwrap(await commands.graphOverlay(repo, generation, start, count, request));
 }
 
-/** Hits stream in as the walk finds them; the promise resolves with the total. */
+/** Hits stream in as the walk finds them; the promise resolves with the total. `onStarted`
+    gets the id `cancelOperation` stops the walk by, before the first hit. */
 export async function scanForRepositories(
   path: string,
   maxDepth: number,
   onFound: (hit: ScanHit) => void,
+  onStarted: (id: number) => void = () => {},
 ) {
-  const channel = new Channel<ScanHit>();
-  channel.onmessage = onFound;
+  const channel = new Channel<ScanChunk>();
+  channel.onmessage = (chunk) => {
+    if (chunk.kind === "started") onStarted(chunk.id);
+    else onFound(chunk.hit);
+  };
   return unwrap(await commands.scanForRepositories(path, maxDepth, channel));
 }
 
@@ -278,6 +288,13 @@ export async function searchFileContents(
   const channel = new Channel<SearchChunk>();
   channel.onmessage = onChunk;
   return unwrap(await commands.searchFileContents(repo, query, isRegex, scope, channel));
+}
+
+/** Stops the fetch, pull or push running as queue operation `operation` (an
+    `OperationChanged` of kind fetch, pull or push in phase running): git is stopped, the
+    call rejects with a `cancelled` error, the lane goes on. `false` — nothing to stop. */
+export async function cancelNetwork(operation: number) {
+  return unwrap(await commands.cancelNetwork(operation));
 }
 
 /** `false` when the operation had already finished. */
@@ -312,10 +329,6 @@ export async function diffFile(
   options: DiffOptions = DEFAULT_DIFF_OPTIONS,
 ) {
   return unwrap(await commands.diffFile(repo, spec, path, options));
-}
-
-export async function repoStatus(repo: RepoId) {
-  return unwrap(await commands.repoStatus(repo));
 }
 
 export async function repoRefs(repo: RepoId) {
@@ -373,6 +386,11 @@ export async function deleteBranch(repo: RepoId, name: string, force: boolean) {
 
 export async function renameBranch(repo: RepoId, from: string, to: string, force: boolean) {
   return unwrap(await commands.renameBranch(repo, from, to, force));
+}
+
+/** `null` stops tracking: `git branch --unset-upstream`. */
+export async function setUpstream(repo: RepoId, branch: string, upstream: string | null) {
+  return unwrap(await commands.setUpstream(repo, branch, upstream));
 }
 
 export async function deleteRemoteBranch(repo: RepoId, remote: string, branch: string) {

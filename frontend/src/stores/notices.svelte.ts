@@ -45,7 +45,8 @@ class NoticeStore {
   report(error: unknown, title: string): void {
     untrack(() => {
       const cogit = asCogitError(error);
-      if (!cogit) return;
+      // The user stopped it; the journal's warning already says so.
+      if (!cogit || cogit.detail.kind === "cancelled") return;
       this.#seq += 1;
       this.#queueError(errorNotice(cogit, title, this.#seq));
     });

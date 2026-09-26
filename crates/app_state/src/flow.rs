@@ -49,7 +49,7 @@ impl AppState {
         // From the branch list, as `delete_branch` does: `rev-parse <name>` would prefer a
         // tag of the same name.
         let finished = handle
-            .branches()?
+            .branches_without_divergence()?
             .into_iter()
             .find(|branch| branch.name == full);
 

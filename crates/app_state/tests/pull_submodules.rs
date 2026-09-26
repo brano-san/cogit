@@ -4,6 +4,7 @@
 //! Repository Settings ▸ Fetch and Pull ▸ Initialize new submodules (#42).
 
 use app_state::AppState;
+use git_engine::NetworkStop;
 use std::path::{Path, PathBuf};
 
 fn slashed(path: &Path) -> String {
@@ -60,7 +61,9 @@ fn scene() -> Scene {
 fn pull(scene: &Scene) {
     let state = AppState::new();
     let repo = state.open_repository(&scene.mine).unwrap().repo;
-    state.pull(repo, "origin", true, |_| {}).unwrap();
+    state
+        .pull(repo, "origin", true, &NetworkStop::default(), |_| {})
+        .unwrap();
 }
 
 fn ask_for_new_submodules(scene: &Scene) {
@@ -94,7 +97,9 @@ fn a_submodule_on_a_local_path_the_pull_brings_is_left_to_git_s_refusal() {
     let state = AppState::new();
     let repo = state.open_repository(&scene.mine).unwrap().repo;
 
-    let refused = state.pull(repo, "origin", true, |_| {}).unwrap_err();
+    let refused = state
+        .pull(repo, "origin", true, &NetworkStop::default(), |_| {})
+        .unwrap_err();
 
     assert!(
         matches!(&refused, git_engine::GitError::Command(failed) if failed.stderr.contains("transport 'file' not allowed")),

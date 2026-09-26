@@ -60,7 +60,6 @@ export const commands = {
 	commitFiles: (repo: RepoId, rev: string) => typedError<FileEntry[], GitError>(__TAURI_INVOKE("commit_files", { repo, rev })),
 	diffFile: (repo: RepoId, spec: DiffSpec, path: string, options: DiffOptions) => typedError<FileDiff, GitError>(__TAURI_INVOKE("diff_file", { repo, spec, path, options })),
 	worktreeFiles: (repo: RepoId, view: WorktreeView) => typedError<WorktreeFiles, GitError>(__TAURI_INVOKE("worktree_files", { repo, view })),
-	repoStatus: (repo: RepoId) => typedError<RepoStatus, GitError>(__TAURI_INVOKE("repo_status", { repo })),
 	/**  The counters and the conflicted paths from one read, for the refresh after a mutation. */
 	workingState: (repo: RepoId) => typedError<WorkingState, GitError>(__TAURI_INVOKE("working_state", { repo })),
 	/**  Refs and state without reopening the repository, for the refresh after a commit. */
@@ -77,7 +76,7 @@ export const commands = {
 	checkout: (repo: RepoId, target: CheckoutTarget) => typedError<null, GitError>(__TAURI_INVOKE("checkout", { repo, target })),
 	createBranch: (repo: RepoId, name: string, start: string | null, switchTo: boolean) => typedError<null, GitError>(__TAURI_INVOKE("create_branch", { repo, name, start, switchTo })),
 	deleteBranch: (repo: RepoId, name: string, force: boolean) => typedError<null, GitError>(__TAURI_INVOKE("delete_branch", { repo, name, force })),
-	/**  Off the main thread: the whole journal can be a hundred megabyte-sized entries. */
+	/**  In the blocking pool: the whole journal can be a hundred megabyte-sized entries. */
 	commandLog: () => __TAURI_INVOKE<GitOutput[]>("command_log"),
 	/**  One entry in full. The notice that opened the window carried only its summary. */
 	commandOutcome: (id: number) => __TAURI_INVOKE<{
@@ -133,6 +132,11 @@ export const commands = {
 	fetch: (repo: RepoId, remote: string, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("fetch", { repo, remote, onProgress })),
 	pull: (repo: RepoId, remote: string, ffOnly: boolean, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("pull", { repo, remote, ffOnly, onProgress })),
 	push: (repo: RepoId, remote: string, force: boolean, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("push", { repo, remote, force, onProgress })),
+	/**
+	 *  Stops the fetch, pull or push running as queue operation `operation`. `false` when
+	 *  there is nothing to stop. Off the main thread: stopping waits for `taskkill`.
+	 */
+	cancelNetwork: (operation: number) => typedError<boolean, GitError>(__TAURI_INVOKE("cancel_network", { operation })),
 	merge: (repo: RepoId, options: MergeOptions) => typedError<null, GitError>(__TAURI_INVOKE("merge", { repo, options })),
 	rebase: (repo: RepoId, options: RebaseOptions) => typedError<null, GitError>(__TAURI_INVOKE("rebase", { repo, options })),
 	skipOperation: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("skip_operation", { repo })),
@@ -316,7 +320,6 @@ export const commands = {
 	listSubmodules: (repo: RepoId, parent: string) => typedError<Submodule[], GitError>(__TAURI_INVOKE("list_submodules", { repo, parent })),
 	submoduleOutline: (root: string, parent: string) => typedError<Submodule[], GitError>(__TAURI_INVOKE("submodule_outline", { root, parent })),
 	repoPulse: (root: string) => typedError<RepoPulse, GitError>(__TAURI_INVOKE("repo_pulse", { root })),
-	backgroundFetch: (root: string) => typedError<null, GitError>(__TAURI_INVOKE("background_fetch", { root })),
 	pullProbe: (root: string) => typedError<boolean | null, GitError>(__TAURI_INVOKE("pull_probe", { root })),
 	/**
 	 *  Opens a submodule from its node in the tree: the panels follow it, the Repositories
@@ -348,10 +351,11 @@ export const commands = {
 	/**  Preferences ▸ Keyboard, while it records a shortcut: the menu lets every key through. */
 	captureKeys: (on: boolean) => __TAURI_INVOKE<void>("capture_keys", { on }),
 	/**
-	 *  A folder can hold hundreds of repositories, so hits stream in as they are found and
-	 *  dropping the channel stops the walk.
+	 *  A folder can hold hundreds of repositories, so hits stream in as they are found.
+	 *  The walk ends on `cancel_operation`: a channel the page stopped listening to still
+	 *  accepts every send.
 	 */
-	scanForRepositories: (path: string, maxDepth: number, onFound: Channel<ScanHit>) => typedError<number, GitError>(__TAURI_INVOKE("scan_for_repositories", { path, maxDepth, onFound })),
+	scanForRepositories: (path: string, maxDepth: number, onFound: Channel<ScanChunk>) => typedError<number, GitError>(__TAURI_INVOKE("scan_for_repositories", { path, maxDepth, onFound })),
 	/**
 	 *  Reports only whether a token exists. Reading one back would put it in the webview,
 	 *  where every dependency could see it.
@@ -694,7 +698,7 @@ moveId?: number | null; moveScope?: MoveScope | null;
  *  The file ends on this row without a final newline; a unified diff prints
  *  `\ No newline at end of file` underneath it.
  */
-noNewline?: boolean } | { kind: "insert"; new: number; text: string; inline: ([number, number])[]; moved?: boolean; moveId?: number | null; moveScope?: MoveScope | null; noNewline?: boolean } | { kind: "collapsed"; count: number };
+noNewline?: boolean } | { kind: "insert"; new: number; text: string; inline: ([number, number])[]; moved?: boolean; moveId?: number | null; moveScope?: MoveScope | null; noNewline?: boolean };
 
 export type DiffSpec = { kind: "commitVsParent"; oid: string } | { kind: "commitVsCommit"; a: string; b: string } | { kind: "workTreeVsIndex" } | { kind: "indexVsHead" } | 
 /**  A past version against the file on disk now: Compare with Working Tree. */
@@ -865,7 +869,12 @@ export type GitError =
 /**  A submodule that cannot be opened, with the reason rather than "not a repository". */
 { kind: "moduleUnavailable"; data: ModuleProblem } | 
 /**  Git refused a config file's text; nothing was written. */
-{ kind: "configInvalid"; data: ConfigProblem };
+{ kind: "configInvalid"; data: ConfigProblem } | 
+/**
+ *  The user stopped it: a fetch, pull or push cancelled from the footer. Carries the
+ *  command, as the journal wrote it.
+ */
+{ kind: "cancelled"; data: string };
 
 export type GitOutput = {
 	/**  Numbered so a window, a toast and a history row can all name the same run. */
@@ -1264,6 +1273,8 @@ export type PresetStatus = {
 	installHint: string | null,
 	/**  Where the tool was found, or `None` when it is not installed. */
 	toolPath: string | null,
+	/**  Where it was looked for, in order, `PATH` last; empty without a tool. */
+	searched: string[],
 	user: boolean,
 };
 
@@ -1441,6 +1452,12 @@ export type SafetyEntry = {
 	description: string,
 	undoable: boolean,
 };
+
+/**
+ *  What travels up the channel while a folder scan runs; `Started` carries the id
+ *  `cancel_operation` takes.
+ */
+export type ScanChunk = { kind: "started"; id: number } | { kind: "found"; hit: ScanHit };
 
 /**  One hit from a folder scan. Paths cross IPC as strings, like every other path. */
 export type ScanHit = {
@@ -1632,6 +1649,8 @@ export type WorkingState = {
 	status: RepoStatus,
 	/**  Sorted, each path once — what `conflicted_paths` lists. */
 	conflicted: string[],
+	/**  `index_lock`: the watcher's index refresh reads only this, and the banner follows it. */
+	indexLock: string | null,
 };
 
 /**  One checkout: the main one cannot be removed, a linked one can be locked or left behind. */

@@ -168,3 +168,24 @@ fn counting_does_not_spawn_a_process_per_branch() {
         "reads go through gix; 500 branches must not mean 500 processes, got {commands:?}"
     );
 }
+
+// Find Object counted the divergence of every tracking branch on every keystroke, though it
+// reads only names and tips (GE-027).
+#[test]
+fn the_list_without_divergence_is_the_same_list_but_for_ahead_and_behind() {
+    let f = test_fixtures::with_remote().unwrap();
+    let repo = open(&f);
+    let full = repo.branches().unwrap();
+    assert!(full.iter().any(|b| b.ahead > 0 || b.behind > 0), "{full:?}");
+
+    let light = repo.branches_without_divergence().unwrap();
+
+    assert_eq!(light.len(), full.len());
+    for (light, full) in light.iter().zip(&full) {
+        assert_eq!(
+            (&light.name, &light.oid, &light.upstream, light.is_head),
+            (&full.name, &full.oid, &full.upstream, full.is_head)
+        );
+        assert_eq!((light.ahead, light.behind), (0, 0));
+    }
+}

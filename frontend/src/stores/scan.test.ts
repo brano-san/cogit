@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const commands = { scanForRepositories: vi.fn() };
+const commands = { scanForRepositories: vi.fn(), cancelOperation: vi.fn() };
 
 vi.mock("@tauri-apps/api/core", () => ({ Channel: class {} }));
 vi.mock("$lib/ipc/bindings", () => ({ commands }));
@@ -19,8 +19,17 @@ const hit = (root: string, alreadyOpen = false): Hit => ({
 /** Stands in for the backend: pushes hits through the channel, then resolves. */
 function findsBackend(hits: Hit[]) {
   commands.scanForRepositories.mockImplementation((_path, _depth, channel) => {
-    for (const found of hits) channel.onmessage(found);
+    channel.onmessage({ kind: "started", id: 1 });
+    for (const found of hits) channel.onmessage({ kind: "found", hit: found });
     return Promise.resolve({ status: "ok", data: hits.length });
+  });
+}
+
+/** A walk that has started, as scan `id`, and is still going. */
+function walksOn(id: number) {
+  commands.scanForRepositories.mockImplementation((_path, _depth, channel) => {
+    channel.onmessage({ kind: "started", id });
+    return new Promise(() => {});
   });
 }
 
@@ -28,6 +37,8 @@ describe("scan store", () => {
   beforeEach(() => {
     commands.scanForRepositories.mockReset();
     scan.clear();
+    commands.cancelOperation.mockReset();
+    commands.cancelOperation.mockResolvedValue(true);
   });
 
   it("collects the hits the walk reports", async () => {
@@ -80,6 +91,30 @@ describe("scan store", () => {
     await scan.run("/w", 6);
     expect(scan.busy).toBe(false);
     expect(scan.error?.message).toContain("gone");
+  });
+
+  // Cancel only muted the results: the walk went on to the end on the rayon pool.
+  it("stops the walk when the dialog is cancelled", () => {
+    walksOn(7);
+    void scan.run("/w", 6);
+    scan.clear();
+    expect(commands.cancelOperation).toHaveBeenCalledWith(7);
+  });
+
+  it("stops the earlier walk when a new one starts", () => {
+    walksOn(7);
+    void scan.run("/w", 6);
+    walksOn(8);
+    void scan.run("/other", 6);
+    expect(commands.cancelOperation).toHaveBeenCalledWith(7);
+    expect(commands.cancelOperation).not.toHaveBeenCalledWith(8);
+  });
+
+  it("has nothing to stop once the walk is over", async () => {
+    findsBackend([hit("/w/alpha")]);
+    await scan.run("/w", 6);
+    scan.clear();
+    expect(commands.cancelOperation).not.toHaveBeenCalled();
   });
 
   it("forgets an earlier walk when a new one starts", async () => {

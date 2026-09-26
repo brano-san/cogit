@@ -33,6 +33,7 @@ pub use credentials::{
     KeyringStore, MemoryStore, SecretError, SecretStore, host_of, platform_store,
 };
 pub use graph_cache::{GraphProgress, GraphWindow};
+pub use network::NetworkRun;
 pub use presets::PresetStatus;
 pub use queue::{Operation, OperationKind, OperationPermit, OperationPhase, Queue};
 pub use safety::{Recovery, SafetyEntry};
@@ -62,6 +63,15 @@ pub async fn next_event(events: &mut broadcast::Receiver<AppEvent>) -> Option<Ap
             Err(broadcast::error::RecvError::Closed) => return None,
         }
     }
+}
+
+/// A call for a repository closed since, from a child window or the queue: a normal state,
+/// not "not a Git repository" (BE-013).
+fn not_open(repo: RepoId) -> git_engine::GitError {
+    tracing::info!(repo = repo.0, "a call for a repository no longer open");
+    git_engine::GitError::InvalidState(
+        "This repository was closed in Cogit. Open it again to go on.".to_owned(),
+    )
 }
 
 /// The confirmation promised Undo. Without the backup stash there is nothing to undo
@@ -158,6 +168,12 @@ pub struct OpenRepo {
     /// reached by double-clicking its node is open and workable but not listed: it is
     /// already on screen, as a node of its parent (doc/12-risks.md, R-109).
     pub listed: bool,
+    /// The repository whose tree it was opened from, a submodule's or a worktree's; one
+    /// that is not listed closes with it (R-508).
+    pub owner: Option<RepoId>,
+    /// The queue lane its writes wait in: the common git directory at the top of its owners,
+    /// so a linked worktree and a submodule wait beside the repository they belong to.
+    pub lane: PathBuf,
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -243,16 +259,16 @@ impl RowCache {
     }
 }
 
-#[derive(Debug, Clone, Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct GraphChunk {
-    pub commits: Vec<git_engine::CommitRow>,
+/// What the layout hands `build_graph` as it walks; the webview never sees it (R-193).
+#[derive(Debug, Clone)]
+pub(crate) struct GraphChunk {
+    pub(crate) commits: Vec<git_engine::CommitRow>,
     /// One per commit, in the same order: the node and every segment of its row. Cutting
     /// long links holds the last rows back, so a chunk can have fewer rows than commits.
-    pub rows: Vec<graph_engine::GraphRow>,
+    pub(crate) rows: Vec<graph_engine::GraphRow>,
     /// Folded merges whose count grew with this chunk.
-    pub folds: Vec<graph_engine::Fold>,
-    pub is_last: bool,
+    pub(crate) folds: Vec<graph_engine::Fold>,
+    pub(crate) is_last: bool,
 }
 
 pub const DEFAULT_CHUNK_SIZE: usize = 200;
@@ -311,6 +327,8 @@ pub struct AppState {
     graph: Arc<RwLock<graph_cache::GraphCache>>,
     reachable: parking_lot::Mutex<HashMap<RepoId, git_engine::Reachable>>,
     handles: handles::HandleCache,
+    /// The fetch, pull or push running as each queue operation, for `cancel_network`.
+    network_runs: parking_lot::Mutex<HashMap<u32, git_engine::NetworkStop>>,
 }
 
 struct Quiet<'a> {
@@ -368,6 +386,7 @@ impl AppState {
             graph: Arc::new(RwLock::new(graph_cache::GraphCache::default())),
             reachable: parking_lot::Mutex::new(HashMap::new()),
             handles: handles::HandleCache::default(),
+            network_runs: parking_lot::Mutex::new(HashMap::new()),
         }
     }
 
@@ -448,26 +467,6 @@ impl AppState {
         self.events.subscribe()
     }
 
-    /// Brackets one operation with a start and a finish event, so the toolbar can show a
-    /// spinner without every call site remembering to announce itself.
-    pub fn tracked<T, E>(&self, label: &str, work: impl FnOnce() -> Result<T, E>) -> Result<T, E> {
-        let mut operation = Operation {
-            id: self.next_entry_id.fetch_add(1, Ordering::Relaxed),
-            repo: None,
-            kind: OperationKind::Other,
-            label: label.to_owned(),
-            phase: OperationPhase::Running,
-            success: None,
-        };
-        self.emit(AppEvent::Operation(operation.clone()));
-
-        let result = work();
-        operation.phase = OperationPhase::Done;
-        operation.success = Some(result.is_ok());
-        self.emit(AppEvent::Operation(operation));
-        result
-    }
-
     pub fn emit(&self, event: AppEvent) {
         let _ = self.events.send(event);
     }
@@ -478,10 +477,11 @@ impl AppState {
         &self,
         root: &Path,
         max_depth: usize,
+        cancelled: impl Fn() -> bool + Sync,
         mut on_found: impl FnMut(ScanHit) -> bool + Send,
     ) {
         let options = git_engine::discover::ScanOptions { max_depth };
-        git_engine::discover::scan_until(root, &options, |found| {
+        git_engine::discover::scan_cancellable(root, &options, cancelled, |found| {
             on_found(ScanHit {
                 root: found.path.to_string_lossy().replace('\\', "/"),
                 name: found.name,
@@ -497,7 +497,7 @@ impl AppState {
         let mut watch = Steps::new();
         let handle = git_engine::RepoHandle::open(path)?;
         watch.done("open");
-        self.open_with(handle, path, true, watch, began)
+        self.open_with(handle, path, None, watch, began)
     }
 
     /// `open_repository` without the status, the registration and the watcher: after a
@@ -526,7 +526,7 @@ impl AppState {
         let mut watch = Steps::new();
         let handle = git_engine::RepoHandle::open_exact(&path)?;
         watch.done("open");
-        self.open_with(handle, &path, false, watch, began)
+        self.open_with(handle, &path, Some(owner), watch, began)
     }
 
     /// The one place a tree key becomes a directory, shared by listing and opening so the
@@ -535,12 +535,13 @@ impl AppState {
         Ok(self.handle(owner)?.root().join(key))
     }
 
-    /// `began`: `closes_so_far` before the first read.
+    /// `began`: `closes_so_far` before the first read. `owner`: `None` for an entry of
+    /// the list, else the repository whose tree it was opened from.
     fn open_with(
         &self,
         handle: git_engine::RepoHandle,
         path: &Path,
-        listed: bool,
+        owner: Option<RepoId>,
         mut watch: Steps,
         began: u64,
     ) -> Result<RepoSummary, git_engine::GitError> {
@@ -567,7 +568,10 @@ impl AppState {
             |n| n.to_string_lossy().into_owned(),
         );
 
-        let Some(id) = self.find_or_register(root.clone(), name.clone(), listed, began) else {
+        let common = handle.common_dir();
+        let common = std::fs::canonicalize(common).unwrap_or_else(|_| common.to_path_buf());
+        let Some(id) = self.find_or_register(root.clone(), name.clone(), owner, common, began)
+        else {
             tracing::info!(root = %root.display(), "closed while it was opening; not registered");
             return Err(git_engine::GitError::InvalidState(format!(
                 "{} was closed while it was opening",
@@ -589,26 +593,6 @@ impl AppState {
             index_lock,
             tag_group_separator,
         })
-    }
-
-    /// A filtered history is a flat list, not a graph: the parents of a match are usually
-    /// filtered out, so lanes drawn between survivors would claim a lineage that is not
-    /// there. Other clients do the same. Narrowing the visible refs is exempt — it drops
-    /// whole tips, never a commit from inside a surviving lineage (R-51).
-    pub fn search_graph(
-        &self,
-        repo: RepoId,
-        query: &git_engine::CommitQuery,
-        chunk_size: usize,
-        on_chunk: impl FnMut(GraphChunk) -> bool,
-    ) -> Result<Vec<git_engine::SkippedRef>, git_engine::GitError> {
-        let rows = git_engine::GraphRows {
-            reuse: None,
-            record: None,
-            text: true,
-            cut: None,
-        };
-        crate::graph_layout::lay_out(&self.handle(repo)?, query, chunk_size, rows, on_chunk)
     }
 
     pub fn commit_details(
@@ -654,7 +638,8 @@ impl AppState {
         self.handle(repo)?.unstage(paths)
     }
 
-    /// Discarded work goes into a hidden stash first, so Undo has something to put back.
+    /// Discarded work goes into a backup first (`refs/cogit/backup`), so Undo has something
+    /// to put back.
     pub fn discard_paths(
         &self,
         repo: RepoId,
@@ -673,7 +658,7 @@ impl AppState {
         // A successful stash has already taken the changes out of the working tree, so
         // discarding again would only fail on paths Git no longer knows about.
         let stashed = handle
-            .stash_paths(paths, &format!("cogit: discard {}", named(paths)))
+            .backup_paths(paths, &format!("cogit: discard {}", named(paths)))
             .map_err(|err| backup_failed("discarding", &err))?;
         let Some(oid) = stashed else {
             handle.discard(paths)?;
@@ -789,7 +774,7 @@ impl AppState {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         let deleted = handle
-            .branches()?
+            .branches_without_divergence()?
             .into_iter()
             .find(|branch| branch.name == name);
         handle.delete_branch(name, force)?;
@@ -1093,6 +1078,20 @@ impl AppState {
         self.reachable.lock().remove(&repo);
         watch.done("forget-state");
         watch.report_close(repo.0, removed);
+
+        // Not the one on screen, nor one with work in its lane: those the user is still in.
+        let busy: Vec<Option<RepoId>> = self.queue.snapshot().iter().map(|op| op.repo).collect();
+        let opened_from: Vec<RepoId> = self
+            .repos
+            .read()
+            .values()
+            .filter(|open| !open.listed && open.owner == Some(repo))
+            .map(|open| open.id)
+            .filter(|id| !self.is_shown(*id) && !busy.contains(&Some(*id)))
+            .collect();
+        for inner in opened_from {
+            self.close_repository(inner);
+        }
         removed
     }
 
@@ -1348,10 +1347,16 @@ impl AppState {
         self.handle(repo)?.find(query, limit as usize)
     }
 
+    /// A repository closed meanwhile keeps a lane of its own, by its id.
+    pub(crate) fn lane_of(&self, repo: RepoId) -> PathBuf {
+        self.get(repo).map_or_else(
+            || PathBuf::from(format!("<closed {}>", repo.0)),
+            |open| open.lane,
+        )
+    }
+
     fn handle(&self, repo: RepoId) -> Result<git_engine::RepoHandle, git_engine::GitError> {
-        let open = self
-            .get(repo)
-            .ok_or_else(|| git_engine::GitError::RepoNotFound(format!("id {}", repo.0)))?;
+        let open = self.get(repo).ok_or_else(|| not_open(repo))?;
         Ok(self
             .handles
             .handle(repo, &open.root)?
@@ -1378,9 +1383,11 @@ impl AppState {
             id,
             OpenRepo {
                 id,
+                lane: root.clone(),
                 root,
                 display_name,
                 listed,
+                owner: None,
             },
         );
         self.emit(AppEvent::RepoOpened { repo: id });
@@ -1399,10 +1406,15 @@ impl AppState {
         &self,
         root: PathBuf,
         display_name: String,
-        listed: bool,
+        owner: Option<RepoId>,
+        common_dir: PathBuf,
         began: u64,
     ) -> Option<RepoId> {
+        let listed = owner.is_none();
         let mut repos = self.repos.write();
+        let lane = owner
+            .and_then(|owner| repos.get(&owner))
+            .map_or(common_dir, |owner| owner.lane.clone());
         if let Some(open) = repos.values_mut().find(|open| open.root == root) {
             open.listed |= listed;
             return Some(open.id);
@@ -1423,6 +1435,8 @@ impl AppState {
                 root,
                 display_name,
                 listed,
+                owner,
+                lane,
             },
         );
         drop(repos);
@@ -1533,14 +1547,14 @@ mod tests {
         state.close_repository(id);
 
         assert_eq!(
-            state.find_or_register(root.clone(), "a".into(), true, began),
+            state.find_or_register(root.clone(), "a".into(), None, root.clone(), began),
             None
         );
         assert!(state.list().is_empty());
         let now = state.closes_so_far();
         assert!(
             state
-                .find_or_register(root, "a".into(), true, now)
+                .find_or_register(root.clone(), "a".into(), None, root, now)
                 .is_some()
         );
     }
@@ -1555,7 +1569,13 @@ mod tests {
 
         assert!(
             state
-                .find_or_register(PathBuf::from("/a"), "a".into(), true, began)
+                .find_or_register(
+                    PathBuf::from("/a"),
+                    "a".into(),
+                    None,
+                    PathBuf::from("/a"),
+                    began
+                )
                 .is_some()
         );
     }

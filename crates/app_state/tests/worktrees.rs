@@ -22,6 +22,19 @@ fn linked(state: &AppState, repo: RepoId) -> git_engine::WorktreeEntry {
 }
 
 #[test]
+fn closing_a_repository_closes_the_worktrees_opened_from_it() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let (state, owner) = open(&f);
+    let path = linked(&state, owner).path;
+    let opened = state.open_worktree(owner, &path).unwrap().repo;
+
+    state.close_repository(owner);
+
+    assert!(state.repo_status(opened).is_err());
+    assert_eq!(state.repositories_held(), 0);
+}
+
+#[test]
 fn a_worktree_opens_in_the_panels_without_joining_the_repository_list() {
     let f = test_fixtures::with_worktree().unwrap();
     let (state, owner) = open(&f);
@@ -78,13 +91,12 @@ fn a_dirty_worktree_removed_by_force_leaves_its_changes_in_a_stash() {
     state.remove_worktree(owner, &path, true).unwrap();
 
     assert_eq!(state.worktrees(owner).unwrap().len(), 1);
-    let stashes = state.stashes(owner).unwrap();
-    assert!(
-        stashes
-            .iter()
-            .any(|entry| entry.message.contains("before removing worktree linked")),
-        "{stashes:?}"
-    );
+    // A backup for Undo, not an entry of the user's stash list (R-514).
+    assert!(state.stashes(owner).unwrap().is_empty());
+    let kept = f
+        .git(&["for-each-ref", "--format=%(subject)", "refs/cogit/backup/"])
+        .unwrap();
+    assert!(kept.contains("before removing worktree linked"), "{kept}");
     let journal = state.safety_log();
     assert!(journal[0].description.contains("linked"), "{journal:?}");
     assert!(journal[0].undoable, "{journal:?}");
@@ -137,10 +149,15 @@ fn a_worktree_open_only_in_the_panels_can_still_be_added_from_a_scan() {
     let parent = std::path::Path::new(&path).parent().unwrap().to_path_buf();
 
     let mut hits = Vec::new();
-    state.scan_for_repositories(&parent, 2, |hit| {
-        hits.push(hit);
-        true
-    });
+    state.scan_for_repositories(
+        &parent,
+        2,
+        || false,
+        |hit| {
+            hits.push(hit);
+            true
+        },
+    );
 
     let hit = hits.iter().find(|hit| hit.name == "linked").unwrap();
     assert!(!hit.already_open, "{hit:?}");
@@ -154,10 +171,15 @@ fn a_scan_names_its_finds_with_forward_slashes_as_every_other_path_over_ipc() {
     let parent = std::path::Path::new(&path).parent().unwrap().to_path_buf();
 
     let mut roots = Vec::new();
-    state.scan_for_repositories(&parent, 2, |hit| {
-        roots.push(hit.root);
-        true
-    });
+    state.scan_for_repositories(
+        &parent,
+        2,
+        || false,
+        |hit| {
+            roots.push(hit.root);
+            true
+        },
+    );
 
     assert!(roots.contains(&path), "{roots:?}");
 }

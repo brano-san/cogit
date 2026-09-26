@@ -33,8 +33,7 @@ fn local_config(f: &test_fixtures::Fixture, key: &str) -> Option<String> {
 /// What git itself answers outside any repository: the user's and the system's config.
 fn global_value(key: &str) -> Option<String> {
     let outside = tempfile::TempDir::new().unwrap();
-    let output = std::process::Command::new("git")
-        .current_dir(outside.path())
+    let output = test_fixtures::user_git_command(outside.path())
         .env("GIT_CEILING_DIRECTORIES", outside.path().parent().unwrap())
         .args(["config", "--get", key])
         .output()

@@ -2,6 +2,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use app_state::{AppState, RepoId};
+use git_engine::NetworkStop;
 
 fn open(f: &test_fixtures::Fixture) -> (AppState, RepoId) {
     let state = AppState::new();
@@ -492,9 +493,8 @@ fn undoing_a_merge_moves_the_branch_back_after_the_user_left_it() {
             },
         )
         .unwrap();
-    let switched = std::process::Command::new("git")
+    let switched = test_fixtures::git_command_in(f.path())
         .args(["switch", "--quiet", "dev"])
-        .current_dir(f.path())
         .status()
         .unwrap();
     assert!(switched.success());
@@ -536,7 +536,7 @@ fn a_hard_reset_with_only_a_moved_submodule_goes_ahead_without_a_backup() {
     f.git(&["stash", "push", "--message", "the user's own"])
         .unwrap();
     let module = f.path().join("vendor/lib");
-    let moved = std::process::Command::new("git")
+    let moved = test_fixtures::git_command_in(&module)
         .args([
             "-c",
             "user.name=a",
@@ -548,7 +548,6 @@ fn a_hard_reset_with_only_a_moved_submodule_goes_ahead_without_a_backup() {
             "-m",
             "moved",
         ])
-        .current_dir(&module)
         .status()
         .unwrap();
     assert!(moved.success());
@@ -658,7 +657,9 @@ fn a_pull_can_be_undone() {
     let f = test_fixtures::with_remote().unwrap();
     let (state, repo) = open(&f);
     let before = head_oid(&state, repo);
-    state.pull(repo, "origin", false, |_| {}).unwrap();
+    state
+        .pull(repo, "origin", false, &NetworkStop::default(), |_| {})
+        .unwrap();
     assert_ne!(head_oid(&state, repo), before);
 
     state.undo_last(repo).unwrap();
@@ -1115,4 +1116,92 @@ fn undoing_a_branch_delete_brings_its_upstream_back() {
 
     let upstream = f.git(&["config", "--get", "branch.topic.merge"]).ok();
     assert_eq!(upstream.as_deref().map(str::trim), Some("refs/heads/main"));
+}
+
+fn backups(f: &test_fixtures::Fixture) -> Vec<String> {
+    f.git(&["for-each-ref", "--format=%(refname)", "refs/cogit/backup/"])
+        .unwrap()
+        .lines()
+        .map(str::to_owned)
+        .collect()
+}
+
+// The copies Undo puts back were ordinary stashes: they pushed the user's own down the
+// list, `git stash pop` in a terminal took one of them, and after an Undo the same change
+// stayed listed to be applied a second time (BE-039).
+#[test]
+fn the_copies_undo_keeps_stay_out_of_the_stash_list() {
+    let f = test_fixtures::with_stashes(1).unwrap();
+    let (state, repo) = open(&f);
+    let theirs = state.stashes(repo).unwrap();
+    std::fs::write(f.path().join("file0.txt"), "work in progress\n").unwrap();
+
+    state
+        .discard_paths(repo, &["file0.txt".to_owned()])
+        .unwrap();
+
+    assert_eq!(
+        state.stashes(repo).unwrap(),
+        theirs,
+        "the user's list is theirs"
+    );
+    assert_eq!(backups(&f).len(), 1, "the copy is kept all the same");
+
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(text(&f, "file0.txt"), "work in progress\n");
+    assert_eq!(state.stashes(repo).unwrap(), theirs);
+    assert!(backups(&f).is_empty(), "put back, so no longer kept");
+}
+
+#[test]
+fn a_hard_reset_keeps_its_copy_out_of_the_stash_list() {
+    let f = test_fixtures::linear(3).unwrap();
+    let (state, repo) = open(&f);
+    std::fs::write(f.path().join("file0.txt"), "work in progress\n").unwrap();
+    let target = f.oid("HEAD~1").unwrap();
+
+    state
+        .reset_to(repo, &target, git_engine::ResetMode::Hard)
+        .unwrap();
+    assert!(state.stashes(repo).unwrap().is_empty());
+    assert_eq!(backups(&f).len(), 1);
+
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(text(&f, "file0.txt"), "work in progress\n");
+    assert!(state.stashes(repo).unwrap().is_empty());
+}
+
+// Undoing a rollback listed one more stash — the version it took away — on top of the one
+// the rollback had made.
+#[test]
+fn undoing_a_rollback_adds_nothing_to_the_stash_list() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.commit_file(2, "a.txt", "v1\n").unwrap();
+    f.commit_file(3, "a.txt", "v2\n").unwrap();
+    let (state, repo) = open(&f);
+    f.write_file("a.txt", "work in progress\n").unwrap();
+
+    state
+        .rollback_to(repo, "HEAD~1", &["a.txt".to_owned()])
+        .unwrap();
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(text(&f, "a.txt"), "work in progress\n");
+    assert!(state.stashes(repo).unwrap().is_empty());
+}
+
+#[test]
+fn a_copy_kept_for_undo_writes_no_reflog_of_its_own() {
+    let f = test_fixtures::linear(1).unwrap();
+    let (state, repo) = open(&f);
+    std::fs::write(f.path().join("file0.txt"), "work in progress\n").unwrap();
+
+    state
+        .discard_paths(repo, &["file0.txt".to_owned()])
+        .unwrap();
+
+    assert_eq!(backups(&f).len(), 1);
+    assert!(!f.git_dir().join("logs/refs/cogit").exists());
 }
