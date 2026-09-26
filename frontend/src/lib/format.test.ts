@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayDate, smartDate, capsules, dateTooltip, headLabel, refLabelKey, refLabels, relativeDate, shortOid, splitBranches, type RefLabel, fileFormat } from "./format";
+import { displayDate, smartDate, capsules, dateTooltip, headLabel, refLabelKey, refLabels, relativeDate, shortOid, shortRev, splitBranches, type RefLabel, fileFormat } from "./format";
 import type { Tag } from "./ipc";
 import type { Branch, Head, WorktreeEntry } from "./ipc";
 
@@ -58,6 +58,16 @@ describe("splitBranches", () => {
   it("preserves the order the backend supplied", () => {
     const all = [branch("a", "local"), branch("b", "local"), branch("c", "local")];
     expect(splitBranches(all).local.map((b) => b.name)).toEqual(["a", "b", "c"]);
+  });
+});
+
+// A commit dragged onto another opened "Rebase 2 commits onto a1b2c3d": the base was
+// `<oid>^`, and the first seven characters named the commit, not its parent.
+describe("shortRev", () => {
+  it("keeps what follows the id", () => {
+    expect(shortRev("4ec48139abcdef0123456789abcdef0123456789^")).toBe("4ec4813^");
+    expect(shortRev("4ec48139abcdef0123456789abcdef0123456789")).toBe("4ec4813");
+    expect(shortRev("main~2")).toBe("main~2");
   });
 });
 

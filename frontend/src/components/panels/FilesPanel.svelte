@@ -38,8 +38,8 @@
     onmask: (mask: string) => void;
     /** The staged files the working-tree list shows once filtered. */
     onshownstaged?: (paths: string[]) => void;
-    onmarked: (paths: string[]) => void;
-    oncontext: (path: string, event: MouseEvent, section?: string) => void;
+    onmarked: (paths: string[], bySection: Record<string, string[]>) => void;
+    oncontext: (path: string, event: MouseEvent, section?: string, rows?: readonly FileEntry[]) => void;
     stage: (paths: string[]) => void;
     stagemode: (paths: string[]) => void;
     unstage: (paths: string[]) => void;
@@ -192,7 +192,13 @@
           onselect: onopenworktree,
           actions: [
             { label: "Stage", title: "Stage", run: stage },
-            { label: "+x", title: "Stage only the mode change", run: stagemode, blocked: rowBlocked("mode") },
+            {
+              label: "+x",
+              title: "Stage only the mode change",
+              run: stagemode,
+              blocked: rowBlocked("mode"),
+              skips: true,
+            },
             { label: "Discard", title: "Discard changes", run: discard, blocked: rowBlocked("discard") },
             { label: "Ignore", title: "Add to .gitignore", run: ignore, blocked: rowBlocked("ignore") },
             {

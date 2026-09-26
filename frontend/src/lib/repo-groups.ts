@@ -43,6 +43,17 @@ export function renameGroup(groups: RepoGroups, id: string, name: string): RepoG
   return { ...groups, names: { ...groups.names, [id]: trimmed } };
 }
 
+/** What Delete this group asks: what `removeGroup` moves, and where. */
+export function removalQuestion(groups: RepoGroups, id: string): string {
+  const members = Object.values(groups.of).filter((group) => group === id).length;
+  const children = Object.values(groups.under).filter((parent) => parent === id).length;
+  const parts = [`Delete the group ${groups.names[id] ?? id}?`];
+  if (members > 0) parts.push(`Its ${members} ${members === 1 ? "repository goes" : "repositories go"} to Ungrouped.`);
+  if (children > 0) parts.push(`Its ${children} ${children === 1 ? "group moves" : "groups move"} up a level.`);
+  parts.push("Nothing on disk changes.");
+  return parts.join(" ");
+}
+
 /** The group goes; its repositories return to the ungrouped bucket rather than vanish. */
 export function removeGroup(groups: RepoGroups, id: string): RepoGroups {
   const names = { ...groups.names };

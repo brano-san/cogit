@@ -32,6 +32,7 @@
     width="min(560px, 92vw)"
     onclose={() => stashDialog.cancel()}
     onconfirm={() => create("all")}
+    dirty={name.trim() !== ""}
   >
     <label class="field">
       <span>Name</span>
@@ -62,7 +63,12 @@
     {/snippet}
   </Dialog>
 {:else if pending?.kind === "selection"}
-  <Dialog title="Stash Selection" onclose={() => stashDialog.cancel()} onconfirm={confirmSelection}>
+  <Dialog
+    title="Stash Selection"
+    onclose={() => stashDialog.cancel()}
+    onconfirm={confirmSelection}
+    dirty={message.trim() !== ""}
+  >
     <p class="lead">
       {pending.paths.length === 1 ? "This file" : `These ${pending.paths.length} files`} will be
       stashed; the rest of the working tree stays as it is.

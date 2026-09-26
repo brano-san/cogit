@@ -31,6 +31,20 @@ export function previewCount(plan: readonly TodoEntry[]): number {
   ).length;
 }
 
+/** Whether the rebase rewrites a commit a remote already has. The base stays where it is,
+    so it is not asked. Oldest first: once a commit is published its ancestors are, and a
+    plan of local work has few commits to ask about; a merged branch may bring a published
+    one in later. */
+export async function planPublished(
+  plan: readonly TodoEntry[],
+  published: (oid: string) => Promise<boolean>,
+): Promise<boolean> {
+  for (const entry of plan) {
+    if (await published(entry.oid)) return true;
+  }
+  return false;
+}
+
 /** The plan was reordered, re-actioned or reworded since it came: work closing loses. */
 export function planChanged(before: readonly TodoEntry[], now: readonly TodoEntry[]): boolean {
   if (before.length !== now.length) return true;

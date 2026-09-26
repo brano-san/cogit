@@ -1,6 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { checkedIds, disabledIds, fuzzyScore, rankCommands, type PaletteCommand } from "./palette";
+import {
+  checkedIds,
+  disabledIds,
+  fuzzyScore,
+  rankCommands,
+  rememberCommand,
+  type PaletteCommand,
+} from "./palette";
 import type { PanelId } from "./perspectives";
+
+// Ctrl+Shift+P went through the palette's own list of recent commands: "Find Command" stood
+// first and highlighted on an empty query, and Enter only opened the palette again.
+describe("rememberCommand", () => {
+  it("puts the command run first, once, and keeps eight", () => {
+    const recent = ["a", "b", "c", "d", "e", "f", "g", "h"];
+    expect(rememberCommand(recent, "c")).toEqual(["c", "a", "b", "d", "e", "f", "g", "h"]);
+    expect(rememberCommand(recent, "z")).toHaveLength(8);
+  });
+
+  it("does not remember opening the palette itself", () => {
+    expect(rememberCommand(["a"], "palette")).toEqual(["a"]);
+  });
+});
 
 function cmd(id: string, title: string, extra: Partial<PaletteCommand> = {}): PaletteCommand {
   return { id, title, run: () => {}, ...extra };

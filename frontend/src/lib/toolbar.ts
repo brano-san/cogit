@@ -332,6 +332,9 @@ export interface SelectionInput {
   marked: readonly string[];
   unstaged: readonly { path: string }[];
   staged: readonly { path: string }[];
+  /** The ticks of each list by its title, when the Files list said: a partly staged file
+      is a row of both, ticked in one. */
+  bySection?: Readonly<Record<string, readonly string[]>> | null;
 }
 
 /** The selection split by list. A path left over from before a refresh matches neither. */
@@ -341,9 +344,11 @@ export function splitMarked(input: SelectionInput): {
 } {
   const unstaged = new Set(input.unstaged.map((file) => file.path));
   const staged = new Set(input.staged.map((file) => file.path));
+  const section = input.bySection;
+  const ticked = (title: string) => (section ? (section[title] ?? []) : input.marked);
   return {
-    markedUnstaged: input.marked.filter((path) => unstaged.has(path)),
-    markedStaged: input.marked.filter((path) => staged.has(path)),
+    markedUnstaged: ticked("Unstaged").filter((path) => unstaged.has(path)),
+    markedStaged: ticked("Staged").filter((path) => staged.has(path)),
   };
 }
 

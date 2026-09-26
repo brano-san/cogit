@@ -216,3 +216,40 @@ describe("a server that does not answer", () => {
     done();
   });
 });
+
+// The pull arrow a background check put up stayed after Cogit's own Pull, which runs quiet
+// and moves no watcher; a commit made in a terminal took it down though nothing was fetched.
+describe("the server-ahead arrow", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("goes once Cogit itself fetched or pulled there", async () => {
+    vi.resetModules();
+    const { repoPulse } = await import("./repo-pulse.svelte");
+    repoPulse.remoteAhead = new Set(["C:/repos/one"]);
+
+    repoPulse.fetched("C:/repos/one");
+
+    expect(repoPulse.remoteAhead.has("C:/repos/one")).toBe(false);
+  });
+
+  it("is checked with the server again when the refs move outside Cogit, not dropped", async () => {
+    vi.useFakeTimers();
+    vi.resetModules();
+    const ipc = await import("$lib/ipc/repo-rows");
+    const { repoPulse } = await import("./repo-pulse.svelte");
+    repoPulse.watch(["C:/repos/one"]);
+    repoPulse.fetchEvery(5);
+    await vi.advanceTimersByTimeAsync(2_000);
+    vi.mocked(ipc.pullProbe).mockClear();
+    vi.mocked(ipc.pullProbe).mockResolvedValueOnce(true as never);
+    repoPulse.remoteAhead = new Set(["C:/repos/one"]);
+
+    repoPulse.refsMoved("C:/repos/one");
+    expect(repoPulse.remoteAhead.has("C:/repos/one")).toBe(true);
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    expect(ipc.pullProbe).toHaveBeenCalledWith("C:/repos/one");
+    expect(repoPulse.remoteAhead.has("C:/repos/one")).toBe(true);
+    repoPulse.fetchEvery(0);
+  });
+});

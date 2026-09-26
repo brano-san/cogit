@@ -149,6 +149,14 @@ describe("repoMenu", () => {
     expect(find(menu, "repo-reveal")?.label).toContain("missing");
     expect(find(menu, "repo-remove")?.enabled).toBe(true);
   });
+
+  // A closed row marked missing offered Open Repository, which could only fail.
+  it("does not offer to open a missing folder", () => {
+    const menu = repoMenu({ ...OPEN, open: false, missing: true }, WINDOWS);
+    expect(find(menu, "repo-open")?.enabled).toBe(false);
+    expect(find(menu, "repo-open")?.label).toContain("missing");
+    expect(find(menu, "repo-terminal")?.enabled).toBe(false);
+  });
 });
 
 describe("groupChoices", () => {

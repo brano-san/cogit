@@ -48,7 +48,13 @@
   });
 </script>
 
-<Dialog title="Add Tag" {onclose} onconfirm={() => void submit()} width="min(520px, 92vw)">
+<Dialog
+  title="Add Tag"
+  {onclose}
+  onconfirm={() => void submit()}
+  width="min(520px, 92vw)"
+  dirty={message.trim() !== ""}
+>
   <div class="form">
     <div class="target">
       <span class="caption">Commit</span>

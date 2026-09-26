@@ -1,5 +1,6 @@
 import type { DiffSpec, RepoId, Whitespace } from "./ipc";
 import type { Keymap } from "./keymap";
+import { sameKeymap } from "./preferences";
 import type { Settings } from "./settings";
 
 /** Settings the open diff was computed with: changing one has to re-run it. */
@@ -8,6 +9,8 @@ const REDIFF: readonly (keyof Settings)[] = ["algorithm", "contextLines", "wordD
 export interface ApplyHost {
   current: () => Settings;
   apply: (next: Settings) => Promise<void>;
+  /** The keymap in force now. */
+  keymap: () => Keymap;
   setKeymap: (keymap: Keymap) => Promise<void>;
   /** A rebuilt menu bar starts with every tick cleared. */
   rebuiltMenu: () => void;
@@ -22,13 +25,17 @@ export interface ApplyHost {
 }
 
 /** Every change in Preferences, and Cancel, which applies the settings of the opening
-    the same way: what the open diff was computed with is computed again. */
+    the same way: what the open diff was computed with is computed again. The keymap is
+    written, and the menu bar rebuilt on the main thread, only when it changed: a slider
+    sends a change per step. */
 export async function applyPreferences(next: Settings, keymap: Keymap, host: ApplyHost): Promise<void> {
   const before = host.current();
   const touched = (Object.keys(next) as (keyof Settings)[]).filter((key) => next[key] !== before[key]);
   await host.apply(next);
-  await host.setKeymap(keymap);
-  host.rebuiltMenu();
+  if (!sameKeymap(keymap, host.keymap())) {
+    await host.setKeymap(keymap);
+    host.rebuiltMenu();
+  }
 
   const { diff } = host;
   const id = host.repo();

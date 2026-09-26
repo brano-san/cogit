@@ -18,6 +18,7 @@ import {
   type RepoId,
   toCogitError,
 } from "$lib/ipc";
+import { PRESET_NAME_PROBLEM, presetId } from "$lib/names";
 
 class HooksStore {
   overview = $state.raw<HookOverview | null>(null);
@@ -132,12 +133,11 @@ class HooksStore {
   /** The hook as it stands becomes a preset; the id is derived from the name given. */
   async export(repo: RepoId, hook: string, name: string): Promise<void> {
     this.#clear();
-    const id = name
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "");
-    if (id === "") return;
+    const id = presetId(name);
+    if (id === "") {
+      this.report(PRESET_NAME_PROBLEM, "Could not save the preset");
+      return;
+    }
     try {
       await exportPreset(repo, hook, id, name.trim(), `Saved from ${hook} in this repository`);
       await this.refresh(repo);

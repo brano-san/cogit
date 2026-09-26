@@ -93,6 +93,12 @@ describe("canCommit", () => {
     expect(canCommit({ ...box, scopeEmpty: true })).toBe(false);
   });
 
+  // With Amend ticked and every staged file filtered out, the button asked about publishing
+  // and then did nothing: an empty path list would have taken the hidden files too.
+  it("holds Amend too while the filter hides every staged file", () => {
+    expect(canCommit({ ...box, amend: true, scopeEmpty: true })).toBe(false);
+  });
+
   // In a repository without commits Amend let the button go with nothing staged: a question
   // about force-pushing a published commit, then git's "You have nothing to amend".
   it("does not count Amend before the first commit", () => {

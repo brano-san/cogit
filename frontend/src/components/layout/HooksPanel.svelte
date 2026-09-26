@@ -24,6 +24,8 @@
     onexport: (hook: string) => void;
     onremovepreset: (id: string) => void;
     onclose: () => void;
+    /** The hook in the editor has changes not saved yet. */
+    dirty?: boolean;
   }
 
   let {
@@ -47,6 +49,7 @@
     onexport,
     onremovepreset,
     onclose,
+    dirty = false,
   }: Props = $props();
 
   const present = $derived(overview?.hooks.filter((hook) => hook.state !== "missing") ?? []);
@@ -58,10 +61,12 @@
   }
 </script>
 
-<!-- Esc, the ✕ and the scrim leave the editor first: an unsaved hook is not lost to a stray click. -->
+<!-- Esc and the ✕ leave the editor first, asking when the hook has changes; the scrim then
+     leaves it open (R-515). -->
 <Dialog
   title="Hooks"
   onclose={() => (inEditor ? oncancel() : onclose())}
+  dirty={inEditor && dirty}
   width="min(760px, 92vw)"
   height="min(720px, 84vh)"
   flush

@@ -4,6 +4,7 @@ import {
   EMPTY_LIST,
   folderName,
   forget,
+  listedName,
   listedRepos,
   markClosed,
   markOpened,
@@ -57,6 +58,13 @@ describe("rename", () => {
     expect(named.names).toEqual({ "D:/work/cogit": "Client" });
     expect(rename(named, "D:/work/cogit", "").names).toEqual({});
     expect(rename(named, "D:/work/cogit", "cogit").names).toEqual({});
+  });
+
+  // Rename… on a closed row put the whole path in the field, and Enter kept it as the name.
+  it("starts from the name the row shows, a closed row's folder name included", () => {
+    expect(listedName(EMPTY_LIST, "D:/work/foo", null)).toBe("foo");
+    expect(listedName(EMPTY_LIST, "D:/work/foo", overview("D:/work/foo", "Foo"))).toBe("Foo");
+    expect(listedName(rename(EMPTY_LIST, "D:/work/foo", "Client"), "D:/work/foo", null)).toBe("Client");
   });
 });
 

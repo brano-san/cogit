@@ -10,11 +10,32 @@ import {
   mergeRows,
   mergedText,
   nextConflict,
+  panelConflictStep,
   syntacticCount,
   unresolvedCount,
   unsavedResolution,
 } from "./merge-view";
 import type { Region } from "$lib/ipc";
+
+// In the Diff panel of the main window F6 always walked the panels past a conflict on
+// screen: the merge there took no keys, where a diff steps through its changes (DF-011).
+describe("panelConflictStep", () => {
+  const f6 = { key: "F6", ctrl: false, alt: false, shift: false };
+  const back = { ...f6, shift: true };
+
+  it("steps to the next or the previous conflict while there is one that way", () => {
+    expect(panelConflictStep(f6, [3, 9], null)).toBe(1);
+    expect(panelConflictStep(f6, [3, 9], 3)).toBe(1);
+    expect(panelConflictStep(back, [3, 9], 9)).toBe(-1);
+  });
+
+  it("leaves F6 to the panel walk past the last conflict and before the first", () => {
+    expect(panelConflictStep(f6, [3, 9], 9)).toBeNull();
+    expect(panelConflictStep(back, [3, 9], 3)).toBeNull();
+    expect(panelConflictStep(back, [3, 9], null)).toBeNull();
+    expect(panelConflictStep({ ...f6, ctrl: true }, [3, 9], null)).toBeNull();
+  });
+});
 
 const clean = (lines: string[], origin: Region extends never ? never : string = "unchanged") =>
   ({ kind: "clean", lines, origin }) as unknown as Region;

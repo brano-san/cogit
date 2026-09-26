@@ -1,5 +1,45 @@
-import { describe, expect, it } from "vitest";
-import { droppedRepositories } from "./drop-open";
+import { describe, expect, it, vi } from "vitest";
+import { droppedRepositories, openDropped, type DropHost } from "./drop-open";
+
+function host(refuse: string[] = []) {
+  const steps: string[] = [];
+  const fake: DropHost = {
+    openInList: vi.fn(async (path: string) => {
+      steps.push(`list ${path}`);
+      if (refuse.includes(path)) throw new Error(`${path} is not a repository`);
+    }),
+    activate: vi.fn(async (path: string) => {
+      steps.push(`show ${path}`);
+    }),
+    refreshList: vi.fn(async () => {
+      steps.push("refresh");
+    }),
+    report: vi.fn(),
+  };
+  return { fake, steps };
+}
+
+// Three folders dropped at once took the panels one after another: Branches and the headings
+// showed the second and the third over the first one's graph, then the first.
+describe("openDropped", () => {
+  it("lists every folder but the first without the panels, then shows the first", async () => {
+    const { fake, steps } = host();
+
+    await openDropped(["C:/a", "C:/b", "C:/c"], fake);
+
+    expect(steps).toEqual(["list C:/b", "list C:/c", "refresh", "show C:/a"]);
+  });
+
+  it("reports a folder that does not open and goes on with the rest", async () => {
+    const { fake, steps } = host(["C:/b"]);
+
+    await openDropped(["C:/a", "C:/b", "C:/c"], fake);
+
+    expect(fake.report).toHaveBeenCalledWith(expect.any(Error), "Could not open the repository");
+    expect(steps).toContain("list C:/c");
+    expect(steps.at(-1)).toBe("show C:/a");
+  });
+});
 
 describe("droppedRepositories", () => {
   it("keeps the paths as they came", () => {
