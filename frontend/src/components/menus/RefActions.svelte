@@ -554,6 +554,19 @@
     if (found) offerCheckout(found, "branches");
   }
 
+  /** A double click on a graph row (R-561): as a remote branch nobody tracks. */
+  export function checkOutCommit(oid: string) {
+    offerCheckout({ ref: null, branch: null, oid }, "graph");
+  }
+
+  /** A double click on a graph label: its menu's Check Out (R-561). */
+  export function checkOutLabel(label: RefLabel, oid: string) {
+    const summary = repository.current;
+    if (!summary || label.kind === "stash") return;
+    const found = labelTarget(label, summary.branches, summary.tags, worktreeMarks(worktrees.entries, summary.branches));
+    if (found) offerCheckout({ ...found, oid }, "graph");
+  }
+
   async function modify(id: RepoId, at: Target) {
     const oid = at.oid;
     if (!oid || !at.details || !(await publishedOk(at, "Modify"))) return;

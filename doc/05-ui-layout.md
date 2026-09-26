@@ -117,6 +117,8 @@
 - Ref-капсулы: `[HEAD -> dev]`, `[origin/master]`, `[v1.2.0]`. Цвет по типу ссылки.
 - Фильтр в шапке: автор, текст сообщения, диапазон дат, хеш, путь файла.
 - Мультивыбор двух коммитов (`Ctrl`) сравнивает их в Diff.
+- Двойной клик по коммиту (в любом месте строки, линии графа тоже) и по его метке — диалог
+  Checkout, как `Check Out` их меню ([R-561](12-risks.md)).
 - Контекстное меню: `Checkout`, `Create Branch`, `Tag`, `Cherry-Pick`, `Revert`, `Reset to here`,
   `Copy SHA`, `Interactive Rebase from here`.
 
