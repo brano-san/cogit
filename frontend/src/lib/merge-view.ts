@@ -167,3 +167,17 @@ export function mergeKey(press: { key: string; code?: string; ctrl: boolean; shi
   const take = SIDE_KEYS[press.code ?? ""];
   return take ? { take, all: press.shift } : null;
 }
+
+/** F6 in the Diff panel of the main window, a merge on screen: the next or previous conflict
+    while there is one that way, as a diff steps through its changes; past the last and
+    before the first it is the panel walk's (11 §7). The other merge keys stay the merge
+    window's: the native menu owns them here. */
+export function panelConflictStep(
+  press: { key: string; ctrl: boolean; shift: boolean; alt: boolean },
+  conflicts: readonly number[],
+  at: number | null,
+): 1 | -1 | null {
+  if (press.key !== "F6" || press.ctrl || press.alt) return null;
+  if (press.shift) return at !== null && conflicts.some((row) => row < at) ? -1 : null;
+  return conflicts.some((row) => at === null || row > at) ? 1 : null;
+}

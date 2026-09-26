@@ -32,3 +32,19 @@ export function splitSummary(
 export function splitStarted(chosen: readonly string[], message: string): boolean {
   return chosen.length > 0 || message.trim() !== "";
 }
+
+export interface SplitRequest {
+  oid: string;
+  changed: readonly string[];
+  published: boolean;
+}
+
+/** What Split Off acts on, taken when it opens: whatever is selected in the graph later is
+    not the commit the user chose to split. */
+export async function splitRequest(
+  oid: string,
+  read: { files: (oid: string) => Promise<readonly string[]>; published: (oid: string) => Promise<boolean> },
+): Promise<SplitRequest> {
+  const changed = await read.files(oid);
+  return { oid, changed, published: await read.published(oid) };
+}

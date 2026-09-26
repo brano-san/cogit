@@ -124,9 +124,16 @@ class RepoPulseStore {
     this.#queue.request(root, { first: true });
   }
 
-  /** Its refs moved (a fetch, a pull): the tracking ref speaks for the server again. */
-  refsMoved(root: string): void {
+  /** Cogit fetched or pulled there: the tracking ref speaks for the server again. Its own
+      network commands run quiet, so no watcher event says so. */
+  fetched(root: string): void {
     this.#setAhead(root, false);
+  }
+
+  /** Its refs moved outside Cogit: a fetch in a terminal, or only a commit. The server is
+      asked again rather than taken to have nothing more (R-354). */
+  refsMoved(root: string): void {
+    if (this.remoteAhead.has(root)) this.#queue.request(root, { fetch: true, first: true });
   }
 
   /** The server is asked, nothing is fetched: `ls-remote` writes no ref (R-354). `false`

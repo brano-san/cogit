@@ -112,6 +112,16 @@ export function worktreeFileMenu(at: WorktreeFileTarget): ContextItem[] {
   ]);
 }
 
+/** A path as the list shows it: the source of a rename and an unchanged file are rows of
+    the list, not files of the commit. */
+export function shownRow<F extends { path: string }>(
+  path: string,
+  rows: readonly F[],
+  files: readonly F[],
+): F | undefined {
+  return rows.find((row) => row.path === path) ?? files.find((file) => file.path === path);
+}
+
 export interface CommitFileTarget {
   status: string;
   count: number;

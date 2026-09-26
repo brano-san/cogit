@@ -201,9 +201,8 @@
       style:padding-left="calc(var(--tree-base) + {depth + 1 + node.depth} * var(--tree-step))"
       onclick={() => open(node)}
       ondblclick={() => {
-        if (!owned) return;
-        open(node);
-        toggle(node);
+        // The first click has opened it already.
+        if (owned) toggle(node);
       }}
       onkeydown={(event) => {
         if (event.key === "Enter") open(node);
@@ -375,7 +374,7 @@
         {#if sync.missing}
           <span class="gone" title={MISSING_REPOSITORY}>missing</span>
         {/if}
-        {#if entry.branch}<span class="branch truncate shrink-first">{entry.branch}</span>{/if}
+        {#if sync.branch}<span class="branch truncate shrink-first">{sync.branch}</span>{/if}
       </div>
 
       {@render moduleTree(entry.root, submodules.owner?.valueOf() === entry.repo.valueOf(), row.depth)}
@@ -401,6 +400,7 @@
             <span class="name truncate shrink-last">{listed.name}</span>
             {#if listed.pinned}<span class="pin" title="Pinned to the top of its group">⊤</span>{/if}
             {#if sync.missing}<span class="gone" title={MISSING_REPOSITORY}>missing</span>{/if}
+            {#if sync.branch}<span class="branch truncate shrink-first">{sync.branch}</span>{/if}
           </div>
           {@render moduleTree(listed.root, false, row.depth)}
         {/if}

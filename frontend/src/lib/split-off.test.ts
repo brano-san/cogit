@@ -1,5 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { splitProblem, splitStarted, splitSummary } from "./split-off";
+import { splitProblem, splitRequest, splitStarted, splitSummary } from "./split-off";
+
+// The dialog read the selected commit live: a commit selected while it was open — a PageDown
+// in the graph, a reveal from Blame — became the one Split Off cut, and the warning about a
+// published commit stayed the old one's.
+describe("splitRequest", () => {
+  it("takes the files and the warning of the commit it opened on, once", async () => {
+    const asked: string[] = [];
+    const request = await splitRequest("c1", {
+      files: async (oid) => {
+        asked.push(`files ${oid}`);
+        return ["a.txt", "b.txt"];
+      },
+      published: async (oid) => {
+        asked.push(`published ${oid}`);
+        return true;
+      },
+    });
+
+    expect(request).toEqual({ oid: "c1", changed: ["a.txt", "b.txt"], published: true });
+    expect(asked).toEqual(["files c1", "published c1"]);
+  });
+});
 
 describe("splitProblem", () => {
   const files = ["a.txt", "b.txt", "c.txt"];

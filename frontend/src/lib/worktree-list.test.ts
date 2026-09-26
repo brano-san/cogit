@@ -4,6 +4,7 @@ import {
   addProblem,
   branchChoices,
   hasStale,
+  othersToWatch,
   removable,
   removalNeeds,
   worktreeTags,
@@ -242,5 +243,18 @@ describe("worktreeMarks", () => {
     expect(worktreeMarkTooltip({ path: "E:/w/x", state: "unpushed" })).toBe(
       "Checked out in the worktree E:/w/x; it is clean, with commits not pushed",
     );
+  });
+});
+
+// An edit in the folder of a linked worktree left its mark grey and its tag clean: only the
+// repository on screen is watched, and the list was read only on its events.
+describe("othersToWatch", () => {
+  it("is true while another worktree's folder is there to change", () => {
+    expect(othersToWatch([entry({ isMain: true, isCurrent: true }), entry()])).toBe(true);
+  });
+
+  it("is false with only the one on screen, or others whose folder is gone", () => {
+    expect(othersToWatch([entry({ isMain: true, isCurrent: true })])).toBe(false);
+    expect(othersToWatch([entry({ isCurrent: true }), entry({ missing: true })])).toBe(false);
   });
 });

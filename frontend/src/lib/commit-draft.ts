@@ -65,7 +65,8 @@ export function amends(box: Pick<CommitBoxState, "amend" | "unborn">): boolean {
   return box.amend && !box.unborn;
 }
 
-/** Whether the Commit button and Ctrl+Enter may start a commit. */
+/** Whether the Commit button and Ctrl+Enter may start a commit. Amend too needs a staged
+    file in view when some are staged: git has no `--amend --only` without paths. */
 export function canCommit(box: CommitBoxState): boolean {
   const amend = amends(box);
   return (
@@ -73,6 +74,6 @@ export function canCommit(box: CommitBoxState): boolean {
     hasOwnText(box.message, box.template) &&
     (box.stagedCount > 0 || amend) &&
     !box.busy &&
-    (amend || !box.scopeEmpty)
+    !box.scopeEmpty
   );
 }

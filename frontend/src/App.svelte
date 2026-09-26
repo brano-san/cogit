@@ -7,7 +7,7 @@
   import { parseQuery } from "$lib/query";
   import { publishedOrAssume } from "$lib/published";
   import { menuStatePusher } from "$lib/menu-state";
-  import { branchNameProblem, optional, textProblem } from "$lib/names";
+  import { branchNameProblem, optional, presetNameProblem, textProblem } from "$lib/names";
   import { finder } from "$stores/finder.svelte";
   import { THIRD_PARTY_FILE } from "$lib/third-party";
 
@@ -60,9 +60,9 @@
   import WorktreesPanel from "$components/panels/WorktreesPanel.svelte";
   import AddWorktreeDialog from "$components/repo-tree/AddWorktreeDialog.svelte";
   import RemoveWorktreeDialog from "$components/repo-tree/RemoveWorktreeDialog.svelte";
-  import { branchChoices, hasStale, removable } from "$lib/worktree-list";
+  import { branchChoices, hasStale, othersToWatch, removable } from "$lib/worktree-list";
   import { fileFormat, shortOid } from "$lib/format";
-  import { checkedIds, disabledIds, type PaletteCommand } from "$lib/palette";
+  import { checkedIds, disabledIds, rememberCommand, type PaletteCommand } from "$lib/palette";
   import { reasonFor, type Context } from "$lib/availability";
   import { localRevision, reasonOf, refAt, splitMarked, targetsOf, type MenuContext, type ToolbarFacts } from "$lib/toolbar";
   import { currentRemote, headRemote, remotePlan, syncSteps, type SyncOrder } from "$lib/toolbar-prefs";
@@ -81,18 +81,22 @@
   import { menuCommandRuns, modals } from "$lib/modal-stack";
   import { keyLetter } from "$lib/key-letter";
   import { commitBox } from "$stores/commit-box.svelte";
-  import { commitFileMenu, worktreeFileMenu } from "$lib/file-menu";
+  import { commitFileMenu, shownRow, worktreeFileMenu } from "$lib/file-menu";
   import { fileName, runFileMenuCommand, type FileActions, type FileScope } from "$lib/file-actions";
   import { listedMessage } from "$lib/file-dialogs";
   import * as fileMenus from "$lib/ipc/file-menus";
   import { desktop } from "$stores/desktop.svelte";
   import { groupChoices, parseRepoCommand, repoMenu } from "$lib/repo-menu";
-  import { fetchAllTargets, type ListedRepo } from "$lib/repo-list";
-  import { UNGROUPED } from "$lib/repo-groups";
+  import { fetchAllTargets, listedName, listedRepos, type ListedRepo } from "$lib/repo-list";
+  import { eachAtMost, FETCH_ALL_LANES } from "$lib/fetch-all";
+  import { rowSync } from "$lib/repo-sync";
+  import { removalQuestion, UNGROUPED } from "$lib/repo-groups";
   import { repoList } from "$stores/repo-list.svelte";
   import { compareUrl } from "$lib/compare-params";
   import { dropActions, type DropAction, type DragPayload } from "$lib/drop-target";
-  import { moveEntry } from "$lib/rebase-plan";
+  import { moveEntry, planPublished } from "$lib/rebase-plan";
+  import { splitRequest } from "$lib/split-off";
+  import { readsAgain } from "$lib/file-view";
   import { bannerQuestion, stateBanner, type BannerAction } from "$lib/repo-state";
   import { blockedByLocalChanges } from "$lib/checkout-refusal";
   import { switchWithAutostash } from "$lib/autostash";
@@ -101,8 +105,10 @@
   import { applyPreferences, type ApplyHost } from "$lib/preferences-apply";
   import { capFraction, floorFraction, PANELS, type PanelId } from "$lib/perspectives";
   import { graphPanelMinWidth } from "$lib/graph-panel";
-  import { repoClick } from "$lib/repo-click";
+  import { closeStep, holdsPanels, reopenClick, repoClick } from "$lib/repo-click";
   import { ModuleInitialiser, moduleClick } from "$lib/module-init";
+  import { updateModule } from "$lib/module-tree";
+  import { moduleForest } from "$stores/module-forest.svelte";
   import { parseWorktreeCommand, worktreeMenu } from "$lib/worktree-menu";
   import { answerMergeResolved } from "$lib/merge-save";
   import { browserSources, start as startMemoryProbe } from "$lib/mem-probe";
@@ -126,6 +132,8 @@
     rebaseTodo,
     rollbackTo,
     splitOff,
+    switchWithAutostash as runSwitchWithAutostash,
+    commitFiles as readCommitFiles,
     mergeInto,
     stashSelection,
     fetchRemote,
@@ -137,6 +145,7 @@
     terminalChoices,
     openRepository,
     openSubmodule,
+    updateSubmodule,
     openWorktree,
     listOperations,
     readGitConfig,
@@ -183,7 +192,7 @@
   import { prompt } from "$stores/prompt.svelte";
   import { session } from "$stores/session.svelte";
   import { flow } from "$stores/flow.svelte";
-  import { droppedRepositories } from "$lib/drop-open";
+  import { droppedRepositories, openDropped } from "$lib/drop-open";
   import { connect } from "$lib/wiring";
   import { planFor } from "$lib/disk-change";
   import { DiskPasses } from "$lib/disk-refresh";
@@ -231,6 +240,8 @@
     changes: import("$lib/ipc").FileEntry[] | null;
   } | null>(null);
   let markedFiles = $state.raw<string[]>([]);
+  /** The same ticks by the title of the list they are in: Unstaged, Staged. */
+  let markedBySection = $state.raw<Record<string, string[]>>({});
   /** The rows of the list the Files panel shows, as it counts them itself. */
   let filesCount = $state<number | undefined>(undefined);
   type RepoMenuSubject =
@@ -271,9 +282,11 @@
   let rebasePlan = $state.raw<import("$lib/ipc").TodoEntry[]>([]);
   let rebaseBusy = $state(false);
   let rebasePaused = $state(false);
+  /** A commit the plan rewrites is on a remote: the editor warns about the force-push. */
+  let rebasePublished = $state(false);
   let template = $state<string | null>(null);
-  let splitOpen = $state(false);
-  let splitPublished = $state(false);
+  /** The commit Split Off is open on, as it was when it opened. */
+  let split = $state.raw<import("$lib/split-off").SplitRequest | null>(null);
   /** Which shared branches hold a commit, once asked. Answering costs a graph walk per
       remote ref, so it is asked when the user opens a menu, not on every selection. */
   let protection = $state.raw<ReadonlyMap<string, readonly string[]>>(new Map());
@@ -527,7 +540,12 @@
     repository: repo !== null,
     remote: Boolean(network.primary),
     onWorkingTree: onWorkingTree && stashView.contents === null,
-    ...splitMarked({ marked: markedFiles, unstaged: worktree.unstaged, staged: worktree.staged }),
+    ...splitMarked({
+      marked: markedFiles,
+      unstaged: worktree.unstaged,
+      staged: worktree.staged,
+      bySection: markedBySection,
+    }),
     unstaged: worktree.unstaged.map((file) => file.path),
     staged: worktree.staged.map((file) => file.path),
     commit: commit.oid,
@@ -937,8 +955,18 @@
     finderOpen = false;
     const id = repository.current?.repo;
     if (!id) return;
-    const step = foundStep(item, commit.oid !== null);
+    const step = foundStep(
+      item,
+      commit.oid !== null,
+      (path) =>
+        worktree.staged.some((file) => file.path === path) && !worktree.unstaged.some((file) => file.path === path),
+    );
     if (step?.kind === "file") void openDiff(step.path);
+    if (step?.kind === "worktree" || step?.kind === "staged") {
+      // A stash in Files would sit beside a diff of the working tree.
+      if (stashView.contents !== null) stashView.clear();
+      void (step.kind === "staged" ? openStagedDiff(step.path) : openWorktreeDiff(step.path));
+    }
     if (step?.kind === "reveal") {
       stashView.clear();
       void commit.select(id, step.oid);
@@ -946,9 +974,11 @@
     }
   }
 
-  function runCommand(command: PaletteCommand) {
+  /** A command picked in the palette; one from the menu bar or its keys is not a recent
+      command of the palette. */
+  function runCommand(command: PaletteCommand, fromPalette = true) {
     paletteOpen = false;
-    recentCommands = [command.id, ...recentCommands.filter((id) => id !== command.id)].slice(0, 8);
+    if (fromPalette) recentCommands = rememberCommand(recentCommands, command.id);
     command.run();
   }
 
@@ -1022,6 +1052,7 @@
   const preferencesHost: ApplyHost = {
     current: () => settings.current,
     apply: (next) => settings.apply(next),
+    keymap: () => settings.keymap,
     setKeymap: (keymap) => settings.setKeymap(keymap),
     rebuiltMenu: () => pushMenuState(true),
     repo: () => repository.current?.repo ?? null,
@@ -1162,7 +1193,8 @@
   /** False when nothing was committed: the box keeps the message for another try. */
   async function commitStaged(message: string, amend: boolean, noVerify: boolean): Promise<boolean> {
     const id = repository.current?.repo;
-    if (!id) return false;
+    // An empty list would commit every staged file, the hidden ones included.
+    if (!id || scope.empty) return false;
 
     if (amend && (await publishedOrAssume(isPublished(id, "HEAD")))) {
       const go = await confirmation.ask({
@@ -1176,7 +1208,6 @@
       if (!go) return false;
     }
 
-    // An empty list would commit every staged file, the hidden ones included.
     if (scope.empty) return false;
     if (scope.paths) {
       const confirmed = await confirmation.ask({
@@ -1205,6 +1236,20 @@
     await afterMutation();
     void graph.load(id, graph.query);
     return true;
+  }
+
+  /** A fetch moves only remote-tracking refs: the refs and the graph are read again, the
+      selected commit and the open diff stay. Which commits are published may have changed. */
+  async function afterFetch(worked: RepoId) {
+    const id = repository.current?.repo;
+    if (!id || worked !== id) return;
+    const epoch = repository.epoch;
+    protection = new Map();
+    await repository.refreshRefs();
+    if (repository.epoch !== epoch) return;
+    await afterMutation();
+    if (repository.epoch !== epoch) return;
+    void graph.load(id, graph.query);
   }
 
   /** `worked` is the repository the change was made in; once the panels show another,
@@ -1341,9 +1386,12 @@
 
     const outcome = await switchWithAutostash(branch.name, blocked, {
       ask: (question) => confirmation.ask({ title: "Switch Branch", message: question, confirm: "Stash and Switch" }),
-      stash: () => stashes.push(id, `cogit: autostash before switching to ${branch.name}`, true),
-      checkout: () => checkout(id, { kind: "branch", name: branch.name }),
-      pop: () => stashes.apply(id, 0, true),
+      run: () =>
+        runSwitchWithAutostash(
+          id,
+          { kind: "branch", name: branch.name },
+          `cogit: autostash before switching to ${branch.name}`,
+        ),
       report: (failed, title) => errors.report(failed, title),
     });
     if (outcome === "declined") return false;
@@ -1393,48 +1441,94 @@
   /** Opens a submodule in the panels without listing it as a repository of its own
       (doc/12-risks.md, R-109). The tree keeps showing it where it is, and the tree is
       the one thing not forgotten, because it is what the click came from. */
+  /** The submodule whose open is under way, by key: the clicks of a double-click. */
+  let moduleOpening: string | null = null;
+  /** The same for a submodule of a repository the panels do not own, by root and key. */
+  let foreignOpening: string | null = null;
+
   async function openModule(row: import("$lib/module-tree").ModuleRow) {
-    if (moduleClick(row.module.state) === "offer") {
+    const step = moduleClick(row.module.state, {
+      key: row.key,
+      // A worktree of the submodule opened from Worktrees leaves `open` as it was.
+      shown: worktrees.ownerRoot === null ? submodules.open : null,
+      opening: moduleOpening,
+    });
+    if (step === "offer") {
       await offerInitialise(row.key);
       return;
     }
-    const epoch = repository.epoch;
-    const opened = await openedModule(row.key);
-    // Clicked somewhere else meanwhile: taking the submodule now would overtake that.
-    if (!opened || repository.epoch !== epoch) return;
+    if (step === "stay") return;
+    moduleOpening = row.key;
+    try {
+      const epoch = repository.epoch;
+      const opened = await openedModule(row.key);
+      // Clicked somewhere else meanwhile: taking the submodule now would overtake that.
+      if (!opened || repository.epoch !== epoch) return;
 
-    // Everything except the tree: it belongs to the repository in the list, and the click
-    // came from it (doc/12-risks.md, R-129).
-    forgetPanelsKeepingTheTree();
-    worktrees.ownerRoot = null;
-    submodules.open = row.key;
-    repository.keep();
-    repository.adopt(opened);
-    refs.adopt(opened.root, buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() }));
-    void reloadGraph();
-    void refs.loadUrls(opened.repo);
-    void worktrees.refresh(opened.repo);
-    await afterMutation();
+      // Everything except the tree: it belongs to the repository in the list, and the click
+      // came from it (doc/12-risks.md, R-129).
+      forgetPanelsKeepingTheTree();
+      worktrees.ownerRoot = null;
+      submodules.open = row.key;
+      repository.keep();
+      repository.adopt(opened);
+      refs.adopt(opened.root, buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() }));
+      void reloadGraph();
+      void refs.loadUrls(opened.repo);
+      void worktrees.refresh(opened.repo);
+      await afterMutation();
+    } finally {
+      if (moduleOpening === row.key) moduleOpening = null;
+    }
   }
 
   /** A submodule of a listed repository the panels do not own, open or closed (R-352): the
       repository is opened without taking the panels, its tree becomes the full one, and
       the submodule takes the panels. Clicking the repository afterwards comes back to it. */
   async function openForeignModule(root: string, row: import("$lib/module-tree").ModuleRow) {
-    const epoch = repository.epoch;
-    let owner: import("$lib/ipc").RepoSummary;
+    const target = `${root}\n${row.key}`;
+    if (foreignOpening === target) return;
+    foreignOpening = target;
     try {
-      owner = await openRepository(root);
-    } catch (err) {
-      errors.report(err, "Could not open the repository");
-      return;
+      const epoch = repository.epoch;
+      let owner: import("$lib/ipc").RepoSummary;
+      try {
+        owner = await openRepository(root);
+      } catch (err) {
+        errors.report(err, "Could not open the repository");
+        return;
+      }
+      if (repository.epoch !== epoch) return;
+      repoList.opened(owner.root);
+      await submodules.own(owner.repo, owner.root);
+      if (repository.epoch !== epoch) return;
+      repository.keep(owner);
+      await openModule(submodules.rows.find((each) => each.key === row.key) ?? row);
+      void repository.refreshList();
+    } finally {
+      if (foreignOpening === target) foreignOpening = null;
     }
-    if (repository.epoch !== epoch) return;
-    repoList.opened(owner.root);
-    await submodules.own(owner.repo, owner.root);
-    if (repository.epoch !== epoch) return;
-    repository.keep(owner);
-    await openModule(submodules.rows.find((each) => each.key === row.key) ?? row);
+  }
+
+  /** A closed row of Repositories: opened once, however many clicks arrive meanwhile. */
+  function reopen(root: string) {
+    const phase = repository.phase;
+    if (reopenClick(root, phase.kind === "opening" ? phase.root : null) === "open") void activate(root);
+  }
+
+  /** Update of a submodule in the light tree of a repository the panels do not own: its
+      repository opens into the list, the panels and the tree they own stay as they are. */
+  async function updateForeignModule(top: string, row: import("$lib/module-tree").ModuleRow, init: boolean) {
+    try {
+      const owner = await openRepository(top);
+      repoList.opened(owner.root);
+      // A nested module is updated by the submodule above it.
+      const parent = row.parent === "" ? owner.repo : (await openSubmodule(owner.repo, row.parent)).repo;
+      await updateSubmodule(parent, row.path, init);
+    } catch (err) {
+      errors.report(err, "Could not update the submodule");
+    }
+    moduleForest.forget(top);
     void repository.refreshList();
   }
 
@@ -1553,8 +1647,9 @@
     // One Pull everywhere: the remote HEAD tracks and the fast-forward setting (#26).
     if (kind === "pull") return pullNow();
     const id = repository.current?.repo;
+    const root = repository.current?.root;
     const remote = kind === "fetch" ? pullRemote : network.primary;
-    if (!id) return;
+    if (!id || !root) return;
     if (!remote) {
       errors.message("This repository has no remote.", `Could not ${kind}`);
       return;
@@ -1568,7 +1663,9 @@
       if (repository.epoch === epoch) await afterMutation();
       return;
     }
-    if (repository.epoch === epoch) await afterRefChange(id);
+    if (kind === "fetch") repoPulse.fetched(root);
+    if (repository.epoch !== epoch) return;
+    await (kind === "fetch" ? afterFetch(id) : afterRefChange(id));
   }
 
   /** Pull as the toolbar's own choices say: which remotes to fetch first, whether to delete
@@ -1576,7 +1673,8 @@
       step waits for the one before; the first failure stops the rest. */
   async function runRemoteSteps(steps: readonly ("pull" | "push")[], failure: string) {
     const id = repository.current?.repo;
-    if (!id) return;
+    const root = repository.current?.root;
+    if (!id || !root) return;
     const epoch = repository.epoch;
     try {
       const plan = remotePlan(steps, {
@@ -1599,6 +1697,7 @@
       if (repository.epoch === epoch) await afterMutation();
       return;
     }
+    if (steps.includes("pull")) repoPulse.fetched(root);
     await afterRefChange(id);
   }
 
@@ -1615,11 +1714,18 @@
   /** One failure does not stop the other remotes. */
   async function fetchRemotes(names: readonly string[]) {
     const id = repository.current?.repo;
-    if (!id) return;
+    const root = repository.current?.root;
+    if (!id || !root) return;
+    const upstream = pullRemote;
     for (const remote of names) {
-      await network.fetch(id, remote).catch((err) => errors.report(err, `Could not fetch ${remote}`));
+      try {
+        await network.fetch(id, remote);
+        if (remote === upstream) repoPulse.fetched(root);
+      } catch (err) {
+        errors.report(err, `Could not fetch ${remote}`);
+      }
     }
-    await afterRefChange(id);
+    await afterFetch(id);
   }
 
   /** The Stash dialog: a name and Stash All, + Keep Index or + Keep Working Tree (#29). */
@@ -1799,7 +1905,11 @@
       session.setActive(opened.root);
       session.opened(opened.root);
       repoList.opened(opened.root);
-      if (restoreOid) void commit.select(opened.repo, restoreOid);
+      if (restoreOid) {
+        void commit.select(opened.repo, restoreOid);
+        // Waits for the graph to reach it: the list opens at the top otherwise.
+        graph.requestReveal(restoreOid);
+      }
       void timed(story, "graph", () => reloadGraph());
       void refs.loadUrls(opened.repo);
       void worktrees.refresh(opened.repo);
@@ -1815,17 +1925,22 @@
     return repository.error ? null : (repository.current?.root ?? null);
   }
 
-  /** A click in the Repositories list (#50): the one on screen reloads nothing, the owner
-      of the submodule or worktree on screen comes back from what was kept, keeping its
-      submodule tree, and only another repository goes through a full open. */
-  async function selectRepository(entry: import("$lib/ipc").RepoOverview) {
+  /** What the panels show, as a row of Repositories sees it. */
+  function panelsNow(): import("$lib/repo-click").RepoClickState {
     const phase = repository.phase;
-    const step = repoClick(entry, {
+    return {
       shown: repository.current?.repo ?? null,
       opening: phase.kind === "opening" ? phase.root : null,
       moduleOwner: submodules.open !== null ? submodules.owner : null,
       worktreeOwner: worktrees.ownerRoot,
-    });
+    };
+  }
+
+  /** A click in the Repositories list (#50): the one on screen reloads nothing, the owner
+      of the submodule or worktree on screen comes back from what was kept, keeping its
+      submodule tree, and only another repository goes through a full open. */
+  async function selectRepository(entry: import("$lib/ipc").RepoOverview) {
+    const step = repoClick(entry, panelsNow());
     trace(`open:${entry.root}`, `repository click: ${step}`);
     if (step === "open") await activate(entry.root);
     else if (step === "return") await comeBack(entry.root);
@@ -1959,7 +2074,7 @@
 
     rebaseBase = base;
     rebasePlan = moved;
-    splitPublished = await publishedOrAssume(isPublished(id, base));
+    rebasePublished = await planPublished(plan, (oid) => publishedOrAssume(isPublished(id, oid)));
     rebaseOpen = true;
   }
 
@@ -1991,7 +2106,8 @@
       return;
     }
     rebaseBase = rev;
-    splitPublished = await publishedOrAssume(isPublished(id, rev));
+    const plan = rebasePlan;
+    rebasePublished = await planPublished(plan, (oid) => publishedOrAssume(isPublished(id, oid)));
     rebaseOpen = true;
   }
 
@@ -2069,24 +2185,31 @@
     }
   }
 
-  /** Right-clicking a ticked row acts on the whole tick; right-clicking any other row
-      acts on that one, which is what every file manager does. */
-  function fileScope(path: string): string[] {
-    return markedFiles.includes(path) ? [...markedFiles] : [path];
+  /** Right-clicking a ticked row acts on the whole tick of its list; right-clicking any
+      other row acts on that one, which is what every file manager does. */
+  function fileScope(path: string, section?: string): string[] {
+    const ticked = section === undefined ? markedFiles : (markedBySection[section] ?? []);
+    return ticked.includes(path) ? [...ticked] : [path];
   }
 
   /** `section` is the list the row sits in: "Staged" is the index, the rest the working
       tree (#40). A commit's files get their own menu (#41). */
-  async function fileContext(path: string, event: MouseEvent, section?: string) {
+  async function fileContext(
+    path: string,
+    event: MouseEvent,
+    section?: string,
+    rows: readonly import("$lib/ipc").FileEntry[] = [],
+  ) {
     const id = repository.current?.repo;
     if (!id) return;
     const { clientX: x, clientY: y } = event;
-    const paths = fileScope(path);
+    const paths = fileScope(path, section);
     const info = await desktop.load();
 
     if (!onWorkingTree) {
-      const statuses = paths.map((each) => commit.files.find((file) => file.path === each)?.status ?? "modified");
-      const clicked = commit.files.find((file) => file.path === path);
+      const rowOf = (each: string) => shownRow(each, rows, commit.files);
+      const statuses = paths.map((each) => rowOf(each)?.status ?? "modified");
+      const clicked = rowOf(path);
       const present = await fileMenus.presentOnDisk(id, [path]).catch(() => [] as string[]);
       fileTarget = { path, paths, statuses, rev: commit.oid, oldPath: clicked?.oldPath ?? null };
       fileSection = "commit";
@@ -2256,7 +2379,7 @@
       addWorktreeOpen = false;
       repoSettingsOpen = false;
       rebaseOpen = false;
-      splitOpen = false;
+      split = null;
       finderOpen = false;
     }),
   );
@@ -2309,23 +2432,30 @@
 
     const watch = measure("fetch-all");
     let failed = 0;
+    let done = 0;
     bulk = { label: "Fetching", done: 0, total: targets.length };
 
-    for (const [index, entry] of targets.entries()) {
+    await eachAtMost(targets, FETCH_ALL_LANES, async (entry) => {
       try {
         const remote = await trackedRemote(entry.repo);
-        if (remote) await fetchRemote(entry.repo, remote, () => {});
+        if (remote) {
+          await fetchRemote(entry.repo, remote, () => {});
+          repoPulse.fetched(entry.root);
+        }
       } catch (err) {
         failed += 1;
         errors.report(err, "Could not fetch");
       }
-      bulk = { label: "Fetching", done: index + 1, total: targets.length, failed };
-    }
+      done += 1;
+      bulk = { label: "Fetching", done, total: targets.length, failed };
+    });
 
     bulk = undefined;
     watch.stop(`${targets.length} repositories, ${failed} failed`);
     await repository.refreshList();
-    await afterRefChange();
+    // The panels reload only when they show one of those fetched, and keep their selection.
+    const shown = repository.current?.repo;
+    if (shown && targets.some((entry) => entry.repo === shown)) await afterFetch(shown);
   }
 
   /** For a repository the panels may not show: the remote its HEAD branch tracks, else
@@ -2458,8 +2588,16 @@
       return true;
     }
     if (id === "group-remove") {
-      // The repositories go back to the ungrouped bucket, so nothing is lost by deleting.
-      repoGroups.remove(target);
+      void confirmation
+        .ask({
+          title: "Delete Group",
+          message: removalQuestion(repoGroups.groups, target),
+          confirm: "Delete",
+          warning: true,
+        })
+        .then((yes) => {
+          if (yes) repoGroups.remove(target);
+        });
       return true;
     }
     return false;
@@ -2620,12 +2758,20 @@
   async function repoContext(row: ListedRepo, x: number, y: number) {
     const info = await desktop.load();
     repoTarget = { kind: "repository", root: row.root, overview: row.overview };
+    const active = row.overview !== null && repo?.repo.valueOf() === row.overview.repo.valueOf();
+    // What the row itself shows: a closed row knows it is missing only from its pulse.
+    const { missing } = rowSync({
+      overview: row.overview,
+      owned: active,
+      pulse: repoPulse.pulses.get(row.root),
+      fetchFailed: false,
+    });
     const items = repoMenu(
       {
         kind: "repository",
-        active: row.overview !== null && repo?.repo.valueOf() === row.overview.repo.valueOf(),
+        active,
         open: row.overview !== null,
-        missing: row.overview?.missing ?? false,
+        missing,
         pinned: row.pinned,
         group: repoGroups.groups.of[row.root] ?? UNGROUPED,
         groups: groupChoices(repoGroups.groups),
@@ -2656,6 +2802,7 @@
         pinned: false,
         group: UNGROUPED,
         groups: [],
+        module: row.module,
       },
       info,
     );
@@ -2694,7 +2841,7 @@
         else if (target.overview) void selectRepository(target.overview);
         // Like a click on the closed row: activate takes it off the closed list only once it
         // opened, so a folder that moved keeps its row.
-        else void activate(root);
+        else reopen(root);
         return true;
       case "repo-open-folder":
         shell(fileMenus.openOnDesktop(root), "Could not open the folder");
@@ -2718,11 +2865,20 @@
       case "repo-push":
         void syncListed(target, command.id === "repo-pull" ? "pull" : "push");
         return true;
+      case "repo-update":
+        if (target.kind === "submodule") {
+          const { row, top } = target;
+          void updateModule(row.module, {
+            ask: (request) => confirmation.ask(request),
+            update: (init) => (top ? updateForeignModule(top, row, init) : refreshSubmodule(row)),
+          });
+        }
+        return true;
       case "repo-pin":
         repoList.togglePin(root);
         return true;
       case "repo-rename":
-        void renameListed(root, target.kind === "repository" ? target.overview?.name : undefined);
+        if (target.kind === "repository") void renameListed(root, target.overview);
         return true;
       case "repo-remove":
         void removeListed(target);
@@ -2736,23 +2892,36 @@
     return overview !== null && repo?.repo.valueOf() === overview.repo.valueOf();
   }
 
+  async function backToModuleOwner() {
+    const owner = repository.openRepos.find((entry) => entry.root === submodules.ownerRoot);
+    if (owner) await selectRepository(owner);
+  }
+
   /** The row stays in the list, closed; Remove is what takes it out. A submodule closes
       back to the repository it belongs to. */
   async function closeListed(target: RepoMenuSubject) {
     if (target.kind === "submodule") {
-      const owner = repository.openRepos.find((entry) => entry.root === submodules.ownerRoot);
-      if (owner) await selectRepository(owner);
+      await backToModuleOwner();
       return;
     }
     const { overview } = target;
     if (!overview) return;
     repoList.closed(target.root);
-    const wasActive = isActive(overview);
+    const wasActive = holdsPanels(overview, panelsNow());
     const last = wasActive && repository.openRepos.every((entry) => entry.repo === overview.repo);
     if (wasActive) {
       commit.clear();
       diff.clear();
       health.clear();
+    }
+    // Its submodule or worktree on screen goes with it: left there, the panels and the
+    // submodule tree went on sending commands to the closed repository.
+    if (wasActive && !isActive(overview)) {
+      forgetPanels();
+      worktrees.ownerRoot = null;
+      repository.close();
+      // The backend keeps the one it is told is shown; it is told nothing is, first.
+      await tick();
     }
     // In the frame the other panels empty in, not a round trip after them.
     if (last) graph.clear();
@@ -2785,8 +2954,10 @@
       return;
     }
     try {
-      if (kind === "pull") await network.pull(id, remote, settings.current.pullMode === "ffOnly");
-      else await network.push(id, remote, false);
+      if (kind === "pull") {
+        await network.pull(id, remote, settings.current.pullMode === "ffOnly");
+        if (target.kind === "repository") repoPulse.fetched(target.root);
+      } else await network.push(id, remote, false);
     } catch (err) {
       errors.report(err, `Could not ${kind}`);
     }
@@ -2794,12 +2965,11 @@
     if (target.kind === "repository") repoPulse.changed(target.root);
   }
 
-  async function renameListed(root: string, folder: string | undefined) {
-    const current = repoList.list.names[root] ?? folder ?? root;
+  async function renameListed(root: string, overview: import("$lib/ipc").RepoOverview | null) {
     const name = await prompt.ask({
       title: "Rename",
       label: "Name shown in the list; the folder keeps its name",
-      value: current,
+      value: listedName(repoList.list, root, overview),
       confirm: "Rename",
       validate: textProblem,
     });
@@ -2808,7 +2978,7 @@
 
   async function removeListed(target: RepoMenuSubject) {
     if (target.kind !== "repository") return;
-    const name = repoList.list.names[target.root] ?? target.overview?.name ?? target.root;
+    const name = listedName(repoList.list, target.root, target.overview);
     const yes = await confirmation.ask({
       title: "Remove",
       message: `Remove ${name} from the list? Nothing is deleted: the folder and the repository stay as they are.`,
@@ -2853,18 +3023,31 @@
     const id = repository.current?.repo;
     const rev = commit.oid;
     if (!id || !rev) return;
-    splitPublished = await publishedOrAssume(isPublished(id, rev));
-    splitOpen = true;
+    const epoch = repository.epoch;
+    let request;
+    try {
+      request = await splitRequest(rev, {
+        files: async (oid) =>
+          (commit.oid === oid && !commit.loading ? commit.files : await readCommitFiles(id, oid)).map(
+            (file) => file.path,
+          ),
+        published: (oid) => publishedOrAssume(isPublished(id, oid)),
+      });
+    } catch (err) {
+      errors.report(err, "Could not read the commit");
+      return;
+    }
+    if (repository.epoch === epoch) split = request;
   }
 
   async function runSplit(paths: string[], message: string, splitFirst: boolean) {
     const id = repository.current?.repo;
-    const rev = commit.oid;
+    const rev = split?.oid;
     if (!id || !rev) return;
     splitBusy = true;
     try {
       await splitOff(id, rev, paths, message, splitFirst);
-      splitOpen = false;
+      split = null;
       await repository.refresh();
       commit.clear();
     } catch (err) {
@@ -2977,15 +3160,26 @@
     await writeText(text);
   }
 
+  /** Ctrl+W: Close Repository of the row the panels show, which its menu names with the
+      same chord (F-361). */
   async function closeCurrent() {
-    const id = repository.current?.repo;
-    if (!id) return;
-    const listed = repository.openRepos.find((entry) => entry.repo === id);
-    if (listed) repoList.closed(listed.root);
-    commit.clear();
-    diff.clear();
-    health.clear();
-    await repository.closeOne(id);
+    const step = closeStep(panelsNow());
+    if (step.kind === "worktree") {
+      const owner = repository.openRepos.find((entry) => entry.root === step.owner);
+      await (owner ? selectRepository(owner) : comeBack(step.owner));
+    } else if (step.kind === "module") {
+      await backToModuleOwner();
+    } else if (step.kind === "repository") {
+      const listed = repository.openRepos.find((entry) => entry.repo === step.repo);
+      if (listed) {
+        await closeListed({ kind: "repository", root: listed.root, overview: listed });
+        return;
+      }
+      commit.clear();
+      diff.clear();
+      health.clear();
+      await repository.closeOne(step.repo);
+    }
   }
 
   /** Where the user was last: written as it changes, not only on the way out, because a
@@ -3004,7 +3198,8 @@
     return unsavedSummary({
       hook: hooks.dirty ? hooks.editing : null,
       merge: conflicts.regions.length > 0 ? conflicts.path : null,
-      dialogs: modals.unsaved,
+      // The Hooks dialog is dirty for the same hook, which is named already.
+      dialogs: modals.unsaved.filter((title) => !(hooks.dirty && title === "Hooks")),
     });
   }
 
@@ -3058,7 +3253,12 @@
     else if (event.type === "leave") dropping = false;
     else if (event.type === "drop") {
       dropping = false;
-      void openDropped(droppedRepositories(event.paths));
+      void openDropped(droppedRepositories(event.paths), {
+        openInList: openRepository,
+        activate,
+        refreshList: () => repository.refreshList(),
+        report: (err, title) => errors.report(err, title),
+      });
     }
   }
 
@@ -3073,6 +3273,19 @@
       graph.loading,
   );
   $effect(() => repoPulse.setOwned(repository.current?.root ?? null));
+
+  /** The other worktrees' folders have no watcher: their marks are read again when the
+      window comes back and once a minute while there are any. */
+  const worktreesUnwatched = $derived(othersToWatch(worktrees.entries));
+  function revisitWorktrees() {
+    const id = repository.current?.repo;
+    if (id && worktreesUnwatched) void worktrees.refresh(id);
+  }
+  $effect(() => {
+    if (!worktreesUnwatched) return;
+    const timer = setInterval(revisitWorktrees, 60_000);
+    return () => clearInterval(timer);
+  });
   $effect(() => repoPulse.fetchEvery(settings.current.backgroundFetchMinutes));
   // Only the repository on screen is watched; the rest are the pulse's (R-351).
   const shownRepository = new ShownRepository(showRepository);
@@ -3126,14 +3339,6 @@
     };
   }
 
-  async function openDropped(paths: string[]) {
-    for (const path of paths.slice(1)) {
-      await repository.open(path).catch((err) => errors.report(err, "Could not open the repository"));
-    }
-    const first = paths[0];
-    if (first) await activate(first);
-    else await repository.refreshList();
-  }
 
   $effect(() => {
     const pending = onMenuCommand((id) => {
@@ -3147,7 +3352,7 @@
       if (runFileCommand(id)) return;
       if (runRefCommand(id)) return;
       const command = palette.find((entry) => entry.id === id);
-      if (command && !command.unavailable) runCommand(command);
+      if (command && !command.unavailable) runCommand(command, false);
     });
     return () => void pending.then((unlisten) => unlisten());
   });
@@ -3196,7 +3401,13 @@
 </script>
 
 <!-- A closed repository has no watcher: its row is read again when the user comes back. -->
-<svelte:window {onkeydown} onfocus={() => repoPulse.revisit()} />
+<svelte:window
+  {onkeydown}
+  onfocus={() => {
+    repoPulse.revisit();
+    revisitWorktrees();
+  }}
+/>
 
 <TooltipLayer />
 
@@ -3272,7 +3483,7 @@
         <Panel
           title="Repositories"
           active={focused === "repositories"}
-          count={repository.openRepos.length}
+          count={listedRepos(repository.openRepos, repoList.list).length}
           stale={stale.has("repositories")}
         >
           <RepositoriesPanel
@@ -3284,7 +3495,7 @@
             onopen={pickRepository}
             onselect={(entry) => void selectRepository(entry)}
             oncontext={(row, x, y) => void repoContext(row, x, y)}
-            onreopen={(root) => void activate(root)}
+            onreopen={reopen}
             onmarked={(roots) => (markedRepos = roots)}
             onaddgroup={askAddGroup}
             ongroupcontext={(id, x, y) => void groupContext(id, x, y)}
@@ -3500,8 +3711,9 @@
               activePanel={focused === "files"}
               {onWorkingTree}
               onviewchange={(next) => {
+                const again = readsAgain(filesView.current, next);
                 filesView.set(next);
-                if (repo) void worktree.load(repo.repo);
+                if (repo && again) void worktree.load(repo.repo);
               }}
               onopenworktree={openWorktreeDiff}
               onopenstaged={openStagedDiff}
@@ -3511,7 +3723,10 @@
               onopenwindow={openInWindow}
               onmask={(mask) => (fileMask = mask)}
               onshownstaged={(paths) => (shownStaged = paths)}
-              onmarked={(paths) => (markedFiles = paths)}
+              onmarked={(paths, bySection) => {
+                markedFiles = paths;
+                markedBySection = bySection;
+              }}
               oncount={(count) => (filesCount = count)}
               oncontext={fileContext}
               {stage}
@@ -3645,7 +3860,7 @@
     <RebaseEditor
       base={rebaseBase}
       plan={rebasePlan}
-      published={splitPublished}
+      published={rebasePublished}
       busy={rebaseBusy}
       onplan={(next) => (rebasePlan = next)}
       paused={rebasePaused}
@@ -3667,14 +3882,14 @@
     rollbackTree={() => rollbackFiles([])}
   />
 
-  {#if splitOpen && commit.oid}
+  {#if split}
     <SplitOffDialog
-      oid={commit.oid}
-      changed={commit.files.map((file) => file.path)}
-      published={splitPublished}
+      oid={split.oid}
+      changed={split.changed}
+      published={split.published}
       busy={splitBusy}
       onsplit={(paths, message, first) => void runSplit(paths, message, first)}
-      onclose={() => (splitOpen = false)}
+      onclose={() => (split = null)}
     />
   {/if}
 
@@ -3724,7 +3939,7 @@
             label: `A name for the preset made from ${hook}`,
             value: hook,
             confirm: "Save",
-            validate: textProblem,
+            validate: presetNameProblem,
           })
           .then((name) => {
             if (name !== null) void hooks.export(repo, hook, name);
@@ -3735,6 +3950,7 @@
         if (repo) void hooks.removeOwn(repo, id);
       }}
       onclose={() => hooks.close()}
+      dirty={hooks.dirty}
     />
   {/if}
 

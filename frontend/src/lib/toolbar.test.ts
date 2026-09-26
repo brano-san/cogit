@@ -47,6 +47,18 @@ describe("splitMarked", () => {
     const split = splitMarked({ marked: ["gone.txt"], unstaged: [], staged: [] });
     expect(split).toEqual({ markedUnstaged: [], markedStaged: [] });
   });
+
+  // A file partly staged, ticked in Unstaged only, was ticked for Unstage too: the list
+  // said which paths were ticked, not in which of its lists.
+  it("keeps a tick to the list it was made in, when the list says", () => {
+    const split = splitMarked({
+      marked: ["both.txt"],
+      unstaged: [{ path: "both.txt" }],
+      staged: [{ path: "both.txt" }],
+      bySection: { Unstaged: ["both.txt"] },
+    });
+    expect(split).toEqual({ markedUnstaged: ["both.txt"], markedStaged: [] });
+  });
 });
 
 describe("Stage", () => {

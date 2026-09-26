@@ -24,10 +24,6 @@ class StashStore {
     if (generation === this.#generation) this.entries = entries;
   }
 
-  async push(repo: RepoId, message: string, includeUntracked: boolean): Promise<void> {
-    await this.#then(repo, () => stashPush(repo, { message, includeUntracked, keepIndex: false }));
-  }
-
   /** One of the Stash dialog's three modes (#29). */
   async save(repo: RepoId, choice: StashChoice): Promise<void> {
     const request = stashRequest(choice);

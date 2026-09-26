@@ -19,6 +19,8 @@
   } from "$lib/file-view";
   import {
     actionScope,
+    everyBlocked,
+    requestBlocked,
     scopeBlocked,
     afterDeselect,
     applyClick,
@@ -38,6 +40,9 @@
     run: (paths: string[]) => void;
     /** Why it does not apply to one row's file (`rowActionBlocked`). */
     blocked?: (file: FileEntry) => string | null;
+    /** It passes over the files it does not apply to, so the heading's "all" is off only
+        when it applies to none. */
+    skips?: boolean;
   }
 
   interface Section {
@@ -70,14 +75,16 @@
     onselect?: (path: string) => void;
     /** Double-click: open the file in its own window (T2.5). */
     onopen?: (path: string) => void;
-    /** Right-click, with the title of the list the row is in: Staged means the index. */
-    oncontext?: (path: string, event: MouseEvent, section?: string) => void;
+    /** Right-click, with the title of the list the row is in (Staged means the index) and
+        the rows it shows, the ones the list adds itself among them. */
+    oncontext?: (path: string, event: MouseEvent, section?: string, rows?: readonly FileEntry[]) => void;
     /** Reported upward so Commit What You See knows what is hidden (T6.8). */
     onmask?: (mask: string) => void;
     /** The paths each section shows once filtered, in the order of `sections`. */
     onshown?: (shown: string[][]) => void;
-    /** The ticked rows, for actions that live outside the list — stashing a selection. */
-    onmarked?: (paths: string[]) => void;
+    /** The ticked rows, for actions that live outside the list — stashing a selection —
+        and each titled section's own, since one path can be a row of two. */
+    onmarked?: (paths: string[], bySection: Record<string, string[]>) => void;
     /** Only the working tree is on disk to be searched inside. */
     contents?: ContentSearch;
     context?: ListContext;
@@ -131,12 +138,17 @@
   });
 
   $effect(() => {
-    onmarked?.(marks.paths);
+    const bySection: Record<string, string[]> = {};
+    for (const [index, paths] of marks.bySection) {
+      const title = sections[index]?.title;
+      if (title) bySection[title] = [...paths];
+    }
+    onmarked?.(marks.paths, bySection);
   });
 
   // The Files panel swaps one list for another; the ticks of the one that went must not
   // stay behind as the ticks of the one that came (a commit's menu acting on them).
-  $effect(() => () => onmarked?.([]));
+  $effect(() => () => onmarked?.([], {}));
 
   let shownBefore: string | null = null;
   $effect(() => {
@@ -207,7 +219,15 @@
         label: action.label,
         title: action.title,
         run: (request) => action.run(actionScope(marked(), request)),
-        ...(blocked ? { blocked: (file: FileEntry) => scopeBlocked(marked(), file.path, byPath, blocked) } : {}),
+        ...(blocked
+          ? {
+              blocked: (file: FileEntry) => scopeBlocked(marked(), file.path, byPath, blocked),
+              allBlocked: (paths: readonly string[]) =>
+                action.skips
+                  ? everyBlocked(paths, byPath, blocked)
+                  : requestBlocked(marked(), { all: paths }, byPath, blocked),
+            }
+          : {}),
       };
     });
   }
@@ -296,7 +316,7 @@
             onclick={(path, event) => clicked(group, path, event)}
             onmark={(path) => mark(group, path)}
             {onopen}
-            oncontext={oncontext && ((path, event) => oncontext(path, event, group.section.title))}
+            oncontext={oncontext && ((path, event) => oncontext(path, event, group.section.title, group.files))}
           />
         </div>
       {/each}
@@ -317,7 +337,7 @@
               onclick={(path, event) => clicked(group, path, event)}
               onmark={(path) => mark(group, path)}
               {onopen}
-              oncontext={oncontext && ((path, event) => oncontext(path, event, group.section.title))}
+              oncontext={oncontext && ((path, event) => oncontext(path, event, group.section.title, group.files))}
             />
           </div>
         {/if}

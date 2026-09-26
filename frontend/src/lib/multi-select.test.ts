@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   actionScope,
+  everyBlocked,
+  requestBlocked,
   scopeBlocked,
   afterDeselect,
   applyClick,
@@ -179,5 +181,34 @@ describe("scopeBlocked", () => {
 
   it("is off when any marked row it would act on is off", () => {
     expect(scopeBlocked(new Set(["new.txt", "old.txt"]), "new.txt", files, ignore)).toBe("tracked");
+  });
+});
+
+// "Discard all" and "Ignore all" in the Unstaged heading ran on every row, untracked and
+// tracked alike, where each row's own button and the menu say no.
+describe("requestBlocked", () => {
+  const files = new Map([
+    ["new.txt", { status: "untracked" }],
+    ["old.txt", { status: "modified" }],
+  ]);
+  const ignore = (file: { status: string }) => (file.status === "untracked" ? null : "tracked");
+
+  it("is off for a heading's all when any row it lists is off", () => {
+    expect(requestBlocked(new Set(), { all: ["new.txt", "old.txt"] }, files, ignore)).toBe("tracked");
+    expect(requestBlocked(new Set(), { all: ["new.txt"] }, files, ignore)).toBeNull();
+  });
+});
+
+// "+x all" stages the mode change of the rows that have one and passes over the rest.
+describe("everyBlocked", () => {
+  const files = new Map([
+    ["run.sh", { mode: true }],
+    ["a.txt", { mode: false }],
+  ]);
+  const mode = (file: { mode: boolean }) => (file.mode ? null : "The mode did not change");
+
+  it("is off only when the action applies to none of the rows", () => {
+    expect(everyBlocked(["run.sh", "a.txt"], files, mode)).toBeNull();
+    expect(everyBlocked(["a.txt"], files, mode)).toBe("The mode did not change");
   });
 });
