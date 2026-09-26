@@ -351,3 +351,46 @@ fn a_graph_answered_from_the_cache_trims_the_cache_too() {
     assert_eq!(totals(&progress), [300], "from the cache");
     assert!(state.graph_window(rb, shown_b, 0, 1).is_none());
 }
+
+/// Clearing a search goes back to the graph shown before it, with every text read for it:
+/// the filtered list does not push that graph out of the cache (R-300, R-303).
+#[test]
+fn clearing_a_filter_answers_from_the_graph_shown_before_it() {
+    let a = test_fixtures::linear(300).unwrap();
+    let state = AppState::new();
+    let ra = state.open_repository(a.path()).unwrap().repo;
+    build(&state, ra);
+    assert!(texts_reach(&state, ra, 300));
+    let query = CommitQuery {
+        message: Some("commit 1".to_owned()),
+        ..CommitQuery::default()
+    };
+    build_with(&state, ra, &query);
+
+    let (generation, progress) = build(&state, ra);
+
+    assert_eq!(totals(&progress), [300], "one message, from the cache");
+    assert_eq!(state.graph_texts_read(ra), 300);
+    assert_eq!(summaries(&state, ra, generation).len(), 100);
+}
+
+/// A commit made meanwhile walks the graph again, but the texts read before the search stay.
+#[test]
+fn clearing_a_filter_after_a_commit_keeps_the_texts_read() {
+    let a = test_fixtures::linear(300).unwrap();
+    let state = AppState::new();
+    let ra = state.open_repository(a.path()).unwrap().repo;
+    build(&state, ra);
+    assert!(texts_reach(&state, ra, 300));
+    let query = CommitQuery {
+        message: Some("commit 1".to_owned()),
+        ..CommitQuery::default()
+    };
+    build_with(&state, ra, &query);
+    a.commit_file(400, "new.txt", "new\n").unwrap();
+
+    let (_, progress) = build(&state, ra);
+
+    assert_eq!(progress.last().unwrap().total, 301);
+    assert!(state.graph_texts_read(ra) >= 300);
+}
