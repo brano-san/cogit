@@ -1,3 +1,13 @@
+<script module lang="ts">
+  import type { ActionRequest } from "$lib/multi-select";
+
+  export interface PaneAction {
+    label: string;
+    title: string;
+    run: (request: ActionRequest) => void;
+  }
+</script>
+
 <script lang="ts">
   import { tick } from "svelte";
   import Disclosure from "$components/common/Disclosure.svelte";
@@ -9,18 +19,12 @@
   import { LIST_ROW_HEIGHT } from "$lib/graph-geometry";
   import { TypeAhead, findTyped, listKey, pageRows, pressOf, typedChar } from "$lib/list-keys";
 
-  interface Action {
-    label: string;
-    title: string;
-    run: (paths: string[]) => void;
-  }
-
   interface Props {
     rows: readonly ViewRow[];
     title?: string;
     selected?: string | null;
     marked: ReadonlySet<string>;
-    actions?: readonly Action[];
+    actions?: readonly PaneAction[];
     /** Paths shown here, for the "all" buttons in the heading. */
     paths: readonly string[];
     /** Full paths are redundant once the list groups by directory. */
@@ -105,7 +109,7 @@
     <div class="heading">
       <span class="grow">{title} ({paths.length})</span>
       {#each actions as action (action.label)}
-        <button type="button" class="act" title="{action.title} — all" onclick={() => action.run([...paths])}
+        <button type="button" class="act" title="{action.title} — all" onclick={() => action.run({ all: paths })}
           >{action.label} all</button
         >
       {/each}
@@ -176,10 +180,10 @@
                     title={action.title}
                     onclick={(event) => {
                       event.stopPropagation();
-                      action.run([file.path]);
+                      action.run({ row: file.path });
                     }}
                     onkeydown={(event) => {
-                      if (event.key === "Enter") action.run([file.path]);
+                      if (event.key === "Enter") action.run({ row: file.path });
                     }}>{action.label}</span
                   >
                 {/each}

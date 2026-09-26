@@ -17,6 +17,7 @@
     type FileView,
   } from "$lib/file-view";
   import {
+    actionScope,
     afterDeselect,
     applyClick,
     EMPTY_SELECTION,
@@ -25,7 +26,7 @@
     shownMarks,
     type FileSelection,
   } from "$lib/multi-select";
-  import FilePane from "$components/file-list/FilePane.svelte";
+  import FilePane, { type PaneAction } from "$components/file-list/FilePane.svelte";
   import Splitter from "$components/layout/Splitter.svelte";
   import type { FileEntry } from "$lib/ipc";
 
@@ -193,17 +194,12 @@
   const visibleMarks = $derived(shownMarks(marked, order));
   const marks = $derived(markedRows(visibleMarks.paths));
 
-  /** The paths an action of a section applies to: its marked rows when the clicked one is
-      among them. The rows marked in another section are not its to act on. */
-  function scopeOf(group: Group, path: string): string[] {
-    const paths = marks.bySection.get(group.index) ?? NO_MARKS;
-    return paths.has(path) && paths.size > 1 ? [...paths] : [path];
-  }
-
-  function scoped(group: Group, actions: readonly Action[]): Action[] {
+  /** The rows marked in another section are not this section's to act on. */
+  function scoped(group: Group, actions: readonly Action[]): PaneAction[] {
     return actions.map((action) => ({
-      ...action,
-      run: (paths: string[]) => action.run(paths.length === 1 ? scopeOf(group, paths[0] ?? "") : paths),
+      label: action.label,
+      title: action.title,
+      run: (request) => action.run(actionScope(marks.bySection.get(group.index) ?? NO_MARKS, request)),
     }));
   }
 
