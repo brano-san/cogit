@@ -62,7 +62,7 @@
   import RemoveWorktreeDialog from "$components/repo-tree/RemoveWorktreeDialog.svelte";
   import { branchChoices, hasStale, othersToWatch, removable } from "$lib/worktree-list";
   import { fileFormat, shortOid } from "$lib/format";
-  import { checkedIds, disabledIds, type PaletteCommand } from "$lib/palette";
+  import { checkedIds, disabledIds, rememberCommand, type PaletteCommand } from "$lib/palette";
   import { reasonFor, type Context } from "$lib/availability";
   import { localRevision, reasonOf, refAt, splitMarked, targetsOf, type MenuContext, type ToolbarFacts } from "$lib/toolbar";
   import { currentRemote, headRemote, remotePlan, syncSteps, type SyncOrder } from "$lib/toolbar-prefs";
@@ -964,9 +964,11 @@
     }
   }
 
-  function runCommand(command: PaletteCommand) {
+  /** A command picked in the palette; one from the menu bar or its keys is not a recent
+      command of the palette. */
+  function runCommand(command: PaletteCommand, fromPalette = true) {
     paletteOpen = false;
-    recentCommands = [command.id, ...recentCommands.filter((id) => id !== command.id)].slice(0, 8);
+    if (fromPalette) recentCommands = rememberCommand(recentCommands, command.id);
     command.run();
   }
 
@@ -3295,7 +3297,7 @@
       if (runFileCommand(id)) return;
       if (runRefCommand(id)) return;
       const command = palette.find((entry) => entry.id === id);
-      if (command && !command.unavailable) runCommand(command);
+      if (command && !command.unavailable) runCommand(command, false);
     });
     return () => void pending.then((unlisten) => unlisten());
   });

@@ -67,6 +67,13 @@ export function rankCommands(
   return scored.map((entry) => entry.command);
 }
 
+/** The palette's recent commands after one ran from it. Opening the palette is not one: it
+    would stand first on every empty query, and Enter would only open it again. */
+export function rememberCommand(recent: readonly string[], id: string): string[] {
+  if (id === "palette") return [...recent];
+  return [id, ...recent.filter((each) => each !== id)].slice(0, 8);
+}
+
 /** Sorted so the native menu only updates when the set really changed. */
 export function disabledIds(commands: readonly PaletteCommand[]): string[] {
   return commands
