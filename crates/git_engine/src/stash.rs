@@ -44,6 +44,10 @@ impl RepoHandle {
                 paths.len()
             )));
         }
+        let paths = &self.stashable(paths)?;
+        if paths.is_empty() {
+            return Ok(None);
+        }
         let before = self.stash_top();
 
         let mut args = vec!["stash", "push", "--include-untracked"];
@@ -104,6 +108,37 @@ impl RepoHandle {
             None => self.run_git_indexed(&scratch.0, push, None),
         }
         .map(drop)
+    }
+
+    /// Those of `paths` a stash of paths can take. `stash push` hands them to a `git add` of
+    /// its own, which refuses one in neither the index nor the folder — a staged deletion —
+    /// after the stash is made, and leaves the edits where they were (R-486).
+    pub fn stashable(&self, paths: &[String]) -> Result<Vec<String>> {
+        let mut index = None;
+        let mut kept = Vec::with_capacity(paths.len());
+        for path in paths {
+            if std::fs::symlink_metadata(self.root().join(path)).is_ok() {
+                kept.push(path.clone());
+                continue;
+            }
+            if index.is_none() {
+                index =
+                    Some(self.repo.index_or_empty().map_err(|err| {
+                        GitError::Internal(format!("cannot read the index: {err}"))
+                    })?);
+            }
+            let name = path.trim_end_matches('/');
+            let tracked = index.as_ref().is_some_and(|index| {
+                index.entry_by_path(name.into()).is_some()
+                    || index
+                        .prefixed_entries(format!("{name}/").as_str().into())
+                        .is_some()
+            });
+            if tracked {
+                kept.push(path.clone());
+            }
+        }
+        Ok(kept)
     }
 
     /// Read by `gix`, which costs no process: the common case has none.
