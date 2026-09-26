@@ -61,6 +61,17 @@ export function markedRows(keys: Iterable<string>): { bySection: Map<number, Set
   return { bySection, paths: [...paths] };
 }
 
+/** Said by the button, not guessed from how many paths came: a heading listing one row
+    asks for that row, not for the marks. */
+export type ActionRequest = { row: string } | { all: readonly string[] };
+
+/** A row's button acts on the section's marked rows when it is one of them; a heading's
+    "all" acts on the rows it lists. */
+export function actionScope(marked: ReadonlySet<string>, request: ActionRequest): string[] {
+  if ("all" in request) return [...request.all];
+  return marked.has(request.row) && marked.size > 1 ? [...marked] : [request.row];
+}
+
 /** The shown file was let go — a re-clicked commit (#7) — so its marks go with it. Marks
     made while nothing was shown are kept: a ctrl-click marks without opening. */
 export function afterDeselect(

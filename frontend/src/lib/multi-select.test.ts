@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  actionScope,
   afterDeselect,
   applyClick,
   EMPTY_SELECTION,
@@ -128,6 +129,23 @@ describe("rows of a list in sections", () => {
 
   it("reads back a path with a colon in it", () => {
     expect(rowOf(rowKey(2, "a:b/c.txt"))).toEqual({ section: 2, path: "a:b/c.txt" });
+  });
+});
+
+describe("actionScope", () => {
+  const marked = new Set(["x", "y"]);
+
+  it("gives a row's button every marked row when the row is marked", () => {
+    expect(actionScope(marked, { row: "x" })).toEqual(["x", "y"]);
+  });
+
+  it("gives an unmarked row's button that row alone", () => {
+    expect(actionScope(marked, { row: "z" })).toEqual(["z"]);
+  });
+
+  // Discard all under a filter that left one row: it discarded the marked rows out of sight.
+  it("gives a heading's all button the rows it lists, even when it lists one", () => {
+    expect(actionScope(marked, { all: ["x"] })).toEqual(["x"]);
   });
 });
 
