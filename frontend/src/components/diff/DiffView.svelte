@@ -24,6 +24,17 @@
   import { DiffSearch } from "$lib/diff-search.svelte";
   import { BAND_WIDTH, bandLeft, ribbonPath, ribbonsNear } from "$lib/diff-band";
   import DiffFindBar from "./DiffFindBar.svelte";
+  import SidewaysScrollbar from "$components/common/SidewaysScrollbar.svelte";
+  import {
+    NO_NEWLINE_COLUMNS,
+    REVEAL_MARGIN_COLUMNS,
+    TRAILING_COLUMNS,
+    clampOffset,
+    maxOffset,
+    revealOffset,
+    textColumns,
+    wheelSideways,
+  } from "$lib/code-scroll";
   import ConfirmDialog from "$components/common/ConfirmDialog.svelte";
   import { eolLabel, layoutTip } from "$lib/diff-toolbar";
   import { highlightLines, mergePieces, type Token } from "$lib/highlight";
@@ -183,9 +194,50 @@
 
   const find = new DiffSearch(() => searchTexts);
 
+  /** Twenty is not enough: `offsetWidth` is whole pixels, and the error adds up per character. */
+  const PROBE = "0".repeat(100);
+  /** Measured in the hidden ruler row, which has the layout of every other row. */
+  let codeWidth = $state(0);
+  let probeWidth = $state(0);
+  const charWidth = $derived(probeWidth / PROBE.length);
+  /** Pixels the code of every column is moved left by; the numbers stay put. */
+  let sideways = $state(0);
+
+  const widest = $derived.by(() => {
+    let most = 0;
+    for (const entry of unified) {
+      if (entry.kind !== "row") continue;
+      const row = entry.row;
+      if (row.kind === "collapsed") continue;
+      most = Math.max(most, textColumns(row.text) + (row.noNewline ? NO_NEWLINE_COLUMNS : 0));
+    }
+    return most + TRAILING_COLUMNS;
+  });
+  const sidewaysMax = $derived(maxOffset(widest, charWidth, codeWidth));
+  const shift = $derived(clampOffset(sideways, sidewaysMax));
+
   function scrollToRow(index: number) {
     if (!scroller) return;
     scroller.scrollTop = Math.max(index * ROW_HEIGHT - Math.floor(viewportHeight / 2), 0);
+  }
+
+  /** Down to the hit the counter points at, and sideways when it is past an edge. */
+  function revealHit() {
+    const hit = find.current;
+    if (!hit) return;
+    scrollToRow(hit.index);
+    const text = searchTexts[hit.index]?.[hit.side === "left" ? 0 : 1];
+    if (text === null || text === undefined || charWidth === 0) return;
+    const from = textColumns(text.slice(0, hit.from)) * charWidth;
+    const to = textColumns(text.slice(0, hit.to)) * charWidth;
+    sideways = revealOffset(shift, codeWidth, from, to, sidewaysMax, REVEAL_MARGIN_COLUMNS * charWidth);
+  }
+
+  function onwheel(event: WheelEvent) {
+    const delta = wheelSideways(event, ROW_HEIGHT);
+    if (delta === 0 || sidewaysMax === 0) return;
+    event.preventDefault();
+    sideways = clampOffset(shift + delta, sidewaysMax);
   }
 
   function openFind() {
@@ -363,6 +415,7 @@
     revealed = [];
     pendingDiscard = null;
     discardError = null;
+    sideways = 0;
     if (scroller) scroller.scrollTop = 0;
   });
 
@@ -390,8 +443,7 @@
     void find.applied;
     untrack(() => {
       find.rewind();
-      const first = find.hits[0];
-      if (first) scrollToRow(first.index);
+      revealHit();
     });
   });
 </script>
@@ -568,7 +620,7 @@
   {/if}
 
   {#if find.showing && diff.kind === "text"}
-    <DiffFindBar bind:this={findBar} {find} reveal={scrollToRow} />
+    <DiffFindBar bind:this={findBar} {find} reveal={revealHit} />
   {/if}
 
   {#if diff.kind === "unchanged"}
@@ -596,8 +648,29 @@
     </p>
   {:else}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="scroll" bind:this={scroller} {onscroll} onmouseleave={() => (hoverRow = null)}>
-      <div class="rows" style:height="{total * ROW_HEIGHT}px" bind:clientWidth={rowsWidth}>
+    <div class="scroll" bind:this={scroller} {onscroll} {onwheel} onmouseleave={() => (hoverRow = null)}>
+      <div
+        class="rows"
+        style:height="{total * ROW_HEIGHT}px"
+        style:--shift="{shift}px"
+        bind:clientWidth={rowsWidth}
+      >
+        <div class="line ruler" aria-hidden="true">
+          <span class="gutter"></span>
+          <span class="num"></span>
+          {#if mode === "unified"}<span class="num"></span>{/if}
+          <span class="sign"></span>
+          <span class="code mono" class:side={mode === "split"} bind:clientWidth={codeWidth}
+            ><span class="probe" bind:offsetWidth={probeWidth}>{PROBE}</span></span
+          >
+          {#if mode === "split"}
+            <span class="gap"></span>
+            <span class="gutter"></span>
+            <span class="num"></span>
+            <span class="sign"></span>
+            <span class="code mono side"></span>
+          {/if}
+        </div>
         {#if mode === "split" && ribbons.length > 0}
           <svg
             class="band"
@@ -634,11 +707,13 @@
                   <span class="num">{entry.row.new}</span>
                   <span class="sign"></span>
                   <span class="code mono"
-                    >{#each mergePieces(entry.row.text, tokensFor(entry.row), [], find.spansFor(rowIndex, "left")) as piece, i (i)}<span
-                        class={piece.cls}
-                        class:hit={piece.hit}
-                        class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
-                      >{/each}{@render eof(entry.row.noNewline)}</span
+                    ><span class="text"
+                      >{#each mergePieces(entry.row.text, tokensFor(entry.row), [], find.spansFor(rowIndex, "left")) as piece, i (i)}<span
+                          class={piece.cls}
+                          class:hit={piece.hit}
+                          class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
+                        >{/each}{@render eof(entry.row.noNewline)}</span
+                    ></span
                   >
                 {:else if entry.row.kind === "delete"}
                   {@const row = entry.row}
@@ -655,12 +730,14 @@
                   <span class="num"></span>
                   <span class="sign del" class:moved={row.moved}>−</span>
                   <span class="code mono del" class:moved={row.moved}
-                    >{#each mergePieces(row.text, tokensFor(row), row.inline, find.spansFor(rowIndex, "left")) as piece, i (i)}<span
-                        class="{piece.cls}"
-                        class:word={piece.changed}
-                        class:hit={piece.hit}
-                        class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
-                      >{/each}{@render eof(row.noNewline)}</span
+                    ><span class="text"
+                      >{#each mergePieces(row.text, tokensFor(row), row.inline, find.spansFor(rowIndex, "left")) as piece, i (i)}<span
+                          class="{piece.cls}"
+                          class:word={piece.changed}
+                          class:hit={piece.hit}
+                          class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
+                        >{/each}{@render eof(row.noNewline)}</span
+                    ></span
                   >
                 {:else if entry.row.kind === "insert"}
                   {@const row = entry.row}
@@ -677,12 +754,14 @@
                   <span class="num">{row.new}</span>
                   <span class="sign add" class:moved={row.moved}>+</span>
                   <span class="code mono add" class:moved={row.moved}
-                    >{#each mergePieces(row.text, tokensFor(row), row.inline, find.spansFor(rowIndex, "left")) as piece, i (i)}<span
-                        class="{piece.cls}"
-                        class:word={piece.changed}
-                        class:hit={piece.hit}
-                        class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
-                      >{/each}{@render eof(row.noNewline)}</span
+                    ><span class="text"
+                      >{#each mergePieces(row.text, tokensFor(row), row.inline, find.spansFor(rowIndex, "left")) as piece, i (i)}<span
+                          class="{piece.cls}"
+                          class:word={piece.changed}
+                          class:hit={piece.hit}
+                          class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
+                        >{/each}{@render eof(row.noNewline)}</span
+                    ></span
                   >
                 {/if}
                 {#if hoverRow === rowIndex}{@render blockActions(entry.block)}{/if}
@@ -717,12 +796,14 @@
                   class="code mono side"
                   class:del={entry.pair.left?.kind === "delete"}
                   class:moved={entry.pair.left?.moved}
-                  >{#each cells(entry.pair.left, rowIndex, "left") as piece, i (i)}<span
-                      class="{piece.cls}"
-                      class:word={piece.changed}
-                      class:hit={piece.hit}
-                      class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
-                    >{/each}{@render eof(entry.pair.left?.noNewline)}</span
+                  ><span class="text"
+                    >{#each cells(entry.pair.left, rowIndex, "left") as piece, i (i)}<span
+                        class="{piece.cls}"
+                        class:word={piece.changed}
+                        class:hit={piece.hit}
+                        class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
+                      >{/each}{@render eof(entry.pair.left?.noNewline)}</span
+                  ></span
                 >
                 <span class="gap"></span>
                 {@render cellGutter(entry.pair.right)}
@@ -736,12 +817,14 @@
                   class="code mono side"
                   class:add={entry.pair.right?.kind === "insert"}
                   class:moved={entry.pair.right?.moved}
-                  >{#each cells(entry.pair.right, rowIndex, "right") as piece, i (i)}<span
-                      class="{piece.cls}"
-                      class:word={piece.changed}
-                      class:hit={piece.hit}
-                      class:current={find.isCurrent(rowIndex, "right", piece.start)}>{piece.text}</span
-                    >{/each}{@render eof(entry.pair.right?.noNewline)}</span
+                  ><span class="text"
+                    >{#each cells(entry.pair.right, rowIndex, "right") as piece, i (i)}<span
+                        class="{piece.cls}"
+                        class:word={piece.changed}
+                        class:hit={piece.hit}
+                        class:current={find.isCurrent(rowIndex, "right", piece.start)}>{piece.text}</span
+                      >{/each}{@render eof(entry.pair.right?.noNewline)}</span
+                  ></span
                 >
                 {#if hoverRow === rowIndex}{@render blockActions(entry.block)}{/if}
               </div>
@@ -750,6 +833,7 @@
         {/if}
       </div>
     </div>
+    <SidewaysScrollbar offset={shift} max={sidewaysMax} onscroll={(offset) => (sideways = offset)} />
   {/if}
 </div>
 
@@ -815,11 +899,13 @@
     opacity: 0.4;
   }
 
+  /* Sideways the code moves by `--shift`, under the scrollbar below the rows (R-470). */
   .scroll {
     position: relative;
     flex: 1 1 auto;
     min-height: 0;
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   .rows {
@@ -952,8 +1038,25 @@
     flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
-    text-overflow: ellipsis;
     user-select: text;
+  }
+
+  /* One offset for every column: side by side, both halves move together. */
+  .text {
+    display: inline-block;
+    vertical-align: top;
+    transform: translateX(calc(-1 * var(--shift, 0px)));
+  }
+
+  /* The layout of a row, never seen: it measures a code column and one character. */
+  .ruler {
+    top: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .probe {
+    display: inline-block;
   }
 
   /* The +/− column: its own, two spaces clear of the code, never copied with it (#9). */
