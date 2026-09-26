@@ -71,7 +71,7 @@
   import { allowsSelectAll, settle, step } from "$lib/panel-focus";
   import { needsPush, pullRequestFor } from "$lib/pull-request";
   import { commitScope } from "$lib/commit-scope";
-  import { activity, applyOperation } from "$lib/operations";
+  import { activity, applyOperation, cancellable, trackCancellable } from "$lib/operations";
   import { measurer } from "$lib/timing";
   import { refMenu } from "$lib/context-menu";
   import RefActions from "$components/menus/RefActions.svelte";
@@ -148,6 +148,7 @@
     updateSubmodule,
     openWorktree,
     listOperations,
+    cancelNetwork,
     readGitConfig,
     writeGitConfig,
     reportMemory,
@@ -229,6 +230,8 @@
     if (landed !== focused) focused = landed;
   });
   let running = $state.raw<Map<number, string>>(new Map());
+  /** Network operations whose git the footer's Cancel can stop, oldest first. */
+  let networkOps = $state.raw<number[]>([]);
   let info = $state<AppInfo | null>(null);
   /** The last update check this session, for the line in About. */
   let lastUpdate = $state.raw<UpdateOutcome | null>(null);
@@ -3203,6 +3206,13 @@
     });
   }
 
+  /** The footer's Cancel. `false` back means it ended or never reached git meanwhile. */
+  function cancelNetworkOperation(): void {
+    const id = cancellable(networkOps);
+    if (id === null) return;
+    void cancelNetwork(id).catch((err) => errors.report(err, "Could not cancel the operation"));
+  }
+
   async function mayClose(): Promise<boolean> {
     const source = exitFlow.takeSource();
     flushTrace();
@@ -3297,6 +3307,7 @@
       repoChanged: onDiskChange,
       operationChanged: (event) => {
         running = applyOperation(running, event);
+        networkOps = trackCancellable(networkOps, event);
         exitFlow.observe(event);
       },
       avatarReady: (email) => void avatars.refresh(email),
@@ -4152,6 +4163,7 @@
     })}
     problems={output.problems}
     onproblems={() => output.toggle()}
+    oncancel={networkOps.length > 0 ? cancelNetworkOperation : undefined}
   />
 
   {#if dropping}

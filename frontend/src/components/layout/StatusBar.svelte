@@ -18,6 +18,8 @@
     /** Commands that failed or printed something on stderr; opens the Output panel. */
     problems?: number;
     onproblems?: () => void;
+    /** Present while a fetch, pull or push runs: stops its git (R-506). */
+    oncancel?: () => void;
   }
 
   let {
@@ -33,6 +35,7 @@
     activity,
     problems = 0,
     onproblems,
+    oncancel,
   }: Props = $props();
 </script>
 
@@ -81,6 +84,11 @@
     {#if activity.busy}<span class="spinner" aria-hidden="true"></span>{/if}
     <span class="truncate">{activity.label}</span>
   </span>
+  {#if oncancel}
+    <button type="button" class="cancel" onclick={() => oncancel()} title="Stop the fetch, pull or push that is running">
+      Cancel
+    </button>
+  {/if}
 
   {#if fileOpen}
     <span class="divider" aria-hidden="true"></span>
@@ -101,6 +109,23 @@
   }
 
   .problems:hover {
+    color: var(--status-delete);
+  }
+
+  .cancel {
+    flex: none;
+    height: 16px;
+    padding: 0 var(--sp-3);
+    background: none;
+    border: 1px solid var(--divider);
+    border-radius: var(--r-sm);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: var(--fs-dense);
+    cursor: default;
+  }
+
+  .cancel:hover {
     color: var(--status-delete);
   }
 
