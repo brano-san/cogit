@@ -119,7 +119,7 @@ webview2-com = "0.38"
 windows-core = "0.61"
 # `GetKeyState`: the accelerator event says which key, never which modifiers. The rest
 # holds a shutdown while operations run: a window subclass and the block reason (R-168).
-windows = { version = "0.61", features = [
+windows = { version = "0.62", features = [
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",

@@ -705,7 +705,7 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
  "webview2-com",
- "windows 0.61.3",
+ "windows 0.62.2",
  "windows-core 0.61.2",
 ]
 
