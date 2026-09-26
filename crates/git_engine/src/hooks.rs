@@ -7,12 +7,29 @@ const DISABLED: &str = ".disabled";
 /// Directories a team keeps versioned hooks in, in the order Cogit suggests them.
 const CANDIDATE_DIRS: &[&str] = &[".githooks", ".hooks", "hooks"];
 
-/// Git's own list, with the moment each one runs. The description is the whole point of
-/// the inspector: hooks are avoided because nobody remembers when they fire.
+/// Git's own list, githooks(5) in its order, with the moment each one runs. The
+/// description is the whole point of the inspector: hooks are avoided because nobody
+/// remembers when they fire.
 const HOOKS: &[(&str, &str)] = &[
+    (
+        "applypatch-msg",
+        "git am, with the patch's message; can edit it or refuse the patch",
+    ),
+    (
+        "pre-applypatch",
+        "git am, after the patch is applied, before it is committed",
+    ),
+    (
+        "post-applypatch",
+        "git am, after the commit is made; cannot cancel anything",
+    ),
     (
         "pre-commit",
         "Before a commit is created; a non-zero exit cancels it",
+    ),
+    (
+        "pre-merge-commit",
+        "Before a merge commit is created; a non-zero exit cancels the merge",
     ),
     (
         "prepare-commit-msg",
@@ -38,15 +55,49 @@ const HOOKS: &[(&str, &str)] = &[
     ),
     ("pre-receive", "On the server, once per push"),
     ("update", "On the server, once per ref being updated"),
+    (
+        "proc-receive",
+        "On the server, for the refs a push hands it to update itself",
+    ),
     ("post-receive", "On the server, after a push is accepted"),
     (
-        "post-rewrite",
-        "After a commit is replaced by amend or rebase",
+        "post-update",
+        "On the server, after a push has updated its refs",
+    ),
+    (
+        "reference-transaction",
+        "Whenever refs are updated: prepared, committed or aborted",
+    ),
+    (
+        "push-to-checkout",
+        "On the server, when a push updates its checked-out branch",
     ),
     (
         "pre-auto-gc",
         "Before Git runs housekeeping in the background",
     ),
+    (
+        "post-rewrite",
+        "After a commit is replaced by amend or rebase",
+    ),
+    (
+        "sendemail-validate",
+        "git send-email, once per patch before it is sent",
+    ),
+    (
+        "fsmonitor-watchman",
+        "When core.fsmonitor names it: asked which files changed",
+    ),
+    (
+        "p4-changelist",
+        "git p4 submit, with the changelist text to check",
+    ),
+    (
+        "p4-prepare-changelist",
+        "git p4 submit, after the changelist message is built",
+    ),
+    ("p4-post-changelist", "git p4 submit, after it succeeded"),
+    ("p4-pre-submit", "git p4 submit, before it starts"),
     ("post-index-change", "After the index is written"),
 ];
 
