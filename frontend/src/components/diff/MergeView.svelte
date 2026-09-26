@@ -4,9 +4,11 @@
   import SidewaysScrollbar from "$components/common/SidewaysScrollbar.svelte";
   import { TRAILING_COLUMNS, clampOffset, maxOffset, textColumns, wheelSideways } from "$lib/code-scroll";
   import {
+    CHOICES,
     autoResolvedCount,
     canSave,
     chooseAll,
+    clearChoice,
     conflictRows,
     editableText,
     mergeKey,
@@ -193,11 +195,25 @@
             <span class="cell mono"><span class="text">{entry.ours ?? ""}</span></span>
             <span class="cell mono result"
               ><span class="text">{entry.result ?? ""}</span
-              >{#if entry.conflict && entry.result === null && conflicts.includes(index)}
+              >{#if entry.conflict && conflicts.includes(index)}
+                {@const chosen = choices[entry.region]}
+                <!-- On every conflict, decided or not: a side picked by mistake is changed here. -->
                 <span class="take">
-                  <button type="button" onclick={() => pick(entry.region, "theirs")}>theirs</button>
-                  <button type="button" onclick={() => pick(entry.region, "ours")}>ours</button>
-                  <button type="button" onclick={() => pick(entry.region, "both")}>both</button>
+                  {#each CHOICES as side (side)}
+                    <button
+                      type="button"
+                      class:active={chosen === side}
+                      aria-pressed={chosen === side}
+                      onclick={() => pick(entry.region, side)}>{side}</button
+                    >
+                  {/each}
+                  {#if chosen}
+                    <button
+                      type="button"
+                      title="Leave this conflict undecided"
+                      onclick={() => (choices = clearChoice(choices, entry.region))}>✕</button
+                    >
+                  {/if}
                 </span>
               {/if}
             </span>
@@ -393,6 +409,12 @@
     height: 16px;
     padding: 0 var(--sp-2);
     font-size: 10px;
+  }
+
+  /* The side this conflict takes now; the others stay, to change it. */
+  .take button.active {
+    color: var(--status-ref);
+    border-color: var(--status-ref);
   }
 
   textarea {
