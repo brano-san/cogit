@@ -93,7 +93,7 @@
   import { repoList } from "$stores/repo-list.svelte";
   import { compareUrl } from "$lib/compare-params";
   import { dropActions, type DropAction, type DragPayload } from "$lib/drop-target";
-  import { moveEntry } from "$lib/rebase-plan";
+  import { moveEntry, planPublished } from "$lib/rebase-plan";
   import { bannerQuestion, stateBanner, type BannerAction } from "$lib/repo-state";
   import { blockedByLocalChanges } from "$lib/checkout-refusal";
   import { switchWithAutostash } from "$lib/autostash";
@@ -272,6 +272,8 @@
   let rebasePlan = $state.raw<import("$lib/ipc").TodoEntry[]>([]);
   let rebaseBusy = $state(false);
   let rebasePaused = $state(false);
+  /** A commit the plan rewrites is on a remote: the editor warns about the force-push. */
+  let rebasePublished = $state(false);
   let template = $state<string | null>(null);
   let splitOpen = $state(false);
   let splitPublished = $state(false);
@@ -2005,7 +2007,7 @@
 
     rebaseBase = base;
     rebasePlan = moved;
-    splitPublished = await publishedOrAssume(isPublished(id, base));
+    rebasePublished = await planPublished(plan, (oid) => publishedOrAssume(isPublished(id, oid)));
     rebaseOpen = true;
   }
 
@@ -2037,7 +2039,8 @@
       return;
     }
     rebaseBase = rev;
-    splitPublished = await publishedOrAssume(isPublished(id, rev));
+    const plan = rebasePlan;
+    rebasePublished = await planPublished(plan, (oid) => publishedOrAssume(isPublished(id, oid)));
     rebaseOpen = true;
   }
 
@@ -3704,7 +3707,7 @@
     <RebaseEditor
       base={rebaseBase}
       plan={rebasePlan}
-      published={splitPublished}
+      published={rebasePublished}
       busy={rebaseBusy}
       onplan={(next) => (rebasePlan = next)}
       paused={rebasePaused}

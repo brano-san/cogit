@@ -1,6 +1,31 @@
-import { describe, expect, it } from "vitest";
-import { moveEntry, planChanged, planProblem, previewCount } from "./rebase-plan";
+import { describe, expect, it, vi } from "vitest";
+import { moveEntry, planChanged, planProblem, planPublished, previewCount } from "./rebase-plan";
 import type { TodoEntry } from "./ipc";
+
+// Two local commits on top of origin/main: the editor warned about a force-push because it
+// asked about the base, which the rebase leaves alone.
+describe("planPublished", () => {
+  const plan = [
+    { oid: "a", action: "pick", message: "a" },
+    { oid: "b", action: "pick", message: "b" },
+  ] as const satisfies readonly TodoEntry[];
+
+  it("is false when none of the commits it rewrites is on a remote", async () => {
+    const check = vi.fn(async (oid: string) => oid === "base");
+    expect(await planPublished(plan, check)).toBe(false);
+    expect(check).not.toHaveBeenCalledWith("base");
+  });
+
+  it("is true once one of them is, oldest first", async () => {
+    const check = vi.fn(async (oid: string) => oid === "a");
+    expect(await planPublished(plan, check)).toBe(true);
+    expect(check).toHaveBeenCalledTimes(1);
+  });
+
+  it("finds a published commit a merge brought in later in the plan", async () => {
+    expect(await planPublished(plan, async (oid) => oid === "b")).toBe(true);
+  });
+});
 
 const pick = (oid: string): TodoEntry => ({ oid, action: "pick", message: oid });
 
