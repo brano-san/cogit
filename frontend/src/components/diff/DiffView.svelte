@@ -540,7 +540,7 @@
       <button
         type="button"
         class:active={find.showing}
-        title="Search inside this diff (Ctrl+F)"
+        title="Search the lines shown in this diff (Ctrl+F); open the folds to search the whole file"
         onclick={() => (find.showing ? find.close() : openFind())}>Find</button
       >
       {#if stageable}
