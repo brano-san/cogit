@@ -62,6 +62,7 @@
   import { resetChoice } from "$lib/reset-modes";
   import { baseBefore, fullMessage, modifyPlan, rewordPlan, squashPlan } from "$lib/rewrite-plans";
   import { tagRequest } from "$lib/tag-dialog";
+  import { branchRevision } from "$lib/toolbar";
   import { branchNameProblem, textProblem } from "$lib/names";
   import { commit } from "$stores/commit.svelte";
   import { compareView } from "$stores/compare-view.svelte";
@@ -181,6 +182,13 @@
       node: null,
       selected: commit.oid,
     };
+  }
+
+  /** What Merge and Rebase hand git: a branch by a name git cannot take for a tag. */
+  function revisionOf(at: Target, oid: string): string {
+    const summary = repository.current;
+    if (at.branch && summary) return branchRevision(at.branch, summary.branches, summary.tags);
+    return at.ref?.name ?? oid;
   }
 
   export async function worktreeContext(x: number, y: number) {
@@ -370,7 +378,7 @@
         return checkoutTarget(id, at);
       case "merge":
         if (oid) await attempt("Could not merge", () =>
-          mergeInto(id, { source: at.ref?.name ?? oid, noFastForward: false, squash: false, message: null }),
+          mergeInto(id, { source: revisionOf(at, oid), noFastForward: false, squash: false, message: null }),
         );
         return;
       case "cherry-pick":
@@ -380,7 +388,7 @@
         if (oid) await attempt("Revert failed", () => revertCommits(id, [oid]));
         return;
       case "rebase":
-        if (oid) await attempt("Could not rebase", () => rebaseOnto(id, { onto: at.ref?.name ?? oid, autostash: true }));
+        if (oid) await attempt("Could not rebase", () => rebaseOnto(id, { onto: revisionOf(at, oid), autostash: true }));
         return;
       case "modify":
         return modify(id, at);

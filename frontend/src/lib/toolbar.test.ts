@@ -13,6 +13,8 @@ import {
   type MenuEntry,
   reasonOf,
   refAt,
+  branchRevision,
+  localRevision,
   splitMarked,
   targetsOf,
   type ToolbarFacts,
@@ -182,22 +184,58 @@ describe("targetsOf", () => {
 });
 
 describe("refAt", () => {
-  const branches = [
-    { name: "main", kind: "local" as const, oid: HEAD, isHead: true },
-    { name: "origin/topic", kind: "remote" as const, oid: OTHER, isHead: false },
-    { name: "topic", kind: "local" as const, oid: OTHER, isHead: false },
-  ];
+  const branch = (name: string, kind: "local" | "remote", oid: string, isHead = false) => ({
+    name,
+    fullName: kind === "local" ? `refs/heads/${name}` : `refs/remotes/${name}`,
+    kind,
+    oid,
+    isHead,
+  });
+  const branches = [branch("main", "local", HEAD, true), branch("origin/topic", "remote", OTHER), branch("topic", "local", OTHER)];
 
   it("names the local branch at the commit", () => {
-    expect(refAt(OTHER, branches)).toBe("topic");
+    expect(refAt(OTHER, branches, [])).toBe("topic");
   });
 
   it("falls back to the hash when no branch points there", () => {
-    expect(refAt("c".repeat(40), branches)).toBe("c".repeat(40));
+    expect(refAt("c".repeat(40), branches, [])).toBe("c".repeat(40));
   });
 
   it("skips HEAD's own branch", () => {
-    expect(refAt(HEAD, branches)).toBe(HEAD);
+    expect(refAt(HEAD, branches, [])).toBe(HEAD);
+  });
+
+  // Git reads refs/tags/<name> before refs/heads/<name>: with a tag `topic` on an older
+  // commit, Merge "topic" merged the tag and said only "Already up to date".
+  it("names the branch in full when a tag of that name would be read first", () => {
+    expect(refAt(OTHER, branches, [{ name: "topic" }])).toBe("refs/heads/topic");
+  });
+
+  it("names a remote branch in full when a local branch or tag shares its name", () => {
+    const remoteOnly = [branch("origin/topic", "remote", OTHER), branch("origin/topic", "local", "c".repeat(40))];
+    expect(refAt(OTHER, remoteOnly, [])).toBe("refs/remotes/origin/topic");
+    expect(refAt(OTHER, [branch("origin/topic", "remote", OTHER)], [{ name: "origin/topic" }])).toBe(
+      "refs/remotes/origin/topic",
+    );
+    expect(refAt(OTHER, [branch("origin/topic", "remote", OTHER)], [])).toBe("origin/topic");
+  });
+});
+
+describe("localRevision", () => {
+  // Dragging topic onto main in Branches merged a tag topic just the same.
+  it("names a dragged local branch in full when a tag of that name would be read first", () => {
+    const topic = { name: "topic", fullName: "refs/heads/topic", kind: "local" as const, oid: OTHER, isHead: false };
+    expect(localRevision("topic", [topic], [{ name: "topic" }])).toBe("refs/heads/topic");
+    expect(localRevision("topic", [topic], [])).toBe("topic");
+    expect(localRevision("gone", [topic], [])).toBe("gone");
+  });
+});
+
+describe("branchRevision", () => {
+  it("keeps the short name git writes into the merge message while it is unambiguous", () => {
+    const topic = { name: "topic", fullName: "refs/heads/topic", kind: "local" as const };
+    expect(branchRevision(topic, [], [])).toBe("topic");
+    expect(branchRevision(topic, [], [{ name: "topic" }])).toBe("refs/heads/topic");
   });
 });
 
