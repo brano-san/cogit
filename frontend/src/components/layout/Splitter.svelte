@@ -81,7 +81,7 @@
 <style>
   /* A thin line that lights up under the pointer. `::before` widens the grab zone past
      the line without moving anything, so the divider stays hairline and is still easy
-     to catch: 1px of rail inside 9px of target. */
+     to catch: 1px of rail inside 7px of target. */
   .splitter {
     position: relative;
     z-index: 2;

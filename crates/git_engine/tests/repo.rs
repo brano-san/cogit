@@ -26,7 +26,8 @@ fn open_discovers_the_repository_from_a_subdirectory() {
 
 #[test]
 fn open_rejects_a_directory_that_is_not_a_repository() {
-    let dir = std::env::temp_dir().join("cogit-not-a-repo-test");
+    let outside = tempfile::tempdir().unwrap();
+    let dir = outside.path().join("not-a-repo");
     std::fs::create_dir_all(&dir).unwrap();
     assert!(RepoHandle::open(&dir).is_err());
 }

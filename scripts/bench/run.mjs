@@ -12,7 +12,8 @@ import { EXE, dropScript, launch, resetProfile, runHidden, stop } from "./app.mj
 import { KEYS, sleep } from "./cdp.mjs";
 import { SCENARIOS } from "./scenarios.mjs";
 import { BUDGETS } from "./budgets.mjs";
-import { rebuild } from "./fixtures.mjs";
+import { overBudget } from "./check.mjs";
+import { NO_MACHINE_CONFIG, rebuild } from "./fixtures.mjs";
 
 const args = new Map();
 for (let i = 2; i < process.argv.length; i += 1) {
@@ -56,7 +57,7 @@ async function note(line) {
 // --- git, outside the clock ------------------------------------------------------------
 
 function git(argv, cwd) {
-  const r = spawnSync("git", argv, { cwd, encoding: "utf8", env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } });
+  const r = spawnSync("git", argv, { cwd, encoding: "utf8", env: { ...process.env, ...NO_MACHINE_CONFIG, GIT_TERMINAL_PROMPT: "0" } });
   if (r.status !== 0) throw new Error(`git ${argv.join(" ")} in ${cwd}: ${r.stderr}`);
   return r.stdout.trim();
 }
@@ -822,11 +823,13 @@ async function main() {
   await note(`\nwritten ${OUT} in ${env.minutes} min`);
 
   if (args.has("check")) {
-    const over = [];
-    for (const budget of BUDGETS) {
-      const row = rows.find((r) => r.id === budget.id && r.set === budget.set && r.condition === budget.condition);
-      if (row && row.median > budget.median) over.push(`${budget.id} · ${budget.set} · ${budget.condition}: ${row.median} ms > ${budget.median} ms`);
-    }
+    // App budgets come from the app pass, the rest from the warm pass of their set.
+    const expected = (budget) =>
+      wanted(budget.id) &&
+      (budget.id.startsWith("app.")
+        ? wanted("app") && !args.has("no-app")
+        : SETS.includes(budget.set) && !args.has(`no-${budget.condition}`));
+    const over = overBudget(rows, BUDGETS, expected);
     if (over.length) {
       await note(`\nover budget:\n  ${over.join("\n  ")}`);
       process.exit(1);

@@ -455,6 +455,40 @@ fn staging_under_autocrlf_keeps_lf_in_the_index() {
 }
 
 #[test]
+fn unstaging_under_autocrlf_keeps_lf_in_the_index() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&["config", "core.autocrlf", "true"]).unwrap();
+    std::fs::write(
+        f.path().join("file0.txt"),
+        "content 0\r\nfirst\r\nsecond\r\n",
+    )
+    .unwrap();
+    f.git(&["add", "file0.txt"]).unwrap();
+    let (state, repo) = opened(&f);
+
+    state
+        .stage_selection(
+            repo,
+            &request(
+                "file0.txt",
+                "content 0\n",
+                "content 0\nfirst\nsecond\n",
+                Vec::new(),
+                vec![2],
+            ),
+            true,
+        )
+        .unwrap();
+
+    assert_eq!(index_text(&f, "file0.txt"), "content 0\nsecond\n");
+    assert_eq!(
+        std::fs::read(f.path().join("file0.txt")).unwrap(),
+        b"content 0\r\nfirst\r\nsecond\r\n",
+        "unstaging never touches the working tree"
+    );
+}
+
+#[test]
 fn discarding_under_autocrlf_keeps_crlf_on_disk() {
     let f = test_fixtures::linear(1).unwrap();
     f.git(&["config", "core.autocrlf", "true"]).unwrap();
