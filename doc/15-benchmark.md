@@ -13,6 +13,7 @@ npm run bench:repos                     # тестовые репозитори�
 npm run bench -- --label baseline       # все сценарии; ~1 ч
 npm run bench -- --label after --sets dirty --only diff,changes   # выборочно
 npm run bench -- --check                # падает, если медиана превысила порог (budgets.mjs)
+node --test "scripts/bench/*.test.mjs"  # проверки самого бенчмарка (разбор --check)
 node scripts/bench/compare.mjs target/bench/results/baseline.json target/bench/results/after.json
 ```
 
@@ -156,6 +157,11 @@ remote уходит вперёд на коммит.
 машину и кадр квантования; падение `--check` означает регрессию, а не погоду. Текущие
 пороги сняты в медленном режиме (`--hidden --cores 16-31`), на свободной машине они с
 запасом.
+
+Порог не выполнен и тогда, когда сценарий, который прогон должен был снять (набор есть в
+`--sets`, id — в `--only`, проход не выключен `--no-*`), не дал ни одного замера, записал
+ошибки или не запускался вовсе. Раньше сломанный селектор давал «all budgets met»: у записи
+из одних ошибок медиана `null`, а `null > порог` ложно (`scripts/bench/check.mjs`).
 
 ## 6. Что нашёл сам бенчмарк
 
