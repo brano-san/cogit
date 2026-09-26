@@ -86,3 +86,26 @@ describe("middleCut", () => {
     expect(middleCut("")).toEqual({ lead: "", tail: "" });
   });
 });
+
+// Half an emoji on each side of the cut drew two replacement marks in the capsule.
+describe("a character outside the Basic Multilingual Plane", () => {
+  const lone = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+
+  it("is never split by the middle cut", () => {
+    const { lead, tail } = middleCut("a🔥b");
+    expect(lead + tail).toBe("a🔥b");
+    expect(lead).not.toMatch(lone);
+    expect(tail).not.toMatch(lone);
+  });
+
+  it("is never split by a cut to a length", () => {
+    for (let max = 0; max <= 12; max++) {
+      expect(truncateMiddle("🔥".repeat(12), max)).not.toMatch(lone);
+      expect(truncatePath("C:\\🔥🔥🔥\\🔥🔥🔥🔥.txt", max)).not.toMatch(lone);
+    }
+  });
+
+  it("counts as one character against the length", () => {
+    expect(truncateMiddle("🔥🔥🔥", 3)).toBe("🔥🔥🔥");
+  });
+});
