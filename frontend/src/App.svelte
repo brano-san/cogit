@@ -3019,11 +3019,13 @@
   });
 
   /** Closing throws away whatever is only in the window: an edited hook, a resolution
-      nobody wrote yet. Everything else is already on disk or in the draft store. */
+      nobody wrote yet, text typed in a dialog. Everything else is already on disk or in the
+      draft store. */
   function unsavedWork(): string | null {
     return unsavedSummary({
       hook: hooks.dirty ? hooks.editing : null,
       merge: conflicts.regions.length > 0 ? conflicts.path : null,
+      dialogs: modals.unsaved,
     });
   }
 

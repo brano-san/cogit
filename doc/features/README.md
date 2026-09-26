@@ -332,3 +332,4 @@
 | F-521 | Update в меню строки submodule | [F-521-submodule-row-update.md](F-521-submodule-row-update.md) |
 | F-523 | Папки неактивных репозиториев не заняты | [F-523-inactive-repository-folders-free.md](F-523-inactive-repository-folders-free.md) |
 | F-524 | Меню кнопок тулбара в узком окне и с клавиатуры | [F-524-toolbar-menus-narrow-and-keys.md](F-524-toolbar-menus-narrow-and-keys.md) |
+| F-532 | Диалог с набранным текстом не закрывается молча | [F-532-dialog-keeps-typed-text.md](F-532-dialog-keeps-typed-text.md) |
