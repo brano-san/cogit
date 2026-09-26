@@ -391,7 +391,7 @@ author, email, timestamp, path, diff }`, новые сверху. `path` — и�
 пустой файл добавлен или удалён; `unchanged` остаётся для действительно неизменённого. `submodule {
 recorded, previous, checkedOut, inIndex }` — gitlink на каждой стороне: `recorded` — `null`
 там, где submodule удалён (коммит с `git rm`, такое же удаление в индексе), `inIndex` — есть
-ли gitlink в индексе: без него Initialise не предлагается, `submodule update --init` ответил
+ли gitlink в индексе: без него Initialize не предлагается, `submodule update --init` ответил
 бы «pathspec did not match». `folder {
 repository }` — папка в рабочем дереве, в которой Git ничего не отслеживает: неотслеживаемая
 целиком или вложенный репозиторий, который не submodule (у пути нет gitlink ни на одной

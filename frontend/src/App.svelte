@@ -1604,9 +1604,9 @@
   const initialiser = new ModuleInitialiser({
     ask: (key) =>
       confirmation.ask({
-        title: "Submodule is not initialised",
-        message: `Submodule ${key} is not initialised. Initialise and check it out now?`,
-        confirm: "Initialise",
+        title: "Submodule is not initialized",
+        message: `Submodule ${key} is not initialized. Initialize and check it out now?`,
+        confirm: "Initialize",
       }),
     update: async (key) => {
       const row = submodules.rows.find((entry) => entry.key === key);
