@@ -63,7 +63,7 @@
   import { fileFormat, shortOid } from "$lib/format";
   import { checkedIds, disabledIds, type PaletteCommand } from "$lib/palette";
   import { reasonFor, type Context } from "$lib/availability";
-  import { reasonOf, refAt, splitMarked, targetsOf, type MenuContext, type ToolbarFacts } from "$lib/toolbar";
+  import { localRevision, reasonOf, refAt, splitMarked, targetsOf, type MenuContext, type ToolbarFacts } from "$lib/toolbar";
   import { currentRemote, headRemote, remotePlan, syncSteps, type SyncOrder } from "$lib/toolbar-prefs";
   import { toolbar } from "$stores/toolbar.svelte";
   import { stashDialog } from "$stores/stash-dialog.svelte";
@@ -1538,7 +1538,7 @@
     if (!id || !oid) return;
     try {
       await mergeInto(id, {
-        source: refAt(oid, repo?.branches ?? []),
+        source: refAt(oid, repo?.branches ?? [], repo?.tags ?? []),
         noFastForward: false,
         squash: false,
         message: null,
@@ -1554,7 +1554,7 @@
     const oid = commit.oid;
     if (!id || !oid) return;
     try {
-      await rebaseOnto(id, { onto: refAt(oid, repo?.branches ?? []), autostash: true });
+      await rebaseOnto(id, { onto: refAt(oid, repo?.branches ?? [], repo?.tags ?? []), autostash: true });
     } catch (err) {
       errors.report(err, "Could not rebase");
     }
@@ -1919,19 +1919,20 @@
       if (!go) return;
     }
 
+    const revision = (name: string) => localRevision(name, repo?.branches ?? [], repo?.tags ?? []);
     try {
       if (action.id === "merge") {
         await mergeInto(id, {
-          source: menu.source.id,
+          source: revision(menu.source.id),
           noFastForward: false,
           squash: false,
           message: null,
         });
       } else if (action.id === "rebase") {
-        await rebaseOnto(id, { onto: menu.target.id, autostash: true });
+        await rebaseOnto(id, { onto: revision(menu.target.id), autostash: true });
       } else if (action.id === "fastForward") {
         await mergeInto(id, {
-          source: menu.source.id,
+          source: revision(menu.source.id),
           noFastForward: false,
           squash: false,
           message: null,

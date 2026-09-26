@@ -432,18 +432,37 @@ export function targetsOf(
 
 export interface BranchLike {
   name: string;
+  fullName: string;
   kind: "local" | "remote";
   oid: string;
   isHead: boolean;
 }
 
+/** What Merge and Rebase hand git for a branch. Its short name, which git writes into the
+    merge message as it is — unless git would read another ref first: `refs/tags/<name>`
+    comes before `refs/heads/<name>`, and both before `refs/remotes/<name>`, so "Merge topic"
+    merged a tag `topic` with only a warning. Then the full ref. */
+export function branchRevision(
+  branch: Pick<BranchLike, "name" | "fullName" | "kind">,
+  branches: readonly Pick<BranchLike, "name" | "kind">[],
+  tags: readonly { name: string }[],
+): string {
+  const shadowed =
+    tags.some((tag) => tag.name === branch.name) ||
+    (branch.kind === "remote" && branches.some((other) => other.kind === "local" && other.name === branch.name));
+  return shadowed ? branch.fullName : branch.name;
+}
+
+/** A local branch dragged onto another in Branches, as Merge and Rebase hand it to git. */
+export function localRevision(name: string, branches: readonly BranchLike[], tags: readonly { name: string }[]): string {
+  const branch = branches.find((entry) => entry.kind === "local" && entry.name === name);
+  return branch ? branchRevision(branch, branches, tags) : name;
+}
+
 /** What Merge and Rebase name: a branch at the selected commit reads better in the merge
     message than a hash. A local branch wins over a remote one; HEAD's own is skipped. */
-export function refAt(oid: string, branches: readonly BranchLike[]): string {
+export function refAt(oid: string, branches: readonly BranchLike[], tags: readonly { name: string }[]): string {
   const at = branches.filter((branch) => branch.oid === oid && !branch.isHead);
-  return (
-    at.find((branch) => branch.kind === "local")?.name ??
-    at.find((branch) => branch.kind === "remote")?.name ??
-    oid
-  );
+  const branch = at.find((entry) => entry.kind === "local") ?? at.find((entry) => entry.kind === "remote");
+  return branch ? branchRevision(branch, branches, tags) : oid;
 }
