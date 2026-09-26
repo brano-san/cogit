@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { FileView } from "$lib/file-view";
-  import { stateSwitches, toolReason, type ListContext } from "$lib/file-switches";
+  import { layoutToggle, stateSwitches, toolReason, type ListContext } from "$lib/file-switches";
 
   /**
    * The bar above the file list (issue 11). Left: what is hidden and how to search.
@@ -52,7 +52,7 @@
   let bar: HTMLDivElement | undefined = $state();
   let crowded = $state(false);
 
-  /** Field at its narrowest, plus the nine buttons and three rules to its right. */
+  /** Field at its narrowest, plus the eight buttons and three rules to its right. */
   const ROOM_FOR_SWITCHES = 420;
 
   /** The Files panel is often a narrow column. Rather than clip the switches, they move
@@ -90,7 +90,7 @@
     search: "M11 5a6 6 0 1 0 0 12 6 6 0 0 0 0-12m9 15-4.3-4.3",
     split: "M4 4h10v10H4zM10 10h10v10H10m2-2 2 2 4-4",
     tree: "M3 6.5A1.5 1.5 0 0 1 4.5 5h3l1.5 2h10a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 19 19H4.5A1.5 1.5 0 0 1 3 17.5ZM9 11v5m0-5h4m-4 5h4",
-    flat: "M4 6h16M4 12h16M4 18h16",
+    flat: "M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01",
     unchanged: "M6 3h8l5 5v13H6zM14 3v5h5",
     untracked: "M6 3h8l5 5v13H6zM14 3v5h5M9 12h6m-3-3v6",
     ignored: "M6 3h8l5 5v13H6zM14 3v5h5M9 11l6 6m0-6-6 6",
@@ -101,6 +101,7 @@
   } as const;
 
   const switches = $derived(stateSwitches(context));
+  const layout = $derived(layoutToggle(view.directories));
   const splitReason = $derived(toolReason(context, "separateIndex"));
   const contentsReason = $derived(
     toolReason(context, "contents") ??
@@ -188,22 +189,12 @@
   <button
     type="button"
     class="tool"
-    aria-pressed={view.directories}
-    title="Show Directories"
+    aria-label={layout.title}
+    title={layout.title}
     {disabled}
-    onclick={() => set("directories", true)}
+    onclick={() => set("directories", layout.next)}
   >
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d={I.tree} /></svg>
-  </button>
-  <button
-    type="button"
-    class="tool"
-    aria-pressed={!view.directories}
-    title="Show Flat List"
-    {disabled}
-    onclick={() => set("directories", false)}
-  >
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d={I.flat} /></svg>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d={I[layout.icon]} /></svg>
   </button>
 
   <span class="rule" aria-hidden="true"></span>

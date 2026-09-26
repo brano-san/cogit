@@ -4,6 +4,7 @@ import { DEFAULT_VIEW, visibleFiles } from "./file-view";
 import {
   COMMIT_VIEW,
   commitView,
+  layoutToggle,
   stateSwitches,
   toolReason,
   withUnchanged,
@@ -127,5 +128,13 @@ describe("a comparison of two commits", () => {
     const live = stateSwitches("compare").filter((s) => s.reason === null);
     expect(live.map((s) => s.key)).toEqual(["renameSources"]);
     expect(toolReason("compare", "separateIndex")).toMatch(/comparison/);
+  });
+});
+
+// Two buttons side by side for one choice (#30): one button now, showing what it switches to.
+describe("the directories button", () => {
+  it("offers directories while the list is flat, and the flat list while it has them", () => {
+    expect(layoutToggle(false)).toEqual({ icon: "tree", title: "Show Directories", next: true });
+    expect(layoutToggle(true)).toEqual({ icon: "flat", title: "Show Flat List", next: false });
   });
 });
