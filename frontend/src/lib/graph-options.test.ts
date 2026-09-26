@@ -34,7 +34,11 @@ describe("graphOptions", () => {
     const labels = graphOptions(DEFAULT_SETTINGS)
       .filter((entry) => entry.kind === "switch")
       .map((entry) => entry.label);
-    expect(labels).toEqual(["Follow Only First Parent", "Show Only Selected Branches and Tags"]);
+    expect(labels).toEqual([
+      "Follow Only First Parent",
+      "Show Only Selected Branches and Tags",
+      "Include Tracked Remote Branches",
+    ]);
   });
 
   it("neither starts nor ends with a separator, nor doubles one", () => {

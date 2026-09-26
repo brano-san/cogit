@@ -2,7 +2,7 @@ import { COLORING_LABELS, GRAPH_COLORINGS, type GraphColoring } from "$lib/graph
 import type { Settings } from "$lib/settings";
 
 /** Switches of the options menu that are not graph modes; Preferences shows them as well. */
-export const GRAPH_SWITCHES = ["graphSelectedRefsOnly"] as const;
+export const GRAPH_SWITCHES = ["graphSelectedRefsOnly", "graphIncludeTracked"] as const;
 export type GraphSwitch = (typeof GRAPH_SWITCHES)[number];
 
 /** The switches of the graph's options menu: each is a setting Preferences shows too. */
@@ -24,6 +24,11 @@ const SWITCHES: readonly { key: GraphOptionKey; label: string; hint: string }[] 
     key: "graphSelectedRefsOnly",
     label: "Show Only Selected Branches and Tags",
     hint: "Labels only for the refs ticked in Branches.",
+  },
+  {
+    key: "graphIncludeTracked",
+    label: "Include Tracked Remote Branches",
+    hint: "A branch ticked in Branches brings the remote branch it tracks into the graph.",
   },
 ];
 

@@ -62,7 +62,7 @@
   import { graphFolds } from "$stores/graph-folds.svelte";
   import { graphNav } from "$stores/graph-nav.svelte";
   import { laneAt } from "$lib/graph-style";
-  import { selectedLabels } from "$lib/selected-refs";
+  import { selectedLabels, withTracked } from "$lib/selected-refs";
   import { isEmptyQuery } from "$lib/query";
   import { graphOverlays } from "$stores/graph-overlay.svelte";
   import { refs as refTicks } from "$stores/refs.svelte";
@@ -96,6 +96,8 @@
     collapseMerged?: boolean;
     /** Labels only for refs ticked in Branches (`graphSelectedRefsOnly`). */
     selectedRefsOnly?: boolean;
+    /** A ticked branch brings its upstream along (`graphIncludeTracked`). */
+    includeTracked?: boolean;
     /** The right columns shown, in order (#12). The defaults are the list as it always was. */
     columns?: readonly GraphColumn[];
     timeFormat?: GraphTimeFormat;
@@ -118,6 +120,7 @@
     ancestry = GRAPH_MODE_DEFAULTS.ancestry,
     collapseMerged = GRAPH_MODE_DEFAULTS.collapseMerged,
     selectedRefsOnly = false,
+    includeTracked = false,
     columns = GRAPH_COLUMNS,
     timeFormat = GRAPH_TIME_FORMAT,
     density = GRAPH_DENSITY,
@@ -283,9 +286,13 @@
     ),
   );
   const stashOids = $derived(new Set(stashes.entries.map((entry) => entry.oid)));
+  /** What the graph counts as ticked: the Branches ticks, and their upstreams if asked. */
+  const ticks = $derived(
+    includeTracked ? withTracked(refTicks.visible, repository.current?.branches ?? []) : refTicks.visible,
+  );
   function labelsOf(oid: string): RefLabel[] {
     const all = labels.get(oid) ?? [];
-    return selectedRefsOnly ? selectedLabels(all, refTicks.visible) : all;
+    return selectedRefsOnly ? selectedLabels(all, ticks) : all;
   }
 
   const headerLabel = $derived(workingTreeLabel(repository.current?.status, repository.current?.state));
@@ -336,7 +343,7 @@
     filterless
       ? paintRequest(
           modes,
-          checkedTips(repository.current?.branches ?? [], refTicks.visible),
+          checkedTips(repository.current?.branches ?? [], ticks),
           selection.oid,
         )
       : null,

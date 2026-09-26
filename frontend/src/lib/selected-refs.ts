@@ -1,4 +1,5 @@
 import type { RefLabel } from "$lib/format";
+import type { Branch } from "$lib/ipc";
 
 /** The Branches tree id of the ref a label draws: the ids `refs.visible` ticks. */
 function idsOf(label: RefLabel): string[] {
@@ -27,4 +28,19 @@ function twinIds(label: RefLabel): string[] {
     Branches, as SmartGit hides the rest. */
 export function selectedLabels(labels: readonly RefLabel[], ticked: ReadonlySet<string>): RefLabel[] {
   return labels.filter((label) => [...idsOf(label), ...twinIds(label)].some((id) => ticked.has(id)));
+}
+
+/** Include Tracked Remote Branches (F-561): a ticked branch brings the remote branch it
+    tracks into the graph, HEAD's branch too while HEAD is ticked, as SmartGit does. */
+export function withTracked(
+  ticked: ReadonlySet<string>,
+  branches: readonly Pick<Branch, "name" | "kind" | "upstream" | "isHead">[],
+): ReadonlySet<string> {
+  const remotes = new Set(branches.filter((branch) => branch.kind === "remote").map((branch) => branch.name));
+  const added = branches
+    .filter((branch) => branch.kind === "local" && branch.upstream !== null && remotes.has(branch.upstream))
+    .filter((branch) => ticked.has(`local:${branch.name}`) || (branch.isHead && ticked.has("HEAD")))
+    .map((branch) => `remote:${branch.upstream}`)
+    .filter((id) => !ticked.has(id));
+  return added.length === 0 ? ticked : new Set([...ticked, ...added]);
 }
