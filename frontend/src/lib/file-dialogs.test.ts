@@ -27,7 +27,7 @@ describe("listedMessage", () => {
 describe("the Index Editor's line endings", () => {
   it("edits with LF and writes CRLF back to a file that had it", () => {
     const side = editorSide("one\r\ntwo\r\n");
-    expect(side).toEqual({ text: "one\ntwo\n", crlf: true, present: true });
+    expect(side).toEqual({ text: "one\ntwo\n", endings: ["\r\n", "\r\n"], present: true });
     expect(forDisk(side, "one\nthree\n")).toBe("one\r\nthree\r\n");
     expect(forDisk(editorSide("a\n"), "b\n")).toBe("b\n");
   });
@@ -42,5 +42,16 @@ describe("the Index Editor's line endings", () => {
     expect(editedSides(sides, { index: "a\n", worktree: "b\n" })).toEqual({ index: null, worktree: null });
     expect(editedSides(sides, { index: "c\n", worktree: "b\n" })).toEqual({ index: "c\n", worktree: null });
     expect(editedSides(sides, { index: "a\n", worktree: "d\n" })).toEqual({ index: null, worktree: "d\r\n" });
+  });
+
+  // One CRLF made every line CRLF on save: the LF lines nobody touched changed on disk.
+  it("keeps each untouched line's own ending in a file that mixes them", () => {
+    const side = editorSide("a\r\nb\nc\n");
+    expect(forDisk(side, "a\nB\nc\n")).toBe("a\r\nB\nc\n");
+    expect(forDisk(editorSide("a\nb\r\nc\r\nd\n"), "a\nb\r\nX\nY\nc\r\nd\n")).toBe("a\nb\r\nX\r\nY\r\nc\r\nd\n");
+  });
+
+  it("keeps a last line without an ending as it was", () => {
+    expect(forDisk(editorSide("a\r\nb\nc"), "a\nb\nC")).toBe("a\r\nb\nC");
   });
 });
