@@ -6565,6 +6565,25 @@ unstaged вместе с submodules, неотслеживаемые, конфл�
 переключение (чтение ушедшей строки через 500 мс), возврат фокуса окну при многих строках;
 замер одного пульса — `a_pulse_of_the_large_set_takes` (`--run-ignored only`).
 
+## R-541 · `HEAD` и refs submodule в `.git/modules` — изменение рабочего дерева родителя · Н
+
+Пункт 10 задач 25.09: индикаторы — у всех узлов, включая submodules. Коммит, checkout или
+fetch внутри submodule с git-папкой в `.git/modules/<путь>` (раскладка `git submodule add`
+с 2.12) меняет только файлы этой папки; наблюдатель родителя слышал их (корень наблюдается
+рекурсивно), но `classify_git_path("modules/…")` отвечал `None` (R-591, п. 1): статус
+родителя («submodule изменён»), дерево submodules и метки их строк оставались прежними до
+следующего события.
+
+**Решение:** внутри `modules/` изменением рабочего дерева родителя считаются `HEAD`,
+`packed-refs` и всё под `refs/` на любой глубине вложенности (`modules/a/modules/b/HEAD`);
+`index`, `logs/`, `objects/`, `config`, `hooks/`, `FETCH_HEAD`, `ORIG_HEAD` — шум, как у
+submodule, склонированного на месте. Событие `workingTree` даёт обычный проход: статус,
+Files, дерево submodules, а за ним — пульсы узлов дерева (R-542). Путь модуля, в котором
+есть часть `logs` или `objects`, принимается за папку git — такой submodule родитель услышит
+со следующим событием. Не покрыто: родитель, чья git-папка вне корня (сам submodule с
+папкой в `.git/modules`), — его `modules/` не наблюдается (R-438: наблюдение узкими путями).
+Тесты — `crates/fs_watcher/src/lib.rs`.
+
 ## R-590 · Без `Separate Working Tree and Index` — один список рабочей копии · Н
 
 Переключатель читался только раскладкой (`paneLayout`): выключенный, он убирал сплиттер, а
@@ -6609,7 +6628,8 @@ submodule (`import/ewcore`, `import/kors`) склонированы на мес�
    `a_nested_repository_moving_its_head_changes_the_working_tree`). Цена: `git add` /
    `rm --cached` внутри такого submodule без правки файлов родитель увидит со следующим
    событием, а не сразу. У submodule в `.git/modules` события его `HEAD` по-прежнему не
-   классифицируются (`classify_git_path` → `None`) — как было.
+   классифицируются (`classify_git_path` → `None`) — как было. **Заменено (`.git/modules`):**
+   [R-541](#r-541).
 2. Проба регистра ничего не пишет: имя, которое в папке уже есть (`HEAD`, `config`),
    ищется в другом регистре; файл-проба — только для пустой папки
    (`the_probe_of_a_git_directory_writes_nothing`).
