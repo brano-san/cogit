@@ -129,7 +129,7 @@
     ),
   );
 
-  $effect(() => repoPulse.watch([...everyRoot, ...moduleRoots]));
+  $effect(() => repoPulse.watch(everyRoot, moduleRoots));
 
   $effect(() => {
     void submodules.children;
