@@ -70,6 +70,24 @@ pub fn is_excluded(path: &Path) -> bool {
     })
 }
 
+/// Inside the `.git` folder of a repository nested in the working tree — a submodule cloned
+/// in place, a clone inside the tree — only HEAD and refs moving change what the parent
+/// shows. Its index, logs, caches and lock files are rewritten by every client that looks
+/// at it, the case probe of the health check included (doc/12-risks.md, R-591).
+#[must_use]
+pub fn is_nested_git_noise(relative: &Path) -> bool {
+    let mut parts = relative
+        .components()
+        .map(|part| part.as_os_str().to_string_lossy());
+    if !parts.any(|name| name == ".git") {
+        return false;
+    }
+    !matches!(
+        parts.next().as_deref(),
+        Some("HEAD" | "packed-refs" | "refs")
+    )
+}
+
 #[must_use]
 pub fn classify_git_path(relative: &str) -> Option<ChangeKind> {
     let normalized = relative.replace('\\', "/");

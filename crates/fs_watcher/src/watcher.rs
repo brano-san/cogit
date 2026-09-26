@@ -1,4 +1,7 @@
-use crate::{ChangeKind, DEBOUNCE_MS, RepoChanged, WatchError, classify_git_path, is_excluded};
+use crate::{
+    ChangeKind, DEBOUNCE_MS, RepoChanged, WatchError, classify_git_path, is_excluded,
+    is_nested_git_noise,
+};
 use notify::RecursiveMode;
 use notify_debouncer_mini::{DebounceEventResult, Debouncer, new_debouncer};
 use std::path::{Path, PathBuf};
@@ -242,7 +245,7 @@ impl Route {
             path.strip_prefix(&self.root).ok()?
         };
 
-        if is_excluded(relative) {
+        if is_excluded(relative) || is_nested_git_noise(relative) {
             return None;
         }
         Some(RepoChanged {
