@@ -127,13 +127,7 @@ pub async fn open_read_only(
 ) -> Result<String, GitError> {
     let app_state = state.state.clone();
     blocking("open_read_only", move || {
-        let copy = app_state.export_read_only(repo, &rev, &path)?;
-        let shown = copy.to_string_lossy().into_owned();
-        let launch =
-            app_state::desktop::open_command(app_state::desktop::Platform::current(), &shown);
-        app_state::desktop::spawn(&launch, None)
-            .map_err(|err| GitError::Io(format!("cannot open {shown}: {err}")))?;
-        Ok(shown)
+        app_state.open_read_only(repo, &rev, &path)
     })
     .await
 }

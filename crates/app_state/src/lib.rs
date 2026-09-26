@@ -44,7 +44,7 @@ pub use avatars::{Author, AvatarRow, Avatars};
 pub use credentials::{
     KeyringStore, MemoryStore, SecretError, SecretStore, host_of, platform_store,
 };
-pub use graph_cache::{GraphProgress, GraphWindow};
+pub use graph_cache::{GraphProgress, GraphWindow, PROGRESS_EVERY, throttled};
 pub use journal::{CommandNotice, is_warning, record};
 pub use network::NetworkRun;
 pub use presets::PresetStatus;

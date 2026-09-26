@@ -1,12 +1,8 @@
 //! The commit graph: the walk, windows of its rows and their paint, lookups over it (M4).
 
 use super::blocking;
-use app_state::{DEFAULT_CHUNK_SIZE, GraphProgress, RepoId};
+use app_state::{DEFAULT_CHUNK_SIZE, GraphProgress, PROGRESS_EVERY, RepoId, throttled};
 use git_engine::{CommitQuery, CommitRow, Found, GitError};
-
-/// Between two progress messages after the first: often enough for the scrollbar, rare
-/// enough that fifty thousand commits are a handful of messages, not 250.
-const PROGRESS_EVERY: std::time::Duration = std::time::Duration::from_millis(50);
 
 /// The walk and its layout stay in Rust; the channel only says how far it got and the
 /// rows go out by `graph_window` (R-193). Dropping the channel cancels the walk.
@@ -24,16 +20,13 @@ pub async fn load_commits(
 
     let (sent, skipped) = blocking("load_commits", move || {
         let mut sent = 0;
-        let mut last: Option<std::time::Instant> = None;
+        let mut send = throttled(PROGRESS_EVERY, |progress| {
+            on_progress.send(progress).is_ok()
+        });
         let result =
             app_state.build_graph(repo, &query, generation, DEFAULT_CHUNK_SIZE, |progress| {
                 sent = progress.total;
-                let due = progress.is_last || last.is_none_or(|at| at.elapsed() >= PROGRESS_EVERY);
-                if !due {
-                    return true;
-                }
-                last = Some(std::time::Instant::now());
-                on_progress.send(progress).is_ok()
+                send(progress)
             });
         result.map(|skipped| (sent, skipped))
     })

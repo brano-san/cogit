@@ -23,6 +23,27 @@ const PREFILL_BATCH: usize = 256;
 /// 50 000-commit history takes about 20 MB: four such repositories, or dozens of usual ones.
 const GRAPH_CACHE_BYTES: usize = 96 << 20;
 
+/// Between two progress reports after the first: often enough for the scrollbar, rare
+/// enough that fifty thousand commits are a handful of messages, not 250.
+pub const PROGRESS_EVERY: std::time::Duration = std::time::Duration::from_millis(50);
+
+/// `send` for the first report, the last and one per `every` between them; the rest wait
+/// here, not in the IPC layer (INV-09, R-16). `false` from `send` stops the walk.
+pub fn throttled(
+    every: std::time::Duration,
+    mut send: impl FnMut(GraphProgress) -> bool,
+) -> impl FnMut(GraphProgress) -> bool {
+    let mut last: Option<std::time::Instant> = None;
+    move |progress| {
+        let due = progress.is_last || last.is_none_or(|at| at.elapsed() >= every);
+        if !due {
+            return true;
+        }
+        last = Some(std::time::Instant::now());
+        send(progress)
+    }
+}
+
 /// How far the walk got. The rows themselves travel only when asked for, by window.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
