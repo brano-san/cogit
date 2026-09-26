@@ -951,10 +951,7 @@ export type GraphView = {
 	/**  A merged branch is one row at its merge, but for the merges in `expanded`. */
 	collapseMerged?: boolean,
 	expanded?: string[],
-	/**
-	 *  A filtered list drawn with lines between its matches, through the commits it leaves
-	 *  out, instead of flat (Show Graph While Filtering, F-561).
-	 */
+	/**  Show Graph While Filtering: a filtered list keeps lines between its matches (R-575). */
 	filteredGraph?: boolean,
 };
 
