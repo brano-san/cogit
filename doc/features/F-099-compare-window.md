@@ -4,5 +4,7 @@
 - [ ] Окно берёт настройки Preferences, как панель Diff: Context lines 10 и Ignore whitespace
       All — в окне 10 строк контекста и без изменений пробелов. Двойной клик по submodule —
       было/стало записанного коммита, как в панели Diff (инициализация — из главного окна).
-- [ ] Заголовок и шапка окна называют стороны словами: `Working tree ↔ index`,
-      `Staged ↔ HEAD`, `<коммит> ↔ parent`, `<коммит> ↔ working tree`, `<a> ↔ <b>`.
+- [ ] Заголовок и шапка окна называют стороны словами: `Working tree vs index`, `Index vs HEAD`,
+      `Commit a1b2c3d vs parent d4e5f6a` (у первого коммита — `Commit a1b2c3d, the first commit`),
+      `Commit a1b2c3d vs working tree`, `Commit a1b2c3d vs commit d4e5f6a`; подсказка над
+      подписью говорит, какая версия слева и какая справа.

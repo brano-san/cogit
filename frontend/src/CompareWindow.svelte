@@ -6,7 +6,7 @@
   import TooltipLayer from "$components/common/TooltipLayer.svelte";
   import { installChildWindow } from "$lib/child-window";
   import { compareLabel, parseCompare } from "$lib/compare-params";
-  import { loadCompare } from "$lib/compare-window";
+  import { firstParent, loadCompare } from "$lib/compare-window";
   import { diff } from "$stores/diff.svelte";
   import { followSettings } from "$lib/settings-sync";
   import { settings } from "$stores/settings.svelte";
@@ -26,8 +26,16 @@
     }),
   );
 
-  const sides = $derived(request ? compareLabel(request.spec) : "");
-  const title = $derived(request ? `${request.path} — ${sides}` : "Compare");
+  /** Unknown until read; the header names the commit meanwhile. */
+  let parent = $state<string | null | undefined>(undefined);
+  $effect(() =>
+    untrack(() => {
+      if (request) void firstParent(request).then((found) => (parent = found));
+    }),
+  );
+
+  const sides = $derived(request ? compareLabel(request.spec, parent) : null);
+  const title = $derived(request && sides ? `${request.path} — ${sides.text}` : "Compare");
 
   $effect(() => {
     document.title = `${title} — Cogit`;
@@ -44,7 +52,7 @@
   {:else}
     <header>
       <span class="path truncate">{request.path}</span>
-      <span class="spec">{sides}</span>
+      <span class="spec" title={sides?.tip}>{sides?.text}</span>
     </header>
 
     {#if diff.error}
