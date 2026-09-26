@@ -12,6 +12,7 @@
     type RefTreeInput,
   } from "$lib/ref-nodes";
   import { pointerDrag } from "$lib/pointer-drag";
+  import { refActivation } from "$lib/ref-checkout";
   import { TypeAhead, findTyped, listKey, pageRows, pressOf, typedChar } from "$lib/list-keys";
   import { NO_FILTER_FOLDS, flatten, toggleFilterFold } from "$lib/tree";
   import { triState } from "$lib/tri-state-box";
@@ -25,7 +26,7 @@
     oncollapse: (id: string) => void;
     /** Clicking the text, not the box: select the ref and centre the graph on its tip. */
     onselect?: (node: RefNode) => void;
-    oncheckout?: (branch: Branch) => void;
+    /** A double click or Enter on a row that is not a folder. */
     onactivate?: (node: RefNode) => void;
     oncontext?: (node: RefNode, x: number, y: number) => void;
     /** `x` and `y`: where the pointer was released, for the menu of what to do. */
@@ -38,7 +39,6 @@
     onvisible,
     oncollapse,
     onselect,
-    oncheckout,
     onactivate,
     oncontext,
     ondrop,
@@ -88,9 +88,9 @@
   let treeEl: HTMLDivElement | undefined = $state();
   const typing = new TypeAhead();
 
-  /** A double-click: checkout for a local branch, the node's own action for the rest. */
+  /** A double click (item 40): a folder or a group folds, every other row has its action. */
   function activate(node: RefNode) {
-    if (node.branch?.kind === "local") oncheckout?.(node.branch);
+    if (refActivation(node) === "fold") collapse(node.id);
     else onactivate?.(node);
   }
 

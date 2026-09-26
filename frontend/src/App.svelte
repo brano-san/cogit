@@ -99,7 +99,7 @@
   import { readsAgain } from "$lib/file-view";
   import { bannerQuestion, stateBanner, type BannerAction } from "$lib/repo-state";
   import { runCheckout } from "$lib/checkout-flow";
-  import type { CheckoutRequest } from "$lib/ref-checkout";
+  import { refActivation, type CheckoutRequest } from "$lib/ref-checkout";
   import { foundStep } from "$lib/found";
   import { revealRef } from "$lib/ref-reveal";
   import { applyPreferences, type ApplyHost } from "$lib/preferences-apply";
@@ -1340,11 +1340,12 @@
     if (await conflicts.leave()) compareView.open(path);
   }
 
+  /** A double click in Branches (item 40): HEAD does nothing, a folder folds in the tree. */
   function activateRef(node: RefNode) {
-    if (node.kind === "stash") void applyStash(Number(node.id.slice("stash:".length)), false);
-    // The menu's Check Out, question and all (doc/05 §3.3).
-    else if (node.kind === "tag" || node.kind === "remote") void refActions?.checkOutNode(node);
-    else if (node.kind === "lost" && node.oid) {
+    const action = refActivation(node);
+    if (action === "checkout") refActions?.checkOutNode(node);
+    else if (action === "apply-stash") void applyStash(Number(node.id.slice("stash:".length)), false);
+    else if (action === "recover") {
       const found = recovery.lost.find((row) => row.oid === node.oid);
       if (found) void recoverCommit(found);
     }
@@ -3583,7 +3584,6 @@
             input={refTreeInput}
             onvisible={() => void reloadGraph()}
             onselect={selectRef}
-            oncheckout={(branch) => void checkOut({ target: { kind: "branch", name: branch.name }, branch: branch.name, what: branch.name })}
             onactivate={activateRef}
             oncontext={(node, x, y) => void refContext(node, x, y)}
             ondrop={onBranchDrop}
