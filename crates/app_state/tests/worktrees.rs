@@ -137,10 +137,15 @@ fn a_worktree_open_only_in_the_panels_can_still_be_added_from_a_scan() {
     let parent = std::path::Path::new(&path).parent().unwrap().to_path_buf();
 
     let mut hits = Vec::new();
-    state.scan_for_repositories(&parent, 2, |hit| {
-        hits.push(hit);
-        true
-    });
+    state.scan_for_repositories(
+        &parent,
+        2,
+        || false,
+        |hit| {
+            hits.push(hit);
+            true
+        },
+    );
 
     let hit = hits.iter().find(|hit| hit.name == "linked").unwrap();
     assert!(!hit.already_open, "{hit:?}");
@@ -154,10 +159,15 @@ fn a_scan_names_its_finds_with_forward_slashes_as_every_other_path_over_ipc() {
     let parent = std::path::Path::new(&path).parent().unwrap().to_path_buf();
 
     let mut roots = Vec::new();
-    state.scan_for_repositories(&parent, 2, |hit| {
-        roots.push(hit.root);
-        true
-    });
+    state.scan_for_repositories(
+        &parent,
+        2,
+        || false,
+        |hit| {
+            roots.push(hit.root);
+            true
+        },
+    );
 
     assert!(roots.contains(&path), "{roots:?}");
 }

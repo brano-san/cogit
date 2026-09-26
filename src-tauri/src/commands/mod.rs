@@ -520,29 +520,50 @@ pub async fn open_repository(
     Ok(summary)
 }
 
-/// A folder can hold hundreds of repositories, so hits stream in as they are found and
-/// dropping the channel stops the walk.
+/// What travels up the channel while a folder scan runs; `Started` carries the id
+/// `cancel_operation` takes.
+#[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase", tag = "kind")]
+pub enum ScanChunk {
+    Started { id: u32 },
+    Found { hit: app_state::ScanHit },
+}
+
+/// A folder can hold hundreds of repositories, so hits stream in as they are found.
+/// The walk ends on `cancel_operation`: a channel the page stopped listening to still
+/// accepts every send.
 #[tauri::command]
 #[specta::specta]
 pub async fn scan_for_repositories(
     state: tauri::State<'_, crate::AppContext>,
+    cancellations: tauri::State<'_, std::sync::Arc<crate::operations::Cancellations>>,
     path: String,
     max_depth: u32,
-    on_found: tauri::ipc::Channel<app_state::ScanHit>,
+    on_found: tauri::ipc::Channel<ScanChunk>,
 ) -> Result<u32, GitError> {
     let app_state = state.state.clone();
     let path = PathBuf::from(path);
     let depth = max_depth.clamp(1, 12) as usize;
+    let cancellations = std::sync::Arc::clone(&cancellations);
+    let (id, cancel) = cancellations.start();
+    let _ = on_found.send(ScanChunk::Started { id });
 
-    blocking("scan_for_repositories", move || {
+    let found = blocking("scan_for_repositories", move || {
         let mut found = 0_u32;
-        app_state.scan_for_repositories(&path, depth, |hit| {
-            found += 1;
-            on_found.send(hit).is_ok()
-        });
+        app_state.scan_for_repositories(
+            &path,
+            depth,
+            || cancel.is_cancelled(),
+            |hit| {
+                found += 1;
+                on_found.send(ScanChunk::Found { hit }).is_ok()
+            },
+        );
         Ok(found)
     })
-    .await
+    .await;
+    cancellations.finish(id);
+    found
 }
 
 /// Between two progress messages after the first: often enough for the scrollbar, rare

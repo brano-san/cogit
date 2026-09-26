@@ -32,6 +32,7 @@ import type {
   RepoChanged,
   RepoId,
   ScanHit,
+  ScanChunk,
   SearchChunk,
   SearchScope,
   WorktreeView,
@@ -118,6 +119,7 @@ export type {
   RebaseStep,
   RefDate,
   ScanHit,
+  ScanChunk,
   ContentMatch,
   SearchChunk,
   SearchScope,
@@ -258,14 +260,19 @@ export async function graphOverlay(
   return unwrap(await commands.graphOverlay(repo, generation, start, count, request));
 }
 
-/** Hits stream in as the walk finds them; the promise resolves with the total. */
+/** Hits stream in as the walk finds them; the promise resolves with the total. `onStarted`
+    gets the id `cancelOperation` stops the walk by, before the first hit. */
 export async function scanForRepositories(
   path: string,
   maxDepth: number,
   onFound: (hit: ScanHit) => void,
+  onStarted: (id: number) => void = () => {},
 ) {
-  const channel = new Channel<ScanHit>();
-  channel.onmessage = onFound;
+  const channel = new Channel<ScanChunk>();
+  channel.onmessage = (chunk) => {
+    if (chunk.kind === "started") onStarted(chunk.id);
+    else onFound(chunk.hit);
+  };
   return unwrap(await commands.scanForRepositories(path, maxDepth, channel));
 }
 
