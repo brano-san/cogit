@@ -21,7 +21,9 @@ fail-fast = false
 timing = { max-threads = 1 }
 
 [[profile.default.overrides]]
-filter = "binary(mutation_speed) | binary(performance) | binary(selection_speed) | test(/budget/) | test(one_enormous_line_does_not_hang_the_engine)"
+# By file, by `budget` in the name, by what the name promises (`does_not_hang/block/stall`),
+# and the undo tests that wait out the watcher's quiet window.
+filter = "binary(mutation_speed) | binary(performance) | binary(selection_speed) | test(/budget/) | test(/does_not_(hang|block|stall)/) | (binary(undo) & test(/echo|watcher/))"
 test-group = "timing"
 threads-required = "num-cpus"
 
