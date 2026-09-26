@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { binaryReason, byteCount, summaryRows, tooLargeReason } from "./diff-summary";
+import { binaryReason, byteCount, imageSizes, summaryRows, tooLargeReason } from "./diff-summary";
 
 describe("diff summary", () => {
   it("counts bytes exactly, with separators", () => {
@@ -30,6 +30,12 @@ describe("diff summary", () => {
     expect(old).toEqual({ label: "Old version", size: "12 bytes", id: "a".repeat(40), note: null });
     expect(next?.size).toBe("Not there: the file is deleted");
     expect(next?.id).toBeNull();
+  });
+
+  it("says an image was deleted or added instead of a size going to or from nothing", () => {
+    expect(imageSizes(3174, 0, "data:image/png;base64,x", null)).toBe("Deleted · 3.1 KB");
+    expect(imageSizes(0, 512, null, "data:image/png;base64,x")).toBe("Added · 512 B");
+    expect(imageSizes(2048, 3072, "a", "b")).toBe("2.0 KB → 3.0 KB");
   });
 
   it("says why a present side has no id", () => {

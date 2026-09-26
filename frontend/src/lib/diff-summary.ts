@@ -16,6 +16,18 @@ export function binaryReason(cause: BinaryCause): string {
   );
 }
 
+function kilobytes(bytes: number): string {
+  return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+/** The size line of an image diff. An added or deleted image says so: `3.1 KB → 0 B` read
+    as a file emptied, not removed. A side is gone when it has no picture and no bytes. */
+export function imageSizes(oldSize: number, newSize: number, before: string | null, after: string | null): string {
+  if (after === null && newSize === 0 && oldSize > 0) return `Deleted · ${kilobytes(oldSize)}`;
+  if (before === null && oldSize === 0 && newSize > 0) return `Added · ${kilobytes(newSize)}`;
+  return `${kilobytes(oldSize)} → ${kilobytes(newSize)}`;
+}
+
 export function tooLargeReason(limit: number): string {
   return `File size exceeds the limit of ${byteCount(limit)}`;
 }
