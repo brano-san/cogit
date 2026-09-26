@@ -394,3 +394,32 @@ fn clearing_a_filter_after_a_commit_keeps_the_texts_read() {
     assert_eq!(progress.last().unwrap().total, 301);
     assert!(state.graph_texts_read(ra) >= 300);
 }
+
+/// A ticked stash is one row with one line down, as SmartGit draws it (F-331): the commits
+/// `git stash` keeps the index and the untracked files in are not history.
+#[test]
+fn a_ticked_stash_is_one_row_without_its_index_and_untracked_commits() {
+    let a = test_fixtures::linear(2).unwrap();
+    a.write_file("file0.txt", "changed\n").unwrap();
+    a.write_file("new.txt", "untracked\n").unwrap();
+    a.git(&["stash", "push", "--include-untracked", "--message", "wip"])
+        .unwrap();
+    let state = AppState::new();
+    let ra = state.open_repository(a.path()).unwrap().repo;
+    let query = CommitQuery {
+        visible_refs: Some(vec!["HEAD".to_owned(), "stash@{0}".to_owned()]),
+        ..CommitQuery::default()
+    };
+
+    let (generation, _) = build_with(&state, ra, &query);
+
+    let window = state.graph_window(ra, generation, 0, 100).unwrap();
+    let shown: Vec<&str> = window.commits.iter().map(|c| c.summary.as_str()).collect();
+    assert_eq!(shown.len(), 3, "the stash and the two commits: {shown:?}");
+    let stash = window
+        .commits
+        .iter()
+        .find(|c| c.summary == "On main: wip")
+        .unwrap();
+    assert_eq!(stash.parents, [a.oid("HEAD").unwrap()]);
+}

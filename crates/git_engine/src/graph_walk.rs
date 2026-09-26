@@ -139,6 +139,8 @@ pub(crate) struct ByTime<F> {
     first_parent: bool,
     /// Sorted. Their parents are not in a shallow clone.
     shallow: Vec<ObjectId>,
+    /// Sorted. Commits whose first parent alone is followed, whatever `first_parent` says.
+    single: Vec<ObjectId>,
 }
 
 impl<F> ByTime<F>
@@ -157,11 +159,18 @@ where
             read,
             first_parent,
             shallow,
+            single: Vec::new(),
         };
         for tip in tips {
             walk.push(tip);
         }
         walk
+    }
+
+    /// Follows only the first parent of `ids`, which has to be sorted.
+    pub(crate) fn first_parent_of(mut self, ids: Vec<ObjectId>) -> Self {
+        self.single = ids;
+        self
     }
 
     fn push(&mut self, id: ObjectId) {
@@ -183,7 +192,12 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         let Queued { id, parents, time } = self.queue.pop()?;
         if self.shallow.binary_search(&id).is_err() {
-            let follow = if self.first_parent { 1 } else { parents.len() };
+            let single = !self.single.is_empty() && self.single.binary_search(&id).is_ok();
+            let follow = if self.first_parent || single {
+                1
+            } else {
+                parents.len()
+            };
             for parent in parents.iter().take(follow) {
                 self.push(*parent);
             }
@@ -305,6 +319,21 @@ mod tests {
     #[test]
     fn first_parents_only_leave_the_merged_side_out() {
         assert_eq!(walk(MERGED, &[5], true, &[]), [5, 2, 1]);
+    }
+
+    #[test]
+    fn a_commit_asked_to_follows_its_first_parent_only() {
+        let by_id: HashMap<ObjectId, (i64, Vec<ObjectId>)> = MERGED
+            .iter()
+            .map(|(n, time, parents)| (id(*n), (*time, parents.iter().map(|p| id(*p)).collect())))
+            .collect();
+        let back: HashMap<ObjectId, u8> = MERGED.iter().map(|(n, ..)| (id(*n), *n)).collect();
+        let walked: Vec<u8> =
+            ByTime::new([id(5)], |oid| by_id.get(&oid).cloned(), false, Vec::new())
+                .first_parent_of(vec![id(5)])
+                .map(|(oid, ..)| back[&oid])
+                .collect();
+        assert_eq!(walked, [5, 2, 1]);
     }
 
     #[test]
