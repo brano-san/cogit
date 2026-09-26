@@ -530,7 +530,7 @@
   <div class="bar">
     <span class="path mono truncate">{path}</span>
     {#if diff.kind === "text"}
-      {@const eol = eolLabel(diff.eol, diff.hunks)}
+      {@const eol = eolLabel(diff.eol, diff.oldTotal, diff.newTotal)}
       <span class="eol" title={eol.title}>{eol.text}</span>
       {#if diff.lossyEncoding}<span class="warn">not valid UTF-8</span>{/if}
       <button type="button" disabled={!nav.prev} onclick={() => jump(-1)} title="Previous change (Shift+F6)"

@@ -180,6 +180,24 @@ fn context_is_configurable() {
     assert_eq!(hunks(&diff)[0].old_lines, 3);
 }
 
+/// Git's `-U0`: a side with no lines starts at the line it follows — `@@ -5,0 +6,2 @@` for
+/// two lines inserted after line 5. Zero there lost the band above the change.
+#[test]
+fn an_empty_side_without_context_starts_at_the_line_before_it() {
+    let old = numbered(10);
+    let new = old.replace("line 5\n", "line 5\nnew a\nnew b\n");
+    let options = DiffOptions {
+        context_lines: 0,
+        ..DiffOptions::default()
+    };
+
+    let inserted = diff_text(&old, &new, &options);
+    let deleted = diff_text(&new, &old, &options);
+
+    assert_eq!(hunks(&inserted)[0].header, "@@ -5,0 +6,2 @@");
+    assert_eq!(hunks(&deleted)[0].header, "@@ -6,2 +5,0 @@");
+}
+
 #[test]
 fn a_file_without_a_trailing_newline_keeps_its_last_line() {
     let diff = diff_text("a\nb", "a\nB", &DiffOptions::default());

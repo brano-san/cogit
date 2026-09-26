@@ -80,6 +80,17 @@ function inside(line: number, ranges: readonly LineRange[]): boolean {
   return ranges.some((range) => line >= range.from && line <= range.to);
 }
 
+/** The first line past a hunk on one side. A side with no lines starts at the line it
+    follows, as git writes it (`-5,0`), so the next one is the line after that. */
+function after(start: number, lines: number): number {
+  return lines === 0 ? start + 1 : start + lines;
+}
+
+/** The last line before a hunk on its old side. */
+function before(hunk: Hunk): number {
+  return hunk.oldLines === 0 ? hunk.oldStart : hunk.oldStart - 1;
+}
+
 export function foldDiff(input: FoldInput): FoldEntry[] {
   const { hunks, oldTotal, newTotal, context, revealed } = input;
   const out: FoldEntry[] = [];
@@ -95,11 +106,10 @@ export function foldDiff(input: FoldInput): FoldEntry[] {
 
   hunks.forEach((hunk, index) => {
     const previous = hunks[index - 1];
-    const from = previous ? previous.oldStart + previous.oldLines : 1;
     gap({
-      oldFrom: from,
-      oldTo: hunk.oldStart - 1,
-      newFrom: previous ? previous.newStart + previous.newLines : 1,
+      oldFrom: previous ? after(previous.oldStart, previous.oldLines) : 1,
+      oldTo: before(hunk),
+      newFrom: previous ? after(previous.newStart, previous.newLines) : 1,
       loaded: false,
       up: true,
       down: previous !== undefined,
@@ -167,9 +177,9 @@ export function foldDiff(input: FoldInput): FoldEntry[] {
   const last = hunks[hunks.length - 1];
   if (last) {
     gap({
-      oldFrom: last.oldStart + last.oldLines,
+      oldFrom: after(last.oldStart, last.oldLines),
       oldTo: oldTotal,
-      newFrom: last.newStart + last.newLines,
+      newFrom: after(last.newStart, last.newLines),
       loaded: false,
       up: false,
       down: true,

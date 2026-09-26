@@ -1,4 +1,4 @@
-import type { EolInfo, Hunk, LineEnding } from "./ipc/bindings";
+import type { EolInfo, LineEnding } from "./ipc/bindings";
 
 const ENDING: Record<LineEnding, string> = {
   lf: "LF",
@@ -8,17 +8,12 @@ const ENDING: Record<LineEnding, string> = {
   none: "None",
 };
 
-/** A side with no lines in any hunk does not exist: the file was added or deleted. */
-function absent(hunks: readonly Hunk[], side: "old" | "new"): boolean {
-  if (hunks.length === 0) return false;
-  return hunks.every((hunk) => (side === "old" ? hunk.oldLines : hunk.newLines) === 0);
-}
-
-/** A new file has only its new ending, a deleted one only its old ending (#17). */
-export function eolLabel(eol: EolInfo, hunks: readonly Hunk[]): { text: string; title: string } {
+/** A new file has only its new ending, a deleted one only its old ending (#17). Told by
+    the line counts: a hunk without context has an empty side in the middle of a file too. */
+export function eolLabel(eol: EolInfo, oldTotal: number, newTotal: number): { text: string; title: string } {
   let text = `${ENDING[eol.old]} → ${ENDING[eol.new]}`;
-  if (absent(hunks, "old")) text = ENDING[eol.new];
-  else if (absent(hunks, "new")) text = ENDING[eol.old];
+  if (oldTotal === 0 && newTotal > 0) text = ENDING[eol.new];
+  else if (newTotal === 0 && oldTotal > 0) text = ENDING[eol.old];
   return { text, title: `Line endings: ${text}` };
 }
 
