@@ -3,8 +3,9 @@
 // The harness exists to print numbers; `print_stdout` is denied for production (INV-04).
 #![allow(clippy::print_stdout)]
 
-//! Budgets are looser than the product promises so a loaded machine does not go red; the
-//! 50 000-commit test asserts the promise itself. Numbers print with `--nocapture`.
+//! Budgets are looser than the product promises so a loaded machine does not go red. The
+//! promise itself is held by the release benchmark; the 50 000-commit test that states it
+//! runs on request (R-504). Numbers print with `--nocapture`.
 
 use app_state::{AppState, DEFAULT_CHUNK_SIZE};
 use diff_engine::DiffOptions;
@@ -135,6 +136,8 @@ fn reading_one_commit_from_a_large_history_stays_instant() {
 }
 
 #[test]
+#[ignore = "the promise is held on a release build by the benchmark, graph.full-layout · large \
+            (doc/15-benchmark.md §5, R-504); a dev build has no margin for it"]
 fn fifty_thousand_commits_meet_the_product_promise() {
     let built = Instant::now();
     let f = test_fixtures::stress(50_000).unwrap();
