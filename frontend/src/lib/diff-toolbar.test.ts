@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EolInfo } from "./ipc/bindings";
-import { eolLabel, layoutTip, modeChangeText } from "./diff-toolbar";
+import { eolChangeText, eolLabel, layoutTip, modeChangeText } from "./diff-toolbar";
 
 function eol(old: EolInfo["old"], next: EolInfo["new"]): EolInfo {
   return { old, new: next, normalized: old !== next };
@@ -38,6 +38,13 @@ describe("eolLabel (#17)", () => {
   // still there on both sides.
   it("names both endings when a hunk has an empty side in the middle of the file", () => {
     expect(eolLabel(eol("crlf", "lf"), 10, 12).text).toBe("CRLF → LF");
+  });
+});
+
+describe("eolChangeText (DF-028)", () => {
+  it("spells the endings as the toolbar does, not as the wire does", () => {
+    expect(eolChangeText("crlf", "lf")).toBe("CRLF → LF");
+    expect(eolChangeText("mixed", "none")).toBe("Mixed → None");
   });
 });
 

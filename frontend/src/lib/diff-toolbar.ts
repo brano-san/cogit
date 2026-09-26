@@ -8,6 +8,11 @@ const ENDING: Record<LineEnding, string> = {
   none: "None",
 };
 
+/** `CRLF → LF`, as the toolbar and doc/08 §3 spell the endings. */
+export function eolChangeText(from: LineEnding, to: LineEnding): string {
+  return `${ENDING[from]} → ${ENDING[to]}`;
+}
+
 /** A new file has only its new ending, a deleted one only its old ending (#17). Told by
     the line counts: a hunk without context has an empty side in the middle of a file too. */
 export function eolLabel(eol: EolInfo, oldTotal: number, newTotal: number): { text: string; title: string } {
