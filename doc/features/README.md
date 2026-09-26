@@ -334,3 +334,4 @@
 | F-524 | Меню кнопок тулбара в узком окне и с клавиатуры | [F-524-toolbar-menus-narrow-and-keys.md](F-524-toolbar-menus-narrow-and-keys.md) |
 | F-532 | Диалог с набранным текстом не закрывается молча | [F-532-dialog-keeps-typed-text.md](F-532-dialog-keeps-typed-text.md) |
 | F-570 | Рабочая копия одним списком без раздельного индекса | [F-570-one-worktree-list.md](F-570-one-worktree-list.md) |
+| F-574 | Кнопки Files — в заголовках, видны всегда | [F-574-files-heading-buttons.md](F-574-files-heading-buttons.md) |

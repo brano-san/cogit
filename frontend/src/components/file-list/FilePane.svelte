@@ -6,7 +6,8 @@
     label: string;
     title: string;
     run: (request: ActionRequest) => void;
-    /** Why the button does not apply to this row's file; it is then off and says so. */
+    /** Why the action does not apply to a row's file (`rowActionBlocked`, `scopeBlocked`):
+        the rule of the Files menu, kept for the heading's buttons (R-593). */
     blocked?: (file: FileEntry) => string | null;
   }
 </script>
@@ -192,28 +193,6 @@
               >
             {/if}
             <span class="dir truncate shrink-first">{showDirectory ? directory(file.path) : ""}</span>
-            {#if actions.length > 0}
-              <span class="acts">
-                {#each actions as action (action.label)}
-                  {@const reason = action.blocked?.(file) ?? null}
-                  <span
-                    class="act"
-                    class:off={reason !== null}
-                    role="button"
-                    tabindex="-1"
-                    aria-disabled={reason !== null}
-                    title={reason ?? action.title}
-                    onclick={(event) => {
-                      event.stopPropagation();
-                      if (reason === null) action.run({ row: file.path });
-                    }}
-                    onkeydown={(event) => {
-                      if (event.key === "Enter" && reason === null) action.run({ row: file.path });
-                    }}>{action.label}</span
-                  >
-                {/each}
-              </span>
-            {/if}
           </button>
         {/if}
     {/snippet}
@@ -242,6 +221,7 @@
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
+    overflow: hidden;
   }
 
   .row,
@@ -302,10 +282,16 @@
     margin-left: auto;
   }
 
+  /* The count gives way before the buttons do: they are the heading's reason to be (R-593). */
   .grow {
     flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
+  /* Always there, not only under the pointer; a file row has none (R-593). */
   .act {
     flex: 0 0 auto;
     padding: 0 var(--sp-3);
@@ -316,43 +302,15 @@
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    opacity: 0;
     cursor: default;
   }
 
-  .heading:hover .act,
-  .acts .act {
-    opacity: 1;
-  }
-
-  /* Over the end of the row rather than beside the name: out of sight, the buttons keep
-     no width, and the name has the whole row (R-243). */
-  .acts {
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    display: none;
-    align-items: center;
-    padding: 0 var(--sp-3);
-    background: var(--state-hover);
-  }
-
-  .row:hover .acts,
-  .row:focus-visible .acts {
-    display: flex;
-  }
-
-  .row.selected .acts {
-    background: var(--state-selected);
-  }
-
-  .act:hover:not(.off) {
+  .act:hover:not(:disabled, .off) {
     color: var(--status-ref);
   }
 
-  /* Off for this file, as its menu item is; the tip says why. */
-  .acts .act.off {
+  .act:disabled,
+  .act.off {
     opacity: 0.4;
   }
 
