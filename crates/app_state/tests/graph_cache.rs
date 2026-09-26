@@ -116,8 +116,7 @@ fn a_deepened_clone_is_walked_again() {
     );
     let target = clone.path().join("shallow");
     let git = |args: &[&str], at: &std::path::Path| {
-        let status = std::process::Command::new("git")
-            .current_dir(at)
+        let status = test_fixtures::git_command_in(at)
             .args(args)
             .status()
             .unwrap();

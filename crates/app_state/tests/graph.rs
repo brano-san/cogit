@@ -229,7 +229,7 @@ fn a_shallow_boundary_ends_its_lines_in_arrows() {
         upstream.path().to_string_lossy().replace('\\', "/")
     );
     let target = clone.path().join("shallow");
-    let status = std::process::Command::new("git")
+    let status = test_fixtures::git_command_in(clone.path())
         .args(["clone", "-q", "--depth", "2", "--no-single-branch", &url])
         .arg(&target)
         .status()

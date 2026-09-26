@@ -232,7 +232,7 @@ fn a_tip_fetched_into_a_shallow_clone_does_not_break_a_warm_cache() {
         upstream.path().to_string_lossy().replace('\\', "/")
     );
     let target = clone.path().join("shallow");
-    let status = std::process::Command::new("git")
+    let status = test_fixtures::git_command_in(clone.path())
         .args(["clone", "-q", "--depth", "1", &url])
         .arg(&target)
         .status()
@@ -242,8 +242,7 @@ fn a_tip_fetched_into_a_shallow_clone_does_not_break_a_warm_cache() {
     let mut cache = Reachable::default();
     repo.lost_commits_with(100, &mut cache).unwrap();
 
-    let fetched = std::process::Command::new("git")
-        .current_dir(&target)
+    let fetched = test_fixtures::git_command_in(&target)
         .args([
             "fetch",
             "-q",
@@ -278,7 +277,7 @@ fn a_tip_whose_parent_a_shallow_clone_lacks_does_not_break_a_warm_cache() {
         upstream.path().to_string_lossy().replace('\\', "/")
     );
     let target = clone.path().join("shallow");
-    let status = std::process::Command::new("git")
+    let status = test_fixtures::git_command_in(clone.path())
         .args(["clone", "-q", "--depth", "1", &url])
         .arg(&target)
         .status()
@@ -290,8 +289,7 @@ fn a_tip_whose_parent_a_shallow_clone_lacks_does_not_break_a_warm_cache() {
         .lost_commits_with(100, &mut cache)
         .unwrap();
 
-    let fetched = std::process::Command::new("git")
-        .current_dir(&target)
+    let fetched = test_fixtures::git_command_in(&target)
         .args([
             "fetch",
             "-q",

@@ -11,7 +11,7 @@ fn open(f: &test_fixtures::Fixture) -> RepoHandle {
 
 /// The machine running the suite may not have Git LFS; those tests then have nothing to try.
 fn lfs_installed() -> bool {
-    std::process::Command::new("git")
+    test_fixtures::git_command_in(&std::env::temp_dir())
         .args(["lfs", "version"])
         .output()
         .is_ok_and(|output| output.status.success())
