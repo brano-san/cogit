@@ -104,3 +104,29 @@ describe("a pressed switch", () => {
     expect(colour("--state-pressed")).not.toBe(colour("--state-hover"));
   });
 });
+
+// A bisect dot sits on plain, selected and tinted rows; good and bad must differ, and a tag
+// names the mark beside it for whoever cannot tell red from green (F-566).
+describe.each(Object.keys(THEMES))("bisect dots in the %s theme", (name) => {
+  const colour = theme(name);
+  const dots = ["--graph-bisect-good", "--graph-bisect-bad", "--graph-bisect-skip"];
+
+  it.each(["--c-bg-panel", "--c-bg-active"])("stand out 3:1 against %s", (background) => {
+    for (const token of dots) {
+      expect(contrast(colour(token), colour(background)), `${token} on ${background}`).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it("are told apart from each other", () => {
+    for (const [i, a] of dots.entries()) {
+      for (const b of dots.slice(i + 1)) {
+        expect(distance(colour(a), colour(b)), `${a} against ${b}`).toBeGreaterThanOrEqual(25);
+      }
+    }
+  });
+
+  it("tint the rows under test and found from the theme's own warning and error", () => {
+    expect(colour("--graph-bisect-current")).toBe(colour("--c-modified-bg"));
+    expect(colour("--graph-bisect-found")).toBe(colour("--c-deleted-bg"));
+  });
+});

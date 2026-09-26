@@ -14,10 +14,16 @@
   import { settings } from "$stores/settings.svelte";
   import type { GraphRow } from "$lib/ipc";
 
+  /** A bisect mark (F-566): the dot fills the ring, the tint is the row behind it. Tokens. */
+  interface BisectPaint {
+    dot: string | null;
+    tint: string | null;
+  }
+
   /** Only the rows on screen: every segment belongs to its own row, so nothing outside
       the view is ever needed to draw it (doc/07-graph-rendering.md). */
   interface Props {
-    rows: { listRow: number; layout: GraphRow; stash?: boolean; paint?: RowPaint }[];
+    rows: { listRow: number; layout: GraphRow; stash?: boolean; paint?: RowPaint; bisect?: BisectPaint }[];
     scrollTop: number;
     width: number;
     height: number;
@@ -150,7 +156,9 @@
         const { x, y } = nodeCentre(row.layout.lane, row.listRow, scrollTop);
         context.arc(x, y, GRAPH.ringRadius, 0, Math.PI * 2);
       }
-      for (const layer of nodeFill(row.listRow, selectedRows, hoverRow, stripes)) {
+      const dot = row.bisect?.dot ?? null;
+      const layers = nodeFill(row.listRow, selectedRows, hoverRow, stripes, row.bisect?.tint ?? null);
+      for (const layer of dot ? [...layers, dot] : layers) {
         if (!fills.has(layer)) fills.set(layer, token(layer));
         context.fillStyle = fills.get(layer) ?? panel;
         context.fill();

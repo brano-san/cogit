@@ -100,6 +100,9 @@ Checkout, Merge, Rebase, Cherry-Pick, Revert и Undo аккордов не им�
 идут без вопроса — одиночный аккорд на них слишком лёгок; `Ctrl+Shift+Z` в поле ввода — это
 повтор ввода, окно его не забирает ([R-453](12-risks.md)).
 
+`Branch ▸ Bisect` (`Start…`, `Mark HEAD as Good`, `Mark HEAD as Bad`, `Skip HEAD`, `Reset`) аккордов
+по умолчанию тоже не имеет: пункты есть в редакторе Keyboard, сочетание назначается там (F-565).
+
 ## 6. Стэши
 
 | Аккорд | Действие |

@@ -90,7 +90,7 @@ pub enum GitError {
 | `close_repository` | `repo: RepoId` | `Result<Vec<RepoOverview>>` — открытые после закрытия, как у `repositories`: второй вызов за списком не нужен (R-323). Вместе с ним закрываются открытые из его дерева submodules и worktrees, которых нет в списке, — и показанный (панели отпускают его раньше), кроме того, у кого есть работа в очереди (R-508, R-543) | M1 |
 | `show_repository` | `repo: Option<RepoId>` — что показывают панели, `null` — ничего | `()`; наблюдается только он: остальные наблюдатели останавливаются, его — запускается, снимок его строки сбрасывается (R-351). Фронтенд шлёт по одному вызову, последний побеждает | M3 |
 | `list_repositories` | — | `Vec<RepoEntry>` | M3 |
-| `repo_state` | `repo: RepoId` | `RepoState` — `clean | detachedHead { oid } | merging | rebasing | cherryPicking | reverting | bisecting | applyingPatches | empty | bare`; `applyingPatches` — `git am`, остановленный на патче (`rebase-apply/applying`) | M1 |
+| `repo_state` | `repo: RepoId` | `RepoState` — `clean | detachedHead { oid } | merging | rebasing | cherryPicking | reverting | bisecting { bisect: BisectState } | applyingPatches | empty | bare`; `applyingPatches` — `git am`, остановленный на патче (`rebase-apply/applying`); `bisect` — см. «Bisect (M11)» | M1 |
 | `repositories` | — | `Result<Vec<RepoOverview { repo, name, root, branch, ahead, behind, dirty, missing, state: RepoState }>>`; `state` — для меток `<merging>`/`<detached>` в дереве (#22). Читается в `spawn_blocking`, поэтому `Result` | M3 |
 | `list_submodules` | `repo: RepoId` | `Vec<Submodule>` | M3 |
 | `worktrees` | `repo: RepoId` | `Vec<WorktreeEntry { path, name, branch, head, isMain, isCurrent, locked, missing, dirty, hasSubmodules }>`; `hasSubmodules` — в linked-ворктри выписаны submodules, git удалит его только с `--force` (R-434); из linked-ворктри основной — всё равно основной (R-184); у `missing` ветка и HEAD читаются из записи `.git/worktrees/<id>/HEAD` (R-241) | M3 |
@@ -649,6 +649,26 @@ commit-msg при этом идут, как у `reword` в `git rebase -i`: ху
 останавливает rebase на этой строке с его выводом. Edit Author (`edit_author`) идёт с
 `--no-verify`: ни дерево, ни сообщение не меняются — механическая перезапись, как и коммиты
 Split-Off.
+
+### Bisect (M11)
+
+Команды — `src-tauri/src/commands/bisect.rs`, логика — `git_engine/src/bisect.rs`. Все три — мутации
+в очереди репозитория (`OperationKind::Checkout`: каждый шаг выписывает коммит), с тишиной
+наблюдателя; ревизии разрешаются в `gix` до запуска git, git получает id.
+
+| Команда | Вход | Выход | Модуль |
+|---|---|---|---|
+| `bisect_start` | `repo, bad: String, good: Option<String>` | `()` — `git bisect start <bad> [<good>] --`; во время другого bisect, в bare-репозитории и при `good == bad` — `InvalidState` без запуска git | M11 |
+| `bisect_mark` | `repo, mark: good|bad|skip, rev: Option<String>` — `null` = HEAD | `()` — `git bisect <слово> [<id>]`, слово — из `BISECT_TERMS` (`--term-new/--term-old` из терминала); без bisect — `InvalidState`. «Остались только пропущенные» — код 2 от git, ошибка с его выводом (R-581) | M11 |
+| `bisect_reset` | `repo` | `()` — `git bisect reset`; запись в журнале безопасности без Undo | M11 |
+
+Состояние отдельной командой не читается: оно едет в `RepoState::Bisecting { bisect }` с каждым
+`open_repository`, `repo_refs` и строкой Repositories. `BisectState` — `{ start, bad, good[],
+skipped[], current, firstBad, candidates[], terms { bad, good } }`: `start` — `BISECT_START`
+(ветка или id), метки — `refs/bisect/<bad>`, `<good>-*`, `skip-*` через `gix` (у linked worktree —
+в его git-каталоге), `current` — HEAD или `BISECT_HEAD`, `firstBad` и `candidates` — строки
+`# first bad commit` и `# possible first bad commit` после последней команды в `BISECT_LOG`.
+Процессов нет; без `BISECT_LOG` — один `stat` (R-582).
 
 ### Контекстные меню графа и Branches
 

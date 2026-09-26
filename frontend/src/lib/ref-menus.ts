@@ -94,12 +94,13 @@ function commitActions(facts: CommitFacts, onRef: RefTarget | null): ContextItem
   ];
 }
 
-/** #38: a commit row of the graph. */
-export function graphCommitMenu(facts: CommitFacts): ContextItem[] {
+/** #38: a commit row of the graph. `bisect`: its Bisect submenu (F-565). */
+export function graphCommitMenu(facts: CommitFacts, bisect?: ContextItem): ContextItem[] {
   return tidy([
     offer(id("checkout"), "Check Out", facts.detachedHere ? "already checked out" : null),
     ...commitActions(facts, null),
     SEPARATOR,
+    ...(bisect ? [bisect, SEPARATOR] : []),
     offer(
       id("push-up-to"),
       "Push Up To",

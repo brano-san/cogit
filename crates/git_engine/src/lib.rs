@@ -1,5 +1,6 @@
 mod ancestry;
 mod apply;
+mod bisect;
 mod blame;
 mod blame_origins;
 mod blobs;
@@ -68,6 +69,7 @@ mod topo;
 mod worktree;
 mod worktrees;
 
+pub use bisect::{BisectMark, BisectState, BisectTerms};
 pub use blame::BlameLine;
 pub use blame_origins::{
     BlameCommit, BlameReport, BlameSource, LineChange, OriginLine, PreviousFile,

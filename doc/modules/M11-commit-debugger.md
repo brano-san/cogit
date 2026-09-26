@@ -27,7 +27,7 @@
 | Merge | `The working tree is in merging-state.` | `Continue…` `Abort…` |
 | Cherry-pick | `The working tree is in cherry-picking-state.` | `Continue…` `Skip…` `Abort…` |
 | Revert | `The working tree is in reverting-state.` | `Continue…` `Abort…` |
-| Bisect | `The working tree is in bisecting-state.` | `Good` `Bad` `Reset` |
+| Bisect | `Bisect in progress` — что проверить или какой метки не хватает; в конце `First bad commit found` | `Mark as Good` `Mark as Bad` `Skip` `Reset`; в конце `Show Commit` `Reset` (F-567, F-568) |
 
 - [x] Состояние определяется по маркерам из [03-git-semantics.md §4](../03-git-semantics.md#4-состояния-репозитория)
 - [x] Обновляется по событиям `fs_watcher`, а не по таймеру

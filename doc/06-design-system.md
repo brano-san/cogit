@@ -122,6 +122,11 @@
 --graph-line          → --text-secondary
 --graph-branch-N      → --c-lane-N        N = 1…8, цвета отмеченных веток
 --graph-focus         → --status-ref      ветка выбранного коммита без своего цвета
+--graph-bisect-good   → --status-add      точка хорошего коммита bisect (F-566)
+--graph-bisect-bad    → --status-delete   точка плохого и первого плохого
+--graph-bisect-skip   → --text-secondary  точка пропущенного
+--graph-bisect-current → --c-modified-bg  фон строки коммита на проверке, полоса слева — --status-modify
+--graph-bisect-found  → --c-deleted-bg    фон строки первого плохого (и кандидатов, когда остались пропущенные)
 
 --indicator-changes   → --status-modify    незакоммиченные изменения (Repositories, метка worktree)
 --indicator-synced    → --status-add       чисто и всё запушено (метка worktree)

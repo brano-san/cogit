@@ -82,6 +82,8 @@
   import { refMenu } from "$lib/context-menu";
   import RefActions from "$components/menus/RefActions.svelte";
   import RefGroupActions from "$components/menus/RefGroupActions.svelte";
+  import BisectActions from "$components/menus/BisectActions.svelte";
+  import { bisectCommands } from "$lib/bisect";
   import { compareView } from "$stores/compare-view.svelte";
   import { confirmation } from "$stores/confirm.svelte";
   import { ON_MAC, effective, withShortcuts } from "$lib/keymap";
@@ -104,7 +106,7 @@
   import { moveEntry, planPublished } from "$lib/rebase-plan";
   import { splitRequest } from "$lib/split-off";
   import { readsAgain } from "$lib/file-view";
-  import { bannerQuestion, stateBanner, type BannerAction } from "$lib/repo-state";
+  import { abortAction, bannerQuestion, stateBanner, type BannerAction } from "$lib/repo-state";
   import { runCheckout } from "$lib/checkout-flow";
   import { autostashDialog } from "$stores/autostash-dialog.svelte";
   import { refActivation, type CheckoutRequest } from "$lib/ref-checkout";
@@ -421,12 +423,17 @@
   /** The banner belongs to whatever repository the panels are showing, and a submodule
       opened from the tree is a different case from one the user checked out (R-130). */
   const banner = $derived(
-    repo ? stateBanner(repo.state, repo.indexLock, submodules.open !== null) : null,
+    repo ? stateBanner(repo.state, repo.indexLock, submodules.open !== null, loadedSubject) : null,
   );
   const tracked = $derived(repository.localBranches.find((b) => b.isHead));
   /** The staged rows the Files list shows; null until it has said. */
   let shownStaged = $state.raw<string[] | null>(null);
   const scope = $derived(commitScope(worktree.staged, fileMask, shownStaged));
+  /** The subject of a commit the graph has loaded: the bisect banner names its commits. */
+  function loadedSubject(oid: string): string | null {
+    const at = graph.loadedIndexOf(oid);
+    return at === null ? null : (graph.rowAt(at)?.commit.summary ?? null);
+  }
   /** The subject of HEAD's commit titles the pull request; the graph has it loaded. */
   const headSummary = $derived.by(() => {
     const oid = repo && repo.head.kind !== "unborn" ? repo.head.oid : null;
@@ -925,9 +932,13 @@
       {
         id: "abort",
         title: "Abort Operation In Progress",
-        unavailable: banner?.actions.includes("abort") ? undefined : "Nothing is in progress",
-        run: () => void runBannerAction("abort"),
+        unavailable: abortAction(banner) ? undefined : "Nothing is in progress",
+        run: () => {
+          const action = abortAction(banner);
+          if (action) void runBannerAction(action);
+        },
       },
+      ...bisectCommands(repo?.state, (action) => bisectActions?.command(action)),
       ...remoteCommands(
         {
           repository: repo !== null,
@@ -1794,6 +1805,7 @@
   }
 
   async function runBannerAction(action: BannerAction) {
+    if (bisectActions?.claims(action)) return bisectActions.banner(action);
     const id = repository.current?.repo;
     const state = repository.current?.state;
     if (!id || !state) return;
@@ -2171,6 +2183,7 @@
   let refTarget = $state.raw<RefNode | null>(null);
   let refActions = $state<ReturnType<typeof RefActions>>();
   let refGroupActions = $state<ReturnType<typeof RefGroupActions>>();
+  let bisectActions = $state<ReturnType<typeof BisectActions>>();
   let fileTarget = $state.raw<FileScope | null>(null);
   let fileSection = $state<"worktree" | "index" | "commit">("worktree");
   let aboutOpen = $state(false);
@@ -3441,6 +3454,7 @@
       if (id === "toolbar-preferences") return openSettings("toolbar");
       if (refActions?.run(id)) return;
       if (refGroupActions?.run(id)) return;
+      if (bisectActions?.run(id)) return;
       if (runGroupCommand(id)) return;
       if (runRepoCommand(id)) return;
       if (runWorktreeCommand(id)) return;
@@ -3982,6 +3996,7 @@
     {openRebase}
     rollbackTree={() => rollbackFiles([])}
   />
+  <BisectActions bind:this={bisectActions} {afterRefChange} />
 
   <RefGroupActions
     bind:this={refGroupActions}

@@ -14,6 +14,11 @@
     skip: "Skip",
     abort: "Abort",
     createBranch: "Create Branch",
+    markGood: "Mark as Good",
+    markBad: "Mark as Bad",
+    markSkip: "Skip",
+    resetBisect: "Reset",
+    showFirstBad: "Show Commit",
   };
 </script>
 
