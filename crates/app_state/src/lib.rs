@@ -467,26 +467,6 @@ impl AppState {
         self.events.subscribe()
     }
 
-    /// Brackets one operation with a start and a finish event, so the toolbar can show a
-    /// spinner without every call site remembering to announce itself.
-    pub fn tracked<T, E>(&self, label: &str, work: impl FnOnce() -> Result<T, E>) -> Result<T, E> {
-        let mut operation = Operation {
-            id: self.next_entry_id.fetch_add(1, Ordering::Relaxed),
-            repo: None,
-            kind: OperationKind::Other,
-            label: label.to_owned(),
-            phase: OperationPhase::Running,
-            success: None,
-        };
-        self.emit(AppEvent::Operation(operation.clone()));
-
-        let result = work();
-        operation.phase = OperationPhase::Done;
-        operation.success = Some(result.is_ok());
-        self.emit(AppEvent::Operation(operation));
-        result
-    }
-
     pub fn emit(&self, event: AppEvent) {
         let _ = self.events.send(event);
     }
