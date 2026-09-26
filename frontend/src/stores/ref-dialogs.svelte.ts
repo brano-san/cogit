@@ -8,6 +8,7 @@ class RefDialogs {
   reset = $state.raw<{ oid: string; subject: string; moving: string } | null>(null);
   message = $state.raw<{ oid: string; message: string; parents: string[] } | null>(null);
   author = $state.raw<{ oid: string; name: string; email: string } | null>(null);
+  upstream = $state.raw<{ branch: string; current: string | null } | null>(null);
 
   close(): void {
     this.tag = null;
@@ -15,6 +16,7 @@ class RefDialogs {
     this.reset = null;
     this.message = null;
     this.author = null;
+    this.upstream = null;
   }
 }
 
