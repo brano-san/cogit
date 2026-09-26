@@ -341,7 +341,7 @@
   }
 
   function notOnBranch(): CogitError {
-    return new CogitError({ kind: "invalidState", data: "the commit is not on the checked-out branch" });
+    return new CogitError({ kind: "invalidState", data: "The commit is not on the checked-out branch." });
   }
 
   /** "With a warning if pushed": rewriting shared history is asked about first. */
