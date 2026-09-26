@@ -191,3 +191,13 @@ describe("graphFilterFields", () => {
     expect(DEFAULT_SETTINGS.graphFilterFields).not.toContain("content");
   });
 });
+
+describe("graphFilterPatterns", () => {
+  it("starts empty and keeps the text a file saved, once each", () => {
+    expect(DEFAULT_SETTINGS.graphFilterPatterns).toEqual([]);
+    expect(merge({ graphFilterPatterns: ["fix", 7, "fix", " feat "] } as never).graphFilterPatterns).toEqual([
+      "fix",
+      "feat",
+    ]);
+  });
+});
