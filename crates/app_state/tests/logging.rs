@@ -28,6 +28,21 @@ fn a_chosen_level_does_not_turn_the_dependencies_loud() {
     assert!(filter.contains("gix=warn"), "{filter}");
 }
 
+// Preferences showed `info` while a settings file without the key logged at `debug`, and
+// saving any other preference then wrote `info` and changed the log behind the user's back.
+#[test]
+fn no_level_chosen_is_the_level_preferences_shows() {
+    let frontend = include_str!("../../../frontend/src/lib/settings.ts");
+    let defaults = &frontend[frontend.find("DEFAULT_SETTINGS: Settings").unwrap()..];
+    let shown = defaults
+        .split_once("logLevel: \"")
+        .and_then(|(_, rest)| rest.split_once('"'))
+        .map(|(level, _)| level)
+        .unwrap();
+
+    assert_eq!(log_filter(None), log_filter(Some(shown)));
+}
+
 #[test]
 fn a_level_that_is_not_a_level_falls_back_to_the_default() {
     assert_eq!(log_filter(Some("shout")), log_filter(None));
@@ -233,10 +248,11 @@ fn the_profile_target_survives_a_quiet_log_level() {
 #[test]
 fn the_avatar_cache_is_in_the_log() {
     assert!(
-        log_filter(None).contains("avatars=debug"),
+        log_filter(None).contains("avatars=info"),
         "{}",
         log_filter(None)
     );
+    assert!(log_filter(Some("debug")).contains("avatars=debug"));
 }
 
 // The path kept at start-up is part one. Past 10 MB the session writes part two, and
