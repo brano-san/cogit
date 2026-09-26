@@ -17,8 +17,38 @@ pub enum RemoteDeletion {
     rename_all_fields = "camelCase"
 )]
 pub enum CheckoutTarget {
-    Branch { name: String },
-    Commit { oid: String },
+    Branch {
+        name: String,
+    },
+    Commit {
+        oid: String,
+    },
+    /// A local branch made at `start` and checked out; `track` makes `start`, a remote
+    /// branch, its upstream.
+    NewBranch {
+        name: String,
+        start: String,
+        track: bool,
+    },
+    /// An existing local branch moved forward to `to` and checked out; never back or
+    /// sideways.
+    FastForward {
+        name: String,
+        to: String,
+    },
+}
+
+impl CheckoutTarget {
+    /// What the safety journal says was checked out.
+    #[must_use]
+    pub fn described(&self) -> String {
+        match self {
+            Self::Branch { name } => name.clone(),
+            Self::Commit { oid } => oid.clone(),
+            Self::NewBranch { name, start, .. } => format!("new branch {name} at {start}"),
+            Self::FastForward { name, to } => format!("{name}, fast-forwarded to {to}"),
+        }
+    }
 }
 
 impl RepoHandle {
@@ -34,7 +64,32 @@ impl RepoHandle {
                 let oid = require_name(oid)?;
                 self.run_git(&["switch", "--detach", oid]).map(drop)
             }
+            CheckoutTarget::NewBranch { name, start, track } => {
+                let name = require_name(name)?;
+                let start = require_name(start)?;
+                // Explicit either way: `branch.autoSetupMerge` tracks a remote start unasked.
+                let track = if *track { "--track" } else { "--no-track" };
+                self.run_git(&["switch", track, "--create", name, start])
+                    .map(drop)
+            }
+            CheckoutTarget::FastForward { name, to } => self.fast_forward_to(name, to),
         }
+    }
+
+    /// `switch -C` resets the branch only after the working tree has switched, so a
+    /// refusal moves nothing. It is given the commit, not the remote ref: a ref as the
+    /// start point would set the upstream again.
+    fn fast_forward_to(&self, name: &str, to: &str) -> Result<()> {
+        let name = require_name(name)?;
+        let to = self.resolve_commit(require_name(to)?)?.to_string();
+        let branch = format!("refs/heads/{name}");
+        if !self.is_ancestor(&branch, &to)? {
+            return Err(GitError::InvalidState(format!(
+                "{name} has commits that {} does not; it cannot fast-forward",
+                to.get(..7).unwrap_or(&to)
+            )));
+        }
+        self.run_git(&["switch", "-C", name, &to]).map(drop)
     }
 
     /// Puts an existing branch back at `oid`. The checked-out one goes through
