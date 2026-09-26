@@ -49,6 +49,23 @@ fn collect(harness: &Harness) -> Vec<RepoChanged> {
     seen
 }
 
+/// The control after a test that expects silence: a watcher that stopped hearing anything,
+/// as one does after an overflow, would pass it too.
+fn still_hears(harness: &Harness) {
+    std::fs::write(
+        harness.root.join("control.txt"),
+        "edited
+",
+    )
+    .unwrap();
+    let seen = collect(harness);
+    let heard = seen
+        .iter()
+        .filter(|c| c.kind == ChangeKind::WorkingTree)
+        .count();
+    assert_eq!(heard, 1, "the watcher went deaf, got {seen:?}");
+}
+
 #[test]
 fn a_change_to_head_arrives_as_a_head_event() {
     let harness = start();
@@ -78,6 +95,7 @@ fn a_thousand_files_in_target_produce_no_events() {
         "INV-06: build output must be filtered out, got {} events",
         seen.len()
     );
+    still_hears(&harness);
 }
 
 #[test]
@@ -94,6 +112,7 @@ fn churn_in_git_objects_is_ignored() {
         collect(&harness).is_empty(),
         "a fetch writes thousands of loose objects and none of them matter"
     );
+    still_hears(&harness);
 }
 
 #[test]
