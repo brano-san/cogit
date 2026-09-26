@@ -333,3 +333,4 @@
 | F-523 | Папки неактивных репозиториев не заняты | [F-523-inactive-repository-folders-free.md](F-523-inactive-repository-folders-free.md) |
 | F-524 | Меню кнопок тулбара в узком окне и с клавиатуры | [F-524-toolbar-menus-narrow-and-keys.md](F-524-toolbar-menus-narrow-and-keys.md) |
 | F-532 | Диалог с набранным текстом не закрывается молча | [F-532-dialog-keeps-typed-text.md](F-532-dialog-keeps-typed-text.md) |
+| F-541 | Изменение, к которому перешли, вспыхивает | [F-541-diff-jump-flash.md](F-541-diff-jump-flash.md) |

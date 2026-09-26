@@ -3,6 +3,7 @@ import type { DiffRow, Hunk } from "./ipc/bindings";
 import {
   blockKeys,
   changeAt,
+  changeEnd,
   changeStarts,
   foldDiff,
   highlightedRows,
@@ -272,6 +273,14 @@ describe("blockKeys", () => {
 describe("change navigation (#13)", () => {
   it("finds where each run of changed rows starts", () => {
     expect(changeStarts([false, true, true, false, false, true, false, true])).toEqual([1, 5, 7]);
+  });
+
+  it("finds where the change a jump lands on ends, for its flash", () => {
+    const changed = [false, true, true, false, false, true, false, true];
+    expect(changeEnd(changed, 1)).toBe(3);
+    expect(changeEnd(changed, 5)).toBe(6);
+    expect(changeEnd(changed, 7)).toBe(8);
+    expect(changeEnd(changed, 3)).toBe(3);
   });
 
   it("is on the last change at or above the anchor row", () => {
