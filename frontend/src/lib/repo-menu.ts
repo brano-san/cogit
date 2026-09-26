@@ -82,7 +82,7 @@ export function repoMenu(at: RepoMenuTarget, desktop: DesktopInfo): ContextItem[
   const manager = desktop.fileManager;
 
   return tidy([
-    item("repo-open", "Open Repository", !at.active),
+    at.active ? item("repo-open", "Open Repository", false) : offer("repo-open", "Open Repository", gone),
     offer("repo-open-folder", `Open in ${manager}`, gone),
     offer("repo-reveal", `Reveal in ${manager}`, gone),
     offer("repo-terminal", "Open in Terminal", gone),
