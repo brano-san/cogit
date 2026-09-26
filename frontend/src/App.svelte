@@ -2923,8 +2923,6 @@
       forgetPanels();
       worktrees.ownerRoot = null;
       repository.close();
-      // The backend keeps the one it is told is shown; it is told nothing is, first.
-      await tick();
     }
     // In the frame the other panels empty in, not a round trip after them.
     if (last) graph.clear();

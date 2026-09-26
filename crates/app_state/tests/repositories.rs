@@ -281,8 +281,10 @@ fn closing_a_repository_closes_the_submodules_opened_from_it() {
     assert_eq!(state.repositories_held(), 0);
 }
 
+// The panels let go of it before its parent closes (FR-041); the close must not depend on
+// `show_repository(None)` landing first, the two run side by side (R-543).
 #[test]
-fn the_submodule_on_screen_stays_open_when_its_parent_closes() {
+fn the_submodule_on_screen_closes_with_its_parent() {
     let f = test_fixtures::with_submodule().unwrap();
     let state = AppState::new();
     let parent = state.open_repository(f.path()).unwrap().repo;
@@ -291,7 +293,65 @@ fn the_submodule_on_screen_stays_open_when_its_parent_closes() {
 
     state.close_repository(parent);
 
-    assert!(state.repo_status(child).is_ok(), "the panels still show it");
+    assert!(state.repo_status(child).is_err(), "it goes with its parent");
+    assert_eq!(state.repositories_held(), 0);
+}
+
+// Every re-read of the submodule on screen went through `open_repository` by its folder,
+// which lists what it opens: closing its parent then left it in the list as an entry of
+// its own (item 43 of 25.09).
+#[test]
+fn re_reading_the_submodule_on_screen_keeps_it_out_of_the_list() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let state = AppState::new();
+    let parent = state.open_repository(f.path()).unwrap().repo;
+    let child = state.open_submodule(parent, "vendor/lib").unwrap().repo;
+    state.show_repository(Some(child));
+
+    let again = state.reread_repository(child).unwrap();
+
+    assert_eq!(again.repo, child);
+    assert_eq!(
+        state.overviews().len(),
+        1,
+        "only the parent is an entry of the list"
+    );
+    state.close_repository(parent);
+    assert!(state.overviews().is_empty());
+    assert!(state.repo_status(child).is_err());
+}
+
+#[test]
+fn re_reading_a_listed_repository_keeps_its_id_and_its_entry() {
+    let f = test_fixtures::linear(2).unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    f.git(&["checkout", "-q", "-b", "elsewhere"]).unwrap();
+
+    let again = state.reread_repository(repo).unwrap();
+
+    assert_eq!(again.repo, repo);
+    assert!(matches!(again.head, git_engine::Head::Branch { ref name, .. } if name == "elsewhere"));
+    assert_eq!(state.overviews().len(), 1);
+}
+
+#[test]
+fn re_reading_a_closed_repository_says_it_was_closed() {
+    let f = test_fixtures::linear(1).unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    state.close_repository(repo);
+
+    let refused = state.reread_repository(repo).unwrap_err();
+
+    assert!(
+        matches!(&refused, GitError::InvalidState(text) if text.contains("closed in Cogit")),
+        "{refused:?}"
+    );
+    assert!(
+        state.overviews().is_empty(),
+        "a re-read never opens it again"
+    );
 }
 
 // A Blame window left open, its repository closed in the main window: F5 said "Not a Git
