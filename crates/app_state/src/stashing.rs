@@ -58,9 +58,11 @@ impl AppState {
         repo: RepoId,
         index: u32,
         pop: bool,
+        restore_index: bool,
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
-        self.handle(repo)?.stash_apply_index(index, pop)
+        self.handle(repo)?
+            .stash_apply_index(index, pop, restore_index)
     }
 
     /// Stash, switch, put back: one call, which the command runs as one operation (R-521).

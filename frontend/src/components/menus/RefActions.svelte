@@ -1,6 +1,7 @@
 <script lang="ts">
   import ConfirmDialog from "$components/common/ConfirmDialog.svelte";
   import AddTagDialog from "./AddTagDialog.svelte";
+  import ApplyStashDialog from "./ApplyStashDialog.svelte";
   import CheckoutDialog from "./CheckoutDialog.svelte";
   import EditAuthorDialog from "./EditAuthorDialog.svelte";
   import EditMessageDialog from "./EditMessageDialog.svelte";
@@ -251,9 +252,13 @@
     }
   }
 
+  function stashIndexOf(text: string): number {
+    return Number(/\{(\d+)\}/.exec(text)?.[1] ?? Number.NaN);
+  }
+
   /** A stash label in the graph gets the stash menu of Branches (#35). */
   async function stashLabelContext(text: string, oid: string, x: number, y: number) {
-    const index = Number(/\{(\d+)\}/.exec(text)?.[1] ?? Number.NaN);
+    const index = stashIndexOf(text);
     if (Number.isNaN(index)) return;
     const node: RefNode = { id: `stash:${index}`, kind: "stash", label: text, depth: 1, rev: text, oid };
     await branchesContext(node, x, y);
@@ -498,13 +503,12 @@
         }
         return;
       case "apply-stash":
+        if (at.stash) refDialogs.applyStash = at.stash;
+        return;
       case "pop-stash":
         if (at.stash) {
           const index = at.stash.index;
-          const pop = name === "pop-stash";
-          await attempt(pop ? "Could not pop the stash" : "Could not apply the stash", () =>
-            stashes.apply(id, index, pop),
-          );
+          await attempt("Could not pop the stash", () => stashes.apply(id, index, true));
         }
         return;
       case "rename-stash":
@@ -559,12 +563,38 @@
     offerCheckout({ ref: null, branch: null, oid }, "graph");
   }
 
-  /** A double click on a graph label: its menu's Check Out (R-561). */
+  /** A double click on a graph label: its menu's Check Out (R-561), a stash's Apply Stash. */
   export function checkOutLabel(label: RefLabel, oid: string) {
     const summary = repository.current;
-    if (!summary || label.kind === "stash") return;
+    if (!summary) return;
+    if (label.kind === "stash") {
+      openApplyStash(stashIndexOf(label.text));
+      return;
+    }
     const found = labelTarget(label, summary.branches, summary.tags, worktreeMarks(worktrees.entries, summary.branches));
     if (found) offerCheckout({ ...found, oid }, "graph");
+  }
+
+  /** Apply Stash (item 40): a double click on a stash in Branches or the graph, and the
+      menu's Apply Stash. */
+  function openApplyStash(index: number) {
+    const entry = stashes.entries.find((stash) => stash.index === index);
+    if (entry) refDialogs.applyStash = { index, message: entry.message };
+  }
+
+  export function applyStashNode(node: RefNode) {
+    openApplyStash(Number(node.id.slice("stash:".length)));
+  }
+
+  async function applyPickedStash(drop: boolean, restoreIndex: boolean) {
+    const id = repoId();
+    const stash = refDialogs.applyStash;
+    refDialogs.applyStash = null;
+    if (!id || !stash) return;
+    // A conflicted apply still changed the working tree: `attempt` reads back either way.
+    await attempt(drop ? "Could not apply and drop the stash" : "Could not apply the stash", () =>
+      stashes.apply(id, stash.index, drop, restoreIndex),
+    );
   }
 
   async function modify(id: RepoId, at: Target) {
@@ -879,6 +909,15 @@
     branches={repository.current?.branches ?? []}
     oncheckout={(pick, dontShowAgain) => void checkOutPicked(pick, dontShowAgain)}
     onclose={() => (refDialogs.checkout = null)}
+  />
+{/if}
+
+{#if refDialogs.applyStash}
+  <ApplyStashDialog
+    index={refDialogs.applyStash.index}
+    message={refDialogs.applyStash.message}
+    onapply={(drop, restoreIndex) => void applyPickedStash(drop, restoreIndex)}
+    onclose={() => (refDialogs.applyStash = null)}
   />
 {/if}
 
