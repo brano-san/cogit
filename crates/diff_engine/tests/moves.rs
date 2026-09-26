@@ -21,9 +21,10 @@ fn moved(rows: &[DiffRow]) -> usize {
         .count()
 }
 
-/// A block long enough to count, moved from the top of the file to the bottom.
+/// A block long enough to count (three lines, twenty letters and digits), moved from the top
+/// of the file to the bottom.
 fn moved_block() -> (String, String) {
-    let block = "fn helper() {\n    one();\n    two();\n    three();\n}\n";
+    let block = "fn helper() {\n    first();\n    second();\n    third();\n}\n";
     let rest: String = (0..10).map(|i| format!("line {i}\n")).collect();
     (format!("{block}{rest}"), format!("{rest}{block}"))
 }
@@ -58,7 +59,7 @@ fn a_block_shorter_than_the_threshold_is_not_a_move() {
 
 #[test]
 fn indentation_alone_does_not_hide_a_move() {
-    let block = "fn helper() {\n    one();\n    two();\n    three();\n}\n";
+    let block = "fn helper() {\n    first();\n    second();\n    third();\n}\n";
     let indented: String = block.lines().map(|l| format!("    {l}\n")).collect();
     let rest: String = (0..10).map(|i| format!("line {i}\n")).collect();
 
@@ -68,6 +69,28 @@ fn indentation_alone_does_not_hide_a_move() {
         moved(&rows) > 0,
         "Git ignores indentation here too: {rows:#?}"
     );
+}
+
+/// Three deleted braces far apart and three inserted together are not one block: git ends
+/// a moved block at the first line that stayed.
+#[test]
+fn rows_a_kept_line_separates_are_not_one_move() {
+    let old = "A\n}\nB\n}\nC\n}\nD\n";
+    let new = "A\nB\nC\nD\n}\n}\n}\n";
+
+    assert_eq!(moved(&rows(old, new)), 0, "{:#?}", rows(old, new));
+}
+
+/// Git's `COLOR_MOVED_MIN_ALNUM_COUNT`: a block with fewer than 20 letters and digits is
+/// braces and blank lines that happen to repeat.
+#[test]
+fn a_block_of_braces_is_not_a_move() {
+    let rest: String = (0..10).map(|i| format!("line {i}\n")).collect();
+    let braces = "}\n}\n}\n";
+
+    let rows = rows(&format!("{braces}{rest}"), &format!("{rest}{braces}"));
+
+    assert_eq!(moved(&rows), 0, "{rows:#?}");
 }
 
 #[test]
@@ -103,8 +126,8 @@ fn the_text_of_a_moved_line_is_untouched() {
 
 #[test]
 fn two_separate_moves_are_both_found() {
-    let first = "fn a() {\n    one();\n    two();\n}\n";
-    let second = "fn b() {\n    three();\n    four();\n}\n";
+    let first = "fn alpha() {\n    first_call();\n    second_call();\n}\n";
+    let second = "fn beta() {\n    third_call();\n    fourth_call();\n}\n";
     let rest: String = (0..10).map(|i| format!("line {i}\n")).collect();
 
     let rows = rows(
@@ -164,8 +187,8 @@ fn both_ends_of_a_move_share_one_identifier() {
 
 #[test]
 fn two_separate_moves_get_two_identifiers() {
-    let first = "fn a() {\n    one();\n    two();\n}\n";
-    let second = "fn b() {\n    three();\n    four();\n}\n";
+    let first = "fn alpha() {\n    first_call();\n    second_call();\n}\n";
+    let second = "fn beta() {\n    third_call();\n    fourth_call();\n}\n";
     let rest: String = (0..10).map(|i| format!("line {i}\n")).collect();
 
     let rows = rows(
@@ -207,7 +230,7 @@ fn every_row_marked_moved_carries_an_identifier() {
 // with the same insertion, so one move had a deletion and no insertion to point at.
 #[test]
 fn one_insertion_is_the_end_of_one_move_only() {
-    let block = "alpha();\nbeta();\ngamma();\n";
+    let block = "alpha_step();\nbeta_step();\ngamma_step();\n";
     let old = format!("{block}middle();\n{block}");
     // Indented where it went, so neither copy lines up with it as unchanged context.
     let indented: String = block.lines().map(|line| format!("    {line}\n")).collect();

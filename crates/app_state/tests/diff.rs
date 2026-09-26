@@ -212,7 +212,7 @@ fn a_hunk_header_names_the_function_it_is_inside() {
 
 #[test]
 fn move_detection_can_be_turned_off() {
-    let block = "alpha\nbeta\ngamma\n";
+    let block = "alpha_step\nbeta_step\ngamma_step\n";
     let body = "one\ntwo\nthree\nfour\nfive\n";
     let f = test_fixtures::linear(1).unwrap();
     std::fs::write(f.path().join("moved.txt"), format!("{block}{body}")).unwrap();
@@ -251,7 +251,7 @@ fn move_detection_can_be_turned_off() {
 
 #[test]
 fn move_detection_is_on_by_default() {
-    let block = "alpha\nbeta\ngamma\n";
+    let block = "alpha_step\nbeta_step\ngamma_step\n";
     let body = "one\ntwo\nthree\nfour\nfive\n";
     let f = test_fixtures::linear(1).unwrap();
     std::fs::write(f.path().join("moved.txt"), format!("{block}{body}")).unwrap();
