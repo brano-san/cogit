@@ -294,3 +294,60 @@ fn a_rebuilt_graph_keeps_the_texts_read_for_the_last_one() {
     assert!(state.graph_texts_read(ra) >= 300);
     assert!(texts_reach(&state, ra, 301));
 }
+
+/// Whether graph `generation` of `repo` leaves the cache within a while.
+fn evicted_soon(state: &AppState, repo: RepoId, generation: u32) -> bool {
+    let until = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    while std::time::Instant::now() < until {
+        if state.graph_window(repo, generation, 0, 1).is_none() {
+            return true;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    false
+}
+
+/// Texts read ahead count toward the budget (R-303), though they come after the walk that
+/// last trimmed the cache.
+#[test]
+fn texts_read_ahead_push_an_older_graph_out_of_a_full_cache() {
+    let a = test_fixtures::linear(300).unwrap();
+    let b = test_fixtures::linear(300).unwrap();
+    let state = AppState::new();
+    let ra = state.open_repository(a.path()).unwrap().repo;
+    let rb = state.open_repository(b.path()).unwrap().repo;
+    let (shown_a, _) = build(&state, ra);
+    assert!(texts_reach(&state, ra, 300));
+    let whole = state.graph_footprint(ra);
+
+    // Room for A and B's rows, not for B's texts as well.
+    state.set_graph_cache_budget(2 * whole - 1);
+    build(&state, rb);
+    assert!(
+        state.graph_window(ra, shown_a, 0, 1).is_some(),
+        "B's rows alone fit beside A"
+    );
+    assert!(texts_reach(&state, rb, 300));
+
+    assert!(evicted_soon(&state, ra, shown_a));
+}
+
+/// Switching back is answered from the cache, and a cache over its budget is trimmed then.
+#[test]
+fn a_graph_answered_from_the_cache_trims_the_cache_too() {
+    let a = test_fixtures::linear(300).unwrap();
+    let b = test_fixtures::linear(300).unwrap();
+    let state = AppState::new();
+    let ra = state.open_repository(a.path()).unwrap().repo;
+    let rb = state.open_repository(b.path()).unwrap().repo;
+    build(&state, ra);
+    assert!(texts_reach(&state, ra, 300));
+    let (shown_b, _) = build(&state, rb);
+    assert!(texts_reach(&state, rb, 300));
+
+    state.set_graph_cache_budget(state.graph_footprint(ra) + state.graph_footprint(rb) - 1);
+    let (_, progress) = build(&state, ra);
+
+    assert_eq!(totals(&progress), [300], "from the cache");
+    assert!(state.graph_window(rb, shown_b, 0, 1).is_none());
+}

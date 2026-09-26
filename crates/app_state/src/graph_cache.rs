@@ -10,7 +10,7 @@ use git_engine::{
     SkippedRef, WalkedHistory,
 };
 use graph_engine::GraphRow;
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock};
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -167,6 +167,11 @@ impl Graph {
         self.shown.laid.total()
     }
 
+    /// What the cache's budget counts for this graph.
+    fn footprint(&self) -> usize {
+        self.bytes + self.shown.texts.as_ref().map_or(0, |t| t.lock().bytes)
+    }
+
     /// The same rows: same query over the same refs. A filtered list matched its authors
     /// through the mailmap, so it needs that to be the same too.
     fn answers(&self, query: &CommitQuery, refs: Option<u64>, mailmap: &Arc<Mailmap>) -> bool {
@@ -224,10 +229,16 @@ struct Prefill {
     texts: Weak<Mutex<Texts>>,
     walks: Arc<AtomicU64>,
     since: u64,
+    /// Trimmed once the texts are in: they count toward its budget.
+    cache: Weak<RwLock<GraphCache>>,
 }
 
 /// `None` when the rows carry their text or a reader is already on these texts.
-fn prefill_of(shown: &Shown, walks: &Arc<AtomicU64>) -> Option<Prefill> {
+fn prefill_of(
+    shown: &Shown,
+    walks: &Arc<AtomicU64>,
+    cache: Weak<RwLock<GraphCache>>,
+) -> Option<Prefill> {
     let texts = shown.texts.as_ref()?;
     {
         let mut texts = texts.lock();
@@ -241,6 +252,7 @@ fn prefill_of(shown: &Shown, walks: &Arc<AtomicU64>) -> Option<Prefill> {
         texts: Arc::downgrade(texts),
         walks: Arc::clone(walks),
         since: walks.load(Ordering::SeqCst),
+        cache,
     })
 }
 
@@ -250,6 +262,11 @@ impl Prefill {
         let read = self.read(root);
         if let Some(texts) = self.texts.upgrade() {
             texts.lock().filling = false;
+        }
+        // The texts came after the walk that last trimmed the cache.
+        if let Some(cache) = self.cache.upgrade() {
+            let evicted = cache.write().trim_newest();
+            drop(evicted);
         }
         match read {
             Ok(rows) => tracing::info!(
@@ -318,6 +335,8 @@ pub(crate) struct GraphCache {
     clock: u64,
     /// Bumped by every walk: a background reader stops rather than compete with one.
     walks: Arc<AtomicU64>,
+    /// `GRAPH_CACHE_BYTES` unless a test set another.
+    budget: Option<usize>,
 }
 
 impl GraphCache {
@@ -347,22 +366,30 @@ impl GraphCache {
 
     /// The graphs evicted, for the caller to [`release`] once the lock is let go.
     #[must_use]
-    fn trim(&mut self, keep: RepoId, budget: usize) -> Vec<Graph> {
+    fn trim(&mut self, keep: RepoId) -> Vec<Graph> {
         let sizes: Vec<(RepoId, usize, u64)> = self
             .graphs
             .iter()
-            .map(|(repo, graph)| {
-                let texts = graph.shown.texts.as_ref().map_or(0, |t| t.lock().bytes);
-                (*repo, graph.bytes + texts, graph.used)
-            })
+            .map(|(repo, graph)| (*repo, graph.footprint(), graph.used))
             .collect();
-        evicted(&sizes, keep, budget)
+        evicted(&sizes, keep, self.budget.unwrap_or(GRAPH_CACHE_BYTES))
             .into_iter()
             .filter_map(|repo| {
                 tracing::info!(repo = repo.0, "commit graph dropped from the cache");
                 self.graphs.remove(&repo)
             })
             .collect()
+    }
+
+    /// `trim`, keeping the graph asked for last.
+    #[must_use]
+    fn trim_newest(&mut self) -> Vec<Graph> {
+        let newest = self
+            .graphs
+            .iter()
+            .max_by_key(|(_, graph)| graph.used)
+            .map(|(repo, _)| *repo);
+        newest.map_or_else(Vec::new, |repo| self.trim(repo))
     }
 }
 
@@ -467,9 +494,13 @@ impl AppState {
                     graph.shown.generation = generation;
                     graph.used = used;
                     let skipped = graph.skipped.clone();
-                    let prefill = prefill_of(&graph.shown, &walks);
+                    let prefill = prefill_of(&graph.shown, &walks, Arc::downgrade(&self.graph));
+                    let evicted = cache.trim(repo);
                     drop(cache);
                     drop(renamed);
+                    if !evicted.is_empty() {
+                        release(evicted);
+                    }
                     self.prefill(repo, prefill);
                     tracing::info!(
                         repo = repo.0,
@@ -567,7 +598,7 @@ impl AppState {
                 graph.bytes += record.bytes();
                 Arc::make_mut(&mut graph.shown.laid).history = record;
                 graph.base = None;
-                prefill = prefill_of(&graph.shown, &walks);
+                prefill = prefill_of(&graph.shown, &walks, Arc::downgrade(&self.graph));
                 tracing::info!(
                     repo = repo.0,
                     rows = graph.total(),
@@ -578,7 +609,7 @@ impl AppState {
                 );
             }
         }
-        let evicted = cache.trim(repo, GRAPH_CACHE_BYTES);
+        let evicted = cache.trim(repo);
         drop(cache);
         if !evicted.is_empty() {
             release(evicted);
@@ -688,6 +719,21 @@ impl AppState {
             .get(&repo)
             .and_then(|graph| graph.shown.texts.as_ref())
             .map_or(0, |texts| texts.lock().by_oid.len())
+    }
+
+    /// What the cache's budget counts for the graph of `repo`; 0 without one. For tests.
+    #[must_use]
+    pub fn graph_footprint(&self, repo: RepoId) -> usize {
+        self.graph
+            .read()
+            .graphs
+            .get(&repo)
+            .map_or(0, Graph::footprint)
+    }
+
+    /// Another budget for the cache: filling the real one takes four large histories.
+    pub fn set_graph_cache_budget(&self, bytes: usize) {
+        self.graph.write().budget = Some(bytes);
     }
 
     pub(crate) fn forget_graph(&self, repo: RepoId) {
