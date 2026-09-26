@@ -138,10 +138,10 @@ export const CATEGORIES: Category[] = [
         fields: [
           { key: "laneWidth", label: "Lane width", keywords: ["column", "spacing"] },
           {
-            key: "coloredLanes",
-            label: "Coloured branch lines",
-            hint: "Off: the main line is light and every other line one grey.",
-            keywords: ["colour", "color", "lanes", "branches", "rainbow"],
+            key: "graphColoring",
+            label: "Coloring",
+            hint: "The same four as in the menu beside the Graph filter.",
+            keywords: ["colour", "color", "lanes", "branches", "rainbow", "varying", "mergeable", "branch", "default"],
           },
           {
             key: "graphHighlightChecked",
@@ -164,11 +164,6 @@ export const CATEGORIES: Category[] = [
             label: "First parents only",
             hint: "One line of history: what was merged in is not listed.",
             keywords: ["first-parent", "linear", "mainline"],
-          },
-          {
-            key: "graphBranchOfCommit",
-            label: "Highlight the branch of the clicked commit",
-            keywords: ["branch", "highlight", "click"],
           },
           {
             key: "graphAncestry",

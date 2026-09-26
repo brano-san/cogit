@@ -15,6 +15,9 @@ pub struct PaintSpec {
     pub tips: Vec<(u32, u8)>,
     /// All but this commit, its ancestors and descendants is dimmed.
     pub ancestry_of: Option<u32>,
+    /// All but what a merge of this commit into the main line would bring is dimmed;
+    /// it outranks `ancestry_of`.
+    pub mergeable_of: Option<u32>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -326,6 +329,29 @@ fn ancestry(parents: &[Vec<Option<u32>>], chosen: u32, len: usize) -> Vec<u8> {
     kin
 }
 
+/// The chosen commit and its ancestors the main line does not have yet.
+fn mergeable(rows: &[GraphRow], parents: &[Vec<Option<u32>>], chosen: u32) -> Vec<u8> {
+    let shared = main_history(rows, parents);
+    let mut kin = vec![0_u8; rows.len()];
+    let chosen = chosen as usize;
+    if chosen >= rows.len() || shared[chosen] {
+        return kin;
+    }
+    kin[chosen] = CHOSEN;
+    for row in chosen..rows.len() {
+        if kin[row] < CHOSEN {
+            continue;
+        }
+        for &parent in parents.get(row).into_iter().flatten().flatten() {
+            let parent = parent as usize;
+            if parent < kin.len() && !shared[parent] {
+                kin[parent] = ANCESTOR;
+            }
+        }
+    }
+    kin
+}
+
 /// `parents`: per row, the rows of its parents as laid out, `None` when not listed;
 /// `row_of` finds the row of a commit at the far end of a cut link.
 #[must_use]
@@ -337,9 +363,11 @@ pub fn paint(
 ) -> Paint {
     let trace = trace(rows, parents, row_of);
     let claimed = chains(rows, parents, &spec.tips);
-    let kin = spec
-        .ancestry_of
-        .map(|chosen| ancestry(parents, chosen, rows.len()));
+    let kin = match (spec.mergeable_of, spec.ancestry_of) {
+        (Some(chosen), _) => Some(mergeable(rows, parents, chosen)),
+        (None, Some(chosen)) => Some(ancestry(parents, chosen, rows.len())),
+        (None, None) => None,
+    };
     let slot_of = |row: u32| claimed.get(row as usize).copied().unwrap_or(0);
     let kin_of = |row: u32| {
         kin.as_ref()

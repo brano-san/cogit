@@ -3433,7 +3433,12 @@
           >
             {#snippet actions()}
               {#if repo}
-                <GraphHeader onchange={filterGraph} matches={graph.total} query={graph.query} />
+                <GraphHeader
+                  onchange={filterGraph}
+                  matches={graph.total}
+                  query={graph.query}
+                  onpreferences={() => openSettings("graph")}
+                />
               {/if}
             {/snippet}
             {#if describeSkipped(graph.skipped)}

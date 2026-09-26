@@ -11,6 +11,7 @@
   } from "$lib/graph-columns";
   import { blockedModes, GRAPH_MODES, type GraphMode } from "$lib/graph-mode-conflicts";
   import { FIELD_LABELS, FILTER_FIELDS, toggled } from "$lib/filter-fields";
+  import { COLORING_LABELS, GRAPH_COLORINGS } from "$lib/graph-coloring";
   import { forget } from "$lib/filter-patterns";
   import { fieldDisabled, type Field } from "$lib/preferences";
   import { LONG_LINK_ROWS_MAX, type Settings } from "$lib/settings";
@@ -140,6 +141,22 @@
     <div class="options">
       {#each DENSITIES as [id, title] (id)}
         <Radio name="graphDensity" checked={value.graphDensity === id} onchange={() => onset("graphDensity", id)} label={title} />
+      {/each}
+    </div>
+  </div>
+{:else if field.key === "graphColoring"}
+  <div class="row choice">
+    <span>{field.label}</span>
+    <div class="options" role="radiogroup" aria-label={field.label}>
+      {#each GRAPH_COLORINGS as coloring (coloring)}
+        <span title={COLORING_LABELS[coloring].hint}>
+          <Radio
+            name="graphColoring"
+            checked={value.graphColoring === coloring}
+            onchange={() => onset("graphColoring", coloring)}
+            label={COLORING_LABELS[coloring].label}
+          />
+        </span>
       {/each}
     </div>
   </div>

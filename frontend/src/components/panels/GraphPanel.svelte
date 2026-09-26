@@ -88,7 +88,7 @@
     longLinkRows={settings.current.graphLongLinkRows}
     highlightChecked={settings.current.graphHighlightChecked}
     firstParent={settings.current.graphFirstParent}
-    branchOfCommit={settings.current.graphBranchOfCommit}
+    coloring={settings.current.graphColoring}
     ancestry={settings.current.graphAncestry}
     collapseMerged={settings.current.graphCollapseMerged}
   />

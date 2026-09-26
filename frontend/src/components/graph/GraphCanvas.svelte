@@ -79,7 +79,7 @@
     const token = (name: string) => styles.getPropertyValue(name).trim();
     const main = token("--graph-main");
     const line = token("--graph-line");
-    const options = { colouredLanes: settings.current.coloredLanes, focusLane };
+    const options = { colouredLanes: settings.current.graphColoring === "varying", focusLane };
     const colours = new Map<string, string>();
     const colour = (name: string) => {
       if (!colours.has(name)) colours.set(name, token(name) || line);
@@ -183,7 +183,7 @@
     // Theme, lane width and colour change the picture without changing the data.
     void [rows, scrollTop, width, height, dpr, headRow, headLane, selectedRows, hoverRow, focusLane];
     void [clipX, stripes, rowHeight];
-    void [settings.current.theme, settings.current.laneWidth, settings.current.coloredLanes];
+    void [settings.current.theme, settings.current.laneWidth, settings.current.graphColoring];
     if (drawsNow(drawnBox, canvasBox(width, height, dpr))) {
       cancelAnimationFrame(frame);
       draw();

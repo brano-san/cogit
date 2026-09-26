@@ -58,6 +58,7 @@
     paintRequest,
     type LanePick,
   } from "$lib/graph-modes";
+  import type { GraphColoring } from "$lib/graph-coloring";
   import { graphFolds } from "$stores/graph-folds.svelte";
   import { graphNav } from "$stores/graph-nav.svelte";
   import { laneAt } from "$lib/graph-style";
@@ -85,8 +86,9 @@
     highlightChecked?: boolean;
     /** First parents only (`graphFirstParent`). */
     firstParent?: boolean;
-    /** A click on a commit or its line brings its branch forward (`graphBranchOfCommit`). */
-    branchOfCommit?: boolean;
+    /** SmartGit's colorings (`graphColoring`): `branch` brings the clicked commit's branch
+        forward, `mergeable` dims all a merge of the selected commit would not bring. */
+    coloring?: GraphColoring;
     /** The chosen commit's ancestors and descendants stand out (`graphAncestry`). */
     ancestry?: boolean;
     /** A merged branch folds into its merge row (`graphCollapseMerged`). */
@@ -109,7 +111,7 @@
     onclearfilter,
     highlightChecked = GRAPH_MODE_DEFAULTS.highlightChecked,
     firstParent = GRAPH_MODE_DEFAULTS.firstParent,
-    branchOfCommit = GRAPH_MODE_DEFAULTS.branchOfCommit,
+    coloring = GRAPH_MODE_DEFAULTS.coloring,
     ancestry = GRAPH_MODE_DEFAULTS.ancestry,
     collapseMerged = GRAPH_MODE_DEFAULTS.collapseMerged,
     columns = GRAPH_COLUMNS,
@@ -128,7 +130,7 @@
   });
 
   const modes = $derived(
-    effectiveModes({ highlightChecked, firstParent, branchOfCommit, ancestry, collapseMerged }),
+    effectiveModes({ highlightChecked, firstParent, coloring, ancestry, collapseMerged }),
   );
   $effect(() => graphFolds.forRepo(repository.current?.repo ?? null));
   $effect(() => {
@@ -458,7 +460,7 @@
     const oid = clickedCommit(hit.row, headerRows, (row) => graph.rowAt(row)?.commit.oid);
     if (oid === undefined) return;
     const layout = commitRow === null ? undefined : graph.rowAt(commitRow)?.layout;
-    if (branchOfCommit && oid !== null && layout && commitRow !== null) {
+    if (modes.coloring === "branch" && oid !== null && layout && commitRow !== null) {
       const upper = (event.clientY - box.top + scrollTop) % rowHeight < rowHeight / 2;
       const lane = laneAt(layout, graphOverlays.paintAt(commitRow), hit.lane, upper);
       lanePick = lane === null ? null : { oid, lane, walk: walkKey };
