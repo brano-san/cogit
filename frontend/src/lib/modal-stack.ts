@@ -6,6 +6,7 @@ import { onDestroy } from "svelte";
     (doc/11 §1: modal > panel > global). */
 export class ModalStack {
   #layers: symbol[] = [];
+  #unsaved = new Map<symbol, string>();
 
   open(): symbol {
     const layer = Symbol("modal");
@@ -16,10 +17,28 @@ export class ModalStack {
   close(layer: symbol): void {
     const at = this.#layers.indexOf(layer);
     if (at >= 0) this.#layers.splice(at, 1);
+    this.#unsaved.delete(layer);
+  }
+
+  /** A layer holding typed work, under the name closing the window asks about; `null` once
+      it holds none (R-515). */
+  markUnsaved(layer: symbol, name: string | null): void {
+    if (name === null || !this.#layers.includes(layer)) this.#unsaved.delete(layer);
+    else this.#unsaved.set(layer, name);
+  }
+
+  get unsaved(): string[] {
+    return [...this.#unsaved.values()];
   }
 
   isTop(layer: symbol): boolean {
     return this.#layers.at(-1) === layer;
+  }
+
+  /** How many layers lie under this one: a dialog paints by it, so the question a dialog
+      asks covers it wherever in the page the question is mounted. */
+  depth(layer: symbol): number {
+    return Math.max(0, this.#layers.indexOf(layer));
   }
 
   get any(): boolean {
