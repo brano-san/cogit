@@ -1228,6 +1228,20 @@
     return true;
   }
 
+  /** A fetch moves only remote-tracking refs: the refs and the graph are read again, the
+      selected commit and the open diff stay. Which commits are published may have changed. */
+  async function afterFetch(worked: RepoId) {
+    const id = repository.current?.repo;
+    if (!id || worked !== id) return;
+    const epoch = repository.epoch;
+    protection = new Map();
+    await repository.refreshRefs();
+    if (repository.epoch !== epoch) return;
+    await afterMutation();
+    if (repository.epoch !== epoch) return;
+    void graph.load(id, graph.query);
+  }
+
   /** `worked` is the repository the change was made in; once the panels show another,
       reloading them would clear that one's selection and diff for nothing. */
   async function afterRefChange(worked?: RepoId) {
@@ -1624,7 +1638,8 @@
       return;
     }
     if (kind === "fetch") repoPulse.fetched(root);
-    if (repository.epoch === epoch) await afterRefChange(id);
+    if (repository.epoch !== epoch) return;
+    await (kind === "fetch" ? afterFetch(id) : afterRefChange(id));
   }
 
   /** Pull as the toolbar's own choices say: which remotes to fetch first, whether to delete
@@ -1684,7 +1699,7 @@
         errors.report(err, `Could not fetch ${remote}`);
       }
     }
-    await afterRefChange(id);
+    await afterFetch(id);
   }
 
   /** The Stash dialog: a name and Stash All, + Keep Index or + Keep Working Tree (#29). */
@@ -2411,7 +2426,9 @@
     bulk = undefined;
     watch.stop(`${targets.length} repositories, ${failed} failed`);
     await repository.refreshList();
-    await afterRefChange();
+    // The panels reload only when they show one of those fetched, and keep their selection.
+    const shown = repository.current?.repo;
+    if (shown && targets.some((entry) => entry.repo === shown)) await afterFetch(shown);
   }
 
   /** For a repository the panels may not show: the remote its HEAD branch tracks, else
