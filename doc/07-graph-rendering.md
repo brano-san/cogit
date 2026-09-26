@@ -221,7 +221,7 @@ remote совпадали) по модулю 8: цвет не зависит о�
 ### Геометрия
 
 ```
-LANE_WIDTH      = 16 px   шаг колонок (настройка Lane width)
+LANE_WIDTH      = 16 px   шаг колонок (настройка Lane width, 12–48 px: уже — кольца слипаются)
 LEFT_PAD        = 10 px
 RING_RADIUS     = 3.5 px  обводка 1.5 px: снаружи 8.5 px
 LINE_WIDTH      = 2 px
