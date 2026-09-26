@@ -99,6 +99,7 @@
   import { readsAgain } from "$lib/file-view";
   import { bannerQuestion, stateBanner, type BannerAction } from "$lib/repo-state";
   import { runCheckout } from "$lib/checkout-flow";
+  import { autostashDialog } from "$stores/autostash-dialog.svelte";
   import { refActivation, type CheckoutRequest } from "$lib/ref-checkout";
   import { foundStep } from "$lib/found";
   import { revealRef } from "$lib/ref-reveal";
@@ -1359,9 +1360,10 @@
     await runCheckout(request, {
       elsewhere: (branch) => heldElsewhere(id, branch),
       checkout: (target) => checkout(id, target),
-      ask: (question) => confirmation.ask({ title: "Check Out", message: question, confirm: "Stash and Check Out" }),
-      autostash: (target, message) => runSwitchWithAutostash(id, target, message),
+      ask: (question) => autostashDialog.ask(question),
+      autostash: (target, message, drop) => runSwitchWithAutostash(id, target, message, drop),
       report: (err, title) => errors.report(err, title),
+      inform: (title, body) => notices.inform(title, body),
       after: () => afterRefChange(id),
     });
   }

@@ -74,8 +74,8 @@ export const commands = {
 	discardPaths: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("discard_paths", { repo, paths })),
 	commit: (repo: RepoId, request: CommitRequest) => typedError<string, GitError>(__TAURI_INVOKE("commit", { repo, request })),
 	checkout: (repo: RepoId, target: CheckoutTarget) => typedError<null, GitError>(__TAURI_INVOKE("checkout", { repo, target })),
-	/**  Stash, switch, put the changes back: one operation of the lane (R-521). */
-	switchWithAutostash: (repo: RepoId, target: CheckoutTarget, message: string) => typedError<null, GitError>(__TAURI_INVOKE("switch_with_autostash", { repo, target, message })),
+	/**  Stash, check out, apply the stash: one operation of the lane (R-521, R-563). */
+	switchWithAutostash: (repo: RepoId, target: CheckoutTarget, message: string, dropAfterClean: boolean) => typedError<AutostashOutcome, GitError>(__TAURI_INVOKE("switch_with_autostash", { repo, target, message, dropAfterClean })),
 	createBranch: (repo: RepoId, name: string, start: string | null, switchTo: boolean) => typedError<null, GitError>(__TAURI_INVOKE("create_branch", { repo, name, start, switchTo })),
 	deleteBranch: (repo: RepoId, name: string, force: boolean) => typedError<null, GitError>(__TAURI_INVOKE("delete_branch", { repo, name, force })),
 	/**  In the blocking pool: the whole journal can be a hundred megabyte-sized entries. */
@@ -466,6 +466,16 @@ export type Author = {
 	name: string,
 	email: string,
 };
+
+/**  Where the changes a checkout carried over ended up (item 46 of 25.09). */
+export type AutostashOutcome = 
+/**  Back in the working tree, and no stash is left of them. */
+{ kind: "restored" } | 
+/**
+ *  Also in `stash@{0}`: asked to keep it, or `clean` is false and the apply conflicted
+ *  or was refused.
+ */
+{ kind: "kept"; clean: boolean };
 
 /**  Mirrors `app_state::AppEvent::AvatarReady`: one row can redraw without a refetch. */
 export type AvatarReady = {

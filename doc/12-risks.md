@@ -872,7 +872,8 @@ IPC-вызов, поэтому UI всегда читает актуальный
 операцию.
 
 **Цена:** `stash pop` после переключения может дать конфликт. Это честный исход, его
-подхватывает баннер состояния репозитория.
+подхватывает баннер состояния репозитория. (**Заменено R-563:** `apply`, а stash с
+конфликтом остаётся в списке.)
 
 ## R-55 · Журнал доказывался пятьюстами процессами git · Н
 
@@ -6543,6 +6544,10 @@ stash, вставшая в очередь между шагами (Stash, Drop, 
 команды git, приходит в уведомления журналом. Конфликт `pop` после переключения — ошибка `pop`,
 git оставляет stash. Вопрос пользователю и его текст — прежние (`lib/autostash.ts`).
 
+**Заменено R-563** (п. 46 списка 25.09): одна операция осталась, но stash на время неё уходит
+из списка в `refs/cogit/backup`, применяется `apply`, в список возвращается, только если
+остаётся; вопрос — свой диалог с чекбоксом, поток — `lib/checkout-flow.ts`.
+
 ## R-590 · Без `Separate Working Tree and Index` — один список рабочей копии · Н
 
 Переключатель читался только раскладкой (`paneLayout`): выключенный, он убирал сплиттер, а
@@ -6775,3 +6780,40 @@ Stash` в меню (R-435) остался — быстрый путь без д�
 по-прежнему применяет `stash@{0}` без диалога: пункт говорит только о двойном клике и меню.
 SmartGit: [Applying a Stash](https://docs.syntevo.com/SmartGit/Latest/Manual/GUI/Stash) —
 `Apply Stash` в меню stash-а; `Restore Index` — чекбокс его диалога.
+
+## R-563 · Checkout с изменениями: скрытый stash, `apply`, stash остаётся только когда нужен · Н
+
+Пункт 46 списка 25.09. Как в SmartGit ([Check Out](https://docs.syntevo.com/SmartGit/Latest/Manual/GUI/Branch/Check-Out):
+«SmartGit will offer to stash the local changes before executing the actual Check Out command,
+and then re-apply the changes from your stash after the command completes»), с отличием из
+пункта: stash применяется через `apply` и удаляется после чистого применения, с конфликтами —
+остаётся. Предложение по-прежнему делается после отказа git (R-54) — для любого варианта
+диалога Checkout (R-560), не только для перехода на ветку.
+
+**Решение:** `switch_with_autostash(target, message, drop_after_clean)` — одна операция полосы,
+как в R-521:
+
+1. `stash push --include-untracked`, и stash сразу уходит из списка в
+   `refs/cogit/backup/<oid>` (тот же `keep_as_backup`, что у копий Undo, R-514): пока идёт
+   checkout, в списке пользователя ничего не сдвигается и чужой stash взять нельзя — поиск
+   своей записи по oid (`stash_pop_oid`) больше не нужен и удалён вместе со своим тестом;
+   вместо него — `the_users_own_stashes_stay_as_they_were`;
+2. checkout; отказ — изменения возвращаются `stash apply --index` (дерево снова на коммите
+   stash-а, так что индекс восстанавливается как был: раньше `pop` без `--index` возвращал
+   staged-правки unstaged), наружу — отказ git;
+3. `stash apply` (без `--index`, как `--autostash` у rebase и pull: индекс нового коммита
+   другой). Чисто и чекбокс включён — ссылка на копию снимается, stash исчез, как после `pop`
+   (`AutostashOutcome::Restored`). Конфликт, отказ git применить (untracked-файл на месте) или
+   чекбокс выключен — stash встаёт в список `git stash store` со своим сообщением
+   («On main: cogit: autostash before checking out topic»), на `stash@{0}`, где его видно и
+   можно найти (`Kept { clean }`).
+
+Конфликт после переключения — больше не ошибка всего вызова (checkout прошёл): возвращается
+`Kept { clean: false }`, вывод упавшего `stash apply` приходит в уведомления журналом, как у
+любой упавшей команды git, а следом — сообщение «Changes did not apply cleanly» с тем, где
+stash. Сбой возврата после отказа ставит stash в список; не вышло и это — он остаётся в
+`refs/cogit/backup`, оба сбоя в логе.
+
+Диалог предложения — свой (`AutostashDialog`, «Stash and Check Out»): вопрос с файлами, которые
+назвал git, и чекбокс «Drop the stash once it applies cleanly», включён по умолчанию и не
+запоминается: выключенный — редкое желание на один раз.

@@ -2,6 +2,7 @@
   import ConfirmDialog from "$components/common/ConfirmDialog.svelte";
   import AddTagDialog from "./AddTagDialog.svelte";
   import ApplyStashDialog from "./ApplyStashDialog.svelte";
+  import AutostashDialog from "./AutostashDialog.svelte";
   import CheckoutDialog from "./CheckoutDialog.svelte";
   import EditAuthorDialog from "./EditAuthorDialog.svelte";
   import EditMessageDialog from "./EditMessageDialog.svelte";
@@ -79,6 +80,7 @@
   import { commit } from "$stores/commit.svelte";
   import { compareView } from "$stores/compare-view.svelte";
   import { confirmation } from "$stores/confirm.svelte";
+  import { autostashDialog } from "$stores/autostash-dialog.svelte";
   import { errors } from "$stores/errors.svelte";
   import { graph } from "$stores/graph.svelte";
   import { network } from "$stores/network.svelte";
@@ -909,6 +911,13 @@
     branches={repository.current?.branches ?? []}
     oncheckout={(pick, dontShowAgain) => void checkOutPicked(pick, dontShowAgain)}
     onclose={() => (refDialogs.checkout = null)}
+  />
+{/if}
+
+{#if autostashDialog.open}
+  <AutostashDialog
+    question={autostashDialog.open.question}
+    onanswer={(answer) => autostashDialog.answer(answer)}
   />
 {/if}
 

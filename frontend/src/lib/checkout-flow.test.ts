@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { autostashQuestion, runCheckout, type CheckoutSteps } from "./checkout-flow";
-import { CogitError } from "./ipc";
+import { autostashQuestion, keptNotice, runCheckout, type CheckoutSteps } from "./checkout-flow";
+import { CogitError, type AutostashOutcome } from "./ipc";
 import type { CheckoutRequest } from "./ref-checkout";
 
 const request = (over: Partial<CheckoutRequest> = {}): CheckoutRequest => ({
@@ -35,9 +35,13 @@ function steps(over: Partial<CheckoutSteps> = {}) {
   const all: CheckoutSteps = {
     elsewhere: vi.fn(async () => false),
     checkout: vi.fn(async () => void order.push("checkout")),
-    ask: vi.fn(async () => true),
-    autostash: vi.fn(async () => void order.push("autostash")),
+    ask: vi.fn(async () => ({ drop: true })),
+    autostash: vi.fn(async (): Promise<AutostashOutcome> => {
+      order.push("autostash");
+      return { kind: "restored" };
+    }),
     report: vi.fn((_err: unknown, title: string) => void order.push(`report: ${title}`)),
+    inform: vi.fn((title: string) => void order.push(`inform: ${title}`)),
     after: vi.fn(async () => void order.push("after")),
     ...over,
   };
@@ -102,7 +106,37 @@ describe("checking out with the changes stashed out of the way", () => {
     expect(all.autostash).toHaveBeenCalledWith(
       { kind: "branch", name: "topic" },
       "cogit: autostash before checking out topic",
+      true,
     );
+  });
+
+  // Item 46: "drop the stash once it applies cleanly", unticked, keeps it in the list.
+  it("passes the dialog's drop choice on, and says where a kept stash is", async () => {
+    const { all, order } = steps({
+      checkout: vi.fn(async () => {
+        throw IN_THE_WAY;
+      }),
+      ask: vi.fn(async () => ({ drop: false })),
+      autostash: vi.fn(async (): Promise<AutostashOutcome> => ({ kind: "kept", clean: true })),
+    });
+
+    await runCheckout(request(), all);
+
+    expect(all.autostash).toHaveBeenCalledWith(expect.anything(), expect.any(String), false);
+    expect(order).toEqual(["inform: Changes carried over", "after"]);
+  });
+
+  it("says the changes did not apply cleanly and are still in the list", async () => {
+    const { all, order } = steps({
+      checkout: vi.fn(async () => {
+        throw IN_THE_WAY;
+      }),
+      autostash: vi.fn(async (): Promise<AutostashOutcome> => ({ kind: "kept", clean: false })),
+    });
+
+    await runCheckout(request(), all);
+
+    expect(order).toEqual(["inform: Changes did not apply cleanly", "after"]);
   });
 
   it("stashes for any choice: a new branch too", async () => {
@@ -115,7 +149,7 @@ describe("checking out with the changes stashed out of the way", () => {
 
     await runCheckout(request({ target, branch: null, what: "review" }), all);
 
-    expect(all.autostash).toHaveBeenCalledWith(target, "cogit: autostash before checking out review");
+    expect(all.autostash).toHaveBeenCalledWith(target, "cogit: autostash before checking out review", true);
   });
 
   it("changes nothing when the user declines, and reports git's refusal", async () => {
@@ -123,7 +157,7 @@ describe("checking out with the changes stashed out of the way", () => {
       checkout: vi.fn(async () => {
         throw IN_THE_WAY;
       }),
-      ask: vi.fn(async () => false),
+      ask: vi.fn(async () => null),
     });
 
     expect(await runCheckout(request(), all)).toBe("declined");
@@ -144,6 +178,16 @@ describe("checking out with the changes stashed out of the way", () => {
     expect(await runCheckout(request(), all)).toBe("done");
 
     expect(order).toEqual(["report: Could not check out", "after"]);
+  });
+});
+
+describe("keptNotice", () => {
+  it("says nothing when the stash is gone", () => {
+    expect(keptNotice("topic", { kind: "restored" })).toBeNull();
+  });
+
+  it("names where the stash that stayed is", () => {
+    expect(keptNotice("topic", { kind: "kept", clean: false })?.body).toContain("stash@{0}");
   });
 });
 
