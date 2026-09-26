@@ -101,11 +101,18 @@ class GraphStore {
     return this.#shown && { repo: this.#shown.repo, generation: this.#shown.generation };
   }
 
-  /** Another view walks the graph on screen again. */
+  /** The repository whose graph is loading, else the one on screen: while another
+      repository's graph catches up, the rows on screen are still the last one's (R-300). */
+  get #loadingRepo(): RepoId | undefined {
+    return this.#next?.repo ?? this.#shown?.repo;
+  }
+
+  /** Another view walks the graph again. */
   setView(next: GraphView): void {
     if (JSON.stringify(next) === JSON.stringify(this.view)) return;
     this.view = next;
-    if (this.#shown) void this.load(this.#shown.repo, this.query);
+    const repo = this.#loadingRepo;
+    if (repo !== undefined) void this.load(repo, this.query);
   }
 
   requestReveal(oid: string): void {
@@ -229,7 +236,7 @@ class GraphStore {
     const next = Math.max(Math.round(rows), 0);
     if (next === this.longLinkRows) return;
     this.longLinkRows = next;
-    const repo = this.#shown?.repo;
+    const repo = this.#loadingRepo;
     if (repo !== undefined) void this.load(repo, this.query);
   }
 
