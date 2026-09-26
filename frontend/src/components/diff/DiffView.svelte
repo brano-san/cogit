@@ -36,7 +36,7 @@
     wheelSideways,
   } from "$lib/code-scroll";
   import ConfirmDialog from "$components/common/ConfirmDialog.svelte";
-  import { eolLabel, layoutTip, modeChangeText } from "$lib/diff-toolbar";
+  import { eolChangeText, eolLabel, layoutTip, modeChangeText } from "$lib/diff-toolbar";
   import { highlightLines, mergePieces, type Token } from "$lib/highlight";
   import { lineKey, toggleLine } from "$lib/selection";
   import { keepSelection } from "$lib/diff-selection";
@@ -647,7 +647,7 @@
     </p>
   {:else if diff.kind === "eolOnly"}
     <p class="message">
-      Only the line endings changed: {diff.from} → {diff.to}. The content is identical.
+      Only the line endings changed: {eolChangeText(diff.from, diff.to)}. The content is identical.
     </p>
   {:else if diff.kind === "binary"}
     <p class="message">Binary file — {diff.oldSize} bytes → {diff.newSize} bytes.</p>
