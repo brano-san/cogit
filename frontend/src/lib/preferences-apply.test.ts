@@ -13,12 +13,16 @@ function host(open: boolean, start: Settings = DEFAULT_SETTINGS) {
     }),
     load: vi.fn(async () => {}),
   };
+  let keymap: Record<string, string> = {};
   const fake: ApplyHost = {
     current: () => current,
     apply: vi.fn(async (next: Settings) => {
       current = { ...next };
     }),
-    setKeymap: vi.fn(async () => {}),
+    keymap: () => keymap,
+    setKeymap: vi.fn(async (next: Record<string, string>) => {
+      keymap = { ...next };
+    }),
     rebuiltMenu: vi.fn(),
     repo: () => 1 as never,
     diff,
@@ -27,6 +31,28 @@ function host(open: boolean, start: Settings = DEFAULT_SETTINGS) {
 }
 
 const all: Settings = { ...DEFAULT_SETTINGS, ignoreWhitespace: "all" };
+
+// Dragging Lane width from 8 to 40 rebuilt the menu bar 32 times on the main thread, and
+// Git executable once per letter typed: every change wrote the keymap back as well.
+describe("the keymap on a change in Preferences", () => {
+  it("is left alone, menu bar and all, when it did not change", async () => {
+    const { fake } = host(false);
+
+    await applyPreferences({ ...DEFAULT_SETTINGS, laneWidth: 30 }, {}, fake);
+
+    expect(fake.setKeymap).not.toHaveBeenCalled();
+    expect(fake.rebuiltMenu).not.toHaveBeenCalled();
+  });
+
+  it("is saved and the menu bar rebuilt when it did", async () => {
+    const { fake } = host(false);
+
+    await applyPreferences(DEFAULT_SETTINGS, { fetch: "CmdOrCtrl+Alt+F" }, fake);
+
+    expect(fake.setKeymap).toHaveBeenCalledWith({ fetch: "CmdOrCtrl+Alt+F" });
+    expect(fake.rebuiltMenu).toHaveBeenCalledOnce();
+  });
+});
 
 // Ignore all whitespace with no file in Diff never reached the diff store, and Cancel put
 // the setting back but left the diff computed with the draft's options.
