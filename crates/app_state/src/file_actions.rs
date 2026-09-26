@@ -109,6 +109,17 @@ impl AppState {
         self.handle(repo)?.export_read_only(rev, path, &dir)
     }
 
+    /// The read-only copy of `rev`'s `path`, opened in the application paired with it;
+    /// the path of the copy back.
+    pub fn open_read_only(&self, repo: RepoId, rev: &str, path: &str) -> Result<String> {
+        let copy = self.export_read_only(repo, rev, path)?;
+        let shown = copy.to_string_lossy().into_owned();
+        let launch = crate::desktop::open_command(crate::desktop::Platform::current(), &shown);
+        crate::desktop::spawn(&launch, None)
+            .map_err(|err| GitError::Io(format!("cannot open {shown}: {err}")))?;
+        Ok(shown)
+    }
+
     pub fn apply_commit_file(
         &self,
         repo: RepoId,

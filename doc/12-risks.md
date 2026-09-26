@@ -325,6 +325,10 @@ cargo run -p cogit --bin export-bindings
 смапить ошибку».
 **План Б:** встроить манифест ComCtl32 в тестовые цели через `cargo:rustc-link-arg-tests`
 в `build.rs`.
+**26.09 (BE-023):** троттлинг прогресса `load_commits` — `app_state::throttled` с тестом
+(`tests/graph_progress.rs`), открытие копии только для чтения — `AppState::open_read_only`;
+в командах остались вызовы. Нарезка ответов на `Channel` и протокол отмены поиска — транспорт IPC,
+остаются в `src-tauri`.
 
 ## R-17 · Экспорт биндингов может записать файл мимо репозитория · Н
 
