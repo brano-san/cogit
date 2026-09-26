@@ -63,7 +63,7 @@ describe("graphView", () => {
 });
 
 describe("focusLane", () => {
-  const on = { ...GRAPH_MODE_DEFAULTS, branchOfCommit: true };
+  const on = { ...GRAPH_MODE_DEFAULTS, coloring: "branch" as const };
 
   it("is the selected commit's lane, or the line clicked in its row", () => {
     expect(focusLane(on, "a", 3, null, "1:1")).toBe(3);
@@ -100,7 +100,7 @@ describe("conflicting modes", () => {
   const every = {
     highlightChecked: true,
     firstParent: true,
-    branchOfCommit: true,
+    coloring: "branch" as const,
     ancestry: true,
     collapseMerged: true,
   };
@@ -116,6 +116,14 @@ describe("conflicting modes", () => {
   it("are none while the blocking mode is off", () => {
     expect(conflictingModes({ ...every, firstParent: false })).toEqual([]);
     expect(conflictingModes(GRAPH_MODE_DEFAULTS)).toEqual([]);
+  });
+
+  it("leave the ancestry out under Mergeable Coloring, which dims already", () => {
+    const mergeable = { ...GRAPH_MODE_DEFAULTS, ancestry: true, coloring: "mergeable" as const };
+    expect(conflictingModes(mergeable)).toEqual([
+      { mode: "ancestry", reason: "Mergeable Coloring already dims all but what a merge would bring." },
+    ]);
+    expect(paintRequest(mergeable, [], "abc")).toEqual({ tips: [], mergeableOf: "abc" });
   });
 
   it("name real modes and never a mode against itself", () => {

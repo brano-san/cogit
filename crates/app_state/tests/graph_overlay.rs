@@ -33,7 +33,7 @@ fn a_ticked_branch_comes_back_in_its_slot_and_the_main_line_does_not() {
             oid: dev[0].clone(),
             slot: 5,
         }],
-        ancestry_of: None,
+        ..GraphPaintRequest::default()
     };
     let overlay = state
         .graph_overlay(repo, generation, 0, 100, &request)
@@ -85,8 +85,8 @@ fn ancestry_dims_the_other_branch() {
     let main = f.oid("main").unwrap();
 
     let request = GraphPaintRequest {
-        tips: Vec::new(),
         ancestry_of: Some(f.oid("dev~1").unwrap()),
+        ..GraphPaintRequest::default()
     };
     let overlay = state
         .graph_overlay(repo, generation, 0, 100, &request)
@@ -94,6 +94,28 @@ fn ancestry_dims_the_other_branch() {
 
     for (oid, style) in order.iter().zip(&overlay.node_styles) {
         assert_eq!(style & PAINT_DIM != 0, *oid == main, "{oid}");
+    }
+}
+
+#[test]
+fn mergeable_dims_what_a_merge_of_the_chosen_commit_would_not_bring() {
+    let f = test_fixtures::branched().unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let generation = build(&state, repo);
+    let order = oids(&state, repo, generation);
+    let dev = [f.oid("dev").unwrap(), f.oid("dev~1").unwrap()];
+
+    let request = GraphPaintRequest {
+        mergeable_of: Some(dev[0].clone()),
+        ..GraphPaintRequest::default()
+    };
+    let overlay = state
+        .graph_overlay(repo, generation, 0, 100, &request)
+        .unwrap();
+
+    for (oid, style) in order.iter().zip(&overlay.node_styles) {
+        assert_eq!(style & PAINT_DIM != 0, !dev.contains(oid), "{oid}");
     }
 }
 
@@ -132,7 +154,7 @@ fn the_cache_budget_counts_the_paint_kept_with_a_graph() {
             oid: f.oid("dev").unwrap(),
             slot: 5,
         }],
-        ancestry_of: None,
+        ..GraphPaintRequest::default()
     };
     state
         .graph_overlay(repo, generation, 0, 100, &request)

@@ -97,7 +97,7 @@ impl Painted {
 fn tips(list: &[(u32, u8)]) -> PaintSpec {
     PaintSpec {
         tips: list.to_vec(),
-        ancestry_of: None,
+        ..PaintSpec::default()
     }
 }
 
@@ -308,8 +308,8 @@ fn ancestry_dims_what_is_neither_ancestor_nor_descendant() {
         ("a", &[]),
     ]);
     let spec = PaintSpec {
-        tips: Vec::new(),
         ancestry_of: Some(2),
+        ..PaintSpec::default()
     };
     let painted = Painted::new(&history, Some("e"), &spec);
 
@@ -330,8 +330,8 @@ fn ancestry_dims_what_is_neither_ancestor_nor_descendant() {
 fn ancestry_of_a_row_past_the_end_dims_everything() {
     let history = nodes(&[("b", &["a"]), ("a", &[])]);
     let spec = PaintSpec {
-        tips: Vec::new(),
         ancestry_of: Some(9),
+        ..PaintSpec::default()
     };
     let painted = Painted::new(&history, Some("b"), &spec);
     assert!(painted.paint.node_style.iter().all(|s| s & PAINT_DIM != 0));
@@ -539,4 +539,75 @@ fn a_branch_goes_on_in_one_lane_below_a_cut_first_parent_link() {
 
     assert_eq!(painted.paint.node_lane[5], painted.paint.node_lane[1]);
     assert_eq!(painted.rows[5].color, painted.rows[1].color);
+}
+
+fn mergeable(chosen: u32) -> PaintSpec {
+    PaintSpec {
+        mergeable_of: Some(chosen),
+        ..PaintSpec::default()
+    }
+}
+
+fn dimmed(painted: &Painted) -> Vec<bool> {
+    painted
+        .paint
+        .node_style
+        .iter()
+        .map(|s| s & PAINT_DIM != 0)
+        .collect()
+}
+
+/// Mergeable Coloring (SmartGit): what a merge of the chosen commit into the main line
+/// would bring stands out, everything else is dimmed.
+#[test]
+fn mergeable_lights_what_a_merge_would_bring() {
+    let history = nodes(&[
+        ("m3", &["m2"]),
+        ("f2", &["f1"]),
+        ("m2", &["m1"]),
+        ("f1", &["m1"]),
+        ("m1", &["m0"]),
+        ("m0", &[]),
+    ]);
+    let painted = Painted::new(&history, Some("m3"), &mergeable(1));
+
+    assert_eq!(dimmed(&painted), vec![true, false, true, false, true, true]);
+    for (row, s, style, _) in painted.segments() {
+        let lit = !s.primary && (row == 1 || row == 2 || (row == 3 && s.span == Span::Top));
+        assert_eq!(style & PAINT_DIM == 0, lit, "row {row}: {s:?}");
+    }
+}
+
+#[test]
+fn mergeable_leaves_out_what_the_main_line_merged_already() {
+    let history = nodes(&[
+        ("f3", &["f2"]),
+        ("m3", &["m2", "f2"]),
+        ("f2", &["f1"]),
+        ("m2", &["m1"]),
+        ("f1", &["m1"]),
+        ("m1", &[]),
+    ]);
+    let painted = Painted::new(&history, Some("m3"), &mergeable(0));
+
+    assert_eq!(dimmed(&painted), vec![false, true, true, true, true, true]);
+}
+
+#[test]
+fn mergeable_of_a_main_line_commit_dims_everything() {
+    let history = nodes(&[("m2", &["m1"]), ("f1", &["m1"]), ("m1", &[])]);
+    let painted = Painted::new(&history, Some("m2"), &mergeable(2));
+    assert!(dimmed(&painted).iter().all(|dim| *dim));
+}
+
+#[test]
+fn mergeable_outranks_ancestry() {
+    let history = nodes(&[("m2", &["m1"]), ("f1", &["m1"]), ("m1", &[])]);
+    let spec = PaintSpec {
+        mergeable_of: Some(1),
+        ancestry_of: Some(1),
+        ..PaintSpec::default()
+    };
+    let painted = Painted::new(&history, Some("m2"), &spec);
+    assert_eq!(dimmed(&painted), vec![true, false, true]);
 }

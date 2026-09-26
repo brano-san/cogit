@@ -4960,6 +4960,9 @@ worktree. Это запись в индекс без спроса, но толь
   подложка колец на Canvas), плотность, порог обрубков, подсветка отмеченных веток и режимы
   (`GraphPanel` → `CommitList`).
 
+**Заменено в части `graphBranchOfCommit` и `coloredLanes`:** обе — варианты одной настройки
+`graphColoring` (R-574).
+
 ## R-371 · Configure Toolbar переехал в Preferences, правка сразу и пошаговый Undo · Н
 
 #24 просит настраивать тулбар только в Preferences, с изменениями, видными сразу, и кнопкой
@@ -6404,3 +6407,30 @@ UTF-8); бинарные файлы (NUL в первых 8000 байтах, пр
 изменённого blob'а; оба выключены по умолчанию и проверяются последними, после дешёвых полей.
 Плоский список с фильтром спрашивает «показан ли родитель» через `ShownBy`, который читает
 mailmap и имена ссылок один раз на загрузку, а не на каждого родителя.
+
+## R-574 · Раскраска графа — одна из четырёх SmartGit, одна настройка на меню и Preferences · Н
+
+Пункт 37 списка 25.09 просит меню графа с `Default`, `Branch`, `Mergeable` и `Varying Coloring`
+и значениями из тех же настроек, что в Preferences. Раньше было два независимых переключателя:
+`coloredLanes` («Coloured branch lines») и `graphBranchOfCommit` («ветка коммита по клику»).
+
+**Решение:** одна настройка `graphColoring` с четырьмя значениями; меню и Preferences пишут её
+же. Старый файл переносится: `coloredLanes` → `varying`, `graphBranchOfCommit` → `branch` (если
+были включены оба — `varying`, он заметнее). Документации по раскраскам у SmartGit нет
+(страница Graph View перечисляет лишь меню Options), семантика взята из его changelog'ов:
+
+- `Default` — как было: главная линия яркая, остальные серые, отмеченные в Branches ветки
+  своими цветами (SmartGit: «default coloring depends on selected refs … colors of selected refs
+  follow primary parent», 18.1).
+- `Branch` — наша «ветка коммита по клику»: ветка выбранного коммита поверх остальных (SmartGit
+  выделяет ветку якорного коммита).
+- `Mergeable` — светлым выбранный коммит и его предки, которых нет в истории главной линии (то,
+  что принёс бы merge в HEAD), остальное приглушено (SmartGit: «Mergable coloring: start with
+  black lines on first mergable commit», 19.1). Новый режим в `graph_engine::paint`
+  (`mergeable_of`), один проход вниз по строкам, как у предков и потомков, — не новый обход.
+- `Varying` — цвет у каждой полосы, бывшая `Coloured branch lines` (SmartGit «re-introduced
+  former varying coloring», 18.1).
+
+**Отличия:** цвета отмеченных веток (`graphHighlightChecked`) остаются во всех четырёх, SmartGit в
+`Branch`/`Mergeable` красит серым всё «не совпавшее»; «Предки и потомки» при `Mergeable`
+неактивны с причиной (`COLORING_CONFLICTS`) — оба приглушают.

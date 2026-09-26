@@ -45,3 +45,12 @@ describe("blockedModes", () => {
     ]);
   });
 });
+
+describe("blockedModes under a coloring", () => {
+  it("greys out the ancestry under Mergeable Coloring, which dims already", () => {
+    expect(blockedModes({ ...DEFAULT_SETTINGS, graphColoring: "mergeable" })).toEqual([
+      { mode: "graphAncestry", reason: "Mergeable Coloring already dims all but what a merge would bring." },
+    ]);
+    expect(blockedModes({ ...DEFAULT_SETTINGS, graphColoring: "varying" })).toEqual([]);
+  });
+});

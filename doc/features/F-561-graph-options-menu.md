@@ -1,0 +1,8 @@
+# F-561 · Меню настроек графа
+
+- [ ] Справа от фильтра графа (после «Домой» и «Назад») кнопка меню: `Default Coloring`, `Branch Coloring`, `Mergeable Coloring`, `Varying Coloring` (выбран один) — `Graph Preferences…` открывает Preferences на странице Graph & History — `Follow Only First Parent`. Значения — те же настройки, что в Preferences: изменение в одном месте видно в другом.
+- [ ] `Default` — главная линия яркая, остальные серые, отмеченные ветки своими цветами; `Branch` — ветка выбранного коммита (или линии, по которой щёлкнули) поверх остальных; `Mergeable` — светлым то, что принёс бы merge выбранного коммита в HEAD, остальное приглушено; `Varying` — у каждой линии свой цвет (R-574).
+- [ ] Меню с клавиатуры: `Enter`/`Space` на кнопке, `↑`/`↓`, `Esc`; переключатели меню не закрывают.
+- [ ] Проверить в сборке: каждую раскраску из меню — граф меняется, Preferences показывает её же; `Mergeable` на коммите не влитой ветки — светлые её коммиты до точки ответвления, на коммите главной линии — приглушено всё; `Graph Preferences…` — открыта страница Graph & History.
+
+Справочно: SmartGit — Graph view, меню Options (≡), https://docs.syntevo.com/SmartGit/Latest/Manual/GUI/Graph-View; семантика раскрасок — changelog SmartGit 18.1–22.1 («default coloring depends on selected refs … merged selected refs: brown», «Mergable coloring: start with black lines on first mergable commit», «re-introduced former varying coloring»), https://www.smartgit.dev/changelogs/changelog-18.1.txt.

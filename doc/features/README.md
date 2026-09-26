@@ -334,5 +334,6 @@
 | F-524 | Меню кнопок тулбара в узком окне и с клавиатуры | [F-524-toolbar-menus-narrow-and-keys.md](F-524-toolbar-menus-narrow-and-keys.md) |
 | F-532 | Диалог с набранным текстом не закрывается молча | [F-532-dialog-keeps-typed-text.md](F-532-dialog-keeps-typed-text.md) |
 | F-560 | Фильтр графа: где искать текст | [F-560-graph-filter-fields.md](F-560-graph-filter-fields.md) |
+| F-561 | Меню настроек графа | [F-561-graph-options-menu.md](F-561-graph-options-menu.md) |
 | F-562 | «Домой» и «Назад» в графе | [F-562-graph-home-back.md](F-562-graph-home-back.md) |
 | F-563 | Запомненные фильтры графа | [F-563-filter-patterns.md](F-563-filter-patterns.md) |

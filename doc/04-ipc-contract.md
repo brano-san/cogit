@@ -185,7 +185,7 @@ Blame открывается только отдельным окном (`blame.
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
 | `load_commits` | `repo, query: CommitQuery, onProgress: Channel<GraphProgress>` | `Vec<SkippedRef { name, reason }>` — отмеченные ссылки, не ставшие стартовой точкой; новый вызов останавливает предыдущий обход | M4 |
-| `graph_overlay` | `repo, generation, start, count, request: GraphPaintRequest { tips: [{ oid, slot }], ancestryOf? }` | `Option<GraphOverlay>` — стиль и полоса узла и каждого сегмента строк окна; `None`, если граф заменён | M4 |
+| `graph_overlay` | `repo, generation, start, count, request: GraphPaintRequest { tips: [{ oid, slot }], ancestryOf?, mergeableOf? }` | `Option<GraphOverlay>` — стиль и полоса узла и каждого сегмента строк окна; `None`, если граф заменён | M4 |
 | `commit_details` | `repo, rev: String` | `CommitDetails` | M4 |
 | `commit_files` | `repo, rev: String` | `Vec<FileEntry>` | M6 |
 
@@ -718,7 +718,7 @@ pub struct GraphProgress {
 **Раскраска — отдельным окном.** `graph_overlay(repo, generation, start, count, request)`
 отдаёт для тех же строк: полосу (`nodeLanes`, `segmentLanes`) и стиль (`nodeStyles`,
 `segmentStyles`: младшие 4 бита — слот палитры + 1, 0 — цвет по умолчанию; бит `0x10` —
-приглушено, вне родни `ancestryOf`) узла и каждого
+приглушено: вне родни `ancestryOf` или, при `mergeableOf`, вне того, что принёс бы merge этого коммита в HEAD — R-574) узла и каждого
 сегмента, `segmentFirst` — где начинаются сегменты каждой строки, `folds: [{ row, hidden }]` —
 свёрнутые merge среди строк окна и сколько коммитов в каждом. Считается в Rust по всему
 графу один раз на запрос и хранится, пока не изменились строки или запрос

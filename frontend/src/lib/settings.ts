@@ -3,6 +3,7 @@ import type { Algorithm, Whitespace } from "$lib/ipc";
 import { LANE_WIDTH } from "$lib/graph-geometry";
 import { DEFAULT_FILTER_FIELDS, knownFields, type FilterField } from "$lib/filter-fields";
 import { knownPatterns } from "$lib/filter-patterns";
+import { GRAPH_COLORINGS, migratedColoring, type GraphColoring } from "$lib/graph-coloring";
 
 /** Lightest first; the grey ones sit between the extremes (#24). */
 export const THEMES = [
@@ -29,8 +30,6 @@ export interface Settings {
   wordDiff: boolean;
   detectMoves: boolean;
   laneWidth: number;
-  /** A colour per lane instead of one grey; off, as SmartGit draws it (R-161). */
-  coloredLanes: boolean;
   pullMode: "ffOnly" | "merge";
   gitPath: string;
   terminal: string;
@@ -53,8 +52,10 @@ export interface Settings {
   /** A link longer than this many rows is drawn as two stubs; 0 draws every link whole. */
   graphLongLinkRows: number;
   graphHighlightChecked: boolean;
+  /** SmartGit's colorings; `varying` is a color per lane, `branch` brings the selected
+      commit's branch forward (R-574). */
+  graphColoring: GraphColoring;
   graphFirstParent: boolean;
-  graphBranchOfCommit: boolean;
   graphAncestry: boolean;
   graphCollapseMerged: boolean;
   /** Where the graph filter looks for its text: the switches under the field (F-560). */
@@ -76,7 +77,6 @@ export const DEFAULT_SETTINGS: Settings = {
   wordDiff: true,
   detectMoves: true,
   laneWidth: LANE_WIDTH.default,
-  coloredLanes: false,
   pullMode: "ffOnly",
   gitPath: "git",
   terminal: "system",
@@ -90,8 +90,8 @@ export const DEFAULT_SETTINGS: Settings = {
   graphStripes: true,
   graphLongLinkRows: 40,
   graphHighlightChecked: true,
+  graphColoring: "default",
   graphFirstParent: false,
-  graphBranchOfCommit: false,
   graphAncestry: false,
   graphCollapseMerged: false,
   graphFilterFields: [...DEFAULT_FILTER_FIELDS],
@@ -113,6 +113,7 @@ const ENUMS: Partial<Record<keyof Settings, readonly string[]>> = {
   avatars: ["ask", "gravatar", "off"],
   graphTimeFormat: ["relative", "date", "dateTime"],
   graphDensity: ["compact", "normal", "comfortable"],
+  graphColoring: GRAPH_COLORINGS,
 };
 
 const RANGES: Partial<Record<keyof Settings, [number, number]>> = {
@@ -191,5 +192,6 @@ export function merge(stored: Partial<Settings> | null | undefined): Settings {
     (merged[key] as unknown) = value;
   }
   merged.graphTimeFormat = migratedTimeFormat(record) ?? merged.graphTimeFormat;
+  merged.graphColoring = migratedColoring(record) ?? merged.graphColoring;
   return merged;
 }
