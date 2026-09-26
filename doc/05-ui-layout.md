@@ -124,6 +124,8 @@
   ниже — запомненные шаблоны, новые сверху; выбор подставляет шаблон и сразу фильтрует, `✕` в
   строке или `Delete` забывает его. Список — настройка `graphFilterPatterns`, виден и правится
   в `Preferences ▸ Graph & History ▸ Filter` (F-563).
+- Справа от фильтра — «Домой» (Working Tree ↔ коммит HEAD, с другого коммита — Working Tree) и
+  «Назад» (к предыдущему выбору в графе этого репозитория; неактивна, пока некуда), F-562.
 - Мультивыбор двух коммитов (`Ctrl`) сравнивает их в Diff.
 - Контекстное меню: `Checkout`, `Create Branch`, `Tag`, `Cherry-Pick`, `Revert`, `Reset to here`,
   `Copy SHA`, `Interactive Rebase from here`.

@@ -21,7 +21,7 @@
   import CommitPanel from "$components/panels/CommitPanel.svelte";
   import CommitDetailsPane from "$components/panels/CommitDetailsPane.svelte";
   import SplitOffDialog from "$components/file-list/SplitOffDialog.svelte";
-  import GraphFilter from "$components/graph/GraphFilter.svelte";
+  import GraphHeader from "$components/graph/GraphHeader.svelte";
   import RebaseEditor from "$components/graph/RebaseEditor.svelte";
   import DropMenu from "$components/layout/DropMenu.svelte";
   import Panel from "$components/layout/Panel.svelte";
@@ -3433,7 +3433,7 @@
           >
             {#snippet actions()}
               {#if repo}
-                <GraphFilter onchange={filterGraph} matches={graph.total} query={graph.query} />
+                <GraphHeader onchange={filterGraph} matches={graph.total} query={graph.query} />
               {/if}
             {/snippet}
             {#if describeSkipped(graph.skipped)}
