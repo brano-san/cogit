@@ -120,6 +120,18 @@ fn closing_stops_watching_it() {
     let state = AppState::new();
     let repo = state.open_repository(f.path()).unwrap().repo;
     let mut events = state.subscribe();
+    // The control: a watcher that never started would keep quiet after closing too.
+    std::fs::write(f.path().join("file0.txt"), "changed while open\n").unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    let heard = loop {
+        match events.try_recv() {
+            Ok(app_state::AppEvent::RepoChanged { .. }) => break true,
+            Ok(_) => {}
+            Err(_) if std::time::Instant::now() > deadline => break false,
+            Err(_) => std::thread::sleep(std::time::Duration::from_millis(20)),
+        }
+    };
+    assert!(heard, "an open repository must be watched");
     state.close_repository(repo);
     while events.try_recv().is_ok() {}
 

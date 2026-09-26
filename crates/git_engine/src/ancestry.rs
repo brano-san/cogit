@@ -44,7 +44,7 @@ impl RepoHandle {
         }
 
         let held: Vec<String> = self
-            .worktrees()?
+            .worktree_heads()?
             .into_iter()
             .filter_map(|entry| entry.branch)
             .collect();

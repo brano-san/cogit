@@ -18,6 +18,7 @@
   import { moduleForest } from "$stores/module-forest.svelte";
   import { moduleMemory } from "$stores/module-memory.svelte";
   import { UNGROUPED, groupRows, showsFilter } from "$lib/repo-groups";
+  import { NO_FILTER_FOLDS, shownFolds, toggleFilterFold } from "$lib/tree";
   import type { RepoOverview } from "$lib/ipc";
   import { listedRepos, type ListedRepo } from "$lib/repo-list";
   import { repoList } from "$stores/repo-list.svelte";
@@ -67,6 +68,8 @@
   let over = $state<string | null>(null);
 
   let filter = $state("");
+  /** Headings folded while a filter is typed; the stored folds are left alone (R-485). */
+  let filterFolds = $state.raw(NO_FILTER_FOLDS);
   let marked = $state.raw<FileSelection>(EMPTY_SELECTION);
 
   $effect(() => {
@@ -81,7 +84,15 @@
   );
   const order = $derived(entries.map((entry) => entry.root));
   const byRoot = $derived(new Map(entries.map((entry) => [entry.root, entry])));
-  const rows = $derived(groupRows(repoGroups.groups, order, repoGroups.collapsed));
+  const filtering = $derived(filter.trim() !== "");
+  const rows = $derived(
+    groupRows(repoGroups.groups, order, shownFolds(repoGroups.collapsed, filter, filterFolds), filtering),
+  );
+
+  function fold(group: string) {
+    if (filtering) filterFolds = toggleFilterFold(filterFolds, filter, group);
+    else repoGroups.collapse(group);
+  }
 
   const everyRoot = $derived(listedRepos(repository.openRepos, repoList.list).map((each) => each.root));
 
@@ -302,15 +313,15 @@
           data-key-row={GROUP_DRAG + row.id}
           data-key-label={row.name}
           style:padding-left="calc(var(--tree-base) + {row.depth} * var(--tree-step))"
-          onclick={() => repoGroups.collapse(row.id)}
-          onkeydown={(event) => event.key === "Enter" && repoGroups.collapse(row.id)}
+          onclick={() => fold(row.id)}
+          onkeydown={(event) => event.key === "Enter" && fold(row.id)}
           oncontextmenu={(event) => {
             if (row.id === UNGROUPED) return;
             event.preventDefault();
             ongroupcontext(row.id, event.clientX, event.clientY);
           }}
         >
-          <Disclosure open={!repoGroups.collapsed.has(row.id)} />
+          <Disclosure open={row.open} />
           <KindIcon kind="group" />
           <span class="truncate">{row.name} ({row.count})</span>
         </div>

@@ -2,6 +2,7 @@ import type { Branch, CommitRow, Head, StashEntry, Tag, WorktreeEntry } from "$l
 import { shortDate, shortOid } from "$lib/format";
 import { compareDated, compareNames, DEFAULT_REF_SORT, type RefSort } from "$lib/ref-sort";
 import { upstreamGone, worktreeMarks, type WorktreeMark } from "$lib/worktree-list";
+import { NO_FILTER_FOLDS, shownFolds, type FilterFolds } from "$lib/tree";
 
 export type RefKind =
   | "head"
@@ -279,13 +280,22 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
   return rows;
 }
 
-/** While a filter is typed every folder is open: a match folded away is a match not found. */
+/** While a filter is typed every folder is open: a match folded away is a match not found.
+    A folder folded meanwhile is folded in `folds`, for that text only (R-240, R-485). */
 export function foldedWhileFiltering(
   collapsed: ReadonlySet<string>,
   filter: string,
+  folds: FilterFolds = NO_FILTER_FOLDS,
 ): ReadonlySet<string> {
   if (filter.trim() === "") return collapsed;
-  return new Set([...collapsed].filter((id) => !id.startsWith("folder:")));
+  const kept = [...collapsed].filter((id) => !id.startsWith("folder:"));
+  return new Set([...kept, ...shownFolds(collapsed, filter, folds)]);
+}
+
+/** Whether a fold goes to the filter's own folds rather than the stored ones: headings of
+    groups are not opened by a filter, so theirs stays stored. */
+export function foldsWhileFiltering(id: string, filter: string): boolean {
+  return filter.trim() !== "" && id.startsWith("folder:");
 }
 
 /** Every tickable row a heading owns; a leaf owns only itself. */
@@ -314,6 +324,45 @@ export function checkState(
   const ticked = leaves.filter((leaf) => visible.has(leaf)).length;
   if (ticked === 0) return "off";
   return ticked === leaves.length ? "on" : "mixed";
+}
+
+export interface TickState {
+  state: CheckState;
+  tickable: boolean;
+}
+
+/** Every row's box, as `checkState` and `leavesUnder` give it, in one pass: asked row by
+    row, each box searched the whole tree again. */
+export function tickStates(
+  nodes: readonly RefNode[],
+  visible: ReadonlySet<string>,
+): Map<string, TickState> {
+  const states = new Map<string, TickState>();
+  const open: { id: string; depth: number; leaves: number; ticked: number }[] = [];
+  const close = (depth: number) => {
+    for (let top = open.at(-1); top && top.depth >= depth; top = open.at(-1)) {
+      open.pop();
+      const state = top.ticked === 0 ? "off" : top.ticked === top.leaves ? "on" : "mixed";
+      states.set(top.id, { state, tickable: top.leaves > 0 });
+    }
+  };
+
+  for (const node of nodes) {
+    close(node.depth);
+    if (node.kind === "group" || node.kind === "folder") {
+      open.push({ id: node.id, depth: node.depth, leaves: 0, ticked: 0 });
+      continue;
+    }
+    const ticked = !node.disabled && visible.has(node.id);
+    states.set(node.id, { state: ticked ? "on" : "off", tickable: !node.disabled });
+    if (node.rev === undefined || node.disabled) continue;
+    for (const heading of open) {
+      heading.leaves += 1;
+      if (ticked) heading.ticked += 1;
+    }
+  }
+  close(-1);
+  return states;
 }
 
 /** Empty or half-ticked fills, full empties: the usual three-state box. One new set for

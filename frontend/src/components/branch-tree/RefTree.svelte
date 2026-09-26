@@ -5,14 +5,15 @@
     buildRefTree,
     checkState,
     foldedWhileFiltering,
-    leavesUnder,
+    foldsWhileFiltering,
+    tickStates,
     toggleNode,
     type RefNode,
     type RefTreeInput,
   } from "$lib/ref-nodes";
   import { pointerDrag } from "$lib/pointer-drag";
   import { TypeAhead, findTyped, listKey, pageRows, pressOf, typedChar } from "$lib/list-keys";
-  import { flatten } from "$lib/tree";
+  import { NO_FILTER_FOLDS, flatten, toggleFilterFold } from "$lib/tree";
   import { triState } from "$lib/tri-state-box";
   import { worktreeMarkTooltip } from "$lib/worktree-list";
   import type { Branch } from "$lib/ipc";
@@ -45,11 +46,14 @@
 
   let over = $state<string | null>(null);
   let active = $state<string | null>(null);
+  /** Folders folded while a filter is typed; the stored folds are left alone (R-485). */
+  let filterFolds = $state.raw(NO_FILTER_FOLDS);
 
   /** Every row, folded or not: a heading's box is counted from this, never from the rows
       on screen, so folding a group cannot take its ticks away (R-158). */
   const tree = $derived(buildRefTree(input));
-  const nodes = $derived(flatten(tree, foldedWhileFiltering(input.collapsed, input.filter)));
+  const nodes = $derived(flatten(tree, foldedWhileFiltering(input.collapsed, input.filter, filterFolds)));
+  const ticks = $derived(tickStates(tree, visible));
 
   function toggle(id: string) {
     const next = toggleNode(tree, id, visible);
@@ -59,6 +63,11 @@
 
   function foldable(node: RefNode): boolean {
     return node.children === true;
+  }
+
+  function collapse(id: string) {
+    if (foldsWhileFiltering(id, input.filter)) filterFolds = toggleFilterFold(filterFolds, input.filter, id);
+    else oncollapse(id);
   }
 
   function pick(node: RefNode) {
@@ -95,8 +104,8 @@
   function fold(at: number, open: boolean) {
     const node = nodes[at];
     if (!node) return;
-    if (foldable(node) && input.collapsed.has(node.id) === open) {
-      oncollapse(node.id);
+    if (foldable(node) && (node.open === true) !== open) {
+      collapse(node.id);
       return;
     }
     // ← on a leaf, or on a folded heading, goes up to the heading it is under.
@@ -141,8 +150,7 @@
   {onkeydown}
 >
   {#each nodes as node (node.id)}
-    {@const state = checkState(tree, node.id, visible)}
-    {@const tickable = leavesUnder(tree, node.id).length > 0}
+    {@const tick = ticks.get(node.id)}
     <div
       class="row {node.kind}"
       class:selected={active === node.id}
@@ -150,7 +158,7 @@
       style:padding-left="calc(var(--tree-base) + {node.depth} * var(--tree-step))"
       role="treeitem"
       aria-selected={active === node.id}
-      aria-expanded={foldable(node) ? !input.collapsed.has(node.id) : undefined}
+      aria-expanded={foldable(node) ? node.open === true : undefined}
       tabindex="-1"
       data-node={node.id}
       title={node.branch?.name ?? node.tag?.name ?? node.detail ?? node.label}
@@ -164,16 +172,16 @@
     >
       <Disclosure
         empty={!foldable(node)}
-        open={!input.collapsed.has(node.id)}
-        label="Collapse {node.label}"
-        onclick={() => oncollapse(node.id)}
+        open={node.open === true}
+        label="{node.open ? 'Collapse' : 'Expand'} {node.label}"
+        onclick={() => collapse(node.id)}
       />
 
       <input
         type="checkbox"
-        class="box"
-        use:triState={{ state, toggle: () => toggle(node.id) }}
-        disabled={!tickable}
+        class="tick-box"
+        use:triState={{ state: tick?.state ?? "off", toggle: () => toggle(node.id) }}
+        disabled={!tick?.tickable}
         title={node.disabled}
         aria-label="Show {node.label} in the graph"
       />
@@ -202,6 +210,7 @@
 <style>
   .tree {
     --ref-box: 12px;
+    --tick-box-size: var(--ref-box);
     --tree-next: var(--ref-box);
     padding: var(--sp-3) 0;
   }
@@ -234,14 +243,6 @@
     font-size: var(--fs-header);
     font-weight: 600;
     letter-spacing: 0.03em;
-  }
-
-  .box {
-    flex: 0 0 auto;
-    width: var(--ref-box);
-    height: var(--ref-box);
-    margin: 0;
-    accent-color: var(--status-ref);
   }
 
   .label.current {

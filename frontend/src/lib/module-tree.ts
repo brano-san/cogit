@@ -71,7 +71,7 @@ export function moduleTooltip(module: Submodule): string {
     case "behind":
       return (
         `${commits(module.behind)} older than the one the parent records. ` +
-        "Remote ▸ Submodule ▸ Reset… runs git submodule update to check out the recorded commit."
+        "Update in its menu runs git submodule update to check out the recorded commit."
       );
     case "diverged":
       return (
@@ -85,6 +85,67 @@ export function moduleTooltip(module: Submodule): string {
         "cannot be compared with it. Fetch in the submodule."
       );
   }
+}
+
+export interface UpdateQuestion {
+  title: string;
+  message: string;
+  confirm: string;
+  warning: boolean;
+}
+
+/** Update in a submodule row's menu (F-521). `git submodule update` checks out the commit
+    the parent records and detaches HEAD there, so a module with commits of its own is
+    asked about first; one that is only behind loses nothing. */
+export type ModuleUpdate =
+  | { kind: "run"; init: boolean }
+  | { kind: "ask"; request: UpdateQuestion }
+  | { kind: "off"; reason: string };
+
+export function moduleUpdate(module: Submodule): ModuleUpdate {
+  switch (module.state) {
+    case "notInitialised":
+      return { kind: "run", init: true };
+    case "behind":
+      return { kind: "run", init: false };
+    case "ahead":
+    case "diverged": {
+      const kept = module.branch
+        ? `they stay on ${module.branch}`
+        : "they are then on no branch, and only its reflog keeps them";
+      return {
+        kind: "ask",
+        request: {
+          title: "Update Submodule",
+          message:
+            `${module.path} has ${commits(module.ahead)} the parent does not record. Update ` +
+            `checks out the recorded commit and detaches HEAD there; ${kept}.`,
+          confirm: "Update",
+          warning: true,
+        },
+      };
+    }
+    case "inSync":
+      return { kind: "off", reason: "on the recorded commit" };
+    case "unknown":
+      return { kind: "off", reason: "recorded commit not fetched" };
+    case "unread":
+      return { kind: "off", reason: "open its repository first" };
+  }
+}
+
+export interface UpdateDeps {
+  ask: (request: UpdateQuestion) => Promise<boolean>;
+  update: (init: boolean) => Promise<void>;
+}
+
+/** Whether the update ran. */
+export async function updateModule(module: Submodule, deps: UpdateDeps): Promise<boolean> {
+  const plan = moduleUpdate(module);
+  if (plan.kind === "off") return false;
+  if (plan.kind === "ask" && !(await deps.ask(plan.request))) return false;
+  await deps.update(plan.kind === "run" && plan.init);
+  return true;
 }
 
 export function moduleRows(

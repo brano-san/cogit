@@ -327,3 +327,4 @@
 | F-508 | Клавиатура в списках | [F-508-list-keyboard.md](F-508-list-keyboard.md) |
 | F-510 | Панель слияния не теряет выбранные стороны | [F-510-merge-panel-keeps-picks.md](F-510-merge-panel-keeps-picks.md) |
 | F-517 | Значок скрытых файлов в Files | [F-517-files-hidden-badge.md](F-517-files-hidden-badge.md) |
+| F-521 | Update в меню строки submodule | [F-521-submodule-row-update.md](F-521-submodule-row-update.md) |
