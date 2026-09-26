@@ -130,6 +130,17 @@ describe("searching inside a diff", () => {
     expect(hits).toEqual([{ index: 0, side: "left", from: 6, to: 10 }]);
   });
 
+  // DF-054: "İ" lowers to two code units, and offsets taken in the lowered text marked
+  // every hit after it one character to the right.
+  it("gives offsets in the line as written, whatever lowering it does", () => {
+    expect(searchRows([["İstanbul foo", null]], "foo")).toEqual([{ index: 0, side: "left", from: 9, to: 12 }]);
+    expect(searchRows([["İİ Foo", null]], "foo")).toEqual([{ index: 0, side: "left", from: 3, to: 6 }]);
+  });
+
+  it("finds brackets and dots as they are typed", () => {
+    expect(searchRows([["a(b).c* [x]", null]], "(b).c*")).toEqual([{ index: 0, side: "left", from: 1, to: 7 }]);
+  });
+
   it("reports which column the hit is in", () => {
     const hits = searchRows([["nothing", "needle"]], "needle");
 
