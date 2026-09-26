@@ -19,6 +19,7 @@
     isPublished,
     mergeInto,
     popupContextMenu,
+    protectingRefs,
     rebaseOnto,
     rebaseTodo,
     renameBranch,
@@ -52,16 +53,17 @@
     graphCommitMenu,
     graphRefMenu,
     labelTarget,
-    localNameOf,
-    tagNameOf,
     workingTreeMenu,
     type CommitFacts,
     type RefTarget,
   } from "$lib/ref-menus";
+  import { checkoutPlan, nodeTarget, type NodeTarget } from "$lib/ref-checkout";
+  import { worktreeMarks } from "$lib/worktree-list";
   import { publishedOrAssume } from "$lib/published";
   import { resetChoice } from "$lib/reset-modes";
   import { baseBefore, fullMessage, modifyPlan, rewordPlan, squashPlan } from "$lib/rewrite-plans";
   import { tagRequest } from "$lib/tag-dialog";
+  import { branchRevision } from "$lib/toolbar";
   import { branchNameProblem, textProblem } from "$lib/names";
   import { commit } from "$stores/commit.svelte";
   import { compareView } from "$stores/compare-view.svelte";
@@ -79,6 +81,7 @@
   import { stashView } from "$stores/stash-view.svelte";
   import { stashes } from "$stores/stashes.svelte";
   import { worktree } from "$stores/worktree.svelte";
+  import { worktrees } from "$stores/worktrees.svelte";
 
   /** The graph and Branches context menus (#33–#35, #37–#39) and their dialogs (#6,
       #28, Reset Advanced…). App keeps only the wiring: it hands over the right-click and
@@ -147,10 +150,11 @@
     oid: string,
     withPublished: boolean,
   ): Promise<{ details: CommitDetails; facts: CommitFacts }> {
-    const [details, onHead, published] = await Promise.all([
+    const [details, onHead, published, protectedBy] = await Promise.all([
       commitDetails(id, oid),
       isAncestor(id, oid, "HEAD").catch(() => false),
       withPublished ? publishedOrAssume(isPublished(id, oid)) : Promise.resolve(false),
+      withPublished ? protectingRefs(id, oid).catch(() => [] as string[]) : Promise.resolve([] as string[]),
     ]);
     const summary = repository.current;
     const facts = commitFacts({
@@ -161,6 +165,7 @@
       onHead,
       published,
       hasRemote: network.remotes.length > 0,
+      protectedBy,
     });
     return { details, facts };
   }
@@ -181,6 +186,13 @@
       node: null,
       selected: commit.oid,
     };
+  }
+
+  /** What Merge and Rebase hand git: a branch by a name git cannot take for a tag. */
+  function revisionOf(at: Target, oid: string): string {
+    const summary = repository.current;
+    if (at.branch && summary) return branchRevision(at.branch, summary.branches, summary.tags);
+    return at.ref?.name ?? oid;
   }
 
   export async function worktreeContext(x: number, y: number) {
@@ -215,7 +227,8 @@
       await stashLabelContext(label.text, oid, x, y);
       return;
     }
-    const found = labelTarget(label, summary.branches, summary.tags);
+    const held = worktreeMarks(worktrees.entries, summary.branches);
+    const found = labelTarget(label, summary.branches, summary.tags, held);
     if (!found) return;
     const token = ++asked;
     try {
@@ -245,11 +258,9 @@
     const summary = repository.current;
     if (!id || !summary || !claims(node)) return;
     const token = ++asked;
-    const tag =
-      node.kind === "tag"
-        ? (node.tag ?? summary.tags.find((entry) => entry.name === tagNameOf(node)))
-        : undefined;
-    const oid = node.kind === "tag" ? (tag?.pointsToCommit ? tag.oid : null) : (node.oid ?? null);
+    const found = nodeTarget(node, summary.tags);
+    const tag = found?.tag ?? undefined;
+    const oid = found ? found.oid : (node.oid ?? null);
     try {
       const loaded = oid ? await factsOf(id, oid, false) : null;
       if (token !== asked) return;
@@ -262,16 +273,10 @@
         const message = stashes.entries.find((entry) => entry.index === index)?.message ?? "";
         await show({ ...base, stash: { index, message } }, branchesStashMenu(facts, at), x, y);
       } else if (node.kind === "tag") {
-        if (!tag) return;
-        const ref: RefTarget = { kind: "tag", name: tag.name, isHead: false };
-        await show({ ...base, ref, tag }, branchesTagMenu(facts, { ...at, annotated: tag.isAnnotated }), x, y);
-      } else if (node.branch) {
-        const branch = node.branch;
-        const ref: RefTarget = {
-          kind: node.kind === "local" ? "branch" : "remote",
-          name: branch.name,
-          isHead: branch.isHead,
-        };
+        if (!tag || !found?.ref) return;
+        await show({ ...base, ref: found.ref, tag }, branchesTagMenu(facts, { ...at, annotated: tag.isAnnotated }), x, y);
+      } else if (found?.ref && found.branch) {
+        const { ref, branch } = found;
         await show({ ...base, ref, branch }, branchesBranchMenu(ref, facts, at), x, y);
       }
     } catch (err) {
@@ -370,7 +375,7 @@
         return checkoutTarget(id, at);
       case "merge":
         if (oid) await attempt("Could not merge", () =>
-          mergeInto(id, { source: at.ref?.name ?? oid, noFastForward: false, squash: false, message: null }),
+          mergeInto(id, { source: revisionOf(at, oid), noFastForward: false, squash: false, message: null }),
         );
         return;
       case "cherry-pick":
@@ -380,7 +385,7 @@
         if (oid) await attempt("Revert failed", () => revertCommits(id, [oid]));
         return;
       case "rebase":
-        if (oid) await attempt("Could not rebase", () => rebaseOnto(id, { onto: at.ref?.name ?? oid, autostash: true }));
+        if (oid) await attempt("Could not rebase", () => rebaseOnto(id, { onto: revisionOf(at, oid), autostash: true }));
         return;
       case "modify":
         return modify(id, at);
@@ -493,22 +498,26 @@
     return head?.kind === "branch" ? head.name : "HEAD";
   }
 
-  async function checkoutTarget(id: RepoId, at: Target) {
-    if (at.ref?.kind === "branch" && at.branch) return checkoutBranch(at.branch);
-    if (at.ref?.kind === "remote" && at.branch) {
-      return checkoutBranch({ ...at.branch, kind: "local", name: localNameOf(at.branch.name, network.remotes) });
-    }
-    const oid = at.oid;
-    if (!oid) return;
-    const what = at.ref?.kind === "tag" ? `tag ${at.ref.name}` : `commit ${shortOid(oid)}`;
+  async function checkoutTarget(id: RepoId, at: NodeTarget) {
+    const plan = checkoutPlan(at, network.remotes);
+    if (plan === null) return;
+    if (plan.kind === "switch") return checkoutBranch(plan.branch);
     const go = await confirmation.ask({
       title: "Check Out",
       message:
-        `Check out ${what}? HEAD will be detached: commits made from there belong to no branch ` +
+        `Check out ${plan.what}? HEAD will be detached: commits made from there belong to no branch ` +
         "until you add one, and are easy to lose when you switch away.",
       confirm: "Check Out",
     });
-    if (go) await attempt("Could not check out", () => checkout(id, { kind: "commit", oid }));
+    if (go) await attempt("Could not check out", () => checkout(id, { kind: "commit", oid: plan.oid }));
+  }
+
+  /** A double click in Branches is the menu's Check Out: a remote branch as its local one,
+      a tag only after the question about detaching HEAD. */
+  export async function checkOutNode(node: RefNode) {
+    const id = repoId();
+    const found = nodeTarget(node, repository.current?.tags ?? []);
+    if (id && found) await checkoutTarget(id, found);
   }
 
   async function modify(id: RepoId, at: Target) {

@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount, tick, type Snippet } from "svelte";
+  import ConfirmDialog from "$components/common/ConfirmDialog.svelte";
   import { keyIsFor, modalLayer, modals } from "$lib/modal-stack";
+  import { closeAnswer, type CloseRequest } from "$lib/unsaved";
 
   /** The shell every modal in Cogit is made of: one scrim, one panel, one title bar with
       a close button, one footer. It also owns the look of the controls inside it, so a
@@ -10,6 +12,9 @@
     title: string;
     /** Called by the ✕, by Esc and by a click on the scrim. */
     onclose: () => void;
+    /** Typed work the dialog would lose: the scrim then leaves it open, Esc and the ✕ ask
+        first, and closing the window names it (R-515). */
+    dirty?: boolean;
     /** Called by Enter unless the focus is on a button, which then answers for itself. */
     onconfirm?: () => void;
     width?: string;
@@ -25,6 +30,7 @@
     title,
     onclose,
     onconfirm,
+    dirty = false,
     width = "min(440px, 90vw)",
     height,
     flush = false,
@@ -36,6 +42,20 @@
   const layer = modalLayer();
   // Read before anything inside mounts: a dialog that focuses its own field does so first.
   const before = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  // By depth, not by place in the page: the question a dialog raises is mounted anywhere.
+  // The first layer keeps the 20 and 21 it always had, above the corner toast.
+  const zIndex = 20 + 2 * modals.depth(layer);
+
+  /** "Discard Changes" is showing over the dialog. */
+  let asking = $state(false);
+
+  $effect(() => modals.markUnsaved(layer, dirty ? title : null));
+
+  function requestClose(request: CloseRequest) {
+    const answer = closeAnswer(request, dirty);
+    if (answer === "close") onclose();
+    else if (answer === "ask") asking = true;
+  }
 
   const FOCUSABLE =
     'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])';
@@ -65,7 +85,7 @@
     if (event.key === "Escape") {
       if (event.defaultPrevented) return;
       event.preventDefault();
-      onclose();
+      requestClose("escape");
       return;
     }
     if (event.key === "Tab") {
@@ -95,7 +115,7 @@
 <svelte:window {onkeydown} />
 
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div class="backdrop" onclick={onclose}></div>
+<div class="backdrop" style:z-index={zIndex} onclick={() => requestClose("scrim")}></div>
 
 <div
   bind:this={panel}
@@ -106,10 +126,11 @@
   tabindex="-1"
   style:width
   style:height
+  style:z-index={zIndex + 1}
 >
   <header>
     <h2>{title}</h2>
-    <button type="button" class="close" onclick={onclose} aria-label="Close" title="Close (Esc)">
+    <button type="button" class="close" onclick={() => requestClose("button")} aria-label="Close" title="Close (Esc)">
       <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M1 1 9 9M9 1 1 9" /></svg>
     </button>
   </header>
@@ -121,11 +142,23 @@
   {/if}
 </div>
 
+{#if asking}
+  <ConfirmDialog
+    title="Discard Changes"
+    message="What you changed in “{title}” has not been saved. Discard it?"
+    confirm="Discard"
+    warning
+    onanswer={(yes) => {
+      asking = false;
+      if (yes) onclose();
+    }}
+  />
+{/if}
+
 <style>
   .backdrop {
     position: absolute;
     inset: 0;
-    z-index: 20;
     background: var(--scrim);
   }
 
@@ -135,7 +168,6 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    z-index: 21;
     display: flex;
     flex-direction: column;
     max-height: 88vh;

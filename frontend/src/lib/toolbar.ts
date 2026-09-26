@@ -3,6 +3,7 @@
  * Kept out of the component so the rules can be tested; the component only draws them.
  */
 
+import { prettyKeys, shortcutOf, type Keymap } from "$lib/keymap";
 import {
   DEFAULT_PREFS,
   remotesInOrder,
@@ -17,7 +18,10 @@ export interface ToolbarAction {
   /** Lucide path data, drawn at one size and weight. */
   icon: string;
   hint: string;
-  shortcut?: string;
+  /** The keymap command it runs, whose keys its tip shows (`shortcutOf`). */
+  command?: string;
+  /** A key the page keeps for itself, with no menu item to be remapped in. */
+  keys?: string;
   /** A caret beside the label opens more choices; the icon runs the action itself. */
   split?: boolean;
 }
@@ -46,7 +50,7 @@ export const ACTIONS: readonly ToolbarAction[] = [
     label: "Pull",
     icon: ICONS.pull,
     hint: "Bring the remote's commits down",
-    shortcut: "Ctrl+Shift+U",
+    command: "pull",
     split: true,
   },
   {
@@ -54,7 +58,7 @@ export const ACTIONS: readonly ToolbarAction[] = [
     label: "Push",
     icon: ICONS.push,
     hint: "Send your commits to the remote",
-    shortcut: "Ctrl+Shift+O",
+    command: "push",
     split: true,
   },
   {
@@ -62,7 +66,7 @@ export const ACTIONS: readonly ToolbarAction[] = [
     label: "Sync",
     icon: ICONS.sync,
     hint: "Pull, then push",
-    shortcut: "Ctrl+Shift+S",
+    command: "synchronize",
     split: true,
   },
   {
@@ -70,28 +74,28 @@ export const ACTIONS: readonly ToolbarAction[] = [
     label: "Stage",
     icon: ICONS.stage,
     hint: "Stage the selected files, or every change when none is selected",
-    shortcut: "Ctrl+T",
+    command: "stage",
   },
   {
     id: "unstage",
     label: "Unstage",
     icon: ICONS.unstage,
     hint: "Unstage the selected files, or the whole index when none is selected",
-    shortcut: "Ctrl+Shift+T",
+    command: "unstage",
   },
   {
     id: "discard",
     label: "Discard",
     icon: ICONS.discard,
     hint: "Throw away the changes in the selected files",
-    shortcut: "Ctrl+Z",
+    keys: "CmdOrCtrl+Z",
   },
   {
     id: "stash",
     label: "Stash",
     icon: ICONS.stash,
     hint: "Put the working tree aside",
-    shortcut: "Ctrl+S",
+    command: "stash",
     split: true,
   },
   {
@@ -113,7 +117,7 @@ export const ACTIONS: readonly ToolbarAction[] = [
     hint: "Replay HEAD on the selected commit",
     split: true,
   },
-  { id: "tag", label: "Tag", icon: ICONS.tag, hint: "Tag the current commit", shortcut: "Shift+F7" },
+  { id: "tag", label: "Tag", icon: ICONS.tag, hint: "Tag the current commit", command: "tag" },
   { id: "undo", label: "Undo", icon: ICONS.undo, hint: "Reverse the last operation" },
 ];
 
@@ -238,6 +242,12 @@ function syncMenu(context: MenuContext): MenuEntry[] {
   }));
 }
 
+/** The keys a button's tip shows: its command's as the keymap has them, or the page's own. */
+export function shortcutOfAction(action: ToolbarAction, keys: Keymap, onMac: boolean): string | undefined {
+  if (action.command) return shortcutOf(action.command, keys, onMac);
+  return action.keys ? prettyKeys(action.keys, onMac) : undefined;
+}
+
 /** The tooltip of a button whose action depends on a remembered choice. */
 export function hintOf(action: ToolbarAction, context: MenuContext = NO_MENU_CONTEXT): string {
   if (action.id === "sync") {
@@ -293,6 +303,8 @@ export interface ToolbarFacts {
   commit: string | null;
   head: string | null;
   branch: boolean;
+  /** HEAD's branch tracks a remote branch, which Pull and Sync bring down. */
+  upstream: boolean;
   /** Whether HEAD already contains `commit`; `undefined` while that is being asked. */
   merged: boolean | undefined;
   stashes: number;
@@ -310,6 +322,7 @@ export const NO_FACTS: ToolbarFacts = {
   commit: null,
   head: null,
   branch: false,
+  upstream: false,
   merged: undefined,
   stashes: 0,
   undo: false,
@@ -341,6 +354,12 @@ const needRepository: Rule = (f) => (f.repository ? undefined : "No repository i
 const needRemote: Rule = (f) =>
   needRepository(f) ?? (f.remote ? undefined : "This repository has no remote");
 
+const needBranch: Rule = (f) => needRemote(f) ?? (f.branch ? undefined : "HEAD is not on a branch");
+
+/** Pull and Sync without an upstream, or on a detached HEAD, only ever end in git's error. */
+const needUpstream: Rule = (f) =>
+  needBranch(f) ?? (f.upstream ? undefined : "The branch tracks no remote branch");
+
 const needWorkingTree: Rule = (f) =>
   needRepository(f) ??
   (f.onWorkingTree ? undefined : "Select the Working Tree in the graph first");
@@ -354,16 +373,24 @@ const needChanges: Rule = (f) =>
 const needSelection: Rule = (f) =>
   needWorkingTree(f) ?? (anyMarked(f) ? undefined : "No file is selected in Files");
 
+/** git stash needs a commit to stash against: before the first one it only says "You do
+    not have the initial commit yet". */
+const bornFirst =
+  (rule: Rule): Rule =>
+  (f) =>
+    rule(f) ?? (f.head === null ? "Nothing is committed yet" : undefined);
+
 const needCommit: Rule = (f) =>
   needRepository(f) ??
   (f.commit === null ? "Select a commit or a branch first" : undefined) ??
   (f.commit === f.head ? "HEAD itself is selected" : undefined);
 
 const RULES: Record<string, Rule> = {
-  pull: needRemote,
-  push: needRemote,
-  "push-to": (f) => needRemote(f) ?? (f.branch ? undefined : "HEAD is not on a branch"),
-  sync: needRemote,
+  pull: needUpstream,
+  // A branch without an upstream is pushed with --set-upstream (R-414).
+  push: needBranch,
+  "push-to": needBranch,
+  sync: needUpstream,
   "fetch-remote": needRemote,
   "fetch-remotes": needRemote,
   "pull-scope": needRemote,
@@ -390,10 +417,10 @@ const RULES: Record<string, Rule> = {
   discard: (f) =>
     needWorkingTree(f) ??
     (f.markedUnstaged.length > 0 ? undefined : "Select the changes to discard in Files"),
-  stash: needChanges,
-  "quick-stash-all": needChanges,
-  "stash-selection": needSelection,
-  "quick-stash-selection": needSelection,
+  stash: bornFirst(needChanges),
+  "quick-stash-all": bornFirst(needChanges),
+  "stash-selection": bornFirst(needSelection),
+  "quick-stash-selection": bornFirst(needSelection),
   "apply-stash": (f) => needRepository(f) ?? (f.stashes > 0 ? undefined : "There are no stashes"),
   merge: (f) =>
     needCommit(f) ??
@@ -404,7 +431,8 @@ const RULES: Record<string, Rule> = {
         : undefined),
   rebase: needCommit,
   "rebase-i": needCommit,
-  tag: needRepository,
+  // The selected commit, or HEAD's: an orphan branch can still tag one it selects.
+  tag: (f) => needRepository(f) ?? ((f.commit ?? f.head) === null ? "There is no commit to tag yet" : undefined),
   undo: (f) => needRepository(f) ?? (f.undo ? undefined : "Nothing to undo"),
 };
 
@@ -432,18 +460,37 @@ export function targetsOf(
 
 export interface BranchLike {
   name: string;
+  fullName: string;
   kind: "local" | "remote";
   oid: string;
   isHead: boolean;
 }
 
+/** What Merge and Rebase hand git for a branch. Its short name, which git writes into the
+    merge message as it is — unless git would read another ref first: `refs/tags/<name>`
+    comes before `refs/heads/<name>`, and both before `refs/remotes/<name>`, so "Merge topic"
+    merged a tag `topic` with only a warning. Then the full ref. */
+export function branchRevision(
+  branch: Pick<BranchLike, "name" | "fullName" | "kind">,
+  branches: readonly Pick<BranchLike, "name" | "kind">[],
+  tags: readonly { name: string }[],
+): string {
+  const shadowed =
+    tags.some((tag) => tag.name === branch.name) ||
+    (branch.kind === "remote" && branches.some((other) => other.kind === "local" && other.name === branch.name));
+  return shadowed ? branch.fullName : branch.name;
+}
+
+/** A local branch dragged onto another in Branches, as Merge and Rebase hand it to git. */
+export function localRevision(name: string, branches: readonly BranchLike[], tags: readonly { name: string }[]): string {
+  const branch = branches.find((entry) => entry.kind === "local" && entry.name === name);
+  return branch ? branchRevision(branch, branches, tags) : name;
+}
+
 /** What Merge and Rebase name: a branch at the selected commit reads better in the merge
     message than a hash. A local branch wins over a remote one; HEAD's own is skipped. */
-export function refAt(oid: string, branches: readonly BranchLike[]): string {
+export function refAt(oid: string, branches: readonly BranchLike[], tags: readonly { name: string }[]): string {
   const at = branches.filter((branch) => branch.oid === oid && !branch.isHead);
-  return (
-    at.find((branch) => branch.kind === "local")?.name ??
-    at.find((branch) => branch.kind === "remote")?.name ??
-    oid
-  );
+  const branch = at.find((entry) => entry.kind === "local") ?? at.find((entry) => entry.kind === "remote");
+  return branch ? branchRevision(branch, branches, tags) : oid;
 }

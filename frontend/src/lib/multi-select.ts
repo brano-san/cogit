@@ -104,3 +104,19 @@ export function markRow(
   if (modifiers.ctrl || modifiers.shift) return applyClick(current, path, order, modifiers);
   return order.includes(path) ? { paths: new Set(), anchor: path } : current;
 }
+
+/** Why a row's button is off: the first file of those it would act on (`actionScope`) that
+    the rule refuses, so the button agrees with the menu for the same marks. */
+export function scopeBlocked<F>(
+  marked: ReadonlySet<string>,
+  row: string,
+  files: ReadonlyMap<string, F>,
+  blocked: (file: F) => string | null,
+): string | null {
+  for (const path of actionScope(marked, { row })) {
+    const file = files.get(path);
+    const reason = file === undefined ? null : blocked(file);
+    if (reason !== null) return reason;
+  }
+  return null;
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ContextItem } from "./ipc";
-import { commitFileMenu, worktreeFileMenu, type WorktreeFileTarget } from "./file-menu";
+import { commitFileMenu, rowActionBlocked, worktreeFileMenu, type WorktreeFileTarget } from "./file-menu";
 
 const MODIFIED: WorktreeFileTarget = {
   section: "worktree",
@@ -166,5 +166,39 @@ describe("commitFileMenu", () => {
     expect(on(many, "file-cherry-pick")).toBe(false);
     expect(on(many, "file-compare-worktree")).toBe(false);
     expect(on(many, "file-copy-name")).toBe(true);
+  });
+});
+
+// The buttons on an Unstaged row did whatever the file was: Ignore on a tracked file wrote
+// a useless line into .gitignore, Discard deleted an untracked one the menu keeps, and +x
+// on a file whose mode had not changed did nothing without a word.
+describe("rowActionBlocked", () => {
+  const file = (status: string, modeChange: "executable" | "plain" | null = null) => ({ status, modeChange });
+
+  it("ignores only an untracked file, as the menu does", () => {
+    expect(rowActionBlocked("ignore", file("untracked"))).toBeNull();
+    expect(rowActionBlocked("ignore", file("modified"))).not.toBeNull();
+    expect(on(worktreeFileMenu({ ...MODIFIED, statuses: ["modified"] }), "file-ignore")).toBe(false);
+  });
+
+  it("discards only what git has a version of, as the menu does", () => {
+    expect(rowActionBlocked("discard", file("modified"))).toBeNull();
+    expect(rowActionBlocked("discard", file("untracked"))).not.toBeNull();
+    expect(on(worktreeFileMenu({ ...MODIFIED, statuses: ["untracked"] }), "file-discard")).toBe(false);
+  });
+
+  it("stages a mode change only where the mode changed", () => {
+    expect(rowActionBlocked("mode", file("modified", "executable"))).toBeNull();
+    expect(rowActionBlocked("mode", file("modified"))).toBe("The mode did not change");
+  });
+
+  it("deletes only a file that is on disk, as the menu does", () => {
+    expect(rowActionBlocked("delete", file("deleted"))).not.toBeNull();
+    expect(rowActionBlocked("delete", file("modified"))).toBeNull();
+    expect(on(worktreeFileMenu({ ...MODIFIED, statuses: ["deleted"] }), "file-delete")).toBe(false);
+  });
+
+  it("stages any unstaged row", () => {
+    for (const status of ["modified", "untracked", "deleted"]) expect(rowActionBlocked("stage", file(status))).toBeNull();
   });
 });

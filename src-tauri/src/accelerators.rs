@@ -97,6 +97,11 @@ pub fn parse(accelerator: &str) -> Option<Chord> {
     }
 
     chord.key = virtual_key(named?)?;
+    // Without Ctrl or Alt a key is typing or moving about the page; only an F-key is a
+    // command on its own.
+    if !chord.ctrl && !chord.alt && !(VK_F1..VK_F1 + 24).contains(&chord.key) {
+        return None;
+    }
     Some(chord)
 }
 
@@ -264,6 +269,35 @@ mod tests {
         assert!(parse("CmdOrCtrl+Space").is_none());
         assert!(parse("CmdOrCtrl").is_none());
         assert!(parse("").is_none());
+    }
+
+    // A recorded `Up` or a lone letter would be claimed from every panel and text field.
+    #[test]
+    fn a_key_without_ctrl_or_alt_is_left_to_the_page_unless_it_is_an_f_key() {
+        assert!(parse("Up").is_none());
+        assert!(parse("Shift+A").is_none());
+        assert!(parse("Enter").is_none());
+        assert!(parse("F24").is_some());
+        assert!(parse("Shift+F6").is_some());
+    }
+
+    // The keymap editor showed Ctrl+/ or Ctrl+Space as assigned, and the key did nothing.
+    // It records only what this reads: one table of cases for both sides, `claimable` in
+    // `lib/keymap.ts` on the other.
+    #[test]
+    fn the_keymap_editor_and_the_window_agree_on_what_can_be_claimed() {
+        let cases: serde_json::Value = serde_json::from_str(include_str!(
+            "../../frontend/src/lib/accelerator-cases.json"
+        ))
+        .expect("the shared cases are JSON");
+        for (list, claimed) in [("claimable", true), ("refused", false)] {
+            let keys = cases[list].as_array().expect("a list of accelerators");
+            assert!(!keys.is_empty());
+            for keys in keys {
+                let keys = keys.as_str().expect("an accelerator");
+                assert_eq!(parse(keys).is_some(), claimed, "{keys:?}");
+            }
+        }
     }
 
     #[test]

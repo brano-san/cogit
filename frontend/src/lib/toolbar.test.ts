@@ -13,6 +13,9 @@ import {
   type MenuEntry,
   reasonOf,
   refAt,
+  shortcutOfAction,
+  branchRevision,
+  localRevision,
   splitMarked,
   targetsOf,
   type ToolbarFacts,
@@ -151,7 +154,24 @@ describe("the rest", () => {
 
   it("needs a remote for the network actions", () => {
     expect(reasonOf("pull", facts())).toBe("This repository has no remote");
-    expect(reasonOf("push", facts({ remote: true }))).toBeUndefined();
+    expect(reasonOf("push", facts({ remote: true, branch: true }))).toBeUndefined();
+  });
+
+  // In a detached HEAD, mid-rebase or on a branch that tracks nothing every click on Pull,
+  // Push or Sync ended in a git error: "You are not currently on a branch".
+  it("pulls and syncs only a branch that tracks a remote branch", () => {
+    for (const id of ["pull", "sync"]) {
+      expect(reasonOf(id, facts({ remote: true })), id).toBe("HEAD is not on a branch");
+      expect(reasonOf(id, facts({ remote: true, branch: true })), id).toBe("The branch tracks no remote branch");
+      expect(reasonOf(id, facts({ remote: true, branch: true, upstream: true })), id).toBeUndefined();
+    }
+  });
+
+  // A branch without upstream is pushed with --set-upstream (R-414); only a detached HEAD
+  // has nothing to push.
+  it("pushes a branch whether or not it tracks one yet", () => {
+    expect(reasonOf("push", facts({ remote: true }))).toBe("HEAD is not on a branch");
+    expect(reasonOf("push", facts({ remote: true, branch: true }))).toBeUndefined();
   });
 
   it("never offers an action it does not know", () => {
@@ -182,22 +202,58 @@ describe("targetsOf", () => {
 });
 
 describe("refAt", () => {
-  const branches = [
-    { name: "main", kind: "local" as const, oid: HEAD, isHead: true },
-    { name: "origin/topic", kind: "remote" as const, oid: OTHER, isHead: false },
-    { name: "topic", kind: "local" as const, oid: OTHER, isHead: false },
-  ];
+  const branch = (name: string, kind: "local" | "remote", oid: string, isHead = false) => ({
+    name,
+    fullName: kind === "local" ? `refs/heads/${name}` : `refs/remotes/${name}`,
+    kind,
+    oid,
+    isHead,
+  });
+  const branches = [branch("main", "local", HEAD, true), branch("origin/topic", "remote", OTHER), branch("topic", "local", OTHER)];
 
   it("names the local branch at the commit", () => {
-    expect(refAt(OTHER, branches)).toBe("topic");
+    expect(refAt(OTHER, branches, [])).toBe("topic");
   });
 
   it("falls back to the hash when no branch points there", () => {
-    expect(refAt("c".repeat(40), branches)).toBe("c".repeat(40));
+    expect(refAt("c".repeat(40), branches, [])).toBe("c".repeat(40));
   });
 
   it("skips HEAD's own branch", () => {
-    expect(refAt(HEAD, branches)).toBe(HEAD);
+    expect(refAt(HEAD, branches, [])).toBe(HEAD);
+  });
+
+  // Git reads refs/tags/<name> before refs/heads/<name>: with a tag `topic` on an older
+  // commit, Merge "topic" merged the tag and said only "Already up to date".
+  it("names the branch in full when a tag of that name would be read first", () => {
+    expect(refAt(OTHER, branches, [{ name: "topic" }])).toBe("refs/heads/topic");
+  });
+
+  it("names a remote branch in full when a local branch or tag shares its name", () => {
+    const remoteOnly = [branch("origin/topic", "remote", OTHER), branch("origin/topic", "local", "c".repeat(40))];
+    expect(refAt(OTHER, remoteOnly, [])).toBe("refs/remotes/origin/topic");
+    expect(refAt(OTHER, [branch("origin/topic", "remote", OTHER)], [{ name: "origin/topic" }])).toBe(
+      "refs/remotes/origin/topic",
+    );
+    expect(refAt(OTHER, [branch("origin/topic", "remote", OTHER)], [])).toBe("origin/topic");
+  });
+});
+
+describe("localRevision", () => {
+  // Dragging topic onto main in Branches merged a tag topic just the same.
+  it("names a dragged local branch in full when a tag of that name would be read first", () => {
+    const topic = { name: "topic", fullName: "refs/heads/topic", kind: "local" as const, oid: OTHER, isHead: false };
+    expect(localRevision("topic", [topic], [{ name: "topic" }])).toBe("refs/heads/topic");
+    expect(localRevision("topic", [topic], [])).toBe("topic");
+    expect(localRevision("gone", [topic], [])).toBe("gone");
+  });
+});
+
+describe("branchRevision", () => {
+  it("keeps the short name git writes into the merge message while it is unambiguous", () => {
+    const topic = { name: "topic", fullName: "refs/heads/topic", kind: "local" as const };
+    expect(branchRevision(topic, [], [])).toBe("topic");
+    expect(branchRevision(topic, [], [{ name: "topic" }])).toBe("refs/heads/topic");
   });
 });
 
@@ -352,5 +408,57 @@ describe("Apply Stash", () => {
   it("is off without a stash and on with one", () => {
     expect(reasonOf("apply-stash", facts())).toBe("There are no stashes");
     expect(reasonOf("apply-stash", facts({ stashes: 2 }))).toBeUndefined();
+  });
+});
+
+// The Stash button said Ctrl+S after Stash All moved to another key.
+describe("shortcutOfAction", () => {
+  const keys = { stash: "CmdOrCtrl+Shift+H", pull: "CmdOrCtrl+Shift+U", synchronize: "" };
+  const action = (id: string) => ACTIONS.find((entry) => entry.id === id)!;
+
+  it("shows the key of the button's command as the keymap has it", () => {
+    expect(shortcutOfAction(action("stash"), keys, false)).toBe("Ctrl+Shift+H");
+    expect(shortcutOfAction(action("pull"), keys, true)).toBe("Cmd+Shift+U");
+  });
+
+  it("shows no key for a command whose key was removed", () => {
+    expect(shortcutOfAction(action("sync"), keys, false)).toBeUndefined();
+  });
+
+  it("shows the page's own key for Discard, which no menu item has", () => {
+    expect(shortcutOfAction(action("discard"), keys, false)).toBe("Ctrl+Z");
+    expect(shortcutOfAction(action("discard"), keys, true)).toBe("Cmd+Z");
+  });
+
+  it("shows nothing for a button without a key", () => {
+    expect(shortcutOfAction(action("merge"), keys, false)).toBeUndefined();
+  });
+});
+
+// Right after git init, Tag answered with an error notification ("There is no commit to tag
+// yet") and Stash with git's "You do not have the initial commit yet"; Ctrl+S on a clean tree
+// opened Stash All only for git to say there was nothing to stash.
+describe("before the first commit and on a clean tree", () => {
+  const unborn = (over: Partial<ToolbarFacts> = {}) => facts({ head: null, unstaged: ["a.txt"], ...over });
+
+  it("has nothing to tag until there is a commit, selected or at HEAD", () => {
+    expect(reasonOf("tag", unborn())).toBe("There is no commit to tag yet");
+    expect(reasonOf("tag", unborn({ commit: OTHER }))).toBeUndefined();
+    expect(reasonOf("tag", facts())).toBeUndefined();
+  });
+
+  it("stashes nothing before the first commit", () => {
+    for (const id of ["stash", "quick-stash-all"]) {
+      expect(reasonOf(id, unborn()), id).toBe("Nothing is committed yet");
+    }
+    const ticked = unborn({ onWorkingTree: true, markedUnstaged: ["a.txt"] });
+    for (const id of ["stash-selection", "quick-stash-selection"]) {
+      expect(reasonOf(id, ticked), id).toBe("Nothing is committed yet");
+    }
+  });
+
+  it("stashes nothing from a clean tree, wherever Stash All is asked for", () => {
+    expect(reasonOf("stash", facts())).toBe("The working tree is clean");
+    expect(reasonOf("stash", facts({ unstaged: ["a.txt"] }))).toBeUndefined();
   });
 });

@@ -1,4 +1,5 @@
 import type { ContextItem } from "./ipc";
+import type { FileMode } from "./ipc/bindings";
 import { SEPARATOR, item, offer, submenu, tidy } from "./context-menu";
 
 /** The Working Tree's two lists: unstaged changes are the working tree, staged the index. */
@@ -15,6 +16,47 @@ export interface WorktreeFileTarget {
 }
 
 const NO_HISTORY = new Set(["untracked", "added"]);
+
+/** Why these files cannot be ignored, discarded or deleted, or null when they can. The
+    Files menu and the buttons on an Unstaged row read the same rules. */
+function ignoreBlocked(statuses: readonly string[]): string | null {
+  return statuses.length > 0 && statuses.every((status) => status === "untracked")
+    ? null
+    : "Only an untracked file can be ignored";
+}
+
+function discardBlocked(statuses: readonly string[]): string | null {
+  return statuses.some((status) => status === "untracked")
+    ? "An untracked file has no version to go back to; Delete removes it"
+    : null;
+}
+
+function deleteBlocked(statuses: readonly string[]): string | null {
+  return statuses.some((status) => status !== "deleted") ? null : "Not on disk";
+}
+
+/** The buttons on an Unstaged row (FilesPanel). */
+export type RowAction = "stage" | "mode" | "discard" | "ignore" | "delete";
+
+/** Why a row's button does not apply to its file, or null when it does: the menu's rule
+    for the one file, so a button never does what the menu refuses. */
+export function rowActionBlocked(
+  action: RowAction,
+  file: { status: string; modeChange: FileMode | null },
+): string | null {
+  switch (action) {
+    case "stage":
+      return null;
+    case "mode":
+      return file.modeChange ? null : "The mode did not change";
+    case "discard":
+      return discardBlocked([file.status]);
+    case "ignore":
+      return ignoreBlocked([file.status]);
+    case "delete":
+      return deleteBlocked([file.status]);
+  }
+}
 
 /** The Files panel on the Working Tree, in SmartGit's order (#40). */
 export function worktreeFileMenu(at: WorktreeFileTarget): ContextItem[] {
@@ -56,10 +98,10 @@ export function worktreeFileMenu(at: WorktreeFileTarget): ContextItem[] {
       conflicted,
     ),
     SEPARATOR,
-    item("file-ignore", "Ignore", all("untracked")),
-    item("file-discard", "Discard…", at.unstaged && !untracked, "CmdOrCtrl+Z"),
+    item("file-ignore", "Ignore", ignoreBlocked(at.statuses) === null),
+    item("file-discard", "Discard…", at.unstaged && discardBlocked(at.statuses) === null, "CmdOrCtrl+Z"),
     item("file-remove", "Remove…", !untracked),
-    item("file-delete", "Delete…", at.statuses.some((s) => s !== "deleted")),
+    item("file-delete", "Delete…", deleteBlocked(at.statuses) === null),
     SEPARATOR,
     item("file-copy-name", "Copy Name"),
     item("file-copy-path", "Copy Path"),

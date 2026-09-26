@@ -26,6 +26,7 @@
   import { InvestigateSession, type InvestigateBackend } from "$lib/investigate/session.svelte";
   import { avatars } from "$stores/avatars.svelte";
   import { diff } from "$stores/diff.svelte";
+  import { followSettings } from "$lib/settings-sync";
   import { settings } from "$stores/settings.svelte";
 
   const request = parseInvestigate(window.location.search);
@@ -55,12 +56,16 @@
       const command = commandOf(action);
       if (command) run(command);
     });
-    void settings.load().then(() => avatars.apply(settings.current.avatars === "gravatar"));
+    const showAvatars = () => avatars.apply(settings.current.avatars === "gravatar");
+    void settings.load().then(showAvatars);
+    // What Preferences changes in the main window reaches this one too (F-335).
+    const undoSettings = followSettings(() => void settings.reload().then(showAvatars));
     void session?.start();
     const tick = setInterval(() => (now = Math.floor(Date.now() / 1000)), 60_000);
     return () => {
       undoWindow();
       undoMenu();
+      undoSettings();
       clearInterval(tick);
       session?.dispose();
     };

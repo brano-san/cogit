@@ -2,7 +2,7 @@ import type { PaletteCommand } from "./palette";
 import type { Submodule } from "./ipc";
 import { moduleKey } from "./module-tree";
 
-/** Remote ▸ Synchronize, Submodule, Subtree and LFS, and Repository ▸ Settings (#42, #45,
+/** Remote ▸ Synchronise, Submodule, Subtree and LFS, and Repository ▸ Settings (#42, #45,
     #46): what each is called, when it is offered and why not. Ids are the native menu's. */
 
 export type SubmoduleAction =
@@ -25,6 +25,9 @@ export interface RemoteMenuContext {
   /** `undefined` while it is still being asked, `null` when git has no `lfs` command. */
   lfs: string | null | undefined;
   files: readonly string[];
+  /** Why Synchronise cannot run with a remote there: the toolbar's Sync rule (`reasonOf`),
+      which wants HEAD on a branch that tracks one. */
+  syncBlocked?: string;
 }
 
 export interface RemoteMenuActions {
@@ -36,8 +39,8 @@ export interface RemoteMenuActions {
 }
 
 const SUBMODULE_ITEMS: readonly [string, SubmoduleAction, string][] = [
-  ["submodule-init", "initialize", "Initialize"],
-  ["submodule-sync", "synchronize", "Synchronize"],
+  ["submodule-init", "initialize", "Initialise"],
+  ["submodule-sync", "synchronize", "Synchronise"],
   ["submodule-reset", "reset", "Reset…"],
   ["submodule-add", "add", "Add…"],
   ["submodule-deactivate", "deactivate", "Deactivate…"],
@@ -97,13 +100,12 @@ export function remoteCommands(
   return [
     {
       id: "synchronize",
-      title: "Synchronize",
-      shortcut: "Ctrl+Shift+S",
+      title: "Synchronise",
       synonyms: ["sync", "pull then push"],
       unavailable: !context.repository
         ? NO_REPOSITORY
         : context.remote
-          ? undefined
+          ? context.syncBlocked
           : "This repository has no remote",
       run: actions.synchronize,
     },
