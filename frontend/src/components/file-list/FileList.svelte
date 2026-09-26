@@ -19,6 +19,7 @@
   } from "$lib/file-view";
   import {
     actionScope,
+    everyBlocked,
     requestBlocked,
     scopeBlocked,
     afterDeselect,
@@ -39,6 +40,9 @@
     run: (paths: string[]) => void;
     /** Why it does not apply to one row's file (`rowActionBlocked`). */
     blocked?: (file: FileEntry) => string | null;
+    /** It passes over the files it does not apply to, so the heading's "all" is off only
+        when it applies to none. */
+    skips?: boolean;
   }
 
   interface Section {
@@ -218,7 +222,10 @@
         ...(blocked
           ? {
               blocked: (file: FileEntry) => scopeBlocked(marked(), file.path, byPath, blocked),
-              allBlocked: (paths: readonly string[]) => requestBlocked(marked(), { all: paths }, byPath, blocked),
+              allBlocked: (paths: readonly string[]) =>
+                action.skips
+                  ? everyBlocked(paths, byPath, blocked)
+                  : requestBlocked(marked(), { all: paths }, byPath, blocked),
             }
           : {}),
       };

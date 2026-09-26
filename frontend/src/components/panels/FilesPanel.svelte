@@ -192,7 +192,13 @@
           onselect: onopenworktree,
           actions: [
             { label: "Stage", title: "Stage", run: stage },
-            { label: "+x", title: "Stage only the mode change", run: stagemode, blocked: rowBlocked("mode") },
+            {
+              label: "+x",
+              title: "Stage only the mode change",
+              run: stagemode,
+              blocked: rowBlocked("mode"),
+              skips: true,
+            },
             { label: "Discard", title: "Discard changes", run: discard, blocked: rowBlocked("discard") },
             { label: "Ignore", title: "Add to .gitignore", run: ignore, blocked: rowBlocked("ignore") },
             {
