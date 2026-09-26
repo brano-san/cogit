@@ -159,6 +159,9 @@ pub struct OpenRepo {
     /// reached by double-clicking its node is open and workable but not listed: it is
     /// already on screen, as a node of its parent (doc/12-risks.md, R-109).
     pub listed: bool,
+    /// The repository whose tree it was opened from, a submodule's or a worktree's; one
+    /// that is not listed closes with it (R-508).
+    pub owner: Option<RepoId>,
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -502,7 +505,7 @@ impl AppState {
         let mut watch = Steps::new();
         let handle = git_engine::RepoHandle::open(path)?;
         watch.done("open");
-        self.open_with(handle, path, true, watch, began)
+        self.open_with(handle, path, None, watch, began)
     }
 
     /// `open_repository` without the status, the registration and the watcher: after a
@@ -531,7 +534,7 @@ impl AppState {
         let mut watch = Steps::new();
         let handle = git_engine::RepoHandle::open_exact(&path)?;
         watch.done("open");
-        self.open_with(handle, &path, false, watch, began)
+        self.open_with(handle, &path, Some(owner), watch, began)
     }
 
     /// The one place a tree key becomes a directory, shared by listing and opening so the
@@ -540,12 +543,13 @@ impl AppState {
         Ok(self.handle(owner)?.root().join(key))
     }
 
-    /// `began`: `closes_so_far` before the first read.
+    /// `began`: `closes_so_far` before the first read. `owner`: `None` for an entry of
+    /// the list, else the repository whose tree it was opened from.
     fn open_with(
         &self,
         handle: git_engine::RepoHandle,
         path: &Path,
-        listed: bool,
+        owner: Option<RepoId>,
         mut watch: Steps,
         began: u64,
     ) -> Result<RepoSummary, git_engine::GitError> {
@@ -572,7 +576,7 @@ impl AppState {
             |n| n.to_string_lossy().into_owned(),
         );
 
-        let Some(id) = self.find_or_register(root.clone(), name.clone(), listed, began) else {
+        let Some(id) = self.find_or_register(root.clone(), name.clone(), owner, began) else {
             tracing::info!(root = %root.display(), "closed while it was opening; not registered");
             return Err(git_engine::GitError::InvalidState(format!(
                 "{} was closed while it was opening",
@@ -1098,6 +1102,20 @@ impl AppState {
         self.reachable.lock().remove(&repo);
         watch.done("forget-state");
         watch.report_close(repo.0, removed);
+
+        // Not the one on screen, nor one with work in its lane: those the user is still in.
+        let busy: Vec<Option<RepoId>> = self.queue.snapshot().iter().map(|op| op.repo).collect();
+        let opened_from: Vec<RepoId> = self
+            .repos
+            .read()
+            .values()
+            .filter(|open| !open.listed && open.owner == Some(repo))
+            .map(|open| open.id)
+            .filter(|id| !self.is_shown(*id) && !busy.contains(&Some(*id)))
+            .collect();
+        for inner in opened_from {
+            self.close_repository(inner);
+        }
         removed
     }
 
@@ -1386,6 +1404,7 @@ impl AppState {
                 root,
                 display_name,
                 listed,
+                owner: None,
             },
         );
         self.emit(AppEvent::RepoOpened { repo: id });
@@ -1404,9 +1423,10 @@ impl AppState {
         &self,
         root: PathBuf,
         display_name: String,
-        listed: bool,
+        owner: Option<RepoId>,
         began: u64,
     ) -> Option<RepoId> {
+        let listed = owner.is_none();
         let mut repos = self.repos.write();
         if let Some(open) = repos.values_mut().find(|open| open.root == root) {
             open.listed |= listed;
@@ -1428,6 +1448,7 @@ impl AppState {
                 root,
                 display_name,
                 listed,
+                owner,
             },
         );
         drop(repos);
@@ -1538,14 +1559,14 @@ mod tests {
         state.close_repository(id);
 
         assert_eq!(
-            state.find_or_register(root.clone(), "a".into(), true, began),
+            state.find_or_register(root.clone(), "a".into(), None, began),
             None
         );
         assert!(state.list().is_empty());
         let now = state.closes_so_far();
         assert!(
             state
-                .find_or_register(root, "a".into(), true, now)
+                .find_or_register(root, "a".into(), None, now)
                 .is_some()
         );
     }
@@ -1560,7 +1581,7 @@ mod tests {
 
         assert!(
             state
-                .find_or_register(PathBuf::from("/a"), "a".into(), true, began)
+                .find_or_register(PathBuf::from("/a"), "a".into(), None, began)
                 .is_some()
         );
     }

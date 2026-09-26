@@ -22,6 +22,19 @@ fn linked(state: &AppState, repo: RepoId) -> git_engine::WorktreeEntry {
 }
 
 #[test]
+fn closing_a_repository_closes_the_worktrees_opened_from_it() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let (state, owner) = open(&f);
+    let path = linked(&state, owner).path;
+    let opened = state.open_worktree(owner, &path).unwrap().repo;
+
+    state.close_repository(owner);
+
+    assert!(state.repo_status(opened).is_err());
+    assert_eq!(state.repositories_held(), 0);
+}
+
+#[test]
 fn a_worktree_opens_in_the_panels_without_joining_the_repository_list() {
     let f = test_fixtures::with_worktree().unwrap();
     let (state, owner) = open(&f);
