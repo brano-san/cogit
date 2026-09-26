@@ -596,15 +596,19 @@ impl AppState {
             .handle(repo)
             .inspect_err(|err| tracing::error!(error = ?err, context = "graph window"))
             .ok();
-        let cache = self.graph.read();
-        let (shown, complete) = cache.view(repo, generation)?;
-        let laid = &shown.laid;
+        // Out of the cache before any text is read from disk: a walk's next chunk waits on
+        // the cache for writing, not on this window.
+        let (laid, texts, complete) = {
+            let cache = self.graph.read();
+            let (shown, complete) = cache.view(repo, generation)?;
+            (Arc::clone(&shown.laid), shown.texts.clone(), complete)
+        };
         let len = laid.rows.len();
         let from = usize::try_from(start).unwrap_or(usize::MAX).min(len);
         let to = from
             .saturating_add(usize::try_from(count).unwrap_or(usize::MAX))
             .min(len);
-        let commits = match &shown.texts {
+        let commits = match &texts {
             Some(texts) => {
                 let mut texts = texts.lock();
                 laid.commits[from..to]

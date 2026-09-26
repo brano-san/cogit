@@ -623,11 +623,16 @@ pub async fn graph_window(
     start: u32,
     count: u32,
 ) -> Result<String, GitError> {
-    let window = state.state.graph_window(repo, generation, start, count);
-    let bytes = window
-        .map(|w| app_state::graph_wire::encode(&w))
-        .unwrap_or_default();
-    Ok(diff_engine::base64(&bytes))
+    let app_state = state.state.clone();
+    // Blocking: a window with texts nobody read yet reads up to `count` commits from disk.
+    blocking("graph_window", move || {
+        let window = app_state.graph_window(repo, generation, start, count);
+        let bytes = window
+            .map(|w| app_state::graph_wire::encode(&w))
+            .unwrap_or_default();
+        Ok(diff_engine::base64(&bytes))
+    })
+    .await
 }
 
 #[tauri::command]
