@@ -5,6 +5,7 @@ import {
   assign,
   groupRows,
   mergeGroups,
+  removalQuestion,
   removeGroup,
   renameGroup,
   showsFilter,
@@ -66,6 +67,15 @@ describe("removeGroup", () => {
     const left = removeGroup(withTwo, "g1");
     expect(left.of["/w/alpha"]).toBeUndefined();
     expect(left.of["/w/gamma"]).toBe("g2");
+  });
+
+  // Delete this group went at once, name, nesting and members, with nothing to take it back.
+  it("is asked about with its name and what moves where", () => {
+    expect(removalQuestion(withTwo, "g1")).toBe(
+      "Delete the group Work? Its 2 repositories go to Ungrouped. Nothing on disk changes.",
+    );
+    const nested = { ...withTwo, under: { g2: "g1" } };
+    expect(removalQuestion(nested, "g1")).toContain("Its 1 group moves up a level.");
   });
 });
 
