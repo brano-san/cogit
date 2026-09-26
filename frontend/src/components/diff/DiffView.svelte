@@ -79,6 +79,9 @@
     active = true,
   }: Props = $props();
 
+  /** Names the band's gradient apart from another diff's in the same document. */
+  const uid = $props.id();
+
   const WHITESPACE_LABEL = { none: "Whitespace", trailing: "Trailing ws", all: "Ignore ws" };
   const WHITESPACE_NEXT = { none: "trailing", trailing: "all", all: "none" } as const;
 
@@ -672,8 +675,19 @@
             height={total * ROW_HEIGHT}
             aria-hidden="true"
           >
+            <defs>
+              <linearGradient id="{uid}-change">
+                <stop offset="0" style:stop-color="var(--c-deleted-bg)" />
+                <stop offset="1" style:stop-color="var(--c-added-bg)" />
+              </linearGradient>
+            </defs>
             {#each ribbons as ribbon, i (i)}
-              <path class="ribbon" class:moved={ribbon.moved} d={ribbonPath(ribbon, ROW_HEIGHT)} />
+              <path
+                class="ribbon {ribbon.kind}"
+                class:moved={ribbon.moved}
+                style:fill={ribbon.kind === "change" && !ribbon.moved ? `url(#${uid}-change)` : undefined}
+                d={ribbonPath(ribbon, ROW_HEIGHT)}
+              />
             {/each}
           </svg>
         {/if}
@@ -1094,9 +1108,18 @@
     pointer-events: none;
   }
 
+  /* The band carries each row's own fill across (R-532); a changed pair fades from one
+     side's to the other's. */
   .ribbon {
-    fill: var(--c-added-bg);
     stroke: none;
+  }
+
+  .ribbon.delete {
+    fill: var(--c-deleted-bg);
+  }
+
+  .ribbon.insert {
+    fill: var(--c-added-bg);
   }
 
   /* A move goes somewhere else in the file, so its ribbon is an outline, not a fill. */
