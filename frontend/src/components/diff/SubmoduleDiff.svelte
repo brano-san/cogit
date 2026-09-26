@@ -9,7 +9,9 @@
     recorded: string;
     previous: string | null;
     checkedOut: boolean;
-    oninit: () => void;
+    /** Absent in a window of its own: initialising is a write, and writes queue in the
+        main window. */
+    oninit?: () => void;
   }
 
   let { path, recorded, previous, checkedOut, oninit }: Props = $props();
@@ -33,7 +35,11 @@
     <p class="note">
       It has never been checked out, so its commits are not here to show.
     </p>
-    <button type="button" class="btn" onclick={oninit}>Initialise this submodule</button>
+    {#if oninit}
+      <button type="button" class="btn" onclick={oninit}>Initialise this submodule</button>
+    {:else}
+      <p class="note">Initialise it from the Diff panel of the main window.</p>
+    {/if}
   {/if}
 </div>
 

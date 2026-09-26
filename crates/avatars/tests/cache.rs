@@ -232,6 +232,7 @@ fn reading_a_cached_picture_does_not_rewrite_the_index() {
     let dir = tempfile::tempdir().unwrap();
     let (cache, _) = cache(&dir);
     cache.store("ada@example.com", PNG).unwrap();
+    cache.flush();
 
     let index = dir.path().join("index.json");
     let before = std::fs::metadata(&index).unwrap().len();
@@ -251,6 +252,7 @@ fn the_use_times_reach_the_disk_when_the_cache_is_flushed() {
     let dir = tempfile::tempdir().unwrap();
     let (cache, clock) = cache(&dir);
     cache.store("ada@example.com", PNG).unwrap();
+    cache.flush();
     let before = std::fs::read(dir.path().join("index.json")).unwrap();
 
     clock.fetch_add(60, Ordering::Relaxed);
@@ -276,4 +278,73 @@ fn a_stale_entry_is_dropped_from_the_index_on_disk_at_once() {
     // Eviction removed the file, so the index must not keep pointing at it.
     let (reopened, _) = cache(&dir);
     assert_eq!(reopened.lookup("ada@example.com"), Lookup::Unknown);
+}
+
+// Four fetch threads each rewrote the whole index after every picture, with no lock around
+// the write: an older snapshot landing last dropped newer entries, and a shorter one left a
+// tail behind that made the next run start the cache over.
+#[test]
+fn pictures_stored_from_four_threads_all_reach_the_index() {
+    let dir = tempfile::tempdir().unwrap();
+    let emails: Vec<Vec<String>> = (0..4)
+        .map(|thread| {
+            (0..500)
+                .map(|n| format!("author{thread}-{n}@example.com"))
+                .collect()
+        })
+        .collect();
+    {
+        let (cache, _) = cache(&dir);
+        let cache = Arc::new(cache);
+        let workers: Vec<_> = emails
+            .iter()
+            .cloned()
+            .map(|mine| {
+                let cache = Arc::clone(&cache);
+                std::thread::spawn(move || {
+                    for email in mine {
+                        cache.store(&email, PNG).unwrap();
+                    }
+                })
+            })
+            .collect();
+        for worker in workers {
+            worker.join().unwrap();
+        }
+    }
+
+    let (reopened, _) = cache(&dir);
+    let lost = emails
+        .iter()
+        .flatten()
+        .filter(|email| !matches!(reopened.lookup(email), Lookup::Hit(_)))
+        .count();
+    assert_eq!(lost, 0, "of 2000 pictures stored");
+}
+
+// Every picture rewrote the whole index: three thousand authors came to 0.6 GB of writes.
+#[test]
+fn a_stored_picture_reaches_the_index_when_the_cache_is_flushed() {
+    let dir = tempfile::tempdir().unwrap();
+    let (cache, _) = cache(&dir);
+    cache.store("ada@example.com", PNG).unwrap();
+    cache.flush();
+    let index = dir.path().join("index.json");
+    let before = std::fs::read(&index).unwrap();
+
+    cache.store("grace@example.com", PNG).unwrap();
+    cache.store_missing("nobody@example.com").unwrap();
+    assert_eq!(
+        std::fs::read(&index).unwrap(),
+        before,
+        "not once per picture"
+    );
+
+    cache.flush();
+    let (reopened, _) = self::cache(&dir);
+    assert!(matches!(
+        reopened.lookup("grace@example.com"),
+        Lookup::Hit(_)
+    ));
+    assert_eq!(reopened.lookup("nobody@example.com"), Lookup::Missing);
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareUrl, parseCompare } from "./compare-params";
+import { compareLabel, compareUrl, parseCompare } from "./compare-params";
 
 describe("compareUrl and parseCompare", () => {
   it("round-trips a commit comparison", () => {
@@ -63,5 +63,23 @@ describe("compareUrl and parseCompare", () => {
       oid: "abc",
     });
     expect(parseCompare("?repo=1&path=a.txt&kind=commitVsWorkTree")).toBeNull();
+  });
+});
+
+// The window said "src/a.rs — workTreeVsIndex", and a past version against the disk never
+// said which commit it was.
+describe("compareLabel", () => {
+  const oid = "0123456789abcdef0123456789abcdef01234567";
+  const other = "fedcba9876543210fedcba9876543210fedcba98";
+
+  it("names both sides in words", () => {
+    expect(compareLabel({ kind: "workTreeVsIndex" })).toBe("Working tree ↔ index");
+    expect(compareLabel({ kind: "indexVsHead" })).toBe("Staged ↔ HEAD");
+  });
+
+  it("names the commit it compares by its short id", () => {
+    expect(compareLabel({ kind: "commitVsParent", oid })).toBe("0123456 ↔ parent");
+    expect(compareLabel({ kind: "commitVsWorkTree", oid })).toBe("0123456 ↔ working tree");
+    expect(compareLabel({ kind: "commitVsCommit", a: oid, b: other })).toBe("0123456 ↔ fedcba9");
   });
 });

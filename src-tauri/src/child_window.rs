@@ -19,6 +19,10 @@ pub const MAIN: &str = "main";
 /// instead of the webview's default white.
 const BACKGROUND: Color = Color(0x0f, 0x11, 0x15, 0xff);
 
+/// The main window's, from `tauri.conf.json`. Without one the title bar follows Windows,
+/// and a light system put a white bar over the dark page.
+const THEME: tauri::Theme = tauri::Theme::Dark;
+
 /// Labels must be unique for the lifetime of the process. Counting the open windows is
 /// not enough: close one of two and the next window is handed a label that is still in
 /// use by the other, and the build fails.
@@ -85,6 +89,7 @@ pub fn open_with_menu<R: tauri::Runtime>(
         .title(title)
         .menu(bar)
         .visible(false)
+        .theme(Some(THEME))
         .background_color(BACKGROUND)
         .inner_size(shape.width, shape.height)
         .min_inner_size(shape.min_width, shape.min_height)
@@ -289,6 +294,16 @@ mod tests {
             args.is_some_and(|args| args.contains("--remote-debugging-port")),
             "the child must join the same WebView2 environment"
         );
+    }
+
+    #[test]
+    fn a_child_window_takes_the_main_windows_title_bar_theme() {
+        let windows = windows_of(include_str!("../tauri.conf.json"));
+        let main = windows
+            .iter()
+            .find(|window| is_main(&window.label))
+            .unwrap();
+        assert_eq!(main.theme, Some(THEME));
     }
 
     #[test]

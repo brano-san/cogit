@@ -130,6 +130,28 @@ describe("the rows no watcher covers", () => {
     expect(readPulse).not.toHaveBeenCalled();
   });
 
+  // A commit made in a terminal while Cogit was in the background: the focus came back
+  // inside the minute, and the row waited for the next focus change after it.
+  it("are read once the minute is over when the focus came back inside it", async () => {
+    vi.useFakeTimers();
+    vi.resetModules();
+    const { repoPulse } = await import("./repo-pulse.svelte");
+    repoPulse.setOwned("C:/repos/shown");
+    repoPulse.watch(["C:/repos/shown", "C:/repos/left"]);
+    await vi.advanceTimersByTimeAsync(2_000);
+    repoPulse.revisit();
+    await vi.advanceTimersByTimeAsync(2_000);
+    readPulse.mockClear();
+
+    repoPulse.revisit();
+    repoPulse.revisit();
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(readPulse).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(readPulse.mock.calls).toEqual([["C:/repos/left"]]);
+  });
+
   it("leave out the one the panels own", async () => {
     vi.useFakeTimers();
     vi.resetModules();

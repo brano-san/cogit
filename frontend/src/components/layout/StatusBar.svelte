@@ -45,23 +45,25 @@
   {/if}
 
   {#if repository}
-    <span class="item">
+    <span class="item shrink-last" title={repository}>
       <svg class="folder" viewBox="0 0 16 16" aria-hidden="true"
         ><path
           fill="currentColor"
           d="M1.5 3.5c0-.69.56-1.25 1.25-1.25h3.04c.4 0 .78.19 1.01.51l.79 1.09h5.66c.69 0 1.25.56 1.25 1.25v7.15c0 .69-.56 1.25-1.25 1.25H2.75c-.69 0-1.25-.56-1.25-1.25V3.5Z"
         /></svg
       >
-      {repository}
+      <span class="truncate">{repository}</span>
     </span>
     {#if branch || summary}<span class="divider" aria-hidden="true"></span>{/if}
   {/if}
 
+  <!-- Names give up the width before the status on the right does, the upstream and the
+       summary first: they are the secondary text (R-243). -->
   {#if branch}
-    <span class="item">
-      <span aria-hidden="true">⎇</span>
-      <span class="branch">{branch}</span>
-      {#if upstream}<span class="muted">({upstream})</span>{/if}
+    <span class="item shrink-last" title={upstream ? `${branch} (${upstream})` : branch}>
+      <span class="glyph" aria-hidden="true">⎇</span>
+      <span class="branch truncate shrink-last">{branch}</span>
+      {#if upstream}<span class="muted truncate shrink-first">({upstream})</span>{/if}
     </span>
     <span class="divider" aria-hidden="true"></span>
     <span class="item tabular" title="{ahead} ahead, {behind} behind">↑{ahead} ↓{behind}</span>
@@ -69,7 +71,7 @@
   {/if}
 
   {#if summary}
-    <span class="item">{summary}</span>
+    <span class="item shrink-first" title={summary}><span class="truncate">{summary}</span></span>
     <span class="divider" aria-hidden="true"></span>
   {/if}
 
@@ -121,6 +123,13 @@
     display: inline-flex;
     align-items: center;
     gap: var(--sp-2);
+  }
+
+  .problems,
+  .divider,
+  .folder,
+  .glyph {
+    flex: none;
   }
 
   .branch {

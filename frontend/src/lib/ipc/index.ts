@@ -574,6 +574,11 @@ export async function closeRepository(repo: RepoId) {
   return unwrap(await commands.closeRepository(repo));
 }
 
+/** The repository the panels show, the only one watched (R-351). */
+export async function showRepository(repo: RepoId | null) {
+  unwrap(await commands.showRepository(repo));
+}
+
 export async function lostCommits(repo: RepoId, limit = 100) {
   return unwrap(await commands.lostCommits(repo, limit));
 }

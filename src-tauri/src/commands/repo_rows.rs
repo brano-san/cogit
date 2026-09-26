@@ -15,9 +15,13 @@ pub async fn submodule_outline(root: String, parent: String) -> Result<Vec<Submo
 
 #[tauri::command]
 #[specta::specta]
-pub async fn repo_pulse(root: String) -> Result<git_engine::RepoPulse, GitError> {
+pub async fn repo_pulse(
+    state: tauri::State<'_, crate::AppContext>,
+    root: String,
+) -> Result<git_engine::RepoPulse, GitError> {
+    let app_state = state.state.clone();
     blocking("repo_pulse", move || {
-        Ok(app_state::repo_rows::pulse(&PathBuf::from(root)))
+        Ok(app_state.pulse(&PathBuf::from(root)))
     })
     .await
 }

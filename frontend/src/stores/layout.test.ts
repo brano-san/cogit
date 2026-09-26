@@ -28,3 +28,42 @@ describe("clampFraction", () => {
     }
   });
 });
+
+// Shift+F11 on Diff, then Ctrl+3: the tick of Graph read unticked, the click hid it
+// unseen, and Shift+F11 came back to a window without a graph.
+describe("View ▸ <Panel> while another panel is maximised", () => {
+  it("shows the panel it names, as its unticked box promised", async () => {
+    const { layout } = await import("./layout.svelte");
+    layout.reset();
+    layout.toggleMaximized("diff");
+    expect(layout.visible("graph")).toBe(false);
+
+    layout.togglePanel("graph");
+
+    expect(layout.maximized).toBeNull();
+    expect(layout.visible("graph")).toBe(true);
+    expect(layout.visible("diff")).toBe(true);
+  });
+
+  it("hides the maximised panel it names and brings the others back", async () => {
+    const { layout } = await import("./layout.svelte");
+    layout.reset();
+    layout.toggleMaximized("diff");
+
+    layout.togglePanel("diff");
+
+    expect(layout.maximized).toBeNull();
+    expect(layout.visible("diff")).toBe(false);
+    expect(layout.visible("graph")).toBe(true);
+  });
+
+  it("still toggles a panel when none is maximised", async () => {
+    const { layout } = await import("./layout.svelte");
+    layout.reset();
+
+    layout.togglePanel("graph");
+    expect(layout.visible("graph")).toBe(false);
+    layout.togglePanel("graph");
+    expect(layout.visible("graph")).toBe(true);
+  });
+});

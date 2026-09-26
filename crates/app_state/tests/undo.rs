@@ -6,6 +6,8 @@ use app_state::{AppState, RepoId};
 fn open(f: &test_fixtures::Fixture) -> (AppState, RepoId) {
     let state = AppState::new();
     let repo = state.open_repository(f.path()).unwrap().repo;
+    // Shown, so the tests of the quiet window have a watcher to keep quiet.
+    state.show_repository(Some(repo));
     (state, repo)
 }
 

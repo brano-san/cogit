@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import Caret from "$components/common/Caret.svelte";
+  import { menuKey } from "$lib/menu-keys";
   import {
     DEFAULT_LAYOUT,
     ICONS,
@@ -76,6 +78,45 @@
     const bar = button.closest(".toolbar");
     openAt = bar ? button.getBoundingClientRect().left - bar.getBoundingClientRect().left : 0;
     open = id;
+    opened(event);
+  }
+
+  function toggleOverflow(event: MouseEvent) {
+    open = open === "overflow" ? null : "overflow";
+    if (open !== null) opened(event);
+  }
+
+  let root: HTMLDivElement | undefined = $state();
+  /** Where Esc puts the focus back. */
+  let opener: HTMLElement | null = null;
+
+  function opened(event: MouseEvent) {
+    opener = event.currentTarget as HTMLElement;
+    // Enter or Space on the button: the menu is walked from the keyboard, so its first
+    // item takes the focus.
+    if (event.detail === 0) void tick().then(() => press("Home"));
+  }
+
+  /** Whether the key was the menu's. */
+  function press(key: string): boolean {
+    const items = [...(root?.querySelectorAll<HTMLButtonElement>(".menu [role^='menuitem']") ?? [])];
+    const at = items.findIndex((item) => item === document.activeElement);
+    const move = menuKey(key, at < 0 ? null : at, items.map((item) => !item.disabled));
+    if (move === null) return false;
+    if (move.kind === "focus") {
+      items[move.to]?.focus();
+      return true;
+    }
+    open = null;
+    // Tab goes on to wherever it was going.
+    if (key === "Tab") return false;
+    opener?.focus();
+    return true;
+  }
+
+  function onwindowkey(event: KeyboardEvent) {
+    if (open === null || event.defaultPrevented) return;
+    if (press(event.key)) event.preventDefault();
   }
   let row: HTMLDivElement | undefined = $state();
   let crowded = $state(false);
@@ -83,8 +124,14 @@
   $effect(() => {
     const element = row;
     if (!element) return;
+    // Measured with the labels showing: measured without them, the row fitted, the labels
+    // came back, and the "…" that appears with them resized the row to measure again.
+    const bar = element.closest(".toolbar");
     const measure = () => {
+      const was = bar?.classList.contains("crowded") ?? false;
+      bar?.classList.remove("crowded");
       crowded = element.scrollWidth > element.clientWidth + 1;
+      if (was) bar?.classList.add("crowded");
     };
     const observer = new ResizeObserver(measure);
     observer.observe(element);
@@ -99,10 +146,13 @@
   }
 </script>
 
+<svelte:window onkeydown={onwindowkey} />
+
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class="toolbar"
   class:crowded
+  bind:this={root}
   oncontextmenu={(event) => {
     event.preventDefault();
     oncontext?.(event.clientX, event.clientY);
@@ -148,7 +198,7 @@
                 title="More {action.label.toLowerCase()} actions"
                 onclick={(event) => openMenu(action.id, event)}
               >
-                <span>{action.label}</span>
+                <span class="text">{action.label}</span>
                 <Caret open={open === action.id} />
               </button>
             {:else}
@@ -177,7 +227,7 @@
         aria-haspopup="menu"
         aria-expanded={open === "overflow"}
         title="More actions"
-        onclick={() => (open = open === "overflow" ? null : "overflow")}
+        onclick={toggleOverflow}
       >
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.more} /></svg>
       </button>
@@ -364,9 +414,15 @@
     pointer-events: none;
   }
 
-  /* Narrow window: the labels go first, the icons stay recognisable (issue 12). */
-  .toolbar.crowded .label {
+  /* Narrow window: the labels go first, the icons stay recognisable (issue 12). A split
+     button keeps its caret: its menu is not in the "…" one. */
+  .toolbar.crowded .label:not(.with-menu),
+  .toolbar.crowded .label.with-menu .text {
     display: none;
+  }
+
+  .toolbar.crowded .label.with-menu :global(.caret) {
+    margin-left: 0;
   }
 
   .overflow {

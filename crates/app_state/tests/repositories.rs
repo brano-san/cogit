@@ -17,32 +17,6 @@ fn several_repositories_can_be_open_at_once() {
     assert_eq!(state.overviews().len(), 2);
 }
 
-// Switching is opening another; the one left behind stays open and watched, so its row
-// and whatever is cached for it learn about a commit made from a terminal (R-351).
-#[test]
-fn a_repository_left_for_another_is_still_watched() {
-    let a = test_fixtures::linear(2).unwrap();
-    let b = test_fixtures::branched().unwrap();
-    let state = AppState::new();
-    let first = state.open_repository(a.path()).unwrap().repo;
-    state.open_repository(b.path()).unwrap();
-    let mut events = state.subscribe();
-
-    std::fs::write(a.path().join("file0.txt"), "changed while b is shown\n").unwrap();
-
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-    let heard = loop {
-        match events.try_recv() {
-            Ok(app_state::AppEvent::RepoChanged { repo, .. }) if repo == first => break true,
-            Ok(_) => {}
-            Err(_) if std::time::Instant::now() > deadline => break false,
-            Err(_) => std::thread::sleep(std::time::Duration::from_millis(20)),
-        }
-    };
-    assert!(heard, "the repository left behind must keep its watcher");
-    assert!(state.get(first).is_some());
-}
-
 #[test]
 fn opening_the_same_path_twice_reuses_the_entry() {
     let f = test_fixtures::linear(2).unwrap();
@@ -119,6 +93,7 @@ fn closing_stops_watching_it() {
     let f = test_fixtures::linear(2).unwrap();
     let state = AppState::new();
     let repo = state.open_repository(f.path()).unwrap().repo;
+    state.show_repository(Some(repo));
     let mut events = state.subscribe();
     // The control: a watcher that never started would keep quiet after closing too.
     std::fs::write(f.path().join("file0.txt"), "changed while open\n").unwrap();

@@ -121,7 +121,7 @@
     padding: 0;
     background: none;
     border: 0;
-    color: var(--status-ref);
+    color: var(--link);
     font: inherit;
     text-decoration: underline;
     cursor: pointer;

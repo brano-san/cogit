@@ -79,7 +79,7 @@ impl Queue {
     /// The addresses visible right now, in the order they should arrive. Anything queued
     /// and not named here is dropped: those rows have scrolled away.
     pub fn request(&self, window: &[String]) {
-        {
+        let idle = {
             let mut state = self.inner.state.lock();
             state.pending.clear();
             state.queued.clear();
@@ -105,17 +105,25 @@ impl Queue {
                 state.queued.insert(trimmed.to_string());
                 state.pending.push_back(trimmed.to_string());
             }
+            state.pending.is_empty() && state.running.is_empty()
+        };
+        // Only noreply misses were stored: no download will settle to write them.
+        if idle {
+            self.inner.cache.settle();
         }
         self.start();
         self.inner.work.notify_all();
     }
 
-    /// Blocks until the queue is empty. For tests and for shutdown, never for the UI.
+    /// Blocks until the queue is empty and what it stored is on disk. For tests and for
+    /// shutdown, never for the UI.
     pub fn drain(&self) {
         let mut state = self.inner.state.lock();
         while !state.pending.is_empty() || !state.running.is_empty() {
             self.inner.idle.wait(&mut state);
         }
+        drop(state);
+        self.inner.cache.settle();
     }
 
     fn start(&self) {
@@ -159,9 +167,13 @@ fn work(inner: &Inner) {
 
         fetch(inner, &email);
 
-        let mut state = inner.state.lock();
-        state.running.remove(&email);
-        if state.pending.is_empty() && state.running.is_empty() {
+        let settled = {
+            let mut state = inner.state.lock();
+            state.running.remove(&email);
+            state.pending.is_empty() && state.running.is_empty()
+        };
+        if settled {
+            inner.cache.settle();
             inner.idle.notify_all();
         }
     }
