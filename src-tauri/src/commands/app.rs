@@ -113,7 +113,7 @@ pub async fn open_third_party_licences(
     );
     let path = blocking("open_third_party_licences", move || {
         app_state::licences::write(&std::env::temp_dir(), &text)
-            .map_err(|err| GitError::Io(format!("cannot write the licence list: {err}")))
+            .map_err(|err| GitError::Io(format!("cannot write the license list: {err}")))
     })
     .await?;
     tauri_plugin_opener::OpenerExt::opener(&app)

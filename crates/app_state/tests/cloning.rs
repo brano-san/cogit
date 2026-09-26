@@ -99,5 +99,5 @@ async fn the_footer_s_cancel_stops_a_clone() {
         "{result:?}"
     );
     assert!(state.operations().is_empty(), "the lane is free again");
-    assert_eq!(state.command_log()[0].summary, "Cancelled by the user");
+    assert_eq!(state.command_log()[0].summary, "Canceled by the user");
 }

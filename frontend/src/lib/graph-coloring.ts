@@ -5,7 +5,7 @@ export type GraphColoring = (typeof GRAPH_COLORINGS)[number];
 export const COLORING_LABELS: Record<GraphColoring, { label: string; hint: string }> = {
   default: {
     label: "Default Coloring",
-    hint: "The main line bright, the rest grey, branches ticked in Branches in their own colors.",
+    hint: "The main line bright, the rest gray, branches ticked in Branches in their own colors.",
   },
   branch: {
     label: "Branch Coloring",

@@ -263,7 +263,7 @@
 | F-313 | Stash: диалог с тремя режимами и быстрые варианты | [F-313-stash-dialog-modes.md](F-313-stash-dialog-modes.md) |
 | F-314 | Кнопка Apply Stash | [F-314-apply-stash-button.md](F-314-apply-stash-button.md) |
 | F-315 | Настройка тулбара | [F-315-configure-toolbar.md](F-315-configure-toolbar.md) |
-| F-320 | Remote ▸ Synchronise | [F-320-remote-synchronize.md](F-320-remote-synchronize.md) |
+| F-320 | Remote ▸ Synchronize | [F-320-remote-synchronize.md](F-320-remote-synchronize.md) |
 | F-321 | Remote ▸ Submodule | [F-321-remote-submodule-menu.md](F-321-remote-submodule-menu.md) |
 | F-322 | Remote ▸ Subtree | [F-322-remote-subtree-menu.md](F-322-remote-subtree-menu.md) |
 | F-323 | Remote ▸ LFS | [F-323-remote-lfs-menu.md](F-323-remote-lfs-menu.md) |
@@ -351,7 +351,7 @@
 | F-568 | Bisect: первый плохой коммит и Leave Bisect | [F-568-bisect-first-bad.md](F-568-bisect-first-bad.md) |
 | F-570 | Рабочая копия одним списком без раздельного индекса | [F-570-one-worktree-list.md](F-570-one-worktree-list.md) |
 | F-571 | Таблица Files: имя, тип, состояние, путь | [F-571-files-table.md](F-571-files-table.md) |
-| F-572 | Customise View: колонки таблицы Files | [F-572-files-customise-columns.md](F-572-files-customise-columns.md) |
+| F-572 | Customize View: колонки таблицы Files | [F-572-files-customise-columns.md](F-572-files-customise-columns.md) |
 | F-573 | Каталоги или плоский список — одна кнопка | [F-573-files-layout-toggle.md](F-573-files-layout-toggle.md) |
 | F-574 | Кнопки Files — в заголовках, видны всегда | [F-574-files-heading-buttons.md](F-574-files-heading-buttons.md) |
 | F-575 | Clone: мастер из трёх страниц | [F-575-clone.md](F-575-clone.md) |

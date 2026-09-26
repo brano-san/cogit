@@ -263,7 +263,7 @@
         disabled={!canWrap}
         title={canWrap
           ? "Off by default: compiler output is unreadable wrapped."
-          : "Too many lines to wrap; virtualisation needs every line the same height."}
+          : "Too many lines to wrap; virtualization needs every line the same height."}
       >
         Wrap lines
       </button>

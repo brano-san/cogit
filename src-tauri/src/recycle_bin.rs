@@ -32,7 +32,7 @@ pub fn move_to_trash(paths: &[PathBuf]) -> std::io::Result<()> {
     }
     if operation.fAnyOperationsAborted.as_bool() {
         return Err(std::io::Error::other(
-            "moving to the Recycle Bin was cancelled",
+            "moving to the Recycle Bin was canceled",
         ));
     }
     Ok(())

@@ -74,7 +74,7 @@ pub enum GitError {
 
     /// The user stopped it: a fetch, pull or push cancelled from the footer. Carries the
     /// command, as the journal wrote it.
-    #[error("cancelled: {0}")]
+    #[error("canceled: {0}")]
     Cancelled(String),
 }
 
@@ -114,5 +114,12 @@ mod tests {
         ));
         assert_eq!(err.operation, "Push");
         assert_eq!(err.summary, "error: failed to push some refs");
+    }
+
+    /// R-615: the window shows it, so it is spelled as the window is.
+    #[test]
+    fn a_canceled_run_names_its_command() {
+        let err = GitError::Cancelled("git fetch origin".to_owned());
+        assert_eq!(err.to_string(), "canceled: git fetch origin");
     }
 }

@@ -47,14 +47,14 @@
       It has never been checked out, so its commits are not here to show.
     </p>
     {#if oninit}
-      <button type="button" class="btn" onclick={oninit}>Initialise this submodule</button>
+      <button type="button" class="btn" onclick={oninit}>Initialize this submodule</button>
     {:else}
-      <p class="note">Initialise it from the Diff panel of the main window.</p>
+      <p class="note">Initialize it from the Diff panel of the main window.</p>
     {/if}
   {:else}
     <p class="note">
       It is not checked out, and the index no longer records it, so there is nothing to
-      initialise.
+      initialize.
     </p>
   {/if}
 </div>

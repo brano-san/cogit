@@ -100,7 +100,7 @@ export function moduleTooltip(module: Submodule): string {
     case "unread":
       return "";
     case "notInitialised":
-      return "Not checked out yet. Initialise it to get its files.";
+      return "Not checked out yet. Initialize it to get its files.";
     case "ahead":
       return (
         `${commits(module.ahead)} newer than the one the parent records. Commit the new ` +

@@ -401,7 +401,7 @@ impl Streamed<'_> {
             duration_ms,
         );
         if result.exit_code != Some(0) && self.cancelled() {
-            result.summary = "Cancelled by the user".to_owned();
+            result.summary = "Canceled by the user".to_owned();
             result.severity = crate::Severity::Warning;
         } else if stopped {
             result.summary = format!(
