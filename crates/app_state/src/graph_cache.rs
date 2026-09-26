@@ -345,7 +345,9 @@ impl GraphCache {
         self.clock
     }
 
-    fn trim(&mut self, keep: RepoId, budget: usize) {
+    /// The graphs evicted, for the caller to [`release`] once the lock is let go.
+    #[must_use]
+    fn trim(&mut self, keep: RepoId, budget: usize) -> Vec<Graph> {
         let sizes: Vec<(RepoId, usize, u64)> = self
             .graphs
             .iter()
@@ -354,10 +356,25 @@ impl GraphCache {
                 (*repo, graph.bytes + texts, graph.used)
             })
             .collect();
-        for repo in evicted(&sizes, keep, budget) {
-            tracing::info!(repo = repo.0, "commit graph dropped from the cache");
-            self.graphs.remove(&repo);
-        }
+        evicted(&sizes, keep, budget)
+            .into_iter()
+            .filter_map(|repo| {
+                tracing::info!(repo = repo.0, "commit graph dropped from the cache");
+                self.graphs.remove(&repo)
+            })
+            .collect()
+    }
+}
+
+/// Frees what a graph held on a thread of its own, after the cache lock is let go: a large
+/// graph is hundreds of thousands of allocations, and while they are freed under the lock
+/// the windows and paint of every other repository wait, and so does the close.
+fn release<T: Send + 'static>(gone: T) {
+    let spawned = std::thread::Builder::new()
+        .name("graph-free".to_owned())
+        .spawn(move || drop(gone));
+    if let Err(err) = spawned {
+        tracing::error!(error = ?err, context = "graph cache: free off the lock");
     }
 }
 
@@ -421,7 +438,7 @@ impl AppState {
         let mailmap = handle.mailmap();
         // A filtered list needs the text to match; a graph reads it by window (R-302).
         let lazy = !query.filters_rows();
-        let base = {
+        let (base, replaced) = {
             let mut cache = self.graph.write();
             let used = cache.tick();
             let walks = Arc::clone(&cache.walks);
@@ -440,10 +457,11 @@ impl AppState {
                         kept: graph.total(),
                     };
                     // `.mailmap` changed: the layout stands, the names are read again.
+                    let mut renamed = None;
                     if let Some(texts) = &graph.shown.texts
                         && !Arc::ptr_eq(&texts.lock().mailmap, &mailmap)
                     {
-                        graph.shown.texts = Some(Texts::new(Arc::clone(&mailmap)));
+                        renamed = graph.shown.texts.replace(Texts::new(Arc::clone(&mailmap)));
                         progress.kept = 0;
                     }
                     graph.shown.generation = generation;
@@ -451,6 +469,7 @@ impl AppState {
                     let skipped = graph.skipped.clone();
                     let prefill = prefill_of(&graph.shown, &walks);
                     drop(cache);
+                    drop(renamed);
                     self.prefill(repo, prefill);
                     tracing::info!(
                         repo = repo.0,
@@ -497,9 +516,11 @@ impl AppState {
             if !self.repos.read().contains_key(&repo) {
                 return Ok(Vec::new());
             }
-            cache.graphs.insert(repo, graph);
-            base
+            let replaced = cache.graphs.insert(repo, graph);
+            (base, replaced)
         };
+        // Out of the lock: a graph cut short by a newer request held its rows alone.
+        drop(replaced);
 
         let mut record = WalkedHistory::default();
         let rows = GraphRows {
@@ -557,8 +578,11 @@ impl AppState {
                 );
             }
         }
-        cache.trim(repo, GRAPH_CACHE_BYTES);
+        let evicted = cache.trim(repo, GRAPH_CACHE_BYTES);
         drop(cache);
+        if !evicted.is_empty() {
+            release(evicted);
+        }
         self.prefill(repo, prefill);
         Ok(skipped)
     }
@@ -667,7 +691,10 @@ impl AppState {
     }
 
     pub(crate) fn forget_graph(&self, repo: RepoId) {
-        self.graph.write().graphs.remove(&repo);
+        let gone = self.graph.write().graphs.remove(&repo);
+        if gone.is_some() {
+            release(gone);
+        }
     }
 }
 
