@@ -3949,6 +3949,7 @@
         if (repo) void hooks.removeOwn(repo, id);
       }}
       onclose={() => hooks.close()}
+      dirty={hooks.dirty}
     />
   {/if}
 
