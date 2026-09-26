@@ -53,12 +53,11 @@
     graphCommitMenu,
     graphRefMenu,
     labelTarget,
-    localNameOf,
-    tagNameOf,
     workingTreeMenu,
     type CommitFacts,
     type RefTarget,
   } from "$lib/ref-menus";
+  import { checkoutPlan, nodeTarget, type NodeTarget } from "$lib/ref-checkout";
   import { publishedOrAssume } from "$lib/published";
   import { resetChoice } from "$lib/reset-modes";
   import { baseBefore, fullMessage, modifyPlan, rewordPlan, squashPlan } from "$lib/rewrite-plans";
@@ -256,11 +255,9 @@
     const summary = repository.current;
     if (!id || !summary || !claims(node)) return;
     const token = ++asked;
-    const tag =
-      node.kind === "tag"
-        ? (node.tag ?? summary.tags.find((entry) => entry.name === tagNameOf(node)))
-        : undefined;
-    const oid = node.kind === "tag" ? (tag?.pointsToCommit ? tag.oid : null) : (node.oid ?? null);
+    const found = nodeTarget(node, summary.tags);
+    const tag = found?.tag ?? undefined;
+    const oid = found ? found.oid : (node.oid ?? null);
     try {
       const loaded = oid ? await factsOf(id, oid, false) : null;
       if (token !== asked) return;
@@ -273,16 +270,10 @@
         const message = stashes.entries.find((entry) => entry.index === index)?.message ?? "";
         await show({ ...base, stash: { index, message } }, branchesStashMenu(facts, at), x, y);
       } else if (node.kind === "tag") {
-        if (!tag) return;
-        const ref: RefTarget = { kind: "tag", name: tag.name, isHead: false };
-        await show({ ...base, ref, tag }, branchesTagMenu(facts, { ...at, annotated: tag.isAnnotated }), x, y);
-      } else if (node.branch) {
-        const branch = node.branch;
-        const ref: RefTarget = {
-          kind: node.kind === "local" ? "branch" : "remote",
-          name: branch.name,
-          isHead: branch.isHead,
-        };
+        if (!tag || !found?.ref) return;
+        await show({ ...base, ref: found.ref, tag }, branchesTagMenu(facts, { ...at, annotated: tag.isAnnotated }), x, y);
+      } else if (found?.ref && found.branch) {
+        const { ref, branch } = found;
         await show({ ...base, ref, branch }, branchesBranchMenu(ref, facts, at), x, y);
       }
     } catch (err) {
@@ -504,22 +495,26 @@
     return head?.kind === "branch" ? head.name : "HEAD";
   }
 
-  async function checkoutTarget(id: RepoId, at: Target) {
-    if (at.ref?.kind === "branch" && at.branch) return checkoutBranch(at.branch);
-    if (at.ref?.kind === "remote" && at.branch) {
-      return checkoutBranch({ ...at.branch, kind: "local", name: localNameOf(at.branch.name, network.remotes) });
-    }
-    const oid = at.oid;
-    if (!oid) return;
-    const what = at.ref?.kind === "tag" ? `tag ${at.ref.name}` : `commit ${shortOid(oid)}`;
+  async function checkoutTarget(id: RepoId, at: NodeTarget) {
+    const plan = checkoutPlan(at, network.remotes);
+    if (plan === null) return;
+    if (plan.kind === "switch") return checkoutBranch(plan.branch);
     const go = await confirmation.ask({
       title: "Check Out",
       message:
-        `Check out ${what}? HEAD will be detached: commits made from there belong to no branch ` +
+        `Check out ${plan.what}? HEAD will be detached: commits made from there belong to no branch ` +
         "until you add one, and are easy to lose when you switch away.",
       confirm: "Check Out",
     });
-    if (go) await attempt("Could not check out", () => checkout(id, { kind: "commit", oid }));
+    if (go) await attempt("Could not check out", () => checkout(id, { kind: "commit", oid: plan.oid }));
+  }
+
+  /** A double click in Branches is the menu's Check Out: a remote branch as its local one,
+      a tag only after the question about detaching HEAD. */
+  export async function checkOutNode(node: RefNode) {
+    const id = repoId();
+    const found = nodeTarget(node, repository.current?.tags ?? []);
+    if (id && found) await checkoutTarget(id, found);
   }
 
   async function modify(id: RepoId, at: Target) {
