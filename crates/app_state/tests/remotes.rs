@@ -96,3 +96,42 @@ fn a_ref_pushed_without_tracking_leaves_the_branch_as_it_was() {
         None
     );
 }
+
+/// A second remote, `upstream`, with a branch of its own the local repository has not
+/// fetched yet; `origin/main` is deleted locally, so a fetch of origin brings it back.
+fn with_two_remotes(f: &test_fixtures::Fixture) -> tempfile::TempDir {
+    let dir = tempfile::TempDir::new().unwrap();
+    let bare = dir.path().join("upstream.git");
+    let bare = bare.to_string_lossy().replace('\\', "/");
+    f.git(&["init", "--bare", "--initial-branch=main", &bare])
+        .unwrap();
+    f.git(&["remote", "add", "upstream", &bare]).unwrap();
+    f.git(&["push", "upstream", "HEAD:refs/heads/release"])
+        .unwrap();
+    f.git(&["update-ref", "-d", "refs/remotes/origin/main"])
+        .unwrap();
+    dir
+}
+
+// Pull on a branch that tracks nothing ended in git's error, "You asked to pull from the
+// remote 'origin', but did not specify a branch": it fetches every remote instead.
+#[test]
+fn a_pull_on_a_branch_without_upstream_fetches_every_remote() {
+    let (f, state, repo) = with_new_branch("topic");
+    let _upstream = with_two_remotes(&f);
+    let head = f.oid("HEAD").unwrap();
+    let undo_before = state.safety_log().len();
+
+    state
+        .pull(repo, "origin", true, &NetworkStop::default(), |_| {})
+        .unwrap();
+
+    assert!(branch(&state, repo, BranchKind::Remote, "origin/main").is_some());
+    assert!(branch(&state, repo, BranchKind::Remote, "upstream/release").is_some());
+    assert_eq!(f.oid("HEAD").unwrap(), head, "nothing is merged");
+    assert_eq!(
+        state.safety_log().len(),
+        undo_before,
+        "a fetch moves no branch, so Undo has nothing to take back"
+    );
+}
