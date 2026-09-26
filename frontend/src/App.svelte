@@ -984,8 +984,10 @@
     if (modals.any) return;
 
     // F6 walks the panels. Ctrl+Tab is left to the window: the menu agent owns the
-    // accelerators, and browsers and hosts both claim that pair (issue 15).
+    // accelerators, and browsers and hosts both claim that pair (issue 15). A diff with the
+    // focus has already taken F6 for its next change, in the capture phase (11 §7).
     if (event.key === "F6") {
+      if (event.defaultPrevented) return;
       event.preventDefault();
       focused = step(focused, (panel) => layout.visible(panel), event.shiftKey ? -1 : 1);
       return;
@@ -3592,6 +3594,7 @@
         onpointerdown={() => (focused = "diff")}>
         <Panel title="Diff" active={focused === "diff"} view={panelState} stale={stale.has("diff")}>
           <DiffPanel
+            active={focused === "diff"}
             oninitsubmodule={(path) => void initSubmoduleAt(path)}
             onstage={(selected, reverse) => void stageLines(selected, reverse)}
             onblame={() => void showBlame()}
