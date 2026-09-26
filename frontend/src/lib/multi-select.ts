@@ -36,6 +36,31 @@ export function applyClick(
   return { paths: new Set([path]), anchor: path };
 }
 
+/** A row of a list in sections. A partly staged file is in Unstaged and in Staged: two rows,
+    selected and ticked apart, a Shift range kept to its own section. */
+export function rowKey(section: number, path: string): string {
+  return `${section}:${path}`;
+}
+
+export function rowOf(key: string): { section: number; path: string } {
+  const cut = key.indexOf(":");
+  return { section: Number(key.slice(0, cut)), path: key.slice(cut + 1) };
+}
+
+/** The ticked paths of each section, and every ticked path once, for what acts on paths. */
+export function markedRows(keys: Iterable<string>): { bySection: Map<number, Set<string>>; paths: string[] } {
+  const bySection = new Map<number, Set<string>>();
+  const paths = new Set<string>();
+  for (const key of keys) {
+    const { section, path } = rowOf(key);
+    const set = bySection.get(section) ?? new Set<string>();
+    set.add(path);
+    bySection.set(section, set);
+    paths.add(path);
+  }
+  return { bySection, paths: [...paths] };
+}
+
 /** The shown file was let go — a re-clicked commit (#7) — so its marks go with it. Marks
     made while nothing was shown are kept: a ctrl-click marks without opening. */
 export function afterDeselect(

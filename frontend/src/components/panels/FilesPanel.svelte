@@ -125,12 +125,19 @@
         {
           title: "Working tree",
           files: parts.worktree,
+          selected: diff.pathFor(stashView.spec("worktree")),
           onselect: (path) => onopenstash("worktree", path),
         },
-        { title: "Index", files: parts.index, onselect: (path) => onopenstash("index", path) },
+        {
+          title: "Index",
+          files: parts.index,
+          selected: diff.pathFor(stashView.spec("index")),
+          onselect: (path) => onopenstash("index", path),
+        },
         {
           title: "Untracked",
           files: parts.untracked,
+          selected: diff.pathFor(stashView.spec("untracked")),
           onselect: (path) => onopenstash("untracked", path),
         },
       ]}
@@ -170,6 +177,7 @@
         {
           title: "Unstaged",
           files: worktree.unstaged,
+          selected: diff.pathFor({ kind: "workTreeVsIndex" }),
           onselect: onopenworktree,
           actions: [
             { label: "Stage", title: "Stage", run: stage },
@@ -183,6 +191,7 @@
           title: "Staged",
           files: worktree.staged,
           hideWhenEmpty: true,
+          selected: diff.pathFor({ kind: "indexVsHead" }),
           onselect: onopenstaged,
           actions: [{ label: "Unstage", title: "Unstage", run: unstage }],
         },

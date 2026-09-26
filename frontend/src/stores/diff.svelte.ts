@@ -93,6 +93,11 @@ class DiffStore {
     return this.path === path && this.error === null && sameSpec(this.spec, spec);
   }
 
+  /** The file asked for last, if it was asked for under `spec`: which list row is open. */
+  pathFor(spec: DiffSpec | null): string | null {
+    return spec !== null && sameSpec(this.spec, spec) ? this.path : null;
+  }
+
   /** Clicking down the file list outruns the backend; stale diffs lose. */
   #generation = 0;
 
