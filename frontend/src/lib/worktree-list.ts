@@ -55,6 +55,12 @@ export function hasStale(entries: readonly WorktreeEntry[]): boolean {
   return entries.some((entry) => entry.missing);
 }
 
+/** Another worktree's folder can change unseen: the watcher follows only the repository on
+    screen, so its dirty mark needs reading again now and then. */
+export function othersToWatch(entries: readonly WorktreeEntry[]): boolean {
+  return entries.some((entry) => !entry.isCurrent && !entry.missing);
+}
+
 /** The main copy stays, the one on screen is not pulled out from under the panels, and a
     missing one is pruned, not removed. */
 export function removable(entry: WorktreeEntry | undefined): entry is WorktreeEntry {

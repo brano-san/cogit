@@ -60,7 +60,7 @@
   import WorktreesPanel from "$components/panels/WorktreesPanel.svelte";
   import AddWorktreeDialog from "$components/repo-tree/AddWorktreeDialog.svelte";
   import RemoveWorktreeDialog from "$components/repo-tree/RemoveWorktreeDialog.svelte";
-  import { branchChoices, hasStale, removable } from "$lib/worktree-list";
+  import { branchChoices, hasStale, othersToWatch, removable } from "$lib/worktree-list";
   import { fileFormat, shortOid } from "$lib/format";
   import { checkedIds, disabledIds, type PaletteCommand } from "$lib/palette";
   import { reasonFor, type Context } from "$lib/availability";
@@ -3203,6 +3203,19 @@
       graph.loading,
   );
   $effect(() => repoPulse.setOwned(repository.current?.root ?? null));
+
+  /** The other worktrees' folders have no watcher: their marks are read again when the
+      window comes back and once a minute while there are any. */
+  const worktreesUnwatched = $derived(othersToWatch(worktrees.entries));
+  function revisitWorktrees() {
+    const id = repository.current?.repo;
+    if (id && worktreesUnwatched) void worktrees.refresh(id);
+  }
+  $effect(() => {
+    if (!worktreesUnwatched) return;
+    const timer = setInterval(revisitWorktrees, 60_000);
+    return () => clearInterval(timer);
+  });
   $effect(() => repoPulse.fetchEvery(settings.current.backgroundFetchMinutes));
   // Only the repository on screen is watched; the rest are the pulse's (R-351).
   const shownRepository = new ShownRepository(showRepository);
@@ -3318,7 +3331,13 @@
 </script>
 
 <!-- A closed repository has no watcher: its row is read again when the user comes back. -->
-<svelte:window {onkeydown} onfocus={() => repoPulse.revisit()} />
+<svelte:window
+  {onkeydown}
+  onfocus={() => {
+    repoPulse.revisit();
+    revisitWorktrees();
+  }}
+/>
 
 <TooltipLayer />
 
