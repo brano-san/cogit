@@ -335,6 +335,10 @@
 | F-529 | Отмена сетевой операции | [F-529-network-cancel.md](F-529-network-cancel.md) |
 | F-532 | Диалог с набранным текстом не закрывается молча | [F-532-dialog-keeps-typed-text.md](F-532-dialog-keeps-typed-text.md) |
 | F-541 | Изменение, к которому перешли, вспыхивает | [F-541-diff-jump-flash.md](F-541-diff-jump-flash.md) |
+| F-560 | Фильтр графа: где искать текст | [F-560-graph-filter-fields.md](F-560-graph-filter-fields.md) |
+| F-561 | Меню настроек графа | [F-561-graph-options-menu.md](F-561-graph-options-menu.md) |
+| F-562 | «Домой» и «Назад» в графе | [F-562-graph-home-back.md](F-562-graph-home-back.md) |
+| F-563 | Запомненные фильтры графа | [F-563-filter-patterns.md](F-563-filter-patterns.md) |
 | F-570 | Рабочая копия одним списком без раздельного индекса | [F-570-one-worktree-list.md](F-570-one-worktree-list.md) |
 | F-571 | Таблица Files: имя, тип, состояние, путь | [F-571-files-table.md](F-571-files-table.md) |
 | F-572 | Customise View: колонки таблицы Files | [F-572-files-customise-columns.md](F-572-files-customise-columns.md) |

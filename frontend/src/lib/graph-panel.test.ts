@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { textX } from "$lib/graph-geometry";
-import { GRAPH_MIN_SUBJECT_CHARS, emptyHistory, graphPanelMinWidth, subjectRoom } from "./graph-panel";
+import { GRAPH_MIN_SUBJECT_CHARS, emptyHistory, graphPanelMinWidth, showsWorkingTree, subjectRoom } from "./graph-panel";
 
 describe("the Graph panel's minimum width", () => {
   it("is one lane of graph plus about 35 characters of subject", () => {
@@ -27,5 +27,32 @@ describe("an empty history", () => {
   it("is a repository without commits otherwise", () => {
     expect(emptyHistory(false, null)).toMatchObject({ title: "No commits yet", clears: false });
     expect(emptyHistory(false, ["HEAD"])).toMatchObject({ title: "No commits yet" });
+  });
+});
+
+describe("showsWorkingTree", () => {
+  const clean = { staged: 0, unstaged: 0, untracked: 0, conflicted: 0 };
+
+  it("always shows the row while the setting is on", () => {
+    expect(showsWorkingTree(true, clean, { kind: "clean" })).toBe(true);
+  });
+
+  it("leaves the row out of a clean working tree when the setting is off", () => {
+    expect(showsWorkingTree(false, clean, { kind: "clean" })).toBe(false);
+    expect(showsWorkingTree(false, clean, { kind: "detachedHead", oid: "abc" })).toBe(false);
+  });
+
+  it("brings it back for any change", () => {
+    for (const change of ["staged", "unstaged", "untracked", "conflicted"] as const) {
+      expect(showsWorkingTree(false, { ...clean, [change]: 1 }, { kind: "clean" }), change).toBe(true);
+    }
+  });
+
+  it("keeps it while an operation is stopped half way", () => {
+    expect(showsWorkingTree(false, clean, { kind: "merging" })).toBe(true);
+  });
+
+  it("keeps it until the status is read", () => {
+    expect(showsWorkingTree(false, undefined, undefined)).toBe(true);
   });
 });

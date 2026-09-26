@@ -61,6 +61,7 @@ mod submodules;
 mod subtrees;
 mod surgery;
 mod tags;
+mod text_search;
 mod topo;
 mod worktree;
 mod worktrees;
@@ -120,7 +121,7 @@ pub use reset::ResetMode;
 pub use runner::{
     CommandSink, GitOutput, git_version, gix_version, redact_command, use_git_program,
 };
-pub use search::{CommitQuery, GraphRows, GraphView, SkippedRef};
+pub use search::{CommitQuery, GraphRows, GraphView, Passed, PassedCommits, ShownBy, SkippedRef};
 pub use shared::SharedRepo;
 pub use stash::{StashContents, StashEntry, StashOptions};
 pub use state::RepoState;
@@ -128,6 +129,7 @@ pub use status::{RepoStatus, WorkingState};
 pub use submodules::{Submodule, SubmodulePointer, SubmoduleState};
 pub use subtrees::SubtreeOp;
 pub use tags::TagRequest;
+pub use text_search::TextFields;
 pub use worktree::{WorktreeFiles, WorktreeView};
 pub use worktrees::WorktreeEntry;
 

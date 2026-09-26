@@ -601,6 +601,9 @@ export type CommitQuery = {
 	since?: number | null,
 	until?: number | null,
 	path?: string | null,
+	/**  The filter's free text, looked for in the fields of `text_in` (F-560). */
+	text?: string | null,
+	textIn?: TextFields,
 	/**  Refs the References panel ticked; `None` is every ref, `Some([])` is none. */
 	visibleRefs?: string[] | null,
 	/**  How the graph shows the walked history; a filtered list ignores it. */
@@ -950,6 +953,8 @@ export type GraphPaintRequest = {
 	tips?: PaintTip[],
 	/**  All but this commit's ancestors and descendants is dimmed. */
 	ancestryOf?: string | null,
+	/**  Mergeable Coloring: all but what merging this commit into HEAD would bring is dimmed. */
+	mergeableOf?: string | null,
 };
 
 /**  How far the walk got. The rows themselves travel only when asked for, by window. */
@@ -989,6 +994,8 @@ export type GraphView = {
 	/**  A merged branch is one row at its merge, but for the merges in `expanded`. */
 	collapseMerged?: boolean,
 	expanded?: string[],
+	/**  Show Graph While Filtering: a filtered list keeps lines between its matches (R-575). */
+	filteredGraph?: boolean,
 };
 
 /**  Assuming "HEAD is a branch" crashes on an unborn or detached checkout (INV-07). */
@@ -1656,6 +1663,24 @@ export type TagRequest = {
 export type TerminalChoice = {
 	id: string,
 	label: string,
+};
+
+/**  Where the free text of the filter is looked for; any one field matching is enough. */
+export type TextFields = {
+	author?: boolean,
+	committer?: boolean,
+	/**  The whole message, body included. */
+	message?: boolean,
+	refs?: boolean,
+	/**  A prefix of the commit id. */
+	id?: boolean,
+	/**
+	 *  Paths the commit changed against its first parent: the file name, or the whole path
+	 *  once the text has a `/` in it, as SmartGit matches.
+	 */
+	name?: boolean,
+	/**  Lines the commit added or removed against its first parent. */
+	content?: boolean,
 };
 
 export type TodoAction = "pick" | "reword" | "edit" | "squash" | "fixup" | "drop";

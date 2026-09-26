@@ -21,7 +21,7 @@
   import CommitPanel from "$components/panels/CommitPanel.svelte";
   import CommitDetailsPane from "$components/panels/CommitDetailsPane.svelte";
   import SplitOffDialog from "$components/file-list/SplitOffDialog.svelte";
-  import GraphFilter from "$components/graph/GraphFilter.svelte";
+  import GraphHeader from "$components/graph/GraphHeader.svelte";
   import RebaseEditor from "$components/graph/RebaseEditor.svelte";
   import DropMenu from "$components/layout/DropMenu.svelte";
   import Panel from "$components/layout/Panel.svelte";
@@ -212,6 +212,7 @@
   import { refs } from "$stores/refs.svelte";
   import { stashView } from "$stores/stash-view.svelte";
   import { buildRefTree, visibleTips, type RefNode } from "$lib/ref-nodes";
+  import { withTracked } from "$lib/selected-refs";
 
   const PANEL_TITLES: Record<PanelId, string> = {
     repositories: "Repositories",
@@ -1300,10 +1301,22 @@
     if (!id) return;
     const watch = measure("reload-graph");
     const nodes = buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() });
-    graph.visibleRefs = visibleTips(nodes, refs.visible);
+    const ticked = settings.current.graphIncludeTracked
+      ? withTracked(refs.visible, repo?.branches ?? [])
+      : refs.visible;
+    graph.visibleRefs = visibleTips(nodes, ticked);
     await graph.load(id, graph.query);
     watch.stop(`${graph.total} commits`);
   }
+
+  // Include Tracked Remote Branches changes the tips the walk starts from (F-561).
+  let trackedWalked = untrack(() => settings.current.graphIncludeTracked);
+  $effect(() => {
+    const on = settings.current.graphIncludeTracked;
+    if (on === trackedWalked) return;
+    trackedWalked = on;
+    untrack(() => void reloadGraph());
+  });
 
   /** A click on the text selects the ref and centres the graph on its tip. A stash is not
       a commit the user chose, so it takes over the Files panel instead (T5.2). */
@@ -3684,7 +3697,12 @@
           >
             {#snippet actions()}
               {#if repo}
-                <GraphFilter onchange={filterGraph} matches={graph.total} query={graph.query} />
+                <GraphHeader
+                  onchange={filterGraph}
+                  matches={graph.total}
+                  query={graph.query}
+                  onpreferences={() => openSettings("graph")}
+                />
               {/if}
             {/snippet}
             {#if describeSkipped(graph.skipped)}

@@ -1,6 +1,7 @@
 <script lang="ts">
   import StartScreen from "$components/layout/StartScreen.svelte";
   import CommitList from "$components/graph/CommitList.svelte";
+  import GraphFilterFields from "$components/graph/GraphFilterFields.svelte";
   import PauseCheckBar from "$components/graph/PauseCheckBar.svelte";
   import StateBanner from "$components/layout/StateBanner.svelte";
   import type { Banner, BannerAction } from "$lib/repo-state";
@@ -8,6 +9,7 @@
   import { panelView } from "$lib/repo-phase";
   import { repository } from "$stores/repository.svelte";
   import { settings } from "$stores/settings.svelte";
+  import { graphFilter } from "$stores/graph-filter.svelte";
 
   interface Props {
     /** Non-null while a rebase is in flight; its steps become rows of the list below. */
@@ -66,6 +68,9 @@
   {#if banner}
     <StateBanner {banner} {busy} onaction={onbanneraction} />
   {/if}
+  {#if graphFilter.showsFields}
+    <GraphFilterFields />
+  {/if}
   {#if progress}
     <PauseCheckBar {check} {oncheck} onrun={onruncheck} {verdict} running={checking} />
   {/if}
@@ -83,9 +88,13 @@
     longLinkRows={settings.current.graphLongLinkRows}
     highlightChecked={settings.current.graphHighlightChecked}
     firstParent={settings.current.graphFirstParent}
-    branchOfCommit={settings.current.graphBranchOfCommit}
+    coloring={settings.current.graphColoring}
     ancestry={settings.current.graphAncestry}
     collapseMerged={settings.current.graphCollapseMerged}
+    filteredGraph={settings.current.graphWhileFiltering}
+    selectedRefsOnly={settings.current.graphSelectedRefsOnly}
+    includeTracked={settings.current.graphIncludeTracked}
+    workingTreeAlways={settings.current.graphWorkingTreeAlways}
   />
 {:else}
   <StartScreen

@@ -187,7 +187,7 @@ Blame открывается только отдельным окном (`blame.
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
 | `load_commits` | `repo, query: CommitQuery, onProgress: Channel<GraphProgress>` | `Vec<SkippedRef { name, reason }>` — отмеченные ссылки, не ставшие стартовой точкой; новый вызов останавливает предыдущий обход | M4 |
-| `graph_overlay` | `repo, generation, start, count, request: GraphPaintRequest { tips: [{ oid, slot }], ancestryOf? }` | `Option<GraphOverlay>` — стиль и полоса узла и каждого сегмента строк окна; `None`, если граф заменён | M4 |
+| `graph_overlay` | `repo, generation, start, count, request: GraphPaintRequest { tips: [{ oid, slot }], ancestryOf?, mergeableOf? }` | `Option<GraphOverlay>` — стиль и полоса узла и каждого сегмента строк окна; `None`, если граф заменён | M4 |
 | `commit_details` | `repo, rev: String` | `CommitDetails` | M4 |
 | `commit_files` | `repo, rev: String` | `Vec<FileEntry>` | M6 |
 
@@ -203,13 +203,19 @@ pub struct CommitQuery {
     pub since: Option<i64>,          // секунды Unix, включительно
     pub until: Option<i64>,
     pub path: Option<String>,
+    pub text: Option<String>,        // свободный текст фильтра, ищется в полях text_in (F-560)
+    pub text_in: TextFields,         // author, committer, message, refs, id, name, content
     pub visible_refs: Option<Vec<String>>, // отмеченное в панели References
     pub view: GraphView,             // режимы графа: first_parent, collapse_merged (#26)
     pub long_link_rows: Option<u32>, // не фильтр: связи длиннее — обрубками (R-330)
 }
 ```
 
-Условия объединяются по **И**. Фильтр по пути сравнивает запись дерева с первым
+Условия объединяются по **И**. `text` совпадает, если его подстрока (регистр не важен) есть хотя
+бы в одном включённом поле `text_in`: автор или коммиттер (имя, e-mail, через mailmap), всё
+сообщение с телом, имя ветки или тега на коммите, начало OID, имена изменённых файлов (с `/` в
+тексте — пути целиком), строки, которые коммит добавил или убрал (R-573). Без `text` поля
+`text_in` ничего не фильтруют: `filters_rows()` и `is_empty()` их не видят. Фильтр по пути сравнивает запись дерева с первым
 родителем — так же, как `git log -- path` до отслеживания переименований, — и проверяется
 последним, потому что стоит два обращения к дереву на каждого кандидата.
 
@@ -726,16 +732,18 @@ pub struct GraphProgress {
 **Раскраска — отдельным окном.** `graph_overlay(repo, generation, start, count, request)`
 отдаёт для тех же строк: полосу (`nodeLanes`, `segmentLanes`) и стиль (`nodeStyles`,
 `segmentStyles`: младшие 4 бита — слот палитры + 1, 0 — цвет по умолчанию; бит `0x10` —
-приглушено, вне родни `ancestryOf`) узла и каждого
+приглушено: вне родни `ancestryOf` или, при `mergeableOf`, вне того, что принёс бы merge этого коммита в HEAD — R-574) узла и каждого
 сегмента, `segmentFirst` — где начинаются сегменты каждой строки, `folds: [{ row, hidden }]` —
 свёрнутые merge среди строк окна и сколько коммитов в каждом. Считается в Rust по всему
 графу один раз на запрос и хранится, пока не изменились строки или запрос
 ([07-graph-rendering.md §5](07-graph-rendering.md#раскраска)). Пустой запрос UI не шлёт.
 
 **Вид графа** едет в том же `CommitQuery`: `view: GraphView { firstParent, collapseMerged,
-expanded }` — какие из
+expanded, filteredGraph? }` — какие из
 обойдённых коммитов граф показывает ([07-graph-rendering.md §10](07-graph-rendering.md#10-режимы-графа)).
-Строки фильтра (`filters_rows`) он не делает; отфильтрованный список его не учитывает.
+Строки фильтра (`filters_rows`) он не делает; отфильтрованный список его не учитывает, кроме
+`filteredGraph`: с ним список рисуется с линиями между совпадениями (R-575), без фильтра поле
+не отправляется.
 
 Отфильтрованный список тоже приходит с раскладкой: линия к родителю, которого фильтр не
 покажет, — сегмент с `arrow: true` (R-161).

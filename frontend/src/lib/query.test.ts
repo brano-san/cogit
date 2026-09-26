@@ -1,33 +1,40 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { formatQuery, isEmptyQuery, parseQuery } from "./query";
+import { textFields } from "./filter-fields";
+import { formatQuery, isEmptyQuery, parseQuery, sameQuery } from "./query";
 
 describe("parseQuery", () => {
-  it("treats bare words as a message filter", () => {
-    expect(parseQuery("fix the parser")).toMatchObject({ message: "fix the parser" });
+  it("looks for bare words in the fields the switches pick", () => {
+    expect(parseQuery("fix the parser")).toMatchObject({
+      text: "fix the parser",
+      textIn: textFields(["author", "committer", "message", "refs", "id"]),
+      message: null,
+    });
+    expect(parseQuery("fix", ["content"]).textIn).toEqual(textFields(["content"]));
   });
 
   it("returns an empty query for blank input", () => {
     const query = parseQuery("   ");
     expect(isEmptyQuery(query)).toBe(true);
-    expect(query.message).toBeNull();
+    expect(query.text).toBeNull();
+    expect(query.textIn).toBeUndefined();
   });
 
   it("reads a prefixed field", () => {
-    expect(parseQuery("author:brano")).toMatchObject({ author: "brano", message: null });
+    expect(parseQuery("author:brano")).toMatchObject({ author: "brano", text: null });
   });
 
   it("combines fields with free text", () => {
     expect(parseQuery("author:brano parser path:src/lib")).toMatchObject({
       author: "brano",
       path: "src/lib",
-      message: "parser",
+      text: "parser",
     });
   });
 
   it("accepts a quoted value with spaces", () => {
     expect(parseQuery('author:"John Doe" fix')).toMatchObject({
       author: "John Doe",
-      message: "fix",
+      text: "fix",
     });
   });
 
@@ -52,12 +59,12 @@ describe("parseQuery", () => {
     expect(parseQuery("author:a author:b").author).toBe("b");
   });
 
-  it("keeps an unknown prefix as part of the message", () => {
-    expect(parseQuery("ticket:123").message).toBe("ticket:123");
+  it("keeps an unknown prefix as part of the text", () => {
+    expect(parseQuery("ticket:123").text).toBe("ticket:123");
   });
 
   it("does not treat a bare colon as a field", () => {
-    expect(parseQuery("fix: crash").message).toBe("fix: crash");
+    expect(parseQuery("fix: crash").text).toBe("fix: crash");
   });
 });
 
@@ -91,6 +98,22 @@ describe("isEmptyQuery", () => {
   it("is true only when nothing is set", () => {
     expect(isEmptyQuery(parseQuery(""))).toBe(true);
     expect(isEmptyQuery(parseQuery("path:src"))).toBe(false);
+    expect(isEmptyQuery(parseQuery("fix"))).toBe(false);
+  });
+
+  it("does not count the switches without text", () => {
+    expect(isEmptyQuery({ ...parseQuery(""), textIn: textFields(["content"]) })).toBe(true);
+  });
+});
+
+describe("sameQuery", () => {
+  it("tells text looked for in other fields apart", () => {
+    expect(sameQuery(parseQuery("fix", ["message"]), parseQuery("fix", ["message", "name"]))).toBe(false);
+    expect(sameQuery(parseQuery("fix", ["message"]), parseQuery("fix", ["message"]))).toBe(true);
+  });
+
+  it("ignores the switches while there is no text", () => {
+    expect(sameQuery(parseQuery("path:src", ["message"]), parseQuery("path:src", ["name"]))).toBe(true);
   });
 });
 

@@ -97,7 +97,7 @@ impl Painted {
 fn tips(list: &[(u32, u8)]) -> PaintSpec {
     PaintSpec {
         tips: list.to_vec(),
-        ancestry_of: None,
+        ..PaintSpec::default()
     }
 }
 
@@ -114,7 +114,7 @@ fn with_nothing_to_paint_everything_keeps_the_default_style() {
 fn a_ticked_branch_is_coloured_from_its_tip_to_the_main_line() {
     let history = nodes(&[
         ("m4", &["m3"]),
-        ("m3", &["m2", "t1"]),
+        ("m3", &["m2"]),
         ("t1", &["m1"]),
         ("m2", &["m1"]),
         ("m1", &["m0"]),
@@ -126,6 +126,26 @@ fn a_ticked_branch_is_coloured_from_its_tip_to_the_main_line() {
     for (row, segment, style, _) in painted.segments() {
         let expected = if segment.primary { 0 } else { 5 };
         assert_eq!(style, expected, "row {row}: {segment:?}");
+    }
+}
+
+/// A feature branched off and merged back is all history of the main line: a tick on it
+/// colours nothing, as none of it is its own any more (#21).
+#[test]
+fn a_feature_the_main_line_merged_colours_nothing() {
+    let history = nodes(&[
+        ("m4", &["m3"]),
+        ("m3", &["m2", "t1"]),
+        ("t1", &["m1"]),
+        ("m2", &["m1"]),
+        ("m1", &["m0"]),
+        ("m0", &[]),
+    ]);
+    let painted = Painted::new(&history, Some("m4"), &tips(&[(2, 4)]));
+
+    assert!(painted.paint.node_style.iter().all(|s| *s == 0));
+    for (row, segment, style, _) in painted.segments() {
+        assert_eq!(style, 0, "row {row}: {segment:?}");
     }
 }
 
@@ -159,7 +179,7 @@ fn a_branch_stops_where_it_meets_a_line_already_coloured() {
 #[test]
 fn a_branch_goes_on_through_a_line_nobody_ticked() {
     let history = nodes(&[
-        ("m3", &["m2", "s2"]),
+        ("m3", &["m2"]),
         ("b1", &["s1"]),
         ("s2", &["s1"]),
         ("m2", &["m1"]),
@@ -181,6 +201,87 @@ fn a_branch_goes_on_through_a_line_nobody_ticked() {
             assert_eq!(style, 4, "s1 goes on in b1's colour: {s:?}");
         }
     }
+}
+
+/// What the main line has merged is common history, whoever ticked the branch it came
+/// from: the line stays the colour it has without a tick.
+#[test]
+fn a_branch_stops_at_history_the_main_line_merged() {
+    let history = nodes(&[
+        ("m3", &["m2", "s2"]),
+        ("b1", &["s1"]),
+        ("s2", &["s1"]),
+        ("m2", &["m1"]),
+        ("s1", &["m1"]),
+        ("m1", &[]),
+    ]);
+    let painted = Painted::new(&history, Some("m3"), &tips(&[(1, 3)]));
+
+    assert_eq!(painted.paint.node_style, vec![0, 4, 0, 0, 0, 0]);
+    let mut into_s1: Vec<u8> = painted
+        .segments()
+        .filter(|(row, s, _, _)| *row == 4 && s.span == Span::Top)
+        .map(|(_, _, style, _)| style)
+        .collect();
+    into_s1.sort_unstable();
+    assert_eq!(into_s1, vec![0, 4], "b1's line runs into s1 in its colour");
+    for (row, s, style, _) in painted.segments() {
+        if row == 4 && s.span == Span::Bottom {
+            assert_eq!(style, 0, "s1 is the main line's history: {s:?}");
+        }
+    }
+}
+
+/// `master` merged into the checked-out feature: all of it is the feature's history too,
+/// so ticking it colours nothing, down to the root (#21).
+#[test]
+fn a_ticked_branch_the_main_line_merged_whole_colours_nothing() {
+    let history = nodes(&[
+        ("f3", &["f2", "m2"]),
+        ("m2", &["m1"]),
+        ("f2", &["f1"]),
+        ("m1", &["m0"]),
+        ("f1", &["m0"]),
+        ("m0", &[]),
+    ]);
+    let painted = Painted::new(&history, Some("f3"), &tips(&[(1, 4)]));
+
+    assert!(painted.paint.node_style.iter().all(|s| *s == 0));
+    for (row, s, style, _) in painted.segments() {
+        assert_eq!(style, 0, "row {row}: {s:?}");
+    }
+}
+
+/// `master` went on after the feature merged it: only the commits since are its own, and
+/// the merge's line into the part merged stays uncoloured though it shares a column.
+#[test]
+fn only_what_the_main_line_has_not_merged_takes_the_colour() {
+    let history = nodes(&[
+        ("m3", &["m2"]),
+        ("f3", &["f2", "m2"]),
+        ("m2", &["m1"]),
+        ("f2", &["f1"]),
+        ("m1", &["m0"]),
+        ("f1", &["m0"]),
+        ("m0", &[]),
+    ]);
+    let painted = Painted::new(&history, Some("f3"), &tips(&[(0, 4)]));
+
+    assert_eq!(painted.paint.node_style, vec![5, 0, 0, 0, 0, 0, 0]);
+    let coloured: Vec<(usize, Span, u16, u16)> = painted
+        .segments()
+        .filter(|(_, _, style, _)| *style != 0)
+        .map(|(row, s, _, _)| (row, s.span, s.from, s.to))
+        .collect();
+    assert_eq!(
+        coloured,
+        vec![
+            (0, Span::Bottom, 1, 1),
+            (1, Span::Through, 1, 1),
+            (2, Span::Top, 1, 1),
+        ],
+        "m3's line down to m2, not f3's merge into it"
+    );
 }
 
 #[test]
@@ -207,8 +308,8 @@ fn ancestry_dims_what_is_neither_ancestor_nor_descendant() {
         ("a", &[]),
     ]);
     let spec = PaintSpec {
-        tips: Vec::new(),
         ancestry_of: Some(2),
+        ..PaintSpec::default()
     };
     let painted = Painted::new(&history, Some("e"), &spec);
 
@@ -229,8 +330,8 @@ fn ancestry_dims_what_is_neither_ancestor_nor_descendant() {
 fn ancestry_of_a_row_past_the_end_dims_everything() {
     let history = nodes(&[("b", &["a"]), ("a", &[])]);
     let spec = PaintSpec {
-        tips: Vec::new(),
         ancestry_of: Some(9),
+        ..PaintSpec::default()
     };
     let painted = Painted::new(&history, Some("b"), &spec);
     assert!(painted.paint.node_style.iter().all(|s| s & PAINT_DIM != 0));
@@ -438,4 +539,75 @@ fn a_branch_goes_on_in_one_lane_below_a_cut_first_parent_link() {
 
     assert_eq!(painted.paint.node_lane[5], painted.paint.node_lane[1]);
     assert_eq!(painted.rows[5].color, painted.rows[1].color);
+}
+
+fn mergeable(chosen: u32) -> PaintSpec {
+    PaintSpec {
+        mergeable_of: Some(chosen),
+        ..PaintSpec::default()
+    }
+}
+
+fn dimmed(painted: &Painted) -> Vec<bool> {
+    painted
+        .paint
+        .node_style
+        .iter()
+        .map(|s| s & PAINT_DIM != 0)
+        .collect()
+}
+
+/// Mergeable Coloring (SmartGit): what a merge of the chosen commit into the main line
+/// would bring stands out, everything else is dimmed.
+#[test]
+fn mergeable_lights_what_a_merge_would_bring() {
+    let history = nodes(&[
+        ("m3", &["m2"]),
+        ("f2", &["f1"]),
+        ("m2", &["m1"]),
+        ("f1", &["m1"]),
+        ("m1", &["m0"]),
+        ("m0", &[]),
+    ]);
+    let painted = Painted::new(&history, Some("m3"), &mergeable(1));
+
+    assert_eq!(dimmed(&painted), vec![true, false, true, false, true, true]);
+    for (row, s, style, _) in painted.segments() {
+        let lit = !s.primary && (row == 1 || row == 2 || (row == 3 && s.span == Span::Top));
+        assert_eq!(style & PAINT_DIM == 0, lit, "row {row}: {s:?}");
+    }
+}
+
+#[test]
+fn mergeable_leaves_out_what_the_main_line_merged_already() {
+    let history = nodes(&[
+        ("f3", &["f2"]),
+        ("m3", &["m2", "f2"]),
+        ("f2", &["f1"]),
+        ("m2", &["m1"]),
+        ("f1", &["m1"]),
+        ("m1", &[]),
+    ]);
+    let painted = Painted::new(&history, Some("m3"), &mergeable(0));
+
+    assert_eq!(dimmed(&painted), vec![false, true, true, true, true, true]);
+}
+
+#[test]
+fn mergeable_of_a_main_line_commit_dims_everything() {
+    let history = nodes(&[("m2", &["m1"]), ("f1", &["m1"]), ("m1", &[])]);
+    let painted = Painted::new(&history, Some("m2"), &mergeable(2));
+    assert!(dimmed(&painted).iter().all(|dim| *dim));
+}
+
+#[test]
+fn mergeable_outranks_ancestry() {
+    let history = nodes(&[("m2", &["m1"]), ("f1", &["m1"]), ("m1", &[])]);
+    let spec = PaintSpec {
+        mergeable_of: Some(1),
+        ancestry_of: Some(1),
+        ..PaintSpec::default()
+    };
+    let painted = Painted::new(&history, Some("m2"), &spec);
+    assert_eq!(dimmed(&painted), vec![true, false, true]);
 }

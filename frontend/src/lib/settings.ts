@@ -1,6 +1,9 @@
 import type { DateMode } from "$lib/format";
 import type { Algorithm, Whitespace } from "$lib/ipc";
 import { LANE_WIDTH } from "$lib/graph-geometry";
+import { DEFAULT_FILTER_FIELDS, knownFields, type FilterField } from "$lib/filter-fields";
+import { knownPatterns } from "$lib/filter-patterns";
+import { GRAPH_COLORINGS, migratedColoring, type GraphColoring } from "$lib/graph-coloring";
 
 /** Lightest first; the grey ones sit between the extremes (#24). */
 export const THEMES = [
@@ -29,8 +32,6 @@ export interface Settings {
   /** Side by side: the left code column's share of the width both get (R-535). */
   diffSplit: number;
   laneWidth: number;
-  /** A colour per lane instead of one grey; off, as SmartGit draws it (R-161). */
-  coloredLanes: boolean;
   pullMode: "ffOnly" | "merge";
   gitPath: string;
   terminal: string;
@@ -53,10 +54,24 @@ export interface Settings {
   /** A link longer than this many rows is drawn as two stubs; 0 draws every link whole. */
   graphLongLinkRows: number;
   graphHighlightChecked: boolean;
+  /** SmartGit's colorings; `varying` is a color per lane, `branch` brings the selected
+      commit's branch forward (R-574). */
+  graphColoring: GraphColoring;
   graphFirstParent: boolean;
-  graphBranchOfCommit: boolean;
   graphAncestry: boolean;
   graphCollapseMerged: boolean;
+  /** Show Only Selected Branches and Tags: labels only for refs ticked in Branches (F-561). */
+  graphSelectedRefsOnly: boolean;
+  /** Include Tracked Remote Branches: a ticked branch walks its upstream too (F-561). */
+  graphIncludeTracked: boolean;
+  /** Show Graph While Filtering: lines between a filter's matches, not a flat list (F-561). */
+  graphWhileFiltering: boolean;
+  /** Show Working Tree Permanently: off, no Working Tree row while it is clean (F-561). */
+  graphWorkingTreeAlways: boolean;
+  /** Where the graph filter looks for its text: the switches under the field (F-560). */
+  graphFilterFields: FilterField[];
+  /** Filter texts kept by Remember Pattern, newest first (F-563). */
+  graphFilterPatterns: string[];
 
   /** Minutes between asking the remote of every listed repository what it has (R-354);
       `0` is off, which is the default: nothing reaches the network unasked. */
@@ -73,7 +88,6 @@ export const DEFAULT_SETTINGS: Settings = {
   detectMoves: true,
   diffSplit: 0.5,
   laneWidth: LANE_WIDTH.default,
-  coloredLanes: false,
   pullMode: "ffOnly",
   gitPath: "git",
   terminal: "system",
@@ -87,10 +101,16 @@ export const DEFAULT_SETTINGS: Settings = {
   graphStripes: true,
   graphLongLinkRows: 40,
   graphHighlightChecked: true,
+  graphColoring: "default",
   graphFirstParent: false,
-  graphBranchOfCommit: false,
   graphAncestry: false,
   graphCollapseMerged: false,
+  graphSelectedRefsOnly: false,
+  graphIncludeTracked: false,
+  graphWhileFiltering: false,
+  graphWorkingTreeAlways: true,
+  graphFilterFields: [...DEFAULT_FILTER_FIELDS],
+  graphFilterPatterns: [],
 
   backgroundFetchMinutes: 0,
 };
@@ -108,6 +128,7 @@ const ENUMS: Partial<Record<keyof Settings, readonly string[]>> = {
   avatars: ["ask", "gravatar", "off"],
   graphTimeFormat: ["relative", "date", "dateTime"],
   graphDensity: ["compact", "normal", "comfortable"],
+  graphColoring: GRAPH_COLORINGS,
 };
 
 const RANGES: Partial<Record<keyof Settings, [number, number]>> = {
@@ -147,7 +168,12 @@ export function needsRestart(key: keyof Settings): boolean {
 
 /** Every stored value is re-checked: one bad key must not leave an unusable window. */
 export function merge(stored: Partial<Settings> | null | undefined): Settings {
-  const merged = { ...DEFAULT_SETTINGS, graphColumns: [...DEFAULT_SETTINGS.graphColumns] };
+  const merged = {
+    ...DEFAULT_SETTINGS,
+    graphColumns: [...DEFAULT_SETTINGS.graphColumns],
+    graphFilterFields: [...DEFAULT_SETTINGS.graphFilterFields],
+    graphFilterPatterns: [...DEFAULT_SETTINGS.graphFilterPatterns],
+  };
   if (typeof stored !== "object" || stored === null) return merged;
   const record = stored as Record<string, unknown>;
 
@@ -156,6 +182,14 @@ export function merge(stored: Partial<Settings> | null | undefined): Settings {
     const fallback = DEFAULT_SETTINGS[key];
     if (key === "graphColumns") {
       merged.graphColumns = knownColumns(value) ?? merged.graphColumns;
+      continue;
+    }
+    if (key === "graphFilterFields") {
+      merged.graphFilterFields = knownFields(value) ?? merged.graphFilterFields;
+      continue;
+    }
+    if (key === "graphFilterPatterns") {
+      merged.graphFilterPatterns = knownPatterns(value) ?? merged.graphFilterPatterns;
       continue;
     }
     if (value === undefined || typeof value !== typeof fallback) continue;
@@ -174,5 +208,6 @@ export function merge(stored: Partial<Settings> | null | undefined): Settings {
     (merged[key] as unknown) = value;
   }
   merged.graphTimeFormat = migratedTimeFormat(record) ?? merged.graphTimeFormat;
+  merged.graphColoring = migratedColoring(record) ?? merged.graphColoring;
   return merged;
 }

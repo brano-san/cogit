@@ -5,7 +5,9 @@ use crate::GraphChunk;
 /// A filtered history is a flat list, not a graph: the parents of a match are usually
 /// filtered out, so lanes drawn between survivors would claim a lineage that is not
 /// there. Other clients do the same. Narrowing the visible refs is exempt — it drops
-/// whole tips, never a commit from inside a surviving lineage (R-51).
+/// whole tips, never a commit from inside a surviving lineage (R-51). Show Graph While
+/// Filtering draws the lines anyway, down first parents through what the filter left out
+/// (F-561, R-575).
 pub(crate) fn lay_out(
     handle: &git_engine::RepoHandle,
     query: &git_engine::CommitQuery,
@@ -14,17 +16,21 @@ pub(crate) fn lay_out(
     mut on_chunk: impl FnMut(GraphChunk) -> bool,
 ) -> Result<Vec<git_engine::SkippedRef>, git_engine::GitError> {
     let flat = query.filters_rows();
-    let mailmap = if flat {
-        handle.mailmap()
-    } else {
-        std::sync::Arc::default()
-    };
+    let lines = flat && query.view.filtered_graph;
+    let shown = (flat && !lines).then(|| handle.shown_filter(query));
+    let passed = git_engine::PassedCommits::default();
     // The walk follows first parents itself (R-301); a merge shows its first line only (#26).
     let first_parent = query.view.first_parent && !flat;
 
     // Read once per load: a column that moved half way down would be worse than none.
+    // A line passed through left-out commits is placed as they come, never held back.
+    let long_links = if lines {
+        0
+    } else {
+        query.long_link_rows.unwrap_or(0)
+    };
     let mut cursor = graph_engine::LayoutCursor::with_mainline(mainline_of(handle, query))
-        .with_long_links(query.long_link_rows.unwrap_or(0));
+        .with_long_links(long_links);
     let mut cancelled = false;
     let mut view = graph_view(handle, query, flat)?;
     // A shallow boundary or an unreadable parent: a line to it ends in an arrow (07 §4).
@@ -50,10 +56,10 @@ pub(crate) fn lay_out(
             .map(|c| graph_engine::CommitNode {
                 oid: c.oid.clone(),
                 parents: c.parents.clone(),
-                hidden: if flat {
+                hidden: if let Some(shown) = &shown {
                     c.parents
                         .iter()
-                        .filter(|parent| !handle.shown_by_with(query, parent, &mailmap))
+                        .filter(|parent| !shown.shows(handle, parent))
                         .cloned()
                         .collect()
                 } else if cut.is_empty() {
@@ -67,7 +73,26 @@ pub(crate) fn lay_out(
                 },
             })
             .collect();
-        let rows = graph_engine::push(nodes, &mut cursor);
+        let rows = if lines {
+            let mut passes = passed.take().into_iter().peekable();
+            let mut rows = Vec::with_capacity(nodes.len());
+            for (at, node) in nodes.into_iter().enumerate() {
+                while let Some(pass) = passes.next_if(|pass| pass.before <= at) {
+                    graph_engine::pass_through(
+                        &mut cursor,
+                        &pass.oid,
+                        pass.first_parent.as_deref(),
+                    );
+                }
+                rows.extend(graph_engine::push(vec![node], &mut cursor));
+            }
+            for pass in passes {
+                graph_engine::pass_through(&mut cursor, &pass.oid, pass.first_parent.as_deref());
+            }
+            rows
+        } else {
+            graph_engine::push(nodes, &mut cursor)
+        };
         let folds = view
             .as_mut()
             .map(graph_engine::ViewFilter::take_folds)
@@ -83,7 +108,13 @@ pub(crate) fn lay_out(
         keep
     };
 
-    let skipped = handle.graph_commits(query, chunk_size, rows, on_commits)?;
+    let skipped = handle.graph_commits_passing(
+        query,
+        chunk_size,
+        rows,
+        lines.then_some(&passed),
+        on_commits,
+    )?;
 
     if !cancelled {
         // The rows held back to see how far their links reach (R-330).
@@ -144,5 +175,7 @@ fn mainline_of(handle: &git_engine::RepoHandle, query: &git_engine::CommitQuery)
     }
     .filter(|_| ticked("HEAD"));
     let tip = graph_engine::mainline_tip(&locals, head.as_deref())?;
-    (!query.filters_rows() || handle.shown_by(query, &tip)).then_some(tip)
+    // Lines through left-out commits keep column 0 on HEAD's first parents all the way.
+    (!query.filters_rows() || query.view.filtered_graph || handle.shown_by(query, &tip))
+        .then_some(tip)
 }

@@ -6,10 +6,17 @@ describe("stateBanner", () => {
     expect(stateBanner({ kind: "clean" }, null)).toBeNull();
   });
 
-  it("offers continue and abort for an interrupted merge", () => {
+  it("offers only abort for an interrupted merge: the merge commit is an ordinary commit", () => {
     const banner = stateBanner({ kind: "merging" }, null);
     expect(banner?.title).toContain("Merge");
-    expect(banner?.actions).toEqual(["continue", "abort"]);
+    expect(banner?.actions).toEqual(["abort"]);
+    expect(banner?.detail).toContain("commit");
+  });
+
+  it("keeps continue where git goes on by itself after the conflicts", () => {
+    for (const kind of ["rebasing", "cherryPicking", "reverting", "applyingPatches"] as const) {
+      expect(stateBanner({ kind }, null)?.actions, kind).toContain("continue");
+    }
   });
 
   it("offers skip only where a step can be skipped", () => {

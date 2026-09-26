@@ -11,7 +11,7 @@ import {
 } from "$lib/ipc";
 import type { GraphBlock, GraphEntry } from "$lib/graph-wire";
 import { repository } from "$stores/repository.svelte";
-import { GRAPH_MODE_DEFAULTS, graphView } from "$lib/graph-modes";
+import { GRAPH_MODE_DEFAULTS, graphView, viewReloads, walkedView } from "$lib/graph-modes";
 import { LONG_LINK_ROWS } from "$lib/graph-row";
 import { isEmptyQuery, sameQuery } from "$lib/query";
 
@@ -126,8 +126,9 @@ class GraphStore {
       changes nothing in it: the load that clears the filter takes the view. */
   setView(next: GraphView): void {
     if (JSON.stringify(next) === JSON.stringify(this.view)) return;
+    const reloads = viewReloads(this.view, next, !isEmptyQuery(this.query));
     this.view = next;
-    if (!isEmptyQuery(this.query)) return;
+    if (!reloads) return;
     const repo = this.#loadingRepo;
     if (repo !== undefined) void this.load(repo, this.query);
   }
@@ -232,7 +233,7 @@ class GraphStore {
           if (fresh === this.#shown) this.#publish();
           this.#ask(fresh);
         },
-        { ...query, visibleRefs: this.visibleRefs, view: this.view, longLinkRows: this.longLinkRows },
+        { ...query, visibleRefs: this.visibleRefs, view: walkedView(this.view, query), longLinkRows: this.longLinkRows },
       );
       if (load === this.#loads) this.skipped = skipped ?? [];
       if (load === this.#loads && !fresh.complete && !(await this.#settle(fresh, load)) && retry) {
