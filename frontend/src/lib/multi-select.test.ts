@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   actionScope,
+  everyBlocked,
   requestBlocked,
   scopeBlocked,
   afterDeselect,
@@ -195,5 +196,19 @@ describe("requestBlocked", () => {
   it("is off for a heading's all when any row it lists is off", () => {
     expect(requestBlocked(new Set(), { all: ["new.txt", "old.txt"] }, files, ignore)).toBe("tracked");
     expect(requestBlocked(new Set(), { all: ["new.txt"] }, files, ignore)).toBeNull();
+  });
+});
+
+// "+x all" stages the mode change of the rows that have one and passes over the rest.
+describe("everyBlocked", () => {
+  const files = new Map([
+    ["run.sh", { mode: true }],
+    ["a.txt", { mode: false }],
+  ]);
+  const mode = (file: { mode: boolean }) => (file.mode ? null : "The mode did not change");
+
+  it("is off only when the action applies to none of the rows", () => {
+    expect(everyBlocked(["run.sh", "a.txt"], files, mode)).toBeNull();
+    expect(everyBlocked(["a.txt"], files, mode)).toBe("The mode did not change");
   });
 });

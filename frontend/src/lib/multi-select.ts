@@ -116,6 +116,23 @@ export function scopeBlocked<F>(
   return requestBlocked(marked, { row }, files, blocked);
 }
 
+/** For an action that passes over the files it does not apply to: off only when it applies
+    to none of `paths`, with the first one's reason. */
+export function everyBlocked<F>(
+  paths: readonly string[],
+  files: ReadonlyMap<string, F>,
+  blocked: (file: F) => string | null,
+): string | null {
+  let first: string | null = null;
+  for (const path of paths) {
+    const file = files.get(path);
+    const reason = file === undefined ? null : blocked(file);
+    if (reason === null) return null;
+    first ??= reason;
+  }
+  return first;
+}
+
 /** The same for any button: a row's, or a heading's "all" over the rows it lists. */
 export function requestBlocked<F>(
   marked: ReadonlySet<string>,
