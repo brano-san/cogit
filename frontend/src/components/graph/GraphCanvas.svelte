@@ -25,7 +25,7 @@
     headRow?: number | null;
     headLane?: number | null;
     /** A ring is filled with what is behind it: a stripe, a hovered or a selected row. */
-    selectedRow?: number | null;
+    selectedRows?: readonly number[];
     hoverRow?: number | null;
     /** The lane drawn in front: the branch of the chosen commit. */
     focusLane?: number | null;
@@ -43,7 +43,7 @@
     height,
     headRow = null,
     headLane = null,
-    selectedRow = null,
+    selectedRows = [],
     hoverRow = null,
     focusLane = null,
     clipX = Number.POSITIVE_INFINITY,
@@ -144,7 +144,7 @@
         const { x, y } = nodeCentre(row.layout.lane, row.listRow, scrollTop);
         context.arc(x, y, GRAPH.ringRadius, 0, Math.PI * 2);
       }
-      for (const layer of nodeFill(row.listRow, selectedRow, hoverRow, stripes)) {
+      for (const layer of nodeFill(row.listRow, selectedRows, hoverRow, stripes)) {
         if (!fills.has(layer)) fills.set(layer, token(layer));
         context.fillStyle = fills.get(layer) ?? panel;
         context.fill();
@@ -175,7 +175,7 @@
 
   $effect(() => {
     // Theme, lane width and colour change the picture without changing the data.
-    void [rows, scrollTop, width, height, dpr, headRow, headLane, selectedRow, hoverRow, focusLane];
+    void [rows, scrollTop, width, height, dpr, headRow, headLane, selectedRows, hoverRow, focusLane];
     void [clipX, stripes, rowHeight];
     void [settings.current.theme, settings.current.laneWidth, settings.current.coloredLanes];
     schedule();
