@@ -1649,6 +1649,7 @@
   async function runNetwork(kind: "fetch" | "pull" | "push") {
     // One Pull everywhere: the remote HEAD tracks and the fast-forward setting (#26).
     if (kind === "pull") return pullNow();
+    if (kind === "push" && refActions?.pushNeedsDialog()) return refActions.pushToCurrent();
     const id = repository.current?.repo;
     const root = repository.current?.root;
     const remote = kind === "fetch" ? pullRemote : network.primary;

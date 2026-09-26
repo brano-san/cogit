@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  choosesRemote,
   customRefProblem,
   initialRemote,
   pushRefspec,
@@ -130,5 +131,15 @@ describe("tracksByDefault", () => {
     expect(tracksByDefault(untracked)).toBe(true);
     expect(tracksByDefault(tracked)).toBe(false);
     expect(tracksByDefault(tag)).toBe(false);
+  });
+});
+
+// Push of a branch never pushed went to origin whatever the other remotes were.
+describe("choosesRemote", () => {
+  it("asks where to publish a new branch when more than one remote could take it", () => {
+    expect(choosesRemote(untracked, remotes)).toBe(true);
+    expect(choosesRemote(untracked, ["origin"])).toBe(false);
+    expect(choosesRemote(tracked, remotes)).toBe(false);
+    expect(choosesRemote(tag, remotes)).toBe(false);
   });
 });

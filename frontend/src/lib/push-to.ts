@@ -63,6 +63,12 @@ export function tracksByDefault(source: PushSource): boolean {
   return source.kind === "branch" && source.upstream === null;
 }
 
+/** A branch never pushed, with more than one remote to publish it on: Push opens Push To
+    to pick one, as SmartGit's does (R-551). */
+export function choosesRemote(source: PushSource, remotes: readonly string[]): boolean {
+  return tracksByDefault(source) && remotes.length > 1;
+}
+
 /** Push in the menu of a branch or tag: where Push To would send it with no change. */
 export function menuPush(
   source: PushSource,

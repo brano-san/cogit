@@ -5558,6 +5558,9 @@ Push To (свой refspec) не меняются. Отдельный пункт 
 `the_first_push_of_a_branch_publishes_it_and_sets_its_upstream`
 (`crates/git_engine/tests/network.rs`).
 
+Дополнено: R-550 (Push в меню ветки и Push To), R-551 (upstream — `remote` и `merge` вместе,
+выбор remote при нескольких).
+
 ## R-450 · Строки перетаскиваются на pointer-событиях, а не HTML5 drag-and-drop · В
 
 Главное окно держит Tauri-обработчик брошенных файлов (`dragDropEnabled`, по умолчанию): wry
@@ -6727,3 +6730,28 @@ tracking»; у нас вопрос — флажок диалога, а Push бе
 `a_ref_pushed_without_tracking_leaves_the_branch_as_it_was` (`crates/app_state/tests/remotes.rs`),
 `a_refspec_pushed_to_be_tracked_becomes_the_upstream` (`crates/git_engine/tests/network.rs`),
 `push-to.test.ts` «menuPush», «tracksByDefault».
+
+## R-551 · Первый push новой ветки: upstream по правилу git, remote — из Push To, если их несколько · Н
+
+Push ветки без upstream отказывал: «The current branch … has no upstream branch» (п. 12 списка
+25.09), хотя R-414 обещает `--set-upstream`. Причина отказа у пользователя — сборка старше
+2ce764f (R-414, 25.09 18:58): в логе `cogit-2026-09-25_02-30-37.log` в 00:10:46Z ушёл
+`git push --progress origin` без `--set-upstream` и без refspec. Текущий путь кнопки Push через
+кэш хэндлов работает (`a_new_branch_pushed_from_the_toolbar_tracks_its_remote_branch`).
+Найдена ещё одна дыра той же проверки: R-414 спрашивал gix только о `branch.<имя>.merge`, а
+git считает upstream заданным, когда есть и `branch.<имя>.remote`, и `.merge`. Ветка с одним
+`merge` (конфиг, дописанный руками или оставленный скриптом) шла голым `git push` и получала
+тот же отказ.
+
+**Решение:** `head_tracks_nothing` — нет `remote` или нет `merge`, как у git
+(`setup_push_upstream`). Ветка без upstream уходит под своим именем с `--set-upstream`
+(`push.default` и `push.autoSetupRemote` не важны). Remote: один — он; несколько — кнопка
+Push, палитра, `Remote ▸ Push` и Push в меню ветки открывают Push To с выбранным remote
+основного (`origin`) и включённым `Set upstream` (R-550) — как SmartGit, у которого «the Push
+To dialog will allow you to select the remote repository to push to»
+([Synchronizing with Remote Repositories](https://docs.syntevo.com/SmartGit/Latest/Manual/GUI/Repository/Synchronizing-with-Remote-Repositories)).
+Ветка с upstream, как и раньше, — `git push <основной remote>` без диалога. Строка
+Repositories неактивного репозитория диалога не показывает: push идёт в основной remote
+(`--set-upstream` ставит движок). Тесты — `a_branch_with_a_merge_but_no_remote_is_pushed_as_a_first_push`
+(`crates/git_engine/tests/network.rs`; на прежней проверке падал с тем же «has no upstream
+branch»), `push-to.test.ts` «choosesRemote».
