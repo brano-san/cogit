@@ -69,6 +69,14 @@ export function freshOverview(overview: RepoOverview, current: RepoSummary | nul
   return { ...overview, ...summaryMarks(current), state: current.state };
 }
 
+/** What the panels show of their repository, as a pulse: handed to its row when they let
+    go of it, until the row's own pulse is read (R-542). */
+export function summaryPulse(current: RepoSummary): RepoPulse {
+  const head = current.head.kind === "branch" ? current.head.name : null;
+  const upstream = current.branches.find((b) => b.kind === "local" && b.name === head)?.upstream;
+  return { ...summaryMarks(current), tracked: upstream !== null && upstream !== undefined };
+}
+
 export interface ModuleSyncInput {
   /** What the panels show, when they show this very submodule. */
   shown: RepoSummary | null;

@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { canPull, freshOverview, moduleSync, REMOTE_AHEAD, rowSync, syncTooltip, UNKNOWN_PULL } from "./repo-sync";
+import {
+  canPull,
+  freshOverview,
+  moduleSync,
+  REMOTE_AHEAD,
+  rowSync,
+  summaryPulse,
+  syncTooltip,
+  UNKNOWN_PULL,
+} from "./repo-sync";
 import type { Branch, RepoOverview, RepoSummary } from "$lib/ipc";
 import type { RepoPulse } from "$lib/ipc/bindings";
 
@@ -213,5 +222,26 @@ describe("the marks of a submodule node", () => {
     const sync = moduleSync({ shown: null, pulse: pulse({ behind: 0 }), fetchFailed: false, remoteAhead: true });
     expect(canPull(sync)).toBe(true);
     expect(moduleSync({ shown: null, pulse: pulse(), fetchFailed: true }).unknown).toBe(true);
+  });
+});
+
+describe("the marks the panels hand to a row they let go of", () => {
+  it("are those of the summary they showed, upstream included", () => {
+    const now = {
+      repo: 3,
+      root: "/a",
+      name: "a",
+      isBare: false,
+      head: { kind: "branch", name: "dev", oid: "a".repeat(40) },
+      branches: [
+        { name: "dev", fullName: "refs/heads/dev", kind: "local", oid: "a".repeat(40), isHead: true, upstream: "origin/dev", ahead: 0, behind: 2 },
+      ],
+      tags: [],
+      status: { staged: 1, unstaged: 0, untracked: 0, conflicted: 0 },
+      state: { kind: "clean" },
+      indexLock: null,
+      tagGroupSeparator: "/",
+    } as unknown as RepoSummary;
+    expect(summaryPulse(now)).toEqual({ missing: false, branch: "dev", tracked: true, ahead: 0, behind: 2, dirty: true });
   });
 });

@@ -89,7 +89,7 @@
   import { groupChoices, parseRepoCommand, repoMenu } from "$lib/repo-menu";
   import { fetchAllTargets, listedName, listedRepos, type ListedRepo } from "$lib/repo-list";
   import { eachAtMost, FETCH_ALL_LANES } from "$lib/fetch-all";
-  import { rowSync } from "$lib/repo-sync";
+  import { rowSync, summaryPulse } from "$lib/repo-sync";
   import { removalQuestion, UNGROUPED } from "$lib/repo-groups";
   import { repoList } from "$stores/repo-list.svelte";
   import { compareUrl } from "$lib/compare-params";
@@ -3307,6 +3307,7 @@
         openModule: submodules.open,
         worktreeOwnerRoot: worktrees.ownerRoot,
       }),
+      repository.current ? summaryPulse(repository.current) : null,
     ),
   );
 
