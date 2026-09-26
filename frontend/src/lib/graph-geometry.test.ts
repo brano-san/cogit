@@ -12,6 +12,7 @@ import {
   nodeCentre,
   nodeSquare,
   nodeFill,
+  rowStarts,
   striped,
   rowY,
   scrollRowIntoView,
@@ -526,6 +527,14 @@ describe("row stripes", () => {
   it("fills the ring of every row drawn selected", () => {
     expect(nodeFill(3, [5, 3], null).at(-1)).toBe("--state-selected");
     expect(nodeFill(5, [5, 3], null).at(-1)).toBe("--state-selected");
+  });
+
+  // Repositories (#41): a repository draws the submodules open under it, so the next one
+  // starts that many rows further down; a row the list does not draw takes none.
+  it("starts each item of a list after every row the ones above it draw", () => {
+    expect(rowStarts([1, 3, 0, 2, 1])).toEqual([0, 1, 4, 4, 6]);
+    expect(rowStarts([])).toEqual([]);
+    expect(rowStarts([1, 3, 0, 2, 1]).map((row) => striped(row))).toEqual([false, true, false, false, false]);
   });
 
   it("stripes nothing, rings included, once the banding is switched off", () => {

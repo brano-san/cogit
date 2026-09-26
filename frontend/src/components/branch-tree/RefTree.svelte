@@ -11,6 +11,7 @@
     type RefNode,
     type RefTreeInput,
   } from "$lib/ref-nodes";
+  import { striped } from "$lib/graph-geometry";
   import { pointerDrag } from "$lib/pointer-drag";
   import { refActivation } from "$lib/ref-checkout";
   import { TypeAhead, findTyped, listKey, pageRows, pressOf, typedChar } from "$lib/list-keys";
@@ -18,6 +19,7 @@
   import { triState } from "$lib/tri-state-box";
   import { worktreeMarkTooltip } from "$lib/worktree-list";
   import type { Branch } from "$lib/ipc";
+  import { settings } from "$stores/settings.svelte";
 
   interface Props {
     input: RefTreeInput;
@@ -54,6 +56,8 @@
   const tree = $derived(buildRefTree(input));
   const nodes = $derived(flatten(tree, foldedWhileFiltering(input.collapsed, input.filter, filterFolds)));
   const ticks = $derived(tickStates(tree, visible));
+  /** One switch for every list's banding, the graph's (#41). */
+  const stripes = $derived(settings.current.graphStripes);
 
   function toggle(id: string) {
     const next = toggleNode(tree, id, visible);
@@ -149,10 +153,11 @@
   use:pointerDrag={branchDrag}
   {onkeydown}
 >
-  {#each nodes as node (node.id)}
+  {#each nodes as node, at (node.id)}
     {@const tick = ticks.get(node.id)}
     <div
       class="row {node.kind}"
+      class:striped={striped(at, stripes)}
       class:selected={active === node.id}
       class:over={over === node.id}
       style:padding-left="calc(var(--tree-base) + {node.depth} * var(--tree-step))"
@@ -223,6 +228,11 @@
     padding-right: var(--sp-4);
     font-size: var(--fs-dense);
     white-space: nowrap;
+  }
+
+  /* By the row's place in the tree as drawn (#41), before hover and selection. */
+  .row.striped {
+    background: var(--row-stripe);
   }
 
   .row:hover {
