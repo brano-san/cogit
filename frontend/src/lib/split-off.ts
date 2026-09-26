@@ -27,3 +27,8 @@ export function splitSummary(
     ? `${taken} before, ${rest} in the original commit`
     : `${rest} in the original commit, ${taken} after`;
 }
+
+/** Files ticked or a message typed: work closing the dialog loses. */
+export function splitStarted(chosen: readonly string[], message: string): boolean {
+  return chosen.length > 0 || message.trim() !== "";
+}

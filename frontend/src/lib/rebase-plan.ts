@@ -30,3 +30,12 @@ export function previewCount(plan: readonly TodoEntry[]): number {
       entry.action !== "drop" && entry.action !== "squash" && entry.action !== "fixup",
   ).length;
 }
+
+/** The plan was reordered, re-actioned or reworded since it came: work closing loses. */
+export function planChanged(before: readonly TodoEntry[], now: readonly TodoEntry[]): boolean {
+  if (before.length !== now.length) return true;
+  return now.some((entry, at) => {
+    const was = before[at];
+    return !was || was.oid !== entry.oid || was.action !== entry.action || was.message !== entry.message;
+  });
+}
