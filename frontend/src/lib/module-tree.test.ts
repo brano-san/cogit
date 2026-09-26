@@ -5,7 +5,9 @@ import {
   mayExpand,
   moduleKey,
   moduleRows,
+  moduleUpdate,
   splitModulePath,
+  updateModule,
 } from "./module-tree";
 import type { Submodule } from "$lib/ipc";
 
@@ -124,11 +126,10 @@ describe("moduleTooltip", () => {
     );
   });
 
-  // F-056: it pointed at an "(Update)" button no row has; the command that runs it is
-  // Remote ▸ Submodule ▸ Reset… (git submodule update --checkout).
+  // F-056: it pointed at an "(Update)" button no row had; the row menu has one now (F-521).
   it("names the command that brings a module that is behind to the recorded commit", () => {
     const tip = moduleTooltip(mod("lib", { state: "behind", behind: 1 }));
-    expect(tip).toContain("Remote ▸ Submodule ▸ Reset…");
+    expect(tip).toContain("Update in its menu");
     expect(tip).not.toContain("(Update)");
   });
 
@@ -229,5 +230,76 @@ describe("splitModulePath, for a name that has to survive truncation", () => {
       dir: "src/tetra/import/",
       name: "dmo",
     });
+  });
+});
+
+describe("moduleUpdate", () => {
+  it("runs at once for a module that is behind: nothing of its own is left behind", () => {
+    expect(moduleUpdate(mod("lib", { state: "behind", behind: 2 }))).toEqual({ kind: "run", init: false });
+  });
+
+  it("initialises a module that is not checked out", () => {
+    expect(moduleUpdate(mod("lib", { state: "notInitialised" }))).toEqual({ kind: "run", init: true });
+  });
+
+  it("asks first for a module that is ahead, and says where its commits stay", () => {
+    const plan = moduleUpdate(mod("lib", { state: "ahead", ahead: 2, branch: "topic" }));
+    expect(plan.kind).toBe("ask");
+    const message = plan.kind === "ask" ? plan.request.message : "";
+    expect(message).toContain("2 commits");
+    expect(message).toContain("topic");
+  });
+
+  it("warns that a detached module's own commits are left on no branch", () => {
+    const plan = moduleUpdate(mod("lib", { state: "diverged", ahead: 1, behind: 3 }));
+    const message = plan.kind === "ask" ? plan.request.message : "";
+    expect(message).toContain("1 commit");
+    expect(message).toMatch(/no branch/);
+  });
+
+  it("is off, with the reason, where there is nothing to do or nothing known", () => {
+    for (const state of ["inSync", "unknown", "unread"] as const) {
+      const plan = moduleUpdate(mod("lib", { state }));
+      expect(plan.kind, state).toBe("off");
+      expect(plan.kind === "off" ? plan.reason : "", state).not.toBe("");
+    }
+  });
+});
+
+describe("updateModule", () => {
+  const deps = (answer: boolean) => {
+    const calls: string[] = [];
+    return {
+      calls,
+      ask: async () => {
+        calls.push("ask");
+        return answer;
+      },
+      update: async (init: boolean) => {
+        calls.push(init ? "update --init" : "update");
+      },
+    };
+  };
+
+  it("updates a module that is behind without a question", async () => {
+    const run = deps(false);
+    expect(await updateModule(mod("lib", { state: "behind", behind: 1 }), run)).toBe(true);
+    expect(run.calls).toEqual(["update"]);
+  });
+
+  it("updates a module that is ahead only once the answer is yes", async () => {
+    const no = deps(false);
+    expect(await updateModule(mod("lib", { state: "ahead", ahead: 1 }), no)).toBe(false);
+    expect(no.calls).toEqual(["ask"]);
+
+    const yes = deps(true);
+    expect(await updateModule(mod("lib", { state: "ahead", ahead: 1 }), yes)).toBe(true);
+    expect(yes.calls).toEqual(["ask", "update"]);
+  });
+
+  it("does nothing for a module already on the recorded commit", async () => {
+    const run = deps(true);
+    expect(await updateModule(mod("lib"), run)).toBe(false);
+    expect(run.calls).toEqual([]);
   });
 });

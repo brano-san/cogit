@@ -338,3 +338,4 @@
 | F-507 | Аккорды стейджинга и инструментов | [F-507-registry-keys.md](F-507-registry-keys.md) |
 | F-508 | Клавиатура в списках | [F-508-list-keyboard.md](F-508-list-keyboard.md) |
 | F-510 | Панель слияния не теряет выбранные стороны | [F-510-merge-panel-keeps-picks.md](F-510-merge-panel-keeps-picks.md) |
+| F-521 | Update в меню строки submodule | [F-521-submodule-row-update.md](F-521-submodule-row-update.md) |

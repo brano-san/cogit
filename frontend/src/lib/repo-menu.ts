@@ -1,6 +1,7 @@
-import type { ContextItem } from "./ipc";
+import type { ContextItem, Submodule } from "./ipc";
 import type { DesktopInfo } from "./ipc/file-menus";
 import { SEPARATOR, item, offer, submenu, tidy } from "./context-menu";
+import { moduleUpdate } from "./module-tree";
 import { UNGROUPED, type RepoGroups } from "./repo-groups";
 
 export const REPO_MOVE_PREFIX = "repo-move:";
@@ -8,6 +9,9 @@ export const REPO_MOVE_NEW = "repo-move-new";
 
 /** Shown on the four list-only items of a submodule node: it is part of its parent. */
 export const SUBMODULE_REASON = "a submodule belongs to its parent";
+
+/** Shown on Update of a repository row: only a submodule has a commit recorded for it. */
+export const NOT_A_SUBMODULE = "not a submodule";
 
 export interface GroupChoice {
   id: string;
@@ -24,6 +28,15 @@ export interface RepoMenuTarget {
   pinned: boolean;
   group: string;
   groups: readonly GroupChoice[];
+  /** The node's submodule, which decides whether Update applies (F-521). */
+  module?: Submodule;
+}
+
+function updateReason(at: RepoMenuTarget): string | null {
+  if (at.kind !== "submodule") return NOT_A_SUBMODULE;
+  const plan = at.module ? moduleUpdate(at.module) : null;
+  if (!plan) return "open its repository first";
+  return plan.kind === "off" ? plan.reason : null;
 }
 
 export function groupChoices(groups: RepoGroups): GroupChoice[] {
@@ -87,6 +100,7 @@ export function repoMenu(at: RepoMenuTarget, desktop: DesktopInfo): ContextItem[
     SEPARATOR,
     offer("repo-pull", "Pull", closed, onlyActive("CmdOrCtrl+Shift+U")),
     offer("repo-push", "Push", closed, onlyActive("CmdOrCtrl+Shift+O")),
+    offer("repo-update", "Update", updateReason(at)),
     SEPARATOR,
     moveTo(at),
     offer("repo-pin", at.pinned ? "Unpin" : "Pin", listOnly),
