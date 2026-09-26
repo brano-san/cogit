@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { eachAtMost } from "./fetch-all";
 import { EMPTY_SELECTION, markRow } from "./multi-select";
 import { fetchAllTargets } from "./repo-list";
 
@@ -45,5 +46,43 @@ describe("what Fetch All fetches", () => {
 
   it("leaves out a ticked row that is not open", () => {
     expect(roots(fetchAllTargets(["C:/a", "C:/gone"], OPEN))).toEqual(["C:/a"]);
+  });
+});
+
+// Fetch All went one repository at a time: a remote that did not answer held every other
+// one until its timeout (M3-repo-tree.md, "Известные ловушки").
+describe("eachAtMost", () => {
+  it("runs a few at once, never more, and every one of them", async () => {
+    let running = 0;
+    let most = 0;
+    const done: number[] = [];
+    const gates = new Map<number, () => void>();
+    const all = eachAtMost([1, 2, 3, 4, 5, 6], 4, async (item) => {
+      running += 1;
+      most = Math.max(most, running);
+      await new Promise<void>((resolve) => gates.set(item, resolve));
+      running -= 1;
+      done.push(item);
+    });
+
+    await vi.waitFor(() => expect(gates.size).toBe(4));
+    expect(most).toBe(4);
+    for (let item = 1; item <= 6; item += 1) {
+      await vi.waitFor(() => expect(gates.has(item)).toBe(true));
+      gates.get(item)?.();
+    }
+    await all;
+
+    expect(most).toBe(4);
+    expect(done.sort()).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+
+  it("does not let one failure stop the rest", async () => {
+    const seen: number[] = [];
+    await eachAtMost([1, 2, 3], 2, async (item) => {
+      seen.push(item);
+      if (item === 1) throw new Error("unreachable");
+    }).catch(() => {});
+    expect(seen.sort()).toEqual([1, 2, 3]);
   });
 });

@@ -88,6 +88,7 @@
   import { desktop } from "$stores/desktop.svelte";
   import { groupChoices, parseRepoCommand, repoMenu } from "$lib/repo-menu";
   import { fetchAllTargets, listedName, listedRepos, type ListedRepo } from "$lib/repo-list";
+  import { eachAtMost, FETCH_ALL_LANES } from "$lib/fetch-all";
   import { rowSync } from "$lib/repo-sync";
   import { UNGROUPED } from "$lib/repo-groups";
   import { repoList } from "$stores/repo-list.svelte";
@@ -2371,9 +2372,10 @@
 
     const watch = measure("fetch-all");
     let failed = 0;
+    let done = 0;
     bulk = { label: "Fetching", done: 0, total: targets.length };
 
-    for (const [index, entry] of targets.entries()) {
+    await eachAtMost(targets, FETCH_ALL_LANES, async (entry) => {
       try {
         const remote = await trackedRemote(entry.repo);
         if (remote) await fetchRemote(entry.repo, remote, () => {});
@@ -2381,8 +2383,9 @@
         failed += 1;
         errors.report(err, "Could not fetch");
       }
-      bulk = { label: "Fetching", done: index + 1, total: targets.length, failed };
-    }
+      done += 1;
+      bulk = { label: "Fetching", done, total: targets.length, failed };
+    });
 
     bulk = undefined;
     watch.stop(`${targets.length} repositories, ${failed} failed`);
