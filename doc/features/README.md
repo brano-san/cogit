@@ -139,7 +139,6 @@
 | F-133 | Журнал безопасности списком | [F-133-safety-journal.md](F-133-safety-journal.md) |
 | F-134 | Просмотр стэша без применения | [F-134-stash-contents.md](F-134-stash-contents.md) |
 | F-135 | Стэш выделенного | [F-135-stash-selection.md](F-135-stash-selection.md) |
-| F-136 | Контекстное меню репозитория | [F-136-repo-context-menu.md](F-136-repo-context-menu.md) |
 | F-137 | Открыть в терминале | [F-137-open-in-terminal.md](F-137-open-in-terminal.md) |
 | F-138 | Фильтр и пропавшие репозитории | [F-138-repo-filter.md](F-138-repo-filter.md) |
 | F-139 | Мультивыбор репозиториев | [F-139-repo-multiselect.md](F-139-repo-multiselect.md) |
