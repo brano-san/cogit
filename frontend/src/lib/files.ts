@@ -1,4 +1,4 @@
-import type { FileEntry, FileStatus } from "$lib/ipc";
+import type { FileStatus } from "$lib/ipc";
 
 const BADGES: Record<FileStatus, string> = {
   added: "A",
@@ -45,6 +45,13 @@ export function statusTooltip(status: FileStatus): string {
   return TOOLTIPS[status];
 }
 
+/** What the tooltip adds for a row of the one working-tree list (#32). */
+export function indexNote(state: "staged" | "partly" | undefined): string {
+  if (state === "staged") return " — staged";
+  if (state === "partly") return " — partly staged";
+  return "";
+}
+
 export function fileName(path: string): string {
   const trimmed = path.endsWith("/") ? path.slice(0, -1) : path;
   return trimmed.slice(trimmed.lastIndexOf("/") + 1);
@@ -59,11 +66,6 @@ export function matchesMask(path: string, mask: string): boolean {
   }
   const subject = pattern.includes("/") ? path : fileName(path);
   return globToRegExp(pattern).test(subject.toLowerCase());
-}
-
-/** By path only: the sections of the list are what sorts by status (R-476). */
-export function sortFiles(files: readonly FileEntry[]): FileEntry[] {
-  return [...files].sort((a, b) => a.path.localeCompare(b.path));
 }
 
 export function globToRegExp(pattern: string): RegExp {

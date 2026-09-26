@@ -26,7 +26,7 @@ const TITLES: Record<StateSlot, string> = {
   missing: "If selected, missing/removed files will be shown",
 };
 
-const RENAME_SOURCES_TITLE =
+export const RENAME_SOURCES_TITLE =
   "If selected, removed/missing source files of detected renames will be shown";
 
 const SLOTS: readonly StateSlot[] = [
@@ -127,4 +127,12 @@ export function withUnchanged(
     rest.push({ path, oldPath: null, status: "unchanged", mode: "plain", modeChange: null, similarity: null });
   }
   return [...files, ...rest];
+}
+
+/** One button for directories or a flat list (#30): it shows and names what a click
+    switches to, the way a list/tree button does in VS Code (R-594). */
+export function layoutToggle(directories: boolean): { icon: "tree" | "flat"; title: string; next: boolean } {
+  return directories
+    ? { icon: "flat", title: "Show Flat List", next: false }
+    : { icon: "tree", title: "Show Directories", next: true };
 }

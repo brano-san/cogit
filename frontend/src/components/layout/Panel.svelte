@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import { idleMessage, type PanelView } from "$lib/repo-phase";
+  import { StaleDot } from "$lib/staleness";
 
   /** A titled work surface. Every panel in the grid uses this shell.
 
@@ -38,6 +39,11 @@
 
   const ready = $derived(view === "content");
   const message = $derived(ready ? undefined : idleMessage(view));
+
+  let dotShown = $state(false);
+  const dot = new StaleDot((shown) => (dotShown = shown));
+  $effect(() => dot.set(stale));
+  $effect(() => () => dot.dispose());
 </script>
 
 <section class="panel" aria-busy={view === "opening"}>
@@ -45,7 +51,7 @@
     <h2 class="panel-title">
       {title}{#if ready && count}&nbsp;({count}{#if busy}<span title="Loading the rest">…</span>{/if}){/if}
     </h2>
-    {#if stale}
+    {#if dotShown}
       <span class="stale" title="Something changed on disk; this is being reloaded">•</span>
     {/if}
     {#if actions}

@@ -67,8 +67,8 @@ const GATED: Partial<Record<FileEntry["status"], keyof FileView>> = {
   deleted: "missing",
 };
 
-export function visibleFiles(files: readonly FileEntry[], view: FileView): FileEntry[] {
-  const shown: FileEntry[] = [];
+export function visibleFiles<F extends FileEntry>(files: readonly F[], view: FileView): F[] {
+  const shown: F[] = [];
   for (const file of files) {
     const gate = GATED[file.status];
     if (gate && !view[gate]) continue;
@@ -106,16 +106,19 @@ export function hidingSwitches(files: readonly FileEntry[], view: FileView): (ke
   return [...keys];
 }
 
+/** A row of the list: the one working-tree list also says how much of it is staged (#32). */
+export type ListFile = FileEntry & { indexState?: "staged" | "partly" };
+
 export type ViewRow =
   | { kind: "dir"; path: string; count: number }
-  | { kind: "file"; file: FileEntry };
+  | { kind: "file"; file: ListFile };
 
 /** The repository root is `""`, not `"/"`: a leading slash reads like an absolute path. */
-export function groupByDirectory(files: readonly FileEntry[], on: boolean): ViewRow[] {
+export function groupByDirectory(files: readonly ListFile[], on: boolean): ViewRow[] {
   if (!on) return files.map((file) => ({ kind: "file", file }));
 
   const order: string[] = [];
-  const groups = new Map<string, FileEntry[]>();
+  const groups = new Map<string, ListFile[]>();
   for (const file of files) {
     const cut = file.path.lastIndexOf("/");
     const directory = cut === -1 ? "" : file.path.slice(0, cut + 1);

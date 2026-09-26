@@ -16,7 +16,6 @@
 <button
   type="button"
   class="sort"
-  class:on={natural}
   aria-pressed={natural}
   title={natural
     ? "Natural sort: numbers compare as numbers, v1.0.2 before v1.0.10"
@@ -30,7 +29,6 @@
 <button
   type="button"
   class="sort"
-  class:on={dates !== "off"}
   aria-pressed={dates !== "off"}
   title={dateTitle}
   onclick={() => refs.setSort({ ...refs.sort, dates: nextDateOrder(dates) })}
@@ -65,11 +63,6 @@
   .sort:hover {
     background: var(--state-hover);
     color: var(--text-primary);
-  }
-
-  .sort.on {
-    background: var(--state-selected);
-    color: var(--status-ref);
   }
 
   svg {

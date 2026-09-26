@@ -88,3 +88,19 @@ describe.each(Object.keys(THEMES))("branch colours in the %s theme", (name) => {
     }
   });
 });
+
+// The Files switches went back to grey under the pointer: their hover rule outranked the
+// pressed one, and pressed and released looked the same (#31).
+describe("a pressed switch", () => {
+  it("keeps its look under the pointer: one rule for every switch, over any hover", () => {
+    const body = /\n\[aria-pressed="true"\][^{]*\{([^}]*)\}/.exec(CSS)?.[1] ?? "";
+    expect(body).toMatch(/background:\s*var\(--state-pressed\)\s*!important/);
+    expect(body).toMatch(/color:\s*var\(--state-pressed-text\)\s*!important/);
+  });
+
+  it.each(Object.keys(THEMES))("reads 3:1 on its own background in the %s theme", (name) => {
+    const colour = theme(name);
+    expect(contrast(colour("--state-pressed-text"), colour("--state-pressed"))).toBeGreaterThanOrEqual(3);
+    expect(colour("--state-pressed")).not.toBe(colour("--state-hover"));
+  });
+});

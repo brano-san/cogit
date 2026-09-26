@@ -1,6 +1,8 @@
 <script lang="ts">
+  import { columnItems, toggleColumn } from "$lib/file-columns";
   import type { FileView } from "$lib/file-view";
-  import { stateSwitches, toolReason, type ListContext } from "$lib/file-switches";
+  import { layoutToggle, RENAME_SOURCES_TITLE, stateSwitches, toolReason, type ListContext } from "$lib/file-switches";
+  import { filesView } from "$stores/files-view.svelte";
 
   /**
    * The bar above the file list (issue 11). Left: what is hidden and how to search.
@@ -52,7 +54,7 @@
   let bar: HTMLDivElement | undefined = $state();
   let crowded = $state(false);
 
-  /** Field at its narrowest, plus the nine buttons and three rules to its right. */
+  /** Field at its narrowest, plus the eight buttons and three rules to its right. */
   const ROOM_FOR_SWITCHES = 420;
 
   /** The Files panel is often a narrow column. Rather than clip the switches, they move
@@ -90,26 +92,27 @@
     search: "M11 5a6 6 0 1 0 0 12 6 6 0 0 0 0-12m9 15-4.3-4.3",
     split: "M4 4h10v10H4zM10 10h10v10H10m2-2 2 2 4-4",
     tree: "M3 6.5A1.5 1.5 0 0 1 4.5 5h3l1.5 2h10a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 19 19H4.5A1.5 1.5 0 0 1 3 17.5ZM9 11v5m0-5h4m-4 5h4",
-    flat: "M4 6h16M4 12h16M4 18h16",
+    flat: "M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01",
     unchanged: "M6 3h8l5 5v13H6zM14 3v5h5",
     untracked: "M6 3h8l5 5v13H6zM14 3v5h5M9 12h6m-3-3v6",
     ignored: "M6 3h8l5 5v13H6zM14 3v5h5M9 11l6 6m0-6-6 6",
     modified: "M6 3h8l5 5v13H6zM14 3v5h5M9 15l6-6",
     skipped: "M6 3h8l5 5v13H6zM14 3v5h5M10 11v6M14 11v6",
     missing: "M6 3h8l5 5v13H6zM14 3v5h5M9 14h6",
-    columns: "M4 7h16M4 12h16M4 17h16",
+    columns: "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM9 3v18M15 3v18",
   } as const;
 
   const switches = $derived(stateSwitches(context));
+  const layout = $derived(layoutToggle(view.directories));
   const splitReason = $derived(toolReason(context, "separateIndex"));
   const contentsReason = $derived(
     toolReason(context, "contents") ??
       (contentsReady ? null : "Search in file contents — only the working tree is on disk to search"),
   );
 
-  const COLUMNS: { key: keyof FileView | "size"; label: string }[] = [
-    { key: "renameSources", label: "Renamed Path" },
-  ];
+  /** Customise View (#34): the columns of the table, then what the bar has no room for. On a
+      commit the sources of renames are the Missing switch; the working tree has them here. */
+  const columnMenu = $derived(columnItems(filesView.columns, view.directories));
 
   /** The hidden rows come back: the filter text goes and the switches that hid them go on.
       The rest stay as they are — Unchanged or Ignored would read the whole tree. */
@@ -151,7 +154,6 @@
     <button
       type="button"
       class="chip"
-      class:on={view.regex}
       aria-pressed={view.regex}
       title="Use Regular Expressions"
       {disabled}
@@ -160,7 +162,6 @@
     <button
       type="button"
       class="chip"
-      class:on={view.contents && contentsReason === null}
       class:dead={contentsReason !== null}
       aria-pressed={view.contents && contentsReason === null}
       aria-disabled={contentsReason !== null}
@@ -175,7 +176,6 @@
   <button
     type="button"
     class="tool"
-    class:on={view.separateIndex && splitReason === null}
     class:dead={splitReason !== null}
     aria-pressed={view.separateIndex && splitReason === null}
     aria-disabled={splitReason !== null}
@@ -191,24 +191,12 @@
   <button
     type="button"
     class="tool"
-    class:on={view.directories}
-    aria-pressed={view.directories}
-    title="Show Directories"
+    aria-label={layout.title}
+    title={layout.title}
     {disabled}
-    onclick={() => set("directories", true)}
+    onclick={() => set("directories", layout.next)}
   >
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d={I.tree} /></svg>
-  </button>
-  <button
-    type="button"
-    class="tool"
-    class:on={!view.directories}
-    aria-pressed={!view.directories}
-    title="Show Flat List"
-    {disabled}
-    onclick={() => set("directories", false)}
-  >
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d={I.flat} /></svg>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d={I[layout.icon]} /></svg>
   </button>
 
   <span class="rule" aria-hidden="true"></span>
@@ -217,7 +205,6 @@
     <button
       type="button"
       class="tool"
-      class:on={item.reason === null && view[item.key]}
       class:dead={item.reason !== null}
       aria-pressed={item.reason === null && view[item.key]}
       aria-disabled={item.reason !== null}
@@ -249,8 +236,25 @@
       <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
       <div class="backdrop" onclick={() => (columnsOpen = false)}></div>
       <div class="menu" role="menu" style:top="{menuAt.top}px" style:right="{menuAt.right}px">
-        {#if crowded}
+        <p class="group-label">Columns</p>
+        {#each columnMenu as column (column.key)}
+          <button
+            type="button"
+            role="menuitemcheckbox"
+            class:dead={column.reason !== null}
+            aria-checked={column.checked}
+            aria-disabled={column.reason !== null}
+            title={column.reason ?? `Show the ${column.label} column`}
+            onclick={() => column.reason === null && filesView.setColumns(toggleColumn(filesView.columns, column.key))}
+          >
+            <span class="tick">{column.checked ? "✓" : ""}</span>
+            {column.label}
+          </button>
+        {/each}
+        {#if crowded || context === "worktree"}
           <p class="group-label">Show files that are…</p>
+        {/if}
+        {#if crowded}
           {#each switches as item (item.slot)}
             <button
               type="button"
@@ -265,23 +269,19 @@
               {item.key === "renameSources" ? "Rename Sources" : item.slot.charAt(0).toUpperCase() + item.slot.slice(1)}
             </button>
           {/each}
-          <p class="group-label">Columns</p>
         {/if}
-        {#each COLUMNS as column (column.key)}
+        {#if context === "worktree"}
           <button
             type="button"
             role="menuitemcheckbox"
-            aria-checked={view[column.key as keyof FileView]}
-            onclick={() =>
-              set(column.key as keyof FileView, !view[column.key as keyof FileView])}
+            aria-checked={view.renameSources}
+            title={RENAME_SOURCES_TITLE}
+            onclick={() => set("renameSources", !view.renameSources)}
           >
-            <span class="tick">{view[column.key as keyof FileView] ? "✓" : ""}</span>
-            {column.label}
+            <span class="tick">{view.renameSources ? "✓" : ""}</span>
+            Rename Sources
           </button>
-        {/each}
-        <button type="button" role="menuitem" disabled title="The backend does not report a size"
-          ><span class="tick"></span>Size</button
-        >
+        {/if}
       </div>
     {/if}
   </div>
@@ -376,11 +376,6 @@
     cursor: default;
   }
 
-  .chip.on {
-    background: var(--state-selected);
-    color: var(--status-ref);
-  }
-
   .chip:disabled,
   .chip.dead {
     opacity: 0.4;
@@ -422,12 +417,7 @@
     color: var(--text-primary);
   }
 
-  /* Pressed is a state, not a hover: it has to read without the pointer on it. */
-  .tool.on {
-    background: var(--state-selected);
-    color: var(--status-ref);
-  }
-
+  /* A switch that is on keeps that look under the pointer: `[aria-pressed]` in app.css. */
   .tool:disabled,
   .tool.dead {
     opacity: 0.4;
