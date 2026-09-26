@@ -5,7 +5,7 @@
     buildRefTree,
     checkState,
     foldedWhileFiltering,
-    leavesUnder,
+    tickStates,
     toggleNode,
     type RefNode,
     type RefTreeInput,
@@ -50,6 +50,7 @@
       on screen, so folding a group cannot take its ticks away (R-158). */
   const tree = $derived(buildRefTree(input));
   const nodes = $derived(flatten(tree, foldedWhileFiltering(input.collapsed, input.filter)));
+  const ticks = $derived(tickStates(tree, visible));
 
   function toggle(id: string) {
     const next = toggleNode(tree, id, visible);
@@ -141,8 +142,7 @@
   {onkeydown}
 >
   {#each nodes as node (node.id)}
-    {@const state = checkState(tree, node.id, visible)}
-    {@const tickable = leavesUnder(tree, node.id).length > 0}
+    {@const tick = ticks.get(node.id)}
     <div
       class="row {node.kind}"
       class:selected={active === node.id}
@@ -172,8 +172,8 @@
       <input
         type="checkbox"
         class="box"
-        use:triState={{ state, toggle: () => toggle(node.id) }}
-        disabled={!tickable}
+        use:triState={{ state: tick?.state ?? "off", toggle: () => toggle(node.id) }}
+        disabled={!tick?.tickable}
         title={node.disabled}
         aria-label="Show {node.label} in the graph"
       />

@@ -316,6 +316,45 @@ export function checkState(
   return ticked === leaves.length ? "on" : "mixed";
 }
 
+export interface TickState {
+  state: CheckState;
+  tickable: boolean;
+}
+
+/** Every row's box, as `checkState` and `leavesUnder` give it, in one pass: asked row by
+    row, each box searched the whole tree again. */
+export function tickStates(
+  nodes: readonly RefNode[],
+  visible: ReadonlySet<string>,
+): Map<string, TickState> {
+  const states = new Map<string, TickState>();
+  const open: { id: string; depth: number; leaves: number; ticked: number }[] = [];
+  const close = (depth: number) => {
+    for (let top = open.at(-1); top && top.depth >= depth; top = open.at(-1)) {
+      open.pop();
+      const state = top.ticked === 0 ? "off" : top.ticked === top.leaves ? "on" : "mixed";
+      states.set(top.id, { state, tickable: top.leaves > 0 });
+    }
+  };
+
+  for (const node of nodes) {
+    close(node.depth);
+    if (node.kind === "group" || node.kind === "folder") {
+      open.push({ id: node.id, depth: node.depth, leaves: 0, ticked: 0 });
+      continue;
+    }
+    const ticked = !node.disabled && visible.has(node.id);
+    states.set(node.id, { state: ticked ? "on" : "off", tickable: !node.disabled });
+    if (node.rev === undefined || node.disabled) continue;
+    for (const heading of open) {
+      heading.leaves += 1;
+      if (ticked) heading.ticked += 1;
+    }
+  }
+  close(-1);
+  return states;
+}
+
 /** Empty or half-ticked fills, full empties: the usual three-state box. One new set for
     the whole group, so a hundred tags are one graph reload, not a hundred. */
 export function toggleNode(
