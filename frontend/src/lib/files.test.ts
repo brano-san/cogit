@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { FileEntry } from "$lib/ipc";
-import { fileName, matchesMask, sortFiles, statusBadge, statusLabel, statusTooltip } from "./files";
-
-function entry(path: string, status: FileEntry["status"] = "modified"): FileEntry {
-  return { path, oldPath: null, status, mode: "plain", modeChange: null, similarity: null };
-}
+import { fileName, matchesMask, statusBadge, statusLabel, statusTooltip } from "./files";
 
 describe("statusBadge", () => {
   it("gives every status its own single letter", () => {
@@ -76,24 +71,5 @@ describe("matchesMask", () => {
   it("treats ? as exactly one character", () => {
     expect(matchesMask("a1.txt", "a?.txt")).toBe(true);
     expect(matchesMask("a12.txt", "a?.txt")).toBe(false);
-  });
-});
-
-describe("sortFiles", () => {
-  const files = [
-    entry("z/last.txt", "added"),
-    entry("a/first.txt", "deleted"),
-    entry("m/middle.txt", "modified"),
-  ];
-
-  it("sorts by path without mutating the input", () => {
-    const sorted = sortFiles(files);
-    expect(sorted.map((f) => f.path)).toEqual(["a/first.txt", "m/middle.txt", "z/last.txt"]);
-    expect(files[0]!.path).toBe("z/last.txt");
-  });
-
-  it("is stable enough to be idempotent", () => {
-    const once = sortFiles(files);
-    expect(sortFiles(once)).toEqual(once);
   });
 });

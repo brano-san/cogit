@@ -100,6 +100,8 @@
 --state-hover         → --c-bg-hover
 --state-selected      → --c-bg-active
 --state-focus-ring    → --c-branch
+--state-pressed       → --c-bg-active    включённый переключатель (`aria-pressed`)
+--state-pressed-text  → --c-branch
 
 --divider             → --c-border
 --field-border        → --c-border-strong
@@ -206,6 +208,15 @@ focus-visible   outline: 1px solid --state-focus-ring; outline-offset: -1px — 
 Индикатор выбора — **полоса, а не только цвет фона**: различие фона `#1e222b` и `#242b38`
 слишком мало, чтобы быть единственным сигналом.
 
+### Таблица Files
+
+Строка — сетка: `Name` `minmax(0, 2fr)`, `Type` `--file-type-width`, `State`
+`--file-change-width`, `Path` `minmax(0, 3fr)` (без пути имя — `1fr`), зазор `--file-column-gap`.
+Заголовки колонок — `--h-row-dense`, `--fs-header`, `--text-secondary`, у колонки сортировки —
+`--text-primary` и общий `Caret` (вверх — по возрастанию). Место полосы прокрутки списка
+занято всегда (`scrollbar-gutter: stable`), заголовки отступают на `--scrollbar-size`
+([R-595](12-risks.md)).
+
 ### Статус-бейдж файла
 
 Квадрат 16×16, радиус `--r-sm`, моноширинная буква по центру, цвет по статусу,
@@ -240,6 +251,15 @@ focus-visible   outline: 1px solid --state-focus-ring; outline-offset: -1px — 
 Высота 28 px, padding `0 --sp-5`, радиус `--r-md`, прозрачный фон, иконка 14 px + текст.
 Hover — `--state-hover`; active — `--state-selected`; disabled — `opacity: 0.4`, курсор по умолчанию.
 Кнопка с меню получает `▾` 8 px справа.
+
+### Переключатель
+
+Кнопка с состоянием вкл/выкл — `aria-pressed`, другого признака нет. Включённая — фон
+`--state-pressed`, иконка и текст `--state-pressed-text`, при наведении тоже: одно правило
+`[aria-pressed="true"]` в `app.css` с `!important`, потому что hover-правило любого компонента
+специфичнее глобального селектора, и наведение прятало нажатое состояние (R-592). Неприменимый
+переключатель (`aria-disabled`, `.dead`) не бывает нажатым. Фон и цвет нажатого — только из этого
+правила; своё у компонента — разве что рамка (Investigate, окно слияния).
 
 ### Поле ввода / фильтр
 

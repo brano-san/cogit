@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { emptyText, filesPanelList, type FilesPanelInput } from "./files-panel";
+import type { FileEntry } from "$lib/ipc";
+import { emptyText, filesPanelList, mergedSide, mergeIndex, stagedShown, type FilesPanelInput } from "./files-panel";
 
 const base: FilesPanelInput = {
   content: true,
@@ -53,5 +54,51 @@ describe("what an empty Files list says", () => {
 
   it("does not call a list that could not be read empty", () => {
     expect(emptyText({ settled: true, failed: true }, "The working tree is clean.")).not.toContain("clean");
+  });
+});
+
+function row(path: string, status: FileEntry["status"], extra: Partial<FileEntry> = {}): FileEntry {
+  return { path, oldPath: null, status, mode: "plain", modeChange: null, similarity: null, ...extra };
+}
+
+// Separate Working Tree and Index off still showed Unstaged and Staged, one above the other,
+// and a partly staged file twice (#32).
+describe("the working tree as one list", () => {
+  it("lists each path once, whichever side its change is on", () => {
+    const merged = mergeIndex([row("a.txt", "modified"), row("b.txt", "modified")], [row("b.txt", "modified"), row("c.txt", "added")]);
+    expect(merged.map((file) => [file.path, file.indexState ?? null])).toEqual([
+      ["a.txt", null],
+      ["b.txt", "partly"],
+      ["c.txt", "staged"],
+    ]);
+  });
+
+  it("keeps what the index says of a file changed again on disk: added, renamed", () => {
+    const merged = mergeIndex(
+      [row("new.txt", "modified"), row("moved.txt", "modified")],
+      [row("new.txt", "added"), row("moved.txt", "renamed", { oldPath: "old.txt", similarity: 90 })],
+    );
+    expect(merged.map((file) => [file.path, file.status, file.oldPath])).toEqual([
+      ["new.txt", "added", null],
+      ["moved.txt", "renamed", "old.txt"],
+    ]);
+  });
+
+  it("says a staged file is gone from disk when it is", () => {
+    const [merged] = mergeIndex([row("a.txt", "deleted")], [row("a.txt", "added")]);
+    expect(merged).toMatchObject({ status: "deleted", indexState: "partly" });
+  });
+
+  it("opens the side of the diff that still has a change to stage", () => {
+    const unstaged = [row("a.txt", "modified")];
+    expect(mergedSide("a.txt", unstaged)).toBe("worktree");
+    expect(mergedSide("c.txt", unstaged)).toBe("index");
+  });
+
+  it("tells Commit What You See which staged files the one list shows", () => {
+    const staged = [row("b.txt", "modified"), row("c.txt", "added")];
+    expect(stagedShown([["a.txt", "b.txt"]], false, staged)).toEqual(["b.txt"]);
+    expect(stagedShown([["a.txt"], ["b.txt", "c.txt"]], true, staged)).toEqual(["b.txt", "c.txt"]);
+    expect(stagedShown([["a.txt"]], true, staged)).toEqual([]);
   });
 });

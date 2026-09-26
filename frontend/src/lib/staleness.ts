@@ -35,3 +35,45 @@ export function clear(
   for (const panel of panels) if (!kept.has(panel)) next.delete(panel);
   return next;
 }
+
+/** A reload shorter than this never lights the dot. */
+export const STALE_SHOW_MS = 600;
+/** How long a lit dot waits for the next reload before it goes out. */
+export const STALE_LINGER_MS = 1500;
+
+/** The dot a panel shows while it is behind the disk (F-223). A dot for every reload
+    blinked with every write to the working tree; this one lights only for a reload that
+    takes a while and, once lit, outlasts the gaps between reloads (#35). */
+export class StaleDot {
+  #shown = false;
+  #timer: ReturnType<typeof setTimeout> | null = null;
+  #pending: boolean | null = null;
+
+  constructor(private readonly onchange: (shown: boolean) => void) {}
+
+  set(stale: boolean): void {
+    if (this.#pending === stale) return;
+    this.#cancel();
+    if (stale === this.#shown) return;
+    this.#pending = stale;
+    this.#timer = setTimeout(
+      () => {
+        this.#timer = null;
+        this.#pending = null;
+        this.#shown = stale;
+        this.onchange(stale);
+      },
+      stale ? STALE_SHOW_MS : STALE_LINGER_MS,
+    );
+  }
+
+  dispose(): void {
+    this.#cancel();
+  }
+
+  #cancel(): void {
+    if (this.#timer !== null) clearTimeout(this.#timer);
+    this.#timer = null;
+    this.#pending = null;
+  }
+}

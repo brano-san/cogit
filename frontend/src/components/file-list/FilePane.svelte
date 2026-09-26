@@ -6,7 +6,8 @@
     label: string;
     title: string;
     run: (request: ActionRequest) => void;
-    /** Why the button does not apply to this row's file; it is then off and says so. */
+    /** Why the action does not apply to a row's file (`rowActionBlocked`, `scopeBlocked`):
+        the rule of the Files menu, kept for the heading's buttons (R-593). */
     blocked?: (file: FileEntry) => string | null;
     /** The same for the heading's "all" over the rows listed. */
     allBlocked?: (paths: readonly string[]) => string | null;
@@ -18,7 +19,8 @@
   import Disclosure from "$components/common/Disclosure.svelte";
   import KindIcon, { type Kind } from "$components/common/KindIcon.svelte";
   import VirtualList from "$components/common/VirtualList.svelte";
-  import { fileName, statusBadge, statusLabel, statusTooltip } from "$lib/files";
+  import { directoryOf, fileType, gridColumns, TYPE_LABELS, type ColumnKey } from "$lib/file-columns";
+  import { fileName, indexNote, statusBadge, statusLabel, statusTooltip } from "$lib/files";
   import type { ViewRow } from "$lib/file-view";
   import { LIST_ROW_HEIGHT } from "$lib/graph-geometry";
   import { TypeAhead, findTyped, listKey, pageRows, pressOf, typedChar } from "$lib/list-keys";
@@ -31,8 +33,10 @@
     actions?: readonly PaneAction[];
     /** Paths shown here, for the "all" buttons in the heading. */
     paths: readonly string[];
-    /** Full paths are redundant once the list groups by directory. */
-    showDirectory?: boolean;
+    /** The columns of the table (#33), the same for every pane of the list. */
+    columns: readonly ColumnKey[];
+    /** Grouped by directory: a file is one level in, under its folder row. */
+    nested?: boolean;
     /** A click, or the arrows (11 §10): Shift extends the ticked range. */
     onclick: (path: string, event: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) => void;
     onmark: (path: string) => void;
@@ -47,7 +51,8 @@
     marked,
     actions = [],
     paths,
-    showDirectory = true,
+    columns,
+    nested = false,
     onclick,
     onmark,
     onopen,
@@ -61,10 +66,8 @@
     return file.path.endsWith("/") ? "directory" : "file";
   }
 
-  function directory(path: string): string {
-    const cut = path.lastIndexOf("/");
-    return cut === -1 ? "" : path.slice(0, cut + 1);
-  }
+  const template = $derived(gridColumns(columns));
+  const shows = $derived(new Set(columns));
 
   let pane: HTMLDivElement | undefined = $state();
   let reveal = $state<number | null>(null);
@@ -124,7 +127,7 @@
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="pane tree-rows key-list" bind:this={pane} {onkeydown}>
+<div class="pane tree-rows key-list" style:--file-grid={template} bind:this={pane} {onkeydown}>
   {#if title}
     <div class="heading">
       <span class="grow">{title} ({paths.length})</span>
@@ -158,7 +161,7 @@
           <button
             type="button"
             class="row {file.status}"
-            class:nested={!showDirectory}
+            class:nested
             class:selected={selected === file.path}
             class:marked={marked.has(file.path)}
             style:top="{at * LIST_ROW_HEIGHT}px"
@@ -180,45 +183,36 @@
               oncontext(file.path, event);
             }}
           >
-            <KindIcon kind={kindOf(file)} />
-            <span class="badge" aria-label={statusLabel(file.status)} title={statusTooltip(file.status)}
-              >{statusBadge(file.status)}</span
-            >
-            <span class="name truncate shrink-last">{fileName(file.path)}</span>
-            {#if file.oldPath}
-              <span class="from truncate shrink-first" title="from {file.oldPath}"
-                >← {fileName(file.oldPath)}{file.similarity !== null
-                  ? ` ${file.similarity}%`
-                  : ""}</span
-              >
+            <span class="cell name">
+              <KindIcon kind={kindOf(file)} />
+              <span class="truncate shrink-last">{fileName(file.path)}</span>
+              {#if file.oldPath}
+                <span class="from truncate shrink-first" title="from {file.oldPath}"
+                  >← {fileName(file.oldPath)}{file.similarity !== null ? ` ${file.similarity}%` : ""}</span
+                >
+              {/if}
+            </span>
+            {#if shows.has("type")}
+              <span class="cell type truncate">{TYPE_LABELS[fileType(file)]}</span>
             {/if}
-            {#if file.modeChange}
-              <span class="mode" title="Mode changed to {file.modeChange}"
-                >{file.modeChange === "executable" ? "+x" : "−x"}</span
-              >
-            {/if}
-            <span class="dir truncate shrink-first">{showDirectory ? directory(file.path) : ""}</span>
-            {#if actions.length > 0}
-              <span class="acts">
-                {#each actions as action (action.label)}
-                  {@const reason = action.blocked?.(file) ?? null}
-                  <span
-                    class="act"
-                    class:off={reason !== null}
-                    role="button"
-                    tabindex="-1"
-                    aria-disabled={reason !== null}
-                    title={reason ?? action.title}
-                    onclick={(event) => {
-                      event.stopPropagation();
-                      if (reason === null) action.run({ row: file.path });
-                    }}
-                    onkeydown={(event) => {
-                      if (event.key === "Enter" && reason === null) action.run({ row: file.path });
-                    }}>{action.label}</span
+            {#if shows.has("change")}
+              <span class="cell change">
+                <span
+                  class="badge"
+                  class:staged={file.indexState === "staged"}
+                  class:partly={file.indexState === "partly"}
+                  aria-label={statusLabel(file.status) + indexNote(file.indexState)}
+                  title={statusTooltip(file.status) + indexNote(file.indexState)}>{statusBadge(file.status)}</span
+                >
+                {#if file.modeChange}
+                  <span class="mode" title="Mode changed to {file.modeChange}"
+                    >{file.modeChange === "executable" ? "+x" : "−x"}</span
                   >
-                {/each}
+                {/if}
               </span>
+            {/if}
+            {#if shows.has("path")}
+              <span class="cell dir truncate">{directoryOf(file.path)}</span>
             {/if}
           </button>
         {/if}
@@ -248,6 +242,7 @@
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
+    overflow: hidden;
   }
 
   .row,
@@ -265,14 +260,37 @@
     white-space: nowrap;
   }
 
+  /* The columns of the heading above the list (FileList): the same grid, gap and padding,
+     and the scrollbar's room kept whether it shows or not, so they line up (#33). */
+  .row {
+    display: grid;
+    grid-template-columns: var(--file-grid);
+    column-gap: var(--file-column-gap);
+  }
+
+  .pane :global(.scroll) {
+    scrollbar-gutter: stable;
+  }
+
+  .cell {
+    min-width: 0;
+  }
+
+  .cell.name,
+  .cell.change {
+    display: flex;
+    align-items: center;
+    gap: var(--tree-gap);
+  }
+
   /* Grouped by directory, a file is one level in: its icon where a child's triangle goes. */
   .folder {
     padding-left: var(--tree-base);
   }
 
-  .row.nested {
+  .row.nested .cell.name {
     padding-left: calc(
-      var(--tree-base) + var(--tree-step) + (var(--disclosure-glyph) - var(--kind-icon)) / 2
+      var(--tree-base) + var(--tree-step) + (var(--disclosure-glyph) - var(--kind-icon)) / 2 - var(--sp-5)
     );
   }
 
@@ -308,10 +326,16 @@
     margin-left: auto;
   }
 
+  /* The count gives way before the buttons do: they are the heading's reason to be (R-593). */
   .grow {
     flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
+  /* Always there, not only under the pointer; a file row has none (R-593). */
   .act {
     flex: 0 0 auto;
     padding: 0 var(--sp-3);
@@ -322,44 +346,15 @@
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    opacity: 0;
     cursor: default;
   }
 
-  .heading:hover .act,
-  .acts .act {
-    opacity: 1;
-  }
-
-  /* Over the end of the row rather than beside the name: out of sight, the buttons keep
-     no width, and the name has the whole row (R-243). */
-  .acts {
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    display: none;
-    align-items: center;
-    padding: 0 var(--sp-3);
-    background: var(--state-hover);
-  }
-
-  .row:hover .acts,
-  .row:focus-visible .acts {
-    display: flex;
-  }
-
-  .row.selected .acts {
-    background: var(--state-selected);
-  }
-
-  .act:hover:not(.off) {
+  .act:hover:not(:disabled, .off) {
     color: var(--status-ref);
   }
 
-  /* Off for this file, or for one the heading lists, as its menu item is; the tip says why. */
-  .acts .act.off,
-  .heading:hover .act.off {
+  .act:disabled,
+  .act.off {
     opacity: 0.4;
   }
 
@@ -404,6 +399,21 @@
     color: var(--text-secondary);
   }
 
+  /* In the one working-tree list (#32): boxed, the change is in the index; a dashed box,
+     part of it is. */
+  .badge.staged,
+  .badge.partly {
+    width: 14px;
+    line-height: 14px;
+    border-radius: var(--r-sm);
+    outline: 1px solid currentColor;
+    outline-offset: -1px;
+  }
+
+  .badge.partly {
+    outline-style: dashed;
+  }
+
   .row.conflicted .badge {
     color: var(--status-delete);
     background: var(--c-deleted-bg);
@@ -422,8 +432,8 @@
     font-size: 10px;
   }
 
-  .dir {
-    flex-grow: 1;
+  .dir,
+  .type {
     color: var(--text-secondary);
     font-size: 11px;
   }

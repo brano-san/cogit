@@ -396,3 +396,48 @@ fn letting_go_keeps_the_window_open_for_the_debounced_tail() {
     std::fs::write(harness.root.join("theirs.txt"), "written in a terminal\n").unwrap();
     assert!(!collect(&harness).is_empty());
 }
+
+/// A submodule cloned in place keeps its `.git` folder inside the parent's working tree.
+fn nested_repository(harness: &Harness) -> std::path::PathBuf {
+    let git = harness.root.join("import/lib/.git");
+    std::fs::create_dir_all(git.join("refs/heads")).unwrap();
+    std::fs::write(git.join("HEAD"), "ref: refs/heads/main\n").unwrap();
+    std::fs::write(git.join("index"), "").unwrap();
+    let _ = collect(harness);
+    git
+}
+
+// Another Git client refreshing the submodule's index, its caches, the case probe of the
+// health check: each was a working-tree change of the parent and a full reload, every
+// couple of seconds in dtv_device (#35).
+#[test]
+fn housekeeping_inside_a_nested_repository_is_not_a_change() {
+    let harness = start();
+    let git = nested_repository(&harness);
+
+    std::fs::write(git.join("index"), "refreshed").unwrap();
+    std::fs::create_dir_all(git.join("smartgit/logcache")).unwrap();
+    std::fs::write(git.join("smartgit/logcache/nodes4"), "cache").unwrap();
+    std::fs::write(git.join("cogit-case-probe-1"), "").unwrap();
+    std::fs::remove_file(git.join("cogit-case-probe-1")).unwrap();
+
+    let seen = collect(&harness);
+    assert!(seen.is_empty(), "got {seen:?}");
+    still_hears(&harness);
+}
+
+#[test]
+fn a_nested_repository_moving_its_head_changes_the_working_tree() {
+    let harness = start();
+    let git = nested_repository(&harness);
+
+    std::fs::write(git.join("HEAD"), "ref: refs/heads/other\n").unwrap();
+    std::fs::write(git.join("refs/heads/other"), "0123\n").unwrap();
+
+    let seen = collect(&harness);
+    assert_eq!(
+        seen.iter().map(|change| change.kind).collect::<Vec<_>>(),
+        [ChangeKind::WorkingTree],
+        "a submodule on another commit is a change of the parent"
+    );
+}
