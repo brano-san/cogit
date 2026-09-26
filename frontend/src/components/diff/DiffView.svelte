@@ -564,15 +564,18 @@
           >Discard lines</button
         >
       {/if}
-      {#if onwhitespace}
-        <button
-          type="button"
-          class:active={whitespace !== "none"}
-          title="Off → trailing → all"
-          onclick={() => onwhitespace(WHITESPACE_NEXT[whitespace])}
-          >{WHITESPACE_LABEL[whitespace]}</button
-        >
-      {/if}
+    {/if}
+    <!-- A file the mode hides entirely still needs the button that shows it (F-067). -->
+    {#if onwhitespace && (diff.kind === "text" || diff.kind === "whitespaceOnly")}
+      <button
+        type="button"
+        class:active={whitespace !== "none"}
+        title="Off → trailing → all"
+        onclick={() => onwhitespace(WHITESPACE_NEXT[whitespace])}
+        >{WHITESPACE_LABEL[whitespace]}</button
+      >
+    {/if}
+    {#if diff.kind === "text"}
       {#if onblame}
         <button type="button" title="Annotate every line with its commit" onclick={() => onblame()}
           >Blame</button
@@ -627,8 +630,10 @@
     <p class="message">No change in this file.</p>
   {:else if diff.kind === "whitespaceOnly"}
     <p class="message warn">
-      Only whitespace changed. The current mode hides it — switch the whitespace button off
-      to see the diff.
+      Only whitespace changed, and {WHITESPACE_LABEL[whitespace]} hides it.
+      {onwhitespace
+        ? `Click ${WHITESPACE_LABEL[whitespace]} in the bar above until it reads ${WHITESPACE_LABEL.none} to see the diff.`
+        : "Choose Show every change in Preferences ▸ Diff View ▸ Whitespace to see the diff."}
     </p>
   {:else if diff.kind === "eolOnly"}
     <p class="message">
