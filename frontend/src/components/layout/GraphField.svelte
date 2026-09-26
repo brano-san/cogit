@@ -12,6 +12,7 @@
   import { blockedModes, GRAPH_MODES, type GraphMode } from "$lib/graph-mode-conflicts";
   import { FIELD_LABELS, FILTER_FIELDS, toggled } from "$lib/filter-fields";
   import { COLORING_LABELS, GRAPH_COLORINGS } from "$lib/graph-coloring";
+  import { GRAPH_SWITCHES, type GraphSwitch } from "$lib/graph-options";
   import { forget } from "$lib/filter-patterns";
   import { fieldDisabled, type Field } from "$lib/preferences";
   import { LONG_LINK_ROWS_MAX, type Settings } from "$lib/settings";
@@ -211,8 +212,8 @@
       <output>{value.graphLongLinkRows === 0 ? "never" : `${value.graphLongLinkRows} rows`}</output>
     </span>
   </label>
-{:else if field.key === "graphStripes" || field.key === "graphHighlightChecked" || (GRAPH_MODES as readonly string[]).includes(field.key)}
-  {@const key = field.key as "graphStripes" | "graphHighlightChecked" | GraphMode}
+{:else if field.key === "graphStripes" || field.key === "graphHighlightChecked" || (GRAPH_SWITCHES as readonly string[]).includes(field.key) || (GRAPH_MODES as readonly string[]).includes(field.key)}
+  {@const key = field.key as "graphStripes" | "graphHighlightChecked" | GraphSwitch | GraphMode}
   <div class="row check">
     <Checkbox
       checked={value[key]}

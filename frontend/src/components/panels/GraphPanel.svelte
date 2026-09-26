@@ -91,6 +91,7 @@
     coloring={settings.current.graphColoring}
     ancestry={settings.current.graphAncestry}
     collapseMerged={settings.current.graphCollapseMerged}
+    selectedRefsOnly={settings.current.graphSelectedRefsOnly}
   />
 {:else}
   <StartScreen

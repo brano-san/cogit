@@ -58,6 +58,8 @@ export interface Settings {
   graphFirstParent: boolean;
   graphAncestry: boolean;
   graphCollapseMerged: boolean;
+  /** Show Only Selected Branches and Tags: labels only for refs ticked in Branches (F-561). */
+  graphSelectedRefsOnly: boolean;
   /** Where the graph filter looks for its text: the switches under the field (F-560). */
   graphFilterFields: FilterField[];
   /** Filter texts kept by Remember Pattern, newest first (F-563). */
@@ -94,6 +96,7 @@ export const DEFAULT_SETTINGS: Settings = {
   graphFirstParent: false,
   graphAncestry: false,
   graphCollapseMerged: false,
+  graphSelectedRefsOnly: false,
   graphFilterFields: [...DEFAULT_FILTER_FIELDS],
   graphFilterPatterns: [],
 
