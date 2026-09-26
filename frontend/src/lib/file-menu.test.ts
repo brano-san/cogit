@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { ContextItem } from "./ipc";
-import { commitFileMenu, rowActionBlocked, worktreeFileMenu, type WorktreeFileTarget } from "./file-menu";
+import {
+  commitFileMenu,
+  rowActionBlocked,
+  shownRow,
+  worktreeFileMenu,
+  type WorktreeFileTarget,
+} from "./file-menu";
 
 const MODIFIED: WorktreeFileTarget = {
   section: "worktree",
@@ -159,6 +165,17 @@ describe("commitFileMenu", () => {
     }
     expect(on(menu, "file-changes")).toBe(true);
     expect(on(menu, "file-revert")).toBe(true);
+  });
+
+  // The Missing switch lists a rename's source as a deleted row. Its status was looked up
+  // among the commit's files, which have only the new name, and came back "modified": Open
+  // File, Save As and Blame were on, and failed with "a.txt is not in <commit>".
+  it("reads a row's status from the list, where a rename's source is deleted", () => {
+    const renamed = { path: "b.txt", status: "renamed" };
+    const rows = [renamed, { path: "a.txt", status: "deleted" }];
+    const status = shownRow("a.txt", rows, [renamed])?.status ?? "modified";
+    expect(on(commitFileMenu({ ...base, status }), "file-open-version")).toBe(false);
+    expect(shownRow("b.txt", [], [renamed])).toBe(renamed);
   });
 
   it("works on one file at a time, except for copying", () => {
