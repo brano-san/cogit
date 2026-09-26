@@ -1,6 +1,7 @@
 use crate::line_history::{LogHeader, path_of};
 use crate::{CommitQuery, GitError, RepoHandle, Result};
 use serde::Serialize;
+use std::collections::HashSet;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -51,25 +52,37 @@ impl RepoHandle {
             }
         }
 
+        // "added" or "cafe" is a word as often as a hash: both are looked for.
         let looks_like_hash = needle.len() >= 4 && needle.chars().all(|c| c.is_ascii_hexdigit());
-        let search = CommitQuery {
-            message: (!looks_like_hash).then(|| needle.clone()),
-            oid_prefix: looks_like_hash.then(|| needle.clone()),
-            ..CommitQuery::default()
+        let by_prefix = if looks_like_hash {
+            self.commits_by_prefix(&needle, limit)
+        } else {
+            Vec::new()
         };
-        let mut commits = 0;
-        self.search_commits(&search, 50, |chunk| {
-            for row in chunk {
-                found.push(Found {
-                    kind: FoundKind::Commit,
-                    label: row.summary,
-                    detail: row.author_name,
-                    oid: row.oid,
-                });
-                commits += 1;
-            }
-            commits < limit
-        })?;
+        let mut listed: HashSet<String> = by_prefix.iter().map(|item| item.oid.clone()).collect();
+        let mut commits = by_prefix.len();
+        found.extend(by_prefix);
+        if commits < limit {
+            let search = CommitQuery {
+                message: Some(needle.clone()),
+                ..CommitQuery::default()
+            };
+            self.search_commits(&search, 50, |chunk| {
+                for row in chunk {
+                    if !listed.insert(row.oid.clone()) {
+                        continue;
+                    }
+                    found.push(Found {
+                        kind: FoundKind::Commit,
+                        label: row.summary,
+                        detail: row.author_name,
+                        oid: row.oid,
+                    });
+                    commits += 1;
+                }
+                commits < limit
+            })?;
+        }
 
         for path in self.head_paths(&needle, limit)? {
             found.push(Found {
@@ -82,6 +95,44 @@ impl RepoHandle {
 
         found.truncate(limit);
         Ok(found)
+    }
+
+    /// Commits whose id starts with `hex`, read from the pack indexes instead of a walk that
+    /// reads every commit's text. Unreachable commits are among them, as `git show` finds them.
+    fn commits_by_prefix(&self, hex: &str, limit: usize) -> Vec<Found> {
+        let Ok(prefix) = gix::hash::Prefix::from_hex(hex) else {
+            return Vec::new();
+        };
+        let mut candidates = HashSet::new();
+        if let Err(err) = self
+            .repo
+            .objects
+            .lookup_prefix(prefix, Some(&mut candidates))
+        {
+            tracing::error!(error = ?err, context = "find: looking up an object id prefix");
+            return Vec::new();
+        }
+        let mut ids: Vec<gix::ObjectId> = candidates.into_iter().collect();
+        ids.sort_unstable();
+        let mailmap = self.mailmap();
+        ids.into_iter()
+            .filter(|id| {
+                self.repo
+                    .find_header(*id)
+                    .is_ok_and(|header| header.kind() == gix::object::Kind::Commit)
+            })
+            .take(limit)
+            .filter_map(|id| {
+                let oid = id.to_string();
+                let text = self.commit_text(&oid, &mailmap).ok()?;
+                Some(Found {
+                    kind: FoundKind::Commit,
+                    label: text.summary,
+                    detail: text.author_name,
+                    oid,
+                })
+            })
+            .collect()
     }
 
     fn head_paths(&self, needle: &str, limit: usize) -> Result<Vec<String>> {
