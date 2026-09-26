@@ -212,11 +212,23 @@ fn a_pull_that_cannot_fast_forward_is_refused_rather_than_merging_silently() {
     let f = test_fixtures::with_remote().unwrap();
     let repo = open(&f);
     let (_, on_line) = collector();
+    let before = f.oid("HEAD").unwrap();
 
-    let err = repo.pull("origin", true, no_token, on_line);
+    let err = repo.pull("origin", true, no_token, on_line).unwrap_err();
 
-    assert!(
-        err.is_err(),
+    // Without `--ff-only` a bare `git pull` fails too ("Need to specify how to reconcile"),
+    // so only git's own reason proves which refusal this is.
+    match err {
+        git_engine::GitError::Command(details) => assert!(
+            details.stderr.contains("Not possible to fast-forward"),
+            "INV-05: {:?}",
+            details.stderr
+        ),
+        other => panic!("expected git's refusal, got {other:?}"),
+    }
+    assert_eq!(
+        f.oid("HEAD").unwrap(),
+        before,
         "diverged history must not be merged behind the user's back"
     );
 }

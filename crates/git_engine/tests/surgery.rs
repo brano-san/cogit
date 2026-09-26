@@ -132,6 +132,23 @@ fn tree_of(f: &test_fixtures::Fixture, rev: &str) -> String {
     f.git(&["rev-parse", &format!("{rev}^{{tree}}")]).unwrap()
 }
 
+/// The paths a commit changed, unquoted whatever `core.quotepath` says.
+fn changed_in(f: &test_fixtures::Fixture, rev: &str) -> Vec<String> {
+    f.git(&[
+        "-c",
+        "core.quotepath=false",
+        "show",
+        "--name-only",
+        "--format=",
+        rev,
+    ])
+    .unwrap()
+    .lines()
+    .filter(|line| !line.is_empty())
+    .map(str::to_owned)
+    .collect()
+}
+
 #[test]
 fn splitting_off_files_produces_two_commits() {
     let f = wide();
@@ -338,6 +355,7 @@ fn a_file_with_a_non_ascii_name_can_be_split_off() {
     }
     f.commit_staged(2, "add two files").unwrap();
     let target = f.oid("HEAD").unwrap();
+    let tree = tree_of(&f, "HEAD");
 
     open(&f)
         .split_off(
@@ -347,6 +365,10 @@ fn a_file_with_a_non_ascii_name_can_be_split_off() {
             true,
         )
         .unwrap();
+
+    assert_eq!(changed_in(&f, "HEAD~1"), ["отчёт.txt"]);
+    assert_eq!(changed_in(&f, "HEAD"), ["plain.txt"]);
+    assert_eq!(tree_of(&f, "HEAD"), tree);
 }
 
 // The branch was rebased onto the split without --rebase-merges: every merge after the
@@ -380,8 +402,16 @@ fn file_names_that_look_like_secrets_can_be_split_off() {
     }
     f.commit_staged(2, "three files").unwrap();
     let target = f.oid("HEAD").unwrap();
+    let tree = tree_of(&f, "HEAD");
 
     open(&f)
         .split_off(&target, &["z.txt".to_owned()], "split: z", true)
         .unwrap();
+
+    assert_eq!(changed_in(&f, "HEAD~1"), ["z.txt"]);
+    assert_eq!(
+        changed_in(&f, "HEAD"),
+        ["api/token.rs", "data/year=2024/a.csv"]
+    );
+    assert_eq!(tree_of(&f, "HEAD"), tree);
 }
