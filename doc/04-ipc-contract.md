@@ -86,7 +86,8 @@ pub enum GitError {
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
 | `open_repository` | `path: String` | `RepoSummary`; в нём `tagGroupSeparator` — `cogit.tagGroupSeparator` из конфига репозитория, `/` если не задан, `""` — теги без папок; перечитывается при каждом открытии и обновлении (#11). Наблюдатель не ставит — это делает `show_repository` (R-351) | M1 |
-| `close_repository` | `repo: RepoId` | `Result<Vec<RepoOverview>>` — открытые после закрытия, как у `repositories`: второй вызов за списком не нужен (R-323). Вместе с ним закрываются открытые из его дерева submodules и worktrees, которых нет в списке, — кроме показанного и того, у кого есть работа в очереди (R-508) | M1 |
+| `reread_repository` | `repo: RepoId` | `RepoSummary` — то же чтение, что у `open_repository`, но по id уже открытого: запись в списке не появляется и не пропадает, закрытый не открывается снова (`InvalidState` «closed in Cogit»). Так панели перечитывают показанный репозиторий, submodule или worktree (R-543) | M3 |
+| `close_repository` | `repo: RepoId` | `Result<Vec<RepoOverview>>` — открытые после закрытия, как у `repositories`: второй вызов за списком не нужен (R-323). Вместе с ним закрываются открытые из его дерева submodules и worktrees, которых нет в списке, — и показанный (панели отпускают его раньше), кроме того, у кого есть работа в очереди (R-508, R-543) | M1 |
 | `show_repository` | `repo: Option<RepoId>` — что показывают панели, `null` — ничего | `()`; наблюдается только он: остальные наблюдатели останавливаются, его — запускается, снимок его строки сбрасывается (R-351). Фронтенд шлёт по одному вызову, последний побеждает | M3 |
 | `list_repositories` | — | `Vec<RepoEntry>` | M3 |
 | `repo_state` | `repo: RepoId` | `RepoState` — `clean | detachedHead { oid } | merging | rebasing | cherryPicking | reverting | bisecting | applyingPatches | empty | bare`; `applyingPatches` — `git am`, остановленный на патче (`rebase-apply/applying`) | M1 |

@@ -5,6 +5,7 @@ import {
   listRepositories,
   openRepository,
   repoRefs,
+  rereadRepository,
   type RepoId,
   type RepoOverview,
   type RepoSummary,
@@ -103,10 +104,15 @@ class RepositoryStore {
   }
 
   /** `false` when a newer open overtook this one and its answer was dropped. */
-  async open(path: string): Promise<boolean> {
+  open(path: string): Promise<boolean> {
+    return this.#read(path, () => openRepository(path));
+  }
+
+  /** An open of `path`, whichever command reads it: the phase goes through `opening`. */
+  async #read(path: string, read: () => Promise<RepoSummary>): Promise<boolean> {
     const ticket = this.#begin(path);
     try {
-      const repo = await openRepository(path);
+      const repo = await read();
       trace(`open:${path}`, `backend answered, ticket ${ticket}, ${repo.branches.length} refs`);
       return this.#settle(ticket, { kind: "open", repo });
     } catch (err) {
@@ -232,11 +238,13 @@ class RepositoryStore {
       if (this.phase.repo?.root === this.phase.root) this.#again = true;
       return;
     }
-    const root = this.current?.root;
-    if (!root) return;
+    const current = this.current;
+    if (!current) return;
+    const { root, repo } = current;
     do {
       this.#again = false;
-      const shown = await this.open(root);
+      // By id: opening the folder again would list a submodule or worktree (R-543).
+      const shown = await this.#read(root, () => rereadRepository(repo));
       if (!shown || this.current?.root !== root) return;
     } while (this.#again);
   }

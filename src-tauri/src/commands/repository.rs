@@ -29,6 +29,21 @@ pub async fn open_repository(
     Ok(summary)
 }
 
+/// The panels' re-read of the repository they show: by id, so it never lists a submodule
+/// or worktree opened from a tree (R-543).
+#[tauri::command]
+#[specta::specta]
+pub async fn reread_repository(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<RepoSummary, GitError> {
+    let app_state = state.state.clone();
+    blocking("reread_repository", move || {
+        app_state.reread_repository(repo)
+    })
+    .await
+}
+
 /// What travels up the channel while a folder scan runs; `Started` carries the id
 /// `cancel_operation` takes.
 #[derive(Debug, Clone, Serialize, specta::Type)]
