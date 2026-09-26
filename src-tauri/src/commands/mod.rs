@@ -888,15 +888,11 @@ pub struct TerminalChoice {
 #[specta::specta]
 pub async fn open_in_terminal(path: String, terminal: String) -> Result<(), GitError> {
     let kind = app_state::terminal::Terminal::from_id(&terminal).unwrap_or_default();
-    let (program, args) = app_state::terminal::command_for(kind, &path);
+    let launch = app_state::terminal::launch_for(kind, &path);
 
     blocking("open_in_terminal", move || {
-        std::process::Command::new(&program)
-            .args(&args)
-            .current_dir(&path)
-            .spawn()
-            .map(drop)
-            .map_err(|err| GitError::Io(format!("cannot start {program}: {err}")))
+        app_state::desktop::spawn(&launch, Some(std::path::Path::new(&path)))
+            .map_err(|err| GitError::Io(format!("cannot start {}: {err}", launch.program)))
     })
     .await
 }
