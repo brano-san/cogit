@@ -65,7 +65,8 @@ fn opening_from_a_subdirectory_resolves_to_the_same_repository() {
 
 #[test]
 fn a_failed_open_registers_nothing() {
-    let dir = std::env::temp_dir().join("cogit-app-state-not-a-repo");
+    let outside = tempfile::tempdir().unwrap();
+    let dir = outside.path().join("not-a-repo");
     std::fs::create_dir_all(&dir).unwrap();
     let state = AppState::new();
 

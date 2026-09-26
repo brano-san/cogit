@@ -13,6 +13,7 @@ npm run bench:repos                     # тестовые репозитори�
 npm run bench -- --label baseline       # все сценарии; ~1 ч
 npm run bench -- --label after --sets dirty --only diff,changes   # выборочно
 npm run bench -- --check                # падает, если медиана превысила порог (budgets.mjs)
+node --test "scripts/bench/*.test.mjs"  # проверки самого бенчмарка (разбор --check)
 node scripts/bench/compare.mjs target/bench/results/baseline.json target/bench/results/after.json
 ```
 
@@ -118,6 +119,14 @@ remote (`fetch`, `reset --keep origin/main`): сценарии набора `net
 `scripts/bench/fixtures.mjs`, всё через `git fast-import`, одинаковые даты и авторы —
 одинаковые object id при каждом запуске.
 
+Системный и глобальный конфиг git при сборке наборов и при подготовке сценариев
+(`git()` в `run.mjs`) отключены (`NO_MACHINE_CONFIG`), клоны `network` берут
+`core.autocrlf=false` до checkout, у каждого submodule он записан в свой конфиг. До этого
+на машине с глобальным `core.autocrlf=true` рабочие файлы `network` и submodules
+выписывались в CRLF, а `remoteCommit` коммитил файл целиком; object id remote от этого не
+менялись, A/B в одной сессии не страдал, но замеры `net.*` и `submodules`, снятые до этой
+правки, с новыми не сравнивать — базу снять заново.
+
 | Набор | Что внутри |
 |---|---|
 | small | 100 коммитов, 20 файлов |
@@ -151,11 +160,19 @@ remote уходит вперёд на коммит.
 
 `scripts/bench/budgets.mjs`: медианы, которые `--check` не даёт превысить. По образцу
 `crates/app_state/tests/performance.rs`, но на release-сборке и глазами пользователя.
+Обещание продукта для 50 000 коммитов (первые 200 строк за 300 мс, раскладка за 500 мс)
+держит только бенчмарк — `graph.first-screen` и `graph.full-layout` на `large`; тест с тем же
+обещанием в наборе выключен (`#[ignore]`): отладочная сборка для него без запаса (R-504).
 Пороги генерируются из полного замера: `node scripts/bench/set-budgets.mjs <run.json>` —
 медиана × 1,25 + 8 мс для тёплых сценариев и запуска приложения. Запас покрывает занятую
 машину и кадр квантования; падение `--check` означает регрессию, а не погоду. Текущие
 пороги сняты в медленном режиме (`--hidden --cores 16-31`), на свободной машине они с
 запасом.
+
+Порог не выполнен и тогда, когда сценарий, который прогон должен был снять (набор есть в
+`--sets`, id — в `--only`, проход не выключен `--no-*`), не дал ни одного замера, записал
+ошибки или не запускался вовсе. Раньше сломанный селектор давал «all budgets met»: у записи
+из одних ошибок медиана `null`, а `null > порог` ложно (`scripts/bench/check.mjs`).
 
 ## 6. Что нашёл сам бенчмарк
 

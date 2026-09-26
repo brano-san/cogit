@@ -120,8 +120,13 @@ fn a_dirty_worktree_is_told_apart_from_a_clean_one() {
 #[test]
 fn adding_a_worktree_puts_a_branch_in_it() {
     let f = test_fixtures::linear(2).unwrap();
-    let target = f.path().parent().unwrap().join("added-wt");
-    let path = target.to_string_lossy().replace('\\', "/");
+    // A folder of this test's own: a shared one outlives a failed run and fails the next.
+    let outside = tempfile::tempdir().unwrap();
+    let path = outside
+        .path()
+        .join("added-wt")
+        .to_string_lossy()
+        .replace('\\', "/");
 
     open(&f).add_worktree(&path, "spare", true).unwrap();
 
@@ -132,7 +137,6 @@ fn adding_a_worktree_puts_a_branch_in_it() {
             .any(|entry| entry.branch.as_deref() == Some("spare")),
         "{found:?}"
     );
-    std::fs::remove_dir_all(&target).ok();
 }
 
 #[test]

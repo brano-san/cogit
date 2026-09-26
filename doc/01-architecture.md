@@ -47,9 +47,14 @@
 ### `git_engine`
 - **Что:** читает объекты Git через `gix` и выполняет мутации через системный `git` CLI.
   Единственное место в проекте, которое знает, как устроен Git.
-- **Как:** `RepoManager::open(path)` возвращает `RepoHandle`; далее методы чтения
-  (`status`, `branches`, `submodules`, `refs`, `commit_range`) и мутации (`stage`, `commit`, `push`, …).
-- **Зависит от:** `gix`, `tokio` (process), `thiserror`, `tracing`, `serde`, `specta`.
+- **Как:** `RepoHandle::open(path)` находит репозиторий вверх от пути и возвращает хэндл;
+  `SharedRepo::open(root)` открывает его один раз и раздаёт свежий `RepoHandle` на каждый
+  вызов (так его держит `app_state`, `handles.rs`). Далее методы чтения (`head`, `branches`,
+  `tags`, `status`, `submodules`, обход графа) и мутации (`stage`, `commit`, `push`, …).
+  Мутации запускают `git` через `std::process` (`children::spawn`, чтобы выход приложения мог
+  остановить потомков); вызывающий держит их вне async-потоков (§3).
+- **Зависит от:** `gix`, `rayon`, `globset`, `ignore`, `regex`, `toml`, `thiserror`, `tracing`,
+  `serde`, `specta`. `tokio` в крейте нет.
 - **Ключевой тип:** `GitCommandError` — см. [INV-05](#inv-05) и [03-git-semantics.md](03-git-semantics.md).
 
 ### `diff_engine`
@@ -74,13 +79,14 @@
 - **Что:** следит за изменениями в `.git` и рабочей директории, отдаёт дебаунснутые события.
 - **Как:** `RepoWatcher::start(root, git_dir, common_dir, on_change)` возвращает хэндл, пока
   он жив — идёт наблюдение; колбэк получает `RepoChanged { kind }`, где `kind` — один из
-  `ChangeKind` (Head, Index, Refs, WorkingTree, Stash, Config, Hooks).
+  `ChangeKind` (Head, Index, Refs, WorkingTree, Stash, Config, Hooks, Mailmap).
 - **Зависит от:** `notify`, `notify-debouncer-mini`. `.gitignore` не читается — см. INV-06.
 - **Ограничения:** [INV-06](#inv-06).
 
 ### `app_state`
 - **Что:** реестр открытых репозиториев, группы/виртуальные папки, шина событий, доступ к keyring.
-- **Как:** `AppState` хранится в Tauri через `.manage()`; команды получают его как `State<AppState>`.
+- **Как:** `AppState` лежит в `src-tauri` внутри `AppContext` (с путями лога и конфига), который
+  хранится через `.manage()`; команды получают `State<'_, AppContext>` и зовут `state.state`.
 - **Зависит от:** все остальные крейты, `parking_lot`, `tokio::sync::broadcast`, `keyring`.
 - **Это единственный крейт с изменяемым глобальным состоянием.** Всё остальное — чистые функции
   и короткоживущие хэндлы.
@@ -99,7 +105,8 @@
 
 | Нагрузка | Механизм | Примеры |
 |---|---|---|
-| I/O, процессы, таймеры, сеть | `tokio` async | `git push`, `git fetch`, чтение конфигов |
+| Процессы `git`, в том числе сеть | `std::process` внутри `spawn_blocking` (`blocking` и `mutating` в `src-tauri/src/commands/mod.rs`; мутация сначала ждёт очереди репозитория) | `git push`, `git fetch`, `git commit` |
+| Ожидание: очередь, таймеры | `tokio` async | место в очереди репозитория, отсрочка выхода (`shutdown.rs`) |
 | CPU, короткая (< 5 мс) | прямо в async-задаче | форматирование даты, парсинг имени ref |
 | CPU, длинная / блокирующий I/O | `tokio::task::spawn_blocking` | обход дерева через `gix`, чтение больших blob-ов |
 | CPU, длинная и распараллеливаемая | `rayon` внутри `spawn_blocking` | дифф 500 файлов, раскладка графа на 50k коммитов |
@@ -154,12 +161,13 @@ UI **не перезагружает всё** — по полю `kind` обно�
 ### 4.4. Мутация с ошибкой
 ```text
 UI: "Push"
-  └─► invoke push(repo_id, remote, refspec)
-        └─► git_engine: tokio::process::Command("git push ...")
-              exit_code != 0
-              └─► Err(GitCommandError { command, exit_code, stdout, stderr })
-                    └─► UI: Git Error Dialog — сырой stderr в моноширинном блоке,
-                            URL кликабельны, кнопка "Copy Output"
+  └─► invoke push(repo, remote, force, onProgress)
+        └─► src-tauri: ждёт очереди репозитория, затем spawn_blocking
+              └─► git_engine: std::process::Command("git push ..."), строки stderr — в onProgress
+                    exit_code != 0
+                    └─► Err(GitCommandError { id, repo, command, exit_code, stdout, stderr, operation, summary })
+                          └─► UI: Git Error Dialog — сырой stderr в моноширинном блоке,
+                                  URL кликабельны, кнопка "Copy Output"
 ```
 
 ## 5. Реестр инвариантов

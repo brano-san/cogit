@@ -131,18 +131,28 @@ GIT_NAMESPACE  GIT_CEILING_DIRECTORIES  GIT_CONFIG_PARAMETERS  GIT_CONFIG_COUNT
 ### Тип ошибки
 
 ```rust
-#[derive(Debug, thiserror::Error, serde::Serialize, specta::Type, Clone)]
+#[derive(Debug, Clone, thiserror::Error, Serialize, specta::Type)]
 #[error("Command `{command}` failed (exit code {exit_code:?})")]
+#[serde(rename_all = "camelCase")]
 pub struct GitCommandError {
+    /// Запись журнала команд, из которой собрана ошибка, — окно предлагает её целиком.
+    pub id: u32,
+    pub repo: String,
     /// Полная строка команды как она была бы набрана в терминале — для кнопки "Copy".
     pub command: String,
     pub exit_code: Option<i32>,
     pub stdout: String,
     pub stderr: String,
+    /// Заголовок окна; выводится из `command`, поэтому заголовок и вывод — об одном запуске (R-87).
+    pub operation: String,
+    /// Одна строка над выводом, никогда не вместо него.
+    pub summary: String,
 }
 ```
 
 `exit_code` — `Option`, потому что процесс может быть убит сигналом и не иметь кода возврата.
+Собирается только из законченного запуска (`GitCommandError::from_output(GitOutput)`), так что
+ошибка и запись журнала не могут описывать разное (`crates/git_engine/src/error.rs`).
 
 **Запрещено** ([INV-05](01-architecture.md#inv-05)):
 - обрезать `stdout`/`stderr` (кроме лимита окна — свыше 20 000 строк или 2 МБ показываются
@@ -181,16 +191,16 @@ URL в выводе кликабельны — именно там `git` отд�
 | Состояние | Маркер | Действия в баннере |
 |---|---|---|
 | Normal | — | — |
-| Detached HEAD | `.git/HEAD` не содержит `ref:` | `Create Branch`, `Return to <branch>` |
+| Detached HEAD | `.git/HEAD` не содержит `ref:` | `Create Branch`; назад на ветку — обычный checkout (R-502). В submodule — баннер без кнопок: он отсоединён по устройству (R-130) |
 | Merge in progress | `.git/MERGE_HEAD` | `Continue`, `Abort` |
 | Rebase in progress | `.git/rebase-merge/` или `.git/rebase-apply/` без `applying` | `Continue`, `Skip`, `Abort` |
 | `git am` in progress | `.git/rebase-apply/applying` | `Continue`, `Skip`, `Abort` (`git am --continue/--skip/--abort`) |
-| Cherry-pick in progress | `.git/CHERRY_PICK_HEAD` | `Continue`, `Abort` |
-| Revert in progress | `.git/REVERT_HEAD` | `Continue`, `Abort` |
+| Cherry-pick in progress | `.git/CHERRY_PICK_HEAD` | `Continue`, `Skip`, `Abort` |
+| Revert in progress | `.git/REVERT_HEAD` | `Continue`, `Skip`, `Abort` |
 | Bisect in progress | `.git/BISECT_LOG` | `Abort` = `git bisect reset` (`--continue` у bisect нет, Continue отказывает без запуска git) |
 | Пустой репозиторий | `HEAD` указывает на несуществующий ref | Подсказка «сделайте первый коммит» |
 | Bare-репозиторий | нет рабочей директории | Скрыть панели стейджинга |
-| Index заблокирован | `.git/index.lock` существует | `Retry`, `Show which process` |
+| Index заблокирован | `.git/index.lock` существует | Кнопок нет: красный баннер поверх остальных состояний с полным путём к lock-файлу и советом удалить его, только убедившись, что git не работает. Наблюдатель `index.lock` не видит — баннер уходит, когда репозиторий перечитан (`F5`, смена ссылок) (R-502) |
 
 **Требование [INV-07](01-architecture.md#inv-07):** каждое из этих состояний должно быть
 покрыто тестом с фикстурой. Клиент, который падает на detached HEAD, бесполезен.
@@ -217,8 +227,11 @@ URL в выводе кликабельны — именно там `git` отд�
 
 - Внутри бэкенда OID хранится как `gix::ObjectId` (20 байт), **не как строка**.
 - В IPC уходит hex-строка — JSON не умеет бинарные данные компактно.
-- Короткий хеш для UI вычисляется на бэкенде через `repo.object_hash()`, а не обрезанием
-  до фиксированной длины: в больших репозиториях 7 символов уже не уникальны.
+- Короткий хеш на экране — первые 7 символов, одна функция на всё приложение (`shortOid`,
+  `frontend/src/lib/format.ts`; заголовок окна Blame — так же, `SHORT_OID` в
+  `src-tauri/src/blame_window.rs`). Бэкенд короткого хеша не отдаёт. Копирование (`Copy ID`),
+  переходы и все команды берут полный oid, поэтому неуникальные 7 символов в большом
+  репозитории ничего не ломают — разве что два хеша на экране совпадут (R-503).
 - Поддержка SHA-256 репозиториев: фича `sha256` у `gix` не подключена в v1.0.
   Триггер для пересмотра — появление таких репозиториев у пользователя.
 
