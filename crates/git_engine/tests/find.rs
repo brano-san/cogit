@@ -79,6 +79,34 @@ fn a_commit_is_found_by_words_from_its_message() {
     );
 }
 
+// "added", "cafe" and "feed" look like hashes: they were looked up only as a prefix.
+#[test]
+fn a_word_made_of_hex_letters_finds_commits_by_their_message() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::write(f.path().join("parser.rs"), "fn main() {}\n").unwrap();
+    f.git(&["add", "--", "parser.rs"]).unwrap();
+    f.commit_staged(1, "Added parser").unwrap();
+
+    let found = open(&f).find("added", 20).unwrap();
+
+    assert!(
+        found
+            .iter()
+            .any(|item| item.kind == FoundKind::Commit && item.label == "Added parser"),
+        "{found:?}"
+    );
+}
+
+#[test]
+fn a_hash_prefix_names_no_object_that_is_not_a_commit() {
+    let f = test_fixtures::linear(2).unwrap();
+    let tree = f.oid("HEAD^{tree}").unwrap();
+
+    let found = open(&f).find(&tree[..12], 20).unwrap();
+
+    assert!(found.iter().all(|item| item.oid != tree), "{found:?}");
+}
+
 #[test]
 fn a_file_is_found_by_part_of_its_path() {
     let f = test_fixtures::linear(1).unwrap();
@@ -93,6 +121,26 @@ fn a_file_is_found_by_part_of_its_path() {
         found.iter().any(|item| item.kind == FoundKind::File),
         "{found:?}"
     );
+}
+
+// A folder came back as a file of the current tree, and picking it asked Diff for a folder.
+#[test]
+fn a_folder_is_not_found_as_a_file() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::create_dir_all(f.path().join("src/deep")).unwrap();
+    std::fs::write(f.path().join("src/deep/parser.rs"), "fn main() {}\n").unwrap();
+    f.git(&["add", "--", "src/deep/parser.rs"]).unwrap();
+    f.commit_staged(1, "add the parser").unwrap();
+
+    let files: Vec<String> = open(&f)
+        .find("deep", 20)
+        .unwrap()
+        .into_iter()
+        .filter(|item| item.kind == FoundKind::File)
+        .map(|item| item.label)
+        .collect();
+
+    assert_eq!(files, ["src/deep/parser.rs"]);
 }
 
 #[test]

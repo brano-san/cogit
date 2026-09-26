@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filesPanelList, type FilesPanelInput } from "./files-panel";
+import { emptyText, filesPanelList, type FilesPanelInput } from "./files-panel";
 
 const base: FilesPanelInput = {
   content: true,
@@ -35,5 +35,23 @@ describe("what the Files panel lists and counts", () => {
 
   it("counts nothing while no repository is open", () => {
     expect(filesPanelList({ ...base, content: false })).toEqual({ kind: "none", count: undefined });
+  });
+});
+
+// "The working tree is clean." showed while the list was still being read, and again when
+// reading it failed.
+describe("what an empty Files list says", () => {
+  it("says nothing until the list has been read", () => {
+    expect(emptyText({ settled: false, failed: false }, "The working tree is clean.")).toBe("");
+  });
+
+  it("says the list is empty once it has been read", () => {
+    expect(emptyText({ settled: true, failed: false }, "The working tree is clean.")).toBe(
+      "The working tree is clean.",
+    );
+  });
+
+  it("does not call a list that could not be read empty", () => {
+    expect(emptyText({ settled: true, failed: true }, "The working tree is clean.")).not.toContain("clean");
   });
 });

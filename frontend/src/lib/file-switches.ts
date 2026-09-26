@@ -52,7 +52,7 @@ function deadReason(context: Exclude<ListContext, "worktree">, slot: StateSlot):
     case "unchanged":
       return NO_UNCHANGED[context];
     case "untracked":
-      return `${noun} has no untracked files`;
+      return context === "stash" ? "Untracked files of a stash are always listed" : `${noun} has no untracked files`;
     case "ignored":
       return `${noun} has no ignored files`;
     case "modified":

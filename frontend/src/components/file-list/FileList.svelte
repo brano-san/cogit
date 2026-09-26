@@ -10,13 +10,24 @@
   import {
     DEFAULT_VIEW,
     groupByDirectory,
+    hiddenCount,
+    hidingSwitches,
     paneLayout,
     shownSections,
     visibleFiles,
     type FileView,
   } from "$lib/file-view";
-  import { afterDeselect, applyClick, EMPTY_SELECTION, shownMarks, type FileSelection } from "$lib/multi-select";
-  import FilePane from "$components/file-list/FilePane.svelte";
+  import {
+    actionScope,
+    afterDeselect,
+    applyClick,
+    EMPTY_SELECTION,
+    markedRows,
+    rowKey,
+    shownMarks,
+    type FileSelection,
+  } from "$lib/multi-select";
+  import FilePane, { type PaneAction } from "$components/file-list/FilePane.svelte";
   import Splitter from "$components/layout/Splitter.svelte";
   import type { FileEntry } from "$lib/ipc";
 
@@ -32,6 +43,9 @@
     actions?: readonly Action[];
     /** Each section can open its own side of the diff. */
     onselect?: (path: string) => void;
+    /** The file this section has open in Diff, when the list's `selected` is not enough:
+        a partly staged file is in two sections, and only one of them shows it. */
+    selected?: string | null;
     hideWhenEmpty?: boolean;
   }
 
@@ -88,7 +102,9 @@
   }: Props = $props();
 
   const NO_HITS: ReadonlyMap<string, number> = new Map();
+  const NO_MARKS: ReadonlySet<string> = new Set();
 
+  /** Keyed by section and path (`rowKey`), not by path alone. */
   let marked = $state.raw<FileSelection>(EMPTY_SELECTION);
   let mask = $state("");
   let bar: ReturnType<typeof FilesToolbar> | undefined = $state();
@@ -112,7 +128,7 @@
   });
 
   $effect(() => {
-    onmarked?.([...visibleMarks.paths]);
+    onmarked?.(marks.paths);
   });
 
   // The Files panel swaps one list for another; the ticks of the one that went must not
@@ -147,18 +163,20 @@
 
   const groups = $derived(
     shownSections(sections).map((section) => {
-      const files = sortFiles(
-        visibleFiles(section.files, active).filter((file) => keepFile(file, pattern, hits)),
-        "path",
-      );
+      const index = sections.indexOf(section);
+      const files = sortFiles(visibleFiles(section.files, active).filter((file) => keepFile(file, pattern, hits)));
+      const paths = files.map((file) => file.path);
       return {
         section,
+        index,
         files,
-        paths: files.map((file) => file.path),
+        paths,
+        keys: paths.map((path) => rowKey(index, path)),
         rows: groupByDirectory(files, active.directories),
       };
     }),
   );
+  type Group = (typeof groups)[number];
 
   $effect(() => {
     const shown = sections.map((section) => groups.find((group) => group.section === section)?.paths ?? []);
@@ -169,29 +187,33 @@
   const apart = $derived(layout.apart);
   const total = $derived(sections.reduce((n, section) => n + section.files.length, 0));
   const shownCount = $derived(groups.reduce((n, group) => n + group.files.length, 0));
-  const order = $derived(groups.flatMap((group) => group.paths));
+  const order = $derived(groups.flatMap((group) => group.keys));
+  const came = $derived(sections.flatMap((section) => section.files));
+  const hidden = $derived(hiddenCount(came, active, (file) => keepFile(file, pattern, hits)));
+  const hiding = $derived(hidingSwitches(came, active));
   const visibleMarks = $derived(shownMarks(marked, order));
+  const marks = $derived(markedRows(visibleMarks.paths));
 
-  /** The paths an action applies to: the marked set when the clicked file is in it. */
-  function scopeOf(path: string): string[] {
-    const paths = visibleMarks.paths;
-    return paths.has(path) && paths.size > 1 ? [...paths] : [path];
-  }
-
-  function scoped(actions: readonly Action[]): Action[] {
+  /** The rows marked in another section are not this section's to act on. */
+  function scoped(group: Group, actions: readonly Action[]): PaneAction[] {
     return actions.map((action) => ({
-      ...action,
-      run: (paths: string[]) => action.run(paths.length === 1 ? scopeOf(paths[0] ?? "") : paths),
+      label: action.label,
+      title: action.title,
+      run: (request) => action.run(actionScope(marks.bySection.get(group.index) ?? NO_MARKS, request)),
     }));
   }
 
-  function clicked(section: Section, path: string, event: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) {
-    marked = applyClick(marked, path, order, {
+  function clicked(group: Group, path: string, event: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) {
+    marked = applyClick(marked, rowKey(group.index, path), group.keys, {
       ctrl: event.ctrlKey || event.metaKey,
       shift: event.shiftKey,
     });
     if (event.ctrlKey || event.metaKey || event.shiftKey) return;
-    (section.onselect ?? onselect)?.(path);
+    (group.section.onselect ?? onselect)?.(path);
+  }
+
+  function selectedIn(group: Group): string | null {
+    return group.section.selected === undefined ? selected : group.section.selected;
   }
 
   function contentStatus(search: ContentSearch, files: number): string {
@@ -209,8 +231,8 @@
     return target instanceof HTMLTextAreaElement || (target instanceof HTMLInputElement && target.type !== "checkbox");
   }
 
-  function mark(path: string) {
-    marked = applyClick(marked, path, order, { ctrl: true, shift: false });
+  function mark(group: Group, path: string) {
+    marked = applyClick(marked, rowKey(group.index, path), group.keys, { ctrl: true, shift: false });
   }
 </script>
 
@@ -223,7 +245,8 @@
     onview={(next) => onview?.(next)}
     filter={mask}
     onfilter={(text) => (mask = text)}
-    hidden={total - shownCount}
+    {hidden}
+    {hiding}
     broken={pattern.broken}
     {disabled}
     contentsReady={contents !== undefined}
@@ -257,12 +280,12 @@
             rows={group.rows}
             title={group.section.title}
             paths={group.paths}
-            actions={scoped(group.section.actions ?? [])}
+            actions={scoped(group, group.section.actions ?? [])}
             showDirectory={!active.directories}
-            {selected}
-            marked={visibleMarks.paths}
-            onclick={(path, event) => clicked(group.section, path, event)}
-            onmark={mark}
+            selected={selectedIn(group)}
+            marked={marks.bySection.get(group.index) ?? NO_MARKS}
+            onclick={(path, event) => clicked(group, path, event)}
+            onmark={(path) => mark(group, path)}
             {onopen}
             oncontext={oncontext && ((path, event) => oncontext(path, event, group.section.title))}
           />
@@ -278,12 +301,12 @@
               rows={group.rows}
               title={layout.titled ? group.section.title : undefined}
               paths={group.paths}
-              actions={scoped(group.section.actions ?? [])}
+              actions={scoped(group, group.section.actions ?? [])}
               showDirectory={!active.directories}
-              {selected}
-              marked={visibleMarks.paths}
-              onclick={(path, event) => clicked(group.section, path, event)}
-              onmark={mark}
+              selected={selectedIn(group)}
+              marked={marks.bySection.get(group.index) ?? NO_MARKS}
+              onclick={(path, event) => clicked(group, path, event)}
+              onmark={(path) => mark(group, path)}
               {onopen}
               oncontext={oncontext && ((path, event) => oncontext(path, event, group.section.title))}
             />

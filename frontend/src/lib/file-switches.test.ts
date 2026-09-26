@@ -48,6 +48,12 @@ describe("stateSwitches", () => {
     const live = stateSwitches("stash").filter((s) => s.reason === null);
     expect(live.map((s) => s.key)).toEqual(["renameSources"]);
   });
+
+  // `git stash -u` keeps untracked files, and the stash lists them in a section of their own.
+  it("does not tell a stash it has no untracked files", () => {
+    const untracked = stateSwitches("stash").find((s) => s.slot === "untracked");
+    expect(untracked?.reason).toBe("Untracked files of a stash are always listed");
+  });
 });
 
 describe("toolReason", () => {

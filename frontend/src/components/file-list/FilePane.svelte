@@ -1,3 +1,13 @@
+<script module lang="ts">
+  import type { ActionRequest } from "$lib/multi-select";
+
+  export interface PaneAction {
+    label: string;
+    title: string;
+    run: (request: ActionRequest) => void;
+  }
+</script>
+
 <script lang="ts">
   import { tick } from "svelte";
   import Disclosure from "$components/common/Disclosure.svelte";
@@ -9,18 +19,12 @@
   import { LIST_ROW_HEIGHT } from "$lib/graph-geometry";
   import { TypeAhead, findTyped, listKey, pageRows, pressOf, typedChar } from "$lib/list-keys";
 
-  interface Action {
-    label: string;
-    title: string;
-    run: (paths: string[]) => void;
-  }
-
   interface Props {
     rows: readonly ViewRow[];
     title?: string;
     selected?: string | null;
     marked: ReadonlySet<string>;
-    actions?: readonly Action[];
+    actions?: readonly PaneAction[];
     /** Paths shown here, for the "all" buttons in the heading. */
     paths: readonly string[];
     /** Full paths are redundant once the list groups by directory. */
@@ -68,6 +72,22 @@
     rows.flatMap((entry, index) => (entry.kind === "dir" ? [] : [{ path: entry.file.path, index }])),
   );
 
+  /** Not state: set once the selected file was scrolled to, so the rows moving later (a
+      reload, folders turned on) do not pull the view back to it. */
+  let revealedFor: string | null = null;
+
+  // A file selected from elsewhere, such as Find Object, is scrolled into view — also
+  // when its row arrives after it was selected.
+  $effect(() => {
+    const path = selected;
+    if (path === null) revealedFor = null;
+    if (path === null || path === revealedFor) return;
+    const at = files.find((file) => file.path === path)?.index;
+    if (at === undefined) return;
+    revealedFor = path;
+    reveal = at;
+  });
+
   async function goTo(to: number, extend: boolean) {
     const target = files[to];
     if (!target) return;
@@ -105,7 +125,7 @@
     <div class="heading">
       <span class="grow">{title} ({paths.length})</span>
       {#each actions as action (action.label)}
-        <button type="button" class="act" title="{action.title} — all" onclick={() => action.run([...paths])}
+        <button type="button" class="act" title="{action.title} — all" onclick={() => action.run({ all: paths })}
           >{action.label} all</button
         >
       {/each}
@@ -154,7 +174,7 @@
             >
             <span class="name truncate shrink-last">{fileName(file.path)}</span>
             {#if file.oldPath}
-              <span class="renamed truncate shrink-first" title="from {file.oldPath}"
+              <span class="from truncate shrink-first" title="from {file.oldPath}"
                 >← {fileName(file.oldPath)}{file.similarity !== null
                   ? ` ${file.similarity}%`
                   : ""}</span
@@ -166,21 +186,25 @@
               >
             {/if}
             <span class="dir truncate shrink-first">{showDirectory ? directory(file.path) : ""}</span>
-            {#each actions as action (action.label)}
-              <span
-                class="act"
-                role="button"
-                tabindex="-1"
-                title={action.title}
-                onclick={(event) => {
-                  event.stopPropagation();
-                  action.run([file.path]);
-                }}
-                onkeydown={(event) => {
-                  if (event.key === "Enter") action.run([file.path]);
-                }}>{action.label}</span
-              >
-            {/each}
+            {#if actions.length > 0}
+              <span class="acts">
+                {#each actions as action (action.label)}
+                  <span
+                    class="act"
+                    role="button"
+                    tabindex="-1"
+                    title={action.title}
+                    onclick={(event) => {
+                      event.stopPropagation();
+                      action.run({ row: file.path });
+                    }}
+                    onkeydown={(event) => {
+                      if (event.key === "Enter") action.run({ row: file.path });
+                    }}>{action.label}</span
+                  >
+                {/each}
+              </span>
+            {/if}
           </button>
         {/if}
     {/snippet}
@@ -219,7 +243,8 @@
     display: flex;
     align-items: center;
     gap: var(--tree-gap);
-    height: 22px;
+    /* The step the rows are placed at (LIST_ROW_HEIGHT): shorter left a dead gap between. */
+    height: var(--h-row);
     padding: 0 var(--sp-5);
     font-size: var(--fs-dense);
     white-space: nowrap;
@@ -286,9 +311,31 @@
     cursor: default;
   }
 
-  .row:hover .act,
-  .heading:hover .act {
+  .heading:hover .act,
+  .acts .act {
     opacity: 1;
+  }
+
+  /* Over the end of the row rather than beside the name: out of sight, the buttons keep
+     no width, and the name has the whole row (R-243). */
+  .acts {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    display: none;
+    align-items: center;
+    padding: 0 var(--sp-3);
+    background: var(--state-hover);
+  }
+
+  .row:hover .acts,
+  .row:focus-visible .acts {
+    display: flex;
+  }
+
+  .row.selected .acts {
+    background: var(--state-selected);
   }
 
   .act:hover {
@@ -341,7 +388,8 @@
     background: var(--c-deleted-bg);
   }
 
-  .renamed {
+  /* Not `.renamed`: that is also the status class of the row, which then took this style. */
+  .from {
     color: var(--status-ref);
     font-size: 10px;
   }

@@ -3,6 +3,8 @@ import {
   DEFAULT_VIEW,
   backendView,
   groupByDirectory,
+  hiddenCount,
+  hidingSwitches,
   mergeView,
   paneLayout,
   shownSections,
@@ -96,9 +98,52 @@ describe("visibleFiles", () => {
     expect(shown).toContain("old.rs");
   });
 
+  // A copy's source is still there: it was listed as deleted, and twice when it changed too.
+  it("does not list the source of a copy as removed", () => {
+    const files = [file("b.rs", "copied", "a.rs"), file("a.rs", "modified")];
+    const shown = visibleFiles(files, view({ renameSources: true }));
+    expect(shown.map((f) => [f.path, f.status])).toEqual([
+      ["b.rs", "copied"],
+      ["a.rs", "modified"],
+    ]);
+  });
+
   it("does not invent a source for a file that was not renamed", () => {
     const shown = visibleFiles([file("a.rs", "modified")], view({ renameSources: true }));
     expect(shown).toHaveLength(1);
+  });
+});
+
+describe("hiddenCount", () => {
+  const renames = [1, 2, 3].map((n) => file(`r${n}.rs`, "renamed", `old${n}.rs`));
+  const others = ["a", "b", "c"].map((name) => file(`hide/${name}.rs`, "modified"));
+  const keep = (entry: FileEntry) => !entry.path.startsWith("hide/");
+
+  // The sources of renames were counted as shown rows: three of them made up for three
+  // hidden files, and the badge went away.
+  it("counts the rows that came and are not shown, whatever sources were added", () => {
+    expect(hiddenCount([...renames, ...others], view({ renameSources: true }), keep)).toBe(3);
+  });
+
+  it("counts a row a switch hides", () => {
+    expect(hiddenCount([file("n.rs", "untracked")], view({ untracked: false }), () => true)).toBe(1);
+  });
+});
+
+describe("hidingSwitches", () => {
+  it("names only the switches that hid a row that came", () => {
+    const files = [file("a.rs", "modified"), file("new.rs", "untracked"), file("gone.rs", "deleted")];
+    expect(hidingSwitches(files, view({ untracked: false }))).toEqual(["untracked"]);
+    expect(hidingSwitches(files, view({ untracked: false, missing: false })).sort()).toEqual([
+      "missing",
+      "untracked",
+    ]);
+  });
+
+  // "N files hidden" turned Unchanged and Ignored on as well: the whole tree was read.
+  it("leaves out the switches whose rows never came", () => {
+    const files = [file("a.rs", "modified")];
+    expect(hidingSwitches(files, view({ unchanged: false, ignored: false }))).toEqual([]);
   });
 });
 

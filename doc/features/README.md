@@ -14,7 +14,7 @@
 | F-008 | Детали коммита | [F-008-commit-details.md](F-008-commit-details.md) |
 | F-009 | Файлы коммита | [F-009-commit-files.md](F-009-commit-files.md) |
 | F-010 | Фильтр файлов | [F-010-file-filter.md](F-010-file-filter.md) |
-| F-011 | Сортировка файлов | [F-011-file-sort.md](F-011-file-sort.md) |
+| F-011 | Порядок файлов: по пути, по статусу — секции | [F-011-file-sort.md](F-011-file-sort.md) |
 | F-012 | Side-by-side diff | [F-012-diff-side-by-side.md](F-012-diff-side-by-side.md) |
 | F-013 | Unified diff | [F-013-diff-unified.md](F-013-diff-unified.md) |
 | F-014 | Навигация по ханкам | [F-014-diff-navigation.md](F-014-diff-navigation.md) |
@@ -122,7 +122,7 @@
 | F-116 | Профилирующий лог | [F-116-profile-log.md](F-116-profile-log.md) |
 | F-117 | Открыть папку с логом | [F-117-reveal-log.md](F-117-reveal-log.md) |
 | F-118 | Поиск репозиториев в папке | [F-118-scan-folder.md](F-118-scan-folder.md) |
-| F-119 | Сортировка файлов кнопками | [F-119-file-sort-buttons.md](F-119-file-sort-buttons.md) |
+| F-119 | Без кнопок сортировки файлов | [F-119-file-sort-buttons.md](F-119-file-sort-buttons.md) |
 | F-120 | Переключатели вида файлов | [F-120-file-view-toggles.md](F-120-file-view-toggles.md) |
 | F-121 | Раздельные списки Unstaged и Staged | [F-121-files-split.md](F-121-files-split.md) |
 | F-122 | Дерево ссылок с чекбоксами | [F-122-ref-tree.md](F-122-ref-tree.md) |
@@ -338,3 +338,4 @@
 | F-507 | Аккорды стейджинга и инструментов | [F-507-registry-keys.md](F-507-registry-keys.md) |
 | F-508 | Клавиатура в списках | [F-508-list-keyboard.md](F-508-list-keyboard.md) |
 | F-510 | Панель слияния не теряет выбранные стороны | [F-510-merge-panel-keeps-picks.md](F-510-merge-panel-keeps-picks.md) |
+| F-517 | Значок скрытых файлов в Files | [F-517-files-hidden-badge.md](F-517-files-hidden-badge.md) |

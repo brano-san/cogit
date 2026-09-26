@@ -2,13 +2,14 @@
   import FileList from "$components/file-list/FileList.svelte";
   import { ContentSearch } from "$lib/content-search.svelte";
   import { withUnchanged } from "$lib/file-switches";
-  import { filesPanelList } from "$lib/files-panel";
+  import { emptyText, filesPanelList } from "$lib/files-panel";
   import type { FileView } from "$lib/file-view";
   import { idleMessage } from "$lib/repo-phase";
   import { commit } from "$stores/commit.svelte";
   import { commitTree } from "$stores/commit-tree.svelte";
   import { compareView } from "$stores/compare-view.svelte";
   import { diff } from "$stores/diff.svelte";
+  import { errors } from "$stores/errors.svelte";
   import { filesView } from "$stores/files-view.svelte";
   import { layout } from "$stores/layout.svelte";
   import { repository } from "$stores/repository.svelte";
@@ -81,6 +82,8 @@
     if (!onWorkingTree && filesView.commit.unchanged && id && oid) void commitTree.load(id, oid);
   });
 
+  $effect(() => errors.report(commitTree.error, "Could not list the unchanged files of the commit"));
+
   const commitList = $derived(
     withUnchanged(
       commit.files,
@@ -107,7 +110,7 @@
       ? (idleMessage(view) ?? "")
       : commit.oid === null
         ? "Select a commit to see the files it changed."
-        : "This commit changed no files.",
+        : emptyText({ settled: !commit.loading, failed: commit.error !== null }, "This commit changed no files."),
   );
 </script>
 
@@ -119,18 +122,25 @@
     <FileList
       {activePanel}
       context="stash"
-      view={{ ...filesView.commit, separateIndex: true }}
+      view={filesView.commit}
       onview={(next) => filesView.setCommit(next)}
       sections={[
         {
           title: "Working tree",
           files: parts.worktree,
+          selected: diff.pathFor(stashView.spec("worktree")),
           onselect: (path) => onopenstash("worktree", path),
         },
-        { title: "Index", files: parts.index, onselect: (path) => onopenstash("index", path) },
+        {
+          title: "Index",
+          files: parts.index,
+          selected: diff.pathFor(stashView.spec("index")),
+          onselect: (path) => onopenstash("index", path),
+        },
         {
           title: "Untracked",
           files: parts.untracked,
+          selected: diff.pathFor(stashView.spec("untracked")),
           onselect: (path) => onopenstash("untracked", path),
         },
       ]}
@@ -152,7 +162,10 @@
           onselect: onopencompare,
         },
       ]}
-      empty={compareView.loading ? "Comparing…" : "Both commits have the same files."}
+      empty={emptyText(
+        { settled: !compareView.loading, failed: compareView.error !== null },
+        "Both commits have the same files.",
+      )}
       selected={diff.path}
       onopen={onopenwindow}
       {onmarked}
@@ -170,6 +183,7 @@
         {
           title: "Unstaged",
           files: worktree.unstaged,
+          selected: diff.pathFor({ kind: "workTreeVsIndex" }),
           onselect: onopenworktree,
           actions: [
             { label: "Stage", title: "Stage", run: stage },
@@ -183,11 +197,15 @@
           title: "Staged",
           files: worktree.staged,
           hideWhenEmpty: true,
+          selected: diff.pathFor({ kind: "indexVsHead" }),
           onselect: onopenstaged,
           actions: [{ label: "Unstage", title: "Unstage", run: unstage }],
         },
       ]}
-      empty="The working tree is clean."
+      empty={emptyText(
+        { settled: worktree.loaded, failed: worktree.error !== null },
+        "The working tree is clean.",
+      )}
       selected={diff.path}
       onopen={onopenwindow}
       {onmask}

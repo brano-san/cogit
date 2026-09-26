@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { afterDeselect, applyClick, EMPTY_SELECTION, shownMarks, type FileSelection } from "./multi-select";
+import {
+  actionScope,
+  afterDeselect,
+  applyClick,
+  EMPTY_SELECTION,
+  markedRows,
+  rowKey,
+  rowOf,
+  shownMarks,
+  type FileSelection,
+} from "./multi-select";
 
 const ORDER = ["a.txt", "b.txt", "c.txt", "d.txt"];
 const plain = { ctrl: false, shift: false };
@@ -85,6 +95,57 @@ describe("afterDeselect", () => {
   it("keeps the marks when another file is shown", () => {
     const marked = select(["a.txt"], "a.txt");
     expect(afterDeselect("a.txt", "b.txt", marked)).toBe(marked);
+  });
+});
+
+describe("rows of a list in sections", () => {
+  // b is part staged: [a, b, c | b, x]. By path, Shift from x to the b in Staged took c
+  // from Unstaged, since the range was measured from the first b.
+  const unstaged = ["a", "b", "c"].map((path) => rowKey(0, path));
+  const staged = ["b", "x"].map((path) => rowKey(1, path));
+  const shift = { ctrl: false, shift: true };
+
+  it("keeps a Shift range in its own section", () => {
+    const marks = applyClick(select([rowKey(1, "x")], rowKey(1, "x")), rowKey(1, "b"), staged, shift);
+    expect([...marks.paths].sort()).toEqual([rowKey(1, "b"), rowKey(1, "x")]);
+  });
+
+  it("ticks the b of one section without the b of the other", () => {
+    const marks = applyClick(EMPTY_SELECTION, rowKey(1, "b"), staged, { ctrl: true, shift: false });
+    const rows = markedRows(marks.paths);
+    expect([...(rows.bySection.get(1) ?? [])]).toEqual(["b"]);
+    expect(rows.bySection.get(0)).toBeUndefined();
+  });
+
+  it("does not stretch a Shift range from the other section", () => {
+    const marks = applyClick(select([rowKey(0, "a")], rowKey(0, "a")), rowKey(1, "x"), staged, shift);
+    expect([...marks.paths]).toEqual([rowKey(1, "x")]);
+    expect(unstaged).not.toContain(marks.anchor);
+  });
+
+  it("names a path ticked in both sections once", () => {
+    expect(markedRows([rowKey(0, "b"), rowKey(1, "b"), rowKey(1, "x")]).paths).toEqual(["b", "x"]);
+  });
+
+  it("reads back a path with a colon in it", () => {
+    expect(rowOf(rowKey(2, "a:b/c.txt"))).toEqual({ section: 2, path: "a:b/c.txt" });
+  });
+});
+
+describe("actionScope", () => {
+  const marked = new Set(["x", "y"]);
+
+  it("gives a row's button every marked row when the row is marked", () => {
+    expect(actionScope(marked, { row: "x" })).toEqual(["x", "y"]);
+  });
+
+  it("gives an unmarked row's button that row alone", () => {
+    expect(actionScope(marked, { row: "z" })).toEqual(["z"]);
+  });
+
+  // Discard all under a filter that left one row: it discarded the marked rows out of sight.
+  it("gives a heading's all button the rows it lists, even when it lists one", () => {
+    expect(actionScope(marked, { all: ["x"] })).toEqual(["x"]);
   });
 });
 
