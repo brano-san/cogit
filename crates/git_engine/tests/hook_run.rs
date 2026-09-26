@@ -94,6 +94,20 @@ fn a_commit_msg_hook_is_given_a_draft_message_to_read() {
 }
 
 #[test]
+fn an_applypatch_msg_hook_is_given_a_message_and_reference_transaction_a_state() {
+    let f = test_fixtures::linear(1).unwrap();
+    let hooks = f.path().join(".git/hooks");
+    write_hook(&hooks, "applypatch-msg", "#!/bin/sh\ncat \"$1\"\n");
+    write_hook(&hooks, "reference-transaction", "#!/bin/sh\necho \"$1\"\n");
+
+    let message = open(&f).run_hook("applypatch-msg").unwrap();
+    let transaction = open(&f).run_hook("reference-transaction").unwrap();
+
+    assert!(!message.stdout.trim().is_empty(), "{message:?}");
+    assert_eq!(transaction.stdout.trim(), "prepared", "{transaction:?}");
+}
+
+#[test]
 fn the_run_is_timed_so_a_slow_hook_can_be_spotted() {
     let f = test_fixtures::linear(1).unwrap();
     write_hook(

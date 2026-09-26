@@ -66,7 +66,10 @@ fn sample_args(name: &str, scratch: &Path) -> Result<Vec<String>> {
     };
 
     Ok(match name {
-        "commit-msg" => message_file()?,
+        "commit-msg" | "applypatch-msg" | "p4-changelist" | "p4-prepare-changelist" => {
+            message_file()?
+        }
+        "reference-transaction" => vec!["prepared".to_owned()],
         "prepare-commit-msg" => {
             let mut args = message_file()?;
             args.push("message".to_owned());
