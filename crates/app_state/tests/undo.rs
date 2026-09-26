@@ -170,6 +170,17 @@ fn a_mutation_does_not_make_the_watcher_report_our_own_writes() {
     let (state, repo) = open(&f);
     let mut events = state.subscribe();
     std::fs::write(f.path().join("file0.txt"), "edited by us\n").unwrap();
+    // The control: a watcher that never started would keep quiet through the rest too.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    let heard = loop {
+        match events.try_recv() {
+            Ok(app_state::AppEvent::RepoChanged { .. }) => break true,
+            Ok(_) => {}
+            Err(_) if std::time::Instant::now() > deadline => break false,
+            Err(_) => std::thread::sleep(std::time::Duration::from_millis(20)),
+        }
+    };
+    assert!(heard, "an edit made outside Cogit must be heard");
     // Let the edit above settle so only the mutation's own writes are in play.
     std::thread::sleep(std::time::Duration::from_millis(500));
     while events.try_recv().is_ok() {}
