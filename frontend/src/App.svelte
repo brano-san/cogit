@@ -7,7 +7,7 @@
   import { parseQuery } from "$lib/query";
   import { publishedOrAssume } from "$lib/published";
   import { menuStatePusher } from "$lib/menu-state";
-  import { branchNameProblem, optional, textProblem } from "$lib/names";
+  import { branchNameProblem, optional, presetNameProblem, textProblem } from "$lib/names";
   import { finder } from "$stores/finder.svelte";
   import { THIRD_PARTY_FILE } from "$lib/third-party";
 
@@ -3808,7 +3808,7 @@
             label: `A name for the preset made from ${hook}`,
             value: hook,
             confirm: "Save",
-            validate: textProblem,
+            validate: presetNameProblem,
           })
           .then((name) => {
             if (name !== null) void hooks.export(repo, hook, name);

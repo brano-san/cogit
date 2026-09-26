@@ -13,6 +13,21 @@ export function textProblem(value: string): string | null {
   return value.trim() === "" ? "Enter a value." : null;
 }
 
+export const PRESET_NAME_PROBLEM = "Use Latin letters or digits in the name: the preset's id is made of them.";
+
+/** The backend takes only ASCII letters, digits, `-` and `_` in an id. */
+export function presetId(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+export function presetNameProblem(value: string): string | null {
+  return textProblem(value) ?? (presetId(value) === "" ? PRESET_NAME_PROBLEM : null);
+}
+
 /** The validator decides, an empty value included; without one the value only has to be
     there. */
 export function promptProblem(

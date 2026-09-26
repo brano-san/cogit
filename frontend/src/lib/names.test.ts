@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { branchNameProblem, optional, promptProblem, textProblem } from "./names";
+import { branchNameProblem, optional, presetId, presetNameProblem, promptProblem, textProblem } from "./names";
+
+describe("a preset's name", () => {
+  it("makes the id from its Latin letters and digits", () => {
+    expect(presetId("  My Lint: v2 ")).toBe("my-lint-v2");
+  });
+
+  it("is refused in the dialog when it has none of them", () => {
+    expect(presetNameProblem("Проверка")).toContain("Latin letters or digits");
+    expect(presetNameProblem("Проверка 2")).toBeNull();
+    expect(presetNameProblem(" ")).toBe("Enter a value.");
+  });
+});
 
 describe("branchNameProblem", () => {
   it("refuses what git refuses and a name already taken", () => {
