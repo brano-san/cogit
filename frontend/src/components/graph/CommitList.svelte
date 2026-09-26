@@ -309,9 +309,10 @@
     graph.show(Math.max(range.start - headerRows, 0), Math.max(range.end - headerRows, 0));
   });
 
-  /** A filtered list is flat, not a graph (R-51): nothing to colour along it. */
+  /** A filtered list is flat, not a graph (R-51): nothing to colour or fold along it. */
+  const filterless = $derived(isEmptyQuery(graph.query));
   const paint = $derived(
-    isEmptyQuery(graph.query)
+    filterless
       ? paintRequest(
           modes,
           checkedTips(repository.current?.branches ?? [], refTicks.visible),
@@ -607,7 +608,7 @@
               oncontext(item.entry.commit.oid, event.clientX, event.clientY);
             }}
           >
-            {#if modes.collapseMerged}
+            {#if modes.collapseMerged && filterless}
               {@const hidden = graphOverlays.foldAt(item.entry.layout.row)}
               {@const open = graphFolds.expanded.has(item.entry.commit.oid)}
               {#if hidden > 0 || open}
