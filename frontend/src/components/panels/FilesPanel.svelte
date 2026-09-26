@@ -122,7 +122,7 @@
     <FileList
       {activePanel}
       context="stash"
-      view={{ ...filesView.commit, separateIndex: true }}
+      view={filesView.commit}
       onview={(next) => filesView.setCommit(next)}
       sections={[
         {
