@@ -42,7 +42,8 @@ pub enum PatchError {
     Stale,
     /// A line the patch carries is not UTF-8.
     NotUtf8,
-    /// A lone CR ends a line for the diff but not for git, so the lines do not line up.
+    /// A line holds a lone CR. The diff numbers lines as git does, but a patch that carries
+    /// a CR mid-line is not one to trust with the user's file: it is staged whole.
     BareCarriageReturn,
 }
 
@@ -53,7 +54,7 @@ impl std::fmt::Display for PatchError {
             Self::Stale => "the file changed since its diff was shown: look at it again first",
             Self::NotUtf8 => "a selected line is not valid UTF-8: stage it whole instead",
             Self::BareCarriageReturn => {
-                "a line ends in a lone CR, which git does not count as a line break: stage it whole instead"
+                "a line holds a lone CR, which git does not count as a line break: stage it whole instead"
             }
         })
     }
@@ -84,8 +85,7 @@ struct Line<'a> {
     ending: &'a [u8],
 }
 
-/// Split where the diff split, after CRLF and LF; a lone CR, which the diff splits at too
-/// and git does not, is refused.
+/// Split where the diff split, after CRLF and LF; a lone CR is refused.
 fn split_lines(bytes: &[u8]) -> Result<Vec<Line<'_>>, PatchError> {
     let mut lines = Vec::new();
     let mut start = 0;
