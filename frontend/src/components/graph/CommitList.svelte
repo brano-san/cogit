@@ -71,6 +71,7 @@
   import { refs as refTicks } from "$stores/refs.svelte";
   import { repository } from "$stores/repository.svelte";
   import { stashes } from "$stores/stashes.svelte";
+  import { stashView } from "$stores/stash-view.svelte";
   import { worktrees } from "$stores/worktrees.svelte";
 
   interface Props {
@@ -565,7 +566,7 @@
           <button
             type="button"
             class="row header"
-            class:selected={selection.oid === null}
+            class:selected={selection.oid === null && stashView.contents === null}
             style:top="0px"
             style:padding-left="{headerX}px"
             title="Show the working tree in Files and Diff"
