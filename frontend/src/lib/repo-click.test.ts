@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RepoId } from "$lib/ipc";
-import { holdsPanels, reopenClick, repoClick, type RepoClickState } from "./repo-click";
+import { closeStep, holdsPanels, reopenClick, repoClick, type RepoClickState } from "./repo-click";
 
 const id = (n: number) => n as unknown as RepoId;
 const alpha = { repo: id(1), root: "E:/w/alpha" };
@@ -63,5 +63,23 @@ describe("holdsPanels", () => {
 
   it("leaves any other row to itself", () => {
     expect(holdsPanels(beta, state({ shown: id(7), moduleOwner: id(1) }))).toBe(false);
+  });
+});
+
+// Ctrl+W and Close Repository carry one chord and did different things: Ctrl+W left the
+// start screen with other repositories open, and on a submodule or worktree closed its
+// registration and left the panels pointing at it.
+describe("closeStep", () => {
+  it("goes back to the owner of the worktree or submodule on screen", () => {
+    expect(closeStep(state({ shown: id(8), worktreeOwner: "E:/w/alpha" }))).toEqual({
+      kind: "worktree",
+      owner: "E:/w/alpha",
+    });
+    expect(closeStep(state({ shown: id(7), moduleOwner: id(1) }))).toEqual({ kind: "module" });
+  });
+
+  it("closes the listed repository on screen, and nothing when none is", () => {
+    expect(closeStep(state())).toEqual({ kind: "repository", repo: id(1) });
+    expect(closeStep(state({ shown: null }))).toEqual({ kind: "none" });
   });
 });
