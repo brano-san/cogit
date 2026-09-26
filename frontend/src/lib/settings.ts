@@ -1,5 +1,6 @@
 import type { DateMode } from "$lib/format";
 import type { Algorithm, Whitespace } from "$lib/ipc";
+import { LANE_WIDTH } from "$lib/graph-geometry";
 
 /** Lightest first; the grey ones sit between the extremes (#24). */
 export const THEMES = [
@@ -68,7 +69,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ignoreWhitespace: "none",
   wordDiff: true,
   detectMoves: true,
-  laneWidth: 16,
+  laneWidth: LANE_WIDTH.default,
   coloredLanes: false,
   pullMode: "ffOnly",
   gitPath: "git",
@@ -108,7 +109,7 @@ const ENUMS: Partial<Record<keyof Settings, readonly string[]>> = {
 
 const RANGES: Partial<Record<keyof Settings, [number, number]>> = {
   contextLines: [0, 50],
-  laneWidth: [8, 40],
+  laneWidth: [LANE_WIDTH.min, LANE_WIDTH.max],
   backgroundFetchMinutes: [0, 1440],
 };
 

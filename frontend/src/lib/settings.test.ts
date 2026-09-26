@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DEFAULT_SETTINGS, THEMES, merge, needsRestart } from "./settings";
+import { GRAPH, LANE_WIDTH, setLaneWidth } from "./graph-geometry";
 
 describe("merge", () => {
   it("returns the defaults for nothing stored", () => {
@@ -33,7 +34,22 @@ describe("merge", () => {
 
   it("clamps the lane width to something drawable", () => {
     expect(merge({ laneWidth: 1 }).laneWidth).toBeGreaterThanOrEqual(8);
-    expect(merge({ laneWidth: 500 }).laneWidth).toBeLessThanOrEqual(40);
+    expect(merge({ laneWidth: 500 }).laneWidth).toBeLessThanOrEqual(48);
+  });
+
+  // The slider said 8px while the graph drew 12, and 41–48 could not be reached.
+  it("keeps the lane width within what the graph draws, end to end", () => {
+    try {
+      for (const stored of [1, 8, 11, 12, 40, 41, 48, 500]) {
+        const kept = merge({ laneWidth: stored }).laneWidth;
+        setLaneWidth(kept);
+        expect(GRAPH.laneWidth, `stored ${stored}`).toBe(kept);
+      }
+      expect(merge({ laneWidth: 1 }).laneWidth).toBe(LANE_WIDTH.min);
+      expect(merge({ laneWidth: 500 }).laneWidth).toBe(LANE_WIDTH.max);
+    } finally {
+      setLaneWidth(DEFAULT_SETTINGS.laneWidth);
+    }
   });
 
   it("rejects an unknown enum value", () => {

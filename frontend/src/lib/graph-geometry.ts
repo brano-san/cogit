@@ -1,6 +1,6 @@
 /** Single-sourced so the list and the canvas cannot drift apart (doc/12-risks.md, R-03). */
 
-const LANE_WIDTH = { default: 16, min: 12, max: 48 } as const;
+export const LANE_WIDTH = { default: 16, min: 12, max: 48 } as const;
 let laneWidth: number = LANE_WIDTH.default;
 
 /** Rows of the lists that are not the graph; the graph's own follow its density (#12). */
