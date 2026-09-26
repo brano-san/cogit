@@ -55,7 +55,8 @@ pub enum GitError {
     #[error(transparent)]
     Command(Box<GitCommandError>),        // "command": ошибка CLI, Git Error Dialog
     RepoNotFound(String),                 // "repoNotFound"
-    InvalidState(String),                 // "invalidState": detached HEAD там, где нужна ветка
+    InvalidState(String),                 // "invalidState": отказ своими словами — detached HEAD там, где нужна ветка,
+                                          // репозиторий, закрытый в Cogit; фронтенд показывает текст без префикса
     Io(String),                           // "io"
     Internal(String),                     // "internal"
     ModuleUnavailable(ModuleProblem),     // "moduleUnavailable": сабмодуль не открыть, с причиной

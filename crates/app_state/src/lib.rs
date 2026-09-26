@@ -65,6 +65,15 @@ pub async fn next_event(events: &mut broadcast::Receiver<AppEvent>) -> Option<Ap
     }
 }
 
+/// A call for a repository closed since, from a child window or the queue: a normal state,
+/// not "not a Git repository" (BE-013).
+fn not_open(repo: RepoId) -> git_engine::GitError {
+    tracing::info!(repo = repo.0, "a call for a repository no longer open");
+    git_engine::GitError::InvalidState(
+        "This repository was closed in Cogit. Open it again to go on.".to_owned(),
+    )
+}
+
 /// The confirmation promised Undo. Without the backup stash there is nothing to undo
 /// with, so the destructive step is not taken at all (INV-12).
 fn backup_failed(doing: &str, err: &git_engine::GitError) -> git_engine::GitError {
@@ -1372,9 +1381,7 @@ impl AppState {
     }
 
     fn handle(&self, repo: RepoId) -> Result<git_engine::RepoHandle, git_engine::GitError> {
-        let open = self
-            .get(repo)
-            .ok_or_else(|| git_engine::GitError::RepoNotFound(format!("id {}", repo.0)))?;
+        let open = self.get(repo).ok_or_else(|| not_open(repo))?;
         Ok(self
             .handles
             .handle(repo, &open.root)?

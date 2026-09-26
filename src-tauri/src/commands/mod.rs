@@ -408,7 +408,7 @@ pub fn write_setting(
         .map_err(|err| GitError::Internal(format!("settings value is not JSON: {err}")))?;
 
     app_state::settings::write_key(&state.config_dir, &key, parsed)
-        .map_err(|err| GitError::Internal(format!("cannot write settings: {err}")))
+        .map_err(|err| GitError::Io(format!("cannot write the settings: {err}")))
 }
 
 /// Async: it spawns `git --version` and reads the registry, neither of which belongs on
@@ -489,12 +489,12 @@ pub async fn open_third_party_licences(
     );
     let path = blocking("open_third_party_licences", move || {
         app_state::licences::write(&std::env::temp_dir(), &text)
-            .map_err(|err| GitError::Internal(format!("cannot write the licence list: {err}")))
+            .map_err(|err| GitError::Io(format!("cannot write the licence list: {err}")))
     })
     .await?;
     tauri_plugin_opener::OpenerExt::opener(&app)
         .open_path(path.display().to_string(), None::<&str>)
-        .map_err(|err| GitError::Internal(format!("cannot open {}: {err}", path.display())))
+        .map_err(|err| GitError::Io(format!("cannot open {}: {err}", path.display())))
 }
 
 #[tauri::command]
