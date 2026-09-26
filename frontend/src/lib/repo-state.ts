@@ -29,11 +29,16 @@ const ONGOING: Partial<Record<RepoState["kind"], string>> = {
   applyingPatches: "applying patches",
 };
 
-/** Merge and bisect have nothing to skip; bisect ends with `reset`, never `--continue`. */
+/** Merge and bisect have nothing to skip or continue: a merge ends with an ordinary commit
+    (R-572), bisect with `reset`. */
 function interruptedActions(kind: RepoState["kind"]): BannerAction[] {
-  if (kind === "merging") return ["continue", "abort"];
-  if (kind === "bisecting") return ["abort"];
+  if (kind === "merging" || kind === "bisecting") return ["abort"];
   return ["continue", "skip", "abort"];
+}
+
+function interruptedDetail(kind: RepoState["kind"]): string {
+  if (kind === "merging") return "Resolve the conflicts and commit the merge, or abort to go back.";
+  return "Resolve the conflicts and continue, or abort to go back.";
 }
 
 export function workingTreeLabel(status: RepoStatus | undefined, state: RepoState | undefined): string {
@@ -79,7 +84,7 @@ export function stateBanner(
   if (interrupted) {
     return {
       title: `${interrupted} in progress`,
-      detail: "Resolve the conflicts and continue, or abort to go back.",
+      detail: interruptedDetail(state.kind),
       severity: "warning",
       actions: interruptedActions(state.kind),
     };

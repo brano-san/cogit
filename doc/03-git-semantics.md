@@ -192,7 +192,7 @@ URL в выводе кликабельны — именно там `git` отд�
 |---|---|---|
 | Normal | — | — |
 | Detached HEAD | `.git/HEAD` не содержит `ref:` | `Create Branch`; назад на ветку — обычный checkout (R-502). В submodule — баннер без кнопок: он отсоединён по устройству (R-130) |
-| Merge in progress | `.git/MERGE_HEAD` | `Continue`, `Abort` |
+| Merge in progress | `.git/MERGE_HEAD` | `Abort`; `Continue` нет — merge завершает обычный коммит из панели Commit (R-572) |
 | Rebase in progress | `.git/rebase-merge/` или `.git/rebase-apply/` без `applying` | `Continue`, `Skip`, `Abort` |
 | `git am` in progress | `.git/rebase-apply/applying` | `Continue`, `Skip`, `Abort` (`git am --continue/--skip/--abort`) |
 | Cherry-pick in progress | `.git/CHERRY_PICK_HEAD` | `Continue`, `Skip`, `Abort` |
