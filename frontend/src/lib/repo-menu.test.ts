@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { ContextItem } from "./ipc";
+import type { ContextItem, Submodule } from "./ipc";
 import type { DesktopInfo } from "./ipc/file-menus";
 import {
+  NOT_A_SUBMODULE,
   REPO_MOVE_NEW,
   SUBMODULE_REASON,
   groupChoices,
@@ -32,6 +33,22 @@ const OPEN: RepoMenuTarget = {
   ],
 };
 
+const module = (over: Partial<Submodule>): Submodule => ({
+  name: "lib",
+  path: "lib",
+  url: "https://example.invalid/lib.git",
+  recorded: "452e8002c0ffee0000000000000000000000beef",
+  checkedOut: "452e8002c0ffee0000000000000000000000beef",
+  state: "inSync",
+  branch: null,
+  subject: null,
+  nested: false,
+  ahead: 0,
+  behind: 0,
+  repoState: null,
+  ...over,
+});
+
 const shape = (items: ContextItem[]) => items.map((item) => (item.separator ? "—" : item.label));
 const find = (items: ContextItem[], id: string) => items.find((item) => item.id === id);
 
@@ -48,12 +65,25 @@ describe("repoMenu", () => {
       "—",
       "Pull",
       "Push",
+      `Update (${NOT_A_SUBMODULE})`,
       "—",
       "Move To",
       "Pin",
       "Rename…",
       "Remove…",
     ]);
+  });
+
+  it("offers Update on a submodule that is not where its parent records it", () => {
+    const at = (over: Partial<Submodule>) => ({ ...OPEN, kind: "submodule" as const, groups: [], module: module(over) });
+    expect(find(repoMenu(at({ state: "behind", behind: 1 }), WINDOWS), "repo-update")).toMatchObject({
+      enabled: true,
+      label: "Update",
+    });
+    expect(find(repoMenu(at({ state: "ahead", ahead: 1 }), WINDOWS), "repo-update")?.enabled).toBe(true);
+    const synced = find(repoMenu(at({}), WINDOWS), "repo-update");
+    expect(synced?.enabled).toBe(false);
+    expect(synced?.label).toMatch(/^Update \(.+\)$/);
   });
 
   it("calls the file manager by its Linux name and leaves the Windows shells out there", () => {
