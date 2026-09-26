@@ -3,6 +3,7 @@ import {
   DEFAULT_VIEW,
   backendView,
   groupByDirectory,
+  hidingSwitches,
   mergeView,
   paneLayout,
   shownSections,
@@ -99,6 +100,23 @@ describe("visibleFiles", () => {
   it("does not invent a source for a file that was not renamed", () => {
     const shown = visibleFiles([file("a.rs", "modified")], view({ renameSources: true }));
     expect(shown).toHaveLength(1);
+  });
+});
+
+describe("hidingSwitches", () => {
+  it("names only the switches that hid a row that came", () => {
+    const files = [file("a.rs", "modified"), file("new.rs", "untracked"), file("gone.rs", "deleted")];
+    expect(hidingSwitches(files, view({ untracked: false }))).toEqual(["untracked"]);
+    expect(hidingSwitches(files, view({ untracked: false, missing: false })).sort()).toEqual([
+      "missing",
+      "untracked",
+    ]);
+  });
+
+  // "N files hidden" turned Unchanged and Ignored on as well: the whole tree was read.
+  it("leaves out the switches whose rows never came", () => {
+    const files = [file("a.rs", "modified")];
+    expect(hidingSwitches(files, view({ unchanged: false, ignored: false }))).toEqual([]);
   });
 });
 

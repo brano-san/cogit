@@ -73,6 +73,17 @@ export function visibleFiles(files: readonly FileEntry[], view: FileView): FileE
   return shown;
 }
 
+/** The switches keeping rows that came out of sight. Unchanged and ignored rows only come
+    while their switch is on, so those two are never among them. */
+export function hidingSwitches(files: readonly FileEntry[], view: FileView): (keyof FileView)[] {
+  const keys = new Set<keyof FileView>();
+  for (const file of files) {
+    const gate = GATED[file.status];
+    if (gate && !view[gate]) keys.add(gate);
+  }
+  return [...keys];
+}
+
 export type ViewRow =
   | { kind: "dir"; path: string; count: number }
   | { kind: "file"; file: FileEntry };
