@@ -1,0 +1,1195 @@
+{
+  "env": {
+    "label": "bis-b3-close",
+    "date": "2026-09-26T17:37:02.749Z",
+    "commit": "b8b1ee7",
+    "dirty": true,
+    "exeBuilt": "2026-09-26T17:34:13.299Z",
+    "os": "Майкрософт Windows 11 Домашняя 10.0.26200 build 26200",
+    "arch": "x64",
+    "cpu": "AMD Ryzen 9 9950X3D 16-Core Processor × 32",
+    "memoryGiB": 62,
+    "disk": "Reletech P400 EVO PCIE4.0 2TB, SSD, NVMe",
+    "git": "git version 2.51.0.windows.1",
+    "node": "v22.18.0",
+    "config": {
+      "runs": 10,
+      "warmup": 2,
+      "cold": 10,
+      "sets": [
+        "medium",
+        "dirty"
+      ],
+      "only": [
+        "repo.switch",
+        "repo.open-worktree",
+        "repo.close"
+      ]
+    },
+    "conditions": {
+      "cold": "a new process for every sample; the OS file cache is not flushed",
+      "warm": "the same action repeated in one session, after two unrecorded runs"
+    },
+    "ab": [
+      "audit-final2",
+      "bis-b3"
+    ],
+    "minutes": 1.9,
+    "calibrationLevel": 5.7
+  },
+  "ab": [
+    {
+      "key": "repo.open-worktree|medium",
+      "ma": 57.9,
+      "mb": 45.3,
+      "ratio": 0.782,
+      "lo": 0.779,
+      "hi": 0.842,
+      "verdict": "faster",
+      "na": 6,
+      "nb": 6
+    },
+    {
+      "key": "repo.switch|dirty",
+      "ma": 57.9,
+      "mb": 57.8,
+      "ratio": 0.998,
+      "lo": 0.929,
+      "hi": 1.071,
+      "verdict": "same",
+      "na": 6,
+      "nb": 6
+    },
+    {
+      "key": "repo.switch|medium",
+      "ma": 37.1,
+      "mb": 41.1,
+      "ratio": 1.108,
+      "lo": 1,
+      "hi": 1.111,
+      "verdict": "same",
+      "na": 6,
+      "nb": 6
+    },
+    {
+      "key": "repo.close|dirty",
+      "ma": 9.3,
+      "mb": 42.9,
+      "ratio": 4.613,
+      "lo": 4.172,
+      "hi": 5.076,
+      "verdict": "SLOWER",
+      "na": 6,
+      "nb": 6
+    },
+    {
+      "key": "repo.close|medium",
+      "ma": 9.2,
+      "mb": 41.8,
+      "ratio": 4.543,
+      "lo": 4.095,
+      "hi": 4.976,
+      "verdict": "SLOWER",
+      "na": 6,
+      "nb": 6
+    }
+  ],
+  "results": [
+    {
+      "id": "repo.open-worktree",
+      "group": "Репозиторий",
+      "title": "переключение на worktree",
+      "set": "medium",
+      "condition": "warm",
+      "variant": "audit-final2",
+      "n": 6,
+      "busy": 0,
+      "median": 57.9,
+      "p95": 58,
+      "min": 53.8,
+      "max": 58,
+      "ipcMedian": 45.9,
+      "frontMedian": 11.1,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.002,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {
+        "open_worktree": {
+          "perRun": 1,
+          "msPerRun": 22.9
+        },
+        "worktrees": {
+          "perRun": 1,
+          "msPerRun": 22.1
+        },
+        "worktree_files": {
+          "perRun": 1,
+          "msPerRun": 13.1
+        },
+        "working_state": {
+          "perRun": 1,
+          "msPerRun": 12.9
+        },
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 4.2
+        },
+        "remotes": {
+          "perRun": 2,
+          "msPerRun": 4.1
+        },
+        "lost_commits": {
+          "perRun": 1,
+          "msPerRun": 3.9
+        },
+        "graph_window": {
+          "perRun": 2,
+          "msPerRun": 3.2
+        },
+        "graph_row_of": {
+          "perRun": 1,
+          "msPerRun": 2.7
+        },
+        "flow_status": {
+          "perRun": 1,
+          "msPerRun": 2
+        },
+        "list_submodules": {
+          "perRun": 1,
+          "msPerRun": 1.9
+        },
+        "commit_template": {
+          "perRun": 1,
+          "msPerRun": 1.3
+        }
+      },
+      "samples": [
+        {
+          "total": 57.8,
+          "ipc": 46.8,
+          "front": 11,
+          "longest": 0,
+          "calib": 6
+        },
+        {
+          "total": 53.8,
+          "ipc": 43.1,
+          "front": 10.7,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 57.9,
+          "ipc": 46.8,
+          "front": 11.1,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 58,
+          "ipc": 46.3,
+          "front": 11.7,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 58,
+          "ipc": 44.8,
+          "front": 13.2,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 58,
+          "ipc": 45.9,
+          "front": 12.1,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "repo.switch",
+      "group": "Репозиторий",
+      "title": "переключение между репозиториями",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "audit-final2",
+      "n": 6,
+      "busy": 0,
+      "median": 57.9,
+      "p95": 58,
+      "min": 57.8,
+      "max": 58,
+      "ipcMedian": 46.3,
+      "frontMedian": 11.6,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.002,
+      "retakes": 0,
+      "calibMedian": 5.7,
+      "commands": {
+        "worktree_files": {
+          "perRun": 1,
+          "msPerRun": 24.1
+        },
+        "working_state": {
+          "perRun": 1,
+          "msPerRun": 22
+        },
+        "worktrees": {
+          "perRun": 1,
+          "msPerRun": 14.3
+        },
+        "open_repository": {
+          "perRun": 1,
+          "msPerRun": 14
+        },
+        "list_submodules": {
+          "perRun": 2,
+          "msPerRun": 10.6
+        },
+        "remotes": {
+          "perRun": 2,
+          "msPerRun": 9.1
+        },
+        "lost_commits": {
+          "perRun": 1,
+          "msPerRun": 6.6
+        },
+        "flow_status": {
+          "perRun": 1,
+          "msPerRun": 6.5
+        },
+        "rebase_progress": {
+          "perRun": 1,
+          "msPerRun": 6.2
+        },
+        "commit_template": {
+          "perRun": 1,
+          "msPerRun": 6.1
+        },
+        "stashes": {
+          "perRun": 1,
+          "msPerRun": 6
+        },
+        "command_problems": {
+          "perRun": 1,
+          "msPerRun": 5.6
+        }
+      },
+      "samples": [
+        {
+          "total": 58,
+          "ipc": 45.6,
+          "front": 12.4,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 57.9,
+          "ipc": 46.3,
+          "front": 11.6,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 57.8,
+          "ipc": 44.6,
+          "front": 13.2,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 58,
+          "ipc": 46.8,
+          "front": 11.2,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 57.9,
+          "ipc": 46.3,
+          "front": 11.6,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 57.9,
+          "ipc": 46.3,
+          "front": 11.6,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "repo.switch",
+      "group": "Репозиторий",
+      "title": "переключение между репозиториями",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "bis-b3",
+      "n": 6,
+      "busy": 0,
+      "median": 57.8,
+      "p95": 66.1,
+      "min": 53.8,
+      "max": 66.1,
+      "ipcMedian": 46.8,
+      "frontMedian": 11.5,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.144,
+      "retakes": 0,
+      "calibMedian": 5.7,
+      "commands": {
+        "working_state": {
+          "perRun": 1,
+          "msPerRun": 25.8
+        },
+        "worktree_files": {
+          "perRun": 1,
+          "msPerRun": 25.5
+        },
+        "worktrees": {
+          "perRun": 1,
+          "msPerRun": 16.4
+        },
+        "log_from_frontend": {
+          "perRun": 4.2,
+          "msPerRun": 15
+        },
+        "open_repository": {
+          "perRun": 1,
+          "msPerRun": 14.3
+        },
+        "list_submodules": {
+          "perRun": 2,
+          "msPerRun": 10
+        },
+        "repository_health": {
+          "perRun": 1,
+          "msPerRun": 8
+        },
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 7.5
+        },
+        "remotes": {
+          "perRun": 2,
+          "msPerRun": 7.1
+        },
+        "show_repository": {
+          "perRun": 1,
+          "msPerRun": 6.3
+        },
+        "graph_window": {
+          "perRun": 1,
+          "msPerRun": 5.7
+        },
+        "graph_row_of": {
+          "perRun": 1,
+          "msPerRun": 3.8
+        }
+      },
+      "samples": [
+        {
+          "total": 62,
+          "ipc": 50.4,
+          "front": 11.6,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 57.8,
+          "ipc": 46.3,
+          "front": 11.5,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 66.1,
+          "ipc": 52.1,
+          "front": 14,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 57.7,
+          "ipc": 46.8,
+          "front": 10.9,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 61.9,
+          "ipc": 50.3,
+          "front": 11.6,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 53.8,
+          "ipc": 43.9,
+          "front": 9.9,
+          "longest": 0,
+          "calib": 5.7
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "repo.open-worktree",
+      "group": "Репозиторий",
+      "title": "переключение на worktree",
+      "set": "medium",
+      "condition": "warm",
+      "variant": "bis-b3",
+      "n": 6,
+      "busy": 0,
+      "median": 45.3,
+      "p95": 45.4,
+      "min": 45.2,
+      "max": 45.4,
+      "ipcMedian": 33.2,
+      "frontMedian": 12.1,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.002,
+      "retakes": 0,
+      "calibMedian": 5.7,
+      "commands": {
+        "worktrees": {
+          "perRun": 1,
+          "msPerRun": 21.8
+        },
+        "working_state": {
+          "perRun": 1,
+          "msPerRun": 14.6
+        },
+        "worktree_files": {
+          "perRun": 1,
+          "msPerRun": 13.8
+        },
+        "open_worktree": {
+          "perRun": 1,
+          "msPerRun": 10.1
+        },
+        "graph_window": {
+          "perRun": 2,
+          "msPerRun": 4.4
+        },
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 4.3
+        },
+        "lost_commits": {
+          "perRun": 1,
+          "msPerRun": 4.1
+        },
+        "remotes": {
+          "perRun": 2,
+          "msPerRun": 4
+        },
+        "show_repository": {
+          "perRun": 1,
+          "msPerRun": 3.6
+        },
+        "graph_row_of": {
+          "perRun": 1,
+          "msPerRun": 2.5
+        },
+        "flow_status": {
+          "perRun": 1,
+          "msPerRun": 2.1
+        },
+        "list_submodules": {
+          "perRun": 1,
+          "msPerRun": 1.9
+        }
+      },
+      "samples": [
+        {
+          "total": 45.4,
+          "ipc": 33.3,
+          "front": 12.1,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 45.2,
+          "ipc": 32.6,
+          "front": 12.6,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 45.4,
+          "ipc": 33.2,
+          "front": 12.2,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 45.2,
+          "ipc": 34.9,
+          "front": 10.3,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 45.3,
+          "ipc": 33.7,
+          "front": 11.6,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 45.3,
+          "ipc": 32.8,
+          "front": 12.5,
+          "longest": 0,
+          "calib": 5.6
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "repo.close",
+      "group": "Репозиторий",
+      "title": "закрытие",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "bis-b3",
+      "n": 6,
+      "busy": 0,
+      "median": 42.9,
+      "p95": 51.2,
+      "min": 38.8,
+      "max": 51.2,
+      "ipcMedian": 33.5,
+      "frontMedian": 9.5,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.193,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {
+        "log_from_frontend": {
+          "perRun": 5,
+          "msPerRun": 11.6
+        },
+        "lost_commits": {
+          "perRun": 1,
+          "msPerRun": 10.9
+        },
+        "show_repository": {
+          "perRun": 2,
+          "msPerRun": 8.2
+        },
+        "list_submodules": {
+          "perRun": 2,
+          "msPerRun": 8.2
+        },
+        "worktrees": {
+          "perRun": 1,
+          "msPerRun": 7.5
+        },
+        "remotes": {
+          "perRun": 2,
+          "msPerRun": 7.4
+        },
+        "worktree_files": {
+          "perRun": 1,
+          "msPerRun": 6.7
+        },
+        "repository_health": {
+          "perRun": 1,
+          "msPerRun": 6.3
+        },
+        "graph_row_of": {
+          "perRun": 1,
+          "msPerRun": 6.2
+        },
+        "working_state": {
+          "perRun": 1,
+          "msPerRun": 6.2
+        },
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 6.1
+        },
+        "open_repository": {
+          "perRun": 1,
+          "msPerRun": 5.5
+        }
+      },
+      "samples": [
+        {
+          "total": 43,
+          "ipc": 33.5,
+          "front": 9.5,
+          "longest": 0,
+          "calib": 6.2
+        },
+        {
+          "total": 42.8,
+          "ipc": 31.8,
+          "front": 11,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 51.2,
+          "ipc": 40.7,
+          "front": 10.5,
+          "longest": 0,
+          "calib": 6.3
+        },
+        {
+          "total": 42.9,
+          "ipc": 34.5,
+          "front": 8.4,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 46.7,
+          "ipc": 36.7,
+          "front": 10,
+          "longest": 0,
+          "calib": 6.1
+        },
+        {
+          "total": 38.8,
+          "ipc": 30.1,
+          "front": 8.7,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "repo.close",
+      "group": "Репозиторий",
+      "title": "закрытие",
+      "set": "medium",
+      "condition": "warm",
+      "variant": "bis-b3",
+      "n": 6,
+      "busy": 0,
+      "median": 41.8,
+      "p95": 43.1,
+      "min": 38.6,
+      "max": 43.1,
+      "ipcMedian": 32.6,
+      "frontMedian": 8.4,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.031,
+      "retakes": 1,
+      "calibMedian": 5.7,
+      "commands": {
+        "log_from_frontend": {
+          "perRun": 5,
+          "msPerRun": 9.7
+        },
+        "lost_commits": {
+          "perRun": 1,
+          "msPerRun": 9.6
+        },
+        "worktrees": {
+          "perRun": 1,
+          "msPerRun": 7.6
+        },
+        "show_repository": {
+          "perRun": 2,
+          "msPerRun": 7.2
+        },
+        "list_submodules": {
+          "perRun": 2,
+          "msPerRun": 7.2
+        },
+        "working_state": {
+          "perRun": 1,
+          "msPerRun": 6.8
+        },
+        "remotes": {
+          "perRun": 2,
+          "msPerRun": 6.5
+        },
+        "worktree_files": {
+          "perRun": 1,
+          "msPerRun": 6
+        },
+        "graph_row_of": {
+          "perRun": 1,
+          "msPerRun": 5.6
+        },
+        "open_repository": {
+          "perRun": 1,
+          "msPerRun": 5.5
+        },
+        "repository_health": {
+          "perRun": 1,
+          "msPerRun": 5.5
+        },
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 5.4
+        }
+      },
+      "samples": [
+        {
+          "total": 41.8,
+          "ipc": 34.4,
+          "front": 7.4,
+          "longest": 0,
+          "calib": 6.6
+        },
+        {
+          "total": 42.5,
+          "ipc": 33.6,
+          "front": 8.9,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 38.6,
+          "ipc": 30.8,
+          "front": 7.8,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 41.9,
+          "ipc": 33.1,
+          "front": 8.8,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 38.9,
+          "ipc": 30.5,
+          "front": 8.4,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 43.1,
+          "ipc": 32.6,
+          "front": 10.5,
+          "longest": 0,
+          "calib": 5.7
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "repo.switch",
+      "group": "Репозиторий",
+      "title": "переключение между репозиториями",
+      "set": "medium",
+      "condition": "warm",
+      "variant": "bis-b3",
+      "n": 6,
+      "busy": 0,
+      "median": 41.1,
+      "p95": 41.2,
+      "min": 41.1,
+      "max": 41.2,
+      "ipcMedian": 32.1,
+      "frontMedian": 8.9,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.002,
+      "retakes": 0,
+      "calibMedian": 5.7,
+      "commands": {
+        "worktrees": {
+          "perRun": 1,
+          "msPerRun": 21.7
+        },
+        "worktree_files": {
+          "perRun": 1,
+          "msPerRun": 14
+        },
+        "working_state": {
+          "perRun": 1,
+          "msPerRun": 12
+        },
+        "open_repository": {
+          "perRun": 1,
+          "msPerRun": 9.9
+        },
+        "list_submodules": {
+          "perRun": 2,
+          "msPerRun": 6.3
+        },
+        "lost_commits": {
+          "perRun": 1,
+          "msPerRun": 4.8
+        },
+        "remotes": {
+          "perRun": 2,
+          "msPerRun": 4.7
+        },
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 4.5
+        },
+        "show_repository": {
+          "perRun": 1,
+          "msPerRun": 4.4
+        },
+        "repository_health": {
+          "perRun": 1,
+          "msPerRun": 4.4
+        },
+        "log_from_frontend": {
+          "perRun": 4.3,
+          "msPerRun": 3.3
+        },
+        "graph_row_of": {
+          "perRun": 1,
+          "msPerRun": 2.7
+        }
+      },
+      "samples": [
+        {
+          "total": 41.2,
+          "ipc": 34,
+          "front": 7.2,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 41.1,
+          "ipc": 31.2,
+          "front": 9.9,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 41.2,
+          "ipc": 32.1,
+          "front": 9.1,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 41.1,
+          "ipc": 32.5,
+          "front": 8.6,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 41.1,
+          "ipc": 31.9,
+          "front": 9.2,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 41.2,
+          "ipc": 32.3,
+          "front": 8.9,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "repo.switch",
+      "group": "Репозиторий",
+      "title": "переключение между репозиториями",
+      "set": "medium",
+      "condition": "warm",
+      "variant": "audit-final2",
+      "n": 6,
+      "busy": 0,
+      "median": 37.1,
+      "p95": 41.2,
+      "min": 37.1,
+      "max": 41.2,
+      "ipcMedian": 31.2,
+      "frontMedian": 6,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.111,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {
+        "worktrees": {
+          "perRun": 1,
+          "msPerRun": 21.1
+        },
+        "worktree_files": {
+          "perRun": 1,
+          "msPerRun": 11.7
+        },
+        "working_state": {
+          "perRun": 1,
+          "msPerRun": 11.1
+        },
+        "open_repository": {
+          "perRun": 1,
+          "msPerRun": 10
+        },
+        "list_submodules": {
+          "perRun": 2,
+          "msPerRun": 5.6
+        },
+        "remotes": {
+          "perRun": 2,
+          "msPerRun": 4.6
+        },
+        "lost_commits": {
+          "perRun": 1,
+          "msPerRun": 4.4
+        },
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 4.2
+        },
+        "repository_health": {
+          "perRun": 1,
+          "msPerRun": 4
+        },
+        "log_from_frontend": {
+          "perRun": 4.3,
+          "msPerRun": 3.4
+        },
+        "submodule_outline": {
+          "perRun": 1,
+          "msPerRun": 2.4
+        },
+        "repositories": {
+          "perRun": 1,
+          "msPerRun": 2.3
+        }
+      },
+      "samples": [
+        {
+          "total": 41,
+          "ipc": 33.1,
+          "front": 7.9,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 37.1,
+          "ipc": 31.2,
+          "front": 5.9,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 37.1,
+          "ipc": 31.1,
+          "front": 6,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 37.1,
+          "ipc": 31.1,
+          "front": 6,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 41.1,
+          "ipc": 31.5,
+          "front": 9.6,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 41.2,
+          "ipc": 31.4,
+          "front": 9.8,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "repo.close",
+      "group": "Репозиторий",
+      "title": "закрытие",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "audit-final2",
+      "n": 6,
+      "busy": 0,
+      "median": 9.3,
+      "p95": 10,
+      "min": 8.9,
+      "max": 10,
+      "ipcMedian": 3.8,
+      "frontMedian": 5.5,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.075,
+      "retakes": 0,
+      "calibMedian": 5.7,
+      "commands": {
+        "close_repository": {
+          "perRun": 1,
+          "msPerRun": 2.9
+        },
+        "plugin:event|emit": {
+          "perRun": 1,
+          "msPerRun": 2.2
+        },
+        "log_from_frontend": {
+          "perRun": 2,
+          "msPerRun": 1.6
+        },
+        "set_menu_state": {
+          "perRun": 1,
+          "msPerRun": 1.4
+        }
+      },
+      "samples": [
+        {
+          "total": 10,
+          "ipc": 3.7,
+          "front": 6.3,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 9.2,
+          "ipc": 4.1,
+          "front": 5.1,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 9.3,
+          "ipc": 3.8,
+          "front": 5.5,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 9.6,
+          "ipc": 3.8,
+          "front": 5.8,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 8.9,
+          "ipc": 4.1,
+          "front": 4.8,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 9.6,
+          "ipc": 3.8,
+          "front": 5.8,
+          "longest": 0,
+          "calib": 5.7
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "repo.close",
+      "group": "Репозиторий",
+      "title": "закрытие",
+      "set": "medium",
+      "condition": "warm",
+      "variant": "audit-final2",
+      "n": 6,
+      "busy": 0,
+      "median": 9.2,
+      "p95": 12.5,
+      "min": 8.4,
+      "max": 12.5,
+      "ipcMedian": 3.5,
+      "frontMedian": 5.7,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.359,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {
+        "close_repository": {
+          "perRun": 1,
+          "msPerRun": 2.9
+        },
+        "plugin:event|emit": {
+          "perRun": 1,
+          "msPerRun": 1.8
+        },
+        "log_from_frontend": {
+          "perRun": 2,
+          "msPerRun": 1.3
+        },
+        "set_menu_state": {
+          "perRun": 1,
+          "msPerRun": 1
+        }
+      },
+      "samples": [
+        {
+          "total": 9.5,
+          "ipc": 3.5,
+          "front": 6,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 8.4,
+          "ipc": 4,
+          "front": 4.4,
+          "longest": 0,
+          "calib": 6.3
+        },
+        {
+          "total": 12.5,
+          "ipc": 4.9,
+          "front": 7.6,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 9.2,
+          "ipc": 3.7,
+          "front": 5.5,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 9,
+          "ipc": 3.3,
+          "front": 5.7,
+          "longest": 0,
+          "calib": 6.2
+        },
+        {
+          "total": 9.3,
+          "ipc": 3.5,
+          "front": 5.8,
+          "longest": 0,
+          "calib": 5.7
+        }
+      ],
+      "errors": []
+    }
+  ]
+}

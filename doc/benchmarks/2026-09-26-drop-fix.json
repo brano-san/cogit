@@ -1,0 +1,3204 @@
+{
+  "env": {
+    "label": "drop-fix",
+    "date": "2026-09-26T17:43:46.096Z",
+    "commit": "b8b1ee7",
+    "dirty": true,
+    "exeBuilt": "2026-09-26T17:43:44.857Z",
+    "os": "Майкрософт Windows 11 Домашняя 10.0.26200 build 26200",
+    "arch": "x64",
+    "cpu": "AMD Ryzen 9 9950X3D 16-Core Processor × 32",
+    "memoryGiB": 62,
+    "disk": "Reletech P400 EVO PCIE4.0 2TB, SSD, NVMe",
+    "git": "git version 2.51.0.windows.1",
+    "node": "v22.18.0",
+    "config": {
+      "runs": 10,
+      "warmup": 2,
+      "cold": 10,
+      "sets": [
+        "small",
+        "medium",
+        "large",
+        "dirty"
+      ],
+      "only": [
+        "repo.open"
+      ]
+    },
+    "conditions": {
+      "cold": "a new process for every sample; the OS file cache is not flushed",
+      "warm": "the same action repeated in one session, after two unrecorded runs"
+    },
+    "ab": [
+      "tasks-0925",
+      "tasks-final"
+    ],
+    "minutes": 3.1,
+    "calibrationLevel": 5.7
+  },
+  "ab": [
+    {
+      "key": "repo.open|large",
+      "ma": 284.4,
+      "mb": 301.2,
+      "ratio": 1.059,
+      "lo": 0.972,
+      "hi": 1.104,
+      "verdict": "same",
+      "na": 8,
+      "nb": 8
+    },
+    {
+      "key": "graph.full-layout|large",
+      "ma": 276.9,
+      "mb": 295,
+      "ratio": 1.065,
+      "lo": 0.97,
+      "hi": 1.108,
+      "verdict": "same",
+      "na": 8,
+      "nb": 8
+    },
+    {
+      "key": "graph.first-screen|large",
+      "ma": 85.9,
+      "mb": 85.5,
+      "ratio": 0.995,
+      "lo": 0.959,
+      "hi": 1.058,
+      "verdict": "same",
+      "na": 8,
+      "nb": 8
+    },
+    {
+      "key": "repo.open|dirty",
+      "ma": 72.1,
+      "mb": 72.3,
+      "ratio": 1.003,
+      "lo": 0.898,
+      "hi": 1.063,
+      "verdict": "same",
+      "na": 8,
+      "nb": 8
+    },
+    {
+      "key": "repo.open|medium",
+      "ma": 67.8,
+      "mb": 68.1,
+      "ratio": 1.004,
+      "lo": 0.904,
+      "hi": 1.121,
+      "verdict": "same",
+      "na": 8,
+      "nb": 8
+    },
+    {
+      "key": "graph.full-layout|medium",
+      "ma": 53.6,
+      "mb": 53.7,
+      "ratio": 1.002,
+      "lo": 0.92,
+      "hi": 1.128,
+      "verdict": "same",
+      "na": 8,
+      "nb": 8
+    },
+    {
+      "key": "branches.load|large",
+      "ma": 44.1,
+      "mb": 43.6,
+      "ratio": 0.989,
+      "lo": 0.952,
+      "hi": 1.076,
+      "verdict": "same",
+      "na": 8,
+      "nb": 8
+    },
+    {
+      "key": "graph.first-screen|medium",
+      "ma": 41.5,
+      "mb": 40.7,
+      "ratio": 0.981,
+      "lo": 0.882,
+      "hi": 1.059,
+      "verdict": "same",
+      "na": 8,
+      "nb": 8
+    },
+    {
+      "key": "repo.open|small",
+      "ma": 38.5,
+      "mb": 38.2,
+      "ratio": 0.992,
+      "lo": 0.891,
+      "hi": 1.107,
+      "verdict": "same",
+      "na": 8,
+      "nb": 8
+    },
+    {
+      "key": "graph.first-screen|dirty",
+      "ma": 37.2,
+      "mb": 39.3,
+      "ratio": 1.056,
+      "lo": 0.773,
+      "hi": 1.335,
+      "verdict": "same",
+      "na": 8,
+      "nb": 8
+    },
+    {
+      "key": "graph.full-layout|dirty",
+      "ma": 29.2,
+      "mb": 29,
+      "ratio": 0.993,
+      "lo": 0.893,
+      "hi": 1.099,
+      "verdict": "same",
+      "na": 8,
+      "nb": 8
+    },
+    {
+      "key": "graph.first-screen|small",
+      "ma": 24.1,
+      "mb": 19.9,
+      "ratio": 0.826,
+      "lo": 0.776,
+      "hi": 1.031,
+      "verdict": "same",
+      "na": 8,
+      "nb": 8
+    },
+    {
+      "key": "branches.load|dirty",
+      "ma": 21.7,
+      "mb": 20.7,
+      "ratio": 0.954,
+      "lo": 0.912,
+      "hi": 0.995,
+      "verdict": "same",
+      "na": 8,
+      "nb": 8
+    },
+    {
+      "key": "branches.load|medium",
+      "ma": 18.5,
+      "mb": 17.8,
+      "ratio": 0.962,
+      "lo": 0.889,
+      "hi": 1.12,
+      "verdict": "same",
+      "na": 8,
+      "nb": 8
+    },
+    {
+      "key": "graph.full-layout|small",
+      "ma": 17.9,
+      "mb": 17.1,
+      "ratio": 0.955,
+      "lo": 0.844,
+      "hi": 1.042,
+      "verdict": "same",
+      "na": 8,
+      "nb": 8
+    },
+    {
+      "key": "branches.load|small",
+      "ma": 13.5,
+      "mb": 12.2,
+      "ratio": 0.904,
+      "lo": 0.818,
+      "hi": 1.041,
+      "verdict": "same",
+      "na": 8,
+      "nb": 8
+    }
+  ],
+  "results": [
+    {
+      "id": "repo.open",
+      "group": "Репозиторий",
+      "title": "открытие",
+      "set": "large",
+      "condition": "warm",
+      "variant": "tasks-final",
+      "n": 8,
+      "busy": 0,
+      "median": 301.2,
+      "p95": 317.8,
+      "min": 271.9,
+      "max": 317.8,
+      "ipcMedian": 278.9,
+      "frontMedian": 20.3,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.055,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 252.2
+        },
+        "lost_commits": {
+          "perRun": 1,
+          "msPerRun": 165.4
+        },
+        "open_repository": {
+          "perRun": 1,
+          "msPerRun": 21.8
+        },
+        "repositories": {
+          "perRun": 1,
+          "msPerRun": 20.6
+        },
+        "flow_status": {
+          "perRun": 1,
+          "msPerRun": 12.5
+        },
+        "worktrees": {
+          "perRun": 1,
+          "msPerRun": 9
+        },
+        "worktree_files": {
+          "perRun": 1,
+          "msPerRun": 8.6
+        },
+        "list_submodules": {
+          "perRun": 2,
+          "msPerRun": 7.5
+        },
+        "working_state": {
+          "perRun": 1,
+          "msPerRun": 5.9
+        },
+        "repository_health": {
+          "perRun": 1,
+          "msPerRun": 5.2
+        },
+        "log_from_frontend": {
+          "perRun": 5,
+          "msPerRun": 5
+        },
+        "remotes": {
+          "perRun": 2,
+          "msPerRun": 5
+        }
+      },
+      "samples": [
+        {
+          "total": 296.8,
+          "ipc": 273.8,
+          "front": 23,
+          "longest": 0,
+          "calib": 6.4
+        },
+        {
+          "total": 301.3,
+          "ipc": 281.9,
+          "front": 19.4,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 301.2,
+          "ipc": 278.9,
+          "front": 22.3,
+          "longest": 0,
+          "calib": 6.3
+        },
+        {
+          "total": 271.9,
+          "ipc": 251.9,
+          "front": 20,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 309.5,
+          "ipc": 287.7,
+          "front": 21.8,
+          "longest": 0,
+          "calib": 6.4
+        },
+        {
+          "total": 284.4,
+          "ipc": 265.5,
+          "front": 18.9,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 313.9,
+          "ipc": 291.3,
+          "front": 22.6,
+          "longest": 0,
+          "calib": 6.3
+        },
+        {
+          "total": 317.8,
+          "ipc": 297.5,
+          "front": 20.3,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.full-layout",
+      "group": "Репозиторий",
+      "title": "graph.full-layout",
+      "set": "large",
+      "condition": "warm",
+      "variant": "tasks-final",
+      "n": 8,
+      "busy": 0,
+      "median": 295,
+      "p95": 311.3,
+      "min": 265.6,
+      "max": 311.3,
+      "ipcMedian": 252.8,
+      "frontMedian": 40.8,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.055,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {},
+      "samples": [
+        {
+          "total": 290.4,
+          "ipc": 246.5,
+          "front": 0,
+          "longest": 0,
+          "calib": 6.4
+        },
+        {
+          "total": 295.2,
+          "ipc": 256.1,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 295,
+          "ipc": 252.8,
+          "front": 0,
+          "longest": 0,
+          "calib": 6.3
+        },
+        {
+          "total": 265.6,
+          "ipc": 224.8,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 304,
+          "ipc": 261.7,
+          "front": 0,
+          "longest": 0,
+          "calib": 6.4
+        },
+        {
+          "total": 279.3,
+          "ipc": 240.1,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 307.4,
+          "ipc": 264.9,
+          "front": 0,
+          "longest": 0,
+          "calib": 6.3
+        },
+        {
+          "total": 311.3,
+          "ipc": 270.8,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "repo.open",
+      "group": "Репозиторий",
+      "title": "открытие",
+      "set": "large",
+      "condition": "warm",
+      "variant": "tasks-0925",
+      "n": 8,
+      "busy": 0,
+      "median": 284.4,
+      "p95": 305.6,
+      "min": 276.3,
+      "max": 305.6,
+      "ipcMedian": 262.3,
+      "frontMedian": 21.4,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.075,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 242.3
+        },
+        "lost_commits": {
+          "perRun": 1,
+          "msPerRun": 157.2
+        },
+        "open_repository": {
+          "perRun": 1,
+          "msPerRun": 21.2
+        },
+        "repositories": {
+          "perRun": 2,
+          "msPerRun": 21.1
+        },
+        "flow_status": {
+          "perRun": 1,
+          "msPerRun": 12.8
+        },
+        "worktrees": {
+          "perRun": 1,
+          "msPerRun": 9.1
+        },
+        "worktree_files": {
+          "perRun": 1,
+          "msPerRun": 8.6
+        },
+        "list_submodules": {
+          "perRun": 2,
+          "msPerRun": 7.4
+        },
+        "working_state": {
+          "perRun": 1,
+          "msPerRun": 6
+        },
+        "log_from_frontend": {
+          "perRun": 5,
+          "msPerRun": 5.3
+        },
+        "repository_health": {
+          "perRun": 1,
+          "msPerRun": 5
+        },
+        "show_repository": {
+          "perRun": 1,
+          "msPerRun": 4.8
+        }
+      },
+      "samples": [
+        {
+          "total": 280.5,
+          "ipc": 258.6,
+          "front": 21.9,
+          "longest": 0,
+          "calib": 6.3
+        },
+        {
+          "total": 284.7,
+          "ipc": 263.3,
+          "front": 21.4,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 276.3,
+          "ipc": 254.3,
+          "front": 22,
+          "longest": 0,
+          "calib": 6.2
+        },
+        {
+          "total": 280.1,
+          "ipc": 260.2,
+          "front": 19.9,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 297.1,
+          "ipc": 277.1,
+          "front": 20,
+          "longest": 0,
+          "calib": 6.3
+        },
+        {
+          "total": 284.4,
+          "ipc": 262.3,
+          "front": 22.1,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 305.6,
+          "ipc": 283.5,
+          "front": 22.1,
+          "longest": 0,
+          "calib": 6.3
+        },
+        {
+          "total": 305.2,
+          "ipc": 286.7,
+          "front": 18.5,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.full-layout",
+      "group": "Репозиторий",
+      "title": "graph.full-layout",
+      "set": "large",
+      "condition": "warm",
+      "variant": "tasks-0925",
+      "n": 8,
+      "busy": 0,
+      "median": 276.9,
+      "p95": 300.6,
+      "min": 270.1,
+      "max": 300.6,
+      "ipcMedian": 236.4,
+      "frontMedian": 41.4,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.086,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {},
+      "samples": [
+        {
+          "total": 274.3,
+          "ipc": 231.5,
+          "front": 0,
+          "longest": 0,
+          "calib": 6.3
+        },
+        {
+          "total": 276.9,
+          "ipc": 237.9,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 270.1,
+          "ipc": 228.7,
+          "front": 0,
+          "longest": 0,
+          "calib": 6.2
+        },
+        {
+          "total": 274.4,
+          "ipc": 234.9,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 292.2,
+          "ipc": 250.3,
+          "front": 0,
+          "longest": 0,
+          "calib": 6.3
+        },
+        {
+          "total": 277.9,
+          "ipc": 236.4,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 299.4,
+          "ipc": 256.7,
+          "front": 0,
+          "longest": 0,
+          "calib": 6.3
+        },
+        {
+          "total": 300.6,
+          "ipc": 262.2,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.first-screen",
+      "group": "Репозиторий",
+      "title": "graph.first-screen",
+      "set": "large",
+      "condition": "warm",
+      "variant": "tasks-0925",
+      "n": 8,
+      "busy": 0,
+      "median": 85.9,
+      "p95": 90.8,
+      "min": 81.5,
+      "max": 90.8,
+      "ipcMedian": 0,
+      "frontMedian": 85.9,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.057,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {},
+      "samples": [
+        {
+          "total": 90.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 6.3
+        },
+        {
+          "total": 81.5,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 86,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 6.2
+        },
+        {
+          "total": 85.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 85.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 6.3
+        },
+        {
+          "total": 89.5,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 86,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 6.3
+        },
+        {
+          "total": 85.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.first-screen",
+      "group": "Репозиторий",
+      "title": "graph.first-screen",
+      "set": "large",
+      "condition": "warm",
+      "variant": "tasks-final",
+      "n": 8,
+      "busy": 0,
+      "median": 85.5,
+      "p95": 92.5,
+      "min": 81,
+      "max": 92.5,
+      "ipcMedian": 0,
+      "frontMedian": 85.5,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.082,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {},
+      "samples": [
+        {
+          "total": 90.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 6.4
+        },
+        {
+          "total": 81,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 85.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 6.3
+        },
+        {
+          "total": 85.5,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 85.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 6.4
+        },
+        {
+          "total": 85.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 92.5,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 6.3
+        },
+        {
+          "total": 86.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "repo.open",
+      "group": "Репозиторий",
+      "title": "открытие",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "tasks-final",
+      "n": 8,
+      "busy": 0,
+      "median": 72.3,
+      "p95": 80.2,
+      "min": 72.1,
+      "max": 80.2,
+      "ipcMedian": 62.6,
+      "frontMedian": 12.6,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.109,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {
+        "worktree_files": {
+          "perRun": 1,
+          "msPerRun": 31
+        },
+        "repositories": {
+          "perRun": 1,
+          "msPerRun": 29.8
+        },
+        "worktrees": {
+          "perRun": 1,
+          "msPerRun": 20.8
+        },
+        "graph_window": {
+          "perRun": 2.5,
+          "msPerRun": 20.3
+        },
+        "graph_row_of": {
+          "perRun": 2,
+          "msPerRun": 14.3
+        },
+        "open_repository": {
+          "perRun": 1,
+          "msPerRun": 14.2
+        },
+        "working_state": {
+          "perRun": 1,
+          "msPerRun": 13.6
+        },
+        "log_from_frontend": {
+          "perRun": 5,
+          "msPerRun": 10.1
+        },
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 10.1
+        },
+        "set_menu_state": {
+          "perRun": 2.5,
+          "msPerRun": 6.1
+        },
+        "list_submodules": {
+          "perRun": 2,
+          "msPerRun": 6
+        },
+        "remotes": {
+          "perRun": 2,
+          "msPerRun": 4.1
+        }
+      },
+      "samples": [
+        {
+          "total": 80.2,
+          "ipc": 65.9,
+          "front": 14.3,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 80.2,
+          "ipc": 65.4,
+          "front": 14.8,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 76.3,
+          "ipc": 64.1,
+          "front": 12.2,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 72.1,
+          "ipc": 61.6,
+          "front": 10.5,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 72.2,
+          "ipc": 62.6,
+          "front": 9.6,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 72.3,
+          "ipc": 58.6,
+          "front": 13.7,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 76.2,
+          "ipc": 63.6,
+          "front": 12.6,
+          "longest": 0,
+          "calib": 6
+        },
+        {
+          "total": 72.3,
+          "ipc": 58.6,
+          "front": 13.7,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "repo.open",
+      "group": "Репозиторий",
+      "title": "открытие",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "tasks-0925",
+      "n": 8,
+      "busy": 0,
+      "median": 72.1,
+      "p95": 80.6,
+      "min": 71.8,
+      "max": 80.6,
+      "ipcMedian": 61.9,
+      "frontMedian": 13.9,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.118,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {
+        "worktree_files": {
+          "perRun": 1,
+          "msPerRun": 30.6
+        },
+        "repositories": {
+          "perRun": 2,
+          "msPerRun": 29.8
+        },
+        "graph_window": {
+          "perRun": 2.4,
+          "msPerRun": 19.7
+        },
+        "worktrees": {
+          "perRun": 1,
+          "msPerRun": 19
+        },
+        "open_repository": {
+          "perRun": 1,
+          "msPerRun": 14.5
+        },
+        "working_state": {
+          "perRun": 1,
+          "msPerRun": 13.6
+        },
+        "graph_row_of": {
+          "perRun": 2,
+          "msPerRun": 13.1
+        },
+        "log_from_frontend": {
+          "perRun": 5,
+          "msPerRun": 12.6
+        },
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 10.3
+        },
+        "list_submodules": {
+          "perRun": 2,
+          "msPerRun": 5.6
+        },
+        "set_menu_state": {
+          "perRun": 2.4,
+          "msPerRun": 5.1
+        },
+        "remotes": {
+          "perRun": 2,
+          "msPerRun": 4.2
+        }
+      },
+      "samples": [
+        {
+          "total": 80.5,
+          "ipc": 65.7,
+          "front": 14.8,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 71.8,
+          "ipc": 57.8,
+          "front": 14,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 80.4,
+          "ipc": 66.5,
+          "front": 13.9,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 72.1,
+          "ipc": 57.5,
+          "front": 14.6,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 80.6,
+          "ipc": 66.4,
+          "front": 14.2,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 75.4,
+          "ipc": 63.6,
+          "front": 11.8,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 71.9,
+          "ipc": 61.9,
+          "front": 10,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 71.8,
+          "ipc": 60.8,
+          "front": 11,
+          "longest": 0,
+          "calib": 5.9
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "repo.open",
+      "group": "Репозиторий",
+      "title": "открытие",
+      "set": "medium",
+      "condition": "warm",
+      "variant": "tasks-final",
+      "n": 8,
+      "busy": 0,
+      "median": 68.1,
+      "p95": 80.6,
+      "min": 67.6,
+      "max": 80.6,
+      "ipcMedian": 58.4,
+      "frontMedian": 11.3,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.184,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 38.5
+        },
+        "worktrees": {
+          "perRun": 1,
+          "msPerRun": 27.6
+        },
+        "lost_commits": {
+          "perRun": 1,
+          "msPerRun": 19.4
+        },
+        "repositories": {
+          "perRun": 1,
+          "msPerRun": 15.6
+        },
+        "open_repository": {
+          "perRun": 1,
+          "msPerRun": 10.9
+        },
+        "working_state": {
+          "perRun": 1,
+          "msPerRun": 10.9
+        },
+        "worktree_files": {
+          "perRun": 1,
+          "msPerRun": 10.2
+        },
+        "graph_window": {
+          "perRun": 2,
+          "msPerRun": 7.1
+        },
+        "list_submodules": {
+          "perRun": 2,
+          "msPerRun": 6.7
+        },
+        "remotes": {
+          "perRun": 2,
+          "msPerRun": 5.4
+        },
+        "show_repository": {
+          "perRun": 1,
+          "msPerRun": 4.1
+        },
+        "repository_health": {
+          "perRun": 1,
+          "msPerRun": 4
+        }
+      },
+      "samples": [
+        {
+          "total": 68.1,
+          "ipc": 57,
+          "front": 11.1,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 72,
+          "ipc": 62.3,
+          "front": 9.7,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 68,
+          "ipc": 56,
+          "front": 12,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 76,
+          "ipc": 64.3,
+          "front": 11.7,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 72.1,
+          "ipc": 60.8,
+          "front": 11.3,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 80.6,
+          "ipc": 67.5,
+          "front": 13.1,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 67.6,
+          "ipc": 58.4,
+          "front": 9.2,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 67.8,
+          "ipc": 55.7,
+          "front": 12.1,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "repo.open",
+      "group": "Репозиторий",
+      "title": "открытие",
+      "set": "medium",
+      "condition": "warm",
+      "variant": "tasks-0925",
+      "n": 8,
+      "busy": 0,
+      "median": 67.8,
+      "p95": 80.3,
+      "min": 63.7,
+      "max": 80.3,
+      "ipcMedian": 57.2,
+      "frontMedian": 10.8,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.184,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 37.9
+        },
+        "worktrees": {
+          "perRun": 1,
+          "msPerRun": 29.4
+        },
+        "lost_commits": {
+          "perRun": 1,
+          "msPerRun": 17.7
+        },
+        "repositories": {
+          "perRun": 2,
+          "msPerRun": 16.3
+        },
+        "working_state": {
+          "perRun": 1,
+          "msPerRun": 11.5
+        },
+        "worktree_files": {
+          "perRun": 1,
+          "msPerRun": 10.4
+        },
+        "open_repository": {
+          "perRun": 1,
+          "msPerRun": 10.3
+        },
+        "list_submodules": {
+          "perRun": 2,
+          "msPerRun": 8
+        },
+        "remotes": {
+          "perRun": 2,
+          "msPerRun": 6.7
+        },
+        "graph_window": {
+          "perRun": 2,
+          "msPerRun": 5.8
+        },
+        "log_from_frontend": {
+          "perRun": 5,
+          "msPerRun": 5
+        },
+        "flow_status": {
+          "perRun": 1,
+          "msPerRun": 4.2
+        }
+      },
+      "samples": [
+        {
+          "total": 67.2,
+          "ipc": 56.6,
+          "front": 10.6,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 80.3,
+          "ipc": 66.9,
+          "front": 13.4,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 67.8,
+          "ipc": 57,
+          "front": 10.8,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 79.8,
+          "ipc": 64.5,
+          "front": 15.3,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 67.8,
+          "ipc": 57.2,
+          "front": 10.6,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 71.7,
+          "ipc": 59.1,
+          "front": 12.6,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 67.8,
+          "ipc": 57.6,
+          "front": 10.2,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 63.7,
+          "ipc": 52.4,
+          "front": 11.3,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.full-layout",
+      "group": "Репозиторий",
+      "title": "graph.full-layout",
+      "set": "medium",
+      "condition": "warm",
+      "variant": "tasks-final",
+      "n": 8,
+      "busy": 0,
+      "median": 53.7,
+      "p95": 63,
+      "min": 49.4,
+      "max": 63,
+      "ipcMedian": 38,
+      "frontMedian": 15.6,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.173,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {},
+      "samples": [
+        {
+          "total": 53.7,
+          "ipc": 38.1,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 58,
+          "ipc": 41.1,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 53.7,
+          "ipc": 38.2,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 61.7,
+          "ipc": 43.5,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 53.4,
+          "ipc": 38,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 63,
+          "ipc": 37.1,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 49.4,
+          "ipc": 34.5,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 54.2,
+          "ipc": 37.5,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.full-layout",
+      "group": "Репозиторий",
+      "title": "graph.full-layout",
+      "set": "medium",
+      "condition": "warm",
+      "variant": "tasks-0925",
+      "n": 8,
+      "busy": 0,
+      "median": 53.6,
+      "p95": 61.9,
+      "min": 49.9,
+      "max": 61.9,
+      "ipcMedian": 37.1,
+      "frontMedian": 16.5,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.155,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {},
+      "samples": [
+        {
+          "total": 53.6,
+          "ipc": 37.1,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 58.9,
+          "ipc": 41.3,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 57.8,
+          "ipc": 40.5,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 61.9,
+          "ipc": 40,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 54.7,
+          "ipc": 39.3,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 52.9,
+          "ipc": 34.4,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 49.9,
+          "ipc": 34.7,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 52.5,
+          "ipc": 36,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "branches.load",
+      "group": "Репозиторий",
+      "title": "branches.load",
+      "set": "large",
+      "condition": "warm",
+      "variant": "tasks-0925",
+      "n": 8,
+      "busy": 0,
+      "median": 44.1,
+      "p95": 45.7,
+      "min": 40.8,
+      "max": 45.7,
+      "ipcMedian": 0,
+      "frontMedian": 44.1,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.036,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {},
+      "samples": [
+        {
+          "total": 45.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 6.3
+        },
+        {
+          "total": 41.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 44.1,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 6.2
+        },
+        {
+          "total": 42.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 44.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 6.3
+        },
+        {
+          "total": 44.1,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 45.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 6.3
+        },
+        {
+          "total": 40.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "branches.load",
+      "group": "Репозиторий",
+      "title": "branches.load",
+      "set": "large",
+      "condition": "warm",
+      "variant": "tasks-final",
+      "n": 8,
+      "busy": 0,
+      "median": 43.6,
+      "p95": 47.4,
+      "min": 41.9,
+      "max": 47.4,
+      "ipcMedian": 0,
+      "frontMedian": 43.6,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.087,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {},
+      "samples": [
+        {
+          "total": 47.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 6.4
+        },
+        {
+          "total": 41.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 45.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 6.3
+        },
+        {
+          "total": 43.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 45.1,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 6.4
+        },
+        {
+          "total": 42,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 45.5,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 6.3
+        },
+        {
+          "total": 43.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.first-screen",
+      "group": "Репозиторий",
+      "title": "graph.first-screen",
+      "set": "medium",
+      "condition": "warm",
+      "variant": "tasks-0925",
+      "n": 8,
+      "busy": 0,
+      "median": 41.5,
+      "p95": 51.6,
+      "min": 40.3,
+      "max": 51.6,
+      "ipcMedian": 0,
+      "frontMedian": 41.5,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.243,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {},
+      "samples": [
+        {
+          "total": 40.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 51.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 45.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 45.1,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 45.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 40.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 40.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 41.5,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.first-screen",
+      "group": "Репозиторий",
+      "title": "graph.first-screen",
+      "set": "medium",
+      "condition": "warm",
+      "variant": "tasks-final",
+      "n": 8,
+      "busy": 0,
+      "median": 40.7,
+      "p95": 49.5,
+      "min": 36.2,
+      "max": 49.5,
+      "ipcMedian": 0,
+      "frontMedian": 40.7,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.216,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {},
+      "samples": [
+        {
+          "total": 40.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 40.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 42.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 46.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 40.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 49.5,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 36.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 41.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.first-screen",
+      "group": "Репозиторий",
+      "title": "graph.first-screen",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "tasks-final",
+      "n": 8,
+      "busy": 0,
+      "median": 39.3,
+      "p95": 50.1,
+      "min": 33.6,
+      "max": 50.1,
+      "ipcMedian": 0,
+      "frontMedian": 39.3,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.275,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {},
+      "samples": [
+        {
+          "total": 50.1,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 39.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 47,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 33.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 45.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 34.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 47.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 6
+        },
+        {
+          "total": 35.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "repo.open",
+      "group": "Репозиторий",
+      "title": "открытие",
+      "set": "small",
+      "condition": "warm",
+      "variant": "tasks-0925",
+      "n": 8,
+      "busy": 0,
+      "median": 38.5,
+      "p95": 50.5,
+      "min": 34.5,
+      "max": 50.5,
+      "ipcMedian": 26,
+      "frontMedian": 12.1,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.312,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {
+        "worktrees": {
+          "perRun": 1,
+          "msPerRun": 11.9
+        },
+        "repositories": {
+          "perRun": 2,
+          "msPerRun": 10.6
+        },
+        "graph_window": {
+          "perRun": 2.3,
+          "msPerRun": 8.1
+        },
+        "worktree_files": {
+          "perRun": 1,
+          "msPerRun": 8
+        },
+        "log_from_frontend": {
+          "perRun": 4.8,
+          "msPerRun": 7.4
+        },
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 6.8
+        },
+        "list_submodules": {
+          "perRun": 2,
+          "msPerRun": 6.6
+        },
+        "open_repository": {
+          "perRun": 1,
+          "msPerRun": 6.1
+        },
+        "remotes": {
+          "perRun": 2,
+          "msPerRun": 5.2
+        },
+        "graph_row_of": {
+          "perRun": 2,
+          "msPerRun": 4.9
+        },
+        "working_state": {
+          "perRun": 1,
+          "msPerRun": 4.9
+        },
+        "repository_health": {
+          "perRun": 1,
+          "msPerRun": 4
+        }
+      },
+      "samples": [
+        {
+          "total": 38.7,
+          "ipc": 25.1,
+          "front": 13.6,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 38.4,
+          "ipc": 27.5,
+          "front": 10.9,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 34.8,
+          "ipc": 24.4,
+          "front": 10.4,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 34.5,
+          "ipc": 24.9,
+          "front": 9.6,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 42.4,
+          "ipc": 26.6,
+          "front": 15.8,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 38.7,
+          "ipc": 26.6,
+          "front": 12.1,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 50.5,
+          "ipc": 34.9,
+          "front": 15.6,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 38.5,
+          "ipc": 26,
+          "front": 12.5,
+          "longest": 0,
+          "calib": 5.9
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "repo.open",
+      "group": "Репозиторий",
+      "title": "открытие",
+      "set": "small",
+      "condition": "warm",
+      "variant": "tasks-final",
+      "n": 8,
+      "busy": 0,
+      "median": 38.2,
+      "p95": 38.8,
+      "min": 34.4,
+      "max": 38.8,
+      "ipcMedian": 25.5,
+      "frontMedian": 11,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.016,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {
+        "worktrees": {
+          "perRun": 1,
+          "msPerRun": 12
+        },
+        "repositories": {
+          "perRun": 1,
+          "msPerRun": 10.2
+        },
+        "log_from_frontend": {
+          "perRun": 4.9,
+          "msPerRun": 8.7
+        },
+        "worktree_files": {
+          "perRun": 1,
+          "msPerRun": 7.4
+        },
+        "graph_window": {
+          "perRun": 2.1,
+          "msPerRun": 7.3
+        },
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 6.6
+        },
+        "open_repository": {
+          "perRun": 1,
+          "msPerRun": 5.8
+        },
+        "list_submodules": {
+          "perRun": 2,
+          "msPerRun": 5.6
+        },
+        "working_state": {
+          "perRun": 1,
+          "msPerRun": 5
+        },
+        "remotes": {
+          "perRun": 2,
+          "msPerRun": 4.5
+        },
+        "graph_row_of": {
+          "perRun": 2,
+          "msPerRun": 3.7
+        },
+        "show_repository": {
+          "perRun": 1,
+          "msPerRun": 3.6
+        }
+      },
+      "samples": [
+        {
+          "total": 34.5,
+          "ipc": 25.3,
+          "front": 9.2,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 34.4,
+          "ipc": 26.2,
+          "front": 8.2,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 38.6,
+          "ipc": 25.9,
+          "front": 12.7,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 38.6,
+          "ipc": 25.5,
+          "front": 13.1,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 34.6,
+          "ipc": 23.6,
+          "front": 11,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 38.8,
+          "ipc": 26.1,
+          "front": 12.7,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 38.5,
+          "ipc": 29.3,
+          "front": 9.2,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 38.2,
+          "ipc": 25.3,
+          "front": 12.9,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.first-screen",
+      "group": "Репозиторий",
+      "title": "graph.first-screen",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "tasks-0925",
+      "n": 8,
+      "busy": 0,
+      "median": 37.2,
+      "p95": 49.8,
+      "min": 33.6,
+      "max": 49.8,
+      "ipcMedian": 0,
+      "frontMedian": 37.2,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.339,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {},
+      "samples": [
+        {
+          "total": 37.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 33.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 49.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 41,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 46.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 34.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 45.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 36.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.full-layout",
+      "group": "Репозиторий",
+      "title": "graph.full-layout",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "tasks-0925",
+      "n": 8,
+      "busy": 0,
+      "median": 29.2,
+      "p95": 40,
+      "min": 27.1,
+      "max": 40,
+      "ipcMedian": 9.4,
+      "frontMedian": 19.9,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.37,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {},
+      "samples": [
+        {
+          "total": 28.8,
+          "ipc": 8.2,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 27.1,
+          "ipc": 7.1,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 40,
+          "ipc": 19.3,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 29.7,
+          "ipc": 9.9,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 30,
+          "ipc": 9.7,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 29.2,
+          "ipc": 9.4,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 30.9,
+          "ipc": 11.7,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 27.3,
+          "ipc": 7.4,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.full-layout",
+      "group": "Репозиторий",
+      "title": "graph.full-layout",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "tasks-final",
+      "n": 8,
+      "busy": 0,
+      "median": 29,
+      "p95": 34.3,
+      "min": 26.1,
+      "max": 34.3,
+      "ipcMedian": 9.4,
+      "frontMedian": 18.8,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.183,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {},
+      "samples": [
+        {
+          "total": 34.3,
+          "ipc": 13.3,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 29,
+          "ipc": 9.4,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 30,
+          "ipc": 12.2,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 27,
+          "ipc": 7.5,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 30.2,
+          "ipc": 11.4,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 26.1,
+          "ipc": 7.9,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 30.3,
+          "ipc": 11.8,
+          "front": 0,
+          "longest": 0,
+          "calib": 6
+        },
+        {
+          "total": 26.8,
+          "ipc": 7.4,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.first-screen",
+      "group": "Репозиторий",
+      "title": "graph.first-screen",
+      "set": "small",
+      "condition": "warm",
+      "variant": "tasks-0925",
+      "n": 8,
+      "busy": 0,
+      "median": 24.1,
+      "p95": 27.9,
+      "min": 19.5,
+      "max": 27.9,
+      "ipcMedian": 0,
+      "frontMedian": 24.1,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.158,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {},
+      "samples": [
+        {
+          "total": 24.1,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 25.5,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 19.5,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 19.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 27.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 25.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 23.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 24.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "branches.load",
+      "group": "Репозиторий",
+      "title": "branches.load",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "tasks-0925",
+      "n": 8,
+      "busy": 0,
+      "median": 21.7,
+      "p95": 22.8,
+      "min": 21.2,
+      "max": 22.8,
+      "ipcMedian": 0,
+      "frontMedian": 21.7,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.051,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {},
+      "samples": [
+        {
+          "total": 22.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 22.1,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 22.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 21.5,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 22.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 21.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 21.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 21.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "branches.load",
+      "group": "Репозиторий",
+      "title": "branches.load",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "tasks-final",
+      "n": 8,
+      "busy": 0,
+      "median": 20.7,
+      "p95": 23,
+      "min": 19.8,
+      "max": 23,
+      "ipcMedian": 0,
+      "frontMedian": 20.7,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.111,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {},
+      "samples": [
+        {
+          "total": 23,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 21.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 19.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 21.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 20.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 20.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 20.5,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 6
+        },
+        {
+          "total": 21.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.first-screen",
+      "group": "Репозиторий",
+      "title": "graph.first-screen",
+      "set": "small",
+      "condition": "warm",
+      "variant": "tasks-final",
+      "n": 8,
+      "busy": 0,
+      "median": 19.9,
+      "p95": 26.3,
+      "min": 19.4,
+      "max": 26.3,
+      "ipcMedian": 0,
+      "frontMedian": 19.9,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.322,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {},
+      "samples": [
+        {
+          "total": 19.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 19.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 19.5,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 24.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 20.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 19.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 26.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 23.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "branches.load",
+      "group": "Репозиторий",
+      "title": "branches.load",
+      "set": "medium",
+      "condition": "warm",
+      "variant": "tasks-0925",
+      "n": 8,
+      "busy": 0,
+      "median": 18.5,
+      "p95": 25,
+      "min": 17.2,
+      "max": 25,
+      "ipcMedian": 0,
+      "frontMedian": 18.5,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.351,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {},
+      "samples": [
+        {
+          "total": 18.5,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 19.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 19.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 25,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 17.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 20.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 17.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 18.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.full-layout",
+      "group": "Репозиторий",
+      "title": "graph.full-layout",
+      "set": "small",
+      "condition": "warm",
+      "variant": "tasks-0925",
+      "n": 8,
+      "busy": 0,
+      "median": 17.9,
+      "p95": 20.9,
+      "min": 15.7,
+      "max": 20.9,
+      "ipcMedian": 6.8,
+      "frontMedian": 11.5,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.168,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {},
+      "samples": [
+        {
+          "total": 17.5,
+          "ipc": 6,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 19.1,
+          "ipc": 7.3,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 15.7,
+          "ipc": 5.4,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 16.6,
+          "ipc": 6.3,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 20.9,
+          "ipc": 8.7,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 18.6,
+          "ipc": 6.8,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 20.5,
+          "ipc": 7.2,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 17.9,
+          "ipc": 7,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "branches.load",
+      "group": "Репозиторий",
+      "title": "branches.load",
+      "set": "medium",
+      "condition": "warm",
+      "variant": "tasks-final",
+      "n": 8,
+      "busy": 0,
+      "median": 17.8,
+      "p95": 28.1,
+      "min": 16.9,
+      "max": 28.1,
+      "ipcMedian": 0,
+      "frontMedian": 17.8,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.579,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {},
+      "samples": [
+        {
+          "total": 17.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 19.1,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 17.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 20.5,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 17.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 28.1,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 16.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 19.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.full-layout",
+      "group": "Репозиторий",
+      "title": "graph.full-layout",
+      "set": "small",
+      "condition": "warm",
+      "variant": "tasks-final",
+      "n": 8,
+      "busy": 0,
+      "median": 17.1,
+      "p95": 17.6,
+      "min": 16.2,
+      "max": 17.6,
+      "ipcMedian": 6.6,
+      "frontMedian": 10.5,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.029,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {},
+      "samples": [
+        {
+          "total": 17.3,
+          "ipc": 7.2,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 17.1,
+          "ipc": 6.6,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 16.2,
+          "ipc": 5.3,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 17.6,
+          "ipc": 6.2,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 16.5,
+          "ipc": 7.3,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 16.9,
+          "ipc": 6.8,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 17.6,
+          "ipc": 6.8,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 17.3,
+          "ipc": 6.3,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "branches.load",
+      "group": "Репозиторий",
+      "title": "branches.load",
+      "set": "small",
+      "condition": "warm",
+      "variant": "tasks-0925",
+      "n": 8,
+      "busy": 0,
+      "median": 13.5,
+      "p95": 15.8,
+      "min": 12.1,
+      "max": 15.8,
+      "ipcMedian": 0,
+      "frontMedian": 13.5,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.17,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {},
+      "samples": [
+        {
+          "total": 13.5,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 14.1,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 12.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 12.1,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 14.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 14.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 15.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 13,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "branches.load",
+      "group": "Репозиторий",
+      "title": "branches.load",
+      "set": "small",
+      "condition": "warm",
+      "variant": "tasks-final",
+      "n": 8,
+      "busy": 0,
+      "median": 12.2,
+      "p95": 14,
+      "min": 11.2,
+      "max": 14,
+      "ipcMedian": 0,
+      "frontMedian": 12.2,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.148,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {},
+      "samples": [
+        {
+          "total": 11.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 12.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 12.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 14,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 11.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 11.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 13,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 13.1,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    }
+  ]
+}

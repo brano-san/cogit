@@ -1,0 +1,1990 @@
+{
+  "env": {
+    "label": "scenarios-fixed",
+    "date": "2026-09-26T19:55:17.822Z",
+    "commit": "8f173f8",
+    "dirty": false,
+    "exeBuilt": "2026-09-26T19:50:25.796Z",
+    "os": "Майкрософт Windows 11 Домашняя 10.0.26200 build 26200",
+    "arch": "x64",
+    "cpu": "AMD Ryzen 9 9950X3D 16-Core Processor × 32",
+    "memoryGiB": 62,
+    "disk": "Reletech P400 EVO PCIE4.0 2TB, SSD, NVMe",
+    "git": "git version 2.51.0.windows.1",
+    "node": "v22.18.0",
+    "config": {
+      "runs": 10,
+      "warmup": 2,
+      "cold": 10,
+      "sets": [
+        "small",
+        "medium",
+        "large",
+        "dirty"
+      ],
+      "only": [
+        "diff.small",
+        "diff.big",
+        "diff.binary",
+        "ui.theme",
+        "changes.stage-one",
+        "changes.unstage-one",
+        "graph.tick-branch",
+        "graph.tick-tags"
+      ]
+    },
+    "conditions": {
+      "cold": "a new process for every sample; the OS file cache is not flushed",
+      "warm": "the same action repeated in one session, after two unrecorded runs"
+    },
+    "ab": [
+      "audit-pass2",
+      "tasks-pulse"
+    ],
+    "minutes": 6.7,
+    "calibrationLevel": 5.6
+  },
+  "ab": [
+    {
+      "key": "graph.tick-branch|large",
+      "ma": 124.3,
+      "mb": 128.4,
+      "ratio": 1.033,
+      "lo": 0.936,
+      "hi": 1.174,
+      "verdict": "same",
+      "na": 8,
+      "nb": 8
+    },
+    {
+      "key": "graph.tick-tags|large",
+      "ma": 99.7,
+      "mb": 107.9,
+      "ratio": 1.082,
+      "lo": 0.915,
+      "hi": 1.151,
+      "verdict": "same",
+      "na": 8,
+      "nb": 8
+    },
+    {
+      "key": "changes.stage-one|small",
+      "ma": 93.3,
+      "mb": 93.2,
+      "ratio": 0.999,
+      "lo": 0.958,
+      "hi": 1.05,
+      "verdict": "same",
+      "na": 8,
+      "nb": 8
+    },
+    {
+      "key": "graph.tick-branch|medium",
+      "ma": 24.3,
+      "mb": 24.3,
+      "ratio": 1,
+      "lo": 0.9,
+      "hi": 1.008,
+      "verdict": "same",
+      "na": 8,
+      "nb": 8
+    },
+    {
+      "key": "graph.tick-tags|medium",
+      "ma": 20.2,
+      "mb": 20.3,
+      "ratio": 1.005,
+      "lo": 0.976,
+      "hi": 1.041,
+      "verdict": "same",
+      "na": 8,
+      "nb": 8
+    },
+    {
+      "key": "diff.big|dirty",
+      "ma": 20.2,
+      "mb": 20.2,
+      "ratio": 1,
+      "lo": 0.99,
+      "hi": 1.01,
+      "verdict": "same",
+      "na": 8,
+      "nb": 8
+    },
+    {
+      "key": "diff.small|dirty",
+      "ma": 16.2,
+      "mb": 16.2,
+      "ratio": 1,
+      "lo": 0.994,
+      "hi": 1.019,
+      "verdict": "same",
+      "na": 8,
+      "nb": 8
+    },
+    {
+      "key": "diff.binary|dirty",
+      "ma": 12.1,
+      "mb": 12.1,
+      "ratio": 1,
+      "lo": 0.752,
+      "hi": 1.017,
+      "verdict": "same",
+      "na": 8,
+      "nb": 8
+    },
+    {
+      "key": "ui.theme|medium",
+      "ma": 9.9,
+      "mb": 13,
+      "ratio": 1.313,
+      "lo": 0.99,
+      "hi": 1.384,
+      "verdict": "same",
+      "na": 8,
+      "nb": 8
+    }
+  ],
+  "results": [
+    {
+      "id": "graph.tick-branch",
+      "group": "Граф",
+      "title": "отметка ветки в Branches",
+      "set": "large",
+      "condition": "warm",
+      "variant": "tasks-pulse",
+      "n": 8,
+      "busy": 0,
+      "median": 128.4,
+      "p95": 145.1,
+      "min": 116,
+      "max": 145.1,
+      "ipcMedian": 114.7,
+      "frontMedian": 12.8,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.13,
+      "retakes": 0,
+      "calibMedian": 5.7,
+      "commands": {
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 109.5
+        },
+        "graph_overlay": {
+          "perRun": 3,
+          "msPerRun": 49.1
+        },
+        "report_timing": {
+          "perRun": 0.3,
+          "msPerRun": 0.5
+        }
+      },
+      "samples": [
+        {
+          "total": 144.9,
+          "ipc": 132.1,
+          "front": 12.8,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 128.5,
+          "ipc": 114.7,
+          "front": 13.8,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 128.4,
+          "ipc": 117.6,
+          "front": 10.8,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 124.2,
+          "ipc": 112.1,
+          "front": 12.1,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 145.1,
+          "ipc": 131.6,
+          "front": 13.5,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 140.9,
+          "ipc": 126.8,
+          "front": 14.1,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 116,
+          "ipc": 102.1,
+          "front": 13.9,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 120.3,
+          "ipc": 108.8,
+          "front": 11.5,
+          "longest": 0,
+          "calib": 5.7
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.tick-branch",
+      "group": "Граф",
+      "title": "отметка ветки в Branches",
+      "set": "large",
+      "condition": "warm",
+      "variant": "audit-pass2",
+      "n": 8,
+      "busy": 0,
+      "median": 124.3,
+      "p95": 140.7,
+      "min": 115.9,
+      "max": 140.7,
+      "ipcMedian": 114.1,
+      "frontMedian": 11.9,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.132,
+      "retakes": 0,
+      "calibMedian": 5.7,
+      "commands": {
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 105.8
+        },
+        "graph_overlay": {
+          "perRun": 3,
+          "msPerRun": 47.7
+        },
+        "report_timing": {
+          "perRun": 0.1,
+          "msPerRun": 0
+        }
+      },
+      "samples": [
+        {
+          "total": 140.7,
+          "ipc": 127.1,
+          "front": 13.6,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 132.3,
+          "ipc": 120.6,
+          "front": 11.7,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 124.3,
+          "ipc": 114.1,
+          "front": 10.2,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 128.5,
+          "ipc": 114.1,
+          "front": 14.4,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 115.9,
+          "ipc": 104.5,
+          "front": 11.4,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 136.9,
+          "ipc": 122.5,
+          "front": 14.4,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 120,
+          "ipc": 108.1,
+          "front": 11.9,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 119.8,
+          "ipc": 106.4,
+          "front": 13.4,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.tick-tags",
+      "group": "Граф",
+      "title": "отметка группы тегов",
+      "set": "large",
+      "condition": "warm",
+      "variant": "tasks-pulse",
+      "n": 8,
+      "busy": 0,
+      "median": 107.9,
+      "p95": 128.7,
+      "min": 91.2,
+      "max": 128.7,
+      "ipcMedian": 97.2,
+      "frontMedian": 9.6,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.193,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 97.8
+        }
+      },
+      "samples": [
+        {
+          "total": 107.9,
+          "ipc": 97.2,
+          "front": 10.7,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 94.8,
+          "ipc": 87.9,
+          "front": 6.9,
+          "longest": 0,
+          "calib": 6.3
+        },
+        {
+          "total": 91.2,
+          "ipc": 82.8,
+          "front": 8.4,
+          "longest": 0,
+          "calib": 6.4
+        },
+        {
+          "total": 114.8,
+          "ipc": 103.2,
+          "front": 11.6,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 128.7,
+          "ipc": 117.1,
+          "front": 11.6,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 103.4,
+          "ipc": 96.3,
+          "front": 7.1,
+          "longest": 0,
+          "calib": 6.4
+        },
+        {
+          "total": 111.8,
+          "ipc": 99,
+          "front": 12.8,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 108.3,
+          "ipc": 98.7,
+          "front": 9.6,
+          "longest": 0,
+          "calib": 6.2
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.tick-tags",
+      "group": "Граф",
+      "title": "отметка группы тегов",
+      "set": "large",
+      "condition": "warm",
+      "variant": "audit-pass2",
+      "n": 8,
+      "busy": 0,
+      "median": 99.7,
+      "p95": 120.5,
+      "min": 91.1,
+      "max": 120.5,
+      "ipcMedian": 91.9,
+      "frontMedian": 7.5,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.209,
+      "retakes": 0,
+      "calibMedian": 5.7,
+      "commands": {
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 94.4
+        }
+      },
+      "samples": [
+        {
+          "total": 103.4,
+          "ipc": 93.4,
+          "front": 10,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 95.2,
+          "ipc": 86.5,
+          "front": 8.7,
+          "longest": 0,
+          "calib": 6.3
+        },
+        {
+          "total": 108,
+          "ipc": 100.8,
+          "front": 7.2,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 99.2,
+          "ipc": 91.9,
+          "front": 7.3,
+          "longest": 0,
+          "calib": 6.2
+        },
+        {
+          "total": 120.5,
+          "ipc": 113,
+          "front": 7.5,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 108.1,
+          "ipc": 96.8,
+          "front": 11.3,
+          "longest": 0,
+          "calib": 6.5
+        },
+        {
+          "total": 99.7,
+          "ipc": 88.7,
+          "front": 11,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 91.1,
+          "ipc": 84.4,
+          "front": 6.7,
+          "longest": 0,
+          "calib": 5.7
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "changes.stage-one",
+      "group": "Изменения",
+      "title": "stage 1 файла",
+      "set": "small",
+      "condition": "warm",
+      "variant": "audit-pass2",
+      "n": 8,
+      "busy": 0,
+      "median": 93.3,
+      "p95": 109.8,
+      "min": 88.7,
+      "max": 109.8,
+      "ipcMedian": 85.6,
+      "frontMedian": 7.4,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.177,
+      "retakes": 0,
+      "calibMedian": 5.7,
+      "commands": {
+        "stage_all": {
+          "perRun": 1,
+          "msPerRun": 70.5
+        },
+        "worktree_files": {
+          "perRun": 1,
+          "msPerRun": 9
+        },
+        "diff_file": {
+          "perRun": 1,
+          "msPerRun": 6.1
+        },
+        "working_state": {
+          "perRun": 1,
+          "msPerRun": 3.6
+        },
+        "lost_commits": {
+          "perRun": 1,
+          "msPerRun": 3
+        },
+        "list_submodules": {
+          "perRun": 1,
+          "msPerRun": 2.4
+        },
+        "flow_status": {
+          "perRun": 1,
+          "msPerRun": 2
+        },
+        "set_menu_state": {
+          "perRun": 3,
+          "msPerRun": 1.9
+        },
+        "commit_template": {
+          "perRun": 1,
+          "msPerRun": 1.8
+        },
+        "rebase_progress": {
+          "perRun": 1,
+          "msPerRun": 1.8
+        },
+        "stashes": {
+          "perRun": 1,
+          "msPerRun": 1.4
+        },
+        "remotes": {
+          "perRun": 1,
+          "msPerRun": 1.3
+        }
+      },
+      "samples": [
+        {
+          "total": 88.7,
+          "ipc": 81.8,
+          "front": 6.9,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 93.3,
+          "ipc": 81.3,
+          "front": 12,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 100.1,
+          "ipc": 94.6,
+          "front": 5.5,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 97.1,
+          "ipc": 85.4,
+          "front": 11.7,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 93,
+          "ipc": 85.6,
+          "front": 7.4,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 109.8,
+          "ipc": 99,
+          "front": 10.8,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 97.2,
+          "ipc": 89.1,
+          "front": 8.1,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 92.8,
+          "ipc": 85.8,
+          "front": 7,
+          "longest": 0,
+          "calib": 5.7
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "changes.stage-one",
+      "group": "Изменения",
+      "title": "stage 1 файла",
+      "set": "small",
+      "condition": "warm",
+      "variant": "tasks-pulse",
+      "n": 8,
+      "busy": 0,
+      "median": 93.2,
+      "p95": 101.5,
+      "min": 91.9,
+      "max": 101.5,
+      "ipcMedian": 87.1,
+      "frontMedian": 7.4,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.089,
+      "retakes": 0,
+      "calibMedian": 5.7,
+      "commands": {
+        "stage_all": {
+          "perRun": 1,
+          "msPerRun": 70.8
+        },
+        "worktree_files": {
+          "perRun": 1,
+          "msPerRun": 7.6
+        },
+        "diff_file": {
+          "perRun": 1,
+          "msPerRun": 6.7
+        },
+        "working_state": {
+          "perRun": 1,
+          "msPerRun": 4.1
+        },
+        "lost_commits": {
+          "perRun": 1,
+          "msPerRun": 3.3
+        },
+        "list_submodules": {
+          "perRun": 1,
+          "msPerRun": 2.8
+        },
+        "flow_status": {
+          "perRun": 1,
+          "msPerRun": 2.7
+        },
+        "rebase_progress": {
+          "perRun": 1,
+          "msPerRun": 1.9
+        },
+        "commit_template": {
+          "perRun": 1,
+          "msPerRun": 1.8
+        },
+        "stashes": {
+          "perRun": 1,
+          "msPerRun": 1.8
+        },
+        "set_menu_state": {
+          "perRun": 3,
+          "msPerRun": 1.6
+        },
+        "remotes": {
+          "perRun": 1,
+          "msPerRun": 1.6
+        }
+      },
+      "samples": [
+        {
+          "total": 93.1,
+          "ipc": 86.5,
+          "front": 6.6,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 93.2,
+          "ipc": 81.7,
+          "front": 11.5,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 101.5,
+          "ipc": 94.1,
+          "front": 7.4,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 101.3,
+          "ipc": 89.6,
+          "front": 11.7,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 97.1,
+          "ipc": 88.9,
+          "front": 8.2,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 91.9,
+          "ipc": 85,
+          "front": 6.9,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 93.1,
+          "ipc": 87.1,
+          "front": 6,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 97.2,
+          "ipc": 88.9,
+          "front": 8.3,
+          "longest": 0,
+          "calib": 5.6
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.tick-branch",
+      "group": "Граф",
+      "title": "отметка ветки в Branches",
+      "set": "medium",
+      "condition": "warm",
+      "variant": "audit-pass2",
+      "n": 8,
+      "busy": 0,
+      "median": 24.3,
+      "p95": 28.3,
+      "min": 20.1,
+      "max": 28.3,
+      "ipcMedian": 12.6,
+      "frontMedian": 11.3,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.165,
+      "retakes": 0,
+      "calibMedian": 5.7,
+      "commands": {
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 12.3
+        },
+        "graph_overlay": {
+          "perRun": 3,
+          "msPerRun": 6.9
+        }
+      },
+      "samples": [
+        {
+          "total": 24.2,
+          "ipc": 12.5,
+          "front": 11.7,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 24.5,
+          "ipc": 12.6,
+          "front": 11.9,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 20.1,
+          "ipc": 10.5,
+          "front": 9.6,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 27,
+          "ipc": 16,
+          "front": 11,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 24.3,
+          "ipc": 12.7,
+          "front": 11.6,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 24.3,
+          "ipc": 12.5,
+          "front": 11.8,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 24.3,
+          "ipc": 13,
+          "front": 11.3,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 28.3,
+          "ipc": 17.7,
+          "front": 10.6,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.tick-branch",
+      "group": "Граф",
+      "title": "отметка ветки в Branches",
+      "set": "medium",
+      "condition": "warm",
+      "variant": "tasks-pulse",
+      "n": 8,
+      "busy": 0,
+      "median": 24.3,
+      "p95": 27.8,
+      "min": 20.4,
+      "max": 27.8,
+      "ipcMedian": 13.2,
+      "frontMedian": 11.1,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.144,
+      "retakes": 0,
+      "calibMedian": 5.7,
+      "commands": {
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 12.6
+        },
+        "graph_overlay": {
+          "perRun": 3,
+          "msPerRun": 6.5
+        }
+      },
+      "samples": [
+        {
+          "total": 20.4,
+          "ipc": 10.7,
+          "front": 9.7,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 24.3,
+          "ipc": 13,
+          "front": 11.3,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 27.8,
+          "ipc": 15.8,
+          "front": 12,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 24.5,
+          "ipc": 13.2,
+          "front": 11.3,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 24.3,
+          "ipc": 13.2,
+          "front": 11.1,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 24.4,
+          "ipc": 12.3,
+          "front": 12.1,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 24.4,
+          "ipc": 13.9,
+          "front": 10.5,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 24.3,
+          "ipc": 13.3,
+          "front": 11,
+          "longest": 0,
+          "calib": 5.7
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.tick-tags",
+      "group": "Граф",
+      "title": "отметка группы тегов",
+      "set": "medium",
+      "condition": "warm",
+      "variant": "tasks-pulse",
+      "n": 8,
+      "busy": 0,
+      "median": 20.3,
+      "p95": 24.6,
+      "min": 20,
+      "max": 24.6,
+      "ipcMedian": 12.8,
+      "frontMedian": 7.6,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.212,
+      "retakes": 0,
+      "calibMedian": 5.7,
+      "commands": {
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 12.9
+        }
+      },
+      "samples": [
+        {
+          "total": 20.5,
+          "ipc": 12.9,
+          "front": 7.6,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 20,
+          "ipc": 12.8,
+          "front": 7.2,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 20.4,
+          "ipc": 12.5,
+          "front": 7.9,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 24.6,
+          "ipc": 13.7,
+          "front": 10.9,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 20,
+          "ipc": 13,
+          "front": 7,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 20.5,
+          "ipc": 12.8,
+          "front": 7.7,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 20.3,
+          "ipc": 12.4,
+          "front": 7.9,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 20.2,
+          "ipc": 13.3,
+          "front": 6.9,
+          "longest": 0,
+          "calib": 5.7
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "graph.tick-tags",
+      "group": "Граф",
+      "title": "отметка группы тегов",
+      "set": "medium",
+      "condition": "warm",
+      "variant": "audit-pass2",
+      "n": 8,
+      "busy": 0,
+      "median": 20.2,
+      "p95": 24.5,
+      "min": 18.9,
+      "max": 24.5,
+      "ipcMedian": 12.6,
+      "frontMedian": 7.8,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.213,
+      "retakes": 0,
+      "calibMedian": 5.7,
+      "commands": {
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 12.6
+        }
+      },
+      "samples": [
+        {
+          "total": 18.9,
+          "ipc": 11.1,
+          "front": 7.8,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 20.4,
+          "ipc": 12.9,
+          "front": 7.5,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 20.2,
+          "ipc": 12.6,
+          "front": 7.6,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 24.5,
+          "ipc": 13.3,
+          "front": 11.2,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 19.7,
+          "ipc": 11.9,
+          "front": 7.8,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 23.2,
+          "ipc": 13.3,
+          "front": 9.9,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 20.5,
+          "ipc": 12.5,
+          "front": 8,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 20.1,
+          "ipc": 12.9,
+          "front": 7.2,
+          "longest": 0,
+          "calib": 5.7
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "diff.big",
+      "group": "Diff",
+      "title": "файл на 10 000 строк",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "audit-pass2",
+      "n": 8,
+      "busy": 0,
+      "median": 20.2,
+      "p95": 20.3,
+      "min": 15.9,
+      "max": 20.3,
+      "ipcMedian": 6.6,
+      "frontMedian": 13.3,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.005,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {
+        "diff_file": {
+          "perRun": 1,
+          "msPerRun": 6.7
+        },
+        "set_menu_state": {
+          "perRun": 1,
+          "msPerRun": 0.4
+        }
+      },
+      "samples": [
+        {
+          "total": 20.2,
+          "ipc": 6.2,
+          "front": 14,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 15.9,
+          "ipc": 5.9,
+          "front": 10,
+          "longest": 0,
+          "calib": 6.2
+        },
+        {
+          "total": 20.3,
+          "ipc": 6.6,
+          "front": 13.7,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 20.2,
+          "ipc": 6.5,
+          "front": 13.7,
+          "longest": 0,
+          "calib": 6.3
+        },
+        {
+          "total": 20.2,
+          "ipc": 6.9,
+          "front": 13.3,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 20.2,
+          "ipc": 7.1,
+          "front": 13.1,
+          "longest": 0,
+          "calib": 6.1
+        },
+        {
+          "total": 20.3,
+          "ipc": 6.8,
+          "front": 13.5,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 20.2,
+          "ipc": 7.7,
+          "front": 12.5,
+          "longest": 0,
+          "calib": 5.7
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "diff.big",
+      "group": "Diff",
+      "title": "файл на 10 000 строк",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "tasks-pulse",
+      "n": 8,
+      "busy": 0,
+      "median": 20.2,
+      "p95": 24.2,
+      "min": 20,
+      "max": 24.2,
+      "ipcMedian": 7.5,
+      "frontMedian": 12.6,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.198,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {
+        "diff_file": {
+          "perRun": 1,
+          "msPerRun": 7.5
+        },
+        "set_menu_state": {
+          "perRun": 1,
+          "msPerRun": 0.4
+        }
+      },
+      "samples": [
+        {
+          "total": 20.2,
+          "ipc": 7.6,
+          "front": 12.6,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 24.2,
+          "ipc": 8.5,
+          "front": 15.7,
+          "longest": 0,
+          "calib": 6.1
+        },
+        {
+          "total": 20.2,
+          "ipc": 7.3,
+          "front": 12.9,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 20,
+          "ipc": 7.7,
+          "front": 12.3,
+          "longest": 0,
+          "calib": 6.2
+        },
+        {
+          "total": 20.4,
+          "ipc": 6.6,
+          "front": 13.8,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 20.1,
+          "ipc": 7.1,
+          "front": 13,
+          "longest": 0,
+          "calib": 6.2
+        },
+        {
+          "total": 20.2,
+          "ipc": 7.8,
+          "front": 12.4,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 20,
+          "ipc": 7.5,
+          "front": 12.5,
+          "longest": 0,
+          "calib": 6.1
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "diff.small",
+      "group": "Diff",
+      "title": "маленький файл",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "audit-pass2",
+      "n": 8,
+      "busy": 0,
+      "median": 16.2,
+      "p95": 16.3,
+      "min": 15.9,
+      "max": 16.3,
+      "ipcMedian": 3.6,
+      "frontMedian": 12.4,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.006,
+      "retakes": 0,
+      "calibMedian": 5.7,
+      "commands": {
+        "diff_file": {
+          "perRun": 1,
+          "msPerRun": 2.4
+        },
+        "set_menu_state": {
+          "perRun": 1,
+          "msPerRun": 1.7
+        }
+      },
+      "samples": [
+        {
+          "total": 16.2,
+          "ipc": 6.4,
+          "front": 9.8,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 16.2,
+          "ipc": 3.7,
+          "front": 12.5,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 15.9,
+          "ipc": 4.1,
+          "front": 11.8,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 15.9,
+          "ipc": 3.6,
+          "front": 12.3,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 16.2,
+          "ipc": 3.4,
+          "front": 12.8,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 16.2,
+          "ipc": 3.5,
+          "front": 12.7,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 16.3,
+          "ipc": 3.6,
+          "front": 12.7,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 16.2,
+          "ipc": 3.8,
+          "front": 12.4,
+          "longest": 0,
+          "calib": 5.7
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "diff.small",
+      "group": "Diff",
+      "title": "маленький файл",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "tasks-pulse",
+      "n": 8,
+      "busy": 0,
+      "median": 16.2,
+      "p95": 16.3,
+      "min": 16.1,
+      "max": 16.3,
+      "ipcMedian": 4,
+      "frontMedian": 12.1,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.006,
+      "retakes": 0,
+      "calibMedian": 5.7,
+      "commands": {
+        "diff_file": {
+          "perRun": 1,
+          "msPerRun": 2.5
+        },
+        "set_menu_state": {
+          "perRun": 1,
+          "msPerRun": 1.7
+        }
+      },
+      "samples": [
+        {
+          "total": 16.2,
+          "ipc": 4,
+          "front": 12.2,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 16.2,
+          "ipc": 4.9,
+          "front": 11.3,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 16.1,
+          "ipc": 4,
+          "front": 12.1,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 16.3,
+          "ipc": 3.6,
+          "front": 12.7,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 16.1,
+          "ipc": 4.3,
+          "front": 11.8,
+          "longest": 0,
+          "calib": 6
+        },
+        {
+          "total": 16.3,
+          "ipc": 3.7,
+          "front": 12.6,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 16.1,
+          "ipc": 3.8,
+          "front": 12.3,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 16.2,
+          "ipc": 4.2,
+          "front": 12,
+          "longest": 0,
+          "calib": 5.7
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "ui.theme",
+      "group": "Интерфейс",
+      "title": "смена темы",
+      "set": "medium",
+      "condition": "warm",
+      "variant": "tasks-pulse",
+      "n": 8,
+      "busy": 0,
+      "median": 13,
+      "p95": 14.6,
+      "min": 9.7,
+      "max": 14.6,
+      "ipcMedian": 4.9,
+      "frontMedian": 8,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.123,
+      "retakes": 0,
+      "calibMedian": 5.7,
+      "commands": {
+        "write_setting": {
+          "perRun": 1,
+          "msPerRun": 4.9
+        },
+        "plugin:event|emit": {
+          "perRun": 1,
+          "msPerRun": 0.4
+        }
+      },
+      "samples": [
+        {
+          "total": 13.4,
+          "ipc": 4.9,
+          "front": 8.5,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 13,
+          "ipc": 4.9,
+          "front": 8.1,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 10,
+          "ipc": 6.1,
+          "front": 3.9,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 13.1,
+          "ipc": 4.7,
+          "front": 8.4,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 9.8,
+          "ipc": 4.9,
+          "front": 4.9,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 13.7,
+          "ipc": 5.2,
+          "front": 8.5,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 14.6,
+          "ipc": 6.6,
+          "front": 8,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 9.7,
+          "ipc": 5.1,
+          "front": 4.6,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "diff.binary",
+      "group": "Diff",
+      "title": "бинарный файл",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "audit-pass2",
+      "n": 8,
+      "busy": 0,
+      "median": 12.1,
+      "p95": 16.3,
+      "min": 12,
+      "max": 16.3,
+      "ipcMedian": 2.7,
+      "frontMedian": 10.2,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.347,
+      "retakes": 0,
+      "calibMedian": 5.7,
+      "commands": {
+        "diff_file": {
+          "perRun": 1,
+          "msPerRun": 2.3
+        },
+        "set_menu_state": {
+          "perRun": 1,
+          "msPerRun": 0.4
+        }
+      },
+      "samples": [
+        {
+          "total": 15.6,
+          "ipc": 2.3,
+          "front": 13.3,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 12.1,
+          "ipc": 1.9,
+          "front": 10.2,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 12,
+          "ipc": 2.7,
+          "front": 9.3,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 12,
+          "ipc": 3,
+          "front": 9,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 16.2,
+          "ipc": 2.6,
+          "front": 13.6,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 16.1,
+          "ipc": 2.7,
+          "front": 13.4,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 12,
+          "ipc": 3.6,
+          "front": 8.4,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 16.3,
+          "ipc": 2.7,
+          "front": 13.6,
+          "longest": 0,
+          "calib": 5.7
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "diff.binary",
+      "group": "Diff",
+      "title": "бинарный файл",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "tasks-pulse",
+      "n": 8,
+      "busy": 0,
+      "median": 12.1,
+      "p95": 16.3,
+      "min": 12.1,
+      "max": 16.3,
+      "ipcMedian": 3,
+      "frontMedian": 9,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.347,
+      "retakes": 0,
+      "calibMedian": 5.7,
+      "commands": {
+        "diff_file": {
+          "perRun": 1,
+          "msPerRun": 2.7
+        },
+        "set_menu_state": {
+          "perRun": 1,
+          "msPerRun": 0.5
+        }
+      },
+      "samples": [
+        {
+          "total": 16.2,
+          "ipc": 2.5,
+          "front": 13.7,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 12.1,
+          "ipc": 3.6,
+          "front": 8.5,
+          "longest": 0,
+          "calib": 6
+        },
+        {
+          "total": 12.1,
+          "ipc": 3,
+          "front": 9.1,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 12.1,
+          "ipc": 3.1,
+          "front": 9,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 12.2,
+          "ipc": 3,
+          "front": 9.2,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 12.2,
+          "ipc": 3.2,
+          "front": 9,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 12.1,
+          "ipc": 3.1,
+          "front": 9,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 16.3,
+          "ipc": 2.6,
+          "front": 13.7,
+          "longest": 0,
+          "calib": 5.7
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "ui.theme",
+      "group": "Интерфейс",
+      "title": "смена темы",
+      "set": "medium",
+      "condition": "warm",
+      "variant": "audit-pass2",
+      "n": 8,
+      "busy": 0,
+      "median": 9.9,
+      "p95": 13.5,
+      "min": 9.7,
+      "max": 13.5,
+      "ipcMedian": 5,
+      "frontMedian": 4.8,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.364,
+      "retakes": 0,
+      "calibMedian": 5.7,
+      "commands": {
+        "write_setting": {
+          "perRun": 1,
+          "msPerRun": 4.7
+        },
+        "plugin:event|emit": {
+          "perRun": 1,
+          "msPerRun": 0.4
+        }
+      },
+      "samples": [
+        {
+          "total": 9.7,
+          "ipc": 4.9,
+          "front": 4.8,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 9.9,
+          "ipc": 4.8,
+          "front": 5.1,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 9.9,
+          "ipc": 5.6,
+          "front": 4.3,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 9.9,
+          "ipc": 5,
+          "front": 4.9,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 10,
+          "ipc": 4.8,
+          "front": 5.2,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 9.9,
+          "ipc": 5.1,
+          "front": 4.8,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 9.8,
+          "ipc": 5.7,
+          "front": 4.1,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 13.5,
+          "ipc": 5.2,
+          "front": 8.3,
+          "longest": 0,
+          "calib": 5.7
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "changes.stage-one",
+      "group": "Изменения",
+      "title": "stage 1 файла",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "audit-pass2",
+      "n": 1,
+      "busy": 0,
+      "median": null,
+      "p95": null,
+      "min": null,
+      "max": null,
+      "ipcMedian": 0,
+      "frontMedian": null,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0,
+      "retakes": 0,
+      "calibMedian": null,
+      "commands": {},
+      "samples": [],
+      "errors": [
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Staged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"M big.txt    Un tage\",\"M image.bin    Un tage\",\"A untracked0.txt  ",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"M big.txt    Un tage\",\"M image.bin    Un tage\",\"A untracked0.txt",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"M big.txt    Un tage\",\"M image.bin    Un tage\",\"A untracked0.txt",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"M big.txt    Un tage\",\"M image.bin    Un tage\",\"A untracked0.txt",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"M big.txt    Un tage\",\"M image.bin    Un tage\",\"A untracked0.txt",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"M big.txt    Un tage\",\"M image.bin    Un tage\",\"A untracked0.txt",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"M big.txt    Un tage\",\"M image.bin    Un tage\",\"A untracked0.txt",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"M big.txt    Un tage\",\"M image.bin    Un tage\",\"A untracked0.txt",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"M big.txt    Un tage\",\"M image.bin    Un tage\",\"A untracked0.txt",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"M big.txt    Un tage\",\"M image.bin    Un tage\",\"A untracked0.txt",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"M big.txt    Un tage\",\"M image.bin    Un tage\",\"A untracked0.txt",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"M big.txt    Un tage\",\"M image.bin    Un tage\",\"A untracked0.txt"
+      ]
+    },
+    {
+      "id": "changes.unstage-one",
+      "group": "Изменения",
+      "title": "unstage 1 файла",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "audit-pass2",
+      "n": 1,
+      "busy": 0,
+      "median": null,
+      "p95": null,
+      "min": null,
+      "max": null,
+      "ipcMedian": 0,
+      "frontMedian": null,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0,
+      "retakes": 0,
+      "calibMedian": null,
+      "commands": {},
+      "samples": [],
+      "errors": [
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"M big.txt    Un tage\",\"M image.bin    Un tage\",\"A untracked0.txt",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"M big.txt    Un tage\",\"M image.bin    Un tage\",\"A untracked0.txt",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"M big.txt    Un tage\",\"M image.bin    Un tage\",\"A untracked0.txt",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"M big.txt    Un tage\",\"M image.bin    Un tage\",\"A untracked0.txt",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"M big.txt    Un tage\",\"M image.bin    Un tage\",\"A untracked0.txt",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"M big.txt    Un tage\",\"M image.bin    Un tage\",\"A untracked0.txt",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"M big.txt    Un tage\",\"M image.bin    Un tage\",\"A untracked0.txt",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"M big.txt    Un tage\",\"M image.bin    Un tage\",\"A untracked0.txt",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"M big.txt    Un tage\",\"M image.bin    Un tage\",\"A untracked0.txt",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"M big.txt    Un tage\",\"M image.bin    Un tage\",\"A untracked0.txt",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"M big.txt    Un tage\",\"M image.bin    Un tage\",\"A untracked0.txt",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"M big.txt    Un tage\",\"M image.bin    Un tage\",\"A untracked0.txt"
+      ]
+    },
+    {
+      "id": "changes.stage-one",
+      "group": "Изменения",
+      "title": "stage 1 файла",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "tasks-pulse",
+      "n": 1,
+      "busy": 0,
+      "median": null,
+      "p95": null,
+      "min": null,
+      "max": null,
+      "ipcMedian": 0,
+      "frontMedian": null,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0,
+      "retakes": 0,
+      "calibMedian": null,
+      "commands": {},
+      "samples": [],
+      "errors": [
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"big.txt  File M\",\"file0000.txt  File M   rc/d00/\",\"file0001.txt ",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"big.txt  File M\",\"file0000.txt  File M   rc/d00/\",\"file0001.txt ",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"big.txt  File M\",\"file0000.txt  File M   rc/d00/\",\"file0001.txt ",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"big.txt  File M\",\"file0000.txt  File M   rc/d00/\",\"file0001.txt ",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"big.txt  File M\",\"file0000.txt  File M   rc/d00/\",\"file0001.txt ",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"big.txt  File M\",\"file0000.txt  File M   rc/d00/\",\"file0001.txt ",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"big.txt  File M\",\"file0000.txt  File M   rc/d00/\",\"file0001.txt ",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"big.txt  File M\",\"file0000.txt  File M   rc/d00/\",\"file0001.txt ",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"big.txt  File M\",\"file0000.txt  File M   rc/d00/\",\"file0001.txt ",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"big.txt  File M\",\"file0000.txt  File M   rc/d00/\",\"file0001.txt ",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"big.txt  File M\",\"file0000.txt  File M   rc/d00/\",\"file0001.txt ",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"big.txt  File M\",\"file0000.txt  File M   rc/d00/\",\"file0001.txt "
+      ]
+    },
+    {
+      "id": "changes.unstage-one",
+      "group": "Изменения",
+      "title": "unstage 1 файла",
+      "set": "dirty",
+      "condition": "warm",
+      "variant": "tasks-pulse",
+      "n": 1,
+      "busy": 0,
+      "median": null,
+      "p95": null,
+      "min": null,
+      "max": null,
+      "ipcMedian": 0,
+      "frontMedian": null,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0,
+      "retakes": 0,
+      "calibMedian": null,
+      "commands": {},
+      "samples": [],
+      "errors": [
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"big.txt  File M\",\"file0000.txt  File M   rc/d00/\",\"file0001.txt ",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"big.txt  File M\",\"file0000.txt  File M   rc/d00/\",\"file0001.txt ",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"big.txt  File M\",\"file0000.txt  File M   rc/d00/\",\"file0001.txt ",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"big.txt  File M\",\"file0000.txt  File M   rc/d00/\",\"file0001.txt ",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"big.txt  File M\",\"file0000.txt  File M   rc/d00/\",\"file0001.txt ",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"big.txt  File M\",\"file0000.txt  File M   rc/d00/\",\"file0001.txt ",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"big.txt  File M\",\"file0000.txt  File M   rc/d00/\",\"file0001.txt ",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"big.txt  File M\",\"file0000.txt  File M   rc/d00/\",\"file0001.txt ",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"big.txt  File M\",\"file0000.txt  File M   rc/d00/\",\"file0001.txt ",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"big.txt  File M\",\"file0000.txt  File M   rc/d00/\",\"file0001.txt ",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"big.txt  File M\",\"file0000.txt  File M   rc/d00/\",\"file0001.txt ",
+        "nothing matches {\"sel\":\".pane button.row\",\"text\":\"file0000.txt\",\"section\":\"Unstaged\",\"child\":\".name\"}; the page shows {\"filter\":\"\",\"headings\":[\"Unstaged (0) Stage all+x\",\"Staged (2003) Unstage al\"],\"rows\":[\"Working Tree (2003  taged)\",\"big.txt  File M\",\"file0000.txt  File M   rc/d00/\",\"file0001.txt "
+      ]
+    }
+  ]
+}
