@@ -1,7 +1,7 @@
 <script lang="ts">
   import KindIcon from "$components/common/KindIcon.svelte";
   import type { RefLabel } from "$lib/format";
-  import { REF_LABEL_MAX, middleCut, refLabelText, truncateMiddle } from "$lib/truncate";
+  import { REF_LABEL_MAX, middleCut } from "$lib/truncate";
 
   interface Props {
     label: RefLabel;
@@ -13,9 +13,9 @@
 
   const tooltip = $derived(label.title ?? label.text);
   const prefix = $derived(label.remotes?.join(",") ?? "");
-  /** Middle-cut (#5): the remotes stay whole, the branch name gives up its middle. */
-  const branch = $derived(truncateMiddle(label.name ?? "", Math.max(REF_LABEL_MAX - prefix.length - 1, 12)));
-  const text = $derived(middleCut(label.remotes ? branch : refLabelText(label.text)));
+  /** Middle-cut (#5), once: the remotes stay whole, the branch name gives up its middle, in
+      CSS, at the width the row leaves it and never past `REF_LABEL_MAX` characters. */
+  const text = $derived(middleCut(label.remotes ? (label.name ?? "") : label.text));
   /** Characters a squeezed label keeps (#12): the tail, an ellipsis and the remotes. In `ch`
       of the label's own monospace font, so the floor is exact. */
   const floor = $derived((label.remotes ? prefix.length + 1 : 0) + text.tail.length + (text.lead ? 1 : 0));
@@ -37,6 +37,7 @@
   class:joined={label.remotes}
   class:holds={label.worktree}
   style:--floor="{floor}ch"
+  style:--cap="{REF_LABEL_MAX}ch"
   title={tooltip}
   oncontextmenu={onmenu}
 >
@@ -58,6 +59,7 @@
     align-items: center;
     flex: 0 100000 auto;
     min-width: calc(var(--floor) + var(--chrome) + var(--held, 0px));
+    max-width: calc(var(--cap) + var(--chrome) + var(--held, 0px));
     height: 16px;
     padding: 0 var(--sp-3);
     overflow: hidden;
