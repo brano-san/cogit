@@ -115,7 +115,11 @@
 - Линии графа рисуются на `<canvas>` под списком ([INV-03](01-architecture.md#inv-03)),
   подробности — [07-graph-rendering.md](07-graph-rendering.md).
 - Ref-капсулы: `[HEAD -> dev]`, `[origin/master]`, `[v1.2.0]`. Цвет по типу ссылки.
-- Фильтр в шапке: автор, текст сообщения, диапазон дат, хеш, путь файла.
+- Фильтр в шапке, placeholder `Filter`. Пока в поле есть текст, под шапкой строка переключателей
+  `Author`, `Committer`, `Message`, `Refs`, `ID`, `Name`, `Content` — где искать текст (любое
+  совпадение); по умолчанию включены все, кроме `Name` и `Content`, выбор сохраняется в настройках
+  (`graphFilterFields`, F-560). Префиксы `author:`, `path:`, `oid:`, `since:`, `until:` с
+  значением работают как раньше и объединяются с текстом по И.
 - Мультивыбор двух коммитов (`Ctrl`) сравнивает их в Diff.
 - Контекстное меню: `Checkout`, `Create Branch`, `Tag`, `Cherry-Pick`, `Revert`, `Reset to here`,
   `Copy SHA`, `Interactive Rebase from here`.

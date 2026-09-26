@@ -184,6 +184,17 @@ export const CATEGORIES: Category[] = [
         ],
       },
       {
+        title: "Filter",
+        fields: [
+          {
+            key: "graphFilterFields",
+            label: "Look for the filter text in",
+            hint: "The switches under the Graph filter. Name and Content read the changed files, so they are slower.",
+            keywords: ["search", "filter", "author", "committer", "message", "refs", "id", "name", "content", "find"],
+          },
+        ],
+      },
+      {
         title: "Authors",
         fields: [
           {

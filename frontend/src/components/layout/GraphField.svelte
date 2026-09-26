@@ -10,6 +10,7 @@
     type ColumnRow,
   } from "$lib/graph-columns";
   import { blockedModes, GRAPH_MODES, type GraphMode } from "$lib/graph-mode-conflicts";
+  import { FIELD_LABELS, FILTER_FIELDS, toggled } from "$lib/filter-fields";
   import { fieldDisabled, type Field } from "$lib/preferences";
   import { LONG_LINK_ROWS_MAX, type Settings } from "$lib/settings";
   import { pointerDrag } from "$lib/pointer-drag";
@@ -138,6 +139,21 @@
     <div class="options">
       {#each DENSITIES as [id, title] (id)}
         <Radio name="graphDensity" checked={value.graphDensity === id} onchange={() => onset("graphDensity", id)} label={title} />
+      {/each}
+    </div>
+  </div>
+{:else if field.key === "graphFilterFields"}
+  <div class="row choice">
+    <span>{field.label}</span>
+    <div class="options" role="group" aria-label={field.label}>
+      {#each FILTER_FIELDS as each (each)}
+        <span title={FIELD_LABELS[each].title}>
+          <Checkbox
+            checked={value.graphFilterFields.includes(each)}
+            label={FIELD_LABELS[each].label}
+            onchange={() => onset("graphFilterFields", toggled(value.graphFilterFields, each))}
+          />
+        </span>
       {/each}
     </div>
   </div>

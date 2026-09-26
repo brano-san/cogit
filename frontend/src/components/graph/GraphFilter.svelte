@@ -1,8 +1,8 @@
-
 <script lang="ts">
   import { untrack } from "svelte";
   import { formatQuery, parseQuery, sameQuery } from "$lib/query";
   import type { CommitQuery } from "$lib/ipc";
+  import { graphFilter } from "$stores/graph-filter.svelte";
 
   interface Props {
     onchange: (query: CommitQuery) => void;
@@ -13,52 +13,62 @@
 
   let { onchange, matches, query }: Props = $props();
 
-  const PLACEHOLDER = "Filter: author:brano path:src since:2026-01-01 free text";
-
   // svelte-ignore state_referenced_locally
-  let text = $state(formatQuery(query));
+  graphFilter.text = formatQuery(query);
 
   const active = $derived(!sameQuery(query, parseQuery("")));
+  const fields = $derived(graphFilter.fields);
 
   // One source for the field and the graph: a filter set elsewhere shows here, with its
   // count and ✕, instead of an empty field over a filtered graph.
   $effect(() => {
     const now = query;
     untrack(() => {
-      if (!sameQuery(parseQuery(text), now)) text = formatQuery(now);
+      if (!sameQuery(parseQuery(graphFilter.text, graphFilter.fields), now)) graphFilter.text = formatQuery(now);
+    });
+  });
+
+  // A switch changes where the text is looked for: the graph follows at once.
+  $effect(() => {
+    const on = fields;
+    untrack(() => {
+      if (query.text == null) return;
+      const next = parseQuery(graphFilter.text, on);
+      if (!sameQuery(next, query)) onchange(next);
     });
   });
 
   function apply() {
-    const next = parseQuery(text);
+    const next = parseQuery(graphFilter.text, fields);
     if (!sameQuery(next, query)) onchange(next);
   }
 
   function reset() {
-    text = "";
+    graphFilter.text = "";
     if (active) onchange(parseQuery(""));
   }
 
   function onkeydown(event: KeyboardEvent) {
     if (event.key === "Enter") apply();
-    if (event.key === "Escape" && (text !== "" || active)) reset();
+    if (event.key === "Escape" && (graphFilter.text !== "" || active)) reset();
   }
 </script>
 
 <div class="filter" class:active>
   <input
     type="search"
-    bind:value={text}
+    bind:value={graphFilter.text}
     {onkeydown}
     onblur={apply}
-    placeholder={PLACEHOLDER}
+    placeholder="Filter"
     aria-label="Filter commits"
+    title="Looks for the text in the fields switched on under the field. author:, path:, oid:, since: and until: take a value of their own."
   />
   {#if active}
     <span class="count tabular">{matches ?? 0}</span>
     <button type="button" onclick={reset} title="Clear filter (Esc)">✕</button>
   {/if}
-  {#if text.trim() !== "" && !sameQuery(parseQuery(text), query)}
+  {#if graphFilter.text.trim() !== "" && !sameQuery(parseQuery(graphFilter.text, fields), query)}
     <span class="hint">Enter</span>
   {/if}
 </div>

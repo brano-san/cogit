@@ -1,3 +1,4 @@
+import { DEFAULT_FILTER_FIELDS, FILTER_FIELDS, textFields, type FilterField } from "$lib/filter-fields";
 import type { CommitQuery } from "$lib/ipc";
 
 const EMPTY: CommitQuery = {
@@ -7,10 +8,12 @@ const EMPTY: CommitQuery = {
   since: null,
   until: null,
   path: null,
+  text: null,
 };
 
-/** `author:name path:src since:2026-01-01 free words`; anything left over is the message. */
-export function parseQuery(input: string): CommitQuery {
+/** `author:name path:src since:2026-01-01 free words`; the words left over are looked for in
+    `fields`, the switches under the filter (F-560). */
+export function parseQuery(input: string, fields: readonly FilterField[] = DEFAULT_FILTER_FIELDS): CommitQuery {
   const query: CommitQuery = { ...EMPTY };
   const words: string[] = [];
 
@@ -43,13 +46,17 @@ export function parseQuery(input: string): CommitQuery {
     }
   }
 
-  const message = words.join(" ").trim();
-  if (message !== "") query.message = message;
+  const text = words.join(" ").trim();
+  if (text !== "") {
+    query.text = text;
+    query.textIn = textFields(fields);
+  }
   return query;
 }
 
+/** The switches say where text is looked for; without text they filter nothing. */
 export function isEmptyQuery(query: CommitQuery): boolean {
-  return Object.values(query).every((value) => value === null);
+  return (Object.keys(EMPTY) as (keyof CommitQuery)[]).every((key) => (query[key] ?? null) === null);
 }
 
 /** The text `parseQuery` reads back as `query`: what the filter field shows for a filter
@@ -61,7 +68,7 @@ export function formatQuery(query: CommitQuery): string {
     const date = new Date(seconds * 1000);
     return `${date.getFullYear()}-${two(date.getMonth() + 1)}-${two(date.getDate())}`;
   };
-  const { author, path, oidPrefix, since, until, message } = query;
+  const { author, path, oidPrefix, since, until, message, text } = query;
   const parts: string[] = [];
   if (author != null) parts.push(`author:${quote(author)}`);
   if (path != null) parts.push(`path:${quote(path)}`);
@@ -69,12 +76,14 @@ export function formatQuery(query: CommitQuery): string {
   if (since != null) parts.push(`since:${day(since)}`);
   if (until != null) parts.push(`until:${day(until)}`);
   if (message != null) parts.push(message);
+  if (text != null) parts.push(text);
   return parts.join(" ");
 }
 
 /** The same filter: the fields a user types, not how the graph lays the result out. */
 export function sameQuery(a: CommitQuery, b: CommitQuery): boolean {
-  return (Object.keys(EMPTY) as (keyof CommitQuery)[]).every((key) => (a[key] ?? null) === (b[key] ?? null));
+  const same = (Object.keys(EMPTY) as (keyof CommitQuery)[]).every((key) => (a[key] ?? null) === (b[key] ?? null));
+  return same && (a.text == null || FILTER_FIELDS.every((field) => !!a.textIn?.[field] === !!b.textIn?.[field]));
 }
 
 /** Splits on whitespace but keeps `field:"two words"` in one piece. */
