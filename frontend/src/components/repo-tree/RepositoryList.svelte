@@ -5,6 +5,7 @@
   import { MISSING_REPOSITORY } from "$lib/repo-labels";
   import { canPull, freshOverview, moduleSync, rowSync, syncTooltip, type RowSync } from "$lib/repo-sync";
   import { repoPulse } from "$stores/repo-pulse.svelte";
+  import { repoMenuRow } from "$stores/menu-row.svelte";
   import {
     mayExpand,
     moduleHint,
@@ -219,6 +220,7 @@
     <div
       class="row module {node.module.state}"
       class:selected={owned && submodules.open === node.key}
+      class:menu={repoMenuRow.key === nodeRoot}
       role="button"
       tabindex="0"
       data-key-row={node.key}
@@ -369,6 +371,7 @@
         data-key-label={listed.name}
         style:padding-left="calc(var(--tree-base) + {row.depth} * var(--tree-step))"
         class:selected={active?.valueOf() === entry.repo.valueOf()}
+        class:menu={repoMenuRow.key === entry.root}
         class:holds-worktree={worktrees.ownerRoot === entry.root}
         class:marked={marked.paths.has(entry.root)}
         class:missing={entry.missing}
@@ -408,6 +411,7 @@
         {:else if listed}
           <div
             class="row closed"
+            class:menu={repoMenuRow.key === listed.root}
             data-drag={REPO_DRAG + listed.root}
             data-key-row={listed.root}
             data-key-label={listed.name}
@@ -563,6 +567,14 @@
   .row.selected {
     background: var(--state-selected);
     box-shadow: inset 2px 0 0 var(--status-ref);
+  }
+
+  /* The row a context menu is open on: a ring inside the row, over any selection bar and
+     tint, so the menu reads as that row's without the selection moving (R-545). */
+  .row.menu {
+    background: var(--state-hover);
+    outline: 1px solid var(--state-focus-ring);
+    outline-offset: -1px;
   }
 
   .group {

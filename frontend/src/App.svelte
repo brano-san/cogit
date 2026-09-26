@@ -107,7 +107,7 @@
   import { graphPanelMinWidth } from "$lib/graph-panel";
   import { closeStep, holdsPanels, reopenClick, repoClick } from "$lib/repo-click";
   import { ModuleInitialiser, moduleClick } from "$lib/module-init";
-  import { shownRowRoot, updateModule } from "$lib/module-tree";
+  import { moduleRoot, shownRowRoot, updateModule } from "$lib/module-tree";
   import { moduleForest } from "$stores/module-forest.svelte";
   import { parseWorktreeCommand, worktreeMenu } from "$lib/worktree-menu";
   import { answerMergeResolved } from "$lib/merge-save";
@@ -187,6 +187,7 @@
   import { submodules } from "$stores/submodules.svelte";
   import { moduleMemory } from "$stores/module-memory.svelte";
   import { repoPulse } from "$stores/repo-pulse.svelte";
+  import { repoMenuRow } from "$stores/menu-row.svelte";
   import { graph } from "$stores/graph.svelte";
   import { hooks } from "$stores/hooks.svelte";
   import { avatars } from "$stores/avatars.svelte";
@@ -2758,7 +2759,11 @@
   }
 
   /** A row of the Repositories list, open or closed (#36). */
-  async function repoContext(row: ListedRepo, x: number, y: number) {
+  function repoContext(row: ListedRepo, x: number, y: number) {
+    return repoMenuRow.hold(row.root, () => showRepoMenu(row, x, y));
+  }
+
+  async function showRepoMenu(row: ListedRepo, x: number, y: number) {
     const info = await desktop.load();
     repoTarget = { kind: "repository", root: row.root, overview: row.overview };
     const active = row.overview !== null && repo?.repo.valueOf() === row.overview.repo.valueOf();
@@ -2793,6 +2798,16 @@
   ) {
     const top = foreign ?? submodules.ownerRoot;
     if (!top) return;
+    await repoMenuRow.hold(moduleRoot(top, row.key), () => showModuleMenu(row, x, y, top, foreign));
+  }
+
+  async function showModuleMenu(
+    row: import("$lib/module-tree").ModuleRow,
+    x: number,
+    y: number,
+    top: string,
+    foreign?: string,
+  ) {
     const info = await desktop.load();
     const open = foreign === undefined && submodules.open === row.key;
     repoTarget = { kind: "submodule", root: `${top}/${row.key}`, row, top: foreign };
