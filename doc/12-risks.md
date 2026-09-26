@@ -6716,7 +6716,8 @@ HEAD). Теперь `Check Out` меню и двойной клик открыв
 `lib/ref-checkout.ts`:
 
 - локальная ветка в Branches — только описание (что отслеживает, ↑↓) и `Don't show again`
-  (настройка `confirmLocalCheckout`; вернуть — Preferences ▸ Behaviour ▸ Don't show again);
+  (настройка `confirmLocalCheckout`; вернуть — Preferences ▸ Behaviour ▸ Don't show again или
+  флажок Preferences ▸ General ▸ Check Out);
 - remote-ветка — `Create local branch` (имя без remote) с `Track remote branch` (включён),
   `Don't create a local branch (just read-only)` — detached HEAD, и третий вариант, если есть
   локальная ветка, для которой эта remote-ветка — upstream; тогда он и выбран;

@@ -349,6 +349,14 @@
               <div class="row check">
                 <Checkbox checked={draft.confirmExit} onchange={(checked) => set("confirmExit", checked)} label={field.label} />
               </div>
+            {:else if field.key === "confirmLocalCheckout"}
+              <div class="row check">
+                <Checkbox
+                  checked={draft.confirmLocalCheckout}
+                  onchange={(checked) => set("confirmLocalCheckout", checked)}
+                  label={field.label}
+                />
+              </div>
             {:else if field.key === "suppressions"}
               {@const choices = suppressedChoices(draft.confirmExit, ignored, draft.confirmLocalCheckout)}
               <p class="row">{field.label}</p>

@@ -4,7 +4,7 @@
       с кнопками `Cancel` и `Checkout` (R-560, R-561):
       - локальная ветка в Branches — что она отслеживает и насколько разошлась, чекбокс
         `Don't show again` (дальше — сразу checkout; вернуть — Preferences ▸ Behaviour ▸
-        Don't show again);
+        Don't show again или флажок Preferences ▸ General ▸ Check Out);
       - remote-ветка — `Create local branch` с именем без remote и `Track remote branch`
         (включён), `Don't create a local branch (just read-only)` — detached HEAD; если есть
         локальная ветка, чей upstream — эта ветка, третий вариант, выбранный сразу:
