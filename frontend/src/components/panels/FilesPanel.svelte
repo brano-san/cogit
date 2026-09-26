@@ -9,6 +9,7 @@
   import { commitTree } from "$stores/commit-tree.svelte";
   import { compareView } from "$stores/compare-view.svelte";
   import { diff } from "$stores/diff.svelte";
+  import { errors } from "$stores/errors.svelte";
   import { filesView } from "$stores/files-view.svelte";
   import { layout } from "$stores/layout.svelte";
   import { repository } from "$stores/repository.svelte";
@@ -80,6 +81,8 @@
     const oid = commit.oid;
     if (!onWorkingTree && filesView.commit.unchanged && id && oid) void commitTree.load(id, oid);
   });
+
+  $effect(() => errors.report(commitTree.error, "Could not list the unchanged files of the commit"));
 
   const commitList = $derived(
     withUnchanged(

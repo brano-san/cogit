@@ -157,6 +157,7 @@
   } from "$lib/ipc";
   import { openBlame } from "$lib/blame-window";
   import { commit } from "$stores/commit.svelte";
+  import { commitTree } from "$stores/commit-tree.svelte";
   import { conflicts } from "$stores/conflicts.svelte";
   import { worktree } from "$stores/worktree.svelte";
   import { runMutation, type MutationContext } from "$lib/mutation";
@@ -1779,6 +1780,7 @@
       which belongs to the repository in the list and outlives the panels (R-129). */
   function forgetPanelsKeepingTheTree(keepWorktrees = false) {
     commit.clear();
+    commitTree.clear();
     diff.clear();
     worktree.clear();
     stashes.clear();
