@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { STASH_MODES, stashNameProblem, stashRequest } from "./stash-modes";
+import { STASH_BUTTONS, STASH_MODES, stashNameProblem, stashRequest } from "./stash-modes";
 
 describe("the Stash dialog", () => {
   it("offers Stash All, + Keep Index and + Keep Working Tree, in that order", () => {
@@ -7,6 +7,15 @@ describe("the Stash dialog", () => {
       "Stash All",
       "+ Keep Index",
       "+ Keep Working Tree",
+    ]);
+  });
+
+  // Stash All stood leftmost of the actions with Cancel at the right edge (R-167).
+  it("puts the primary Stash All rightmost, after the variants", () => {
+    expect(STASH_BUTTONS.map((entry) => entry.label)).toEqual([
+      "+ Keep Index",
+      "+ Keep Working Tree",
+      "Stash All",
     ]);
   });
 
