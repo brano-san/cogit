@@ -1,18 +1,50 @@
 import { describe, expect, it } from "vitest";
-import { BAND_WIDTH, NUM_WIDTH, bandLeft, ribbonPath, ribbonsNear, type Span } from "./diff-band";
+import {
+  BAND_WIDTH,
+  NUM_WIDTH,
+  SPLIT_MAX,
+  SPLIT_MIN,
+  bandLeft,
+  draggedShare,
+  ribbonPath,
+  ribbonsNear,
+  type Span,
+} from "./diff-band";
 
 function span(fromTop: number, fromBottom: number, toTop: number, toBottom: number): Span {
   return { fromTop, fromBottom, toTop, toBottom };
 }
 
 describe("bandLeft", () => {
-  it("centres the band in the row", () => {
-    expect(bandLeft(1000)).toBe((1000 - BAND_WIDTH) / 2);
+  it("centres the band in the row at an even split", () => {
+    expect(bandLeft(1000, 0.5, 80)).toBe((1000 - BAND_WIDTH) / 2);
+  });
+
+  it("gives the left code column its share of the code width", () => {
+    expect(bandLeft(1000, 0.3, 80)).toBeCloseTo(80 + 0.3 * (1000 - 2 * 80 - BAND_WIDTH));
   });
 
   it("never lets the band slide over the line numbers", () => {
-    expect(bandLeft(0)).toBe(NUM_WIDTH);
-    expect(bandLeft(50)).toBe(NUM_WIDTH);
+    expect(bandLeft(0, 0.5, 80)).toBe(80);
+    expect(bandLeft(50, 0.8, 80)).toBe(80);
+    expect(bandLeft(0, 0.5, 0)).toBe(NUM_WIDTH);
+  });
+});
+
+describe("the split between the columns", () => {
+  it("moves by the dragged pixels as a share of the code width", () => {
+    const code = 1000 - 2 * 80 - BAND_WIDTH;
+    expect(draggedShare(0.5, code / 10, 1000, 80)).toBeCloseTo(0.6);
+  });
+
+  it("keeps each column at least a fifth of the code width", () => {
+    expect(draggedShare(0.5, -5000, 1000, 80)).toBe(SPLIT_MIN);
+    expect(draggedShare(0.5, 5000, 1000, 80)).toBe(SPLIT_MAX);
+    expect(SPLIT_MIN).toBeCloseTo(1 - SPLIT_MAX);
+  });
+
+  it("stays put in a row with no room for code", () => {
+    expect(draggedShare(0.4, 30, 100, 80)).toBe(0.4);
   });
 });
 

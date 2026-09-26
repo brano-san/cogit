@@ -9,13 +9,16 @@
     type ConnectorRow,
     type SearchRow,
     type SideCell,
+    type SidePair,
   } from "$lib/diff-rows";
+  import { cellTokens, diffTokens, rowTokens } from "$lib/diff-highlight";
   import {
     blockKeys,
+    FLASH_MS,
     changeAt,
+    changeEnd,
     changeStarts,
     foldDiff,
-    highlightedRows,
     navState,
     revealRange,
     splitRows,
@@ -23,8 +26,24 @@
     type LineRange,
   } from "$lib/diff-fold";
   import { DiffSearch } from "$lib/diff-search.svelte";
-  import { BAND_WIDTH, bandLeft, ribbonPath, ribbonsNear } from "$lib/diff-band";
+  import {
+    BAND_WIDTH,
+    GUTTER_WIDTH,
+    NUM_WIDTH,
+    SPLIT_EVEN,
+    SPLIT_MAX,
+    SPLIT_MIN,
+    SPLIT_STEP,
+    bandLeft,
+    clampShare,
+    draggedShare,
+    ribbonPath,
+    ribbonsNear,
+  } from "$lib/diff-band";
+  import { settings } from "$stores/settings.svelte";
   import DiffFindBar from "./DiffFindBar.svelte";
+  import FileSummary from "./FileSummary.svelte";
+  import { binaryReason, tooLargeReason } from "$lib/diff-summary";
   import SidewaysScrollbar from "$components/common/SidewaysScrollbar.svelte";
   import {
     NO_NEWLINE_COLUMNS,
@@ -38,7 +57,7 @@
   } from "$lib/code-scroll";
   import ConfirmDialog from "$components/common/ConfirmDialog.svelte";
   import { eolChangeText, eolLabel, layoutTip, modeChangeText } from "$lib/diff-toolbar";
-  import { MAX_HIGHLIGHT_LINES, highlightLines, mergePieces, type Token } from "$lib/highlight";
+  import { mergePieces, type Token } from "$lib/highlight";
   import { lineKey, toggleLine } from "$lib/selection";
   import { keepSelection } from "$lib/diff-selection";
   import { investigateTarget, openInvestigate } from "$lib/investigate/open";
@@ -62,6 +81,8 @@
     /** Whether the window's keys are the diff's (11 §7): in the main window only while the
         Diff panel has the focus; a window of its own has nothing else to give them to. */
     active?: boolean;
+    /** Off where the file is named already: the compare window's title and header. */
+    showPath?: boolean;
   }
 
   let {
@@ -74,7 +95,11 @@
     onwhitespace,
     onexpand,
     active = true,
+    showPath = true,
   }: Props = $props();
+
+  /** Names the band's gradient apart from another diff's in the same document. */
+  const uid = $props.id();
 
   const WHITESPACE_LABEL = { none: "Whitespace", trailing: "Trailing ws", all: "Ignore ws" };
   const WHITESPACE_NEXT = { none: "trailing", trailing: "all", all: "none" } as const;
@@ -104,35 +129,20 @@
   const language = $derived(diff.kind === "text" ? diff.language : null);
 
   /** Parsed once per diff, per side: a block comment must survive the line it opened on. */
-  const tokens = $derived.by(() => {
-    const oldLines: string[] = [];
-    const newLines: string[] = [];
-    const oldAt = new Map<string, number>();
-    const newAt = new Map<string, number>();
-
-    for (const row of highlightedRows(hunks, () => unified, MAX_HIGHLIGHT_LINES)) {
-      if (row.kind === "context") {
-        oldAt.set("c" + row.old, oldLines.push(row.text) - 1);
-        newAt.set("c" + row.new, newLines.push(row.text) - 1);
-      } else if (row.kind === "delete") {
-        oldAt.set("d" + row.old, oldLines.push(row.text) - 1);
-      } else if (row.kind === "insert") {
-        newAt.set("i" + row.new, newLines.push(row.text) - 1);
-      }
-    }
-    return {
-      old: highlightLines(oldLines, language),
-      new: highlightLines(newLines, language),
-      oldAt,
-      newAt,
-    };
-  });
+  const tokens = $derived(
+    diffTokens(
+      {
+        hunks,
+        language,
+        oldText: diff.kind === "text" ? diff.oldText : null,
+        newText: diff.kind === "text" ? diff.newText : null,
+      },
+      () => unified,
+    ),
+  );
 
   function tokensFor(row: DiffRow): Token[] {
-    if (row.kind === "delete") return tokens.old[tokens.oldAt.get("d" + row.old) ?? -1] ?? [];
-    if (row.kind === "insert") return tokens.new[tokens.newAt.get("i" + row.new) ?? -1] ?? [];
-    if (row.kind === "context") return tokens.old[tokens.oldAt.get("c" + row.old) ?? -1] ?? [];
-    return [];
+    return rowTokens(tokens, row);
   }
 
   const unified = $derived(
@@ -153,22 +163,80 @@
     visibleRange(scrollTop, viewportHeight, ROW_HEIGHT, total, BUFFER_ROWS),
   );
 
-  const starts = $derived(
-    changeStarts(
-      mode === "unified"
-        ? unified.map((entry) => entry.kind === "row" && lineKey(entry.row) !== null)
-        : split.map(
-            (entry) =>
-              entry.kind === "pair" &&
-              (entry.pair.left?.kind === "delete" || entry.pair.right?.kind === "insert"),
-          ),
-    ),
+  const changed = $derived(
+    mode === "unified"
+      ? unified.map((entry) => entry.kind === "row" && lineKey(entry.row) !== null)
+      : split.map(
+          (entry) =>
+            entry.kind === "pair" &&
+            (entry.pair.left?.kind === "delete" || entry.pair.right?.kind === "insert"),
+        ),
   );
+  const starts = $derived(changeStarts(changed));
   const nav = $derived(navState(starts.length, current));
 
-  let rowsWidth = $state(0);
+  /** The rows of the change a jump landed on, lit briefly so the eye finds them (F-541). */
+  let flash = $state<{ from: number; to: number } | null>(null);
+  let flashTimer: ReturnType<typeof setTimeout> | undefined;
 
-  const left = $derived(bandLeft(rowsWidth));
+  function flashChange(start: number) {
+    clearTimeout(flashTimer);
+    flash = null;
+    // A frame without the class, so the same rows lit again start their fade over.
+    requestAnimationFrame(() => {
+      flash = { from: start, to: changeEnd(changed, start) };
+      flashTimer = setTimeout(() => (flash = null), FLASH_MS);
+    });
+  }
+
+  function flashed(index: number): boolean {
+    return flash !== null && index >= flash.from && index < flash.to;
+  }
+
+  let rowsWidth = $state(0);
+  /** The sign column, measured: it is sized in `ch` of the code font. */
+  let signWidth = $state(0);
+  /** Side by side, while the divider is dragged; the settings hold it once let go (R-535). */
+  let dragShare = $state<number | null>(null);
+  let dragFrom: { x: number; share: number } | null = null;
+  const share = $derived(dragShare ?? settings.current.diffSplit);
+  const sideWidth = $derived(GUTTER_WIDTH + NUM_WIDTH + signWidth);
+
+  const left = $derived(bandLeft(rowsWidth, share, sideWidth));
+
+  function saveShare(next: number) {
+    void settings.set("diffSplit", clampShare(next));
+  }
+
+  function ondividerdown(event: PointerEvent) {
+    if (event.button !== 0) return;
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    dragFrom = { x: event.clientX, share };
+    dragShare = share;
+    event.preventDefault();
+  }
+
+  function ondividermove(event: PointerEvent) {
+    if (!dragFrom) return;
+    dragShare = draggedShare(dragFrom.share, event.clientX - dragFrom.x, rowsWidth, sideWidth);
+  }
+
+  function ondividerup(event: PointerEvent) {
+    const dropped = dragShare;
+    if (!dragFrom) return;
+    dragFrom = null;
+    if (dropped !== null) saveShare(dropped);
+    dragShare = null;
+    (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId);
+  }
+
+  function ondividerkey(event: KeyboardEvent) {
+    if (event.key === "ArrowLeft") saveShare(share - SPLIT_STEP);
+    else if (event.key === "ArrowRight") saveShare(share + SPLIT_STEP);
+    else if (event.key === "Home") saveShare(SPLIT_EVEN);
+    else return;
+    event.preventDefault();
+  }
 
   /** Computed once per diff. Scrolling only filters it — walking every row on each frame
       would cost the 60 FPS the product promises. */
@@ -201,21 +269,31 @@
   const PROBE = "0".repeat(100);
   /** Measured in the hidden ruler row, which has the layout of every other row. */
   let codeWidth = $state(0);
+  /** Side by side, the right code column: no longer as wide as the left one (R-535). */
+  let rightWidth = $state(0);
   let probeWidth = $state(0);
   const charWidth = $derived(probeWidth / PROBE.length);
   /** Pixels the code of every column is moved left by; the numbers stay put. */
   let sideways = $state(0);
 
+  /** The widest line of each side: side by side, each column scrolls within its own width. */
   const widest = $derived.by(() => {
-    let most = 0;
+    let old = 0;
+    let next = 0;
     for (const entry of unified) {
       if (entry.kind !== "row") continue;
       const row = entry.row;
-      most = Math.max(most, textColumns(row.text) + (row.noNewline ? NO_NEWLINE_COLUMNS : 0));
+      const columns = textColumns(row.text) + (row.noNewline ? NO_NEWLINE_COLUMNS : 0);
+      if (row.kind !== "insert") old = Math.max(old, columns);
+      if (row.kind !== "delete") next = Math.max(next, columns);
     }
-    return most + TRAILING_COLUMNS;
+    return { old: old + TRAILING_COLUMNS, new: next + TRAILING_COLUMNS };
   });
-  const sidewaysMax = $derived(maxOffset(widest, charWidth, codeWidth));
+  const sidewaysMax = $derived(
+    mode === "split"
+      ? Math.max(maxOffset(widest.old, charWidth, codeWidth), maxOffset(widest.new, charWidth, rightWidth))
+      : maxOffset(Math.max(widest.old, widest.new), charWidth, codeWidth),
+  );
   const shift = $derived(clampOffset(sideways, sidewaysMax));
 
   function scrollToRow(index: number) {
@@ -232,7 +310,8 @@
     if (text === null || text === undefined || charWidth === 0) return;
     const from = textColumns(text.slice(0, hit.from)) * charWidth;
     const to = textColumns(text.slice(0, hit.to)) * charWidth;
-    sideways = revealOffset(shift, codeWidth, from, to, sidewaysMax, REVEAL_MARGIN_COLUMNS * charWidth);
+    const view = hit.side === "right" ? rightWidth : codeWidth;
+    sideways = revealOffset(shift, view, from, to, sidewaysMax, REVEAL_MARGIN_COLUMNS * charWidth);
   }
 
   function onwheel(event: WheelEvent) {
@@ -331,21 +410,10 @@
     }
   }
 
-  function cells(cell: SideCell | null, index: number, side: "left" | "right") {
+  function cells(pair: SidePair, index: number, side: "left" | "right") {
+    const cell = pair[side];
     if (!cell) return [];
-    // A context cell on the right carries its new-side number; the old-side lookup would
-    // colour it with another line's tokens.
-    if (cell.kind === "context" && side === "right") {
-      const own = tokens.new[tokens.newAt.get("c" + cell.line) ?? -1] ?? [];
-      return mergePieces(cell.text, own, cell.inline, find.spansFor(index, side));
-    }
-    const row =
-      cell.kind === "delete"
-        ? ({ kind: "delete", old: cell.line, text: cell.text, inline: cell.inline } as const)
-        : cell.kind === "insert"
-          ? ({ kind: "insert", new: cell.line, text: cell.text, inline: cell.inline } as const)
-          : ({ kind: "context", old: cell.line, new: cell.line, text: cell.text } as const);
-    return mergePieces(cell.text, tokensFor(row), cell.inline, find.spansFor(index, side));
+    return mergePieces(cell.text, cellTokens(tokens, pair, side), cell.inline, find.spansFor(index, side));
   }
 
   function settle() {
@@ -361,6 +429,7 @@
     scroller.scrollTop = Math.max((starts[target] ?? 0) - LEAD, 0) * ROW_HEIGHT;
     jumping = scroller.scrollTop !== before;
     current = target;
+    flashChange(starts[target] ?? 0);
   }
 
   function onscroll() {
@@ -416,8 +485,11 @@
     pendingDiscard = null;
     discardError = null;
     sideways = 0;
+    flash = null;
     if (scroller) scroller.scrollTop = 0;
   });
+
+  $effect(() => () => clearTimeout(flashTimer));
 
   /** The hunks `selected` was chosen in. Staging a block re-diffs the file under the
       selection; only the lines that still mean the same line stay selected. */
@@ -528,7 +600,7 @@
 
 <div class="diff">
   <div class="bar">
-    <span class="path mono truncate">{path}</span>
+    {#if showPath}<span class="path mono truncate">{path}</span>{:else}<span class="grow"></span>{/if}
     {#if diff.kind === "text"}
       {@const eol = eolLabel(diff.eol, diff.oldTotal, diff.newTotal)}
       <span class="eol" title={eol.title}>{eol.text}</span>
@@ -650,11 +722,11 @@
       Only the line endings changed: {eolChangeText(diff.from, diff.to)}. The content is identical.
     </p>
   {:else if diff.kind === "binary"}
-    <p class="message">Binary file — {diff.oldSize} bytes → {diff.newSize} bytes.</p>
+    <FileSummary reason={binaryReason(diff.cause)} old={diff.old} next={diff.new} />
   {:else if diff.kind === "image"}
     <p class="message">Image ({diff.mime}) — {diff.oldSize} bytes → {diff.newSize} bytes.</p>
   {:else if diff.kind === "tooLarge"}
-    <p class="message">File is too large to diff ({diff.size} bytes).</p>
+    <FileSummary reason={tooLargeReason(diff.limit)} old={diff.old} next={diff.new} />
   {:else if diff.kind === "folder"}
     <p class="message">
       {diff.repository
@@ -668,14 +740,16 @@
         class="rows"
         style:height="{total * ROW_HEIGHT}px"
         style:--shift="{shift}px"
+        style:--left-share={share}
+        style:--right-share={1 - share}
         bind:clientWidth={rowsWidth}
       >
         <div class="line ruler" aria-hidden="true">
           <span class="gutter"></span>
           <span class="num"></span>
           {#if mode === "unified"}<span class="num"></span>{/if}
-          <span class="sign"></span>
-          <span class="code mono" class:side={mode === "split"} bind:clientWidth={codeWidth}
+          <span class="sign" bind:offsetWidth={signWidth}></span>
+          <span class="code mono" class:side={mode === "split"} class:left={mode === "split"} bind:clientWidth={codeWidth}
             ><span class="probe" bind:offsetWidth={probeWidth}>{PROBE}</span></span
           >
           {#if mode === "split"}
@@ -683,9 +757,36 @@
             <span class="gutter"></span>
             <span class="num"></span>
             <span class="sign"></span>
-            <span class="code mono side"></span>
+            <span class="code mono side right" bind:clientWidth={rightWidth}></span>
           {/if}
         </div>
+        {#if mode === "split"}
+          <!-- The band between the columns is the divider: drag it, or arrows while focused. -->
+          <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+          <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+          <div
+            class="divider"
+            class:dragging={dragShare !== null}
+            style:left="{left}px"
+            role="separator"
+            tabindex="0"
+            aria-label="Width of the old and the new side"
+            aria-orientation="vertical"
+            aria-valuenow={Math.round(share * 100)}
+            aria-valuemin={Math.round(SPLIT_MIN * 100)}
+            aria-valuemax={Math.round(SPLIT_MAX * 100)}
+            title="Drag to change the width of the two sides; double-click for an even split"
+            onpointerdown={ondividerdown}
+            onpointermove={ondividermove}
+            onpointerup={ondividerup}
+            onlostpointercapture={() => {
+              dragFrom = null;
+              dragShare = null;
+            }}
+            onkeydown={ondividerkey}
+            ondblclick={() => saveShare(SPLIT_EVEN)}
+          ></div>
+        {/if}
         {#if mode === "split" && ribbons.length > 0}
           <svg
             class="band"
@@ -694,8 +795,19 @@
             height={total * ROW_HEIGHT}
             aria-hidden="true"
           >
+            <defs>
+              <linearGradient id="{uid}-change">
+                <stop offset="0" style:stop-color="var(--c-deleted-bg)" />
+                <stop offset="1" style:stop-color="var(--c-added-bg)" />
+              </linearGradient>
+            </defs>
             {#each ribbons as ribbon, i (i)}
-              <path class="ribbon" class:moved={ribbon.moved} d={ribbonPath(ribbon, ROW_HEIGHT)} />
+              <path
+                class="ribbon {ribbon.kind}"
+                class:moved={ribbon.moved}
+                style:fill={ribbon.kind === "change" && !ribbon.moved ? `url(#${uid}-change)` : undefined}
+                d={ribbonPath(ribbon, ROW_HEIGHT)}
+              />
             {/each}
           </svg>
         {/if}
@@ -712,6 +824,7 @@
               <div
                 class="line"
                 class:staging={stageable && key !== null && selected.has(key)}
+                class:flash={flashed(rowIndex)}
                 class:marked={!stageable && key !== null && selected.has(key)}
                 style:top="{rowIndex * ROW_HEIGHT}px"
                 onmouseenter={() => (hoverRow = rowIndex)}
@@ -796,6 +909,7 @@
               <div
                 class="line"
                 class:staging={stageable && picked}
+                class:flash={flashed(rowIndex)}
                 class:marked={!stageable && picked}
                 style:top="{rowIndex * ROW_HEIGHT}px"
                 onmouseenter={() => (hoverRow = rowIndex)}
@@ -805,14 +919,16 @@
                 <span
                   class="sign"
                   class:del={entry.pair.left?.kind === "delete"}
+                  class:empty={!entry.pair.left}
                   class:moved={entry.pair.left?.moved}>{sign(entry.pair.left)}</span
                 >
                 <span
-                  class="code mono side"
+                  class="code mono side left"
                   class:del={entry.pair.left?.kind === "delete"}
+                  class:empty={!entry.pair.left}
                   class:moved={entry.pair.left?.moved}
                   ><span class="text"
-                    >{#each cells(entry.pair.left, rowIndex, "left") as piece, i (i)}<span
+                    >{#each cells(entry.pair, rowIndex, "left") as piece, i (i)}<span
                         class="{piece.cls}"
                         class:word={piece.changed}
                         class:hit={piece.hit}
@@ -826,14 +942,16 @@
                 <span
                   class="sign"
                   class:add={entry.pair.right?.kind === "insert"}
+                  class:empty={!entry.pair.right}
                   class:moved={entry.pair.right?.moved}>{sign(entry.pair.right)}</span
                 >
                 <span
-                  class="code mono side"
+                  class="code mono side right"
                   class:add={entry.pair.right?.kind === "insert"}
+                  class:empty={!entry.pair.right}
                   class:moved={entry.pair.right?.moved}
                   ><span class="text"
-                    >{#each cells(entry.pair.right, rowIndex, "right") as piece, i (i)}<span
+                    >{#each cells(entry.pair, rowIndex, "right") as piece, i (i)}<span
                         class="{piece.cls}"
                         class:word={piece.changed}
                         class:hit={piece.hit}
@@ -962,6 +1080,31 @@
   /* A read-only diff can still be selected, for Investigate; it just stages nothing. */
   .line.marked {
     box-shadow: inset 2px 0 0 var(--status-ref);
+  }
+
+  /* Over the row's own fills, fading out in `FLASH_MS`; with reduced motion it just stays
+     lit that long. Feedback, not a transition: nothing waits for it. */
+  .line.flash::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--diff-jump-flash);
+    pointer-events: none;
+    opacity: 0;
+    animation: jump-flash 600ms ease-out;
+  }
+
+  @keyframes jump-flash {
+    from {
+      opacity: 1;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .line.flash::after {
+      animation: none;
+      opacity: 1;
+    }
   }
 
   .acts {
@@ -1101,8 +1244,30 @@
     color: var(--status-stash);
   }
 
-  .side {
-    flex: 1 1 50%;
+  /* Each code column grows by its share from nothing, so the two split exactly as set. */
+  .side.left {
+    flex: var(--left-share, 0.5) 1 0;
+  }
+
+  .side.right {
+    flex: var(--right-share, 0.5) 1 0;
+  }
+
+  /* Where the other side has lines this one lacks: hatched, as VS Code does. 18 px rows
+     over a 45° stripe with a 6/√2 px period repeat every third of a row, so the stripes
+     run on unbroken from row to row. */
+  .sign.empty,
+  .code.empty {
+    background: repeating-linear-gradient(
+      -45deg,
+      var(--diff-filler) 0 1px,
+      transparent 1px 4.2426px
+    );
+  }
+
+  /* From the sign column's edge, so the stripes do not break where the code column starts. */
+  .code.empty {
+    background-position: -3.5ch 0;
   }
 
   /* Reserves the strip the ribbons are drawn over. Width must match `BAND_WIDTH`. */
@@ -1113,12 +1278,50 @@
   .band {
     position: absolute;
     top: 0;
+    z-index: 2;
     pointer-events: none;
   }
 
+  /* The panel divider's look (R-500): a hairline that lights under the pointer. Here the
+     whole band is the grab zone, above the rows, and the ribbons are drawn over the line. */
+  .divider {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 1;
+    width: 28px;
+    cursor: col-resize;
+    outline: none;
+  }
+
+  .divider::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    left: calc(50% - var(--w-splitter) / 2);
+    width: var(--w-splitter);
+    background: var(--splitter-track);
+    transition: background var(--t-fast) var(--ease-out);
+  }
+
+  .divider:hover::before,
+  .divider.dragging::before,
+  .divider:focus-visible::before {
+    background: var(--splitter-active);
+  }
+
+  /* The band carries each row's own fill across (R-532); a changed pair fades from one
+     side's to the other's. */
   .ribbon {
-    fill: var(--c-added-bg);
     stroke: none;
+  }
+
+  .ribbon.delete {
+    fill: var(--c-deleted-bg);
+  }
+
+  .ribbon.insert {
+    fill: var(--c-added-bg);
   }
 
   /* A move goes somewhere else in the file, so its ribbon is an outline, not a fill. */
@@ -1135,13 +1338,17 @@
     font-weight: 600;
   }
 
+  /* The changed word is marked over the syntax colour, never instead of it (R-530). */
   .code.del .word {
     background: color-mix(in srgb, var(--c-deleted) 45%, transparent);
-    color: var(--text-primary);
   }
 
   .code.add .word {
     background: color-mix(in srgb, var(--c-added) 45%, transparent);
+  }
+
+  .code.del .word:not([class*="tok-"]),
+  .code.add .word:not([class*="tok-"]) {
     color: var(--text-primary);
   }
 

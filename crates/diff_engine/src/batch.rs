@@ -1,4 +1,4 @@
-use crate::{DiffOptions, FileDiff};
+use crate::{Content, DiffOptions, FileDiff};
 use rayon::prelude::*;
 use serde::Serialize;
 
@@ -8,6 +8,7 @@ pub struct FileInput {
     pub path: String,
     pub old: Vec<u8>,
     pub new: Vec<u8>,
+    pub content: Content,
 }
 
 /// Named rather than a tuple: a positional pair crossing IPC reads as `[string, FileDiff]`
@@ -22,9 +23,36 @@ pub struct FileDiffEntry {
 /// The whole per-file pipeline in one place: diff, language hint, hunk headers, moves.
 #[must_use]
 pub fn diff_one(path: &str, old: &[u8], new: &[u8], options: &DiffOptions) -> FileDiff {
-    let mut diff = crate::diff_bytes(old, new, options);
-    if let FileDiff::Text { language, .. } = &mut diff {
+    diff_one_as(path, old, new, options, &Content::Detect)
+}
+
+/// `diff_one` with what `.gitattributes` says about the path.
+#[must_use]
+pub fn diff_one_as(
+    path: &str,
+    old: &[u8],
+    new: &[u8],
+    options: &DiffOptions,
+    content: &Content,
+) -> FileDiff {
+    let mut diff = crate::diff_bytes_as(old, new, options, content);
+    if let FileDiff::Text {
+        language,
+        old_total,
+        new_total,
+        old_text,
+        new_text,
+        ..
+    } = &mut diff
+    {
         *language = crate::language_for_path(path);
+        if language.as_deref().is_some_and(crate::highlighted) {
+            let whole = |lines: u32, bytes: &[u8]| {
+                (lines <= crate::MAX_HIGHLIGHT_LINES).then(|| crate::text::side_text(bytes))
+            };
+            *old_text = whole(*old_total, old);
+            *new_text = whole(*new_total, new);
+        }
         crate::with_hunk_context(&mut diff, &String::from_utf8_lossy(old));
     }
     if options.detect_moves {
@@ -43,7 +71,7 @@ pub fn diff_many(files: Vec<FileInput>, options: &DiffOptions) -> Vec<FileDiffEn
     let mut entries: Vec<FileDiffEntry> = files
         .into_par_iter()
         .map(|file| FileDiffEntry {
-            diff: diff_one(&file.path, &file.old, &file.new, options),
+            diff: diff_one_as(&file.path, &file.old, &file.new, options, &file.content),
             path: file.path,
         })
         .collect();

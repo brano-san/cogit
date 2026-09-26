@@ -1,4 +1,5 @@
 import { closeThisWindow } from "$lib/ipc";
+import { suppressBrowserFind } from "$lib/browser-find";
 import { suppressNativeMenu } from "$lib/native-menu";
 
 interface Keyed {
@@ -80,14 +81,16 @@ interface ChildGlobals {
   __cogitMounted?: boolean;
 }
 
-/** What every child window sets up once: no browser menu, the closing keys, and the flag
-    that retires the HTML fallback. Returns the undo. */
+/** What every child window sets up once: no browser menu or find bar, the closing keys, and
+    the flag that retires the HTML fallback. Returns the undo. */
 export function installChildWindow(win: Window): () => void {
   const stopMenu = suppressNativeMenu(win.document);
+  const stopFind = suppressBrowserFind(win);
   win.addEventListener("keydown", onWindowKey);
   (win as Window & ChildGlobals).__cogitMounted = true;
   return () => {
     stopMenu();
+    stopFind();
     win.removeEventListener("keydown", onWindowKey);
   };
 }
