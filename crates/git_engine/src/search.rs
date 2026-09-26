@@ -244,7 +244,6 @@ impl RepoHandle {
     ) -> Result<()> {
         let chunk_size = chunk_size.max(1);
         let mut chunk = Vec::with_capacity(chunk_size);
-        let mut listed = 0_u32;
         // Once per walk: a `stat` per row would cost more than reading the commit.
         let mailmap = if rows.text {
             self.mailmap()
@@ -282,9 +281,8 @@ impl RepoHandle {
             }
 
             if let Some(record) = rows.record.as_deref_mut() {
-                record.push(id, listed, row.timestamp, parents);
+                record.push(id, row.timestamp, parents);
             }
-            listed = listed.saturating_add(1);
             chunk.push(row);
             if chunk.len() >= chunk_size {
                 let full = std::mem::replace(&mut chunk, Vec::with_capacity(chunk_size));
