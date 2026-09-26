@@ -1604,8 +1604,9 @@
     // One Pull everywhere: the remote HEAD tracks and the fast-forward setting (#26).
     if (kind === "pull") return pullNow();
     const id = repository.current?.repo;
+    const root = repository.current?.root;
     const remote = kind === "fetch" ? pullRemote : network.primary;
-    if (!id) return;
+    if (!id || !root) return;
     if (!remote) {
       errors.message("This repository has no remote.", `Could not ${kind}`);
       return;
@@ -1619,6 +1620,7 @@
       if (repository.epoch === epoch) await afterMutation();
       return;
     }
+    if (kind === "fetch") repoPulse.fetched(root);
     if (repository.epoch === epoch) await afterRefChange(id);
   }
 
@@ -1627,7 +1629,8 @@
       step waits for the one before; the first failure stops the rest. */
   async function runRemoteSteps(steps: readonly ("pull" | "push")[], failure: string) {
     const id = repository.current?.repo;
-    if (!id) return;
+    const root = repository.current?.root;
+    if (!id || !root) return;
     const epoch = repository.epoch;
     try {
       const plan = remotePlan(steps, {
@@ -1650,6 +1653,7 @@
       if (repository.epoch === epoch) await afterMutation();
       return;
     }
+    if (steps.includes("pull")) repoPulse.fetched(root);
     await afterRefChange(id);
   }
 
@@ -1666,9 +1670,16 @@
   /** One failure does not stop the other remotes. */
   async function fetchRemotes(names: readonly string[]) {
     const id = repository.current?.repo;
-    if (!id) return;
+    const root = repository.current?.root;
+    if (!id || !root) return;
+    const upstream = pullRemote;
     for (const remote of names) {
-      await network.fetch(id, remote).catch((err) => errors.report(err, `Could not fetch ${remote}`));
+      try {
+        await network.fetch(id, remote);
+        if (remote === upstream) repoPulse.fetched(root);
+      } catch (err) {
+        errors.report(err, `Could not fetch ${remote}`);
+      }
     }
     await afterRefChange(id);
   }
@@ -2378,7 +2389,10 @@
     await eachAtMost(targets, FETCH_ALL_LANES, async (entry) => {
       try {
         const remote = await trackedRemote(entry.repo);
-        if (remote) await fetchRemote(entry.repo, remote, () => {});
+        if (remote) {
+          await fetchRemote(entry.repo, remote, () => {});
+          repoPulse.fetched(entry.root);
+        }
       } catch (err) {
         failed += 1;
         errors.report(err, "Could not fetch");
@@ -2871,8 +2885,10 @@
       return;
     }
     try {
-      if (kind === "pull") await network.pull(id, remote, settings.current.pullMode === "ffOnly");
-      else await network.push(id, remote, false);
+      if (kind === "pull") {
+        await network.pull(id, remote, settings.current.pullMode === "ffOnly");
+        if (target.kind === "repository") repoPulse.fetched(target.root);
+      } else await network.push(id, remote, false);
     } catch (err) {
       errors.report(err, `Could not ${kind}`);
     }
