@@ -2,6 +2,7 @@
   import Dialog from "$components/common/Dialog.svelte";
   import { startProblem } from "$lib/bisect";
   import { shortOid } from "$lib/format";
+  import { lookUpWhenSettled, type Named } from "$lib/rev-lookup";
 
   /** SmartGit's Branch | Bisect | Start: the bad commit, and a good one now or later. */
   interface Props {
@@ -22,27 +23,15 @@
   let good = $state(initialGood);
   let field: HTMLInputElement | undefined = $state();
 
-  type Found = { rev: string; commit: { oid: string; summary: string } | null } | null;
+  type Found = Named<{ oid: string; summary: string }>;
   let badCommit = $state.raw<Found>(null);
   let goodCommit = $state.raw<Found>(null);
 
   /** Typing is not a question per key: the field is read once it rests. */
   const SETTLE_MS = 200;
 
-  function follow(rev: string, take: (found: Found) => void) {
-    const wanted = rev.trim();
-    if (wanted === "") {
-      take(null);
-      return () => {};
-    }
-    const timer = setTimeout(() => {
-      void resolve(wanted).then((commit) => take({ rev: wanted, commit }));
-    }, SETTLE_MS);
-    return () => clearTimeout(timer);
-  }
-
-  $effect(() => follow(bad, (found) => (badCommit = found)));
-  $effect(() => follow(good, (found) => (goodCommit = found)));
+  $effect(() => lookUpWhenSettled(bad, resolve, (found) => (badCommit = found), SETTLE_MS));
+  $effect(() => lookUpWhenSettled(good, resolve, (found) => (goodCommit = found), SETTLE_MS));
 
   const unknown = (found: Found, rev: string) =>
     found !== null && found.rev === rev.trim() && found.commit === null;
