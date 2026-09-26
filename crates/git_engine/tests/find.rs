@@ -123,6 +123,26 @@ fn a_file_is_found_by_part_of_its_path() {
     );
 }
 
+// A folder came back as a file of the current tree, and picking it asked Diff for a folder.
+#[test]
+fn a_folder_is_not_found_as_a_file() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::create_dir_all(f.path().join("src/deep")).unwrap();
+    std::fs::write(f.path().join("src/deep/parser.rs"), "fn main() {}\n").unwrap();
+    f.git(&["add", "--", "src/deep/parser.rs"]).unwrap();
+    f.commit_staged(1, "add the parser").unwrap();
+
+    let files: Vec<String> = open(&f)
+        .find("deep", 20)
+        .unwrap()
+        .into_iter()
+        .filter(|item| item.kind == FoundKind::File)
+        .map(|item| item.label)
+        .collect();
+
+    assert_eq!(files, ["src/deep/parser.rs"]);
+}
+
 #[test]
 fn refs_are_listed_before_commits() {
     let f = test_fixtures::branched().unwrap();

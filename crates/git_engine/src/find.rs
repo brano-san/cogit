@@ -153,6 +153,10 @@ impl RepoHandle {
             if paths.len() >= limit {
                 break;
             }
+            // Folders have nothing to diff; a gitlink stays, as `tree_files` keeps it.
+            if entry.mode.is_tree() {
+                continue;
+            }
             let path = entry.filepath.to_string();
             if path.to_lowercase().contains(needle) {
                 paths.push(path);
