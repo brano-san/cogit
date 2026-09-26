@@ -113,3 +113,17 @@ describe("a hook still being read", () => {
     expect(hooks.body).toBe("message script");
   });
 });
+
+// Save as preset with a name of no Latin letter or digit ("Проверка") made an empty id and
+// returned without a word: no preset, no notice.
+describe("a preset name that makes no id", () => {
+  it("says so instead of saving nothing", async () => {
+    const ipc = await import("$lib/ipc");
+
+    await hooks.export(1 as never, "pre-commit", "Проверка");
+
+    expect(ipc.exportPreset).not.toHaveBeenCalled();
+    expect(hooks.failure).toBe("Could not save the preset");
+    expect(String(hooks.error)).toContain("Latin letters or digits");
+  });
+});
