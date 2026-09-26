@@ -32,9 +32,9 @@
     value={find.query}
     oninput={(event) => find.setQuery(event.currentTarget.value)}
     type="search"
-    placeholder="Find in diff"
+    placeholder="Find in shown lines"
     spellcheck="false"
-    aria-label="Find in diff"
+    aria-label="Find in the lines shown"
     {onkeydown}
   />
   <span class="count tabular">
