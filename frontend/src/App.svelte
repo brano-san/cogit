@@ -1896,6 +1896,7 @@
     forgetPanels();
     worktrees.ownerRoot = null;
     const watch = measure("open-repository");
+    const wasOpen = new Set(repository.openRepos.map((entry) => entry.root));
     if (!(await repository.open(root))) {
       trace(story, "activate: overtaken by a newer open, leaving the panels to it");
       return null;
@@ -1904,6 +1905,7 @@
     trace(story, `activate: repository.current is ${opened ? opened.name : "null"}`);
     if (opened) {
       refs.adopt(opened.root, buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() }));
+      if (!wasOpen.has(opened.root)) moduleMemory.opened(opened.root);
       void submodules.own(opened.repo, opened.root);
       void health.check(opened.repo, opened.root, opened.name);
       session.setActive(opened.root);
@@ -3087,7 +3089,9 @@
     opening = true;
     try {
       for (const root of roots) {
-        await openRepository(root).catch((err) => errors.report(err, "Could not open the repository"));
+        await openRepository(root)
+          .then((opened) => moduleMemory.opened(opened.root))
+          .catch((err) => errors.report(err, "Could not open the repository"));
       }
       await repository.refreshList();
       const first = roots[0];

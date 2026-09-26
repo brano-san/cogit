@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EMPTY_MEMORY, forgetRoot, readModuleMemory, withNode, withTop } from "./module-memory";
+import { EMPTY_MEMORY, forgetRoot, readModuleMemory, withNode, withOpenedRepository, withTop } from "./module-memory";
 
 describe("module memory", () => {
   it("keeps several repositories open at once", () => {
@@ -35,5 +35,22 @@ describe("module memory", () => {
   it("forgets a removed repository entirely", () => {
     const memory = withNode(withTop(EMPTY_MEMORY, "/a", true), "/a", "k", true);
     expect(forgetRoot(memory, "/a")).toEqual(EMPTY_MEMORY);
+  });
+});
+
+// Item 42 of 25.09: a repository just opened showed its submodules only after a click on
+// its triangle.
+describe("a repository just opened", () => {
+  it("shows its submodules, one level of them", () => {
+    const memory = withOpenedRepository(EMPTY_MEMORY, "/a");
+    expect(memory.open).toEqual(["/a"]);
+    expect(memory.nodes).toEqual({});
+  });
+
+  it("leaves the nodes below as they were remembered", () => {
+    const before = withNode(EMPTY_MEMORY, "/a", "vendor/lib", false);
+    const opened = withOpenedRepository(withNode(before, "/b", "x", true), "/a");
+    expect(opened.nodes).toEqual({ "/b": ["x"] });
+    expect(withOpenedRepository(opened, "/a")).toBe(opened);
   });
 });
