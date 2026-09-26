@@ -19,6 +19,10 @@ vi.mock("$lib/ipc", () => ({
   resolveConflictText: vi.fn(async () => {}),
 }));
 
+const report = vi.hoisted(() => vi.fn());
+vi.mock("$stores/notices.svelte", () => ({ notices: { report } }));
+
+const ipc = await import("$lib/ipc");
 const { conflicts } = await import("./conflicts.svelte");
 
 const sides = (name: string) => ({ base: name, ours: name, theirs: name, binary: false });
@@ -249,6 +253,41 @@ describe("another commit picked in the graph", () => {
 
     conflicts.markUnsaved(false);
     conflicts.closeUnlessUnsaved();
+    expect(conflicts.path).toBeNull();
+  });
+});
+
+// Take ours, Save resolution and opening a conflicted file failed without a word: the
+// rejected promise reached nobody, and nothing listens for unhandled rejections (INV-05).
+describe("a resolution that fails", () => {
+  it("reports a refused take and keeps the file open", async () => {
+    await opened("a.txt");
+    const refused = new Error("a.txt: Permission denied");
+    vi.mocked(ipc.resolveConflict).mockRejectedValueOnce(refused);
+
+    await conflicts.take(1 as never, "ours");
+
+    expect(report).toHaveBeenCalledWith(refused, "Could not resolve the conflict");
+    expect(conflicts.path).toBe("a.txt");
+  });
+
+  it("reports a refused save", async () => {
+    await opened("a.txt");
+    const refused = new Error("a.txt is not conflicted");
+    vi.mocked(ipc.resolveConflictText).mockRejectedValueOnce(refused);
+
+    await conflicts.write(1 as never, "text");
+
+    expect(report).toHaveBeenCalledWith(refused, "Could not resolve the conflict");
+  });
+
+  it("reports a file that cannot be read", async () => {
+    const refused = new Error("b.txt is not conflicted");
+    vi.mocked(ipc.conflictText).mockRejectedValueOnce(refused);
+
+    await conflicts.open(1 as never, "b.txt");
+
+    expect(report).toHaveBeenCalledWith(refused, "Could not open the conflict");
     expect(conflicts.path).toBeNull();
   });
 });
