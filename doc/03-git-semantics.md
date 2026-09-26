@@ -125,7 +125,7 @@ GIT_NAMESPACE  GIT_CEILING_DIRECTORIES  GIT_CONFIG_PARAMETERS  GIT_CONFIG_COUNT
    байта, останавливается вместе с деревом процессов; ошибка — обычная `GitCommandError` с
    выводом git и строкой «Stopped after 300 s with no output from git» ([R-412](12-risks.md)).
    Отмена пользователем — `cancel_network(operation)`: дерево процессов останавливается
-   сразу, запись журнала — предупреждение «Cancelled by the user», вызов — `GitError::Cancelled`
+   сразу, запись журнала — предупреждение «Canceled by the user», вызов — `GitError::Cancelled`
    ([R-506](12-risks.md)).
 7. **Логирование** — `tracing::info!` на старте (команда и аргументы), на финише — код возврата
    и `elapsed` (`GitOutput::record`, одна точка для всех записей журнала). Полные `stdout`/`stderr`

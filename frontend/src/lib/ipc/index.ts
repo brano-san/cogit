@@ -186,7 +186,7 @@ function describeError(error: GitError): string {
         ? `Git refused the config: ${error.data.message}`
         : `Git refused the config at line ${error.data.line}: ${error.data.message}`;
     case "cancelled":
-      return `Cancelled: ${error.data}`;
+      return `Canceled: ${error.data}`;
   }
 }
 
@@ -196,7 +196,7 @@ export function describeModuleProblem(problem: ModuleProblem): string {
     case "missing":
       return `Directory does not exist: ${problem.path}`;
     case "notInitialised":
-      return `Submodule is not initialised: ${problem.path}`;
+      return `Submodule is not initialized: ${problem.path}`;
     case "danglingGitFile":
       return problem.foreign
         ? `The .git file of ${problem.path} points to ${problem.target}, which does not exist on this system — the path was written by another operating system.`
