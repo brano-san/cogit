@@ -182,7 +182,7 @@ impl RepoHandle {
         self.read_git_with(args, LITERAL)
     }
 
-    fn read_git_with(&self, args: &[&str], env: &[(&str, &str)]) -> Result<String> {
+    pub(crate) fn read_git_with(&self, args: &[&str], env: &[(&str, &str)]) -> Result<String> {
         let command = redact_command(args);
         let started = std::time::Instant::now();
         let mut process = base_command(self.root(), true);
