@@ -58,8 +58,14 @@ class LayoutStore {
     this.maximized = this.maximized === panel ? null : panel;
   }
 
+  /** Does what the tick in View promised: with a panel maximised the ticks read what is
+      on screen, so an unticked panel is shown, not hidden unseen. */
   togglePanel(panel: PanelId): void {
-    this.#perspectives[this.active].hidden = toggleHidden(this.hidden, panel);
+    const show = !this.visible(panel);
+    this.maximized = null;
+    if (show === this.hidden.includes(panel)) {
+      this.#perspectives[this.active].hidden = toggleHidden(this.hidden, panel);
+    }
     this.persist();
   }
 
