@@ -81,7 +81,7 @@ export function togglePin(list: RepoList, root: string): RepoList {
 export function listedRepos(open: readonly RepoOverview[], list: RepoList): ListedRepo[] {
   const rows: ListedRepo[] = open.map((overview) => ({
     root: overview.root,
-    name: list.names[overview.root] ?? overview.name,
+    name: listedName(list, overview.root, overview),
     overview,
     pinned: list.pinned.includes(overview.root),
   }));
@@ -91,7 +91,7 @@ export function listedRepos(open: readonly RepoOverview[], list: RepoList): List
     shown.add(root);
     rows.push({
       root,
-      name: list.names[root] ?? folderName(root),
+      name: listedName(list, root, null),
       overview: null,
       pinned: list.pinned.includes(root),
     });
@@ -103,6 +103,11 @@ export function listedRepos(open: readonly RepoOverview[], list: RepoList): List
       a.name.localeCompare(b.name, undefined, { sensitivity: "base" }) ||
       a.root.localeCompare(b.root),
   );
+}
+
+/** The name a row shows: the one given it, else the repository's, else its folder's. */
+export function listedName(list: RepoList, root: string, overview: { name: string } | null): string {
+  return list.names[root] ?? overview?.name ?? folderName(root);
 }
 
 /** Fetch All: the rows ticked with Ctrl or Shift that are still open, else every open one
