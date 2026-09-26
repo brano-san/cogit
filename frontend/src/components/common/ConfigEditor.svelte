@@ -2,11 +2,12 @@
   import Dialog from "$components/common/Dialog.svelte";
   import { tokenizeConfigLine } from "$lib/config-syntax";
   import type { ConfigFile } from "$lib/ipc";
+  import { fitPath } from "$lib/truncate";
   import { untrack } from "svelte";
 
-  /** Repository ▸ Edit Git Config. Built in rather than handed to an external editor:
-      the text has to pass `git config --file` before it is written, and an editor that
-      saves on its own would skip that check (doc/12-risks.md, R-155). */
+  /** Repository ▸ Edit Git Config, both scopes. Built in rather than handed to an external
+      editor: the text has to pass `git config --file` before it is written, and an editor
+      that saves on its own would skip that check (doc/12-risks.md, R-155). */
   interface Props {
     title: string;
     file: ConfigFile;
@@ -29,8 +30,9 @@
 
 <Dialog {title} onclose={oncancel} dirty={changed} width="min(860px, 94vw)" height="min(640px, 88vh)">
   <div class="config">
-    <p class="path mono" title={file.path}>
-      {file.path}{#if !file.exists}<span> — does not exist yet; Save creates it</span>{/if}
+    <p class="where">
+      <span class="path mono" title={file.path} use:fitPath={file.path}></span>
+      {#if !file.exists}<span class="note">— does not exist yet; Save creates it</span>{/if}
     </p>
 
     {#if problem}
@@ -91,16 +93,35 @@
     min-height: 0;
   }
 
-  .path {
+  /* Never squeezed (#22): the editor below takes what is left, whatever its line count. */
+  .where {
+    display: flex;
+    align-items: baseline;
+    gap: var(--sp-2);
+    flex: none;
     margin: 0;
     color: var(--text-secondary);
     font-size: var(--fs-dense);
-    overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
   }
 
+  /* Cut in the middle to its width by `fitPath`: the folder and the file name both stay. */
+  .path {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-secondary);
+    font-size: var(--fs-dense);
+  }
+
+  .note {
+    flex: none;
+  }
+
   .problem {
+    flex: none;
+    max-height: 40%;
+    overflow: auto;
     padding: var(--sp-3) var(--sp-4);
     border-left: 3px solid var(--status-delete);
     background: var(--surface-raised);
@@ -116,7 +137,7 @@
 
   .editor {
     display: flex;
-    flex: 1 1 auto;
+    flex: 1 1 0;
     min-height: 0;
     border: 1px solid var(--field-border);
     border-radius: var(--r-sm);
