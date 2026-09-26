@@ -33,6 +33,12 @@ class OverlapStore {
     }
   }
 
+  /** The row of `oid` against `selected`, the base the column is for: nothing on the
+      Working Tree, and nothing while another commit's rows are on their way (F-093). */
+  rowOf(oid: string, selected: string | null): OverlapRow | undefined {
+    return selected !== null && selected === this.base ? this.rows.get(oid) : undefined;
+  }
+
   clear(): void {
     this.#generation += 1;
     this.rows = new Map();
