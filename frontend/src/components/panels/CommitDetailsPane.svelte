@@ -75,6 +75,7 @@
   .subject {
     margin: 0 0 var(--sp-4);
     font-weight: 600;
+    user-select: text;
   }
 
   .body {
