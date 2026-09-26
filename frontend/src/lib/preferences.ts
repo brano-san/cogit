@@ -108,7 +108,7 @@ export const CATEGORIES: Category[] = [
   heading("ui", "User Interface"),
   {
     id: "theme",
-    title: "Theme & Colours",
+    title: "Theme & Colors",
     parent: "ui",
     groups: [{ title: "Appearance", fields: [{ key: "theme", label: "Theme", keywords: ["dark", "light", "grey", "gray"] }] }],
   },
@@ -158,7 +158,7 @@ export const CATEGORIES: Category[] = [
           },
           {
             key: "graphHighlightChecked",
-            label: "Colour the branches ticked in Branches",
+            label: "Color the branches ticked in Branches",
             keywords: ["highlight", "checked", "ticked", "colour", "color"],
           },
           {
@@ -290,7 +290,7 @@ export const CATEGORIES: Category[] = [
   },
   {
     id: "behaviour",
-    title: "Behaviour",
+    title: "Behavior",
     parent: "ui",
     groups: [
       {

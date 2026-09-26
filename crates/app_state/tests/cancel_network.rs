@@ -60,7 +60,7 @@ async fn a_cancelled_fetch_ends_journalled_and_frees_the_lane() {
         "{result:?}"
     );
     assert!(state.operations().is_empty(), "the lane is free again");
-    assert_eq!(state.command_log()[0].summary, "Cancelled by the user");
+    assert_eq!(state.command_log()[0].summary, "Canceled by the user");
     assert!(
         !state.cancel_network(operation),
         "nothing is left to cancel"

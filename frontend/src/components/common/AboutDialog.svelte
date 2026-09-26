@@ -79,10 +79,10 @@
         <p class="name">Cogit</p>
         <p class="muted">A Git client that says what it is doing.</p>
         <p class="muted">
-          MIT licence ·
+          MIT license ·
           <a href={info.repository} target="_blank" rel="noreferrer">{site}</a>
           ·
-          <button type="button" class="link" onclick={onlicences}>Third-party licences</button>
+          <button type="button" class="link" onclick={onlicences}>Third-party licenses</button>
         </p>
       </div>
     </header>

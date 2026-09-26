@@ -49,10 +49,14 @@ fn an_empty_submodule_directory_is_not_initialised_and_never_the_parent() {
     let path = f.path().join("vendor/lib");
     std::fs::remove_dir_all(&path).unwrap();
     std::fs::create_dir_all(&path).unwrap();
-    assert!(matches!(
-        problem(RepoHandle::open_exact(&path)),
-        ModuleProblem::NotInitialised { .. }
-    ));
+    let found = problem(RepoHandle::open_exact(&path));
+    assert!(matches!(found, ModuleProblem::NotInitialised { .. }));
+    assert!(
+        found
+            .to_string()
+            .starts_with("Submodule is not initialized: "),
+        "{found}"
+    );
 }
 
 #[test]

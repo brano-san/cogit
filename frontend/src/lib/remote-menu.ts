@@ -39,8 +39,8 @@ export interface RemoteMenuActions {
 }
 
 const SUBMODULE_ITEMS: readonly [string, SubmoduleAction, string][] = [
-  ["submodule-init", "initialize", "Initialise"],
-  ["submodule-sync", "synchronize", "Synchronise"],
+  ["submodule-init", "initialize", "Initialize"],
+  ["submodule-sync", "synchronize", "Synchronize"],
   ["submodule-reset", "reset", "Reset…"],
   ["submodule-add", "add", "Add…"],
   ["submodule-deactivate", "deactivate", "Deactivate…"],
@@ -100,7 +100,7 @@ export function remoteCommands(
   return [
     {
       id: "synchronize",
-      title: "Synchronise",
+      title: "Synchronize",
       synonyms: ["sync", "pull then push"],
       unavailable: !context.repository
         ? NO_REPOSITORY

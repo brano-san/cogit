@@ -783,7 +783,7 @@
       },
       {
         id: "maximize-panel",
-        title: "Maximise Panel",
+        title: "Maximize Panel",
         synonyms: ["zoom", "full screen panel"],
         run: () => layout.toggleMaximized(focused),
       },
@@ -865,7 +865,7 @@
       {
         id: "settings",
         title: "Preferences",
-        synonyms: ["settings", "options", "customise toolbar", "toolbar buttons"],
+        synonyms: ["settings", "options", "customize toolbar", "toolbar buttons"],
         run: () => openSettings(),
       },
       {
@@ -1604,9 +1604,9 @@
   const initialiser = new ModuleInitialiser({
     ask: (key) =>
       confirmation.ask({
-        title: "Submodule is not initialised",
-        message: `Submodule ${key} is not initialised. Initialise and check it out now?`,
-        confirm: "Initialise",
+        title: "Submodule is not initialized",
+        message: `Submodule ${key} is not initialized. Initialize and check it out now?`,
+        confirm: "Initialize",
       }),
     update: async (key) => {
       const row = submodules.rows.find((entry) => entry.key === key);
@@ -3165,7 +3165,7 @@
     const text = response?.ok ? await response.text() : "";
     const frontend = text.startsWith("Frontend packages") ? text : null;
     await openThirdPartyLicences(frontend).catch((err) =>
-      errors.report(err, "Could not open the third-party licences"),
+      errors.report(err, "Could not open the third-party licenses"),
     );
   }
 
