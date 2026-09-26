@@ -138,7 +138,7 @@
 <style>
   .danger {
     margin: 0;
-    padding: var(--sp-4) var(--dialog-inset);
+    padding: var(--sp-4) var(--sp-5);
     background: var(--c-deleted-bg);
     font-size: var(--fs-dense);
     border-bottom: 1px solid var(--divider);
@@ -156,7 +156,7 @@
     align-items: center;
     gap: var(--sp-3);
     height: var(--h-row);
-    padding: 0 var(--dialog-inset);
+    padding: 0 var(--sp-5);
     font-size: var(--fs-dense);
   }
 

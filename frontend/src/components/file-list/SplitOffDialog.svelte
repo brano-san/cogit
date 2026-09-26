@@ -87,7 +87,7 @@
 <style>
   .danger {
     margin: 0;
-    padding: var(--sp-4) var(--dialog-inset);
+    padding: var(--sp-4) var(--sp-5);
     background: var(--c-deleted-bg);
     color: var(--text-primary);
     font-size: var(--fs-dense);
@@ -106,7 +106,7 @@
     align-items: center;
     gap: var(--sp-4);
     height: var(--h-row-dense);
-    padding: 0 var(--dialog-inset);
+    padding: 0 var(--sp-5);
     font-family: var(--font-mono);
     font-size: var(--fs-dense);
   }
@@ -117,7 +117,7 @@
 
   .form {
     flex: 0 0 auto;
-    padding: var(--sp-4) var(--dialog-inset);
+    padding: var(--sp-4) var(--sp-5);
     border-top: 1px solid var(--divider);
   }
 
