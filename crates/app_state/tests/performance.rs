@@ -43,24 +43,28 @@ fn a_ten_thousand_commit_repository_opens_and_streams() {
     let repo = summary.repo;
 
     let mut first_chunk = None;
-    let mut rows = 0_usize;
+    let mut rows = 0_u32;
     let streaming = Instant::now();
+    let generation = state.begin_graph();
     state
-        .search_graph(
+        .build_graph(
             repo,
             &git_engine::CommitQuery::default(),
+            generation,
             DEFAULT_CHUNK_SIZE,
-            |chunk| {
-                if first_chunk.is_none() && !chunk.commits.is_empty() {
+            |progress| {
+                if first_chunk.is_none() && progress.total > 0 {
+                    // The product's first screen: the first window once rows exist (R-193).
+                    state.graph_window(repo, generation, 0, 128).unwrap();
                     first_chunk = Some(streaming.elapsed());
                 }
-                rows += chunk.commits.len();
+                rows = progress.total;
                 true
             },
         )
         .unwrap();
 
-    assert_eq!(rows, COMMITS as usize);
+    assert_eq!(rows, u32::try_from(COMMITS).unwrap());
     report(
         "first screen of 200 commits",
         first_chunk.unwrap(),
@@ -86,9 +90,11 @@ fn a_filtered_search_answers_quickly_on_a_large_history() {
 
     let mut first = None;
     let started = Instant::now();
+    let generation = state.begin_graph();
     state
-        .search_graph(repo, &query, DEFAULT_CHUNK_SIZE, |chunk| {
-            if first.is_none() && !chunk.commits.is_empty() {
+        .build_graph(repo, &query, generation, DEFAULT_CHUNK_SIZE, |progress| {
+            if first.is_none() && progress.total > 0 {
+                state.graph_window(repo, generation, 0, 128).unwrap();
                 first = Some(started.elapsed());
             }
             // The first screen is what the user waits for; the rest streams behind it.
@@ -150,18 +156,21 @@ fn fifty_thousand_commits_meet_the_product_promise() {
     let repo = state.open_repository(f.path()).unwrap().repo;
 
     let mut first = None;
-    let mut rows = 0_usize;
+    let mut rows = 0_u32;
     let streaming = Instant::now();
+    let generation = state.begin_graph();
     state
-        .search_graph(
+        .build_graph(
             repo,
             &git_engine::CommitQuery::default(),
+            generation,
             DEFAULT_CHUNK_SIZE,
-            |chunk| {
-                if first.is_none() && !chunk.commits.is_empty() {
+            |progress| {
+                if first.is_none() && progress.total > 0 {
+                    state.graph_window(repo, generation, 0, 128).unwrap();
                     first = Some(streaming.elapsed());
                 }
-                rows += chunk.commits.len();
+                rows = progress.total;
                 true
             },
         )

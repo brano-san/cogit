@@ -1,19 +1,26 @@
 // clippy.toml's allow-unwrap-in-tests does not reach helpers beside `#[test]` fns.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
+use app_state::AppState;
 use app_state::graph_overlay::GraphPaintRequest;
-use app_state::{AppState, GraphChunk};
 use git_engine::{CommitQuery, GraphView};
 
-fn search(state: &AppState, repo: app_state::RepoId, query: &CommitQuery) -> Vec<GraphChunk> {
-    let mut chunks = Vec::new();
+/// What the product shows: `build_graph`, then one window over every row (R-193).
+struct Laid {
+    commits: Vec<git_engine::CommitRow>,
+    rows: Vec<graph_engine::GraphRow>,
+}
+
+fn search(state: &AppState, repo: app_state::RepoId, query: &CommitQuery) -> Vec<Laid> {
+    let generation = state.begin_graph();
     state
-        .search_graph(repo, query, 100, |chunk| {
-            chunks.push(chunk);
-            true
-        })
+        .build_graph(repo, query, generation, 100, |_| true)
         .unwrap();
-    chunks
+    let window = state.graph_window(repo, generation, 0, u32::MAX).unwrap();
+    vec![Laid {
+        commits: window.commits,
+        rows: window.rows,
+    }]
 }
 
 fn first_parent(refs: Option<&[&str]>) -> CommitQuery {
@@ -123,8 +130,15 @@ fn an_expanded_merge_shows_what_it_brought_in() {
     let state = AppState::new();
     let repo = state.open_repository(f.path()).unwrap().repo;
 
-    let chunks = search(&state, repo, &collapsed(&[f.oid("main").unwrap()]));
-    let rows: usize = chunks.iter().map(|c| c.rows.len()).sum();
-    assert_eq!(rows, 4);
-    assert!(chunks.iter().all(|c| c.folds.is_empty()));
+    let generation = state.begin_graph();
+    let expanded = collapsed(&[f.oid("main").unwrap()]);
+    state
+        .build_graph(repo, &expanded, generation, 100, |_| true)
+        .unwrap();
+    let window = state.graph_window(repo, generation, 0, 10).unwrap();
+    assert_eq!(window.rows.len(), 4);
+    let overlay = state
+        .graph_overlay(repo, generation, 0, 10, &GraphPaintRequest::default())
+        .unwrap();
+    assert!(overlay.folds.is_empty());
 }

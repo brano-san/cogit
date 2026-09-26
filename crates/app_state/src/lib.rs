@@ -259,16 +259,16 @@ impl RowCache {
     }
 }
 
-#[derive(Debug, Clone, Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct GraphChunk {
-    pub commits: Vec<git_engine::CommitRow>,
+/// What the layout hands `build_graph` as it walks; the webview never sees it (R-193).
+#[derive(Debug, Clone)]
+pub(crate) struct GraphChunk {
+    pub(crate) commits: Vec<git_engine::CommitRow>,
     /// One per commit, in the same order: the node and every segment of its row. Cutting
     /// long links holds the last rows back, so a chunk can have fewer rows than commits.
-    pub rows: Vec<graph_engine::GraphRow>,
+    pub(crate) rows: Vec<graph_engine::GraphRow>,
     /// Folded merges whose count grew with this chunk.
-    pub folds: Vec<graph_engine::Fold>,
-    pub is_last: bool,
+    pub(crate) folds: Vec<graph_engine::Fold>,
+    pub(crate) is_last: bool,
 }
 
 pub const DEFAULT_CHUNK_SIZE: usize = 200;
@@ -613,26 +613,6 @@ impl AppState {
             index_lock,
             tag_group_separator,
         })
-    }
-
-    /// A filtered history is a flat list, not a graph: the parents of a match are usually
-    /// filtered out, so lanes drawn between survivors would claim a lineage that is not
-    /// there. Other clients do the same. Narrowing the visible refs is exempt — it drops
-    /// whole tips, never a commit from inside a surviving lineage (R-51).
-    pub fn search_graph(
-        &self,
-        repo: RepoId,
-        query: &git_engine::CommitQuery,
-        chunk_size: usize,
-        on_chunk: impl FnMut(GraphChunk) -> bool,
-    ) -> Result<Vec<git_engine::SkippedRef>, git_engine::GitError> {
-        let rows = git_engine::GraphRows {
-            reuse: None,
-            record: None,
-            text: true,
-            cut: None,
-        };
-        crate::graph_layout::lay_out(&self.handle(repo)?, query, chunk_size, rows, on_chunk)
     }
 
     pub fn commit_details(
