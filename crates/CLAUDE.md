@@ -6,7 +6,7 @@
 - No `.unwrap()` / `.expect()` on dynamic Git operations (Clippy denies; `clippy.toml`
   allows them in tests). Detached HEAD, empty repo, locked index, missing refs → typed
   errors.
-- Normalize line endings to `\n` before diffing, honouring `.gitattributes` and
+- Normalize line endings to `\n` before diffing, honoring `.gitattributes` and
   `core.autocrlf`; keep the original ending.
 - IPC paths: `/` on every platform, relative to the repository root. OIDs:
   `gix::ObjectId` in Rust, hex strings over IPC.

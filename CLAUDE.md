@@ -74,11 +74,11 @@ manual testing. This file applies to them; the task text does not repeat it.
 
 - Lane 0 is the first-parent chain of HEAD (else `master`, then `main`): continuous, never
   moves. Other lanes compact; a new lane goes right next to its commit's lane.
-- Lane changes are S-curves within one row; lines meet nodes at the centre.
-- Monochrome by default: main line bright, the rest grey; branches ticked in Branches
-  in their own colours, from the tip down its first parents to the line it joins; history
-  the main line already has, merged or not, keeps its default colour.
-- Colour and emphasis are paint over the finished layout (`graph_engine::paint`); the
+- Lane changes are S-curves within one row; lines meet nodes at the center.
+- Monochrome by default: main line bright, the rest gray; branches ticked in Branches
+  in their own colors, from the tip down its first parents to the line it joins; history
+  the main line already has, merged or not, keeps its default color.
+- Color and emphasis are paint over the finished layout (`graph_engine::paint`); the
   layout itself never changes for them.
 - This section is current. If `07-graph-rendering.md` disagrees, bring it in line in the
   same commit.
@@ -91,7 +91,7 @@ manual testing. This file applies to them; the task text does not repeat it.
   Capture both streams on success too — a successful push writes to stderr.
 - One notification queue for errors and warnings: errors first, nothing dropped, closing
   an entry shows the next. Footer `Error` clears when no errors remain.
-- Normal repository states (uninitialised submodule, commit missing locally, detached
+- Normal repository states (uninitialized submodule, commit missing locally, detached
   HEAD in a submodule) are not `Internal error`: say what happened, offer the fix.
 
 ## Windows
@@ -143,3 +143,6 @@ Once: `cargo install cargo-nextest --locked`.
 ## Language
 
 Code, comments, commits, UI strings, CLAUDE.md: English. `doc/` and task reports: Russian.
+Everything the user reads — the frontend, the native menu, errors and journal summaries
+from Rust — is spelled the American way (`initialize`, `color`, `license`, `canceled`);
+serde names, setting keys and command ids keep their spelling.

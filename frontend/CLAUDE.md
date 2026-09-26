@@ -22,7 +22,8 @@
 - Disclosure triangles, dropdown carets, tooltips: shared components, one size app-wide.
 - Truncation: list rows on the right only; graph branch labels in the middle; secondary
   text before the name; never overlapping. One shared utility.
-- British spelling in UI strings (`Colours`, `licence`).
+- American spelling in UI strings (`Colors`, `license`, `Initialize`, `canceled`, `gray`);
+  identifiers and stored keys keep theirs.
 
 ## Tests
 
