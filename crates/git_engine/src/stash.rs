@@ -301,6 +301,55 @@ impl RepoHandle {
         self.run_git(&["stash", verb, &reference]).map(drop)
     }
 
+    /// `stash pop` of the entry that is `oid`, looked up as it runs: a stash made or dropped
+    /// since this one was would have moved it off `stash@{0}`.
+    pub fn stash_pop_oid(&self, oid: &str) -> Result<()> {
+        let entry = self
+            .stashes()?
+            .into_iter()
+            .find(|entry| entry.oid == oid)
+            .ok_or_else(|| {
+                GitError::InvalidState(format!(
+                    "the stash {} is no longer in the list",
+                    oid.get(..7).unwrap_or(oid)
+                ))
+            })?;
+        let reference = format!("stash@{{{}}}", entry.index);
+        self.run_git(&["stash", "pop", &reference]).map(drop)
+    }
+
+    /// Stash, switch, put the changes back — what `--autostash` does for rebase and pull —
+    /// in one call, so the lane runs it as one operation: between separate steps another
+    /// stash operation could shift `stash@{0}` (R-521). A refused switch puts the changes
+    /// back and returns the refusal; a pop that conflicts after the switch returns git's
+    /// account of the conflict, and git keeps the stash.
+    pub fn switch_with_autostash(
+        &self,
+        target: &crate::CheckoutTarget,
+        message: &str,
+    ) -> Result<()> {
+        let made = self.stash_push_if_any(&StashOptions {
+            message: message.to_owned(),
+            include_untracked: true,
+            keep_index: false,
+        })?;
+        let switched = self.checkout(target);
+        let Some(oid) = made else {
+            return switched;
+        };
+        let restored = self.stash_pop_oid(&oid);
+        match (switched, restored) {
+            (Err(refused), Err(err)) => {
+                // A failed pop is a git command of its own and reaches the journal; the
+                // refusal is what the caller asked about.
+                tracing::error!(error = ?err, stash = %oid, context = "autostash: the changes stay in the stash after a refused switch");
+                Err(refused)
+            }
+            (Err(refused), Ok(())) => Err(refused),
+            (Ok(()), restored) => restored,
+        }
+    }
+
     /// Returns the dropped entry so Undo can put it back (`restore_stash`).
     pub fn stash_drop(&self, index: u32) -> Result<StashEntry> {
         let entry = self

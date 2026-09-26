@@ -99,6 +99,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::discard_paths,
             commands::commit,
             commands::branches::checkout,
+            commands::branches::switch_with_autostash,
             commands::branches::create_branch,
             commands::branches::delete_branch,
             commands::command_log,

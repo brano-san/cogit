@@ -434,6 +434,7 @@ snake_case и читаются на фронтенде как `undefined`.
 | `discard_paths` | `repo, paths` | `()` | M6 |
 | `commit` | `repo, request: CommitRequest { message, amend, noVerify, only }` | `String` (oid); `only` пуст — всё проиндексированное, иначе только эти пути | M6 |
 | `checkout` | `repo, target: CheckoutTarget` | `()` | M5 |
+| `switch_with_autostash` | `repo, target: CheckoutTarget, message` | `()`; одна операция полосы: `stash push --include-untracked`, `switch`, `stash pop` той записи, что сделана (по oid). Отказ `switch` — изменения возвращены, ошибка — отказ; конфликт `pop` после переключения — ошибка `pop`, stash остаётся (R-521) | M5 |
 | `create_branch` / `delete_branch` | `repo, ...` | `()` | M5 |
 | `delete_remote_branch` | `repo, remote, branch` (`origin/topic` или `topic`) | `RemoteDeletion`: `"deleted"` — `push --delete` по полному имени; `"alreadyGone"` — на сервере ветки уже не было, удалена только устаревшая remote-tracking ссылка (R-480) | M5 |
 | `merge` / `rebase` / `cherry_pick` / `revert` | `repo, ...` | `()` | M5 |
