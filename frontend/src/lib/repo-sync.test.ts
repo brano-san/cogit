@@ -45,7 +45,17 @@ describe("the marks of a repository row", () => {
       unknown: false,
       remoteAhead: false,
       missing: false,
+      branch: null,
     });
+  });
+
+  // After `git switch other` in a repository the panels do not show, the row kept the old
+  // branch beside the new branch's arrows; a closed row named none at all.
+  it("names the branch its pulse read, closed rows included", () => {
+    const other = pulse({ branch: "other" });
+    expect(rowSync({ overview: overview(), owned: false, pulse: other, fetchFailed: false }).branch).toBe("other");
+    expect(rowSync({ overview: null, owned: false, pulse: other, fetchFailed: false }).branch).toBe("other");
+    expect(rowSync({ overview: overview(), owned: true, pulse: other, fetchFailed: false }).branch).toBe("main");
   });
 
   it("offers a pull when the server moved on though the tracking ref is level", () => {

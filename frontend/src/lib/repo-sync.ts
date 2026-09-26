@@ -13,6 +13,8 @@ export interface RowSync {
   /** The server has commits HEAD lacks that are not fetched yet (R-354). */
   remoteAhead: boolean;
   missing: boolean;
+  /** HEAD's branch; `null` while detached or not read yet. */
+  branch: string | null;
 }
 
 export interface RowSyncInput {
@@ -30,7 +32,7 @@ export function rowSync(input: RowSyncInput): RowSync {
   const { overview, owned, pulse, fetchFailed } = input;
   const remoteAhead = input.remoteAhead === true && !fetchFailed;
   const source = owned && overview ? overview : (pulse ?? overview);
-  const none = { dirty: null, ahead: 0, behind: 0, unknown: false, remoteAhead, missing: false };
+  const none = { dirty: null, ahead: 0, behind: 0, unknown: false, remoteAhead, missing: false, branch: null };
   if (!source) return { ...none, unknown: fetchFailed };
   if (source.missing) return { ...none, remoteAhead: false, missing: true };
   return {
@@ -40,6 +42,7 @@ export function rowSync(input: RowSyncInput): RowSync {
     unknown: fetchFailed,
     remoteAhead,
     missing: false,
+    branch: source.branch,
   };
 }
 
