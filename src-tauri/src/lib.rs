@@ -130,6 +130,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::network::fetch,
             commands::network::pull,
             commands::network::push,
+            commands::network::cancel_network,
             commands::merge,
             commands::rebase,
             commands::skip_operation,

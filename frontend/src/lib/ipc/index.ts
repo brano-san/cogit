@@ -179,6 +179,8 @@ function describeError(error: GitError): string {
       return error.data.line === null
         ? `Git refused the config: ${error.data.message}`
         : `Git refused the config at line ${error.data.line}: ${error.data.message}`;
+    case "cancelled":
+      return `Cancelled: ${error.data}`;
   }
 }
 
@@ -278,6 +280,13 @@ export async function searchFileContents(
   const channel = new Channel<SearchChunk>();
   channel.onmessage = onChunk;
   return unwrap(await commands.searchFileContents(repo, query, isRegex, scope, channel));
+}
+
+/** Stops the fetch, pull or push running as queue operation `operation` (an
+    `OperationChanged` of kind fetch, pull or push in phase running): git is stopped, the
+    call rejects with a `cancelled` error, the lane goes on. `false` — nothing to stop. */
+export async function cancelNetwork(operation: number) {
+  return unwrap(await commands.cancelNetwork(operation));
 }
 
 /** `false` when the operation had already finished. */

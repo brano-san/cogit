@@ -146,14 +146,14 @@ pub async fn push_to(
     on_progress: tauri::ipc::Channel<String>,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    mutating(
+    super::network::networking(
         &state.state,
         repo,
         OperationKind::Push,
         "push_to",
-        move || {
+        move |stop| {
             super::network::with_progress("push", &remote, &on_progress, |on_line| {
-                app_state.push_to(repo, &remote, &refspec, on_line)
+                app_state.push_to(repo, &remote, &refspec, &stop, on_line)
             })
         },
     )

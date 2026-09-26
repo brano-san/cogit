@@ -2,6 +2,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use app_state::{AppState, RepoId};
+use git_engine::NetworkStop;
 
 fn open(f: &test_fixtures::Fixture) -> (AppState, RepoId) {
     let state = AppState::new();
@@ -658,7 +659,9 @@ fn a_pull_can_be_undone() {
     let f = test_fixtures::with_remote().unwrap();
     let (state, repo) = open(&f);
     let before = head_oid(&state, repo);
-    state.pull(repo, "origin", false, |_| {}).unwrap();
+    state
+        .pull(repo, "origin", false, &NetworkStop::default(), |_| {})
+        .unwrap();
     assert_ne!(head_oid(&state, repo), before);
 
     state.undo_last(repo).unwrap();
