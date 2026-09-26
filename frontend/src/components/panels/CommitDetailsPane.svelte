@@ -1,6 +1,6 @@
 <script lang="ts">
   import Avatar from "$components/common/Avatar.svelte";
-  import { shortOid } from "$lib/format";
+  import { dateTooltip, shortOid } from "$lib/format";
   import { idleMessage, panelView } from "$lib/repo-phase";
   import { commit } from "$stores/commit.svelte";
   import { repository } from "$stores/repository.svelte";
@@ -30,7 +30,9 @@
         <Avatar name={details.author.name} email={details.author.email} size={20} />
         <span>
           {details.author.name} &lt;{details.author.email}&gt; ·
-          {settings.formatDate(details.author.timestamp, details.author.tzOffsetMinutes)}
+          <span title={dateTooltip(details.author.timestamp, details.author.tzOffsetMinutes)}
+            >{settings.formatDate(details.author.timestamp, details.author.tzOffsetMinutes)}</span
+          >
         </span>
       </dd>
       <dt>Parents</dt>
