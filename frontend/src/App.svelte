@@ -101,7 +101,7 @@
   import { applyPreferences, type ApplyHost } from "$lib/preferences-apply";
   import { capFraction, floorFraction, PANELS, type PanelId } from "$lib/perspectives";
   import { graphPanelMinWidth } from "$lib/graph-panel";
-  import { repoClick } from "$lib/repo-click";
+  import { reopenClick, repoClick } from "$lib/repo-click";
   import { ModuleInitialiser, moduleClick } from "$lib/module-init";
   import { parseWorktreeCommand, worktreeMenu } from "$lib/worktree-menu";
   import { answerMergeResolved } from "$lib/merge-save";
@@ -1393,49 +1393,79 @@
   /** Opens a submodule in the panels without listing it as a repository of its own
       (doc/12-risks.md, R-109). The tree keeps showing it where it is, and the tree is
       the one thing not forgotten, because it is what the click came from. */
+  /** The submodule whose open is under way, by key: the clicks of a double-click. */
+  let moduleOpening: string | null = null;
+  /** The same for a submodule of a repository the panels do not own, by root and key. */
+  let foreignOpening: string | null = null;
+
   async function openModule(row: import("$lib/module-tree").ModuleRow) {
-    if (moduleClick(row.module.state) === "offer") {
+    const step = moduleClick(row.module.state, {
+      key: row.key,
+      // A worktree of the submodule opened from Worktrees leaves `open` as it was.
+      shown: worktrees.ownerRoot === null ? submodules.open : null,
+      opening: moduleOpening,
+    });
+    if (step === "offer") {
       await offerInitialise(row.key);
       return;
     }
-    const epoch = repository.epoch;
-    const opened = await openedModule(row.key);
-    // Clicked somewhere else meanwhile: taking the submodule now would overtake that.
-    if (!opened || repository.epoch !== epoch) return;
+    if (step === "stay") return;
+    moduleOpening = row.key;
+    try {
+      const epoch = repository.epoch;
+      const opened = await openedModule(row.key);
+      // Clicked somewhere else meanwhile: taking the submodule now would overtake that.
+      if (!opened || repository.epoch !== epoch) return;
 
-    // Everything except the tree: it belongs to the repository in the list, and the click
-    // came from it (doc/12-risks.md, R-129).
-    forgetPanelsKeepingTheTree();
-    worktrees.ownerRoot = null;
-    submodules.open = row.key;
-    repository.keep();
-    repository.adopt(opened);
-    refs.adopt(opened.root, buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() }));
-    void reloadGraph();
-    void refs.loadUrls(opened.repo);
-    void worktrees.refresh(opened.repo);
-    await afterMutation();
+      // Everything except the tree: it belongs to the repository in the list, and the click
+      // came from it (doc/12-risks.md, R-129).
+      forgetPanelsKeepingTheTree();
+      worktrees.ownerRoot = null;
+      submodules.open = row.key;
+      repository.keep();
+      repository.adopt(opened);
+      refs.adopt(opened.root, buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() }));
+      void reloadGraph();
+      void refs.loadUrls(opened.repo);
+      void worktrees.refresh(opened.repo);
+      await afterMutation();
+    } finally {
+      if (moduleOpening === row.key) moduleOpening = null;
+    }
   }
 
   /** A submodule of a listed repository the panels do not own, open or closed (R-352): the
       repository is opened without taking the panels, its tree becomes the full one, and
       the submodule takes the panels. Clicking the repository afterwards comes back to it. */
   async function openForeignModule(root: string, row: import("$lib/module-tree").ModuleRow) {
-    const epoch = repository.epoch;
-    let owner: import("$lib/ipc").RepoSummary;
+    const target = `${root}\n${row.key}`;
+    if (foreignOpening === target) return;
+    foreignOpening = target;
     try {
-      owner = await openRepository(root);
-    } catch (err) {
-      errors.report(err, "Could not open the repository");
-      return;
+      const epoch = repository.epoch;
+      let owner: import("$lib/ipc").RepoSummary;
+      try {
+        owner = await openRepository(root);
+      } catch (err) {
+        errors.report(err, "Could not open the repository");
+        return;
+      }
+      if (repository.epoch !== epoch) return;
+      repoList.opened(owner.root);
+      await submodules.own(owner.repo, owner.root);
+      if (repository.epoch !== epoch) return;
+      repository.keep(owner);
+      await openModule(submodules.rows.find((each) => each.key === row.key) ?? row);
+      void repository.refreshList();
+    } finally {
+      if (foreignOpening === target) foreignOpening = null;
     }
-    if (repository.epoch !== epoch) return;
-    repoList.opened(owner.root);
-    await submodules.own(owner.repo, owner.root);
-    if (repository.epoch !== epoch) return;
-    repository.keep(owner);
-    await openModule(submodules.rows.find((each) => each.key === row.key) ?? row);
-    void repository.refreshList();
+  }
+
+  /** A closed row of Repositories: opened once, however many clicks arrive meanwhile. */
+  function reopen(root: string) {
+    const phase = repository.phase;
+    if (reopenClick(root, phase.kind === "opening" ? phase.root : null) === "open") void activate(root);
   }
 
   /** From the Diff panel, where a submodule that was never checked out says so. */
@@ -2694,7 +2724,7 @@
         else if (target.overview) void selectRepository(target.overview);
         // Like a click on the closed row: activate takes it off the closed list only once it
         // opened, so a folder that moved keeps its row.
-        else void activate(root);
+        else reopen(root);
         return true;
       case "repo-open-folder":
         shell(fileMenus.openOnDesktop(root), "Could not open the folder");
@@ -3284,7 +3314,7 @@
             onopen={pickRepository}
             onselect={(entry) => void selectRepository(entry)}
             oncontext={(row, x, y) => void repoContext(row, x, y)}
-            onreopen={(root) => void activate(root)}
+            onreopen={reopen}
             onmarked={(roots) => (markedRepos = roots)}
             onaddgroup={askAddGroup}
             ongroupcontext={(id, x, y) => void groupContext(id, x, y)}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RepoId } from "$lib/ipc";
-import { repoClick, type RepoClickState } from "./repo-click";
+import { reopenClick, repoClick, type RepoClickState } from "./repo-click";
 
 const id = (n: number) => n as unknown as RepoId;
 const alpha = { repo: id(1), root: "E:/w/alpha" };
@@ -36,5 +36,18 @@ describe("repoClick", () => {
 
   it("opens when nothing is on screen yet", () => {
     expect(repoClick(alpha, state({ shown: null }))).toBe("open");
+  });
+});
+
+// The two clicks of a double-click on a closed row opened it twice, the second overtaking
+// the first.
+describe("reopenClick", () => {
+  it("does not open a closed row again while its open is under way", () => {
+    expect(reopenClick("E:/w/alpha", "E:\\w\\alpha")).toBe("stay");
+  });
+
+  it("opens a closed row otherwise", () => {
+    expect(reopenClick("E:/w/alpha", null)).toBe("open");
+    expect(reopenClick("E:/w/alpha", "E:/w/beta")).toBe("open");
   });
 });

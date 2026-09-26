@@ -201,9 +201,8 @@
       style:padding-left="calc(var(--tree-base) + {depth + 1 + node.depth} * var(--tree-step))"
       onclick={() => open(node)}
       ondblclick={() => {
-        if (!owned) return;
-        open(node);
-        toggle(node);
+        // The first click has opened it already.
+        if (owned) toggle(node);
       }}
       onkeydown={(event) => {
         if (event.key === "Enter") open(node);
