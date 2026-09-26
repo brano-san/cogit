@@ -14,7 +14,9 @@
   import { cellTokens, diffTokens, rowTokens } from "$lib/diff-highlight";
   import {
     blockKeys,
+    FLASH_MS,
     changeAt,
+    changeEnd,
     changeStarts,
     foldDiff,
     navState,
@@ -158,18 +160,35 @@
     visibleRange(scrollTop, viewportHeight, ROW_HEIGHT, total, BUFFER_ROWS),
   );
 
-  const starts = $derived(
-    changeStarts(
-      mode === "unified"
-        ? unified.map((entry) => entry.kind === "row" && lineKey(entry.row) !== null)
-        : split.map(
-            (entry) =>
-              entry.kind === "pair" &&
-              (entry.pair.left?.kind === "delete" || entry.pair.right?.kind === "insert"),
-          ),
-    ),
+  const changed = $derived(
+    mode === "unified"
+      ? unified.map((entry) => entry.kind === "row" && lineKey(entry.row) !== null)
+      : split.map(
+          (entry) =>
+            entry.kind === "pair" &&
+            (entry.pair.left?.kind === "delete" || entry.pair.right?.kind === "insert"),
+        ),
   );
+  const starts = $derived(changeStarts(changed));
   const nav = $derived(navState(starts.length, current));
+
+  /** The rows of the change a jump landed on, lit briefly so the eye finds them (F-541). */
+  let flash = $state<{ from: number; to: number } | null>(null);
+  let flashTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function flashChange(start: number) {
+    clearTimeout(flashTimer);
+    flash = null;
+    // A frame without the class, so the same rows lit again start their fade over.
+    requestAnimationFrame(() => {
+      flash = { from: start, to: changeEnd(changed, start) };
+      flashTimer = setTimeout(() => (flash = null), FLASH_MS);
+    });
+  }
+
+  function flashed(index: number): boolean {
+    return flash !== null && index >= flash.from && index < flash.to;
+  }
 
   let rowsWidth = $state(0);
   /** The sign column, measured: it is sized in `ch` of the code font. */
@@ -408,6 +427,7 @@
     scroller.scrollTop = Math.max((starts[target] ?? 0) - LEAD, 0) * ROW_HEIGHT;
     jumping = scroller.scrollTop !== before;
     current = target;
+    flashChange(starts[target] ?? 0);
   }
 
   function onscroll() {
@@ -463,8 +483,11 @@
     pendingDiscard = null;
     discardError = null;
     sideways = 0;
+    flash = null;
     if (scroller) scroller.scrollTop = 0;
   });
+
+  $effect(() => () => clearTimeout(flashTimer));
 
   /** The hunks `selected` was chosen in. Staging a block re-diffs the file under the
       selection; only the lines that still mean the same line stay selected. */
@@ -799,6 +822,7 @@
               <div
                 class="line"
                 class:staging={stageable && key !== null && selected.has(key)}
+                class:flash={flashed(rowIndex)}
                 class:marked={!stageable && key !== null && selected.has(key)}
                 style:top="{rowIndex * ROW_HEIGHT}px"
                 onmouseenter={() => (hoverRow = rowIndex)}
@@ -883,6 +907,7 @@
               <div
                 class="line"
                 class:staging={stageable && picked}
+                class:flash={flashed(rowIndex)}
                 class:marked={!stageable && picked}
                 style:top="{rowIndex * ROW_HEIGHT}px"
                 onmouseenter={() => (hoverRow = rowIndex)}
@@ -1053,6 +1078,31 @@
   /* A read-only diff can still be selected, for Investigate; it just stages nothing. */
   .line.marked {
     box-shadow: inset 2px 0 0 var(--status-ref);
+  }
+
+  /* Over the row's own fills, fading out in `FLASH_MS`; with reduced motion it just stays
+     lit that long. Feedback, not a transition: nothing waits for it. */
+  .line.flash::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--diff-jump-flash);
+    pointer-events: none;
+    opacity: 0;
+    animation: jump-flash 600ms ease-out;
+  }
+
+  @keyframes jump-flash {
+    from {
+      opacity: 1;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .line.flash::after {
+      animation: none;
+      opacity: 1;
+    }
   }
 
   .acts {
