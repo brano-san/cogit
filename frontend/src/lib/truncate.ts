@@ -4,7 +4,8 @@
     in the middle, here. */
 const ELLIPSIS = "…";
 
-/** How long a ref label in the graph may be before its middle goes. */
+/** How many characters of the monospace font a ref label in the graph may take before its
+    middle goes: a width in CSS, so it is cut once, where the row squeezes it too. */
 export const REF_LABEL_MAX = 30;
 
 /** Cuts count characters, not UTF-16 units: half an emoji on each side of a cut draws as
@@ -25,10 +26,6 @@ function charCut(text: string, max: number): string {
 /** `feature/14340…new_toolchain`: the start and the end that tells branches apart. */
 export function truncateMiddle(text: string, max: number): string {
   return length(text) <= max ? text : charCut(text, max);
-}
-
-export function refLabelText(text: string): string {
-  return truncateMiddle(text, REF_LABEL_MAX);
 }
 
 /** The tail a squeezed ref label keeps whole; the lead gives way with an ellipsis in CSS,
