@@ -38,8 +38,38 @@ pub struct HealthFinding {
     pub issue: HealthIssue,
 }
 
-/// Tried, not assumed: WSL folders and case-sensitive NTFS directories exist.
+/// Tried, not assumed: WSL folders and case-sensitive NTFS directories exist. A name already
+/// there is looked up in the other case, so nothing is written: a probe file was a change in
+/// the folder, and in a submodule cloned in place, a reload of the parent (R-591). Only an
+/// empty folder gets a probe file.
 pub fn case_sensitive(dir: &Path) -> std::io::Result<bool> {
+    let names: Vec<String> = std::fs::read_dir(dir)?
+        .flatten()
+        .filter_map(|entry| entry.file_name().into_string().ok())
+        .collect();
+    for name in &names {
+        let flipped: String = name
+            .chars()
+            .map(|c| {
+                if c.is_ascii_uppercase() {
+                    c.to_ascii_lowercase()
+                } else {
+                    c.to_ascii_uppercase()
+                }
+            })
+            .collect();
+        if flipped == *name {
+            continue;
+        }
+        if names.contains(&flipped) {
+            return Ok(true);
+        }
+        return match std::fs::symlink_metadata(dir.join(&flipped)) {
+            Ok(_) => Ok(false),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(true),
+            Err(err) => Err(err),
+        };
+    }
     let name = format!("cogit-case-probe-{}", std::process::id());
     let lower = dir.join(&name);
     std::fs::write(&lower, b"")?;

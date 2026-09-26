@@ -290,3 +290,21 @@ fn a_worktree_recorded_by_a_relative_path_is_not_reported_as_gone() {
 
     assert!(found.is_empty(), "{found:?}");
 }
+
+// Creating and deleting a probe file was a change in the folder: inside a submodule cloned
+// in place it reached the parent's watcher as a working-tree change and a reload (#35).
+#[test]
+fn the_probe_of_a_git_directory_writes_nothing() {
+    let f = test_fixtures::linear(1).unwrap();
+    let git_dir = f.git_dir();
+    let before = std::fs::metadata(&git_dir).unwrap().modified().unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(20));
+
+    let sensitive = case_sensitive(&git_dir).unwrap();
+
+    let after = std::fs::metadata(&git_dir).unwrap().modified().unwrap();
+    assert_eq!(before, after, "the git directory was written to");
+    if cfg!(windows) {
+        assert!(!sensitive);
+    }
+}
