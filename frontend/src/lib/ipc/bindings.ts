@@ -1646,6 +1646,8 @@ export type WorkingState = {
 	status: RepoStatus,
 	/**  Sorted, each path once — what `conflicted_paths` lists. */
 	conflicted: string[],
+	/**  `index_lock`: the watcher's index refresh reads only this, and the banner follows it. */
+	indexLock: string | null,
 };
 
 /**  One checkout: the main one cannot be removed, a linked one can be locked or left behind. */

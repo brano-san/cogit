@@ -79,6 +79,26 @@ fn a_change_to_head_arrives_as_a_head_event() {
     );
 }
 
+// A lock left while Cogit is open showed no banner, and the banner of one deleted by hand
+// stayed until a ref moved (F-039).
+#[test]
+fn an_index_lock_coming_and_going_is_an_index_change() {
+    let harness = start();
+    let lock = harness.root.join(".git/index.lock");
+
+    std::fs::write(&lock, "").unwrap();
+    let appeared = collect(&harness);
+    std::fs::remove_file(&lock).unwrap();
+    let went = collect(&harness);
+
+    for seen in [appeared, went] {
+        assert!(
+            seen.iter().any(|c| c.kind == ChangeKind::Index),
+            "got {seen:?}"
+        );
+    }
+}
+
 #[test]
 fn a_thousand_files_in_target_produce_no_events() {
     let harness = start();
