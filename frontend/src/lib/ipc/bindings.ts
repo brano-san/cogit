@@ -545,7 +545,17 @@ export type ChangeKind = "head" | "index" | "refs" | "workingTree" | "stash" | "
 /**  `.mailmap` at the root of the working tree: names and addresses to read again. */
 "mailmap";
 
-export type CheckoutTarget = { kind: "branch"; name: string } | { kind: "commit"; oid: string };
+export type CheckoutTarget = { kind: "branch"; name: string } | { kind: "commit"; oid: string } | 
+/**
+ *  A local branch made at `start` and checked out; `track` makes `start`, a remote
+ *  branch, its upstream.
+ */
+{ kind: "newBranch"; name: string; start: string; track: boolean } | 
+/**
+ *  An existing local branch moved forward to `to` and checked out; never back or
+ *  sideways.
+ */
+{ kind: "fastForward"; name: string; to: string };
 
 /**
  *  What the UI needs to decide whether to interrupt the user. The output itself is

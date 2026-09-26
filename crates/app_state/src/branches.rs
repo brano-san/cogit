@@ -11,11 +11,11 @@ impl AppState {
         let _quiet = self.quiet(repo);
         self.handle(repo)?.checkout(target)?;
 
-        let what = match target {
-            git_engine::CheckoutTarget::Branch { name } => name.clone(),
-            git_engine::CheckoutTarget::Commit { oid } => oid.clone(),
-        };
-        self.record(repo, format!("Check out {what}"), Recovery::None);
+        self.record(
+            repo,
+            format!("Check out {}", target.described()),
+            Recovery::None,
+        );
         Ok(())
     }
 
