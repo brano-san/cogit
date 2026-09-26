@@ -2,7 +2,7 @@
 
 use super::mutating;
 use app_state::{OperationKind, RepoId};
-use git_engine::{CheckoutTarget, GitError, TagRequest};
+use git_engine::{CheckoutTarget, GitError, RemoteDeletion, TagRequest};
 
 #[tauri::command]
 #[specta::specta]
@@ -90,7 +90,7 @@ pub async fn delete_remote_branch(
     repo: RepoId,
     remote: String,
     branch: String,
-) -> Result<(), GitError> {
+) -> Result<RemoteDeletion, GitError> {
     let app_state = state.state.clone();
     mutating(
         &state.state,

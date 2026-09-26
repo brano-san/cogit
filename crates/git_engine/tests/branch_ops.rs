@@ -3,7 +3,7 @@
 //! Renaming, upstream and deleting a remote branch (M5 T5.4). Everything here writes, so
 //! everything goes through the system `git`: hooks and server-side refusals are the point.
 
-use git_engine::RepoHandle;
+use git_engine::{RemoteDeletion, RepoHandle};
 
 fn open(fixture: &test_fixtures::Fixture) -> RepoHandle {
     RepoHandle::open(fixture.path()).unwrap()
@@ -136,7 +136,10 @@ fn deleting_a_remote_branch_removes_it_from_the_remote() {
     f.git(&["push", "origin", "HEAD:refs/heads/doomed"])
         .unwrap();
 
-    repo.delete_remote_branch("origin", "doomed").unwrap();
+    assert_eq!(
+        repo.delete_remote_branch("origin", "doomed").unwrap(),
+        RemoteDeletion::Deleted
+    );
     f.git(&["fetch", "--prune", "origin"]).unwrap();
 
     let remote: Vec<String> = repo
@@ -152,17 +155,68 @@ fn deleting_a_remote_branch_removes_it_from_the_remote() {
     );
 }
 
+// A branch someone else already deleted is what the user asked for, not a failure; the
+// stale remote-tracking ref that still showed it goes, as `fetch --prune` would drop it.
 #[test]
-fn deleting_a_remote_branch_that_is_gone_reports_gits_refusal() {
+fn deleting_a_remote_branch_that_is_already_gone_succeeds() {
     let f = test_fixtures::with_remote().unwrap();
-    let err = open(&f)
-        .delete_remote_branch("origin", "never-existed")
-        .unwrap_err();
-    let text = format!("{err:?}");
+    f.git(&["update-ref", "refs/remotes/origin/gone", "HEAD"])
+        .unwrap();
+
+    let result = open(&f)
+        .delete_remote_branch("origin", "origin/gone")
+        .unwrap();
+
+    assert_eq!(result, RemoteDeletion::AlreadyGone);
     assert!(
-        text.contains("remote ref does not exist") || text.contains("delete"),
-        "{text}"
+        f.git(&["rev-parse", "--verify", "-q", "refs/remotes/origin/gone"])
+            .is_err()
     );
+}
+
+// With a tag of the same name on the server, `push --delete origin topic` refused:
+// "dst refspec topic matches more than one".
+#[test]
+fn a_remote_branch_with_a_tag_of_the_same_name_is_deleted_and_the_tag_kept() {
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&[
+        "push",
+        "origin",
+        "HEAD:refs/heads/topic",
+        "HEAD:refs/tags/topic",
+    ])
+    .unwrap();
+
+    let result = open(&f)
+        .delete_remote_branch("origin", "origin/topic")
+        .unwrap();
+
+    assert_eq!(result, RemoteDeletion::Deleted);
+    let left = f.git(&["ls-remote", "origin"]).unwrap();
+    assert!(!left.contains("refs/heads/topic"), "{left}");
+    assert!(left.contains("refs/tags/topic"), "{left}");
+}
+
+#[test]
+fn the_server_branch_is_found_through_the_remotes_fetch_refspec() {
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&[
+        "config",
+        "remote.origin.fetch",
+        "+refs/heads/*:refs/remotes/origin/mirror/*",
+    ])
+    .unwrap();
+    f.git(&["push", "origin", "HEAD:refs/heads/feature"])
+        .unwrap();
+    f.git(&["fetch", "origin"]).unwrap();
+
+    let result = open(&f)
+        .delete_remote_branch("origin", "origin/mirror/feature")
+        .unwrap();
+
+    assert_eq!(result, RemoteDeletion::Deleted);
+    let left = f.git(&["ls-remote", "--heads", "origin"]).unwrap();
+    assert!(!left.contains("refs/heads/feature"), "{left}");
 }
 
 #[test]

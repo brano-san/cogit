@@ -69,7 +69,7 @@ pub use blame_origins::{
     BlameCommit, BlameReport, BlameSource, LineChange, OriginLine, PreviousFile,
 };
 pub use blobs::{DiffAttributes, DiffSides, DiffSpec};
-pub use branches::CheckoutTarget;
+pub use branches::{CheckoutTarget, RemoteDeletion};
 pub use bypass::Bypass;
 pub use commit::{CommitDetails, DEFAULT_SIMILARITY, FileEntry, FileMode, FileStatus, Signature};
 pub use commit_write::CommitRequest;

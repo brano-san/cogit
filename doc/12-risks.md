@@ -5836,6 +5836,27 @@ GitHub, GitLab or Bitbucket remote». Ветка по умолчанию remote 
   116,2 → 117,1 мс, same: прежние +4–7 % — разброс базы между сессиями (112–116 мс) плюс по
   2–4 % от исправлений ed59a30 и c5ac3f2/c46af3e, каждое в пределах шума.
 
+## R-480 · Удаление ветки на сервере — по полному имени; уже удалённая — успех · Н
+
+`push --delete <remote> <короткое имя>` отказывал, если на сервере есть ветка и тег с этим
+именем: «dst refspec topic matches more than one». Полное имя это снимает, но у git
+`push --delete origin refs/heads/<нет такой>` проходит с кодом 0 (сервер пишет только
+`remote: warning: deleting a non-existent ref`), а короткое давало «remote ref does not exist»
+и код 1 — Cogit показывал ошибку.
+
+**Решение (пользователь, 26.09):** имя на сервере — обратное отображение fetch-refspec
+remote'а для `refs/remotes/<remote>/<ветка>` (gix `upstream_branch_and_remote_for_tracking_branch`,
+только если отображение даёт тот же remote), иначе `refs/heads/<ветка>`. Перед push —
+`git ls-remote <remote> <имя>`: ветка есть — `push --delete <remote> <полное имя>` и ответ
+`deleted`; нет — push не идёт (удалять на сервере нечего, а чужой сервер может ответить на
+удаление несуществующей ссылки не так, как git), локальная remote-tracking ссылка, если
+осталась, удаляется `update-ref -d` — как это сделал бы `fetch --prune`, — ответ `alreadyGone`,
+и пользователь видит уведомление «Branch already deleted», а не ошибку. Цена — ещё один
+запрос к серверу на удаление. Тест `deleting_a_remote_branch_that_is_gone_reports_gits_refusal`
+закреплял прежний отказ и переписан под новое поведение
+(`deleting_a_remote_branch_that_is_already_gone_succeeds`); ветка и тег с одним именем,
+нестандартный fetch-refspec — `git_engine/tests/branch_ops.rs`.
+
 ## R-481 · Индекс — по контрольной сумме, а не по mtime общего снимка · Н
 
 После R-324 все `RepoHandle` одного `SharedRepo` делят снимок индекса gix (`IndexStorage` —
