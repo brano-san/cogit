@@ -919,6 +919,27 @@ fn discarding_keeps_the_staged_part_of_a_file_and_undo_brings_back_the_rest() {
     assert_eq!(staged(&f, "fresh.txt"), "new\n");
 }
 
+// A staged deletion is in neither the index nor the folder, and a stash of paths cannot
+// take it (R-486): the edit beside it goes, the deletion stays staged.
+#[test]
+fn discarding_an_edit_beside_a_staged_deletion_keeps_the_deletion() {
+    let f = test_fixtures::linear(2).unwrap();
+    f.git(&["rm", "-q", "file0.txt"]).unwrap();
+    f.write_file("file1.txt", "wip\n").unwrap();
+    let (state, repo) = open(&f);
+    let paths = ["file0.txt".to_owned(), "file1.txt".to_owned()];
+
+    state.discard_paths(repo, &paths).unwrap();
+
+    assert_eq!(text(&f, "file1.txt"), "content 1\n");
+    assert!(!f.path().join("file0.txt").exists());
+    assert_eq!(f.git(&["ls-files", "--", "file0.txt"]).unwrap().trim(), "");
+
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(text(&f, "file1.txt"), "wip\n");
+}
+
 /// Stopped on the conflict in `c.txt`, with `d.txt` merged cleanly and staged beside it.
 fn stopped_beside_a_clean_merge() -> (test_fixtures::Fixture, AppState, RepoId) {
     let f = test_fixtures::linear(1).unwrap();
