@@ -72,6 +72,22 @@
     rows.flatMap((entry, index) => (entry.kind === "dir" ? [] : [{ path: entry.file.path, index }])),
   );
 
+  /** Not state: set once the selected file was scrolled to, so the rows moving later (a
+      reload, folders turned on) do not pull the view back to it. */
+  let revealedFor: string | null = null;
+
+  // A file selected from elsewhere, such as Find Object, is scrolled into view — also
+  // when its row arrives after it was selected.
+  $effect(() => {
+    const path = selected;
+    if (path === null) revealedFor = null;
+    if (path === null || path === revealedFor) return;
+    const at = files.find((file) => file.path === path)?.index;
+    if (at === undefined) return;
+    revealedFor = path;
+    reveal = at;
+  });
+
   async function goTo(to: number, extend: boolean) {
     const target = files[to];
     if (!target) return;
