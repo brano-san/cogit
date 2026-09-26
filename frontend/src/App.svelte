@@ -87,7 +87,7 @@
   import * as fileMenus from "$lib/ipc/file-menus";
   import { desktop } from "$stores/desktop.svelte";
   import { groupChoices, parseRepoCommand, repoMenu } from "$lib/repo-menu";
-  import { fetchAllTargets, type ListedRepo } from "$lib/repo-list";
+  import { fetchAllTargets, listedName, type ListedRepo } from "$lib/repo-list";
   import { rowSync } from "$lib/repo-sync";
   import { UNGROUPED } from "$lib/repo-groups";
   import { repoList } from "$stores/repo-list.svelte";
@@ -2771,7 +2771,7 @@
         repoList.togglePin(root);
         return true;
       case "repo-rename":
-        void renameListed(root, target.kind === "repository" ? target.overview?.name : undefined);
+        if (target.kind === "repository") void renameListed(root, target.overview);
         return true;
       case "repo-remove":
         void removeListed(target);
@@ -2843,12 +2843,11 @@
     if (target.kind === "repository") repoPulse.changed(target.root);
   }
 
-  async function renameListed(root: string, folder: string | undefined) {
-    const current = repoList.list.names[root] ?? folder ?? root;
+  async function renameListed(root: string, overview: import("$lib/ipc").RepoOverview | null) {
     const name = await prompt.ask({
       title: "Rename",
       label: "Name shown in the list; the folder keeps its name",
-      value: current,
+      value: listedName(repoList.list, root, overview),
       confirm: "Rename",
       validate: textProblem,
     });
@@ -2857,7 +2856,7 @@
 
   async function removeListed(target: RepoMenuSubject) {
     if (target.kind !== "repository") return;
-    const name = repoList.list.names[target.root] ?? target.overview?.name ?? target.root;
+    const name = listedName(repoList.list, target.root, target.overview);
     const yes = await confirmation.ask({
       title: "Remove",
       message: `Remove ${name} from the list? Nothing is deleted: the folder and the repository stay as they are.`,
