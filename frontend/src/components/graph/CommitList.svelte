@@ -315,8 +315,10 @@
   }
 
   const headerLabel = $derived(workingTreeLabel(repository.current?.status, repository.current?.state));
-  /** Good, bad, skipped and the commit under test (F-566): a layer of its own over the rows. */
-  const looks = $derived(bisectLooks(bisectOf(repository.current?.state)));
+  /** Good, bad, skipped and the commit under test (F-566): a layer of its own over the rows.
+      Two steps, so a status refresh, which keeps the state object, redraws nothing. */
+  const bisect = $derived(bisectOf(repository.current?.state));
+  const looks = $derived(bisectLooks(bisect));
 
   /** What relative times and "today" count from; a minute is their finest step. Read in the
       markup, `Date.now()` changed nothing until a row scrolled away and back. */
