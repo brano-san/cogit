@@ -32,7 +32,8 @@ pub struct CommitQuery {
     pub long_link_rows: Option<u32>,
 }
 
-/// Graph modes that decide which commits the graph shows (`graph_engine::ViewFilter`).
+/// Graph modes that decide which commits the graph shows: the walk follows first parents,
+/// `graph_engine::ViewFilter` collapses merged branches.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase", default)]
 pub struct GraphView {
