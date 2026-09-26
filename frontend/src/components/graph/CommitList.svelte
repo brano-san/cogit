@@ -653,7 +653,7 @@
                   )}</span
                 >
               {:else if cell === "overlap"}
-                {@const row = overlap.rows.get(item.entry.commit.oid)}
+                {@const row = overlap.rowOf(item.entry.commit.oid, selection.oid)}
                 <span
                   class="overlap {row?.overlap ?? 'none'}"
                   class:base={row?.isBase}
