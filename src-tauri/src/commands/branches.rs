@@ -2,7 +2,7 @@
 
 use super::mutating;
 use app_state::{OperationKind, RepoId};
-use git_engine::{CheckoutTarget, GitError, RemoteDeletion, TagRequest};
+use git_engine::{AutostashOutcome, CheckoutTarget, GitError, RemoteDeletion, TagRequest};
 
 #[tauri::command]
 #[specta::specta]
@@ -22,7 +22,7 @@ pub async fn checkout(
     .await
 }
 
-/// Stash, switch, put the changes back: one operation of the lane (R-521).
+/// Stash, check out, apply the stash: one operation of the lane (R-521, R-563).
 #[tauri::command]
 #[specta::specta]
 pub async fn switch_with_autostash(
@@ -30,14 +30,15 @@ pub async fn switch_with_autostash(
     repo: RepoId,
     target: CheckoutTarget,
     message: String,
-) -> Result<(), GitError> {
+    drop_after_clean: bool,
+) -> Result<AutostashOutcome, GitError> {
     let app_state = state.state.clone();
     mutating(
         &state.state,
         repo,
         OperationKind::Checkout,
         "switch_with_autostash",
-        move || app_state.switch_with_autostash(repo, &target, &message),
+        move || app_state.switch_with_autostash(repo, &target, &message, drop_after_clean),
     )
     .await
 }

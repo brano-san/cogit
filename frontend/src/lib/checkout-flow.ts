@@ -1,5 +1,5 @@
 import { blockedByLocalChanges } from "./checkout-refusal";
-import { CogitError, type CheckoutTarget } from "./ipc";
+import { CogitError, type AutostashOutcome, type CheckoutTarget } from "./ipc";
 import type { CheckoutRequest } from "./ref-checkout";
 
 export interface CheckoutSteps {
@@ -7,10 +7,12 @@ export interface CheckoutSteps {
       there, and nothing is to be checked out here. */
   elsewhere: (branch: string) => Promise<boolean>;
   checkout: (target: CheckoutTarget) => Promise<unknown>;
-  ask: (question: string) => Promise<boolean>;
-  /** Stash, check out, put the changes back: one operation of the lane (R-521). */
-  autostash: (target: CheckoutTarget, message: string) => Promise<unknown>;
+  /** The offer to carry the changes over; null declines it (item 46). */
+  ask: (question: string) => Promise<{ drop: boolean } | null>;
+  /** Stash, check out, apply the stash: one operation of the lane (R-521, R-563). */
+  autostash: (target: CheckoutTarget, message: string, drop: boolean) => Promise<AutostashOutcome>;
   report: (err: unknown, title: string) => void;
+  inform: (title: string, body: string) => void;
   /** Reads back what the checkout changed. */
   after: () => Promise<void>;
 }
@@ -33,6 +35,22 @@ export function autostashQuestion(what: string, blocked: readonly string[]): str
   return `${files}. Stash them, check out ${what}, then put them back?`;
 }
 
+/** Where to find the stash that stayed. A conflict's own account comes from git, as the
+    failed command's notice ahead of this one. */
+export function keptNotice(what: string, outcome: AutostashOutcome): { title: string; body: string } | null {
+  if (outcome.kind === "restored") return null;
+  if (outcome.clean) {
+    return {
+      title: "Changes carried over",
+      body: `Checked out ${what} with your changes. The stash they were carried in stays in the list as stash@{0}, as asked.`,
+    };
+  }
+  return {
+    title: "Changes did not apply cleanly",
+    body: `Checked out ${what}, but your changes did not apply cleanly: see what git reported. They stay in the list as stash@{0}, so nothing is lost.`,
+  };
+}
+
 /** What the Checkout dialog chose, carried out. Git is asked first: many checkouts with
     local changes go through, so the stash is offered only once git has refused for them
     (R-54). "done" means the working tree may have changed and was read back. */
@@ -46,12 +64,17 @@ export async function runCheckout(request: CheckoutRequest, steps: CheckoutSteps
       steps.report(err, FAILED);
       return "failed";
     }
-    if (!(await steps.ask(autostashQuestion(request.what, blocked)))) {
+    const answer = await steps.ask(autostashQuestion(request.what, blocked));
+    if (answer === null) {
       steps.report(err, FAILED);
       return "declined";
     }
     await steps
-      .autostash(request.target, `cogit: autostash before checking out ${request.what}`)
+      .autostash(request.target, `cogit: autostash before checking out ${request.what}`, answer.drop)
+      .then((outcome) => {
+        const kept = keptNotice(request.what, outcome);
+        if (kept) steps.inform(kept.title, kept.body);
+      })
       .catch((failed) => steps.report(failed, FAILED));
   }
   await steps.after();
