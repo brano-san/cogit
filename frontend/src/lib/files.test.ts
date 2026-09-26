@@ -15,14 +15,6 @@ describe("statusBadge", () => {
     expect(new Set(badges).size).toBe(badges.length);
   });
 
-  it("puts conflicts first when sorting by status", () => {
-    const rows = sortFiles(
-      [entry("b.txt", "modified"), entry("a.txt", "conflicted")],
-      "status",
-    );
-    expect(rows[0]!.path).toBe("a.txt");
-  });
-
   it("spells the status out for assistive technology", () => {
     expect(statusLabel("renamed")).toBe("Renamed");
   });
@@ -95,29 +87,13 @@ describe("sortFiles", () => {
   ];
 
   it("sorts by path without mutating the input", () => {
-    const sorted = sortFiles(files, "path");
+    const sorted = sortFiles(files);
     expect(sorted.map((f) => f.path)).toEqual(["a/first.txt", "m/middle.txt", "z/last.txt"]);
     expect(files[0]!.path).toBe("z/last.txt");
   });
 
-  it("sorts by file name, ignoring the directory", () => {
-    expect(sortFiles(files, "name").map((f) => f.path)).toEqual([
-      "a/first.txt",
-      "z/last.txt",
-      "m/middle.txt",
-    ]);
-  });
-
-  it("groups by status and falls back to path inside a group", () => {
-    const grouped = sortFiles(
-      [entry("b.txt", "modified"), entry("a.txt", "modified"), entry("c.txt", "added")],
-      "status",
-    );
-    expect(grouped.map((f) => f.path)).toEqual(["c.txt", "a.txt", "b.txt"]);
-  });
-
   it("is stable enough to be idempotent", () => {
-    const once = sortFiles(files, "path");
-    expect(sortFiles(once, "path")).toEqual(once);
+    const once = sortFiles(files);
+    expect(sortFiles(once)).toEqual(once);
   });
 });

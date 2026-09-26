@@ -164,10 +164,7 @@
   const groups = $derived(
     shownSections(sections).map((section) => {
       const index = sections.indexOf(section);
-      const files = sortFiles(
-        visibleFiles(section.files, active).filter((file) => keepFile(file, pattern, hits)),
-        "path",
-      );
+      const files = sortFiles(visibleFiles(section.files, active).filter((file) => keepFile(file, pattern, hits)));
       const paths = files.map((file) => file.path);
       return {
         section,
