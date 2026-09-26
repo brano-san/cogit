@@ -102,7 +102,7 @@
   import { applyPreferences, type ApplyHost } from "$lib/preferences-apply";
   import { capFraction, floorFraction, PANELS, type PanelId } from "$lib/perspectives";
   import { graphPanelMinWidth } from "$lib/graph-panel";
-  import { reopenClick, repoClick } from "$lib/repo-click";
+  import { holdsPanels, reopenClick, repoClick } from "$lib/repo-click";
   import { ModuleInitialiser, moduleClick } from "$lib/module-init";
   import { parseWorktreeCommand, worktreeMenu } from "$lib/worktree-menu";
   import { answerMergeResolved } from "$lib/merge-save";
@@ -1856,17 +1856,22 @@
     return repository.error ? null : (repository.current?.root ?? null);
   }
 
-  /** A click in the Repositories list (#50): the one on screen reloads nothing, the owner
-      of the submodule or worktree on screen comes back from what was kept, keeping its
-      submodule tree, and only another repository goes through a full open. */
-  async function selectRepository(entry: import("$lib/ipc").RepoOverview) {
+  /** What the panels show, as a row of Repositories sees it. */
+  function panelsNow(): import("$lib/repo-click").RepoClickState {
     const phase = repository.phase;
-    const step = repoClick(entry, {
+    return {
       shown: repository.current?.repo ?? null,
       opening: phase.kind === "opening" ? phase.root : null,
       moduleOwner: submodules.open !== null ? submodules.owner : null,
       worktreeOwner: worktrees.ownerRoot,
-    });
+    };
+  }
+
+  /** A click in the Repositories list (#50): the one on screen reloads nothing, the owner
+      of the submodule or worktree on screen comes back from what was kept, keeping its
+      submodule tree, and only another repository goes through a full open. */
+  async function selectRepository(entry: import("$lib/ipc").RepoOverview) {
+    const step = repoClick(entry, panelsNow());
     trace(`open:${entry.root}`, `repository click: ${step}`);
     if (step === "open") await activate(entry.root);
     else if (step === "return") await comeBack(entry.root);
@@ -2796,12 +2801,21 @@
     const { overview } = target;
     if (!overview) return;
     repoList.closed(target.root);
-    const wasActive = isActive(overview);
+    const wasActive = holdsPanels(overview, panelsNow());
     const last = wasActive && repository.openRepos.every((entry) => entry.repo === overview.repo);
     if (wasActive) {
       commit.clear();
       diff.clear();
       health.clear();
+    }
+    // Its submodule or worktree on screen goes with it: left there, the panels and the
+    // submodule tree went on sending commands to the closed repository.
+    if (wasActive && !isActive(overview)) {
+      forgetPanels();
+      worktrees.ownerRoot = null;
+      repository.close();
+      // The backend keeps the one it is told is shown; it is told nothing is, first.
+      await tick();
     }
     // In the frame the other panels empty in, not a round trip after them.
     if (last) graph.clear();
