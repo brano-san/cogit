@@ -69,11 +69,17 @@ impl RepoHandle {
 
     /// The server's branch tips, as `git ls-remote --heads` lists them; nothing is written.
     pub fn remote_heads(&self, remote: &str) -> Result<Vec<(String, String)>> {
+        self.heads_matching(remote, &[])
+    }
+
+    /// Read whole, not through the journal's record: that one is cut past 20 000 lines and
+    /// has its secrets masked (R-280).
+    fn heads_matching(&self, remote: &str, patterns: &[&str]) -> Result<Vec<(String, String)>> {
         let mut args = self.quiet_ssh();
         args.extend(["ls-remote", "--heads", remote]);
-        let out = self.run_git_with_env(&args, QUIET)?;
+        args.extend(patterns);
+        let out = self.read_git_with(&args, QUIET)?;
         Ok(out
-            .stdout
             .lines()
             .filter_map(|line| {
                 let (oid, name) = line.split_once('\t')?;
@@ -106,7 +112,7 @@ impl RepoHandle {
         let remote = remote.as_bstr().to_string();
         let merge = merge.as_bstr().to_string();
         let Some(tip) = self
-            .remote_heads(&remote)?
+            .heads_matching(&remote, &[&merge])?
             .into_iter()
             .find_map(|(name, tip)| (name == merge).then_some(tip))
         else {
