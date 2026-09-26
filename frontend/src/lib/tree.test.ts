@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { flatten, toggle, type TreeNode } from "./tree";
+import { NO_FILTER_FOLDS, flatten, shownFolds, toggle, toggleFilterFold, type TreeNode } from "./tree";
 
 interface Row extends TreeNode {
   label: string;
@@ -78,5 +78,29 @@ describe("toggle", () => {
     const before = new Set(["a"]);
     toggle(before, "b");
     expect([...before]).toEqual(["a"]);
+  });
+});
+
+describe("folds while filtering", () => {
+  const stored = new Set(["a", "b"]);
+
+  it("are the stored folds while nothing is typed", () => {
+    expect(shownFolds(stored, "", NO_FILTER_FOLDS)).toBe(stored);
+    expect(shownFolds(stored, "  ", toggleFilterFold(NO_FILTER_FOLDS, "x", "a"))).toBe(stored);
+  });
+
+  it("start with everything open once a filter is typed", () => {
+    expect([...shownFolds(stored, "x", NO_FILTER_FOLDS)]).toEqual([]);
+  });
+
+  it("keep a fold made under the text it was made under", () => {
+    const folds = toggleFilterFold(NO_FILTER_FOLDS, "x", "a");
+    expect([...shownFolds(stored, "x ", folds)]).toEqual(["a"]);
+    expect([...shownFolds(stored, "xy", folds)]).toEqual([]);
+  });
+
+  it("open again on a second click", () => {
+    const twice = toggleFilterFold(toggleFilterFold(NO_FILTER_FOLDS, "x", "a"), "x", "a");
+    expect([...shownFolds(stored, "x", twice)]).toEqual([]);
   });
 });
