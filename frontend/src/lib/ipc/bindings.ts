@@ -936,7 +936,10 @@ export type GraphRow = {
 	links: LongLink[],
 };
 
-/**  Graph modes that decide which commits the graph shows (`graph_engine::ViewFilter`). */
+/**
+ *  Graph modes that decide which commits the graph shows: the walk follows first parents,
+ *  `graph_engine::ViewFilter` collapses merged branches.
+ */
 export type GraphView = {
 	/**  `--first-parent`: one line per ticked ref, merged branches left out. */
 	firstParent?: boolean,
