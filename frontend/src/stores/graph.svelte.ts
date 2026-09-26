@@ -13,6 +13,7 @@ import type { GraphBlock, GraphEntry } from "$lib/graph-wire";
 import { repository } from "$stores/repository.svelte";
 import { GRAPH_MODE_DEFAULTS, graphView } from "$lib/graph-modes";
 import { LONG_LINK_ROWS } from "$lib/graph-row";
+import { isEmptyQuery } from "$lib/query";
 
 export type { GraphEntry };
 
@@ -119,10 +120,12 @@ class GraphStore {
     return this.#next?.repo ?? this.#shown?.repo;
   }
 
-  /** Another view walks the graph again. */
+  /** Another view walks the graph again. A filtered list is flat (R-51) and the view
+      changes nothing in it: the load that clears the filter takes the view. */
   setView(next: GraphView): void {
     if (JSON.stringify(next) === JSON.stringify(this.view)) return;
     this.view = next;
+    if (!isEmptyQuery(this.query)) return;
     const repo = this.#loadingRepo;
     if (repo !== undefined) void this.load(repo, this.query);
   }

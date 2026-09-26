@@ -578,3 +578,27 @@ describe("the rows of the repository left", () => {
     expect(graph.stale).toBe(false);
   });
 });
+
+// Opening a fold in search results walked the whole search again, for a flat list the view
+// does not change (R-51).
+describe("a view changed while a filter is on", () => {
+  const view = graph.view;
+  const folding = { firstParent: false, collapseMerged: true, expanded: ["m"] };
+
+  it("walks nothing until the filter is cleared, which takes the view", async () => {
+    await loaded(A, ["a", "b"]);
+    const search = graph.load(A, { ...graph.query, message: "fix" });
+    await last().send(["a"], true);
+    last().finish();
+    await search;
+    commands.loadCommits.mockClear();
+
+    graph.setView(folding);
+    expect(commands.loadCommits).not.toHaveBeenCalled();
+
+    void graph.load(A);
+    const sent = commands.loadCommits.mock.calls.at(-1)?.[1] as { view: unknown } | undefined;
+    expect(sent?.view).toEqual(folding);
+    graph.view = view;
+  });
+});
