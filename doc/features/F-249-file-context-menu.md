@@ -10,3 +10,6 @@
 - [ ] Файл коммита из истории (#41): Show Changes, Compare with Working Tree, Open File,
       Reveal in…, Save As…, Log, Blame, Investigate, Cherry-Pick и Revert этого файла (меняют
       рабочую копию), Copy Path, Copy Relative Path, Copy Name.
+- [ ] Меню берёт состояние строки из списка: у источника переименования (Missing) Open File,
+      Save As, Blame и Investigate выключены — «deleted in this commit». Проверить: коммит с
+      `git mv a.txt b.txt` → Files → Missing → правый клик по a.txt.

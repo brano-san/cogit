@@ -70,8 +70,9 @@
     onselect?: (path: string) => void;
     /** Double-click: open the file in its own window (T2.5). */
     onopen?: (path: string) => void;
-    /** Right-click, with the title of the list the row is in: Staged means the index. */
-    oncontext?: (path: string, event: MouseEvent, section?: string) => void;
+    /** Right-click, with the title of the list the row is in (Staged means the index) and
+        the rows it shows, the ones the list adds itself among them. */
+    oncontext?: (path: string, event: MouseEvent, section?: string, rows?: readonly FileEntry[]) => void;
     /** Reported upward so Commit What You See knows what is hidden (T6.8). */
     onmask?: (mask: string) => void;
     /** The paths each section shows once filtered, in the order of `sections`. */
@@ -296,7 +297,7 @@
             onclick={(path, event) => clicked(group, path, event)}
             onmark={(path) => mark(group, path)}
             {onopen}
-            oncontext={oncontext && ((path, event) => oncontext(path, event, group.section.title))}
+            oncontext={oncontext && ((path, event) => oncontext(path, event, group.section.title, group.files))}
           />
         </div>
       {/each}
@@ -317,7 +318,7 @@
               onclick={(path, event) => clicked(group, path, event)}
               onmark={(path) => mark(group, path)}
               {onopen}
-              oncontext={oncontext && ((path, event) => oncontext(path, event, group.section.title))}
+              oncontext={oncontext && ((path, event) => oncontext(path, event, group.section.title, group.files))}
             />
           </div>
         {/if}

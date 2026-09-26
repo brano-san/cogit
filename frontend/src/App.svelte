@@ -81,7 +81,7 @@
   import { menuCommandRuns, modals } from "$lib/modal-stack";
   import { keyLetter } from "$lib/key-letter";
   import { commitBox } from "$stores/commit-box.svelte";
-  import { commitFileMenu, worktreeFileMenu } from "$lib/file-menu";
+  import { commitFileMenu, shownRow, worktreeFileMenu } from "$lib/file-menu";
   import { fileName, runFileMenuCommand, type FileActions, type FileScope } from "$lib/file-actions";
   import { listedMessage } from "$lib/file-dialogs";
   import * as fileMenus from "$lib/ipc/file-menus";
@@ -2128,7 +2128,12 @@
 
   /** `section` is the list the row sits in: "Staged" is the index, the rest the working
       tree (#40). A commit's files get their own menu (#41). */
-  async function fileContext(path: string, event: MouseEvent, section?: string) {
+  async function fileContext(
+    path: string,
+    event: MouseEvent,
+    section?: string,
+    rows: readonly import("$lib/ipc").FileEntry[] = [],
+  ) {
     const id = repository.current?.repo;
     if (!id) return;
     const { clientX: x, clientY: y } = event;
@@ -2136,8 +2141,9 @@
     const info = await desktop.load();
 
     if (!onWorkingTree) {
-      const statuses = paths.map((each) => commit.files.find((file) => file.path === each)?.status ?? "modified");
-      const clicked = commit.files.find((file) => file.path === path);
+      const rowOf = (each: string) => shownRow(each, rows, commit.files);
+      const statuses = paths.map((each) => rowOf(each)?.status ?? "modified");
+      const clicked = rowOf(path);
       const present = await fileMenus.presentOnDisk(id, [path]).catch(() => [] as string[]);
       fileTarget = { path, paths, statuses, rev: commit.oid, oldPath: clicked?.oldPath ?? null };
       fileSection = "commit";
