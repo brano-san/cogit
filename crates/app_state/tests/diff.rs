@@ -665,3 +665,94 @@ fn a_staged_rename_is_diffed_against_its_old_name() {
 
     assert_eq!(changed_rows(&diff), (1, 1));
 }
+
+/// Equal bytes are not "no change" when the file list shows a change: `chmod +x` changed
+/// the mode, which is all there is to show.
+#[test]
+fn a_mode_change_alone_names_both_modes() {
+    let f = test_fixtures::filemode_change().unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let committed = state
+        .diff_file(
+            repo,
+            &head_vs_parent(&f),
+            "script.sh",
+            &DiffOptions::default(),
+        )
+        .unwrap();
+    f.git(&["update-index", "--chmod=-x", "script.sh"]).unwrap();
+    let staged = state
+        .diff_file(
+            repo,
+            &DiffSpec::IndexVsHead,
+            "script.sh",
+            &DiffOptions::default(),
+        )
+        .unwrap();
+
+    assert!(
+        matches!(&committed, FileDiff::ModeOnly { old_mode, new_mode }
+            if old_mode == "100644" && new_mode == "100755"),
+        "{committed:?}"
+    );
+    assert!(
+        matches!(&staged, FileDiff::ModeOnly { old_mode, new_mode }
+            if old_mode == "100755" && new_mode == "100644"),
+        "{staged:?}"
+    );
+}
+
+#[test]
+fn an_empty_file_added_or_deleted_says_which() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.commit_file(1, "empty.txt", "").unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let added = state
+        .diff_file(
+            repo,
+            &head_vs_parent(&f),
+            "empty.txt",
+            &DiffOptions::default(),
+        )
+        .unwrap();
+    f.git(&["rm", "-q", "empty.txt"]).unwrap();
+    f.commit_staged(2, "remove empty.txt").unwrap();
+    let deleted = state
+        .diff_file(
+            repo,
+            &head_vs_parent(&f),
+            "empty.txt",
+            &DiffOptions::default(),
+        )
+        .unwrap();
+
+    assert!(
+        matches!(added, FileDiff::EmptyFile { added: true }),
+        "{added:?}"
+    );
+    assert!(
+        matches!(deleted, FileDiff::EmptyFile { added: false }),
+        "{deleted:?}"
+    );
+}
+
+#[test]
+fn a_file_nothing_changed_in_is_still_unchanged() {
+    let f = test_fixtures::filemode_change().unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    let shown = state
+        .diff_file(
+            repo,
+            &DiffSpec::WorkTreeVsIndex,
+            "script.sh",
+            &DiffOptions::default(),
+        )
+        .unwrap();
+
+    assert!(matches!(shown, FileDiff::Unchanged), "{shown:?}");
+}

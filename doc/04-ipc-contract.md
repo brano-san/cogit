@@ -369,7 +369,11 @@ author, email, timestamp, path, diff }`, новые сверху. `path` — и�
 и индекса против HEAD).
 
 `FileDiff` — размеченное объединение по полю `kind`: `text`, `eolOnly`, `binary`,
-`image`, `tooLarge`, `unchanged`, `whitespaceOnly`, `submodule`, `folder`. `submodule {
+`image`, `tooLarge`, `unchanged`, `modeOnly`, `emptyFile`, `whitespaceOnly`, `submodule`,
+`folder`. Байты сторон равны, а файл в списке изменён: `modeOnly { oldMode, newMode }` —
+сменился только режим (`100644` → `100755`, как пишет git; рабочее дерево берёт бит с диска,
+только где его хранит файловая система и включён `core.fileMode`), `emptyFile { added }` —
+пустой файл добавлен или удалён; `unchanged` остаётся для действительно неизменённого. `submodule {
 recorded, previous, checkedOut, inIndex }` — gitlink на каждой стороне: `recorded` — `null`
 там, где submodule удалён (коммит с `git rm`, такое же удаление в индексе), `inIndex` — есть
 ли gitlink в индексе: без него Initialise не предлагается, `submodule update --init` ответил

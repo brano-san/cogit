@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EolInfo } from "./ipc/bindings";
-import { eolLabel, layoutTip } from "./diff-toolbar";
+import { eolLabel, layoutTip, modeChangeText } from "./diff-toolbar";
 
 function eol(old: EolInfo["old"], next: EolInfo["new"]): EolInfo {
   return { old, new: next, normalized: old !== next };
@@ -38,6 +38,14 @@ describe("eolLabel (#17)", () => {
   // still there on both sides.
   it("names both endings when a hunk has an empty side in the middle of the file", () => {
     expect(eolLabel(eol("crlf", "lf"), 10, 12).text).toBe("CRLF → LF");
+  });
+});
+
+describe("modeChangeText (DF-026)", () => {
+  it("names both modes and what the executable bit did", () => {
+    expect(modeChangeText("100644", "100755")).toBe("100644 → 100755 (now executable)");
+    expect(modeChangeText("100755", "100644")).toBe("100755 → 100644 (no longer executable)");
+    expect(modeChangeText("100644", "120000")).toBe("100644 → 120000");
   });
 });
 

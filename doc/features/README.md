@@ -339,3 +339,4 @@
 | F-508 | Клавиатура в списках | [F-508-list-keyboard.md](F-508-list-keyboard.md) |
 | F-510 | Панель слияния не теряет выбранные стороны | [F-510-merge-panel-keeps-picks.md](F-510-merge-panel-keeps-picks.md) |
 | F-515 | Код в Diff и слиянии прокручивается вбок | [F-515-code-scrolls-sideways.md](F-515-code-scrolls-sideways.md) |
+| F-516 | Diff называет смену режима и пустой файл | [F-516-diff-mode-and-empty-file.md](F-516-diff-mode-and-empty-file.md) |

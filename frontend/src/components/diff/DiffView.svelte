@@ -36,7 +36,7 @@
     wheelSideways,
   } from "$lib/code-scroll";
   import ConfirmDialog from "$components/common/ConfirmDialog.svelte";
-  import { eolLabel, layoutTip } from "$lib/diff-toolbar";
+  import { eolLabel, layoutTip, modeChangeText } from "$lib/diff-toolbar";
   import { highlightLines, mergePieces, type Token } from "$lib/highlight";
   import { lineKey, toggleLine } from "$lib/selection";
   import { keepSelection } from "$lib/diff-selection";
@@ -628,6 +628,16 @@
 
   {#if diff.kind === "unchanged"}
     <p class="message">No change in this file.</p>
+  {:else if diff.kind === "modeOnly"}
+    <p class="message">
+      Only the file mode changed: {modeChangeText(diff.oldMode, diff.newMode)}. The content is
+      identical.
+    </p>
+  {:else if diff.kind === "emptyFile"}
+    <p class="message">
+      {diff.added ? "An empty file was added" : "An empty file was deleted"}: there are no lines
+      to show.
+    </p>
   {:else if diff.kind === "whitespaceOnly"}
     <p class="message warn">
       Only whitespace changed, and {WHITESPACE_LABEL[whitespace]} hides it.
