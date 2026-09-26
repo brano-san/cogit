@@ -335,6 +335,9 @@
 | F-529 | Отмена сетевой операции | [F-529-network-cancel.md](F-529-network-cancel.md) |
 | F-532 | Диалог с набранным текстом не закрывается молча | [F-532-dialog-keeps-typed-text.md](F-532-dialog-keeps-typed-text.md) |
 | F-541 | Изменение, к которому перешли, вспыхивает | [F-541-diff-jump-flash.md](F-541-diff-jump-flash.md) |
+| F-550 | Меню заголовков, папок и HEAD в Branches: Toggle, Add Branch, Add Tag | [F-550-branches-heading-menus.md](F-550-branches-heading-menus.md) |
+| F-551 | Меню remote в Branches | [F-551-remote-menu.md](F-551-remote-menu.md) |
+| F-552 | Фоновая проверка — по remote | [F-552-background-check-per-remote.md](F-552-background-check-per-remote.md) |
 | F-560 | Фильтр графа: где искать текст | [F-560-graph-filter-fields.md](F-560-graph-filter-fields.md) |
 | F-561 | Меню настроек графа | [F-561-graph-options-menu.md](F-561-graph-options-menu.md) |
 | F-562 | «Домой» и «Назад» в графе | [F-562-graph-home-back.md](F-562-graph-home-back.md) |

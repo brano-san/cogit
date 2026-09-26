@@ -35,6 +35,8 @@ export interface RefNode {
   worktree?: WorktreeMark;
   /** Why this row cannot be ticked; it then counts for nothing in its group (R-158). */
   disabled?: string;
+  /** On a remote's heading: the remote it stands for, which its menu acts on. */
+  remote?: string;
 }
 
 export interface RefTreeInput {
@@ -44,6 +46,8 @@ export interface RefTreeInput {
   stashes: readonly StashEntry[];
   lost: readonly CommitRow[];
   remoteUrls: Readonly<Record<string, string>>;
+  /** The configured remotes: each has a heading, whether anything is fetched from it or not. */
+  remotes?: readonly string[];
   collapsed: ReadonlySet<string>;
   filter: string;
   /** `cogit.tagGroupSeparator`: `/` when absent, `""` for tags without folders (#11). */
@@ -161,6 +165,16 @@ function group(rows: RefNode[], id: string, label: string, detail?: string): voi
   rows.push({ id, kind: "group", label, depth: 0, detail, children: true });
 }
 
+/** The remote a remote-tracking branch belongs to: the longest configured name before a
+    slash, since a remote's name may hold one; else the first segment. */
+function remoteOf(name: string, remotes: readonly string[]): string {
+  let owner: string | undefined;
+  for (const remote of remotes) {
+    if (name.startsWith(`${remote}/`) && remote.length > (owner?.length ?? 0)) owner = remote;
+  }
+  return owner ?? name.split("/")[0] ?? "origin";
+}
+
 /** Every row, folded or not: a heading's box is read from its children, and a child that
     is not built cannot be counted (R-158). Hiding is `flatten`'s job alone. */
 export function buildRefTree(input: RefTreeInput): RefNode[] {
@@ -202,9 +216,10 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
   }
 
   const remotes = new Map<string, RefNode[]>();
+  const configured = input.remotes ?? [];
   for (const branch of input.branches) {
     if (branch.kind !== "remote") continue;
-    const remote = branch.name.split("/")[0] ?? "origin";
+    const remote = remoteOf(branch.name, configured);
     const node: RefNode = {
       id: `remote:${branch.name}`,
       kind: "remote",
@@ -220,10 +235,21 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
     else remotes.set(remote, [node]);
   }
 
+  // A remote nothing is fetched from yet still has its menu: Fetch, Properties, Delete.
+  if (input.filter.trim() === "") {
+    for (const remote of configured) if (!remotes.has(remote)) remotes.set(remote, []);
+  }
   const byRemote = [...remotes].sort(([a], [b]) => compareNames(a, b, sort.names));
   for (const [remote, branches] of byRemote) {
-    const id = `remote-group:${remote}`;
-    group(rows, id, `${remote} (${branches.length})`, input.remoteUrls[remote]);
+    rows.push({
+      id: `remote-group:${remote}`,
+      kind: "group",
+      label: `${remote} (${branches.length})`,
+      depth: 0,
+      detail: input.remoteUrls[remote],
+      children: branches.length > 0 || undefined,
+      remote,
+    });
     nest(rows, branches, 1, nesting(remote));
   }
 

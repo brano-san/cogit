@@ -64,6 +64,8 @@ impl AppState {
         handle.fetch(remote, |url| self.token_for(url), on_line)
     }
 
+    /// On a branch that tracks nothing there is nothing to merge: Pull fetches every
+    /// remote and says nothing more (R-552).
     pub fn pull(
         &self,
         repo: RepoId,
@@ -74,6 +76,9 @@ impl AppState {
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet_briefly(repo);
         let handle = self.handle(repo)?.with_stop(stop.clone());
+        if handle.head_tracks_nothing() {
+            return handle.fetch_all(remote, |url| self.token_for(url), on_line);
+        }
         // Listed before the pull: a submodule the user deinitialised stays that way (#42).
         let known = handle
             .wants_new_submodules()
@@ -107,6 +112,32 @@ impl AppState {
         handle.push(remote, None, force, |url| self.token_for(url), on_line)
     }
 
+    /// Remote ▸ Fetch More; `false` when nothing new came (R-553).
+    pub fn fetch_more(
+        &self,
+        repo: RepoId,
+        remote: &str,
+        stop: &NetworkStop,
+        on_line: impl FnMut(&str),
+    ) -> Result<bool, git_engine::GitError> {
+        let _quiet = self.quiet_briefly(repo);
+        let handle = self.handle(repo)?.with_stop(stop.clone());
+        handle.fetch_more(remote, |url| self.token_for(url), on_line)
+    }
+
+    pub fn fetch_depth(
+        &self,
+        repo: RepoId,
+        remote: &str,
+        depth: u32,
+        stop: &NetworkStop,
+        on_line: impl FnMut(&str),
+    ) -> Result<(), git_engine::GitError> {
+        let _quiet = self.quiet_briefly(repo);
+        let handle = self.handle(repo)?.with_stop(stop.clone());
+        handle.fetch_depth(remote, depth, |url| self.token_for(url), on_line)
+    }
+
     /// Pull ▸ Delete merged branches after Pull (#26). Each deletion is journalled, so
     /// Undo brings a branch back; one that refuses is logged and the rest still go.
     pub fn delete_merged_branches(
@@ -127,23 +158,19 @@ impl AppState {
     }
 
     /// One refspec to one remote: Push To, Push Up To and pushing a ref that is not HEAD.
+    /// `track`: the branch pushed tracks what it becomes there (R-550).
     pub fn push_to(
         &self,
         repo: RepoId,
         remote: &str,
         refspec: &str,
+        track: bool,
         stop: &NetworkStop,
         on_line: impl FnMut(&str),
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet_briefly(repo);
         let handle = self.handle(repo)?.with_stop(stop.clone());
-        handle.push(
-            remote,
-            Some(refspec),
-            false,
-            |url| self.token_for(url),
-            on_line,
-        )
+        handle.push_refspec(remote, refspec, track, |url| self.token_for(url), on_line)
     }
 
     /// Only for an HTTP remote: SSH already authenticates through the agent, and handing

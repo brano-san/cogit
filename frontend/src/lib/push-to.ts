@@ -3,6 +3,8 @@ export interface PushSource {
   kind: "branch" | "tag";
   name: string;
   upstream: string | null;
+  /** The remote Push To opens on: the one whose heading in Branches it was asked from. */
+  remote?: string;
 }
 
 export type PushTarget = { mode: "tracked" } | { mode: "custom"; ref: string };
@@ -24,6 +26,7 @@ export function initialRemote(
   remotes: readonly string[],
   primary: string | null,
 ): string | null {
+  if (source.remote !== undefined && remotes.includes(source.remote)) return source.remote;
   const tracked = source.upstream ? splitUpstream(source.upstream, remotes) : null;
   return tracked?.remote ?? primary ?? remotes[0] ?? null;
 }
@@ -56,6 +59,29 @@ export function pushRefspec(
 ): string {
   const from = source.kind === "tag" ? `refs/tags/${source.name}` : `refs/heads/${source.name}`;
   return `${from}:${targetRef(source, target, remote, remotes)}`;
+}
+
+/** A branch that tracks nothing yet tracks what it becomes on the remote (R-550). */
+export function tracksByDefault(source: PushSource): boolean {
+  return source.kind === "branch" && source.upstream === null;
+}
+
+/** A branch never pushed, with more than one remote to publish it on: Push opens Push To
+    to pick one, as SmartGit's does (R-551). */
+export function choosesRemote(source: PushSource, remotes: readonly string[]): boolean {
+  return tracksByDefault(source) && remotes.length > 1;
+}
+
+/** Push in the menu of a branch or tag: where Push To would send it with no change. */
+export function menuPush(
+  source: PushSource,
+  remotes: readonly string[],
+  primary: string | null,
+): { remote: string; refspec: string; track: boolean } | null {
+  const remote = initialRemote(source, remotes, primary);
+  if (remote === null) return null;
+  const refspec = pushRefspec(source, { mode: "tracked" }, remote, remotes);
+  return { remote, refspec, track: tracksByDefault(source) };
 }
 
 /** Push Up To: every commit of HEAD's branch up to `oid`, onto its upstream. */

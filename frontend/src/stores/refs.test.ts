@@ -209,4 +209,30 @@ describe("the Branches sort (#20)", () => {
     await refs.loadDates(1 as never);
     expect(refs.dates.get("refs/heads/main")).toBe(42);
   });
+
+  // Remote ▸ Rename renames its branches' refs: ticks and folds kept under the old names
+  // were lost, and the renamed remote came back folded and unticked.
+  it("carries ticks and folds over to a renamed remote", () => {
+    const tree: RefNode[] = [
+      node("HEAD", "head", "HEAD"),
+      node("remote-group:origin", "group"),
+      node("folder:origin/fix", "folder"),
+      node("remote:origin/fix/a", "remote", "refs/remotes/origin/fix/a"),
+      node("remote:origin/main", "remote", "refs/remotes/origin/main"),
+      node("remote:originals/main", "remote", "refs/remotes/originals/main"),
+    ];
+    refs.adopt("/w/alpha", tree);
+    refs.set(new Set(["HEAD", "remote:origin/main", "remote:originals/main"]));
+    refs.collapse("remote-group:origin");
+
+    refs.renameRemote("origin", "upstream");
+
+    expect([...refs.visible].sort()).toEqual(["HEAD", "remote:originals/main", "remote:upstream/main"]);
+    refs.know([
+      node("remote-group:upstream", "group"),
+      { ...node("folder:upstream/fix", "folder"), children: true },
+    ]);
+    expect(refs.collapsed.has("remote-group:upstream")).toBe(false);
+    expect(refs.collapsed.has("folder:upstream/fix")).toBe(true);
+  });
 });

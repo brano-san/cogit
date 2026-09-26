@@ -32,11 +32,12 @@ describe("refMenu", () => {
   const ids = (items: ReturnType<typeof refMenu>) =>
     items.filter((entry) => !entry.separator).map((entry) => entry.id);
 
-  it("offers a lost commit the way back", () => {
-    expect(ids(refMenu({ kind: "lost" }))).toEqual(["restore-lost", "lost-copy-sha"]);
+  // #19 of 25.09: every row of Branches has Toggle, a lost commit too.
+  it("offers a lost commit the way back and its box", () => {
+    expect(ids(refMenu({ kind: "lost" }))).toEqual(["restore-lost", "lost-copy-sha", "lost-toggle"]);
   });
 
-  it("has nothing to offer for a heading", () => {
+  it("has nothing to offer for a heading, which has a menu of its own", () => {
     expect(refMenu({ kind: "group" })).toEqual([]);
   });
 });

@@ -5569,6 +5569,9 @@ Push To (свой refspec) не меняются. Отдельный пункт 
 `the_first_push_of_a_branch_publishes_it_and_sets_its_upstream`
 (`crates/git_engine/tests/network.rs`).
 
+Дополнено: R-550 (Push в меню ветки и Push To), R-551 (upstream — `remote` и `merge` вместе,
+выбор remote при нескольких).
+
 ## R-450 · Строки перетаскиваются на pointer-событиях, а не HTML5 drag-and-drop · В
 
 Главное окно держит Tauri-обработчик брошенных файлов (`dragDropEnabled`, по умолчанию): wry
@@ -6994,3 +6997,150 @@ mailmap и имена ссылок один раз на загрузку, а н�
 сразу, без упреждения, иначе проход сквозь коммиты разошёлся бы с отложенными строками;
 длинная линия рисуется целиком. На каждый убранный коммит — проход по активным полосам.
 Проверить A/B: фильтр по автору или пути на large с режимом и без.
+
+## R-550 · Push из меню ветки и Push To назначают upstream ветке, у которой его нет · Н
+
+После push новой ветки граф показывал две метки — `audit/2026-09-25` и
+`origin/audit/2026-09-25` — вместо `origin=audit/2026-09-25` (п. 13 списка 25.09). Метки
+верны: ветка ничего не отслеживала. Лог сборки того дня
+(`cogit-2026-09-25_02-30-37.log`, 00:11:53Z) показывает, чем она ушла:
+`git push --progress origin refs/heads/audit/2026-09-25:refs/heads/audit/2026-09-25` —
+`push_to` (Push в меню ветки или Push To…). Refspec передан явно, `--set-upstream` не было,
+а R-414 касался только кнопки Push без refspec. Перечитывание после push здесь ни при чём:
+кэш хэндлов (`HandleCache`) сверяет отметки файлов конфигурации и открывает репозиторий
+заново, как только push записал `branch.<имя>.*` (тест
+`a_new_branch_pushed_from_the_toolbar_tracks_its_remote_branch`).
+
+**Решение:** `push_to` получил `track: bool` — `git push --set-upstream <remote> <refspec>`.
+Push в меню ветки (Branches, метка графа) ставит его, когда у ветки нет upstream
+(`menuPush`, `tracksByDefault`, `lib/push-to.ts`); у тега и у ветки с upstream — нет. В Push
+To… — флажок `Set upstream`, по умолчанию включён у ветки без upstream, выключен у
+отслеживающей (так Push To может и сменить upstream, и не трогать его). Push Up To upstream не
+меняет. SmartGit в этом месте спрашивает, настроить ли отслеживание
+([Synchronizing with Remote Repositories](https://docs.syntevo.com/SmartGit/Latest/Manual/GUI/Repository/Synchronizing-with-Remote-Repositories)):
+«If you try to push commits from a new local branch, you will be asked whether to set up
+tracking»; у нас вопрос — флажок диалога, а Push без диалога делает то, что SmartGit советует
+(«In most cases it is recommended to set up tracking»). Тесты —
+`a_new_branch_pushed_from_its_menu_is_joined_with_its_remote_branch`,
+`a_ref_pushed_without_tracking_leaves_the_branch_as_it_was` (`crates/app_state/tests/remotes.rs`),
+`a_refspec_pushed_to_be_tracked_becomes_the_upstream` (`crates/git_engine/tests/network.rs`),
+`push-to.test.ts` «menuPush», «tracksByDefault».
+
+## R-551 · Первый push новой ветки: upstream по правилу git, remote — из Push To, если их несколько · Н
+
+Push ветки без upstream отказывал: «The current branch … has no upstream branch» (п. 12 списка
+25.09), хотя R-414 обещает `--set-upstream`. Причина отказа у пользователя — сборка старше
+2ce764f (R-414, 25.09 18:58): в логе `cogit-2026-09-25_02-30-37.log` в 00:10:46Z ушёл
+`git push --progress origin` без `--set-upstream` и без refspec. Текущий путь кнопки Push через
+кэш хэндлов работает (`a_new_branch_pushed_from_the_toolbar_tracks_its_remote_branch`).
+Найдена ещё одна дыра той же проверки: R-414 спрашивал gix только о `branch.<имя>.merge`, а
+git считает upstream заданным, когда есть и `branch.<имя>.remote`, и `.merge`. Ветка с одним
+`merge` (конфиг, дописанный руками или оставленный скриптом) шла голым `git push` и получала
+тот же отказ.
+
+**Решение:** `head_tracks_nothing` — нет `remote` или нет `merge`, как у git
+(`setup_push_upstream`). Ветка без upstream уходит под своим именем с `--set-upstream`
+(`push.default` и `push.autoSetupRemote` не важны). Remote: один — он; несколько — кнопка
+Push, палитра, `Remote ▸ Push` и Push в меню ветки открывают Push To с выбранным remote
+основного (`origin`) и включённым `Set upstream` (R-550) — как SmartGit, у которого «the Push
+To dialog will allow you to select the remote repository to push to»
+([Synchronizing with Remote Repositories](https://docs.syntevo.com/SmartGit/Latest/Manual/GUI/Repository/Synchronizing-with-Remote-Repositories)).
+Ветка с upstream, как и раньше, — `git push <основной remote>` без диалога. Строка
+Repositories неактивного репозитория диалога не показывает: push идёт в основной remote
+(`--set-upstream` ставит движок). Тесты — `a_branch_with_a_merge_but_no_remote_is_pushed_as_a_first_push`
+(`crates/git_engine/tests/network.rs`; на прежней проверке падал с тем же «has no upstream
+branch»), `push-to.test.ts` «choosesRemote».
+
+## R-552 · Pull на ветке без upstream — fetch всех remotes, без ошибки · Н
+
+Pull на ветке, которая ничего не отслеживает, кончался отказом git: «You asked to pull from
+the remote 'origin', but did not specify a branch…» (п. 11 списка 25.09; в логе
+`cogit-2026-09-25_02-30-37.log` — 00:09:44Z, `git pull --progress origin --ff-only`). Аудит
+(FS-030, 9784024) сделал Pull там неактивным с причиной «The branch tracks no remote branch».
+
+**Решение (пользователя):** Pull на такой ветке молча делает `git fetch --progress --prune --all`
+— все remotes одним вызовом, `remote.<имя>.skipFetchAll` соблюдается. Решает бэкенд
+(`AppState::pull`, `head_tracks_nothing` — нет `branch.<имя>.remote` или `.merge`, R-551),
+поэтому так же ведут себя кнопка, палитра, `Remote ▸ Pull` и Pull строки Repositories
+неактивного репозитория. Журнал Undo записи не получает: ни одна ветка не сдвинулась. План
+тулбара (`remotePlan`) в этом случае — один шаг: fetch остальных remotes до него (область
+«All remotes») повторил бы тот же fetch, `Delete merged branches after Pull` не запускается —
+Pull ничего не слил. Правила доступности: Pull — ветка и remote (`needBranch`), в отсоединённом
+HEAD по-прежнему «HEAD is not on a branch»; Sync (и `Remote ▸ Synchronise`) по-прежнему хочет
+upstream — он отправил бы ветку, которую Pull только что не тронул.
+
+Отступление от SmartGit: у него Pull в этом случае неактивен, остаётся `Fetch Only`
+([Synchronizing with Remote Repositories](https://docs.syntevo.com/SmartGit/Latest/Manual/GUI/Repository/Synchronizing-with-Remote-Repositories):
+«If the current branch does not track a compatible branch of the selected remote, SmartGit
+disables the Pull option, but you can still use Fetch Only»). По списку задач Pull сам и есть
+этот Fetch Only. Заменяет решение FS-030 аудита для Pull (тест `toolbar.test.ts` «pulls and
+syncs only a branch that tracks a remote branch» закреплял неактивный Pull — разделён: Pull на
+такой ветке активен, Sync — нет). Тесты — `a_pull_on_a_branch_without_upstream_fetches_every_remote`
+(`crates/app_state/tests/remotes.rs`), `toolbar.test.ts`, `toolbar-prefs.test.ts` «pulls a
+branch that tracks nothing with one step».
+
+## R-553 · Fetch More — все ветки и теги remote мимо его refspec, без выбора и без unshallow · Н
+
+`Fetch More` в меню remote (п. 19 списка 25.09) — у SmartGit
+([Managing Remotes](https://docs.syntevo.com/SmartGit/Latest/Manual/GUI/Repository/Managing-Remotes)):
+«Use Remote | Fetch More if a remote contains branches which are not yet available in the local
+repository» — после узкого клона (`Fetch all Heads and Tags` выключен), с выбором веток в
+диалоге и флажком «Fetch all commits for existing branches ("unshallow")».
+
+**Решение:** диалога нет — `git fetch --progress --tags <remote> +refs/heads/*:refs/remotes/<remote>/*`
+берёт все ветки и теги сервера, что бы ни говорил `remote.<имя>.fetch`; сам refspec не
+меняется (обычный Fetch дальше берёт то же, что и раньше, а полученное сверх него `--prune` не
+трогает: оно вне его шаблона). Unshallow Fetch More не делает — глубину меняет `Set Depth`
+(у SmartGit «a very large value effectively removes the practical depth limit»), так Fetch More
+на неглубоком клоне большого проекта не качает всю историю без спроса. «Ничего нового» —
+сравнение ссылок `refs/remotes/<remote>/` и `refs/tags/` до и после: ничего не появилось и не
+сдвинулось — уведомление «Nothing new». `Set Depth` — `git fetch --depth=<n> <remote>`, только в
+неглубоком клоне: в полном `--depth` сделал бы его неглубоким, пункт неактивен с причиной «not a
+shallow clone», бэкенд отказывает так же. Обе — сетевые операции очереди, отменяются из футера
+(`cancel_network`). Тесты — `fetch_more_brings_the_branches_the_refspec_leaves_out_and_says_when_nothing_came`,
+`set_depth_refuses_a_full_clone_and_deepens_a_shallow_one` (`crates/git_engine/tests/remotes.rs`).
+
+## R-554 · Фоновая проверка — флажок у каждого remote в его секции конфига, интервал общий · Н
+
+`Properties` remote — URL и `Perform background poll or fetch`, та же настройка фоновой
+проверки, что для стрелок Repositories (п. 19; у SmartGit — «option to enable/disable this
+behavior per remote», там же). Проверка общая: `Preferences ▸ General ▸ Pull ▸ Check the remotes in the background`
+(`repoPulse.fetchEvery`) раз в N минут спрашивает сервер upstream HEAD каждой строки
+(`pull_probe`, R-354); по remote её выключить было нельзя.
+
+**Решение:** интервал остаётся один, в Preferences (`backgroundFetchMinutes`, 0 — выключено везде); у remote — флажок
+«спрашивать ли этот сервер». Хранится в git-конфиге репозитория, в секции самого remote:
+`remote.<имя>.cogitBackgroundFetch = false`; включённый — ключа нет (по умолчанию `true`).
+Почему там: `git remote rename` переносит секцию вместе с флажком, `git remote remove` убирает,
+у нескольких клонов одного сервера флажок свой, а прецедент ключа Cogit в конфиге уже есть
+(`cogit.tagGroupSeparator`). Не выбрано: `remote.<имя>.skipFetchAll` — настоящий ключ git, но он
+меняет и `git fetch --all` в терминале (и Pull без upstream, R-552); настройки Cogit по пути
+репозитория — не переживают переименование remote и живут вне репозитория. `pull_probe` с
+выключенным флажком у remote upstream сервер не спрашивает и отвечает «не знаю» (`None`) —
+стрелки pull у строки нет. Тесты — `the_background_check_is_switched_per_remote_and_follows_a_rename`
+(`crates/git_engine/tests/remotes.rs`), `a_remote_left_out_of_the_background_check_is_not_asked`
+(`crates/git_engine/tests/pull_probe.rs`).
+
+## R-555 · Меню узлов Branches: Toggle у каждого, у remote — десять пунктов и свой Pull · Н
+
+Меню было только у веток, тегов, stash-ей и потерянных коммитов; у HEAD, заголовков групп и
+папок — ничего (п. 19 списка 25.09).
+
+**Решение:** `Toggle` — у каждого узла. У заголовка и папки он делает то же, что щелчок по их
+тройному флажку (`toggleNode`, R-158): пусто или частично — отмечается всё внутри, полностью —
+снимается; счёт — по тем же строкам, что у флажка, с учётом фильтра. Неактивен с причиной, когда
+отмечать нечего (`remote (0)` — «nothing fetched from it yet»). `Local Branches` — `Add
+Branch…` на выбранном коммите, без него — на HEAD, без переключения (как `Add Branch` меню
+коммита); `Tags` — `Add Tag…`, тот же диалог, что в тулбаре. У заголовка remote — по списку
+задачи, с разделителями между группами: `Push To…` | `Pull`, `Fetch`, `Fetch More` | `Rename…`,
+`Delete` | `Copy URL` | `Set Depth…`, `Properties…` | `Toggle`. `Push To…` открывает диалог
+Push To текущей ветки с этим remote. `Pull` — pull ветки, если она отслеживает ветку этого
+remote; ветка без upstream — fetch этого remote (не всех, как Pull тулбара, R-552: пункт назван
+по remote); ветка отслеживает другой remote — неактивен, «main tracks origin/main»; отсоединённый
+HEAD — неактивен. `Rename…` проверяет имя по правилам ref (`refs/remotes/<имя>/…`) и занятость,
+последнее слово за git; отметки и раскрытые папки переезжают на новое имя
+(`refs.renameRemote`). `Delete` спрашивает, называя URL: Undo remote не вернёт, remote-ветки
+уходят с ним, сервер не трогается. Заголовок remote-веток, чьего remote в конфиге уже нет,
+оставляет только `Copy URL` и `Toggle`. Тесты — `ref-group-menus.test.ts`, `refs.test.ts`
+«carries ticks and folds over to a renamed remote», `context-menu.test.ts` (Toggle у потерянного
+коммита), `push-to.test.ts` «opens on the remote it was asked from».

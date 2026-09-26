@@ -106,6 +106,85 @@ impl RepoHandle {
         self.run_streaming(&args, on_line)
     }
 
+    /// Every remote, as `git fetch --all` takes them (`remote.<name>.skipFetchAll` skips
+    /// one). `token_remote`: whose URL the token is asked for.
+    pub fn fetch_all(
+        &self,
+        token_remote: &str,
+        token: impl FnOnce(&str) -> Option<String>,
+        on_line: impl FnMut(&str),
+    ) -> Result<()> {
+        let header = self.auth_arg(token_remote, gix::remote::Direction::Fetch, token);
+        let mut args = prefix(&header);
+        args.extend(["fetch", "--progress", "--prune", "--all"]);
+        self.run_streaming(&args, on_line)
+    }
+
+    /// Remote ▸ Fetch More, after SmartGit's: every branch and tag of `remote`, whatever its
+    /// refspec leaves out — a single-branch clone fetches one (R-553). `false`: nothing new came.
+    pub fn fetch_more(
+        &self,
+        remote: &str,
+        token: impl FnOnce(&str) -> Option<String>,
+        on_line: impl FnMut(&str),
+    ) -> Result<bool> {
+        let tracking = format!("refs/remotes/{remote}/");
+        let before = self.ref_tips(&[&tracking, "refs/tags/"]);
+        let header = self.auth_arg(remote, gix::remote::Direction::Fetch, token);
+        let heads = format!("+refs/heads/*:{tracking}*");
+        let mut args = prefix(&header);
+        args.extend(["fetch", "--progress", "--tags", remote, &heads]);
+        self.run_streaming(&args, on_line)?;
+        Ok(self.ref_tips(&[&tracking, "refs/tags/"]) != before)
+    }
+
+    /// Remote ▸ Set Depth: a shallow clone's branches of `remote`, `depth` commits deep —
+    /// deeper or shallower. A full clone is refused: `--depth` would make it shallow.
+    pub fn fetch_depth(
+        &self,
+        remote: &str,
+        depth: u32,
+        token: impl FnOnce(&str) -> Option<String>,
+        on_line: impl FnMut(&str),
+    ) -> Result<()> {
+        if depth == 0 {
+            return Err(GitError::InvalidState(
+                "The depth is a number of commits, at least 1.".to_owned(),
+            ));
+        }
+        if !self.repo.is_shallow() {
+            return Err(GitError::InvalidState(
+                "The repository is not shallow: it has all of its history already.".to_owned(),
+            ));
+        }
+        let header = self.auth_arg(remote, gix::remote::Direction::Fetch, token);
+        let depth = format!("--depth={depth}");
+        let mut args = prefix(&header);
+        args.extend(["fetch", "--progress", &depth, remote]);
+        self.run_streaming(&args, on_line)
+    }
+
+    /// Names and targets of the refs under `prefixes`, sorted; unreadable ones are left out.
+    fn ref_tips(&self, prefixes: &[&str]) -> Vec<(String, String)> {
+        let Ok(platform) = self.repo.references() else {
+            return Vec::new();
+        };
+        let mut tips = Vec::new();
+        for prefix in prefixes {
+            let Ok(refs) = platform.prefixed(*prefix) else {
+                continue;
+            };
+            for reference in refs.flatten() {
+                let target = reference
+                    .try_id()
+                    .map_or_else(String::new, |id| id.to_string());
+                tips.push((reference.name().as_bstr().to_string(), target));
+            }
+        }
+        tips.sort();
+        tips
+    }
+
     /// `--ff-only` or an explicit merge, `--no-rebase`: without it `pull.rebase` rebases, and
     /// with no `pull.*` set git refuses diverged branches.
     pub fn pull(
@@ -130,12 +209,38 @@ impl RepoHandle {
         token: impl FnOnce(&str) -> Option<String>,
         on_line: impl FnMut(&str),
     ) -> Result<()> {
+        let first = refspec.is_none() && self.head_tracks_nothing();
+        let refspec = refspec.or(first.then_some("HEAD"));
+        self.push_with(remote, refspec, force, first, token, on_line)
+    }
+
+    /// One refspec. `track`: the local branch it sends tracks what it becomes on the
+    /// remote (`--set-upstream`), as the first push of a branch does (R-414, R-550).
+    pub fn push_refspec(
+        &self,
+        remote: &str,
+        refspec: &str,
+        track: bool,
+        token: impl FnOnce(&str) -> Option<String>,
+        on_line: impl FnMut(&str),
+    ) -> Result<()> {
+        self.push_with(remote, Some(refspec), false, track, token, on_line)
+    }
+
+    fn push_with(
+        &self,
+        remote: &str,
+        refspec: Option<&str>,
+        force: bool,
+        track: bool,
+        token: impl FnOnce(&str) -> Option<String>,
+        on_line: impl FnMut(&str),
+    ) -> Result<()> {
         let header = self.auth_arg(remote, gix::remote::Direction::Push, token);
-        let first = refspec.is_none() && self.branch_never_pushed();
         let mut args = prefix(&header);
         args.push("push");
         args.push("--progress");
-        if first {
+        if track {
             args.push("--set-upstream");
         }
         if force {
@@ -143,22 +248,25 @@ impl RepoHandle {
             args.push("--force-with-lease");
         }
         args.push(remote);
-        if let Some(refspec) = refspec {
-            args.push(refspec);
-        } else if first {
-            args.push("HEAD");
-        }
+        args.extend(refspec);
         self.run_streaming(&args, on_line)
     }
 
-    /// The checked-out branch has no upstream, so a bare `git push` fails (R-414).
-    fn branch_never_pushed(&self) -> bool {
+    /// HEAD is on a branch without an upstream as git decides it, which wants both
+    /// `branch.<name>.remote` and `branch.<name>.merge`: a bare `git push` refuses such a
+    /// branch (R-414), a bare `git pull` has nothing to merge into it (R-552).
+    #[must_use]
+    pub fn head_tracks_nothing(&self) -> bool {
         let Ok(Some(name)) = self.repo.head_name() else {
             return false;
         };
-        self.repo
-            .branch_remote_ref_name(name.as_ref(), gix::remote::Direction::Fetch)
-            .is_none()
+        let remote = self
+            .repo
+            .branch_remote_name(name.shorten(), gix::remote::Direction::Fetch);
+        let merge = self
+            .repo
+            .branch_remote_ref_name(name.as_ref(), gix::remote::Direction::Fetch);
+        remote.is_none() || merge.is_none()
     }
 
     /// The token of the URL this direction contacts, not of the push URL for all (R-410).

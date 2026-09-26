@@ -45,7 +45,7 @@
   } from "$lib/ipc/ref-ops";
   import { shortOid, type RefLabel } from "$lib/format";
   import type { RefNode } from "$lib/ref-nodes";
-  import { initialRemote, pushRefspec, pushUpTo, splitUpstream, type PushSource } from "$lib/push-to";
+  import { choosesRemote, menuPush, pushUpTo, splitUpstream, type PushSource } from "$lib/push-to";
   import {
     REF_MENU_PREFIX,
     branchesBranchMenu,
@@ -308,6 +308,15 @@
     } catch (err) {
       errors.report(err, "Could not add a tag");
     }
+  }
+
+  /** Push in the toolbar: true when Push To has to say where HEAD's branch goes (R-551). */
+  export function pushNeedsDialog(): boolean {
+    const summary = repository.current;
+    const head = summary?.head;
+    if (head?.kind !== "branch") return false;
+    const branch = summary?.branches.find((entry) => entry.kind === "local" && entry.name === head.name);
+    return choosesRemote({ kind: "branch", name: head.name, upstream: branch?.upstream ?? null }, network.remotes);
   }
 
   /** #28: Push To… for the checked-out branch, from the toolbar. */
@@ -647,17 +656,20 @@
     return null;
   }
 
-  async function push(id: RepoId, remote: string, refspec: string) {
+  async function push(id: RepoId, remote: string, refspec: string, track = false) {
     await attempt("Could not push", () =>
-      network.run(id, "Pushing", (onLine) => pushTo(id, remote, refspec, onLine)),
+      network.run(id, "Pushing", (onLine) => pushTo(id, remote, refspec, track, onLine)),
     );
   }
 
   async function pushTarget(id: RepoId, at: Target) {
     const source = pushSourceOf(at);
-    const remote = source ? initialRemote(source, network.remotes, network.primary) : null;
-    if (!source || !remote) return;
-    await push(id, remote, pushRefspec(source, { mode: "tracked" }, remote, network.remotes));
+    if (source && choosesRemote(source, network.remotes)) {
+      refDialogs.push = source;
+      return;
+    }
+    const plan = source ? menuPush(source, network.remotes, network.primary) : null;
+    if (plan) await push(id, plan.remote, plan.refspec, plan.track);
   }
 
   async function pushUpToTarget(id: RepoId, at: Target) {
@@ -670,10 +682,10 @@
     await push(id, plan.remote, plan.refspec);
   }
 
-  async function sendPushTo(remote: string, refspec: string) {
+  async function sendPushTo(remote: string, refspec: string, track: boolean) {
     const id = repoId();
     refDialogs.push = null;
-    if (id) await push(id, remote, refspec);
+    if (id) await push(id, remote, refspec, track);
   }
 
   async function saveUpstream(upstream: string) {
@@ -844,7 +856,7 @@
     source={refDialogs.push}
     remotes={network.remotes}
     primary={network.primary}
-    onpush={(remote, refspec) => void sendPushTo(remote, refspec)}
+    onpush={(remote, refspec, track) => void sendPushTo(remote, refspec, track)}
     onclose={() => (refDialogs.push = null)}
   />
 {/if}

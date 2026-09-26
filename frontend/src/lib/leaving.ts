@@ -2,6 +2,7 @@ import { confirmation } from "$stores/confirm.svelte";
 import { hooks } from "$stores/hooks.svelte";
 import { prompt } from "$stores/prompt.svelte";
 import { refDialogs } from "$stores/ref-dialogs.svelte";
+import { remoteDialogs } from "$stores/remote-dialogs.svelte";
 import { remoteOps } from "$stores/remote-ops.svelte";
 import { stashDialog } from "$stores/stash-dialog.svelte";
 
@@ -14,4 +15,5 @@ export function leaveRepositoryDialogs(): void {
   hooks.close();
   refDialogs.close();
   remoteOps.close();
+  remoteDialogs.close();
 }

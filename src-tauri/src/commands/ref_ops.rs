@@ -144,6 +144,7 @@ pub async fn push_to(
     repo: RepoId,
     remote: String,
     refspec: String,
+    track: bool,
     on_progress: tauri::ipc::Channel<String>,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
@@ -154,7 +155,7 @@ pub async fn push_to(
         "push_to",
         move |stop| {
             super::network::with_progress("push", &remote, &on_progress, |on_line| {
-                app_state.push_to(repo, &remote, &refspec, &stop, on_line)
+                app_state.push_to(repo, &remote, &refspec, track, &stop, on_line)
             })
         },
     )
