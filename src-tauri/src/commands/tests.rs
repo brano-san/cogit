@@ -175,11 +175,12 @@ fn commands_that_write_the_repository_wait_for_its_lane() {
 #[test]
 fn every_command_that_talks_to_a_remote_can_be_cancelled() {
     let all = all_commands();
-    let uncancellable: Vec<&str> = ["fetch", "pull", "push", "push_to"]
+    let registered = |body: &str| body.contains("networking(") || body.contains("network_stop(");
+    let uncancellable: Vec<&str> = ["fetch", "pull", "push", "push_to", "clone_repository"]
         .into_iter()
         .filter(|name| {
             !all.iter()
-                .any(|command| command.name == *name && command.body.contains("networking("))
+                .any(|command| command.name == *name && registered(&command.body))
         })
         .collect();
     assert!(

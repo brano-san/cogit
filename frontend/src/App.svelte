@@ -48,6 +48,10 @@
   import StatusBar from "$components/layout/StatusBar.svelte";
   import Toolbar from "$components/layout/Toolbar.svelte";
   import ScanDialog from "$components/repo-tree/ScanDialog.svelte";
+  import CloneDialog from "$components/repo-tree/CloneDialog.svelte";
+  import { cloneWizard } from "$stores/clone.svelte";
+  import { parentFolder, runClone } from "$lib/clone";
+  import { cloneRepository, type CloneRequest } from "$lib/ipc/clone";
   import PromptDialog from "$components/layout/PromptDialog.svelte";
   import StashDialogs from "$components/layout/StashDialogs.svelte";
   import RemoteOpsDialog from "$components/remote/RemoteOpsDialog.svelte";
@@ -586,6 +590,12 @@
 
     return [
       { id: "open", title: "Open Repository…", run: () => void pickRepository() },
+      {
+        id: "clone",
+        title: "Clone Repository…",
+        synonyms: ["git clone", "download a repository", "check out from a server"],
+        run: () => void cloneWizard.start(parentFolder(repository.current?.root ?? session.recent[0] ?? "")),
+      },
       { id: "fetch", title: "Fetch", unavailable: noRepo ?? noRemote, run: () => void runNetwork("fetch") },
       { id: "pull", title: "Pull", unavailable: reasonOf("pull", toolbarFacts), run: () => void pullNow() },
       { id: "push", title: "Push", unavailable: reasonOf("push", toolbarFacts), run: () => void runNetwork("push") },
@@ -3134,6 +3144,29 @@
     }
   }
 
+  /** Repository ▸ Clone…'s Finish: the clone runs in the footer, then opens as Open would. */
+  async function startClone(request: CloneRequest) {
+    cloneWizard.close();
+    await runClone(request, {
+      run: (operation) => network.run(null, "Cloning", operation),
+      clone: cloneRepository,
+      open: async (root) => {
+        opening = true;
+        try {
+          await activate(root);
+        } finally {
+          opening = false;
+        }
+      },
+      report: (err, title) => errors.report(err, title),
+    });
+  }
+
+  async function pickFolder(title: string): Promise<string | null> {
+    const picked = await openFolderDialog({ directory: true, title });
+    return typeof picked === "string" ? picked : null;
+  }
+
   /** Stages only the executable bit, leaving the edits in the working tree (T6.4). */
   async function stageModeOnly(paths: string[]) {
     const id = repository.current?.repo;
@@ -4112,6 +4145,15 @@
       changes={worktreeRemoval.changes}
       onremove={(force) => void confirmWorktreeRemoval(force)}
       onclose={() => (worktreeRemoval = null)}
+    />
+  {/if}
+
+  {#if cloneWizard.open}
+    <CloneDialog
+      wizard={cloneWizard}
+      onbrowse={pickFolder}
+      onfinish={(request) => void startClone(request)}
+      onclose={() => cloneWizard.close()}
     />
   {/if}
 

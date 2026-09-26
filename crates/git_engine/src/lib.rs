@@ -6,6 +6,7 @@ mod blobs;
 mod branches;
 mod bypass;
 pub mod children;
+mod cloning;
 mod commit;
 mod commit_write;
 mod config_file;
@@ -72,6 +73,10 @@ pub use blame_origins::{
 pub use blobs::{DiffAttributes, DiffSides, DiffSpec};
 pub use branches::{CheckoutTarget, RemoteDeletion};
 pub use bypass::Bypass;
+pub use cloning::{
+    CloneDestination, CloneRequest, RemoteBranches, clone_destination, clone_repository,
+    remote_branches, repository_url_in,
+};
 pub use commit::{CommitDetails, DEFAULT_SIMILARITY, FileEntry, FileMode, FileStatus, Signature};
 pub use commit_write::CommitRequest;
 pub use config_file::{

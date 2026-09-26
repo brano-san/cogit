@@ -377,12 +377,12 @@ fn git_program() -> &'static Path {
 }
 
 /// A git that does not start says which one: set in Preferences, it may not exist.
-fn not_started(err: std::io::Error) -> GitError {
+pub(crate) fn not_started(err: std::io::Error) -> GitError {
     GitError::Io(format!("cannot run {}: {err}", git_program().display()))
 }
 
 /// What every `git` Cogit starts has, inside a repository or not.
-fn git_command() -> Command {
+pub(crate) fn git_command() -> Command {
     let mut command = Command::new(git_program());
     #[cfg(windows)]
     {
@@ -434,7 +434,7 @@ fn redact_arg(arg: &str) -> String {
 
 /// `scheme://user:secret@host`, and over HTTP `scheme://token@host` too — GitHub's form
 /// of a token. An SSH user (`ssh://git@host`) is no secret; a refspec also carries colons.
-fn redact_url(arg: &str) -> String {
+pub(crate) fn redact_url(arg: &str) -> String {
     let Some((scheme, rest)) = arg.split_once("://") else {
         return arg.to_owned();
     };

@@ -143,6 +143,10 @@ describe("trackCancellable", () => {
     expect(trackCancellable([], step(4, "commit", "running"))).toEqual([]);
   });
 
+  it("holds a clone too: the footer's Cancel stops it", () => {
+    expect(trackCancellable([], step(5, "clone", "running"))).toEqual([5]);
+  });
+
   it("lets one go when it is done, whatever it was", () => {
     const ids = trackCancellable([1, 2], step(1, "fetch", "done"));
     expect(ids).toEqual([2]);
