@@ -724,17 +724,25 @@ oldTotal: number; newTotal: number } | { kind: "eolOnly"; from: LineEnding; to: 
  */
 { kind: "whitespaceOnly" } | 
 /**
- *  A gitlink: what changed is which commit the parent records, not any file. A
- *  submodule that was never checked out has nothing else to show, and that is a
- *  normal state of a repository rather than a broken one (doc/12-risks.md, R-139).
  *  A folder on disk Git tracks nothing in: one untracked entry, or a repository cloned
  *  inside this one without being its submodule. A normal state, not a missing path.
  */
-{ kind: "folder"; repository: boolean } | { kind: "submodule"; 
-/**  The commit the parent records now, and the one it recorded before. */
-recorded: string; previous: string | null; 
+{ kind: "folder"; repository: boolean } | 
+/**
+ *  A gitlink: what changed is which commit the parent records, not any file. A
+ *  submodule that was never checked out has nothing else to show, and that is a
+ *  normal state of a repository rather than a broken one (doc/12-risks.md, R-139).
+ */
+{ kind: "submodule"; 
+/**
+ *  The commit the parent records now, `None` where it removed the submodule, and
+ *  the one it recorded before.
+ */
+recorded: string | null; previous: string | null; 
 /**  False when the submodule's own repository is not on disk. */
-checkedOut: boolean };
+checkedOut: boolean; 
+/**  Whether the index has the gitlink: without it there is nothing to initialise. */
+inIndex: boolean };
 
 /**
  *  Named rather than a tuple: a positional pair crossing IPC reads as `[string, FileDiff]`

@@ -45,12 +45,15 @@ pub struct Submodule {
     pub repo_state: Option<RepoState>,
 }
 
-/// Which commit a gitlink points at on each side of a diff.
+/// Which commit a gitlink points at on each side of a diff; `recorded` is `None` on the
+/// side that removed it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SubmodulePointer {
-    pub recorded: String,
+    pub recorded: Option<String>,
     pub previous: Option<String>,
     pub checked_out: bool,
+    /// The index has the gitlink, which `git submodule update --init` needs.
+    pub in_index: bool,
 }
 
 /// What the submodule's own repository says about itself.
