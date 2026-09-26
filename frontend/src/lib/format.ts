@@ -26,6 +26,13 @@ export function shortOid(oid: string): string {
   return oid.slice(0, SHORT_OID);
 }
 
+/** A revision that may be a full id with `^` or `~n` after it: the id is shortened, the rest
+    kept, so `<oid>^` still reads as the parent. */
+export function shortRev(rev: string): string {
+  const id = /^[0-9a-f]{40,64}/.exec(rev);
+  return id ? shortOid(id[0]) + rev.slice(id[0].length) : rev;
+}
+
 export type RefKind = "head" | "local" | "remote" | "tag" | "stash";
 
 export interface RefLabel {
