@@ -434,3 +434,31 @@ describe("shortcutOfAction", () => {
     expect(shortcutOfAction(action("merge"), keys, false)).toBeUndefined();
   });
 });
+
+// Right after git init, Tag answered with an error notification ("There is no commit to tag
+// yet") and Stash with git's "You do not have the initial commit yet"; Ctrl+S on a clean tree
+// opened Stash All only for git to say there was nothing to stash.
+describe("before the first commit and on a clean tree", () => {
+  const unborn = (over: Partial<ToolbarFacts> = {}) => facts({ head: null, unstaged: ["a.txt"], ...over });
+
+  it("has nothing to tag until there is a commit, selected or at HEAD", () => {
+    expect(reasonOf("tag", unborn())).toBe("There is no commit to tag yet");
+    expect(reasonOf("tag", unborn({ commit: OTHER }))).toBeUndefined();
+    expect(reasonOf("tag", facts())).toBeUndefined();
+  });
+
+  it("stashes nothing before the first commit", () => {
+    for (const id of ["stash", "quick-stash-all"]) {
+      expect(reasonOf(id, unborn()), id).toBe("Nothing is committed yet");
+    }
+    const ticked = unborn({ onWorkingTree: true, markedUnstaged: ["a.txt"] });
+    for (const id of ["stash-selection", "quick-stash-selection"]) {
+      expect(reasonOf(id, ticked), id).toBe("Nothing is committed yet");
+    }
+  });
+
+  it("stashes nothing from a clean tree, wherever Stash All is asked for", () => {
+    expect(reasonOf("stash", facts())).toBe("The working tree is clean");
+    expect(reasonOf("stash", facts({ unstaged: ["a.txt"] }))).toBeUndefined();
+  });
+});

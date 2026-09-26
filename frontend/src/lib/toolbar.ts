@@ -373,6 +373,13 @@ const needChanges: Rule = (f) =>
 const needSelection: Rule = (f) =>
   needWorkingTree(f) ?? (anyMarked(f) ? undefined : "No file is selected in Files");
 
+/** git stash needs a commit to stash against: before the first one it only says "You do
+    not have the initial commit yet". */
+const bornFirst =
+  (rule: Rule): Rule =>
+  (f) =>
+    rule(f) ?? (f.head === null ? "Nothing is committed yet" : undefined);
+
 const needCommit: Rule = (f) =>
   needRepository(f) ??
   (f.commit === null ? "Select a commit or a branch first" : undefined) ??
@@ -410,10 +417,10 @@ const RULES: Record<string, Rule> = {
   discard: (f) =>
     needWorkingTree(f) ??
     (f.markedUnstaged.length > 0 ? undefined : "Select the changes to discard in Files"),
-  stash: needChanges,
-  "quick-stash-all": needChanges,
-  "stash-selection": needSelection,
-  "quick-stash-selection": needSelection,
+  stash: bornFirst(needChanges),
+  "quick-stash-all": bornFirst(needChanges),
+  "stash-selection": bornFirst(needSelection),
+  "quick-stash-selection": bornFirst(needSelection),
   "apply-stash": (f) => needRepository(f) ?? (f.stashes > 0 ? undefined : "There are no stashes"),
   merge: (f) =>
     needCommit(f) ??
@@ -424,7 +431,8 @@ const RULES: Record<string, Rule> = {
         : undefined),
   rebase: needCommit,
   "rebase-i": needCommit,
-  tag: needRepository,
+  // The selected commit, or HEAD's: an orphan branch can still tag one it selects.
+  tag: (f) => needRepository(f) ?? ((f.commit ?? f.head) === null ? "There is no commit to tag yet" : undefined),
   undo: (f) => needRepository(f) ?? (f.undo ? undefined : "Nothing to undo"),
 };
 

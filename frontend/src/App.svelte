@@ -571,7 +571,7 @@
         id: "stash",
         title: "Stash All",
         synonyms: ["shelve"],
-        unavailable: noRepo,
+        unavailable: reasonOf("stash", toolbarFacts),
         run: stashAll,
       },
       {
@@ -582,7 +582,7 @@
         unavailable: noRepo ?? reasonOf("stash-selection", toolbarFacts),
         run: () => void stashSelected(),
       },
-      { id: "tag", title: "Create Tag", unavailable: noRepo, run: () => void refActions?.addTag(null) },
+      { id: "tag", title: "Create Tag", unavailable: reasonOf("tag", toolbarFacts), run: () => void refActions?.addTag(null) },
       {
         id: "stage",
         title: "Stage",
