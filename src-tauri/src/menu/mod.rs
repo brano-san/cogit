@@ -39,7 +39,7 @@ const EDIT: &[Entry] = &[Entry::Item("settings", "Preferences…", Some("CmdOrCt
 
 const VIEW: &[Entry] = &[
     Entry::Check("output", "Output", Some("CmdOrCtrl+Shift+7")),
-    Entry::Check("maximize-panel", "Maximise Panel", Some("Shift+F11")),
+    Entry::Check("maximize-panel", "Maximize Panel", Some("Shift+F11")),
     Entry::Separator,
     Entry::Check(
         "panel-repositories",
@@ -62,8 +62,8 @@ const VIEW: &[Entry] = &[
 ];
 
 const SUBMODULE: &[Entry] = &[
-    Entry::Item("submodule-init", "Initialise", None),
-    Entry::Item("submodule-sync", "Synchronise", None),
+    Entry::Item("submodule-init", "Initialize", None),
+    Entry::Item("submodule-sync", "Synchronize", None),
     Entry::Item("submodule-reset", "Reset…", None),
     Entry::Separator,
     Entry::Item("submodule-add", "Add…", None),
@@ -98,7 +98,7 @@ const REMOTE: &[Entry] = &[
     Entry::Item("fetch-all", "Fetch All", Some("CmdOrCtrl+Alt+Shift+F")),
     Entry::Item("pull", "Pull", Some("CmdOrCtrl+Shift+U")),
     Entry::Item("push", "Push", Some("CmdOrCtrl+Shift+O")),
-    Entry::Item("synchronize", "Synchronise", Some("CmdOrCtrl+Shift+S")),
+    Entry::Item("synchronize", "Synchronize", Some("CmdOrCtrl+Shift+S")),
     Entry::Separator,
     Entry::Nested("Submodule", SUBMODULE),
     Entry::Nested("Subtree", SUBTREE),
@@ -740,6 +740,53 @@ mod nested_tests {
 }
 
 #[cfg(test)]
+mod spelling_tests {
+    use super::*;
+
+    fn titles(entries: &[Entry], out: &mut Vec<String>) {
+        for entry in entries {
+            if let Entry::Nested(title, inner) = entry {
+                out.push((*title).to_owned());
+                titles(inner, out);
+            }
+        }
+    }
+
+    /// Item 17 of 25.09 (R-615): the menu bar reads like the rest of the window.
+    #[test]
+    fn every_menu_label_is_spelled_the_american_way() {
+        const BRITISH: &[&str] = &[
+            "initialis",
+            "synchronis",
+            "maximis",
+            "minimis",
+            "customis",
+            "organis",
+            "recognis",
+            "colour",
+            "behaviour",
+            "centre",
+            "grey",
+            "licence",
+            "cancelled",
+        ];
+        let mut labels: Vec<String> = default_keymap().into_iter().map(|row| row.label).collect();
+        for (section, entries) in SECTIONS {
+            labels.push((*section).to_owned());
+            titles(entries, &mut labels);
+        }
+        let british: Vec<&String> = labels
+            .iter()
+            .filter(|label| {
+                let lower = label.to_lowercase();
+                BRITISH.iter().any(|stem| lower.contains(stem))
+            })
+            .collect();
+        assert!(british.is_empty(), "{british:?}");
+    }
+}
+
+#[cfg(test)]
 mod remote_tests {
     use super::*;
 
@@ -769,8 +816,8 @@ mod remote_tests {
         assert_eq!(
             outline(nested("Submodule")),
             [
-                "Initialise",
-                "Synchronise",
+                "Initialize",
+                "Synchronize",
                 "Reset…",
                 "-",
                 "Add…",

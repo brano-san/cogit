@@ -783,7 +783,7 @@
       },
       {
         id: "maximize-panel",
-        title: "Maximise Panel",
+        title: "Maximize Panel",
         synonyms: ["zoom", "full screen panel"],
         run: () => layout.toggleMaximized(focused),
       },
@@ -865,7 +865,7 @@
       {
         id: "settings",
         title: "Preferences",
-        synonyms: ["settings", "options", "customise toolbar", "toolbar buttons"],
+        synonyms: ["settings", "options", "customize toolbar", "toolbar buttons"],
         run: () => openSettings(),
       },
       {
