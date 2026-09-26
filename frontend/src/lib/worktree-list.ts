@@ -1,5 +1,6 @@
 import { shortOid } from "$lib/format";
 import type { Branch, FileEntry, WorktreeEntry } from "$lib/ipc";
+import { branchNameProblem } from "$lib/names";
 
 export interface WorktreeTag {
   id: "main" | "locked" | "missing" | "dirty";
@@ -110,8 +111,7 @@ export function addProblem(input: {
   const existing = input.choices.find((choice) => choice.name === name);
   if (input.create) {
     if (existing) return `${name} already exists; pick it under Existing branch.`;
-    if (/[\s~^:?*[\\]/.test(name) || name.startsWith("-")) return "Git will refuse that name.";
-    return null;
+    return branchNameProblem(name, input.choices.map((choice) => choice.name));
   }
   if (!existing) return "Choose a branch.";
   if (existing.heldBy) {

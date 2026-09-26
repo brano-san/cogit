@@ -5,13 +5,15 @@ import {
   checkState,
   defaultVisible,
   foldedWhileFiltering,
+  foldsWhileFiltering,
   leavesUnder,
+  tickStates,
   toggleNode,
   visibleTips,
   type RefNode,
   type RefTreeInput,
 } from "./ref-nodes";
-import { flatten } from "./tree";
+import { NO_FILTER_FOLDS, flatten, toggleFilterFold } from "./tree";
 
 const OID = "a".repeat(40);
 
@@ -563,6 +565,24 @@ describe("folders (#11)", () => {
     expect([...foldedWhileFiltering(collapsed, "")]).toEqual([...collapsed]);
     expect([...foldedWhileFiltering(collapsed, "fix")]).toEqual(["group:tags"]);
   });
+
+  // FR-021: the triangle read the stored fold, so a folder opened by the filter showed ▶.
+  it("draws a folder the filter opened as open", () => {
+    const nodes = buildRefTree(input({ branches: [branch("fix/a")], filter: "fix" }));
+    const rows = flatten(nodes, foldedWhileFiltering(new Set(["folder:local/fix"]), "fix"));
+    expect(rows.find((row) => row.id === "folder:local/fix")?.open).toBe(true);
+  });
+
+  it("folds a folder under a filter for that text only, and leaves the stored fold alone", () => {
+    const stored = new Set(["folder:local/fix"]);
+    expect(foldsWhileFiltering("folder:local/feat", "fix")).toBe(true);
+    expect(foldsWhileFiltering("group:local", "fix")).toBe(false);
+    expect(foldsWhileFiltering("folder:local/feat", "")).toBe(false);
+
+    const folds = toggleFilterFold(NO_FILTER_FOLDS, "fix", "folder:local/feat");
+    expect([...foldedWhileFiltering(stored, "fix", folds)]).toEqual(["folder:local/feat"]);
+    expect([...foldedWhileFiltering(stored, "", folds)]).toEqual(["folder:local/fix"]);
+  });
 });
 
 describe("sorting (#20)", () => {
@@ -683,5 +703,57 @@ describe("branches held by a worktree (#25)", () => {
       }),
     );
     expect(nodes.find((node) => node.id === "remote:origin/feature")?.worktree).toBeUndefined();
+  });
+});
+
+describe("tickStates", () => {
+  const nodes = buildRefTree(
+    input({
+      branches: [
+        branch("fix/a"),
+        branch("fix/deep/b"),
+        branch("main"),
+        tracking("origin/fix/a"),
+        tracking("origin/main"),
+      ],
+      tags: [tag("v1"), tag("v-tree", { pointsToCommit: false }), tag("rel/v2")],
+      stashes: [stash(0)],
+      lost: [lost("b".repeat(40))],
+    }),
+  );
+
+  it("gives every row the box checkState and leavesUnder give it", () => {
+    const ticks = [
+      new Set<string>(),
+      new Set(["local:fix/a"]),
+      new Set(["local:fix/a", "local:fix/deep/b", "local:main", "tag:v1", "tag:rel/v2"]),
+      new Set(nodes.map((node) => node.id)),
+    ];
+    for (const visible of ticks) {
+      const states = tickStates(nodes, visible);
+      for (const node of nodes) {
+        expect(states.get(node.id), node.id).toEqual({
+          state: checkState(nodes, node.id, visible),
+          tickable: leavesUnder(nodes, node.id).length > 0,
+        });
+      }
+    }
+  });
+
+  // Row by row, each box searched the whole tree: 5 000 rows were 25 million comparisons
+  // on every click.
+  it("reads each row of the tree once", () => {
+    const many = buildRefTree(
+      input({ branches: Array.from({ length: 5000 }, (_, i) => tracking(`origin/f${i % 50}/b${i}`)) }),
+    );
+    let reads = 0;
+    const counted = new Proxy(many, {
+      get(target, key, receiver) {
+        if (typeof key === "string" && /^\d+$/.test(key)) reads++;
+        return Reflect.get(target, key, receiver);
+      },
+    });
+    tickStates(counted, new Set());
+    expect(reads).toBeLessThanOrEqual(many.length);
   });
 });

@@ -10,6 +10,7 @@ import {
   showsFilter,
   type RepoGroups,
 } from "./repo-groups";
+import { NO_FILTER_FOLDS, shownFolds } from "./tree";
 
 const empty: RepoGroups = { order: [], names: {}, of: {}, under: {} };
 
@@ -125,6 +126,44 @@ describe("groupRows", () => {
     const rows = groupRows(withTwo, ["/w/beta", "/w/alpha"], new Set());
     const inWork = rows.filter((row) => row.kind === "repo").map((row) => row.root);
     expect(inWork).toEqual(["/w/beta", "/w/alpha"]);
+  });
+
+  it("says on each heading whether its rows are drawn", () => {
+    const rows = groupRows(withTwo, roots, new Set(["g1"]));
+    const open = rows.flatMap((row) => (row.kind === "group" ? [[row.id, row.open]] : []));
+    expect(open).toEqual([
+      ["g1", false],
+      ["g2", true],
+      [UNGROUPED, true],
+    ]);
+  });
+});
+
+describe("groupRows while filtering", () => {
+  const everyFolded = new Set(["g1", "g2", UNGROUPED]);
+  const ids = (rows: ReturnType<typeof groupRows>) =>
+    rows.map((row) => (row.kind === "group" ? `g:${row.id}` : row.root));
+
+  it("shows the matches of a folded group", () => {
+    const folds = shownFolds(everyFolded, "alp", NO_FILTER_FOLDS);
+    expect(ids(groupRows(withTwo, ["/w/alpha"], folds, true))).toEqual(["g:g1", "/w/alpha"]);
+  });
+
+  it("leaves out a group with no match", () => {
+    const rows = groupRows(withTwo, ["/w/gamma"], new Set(), true);
+    expect(ids(rows)).toEqual(["g:g2", "/w/gamma"]);
+  });
+
+  it("keeps a parent whose only match is in a group inside it", () => {
+    const nested: RepoGroups = { ...withTwo, under: { g2: "g1" } };
+    const rows = groupRows(nested, ["/w/gamma"], new Set(), true);
+    expect(ids(rows)).toEqual(["g:g1", "g:g2", "/w/gamma"]);
+  });
+
+  it("draws the folds from before once the filter is cleared", () => {
+    const folds = shownFolds(everyFolded, "", NO_FILTER_FOLDS);
+    const every = ["/w/alpha", "/w/gamma", "/w/loose"];
+    expect(ids(groupRows(withTwo, every, folds))).toEqual(["g:g1", "g:g2", `g:${UNGROUPED}`]);
   });
 });
 

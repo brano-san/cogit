@@ -170,6 +170,17 @@ fn a_mutation_does_not_make_the_watcher_report_our_own_writes() {
     let (state, repo) = open(&f);
     let mut events = state.subscribe();
     std::fs::write(f.path().join("file0.txt"), "edited by us\n").unwrap();
+    // The control: a watcher that never started would keep quiet through the rest too.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    let heard = loop {
+        match events.try_recv() {
+            Ok(app_state::AppEvent::RepoChanged { .. }) => break true,
+            Ok(_) => {}
+            Err(_) if std::time::Instant::now() > deadline => break false,
+            Err(_) => std::thread::sleep(std::time::Duration::from_millis(20)),
+        }
+    };
+    assert!(heard, "an edit made outside Cogit must be heard");
     // Let the edit above settle so only the mutation's own writes are in play.
     std::thread::sleep(std::time::Duration::from_millis(500));
     while events.try_recv().is_ok() {}
@@ -917,6 +928,27 @@ fn discarding_keeps_the_staged_part_of_a_file_and_undo_brings_back_the_rest() {
     assert_eq!(staged(&f, "file0.txt"), "content 0\nstaged\n");
     assert_eq!(text(&f, "fresh.txt"), "new\nmore\n");
     assert_eq!(staged(&f, "fresh.txt"), "new\n");
+}
+
+// A staged deletion is in neither the index nor the folder, and a stash of paths cannot
+// take it (R-486): the edit beside it goes, the deletion stays staged.
+#[test]
+fn discarding_an_edit_beside_a_staged_deletion_keeps_the_deletion() {
+    let f = test_fixtures::linear(2).unwrap();
+    f.git(&["rm", "-q", "file0.txt"]).unwrap();
+    f.write_file("file1.txt", "wip\n").unwrap();
+    let (state, repo) = open(&f);
+    let paths = ["file0.txt".to_owned(), "file1.txt".to_owned()];
+
+    state.discard_paths(repo, &paths).unwrap();
+
+    assert_eq!(text(&f, "file1.txt"), "content 1\n");
+    assert!(!f.path().join("file0.txt").exists());
+    assert_eq!(f.git(&["ls-files", "--", "file0.txt"]).unwrap().trim(), "");
+
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(text(&f, "file1.txt"), "wip\n");
 }
 
 /// Stopped on the conflict in `c.txt`, with `d.txt` merged cleanly and staged beside it.

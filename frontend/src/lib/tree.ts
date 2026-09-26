@@ -47,3 +47,29 @@ export function toggle(collapsed: ReadonlySet<string>, id: string): Set<string> 
   if (!next.delete(id)) next.add(id);
   return next;
 }
+
+/** Folds made while a filter is typed, kept apart from the stored ones (R-485). */
+export interface FilterFolds {
+  filter: string;
+  ids: ReadonlySet<string>;
+}
+
+export const NO_FILTER_FOLDS: FilterFolds = { filter: "", ids: new Set() };
+
+/** A filter opens every node with a match: a match folded away is a match not found. A
+    fold made under a filter lasts as long as its text, and clearing the filter brings
+    back the folds from before, untouched. */
+export function shownFolds(
+  stored: ReadonlySet<string>,
+  filter: string,
+  folds: FilterFolds,
+): ReadonlySet<string> {
+  const text = filter.trim();
+  if (text === "") return stored;
+  return folds.filter === text ? folds.ids : NO_FILTER_FOLDS.ids;
+}
+
+export function toggleFilterFold(folds: FilterFolds, filter: string, id: string): FilterFolds {
+  const text = filter.trim();
+  return { filter: text, ids: toggle(folds.filter === text ? folds.ids : new Set(), id) };
+}

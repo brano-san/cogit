@@ -664,6 +664,8 @@ impl AppState {
 
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
+        // Read before the stash, which empties the folder at a new file: only these did it take.
+        let taken = handle.stashable(paths)?;
         // A successful stash has already taken the changes out of the working tree, so
         // discarding again would only fail on paths Git no longer knows about.
         let stashed = handle
@@ -676,7 +678,7 @@ impl AppState {
         };
 
         // A stash of paths takes their staged side too, and only the unstaged one goes.
-        let staged = handle.staged_in_stash(&oid, paths)?;
+        let staged = handle.staged_in_stash(&oid, &taken)?;
         if staged.is_empty() {
             self.record(
                 repo,
