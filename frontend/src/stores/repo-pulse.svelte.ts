@@ -7,6 +7,10 @@ const PROBE_TIMEOUT_MS = 120_000;
 /** Past the 150 ms of quiet that ends a switch or a close, so the read is not part of it. */
 const LEFT_READ_DELAY_MS = 500;
 const REVISIT_MS = 60_000;
+/** Submodule nodes are read once the tree has not been read again for this long: an open, a
+    write or a click reads it, and a status of every node inside that action held the next
+    one up (R-617). */
+export const MODULE_QUIET_MS = 1_500;
 
 function within<T>(work: Promise<T>, ms: number, fallback: T): Promise<T> {
   return new Promise((resolve) => {
@@ -44,6 +48,8 @@ class RepoPulseStore {
   /** Roots whose probe has not ended, answered in time or not (R-482). */
   #probing = new Set<string>();
   #revisitLater: ReturnType<typeof setTimeout> | null = null;
+  #modulesLater: ReturnType<typeof setTimeout> | null = null;
+  #modulesDue = new Set<string>();
 
   readonly #queue = new PulseQueue({
     pulse: readPulse,
@@ -94,13 +100,29 @@ class RepoPulseStore {
   }
 
   /** Every row of the list; a row never read is read once. */
-  watch(roots: readonly string[]): void {
-    this.#roots = roots;
-    for (const root of roots) {
+  watch(roots: readonly string[], modules: readonly string[] = []): void {
+    this.#roots = [...roots, ...modules];
+    for (const root of this.#roots) {
       if (this.#seen.has(root)) continue;
       this.#seen.add(root);
-      this.#queue.request(root);
+      if (modules.includes(root)) this.#later(root);
+      else this.#queue.request(root);
     }
+  }
+
+  /** A node's read waits for the reads of the tree to stop for a while; each one starts the
+      wait over, and what was asked meanwhile goes in one go. */
+  #later(root: string): void {
+    this.#modulesDue.add(root);
+    if (this.#modulesLater !== null) clearTimeout(this.#modulesLater);
+    this.#modulesLater = setTimeout(() => {
+      this.#modulesLater = null;
+      const due = [...this.#modulesDue];
+      this.#modulesDue.clear();
+      for (const each of due) {
+        if (each !== this.#owned && this.#seen.has(each)) this.#queue.request(each);
+      }
+    }, MODULE_QUIET_MS);
   }
 
   /** The window came back into focus. Whatever was done meanwhile in a repository the
@@ -133,7 +155,7 @@ class RepoPulseStore {
       own, so theirs and its top's pulses follow (R-542). */
   again(roots: readonly string[]): void {
     for (const root of roots) {
-      if (root !== this.#owned) this.#queue.request(root);
+      if (root !== this.#owned) this.#later(root);
     }
   }
 

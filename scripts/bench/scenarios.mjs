@@ -32,6 +32,13 @@ async function markFile(ctx, name, section) {
   await ctx.prep.key("Space", { quiet: 150 });
 }
 
+/** Clicks a file of the dirty set brought up by the filter first: sorted by name (#33), the
+    list puts small.txt and image.bin below 1 500 others, past what the virtual list draws. */
+async function openFile(ctx, name, opts) {
+  await ctx.prep.input(FILTER_FILES, name);
+  return ctx.prep.click(FILE_ROW(name), opts);
+}
+
 async function workingTree(ctx) {
   await ctx.prep.run(`(() => { document.querySelector('.scroll[aria-label="Commits"]').scrollTop = 0; })()`);
   await ctx.prep.click({ sel: "button.row.header" });
@@ -188,9 +195,11 @@ export const SCENARIOS = [
     sets: ["dirty"],
     async prep(ctx) {
       await workingTree(ctx);
-      await ctx.prep.click(FILE_ROW("file0000.txt"));
+      await openFile(ctx, "file0000.txt");
+      await ctx.prep.input(FILTER_FILES, "small.txt");
     },
     measure: (ctx) => ctx.measure.click(FILE_ROW("small.txt")),
+    reset: (ctx) => ctx.prep.input(FILTER_FILES, ""),
   },
   {
     id: "diff.big",
@@ -199,9 +208,11 @@ export const SCENARIOS = [
     sets: ["dirty"],
     async prep(ctx) {
       await workingTree(ctx);
-      await ctx.prep.click(FILE_ROW("small.txt"));
+      await openFile(ctx, "small.txt");
+      await ctx.prep.input(FILTER_FILES, "big.txt");
     },
     measure: (ctx) => ctx.measure.click(FILE_ROW("big.txt"), HEAVY),
+    reset: (ctx) => ctx.prep.input(FILTER_FILES, ""),
   },
   {
     id: "diff.binary",
@@ -210,9 +221,11 @@ export const SCENARIOS = [
     sets: ["dirty"],
     async prep(ctx) {
       await workingTree(ctx);
-      await ctx.prep.click(FILE_ROW("small.txt"));
+      await openFile(ctx, "small.txt");
+      await ctx.prep.input(FILTER_FILES, "image.bin");
     },
     measure: (ctx) => ctx.measure.click(FILE_ROW("image.bin")),
+    reset: (ctx) => ctx.prep.input(FILTER_FILES, ""),
   },
   {
     id: "diff.submodule",
@@ -363,7 +376,8 @@ export const SCENARIOS = [
     sets: ["medium"],
     async prep(ctx) {
       await ctx.prep.menu("settings");
-      await ctx.prep.click({ sel: `button.nav-row`, text: "Theme & Colours" });
+      // "Theme & Colours" before the American spelling (#17), "Theme & Colors" after it.
+      await ctx.prep.click({ sel: `button.nav-row`, text: "Theme & Colo" });
     },
     measure: (ctx) => ctx.measure.select(`.dialog select, select`, ctx.iteration % 2 === 0 ? "light" : "dark"),
     reset: (ctx) => ctx.prep.key("Escape"),

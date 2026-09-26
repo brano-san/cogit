@@ -275,6 +275,24 @@ describe("the nodes of the tree the panels own", () => {
 
     expect(readPulse.mock.calls).toEqual([["C:/repos/app"], ["C:/repos/app/vendor/lib"]]);
   });
+
+  // A status of every node right after an open or a click held the next click up: 12 ms to
+  // select a commit became 145 on a repository with submodules (A/B of 26.09, R-617).
+  it("wait for the reads of the tree to stop a while, not the action that read it", async () => {
+    vi.useFakeTimers();
+    vi.resetModules();
+    const { repoPulse } = await import("./repo-pulse.svelte");
+    repoPulse.setOwned("C:/repos/app");
+    repoPulse.watch(["C:/repos/app"], ["C:/repos/app/lib"]);
+    await vi.advanceTimersByTimeAsync(100);
+    repoPulse.again(["C:/repos/app/lib"]);
+
+    await vi.advanceTimersByTimeAsync(1_450);
+    expect(readPulse).not.toHaveBeenCalledWith("C:/repos/app/lib");
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(readPulse).toHaveBeenCalledWith("C:/repos/app/lib");
+  });
 });
 
 // Leaving a submodule, its node had no marks at all until its pulse was read: after the
