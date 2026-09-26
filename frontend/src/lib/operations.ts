@@ -1,3 +1,5 @@
+import type { OperationKind, OperationPhase } from "./ipc";
+
 export interface OperationEvent {
   id: number;
   label: string;
@@ -18,6 +20,25 @@ export function busyLabel(running: ReadonlyMap<number, string>): string | null {
   if (running.size === 0) return null;
   if (running.size === 1) return `${[...running.values()][0]}…`;
   return `${running.size} operations running…`;
+}
+
+/** What `cancel_network` stops: a fetch, a pull or a push, Push To and Push Up To included. */
+const TALKS_TO_A_SERVER: ReadonlySet<OperationKind> = new Set(["fetch", "pull", "push"]);
+
+/** The ids of the network operations running now, in the order they started (R-506). One
+    still waiting in the queue has no git to stop yet. */
+export function trackCancellable(
+  ids: readonly number[],
+  event: { id: number; kind: OperationKind; phase: OperationPhase },
+): number[] {
+  const rest = ids.filter((id) => id !== event.id);
+  if (event.phase === "running" && TALKS_TO_A_SERVER.has(event.kind)) rest.push(event.id);
+  return rest;
+}
+
+/** The one the footer's Cancel stops: the last to start, the one its label names. */
+export function cancellable(ids: readonly number[]): number | null {
+  return ids.at(-1) ?? null;
 }
 
 /** A run over several repositories at once: the user started one thing, not N. */

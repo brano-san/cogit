@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activity, applyOperation, busyLabel } from "./operations";
+import { activity, applyOperation, busyLabel, cancellable, trackCancellable } from "./operations";
 
 const start = (id: number, label: string) => ({ id, label, success: null });
 const end = (id: number, success: boolean) => ({ id, label: "", success });
@@ -120,5 +120,36 @@ describe("activity · bulk work", () => {
 
   it("is busy while it runs", () => {
     expect(activity({ ...idle, bulk: { label: "Fetching", done: 0, total: 3 } }).busy).toBe(true);
+  });
+});
+
+describe("trackCancellable", () => {
+  const step = (id: number, kind: string, phase: "queued" | "running" | "done") => ({
+    id,
+    kind: kind as "fetch",
+    phase,
+  });
+
+  it("holds a fetch, pull or push once it runs, not while it waits", () => {
+    let ids = trackCancellable([], step(1, "fetch", "queued"));
+    expect(ids).toEqual([]);
+    ids = trackCancellable(ids, step(1, "fetch", "running"));
+    ids = trackCancellable(ids, step(2, "pull", "running"));
+    ids = trackCancellable(ids, step(3, "push", "running"));
+    expect(ids).toEqual([1, 2, 3]);
+  });
+
+  it("leaves out what does not talk to a server", () => {
+    expect(trackCancellable([], step(4, "commit", "running"))).toEqual([]);
+  });
+
+  it("lets one go when it is done, whatever it was", () => {
+    const ids = trackCancellable([1, 2], step(1, "fetch", "done"));
+    expect(ids).toEqual([2]);
+  });
+
+  it("names the one that started last as the one Cancel stops", () => {
+    expect(cancellable([1, 2])).toBe(2);
+    expect(cancellable([])).toBeNull();
   });
 });
