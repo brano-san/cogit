@@ -59,6 +59,7 @@
     type LanePick,
   } from "$lib/graph-modes";
   import { graphFolds } from "$stores/graph-folds.svelte";
+  import { graphNav } from "$stores/graph-nav.svelte";
   import { laneAt } from "$lib/graph-style";
   import { isEmptyQuery } from "$lib/query";
   import { graphOverlays } from "$stores/graph-overlay.svelte";
@@ -303,6 +304,15 @@
   $effect(() => {
     void graph.home;
     if (scroller) scroller.scrollTop = 0;
+  });
+
+  /** Home and Back to the Working Tree bring its row, the first one, on screen (F-562). */
+  let topSeen = untrack(() => graphNav.top);
+  $effect(() => {
+    const asked = graphNav.top;
+    if (asked === topSeen || !scroller) return;
+    topSeen = asked;
+    scroller.scrollTop = 0;
   });
 
   /** Only the rows on screen come over from Rust (R-193). */
