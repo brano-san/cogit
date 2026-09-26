@@ -153,6 +153,12 @@ describe("the Add Worktree dialog", () => {
   it("goes ahead with a fresh branch name", () => {
     expect(addProblem({ folder: "E:/wt", create: true, branch: "spike", choices })).toBeNull();
   });
+
+  it("refuses a new branch name Git refuses, as every branch dialog does", () => {
+    for (const branch of ["topic.lock", "-x", "a b", "a~1"]) {
+      expect(addProblem({ folder: "E:/wt", create: true, branch, choices }), branch).not.toBeNull();
+    }
+  });
 });
 
 describe("worktreeMarks", () => {
