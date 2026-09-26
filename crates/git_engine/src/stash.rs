@@ -53,11 +53,22 @@ impl RepoHandle {
 
     /// The stash just made on top of the list moves to a ref of its own, and the list is
     /// left as the user had it. The ref comes first: a failed drop only lists it as well.
+    /// Written by gix, not by a `git` of its own: Cogit's own namespace needs no hook, no
+    /// credential and no merge, and a discard stays two processes, not three (R-24, R-514).
     fn keep_as_backup(&self, made: Option<String>) -> Result<Option<String>> {
         let Some(oid) = made else {
             return Ok(None);
         };
-        self.run_git(&["update-ref", &format!("{BACKUP_REFS}{oid}"), &oid])?;
+        let id = gix::ObjectId::from_hex(oid.as_bytes())
+            .map_err(|err| GitError::Internal(format!("git gave a stash id {oid}: {err}")))?;
+        self.repo
+            .reference(
+                format!("{BACKUP_REFS}{oid}").as_str(),
+                id,
+                gix::refs::transaction::PreviousValue::Any,
+                "cogit: kept for Undo",
+            )
+            .map_err(|err| GitError::Internal(format!("cannot keep {oid} for Undo: {err}")))?;
         if self.stash_top().as_deref() == Some(oid.as_str()) {
             self.run_git(&["stash", "drop", "--quiet", "stash@{0}"])?;
         }
@@ -66,8 +77,14 @@ impl RepoHandle {
 
     /// Undo put it back, so nothing is left to keep it for; a failure only leaves it kept.
     pub fn forget_backup(&self, oid: &str) {
-        if let Err(err) = self.run_git(&["update-ref", "-d", &format!("{BACKUP_REFS}{oid}")]) {
-            tracing::warn!(error = ?err, oid, "a backup for Undo stays kept");
+        let name = format!("{BACKUP_REFS}{oid}");
+        let gone = self
+            .repo
+            .find_reference(name.as_str())
+            .map_err(|err| err.to_string())
+            .and_then(|reference| reference.delete().map_err(|err| err.to_string()));
+        if let Err(err) = gone {
+            tracing::warn!(error = %err, oid, "a backup for Undo stays kept");
         }
     }
 

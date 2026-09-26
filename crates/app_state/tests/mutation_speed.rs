@@ -89,13 +89,17 @@ fn discarding_a_file_is_a_single_git_invocation() {
         .unwrap();
     report("discard", started.elapsed(), Duration::from_millis(400));
 
-    let log = state.command_log();
-    assert_eq!(
-        log.len(),
-        1,
-        "the stash itself is the only process needed, got {:?}",
-        log.iter().map(|e| &e.command).collect::<Vec<_>>()
-    );
+    // The stash, and taking it off the user's list: the copy for Undo is kept by a ref of
+    // Cogit's own, written without a process (R-514).
+    let log: Vec<String> = state
+        .command_log()
+        .into_iter()
+        .rev()
+        .map(|entry| entry.command)
+        .collect();
+    assert_eq!(log.len(), 2, "{log:?}");
+    assert!(log[0].starts_with("git stash push"), "{log:?}");
+    assert!(log[1].starts_with("git stash drop"), "{log:?}");
 }
 
 #[test]
