@@ -1,8 +1,9 @@
 //! Only the repository the panels show is watched: Windows refuses to rename a folder
 //! while a watch handle is open anywhere below it (R-351).
 
-use crate::{AppState, RepoId, RepoOverview};
+use crate::{AppEvent, AppState, RepoId, RepoOverview};
 use std::path::Path;
+use std::sync::Arc;
 
 impl AppState {
     /// What changed while it was not watched is read afresh: its row here, its graph by
@@ -85,4 +86,109 @@ fn contradicts(row: &RepoOverview, pulse: &git_engine::RepoPulse) -> bool {
         || row.branch != pulse.branch
         || (row.ahead, row.behind) != (pulse.ahead, pulse.behind)
         || (pulse.dirty && !row.dirty)
+}
+
+pub(crate) struct Quiet<'a> {
+    state: &'a AppState,
+    repo: RepoId,
+    /// The whole mutation, not a timer per git process (R-445).
+    _held: Option<fs_watcher::QuietHold>,
+}
+
+impl Drop for Quiet<'_> {
+    fn drop(&mut self) {
+        self.state.silence(self.repo);
+    }
+}
+
+impl AppState {
+    /// A repository is watched once, and only while it is shown; reopening the same path
+    /// must not stack watchers.
+    pub(crate) fn start_watching(
+        &self,
+        repo: RepoId,
+        root: &Path,
+        git_dir: &Path,
+        common_dir: &Path,
+    ) {
+        if self.watchers.read().contains_key(&repo) || !self.is_shown(repo) {
+            return;
+        }
+        let events = self.events.clone();
+        let rows = Arc::clone(&self.cached_rows);
+        match fs_watcher::RepoWatcher::start(root, git_dir, common_dir, move |change| {
+            rows.write().forget(repo);
+            let _ = events.send(AppEvent::RepoChanged {
+                repo,
+                kind: change.kind,
+            });
+        }) {
+            Ok(watcher) => {
+                // Checked again under the lock: a second open of the same repository, a
+                // close or a switch may have finished while this watcher was starting.
+                let mut watchers = self.watchers.write();
+                if watchers.contains_key(&repo)
+                    || !self.repos.read().contains_key(&repo)
+                    || !self.is_shown(repo)
+                {
+                    drop(watchers);
+                    drop(watcher);
+                } else {
+                    watchers.insert(repo, watcher);
+                }
+            }
+            Err(err) => {
+                tracing::warn!(error = %err, repo = repo.0, "cannot watch the repository");
+            }
+        }
+    }
+
+    /// Called before every mutation: the UI reloads itself afterwards, so reacting to our
+    /// own writes only makes it reload twice (doc/12-risks.md, R-25).
+    /// Our own writes are the one change the watcher must not report: the UI reloads
+    /// itself after a mutation. The watcher stays quiet while the guard lives and for one
+    /// window after it drops, so a mutation that outlasts the window does not echo (R-445).
+    #[must_use = "hold the guard until the mutation is done"]
+    pub(crate) fn quiet(&self, repo: RepoId) -> Quiet<'_> {
+        self.silence(repo);
+        let held = self
+            .watchers
+            .read()
+            .get(&repo)
+            .map(fs_watcher::RepoWatcher::hold);
+        Quiet {
+            state: self,
+            repo,
+            _held: held,
+        }
+    }
+
+    /// For a talk with a remote, minutes long, that writes at its end: a hold would keep
+    /// the edits made meanwhile in an editor off the panels until it finished.
+    #[must_use = "hold the guard until the mutation is done"]
+    pub(crate) fn quiet_briefly(&self, repo: RepoId) -> Quiet<'_> {
+        self.silence(repo);
+        Quiet {
+            state: self,
+            repo,
+            _held: None,
+        }
+    }
+
+    fn silence(&self, repo: RepoId) {
+        // The watcher will not report these writes, so the row has to be dropped here.
+        self.forget_row(repo);
+        if let Some(watcher) = self.watchers.read().get(&repo) {
+            watcher.quiet_for(fs_watcher::DEFAULT_QUIET);
+        }
+    }
+
+    /// Test seam: whether the watcher of `repo` is inside a quiet window right now.
+    #[must_use]
+    pub fn watcher_is_quiet(&self, repo: RepoId) -> bool {
+        self.watchers
+            .read()
+            .get(&repo)
+            .is_some_and(fs_watcher::RepoWatcher::is_quiet)
+    }
 }
