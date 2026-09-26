@@ -25,6 +25,7 @@ mod safety;
 pub mod settings;
 mod stashing;
 pub mod terminal;
+mod watching;
 mod worktrees;
 
 pub use avatars::{Author, AvatarRow, Avatars};
@@ -289,6 +290,8 @@ pub struct AppState {
     closed_at: parking_lot::Mutex<HashMap<PathBuf, u64>>,
     events: broadcast::Sender<AppEvent>,
     watchers: Arc<RwLock<HashMap<RepoId, fs_watcher::RepoWatcher>>>,
+    /// The one repository a watcher is allowed for (R-351). Locked after `watchers`.
+    shown: parking_lot::Mutex<Option<RepoId>>,
     journal: Arc<RwLock<std::collections::VecDeque<git_engine::GitOutput>>>,
     safety: RwLock<Vec<safety::Undoable>>,
     next_entry_id: AtomicU32,
@@ -348,6 +351,7 @@ impl AppState {
             closed_at: parking_lot::Mutex::new(HashMap::new()),
             events,
             watchers: Arc::new(RwLock::new(HashMap::new())),
+            shown: parking_lot::Mutex::new(None),
             journal: Arc::new(RwLock::new(std::collections::VecDeque::with_capacity(
                 JOURNAL_CAPACITY,
             ))),
@@ -800,9 +804,10 @@ impl AppState {
         Ok(())
     }
 
-    /// A repository is watched once; reopening the same path must not stack watchers.
+    /// A repository is watched once, and only while it is shown; reopening the same path
+    /// must not stack watchers.
     fn start_watching(&self, repo: RepoId, root: &Path, git_dir: &Path, common_dir: &Path) {
-        if self.watchers.read().contains_key(&repo) {
+        if self.watchers.read().contains_key(&repo) || !self.is_shown(repo) {
             return;
         }
         let events = self.events.clone();
@@ -815,10 +820,13 @@ impl AppState {
             });
         }) {
             Ok(watcher) => {
-                // Checked again under the lock: a second open of the same repository or a
-                // close may have finished while this watcher was starting.
+                // Checked again under the lock: a second open of the same repository, a
+                // close or a switch may have finished while this watcher was starting.
                 let mut watchers = self.watchers.write();
-                if watchers.contains_key(&repo) || !self.repos.read().contains_key(&repo) {
+                if watchers.contains_key(&repo)
+                    || !self.repos.read().contains_key(&repo)
+                    || !self.is_shown(repo)
+                {
                     drop(watchers);
                     drop(watcher);
                 } else {

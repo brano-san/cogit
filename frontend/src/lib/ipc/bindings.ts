@@ -146,6 +146,11 @@ export const commands = {
 	repositories: () => typedError<RepoOverview[], GitError>(__TAURI_INVOKE("repositories")),
 	/**  Answers with the repositories left open, which the caller would otherwise ask for next. */
 	closeRepository: (repo: RepoId) => typedError<RepoOverview[], GitError>(__TAURI_INVOKE("close_repository", { repo })),
+	/**
+	 *  The repository the panels show, the only one watched (R-351). Off the main thread for
+	 *  the same join as `close_repository`.
+	 */
+	showRepository: (repo: number | null) => typedError<null, GitError>(__TAURI_INVOKE("show_repository", { repo })),
 	updateSubmodule: (repo: RepoId, path: string, init: boolean) => typedError<null, GitError>(__TAURI_INVOKE("update_submodule", { repo, path, init })),
 	/**  Empty `paths` means every submodule, for Initialize and Synchronize only. */
 	submoduleOp: (repo: RepoId, op: SubmoduleOp, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("submodule_op", { repo, op, paths })),

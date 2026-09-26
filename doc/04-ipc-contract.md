@@ -83,8 +83,9 @@ pub enum GitError {
 
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
-| `open_repository` | `path: String` | `RepoSummary`; в нём `tagGroupSeparator` — `cogit.tagGroupSeparator` из конфига репозитория, `/` если не задан, `""` — теги без папок; перечитывается при каждом открытии и обновлении (#11) | M1 |
+| `open_repository` | `path: String` | `RepoSummary`; в нём `tagGroupSeparator` — `cogit.tagGroupSeparator` из конфига репозитория, `/` если не задан, `""` — теги без папок; перечитывается при каждом открытии и обновлении (#11). Наблюдатель не ставит — это делает `show_repository` (R-351) | M1 |
 | `close_repository` | `repo: RepoId` | `Result<Vec<RepoOverview>>` — открытые после закрытия, как у `repositories`: второй вызов за списком не нужен (R-323) | M1 |
+| `show_repository` | `repo: Option<RepoId>` — что показывают панели, `null` — ничего | `()`; наблюдается только он: остальные наблюдатели останавливаются, его — запускается, снимок его строки сбрасывается (R-351). Фронтенд шлёт по одному вызову, последний побеждает | M3 |
 | `list_repositories` | — | `Vec<RepoEntry>` | M3 |
 | `repo_state` | `repo: RepoId` | `RepoState` — `clean | detachedHead { oid } | merging | rebasing | cherryPicking | reverting | bisecting | applyingPatches | empty | bare`; `applyingPatches` — `git am`, остановленный на патче (`rebase-apply/applying`) | M1 |
 | `repositories` | — | `Result<Vec<RepoOverview { repo, name, root, branch, ahead, behind, dirty, missing, state: RepoState }>>`; `state` — для меток `<merging>`/`<detached>` в дереве (#22). Читается в `spawn_blocking`, поэтому `Result` | M3 |
@@ -443,7 +444,7 @@ snake_case и читаются на фронтенде как `undefined`.
 | `search_file_contents` | `repo`, `query`, `is_regex`, `scope`, `Channel<SearchChunk>` | `()` | M6 |
 | `list_submodules` | `repo`, `parent` (пусто — верхний уровень) | `Vec<Submodule>` | M3 |
 | `submodule_outline` | `root` — папка репозитория из списка, открытого или закрытого; `parent` — ключ узла от верха (пусто — верхний уровень) | `Vec<Submodule>` из `.gitmodules` и gitlink-записей HEAD: `state` — `notInitialised` или `unread`, `checkedOut`, `branch`, `subject` пусты, `nested` — проверка файла; сабмодули не открываются (R-352) | M3 |
-| `repo_pulse` | `root` — папка строки списка | `RepoPulse { missing, branch, tracked, ahead, behind, dirty }`: ahead/behind — по локальной remote-tracking ссылке HEAD через gix; `dirty` — размер и mtime файлов индекса, staged по cache-tree или сравнению индекса с деревом HEAD по id, конфликт; неотслеживаемые не ищутся, ничего не хешируется (R-353) | M3 |
+| `repo_pulse` | `root` — папка строки списка | `RepoPulse { missing, branch, tracked, ahead, behind, dirty }`: ahead/behind — по локальной remote-tracking ссылке HEAD через gix; `dirty` — размер и mtime файлов индекса, staged по cache-tree или сравнению индекса с деревом HEAD по id, конфликт; неотслеживаемые не ищутся, ничего не хешируется (R-353). Открытый, но не наблюдаемый репозиторий: пульс, противоречащий снимку его строки, сбрасывает снимок — следующий `repositories` читает строку заново (R-351) | M3 |
 | `background_fetch` | `root` | `()`; `git fetch --all --quiet --no-auto-gc --recurse-submodules=no` без запросов: `GIT_TERMINAL_PROMPT=0`, пустой `GIT_ASKPASS`, `GCM_INTERACTIVE=never`, `SSH_ASKPASS_REQUIRE=never`, SSH в `BatchMode`, если пользователь не задал свою команду. В журнал Output не попадает, ошибка — в лог и отказом (R-353) | M3 |
 | `pull_probe` | `root` | `Option<bool>`: `true` — вершина upstream-ветки HEAD на сервере (`git ls-remote --heads`, без записи) не содержится в HEAD; `null` — нет upstream или ветки на сервере; ошибка — «неизвестно», в лог (R-354) | M3 |
 | `open_submodule` | `owner: RepoId`, `key` — путь узла от владельца дерева | `RepoSummary`; отказ — `GitError::ModuleUnavailable(ModuleProblem)` | M3 |
@@ -722,7 +723,7 @@ expanded }` — какие из
 
 | Событие | Payload | Когда |
 |---|---|---|
-| `repo-changed` | `{ repo: RepoId, kind: ChangeKind }` | `fs_watcher` заметил изменение |
+| `repo-changed` | `{ repo: RepoId, kind: ChangeKind }` | `fs_watcher` заметил изменение — только в репозитории, который показывают панели (`show_repository`, R-351) |
 | `command-recorded` | `CommandNotice` | Команда git записана в журнал — для панели Output и уведомлений |
 | `avatar-ready` | `{ email: String }` | Картинка автора скачана |
 | `merge-resolved` | `{ repo: RepoId, path: String, … }` | Окно 3-way merge сохранило разрешение |
