@@ -19,6 +19,7 @@
     isPublished,
     mergeInto,
     popupContextMenu,
+    protectingRefs,
     rebaseOnto,
     rebaseTodo,
     renameBranch,
@@ -148,10 +149,11 @@
     oid: string,
     withPublished: boolean,
   ): Promise<{ details: CommitDetails; facts: CommitFacts }> {
-    const [details, onHead, published] = await Promise.all([
+    const [details, onHead, published, protectedBy] = await Promise.all([
       commitDetails(id, oid),
       isAncestor(id, oid, "HEAD").catch(() => false),
       withPublished ? publishedOrAssume(isPublished(id, oid)) : Promise.resolve(false),
+      withPublished ? protectingRefs(id, oid).catch(() => [] as string[]) : Promise.resolve([] as string[]),
     ]);
     const summary = repository.current;
     const facts = commitFacts({
@@ -162,6 +164,7 @@
       onHead,
       published,
       hasRemote: network.remotes.length > 0,
+      protectedBy,
     });
     return { details, facts };
   }

@@ -152,6 +152,17 @@ describe("graphCommitMenu (#38)", () => {
     expect(find(graphCommitMenu({ ...older, detachedHere: true }), "Check Out").enabled).toBe(false);
     expect(find(graphCommitMenu(older), "Check Out").enabled).toBe(true);
   });
+
+  // Split on a commit already on origin/main went through "Split a Pushed Commit" and the
+  // dialog, and only then did the backend refuse it; the palette said why from the start.
+  it("disables Split of a commit a protected branch already has, naming the branch", () => {
+    for (const menu of [graphCommitMenu({ ...pushed, protectedBy: ["origin/main"] }), graphRefMenu(branch, { ...pushed, protectedBy: ["origin/main"] })]) {
+      const split = find(menu, "Split");
+      expect(split.enabled).toBe(false);
+      expect(split.label).toBe("Split (already on origin/main)");
+    }
+    expect(find(graphCommitMenu({ ...pushed, protectedBy: [] }), "Split").enabled).toBe(true);
+  });
 });
 
 describe("graphRefMenu (#39)", () => {
@@ -388,6 +399,12 @@ describe("commitFacts", () => {
     const facts = commitFacts({ ...base, oid: "h", head: { kind: "detached", oid: "h" } });
     expect(facts.detachedHere).toBe(true);
     expect(facts.upstream).toBeNull();
+  });
+
+  it("carries the protected branches that already have the commit", () => {
+    const head = { kind: "branch", name: "main", oid: "h" } as const;
+    expect(commitFacts({ ...base, oid: "x", head, protectedBy: ["origin/main"] }).protectedBy).toEqual(["origin/main"]);
+    expect(commitFacts({ ...base, oid: "x", head }).protectedBy).toEqual([]);
   });
 
   it("has no HEAD commit in an unborn repository", () => {
