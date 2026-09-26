@@ -12,7 +12,8 @@ import {
 } from "$lib/ipc";
 import { notices } from "$stores/notices.svelte";
 
-type Running = { id: number; repo: RepoId; label: string; progress: string | null };
+/** `repo` is `null` for a clone: the repository does not exist until it ends. */
+type Running = { id: number; repo: RepoId | null; label: string; progress: string | null };
 
 class NetworkStore {
   remotes = $state.raw<string[]>([]);
@@ -100,11 +101,11 @@ class NetworkStore {
     await this.run(repo, "Pushing", (onLine) => pushRemote(repo, remote, force, onLine));
   }
 
-  async run(
-    repo: RepoId,
+  async run<T>(
+    repo: RepoId | null,
     label: string,
-    operation: (onLine: (line: string) => void) => Promise<unknown>,
-  ): Promise<void> {
+    operation: (onLine: (line: string) => void) => Promise<T>,
+  ): Promise<T> {
     const id = ++this.#started;
     this.#running = [...this.#running, { id, repo, label, progress: null }];
     // After `clear()` the operation is no longer listed, and its lines go nowhere.
@@ -113,18 +114,19 @@ class NetworkStore {
       this.#running = this.#running.map((entry) => (entry.id === id ? { ...entry, progress: line } : entry));
     };
     try {
-      await operation(onLine);
+      return await operation(onLine);
     } finally {
       this.#running = this.#running.filter((entry) => entry.id !== id);
     }
   }
 
+  /** A clone stays: it belongs to none of the repositories the panels leave. */
   clear(): void {
     this.#generation += 1;
     this.remotes = [];
     this.url = null;
     this.tokenStored = false;
-    this.#running = [];
+    this.#running = this.#running.filter((entry) => entry.repo === null);
   }
 }
 

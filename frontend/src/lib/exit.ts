@@ -120,10 +120,11 @@ const KIND_TITLES: Record<OperationKind, string> = {
   worktree: "Worktree",
   submodule: "Submodule",
   undo: "Undo",
+  clone: "Clone",
   other: "Operation",
 };
 
-const NETWORK: ReadonlySet<OperationKind> = new Set(["fetch", "pull", "push"]);
+const NETWORK: ReadonlySet<OperationKind> = new Set(["fetch", "pull", "push", "clone"]);
 
 /** `Push · SignalGenerator200 · 45%`: kind, repository, and how far it got if git said. */
 export function exitRows(
@@ -142,10 +143,10 @@ export function exitRows(
 
 function stateOf(operation: Operation, network: NetworkLine): string {
   if (operation.phase !== "running") return "waiting";
+  // A clone has no repository yet, and neither has its line.
   const own =
     NETWORK.has(operation.kind) &&
-    operation.repo !== null &&
-    network.repo?.valueOf() === operation.repo.valueOf();
+    (operation.repo?.valueOf() ?? null) === (network.repo?.valueOf() ?? null);
   const percent = own ? progressPercent(network.line) : undefined;
   return percent === undefined ? "running" : `${percent}%`;
 }

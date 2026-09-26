@@ -3,6 +3,7 @@ use git_engine::GitError;
 
 pub mod avatars;
 pub mod branches;
+pub mod clone;
 pub mod conflicts;
 pub mod desktop;
 pub mod file_ops;

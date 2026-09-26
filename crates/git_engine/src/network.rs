@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 /// How long git may say nothing before a network command is stopped: a server that took
 /// the connection and went quiet, ssh over a dropped VPN. Long enough for a sign-in in the
 /// browser (Git Credential Manager) and for a pre-push hook between two lines of output.
-const SILENCE: Duration = Duration::from_secs(300);
+pub(crate) const SILENCE: Duration = Duration::from_secs(300);
 
 /// Asks a running fetch, pull or push to stop: its git process tree is ended and the
 /// command fails with `GitError::Cancelled` (03 §3 п.6).
@@ -290,7 +290,31 @@ impl RepoHandle {
         on_line: impl FnMut(&str),
         silence: Duration,
     ) -> Result<()> {
-        let out = self.stream_git(args, on_line, silence)?;
+        let to = Streamed {
+            root: self.root(),
+            stop: self.stop.as_ref(),
+            journal: self.journal(),
+        };
+        to.run(self.base_git(args), args, on_line, silence)
+    }
+}
+
+/// Where a streamed run is filed and what can end it: a clone has no repository yet.
+pub(crate) struct Streamed<'a> {
+    pub root: &'a std::path::Path,
+    pub stop: Option<&'a NetworkStop>,
+    pub journal: Option<&'a crate::CommandSink>,
+}
+
+impl Streamed<'_> {
+    pub(crate) fn run(
+        &self,
+        process: std::process::Command,
+        args: &[&str],
+        on_line: impl FnMut(&str),
+        silence: Duration,
+    ) -> Result<()> {
+        let out = self.stream_git(process, args, on_line, silence)?;
         if out.exit_code == Some(0) {
             return Ok(());
         }
@@ -305,6 +329,7 @@ impl RepoHandle {
     /// Delivered as it appears, not after the process exits.
     fn stream_git(
         &self,
+        mut process: std::process::Command,
         args: &[&str],
         mut on_line: impl FnMut(&str),
         silence: Duration,
@@ -316,12 +341,9 @@ impl RepoHandle {
         let started = Instant::now();
         tracing::info!(command = %command, "running git");
 
-        let (mut child, _tracked) = crate::children::spawn(
-            self.base_git(args)
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped()),
-        )?;
-        if let Some(stop) = &self.stop {
+        let (mut child, _tracked) =
+            crate::children::spawn(process.stdout(Stdio::piped()).stderr(Stdio::piped()))?;
+        if let Some(stop) = self.stop {
             stop.hold(child.id());
         }
 
@@ -359,7 +381,7 @@ impl RepoHandle {
         // Before `wait`: an unreaped child keeps its pid, so the watchdog cannot hit another.
         drop(finished);
         let stopped = watchdog.join().unwrap_or(false);
-        if let Some(stop) = &self.stop {
+        if let Some(stop) = self.stop {
             stop.release();
         }
 
@@ -371,7 +393,7 @@ impl RepoHandle {
 
         let duration_ms = crate::runner::elapsed_ms(started);
         let mut result = GitOutput::record(
-            self.root(),
+            self.root,
             command,
             status.code(),
             &stdout,
@@ -388,14 +410,14 @@ impl RepoHandle {
             );
             tracing::warn!(command = %result.command, silence_s = silence.as_secs(), "stopped a silent network command");
         }
-        self.journal_entry(result.clone());
+        if let Some(sink) = self.journal {
+            sink(result.clone());
+        }
         Ok(result)
     }
-}
 
-impl RepoHandle {
     fn cancelled(&self) -> bool {
-        self.stop.as_ref().is_some_and(NetworkStop::is_stopped)
+        self.stop.is_some_and(NetworkStop::is_stopped)
     }
 }
 

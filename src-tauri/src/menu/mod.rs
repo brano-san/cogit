@@ -20,6 +20,7 @@ const EDIT_CONFIG: &[Entry] = &[
 
 const REPOSITORY: &[Entry] = &[
     Entry::Item("open", "Open Repository…", Some("CmdOrCtrl+O")),
+    Entry::Item("clone", "Clone…", None),
     Entry::Item("scan", "Scan Folder for Repositories…", None),
     Entry::Item("close", "Close Repository", Some("CmdOrCtrl+W")),
     Entry::Separator,
@@ -708,6 +709,20 @@ mod nested_tests {
             .find(|row| row.id == "edit-config-user")
             .expect("listed");
         assert_eq!(row.section, "Repository");
+    }
+
+    /// SmartGit's place for it: Repository ▸ Clone…, beside Open.
+    #[test]
+    fn clone_follows_open_in_the_repository_menu() {
+        let ids: Vec<&str> = leaves(REPOSITORY)
+            .into_iter()
+            .filter_map(|entry| match entry {
+                Entry::Item(id, ..) => Some(*id),
+                _ => None,
+            })
+            .collect();
+        let open = ids.iter().position(|id| *id == "open").expect("Open");
+        assert_eq!(ids.get(open + 1), Some(&"clone"), "{ids:?}");
     }
 }
 
