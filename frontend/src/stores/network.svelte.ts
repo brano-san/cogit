@@ -10,6 +10,7 @@ import {
   storeToken,
   type RepoId,
 } from "$lib/ipc";
+import { notices } from "$stores/notices.svelte";
 
 type Running = { id: number; repo: RepoId; label: string; progress: string | null };
 
@@ -62,17 +63,28 @@ class NetworkStore {
     if (generation === this.#generation) this.tokenStored = stored;
   }
 
+  /** A keychain that refuses is reported; the page keeps saying what is stored. */
   async storeToken(token: string): Promise<void> {
     const host = this.tokenHost;
     if (host === null) return;
-    await storeToken(host, token);
+    try {
+      await storeToken(host, token);
+    } catch (err) {
+      notices.report(err, "Could not store the token");
+      return;
+    }
     this.tokenStored = true;
   }
 
   async forgetToken(): Promise<void> {
     const host = this.tokenHost;
     if (host === null) return;
-    await forgetToken(host);
+    try {
+      await forgetToken(host);
+    } catch (err) {
+      notices.report(err, "Could not forget the token");
+      return;
+    }
     this.tokenStored = false;
   }
 
