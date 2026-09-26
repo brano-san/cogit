@@ -77,7 +77,7 @@ export const commands = {
 	checkout: (repo: RepoId, target: CheckoutTarget) => typedError<null, GitError>(__TAURI_INVOKE("checkout", { repo, target })),
 	createBranch: (repo: RepoId, name: string, start: string | null, switchTo: boolean) => typedError<null, GitError>(__TAURI_INVOKE("create_branch", { repo, name, start, switchTo })),
 	deleteBranch: (repo: RepoId, name: string, force: boolean) => typedError<null, GitError>(__TAURI_INVOKE("delete_branch", { repo, name, force })),
-	/**  Off the main thread: the whole journal can be a hundred megabyte-sized entries. */
+	/**  In the blocking pool: the whole journal can be a hundred megabyte-sized entries. */
 	commandLog: () => __TAURI_INVOKE<GitOutput[]>("command_log"),
 	/**  One entry in full. The notice that opened the window carried only its summary. */
 	commandOutcome: (id: number) => __TAURI_INVOKE<{
