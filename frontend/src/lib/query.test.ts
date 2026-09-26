@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { formatQuery, isEmptyQuery, parseQuery } from "./query";
 
 describe("parseQuery", () => {
@@ -31,13 +31,13 @@ describe("parseQuery", () => {
     });
   });
 
-  it("parses a date into unix seconds at the start of that day, in UTC", () => {
-    expect(parseQuery("since:2026-01-01").since).toBe(Date.UTC(2026, 0, 1) / 1000);
+  it("parses a date into unix seconds at the start of that day, in the user's time zone", () => {
+    expect(parseQuery("since:2026-01-01").since).toBe(new Date(2026, 0, 1).getTime() / 1000);
   });
 
   it("makes until inclusive to the end of that day", () => {
     const query = parseQuery("until:2026-01-01");
-    expect(query.until).toBe(Date.UTC(2026, 0, 2) / 1000 - 1);
+    expect(query.until).toBe(new Date(2026, 0, 2).getTime() / 1000 - 1);
   });
 
   it("ignores a date it cannot parse rather than filtering everything out", () => {
@@ -58,6 +58,32 @@ describe("parseQuery", () => {
 
   it("does not treat a bare colon as a field", () => {
     expect(parseQuery("fix: crash").message).toBe("fix: crash");
+  });
+});
+
+// The graph shows a commit's date in its own zone; a UTC midnight hid the first hours of
+// the user's day from since: and added them to until:.
+describe("dates east of Greenwich", () => {
+  const zone = process.env.TZ;
+  beforeAll(() => {
+    process.env.TZ = "Europe/Moscow";
+  });
+  afterAll(() => {
+    if (zone === undefined) delete process.env.TZ;
+    else process.env.TZ = zone;
+  });
+
+  // 2026-01-01 01:30 in Moscow, 2025-12-31 22:30 in UTC.
+  const commit = Date.UTC(2025, 11, 31, 22, 30) / 1000;
+
+  it("keep a commit made in the first hours of the day since it", () => {
+    expect(parseQuery("since:2026-01-01").since).toBeLessThanOrEqual(commit);
+    expect(parseQuery("until:2025-12-31").until).toBeLessThan(commit);
+  });
+
+  it("read back as the days typed", () => {
+    const text = "since:2026-01-01 until:2026-01-31";
+    expect(formatQuery(parseQuery(text))).toBe(text);
   });
 });
 

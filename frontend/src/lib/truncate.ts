@@ -4,24 +4,28 @@
     in the middle, here. */
 const ELLIPSIS = "…";
 
-/** How long a ref label in the graph may be before its middle goes. */
+/** How many characters of the monospace font a ref label in the graph may take before its
+    middle goes: a width in CSS, so it is cut once, where the row squeezes it too. */
 export const REF_LABEL_MAX = 30;
+
+/** Cuts count characters, not UTF-16 units: half an emoji on each side of a cut draws as
+    two replacement marks. */
+function length(text: string): number {
+  return /[\uD800-\uDFFF]/.test(text) ? Array.from(text).length : text.length;
+}
 
 function charCut(text: string, max: number): string {
   if (max <= 0) return "";
+  const chars = Array.from(text);
   const room = max - 1;
   const head = Math.floor(room / 2);
   const tail = room - head;
-  return text.slice(0, head) + ELLIPSIS + (tail > 0 ? text.slice(-tail) : "");
+  return chars.slice(0, head).join("") + ELLIPSIS + (tail > 0 ? chars.slice(-tail).join("") : "");
 }
 
 /** `feature/14340…new_toolchain`: the start and the end that tells branches apart. */
 export function truncateMiddle(text: string, max: number): string {
-  return text.length <= max ? text : charCut(text, max);
-}
-
-export function refLabelText(text: string): string {
-  return truncateMiddle(text, REF_LABEL_MAX);
+  return length(text) <= max ? text : charCut(text, max);
 }
 
 /** The tail a squeezed ref label keeps whole; the lead gives way with an ellipsis in CSS,
@@ -29,13 +33,15 @@ export function refLabelText(text: string): string {
 const LABEL_TAIL = 10;
 
 export function middleCut(text: string): { lead: string; tail: string } {
-  const tail = Math.min(LABEL_TAIL, Math.floor(text.length / 2));
-  return { lead: text.slice(0, text.length - tail), tail: text.slice(text.length - tail) };
+  const chars = Array.from(text);
+  const tail = Math.min(LABEL_TAIL, Math.floor(chars.length / 2));
+  const at = chars.length - tail;
+  return { lead: chars.slice(0, at).join(""), tail: chars.slice(at).join("") };
 }
 
 /** `C:\Users\brano\…\logs\cogit.log`: whole folders dropped from the middle to fit `max`. */
 export function truncatePath(path: string, max: number): string {
-  if (path.length <= max) return path;
+  if (length(path) <= max) return path;
   const sep = path.includes("\\") ? "\\" : "/";
   const root = path.match(sep === "\\" ? /^\\+/ : /^\/+/)?.[0] ?? "";
   const parts = path.slice(root.length).split(sep);
@@ -44,7 +50,7 @@ export function truncatePath(path: string, max: number): string {
   const tail: string[] = [parts[parts.length - 1]!];
   const render = () =>
     root + (head.length > 0 ? head.join(sep) + sep : "") + ELLIPSIS + sep + tail.join(sep);
-  if (render().length > max) return charCut(path, max);
+  if (length(render()) > max) return charCut(path, max);
 
   let growing = true;
   while (growing) {
@@ -53,7 +59,7 @@ export function truncatePath(path: string, max: number): string {
       if (head.length + tail.length >= parts.length - 1) return render();
       if (side === "tail") tail.unshift(parts[parts.length - 1 - tail.length]!);
       else head.push(parts[head.length]!);
-      if (render().length <= max) {
+      if (length(render()) <= max) {
         growing = true;
       } else if (side === "tail") {
         tail.shift();

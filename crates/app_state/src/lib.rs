@@ -308,7 +308,7 @@ pub struct AppState {
     queue: Queue,
     /// One graph is on screen at a time; a newer request makes the walk before it stop.
     graph_generation: AtomicU32,
-    graph: RwLock<graph_cache::GraphCache>,
+    graph: Arc<RwLock<graph_cache::GraphCache>>,
     reachable: parking_lot::Mutex<HashMap<RepoId, git_engine::Reachable>>,
     handles: handles::HandleCache,
 }
@@ -365,7 +365,7 @@ impl AppState {
             rows_read: Arc::new(AtomicU32::new(0)),
             queue: Queue::default(),
             graph_generation: AtomicU32::new(0),
-            graph: RwLock::new(graph_cache::GraphCache::default()),
+            graph: Arc::new(RwLock::new(graph_cache::GraphCache::default())),
             reachable: parking_lot::Mutex::new(HashMap::new()),
             handles: handles::HandleCache::default(),
         }

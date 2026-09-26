@@ -1,4 +1,15 @@
 import { ACTIONS, DEFAULT_LAYOUT, SEPARATOR, type ToolbarAction } from "$lib/toolbar";
+import { record, type UndoStack } from "$lib/undo-stack";
+
+/** An edit as the toolbar will keep it: one that normalising takes back is no Undo step. */
+export function recordEdit(
+  history: UndoStack<readonly string[]>,
+  before: readonly string[],
+  next: readonly string[],
+): { history: UndoStack<readonly string[]>; layout: string[] } {
+  const layout = normalizeLayout(next);
+  return { history: record(history, before, layout, sameLayout), layout };
+}
 
 /** Unknown ids and repeats dropped, separators never doubled or at an end; not a list: default. */
 export function normalizeLayout(stored: unknown): string[] {

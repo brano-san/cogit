@@ -113,7 +113,13 @@ fn trace(
             .min_by_key(|s| s.from)
             .map(|s| at(&above, s.from))
             .filter(|group| *group != NONE);
-        let node_lane = own_in.map_or_else(&mut fresh, |group| trace.lane_of(group));
+        let node_lane = match own_in {
+            Some(group) => trace.lane_of(group),
+            None if !row.primary => {
+                across_cut(row, r, parents, row_of, &stubs).unwrap_or_else(&mut fresh)
+            }
+            None => fresh(),
+        };
         trace.node_lane.push(node_lane);
 
         let ends = |i: usize| {
@@ -207,6 +213,30 @@ fn trace(
     }
     trace.segment_first.push(index(trace.segment_group.len()));
     trace
+}
+
+/// The lane of the stub above `row` from a child whose first-parent link to it was cut:
+/// the branch goes on across the cut as if the line were whole (07 §5). The child is the
+/// one that stub is traced from.
+fn across_cut(
+    row: &GraphRow,
+    r: u32,
+    parents: &[Vec<Option<u32>>],
+    row_of: &dyn Fn(&str) -> Option<u32>,
+    stubs: &HashMap<(u32, u32), u32>,
+) -> Option<u32> {
+    row.segments
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| s.arrow && s.span == Span::Top)
+        .find_map(|(i, _)| {
+            row.links
+                .iter()
+                .filter(|link| usize::from(link.segment) == i)
+                .filter_map(|link| row_of(&link.oid))
+                .find(|child| first_parent(parents, *child) == Some(r))
+                .and_then(|child| stubs.get(&(child, r)).copied())
+        })
 }
 
 fn first_parent(parents: &[Vec<Option<u32>>], row: u32) -> Option<u32> {

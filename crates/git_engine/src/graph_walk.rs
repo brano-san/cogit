@@ -2,67 +2,37 @@
 //! out in the same order, so a walk can take what the last one read instead of reading the
 //! objects again and still lay out exactly what a fresh walk would (R-301).
 
-use crate::{CommitRow, RepoHandle};
+use crate::RepoHandle;
 use gix::ObjectId;
 use std::collections::{BinaryHeap, HashMap, HashSet};
 
-/// What a walk listed of each commit: its row, commit time and every parent.
+/// What a walk listed of each commit: its commit time and every parent.
 #[derive(Debug, Default, Clone)]
 pub struct WalkedHistory {
-    index: HashMap<ObjectId, (u32, i64, Vec<ObjectId>)>,
+    index: HashMap<ObjectId, (i64, Vec<ObjectId>)>,
 }
 
 impl WalkedHistory {
-    /// From the rows of a finished walk; a row whose ids do not parse is left out.
-    pub fn from_rows<'a>(rows: impl IntoIterator<Item = &'a CommitRow>) -> Self {
-        let mut history = Self::default();
-        for (at, row) in rows.into_iter().enumerate() {
-            let Ok(id) = ObjectId::from_hex(row.oid.as_bytes()) else {
-                continue;
-            };
-            let parents: Option<Vec<ObjectId>> = row
-                .parents
-                .iter()
-                .map(|parent| ObjectId::from_hex(parent.as_bytes()).ok())
-                .collect();
-            if let Some(parents) = parents {
-                let at = u32::try_from(at).unwrap_or(u32::MAX);
-                history.push(id, at, row.timestamp, parents);
-            }
-        }
-        history
-    }
-
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.index.len()
-    }
-
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.index.is_empty()
-    }
-
     /// Roughly what it holds, for a cache that counts bytes.
     #[must_use]
     pub fn bytes(&self) -> usize {
         self.index
             .values()
-            .map(|(_, _, parents)| {
-                size_of::<(ObjectId, (u32, i64, Vec<ObjectId>))>()
+            .map(|(_, parents)| {
+                size_of::<(ObjectId, (i64, Vec<ObjectId>))>()
                     + size_of::<ObjectId>() * parents.len()
                     + 8
             })
             .sum()
     }
 
-    pub(crate) fn push(&mut self, id: ObjectId, at: u32, time: i64, parents: Vec<ObjectId>) {
-        self.index.insert(id, (at, time, parents));
+    pub(crate) fn push(&mut self, id: ObjectId, time: i64, parents: Vec<ObjectId>) {
+        self.index.insert(id, (time, parents));
     }
 
-    fn get(&self, id: &ObjectId) -> Option<(u32, i64, &[ObjectId])> {
-        let (at, time, parents) = self.index.get(id)?;
-        Some((*at, *time, parents))
+    fn get(&self, id: &ObjectId) -> Option<(i64, &[ObjectId])> {
+        let (time, parents) = self.index.get(id)?;
+        Some((*time, parents))
     }
 }
 
@@ -99,7 +69,7 @@ impl Reuse<'_> {
     pub(crate) fn read(&self, id: &ObjectId) -> Option<(i64, Vec<ObjectId>)> {
         self.history
             .get(id)
-            .map(|(_, time, parents)| (time, parents.to_vec()))
+            .map(|(time, parents)| (time, parents.to_vec()))
     }
 }
 
@@ -139,6 +109,8 @@ pub(crate) struct ByTime<F> {
     first_parent: bool,
     /// Sorted. Their parents are not in a shallow clone.
     shallow: Vec<ObjectId>,
+    /// Sorted. Commits whose first parent alone is followed, whatever `first_parent` says.
+    single: Vec<ObjectId>,
 }
 
 impl<F> ByTime<F>
@@ -157,11 +129,18 @@ where
             read,
             first_parent,
             shallow,
+            single: Vec::new(),
         };
         for tip in tips {
             walk.push(tip);
         }
         walk
+    }
+
+    /// Follows only the first parent of `ids`, which has to be sorted.
+    pub(crate) fn first_parent_of(mut self, ids: Vec<ObjectId>) -> Self {
+        self.single = ids;
+        self
     }
 
     fn push(&mut self, id: ObjectId) {
@@ -183,7 +162,12 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         let Queued { id, parents, time } = self.queue.pop()?;
         if self.shallow.binary_search(&id).is_err() {
-            let follow = if self.first_parent { 1 } else { parents.len() };
+            let single = !self.single.is_empty() && self.single.binary_search(&id).is_ok();
+            let follow = if self.first_parent || single {
+                1
+            } else {
+                parents.len()
+            };
             for parent in parents.iter().take(follow) {
                 self.push(*parent);
             }
@@ -305,6 +289,21 @@ mod tests {
     #[test]
     fn first_parents_only_leave_the_merged_side_out() {
         assert_eq!(walk(MERGED, &[5], true, &[]), [5, 2, 1]);
+    }
+
+    #[test]
+    fn a_commit_asked_to_follows_its_first_parent_only() {
+        let by_id: HashMap<ObjectId, (i64, Vec<ObjectId>)> = MERGED
+            .iter()
+            .map(|(n, time, parents)| (id(*n), (*time, parents.iter().map(|p| id(*p)).collect())))
+            .collect();
+        let back: HashMap<ObjectId, u8> = MERGED.iter().map(|(n, ..)| (id(*n), *n)).collect();
+        let walked: Vec<u8> =
+            ByTime::new([id(5)], |oid| by_id.get(&oid).cloned(), false, Vec::new())
+                .first_parent_of(vec![id(5)])
+                .map(|(oid, ..)| back[&oid])
+                .collect();
+        assert_eq!(walked, [5, 2, 1]);
     }
 
     #[test]

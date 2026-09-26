@@ -294,3 +294,132 @@ fn a_rebuilt_graph_keeps_the_texts_read_for_the_last_one() {
     assert!(state.graph_texts_read(ra) >= 300);
     assert!(texts_reach(&state, ra, 301));
 }
+
+/// Whether graph `generation` of `repo` leaves the cache within a while.
+fn evicted_soon(state: &AppState, repo: RepoId, generation: u32) -> bool {
+    let until = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    while std::time::Instant::now() < until {
+        if state.graph_window(repo, generation, 0, 1).is_none() {
+            return true;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    false
+}
+
+/// Texts read ahead count toward the budget (R-303), though they come after the walk that
+/// last trimmed the cache.
+#[test]
+fn texts_read_ahead_push_an_older_graph_out_of_a_full_cache() {
+    let a = test_fixtures::linear(300).unwrap();
+    let b = test_fixtures::linear(300).unwrap();
+    let state = AppState::new();
+    let ra = state.open_repository(a.path()).unwrap().repo;
+    let rb = state.open_repository(b.path()).unwrap().repo;
+    let (shown_a, _) = build(&state, ra);
+    assert!(texts_reach(&state, ra, 300));
+    let whole = state.graph_footprint(ra);
+
+    // Room for A and B's rows, not for B's texts as well.
+    state.set_graph_cache_budget(2 * whole - 1);
+    build(&state, rb);
+    assert!(
+        state.graph_window(ra, shown_a, 0, 1).is_some(),
+        "B's rows alone fit beside A"
+    );
+    assert!(texts_reach(&state, rb, 300));
+
+    assert!(evicted_soon(&state, ra, shown_a));
+}
+
+/// Switching back is answered from the cache, and a cache over its budget is trimmed then.
+#[test]
+fn a_graph_answered_from_the_cache_trims_the_cache_too() {
+    let a = test_fixtures::linear(300).unwrap();
+    let b = test_fixtures::linear(300).unwrap();
+    let state = AppState::new();
+    let ra = state.open_repository(a.path()).unwrap().repo;
+    let rb = state.open_repository(b.path()).unwrap().repo;
+    build(&state, ra);
+    assert!(texts_reach(&state, ra, 300));
+    let (shown_b, _) = build(&state, rb);
+    assert!(texts_reach(&state, rb, 300));
+
+    state.set_graph_cache_budget(state.graph_footprint(ra) + state.graph_footprint(rb) - 1);
+    let (_, progress) = build(&state, ra);
+
+    assert_eq!(totals(&progress), [300], "from the cache");
+    assert!(state.graph_window(rb, shown_b, 0, 1).is_none());
+}
+
+/// Clearing a search goes back to the graph shown before it, with every text read for it:
+/// the filtered list does not push that graph out of the cache (R-300, R-303).
+#[test]
+fn clearing_a_filter_answers_from_the_graph_shown_before_it() {
+    let a = test_fixtures::linear(300).unwrap();
+    let state = AppState::new();
+    let ra = state.open_repository(a.path()).unwrap().repo;
+    build(&state, ra);
+    assert!(texts_reach(&state, ra, 300));
+    let query = CommitQuery {
+        message: Some("commit 1".to_owned()),
+        ..CommitQuery::default()
+    };
+    build_with(&state, ra, &query);
+
+    let (generation, progress) = build(&state, ra);
+
+    assert_eq!(totals(&progress), [300], "one message, from the cache");
+    assert_eq!(state.graph_texts_read(ra), 300);
+    assert_eq!(summaries(&state, ra, generation).len(), 100);
+}
+
+/// A commit made meanwhile walks the graph again, but the texts read before the search stay.
+#[test]
+fn clearing_a_filter_after_a_commit_keeps_the_texts_read() {
+    let a = test_fixtures::linear(300).unwrap();
+    let state = AppState::new();
+    let ra = state.open_repository(a.path()).unwrap().repo;
+    build(&state, ra);
+    assert!(texts_reach(&state, ra, 300));
+    let query = CommitQuery {
+        message: Some("commit 1".to_owned()),
+        ..CommitQuery::default()
+    };
+    build_with(&state, ra, &query);
+    a.commit_file(400, "new.txt", "new\n").unwrap();
+
+    let (_, progress) = build(&state, ra);
+
+    assert_eq!(progress.last().unwrap().total, 301);
+    assert!(state.graph_texts_read(ra) >= 300);
+}
+
+/// A ticked stash is one row with one line down, as SmartGit draws it (F-331): the commits
+/// `git stash` keeps the index and the untracked files in are not history.
+#[test]
+fn a_ticked_stash_is_one_row_without_its_index_and_untracked_commits() {
+    let a = test_fixtures::linear(2).unwrap();
+    a.write_file("file0.txt", "changed\n").unwrap();
+    a.write_file("new.txt", "untracked\n").unwrap();
+    a.git(&["stash", "push", "--include-untracked", "--message", "wip"])
+        .unwrap();
+    let state = AppState::new();
+    let ra = state.open_repository(a.path()).unwrap().repo;
+    let query = CommitQuery {
+        visible_refs: Some(vec!["HEAD".to_owned(), "stash@{0}".to_owned()]),
+        ..CommitQuery::default()
+    };
+
+    let (generation, _) = build_with(&state, ra, &query);
+
+    let window = state.graph_window(ra, generation, 0, 100).unwrap();
+    let shown: Vec<&str> = window.commits.iter().map(|c| c.summary.as_str()).collect();
+    assert_eq!(shown.len(), 3, "the stash and the two commits: {shown:?}");
+    let stash = window
+        .commits
+        .iter()
+        .find(|c| c.summary == "On main: wip")
+        .unwrap();
+    assert_eq!(stash.parents, [a.oid("HEAD").unwrap()]);
+}
