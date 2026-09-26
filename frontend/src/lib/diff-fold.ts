@@ -200,6 +200,28 @@ export function revealRange(gap: Gap, how: "up" | "down" | "all"): LineRange {
   return { from: gap.oldFrom, to: gap.oldTo };
 }
 
+/**
+ * The rows to highlight. All the loaded ones while each side fits under `max`, parsed as
+ * one text so a comment opened above a fold still colours the lines under it. Past that —
+ * the whole file, once a fold asked for it — only the rows on show: the parser gives up on
+ * a side over `max`, and the whole diff went grey the moment a band was opened. `shown`
+ * is asked only then, so opening a band in a small file does not parse it again.
+ */
+export function highlightedRows(
+  hunks: readonly Hunk[],
+  shown: () => readonly FoldEntry[],
+  max: number,
+): DiffRow[] {
+  let old = 0;
+  let next = 0;
+  for (const hunk of hunks) {
+    old += hunk.oldLines;
+    next += hunk.newLines;
+  }
+  if (old <= max && next <= max) return hunks.flatMap((hunk) => hunk.rows);
+  return shown().flatMap((entry) => (entry.kind === "row" ? [entry.row] : []));
+}
+
 /** Side by side pairs each block on its own; a gap spans both halves. */
 export function splitRows(entries: readonly FoldEntry[]): SplitEntry[] {
   const out: SplitEntry[] = [];
