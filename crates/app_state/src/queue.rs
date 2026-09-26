@@ -225,10 +225,12 @@ impl OperationPermit<'_> {
         self.settled = true;
         self.operation.phase = OperationPhase::Done;
         self.operation.success = Some(success);
-        self.state.emit(AppEvent::Operation(self.operation.clone()));
+        // Released first: whoever hears `Done` asks the queue what is left, and the
+        // session-end reason was kept for an operation already over (R-168).
         if let Some(repo) = self.operation.repo {
             self.state.queue.release(repo);
         }
+        self.state.emit(AppEvent::Operation(self.operation.clone()));
     }
 }
 
