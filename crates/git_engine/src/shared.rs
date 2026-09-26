@@ -8,9 +8,10 @@ use std::time::SystemTime;
 ///
 /// What the snapshot does not follow by itself is the config, so every file it was read
 /// from (and the repository's own, even if absent) is stamped; [`SharedRepo::is_current`]
-/// says whether one changed. Refs, HEAD, the index and new objects are read from disk as
-/// they are asked for. Nothing stays mapped between calls: Windows refuses to replace or
-/// delete a mapped file, and `git` rewrites `packed-refs` and deletes packs.
+/// says whether one changed. Refs, HEAD and new objects are read from disk as they are
+/// asked for; the index through [`RepoHandle::current_index`]. Nothing stays mapped between
+/// calls: Windows refuses to replace or delete a mapped file, and `git` rewrites
+/// `packed-refs` and deletes packs.
 pub struct SharedRepo {
     template: gix::ThreadSafeRepository,
     stamps: Vec<(PathBuf, Option<Stamp>)>,
@@ -81,6 +82,56 @@ impl SharedRepo {
         sync.objects = gix::features::threading::OwnShared::new(store);
         Ok(RepoHandle::from_repo(sync.to_thread_local()))
     }
+}
+
+impl RepoHandle {
+    /// The index as it is on disk now. gix rereads the snapshot every handle of a
+    /// `SharedRepo` shares only on a strictly newer mtime, so two writes within one tick of
+    /// the file system's clock left it at the first (R-481). The checksum git writes at the
+    /// end of the file tells; `index.skipHash` writes zeros, and then it is read anew.
+    pub(crate) fn current_index(&self) -> Result<gix::worktree::IndexPersistedOrInMemory> {
+        let snapshot = self
+            .repo
+            .index_or_empty()
+            .map_err(|err| GitError::Internal(format!("cannot read the index: {err}")))?;
+        let current = match snapshot.checksum() {
+            None => true,
+            Some(sum) if sum.is_null() => false,
+            Some(sum) => trailer(self.repo.index_path(), sum.as_slice().len())
+                .is_some_and(|on_disk| on_disk == sum.as_slice()),
+        };
+        if current {
+            return Ok(snapshot.into());
+        }
+        match self.repo.open_index() {
+            Ok(fresh) => Ok(fresh.into()),
+            Err(err) => {
+                tracing::error!(error = ?err, context = "rereading the index, the shared snapshot is used");
+                Ok(snapshot.into())
+            }
+        }
+    }
+
+    /// `repo.status()` against [`RepoHandle::current_index`].
+    pub(crate) fn status_platform(
+        &self,
+    ) -> Result<gix::status::Platform<'_, gix::progress::Discard>> {
+        Ok(self
+            .repo
+            .status(gix::progress::Discard)
+            .map_err(|err| GitError::Internal(format!("cannot start status: {err}")))?
+            .index(self.current_index()?))
+    }
+}
+
+fn trailer(path: PathBuf, len: usize) -> Option<Vec<u8>> {
+    use std::io::{Read as _, Seek as _};
+    let mut file = std::fs::File::open(path).ok()?;
+    file.seek(std::io::SeekFrom::End(-i64::try_from(len).ok()?))
+        .ok()?;
+    let mut bytes = vec![0; len];
+    file.read_exact(&mut bytes).ok()?;
+    Some(bytes)
 }
 
 /// Every file the config came from, plus the repository's own two in case they appear.

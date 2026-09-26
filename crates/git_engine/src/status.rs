@@ -100,9 +100,7 @@ impl RepoHandle {
     }
 
     fn status_items(&self) -> Result<gix::status::Iter> {
-        self.repo
-            .status(gix::progress::Discard)
-            .map_err(|err| GitError::Internal(format!("cannot start status: {err}")))?
+        self.status_platform()?
             .untracked_files(UntrackedFiles::Files)
             .into_iter(None::<gix::bstr::BString>)
             .map_err(|err| GitError::Internal(format!("cannot read status: {err}")))

@@ -309,7 +309,7 @@ impl RepoHandle {
         if self.repo.git_dir().join("modules").is_dir() {
             return true;
         }
-        let Ok(index) = self.repo.index_or_empty() else {
+        let Ok(index) = self.current_index() else {
             return false;
         };
         index.entries().iter().any(|entry| {

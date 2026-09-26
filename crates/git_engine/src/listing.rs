@@ -98,10 +98,7 @@ impl RepoHandle {
         let mut paths: BTreeSet<String> = BTreeSet::new();
 
         if !self.repo.is_bare() {
-            let index = self
-                .repo
-                .index()
-                .map_err(|err| GitError::Internal(format!("cannot read the index: {err}")))?;
+            let index = self.current_index()?;
             for entry in index.entries() {
                 paths.insert(entry.path(&index).to_string());
             }
@@ -109,9 +106,7 @@ impl RepoHandle {
             // The walk is what adds files no commit has ever seen; `UntrackedFiles::Files`
             // is what keeps it from collapsing a new directory into one entry.
             let iter = self
-                .repo
-                .status(gix::progress::Discard)
-                .map_err(|err| GitError::Internal(format!("cannot start status: {err}")))?
+                .status_platform()?
                 .untracked_files(gix::status::UntrackedFiles::Files)
                 .into_iter(None::<gix::bstr::BString>)
                 .map_err(|err| GitError::Internal(format!("cannot read status: {err}")))?;
@@ -226,9 +221,7 @@ impl RepoHandle {
 
     fn untracked_files_in(&self, folders: Vec<gix::bstr::BString>) -> Result<Vec<String>> {
         let iter = self
-            .repo
-            .status(gix::progress::Discard)
-            .map_err(|err| GitError::Internal(format!("cannot start status: {err}")))?
+            .status_platform()?
             .untracked_files(gix::status::UntrackedFiles::Files)
             .into_iter(folders)
             .map_err(|err| GitError::Internal(format!("cannot read status: {err}")))?;
