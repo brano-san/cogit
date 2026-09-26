@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   actionScope,
+  scopeBlocked,
   afterDeselect,
   applyClick,
   EMPTY_SELECTION,
@@ -160,5 +161,23 @@ describe("shownMarks", () => {
   it("keeps a selection that is all on screen as it is", () => {
     const marked = select(["a.txt", "b.txt"], "b.txt");
     expect(shownMarks(marked, ORDER)).toBe(marked);
+  });
+});
+
+// A row's button acts on the marked rows it is one of, as the menu does: with a tracked
+// file marked beside an untracked one, Ignore must be off there as well.
+describe("scopeBlocked", () => {
+  const files = new Map([
+    ["new.txt", { status: "untracked" }],
+    ["old.txt", { status: "modified" }],
+  ]);
+  const ignore = (file: { status: string }) => (file.status === "untracked" ? null : "tracked");
+
+  it("asks only the row itself when it is not among the marked", () => {
+    expect(scopeBlocked(new Set(["old.txt"]), "new.txt", files, ignore)).toBeNull();
+  });
+
+  it("is off when any marked row it would act on is off", () => {
+    expect(scopeBlocked(new Set(["new.txt", "old.txt"]), "new.txt", files, ignore)).toBe("tracked");
   });
 });
