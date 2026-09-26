@@ -285,6 +285,7 @@ fn pointer_diff(
             recorded: pointer.recorded,
             previous: pointer.previous,
             checked_out: pointer.checked_out,
+            in_index: pointer.in_index,
         }),
         None => match spec {
             git_engine::DiffSpec::WorkTreeVsIndex

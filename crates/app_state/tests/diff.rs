@@ -308,8 +308,14 @@ fn a_submodule_that_is_not_checked_out_is_described_rather_than_refused() {
         .expect("a missing submodule must not be an error");
 
     match shown {
-        diff_engine::FileDiff::Submodule { recorded, .. } => {
-            assert!(!recorded.is_empty(), "the recorded pointer is the diff");
+        diff_engine::FileDiff::Submodule {
+            recorded, in_index, ..
+        } => {
+            assert!(
+                recorded.is_some_and(|oid| !oid.is_empty()),
+                "the recorded pointer is the diff"
+            );
+            assert!(in_index, "there is a gitlink to initialise");
         }
         other => panic!("expected a submodule diff, got {other:?}"),
     }
@@ -343,7 +349,7 @@ fn a_submodule_moved_in_the_working_tree_shows_both_commits() {
             previous,
             ..
         } => {
-            assert_eq!(now, moved.trim());
+            assert_eq!(now.as_deref(), Some(moved.trim()));
             assert_eq!(previous.as_deref(), Some(recorded.as_str()));
         }
         other => panic!("expected a submodule diff, got {other:?}"),
@@ -376,10 +382,55 @@ fn a_staged_submodule_pointer_shows_both_commits() {
             previous,
             ..
         } => {
-            assert_eq!(now, staged);
+            assert_eq!(now.as_deref(), Some(staged.as_str()));
             assert_eq!(previous.as_deref(), Some(recorded.as_str()));
         }
         other => panic!("expected a submodule diff, got {other:?}"),
+    }
+}
+
+/// The commit that removed a submodule records nothing on its new side. Showing the old
+/// pointer as "Now", with Initialise beside it, offered what git answers with "pathspec
+/// did not match".
+#[test]
+fn a_removed_submodule_shows_what_it_was() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let was = f.oid("HEAD:vendor/lib").unwrap();
+    f.git(&["rm", "-q", "vendor/lib"]).unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let staged = state
+        .diff_file(
+            repo,
+            &DiffSpec::IndexVsHead,
+            "vendor/lib",
+            &DiffOptions::default(),
+        )
+        .unwrap();
+    f.commit_staged(2, "remove vendor/lib").unwrap();
+    let committed = state
+        .diff_file(
+            repo,
+            &head_vs_parent(&f),
+            "vendor/lib",
+            &DiffOptions::default(),
+        )
+        .unwrap();
+
+    for shown in [staged, committed] {
+        match shown {
+            FileDiff::Submodule {
+                recorded,
+                previous,
+                in_index,
+                ..
+            } => {
+                assert_eq!(recorded, None, "nothing is recorded where it was removed");
+                assert_eq!(previous.as_deref(), Some(was.as_str()));
+                assert!(!in_index, "no gitlink is left to initialise");
+            }
+            other => panic!("expected a submodule diff, got {other:?}"),
+        }
     }
 }
 

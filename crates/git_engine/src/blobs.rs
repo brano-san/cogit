@@ -133,14 +133,15 @@ impl RepoHandle {
                 (self.checked_out_commit(path), then)
             }
         };
-        let Some(recorded) = recorded.or_else(|| previous.clone()) else {
+        if recorded.is_none() && previous.is_none() {
             return Ok(None);
-        };
+        }
 
         Ok(Some(crate::SubmodulePointer {
             checked_out: self.root().join(path).join(".git").exists()
                 || self.root().join(path).join("HEAD").exists(),
-            previous: previous.filter(|before| *before != recorded),
+            in_index: self.gitlink_in_index(path).is_some(),
+            previous: previous.filter(|before| recorded.as_ref() != Some(before)),
             recorded,
         }))
     }
