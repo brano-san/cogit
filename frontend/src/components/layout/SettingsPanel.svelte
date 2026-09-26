@@ -323,6 +323,20 @@
                   <output>{draft.contextLines}</output>
                 </span>
               </label>
+            {:else if field.key === "diffSplit"}
+              <label class="row">
+                <span>{field.label}</span>
+                <span class="slider">
+                  <input
+                    type="range"
+                    min="20"
+                    max="80"
+                    value={Math.round(draft.diffSplit * 100)}
+                    oninput={(e) => set("diffSplit", e.currentTarget.valueAsNumber / 100)}
+                  />
+                  <output>{Math.round(draft.diffSplit * 100)} %</output>
+                </span>
+              </label>
             {:else if field.key === "laneWidth"}
               <label class="row">
                 <span>{field.label}</span>
