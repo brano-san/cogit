@@ -100,20 +100,23 @@ export function paintRequest(
   return ancestryOf === null ? { tips: painted } : { tips: painted, ancestryOf };
 }
 
-/** A lane chosen by clicking its line, in the row of `oid`. */
+/** A lane chosen by clicking its line, in the row of `oid`. Lanes are numbered per walk,
+    so the number means nothing in another one. */
 export interface LanePick {
   oid: string;
   lane: number;
+  walk: string;
 }
 
-/** The lane to bring forward: the one clicked while its row stays selected, else the
-    selected commit's own. */
+/** The lane to bring forward: the one clicked while its row stays selected in the same
+    walk, else the selected commit's own. */
 export function focusLane(
   modes: GraphModes,
   selected: string | null,
   selectedLane: number | null,
   pick: LanePick | null,
+  walk: string,
 ): number | null {
   if (!modes.branchOfCommit || selected === null) return null;
-  return pick?.oid === selected ? pick.lane : selectedLane;
+  return pick?.oid === selected && pick.walk === walk ? pick.lane : selectedLane;
 }
