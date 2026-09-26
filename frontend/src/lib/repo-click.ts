@@ -28,3 +28,8 @@ export function repoClick(entry: { repo: RepoId; root: string }, state: RepoClic
   }
   return "open";
 }
+
+/** A closed row clicked while its own open is under way: the second click of a double-click. */
+export function reopenClick(root: string, opening: string | null): "stay" | "open" {
+  return same(root, opening) ? "stay" : "open";
+}

@@ -10,6 +10,21 @@ describe("a click on a submodule", () => {
       expect(moduleClick(state)).toBe("open");
     }
   });
+
+  // A second click on the submodule on screen reopened it: the selected commit and the Diff
+  // went, the graph and the worktrees were read again; a double-click to expand did it thrice.
+  it("reloads nothing for the submodule on screen", () => {
+    expect(moduleClick("inSync", { key: "lib/a", shown: "lib/a", opening: null })).toBe("stay");
+  });
+
+  it("does not start a second open while the first is under way", () => {
+    expect(moduleClick("inSync", { key: "lib/a", shown: null, opening: "lib/a" })).toBe("stay");
+  });
+
+  it("opens another submodule, and this one again once the panels moved on", () => {
+    expect(moduleClick("inSync", { key: "lib/b", shown: "lib/a", opening: null })).toBe("open");
+    expect(moduleClick("inSync", { key: "lib/a", shown: null, opening: null })).toBe("open");
+  });
 });
 
 describe("initialising a submodule", () => {
