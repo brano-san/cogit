@@ -177,7 +177,7 @@ impl Write for SessionLog {
 pub fn log_filter(level: Option<&str>) -> String {
     let chosen = level
         .filter(|value| LEVELS.contains(value))
-        .unwrap_or("debug");
+        .unwrap_or("info");
     let mut parts: Vec<String> = COGIT_CRATES
         .iter()
         .map(|krate| format!("{krate}={chosen}"))

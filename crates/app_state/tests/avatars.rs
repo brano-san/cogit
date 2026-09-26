@@ -244,3 +244,30 @@ fn turning_avatars_off_does_not_stall_the_readers() {
         "waited {waited:?}"
     );
 }
+
+// The index is written when the downloads settle, not once per picture: what they found
+// must still be on disk for the next run, without waiting for the app to close.
+#[test]
+fn what_the_downloads_found_is_on_disk_once_they_settle() {
+    let dir = tempfile::tempdir().unwrap();
+    let state = AppState::new();
+    state
+        .enable_avatars_with(dir.path().to_path_buf(), Arc::new(Always(b"png".to_vec())))
+        .unwrap();
+
+    state.avatar_window(&[
+        "ada@example.com".to_string(),
+        "42+ada@users.noreply.github.com".to_string(),
+    ]);
+    state.drain_avatars();
+
+    let next_run = avatars::Cache::open(dir.path().to_path_buf()).unwrap();
+    assert!(matches!(
+        next_run.lookup("ada@example.com"),
+        avatars::Lookup::Hit(_)
+    ));
+    assert_eq!(
+        next_run.lookup("42+ada@users.noreply.github.com"),
+        avatars::Lookup::Missing
+    );
+}

@@ -1074,6 +1074,22 @@ pub async fn close_repository(
     .await
 }
 
+/// The repository the panels show, the only one watched (R-351). Off the main thread for
+/// the same join as `close_repository`.
+#[tauri::command]
+#[specta::specta]
+pub async fn show_repository(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: Option<RepoId>,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    blocking("show_repository", move || {
+        app_state.show_repository(repo);
+        Ok(())
+    })
+    .await
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn update_submodule(

@@ -1,6 +1,6 @@
 <script lang="ts">
   import Dialog from "$components/common/Dialog.svelte";
-  import { STASH_MODES, stashNameProblem, type StashMode } from "$lib/stash-modes";
+  import { STASH_BUTTONS, stashNameProblem, type StashMode } from "$lib/stash-modes";
   import { stashDialog } from "$stores/stash-dialog.svelte";
 
   /** Stash All and Stash Selection, both driven by `stashDialog` (#29). */
@@ -48,17 +48,17 @@
 
     {#snippet footer()}
       <span class="grow"></span>
-      {#each STASH_MODES as entry, index (entry.mode)}
+      <button class="btn" type="button" onclick={() => stashDialog.cancel()}>Cancel</button>
+      {#each STASH_BUTTONS as entry (entry.mode)}
         <button
           type="button"
           class="btn"
-          class:primary={index === 0}
+          class:primary={entry.mode === "all"}
           disabled={problem !== null}
           title={entry.hint}
           onclick={() => create(entry.mode)}>{entry.label}</button
         >
       {/each}
-      <button class="btn" type="button" onclick={() => stashDialog.cancel()}>Cancel</button>
     {/snippet}
   </Dialog>
 {:else if pending?.kind === "selection"}

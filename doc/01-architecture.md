@@ -129,11 +129,14 @@
 ```text
 UI: клик "Open"
   └─► invoke open_repository(path)
-        └─► app_state: регистрирует RepoHandle, запускает fs_watcher
+        └─► app_state: регистрирует RepoHandle
               └─► git_engine (spawn_blocking): читает HEAD, refs, status
                     └─► ответ: RepoSummary { head, branches[], counts }
         └─► затем UI перечитывает список командой `repositories` (событие открытия в
             окна не пересылается)
+  └─► панели показывают его: invoke show_repository(repo)
+        └─► app_state: останавливает наблюдатели остальных, запускает fs_watcher этого
+            (наблюдается только показанный, R-351)
 ```
 
 ### 4.2. Загрузка истории (стриминг)
