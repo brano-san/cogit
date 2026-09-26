@@ -92,6 +92,7 @@
     ancestry={settings.current.graphAncestry}
     collapseMerged={settings.current.graphCollapseMerged}
     selectedRefsOnly={settings.current.graphSelectedRefsOnly}
+    includeTracked={settings.current.graphIncludeTracked}
   />
 {:else}
   <StartScreen

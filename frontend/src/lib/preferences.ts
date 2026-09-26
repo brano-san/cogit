@@ -182,6 +182,12 @@ export const CATEGORIES: Category[] = [
             hint: "Labels only for the refs ticked in Branches.",
             keywords: ["labels", "refs", "selected", "ticked", "branches", "tags", "hide"],
           },
+          {
+            key: "graphIncludeTracked",
+            label: "Include tracked remote branches",
+            hint: "A branch ticked in Branches brings the remote branch it tracks into the graph.",
+            keywords: ["tracked", "upstream", "remote", "origin", "branches"],
+          },
         ],
       },
       {

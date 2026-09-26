@@ -60,6 +60,8 @@ export interface Settings {
   graphCollapseMerged: boolean;
   /** Show Only Selected Branches and Tags: labels only for refs ticked in Branches (F-561). */
   graphSelectedRefsOnly: boolean;
+  /** Include Tracked Remote Branches: a ticked branch walks its upstream too (F-561). */
+  graphIncludeTracked: boolean;
   /** Where the graph filter looks for its text: the switches under the field (F-560). */
   graphFilterFields: FilterField[];
   /** Filter texts kept by Remember Pattern, newest first (F-563). */
@@ -97,6 +99,7 @@ export const DEFAULT_SETTINGS: Settings = {
   graphAncestry: false,
   graphCollapseMerged: false,
   graphSelectedRefsOnly: false,
+  graphIncludeTracked: false,
   graphFilterFields: [...DEFAULT_FILTER_FIELDS],
   graphFilterPatterns: [],
 
