@@ -15,6 +15,7 @@
     mergeRows,
     mergedText,
     nextConflict,
+    panelConflictStep,
     syntacticCount,
     unresolvedCount,
     unsavedResolution,
@@ -36,9 +37,20 @@
     saveShortcut?: boolean;
     /** Whether there are sides picked or edits not saved yet, whenever that changes. */
     onunsaved?: (unsaved: boolean) => void;
+    /** In the main window: the Diff panel has the focus, so F6 steps through the conflicts. */
+    active?: boolean;
   }
 
-  let { path, regions, onsave, oncancel, onpopout, saveShortcut = false, onunsaved }: Props = $props();
+  let {
+    path,
+    regions,
+    onsave,
+    oncancel,
+    onpopout,
+    saveShortcut = false,
+    onunsaved,
+    active = false,
+  }: Props = $props();
 
   let choices = $state.raw<Choices>({});
   let edited = $state<string | null>(null);
@@ -124,9 +136,22 @@
     else if (action.all) choices = chooseAll(regions, action.take);
     else take(action.take);
   }
+
+  /** In the capture phase, ahead of the main window's panel walk, as the diff's F6 is. */
+  function onpanelkey(event: KeyboardEvent) {
+    if (saveShortcut || !active || modals.any) return;
+    const by = panelConflictStep(
+      { key: event.key, ctrl: event.ctrlKey || event.metaKey, shift: event.shiftKey, alt: event.altKey },
+      conflicts,
+      at,
+    );
+    if (by === null) return;
+    event.preventDefault();
+    step(by);
+  }
 </script>
 
-<svelte:window {onkeydown} />
+<svelte:window {onkeydown} onkeydowncapture={onpanelkey} />
 
 <div class="merge">
   <div class="bar">

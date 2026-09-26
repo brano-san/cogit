@@ -49,6 +49,7 @@
     oncancel={() => conflicts.close()}
     onpopout={onpopoutmerge}
     onunsaved={(unsaved) => conflicts.markUnsaved(unsaved)}
+    {active}
   />
 {:else if conflicts.path}
   <ConflictView
