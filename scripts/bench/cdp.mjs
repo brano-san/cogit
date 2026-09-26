@@ -107,4 +107,5 @@ export const KEYS = {
   ArrowDown: { key: "ArrowDown", code: "ArrowDown", keyCode: 40 },
   Enter: { key: "Enter", code: "Enter", keyCode: 13, text: "\r" },
   Escape: { key: "Escape", code: "Escape", keyCode: 27 },
+  Space: { key: " ", code: "Space", keyCode: 32, text: " " },
 };
