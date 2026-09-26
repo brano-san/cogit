@@ -308,6 +308,17 @@ pub fn run() -> anyhow::Result<()> {
             {
                 shutdown::watch(window.app_handle());
             }
+            // The main window gone, the app goes: a Blame window left open kept the process
+            // alive without it. Each child is asked, so Merge still asks about its choices.
+            if matches!(event, tauri::WindowEvent::Destroyed) && child_window::is_main(window.label()) {
+                for (label, child) in window.app_handle().webview_windows() {
+                    if !child_window::is_main(&label)
+                        && let Err(err) = child.close()
+                    {
+                        tracing::warn!(error = %err, window = %label, "cannot close a child window after the main one");
+                    }
+                }
+            }
         })
         .invoke_handler(specta_builder.invoke_handler())
         .setup(move |app| {
