@@ -128,6 +128,10 @@
   в `Preferences ▸ Graph & History ▸ Filter` (F-563).
 - Справа от фильтра — «Домой» (Working Tree ↔ коммит HEAD, с другого коммита — Working Tree) и
   «Назад» (к предыдущему выбору в графе этого репозитория; неактивна, пока некуда), F-562.
+- Последняя — кнопка меню настроек графа (F-561): `Default` / `Branch` / `Mergeable` / `Varying
+  Coloring`, `Graph Preferences…`, `Follow Only First Parent`, `Show Only Selected Branches and Tags`,
+  `Include Tracked Remote Branches`, `Show Graph While Filtering`, `Show Working Tree Permanently` —
+  те же настройки, что в `Preferences ▸ Graph & History`.
 - Мультивыбор двух коммитов (`Ctrl`) сравнивает их в Diff.
 - Контекстное меню: `Checkout`, `Create Branch`, `Tag`, `Cherry-Pick`, `Revert`, `Reset to here`,
   `Copy SHA`, `Interactive Rebase from here`.
