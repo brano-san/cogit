@@ -40,6 +40,7 @@ class RepoPulseStore {
   #timer: ReturnType<typeof setInterval> | null = null;
   #every = 0;
   #revisited = -Infinity;
+  #revisitLater: ReturnType<typeof setTimeout> | null = null;
 
   readonly #queue = new PulseQueue({
     pulse: readPulse,
@@ -105,12 +106,21 @@ class RepoPulseStore {
     }
   }
 
-  /** The window came back into focus. Whatever was done meanwhile in a closed repository
-      has no watcher to report it, so every row the panels do not own is read again — at
-      most once a minute, through the same queue (F-451). */
+  /** The window came back into focus. Whatever was done meanwhile in a repository the
+      panels do not show has no watcher to report it (R-351), so every such row is read
+      again — at most once a minute, through the same queue (F-451). A focus change inside
+      the minute is answered when it is over: dropped, a commit made in a terminal waited
+      for the next focus change after it. */
   revisit(): void {
     const now = Date.now();
-    if (now - this.#revisited < REVISIT_MS) return;
+    const wait = this.#revisited + REVISIT_MS - now;
+    if (wait > 0) {
+      this.#revisitLater ??= setTimeout(() => {
+        this.#revisitLater = null;
+        this.revisit();
+      }, wait);
+      return;
+    }
     this.#revisited = now;
     for (const root of this.#roots) {
       if (root !== this.#owned) this.#queue.request(root);

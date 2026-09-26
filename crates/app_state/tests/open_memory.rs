@@ -69,6 +69,7 @@ fn one_open_large_repository_costs() {
     let summary = state.open_repository(&path).unwrap();
     let id = summary.repo;
     drop(summary);
+    state.show_repository(Some(id));
     let (rss1, private1) = probe.read();
 
     let rows = state.overviews();

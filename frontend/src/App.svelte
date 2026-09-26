@@ -150,12 +150,14 @@
     setMenuState,
     rebaseOnto,
     skipOperation,
+    showRepository,
     type AppInfo,
     type Branch,
     type RepoId,
     type Tag,
   } from "$lib/ipc";
   import { openBlame } from "$lib/blame-window";
+  import { ShownRepository } from "$lib/shown-repository";
   import { commit } from "$stores/commit.svelte";
   import { conflicts } from "$stores/conflicts.svelte";
   import { worktree } from "$stores/worktree.svelte";
@@ -3089,6 +3091,9 @@
   );
   $effect(() => repoPulse.setOwned(repository.current?.root ?? null));
   $effect(() => repoPulse.fetchEvery(settings.current.backgroundFetchMinutes));
+  // Only the repository on screen is watched; the rest are the pulse's (R-351).
+  const shownRepository = new ShownRepository(showRepository);
+  $effect(() => shownRepository.set(repository.current?.repo ?? null));
 
   /** One subscription for everything the window hears from outside itself. */
   $effect(() =>

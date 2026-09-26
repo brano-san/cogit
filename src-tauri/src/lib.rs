@@ -138,6 +138,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::lost_commits,
             commands::repositories,
             commands::close_repository,
+            commands::show_repository,
             commands::update_submodule,
             commands::remote_ops::submodule_op,
             commands::remote_ops::add_submodule,
