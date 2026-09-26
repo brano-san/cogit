@@ -42,7 +42,7 @@
   } from "$lib/graph-row";
   import { measurer } from "$lib/timing";
   import { anchoredScrollTop } from "$lib/graph-anchor";
-  import { emptyHistory, subjectRoom } from "$lib/graph-panel";
+  import { emptyHistory, showsWorkingTree, subjectRoom } from "$lib/graph-panel";
   import { workingTreeLabel } from "$lib/repo-state";
   import { reportTiming, type RebaseProgress, type RepoId } from "$lib/ipc";
   import { avatars } from "$stores/avatars.svelte";
@@ -98,6 +98,8 @@
     selectedRefsOnly?: boolean;
     /** A ticked branch brings its upstream along (`graphIncludeTracked`). */
     includeTracked?: boolean;
+    /** Off: no Working Tree row while it has nothing in it (`graphWorkingTreeAlways`). */
+    workingTreeAlways?: boolean;
     /** The right columns shown, in order (#12). The defaults are the list as it always was. */
     columns?: readonly GraphColumn[];
     timeFormat?: GraphTimeFormat;
@@ -121,6 +123,7 @@
     collapseMerged = GRAPH_MODE_DEFAULTS.collapseMerged,
     selectedRefsOnly = false,
     includeTracked = false,
+    workingTreeAlways = true,
     columns = GRAPH_COLUMNS,
     timeFormat = GRAPH_TIME_FORMAT,
     density = GRAPH_DENSITY,
@@ -210,7 +213,18 @@
     return rows;
   });
 
-  const headerRows = $derived(HEADER_ROWS + virtualRows.length);
+  const workingTreeRow = $derived(
+    showsWorkingTree(workingTreeAlways, repository.current?.status, repository.current?.state),
+  );
+  const headerRows = $derived((workingTreeRow ? HEADER_ROWS : 0) + virtualRows.length);
+  /** The Working Tree row coming or going moves every row by one; the one at the top stays. */
+  let headerRowsSeen = untrack(() => headerRows);
+  $effect(() => {
+    const now = headerRows;
+    const moved = now - headerRowsSeen;
+    headerRowsSeen = now;
+    if (moved !== 0 && scroller && scroller.scrollTop > 0) scroller.scrollTop += moved * rowHeight;
+  });
   const commitCount = $derived(graph.total);
   const listRows = $derived(commitCount + headerRows);
   const range = $derived(
@@ -571,7 +585,7 @@
           {scrollTop}
           width={canvasWidth}
           height={viewportHeight}
-          headRow={head?.listRow ?? null}
+          headRow={workingTreeRow ? (head?.listRow ?? null) : null}
           {headLane}
           {selectedRows}
           {hoverRow}
@@ -589,7 +603,7 @@
         style:--row-h="{rowHeight}px"
         style:--overlap-w="{COLUMN_WIDTH.overlap}px"
       >
-        {#if range.start === 0}
+        {#if workingTreeRow && range.start === 0}
           <button
             type="button"
             class="row header"
