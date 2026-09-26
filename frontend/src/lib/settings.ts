@@ -8,8 +8,8 @@ import { GRAPH_COLORINGS, migratedColoring, type GraphColoring } from "$lib/grap
 /** Lightest first; the grey ones sit between the extremes (#24). */
 export const THEMES = [
   ["light", "Light"],
-  ["lightGrey", "Light grey"],
-  ["darkGrey", "Dark grey"],
+  ["lightGrey", "Light gray"],
+  ["darkGrey", "Dark gray"],
   ["dark", "Dark"],
 ] as const;
 

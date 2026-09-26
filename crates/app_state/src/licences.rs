@@ -1,13 +1,13 @@
 use std::path::{Path, PathBuf};
 
-const FILE_NAME: &str = "cogit-third-party-licences.txt";
+const FILE_NAME: &str = "cogit-third-party-licenses.txt";
 
 /// A dev build is served by the dev server, which bundles nothing: no frontend list.
 #[must_use]
 pub fn document(version: &str, crates: &str, frontend: Option<&str>) -> String {
     let frontend = frontend.map(str::trim).filter(|text| !text.is_empty());
     let mut out = format!(
-        "Third-party licences in Cogit {version}\n\
+        "Third-party licenses in Cogit {version}\n\
          Generated when this build was made, from Cargo metadata and the frontend bundle.\n\n"
     );
     out.push_str(crates.trim_end());
