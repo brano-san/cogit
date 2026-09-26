@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RepoId } from "$lib/ipc";
-import { reopenClick, repoClick, type RepoClickState } from "./repo-click";
+import { holdsPanels, reopenClick, repoClick, type RepoClickState } from "./repo-click";
 
 const id = (n: number) => n as unknown as RepoId;
 const alpha = { repo: id(1), root: "E:/w/alpha" };
@@ -49,5 +49,19 @@ describe("reopenClick", () => {
   it("opens a closed row otherwise", () => {
     expect(reopenClick("E:/w/alpha", null)).toBe("open");
     expect(reopenClick("E:/w/alpha", "E:/w/beta")).toBe("open");
+  });
+});
+
+// Close Repository on the owner of the submodule on screen left the panels on the submodule
+// and the tree pointing at the closed repository.
+describe("holdsPanels", () => {
+  it("counts the owner of the submodule or worktree on screen as the one shown", () => {
+    expect(holdsPanels(alpha, state())).toBe(true);
+    expect(holdsPanels(alpha, state({ shown: id(7), moduleOwner: id(1) }))).toBe(true);
+    expect(holdsPanels(alpha, state({ shown: id(8), worktreeOwner: "E:/w/alpha" }))).toBe(true);
+  });
+
+  it("leaves any other row to itself", () => {
+    expect(holdsPanels(beta, state({ shown: id(7), moduleOwner: id(1) }))).toBe(false);
   });
 });

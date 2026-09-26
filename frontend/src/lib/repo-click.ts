@@ -29,6 +29,12 @@ export function repoClick(entry: { repo: RepoId; root: string }, state: RepoClic
   return "open";
 }
 
+/** The panels show this repository, one of its submodules or worktrees, or are opening it:
+    closing it has to free them. */
+export function holdsPanels(entry: { repo: RepoId; root: string }, state: RepoClickState): boolean {
+  return repoClick(entry, state) !== "open";
+}
+
 /** A closed row clicked while its own open is under way: the second click of a double-click. */
 export function reopenClick(root: string, opening: string | null): "stay" | "open" {
   return same(root, opening) ? "stay" : "open";
