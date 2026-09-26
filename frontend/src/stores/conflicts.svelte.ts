@@ -9,6 +9,7 @@ import {
   type RepoId,
 } from "$lib/ipc";
 import { confirmation } from "./confirm.svelte";
+import { notices } from "$stores/notices.svelte";
 
 class ConflictStore {
   paths = $state.raw<string[]>([]);
@@ -58,7 +59,13 @@ class ConflictStore {
     const generation = ++this.#generation;
     this.#wanted = path;
 
-    const sides = await conflictText(repo, path);
+    let sides;
+    try {
+      sides = await conflictText(repo, path);
+    } catch (err) {
+      if (generation === this.#generation) notices.report(err, "Could not open the conflict");
+      return;
+    }
     if (generation !== this.#generation) return;
 
     this.path = path;
@@ -76,22 +83,27 @@ class ConflictStore {
   }
 
   async take(repo: RepoId, side: ConflictSide): Promise<void> {
-    const path = this.path;
-    if (!path) return;
-    const cleared = this.#cleared;
-    await resolveConflict(repo, path, side);
-    if (cleared !== this.#cleared) return;
-    // The user may have opened the next file while Git was answering; that one stays.
-    if (this.path === path) this.close();
-    await this.refresh(repo);
+    await this.#resolve(repo, (path) => resolveConflict(repo, path, side));
   }
 
   async write(repo: RepoId, text: string): Promise<void> {
+    await this.#resolve(repo, (path) => resolveConflictText(repo, path, text));
+  }
+
+  /** A refusal keeps the file open with its picks and reaches the notification window:
+      the callers only reload the list after it. */
+  async #resolve(repo: RepoId, step: (path: string) => Promise<unknown>): Promise<void> {
     const path = this.path;
     if (!path) return;
     const cleared = this.#cleared;
-    await resolveConflictText(repo, path, text);
+    try {
+      await step(path);
+    } catch (err) {
+      notices.report(err, "Could not resolve the conflict");
+      return;
+    }
     if (cleared !== this.#cleared) return;
+    // The user may have opened the next file while Git was answering; that one stays.
     if (this.path === path) this.close();
     await this.refresh(repo);
   }
