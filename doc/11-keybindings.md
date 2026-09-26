@@ -121,6 +121,7 @@ Checkout, Merge, Rebase, Cherry-Pick, Revert и Undo аккордов не им�
 | `Shift+F6` | `diff`, `merge-window` | Предыдущее изменение |
 | `Ctrl+Shift+D` | `global` | Переключить Side-by-Side / Unified |
 | `Ctrl+F` | `diff` | Поиск в diff |
+| `←` / `→`, `Home` | разделитель колонок Side-by-Side в фокусе | Сдвинуть на 2 % / поровну (R-535) |
 
 Клавиши области `diff` в главном окне действуют, только пока фокус в панели Diff (щелчок в ней или
 `F6` до неё): `F6` из Graph переводил фокус и одновременно листал diff, `Ctrl+F` из поля сообщения

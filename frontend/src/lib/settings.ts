@@ -26,6 +26,8 @@ export interface Settings {
   ignoreWhitespace: Whitespace;
   wordDiff: boolean;
   detectMoves: boolean;
+  /** Side by side: the left code column's share of the width both get (R-535). */
+  diffSplit: number;
   laneWidth: number;
   /** A colour per lane instead of one grey; off, as SmartGit draws it (R-161). */
   coloredLanes: boolean;
@@ -69,6 +71,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ignoreWhitespace: "none",
   wordDiff: true,
   detectMoves: true,
+  diffSplit: 0.5,
   laneWidth: LANE_WIDTH.default,
   coloredLanes: false,
   pullMode: "ffOnly",
@@ -109,6 +112,7 @@ const ENUMS: Partial<Record<keyof Settings, readonly string[]>> = {
 
 const RANGES: Partial<Record<keyof Settings, [number, number]>> = {
   contextLines: [0, 50],
+  diffSplit: [0.2, 0.8],
   laneWidth: [LANE_WIDTH.min, LANE_WIDTH.max],
   backgroundFetchMinutes: [0, 1440],
 };

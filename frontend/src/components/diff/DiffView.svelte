@@ -24,7 +24,21 @@
     type LineRange,
   } from "$lib/diff-fold";
   import { DiffSearch } from "$lib/diff-search.svelte";
-  import { BAND_WIDTH, bandLeft, ribbonPath, ribbonsNear } from "$lib/diff-band";
+  import {
+    BAND_WIDTH,
+    GUTTER_WIDTH,
+    NUM_WIDTH,
+    SPLIT_EVEN,
+    SPLIT_MAX,
+    SPLIT_MIN,
+    SPLIT_STEP,
+    bandLeft,
+    clampShare,
+    draggedShare,
+    ribbonPath,
+    ribbonsNear,
+  } from "$lib/diff-band";
+  import { settings } from "$stores/settings.svelte";
   import DiffFindBar from "./DiffFindBar.svelte";
   import FileSummary from "./FileSummary.svelte";
   import { binaryReason, tooLargeReason } from "$lib/diff-summary";
@@ -158,8 +172,49 @@
   const nav = $derived(navState(starts.length, current));
 
   let rowsWidth = $state(0);
+  /** The sign column, measured: it is sized in `ch` of the code font. */
+  let signWidth = $state(0);
+  /** Side by side, while the divider is dragged; the settings hold it once let go (R-535). */
+  let dragShare = $state<number | null>(null);
+  let dragFrom: { x: number; share: number } | null = null;
+  const share = $derived(dragShare ?? settings.current.diffSplit);
+  const sideWidth = $derived(GUTTER_WIDTH + NUM_WIDTH + signWidth);
 
-  const left = $derived(bandLeft(rowsWidth));
+  const left = $derived(bandLeft(rowsWidth, share, sideWidth));
+
+  function saveShare(next: number) {
+    void settings.set("diffSplit", clampShare(next));
+  }
+
+  function ondividerdown(event: PointerEvent) {
+    if (event.button !== 0) return;
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    dragFrom = { x: event.clientX, share };
+    dragShare = share;
+    event.preventDefault();
+  }
+
+  function ondividermove(event: PointerEvent) {
+    if (!dragFrom) return;
+    dragShare = draggedShare(dragFrom.share, event.clientX - dragFrom.x, rowsWidth, sideWidth);
+  }
+
+  function ondividerup(event: PointerEvent) {
+    const dropped = dragShare;
+    if (!dragFrom) return;
+    dragFrom = null;
+    if (dropped !== null) saveShare(dropped);
+    dragShare = null;
+    (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId);
+  }
+
+  function ondividerkey(event: KeyboardEvent) {
+    if (event.key === "ArrowLeft") saveShare(share - SPLIT_STEP);
+    else if (event.key === "ArrowRight") saveShare(share + SPLIT_STEP);
+    else if (event.key === "Home") saveShare(SPLIT_EVEN);
+    else return;
+    event.preventDefault();
+  }
 
   /** Computed once per diff. Scrolling only filters it — walking every row on each frame
       would cost the 60 FPS the product promises. */
@@ -192,22 +247,32 @@
   const PROBE = "0".repeat(100);
   /** Measured in the hidden ruler row, which has the layout of every other row. */
   let codeWidth = $state(0);
+  /** Side by side, the right code column: no longer as wide as the left one (R-535). */
+  let rightWidth = $state(0);
   let probeWidth = $state(0);
   const charWidth = $derived(probeWidth / PROBE.length);
   /** Pixels the code of every column is moved left by; the numbers stay put. */
   let sideways = $state(0);
 
+  /** The widest line of each side: side by side, each column scrolls within its own width. */
   const widest = $derived.by(() => {
-    let most = 0;
+    let old = 0;
+    let next = 0;
     for (const entry of unified) {
       if (entry.kind !== "row") continue;
       const row = entry.row;
       if (row.kind === "collapsed") continue;
-      most = Math.max(most, textColumns(row.text) + (row.noNewline ? NO_NEWLINE_COLUMNS : 0));
+      const columns = textColumns(row.text) + (row.noNewline ? NO_NEWLINE_COLUMNS : 0);
+      if (row.kind !== "insert") old = Math.max(old, columns);
+      if (row.kind !== "delete") next = Math.max(next, columns);
     }
-    return most + TRAILING_COLUMNS;
+    return { old: old + TRAILING_COLUMNS, new: next + TRAILING_COLUMNS };
   });
-  const sidewaysMax = $derived(maxOffset(widest, charWidth, codeWidth));
+  const sidewaysMax = $derived(
+    mode === "split"
+      ? Math.max(maxOffset(widest.old, charWidth, codeWidth), maxOffset(widest.new, charWidth, rightWidth))
+      : maxOffset(Math.max(widest.old, widest.new), charWidth, codeWidth),
+  );
   const shift = $derived(clampOffset(sideways, sidewaysMax));
 
   function scrollToRow(index: number) {
@@ -224,7 +289,8 @@
     if (text === null || text === undefined || charWidth === 0) return;
     const from = textColumns(text.slice(0, hit.from)) * charWidth;
     const to = textColumns(text.slice(0, hit.to)) * charWidth;
-    sideways = revealOffset(shift, codeWidth, from, to, sidewaysMax, REVEAL_MARGIN_COLUMNS * charWidth);
+    const view = hit.side === "right" ? rightWidth : codeWidth;
+    sideways = revealOffset(shift, view, from, to, sidewaysMax, REVEAL_MARGIN_COLUMNS * charWidth);
   }
 
   function onwheel(event: WheelEvent) {
@@ -649,14 +715,16 @@
         class="rows"
         style:height="{total * ROW_HEIGHT}px"
         style:--shift="{shift}px"
+        style:--left-share={share}
+        style:--right-share={1 - share}
         bind:clientWidth={rowsWidth}
       >
         <div class="line ruler" aria-hidden="true">
           <span class="gutter"></span>
           <span class="num"></span>
           {#if mode === "unified"}<span class="num"></span>{/if}
-          <span class="sign"></span>
-          <span class="code mono" class:side={mode === "split"} bind:clientWidth={codeWidth}
+          <span class="sign" bind:offsetWidth={signWidth}></span>
+          <span class="code mono" class:side={mode === "split"} class:left={mode === "split"} bind:clientWidth={codeWidth}
             ><span class="probe" bind:offsetWidth={probeWidth}>{PROBE}</span></span
           >
           {#if mode === "split"}
@@ -664,9 +732,36 @@
             <span class="gutter"></span>
             <span class="num"></span>
             <span class="sign"></span>
-            <span class="code mono side"></span>
+            <span class="code mono side right" bind:clientWidth={rightWidth}></span>
           {/if}
         </div>
+        {#if mode === "split"}
+          <!-- The band between the columns is the divider: drag it, or arrows while focused. -->
+          <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+          <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+          <div
+            class="divider"
+            class:dragging={dragShare !== null}
+            style:left="{left}px"
+            role="separator"
+            tabindex="0"
+            aria-label="Width of the old and the new side"
+            aria-orientation="vertical"
+            aria-valuenow={Math.round(share * 100)}
+            aria-valuemin={Math.round(SPLIT_MIN * 100)}
+            aria-valuemax={Math.round(SPLIT_MAX * 100)}
+            title="Drag to change the width of the two sides; double-click for an even split"
+            onpointerdown={ondividerdown}
+            onpointermove={ondividermove}
+            onpointerup={ondividerup}
+            onlostpointercapture={() => {
+              dragFrom = null;
+              dragShare = null;
+            }}
+            onkeydown={ondividerkey}
+            ondblclick={() => saveShare(SPLIT_EVEN)}
+          ></div>
+        {/if}
         {#if mode === "split" && ribbons.length > 0}
           <svg
             class="band"
@@ -801,7 +896,7 @@
                   class:moved={entry.pair.left?.moved}>{sign(entry.pair.left)}</span
                 >
                 <span
-                  class="code mono side"
+                  class="code mono side left"
                   class:del={entry.pair.left?.kind === "delete"}
                   class:empty={!entry.pair.left}
                   class:moved={entry.pair.left?.moved}
@@ -824,7 +919,7 @@
                   class:moved={entry.pair.right?.moved}>{sign(entry.pair.right)}</span
                 >
                 <span
-                  class="code mono side"
+                  class="code mono side right"
                   class:add={entry.pair.right?.kind === "insert"}
                   class:empty={!entry.pair.right}
                   class:moved={entry.pair.right?.moved}
@@ -1097,8 +1192,13 @@
     color: var(--status-stash);
   }
 
-  .side {
-    flex: 1 1 50%;
+  /* Each code column grows by its share from nothing, so the two split exactly as set. */
+  .side.left {
+    flex: var(--left-share, 0.5) 1 0;
+  }
+
+  .side.right {
+    flex: var(--right-share, 0.5) 1 0;
   }
 
   /* Where the other side has lines this one lacks: hatched, as VS Code does. 18 px rows
@@ -1126,7 +1226,36 @@
   .band {
     position: absolute;
     top: 0;
+    z-index: 2;
     pointer-events: none;
+  }
+
+  /* The panel divider's look (R-500): a hairline that lights under the pointer. Here the
+     whole band is the grab zone, above the rows, and the ribbons are drawn over the line. */
+  .divider {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 1;
+    width: 28px;
+    cursor: col-resize;
+    outline: none;
+  }
+
+  .divider::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    left: calc(50% - var(--w-splitter) / 2);
+    width: var(--w-splitter);
+    background: var(--splitter-track);
+    transition: background var(--t-fast) var(--ease-out);
+  }
+
+  .divider:hover::before,
+  .divider.dragging::before,
+  .divider:focus-visible::before {
+    background: var(--splitter-active);
   }
 
   /* The band carries each row's own fill across (R-532); a changed pair fades from one
