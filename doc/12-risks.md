@@ -5845,5 +5845,6 @@ GitHub, GitLab or Bitbucket remote». Ветка по умолчанию remote 
 заменил, и переходит от списка к следующему списку. Запрос без фильтра, на который он отвечает (те же
 ссылки и вид), отдаётся из него одним сообщением прогресса, как при переключении репозитория; если не
 отвечает (ссылки сдвинулись), новый обход берёт время, родителей и тексты у него, а не у списка.
-Лимит кэша считает оба графа (`Graph::footprint`). Тесты `clearing_a_filter_answers_from_the_graph_
-shown_before_it` и `clearing_a_filter_after_a_commit_keeps_the_texts_read`.
+Лимит кэша считает оба графа (`Graph::footprint`). Тесты
+`clearing_a_filter_answers_from_the_graph_shown_before_it` и
+`clearing_a_filter_after_a_commit_keeps_the_texts_read`.
