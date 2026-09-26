@@ -86,6 +86,49 @@ fn an_environment_variable_that_names_a_secret_is_hidden() {
     }
 }
 
+// Only credentials may be hidden (INV-05). A line that merely names one lost its tail: the
+// merge request link a push to `group/api-token-service` prints, a test's assertion.
+#[test]
+fn a_line_that_only_mentions_a_secret_is_left_alone() {
+    for line in [
+        "remote: https://gitlab.com/group/api-token-service/-/merge_requests/new?merge_request%5Bsource_branch%5D=feature\n",
+        "assertion failed: token.len() == 32\n",
+        "error: the proxy rejected the Authorization: header, see https://example.com/help\n",
+    ] {
+        assert_eq!(redact_secrets(line), line);
+    }
+}
+
+#[test]
+fn a_secret_in_an_environment_or_config_dump_is_hidden() {
+    for line in [
+        "export GITHUB_TOKEN=ghp_xyz\n",
+        "declare -x NPM_TOKEN=\"ghp_xyz\"\n",
+        "remote: CI_JOB_TOKEN=ghp_xyz\n",
+        "sonar.api-token=ghp_xyz\n",
+    ] {
+        let clean = redact_secrets(line);
+        assert!(!clean.contains("ghp_xyz"), "{clean}");
+    }
+}
+
+#[test]
+fn an_echoed_header_is_hidden_behind_the_prefixes_git_and_curl_print() {
+    for line in [
+        "remote: Authorization: Bearer ghp_xyz\n",
+        "> Authorization: Basic ghp_xyz\n",
+        "=> Send header: Proxy-Authorization: Basic ghp_xyz\n",
+        "http.https://github.com/.extraheader=AUTHORIZATION: basic ghp_xyz\n",
+    ] {
+        let clean = redact_secrets(line);
+        assert!(!clean.contains("ghp_xyz"), "{clean}");
+        assert!(
+            clean.to_ascii_lowercase().contains("authorization:"),
+            "{clean}"
+        );
+    }
+}
+
 #[test]
 fn a_url_without_credentials_is_left_alone() {
     let text = "remote: https://github.com/x/y.git\n";
