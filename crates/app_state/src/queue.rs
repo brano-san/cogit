@@ -11,6 +11,7 @@ use crate::{AppEvent, RepoId};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 use tokio::sync::oneshot;
 
@@ -63,9 +64,11 @@ struct Lane {
     waiting: VecDeque<(Operation, oneshot::Sender<()>)>,
 }
 
+/// Keyed by `OpenRepo::lane`: a linked worktree or a submodule writes into the files of
+/// the repository it belongs to, so it waits in that repository's lane (CC-007).
 #[derive(Debug, Default)]
 pub struct Queue {
-    lanes: Mutex<HashMap<RepoId, Lane>>,
+    lanes: Mutex<HashMap<PathBuf, Lane>>,
     next_id: AtomicU32,
     /// A lane emptied; whoever waits for the whole queue looks again.
     emptied: tokio::sync::Notify,
@@ -78,12 +81,13 @@ impl Queue {
     /// when its future happens to be polled, so three clicks run in the order they landed.
     fn admit(
         &self,
+        lane: &Path,
         repo: RepoId,
         kind: OperationKind,
         label: String,
     ) -> (Operation, Option<oneshot::Receiver<()>>) {
         let mut lanes = self.lanes.lock();
-        let lane = lanes.entry(repo).or_default();
+        let lane = lanes.entry(lane.to_path_buf()).or_default();
         let mut operation = Operation {
             id: self.next_id.fetch_add(1, Ordering::Relaxed),
             repo: Some(repo),
@@ -105,9 +109,9 @@ impl Queue {
     }
 
     /// Hands the lane to whoever is next in it.
-    fn release(&self, repo: RepoId) {
+    fn release(&self, key: &Path) {
         let mut lanes = self.lanes.lock();
-        let Some(lane) = lanes.get_mut(&repo) else {
+        let Some(lane) = lanes.get_mut(key) else {
             return;
         };
         lane.running = None;
@@ -121,7 +125,7 @@ impl Queue {
             // Its caller is gone — the command was dropped before its turn came.
             lane.running = None;
         }
-        lanes.remove(&repo);
+        lanes.remove(key);
         drop(lanes);
         self.emptied.notify_waiters();
     }
@@ -154,7 +158,8 @@ impl crate::AppState {
         kind: OperationKind,
         label: &str,
     ) -> OperationPermit<'_> {
-        let (operation, wait) = self.queue.admit(repo, kind, label.to_owned());
+        let lane = self.lane_of(repo);
+        let (operation, wait) = self.queue.admit(&lane, repo, kind, label.to_owned());
         self.emit(AppEvent::Operation(operation.clone()));
 
         let mut operation = operation;
@@ -167,6 +172,7 @@ impl crate::AppState {
         OperationPermit {
             state: self,
             operation,
+            lane,
             settled: false,
         }
     }
@@ -205,6 +211,7 @@ impl crate::AppState {
 pub struct OperationPermit<'a> {
     state: &'a crate::AppState,
     operation: Operation,
+    lane: PathBuf,
     settled: bool,
 }
 
@@ -227,9 +234,7 @@ impl OperationPermit<'_> {
         self.operation.success = Some(success);
         // Released first: whoever hears `Done` asks the queue what is left, and the
         // session-end reason was kept for an operation already over (R-168).
-        if let Some(repo) = self.operation.repo {
-            self.state.queue.release(repo);
-        }
+        self.state.queue.release(&self.lane);
         self.state.emit(AppEvent::Operation(self.operation.clone()));
     }
 }

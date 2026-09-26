@@ -171,6 +171,9 @@ pub struct OpenRepo {
     /// The repository whose tree it was opened from, a submodule's or a worktree's; one
     /// that is not listed closes with it (R-508).
     pub owner: Option<RepoId>,
+    /// The queue lane its writes wait in: the common git directory at the top of its owners,
+    /// so a linked worktree and a submodule wait beside the repository they belong to.
+    pub lane: PathBuf,
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -585,7 +588,10 @@ impl AppState {
             |n| n.to_string_lossy().into_owned(),
         );
 
-        let Some(id) = self.find_or_register(root.clone(), name.clone(), owner, began) else {
+        let common = handle.common_dir();
+        let common = std::fs::canonicalize(common).unwrap_or_else(|_| common.to_path_buf());
+        let Some(id) = self.find_or_register(root.clone(), name.clone(), owner, common, began)
+        else {
             tracing::info!(root = %root.display(), "closed while it was opening; not registered");
             return Err(git_engine::GitError::InvalidState(format!(
                 "{} was closed while it was opening",
@@ -1380,6 +1386,14 @@ impl AppState {
         self.handle(repo)?.find(query, limit as usize)
     }
 
+    /// A repository closed meanwhile keeps a lane of its own, by its id.
+    pub(crate) fn lane_of(&self, repo: RepoId) -> PathBuf {
+        self.get(repo).map_or_else(
+            || PathBuf::from(format!("<closed {}>", repo.0)),
+            |open| open.lane,
+        )
+    }
+
     fn handle(&self, repo: RepoId) -> Result<git_engine::RepoHandle, git_engine::GitError> {
         let open = self.get(repo).ok_or_else(|| not_open(repo))?;
         Ok(self
@@ -1408,6 +1422,7 @@ impl AppState {
             id,
             OpenRepo {
                 id,
+                lane: root.clone(),
                 root,
                 display_name,
                 listed,
@@ -1431,10 +1446,14 @@ impl AppState {
         root: PathBuf,
         display_name: String,
         owner: Option<RepoId>,
+        common_dir: PathBuf,
         began: u64,
     ) -> Option<RepoId> {
         let listed = owner.is_none();
         let mut repos = self.repos.write();
+        let lane = owner
+            .and_then(|owner| repos.get(&owner))
+            .map_or(common_dir, |owner| owner.lane.clone());
         if let Some(open) = repos.values_mut().find(|open| open.root == root) {
             open.listed |= listed;
             return Some(open.id);
@@ -1456,6 +1475,7 @@ impl AppState {
                 display_name,
                 listed,
                 owner,
+                lane,
             },
         );
         drop(repos);
@@ -1566,14 +1586,14 @@ mod tests {
         state.close_repository(id);
 
         assert_eq!(
-            state.find_or_register(root.clone(), "a".into(), None, began),
+            state.find_or_register(root.clone(), "a".into(), None, root.clone(), began),
             None
         );
         assert!(state.list().is_empty());
         let now = state.closes_so_far();
         assert!(
             state
-                .find_or_register(root, "a".into(), None, now)
+                .find_or_register(root.clone(), "a".into(), None, root, now)
                 .is_some()
         );
     }
@@ -1588,7 +1608,13 @@ mod tests {
 
         assert!(
             state
-                .find_or_register(PathBuf::from("/a"), "a".into(), None, began)
+                .find_or_register(
+                    PathBuf::from("/a"),
+                    "a".into(),
+                    None,
+                    PathBuf::from("/a"),
+                    began
+                )
                 .is_some()
         );
     }
