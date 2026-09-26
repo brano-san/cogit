@@ -1,5 +1,5 @@
 import type { CompareRequest } from "$lib/compare-params";
-import type { DiffSpec, RepoId, Whitespace } from "$lib/ipc";
+import { commitDetails, type DiffSpec, type RepoId, type Whitespace } from "$lib/ipc";
 
 export interface CompareLoad {
   settings: { load(): Promise<void>; current: { ignoreWhitespace: Whitespace } };
@@ -12,4 +12,18 @@ export async function loadCompare(request: CompareRequest, { settings, diff }: C
   await settings.load();
   diff.whitespace = settings.current.ignoreWhitespace;
   await diff.load(request.repo, request.spec, request.path);
+}
+
+/** The first parent a `commitVsParent` window compares against, for its header: `null` for a
+    root commit, `undefined` for any other comparison or when it cannot be read. */
+export async function firstParent(
+  request: CompareRequest,
+  read: (repo: RepoId, rev: string) => Promise<{ parents: string[] }> = commitDetails,
+): Promise<string | null | undefined> {
+  if (request.spec.kind !== "commitVsParent") return undefined;
+  try {
+    return (await read(request.repo, request.spec.oid)).parents[0] ?? null;
+  } catch {
+    return undefined;
+  }
 }
