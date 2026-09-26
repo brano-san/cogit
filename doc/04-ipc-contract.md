@@ -457,7 +457,7 @@ snake_case и читаются на фронтенде как `undefined`.
 | `list_submodules` | `repo`, `parent` (пусто — верхний уровень) | `Vec<Submodule>` | M3 |
 | `submodule_outline` | `root` — папка репозитория из списка, открытого или закрытого; `parent` — ключ узла от верха (пусто — верхний уровень) | `Vec<Submodule>` из `.gitmodules` и gitlink-записей HEAD (нет в HEAD — индекса): `state` — `notInitialised` или `unread`, `checkedOut`, `branch`, `subject` пусты, `nested` — проверка файла; сабмодули не открываются (R-352) | M3 |
 | `repo_pulse` | `root` — папка строки списка | `RepoPulse { missing, branch, tracked, ahead, behind, dirty }`: ahead/behind — по локальной remote-tracking ссылке HEAD через gix; `dirty` — размер и mtime файлов индекса, staged по cache-tree или сравнению индекса с деревом HEAD по id, конфликт; неотслеживаемые не ищутся, ничего не хешируется (R-353). Открытый, но не наблюдаемый репозиторий: пульс, противоречащий снимку его строки, сбрасывает снимок — следующий `repositories` читает строку заново (R-351) | M3 |
-| `pull_probe` | `root` | `Option<bool>`: `true` — вершина upstream-ветки HEAD на сервере (`git ls-remote --heads`, без записи) не содержится в HEAD; `null` — нет upstream или ветки на сервере; ошибка — «неизвестно», в лог (R-354) | M3 |
+| `pull_probe` | `root` | `Option<bool>`: `true` — вершина upstream-ветки HEAD на сервере (`git ls-remote --heads`, без записи) не содержится в HEAD; `null` — нет upstream или ветки на сервере, или у remote upstream выключена фоновая проверка (`remote.<имя>.cogitBackgroundFetch=false`, R-554); ошибка — «неизвестно», в лог (R-354) | M3 |
 | `open_submodule` | `owner: RepoId`, `key` — путь узла от владельца дерева | `RepoSummary`; отказ — `GitError::ModuleUnavailable(ModuleProblem)` | M3 |
 | `repository_health` | `repo` | `Vec<HealthFinding { module, issue }>` — репозиторий и все подмодули; `issue`: `ignoreCaseMismatch`, `danglingModule`, `danglingWorktree`, `missingModuleCommit { commit }` (R-179) | M3 |
 | `read_git_config` | `repo: Option<RepoId>`, `scope: repository \| user` | `ConfigFile { path, text, crlf, exists }` | M3 |
@@ -509,6 +509,21 @@ gitlink нет ни в HEAD, ни в индексе (`recorded` пуст, в п�
 идущие чтения гасятся автоматически.
 Сетевые fetch, pull и push отменяет `cancel_network` по `id` операции очереди (R-506); зависшую
 без отмены останавливает сторож молчания в `git_engine` — 5 минут без вывода git ([R-412](12-risks.md)).
+
+### Меню remote в Branches (#19 списка 25.09)
+
+Команды — в `src-tauri/src/commands/remotes.rs`, логика — в `git_engine` (`remotes.rs`,
+`network.rs`). Записи идут через очередь репозитория, `fetch_more` и `fetch_depth` — через
+`networking`: их останавливает `cancel_network` (R-506).
+
+| Команда | Вход | Выход | Модуль |
+|---|---|---|---|
+| `remote_info` | `repo, name` | `RemoteInfo { name, url, pushUrl, backgroundFetch, shallow }` — `url`/`pushUrl` как записаны в конфиге (до `insteadOf`), `backgroundFetch` — `remote.<имя>.cogitBackgroundFetch`, по умолчанию `true` (R-554), `shallow` — репозиторий неглубокий; нет такого remote — `InvalidState` | M5 |
+| `rename_remote` | `repo, from, to` | `()` — `git remote rename`: remote-ветки, upstream веток и секция remote переезжают | M5 |
+| `remove_remote` | `repo, name` | `()` — `git remote remove`: remote-ветки и upstream на него уходят, сервер не трогается | M5 |
+| `set_remote_properties` | `repo, name, url, backgroundFetch` | `()` — пишет только изменившееся: `git remote set-url` (URL с `-` в начале — `InvalidState`), `git config remote.<имя>.cogitBackgroundFetch false` или его снятие | M5 |
+| `fetch_more` | `repo, remote, onProgress: Channel<String>` | `bool` — `git fetch --progress --tags <remote> +refs/heads/*:refs/remotes/<remote>/*`, мимо refspec remote; `false` — ни одна ссылка `refs/remotes/<remote>/` и `refs/tags/` не появилась и не сдвинулась (R-553) | M5 |
+| `fetch_depth` | `repo, remote, depth: u32, onProgress` | `()` — `git fetch --progress --depth=<n> <remote>`; `depth` 0 и полный (не shallow) клон — `InvalidState` до запуска git | M5 |
 
 ### Remote ▸ Submodule, Subtree, LFS и Repository ▸ Settings (#42, #45, #46)
 

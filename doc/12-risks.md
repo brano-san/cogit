@@ -6783,3 +6783,45 @@ syncs only a branch that tracks a remote branch» закреплял неакт�
 такой ветке активен, Sync — нет). Тесты — `a_pull_on_a_branch_without_upstream_fetches_every_remote`
 (`crates/app_state/tests/remotes.rs`), `toolbar.test.ts`, `toolbar-prefs.test.ts` «pulls a
 branch that tracks nothing with one step».
+
+## R-553 · Fetch More — все ветки и теги remote мимо его refspec, без выбора и без unshallow · Н
+
+`Fetch More` в меню remote (п. 19 списка 25.09) — у SmartGit
+([Managing Remotes](https://docs.syntevo.com/SmartGit/Latest/Manual/GUI/Repository/Managing-Remotes)):
+«Use Remote | Fetch More if a remote contains branches which are not yet available in the local
+repository» — после узкого клона (`Fetch all Heads and Tags` выключен), с выбором веток в
+диалоге и флажком «Fetch all commits for existing branches ("unshallow")».
+
+**Решение:** диалога нет — `git fetch --progress --tags <remote> +refs/heads/*:refs/remotes/<remote>/*`
+берёт все ветки и теги сервера, что бы ни говорил `remote.<имя>.fetch`; сам refspec не
+меняется (обычный Fetch дальше берёт то же, что и раньше, а полученное сверх него `--prune` не
+трогает: оно вне его шаблона). Unshallow Fetch More не делает — глубину меняет `Set Depth`
+(у SmartGit «a very large value effectively removes the practical depth limit»), так Fetch More
+на неглубоком клоне большого проекта не качает всю историю без спроса. «Ничего нового» —
+сравнение ссылок `refs/remotes/<remote>/` и `refs/tags/` до и после: ничего не появилось и не
+сдвинулось — уведомление «Nothing new». `Set Depth` — `git fetch --depth=<n> <remote>`, только в
+неглубоком клоне: в полном `--depth` сделал бы его неглубоким, пункт неактивен с причиной «not a
+shallow clone», бэкенд отказывает так же. Обе — сетевые операции очереди, отменяются из футера
+(`cancel_network`). Тесты — `fetch_more_brings_the_branches_the_refspec_leaves_out_and_says_when_nothing_came`,
+`set_depth_refuses_a_full_clone_and_deepens_a_shallow_one` (`crates/git_engine/tests/remotes.rs`).
+
+## R-554 · Фоновая проверка — флажок у каждого remote в его секции конфига, интервал общий · Н
+
+`Properties` remote — URL и `Perform background poll or fetch`, та же настройка фоновой
+проверки, что для стрелок Repositories (п. 19; у SmartGit — «option to enable/disable this
+behavior per remote», там же). Проверка общая: `Preferences ▸ General ▸ Pull ▸ Check the remotes in the background`
+(`repoPulse.fetchEvery`) раз в N минут спрашивает сервер upstream HEAD каждой строки
+(`pull_probe`, R-354); по remote её выключить было нельзя.
+
+**Решение:** интервал остаётся один, в Preferences (`backgroundFetchMinutes`, 0 — выключено везде); у remote — флажок
+«спрашивать ли этот сервер». Хранится в git-конфиге репозитория, в секции самого remote:
+`remote.<имя>.cogitBackgroundFetch = false`; включённый — ключа нет (по умолчанию `true`).
+Почему там: `git remote rename` переносит секцию вместе с флажком, `git remote remove` убирает,
+у нескольких клонов одного сервера флажок свой, а прецедент ключа Cogit в конфиге уже есть
+(`cogit.tagGroupSeparator`). Не выбрано: `remote.<имя>.skipFetchAll` — настоящий ключ git, но он
+меняет и `git fetch --all` в терминале (и Pull без upstream, R-552); настройки Cogit по пути
+репозитория — не переживают переименование remote и живут вне репозитория. `pull_probe` с
+выключенным флажком у remote upstream сервер не спрашивает и отвечает «не знаю» (`None`) —
+стрелки pull у строки нет. Тесты — `the_background_check_is_switched_per_remote_and_follows_a_rename`
+(`crates/git_engine/tests/remotes.rs`), `a_remote_left_out_of_the_background_check_is_not_asked`
+(`crates/git_engine/tests/pull_probe.rs`).
