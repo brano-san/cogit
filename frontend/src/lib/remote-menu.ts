@@ -2,7 +2,7 @@ import type { PaletteCommand } from "./palette";
 import type { Submodule } from "./ipc";
 import { moduleKey } from "./module-tree";
 
-/** Remote ▸ Synchronize, Submodule, Subtree and LFS, and Repository ▸ Settings (#42, #45,
+/** Remote ▸ Synchronise, Submodule, Subtree and LFS, and Repository ▸ Settings (#42, #45,
     #46): what each is called, when it is offered and why not. Ids are the native menu's. */
 
 export type SubmoduleAction =
@@ -36,8 +36,8 @@ export interface RemoteMenuActions {
 }
 
 const SUBMODULE_ITEMS: readonly [string, SubmoduleAction, string][] = [
-  ["submodule-init", "initialize", "Initialize"],
-  ["submodule-sync", "synchronize", "Synchronize"],
+  ["submodule-init", "initialize", "Initialise"],
+  ["submodule-sync", "synchronize", "Synchronise"],
   ["submodule-reset", "reset", "Reset…"],
   ["submodule-add", "add", "Add…"],
   ["submodule-deactivate", "deactivate", "Deactivate…"],
@@ -97,7 +97,7 @@ export function remoteCommands(
   return [
     {
       id: "synchronize",
-      title: "Synchronize",
+      title: "Synchronise",
       shortcut: "Ctrl+Shift+S",
       synonyms: ["sync", "pull then push"],
       unavailable: !context.repository

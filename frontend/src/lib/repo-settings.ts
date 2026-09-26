@@ -78,7 +78,7 @@ export const FIELDS: readonly SettingField[] = [
   {
     key: "cogit.initNewSubmodules",
     tab: "fetch",
-    label: "Initialize new submodules",
+    label: "Initialise new submodules",
     control: BOOL,
     fallback: "false",
     hint: "After a Pull, Cogit checks out submodules the pull brought in.",
