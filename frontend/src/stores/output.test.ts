@@ -106,3 +106,54 @@ describe("output store", () => {
     expect(commands.commandProblems).not.toHaveBeenCalled();
   });
 });
+
+// Output open, Pull, Clear at once: the journal read by the Pull's notice answered after
+// the clear and put the cleared entries back, with the backend's journal empty.
+describe("output store answers", () => {
+  function later<T>() {
+    let resolve: (value: T) => void = () => {};
+    const promise = new Promise<T>((done) => (resolve = done));
+    return { promise, resolve };
+  }
+
+  it("drops a journal read begun before Clear", async () => {
+    const read = later<unknown[]>();
+    commands.commandLog.mockReturnValueOnce(read.promise);
+    commands.clearCommandLog.mockResolvedValue(null);
+
+    const refreshing = output.refresh();
+    await output.clear();
+    read.resolve([record(1)]);
+    await refreshing;
+
+    expect(output.entries).toEqual([]);
+  });
+
+  it("keeps the newest of two reads, whichever answers last", async () => {
+    const older = later<unknown[]>();
+    const newer = later<unknown[]>();
+    commands.commandLog.mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise);
+
+    const first = output.refresh();
+    const second = output.refresh();
+    newer.resolve([record(2), record(1)]);
+    await second;
+    older.resolve([record(1)]);
+    await first;
+
+    expect(output.entries.map((entry) => entry.id)).toEqual([2, 1]);
+  });
+
+  it("drops a problem count begun before Clear", async () => {
+    const count = later<number>();
+    commands.commandProblems.mockReturnValueOnce(count.promise);
+    commands.clearCommandLog.mockResolvedValue(null);
+
+    const counting = output.refreshProblems();
+    await output.clear();
+    count.resolve(3);
+    await counting;
+
+    expect(output.problems).toBe(0);
+  });
+});
