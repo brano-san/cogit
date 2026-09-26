@@ -17,6 +17,7 @@
   import Disclosure from "$components/common/Disclosure.svelte";
   import KindIcon, { type Kind } from "$components/common/KindIcon.svelte";
   import VirtualList from "$components/common/VirtualList.svelte";
+  import { directoryOf, fileType, gridColumns, TYPE_LABELS, type ColumnKey } from "$lib/file-columns";
   import { fileName, indexNote, statusBadge, statusLabel, statusTooltip } from "$lib/files";
   import type { ViewRow } from "$lib/file-view";
   import { LIST_ROW_HEIGHT } from "$lib/graph-geometry";
@@ -30,8 +31,10 @@
     actions?: readonly PaneAction[];
     /** Paths shown here, for the "all" buttons in the heading. */
     paths: readonly string[];
-    /** Full paths are redundant once the list groups by directory. */
-    showDirectory?: boolean;
+    /** The columns of the table (#33), the same for every pane of the list. */
+    columns: readonly ColumnKey[];
+    /** Grouped by directory: a file is one level in, under its folder row. */
+    nested?: boolean;
     /** A click, or the arrows (11 §10): Shift extends the ticked range. */
     onclick: (path: string, event: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) => void;
     onmark: (path: string) => void;
@@ -46,7 +49,8 @@
     marked,
     actions = [],
     paths,
-    showDirectory = true,
+    columns,
+    nested = false,
     onclick,
     onmark,
     onopen,
@@ -60,10 +64,8 @@
     return file.path.endsWith("/") ? "directory" : "file";
   }
 
-  function directory(path: string): string {
-    const cut = path.lastIndexOf("/");
-    return cut === -1 ? "" : path.slice(0, cut + 1);
-  }
+  const template = $derived(gridColumns(columns));
+  const shows = $derived(new Set(columns));
 
   let pane: HTMLDivElement | undefined = $state();
   let reveal = $state<number | null>(null);
@@ -123,7 +125,7 @@
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="pane tree-rows key-list" bind:this={pane} {onkeydown}>
+<div class="pane tree-rows key-list" style:--file-grid={template} bind:this={pane} {onkeydown}>
   {#if title}
     <div class="heading">
       <span class="grow">{title} ({paths.length})</span>
@@ -149,7 +151,7 @@
           <button
             type="button"
             class="row {file.status}"
-            class:nested={!showDirectory}
+            class:nested
             class:selected={selected === file.path}
             class:marked={marked.has(file.path)}
             style:top="{at * LIST_ROW_HEIGHT}px"
@@ -171,28 +173,37 @@
               oncontext(file.path, event);
             }}
           >
-            <KindIcon kind={kindOf(file)} />
-            <span
-              class="badge"
-              class:staged={file.indexState === "staged"}
-              class:partly={file.indexState === "partly"}
-              aria-label={statusLabel(file.status) + indexNote(file.indexState)}
-              title={statusTooltip(file.status) + indexNote(file.indexState)}>{statusBadge(file.status)}</span
-            >
-            <span class="name truncate shrink-last">{fileName(file.path)}</span>
-            {#if file.oldPath}
-              <span class="from truncate shrink-first" title="from {file.oldPath}"
-                >← {fileName(file.oldPath)}{file.similarity !== null
-                  ? ` ${file.similarity}%`
-                  : ""}</span
-              >
+            <span class="cell name">
+              <KindIcon kind={kindOf(file)} />
+              <span class="truncate shrink-last">{fileName(file.path)}</span>
+              {#if file.oldPath}
+                <span class="from truncate shrink-first" title="from {file.oldPath}"
+                  >← {fileName(file.oldPath)}{file.similarity !== null ? ` ${file.similarity}%` : ""}</span
+                >
+              {/if}
+            </span>
+            {#if shows.has("type")}
+              <span class="cell type truncate">{TYPE_LABELS[fileType(file)]}</span>
             {/if}
-            {#if file.modeChange}
-              <span class="mode" title="Mode changed to {file.modeChange}"
-                >{file.modeChange === "executable" ? "+x" : "−x"}</span
-              >
+            {#if shows.has("change")}
+              <span class="cell change">
+                <span
+                  class="badge"
+                  class:staged={file.indexState === "staged"}
+                  class:partly={file.indexState === "partly"}
+                  aria-label={statusLabel(file.status) + indexNote(file.indexState)}
+                  title={statusTooltip(file.status) + indexNote(file.indexState)}>{statusBadge(file.status)}</span
+                >
+                {#if file.modeChange}
+                  <span class="mode" title="Mode changed to {file.modeChange}"
+                    >{file.modeChange === "executable" ? "+x" : "−x"}</span
+                  >
+                {/if}
+              </span>
             {/if}
-            <span class="dir truncate shrink-first">{showDirectory ? directory(file.path) : ""}</span>
+            {#if shows.has("path")}
+              <span class="cell dir truncate">{directoryOf(file.path)}</span>
+            {/if}
           </button>
         {/if}
     {/snippet}
@@ -239,14 +250,37 @@
     white-space: nowrap;
   }
 
+  /* The columns of the heading above the list (FileList): the same grid, gap and padding,
+     and the scrollbar's room kept whether it shows or not, so they line up (#33). */
+  .row {
+    display: grid;
+    grid-template-columns: var(--file-grid);
+    column-gap: var(--file-column-gap);
+  }
+
+  .pane :global(.scroll) {
+    scrollbar-gutter: stable;
+  }
+
+  .cell {
+    min-width: 0;
+  }
+
+  .cell.name,
+  .cell.change {
+    display: flex;
+    align-items: center;
+    gap: var(--tree-gap);
+  }
+
   /* Grouped by directory, a file is one level in: its icon where a child's triangle goes. */
   .folder {
     padding-left: var(--tree-base);
   }
 
-  .row.nested {
+  .row.nested .cell.name {
     padding-left: calc(
-      var(--tree-base) + var(--tree-step) + (var(--disclosure-glyph) - var(--kind-icon)) / 2
+      var(--tree-base) + var(--tree-step) + (var(--disclosure-glyph) - var(--kind-icon)) / 2 - var(--sp-5)
     );
   }
 
@@ -388,8 +422,8 @@
     font-size: 10px;
   }
 
-  .dir {
-    flex-grow: 1;
+  .dir,
+  .type {
     color: var(--text-secondary);
     font-size: 11px;
   }

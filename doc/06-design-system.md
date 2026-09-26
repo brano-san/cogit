@@ -208,6 +208,15 @@ focus-visible   outline: 1px solid --state-focus-ring; outline-offset: -1px — 
 Индикатор выбора — **полоса, а не только цвет фона**: различие фона `#1e222b` и `#242b38`
 слишком мало, чтобы быть единственным сигналом.
 
+### Таблица Files
+
+Строка — сетка: `Name` `minmax(0, 2fr)`, `Type` `--file-type-width`, `State`
+`--file-change-width`, `Path` `minmax(0, 3fr)` (без пути имя — `1fr`), зазор `--file-column-gap`.
+Заголовки колонок — `--h-row-dense`, `--fs-header`, `--text-secondary`, у колонки сортировки —
+`--text-primary` и общий `Caret` (вверх — по возрастанию). Место полосы прокрутки списка
+занято всегда (`scrollbar-gutter: stable`), заголовки отступают на `--scrollbar-size`
+([R-595](12-risks.md)).
+
 ### Статус-бейдж файла
 
 Квадрат 16×16, радиус `--r-sm`, моноширинная буква по центру, цвет по статусу,

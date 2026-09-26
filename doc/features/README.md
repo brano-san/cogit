@@ -16,7 +16,7 @@
 | F-008 | Детали коммита | [F-008-commit-details.md](F-008-commit-details.md) |
 | F-009 | Файлы коммита | [F-009-commit-files.md](F-009-commit-files.md) |
 | F-010 | Фильтр файлов | [F-010-file-filter.md](F-010-file-filter.md) |
-| F-011 | Порядок файлов: по пути, по статусу — секции | [F-011-file-sort.md](F-011-file-sort.md) |
+| F-011 | Порядок файлов: сортировка по колонкам таблицы | [F-011-file-sort.md](F-011-file-sort.md) |
 | F-012 | Side-by-side diff | [F-012-diff-side-by-side.md](F-012-diff-side-by-side.md) |
 | F-013 | Unified diff | [F-013-diff-unified.md](F-013-diff-unified.md) |
 | F-014 | Навигация по ханкам | [F-014-diff-navigation.md](F-014-diff-navigation.md) |
@@ -124,7 +124,7 @@
 | F-116 | Профилирующий лог | [F-116-profile-log.md](F-116-profile-log.md) |
 | F-117 | Открыть папку с логом | [F-117-reveal-log.md](F-117-reveal-log.md) |
 | F-118 | Поиск репозиториев в папке | [F-118-scan-folder.md](F-118-scan-folder.md) |
-| F-119 | Без кнопок сортировки файлов | [F-119-file-sort-buttons.md](F-119-file-sort-buttons.md) |
+| F-119 | Сортировка файлов — заголовками колонок | [F-119-file-sort-buttons.md](F-119-file-sort-buttons.md) |
 | F-120 | Переключатели вида файлов | [F-120-file-view-toggles.md](F-120-file-view-toggles.md) |
 | F-121 | Раздельные списки Unstaged и Staged | [F-121-files-split.md](F-121-files-split.md) |
 | F-122 | Дерево ссылок с чекбоксами | [F-122-ref-tree.md](F-122-ref-tree.md) |
@@ -334,5 +334,6 @@
 | F-524 | Меню кнопок тулбара в узком окне и с клавиатуры | [F-524-toolbar-menus-narrow-and-keys.md](F-524-toolbar-menus-narrow-and-keys.md) |
 | F-532 | Диалог с набранным текстом не закрывается молча | [F-532-dialog-keeps-typed-text.md](F-532-dialog-keeps-typed-text.md) |
 | F-570 | Рабочая копия одним списком без раздельного индекса | [F-570-one-worktree-list.md](F-570-one-worktree-list.md) |
+| F-571 | Таблица Files: имя, тип, состояние, путь | [F-571-files-table.md](F-571-files-table.md) |
 | F-573 | Каталоги или плоский список — одна кнопка | [F-573-files-layout-toggle.md](F-573-files-layout-toggle.md) |
 | F-574 | Кнопки Files — в заголовках, видны всегда | [F-574-files-heading-buttons.md](F-574-files-heading-buttons.md) |

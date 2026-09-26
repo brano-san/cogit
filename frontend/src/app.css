@@ -173,6 +173,13 @@
   /* Header 28 + two message lines 50 + the Commit row 22 + padding and borders. */
   --commit-panel-min: 122px;
   --worktrees-panel-min: 94px;
+  /* The Files table (#33): the columns between the name and the path are fixed, so every
+     path starts at one vertical; "Repository" fits the type. */
+  --file-type-width: 64px;
+  --file-change-width: 32px;
+  --file-column-gap: var(--sp-4);
+  /* The width of ::-webkit-scrollbar below, for a heading kept in line with a list. */
+  --scrollbar-size: 10px;
 
   /* ---- radii: nothing above 6px, a dense UI with big radii reads as mushy ---- */
   --r-sm: 3px;

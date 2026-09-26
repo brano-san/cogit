@@ -1,4 +1,4 @@
-import type { FileEntry, FileStatus } from "$lib/ipc";
+import type { FileStatus } from "$lib/ipc";
 
 const BADGES: Record<FileStatus, string> = {
   added: "A",
@@ -66,11 +66,6 @@ export function matchesMask(path: string, mask: string): boolean {
   }
   const subject = pattern.includes("/") ? path : fileName(path);
   return globToRegExp(pattern).test(subject.toLowerCase());
-}
-
-/** By path only: the sections of the list are what sorts by status (R-476). */
-export function sortFiles<F extends FileEntry>(files: readonly F[]): F[] {
-  return [...files].sort((a, b) => a.path.localeCompare(b.path));
 }
 
 export function globToRegExp(pattern: string): RegExp {
