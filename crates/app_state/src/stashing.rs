@@ -58,26 +58,32 @@ impl AppState {
         repo: RepoId,
         index: u32,
         pop: bool,
+        restore_index: bool,
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
-        self.handle(repo)?.stash_apply_index(index, pop)
+        self.handle(repo)?
+            .stash_apply_index(index, pop, restore_index)
     }
 
-    /// Stash, switch, put back: one call, which the command runs as one operation (R-521).
+    /// Stash, check out, apply: one call, which the command runs as one operation (R-521,
+    /// R-563).
     pub fn switch_with_autostash(
         &self,
         repo: RepoId,
         target: &git_engine::CheckoutTarget,
         message: &str,
-    ) -> Result<(), git_engine::GitError> {
+        drop_after_clean: bool,
+    ) -> Result<git_engine::AutostashOutcome, git_engine::GitError> {
         let _quiet = self.quiet(repo);
-        self.handle(repo)?.switch_with_autostash(target, message)?;
-        let what = match target {
-            git_engine::CheckoutTarget::Branch { name } => name.clone(),
-            git_engine::CheckoutTarget::Commit { oid } => oid.clone(),
-        };
-        self.record(repo, format!("Check out {what}"), Recovery::None);
-        Ok(())
+        let outcome =
+            self.handle(repo)?
+                .switch_with_autostash(target, message, drop_after_clean)?;
+        self.record(
+            repo,
+            format!("Check out {}", target.described()),
+            Recovery::None,
+        );
+        Ok(outcome)
     }
 
     pub fn stash_drop(&self, repo: RepoId, index: u32) -> Result<(), git_engine::GitError> {

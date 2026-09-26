@@ -138,7 +138,7 @@ fn applying_a_stash_keeps_it_in_the_list() {
     let f = test_fixtures::with_stashes(2).unwrap();
     let repo = open(&f);
 
-    repo.stash_apply_index(0, false).unwrap();
+    repo.stash_apply_index(0, false, false).unwrap();
 
     assert_eq!(repo.stashes().unwrap().len(), 2);
 }
@@ -148,9 +148,61 @@ fn popping_a_stash_removes_it_from_the_list() {
     let f = test_fixtures::with_stashes(2).unwrap();
     let repo = open(&f);
 
-    repo.stash_apply_index(0, true).unwrap();
+    repo.stash_apply_index(0, true, false).unwrap();
 
     assert_eq!(repo.stashes().unwrap().len(), 1);
+}
+
+/// `file0.txt` changed and staged, then stashed: the working tree is clean again.
+fn staged_then_stashed() -> test_fixtures::Fixture {
+    let f = test_fixtures::linear(2).unwrap();
+    dirty(&f, "file0.txt", "staged\n");
+    f.git(&["add", "file0.txt"]).unwrap();
+    f.git(&["stash", "push"]).unwrap();
+    f
+}
+
+fn staged_paths(repo: &RepoHandle) -> Vec<String> {
+    let files = repo.worktree_files().unwrap();
+    files.staged.into_iter().map(|entry| entry.path).collect()
+}
+
+// Apply Stash's Restore Index (item 40 of 25.09): `stash apply --index`.
+#[test]
+fn restore_index_brings_staged_changes_back_staged() {
+    let f = staged_then_stashed();
+    let repo = open(&f);
+
+    repo.stash_apply_index(0, false, true).unwrap();
+
+    assert_eq!(staged_paths(&repo), ["file0.txt"]);
+    assert_eq!(repo.stashes().unwrap().len(), 1);
+}
+
+#[test]
+fn without_restore_index_staged_changes_come_back_unstaged() {
+    let f = staged_then_stashed();
+    let repo = open(&f);
+
+    repo.stash_apply_index(0, false, false).unwrap();
+
+    assert!(staged_paths(&repo).is_empty());
+    let unstaged = repo.worktree_files().unwrap().unstaged;
+    assert!(
+        unstaged.iter().any(|entry| entry.path == "file0.txt"),
+        "{unstaged:?}"
+    );
+}
+
+#[test]
+fn apply_and_drop_restoring_the_index_removes_the_stash() {
+    let f = staged_then_stashed();
+    let repo = open(&f);
+
+    repo.stash_apply_index(0, true, true).unwrap();
+
+    assert_eq!(staged_paths(&repo), ["file0.txt"]);
+    assert!(repo.stashes().unwrap().is_empty());
 }
 
 #[test]
@@ -195,7 +247,7 @@ fn an_index_that_does_not_exist_is_a_typed_error() {
     let repo = open(&f);
 
     assert!(repo.stash_drop(7).is_err());
-    assert!(repo.stash_apply_index(7, false).is_err());
+    assert!(repo.stash_apply_index(7, false, false).is_err());
 }
 
 // Entries whose commit is gone are left out of the list, and the rest were numbered after
@@ -274,7 +326,7 @@ fn asked_for_untracked_with_none_there_the_edits_go_in_a_plain_push() {
 
     assert_eq!(*commands.lock().unwrap(), ["git stash push --message wip"]);
     assert!(repo.worktree_files().unwrap().unstaged.is_empty());
-    repo.stash_apply_index(0, true).unwrap();
+    repo.stash_apply_index(0, true, false).unwrap();
     assert_eq!(
         std::fs::read_to_string(f.path().join("file0.txt")).unwrap(),
         "work in progress\n"

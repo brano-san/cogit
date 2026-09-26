@@ -81,6 +81,9 @@
     oncontext?: (oid: string, x: number, y: number) => void;
     onworktreecontext?: (x: number, y: number) => void;
     onrefcontext?: (label: RefLabel, oid: string, x: number, y: number) => void;
+    /** Double click on a commit and on a label of it: their Check Out (item 40). */
+    onactivate?: (oid: string) => void;
+    onrefactivate?: (label: RefLabel, oid: string) => void;
     /** A filter left the list empty; its button clears the filter. */
     onclearfilter?: () => void;
     /** Branches ticked in Branches in their own colours (setting `graphHighlightChecked`). */
@@ -117,6 +120,8 @@
     oncontext,
     onworktreecontext,
     onrefcontext,
+    onactivate,
+    onrefactivate,
     onclearfilter,
     highlightChecked = GRAPH_MODE_DEFAULTS.highlightChecked,
     firstParent = GRAPH_MODE_DEFAULTS.firstParent,
@@ -502,6 +507,16 @@
     else void pick(repo, oid);
   }
 
+  /** Anywhere on the commit's row, its lines included; a button in it answers for itself. */
+  function ondblclick(event: MouseEvent) {
+    if (!onactivate || !scroller || graph.stale) return;
+    if (event.target instanceof Element && event.target.closest("button")) return;
+    const box = scroller.getBoundingClientRect();
+    const hit = hitTest(event.clientX - box.left, event.clientY - box.top, scrollTop, listRows);
+    const oid = hit ? clickedCommit(hit.row, headerRows, (row) => graph.rowAt(row)?.commit.oid) : undefined;
+    if (oid) onactivate(oid);
+  }
+
   $effect(() => {
     if (!scroller) return;
     const observer = new ResizeObserver(([entry]) => {
@@ -550,6 +565,10 @@
   }
 
   /** A label's own menu, not the row's (#39). */
+  function refActivate(label: RefLabel, oid: string) {
+    if (!graph.stale) onrefactivate?.(label, oid);
+  }
+
   function refMenu(label: RefLabel, oid: string, event: MouseEvent) {
     if (!onrefcontext) return;
     event.preventDefault();
@@ -574,6 +593,7 @@
     use:pointerDrag={commitDrag}
     {onscroll}
     {onclick}
+    {ondblclick}
     {onpointermove}
     onpointerleave={() => (hoverRow = null)}
     {onkeydown}
@@ -669,6 +689,7 @@
               {now}
               {clipX}
               onrefmenu={onrefcontext && ((label, event) => refMenu(label, item.entry.commit.oid, event))}
+              onrefactivate={onrefactivate && ((label) => refActivate(label, item.entry.commit.oid))}
               {describeEnd}
               onprefetch={prefetch}
               onjump={jump}

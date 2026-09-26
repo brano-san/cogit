@@ -34,6 +34,17 @@ pub struct StashContents {
     pub untracked_rev: Option<String>,
 }
 
+/// Where the changes a checkout carried over ended up (item 46 of 25.09).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum AutostashOutcome {
+    /// Back in the working tree, and no stash is left of them.
+    Restored,
+    /// Also in `stash@{0}`: asked to keep it, or `clean` is false and the apply conflicted
+    /// or was refused.
+    Kept { clean: bool },
+}
+
 /// Where the copies Undo puts back are kept: out of `refs/stash`, so the user's list, its
 /// numbers and `git stash pop` never meet them (R-514).
 pub const BACKUP_REFS: &str = "refs/cogit/backup/";
@@ -348,59 +359,80 @@ impl RepoHandle {
         Ok(if after == before { None } else { after })
     }
 
-    pub fn stash_apply_index(&self, index: u32, pop: bool) -> Result<()> {
+    /// `pop` drops the entry only after it applied cleanly: git keeps it on a conflict.
+    /// `restore_index` puts the staged side back staged, where git can (`--index`).
+    pub fn stash_apply_index(&self, index: u32, pop: bool, restore_index: bool) -> Result<()> {
         let reference = self.stash_ref(index)?;
         let verb = if pop { "pop" } else { "apply" };
-        self.run_git(&["stash", verb, &reference]).map(drop)
+        let mut args = vec!["stash", verb];
+        if restore_index {
+            args.push("--index");
+        }
+        args.push(&reference);
+        self.run_git(&args).map(drop)
     }
 
-    /// `stash pop` of the entry that is `oid`, looked up as it runs: a stash made or dropped
-    /// since this one was would have moved it off `stash@{0}`.
-    pub fn stash_pop_oid(&self, oid: &str) -> Result<()> {
-        let entry = self
-            .stashes()?
-            .into_iter()
-            .find(|entry| entry.oid == oid)
-            .ok_or_else(|| {
-                GitError::InvalidState(format!(
-                    "the stash {} is no longer in the list",
-                    oid.get(..7).unwrap_or(oid)
-                ))
-            })?;
-        let reference = format!("stash@{{{}}}", entry.index);
-        self.run_git(&["stash", "pop", &reference]).map(drop)
-    }
-
-    /// Stash, switch, put the changes back — what `--autostash` does for rebase and pull —
-    /// in one call, so the lane runs it as one operation: between separate steps another
-    /// stash operation could shift `stash@{0}` (R-521). A refused switch puts the changes
-    /// back and returns the refusal; a pop that conflicts after the switch returns git's
-    /// account of the conflict, and git keeps the stash.
+    /// Stash, check out, apply the stash — what `--autostash` does for rebase and pull — in
+    /// one call, so the lane runs it as one operation (R-521). The stash is kept out of the
+    /// list while it runs (`refs/cogit/backup`, R-514), so nothing the user sees there shifts
+    /// or can be taken by mistake. A refused checkout puts the changes back as they were and
+    /// returns the refusal. After the checkout the stash is applied; it joins the list when
+    /// it has to stay: the apply did not go cleanly, or `drop_after_clean` is off (R-563).
     pub fn switch_with_autostash(
         &self,
         target: &crate::CheckoutTarget,
         message: &str,
-    ) -> Result<()> {
+        drop_after_clean: bool,
+    ) -> Result<AutostashOutcome> {
         let made = self.stash_push_if_any(&StashOptions {
             message: message.to_owned(),
             include_untracked: true,
             keep_index: false,
         })?;
-        let switched = self.checkout(target);
-        let Some(oid) = made else {
-            return switched;
+        let Some(oid) = self.keep_as_backup(made)? else {
+            return self.checkout(target).map(|()| AutostashOutcome::Restored);
         };
-        let restored = self.stash_pop_oid(&oid);
-        match (switched, restored) {
-            (Err(refused), Err(err)) => {
-                // A failed pop is a git command of its own and reaches the journal; the
-                // refusal is what the caller asked about.
-                tracing::error!(error = ?err, stash = %oid, context = "autostash: the changes stay in the stash after a refused switch");
-                Err(refused)
+        if let Err(refused) = self.checkout(target) {
+            // The tree is back at the commit the stash was taken on, so `--index` applies.
+            match self.run_git(&["stash", "apply", "--index", &oid]) {
+                Ok(_) => self.forget_backup(&oid),
+                Err(err) => {
+                    tracing::error!(error = ?err, stash = %oid, context = "autostash: the changes stay in the stash after a refused checkout");
+                    if let Err(err) = self.list_stash(&oid) {
+                        tracing::error!(error = ?err, stash = %oid, context = "autostash: the stash stays in refs/cogit/backup");
+                    }
+                }
             }
-            (Err(refused), Ok(())) => Err(refused),
-            (Ok(()), restored) => restored,
+            return Err(refused);
         }
+        // A conflict, or files git will not overwrite, is git's own account in the journal;
+        // the checkout went through all the same.
+        let clean = self.run_git(&["stash", "apply", &oid]).is_ok();
+        if clean && drop_after_clean {
+            self.forget_backup(&oid);
+            return Ok(AutostashOutcome::Restored);
+        }
+        self.list_stash(&oid)?;
+        Ok(AutostashOutcome::Kept { clean })
+    }
+
+    /// A stash kept in `refs/cogit/backup` goes on top of the list, under its own message.
+    fn list_stash(&self, oid: &str) -> Result<()> {
+        let message = self
+            .find_commit(oid)
+            .and_then(|commit| {
+                commit
+                    .message()
+                    .map(|message| message.summary().to_string())
+                    .map_err(|err| GitError::Internal(format!("cannot read {oid}: {err}")))
+            })
+            .unwrap_or_else(|err| {
+                tracing::error!(error = ?err, stash = %oid, context = "autostash: listed without its message");
+                "cogit: autostash".to_owned()
+            });
+        self.run_git(&["stash", "store", "--message", &message, oid])?;
+        self.forget_backup(oid);
+        Ok(())
     }
 
     /// Returns the dropped entry so Undo can put it back (`restore_stash`).

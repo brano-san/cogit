@@ -45,6 +45,8 @@ export interface Settings {
   autoUpdate: boolean;
   /** The Exit dialog's "Don't show again" and this checkbox are the same value (R-151). */
   confirmExit: boolean;
+  /** The Checkout dialog for a local branch; its "Don't show again" turns it off (item 40). */
+  confirmLocalCheckout: boolean;
   /** The visible columns, left to right; a hidden one is simply absent. */
   graphColumns: GraphColumn[];
   /** The graph's time column only; `dateFormat` stays for Blame and commit details (R-370). */
@@ -95,6 +97,7 @@ export const DEFAULT_SETTINGS: Settings = {
   avatars: "gravatar",
   autoUpdate: false,
   confirmExit: true,
+  confirmLocalCheckout: true,
   graphColumns: ["author", "avatar", "time", "hash"],
   graphTimeFormat: "date",
   graphDensity: "normal",

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { CONFIRM_EXIT, healthChoiceId, parseChoice, suppressedChoices } from "./suppressions";
+import {
+  CONFIRM_EXIT,
+  CONFIRM_LOCAL_CHECKOUT,
+  healthChoiceId,
+  parseChoice,
+  suppressedChoices,
+} from "./suppressions";
 
 describe("suppressedChoices", () => {
   it("lists nothing when every dialog still shows", () => {
@@ -11,6 +17,14 @@ describe("suppressedChoices", () => {
     expect(suppressedChoices(false, {})).toEqual([
       { id: CONFIRM_EXIT, label: "Confirm before exiting", scope: null },
     ]);
+  });
+
+  // Item 40: the Checkout dialog of a local branch, turned off by its Don't show again.
+  it("lists the local branch's Checkout dialog once it has been turned off", () => {
+    expect(suppressedChoices(true, {}, false)).toEqual([
+      { id: CONFIRM_LOCAL_CHECKOUT, label: "Check Out dialog for a local branch", scope: null },
+    ]);
+    expect(parseChoice(CONFIRM_LOCAL_CHECKOUT)).toEqual({ kind: "confirmLocalCheckout" });
   });
 
   it("lists a warning ignored for a repository, naming the repository", () => {

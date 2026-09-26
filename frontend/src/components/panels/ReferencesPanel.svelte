@@ -11,13 +11,12 @@
     /** Ticking a box changes which tips the graph walks, so the caller rebuilds it. */
     onvisible: () => void;
     onselect: (node: RefNode) => void;
-    oncheckout: (branch: Branch) => void;
     onactivate: (node: RefNode) => void;
     oncontext: (node: RefNode, x: number, y: number) => void;
     ondrop: (source: string, target: Branch, x: number, y: number) => void;
   }
 
-  let { input, onvisible, onselect, oncheckout, onactivate, oncontext, ondrop }: Props =
+  let { input, onvisible, onselect, onactivate, oncontext, ondrop }: Props =
     $props();
 
   const sorted = $derived({
@@ -49,7 +48,6 @@
     }}
     oncollapse={(id) => refs.collapse(id)}
     {onselect}
-    {oncheckout}
     {onactivate}
     {oncontext}
     {ondrop}

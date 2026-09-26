@@ -79,8 +79,8 @@ export const commands = {
 	discardPaths: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("discard_paths", { repo, paths })),
 	commit: (repo: RepoId, request: CommitRequest) => typedError<string, GitError>(__TAURI_INVOKE("commit", { repo, request })),
 	checkout: (repo: RepoId, target: CheckoutTarget) => typedError<null, GitError>(__TAURI_INVOKE("checkout", { repo, target })),
-	/**  Stash, switch, put the changes back: one operation of the lane (R-521). */
-	switchWithAutostash: (repo: RepoId, target: CheckoutTarget, message: string) => typedError<null, GitError>(__TAURI_INVOKE("switch_with_autostash", { repo, target, message })),
+	/**  Stash, check out, apply the stash: one operation of the lane (R-521, R-563). */
+	switchWithAutostash: (repo: RepoId, target: CheckoutTarget, message: string, dropAfterClean: boolean) => typedError<AutostashOutcome, GitError>(__TAURI_INVOKE("switch_with_autostash", { repo, target, message, dropAfterClean })),
 	createBranch: (repo: RepoId, name: string, start: string | null, switchTo: boolean) => typedError<null, GitError>(__TAURI_INVOKE("create_branch", { repo, name, start, switchTo })),
 	deleteBranch: (repo: RepoId, name: string, force: boolean) => typedError<null, GitError>(__TAURI_INVOKE("delete_branch", { repo, name, force })),
 	/**  In the blocking pool: the whole journal can be a hundred megabyte-sized entries. */
@@ -122,7 +122,7 @@ export const commands = {
 	stashPush: (repo: RepoId, options: StashOptions) => typedError<null, GitError>(__TAURI_INVOKE("stash_push", { repo, options })),
 	/**  Stash ▸ + Keep Working Tree: the stash is made, the files stay as they are (#29). */
 	stashKeepingWorktree: (repo: RepoId, message: string) => typedError<null, GitError>(__TAURI_INVOKE("stash_keeping_worktree", { repo, message })),
-	stashApply: (repo: RepoId, index: number, pop: boolean) => typedError<null, GitError>(__TAURI_INVOKE("stash_apply", { repo, index, pop })),
+	stashApply: (repo: RepoId, index: number, pop: boolean, restoreIndex: boolean) => typedError<null, GitError>(__TAURI_INVOKE("stash_apply", { repo, index, pop, restoreIndex })),
 	stashDrop: (repo: RepoId, index: number) => typedError<null, GitError>(__TAURI_INVOKE("stash_drop", { repo, index })),
 	createTag: (repo: RepoId, request: TagRequest) => typedError<null, GitError>(__TAURI_INVOKE("create_tag", { repo, request })),
 	deleteTag: (repo: RepoId, name: string) => typedError<null, GitError>(__TAURI_INVOKE("delete_tag", { repo, name })),
@@ -479,6 +479,16 @@ export type Author = {
 	email: string,
 };
 
+/**  Where the changes a checkout carried over ended up (item 46 of 25.09). */
+export type AutostashOutcome = 
+/**  Back in the working tree, and no stash is left of them. */
+{ kind: "restored" } | 
+/**
+ *  Also in `stash@{0}`: asked to keep it, or `clean` is false and the apply conflicted
+ *  or was refused.
+ */
+{ kind: "kept"; clean: boolean };
+
 /**  Mirrors `app_state::AppEvent::AvatarReady`: one row can redraw without a refetch. */
 export type AvatarReady = {
 	email: string,
@@ -577,7 +587,17 @@ export type ChangeKind = "head" | "index" | "refs" | "workingTree" | "stash" | "
 /**  `.mailmap` at the root of the working tree: names and addresses to read again. */
 "mailmap";
 
-export type CheckoutTarget = { kind: "branch"; name: string } | { kind: "commit"; oid: string };
+export type CheckoutTarget = { kind: "branch"; name: string } | { kind: "commit"; oid: string } | 
+/**
+ *  A local branch made at `start` and checked out; `track` makes `start`, a remote
+ *  branch, its upstream.
+ */
+{ kind: "newBranch"; name: string; start: string; track: boolean } | 
+/**
+ *  An existing local branch moved forward to `to` and checked out; never back or
+ *  sideways.
+ */
+{ kind: "fastForward"; name: string; to: string };
 
 /**
  *  What the UI needs to decide whether to interrupt the user. The output itself is

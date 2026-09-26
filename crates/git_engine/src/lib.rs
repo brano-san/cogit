@@ -125,7 +125,7 @@ pub use runner::{
 };
 pub use search::{CommitQuery, GraphRows, GraphView, Passed, PassedCommits, ShownBy, SkippedRef};
 pub use shared::SharedRepo;
-pub use stash::{StashContents, StashEntry, StashOptions};
+pub use stash::{AutostashOutcome, StashContents, StashEntry, StashOptions};
 pub use state::RepoState;
 pub use status::{RepoStatus, WorkingState};
 pub use submodules::{Submodule, SubmodulePointer, SubmoduleState};
