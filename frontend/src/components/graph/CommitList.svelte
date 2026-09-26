@@ -329,12 +329,13 @@
   });
 
   let lanePick = $state<LanePick | null>(null);
+  const walkKey = $derived(`${graph.walk?.repo ?? ""}:${graph.walk?.generation ?? ""}`);
   const selectedLane = $derived.by(() => {
     void graph.walk;
     const at = graph.loadedIndexOf(selection.oid);
     return at === null ? null : (graphOverlays.paintAt(at)?.nodeLane ?? null);
   });
-  const focus = $derived(focusLane(modes, selection.oid, selectedLane, lanePick));
+  const focus = $derived(focusLane(modes, selection.oid, selectedLane, lanePick, walkKey));
 
   const drawn = $derived(
     visible.map(({ listRow, entry }) => ({
@@ -437,7 +438,7 @@
     if (branchOfCommit && oid !== null && layout && commitRow !== null) {
       const upper = (event.clientY - box.top + scrollTop) % rowHeight < rowHeight / 2;
       const lane = laneAt(layout, graphOverlays.paintAt(commitRow), hit.lane, upper);
-      lanePick = lane === null ? null : { oid, lane };
+      lanePick = lane === null ? null : { oid, lane, walk: walkKey };
     }
     // Clicking the selected commit again brings its details back into Diff (#7).
     if (oid !== null && oid === selection.oid) selection.showDetails();

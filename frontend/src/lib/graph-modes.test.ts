@@ -66,14 +66,19 @@ describe("focusLane", () => {
   const on = { ...GRAPH_MODE_DEFAULTS, branchOfCommit: true };
 
   it("is the selected commit's lane, or the line clicked in its row", () => {
-    expect(focusLane(on, "a", 3, null)).toBe(3);
-    expect(focusLane(on, "a", 3, { oid: "a", lane: 8 })).toBe(8);
-    expect(focusLane(on, "b", 3, { oid: "a", lane: 8 })).toBe(3);
+    expect(focusLane(on, "a", 3, null, "1:1")).toBe(3);
+    expect(focusLane(on, "a", 3, { oid: "a", lane: 8, walk: "1:1" }, "1:1")).toBe(8);
+    expect(focusLane(on, "b", 3, { oid: "a", lane: 8, walk: "1:1" }, "1:1")).toBe(3);
+  });
+
+  // Every walk numbers its lanes afresh: lane 8 of the last one is another branch now.
+  it("forgets the line clicked once another walk replaced the one it was clicked in", () => {
+    expect(focusLane(on, "a", 3, { oid: "a", lane: 8, walk: "1:1" }, "1:2")).toBe(3);
   });
 
   it("is nothing with the mode off or nothing selected", () => {
-    expect(focusLane(GRAPH_MODE_DEFAULTS, "a", 3, null)).toBeNull();
-    expect(focusLane(on, null, 3, null)).toBeNull();
+    expect(focusLane(GRAPH_MODE_DEFAULTS, "a", 3, null, "1:1")).toBeNull();
+    expect(focusLane(on, null, 3, null, "1:1")).toBeNull();
   });
 
   it("asks for lanes even with no branch ticked", () => {
