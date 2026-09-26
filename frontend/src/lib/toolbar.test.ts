@@ -154,7 +154,24 @@ describe("the rest", () => {
 
   it("needs a remote for the network actions", () => {
     expect(reasonOf("pull", facts())).toBe("This repository has no remote");
-    expect(reasonOf("push", facts({ remote: true }))).toBeUndefined();
+    expect(reasonOf("push", facts({ remote: true, branch: true }))).toBeUndefined();
+  });
+
+  // In a detached HEAD, mid-rebase or on a branch that tracks nothing every click on Pull,
+  // Push or Sync ended in a git error: "You are not currently on a branch".
+  it("pulls and syncs only a branch that tracks a remote branch", () => {
+    for (const id of ["pull", "sync"]) {
+      expect(reasonOf(id, facts({ remote: true })), id).toBe("HEAD is not on a branch");
+      expect(reasonOf(id, facts({ remote: true, branch: true })), id).toBe("The branch tracks no remote branch");
+      expect(reasonOf(id, facts({ remote: true, branch: true, upstream: true })), id).toBeUndefined();
+    }
+  });
+
+  // A branch without upstream is pushed with --set-upstream (R-414); only a detached HEAD
+  // has nothing to push.
+  it("pushes a branch whether or not it tracks one yet", () => {
+    expect(reasonOf("push", facts({ remote: true }))).toBe("HEAD is not on a branch");
+    expect(reasonOf("push", facts({ remote: true, branch: true }))).toBeUndefined();
   });
 
   it("never offers an action it does not know", () => {
