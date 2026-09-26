@@ -339,3 +339,4 @@
 | F-508 | Клавиатура в списках | [F-508-list-keyboard.md](F-508-list-keyboard.md) |
 | F-510 | Панель слияния не теряет выбранные стороны | [F-510-merge-panel-keeps-picks.md](F-510-merge-panel-keeps-picks.md) |
 | F-523 | Папки неактивных репозиториев не заняты | [F-523-inactive-repository-folders-free.md](F-523-inactive-repository-folders-free.md) |
+| F-524 | Меню кнопок тулбара в узком окне и с клавиатуры | [F-524-toolbar-menus-narrow-and-keys.md](F-524-toolbar-menus-narrow-and-keys.md) |
