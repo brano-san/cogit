@@ -44,6 +44,8 @@
   import { anchoredScrollTop } from "$lib/graph-anchor";
   import { emptyHistory, showsWorkingTree, subjectRoom } from "$lib/graph-panel";
   import { workingTreeLabel } from "$lib/repo-state";
+  import { bisectOf } from "$lib/bisect";
+  import { bisectLooks, dotToken, rowToken } from "$lib/bisect-looks";
   import { reportTiming, type RebaseProgress, type RepoId } from "$lib/ipc";
   import { avatars } from "$stores/avatars.svelte";
   import { commit as selection } from "$stores/commit.svelte";
@@ -313,6 +315,8 @@
   }
 
   const headerLabel = $derived(workingTreeLabel(repository.current?.status, repository.current?.state));
+  /** Good, bad, skipped and the commit under test (F-566): a layer of its own over the rows. */
+  const looks = $derived(bisectLooks(bisectOf(repository.current?.state)));
 
   /** What relative times and "today" count from; a minute is their finest step. Read in the
       markup, `Date.now()` changed nothing until a row scrolled away and back. */
@@ -395,12 +399,17 @@
       layout: entry.layout,
       stash: stashOids.has(entry.commit.oid),
       paint: graphOverlays.paintAt(entry.layout.row),
+      bisect: bisectPaint(entry.commit.oid),
     })),
   );
   /** The canvas only has to reach the widest row on screen. */
   const canvasWidth = $derived(
     Math.min(Math.max(headerX, ...drawn.map(({ layout }) => textX(layout.width))), clipX),
   );
+  function bisectPaint(oid: string) {
+    const look = looks.get(oid);
+    return look && { dot: dotToken(look), tint: rowToken(look) };
+  }
   /** Rows drawn selected: the selection and the other end of a comparison (#33). */
   const selectedRows = $derived(
     visible
@@ -643,9 +652,12 @@
         {/each}
 
         {#each visible as item (item.entry.commit.oid)}
+          {@const look = looks.get(item.entry.commit.oid)}
           <div
             class="row"
             class:striped={stripes && striped(item.listRow)}
+            class:bisect-current={look?.row === "current"}
+            class:bisect-found={look?.row === "found"}
             class:selected={selection.oid === item.entry.commit.oid || comparedFrom === item.entry.commit.oid}
             class:over={over === item.entry.commit.oid}
             style:top="{item.listRow * rowHeight}px"
@@ -660,6 +672,9 @@
               oncontext(item.entry.commit.oid, event.clientX, event.clientY);
             }}
           >
+            {#if look?.tag}
+              <span class="bisect-tag {look.dot ?? "testing"}">{look.tag}</span>
+            {/if}
             <CommitRow
               entry={item.entry}
               labels={labelsOf(item.entry.commit.oid)}
@@ -747,6 +762,17 @@
     background: var(--row-stripe);
   }
 
+  /* A bisect mark tints the row in place of its stripe; hover and selection cover it. */
+  .row.bisect-current {
+    background: var(--graph-bisect-current);
+    box-shadow: inset 2px 0 0 var(--status-modify);
+  }
+
+  .row.bisect-found {
+    background: var(--graph-bisect-found);
+    box-shadow: inset 2px 0 0 var(--graph-bisect-bad);
+  }
+
   .row:hover {
     background: var(--state-hover);
   }
@@ -775,6 +801,33 @@
     border: 0;
     font: inherit;
     text-align: left;
+  }
+
+  .bisect-tag {
+    flex: 0 0 auto;
+    height: 16px;
+    padding: 0 var(--sp-3);
+    border: 1px solid;
+    border-radius: var(--r-md);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    line-height: 14px;
+  }
+
+  .bisect-tag.good {
+    color: var(--graph-bisect-good);
+  }
+
+  .bisect-tag.bad {
+    color: var(--graph-bisect-bad);
+  }
+
+  .bisect-tag.skip {
+    color: var(--graph-bisect-skip);
+  }
+
+  .bisect-tag.testing {
+    color: var(--status-modify);
   }
 
   .row.virtual {
