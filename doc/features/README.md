@@ -2,6 +2,8 @@
 
 Один файл — одна фраза. Идти по списку и проверять руками.
 
+Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице, по порядку номеров.
+
 | # | Фича | Файл |
 |---|---|---|
 | F-001 | Открытие репозитория | [F-001-open-repository.md](F-001-open-repository.md) |
@@ -158,40 +160,6 @@
 | F-153 | Пустые состояния и скелетон загрузки | [F-153-empty-states.md](F-153-empty-states.md) |
 | F-154 | Папка, брошенная в окно, открывается | [F-154-drop-to-open.md](F-154-drop-to-open.md) |
 | F-155 | Восстановление сессии | [F-155-session-restore.md](F-155-session-restore.md) |
-
-| F-221 | Обход по `.gitignore` при поиске репозиториев | [F-221-scan-respects-gitignore.md](F-221-scan-respects-gitignore.md) |
-| F-222 | Защита от правки общей истории | [F-222-protected-branches.md](F-222-protected-branches.md) |
-| F-223 | Пометка «данные устарели» на панелях | [F-223-stale-panels.md](F-223-stale-panels.md) |
-| F-224 | Предупреждение при закрытии с несохранённым | [F-224-close-confirmation.md](F-224-close-confirmation.md) |
-| F-225 | Всплывающие подсказки в тулбаре | [F-225-tooltips.md](F-225-tooltips.md) |
-
-| F-226 | Построчный Discard обратим | [F-226-line-discard-undo.md](F-226-line-discard-undo.md) |
-| F-227 | Вложенные группы репозиториев | [F-227-nested-groups.md](F-227-nested-groups.md) |
-| F-228 | Стартовый экран с недавними | [F-228-start-screen.md](F-228-start-screen.md) |
-
-| F-229 | Слияние в отдельном окне | [F-229-merge-window.md](F-229-merge-window.md) |
-
-| F-230 | Git-Flow без расширения | [F-230-git-flow.md](F-230-git-flow.md) |
-
-| F-231 | Синтаксическое слияние через tree-sitter | [F-231-syntactic-merge.md](F-231-syntactic-merge.md) |
-
-| F-232 | Аватары спрашивают, а не включаются сами | [F-232-avatars-ask-first.md](F-232-avatars-ask-first.md) |
-
-| F-233 | Видимые разделители панелей | [F-233-visible-splitters.md](F-233-visible-splitters.md) |
-| F-234 | Проверка обновлений, которая не включается сама | [F-234-check-for-updates.md](F-234-check-for-updates.md) |
-
-Новая фича — новый файл `F-NNN-<slug>.md` и строка в этой таблице.
-
-| F-214 | Четырёхпанельное слияние | [F-214-four-panel-merge.md](F-214-four-panel-merge.md) |
-| F-215 | Автоматически разрешённые участки помечены | [F-215-auto-resolved-marked.md](F-215-auto-resolved-marked.md) |
-| F-216 | Ctrl+S сохраняет разрешение | [F-216-merge-save-shortcut.md](F-216-merge-save-shortcut.md) |
-
-| F-217 | Хук, изменённый снаружи, подхватывается | [F-217-hook-watch.md](F-217-hook-watch.md) |
-| F-218 | Предупреждение о недостающем конфиге пресета | [F-218-preset-missing-config.md](F-218-preset-missing-config.md) |
-| F-219 | Свои пресеты хуков | [F-219-user-presets.md](F-219-user-presets.md) |
-| F-220 | Обход хуков видно в Output | [F-220-bypass-in-output.md](F-220-bypass-in-output.md) |
-
-
 | F-200 | Отсутствие финального перевода строки видно в diff | [F-200-final-newline.md](F-200-final-newline.md) |
 | F-201 | Перемещённый блок помечен с обоих концов | [F-201-move-pairing.md](F-201-move-pairing.md) |
 | F-202 | Перемещение между файлами отличается от внутрифайлового | [F-202-cross-file-moves.md](F-202-cross-file-moves.md) |
@@ -206,6 +174,27 @@
 | F-211 | Stage, Unstage и Discard прямо у блока изменений | [F-211-gutter-staging.md](F-211-gutter-staging.md) |
 | F-212 | Панель diff переживает стейджинг | [F-212-diff-survives-staging.md](F-212-diff-survives-staging.md) |
 | F-213 | Investigate от выделения в diff | [F-213-investigate-from-selection.md](F-213-investigate-from-selection.md) |
+| F-214 | Четырёхпанельное слияние | [F-214-four-panel-merge.md](F-214-four-panel-merge.md) |
+| F-215 | Автоматически разрешённые участки помечены | [F-215-auto-resolved-marked.md](F-215-auto-resolved-marked.md) |
+| F-216 | Ctrl+S сохраняет разрешение | [F-216-merge-save-shortcut.md](F-216-merge-save-shortcut.md) |
+| F-217 | Хук, изменённый снаружи, подхватывается | [F-217-hook-watch.md](F-217-hook-watch.md) |
+| F-218 | Предупреждение о недостающем конфиге пресета | [F-218-preset-missing-config.md](F-218-preset-missing-config.md) |
+| F-219 | Свои пресеты хуков | [F-219-user-presets.md](F-219-user-presets.md) |
+| F-220 | Обход хуков видно в Output | [F-220-bypass-in-output.md](F-220-bypass-in-output.md) |
+| F-221 | Обход по `.gitignore` при поиске репозиториев | [F-221-scan-respects-gitignore.md](F-221-scan-respects-gitignore.md) |
+| F-222 | Защита от правки общей истории | [F-222-protected-branches.md](F-222-protected-branches.md) |
+| F-223 | Пометка «данные устарели» на панелях | [F-223-stale-panels.md](F-223-stale-panels.md) |
+| F-224 | Предупреждение при закрытии с несохранённым | [F-224-close-confirmation.md](F-224-close-confirmation.md) |
+| F-225 | Всплывающие подсказки в тулбаре | [F-225-tooltips.md](F-225-tooltips.md) |
+| F-226 | Построчный Discard обратим | [F-226-line-discard-undo.md](F-226-line-discard-undo.md) |
+| F-227 | Вложенные группы репозиториев | [F-227-nested-groups.md](F-227-nested-groups.md) |
+| F-228 | Стартовый экран с недавними | [F-228-start-screen.md](F-228-start-screen.md) |
+| F-229 | Слияние в отдельном окне | [F-229-merge-window.md](F-229-merge-window.md) |
+| F-230 | Git-Flow без расширения | [F-230-git-flow.md](F-230-git-flow.md) |
+| F-231 | Синтаксическое слияние через tree-sitter | [F-231-syntactic-merge.md](F-231-syntactic-merge.md) |
+| F-232 | Аватары спрашивают, а не включаются сами | [F-232-avatars-ask-first.md](F-232-avatars-ask-first.md) |
+| F-233 | Видимые разделители панелей | [F-233-visible-splitters.md](F-233-visible-splitters.md) |
+| F-234 | Проверка обновлений, которая не включается сама | [F-234-check-for-updates.md](F-234-check-for-updates.md) |
 | F-235 | Падение интерфейса объясняется своими словами | [F-235-renderer-crash-dialog.md](F-235-renderer-crash-dialog.md) |
 | F-236 | Ни одно действие не теряется и не обгоняет другое | [F-236-operation-queue.md](F-236-operation-queue.md) |
 | F-237 | Открытый репозиторий виден во всех панелях сразу | [F-237-repository-opens-every-panel.md](F-237-repository-opens-every-panel.md) |
@@ -317,17 +306,17 @@
 | F-380 | Окно Investigate | [F-380-investigate-window.md](F-380-investigate-window.md) |
 | F-381 | Происхождение строки и Go Deeper | [F-381-origin-candidates.md](F-381-origin-candidates.md) |
 | F-382 | Investigate из Diff с выделенной строкой | [F-382-investigate-from-diff.md](F-382-investigate-from-diff.md) |
+| F-430 | Длинные связи графа — обрубками | [F-430-graph-long-links.md](F-430-graph-long-links.md) |
+| F-431 | Строка графа: правые колонки на месте | [F-431-graph-row-columns.md](F-431-graph-row-columns.md) |
 | F-440 | Отмеченные ветки — своими цветами | [F-440-graph-branch-colours.md](F-440-graph-branch-colours.md) |
 | F-441 | Только первые родители | [F-441-graph-first-parent.md](F-441-graph-first-parent.md) |
 | F-442 | Ветка коммита по клику | [F-442-graph-branch-of-commit.md](F-442-graph-branch-of-commit.md) |
 | F-443 | Предки и потомки выбранного коммита | [F-443-graph-ancestry.md](F-443-graph-ancestry.md) |
 | F-444 | Сворачивание слитых веток | [F-444-graph-collapse-merged.md](F-444-graph-collapse-merged.md) |
-| F-430 | Длинные связи графа — обрубками | [F-430-graph-long-links.md](F-430-graph-long-links.md) |
-| F-431 | Строка графа: правые колонки на месте | [F-431-graph-row-columns.md](F-431-graph-row-columns.md) |
-| F-460 | Кнопка тулбара с открытым меню остаётся нажатой | [F-460-toolbar-menu-pressed.md](F-460-toolbar-menu-pressed.md) |
-| F-470 | Настройки отображения графа | [F-470-graph-display-settings.md](F-470-graph-display-settings.md) |
 | F-450 | Submodules любого репозитория без активации | [F-450-submodules-of-every-repository.md](F-450-submodules-of-every-repository.md) |
 | F-451 | Изменения, push и pull в строке Repositories | [F-451-repository-sync-marks.md](F-451-repository-sync-marks.md) |
+| F-460 | Кнопка тулбара с открытым меню остаётся нажатой | [F-460-toolbar-menu-pressed.md](F-460-toolbar-menu-pressed.md) |
+| F-470 | Настройки отображения графа | [F-470-graph-display-settings.md](F-470-graph-display-settings.md) |
 | F-480 | Diff описывает неотслеживаемую папку и вложенный репозиторий | [F-480-diff-untracked-folder.md](F-480-diff-untracked-folder.md) |
 | F-481 | Конфликт «изменён / удалён» разрешается удалением файла | [F-481-conflict-deleted-side.md](F-481-conflict-deleted-side.md) |
 | F-482 | Бинарный конфликт берётся стороной целиком | [F-482-binary-conflict.md](F-482-binary-conflict.md) |
