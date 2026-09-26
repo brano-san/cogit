@@ -60,7 +60,6 @@ export const commands = {
 	commitFiles: (repo: RepoId, rev: string) => typedError<FileEntry[], GitError>(__TAURI_INVOKE("commit_files", { repo, rev })),
 	diffFile: (repo: RepoId, spec: DiffSpec, path: string, options: DiffOptions) => typedError<FileDiff, GitError>(__TAURI_INVOKE("diff_file", { repo, spec, path, options })),
 	worktreeFiles: (repo: RepoId, view: WorktreeView) => typedError<WorktreeFiles, GitError>(__TAURI_INVOKE("worktree_files", { repo, view })),
-	repoStatus: (repo: RepoId) => typedError<RepoStatus, GitError>(__TAURI_INVOKE("repo_status", { repo })),
 	/**  The counters and the conflicted paths from one read, for the refresh after a mutation. */
 	workingState: (repo: RepoId) => typedError<WorkingState, GitError>(__TAURI_INVOKE("working_state", { repo })),
 	/**  Refs and state without reopening the repository, for the refresh after a commit. */
@@ -321,7 +320,6 @@ export const commands = {
 	listSubmodules: (repo: RepoId, parent: string) => typedError<Submodule[], GitError>(__TAURI_INVOKE("list_submodules", { repo, parent })),
 	submoduleOutline: (root: string, parent: string) => typedError<Submodule[], GitError>(__TAURI_INVOKE("submodule_outline", { root, parent })),
 	repoPulse: (root: string) => typedError<RepoPulse, GitError>(__TAURI_INVOKE("repo_pulse", { root })),
-	backgroundFetch: (root: string) => typedError<null, GitError>(__TAURI_INVOKE("background_fetch", { root })),
 	pullProbe: (root: string) => typedError<boolean | null, GitError>(__TAURI_INVOKE("pull_probe", { root })),
 	/**
 	 *  Opens a submodule from its node in the tree: the panels follow it, the Repositories
