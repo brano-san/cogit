@@ -285,6 +285,14 @@
   const stashOids = $derived(new Set(stashes.entries.map((entry) => entry.oid)));
 
   const headerLabel = $derived(workingTreeLabel(repository.current?.status, repository.current?.state));
+
+  /** What relative times and "today" count from; a minute is their finest step. Read in the
+      markup, `Date.now()` changed nothing until a row scrolled away and back. */
+  let now = $state(Date.now() / 1000);
+  $effect(() => {
+    const clock = setInterval(() => (now = Date.now() / 1000), 60_000);
+    return () => clearInterval(clock);
+  });
   const empty = $derived(emptyHistory(!isEmptyQuery(graph.query), graph.visibleRefs));
 
   const visible = $derived.by(() => {
@@ -648,7 +656,7 @@
                   >{graphTime(
                     item.entry.commit.timestamp,
                     item.entry.commit.tzOffsetMinutes,
-                    Date.now() / 1000,
+                    now,
                     timeFormat,
                   )}</span
                 >
