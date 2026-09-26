@@ -166,6 +166,32 @@ fn the_first_push_of_a_branch_publishes_it_and_sets_its_upstream() {
     );
 }
 
+// Push in a branch's menu names the ref: git sets the upstream only when asked (R-550).
+#[test]
+fn a_refspec_pushed_to_be_tracked_becomes_the_upstream() {
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&["switch", "-c", "feature"]).unwrap();
+    f.commit_file(40, "feature.txt", "new\n").unwrap();
+    f.git(&["switch", "main"]).unwrap();
+    let repo = open(&f);
+
+    repo.push_refspec(
+        "origin",
+        "refs/heads/feature:refs/heads/feature",
+        true,
+        no_token,
+        |_| {},
+    )
+    .unwrap();
+
+    assert_eq!(
+        f.git(&["rev-parse", "--abbrev-ref", "feature@{upstream}"])
+            .unwrap()
+            .trim(),
+        "origin/feature"
+    );
+}
+
 #[test]
 fn a_branch_with_an_upstream_is_pushed_as_configured() {
     let f = test_fixtures::with_remote().unwrap();

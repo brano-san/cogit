@@ -3,8 +3,10 @@ import {
   customRefProblem,
   initialRemote,
   pushRefspec,
+  menuPush,
   pushTitle,
   pushUpTo,
+  tracksByDefault,
   splitUpstream,
   type PushSource,
 } from "./push-to";
@@ -95,5 +97,38 @@ describe("customRefProblem", () => {
 describe("pushTitle", () => {
   it("names the ref and the remote the way SmartGit does", () => {
     expect(pushTitle(tracked, "origin")).toBe("Push 'topic' to remote 'origin'");
+  });
+});
+
+// Push in a branch's menu sent refs/heads/x:refs/heads/x without --set-upstream: the
+// graph kept `x` and `origin/x` apart, since the branch still tracked nothing.
+describe("menuPush", () => {
+  it("makes a branch never pushed track what it becomes", () => {
+    expect(menuPush(untracked, ["origin"], "origin")).toEqual({
+      remote: "origin",
+      refspec: "refs/heads/topic:refs/heads/topic",
+      track: true,
+    });
+  });
+
+  it("leaves a tracking branch and a tag as they are", () => {
+    expect(menuPush(tracked, remotes, "origin")).toEqual({
+      remote: "origin",
+      refspec: "refs/heads/topic:refs/heads/feature/topic",
+      track: false,
+    });
+    expect(menuPush(tag, remotes, "origin")?.track).toBe(false);
+  });
+
+  it("has nowhere to push without a remote", () => {
+    expect(menuPush(untracked, [], null)).toBeNull();
+  });
+});
+
+describe("tracksByDefault", () => {
+  it("ticks Set Upstream in Push To only for a branch that tracks nothing yet", () => {
+    expect(tracksByDefault(untracked)).toBe(true);
+    expect(tracksByDefault(tracked)).toBe(false);
+    expect(tracksByDefault(tag)).toBe(false);
   });
 });

@@ -6699,3 +6699,31 @@ Shift-диапазон и клавиши), а колонки `Path` нет — �
 копии: у коммита, stash и сравнения это переключатель Missing/Removed на полосе (F-371), дубль
 не нужен. В узкой панели там же, как и раньше, шесть переключателей состояний. Иконка кнопки —
 таблица с колонками вместо трёх линий.
+
+## R-550 · Push из меню ветки и Push To назначают upstream ветке, у которой его нет · Н
+
+После push новой ветки граф показывал две метки — `audit/2026-09-25` и
+`origin/audit/2026-09-25` — вместо `origin=audit/2026-09-25` (п. 13 списка 25.09). Метки
+верны: ветка ничего не отслеживала. Лог сборки того дня
+(`cogit-2026-09-25_02-30-37.log`, 00:11:53Z) показывает, чем она ушла:
+`git push --progress origin refs/heads/audit/2026-09-25:refs/heads/audit/2026-09-25` —
+`push_to` (Push в меню ветки или Push To…). Refspec передан явно, `--set-upstream` не было,
+а R-414 касался только кнопки Push без refspec. Перечитывание после push здесь ни при чём:
+кэш хэндлов (`HandleCache`) сверяет отметки файлов конфигурации и открывает репозиторий
+заново, как только push записал `branch.<имя>.*` (тест
+`a_new_branch_pushed_from_the_toolbar_tracks_its_remote_branch`).
+
+**Решение:** `push_to` получил `track: bool` — `git push --set-upstream <remote> <refspec>`.
+Push в меню ветки (Branches, метка графа) ставит его, когда у ветки нет upstream
+(`menuPush`, `tracksByDefault`, `lib/push-to.ts`); у тега и у ветки с upstream — нет. В Push
+To… — флажок `Set upstream`, по умолчанию включён у ветки без upstream, выключен у
+отслеживающей (так Push To может и сменить upstream, и не трогать его). Push Up To upstream не
+меняет. SmartGit в этом месте спрашивает, настроить ли отслеживание
+([Synchronizing with Remote Repositories](https://docs.syntevo.com/SmartGit/Latest/Manual/GUI/Repository/Synchronizing-with-Remote-Repositories)):
+«If you try to push commits from a new local branch, you will be asked whether to set up
+tracking»; у нас вопрос — флажок диалога, а Push без диалога делает то, что SmartGit советует
+(«In most cases it is recommended to set up tracking»). Тесты —
+`a_new_branch_pushed_from_its_menu_is_joined_with_its_remote_branch`,
+`a_ref_pushed_without_tracking_leaves_the_branch_as_it_was` (`crates/app_state/tests/remotes.rs`),
+`a_refspec_pushed_to_be_tracked_becomes_the_upstream` (`crates/git_engine/tests/network.rs`),
+`push-to.test.ts` «menuPush», «tracksByDefault».

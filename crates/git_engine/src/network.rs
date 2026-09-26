@@ -130,12 +130,38 @@ impl RepoHandle {
         token: impl FnOnce(&str) -> Option<String>,
         on_line: impl FnMut(&str),
     ) -> Result<()> {
+        let first = refspec.is_none() && self.head_tracks_nothing();
+        let refspec = refspec.or(first.then_some("HEAD"));
+        self.push_with(remote, refspec, force, first, token, on_line)
+    }
+
+    /// One refspec. `track`: the local branch it sends tracks what it becomes on the
+    /// remote (`--set-upstream`), as the first push of a branch does (R-414, R-550).
+    pub fn push_refspec(
+        &self,
+        remote: &str,
+        refspec: &str,
+        track: bool,
+        token: impl FnOnce(&str) -> Option<String>,
+        on_line: impl FnMut(&str),
+    ) -> Result<()> {
+        self.push_with(remote, Some(refspec), false, track, token, on_line)
+    }
+
+    fn push_with(
+        &self,
+        remote: &str,
+        refspec: Option<&str>,
+        force: bool,
+        track: bool,
+        token: impl FnOnce(&str) -> Option<String>,
+        on_line: impl FnMut(&str),
+    ) -> Result<()> {
         let header = self.auth_arg(remote, gix::remote::Direction::Push, token);
-        let first = refspec.is_none() && self.branch_never_pushed();
         let mut args = prefix(&header);
         args.push("push");
         args.push("--progress");
-        if first {
+        if track {
             args.push("--set-upstream");
         }
         if force {
@@ -143,22 +169,25 @@ impl RepoHandle {
             args.push("--force-with-lease");
         }
         args.push(remote);
-        if let Some(refspec) = refspec {
-            args.push(refspec);
-        } else if first {
-            args.push("HEAD");
-        }
+        args.extend(refspec);
         self.run_streaming(&args, on_line)
     }
 
-    /// The checked-out branch has no upstream, so a bare `git push` fails (R-414).
-    fn branch_never_pushed(&self) -> bool {
+    /// HEAD is on a branch without an upstream as git decides it, which wants both
+    /// `branch.<name>.remote` and `branch.<name>.merge`: a bare `git push` refuses such a
+    /// branch (R-414), a bare `git pull` has nothing to merge into it (R-552).
+    #[must_use]
+    pub fn head_tracks_nothing(&self) -> bool {
         let Ok(Some(name)) = self.repo.head_name() else {
             return false;
         };
-        self.repo
-            .branch_remote_ref_name(name.as_ref(), gix::remote::Direction::Fetch)
-            .is_none()
+        let remote = self
+            .repo
+            .branch_remote_name(name.shorten(), gix::remote::Direction::Fetch);
+        let merge = self
+            .repo
+            .branch_remote_ref_name(name.as_ref(), gix::remote::Direction::Fetch);
+        remote.is_none() || merge.is_none()
     }
 
     /// The token of the URL this direction contacts, not of the push URL for all (R-410).

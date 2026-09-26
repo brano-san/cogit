@@ -630,7 +630,7 @@ Split-Off.
 | `rename_tag` | `repo, from, to` | `()` | M5 |
 | `rename_stash` | `repo, index, message` | `()` | M5 |
 | `edit_author` | `repo, rev, name, email` | `()` | M12 |
-| `push_to` | `repo, remote, refspec, onProgress: Channel<String>` | `()` | M1 |
+| `push_to` | `repo, remote, refspec, track: bool, onProgress: Channel<String>` | `()`; `track` — `--set-upstream`: отправленная локальная ветка отслеживает то, чем стала на remote (R-550) | M1 |
 
 `reset_to` с `hard` на грязном дереве сначала кладёт отслеживаемые правки в stash и
 пишет его в журнал безопасности — Undo возвращает их. `tag_name_problem` зовёт

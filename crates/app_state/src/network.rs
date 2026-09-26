@@ -127,23 +127,19 @@ impl AppState {
     }
 
     /// One refspec to one remote: Push To, Push Up To and pushing a ref that is not HEAD.
+    /// `track`: the branch pushed tracks what it becomes there (R-550).
     pub fn push_to(
         &self,
         repo: RepoId,
         remote: &str,
         refspec: &str,
+        track: bool,
         stop: &NetworkStop,
         on_line: impl FnMut(&str),
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet_briefly(repo);
         let handle = self.handle(repo)?.with_stop(stop.clone());
-        handle.push(
-            remote,
-            Some(refspec),
-            false,
-            |url| self.token_for(url),
-            on_line,
-        )
+        handle.push_refspec(remote, refspec, track, |url| self.token_for(url), on_line)
     }
 
     /// Only for an HTTP remote: SSH already authenticates through the agent, and handing
