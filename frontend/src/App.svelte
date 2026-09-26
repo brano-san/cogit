@@ -90,7 +90,7 @@
   import { fetchAllTargets, listedName, listedRepos, type ListedRepo } from "$lib/repo-list";
   import { eachAtMost, FETCH_ALL_LANES } from "$lib/fetch-all";
   import { rowSync } from "$lib/repo-sync";
-  import { UNGROUPED } from "$lib/repo-groups";
+  import { removalQuestion, UNGROUPED } from "$lib/repo-groups";
   import { repoList } from "$stores/repo-list.svelte";
   import { compareUrl } from "$lib/compare-params";
   import { dropActions, type DropAction, type DragPayload } from "$lib/drop-target";
@@ -2538,8 +2538,16 @@
       return true;
     }
     if (id === "group-remove") {
-      // The repositories go back to the ungrouped bucket, so nothing is lost by deleting.
-      repoGroups.remove(target);
+      void confirmation
+        .ask({
+          title: "Delete Group",
+          message: removalQuestion(repoGroups.groups, target),
+          confirm: "Delete",
+          warning: true,
+        })
+        .then((yes) => {
+          if (yes) repoGroups.remove(target);
+        });
       return true;
     }
     return false;
