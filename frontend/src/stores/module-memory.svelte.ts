@@ -2,6 +2,7 @@ import {
   forgetRoot,
   readModuleMemory,
   withNode,
+  withOpenedRepository,
   withTop,
   type ModuleMemory,
 } from "$lib/module-memory";
@@ -36,6 +37,11 @@ class ModuleMemoryStore {
 
   setNode(root: string, key: string, open: boolean): void {
     this.#write(withNode(this.memory, root, key, open));
+  }
+
+  /** Opened by the user just now, not switched to or restored (R-546). */
+  opened(root: string): void {
+    this.#write(withOpenedRepository(this.memory, root));
   }
 
   forget(root: string): void {
