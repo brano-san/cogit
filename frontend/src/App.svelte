@@ -1037,6 +1037,7 @@
   const preferencesHost: ApplyHost = {
     current: () => settings.current,
     apply: (next) => settings.apply(next),
+    keymap: () => settings.keymap,
     setKeymap: (keymap) => settings.setKeymap(keymap),
     rebuiltMenu: () => pushMenuState(true),
     repo: () => repository.current?.repo ?? null,
