@@ -11,6 +11,7 @@
   } from "$lib/graph-columns";
   import { blockedModes, GRAPH_MODES, type GraphMode } from "$lib/graph-mode-conflicts";
   import { FIELD_LABELS, FILTER_FIELDS, toggled } from "$lib/filter-fields";
+  import { forget } from "$lib/filter-patterns";
   import { fieldDisabled, type Field } from "$lib/preferences";
   import { LONG_LINK_ROWS_MAX, type Settings } from "$lib/settings";
   import { pointerDrag } from "$lib/pointer-drag";
@@ -157,6 +158,28 @@
       {/each}
     </div>
   </div>
+{:else if field.key === "graphFilterPatterns"}
+  <div class="row choice">
+    <span>{field.label}</span>
+    {#if value.graphFilterPatterns.length === 0}
+      <span class="why">None yet: Remember Pattern in the magnifier's menu keeps the filter in the field.</span>
+    {:else}
+      <ul class="patterns" aria-label={field.label}>
+        {#each value.graphFilterPatterns as pattern (pattern)}
+          <li>
+            <span class="pattern truncate" title={pattern}>{pattern}</span>
+            <button
+              type="button"
+              class="forget"
+              title="Forget this filter"
+              aria-label="Forget {pattern}"
+              onclick={() => onset("graphFilterPatterns", forget(value.graphFilterPatterns, pattern))}>✕</button
+            >
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  </div>
 {:else if field.key === "graphLongLinkRows"}
   <label class="row">
     <span>{field.label}</span>
@@ -278,6 +301,43 @@
     display: flex;
     flex-direction: column;
     gap: var(--sp-2);
+  }
+
+  .patterns {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    justify-self: stretch;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .patterns li {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    min-width: 0;
+  }
+
+  .pattern {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-family: var(--font-mono);
+  }
+
+  .forget {
+    flex: 0 0 auto;
+    padding: 0 var(--sp-2);
+    background: none;
+    color: var(--text-secondary);
+    border: 0;
+    cursor: default;
+  }
+
+  .forget:hover {
+    color: var(--text-primary);
   }
 
   .slider {

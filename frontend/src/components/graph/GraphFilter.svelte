@@ -2,6 +2,7 @@
   import { untrack } from "svelte";
   import { formatQuery, parseQuery, sameQuery } from "$lib/query";
   import type { CommitQuery } from "$lib/ipc";
+  import FilterPatterns from "$components/graph/FilterPatterns.svelte";
   import { graphFilter } from "$stores/graph-filter.svelte";
 
   interface Props {
@@ -43,6 +44,11 @@
     if (!sameQuery(next, query)) onchange(next);
   }
 
+  function usePattern(pattern: string) {
+    graphFilter.text = pattern;
+    apply();
+  }
+
   function reset() {
     graphFilter.text = "";
     if (active) onchange(parseQuery(""));
@@ -55,7 +61,9 @@
 </script>
 
 <div class="filter" class:active>
-  <input
+  <div class="box">
+    <FilterPatterns onpick={usePattern} />
+    <input
     type="search"
     bind:value={graphFilter.text}
     {onkeydown}
@@ -63,7 +71,8 @@
     placeholder="Filter"
     aria-label="Filter commits"
     title="Looks for the text in the fields switched on under the field. author:, path:, oid:, since: and until: take a value of their own."
-  />
+    />
+  </div>
   {#if active}
     <span class="count tabular">{matches ?? 0}</span>
     <button type="button" onclick={reset} title="Clear filter (Esc)">✕</button>
@@ -80,18 +89,28 @@
     gap: var(--sp-3);
   }
 
-  input {
+  /* The magnifier sits inside the field, as in SmartGit. */
+  .box {
+    display: flex;
+    align-items: center;
     width: 260px;
-    height: var(--h-button-sm);
-    padding: 0 var(--sp-3);
     background: var(--surface-input);
-    color: var(--text-primary);
     border: 1px solid var(--field-border);
     border-radius: var(--r-sm);
+  }
+
+  input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: calc(var(--h-button-sm) - 2px);
+    padding: 0 var(--sp-3) 0 0;
+    background: none;
+    color: var(--text-primary);
+    border: 0;
     font-size: var(--fs-dense);
   }
 
-  .filter.active input {
+  .filter.active .box {
     border-color: var(--status-ref);
   }
 

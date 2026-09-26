@@ -192,6 +192,12 @@ export const CATEGORIES: Category[] = [
             hint: "The switches under the Graph filter. Name and Content read the changed files, so they are slower.",
             keywords: ["search", "filter", "author", "committer", "message", "refs", "id", "name", "content", "find"],
           },
+          {
+            key: "graphFilterPatterns",
+            label: "Remembered filters",
+            hint: "Kept by Remember Pattern in the menu of the magnifier in the Graph filter.",
+            keywords: ["pattern", "remember", "saved", "search", "filter", "magnifier"],
+          },
         ],
       },
       {

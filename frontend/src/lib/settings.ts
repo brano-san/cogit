@@ -2,6 +2,7 @@ import type { DateMode } from "$lib/format";
 import type { Algorithm, Whitespace } from "$lib/ipc";
 import { LANE_WIDTH } from "$lib/graph-geometry";
 import { DEFAULT_FILTER_FIELDS, knownFields, type FilterField } from "$lib/filter-fields";
+import { knownPatterns } from "$lib/filter-patterns";
 
 /** Lightest first; the grey ones sit between the extremes (#24). */
 export const THEMES = [
@@ -58,6 +59,8 @@ export interface Settings {
   graphCollapseMerged: boolean;
   /** Where the graph filter looks for its text: the switches under the field (F-560). */
   graphFilterFields: FilterField[];
+  /** Filter texts kept by Remember Pattern, newest first (F-563). */
+  graphFilterPatterns: string[];
 
   /** Minutes between asking the remote of every listed repository what it has (R-354);
       `0` is off, which is the default: nothing reaches the network unasked. */
@@ -92,6 +95,7 @@ export const DEFAULT_SETTINGS: Settings = {
   graphAncestry: false,
   graphCollapseMerged: false,
   graphFilterFields: [...DEFAULT_FILTER_FIELDS],
+  graphFilterPatterns: [],
 
   backgroundFetchMinutes: 0,
 };
@@ -151,6 +155,7 @@ export function merge(stored: Partial<Settings> | null | undefined): Settings {
     ...DEFAULT_SETTINGS,
     graphColumns: [...DEFAULT_SETTINGS.graphColumns],
     graphFilterFields: [...DEFAULT_SETTINGS.graphFilterFields],
+    graphFilterPatterns: [...DEFAULT_SETTINGS.graphFilterPatterns],
   };
   if (typeof stored !== "object" || stored === null) return merged;
   const record = stored as Record<string, unknown>;
@@ -164,6 +169,10 @@ export function merge(stored: Partial<Settings> | null | undefined): Settings {
     }
     if (key === "graphFilterFields") {
       merged.graphFilterFields = knownFields(value) ?? merged.graphFilterFields;
+      continue;
+    }
+    if (key === "graphFilterPatterns") {
+      merged.graphFilterPatterns = knownPatterns(value) ?? merged.graphFilterPatterns;
       continue;
     }
     if (value === undefined || typeof value !== typeof fallback) continue;

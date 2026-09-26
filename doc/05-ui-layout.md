@@ -120,6 +120,10 @@
   совпадение); по умолчанию включены все, кроме `Name` и `Content`, выбор сохраняется в настройках
   (`graphFilterFields`, F-560). Префиксы `author:`, `path:`, `oid:`, `since:`, `until:` с
   значением работают как раньше и объединяются с текстом по И.
+- Лупа в поле фильтра — меню: `Remember Pattern` (запомнить текст поля), `Forget Pattern`,
+  ниже — запомненные шаблоны, новые сверху; выбор подставляет шаблон и сразу фильтрует, `✕` в
+  строке или `Delete` забывает его. Список — настройка `graphFilterPatterns`, виден и правится
+  в `Preferences ▸ Graph & History ▸ Filter` (F-563).
 - Мультивыбор двух коммитов (`Ctrl`) сравнивает их в Diff.
 - Контекстное меню: `Checkout`, `Create Branch`, `Tag`, `Cherry-Pick`, `Revert`, `Reset to here`,
   `Copy SHA`, `Interactive Rebase from here`.
