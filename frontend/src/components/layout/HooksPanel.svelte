@@ -201,7 +201,7 @@
   .result {
     flex: 0 0 auto;
     max-height: 30vh;
-    padding: var(--sp-4) var(--dialog-inset);
+    padding: var(--sp-4) var(--sp-5);
     border-top: 1px solid var(--divider);
     overflow: auto;
   }
@@ -228,7 +228,7 @@
 
   .source {
     margin: 0;
-    padding: var(--sp-4) var(--dialog-inset);
+    padding: var(--sp-4) var(--sp-5);
     color: var(--text-secondary);
     font-size: var(--fs-dense);
     border-bottom: 1px solid var(--divider);
@@ -238,7 +238,7 @@
     display: flex;
     align-items: center;
     gap: var(--sp-5);
-    padding: var(--sp-4) var(--dialog-inset);
+    padding: var(--sp-4) var(--sp-5);
     background: var(--c-modified-bg);
     color: var(--text-primary);
     font-size: var(--fs-dense);
@@ -251,7 +251,7 @@
 
   .bypasses {
     margin: 0;
-    padding: var(--sp-4) var(--dialog-inset);
+    padding: var(--sp-4) var(--sp-5);
     color: var(--text-secondary);
     font-size: var(--fs-dense);
     border-bottom: 1px solid var(--divider);
@@ -264,7 +264,7 @@
   }
 
   .group {
-    padding: var(--sp-3) var(--dialog-inset) var(--sp-2);
+    padding: var(--sp-3) var(--sp-5) var(--sp-2);
     background: var(--surface-raised);
     color: var(--text-secondary);
     font-size: var(--fs-header);
@@ -278,7 +278,7 @@
     align-items: center;
     gap: var(--sp-4);
     min-height: var(--h-row);
-    padding: var(--sp-2) var(--dialog-inset);
+    padding: var(--sp-2) var(--sp-5);
     font-size: var(--fs-dense);
   }
 
@@ -327,7 +327,7 @@
     flex-direction: column;
     gap: var(--sp-3);
     min-height: 0;
-    padding: var(--sp-5) var(--dialog-inset);
+    padding: var(--sp-5) var(--sp-5);
   }
 
   .editor label {

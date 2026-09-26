@@ -52,7 +52,7 @@
     align-items: center;
     gap: var(--sp-4);
     min-height: var(--h-row);
-    padding: var(--sp-2) var(--dialog-inset);
+    padding: var(--sp-2) var(--sp-5);
     font-size: var(--fs-dense);
   }
 
@@ -77,7 +77,7 @@
 
   .empty {
     margin: 0;
-    padding: var(--sp-6) var(--dialog-inset);
+    padding: var(--sp-6) var(--sp-5);
     color: var(--text-secondary);
     font-size: var(--fs-dense);
   }
