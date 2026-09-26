@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Checkbox from "$components/common/Checkbox.svelte";
   import Dialog from "$components/common/Dialog.svelte";
   import Radio from "$components/common/Radio.svelte";
   import Select from "$components/common/Select.svelte";
@@ -8,6 +9,7 @@
     pushRefspec,
     pushTitle,
     targetRef,
+    tracksByDefault,
     type PushSource,
     type PushTarget,
   } from "$lib/push-to";
@@ -17,7 +19,8 @@
     source: PushSource;
     remotes: readonly string[];
     primary: string | null;
-    onpush: (remote: string, refspec: string) => void;
+    /** `track`: the branch tracks what it becomes there (`--set-upstream`, R-550). */
+    onpush: (remote: string, refspec: string, track: boolean) => void;
     onclose: () => void;
   }
 
@@ -27,6 +30,8 @@
   let remote = $state(initialRemote(source, remotes, primary) ?? "");
   let mode = $state<"tracked" | "custom">("tracked");
   let custom = $state("");
+  // svelte-ignore state_referenced_locally
+  let track = $state(tracksByDefault(source));
   let field: HTMLInputElement | undefined = $state();
 
   const target = $derived<PushTarget>(mode === "tracked" ? { mode } : { mode, ref: custom });
@@ -37,7 +42,7 @@
 
   function submit() {
     if (problem !== null) return;
-    onpush(remote, pushRefspec(source, target, remote, remotes));
+    onpush(remote, pushRefspec(source, target, remote, remotes), source.kind === "branch" && track);
   }
 
   $effect(() => {
@@ -85,6 +90,13 @@
         <p class="hint">Writes <span class="mono">{destination}</span> on {remote}.</p>
       {/if}
     </fieldset>
+
+    {#if source.kind === "branch"}
+      <div class="field">
+        <Checkbox bind:checked={track} label="Set upstream" />
+        <span class="hint">{source.name} tracks the pushed branch from then on.</span>
+      </div>
+    {/if}
   </div>
 
   {#snippet footer()}

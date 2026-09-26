@@ -58,6 +58,23 @@ export function pushRefspec(
   return `${from}:${targetRef(source, target, remote, remotes)}`;
 }
 
+/** A branch that tracks nothing yet tracks what it becomes on the remote (R-550). */
+export function tracksByDefault(source: PushSource): boolean {
+  return source.kind === "branch" && source.upstream === null;
+}
+
+/** Push in the menu of a branch or tag: where Push To would send it with no change. */
+export function menuPush(
+  source: PushSource,
+  remotes: readonly string[],
+  primary: string | null,
+): { remote: string; refspec: string; track: boolean } | null {
+  const remote = initialRemote(source, remotes, primary);
+  if (remote === null) return null;
+  const refspec = pushRefspec(source, { mode: "tracked" }, remote, remotes);
+  return { remote, refspec, track: tracksByDefault(source) };
+}
+
 /** Push Up To: every commit of HEAD's branch up to `oid`, onto its upstream. */
 export function pushUpTo(
   oid: string,
