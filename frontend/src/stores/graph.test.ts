@@ -602,3 +602,32 @@ describe("a view changed while a filter is on", () => {
     graph.view = view;
   });
 });
+
+// A filter typed 3000 rows down kept the scroll there, above or past its first matches.
+describe("another filter", () => {
+  it("opens its matches at the top, wherever the list was", async () => {
+    await loaded(A, ids(600, "a"));
+    graph.show(500, 540);
+    await settle();
+    const home = graph.home;
+
+    void graph.load(A, { ...graph.query, author: "x" });
+    await last().send(ids(40, "m"), true);
+
+    expect(graph.home).toBe(home + 1);
+    expect(graph.rowAt(0)?.commit.oid).toBe("m0");
+  });
+
+  it("keeps the place for a reload of the same filter", async () => {
+    await loaded(A, ids(600, "a"));
+    graph.show(500, 540);
+    await settle();
+    const home = graph.home;
+
+    void graph.load(A, graph.query);
+    await last().send(ids(600, "n"), true);
+
+    expect(graph.home).toBe(home);
+    expect(graph.rowAt(520)?.commit.oid).toBe("n520");
+  });
+});

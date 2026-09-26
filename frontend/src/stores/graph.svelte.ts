@@ -13,7 +13,7 @@ import type { GraphBlock, GraphEntry } from "$lib/graph-wire";
 import { repository } from "$stores/repository.svelte";
 import { GRAPH_MODE_DEFAULTS, graphView } from "$lib/graph-modes";
 import { LONG_LINK_ROWS } from "$lib/graph-row";
-import { isEmptyQuery } from "$lib/query";
+import { isEmptyQuery, sameQuery } from "$lib/query";
 
 export type { GraphEntry };
 
@@ -26,6 +26,7 @@ const KEEP = 48;
 /** One walk of the history. Its rows stay in Rust and come over by block (R-193). */
 interface Walk {
   repo: RepoId;
+  query: CommitQuery;
   /** Rust's number for this walk, known from its first progress message. */
   generation: number | null;
   /** The walk this one replaces in Rust, and how many of its first rows it repeats (R-301). */
@@ -38,8 +39,9 @@ interface Walk {
   asking: Map<number, Promise<void>>;
 }
 
-const walk = (repo: RepoId): Walk => ({
+const walk = (repo: RepoId, query: CommitQuery = EMPTY_QUERY): Walk => ({
   repo,
+  query,
   generation: null,
   base: null,
   kept: 0,
@@ -203,7 +205,7 @@ class GraphStore {
     if (repository.current?.repo !== repo) return;
     const load = ++this.#loads;
     this.query = query;
-    const fresh = walk(repo);
+    const fresh = walk(repo, query);
     // Any history on screen stays until the new one covers it, another repository's too:
     // an empty list between them is the blink R-300 removes.
     if (this.#shown && this.#shown.total > 0) {
@@ -239,7 +241,7 @@ class GraphStore {
     } catch (err) {
       if (load === this.#loads) {
         this.#next = null;
-        this.#show(walk(repo));
+        this.#show(walk(repo, query));
         this.error = asError(err);
       }
     } finally {
@@ -270,7 +272,7 @@ class GraphStore {
   }
 
   #show(next: Walk): void {
-    if (this.#shown && this.#shown.repo !== next.repo) {
+    if (this.#opensAtTop(next)) {
       this.#range = this.#rangeOf(next);
       this.home += 1;
     }
@@ -294,9 +296,16 @@ class GraphStore {
     }
   }
 
-  /** Where `of` will be on screen: another repository's history opens at its top. */
+  /** Another repository's history, and another filter's matches, open at their top: a row
+      number of the list on screen means nothing in them. */
+  #opensAtTop(of: Walk): boolean {
+    const shown = this.#shown;
+    return shown !== null && shown !== of && (shown.repo !== of.repo || !sameQuery(shown.query, of.query));
+  }
+
+  /** Where `of` will be on screen. */
   #rangeOf(of: Walk): { start: number; end: number } {
-    if (!this.#shown || this.#shown.repo === of.repo) return this.#range;
+    if (!this.#opensAtTop(of)) return this.#range;
     return { start: 0, end: this.#range.end - this.#range.start };
   }
 
