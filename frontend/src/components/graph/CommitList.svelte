@@ -62,6 +62,7 @@
   import { graphFolds } from "$stores/graph-folds.svelte";
   import { graphNav } from "$stores/graph-nav.svelte";
   import { laneAt } from "$lib/graph-style";
+  import { selectedLabels } from "$lib/selected-refs";
   import { isEmptyQuery } from "$lib/query";
   import { graphOverlays } from "$stores/graph-overlay.svelte";
   import { refs as refTicks } from "$stores/refs.svelte";
@@ -93,6 +94,8 @@
     ancestry?: boolean;
     /** A merged branch folds into its merge row (`graphCollapseMerged`). */
     collapseMerged?: boolean;
+    /** Labels only for refs ticked in Branches (`graphSelectedRefsOnly`). */
+    selectedRefsOnly?: boolean;
     /** The right columns shown, in order (#12). The defaults are the list as it always was. */
     columns?: readonly GraphColumn[];
     timeFormat?: GraphTimeFormat;
@@ -114,6 +117,7 @@
     coloring = GRAPH_MODE_DEFAULTS.coloring,
     ancestry = GRAPH_MODE_DEFAULTS.ancestry,
     collapseMerged = GRAPH_MODE_DEFAULTS.collapseMerged,
+    selectedRefsOnly = false,
     columns = GRAPH_COLUMNS,
     timeFormat = GRAPH_TIME_FORMAT,
     density = GRAPH_DENSITY,
@@ -279,6 +283,10 @@
     ),
   );
   const stashOids = $derived(new Set(stashes.entries.map((entry) => entry.oid)));
+  function labelsOf(oid: string): RefLabel[] {
+    const all = labels.get(oid) ?? [];
+    return selectedRefsOnly ? selectedLabels(all, refTicks.visible) : all;
+  }
 
   const headerLabel = $derived(workingTreeLabel(repository.current?.status, repository.current?.state));
 
@@ -630,7 +638,7 @@
           >
             <CommitRow
               entry={item.entry}
-              labels={labels.get(item.entry.commit.oid) ?? []}
+              labels={labelsOf(item.entry.commit.oid)}
               folds={modes.collapseMerged && filterless}
               {cells}
               {timeFormat}

@@ -30,6 +30,13 @@ describe("graphOptions", () => {
     });
   });
 
+  it("lists the switches in SmartGit's order", () => {
+    const labels = graphOptions(DEFAULT_SETTINGS)
+      .filter((entry) => entry.kind === "switch")
+      .map((entry) => entry.label);
+    expect(labels).toEqual(["Follow Only First Parent", "Show Only Selected Branches and Tags"]);
+  });
+
   it("neither starts nor ends with a separator, nor doubles one", () => {
     const menu = graphOptions(DEFAULT_SETTINGS);
     expect(menu[0]?.kind).not.toBe("separator");

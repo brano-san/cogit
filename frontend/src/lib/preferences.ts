@@ -176,6 +176,12 @@ export const CATEGORIES: Category[] = [
             hint: "A merged branch folds into one row at its merge commit.",
             keywords: ["collapse", "fold", "merged"],
           },
+          {
+            key: "graphSelectedRefsOnly",
+            label: "Show only selected branches and tags",
+            hint: "Labels only for the refs ticked in Branches.",
+            keywords: ["labels", "refs", "selected", "ticked", "branches", "tags", "hide"],
+          },
         ],
       },
       {
