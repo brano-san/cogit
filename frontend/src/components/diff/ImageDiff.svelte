@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { imageSizes } from "$lib/diff-summary";
+
   interface Props {
     before: string | null;
     after: string | null;
@@ -14,16 +16,12 @@
   let mode = $state<Mode>("side");
   let swipe = $state(50);
   let opacity = $state(50);
-
-  function kb(bytes: number): string {
-    return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;
-  }
 </script>
 
 <div class="image-diff">
   <div class="bar">
     <span class="mime">{mime}</span>
-    <span class="sizes tabular">{kb(oldSize)} → {kb(newSize)}</span>
+    <span class="sizes tabular">{imageSizes(oldSize, newSize, before, after)}</span>
     <span class="grow"></span>
     {#each [["side", "Side by side"], ["swipe", "Swipe"], ["onion", "Onion skin"]] as [id, label] (id)}
       <button type="button" class:active={mode === id} onclick={() => (mode = id as Mode)}>
