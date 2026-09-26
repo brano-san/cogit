@@ -41,6 +41,7 @@
   import CommandOutput from "$components/layout/CommandOutput.svelte";
   import { suppressNativeMenu } from "$lib/native-menu";
   import { suppressBrowserFind } from "$lib/browser-find";
+  import { findModuleRow, isModulePath, onOpenModule } from "$lib/module-open";
   import { footerRepository, panelView } from "$lib/repo-phase";
   import { flushTrace, startTracing, timed, trace } from "$lib/trace";
   import OutputPanel from "$components/layout/OutputPanel.svelte";
@@ -138,6 +139,7 @@
     terminalChoices,
     openRepository,
     openSubmodule,
+    listSubmodules,
     openWorktree,
     listOperations,
     readGitConfig,
@@ -1713,14 +1715,39 @@
     await afterRefChange(id);
   }
 
-  /** Double-click opens the file in its own window, which survives a webview reload. */
+  /** Double-click opens the file in its own window, which survives a webview reload. A
+      submodule has no lines to compare: it opens, as its row in Repositories does (R-537). */
   function openInWindow(path: string, spec = diff.spec) {
     const id = repository.current?.repo;
     if (!id || !spec) return;
+    if (isModulePath(path, [worktree.unstaged, worktree.staged, commit.files, compareView.files])) {
+      void openModuleAt(path);
+      return;
+    }
     void openCompareWindow(compareUrl(id, path, spec), `${path} — Cogit`).catch((err) =>
       errors.report(err, "Could not open the file window"),
     );
   }
+
+  /** The submodule at `path` of the repository the panels show, opened in them. */
+  async function openModuleAt(path: string) {
+    const owner = submodules.owner;
+    if (owner === null) return;
+    const row = await findModuleRow(submodules.children, submodules.open, path, (parent) =>
+      listSubmodules(owner, parent),
+    ).catch((err) => {
+      errors.report(err, "Could not open the submodule");
+      return null;
+    });
+    if (row) await openModule(row);
+  }
+
+  // A compare window that was asked for a submodule hands it over and closes (R-537).
+  $effect(() =>
+    onOpenModule((request) => {
+      if (repository.current?.repo.valueOf() === request.repo.valueOf()) void openModuleAt(request.path);
+    }),
+  );
 
   async function openDiff(path: string) {
     const id = repository.current?.repo;

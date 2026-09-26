@@ -2,11 +2,10 @@
   import { untrack } from "svelte";
   import DiffView from "$components/diff/DiffView.svelte";
   import ImageDiff from "$components/diff/ImageDiff.svelte";
-  import SubmoduleDiff from "$components/diff/SubmoduleDiff.svelte";
   import TooltipLayer from "$components/common/TooltipLayer.svelte";
   import { installChildWindow } from "$lib/child-window";
   import { compareLabel, parseCompare } from "$lib/compare-params";
-  import { firstParent, loadCompare } from "$lib/compare-window";
+  import { firstParent, handOverModule, loadCompare } from "$lib/compare-window";
   import { diff } from "$stores/diff.svelte";
   import { followSettings } from "$lib/settings-sync";
   import { settings } from "$stores/settings.svelte";
@@ -40,6 +39,14 @@
   $effect(() => {
     document.title = `${title} — Cogit`;
   });
+
+  // A submodule has nothing to compare line by line: the main window opens it (R-537).
+  let handedOver = false;
+  $effect(() => {
+    if (diff.diff?.kind !== "submodule" || !request || handedOver) return;
+    handedOver = true;
+    untrack(() => void handOverModule(request));
+  });
 </script>
 
 <TooltipLayer />
@@ -57,14 +64,8 @@
 
     {#if diff.error}
       <p class="note error">{diff.error.message}</p>
-    {:else if diff.diff?.kind === "submodule" && diff.shownPath}
-      <SubmoduleDiff
-        path={diff.shownPath}
-        recorded={diff.diff.recorded}
-        previous={diff.diff.previous}
-        checkedOut={diff.diff.checkedOut}
-        inIndex={diff.diff.inIndex}
-      />
+    {:else if diff.diff?.kind === "submodule"}
+      <p class="note">{request.path} is a submodule: it opens in the main window.</p>
     {:else if diff.diff?.kind === "image"}
       <ImageDiff
         before={diff.images[0]}

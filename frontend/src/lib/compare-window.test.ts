@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Whitespace } from "$lib/ipc";
-import { firstParent, loadCompare } from "./compare-window";
+import { firstParent, handOverModule, loadCompare } from "./compare-window";
 
 const request = { repo: 1, path: "src/a.rs", spec: { kind: "workTreeVsIndex" as const } };
 
@@ -66,5 +66,19 @@ describe("firstParent", () => {
 
     expect(await firstParent(request, read)).toBeUndefined();
     expect(read).not.toHaveBeenCalled();
+  });
+});
+
+describe("handOverModule", () => {
+  // A changed submodule opened a compare window with nothing in it.
+  it("asks the main window to open the submodule, then closes this one", async () => {
+    const order: string[] = [];
+    const ask = vi.fn(async () => void order.push("ask"));
+    const close = vi.fn(async () => void order.push("close"));
+
+    await handOverModule({ repo: 2, path: "vendor/lib", spec: { kind: "workTreeVsIndex" } }, ask, close);
+
+    expect(ask).toHaveBeenCalledWith({ repo: 2, path: "vendor/lib" });
+    expect(order).toEqual(["ask", "close"]);
   });
 });

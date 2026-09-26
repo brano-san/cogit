@@ -751,6 +751,7 @@ expanded }` — какие из
 | `operation-changed` | `{ id, repo, kind, label, phase, success }` | Операция встала в очередь, началась или закончилась |
 | `session-ending` | `{ reason: String }` | Windows хочет завершить сеанс, а в очереди есть операции; сеанс удержан (R-168) |
 | `cogit://settings-changed` | `String` — метка окна-автора | Окно записало настройки (`settings.set`, `apply`, `setKeymap`): дочерние окна перечитывают файл (`followSettings`), тема и формат даты меняются без переоткрытия. Шлёт и слушает сама страница (`lib/settings-sync.ts`); в Rust не объявлено ([R-518](12-risks.md)) |
+| `cogit://open-module` | `{ repo, path }` — репозиторий и путь submodule в нём | Окно сравнения открыли на submodule: главное окно делает его активным, как щелчок в Repositories (`onOpenModule`), окно сравнения закрывается. Шлёт и слушает страница (`lib/module-open.ts`); в Rust не объявлено ([R-537](12-risks.md)) |
 
 ### Очередь операций
 
