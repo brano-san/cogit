@@ -25,6 +25,13 @@ const WORKTREE_ROW = (index) => ({ sel: `[aria-label="Worktrees"] [role="option"
 const HEAVY = { quiet: 400, timeout: 180_000 };
 
 /** The Working Tree row exists only while the list is scrolled to its top. */
+/** Space on the focused row marks it, and Local ▸ Stage and Unstage act on the marked rows
+    alone: the one way to act on a single file every build of the A/B has (row buttons went, #28). */
+async function markFile(ctx, name, section) {
+  await ctx.prep.click(FILE_ROW(name, section), { quiet: 150 });
+  await ctx.prep.key("Space", { quiet: 150 });
+}
+
 async function workingTree(ctx) {
   await ctx.prep.run(`(() => { document.querySelector('.scroll[aria-label="Commits"]').scrollTop = 0; })()`);
   await ctx.prep.click({ sel: "button.row.header" });
@@ -50,8 +57,10 @@ const PULL_CHECK = (root) => `(async () => {
   }
 })()`;
 
+/** The tick box of a Branches row: `input.tick-box` since the light box, `input.box` before. */
+const TICK_BOX = "input.tick-box, input.box";
 /** A branch leaf: `feature/003` sits under the folder `feature`, labelled `003`. */
-const BRANCH_BOX = { sel: `[role="treeitem"].local`, text: "003", exact: ".label", child: "input.box" };
+const BRANCH_BOX = { sel: `[role="treeitem"].local`, text: "003", exact: ".label", child: TICK_BOX };
 
 export const SCENARIOS = [
   {
@@ -131,8 +140,8 @@ export const SCENARIOS = [
     group: "Граф",
     title: "отметка группы тегов",
     sets: ["medium", "large", ...GRAPH_CG],
-    measure: (ctx) => ctx.measure.click(REF_GROUP("Tags", "input.box"), HEAVY),
-    reset: (ctx) => ctx.prep.click(REF_GROUP("Tags", "input.box"), HEAVY),
+    measure: (ctx) => ctx.measure.click(REF_GROUP("Tags", TICK_BOX), HEAVY),
+    reset: (ctx) => ctx.prep.click(REF_GROUP("Tags", TICK_BOX), HEAVY),
   },
   {
     id: "files.status",
@@ -224,10 +233,12 @@ export const SCENARIOS = [
     async prep(ctx) {
       if (ctx.set === "small") await ctx.git.modify("src/d00/file0000.txt");
       await workingTree(ctx);
+      await markFile(ctx, "file0000.txt", "Unstaged");
     },
-    measure: (ctx) => ctx.measure.click({ ...FILE_ROW("file0000.txt", "Unstaged"), child: `.act[title="Stage"]` }),
+    measure: (ctx) => ctx.measure.menu("stage"),
     async reset(ctx) {
-      await ctx.prep.click({ ...FILE_ROW("file0000.txt", "Staged"), child: `.act[title="Unstage"]` });
+      await markFile(ctx, "file0000.txt", "Staged");
+      await ctx.prep.menu("unstage", { quiet: 300 });
       if (ctx.set === "small") await ctx.git.restore("src/d00/file0000.txt");
     },
   },
@@ -238,9 +249,11 @@ export const SCENARIOS = [
     sets: ["dirty"],
     async prep(ctx) {
       await workingTree(ctx);
-      await ctx.prep.click({ ...FILE_ROW("file0000.txt", "Unstaged"), child: `.act[title="Stage"]` });
+      await markFile(ctx, "file0000.txt", "Unstaged");
+      await ctx.prep.menu("stage", { quiet: 300 });
+      await markFile(ctx, "file0000.txt", "Staged");
     },
-    measure: (ctx) => ctx.measure.click({ ...FILE_ROW("file0000.txt", "Staged"), child: `.act[title="Unstage"]` }),
+    measure: (ctx) => ctx.measure.menu("unstage"),
   },
   {
     id: "changes.stage-all",
