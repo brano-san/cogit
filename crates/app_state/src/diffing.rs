@@ -13,32 +13,29 @@ impl AppState {
         let handle = self.handle(repo)?;
         let source = handle.rename_source(spec, path)?;
         let old_path = source.as_deref().unwrap_or(path);
-        if let Some(size) = too_large(handle.side_sizes_from(spec, old_path, path)?) {
-            return Ok(diff_engine::FileDiff::TooLarge { size });
+        if let Some(diff) = too_large(handle.side_sizes_from(spec, old_path, path)?) {
+            return Ok(named(diff, &handle, spec, (old_path, path)));
         }
         let (old, new) = handle.diff_sides_from(spec, old_path, path)?;
         if old.is_none() && new.is_none() {
             return pointer_diff(&handle, spec, path);
         }
 
-        let diff = diff_engine::diff_one(
+        let diff = diff_engine::diff_one_as(
             path,
             old.as_deref().unwrap_or_default(),
             new.as_deref().unwrap_or_default(),
             options,
+            &content(handle.diff_attributes().content(path)),
         );
-        let diff = explain_unchanged(
-            diff,
+        let present = (old.is_some(), new.is_some());
+        let diff = explain_unchanged(diff, &handle, spec, (old_path, path), present);
+        Ok(named(
+            mark_absent(diff, present),
             &handle,
             spec,
             (old_path, path),
-            (old.is_some(), new.is_some()),
-        );
-        let binary = handle
-            .diff_attributes()
-            .marks_binary(path)
-            .then(|| sizes(&old, &new));
-        Ok(as_attributes_say(diff, binary))
+        ))
     }
 
     /// Every file of a commit in one call. Blocking: reads are sequential, only the diffing
@@ -57,7 +54,6 @@ impl AppState {
 
         let handle = self.handle(repo)?;
         let mut attributes = handle.diff_attributes();
-        let mut binary = std::collections::HashMap::new();
         // Where the old side is and which sides exist, for a file whose bytes are equal.
         let mut sides = std::collections::HashMap::new();
         let mut inputs = Vec::with_capacity(paths.len());
@@ -72,10 +68,10 @@ impl AppState {
 
             let source = handle.rename_source(spec, path)?;
             let old_path = source.as_deref().unwrap_or(path);
-            if let Some(size) = too_large(handle.side_sizes_from(spec, old_path, path)?) {
+            if let Some(diff) = too_large(handle.side_sizes_from(spec, old_path, path)?) {
                 slots.push(Some(diff_engine::FileDiffEntry {
                     path: path.clone(),
-                    diff: diff_engine::FileDiff::TooLarge { size },
+                    diff: named(diff, &handle, spec, (old_path, path)),
                 }));
                 continue;
             }
@@ -87,9 +83,6 @@ impl AppState {
                 }));
                 continue;
             }
-            if attributes.marks_binary(path) {
-                binary.insert(path.clone(), sizes(&old, &new));
-            }
             sides.insert(
                 path.clone(),
                 (old_path.to_owned(), (old.is_some(), new.is_some())),
@@ -99,6 +92,7 @@ impl AppState {
                 path: path.clone(),
                 old: old.unwrap_or_default(),
                 new: new.unwrap_or_default(),
+                content: content(attributes.content(path)),
             });
         }
 
@@ -106,17 +100,25 @@ impl AppState {
             .into_iter()
             .map(|entry| {
                 let diff = match sides.get(&entry.path) {
-                    Some((old_path, present)) => explain_unchanged(
-                        entry.diff,
-                        &handle,
-                        spec,
-                        (old_path, &entry.path),
-                        *present,
-                    ),
+                    Some((old_path, present)) => {
+                        let diff = explain_unchanged(
+                            entry.diff,
+                            &handle,
+                            spec,
+                            (old_path, &entry.path),
+                            *present,
+                        );
+                        named(
+                            mark_absent(diff, *present),
+                            &handle,
+                            spec,
+                            (old_path, &entry.path),
+                        )
+                    }
                     None => entry.diff,
                 };
                 diff_engine::FileDiffEntry {
-                    diff: as_attributes_say(diff, binary.get(&entry.path).copied()),
+                    diff,
                     path: entry.path,
                 }
             });
@@ -296,33 +298,75 @@ fn explain_unchanged(
     }
 }
 
-/// `binary` or `-diff` in `.gitattributes` (the sizes are given then): shown as git
-/// shows it, never as lines to stage.
-fn as_attributes_say(
-    diff: diff_engine::FileDiff,
-    binary: Option<(u64, u64)>,
-) -> diff_engine::FileDiff {
-    use diff_engine::FileDiff;
-    match (diff, binary) {
-        (
-            FileDiff::Text { .. } | FileDiff::EolOnly { .. } | FileDiff::WhitespaceOnly,
-            Some((old_size, new_size)),
-        ) => FileDiff::Binary { old_size, new_size },
-        (diff, _) => diff,
+/// `binary` or `-diff` in `.gitattributes` shows the file as git shows it, never as lines to
+/// stage; `text` or `diff` shows lines whatever the bytes hold (R-531).
+fn content(said: git_engine::DiffContent) -> diff_engine::Content {
+    match said {
+        git_engine::DiffContent::Detect => diff_engine::Content::Detect,
+        git_engine::DiffContent::Text => diff_engine::Content::Text,
+        git_engine::DiffContent::Binary(name) => diff_engine::Content::Binary(name.to_owned()),
     }
 }
 
-fn sizes(old: &Option<Vec<u8>>, new: &Option<Vec<u8>>) -> (u64, u64) {
-    let size = |side: &Option<Vec<u8>>| side.as_ref().map_or(0, |bytes| bytes.len() as u64);
-    (size(old), size(new))
+/// The engine sees bytes, and an absent side reads as empty: a summary says it is absent.
+fn mark_absent(
+    mut diff: diff_engine::FileDiff,
+    (old_is, new_is): (bool, bool),
+) -> diff_engine::FileDiff {
+    use diff_engine::FileDiff;
+    if let FileDiff::Binary { old, new, .. } | FileDiff::TooLarge { old, new, .. } = &mut diff {
+        if !old_is {
+            *old = None;
+        }
+        if !new_is {
+            *new = None;
+        }
+    }
+    diff
 }
 
-/// The larger side, when it is past anything the diff shows — an image's cap, the larger
-/// one: then neither side is read, or a multi-gigabyte file goes into memory only to be
-/// summarised. Text past its own limit is told apart once read.
-fn too_large((old, new): (Option<u64>, Option<u64>)) -> Option<u64> {
-    let size = old.unwrap_or(0).max(new.unwrap_or(0));
-    (size > diff_engine::MAX_IMAGE_BYTES).then_some(size)
+/// A summary names each side by its object id. Only a summary: finding the id of a working
+/// file costs a read and a hash. Unnamed is still a summary, so a failure is logged.
+fn named(
+    mut diff: diff_engine::FileDiff,
+    handle: &git_engine::RepoHandle,
+    spec: &git_engine::DiffSpec,
+    (old_path, path): (&str, &str),
+) -> diff_engine::FileDiff {
+    use diff_engine::FileDiff;
+    let (FileDiff::Binary { old, new, .. } | FileDiff::TooLarge { old, new, .. }) = &mut diff
+    else {
+        return diff;
+    };
+    let (old_id, new_id) = match handle.side_ids_from(spec, old_path, path) {
+        Ok(ids) => ids,
+        Err(err) => {
+            tracing::error!(error = ?err, path, context = "naming the sides of a summarised diff");
+            (None, None)
+        }
+    };
+    for (side, id) in [(old, old_id), (new, new_id)] {
+        if let Some(side) = side {
+            side.id = id;
+        }
+    }
+    diff
+}
+
+/// Past anything the diff shows — an image's cap: then neither side is read, or a
+/// multi-gigabyte file goes into memory only to be summarised. Text past its own limit is
+/// told apart once read.
+fn too_large((old, new): (Option<u64>, Option<u64>)) -> Option<diff_engine::FileDiff> {
+    if old.unwrap_or(0).max(new.unwrap_or(0)) <= diff_engine::MAX_IMAGE_BYTES {
+        return None;
+    }
+    let side = |size: Option<u64>| size.map(|size| diff_engine::BlobSide { size, id: None });
+    Some(diff_engine::FileDiff::TooLarge {
+        old: side(old),
+        new: side(new),
+        // Unread, it is not known to be an image, and past this it is past the text limit.
+        limit: diff_engine::MAX_TEXT_BYTES,
+    })
 }
 
 /// A gitlink has no content on either side, nor has a missing path: this tells them apart.

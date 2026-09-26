@@ -22,6 +22,10 @@ pub enum DiffSpec {
 /// Old and new contents of one path; `None` on a side means it is absent there.
 pub type DiffSides = (Option<Vec<u8>>, Option<Vec<u8>>);
 
+/// A working file past this is not read to name it: the same cap past which a diff does
+/// not read a side at all (`diff_engine::MAX_IMAGE_BYTES`).
+pub const MAX_HASHED_BYTES: u64 = 20 * 1024 * 1024;
+
 /// What `.gitattributes` says about showing paths as a diff, read once for a whole batch.
 /// Unreadable attributes are logged and read as saying nothing.
 pub struct DiffAttributes<'repo> {
@@ -36,23 +40,45 @@ impl std::fmt::Debug for DiffAttributes<'_> {
     }
 }
 
+/// What `.gitattributes` says about reading a path as lines (R-531).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DiffContent {
+    /// Nothing: the bytes decide.
+    Detect,
+    /// `text`, or `diff` set: lines, whatever the bytes hold, as git diffs them.
+    Text,
+    /// By the attribute that says so: `binary`, or `-diff`, which it implies.
+    Binary(&'static str),
+}
+
 impl DiffAttributes<'_> {
-    /// `-diff`, or `binary`, which unsets it: git shows the file as binary, whatever it holds.
-    pub fn marks_binary(&mut self, path: &str) -> bool {
+    pub fn content(&mut self, path: &str) -> DiffContent {
+        use gix::attrs::StateRef;
         let Some(stack) = self.stack.as_mut() else {
-            return false;
+            return DiffContent::Detect;
         };
-        let mut outcome = stack.selected_attribute_matches(["diff"]);
+        let mut outcome = stack.selected_attribute_matches(["binary", "diff", "text"]);
         match stack.at_entry(path, None) {
             Ok(platform) => platform.matching_attributes(&mut outcome),
             Err(err) => {
                 tracing::error!(error = ?err, path, context = "reading .gitattributes for a diff");
-                return false;
+                return DiffContent::Detect;
             }
         };
-        outcome
-            .iter_selected()
-            .any(|found| found.assignment.state == gix::attrs::StateRef::Unset)
+        let state = |name: &str| {
+            outcome
+                .iter_selected()
+                .find(|found| found.assignment.name.as_str() == name)
+                .map(|found| found.assignment.state)
+        };
+        if matches!(state("binary"), Some(StateRef::Set)) {
+            return DiffContent::Binary("binary");
+        }
+        match (state("diff"), state("text")) {
+            (Some(StateRef::Unset), _) => DiffContent::Binary("-diff"),
+            (Some(StateRef::Set), _) | (_, Some(StateRef::Set)) => DiffContent::Text,
+            _ => DiffContent::Detect,
+        }
     }
 }
 
@@ -254,6 +280,71 @@ impl RepoHandle {
         }
     }
 
+    /// The object id git gives each side `diff_sides_from` would read: a tree's or the
+    /// index's own, and for the working file the one `git hash-object` prints, through the
+    /// clean filters. `None` where the file is absent, and for a working file past
+    /// `MAX_HASHED_BYTES`, which is not read for it.
+    pub fn side_ids_from(
+        &self,
+        spec: &DiffSpec,
+        old_path: &str,
+        path: &str,
+    ) -> Result<(Option<String>, Option<String>)> {
+        let at = |rev: &str, path: &str| -> Result<Option<String>> {
+            Ok(self.blob_id_at(rev, path)?.map(|id| id.to_string()))
+        };
+        match spec {
+            DiffSpec::CommitVsParent { oid } => {
+                let old = match self.first_parent(oid)? {
+                    Some(parent) => at(&parent, old_path)?,
+                    None => None,
+                };
+                Ok((old, at(oid, path)?))
+            }
+            DiffSpec::CommitVsCommit { a, b } => Ok((at(a, old_path)?, at(b, path)?)),
+            DiffSpec::WorkTreeVsIndex => Ok((self.id_in_index(path)?, self.worktree_id(path)?)),
+            DiffSpec::IndexVsHead => {
+                let old = match self.head()? {
+                    crate::Head::Unborn { .. } => None,
+                    _ => at("HEAD", old_path)?,
+                };
+                Ok((old, self.id_in_index(path)?))
+            }
+            DiffSpec::CommitVsWorkTree { oid } => Ok((at(oid, path)?, self.worktree_id(path)?)),
+        }
+    }
+
+    fn id_in_index(&self, path: &str) -> Result<Option<String>> {
+        let index = self.current_index()?;
+        Ok(index
+            .entry_by_path(path.into())
+            .filter(|entry| !entry.mode.is_submodule())
+            .map(|entry| entry.id.to_string()))
+    }
+
+    fn worktree_id(&self, path: &str) -> Result<Option<String>> {
+        if self.index_stands_in(path)? {
+            return self.id_in_index(path);
+        }
+        if !self
+            .size_on_disk(path)?
+            .is_some_and(|size| size <= MAX_HASHED_BYTES)
+        {
+            return Ok(None);
+        }
+        let Some(bytes) = self.blob_on_disk(path)? else {
+            return Ok(None);
+        };
+        let bytes = if is_symlink(&self.root().join(path)) {
+            bytes
+        } else {
+            self.cleaned(path, bytes)?
+        };
+        gix::objs::compute_hash(self.repo.object_hash(), gix::objs::Kind::Blob, &bytes)
+            .map(|id| Some(id.to_string()))
+            .map_err(|err| GitError::Internal(format!("cannot hash {path}: {err}")))
+    }
+
     /// Where the old side keeps a file it has no `path` for: the source of the rename or
     /// copy the file list shows as `← old.txt`. Looked for only then, since finding it
     /// costs a tree diff with rename tracking.
@@ -356,6 +447,12 @@ impl RepoHandle {
     }
 
     fn size_at(&self, rev: &str, path: &str) -> Result<Option<u64>> {
+        self.blob_id_at(rev, path)?
+            .map(|id| self.blob_size(id, path))
+            .transpose()
+    }
+
+    fn blob_id_at(&self, rev: &str, path: &str) -> Result<Option<gix::ObjectId>> {
         let id = self
             .repo
             .rev_parse_single(rev)
@@ -372,10 +469,7 @@ impl RepoHandle {
         else {
             return Ok(None);
         };
-        if !entry.mode().is_blob() {
-            return Ok(None);
-        }
-        self.blob_size(entry.object_id(), path).map(Some)
+        Ok(entry.mode().is_blob().then(|| entry.object_id()))
     }
 
     fn size_in_index(&self, path: &str) -> Result<Option<u64>> {

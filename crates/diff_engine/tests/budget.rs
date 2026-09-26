@@ -117,6 +117,7 @@ fn a_commit_of_five_hundred_files_diffs_inside_the_budget() {
                 path: format!("src/module_{f}/file_{f}.rs"),
                 old: old.into_bytes(),
                 new: new.into_bytes(),
+                content: diff_engine::Content::Detect,
             }
         })
         .collect();

@@ -26,6 +26,8 @@
   import { DiffSearch } from "$lib/diff-search.svelte";
   import { BAND_WIDTH, bandLeft, ribbonPath, ribbonsNear } from "$lib/diff-band";
   import DiffFindBar from "./DiffFindBar.svelte";
+  import FileSummary from "./FileSummary.svelte";
+  import { binaryReason, tooLargeReason } from "$lib/diff-summary";
   import SidewaysScrollbar from "$components/common/SidewaysScrollbar.svelte";
   import {
     NO_NEWLINE_COLUMNS,
@@ -626,11 +628,11 @@
       Only the line endings changed: {eolChangeText(diff.from, diff.to)}. The content is identical.
     </p>
   {:else if diff.kind === "binary"}
-    <p class="message">Binary file — {diff.oldSize} bytes → {diff.newSize} bytes.</p>
+    <FileSummary reason={binaryReason(diff.cause)} old={diff.old} next={diff.new} />
   {:else if diff.kind === "image"}
     <p class="message">Image ({diff.mime}) — {diff.oldSize} bytes → {diff.newSize} bytes.</p>
   {:else if diff.kind === "tooLarge"}
-    <p class="message">File is too large to diff ({diff.size} bytes).</p>
+    <FileSummary reason={tooLargeReason(diff.limit)} old={diff.old} next={diff.new} />
   {:else if diff.kind === "folder"}
     <p class="message">
       {diff.repository
