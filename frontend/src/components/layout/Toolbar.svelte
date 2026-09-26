@@ -126,6 +126,12 @@
   let row: HTMLDivElement | undefined = $state();
   let crowded = $state(false);
 
+  // The caret goes off with its button; a menu it opened before that goes with it, or its
+  // Fetch items would stay on under a Pull that is off.
+  $effect(() => {
+    if (open !== null && open !== "overflow" && why(open) !== undefined) open = null;
+  });
+
   $effect(() => {
     const element = row;
     if (!element) return;
