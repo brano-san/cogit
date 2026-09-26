@@ -16,7 +16,7 @@
   import Disclosure from "$components/common/Disclosure.svelte";
   import KindIcon, { type Kind } from "$components/common/KindIcon.svelte";
   import VirtualList from "$components/common/VirtualList.svelte";
-  import { fileName, statusBadge, statusLabel, statusTooltip } from "$lib/files";
+  import { fileName, indexNote, statusBadge, statusLabel, statusTooltip } from "$lib/files";
   import type { ViewRow } from "$lib/file-view";
   import { LIST_ROW_HEIGHT } from "$lib/graph-geometry";
   import { TypeAhead, findTyped, listKey, pageRows, pressOf, typedChar } from "$lib/list-keys";
@@ -171,8 +171,12 @@
             }}
           >
             <KindIcon kind={kindOf(file)} />
-            <span class="badge" aria-label={statusLabel(file.status)} title={statusTooltip(file.status)}
-              >{statusBadge(file.status)}</span
+            <span
+              class="badge"
+              class:staged={file.indexState === "staged"}
+              class:partly={file.indexState === "partly"}
+              aria-label={statusLabel(file.status) + indexNote(file.indexState)}
+              title={statusTooltip(file.status) + indexNote(file.indexState)}>{statusBadge(file.status)}</span
             >
             <span class="name truncate shrink-last">{fileName(file.path)}</span>
             {#if file.oldPath}
@@ -391,6 +395,21 @@
   .row.assumeUnchanged,
   .row.skipped {
     color: var(--text-secondary);
+  }
+
+  /* In the one working-tree list (#32): boxed, the change is in the index; a dashed box,
+     part of it is. */
+  .badge.staged,
+  .badge.partly {
+    width: 14px;
+    line-height: 14px;
+    border-radius: var(--r-sm);
+    outline: 1px solid currentColor;
+    outline-offset: -1px;
+  }
+
+  .badge.partly {
+    outline-style: dashed;
   }
 
   .row.conflicted .badge {

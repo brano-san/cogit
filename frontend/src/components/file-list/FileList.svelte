@@ -16,6 +16,7 @@
     shownSections,
     visibleFiles,
     type FileView,
+    type ListFile,
   } from "$lib/file-view";
   import {
     actionScope,
@@ -42,7 +43,7 @@
 
   interface Section {
     title?: string;
-    files: readonly FileEntry[];
+    files: readonly ListFile[];
     actions?: readonly Action[];
     /** Each section can open its own side of the diff. */
     onselect?: (path: string) => void;
