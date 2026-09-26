@@ -348,7 +348,6 @@ fn a_repository_without_a_remote_has_nothing_published() {
 #[test]
 fn a_file_with_a_non_ascii_name_can_be_split_off() {
     let f = test_fixtures::linear(1).unwrap();
-    f.git(&["config", "core.quotepath", "true"]).unwrap();
     for name in ["отчёт.txt", "plain.txt"] {
         f.write_file(name, &format!("{name} content\n")).unwrap();
         f.git(&["add", "--", name]).unwrap();

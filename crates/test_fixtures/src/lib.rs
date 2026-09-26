@@ -52,7 +52,6 @@ impl Fixture {
                  \tbare = false\n\
                  \tautocrlf = false\n\
                  \tsymlinks = false\n\
-                 \tquotepath = false\n\
                  [user]\n\
                  \tname = {AUTHOR_NAME}\n\
                  \temail = {AUTHOR_EMAIL}\n\
