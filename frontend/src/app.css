@@ -110,8 +110,9 @@
      (R-353). Changes are a warning colour; being ahead is the user's own work. */
   --indicator-changes: var(--status-modify);
   --indicator-synced: var(--status-add);
-  --indicator-push: var(--status-add);
-  --indicator-pull: var(--status-ref);
+  /* Push is work of one's own not yet out, as the changes dot is; pull is new work in (R-548). */
+  --indicator-push: var(--indicator-changes);
+  --indicator-pull: var(--status-add);
   --indicator-unknown: var(--text-secondary);
 
   /* ---- typography ---- */

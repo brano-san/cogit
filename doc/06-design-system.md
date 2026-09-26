@@ -125,8 +125,8 @@
 
 --indicator-changes   → --status-modify    незакоммиченные изменения (Repositories, метка worktree)
 --indicator-synced    → --status-add       чисто и всё запушено (метка worktree)
---indicator-push      → --status-add       стрелка «есть что пушить»
---indicator-pull      → --status-ref       стрелка «есть что забрать»
+--indicator-push      → --indicator-changes стрелка «есть что пушить» — оранжевая, как точка (R-548)
+--indicator-pull      → --status-add       стрелка «есть что забрать» — зелёная
 --indicator-unknown   → --text-secondary   fetch не удался, про pull неизвестно
 ```
 
