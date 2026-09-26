@@ -1,0 +1,7 @@
+# Проход 2 · разбиение — BE-024, BE-025 (2 коммита от 5c3051c)
+
+BE-024 0769e84: commands/mod.rs 1613 → 114 строк (blocking, mutating, список модулей, tests) + app.rs 210, windows.rs 94, repository.rs 250, commit_graph.rs 154, contents.rs 214, file_history.rs 129, journal.rs 106, rewrite.rs 203, staging.rs 167, terminal.rs 39. Пути commands::<fn> — через `pub use <модуль>::*` (glob переносит макросы __cmd__*, __specta__fn__*). bindings.ts не изменился.
+BE-025 0646770: app_state lib.rs 1733 → 381 + registry.rs 521, journal.rs 106, rows.rs 177, staging.rs 152, branches.rs 115, conflicts.rs 71, config.rs 57, history.rs 128, watching.rs 88 → 194. Публичные типы — через pub use; pub(crate): open_with, start_watching, quiet, command_sink, Quiet, RowCache, JOURNAL_CAPACITY, Steps. Убраны два allow(items_after_test_module) (конец R-102 больше не актуален).
+Тесты: nextest 2138/2139 (performance, graph_cache отдельно 23/23); упал только mutation_speed discard по бюджету под нагрузкой (543–1159 мс), на простаивающей машине 3/3; cogit lib 127; clippy, fmt.
+Куда уехали команды для веток t: t1 — diff_file, diff_files, image_sides, file_before → commands/contents.rs, commit_files → app_state history.rs; t5 — load_commits, graph_window, graph_overlay → commands/commit_graph.rs; t7 — worktree_files, стейджинг → commands/staging.rs, app_state staging.rs.
+Скрипты — D:\cogit-work\b1-tmp\ (split2.mjs сверяет, что каждая строка попала ровно в одно место).

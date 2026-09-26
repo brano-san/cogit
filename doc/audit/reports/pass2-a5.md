@@ -1,0 +1,8 @@
+# Проход 2 · a5 — G-13, G-15, G-16 + CC-016 (17 коммитов)
+
+CC-016 560d4cc + acb1858 (наблюдается только показанный репозиторий; команда show_repository; lib/shown-repository.ts; тесты watching.rs ×5; репо-пульс: фокус внутри минуты → чтение в конце минуты, снимок строки сбрасывается при противоречии пульсу; R-351, R-438, 04, 01 §4.1, F-451, F-523; замерить repo.switch — лишний IPC show_repository)
+DF-031 e684963 · BE-040 bf93506 (ожидание очереди при закрытии ≤ 5 мин, R-490) · DC-026 e179517 · FX-045 1703c4c · BE-034 b919b4c (R-491) · CC-022 61197d3 (тема 76 символов) · BE-038 df2f101 (проверить светлую тему Windows) · FS-022 917410d · DF-055 2fd8815 · FS-015 4969224 (проверить) · FS-021 b9144ca · FS-024 fbe9fe4 · FS-036 f89b32f (проверить окно 1024 px) · FS-017 d858db1 (F-524; проверить) · FS-039 51a8a72 (lib/menu-keys.ts; 11 §10, F-524; проверить)
+Правленные тесты: удалён repositories.rs `a_repository_left_for_another_is_still_watched` (закреплял R-351, отменённое решением пользователя) → обратный тест в watching.rs; closing_stops_watching_it, undo.rs open, open_memory.rs — вызывают show; logging.rs уровень info; кэш аватаров — flush(); notices.test — новый id.
+UX-предложения: подменю split-кнопок в «…»; дочерние окна по теме приложения (включая светлые); Initialise submodule в окне сравнения; RepoPulse с oid отслеживаемой ветки.
+Тесты: nextest app_state+fs_watcher+avatars 502/502; performance+graph_cache+diff 39/39 (1 поток); cogit lib 122/122; vitest 15 файлов 184/184.
+Конфликты: App.svelte, ipc/index.ts, bindings, app_state lib.rs, src-tauri lib.rs и commands/mod.rs, Toolbar, StatusBar, repo-pulse, 12-risks, features/README, 04, 11.
