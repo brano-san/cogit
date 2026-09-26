@@ -13,6 +13,7 @@ pub mod network;
 pub mod presets;
 pub mod ref_ops;
 pub mod remote_ops;
+pub mod remotes;
 pub mod repo_rows;
 pub mod stash;
 pub mod toolbar;

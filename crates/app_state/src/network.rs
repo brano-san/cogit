@@ -112,6 +112,32 @@ impl AppState {
         handle.push(remote, None, force, |url| self.token_for(url), on_line)
     }
 
+    /// Remote ▸ Fetch More; `false` when nothing new came (R-553).
+    pub fn fetch_more(
+        &self,
+        repo: RepoId,
+        remote: &str,
+        stop: &NetworkStop,
+        on_line: impl FnMut(&str),
+    ) -> Result<bool, git_engine::GitError> {
+        let _quiet = self.quiet_briefly(repo);
+        let handle = self.handle(repo)?.with_stop(stop.clone());
+        handle.fetch_more(remote, |url| self.token_for(url), on_line)
+    }
+
+    pub fn fetch_depth(
+        &self,
+        repo: RepoId,
+        remote: &str,
+        depth: u32,
+        stop: &NetworkStop,
+        on_line: impl FnMut(&str),
+    ) -> Result<(), git_engine::GitError> {
+        let _quiet = self.quiet_briefly(repo);
+        let handle = self.handle(repo)?.with_stop(stop.clone());
+        handle.fetch_depth(remote, depth, |url| self.token_for(url), on_line)
+    }
+
     /// Pull ▸ Delete merged branches after Pull (#26). Each deletion is journalled, so
     /// Undo brings a branch back; one that refuses is logged and the rest still go.
     pub fn delete_merged_branches(

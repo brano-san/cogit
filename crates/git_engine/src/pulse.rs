@@ -116,6 +116,9 @@ impl RepoHandle {
             return Ok(None);
         };
         let remote = remote.as_bstr().to_string();
+        if !self.background_fetch_of(&remote) {
+            return Ok(None);
+        }
         let merge = merge.as_bstr().to_string();
         let Some(tip) = self
             .heads_matching(&remote, &[&merge])?

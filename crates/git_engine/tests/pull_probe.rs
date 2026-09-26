@@ -130,6 +130,22 @@ fn a_remote_forced_back_to_a_commit_head_has_nothing_to_pull() {
     agree(&f, Some(false));
 }
 
+// Remote ▸ Properties ▸ Perform background poll or fetch, off for the upstream's remote.
+#[test]
+fn a_remote_left_out_of_the_background_check_is_not_asked() {
+    let f = test_fixtures::with_remote().unwrap();
+    assert_eq!(git_says(&f), Some(true));
+    RepoHandle::open(f.path())
+        .unwrap()
+        .set_background_fetch("origin", false)
+        .unwrap();
+
+    assert_eq!(
+        RepoHandle::open(f.path()).unwrap().pull_probe().unwrap(),
+        None
+    );
+}
+
 #[test]
 fn a_branch_without_an_upstream_has_no_answer() {
     let f = test_fixtures::linear(2).unwrap();
