@@ -131,6 +131,7 @@ pub fn classify_git_path(relative: &str) -> Option<ChangeKind> {
         || normalized.starts_with("REVERT_HEAD")
         || normalized.starts_with("rebase-merge")
         || normalized.starts_with("rebase-apply")
+        || normalized.starts_with("BISECT_")
     {
         return Some(ChangeKind::Head);
     }
@@ -174,6 +175,14 @@ mod tests {
             classify_git_path("rebase-merge/done"),
             Some(ChangeKind::Head)
         );
+    }
+
+    #[test]
+    fn a_bisect_step_reports_as_a_head_change() {
+        for name in ["BISECT_LOG", "BISECT_START", "BISECT_TERMS"] {
+            assert_eq!(classify_git_path(name), Some(ChangeKind::Head), "{name}");
+        }
+        assert_eq!(classify_git_path("refs/bisect/bad"), Some(ChangeKind::Refs));
     }
 
     #[test]

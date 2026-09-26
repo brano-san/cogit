@@ -16,7 +16,7 @@ pub enum RepoState {
     Rebasing,
     CherryPicking,
     Reverting,
-    Bisecting,
+    Bisecting { bisect: crate::BisectState },
     // `git am` stopped on a patch that did not apply.
     ApplyingPatches,
     Empty,
@@ -32,14 +32,14 @@ impl RepoState {
                 | Self::Rebasing
                 | Self::CherryPicking
                 | Self::Reverting
-                | Self::Bisecting
+                | Self::Bisecting { .. }
                 | Self::ApplyingPatches
         )
     }
 
     #[must_use]
     pub fn allows_commit(&self) -> bool {
-        !matches!(self, Self::Bare | Self::Bisecting)
+        !matches!(self, Self::Bare | Self::Bisecting { .. })
     }
 }
 
@@ -81,8 +81,10 @@ impl RepoHandle {
                 _ => {}
             }
         }
-        if marker("BISECT_LOG") {
-            return Ok(RepoState::Bisecting);
+        if self.is_bisecting() {
+            return Ok(RepoState::Bisecting {
+                bisect: self.bisect_state(),
+            });
         }
 
         Ok(match self.head()? {

@@ -57,7 +57,7 @@ impl RepoHandle {
             RepoState::Rebasing => Ok("rebase"),
             RepoState::CherryPicking => Ok("cherry-pick"),
             RepoState::Reverting => Ok("revert"),
-            RepoState::Bisecting => Ok("bisect"),
+            RepoState::Bisecting { .. } => Ok("bisect"),
             RepoState::ApplyingPatches => Ok("am"),
             other => Err(GitError::InvalidState(format!(
                 "nothing is in progress ({other:?})"

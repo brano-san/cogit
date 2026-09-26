@@ -104,6 +104,13 @@
   --graph-branch-8: var(--c-lane-8);
   /* The branch of the chosen commit, where it has no colour of its own. */
   --graph-focus: var(--status-ref);
+  /* Bisect (F-566): dots of good, bad and skipped commits over the ring, tints of the rows
+     under test and found. From the status colours, so every theme has them. */
+  --graph-bisect-good: var(--status-add);
+  --graph-bisect-bad: var(--status-delete);
+  --graph-bisect-skip: var(--text-secondary);
+  --graph-bisect-current: var(--c-modified-bg);
+  --graph-bisect-found: var(--c-deleted-bg);
   --status-stash: var(--c-stash);
   --status-tag: var(--c-tag);
   /* Where a repository stands: its row in Repositories, the worktree label in Branches

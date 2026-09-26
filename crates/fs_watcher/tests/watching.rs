@@ -441,3 +441,62 @@ fn a_nested_repository_moving_its_head_changes_the_working_tree() {
         "a submodule on another commit is a change of the parent"
     );
 }
+
+// `git bisect start` with no commits yet and `git bisect reset` on the branch it began on
+// touch no ref and leave HEAD as it was: only the BISECT_* files say a bisect came or went.
+#[test]
+fn a_bisect_begun_and_ended_in_a_terminal_is_a_head_change() {
+    let harness = start();
+    let git_dir = harness.root.join(".git");
+
+    for name in ["BISECT_START", "BISECT_LOG", "BISECT_NAMES"] {
+        std::fs::write(git_dir.join(name), "main\n").unwrap();
+    }
+    let begun = collect(&harness);
+    for name in ["BISECT_START", "BISECT_LOG", "BISECT_NAMES"] {
+        std::fs::remove_file(git_dir.join(name)).unwrap();
+    }
+    let ended = collect(&harness);
+
+    for seen in [begun, ended] {
+        assert!(
+            seen.iter().any(|c| c.kind == ChangeKind::Head),
+            "got {seen:?}"
+        );
+    }
+}
+
+// The BISECT_* files and `refs/bisect/` belong to each worktree: a linked one keeps them in
+// its private git directory, outside the root.
+#[test]
+fn a_bisect_step_in_a_linked_worktree_is_heard() {
+    let dir = tempfile::tempdir().unwrap();
+    let common = dir.path().join("main/.git");
+    let private = common.join("worktrees/linked");
+    let root = dir.path().join("linked");
+    std::fs::create_dir_all(common.join("refs/heads")).unwrap();
+    std::fs::create_dir_all(&private).unwrap();
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(private.join("HEAD"), "ref: refs/heads/wt\n").unwrap();
+    std::fs::write(private.join("BISECT_LOG"), "git bisect start\n").unwrap();
+
+    let (tx, events) = mpsc::channel();
+    let _watcher = RepoWatcher::start(&root, &private, &common, move |change| {
+        let _ = tx.send(change);
+    })
+    .unwrap();
+    std::thread::sleep(Duration::from_millis(300));
+    while events.try_recv().is_ok() {}
+
+    std::fs::write(
+        private.join("BISECT_LOG"),
+        "git bisect start\ngit bisect bad\n",
+    )
+    .unwrap();
+
+    let mut seen = Vec::new();
+    while let Ok(change) = events.recv_timeout(SETTLE) {
+        seen.push(change);
+    }
+    assert!(seen.iter().any(|c| c.kind == ChangeKind::Head), "{seen:?}");
+}

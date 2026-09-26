@@ -65,7 +65,17 @@ fn an_interrupted_revert_reports_reverting() {
 fn a_bisect_in_progress_reports_bisecting() {
     let f = test_fixtures::linear(3).unwrap();
     std::fs::write(f.git_dir().join("BISECT_LOG"), "git bisect start\n").unwrap();
-    assert_eq!(open(&f).state().unwrap(), RepoState::Bisecting);
+    match open(&f).state().unwrap() {
+        RepoState::Bisecting { bisect } => {
+            assert_eq!(
+                (bisect.bad, bisect.good.len()),
+                (None, 0),
+                "nothing marked yet"
+            );
+            assert_eq!(bisect.current, Some(f.oid("HEAD").unwrap()));
+        }
+        other => panic!("expected a bisect, got {other:?}"),
+    }
 }
 
 #[test]
