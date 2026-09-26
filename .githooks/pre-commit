@@ -2,8 +2,8 @@
 # Cogit pre-commit checks. Enable once per clone:
 #   git config core.hooksPath .githooks
 #
-# The budget is one minute. What costs more than it catches runs in pre-push instead:
-# the whole test suite, and every test that asserts a duration (doc/09-testing.md).
+# The budget is one minute. No hook runs the tests: the ones a change touches are run
+# while working, the whole suite once before the work is handed over (doc/09-testing.md §9).
 #
 # The hook fixes what it can (formatting, generated bindings) and re-stages the result.
 # It only ever touches files that are already staged.
