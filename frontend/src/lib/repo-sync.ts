@@ -17,8 +17,11 @@ export interface RowSync {
   branch: string | null;
 }
 
+/** What a row's marks are read from: a list row, a pulse or what the panels show. */
+type Marks = Pick<RepoOverview, "dirty" | "ahead" | "behind" | "missing" | "branch">;
+
 export interface RowSyncInput {
-  overview: RepoOverview | null;
+  overview: Marks | null;
   /** The panels show it: its row reads the full status they keep fresh. */
   owned: boolean;
   pulse: RepoPulse | undefined;
@@ -46,22 +49,38 @@ export function rowSync(input: RowSyncInput): RowSync {
   };
 }
 
-/** The list is read again on open, fetch and the like; what the panels show is read after
-    every write and every change on disk, so the row on screen takes its marks from that. */
-export function freshOverview(overview: RepoOverview, current: RepoSummary | null): RepoOverview {
-  if (!current || current.repo !== overview.repo) return overview;
+function summaryMarks(current: RepoSummary): Marks {
   const head = current.head.kind === "branch" ? current.head.name : null;
   const tracked = head === null ? undefined : current.branches.find((b) => b.kind === "local" && b.name === head);
   const { staged, unstaged, untracked, conflicted } = current.status;
   return {
-    ...overview,
     branch: head,
     ahead: tracked?.ahead ?? 0,
     behind: tracked?.behind ?? 0,
     dirty: staged + unstaged + untracked + conflicted > 0,
     missing: false,
-    state: current.state,
   };
+}
+
+/** The list is read again on open, fetch and the like; what the panels show is read after
+    every write and every change on disk, so the row on screen takes its marks from that. */
+export function freshOverview(overview: RepoOverview, current: RepoSummary | null): RepoOverview {
+  if (!current || current.repo !== overview.repo) return overview;
+  return { ...overview, ...summaryMarks(current), state: current.state };
+}
+
+export interface ModuleSyncInput {
+  /** What the panels show, when they show this very submodule. */
+  shown: RepoSummary | null;
+  pulse: RepoPulse | undefined;
+  fetchFailed: boolean;
+  remoteAhead?: boolean;
+}
+
+/** A submodule node, read like a list row: from the panels while they show it, from its
+    pulse otherwise (R-542). */
+export function moduleSync({ shown, ...rest }: ModuleSyncInput): RowSync {
+  return rowSync({ ...rest, overview: shown ? summaryMarks(shown) : null, owned: shown !== null });
 }
 
 /** The pull arrow: behind the tracking ref, or a server that moved on since the last fetch. */

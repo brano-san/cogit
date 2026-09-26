@@ -30,6 +30,36 @@ export function moduleKey(parent: string, path: string): string {
   return parent === "" ? path : `${parent}/${path}`;
 }
 
+/** A node's folder: its key is the path from the top repository down (R-149). */
+export function moduleRoot(top: string, key: string): string {
+  return `${top.replace(/[/\\]+$/, "")}/${key}`;
+}
+
+/** The folders whose pulse gives the nodes their marks; one not checked out has no
+    repository to read (R-542). */
+export function pulsedRoots(top: string, rows: readonly ModuleRow[]): string[] {
+  return rows.filter((row) => row.module.state !== "notInitialised").map((row) => moduleRoot(top, row.key));
+}
+
+export interface ShownPanels {
+  current: string | null;
+  moduleOwnerRoot: string | null;
+  /** Key of the submodule the panels show, from the tree's owner. */
+  openModule: string | null;
+  /** Owner of the worktree the panels show, which may be the submodule itself. */
+  worktreeOwnerRoot: string | null;
+}
+
+/** The row the panels show, named the way the list names it: a submodule by its node, not
+    by the root the backend spells its own way, or leaving it would read no pulse for it. */
+export function shownRowRoot(panels: ShownPanels): string | null {
+  const { current, moduleOwnerRoot, openModule, worktreeOwnerRoot } = panels;
+  if (current !== null && openModule !== null && moduleOwnerRoot !== null && worktreeOwnerRoot === null) {
+    return moduleRoot(moduleOwnerRoot, openModule);
+  }
+  return current;
+}
+
 /** The word after the row's position, only where it is exact (R-153). `unknown` means the
     recorded commit is not in the submodule — that much is exact (R-179). */
 const LABELS: Partial<Record<Submodule["state"], string>> = {

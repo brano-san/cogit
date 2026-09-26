@@ -253,3 +253,26 @@ describe("the server-ahead arrow", () => {
     repoPulse.fetchEvery(0);
   });
 });
+
+// A submodule of the repository on screen has no watcher of its own: its marks follow the
+// re-reads of the tree its parent's watcher and writes set off (R-542).
+describe("the nodes of the tree the panels own", () => {
+  beforeAll(() => import("./repo-pulse.svelte"), 60_000);
+  afterEach(() => vi.useRealTimers());
+
+  it("are read again when the tree is, all but the one the panels show", async () => {
+    vi.useFakeTimers();
+    vi.resetModules();
+    const { repoPulse } = await import("./repo-pulse.svelte");
+    const nodes = ["C:/repos/app/vendor/lib", "C:/repos/app/docs"];
+    repoPulse.setOwned("C:/repos/app/docs");
+    repoPulse.watch(["C:/repos/app", ...nodes]);
+    await vi.advanceTimersByTimeAsync(2_000);
+    readPulse.mockClear();
+
+    repoPulse.again(["C:/repos/app", ...nodes]);
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    expect(readPulse.mock.calls).toEqual([["C:/repos/app"], ["C:/repos/app/vendor/lib"]]);
+  });
+});
