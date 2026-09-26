@@ -48,6 +48,9 @@ pub(crate) struct PaintMemo {
     parents: Vec<Vec<Option<u32>>>,
     request: Option<GraphPaintRequest>,
     paint: Paint,
+    /// What `index` and `parents` hold, kept as they grow: the cache counts it (R-300).
+    index_bytes: usize,
+    parents_bytes: usize,
 }
 
 fn row_index(n: usize) -> u32 {
@@ -58,18 +61,29 @@ impl PaintMemo {
     fn refresh(&mut self, commits: &[CommitRow], rows: &[GraphRow], request: &GraphPaintRequest) {
         if self.rows != rows.len() {
             for (at, commit) in commits.iter().enumerate().skip(self.rows) {
-                self.index.insert(commit.oid.clone(), row_index(at));
+                // Commits past the rows laid out come again with the next chunk (R-330).
+                if self
+                    .index
+                    .insert(commit.oid.clone(), row_index(at))
+                    .is_none()
+                {
+                    self.index_bytes += size_of::<(String, u32)>() + commit.oid.len();
+                }
             }
             // A parent that arrived with this chunk resolves rows laid out before it.
+            let mut links = 0;
             self.parents = commits
                 .iter()
                 .map(|c| {
+                    links += c.parents.len();
                     c.parents
                         .iter()
                         .map(|p| self.index.get(p).copied())
                         .collect()
                 })
                 .collect();
+            self.parents_bytes =
+                commits.len() * size_of::<Vec<Option<u32>>>() + links * size_of::<Option<u32>>();
             self.rows = rows.len();
             self.request = None;
         }
@@ -96,6 +110,14 @@ impl PaintMemo {
             "graph painted"
         );
         self.request = Some(request.clone());
+    }
+
+    /// Roughly what the memo holds, for a cache that counts bytes.
+    pub(crate) fn bytes(&self) -> usize {
+        let paint = &self.paint;
+        let lanes = paint.node_lane.len() + paint.segment_first.len() + paint.segment_lane.len();
+        let styles = paint.node_style.len() + paint.segment_style.len();
+        self.index_bytes + self.parents_bytes + lanes * size_of::<u32>() + styles
     }
 
     fn window(&self, start: u32, count: u32) -> GraphOverlay {

@@ -174,6 +174,7 @@ impl Graph {
     fn footprint(&self) -> usize {
         self.bytes
             + self.shown.texts.as_ref().map_or(0, |t| t.lock().bytes)
+            + self.shown.paint.lock().bytes()
             + self
                 .unfiltered
                 .as_ref()

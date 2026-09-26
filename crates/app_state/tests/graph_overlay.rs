@@ -111,3 +111,32 @@ fn a_replaced_graph_has_no_paint() {
             .is_none()
     );
 }
+
+/// Paint is kept beside the rows of every cached graph, so the byte budget counts it too
+/// (R-300): the index alone copies every oid.
+#[test]
+fn the_cache_budget_counts_the_paint_kept_with_a_graph() {
+    let f = test_fixtures::branched().unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let generation = build(&state, repo);
+    // The texts read ahead count as well; they have to be in before the rows are measured.
+    let until = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    while state.graph_texts_read(repo) < 4 && std::time::Instant::now() < until {
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    let rows = state.graph_footprint(repo);
+
+    let request = GraphPaintRequest {
+        tips: vec![PaintTip {
+            oid: f.oid("dev").unwrap(),
+            slot: 5,
+        }],
+        ancestry_of: None,
+    };
+    state
+        .graph_overlay(repo, generation, 0, 100, &request)
+        .unwrap();
+
+    assert!(state.graph_footprint(repo) > rows + 4 * 40);
+}
