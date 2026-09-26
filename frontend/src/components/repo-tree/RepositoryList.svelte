@@ -29,6 +29,8 @@
   import { repository } from "$stores/repository.svelte";
   import { worktrees } from "$stores/worktrees.svelte";
   import { pointerDrag } from "$lib/pointer-drag";
+  import { rowStarts, striped } from "$lib/graph-geometry";
+  import { settings } from "$stores/settings.svelte";
   import { TypeAhead, moveFocus } from "$lib/list-keys";
   import { untrack } from "svelte";
 
@@ -102,6 +104,24 @@
   const everyRoot = $derived(everyListed.map((each) => each.root));
   const ownsTree = (entry: RepoOverview | null) =>
     entry !== null && submodules.owner?.valueOf() === entry.repo.valueOf();
+  /** The submodule rows drawn under a repository: its full tree if the panels own it. */
+  const moduleRowsOf = (root: string, owned: boolean) =>
+    owned ? submodules.rows : moduleForest.rows(root);
+
+  /** One switch for every list's banding, the graph's (#41). */
+  const stripes = $derived(settings.current.graphStripes);
+  /** The row each entry of `rows` starts on as drawn, submodules included: the stripes go by
+      it. What a row draws is decided as in the markup below: nothing for one not listed. */
+  const starts = $derived(
+    rowStarts(
+      rows.map((row) => {
+        if (row.kind === "group") return 1;
+        const listed = byRoot.get(row.root);
+        if (!listed) return 0;
+        return 1 + moduleRowsOf(row.root, ownsTree(listed.overview)).length;
+      }),
+    ),
+  );
   /** Every node showing in any tree has marks of its own, read by its folder (R-542). */
   const moduleRoots = $derived(
     everyListed.flatMap((each) =>
@@ -200,12 +220,12 @@
 
 <!-- The tree of the repository the panels own is read in full; every other one is the light
      outline, and a click there opens the submodule in one go (R-352). -->
-{#snippet moduleTree(root: string, owned: boolean, depth: number)}
+{#snippet moduleTree(root: string, owned: boolean, depth: number, start: number)}
   {@const children = owned ? submodules.children : (moduleForest.trees.get(root) ?? new Map())}
   {@const toggle = (node: ModuleRow) =>
     void (owned ? submodules.toggle(node) : moduleForest.toggle(root, node))}
   {@const open = (node: ModuleRow) => (owned ? onopenmodule(node) : onopenforeignmodule(root, node))}
-  {#each owned ? submodules.rows : moduleForest.rows(root) as node (node.key)}
+  {#each moduleRowsOf(root, owned) as node, index (node.key)}
     {@const parts = splitModulePath(node.path)}
     {@const folder = parts.dir.replace(/[/\\]$/, "")}
     {@const hint = moduleHint(node.module)}
@@ -219,6 +239,7 @@
     })}
     <div
       class="row module {node.module.state}"
+      class:striped={striped(start + index, stripes)}
       class:selected={owned && submodules.open === node.key}
       class:menu={repoMenuRow.key === nodeRoot}
       role="button"
@@ -328,7 +349,7 @@
     {@const idle = idleMessage(panelView(repository.phase))}
     {#if idle}<p class="none">{idle}</p>{/if}
   {:else}
-    {#each rows as row (row.kind === "group" ? `g:${row.id}` : row.root)}
+    {#each rows as row, at (row.kind === "group" ? `g:${row.id}` : row.root)}
       {#if row.kind === "group"}
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
@@ -370,6 +391,7 @@
         data-key-row={entry.root}
         data-key-label={listed.name}
         style:padding-left="calc(var(--tree-base) + {row.depth} * var(--tree-step))"
+        class:striped={striped(starts[at] ?? 0, stripes)}
         class:selected={active?.valueOf() === entry.repo.valueOf()}
         class:menu={repoMenuRow.key === entry.root}
         class:holds-worktree={worktrees.ownerRoot === entry.root}
@@ -407,10 +429,11 @@
         {#if sync.branch}<span class="branch truncate shrink-first">{sync.branch}</span>{/if}
       </div>
 
-      {@render moduleTree(entry.root, submodules.owner?.valueOf() === entry.repo.valueOf(), row.depth)}
+      {@render moduleTree(entry.root, ownsTree(entry), row.depth, (starts[at] ?? 0) + 1)}
         {:else if listed}
           <div
             class="row closed"
+            class:striped={striped(starts[at] ?? 0, stripes)}
             class:menu={repoMenuRow.key === listed.root}
             data-drag={REPO_DRAG + listed.root}
             data-key-row={listed.root}
@@ -433,7 +456,7 @@
             {#if sync.missing}<span class="gone" title={MISSING_REPOSITORY}>missing</span>{/if}
             {#if sync.branch}<span class="branch truncate shrink-first">{sync.branch}</span>{/if}
           </div>
-          {@render moduleTree(listed.root, false, row.depth)}
+          {@render moduleTree(listed.root, false, row.depth, (starts[at] ?? 0) + 1)}
         {/if}
       {/if}
     {/each}
@@ -557,6 +580,12 @@
     padding: 0 var(--sp-5);
     font-size: var(--fs-dense);
     white-space: nowrap;
+  }
+
+  /* By the row's place in the list as drawn (#41), before hover, selection and the menu
+     ring, which cover it. A group heading has its own fill and is counted, not striped. */
+  .row.striped {
+    background: var(--row-stripe);
   }
 
   .row:hover {

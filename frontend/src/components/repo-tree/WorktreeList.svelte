@@ -1,9 +1,11 @@
 <script lang="ts">
   import KindIcon from "$components/common/KindIcon.svelte";
+  import { striped } from "$lib/graph-geometry";
   import type { WorktreeEntry } from "$lib/ipc";
   import { worktreeTags, worktreeWhere } from "$lib/worktree-list";
   import { pruneBlocked } from "$lib/worktree-menu";
   import { TypeAhead, moveFocus } from "$lib/list-keys";
+  import { settings } from "$stores/settings.svelte";
 
   /** The rows of the Worktrees panel: one per checkout, the active one marked, a missing
       one with its two ways out right in the row (doc/12-risks.md, R-184). */
@@ -22,6 +24,8 @@
     $props();
 
   let list: HTMLDivElement | undefined = $state();
+  /** One switch for every list's banding, the graph's (#41). */
+  const stripes = $derived(settings.current.graphStripes);
   const typing = new TypeAhead();
 
   /** 11 §10: the arrows and typing move the selection; Enter opens, as before. */
@@ -36,10 +40,11 @@
 <!-- Roving focus: the rows take it one at a time, the list itself never does. -->
 <!-- svelte-ignore a11y_interactive_supports_focus -->
 <div class="list key-list" role="listbox" aria-label="Worktrees" bind:this={list} {onkeydown}>
-  {#each entries as entry (entry.path)}
+  {#each entries as entry, at (entry.path)}
     {@const where = worktreeWhere(entry)}
     <div
       class="row"
+      class:striped={striped(at, stripes)}
       class:selected={selected === entry.path}
       class:current={entry.isCurrent}
       class:missing={entry.missing}
@@ -116,6 +121,11 @@
     padding: 0 var(--sp-5);
     font-size: var(--fs-dense);
     white-space: nowrap;
+  }
+
+  /* By the row's place in the list (#41), before hover and selection, which cover it. */
+  .row.striped {
+    background: var(--row-stripe);
   }
 
   .row:hover {

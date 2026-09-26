@@ -83,9 +83,22 @@ export function nodeSquare(lane: number, row: number, scrollTop: number) {
 }
 
 /** Every second row a shade lighter (#21); the Working Tree row is the first, unstriped.
-    `stripes` is the Preferences switch that turns the banding off. */
+    The same in Files, Repositories, Branches and Worktrees (#41). `listRow` is the row's
+    place in the list as drawn, never in the DOM: a virtual list mounts from wherever the
+    view starts. `stripes` is the Preferences switch that turns the banding off. */
 export function striped(listRow: number, stripes = true): boolean {
   return stripes && listRow % 2 === 1;
+}
+
+/** The row each item of a list starts on, when an item draws `sizes[i]` rows: a repository
+    and the submodules open under it, or none for one the list leaves out. */
+export function rowStarts(sizes: readonly number[]): number[] {
+  let at = 0;
+  return sizes.map((size) => {
+    const start = at;
+    at += size;
+    return start;
+  });
 }
 
 /** What is behind a node, bottom up, so its fill hides the lines exactly as the row does:
