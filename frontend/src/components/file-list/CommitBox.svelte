@@ -132,7 +132,12 @@
     >
     <span class="option"><Checkbox bind:checked={noVerify} label="No verify" /></span>
     <span class="grow"></span>
-    <button type="button" disabled={!ready} onclick={submit}>
+    <button
+      type="button"
+      disabled={!ready}
+      title={scope.empty ? "The filter hides every staged file; clear it to commit them" : undefined}
+      onclick={submit}
+    >
       {amending ? "Amend" : scope.label}
     </button>
   </div>
