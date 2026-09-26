@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { claimable, conflicts, effective, prettyKeys, recordKeys, type Keymap } from "$lib/keymap";
+  import { ON_MAC, claimable, conflicts, effective, prettyKeys, recordKeys, type Keymap } from "$lib/keymap";
   import { captureKeys, type KeyBinding } from "$lib/ipc";
 
   interface Props {
@@ -22,7 +22,7 @@
     return () => void captureKeys(false);
   });
 
-  const onMac = typeof navigator !== "undefined" && navigator.platform.startsWith("Mac");
+  const onMac = ON_MAC;
   const keys = $derived(effective(bindings, overrides));
   const clashes = $derived(conflicts(bindings, overrides));
   const shown = $derived(

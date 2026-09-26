@@ -8,6 +8,8 @@ import {
   mergeKeymap,
   prettyKeys,
   recordKeys,
+  shortcutOf,
+  withShortcuts,
   type KeyPress,
   type Keymap,
 } from "./keymap";
@@ -200,5 +202,30 @@ describe("mergeKeymap", () => {
 
   it("survives a missing store", () => {
     expect(mergeKeymap(null)).toEqual({} as Keymap);
+  });
+});
+
+// Stash All moved to Ctrl+Shift+H in Preferences ▸ Keyboard: the menu said so, the palette
+// and the Stash button's tip still said Ctrl+S; on a Mac they said Ctrl for ⌘.
+describe("shortcutOf", () => {
+  const keys = effective([binding("stash", "CmdOrCtrl+S"), binding("blame", null)], { stash: "CmdOrCtrl+Shift+H" });
+
+  it("reads the user's key over the shipped one, in the platform's words", () => {
+    expect(shortcutOf("stash", keys, false)).toBe("Ctrl+Shift+H");
+    expect(shortcutOf("stash", keys, true)).toBe("Cmd+Shift+H");
+  });
+
+  it("has nothing for a command without a key, or one the user took the key from", () => {
+    expect(shortcutOf("blame", keys, false)).toBeUndefined();
+    expect(shortcutOf("nonsense", keys, false)).toBeUndefined();
+    expect(shortcutOf("stash", effective([binding("stash", "CmdOrCtrl+S")], { stash: "" }), false)).toBeUndefined();
+  });
+});
+
+describe("withShortcuts", () => {
+  it("puts each palette row's keys by its command id", () => {
+    const keys = effective([binding("stash", "CmdOrCtrl+S"), binding("panel-graph", "CmdOrCtrl+3")], {});
+    const rows = withShortcuts([{ id: "stash" }, { id: "panel-graph" }, { id: "about", shortcut: "stale" }], keys, false);
+    expect(rows.map((row) => row.shortcut)).toEqual(["Ctrl+S", "Ctrl+3", undefined]);
   });
 });

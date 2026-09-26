@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick } from "svelte";
   import Caret from "$components/common/Caret.svelte";
+  import { ON_MAC, effective } from "$lib/keymap";
   import { menuKey } from "$lib/menu-keys";
   import {
     DEFAULT_LAYOUT,
@@ -9,12 +10,14 @@
     hintOf,
     menuOf,
     reasonOf,
+    shortcutOfAction,
     NO_MENU_CONTEXT,
     type MenuContext,
     type MenuEntry,
     type ToolbarAction,
     type ToolbarFacts,
   } from "$lib/toolbar";
+  import { settings } from "$stores/settings.svelte";
 
   interface Props {
     /** Description of what Undo would reverse, for the tooltip. */
@@ -40,6 +43,8 @@
   }: Props = $props();
 
   const groups = $derived(groupsOf(layout));
+  /** The keys the tips show: the user's own from Preferences ▸ Keyboard (11 §12). */
+  const keys = $derived(effective(settings.bindings, settings.keymap));
 
   function handlerOf(id: string): ((arg?: string) => void) | undefined {
     const at = id.indexOf(":");
@@ -166,6 +171,7 @@
       <div class="group">
         {#each group as action (action.id)}
           {@const disabled = off(action)}
+          {@const shortcut = shortcutOfAction(action, keys, ON_MAC)}
           <!-- The tip sits on the slot: a disabled button takes no pointer events, and the
                reason it is off is what the tip then says. -->
           <div
@@ -173,14 +179,14 @@
             class:disabled
             class:pressed={open === action.id}
             data-tip={tipOf(action)}
-            data-tip-hint={action.shortcut}
+            data-tip-hint={shortcut}
             data-tip-below=""
           >
             <button
               type="button"
               class="quick"
               {disabled}
-              aria-label="{action.label}{action.shortcut ? ` (${action.shortcut})` : ''}"
+              aria-label="{action.label}{shortcut ? ` (${shortcut})` : ''}"
               onclick={() => run(action.id)}
             >
               <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"

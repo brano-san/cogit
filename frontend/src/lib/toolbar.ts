@@ -3,6 +3,7 @@
  * Kept out of the component so the rules can be tested; the component only draws them.
  */
 
+import { prettyKeys, shortcutOf, type Keymap } from "$lib/keymap";
 import {
   DEFAULT_PREFS,
   remotesInOrder,
@@ -17,7 +18,10 @@ export interface ToolbarAction {
   /** Lucide path data, drawn at one size and weight. */
   icon: string;
   hint: string;
-  shortcut?: string;
+  /** The keymap command it runs, whose keys its tip shows (`shortcutOf`). */
+  command?: string;
+  /** A key the page keeps for itself, with no menu item to be remapped in. */
+  keys?: string;
   /** A caret beside the label opens more choices; the icon runs the action itself. */
   split?: boolean;
 }
@@ -46,7 +50,7 @@ export const ACTIONS: readonly ToolbarAction[] = [
     label: "Pull",
     icon: ICONS.pull,
     hint: "Bring the remote's commits down",
-    shortcut: "Ctrl+Shift+U",
+    command: "pull",
     split: true,
   },
   {
@@ -54,7 +58,7 @@ export const ACTIONS: readonly ToolbarAction[] = [
     label: "Push",
     icon: ICONS.push,
     hint: "Send your commits to the remote",
-    shortcut: "Ctrl+Shift+O",
+    command: "push",
     split: true,
   },
   {
@@ -62,7 +66,7 @@ export const ACTIONS: readonly ToolbarAction[] = [
     label: "Sync",
     icon: ICONS.sync,
     hint: "Pull, then push",
-    shortcut: "Ctrl+Shift+S",
+    command: "synchronize",
     split: true,
   },
   {
@@ -70,28 +74,28 @@ export const ACTIONS: readonly ToolbarAction[] = [
     label: "Stage",
     icon: ICONS.stage,
     hint: "Stage the selected files, or every change when none is selected",
-    shortcut: "Ctrl+T",
+    command: "stage",
   },
   {
     id: "unstage",
     label: "Unstage",
     icon: ICONS.unstage,
     hint: "Unstage the selected files, or the whole index when none is selected",
-    shortcut: "Ctrl+Shift+T",
+    command: "unstage",
   },
   {
     id: "discard",
     label: "Discard",
     icon: ICONS.discard,
     hint: "Throw away the changes in the selected files",
-    shortcut: "Ctrl+Z",
+    keys: "CmdOrCtrl+Z",
   },
   {
     id: "stash",
     label: "Stash",
     icon: ICONS.stash,
     hint: "Put the working tree aside",
-    shortcut: "Ctrl+S",
+    command: "stash",
     split: true,
   },
   {
@@ -113,7 +117,7 @@ export const ACTIONS: readonly ToolbarAction[] = [
     hint: "Replay HEAD on the selected commit",
     split: true,
   },
-  { id: "tag", label: "Tag", icon: ICONS.tag, hint: "Tag the current commit", shortcut: "Shift+F7" },
+  { id: "tag", label: "Tag", icon: ICONS.tag, hint: "Tag the current commit", command: "tag" },
   { id: "undo", label: "Undo", icon: ICONS.undo, hint: "Reverse the last operation" },
 ];
 
@@ -236,6 +240,12 @@ function syncMenu(context: MenuContext): MenuEntry[] {
     hint,
     checked: context.prefs.syncOrder === order,
   }));
+}
+
+/** The keys a button's tip shows: its command's as the keymap has them, or the page's own. */
+export function shortcutOfAction(action: ToolbarAction, keys: Keymap, onMac: boolean): string | undefined {
+  if (action.command) return shortcutOf(action.command, keys, onMac);
+  return action.keys ? prettyKeys(action.keys, onMac) : undefined;
 }
 
 /** The tooltip of a button whose action depends on a remembered choice. */
