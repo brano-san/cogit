@@ -116,6 +116,13 @@ describe("remotePlan", () => {
     expect(plan.map((step) => step.kind)).toEqual(["push", "pull"]);
   });
 
+  // Pull on a branch that tracks nothing is a fetch of every remote in one git call
+  // (R-552): fetching the others first would fetch them twice, and nothing was merged.
+  it("pulls a branch that tracks nothing with one step and deletes nothing", () => {
+    const branch = { name: "topic", upstream: null, ahead: 0, behind: 0 };
+    expect(remotePlan(["pull"], { ...facts, branch })).toEqual([{ kind: "pull", remote: "origin", ffOnly: true }]);
+  });
+
   it("refuses up front when there is no remote", () => {
     expect(() => remotePlan(["pull"], { ...facts, remotes: [], pullRemote: null, pushRemote: null })).toThrow(
       "This repository has no remote.",

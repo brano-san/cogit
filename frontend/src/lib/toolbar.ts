@@ -361,7 +361,7 @@ const needRemote: Rule = (f) =>
 
 const needBranch: Rule = (f) => needRemote(f) ?? (f.branch ? undefined : "HEAD is not on a branch");
 
-/** Pull and Sync without an upstream, or on a detached HEAD, only ever end in git's error. */
+/** Sync without an upstream would push a branch Pull has nothing to merge into. */
 const needUpstream: Rule = (f) =>
   needBranch(f) ?? (f.upstream ? undefined : "The branch tracks no remote branch");
 
@@ -391,7 +391,8 @@ const needCommit: Rule = (f) =>
   (f.commit === f.head ? "HEAD itself is selected" : undefined);
 
 const RULES: Record<string, Rule> = {
-  pull: needUpstream,
+  // On a branch that tracks nothing Pull fetches every remote (R-552).
+  pull: needBranch,
   // A branch without an upstream is pushed with --set-upstream (R-414).
   push: needBranch,
   "push-to": needBranch,

@@ -6755,3 +6755,31 @@ Repositories неактивного репозитория диалога не �
 (`--set-upstream` ставит движок). Тесты — `a_branch_with_a_merge_but_no_remote_is_pushed_as_a_first_push`
 (`crates/git_engine/tests/network.rs`; на прежней проверке падал с тем же «has no upstream
 branch»), `push-to.test.ts` «choosesRemote».
+
+## R-552 · Pull на ветке без upstream — fetch всех remotes, без ошибки · Н
+
+Pull на ветке, которая ничего не отслеживает, кончался отказом git: «You asked to pull from
+the remote 'origin', but did not specify a branch…» (п. 11 списка 25.09; в логе
+`cogit-2026-09-25_02-30-37.log` — 00:09:44Z, `git pull --progress origin --ff-only`). Аудит
+(FS-030, 9784024) сделал Pull там неактивным с причиной «The branch tracks no remote branch».
+
+**Решение (пользователя):** Pull на такой ветке молча делает `git fetch --progress --prune --all`
+— все remotes одним вызовом, `remote.<имя>.skipFetchAll` соблюдается. Решает бэкенд
+(`AppState::pull`, `head_tracks_nothing` — нет `branch.<имя>.remote` или `.merge`, R-551),
+поэтому так же ведут себя кнопка, палитра, `Remote ▸ Pull` и Pull строки Repositories
+неактивного репозитория. Журнал Undo записи не получает: ни одна ветка не сдвинулась. План
+тулбара (`remotePlan`) в этом случае — один шаг: fetch остальных remotes до него (область
+«All remotes») повторил бы тот же fetch, `Delete merged branches after Pull` не запускается —
+Pull ничего не слил. Правила доступности: Pull — ветка и remote (`needBranch`), в отсоединённом
+HEAD по-прежнему «HEAD is not on a branch»; Sync (и `Remote ▸ Synchronise`) по-прежнему хочет
+upstream — он отправил бы ветку, которую Pull только что не тронул.
+
+Отступление от SmartGit: у него Pull в этом случае неактивен, остаётся `Fetch Only`
+([Synchronizing with Remote Repositories](https://docs.syntevo.com/SmartGit/Latest/Manual/GUI/Repository/Synchronizing-with-Remote-Repositories):
+«If the current branch does not track a compatible branch of the selected remote, SmartGit
+disables the Pull option, but you can still use Fetch Only»). По списку задач Pull сам и есть
+этот Fetch Only. Заменяет решение FS-030 аудита для Pull (тест `toolbar.test.ts` «pulls and
+syncs only a branch that tracks a remote branch» закреплял неактивный Pull — разделён: Pull на
+такой ветке активен, Sync — нет). Тесты — `a_pull_on_a_branch_without_upstream_fetches_every_remote`
+(`crates/app_state/tests/remotes.rs`), `toolbar.test.ts`, `toolbar-prefs.test.ts` «pulls a
+branch that tracks nothing with one step».

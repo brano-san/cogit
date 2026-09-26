@@ -106,6 +106,20 @@ impl RepoHandle {
         self.run_streaming(&args, on_line)
     }
 
+    /// Every remote, as `git fetch --all` takes them (`remote.<name>.skipFetchAll` skips
+    /// one). `token_remote`: whose URL the token is asked for.
+    pub fn fetch_all(
+        &self,
+        token_remote: &str,
+        token: impl FnOnce(&str) -> Option<String>,
+        on_line: impl FnMut(&str),
+    ) -> Result<()> {
+        let header = self.auth_arg(token_remote, gix::remote::Direction::Fetch, token);
+        let mut args = prefix(&header);
+        args.extend(["fetch", "--progress", "--prune", "--all"]);
+        self.run_streaming(&args, on_line)
+    }
+
     /// `--ff-only` or an explicit merge, `--no-rebase`: without it `pull.rebase` rebases, and
     /// with no `pull.*` set git refuses diverged branches.
     pub fn pull(

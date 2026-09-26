@@ -64,6 +64,8 @@ impl AppState {
         handle.fetch(remote, |url| self.token_for(url), on_line)
     }
 
+    /// On a branch that tracks nothing there is nothing to merge: Pull fetches every
+    /// remote and says nothing more (R-552).
     pub fn pull(
         &self,
         repo: RepoId,
@@ -74,6 +76,9 @@ impl AppState {
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet_briefly(repo);
         let handle = self.handle(repo)?.with_stop(stop.clone());
+        if handle.head_tracks_nothing() {
+            return handle.fetch_all(remote, |url| self.token_for(url), on_line);
+        }
         // Listed before the pull: a submodule the user deinitialised stays that way (#42).
         let known = handle
             .wants_new_submodules()
