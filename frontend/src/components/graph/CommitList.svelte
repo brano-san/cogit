@@ -147,7 +147,7 @@
 
   async function pick(repo: RepoId, oid: string | null) {
     // The last repository's rows stay on screen until the new ones arrive (R-300).
-    if (graph.shownRepo !== null && graph.shownRepo !== repo) return;
+    if (graph.stale) return;
     const watch = measure("select-commit");
     await selection.select(repo, oid);
     watch.stop(`${selection.files.length} files`);
@@ -396,7 +396,7 @@
   });
 
   function commitAt(clientY: number): string | null {
-    if (!scroller) return null;
+    if (!scroller || graph.stale) return null;
     const y = clientY - scroller.getBoundingClientRect().top;
     return graphDropTarget(y, scroller.scrollTop, rowHeight, listRows, headerRows, (row) => graph.rowAt(row)?.commit.oid);
   }
@@ -595,6 +595,7 @@
             oncontextmenu={(event) => {
               if (!oncontext) return;
               event.preventDefault();
+              if (graph.stale) return;
               const repo = repository.current?.repo;
               if (repo !== undefined) void pick(repo, item.entry.commit.oid);
               oncontext(item.entry.commit.oid, event.clientX, event.clientY);
@@ -614,6 +615,7 @@
                   ((event) => {
                     event.preventDefault();
                     event.stopPropagation();
+                    if (graph.stale) return;
                     const oid = item.entry.commit.oid;
                     const repo = repository.current?.repo;
                     if (repo !== undefined) void pick(repo, oid);
