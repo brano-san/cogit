@@ -41,8 +41,15 @@
 
 <footer class="status-bar">
   {#if problems > 0}
-    <button type="button" class="problems" onclick={() => onproblems?.()} title="Show Output">
-      ⚠ {problems}
+    <button type="button" class="foot-button problems" onclick={() => onproblems?.()} title="Show Output">
+      <svg class="warn" viewBox="0 0 16 16" aria-hidden="true"
+        ><path
+          fill="currentColor"
+          fill-rule="evenodd"
+          d="M6.92 2.4a1.25 1.25 0 0 1 2.16 0l5.77 10a1.25 1.25 0 0 1-1.08 1.87H2.23a1.25 1.25 0 0 1-1.08-1.87ZM7.25 5.75v4.5h1.5v-4.5ZM8 11.1a.9.9 0 1 0 0 1.8.9.9 0 1 0 0-1.8Z"
+        /></svg
+      >
+      <span class="tabular">{problems}</span>
     </button>
     <span class="divider" aria-hidden="true"></span>
   {/if}
@@ -85,7 +92,7 @@
     <span class="truncate">{activity.label}</span>
   </span>
   {#if oncancel}
-    <button type="button" class="cancel" onclick={() => oncancel()} title="Stop the fetch, pull or push that is running">
+    <button type="button" class="foot-button cancel" onclick={() => oncancel()} title="Stop the fetch, pull or push that is running">
       Cancel
     </button>
   {/if}
@@ -97,36 +104,40 @@
 </footer>
 
 <style>
-  .problems {
-    height: 16px;
+  /* Content centred in a box centred on the bar (#18): an icon, not the ⚠ of whichever
+     fallback font had one, and a line box as tall as the text, so no font lifts it. */
+  .foot-button {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    flex: none;
+    height: 18px;
     padding: 0 var(--sp-3);
     background: none;
-    border: 0;
-    color: var(--status-modify);
+    border: 1px solid transparent;
+    border-radius: var(--r-sm);
     font: inherit;
     font-size: var(--fs-dense);
+    line-height: 1;
     cursor: default;
   }
 
-  .problems:hover {
+  .foot-button:hover {
     color: var(--status-delete);
+  }
+
+  .problems {
+    color: var(--status-modify);
+  }
+
+  .warn {
+    width: 12px;
+    height: 12px;
   }
 
   .cancel {
-    flex: none;
-    height: 16px;
-    padding: 0 var(--sp-3);
-    background: none;
-    border: 1px solid var(--divider);
-    border-radius: var(--r-sm);
+    border-color: var(--divider);
     color: var(--text-primary);
-    font: inherit;
-    font-size: var(--fs-dense);
-    cursor: default;
-  }
-
-  .cancel:hover {
-    color: var(--status-delete);
   }
 
   .status-bar {
@@ -150,7 +161,6 @@
     gap: var(--sp-2);
   }
 
-  .problems,
   .divider,
   .folder,
   .glyph {
