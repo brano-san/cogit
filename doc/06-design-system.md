@@ -126,6 +126,8 @@
 --indicator-push      → --status-add       стрелка «есть что пушить»
 --indicator-pull      → --status-ref       стрелка «есть что забрать»
 --indicator-unknown   → --text-secondary   fetch не удался, про pull неизвестно
+
+--diff-filler         → --c-text-muted 30 %   штриховка там, где у другой стороны строки есть, а у этой нет
 ```
 
 ## 4. Типографика
