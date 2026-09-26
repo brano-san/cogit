@@ -2,9 +2,11 @@
   import { untrack } from "svelte";
   import DiffView from "$components/diff/DiffView.svelte";
   import ImageDiff from "$components/diff/ImageDiff.svelte";
+  import SubmoduleDiff from "$components/diff/SubmoduleDiff.svelte";
   import TooltipLayer from "$components/common/TooltipLayer.svelte";
   import { installChildWindow } from "$lib/child-window";
   import { parseCompare } from "$lib/compare-params";
+  import { loadCompare } from "$lib/compare-window";
   import { diff } from "$stores/diff.svelte";
   import { settings } from "$stores/settings.svelte";
 
@@ -16,8 +18,8 @@
   // Once, on opening: what the loads read must not make this effect run them again.
   $effect(() =>
     untrack(() => {
-      void settings.load();
-      if (request) void diff.load(request.repo, request.spec, request.path);
+      if (request) void loadCompare(request, { settings, diff });
+      else void settings.load();
     }),
   );
 
@@ -43,6 +45,13 @@
 
     {#if diff.error}
       <p class="note error">{diff.error.message}</p>
+    {:else if diff.diff?.kind === "submodule" && diff.shownPath}
+      <SubmoduleDiff
+        path={diff.shownPath}
+        recorded={diff.diff.recorded}
+        previous={diff.diff.previous}
+        checkedOut={diff.diff.checkedOut}
+      />
     {:else if diff.diff?.kind === "image"}
       <ImageDiff
         before={diff.images[0]}
