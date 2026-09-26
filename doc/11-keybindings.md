@@ -130,6 +130,10 @@ Checkout, Merge, Rebase, Cherry-Pick, Revert и Undo аккордов не им�
 `Esc`, закрывающий поиск. `Ctrl+Shift+D` — из любой панели. В отдельных окнах (сравнение,
 Investigate) клавиши diff действуют всегда. Правило — `diffKey` в `lib/diff-keys.ts`.
 
+Своей строки поиска у WebView2 нет ни в одном окне: `Ctrl+F`, `Ctrl+G`, `Ctrl+Shift+G`, `F3`,
+`Shift+F3`, на которые никто на странице не ответил (`Ctrl+F` вне панели Diff, над бинарным
+файлом), гасит `suppressBrowserFind` (`lib/browser-find.ts`, R-536).
+
 Stage и Unstage выделенных строк — кнопки над diff, свёрнутый блок разворачивает щелчок: аккордов
 у них нет: на раскладках с AltGr сочетания `Ctrl+Alt` — это ввод символов, а не команды.
 
