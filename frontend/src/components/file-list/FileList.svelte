@@ -10,6 +10,7 @@
   import {
     DEFAULT_VIEW,
     groupByDirectory,
+    hidingSwitches,
     paneLayout,
     shownSections,
     visibleFiles,
@@ -170,6 +171,7 @@
   const total = $derived(sections.reduce((n, section) => n + section.files.length, 0));
   const shownCount = $derived(groups.reduce((n, group) => n + group.files.length, 0));
   const order = $derived(groups.flatMap((group) => group.paths));
+  const hiding = $derived(hidingSwitches(sections.flatMap((section) => section.files), active));
   const visibleMarks = $derived(shownMarks(marked, order));
 
   /** The paths an action applies to: the marked set when the clicked file is in it. */
@@ -224,6 +226,7 @@
     filter={mask}
     onfilter={(text) => (mask = text)}
     hidden={total - shownCount}
+    {hiding}
     broken={pattern.broken}
     {disabled}
     contentsReady={contents !== undefined}

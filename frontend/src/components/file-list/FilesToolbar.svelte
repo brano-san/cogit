@@ -13,6 +13,8 @@
     onfilter: (text: string) => void;
     /** How many rows the switches and the filter are keeping out of sight. */
     hidden: number;
+    /** The switches among them that hid rows; only these go on to show them. */
+    hiding?: readonly (keyof FileView)[];
     /** The filter text is not a valid expression; the field says so quietly. */
     broken?: boolean;
     /** No repository behind the list. */
@@ -29,6 +31,7 @@
     filter,
     onfilter,
     hidden,
+    hiding = [],
     broken = false,
     disabled = false,
     contentsReady = false,
@@ -108,11 +111,15 @@
     { key: "renameSources", label: "Renamed Path" },
   ];
 
-  /** Everything hidden comes back: the live switches go on and the filter text goes away. */
-  function showEverything() {
+  /** The hidden rows come back: the filter text goes and the switches that hid them go on.
+      The rest stay as they are — Unchanged or Ignored would read the whole tree. */
+  function showHidden() {
     onfilter("");
+    const live = new Set(switches.filter((item) => item.reason === null).map((item) => item.key));
+    const turned = hiding.filter((key) => live.has(key) && !view[key]);
+    if (turned.length === 0) return;
     const next = { ...view };
-    for (const item of switches) if (item.reason === null) next[item.key] = true;
+    for (const key of turned) next[key] = true;
     onview(next);
   }
 </script>
@@ -122,8 +129,8 @@
     <button
       type="button"
       class="badge"
-      title="Click to show all files (reset filters)"
-      onclick={showEverything}
+      title="Show the hidden files: clear the filter and turn on the switches hiding them"
+      onclick={showHidden}
     >
       ✕ {hidden} file{hidden === 1 ? "" : "s"} hidden
     </button>
