@@ -166,21 +166,25 @@
               >
             {/if}
             <span class="dir truncate shrink-first">{showDirectory ? directory(file.path) : ""}</span>
-            {#each actions as action (action.label)}
-              <span
-                class="act"
-                role="button"
-                tabindex="-1"
-                title={action.title}
-                onclick={(event) => {
-                  event.stopPropagation();
-                  action.run([file.path]);
-                }}
-                onkeydown={(event) => {
-                  if (event.key === "Enter") action.run([file.path]);
-                }}>{action.label}</span
-              >
-            {/each}
+            {#if actions.length > 0}
+              <span class="acts">
+                {#each actions as action (action.label)}
+                  <span
+                    class="act"
+                    role="button"
+                    tabindex="-1"
+                    title={action.title}
+                    onclick={(event) => {
+                      event.stopPropagation();
+                      action.run([file.path]);
+                    }}
+                    onkeydown={(event) => {
+                      if (event.key === "Enter") action.run([file.path]);
+                    }}>{action.label}</span
+                  >
+                {/each}
+              </span>
+            {/if}
           </button>
         {/if}
     {/snippet}
@@ -286,9 +290,31 @@
     cursor: default;
   }
 
-  .row:hover .act,
-  .heading:hover .act {
+  .heading:hover .act,
+  .acts .act {
     opacity: 1;
+  }
+
+  /* Over the end of the row rather than beside the name: out of sight, the buttons keep
+     no width, and the name has the whole row (R-243). */
+  .acts {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    display: none;
+    align-items: center;
+    padding: 0 var(--sp-3);
+    background: var(--state-hover);
+  }
+
+  .row:hover .acts,
+  .row:focus-visible .acts {
+    display: flex;
+  }
+
+  .row.selected .acts {
+    background: var(--state-selected);
   }
 
   .act:hover {
