@@ -10,9 +10,9 @@ pub struct Fold {
     pub hidden: u32,
 }
 
+/// Collapsed merges (#26); first parents only is the walk's own (R-341).
 #[derive(Debug, Clone, Default)]
 pub struct ViewFilter {
-    first_parent: bool,
     collapse: bool,
     expanded: HashSet<String>,
     roots: HashSet<String>,
@@ -24,15 +24,6 @@ pub struct ViewFilter {
 }
 
 impl ViewFilter {
-    #[must_use]
-    pub fn first_parent(roots: impl IntoIterator<Item = String>) -> Self {
-        Self {
-            first_parent: true,
-            roots: roots.into_iter().collect(),
-            ..Self::default()
-        }
-    }
-
     #[must_use]
     pub fn collapse_merged(
         roots: impl IntoIterator<Item = String>,
@@ -65,14 +56,11 @@ impl ViewFilter {
         }
         let row = self.rows;
         self.rows += 1;
-        let folds = self.first_parent || (self.collapse && !self.expanded.contains(oid));
+        let folds = self.collapse && !self.expanded.contains(oid);
         if folds && parents.len() > 1 {
             let merged = parents.split_off(1);
             for parent in merged {
                 // A line to a commit the graph shows anyway stays.
-                if self.first_parent {
-                    continue;
-                }
                 if self.roots.contains(&parent) || self.wanted.contains(&parent) {
                     parents.push(parent);
                 } else {
