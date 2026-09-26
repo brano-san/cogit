@@ -35,6 +35,7 @@ class RepoPulseStore {
 
   #busy: () => boolean = () => false;
   #owned: string | null = null;
+  #ownedMarks: RepoPulse | null = null;
   #seen = new Set<string>();
   #roots: readonly string[] = [];
   #timer: ReturnType<typeof setInterval> | null = null;
@@ -70,12 +71,15 @@ class RepoPulseStore {
     this.#busy = busy;
   }
 
-  /** The row the panels show reads its full status itself. The one they leave has had
-      no pulse while it was on screen, so it gets one — once the switch or close that left
-      it has settled, not inside it: the read cost `repo.close` 3–7 ms. */
-  setOwned(root: string | null): void {
+  /** The row the panels show reads its full status itself; `marks` is what they show of it
+      now. The one they leave has had no pulse while it was on screen, so it gets one — once
+      the switch or close that left it has settled, not inside it: the read cost
+      `repo.close` 3–7 ms. Until then it keeps the marks the panels last showed (R-542). */
+  setOwned(root: string | null, marks: RepoPulse | null = null): void {
     const left = this.#owned;
+    const leftMarks = this.#ownedMarks;
     this.#owned = root;
+    this.#ownedMarks = marks;
     // Kept, it would outlive what the panels do there and show once the row is let go.
     if (root !== null && this.pulses.has(root)) {
       const next = new Map(this.pulses);
@@ -83,6 +87,7 @@ class RepoPulseStore {
       this.pulses = next;
     }
     if (left === null || left === root || !this.#roots.includes(left)) return;
+    if (leftMarks) this.pulses = new Map([...this.pulses, [left, leftMarks]]);
     setTimeout(() => {
       if (left !== this.#owned && this.#roots.includes(left)) this.changed(left);
     }, LEFT_READ_DELAY_MS);
