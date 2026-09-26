@@ -664,9 +664,98 @@ F-103, F-132, F-140, F-211, F-212, F-226, F-229, F-311, F-320, F-366 (`#[cfg(win
 
 База «до» — `target/bench/exes/tasks-final3.exe` (a6b23f1, код совпадает с a779a38). Замер «после» — после фазы 4.
 
-| сценарий | набор | до, мс | после, мс | Δ |
-|---|---|---|---|---|
-| | | | | |
+A/B `tasks-final3` → `audit-final` (3bbc2f5), 6 раундов, все наборы, ядра 16–31, скрытый стол (`doc/benchmarks/2026-09-26-audit-ab.json`): same 75, быстрее 0, медленнее 4; `net.push` в этом прогоне упал на фикстуре — исправлено (c235f43), сетевой набор перемерен отдельно: всё same (`2026-09-26-audit-net.json`).
+
+Медленнее были и разобраны бисекцией (волны → ветки → коммиты, `D:\cogit-work\bisect.log`):
+- `branches.load` / `graph.first-screen` large 43,4 → 48,1 мс (+11 %) — общий `Checkbox` в строках дерева Branches (04bb506, FR-014): маска вместо SVG не помогла (откачена), дереву возвращён нативный `input` (ce377c7, R-455, R-461). Проверка против базы: 44,9 → 44,2 мс, same.
+- `repo.switch` large 70,4 → 81,9 мс (+16 %) — в точечных A/B по волнам и коммитам same; после отката Checkbox — 57,9 → 57,9 мс, same (`2026-09-26-audit-verify.json`).
+- `changes.unstage-all` dirty 116,2 → 120,8 мс (+4 %) — по 2–4 % от исправлений ed59a30 и c5ac3f2/c46af3e, каждое в пределах шума; попытка ускорения без выигрыша откачена (880d327, R-461); против базы в той же сессии 116,2 → 117,1 мс, same (`2026-09-26-audit-unstage.json`).
+
+Итог: регрессий скорости после отката нет; выигрышей по времени аудит не ставил целью.
+
+Полная таблица прогона `audit-ab` (до отката), по базовому времени:
+
+| сценарий | набор | до, мс | после, мс | Δ | вердикт |
+|---|---|---|---|---|---|
+| `app.ready` | medium | 566.1 | 579.7 | ×1.024 | same |
+| `app.first-paint` | empty | 478.2 | 477.8 | ×0.999 | same |
+| `app.dom-loaded` | empty | 397.7 | 397.7 | ×1.000 | same |
+| `repo.open` | large | 288.8 | 293.5 | ×1.016 | same |
+| `net.fetch` | network | 288.0 | 287.8 | ×0.999 | same |
+| `graph.full-layout` | large | 282.5 | 285.0 | ×1.009 | same |
+| `app.navigation-start` | empty | 257.6 | 260.5 | ×1.011 | same |
+| `changes.stage-all` | dirty | 224.5 | 221.6 | ×0.987 | same |
+| `changes.stash` | small | 188.7 | 188.4 | ×0.998 | same |
+| `changes.commit` | medium | 134.2 | 138.4 | ×1.031 | same |
+| `changes.commit` | small | 125.5 | 126.0 | ×1.004 | same |
+| `repo.open` | submodules | 118.3 | 118.1 | ×0.998 | same |
+| `files.content-search` | dirty | 116.4 | 115.6 | ×0.993 | same |
+| `changes.unstage-all` | dirty | 116.2 | 120.8 | ×1.040 | **медленнее** |
+| `net.pull-check` | network | 100.9 | 100.1 | ×0.992 | same |
+| `changes.stage-one` | dirty | 95.4 | 95.5 | ×1.001 | same |
+| `changes.unstage-one` | dirty | 91.3 | 91.4 | ×1.001 | same |
+| `repo.open` | dirty | 76.1 | 75.4 | ×0.991 | same |
+| `changes.stage-one` | small | 74.6 | 74.6 | ×1.000 | same |
+| `repo.switch` | large | 70.4 | 81.9 | ×1.163 | **медленнее** |
+| `repo.open` | medium | 63.6 | 60.0 | ×0.943 | same |
+| `repo.switch` | dirty | 57.8 | 57.8 | ×1.000 | same |
+| `repo.open-worktree` | medium | 49.6 | 49.5 | ×0.998 | same |
+| `repo.open-submodule` | submodules | 49.4 | 49.2 | ×0.996 | same |
+| `graph.full-layout` | medium | 46.3 | 47.4 | ×1.024 | same |
+| `graph.first-screen` | large | 43.4 | 48.1 | ×1.108 | **медленнее** |
+| `branches.load` | large | 43.4 | 48.1 | ×1.108 | **медленнее** |
+| `repo.switch` | medium | 37.1 | 41.2 | ×1.111 | same |
+| `graph.full-layout` | submodules | 36.3 | 35.9 | ×0.989 | same |
+| `repo.open` | small | 34.9 | 34.9 | ×1.000 | same |
+| `files.toggle-tree` | dirty | 32.7 | 32.7 | ×1.000 | same |
+| `ui.theme` | medium | 30.8 | 30.6 | ×0.994 | same |
+| `files.status` | large | 29.2 | 29.3 | ×1.003 | same |
+| `files.status` | submodules | 29.2 | 29.2 | ×1.000 | same |
+| `graph.full-layout` | dirty | 28.0 | 27.0 | ×0.964 | same |
+| `graph.first-screen` | submodules | 27.6 | 27.9 | ×1.011 | same |
+| `branches.load` | submodules | 27.6 | 27.9 | ×1.011 | same |
+| `repo.close` | large | 27.0 | 26.2 | ×0.970 | same |
+| `app.close` | medium | 25.0 | 22.0 | ×0.880 | same |
+| `graph.first-screen` | dirty | 22.0 | 21.2 | ×0.964 | same |
+| `branches.load` | dirty | 22.0 | 21.2 | ×0.964 | same |
+| `files.status` | dirty | 20.9 | 20.9 | ×1.000 | same |
+| `files.content-search` | medium | 20.3 | 20.1 | ×0.990 | same |
+| `graph.full-layout` | small | 17.1 | 16.3 | ×0.953 | same |
+| `files.status` | medium | 16.6 | 16.6 | ×1.000 | same |
+| `graph.first-screen` | medium | 16.2 | 16.2 | ×1.000 | same |
+| `branches.load` | medium | 16.2 | 16.2 | ×1.000 | same |
+| `diff.big` | dirty | 16.1 | 16.2 | ×1.006 | same |
+| `graph.scroll` | medium | 13.9 | 13.8 | ×0.993 | same |
+| `graph.scroll` | large | 13.9 | 13.8 | ×0.993 | same |
+| `commit.next` | dirty | 13.8 | 13.3 | ×0.964 | same |
+| `commit.next` | large | 13.6 | 13.5 | ×0.993 | same |
+| `commit.next` | medium | 13.5 | 13.6 | ×1.007 | same |
+| `commit.next` | small | 13.4 | 13.6 | ×1.015 | same |
+| `files.status` | small | 12.5 | 12.5 | ×1.000 | same |
+| `branches.expand` | medium | 12.1 | 12.1 | ×1.000 | same |
+| `branches.expand` | large | 12.1 | 12.1 | ×1.000 | same |
+| `commit.next` | submodules | 12.1 | 13.1 | ×1.083 | same |
+| `diff.submodule` | submodules | 12.1 | 12.1 | ×1.000 | same |
+| `diff.binary` | dirty | 12.1 | 11.9 | ×0.983 | same |
+| `commit.select` | large | 12.0 | 12.0 | ×1.000 | same |
+| `commit.select` | dirty | 12.0 | 12.0 | ×1.000 | same |
+| `diff.small` | dirty | 12.0 | 12.1 | ×1.008 | same |
+| `commit.select` | small | 11.9 | 11.9 | ×1.000 | same |
+| `commit.select` | medium | 11.9 | 11.9 | ×1.000 | same |
+| `commit.select` | submodules | 11.9 | 11.9 | ×1.000 | same |
+| `graph.first-screen` | small | 11.7 | 11.2 | ×0.957 | same |
+| `branches.load` | small | 11.7 | 11.2 | ×0.957 | same |
+| `ui.preferences` | medium | 9.7 | 9.6 | ×0.990 | same |
+| `repo.close` | medium | 9.6 | 9.6 | ×1.000 | same |
+| `repo.close` | small | 9.5 | 9.3 | ×0.979 | same |
+| `repo.close` | dirty | 9.2 | 9.5 | ×1.033 | same |
+| `repo.close` | submodules | 9.1 | 9.2 | ×1.011 | same |
+| `files.filter` | medium | 5.6 | 5.6 | ×1.000 | same |
+| `branches.filter` | large | 5.6 | 5.5 | ×0.982 | same |
+| `files.filter` | dirty | 5.6 | 5.6 | ×1.000 | same |
+| `branches.filter` | medium | 5.5 | 5.6 | ×1.018 | same |
+| `ui.context-menu` | large | 5.2 | 5.5 | ×1.058 | same |
+| `ui.context-menu` | medium | 3.3 | 3.5 | ×1.061 | same |
 
 ### Решения, которые требуют пользователя
 

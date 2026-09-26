@@ -39,8 +39,10 @@
   групп; бенчмарк «до» — `tasks-final3.exe`, мерится в той же сессии A/B, что и «после».
 - [x] Фаза 4 — исправления (объём high + medium): 123 из 124 + 31 low; слито 3bbc2f5. Полный прогон
   зелёный (nextest 2073, cogit lib 120, vitest 2172 в 175 файлах, svelte-check 0/0, clippy).
-  A/B `tasks-final3` → `audit-final`: 75 same, 4 медленнее — бисекция идёт.
-- [ ] Итог в конце `findings.md`.
+  A/B `tasks-final3` → `audit-final`: 75 same, 4 медленнее → бисекция: общий Checkbox в дереве
+  Branches (04bb506) — нативный input возвращён (ce377c7); две попытки ускорения без выигрыша
+  откачены (e9a8746, 880d327); после — first-screen, repo.switch, unstage-all против базы same.
+- [x] Итог в конце `findings.md` (таблица, статусы фич, бенчмарк, решения, «Проверить в сборке»).
 
 ## Журнал
 

@@ -5819,3 +5819,17 @@ GitHub, GitLab or Bitbucket remote». Ветка по умолчанию remote 
 предлагается и ветке, которой нет на remote (`upstream` нет), а не только ушедшей вперёд.
 Недоступность называет настоящую причину: HEAD не на ветке или remote не на известном forge
 (`pullRequestFor`, тесты — `pull-request.test.ts`).
+
+## R-461 · Две попытки ускорения после аудита 26.09 — без выигрыша, откачены · Н
+
+Итоговый A/B аудита (`tasks-final3` → `audit-final`) показал `branches.load` / `graph.first-screen`
+на large +11 %, `repo.switch` на large +16 % и `changes.unstage-all` на dirty +4 %. Бисекция: первое —
+общий `Checkbox` в строках дерева Branches (04bb506, R-455); `repo.switch` в точечных A/B — same.
+
+- Галочка маской CSS вместо inline-SVG (57ca862) — `branches.load` large 52,2 → 52,5 мс, same;
+  откачено (e9a8746), дереву Branches возвращён нативный `input` (ce377c7) — после этого first-screen
+  44,9 → 44,2 и `repo.switch` 57,9 → 57,9 против базы.
+- Поиск источников переименования при unstage по одному чтению дерева на папку (9da4c9c) —
+  `unstage-all` 118,9 → 120,2 мс, same; откачено (880d327). Против базы в той же сессии
+  116,2 → 117,1 мс, same: прежние +4–7 % — разброс базы между сессиями (112–116 мс) плюс по
+  2–4 % от исправлений ed59a30 и c5ac3f2/c46af3e, каждое в пределах шума.

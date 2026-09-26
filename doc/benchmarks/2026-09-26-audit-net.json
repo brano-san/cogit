@@ -1,0 +1,2214 @@
+{
+  "env": {
+    "label": "audit-net",
+    "date": "2026-09-25T21:50:14.103Z",
+    "commit": "c235f43",
+    "dirty": true,
+    "exeBuilt": "2026-09-24T11:37:32.988Z",
+    "os": "Майкрософт Windows 11 Домашняя 10.0.26200 build 26200",
+    "arch": "x64",
+    "cpu": "AMD Ryzen 9 9950X3D 16-Core Processor × 32",
+    "memoryGiB": 62,
+    "disk": "Reletech P400 EVO PCIE4.0 2TB, SSD, NVMe",
+    "git": "git version 2.51.0.windows.1",
+    "node": "v22.18.0",
+    "config": {
+      "runs": 10,
+      "warmup": 2,
+      "cold": 10,
+      "sets": [
+        "network"
+      ],
+      "only": null
+    },
+    "conditions": {
+      "cold": "a new process for every sample; the OS file cache is not flushed",
+      "warm": "the same action repeated in one session, after two unrecorded runs"
+    },
+    "ab": [
+      "tasks-final3",
+      "audit-final"
+    ],
+    "minutes": 5.4,
+    "calibrationLevel": 5.7
+  },
+  "ab": [
+    {
+      "key": "app.ready|medium",
+      "ma": 610.8,
+      "mb": 610.8,
+      "ratio": 1,
+      "lo": 0.971,
+      "hi": 1.022,
+      "verdict": "same",
+      "na": 11,
+      "nb": 11
+    },
+    {
+      "key": "app.first-paint|empty",
+      "ma": 485.3,
+      "mb": 482.3,
+      "ratio": 0.994,
+      "lo": 0.974,
+      "hi": 1.013,
+      "verdict": "same",
+      "na": 11,
+      "nb": 11
+    },
+    {
+      "key": "net.pull|network",
+      "ma": 390,
+      "mb": 391.7,
+      "ratio": 1.004,
+      "lo": 0.994,
+      "hi": 1.022,
+      "verdict": "same",
+      "na": 10,
+      "nb": 12
+    },
+    {
+      "key": "app.dom-loaded|empty",
+      "ma": 388.1,
+      "mb": 389.7,
+      "ratio": 1.004,
+      "lo": 0.969,
+      "hi": 1.034,
+      "verdict": "same",
+      "na": 11,
+      "nb": 11
+    },
+    {
+      "key": "net.push|network",
+      "ma": 309.1,
+      "mb": 313.6,
+      "ratio": 1.015,
+      "lo": 0.977,
+      "hi": 1.04,
+      "verdict": "same",
+      "na": 12,
+      "nb": 12
+    },
+    {
+      "key": "net.fetch|network",
+      "ma": 284.1,
+      "mb": 287.7,
+      "ratio": 1.013,
+      "lo": 0.977,
+      "hi": 1.059,
+      "verdict": "same",
+      "na": 12,
+      "nb": 12
+    },
+    {
+      "key": "app.navigation-start|empty",
+      "ma": 274.4,
+      "mb": 273.9,
+      "ratio": 0.998,
+      "lo": 0.978,
+      "hi": 1.012,
+      "verdict": "same",
+      "na": 11,
+      "nb": 11
+    },
+    {
+      "key": "net.pull-check|network",
+      "ma": 103.3,
+      "mb": 100.2,
+      "ratio": 0.97,
+      "lo": 0.952,
+      "hi": 1.003,
+      "verdict": "same",
+      "na": 12,
+      "nb": 12
+    },
+    {
+      "key": "app.close|medium",
+      "ma": 25,
+      "mb": 39,
+      "ratio": 1.56,
+      "lo": 0.684,
+      "hi": 2.048,
+      "verdict": "same",
+      "na": 11,
+      "nb": 11
+    }
+  ],
+  "results": [
+    {
+      "id": "app.ready",
+      "group": "Приложение",
+      "title": "запуск до готовности (medium восстановлен)",
+      "set": "medium",
+      "condition": "cold",
+      "variant": "audit-final",
+      "n": 11,
+      "busy": 0,
+      "median": 610.8,
+      "p95": 632.6,
+      "min": 593,
+      "max": 632.6,
+      "ipcMedian": 0,
+      "frontMedian": 610.8,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.036,
+      "retakes": 0,
+      "calibMedian": 0,
+      "commands": {},
+      "samples": [
+        {
+          "total": 615.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 593,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 632.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 597.1,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 607.5,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 600.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 610.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 593.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 621.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 626.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 620,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "app.ready",
+      "group": "Приложение",
+      "title": "запуск до готовности (medium восстановлен)",
+      "set": "medium",
+      "condition": "cold",
+      "variant": "tasks-final3",
+      "n": 11,
+      "busy": 0,
+      "median": 610.8,
+      "p95": 661.3,
+      "min": 584.8,
+      "max": 661.3,
+      "ipcMedian": 0,
+      "frontMedian": 610.8,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.083,
+      "retakes": 0,
+      "calibMedian": 0,
+      "commands": {},
+      "samples": [
+        {
+          "total": 613.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 600.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 584.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 604.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 616.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 661.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 625.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 610.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 638.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 610.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 606.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "app.first-paint",
+      "group": "Приложение",
+      "title": "запуск до первой отрисовки",
+      "set": "empty",
+      "condition": "cold",
+      "variant": "tasks-final3",
+      "n": 11,
+      "busy": 0,
+      "median": 485.3,
+      "p95": 496.4,
+      "min": 468.1,
+      "max": 496.4,
+      "ipcMedian": 0,
+      "frontMedian": 485.3,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.023,
+      "retakes": 0,
+      "calibMedian": 0,
+      "commands": {},
+      "samples": [
+        {
+          "total": 494.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 489.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 474.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 480.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 494.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 468.1,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 485.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 490.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 485,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 481.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 496.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "app.first-paint",
+      "group": "Приложение",
+      "title": "запуск до первой отрисовки",
+      "set": "empty",
+      "condition": "cold",
+      "variant": "audit-final",
+      "n": 11,
+      "busy": 0,
+      "median": 482.3,
+      "p95": 503.2,
+      "min": 463.6,
+      "max": 503.2,
+      "ipcMedian": 0,
+      "frontMedian": 482.3,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.043,
+      "retakes": 0,
+      "calibMedian": 0,
+      "commands": {},
+      "samples": [
+        {
+          "total": 474.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 463.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 481.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 482.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 487.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 486.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 489,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 503.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 473.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 482.1,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 488.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "net.pull",
+      "group": "Сеть (локальный remote)",
+      "title": "pull",
+      "set": "network",
+      "condition": "warm",
+      "variant": "audit-final",
+      "n": 12,
+      "busy": 0,
+      "median": 391.7,
+      "p95": 432.2,
+      "min": 382.4,
+      "max": 432.2,
+      "ipcMedian": 380.9,
+      "frontMedian": 11.6,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.103,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {
+        "pull": {
+          "perRun": 1,
+          "msPerRun": 328.7
+        },
+        "open_repository": {
+          "perRun": 1,
+          "msPerRun": 29.6
+        },
+        "lost_commits": {
+          "perRun": 1,
+          "msPerRun": 8.7
+        },
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 6.3
+        },
+        "worktree_files": {
+          "perRun": 1,
+          "msPerRun": 5.5
+        },
+        "working_state": {
+          "perRun": 1,
+          "msPerRun": 5.1
+        },
+        "graph_window": {
+          "perRun": 1,
+          "msPerRun": 1.6
+        },
+        "list_submodules": {
+          "perRun": 1,
+          "msPerRun": 1.5
+        },
+        "flow_status": {
+          "perRun": 1,
+          "msPerRun": 1.3
+        },
+        "rebase_progress": {
+          "perRun": 1,
+          "msPerRun": 1.1
+        },
+        "log_from_frontend": {
+          "perRun": 2,
+          "msPerRun": 1
+        },
+        "stashes": {
+          "perRun": 1,
+          "msPerRun": 1
+        }
+      },
+      "samples": [
+        {
+          "total": 388.4,
+          "ipc": 376.8,
+          "front": 11.6,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 391.7,
+          "ipc": 380.9,
+          "front": 10.8,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 382.4,
+          "ipc": 371.3,
+          "front": 11.1,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 412.3,
+          "ipc": 400.7,
+          "front": 11.6,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 387.7,
+          "ipc": 375.1,
+          "front": 12.6,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 389.2,
+          "ipc": 377.2,
+          "front": 12,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 391.4,
+          "ipc": 379.6,
+          "front": 11.8,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 394.2,
+          "ipc": 382.6,
+          "front": 11.6,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 395.2,
+          "ipc": 384.3,
+          "front": 10.9,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 396.2,
+          "ipc": 384.5,
+          "front": 11.7,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 392.9,
+          "ipc": 382.7,
+          "front": 10.2,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 432.2,
+          "ipc": 421.2,
+          "front": 11,
+          "longest": 0,
+          "calib": 5.7
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "net.pull",
+      "group": "Сеть (локальный remote)",
+      "title": "pull",
+      "set": "network",
+      "condition": "warm",
+      "variant": "tasks-final3",
+      "n": 10,
+      "busy": 0,
+      "median": 390,
+      "p95": 399.1,
+      "min": 380.8,
+      "max": 399.1,
+      "ipcMedian": 378.7,
+      "frontMedian": 10.7,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.023,
+      "retakes": 0,
+      "calibMedian": 5.7,
+      "commands": {
+        "pull": {
+          "perRun": 1,
+          "msPerRun": 324.7
+        },
+        "open_repository": {
+          "perRun": 1,
+          "msPerRun": 28.6
+        },
+        "lost_commits": {
+          "perRun": 1,
+          "msPerRun": 8.5
+        },
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 6.4
+        },
+        "worktree_files": {
+          "perRun": 1,
+          "msPerRun": 5.3
+        },
+        "working_state": {
+          "perRun": 1,
+          "msPerRun": 5
+        },
+        "list_submodules": {
+          "perRun": 1,
+          "msPerRun": 1.7
+        },
+        "graph_window": {
+          "perRun": 1,
+          "msPerRun": 1.5
+        },
+        "stashes": {
+          "perRun": 1,
+          "msPerRun": 1.1
+        },
+        "commit_template": {
+          "perRun": 1,
+          "msPerRun": 1.1
+        },
+        "rebase_progress": {
+          "perRun": 1,
+          "msPerRun": 1.1
+        },
+        "log_from_frontend": {
+          "perRun": 2,
+          "msPerRun": 1
+        }
+      },
+      "samples": [
+        {
+          "total": 380.8,
+          "ipc": 370.2,
+          "front": 10.6,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 389.2,
+          "ipc": 381.8,
+          "front": 7.4,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 390.3,
+          "ipc": 378.7,
+          "front": 11.6,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 382.9,
+          "ipc": 370.6,
+          "front": 12.3,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 399.1,
+          "ipc": 388.7,
+          "front": 10.4,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 388.1,
+          "ipc": 376.9,
+          "front": 11.2,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 391.4,
+          "ipc": 380.7,
+          "front": 10.7,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 390,
+          "ipc": 378.1,
+          "front": 11.9,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 392.4,
+          "ipc": 380.6,
+          "front": 11.8,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 393.4,
+          "ipc": 385.1,
+          "front": 8.3,
+          "longest": 0,
+          "calib": 5.7
+        }
+      ],
+      "errors": [
+        "net.pull: pull failed",
+        "net.pull: pull failed",
+        "net.pull: pull failed"
+      ]
+    },
+    {
+      "id": "app.dom-loaded",
+      "group": "Приложение",
+      "title": "запуск: до DOMContentLoaded",
+      "set": "empty",
+      "condition": "cold",
+      "variant": "audit-final",
+      "n": 11,
+      "busy": 0,
+      "median": 389.7,
+      "p95": 414.2,
+      "min": 372.5,
+      "max": 414.2,
+      "ipcMedian": 0,
+      "frontMedian": 389.7,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.063,
+      "retakes": 0,
+      "calibMedian": 0,
+      "commands": {},
+      "samples": [
+        {
+          "total": 378.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 372.5,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 388,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 396.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 389.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 395.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 382.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 414.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 382.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 397.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 406.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "app.dom-loaded",
+      "group": "Приложение",
+      "title": "запуск: до DOMContentLoaded",
+      "set": "empty",
+      "condition": "cold",
+      "variant": "tasks-final3",
+      "n": 11,
+      "busy": 0,
+      "median": 388.1,
+      "p95": 415.7,
+      "min": 378.4,
+      "max": 415.7,
+      "ipcMedian": 0,
+      "frontMedian": 388.1,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.071,
+      "retakes": 0,
+      "calibMedian": 0,
+      "commands": {},
+      "samples": [
+        {
+          "total": 400.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 386.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 378.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 393.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 415.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 380.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 382.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 390.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 388.1,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 385.5,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 402.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "net.push",
+      "group": "Сеть (локальный remote)",
+      "title": "push",
+      "set": "network",
+      "condition": "warm",
+      "variant": "audit-final",
+      "n": 12,
+      "busy": 0,
+      "median": 313.6,
+      "p95": 329.8,
+      "min": 305.7,
+      "max": 329.8,
+      "ipcMedian": 302.1,
+      "frontMedian": 10.9,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.052,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {
+        "push": {
+          "perRun": 1,
+          "msPerRun": 270
+        },
+        "lost_commits": {
+          "perRun": 1,
+          "msPerRun": 11.4
+        },
+        "open_repository": {
+          "perRun": 1,
+          "msPerRun": 8
+        },
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 5.6
+        },
+        "worktree_files": {
+          "perRun": 1,
+          "msPerRun": 5.1
+        },
+        "working_state": {
+          "perRun": 1,
+          "msPerRun": 4.6
+        },
+        "list_submodules": {
+          "perRun": 1,
+          "msPerRun": 1.5
+        },
+        "flow_status": {
+          "perRun": 1,
+          "msPerRun": 1.2
+        },
+        "rebase_progress": {
+          "perRun": 1,
+          "msPerRun": 1.1
+        },
+        "commit_template": {
+          "perRun": 1,
+          "msPerRun": 1
+        },
+        "stashes": {
+          "perRun": 1,
+          "msPerRun": 0.9
+        },
+        "log_from_frontend": {
+          "perRun": 2,
+          "msPerRun": 0.8
+        }
+      },
+      "samples": [
+        {
+          "total": 305.7,
+          "ipc": 294.6,
+          "front": 11.1,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 310.1,
+          "ipc": 299.5,
+          "front": 10.6,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 308.7,
+          "ipc": 296.3,
+          "front": 12.4,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 321.8,
+          "ipc": 313,
+          "front": 8.8,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 326.7,
+          "ipc": 315.8,
+          "front": 10.9,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 313.5,
+          "ipc": 299.5,
+          "front": 14,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 313.9,
+          "ipc": 302.1,
+          "front": 11.8,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 329.8,
+          "ipc": 318.1,
+          "front": 11.7,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 316.9,
+          "ipc": 305.1,
+          "front": 11.8,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 312.5,
+          "ipc": 302,
+          "front": 10.5,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 321.3,
+          "ipc": 310.4,
+          "front": 10.9,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 313.6,
+          "ipc": 304.9,
+          "front": 8.7,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "net.push",
+      "group": "Сеть (локальный remote)",
+      "title": "push",
+      "set": "network",
+      "condition": "warm",
+      "variant": "tasks-final3",
+      "n": 12,
+      "busy": 0,
+      "median": 309.1,
+      "p95": 329.5,
+      "min": 304.1,
+      "max": 329.5,
+      "ipcMedian": 300.2,
+      "frontMedian": 11.5,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.066,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {
+        "push": {
+          "perRun": 1,
+          "msPerRun": 269.3
+        },
+        "lost_commits": {
+          "perRun": 1,
+          "msPerRun": 11
+        },
+        "open_repository": {
+          "perRun": 1,
+          "msPerRun": 7.8
+        },
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 5.5
+        },
+        "worktree_files": {
+          "perRun": 1,
+          "msPerRun": 5.1
+        },
+        "working_state": {
+          "perRun": 1,
+          "msPerRun": 4.8
+        },
+        "list_submodules": {
+          "perRun": 1,
+          "msPerRun": 1.7
+        },
+        "stashes": {
+          "perRun": 1,
+          "msPerRun": 1.1
+        },
+        "commit_template": {
+          "perRun": 1,
+          "msPerRun": 1
+        },
+        "rebase_progress": {
+          "perRun": 1,
+          "msPerRun": 1
+        },
+        "log_from_frontend": {
+          "perRun": 2,
+          "msPerRun": 0.8
+        },
+        "remotes": {
+          "perRun": 1,
+          "msPerRun": 0.8
+        }
+      },
+      "samples": [
+        {
+          "total": 304.1,
+          "ipc": 292.6,
+          "front": 11.5,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 308.6,
+          "ipc": 296.8,
+          "front": 11.8,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 309.1,
+          "ipc": 296.1,
+          "front": 13,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 308.8,
+          "ipc": 300.2,
+          "front": 8.6,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 329.5,
+          "ipc": 317.8,
+          "front": 11.7,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 308.4,
+          "ipc": 297.1,
+          "front": 11.3,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 308.4,
+          "ipc": 296.6,
+          "front": 11.8,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 320.9,
+          "ipc": 309.4,
+          "front": 11.5,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 316.7,
+          "ipc": 304.8,
+          "front": 11.9,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 325,
+          "ipc": 313.2,
+          "front": 11.8,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 312.5,
+          "ipc": 303.9,
+          "front": 8.6,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 329.2,
+          "ipc": 320.3,
+          "front": 8.9,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "net.fetch",
+      "group": "Сеть (локальный remote)",
+      "title": "fetch",
+      "set": "network",
+      "condition": "warm",
+      "variant": "audit-final",
+      "n": 12,
+      "busy": 0,
+      "median": 287.7,
+      "p95": 309,
+      "min": 279.6,
+      "max": 309,
+      "ipcMedian": 275.2,
+      "frontMedian": 11.7,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.074,
+      "retakes": 0,
+      "calibMedian": 5.7,
+      "commands": {
+        "fetch": {
+          "perRun": 1,
+          "msPerRun": 243.9
+        },
+        "open_repository": {
+          "perRun": 1,
+          "msPerRun": 15.4
+        },
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 5.9
+        },
+        "worktree_files": {
+          "perRun": 1,
+          "msPerRun": 5.2
+        },
+        "working_state": {
+          "perRun": 1,
+          "msPerRun": 4.9
+        },
+        "lost_commits": {
+          "perRun": 1,
+          "msPerRun": 4.1
+        },
+        "list_submodules": {
+          "perRun": 1,
+          "msPerRun": 1.6
+        },
+        "flow_status": {
+          "perRun": 1,
+          "msPerRun": 1.4
+        },
+        "rebase_progress": {
+          "perRun": 1,
+          "msPerRun": 1.3
+        },
+        "commit_template": {
+          "perRun": 1,
+          "msPerRun": 1.2
+        },
+        "log_from_frontend": {
+          "perRun": 2,
+          "msPerRun": 1
+        },
+        "stashes": {
+          "perRun": 1,
+          "msPerRun": 1
+        }
+      },
+      "samples": [
+        {
+          "total": 280.5,
+          "ipc": 269,
+          "front": 11.5,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 309,
+          "ipc": 298.4,
+          "front": 10.6,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 288.2,
+          "ipc": 276.5,
+          "front": 11.7,
+          "longest": 0,
+          "calib": 5.6
+        },
+        {
+          "total": 296.4,
+          "ipc": 284.6,
+          "front": 11.8,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 285.3,
+          "ipc": 273.1,
+          "front": 12.2,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 287.1,
+          "ipc": 275.1,
+          "front": 12,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 287.7,
+          "ipc": 275.2,
+          "front": 12.5,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 279.6,
+          "ipc": 268.2,
+          "front": 11.4,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 296.5,
+          "ipc": 285.7,
+          "front": 10.8,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 280.3,
+          "ipc": 268.8,
+          "front": 11.5,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 303.8,
+          "ipc": 290.7,
+          "front": 13.1,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 304.9,
+          "ipc": 292.9,
+          "front": 12,
+          "longest": 0,
+          "calib": 5.7
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "net.fetch",
+      "group": "Сеть (локальный remote)",
+      "title": "fetch",
+      "set": "network",
+      "condition": "warm",
+      "variant": "tasks-final3",
+      "n": 12,
+      "busy": 0,
+      "median": 284.1,
+      "p95": 300.6,
+      "min": 276.5,
+      "max": 300.6,
+      "ipcMedian": 272.9,
+      "frontMedian": 11.5,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.058,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {
+        "fetch": {
+          "perRun": 1,
+          "msPerRun": 239
+        },
+        "open_repository": {
+          "perRun": 1,
+          "msPerRun": 15.4
+        },
+        "load_commits": {
+          "perRun": 1,
+          "msPerRun": 6
+        },
+        "worktree_files": {
+          "perRun": 1,
+          "msPerRun": 5.6
+        },
+        "working_state": {
+          "perRun": 1,
+          "msPerRun": 5.3
+        },
+        "lost_commits": {
+          "perRun": 1,
+          "msPerRun": 4.1
+        },
+        "list_submodules": {
+          "perRun": 1,
+          "msPerRun": 1.5
+        },
+        "commit_template": {
+          "perRun": 1,
+          "msPerRun": 1
+        },
+        "rebase_progress": {
+          "perRun": 1,
+          "msPerRun": 1
+        },
+        "stashes": {
+          "perRun": 1,
+          "msPerRun": 1
+        },
+        "log_from_frontend": {
+          "perRun": 2,
+          "msPerRun": 0.9
+        },
+        "plugin:event|emit": {
+          "perRun": 1,
+          "msPerRun": 0.7
+        }
+      },
+      "samples": [
+        {
+          "total": 300.6,
+          "ipc": 288,
+          "front": 12.6,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 279.8,
+          "ipc": 268.4,
+          "front": 11.4,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 279.2,
+          "ipc": 267.5,
+          "front": 11.7,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 276.5,
+          "ipc": 264.9,
+          "front": 11.6,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 281.8,
+          "ipc": 270.5,
+          "front": 11.3,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 299.2,
+          "ipc": 286.9,
+          "front": 12.3,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 284.1,
+          "ipc": 272.6,
+          "front": 11.5,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 292.8,
+          "ipc": 281.6,
+          "front": 11.2,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 287.1,
+          "ipc": 274.7,
+          "front": 12.4,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 281.4,
+          "ipc": 272.9,
+          "front": 8.5,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 284.7,
+          "ipc": 275.9,
+          "front": 8.8,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 298.5,
+          "ipc": 286.6,
+          "front": 11.9,
+          "longest": 0,
+          "calib": 5.7
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "app.navigation-start",
+      "group": "Приложение",
+      "title": "запуск: процесс и WebView2 до начала страницы",
+      "set": "empty",
+      "condition": "cold",
+      "variant": "tasks-final3",
+      "n": 11,
+      "busy": 0,
+      "median": 274.4,
+      "p95": 294.4,
+      "min": 268.2,
+      "max": 294.4,
+      "ipcMedian": 0,
+      "frontMedian": 274.4,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.073,
+      "retakes": 0,
+      "calibMedian": 0,
+      "commands": {},
+      "samples": [
+        {
+          "total": 274.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 281.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 270.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 268.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 294.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 276.1,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 277.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 270.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 277,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 273.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 272.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "app.navigation-start",
+      "group": "Приложение",
+      "title": "запуск: процесс и WebView2 до начала страницы",
+      "set": "empty",
+      "condition": "cold",
+      "variant": "audit-final",
+      "n": 11,
+      "busy": 0,
+      "median": 273.9,
+      "p95": 288.9,
+      "min": 266.8,
+      "max": 288.9,
+      "ipcMedian": 0,
+      "frontMedian": 273.9,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.055,
+      "retakes": 0,
+      "calibMedian": 0,
+      "commands": {},
+      "samples": [
+        {
+          "total": 266.8,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 271.6,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 269.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 274.3,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 275.7,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 274.4,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 277,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 271.2,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 273.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 270.1,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 288.9,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "net.pull-check",
+      "group": "Сеть (локальный remote)",
+      "title": "есть ли что забрать (строка Repositories)",
+      "set": "network",
+      "condition": "warm",
+      "variant": "tasks-final3",
+      "n": 12,
+      "busy": 0,
+      "median": 103.3,
+      "p95": 112.6,
+      "min": 97.6,
+      "max": 112.6,
+      "ipcMedian": 99,
+      "frontMedian": 3.5,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.09,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {
+        "pull_probe": {
+          "perRun": 1,
+          "msPerRun": 99.7
+        }
+      },
+      "samples": [
+        {
+          "total": 106.6,
+          "ipc": 99.6,
+          "front": 7,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 100.5,
+          "ipc": 98.4,
+          "front": 2.1,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 103.9,
+          "ipc": 102.1,
+          "front": 1.8,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 97.6,
+          "ipc": 95.5,
+          "front": 2.1,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 100.6,
+          "ipc": 98.6,
+          "front": 2,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 103.1,
+          "ipc": 97.7,
+          "front": 5.4,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 112.6,
+          "ipc": 105.3,
+          "front": 7.3,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 107.1,
+          "ipc": 100.7,
+          "front": 6.4,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 103.4,
+          "ipc": 101.9,
+          "front": 1.5,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 105.3,
+          "ipc": 98.8,
+          "front": 6.5,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 103.3,
+          "ipc": 99,
+          "front": 4.3,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 102.6,
+          "ipc": 99.1,
+          "front": 3.5,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "net.pull-check",
+      "group": "Сеть (локальный remote)",
+      "title": "есть ли что забрать (строка Repositories)",
+      "set": "network",
+      "condition": "warm",
+      "variant": "audit-final",
+      "n": 12,
+      "busy": 0,
+      "median": 100.2,
+      "p95": 107.6,
+      "min": 97.2,
+      "max": 107.6,
+      "ipcMedian": 98.4,
+      "frontMedian": 2.3,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.074,
+      "retakes": 0,
+      "calibMedian": 5.8,
+      "commands": {
+        "pull_probe": {
+          "perRun": 1,
+          "msPerRun": 98.6
+        }
+      },
+      "samples": [
+        {
+          "total": 100.9,
+          "ipc": 98.6,
+          "front": 2.3,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 102.2,
+          "ipc": 99.2,
+          "front": 3,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 97.2,
+          "ipc": 95.2,
+          "front": 2,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 101,
+          "ipc": 98.4,
+          "front": 2.6,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 100.2,
+          "ipc": 98.6,
+          "front": 1.6,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 106.6,
+          "ipc": 99.5,
+          "front": 7.1,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 100.1,
+          "ipc": 98.3,
+          "front": 1.8,
+          "longest": 0,
+          "calib": 5.9
+        },
+        {
+          "total": 98.8,
+          "ipc": 97.2,
+          "front": 1.6,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 103.4,
+          "ipc": 99.4,
+          "front": 4,
+          "longest": 0,
+          "calib": 5.8
+        },
+        {
+          "total": 99.3,
+          "ipc": 97.4,
+          "front": 1.9,
+          "longest": 0,
+          "calib": 6
+        },
+        {
+          "total": 107.6,
+          "ipc": 105.1,
+          "front": 2.5,
+          "longest": 0,
+          "calib": 5.7
+        },
+        {
+          "total": 100.2,
+          "ipc": 96,
+          "front": 4.2,
+          "longest": 0,
+          "calib": 5.8
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "app.close",
+      "group": "Приложение",
+      "title": "закрытие приложения",
+      "set": "medium",
+      "condition": "cold",
+      "variant": "audit-final",
+      "n": 11,
+      "busy": 0,
+      "median": 39,
+      "p95": 47,
+      "min": 20,
+      "max": 47,
+      "ipcMedian": 0,
+      "frontMedian": 39,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.205,
+      "retakes": 0,
+      "calibMedian": 0,
+      "commands": {},
+      "samples": [
+        {
+          "total": 46,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 43,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 21,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 47,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 26,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 24,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 20,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 46,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 34,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 39,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 41,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "app.close",
+      "group": "Приложение",
+      "title": "закрытие приложения",
+      "set": "medium",
+      "condition": "cold",
+      "variant": "tasks-final3",
+      "n": 11,
+      "busy": 0,
+      "median": 25,
+      "p95": 46,
+      "min": 17,
+      "max": 46,
+      "ipcMedian": 0,
+      "frontMedian": 25,
+      "longTaskMedian": 0,
+      "longTaskMax": 0,
+      "spread": 0.84,
+      "retakes": 0,
+      "calibMedian": 0,
+      "commands": {},
+      "samples": [
+        {
+          "total": 46,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 25,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 38,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 21,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 22,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 42,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 45,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 17,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 25,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 21,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        },
+        {
+          "total": 21,
+          "ipc": 0,
+          "front": 0,
+          "longest": 0
+        }
+      ],
+      "errors": []
+    }
+  ]
+}
