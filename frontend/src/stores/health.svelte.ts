@@ -9,23 +9,28 @@ class HealthStore {
   ignored = $state.raw<IgnoredWarnings>({});
 
   #all = $state.raw<HealthWarning[]>([]);
-  #later = $state.raw<ReadonlySet<string>>(new Set());
+  /** Per root, with the id it was open under: a switch keeps the id (R-351), and only a
+      close and a new open change it. */
+  #later = $state.raw<ReadonlyMap<string, { repo: RepoId; ids: ReadonlySet<string> }>>(new Map());
   #root = $state<string | null>(null);
   #checked: { repo: RepoId; name: string } | null = null;
 
   get warnings(): HealthWarning[] {
     const mine = this.#root === null ? {} : (this.ignored[this.#root] ?? {});
-    return visibleWarnings(this.#all, new Set(Object.keys(mine)), this.#later);
+    const later = this.#root === null ? undefined : this.#later.get(this.#root)?.ids;
+    return visibleWarnings(this.#all, new Set(Object.keys(mine)), later ?? new Set());
   }
 
   async loadIgnored(): Promise<void> {
     this.ignored = (await readKey<IgnoredWarnings>(KEY)) ?? {};
   }
 
-  /** Every open starts afresh: "Remind me later" lasts until the repository opens again. */
+  /** "Remind me later" lasts until the repository opens again, not until it is left. */
   async check(repo: RepoId, root: string, name: string): Promise<void> {
     this.#root = root;
-    this.#later = new Set();
+    if (this.#later.get(root)?.repo !== repo) {
+      this.#later = new Map([...this.#later, [root, { repo, ids: new Set<string>() }]]);
+    }
     this.#all = [];
     this.#checked = { repo, name };
     await this.recheck();
@@ -45,7 +50,10 @@ class HealthStore {
   }
 
   remindLater(id: string): void {
-    this.#later = new Set([...this.#later, id]);
+    const root = this.#root;
+    const held = root === null ? undefined : this.#later.get(root);
+    if (root === null || !held) return;
+    this.#later = new Map([...this.#later, [root, { ...held, ids: new Set([...held.ids, id]) }]]);
   }
 
   async ignore(id: string): Promise<void> {
