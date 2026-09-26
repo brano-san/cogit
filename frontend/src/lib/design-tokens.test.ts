@@ -36,4 +36,21 @@ describe("design tokens", () => {
     }
     expect([...new Set(missing)]).toEqual([]);
   });
+
+  // The LFS download link and "Use inherited" took the branch colour: one link in About,
+  // another in Repository Settings (F-278).
+  it("gives every link one colour", () => {
+    const astray: string[] = [];
+    for (const file of files(SRC)) {
+      const text = readFileSync(file, "utf8");
+      for (const [, selector, body] of text.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        const link = /\.link\b/.test(selector!) || /text-decoration:\s*underline/.test(body!);
+        const colour = /(?:^|[;\s])color:\s*([^;]+);/.exec(body!)?.[1]?.trim();
+        if (link && colour && colour !== "var(--link)") {
+          astray.push(`${selector!.trim()} in ${file.slice(SRC.length)}: ${colour}`);
+        }
+      }
+    }
+    expect(astray).toEqual([]);
+  });
 });
