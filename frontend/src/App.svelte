@@ -1862,7 +1862,11 @@
       session.setActive(opened.root);
       session.opened(opened.root);
       repoList.opened(opened.root);
-      if (restoreOid) void commit.select(opened.repo, restoreOid);
+      if (restoreOid) {
+        void commit.select(opened.repo, restoreOid);
+        // Waits for the graph to reach it: the list opens at the top otherwise.
+        graph.requestReveal(restoreOid);
+      }
       void timed(story, "graph", () => reloadGraph());
       void refs.loadUrls(opened.repo);
       void worktrees.refresh(opened.repo);
