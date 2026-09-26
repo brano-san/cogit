@@ -114,7 +114,7 @@ fn with_nothing_to_paint_everything_keeps_the_default_style() {
 fn a_ticked_branch_is_coloured_from_its_tip_to_the_main_line() {
     let history = nodes(&[
         ("m4", &["m3"]),
-        ("m3", &["m2", "t1"]),
+        ("m3", &["m2"]),
         ("t1", &["m1"]),
         ("m2", &["m1"]),
         ("m1", &["m0"]),
@@ -126,6 +126,26 @@ fn a_ticked_branch_is_coloured_from_its_tip_to_the_main_line() {
     for (row, segment, style, _) in painted.segments() {
         let expected = if segment.primary { 0 } else { 5 };
         assert_eq!(style, expected, "row {row}: {segment:?}");
+    }
+}
+
+/// A feature branched off and merged back is all history of the main line: a tick on it
+/// colours nothing, as none of it is its own any more (#21).
+#[test]
+fn a_feature_the_main_line_merged_colours_nothing() {
+    let history = nodes(&[
+        ("m4", &["m3"]),
+        ("m3", &["m2", "t1"]),
+        ("t1", &["m1"]),
+        ("m2", &["m1"]),
+        ("m1", &["m0"]),
+        ("m0", &[]),
+    ]);
+    let painted = Painted::new(&history, Some("m4"), &tips(&[(2, 4)]));
+
+    assert!(painted.paint.node_style.iter().all(|s| *s == 0));
+    for (row, segment, style, _) in painted.segments() {
+        assert_eq!(style, 0, "row {row}: {segment:?}");
     }
 }
 
@@ -159,7 +179,7 @@ fn a_branch_stops_where_it_meets_a_line_already_coloured() {
 #[test]
 fn a_branch_goes_on_through_a_line_nobody_ticked() {
     let history = nodes(&[
-        ("m3", &["m2", "s2"]),
+        ("m3", &["m2"]),
         ("b1", &["s1"]),
         ("s2", &["s1"]),
         ("m2", &["m1"]),
@@ -181,6 +201,87 @@ fn a_branch_goes_on_through_a_line_nobody_ticked() {
             assert_eq!(style, 4, "s1 goes on in b1's colour: {s:?}");
         }
     }
+}
+
+/// What the main line has merged is common history, whoever ticked the branch it came
+/// from: the line stays the colour it has without a tick.
+#[test]
+fn a_branch_stops_at_history_the_main_line_merged() {
+    let history = nodes(&[
+        ("m3", &["m2", "s2"]),
+        ("b1", &["s1"]),
+        ("s2", &["s1"]),
+        ("m2", &["m1"]),
+        ("s1", &["m1"]),
+        ("m1", &[]),
+    ]);
+    let painted = Painted::new(&history, Some("m3"), &tips(&[(1, 3)]));
+
+    assert_eq!(painted.paint.node_style, vec![0, 4, 0, 0, 0, 0]);
+    let mut into_s1: Vec<u8> = painted
+        .segments()
+        .filter(|(row, s, _, _)| *row == 4 && s.span == Span::Top)
+        .map(|(_, _, style, _)| style)
+        .collect();
+    into_s1.sort_unstable();
+    assert_eq!(into_s1, vec![0, 4], "b1's line runs into s1 in its colour");
+    for (row, s, style, _) in painted.segments() {
+        if row == 4 && s.span == Span::Bottom {
+            assert_eq!(style, 0, "s1 is the main line's history: {s:?}");
+        }
+    }
+}
+
+/// `master` merged into the checked-out feature: all of it is the feature's history too,
+/// so ticking it colours nothing, down to the root (#21).
+#[test]
+fn a_ticked_branch_the_main_line_merged_whole_colours_nothing() {
+    let history = nodes(&[
+        ("f3", &["f2", "m2"]),
+        ("m2", &["m1"]),
+        ("f2", &["f1"]),
+        ("m1", &["m0"]),
+        ("f1", &["m0"]),
+        ("m0", &[]),
+    ]);
+    let painted = Painted::new(&history, Some("f3"), &tips(&[(1, 4)]));
+
+    assert!(painted.paint.node_style.iter().all(|s| *s == 0));
+    for (row, s, style, _) in painted.segments() {
+        assert_eq!(style, 0, "row {row}: {s:?}");
+    }
+}
+
+/// `master` went on after the feature merged it: only the commits since are its own, and
+/// the merge's line into the part merged stays uncoloured though it shares a column.
+#[test]
+fn only_what_the_main_line_has_not_merged_takes_the_colour() {
+    let history = nodes(&[
+        ("m3", &["m2"]),
+        ("f3", &["f2", "m2"]),
+        ("m2", &["m1"]),
+        ("f2", &["f1"]),
+        ("m1", &["m0"]),
+        ("f1", &["m0"]),
+        ("m0", &[]),
+    ]);
+    let painted = Painted::new(&history, Some("f3"), &tips(&[(0, 4)]));
+
+    assert_eq!(painted.paint.node_style, vec![5, 0, 0, 0, 0, 0, 0]);
+    let coloured: Vec<(usize, Span, u16, u16)> = painted
+        .segments()
+        .filter(|(_, _, style, _)| *style != 0)
+        .map(|(row, s, _, _)| (row, s.span, s.from, s.to))
+        .collect();
+    assert_eq!(
+        coloured,
+        vec![
+            (0, Span::Bottom, 1, 1),
+            (1, Span::Through, 1, 1),
+            (2, Span::Top, 1, 1),
+        ],
+        "m3's line down to m2, not f3's merge into it"
+    );
 }
 
 #[test]

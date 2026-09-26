@@ -40,6 +40,8 @@ struct Group {
 struct Trace {
     groups: Vec<Group>,
     joins: Vec<(u32, u32, bool)>,
+    /// A merge line into a lane already bound for its parent: its own colour, not the lane's.
+    join_segments: Vec<(usize, u32)>,
     node_lane: Vec<u32>,
     segment_first: Vec<u32>,
     segment_group: Vec<u32>,
@@ -204,6 +206,7 @@ fn trace(
                     group
                 } else {
                     trace.joins.push((joined, r, false));
+                    trace.join_segments.push((first + i, r));
                     joined
                 }
             };
@@ -245,8 +248,28 @@ fn first_parent(parents: &[Vec<Option<u32>>], row: u32) -> Option<u32> {
         .and_then(|p| p.first().copied().flatten())
 }
 
-/// Each tip's first parents, down to the main line or a commit a tip above already took.
+fn main_history(rows: &[GraphRow], parents: &[Vec<Option<u32>>]) -> Vec<bool> {
+    let mut reached = vec![false; rows.len()];
+    let Some(tip) = rows.iter().position(|row| row.primary) else {
+        return reached;
+    };
+    reached[tip] = true;
+    for row in tip..rows.len() {
+        if !reached[row] {
+            continue;
+        }
+        for &parent in parents.get(row).into_iter().flatten().flatten() {
+            if let Some(r) = reached.get_mut(parent as usize) {
+                *r = true;
+            }
+        }
+    }
+    reached
+}
+
+/// Each tip's first parents, down to what the main line reaches or a tip above took.
 fn chains(rows: &[GraphRow], parents: &[Vec<Option<u32>>], tips: &[(u32, u8)]) -> Vec<u8> {
+    let shared = main_history(rows, parents);
     let mut claimed = vec![0_u8; rows.len()];
     let mut order: Vec<(u32, u8)> = tips.to_vec();
     order.sort_by_key(|(row, _)| *row);
@@ -257,7 +280,7 @@ fn chains(rows: &[GraphRow], parents: &[Vec<Option<u32>>], tips: &[(u32, u8)]) -
             let Some(row) = rows.get(commit as usize) else {
                 break;
             };
-            if row.primary || claimed[commit as usize] != 0 {
+            if row.primary || shared[commit as usize] || claimed[commit as usize] != 0 {
                 break;
             }
             claimed[commit as usize] = mark;
@@ -375,7 +398,7 @@ pub fn paint(
         .iter()
         .map(|&group| trace.lane_of(group))
         .collect();
-    let segment_style = trace
+    let mut segment_style: Vec<u8> = trace
         .segment_group
         .iter()
         .map(|&group| {
@@ -383,6 +406,11 @@ pub fn paint(
             slot | dim(lit)
         })
         .collect();
+    for &(segment, child) in &trace.join_segments {
+        let end = trace.groups[trace.segment_group[segment] as usize].end;
+        let (slot, lit) = edge(child, false, end);
+        segment_style[segment] = slot | dim(lit);
+    }
     Paint {
         node_lane: trace.node_lane,
         node_style,
