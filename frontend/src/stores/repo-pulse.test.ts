@@ -310,3 +310,24 @@ describe("the row the panels let go of", () => {
     expect(repoPulse.pulses.get("C:/repos/one")?.dirty).toBe(true);
   });
 });
+
+describe("a row removed from the list", () => {
+  beforeAll(() => import("./repo-pulse.svelte"), 60_000);
+
+  // Added back, its nodes showed what was read before the removal, and were not read again.
+  it("takes what was read of its submodule nodes with it", async () => {
+    vi.resetModules();
+    const { repoPulse } = await import("./repo-pulse.svelte");
+    const node = { missing: false, branch: null, tracked: false, ahead: 0, behind: 0, dirty: true };
+    repoPulse.pulses = new Map([
+      ["C:/repos/app/vendor/lib", node],
+      ["C:/repos/application", node],
+    ]);
+    repoPulse.unknown = new Set(["C:/repos/app/vendor/lib"]);
+
+    repoPulse.forget("C:/repos/app");
+
+    expect([...repoPulse.pulses.keys()]).toEqual(["C:/repos/application"]);
+    expect(repoPulse.unknown.size).toBe(0);
+  });
+});
