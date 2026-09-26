@@ -101,8 +101,12 @@ async function loaded(repo: RepoId, history: string[]) {
   await settle();
 }
 
+/** The panels move on to `repo`, as they do before its graph is asked for. */
+const open = (repo: RepoId) =>
+  repository.adopt({ repo, root: `/${repo}` } as import("$lib/ipc").RepoSummary);
+
 beforeEach(() => {
-  repository.phase = { kind: "closed" };
+  repository.phase = { kind: "open", repo: { repo: A, root: `/${A}` } as import("$lib/ipc").RepoSummary };
   graph.clear();
   streams.length = 0;
   built.clear();
@@ -281,6 +285,7 @@ describe("graph reload", () => {
   it("keeps the last repository's history on screen until the next one's arrives", async () => {
     await loaded(A, ["a", "b"]);
 
+    open(B);
     const load = graph.load(B);
     expect(oids()).toEqual(["a", "b"]);
     expect(graph.shownRepo).toBe(A);
@@ -298,6 +303,7 @@ describe("graph reload", () => {
     await settle();
     const home = graph.home;
 
+    open(B);
     void graph.load(B);
     await last().send(ids(40, "b"));
 
@@ -308,7 +314,7 @@ describe("graph reload", () => {
 
   it("drops a load asked for by a repository the panels have left", async () => {
     await loaded(A, ["a", "b"]);
-    repository.adopt({ repo: B, root: "/b" } as import("$lib/ipc").RepoSummary);
+    open(B);
     const started = streams.length;
 
     await graph.load(A);
@@ -322,7 +328,7 @@ describe("graph reload", () => {
     void graph.load(A);
     const reload = last();
 
-    repository.adopt({ repo: B, root: "/b" } as import("$lib/ipc").RepoSummary);
+    open(B);
     await reload.send(["x", "y", "z"], true);
 
     expect(oids()).toEqual(["a", "b"]);
@@ -500,7 +506,7 @@ describe("a setting changed while the next repository's graph loads", () => {
 
   async function switching() {
     await loaded(A, ["a", "b"]);
-    repository.adopt({ repo: B, root: "/b" } as import("$lib/ipc").RepoSummary);
+    open(B);
     void graph.load(B);
     commands.loadCommits.mockClear();
   }
@@ -522,5 +528,35 @@ describe("a setting changed while the next repository's graph loads", () => {
 
     expect(walked()).toEqual([B]);
     graph.setLongLinkRows(rows);
+  });
+});
+
+// Ctrl+W right after opening a large repository: Rust dropped the graph with the repository,
+// the first load walked it again and reported "Could not load the graph" for a closed one.
+describe("a repository closed while its first graph loads", () => {
+  it("is not walked again, and its load reports nothing", async () => {
+    const load = graph.load(A);
+    const stream = last();
+    const { generation } = streams.at(-1)!;
+    await stream.send(["a"]);
+    const started = streams.length;
+
+    repository.close();
+    built.delete(generation);
+    stream.finish();
+    await load;
+    await settle();
+
+    expect(streams.length).toBe(started);
+    expect(graph.error).toBeNull();
+    expect(graph.loading).toBe(false);
+  });
+
+  it("is not walked for work that finishes after it closed", async () => {
+    repository.close();
+
+    await graph.load(A);
+
+    expect(streams.length).toBe(0);
   });
 });

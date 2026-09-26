@@ -81,9 +81,9 @@ class GraphStore {
   #loads = 0;
 
   constructor() {
-    // A reload of the repository being left must not take the screen after it (R-300).
+    // No load of the repository being left may take the screen or report after it, its
+    // first one included: that one walks as the history on screen (R-300).
     repository.onLeave(() => {
-      if (!this.#next) return;
       this.#loads += 1;
       this.#next = null;
       this.loading = false;
@@ -184,9 +184,8 @@ class GraphStore {
   }
 
   async #load(repo: RepoId, query: CommitQuery, retry: boolean): Promise<void> {
-    // Asked for by work begun before the panels moved on to another repository.
-    const open = repository.current?.repo;
-    if (open !== undefined && open !== repo) return;
+    // Asked for by work begun before the panels moved on to another repository, or closed it.
+    if (repository.current?.repo !== repo) return;
     const load = ++this.#loads;
     this.query = query;
     const fresh = walk(repo);
