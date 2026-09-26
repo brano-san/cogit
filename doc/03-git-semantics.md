@@ -59,6 +59,7 @@
 | Cherry-pick / Revert | `git cherry-pick` / `git revert` |
 | Stash | `git stash push/apply/pop/drop/show` |
 | Fetch / Pull / Push | `git fetch --prune`; `git pull --prune` с `--ff-only` или `--no-rebase` — по Preferences ▸ Pull, явный выбор перекрывает `pull.rebase`; `git push` (`--force-with-lease`; у ветки без upstream — `--set-upstream <remote> HEAD`, R-414) |
+| Clone | `git clone --progress` с `--recurse-submodules`, `--single-branch`, `--branch`, `--filter=blob:limit=<N>m` по флажкам мастера, во временной папке; до него — `git ls-remote --symref` без запросов (R-600, R-601) |
 | Теги | `git tag` |
 | Сабмодули | `git submodule update/init/sync` |
 | Worktree | `git worktree add/list/remove/prune` |
@@ -119,7 +120,7 @@ GIT_NAMESPACE  GIT_CEILING_DIRECTORIES  GIT_CONFIG_PARAMETERS  GIT_CONFIG_COUNT
    само по себе стоит десятки миллисекунд, так что это не только мигание, но и задержка.
 5. **Отсутствие шелла** — аргументы передаются массивом, не строкой. Никакой конкатенации
    путей в командную строку: имена веток и файлов могут содержать пробелы и спецсимволы.
-6. **Таймаут** — сетевая операция (fetch, pull, push), от которой git 5 минут не написал ни
+6. **Таймаут** — сетевая операция (fetch, pull, push, clone), от которой git 5 минут не написал ни
    байта, останавливается вместе с деревом процессов; ошибка — обычная `GitCommandError` с
    выводом git и строкой «Stopped after 300 s with no output from git» ([R-412](12-risks.md)).
    Отмена пользователем — `cancel_network(operation)`: дерево процессов останавливается

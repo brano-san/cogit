@@ -1,4 +1,5 @@
 mod avatars;
+mod cloning;
 mod credentials;
 pub mod desktop;
 mod diffing;

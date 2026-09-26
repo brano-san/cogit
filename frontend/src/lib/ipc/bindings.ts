@@ -370,6 +370,12 @@ export const commands = {
 	 *  accepts every send.
 	 */
 	scanForRepositories: (path: string, maxDepth: number, onFound: Channel<ScanChunk>) => typedError<number, GitError>(__TAURI_INVOKE("scan_for_repositories", { path, maxDepth, onFound })),
+	/**  `git ls-remote` behind the first page's Next: nothing is written, nobody is asked. */
+	remoteBranches: (source: string) => typedError<RemoteBranches, GitError>(__TAURI_INVOKE("remote_branches", { source })),
+	cloneDestination: (path: string) => typedError<CloneDestination, GitError>(__TAURI_INVOKE("clone_destination", { path })),
+	/**  Only a repository URL leaves the clipboard: the rest of it stays out of the page. */
+	clipboardRepositoryUrl: () => typedError<string | null, GitError>(__TAURI_INVOKE("clipboard_repository_url")),
+	cloneRepository: (request: CloneRequest, onProgress: Channel<string>) => typedError<string, GitError>(__TAURI_INVOKE("clone_repository", { request, onProgress })),
 	/**
 	 *  Reports only whether a token exists. Reading one back would put it in the webview,
 	 *  where every dependency could see it.
@@ -598,6 +604,22 @@ export type CheckoutTarget = { kind: "branch"; name: string } | { kind: "commit"
  *  sideways.
  */
 { kind: "fastForward"; name: string; to: string };
+
+export type CloneDestination = "missing" | "empty" | "notEmpty" | "file" | "unreadable";
+
+export type CloneRequest = {
+	/**  A URL, or the folder of a repository on this machine. */
+	source: string,
+	/**  A full path to a folder that is missing or empty. */
+	target: string,
+	submodules: boolean,
+	/**  Off: only the branch checked out is fetched (`--single-branch`). */
+	allBranches: boolean,
+	/**  `None` checks out what the server's HEAD names. */
+	branch: string | null,
+	/**  A partial clone: files larger than this many megabytes stay on the server. */
+	skipLargerThanMb: number | null,
+};
 
 /**
  *  What the UI needs to decide whether to interrupt the user. The output itself is
@@ -1216,7 +1238,9 @@ export type OperationChanged = {
 	phase: OperationPhase,
 };
 
-export type OperationKind = "fetch" | "pull" | "push" | "commit" | "checkout" | "branch" | "merge" | "rebase" | "stage" | "discard" | "stash" | "tag" | "worktree" | "submodule" | "undo" | "other";
+export type OperationKind = "fetch" | "pull" | "push" | "commit" | "checkout" | "branch" | "merge" | "rebase" | "stage" | "discard" | "stash" | "tag" | "worktree" | "submodule" | "undo" | 
+/**  In a lane of its own: the repository does not exist until it ends. */
+"clone" | "other";
 
 export type OperationPhase = "queued" | "running" | "done";
 
@@ -1389,6 +1413,13 @@ export type Region = { kind: "clean"; lines: string[];
  *  before the merge is committed (doc/08-diff-engine.md §8).
  */
 origin: Origin } | { kind: "conflict"; base: string[]; ours: string[]; theirs: string[] };
+
+/**  The branches a clone can check out, as `git ls-remote --symref` listed them. */
+export type RemoteBranches = {
+	/**  What the server's HEAD names: the branch a clone checks out unless told otherwise. */
+	defaultBranch: string | null,
+	branches: string[],
+};
 
 /**  What deleting a branch on the server came to (R-480). */
 export type RemoteDeletion = "deleted" | 

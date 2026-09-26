@@ -22,8 +22,9 @@ export function busyLabel(running: ReadonlyMap<number, string>): string | null {
   return `${running.size} operations running…`;
 }
 
-/** What `cancel_network` stops: a fetch, a pull or a push, Push To and Push Up To included. */
-const TALKS_TO_A_SERVER: ReadonlySet<OperationKind> = new Set(["fetch", "pull", "push"]);
+/** What `cancel_network` stops: a fetch, a pull or a push, Push To and Push Up To included,
+    and a clone. */
+const TALKS_TO_A_SERVER: ReadonlySet<OperationKind> = new Set(["fetch", "pull", "push", "clone"]);
 
 /** The ids of the network operations running now, in the order they started (R-506). One
     still waiting in the queue has no git to stop yet. */

@@ -47,7 +47,7 @@ pub fn pulse(root: &Path) -> RepoPulse {
 
 /// No terminal, no askpass (set and empty, git skips `core.askPass` too), no Credential
 /// Manager window, no SSH prompt; a helper answering from its store still answers.
-const QUIET: &[(&str, &str)] = &[
+pub(crate) const QUIET: &[(&str, &str)] = &[
     ("GIT_TERMINAL_PROMPT", "0"),
     ("GIT_ASKPASS", ""),
     ("SSH_ASKPASS_REQUIRE", "never"),
@@ -57,9 +57,10 @@ const QUIET: &[(&str, &str)] = &[
 /// A server that took the connection and fell silent held the check for as long as it liked
 /// (R-482): under a byte a second for 60 s ends an HTTP transfer, three keep-alives left
 /// unanswered 15 s apart end an SSH one.
-const STALL_LIMITS: &[&str] = &["-c", "http.lowSpeedLimit=1", "-c", "http.lowSpeedTime=60"];
+pub(crate) const STALL_LIMITS: &[&str] =
+    &["-c", "http.lowSpeedLimit=1", "-c", "http.lowSpeedTime=60"];
 
-const BATCH_SSH: &str =
+pub(crate) const BATCH_SSH: &str =
     "core.sshCommand=ssh -o BatchMode=yes -o ConnectTimeout=20 -o ServerAliveInterval=15";
 
 impl RepoHandle {

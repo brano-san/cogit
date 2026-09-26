@@ -33,6 +33,8 @@ pub enum OperationKind {
     Worktree,
     Submodule,
     Undo,
+    /// In a lane of its own: the repository does not exist until it ends.
+    Clone,
     Other,
 }
 
@@ -84,7 +86,7 @@ impl Queue {
     fn admit(
         &self,
         lane: &Path,
-        repo: RepoId,
+        repo: Option<RepoId>,
         kind: OperationKind,
         label: String,
     ) -> (Operation, Option<oneshot::Receiver<()>>) {
@@ -92,7 +94,7 @@ impl Queue {
         let lane = lanes.entry(lane.to_path_buf()).or_default();
         let mut operation = Operation {
             id: self.next_id.fetch_add(1, Ordering::Relaxed),
-            repo: Some(repo),
+            repo,
             kind,
             label,
             phase: OperationPhase::Queued,
@@ -160,7 +162,28 @@ impl crate::AppState {
         kind: OperationKind,
         label: &str,
     ) -> OperationPermit<'_> {
-        let lane = self.lane_of(repo);
+        self.enqueue_in(self.lane_of(repo), Some(repo), kind, label)
+            .await
+    }
+
+    /// `enqueue` for work that belongs to no open repository: a clone waits in the lane of
+    /// the folder it goes to.
+    pub async fn enqueue_detached(
+        &self,
+        lane: PathBuf,
+        kind: OperationKind,
+        label: &str,
+    ) -> OperationPermit<'_> {
+        self.enqueue_in(lane, None, kind, label).await
+    }
+
+    async fn enqueue_in(
+        &self,
+        lane: PathBuf,
+        repo: Option<RepoId>,
+        kind: OperationKind,
+        label: &str,
+    ) -> OperationPermit<'_> {
         let (operation, wait) = self.queue.admit(&lane, repo, kind, label.to_owned());
         self.emit(AppEvent::Operation(operation.clone()));
 
@@ -268,6 +291,7 @@ impl OperationKind {
             Self::Worktree => "Updating worktrees",
             Self::Submodule => "Updating submodules",
             Self::Undo => "Undoing",
+            Self::Clone => "Cloning",
             Self::Other => "Working",
         }
     }
