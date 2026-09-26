@@ -22,6 +22,9 @@ pub struct GraphPaintRequest {
     /// All but this commit's ancestors and descendants is dimmed.
     #[serde(default)]
     pub ancestry_of: Option<String>,
+    /// Mergeable Coloring: all but what merging this commit into HEAD would bring is dimmed.
+    #[serde(default)]
+    pub mergeable_of: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -98,6 +101,10 @@ impl PaintMemo {
                 .collect(),
             ancestry_of: request
                 .ancestry_of
+                .as_ref()
+                .and_then(|oid| self.index.get(oid).copied()),
+            mergeable_of: request
+                .mergeable_of
                 .as_ref()
                 .and_then(|oid| self.index.get(oid).copied()),
         };

@@ -138,10 +138,10 @@ export const CATEGORIES: Category[] = [
         fields: [
           { key: "laneWidth", label: "Lane width", keywords: ["column", "spacing"] },
           {
-            key: "coloredLanes",
-            label: "Coloured branch lines",
-            hint: "Off: the main line is light and every other line one grey.",
-            keywords: ["colour", "color", "lanes", "branches", "rainbow"],
+            key: "graphColoring",
+            label: "Coloring",
+            hint: "The same four as in the menu beside the Graph filter.",
+            keywords: ["colour", "color", "lanes", "branches", "rainbow", "varying", "mergeable", "branch", "default"],
           },
           {
             key: "graphHighlightChecked",
@@ -166,11 +166,6 @@ export const CATEGORIES: Category[] = [
             keywords: ["first-parent", "linear", "mainline"],
           },
           {
-            key: "graphBranchOfCommit",
-            label: "Highlight the branch of the clicked commit",
-            keywords: ["branch", "highlight", "click"],
-          },
-          {
             key: "graphAncestry",
             label: "Dim everything but the ancestors and descendants of the selection",
             keywords: ["ancestors", "descendants", "ancestry", "dim"],
@@ -180,6 +175,47 @@ export const CATEGORIES: Category[] = [
             label: "Collapse merged branches",
             hint: "A merged branch folds into one row at its merge commit.",
             keywords: ["collapse", "fold", "merged"],
+          },
+          {
+            key: "graphWhileFiltering",
+            label: "Show the graph while filtering",
+            hint: "Off: a filtered list is flat. On: its matches are joined by lines down their first parents.",
+            keywords: ["filter", "search", "graph", "lines", "flat"],
+          },
+          {
+            key: "graphSelectedRefsOnly",
+            label: "Show only selected branches and tags",
+            hint: "Labels only for the refs ticked in Branches.",
+            keywords: ["labels", "refs", "selected", "ticked", "branches", "tags", "hide"],
+          },
+          {
+            key: "graphIncludeTracked",
+            label: "Include tracked remote branches",
+            hint: "A branch ticked in Branches brings the remote branch it tracks into the graph.",
+            keywords: ["tracked", "upstream", "remote", "origin", "branches"],
+          },
+          {
+            key: "graphWorkingTreeAlways",
+            label: "Show the Working Tree row permanently",
+            hint: "Off: the row is left out while the working tree has no changes.",
+            keywords: ["working tree", "index", "row", "clean", "permanently"],
+          },
+        ],
+      },
+      {
+        title: "Filter",
+        fields: [
+          {
+            key: "graphFilterFields",
+            label: "Look for the filter text in",
+            hint: "The switches under the Graph filter. Name and Content read the changed files, so they are slower.",
+            keywords: ["search", "filter", "author", "committer", "message", "refs", "id", "name", "content", "find"],
+          },
+          {
+            key: "graphFilterPatterns",
+            label: "Remembered filters",
+            hint: "Kept by Remember Pattern in the menu of the magnifier in the Graph filter.",
+            keywords: ["pattern", "remember", "saved", "search", "filter", "magnifier"],
           },
         ],
       },

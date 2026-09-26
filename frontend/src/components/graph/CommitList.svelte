@@ -42,7 +42,7 @@
   } from "$lib/graph-row";
   import { measurer } from "$lib/timing";
   import { anchoredScrollTop } from "$lib/graph-anchor";
-  import { emptyHistory, subjectRoom } from "$lib/graph-panel";
+  import { emptyHistory, showsWorkingTree, subjectRoom } from "$lib/graph-panel";
   import { workingTreeLabel } from "$lib/repo-state";
   import { reportTiming, type RebaseProgress, type RepoId } from "$lib/ipc";
   import { avatars } from "$stores/avatars.svelte";
@@ -58,8 +58,11 @@
     paintRequest,
     type LanePick,
   } from "$lib/graph-modes";
+  import type { GraphColoring } from "$lib/graph-coloring";
   import { graphFolds } from "$stores/graph-folds.svelte";
+  import { graphNav } from "$stores/graph-nav.svelte";
   import { laneAt } from "$lib/graph-style";
+  import { selectedLabels, withTracked } from "$lib/selected-refs";
   import { isEmptyQuery } from "$lib/query";
   import { graphOverlays } from "$stores/graph-overlay.svelte";
   import { refs as refTicks } from "$stores/refs.svelte";
@@ -84,12 +87,21 @@
     highlightChecked?: boolean;
     /** First parents only (`graphFirstParent`). */
     firstParent?: boolean;
-    /** A click on a commit or its line brings its branch forward (`graphBranchOfCommit`). */
-    branchOfCommit?: boolean;
+    /** SmartGit's colorings (`graphColoring`): `branch` brings the clicked commit's branch
+        forward, `mergeable` dims all a merge of the selected commit would not bring. */
+    coloring?: GraphColoring;
     /** The chosen commit's ancestors and descendants stand out (`graphAncestry`). */
     ancestry?: boolean;
     /** A merged branch folds into its merge row (`graphCollapseMerged`). */
     collapseMerged?: boolean;
+    /** A filtered list keeps lines between its matches (`graphWhileFiltering`). */
+    filteredGraph?: boolean;
+    /** Labels only for refs ticked in Branches (`graphSelectedRefsOnly`). */
+    selectedRefsOnly?: boolean;
+    /** A ticked branch brings its upstream along (`graphIncludeTracked`). */
+    includeTracked?: boolean;
+    /** Off: no Working Tree row while it has nothing in it (`graphWorkingTreeAlways`). */
+    workingTreeAlways?: boolean;
     /** The right columns shown, in order (#12). The defaults are the list as it always was. */
     columns?: readonly GraphColumn[];
     timeFormat?: GraphTimeFormat;
@@ -108,9 +120,13 @@
     onclearfilter,
     highlightChecked = GRAPH_MODE_DEFAULTS.highlightChecked,
     firstParent = GRAPH_MODE_DEFAULTS.firstParent,
-    branchOfCommit = GRAPH_MODE_DEFAULTS.branchOfCommit,
+    coloring = GRAPH_MODE_DEFAULTS.coloring,
     ancestry = GRAPH_MODE_DEFAULTS.ancestry,
     collapseMerged = GRAPH_MODE_DEFAULTS.collapseMerged,
+    filteredGraph = GRAPH_MODE_DEFAULTS.filteredGraph,
+    selectedRefsOnly = false,
+    includeTracked = false,
+    workingTreeAlways = true,
     columns = GRAPH_COLUMNS,
     timeFormat = GRAPH_TIME_FORMAT,
     density = GRAPH_DENSITY,
@@ -127,7 +143,7 @@
   });
 
   const modes = $derived(
-    effectiveModes({ highlightChecked, firstParent, branchOfCommit, ancestry, collapseMerged }),
+    effectiveModes({ highlightChecked, firstParent, coloring, ancestry, collapseMerged, filteredGraph }),
   );
   $effect(() => graphFolds.forRepo(repository.current?.repo ?? null));
   $effect(() => {
@@ -200,7 +216,18 @@
     return rows;
   });
 
-  const headerRows = $derived(HEADER_ROWS + virtualRows.length);
+  const workingTreeRow = $derived(
+    showsWorkingTree(workingTreeAlways, repository.current?.status, repository.current?.state),
+  );
+  const headerRows = $derived((workingTreeRow ? HEADER_ROWS : 0) + virtualRows.length);
+  /** The Working Tree row coming or going moves every row by one; the one at the top stays. */
+  let headerRowsSeen = untrack(() => headerRows);
+  $effect(() => {
+    const now = headerRows;
+    const moved = now - headerRowsSeen;
+    headerRowsSeen = now;
+    if (moved !== 0 && scroller && scroller.scrollTop > 0) scroller.scrollTop += moved * rowHeight;
+  });
   const commitCount = $derived(graph.total);
   const listRows = $derived(commitCount + headerRows);
   const range = $derived(
@@ -276,6 +303,14 @@
     ),
   );
   const stashOids = $derived(new Set(stashes.entries.map((entry) => entry.oid)));
+  /** What the graph counts as ticked: the Branches ticks, and their upstreams if asked. */
+  const ticks = $derived(
+    includeTracked ? withTracked(refTicks.visible, repository.current?.branches ?? []) : refTicks.visible,
+  );
+  function labelsOf(oid: string): RefLabel[] {
+    const all = labels.get(oid) ?? [];
+    return selectedRefsOnly ? selectedLabels(all, ticks) : all;
+  }
 
   const headerLabel = $derived(workingTreeLabel(repository.current?.status, repository.current?.state));
 
@@ -305,6 +340,15 @@
     if (scroller) scroller.scrollTop = 0;
   });
 
+  /** Home and Back to the Working Tree bring its row, the first one, on screen (F-562). */
+  let topSeen = untrack(() => graphNav.top);
+  $effect(() => {
+    const asked = graphNav.top;
+    if (asked === topSeen || !scroller) return;
+    topSeen = asked;
+    scroller.scrollTop = 0;
+  });
+
   /** Only the rows on screen come over from Rust (R-193). */
   $effect(() => {
     graph.show(Math.max(range.start - headerRows, 0), Math.max(range.end - headerRows, 0));
@@ -316,7 +360,7 @@
     filterless
       ? paintRequest(
           modes,
-          checkedTips(repository.current?.branches ?? [], refTicks.visible),
+          checkedTips(repository.current?.branches ?? [], ticks),
           selection.oid,
         )
       : null,
@@ -448,7 +492,7 @@
     const oid = clickedCommit(hit.row, headerRows, (row) => graph.rowAt(row)?.commit.oid);
     if (oid === undefined) return;
     const layout = commitRow === null ? undefined : graph.rowAt(commitRow)?.layout;
-    if (branchOfCommit && oid !== null && layout && commitRow !== null) {
+    if (modes.coloring === "branch" && oid !== null && layout && commitRow !== null) {
       const upper = (event.clientY - box.top + scrollTop) % rowHeight < rowHeight / 2;
       const lane = laneAt(layout, graphOverlays.paintAt(commitRow), hit.lane, upper);
       lanePick = lane === null ? null : { oid, lane, walk: walkKey };
@@ -544,7 +588,7 @@
           {scrollTop}
           width={canvasWidth}
           height={viewportHeight}
-          headRow={head?.listRow ?? null}
+          headRow={workingTreeRow ? (head?.listRow ?? null) : null}
           {headLane}
           {selectedRows}
           {hoverRow}
@@ -562,7 +606,7 @@
         style:--row-h="{rowHeight}px"
         style:--overlap-w="{COLUMN_WIDTH.overlap}px"
       >
-        {#if range.start === 0}
+        {#if workingTreeRow && range.start === 0}
           <button
             type="button"
             class="row header"
@@ -618,7 +662,7 @@
           >
             <CommitRow
               entry={item.entry}
-              labels={labels.get(item.entry.commit.oid) ?? []}
+              labels={labelsOf(item.entry.commit.oid)}
               folds={modes.collapseMerged && filterless}
               {cells}
               {timeFormat}

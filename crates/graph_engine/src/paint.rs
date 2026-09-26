@@ -15,6 +15,9 @@ pub struct PaintSpec {
     pub tips: Vec<(u32, u8)>,
     /// All but this commit, its ancestors and descendants is dimmed.
     pub ancestry_of: Option<u32>,
+    /// All but what a merge of this commit into the main line would bring is dimmed;
+    /// it outranks `ancestry_of`.
+    pub mergeable_of: Option<u32>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -40,6 +43,8 @@ struct Group {
 struct Trace {
     groups: Vec<Group>,
     joins: Vec<(u32, u32, bool)>,
+    /// A merge line into a lane already bound for its parent: its own colour, not the lane's.
+    join_segments: Vec<(usize, u32)>,
     node_lane: Vec<u32>,
     segment_first: Vec<u32>,
     segment_group: Vec<u32>,
@@ -204,6 +209,7 @@ fn trace(
                     group
                 } else {
                     trace.joins.push((joined, r, false));
+                    trace.join_segments.push((first + i, r));
                     joined
                 }
             };
@@ -245,8 +251,28 @@ fn first_parent(parents: &[Vec<Option<u32>>], row: u32) -> Option<u32> {
         .and_then(|p| p.first().copied().flatten())
 }
 
-/// Each tip's first parents, down to the main line or a commit a tip above already took.
+fn main_history(rows: &[GraphRow], parents: &[Vec<Option<u32>>]) -> Vec<bool> {
+    let mut reached = vec![false; rows.len()];
+    let Some(tip) = rows.iter().position(|row| row.primary) else {
+        return reached;
+    };
+    reached[tip] = true;
+    for row in tip..rows.len() {
+        if !reached[row] {
+            continue;
+        }
+        for &parent in parents.get(row).into_iter().flatten().flatten() {
+            if let Some(r) = reached.get_mut(parent as usize) {
+                *r = true;
+            }
+        }
+    }
+    reached
+}
+
+/// Each tip's first parents, down to what the main line reaches or a tip above took.
 fn chains(rows: &[GraphRow], parents: &[Vec<Option<u32>>], tips: &[(u32, u8)]) -> Vec<u8> {
+    let shared = main_history(rows, parents);
     let mut claimed = vec![0_u8; rows.len()];
     let mut order: Vec<(u32, u8)> = tips.to_vec();
     order.sort_by_key(|(row, _)| *row);
@@ -257,7 +283,7 @@ fn chains(rows: &[GraphRow], parents: &[Vec<Option<u32>>], tips: &[(u32, u8)]) -
             let Some(row) = rows.get(commit as usize) else {
                 break;
             };
-            if row.primary || claimed[commit as usize] != 0 {
+            if row.primary || shared[commit as usize] || claimed[commit as usize] != 0 {
                 break;
             }
             claimed[commit as usize] = mark;
@@ -303,6 +329,29 @@ fn ancestry(parents: &[Vec<Option<u32>>], chosen: u32, len: usize) -> Vec<u8> {
     kin
 }
 
+/// The chosen commit and its ancestors the main line does not have yet.
+fn mergeable(rows: &[GraphRow], parents: &[Vec<Option<u32>>], chosen: u32) -> Vec<u8> {
+    let shared = main_history(rows, parents);
+    let mut kin = vec![0_u8; rows.len()];
+    let chosen = chosen as usize;
+    if chosen >= rows.len() || shared[chosen] {
+        return kin;
+    }
+    kin[chosen] = CHOSEN;
+    for row in chosen..rows.len() {
+        if kin[row] < CHOSEN {
+            continue;
+        }
+        for &parent in parents.get(row).into_iter().flatten().flatten() {
+            let parent = parent as usize;
+            if parent < kin.len() && !shared[parent] {
+                kin[parent] = ANCESTOR;
+            }
+        }
+    }
+    kin
+}
+
 /// `parents`: per row, the rows of its parents as laid out, `None` when not listed;
 /// `row_of` finds the row of a commit at the far end of a cut link.
 #[must_use]
@@ -314,9 +363,11 @@ pub fn paint(
 ) -> Paint {
     let trace = trace(rows, parents, row_of);
     let claimed = chains(rows, parents, &spec.tips);
-    let kin = spec
-        .ancestry_of
-        .map(|chosen| ancestry(parents, chosen, rows.len()));
+    let kin = match (spec.mergeable_of, spec.ancestry_of) {
+        (Some(chosen), _) => Some(mergeable(rows, parents, chosen)),
+        (None, Some(chosen)) => Some(ancestry(parents, chosen, rows.len())),
+        (None, None) => None,
+    };
     let slot_of = |row: u32| claimed.get(row as usize).copied().unwrap_or(0);
     let kin_of = |row: u32| {
         kin.as_ref()
@@ -375,7 +426,7 @@ pub fn paint(
         .iter()
         .map(|&group| trace.lane_of(group))
         .collect();
-    let segment_style = trace
+    let mut segment_style: Vec<u8> = trace
         .segment_group
         .iter()
         .map(|&group| {
@@ -383,6 +434,11 @@ pub fn paint(
             slot | dim(lit)
         })
         .collect();
+    for &(segment, child) in &trace.join_segments {
+        let end = trace.groups[trace.segment_group[segment] as usize].end;
+        let (slot, lit) = edge(child, false, end);
+        segment_style[segment] = slot | dim(lit);
+    }
     Paint {
         node_lane: trace.node_lane,
         node_style,

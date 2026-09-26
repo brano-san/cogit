@@ -1,4 +1,5 @@
 import { textX } from "$lib/graph-geometry";
+import type { RepoState, RepoStatus } from "$lib/ipc";
 
 /** The narrowest the Graph panel goes, splitter or window alike: one lane and about this
     many characters of the subject. Nothing inside it hides a column (#5, R-243). */
@@ -32,4 +33,17 @@ export function emptyHistory(
     hint: "The first commit you make in this repository shows up here.",
     clears: false,
   };
+}
+
+/** Show Working Tree Permanently (F-561): off, the Working Tree row is left out while there
+    is nothing in it — no change and no operation stopped half way. A status not read yet
+    keeps the row, so it does not flash in and out while a repository opens. */
+export function showsWorkingTree(
+  always: boolean,
+  status: RepoStatus | undefined,
+  state: RepoState | undefined,
+): boolean {
+  if (always || !status) return true;
+  if (status.staged + status.unstaged + status.untracked + status.conflicted > 0) return true;
+  return state !== undefined && state.kind !== "clean" && state.kind !== "detachedHead";
 }

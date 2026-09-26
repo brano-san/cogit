@@ -114,7 +114,7 @@ describe("graph display settings (#23)", () => {
 
   it("starts every graph mode off", () => {
     expect(DEFAULT_SETTINGS.graphFirstParent).toBe(false);
-    expect(DEFAULT_SETTINGS.graphBranchOfCommit).toBe(false);
+    expect(DEFAULT_SETTINGS.graphColoring).toBe("default");
     expect(DEFAULT_SETTINGS.graphAncestry).toBe(false);
     expect(DEFAULT_SETTINGS.graphCollapseMerged).toBe(false);
   });
@@ -177,5 +177,47 @@ describe("graph display settings (#23)", () => {
     const merged = merge(null);
     merged.graphColumns.push("hash");
     expect(DEFAULT_SETTINGS.graphColumns).toEqual(["author", "avatar", "time", "hash"]);
+  });
+});
+
+describe("graphFilterFields", () => {
+  it("defaults to every switch but Name and Content", () => {
+    expect(DEFAULT_SETTINGS.graphFilterFields).toEqual(["author", "committer", "message", "refs", "id"]);
+  });
+
+  it("keeps the switches a file saved, known ones only", () => {
+    expect(merge({ graphFilterFields: ["content", "nonsense", "id"] } as never).graphFilterFields).toEqual([
+      "id",
+      "content",
+    ]);
+    expect(merge({ graphFilterFields: "id" } as never).graphFilterFields).toEqual(DEFAULT_SETTINGS.graphFilterFields);
+  });
+
+  it("never lends the defaults' own list to a merged copy", () => {
+    merge({}).graphFilterFields.push("content");
+    expect(DEFAULT_SETTINGS.graphFilterFields).not.toContain("content");
+  });
+});
+
+describe("graphFilterPatterns", () => {
+  it("starts empty and keeps the text a file saved, once each", () => {
+    expect(DEFAULT_SETTINGS.graphFilterPatterns).toEqual([]);
+    expect(merge({ graphFilterPatterns: ["fix", 7, "fix", " feat "] } as never).graphFilterPatterns).toEqual([
+      "fix",
+      "feat",
+    ]);
+  });
+});
+
+describe("graphColoring", () => {
+  it("reads a coloring a file saved and drops one it does not know", () => {
+    expect(merge({ graphColoring: "mergeable" }).graphColoring).toBe("mergeable");
+    expect(merge({ graphColoring: "rainbow" } as never).graphColoring).toBe("default");
+  });
+
+  it("turns the two switches of an older file into the coloring they were", () => {
+    expect(merge({ coloredLanes: true } as never).graphColoring).toBe("varying");
+    expect(merge({ graphBranchOfCommit: true } as never).graphColoring).toBe("branch");
+    expect("coloredLanes" in merge({ coloredLanes: true } as never)).toBe(false);
   });
 });

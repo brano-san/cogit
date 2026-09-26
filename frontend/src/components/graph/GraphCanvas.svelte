@@ -2,7 +2,6 @@
   import {
     GRAPH,
     arrowStub,
-    canvasPixelSize,
     laneX,
     nodeCentre,
     nodeFill,
@@ -11,6 +10,7 @@
     textX,
   } from "$lib/graph-geometry";
   import { LAYERS, nodeStroke, segmentStroke, type RowPaint } from "$lib/graph-style";
+  import { canvasBox, drawsNow, type CanvasBox } from "$lib/canvas-frame";
   import { settings } from "$stores/settings.svelte";
   import type { GraphRow } from "$lib/ipc";
 
@@ -54,18 +54,24 @@
   let canvas: HTMLCanvasElement | undefined = $state();
   let dpr = $state(typeof window === "undefined" ? 1 : window.devicePixelRatio);
   let frame = 0;
+  /** What is on screen: the bitmap and its CSS box change together, only here. */
+  let drawnBox: CanvasBox | null = null;
 
   function draw() {
     const context = canvas?.getContext("2d");
     if (!canvas || !context) return;
 
-    const pixels = canvasPixelSize(width, height, dpr);
-    if (canvas.width !== pixels.width || canvas.height !== pixels.height) {
-      canvas.width = pixels.width;
-      canvas.height = pixels.height;
+    const box = canvasBox(width, height, dpr);
+    if (canvas.width !== box.pixelWidth || canvas.height !== box.pixelHeight) {
+      canvas.width = box.pixelWidth;
+      canvas.height = box.pixelHeight;
     }
-    context.setTransform(dpr, 0, 0, dpr, 0, 0);
-    context.clearRect(0, 0, width, height);
+    canvas.style.width = `${box.cssWidth}px`;
+    canvas.style.height = `${box.cssHeight}px`;
+    drawnBox = box;
+    const ratio = dpr > 0 ? dpr : 1;
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    context.clearRect(0, 0, box.cssWidth, box.cssHeight);
     context.imageSmoothingEnabled = true;
     context.lineCap = "round";
 
@@ -73,7 +79,7 @@
     const token = (name: string) => styles.getPropertyValue(name).trim();
     const main = token("--graph-main");
     const line = token("--graph-line");
-    const options = { colouredLanes: settings.current.coloredLanes, focusLane };
+    const options = { colouredLanes: settings.current.graphColoring === "varying", focusLane };
     const colours = new Map<string, string>();
     const colour = (name: string) => {
       if (!colours.has(name)) colours.set(name, token(name) || line);
@@ -177,8 +183,13 @@
     // Theme, lane width and colour change the picture without changing the data.
     void [rows, scrollTop, width, height, dpr, headRow, headLane, selectedRows, hoverRow, focusLane];
     void [clipX, stripes, rowHeight];
-    void [settings.current.theme, settings.current.laneWidth, settings.current.coloredLanes];
-    schedule();
+    void [settings.current.theme, settings.current.laneWidth, settings.current.graphColoring];
+    if (drawsNow(drawnBox, canvasBox(width, height, dpr))) {
+      cancelAnimationFrame(frame);
+      draw();
+    } else {
+      schedule();
+    }
     return () => cancelAnimationFrame(frame);
   });
 
@@ -192,7 +203,7 @@
   });
 </script>
 
-<canvas bind:this={canvas} style:width="{width}px" style:height="{height}px"></canvas>
+<canvas bind:this={canvas}></canvas>
 
 <style>
   canvas {

@@ -10,6 +10,10 @@
     type ColumnRow,
   } from "$lib/graph-columns";
   import { blockedModes, GRAPH_MODES, type GraphMode } from "$lib/graph-mode-conflicts";
+  import { FIELD_LABELS, FILTER_FIELDS, toggled } from "$lib/filter-fields";
+  import { COLORING_LABELS, GRAPH_COLORINGS } from "$lib/graph-coloring";
+  import { GRAPH_SWITCHES, type GraphSwitch } from "$lib/graph-options";
+  import { forget } from "$lib/filter-patterns";
   import { fieldDisabled, type Field } from "$lib/preferences";
   import { LONG_LINK_ROWS_MAX, type Settings } from "$lib/settings";
   import { pointerDrag } from "$lib/pointer-drag";
@@ -141,6 +145,59 @@
       {/each}
     </div>
   </div>
+{:else if field.key === "graphColoring"}
+  <div class="row choice">
+    <span>{field.label}</span>
+    <div class="options" role="radiogroup" aria-label={field.label}>
+      {#each GRAPH_COLORINGS as coloring (coloring)}
+        <span title={COLORING_LABELS[coloring].hint}>
+          <Radio
+            name="graphColoring"
+            checked={value.graphColoring === coloring}
+            onchange={() => onset("graphColoring", coloring)}
+            label={COLORING_LABELS[coloring].label}
+          />
+        </span>
+      {/each}
+    </div>
+  </div>
+{:else if field.key === "graphFilterFields"}
+  <div class="row choice">
+    <span>{field.label}</span>
+    <div class="options" role="group" aria-label={field.label}>
+      {#each FILTER_FIELDS as each (each)}
+        <span title={FIELD_LABELS[each].title}>
+          <Checkbox
+            checked={value.graphFilterFields.includes(each)}
+            label={FIELD_LABELS[each].label}
+            onchange={() => onset("graphFilterFields", toggled(value.graphFilterFields, each))}
+          />
+        </span>
+      {/each}
+    </div>
+  </div>
+{:else if field.key === "graphFilterPatterns"}
+  <div class="row choice">
+    <span>{field.label}</span>
+    {#if value.graphFilterPatterns.length === 0}
+      <span class="why">None yet: Remember Pattern in the magnifier's menu keeps the filter in the field.</span>
+    {:else}
+      <ul class="patterns" aria-label={field.label}>
+        {#each value.graphFilterPatterns as pattern (pattern)}
+          <li>
+            <span class="pattern truncate" title={pattern}>{pattern}</span>
+            <button
+              type="button"
+              class="forget"
+              title="Forget this filter"
+              aria-label="Forget {pattern}"
+              onclick={() => onset("graphFilterPatterns", forget(value.graphFilterPatterns, pattern))}>✕</button
+            >
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  </div>
 {:else if field.key === "graphLongLinkRows"}
   <label class="row">
     <span>{field.label}</span>
@@ -155,8 +212,8 @@
       <output>{value.graphLongLinkRows === 0 ? "never" : `${value.graphLongLinkRows} rows`}</output>
     </span>
   </label>
-{:else if field.key === "graphStripes" || field.key === "graphHighlightChecked" || (GRAPH_MODES as readonly string[]).includes(field.key)}
-  {@const key = field.key as "graphStripes" | "graphHighlightChecked" | GraphMode}
+{:else if field.key === "graphStripes" || field.key === "graphHighlightChecked" || (GRAPH_SWITCHES as readonly string[]).includes(field.key) || (GRAPH_MODES as readonly string[]).includes(field.key)}
+  {@const key = field.key as "graphStripes" | "graphHighlightChecked" | GraphSwitch | GraphMode}
   <div class="row check">
     <Checkbox
       checked={value[key]}
@@ -262,6 +319,43 @@
     display: flex;
     flex-direction: column;
     gap: var(--sp-2);
+  }
+
+  .patterns {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    justify-self: stretch;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .patterns li {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    min-width: 0;
+  }
+
+  .pattern {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-family: var(--font-mono);
+  }
+
+  .forget {
+    flex: 0 0 auto;
+    padding: 0 var(--sp-2);
+    background: none;
+    color: var(--text-secondary);
+    border: 0;
+    cursor: default;
+  }
+
+  .forget:hover {
+    color: var(--text-primary);
   }
 
   .slider {
