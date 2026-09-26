@@ -1,6 +1,7 @@
 <script lang="ts">
   import Dialog from "$components/common/Dialog.svelte";
   import type { Bypass, Hook, HookOverview, HookRun, PresetStatus } from "$lib/ipc";
+  import { missingToolNote } from "$lib/preset-tool";
 
   interface Props {
     overview: HookOverview | null;
@@ -104,7 +105,7 @@
           <span class="badge">{entry.hook}</span>
           {#if entry.user}<span class="badge mine">yours</span>{/if}
           {#if entry.tool && entry.toolPath === null}
-            <span class="warn" title={entry.installHint ?? ""}>{entry.tool} not found</span>
+            <span class="warn" title={missingToolNote(entry)}>{entry.tool} not found</span>
           {/if}
           {#if entry.missingConfig.length > 0}
             <span

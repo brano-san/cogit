@@ -117,6 +117,17 @@ pub fn find_tool(tool: &PresetTool) -> Option<std::path::PathBuf> {
     })
 }
 
+/// Where `find_tool` looks, in its order: the declared directories as expanded, then
+/// `PATH`, named as such.
+#[must_use]
+pub fn tool_search_places(tool: &PresetTool) -> Vec<String> {
+    tool.search_paths
+        .iter()
+        .filter_map(|directory| expand(directory))
+        .chain(["PATH".to_owned()])
+        .collect()
+}
+
 /// An unset variable makes the whole entry meaningless, so the entry is skipped.
 fn expand(text: &str) -> Option<String> {
     let mut out = String::with_capacity(text.len());
