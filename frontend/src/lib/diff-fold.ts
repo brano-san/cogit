@@ -123,7 +123,7 @@ export function foldDiff(input: FoldInput): FoldEntry[] {
     while (at < rows.length) {
       const row = rows[at]!;
       if (row.kind !== "context") {
-        if (row.kind !== "collapsed") out.push({ kind: "row", row, block });
+        out.push({ kind: "row", row, block });
         if (row.kind === "delete" && declares(row.text)) declared = trimmed(row.text);
         at += 1;
         continue;

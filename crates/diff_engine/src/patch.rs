@@ -72,7 +72,6 @@ pub fn carries_undecoded_bytes(request: &PatchRequest) -> bool {
             DiffRow::Context { text, .. }
             | DiffRow::Delete { text, .. }
             | DiffRow::Insert { text, .. } => text,
-            DiffRow::Collapsed { .. } => return false,
         };
         text.chars().any(|c| ('\u{F780}'..='\u{F7FF}').contains(&c))
     })
@@ -155,7 +154,6 @@ impl Walk<'_, '_> {
                 (self.new.get(self.n)?.body == text.as_bytes()).then_some(())?;
                 self.n += 1;
             }
-            DiffRow::Collapsed { .. } => {}
         }
         Some(())
     }
@@ -267,7 +265,6 @@ pub fn build_patch(
                         continue;
                     }
                 }
-                DiffRow::Collapsed { .. } => continue,
             };
             if marker != '+' {
                 pre += 1;
