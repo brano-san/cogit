@@ -3,12 +3,14 @@
   import KindIcon from "$components/common/KindIcon.svelte";
   import { EMPTY_SELECTION, markRow, type FileSelection } from "$lib/multi-select";
   import { MISSING_REPOSITORY } from "$lib/repo-labels";
-  import { canPull, freshOverview, rowSync, syncTooltip, type RowSync } from "$lib/repo-sync";
+  import { canPull, freshOverview, moduleSync, rowSync, syncTooltip, type RowSync } from "$lib/repo-sync";
   import { repoPulse } from "$stores/repo-pulse.svelte";
   import {
     describeModule,
     mayExpand,
+    moduleRoot,
     moduleTooltip,
+    pulsedRoots,
     splitModulePath,
     type ModuleRow,
   } from "$lib/module-tree";
@@ -27,6 +29,7 @@
   import { worktrees } from "$stores/worktrees.svelte";
   import { pointerDrag } from "$lib/pointer-drag";
   import { TypeAhead, moveFocus } from "$lib/list-keys";
+  import { untrack } from "svelte";
 
   interface Props {
     /** Only the folder dialog changes the label; selecting a repository must not (R-35). */
@@ -94,9 +97,24 @@
     else repoGroups.collapse(group);
   }
 
-  const everyRoot = $derived(listedRepos(repository.openRepos, repoList.list).map((each) => each.root));
+  const everyListed = $derived(listedRepos(repository.openRepos, repoList.list));
+  const everyRoot = $derived(everyListed.map((each) => each.root));
+  const ownsTree = (entry: RepoOverview | null) =>
+    entry !== null && submodules.owner?.valueOf() === entry.repo.valueOf();
+  /** Every node showing in any tree has marks of its own, read by its folder (R-542). */
+  const moduleRoots = $derived(
+    everyListed.flatMap((each) =>
+      pulsedRoots(each.root, ownsTree(each.overview) ? submodules.rows : moduleForest.rows(each.root)),
+    ),
+  );
 
-  $effect(() => repoPulse.watch(everyRoot));
+  $effect(() => repoPulse.watch([...everyRoot, ...moduleRoots]));
+
+  $effect(() => {
+    void submodules.children;
+    const top = submodules.ownerRoot;
+    if (top !== null) untrack(() => repoPulse.again([top, ...pulsedRoots(top, submodules.rows)]));
+  });
 
   $effect(() => {
     void moduleForest.trees;
@@ -137,10 +155,10 @@
 
 <!-- Push and pull sit on the corners of the icon, as SmartGit draws them; the changes dot has
      a slot of its own in every row, so the names start on one line (R-353). -->
-{#snippet repoMarks(sync: RowSync)}
+{#snippet repoMarks(sync: RowSync, kind: "repository" | "submodule" = "repository")}
   {@const tip = syncTooltip(sync)}
   <span class="repo-icon">
-    <KindIcon kind="repository" title={tip || undefined} />
+    <KindIcon {kind} title={tip || undefined} />
     {#if sync.ahead > 0}
       <svg class="arrow push" viewBox="0 0 8 8" role="img" aria-label="Commits to push"
         ><path d="M4 7V1.5M1.5 4 4 1.5 6.5 4" /></svg
@@ -190,6 +208,14 @@
     {@const parts = splitModulePath(node.path)}
     {@const folder = parts.dir.replace(/[/\\]$/, "")}
     {@const where = describeModule(node.module)}
+    {@const nodeRoot = moduleRoot(root, node.key)}
+    {@const sync = moduleSync({
+      shown:
+        owned && submodules.open === node.key && worktrees.ownerRoot === null ? repository.current : null,
+      pulse: repoPulse.pulses.get(nodeRoot),
+      fetchFailed: repoPulse.unknown.has(nodeRoot),
+      remoteAhead: repoPulse.remoteAhead.has(nodeRoot),
+    })}
     <div
       class="row module {node.module.state}"
       class:selected={owned && submodules.open === node.key}
@@ -223,7 +249,7 @@
           toggle(node);
         }}
       />
-      <KindIcon kind="submodule" />
+      {@render repoMarks(sync, "submodule")}
       <span class="modpath shrink-last"
         >{#if folder}<span class="dir truncate shrink-first">{folder}/</span>{/if}<span
           class="modname truncate shrink-last">{parts.name}</span

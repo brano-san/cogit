@@ -4,8 +4,11 @@ import {
   moduleTooltip,
   mayExpand,
   moduleKey,
+  moduleRoot,
   moduleRows,
   moduleUpdate,
+  pulsedRoots,
+  shownRowRoot,
   splitModulePath,
   updateModule,
 } from "./module-tree";
@@ -309,5 +312,47 @@ describe("updateModule", () => {
     const run = deps(true);
     expect(await updateModule(mod("lib"), run)).toBe(false);
     expect(run.calls).toEqual([]);
+  });
+});
+
+// Every node of every tree gets its own marks, read by its folder (item 10 of 25.09).
+describe("the folders the marks of a tree are read from", () => {
+  const rows = moduleRows(
+    new Map([
+      ["", [mod("vendor/lib"), mod("docs", { state: "notInitialised", checkedOut: null })]],
+      ["vendor/lib", [mod("deep/inner")]],
+    ]),
+    new Set(["vendor/lib"]),
+  );
+
+  it("are the top's folder joined with each key, nested ones included", () => {
+    expect(pulsedRoots("E:/w/app", rows)).toEqual(["E:/w/app/vendor/lib", "E:/w/app/vendor/lib/deep/inner"]);
+    expect(moduleRoot("E:/w/app/", "vendor/lib")).toBe("E:/w/app/vendor/lib");
+  });
+
+  it("leave out a module that is not checked out: there is no repository to read", () => {
+    expect(pulsedRoots("E:/w/app", rows)).not.toContain("E:/w/app/docs");
+  });
+});
+
+describe("the row the panels show", () => {
+  const panels = { current: "E:/w/app/vendor/lib", moduleOwnerRoot: "E:/w/app", openModule: "vendor/lib" };
+
+  // The backend spells the submodule's root its own way; the tree names it by key.
+  it("is the submodule node, named as the tree names it", () => {
+    expect(shownRowRoot({ ...panels, current: "E:\\w\\app\\vendor\\lib", worktreeOwnerRoot: null })).toBe(
+      "E:/w/app/vendor/lib",
+    );
+  });
+
+  it("is the repository itself when no submodule holds the panels", () => {
+    expect(shownRowRoot({ current: "E:/w/app", moduleOwnerRoot: "E:/w/app", openModule: null, worktreeOwnerRoot: null })).toBe(
+      "E:/w/app",
+    );
+    expect(shownRowRoot({ current: null, moduleOwnerRoot: null, openModule: null, worktreeOwnerRoot: null })).toBeNull();
+  });
+
+  it("is a worktree opened from the submodule, not the submodule", () => {
+    expect(shownRowRoot({ ...panels, current: "E:/w/lib-wt", worktreeOwnerRoot: "E:/w/app/vendor/lib" })).toBe("E:/w/lib-wt");
   });
 });

@@ -107,7 +107,7 @@
   import { graphPanelMinWidth } from "$lib/graph-panel";
   import { closeStep, holdsPanels, reopenClick, repoClick } from "$lib/repo-click";
   import { ModuleInitialiser, moduleClick } from "$lib/module-init";
-  import { updateModule } from "$lib/module-tree";
+  import { shownRowRoot, updateModule } from "$lib/module-tree";
   import { moduleForest } from "$stores/module-forest.svelte";
   import { parseWorktreeCommand, worktreeMenu } from "$lib/worktree-menu";
   import { answerMergeResolved } from "$lib/merge-save";
@@ -3282,7 +3282,16 @@
       bulk !== undefined ||
       graph.loading,
   );
-  $effect(() => repoPulse.setOwned(repository.current?.root ?? null));
+  $effect(() =>
+    repoPulse.setOwned(
+      shownRowRoot({
+        current: repository.current?.root ?? null,
+        moduleOwnerRoot: submodules.ownerRoot,
+        openModule: submodules.open,
+        worktreeOwnerRoot: worktrees.ownerRoot,
+      }),
+    ),
+  );
 
   /** The other worktrees' folders have no watcher: their marks are read again when the
       window comes back and once a minute while there are any. */

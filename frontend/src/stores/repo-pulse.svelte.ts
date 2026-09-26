@@ -124,6 +124,14 @@ class RepoPulseStore {
     this.#queue.request(root, { first: true });
   }
 
+  /** The tree of the repository on screen was read again: its nodes have no watcher of their
+      own, so theirs and its top's pulses follow (R-542). */
+  again(roots: readonly string[]): void {
+    for (const root of roots) {
+      if (root !== this.#owned) this.#queue.request(root);
+    }
+  }
+
   /** Cogit fetched or pulled there: the tracking ref speaks for the server again. Its own
       network commands run quiet, so no watcher event says so. */
   fetched(root: string): void {

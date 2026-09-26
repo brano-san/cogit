@@ -334,6 +334,7 @@
 | F-524 | Меню кнопок тулбара в узком окне и с клавиатуры | [F-524-toolbar-menus-narrow-and-keys.md](F-524-toolbar-menus-narrow-and-keys.md) |
 | F-529 | Отмена сетевой операции | [F-529-network-cancel.md](F-529-network-cancel.md) |
 | F-532 | Диалог с набранным текстом не закрывается молча | [F-532-dialog-keeps-typed-text.md](F-532-dialog-keeps-typed-text.md) |
+| F-545 | Изменения, push и pull у submodules в Repositories | [F-545-submodule-sync-marks.md](F-545-submodule-sync-marks.md) |
 | F-570 | Рабочая копия одним списком без раздельного индекса | [F-570-one-worktree-list.md](F-570-one-worktree-list.md) |
 | F-571 | Таблица Files: имя, тип, состояние, путь | [F-571-files-table.md](F-571-files-table.md) |
 | F-572 | Customise View: колонки таблицы Files | [F-572-files-customise-columns.md](F-572-files-customise-columns.md) |
