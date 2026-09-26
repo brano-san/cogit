@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { modalLayer, modals } from "$lib/modal-stack";
+  import Dialog from "$components/common/Dialog.svelte";
   import type { SafetyEntry } from "$lib/ipc";
 
   /** Every destructive operation and the way back from it. Until now only the newest one
@@ -12,29 +12,9 @@
   }
 
   let { entries, busy, onundo, onclose }: Props = $props();
-
-  /** A modal layer: Esc is its own only while nothing is open above it (R-451). */
-  const layer = modalLayer();
-
-  function onkeydown(event: KeyboardEvent) {
-    if (event.key === "Escape" && modals.isTop(layer) && !event.defaultPrevented) {
-      event.preventDefault();
-      onclose();
-    }
-  }
 </script>
 
-<svelte:window {onkeydown} />
-
-<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div class="backdrop" onclick={onclose}></div>
-
-<div class="dialog" role="dialog" aria-label="Safety journal">
-  <header>
-    <h2>Safety journal</h2>
-    <button type="button" class="icon" onclick={onclose} aria-label="Close">✕</button>
-  </header>
-
+<Dialog title="Safety journal" {onclose} width="min(640px, 92vw)" flush>
   <div class="rows">
     {#if entries.length === 0}
       <p class="empty">Nothing destructive has happened in this repository yet.</p>
@@ -43,7 +23,7 @@
         <div class="row" class:spent={!entry.undoable}>
           <span class="what truncate" title={entry.description}>{entry.description}</span>
           {#if entry.undoable}
-            <button type="button" disabled={busy} onclick={() => onundo(entry)}>Undo</button>
+            <button type="button" class="btn" disabled={busy} onclick={() => onundo(entry)}>Undo</button>
           {:else}
             <span class="note">cannot be undone</span>
           {/if}
@@ -52,64 +32,15 @@
     {/if}
   </div>
 
-  <footer>
+  {#snippet footer()}
     <span class="hint">
       Newest first. Each entry restores its own thing, so an older one can be undone first.
     </span>
-    <button type="button" onclick={onclose}>Close</button>
-  </footer>
-</div>
+    <button type="button" class="btn primary" data-autofocus onclick={onclose}>Close</button>
+  {/snippet}
+</Dialog>
 
 <style>
-  .backdrop {
-    position: absolute;
-    inset: 0;
-    z-index: 20;
-    background: var(--scrim);
-  }
-
-  .dialog {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 21;
-    display: flex;
-    flex-direction: column;
-    width: min(640px, 92vw);
-    max-height: 80vh;
-    background: var(--surface-panel);
-    border: 1px solid var(--field-border);
-    border-radius: var(--r-md);
-    box-shadow: var(--shadow-popover);
-    overflow: hidden;
-  }
-
-  header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex: 0 0 auto;
-    height: var(--h-toolbar);
-    padding: 0 var(--sp-5);
-    background: var(--titlebar-bg);
-    border-bottom: 1px solid var(--titlebar-border);
-  }
-
-  h2 {
-    margin: 0;
-    font-size: var(--fs-ui);
-    font-weight: 600;
-  }
-
-  .icon {
-    background: none;
-    border: 0;
-    color: var(--text-secondary);
-    font: inherit;
-    cursor: default;
-  }
-
   .rows {
     flex: 1 1 auto;
     min-height: 80px;
@@ -121,7 +52,7 @@
     align-items: center;
     gap: var(--sp-4);
     min-height: var(--h-row);
-    padding: var(--sp-2) var(--sp-5);
+    padding: var(--sp-2) var(--dialog-inset);
     font-size: var(--fs-dense);
   }
 
@@ -146,19 +77,9 @@
 
   .empty {
     margin: 0;
-    padding: var(--sp-6) var(--sp-5);
+    padding: var(--sp-6) var(--dialog-inset);
     color: var(--text-secondary);
     font-size: var(--fs-dense);
-  }
-
-  footer {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-4);
-    flex: 0 0 auto;
-    padding: var(--sp-4) var(--sp-5);
-    background: var(--titlebar-bg);
-    border-top: 1px solid var(--titlebar-border);
   }
 
   .hint {
