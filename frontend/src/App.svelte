@@ -1173,7 +1173,8 @@
   /** False when nothing was committed: the box keeps the message for another try. */
   async function commitStaged(message: string, amend: boolean, noVerify: boolean): Promise<boolean> {
     const id = repository.current?.repo;
-    if (!id) return false;
+    // An empty list would commit every staged file, the hidden ones included.
+    if (!id || scope.empty) return false;
 
     if (amend && (await publishedOrAssume(isPublished(id, "HEAD")))) {
       const go = await confirmation.ask({
@@ -1187,7 +1188,6 @@
       if (!go) return false;
     }
 
-    // An empty list would commit every staged file, the hidden ones included.
     if (scope.empty) return false;
     if (scope.paths) {
       const confirmed = await confirmation.ask({
