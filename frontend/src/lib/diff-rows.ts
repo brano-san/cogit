@@ -158,21 +158,29 @@ export interface Connector {
   toBottom: number;
   /** A move is drawn dashed: its two ends are usually nowhere near each other. */
   moved: boolean;
+  /** What faces what, for the fill: a deleted line is red to the band's far edge, not red
+      turning green (R-532). A move is an outline, whatever it is. */
+  kind: RibbonKind;
 }
+
+export type RibbonKind = "delete" | "insert" | "change";
 
 /** A row of the rendered side-by-side list; `null` is a fold, which connects nothing. */
 export type ConnectorRow = SidePair | null;
 
-function changed(row: ConnectorRow): boolean {
-  return row?.left?.kind === "delete" || row?.right?.kind === "insert";
+function changed(row: ConnectorRow): RibbonKind | null {
+  const deleted = row?.left?.kind === "delete";
+  const inserted = row?.right?.kind === "insert";
+  if (deleted && inserted) return "change";
+  return deleted ? "delete" : inserted ? "insert" : null;
 }
 
 /**
  * What to draw in the band between the two columns.
  *
  * Two kinds. A move is matched by `moveId`, so its ends join however far apart they sit.
- * Everything else is a run of consecutive changed rows facing the rows opposite it —
- * short, because `pairRows` has already lined the two sides up (R-105).
+ * Everything else is a run of consecutive changed rows of one kind facing the rows
+ * opposite it — short, because `pairRows` has already lined the two sides up (R-105).
  */
 export function connectors(rows: readonly ConnectorRow[]): Connector[] {
   const ends = new Map<number, { left: number[]; right: number[] }>();
@@ -199,23 +207,24 @@ export function connectors(rows: readonly ConnectorRow[]): Connector[] {
       toTop: Math.min(...right),
       toBottom: Math.max(...right),
       moved: true,
+      kind: "change",
     });
     for (const index of [...left, ...right]) claimed.add(index);
   }
 
-  let start: number | null = null;
+  let start = 0;
+  let open: RibbonKind | null = null;
+  const close = (end: number) => {
+    if (open !== null) out.push({ fromTop: start, fromBottom: end, toTop: start, toBottom: end, moved: false, kind: open });
+  };
   rows.forEach((row, index) => {
-    const open = changed(row) && !claimed.has(index);
-    if (open && start === null) start = index;
-    if (!open && start !== null) {
-      out.push({ fromTop: start, fromBottom: index - 1, toTop: start, toBottom: index - 1, moved: false });
-      start = null;
-    }
+    const kind = claimed.has(index) ? null : changed(row);
+    if (kind === open) return;
+    close(index - 1);
+    start = index;
+    open = kind;
   });
-  if (start !== null) {
-    const last = rows.length - 1;
-    out.push({ fromTop: start, fromBottom: last, toTop: start, toBottom: last, moved: false });
-  }
+  close(rows.length - 1);
 
   return out.sort((a, b) => a.fromTop - b.fromTop);
 }
