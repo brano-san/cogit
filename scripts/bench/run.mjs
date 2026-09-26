@@ -12,6 +12,7 @@ import { EXE, dropScript, launch, resetProfile, runHidden, stop } from "./app.mj
 import { KEYS, sleep } from "./cdp.mjs";
 import { SCENARIOS } from "./scenarios.mjs";
 import { BUDGETS } from "./budgets.mjs";
+import { overBudget } from "./check.mjs";
 import { rebuild } from "./fixtures.mjs";
 
 const args = new Map();
@@ -822,11 +823,13 @@ async function main() {
   await note(`\nwritten ${OUT} in ${env.minutes} min`);
 
   if (args.has("check")) {
-    const over = [];
-    for (const budget of BUDGETS) {
-      const row = rows.find((r) => r.id === budget.id && r.set === budget.set && r.condition === budget.condition);
-      if (row && row.median > budget.median) over.push(`${budget.id} · ${budget.set} · ${budget.condition}: ${row.median} ms > ${budget.median} ms`);
-    }
+    // App budgets come from the app pass, the rest from the warm pass of their set.
+    const expected = (budget) =>
+      wanted(budget.id) &&
+      (budget.id.startsWith("app.")
+        ? wanted("app") && !args.has("no-app")
+        : SETS.includes(budget.set) && !args.has(`no-${budget.condition}`));
+    const over = overBudget(rows, BUDGETS, expected);
     if (over.length) {
       await note(`\nover budget:\n  ${over.join("\n  ")}`);
       process.exit(1);
