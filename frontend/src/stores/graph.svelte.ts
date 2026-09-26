@@ -27,6 +27,9 @@ interface Walk {
   repo: RepoId;
   /** Rust's number for this walk, known from its first progress message. */
   generation: number | null;
+  /** The walk this one replaces in Rust, and how many of its first rows it repeats (R-301). */
+  base: number | null;
+  kept: number;
   total: number;
   complete: boolean;
   blocks: Map<number, GraphBlock>;
@@ -37,6 +40,8 @@ interface Walk {
 const walk = (repo: RepoId): Walk => ({
   repo,
   generation: null,
+  base: null,
+  kept: 0,
   total: 0,
   complete: false,
   blocks: new Map(),
@@ -102,9 +107,10 @@ class GraphStore {
   }
 
   /** The walk on screen, for what is fetched beside its rows (paint, #11). */
-  get walk(): { repo: RepoId; generation: number | null } | null {
+  get walk(): { repo: RepoId; generation: number | null; base: number | null; kept: number } | null {
     void this.#arrived;
-    return this.#shown && { repo: this.#shown.repo, generation: this.#shown.generation };
+    const shown = this.#shown;
+    return shown && { repo: shown.repo, generation: shown.generation, base: shown.base, kept: shown.kept };
   }
 
   /** The repository whose graph is loading, else the one on screen: while another
@@ -213,6 +219,8 @@ class GraphStore {
         (progress) => {
           if (load !== this.#loads) return;
           this.#inherit(fresh, progress.base ?? null, progress.kept ?? 0);
+          fresh.base = progress.base ?? null;
+          fresh.kept = progress.kept ?? 0;
           fresh.generation = progress.generation;
           fresh.total = progress.total;
           fresh.complete = progress.isLast;

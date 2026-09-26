@@ -329,6 +329,8 @@
       total: graph.total,
       complete: graph.complete,
       request: paint,
+      base: walk?.base ?? null,
+      kept: walk?.kept ?? 0,
     });
   });
 

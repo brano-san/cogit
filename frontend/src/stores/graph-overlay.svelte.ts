@@ -26,6 +26,9 @@ export interface OverlayView {
   total: number;
   complete: boolean;
   request: GraphPaintRequest | null;
+  /** The walk this one replaced, and how many of its first rows this one repeats (R-301). */
+  base: number | null;
+  kept: number;
 }
 
 /** Paint of the rows on screen (#11, #26), fetched by block beside the rows themselves.
@@ -70,7 +73,7 @@ export class GraphOverlayStore {
     const key = JSON.stringify([walk, view.request]);
     if (key !== this.#key) {
       this.#key = key;
-      this.#stale = walk === this.#walk && view.request ? new Map([...this.#stale, ...this.#blocks]) : new Map();
+      this.#stale = view.request ? this.#kept(walk, view) : new Map();
       this.#walk = walk;
       this.#blocks = new Map();
       this.#asking.clear();
@@ -82,7 +85,27 @@ export class GraphOverlayStore {
   }
 
   clear(): void {
-    this.show({ repo: null, generation: null, start: 0, end: 0, total: 0, complete: false, request: null });
+    this.show({
+      repo: null,
+      generation: null,
+      start: 0,
+      end: 0,
+      total: 0,
+      complete: false,
+      request: null,
+      base: null,
+      kept: 0,
+    });
+  }
+
+  /** The paint shown until `view`'s is in: all of it under another request for the same
+      walk, and the blocks a new walk repeats row for row, so neither flashes grey. */
+  #kept(walk: string, view: OverlayView): Map<number, GraphOverlay> {
+    const last = new Map([...this.#stale, ...this.#blocks]);
+    if (walk === this.#walk) return last;
+    const follows = view.base !== null && this.#walk === JSON.stringify([view.repo, view.base]);
+    if (!follows) return new Map();
+    return new Map([...last].filter(([index]) => (index + 1) * BLOCK <= view.kept));
   }
 
   #fill(): void {
