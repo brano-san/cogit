@@ -19,6 +19,7 @@
   } from "$lib/file-view";
   import {
     actionScope,
+    requestBlocked,
     scopeBlocked,
     afterDeselect,
     applyClick,
@@ -214,7 +215,12 @@
         label: action.label,
         title: action.title,
         run: (request) => action.run(actionScope(marked(), request)),
-        ...(blocked ? { blocked: (file: FileEntry) => scopeBlocked(marked(), file.path, byPath, blocked) } : {}),
+        ...(blocked
+          ? {
+              blocked: (file: FileEntry) => scopeBlocked(marked(), file.path, byPath, blocked),
+              allBlocked: (paths: readonly string[]) => requestBlocked(marked(), { all: paths }, byPath, blocked),
+            }
+          : {}),
       };
     });
   }

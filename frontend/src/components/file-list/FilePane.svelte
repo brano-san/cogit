@@ -8,6 +8,8 @@
     run: (request: ActionRequest) => void;
     /** Why the button does not apply to this row's file; it is then off and says so. */
     blocked?: (file: FileEntry) => string | null;
+    /** The same for the heading's "all" over the rows listed. */
+    allBlocked?: (paths: readonly string[]) => string | null;
   }
 </script>
 
@@ -127,8 +129,16 @@
     <div class="heading">
       <span class="grow">{title} ({paths.length})</span>
       {#each actions as action (action.label)}
-        <button type="button" class="act" title="{action.title} — all" onclick={() => action.run({ all: paths })}
-          >{action.label} all</button
+        {@const reason = action.allBlocked?.(paths) ?? null}
+        <button
+          type="button"
+          class="act"
+          class:off={reason !== null}
+          aria-disabled={reason !== null}
+          title={reason ?? `${action.title} — all`}
+          onclick={() => {
+            if (reason === null) action.run({ all: paths });
+          }}>{action.label} all</button
         >
       {/each}
     </div>
@@ -347,8 +357,9 @@
     color: var(--status-ref);
   }
 
-  /* Off for this file, as its menu item is; the tip says why. */
-  .acts .act.off {
+  /* Off for this file, or for one the heading lists, as its menu item is; the tip says why. */
+  .acts .act.off,
+  .heading:hover .act.off {
     opacity: 0.4;
   }
 
