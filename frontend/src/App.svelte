@@ -92,7 +92,7 @@
   import { groupChoices, parseRepoCommand, repoMenu } from "$lib/repo-menu";
   import { fetchAllTargets, listedName, listedRepos, type ListedRepo } from "$lib/repo-list";
   import { eachAtMost, FETCH_ALL_LANES } from "$lib/fetch-all";
-  import { rowSync } from "$lib/repo-sync";
+  import { rowSync, summaryPulse } from "$lib/repo-sync";
   import { removalQuestion, UNGROUPED } from "$lib/repo-groups";
   import { repoList } from "$stores/repo-list.svelte";
   import { compareUrl } from "$lib/compare-params";
@@ -110,7 +110,7 @@
   import { graphPanelMinWidth } from "$lib/graph-panel";
   import { closeStep, holdsPanels, reopenClick, repoClick } from "$lib/repo-click";
   import { ModuleInitialiser, moduleClick } from "$lib/module-init";
-  import { updateModule } from "$lib/module-tree";
+  import { moduleRoot, shownRowRoot, updateModule } from "$lib/module-tree";
   import { moduleForest } from "$stores/module-forest.svelte";
   import { parseWorktreeCommand, worktreeMenu } from "$lib/worktree-menu";
   import { answerMergeResolved } from "$lib/merge-save";
@@ -191,6 +191,7 @@
   import { submodules } from "$stores/submodules.svelte";
   import { moduleMemory } from "$stores/module-memory.svelte";
   import { repoPulse } from "$stores/repo-pulse.svelte";
+  import { repoMenuRow } from "$stores/menu-row.svelte";
   import { graph } from "$stores/graph.svelte";
   import { hooks } from "$stores/hooks.svelte";
   import { avatars } from "$stores/avatars.svelte";
@@ -1940,6 +1941,7 @@
     forgetPanels();
     worktrees.ownerRoot = null;
     const watch = measure("open-repository");
+    const wasOpen = new Set(repository.openRepos.map((entry) => entry.root));
     if (!(await repository.open(root))) {
       trace(story, "activate: overtaken by a newer open, leaving the panels to it");
       return null;
@@ -1948,6 +1950,7 @@
     trace(story, `activate: repository.current is ${opened ? opened.name : "null"}`);
     if (opened) {
       refs.adopt(opened.root, buildRefTree({ ...refTreeInput, filter: "", collapsed: new Set() }));
+      if (!wasOpen.has(opened.root)) moduleMemory.opened(opened.root);
       void submodules.own(opened.repo, opened.root);
       void health.check(opened.repo, opened.root, opened.name);
       session.setActive(opened.root);
@@ -2808,7 +2811,11 @@
   }
 
   /** A row of the Repositories list, open or closed (#36). */
-  async function repoContext(row: ListedRepo, x: number, y: number) {
+  function repoContext(row: ListedRepo, x: number, y: number) {
+    return repoMenuRow.hold(row.root, () => showRepoMenu(row, x, y));
+  }
+
+  async function showRepoMenu(row: ListedRepo, x: number, y: number) {
     const info = await desktop.load();
     repoTarget = { kind: "repository", root: row.root, overview: row.overview };
     const active = row.overview !== null && repo?.repo.valueOf() === row.overview.repo.valueOf();
@@ -2843,6 +2850,16 @@
   ) {
     const top = foreign ?? submodules.ownerRoot;
     if (!top) return;
+    await repoMenuRow.hold(moduleRoot(top, row.key), () => showModuleMenu(row, x, y, top, foreign));
+  }
+
+  async function showModuleMenu(
+    row: import("$lib/module-tree").ModuleRow,
+    x: number,
+    y: number,
+    top: string,
+    foreign?: string,
+  ) {
     const info = await desktop.load();
     const open = foreign === undefined && submodules.open === row.key;
     repoTarget = { kind: "submodule", root: `${top}/${row.key}`, row, top: foreign };
@@ -2973,8 +2990,6 @@
       forgetPanels();
       worktrees.ownerRoot = null;
       repository.close();
-      // The backend keeps the one it is told is shown; it is told nothing is, first.
-      await tick();
     }
     // In the frame the other panels empty in, not a round trip after them.
     if (last) graph.clear();
@@ -3127,7 +3142,9 @@
     opening = true;
     try {
       for (const root of roots) {
-        await openRepository(root).catch((err) => errors.report(err, "Could not open the repository"));
+        await openRepository(root)
+          .then((opened) => moduleMemory.opened(opened.root))
+          .catch((err) => errors.report(err, "Could not open the repository"));
       }
       await repository.refreshList();
       const first = roots[0];
@@ -3335,7 +3352,17 @@
       bulk !== undefined ||
       graph.loading,
   );
-  $effect(() => repoPulse.setOwned(repository.current?.root ?? null));
+  $effect(() =>
+    repoPulse.setOwned(
+      shownRowRoot({
+        current: repository.current?.root ?? null,
+        moduleOwnerRoot: submodules.ownerRoot,
+        openModule: submodules.open,
+        worktreeOwnerRoot: worktrees.ownerRoot,
+      }),
+      repository.current ? summaryPulse(repository.current) : null,
+    ),
+  );
 
   /** The other worktrees' folders have no watcher: their marks are read again when the
       window comes back and once a minute while there are any. */

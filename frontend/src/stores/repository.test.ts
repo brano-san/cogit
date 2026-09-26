@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const commands = {
   openRepository: vi.fn(),
+  rereadRepository: vi.fn(),
   closeRepository: vi.fn(),
   repositories: vi.fn(),
   workingState: vi.fn(),
@@ -45,6 +46,7 @@ describe("repository store, as a state machine", () => {
   beforeEach(() => {
     vi.useRealTimers();
     commands.openRepository.mockReset();
+    commands.rereadRepository.mockReset();
     commands.repositories.mockResolvedValue({ status: "ok", data: [] });
     repository.close();
   });
@@ -96,7 +98,7 @@ describe("repository store, as a state machine", () => {
     commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
     await repository.open("C:/repos/one");
 
-    commands.openRepository.mockResolvedValue({
+    commands.rereadRepository.mockResolvedValue({
       status: "error",
       error: { kind: "invalidState", data: "index.lock" },
     });
@@ -111,13 +113,27 @@ describe("repository store, as a state machine", () => {
     await repository.open("C:/repos/one");
 
     const answer = pending<unknown>();
-    commands.openRepository.mockReturnValue(answer.promise);
+    commands.rereadRepository.mockReturnValue(answer.promise);
     const refreshing = repository.refresh();
 
     expect(repository.phase.kind).toBe("opening");
     expect(repository.current?.root).toBe("C:/repos/one");
     answer.settle({ status: "ok", data: summary("C:/repos/one") });
     await refreshing;
+  });
+
+  // Every re-read of a submodule on screen opened its folder again, which lists it: closing
+  // its parent then left it in Repositories as an entry of its own (item 43 of 25.09).
+  it("re-reads the repository on screen by its id, never by opening its folder", async () => {
+    const module = summary("C:/repos/app/vendor/lib");
+    repository.adopt(module as never);
+    commands.rereadRepository.mockResolvedValue({ status: "ok", data: module });
+
+    await repository.refresh();
+
+    expect(commands.openRepository).not.toHaveBeenCalled();
+    expect(commands.rereadRepository).toHaveBeenCalledWith(module.repo);
+    expect(repository.current?.root).toBe("C:/repos/app/vendor/lib");
   });
 
   it("lets the newest open win, however the older one ends", async () => {
@@ -144,6 +160,7 @@ describe("repository store, as a state machine", () => {
 
     const clicked = pending<unknown>();
     commands.openRepository.mockReset();
+    commands.rereadRepository.mockReset();
     commands.openRepository.mockReturnValueOnce(clicked.promise);
     commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
     const opening = repository.open("C:/repos/two");
@@ -216,11 +233,13 @@ describe("telling work for a repository the user has left (epoch)", () => {
   beforeEach(() => {
     vi.useRealTimers();
     commands.openRepository.mockReset();
+    commands.rereadRepository.mockReset();
     repository.close();
   });
 
   it("stays the same across a re-read of the repository on screen", async () => {
     commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
+    commands.rereadRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
     await repository.open("C:/repos/one");
     const epoch = repository.epoch;
 
@@ -261,6 +280,7 @@ describe("telling work for a repository the user has left (epoch)", () => {
   // B's files, Save wrote A's config over B's. Listeners close those at the switch.
   it("tells its listeners the moment the panels leave, and not on a re-read", async () => {
     commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
+    commands.rereadRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
     await repository.open("C:/repos/one");
     let heard = 0;
     const stop = repository.onLeave(() => (heard += 1));
@@ -286,15 +306,15 @@ describe("telling work for a repository the user has left (epoch)", () => {
     commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
     await repository.open("C:/repos/one");
     const answer = pending<unknown>();
-    commands.openRepository.mockReturnValueOnce(answer.promise);
-    commands.openRepository.mockClear();
+    commands.rereadRepository.mockReturnValueOnce(answer.promise);
+    commands.rereadRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
 
     const first = repository.refresh();
     await repository.refresh();
     answer.settle({ status: "ok", data: summary("C:/repos/one") });
     await first;
 
-    expect(commands.openRepository).toHaveBeenCalledTimes(2);
+    expect(commands.rereadRepository).toHaveBeenCalledTimes(2);
   });
 
   it("tells the caller whose open was overtaken", async () => {
@@ -330,6 +350,7 @@ describe("coming back to a listed repository (#50)", () => {
   beforeEach(() => {
     vi.useRealTimers();
     commands.openRepository.mockReset();
+    commands.rereadRepository.mockReset();
     repository.close();
   });
 
@@ -378,6 +399,7 @@ describe("what the panels see, end to end", () => {
   beforeEach(() => {
     vi.useRealTimers();
     commands.openRepository.mockReset();
+    commands.rereadRepository.mockReset();
     commands.repositories.mockResolvedValue({ status: "ok", data: [] });
     repository.close();
   });
@@ -396,7 +418,7 @@ describe("what the panels see, end to end", () => {
     commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
     await repository.open("C:/repos/one");
 
-    commands.openRepository.mockRejectedValue(new Error("the watcher caught it mid-write"));
+    commands.rereadRepository.mockRejectedValue(new Error("the watcher caught it mid-write"));
     await repository.refresh();
 
     expect(panelView(repository.phase)).toBe("content");
@@ -407,6 +429,7 @@ describe("what the panels see, end to end", () => {
 describe("closing a repository", () => {
   beforeEach(() => {
     commands.openRepository.mockReset();
+    commands.rereadRepository.mockReset();
     commands.closeRepository.mockReset();
     commands.repositories.mockReset();
     commands.repositories.mockResolvedValue({ status: "ok", data: [] });
@@ -458,6 +481,7 @@ describe("the status refresh after a mutation", () => {
   beforeEach(() => {
     vi.useRealTimers();
     commands.openRepository.mockReset();
+    commands.rereadRepository.mockReset();
     commands.workingState.mockReset();
     commands.repositories.mockResolvedValue({ status: "ok", data: [] });
     repository.close();
@@ -527,6 +551,7 @@ describe("the refs after a commit", () => {
   beforeEach(() => {
     vi.useRealTimers();
     commands.openRepository.mockReset();
+    commands.rereadRepository.mockReset();
     commands.repoRefs.mockReset();
     commands.repositories.mockResolvedValue({ status: "ok", data: [] });
     repository.close();
@@ -617,18 +642,19 @@ describe("the refs after a commit", () => {
   it("falls back to reopening when the refs cannot be read", async () => {
     await opened();
     commands.repoRefs.mockRejectedValue(new Error("packed-refs locked"));
-    commands.openRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
+    commands.rereadRepository.mockResolvedValue({ status: "ok", data: summary("C:/repos/one") });
 
     await repository.refreshRefs();
 
-    expect(commands.openRepository).toHaveBeenCalledTimes(1);
+    expect(commands.rereadRepository).toHaveBeenCalledTimes(1);
+    expect(commands.openRepository).not.toHaveBeenCalled();
     expect(repository.phase.kind).toBe("open");
   });
 
   it("while an open is in flight, leaves it to the open", async () => {
     await opened();
     const answer = pending<unknown>();
-    commands.openRepository.mockReturnValue(answer.promise);
+    commands.rereadRepository.mockReturnValue(answer.promise);
     const reopening = repository.refresh();
 
     const reading = repository.refreshRefs();
@@ -665,6 +691,7 @@ describe("the refs after a commit", () => {
 describe("repository store, restoring the last session", () => {
   beforeEach(() => {
     commands.openRepository.mockReset();
+    commands.rereadRepository.mockReset();
     commands.repositories.mockResolvedValue({ status: "ok", data: [] });
     notices.dismissAll();
     for (const root of repoList.list.closed) repoList.forget(root);

@@ -253,3 +253,81 @@ describe("the server-ahead arrow", () => {
     repoPulse.fetchEvery(0);
   });
 });
+
+// A submodule of the repository on screen has no watcher of its own: its marks follow the
+// re-reads of the tree its parent's watcher and writes set off (R-542).
+describe("the nodes of the tree the panels own", () => {
+  beforeAll(() => import("./repo-pulse.svelte"), 60_000);
+  afterEach(() => vi.useRealTimers());
+
+  it("are read again when the tree is, all but the one the panels show", async () => {
+    vi.useFakeTimers();
+    vi.resetModules();
+    const { repoPulse } = await import("./repo-pulse.svelte");
+    const nodes = ["C:/repos/app/vendor/lib", "C:/repos/app/docs"];
+    repoPulse.setOwned("C:/repos/app/docs");
+    repoPulse.watch(["C:/repos/app", ...nodes]);
+    await vi.advanceTimersByTimeAsync(2_000);
+    readPulse.mockClear();
+
+    repoPulse.again(["C:/repos/app", ...nodes]);
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    expect(readPulse.mock.calls).toEqual([["C:/repos/app"], ["C:/repos/app/vendor/lib"]]);
+  });
+});
+
+// Leaving a submodule, its node had no marks at all until its pulse was read: after the
+// 500 ms and after the open of the repository clicked, which holds the queue (R-542).
+describe("the row the panels let go of", () => {
+  beforeAll(() => import("./repo-pulse.svelte"), 60_000);
+  afterEach(() => vi.useRealTimers());
+
+  it("keeps the marks they showed until its own pulse comes", async () => {
+    vi.useFakeTimers();
+    vi.resetModules();
+    const { repoPulse } = await import("./repo-pulse.svelte");
+    const shown = { missing: false, branch: "dev", tracked: true, ahead: 1, behind: 0, dirty: true };
+    repoPulse.watch(["C:/repos/app/vendor/lib", "C:/repos/other"]);
+    repoPulse.setOwned("C:/repos/app/vendor/lib", shown);
+
+    repoPulse.setOwned("C:/repos/other", null);
+
+    expect(repoPulse.pulses.get("C:/repos/app/vendor/lib")).toEqual(shown);
+  });
+
+  it("takes the marks of the latest read of the panels, not of the first", async () => {
+    vi.useFakeTimers();
+    vi.resetModules();
+    const { repoPulse } = await import("./repo-pulse.svelte");
+    const clean = { missing: false, branch: "dev", tracked: false, ahead: 0, behind: 0, dirty: false };
+    repoPulse.watch(["C:/repos/one", "C:/repos/two"]);
+    repoPulse.setOwned("C:/repos/one", clean);
+    repoPulse.setOwned("C:/repos/one", { ...clean, dirty: true });
+
+    repoPulse.setOwned("C:/repos/two", null);
+
+    expect(repoPulse.pulses.get("C:/repos/one")?.dirty).toBe(true);
+  });
+});
+
+describe("a row removed from the list", () => {
+  beforeAll(() => import("./repo-pulse.svelte"), 60_000);
+
+  // Added back, its nodes showed what was read before the removal, and were not read again.
+  it("takes what was read of its submodule nodes with it", async () => {
+    vi.resetModules();
+    const { repoPulse } = await import("./repo-pulse.svelte");
+    const node = { missing: false, branch: null, tracked: false, ahead: 0, behind: 0, dirty: true };
+    repoPulse.pulses = new Map([
+      ["C:/repos/app/vendor/lib", node],
+      ["C:/repos/application", node],
+    ]);
+    repoPulse.unknown = new Set(["C:/repos/app/vendor/lib"]);
+
+    repoPulse.forget("C:/repos/app");
+
+    expect([...repoPulse.pulses.keys()]).toEqual(["C:/repos/application"]);
+    expect(repoPulse.unknown.size).toBe(0);
+  });
+});

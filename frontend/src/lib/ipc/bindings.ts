@@ -17,6 +17,11 @@ export const commands = {
 	openThirdPartyLicences: (frontend: string | null) => typedError<null, GitError>(__TAURI_INVOKE("open_third_party_licences", { frontend })),
 	openRepository: (path: string) => typedError<RepoSummary, GitError>(__TAURI_INVOKE("open_repository", { path })),
 	/**
+	 *  The panels' re-read of the repository they show: by id, so it never lists a submodule
+	 *  or worktree opened from a tree (R-543).
+	 */
+	rereadRepository: (repo: RepoId) => typedError<RepoSummary, GitError>(__TAURI_INVOKE("reread_repository", { repo })),
+	/**
 	 *  The walk and its layout stay in Rust; the channel only says how far it got and the
 	 *  rows go out by `graph_window` (R-193). Dropping the channel cancels the walk.
 	 */
@@ -1438,7 +1443,7 @@ export type RepoPulse = {
 	tracked: boolean,
 	ahead: number,
 	behind: number,
-	/**  Tracked files, staged changes, conflicts; untracked ones take a directory walk. */
+	/**  `!status().is_clean()`: what the row on screen says, or the dot follows the selection. */
 	dirty: boolean,
 };
 

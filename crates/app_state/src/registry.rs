@@ -119,6 +119,17 @@ impl AppState {
         self.open_with(handle, &path, Some(owner), watch, began)
     }
 
+    /// `open_repository` of one already open, by its id: listed or not stays as it was, so a
+    /// re-read of a submodule or worktree on screen does not make it an entry (R-543).
+    pub fn reread_repository(&self, repo: RepoId) -> Result<RepoSummary, git_engine::GitError> {
+        let began = self.closes_so_far();
+        let open = self.get(repo).ok_or_else(|| crate::not_open(repo))?;
+        let mut watch = Steps::new();
+        let handle = git_engine::RepoHandle::open_root(&open.root)?;
+        watch.done("open");
+        self.open_with(handle, &open.root, open.owner, watch, began)
+    }
+
     /// The one place a tree key becomes a directory, shared by listing and opening so the
     /// two can never disagree about where a node is (doc/12-risks.md, R-149).
     fn module_root(&self, owner: RepoId, key: &str) -> Result<PathBuf, git_engine::GitError> {
@@ -241,7 +252,8 @@ impl AppState {
         watch.done("forget-state");
         watch.report_close(repo.0, removed);
 
-        // Not the one on screen, nor one with work in its lane: those the user is still in.
+        // Not one with work in its lane: its push or commit must not lose its registration.
+        // The one on screen goes too: the panels let go of it first (R-543).
         let busy: Vec<Option<RepoId>> = self.queue.snapshot().iter().map(|op| op.repo).collect();
         let opened_from: Vec<RepoId> = self
             .repos
@@ -249,7 +261,7 @@ impl AppState {
             .values()
             .filter(|open| !open.listed && open.owner == Some(repo))
             .map(|open| open.id)
-            .filter(|id| !self.is_shown(*id) && !busy.contains(&Some(*id)))
+            .filter(|id| !busy.contains(&Some(*id)))
             .collect();
         for inner in opened_from {
             self.close_repository(inner);

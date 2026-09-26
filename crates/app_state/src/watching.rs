@@ -80,12 +80,11 @@ impl AppState {
     }
 }
 
-/// The pulse skips untracked files, so a dirty row beside a clean pulse proves nothing.
 fn contradicts(row: &RepoOverview, pulse: &git_engine::RepoPulse) -> bool {
     row.missing != pulse.missing
         || row.branch != pulse.branch
         || (row.ahead, row.behind) != (pulse.ahead, pulse.behind)
-        || (pulse.dirty && !row.dirty)
+        || pulse.dirty != row.dirty
 }
 
 pub(crate) struct Quiet<'a> {

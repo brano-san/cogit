@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { canPull, freshOverview, REMOTE_AHEAD, rowSync, syncTooltip, UNKNOWN_PULL } from "./repo-sync";
+import {
+  canPull,
+  freshOverview,
+  moduleSync,
+  REMOTE_AHEAD,
+  rowSync,
+  summaryPulse,
+  syncTooltip,
+  UNKNOWN_PULL,
+} from "./repo-sync";
 import type { Branch, RepoOverview, RepoSummary } from "$lib/ipc";
 import type { RepoPulse } from "$lib/ipc/bindings";
 
@@ -165,5 +174,74 @@ describe("the row of the repository on screen", () => {
     const other = overview({ repo: 7 as never });
     expect(freshOverview(other, summary())).toBe(other);
     expect(freshOverview(other, null)).toBe(other);
+  });
+});
+
+// Submodule rows had no dot and no arrows at all (item 10 of 25.09).
+describe("the marks of a submodule node", () => {
+  const shown = {
+    repo: 9,
+    root: "/a/vendor/lib",
+    name: "lib",
+    isBare: false,
+    head: { kind: "branch", name: "dev", oid: "a".repeat(40) },
+    branches: [
+      {
+        name: "dev",
+        fullName: "refs/heads/dev",
+        kind: "local",
+        oid: "a".repeat(40),
+        isHead: true,
+        upstream: "origin/dev",
+        ahead: 2,
+        behind: 0,
+      },
+    ],
+    tags: [],
+    status: { staged: 0, unstaged: 0, untracked: 1, conflicted: 0 },
+    state: { kind: "clean" },
+    indexLock: null,
+    tagGroupSeparator: "/",
+  } as unknown as RepoSummary;
+
+  it("reads one off screen from its pulse", () => {
+    const sync = moduleSync({ shown: null, pulse: pulse({ dirty: true, ahead: 1 }), fetchFailed: false });
+    expect(sync).toMatchObject({ dirty: true, ahead: 1, behind: 3 });
+  });
+
+  it("reads the one the panels show from what they keep fresh, not from a stale pulse", () => {
+    const sync = moduleSync({ shown, pulse: pulse({ dirty: false }), fetchFailed: false });
+    expect(sync).toMatchObject({ dirty: true, ahead: 2, behind: 0, branch: "dev" });
+  });
+
+  it("claims nothing before its first pulse", () => {
+    expect(moduleSync({ shown: null, pulse: undefined, fetchFailed: false }).dirty).toBeNull();
+  });
+
+  it("keeps what the background check said of it", () => {
+    const sync = moduleSync({ shown: null, pulse: pulse({ behind: 0 }), fetchFailed: false, remoteAhead: true });
+    expect(canPull(sync)).toBe(true);
+    expect(moduleSync({ shown: null, pulse: pulse(), fetchFailed: true }).unknown).toBe(true);
+  });
+});
+
+describe("the marks the panels hand to a row they let go of", () => {
+  it("are those of the summary they showed, upstream included", () => {
+    const now = {
+      repo: 3,
+      root: "/a",
+      name: "a",
+      isBare: false,
+      head: { kind: "branch", name: "dev", oid: "a".repeat(40) },
+      branches: [
+        { name: "dev", fullName: "refs/heads/dev", kind: "local", oid: "a".repeat(40), isHead: true, upstream: "origin/dev", ahead: 0, behind: 2 },
+      ],
+      tags: [],
+      status: { staged: 1, unstaged: 0, untracked: 0, conflicted: 0 },
+      state: { kind: "clean" },
+      indexLock: null,
+      tagGroupSeparator: "/",
+    } as unknown as RepoSummary;
+    expect(summaryPulse(now)).toEqual({ missing: false, branch: "dev", tracked: true, ahead: 0, behind: 2, dirty: true });
   });
 });

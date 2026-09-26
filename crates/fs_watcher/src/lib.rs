@@ -88,11 +88,25 @@ pub fn is_nested_git_noise(relative: &Path) -> bool {
     )
 }
 
+/// `modules/<path>/…` of the parent's git directory: a submodule's HEAD or refs moving is a
+/// change of the parent's working tree, which compares the gitlink with that HEAD (R-541).
+/// A module path with a `logs` or `objects` part of its own is taken for git's.
+fn is_module_tip(inner: &str) -> bool {
+    let parts: Vec<&str> = inner.split('/').collect();
+    if parts.iter().any(|part| matches!(*part, "logs" | "objects")) {
+        return false;
+    }
+    matches!(parts.last(), Some(&"HEAD" | &"packed-refs")) || parts.contains(&"refs")
+}
+
 #[must_use]
 pub fn classify_git_path(relative: &str) -> Option<ChangeKind> {
     let normalized = relative.replace('\\', "/");
     let normalized = normalized.trim_start_matches('/');
 
+    if let Some(inner) = normalized.strip_prefix("modules/") {
+        return is_module_tip(inner).then_some(ChangeKind::WorkingTree);
+    }
     if normalized == "HEAD" || normalized == "ORIG_HEAD" {
         return Some(ChangeKind::Head);
     }
@@ -173,6 +187,41 @@ mod tests {
     #[test]
     fn unknown_paths_produce_no_event() {
         assert_eq!(classify_git_path("COMMIT_EDITMSG"), None);
+    }
+
+    // A commit in a submodule moved only `.git/modules/<path>/HEAD` and its refs: the
+    // parent's status and the submodule's marks in Repositories stayed as they were.
+    #[test]
+    fn a_submodule_head_or_ref_moving_changes_the_parent_working_tree() {
+        for path in [
+            "modules/vendor/lib/HEAD",
+            "modules/vendor/lib/refs/heads/main",
+            "modules/vendor/lib/packed-refs",
+            r"modules\vendor\lib\HEAD",
+            "modules/vendor/middle/modules/deep/inner/HEAD",
+        ] {
+            assert_eq!(
+                classify_git_path(path),
+                Some(ChangeKind::WorkingTree),
+                "{path}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_rest_of_a_submodule_git_directory_is_noise() {
+        for path in [
+            "modules/vendor/lib/index",
+            "modules/vendor/lib/logs/HEAD",
+            "modules/vendor/lib/logs/refs/heads/main",
+            "modules/vendor/lib/objects/ab/cdef",
+            "modules/vendor/lib/config",
+            "modules/vendor/lib/hooks/pre-commit",
+            "modules/vendor/lib/FETCH_HEAD",
+            "modules/vendor/lib/ORIG_HEAD",
+        ] {
+            assert_eq!(classify_git_path(path), None, "{path}");
+        }
     }
 }
 

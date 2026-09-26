@@ -125,8 +125,8 @@
 
 --indicator-changes   → --status-modify    незакоммиченные изменения (Repositories, метка worktree)
 --indicator-synced    → --status-add       чисто и всё запушено (метка worktree)
---indicator-push      → --status-add       стрелка «есть что пушить»
---indicator-pull      → --status-ref       стрелка «есть что забрать»
+--indicator-push      → --indicator-changes стрелка «есть что пушить» — оранжевая, как точка (R-548)
+--indicator-pull      → --status-add       стрелка «есть что забрать» — зелёная
 --indicator-unknown   → --text-secondary   fetch не удался, про pull неизвестно
 
 --diff-filler         → --c-text-muted 30 %   штриховка там, где у другой стороны строки есть, а у этой нет
@@ -201,6 +201,9 @@ selected        background: --state-selected
                 + ::before — полоса 2px слева цветом --status-ref
 focus-visible   outline: 1px solid --state-focus-ring; outline-offset: -1px — только у строки,
                 до которой дошли Tab, не выбрав её
+menu            строка, на которой открыто контекстное меню (Repositories): background
+                --state-hover + outline 1px --state-focus-ring, offset -1px, поверх выбора;
+                выбор не меняется (R-545)
 ```
 
 Список — одна остановка клавиатуры (класс `.key-list` в `app.css`, #27): фокус панели
@@ -338,7 +341,9 @@ Branches), — проп `tri` с `triState` (R-158, [R-455](12-risks.md)).
 
 Размеры: главный тулбар — 22 px; кнопки в тулбарах панелей (Repositories, Files, Branches) —
 один токен `--panel-icon` (16 px) в кнопке `--h-button-sm` и крупнее; значок вида строки в
-дереве — `--kind-icon` (14 px).
+дереве — `--kind-icon` (14 px). Стрелки push и pull на углах значка строки Repositories —
+`--sync-arrow` (10 px, линия 2 px, двойной ореол цвета панели), выступают за правый край
+значка на 5 px; значок держит 2 px справа, чтобы они не касались точки изменений (R-547).
 Иконки — inline SVG с `currentColor`, никаких иконочных шрифтов и никаких растровых иконок.
 Для символов Git (ветка, коммит, тег, стэш, слияние) используется собственный минимальный набор,
 согласованный по оптической плотности с Inter.

@@ -335,6 +335,7 @@
 | F-529 | Отмена сетевой операции | [F-529-network-cancel.md](F-529-network-cancel.md) |
 | F-532 | Диалог с набранным текстом не закрывается молча | [F-532-dialog-keeps-typed-text.md](F-532-dialog-keeps-typed-text.md) |
 | F-541 | Изменение, к которому перешли, вспыхивает | [F-541-diff-jump-flash.md](F-541-diff-jump-flash.md) |
+| F-545 | Изменения, push и pull у submodules в Repositories | [F-545-submodule-sync-marks.md](F-545-submodule-sync-marks.md) |
 | F-550 | Меню заголовков, папок и HEAD в Branches: Toggle, Add Branch, Add Tag | [F-550-branches-heading-menus.md](F-550-branches-heading-menus.md) |
 | F-551 | Меню remote в Branches | [F-551-remote-menu.md](F-551-remote-menu.md) |
 | F-552 | Фоновая проверка — по remote | [F-552-background-check-per-remote.md](F-552-background-check-per-remote.md) |
