@@ -128,3 +128,11 @@ export function withUnchanged(
   }
   return [...files, ...rest];
 }
+
+/** One button for directories or a flat list (#30): it shows and names what a click
+    switches to, the way a list/tree button does in VS Code (R-594). */
+export function layoutToggle(directories: boolean): { icon: "tree" | "flat"; title: string; next: boolean } {
+  return directories
+    ? { icon: "flat", title: "Show Flat List", next: false }
+    : { icon: "tree", title: "Show Directories", next: true };
+}
