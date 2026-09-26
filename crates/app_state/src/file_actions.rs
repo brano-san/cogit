@@ -9,7 +9,7 @@ impl AppState {
     pub fn root_of(&self, repo: RepoId) -> Result<PathBuf> {
         self.get(repo)
             .map(|open| open.root)
-            .ok_or_else(|| GitError::RepoNotFound(format!("id {}", repo.0)))
+            .ok_or_else(|| crate::not_open(repo))
     }
 
     /// Delete, to the bin (`trash`). The files are kept in the object store first, so Undo

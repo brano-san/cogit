@@ -274,7 +274,7 @@ fn closing_a_repository_closes_the_submodules_opened_from_it() {
 
     for gone in [middle, deep] {
         assert!(
-            matches!(state.repo_status(gone), Err(GitError::RepoNotFound(_))),
+            state.repo_status(gone).is_err(),
             "a submodule goes with the repository it was opened from"
         );
     }
@@ -292,6 +292,23 @@ fn the_submodule_on_screen_stays_open_when_its_parent_closes() {
     state.close_repository(parent);
 
     assert!(state.repo_status(child).is_ok(), "the panels still show it");
+}
+
+// A Blame window left open, its repository closed in the main window: F5 said "Not a Git
+// repository: id 3" (BE-013).
+#[test]
+fn a_call_on_a_closed_repository_says_it_was_closed() {
+    let f = test_fixtures::linear(1).unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    state.close_repository(repo);
+
+    let refused = state.repo_status(repo).unwrap_err();
+
+    assert!(
+        matches!(&refused, GitError::InvalidState(text) if text.contains("closed in Cogit")),
+        "{refused:?}"
+    );
 }
 
 #[test]
