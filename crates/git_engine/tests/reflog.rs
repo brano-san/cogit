@@ -261,3 +261,51 @@ fn a_tip_fetched_into_a_shallow_clone_does_not_break_a_warm_cache() {
         .lost_commits_with(100, &mut cache)
         .unwrap();
 }
+
+// The same, with the new tip's parent past the shallow boundary: the walk from the new tip
+// read commits by id and failed on the missing parent, on every call until a reopen.
+#[test]
+fn a_tip_whose_parent_a_shallow_clone_lacks_does_not_break_a_warm_cache() {
+    let upstream = test_fixtures::linear(3).unwrap();
+    upstream
+        .git(&["switch", "-q", "-c", "other", "HEAD~1"])
+        .unwrap();
+    upstream.commit_file(4, "other.txt", "o\n").unwrap();
+    upstream.git(&["switch", "-q", "main"]).unwrap();
+    let clone = tempfile::tempdir().unwrap();
+    let url = format!(
+        "file://{}",
+        upstream.path().to_string_lossy().replace('\\', "/")
+    );
+    let target = clone.path().join("shallow");
+    let status = std::process::Command::new("git")
+        .args(["clone", "-q", "--depth", "1", &url])
+        .arg(&target)
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let mut cache = Reachable::default();
+    RepoHandle::open(&target)
+        .unwrap()
+        .lost_commits_with(100, &mut cache)
+        .unwrap();
+
+    let fetched = std::process::Command::new("git")
+        .current_dir(&target)
+        .args([
+            "fetch",
+            "-q",
+            "--depth",
+            "1",
+            "origin",
+            "other:refs/remotes/origin/other",
+        ])
+        .status()
+        .unwrap();
+    assert!(fetched.success());
+
+    RepoHandle::open(&target)
+        .unwrap()
+        .lost_commits_with(100, &mut cache)
+        .unwrap();
+}
