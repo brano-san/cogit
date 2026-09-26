@@ -23,6 +23,9 @@ export const STASH_MODES: readonly { mode: StashMode; label: string; hint: strin
   },
 ];
 
+/** The footer after Cancel, left to right: the primary Stash All rightmost (R-167). */
+export const STASH_BUTTONS = [...STASH_MODES.slice(1), ...STASH_MODES.slice(0, 1)];
+
 export function stashNameProblem(name: string): string | null {
   return name.trim() === "" ? "Enter a name." : null;
 }
