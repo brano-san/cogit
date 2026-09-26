@@ -774,7 +774,7 @@ impl AppState {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         let deleted = handle
-            .branches()?
+            .branches_without_divergence()?
             .into_iter()
             .find(|branch| branch.name == name);
         handle.delete_branch(name, force)?;

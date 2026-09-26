@@ -188,6 +188,17 @@ impl RepoHandle {
     }
 
     pub fn branches(&self) -> Result<Vec<Branch>> {
+        self.branch_list(true)
+    }
+
+    /// `branches` without ahead and behind, left at 0: the upstream is a config read, the
+    /// divergence a merge base and two walks per tracking branch. For callers that need
+    /// only names, tips and upstreams — a search as the user types, a branch to delete.
+    pub fn branches_without_divergence(&self) -> Result<Vec<Branch>> {
+        self.branch_list(false)
+    }
+
+    fn branch_list(&self, divergence: bool) -> Result<Vec<Branch>> {
         let platform = self
             .repo
             .references()
@@ -213,7 +224,7 @@ impl RepoHandle {
 
         for branch in &mut branches {
             if branch.kind == BranchKind::Local {
-                self.fill_upstream(branch);
+                self.fill_upstream(branch, divergence);
             }
         }
 
@@ -221,7 +232,7 @@ impl RepoHandle {
         Ok(branches)
     }
 
-    fn fill_upstream(&self, branch: &mut Branch) {
+    fn fill_upstream(&self, branch: &mut Branch, divergence: bool) {
         let Ok(full) = gix::refs::FullName::try_from(branch.full_name.as_str()) else {
             return;
         };
@@ -232,6 +243,9 @@ impl RepoHandle {
             return;
         };
         branch.upstream = Some(tracking.shorten().to_string());
+        if !divergence {
+            return;
+        }
 
         let Ok(mut reference) = self.repo.find_reference(tracking.as_ref()) else {
             return;
