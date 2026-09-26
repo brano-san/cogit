@@ -9,7 +9,10 @@ const FRONTEND: &str = "Frontend packages (1)\n\nsvelte 5.57.1 — MIT\n";
 #[test]
 fn the_document_names_the_build_and_carries_both_lists() {
     let text = document("0.1.0", CRATES, Some(FRONTEND));
-    assert!(text.lines().next().unwrap().contains("Cogit 0.1.0"));
+    assert_eq!(
+        text.lines().next().unwrap(),
+        "Third-party licenses in Cogit 0.1.0"
+    );
     assert!(text.contains("gix 0.87.1 — MIT OR Apache-2.0"));
     assert!(text.contains("svelte 5.57.1 — MIT"));
 }
@@ -28,5 +31,10 @@ fn the_document_is_written_where_asked_and_can_be_written_again() {
     let first = write(dir.path(), "one").unwrap();
     let second = write(dir.path(), "two").unwrap();
     assert_eq!(first, second);
+    assert_eq!(
+        first.file_name().unwrap(),
+        "cogit-third-party-licenses.txt",
+        "the editor shows the name"
+    );
     assert_eq!(std::fs::read_to_string(second).unwrap(), "two");
 }

@@ -3165,7 +3165,7 @@
     const text = response?.ok ? await response.text() : "";
     const frontend = text.startsWith("Frontend packages") ? text : null;
     await openThirdPartyLicences(frontend).catch((err) =>
-      errors.report(err, "Could not open the third-party licences"),
+      errors.report(err, "Could not open the third-party licenses"),
     );
   }
 
