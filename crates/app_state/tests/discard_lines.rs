@@ -197,3 +197,27 @@ fn discarding_next_to_lines_that_differ_only_in_whitespace_applies() {
         "p\n    x\n    y\nq\n"
     );
 }
+
+// The usual Windows checkout: LF in the index, CRLF on disk. The patch that was reversed
+// is LF, as the diff is; putting it back must write the file as git would check it out.
+#[test]
+fn a_line_discarded_under_autocrlf_comes_back_with_crlf() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.git(&["config", "core.autocrlf", "true"]).unwrap();
+    let before = b"content 0\r\nfirst added\r\nsecond added\r\n";
+    std::fs::write(f.path().join("file0.txt"), before).unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+
+    state
+        .discard_selection(repo, &request("file0.txt", vec![2]))
+        .unwrap();
+    assert_eq!(
+        std::fs::read(f.path().join("file0.txt")).unwrap(),
+        b"content 0\r\nsecond added\r\n"
+    );
+
+    state.undo_last(repo).unwrap();
+
+    assert_eq!(std::fs::read(f.path().join("file0.txt")).unwrap(), before);
+}
