@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { accelerator, conflicts, effective, prettyKeys, type Keymap } from "$lib/keymap";
+  import { claimable, conflicts, effective, prettyKeys, recordKeys, type Keymap } from "$lib/keymap";
   import { captureKeys, type KeyBinding } from "$lib/ipc";
 
   interface Props {
@@ -11,6 +11,8 @@
   let { bindings, overrides, onchange }: Props = $props();
 
   let capturing = $state<string | null>(null);
+  /** Why the last key pressed while capturing was not taken. */
+  let refusal = $state<string | null>(null);
   let filter = $state("");
 
   // The menu takes a key it has before the page sees it, and runs its command instead.
@@ -31,16 +33,43 @@
     ),
   );
 
+  function startOrStop(id: string) {
+    capturing = capturing === id ? null : id;
+    refusal = null;
+  }
+
   function capture(event: KeyboardEvent, id: string) {
+    // Tab leaves the button, as it does everywhere else.
+    if (event.key === "Tab" && !event.ctrlKey && !event.altKey && !event.metaKey) {
+      capturing = null;
+      return;
+    }
     event.preventDefault();
     if (event.key === "Escape") {
       capturing = null;
       return;
     }
-    const chosen = accelerator(event);
-    if (chosen === null) return;
+    const recorded = recordKeys(event, onMac);
+    if (recorded === null) return;
+    if ("refused" in recorded) {
+      refusal = recorded.refused;
+      return;
+    }
     capturing = null;
-    onchange({ ...overrides, [id]: chosen });
+    refusal = null;
+    onchange({ ...overrides, [id]: recorded.keys });
+  }
+
+  /** A key recorded before the editor checked, which the window never runs. */
+  function dead(keys: string): boolean {
+    return keys !== "" && !claimable(keys);
+  }
+
+  function title(id: string): string {
+    const clash = clashes[id];
+    if (clash) return `Also bound to ${clash.join(", ")}`;
+    if (dead(keys[id] ?? "")) return "Cogit cannot take this key; press another";
+    return "Click, then press the keys";
   }
 
   function clear(id: string) {
@@ -64,18 +93,17 @@
 
   <div class="rows">
     {#each shown as binding (binding.id)}
-      {@const clash = clashes[binding.id]}
-      <div class="row" class:clash={clash !== undefined}>
+      <div class="row" class:clash={clashes[binding.id] !== undefined || dead(keys[binding.id] ?? "")}>
         <span class="section">{binding.section}</span>
         <span class="label truncate">{binding.label}</span>
         <button
           type="button"
           class="keys"
           class:capturing={capturing === binding.id}
-          onclick={() => (capturing = capturing === binding.id ? null : binding.id)}
+          onclick={() => startOrStop(binding.id)}
           onkeydown={(event) => capturing === binding.id && capture(event, binding.id)}
           onblur={() => capturing === binding.id && (capturing = null)}
-          title={clash ? `Also bound to ${clash.join(", ")}` : "Click, then press the keys"}
+          title={title(binding.id)}
         >
           {capturing === binding.id ? "Press keys…" : prettyKeys(keys[binding.id] ?? "", onMac)}
         </button>
@@ -92,7 +120,10 @@
       </div>
     {/each}
   </div>
+
+  <p class="hint" role="status">{capturing !== null && refusal ? refusal : ""}</p>
 </div>
+
 
 <style>
   .keymap {
@@ -107,6 +138,14 @@
     flex-direction: column;
     max-height: 46vh;
     overflow: auto;
+  }
+
+  /* Holds its line even when empty, so the list does not jump when a key is refused. */
+  .hint {
+    min-height: 1.4em;
+    margin: 0;
+    color: var(--status-modify);
+    font-size: var(--fs-header);
   }
 
   .row {
