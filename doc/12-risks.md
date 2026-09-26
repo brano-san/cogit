@@ -6232,7 +6232,7 @@ Lezer. `highlightLines` не разбирает сторону длиннее `M
 набранный текст пропадал; закрытие окна Cogit о нём тоже не спрашивало (FS-010 аудита).
 
 **Решение (пользователя):** у общего `Dialog` свойство `dirty`; его передают редакторы с вводом
-(Edit Git Config, Index Editor, Edit Message). Пока оно есть,
+(Edit Git Config, Index Editor, Edit Message, Interactive Rebase, Split Off). Пока оно есть,
 подложка окно не закрывает, а `Esc` и ✕ спрашивают «Discard Changes» (`closeAnswer` в
 `lib/unsaved.ts`). Из двух вариантов выбран вопрос, а не глухой `Esc`: правило UI — `Esc`
 отменяет, и он отменяет, только не молча. Кнопка Cancel в подвале не спрашивает — это
