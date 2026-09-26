@@ -6,6 +6,7 @@ import {
   defaultVisible,
   foldedWhileFiltering,
   leavesUnder,
+  tickStates,
   toggleNode,
   visibleTips,
   type RefNode,
@@ -683,5 +684,57 @@ describe("branches held by a worktree (#25)", () => {
       }),
     );
     expect(nodes.find((node) => node.id === "remote:origin/feature")?.worktree).toBeUndefined();
+  });
+});
+
+describe("tickStates", () => {
+  const nodes = buildRefTree(
+    input({
+      branches: [
+        branch("fix/a"),
+        branch("fix/deep/b"),
+        branch("main"),
+        tracking("origin/fix/a"),
+        tracking("origin/main"),
+      ],
+      tags: [tag("v1"), tag("v-tree", { pointsToCommit: false }), tag("rel/v2")],
+      stashes: [stash(0)],
+      lost: [lost("b".repeat(40))],
+    }),
+  );
+
+  it("gives every row the box checkState and leavesUnder give it", () => {
+    const ticks = [
+      new Set<string>(),
+      new Set(["local:fix/a"]),
+      new Set(["local:fix/a", "local:fix/deep/b", "local:main", "tag:v1", "tag:rel/v2"]),
+      new Set(nodes.map((node) => node.id)),
+    ];
+    for (const visible of ticks) {
+      const states = tickStates(nodes, visible);
+      for (const node of nodes) {
+        expect(states.get(node.id), node.id).toEqual({
+          state: checkState(nodes, node.id, visible),
+          tickable: leavesUnder(nodes, node.id).length > 0,
+        });
+      }
+    }
+  });
+
+  // Row by row, each box searched the whole tree: 5 000 rows were 25 million comparisons
+  // on every click.
+  it("reads each row of the tree once", () => {
+    const many = buildRefTree(
+      input({ branches: Array.from({ length: 5000 }, (_, i) => tracking(`origin/f${i % 50}/b${i}`)) }),
+    );
+    let reads = 0;
+    const counted = new Proxy(many, {
+      get(target, key, receiver) {
+        if (typeof key === "string" && /^\d+$/.test(key)) reads++;
+        return Reflect.get(target, key, receiver);
+      },
+    });
+    tickStates(counted, new Set());
+    expect(reads).toBeLessThanOrEqual(many.length);
   });
 });
