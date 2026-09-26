@@ -89,17 +89,18 @@ export function striped(listRow: number, stripes = true): boolean {
 }
 
 /** What is behind a node, bottom up, so its fill hides the lines exactly as the row does:
-    the panel, the stripe, then hover and selection, which cover the stripe. */
+    the panel, the stripe, then hover and selection, which cover the stripe. `selectedRows`
+    are every row drawn selected: the selection and the other end of a comparison. */
 export function nodeFill(
   listRow: number,
-  selectedRow: number | null,
+  selectedRows: readonly number[],
   hoverRow: number | null,
   stripes = true,
 ): string[] {
   const layers = ["--surface-panel"];
   if (striped(listRow, stripes)) layers.push("--row-stripe");
   if (listRow === hoverRow) layers.push("--state-hover");
-  if (listRow === selectedRow) layers.push("--state-selected");
+  if (selectedRows.includes(listRow)) layers.push("--state-selected");
   return layers;
 }
 

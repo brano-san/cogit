@@ -355,7 +355,12 @@
   const canvasWidth = $derived(
     Math.min(Math.max(headerX, ...drawn.map(({ layout }) => textX(layout.width))), clipX),
   );
-  const selectedRow = $derived(visible.find(({ entry }) => entry.commit.oid === selection.oid)?.listRow ?? null);
+  /** Rows drawn selected: the selection and the other end of a comparison (#33). */
+  const selectedRows = $derived(
+    visible
+      .filter(({ entry }) => entry.commit.oid === selection.oid || entry.commit.oid === comparedFrom)
+      .map(({ listRow }) => listRow),
+  );
 
   /** Selection and scroll move together: an arrow key that selects off-screen is useless. */
   function onkeydown(event: KeyboardEvent) {
@@ -528,7 +533,7 @@
           height={viewportHeight}
           headRow={head?.listRow ?? null}
           {headLane}
-          {selectedRow}
+          {selectedRows}
           {hoverRow}
           focusLane={focus}
           {clipX}
