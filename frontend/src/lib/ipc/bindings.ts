@@ -353,10 +353,11 @@ export const commands = {
 	/**  Preferences ▸ Keyboard, while it records a shortcut: the menu lets every key through. */
 	captureKeys: (on: boolean) => __TAURI_INVOKE<void>("capture_keys", { on }),
 	/**
-	 *  A folder can hold hundreds of repositories, so hits stream in as they are found and
-	 *  dropping the channel stops the walk.
+	 *  A folder can hold hundreds of repositories, so hits stream in as they are found.
+	 *  The walk ends on `cancel_operation`: a channel the page stopped listening to still
+	 *  accepts every send.
 	 */
-	scanForRepositories: (path: string, maxDepth: number, onFound: Channel<ScanHit>) => typedError<number, GitError>(__TAURI_INVOKE("scan_for_repositories", { path, maxDepth, onFound })),
+	scanForRepositories: (path: string, maxDepth: number, onFound: Channel<ScanChunk>) => typedError<number, GitError>(__TAURI_INVOKE("scan_for_repositories", { path, maxDepth, onFound })),
 	/**
 	 *  Reports only whether a token exists. Reading one back would put it in the webview,
 	 *  where every dependency could see it.
@@ -1448,6 +1449,12 @@ export type SafetyEntry = {
 	description: string,
 	undoable: boolean,
 };
+
+/**
+ *  What travels up the channel while a folder scan runs; `Started` carries the id
+ *  `cancel_operation` takes.
+ */
+export type ScanChunk = { kind: "started"; id: number } | { kind: "found"; hit: ScanHit };
 
 /**  One hit from a folder scan. Paths cross IPC as strings, like every other path. */
 export type ScanHit = {

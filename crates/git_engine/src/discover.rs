@@ -57,31 +57,49 @@ pub fn scan(root: &Path, options: &ScanOptions, mut on_found: impl FnMut(Found) 
 /// `scan` for a caller that may stop listening: once `on_found` says `false`, nothing more
 /// is reported and the walk stops descending, so it does not hold the rayon pool.
 pub fn scan_until(root: &Path, options: &ScanOptions, on_found: impl FnMut(Found) -> bool + Send) {
+    scan_cancellable(root, options, || false, on_found);
+}
+
+/// `scan_until` that also ends as soon as `cancelled` says so, between two hits too.
+pub fn scan_cancellable(
+    root: &Path,
+    options: &ScanOptions,
+    cancelled: impl Fn() -> bool + Sync,
+    on_found: impl FnMut(Found) -> bool + Send,
+) {
     let sink = Sink {
         emit: Mutex::new(on_found),
         stopped: AtomicBool::new(false),
+        cancelled,
     };
     walk(root, 0, options, &sink, &[]);
 }
 
-struct Sink<F> {
+struct Sink<F, C> {
     emit: Mutex<F>,
     stopped: AtomicBool,
+    cancelled: C,
 }
 
-fn walk<F: FnMut(Found) -> bool + Send>(
+impl<F, C: Fn() -> bool> Sink<F, C> {
+    fn over(&self) -> bool {
+        self.stopped.load(Ordering::Relaxed) || (self.cancelled)()
+    }
+}
+
+fn walk<F: FnMut(Found) -> bool + Send, C: Fn() -> bool + Sync>(
     dir: &Path,
     depth: usize,
     options: &ScanOptions,
-    sink: &Sink<F>,
+    sink: &Sink<F, C>,
     ignores: &[Arc<Gitignore>],
 ) {
-    if depth > options.max_depth || sink.stopped.load(Ordering::Relaxed) {
+    if depth > options.max_depth || sink.over() {
         return;
     }
     if let Some(found) = repository_at(dir) {
         if let Ok(mut emit) = sink.emit.lock()
-            && !sink.stopped.load(Ordering::Relaxed)
+            && !sink.over()
             && !emit(found)
         {
             sink.stopped.store(true, Ordering::Relaxed);

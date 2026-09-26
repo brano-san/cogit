@@ -1,4 +1,4 @@
-import { type CogitError, scanForRepositories, type ScanHit, toCogitError } from "$lib/ipc";
+import { cancelOperation, type CogitError, scanForRepositories, type ScanHit, toCogitError } from "$lib/ipc";
 
 class ScanStore {
   folder = $state<string | null>(null);
@@ -10,6 +10,8 @@ class ScanStore {
 
   /** A second scan started from the dialog must not be joined by the first one's hits. */
   #generation = 0;
+  /** The walk still going, by the id that stops it. */
+  #walking: number | null = null;
 
   get openable(): ScanHit[] {
     return this.hits.filter((hit) => !hit.alreadyOpen);
@@ -20,6 +22,7 @@ class ScanStore {
   }
 
   async run(folder: string, depth: number): Promise<void> {
+    this.#stopWalk();
     const generation = ++this.#generation;
     this.folder = folder;
     this.hits = [];
@@ -29,18 +32,34 @@ class ScanStore {
     this.busy = true;
 
     try {
-      await scanForRepositories(folder, depth, (hit) => {
-        if (generation !== this.#generation) return;
-        this.hits = [...this.hits, hit];
-        if (!hit.alreadyOpen) this.chosen = new Set([...this.chosen, hit.root]);
-      });
+      await scanForRepositories(
+        folder,
+        depth,
+        (hit) => {
+          if (generation !== this.#generation) return;
+          this.hits = [...this.hits, hit];
+          if (!hit.alreadyOpen) this.chosen = new Set([...this.chosen, hit.root]);
+        },
+        (id) => {
+          if (generation === this.#generation) this.#walking = id;
+          else void cancelOperation(id);
+        },
+      );
       if (generation === this.#generation) this.done = true;
     } catch (err) {
       if (generation !== this.#generation) return;
       this.error = toCogitError(err);
     } finally {
-      if (generation === this.#generation) this.busy = false;
+      if (generation === this.#generation) {
+        this.busy = false;
+        this.#walking = null;
+      }
     }
+  }
+
+  #stopWalk(): void {
+    if (this.#walking !== null) void cancelOperation(this.#walking);
+    this.#walking = null;
   }
 
   toggle(root: string): void {
@@ -64,6 +83,7 @@ class ScanStore {
   }
 
   clear(): void {
+    this.#stopWalk();
     this.#generation += 1;
     this.folder = null;
     this.hits = [];

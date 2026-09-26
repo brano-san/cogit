@@ -462,6 +462,7 @@ snake_case и читаются на фронтенде как `undefined`.
 | `repository_health` | `repo` | `Vec<HealthFinding { module, issue }>` — репозиторий и все подмодули; `issue`: `ignoreCaseMismatch`, `danglingModule`, `danglingWorktree`, `missingModuleCommit { commit }` (R-179) | M3 |
 | `read_git_config` | `repo: Option<RepoId>`, `scope: repository \| user` | `ConfigFile { path, text, crlf, exists }` | M3 |
 | `write_git_config` | `repo`, `scope`, `text`, `crlf` | `()`; отказ git — `GitError::ConfigInvalid { line, message }` | M3 |
+| `scan_for_repositories` | `path`, `maxDepth` (1–12), `onFound: Channel<ScanChunk>` | `u32` — сколько найдено; в канале первым `started { id }`, затем `found { hit: ScanHit }`. Cancel диалога и новый скан зовут `cancel_operation(id)`: обход кончается сразу, а не на следующей находке | M3 |
 | `cancel_operation` | `id` | `bool` — `false`, если уже закончилась | — |
 | `cancel_network` | `operation: u32` — `id` из `Operation` (`operation-changed`, `list_operations`) | `bool`: `true` — git остановлен, вызов `fetch` / `pull` / `push` / `push_to` этой операции отклоняется с `GitError::Cancelled`, полоса очереди свободна, в журнале — предупреждение «Cancelled by the user»; `false` — отменять нечего: операция закончилась, ещё ждёт в очереди, не сетевая (`kind` не `fetch` / `pull` / `push`) или уже отменена (R-506) | M1 |
 | `list_operations` | — | `Vec<Operation>` — всё, что в очереди и в работе | — |

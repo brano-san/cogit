@@ -482,10 +482,11 @@ impl AppState {
         &self,
         root: &Path,
         max_depth: usize,
+        cancelled: impl Fn() -> bool + Sync,
         mut on_found: impl FnMut(ScanHit) -> bool + Send,
     ) {
         let options = git_engine::discover::ScanOptions { max_depth };
-        git_engine::discover::scan_until(root, &options, |found| {
+        git_engine::discover::scan_cancellable(root, &options, cancelled, |found| {
             on_found(ScanHit {
                 root: found.path.to_string_lossy().replace('\\', "/"),
                 name: found.name,
