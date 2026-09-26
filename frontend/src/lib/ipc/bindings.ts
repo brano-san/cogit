@@ -113,6 +113,10 @@ export const commands = {
 	undoLast: (repo: RepoId) => typedError<SafetyEntry, GitError>(__TAURI_INVOKE("undo_last", { repo })),
 	abortOperation: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("abort_operation", { repo })),
 	continueOperation: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("continue_operation", { repo })),
+	bisectStart: (repo: RepoId, bad: string, good: string | null) => typedError<null, GitError>(__TAURI_INVOKE("bisect_start", { repo, bad, good })),
+	/**  `rev` is HEAD when absent. */
+	bisectMark: (repo: RepoId, mark: BisectMark, rev: string | null) => typedError<null, GitError>(__TAURI_INVOKE("bisect_mark", { repo, mark, rev })),
+	bisectReset: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("bisect_reset", { repo })),
 	stashes: (repo: RepoId) => typedError<StashEntry[], GitError>(__TAURI_INVOKE("stashes", { repo })),
 	stashPush: (repo: RepoId, options: StashOptions) => typedError<null, GitError>(__TAURI_INVOKE("stash_push", { repo, options })),
 	/**  Stash ▸ + Keep Working Tree: the stash is made, the files stay as they are (#29). */
@@ -489,6 +493,28 @@ export type BinaryCause =
  *  `position` count from 1, `position` in characters.
  */
 { kind: "character"; code: number; line: number; position: number; side: DiffSide };
+
+export type BisectMark = "good" | "bad" | "skip";
+
+export type BisectState = {
+	/**  What `git bisect reset` goes back to: a branch, or a commit if it began detached. */
+	start: string,
+	bad: string | null,
+	good: string[],
+	skipped: string[],
+	/**  The commit under test: HEAD, or `BISECT_HEAD` after `--no-checkout`. */
+	current: string | null,
+	firstBad: string | null,
+	/**  Only skipped commits were left: the first bad one is one of these. */
+	candidates: string[],
+	terms: BisectTerms,
+};
+
+/**  The words `git bisect start --term-new/--term-old` chose; git refuses the others. */
+export type BisectTerms = {
+	bad: string,
+	good: string,
+};
 
 export type BlameChunk = 
 /**  Always first: the lines that follow index into these tables. */
@@ -1447,7 +1473,7 @@ export type RepoSettingChange = {
 	value: string | null,
 };
 
-export type RepoState = { kind: "clean" } | { kind: "detachedHead"; oid: string } | { kind: "merging" } | { kind: "rebasing" } | { kind: "cherryPicking" } | { kind: "reverting" } | { kind: "bisecting" } | { kind: "applyingPatches" } | { kind: "empty" } | { kind: "bare" };
+export type RepoState = { kind: "clean" } | { kind: "detachedHead"; oid: string } | { kind: "merging" } | { kind: "rebasing" } | { kind: "cherryPicking" } | { kind: "reverting" } | { kind: "bisecting"; bisect: BisectState } | { kind: "applyingPatches" } | { kind: "empty" } | { kind: "bare" };
 
 export type RepoStatus = {
 	staged: number,

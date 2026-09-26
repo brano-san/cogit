@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { bannerQuestion, repoStateTag, stateBanner, workingTreeLabel } from "./repo-state";
+import type { BisectState } from "./ipc/bisect";
+import { abortAction, bannerQuestion, repoStateTag, stateBanner, workingTreeLabel } from "./repo-state";
+
+const BISECT: BisectState = {
+  start: "main",
+  bad: null,
+  good: [],
+  skipped: [],
+  current: "4ec48139aa",
+  firstBad: null,
+  candidates: [],
+  terms: { bad: "bad", good: "good" },
+};
 
 describe("stateBanner", () => {
   it("shows nothing for a clean repository", () => {
@@ -98,9 +110,21 @@ describe("git am and bisect", () => {
     expect(banner?.actions).toEqual(["continue", "skip", "abort"]);
   });
 
-  // git bisect has no --continue and no --skip: it goes on with good, bad or skip.
-  it("offers only abort for a bisect", () => {
-    expect(stateBanner({ kind: "bisecting" }, null)?.actions).toEqual(["abort"]);
+  // git bisect has no --continue and no --abort: it goes on with good, bad or skip, and
+  // ends with reset (F-567).
+  it("offers the marks of HEAD and Reset for a bisect, not Continue or Abort", () => {
+    expect(stateBanner({ kind: "bisecting", bisect: BISECT }, null)?.actions).toEqual([
+      "markGood",
+      "markBad",
+      "markSkip",
+      "resetBisect",
+    ]);
+  });
+
+  it("lets Abort Operation In Progress reset a bisect", () => {
+    expect(abortAction(stateBanner({ kind: "bisecting", bisect: BISECT }, null))).toBe("resetBisect");
+    expect(abortAction(stateBanner({ kind: "merging" }, null))).toBe("abort");
+    expect(abortAction(stateBanner({ kind: "clean" }, null))).toBeNull();
   });
 });
 
@@ -137,7 +161,7 @@ describe("repoStateTag", () => {
   it("labels every long-running state in angle brackets", () => {
     const tags = (
       ["merging", "rebasing", "cherryPicking", "reverting", "bisecting", "applyingPatches"] as const
-    ).map((kind) => repoStateTag({ kind }));
+    ).map((kind) => repoStateTag(kind === "bisecting" ? { kind, bisect: BISECT } : { kind }));
     expect(tags).toEqual([
       "<merging>",
       "<rebasing>",

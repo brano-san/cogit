@@ -1,7 +1,18 @@
+import { bisectBanner } from "$lib/bisect";
 import { shortOid } from "$lib/format";
 import type { RepoState, RepoStatus } from "$lib/ipc";
 
-export type BannerAction = "continue" | "skip" | "abort" | "createBranch";
+/** The bisect ones act on HEAD, the commit git checked out to test (F-567). */
+export type BannerAction =
+  | "continue"
+  | "skip"
+  | "abort"
+  | "createBranch"
+  | "markGood"
+  | "markBad"
+  | "markSkip"
+  | "resetBisect"
+  | "showFirstBad";
 
 export interface Banner {
   title: string;
@@ -15,7 +26,6 @@ const INTERRUPTED: Partial<Record<RepoState["kind"], string>> = {
   rebasing: "Rebase",
   cherryPicking: "Cherry-pick",
   reverting: "Revert",
-  bisecting: "Bisect",
   applyingPatches: "Applying patches",
 };
 
@@ -29,10 +39,9 @@ const ONGOING: Partial<Record<RepoState["kind"], string>> = {
   applyingPatches: "applying patches",
 };
 
-/** Merge and bisect have nothing to skip or continue: a merge ends with an ordinary commit
-    (R-572), bisect with `reset`. */
+/** A merge has nothing to skip or continue: it ends with an ordinary commit (R-572). */
 function interruptedActions(kind: RepoState["kind"]): BannerAction[] {
-  if (kind === "merging" || kind === "bisecting") return ["abort"];
+  if (kind === "merging") return ["abort"];
   return ["continue", "skip", "abort"];
 }
 
@@ -69,6 +78,8 @@ export function stateBanner(
   state: RepoState,
   indexLock: string | null,
   submodule = false,
+  /** The subject of a commit the graph has loaded, for the bisect banner. */
+  describe?: (oid: string) => string | null,
 ): Banner | null {
   // A stale lock blocks every write, so it outranks whatever else is going on.
   if (indexLock) {
@@ -79,6 +90,8 @@ export function stateBanner(
       actions: [],
     };
   }
+
+  if (state.kind === "bisecting") return bisectBanner(state.bisect, describe);
 
   const interrupted = INTERRUPTED[state.kind];
   if (interrupted) {
@@ -154,4 +167,10 @@ export function bannerQuestion(
     };
   }
   return null;
+}
+
+/** What Abort Operation In Progress runs: a bisect has no abort, it ends with Reset. */
+export function abortAction(banner: Banner | null): BannerAction | null {
+  if (banner?.actions.includes("abort")) return "abort";
+  return banner?.actions.includes("resetBisect") ? "resetBisect" : null;
 }
