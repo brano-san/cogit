@@ -44,6 +44,10 @@
   откачены (e9a8746, 880d327); после — first-screen, repo.switch, unstage-all против базы same.
 - [x] Итог в конце `findings.md` (таблица, статусы фич, бенчмарк, решения, «Проверить в сборке»).
 
+**Задача завершена 26.09.** Release — `D:\cogit\target\release\bundle\` (msi и nsis; код 1 только
+из-за подписи обновлений — нет `TAURI_SIGNING_PRIVATE_KEY`). Worktree и ветки `audit-fix/*` слиты и
+удалены, каталоги сборки агентов удалены; отчёты агентов — `doc/audit/reports/`. Без push.
+
 ## Журнал
 
 - 25.09 — ветка, окружение, базовый полный прогон тестов запущен (`D:\cogit-work\base-tests.log`).
