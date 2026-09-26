@@ -2,6 +2,7 @@ import type { Branch, CommitRow, Head, StashEntry, Tag, WorktreeEntry } from "$l
 import { shortDate, shortOid } from "$lib/format";
 import { compareDated, compareNames, DEFAULT_REF_SORT, type RefSort } from "$lib/ref-sort";
 import { upstreamGone, worktreeMarks, type WorktreeMark } from "$lib/worktree-list";
+import { NO_FILTER_FOLDS, shownFolds, type FilterFolds } from "$lib/tree";
 
 export type RefKind =
   | "head"
@@ -279,13 +280,22 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
   return rows;
 }
 
-/** While a filter is typed every folder is open: a match folded away is a match not found. */
+/** While a filter is typed every folder is open: a match folded away is a match not found.
+    A folder folded meanwhile is folded in `folds`, for that text only (R-240, R-485). */
 export function foldedWhileFiltering(
   collapsed: ReadonlySet<string>,
   filter: string,
+  folds: FilterFolds = NO_FILTER_FOLDS,
 ): ReadonlySet<string> {
   if (filter.trim() === "") return collapsed;
-  return new Set([...collapsed].filter((id) => !id.startsWith("folder:")));
+  const kept = [...collapsed].filter((id) => !id.startsWith("folder:"));
+  return new Set([...kept, ...shownFolds(collapsed, filter, folds)]);
+}
+
+/** Whether a fold goes to the filter's own folds rather than the stored ones: headings of
+    groups are not opened by a filter, so theirs stays stored. */
+export function foldsWhileFiltering(id: string, filter: string): boolean {
+  return filter.trim() !== "" && id.startsWith("folder:");
 }
 
 /** Every tickable row a heading owns; a leaf owns only itself. */

@@ -5,6 +5,7 @@ import {
   checkState,
   defaultVisible,
   foldedWhileFiltering,
+  foldsWhileFiltering,
   leavesUnder,
   tickStates,
   toggleNode,
@@ -12,7 +13,7 @@ import {
   type RefNode,
   type RefTreeInput,
 } from "./ref-nodes";
-import { flatten } from "./tree";
+import { NO_FILTER_FOLDS, flatten, toggleFilterFold } from "./tree";
 
 const OID = "a".repeat(40);
 
@@ -563,6 +564,24 @@ describe("folders (#11)", () => {
     const collapsed = new Set(["folder:local/fix", "group:tags"]);
     expect([...foldedWhileFiltering(collapsed, "")]).toEqual([...collapsed]);
     expect([...foldedWhileFiltering(collapsed, "fix")]).toEqual(["group:tags"]);
+  });
+
+  // FR-021: the triangle read the stored fold, so a folder opened by the filter showed ▶.
+  it("draws a folder the filter opened as open", () => {
+    const nodes = buildRefTree(input({ branches: [branch("fix/a")], filter: "fix" }));
+    const rows = flatten(nodes, foldedWhileFiltering(new Set(["folder:local/fix"]), "fix"));
+    expect(rows.find((row) => row.id === "folder:local/fix")?.open).toBe(true);
+  });
+
+  it("folds a folder under a filter for that text only, and leaves the stored fold alone", () => {
+    const stored = new Set(["folder:local/fix"]);
+    expect(foldsWhileFiltering("folder:local/feat", "fix")).toBe(true);
+    expect(foldsWhileFiltering("group:local", "fix")).toBe(false);
+    expect(foldsWhileFiltering("folder:local/feat", "")).toBe(false);
+
+    const folds = toggleFilterFold(NO_FILTER_FOLDS, "fix", "folder:local/feat");
+    expect([...foldedWhileFiltering(stored, "fix", folds)]).toEqual(["folder:local/feat"]);
+    expect([...foldedWhileFiltering(stored, "", folds)]).toEqual(["folder:local/fix"]);
   });
 });
 
