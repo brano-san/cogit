@@ -937,8 +937,18 @@
     finderOpen = false;
     const id = repository.current?.repo;
     if (!id) return;
-    const step = foundStep(item, commit.oid !== null);
+    const step = foundStep(
+      item,
+      commit.oid !== null,
+      (path) =>
+        worktree.staged.some((file) => file.path === path) && !worktree.unstaged.some((file) => file.path === path),
+    );
     if (step?.kind === "file") void openDiff(step.path);
+    if (step?.kind === "worktree" || step?.kind === "staged") {
+      // A stash in Files would sit beside a diff of the working tree.
+      if (stashView.contents !== null) stashView.clear();
+      void (step.kind === "staged" ? openStagedDiff(step.path) : openWorktreeDiff(step.path));
+    }
     if (step?.kind === "reveal") {
       stashView.clear();
       void commit.select(id, step.oid);

@@ -17,9 +17,15 @@ describe("picking a result in Find Object", () => {
     expect(foundStep(found("commit", "c9", "c9"), false)).toEqual({ kind: "reveal", oid: "c9" });
   });
 
-  it("opens a file of the selected commit, and does nothing without one", () => {
+  it("opens a file of the selected commit", () => {
     expect(foundStep(found("file", "src/a.rs", ""), true)).toEqual({ kind: "file", path: "src/a.rs" });
-    expect(foundStep(found("file", "src/a.rs", ""), false)).toBeNull();
+  });
+
+  // On the Working Tree a picked file did nothing at all, and the window had closed already.
+  it("opens a file on the Working Tree in the list that has it", () => {
+    const staged = (path: string) => path === "src/b.rs";
+    expect(foundStep(found("file", "src/a.rs", ""), false, staged)).toEqual({ kind: "worktree", path: "src/a.rs" });
+    expect(foundStep(found("file", "src/b.rs", ""), false, staged)).toEqual({ kind: "staged", path: "src/b.rs" });
   });
 
   it("does nothing for a ref that points at no commit", () => {
