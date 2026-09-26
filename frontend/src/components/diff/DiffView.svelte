@@ -1146,12 +1146,6 @@
     color: var(--c-search-ink);
   }
 
-  /* A moved block is one fact, not a deletion plus an addition (T7.9). */
-  .code.moved {
-    background: var(--c-stash-bg);
-    color: var(--status-stash);
-  }
-
   .code.del {
     background: var(--c-deleted-bg);
     color: var(--status-delete);
@@ -1160,6 +1154,17 @@
   .code.add {
     background: var(--c-added-bg);
     color: var(--status-add);
+  }
+
+  /* A moved block is one fact, not a deletion plus an addition (T7.9). A moved row is
+     `del` or `add` as well, so this comes after them and wins at the same specificity. */
+  .code.moved {
+    background: var(--c-stash-bg);
+    color: var(--status-stash);
+  }
+
+  .code.moved .word {
+    background: color-mix(in srgb, var(--status-stash) 30%, transparent);
   }
 
   /* Where @@ used to be: one band across both halves, saying what is hidden (#16). */
