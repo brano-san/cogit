@@ -532,6 +532,7 @@
     commit: commit.oid,
     head: headOid,
     branch: repo?.head.kind === "branch",
+    upstream: Boolean(tracked?.upstream),
     merged: toolbar.merged,
     stashes: stashes.entries.length,
     undo: lastUndo !== null,
@@ -564,8 +565,8 @@
     return [
       { id: "open", title: "Open Repository…", run: () => void pickRepository() },
       { id: "fetch", title: "Fetch", unavailable: noRepo ?? noRemote, run: () => void runNetwork("fetch") },
-      { id: "pull", title: "Pull", unavailable: noRepo ?? noRemote, run: () => void pullNow() },
-      { id: "push", title: "Push", unavailable: noRepo ?? noRemote, run: () => void runNetwork("push") },
+      { id: "pull", title: "Pull", unavailable: reasonOf("pull", toolbarFacts), run: () => void pullNow() },
+      { id: "push", title: "Push", unavailable: reasonOf("push", toolbarFacts), run: () => void runNetwork("push") },
       {
         id: "stash",
         title: "Stash All",
@@ -900,6 +901,7 @@
           }).choices.length,
           lfs: remoteOps.lfs,
           files: pickedFiles,
+          syncBlocked: reasonOf("sync", toolbarFacts),
         },
         remoteActions,
       ),

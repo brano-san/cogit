@@ -303,6 +303,8 @@ export interface ToolbarFacts {
   commit: string | null;
   head: string | null;
   branch: boolean;
+  /** HEAD's branch tracks a remote branch, which Pull and Sync bring down. */
+  upstream: boolean;
   /** Whether HEAD already contains `commit`; `undefined` while that is being asked. */
   merged: boolean | undefined;
   stashes: number;
@@ -320,6 +322,7 @@ export const NO_FACTS: ToolbarFacts = {
   commit: null,
   head: null,
   branch: false,
+  upstream: false,
   merged: undefined,
   stashes: 0,
   undo: false,
@@ -351,6 +354,12 @@ const needRepository: Rule = (f) => (f.repository ? undefined : "No repository i
 const needRemote: Rule = (f) =>
   needRepository(f) ?? (f.remote ? undefined : "This repository has no remote");
 
+const needBranch: Rule = (f) => needRemote(f) ?? (f.branch ? undefined : "HEAD is not on a branch");
+
+/** Pull and Sync without an upstream, or on a detached HEAD, only ever end in git's error. */
+const needUpstream: Rule = (f) =>
+  needBranch(f) ?? (f.upstream ? undefined : "The branch tracks no remote branch");
+
 const needWorkingTree: Rule = (f) =>
   needRepository(f) ??
   (f.onWorkingTree ? undefined : "Select the Working Tree in the graph first");
@@ -370,10 +379,11 @@ const needCommit: Rule = (f) =>
   (f.commit === f.head ? "HEAD itself is selected" : undefined);
 
 const RULES: Record<string, Rule> = {
-  pull: needRemote,
-  push: needRemote,
-  "push-to": (f) => needRemote(f) ?? (f.branch ? undefined : "HEAD is not on a branch"),
-  sync: needRemote,
+  pull: needUpstream,
+  // A branch without an upstream is pushed with --set-upstream (R-414).
+  push: needBranch,
+  "push-to": needBranch,
+  sync: needUpstream,
   "fetch-remote": needRemote,
   "fetch-remotes": needRemote,
   "pull-scope": needRemote,

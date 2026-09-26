@@ -25,6 +25,9 @@ export interface RemoteMenuContext {
   /** `undefined` while it is still being asked, `null` when git has no `lfs` command. */
   lfs: string | null | undefined;
   files: readonly string[];
+  /** Why Synchronise cannot run with a remote there: the toolbar's Sync rule (`reasonOf`),
+      which wants HEAD on a branch that tracks one. */
+  syncBlocked?: string;
 }
 
 export interface RemoteMenuActions {
@@ -102,7 +105,7 @@ export function remoteCommands(
       unavailable: !context.repository
         ? NO_REPOSITORY
         : context.remote
-          ? undefined
+          ? context.syncBlocked
           : "This repository has no remote",
       run: actions.synchronize,
     },
