@@ -13,7 +13,7 @@ pub struct RepoPulse {
     pub tracked: bool,
     pub ahead: u32,
     pub behind: u32,
-    /// Tracked files, staged changes, conflicts; untracked ones take a directory walk.
+    /// `!status().is_clean()`: what the row on screen says, or the dot follows the selection.
     pub dirty: bool,
 }
 
@@ -32,7 +32,10 @@ pub fn pulse(root: &Path) -> RepoPulse {
         handle.track(&name, &oid, &mut found);
         found.branch = Some(name);
     }
-    found.dirty = handle.changed_cheaply();
+    found.dirty = handle.has_changes().unwrap_or_else(|err| {
+        tracing::error!(error = ?err, context = "pulse: status");
+        false
+    });
     tracing::debug!(
         root = %root.display(),
         elapsed_ms = crate::runner::elapsed_ms(started),
@@ -180,78 +183,6 @@ impl RepoHandle {
             into.behind = behind;
         }
     }
-
-    fn changed_cheaply(&self) -> bool {
-        if self.repo.is_bare() {
-            return false;
-        }
-        let Ok(index) = self.repo.open_index() else {
-            return false;
-        };
-        worktree_moved(self.root(), &index) || self.staged(&index)
-    }
-
-    fn staged(&self, index: &gix::index::State) -> bool {
-        let Ok(tree) = self.repo.head_tree_id() else {
-            return !index.entries().is_empty();
-        };
-        // Written by commit and checkout; valid, it answers without reading a tree.
-        if let Some(cached) = index.tree()
-            && cached.num_entries.is_some()
-        {
-            return cached.id != tree.detach();
-        }
-        let mut any = false;
-        let compared = self.repo.tree_index_status(
-            &tree,
-            index,
-            None,
-            gix::status::tree_index::TrackRenames::Disabled,
-            |_, _, _| {
-                any = true;
-                Ok::<_, std::convert::Infallible>(std::ops::ControlFlow::Break(()))
-            },
-        );
-        if let Err(err) = compared {
-            tracing::error!(error = ?err, context = "pulse: index against HEAD");
-        }
-        any
-    }
-}
-
-/// Size and modification time, as the index recorded them. A racily clean entry whose
-/// stat matches is taken as clean: telling needs its content hashed.
-fn worktree_moved(root: &Path, index: &gix::index::State) -> bool {
-    use gix::index::entry::{Flags, Stage, Stat};
-    for entry in index.entries() {
-        if entry.stage() != Stage::Unconflicted {
-            return true;
-        }
-        if entry.mode.is_submodule()
-            || entry.mode.is_sparse()
-            || entry
-                .flags
-                .intersects(Flags::SKIP_WORKTREE | Flags::ASSUME_VALID | Flags::INTENT_TO_ADD)
-        {
-            continue;
-        }
-        let path = root.join(gix::path::from_bstr(entry.path(index)));
-        let Ok(meta) = gix::index::fs::Metadata::from_path_no_follow(&path) else {
-            return true;
-        };
-        let Ok(now) = Stat::from_fs(&meta) else {
-            return true;
-        };
-        let was = entry.stat;
-        // Nanoseconds only where the index kept them: a git that writes none is not a change.
-        if was.size != now.size
-            || was.mtime.secs != now.mtime.secs
-            || (was.mtime.nsecs != 0 && was.mtime.nsecs != now.mtime.nsecs)
-        {
-            return true;
-        }
-    }
-    false
 }
 
 #[cfg(test)]
