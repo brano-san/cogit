@@ -182,7 +182,7 @@
   const searchTexts = $derived.by<SearchRow[]>(() => {
     if (mode === "unified") {
       return unified.map((entry) => {
-        if (entry.kind !== "row" || entry.row.kind === "collapsed") return [null, null];
+        if (entry.kind !== "row") return [null, null];
         return [entry.row.text, null];
       });
     }
@@ -207,7 +207,6 @@
     for (const entry of unified) {
       if (entry.kind !== "row") continue;
       const row = entry.row;
-      if (row.kind === "collapsed") continue;
       most = Math.max(most, textColumns(row.text) + (row.noNewline ? NO_NEWLINE_COLUMNS : 0));
     }
     return most + TRAILING_COLUMNS;

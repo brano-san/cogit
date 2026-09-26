@@ -700,7 +700,7 @@ moveId?: number | null; moveScope?: MoveScope | null;
  *  The file ends on this row without a final newline; a unified diff prints
  *  `\ No newline at end of file` underneath it.
  */
-noNewline?: boolean } | { kind: "insert"; new: number; text: string; inline: ([number, number])[]; moved?: boolean; moveId?: number | null; moveScope?: MoveScope | null; noNewline?: boolean } | { kind: "collapsed"; count: number };
+noNewline?: boolean } | { kind: "insert"; new: number; text: string; inline: ([number, number])[]; moved?: boolean; moveId?: number | null; moveScope?: MoveScope | null; noNewline?: boolean };
 
 export type DiffSpec = { kind: "commitVsParent"; oid: string } | { kind: "commitVsCommit"; a: string; b: string } | { kind: "workTreeVsIndex" } | { kind: "indexVsHead" } | 
 /**  A past version against the file on disk now: Compare with Working Tree. */

@@ -147,7 +147,6 @@ pub enum DiffRow {
     Context { old: u32, new: u32, text: String },
     Delete  { old: u32, text: String, inline: Vec<(u32, u32)> },
     Insert  { new: u32, text: String, inline: Vec<(u32, u32)> },
-    Collapsed { count: u32 },
 }
 ```
 
