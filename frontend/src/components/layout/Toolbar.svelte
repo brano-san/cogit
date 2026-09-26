@@ -83,8 +83,14 @@
   $effect(() => {
     const element = row;
     if (!element) return;
+    // Measured with the labels showing: measured without them, the row fitted, the labels
+    // came back, and the "…" that appears with them resized the row to measure again.
+    const bar = element.closest(".toolbar");
     const measure = () => {
+      const was = bar?.classList.contains("crowded") ?? false;
+      bar?.classList.remove("crowded");
       crowded = element.scrollWidth > element.clientWidth + 1;
+      if (was) bar?.classList.add("crowded");
     };
     const observer = new ResizeObserver(measure);
     observer.observe(element);
@@ -148,7 +154,7 @@
                 title="More {action.label.toLowerCase()} actions"
                 onclick={(event) => openMenu(action.id, event)}
               >
-                <span>{action.label}</span>
+                <span class="text">{action.label}</span>
                 <Caret open={open === action.id} />
               </button>
             {:else}
@@ -364,9 +370,15 @@
     pointer-events: none;
   }
 
-  /* Narrow window: the labels go first, the icons stay recognisable (issue 12). */
-  .toolbar.crowded .label {
+  /* Narrow window: the labels go first, the icons stay recognisable (issue 12). A split
+     button keeps its caret: its menu is not in the "…" one. */
+  .toolbar.crowded .label:not(.with-menu),
+  .toolbar.crowded .label.with-menu .text {
     display: none;
+  }
+
+  .toolbar.crowded .label.with-menu :global(.caret) {
+    margin-left: 0;
   }
 
   .overflow {
