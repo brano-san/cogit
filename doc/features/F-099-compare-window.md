@@ -8,3 +8,4 @@
       `Commit a1b2c3d vs parent d4e5f6a` (у первого коммита — `Commit a1b2c3d, the first commit`),
       `Commit a1b2c3d vs working tree`, `Commit a1b2c3d vs commit d4e5f6a`; подсказка над
       подписью говорит, какая версия слева и какая справа.
+- [ ] Имя файла — в заголовке окна и один раз в шапке; в полосе кнопок над diff его нет.

@@ -78,6 +78,7 @@
         diff={diff.diff}
         path={diff.shownPath}
         stageable={false}
+        showPath={false}
         onstage={() => {}}
         whitespace={diff.whitespace}
         onwhitespace={(mode) => void diff.setWhitespace(request.repo, mode)}

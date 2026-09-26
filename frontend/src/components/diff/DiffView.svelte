@@ -81,6 +81,8 @@
     /** Whether the window's keys are the diff's (11 §7): in the main window only while the
         Diff panel has the focus; a window of its own has nothing else to give them to. */
     active?: boolean;
+    /** Off where the file is named already: the compare window's title and header. */
+    showPath?: boolean;
   }
 
   let {
@@ -93,6 +95,7 @@
     onwhitespace,
     onexpand,
     active = true,
+    showPath = true,
   }: Props = $props();
 
   /** Names the band's gradient apart from another diff's in the same document. */
@@ -598,7 +601,7 @@
 
 <div class="diff">
   <div class="bar">
-    <span class="path mono truncate">{path}</span>
+    {#if showPath}<span class="path mono truncate">{path}</span>{:else}<span class="grow"></span>{/if}
     {#if diff.kind === "text"}
       {@const eol = eolLabel(diff.eol, diff.oldTotal, diff.newTotal)}
       <span class="eol" title={eol.title}>{eol.text}</span>
