@@ -19,6 +19,8 @@ export interface RefTarget {
   kind: "branch" | "remote" | "tag";
   name: string;
   isHead: boolean;
+  /** A local branch's tracking branch, e.g. `origin/main`. */
+  upstream?: string | null;
 }
 
 export interface WorkingTreeCounts {
@@ -117,6 +119,15 @@ function pushBlocked(ref: RefTarget, facts: CommitFacts): string | null {
   return facts.hasRemote ? null : "no remote";
 }
 
+/** F-130: only a local branch tracks, and only a branch of a remote. */
+function upstreamRows(ref: RefTarget, facts: CommitFacts): ContextItem[] {
+  const notLocal = ref.kind === "remote" ? "a remote branch" : ref.kind === "tag" ? "a tag" : null;
+  return [
+    offer(id("set-upstream"), "Set Upstream…", notLocal ?? (facts.hasRemote ? null : "no remote")),
+    offer(id("stop-tracking"), "Stop Tracking", notLocal ?? (ref.upstream ? null : "no upstream")),
+  ];
+}
+
 /** #39: a branch or tag label on a graph row. */
 export function graphRefMenu(ref: RefTarget, facts: CommitFacts): ContextItem[] {
   return tidy([
@@ -125,6 +136,7 @@ export function graphRefMenu(ref: RefTarget, facts: CommitFacts): ContextItem[] 
     SEPARATOR,
     offer(id("push"), "Push", pushBlocked(ref, facts)),
     offer(id("push-to"), "Push To…", pushBlocked(ref, facts)),
+    ...upstreamRows(ref, facts),
     SEPARATOR,
     offer(id("delete"), "Delete", ref.kind === "branch" && ref.isHead ? "checked out" : null),
     offer(
@@ -189,6 +201,7 @@ export function branchesBranchMenu(
     SEPARATOR,
     offer(id("push"), "Push", pushBlocked(ref, facts)),
     offer(id("push-to"), "Push To…", pushBlocked(ref, facts)),
+    ...upstreamRows(ref, facts),
     SEPARATOR,
     ...resetRows(at, facts),
     SEPARATOR,
@@ -299,7 +312,12 @@ export function labelTarget(
   const branch = branches.find((entry) => entry.kind === wanted && entry.name === name);
   if (!branch) return null;
   return {
-    ref: { kind: wanted === "remote" ? "remote" : "branch", name: branch.name, isHead: branch.isHead },
+    ref: {
+      kind: wanted === "remote" ? "remote" : "branch",
+      name: branch.name,
+      isHead: branch.isHead,
+      upstream: branch.upstream,
+    },
     branch,
     tag: null,
   };

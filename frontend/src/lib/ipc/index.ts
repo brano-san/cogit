@@ -375,6 +375,11 @@ export async function renameBranch(repo: RepoId, from: string, to: string, force
   return unwrap(await commands.renameBranch(repo, from, to, force));
 }
 
+/** `null` stops tracking: `git branch --unset-upstream`. */
+export async function setUpstream(repo: RepoId, branch: string, upstream: string | null) {
+  return unwrap(await commands.setUpstream(repo, branch, upstream));
+}
+
 export async function deleteRemoteBranch(repo: RepoId, remote: string, branch: string) {
   return unwrap(await commands.deleteRemoteBranch(repo, remote, branch));
 }
