@@ -249,13 +249,17 @@ Hover — `--state-hover`; active — `--state-selected`; disabled — `opacity:
 
 ### Галочка и радиокнопка
 
-Только `Checkbox.svelte` и `Radio.svelte`, нативных `<input type="checkbox">` и `"radio"` нет:
+Только `Checkbox.svelte`, `Radio.svelte` и лёгкая галочка ниже, нативных элементов формы нет:
 системный квадрат белый на тёмной панели. Под рисунком — настоящий скрытый input (Space, стрелки,
-Tab, экранный диктор). Квадрат 14 px (`--checkbox-size` меняет его, в Branches — 12 px), фон
-`--surface-input`, граница `--field-border`; отмечено и `mixed` — заливка `--status-ref`, галочка
-или тире цветом `--surface-base`. Радио — круг того же размера с точкой `--status-ref`. Подпись
-справа, рамка выровнена по первой строке подписи. Состояние, вычисленное из модели (галочка
-заголовка в Branches), — проп `tri` с `triState` (R-158, [R-455](12-risks.md)).
+Tab, экранный диктор). Квадрат 14 px (`--checkbox-size`), фон `--surface-input`, граница
+`--field-border`; отмечено и `mixed` — заливка `--status-ref`, галочка или тире цветом
+`--surface-base`. Радио — круг того же размера с точкой `--status-ref`. Подпись справа, рамка
+выровнена по первой строке подписи. Состояние, вычисленное из модели (галочка заголовка в
+Branches), — проп `tri` с `triState` (R-158, [R-455](12-risks.md)).
+
+В списках на сотни строк — лёгкая галочка: класс `tick-box` на самом `<input type="checkbox">`
+(`appearance: none`, без компонента, подписи и SVG), тот же рисунок и цвета, `mixed` — тот же
+`triState`; размер — `--tick-box-size` на элементе списка (в Branches — 12 px).
 
 ### Заголовок панели
 

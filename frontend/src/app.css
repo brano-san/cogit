@@ -160,6 +160,8 @@
   --panel-icon: 16px;
   /* The box of Checkbox and Radio; Branches draws it smaller. */
   --checkbox-size: 14px;
+  /* The light box of long lists (`tick-box`); a list sets its own on its element. */
+  --tick-box-size: var(--checkbox-size);
   /* A tree level is one element wide: a child's triangle sits under whatever follows its
      parent's triangle — icon, box or text. Each tree names that element (R-185). */
   --tree-base: var(--disclosure-side);
@@ -414,14 +416,14 @@ a:hover {
 
 /* The shared Checkbox for rows by the hundred (R-455): the input itself, with no component,
    label or SVG around it. The tick and the dash are its ::before, cut out to the paths the
-   Checkbox strokes in its 10 px box. `--tick-box-size` on a parent sizes it. */
+   Checkbox strokes in its 10 px box. */
 input.tick-box {
   appearance: none;
   display: inline-grid;
   place-content: center;
   flex: 0 0 auto;
-  width: var(--tick-box-size, var(--checkbox-size));
-  height: var(--tick-box-size, var(--checkbox-size));
+  width: var(--tick-box-size);
+  height: var(--tick-box-size);
   margin: 0;
   background: var(--surface-input);
   border: 1px solid var(--field-border);
