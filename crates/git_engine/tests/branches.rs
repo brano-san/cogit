@@ -48,22 +48,67 @@ fn checking_out_a_commit_detaches_head() {
     }
 }
 
+fn refusal(result: Result<(), git_engine::GitError>) -> Box<git_engine::GitCommandError> {
+    match result {
+        Err(git_engine::GitError::Command(details)) => details,
+        other => panic!("INV-05: expected git's own refusal, got {other:?}"),
+    }
+}
+
+fn head_branch(repo: &RepoHandle) -> String {
+    match repo.head().unwrap() {
+        Head::Branch { name, .. } => name,
+        other => panic!("expected an attached HEAD, got {other:?}"),
+    }
+}
+
+// The headings are the ones `frontend/src/lib/checkout-refusal.ts` offers a stash for.
 #[test]
 fn checking_out_with_uncommitted_changes_reports_gits_refusal() {
     let f = test_fixtures::branched().unwrap();
-    std::fs::write(f.path().join("base.txt"), "conflicting edit\n").unwrap();
-    f.git(&["switch", "dev"]).unwrap();
-    f.git(&["switch", "main"]).unwrap();
     std::fs::write(f.path().join("dev-1.txt"), "would be overwritten\n").unwrap();
     let repo = open(&f);
 
-    let result = repo.checkout(&CheckoutTarget::Branch {
+    let details = refusal(repo.checkout(&CheckoutTarget::Branch {
         name: "dev".to_owned(),
-    });
+    }));
 
-    if let Err(git_engine::GitError::Command(details)) = result {
-        assert!(!details.stderr.is_empty(), "INV-05: {details:?}");
-    }
+    assert!(
+        details
+            .stderr
+            .contains("The following untracked working tree files would be overwritten by"),
+        "{details:?}"
+    );
+    assert!(details.stderr.contains("dev-1.txt"), "{details:?}");
+    assert_eq!(head_branch(&repo), "main");
+    assert_eq!(
+        std::fs::read_to_string(f.path().join("dev-1.txt")).unwrap(),
+        "would be overwritten\n"
+    );
+}
+
+#[test]
+fn checking_out_over_a_changed_tracked_file_reports_gits_refusal() {
+    let f = test_fixtures::branched().unwrap();
+    std::fs::write(f.path().join("main-1.txt"), "changed here\n").unwrap();
+    let repo = open(&f);
+
+    let details = refusal(repo.checkout(&CheckoutTarget::Branch {
+        name: "dev".to_owned(),
+    }));
+
+    assert!(
+        details
+            .stderr
+            .contains("Your local changes to the following files would be overwritten by"),
+        "{details:?}"
+    );
+    assert!(details.stderr.contains("main-1.txt"), "{details:?}");
+    assert_eq!(head_branch(&repo), "main");
+    assert_eq!(
+        std::fs::read_to_string(f.path().join("main-1.txt")).unwrap(),
+        "changed here\n"
+    );
 }
 
 #[test]
