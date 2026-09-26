@@ -4,6 +4,7 @@ import { groupByDirectory } from "./file-view";
 import {
   DEFAULT_COLUMNS,
   DEFAULT_SORT,
+  columnItems,
   columnReason,
   directoryOf,
   fileType,
@@ -13,6 +14,7 @@ import {
   nextSort,
   shownColumns,
   sortRows,
+  toggleColumn,
 } from "./file-columns";
 
 function entry(path: string, status: FileEntry["status"] = "modified", mode: FileEntry["mode"] = "plain"): FileEntry {
@@ -148,5 +150,28 @@ describe("the stored table settings", () => {
       sort: DEFAULT_SORT,
     });
     expect(mergeTable({ sort: { key: "path", descending: true } }).sort).toEqual({ key: "path", descending: true });
+  });
+});
+
+// Customise View opened on nothing to customise: a switch under a column's name and a
+// Size that was always off (#34).
+describe("the columns in Customise View", () => {
+  it("lists the four columns, the name always on and not to be turned off", () => {
+    expect(columnItems({ type: false, change: true, path: true }, false)).toEqual([
+      { key: "name", label: "Name", checked: true, reason: "The name is always shown" },
+      { key: "type", label: "Type", checked: false, reason: null },
+      { key: "change", label: "State", checked: true, reason: null },
+      { key: "path", label: "Path", checked: true, reason: null },
+    ]);
+  });
+
+  it("says why the path cannot be shown in the tree, and shows it unticked there", () => {
+    const path = columnItems(DEFAULT_COLUMNS, true).find((item) => item.key === "path");
+    expect(path).toMatchObject({ checked: false, reason: expect.stringMatching(/folder/) });
+  });
+
+  it("turns one column over and leaves the others", () => {
+    expect(toggleColumn(DEFAULT_COLUMNS, "type")).toEqual({ ...DEFAULT_COLUMNS, type: false });
+    expect(toggleColumn(DEFAULT_COLUMNS, "name")).toEqual(DEFAULT_COLUMNS);
   });
 });
