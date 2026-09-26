@@ -209,7 +209,7 @@ fn a_dry_run_uses_the_bash_of_git_for_windows_whatever_bash_path_finds() {
         "pre-commit",
         "#!/bin/sh\necho from-git-bash\n",
     );
-    let exec_path = std::process::Command::new("git")
+    let exec_path = test_fixtures::git_command_in(f.path())
         .arg("--exec-path")
         .output()
         .unwrap();

@@ -198,17 +198,15 @@ fn the_tree_against_git_submodule_status_takes() {
             .unwrap();
     });
     let git = median(&|| {
-        let status = std::process::Command::new("git")
+        let status = test_fixtures::git_command_in(&root)
             .args(["submodule", "status", "--recursive"])
-            .current_dir(&root)
             .output()
             .unwrap();
         assert!(status.status.success());
     });
     eprintln!("median/p90 µs: tree {full:?}, outline {outline:?}, git submodule status {git:?}");
-    let printed = std::process::Command::new("git")
+    let printed = test_fixtures::git_command_in(&root)
         .args(["submodule", "status", "--recursive"])
-        .current_dir(&root)
         .output()
         .unwrap();
     let theirs: Vec<String> = String::from_utf8_lossy(&printed.stdout)

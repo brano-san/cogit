@@ -493,9 +493,8 @@ fn undoing_a_merge_moves_the_branch_back_after_the_user_left_it() {
             },
         )
         .unwrap();
-    let switched = std::process::Command::new("git")
+    let switched = test_fixtures::git_command_in(f.path())
         .args(["switch", "--quiet", "dev"])
-        .current_dir(f.path())
         .status()
         .unwrap();
     assert!(switched.success());
@@ -537,7 +536,7 @@ fn a_hard_reset_with_only_a_moved_submodule_goes_ahead_without_a_backup() {
     f.git(&["stash", "push", "--message", "the user's own"])
         .unwrap();
     let module = f.path().join("vendor/lib");
-    let moved = std::process::Command::new("git")
+    let moved = test_fixtures::git_command_in(&module)
         .args([
             "-c",
             "user.name=a",
@@ -549,7 +548,6 @@ fn a_hard_reset_with_only_a_moved_submodule_goes_ahead_without_a_backup() {
             "-m",
             "moved",
         ])
-        .current_dir(&module)
         .status()
         .unwrap();
     assert!(moved.success());

@@ -188,6 +188,25 @@ fn git_command(cwd: &Path) -> Command {
     cmd
 }
 
+/// `git` in `cwd` as the fixtures run it: no inherited `GIT_*`, no global or system
+/// config. For a test's own git — a clone, a fetch — beside a fixture.
+#[must_use]
+pub fn git_command_in(cwd: &Path) -> Command {
+    git_command(cwd)
+}
+
+/// `git` in `cwd` with the developer's own global and system config, still without an
+/// inherited `GIT_*`: to compare with what the code under test reads from them.
+#[must_use]
+pub fn user_git_command(cwd: &Path) -> Command {
+    let mut cmd = Command::new("git");
+    cmd.current_dir(cwd).env("LC_ALL", "C");
+    for name in AMBIENT_GIT_VARS {
+        cmd.env_remove(name);
+    }
+    cmd
+}
+
 fn run_git(cwd: &Path, args: &[&str], date_index: Option<i64>) -> Result<String> {
     let mut cmd = git_command(cwd);
     cmd.args(args);
