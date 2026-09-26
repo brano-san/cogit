@@ -26,7 +26,7 @@ impl AppState {
     ) -> Result<RepoSummary, git_engine::GitError> {
         let known = self
             .handle(owner)?
-            .worktrees()?
+            .worktree_heads()?
             .into_iter()
             .any(|entry| entry.path == path && !entry.missing);
         if !known {
@@ -69,10 +69,10 @@ impl AppState {
             || path.to_owned(),
             |name| name.to_string_lossy().into_owned(),
         );
-        // As `worktrees()` writes paths.
+        // As `worktree_heads()` writes paths.
         let wanted = path.replace('\\', "/");
         let checkout = handle
-            .worktrees()?
+            .worktree_heads()?
             .into_iter()
             .find(|entry| entry.path == wanted)
             .map(|entry| entry.branch.unwrap_or(entry.head));

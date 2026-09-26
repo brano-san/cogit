@@ -24,8 +24,23 @@ pub struct WorktreeEntry {
 
 impl RepoHandle {
     pub fn worktrees(&self) -> Result<Vec<WorktreeEntry>> {
+        self.listed(true)
+    }
+
+    /// Branches read from each record's `HEAD`, as git reads them before it refuses a branch
+    /// held elsewhere: no status walk, no `dirty` and `has_submodules` (R-487).
+    pub fn worktree_heads(&self) -> Result<Vec<WorktreeEntry>> {
+        self.listed(false)
+    }
+
+    fn listed(&self, full: bool) -> Result<Vec<WorktreeEntry>> {
         let here = normalise(self.root());
-        let mut entries = vec![self.describe(self.main_root(), true, None, &here)];
+        let main = self.main_root();
+        let mut entries = vec![if full {
+            self.describe(main, true, None, &here)
+        } else {
+            self.outline(main, true, None, &here, self.repo.common_dir())
+        }];
 
         let linked = self
             .repo
@@ -39,7 +54,8 @@ impl RepoHandle {
                     .unwrap_or_default()
             });
             let mut entry = match proxy.base() {
-                Ok(path) => self.describe(path, false, locked, &here),
+                Ok(path) if full => self.describe(path, false, locked, &here),
+                Ok(path) => self.outline(path, false, locked, &here, proxy.git_dir()),
                 Err(_) => WorktreeEntry {
                     path: proxy.git_dir().display().to_string().replace('\\', "/"),
                     name: proxy.id().to_string(),
@@ -98,10 +114,23 @@ impl RepoHandle {
 
     /// The worktree holding this branch, unless it is the current one (T3.8).
     pub fn worktree_holding(&self, branch: &str) -> Result<Option<WorktreeEntry>> {
-        Ok(self
-            .worktrees()?
+        let Some(held) = self
+            .worktree_heads()?
             .into_iter()
-            .find(|entry| !entry.is_current && entry.branch.as_deref() == Some(branch)))
+            .find(|entry| !entry.is_current && entry.branch.as_deref() == Some(branch))
+        else {
+            return Ok(None);
+        };
+        if held.missing {
+            return Ok(Some(held));
+        }
+        let here = normalise(self.root());
+        let path = std::path::PathBuf::from(&held.path);
+        let mut entry = self.describe(path, held.is_main, held.locked.clone(), &here);
+        if entry.missing {
+            (entry.branch, entry.head) = (held.branch, held.head);
+        }
+        Ok(Some(entry))
     }
 
     pub fn add_worktree(&self, path: &str, branch: &str, create: bool) -> Result<()> {
@@ -224,7 +253,7 @@ impl RepoHandle {
     fn linked_handle(&self, path: &str) -> Result<RepoHandle> {
         let wanted = normalise(std::path::Path::new(path));
         if !self
-            .worktrees()?
+            .worktree_heads()?
             .iter()
             .any(|entry| entry.path == wanted && !entry.missing)
         {
@@ -248,6 +277,22 @@ impl RepoHandle {
         self.run_git(&["worktree", "prune"]).map(drop)
     }
 
+    /// See [`Self::worktree_heads`]; `record` is the git directory whose `HEAD` it reads.
+    fn outline(
+        &self,
+        path: std::path::PathBuf,
+        is_main: bool,
+        locked: Option<String>,
+        here: &str,
+        record: &std::path::Path,
+    ) -> WorktreeEntry {
+        let mut entry = unread(&path, is_main, locked, here);
+        if !entry.missing {
+            (entry.branch, entry.head) = self.recorded_head(record);
+        }
+        entry
+    }
+
     fn describe(
         &self,
         path: std::path::PathBuf,
@@ -255,29 +300,7 @@ impl RepoHandle {
         locked: Option<String>,
         here: &str,
     ) -> WorktreeEntry {
-        let shown = normalise(&path);
-        let mut entry = WorktreeEntry {
-            is_current: shown == here,
-            name: path
-                .file_name()
-                .map(|name| name.to_string_lossy().into_owned())
-                .unwrap_or_else(|| shown.clone()),
-            path: shown,
-            branch: None,
-            head: String::new(),
-            is_main,
-            locked,
-            // Git's own test for a linked one is its `.git` file: a folder left without it
-            // is prunable, and opening it would find the main repository around it.
-            missing: if is_main {
-                !path.is_dir()
-            } else {
-                !path.join(".git").exists()
-            },
-            dirty: false,
-            has_submodules: false,
-        };
-
+        let mut entry = unread(&path, is_main, locked, here);
         // Discovery would climb to whatever repository holds the parent folder.
         if entry.missing {
             return entry;
@@ -320,6 +343,36 @@ impl RepoHandle {
                     .join(".git")
                     .exists()
         })
+    }
+}
+
+fn unread(
+    path: &std::path::Path,
+    is_main: bool,
+    locked: Option<String>,
+    here: &str,
+) -> WorktreeEntry {
+    let shown = normalise(path);
+    WorktreeEntry {
+        is_current: shown == here,
+        name: path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_else(|| shown.clone()),
+        path: shown,
+        branch: None,
+        head: String::new(),
+        is_main,
+        locked,
+        // Git's own test for a linked one is its `.git` file: a folder left without it
+        // is prunable, and opening it would find the main repository around it.
+        missing: if is_main {
+            !path.is_dir()
+        } else {
+            !path.join(".git").exists()
+        },
+        dirty: false,
+        has_submodules: false,
     }
 }
 
