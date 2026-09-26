@@ -88,6 +88,7 @@
   import { desktop } from "$stores/desktop.svelte";
   import { groupChoices, parseRepoCommand, repoMenu } from "$lib/repo-menu";
   import { fetchAllTargets, type ListedRepo } from "$lib/repo-list";
+  import { rowSync } from "$lib/repo-sync";
   import { UNGROUPED } from "$lib/repo-groups";
   import { repoList } from "$stores/repo-list.svelte";
   import { compareUrl } from "$lib/compare-params";
@@ -2660,12 +2661,20 @@
   async function repoContext(row: ListedRepo, x: number, y: number) {
     const info = await desktop.load();
     repoTarget = { kind: "repository", root: row.root, overview: row.overview };
+    const active = row.overview !== null && repo?.repo.valueOf() === row.overview.repo.valueOf();
+    // What the row itself shows: a closed row knows it is missing only from its pulse.
+    const { missing } = rowSync({
+      overview: row.overview,
+      owned: active,
+      pulse: repoPulse.pulses.get(row.root),
+      fetchFailed: false,
+    });
     const items = repoMenu(
       {
         kind: "repository",
-        active: row.overview !== null && repo?.repo.valueOf() === row.overview.repo.valueOf(),
+        active,
         open: row.overview !== null,
-        missing: row.overview?.missing ?? false,
+        missing,
         pinned: row.pinned,
         group: repoGroups.groups.of[row.root] ?? UNGROUPED,
         groups: groupChoices(repoGroups.groups),
