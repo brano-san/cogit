@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  choosesRemote,
   customRefProblem,
   initialRemote,
   pushRefspec,
+  menuPush,
   pushTitle,
   pushUpTo,
+  tracksByDefault,
   splitUpstream,
   type PushSource,
 } from "./push-to";
@@ -36,6 +39,12 @@ describe("initialRemote", () => {
     expect(initialRemote({ ...tracked, upstream: "team/mirror/x" }, remotes, "origin")).toBe("team/mirror");
     expect(initialRemote(untracked, remotes, "origin")).toBe("origin");
     expect(initialRemote(untracked, [], null)).toBeNull();
+  });
+
+  // Push To… in the menu of a remote's heading in Branches opens on that remote.
+  it("opens on the remote it was asked from", () => {
+    expect(initialRemote({ ...tracked, remote: "team/mirror" }, remotes, "origin")).toBe("team/mirror");
+    expect(initialRemote({ ...tracked, remote: "gone" }, remotes, "origin")).toBe("origin");
   });
 });
 
@@ -95,5 +104,48 @@ describe("customRefProblem", () => {
 describe("pushTitle", () => {
   it("names the ref and the remote the way SmartGit does", () => {
     expect(pushTitle(tracked, "origin")).toBe("Push 'topic' to remote 'origin'");
+  });
+});
+
+// Push in a branch's menu sent refs/heads/x:refs/heads/x without --set-upstream: the
+// graph kept `x` and `origin/x` apart, since the branch still tracked nothing.
+describe("menuPush", () => {
+  it("makes a branch never pushed track what it becomes", () => {
+    expect(menuPush(untracked, ["origin"], "origin")).toEqual({
+      remote: "origin",
+      refspec: "refs/heads/topic:refs/heads/topic",
+      track: true,
+    });
+  });
+
+  it("leaves a tracking branch and a tag as they are", () => {
+    expect(menuPush(tracked, remotes, "origin")).toEqual({
+      remote: "origin",
+      refspec: "refs/heads/topic:refs/heads/feature/topic",
+      track: false,
+    });
+    expect(menuPush(tag, remotes, "origin")?.track).toBe(false);
+  });
+
+  it("has nowhere to push without a remote", () => {
+    expect(menuPush(untracked, [], null)).toBeNull();
+  });
+});
+
+describe("tracksByDefault", () => {
+  it("ticks Set Upstream in Push To only for a branch that tracks nothing yet", () => {
+    expect(tracksByDefault(untracked)).toBe(true);
+    expect(tracksByDefault(tracked)).toBe(false);
+    expect(tracksByDefault(tag)).toBe(false);
+  });
+});
+
+// Push of a branch never pushed went to origin whatever the other remotes were.
+describe("choosesRemote", () => {
+  it("asks where to publish a new branch when more than one remote could take it", () => {
+    expect(choosesRemote(untracked, remotes)).toBe(true);
+    expect(choosesRemote(untracked, ["origin"])).toBe(false);
+    expect(choosesRemote(tracked, remotes)).toBe(false);
+    expect(choosesRemote(tag, remotes)).toBe(false);
   });
 });

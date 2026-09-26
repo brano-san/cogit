@@ -115,6 +115,11 @@ export function remotePlan(steps: readonly ("pull" | "push")[], facts: RemoteFac
       plan.push({ kind: "push", remote });
       continue;
     }
+    // Nothing to merge: the backend fetches every remote in this one step (R-552).
+    if (facts.branch && facts.branch.upstream === null) {
+      plan.push({ kind: "pull", remote, ffOnly: facts.ffOnly });
+      continue;
+    }
     const problem = pullProblem(facts);
     if (problem) throw new Error(problem);
     const { fetch, pull } = pullSteps(facts.scope, facts.remotes, remote);

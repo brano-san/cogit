@@ -129,7 +129,7 @@ export const commands = {
 	renameTag: (repo: RepoId, from: string, to: string) => typedError<null, GitError>(__TAURI_INVOKE("rename_tag", { repo, from, to })),
 	renameStash: (repo: RepoId, index: number, message: string) => typedError<null, GitError>(__TAURI_INVOKE("rename_stash", { repo, index, message })),
 	editAuthor: (repo: RepoId, rev: string, name: string, email: string) => typedError<null, GitError>(__TAURI_INVOKE("edit_author", { repo, rev, name, email })),
-	pushTo: (repo: RepoId, remote: string, refspec: string, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("push_to", { repo, remote, refspec, onProgress })),
+	pushTo: (repo: RepoId, remote: string, refspec: string, track: boolean, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("push_to", { repo, remote, refspec, track, onProgress })),
 	remotes: (repo: RepoId) => typedError<string[], GitError>(__TAURI_INVOKE("remotes", { repo })),
 	fetch: (repo: RepoId, remote: string, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("fetch", { repo, remote, onProgress })),
 	pull: (repo: RepoId, remote: string, ffOnly: boolean, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("pull", { repo, remote, ffOnly, onProgress })),
@@ -139,6 +139,13 @@ export const commands = {
 	 *  there is nothing to stop. Off the main thread: stopping waits for `taskkill`.
 	 */
 	cancelNetwork: (operation: number) => typedError<boolean, GitError>(__TAURI_INVOKE("cancel_network", { operation })),
+	remoteInfo: (repo: RepoId, name: string) => typedError<RemoteInfo, GitError>(__TAURI_INVOKE("remote_info", { repo, name })),
+	renameRemote: (repo: RepoId, from: string, to: string) => typedError<null, GitError>(__TAURI_INVOKE("rename_remote", { repo, from, to })),
+	removeRemote: (repo: RepoId, name: string) => typedError<null, GitError>(__TAURI_INVOKE("remove_remote", { repo, name })),
+	setRemoteProperties: (repo: RepoId, name: string, url: string, backgroundFetch: boolean) => typedError<null, GitError>(__TAURI_INVOKE("set_remote_properties", { repo, name, url, backgroundFetch })),
+	/**  `false`: nothing new came from the remote. */
+	fetchMore: (repo: RepoId, remote: string, onProgress: Channel<string>) => typedError<boolean, GitError>(__TAURI_INVOKE("fetch_more", { repo, remote, onProgress })),
+	fetchDepth: (repo: RepoId, remote: string, depth: number, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("fetch_depth", { repo, remote, depth, onProgress })),
 	merge: (repo: RepoId, options: MergeOptions) => typedError<null, GitError>(__TAURI_INVOKE("merge", { repo, options })),
 	rebase: (repo: RepoId, options: RebaseOptions) => typedError<null, GitError>(__TAURI_INVOKE("rebase", { repo, options })),
 	skipOperation: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("skip_operation", { repo })),
@@ -1362,6 +1369,17 @@ origin: Origin } | { kind: "conflict"; base: string[]; ours: string[]; theirs: s
 export type RemoteDeletion = "deleted" | 
 /**  The server no longer had it; only the stale remote-tracking ref went. */
 "alreadyGone";
+
+export type RemoteInfo = {
+	name: string,
+	/**  `remote.<name>.url` as written, before `insteadOf`. */
+	url: string | null,
+	pushUrl: string | null,
+	/**  Whether the Repositories check asks this remote's server (R-554). */
+	backgroundFetch: boolean,
+	/**  The repository is a shallow clone, which Set Depth deepens. */
+	shallow: boolean,
+};
 
 /**
  *  What the renderer reports every ten seconds in a debug build.

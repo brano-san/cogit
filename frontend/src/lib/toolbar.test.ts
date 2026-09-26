@@ -171,12 +171,18 @@ describe("the rest", () => {
 
   // In a detached HEAD, mid-rebase or on a branch that tracks nothing every click on Pull,
   // Push or Sync ended in a git error: "You are not currently on a branch".
-  it("pulls and syncs only a branch that tracks a remote branch", () => {
+  it("pulls and syncs only on a branch", () => {
     for (const id of ["pull", "sync"]) {
       expect(reasonOf(id, facts({ remote: true })), id).toBe("HEAD is not on a branch");
-      expect(reasonOf(id, facts({ remote: true, branch: true })), id).toBe("The branch tracks no remote branch");
       expect(reasonOf(id, facts({ remote: true, branch: true, upstream: true })), id).toBeUndefined();
     }
+  });
+
+  // Was off on a branch that tracks nothing (FS-030). Pull there fetches every remote
+  // instead of failing (R-552); Sync would push as well, so it still wants an upstream.
+  it("pulls a branch that tracks nothing, and syncs only one that tracks", () => {
+    expect(reasonOf("pull", facts({ remote: true, branch: true }))).toBeUndefined();
+    expect(reasonOf("sync", facts({ remote: true, branch: true }))).toBe("The branch tracks no remote branch");
   });
 
   // A branch without upstream is pushed with --set-upstream (R-414); only a detached HEAD

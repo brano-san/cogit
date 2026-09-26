@@ -42,9 +42,10 @@ export async function pushTo(
   repo: RepoId,
   remote: string,
   refspec: string,
+  track: boolean,
   onLine: (line: string) => void,
 ) {
   const channel = new Channel<string>();
   channel.onmessage = onLine;
-  return unwrap(await commands.pushTo(repo, remote, refspec, channel));
+  return unwrap(await commands.pushTo(repo, remote, refspec, track, channel));
 }

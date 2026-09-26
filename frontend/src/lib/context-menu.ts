@@ -40,5 +40,11 @@ export function submenu(id: string, label: string, children: ContextItem[], enab
 
 export function refMenu(at: { kind: string }): ContextItem[] {
   if (at.kind !== "lost") return [];
-  return [item("restore-lost", "Create a branch here"), SEPARATOR, item("lost-copy-sha", "Copy the full SHA")];
+  return [
+    item("restore-lost", "Create a branch here"),
+    SEPARATOR,
+    item("lost-copy-sha", "Copy the full SHA"),
+    SEPARATOR,
+    item("lost-toggle", "Toggle"),
+  ];
 }

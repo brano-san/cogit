@@ -757,3 +757,45 @@ describe("tickStates", () => {
     expect(reads).toBeLessThanOrEqual(many.length);
   });
 });
+
+// A remote added and not fetched yet had no node: its heading came from its remote-tracking
+// branches, so `upstream` and its menu were nowhere in Branches.
+describe("a node for every remote", () => {
+  const origin = (name: string) => branch(`origin/${name}`, { kind: "remote", fullName: `refs/remotes/origin/${name}` });
+
+  it("lists a remote with no branches fetched yet, and names each heading's remote", () => {
+    const nodes = buildRefTree(input({ branches: [origin("main")], remotes: ["origin", "upstream"] }));
+    const groups = nodes.filter((node) => node.id.startsWith("remote-group:"));
+    expect(groups.map((node) => [node.label, node.remote])).toEqual([
+      ["origin (1)", "origin"],
+      ["upstream (0)", "upstream"],
+    ]);
+    expect(groups[1]?.children).toBeUndefined();
+  });
+
+  it("puts two remotes' branches of one name under their own headings", () => {
+    const upstream = branch("upstream/main", { kind: "remote", fullName: "refs/remotes/upstream/main" });
+    const nodes = buildRefTree(input({ branches: [origin("main"), upstream], remotes: ["origin", "upstream"] }));
+    const under = (remote: string) => {
+      const at = nodes.findIndex((node) => node.id === `remote-group:${remote}`);
+      return nodes[at + 1]?.id;
+    };
+    expect(under("origin")).toBe("remote:origin/main");
+    expect(under("upstream")).toBe("remote:upstream/main");
+  });
+
+  it("splits a branch at the longest remote name, which may hold a slash", () => {
+    const mirror = branch("team/mirror/main", { kind: "remote", fullName: "refs/remotes/team/mirror/main" });
+    const nodes = buildRefTree(input({ branches: [mirror], remotes: ["team", "team/mirror"] }));
+    const group = nodes.find((node) => node.id === "remote-group:team/mirror");
+    expect(group?.label).toBe("team/mirror (1)");
+    expect(nodes.find((node) => node.id === "remote:team/mirror/main")?.label).toBe("main");
+  });
+
+  it("keeps a filter from listing a remote with nothing that matches", () => {
+    const nodes = buildRefTree(
+      input({ branches: [origin("main")], remotes: ["origin", "upstream"], filter: "main" }),
+    );
+    expect(nodes.some((node) => node.id === "remote-group:upstream")).toBe(false);
+  });
+});

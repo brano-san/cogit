@@ -154,14 +154,20 @@ fn commands_that_write_the_repository_wait_for_its_lane() {
         "install_preset",
         "run_hook",
         "run_check",
+        "rename_remote",
+        "remove_remote",
+        "set_remote_properties",
     ];
     let all = all_commands();
     let unqueued: Vec<&str> = WRITERS
         .iter()
         .copied()
         .filter(|name| {
-            !all.iter()
-                .any(|command| command.name == *name && command.body.contains("mutating("))
+            !all.iter().any(|command| {
+                command.name == *name
+                    && (command.body.contains("mutating(")
+                        || command.body.contains("mutating_titled("))
+            })
         })
         .collect();
 
@@ -175,13 +181,20 @@ fn commands_that_write_the_repository_wait_for_its_lane() {
 #[test]
 fn every_command_that_talks_to_a_remote_can_be_cancelled() {
     let all = all_commands();
-    let uncancellable: Vec<&str> = ["fetch", "pull", "push", "push_to"]
-        .into_iter()
-        .filter(|name| {
-            !all.iter()
-                .any(|command| command.name == *name && command.body.contains("networking("))
-        })
-        .collect();
+    let uncancellable: Vec<&str> = [
+        "fetch",
+        "pull",
+        "push",
+        "push_to",
+        "fetch_more",
+        "fetch_depth",
+    ]
+    .into_iter()
+    .filter(|name| {
+        !all.iter()
+            .any(|command| command.name == *name && command.body.contains("networking("))
+    })
+    .collect();
     assert!(
         uncancellable.is_empty(),
         "cancel_network cannot stop these: {uncancellable:?}"
