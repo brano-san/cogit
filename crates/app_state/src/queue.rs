@@ -67,6 +67,8 @@ struct Lane {
 pub struct Queue {
     lanes: Mutex<HashMap<RepoId, Lane>>,
     next_id: AtomicU32,
+    /// A lane emptied; whoever waits for the whole queue looks again.
+    emptied: tokio::sync::Notify,
 }
 
 impl Queue {
@@ -120,6 +122,8 @@ impl Queue {
             lane.running = None;
         }
         lanes.remove(&repo);
+        drop(lanes);
+        self.emptied.notify_waiters();
     }
 
     /// Everything in flight, running first: what a panel that just opened has missed.
@@ -179,6 +183,19 @@ impl crate::AppState {
             0 => None,
             1 => Some("1 operation is still running".to_owned()),
             n => Some(format!("{n} operations are still running")),
+        }
+    }
+
+    /// Once nothing is queued or running. Registered before each look, so a lane that
+    /// empties between the look and the wait is not missed.
+    pub async fn until_idle(&self) {
+        loop {
+            let mut emptied = std::pin::pin!(self.queue.emptied.notified());
+            emptied.as_mut().enable();
+            if self.queue.snapshot().is_empty() {
+                return;
+            }
+            emptied.await;
         }
     }
 }
