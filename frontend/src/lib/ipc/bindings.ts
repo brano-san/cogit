@@ -1381,7 +1381,7 @@ export type RepoPulse = {
 	tracked: boolean,
 	ahead: number,
 	behind: number,
-	/**  Tracked files, staged changes, conflicts; untracked ones take a directory walk. */
+	/**  `!status().is_clean()`: what the row on screen says, or the dot follows the selection. */
 	dirty: boolean,
 };
 

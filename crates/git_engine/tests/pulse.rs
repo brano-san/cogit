@@ -1,8 +1,8 @@
 // clippy.toml's allow-unwrap-in-tests does not reach helpers beside `#[test]` fns.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-//! The light status of a row of the Repositories list (R-353): tracking from the local
-//! remote-tracking refs, changes from the index's stat data, nothing hashed.
+//! The status of a row of the Repositories list off screen (R-353): tracking from the local
+//! remote-tracking refs, changes as the full status counts them (R-540).
 
 use git_engine::{RepoHandle, pulse};
 
@@ -74,13 +74,65 @@ fn a_staged_change_is_a_change_even_with_the_worktree_matching_the_index() {
     assert!(pulse(f.path()).dirty);
 }
 
-// The cheap check cannot see these without walking the directories; the full status of
-// the repository on screen does.
+fn status_is_dirty(root: &std::path::Path) -> bool {
+    !RepoHandle::open_root(root)
+        .unwrap()
+        .status()
+        .unwrap()
+        .is_clean()
+}
+
+// The row on screen takes its dot from the full status, every other row from the pulse:
+// a repository with only an untracked file had the dot while selected and lost it when
+// the user went on to another one.
 #[test]
-fn an_untracked_file_is_not_looked_for() {
+fn an_untracked_file_is_a_change() {
     let f = test_fixtures::linear(2).unwrap();
     std::fs::write(f.path().join("new.txt"), "untracked\n").unwrap();
 
+    assert!(pulse(f.path()).dirty);
+    assert_eq!(pulse(f.path()).dirty, status_is_dirty(f.path()));
+}
+
+#[test]
+fn a_submodule_on_another_commit_is_a_change() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let inner = f.path().join("vendor/lib");
+    f.git_in(&inner, &["commit", "--allow-empty", "-m", "moved on"])
+        .unwrap();
+
+    assert!(pulse(f.path()).dirty);
+    assert_eq!(pulse(f.path()).dirty, status_is_dirty(f.path()));
+}
+
+#[test]
+fn a_submodule_with_an_edited_file_is_a_change() {
+    let f = test_fixtures::with_submodule().unwrap();
+    std::fs::write(f.path().join("vendor/lib/file0.txt"), "edited inside\n").unwrap();
+
+    assert_eq!(pulse(f.path()).dirty, status_is_dirty(f.path()));
+    assert!(pulse(f.path()).dirty);
+}
+
+// The other way round: the stat moved, the content did not. The status hashes the file and
+// calls it clean, so the dot must not appear only while the row is off screen.
+#[test]
+fn a_file_rewritten_with_the_same_content_is_not_a_change() {
+    let f = test_fixtures::linear(2).unwrap();
+    let path = f.path().join("file0.txt");
+    let before = std::fs::read(&path).unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(1100));
+    std::fs::write(&path, before).unwrap();
+
+    assert_eq!(pulse(f.path()).dirty, status_is_dirty(f.path()));
+    assert!(!pulse(f.path()).dirty);
+}
+
+#[test]
+fn a_clean_repository_with_a_submodule_is_clean() {
+    let f = test_fixtures::with_submodule().unwrap();
+
+    assert!(!status_is_dirty(f.path()));
     assert!(!pulse(f.path()).dirty);
 }
 
