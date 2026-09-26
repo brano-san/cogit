@@ -533,3 +533,85 @@ fn a_worktree_without_submodules_says_so_too() {
     let f = test_fixtures::with_worktree().unwrap();
     assert!(!linked(&f).has_submodules);
 }
+
+// Asked before every switch, so the list behind it reads no status (R-487); the one entry
+// it finds is still described in full.
+#[test]
+fn the_worktree_holding_a_branch_comes_with_its_changes() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let path = linked(&f).path;
+    std::fs::write(std::path::Path::new(&path).join("file0.txt"), "edited\n").unwrap();
+
+    let held = open(&f).worktree_holding("feature-wt").unwrap().unwrap();
+
+    assert_eq!(held.path, path);
+    assert!(held.dirty, "{held:?}");
+}
+
+#[test]
+fn a_branch_of_the_main_worktree_is_found_from_a_linked_one() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let from = RepoHandle::open(std::path::Path::new(&linked(&f).path)).unwrap();
+
+    let held = from.worktree_holding("main").unwrap().unwrap();
+
+    assert!(held.is_main, "{held:?}");
+    assert!(!held.missing, "{held:?}");
+}
+
+#[test]
+fn a_branch_of_a_missing_worktree_is_found_as_missing() {
+    let f = test_fixtures::with_worktree().unwrap();
+    std::fs::remove_dir_all(linked(&f).path).unwrap();
+
+    let held = open(&f).worktree_holding("feature-wt").unwrap().unwrap();
+
+    assert!(held.missing, "{held:?}");
+}
+
+#[test]
+fn the_list_without_changes_names_what_the_full_one_names() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let repo = open(&f);
+    let shape = |entries: Vec<git_engine::WorktreeEntry>| -> Vec<_> {
+        entries
+            .into_iter()
+            .map(|e| (e.path, e.branch, e.head, e.is_main, e.is_current, e.missing))
+            .collect()
+    };
+
+    assert_eq!(
+        shape(repo.worktree_heads().unwrap()),
+        shape(repo.worktrees().unwrap())
+    );
+    std::fs::remove_dir_all(linked(&f).path).unwrap();
+    assert_eq!(
+        shape(repo.worktree_heads().unwrap()),
+        shape(repo.worktrees().unwrap())
+    );
+}
+
+#[test]
+fn the_list_without_changes_reads_the_branch_of_a_bare_main_one() {
+    let bare = test_fixtures::bare().unwrap();
+    let place = tempfile::tempdir().unwrap();
+    let linked = place.path().join("wt");
+    bare.git(&[
+        "worktree",
+        "add",
+        "-q",
+        "-b",
+        "wtb",
+        &linked.to_string_lossy(),
+    ])
+    .unwrap();
+    let repo = RepoHandle::open(&linked).unwrap();
+    let branches = |entries: Vec<git_engine::WorktreeEntry>| -> Vec<_> {
+        entries.into_iter().map(|e| (e.is_main, e.branch)).collect()
+    };
+
+    assert_eq!(
+        branches(repo.worktree_heads().unwrap()),
+        branches(repo.worktrees().unwrap())
+    );
+}
