@@ -78,7 +78,8 @@ pub fn classify_git_path(relative: &str) -> Option<ChangeKind> {
     if normalized == "HEAD" || normalized == "ORIG_HEAD" {
         return Some(ChangeKind::Head);
     }
-    if normalized == "index" {
+    // A lock left behind by a git that died is a banner to show, and to drop once deleted.
+    if normalized == "index" || normalized == "index.lock" {
         return Some(ChangeKind::Index);
     }
     if normalized == "config" {
