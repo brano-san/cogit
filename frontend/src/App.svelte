@@ -184,7 +184,7 @@
   import { prompt } from "$stores/prompt.svelte";
   import { session } from "$stores/session.svelte";
   import { flow } from "$stores/flow.svelte";
-  import { droppedRepositories } from "$lib/drop-open";
+  import { droppedRepositories, openDropped } from "$lib/drop-open";
   import { connect } from "$lib/wiring";
   import { planFor } from "$lib/disk-change";
   import { DiskPasses } from "$lib/disk-refresh";
@@ -3120,7 +3120,12 @@
     else if (event.type === "leave") dropping = false;
     else if (event.type === "drop") {
       dropping = false;
-      void openDropped(droppedRepositories(event.paths));
+      void openDropped(droppedRepositories(event.paths), {
+        openInList: openRepository,
+        activate,
+        refreshList: () => repository.refreshList(),
+        report: (err, title) => errors.report(err, title),
+      });
     }
   }
 
@@ -3188,14 +3193,6 @@
     };
   }
 
-  async function openDropped(paths: string[]) {
-    for (const path of paths.slice(1)) {
-      await repository.open(path).catch((err) => errors.report(err, "Could not open the repository"));
-    }
-    const first = paths[0];
-    if (first) await activate(first);
-    else await repository.refreshList();
-  }
 
   $effect(() => {
     const pending = onMenuCommand((id) => {
