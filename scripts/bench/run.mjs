@@ -13,7 +13,7 @@ import { KEYS, sleep } from "./cdp.mjs";
 import { SCENARIOS } from "./scenarios.mjs";
 import { BUDGETS } from "./budgets.mjs";
 import { overBudget } from "./check.mjs";
-import { rebuild } from "./fixtures.mjs";
+import { NO_MACHINE_CONFIG, rebuild } from "./fixtures.mjs";
 
 const args = new Map();
 for (let i = 2; i < process.argv.length; i += 1) {
@@ -57,7 +57,7 @@ async function note(line) {
 // --- git, outside the clock ------------------------------------------------------------
 
 function git(argv, cwd) {
-  const r = spawnSync("git", argv, { cwd, encoding: "utf8", env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } });
+  const r = spawnSync("git", argv, { cwd, encoding: "utf8", env: { ...process.env, ...NO_MACHINE_CONFIG, GIT_TERMINAL_PROMPT: "0" } });
   if (r.status !== 0) throw new Error(`git ${argv.join(" ")} in ${cwd}: ${r.stderr}`);
   return r.stdout.trim();
 }

@@ -15,11 +15,18 @@ for (let i = 2; i < process.argv.length; i += 2) {
 export const ROOT = resolve(args.get("root") ?? "target/bench/repos");
 const ONLY = args.get("only")?.split(",");
 
+/** No system or global config: a global `core.autocrlf=true` would check the sets out in
+    CRLF. The file never exists, and git reads a missing one as empty. */
+export const NO_MACHINE_CONFIG = {
+  GIT_CONFIG_NOSYSTEM: "1",
+  GIT_CONFIG_GLOBAL: join(ROOT, "no-global-config"),
+};
+
 const ENV = {
   ...process.env,
+  ...NO_MACHINE_CONFIG,
   GIT_TERMINAL_PROMPT: "0",
   LC_ALL: "C",
-  GIT_CONFIG_NOSYSTEM: "1",
   GIT_AUTHOR_NAME: "Cogit Bench",
   GIT_AUTHOR_EMAIL: "bench@cogit.test",
   GIT_COMMITTER_NAME: "Cogit Bench",
@@ -260,6 +267,8 @@ const SETS = {
     }
     await git(["commit", "--quiet", "-m", "add submodules"], parent);
     await git(["-c", "protocol.file.allow=always", "submodule", "update", "--init", "--recursive", "--quiet"], parent);
+    // The app runs with the machine's config; each clone says what `init` says for the rest.
+    await git(["submodule", "foreach", "--recursive", "--quiet", "git config core.autocrlf false"], parent);
     await git(["checkout", "--quiet", "HEAD~1"], join(parent, "import", "leaf0"));
   },
 
@@ -286,10 +295,10 @@ const SETS = {
     for (const name of ["network", "network-pusher"]) {
       const dir = join(root, name);
       if (existsSync(dir)) await rm(dir, { recursive: true, force: true });
-      await git(["clone", "--quiet", remote, dir], root);
+      // `-c`, not a config afterwards: it is in place before the checkout.
+      await git(["clone", "--quiet", "-c", "core.autocrlf=false", remote, dir], root);
       await git(["config", "user.name", "Cogit Bench"], dir);
       await git(["config", "user.email", "bench@cogit.test"], dir);
-      await git(["config", "core.autocrlf", "false"], dir);
     }
   },
 };
