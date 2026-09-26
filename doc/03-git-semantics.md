@@ -54,8 +54,8 @@
 | Checkout ветки | `git switch <branch>` / `git checkout <ref>` |
 | Создать ветку | `git branch <name> [<start>]` |
 | Удалить ветку | `git branch -d` / `-D` |
-| Merge | `git merge <ref>` (`--no-ff`, `--squash`) |
-| Rebase | `git rebase` (`-i` через `GIT_SEQUENCE_EDITOR`) |
+| Merge | `git merge <ref>` (`--no-ff`, `--squash`). Ветка — коротким именем (его git пишет в сообщение), полным `refs/heads/…` или `refs/remotes/…`, если git раньше прочёл бы тег или локальную ветку с тем же именем (`branchRevision`) |
+| Rebase | `git rebase` (`-i` через `GIT_SEQUENCE_EDITOR`); ветка называется так же, как у Merge |
 | Cherry-pick / Revert | `git cherry-pick` / `git revert` |
 | Stash | `git stash push/apply/pop/drop/show` |
 | Fetch / Pull / Push | `git fetch --prune`; `git pull --prune` с `--ff-only` или `--no-rebase` — по Preferences ▸ Pull, явный выбор перекрывает `pull.rebase`; `git push` (`--force-with-lease`; у ветки без upstream — `--set-upstream <remote> HEAD`, R-414) |

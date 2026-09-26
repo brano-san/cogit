@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { moveEntry, planProblem, previewCount } from "./rebase-plan";
+import { moveEntry, planChanged, planProblem, previewCount } from "./rebase-plan";
 import type { TodoEntry } from "./ipc";
 
 const pick = (oid: string): TodoEntry => ({ oid, action: "pick", message: oid });
@@ -70,5 +70,20 @@ describe("previewCount", () => {
       pick("d"),
     ];
     expect(previewCount(plan)).toBe(2);
+  });
+});
+
+// A click beside Interactive Rebase threw away the reordered, reworded plan without a word.
+describe("planChanged", () => {
+  const plan: TodoEntry[] = [pick("a"), pick("b")];
+
+  it("is false for the plan as it came", () => {
+    expect(planChanged(plan, plan.map((entry) => ({ ...entry })))).toBe(false);
+  });
+
+  it("sees a move, a new action and a new message", () => {
+    expect(planChanged(plan, moveEntry(plan, 0, 1))).toBe(true);
+    expect(planChanged(plan, [{ ...pick("a"), action: "drop" }, pick("b")])).toBe(true);
+    expect(planChanged(plan, [{ ...pick("a"), action: "reword", message: "better" }, pick("b")])).toBe(true);
   });
 });

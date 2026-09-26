@@ -1,9 +1,11 @@
 <script lang="ts">
   import FileList from "$components/file-list/FileList.svelte";
   import { ContentSearch } from "$lib/content-search.svelte";
+  import { rowActionBlocked, type RowAction } from "$lib/file-menu";
   import { withUnchanged } from "$lib/file-switches";
   import { emptyText, filesPanelList } from "$lib/files-panel";
   import type { FileView } from "$lib/file-view";
+  import type { FileEntry } from "$lib/ipc";
   import { idleMessage } from "$lib/repo-phase";
   import { commit } from "$stores/commit.svelte";
   import { commitTree } from "$stores/commit-tree.svelte";
@@ -104,6 +106,9 @@
 
   $effect(() => oncount?.(shown.count));
 
+  /** A row button off where the Files menu has its item off (#40). */
+  const rowBlocked = (action: RowAction) => (file: FileEntry) => rowActionBlocked(action, file);
+
   /** Three different nothings, and the panel used to say the same thing for all of them. */
   const nothing = $derived(
     view !== "content"
@@ -187,10 +192,15 @@
           onselect: onopenworktree,
           actions: [
             { label: "Stage", title: "Stage", run: stage },
-            { label: "+x", title: "Stage only the mode change", run: stagemode },
-            { label: "Discard", title: "Discard changes", run: discard },
-            { label: "Ignore", title: "Add to .gitignore", run: ignore },
-            { label: "Delete", title: "Move to the Recycle Bin (the Trash off Windows)", run: remove },
+            { label: "+x", title: "Stage only the mode change", run: stagemode, blocked: rowBlocked("mode") },
+            { label: "Discard", title: "Discard changes", run: discard, blocked: rowBlocked("discard") },
+            { label: "Ignore", title: "Add to .gitignore", run: ignore, blocked: rowBlocked("ignore") },
+            {
+              label: "Delete",
+              title: "Move to the Recycle Bin (the Trash off Windows)",
+              run: remove,
+              blocked: rowBlocked("delete"),
+            },
           ],
         },
         {

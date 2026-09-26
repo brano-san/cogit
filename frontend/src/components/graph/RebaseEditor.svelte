@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { modalLayer, modals } from "$lib/modal-stack";
+  import { untrack } from "svelte";
   import { shortOid } from "$lib/format";
-  import { moveEntry, planProblem, previewCount } from "$lib/rebase-plan";
+  import { moveEntry, planChanged, planProblem, previewCount } from "$lib/rebase-plan";
   import { pointerDrag } from "$lib/pointer-drag";
   import Checkbox from "$components/common/Checkbox.svelte";
+  import Dialog from "$components/common/Dialog.svelte";
   import Select from "$components/common/Select.svelte";
   import type { TodoAction, TodoEntry } from "$lib/ipc";
 
@@ -24,8 +25,12 @@
 
   const ACTIONS: TodoAction[] = ["pick", "reword", "edit", "squash", "fixup", "drop"];
 
+  /** The plan as git wrote it, to tell a changed one from it. */
+  const initial = untrack(() => plan);
+
   const problem = $derived(planProblem(plan));
   const remaining = $derived(previewCount(plan));
+  const runnable = $derived(problem === null && !busy);
 
   /** The row an entry is being dragged over (R-450). */
   let over = $state<number | null>(null);
@@ -46,28 +51,19 @@
     onplan(moveEntry(plan, index, index + delta));
   }
 
-  /** A modal layer: Esc is its own only while nothing is open above it (R-451). */
-  const layer = modalLayer();
-
-  function onkeydown(event: KeyboardEvent) {
-    if (event.key === "Escape" && modals.isTop(layer) && !event.defaultPrevented) {
-      event.preventDefault();
-      onclose();
-    }
+  function run() {
+    if (runnable) onrun();
   }
 </script>
 
-<svelte:window {onkeydown} />
-
-<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div class="backdrop" onclick={onclose}></div>
-
-<div class="dialog" role="dialog" aria-label="Interactive rebase">
-  <header>
-    <h2>Rebase {plan.length} commits onto {shortOid(base)}</h2>
-    <button type="button" class="icon" onclick={onclose} aria-label="Close">✕</button>
-  </header>
-
+<Dialog
+  title="Rebase {plan.length} commits onto {shortOid(base)}"
+  {onclose}
+  onconfirm={run}
+  dirty={planChanged(initial, plan)}
+  width="min(720px, 92vw)"
+  flush
+>
   {#if published}
     <p class="danger">
       Some of these commits are already on a remote. Rebasing gives them new ids, so the
@@ -126,59 +122,20 @@
     {/each}
   </div>
 
-  <footer>
+  {#snippet footer()}
     <span class="preview">{remaining} commits will remain</span>
     <span class="pause">
       <Checkbox checked={paused} onchange={(checked) => onpaused(checked)} label="Pause after each commit" />
     </span>
-    {#if problem}<span class="problem">{problem}</span>{/if}
-    <button type="button" onclick={onclose}>Cancel</button>
-    <button type="button" class="primary" disabled={problem !== null || busy} onclick={onrun}>
+    <span class="problem">{problem ?? ""}</span>
+    <button type="button" class="btn" onclick={onclose}>Cancel</button>
+    <button type="button" class="btn primary" disabled={!runnable} onclick={run}>
       {busy ? "Rebasing…" : "Start Rebase"}
     </button>
-  </footer>
-</div>
+  {/snippet}
+</Dialog>
 
 <style>
-  .backdrop {
-    position: absolute;
-    inset: 0;
-    z-index: 20;
-    background: var(--scrim);
-  }
-
-  .dialog {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 21;
-    display: flex;
-    flex-direction: column;
-    width: min(720px, 92vw);
-    max-height: 82vh;
-    background: var(--surface-panel);
-    border: 1px solid var(--field-border);
-    border-radius: var(--r-md);
-    box-shadow: var(--shadow-popover);
-    overflow: hidden;
-  }
-
-  header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: var(--h-toolbar);
-    padding: 0 var(--sp-5);
-    border-bottom: 1px solid var(--divider);
-  }
-
-  h2 {
-    margin: 0;
-    font-size: var(--fs-ui);
-    font-weight: 600;
-  }
-
   .danger {
     margin: 0;
     padding: var(--sp-4) var(--sp-5);
@@ -240,24 +197,13 @@
     min-width: 0;
   }
 
-  input[type="text"] {
+  /* The shared dialog sizes text fields for a form row; here the field shares its row. */
+  .list .row input[type="text"] {
     flex: 1 1 auto;
+    width: auto;
     min-width: 0;
     height: 22px;
     padding: 0 var(--sp-3);
-    background: var(--surface-input);
-    color: var(--text-primary);
-    border: 1px solid var(--field-border);
-    border-radius: var(--r-sm);
-    font-size: var(--fs-dense);
-  }
-
-  footer {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-4);
-    padding: var(--sp-4) var(--sp-5);
-    border-top: 1px solid var(--divider);
   }
 
   .preview {
@@ -279,47 +225,23 @@
     font-size: var(--fs-header);
   }
 
-  footer > button:first-of-type {
-    margin-left: auto;
-  }
-
-  button {
-    height: var(--h-input);
-    padding: 0 var(--sp-5);
+  .nudge {
+    flex: 0 0 auto;
+    height: var(--h-button-sm);
+    padding: 0 var(--sp-3);
     background: var(--surface-raised);
     color: var(--text-primary);
     border: 1px solid var(--field-border);
     border-radius: var(--r-sm);
-    font-size: var(--fs-dense);
+    font-size: var(--fs-header);
     cursor: default;
   }
 
-  button:hover {
+  .nudge:hover:not(:disabled) {
     background: var(--state-hover);
   }
 
-  button.primary {
-    background: var(--status-ref);
-    color: var(--c-text-inverse);
-    border-color: transparent;
-  }
-
-  button.nudge {
-    flex: 0 0 auto;
-    height: var(--h-button-sm);
-    padding: 0 var(--sp-3);
-    font-size: var(--fs-header);
-  }
-
-  button:disabled {
+  .nudge:disabled {
     opacity: 0.4;
-  }
-
-  button.icon {
-    height: 22px;
-    padding: 0 var(--sp-3);
-    background: none;
-    border: 0;
-    color: var(--text-secondary);
   }
 </style>

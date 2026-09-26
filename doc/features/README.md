@@ -263,7 +263,7 @@
 | F-313 | Stash: диалог с тремя режимами и быстрые варианты | [F-313-stash-dialog-modes.md](F-313-stash-dialog-modes.md) |
 | F-314 | Кнопка Apply Stash | [F-314-apply-stash-button.md](F-314-apply-stash-button.md) |
 | F-315 | Настройка тулбара | [F-315-configure-toolbar.md](F-315-configure-toolbar.md) |
-| F-320 | Remote ▸ Synchronize | [F-320-remote-synchronize.md](F-320-remote-synchronize.md) |
+| F-320 | Remote ▸ Synchronise | [F-320-remote-synchronize.md](F-320-remote-synchronize.md) |
 | F-321 | Remote ▸ Submodule | [F-321-remote-submodule-menu.md](F-321-remote-submodule-menu.md) |
 | F-322 | Remote ▸ Subtree | [F-322-remote-subtree-menu.md](F-322-remote-subtree-menu.md) |
 | F-323 | Remote ▸ LFS | [F-323-remote-lfs-menu.md](F-323-remote-lfs-menu.md) |
@@ -332,3 +332,4 @@
 | F-521 | Update в меню строки submodule | [F-521-submodule-row-update.md](F-521-submodule-row-update.md) |
 | F-523 | Папки неактивных репозиториев не заняты | [F-523-inactive-repository-folders-free.md](F-523-inactive-repository-folders-free.md) |
 | F-524 | Меню кнопок тулбара в узком окне и с клавиатуры | [F-524-toolbar-menus-narrow-and-keys.md](F-524-toolbar-menus-narrow-and-keys.md) |
+| F-532 | Диалог с набранным текстом не закрывается молча | [F-532-dialog-keeps-typed-text.md](F-532-dialog-keeps-typed-text.md) |

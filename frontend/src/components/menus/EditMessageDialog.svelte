@@ -28,7 +28,7 @@
   });
 </script>
 
-<Dialog title="Edit Message of {shortOid(oid)}" {onclose} width="min(600px, 92vw)">
+<Dialog title="Edit Message of {shortOid(oid)}" {onclose} dirty={text.trim() !== message.trim()} width="min(600px, 92vw)">
   <textarea bind:this={field} bind:value={text} rows="10" aria-label="Commit message"></textarea>
 
   {#snippet footer()}

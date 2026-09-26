@@ -40,7 +40,7 @@
   }
 </script>
 
-<Dialog title="Index Editor — {path}" {onclose} width="min(1280px, 96vw)" height="min(720px, 90vh)">
+<Dialog title="Index Editor — {path}" {onclose} {dirty} width="min(1280px, 96vw)" height="min(720px, 90vh)">
   {#if sides.binary}
     <p class="binary">{path} is not a text file; the Index Editor edits text only.</p>
   {:else}

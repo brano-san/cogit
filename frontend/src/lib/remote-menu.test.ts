@@ -178,3 +178,14 @@ describe("track suggestion", () => {
     expect(trackSuggestion([])).toBe("");
   });
 });
+
+// Remote ▸ Synchronise in a detached HEAD ran and failed: "You are not currently on a branch".
+describe("Synchronise and the branch", () => {
+  it("says what the toolbar's Sync says once there is a remote", () => {
+    expect(reasons({ ...OPEN, syncBlocked: "HEAD is not on a branch" }).synchronize).toBe("HEAD is not on a branch");
+    expect(reasons({ ...OPEN, remote: false, syncBlocked: "HEAD is not on a branch" }).synchronize).toBe(
+      "This repository has no remote",
+    );
+    expect(reasons(OPEN).synchronize).toBeUndefined();
+  });
+});

@@ -19,6 +19,7 @@
   } from "$lib/file-view";
   import {
     actionScope,
+    scopeBlocked,
     afterDeselect,
     applyClick,
     EMPTY_SELECTION,
@@ -35,6 +36,8 @@
     label: string;
     title: string;
     run: (paths: string[]) => void;
+    /** Why it does not apply to one row's file (`rowActionBlocked`). */
+    blocked?: (file: FileEntry) => string | null;
   }
 
   interface Section {
@@ -196,11 +199,17 @@
 
   /** The rows marked in another section are not this section's to act on. */
   function scoped(group: Group, actions: readonly Action[]): PaneAction[] {
-    return actions.map((action) => ({
-      label: action.label,
-      title: action.title,
-      run: (request) => action.run(actionScope(marks.bySection.get(group.index) ?? NO_MARKS, request)),
-    }));
+    const marked = () => marks.bySection.get(group.index) ?? NO_MARKS;
+    const byPath = new Map(group.section.files.map((file) => [file.path, file]));
+    return actions.map((action) => {
+      const blocked = action.blocked;
+      return {
+        label: action.label,
+        title: action.title,
+        run: (request) => action.run(actionScope(marked(), request)),
+        ...(blocked ? { blocked: (file: FileEntry) => scopeBlocked(marked(), file.path, byPath, blocked) } : {}),
+      };
+    });
   }
 
   function clicked(group: Group, path: string, event: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) {

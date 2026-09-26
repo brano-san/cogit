@@ -152,6 +152,17 @@ describe("graphCommitMenu (#38)", () => {
     expect(find(graphCommitMenu({ ...older, detachedHere: true }), "Check Out").enabled).toBe(false);
     expect(find(graphCommitMenu(older), "Check Out").enabled).toBe(true);
   });
+
+  // Split on a commit already on origin/main went through "Split a Pushed Commit" and the
+  // dialog, and only then did the backend refuse it; the palette said why from the start.
+  it("disables Split of a commit a protected branch already has, naming the branch", () => {
+    for (const menu of [graphCommitMenu({ ...pushed, protectedBy: ["origin/main"] }), graphRefMenu(branch, { ...pushed, protectedBy: ["origin/main"] })]) {
+      const split = find(menu, "Split");
+      expect(split.enabled).toBe(false);
+      expect(split.label).toBe("Split (already on origin/main)");
+    }
+    expect(find(graphCommitMenu({ ...pushed, protectedBy: [] }), "Split").enabled).toBe(true);
+  });
 });
 
 describe("graphRefMenu (#39)", () => {
@@ -390,6 +401,12 @@ describe("commitFacts", () => {
     expect(facts.upstream).toBeNull();
   });
 
+  it("carries the protected branches that already have the commit", () => {
+    const head = { kind: "branch", name: "main", oid: "h" } as const;
+    expect(commitFacts({ ...base, oid: "x", head, protectedBy: ["origin/main"] }).protectedBy).toEqual(["origin/main"]);
+    expect(commitFacts({ ...base, oid: "x", head }).protectedBy).toEqual([]);
+  });
+
   it("has no HEAD commit in an unborn repository", () => {
     const facts = commitFacts({ ...base, oid: "x", head: { kind: "unborn", name: "main" } });
     expect(facts.isHeadCommit).toBe(false);
@@ -436,5 +453,29 @@ describe("names", () => {
   it("names the local branch a remote one checks out as", () => {
     expect(localNameOf("origin/feature/x", ["origin"])).toBe("feature/x");
     expect(localNameOf("team/mirror/main", ["origin", "team/mirror"])).toBe("main");
+  });
+});
+
+// Delete on a branch another worktree had checked out asked "Undo can bring it back", then
+// git refused: "cannot delete branch 'topic' used by worktree at …".
+describe("a branch checked out in another worktree", () => {
+  const held: RefTarget = { ...branch, worktree: "D:/work/topic" };
+
+  it("cannot be deleted, from Branches or from its graph label", () => {
+    for (const menu of [branchesBranchMenu(held, older, rows), graphRefMenu(held, older)]) {
+      const remove = find(menu, "Delete");
+      expect(remove.enabled).toBe(false);
+      expect(remove.label).toBe("Delete (checked out in a worktree)");
+    }
+    expect(find(branchesBranchMenu(branch, older, rows), "Delete").enabled).toBe(true);
+  });
+
+  it("is known by its graph label", () => {
+    const branches: Branch[] = [
+      { name: "topic", fullName: "refs/heads/topic", kind: "local", oid: "a", isHead: false, upstream: null, ahead: 0, behind: 0 },
+    ];
+    const marks = new Map([["topic", { path: "D:/work/topic" }]]);
+    expect(labelTarget({ text: "topic", kind: "local" }, branches, [], marks)?.ref.worktree).toBe("D:/work/topic");
+    expect(labelTarget({ text: "topic", kind: "local" }, branches, [])?.ref.worktree).toBeUndefined();
   });
 });

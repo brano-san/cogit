@@ -13,12 +13,17 @@ export interface CommitFacts {
   /** Where Push Up To sends HEAD's branch: its upstream, e.g. `origin/main`. */
   upstream: string | null;
   hasRemote: boolean;
+  /** Protected remote branches that already have the commit (`protecting_refs`): Split
+      refuses them. Asked only for the graph's menus. */
+  protectedBy?: readonly string[];
 }
 
 export interface RefTarget {
   kind: "branch" | "remote" | "tag";
   name: string;
   isHead: boolean;
+  /** The other worktree that has this local branch checked out: git will not delete it. */
+  worktree?: string;
 }
 
 export interface WorkingTreeCounts {
@@ -53,6 +58,12 @@ function replayBlocked(facts: CommitFacts): string | null {
   return facts.parents > 1 ? "a merge commit" : null;
 }
 
+/** Split refuses a commit a protected branch already has, as the palette says up front. */
+function splitBlocked(facts: CommitFacts): string | null {
+  const on = facts.protectedBy ?? [];
+  return rewriteBlocked(facts) ?? (on.length > 0 ? `already on ${on.join(", ")}` : null);
+}
+
 function commitActions(facts: CommitFacts, onRef: RefTarget | null): ContextItem[] {
   const current = onRef?.kind === "branch" && onRef.isHead ? "the current branch" : null;
   return [
@@ -62,7 +73,7 @@ function commitActions(facts: CommitFacts, onRef: RefTarget | null): ContextItem
     offer(id("rebase"), "Rebase", current ?? (facts.onHead ? IN_HEAD : null)),
     SEPARATOR,
     offer(id("modify"), "Modify", rewriteBlocked(facts)),
-    offer(id("split"), "Split", rewriteBlocked(facts)),
+    offer(id("split"), "Split", splitBlocked(facts)),
     offer(id("squash"), "Squash", squashBlocked(facts)),
     offer(id("edit-message"), "Edit Message", rewriteBlocked(facts)),
     offer(id("edit-author"), "Edit Author", rewriteBlocked(facts)),
@@ -112,6 +123,11 @@ function checkoutBlocked(ref: RefTarget, facts: CommitFacts): string | null {
   return null;
 }
 
+function deleteBlocked(ref: RefTarget): string | null {
+  if (ref.kind === "branch" && ref.isHead) return "checked out";
+  return ref.worktree ? "checked out in a worktree" : null;
+}
+
 function pushBlocked(ref: RefTarget, facts: CommitFacts): string | null {
   if (ref.kind === "remote") return "a remote branch";
   return facts.hasRemote ? null : "no remote";
@@ -126,7 +142,7 @@ export function graphRefMenu(ref: RefTarget, facts: CommitFacts): ContextItem[] 
     offer(id("push"), "Push", pushBlocked(ref, facts)),
     offer(id("push-to"), "Push To…", pushBlocked(ref, facts)),
     SEPARATOR,
-    offer(id("delete"), "Delete", ref.kind === "branch" && ref.isHead ? "checked out" : null),
+    offer(id("delete"), "Delete", deleteBlocked(ref)),
     offer(
       id("rename"),
       "Rename",
@@ -192,7 +208,7 @@ export function branchesBranchMenu(
     SEPARATOR,
     ...resetRows(at, facts),
     SEPARATOR,
-    offer(id("delete"), "Delete", ref.isHead ? "checked out" : null),
+    offer(id("delete"), "Delete", deleteBlocked(ref)),
     SEPARATOR,
     offer(id("copy-name"), "Copy", null),
     SEPARATOR,
@@ -264,6 +280,7 @@ export function commitFacts(input: {
   onHead: boolean;
   published: boolean;
   hasRemote: boolean;
+  protectedBy?: readonly string[];
 }): CommitFacts {
   const head = input.head;
   const headOid = head && head.kind !== "unborn" ? head.oid : null;
@@ -279,6 +296,7 @@ export function commitFacts(input: {
     parents: input.parents,
     upstream: headBranch?.upstream ?? null,
     hasRemote: input.hasRemote,
+    protectedBy: input.protectedBy ?? [],
   };
 }
 
@@ -288,6 +306,8 @@ export function labelTarget(
   label: { text: string; kind: "head" | "local" | "remote" | "tag" | "stash"; name?: string },
   branches: readonly Branch[],
   tags: readonly Tag[],
+  /** Local branches other worktrees have checked out, by name (`worktreeMarks`). */
+  held: ReadonlyMap<string, { path: string }> = new Map(),
 ): { ref: RefTarget; branch: Branch | null; tag: Tag | null } | null {
   if (label.kind === "tag") {
     const tag = tags.find((entry) => entry.name === label.text);
@@ -298,11 +318,9 @@ export function labelTarget(
   const name = label.name ?? label.text;
   const branch = branches.find((entry) => entry.kind === wanted && entry.name === name);
   if (!branch) return null;
-  return {
-    ref: { kind: wanted === "remote" ? "remote" : "branch", name: branch.name, isHead: branch.isHead },
-    branch,
-    tag: null,
-  };
+  const ref: RefTarget = { kind: wanted === "remote" ? "remote" : "branch", name: branch.name, isHead: branch.isHead };
+  const path = wanted === "local" ? held.get(branch.name)?.path : undefined;
+  return { ref: path ? { ...ref, worktree: path } : ref, branch, tag: null };
 }
 
 /** A tag row keeps its full ref in `rev`: the label may be only the part after a folder. */

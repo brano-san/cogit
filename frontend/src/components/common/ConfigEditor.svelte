@@ -27,7 +27,7 @@
   const changed = $derived(text !== file.text);
 </script>
 
-<Dialog {title} onclose={oncancel} width="min(860px, 94vw)" height="min(640px, 88vh)">
+<Dialog {title} onclose={oncancel} dirty={changed} width="min(860px, 94vw)" height="min(640px, 88vh)">
   <div class="config">
     <p class="path mono" title={file.path}>
       {file.path}{#if !file.exists}<span> — does not exist yet; Save creates it</span>{/if}

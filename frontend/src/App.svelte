@@ -64,7 +64,7 @@
   import { fileFormat, shortOid } from "$lib/format";
   import { checkedIds, disabledIds, type PaletteCommand } from "$lib/palette";
   import { reasonFor, type Context } from "$lib/availability";
-  import { reasonOf, refAt, splitMarked, targetsOf, type MenuContext, type ToolbarFacts } from "$lib/toolbar";
+  import { localRevision, reasonOf, refAt, splitMarked, targetsOf, type MenuContext, type ToolbarFacts } from "$lib/toolbar";
   import { currentRemote, headRemote, remotePlan, syncSteps, type SyncOrder } from "$lib/toolbar-prefs";
   import { toolbar } from "$stores/toolbar.svelte";
   import { stashDialog } from "$stores/stash-dialog.svelte";
@@ -77,6 +77,7 @@
   import RefActions from "$components/menus/RefActions.svelte";
   import { compareView } from "$stores/compare-view.svelte";
   import { confirmation } from "$stores/confirm.svelte";
+  import { ON_MAC, effective, withShortcuts } from "$lib/keymap";
   import { menuCommandRuns, modals } from "$lib/modal-stack";
   import { keyLetter } from "$lib/key-letter";
   import { commitBox } from "$stores/commit-box.svelte";
@@ -155,7 +156,6 @@
     type AppInfo,
     type Branch,
     type RepoId,
-    type Tag,
   } from "$lib/ipc";
   import { openBlame } from "$lib/blame-window";
   import { ShownRepository } from "$lib/shown-repository";
@@ -533,6 +533,7 @@
     commit: commit.oid,
     head: headOid,
     branch: repo?.head.kind === "branch",
+    upstream: Boolean(tracked?.upstream),
     merged: toolbar.merged,
     stashes: stashes.entries.length,
     undo: lastUndo !== null,
@@ -555,6 +556,9 @@
     repoSettings: () => (repoSettingsOpen = true),
   });
 
+  /** The palette shows each command's keys as the menu has them (11 §12, rule 5). */
+  const menuKeys = $derived(effective(settings.bindings, settings.keymap));
+
   const palette = $derived.by<PaletteCommand[]>(() => {
     const noRepo = reasonFor({ repository: true }, commands);
     const noRemote = reasonFor({ remote: true }, commands);
@@ -562,37 +566,33 @@
     return [
       { id: "open", title: "Open Repository…", run: () => void pickRepository() },
       { id: "fetch", title: "Fetch", unavailable: noRepo ?? noRemote, run: () => void runNetwork("fetch") },
-      { id: "pull", title: "Pull", unavailable: noRepo ?? noRemote, run: () => void pullNow() },
-      { id: "push", title: "Push", unavailable: noRepo ?? noRemote, run: () => void runNetwork("push") },
+      { id: "pull", title: "Pull", unavailable: reasonOf("pull", toolbarFacts), run: () => void pullNow() },
+      { id: "push", title: "Push", unavailable: reasonOf("push", toolbarFacts), run: () => void runNetwork("push") },
       {
         id: "stash",
         title: "Stash All",
-        shortcut: "Ctrl+S",
         synonyms: ["shelve"],
-        unavailable: noRepo,
+        unavailable: reasonOf("stash", toolbarFacts),
         run: stashAll,
       },
       {
         id: "stash-selection",
         title: "Stash Selection",
-        shortcut: "Ctrl+Alt+S",
         synonyms: ["shelve some"],
         // The ticks may be a commit's files now; only the working tree's can be stashed.
         unavailable: noRepo ?? reasonOf("stash-selection", toolbarFacts),
         run: () => void stashSelected(),
       },
-      { id: "tag", title: "Create Tag", shortcut: "Shift+F7", unavailable: noRepo, run: () => void refActions?.addTag(null) },
+      { id: "tag", title: "Create Tag", unavailable: reasonOf("tag", toolbarFacts), run: () => void refActions?.addTag(null) },
       {
         id: "stage",
         title: "Stage",
-        shortcut: "Ctrl+T",
         unavailable: reasonOf("stage", toolbarFacts),
         run: () => void stage(targetsOf("stage", toolbarFacts)),
       },
       {
         id: "unstage",
         title: "Unstage",
-        shortcut: "Ctrl+Shift+T",
         unavailable: reasonOf("unstage", toolbarFacts),
         run: () => void unstage(targetsOf("unstage", toolbarFacts)),
       },
@@ -600,21 +600,18 @@
       {
         id: "commit",
         title: "Commit Staged",
-        shortcut: "Ctrl+Enter",
         unavailable: noRepo,
         run: () => void commitBox.commit(),
       },
       {
         id: "commit-amend",
         title: "Commit with Amend",
-        shortcut: "Ctrl+Shift+Enter",
         unavailable: noRepo,
         run: () => void commitBox.commit(true),
       },
       {
         id: "commit-message",
         title: "Go to the Commit Message",
-        shortcut: "Ctrl+K",
         unavailable: noRepo,
         run: () => void commitBox.focus(),
       },
@@ -624,7 +621,7 @@
         unavailable: lastUndo ? undefined : "Nothing to undo",
         run: () => void undo(),
       },
-      { id: "output", title: "Toggle Output Panel", shortcut: "Ctrl+Shift+7", run: () => output.toggle() },
+      { id: "output", title: "Toggle Output Panel", run: () => output.toggle() },
       {
         id: "copy-path",
         title: "Copy the File Path",
@@ -640,14 +637,12 @@
       {
         id: "copy-sha",
         title: "Copy the Commit SHA",
-        shortcut: "Ctrl+Shift+Y",
         unavailable: commit.oid ? undefined : "Select a commit first",
         run: () => void copyText(commit.oid ?? ""),
       },
       {
         id: "rebase-i",
         title: "Rebase Commits After This One…",
-        shortcut: "Ctrl+Shift+R",
         synonyms: ["interactive rebase", "squash", "reorder"],
         unavailable: commit.oid ? undefined : "Select a commit first",
         run: () => void openRebase(),
@@ -694,15 +689,13 @@
       {
         id: "close",
         title: "Close Repository",
-        shortcut: "Ctrl+W",
         unavailable: noRepo,
         run: () => void closeCurrent(),
       },
-      { id: "refresh", title: "Refresh", shortcut: "F5", unavailable: noRepo, run: () => void repository.refresh() },
+      { id: "refresh", title: "Refresh", unavailable: noRepo, run: () => void repository.refresh() },
       {
         id: "branch",
         title: "New Branch…",
-        shortcut: "F7",
         unavailable: noRepo,
         run: () => void runBannerAction("createBranch"),
       },
@@ -746,7 +739,6 @@
       {
         id: "maximize-panel",
         title: "Maximise Panel",
-        shortcut: "Shift+F11",
         synonyms: ["zoom", "full screen panel"],
         run: () => layout.toggleMaximized(focused),
       },
@@ -785,7 +777,6 @@
       {
         id: "palette",
         title: "Find Command",
-        shortcut: "Ctrl+Shift+P",
         run: () => {
           if (commit.oid) void learnProtection(commit.oid);
           paletteOpen = true;
@@ -812,7 +803,6 @@
       {
         id: "exit",
         title: "Exit",
-        shortcut: "Alt+X",
         synonyms: ["quit", "close"],
         run: () => {
           // No window is being closed by hand, so the dialog must not say one is.
@@ -830,14 +820,12 @@
       {
         id: "settings",
         title: "Preferences",
-        shortcut: "Ctrl+,",
         synonyms: ["settings", "options", "customise toolbar", "toolbar buttons"],
         run: () => openSettings(),
       },
       {
         id: "find",
         title: "Find Object",
-        shortcut: "Ctrl+P",
         synonyms: ["goto", "jump"],
         unavailable: noRepo,
         run: () => (finderOpen = true),
@@ -871,7 +859,6 @@
       {
         id: "fetch-all",
         title: "Fetch All",
-        shortcut: "Ctrl+Alt+Shift+F",
         synonyms: ["update every repository"],
         unavailable: repository.openRepos.length > 0 ? undefined : "No repository is open",
         run: () => void fetchAll(),
@@ -894,7 +881,6 @@
       {
         id: "blame",
         title: "Blame This File",
-        shortcut: "Ctrl+Shift+L",
         unavailable: diff.path ? undefined : "No file is open in the Diff panel",
         run: () => void showBlame(),
       },
@@ -916,6 +902,7 @@
           }).choices.length,
           lfs: remoteOps.lfs,
           files: pickedFiles,
+          syncBlocked: reasonOf("sync", toolbarFacts),
         },
         remoteActions,
       ),
@@ -985,8 +972,10 @@
     if (modals.any) return;
 
     // F6 walks the panels. Ctrl+Tab is left to the window: the menu agent owns the
-    // accelerators, and browsers and hosts both claim that pair (issue 15).
+    // accelerators, and browsers and hosts both claim that pair (issue 15). A diff with the
+    // focus has already taken F6 for its next change, in the capture phase (11 §7).
     if (event.key === "F6") {
+      if (event.defaultPrevented) return;
       event.preventDefault();
       focused = step(focused, (panel) => layout.visible(panel), event.shiftKey ? -1 : 1);
       return;
@@ -1306,9 +1295,9 @@
 
   function activateRef(node: RefNode) {
     if (node.kind === "stash") void applyStash(Number(node.id.slice("stash:".length)), false);
-    else if (node.kind === "tag") {
-      if (node.tag) void checkoutTag(node.tag);
-    } else if (node.kind === "lost" && node.oid) {
+    // The menu's Check Out, question and all (doc/05 §3.3).
+    else if (node.kind === "tag" || node.kind === "remote") void refActions?.checkOutNode(node);
+    else if (node.kind === "lost" && node.oid) {
       const found = recovery.lost.find((row) => row.oid === node.oid);
       if (found) void recoverCommit(found);
     }
@@ -1537,7 +1526,7 @@
     if (!id || !oid) return;
     try {
       await mergeInto(id, {
-        source: refAt(oid, repo?.branches ?? []),
+        source: refAt(oid, repo?.branches ?? [], repo?.tags ?? []),
         noFastForward: false,
         squash: false,
         message: null,
@@ -1553,7 +1542,7 @@
     const oid = commit.oid;
     if (!id || !oid) return;
     try {
-      await rebaseOnto(id, { onto: refAt(oid, repo?.branches ?? []), autostash: true });
+      await rebaseOnto(id, { onto: refAt(oid, repo?.branches ?? [], repo?.tags ?? []), autostash: true });
     } catch (err) {
       errors.report(err, "Could not rebase");
     }
@@ -1629,18 +1618,6 @@
     if (!id) return;
     for (const remote of names) {
       await network.fetch(id, remote).catch((err) => errors.report(err, `Could not fetch ${remote}`));
-    }
-    await afterRefChange(id);
-  }
-
-  async function checkoutTag(tag: Tag) {
-    const id = repository.current?.repo;
-    if (!id) return;
-    try {
-      await checkout(id, { kind: "commit", oid: tag.oid });
-    } catch (err) {
-      errors.report(err, "Could not check out the tag");
-      return;
     }
     await afterRefChange(id);
   }
@@ -1918,19 +1895,20 @@
       if (!go) return;
     }
 
+    const revision = (name: string) => localRevision(name, repo?.branches ?? [], repo?.tags ?? []);
     try {
       if (action.id === "merge") {
         await mergeInto(id, {
-          source: menu.source.id,
+          source: revision(menu.source.id),
           noFastForward: false,
           squash: false,
           message: null,
         });
       } else if (action.id === "rebase") {
-        await rebaseOnto(id, { onto: menu.target.id, autostash: true });
+        await rebaseOnto(id, { onto: revision(menu.target.id), autostash: true });
       } else if (action.id === "fastForward") {
         await mergeInto(id, {
-          source: menu.source.id,
+          source: revision(menu.source.id),
           noFastForward: false,
           squash: false,
           message: null,
@@ -3020,11 +2998,13 @@
   });
 
   /** Closing throws away whatever is only in the window: an edited hook, a resolution
-      nobody wrote yet. Everything else is already on disk or in the draft store. */
+      nobody wrote yet, text typed in a dialog. Everything else is already on disk or in the
+      draft store. */
   function unsavedWork(): string | null {
     return unsavedSummary({
       hook: hooks.dirty ? hooks.editing : null,
       merge: conflicts.regions.length > 0 ? conflicts.path : null,
+      dialogs: modals.unsaved,
     });
   }
 
@@ -3592,6 +3572,7 @@
         onpointerdown={() => (focused = "diff")}>
         <Panel title="Diff" active={focused === "diff"} view={panelState} stale={stale.has("diff")}>
           <DiffPanel
+            active={focused === "diff"}
             oninitsubmodule={(path) => void initSubmoduleAt(path)}
             onstage={(selected, reverse) => void stageLines(selected, reverse)}
             onblame={() => void showBlame()}
@@ -3643,7 +3624,7 @@
 
   {#if paletteOpen}
     <CommandPalette
-      commands={palette}
+      commands={withShortcuts(palette, menuKeys, ON_MAC)}
       recent={recentCommands}
       onrun={runCommand}
       onclose={() => (paletteOpen = false)}

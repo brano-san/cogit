@@ -8,12 +8,15 @@
   import { compareLabel, parseCompare } from "$lib/compare-params";
   import { loadCompare } from "$lib/compare-window";
   import { diff } from "$stores/diff.svelte";
+  import { followSettings } from "$lib/settings-sync";
   import { settings } from "$stores/settings.svelte";
 
   const request = parseCompare(window.location.search);
 
   // No browser menu (R-127), and Esc / Ctrl+W close the window.
   $effect(() => installChildWindow(window));
+  // What Preferences changes in the main window reaches this one too (F-335).
+  $effect(() => followSettings(() => void settings.reload()));
 
   // Once, on opening: what the loads read must not make this effect run them again.
   $effect(() =>

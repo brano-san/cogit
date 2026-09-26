@@ -1,4 +1,5 @@
-import { readKey, writeKey } from "$lib/settings-file";
+import { forgetSettings, readKey, writeKey } from "$lib/settings-file";
+import { announceSettings } from "$lib/settings-sync";
 import { displayDate } from "$lib/format";
 import { setLaneWidth } from "$lib/graph-geometry";
 import { DEFAULT_DIFF_OPTIONS, type DiffOptions } from "$lib/ipc";
@@ -48,11 +49,18 @@ class SettingsStore {
     this.#apply();
   }
 
+  /** Another window wrote the file (`followSettings`): read it from disk, not the copy. */
+  async reload(): Promise<void> {
+    forgetSettings();
+    await this.load();
+  }
+
   async set<K extends keyof Settings>(key: K, value: Settings[K]): Promise<void> {
     this.current = merge({ ...this.current, [key]: value });
     this.#apply();
     try {
       await writeKey(KEY, this.current);
+      announceSettings();
     } catch {
       // Unsaved is still applied: the change lasts for this session, not past a restart.
     }
@@ -77,6 +85,7 @@ class SettingsStore {
     }
     try {
       await writeKey(KEYMAP_KEY, next);
+      announceSettings();
     } catch {
       // Unsaved is still applied for this session.
     }
@@ -88,6 +97,7 @@ class SettingsStore {
     this.#apply();
     try {
       await writeKey(KEY, this.current);
+      announceSettings();
     } catch {
       // Unsaved is still applied: the change lasts for this session, not past a restart.
     }

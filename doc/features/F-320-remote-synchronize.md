@@ -1,6 +1,6 @@
-# F-320 · Remote ▸ Synchronize
+# F-320 · Remote ▸ Synchronise
 
-`Remote ▸ Synchronize` (`Ctrl+Shift+S`) делает Pull, затем Push текущей ветки в основной remote
+`Remote ▸ Synchronise` (`Ctrl+Shift+S`) делает Pull, затем Push текущей ветки в основной remote
 (порядок меняет `Sync ▸ Push, then Pull` тулбара, R-224); если Pull не удался, Push не
 запускается. Проверить: ветка опережает и отстаёт на один коммит без конфликтов.
 
