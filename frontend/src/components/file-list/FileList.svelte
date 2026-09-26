@@ -77,8 +77,9 @@
     onmask?: (mask: string) => void;
     /** The paths each section shows once filtered, in the order of `sections`. */
     onshown?: (shown: string[][]) => void;
-    /** The ticked rows, for actions that live outside the list — stashing a selection. */
-    onmarked?: (paths: string[]) => void;
+    /** The ticked rows, for actions that live outside the list — stashing a selection —
+        and each titled section's own, since one path can be a row of two. */
+    onmarked?: (paths: string[], bySection: Record<string, string[]>) => void;
     /** Only the working tree is on disk to be searched inside. */
     contents?: ContentSearch;
     context?: ListContext;
@@ -132,12 +133,17 @@
   });
 
   $effect(() => {
-    onmarked?.(marks.paths);
+    const bySection: Record<string, string[]> = {};
+    for (const [index, paths] of marks.bySection) {
+      const title = sections[index]?.title;
+      if (title) bySection[title] = [...paths];
+    }
+    onmarked?.(marks.paths, bySection);
   });
 
   // The Files panel swaps one list for another; the ticks of the one that went must not
   // stay behind as the ticks of the one that came (a commit's menu acting on them).
-  $effect(() => () => onmarked?.([]));
+  $effect(() => () => onmarked?.([], {}));
 
   let shownBefore: string | null = null;
   $effect(() => {
