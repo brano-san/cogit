@@ -3,12 +3,15 @@
   import KindIcon from "$components/common/KindIcon.svelte";
   import { EMPTY_SELECTION, markRow, type FileSelection } from "$lib/multi-select";
   import { MISSING_REPOSITORY } from "$lib/repo-labels";
-  import { canPull, freshOverview, rowSync, syncTooltip, type RowSync } from "$lib/repo-sync";
+  import { canPull, freshOverview, moduleSync, rowSync, syncTooltip, type RowSync } from "$lib/repo-sync";
   import { repoPulse } from "$stores/repo-pulse.svelte";
+  import { repoMenuRow } from "$stores/menu-row.svelte";
   import {
-    describeModule,
     mayExpand,
+    moduleHint,
+    moduleRoot,
     moduleTooltip,
+    pulsedRoots,
     splitModulePath,
     type ModuleRow,
   } from "$lib/module-tree";
@@ -27,6 +30,7 @@
   import { worktrees } from "$stores/worktrees.svelte";
   import { pointerDrag } from "$lib/pointer-drag";
   import { TypeAhead, moveFocus } from "$lib/list-keys";
+  import { untrack } from "svelte";
 
   interface Props {
     /** Only the folder dialog changes the label; selecting a repository must not (R-35). */
@@ -94,9 +98,24 @@
     else repoGroups.collapse(group);
   }
 
-  const everyRoot = $derived(listedRepos(repository.openRepos, repoList.list).map((each) => each.root));
+  const everyListed = $derived(listedRepos(repository.openRepos, repoList.list));
+  const everyRoot = $derived(everyListed.map((each) => each.root));
+  const ownsTree = (entry: RepoOverview | null) =>
+    entry !== null && submodules.owner?.valueOf() === entry.repo.valueOf();
+  /** Every node showing in any tree has marks of its own, read by its folder (R-542). */
+  const moduleRoots = $derived(
+    everyListed.flatMap((each) =>
+      pulsedRoots(each.root, ownsTree(each.overview) ? submodules.rows : moduleForest.rows(each.root)),
+    ),
+  );
 
-  $effect(() => repoPulse.watch(everyRoot));
+  $effect(() => repoPulse.watch([...everyRoot, ...moduleRoots]));
+
+  $effect(() => {
+    void submodules.children;
+    const top = submodules.ownerRoot;
+    if (top !== null) untrack(() => repoPulse.again([top, ...pulsedRoots(top, submodules.rows)]));
+  });
 
   $effect(() => {
     void moduleForest.trees;
@@ -137,10 +156,10 @@
 
 <!-- Push and pull sit on the corners of the icon, as SmartGit draws them; the changes dot has
      a slot of its own in every row, so the names start on one line (R-353). -->
-{#snippet repoMarks(sync: RowSync)}
+{#snippet repoMarks(sync: RowSync, kind: "repository" | "submodule" = "repository")}
   {@const tip = syncTooltip(sync)}
   <span class="repo-icon">
-    <KindIcon kind="repository" title={tip || undefined} />
+    <KindIcon {kind} title={tip || undefined} />
     {#if sync.ahead > 0}
       <svg class="arrow push" viewBox="0 0 8 8" role="img" aria-label="Commits to push"
         ><path d="M4 7V1.5M1.5 4 4 1.5 6.5 4" /></svg
@@ -189,10 +208,19 @@
   {#each owned ? submodules.rows : moduleForest.rows(root) as node (node.key)}
     {@const parts = splitModulePath(node.path)}
     {@const folder = parts.dir.replace(/[/\\]$/, "")}
-    {@const where = describeModule(node.module)}
+    {@const hint = moduleHint(node.module)}
+    {@const nodeRoot = moduleRoot(root, node.key)}
+    {@const sync = moduleSync({
+      shown:
+        owned && submodules.open === node.key && worktrees.ownerRoot === null ? repository.current : null,
+      pulse: repoPulse.pulses.get(nodeRoot),
+      fetchFailed: repoPulse.unknown.has(nodeRoot),
+      remoteAhead: repoPulse.remoteAhead.has(nodeRoot),
+    })}
     <div
       class="row module {node.module.state}"
       class:selected={owned && submodules.open === node.key}
+      class:menu={repoMenuRow.key === nodeRoot}
       role="button"
       tabindex="0"
       data-key-row={node.key}
@@ -223,7 +251,7 @@
           toggle(node);
         }}
       />
-      <KindIcon kind="submodule" />
+      {@render repoMarks(sync, "submodule")}
       <span class="modpath shrink-last"
         >{#if folder}<span class="dir truncate shrink-first">{folder}/</span>{/if}<span
           class="modname truncate shrink-last">{parts.name}</span
@@ -232,10 +260,11 @@
       {#if repoStateTag(node.module.repoState, true)}
         <span class="op" title={STATE_TAG_HINT}>{repoStateTag(node.module.repoState, true)}</span>
       {/if}
-      {#if where}
-        <span class="where truncate shrink-first" title={moduleTooltip(node.module) || undefined}
-          >({where})</span
-        >
+      {#if hint.label}
+        <span class="hint" title={moduleTooltip(node.module) || undefined}>{hint.label}</span>
+      {/if}
+      {#if hint.where}
+        <span class="where truncate shrink-first" title={hint.where}>{hint.where}</span>
       {/if}
     </div>
   {/each}
@@ -342,6 +371,7 @@
         data-key-label={listed.name}
         style:padding-left="calc(var(--tree-base) + {row.depth} * var(--tree-step))"
         class:selected={active?.valueOf() === entry.repo.valueOf()}
+        class:menu={repoMenuRow.key === entry.root}
         class:holds-worktree={worktrees.ownerRoot === entry.root}
         class:marked={marked.paths.has(entry.root)}
         class:missing={entry.missing}
@@ -381,6 +411,7 @@
         {:else if listed}
           <div
             class="row closed"
+            class:menu={repoMenuRow.key === listed.root}
             data-drag={REPO_DRAG + listed.root}
             data-key-row={listed.root}
             data-key-label={listed.name}
@@ -432,6 +463,13 @@
     font-size: 11px;
   }
 
+  /* Whole and before the text that gives way: a long branch or subject cut it off (R-544). */
+  .row.module .hint {
+    flex: none;
+    color: var(--text-secondary);
+    font-size: 10px;
+  }
+
   /* Closed reads as dimmed, text and icon alike, with no word for it (R-351). */
   .row.closed {
     color: var(--text-secondary);
@@ -451,14 +489,14 @@
     box-shadow: inset 2px 0 0 var(--status-ref);
   }
 
-  .row.module.diverged .where,
-  .row.module.behind .where,
-  .row.module.notInitialised .where {
+  .row.module.diverged .hint,
+  .row.module.behind .hint,
+  .row.module.notInitialised .hint {
     color: var(--status-modify);
   }
 
   /* Ahead is work the user did and has only to record; not a warning colour. */
-  .row.module.ahead .where {
+  .row.module.ahead .hint {
     color: var(--status-add);
   }
 
@@ -531,6 +569,14 @@
     box-shadow: inset 2px 0 0 var(--status-ref);
   }
 
+  /* The row a context menu is open on: a ring inside the row, over any selection bar and
+     tint, so the menu reads as that row's without the selection moving (R-545). */
+  .row.menu {
+    background: var(--state-hover);
+    outline: 1px solid var(--state-focus-ring);
+    outline-offset: -1px;
+  }
+
   .group {
     display: flex;
     align-items: center;
@@ -584,43 +630,45 @@
     font-size: 10px;
   }
 
+  /* The arrows reach past the icon's right edge; the margin keeps them off the dot. */
   .repo-icon {
     position: relative;
     display: inline-flex;
     flex: none;
+    margin-right: 2px;
   }
 
   /* On the corners, with a halo of the panel colour, so they sit on the icon's edge
      without covering it. */
   .arrow {
     position: absolute;
-    right: -3px;
-    width: 7px;
-    height: 7px;
+    right: -5px;
+    width: var(--sync-arrow);
+    height: var(--sync-arrow);
     fill: none;
     stroke: currentColor;
     stroke-width: 1.6;
     stroke-linecap: round;
     stroke-linejoin: round;
-    filter: drop-shadow(0 0 1px var(--surface-panel));
+    filter: drop-shadow(0 0 1px var(--surface-panel)) drop-shadow(0 0 1px var(--surface-panel));
   }
 
   .arrow.push {
-    top: -2px;
+    top: -3px;
     color: var(--indicator-push);
   }
 
   .arrow.pull {
-    bottom: -2px;
+    bottom: -3px;
     color: var(--indicator-pull);
   }
 
   .arrow.unknown {
-    bottom: -3px;
+    bottom: -4px;
     width: auto;
     height: auto;
     color: var(--indicator-unknown);
-    font-size: 8px;
+    font-size: var(--sync-arrow);
     font-weight: 700;
     line-height: 1;
   }

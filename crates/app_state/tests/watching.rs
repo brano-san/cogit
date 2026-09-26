@@ -190,3 +190,29 @@ fn a_pulse_that_contradicts_the_row_of_a_repository_not_watched_retires_it() {
     let _ = state.overviews();
     assert_eq!(state.rows_read(), read, "a pulse that agrees keeps the row");
 }
+
+// The pulse counts what the status counts now (R-540), so a clean one retires a dirty row:
+// the untracked file the row saw was deleted in another program.
+#[test]
+fn a_clean_pulse_retires_a_dirty_row_of_a_repository_not_watched() {
+    let a = test_fixtures::linear(2).unwrap();
+    let b = test_fixtures::linear(1).unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(a.path()).unwrap().repo;
+    let other = state.open_repository(b.path()).unwrap().repo;
+    std::fs::write(a.path().join("scratch.txt"), "untracked\n").unwrap();
+    state.show_repository(Some(other));
+    let dirty = |state: &AppState| {
+        state
+            .overviews()
+            .into_iter()
+            .find(|row| row.repo == repo)
+            .is_some_and(|row| row.dirty)
+    };
+    assert!(dirty(&state));
+
+    std::fs::remove_file(a.path().join("scratch.txt")).unwrap();
+    assert!(!state.pulse(a.path()).dirty);
+
+    assert!(!dirty(&state), "the row follows the pulse");
+}

@@ -30,9 +30,40 @@ export function moduleKey(parent: string, path: string): string {
   return parent === "" ? path : `${parent}/${path}`;
 }
 
-/** The word after the row's position, only where it is exact (R-153). `unknown` means the
+/** A node's folder: its key is the path from the top repository down (R-149). */
+export function moduleRoot(top: string, key: string): string {
+  return `${top.replace(/[/\\]+$/, "")}/${key}`;
+}
+
+/** The folders whose pulse gives the nodes their marks; one not checked out has no
+    repository to read (R-542). */
+export function pulsedRoots(top: string, rows: readonly ModuleRow[]): string[] {
+  return rows.filter((row) => row.module.state !== "notInitialised").map((row) => moduleRoot(top, row.key));
+}
+
+export interface ShownPanels {
+  current: string | null;
+  moduleOwnerRoot: string | null;
+  /** Key of the submodule the panels show, from the tree's owner. */
+  openModule: string | null;
+  /** Owner of the worktree the panels show, which may be the submodule itself. */
+  worktreeOwnerRoot: string | null;
+}
+
+/** The row the panels show, named the way the list names it: a submodule by its node, not
+    by the root the backend spells its own way, or leaving it would read no pulse for it. */
+export function shownRowRoot(panels: ShownPanels): string | null {
+  const { current, moduleOwnerRoot, openModule, worktreeOwnerRoot } = panels;
+  if (current !== null && openModule !== null && moduleOwnerRoot !== null && worktreeOwnerRoot === null) {
+    return moduleRoot(moduleOwnerRoot, openModule);
+  }
+  return current;
+}
+
+/** The word for the row's position, only where it is exact (R-153). `unknown` means the
     recorded commit is not in the submodule — that much is exact (R-179). */
 const LABELS: Partial<Record<Submodule["state"], string>> = {
+  notInitialised: "not initialized",
   ahead: "ahead",
   behind: "behind",
   diverged: "diverged",
@@ -40,17 +71,23 @@ const LABELS: Partial<Record<Submodule["state"], string>> = {
   unrecorded: "not recorded",
 };
 
-/** Empty for a row of a light tree, which never looked inside the submodule (R-352). */
-export function describeModule(module: Submodule): string {
-  if (module.state === "notInitialised") return "not initialised";
-  if (module.state === "unread") return "";
+export interface ModuleHint {
+  /** Never cut: the row shows it whole, before the text it cuts (R-544). */
+  label: string | null;
+  /** The branch, or the commit and its subject; the part of the row that gives way. */
+  where: string;
+}
+
+/** Nothing for a row of a light tree, which never looked inside the submodule (R-352). */
+export function moduleHint(module: Submodule): ModuleHint {
+  const label = LABELS[module.state] ?? null;
+  if (module.state === "notInitialised" || module.state === "unread") return { label, where: "" };
   const where =
     module.branch ??
     (module.checkedOut
       ? `${shortOid(module.checkedOut)}${module.subject ? `: ${module.subject}` : ""}`
       : "no commit checked out");
-  const label = LABELS[module.state];
-  return label ? `${where} · ${label}` : where;
+  return { label, where };
 }
 
 function commits(count: number): string {

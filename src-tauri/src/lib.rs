@@ -78,6 +78,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::app_info,
             commands::open_third_party_licences,
             commands::open_repository,
+            commands::reread_repository,
             commands::load_commits,
             commands::graph_window,
             commands::graph_row_of,

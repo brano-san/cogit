@@ -57,3 +57,9 @@ export function forgetRoot(memory: ModuleMemory, root: string): ModuleMemory {
   delete nodes[root];
   return { open: memory.open.filter((each) => each !== root), nodes };
 }
+
+/** A repository just opened shows its submodules at once, one level: the nodes below keep
+    what was remembered of them (R-546). */
+export function withOpenedRepository(memory: ModuleMemory, root: string): ModuleMemory {
+  return withTop(memory, root, true);
+}

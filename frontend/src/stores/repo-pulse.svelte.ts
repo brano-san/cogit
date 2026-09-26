@@ -35,6 +35,7 @@ class RepoPulseStore {
 
   #busy: () => boolean = () => false;
   #owned: string | null = null;
+  #ownedMarks: RepoPulse | null = null;
   #seen = new Set<string>();
   #roots: readonly string[] = [];
   #timer: ReturnType<typeof setInterval> | null = null;
@@ -70,12 +71,15 @@ class RepoPulseStore {
     this.#busy = busy;
   }
 
-  /** The row the panels show reads its full status itself. The one they leave has had
-      no pulse while it was on screen, so it gets one — once the switch or close that left
-      it has settled, not inside it: the read cost `repo.close` 3–7 ms. */
-  setOwned(root: string | null): void {
+  /** The row the panels show reads its full status itself; `marks` is what they show of it
+      now. The one they leave has had no pulse while it was on screen, so it gets one — once
+      the switch or close that left it has settled, not inside it: the read cost
+      `repo.close` 3–7 ms. Until then it keeps the marks the panels last showed (R-542). */
+  setOwned(root: string | null, marks: RepoPulse | null = null): void {
     const left = this.#owned;
+    const leftMarks = this.#ownedMarks;
     this.#owned = root;
+    this.#ownedMarks = marks;
     // Kept, it would outlive what the panels do there and show once the row is let go.
     if (root !== null && this.pulses.has(root)) {
       const next = new Map(this.pulses);
@@ -83,6 +87,7 @@ class RepoPulseStore {
       this.pulses = next;
     }
     if (left === null || left === root || !this.#roots.includes(left)) return;
+    if (leftMarks) this.pulses = new Map([...this.pulses, [left, leftMarks]]);
     setTimeout(() => {
       if (left !== this.#owned && this.#roots.includes(left)) this.changed(left);
     }, LEFT_READ_DELAY_MS);
@@ -124,6 +129,14 @@ class RepoPulseStore {
     this.#queue.request(root, { first: true });
   }
 
+  /** The tree of the repository on screen was read again: its nodes have no watcher of their
+      own, so theirs and its top's pulses follow (R-542). */
+  again(roots: readonly string[]): void {
+    for (const root of roots) {
+      if (root !== this.#owned) this.#queue.request(root);
+    }
+  }
+
   /** Cogit fetched or pulled there: the tracking ref speaks for the server again. Its own
       network commands run quiet, so no watcher event says so. */
   fetched(root: string): void {
@@ -163,19 +176,19 @@ class RepoPulseStore {
     this.remoteAhead = next;
   }
 
+  /** The row and the nodes of its submodule tree, whose folders lie below it (R-542). */
   forget(root: string): void {
-    this.#queue.cancel(root);
-    this.#seen.delete(root);
-    this.#setAhead(root, false);
-    if (this.unknown.has(root)) {
-      const next = new Set(this.unknown);
-      next.delete(root);
-      this.unknown = next;
+    const gone = (each: string) => each === root || each.startsWith(`${root}/`);
+    for (const each of new Set([...this.#seen, ...this.pulses.keys(), ...this.unknown, ...this.remoteAhead])) {
+      if (!gone(each)) continue;
+      this.#queue.cancel(each);
+      this.#seen.delete(each);
+      this.#setAhead(each, false);
     }
-    if (!this.pulses.has(root)) return;
-    const next = new Map(this.pulses);
-    next.delete(root);
-    this.pulses = next;
+    if ([...this.unknown].some(gone)) this.unknown = new Set([...this.unknown].filter((each) => !gone(each)));
+    if ([...this.pulses.keys()].some(gone)) {
+      this.pulses = new Map([...this.pulses].filter(([each]) => !gone(each)));
+    }
   }
 
   /** `0` stops the background check. Every tick asks each row's server once, in list order. */

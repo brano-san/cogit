@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
-  describeModule,
+  moduleHint,
   moduleTooltip,
   mayExpand,
   moduleKey,
+  moduleRoot,
   moduleRows,
   moduleUpdate,
+  pulsedRoots,
+  shownRowRoot,
   splitModulePath,
   updateModule,
 } from "./module-tree";
@@ -61,57 +64,57 @@ describe("moduleKey", () => {
   });
 });
 
-describe("describeModule", () => {
+describe("moduleHint", () => {
   it("says which branch it is on when it is on one", () => {
-    expect(describeModule(mod("lib", { branch: "master" }))).toBe("master");
+    expect(moduleHint(mod("lib", { branch: "master" }))).toEqual({ label: null, where: "master" });
   });
 
   it("falls back to the commit it is on, shortened, with the subject", () => {
-    const text = describeModule(mod("lib", { subject: "Merge branch 'feature'" }));
-    expect(text).toBe("452e800: Merge branch 'feature'");
+    const { where } = moduleHint(mod("lib", { subject: "Merge branch 'feature'" }));
+    expect(where).toBe("452e800: Merge branch 'feature'");
   });
 
   // A light tree read only .gitmodules; "no commit checked out" would be a claim it cannot make.
   it("says nothing about a module of a light tree", () => {
-    expect(describeModule(mod("lib", { state: "unread", checkedOut: null }))).toBe("");
+    expect(moduleHint(mod("lib", { state: "unread", checkedOut: null }))).toEqual({ label: null, where: "" });
     expect(moduleTooltip(mod("lib", { state: "unread", checkedOut: null }))).toBe("");
   });
 
-  it("says a module has not been initialised rather than showing nothing", () => {
-    expect(describeModule(mod("lib", { state: "notInitialised" }))).toBe("not initialised");
-  });
-
-  it("calls out a module that is not on the commit its parent records", () => {
-    expect(describeModule(mod("lib", { state: "diverged", checkedOut: "aaaa1111" }))).toContain(
-      "diverged",
-    );
+  it("says a module has not been initialized rather than showing nothing", () => {
+    expect(moduleHint(mod("lib", { state: "notInitialised" }))).toEqual({ label: "not initialized", where: "" });
   });
 
   it("says something even for a module with nothing checked out", () => {
-    expect(describeModule(mod("lib", { checkedOut: null })).length).toBeGreaterThan(0);
+    expect(moduleHint(mod("lib", { checkedOut: null })).where.length).toBeGreaterThan(0);
   });
 
   // Requirement 6: three situations, three different things to do about them.
   it("labels a module ahead of, behind or apart from what the parent records", () => {
-    expect(describeModule(mod("lib", { state: "ahead", ahead: 2 }))).toContain("ahead");
-    expect(describeModule(mod("lib", { state: "behind", behind: 1 }))).toContain("behind");
-    expect(describeModule(mod("lib", { state: "diverged", ahead: 1, behind: 1 }))).toContain(
-      "diverged",
-    );
+    expect(moduleHint(mod("lib", { state: "ahead", ahead: 2 })).label).toBe("ahead");
+    expect(moduleHint(mod("lib", { state: "behind", behind: 1 })).label).toBe("behind");
+    expect(moduleHint(mod("lib", { state: "diverged", ahead: 1, behind: 1 })).label).toBe("diverged");
   });
 
   it("does not dress up a guess as a label when the recorded commit is missing", () => {
-    const text = describeModule(mod("lib", { state: "unknown" }));
-    expect(text).not.toMatch(/ahead|behind|diverged/);
+    const { label, where } = moduleHint(mod("lib", { state: "unknown" }));
+    expect(`${label} ${where}`).not.toMatch(/ahead|behind|diverged/);
   });
 
   // Comparing with a commit that is not here is impossible; that it is not here is a fact.
   it("says a module whose recorded commit is missing has not been fetched", () => {
-    expect(describeModule(mod("lib", { state: "unknown" }))).toMatch(/· not fetched$/);
+    expect(moduleHint(mod("lib", { state: "unknown" })).label).toBe("not fetched");
   });
 
-  it("puts nothing after the name when the module is where the parent says", () => {
-    expect(describeModule(mod("lib", { branch: "master" }))).toBe("master");
+  it("puts no label after the name when the module is where the parent says", () => {
+    expect(moduleHint(mod("lib", { branch: "master" })).label).toBeNull();
+  });
+
+  // Item 16 of 25.09: a long branch or subject pushed `behind` and `not initialized` past the
+  // edge of the panel, since both were one text cut on the right.
+  it("keeps the label apart from the text the row cuts", () => {
+    const long = "feature/a-branch-name-long-enough-to-fill-the-whole-panel-and-more";
+    const hint = moduleHint(mod("lib", { state: "behind", behind: 3, branch: long }));
+    expect(hint).toEqual({ label: "behind", where: long });
   });
 });
 
@@ -146,7 +149,7 @@ describe("moduleTooltip", () => {
 
   // GE-036: no gitlink anywhere is not a commit to fetch.
   it("tells a module nothing records apart from one not fetched", () => {
-    expect(describeModule(mod("lib", { state: "unrecorded" }))).toMatch(/· not recorded$/);
+    expect(moduleHint(mod("lib", { state: "unrecorded" })).label).toBe("not recorded");
     const tip = moduleTooltip(mod("lib", { state: "unrecorded" }));
     expect(tip).toMatch(/stage/i);
     expect(tip).not.toMatch(/fetch/i);
@@ -309,5 +312,47 @@ describe("updateModule", () => {
     const run = deps(true);
     expect(await updateModule(mod("lib"), run)).toBe(false);
     expect(run.calls).toEqual([]);
+  });
+});
+
+// Every node of every tree gets its own marks, read by its folder (item 10 of 25.09).
+describe("the folders the marks of a tree are read from", () => {
+  const rows = moduleRows(
+    new Map([
+      ["", [mod("vendor/lib"), mod("docs", { state: "notInitialised", checkedOut: null })]],
+      ["vendor/lib", [mod("deep/inner")]],
+    ]),
+    new Set(["vendor/lib"]),
+  );
+
+  it("are the top's folder joined with each key, nested ones included", () => {
+    expect(pulsedRoots("E:/w/app", rows)).toEqual(["E:/w/app/vendor/lib", "E:/w/app/vendor/lib/deep/inner"]);
+    expect(moduleRoot("E:/w/app/", "vendor/lib")).toBe("E:/w/app/vendor/lib");
+  });
+
+  it("leave out a module that is not checked out: there is no repository to read", () => {
+    expect(pulsedRoots("E:/w/app", rows)).not.toContain("E:/w/app/docs");
+  });
+});
+
+describe("the row the panels show", () => {
+  const panels = { current: "E:/w/app/vendor/lib", moduleOwnerRoot: "E:/w/app", openModule: "vendor/lib" };
+
+  // The backend spells the submodule's root its own way; the tree names it by key.
+  it("is the submodule node, named as the tree names it", () => {
+    expect(shownRowRoot({ ...panels, current: "E:\\w\\app\\vendor\\lib", worktreeOwnerRoot: null })).toBe(
+      "E:/w/app/vendor/lib",
+    );
+  });
+
+  it("is the repository itself when no submodule holds the panels", () => {
+    expect(shownRowRoot({ current: "E:/w/app", moduleOwnerRoot: "E:/w/app", openModule: null, worktreeOwnerRoot: null })).toBe(
+      "E:/w/app",
+    );
+    expect(shownRowRoot({ current: null, moduleOwnerRoot: null, openModule: null, worktreeOwnerRoot: null })).toBeNull();
+  });
+
+  it("is a worktree opened from the submodule, not the submodule", () => {
+    expect(shownRowRoot({ ...panels, current: "E:/w/lib-wt", worktreeOwnerRoot: "E:/w/app/vendor/lib" })).toBe("E:/w/lib-wt");
   });
 });

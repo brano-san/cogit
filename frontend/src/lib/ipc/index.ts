@@ -222,6 +222,11 @@ export async function openRepository(path: string) {
   return result.data;
 }
 
+/** The repository on screen read again by id: listed or not, it stays as it was (R-543). */
+export async function rereadRepository(repo: RepoId) {
+  return unwrap(await commands.rereadRepository(repo));
+}
+
 export const EMPTY_QUERY: CommitQuery = {
   author: null,
   message: null,
