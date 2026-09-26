@@ -1,7 +1,5 @@
 import type { FileEntry, FileStatus } from "$lib/ipc";
 
-export type SortKey = "status" | "name" | "path";
-
 const BADGES: Record<FileStatus, string> = {
   added: "A",
   modified: "M",
@@ -15,20 +13,6 @@ const BADGES: Record<FileStatus, string> = {
   assumeUnchanged: "≈",
   skipped: "⤳",
 };
-
-const STATUS_ORDER: FileStatus[] = [
-  "conflicted",
-  "added",
-  "modified",
-  "deleted",
-  "renamed",
-  "copied",
-  "untracked",
-  "assumeUnchanged",
-  "skipped",
-  "ignored",
-  "unchanged",
-];
 
 export function statusBadge(status: FileStatus): string {
   return BADGES[status];
@@ -77,19 +61,9 @@ export function matchesMask(path: string, mask: string): boolean {
   return globToRegExp(pattern).test(subject.toLowerCase());
 }
 
-export function sortFiles(files: readonly FileEntry[], key: SortKey): FileEntry[] {
-  const byPath = (a: FileEntry, b: FileEntry) => a.path.localeCompare(b.path);
-  const compare: Record<SortKey, (a: FileEntry, b: FileEntry) => number> = {
-    path: byPath,
-    name: (a, b) => fileName(a.path).localeCompare(fileName(b.path)) || byPath(a, b),
-    status: (a, b) => rank(a.status) - rank(b.status) || byPath(a, b),
-  };
-  return [...files].sort(compare[key]);
-}
-
-function rank(status: FileStatus): number {
-  const index = STATUS_ORDER.indexOf(status);
-  return index === -1 ? STATUS_ORDER.length : index;
+/** By path only: the sections of the list are what sorts by status (R-476). */
+export function sortFiles(files: readonly FileEntry[]): FileEntry[] {
+  return [...files].sort((a, b) => a.path.localeCompare(b.path));
 }
 
 export function globToRegExp(pattern: string): RegExp {
