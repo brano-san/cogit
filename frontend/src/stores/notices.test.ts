@@ -47,12 +47,17 @@ const goneWorktree = {
   foreign: false,
 } as const;
 
+/** Each call is a new open, and a reopened repository has a new id: a switch back to the
+    same id keeps what was put off (health.test.ts). */
+let opens = 0;
+
 async function warn(...issues: object[]) {
   commands.repositoryHealth.mockResolvedValue({
     status: "ok",
     data: issues.map((issue) => ({ module: "", issue })),
   });
-  await health.check(1 as never, "C:/repos/cogit", "cogit");
+  opens += 1;
+  await health.check(opens as never, "C:/repos/cogit", "cogit");
 }
 
 describe("the notification window", () => {
