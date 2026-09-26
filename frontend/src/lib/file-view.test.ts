@@ -3,6 +3,7 @@ import {
   DEFAULT_VIEW,
   backendView,
   groupByDirectory,
+  hiddenCount,
   hidingSwitches,
   mergeView,
   paneLayout,
@@ -100,6 +101,22 @@ describe("visibleFiles", () => {
   it("does not invent a source for a file that was not renamed", () => {
     const shown = visibleFiles([file("a.rs", "modified")], view({ renameSources: true }));
     expect(shown).toHaveLength(1);
+  });
+});
+
+describe("hiddenCount", () => {
+  const renames = [1, 2, 3].map((n) => file(`r${n}.rs`, "renamed", `old${n}.rs`));
+  const others = ["a", "b", "c"].map((name) => file(`hide/${name}.rs`, "modified"));
+  const keep = (entry: FileEntry) => !entry.path.startsWith("hide/");
+
+  // The sources of renames were counted as shown rows: three of them made up for three
+  // hidden files, and the badge went away.
+  it("counts the rows that came and are not shown, whatever sources were added", () => {
+    expect(hiddenCount([...renames, ...others], view({ renameSources: true }), keep)).toBe(3);
+  });
+
+  it("counts a row a switch hides", () => {
+    expect(hiddenCount([file("n.rs", "untracked")], view({ untracked: false }), () => true)).toBe(1);
   });
 });
 
