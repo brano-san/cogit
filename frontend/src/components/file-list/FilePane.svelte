@@ -1,10 +1,13 @@
 <script module lang="ts">
+  import type { FileEntry } from "$lib/ipc";
   import type { ActionRequest } from "$lib/multi-select";
 
   export interface PaneAction {
     label: string;
     title: string;
     run: (request: ActionRequest) => void;
+    /** Why the button does not apply to this row's file; it is then off and says so. */
+    blocked?: (file: FileEntry) => string | null;
   }
 </script>
 
@@ -14,7 +17,6 @@
   import KindIcon, { type Kind } from "$components/common/KindIcon.svelte";
   import VirtualList from "$components/common/VirtualList.svelte";
   import { fileName, statusBadge, statusLabel, statusTooltip } from "$lib/files";
-  import type { FileEntry } from "$lib/ipc";
   import type { ViewRow } from "$lib/file-view";
   import { LIST_ROW_HEIGHT } from "$lib/graph-geometry";
   import { TypeAhead, findTyped, listKey, pageRows, pressOf, typedChar } from "$lib/list-keys";
@@ -189,17 +191,20 @@
             {#if actions.length > 0}
               <span class="acts">
                 {#each actions as action (action.label)}
+                  {@const reason = action.blocked?.(file) ?? null}
                   <span
                     class="act"
+                    class:off={reason !== null}
                     role="button"
                     tabindex="-1"
-                    title={action.title}
+                    aria-disabled={reason !== null}
+                    title={reason ?? action.title}
                     onclick={(event) => {
                       event.stopPropagation();
-                      action.run({ row: file.path });
+                      if (reason === null) action.run({ row: file.path });
                     }}
                     onkeydown={(event) => {
-                      if (event.key === "Enter") action.run({ row: file.path });
+                      if (event.key === "Enter" && reason === null) action.run({ row: file.path });
                     }}>{action.label}</span
                   >
                 {/each}
@@ -338,8 +343,13 @@
     background: var(--state-selected);
   }
 
-  .act:hover {
+  .act:hover:not(.off) {
     color: var(--status-ref);
+  }
+
+  /* Off for this file, as its menu item is; the tip says why. */
+  .acts .act.off {
+    opacity: 0.4;
   }
 
   /* Dimmed: it is context for the name, not a thing to read on its own. */
