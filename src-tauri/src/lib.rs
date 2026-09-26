@@ -329,7 +329,7 @@ pub fn run() -> anyhow::Result<()> {
                 log_path,
                 config_dir: config_dir.clone(),
             });
-            app.manage(guard);
+            app.manage(logging::LogGuard::new(guard));
             app.manage(Arc::new(operations::Cancellations::default()));
 
             specta_builder.mount_events(app);
@@ -373,6 +373,9 @@ pub fn run() -> anyhow::Result<()> {
             if matches!(event, tauri::RunEvent::Exit) {
                 git_engine::children::stop_all();
                 tracing::info!(version = env!("CARGO_PKG_VERSION"), "cogit stopped");
+                if let Some(guard) = app.try_state::<logging::LogGuard>() {
+                    guard.finish();
+                }
             }
         });
 

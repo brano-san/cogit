@@ -3,6 +3,23 @@ use std::path::{Path, PathBuf};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::EnvFilter;
 
+/// The writer's guard, held until the last line of the run. `App::run` ends the process
+/// with `process::exit`, which drops no managed state: without an explicit `finish` the
+/// queue still waiting in the writer thread — `cogit stopped` among it — raced the exit.
+#[derive(Debug)]
+pub struct LogGuard(parking_lot::Mutex<Option<WorkerGuard>>);
+
+impl LogGuard {
+    pub fn new(guard: WorkerGuard) -> Self {
+        Self(parking_lot::Mutex::new(Some(guard)))
+    }
+
+    /// Flushes what is queued and waits for the writer; nothing logged after this is kept.
+    pub fn finish(&self) {
+        drop(self.0.lock().take());
+    }
+}
+
 /// A panic in a windowed process has nowhere to go: there is no console for stderr, and
 /// the non-blocking writer loses whatever it still holds when the process dies. Its own
 /// file, written and flushed inline, survives an abort.
