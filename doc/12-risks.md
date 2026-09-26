@@ -6825,3 +6825,27 @@ behavior per remote», там же). Проверка общая: `Preferences �
 стрелки pull у строки нет. Тесты — `the_background_check_is_switched_per_remote_and_follows_a_rename`
 (`crates/git_engine/tests/remotes.rs`), `a_remote_left_out_of_the_background_check_is_not_asked`
 (`crates/git_engine/tests/pull_probe.rs`).
+
+## R-555 · Меню узлов Branches: Toggle у каждого, у remote — десять пунктов и свой Pull · Н
+
+Меню было только у веток, тегов, stash-ей и потерянных коммитов; у HEAD, заголовков групп и
+папок — ничего (п. 19 списка 25.09).
+
+**Решение:** `Toggle` — у каждого узла. У заголовка и папки он делает то же, что щелчок по их
+тройному флажку (`toggleNode`, R-158): пусто или частично — отмечается всё внутри, полностью —
+снимается; счёт — по тем же строкам, что у флажка, с учётом фильтра. Неактивен с причиной, когда
+отмечать нечего (`remote (0)` — «nothing fetched from it yet»). `Local Branches` — `Add
+Branch…` на выбранном коммите, без него — на HEAD, без переключения (как `Add Branch` меню
+коммита); `Tags` — `Add Tag…`, тот же диалог, что в тулбаре. У заголовка remote — по списку
+задачи, с разделителями между группами: `Push To…` | `Pull`, `Fetch`, `Fetch More` | `Rename…`,
+`Delete` | `Copy URL` | `Set Depth…`, `Properties…` | `Toggle`. `Push To…` открывает диалог
+Push To текущей ветки с этим remote. `Pull` — pull ветки, если она отслеживает ветку этого
+remote; ветка без upstream — fetch этого remote (не всех, как Pull тулбара, R-552: пункт назван
+по remote); ветка отслеживает другой remote — неактивен, «main tracks origin/main»; отсоединённый
+HEAD — неактивен. `Rename…` проверяет имя по правилам ref (`refs/remotes/<имя>/…`) и занятость,
+последнее слово за git; отметки и раскрытые папки переезжают на новое имя
+(`refs.renameRemote`). `Delete` спрашивает, называя URL: Undo remote не вернёт, remote-ветки
+уходят с ним, сервер не трогается. Заголовок remote-веток, чьего remote в конфиге уже нет,
+оставляет только `Copy URL` и `Toggle`. Тесты — `ref-group-menus.test.ts`, `refs.test.ts`
+«carries ticks and folds over to a renamed remote», `context-menu.test.ts` (Toggle у потерянного
+коммита), `push-to.test.ts` «opens on the remote it was asked from».

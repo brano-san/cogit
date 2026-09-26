@@ -40,6 +40,12 @@ describe("initialRemote", () => {
     expect(initialRemote(untracked, remotes, "origin")).toBe("origin");
     expect(initialRemote(untracked, [], null)).toBeNull();
   });
+
+  // Push To… in the menu of a remote's heading in Branches opens on that remote.
+  it("opens on the remote it was asked from", () => {
+    expect(initialRemote({ ...tracked, remote: "team/mirror" }, remotes, "origin")).toBe("team/mirror");
+    expect(initialRemote({ ...tracked, remote: "gone" }, remotes, "origin")).toBe("origin");
+  });
 });
 
 describe("pushRefspec", () => {
