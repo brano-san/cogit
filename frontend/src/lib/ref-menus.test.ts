@@ -455,3 +455,27 @@ describe("names", () => {
     expect(localNameOf("team/mirror/main", ["origin", "team/mirror"])).toBe("main");
   });
 });
+
+// Delete on a branch another worktree had checked out asked "Undo can bring it back", then
+// git refused: "cannot delete branch 'topic' used by worktree at …".
+describe("a branch checked out in another worktree", () => {
+  const held: RefTarget = { ...branch, worktree: "D:/work/topic" };
+
+  it("cannot be deleted, from Branches or from its graph label", () => {
+    for (const menu of [branchesBranchMenu(held, older, rows), graphRefMenu(held, older)]) {
+      const remove = find(menu, "Delete");
+      expect(remove.enabled).toBe(false);
+      expect(remove.label).toBe("Delete (checked out in a worktree)");
+    }
+    expect(find(branchesBranchMenu(branch, older, rows), "Delete").enabled).toBe(true);
+  });
+
+  it("is known by its graph label", () => {
+    const branches: Branch[] = [
+      { name: "topic", fullName: "refs/heads/topic", kind: "local", oid: "a", isHead: false, upstream: null, ahead: 0, behind: 0 },
+    ];
+    const marks = new Map([["topic", { path: "D:/work/topic" }]]);
+    expect(labelTarget({ text: "topic", kind: "local" }, branches, [], marks)?.ref.worktree).toBe("D:/work/topic");
+    expect(labelTarget({ text: "topic", kind: "local" }, branches, [])?.ref.worktree).toBeUndefined();
+  });
+});

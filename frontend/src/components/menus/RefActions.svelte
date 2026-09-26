@@ -58,6 +58,7 @@
     type RefTarget,
   } from "$lib/ref-menus";
   import { checkoutPlan, nodeTarget, type NodeTarget } from "$lib/ref-checkout";
+  import { worktreeMarks } from "$lib/worktree-list";
   import { publishedOrAssume } from "$lib/published";
   import { resetChoice } from "$lib/reset-modes";
   import { baseBefore, fullMessage, modifyPlan, rewordPlan, squashPlan } from "$lib/rewrite-plans";
@@ -80,6 +81,7 @@
   import { stashView } from "$stores/stash-view.svelte";
   import { stashes } from "$stores/stashes.svelte";
   import { worktree } from "$stores/worktree.svelte";
+  import { worktrees } from "$stores/worktrees.svelte";
 
   /** The graph and Branches context menus (#33–#35, #37–#39) and their dialogs (#6,
       #28, Reset Advanced…). App keeps only the wiring: it hands over the right-click and
@@ -225,7 +227,8 @@
       await stashLabelContext(label.text, oid, x, y);
       return;
     }
-    const found = labelTarget(label, summary.branches, summary.tags);
+    const held = worktreeMarks(worktrees.entries, summary.branches);
+    const found = labelTarget(label, summary.branches, summary.tags, held);
     if (!found) return;
     const token = ++asked;
     try {
