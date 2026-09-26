@@ -198,6 +198,9 @@ selected        background: --state-selected
                 + ::before — полоса 2px слева цветом --status-ref
 focus-visible   outline: 1px solid --state-focus-ring; outline-offset: -1px — только у строки,
                 до которой дошли Tab, не выбрав её
+menu            строка, на которой открыто контекстное меню (Repositories): background
+                --state-hover + outline 1px --state-focus-ring, offset -1px, поверх выбора;
+                выбор не меняется (R-545)
 ```
 
 Список — одна остановка клавиатуры (класс `.key-list` в `app.css`, #27): фокус панели
