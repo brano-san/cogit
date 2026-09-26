@@ -2,11 +2,10 @@
   import { untrack } from "svelte";
   import DiffView from "$components/diff/DiffView.svelte";
   import ImageDiff from "$components/diff/ImageDiff.svelte";
-  import SubmoduleDiff from "$components/diff/SubmoduleDiff.svelte";
   import TooltipLayer from "$components/common/TooltipLayer.svelte";
   import { installChildWindow } from "$lib/child-window";
   import { compareLabel, parseCompare } from "$lib/compare-params";
-  import { loadCompare } from "$lib/compare-window";
+  import { firstParent, handOverModule, loadCompare } from "$lib/compare-window";
   import { diff } from "$stores/diff.svelte";
   import { followSettings } from "$lib/settings-sync";
   import { settings } from "$stores/settings.svelte";
@@ -26,11 +25,27 @@
     }),
   );
 
-  const sides = $derived(request ? compareLabel(request.spec) : "");
-  const title = $derived(request ? `${request.path} — ${sides}` : "Compare");
+  /** Unknown until read; the header names the commit meanwhile. */
+  let parent = $state<string | null | undefined>(undefined);
+  $effect(() =>
+    untrack(() => {
+      if (request) void firstParent(request).then((found) => (parent = found));
+    }),
+  );
+
+  const sides = $derived(request ? compareLabel(request.spec, parent) : null);
+  const title = $derived(request && sides ? `${request.path} — ${sides.text}` : "Compare");
 
   $effect(() => {
     document.title = `${title} — Cogit`;
+  });
+
+  // A submodule has nothing to compare line by line: the main window opens it (R-537).
+  let handedOver = false;
+  $effect(() => {
+    if (diff.diff?.kind !== "submodule" || !request || handedOver) return;
+    handedOver = true;
+    untrack(() => void handOverModule(request));
   });
 </script>
 
@@ -44,19 +59,13 @@
   {:else}
     <header>
       <span class="path truncate">{request.path}</span>
-      <span class="spec">{sides}</span>
+      <span class="spec" title={sides?.tip}>{sides?.text}</span>
     </header>
 
     {#if diff.error}
       <p class="note error">{diff.error.message}</p>
-    {:else if diff.diff?.kind === "submodule" && diff.shownPath}
-      <SubmoduleDiff
-        path={diff.shownPath}
-        recorded={diff.diff.recorded}
-        previous={diff.diff.previous}
-        checkedOut={diff.diff.checkedOut}
-        inIndex={diff.diff.inIndex}
-      />
+    {:else if diff.diff?.kind === "submodule"}
+      <p class="note">{request.path} is a submodule: it opens in the main window.</p>
     {:else if diff.diff?.kind === "image"}
       <ImageDiff
         before={diff.images[0]}
@@ -70,6 +79,7 @@
         diff={diff.diff}
         path={diff.shownPath}
         stageable={false}
+        showPath={false}
         onstage={() => {}}
         whitespace={diff.whitespace}
         onwhitespace={(mode) => void diff.setWhitespace(request.repo, mode)}

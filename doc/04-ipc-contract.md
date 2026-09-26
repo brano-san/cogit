@@ -373,7 +373,12 @@ author, email, timestamp, path, diff }`, новые сверху. `path` — и�
 
 `FileDiff` — размеченное объединение по полю `kind`: `text`, `eolOnly`, `binary`,
 `image`, `tooLarge`, `unchanged`, `modeOnly`, `emptyFile`, `whitespaceOnly`, `submodule`,
-`folder`. Байты сторон равны, а файл в списке изменён: `modeOnly { oldMode, newMode }` —
+`folder`. `binary { old, new, cause }` и `tooLarge { old, new, limit }` — сводка вместо строк:
+`old`/`new` — `BlobSide { size, id }` или `null`, где файла на стороне нет; `id` — id объекта
+(у рабочего файла — как `git hash-object`), `null`, если рабочий файл больше 20 МиБ; `cause` —
+`attribute { name }` (`binary`, `-diff`) или `character { code, line, position, side }` — первый
+управляющий символ, которого не бывает в тексте; `limit` — предел в байтах, от которого сторона
+слишком велика ([R-531](12-risks.md)). Байты сторон равны, а файл в списке изменён: `modeOnly { oldMode, newMode }` —
 сменился только режим (`100644` → `100755`, как пишет git; рабочее дерево берёт бит с диска,
 только где его хранит файловая система и включён `core.fileMode`), `emptyFile { added }` —
 пустой файл добавлен или удалён; `unchanged` остаётся для действительно неизменённого. `submodule {
@@ -386,7 +391,10 @@ repository }` — папка в рабочем дереве, в которой G
 стороне). Вариант `text` несёт ханки, сведения об окончаниях
 строк, флаг `lossyEncoding`, подсказку грамматики для Lezer и `oldTotal`/`newTotal` —
 число строк каждой стороны: по ним панель знает, сколько строк скрыто под последним ханком
-(#16, R-271).
+(#16, R-271). `oldText`/`newText` — сторона целиком, как её цитируют строки (декодирована
+так же, окончания LF), для подсветки: только для языка, у которого на фронтенде есть парсер
+Lezer (`diff_engine::highlighted`), и стороны не длиннее `MAX_HIGHLIGHT_LINES` (5000) строк,
+иначе `null` ([R-530](12-risks.md)).
 
 `DiffOptions` — `algorithm`, `contextLines`, `ignoreWhitespace`,
 `wordDiff`, `detectMoves`. Значения приходят из настроек (F-078); `detectMoves`
@@ -749,6 +757,7 @@ expanded }` — какие из
 | `operation-changed` | `{ id, repo, kind, label, phase, success }` | Операция встала в очередь, началась или закончилась |
 | `session-ending` | `{ reason: String }` | Windows хочет завершить сеанс, а в очереди есть операции; сеанс удержан (R-168) |
 | `cogit://settings-changed` | `String` — метка окна-автора | Окно записало настройки (`settings.set`, `apply`, `setKeymap`): дочерние окна перечитывают файл (`followSettings`), тема и формат даты меняются без переоткрытия. Шлёт и слушает сама страница (`lib/settings-sync.ts`); в Rust не объявлено ([R-518](12-risks.md)) |
+| `cogit://open-module` | `{ repo, path }` — репозиторий и путь submodule в нём | Окно сравнения открыли на submodule: главное окно делает его активным, как щелчок в Repositories (`onOpenModule`), окно сравнения закрывается. Шлёт и слушает страница (`lib/module-open.ts`); в Rust не объявлено ([R-537](12-risks.md)) |
 
 ### Очередь операций
 

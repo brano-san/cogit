@@ -270,6 +270,17 @@ export const CATEGORIES: Category[] = [
           { key: "contextLines", label: "Context lines", keywords: ["surrounding"] },
         ],
       },
+      {
+        title: "Side by side",
+        fields: [
+          {
+            key: "diffSplit",
+            label: "Width of the old side",
+            hint: "The divider between the two columns sets it too.",
+            keywords: ["split", "columns", "divider", "left", "right"],
+          },
+        ],
+      },
     ],
   },
   {

@@ -11,6 +11,28 @@ pub fn merge_grammar_for_path(path: &str) -> Option<&'static str> {
     })
 }
 
+/// Past this many lines the frontend does not parse a side whole. Must match
+/// `MAX_HIGHLIGHT_LINES` in `frontend/src/lib/highlight.ts`.
+pub const MAX_HIGHLIGHT_LINES: u32 = 5000;
+
+/// The languages `frontend/src/lib/highlight.ts` has a Lezer parser for (`PARSERS`).
+#[must_use]
+pub fn highlighted(language: &str) -> bool {
+    matches!(
+        language,
+        "c" | "cpp"
+            | "css"
+            | "html"
+            | "javascript"
+            | "json"
+            | "python"
+            | "rust"
+            | "typescript"
+            | "jsx"
+            | "tsx"
+    )
+}
+
 /// Lezer grammar name for a path. Highlighting itself is a frontend concern (INV-01). JSX
 /// has names of its own: without the dialect a closing tag reads as a regular expression.
 #[must_use]

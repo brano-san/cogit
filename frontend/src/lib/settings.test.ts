@@ -32,6 +32,13 @@ describe("merge", () => {
     expect(merge({ contextLines: 9999 }).contextLines).toBe(50);
   });
 
+  it("keeps the diff columns side by side at an even split, and neither one squeezed out", () => {
+    expect(merge({}).diffSplit).toBe(0.5);
+    expect(merge({ diffSplit: 0.35 }).diffSplit).toBe(0.35);
+    expect(merge({ diffSplit: 0 }).diffSplit).toBe(0.2);
+    expect(merge({ diffSplit: 3 }).diffSplit).toBe(0.8);
+  });
+
   it("clamps the lane width to something drawable", () => {
     expect(merge({ laneWidth: 1 }).laneWidth).toBeGreaterThanOrEqual(8);
     expect(merge({ laneWidth: 500 }).laneWidth).toBeLessThanOrEqual(48);

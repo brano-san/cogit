@@ -224,21 +224,36 @@ describe("connectors between the two columns", () => {
     const rows = [ctx(), { left: cell("delete"), right: cell("insert") }, ctx()];
 
     expect(connectors(rows)).toEqual([
-      { fromTop: 1, fromBottom: 1, toTop: 1, toBottom: 1, moved: false },
+      { fromTop: 1, fromBottom: 1, toTop: 1, toBottom: 1, moved: false, kind: "change" },
     ]);
   });
 
-  it("treats consecutive changed rows as one connector", () => {
+  it("treats consecutive changed rows of one kind as one connector", () => {
     const rows = [
       ctx(),
-      { left: cell("delete"), right: cell("insert") },
       { left: cell("delete"), right: null },
       { left: cell("delete"), right: null },
       ctx(),
     ];
 
     expect(connectors(rows)).toEqual([
-      { fromTop: 1, fromBottom: 3, toTop: 1, toBottom: 3, moved: false },
+      { fromTop: 1, fromBottom: 2, toTop: 1, toBottom: 2, moved: false, kind: "delete" },
+    ]);
+  });
+
+  // A deleted line was red up to the band and green across it (R-532).
+  it("fills each run by what faces what: a deletion stays red to the far edge", () => {
+    const rows = [
+      { left: cell("delete"), right: cell("insert") },
+      { left: cell("delete"), right: null },
+      { left: cell("delete"), right: null },
+      { left: null, right: cell("insert") },
+    ];
+
+    expect(connectors(rows)).toEqual([
+      { fromTop: 0, fromBottom: 0, toTop: 0, toBottom: 0, moved: false, kind: "change" },
+      { fromTop: 1, fromBottom: 2, toTop: 1, toBottom: 2, moved: false, kind: "delete" },
+      { fromTop: 3, fromBottom: 3, toTop: 3, toBottom: 3, moved: false, kind: "insert" },
     ]);
   });
 
@@ -263,7 +278,7 @@ describe("connectors between the two columns", () => {
     ];
 
     expect(connectors(rows)).toEqual([
-      { fromTop: 0, fromBottom: 1, toTop: 4, toBottom: 5, moved: true },
+      { fromTop: 0, fromBottom: 1, toTop: 4, toBottom: 5, moved: true, kind: "change" },
     ]);
   });
 
@@ -285,7 +300,7 @@ describe("connectors between the two columns", () => {
     const rows = [{ left: cell("delete", 3), right: null }, ctx()];
 
     expect(connectors(rows)).toEqual([
-      { fromTop: 0, fromBottom: 0, toTop: 0, toBottom: 0, moved: false },
+      { fromTop: 0, fromBottom: 0, toTop: 0, toBottom: 0, moved: false, kind: "delete" },
     ]);
   });
 

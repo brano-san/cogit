@@ -477,7 +477,7 @@ fn a_file_too_large_to_show_is_summarised_without_being_read() {
         .unwrap();
 
     assert!(
-        matches!(diff, FileDiff::TooLarge { size } if size == 32 * 1024 * 1024),
+        matches!(&diff, FileDiff::TooLarge { old: None, new: Some(side), .. } if side.size == 32 * 1024 * 1024),
         "{diff:?}"
     );
 }

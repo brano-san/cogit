@@ -121,6 +121,7 @@ Checkout, Merge, Rebase, Cherry-Pick, Revert и Undo аккордов не им�
 | `Shift+F6` | `diff`, `merge-window` | Предыдущее изменение |
 | `Ctrl+Shift+D` | `global` | Переключить Side-by-Side / Unified |
 | `Ctrl+F` | `diff` | Поиск в diff |
+| `←` / `→`, `Home` | разделитель колонок Side-by-Side в фокусе | Сдвинуть на 2 % / поровну (R-535) |
 
 Клавиши области `diff` в главном окне действуют, только пока фокус в панели Diff (щелчок в ней или
 `F6` до неё): `F6` из Graph переводил фокус и одновременно листал diff, `Ctrl+F` из поля сообщения
@@ -131,6 +132,10 @@ Checkout, Merge, Rebase, Cherry-Pick, Revert и Undo аккордов не им�
 слияния (§9) — только в его окне: `Ctrl+S` и `Ctrl+1…3` главного окна принадлежат меню
 (`panelConflictStep` в `lib/merge-view.ts`). `Ctrl+Shift+D` — из любой панели. В отдельных окнах (сравнение,
 Investigate) клавиши diff действуют всегда. Правило — `diffKey` в `lib/diff-keys.ts`.
+
+Своей строки поиска у WebView2 нет ни в одном окне: `Ctrl+F`, `Ctrl+G`, `Ctrl+Shift+G`, `F3`,
+`Shift+F3`, на которые никто на странице не ответил (`Ctrl+F` вне панели Diff, над бинарным
+файлом), гасит `suppressBrowserFind` (`lib/browser-find.ts`, R-536).
 
 Stage и Unstage выделенных строк — кнопки над diff, свёрнутый блок разворачивает щелчок: аккордов
 у них нет: на раскладках с AltGr сочетания `Ctrl+Alt` — это ввод символов, а не команды.

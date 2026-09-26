@@ -6,6 +6,8 @@
 export const BAND_WIDTH = 28;
 /** The line-number gutter of one side. */
 export const NUM_WIDTH = 44;
+/** The selection gutter before it. Must match `.gutter` in DiffView.svelte. */
+export const GUTTER_WIDTH = 14;
 
 export interface Span {
   fromTop: number;
@@ -14,10 +16,32 @@ export interface Span {
   toBottom: number;
 }
 
-/** `[num][code][band][num][code]` with equal code columns puts the band dead centre.
+/** Neither code column goes below a fifth of the code width: the other side still shows. */
+export const SPLIT_MIN = 0.2;
+export const SPLIT_MAX = 0.8;
+/** What the arrow keys move the divider by; Home puts it back in the middle. */
+export const SPLIT_STEP = 0.02;
+export const SPLIT_EVEN = 0.5;
+
+function codeWidth(rowsWidth: number, sideWidth: number): number {
+  return Math.max(rowsWidth - 2 * sideWidth - BAND_WIDTH, 0);
+}
+
+/** `[gutter][num][sign][code][band][gutter][num][sign][code]`: the fixed columns of a side
+    are `sideWidth`, and the left code column is `share` of what both code columns get.
     Every part is `border-box`, so the widths in the stylesheet are the real ones. */
-export function bandLeft(rowsWidth: number): number {
-  return Math.max((rowsWidth - BAND_WIDTH) / 2, NUM_WIDTH);
+export function bandLeft(rowsWidth: number, share: number, sideWidth: number): number {
+  return Math.max(sideWidth + codeWidth(rowsWidth, sideWidth) * share, NUM_WIDTH);
+}
+
+export function clampShare(share: number): number {
+  return Math.min(Math.max(share, SPLIT_MIN), SPLIT_MAX);
+}
+
+/** The share of the left code column once the divider moved `delta` pixels (R-535). */
+export function draggedShare(share: number, delta: number, rowsWidth: number, sideWidth: number): number {
+  const code = codeWidth(rowsWidth, sideWidth);
+  return code === 0 ? share : clampShare(share + delta / code);
 }
 
 /** Only what is near the viewport is drawn; the band is as tall as the whole file. */

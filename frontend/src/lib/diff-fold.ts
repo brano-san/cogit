@@ -265,6 +265,16 @@ export function changeStarts(changed: readonly boolean[]): number[] {
   return starts;
 }
 
+/** How long the change a jump lands on stays lit. Must match `.line.flash` in DiffView. */
+export const FLASH_MS = 600;
+
+/** Past the last row of the change starting at `start`: the rows a jump lights up. */
+export function changeEnd(changed: readonly boolean[], start: number): number {
+  let end = start;
+  while (changed[end]) end += 1;
+  return end;
+}
+
 /**
  * The change the view is on: the last one starting at or above `top + lead`, the row a
  * jump puts it on. At the very top the first change counts while it is on screen.

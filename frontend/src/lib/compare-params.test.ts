@@ -72,14 +72,33 @@ describe("compareLabel", () => {
   const oid = "0123456789abcdef0123456789abcdef01234567";
   const other = "fedcba9876543210fedcba9876543210fedcba98";
 
-  it("names both sides in words", () => {
-    expect(compareLabel({ kind: "workTreeVsIndex" })).toBe("Working tree ↔ index");
-    expect(compareLabel({ kind: "indexVsHead" })).toBe("Staged ↔ HEAD");
+  it("names both sides in words, and says in the tooltip which is where", () => {
+    expect(compareLabel({ kind: "workTreeVsIndex" }).text).toBe("Working tree vs index");
+    expect(compareLabel({ kind: "indexVsHead" }).text).toBe("Index vs HEAD");
+    expect(compareLabel({ kind: "indexVsHead" }).tip).toMatch(/HEAD on the left.*index on the right/);
   });
 
-  it("names the commit it compares by its short id", () => {
-    expect(compareLabel({ kind: "commitVsParent", oid })).toBe("0123456 ↔ parent");
-    expect(compareLabel({ kind: "commitVsWorkTree", oid })).toBe("0123456 ↔ working tree");
-    expect(compareLabel({ kind: "commitVsCommit", a: oid, b: other })).toBe("0123456 ↔ fedcba9");
+  // The header read `commitVsParent`, and then `0123456 ↔ parent`: which parent, and which side?
+  it("names a commit and its parent by their short ids", () => {
+    const label = compareLabel({ kind: "commitVsParent", oid }, other);
+
+    expect(label.text).toBe("Commit 0123456 vs parent fedcba9");
+    expect(label.tip).toBe(
+      "What commit 0123456 changed: its first parent fedcba9 on the left, the commit on the right",
+    );
+  });
+
+  it("says a parent not read yet, and a root commit, as such", () => {
+    expect(compareLabel({ kind: "commitVsParent", oid }).text).toBe("Commit 0123456 vs its parent");
+    expect(compareLabel({ kind: "commitVsParent", oid }, null).text).toBe("Commit 0123456, the first commit");
+    expect(compareLabel({ kind: "commitVsParent", oid }, null).tip).toMatch(/nothing on the left/);
+  });
+
+  it("names the other comparisons by their short ids", () => {
+    expect(compareLabel({ kind: "commitVsWorkTree", oid }).text).toBe("Commit 0123456 vs working tree");
+    expect(compareLabel({ kind: "commitVsCommit", a: oid, b: other }).text).toBe("Commit 0123456 vs commit fedcba9");
+    expect(compareLabel({ kind: "commitVsCommit", a: oid, b: other }).tip).toBe(
+      "Commit 0123456 on the left, commit fedcba9 on the right",
+    );
   });
 });

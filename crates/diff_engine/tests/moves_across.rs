@@ -21,6 +21,7 @@ fn input(path: &str, old: String, new: String) -> FileInput {
         path: path.to_owned(),
         old: old.into_bytes(),
         new: new.into_bytes(),
+        content: diff_engine::Content::Detect,
     }
 }
 

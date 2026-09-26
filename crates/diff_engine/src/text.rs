@@ -1,51 +1,77 @@
 use crate::{
-    Algorithm, DiffOptions, DiffRow, EolInfo, FileDiff, Hunk, Whitespace, block_is_comparable,
-    detect_line_ending, inline_spans, normalize_line_endings,
+    Algorithm, BinaryCause, BlobSide, Content, DiffOptions, DiffRow, EolInfo, FileDiff, Hunk,
+    Whitespace, block_is_comparable, detect_line_ending, inline_spans, normalize_line_endings,
 };
 use imara_diff::{Diff, InternedInput, Interner, Token, sources::lines};
 use std::borrow::Cow;
 
-/// Above this a file is shown as a summary: rendering it would cost more than it tells.
-pub const MAX_TEXT_BYTES: u64 = 1024 * 1024;
+/// A side of this many bytes or more is shown as a summary: rendering it would cost more
+/// than it tells (R-531).
+pub const MAX_TEXT_BYTES: u64 = 1_000_000;
 
 /// The text limit is about rows in the webview; an image is one element, and past this
 /// only its data URL is the cost.
 pub const MAX_IMAGE_BYTES: u64 = 20 * 1024 * 1024;
 
-/// Git's own rule: a NUL byte anywhere in the first 8000 bytes means binary.
-const BINARY_SNIFF_BYTES: usize = 8000;
-
 /// A fold over this many lines costs more to read than the lines themselves, so they are
 /// shown instead: between hunks, above the first and below the last (#16).
 const SHOWN_GAP: u32 = 2;
 
+/// Both sides present, sizes known, ids left to the caller that read them.
+fn sides(old: &[u8], new: &[u8]) -> (Option<BlobSide>, Option<BlobSide>) {
+    let side = |bytes: &[u8]| {
+        Some(BlobSide {
+            size: bytes.len() as u64,
+            id: None,
+        })
+    };
+    (side(old), side(new))
+}
+
 #[must_use]
 pub fn diff_bytes(old: &[u8], new: &[u8], options: &DiffOptions) -> FileDiff {
-    let old_size = old.len() as u64;
-    let new_size = new.len() as u64;
+    diff_bytes_as(old, new, options, &Content::Detect)
+}
 
-    let size = old_size.max(new_size);
+/// `diff_bytes` with what `.gitattributes` says about the path.
+#[must_use]
+pub fn diff_bytes_as(old: &[u8], new: &[u8], options: &DiffOptions, content: &Content) -> FileDiff {
+    let size = old.len().max(new.len()) as u64;
     let image = crate::image_mime(old).or_else(|| crate::image_mime(new));
-    let limit = if image.is_some() {
-        MAX_IMAGE_BYTES
-    } else {
-        MAX_TEXT_BYTES
+    let too_large = match image {
+        Some(_) => size > MAX_IMAGE_BYTES,
+        None => size >= MAX_TEXT_BYTES,
     };
-    if size > limit {
-        return FileDiff::TooLarge { size };
+    if too_large {
+        let (old, new) = sides(old, new);
+        return FileDiff::TooLarge {
+            old,
+            new,
+            limit: if image.is_some() {
+                MAX_IMAGE_BYTES
+            } else {
+                MAX_TEXT_BYTES
+            },
+        };
     }
     if old == new {
         return FileDiff::Unchanged;
     }
     if let Some(mime) = image {
         return FileDiff::Image {
-            old_size,
-            new_size,
+            old_size: old.len() as u64,
+            new_size: new.len() as u64,
             mime: mime.to_owned(),
         };
     }
-    if is_binary(old) || is_binary(new) {
-        return FileDiff::Binary { old_size, new_size };
+    let cause = match content {
+        Content::Binary(name) => Some(BinaryCause::Attribute { name: name.clone() }),
+        Content::Text => None,
+        Content::Detect => crate::binary::cause(old, new),
+    };
+    if let Some(cause) = cause {
+        let (old, new) = sides(old, new);
+        return FileDiff::Binary { old, new, cause };
     }
 
     let old_text = decode(old);
@@ -57,6 +83,12 @@ pub fn diff_bytes(old: &[u8], new: &[u8], options: &DiffOptions) -> FileDiff {
         *lossy_encoding = lossy;
     }
     diff
+}
+
+/// One side as the rows of its diff quote it: decoded as `diff_bytes` decodes it, with LF
+/// line endings.
+pub(crate) fn side_text(bytes: &[u8]) -> String {
+    normalize_line_endings(&decode(bytes)).into_owned()
 }
 
 /// UTF-8 as it is; each byte that is not UTF-8 becomes a character of its own in the
@@ -150,6 +182,8 @@ pub fn diff_text(old: &str, new: &str, options: &DiffOptions) -> FileDiff {
         language: None,
         old_total: u32::try_from(old_lines.len()).unwrap_or(u32::MAX),
         new_total: u32::try_from(new_lines.len()).unwrap_or(u32::MAX),
+        old_text: None,
+        new_text: None,
     }
 }
 
@@ -169,8 +203,8 @@ struct OpenEnd {
 
 /// A line the file ends on without a newline is not the same line as the same text with
 /// one — git prints `\ No newline at end of file` for exactly that difference. Marking the
-/// key is what makes the diff see it; the sentinel holds a NUL, which cannot appear in
-/// text that got this far, because `diff_bytes` calls such content binary.
+/// key is what makes the diff see it; the sentinel holds a NUL, which text gets this far
+/// with only where `.gitattributes` forces it to be text.
 const OPEN_END: &str = "\u{0}no-final-newline";
 
 impl OpenEnd {
@@ -211,10 +245,6 @@ fn key<'a>(line: &'a str, options: &DiffOptions) -> Cow<'a, str> {
 
 fn strip_newline(line: &str) -> &str {
     line.strip_suffix('\n').unwrap_or(line)
-}
-
-fn is_binary(data: &[u8]) -> bool {
-    data.iter().take(BINARY_SNIFF_BYTES).any(|&b| b == 0)
 }
 
 /// Two changes closer than twice the context share their context lines, so emitting them
