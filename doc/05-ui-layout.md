@@ -103,7 +103,7 @@
 и содержимое в Diff — **без** `stash apply`. Это отдельно оговорено в спеке и является
 одним из главных отличий от большинства клиентов.
 
-Двойной клик по ветке или тегу — то же, что `Check Out` его меню (remote-ветка — своей локальной, тег — с вопросом об отсоединённом HEAD). Контекстное меню — полный набор операций из M5. `Toggle` — у каждого узла, у заголовка и папки — как их тройной флажок; `Local Branches` — `Add Branch…`, `Tags` — `Add Tag…` (F-550); узел remote — `Push To…` | `Pull`, `Fetch`, `Fetch More` | `Rename…`, `Delete` | `Copy URL` | `Set Depth…`, `Properties…` | `Toggle` (F-551, R-555).
+Двойной клик: по ветке или тегу — то же, что `Check Out` меню, один диалог Checkout ([R-560](12-risks.md)); по папке или группе — свернуть или раскрыть; по stash-у — диалог `Apply Stash` (`Apply`, `Apply & Drop`, `Restore Index`; [R-562](12-risks.md)); по `HEAD` — ничего. Контекстное меню — полный набор операций из M5. `Toggle` — у каждого узла, у заголовка и папки — как их тройной флажок; `Local Branches` — `Add Branch…`, `Tags` — `Add Tag…` (F-550); узел remote — `Push To…` | `Pull`, `Fetch`, `Fetch More` | `Rename…`, `Delete` | `Copy URL` | `Set Depth…`, `Properties…` | `Toggle` (F-551, R-555).
 
 ### 3.4. Graph & History (центр-верх)
 
@@ -133,6 +133,8 @@
   `Include Tracked Remote Branches`, `Show Graph While Filtering`, `Show Working Tree Permanently` —
   те же настройки, что в `Preferences ▸ Graph & History`.
 - Мультивыбор двух коммитов (`Ctrl`) сравнивает их в Diff.
+- Двойной клик по коммиту (в любом месте строки, линии графа тоже) и по его метке — диалог
+  Checkout, как `Check Out` их меню ([R-561](12-risks.md)); по метке stash-а — `Apply Stash`.
 - Контекстное меню: `Checkout`, `Create Branch`, `Tag`, `Cherry-Pick`, `Revert`, `Reset to here`,
   `Copy SHA`, `Interactive Rebase from here`.
 

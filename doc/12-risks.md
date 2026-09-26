@@ -876,7 +876,8 @@ IPC-вызов, поэтому UI всегда читает актуальный
 операцию.
 
 **Цена:** `stash pop` после переключения может дать конфликт. Это честный исход, его
-подхватывает баннер состояния репозитория.
+подхватывает баннер состояния репозитория. (**Заменено R-563:** `apply`, а stash с
+конфликтом остаётся в списке.)
 
 ## R-55 · Журнал доказывался пятьюстами процессами git · Н
 
@@ -4080,7 +4081,8 @@ Untracked-файлы `reset --hard` и так не трогает, поэтом�
   отдельный пункт или флажок в Push To; решает постановщик;
 - удалённая ветка в Branches и её метка в графе получают тот же список #33/#39: `Push`,
   `Push To…`, `Rename` неактивны («a remote branch»), `Delete` удаляет ветку на сервере после
-  подтверждения, `Check Out` создаёт или переключает локальную ветку с тем же именем;
+  подтверждения, `Check Out` создаёт или переключает локальную ветку с тем же именем
+  (**Заменено R-560** (п. 40 списка 25.09): диалог Checkout с вариантами);
 - `Modify` — интерактивный rebase с `edit` на этом коммите: git останавливается на нём, правка
   делается обычным коммитом с amend, дальше `Continue` в баннере. `Squash` — слияние коммита с
   его родителем (`squash`, сообщения обоих склеивает git). `Edit Message` — `reword` с новым
@@ -4093,7 +4095,8 @@ Untracked-файлы `reset --hard` и так не трогает, поэтом�
   переименование, удаление и push относятся к ней, upstream остаётся как есть. Правый клик по
   метке stash-а в графе открывает меню stash-а из Branches (#35);
 - `Check Out` коммита и тега предупреждает об отсоединённом HEAD (для тега задача прямо не
-  просит, но результат тот же); `Copy Message` в меню метки графа копирует сообщение коммита,
+  просит, но результат тот же; **заменено R-560:** вариант read-only диалога Checkout с тем
+  же предупреждением); `Copy Message` в меню метки графа копирует сообщение коммита,
   в меню тега в Branches — аннотацию;
 - `Discard` в меню Working Tree откатывает только отслеживаемые изменённые файлы: staged-правки
   и untracked-файлы остаются, как у пункта `Discard changes…` в Files;
@@ -6717,6 +6720,10 @@ Repository`, из `Recent`, перетаскиванием, сканом пап�
 зелёной меткой worktree «чисто и всё запушено» (`--indicator-synced`) — они в разных
 панелях и не стоят рядом.
 
+**Заменено R-563** (п. 46 списка 25.09): одна операция осталась, но stash на время неё уходит
+из списка в `refs/cogit/backup`, применяется `apply`, в список возвращается, только если
+остаётся; вопрос — свой диалог с чекбоксом, поток — `lib/checkout-flow.ts`.
+
 ## R-590 · Без `Separate Working Tree and Index` — один список рабочей копии · Н
 
 Переключатель читался только раскладкой (`paneLayout`): выключенный, он убирал сплиттер, а
@@ -7305,3 +7312,115 @@ HEAD — неактивен. `Rename…` проверяет имя по прав
 оставляет только `Copy URL` и `Toggle`. Тесты — `ref-group-menus.test.ts`, `refs.test.ts`
 «carries ticks and folds over to a renamed remote», `context-menu.test.ts` (Toggle у потерянного
 коммита), `push-to.test.ts` «opens on the remote it was asked from».
+
+## R-560 · Один диалог Checkout; локальная и remote-ветка связаны только upstream · Н
+
+Пункт 40 списка 25.09 заменяет решение FR-022 аудита (6004ace: двойной клик — то же, что
+`Check Out` меню, без диалога: remote-ветка — своей локальной, тег — вопросом об отсоединённом
+HEAD). Теперь `Check Out` меню и двойной клик открывают один диалог `Check Out`
+(`CheckoutDialog.svelte`, кнопки `Cancel` и `Checkout`); что он предлагает — `checkoutOffer` в
+`lib/ref-checkout.ts`:
+
+- локальная ветка в Branches — только описание (что отслеживает, ↑↓) и `Don't show again`
+  (настройка `confirmLocalCheckout`; вернуть — Preferences ▸ Behaviour ▸ Don't show again или
+  флажок Preferences ▸ General ▸ Check Out);
+- remote-ветка — `Create local branch` (имя без remote) с `Track remote branch` (включён),
+  `Don't create a local branch (just read-only)` — detached HEAD, и третий вариант, если есть
+  локальная ветка, для которой эта remote-ветка — upstream; тогда он и выбран;
+- тег и коммит — первые два, без `Track`.
+
+Связь локальной и remote-ветки — только upstream в конфиге (`branch.<имя>.remote` и `.merge`),
+как её видит git (`status`, `pull`, ↑↓). Из нескольких отслеживающих берётся одноимённая, иначе
+первая по имени. Третий вариант — `Checkout and fast-forward local branch '<имя>'`, когда
+локальная только отстаёт; когда двигать нечего или ветки разошлись, — `Check out local branch
+'<имя>'`, и под вариантом сказано почему (перемотка разошедшихся невозможна, а сливать или
+перебазировать при checkout никто не просил). Перемотка — `CheckoutTarget::FastForward`:
+проверка предка (gix), затем `git switch -C <имя> <oid>`. `switch -C` двигает ветку только
+после того, как переключилась рабочая копия, поэтому отказ из-за локальных правок не оставляет
+ветку сдвинутой (тест `a_refused_fast_forward_leaves_the_branch_where_it_was`); дан oid, а не
+ref, — с ref как стартом git заново записал бы upstream. Не перемотка — `InvalidState`.
+`Track remote branch` выключен — `--no-track` явно: `branch.autoSetupMerge` по умолчанию сам
+делает remote-старт upstream-ом.
+
+**Одноимённая локальная ветка без этого upstream (п. 40, «на твоё решение»).** Не считается
+отслеживающей: третьего варианта и перемотки нет. Git их не связывает — `status` не показывает
+расхождения, `pull` не знает, откуда тянуть; перемотка сдвинула бы ветку, которую могли
+отвязать нарочно, а молча поставленный upstream изменил бы конфиг без спроса. Поле имени
+`Create local branch` говорит: «feature already exists and does not track origin/feature.
+Choose another name, or set its upstream to origin/feature first.» — `Checkout` неактивен, пока
+имя не сменят или не выберут read-only; после `Set Upstream…` на локальной ветке вариант
+появляется сам.
+
+Сверено с SmartGit ([Check Out](https://docs.syntevo.com/SmartGit/Latest/Manual/GUI/Branch/Check-Out)):
+«Create local branch», «Track remote branch», «Don't create local branch (just work read-only)»,
+а у отстающей отслеживающей — «Just Checkout» или «Fast-Forward-Merge»; здесь это один выбор
+среди остальных.
+
+## R-561 · Checkout из графа: коммит, метка ветки, тег · Н
+
+Пункт 40: коммит — как remote-ветка без локальной (два варианта); метка ветки — как
+remote-ветка (три варианта при отслеживающей локальной, иначе два); тег — как коммит.
+
+**Решение:** метка remote-ветки — ровно как в Branches. Метка локальной ветки: сама ветка и есть
+«её локальная», поэтому варианты — `Create local branch` (новая на этом коммите, без `Track`),
+read-only и `Check out local branch '<имя>'`, выбран последний; перемотки нет — двойной клик по
+метке переходит к ветке, а не тянет её upstream. Объединённая метка `origin=topic` — локальная
+`topic`, как у её меню. Метка текущей ветки и HEAD — ничего (в меню `Check Out` неактивен:
+«already checked out»).
+
+Выбранный вариант: у коммита и тега — read-only, имя пустое (посмотреть — частое назначение
+двойного клика, и Enter работает сразу); где HEAD уже отсоединён на этом коммите, read-only
+неактивен («HEAD is already detached here») и выбран `Create local branch`.
+
+## R-562 · Apply Stash — диалог; `Apply & Drop` справа и по Enter · Н
+
+Пункт 40: двойной клик по stash-у — диалог `Apply Stash` с `Cancel`, `Apply`, `Apply & Drop` и
+чекбоксом `Restore Index`; тот же диалог — из контекстного меню. Раньше двойной клик применял
+stash сразу, а `Apply Stash` меню — тоже без вопросов.
+
+**Решение:** кнопки в порядке пункта, `Apply & Drop` — крайняя справа и основная (Enter): по
+правилу UI основное действие справа, а `stash pop` удаляет запись, только если она применилась
+без конфликтов, так что Enter stash не теряет. `Restore Index` — `--index` у `apply` и у `pop`,
+по умолчанию снят, как у git; git отказывает, если индекс не восстановить, — его отказ приходит
+в уведомления как есть. Двойной клик по метке stash-а в графе открывает тот же диалог. `Pop
+Stash` в меню (R-435) остался — быстрый путь без диалога; кнопка `Apply Stash` тулбара (#30)
+по-прежнему применяет `stash@{0}` без диалога: пункт говорит только о двойном клике и меню.
+SmartGit: [Applying a Stash](https://docs.syntevo.com/SmartGit/Latest/Manual/GUI/Stash) —
+`Apply Stash` в меню stash-а; `Restore Index` — чекбокс его диалога.
+
+## R-563 · Checkout с изменениями: скрытый stash, `apply`, stash остаётся только когда нужен · Н
+
+Пункт 46 списка 25.09. Как в SmartGit ([Check Out](https://docs.syntevo.com/SmartGit/Latest/Manual/GUI/Branch/Check-Out):
+«SmartGit will offer to stash the local changes before executing the actual Check Out command,
+and then re-apply the changes from your stash after the command completes»), с отличием из
+пункта: stash применяется через `apply` и удаляется после чистого применения, с конфликтами —
+остаётся. Предложение по-прежнему делается после отказа git (R-54) — для любого варианта
+диалога Checkout (R-560), не только для перехода на ветку.
+
+**Решение:** `switch_with_autostash(target, message, drop_after_clean)` — одна операция полосы,
+как в R-521:
+
+1. `stash push --include-untracked`, и stash сразу уходит из списка в
+   `refs/cogit/backup/<oid>` (тот же `keep_as_backup`, что у копий Undo, R-514): пока идёт
+   checkout, в списке пользователя ничего не сдвигается и чужой stash взять нельзя — поиск
+   своей записи по oid (`stash_pop_oid`) больше не нужен и удалён вместе со своим тестом;
+   вместо него — `the_users_own_stashes_stay_as_they_were`;
+2. checkout; отказ — изменения возвращаются `stash apply --index` (дерево снова на коммите
+   stash-а, так что индекс восстанавливается как был: раньше `pop` без `--index` возвращал
+   staged-правки unstaged), наружу — отказ git;
+3. `stash apply` (без `--index`, как `--autostash` у rebase и pull: индекс нового коммита
+   другой). Чисто и чекбокс включён — ссылка на копию снимается, stash исчез, как после `pop`
+   (`AutostashOutcome::Restored`). Конфликт, отказ git применить (untracked-файл на месте) или
+   чекбокс выключен — stash встаёт в список `git stash store` со своим сообщением
+   («On main: cogit: autostash before checking out topic»), на `stash@{0}`, где его видно и
+   можно найти (`Kept { clean }`).
+
+Конфликт после переключения — больше не ошибка всего вызова (checkout прошёл): возвращается
+`Kept { clean: false }`, вывод упавшего `stash apply` приходит в уведомления журналом, как у
+любой упавшей команды git, а следом — сообщение «Changes did not apply cleanly» с тем, где
+stash. Сбой возврата после отказа ставит stash в список; не вышло и это — он остаётся в
+`refs/cogit/backup`, оба сбоя в логе.
+
+Диалог предложения — свой (`AutostashDialog`, «Stash and Check Out»): вопрос с файлами, которые
+назвал git, и чекбокс «Drop the stash once it applies cleanly», включён по умолчанию и не
+запоминается: выключенный — редкое желание на один раз.

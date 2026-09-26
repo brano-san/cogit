@@ -33,6 +33,8 @@
     onbanneraction: (action: BannerAction) => void;
     onworktreecontext?: (x: number, y: number) => void;
     onrefcontext?: (label: import("$lib/format").RefLabel, oid: string, x: number, y: number) => void;
+    onactivate?: (oid: string) => void;
+    onrefactivate?: (label: import("$lib/format").RefLabel, oid: string) => void;
     /** A filter left the list empty; its button clears the filter. */
     onclearfilter?: () => void;
   }
@@ -56,6 +58,8 @@
     onbanneraction,
     onworktreecontext,
     onrefcontext,
+    onactivate,
+    onrefactivate,
     onclearfilter,
   }: Props = $props();
 
@@ -80,6 +84,8 @@
     {oncontext}
     {onworktreecontext}
     {onrefcontext}
+    {onactivate}
+    {onrefactivate}
     {onclearfilter}
     columns={settings.current.graphColumns}
     timeFormat={settings.current.graphTimeFormat}

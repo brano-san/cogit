@@ -101,8 +101,9 @@
   import { splitRequest } from "$lib/split-off";
   import { readsAgain } from "$lib/file-view";
   import { bannerQuestion, stateBanner, type BannerAction } from "$lib/repo-state";
-  import { blockedByLocalChanges } from "$lib/checkout-refusal";
-  import { switchWithAutostash } from "$lib/autostash";
+  import { runCheckout } from "$lib/checkout-flow";
+  import { autostashDialog } from "$stores/autostash-dialog.svelte";
+  import { refActivation, type CheckoutRequest } from "$lib/ref-checkout";
   import { foundStep } from "$lib/found";
   import { revealRef } from "$lib/ref-reveal";
   import { applyPreferences, type ApplyHost } from "$lib/preferences-apply";
@@ -119,7 +120,6 @@
   import type { Settings } from "$lib/settings";
   import {
     checkout,
-    CogitError,
     abortOperation,
     continueOperation,
     createBranch,
@@ -1361,64 +1361,46 @@
     if (await conflicts.leave()) compareView.open(path);
   }
 
+  /** A double click in Branches (item 40): HEAD does nothing, a folder folds in the tree. */
   function activateRef(node: RefNode) {
-    if (node.kind === "stash") void applyStash(Number(node.id.slice("stash:".length)), false);
-    // The menu's Check Out, question and all (doc/05 §3.3).
-    else if (node.kind === "tag" || node.kind === "remote") void refActions?.checkOutNode(node);
-    else if (node.kind === "lost" && node.oid) {
+    const action = refActivation(node);
+    if (action === "checkout") refActions?.checkOutNode(node);
+    else if (action === "apply-stash") refActions?.applyStashNode(node);
+    else if (action === "recover") {
       const found = recovery.lost.find((row) => row.oid === node.oid);
       if (found) void recoverCommit(found);
     }
   }
 
-  async function switchTo(branch: Branch) {
+  /** The Checkout dialog's choice (item 40), with the question about a worktree that has
+      the branch and the offer to stash what is in the way (`lib/checkout-flow.ts`). */
+  async function checkOut(request: CheckoutRequest) {
     const id = repository.current?.repo;
     if (!id) return;
-
-    const elsewhere = await worktrees.holding(id, branch.name);
-    if (elsewhere && !elsewhere.missing) {
-      const go = await confirmation.ask({
-        title: "Branch Is in Another Worktree",
-        message: `${branch.name} is checked out in the worktree at ${elsewhere.path}. Switch to it?`,
-        confirm: "Switch",
-      });
-      // A worktree of this repository opens in the panels, as a double-click in Worktrees
-      // does; activating its folder made it a repository of its own in the list (R-184).
-      const row = worktrees.entries.find((entry) => entry.path === elsewhere.path);
-      if (go) await (row ? openWorktreeRow(row) : activate(elsewhere.path));
-      return;
-    }
-
-    try {
-      await checkout(id, { kind: "branch", name: branch.name });
-    } catch (err) {
-      // Only git knows whether the working tree is really in the way: many dirty checkouts
-      // are fine, so the offer is made after its refusal, not before every switch.
-      if (!(await offerAutostash(err, branch))) errors.report(err, "Could not switch branches");
-      return;
-    }
-    await afterRefChange(id);
+    await runCheckout(request, {
+      elsewhere: (branch) => heldElsewhere(id, branch),
+      checkout: (target) => checkout(id, target),
+      ask: (question) => autostashDialog.ask(question),
+      autostash: (target, message, drop) => runSwitchWithAutostash(id, target, message, drop),
+      report: (err, title) => errors.report(err, title),
+      inform: (title, body) => notices.inform(title, body),
+      after: () => afterRefChange(id),
+    });
   }
 
-  /** Stash, switch, put the changes back — what `--autostash` does for rebase and pull. */
-  async function offerAutostash(err: unknown, branch: Branch): Promise<boolean> {
-    const id = repository.current?.repo;
-    if (!id || !(err instanceof CogitError) || err.detail.kind !== "command") return false;
-    const blocked = blockedByLocalChanges(err.detail.data.stderr);
-    if (!blocked) return false;
-
-    const outcome = await switchWithAutostash(branch.name, blocked, {
-      ask: (question) => confirmation.ask({ title: "Switch Branch", message: question, confirm: "Stash and Switch" }),
-      run: () =>
-        runSwitchWithAutostash(
-          id,
-          { kind: "branch", name: branch.name },
-          `cogit: autostash before switching to ${branch.name}`,
-        ),
-      report: (failed, title) => errors.report(failed, title),
+  /** True when another worktree has the branch: the user was asked about that one instead. */
+  async function heldElsewhere(id: RepoId, branch: string): Promise<boolean> {
+    const elsewhere = await worktrees.holding(id, branch);
+    if (!elsewhere || elsewhere.missing) return false;
+    const go = await confirmation.ask({
+      title: "Branch Is in Another Worktree",
+      message: `${branch} is checked out in the worktree at ${elsewhere.path}. Switch to it?`,
+      confirm: "Switch",
     });
-    if (outcome === "declined") return false;
-    await afterRefChange(id);
+    // A worktree of this repository opens in the panels, as a double-click in Worktrees
+    // does; activating its folder made it a repository of its own in the list (R-184).
+    const row = worktrees.entries.find((entry) => entry.path === elsewhere.path);
+    if (go) await (row ? openWorktreeRow(row) : activate(elsewhere.path));
     return true;
   }
 
@@ -1788,18 +1770,6 @@
 
   function stashSelected(confirm = true) {
     return stashPaths(targetsOf("stash-selection", toolbarFacts), confirm);
-  }
-
-  async function applyStash(index: number, pop: boolean) {
-    const id = repository.current?.repo;
-    if (!id) return;
-    try {
-      await stashes.apply(id, index, pop);
-    } catch (err) {
-      errors.report(err, "Could not apply the stash");
-      return;
-    }
-    await afterRefChange(id);
   }
 
   /** Toolbar Apply Stash (#30). A conflicted apply still changed the working tree, so the
@@ -3685,7 +3655,6 @@
             input={refTreeInput}
             onvisible={() => void reloadGraph()}
             onselect={selectRef}
-            oncheckout={switchTo}
             onactivate={activateRef}
             oncontext={(node, x, y) => void refContext(node, x, y)}
             ondrop={onBranchDrop}
@@ -3766,6 +3735,8 @@
               onbanneraction={runBannerAction}
               onworktreecontext={(x, y) => void refActions?.worktreeContext(x, y)}
               onrefcontext={(label, oid, x, y) => void refActions?.labelContext(label, oid, x, y)}
+              onactivate={(oid) => refActions?.checkOutCommit(oid)}
+              onrefactivate={(label, oid) => refActions?.checkOutLabel(label, oid)}
               onclearfilter={() => filterGraph(parseQuery(""))}
             />
           </Panel>
@@ -3973,7 +3944,7 @@
     afterMutation={() => afterMutation()}
     {mutate}
     {reloadGraph}
-    checkoutBranch={switchTo}
+    {checkOut}
     {openSplit}
     {openRebase}
     rollbackTree={() => rollbackFiles([])}

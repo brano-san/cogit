@@ -1,6 +1,9 @@
 <script lang="ts">
   import ConfirmDialog from "$components/common/ConfirmDialog.svelte";
   import AddTagDialog from "./AddTagDialog.svelte";
+  import ApplyStashDialog from "./ApplyStashDialog.svelte";
+  import AutostashDialog from "./AutostashDialog.svelte";
+  import CheckoutDialog from "./CheckoutDialog.svelte";
   import EditAuthorDialog from "./EditAuthorDialog.svelte";
   import EditMessageDialog from "./EditMessageDialog.svelte";
   import PushToDialog from "./PushToDialog.svelte";
@@ -8,7 +11,6 @@
   import SetUpstreamDialog from "./SetUpstreamDialog.svelte";
   import {
     CogitError,
-    checkout,
     cherryPick,
     commitDetails,
     createBranch,
@@ -59,7 +61,15 @@
     type CommitFacts,
     type RefTarget,
   } from "$lib/ref-menus";
-  import { checkoutPlan, nodeTarget, type NodeTarget } from "$lib/ref-checkout";
+  import {
+    checkoutOffer,
+    checkoutRequest,
+    nodeTarget,
+    type CheckoutPick,
+    type CheckoutPlace,
+    type CheckoutRequest,
+    type NodeTarget,
+  } from "$lib/ref-checkout";
   import { worktreeMarks } from "$lib/worktree-list";
   import { publishedOrAssume } from "$lib/published";
   import { resetChoice } from "$lib/reset-modes";
@@ -70,6 +80,7 @@
   import { commit } from "$stores/commit.svelte";
   import { compareView } from "$stores/compare-view.svelte";
   import { confirmation } from "$stores/confirm.svelte";
+  import { autostashDialog } from "$stores/autostash-dialog.svelte";
   import { errors } from "$stores/errors.svelte";
   import { graph } from "$stores/graph.svelte";
   import { network } from "$stores/network.svelte";
@@ -80,6 +91,7 @@
   import { runWorkingTreeAction } from "$lib/working-tree-actions";
   import { refs } from "$stores/refs.svelte";
   import { repository } from "$stores/repository.svelte";
+  import { settings } from "$stores/settings.svelte";
   import { stashView } from "$stores/stash-view.svelte";
   import { stashes } from "$stores/stashes.svelte";
   import { worktree } from "$stores/worktree.svelte";
@@ -94,8 +106,8 @@
     /** App's write to the working tree: it names the paths, so the open diff is read again. */
     mutate: (step: (repo: RepoId) => Promise<unknown>, paths: string[], readsBack: boolean) => Promise<boolean>;
     reloadGraph: () => Promise<void>;
-    /** App's switch: it knows about worktrees holding the branch and about autostash. */
-    checkoutBranch: (branch: Branch) => Promise<void>;
+    /** App's checkout: it knows about worktrees holding the branch and about autostash. */
+    checkOut: (request: CheckoutRequest) => Promise<void>;
     /** Open App's dialogs for the selected commit. */
     openSplit: () => Promise<void>;
     openRebase: () => Promise<void>;
@@ -107,7 +119,7 @@
     afterMutation,
     mutate,
     reloadGraph,
-    checkoutBranch,
+    checkOut,
     openSplit,
     openRebase,
     rollbackTree,
@@ -242,9 +254,13 @@
     }
   }
 
+  function stashIndexOf(text: string): number {
+    return Number(/\{(\d+)\}/.exec(text)?.[1] ?? Number.NaN);
+  }
+
   /** A stash label in the graph gets the stash menu of Branches (#35). */
   async function stashLabelContext(text: string, oid: string, x: number, y: number) {
-    const index = Number(/\{(\d+)\}/.exec(text)?.[1] ?? Number.NaN);
+    const index = stashIndexOf(text);
     if (Number.isNaN(index)) return;
     const node: RefNode = { id: `stash:${index}`, kind: "stash", label: text, depth: 1, rev: text, oid };
     await branchesContext(node, x, y);
@@ -383,7 +399,8 @@
 
     switch (name) {
       case "checkout":
-        return checkoutTarget(id, at);
+        // A Branches row brings its node; the graph's menus have none.
+        return offerCheckout(at, at.node ? "branches" : "graph");
       case "merge":
         if (oid) await attempt("Could not merge", () =>
           mergeInto(id, { source: revisionOf(at, oid), noFastForward: false, squash: false, message: null }),
@@ -497,13 +514,12 @@
         }
         return;
       case "apply-stash":
+        if (at.stash) refDialogs.applyStash = at.stash;
+        return;
       case "pop-stash":
         if (at.stash) {
           const index = at.stash.index;
-          const pop = name === "pop-stash";
-          await attempt(pop ? "Could not pop the stash" : "Could not apply the stash", () =>
-            stashes.apply(id, index, pop),
-          );
+          await attempt("Could not pop the stash", () => stashes.apply(id, index, true));
         }
         return;
       case "rename-stash":
@@ -520,26 +536,76 @@
     return head?.kind === "branch" ? head.name : "HEAD";
   }
 
-  async function checkoutTarget(id: RepoId, at: NodeTarget) {
-    const plan = checkoutPlan(at, network.remotes);
-    if (plan === null) return;
-    if (plan.kind === "switch") return checkoutBranch(plan.branch);
-    const go = await confirmation.ask({
-      title: "Check Out",
-      message:
-        `Check out ${plan.what}? HEAD will be detached: commits made from there belong to no branch ` +
-        "until you add one, and are easy to lose when you switch away.",
-      confirm: "Check Out",
-    });
-    if (go) await attempt("Could not check out", () => checkout(id, { kind: "commit", oid: plan.oid }));
+  /** The one Checkout dialog (item 40), for the menus' Check Out and a double click alike.
+      A local branch whose dialog was turned off is checked out at once. */
+  function offerCheckout(at: NodeTarget, place: CheckoutPlace) {
+    const summary = repository.current;
+    const offer = checkoutOffer(
+      at,
+      { branches: summary?.branches ?? [], remotes: network.remotes, head: summary?.head },
+      place,
+    );
+    if (!offer) return;
+    if (offer.plain && !settings.current.confirmLocalCheckout) {
+      const request = checkoutRequest(offer, { choice: "local", name: "", track: false });
+      if (request) void checkOut(request);
+      return;
+    }
+    refDialogs.checkout = offer;
   }
 
-  /** A double click in Branches is the menu's Check Out: a remote branch as its local one,
-      a tag only after the question about detaching HEAD. */
-  export async function checkOutNode(node: RefNode) {
-    const id = repoId();
+  async function checkOutPicked(pick: CheckoutPick, dontShowAgain: boolean) {
+    const offer = refDialogs.checkout;
+    refDialogs.checkout = null;
+    if (!offer) return;
+    if (dontShowAgain) await settings.set("confirmLocalCheckout", false);
+    const request = checkoutRequest(offer, pick);
+    if (request) await checkOut(request);
+  }
+
+  /** A double click on a Branches row: the menu's Check Out. */
+  export function checkOutNode(node: RefNode) {
     const found = nodeTarget(node, repository.current?.tags ?? []);
-    if (id && found) await checkoutTarget(id, found);
+    if (found) offerCheckout(found, "branches");
+  }
+
+  /** A double click on a graph row (R-561): as a remote branch nobody tracks. */
+  export function checkOutCommit(oid: string) {
+    offerCheckout({ ref: null, branch: null, oid }, "graph");
+  }
+
+  /** A double click on a graph label: its menu's Check Out (R-561), a stash's Apply Stash. */
+  export function checkOutLabel(label: RefLabel, oid: string) {
+    const summary = repository.current;
+    if (!summary) return;
+    if (label.kind === "stash") {
+      openApplyStash(stashIndexOf(label.text));
+      return;
+    }
+    const found = labelTarget(label, summary.branches, summary.tags, worktreeMarks(worktrees.entries, summary.branches));
+    if (found) offerCheckout({ ...found, oid }, "graph");
+  }
+
+  /** Apply Stash (item 40): a double click on a stash in Branches or the graph, and the
+      menu's Apply Stash. */
+  function openApplyStash(index: number) {
+    const entry = stashes.entries.find((stash) => stash.index === index);
+    if (entry) refDialogs.applyStash = { index, message: entry.message };
+  }
+
+  export function applyStashNode(node: RefNode) {
+    openApplyStash(Number(node.id.slice("stash:".length)));
+  }
+
+  async function applyPickedStash(drop: boolean, restoreIndex: boolean) {
+    const id = repoId();
+    const stash = refDialogs.applyStash;
+    refDialogs.applyStash = null;
+    if (!id || !stash) return;
+    // A conflicted apply still changed the working tree: `attempt` reads back either way.
+    await attempt(drop ? "Could not apply and drop the stash" : "Could not apply the stash", () =>
+      stashes.apply(id, stash.index, drop, restoreIndex),
+    );
   }
 
   async function modify(id: RepoId, at: Target) {
@@ -848,6 +914,31 @@
     check={checkTagName}
     onadd={createTagFrom}
     onclose={() => (refDialogs.tag = null)}
+  />
+{/if}
+
+{#if refDialogs.checkout}
+  <CheckoutDialog
+    offer={refDialogs.checkout}
+    branches={repository.current?.branches ?? []}
+    oncheckout={(pick, dontShowAgain) => void checkOutPicked(pick, dontShowAgain)}
+    onclose={() => (refDialogs.checkout = null)}
+  />
+{/if}
+
+{#if autostashDialog.open}
+  <AutostashDialog
+    question={autostashDialog.open.question}
+    onanswer={(answer) => autostashDialog.answer(answer)}
+  />
+{/if}
+
+{#if refDialogs.applyStash}
+  <ApplyStashDialog
+    index={refDialogs.applyStash.index}
+    message={refDialogs.applyStash.message}
+    onapply={(drop, restoreIndex) => void applyPickedStash(drop, restoreIndex)}
+    onclose={() => (refDialogs.applyStash = null)}
   />
 {/if}
 

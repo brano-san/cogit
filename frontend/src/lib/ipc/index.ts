@@ -44,6 +44,7 @@ import type {
 export type {
   Algorithm,
   AppInfo,
+  AutostashOutcome,
   DisplayInfo,
   OsInfo,
   ConfigFile,
@@ -378,9 +379,14 @@ export async function checkout(repo: RepoId, target: CheckoutTarget) {
   return unwrap(await commands.checkout(repo, target));
 }
 
-/** Stash, switch, put the changes back, as one operation of the lane (R-521). */
-export async function switchWithAutostash(repo: RepoId, target: CheckoutTarget, message: string) {
-  return unwrap(await commands.switchWithAutostash(repo, target, message));
+/** Stash, check out, apply the stash, as one operation of the lane (R-521, R-563). */
+export async function switchWithAutostash(
+  repo: RepoId,
+  target: CheckoutTarget,
+  message: string,
+  dropAfterClean: boolean,
+) {
+  return unwrap(await commands.switchWithAutostash(repo, target, message, dropAfterClean));
 }
 
 export async function createBranch(
@@ -693,8 +699,9 @@ export async function stashKeepingWorktree(repo: RepoId, message: string) {
   return unwrap(await commands.stashKeepingWorktree(repo, message));
 }
 
-export async function stashApply(repo: RepoId, index: number, pop: boolean) {
-  return unwrap(await commands.stashApply(repo, index, pop));
+/** `restoreIndex`: `--index`, the staged side comes back staged. */
+export async function stashApply(repo: RepoId, index: number, pop: boolean, restoreIndex = false) {
+  return unwrap(await commands.stashApply(repo, index, pop, restoreIndex));
 }
 
 export async function stashDrop(repo: RepoId, index: number) {

@@ -359,8 +359,16 @@
               <div class="row check">
                 <Checkbox checked={draft.confirmExit} onchange={(checked) => set("confirmExit", checked)} label={field.label} />
               </div>
+            {:else if field.key === "confirmLocalCheckout"}
+              <div class="row check">
+                <Checkbox
+                  checked={draft.confirmLocalCheckout}
+                  onchange={(checked) => set("confirmLocalCheckout", checked)}
+                  label={field.label}
+                />
+              </div>
             {:else if field.key === "suppressions"}
-              {@const choices = suppressedChoices(draft.confirmExit, ignored)}
+              {@const choices = suppressedChoices(draft.confirmExit, ignored, draft.confirmLocalCheckout)}
               <p class="row">{field.label}</p>
               {#if choices.length === 0}
                 <p class="hint">Nothing is hidden: every dialog and warning still shows.</p>
@@ -378,6 +386,7 @@
                         class="btn"
                         onclick={() => {
                           if (parsed.kind === "confirmExit") set("confirmExit", true);
+                          else if (parsed.kind === "confirmLocalCheckout") set("confirmLocalCheckout", true);
                           else if (parsed.kind === "health") onunignore(parsed.root, parsed.warning);
                         }}>Show again</button
                       >

@@ -449,13 +449,14 @@ snake_case и читаются на фронтенде как `undefined`.
 | `stage_hunk` | `repo, patch: String` | `()` | M6 |
 | `discard_paths` | `repo, paths` | `()` | M6 |
 | `commit` | `repo, request: CommitRequest { message, amend, noVerify, only }` | `String` (oid); `only` пуст — всё проиндексированное, иначе только эти пути | M6 |
-| `checkout` | `repo, target: CheckoutTarget` | `()` | M5 |
-| `switch_with_autostash` | `repo, target: CheckoutTarget, message` | `()`; одна операция полосы: `stash push --include-untracked`, `switch`, `stash pop` той записи, что сделана (по oid). Отказ `switch` — изменения возвращены, ошибка — отказ; конфликт `pop` после переключения — ошибка `pop`, stash остаётся (R-521) | M5 |
+| `checkout` | `repo, target: CheckoutTarget` | `()`; `branch` — `switch`, `commit` — `switch --detach`, `newBranch { name, start, track }` — `switch --create` с `--track`/`--no-track`, `fastForward { name, to }` — проверка предка, затем `switch -C <name> <oid>`; не перемотка — `InvalidState` (R-560) | M5 |
+| `switch_with_autostash` | `repo, target: CheckoutTarget, message, drop_after_clean` | `AutostashOutcome`: `restored` — изменения вернулись, stash удалён; `kept { clean }` — stash в списке на `stash@{0}` (конфликт или отказ применить — `clean: false`; выключен `drop_after_clean` — `true`). Одна операция полосы: `stash push --include-untracked` в `refs/cogit/backup`, checkout, `stash apply`. Отказ checkout — изменения возвращены (`apply --index`), ошибка — отказ (R-521, R-563) | M5 |
 | `create_branch` / `delete_branch` | `repo, ...` | `()` | M5 |
 | `delete_remote_branch` | `repo, remote, branch` (`origin/topic` или `topic`) | `RemoteDeletion`: `"deleted"` — `push --delete` по полному имени; `"alreadyGone"` — на сервере ветки уже не было, удалена только устаревшая remote-tracking ссылка (R-480) | M5 |
 | `set_upstream` | `repo, branch, upstream: Option<String>` (`origin/main`) | `()` — `git branch --set-upstream-to <upstream> <branch>`, `null` — `git branch --unset-upstream <branch>`; в очереди записей. Зовут `Set Upstream…` и `Stop Tracking` меню ветки (F-130, R-505) | M5 |
 | `merge` / `rebase` / `cherry_pick` / `revert` | `repo, ...` | `()` | M5 |
 | `stash_push` / `apply` / `pop` / `drop` | `repo, ...` | `()` | M5 |
+| `stash_apply` | `repo, index, pop, restore_index` | `()` — `git stash apply` или `pop` записи `stash@{index}`; `restore_index` — с `--index`. `pop` git удаляет запись только после чистого применения (F-556, R-562) | M5 |
 | `stash_keeping_worktree` | `repo, message` | `()` — `git stash create` + `git stash store --message`: stash без очистки рабочей копии; untracked-файлы в него не входят; чистое дерево — `InvalidState` (R-212) | M5 |
 | `stash_selection` | `repo, paths, message` | `()` — пустое `message` не передаётся в Git: stash получает его собственное `WIP on …` | M5 |
 | `fetch` / `pull` / `push` | `repo, remote, refspec, channel: Channel<Progress>` | `()` | M1 |

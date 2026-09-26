@@ -339,6 +339,8 @@
 | F-550 | Меню заголовков, папок и HEAD в Branches: Toggle, Add Branch, Add Tag | [F-550-branches-heading-menus.md](F-550-branches-heading-menus.md) |
 | F-551 | Меню remote в Branches | [F-551-remote-menu.md](F-551-remote-menu.md) |
 | F-552 | Фоновая проверка — по remote | [F-552-background-check-per-remote.md](F-552-background-check-per-remote.md) |
+| F-555 | Один диалог Checkout | [F-555-checkout-dialog.md](F-555-checkout-dialog.md) |
+| F-556 | Диалог Apply Stash | [F-556-apply-stash-dialog.md](F-556-apply-stash-dialog.md) |
 | F-560 | Фильтр графа: где искать текст | [F-560-graph-filter-fields.md](F-560-graph-filter-fields.md) |
 | F-561 | Меню настроек графа | [F-561-graph-options-menu.md](F-561-graph-options-menu.md) |
 | F-562 | «Домой» и «Назад» в графе | [F-562-graph-home-back.md](F-562-graph-home-back.md) |
