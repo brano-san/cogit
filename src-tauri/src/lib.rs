@@ -289,8 +289,14 @@ pub fn run() -> anyhow::Result<()> {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(
+            // Without VISIBLE: the plugin would show the window as it is created, before
+            // `setup` settles its geometry and subscribes to its failures (R-113, R-118).
             tauri_plugin_window_state::Builder::new()
                 .with_filter(child_window::is_main)
+                .with_state_flags(
+                    tauri_plugin_window_state::StateFlags::all()
+                        - tauri_plugin_window_state::StateFlags::VISIBLE,
+                )
                 .build(),
         )
         .plugin(tauri_plugin_updater::Builder::new().build())
