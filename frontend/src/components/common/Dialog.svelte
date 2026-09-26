@@ -43,8 +43,8 @@
   // Read before anything inside mounts: a dialog that focuses its own field does so first.
   const before = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   // By depth, not by place in the page: the question a dialog raises is mounted anywhere.
-  // The scrim and the panel share it; the panel comes later, so it is on top.
-  const zIndex = 20 + modals.depth(layer);
+  // The first layer keeps the 20 and 21 it always had, above the corner toast.
+  const zIndex = 20 + 2 * modals.depth(layer);
 
   /** "Discard Changes" is showing over the dialog. */
   let asking = $state(false);
@@ -126,7 +126,7 @@
   tabindex="-1"
   style:width
   style:height
-  style:z-index={zIndex}
+  style:z-index={zIndex + 1}
 >
   <header>
     <h2>{title}</h2>
