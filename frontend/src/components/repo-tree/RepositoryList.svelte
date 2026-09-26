@@ -6,8 +6,8 @@
   import { canPull, freshOverview, moduleSync, rowSync, syncTooltip, type RowSync } from "$lib/repo-sync";
   import { repoPulse } from "$stores/repo-pulse.svelte";
   import {
-    describeModule,
     mayExpand,
+    moduleHint,
     moduleRoot,
     moduleTooltip,
     pulsedRoots,
@@ -207,7 +207,7 @@
   {#each owned ? submodules.rows : moduleForest.rows(root) as node (node.key)}
     {@const parts = splitModulePath(node.path)}
     {@const folder = parts.dir.replace(/[/\\]$/, "")}
-    {@const where = describeModule(node.module)}
+    {@const hint = moduleHint(node.module)}
     {@const nodeRoot = moduleRoot(root, node.key)}
     {@const sync = moduleSync({
       shown:
@@ -258,10 +258,11 @@
       {#if repoStateTag(node.module.repoState, true)}
         <span class="op" title={STATE_TAG_HINT}>{repoStateTag(node.module.repoState, true)}</span>
       {/if}
-      {#if where}
-        <span class="where truncate shrink-first" title={moduleTooltip(node.module) || undefined}
-          >({where})</span
-        >
+      {#if hint.label}
+        <span class="hint" title={moduleTooltip(node.module) || undefined}>{hint.label}</span>
+      {/if}
+      {#if hint.where}
+        <span class="where truncate shrink-first" title={hint.where}>{hint.where}</span>
       {/if}
     </div>
   {/each}
@@ -458,6 +459,13 @@
     font-size: 11px;
   }
 
+  /* Whole and before the text that gives way: a long branch or subject cut it off (R-544). */
+  .row.module .hint {
+    flex: none;
+    color: var(--text-secondary);
+    font-size: 10px;
+  }
+
   /* Closed reads as dimmed, text and icon alike, with no word for it (R-351). */
   .row.closed {
     color: var(--text-secondary);
@@ -477,14 +485,14 @@
     box-shadow: inset 2px 0 0 var(--status-ref);
   }
 
-  .row.module.diverged .where,
-  .row.module.behind .where,
-  .row.module.notInitialised .where {
+  .row.module.diverged .hint,
+  .row.module.behind .hint,
+  .row.module.notInitialised .hint {
     color: var(--status-modify);
   }
 
   /* Ahead is work the user did and has only to record; not a warning colour. */
-  .row.module.ahead .where {
+  .row.module.ahead .hint {
     color: var(--status-add);
   }
 

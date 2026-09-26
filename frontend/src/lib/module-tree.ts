@@ -60,9 +60,10 @@ export function shownRowRoot(panels: ShownPanels): string | null {
   return current;
 }
 
-/** The word after the row's position, only where it is exact (R-153). `unknown` means the
+/** The word for the row's position, only where it is exact (R-153). `unknown` means the
     recorded commit is not in the submodule — that much is exact (R-179). */
 const LABELS: Partial<Record<Submodule["state"], string>> = {
+  notInitialised: "not initialized",
   ahead: "ahead",
   behind: "behind",
   diverged: "diverged",
@@ -70,17 +71,23 @@ const LABELS: Partial<Record<Submodule["state"], string>> = {
   unrecorded: "not recorded",
 };
 
-/** Empty for a row of a light tree, which never looked inside the submodule (R-352). */
-export function describeModule(module: Submodule): string {
-  if (module.state === "notInitialised") return "not initialised";
-  if (module.state === "unread") return "";
+export interface ModuleHint {
+  /** Never cut: the row shows it whole, before the text it cuts (R-544). */
+  label: string | null;
+  /** The branch, or the commit and its subject; the part of the row that gives way. */
+  where: string;
+}
+
+/** Nothing for a row of a light tree, which never looked inside the submodule (R-352). */
+export function moduleHint(module: Submodule): ModuleHint {
+  const label = LABELS[module.state] ?? null;
+  if (module.state === "notInitialised" || module.state === "unread") return { label, where: "" };
   const where =
     module.branch ??
     (module.checkedOut
       ? `${shortOid(module.checkedOut)}${module.subject ? `: ${module.subject}` : ""}`
       : "no commit checked out");
-  const label = LABELS[module.state];
-  return label ? `${where} · ${label}` : where;
+  return { label, where };
 }
 
 function commits(count: number): string {
