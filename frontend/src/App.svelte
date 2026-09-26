@@ -40,6 +40,7 @@
   import FindObject from "$components/layout/FindObject.svelte";
   import CommandOutput from "$components/layout/CommandOutput.svelte";
   import { suppressNativeMenu } from "$lib/native-menu";
+  import { suppressBrowserFind } from "$lib/browser-find";
   import { footerRepository, panelView } from "$lib/repo-phase";
   import { flushTrace, startTracing, timed, trace } from "$lib/trace";
   import OutputPanel from "$components/layout/OutputPanel.svelte";
@@ -337,8 +338,9 @@
     untrack(() => {
       startTracing();
       trace("startup", "the window is running");
-      // Nothing in a Git client is a web page (R-127).
+      // Nothing in a Git client is a web page (R-127), nor has the browser's find bar.
       suppressNativeMenu(document);
+      suppressBrowserFind(window);
       getAppInfo()
         .then((result) => (info = result))
         .catch((err) => errors.report(err, "Could not read the application info"));
