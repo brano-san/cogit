@@ -133,6 +133,11 @@ export const commands = {
 	fetch: (repo: RepoId, remote: string, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("fetch", { repo, remote, onProgress })),
 	pull: (repo: RepoId, remote: string, ffOnly: boolean, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("pull", { repo, remote, ffOnly, onProgress })),
 	push: (repo: RepoId, remote: string, force: boolean, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("push", { repo, remote, force, onProgress })),
+	/**
+	 *  Stops the fetch, pull or push running as queue operation `operation`. `false` when
+	 *  there is nothing to stop. Off the main thread: stopping waits for `taskkill`.
+	 */
+	cancelNetwork: (operation: number) => typedError<boolean, GitError>(__TAURI_INVOKE("cancel_network", { operation })),
 	merge: (repo: RepoId, options: MergeOptions) => typedError<null, GitError>(__TAURI_INVOKE("merge", { repo, options })),
 	rebase: (repo: RepoId, options: RebaseOptions) => typedError<null, GitError>(__TAURI_INVOKE("rebase", { repo, options })),
 	skipOperation: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("skip_operation", { repo })),
@@ -865,7 +870,12 @@ export type GitError =
 /**  A submodule that cannot be opened, with the reason rather than "not a repository". */
 { kind: "moduleUnavailable"; data: ModuleProblem } | 
 /**  Git refused a config file's text; nothing was written. */
-{ kind: "configInvalid"; data: ConfigProblem };
+{ kind: "configInvalid"; data: ConfigProblem } | 
+/**
+ *  The user stopped it: a fetch, pull or push cancelled from the footer. Carries the
+ *  command, as the journal wrote it.
+ */
+{ kind: "cancelled"; data: string };
 
 export type GitOutput = {
 	/**  Numbered so a window, a toast and a history row can all name the same run. */

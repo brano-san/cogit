@@ -33,6 +33,7 @@ pub use credentials::{
     KeyringStore, MemoryStore, SecretError, SecretStore, host_of, platform_store,
 };
 pub use graph_cache::{GraphProgress, GraphWindow};
+pub use network::NetworkRun;
 pub use presets::PresetStatus;
 pub use queue::{Operation, OperationKind, OperationPermit, OperationPhase, Queue};
 pub use safety::{Recovery, SafetyEntry};
@@ -311,6 +312,8 @@ pub struct AppState {
     graph: RwLock<graph_cache::GraphCache>,
     reachable: parking_lot::Mutex<HashMap<RepoId, git_engine::Reachable>>,
     handles: handles::HandleCache,
+    /// The fetch, pull or push running as each queue operation, for `cancel_network`.
+    network_runs: parking_lot::Mutex<HashMap<u32, git_engine::NetworkStop>>,
 }
 
 struct Quiet<'a> {
@@ -368,6 +371,7 @@ impl AppState {
             graph: RwLock::new(graph_cache::GraphCache::default()),
             reachable: parking_lot::Mutex::new(HashMap::new()),
             handles: handles::HandleCache::default(),
+            network_runs: parking_lot::Mutex::new(HashMap::new()),
         }
     }
 

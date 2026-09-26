@@ -60,6 +60,7 @@ pub enum GitError {
     Internal(String),                     // "internal"
     ModuleUnavailable(ModuleProblem),     // "moduleUnavailable": сабмодуль не открыть, с причиной
     ConfigInvalid(ConfigProblem),         // "configInvalid": git отверг текст конфига, ничего не записано
+    Cancelled(String),                    // "cancelled": fetch/pull/push остановлен cancel_network, в data — команда
 }
 ```
 
@@ -462,6 +463,7 @@ snake_case и читаются на фронтенде как `undefined`.
 | `read_git_config` | `repo: Option<RepoId>`, `scope: repository \| user` | `ConfigFile { path, text, crlf, exists }` | M3 |
 | `write_git_config` | `repo`, `scope`, `text`, `crlf` | `()`; отказ git — `GitError::ConfigInvalid { line, message }` | M3 |
 | `cancel_operation` | `id` | `bool` — `false`, если уже закончилась | — |
+| `cancel_network` | `operation: u32` — `id` из `Operation` (`operation-changed`, `list_operations`) | `bool`: `true` — git остановлен, вызов `fetch` / `pull` / `push` / `push_to` этой операции отклоняется с `GitError::Cancelled`, полоса очереди свободна, в журнале — предупреждение «Cancelled by the user»; `false` — отменять нечего: операция закончилась, ещё ждёт в очереди, не сетевая (`kind` не `fetch` / `pull` / `push`) или уже отменена (R-506) | M1 |
 | `list_operations` | — | `Vec<Operation>` — всё, что в очереди и в работе | — |
 
 `commit_tree_files` нужен переключателю `Unchanged` в коммите из истории (#3): список
@@ -504,8 +506,8 @@ gitlink нет ни в HEAD, ни в индексе (`recorded` пуст, в п�
 `cancel_operation` останавливает **чтения**, не мутации: операция, брошенная на середине,
 оставила бы репозиторий в состоянии, которого никто не просил. При закрытии приложения все
 идущие чтения гасятся автоматически.
-Сетевые fetch, pull и push тоже не отменяются; зависшую останавливает сторож молчания
-в `git_engine` — 5 минут без вывода git ([R-412](12-risks.md)).
+Сетевые fetch, pull и push отменяет `cancel_network` по `id` операции очереди (R-506); зависшую
+без отмены останавливает сторож молчания в `git_engine` — 5 минут без вывода git ([R-412](12-risks.md)).
 
 ### Remote ▸ Submodule, Subtree, LFS и Repository ▸ Settings (#42, #45, #46)
 

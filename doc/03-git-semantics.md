@@ -121,8 +121,10 @@ GIT_NAMESPACE  GIT_CEILING_DIRECTORIES  GIT_CONFIG_PARAMETERS  GIT_CONFIG_COUNT
    путей в командную строку: имена веток и файлов могут содержать пробелы и спецсимволы.
 6. **Таймаут** — сетевая операция (fetch, pull, push), от которой git 5 минут не написал ни
    байта, останавливается вместе с деревом процессов; ошибка — обычная `GitCommandError` с
-   выводом git и строкой «Stopped after 300 s with no output from git». Отмены пользователем
-   пока нет ([R-412](12-risks.md)).
+   выводом git и строкой «Stopped after 300 s with no output from git» ([R-412](12-risks.md)).
+   Отмена пользователем — `cancel_network(operation)`: дерево процессов останавливается
+   сразу, запись журнала — предупреждение «Cancelled by the user», вызов — `GitError::Cancelled`
+   ([R-506](12-risks.md)).
 7. **Логирование** — `tracing::info!` на старте (команда и аргументы), на финише — код возврата
    и `elapsed` (`GitOutput::record`, одна точка для всех записей журнала). Полные `stdout`/`stderr`
    — на уровне `debug`; при ошибке — в строке `error`, а когда окно их обрезало — в строке `warn`,

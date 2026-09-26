@@ -75,6 +75,7 @@ pub struct RepoHandle {
     pub(crate) repo: gix::Repository,
     root: PathBuf,
     journal: Option<crate::CommandSink>,
+    pub(crate) stop: Option<crate::NetworkStop>,
 }
 
 impl std::fmt::Debug for RepoHandle {
@@ -112,6 +113,7 @@ impl RepoHandle {
             repo,
             root,
             journal: None,
+            stop: None,
         }
     }
 
@@ -123,6 +125,13 @@ impl RepoHandle {
     #[must_use]
     pub fn with_journal(mut self, sink: crate::CommandSink) -> Self {
         self.journal = Some(sink);
+        self
+    }
+
+    /// A fetch, pull or push through this handle ends as soon as `stop` is asked to.
+    #[must_use]
+    pub fn with_stop(mut self, stop: crate::NetworkStop) -> Self {
+        self.stop = Some(stop);
         self
     }
 

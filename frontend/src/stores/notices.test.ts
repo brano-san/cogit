@@ -90,6 +90,11 @@ describe("the notification window", () => {
     expect(notices.all).toHaveLength(1);
   });
 
+  it("says nothing about a network command the user cancelled: the journal has it", () => {
+    errors.report(new CogitError({ kind: "cancelled", data: "git fetch --progress origin" }), "Could not fetch");
+    expect(notices.all).toHaveLength(0);
+  });
+
   it("ignores a null, which is what a store with no error hands over", () => {
     errors.report(null, "Could not show the diff");
     expect(notices.all).toHaveLength(0);

@@ -2,6 +2,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use app_state::{AppState, RepoId};
+use git_engine::NetworkStop;
 
 fn open(f: &test_fixtures::Fixture) -> (AppState, RepoId) {
     let state = AppState::new();
@@ -69,7 +70,9 @@ fn a_branch_the_remote_deleted_goes_after_a_pull() {
     .unwrap();
     let (state, repo) = open(&f);
 
-    state.pull(repo, "origin", true, |_| {}).unwrap();
+    state
+        .pull(repo, "origin", true, &NetworkStop::default(), |_| {})
+        .unwrap();
 
     assert_eq!(state.delete_merged_branches(repo).unwrap(), ["topic"]);
 }
