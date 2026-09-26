@@ -3659,6 +3659,8 @@
               onbanneraction={runBannerAction}
               onworktreecontext={(x, y) => void refActions?.worktreeContext(x, y)}
               onrefcontext={(label, oid, x, y) => void refActions?.labelContext(label, oid, x, y)}
+              onactivate={(oid) => refActions?.checkOutCommit(oid)}
+              onrefactivate={(label, oid) => refActions?.checkOutLabel(label, oid)}
               onclearfilter={() => filterGraph(parseQuery(""))}
             />
           </Panel>

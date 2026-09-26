@@ -24,13 +24,26 @@
     now: number;
     clipX: number;
     onrefmenu?: (label: RefLabel, event: MouseEvent) => void;
+    onrefactivate?: (label: RefLabel) => void;
     describeEnd: (oid: string) => { short: string; summary: string | null };
     onprefetch: (oids: readonly string[]) => void;
     onjump: (oid: string | undefined) => void;
   }
 
-  let { entry, labels, folds, cells, timeFormat, now, clipX, onrefmenu, describeEnd, onprefetch, onjump }: Props =
-    $props();
+  let {
+    entry,
+    labels,
+    folds,
+    cells,
+    timeFormat,
+    now,
+    clipX,
+    onrefmenu,
+    onrefactivate,
+    describeEnd,
+    onprefetch,
+    onjump,
+  }: Props = $props();
 
   /** Enough for HEAD plus its upstream plus a tag; the rest fold into a `+N` capsule. */
   const CAPSULE_ROOM = 3;
@@ -47,7 +60,11 @@
   {/if}
 {/if}
 {#each refs.shown as label (refLabelKey(label))}
-  <RefCapsule {label} onmenu={onrefmenu && ((event) => onrefmenu(label, event))} />
+  <RefCapsule
+    {label}
+    onmenu={onrefmenu && ((event) => onrefmenu(label, event))}
+    onactivate={onrefactivate && (() => onrefactivate(label))}
+  />
 {/each}
 {#if refs.hidden.length > 0}
   <span class="capsule more" title={refs.hidden.map((l) => l.text).join("\n")}>+{refs.hidden.length}</span>

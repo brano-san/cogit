@@ -7,9 +7,11 @@
     label: RefLabel;
     /** Right-click: the label's own menu, not the row's (#39). */
     onmenu?: (event: MouseEvent) => void;
+    /** Double click: the label's own Check Out, not its commit's (item 40). */
+    onactivate?: () => void;
   }
 
-  let { label, onmenu }: Props = $props();
+  let { label, onmenu, onactivate }: Props = $props();
 
   const tooltip = $derived(label.title ?? label.text);
   const prefix = $derived(label.remotes?.join(",") ?? "");
@@ -40,6 +42,11 @@
   style:--cap="{REF_LABEL_MAX}ch"
   title={tooltip}
   oncontextmenu={onmenu}
+  ondblclick={(event) => {
+    if (!onactivate) return;
+    event.stopPropagation();
+    onactivate();
+  }}
 >
   {#if label.remotes}
     <span class="prefix">{prefix}</span><span class="eq">=</span><span class="branch"
