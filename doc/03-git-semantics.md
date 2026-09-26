@@ -181,16 +181,16 @@ URL в выводе кликабельны — именно там `git` отд�
 | Состояние | Маркер | Действия в баннере |
 |---|---|---|
 | Normal | — | — |
-| Detached HEAD | `.git/HEAD` не содержит `ref:` | `Create Branch`, `Return to <branch>` |
+| Detached HEAD | `.git/HEAD` не содержит `ref:` | `Create Branch`; назад на ветку — обычный checkout (R-502). В submodule — баннер без кнопок: он отсоединён по устройству (R-130) |
 | Merge in progress | `.git/MERGE_HEAD` | `Continue`, `Abort` |
 | Rebase in progress | `.git/rebase-merge/` или `.git/rebase-apply/` без `applying` | `Continue`, `Skip`, `Abort` |
 | `git am` in progress | `.git/rebase-apply/applying` | `Continue`, `Skip`, `Abort` (`git am --continue/--skip/--abort`) |
-| Cherry-pick in progress | `.git/CHERRY_PICK_HEAD` | `Continue`, `Abort` |
-| Revert in progress | `.git/REVERT_HEAD` | `Continue`, `Abort` |
+| Cherry-pick in progress | `.git/CHERRY_PICK_HEAD` | `Continue`, `Skip`, `Abort` |
+| Revert in progress | `.git/REVERT_HEAD` | `Continue`, `Skip`, `Abort` |
 | Bisect in progress | `.git/BISECT_LOG` | `Abort` = `git bisect reset` (`--continue` у bisect нет, Continue отказывает без запуска git) |
 | Пустой репозиторий | `HEAD` указывает на несуществующий ref | Подсказка «сделайте первый коммит» |
 | Bare-репозиторий | нет рабочей директории | Скрыть панели стейджинга |
-| Index заблокирован | `.git/index.lock` существует | `Retry`, `Show which process` |
+| Index заблокирован | `.git/index.lock` существует | Кнопок нет: красный баннер поверх остальных состояний с полным путём к lock-файлу и советом удалить его, только убедившись, что git не работает. Наблюдатель `index.lock` не видит — баннер уходит, когда репозиторий перечитан (`F5`, смена ссылок) (R-502) |
 
 **Требование [INV-07](01-architecture.md#inv-07):** каждое из этих состояний должно быть
 покрыто тестом с фикстурой. Клиент, который падает на detached HEAD, бесполезен.
