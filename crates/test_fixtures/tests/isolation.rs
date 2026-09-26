@@ -41,3 +41,19 @@ fn tests_spawn_git_only_through_the_fixtures() {
         "use test_fixtures::git_command_in or user_git_command instead: {raw:?}"
     );
 }
+
+// With `core.quotepath = false` the suite parsed git's output in a mode no user has: a
+// split-off that did not recognise a quoted Cyrillic path passed every test (1493aa7).
+#[test]
+fn the_fixtures_quote_paths_as_git_does_by_default() {
+    let f = test_fixtures::unicode_paths().unwrap();
+
+    let listed = f.git(&["ls-files"]).unwrap();
+
+    assert!(
+        listed
+            .lines()
+            .any(|line| line.starts_with('"') && line.contains(char::from(92))),
+        "{listed}"
+    );
+}
