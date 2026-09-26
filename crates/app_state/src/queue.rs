@@ -77,8 +77,10 @@ pub struct Queue {
 impl Queue {
     /// Takes a place in the repository's lane and says whether the turn is now.
     ///
-    /// Sync on purpose: the place in the queue is taken when the command is called, not
-    /// when its future happens to be polled, so three clicks run in the order they landed.
+    /// Sync, under one lock, at the first poll of the command: its place is fixed then and
+    /// kept to the end. Tauri spawns each async command on the multi-threaded runtime, so
+    /// two calls sent without awaiting the first may reach this in either order (R-513);
+    /// clicks, each awaited, run in the order they landed.
     fn admit(
         &self,
         lane: &Path,
