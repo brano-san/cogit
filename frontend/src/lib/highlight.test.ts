@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_HIGHLIGHT_LINES, highlightLines, mergePieces } from "./highlight";
+import { MAX_HIGHLIGHT_LINES, highlightLines, languageOf, mergePieces } from "./highlight";
 
 function classesOf(tokens: { cls: string }[][], line: number): string[] {
   return (tokens[line] ?? []).map((t) => t.cls);
@@ -13,6 +13,56 @@ describe("highlightLines", () => {
   it("returns nothing when no language is given", () => {
     expect(highlightLines(["fn main() {}"], null)).toEqual([[]]);
   });
+
+  const SAMPLES: Record<string, string> = {
+    c: "int main() { return 0; }",
+    cpp: "class Foo { public: int x; };",
+    css: "body { color: red; }",
+    html: "<div>test</div>",
+    javascript: "const x = 1;",
+    json: '{"key": "value"}',
+    python: "def foo(): pass",
+    rust: "fn main() {}",
+    typescript: "const x: number = 1;",
+    jsx: "const el = <div>hi</div>;",
+    tsx: "const el = <div>hi</div>;",
+    java: "public class Main { public static void main(String[] args) {} }",
+    yaml: "key: value",
+    xml: "<note><to>User</to></note>",
+    markdown: "# Header\nSome text",
+    php: "<?php echo 'hello'; ?>",
+    sass: "$primary-color: #333;\nbody { color: $primary-color; }",
+    csharp: "class Program { static void Main() {} }",
+    go: "package main\nfunc main() {}",
+    ruby: "def hello; end",
+    shell: "if [ -f file ]; then echo hi; fi",
+    sql: "SELECT id FROM users WHERE id = 1;",
+    toml: "name = 'test'",
+    kotlin: "fun main() {}",
+    swift: "func main() {}",
+    cmake: "cmake_minimum_required(VERSION 3.10)",
+    dockerfile: "FROM alpine:latest",
+    lua: "function test() end",
+    perl: "sub test { return 1; }",
+    r: "function(x) { x + 1 }",
+    scala: "def main(args: Array[String]): Unit = {}",
+    dart: "void main() {}",
+    haskell: "module Main where",
+    groovy: "def list = [1, 2, 3]",
+    powershell: "function Test-Cmdlet { return 1 }",
+    svelte: "<div>{name}</div>",
+    vue: "<template><div>hi</div></template>",
+  };
+
+  for (const [language, code] of Object.entries(SAMPLES)) {
+    it(`highlights ${language}`, () => {
+      const lines = code.split("\n");
+      const tokens = highlightLines(lines, language);
+      expect(tokens).toHaveLength(lines.length);
+      const allTokens = tokens.flat();
+      expect(allTokens.length, `expected tokens for ${language}`).toBeGreaterThan(0);
+    });
+  }
 
   it("marks a Rust keyword", () => {
     const tokens = highlightLines(["fn main() {}"], "rust");
@@ -70,6 +120,64 @@ describe("highlightLines", () => {
       expect(at("div"), language).toBe("tok-typeName");
       expect(tokens.some((t) => t.cls.includes("string2")), language).toBe(false);
     }
+  });
+
+  describe("languageOf", () => {
+    it("maps standard file extensions", () => {
+      expect(languageOf("src/main.rs")).toBe("rust");
+      expect(languageOf("app.ts")).toBe("typescript");
+      expect(languageOf("app.tsx")).toBe("tsx");
+      expect(languageOf("script.js")).toBe("javascript");
+      expect(languageOf("script.mjs")).toBe("javascript");
+      expect(languageOf("script.cjs")).toBe("javascript");
+      expect(languageOf("component.jsx")).toBe("jsx");
+      expect(languageOf("script.py")).toBe("python");
+      expect(languageOf("script.pyi")).toBe("python");
+      expect(languageOf("main.c")).toBe("c");
+      expect(languageOf("main.h")).toBe("c");
+      expect(languageOf("main.cpp")).toBe("cpp");
+      expect(languageOf("main.java")).toBe("java");
+      expect(languageOf("main.go")).toBe("go");
+      expect(languageOf("Program.cs")).toBe("csharp");
+      expect(languageOf("script.rb")).toBe("ruby");
+      expect(languageOf("index.php")).toBe("php");
+      expect(languageOf("Main.swift")).toBe("swift");
+      expect(languageOf("Main.kt")).toBe("kotlin");
+      expect(languageOf("script.sh")).toBe("shell");
+      expect(languageOf("query.sql")).toBe("sql");
+      expect(languageOf("data.json")).toBe("json");
+      expect(languageOf("config.yaml")).toBe("yaml");
+      expect(languageOf("config.yml")).toBe("yaml");
+      expect(languageOf("Cargo.toml")).toBe("toml");
+      expect(languageOf("doc.xml")).toBe("xml");
+      expect(languageOf("image.svg")).toBe("xml");
+      expect(languageOf("index.html")).toBe("html");
+      expect(languageOf("style.css")).toBe("css");
+      expect(languageOf("style.scss")).toBe("sass");
+      expect(languageOf("style.sass")).toBe("sass");
+      expect(languageOf("README.md")).toBe("markdown");
+      expect(languageOf("App.svelte")).toBe("svelte");
+      expect(languageOf("App.vue")).toBe("vue");
+      expect(languageOf("CMakeLists.txt")).toBe("cmake");
+      expect(languageOf("project.cmake")).toBe("cmake");
+      expect(languageOf("Dockerfile")).toBe("dockerfile");
+      expect(languageOf("app.dockerfile")).toBe("dockerfile");
+      expect(languageOf("script.lua")).toBe("lua");
+      expect(languageOf("script.pl")).toBe("perl");
+      expect(languageOf("Module.pm")).toBe("perl");
+      expect(languageOf("calc.r")).toBe("r");
+      expect(languageOf("App.scala")).toBe("scala");
+      expect(languageOf("main.dart")).toBe("dart");
+      expect(languageOf("Main.hs")).toBe("haskell");
+      expect(languageOf("build.gradle")).toBe("groovy");
+      expect(languageOf("deploy.ps1")).toBe("powershell");
+    });
+
+    it("returns null for unknown extensions or files without extension", () => {
+      expect(languageOf("notes.xyz")).toBeNull();
+      expect(languageOf("LICENSE")).toBeNull();
+      expect(languageOf(".gitignore")).toBeNull();
+    });
   });
 });
 

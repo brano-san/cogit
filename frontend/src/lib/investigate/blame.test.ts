@@ -103,8 +103,8 @@ describe("Investigate blame helpers", () => {
 
   it("picks a bundled grammar by extension", () => {
     expect(languageOf("src/main.rs")).toBe("rust");
-    expect(languageOf("App.SVELTE")).toBe("html");
+    expect(languageOf("App.SVELTE")).toBe("svelte");
     expect(languageOf("Makefile")).toBeNull();
-    expect(languageOf("notes.lua")).toBeNull();
+    expect(languageOf("notes.xyz")).toBeNull();
   });
 });

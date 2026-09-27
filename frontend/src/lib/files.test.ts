@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fileName, matchesMask, statusBadge, statusLabel, statusTooltip } from "./files";
+import { fileName, fileStatusBadge, fileStatusTooltip, matchesMask, statusBadge, statusLabel, statusTooltip } from "./files";
 
 describe("statusBadge", () => {
   it("gives every status its own single letter", () => {
@@ -21,6 +21,17 @@ describe("statusBadge", () => {
     for (const status of ["unchanged", "ignored", "assumeUnchanged", "skipped"] as const) {
       expect(statusTooltip(status)).toMatch(/^[A-Z]/);
     }
+  });
+
+  it("shows RM for renamed files with modifications", () => {
+    expect(fileStatusBadge({ status: "renamed", similarity: 64 })).toBe("RM");
+    expect(fileStatusBadge({ status: "renamed", similarity: 100 })).toBe("R");
+    expect(fileStatusBadge({ status: "renamed", similarity: null })).toBe("R");
+    expect(fileStatusBadge({ status: "renamed", similarity: 100, indexState: "partly" })).toBe("RM");
+    expect(fileStatusBadge({ status: "modified" })).toBe("M");
+
+    expect(fileStatusTooltip({ status: "renamed", similarity: 64 })).toContain("Renamed and modified");
+    expect(fileStatusTooltip({ status: "renamed", similarity: 100 })).toBe("Renamed");
   });
 });
 

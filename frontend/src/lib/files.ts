@@ -18,12 +18,35 @@ export function statusBadge(status: FileStatus): string {
   return BADGES[status];
 }
 
+export interface StatusFile {
+  status: FileStatus;
+  similarity?: number | null;
+  indexState?: "staged" | "partly";
+}
+
+export function isRenamedModified(file: StatusFile): boolean {
+  if (file.status !== "renamed") return false;
+  if (file.indexState === "partly") return true;
+  if (file.similarity !== null && file.similarity !== undefined && file.similarity < 100) return true;
+  return false;
+}
+
+export function fileStatusBadge(file: StatusFile): string {
+  if (isRenamedModified(file)) return "RM";
+  return statusBadge(file.status);
+}
+
 const LABELS: Partial<Record<FileStatus, string>> = {
   assumeUnchanged: "Assume unchanged",
 };
 
 export function statusLabel(status: FileStatus): string {
   return LABELS[status] ?? status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+export function fileStatusLabel(file: StatusFile): string {
+  if (isRenamedModified(file)) return "Renamed and modified";
+  return statusLabel(file.status);
 }
 
 const TOOLTIPS: Record<FileStatus, string> = {
@@ -43,6 +66,13 @@ const TOOLTIPS: Record<FileStatus, string> = {
 /** The full name of a status marker and what it means, for its tooltip (R-181). */
 export function statusTooltip(status: FileStatus): string {
   return TOOLTIPS[status];
+}
+
+export function fileStatusTooltip(file: StatusFile): string {
+  if (isRenamedModified(file)) {
+    return "Renamed and modified — changed since last commit";
+  }
+  return statusTooltip(file.status);
 }
 
 /** What the tooltip adds for a row of the one working-tree list (#32). */

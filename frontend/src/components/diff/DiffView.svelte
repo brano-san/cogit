@@ -522,9 +522,6 @@
 
 <svelte:window onkeydowncapture={onkeydown} />
 
-{#snippet eof(open: boolean | undefined)}
-  {#if open}<span class="eof" title="No newline at end of file">\ no newline</span>{/if}
-{/snippet}
 
 {#snippet cellGutter(cell: SideCell | null)}
   {@const key = cellKey(cell)}
@@ -840,7 +837,7 @@
                           class={piece.cls}
                           class:hit={piece.hit}
                           class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
-                        >{/each}{@render eof(entry.row.noNewline)}</span
+                        >{/each}</span
                     ></span
                   >
                 {:else if entry.row.kind === "delete"}
@@ -864,7 +861,7 @@
                           class:word={piece.changed}
                           class:hit={piece.hit}
                           class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
-                        >{/each}{@render eof(row.noNewline)}</span
+                        >{/each}</span
                     ></span
                   >
                 {:else if entry.row.kind === "insert"}
@@ -888,7 +885,7 @@
                           class:word={piece.changed}
                           class:hit={piece.hit}
                           class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
-                        >{/each}{@render eof(row.noNewline)}</span
+                        >{/each}</span
                     ></span
                   >
                 {/if}
@@ -933,7 +930,7 @@
                         class:word={piece.changed}
                         class:hit={piece.hit}
                         class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
-                      >{/each}{@render eof(entry.pair.left?.noNewline)}</span
+                      >{/each}</span
                   ></span
                 >
                 <span class="gap"></span>
@@ -956,7 +953,7 @@
                         class:word={piece.changed}
                         class:hit={piece.hit}
                         class:current={find.isCurrent(rowIndex, "right", piece.start)}>{piece.text}</span
-                      >{/each}{@render eof(entry.pair.right?.noNewline)}</span
+                      >{/each}</span
                   ></span
                 >
                 {#if hoverRow === rowIndex}{@render blockActions(entry.block)}{/if}

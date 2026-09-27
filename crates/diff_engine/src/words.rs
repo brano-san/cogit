@@ -4,11 +4,65 @@ const MAX_BLOCK_RATIO: usize = 100;
 
 pub type Spans = Vec<(u32, u32)>;
 
+fn is_operator_char(ch: char) -> bool {
+    matches!(
+        ch,
+        '+' | '-' | '*' | '/' | '%' | '=' | '!' | '<' | '>' | '&' | '|' | '^' | '~' | '?' | ':'
+    )
+}
+
+fn tokenize(text: &str) -> Vec<&str> {
+    let mut tokens = Vec::new();
+    let mut chars = text.char_indices().peekable();
+
+    while let Some((start, ch)) = chars.next() {
+        if ch.is_whitespace() {
+            while let Some(&(_, next)) = chars.peek() {
+                if next.is_whitespace() {
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+        } else if ch.is_alphanumeric() || ch == '_' {
+            while let Some(&(_, next)) = chars.peek() {
+                if next.is_alphanumeric() || next == '_' {
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+        } else if ch == '.' {
+            while let Some(&(_, next)) = chars.peek() {
+                if next == '.' {
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+        } else if is_operator_char(ch) {
+            while let Some(&(_, next)) = chars.peek() {
+                if is_operator_char(next) {
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+        }
+        let end = chars.peek().map_or(text.len(), |&(idx, _)| idx);
+        tokens.push(&text[start..end]);
+    }
+
+    tokens
+}
+
 /// Changed words on each side, in **UTF-16 units**: the consumer is JavaScript, where a
 /// string index is a UTF-16 unit (doc/12-risks.md, R-10).
 #[must_use]
 pub fn inline_spans(old: &str, new: &str) -> (Spans, Spans) {
-    let diff = TextDiff::from_unicode_words(old, new);
+    let old_tokens = tokenize(old);
+    let new_tokens = tokenize(new);
+    let diff = TextDiff::from_slices(&old_tokens, &new_tokens);
 
     let mut old_spans = Spans::new();
     let mut new_spans = Spans::new();

@@ -36,6 +36,26 @@ fn only_the_changed_word_is_marked() {
 }
 
 #[test]
+fn dockerfile_entrypoint_only_marks_changed_filename_base() {
+    let old = "ENTRYPOINT [\"dotnet\", \"MediaTracker.Server.dll\"]";
+    let new = "ENTRYPOINT [\"dotnet\", \"Tsundoku.dll\"]";
+
+    let (old_spans, new_spans) = inline_spans(old, new);
+
+    assert_eq!(old_spans.len(), 1);
+    assert_eq!(new_spans.len(), 1);
+    assert_eq!(slice_utf16(old, old_spans[0]), "MediaTracker.Server");
+    assert_eq!(slice_utf16(new, new_spans[0]), "Tsundoku");
+}
+
+#[test]
+fn operators_are_highlighted_as_operators() {
+    let (old, new) = inline_spans("a == b", "a != b");
+    assert_eq!(slice_utf16("a == b", old[0]), "==");
+    assert_eq!(slice_utf16("a != b", new[0]), "!=");
+}
+
+#[test]
 fn identical_lines_have_no_spans() {
     let (old, new) = inline_spans("same text", "same text");
 

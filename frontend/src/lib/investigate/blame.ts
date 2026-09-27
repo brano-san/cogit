@@ -98,32 +98,4 @@ export function nextChange(blocks: readonly Block[], index: number, direction: 1
   return before[before.length - 1]?.start ?? null;
 }
 
-const LANGUAGES: Record<string, string> = {
-  rs: "rust",
-  ts: "typescript",
-  tsx: "tsx",
-  js: "javascript",
-  jsx: "jsx",
-  mjs: "javascript",
-  cjs: "javascript",
-  svelte: "html",
-  py: "python",
-  c: "c",
-  h: "c",
-  cc: "cpp",
-  cpp: "cpp",
-  cxx: "cpp",
-  hpp: "cpp",
-  hh: "cpp",
-  json: "json",
-  html: "html",
-  htm: "html",
-  css: "css",
-};
-
-/** The Lezer grammar for a path, among the ones the frontend bundles. */
-export function languageOf(path: string): string | null {
-  const name = path.slice(path.lastIndexOf("/") + 1);
-  const dot = name.lastIndexOf(".");
-  return dot < 0 ? null : (LANGUAGES[name.slice(dot + 1).toLowerCase()] ?? null);
-}
+export { languageOf } from "../highlight";

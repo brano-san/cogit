@@ -134,22 +134,22 @@ describe("the columns shown", () => {
     expect(columnReason("name", false)).toMatch(/always/);
   });
 
-  it("starts every path at one vertical: fixed columns between the name and the path", () => {
-    expect(gridColumns(["name", "type", "change", "path"])).toBe(
-      "minmax(0, 2fr) var(--file-type-width) var(--file-change-width) minmax(0, 3fr)",
-    );
-    expect(gridColumns(["name", "change"])).toBe("minmax(0, 1fr) var(--file-change-width)");
+  it("formats pixel widths for grid columns", () => {
+    expect(gridColumns(["name", "type", "change", "path"])).toBe("180px 65px 60px 260px");
+    expect(gridColumns(["name", "change"], { name: 200, change: 80 })).toBe("200px 80px");
   });
 });
 
 describe("the stored table settings", () => {
   it("falls back to the defaults for anything missing or malformed", () => {
-    expect(mergeTable(null)).toEqual({ columns: DEFAULT_COLUMNS, sort: DEFAULT_SORT });
+    expect(mergeTable(null)).toEqual({ columns: DEFAULT_COLUMNS, sort: DEFAULT_SORT, widths: expect.any(Object) });
     expect(mergeTable({ columns: { type: false, path: "no" }, sort: { key: "size", descending: true } })).toEqual({
       columns: { ...DEFAULT_COLUMNS, type: false },
       sort: DEFAULT_SORT,
+      widths: expect.any(Object),
     });
     expect(mergeTable({ sort: { key: "path", descending: true } }).sort).toEqual({ key: "path", descending: true });
+    expect(mergeTable({ widths: { name: 300 } }).widths.name).toBe(300);
   });
 });
 

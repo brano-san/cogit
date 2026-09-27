@@ -60,7 +60,11 @@ fn the_side_that_lacks_the_newline_is_the_one_flagged() {
 
     assert_eq!(
         flags(&diff),
-        vec![("beta".to_owned(), true), ("gamma".to_owned(), false)]
+        vec![
+            ("beta".to_owned(), true),
+            ("gamma".to_owned(), false),
+            ("".to_owned(), false)
+        ]
     );
 }
 

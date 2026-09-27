@@ -76,7 +76,7 @@ fn a_side_past_the_highlight_limit_travels_without_its_text() {
 
 #[test]
 fn a_file_no_parser_highlights_travels_without_its_text() {
-    for path in ["notes.md", "LICENSE", "config.yaml"] {
+    for path in ["notes.txt", "LICENSE", "Makefile"] {
         let diff = diff_one(path, b"one\n", b"two\n", &DiffOptions::default());
         assert_eq!(texts(&diff), (None, None), "{path}");
     }

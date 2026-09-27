@@ -127,16 +127,24 @@ pub fn diff_text(old: &str, new: &str, options: &DiffOptions) -> FileDiff {
         };
     }
 
-    let old_lines: Vec<&str> = lines(&old_text).collect();
-    let new_lines: Vec<&str> = lines(&new_text).collect();
+    let mut old_lines: Vec<&str> = lines(&old_text).collect();
+    let mut new_lines: Vec<&str> = lines(&new_text).collect();
 
     let open = OpenEnd {
         old: lacks_final_newline(&old_text),
         new: lacks_final_newline(&new_text),
     };
 
-    let old_keys: Vec<Cow<'_, str>> = open.keys(&old_lines, true, options);
-    let new_keys: Vec<Cow<'_, str>> = open.keys(&new_lines, false, options);
+    if !old_text.is_empty() && !new_text.is_empty() && open.old != open.new {
+        if !open.old {
+            old_lines.push("");
+        } else if !open.new {
+            new_lines.push("");
+        }
+    }
+
+    let old_keys: Vec<Cow<'_, str>> = keys(&old_lines, options);
+    let new_keys: Vec<Cow<'_, str>> = keys(&new_lines, options);
 
     let mut interner = Interner::new(old_keys.len() + new_keys.len());
     let before: Vec<Token> = old_keys
@@ -201,32 +209,8 @@ struct OpenEnd {
     new: bool,
 }
 
-/// A line the file ends on without a newline is not the same line as the same text with
-/// one — git prints `\ No newline at end of file` for exactly that difference. Marking the
-/// key is what makes the diff see it; the sentinel holds a NUL, which text gets this far
-/// with only where `.gitattributes` forces it to be text.
-const OPEN_END: &str = "\u{0}no-final-newline";
-
-impl OpenEnd {
-    fn side(self, old: bool) -> bool {
-        if old { self.old } else { self.new }
-    }
-
-    fn keys<'a>(self, lines: &[&'a str], old: bool, options: &DiffOptions) -> Vec<Cow<'a, str>> {
-        let last = lines.len().saturating_sub(1);
-        lines
-            .iter()
-            .enumerate()
-            .map(|(index, line)| {
-                let body = key(line, options);
-                if self.side(old) && index == last {
-                    Cow::Owned(format!("{body}{OPEN_END}"))
-                } else {
-                    body
-                }
-            })
-            .collect()
-    }
+fn keys<'a>(lines: &[&'a str], options: &DiffOptions) -> Vec<Cow<'a, str>> {
+    lines.iter().map(|line| key(line, options)).collect()
 }
 
 fn lacks_final_newline(text: &str) -> bool {

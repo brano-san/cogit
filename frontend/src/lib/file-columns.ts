@@ -136,27 +136,33 @@ export function toggleColumn(columns: FileColumns, key: ColumnKey): FileColumns 
   return key === "name" ? columns : { ...columns, [key]: !columns[key] };
 }
 
-/** Every path starts at one vertical: the columns between the name and the path have a
-    fixed width, and the name and the path share what is left, two parts to three. */
-export function gridColumns(shown: readonly ColumnKey[]): string {
-  const withPath = shown.includes("path");
+export type ColumnWidths = Record<ColumnKey, number>;
+
+export const DEFAULT_COLUMN_WIDTHS: ColumnWidths = {
+  name: 180,
+  type: 65,
+  change: 60,
+  path: 260,
+};
+
+export const MIN_COLUMN_WIDTH: Record<ColumnKey, number> = {
+  name: 70,
+  type: 45,
+  change: 45,
+  path: 80,
+};
+
+/** Fixed pixel column widths so table content can be resized and overflow gracefully. */
+export function gridColumns(shown: readonly ColumnKey[], widths?: Partial<ColumnWidths>): string {
   return shown
     .map((key) => {
-      switch (key) {
-        case "name":
-          return withPath ? "minmax(0, 2fr)" : "minmax(0, 1fr)";
-        case "type":
-          return "var(--file-type-width)";
-        case "change":
-          return "var(--file-change-width)";
-        case "path":
-          return "minmax(0, 3fr)";
-      }
+      const width = widths?.[key] ?? DEFAULT_COLUMN_WIDTHS[key];
+      return `${width}px`;
     })
     .join(" ");
 }
 
-export function mergeTable(stored: unknown): { columns: FileColumns; sort: FileSort } {
+export function mergeTable(stored: unknown): { columns: FileColumns; sort: FileSort; widths: ColumnWidths } {
   const source = typeof stored === "object" && stored !== null ? (stored as Record<string, unknown>) : {};
   const columns = { ...DEFAULT_COLUMNS };
   const keptColumns = source.columns;
@@ -176,5 +182,15 @@ export function mergeTable(stored: unknown): { columns: FileColumns; sort: FileS
   ) {
     sort = { key: keptSort.key as ColumnKey, descending: keptSort.descending };
   }
-  return { columns, sort };
+  const widths = { ...DEFAULT_COLUMN_WIDTHS };
+  const keptWidths = source.widths as Record<string, unknown> | undefined;
+  if (typeof keptWidths === "object" && keptWidths !== null) {
+    for (const key of COLUMN_KEYS) {
+      const val = keptWidths[key];
+      if (typeof val === "number" && Number.isFinite(val) && val >= (MIN_COLUMN_WIDTH[key] ?? 30)) {
+        widths[key] = Math.round(val);
+      }
+    }
+  }
+  return { columns, sort, widths };
 }
