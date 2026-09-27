@@ -98,7 +98,7 @@ fn ancestry_dims_the_other_branch() {
 }
 
 #[test]
-fn mergeable_dims_what_a_merge_of_the_chosen_commit_would_not_bring() {
+fn mergeable_dims_the_history_of_head() {
     let f = test_fixtures::branched().unwrap();
     let state = AppState::new();
     let repo = state.open_repository(f.path()).unwrap().repo;
@@ -107,7 +107,7 @@ fn mergeable_dims_what_a_merge_of_the_chosen_commit_would_not_bring() {
     let dev = [f.oid("dev").unwrap(), f.oid("dev~1").unwrap()];
 
     let request = GraphPaintRequest {
-        mergeable_of: Some(dev[0].clone()),
+        mergeable: true,
         ..GraphPaintRequest::default()
     };
     let overlay = state

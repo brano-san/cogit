@@ -8,6 +8,7 @@ import {
   focusLane,
   graphView,
   paintRequest,
+  branchTips,
   viewReloads,
   walkedView,
 } from "$lib/graph-modes";
@@ -109,8 +110,24 @@ describe("focusLane", () => {
     expect(focusLane(on, null, 3, null, "1:1")).toBeNull();
   });
 
-  it("asks for lanes even with no branch ticked", () => {
-    expect(paintRequest(on, [])).toEqual({ tips: [] });
+  it("asks for lanes with merged-in lines dimmed even with no branch ticked", () => {
+    expect(paintRequest(on, [])).toEqual({ tips: [], dimMerges: true });
+  });
+
+  it("colours every branch by its name, ticked or not", () => {
+    const branches = [
+      { name: "feature/x", kind: "local" as const, oid: "a" },
+      { name: "origin/feature/x", kind: "remote" as const, oid: "b" },
+    ];
+    const tips = branchTips(branches);
+    expect(tips.map((tip) => tip.slot)).toEqual([branchSlot("feature/x"), branchSlot("feature/x")]);
+    expect(paintRequest({ ...on, highlightChecked: false }, tips)?.tips).toHaveLength(2);
+  });
+});
+
+describe("mergeable in the paint request", () => {
+  it("is relative to HEAD, so it needs no selection", () => {
+    expect(paintRequest({ ...GRAPH_MODE_DEFAULTS, coloring: "mergeable" }, [], null)).toEqual({ tips: [], mergeable: true });
   });
 });
 
@@ -152,7 +169,7 @@ describe("conflicting modes", () => {
     expect(conflictingModes(mergeable)).toEqual([
       { mode: "ancestry", reason: "Mergeable Coloring already dims all but what a merge would bring." },
     ]);
-    expect(paintRequest(mergeable, [], "abc")).toEqual({ tips: [], mergeableOf: "abc" });
+    expect(paintRequest(mergeable, [], "abc")).toEqual({ tips: [], mergeable: true });
   });
 
   it("name real modes and never a mode against itself", () => {

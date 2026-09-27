@@ -92,6 +92,11 @@ export function checkedTips(
     .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 }
 
+/** Branch Coloring: every branch in the colour of its name. */
+export function branchTips(branches: readonly Pick<Branch, "name" | "kind" | "oid">[]): CheckedTip[] {
+  return checkedTips(branches, new Set(branches.map((branch) => `${branch.kind}:${branch.name}`)));
+}
+
 /** The modes that decide which commits the walk shows; the rest only paint. The opened
     merges count only while merged branches fold, so opening one elsewhere walks nothing. */
 export function graphView(modes: GraphModes, expanded: ReadonlySet<string> = new Set()): GraphView {
@@ -131,15 +136,16 @@ export function paintRequest(
   selected: string | null = null,
 ): GraphPaintRequest | null {
   const effective = effectiveModes(modes);
-  const painted = modes.highlightChecked ? tips.map(({ oid, slot }) => ({ oid, slot })) : [];
+  const branch = modes.coloring === "branch";
+  const painted = modes.highlightChecked || branch ? tips.map(({ oid, slot }) => ({ oid, slot })) : [];
   const ancestryOf = effective.ancestry ? selected : null;
-  const mergeableOf = modes.coloring === "mergeable" ? selected : null;
-  const bare = modes.coloring === "branch" || effective.collapseMerged;
-  if (painted.length === 0 && !bare && ancestryOf === null && mergeableOf === null) return null;
+  const mergeable = modes.coloring === "mergeable";
+  if (painted.length === 0 && !branch && !effective.collapseMerged && ancestryOf === null && !mergeable) return null;
   return {
     tips: painted,
     ...(ancestryOf === null ? {} : { ancestryOf }),
-    ...(mergeableOf === null ? {} : { mergeableOf }),
+    ...(mergeable ? { mergeable } : {}),
+    ...(branch ? { dimMerges: true } : {}),
   };
 }
 

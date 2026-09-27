@@ -95,9 +95,19 @@ describe("strokes", () => {
     expect(coloured.layer).toBeLessThan(segmentStroke(segment(true), 0, undefined, plain).layer);
   });
 
-  it("fall back to the lane colour under Coloured branch lines where no branch has one", () => {
-    expect(segmentStroke(segment(false, 3), 0, undefined, { colouredLanes: true }).token).toBe("--c-lane-4");
-    expect(segmentStroke(segment(false, 3), 0, painted, { colouredLanes: true }).token).toBe("--graph-branch-5");
+  it("cycle the palette by column under Varying Coloring where no branch has one", () => {
+    const at = (from: number) => ({ ...segment(false), from });
+    expect(segmentStroke(at(3), 0, undefined, { colouredLanes: true }).token).toBe("--c-lane-4");
+    expect(segmentStroke(at(3 + BRANCH_SLOTS), 0, undefined, { colouredLanes: true }).token).toBe("--c-lane-4");
+    expect(segmentStroke(at(3), 0, painted, { colouredLanes: true }).token).toBe("--graph-branch-5");
+    expect(nodeStroke({ ...row(false), lane: 9 }, undefined, { colouredLanes: true }).token).toBe("--c-lane-2");
+  });
+
+  it("draw what is not dimmed in the accent under Mergeable Coloring", () => {
+    const mergeable = { colouredLanes: false, accentLit: true };
+    expect(segmentStroke(segment(false), 0, undefined, mergeable).token).toBe("--status-add");
+    const dimmed = { nodeLane: 0, nodeStyle: 0x10, segmentLanes: [0], segmentStyles: [0x10] };
+    expect(segmentStroke(segment(false), 0, dimmed, mergeable)).toMatchObject({ token: "--graph-line", alpha: DIM_ALPHA });
   });
 
   it("keep a ring's width whatever its colour", () => {

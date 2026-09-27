@@ -52,6 +52,7 @@
   import { graph } from "$stores/graph.svelte";
   import {
     GRAPH_MODE_DEFAULTS,
+    branchTips,
     checkedTips,
     effectiveModes,
     focusLane,
@@ -358,7 +359,9 @@
     filterless
       ? paintRequest(
           modes,
-          checkedTips(repository.current?.branches ?? [], ticks),
+          modes.coloring === "branch"
+            ? branchTips(repository.current?.branches ?? [])
+            : checkedTips(repository.current?.branches ?? [], ticks),
           selection.oid,
         )
       : null,
