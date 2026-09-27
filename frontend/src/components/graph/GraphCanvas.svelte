@@ -9,7 +9,7 @@
     segmentCurve,
     textX,
   } from "$lib/graph-geometry";
-  import { LAYERS, nodeStroke, segmentStroke, type RowPaint } from "$lib/graph-style";
+  import { LAYERS, nodeStroke, opaqueInk, segmentStroke, type RowPaint } from "$lib/graph-style";
   import { canvasBox, drawsNow, type CanvasBox } from "$lib/canvas-frame";
   import { settings } from "$stores/settings.svelte";
   import type { GraphRow } from "$lib/ipc";
@@ -92,11 +92,13 @@
     const line = token("--graph-line");
     const coloring = settings.current.graphColoring;
     const options = { colouredLanes: coloring === "varying", accentLit: coloring === "mergeable", branchOnly: coloring === "branch", focusLane };
+    const panel = token("--surface-panel");
     const colours = new Map<string, string>();
     const colour = (name: string) => {
       if (!colours.has(name)) colours.set(name, token(name) || line);
       return colours.get(name) ?? line;
     };
+    const ink = (name: string, alpha: number) => opaqueInk(colour(name), alpha, panel);
 
     const edge = Math.min(textX(GRAPH.maxColumns), clipX) - GRAPH.textGap;
     context.save();
@@ -111,9 +113,8 @@
         for (const [index, segment] of row.layout.segments.entries()) {
           const look = segmentStroke(segment, index, row.paint, options);
           if (look.layer !== layer) continue;
-          context.strokeStyle = colour(look.token);
+          context.strokeStyle = ink(look.token, look.alpha);
           context.lineWidth = look.width;
-          context.globalAlpha = look.alpha;
           context.beginPath();
           if (headerRow > 0 && row.listRow === headRow && !segment.arrow && segment.span !== "bottom") {
             const x = laneX(segment.from);
@@ -137,7 +138,6 @@
         }
       }
     }
-    context.globalAlpha = 1;
 
     if (headLane !== null && headRow !== null && scrollTop < GRAPH.rowHeight * headRow) {
       const top = nodeCentre(headerLane ?? headLane, headerRow, scrollTop);
@@ -160,7 +160,6 @@
 
     // One hollow ring for every node, filled with what is behind it so no line shows through;
     // a stash is a square in the stash colour (#19).
-    const panel = token("--surface-panel");
     const stash = token("--status-stash");
     const fills = new Map<string, string>();
     for (const row of rows) {
@@ -181,10 +180,8 @@
       }
       const ring = nodeStroke(row.layout, row.paint, options);
       context.lineWidth = GRAPH.ringStroke;
-      context.strokeStyle = row.stash ? stash : colour(ring.token);
-      context.globalAlpha = ring.alpha;
+      context.strokeStyle = row.stash ? stash : ink(ring.token, ring.alpha);
       context.stroke();
-      context.globalAlpha = 1;
     }
     context.restore();
 

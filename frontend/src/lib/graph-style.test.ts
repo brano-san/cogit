@@ -8,6 +8,7 @@ import {
   branchSlot,
   laneAt,
   nodeStroke,
+  opaqueInk,
   rowFaded,
   rowPaint,
   segmentStroke,
@@ -192,5 +193,12 @@ describe("ancestry", () => {
     expect(line).toMatchObject({ alpha: DIM_ALPHA, layer: 0, token: "--graph-main" });
     expect(nodeStroke(row(false), dimmed, plain)).toMatchObject({ alpha: DIM_ALPHA, token: "--graph-branch-2" });
     expect(segmentStroke(segment(false), 0, undefined, plain).alpha).toBe(1);
+  });
+});
+
+describe("opaqueInk", () => {
+  it("mixes a faint line into the background instead of drawing it translucent", () => {
+    expect(opaqueInk("#fff", 1, "#000")).toBe("#fff");
+    expect(opaqueInk("#fff", DIM_ALPHA, "#000")).toBe("color-mix(in srgb, #fff 28%, #000)");
   });
 });

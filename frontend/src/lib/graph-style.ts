@@ -87,7 +87,7 @@ function stroke(
       ? branchToken(slot - 1)
       : focused && !primary
         ? "--graph-focus"
-        : options.accentLit && !dim
+        : options.accentLit && !dim && !primary
           ? "--status-add"
           : options.colouredLanes
           ? `--c-lane-${(laneColour % BRANCH_SLOTS) + 1}`
@@ -132,6 +132,12 @@ export function nodeStroke(layout: GraphRow, paint: RowPaint | undefined, option
     ...stroke(paint?.nodeStyle ?? 0, paint?.nodeLane, layout.primary, layout.lane, GRAPH.ringStroke, options),
     width: GRAPH.ringStroke,
   };
+}
+
+/** A faint line mixed into the background and drawn opaque: overlapping round caps of a
+    translucent stroke add up into bright dots at every join. */
+export function opaqueInk(colour: string, alpha: number, background: string): string {
+  return alpha >= 1 ? colour : `color-mix(in srgb, ${colour} ${Math.round(alpha * 100)}%, ${background})`;
 }
 
 /** A commit whose ring is dimmed has its text grayed too. */
