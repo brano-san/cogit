@@ -80,6 +80,10 @@ function twins(local: Branch, remotes: ReadonlyMap<string, Branch>): Branch[] {
   return [upstream, ...others];
 }
 
+export function shortRef(name: string): string {
+  return /(^|\/)checkpoints\//.test(name) ? "checkpoint" : name;
+}
+
 export function refLabels(
   branches: Branch[],
   tags: Tag[],
@@ -110,7 +114,7 @@ export function refLabels(
     const names = found.map((twin) => remoteOf(twin.name));
     const label: RefLabel =
       found.length === 0
-        ? { text: branch.name, kind }
+        ? { text: shortRef(branch.name), kind }
         : { text: `${names.join(",")}=${branch.name}`, kind, remotes: names, name: branch.name };
     const lines = found.length === 0 ? [] : [branch.name, ...found.map((twin) => twin.name)];
     const worktree = held.get(branch.name);
@@ -119,11 +123,14 @@ export function refLabels(
       if (lines.length === 0) lines.push(branch.name);
       lines.push(`Checked out in worktree ${worktree.path} (${worktree.state})`);
     }
+    if (lines.length === 0 && label.text !== branch.name) lines.push(branch.name);
     if (lines.length > 0) label.title = lines.join("\n");
     add(branch.oid, label);
   }
   for (const branch of remotes.values()) {
-    if (!joined.has(branch.name)) add(branch.oid, { text: branch.name, kind: "remote" });
+    if (joined.has(branch.name)) continue;
+    const text = shortRef(branch.name);
+    add(branch.oid, text === branch.name ? { text, kind: "remote" } : { text, kind: "remote", title: branch.name });
   }
   for (const tag of tags) {
     add(tag.oid, { text: tag.name, kind: "tag" });
