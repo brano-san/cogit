@@ -21,13 +21,32 @@ impl AppState {
             return pointer_diff(&handle, spec, path);
         }
 
-        let diff = diff_engine::diff_one_as(
+        let mut attributes = handle.diff_attributes();
+        let diff = match convert(
+            &handle,
+            &mut attributes,
             path,
-            old.as_deref().unwrap_or_default(),
-            new.as_deref().unwrap_or_default(),
-            options,
-            &content(handle.diff_attributes().content(path)),
-        );
+            old.as_deref(),
+            new.as_deref(),
+        ) {
+            Some((label, old_bytes, new_bytes)) => mark_converted(
+                diff_engine::diff_one_as(
+                    path,
+                    &old_bytes,
+                    &new_bytes,
+                    options,
+                    &diff_engine::Content::Text,
+                ),
+                label,
+            ),
+            None => diff_engine::diff_one_as(
+                path,
+                old.as_deref().unwrap_or_default(),
+                new.as_deref().unwrap_or_default(),
+                options,
+                &content(attributes.content(path)),
+            ),
+        };
         let present = (old.is_some(), new.is_some());
         let diff = explain_unchanged(diff, &handle, spec, (old_path, path), present);
         Ok(named(
@@ -80,6 +99,26 @@ impl AppState {
                 slots.push(Some(diff_engine::FileDiffEntry {
                     path: path.clone(),
                     diff: pointer_diff(&handle, spec, path)?,
+                }));
+                continue;
+            }
+            if let Some((label, old_bytes, new_bytes)) = convert(
+                &handle,
+                &mut attributes,
+                path,
+                old.as_deref(),
+                new.as_deref(),
+            ) {
+                let diff = diff_engine::diff_one_as(
+                    path,
+                    &old_bytes,
+                    &new_bytes,
+                    options,
+                    &diff_engine::Content::Text,
+                );
+                slots.push(Some(diff_engine::FileDiffEntry {
+                    path: path.clone(),
+                    diff: mark_converted(diff, label),
                 }));
                 continue;
             }
@@ -270,6 +309,69 @@ impl AppState {
         };
         Ok((encode(old), encode(new)))
     }
+}
+
+/// `diff.<driver>.textconv` first, as `git diff` shows such a file; else a side in UTF-16
+/// by its BOM, or in `working-tree-encoding` when it is not UTF-8, decoded to UTF-8. The
+/// label says which; `None` leaves the bytes as they are.
+fn convert(
+    handle: &git_engine::RepoHandle,
+    attributes: &mut git_engine::DiffAttributes<'_>,
+    path: &str,
+    old: Option<&[u8]>,
+    new: Option<&[u8]>,
+) -> Option<(String, Vec<u8>, Vec<u8>)> {
+    let raw = |side: Option<&[u8]>| side.unwrap_or_default().to_vec();
+    if let Some(command) = handle.textconv_command(attributes, path) {
+        let run = |side: Option<&[u8]>| match side {
+            Some(bytes) => handle.textconv(&command, path, bytes).map_err(|err| {
+                tracing::error!(error = ?err, path, context = "textconv");
+            }),
+            None => Ok(Vec::new()),
+        };
+        return match (run(old), run(new)) {
+            (Ok(old), Ok(new)) => Some((format!("textconv: {command}"), old, new)),
+            _ => None,
+        };
+    }
+    let declared = attributes
+        .value(path, "working-tree-encoding")
+        .and_then(|label| encoding_rs::Encoding::for_label(label.as_bytes()));
+    let decode = |side: Option<&[u8]>| -> Option<(&'static encoding_rs::Encoding, Vec<u8>)> {
+        let bytes = side?;
+        let (encoding, skip) = match encoding_rs::Encoding::for_bom(bytes) {
+            Some((encoding, len)) if encoding != encoding_rs::UTF_8 => (encoding, len),
+            _ if std::str::from_utf8(bytes).is_err() => (declared?, 0),
+            _ => return None,
+        };
+        let (text, _) = encoding.decode_without_bom_handling(&bytes[skip..]);
+        Some((encoding, text.into_owned().into_bytes()))
+    };
+    match (decode(old), decode(new)) {
+        (None, None) => None,
+        (old_decoded, new_decoded) => {
+            let name = old_decoded
+                .as_ref()
+                .or(new_decoded.as_ref())
+                .map(|(encoding, _)| encoding.name())
+                .unwrap_or_default();
+            let pick = |decoded: Option<(&encoding_rs::Encoding, Vec<u8>)>, side| {
+                decoded.map_or_else(|| raw(side), |(_, bytes)| bytes)
+            };
+            Some((
+                format!("decoded from {name}"),
+                pick(old_decoded, old),
+                pick(new_decoded, new),
+            ))
+        }
+    }
+}
+
+fn mark_converted(mut diff: diff_engine::FileDiff, label: String) -> diff_engine::FileDiff {
+    if let diff_engine::FileDiff::Text { converted, .. } = &mut diff {
+        *converted = Some(label);
+    }
+    diff
 }
 
 /// Equal bytes, and yet the file list shows the file as changed: its mode changed, or an

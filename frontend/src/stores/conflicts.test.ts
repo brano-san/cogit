@@ -17,6 +17,8 @@ vi.mock("$lib/ipc", () => ({
   ),
   resolveConflict: vi.fn(async () => {}),
   resolveConflictText: vi.fn(async () => {}),
+  rerereStatus: vi.fn(async () => ({ enabled: false, resolved: [], remaining: [] })),
+  rerereForget: vi.fn(async () => {}),
 }));
 
 const report = vi.hoisted(() => vi.fn());

@@ -63,6 +63,7 @@ const GATED: Partial<Record<FileEntry["status"], keyof FileView>> = {
   ignored: "ignored",
   assumeUnchanged: "skipped",
   skipped: "skipped",
+  sparse: "skipped",
   modified: "modified",
   deleted: "missing",
 };

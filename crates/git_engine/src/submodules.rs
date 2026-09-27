@@ -43,6 +43,49 @@ pub struct Submodule {
     pub behind: u32,
     /// What the submodule's own repository is in the middle of; `None` until it is checked out.
     pub repo_state: Option<RepoState>,
+    /// `submodule.<name>.update` as configured: `rebase`, `merge`, `none` or `!command`;
+    /// `None` for the default checkout.
+    pub update: Option<String>,
+    /// A `./` or `../` URL resolved against the parent's remote, as git clones it.
+    pub resolved_url: Option<String>,
+}
+
+/// git's `resolve_relative_url`: each `../` drops one component of the parent's remote
+/// URL (or of its folder, without a remote).
+#[must_use]
+pub fn resolve_relative_url(url: &str, base: &str) -> Option<String> {
+    if !(url.starts_with("./") || url.starts_with("../")) {
+        return None;
+    }
+    let mut base = base.trim_end_matches('/').to_owned();
+    if let Some(stripped) = base.strip_suffix("/.git") {
+        base = stripped.to_owned();
+    }
+    let mut rest = url;
+    loop {
+        if let Some(next) = rest.strip_prefix("./") {
+            rest = next;
+        } else if let Some(next) = rest.strip_prefix("../") {
+            rest = next;
+            let cut = base.rfind(['/', ':'])?;
+            base.truncate(cut + usize::from(base.as_bytes()[cut] == b':'));
+        } else {
+            break;
+        }
+    }
+    let joint = if base.ends_with(':') { "" } else { "/" };
+    Some(format!("{base}{joint}{rest}"))
+}
+
+fn update_mode(module: &gix::Submodule<'_>) -> Option<String> {
+    use gix::submodule::config::Update;
+    match module.update().ok().flatten()? {
+        Update::Checkout => None,
+        Update::Rebase => Some("rebase".to_owned()),
+        Update::Merge => Some("merge".to_owned()),
+        Update::None => Some("none".to_owned()),
+        Update::Command(command) => Some(format!("!{command}")),
+    }
 }
 
 /// Which commit a gitlink points at on each side of a diff; `recorded` is `None` on the
@@ -120,6 +163,7 @@ impl RepoHandle {
     /// `.gitmodules` and the gitlinks of HEAD, plus two file tests per row; no submodule is
     /// opened, so no status and no history. For the trees of repositories not on screen.
     pub fn submodule_outline(&self) -> Result<Vec<Submodule>> {
+        let base = self.relative_url_base();
         let mut out = Vec::new();
         for module in self.modules()? {
             let Ok(path) = module.path() else {
@@ -130,6 +174,8 @@ impl RepoHandle {
             let initialised = dir.join(".git").exists();
             out.push(Submodule {
                 name: module.name().to_string(),
+                update: update_mode(&module),
+                resolved_url: resolve_relative_url(&url(&module), &base),
                 url: url(&module),
                 recorded: recorded(&module),
                 checked_out: None,
@@ -152,6 +198,7 @@ impl RepoHandle {
     }
 
     pub fn submodules(&self) -> Result<Vec<Submodule>> {
+        let base = self.relative_url_base();
         let mut out = Vec::new();
         for module in self.modules()? {
             let Ok(path) = module.path() else {
@@ -175,6 +222,8 @@ impl RepoHandle {
             out.push(Submodule {
                 name: module.name().to_string(),
                 path,
+                update: update_mode(&module),
+                resolved_url: resolve_relative_url(&url(&module), &base),
                 url: url(&module),
                 recorded,
                 checked_out,
@@ -189,6 +238,28 @@ impl RepoHandle {
         }
         out.sort_by(|a, b| a.path.cmp(&b.path));
         Ok(out)
+    }
+
+    /// The URL of the branch's remote, else `origin`, else the repository's folder.
+    fn relative_url_base(&self) -> String {
+        let remote = self
+            .repo
+            .head_name()
+            .ok()
+            .flatten()
+            .and_then(|head| {
+                self.repo
+                    .branch_remote_name(head.shorten(), gix::remote::Direction::Fetch)
+                    .map(|name| name.as_bstr().to_string())
+            })
+            .unwrap_or_else(|| "origin".to_owned());
+        self.repo
+            .config_snapshot()
+            .string(format!("remote.{remote}.url").as_str())
+            .map_or_else(
+                || self.root().to_string_lossy().replace('\\', "/"),
+                |url| url.to_string(),
+            )
     }
 
     /// `init` also registers the submodule in `.git/config`, which a plain update skips.
@@ -220,5 +291,28 @@ impl RepoHandle {
             branch,
             subject,
         })
+    }
+}
+
+#[cfg(test)]
+mod relative_url_tests {
+    use super::resolve_relative_url;
+
+    #[test]
+    fn relative_urls_resolve_against_the_parent_remote() {
+        let base = "https://host/team/app.git";
+        assert_eq!(
+            resolve_relative_url("../lib.git", base).as_deref(),
+            Some("https://host/team/lib.git")
+        );
+        assert_eq!(
+            resolve_relative_url("./sub", base).as_deref(),
+            Some("https://host/team/app.git/sub")
+        );
+        assert_eq!(
+            resolve_relative_url("../lib", "git@host:team/app").as_deref(),
+            Some("git@host:team/lib")
+        );
+        assert_eq!(resolve_relative_url("https://x/y", base), None);
     }
 }

@@ -121,7 +121,7 @@ describe("the row of the repository on screen", () => {
     kind: "local",
     oid: "a".repeat(40),
     isHead: false,
-    upstream: `origin/${name}`,
+    upstream: `origin/${name}`, pushRemote: null, pushTarget: null,
     ahead: 0,
     behind: 0,
     ...over,
@@ -234,7 +234,7 @@ describe("the marks the panels hand to a row they let go of", () => {
       isBare: false,
       head: { kind: "branch", name: "dev", oid: "a".repeat(40) },
       branches: [
-        { name: "dev", fullName: "refs/heads/dev", kind: "local", oid: "a".repeat(40), isHead: true, upstream: "origin/dev", ahead: 0, behind: 2 },
+        { name: "dev", fullName: "refs/heads/dev", kind: "local", oid: "a".repeat(40), isHead: true, upstream: "origin/dev", pushRemote: null, pushTarget: null, ahead: 0, behind: 2 },
       ],
       tags: [],
       status: { staged: 1, unstaged: 0, untracked: 0, conflicted: 0 },

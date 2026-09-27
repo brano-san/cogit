@@ -18,6 +18,7 @@ import type {
   FlowConfig,
   FlowKind,
   GitError,
+  MaintenanceTask,
   GraphPaintRequest,
   GraphProgress,
   MergeOptions,
@@ -53,6 +54,12 @@ export type {
   ConfigScope,
   HealthFinding,
   HealthIssue,
+  IgnoreRule,
+  LfsLock,
+  MaintenanceTask,
+  RerereStatus,
+  SignatureCheck,
+  Trailer,
   ModuleProblem,
   Operation,
   OperationKind,
@@ -1027,4 +1034,40 @@ export async function investigate(
   limit: number,
 ) {
   return unwrap(await commands.investigate(repo, path, from, to, limit));
+}
+
+export async function runMaintenance(repo: RepoId, task: MaintenanceTask) {
+  return unwrap(await commands.runMaintenance(repo, task));
+}
+
+export async function addToExclude(repo: RepoId, paths: string[]) {
+  return unwrap(await commands.addToExclude(repo, paths));
+}
+
+export async function ignoreRules(repo: RepoId, paths: string[]) {
+  return unwrap(await commands.ignoreRules(repo, paths));
+}
+
+export async function lfsLocks(repo: RepoId) {
+  return unwrap(await commands.lfsLocks(repo));
+}
+
+export async function commitSignature(repo: RepoId, rev: string) {
+  return unwrap(await commands.commitSignature(repo, rev));
+}
+
+export async function unportablePaths(repo: RepoId, rev: string) {
+  return unwrap(await commands.unportablePaths(repo, rev));
+}
+
+export async function rerereStatus(repo: RepoId) {
+  return unwrap(await commands.rerereStatus(repo));
+}
+
+export async function rerereForget(repo: RepoId, paths: string[]) {
+  return unwrap(await commands.rerereForget(repo, paths));
+}
+
+export async function rangeDiff(repo: RepoId, before: string, after: string) {
+  return unwrap(await commands.rangeDiff(repo, before, after));
 }

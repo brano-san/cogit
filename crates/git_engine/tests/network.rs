@@ -227,17 +227,37 @@ fn a_branch_with_an_upstream_is_pushed_as_configured() {
     assert!(!lines.contains("--set-upstream"), "{lines}");
 }
 
+// The remote tip was once on the local branch (its reflog has it), so overwriting it is a
+// choice made having seen it.
 #[test]
 fn a_forced_push_overwrites_the_remote() {
     let f = test_fixtures::with_remote().unwrap();
     let repo = open(&f);
     let local = f.oid("HEAD").unwrap();
+    f.git(&["reset", "-q", "--hard", "origin/main"]).unwrap();
+    f.git(&["reset", "-q", "--hard", &local]).unwrap();
     let (_, on_line) = collector();
 
     repo.push("origin", None, true, no_token, on_line).unwrap();
 
     f.git(&["fetch", "origin"]).unwrap();
     assert_eq!(f.oid("refs/remotes/origin/main").unwrap(), local);
+}
+
+// A background fetch moved origin/main to a commit nobody here has looked at: the lease
+// alone would pass and drop it; --force-if-includes refuses.
+#[test]
+fn a_forced_push_never_drops_a_remote_commit_the_branch_never_had() {
+    let f = test_fixtures::with_remote().unwrap();
+    let repo = open(&f);
+    let remote = f.oid("refs/remotes/origin/main").unwrap();
+    let (_, on_line) = collector();
+
+    let refused = repo.push("origin", None, true, no_token, on_line);
+
+    assert!(refused.is_err(), "the unseen remote commit must survive");
+    f.git(&["fetch", "origin"]).unwrap();
+    assert_eq!(f.oid("refs/remotes/origin/main").unwrap(), remote);
 }
 
 #[test]

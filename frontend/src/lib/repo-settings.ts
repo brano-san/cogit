@@ -3,12 +3,13 @@ import type { RepoSetting, RepoSettingChange } from "./ipc/remote-ops";
 /** Repository ▸ Settings (#42): the tabs, the options and where each one is kept. Every
     option lives in the repository's `.git/config`; `cogit.*` keys are Cogit's own there. */
 
-export type SettingTab = "user" | "fetch" | "push" | "signing" | "encoding" | "tags";
+export type SettingTab = "user" | "fetch" | "push" | "merge" | "signing" | "encoding" | "tags";
 
 export const TABS: readonly (readonly [SettingTab, string])[] = [
   ["user", "User"],
   ["fetch", "Fetch and Pull"],
   ["push", "Push"],
+  ["merge", "Merge"],
   ["signing", "Signing"],
   ["encoding", "Encoding"],
   ["tags", "Tag-Grouping"],
@@ -154,6 +155,22 @@ export const FIELDS: readonly SettingField[] = [
     hint: "What git log converts messages to on the command line. Cogit reads commits itself.",
   },
   {
+    key: "rerere.enabled",
+    tab: "merge",
+    label: "Reuse recorded resolutions (rerere)",
+    control: BOOL,
+    fallback: "false",
+    hint: "Git records how each conflict was resolved and resolves the same conflict the same way next time.",
+  },
+  {
+    key: "rerere.autoUpdate",
+    tab: "merge",
+    label: "Stage what rerere resolved",
+    control: BOOL,
+    fallback: "false",
+    hint: "Off: a file rerere resolved stays conflicted until you look at it and mark it resolved.",
+  },
+  {
     key: "cogit.tagGroupSeparator",
     tab: "tags",
     label: "Group separator",
@@ -196,6 +213,13 @@ export function effective(field: SettingField, draft: string | null, inherited: 
 export function normalise(field: SettingField, value: string): string | null {
   if (field.control.kind !== "text" || value.trim() !== "") return value;
   return field.empty === undefined ? null : "";
+}
+
+/** The file and scope git reads the value in effect from, `git config --show-origin`. */
+export function source(setting: RepoSetting | undefined): string | null {
+  if (!setting?.origin) return null;
+  const file = setting.origin.replace(/^file:/, "");
+  return setting.scope ? `${setting.scope}: ${file}` : file;
 }
 
 /** The line under each option: where its value comes from now. */

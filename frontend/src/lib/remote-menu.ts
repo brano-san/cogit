@@ -14,7 +14,7 @@ export type SubmoduleAction =
   | "deinit"
   | "unregister";
 export type SubtreeAction = "add" | "merge" | "split" | "reset" | "push";
-export type LfsAction = "install" | "track" | "lock" | "unlock" | "prune";
+export type LfsAction = "install" | "track" | "lock" | "unlock" | "locks" | "prune";
 
 export interface RemoteMenuContext {
   repository: boolean;
@@ -61,6 +61,7 @@ const LFS_ITEMS: readonly [string, LfsAction, string][] = [
   ["lfs-track", "track", "Track…"],
   ["lfs-lock", "lock", "Lock"],
   ["lfs-unlock", "unlock", "Unlock"],
+  ["lfs-locks", "locks", "Show Locks"],
   ["lfs-prune", "prune", "Prune…"],
 ];
 

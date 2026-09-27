@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   moduleHint,
   moduleTooltip,
+  moduleTitle,
   mayExpand,
   moduleKey,
   moduleRoot,
@@ -26,7 +27,7 @@ const mod = (path: string, over: Partial<Submodule> = {}): Submodule => ({
   nested: false,
   ahead: 0,
   behind: 0,
-  repoState: null,
+  repoState: null, update: null, resolvedUrl: null,
   ...over,
 });
 
@@ -354,5 +355,14 @@ describe("the row the panels show", () => {
 
   it("is a worktree opened from the submodule, not the submodule", () => {
     expect(shownRowRoot({ ...panels, current: "E:/w/lib-wt", worktreeOwnerRoot: "E:/w/app/vendor/lib" })).toBe("E:/w/lib-wt");
+  });
+});
+
+describe("moduleTitle", () => {
+  it("shows a relative URL resolved and a non-default update mode", () => {
+    expect(moduleTitle("lib", { url: "../lib.git", resolvedUrl: "https://h/t/lib.git", update: "rebase" })).toBe(
+      "lib — ../lib.git → https://h/t/lib.git\nsubmodule update: rebase",
+    );
+    expect(moduleTitle("lib", { url: "https://h/lib", resolvedUrl: null, update: null })).toBe("lib — https://h/lib");
   });
 });

@@ -204,3 +204,66 @@ fn require_name(name: &str) -> Result<&str> {
     }
     Ok(trimmed)
 }
+
+const RESERVED: &[&str] = &["CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"];
+
+/// A path component Windows cannot create: a device name (with any extension), a reserved
+/// character, or a trailing dot or space.
+#[must_use]
+pub fn windows_forbidden(component: &str) -> bool {
+    if component.ends_with(['.', ' ']) && component != "." && component != ".." {
+        return true;
+    }
+    if component
+        .chars()
+        .any(|c| (c as u32) < 0x20 || matches!(c, '<' | '>' | ':' | '"' | '|' | '?' | '*' | '\\'))
+    {
+        return true;
+    }
+    let stem = component
+        .split('.')
+        .next()
+        .unwrap_or_default()
+        .trim_end()
+        .to_ascii_uppercase();
+    if RESERVED.contains(&stem.as_str()) {
+        return true;
+    }
+    let bytes = stem.as_bytes();
+    bytes.len() == 4
+        && (stem.starts_with("COM") || stem.starts_with("LPT"))
+        && (b'1'..=b'9').contains(&bytes[3])
+}
+
+impl RepoHandle {
+    /// Paths in `rev`'s tree a checkout on Windows fails on; empty on other systems.
+    pub fn unportable_paths(&self, rev: &str) -> Result<Vec<String>> {
+        if !cfg!(windows) {
+            return Ok(Vec::new());
+        }
+        let listing = self.read_git(&["ls-tree", "-r", "-z", "--name-only", rev, "--"])?;
+        Ok(listing
+            .split('\0')
+            .filter(|path| path.split('/').any(windows_forbidden))
+            .take(50)
+            .map(str::to_owned)
+            .collect())
+    }
+}
+
+#[cfg(test)]
+mod forbidden_tests {
+    use super::windows_forbidden;
+
+    #[test]
+    fn windows_forbidden_names_are_caught() {
+        for bad in [
+            "CON", "con.txt", "aux", "COM1", "lpt9.log", "a:b", "what?", "dot.", "space ",
+        ] {
+            assert!(windows_forbidden(bad), "{bad}");
+        }
+        for good in ["console", "COM0", "COM10", "file.txt", ".gitignore", "NULL"] {
+            assert!(!windows_forbidden(good), "{good}");
+        }
+    }
+}

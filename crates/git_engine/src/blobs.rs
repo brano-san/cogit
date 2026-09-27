@@ -52,6 +52,23 @@ pub enum DiffContent {
 }
 
 impl DiffAttributes<'_> {
+    /// `name=value` as `.gitattributes` assigns it to `path`: `filter=lfs`, `diff=word`.
+    pub fn value(&mut self, path: &str, name: &str) -> Option<String> {
+        let stack = self.stack.as_mut()?;
+        let mut outcome = stack.selected_attribute_matches([name]);
+        stack
+            .at_entry(path, None)
+            .ok()?
+            .matching_attributes(&mut outcome);
+        outcome
+            .iter_selected()
+            .find(|found| found.assignment.name.as_str() == name)
+            .and_then(|found| match found.assignment.state {
+                gix::attrs::StateRef::Value(value) => Some(value.as_bstr().to_string()),
+                _ => None,
+            })
+    }
+
     pub fn content(&mut self, path: &str) -> DiffContent {
         use gix::attrs::StateRef;
         let Some(stack) = self.stack.as_mut() else {

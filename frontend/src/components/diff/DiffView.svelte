@@ -88,7 +88,7 @@
   let {
     diff,
     path,
-    stageable = false,
+    stageable: stageableFile = false,
     onstage,
     onblame,
     whitespace = "none",
@@ -97,6 +97,9 @@
     active = true,
     showPath = true,
   }: Props = $props();
+
+  /** Converted lines are not the file's bytes: a patch built from them would not apply. */
+  const stageable = $derived(stageableFile && !(diff.kind === "text" && diff.converted));
 
   /** Names the band's gradient apart from another diff's in the same document. */
   const uid = $props.id();
@@ -605,6 +608,7 @@
       {@const eol = eolLabel(diff.eol, diff.oldTotal, diff.newTotal)}
       <span class="eol" title={eol.title}>{eol.text}</span>
       {#if diff.lossyEncoding}<span class="warn">not valid UTF-8</span>{/if}
+      {#if diff.converted}<span class="warn" title="Shown converted; stage or discard the file whole">{diff.converted}</span>{/if}
       <button type="button" disabled={!nav.prev} onclick={() => jump(-1)} title="Previous change (Shift+F6)"
         >▲</button
       >

@@ -224,3 +224,10 @@ export function mayExpand(
   const found = children.get(key);
   return found === undefined ? module.nested : found.length > 0;
 }
+
+/** The row's tooltip: the URL as git clones it, and an update mode other than checkout (D5). */
+export function moduleTitle(path: string, module: Pick<Submodule, "url" | "resolvedUrl" | "update">): string {
+  const url = module.resolvedUrl ? `${module.url} → ${module.resolvedUrl}` : module.url;
+  const update = module.update ? `\nsubmodule update: ${module.update}` : "";
+  return `${path} — ${url}${update}`;
+}

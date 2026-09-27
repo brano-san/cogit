@@ -203,6 +203,9 @@ pub enum FileDiff {
         /// side of at most `MAX_HIGHLIGHT_LINES` lines.
         old_text: Option<String>,
         new_text: Option<String>,
+        /// The lines are not the file's bytes: a textconv program's output, or text decoded
+        /// from another encoding. Shown, never staged line by line.
+        converted: Option<String>,
     },
     EolOnly {
         from: LineEnding,

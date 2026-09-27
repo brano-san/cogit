@@ -189,3 +189,31 @@ fn the_list_without_divergence_is_the_same_list_but_for_ahead_and_behind() {
         assert_eq!((light.ahead, light.behind), (0, 0));
     }
 }
+
+// A fork workflow: pull from origin, push to the fork. What is unpushed is what the fork
+// lacks, not what origin lacks.
+#[test]
+fn a_push_remote_other_than_the_upstream_counts_ahead_against_it() {
+    let f = test_fixtures::with_remote().unwrap();
+    f.git(&["remote", "add", "fork", "https://example.invalid/fork.git"])
+        .unwrap();
+    f.git(&["config", "remote.pushDefault", "fork"]).unwrap();
+    f.git(&["update-ref", "refs/remotes/fork/main", "HEAD"])
+        .unwrap();
+
+    let branch = head_branch(&open(&f));
+
+    assert_eq!(branch.push_remote.as_deref(), Some("fork"));
+    assert_eq!(branch.push_target.as_deref(), Some("fork/main"));
+    assert_eq!(branch.ahead, 0, "the fork already has every local commit");
+    assert_eq!(branch.behind, 1, "behind still counts against origin/main");
+}
+
+#[test]
+fn a_plain_upstream_is_also_the_push_target() {
+    let f = test_fixtures::with_remote().unwrap();
+    let branch = head_branch(&open(&f));
+
+    assert_eq!(branch.push_remote.as_deref(), Some("origin"));
+    assert!(branch.push_target.is_none());
+}

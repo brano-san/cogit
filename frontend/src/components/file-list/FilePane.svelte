@@ -21,6 +21,7 @@
   import VirtualList from "$components/common/VirtualList.svelte";
   import { directoryOf, fileType, gridColumns, TYPE_LABELS, type ColumnKey } from "$lib/file-columns";
   import { fileName, fileStatusBadge, fileStatusLabel, fileStatusTooltip, indexNote } from "$lib/files";
+  import { remoteOps } from "$stores/remote-ops.svelte";
   import type { ViewRow } from "$lib/file-view";
   import { LIST_ROW_HEIGHT, striped } from "$lib/graph-geometry";
   import { repository } from "$stores/repository.svelte";
@@ -218,6 +219,11 @@
                   aria-label={fileStatusLabel(file) + indexNote(file.indexState)}
                   title={fileStatusTooltip(file) + indexNote(file.indexState)}>{fileStatusBadge(file)}</span
                 >
+                {#if remoteOps.lockOwner(file.path) !== undefined}
+                  <span class="mode" title="Locked in Git LFS by {remoteOps.lockOwner(file.path)}: read-only for everyone else"
+                    >🔒</span
+                  >
+                {/if}
                 {#if file.modeChange}
                   <span class="mode" title="Mode changed to {file.modeChange}"
                     >{file.modeChange === "executable" ? "+x" : "−x"}</span

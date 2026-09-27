@@ -1,5 +1,6 @@
 mod avatars;
 mod bisect;
+mod checkup;
 mod cloning;
 mod credentials;
 pub mod desktop;

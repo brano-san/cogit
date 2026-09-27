@@ -13,7 +13,7 @@ const mod = (path: string): Submodule => ({
   nested: false,
   ahead: 0,
   behind: 0,
-  repoState: null,
+  repoState: null, update: null, resolvedUrl: null,
 });
 
 let release: () => void = () => {};

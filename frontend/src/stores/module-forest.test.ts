@@ -13,7 +13,7 @@ const mod = (path: string, nested = false): Submodule => ({
   nested,
   ahead: 0,
   behind: 0,
-  repoState: null,
+  repoState: null, update: null, resolvedUrl: null,
 });
 
 /** What each folder's `.gitmodules` says, by root and key from the top. */

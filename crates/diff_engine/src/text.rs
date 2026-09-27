@@ -192,6 +192,7 @@ pub fn diff_text(old: &str, new: &str, options: &DiffOptions) -> FileDiff {
         new_total: u32::try_from(new_lines.len()).unwrap_or(u32::MAX),
         old_text: None,
         new_text: None,
+        converted: None,
     }
 }
 

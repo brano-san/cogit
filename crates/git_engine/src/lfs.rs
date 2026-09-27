@@ -35,7 +35,42 @@ pub fn lfs_version_from(exit_code: Option<i32>, stdout: &str) -> Option<String> 
     (exit_code == Some(0) && !line.is_empty()).then(|| line.to_owned())
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct LfsLock {
+    pub path: String,
+    pub owner: String,
+}
+
+#[derive(serde::Deserialize)]
+struct RawLock {
+    path: String,
+    #[serde(default)]
+    owner: Option<RawOwner>,
+}
+
+#[derive(serde::Deserialize)]
+struct RawOwner {
+    name: String,
+}
+
+pub(crate) fn parse_locks(json: &str) -> Vec<LfsLock> {
+    serde_json::from_str::<Vec<RawLock>>(json)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|lock| LfsLock {
+            path: lock.path,
+            owner: lock.owner.map(|owner| owner.name).unwrap_or_default(),
+        })
+        .collect()
+}
+
 impl RepoHandle {
+    /// `git lfs locks` asks the server; a file locked by someone else is read-only here.
+    pub fn lfs_locks(&self) -> Result<Vec<LfsLock>> {
+        Ok(parse_locks(&self.read_git(&["lfs", "locks", "--json"])?))
+    }
+
     pub fn lfs_op(&self, op: &LfsOp) -> Result<()> {
         match op {
             LfsOp::Install => self.run_git(&["lfs", "install", "--local"]).map(drop),
@@ -64,5 +99,23 @@ impl RepoHandle {
         paths
             .iter()
             .try_for_each(|path| self.run_git(&["lfs", command, "--", path]).map(drop))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn locks_json_names_path_and_owner() {
+        let json = r#"[{"id":"1","path":"art/a.psd","owner":{"name":"ann"},"locked_at":"x"}]"#;
+        assert_eq!(
+            parse_locks(json),
+            [LfsLock {
+                path: "art/a.psd".into(),
+                owner: "ann".into()
+            }]
+        );
+        assert!(parse_locks("[]").is_empty());
     }
 }

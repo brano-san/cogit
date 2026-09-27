@@ -41,6 +41,13 @@
   }: Props = $props();
 </script>
 
+{#if conflicts.path && conflicts.autoResolved(conflicts.path)}
+  {@const shown = conflicts.path}
+  <p class="rerere" role="status">
+    rerere resolved this file as the same conflict was resolved before. Check it, then mark it resolved.
+    <button type="button" onclick={() => conflicts.forget(shown)}>Forget Resolution</button>
+  </p>
+{/if}
 {#if conflicts.path && conflicts.regions.length > 0}
   <MergeView
     path={conflicts.path}
@@ -106,5 +113,15 @@
   .detail {
     padding: var(--sp-5);
     font-size: var(--fs-dense);
+  }
+
+  .rerere {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    margin: 0;
+    padding: var(--sp-2) var(--sp-4);
+    font-size: var(--fs-dense);
+    border-bottom: 1px solid var(--c-border);
   }
 </style>

@@ -18,7 +18,7 @@ const branch = (name: string, kind: "local" | "remote"): Branch => ({
   kind,
   oid: "b".repeat(40),
   isHead: false,
-  upstream: null,
+  upstream: null, pushRemote: null, pushTarget: null,
   ahead: 0,
   behind: 0,
 });

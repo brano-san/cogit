@@ -29,7 +29,7 @@ function branch(name: string, over: Partial<Branch> = {}): Branch {
     kind: "local",
     oid: OID,
     isHead: false,
-    upstream: null,
+    upstream: null, pushRemote: null, pushTarget: null,
     ahead: 0,
     behind: 0,
     ...over,

@@ -28,6 +28,14 @@ pub struct WorktreeFiles {
 }
 
 impl RepoHandle {
+    #[must_use]
+    pub fn sparse_checkout(&self) -> bool {
+        self.repo
+            .config_snapshot()
+            .boolean("core.sparseCheckout")
+            .unwrap_or(false)
+    }
+
     pub fn worktree_files(&self) -> Result<WorktreeFiles> {
         self.worktree_files_with(WorktreeView::default())
     }
@@ -101,6 +109,7 @@ impl RepoHandle {
     /// them, plus the two flags that deliberately silence a file.
     fn add_index_entries(&self, files: &mut WorktreeFiles, view: WorktreeView) -> Result<()> {
         let index = self.current_index()?;
+        let sparse = self.sparse_checkout();
 
         let mentioned: BTreeSet<String> = files
             .staged
@@ -117,7 +126,12 @@ impl RepoHandle {
             }
 
             let status = if item.flags.contains(Flags::SKIP_WORKTREE) {
-                view.skipped.then_some(FileStatus::Skipped)
+                let hidden = sparse && std::fs::symlink_metadata(self.root().join(&path)).is_err();
+                view.skipped.then_some(if hidden {
+                    FileStatus::Sparse
+                } else {
+                    FileStatus::Skipped
+                })
             } else if item.flags.contains(Flags::ASSUME_VALID) {
                 view.assume_unchanged.then_some(FileStatus::AssumeUnchanged)
             } else {

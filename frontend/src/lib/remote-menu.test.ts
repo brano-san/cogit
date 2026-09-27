@@ -55,6 +55,7 @@ const MENU_IDS = [
   "lfs-track",
   "lfs-lock",
   "lfs-unlock",
+  "lfs-locks",
   "lfs-prune",
   "repo-settings",
 ];
@@ -137,7 +138,7 @@ function module(path: string): Submodule {
     nested: false,
     ahead: 0,
     behind: 0,
-    repoState: null,
+    repoState: null, update: null, resolvedUrl: null,
   };
 }
 

@@ -24,6 +24,7 @@ mod health;
 mod history;
 mod hook_run;
 mod hooks;
+mod housekeeping;
 mod interactive;
 mod lfs;
 mod line_history;
@@ -51,6 +52,7 @@ mod remotes;
 mod replay;
 mod repo;
 mod repo_settings;
+mod rerere;
 mod reset;
 mod runner;
 mod search;
@@ -66,6 +68,7 @@ mod subtrees;
 mod surgery;
 mod tags;
 mod text_search;
+mod textconv;
 mod topo;
 mod worktree;
 mod worktrees;
@@ -76,13 +79,16 @@ pub use blame_origins::{
     BlameCommit, BlameReport, BlameSource, LineChange, OriginLine, PreviousFile,
 };
 pub use blobs::{DiffAttributes, DiffContent, DiffSides, DiffSpec, MAX_HASHED_BYTES};
-pub use branches::{CheckoutTarget, RemoteDeletion};
+pub use branches::{CheckoutTarget, RemoteDeletion, windows_forbidden};
 pub use bypass::Bypass;
 pub use cloning::{
     CloneDestination, CloneRequest, RemoteBranches, clone_destination, clone_repository,
     remote_branches, repository_url_in,
 };
-pub use commit::{CommitDetails, DEFAULT_SIMILARITY, FileEntry, FileMode, FileStatus, Signature};
+pub use commit::{
+    CommitDetails, DEFAULT_SIMILARITY, FileEntry, FileMode, FileStatus, Signature, SignatureCheck,
+    Trailer,
+};
 pub use commit_write::CommitRequest;
 pub use config_file::{
     ConfigFile, ConfigProblem, ConfigScope, origin_file, read_config, save_config,
@@ -91,7 +97,7 @@ pub use config_file::{
 pub use conflicts::{ConflictSide, ConflictSides, ConflictText};
 pub use error::{GitCommandError, GitError};
 pub use file_log::{FileChange, FileRevision};
-pub use file_ops::{IndexEditorSides, IndexFlag};
+pub use file_ops::{IgnoreRule, IndexEditorSides, IndexFlag};
 pub use find::{Found, FoundKind};
 pub use flow::{FlowBranch, FlowConfig, FlowKind, FlowStatus};
 pub use gitlink::{ModuleProblem, is_foreign_path};
@@ -100,8 +106,9 @@ pub use health::{HealthFinding, HealthIssue, case_sensitive};
 pub use history::{CommitRow, CommitText};
 pub use hook_run::HookRun;
 pub use hooks::{Hook, HookOverview, HookSource, HookState, is_hook_name};
+pub use housekeeping::MaintenanceTask;
 pub use interactive::{TodoAction, TodoEntry, render_todo, render_todo_paused};
-pub use lfs::{LfsOp, lfs_version, lfs_version_from};
+pub use lfs::{LfsLock, LfsOp, lfs_version, lfs_version_from};
 pub use line_history::LineVersion;
 pub use listing::{
     BATCH, ContentMatch, MAX_SEARCH_BYTES, PREVIEW_CHARS, SearchRequest, SearchScope,
@@ -128,6 +135,7 @@ pub use reflog::{Reachable, ReflogEntry};
 pub use remotes::RemoteInfo;
 pub use repo::{Branch, BranchKind, Head, RepoHandle, Tag};
 pub use repo_settings::{REPO_SETTING_KEYS, RepoSetting, RepoSettingChange};
+pub use rerere::RerereStatus;
 pub use reset::ResetMode;
 pub use runner::{
     CommandSink, GitOutput, git_version, gix_version, redact_command, use_git_program,
@@ -137,7 +145,7 @@ pub use shared::SharedRepo;
 pub use stash::{AutostashOutcome, StashContents, StashEntry, StashOptions};
 pub use state::RepoState;
 pub use status::{RepoStatus, WorkingState};
-pub use submodules::{Submodule, SubmodulePointer, SubmoduleState};
+pub use submodules::{Submodule, SubmodulePointer, SubmoduleState, resolve_relative_url};
 pub use subtrees::SubtreeOp;
 pub use tags::TagRequest;
 pub use text_search::TextFields;

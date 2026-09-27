@@ -38,6 +38,8 @@ const BACKEND_KEYS = [
   "gpg.format",
   "i18n.commitEncoding",
   "i18n.logOutputEncoding",
+  "rerere.enabled",
+  "rerere.autoUpdate",
   "cogit.tagGroupSeparator",
 ];
 
@@ -47,6 +49,7 @@ describe("repository settings", () => {
       "User",
       "Fetch and Pull",
       "Push",
+      "Merge",
       "Signing",
       "Encoding",
       "Tag-Grouping",
@@ -109,9 +112,9 @@ describe("repository settings", () => {
 
   it("writes only what changed, and removes what was made not set", () => {
     const read: RepoSetting[] = [
-      { key: "user.name", local: "Jane", inherited: "Global" },
-      { key: "push.default", local: null, inherited: null },
-      { key: "fetch.prune", local: "true", inherited: null },
+      { key: "user.name", local: "Jane", inherited: "Global" , scope: null, origin: null},
+      { key: "push.default", local: null, inherited: null , scope: null, origin: null},
+      { key: "fetch.prune", local: "true", inherited: null , scope: null, origin: null},
     ];
     const drafts = new Map(initialDrafts(read));
     expect(changes(read, drafts)).toEqual([]);
