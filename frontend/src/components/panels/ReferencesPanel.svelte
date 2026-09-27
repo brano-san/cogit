@@ -13,10 +13,11 @@
     onselect: (node: RefNode) => void;
     onactivate: (node: RefNode) => void;
     oncontext: (node: RefNode, x: number, y: number) => void;
+    onhover?: (node: RefNode) => void;
     ondrop: (source: string, target: Branch, x: number, y: number) => void;
   }
 
-  let { input, onvisible, onselect, onactivate, oncontext, ondrop }: Props =
+  let { input, onvisible, onselect, onactivate, oncontext, onhover, ondrop }: Props =
     $props();
 
   const sorted = $derived({
@@ -54,6 +55,7 @@
     {onselect}
     {onactivate}
     {oncontext}
+    {onhover}
     {ondrop}
   />
 {/if}

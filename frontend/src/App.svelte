@@ -2340,6 +2340,8 @@
     return ticked.includes(path) ? [...ticked] : [path];
   }
 
+  void desktop.load();
+
   /** `section` is the list the row sits in: "Staged" is the index, the rest the working
       tree (#40). A commit's files get their own menu (#41). */
   async function fileContext(
@@ -2352,19 +2354,18 @@
     if (!id) return;
     const { clientX: x, clientY: y } = event;
     const paths = fileScope(path, section);
-    const info = await desktop.load();
+    const info = desktop.info;
 
     if (!onWorkingTree) {
       const rowOf = (each: string) => shownRow(each, rows, commit.files);
       const statuses = paths.map((each) => rowOf(each)?.status ?? "modified");
       const clicked = rowOf(path);
-      const present = await fileMenus.presentOnDisk(id, [path]).catch(() => [] as string[]);
       fileTarget = { path, paths, statuses, rev: commit.oid, oldPath: clicked?.oldPath ?? null };
       fileSection = "commit";
       const items = commitFileMenu({
         status: clicked?.status ?? "modified",
         count: paths.length,
-        onDisk: present.includes(path),
+        onDisk: true,
         fileManager: info.fileManager,
       });
       await popupContextMenu(items, x, y).catch(() => {});
@@ -2914,7 +2915,7 @@
   }
 
   async function showRepoMenu(row: ListedRepo, x: number, y: number) {
-    const info = await desktop.load();
+    const info = desktop.info;
     repoTarget = { kind: "repository", root: row.root, overview: row.overview };
     const active = row.overview !== null && repo?.repo.valueOf() === row.overview.repo.valueOf();
     // What the row itself shows: a closed row knows it is missing only from its pulse.
@@ -2958,7 +2959,7 @@
     top: string,
     foreign?: string,
   ) {
-    const info = await desktop.load();
+    const info = desktop.info;
     const open = foreign === undefined && submodules.open === row.key;
     repoTarget = { kind: "submodule", root: `${top}/${row.key}`, row, top: foreign };
     const items = repoMenu(
@@ -3811,6 +3812,7 @@
             onselect={selectRef}
             onactivate={activateRef}
             oncontext={(node, x, y) => void refContext(node, x, y)}
+            onhover={(node) => { refActions?.prefetchNode(node); }}
             ondrop={onBranchDrop}
           />
         </Panel>
@@ -3884,6 +3886,7 @@
               {checking}
               ondrop={onCommitDrop}
               oncontext={(oid, x, y) => void commitContext(oid, x, y)}
+              onhover={(oid) => refActions?.prefetch(oid)}
               {banner}
               busy={repository.busy}
               onbanneraction={runBannerAction}

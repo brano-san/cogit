@@ -83,6 +83,7 @@
         the pointer was released. */
     ondrop?: (source: string, target: string, x: number, y: number) => void;
     oncontext?: (oid: string, x: number, y: number) => void;
+    onhover?: (oid: string) => void;
     onworktreecontext?: (x: number, y: number) => void;
     onrefcontext?: (label: RefLabel, oid: string, x: number, y: number) => void;
     /** Double click on a commit and on a label of it: their Check Out (item 40). */
@@ -123,6 +124,7 @@
     rebase = null,
     ondrop,
     oncontext,
+    onhover,
     onworktreecontext,
     onrefcontext,
     onactivate,
@@ -687,6 +689,7 @@
             style:top="{item.listRow * rowHeight}px"
             style:padding-left="{rowTextX(item.entry.layout.width, clipX)}px"
             role="listitem"
+            onpointerenter={() => onhover?.(item.entry.commit.oid)}
             oncontextmenu={(event) => {
               if (!oncontext) return;
               event.preventDefault();
