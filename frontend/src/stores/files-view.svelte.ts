@@ -1,4 +1,4 @@
-import { mergeTable, type FileColumns, type FileSort } from "$lib/file-columns";
+import { mergeTable, type ColumnWidths, type FileColumns, type FileSort, type ColumnKey, MIN_COLUMN_WIDTH } from "$lib/file-columns";
 import { commitView } from "$lib/file-switches";
 import { mergeView, type FileView } from "$lib/file-view";
 
@@ -33,6 +33,7 @@ class FilesViewStore {
   commit = $state<FileView>(commitView(stored(COMMIT_STORAGE_KEY)));
   columns = $state<FileColumns>(table.columns);
   sort = $state<FileSort>(table.sort);
+  widths = $state<ColumnWidths>(table.widths);
 
   set(view: FileView): void {
     this.current = view;
@@ -54,8 +55,14 @@ class FilesViewStore {
     this.#rememberTable();
   }
 
+  setWidth(key: ColumnKey, width: number): void {
+    const min = MIN_COLUMN_WIDTH[key] ?? 40;
+    this.widths = { ...this.widths, [key]: Math.max(min, Math.round(width)) };
+    this.#rememberTable();
+  }
+
   #rememberTable(): void {
-    remember(TABLE_STORAGE_KEY, { columns: this.columns, sort: this.sort });
+    remember(TABLE_STORAGE_KEY, { columns: this.columns, sort: this.sort, widths: this.widths });
   }
 }
 

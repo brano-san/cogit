@@ -20,9 +20,11 @@
   import KindIcon, { type Kind } from "$components/common/KindIcon.svelte";
   import VirtualList from "$components/common/VirtualList.svelte";
   import { directoryOf, fileType, gridColumns, TYPE_LABELS, type ColumnKey } from "$lib/file-columns";
-  import { fileName, indexNote, statusBadge, statusLabel, statusTooltip } from "$lib/files";
+  import { fileName, fileStatusBadge, fileStatusLabel, fileStatusTooltip, indexNote } from "$lib/files";
   import type { ViewRow } from "$lib/file-view";
   import { LIST_ROW_HEIGHT, striped } from "$lib/graph-geometry";
+  import { repository } from "$stores/repository.svelte";
+  import { filesView } from "$stores/files-view.svelte";
   import { TypeAhead, findTyped, listKey, pageRows, pressOf, typedChar } from "$lib/list-keys";
   import { settings } from "$stores/settings.svelte";
 
@@ -67,7 +69,16 @@
     return file.path.endsWith("/") ? "directory" : "file";
   }
 
-  const template = $derived(gridColumns(columns));
+  function absolutePath(relPath: string): string {
+    const root = repository.current?.root;
+    if (!root) return relPath;
+    const sep = root.includes("\\") ? "\\" : "/";
+    const cleanRoot = root.replace(/[/\\]+$/, "");
+    const cleanRel = sep === "\\" ? relPath.replaceAll("/", "\\") : relPath;
+    return `${cleanRoot}${sep}${cleanRel}`;
+  }
+
+  const template = $derived(gridColumns(columns, filesView.widths));
   const shows = $derived(new Set(columns));
   /** One switch for every list's banding, the graph's (#41). */
   const stripes = $derived(settings.current.graphStripes);
@@ -169,7 +180,6 @@
             class:selected={selected === file.path}
             class:marked={marked.has(file.path)}
             style:top="{at * LIST_ROW_HEIGHT}px"
-            title={file.oldPath ? `${file.oldPath} → ${file.path}` : file.path}
             data-path={file.path}
             onclick={(event) => {
               cursor = file.path;
@@ -189,7 +199,7 @@
           >
             <span class="cell name">
               <KindIcon kind={kindOf(file)} />
-              <span class="truncate shrink-last">{fileName(file.path)}</span>
+              <span class="truncate shrink-last" title={absolutePath(file.path)}>{fileName(file.path)}</span>
               {#if file.oldPath}
                 <span class="from truncate shrink-first" title="from {file.oldPath}"
                   >← {fileName(file.oldPath)}{file.similarity !== null ? ` ${file.similarity}%` : ""}</span
@@ -205,8 +215,8 @@
                   class="badge"
                   class:staged={file.indexState === "staged"}
                   class:partly={file.indexState === "partly"}
-                  aria-label={statusLabel(file.status) + indexNote(file.indexState)}
-                  title={statusTooltip(file.status) + indexNote(file.indexState)}>{statusBadge(file.status)}</span
+                  aria-label={fileStatusLabel(file) + indexNote(file.indexState)}
+                  title={fileStatusTooltip(file) + indexNote(file.indexState)}>{fileStatusBadge(file)}</span
                 >
                 {#if file.modeChange}
                   <span class="mode" title="Mode changed to {file.modeChange}"
@@ -216,7 +226,7 @@
               </span>
             {/if}
             {#if shows.has("path")}
-              <span class="cell dir truncate">{directoryOf(file.path)}</span>
+              <span class="cell dir truncate" title={absolutePath(file.path)}>{directoryOf(file.path)}</span>
             {/if}
           </button>
         {/if}
@@ -371,7 +381,9 @@
   /* Dimmed: it is context for the name, not a thing to read on its own. */
   .badge {
     flex: 0 0 auto;
-    width: 12px;
+    min-width: 12px;
+    width: auto;
+    padding: 0 1px;
     font-family: var(--font-mono);
     font-weight: 600;
     text-align: center;

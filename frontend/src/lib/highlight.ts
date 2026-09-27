@@ -1,4 +1,5 @@
 import { classHighlighter, highlightTree } from "@lezer/highlight";
+import type { Parser } from "@lezer/common";
 import { parser as cpp } from "@lezer/cpp";
 import { parser as css } from "@lezer/css";
 import { parser as html } from "@lezer/html";
@@ -6,7 +7,29 @@ import { parser as javascript } from "@lezer/javascript";
 import { parser as json } from "@lezer/json";
 import { parser as python } from "@lezer/python";
 import { parser as rust } from "@lezer/rust";
-import type { LRParser } from "@lezer/lr";
+import { parser as java } from "@lezer/java";
+import { parser as yaml } from "@lezer/yaml";
+import { parser as xml } from "@lezer/xml";
+import { parser as markdown } from "@lezer/markdown";
+import { parser as php } from "@lezer/php";
+import { parser as sass } from "@lezer/sass";
+
+import { StreamLanguage, type StreamParser } from "@codemirror/language";
+import { csharp, dart, kotlin, scala } from "@codemirror/legacy-modes/mode/clike";
+import { cmake } from "@codemirror/legacy-modes/mode/cmake";
+import { dockerFile } from "@codemirror/legacy-modes/mode/dockerfile";
+import { go } from "@codemirror/legacy-modes/mode/go";
+import { groovy } from "@codemirror/legacy-modes/mode/groovy";
+import { haskell } from "@codemirror/legacy-modes/mode/haskell";
+import { lua } from "@codemirror/legacy-modes/mode/lua";
+import { perl } from "@codemirror/legacy-modes/mode/perl";
+import { powerShell } from "@codemirror/legacy-modes/mode/powershell";
+import { r } from "@codemirror/legacy-modes/mode/r";
+import { ruby } from "@codemirror/legacy-modes/mode/ruby";
+import { shell } from "@codemirror/legacy-modes/mode/shell";
+import { standardSQL } from "@codemirror/legacy-modes/mode/sql";
+import { swift } from "@codemirror/legacy-modes/mode/swift";
+import { toml } from "@codemirror/legacy-modes/mode/toml";
 
 export interface Token {
   start: number;
@@ -16,7 +39,9 @@ export interface Token {
 
 export const MAX_HIGHLIGHT_LINES = 5000;
 
-const PARSERS: Record<string, LRParser> = {
+const legacy = (mode: StreamParser<unknown>): Parser => StreamLanguage.define(mode).parser;
+
+const PARSERS: Record<string, Parser> = {
   c: cpp,
   cpp,
   css,
@@ -25,10 +50,116 @@ const PARSERS: Record<string, LRParser> = {
   json,
   python,
   rust,
-  typescript: javascript.configure({ dialect: "ts" }) as LRParser,
-  jsx: javascript.configure({ dialect: "jsx" }) as LRParser,
-  tsx: javascript.configure({ dialect: "ts jsx" }) as LRParser,
+  typescript: javascript.configure({ dialect: "ts" }),
+  jsx: javascript.configure({ dialect: "jsx" }),
+  tsx: javascript.configure({ dialect: "ts jsx" }),
+  java,
+  yaml,
+  xml,
+  markdown,
+  php,
+  sass,
+  csharp: legacy(csharp),
+  go: legacy(go),
+  ruby: legacy(ruby),
+  shell: legacy(shell),
+  sql: legacy(standardSQL),
+  toml: legacy(toml),
+  kotlin: legacy(kotlin),
+  swift: legacy(swift),
+  cmake: legacy(cmake),
+  dockerfile: legacy(dockerFile),
+  lua: legacy(lua),
+  perl: legacy(perl),
+  r: legacy(r),
+  scala: legacy(scala),
+  dart: legacy(dart),
+  haskell: legacy(haskell),
+  groovy: legacy(groovy),
+  powershell: legacy(powerShell),
+  svelte: html,
+  vue: html,
 };
+
+const FILENAME_LANGUAGES: Record<string, string> = {
+  "CMakeLists.txt": "cmake",
+  Dockerfile: "dockerfile",
+};
+
+const EXTENSION_LANGUAGES: Record<string, string> = {
+  rs: "rust",
+  ts: "typescript",
+  tsx: "tsx",
+  js: "javascript",
+  mjs: "javascript",
+  cjs: "javascript",
+  jsx: "jsx",
+  py: "python",
+  pyi: "python",
+  c: "c",
+  h: "c",
+  cc: "cpp",
+  cpp: "cpp",
+  cxx: "cpp",
+  hpp: "cpp",
+  hxx: "cpp",
+  hh: "cpp",
+  java: "java",
+  go: "go",
+  cs: "csharp",
+  rb: "ruby",
+  php: "php",
+  swift: "swift",
+  kt: "kotlin",
+  kts: "kotlin",
+  sh: "shell",
+  bash: "shell",
+  zsh: "shell",
+  sql: "sql",
+  json: "json",
+  yaml: "yaml",
+  yml: "yaml",
+  toml: "toml",
+  xml: "xml",
+  svg: "xml",
+  html: "html",
+  htm: "html",
+  css: "css",
+  scss: "sass",
+  sass: "sass",
+  md: "markdown",
+  markdown: "markdown",
+  svelte: "svelte",
+  vue: "vue",
+  cmake: "cmake",
+  dockerfile: "dockerfile",
+  lua: "lua",
+  pl: "perl",
+  pm: "perl",
+  r: "r",
+  scala: "scala",
+  sc: "scala",
+  dart: "dart",
+  hs: "haskell",
+  groovy: "groovy",
+  gvy: "groovy",
+  gradle: "groovy",
+  ps1: "powershell",
+  psm1: "powershell",
+  psd1: "powershell",
+};
+
+/** The grammar name for a path among the ones the frontend bundles. */
+export function languageOf(path: string): string | null {
+  const name = path.slice(Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")) + 1);
+  if (FILENAME_LANGUAGES[name]) {
+    return FILENAME_LANGUAGES[name];
+  }
+  const dot = name.lastIndexOf(".");
+  if (dot <= 0) return null;
+  const ext = name.slice(dot + 1).toLowerCase();
+  return EXTENSION_LANGUAGES[ext] ?? null;
+}
 
 /** Parsed as one document so a comment spanning lines survives onto the next one. */
 export function highlightLines(lines: readonly string[], language: string | null): Token[][] {

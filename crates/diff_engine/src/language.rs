@@ -30,6 +30,32 @@ pub fn highlighted(language: &str) -> bool {
             | "typescript"
             | "jsx"
             | "tsx"
+            | "java"
+            | "yaml"
+            | "xml"
+            | "markdown"
+            | "php"
+            | "sass"
+            | "csharp"
+            | "go"
+            | "ruby"
+            | "shell"
+            | "sql"
+            | "toml"
+            | "kotlin"
+            | "swift"
+            | "cmake"
+            | "dockerfile"
+            | "lua"
+            | "perl"
+            | "r"
+            | "scala"
+            | "dart"
+            | "haskell"
+            | "groovy"
+            | "powershell"
+            | "svelte"
+            | "vue"
     )
 }
 
@@ -80,6 +106,16 @@ pub fn language_for_path(path: &str) -> Option<String> {
         "md" | "markdown" => "markdown",
         "svelte" => "svelte",
         "vue" => "vue",
+        "cmake" => "cmake",
+        "dockerfile" => "dockerfile",
+        "lua" => "lua",
+        "pl" | "pm" => "perl",
+        "r" => "r",
+        "scala" | "sc" => "scala",
+        "dart" => "dart",
+        "hs" => "haskell",
+        "groovy" | "gvy" | "gradle" => "groovy",
+        "ps1" | "psm1" | "psd1" => "powershell",
         _ => return None,
     };
     Some(language.to_owned())
@@ -124,5 +160,94 @@ mod tests {
     fn an_unknown_extension_has_no_grammar() {
         assert_eq!(language_for_path("data.bin"), None);
         assert_eq!(language_for_path("LICENSE"), None);
+    }
+
+    #[test]
+    fn maps_extended_extensions() {
+        assert_eq!(
+            language_for_path("CMakeLists.txt").as_deref(),
+            Some("cmake")
+        );
+        assert_eq!(language_for_path("project.cmake").as_deref(), Some("cmake"));
+        assert_eq!(
+            language_for_path("prod.dockerfile").as_deref(),
+            Some("dockerfile")
+        );
+        assert_eq!(language_for_path("script.lua").as_deref(), Some("lua"));
+        assert_eq!(language_for_path("script.pl").as_deref(), Some("perl"));
+        assert_eq!(language_for_path("Module.pm").as_deref(), Some("perl"));
+        assert_eq!(language_for_path("analysis.r").as_deref(), Some("r"));
+        assert_eq!(language_for_path("Main.scala").as_deref(), Some("scala"));
+        assert_eq!(language_for_path("worksheet.sc").as_deref(), Some("scala"));
+        assert_eq!(language_for_path("main.dart").as_deref(), Some("dart"));
+        assert_eq!(language_for_path("Main.hs").as_deref(), Some("haskell"));
+        assert_eq!(language_for_path("build.gradle").as_deref(), Some("groovy"));
+        assert_eq!(
+            language_for_path("Script.groovy").as_deref(),
+            Some("groovy")
+        );
+        assert_eq!(language_for_path("Script.gvy").as_deref(), Some("groovy"));
+        assert_eq!(
+            language_for_path("deploy.ps1").as_deref(),
+            Some("powershell")
+        );
+        assert_eq!(
+            language_for_path("module.psm1").as_deref(),
+            Some("powershell")
+        );
+        assert_eq!(
+            language_for_path("manifest.psd1").as_deref(),
+            Some("powershell")
+        );
+    }
+
+    #[test]
+    fn highlights_all_supported_frontend_languages() {
+        use super::highlighted;
+
+        let languages = [
+            "c",
+            "cpp",
+            "css",
+            "html",
+            "javascript",
+            "json",
+            "python",
+            "rust",
+            "typescript",
+            "jsx",
+            "tsx",
+            "java",
+            "yaml",
+            "xml",
+            "markdown",
+            "php",
+            "sass",
+            "csharp",
+            "go",
+            "ruby",
+            "shell",
+            "sql",
+            "toml",
+            "kotlin",
+            "swift",
+            "cmake",
+            "dockerfile",
+            "lua",
+            "perl",
+            "r",
+            "scala",
+            "dart",
+            "haskell",
+            "groovy",
+            "powershell",
+            "svelte",
+            "vue",
+        ];
+        for lang in languages {
+            assert!(highlighted(lang), "expected {lang} to be highlighted");
+        }
+        assert!(!highlighted("makefile"));
+        assert!(!highlighted("unknown"));
     }
 }

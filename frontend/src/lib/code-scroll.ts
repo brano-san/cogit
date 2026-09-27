@@ -10,8 +10,8 @@ export const TAB_SIZE = 8;
 /** Past the widest line, so its last character is not flush with the edge. */
 export const TRAILING_COLUMNS = 2;
 
-/** `\ no newline` after the text, with its one-character gap (DiffView `.eof`). */
-export const NO_NEWLINE_COLUMNS = 13;
+/** No newline width in columns. */
+export const NO_NEWLINE_COLUMNS = 0;
 
 /** Left beside a search hit brought into view, so it does not sit on the edge. */
 export const REVEAL_MARGIN_COLUMNS = 4;

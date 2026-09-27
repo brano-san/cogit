@@ -193,13 +193,14 @@ pub fn build_patch(
     shape: PatchShape,
     sides: PatchSides<'_>,
 ) -> Result<String, PatchError> {
-    let deletes: HashSet<u32> = request.selected_deletes.iter().copied().collect();
-    let inserts: HashSet<u32> = request.selected_inserts.iter().copied().collect();
-    if deletes.is_empty() && inserts.is_empty() {
+    if request.selected_deletes.is_empty() && request.selected_inserts.is_empty() {
         return Err(PatchError::NothingSelected);
     }
     let old_lines = split_lines(sides.old)?;
     let new_lines = split_lines(sides.new)?;
+    let request = &unfold_open_end(request, &old_lines, &new_lines);
+    let deletes: HashSet<u32> = request.selected_deletes.iter().copied().collect();
+    let inserts: HashSet<u32> = request.selected_inserts.iter().copied().collect();
     let mut walk = Walk {
         old: &old_lines,
         new: &new_lines,
@@ -319,6 +320,89 @@ pub fn build_patch(
         format!("b/{path}")
     };
     Ok(format!("--- {from}\n+++ {to}\n{body}"))
+}
+
+/// The diff shows a missing final newline as an empty last row on the side that has the
+/// newline, with the open line itself as context. The patch needs it as git sees it: the
+/// open line deleted and inserted again with the other ending, selected with the empty row.
+fn unfold_open_end(request: &PatchRequest, old: &[Line<'_>], new: &[Line<'_>]) -> PatchRequest {
+    let mut request = request.clone();
+    let open = |side: &[Line<'_>]| side.last().is_some_and(|line| line.ending.is_empty());
+    let (old_len, new_len) = (old.len() as u32, new.len() as u32);
+    let Some(hunk) = request.hunks.last_mut() else {
+        return request;
+    };
+    let (on_old, number) = match hunk.rows.last() {
+        Some(DiffRow::Insert { new, text, .. })
+            if text.is_empty() && *new == new_len + 1 && open(old) =>
+        {
+            (false, *new)
+        }
+        Some(DiffRow::Delete { old, text, .. })
+            if text.is_empty() && *old == old_len + 1 && open(new) =>
+        {
+            (true, *old)
+        }
+        _ => return request,
+    };
+    hunk.rows.pop();
+    let selected = if on_old {
+        hunk.old_lines = hunk.old_lines.saturating_sub(1);
+        request.selected_deletes.contains(&number)
+    } else {
+        hunk.new_lines = hunk.new_lines.saturating_sub(1);
+        request.selected_inserts.contains(&number)
+    };
+    if on_old {
+        request.selected_deletes.retain(|&n| n != number);
+    } else {
+        request.selected_inserts.retain(|&n| n != number);
+    }
+    let at = hunk.rows.iter().position(|row| match row {
+        DiffRow::Context { old, new, .. } => {
+            if on_old {
+                *new == new_len
+            } else {
+                *old == old_len
+            }
+        }
+        _ => false,
+    });
+    let Some(at) = at else {
+        return request;
+    };
+    let DiffRow::Context { old, new, text, .. } = hunk.rows.remove(at) else {
+        unreachable!()
+    };
+    hunk.rows.insert(
+        at,
+        DiffRow::Delete {
+            old,
+            text: text.clone(),
+            inline: Vec::new(),
+            moved: false,
+            move_id: None,
+            move_scope: None,
+            no_newline: !on_old,
+        },
+    );
+    hunk.rows.insert(
+        at + 1,
+        DiffRow::Insert {
+            new,
+            text,
+            inline: Vec::new(),
+            moved: false,
+            move_id: None,
+            move_scope: None,
+            no_newline: on_old,
+        },
+    );
+    if selected {
+        request.selected_deletes.push(old);
+        request.selected_inserts.push(new);
+    }
+    request
 }
 
 /// A line without a final newline can only be the last one of its side. Cutting a selection

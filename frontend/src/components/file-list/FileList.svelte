@@ -7,7 +7,7 @@
   import { compile } from "$lib/file-search";
   import type { ListContext } from "$lib/file-switches";
   import Caret from "$components/common/Caret.svelte";
-  import { COLUMN_LABELS, gridColumns, nextSort, shownColumns, sortRows, type ColumnKey } from "$lib/file-columns";
+  import { COLUMN_LABELS, DEFAULT_COLUMN_WIDTHS, gridColumns, nextSort, shownColumns, sortRows, type ColumnKey } from "$lib/file-columns";
   import { filesView } from "$stores/files-view.svelte";
   import {
     DEFAULT_VIEW,
@@ -243,6 +243,28 @@
     });
   }
 
+  function startResize(key: ColumnKey, event: PointerEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const startX = event.clientX;
+    const startWidth = filesView.widths[key] ?? DEFAULT_COLUMN_WIDTHS[key];
+
+    function onPointerMove(e: PointerEvent) {
+      const delta = e.clientX - startX;
+      filesView.setWidth(key, startWidth + delta);
+    }
+
+    function onPointerUp() {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+    }
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
+  }
+
   function clicked(group: Group, path: string, event: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) {
     marked = applyClick(marked, rowKey(group.index, path), group.keys, {
       ctrl: event.ctrlKey || event.metaKey,
@@ -304,59 +326,49 @@
   {:else if shownCount === 0}
     <p class="message">{nothingMatches()}</p>
   {:else}
-    <div class="columns" style:--file-grid={gridColumns(columns)}>
-      {#each columns as key (key)}
-        <button
-          type="button"
-          class="column"
-          class:sorted={filesView.sort.key === key}
-          title={sortLabel(key)}
-          aria-label={sortLabel(key)}
-          onclick={() => filesView.setSort(nextSort(filesView.sort, key))}
-        >
-          <span class="truncate">{COLUMN_LABELS[key]}</span>
-          {#if filesView.sort.key === key}<Caret open={!filesView.sort.descending} />{/if}
-        </button>
-      {/each}
-    </div>
-    {#if apart}
-      <div class="panes">
-        {#each groups as group, index (group.section.title ?? index)}
-          {#if index > 0}
-            <Splitter
-              direction="horizontal"
-              value={split}
-              label="Resize the {group.section.title ?? 'file'} list"
-              onchange={(delta) => onsplit?.(delta)}
-              onreset={() => onsplitreset?.()}
-            />
-          {/if}
-          <div class="slot" style:flex={index === 0 && groups.length > 1 ? `0 0 ${split * 100}%` : "1 1 auto"}>
-            <FilePane
-              rows={group.rows}
-              title={group.section.title}
-              paths={group.paths}
-              actions={scoped(group, group.section.actions ?? [])}
-              {columns}
-              nested={active.directories}
-              selected={selectedIn(group)}
-              marked={marks.bySection.get(group.index) ?? NO_MARKS}
-              onclick={(path, event) => clicked(group, path, event)}
-              onmark={(path) => mark(group, path)}
-              {onopen}
-              oncontext={oncontext && ((path, event) => oncontext(path, event, group.section.title, group.files))}
-            />
+    <div class="table-wrap">
+      <div class="columns" style:--file-grid={gridColumns(columns, filesView.widths)}>
+        {#each columns as key, i (key)}
+          <div class="column-header">
+            <button
+              type="button"
+              class="column"
+              class:sorted={filesView.sort.key === key}
+              title={sortLabel(key)}
+              aria-label={sortLabel(key)}
+              onclick={() => filesView.setSort(nextSort(filesView.sort, key))}
+            >
+              <span class="truncate">{COLUMN_LABELS[key]}</span>
+              {#if filesView.sort.key === key}<Caret open={!filesView.sort.descending} />{/if}
+            </button>
+            {#if i < columns.length - 1}
+              <!-- svelte-ignore a11y_interactive_supports_focus -->
+              <span
+                class="resizer"
+                role="separator"
+                aria-orientation="vertical"
+                onpointerdown={(event) => startResize(key, event)}
+              ></span>
+            {/if}
           </div>
         {/each}
       </div>
-    {:else}
-      <div class="panes">
-        {#each groups as group, index (group.section.title ?? index)}
-          {#if group.files.length > 0}
-            <div class="slot grow">
+      {#if apart}
+        <div class="panes">
+          {#each groups as group, index (group.section.title ?? index)}
+            {#if index > 0}
+              <Splitter
+                direction="horizontal"
+                value={split}
+                label="Resize the {group.section.title ?? 'file'} list"
+                onchange={(delta) => onsplit?.(delta)}
+                onreset={() => onsplitreset?.()}
+              />
+            {/if}
+            <div class="slot" style:flex={index === 0 && groups.length > 1 ? `0 0 ${split * 100}%` : "1 1 auto"}>
               <FilePane
                 rows={group.rows}
-                title={layout.titled ? group.section.title : undefined}
+                title={group.section.title}
                 paths={group.paths}
                 actions={scoped(group, group.section.actions ?? [])}
                 {columns}
@@ -369,10 +381,33 @@
                 oncontext={oncontext && ((path, event) => oncontext(path, event, group.section.title, group.files))}
               />
             </div>
-          {/if}
-        {/each}
-      </div>
-    {/if}
+          {/each}
+        </div>
+      {:else}
+        <div class="panes">
+          {#each groups as group, index (group.section.title ?? index)}
+            {#if group.files.length > 0}
+              <div class="slot grow">
+                <FilePane
+                  rows={group.rows}
+                  title={layout.titled ? group.section.title : undefined}
+                  paths={group.paths}
+                  actions={scoped(group, group.section.actions ?? [])}
+                  {columns}
+                  nested={active.directories}
+                  selected={selectedIn(group)}
+                  marked={marks.bySection.get(group.index) ?? NO_MARKS}
+                  onclick={(path, event) => clicked(group, path, event)}
+                  onmark={(path) => mark(group, path)}
+                  {onopen}
+                  oncontext={oncontext && ((path, event) => oncontext(path, event, group.section.title, group.files))}
+                />
+              </div>
+            {/if}
+          {/each}
+        </div>
+      {/if}
+    </div>
   {/if}
 </div>
 
@@ -382,6 +417,15 @@
     flex-direction: column;
     height: 100%;
     min-height: 0;
+  }
+
+  .table-wrap {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
   }
 
   /* In line with the rows of FilePane: the same grid, gap and padding, and the room of the
@@ -394,13 +438,24 @@
     height: var(--h-row-dense);
     padding: 0 calc(var(--sp-5) + var(--scrollbar-size)) 0 var(--sp-5);
     border-bottom: 1px solid var(--divider);
+    min-width: max-content;
+  }
+
+  .column-header {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    height: 100%;
   }
 
   .column {
     display: flex;
     align-items: center;
     gap: var(--sp-2);
+    flex: 1 1 auto;
     min-width: 0;
+    height: 100%;
     padding: 0;
     background: none;
     border: 0;
@@ -409,6 +464,34 @@
     font-size: var(--fs-header);
     text-align: left;
     cursor: default;
+  }
+
+  .resizer {
+    position: absolute;
+    right: calc(-1 * var(--file-column-gap) / 2 - 3px);
+    top: 0;
+    bottom: 0;
+    width: 6px;
+    cursor: col-resize;
+    z-index: 2;
+    touch-action: none;
+  }
+
+  .resizer::after {
+    content: "";
+    position: absolute;
+    left: 2px;
+    top: 4px;
+    bottom: 4px;
+    width: 1px;
+    background: var(--divider);
+    opacity: 0.8;
+  }
+
+  .resizer:hover::after {
+    background: var(--status-ref);
+    opacity: 1;
+    width: 2px;
   }
 
   .column:hover,
@@ -421,6 +504,7 @@
     flex-direction: column;
     flex: 1 1 auto;
     min-height: 0;
+    min-width: max-content;
   }
 
   .slot {
