@@ -97,6 +97,16 @@ impl AppState {
         self.handle(repo)?.create_tag(request)
     }
 
+    pub fn delete_remote_tag(
+        &self,
+        repo: RepoId,
+        remote: &str,
+        name: &str,
+    ) -> Result<(), git_engine::GitError> {
+        let _quiet = self.quiet(repo);
+        self.handle(repo)?.delete_remote_tag(remote, name)
+    }
+
     pub fn delete_tag(&self, repo: RepoId, name: &str) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;

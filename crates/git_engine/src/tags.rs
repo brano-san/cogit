@@ -46,6 +46,13 @@ impl RepoHandle {
         self.run_git(&["tag", "--delete", name]).map(drop)
     }
 
+    pub fn delete_remote_tag(&self, remote: &str, name: &str) -> Result<()> {
+        let remote = require(remote)?;
+        let name = require(name)?;
+        self.run_git(&["push", remote, "--delete", &format!("refs/tags/{name}")])
+            .map(drop)
+    }
+
     /// Asked once on submit. A refusal is the answer, not a failed command, so it stays out
     /// of the journal: a journalled failure would open the Git error window over the dialog.
     pub fn tag_name_problem(&self, name: &str) -> Result<Option<String>> {
