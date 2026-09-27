@@ -8,7 +8,11 @@ use std::path::Path;
 const MAX_DEPTH: usize = 16;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
-#[serde(tag = "kind", rename_all = "camelCase")]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum HealthIssue {
     /// `configured` is what `core.ignoreCase` says, `actual` what the folder does.
     IgnoreCaseMismatch {
@@ -36,6 +40,35 @@ pub enum HealthIssue {
     ReplacedHistory {
         count: u32,
     },
+    /// More loose objects or packs than `gc.auto` / `gc.autoPackLimit` allow.
+    HousekeepingDue {
+        #[specta(type = specta_typescript::Number)]
+        loose: u64,
+        #[specta(type = specta_typescript::Number)]
+        packs: u64,
+        #[specta(type = specta_typescript::Number)]
+        pack_bytes: u64,
+    },
+    NoCommitGraph,
+    /// `gc.pid` left by a gc that died: every later auto gc skips.
+    StaleGcLock {
+        #[specta(type = specta_typescript::Number)]
+        hours: u64,
+    },
+    SparseCheckout {
+        cone: bool,
+        patterns: u32,
+    },
+    /// Files tracked through LFS whose content on disk is still the pointer.
+    LfsPointers {
+        count: u32,
+        installed: bool,
+        sample: Vec<String>,
+    },
+    NormalizationTwins {
+        paths: Vec<String>,
+    },
+    PrecomposeUnicodeOff,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
@@ -171,6 +204,7 @@ impl RepoHandle {
             });
         }
         issues.extend(self.worktree_issues());
+        issues.extend(self.housekeeping_issues());
         issues
     }
 

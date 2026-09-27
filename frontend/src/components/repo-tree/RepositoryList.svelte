@@ -33,6 +33,7 @@
   import { settings } from "$stores/settings.svelte";
   import { TypeAhead, moveFocus } from "$lib/list-keys";
   import { untrack } from "svelte";
+  import { moduleTitle } from "$lib/module-tree";
 
   interface Props {
     /** Only the folder dialog changes the label; selecting a repository must not (R-35). */
@@ -247,7 +248,7 @@
       tabindex="0"
       data-key-row={node.key}
       data-key-label={parts.name}
-      title="{node.path} — {node.module.url}"
+      title={moduleTitle(node.path, node.module)}
       style:padding-left="calc(var(--tree-base) + {depth + 1 + node.depth} * var(--tree-step))"
       onclick={() => open(node)}
       ondblclick={() => {

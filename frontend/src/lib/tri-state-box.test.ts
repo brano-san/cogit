@@ -17,7 +17,7 @@ function branch(name: string, isHead = false): Branch {
     kind: "local",
     oid: OID,
     isHead,
-    upstream: null,
+    upstream: null, pushRemote: null, pushTarget: null,
     ahead: 0,
     behind: 0,
   };

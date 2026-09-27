@@ -28,6 +28,11 @@ pub struct Branch {
     pub is_head: bool,
     /// Short name of the tracking branch, e.g. `origin/main`.
     pub upstream: Option<String>,
+    /// `branch.<name>.pushRemote`, else `remote.pushDefault`, else the upstream's remote.
+    pub push_remote: Option<String>,
+    /// Where a push lands when that is not the upstream (a triangular workflow); `ahead`
+    /// then counts against it and `behind` against the upstream.
+    pub push_target: Option<String>,
     pub ahead: u32,
     pub behind: u32,
 }
@@ -236,16 +241,30 @@ impl RepoHandle {
         let Ok(full) = gix::refs::FullName::try_from(branch.full_name.as_str()) else {
             return;
         };
+        branch.push_remote = self
+            .repo
+            .branch_remote_name(full.shorten(), gix::remote::Direction::Push)
+            .map(|name| name.as_bstr().to_string());
         let Some(Ok(tracking)) = self
             .repo
             .branch_remote_tracking_ref_name(full.as_ref(), gix::remote::Direction::Fetch)
         else {
             return;
         };
+        let pushed = self
+            .repo
+            .branch_remote_tracking_ref_name(full.as_ref(), gix::remote::Direction::Push)
+            .and_then(std::result::Result::ok)
+            .filter(|pushed| pushed.as_ref() != tracking.as_ref());
+        branch.push_target = pushed.as_ref().map(|name| name.shorten().to_string());
         branch.upstream = Some(tracking.shorten().to_string());
         if !divergence {
             return;
         }
+        let pushed_id = pushed.and_then(|name| {
+            let mut reference = self.repo.find_reference(name.as_ref()).ok()?;
+            reference.peel_to_id().ok().map(gix::Id::detach)
+        });
 
         let Ok(mut reference) = self.repo.find_reference(tracking.as_ref()) else {
             return;
@@ -260,6 +279,9 @@ impl RepoHandle {
         if let Some((ahead, behind)) = self.count_divergence(local_id, upstream_id.detach()) {
             branch.ahead = ahead;
             branch.behind = behind;
+        }
+        if let Some((ahead, _)) = pushed_id.and_then(|id| self.count_divergence(local_id, id)) {
+            branch.ahead = ahead;
         }
     }
 
@@ -359,6 +381,8 @@ fn collect<'a>(
             oid: id.detach().to_string(),
             is_head: head_name.is_some_and(|head| head.as_ref() == full_name),
             upstream: None,
+            push_remote: None,
+            push_target: None,
             ahead: 0,
             behind: 0,
         });

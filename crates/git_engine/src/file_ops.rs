@@ -314,16 +314,77 @@ impl RepoHandle {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct IgnoreRule {
+    pub path: String,
+    /// `None` when nothing ignores the path.
+    pub source: Option<String>,
+    pub line: Option<u32>,
+    pub pattern: Option<String>,
+}
+
+/// `-v -n -z`: source, line, pattern, path, each ended by NUL; the first three empty
+/// for a path no rule matches.
+fn parse_check_ignore(output: &str) -> Vec<IgnoreRule> {
+    let fields: Vec<&str> = output.split('\0').collect();
+    fields
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|chunk| {
+            let some = |text: &str| (!text.is_empty()).then(|| text.to_owned());
+            IgnoreRule {
+                source: some(chunk[0]),
+                line: chunk[1].parse().ok(),
+                pattern: some(chunk[2]),
+                path: chunk[3].to_owned(),
+            }
+        })
+        .collect()
+}
+
 impl RepoHandle {
     /// Appends to `.gitignore`, skipping patterns it already contains. The file is read as
     /// bytes and only ever added to: one in another encoding keeps every line it had.
     pub fn add_to_gitignore(&self, paths: &[String]) -> Result<()> {
+        self.append_ignore(&self.root().join(".gitignore"), paths)
+    }
+
+    /// `.git/info/exclude`: ignored in this clone only, never committed.
+    pub fn add_to_exclude(&self, paths: &[String]) -> Result<()> {
+        let file = self.repo.common_dir().join("info").join("exclude");
+        if let Some(dir) = file.parent() {
+            std::fs::create_dir_all(dir)?;
+        }
+        self.append_ignore(&file, paths)
+    }
+
+    /// Which rule ignores each path, as `git check-ignore -v` names it.
+    pub fn ignore_rules(&self, paths: &[String]) -> Result<Vec<IgnoreRule>> {
+        let mut command = self.base_git(&["check-ignore", "-v", "-n", "-z", "--stdin"]);
+        let mut input = Vec::new();
+        for path in paths {
+            input.extend_from_slice(path.as_bytes());
+            input.push(0);
+        }
+        let output = crate::children::output_fed(&mut command, &input)?;
+        // 1 is "nothing ignored", not a failure.
+        if !matches!(output.status.code(), Some(0 | 1)) {
+            return Err(GitError::InvalidState(format!(
+                "git check-ignore failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            )));
+        }
+        Ok(parse_check_ignore(&String::from_utf8_lossy(&output.stdout)))
+    }
+
+    fn append_ignore(&self, file: &std::path::Path, paths: &[String]) -> Result<()> {
         if paths.is_empty() {
             return Err(GitError::InvalidState("no paths to ignore".to_owned()));
         }
 
-        let file = self.root().join(".gitignore");
-        let existing = match std::fs::read(&file) {
+        let existing = match std::fs::read(file) {
             Ok(bytes) => bytes,
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => Vec::new(),
             Err(err) => return Err(err.into()),
@@ -353,7 +414,7 @@ impl RepoHandle {
         let mut out = std::fs::OpenOptions::new()
             .create(true)
             .append(true)
-            .open(&file)?;
+            .open(file)?;
         std::io::Write::write_all(&mut out, added.as_bytes())?;
         Ok(())
     }
@@ -431,5 +492,32 @@ fn same_file(a: &Path, b: &Path) -> bool {
             (Ok(a), Ok(b)) => a == b,
             _ => false,
         }
+    }
+}
+
+#[cfg(test)]
+mod ignore_rule_tests {
+    use super::*;
+
+    #[test]
+    fn check_ignore_names_the_rule_or_nothing() {
+        let out = ".gitignore\x003\x00*.log\x00a.log\x00\x00\x00\x00b.txt\x00";
+        assert_eq!(
+            parse_check_ignore(out),
+            [
+                IgnoreRule {
+                    path: "a.log".into(),
+                    source: Some(".gitignore".into()),
+                    line: Some(3),
+                    pattern: Some("*.log".into()),
+                },
+                IgnoreRule {
+                    path: "b.txt".into(),
+                    source: None,
+                    line: None,
+                    pattern: None,
+                },
+            ]
+        );
     }
 }

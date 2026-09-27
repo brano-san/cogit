@@ -7,6 +7,10 @@ export interface CheckoutSteps {
       there, and nothing is to be checked out here. */
   elsewhere: (branch: string) => Promise<boolean>;
   checkout: (target: CheckoutTarget) => Promise<unknown>;
+  /** Paths in the target's tree Windows cannot create; empty elsewhere (C9). */
+  unportable?: (target: CheckoutTarget) => Promise<string[]>;
+  /** Yes or no; false stops the checkout. */
+  confirm?: (question: string) => Promise<boolean>;
   /** The offer to carry the changes over; null declines it (item 46). */
   ask: (question: string) => Promise<{ drop: boolean } | null>;
   /** Stash, check out, apply the stash: one operation of the lane (R-521, R-563). */
@@ -54,8 +58,18 @@ export function keptNotice(what: string, outcome: AutostashOutcome): { title: st
 /** What the Checkout dialog chose, carried out. Git is asked first: many checkouts with
     local changes go through, so the stash is offered only once git has refused for them
     (R-54). "done" means the working tree may have changed and was read back. */
+export function unportableQuestion(what: string, paths: readonly string[]): string {
+  const shown = paths.slice(0, 5).join(", ");
+  const more = paths.length > 5 ? ` and ${paths.length - 5} more` : "";
+  return `${what} has path(s) Windows cannot create: ${shown}${more}. The checkout will fail on them or leave them out. Check out anyway?`;
+}
+
 export async function runCheckout(request: CheckoutRequest, steps: CheckoutSteps): Promise<CheckoutOutcome> {
   if (request.branch !== null && (await steps.elsewhere(request.branch))) return "elsewhere";
+  if (steps.unportable && steps.confirm) {
+    const paths = await steps.unportable(request.target).catch(() => []);
+    if (paths.length > 0 && !(await steps.confirm(unportableQuestion(request.what, paths)))) return "declined";
+  }
   try {
     await steps.checkout(request.target);
   } catch (err) {

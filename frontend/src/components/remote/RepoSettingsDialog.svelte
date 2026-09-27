@@ -14,6 +14,7 @@
     normalise,
     origin,
     separatorProblem,
+    source,
     storage,
     type SettingField,
     type SettingTab,
@@ -36,6 +37,7 @@
   let saving = $state(false);
 
   const inherited = $derived(new Map((read ?? []).map((entry) => [entry.key, entry.inherited])));
+  const sources = $derived(new Map((read ?? []).map((entry) => [entry.key, source(entry)])));
   const shown = $derived(FIELDS.filter((field) => field.tab === tab));
   const problem = $derived(separatorProblem(drafts.get("cogit.tagGroupSeparator") ?? null));
 
@@ -149,6 +151,7 @@
 
             <div class="meta">
               <span>{origin(field, draftOf(field), inherited.get(field.key) ?? null)}</span>
+              {#if sources.get(field.key)}<span class="where mono" title="git config --show-scope --show-origin">{sources.get(field.key)}</span>{/if}
               {#if draftOf(field) !== null}
                 <button type="button" class="inherit" onclick={() => set(field, null)}>Use inherited</button>
               {/if}

@@ -41,6 +41,8 @@ describe("worktreeFileMenu", () => {
       "Resolve",
       "—",
       "Ignore",
+      "Ignore Locally",
+      "Why Ignored?",
       "Discard…",
       "Remove…",
       "Delete…",

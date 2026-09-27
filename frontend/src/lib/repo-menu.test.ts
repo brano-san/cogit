@@ -45,7 +45,7 @@ const module = (over: Partial<Submodule>): Submodule => ({
   nested: false,
   ahead: 0,
   behind: 0,
-  repoState: null,
+  repoState: null, update: null, resolvedUrl: null,
   ...over,
 });
 

@@ -126,6 +126,12 @@
   import type { Settings } from "$lib/settings";
   import {
     checkout,
+    listHooks,
+    rangeDiff,
+    runMaintenance,
+    addToExclude,
+    ignoreRules,
+    unportablePaths,
     abortOperation,
     continueOperation,
     createBranch,
@@ -190,7 +196,8 @@
   import { diff } from "$stores/diff.svelte";
   import { errors } from "$stores/errors.svelte";
   import { notices } from "$stores/notices.svelte";
-  import { FETCH_MODULES, TRUST_DIRECTORY } from "$lib/health";
+  import { FETCH_MODULES, MAINTENANCE, RUN_GC, TRUST_DIRECTORY } from "$lib/health";
+  import { hooksNote, pendingHooks } from "$lib/pending-hooks";
   import { output } from "$stores/output.svelte";
   import { network } from "$stores/network.svelte";
   import { recovery } from "$stores/recovery.svelte";
@@ -581,6 +588,10 @@
   });
 
   const pullRemote = $derived(currentRemote(tracked?.upstream, network.remotes));
+  /** branch.<name>.pushRemote, else remote.pushDefault, as git itself pushes (D2). */
+  const pushRemote = $derived(
+    tracked?.pushRemote && network.remotes.includes(tracked.pushRemote) ? tracked.pushRemote : network.primary,
+  );
 
   const toolbarMenus = $derived<MenuContext>({
     remotes: network.remotes,
@@ -815,6 +826,20 @@
         synonyms: ["worktree prune", "missing worktree"],
         unavailable: noRepo ?? (hasStale(worktrees.entries) ? undefined : "No worktree is missing"),
         run: () => void pruneWorktreesHere(),
+      },
+      {
+        id: "range-diff",
+        title: "Compare Before and After Rewrite",
+        synonyms: ["range-diff", "rebase", "ORIG_HEAD"],
+        unavailable: noRepo,
+        run: () => void showRangeDiff(),
+      },
+      {
+        id: "maintenance-gc",
+        title: "Run Maintenance (gc)…",
+        synonyms: ["gc", "garbage collect", "housekeeping", "repack"],
+        unavailable: noRepo,
+        run: () => void runNoticeAction({ id: RUN_GC, label: "Run gc…", targets: [] }),
       },
       ...PANELS.map((panel) => ({
         id: `panel-${panel}`,
@@ -1180,6 +1205,24 @@
     await mutate((id) => addToGitignore(id, paths), paths);
   }
 
+  async function ignoreLocally(paths: string[]) {
+    await mutate((id) => addToExclude(id, paths), paths);
+  }
+
+  async function whyIgnored(paths: string[]) {
+    const id = repository.current?.repo;
+    if (!id) return;
+    try {
+      const rules = await ignoreRules(id, paths);
+      const lines = rules.map((rule) =>
+        rule.source ? `${rule.path}: ${rule.source}:${rule.line}: ${rule.pattern}` : `${rule.path}: not ignored`,
+      );
+      notices.inform("Why Ignored", lines.join("\n"));
+    } catch (err) {
+      errors.report(err, "Could not check the ignore rules");
+    }
+  }
+
   async function discard(paths: string[]) {
     const id = repository.current?.repo;
     if (!id) return;
@@ -1256,12 +1299,15 @@
       if (!confirmed) return false;
     }
     const epoch = repository.epoch;
+    if (!noVerify) await announceHooks(id, "commit");
     try {
       await worktree.commit(id, message, amend, noVerify, scope.paths ?? []);
     } catch (err) {
       // A hook's refusal: the message stays in the box for another try.
       errors.report(err, "Could not commit");
       return false;
+    } finally {
+      runningHooks = undefined;
     }
     if (repository.epoch !== epoch) return true;
     diff.clear();
@@ -1398,12 +1444,27 @@
 
   /** The Checkout dialog's choice (item 40), with the question about a worktree that has
       the branch and the offer to stash what is in the way (`lib/checkout-flow.ts`). */
+  function treeRev(target: import("$lib/ipc").CheckoutTarget): string {
+    switch (target.kind) {
+      case "branch":
+        return target.name;
+      case "commit":
+        return target.oid;
+      case "newBranch":
+        return target.start;
+      case "fastForward":
+        return target.to;
+    }
+  }
+
   async function checkOut(request: CheckoutRequest) {
     const id = repository.current?.repo;
     if (!id) return;
     await runCheckout(request, {
       elsewhere: (branch) => heldElsewhere(id, branch),
       checkout: (target) => checkout(id, target),
+      unportable: (target) => unportablePaths(id, treeRev(target)),
+      confirm: (message) => confirmation.ask({ title: "Unsupported File Names", message, confirm: "Check Out", warning: true }),
       ask: (question) => autostashDialog.ask(question),
       autostash: (target, message, drop) => runSwitchWithAutostash(id, target, message, drop),
       report: (err, title) => errors.report(err, title),
@@ -1588,6 +1649,16 @@
   /** A warning's own button. Fetching is the one fix Cogit runs for the user: it changes
       nothing but the submodule's object database (R-179). */
   async function runNoticeAction(action: import("$lib/health").HealthAction) {
+    const maintenance = MAINTENANCE[action.id];
+    if (maintenance) {
+      const id = repository.current?.repo;
+      if (!id) return;
+      const go = await confirmation.ask({ title: action.label.replace("…", ""), message: maintenance.question, confirm: "Run" });
+      if (!go) return;
+      await runMaintenance(id, maintenance.task).catch((err) => errors.report(err, "Maintenance failed"));
+      await health.recheck();
+      return;
+    }
     if (action.id === TRUST_DIRECTORY) {
       const id = repository.current?.repo;
       if (!id) return;
@@ -1679,13 +1750,32 @@
     await afterRefChange(id);
   }
 
+  /** git range-diff ORIG_HEAD...HEAD: each commit before a rebase or amend next to what it became (E1). */
+  async function showRangeDiff() {
+    const id = repository.current?.repo;
+    if (!id) return;
+    try {
+      output.show(await rangeDiff(id, "ORIG_HEAD", "HEAD"));
+    } catch (err) {
+      errors.report(err, "Could not compare before and after the rewrite");
+    }
+  }
+
+  let runningHooks = $state<string | undefined>(undefined);
+
+  /** Named in the footer while the step runs; git itself writes their output to the journal. */
+  async function announceHooks(id: import("$lib/ipc").RepoId, stage: "commit" | "push") {
+    const overview = await listHooks(id).catch(() => null);
+    runningHooks = hooksNote(pendingHooks(overview, stage));
+  }
+
   async function runNetwork(kind: "fetch" | "pull" | "push") {
     // One Pull everywhere: the remote HEAD tracks and the fast-forward setting (#26).
     if (kind === "pull") return pullNow();
     if (kind === "push" && refActions?.pushNeedsDialog()) return refActions.pushToCurrent();
     const id = repository.current?.repo;
     const root = repository.current?.root;
-    const remote = kind === "fetch" ? pullRemote : network.primary;
+    const remote = kind === "fetch" ? pullRemote : pushRemote;
     if (!id || !root) return;
     if (!remote) {
       errors.message("This repository has no remote.", `Could not ${kind}`);
@@ -1694,11 +1784,16 @@
     const epoch = repository.epoch;
     try {
       if (kind === "fetch") await network.fetch(id, remote);
-      else await network.push(id, remote, false);
+      else {
+        await announceHooks(id, "push");
+        await network.push(id, remote, false);
+      }
     } catch (err) {
       errors.report(err, `Could not ${kind}`);
       if (repository.epoch === epoch) await afterMutation();
       return;
+    } finally {
+      runningHooks = undefined;
     }
     if (kind === "fetch") repoPulse.fetched(root);
     if (repository.epoch !== epoch) return;
@@ -1717,7 +1812,7 @@
       const plan = remotePlan(steps, {
         remotes: network.remotes,
         pullRemote,
-        pushRemote: network.primary,
+        pushRemote,
         scope: toolbar.prefs.pullScope,
         ffOnly: settings.current.pullMode === "ffOnly",
         deleteMerged: toolbar.prefs.deleteMergedAfterPull,
@@ -2322,6 +2417,8 @@
       for (const path of paths) await resolveConflict(id, path, side);
     }, paths),
     ignore: (paths) => void ignore(paths),
+    ignoreLocally: (paths) => void ignoreLocally(paths),
+    whyIgnored: (paths) => void whyIgnored(paths),
     discard: (paths) => void discard(paths),
     remove: (paths) => (removingFiles = paths),
     trash: (paths) => void deleteFromDisk(paths),
@@ -4293,6 +4390,7 @@
       bulk,
       network: network.running ?? undefined,
       networkProgress: network.progress ?? undefined,
+      hooks: runningHooks,
       opening: repository.busy,
       failed: notices.errorCount > 0,
     })}

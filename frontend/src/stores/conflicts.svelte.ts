@@ -4,7 +4,10 @@ import {
   mergePreview,
   resolveConflict,
   resolveConflictText,
+  rerereForget,
+  rerereStatus,
   type ConflictSide,
+  type RerereStatus,
   type Region,
   type RepoId,
 } from "$lib/ipc";
@@ -24,6 +27,9 @@ class ConflictStore {
   /** Sides picked or text edited in the view on screen, not written yet. The views say so
       through `markUnsaved`; only they hold the picks. */
   unsaved = $state(false);
+  /** What rerere did with the conflicts listed; `null` while there are none (D6). */
+  rerere = $state.raw<RerereStatus | null>(null);
+  #repo: RepoId | null = null;
 
   /** Opening a file takes two round trips. Without this, a slow answer for the file the
       user has moved on from lands on the file they are looking at now — and Save would
@@ -43,6 +49,10 @@ class ConflictStore {
     const paths = known ? [...known] : await conflictedPaths(repo);
     if (listing !== this.#listing) return;
     this.paths = paths;
+    this.#repo = repo;
+    const rerere = paths.length > 0 ? await rerereStatus(repo).catch(() => null) : null;
+    if (listing !== this.#listing) return;
+    this.rerere = rerere;
     if (this.path && !this.paths.includes(this.path)) this.close();
   }
 
@@ -114,6 +124,25 @@ class ConflictStore {
     if (this.path === path) this.close();
   }
 
+  /** rerere resolved `path` from a recorded resolution. */
+  autoResolved(path: string): boolean {
+    return this.rerere?.resolved.includes(path) ?? false;
+  }
+
+  /** `git rerere forget`: the recorded resolution goes and the conflict markers come back. */
+  async forget(path: string): Promise<void> {
+    const repo = this.#repo;
+    if (!repo) return;
+    try {
+      await rerereForget(repo, [path]);
+    } catch (err) {
+      notices.report(err, "Could not forget the resolution");
+      return;
+    }
+    if (this.path === path) this.close();
+    await this.refresh(repo);
+  }
+
   markUnsaved(unsaved: boolean): void {
     this.unsaved = unsaved && this.path !== null;
   }
@@ -157,6 +186,8 @@ class ConflictStore {
     this.#listing += 1;
     this.#cleared += 1;
     this.paths = [];
+    this.rerere = null;
+    this.#repo = null;
     this.close();
   }
 }

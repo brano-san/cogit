@@ -166,7 +166,7 @@ describe("remotePlan", () => {
 // with "You asked to pull from the remote 'origin', but did not specify a branch".
 describe("headRemote", () => {
   const branch = (name: string, upstream: string | null) =>
-    ({ name, fullName: `refs/heads/${name}`, kind: "local", oid: "c1", isHead: false, upstream, ahead: 0, behind: 0 }) as const;
+    ({ name, fullName: `refs/heads/${name}`, kind: "local", oid: "c1", isHead: false, upstream, pushRemote: null, pushTarget: null, ahead: 0, behind: 0 }) as const;
 
   it("is the remote HEAD's branch tracks", () => {
     const refs = { head: { kind: "branch", name: "main", oid: "c1" } as const, branches: [branch("main", "upstream/main")] };

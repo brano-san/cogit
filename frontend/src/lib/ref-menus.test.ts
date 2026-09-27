@@ -429,7 +429,7 @@ describe("commitFacts", () => {
     kind: "local",
     oid: "h",
     isHead: true,
-    upstream: "origin/main",
+    upstream: "origin/main", pushRemote: null, pushTarget: null,
     ahead: 0,
     behind: 0,
   };
@@ -462,8 +462,8 @@ describe("commitFacts", () => {
 
 describe("labelTarget", () => {
   const branches: Branch[] = [
-    { name: "topic", fullName: "refs/heads/topic", kind: "local", oid: "a", isHead: true, upstream: null, ahead: 0, behind: 0 },
-    { name: "origin/topic", fullName: "refs/remotes/origin/topic", kind: "remote", oid: "a", isHead: false, upstream: null, ahead: 0, behind: 0 },
+    { name: "topic", fullName: "refs/heads/topic", kind: "local", oid: "a", isHead: true, upstream: null, pushRemote: null, pushTarget: null, ahead: 0, behind: 0 },
+    { name: "origin/topic", fullName: "refs/remotes/origin/topic", kind: "remote", oid: "a", isHead: false, upstream: null, pushRemote: null, pushTarget: null, ahead: 0, behind: 0 },
   ];
   const tags: Tag[] = [{ name: "v1", fullName: "refs/tags/v1", oid: "a", isAnnotated: false, pointsToCommit: true }];
 
@@ -527,7 +527,7 @@ describe("a branch checked out in another worktree", () => {
 
   it("is known by its graph label", () => {
     const branches: Branch[] = [
-      { name: "topic", fullName: "refs/heads/topic", kind: "local", oid: "a", isHead: false, upstream: null, ahead: 0, behind: 0 },
+      { name: "topic", fullName: "refs/heads/topic", kind: "local", oid: "a", isHead: false, upstream: null, pushRemote: null, pushTarget: null, ahead: 0, behind: 0 },
     ];
     const marks = new Map([["topic", { path: "D:/work/topic" }]]);
     expect(labelTarget({ text: "topic", kind: "local" }, branches, [], marks)?.ref.worktree).toBe("D:/work/topic");

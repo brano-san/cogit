@@ -38,7 +38,7 @@ function branch(name: string): Branch {
     kind: "local",
     oid: OID,
     isHead: false,
-    upstream: null,
+    upstream: null, pushRemote: null, pushTarget: null,
     ahead: 0,
     behind: 0,
   };
@@ -169,7 +169,7 @@ describe("worktreeMarks", () => {
     kind: "local",
     oid: OID,
     isHead: false,
-    upstream: `origin/${name}`,
+    upstream: `origin/${name}`, pushRemote: null, pushTarget: null,
     ahead: 0,
     behind: 0,
     ...over,

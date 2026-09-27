@@ -4,6 +4,7 @@ use git_engine::GitError;
 pub mod avatars;
 pub mod bisect;
 pub mod branches;
+pub mod checkup;
 pub mod clone;
 pub mod conflicts;
 pub mod desktop;

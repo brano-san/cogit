@@ -12,6 +12,7 @@ const BADGES: Record<FileStatus, string> = {
   ignored: "∅",
   assumeUnchanged: "≈",
   skipped: "⤳",
+  sparse: "◌",
 };
 
 export function statusBadge(status: FileStatus): string {
@@ -38,6 +39,7 @@ export function fileStatusBadge(file: StatusFile): string {
 
 const LABELS: Partial<Record<FileStatus, string>> = {
   assumeUnchanged: "Assume unchanged",
+  sparse: "Outside sparse checkout",
 };
 
 export function statusLabel(status: FileStatus): string {
@@ -61,6 +63,7 @@ const TOOLTIPS: Record<FileStatus, string> = {
   unchanged: "Unchanged — the same as in the last commit",
   assumeUnchanged: "Assume unchanged — Git does not check this file for changes",
   skipped: "Skip worktree — left out of the working tree",
+  sparse: "Outside sparse checkout — hidden by the sparse patterns, not deleted",
 };
 
 /** The full name of a status marker and what it means, for its tooltip (R-181). */

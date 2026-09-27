@@ -38,6 +38,7 @@ const STATE_ORDER: readonly FileStatus[] = [
   "ignored",
   "assumeUnchanged",
   "skipped",
+  "sparse",
   "unchanged",
 ];
 

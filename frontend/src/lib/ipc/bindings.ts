@@ -219,6 +219,17 @@ export const commands = {
 	stashContents: (repo: RepoId, index: number) => typedError<StashContents, GitError>(__TAURI_INVOKE("stash_contents", { repo, index })),
 	stashSelection: (repo: RepoId, paths: string[], message: string) => typedError<null, GitError>(__TAURI_INVOKE("stash_selection", { repo, paths, message })),
 	runCheck: (repo: RepoId, command: string) => typedError<HookRun, GitError>(__TAURI_INVOKE("run_check", { repo, command })),
+	/**  Asked for by the user after a confirmation; gc and commit-graph only write objects. */
+	runMaintenance: (repo: RepoId, task: MaintenanceTask) => typedError<null, GitError>(__TAURI_INVOKE("run_maintenance", { repo, task })),
+	addToExclude: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("add_to_exclude", { repo, paths })),
+	ignoreRules: (repo: RepoId, paths: string[]) => typedError<IgnoreRule[], GitError>(__TAURI_INVOKE("ignore_rules", { repo, paths })),
+	/**  Asks the LFS server: run on demand, never on a refresh. */
+	lfsLocks: (repo: RepoId) => typedError<LfsLock[], GitError>(__TAURI_INVOKE("lfs_locks", { repo })),
+	commitSignature: (repo: RepoId, rev: string) => typedError<SignatureCheck, GitError>(__TAURI_INVOKE("commit_signature", { repo, rev })),
+	unportablePaths: (repo: RepoId, rev: string) => typedError<string[], GitError>(__TAURI_INVOKE("unportable_paths", { repo, rev })),
+	rerereStatus: (repo: RepoId) => typedError<RerereStatus, GitError>(__TAURI_INVOKE("rerere_status", { repo })),
+	rerereForget: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("rerere_forget", { repo, paths })),
+	rangeDiff: (repo: RepoId, before: string, after: string) => typedError<GitOutput, GitError>(__TAURI_INVOKE("range_diff", { repo, before, after })),
 	worktrees: (repo: RepoId) => typedError<WorktreeEntry[], GitError>(__TAURI_INVOKE("worktrees", { repo })),
 	worktreeHolding: (repo: RepoId, branch: string) => typedError<{
 	path: string,
@@ -604,6 +615,13 @@ export type Branch = {
 	isHead: boolean,
 	/**  Short name of the tracking branch, e.g. `origin/main`. */
 	upstream: string | null,
+	/**  `branch.<name>.pushRemote`, else `remote.pushDefault`, else the upstream's remote. */
+	pushRemote: string | null,
+	/**
+	 *  Where a push lands when that is not the upstream (a triangular workflow); `ahead`
+	 *  then counts against it and `behind` against the upstream.
+	 */
+	pushTarget: string | null,
 	ahead: number,
 	behind: number,
 };
@@ -678,6 +696,12 @@ export type CommitDetails = {
 	author: Signature,
 	committer: Signature,
 	notes: CommitNote[],
+	/**  `Key: value` lines closing the message, `Co-authored-by` and the like. */
+	trailers: Trailer[],
+	/**  Carries a `gpgsig` header; `commit_signature` says whether it verifies. */
+	signed: boolean,
+	/**  The encoding the message was decoded from when it was not UTF-8. */
+	encoding: string | null,
 };
 
 export type CommitNote = {
@@ -851,7 +875,12 @@ oldTotal: number; newTotal: number;
  *  as broken code (R-530). Only for a language the frontend has a parser for, and a
  *  side of at most `MAX_HIGHLIGHT_LINES` lines.
  */
-oldText: string | null; newText: string | null } | { kind: "eolOnly"; from: LineEnding; to: LineEnding } | 
+oldText: string | null; newText: string | null; 
+/**
+ *  The lines are not the file's bytes: a textconv program's output, or text decoded
+ *  from another encoding. Shown, never staged line by line.
+ */
+converted: string | null } | { kind: "eolOnly"; from: LineEnding; to: LineEnding } | 
 /**  Shown as a summary, never as lines; `None` on a side the file is absent from. */
 { kind: "binary"; old: BlobSide | null; new: BlobSide | null; cause: BinaryCause } | { kind: "image"; oldSize: number; newSize: number; mime: string } | 
 /**  A side of `limit` bytes or more, summarised as a binary file is. */
@@ -931,7 +960,9 @@ export type FileRevision = {
 
 export type FileStatus = "added" | "modified" | "deleted" | "renamed" | "copied" | "untracked" | "conflicted" | 
 /**  Tracked and identical to the index; only listed when the panel asks for it. */
-"unchanged" | "ignored" | "assumeUnchanged" | "skipped";
+"unchanged" | "ignored" | "assumeUnchanged" | "skipped" | 
+/**  Skip-worktree under `core.sparseCheckout` and absent on disk: hidden, not deleted. */
+"sparse";
 
 export type FlowBranch = {
 	kind: FlowKind,
@@ -1107,7 +1138,13 @@ export type HealthIssue =
 /**  Owned by another user and not listed in `safe.directory`: the git CLI refuses it. */
 { kind: "unsafeDirectory"; path: string } | 
 /**  `refs/replace/*` swap objects: the history shown is not the one stored. */
-{ kind: "replacedHistory"; count: number };
+{ kind: "replacedHistory"; count: number } | 
+/**  More loose objects or packs than `gc.auto` / `gc.autoPackLimit` allow. */
+{ kind: "housekeepingDue"; loose: number; packs: number; packBytes: number } | { kind: "noCommitGraph" } | 
+/**  `gc.pid` left by a gc that died: every later auto gc skips. */
+{ kind: "staleGcLock"; hours: number } | { kind: "sparseCheckout"; cone: boolean; patterns: number } | 
+/**  Files tracked through LFS whose content on disk is still the pointer. */
+{ kind: "lfsPointers"; count: number; installed: boolean; sample: string[] } | { kind: "normalizationTwins"; paths: string[] } | { kind: "precomposeUnicodeOff" };
 
 export type Hook = {
 	name: string,
@@ -1152,6 +1189,14 @@ export type Hunk = {
 	rows: DiffRow[],
 };
 
+export type IgnoreRule = {
+	path: string,
+	/**  `None` when nothing ignores the path. */
+	source: string | null,
+	line: number | null,
+	pattern: string | null,
+};
+
 /**  `None` where the file is absent; every side `None` when any of them is not text. */
 export type IndexEditorSides = {
 	head: string | null,
@@ -1182,6 +1227,11 @@ export type KeyBinding = {
 	section: string,
 	/**  What the menu ships with; the user's override lives in settings, not here. */
 	defaultAccelerator: string | null,
+};
+
+export type LfsLock = {
+	path: string,
+	owner: string,
 };
 
 export type LfsOp = 
@@ -1220,6 +1270,8 @@ export type LongLink = {
 	segment: number,
 	oid: string,
 };
+
+export type MaintenanceTask = "gc" | "commitGraph" | "clearGcLock";
 
 /**
  *  A native menu item was chosen. The payload is the palette command id, so the frontend
@@ -1569,6 +1621,12 @@ export type RepoSetting = {
 	local: string | null,
 	/**  What applies when `local` is unset: the user's and the system's config. */
 	inherited: string | null,
+	/**
+	 *  Where the value in effect comes from, as `git config --show-scope --show-origin`
+	 *  names it: `global` and `file:C:/Users/me/.gitconfig`, or an `includeIf` file.
+	 */
+	scope: string | null,
+	origin: string | null,
 };
 
 export type RepoSettingChange = {
@@ -1599,6 +1657,14 @@ export type RepoSummary = {
 	indexLock: string | null,
 	/**  `cogit.tagGroupSeparator`, `/` when unset; read on every open, so a refresh sees a change. */
 	tagGroupSeparator: string,
+};
+
+export type RerereStatus = {
+	enabled: boolean,
+	/**  Conflicted paths rerere resolved from a recorded resolution. */
+	resolved: string[],
+	/**  Conflicted paths it has no resolution for yet. */
+	remaining: string[],
 };
 
 /**  The five modes of `git reset <commit>`: what happens to the index and the tree. */
@@ -1676,6 +1742,15 @@ export type Signature = {
 	tzOffsetMinutes: number,
 };
 
+export type SignatureCheck = {
+	/**  `%G?`: G good, B bad, U good but untrusted, X/Y expired, R revoked, E cannot check. */
+	status: string,
+	signer: string,
+	key: string,
+	/**  What gpg or ssh-keygen said, unaltered. */
+	raw: string,
+};
+
 export type SkippedRef = {
 	name: string,
 	reason: string,
@@ -1739,6 +1814,13 @@ export type Submodule = {
 	behind: number,
 	/**  What the submodule's own repository is in the middle of; `None` until it is checked out. */
 	repoState: RepoState | null,
+	/**
+	 *  `submodule.<name>.update` as configured: `rebase`, `merge`, `none` or `!command`;
+	 *  `None` for the default checkout.
+	 */
+	update: string | null,
+	/**  A `./` or `../` URL resolved against the parent's remote, as git clones it. */
+	resolvedUrl: string | null,
 };
 
 export type SubmoduleOp = "initialize" | "synchronize" | 
@@ -1819,6 +1901,11 @@ export type TodoEntry = {
 	oid: string,
 	action: TodoAction,
 	message: string | null,
+};
+
+export type Trailer = {
+	key: string,
+	value: string,
 };
 
 /**

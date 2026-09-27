@@ -246,6 +246,8 @@ impl RepoHandle {
         if force {
             // Never a bare `--force`: it overwrites work that arrived after our last fetch.
             args.push("--force-with-lease");
+            // A lease alone passes when a background fetch moved the tracking ref.
+            args.push("--force-if-includes");
         }
         args.push(remote);
         args.extend(refspec);

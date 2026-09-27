@@ -1,4 +1,5 @@
-import { openSubmodule, type RepoId } from "$lib/ipc";
+import { lfsLocks, openSubmodule, type LfsLock, type RepoId } from "$lib/ipc";
+import { notices } from "$stores/notices.svelte";
 import {
   addSubmodule,
   lfsOp,
@@ -58,6 +59,20 @@ class RemoteOpsStore {
   dialog = $state.raw<Open | null>(null);
   /** `undefined` until asked, `null` when git has no `lfs` command. */
   lfs = $state<string | null | undefined>(undefined);
+  /** Path → owner, as the LFS server last said; such a file is read-only for everyone else. */
+  #locks = $state.raw<{ repo: RepoId; owners: ReadonlyMap<string, string> } | null>(null);
+
+  /** Who holds the lock on `path` in the repository on screen, or undefined. */
+  lockOwner(path: string): string | undefined {
+    const held = this.#locks;
+    return held && held.repo === repository.current?.repo ? held.owners.get(path) : undefined;
+  }
+
+  async readLocks(repo: RepoId): Promise<LfsLock[]> {
+    const found = await lfsLocks(repo);
+    this.#locks = { repo, owners: new Map(found.map((lock) => [lock.path, lock.owner])) };
+    return found;
+  }
 
   async detectLfs(): Promise<void> {
     this.lfs = await lfsVersion().catch(() => null);
@@ -179,6 +194,18 @@ class RemoteOpsStore {
       case "lock":
       case "unlock":
         await run({ kind: action, paths: [...host.files()] });
+        await this.readLocks(repo).catch(() => undefined);
+        return;
+      case "locks":
+        try {
+          const found = await this.readLocks(repo);
+          notices.inform(
+            "LFS Locks",
+            found.length === 0 ? "No file is locked." : found.map((lock) => `${lock.path} — ${lock.owner}`).join("\n"),
+          );
+        } catch (err) {
+          errors.report(err, "Could not read the LFS locks");
+        }
         return;
       case "prune":
         if (await confirmation.ask(LFS_PRUNE)) await run({ kind: "prune" });

@@ -28,6 +28,9 @@ const REPOSITORY: &[Entry] = &[
     Entry::Item("worktree-remove", "Remove Worktree…", None),
     Entry::Item("worktree-prune", "Prune Obsolete Worktrees…", None),
     Entry::Separator,
+    Entry::Item("range-diff", "Compare Before and After Rewrite", None),
+    Entry::Item("maintenance-gc", "Run Maintenance (gc)…", None),
+    Entry::Separator,
     Entry::Item("repo-settings", "Settings…", None),
     Entry::Nested("Edit Git Config", EDIT_CONFIG),
     Entry::Separator,
@@ -89,6 +92,7 @@ const LFS: &[Entry] = &[
     Entry::Separator,
     Entry::Item("lfs-lock", "Lock", None),
     Entry::Item("lfs-unlock", "Unlock", None),
+    Entry::Item("lfs-locks", "Show Locks", None),
     Entry::Separator,
     Entry::Item("lfs-prune", "Prune…", None),
 ];

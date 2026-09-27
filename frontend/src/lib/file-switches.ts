@@ -22,7 +22,7 @@ const TITLES: Record<StateSlot, string> = {
   untracked: "If selected, untracked files will be shown",
   ignored: "If selected, ignored files will be shown",
   modified: "If selected, modified files will be shown",
-  skipped: "If selected, skip-worktree and assume-unchanged files will be shown",
+  skipped: "If selected, skip-worktree, assume-unchanged and sparse-checkout files will be shown",
   missing: "If selected, missing/removed files will be shown",
 };
 

@@ -55,6 +55,8 @@ export interface ActivityInput {
   bulk?: BulkProgress;
   network?: string;
   networkProgress?: string;
+  /** Hooks git runs inside the step on screen (D4). */
+  hooks?: string;
   opening: boolean;
   failed: boolean;
 }
@@ -74,7 +76,7 @@ export function activity(input: ActivityInput): Activity {
     busyLabel(input.operations) ??
     (input.opening ? "Opening repository…" : null);
 
-  if (busy !== null) return { label: busy, busy: true, tone: "busy" };
+  if (busy !== null) return { label: input.hooks ? `${busy} — ${input.hooks}` : busy, busy: true, tone: "busy" };
   if (input.failed) return { label: "Error", busy: false, tone: "error" };
   return { label: "Ready", busy: false, tone: "idle" };
 }

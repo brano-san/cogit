@@ -5,6 +5,8 @@
   import { commit } from "$stores/commit.svelte";
   import { repository } from "$stores/repository.svelte";
   import { settings } from "$stores/settings.svelte";
+  import { commitSignature, type SignatureCheck } from "$lib/ipc";
+  import { signatureLabel } from "$lib/signature";
 
   /** What the Diff panel shows when there is no file to diff: the selected commit, or
       what to do next. Why a repository would not open is told once, in the notification
@@ -14,6 +16,21 @@
   const repo = $derived(repository.current);
   const view = $derived(panelView(repository.phase));
   const details = $derived(commit.details);
+
+  /** Checked on request: gpg or ssh-keygen may be slow, or ask for nothing but still spawn. */
+  let signature = $state<{ oid: string; check: SignatureCheck } | null>(null);
+  let checking = $state(false);
+  async function verify(oid: string) {
+    if (!repo) return;
+    checking = true;
+    try {
+      signature = { oid, check: await commitSignature(repo.repo, oid) };
+    } catch (err) {
+      signature = { oid, check: { status: "E", signer: "", key: "", raw: String(err) } };
+    } finally {
+      checking = false;
+    }
+  }
 </script>
 
 <div class="detail">
@@ -39,6 +56,24 @@
           >
         </span>
       </dd>
+      {#each details.trailers as trailer, at (at)}
+        <dt>{trailer.key}</dt>
+        <dd>{trailer.value}</dd>
+      {/each}
+      {#if details.signed}
+        <dt>Signature</dt>
+        <dd>
+          {#if signature?.oid === details.oid}
+            <span title={signature.check.raw}>{signatureLabel(signature.check)}</span>
+          {:else}
+            <button type="button" disabled={checking} onclick={() => verify(details.oid)}>Verify</button>
+          {/if}
+        </dd>
+      {/if}
+      {#if details.encoding}
+        <dt>Encoding</dt>
+        <dd title="The message is not UTF-8 and was decoded from this encoding">{details.encoding}</dd>
+      {/if}
       <dt>Parents</dt>
       <dd class="mono tabular">
         {details.parents.length === 0
