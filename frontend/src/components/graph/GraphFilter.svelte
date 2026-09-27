@@ -90,25 +90,21 @@
       aria-label="Filter commits"
       title="Looks for the text in the fields switched on under the field. author:, path:, oid:, since: and until: take a value of their own."
     />
+    {#if active}
+      <button
+        type="button"
+        class="clear"
+        onmousedown={(event) => event.preventDefault()}
+        onclick={reset}
+        title="Clear filter (Esc)"
+        aria-label="Clear filter"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" />
+        </svg>
+      </button>
+    {/if}
   </div>
-  {#if active}
-    <button
-      type="button"
-      class="clear"
-      onmousedown={(event) => event.preventDefault()}
-      onclick={reset}
-      title="Clear filter (Esc)"
-      aria-label="Clear filter"
-    >
-      <svg viewBox="0 0 16 16" aria-hidden="true">
-        <mask id="graph-filter-clear">
-          <rect width="16" height="16" fill="white" />
-          <path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="black" stroke-width="1.5" stroke-linecap="round" />
-        </mask>
-        <circle cx="8" cy="8" r="7" mask="url(#graph-filter-clear)" />
-      </svg>
-    </button>
-  {/if}
 </div>
 
 <style>
@@ -144,6 +140,10 @@
     font-size: var(--fs-dense);
   }
 
+  input::-webkit-search-cancel-button {
+    appearance: none;
+  }
+
   input:focus-visible {
     outline: none;
   }
@@ -161,7 +161,7 @@
     display: inline-flex;
     align-items: center;
     height: 16px;
-    padding: 0;
+    padding: 0 var(--sp-2) 0 0;
     background: none;
     color: var(--text-secondary);
     border: 0;
@@ -175,6 +175,6 @@
   .clear svg {
     width: 14px;
     height: 14px;
-    fill: currentColor;
+    fill: none;
   }
 </style>
