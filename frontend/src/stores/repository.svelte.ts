@@ -284,6 +284,7 @@ class RepositoryStore {
   #takeList(asked: number, list: RepoOverview[]): void {
     if (asked !== this.#listed) return;
     this.openRepos = list;
+    for (const entry of list) repoList.opened(entry.root);
     session.remember(this.openRepos.map((entry) => entry.root));
   }
 

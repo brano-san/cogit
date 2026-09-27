@@ -724,3 +724,20 @@ describe("repository store, restoring the last session", () => {
     expect(said).toContain("Z:/unmounted");
   });
 });
+
+describe("reopening a closed repository", () => {
+  it("keeps its row listed until the open list carries it", async () => {
+    const root = "C:/repos/flicker";
+    repoList.closed(root);
+    const listed = pending<unknown>();
+    commands.repositories.mockReturnValue(listed.promise);
+    const refreshing = repository.refreshList();
+
+    expect(repoList.list.closed).toContain(root);
+    listed.settle({ status: "ok", data: [summary(root)] });
+    await refreshing;
+
+    expect(repoList.list.closed).not.toContain(root);
+    expect(repository.openRepos.map((entry) => entry.root)).toEqual([root]);
+  });
+});
