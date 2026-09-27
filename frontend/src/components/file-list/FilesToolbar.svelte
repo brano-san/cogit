@@ -97,7 +97,7 @@
     untracked: "M6 3h8l5 5v13H6zM14 3v5h5M9 12h6m-3-3v6",
     ignored: "M6 3h8l5 5v13H6zM14 3v5h5M9 11l6 6m0-6-6 6",
     modified: "M6 3h8l5 5v13H6zM14 3v5h5M9 15l6-6",
-    skipped: "M6 3h8l5 5v13H6zM14 3v5h5M10 11v6M14 11v6",
+    skipped: "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12ZM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM3 3l18 18",
     missing: "M6 3h8l5 5v13H6zM14 3v5h5M9 14h6",
     columns: "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM9 3v18M15 3v18",
   } as const;
