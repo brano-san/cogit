@@ -104,7 +104,11 @@ fn mergeable_dims_the_history_of_head() {
     let repo = state.open_repository(f.path()).unwrap().repo;
     let generation = build(&state, repo);
     let order = oids(&state, repo, generation);
-    let dev = [f.oid("dev").unwrap(), f.oid("dev~1").unwrap()];
+    let dev = [
+        f.oid("dev").unwrap(),
+        f.oid("dev~1").unwrap(),
+        f.oid("HEAD").unwrap(),
+    ];
 
     let request = GraphPaintRequest {
         mergeable: true,
