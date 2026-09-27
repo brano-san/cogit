@@ -677,6 +677,13 @@ export type CommitDetails = {
 	body: string,
 	author: Signature,
 	committer: Signature,
+	notes: CommitNote[],
+};
+
+export type CommitNote = {
+	/**  `commits` for `refs/notes/commits`. */
+	namespace: string,
+	text: string,
 };
 
 export type CommitQuery = {

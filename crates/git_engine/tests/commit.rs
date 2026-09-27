@@ -208,3 +208,23 @@ fn an_ordinary_file_is_reported_as_plain() {
         "{files:?}"
     );
 }
+
+#[test]
+fn notes_from_every_namespace_reach_the_commit_details() {
+    let f = test_fixtures::linear(2).unwrap();
+    f.git(&["notes", "add", "-m", "reviewed", "HEAD"]).unwrap();
+    f.git(&["notes", "--ref", "ci", "add", "-m", "build 42", "HEAD"])
+        .unwrap();
+
+    let details = git_engine::RepoHandle::open(f.path())
+        .unwrap()
+        .commit_details("HEAD")
+        .unwrap();
+
+    let notes: Vec<(&str, &str)> = details
+        .notes
+        .iter()
+        .map(|note| (note.namespace.as_str(), note.text.as_str()))
+        .collect();
+    assert_eq!(notes, [("ci", "build 42"), ("commits", "reviewed")]);
+}
