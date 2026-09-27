@@ -457,7 +457,11 @@ pub(crate) struct Tips {
 
 /// `stash@{N}`, `refs/stash@{N}` or `refs/stash` itself.
 fn is_stash(rev: &str) -> bool {
-    rev == "refs/stash" || rev.starts_with("stash@{") || rev.starts_with("refs/stash@{")
+    rev == "refs/stash"
+        || rev.starts_with("stash@{")
+        || rev.starts_with("refs/stash@{")
+        || rev.starts_with("refs/cline/")
+        || rev.contains("checkpoints/")
 }
 
 /// How a graph walk gets and gives its rows (`graph_commits`).
