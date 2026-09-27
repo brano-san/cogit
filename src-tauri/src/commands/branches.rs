@@ -195,6 +195,25 @@ pub async fn create_tag(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn delete_remote_tag(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    remote: String,
+    name: String,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Tag,
+        "delete_remote_tag",
+        move || app_state.delete_remote_tag(repo, &remote, &name),
+    )
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn delete_tag(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,

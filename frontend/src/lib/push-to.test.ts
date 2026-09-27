@@ -7,6 +7,7 @@ import {
   menuPush,
   pushTitle,
   pushUpTo,
+  remoteCopy,
   tracksByDefault,
   splitUpstream,
   type PushSource,
@@ -147,5 +148,20 @@ describe("choosesRemote", () => {
     expect(choosesRemote(untracked, ["origin"])).toBe(false);
     expect(choosesRemote(tracked, remotes)).toBe(false);
     expect(choosesRemote(tag, remotes)).toBe(false);
+  });
+});
+
+describe("remoteCopy", () => {
+  it("reaches a branch's upstream on its own remote", () => {
+    expect(remoteCopy(tracked, remotes, "origin")).toEqual({ remote: "origin", name: "origin/feature/topic" });
+  });
+
+  it("offers nothing for a branch without an upstream", () => {
+    expect(remoteCopy(untracked, remotes, "origin")).toBeNull();
+  });
+
+  it("reaches a tag on the primary remote, or nowhere without one", () => {
+    expect(remoteCopy(tag, remotes, "origin")).toEqual({ remote: "origin", name: "v1.0" });
+    expect(remoteCopy(tag, [], null)).toBeNull();
   });
 });

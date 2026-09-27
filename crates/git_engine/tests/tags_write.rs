@@ -149,6 +149,19 @@ fn an_empty_name_is_refused_before_git_is_started() {
 }
 
 #[test]
+fn deleting_a_remote_tag_removes_it_from_the_remote() {
+    let f = test_fixtures::with_remote().unwrap();
+    let repo = open(&f);
+    f.git(&["tag", "shipped"]).unwrap();
+    f.git(&["push", "origin", "refs/tags/shipped"]).unwrap();
+
+    repo.delete_remote_tag("origin", "shipped").unwrap();
+
+    let listed = f.git(&["ls-remote", "--tags", "origin"]).unwrap();
+    assert!(!listed.contains("shipped"), "{listed}");
+}
+
+#[test]
 fn a_tag_name_with_slashes_works() {
     let f = test_fixtures::linear(2).unwrap();
     let repo = open(&f);

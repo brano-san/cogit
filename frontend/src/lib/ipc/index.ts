@@ -716,6 +716,10 @@ export async function deleteTag(repo: RepoId, name: string) {
   return unwrap(await commands.deleteTag(repo, name));
 }
 
+export async function deleteRemoteTag(repo: RepoId, remote: string, name: string) {
+  return unwrap(await commands.deleteRemoteTag(repo, remote, name));
+}
+
 export async function listStashes(repo: RepoId) {
   return unwrap(await commands.stashes(repo));
 }

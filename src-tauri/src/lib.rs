@@ -122,6 +122,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::stash::stash_drop,
             commands::branches::create_tag,
             commands::branches::delete_tag,
+            commands::branches::delete_remote_tag,
             commands::ref_ops::reset_to,
             commands::ref_ops::is_ancestor,
             commands::ref_ops::compare_files,
