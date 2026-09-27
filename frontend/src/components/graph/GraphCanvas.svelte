@@ -30,6 +30,9 @@
     /** HEAD's list row and column: the dashed line from the Working Tree row ends there (T4.5). */
     headRow?: number | null;
     headLane?: number | null;
+    /** Where the Working Tree row is: the top, or right above HEAD when HEAD is further down. */
+    headerRow?: number;
+    headerLane?: number | null;
     /** A ring is filled with what is behind it: a stripe, a hovered or a selected row. */
     selectedRows?: readonly number[];
     hoverRow?: number | null;
@@ -49,6 +52,8 @@
     height,
     headRow = null,
     headLane = null,
+    headerRow = 0,
+    headerLane = null,
     selectedRows = [],
     hoverRow = null,
     focusLane = null,
@@ -110,6 +115,11 @@
           context.lineWidth = look.width;
           context.globalAlpha = look.alpha;
           context.beginPath();
+          if (headerRow > 0 && row.listRow === headRow && !segment.arrow && segment.span !== "bottom") {
+            const x = laneX(segment.from);
+            context.moveTo(x, headerRow * GRAPH.rowHeight - scrollTop);
+            context.lineTo(x, row.listRow * GRAPH.rowHeight - scrollTop);
+          }
           if (segment.arrow) {
             const stub = arrowStub(segment, row.listRow, scrollTop);
             context.moveTo(stub.x1, stub.y1);
@@ -130,7 +140,7 @@
     context.globalAlpha = 1;
 
     if (headLane !== null && headRow !== null && scrollTop < GRAPH.rowHeight * headRow) {
-      const top = nodeCentre(headLane, 0, scrollTop);
+      const top = nodeCentre(headerLane ?? headLane, headerRow, scrollTop);
       const foot = nodeCentre(headLane, headRow, scrollTop);
       context.save();
       context.setLineDash([3, 3]);
@@ -138,6 +148,11 @@
       context.lineWidth = GRAPH.lineWidth;
       context.beginPath();
       context.moveTo(top.x, top.y);
+      if (top.x !== foot.x) {
+        const bend = top.y + GRAPH.rowHeight / 2;
+        const middle = (top.y + bend) / 2;
+        context.bezierCurveTo(top.x, middle, foot.x, middle, foot.x, bend);
+      }
       context.lineTo(foot.x, foot.y - GRAPH.ringRadius);
       context.stroke();
       context.restore();
@@ -190,7 +205,7 @@
 
   $effect(() => {
     // Theme, lane width and colour change the picture without changing the data.
-    void [rows, scrollTop, width, height, dpr, headRow, headLane, selectedRows, hoverRow, focusLane];
+    void [rows, scrollTop, width, height, dpr, headRow, headLane, headerRow, headerLane, selectedRows, hoverRow, focusLane];
     void [clipX, stripes, rowHeight];
     void [settings.current.theme, settings.current.laneWidth, settings.current.graphColoring];
     if (drawsNow(drawnBox, canvasBox(width, height, dpr))) {

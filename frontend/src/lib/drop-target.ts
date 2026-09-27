@@ -38,11 +38,12 @@ export function graphDropTarget(
   listRows: number,
   headerRows: number,
   oidAt: (commitRow: number) => string | undefined,
+  at = 0,
 ): string | null {
   if (y < 0 || rowHeight <= 0) return null;
   const row = Math.floor((y + scrollTop) / rowHeight);
   if (row >= listRows) return null;
-  return clickedCommit(row, headerRows, oidAt) ?? null;
+  return clickedCommit(row, headerRows, oidAt, at) ?? null;
 }
 
 export interface DragPayload {

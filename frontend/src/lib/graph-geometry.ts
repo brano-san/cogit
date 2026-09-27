@@ -223,13 +223,25 @@ export function canvasPixelSize(cssWidth: number, cssHeight: number, dpr: number
     offset is a parameter everywhere and this is only the floor. */
 export const HEADER_ROWS = 1;
 
-export function toListRow(commitRow: number, headerRows: number = HEADER_ROWS): number {
-  return commitRow + headerRows;
+/** `at`: the commit row the header rows sit above — HEAD's when it is not the first, else 0. */
+export function toListRow(commitRow: number, headerRows: number = HEADER_ROWS, at = 0): number {
+  return commitRow < at ? commitRow : commitRow + headerRows;
 }
 
-export function toCommitRow(listRow: number, headerRows: number = HEADER_ROWS): number | null {
+export function toCommitRow(listRow: number, headerRows: number = HEADER_ROWS, at = 0): number | null {
+  if (listRow < at) return listRow;
   const row = listRow - headerRows;
-  return row >= 0 ? row : null;
+  return row >= at ? row : null;
+}
+
+/** The Working Tree row's lane above HEAD: HEAD's own when no line comes into it from above,
+    else the first lane no line crosses there. */
+export function workingTreeLane(headLane: number, segments: readonly { from: number; span: string }[]): number {
+  const taken = new Set(segments.filter((segment) => segment.span !== "bottom").map((segment) => segment.from));
+  if (!taken.has(headLane)) return headLane;
+  let lane = 0;
+  while (taken.has(lane)) lane++;
+  return lane;
 }
 
 /** HEAD's ring, where the dashed line from the Working Tree row ends (07 §4). It is not
@@ -238,10 +250,11 @@ export function headNode(
   headRow: number | null,
   laneAt: (commitRow: number) => number | undefined,
   headerRows: number = HEADER_ROWS,
+  at = 0,
 ): { lane: number; listRow: number } | null {
   if (headRow === null) return null;
   const lane = laneAt(headRow);
-  return lane === undefined ? null : { lane, listRow: toListRow(headRow, headerRows) };
+  return lane === undefined ? null : { lane, listRow: toListRow(headRow, headerRows, at) };
 }
 
 /** What a click on a list row selects: a commit, the working tree (`null`, the first row),
@@ -250,9 +263,10 @@ export function clickedCommit(
   listRow: number,
   headerRows: number,
   oidAt: (commitRow: number) => string | undefined,
+  at = 0,
 ): string | null | undefined {
-  const row = toCommitRow(listRow, headerRows);
-  if (row === null) return listRow === 0 ? null : undefined;
+  const row = toCommitRow(listRow, headerRows, at);
+  if (row === null) return listRow === at ? null : undefined;
   return oidAt(row);
 }
 

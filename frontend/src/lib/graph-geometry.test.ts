@@ -24,6 +24,7 @@ import {
   keyTarget,
   toCommitRow,
   toListRow,
+  workingTreeLane,
 } from "./graph-geometry";
 
 describe("visibleRange", () => {
@@ -541,5 +542,24 @@ describe("row stripes", () => {
     expect([0, 1, 2, 3].map((row) => striped(row, false))).toEqual([false, false, false, false]);
     expect(nodeFill(3, [], null, false)).toEqual(["--surface-panel"]);
     expect(nodeFill(3, [3], null, false)).toEqual(["--surface-panel", "--state-selected"]);
+  });
+});
+
+describe("Working Tree row above a HEAD that is not the first commit", () => {
+  it("sits right above HEAD and keeps the commits above it in place", () => {
+    const at = 3;
+    expect([0, 1, 2].map((row) => toListRow(row, 1, at))).toEqual([0, 1, 2]);
+    expect(toListRow(3, 1, at)).toBe(4);
+    expect(toCommitRow(3, 1, at)).toBeNull();
+    expect(clickedCommit(3, 1, (row) => `c${row}`, at)).toBeNull();
+    expect(clickedCommit(4, 1, (row) => `c${row}`, at)).toBe("c3");
+    for (const row of [0, 2, 3, 50]) expect(toCommitRow(toListRow(row, 1, at), 1, at)).toBe(row);
+    expect(headNode(3, () => 0, 1, at)).toEqual({ lane: 0, listRow: 4 });
+  });
+
+  it("takes HEAD's lane when free, else the first lane no line crosses", () => {
+    expect(workingTreeLane(1, [{ from: 0, span: "through" }])).toBe(1);
+    expect(workingTreeLane(0, [{ from: 0, span: "top" }, { from: 1, span: "through" }])).toBe(2);
+    expect(workingTreeLane(0, [{ from: 0, span: "top" }, { from: 2, span: "bottom" }])).toBe(1);
   });
 });
