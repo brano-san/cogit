@@ -9,6 +9,7 @@ class RefDialogs {
   reset = $state.raw<{ oid: string; subject: string; moving: string } | null>(null);
   message = $state.raw<{ oid: string; message: string; parents: string[] } | null>(null);
   author = $state.raw<{ oid: string; name: string; email: string } | null>(null);
+  note = $state.raw<{ oid: string; text: string } | null>(null);
   upstream = $state.raw<{ branch: string; current: string | null } | null>(null);
   checkout = $state.raw<CheckoutOffer | null>(null);
   applyStash = $state.raw<{ index: number; message: string } | null>(null);
@@ -20,6 +21,7 @@ class RefDialogs {
     this.reset = null;
     this.message = null;
     this.author = null;
+    this.note = null;
     this.upstream = null;
     this.checkout = null;
     this.applyStash = null;

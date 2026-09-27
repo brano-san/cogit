@@ -45,6 +45,7 @@
     renameStash,
     renameTag,
     resetTo,
+    setNote,
     tagMessage,
     tagNameProblem,
     type ResetMode,
@@ -188,6 +189,22 @@
     const oid = commit.oid;
     if (id && oid) void factsOf(id, oid, true).catch(() => {});
   });
+
+  let hovered: ReturnType<typeof setTimeout> | undefined;
+
+  export function prefetch(oid: string | null | undefined) {
+    clearTimeout(hovered);
+    const id = repoId();
+    if (!id || !oid) return;
+    hovered = setTimeout(() => void factsOf(id, oid, true).catch(() => {}), 80);
+  }
+
+  export function prefetchNode(node: RefNode) {
+    const summary = repository.current;
+    if (!summary || !claims(node)) return;
+    const found = nodeTarget(node, summary.tags);
+    prefetch(found ? found.oid : node.oid);
+  }
 
   async function loadFacts(id: RepoId, oid: string, withPublished: boolean): Promise<Loaded> {
     const [details, onHead, published, protectedBy] = await Promise.all([
@@ -483,6 +500,15 @@
         return addBranch(id, at);
       case "add-tag":
         return addTag(oid);
+      case "edit-note":
+        if (oid) {
+          await attempt(
+            "Could not read the note",
+            async () => editNote(at.details ?? (await commitDetails(id, oid))),
+            async () => {},
+          );
+        }
+        return;
       case "reset":
         if (oid) await attempt("Could not reset", () => resetTo(id, oid, "mixed"));
         return;
@@ -681,6 +707,20 @@
       if (!plan) throw notOnBranch();
       await interactiveRebase(id, base, plan, false);
     });
+  }
+
+  function editNote(details: CommitDetails) {
+    const text = details.notes.find((note) => note.namespace === "commits")?.text ?? "";
+    refDialogs.note = { oid: details.oid, text };
+  }
+
+  async function saveNote(text: string) {
+    const id = repoId();
+    const dialog = refDialogs.note;
+    refDialogs.note = null;
+    if (!id || !dialog) return;
+    await attempt("Could not save the note", () => setNote(id, dialog.oid, text));
+    if (commit.oid === dialog.oid) await commit.select(id, dialog.oid);
   }
 
   async function saveAuthor(name: string, email: string) {
@@ -1066,5 +1106,16 @@
     email={refDialogs.author.email}
     onsave={(name, email) => void saveAuthor(name, email)}
     onclose={() => (refDialogs.author = null)}
+  />
+{/if}
+
+{#if refDialogs.note}
+  <EditMessageDialog
+    oid={refDialogs.note.oid}
+    message={refDialogs.note.text}
+    title="Note on {shortOid(refDialogs.note.oid)}"
+    allowEmpty
+    onsave={(text) => void saveNote(text)}
+    onclose={() => (refDialogs.note = null)}
   />
 {/if}
