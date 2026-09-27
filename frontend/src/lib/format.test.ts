@@ -479,3 +479,13 @@ describe("fileFormat", () => {
     expect(fileFormat({ kind: "binary" } as never)).toEqual({});
   });
 });
+
+describe("checkpoint refs", () => {
+  it("show a short text with the full name in the tooltip, other branches stay whole", () => {
+    const long = "cline/checkpoints/1234567890/abcdef0123456789abcdef";
+    const map = refLabels([branch(long, "local"), branch("feature/a-very-long-branch-name", "local")], [], null);
+    const [checkpoint, feature] = [...map.values()].flat();
+    expect(checkpoint).toMatchObject({ text: "checkpoint", title: long });
+    expect(feature).toEqual({ text: "feature/a-very-long-branch-name", kind: "local" });
+  });
+});
