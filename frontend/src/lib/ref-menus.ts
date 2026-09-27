@@ -179,7 +179,7 @@ export interface BranchesContext {
 function compareRows(at: BranchesContext, facts: CommitFacts): ContextItem[] {
   const none = at.oid === null ? "not a commit" : null;
   return [
-    offer(id("reveal"), "Reveal Commit", none ?? at.untickable),
+    offer(id("reveal"), "Reveal in Graph", none ?? at.untickable),
     offer(id("compare-head"), "Compare with HEAD", none ?? (facts.isHeadCommit ? "same as HEAD" : null)),
     offer(
       id("compare-selected"),
