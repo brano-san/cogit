@@ -22,6 +22,10 @@
   {:else if details}
     <p class="subject">{details.summary}</p>
     {#if details.body}<pre class="body">{details.body}</pre>{/if}
+    {#each details.notes as note (note.namespace)}
+      <p class="note-head">Notes ({note.namespace})</p>
+      <pre class="body">{note.text}</pre>
+    {/each}
     <dl>
       <dt>Commit</dt>
       <dd class="mono">{details.oid}</dd>
@@ -87,6 +91,11 @@
     font-size: var(--fs-code);
     white-space: pre-wrap;
     user-select: text;
+  }
+
+  .note-head {
+    margin: 0 0 var(--sp-2);
+    color: var(--text-secondary);
   }
 
   dl {

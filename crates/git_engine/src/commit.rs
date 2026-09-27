@@ -23,6 +23,7 @@ pub struct CommitDetails {
     pub body: String,
     pub author: Signature,
     pub committer: Signature,
+    pub notes: Vec<crate::CommitNote>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
@@ -115,6 +116,7 @@ impl RepoHandle {
                 .unwrap_or_default(),
             author: signature(author, mailmap),
             committer: signature(committer, mailmap),
+            notes: self.notes_of(commit.id),
         })
     }
 

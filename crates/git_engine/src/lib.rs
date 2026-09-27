@@ -34,6 +34,7 @@ mod maintenance;
 mod merging;
 mod module_ops;
 mod network;
+mod notes;
 mod operations;
 mod origin_search;
 pub mod outcome;
@@ -109,6 +110,7 @@ pub use mailmap::Mailmap;
 pub use merging::MergeOptions;
 pub use module_ops::SubmoduleOp;
 pub use network::{NetworkStop, auth_config, auth_header, wants_auth};
+pub use notes::CommitNote;
 pub use operations::RebaseOptions;
 pub use origin_search::{
     DeeperTarget, Likelihood, LineMatch, OriginCandidate, OriginKind, OriginQuery, OriginReport,
