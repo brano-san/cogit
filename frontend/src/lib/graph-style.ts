@@ -51,6 +51,8 @@ export function rowPaint(overlay: GraphOverlay, row: number): RowPaint | undefin
 export interface StrokeOptions {
   /** Varying Coloring: a colour per column where no branch has one. */
   colouredLanes: boolean;
+  /** Branch Coloring: all but `focusLane`, or the main line without one, is dimmed. */
+  branchOnly?: boolean;
   /** Mergeable Coloring: what is not dimmed is drawn in the accent. */
   accentLit?: boolean;
   /** Drawn on top and wider: the branch of the chosen commit (#26). */
@@ -78,7 +80,8 @@ function stroke(
 ): Stroke {
   const slot = style & SLOT_BITS;
   const focused = options.focusLane != null && lane === options.focusLane;
-  const dim = (style & DIM_BIT) !== 0;
+  const outside = options.branchOnly === true && (options.focusLane != null ? !focused : !primary);
+  const dim = (style & DIM_BIT) !== 0 || outside;
   const token =
     slot > 0
       ? branchToken(slot - 1)
@@ -129,6 +132,11 @@ export function nodeStroke(layout: GraphRow, paint: RowPaint | undefined, option
     ...stroke(paint?.nodeStyle ?? 0, paint?.nodeLane, layout.primary, layout.lane, GRAPH.ringStroke, options),
     width: GRAPH.ringStroke,
   };
+}
+
+/** A commit whose ring is dimmed has its text grayed too. */
+export function rowFaded(layout: GraphRow, paint: RowPaint | undefined, options: StrokeOptions): boolean {
+  return nodeStroke(layout, paint, options).alpha < 1;
 }
 
 /** The lane of the line at `column` in one half of a row, for a click on a line rather

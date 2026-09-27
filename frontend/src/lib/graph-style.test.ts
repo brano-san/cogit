@@ -8,6 +8,7 @@ import {
   branchSlot,
   laneAt,
   nodeStroke,
+  rowFaded,
   rowPaint,
   segmentStroke,
 } from "$lib/graph-style";
@@ -101,6 +102,24 @@ describe("strokes", () => {
     expect(segmentStroke(at(3 + BRANCH_SLOTS), 0, undefined, { colouredLanes: true }).token).toBe("--c-lane-4");
     expect(segmentStroke(at(3), 0, painted, { colouredLanes: true }).token).toBe("--graph-branch-5");
     expect(nodeStroke({ ...row(false), lane: 9 }, undefined, { colouredLanes: true }).token).toBe("--c-lane-2");
+  });
+
+  it("dim all but the active branch under Branch Coloring, the main line without a selection", () => {
+    const branch = { colouredLanes: false, branchOnly: true, focusLane: 7 };
+    const paint = { nodeLane: 7, nodeStyle: 0, segmentLanes: [7, 2], segmentStyles: [0, 0] };
+    expect(segmentStroke(segment(false), 0, paint, branch).alpha).toBe(1);
+    expect(segmentStroke(segment(false), 1, paint, branch).alpha).toBe(DIM_ALPHA);
+    expect(rowFaded(row(false), paint, branch)).toBe(false);
+    expect(rowFaded(row(false), { ...paint, nodeLane: 2 }, branch)).toBe(true);
+    const head = { colouredLanes: false, branchOnly: true, focusLane: null };
+    expect(rowFaded(row(true), undefined, head)).toBe(false);
+    expect(rowFaded(row(false), undefined, head)).toBe(true);
+  });
+
+  it("fade the text of what Mergeable Coloring dims", () => {
+    const dimmed = { nodeLane: 0, nodeStyle: 0x10, segmentLanes: [], segmentStyles: [] };
+    expect(rowFaded(row(true), dimmed, { colouredLanes: false, accentLit: true })).toBe(true);
+    expect(rowFaded(row(false), undefined, { colouredLanes: false, accentLit: true })).toBe(false);
   });
 
   it("draw what is not dimmed in the accent under Mergeable Coloring", () => {

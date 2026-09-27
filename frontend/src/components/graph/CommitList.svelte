@@ -63,7 +63,7 @@
   import type { GraphColoring } from "$lib/graph-coloring";
   import { graphFolds } from "$stores/graph-folds.svelte";
   import { graphNav } from "$stores/graph-nav.svelte";
-  import { laneAt } from "$lib/graph-style";
+  import { laneAt, rowFaded } from "$lib/graph-style";
   import { selectedLabels, withTracked } from "$lib/selected-refs";
   import { isEmptyQuery } from "$lib/query";
   import { graphOverlays } from "$stores/graph-overlay.svelte";
@@ -390,6 +390,19 @@
   });
   const focus = $derived(focusLane(modes, selection.oid, selectedLane, lanePick, walkKey));
 
+  const strokeOptions = $derived({
+    colouredLanes: false,
+    branchOnly: modes.coloring === "branch",
+    focusLane: focus,
+  });
+  const faded = $derived(
+    new Set(
+      visible
+        .filter(({ entry }) => rowFaded(entry.layout, graphOverlays.paintAt(entry.layout.row), strokeOptions))
+        .map(({ entry }) => entry.commit.oid),
+    ),
+  );
+
   const drawn = $derived(
     visible.map(({ listRow, entry }) => ({
       listRow,
@@ -658,6 +671,7 @@
             class:bisect-found={look?.row === "found"}
             class:selected={selection.oid === item.entry.commit.oid || comparedFrom === item.entry.commit.oid}
             class:over={over === item.entry.commit.oid}
+            class:faded={faded.has(item.entry.commit.oid)}
             style:top="{item.listRow * rowHeight}px"
             style:padding-left="{rowTextX(item.entry.layout.width, clipX)}px"
             role="listitem"
@@ -775,6 +789,11 @@
 
   .row:hover {
     background: var(--state-hover);
+  }
+
+  .row.faded:not(.selected) {
+    filter: grayscale(1);
+    opacity: 0.45;
   }
 
   .row.over {

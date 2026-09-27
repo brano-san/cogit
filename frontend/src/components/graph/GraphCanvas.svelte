@@ -86,7 +86,7 @@
     const main = token("--graph-main");
     const line = token("--graph-line");
     const coloring = settings.current.graphColoring;
-    const options = { colouredLanes: coloring === "varying", accentLit: coloring === "mergeable", focusLane };
+    const options = { colouredLanes: coloring === "varying", accentLit: coloring === "mergeable", branchOnly: coloring === "branch", focusLane };
     const colours = new Map<string, string>();
     const colour = (name: string) => {
       if (!colours.has(name)) colours.set(name, token(name) || line);
