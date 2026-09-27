@@ -27,7 +27,7 @@ function codeWidth(rowsWidth: number, sideWidth: number): number {
   return Math.max(rowsWidth - 2 * sideWidth - BAND_WIDTH, 0);
 }
 
-/** `[gutter][num][sign][code][band][gutter][num][sign][code]`: the fixed columns of a side
+/** `[gutter][num][sign][code][band][num][sign][code][gutter]`: the fixed columns of a side
     are `sideWidth`, and the left code column is `share` of what both code columns get.
     Every part is `border-box`, so the widths in the stylesheet are the real ones. */
 export function bandLeft(rowsWidth: number, share: number, sideWidth: number): number {
