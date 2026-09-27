@@ -42,14 +42,24 @@ pub struct ReflogEntry {
 impl RepoHandle {
     /// Newest first, like `git reflog`.
     pub fn reflog(&self, limit: usize) -> Result<Vec<ReflogEntry>> {
-        let lines = self.reflog_of("HEAD", limit)?;
+        self.reflog_for("HEAD", limit)
+    }
+
+    /// The reflog of a local branch, or of `HEAD`; selectors read `main@{n}`.
+    pub fn reflog_for(&self, name: &str, limit: usize) -> Result<Vec<ReflogEntry>> {
+        let full = if name == "HEAD" {
+            name.to_owned()
+        } else {
+            format!("refs/heads/{name}")
+        };
+        let lines = self.reflog_of(&full, limit)?;
         Ok(lines
             .into_iter()
             .map(|line| {
                 let (action, message) =
                     line.message.split_once(": ").unwrap_or((&line.message, ""));
                 ReflogEntry {
-                    selector: format!("HEAD@{{{}}}", line.position),
+                    selector: format!("{name}@{{{}}}", line.position),
                     oid: line.oid.to_string(),
                     action: action.trim().to_owned(),
                     message: message.trim().to_owned(),

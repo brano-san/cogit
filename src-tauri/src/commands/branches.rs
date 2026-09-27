@@ -87,6 +87,39 @@ pub async fn rename_branch(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn branch_reflog(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    branch: String,
+) -> Result<Vec<git_engine::ReflogEntry>, GitError> {
+    let app_state = state.state.clone();
+    super::blocking("branch_reflog", move || {
+        app_state.branch_reflog(repo, &branch)
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn restore_branch(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    branch: String,
+    oid: String,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Branch,
+        "restore_branch",
+        move || app_state.restore_branch(repo, &branch, &oid),
+    )
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn set_upstream(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,

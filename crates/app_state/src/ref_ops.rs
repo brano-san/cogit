@@ -103,6 +103,32 @@ impl AppState {
         Ok(())
     }
 
+    pub fn branch_reflog(
+        &self,
+        repo: RepoId,
+        branch: &str,
+    ) -> Result<Vec<git_engine::ReflogEntry>, GitError> {
+        self.handle(repo)?.reflog_for(branch, 500)
+    }
+
+    pub fn restore_branch(&self, repo: RepoId, branch: &str, oid: &str) -> Result<(), GitError> {
+        let _quiet = self.quiet(repo);
+        let before = self.handle(repo)?.restore_branch(branch, oid)?;
+        self.record(
+            repo,
+            format!(
+                "Restore {branch} to {} (was at {})",
+                short(oid),
+                short(&before)
+            ),
+            Recovery::Moved {
+                name: branch.to_owned(),
+                oid: before,
+            },
+        );
+        Ok(())
+    }
+
     pub fn rename_stash(&self, repo: RepoId, index: u32, message: &str) -> Result<(), GitError> {
         let _quiet = self.quiet(repo);
         self.handle(repo)?.rename_stash(index, message)

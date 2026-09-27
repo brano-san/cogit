@@ -105,6 +105,15 @@ impl RepoHandle {
         }
     }
 
+    /// Moves `name` back to a commit its reflog remembers; returns where it was.
+    pub fn restore_branch(&self, name: &str, oid: &str) -> Result<String> {
+        let before = self
+            .resolve_commit(&format!("refs/heads/{name}"))?
+            .to_string();
+        self.move_branch_back(name, oid)?;
+        Ok(before)
+    }
+
     pub fn create_branch(&self, name: &str, start: Option<&str>, switch: bool) -> Result<()> {
         let name = require_name(name)?;
         let mut args = vec![if switch { "switch" } else { "branch" }];

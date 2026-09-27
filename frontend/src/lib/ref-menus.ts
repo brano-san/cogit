@@ -142,6 +142,7 @@ function upstreamRows(ref: RefTarget, facts: CommitFacts): ContextItem[] {
   return [
     offer(id("set-upstream"), "Set Upstream…", notLocal ?? (facts.hasRemote ? null : "no remote")),
     offer(id("stop-tracking"), "Stop Tracking", notLocal ?? (ref.upstream ? null : "no upstream")),
+    offer(id("reflog"), "Reflog…", notLocal),
   ];
 }
 

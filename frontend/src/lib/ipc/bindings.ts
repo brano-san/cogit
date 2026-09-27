@@ -208,6 +208,8 @@ export const commands = {
 	resolveConflictText: (repo: RepoId, path: string, text: string) => typedError<null, GitError>(__TAURI_INVOKE("resolve_conflict_text", { repo, path, text })),
 	findObject: (repo: RepoId, query: string, limit: number) => typedError<Found[], GitError>(__TAURI_INVOKE("find_object", { repo, query, limit })),
 	renameBranch: (repo: RepoId, from: string, to: string, force: boolean) => typedError<null, GitError>(__TAURI_INVOKE("rename_branch", { repo, from, to, force })),
+	branchReflog: (repo: RepoId, branch: string) => typedError<ReflogEntry[], GitError>(__TAURI_INVOKE("branch_reflog", { repo, branch })),
+	restoreBranch: (repo: RepoId, branch: string, oid: string) => typedError<null, GitError>(__TAURI_INVOKE("restore_branch", { repo, branch, oid })),
 	setUpstream: (repo: RepoId, branch: string, upstream: string | null) => typedError<null, GitError>(__TAURI_INVOKE("set_upstream", { repo, branch, upstream })),
 	deleteRemoteBranch: (repo: RepoId, remote: string, branch: string) => typedError<RemoteDeletion, GitError>(__TAURI_INVOKE("delete_remote_branch", { repo, remote, branch })),
 	/**  Any entry from the journal, not only the newest (T5.7). */
@@ -1434,6 +1436,14 @@ export type RebaseStep = {
 export type RefDate = {
 	fullName: string,
 	/**  Unix seconds: the tagger's for an annotated tag, the committer's otherwise. */
+	timestamp: number,
+};
+
+export type ReflogEntry = {
+	selector: string,
+	oid: string,
+	action: string,
+	message: string,
 	timestamp: number,
 };
 
