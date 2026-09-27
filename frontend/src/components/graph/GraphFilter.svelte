@@ -18,7 +18,11 @@
   graphFilter.text = formatQuery(query);
 
   const active = $derived(!sameQuery(query, parseQuery("")));
-  const fields = $derived(graphFilter.fields);
+  const fieldsKey = $derived(graphFilter.fields.join());
+  const fields = $derived.by(() => {
+    void fieldsKey;
+    return untrack(() => graphFilter.fields);
+  });
 
   // One source for the field and the graph: a filter set elsewhere shows here, with its
   // count and ✕, instead of an empty field over a filtered graph.
@@ -67,6 +71,7 @@
     type="search"
     bind:value={graphFilter.text}
     {onkeydown}
+    oninput={() => graphFilter.text === "" && active && reset()}
     onblur={apply}
     placeholder="Filter"
     aria-label="Filter commits"
@@ -75,7 +80,7 @@
   </div>
   {#if active}
     <span class="count tabular">{matches ?? 0}</span>
-    <button type="button" onclick={reset} title="Clear filter (Esc)">✕</button>
+    <button type="button" onmousedown={(event) => event.preventDefault()} onclick={reset} title="Clear filter (Esc)">✕</button>
   {/if}
   {#if graphFilter.text.trim() !== "" && !sameQuery(parseQuery(graphFilter.text, fields), query)}
     <span class="hint">Enter</span>
@@ -103,7 +108,7 @@
     flex: 1 1 auto;
     min-width: 0;
     height: calc(var(--h-button-sm) - 2px);
-    padding: 0 var(--sp-3) 0 0;
+    padding: 0 var(--sp-3) 0 var(--sp-2);
     background: none;
     color: var(--text-primary);
     border: 0;

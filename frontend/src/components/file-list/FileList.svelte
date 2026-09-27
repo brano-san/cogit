@@ -274,6 +274,13 @@
     (group.section.onselect ?? onselect)?.(path);
   }
 
+  function rightClicked(group: Group, path: string, event: MouseEvent) {
+    if (!marked.paths.has(rowKey(group.index, path)) && selectedIn(group) !== path) {
+      clicked(group, path, { ctrlKey: false, metaKey: false, shiftKey: false });
+    }
+    oncontext?.(path, event, group.section.title, group.files);
+  }
+
   function selectedIn(group: Group): string | null {
     return group.section.selected === undefined ? selected : group.section.selected;
   }
@@ -378,7 +385,7 @@
                 onclick={(path, event) => clicked(group, path, event)}
                 onmark={(path) => mark(group, path)}
                 {onopen}
-                oncontext={oncontext && ((path, event) => oncontext(path, event, group.section.title, group.files))}
+                oncontext={oncontext && ((path, event) => rightClicked(group, path, event))}
               />
             </div>
           {/each}
@@ -400,7 +407,7 @@
                   onclick={(path, event) => clicked(group, path, event)}
                   onmark={(path) => mark(group, path)}
                   {onopen}
-                  oncontext={oncontext && ((path, event) => oncontext(path, event, group.section.title, group.files))}
+                  oncontext={oncontext && ((path, event) => rightClicked(group, path, event))}
                 />
               </div>
             {/if}

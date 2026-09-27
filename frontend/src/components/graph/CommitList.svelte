@@ -32,9 +32,7 @@
     GRAPH_STRIPES,
     GRAPH_TIME_FORMAT,
     LONG_LINK_ROWS,
-    graphClipX,
     rightCells,
-    rightColumnsWidth,
     rowTextX,
     type GraphColumn,
     type GraphDensity,
@@ -42,7 +40,7 @@
   } from "$lib/graph-row";
   import { measurer } from "$lib/timing";
   import { anchoredScrollTop } from "$lib/graph-anchor";
-  import { emptyHistory, showsWorkingTree, subjectRoom } from "$lib/graph-panel";
+  import { emptyHistory, showsWorkingTree } from "$lib/graph-panel";
   import { workingTreeLabel } from "$lib/repo-state";
   import { bisectOf } from "$lib/bisect";
   import { bisectLooks, dotToken, rowToken } from "$lib/bisect-looks";
@@ -179,12 +177,8 @@
   const BUFFER_ROWS = 10;
 
   let scroller: HTMLDivElement | undefined = $state();
-  let rowsLayer: HTMLDivElement | undefined = $state();
   let scrollTop = $state(0);
   let viewportHeight = $state(0);
-  let panelWidth = $state(0);
-  /** The row's gap and right padding and one digit of its font, read from the page. */
-  let metrics = $state({ gap: 6, padding: 12, char: 7 });
 
   /** Geometry reads the row height outside Svelte; a new density keeps the top row (#13). */
   let drawnRowHeight = GRAPH.rowHeight;
@@ -241,20 +235,7 @@
     visibleRange(scrollTop, viewportHeight, rowHeight, listRows, BUFFER_ROWS),
   );
 
-  const rightWidth = $derived(
-    rightColumnsWidth({
-      columns,
-      avatars: avatars.enabled,
-      time: timeFormat,
-      overlap: overlap.enabled,
-      gap: metrics.gap,
-      padding: metrics.padding,
-    }),
-  );
-  /** Past this the graph area is cut, so the right columns are never pushed out (#12). */
-  const clipX = $derived(
-    panelWidth > 0 ? graphClipX(panelWidth, rightWidth, subjectRoom(metrics.char)) : Number.POSITIVE_INFINITY,
-  );
+  const clipX = Number.POSITIVE_INFINITY;
 
   const headOid = $derived.by(() => {
     const head = repository.current?.head;
@@ -533,25 +514,12 @@
     const observer = new ResizeObserver(([entry]) => {
       if (!entry || !scroller) return;
       viewportHeight = entry.contentRect.height;
-      panelWidth = entry.contentRect.width;
       // The row at the top stays there when the panel changes height (#13).
       const kept = anchoredScrollTop({ scrollTop, rowHeight }, { rowHeight, viewportHeight, totalRows: listRows });
       if (scroller.scrollTop !== kept) scroller.scrollTop = kept;
     });
     observer.observe(scroller);
     return () => observer.disconnect();
-  });
-
-  $effect(() => {
-    if (!rowsLayer) return;
-    const style = getComputedStyle(rowsLayer);
-    const context = document.createElement("canvas").getContext("2d");
-    if (context) context.font = style.font;
-    metrics = {
-      gap: parseFloat(style.getPropertyValue("--sp-3")) || 6,
-      padding: parseFloat(style.getPropertyValue("--sp-5")) || 12,
-      char: context?.measureText("0").width || 7,
-    };
   });
 
   /** A stub of a cut link takes the list to the commit at its other end (R-330). */
@@ -632,7 +600,6 @@
 
       <div
         class="rows"
-        bind:this={rowsLayer}
         style:transform="translateY({-scrollTop}px)"
         style:--row-h="{rowHeight}px"
         style:--overlap-w="{COLUMN_WIDTH.overlap}px"

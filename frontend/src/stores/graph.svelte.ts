@@ -383,7 +383,9 @@ class GraphStore {
   #promote(of: Walk): void {
     if (of !== this.#next) return;
     const { end } = this.#rangeOf(of);
-    const long = of.complete || of.total >= end;
+    const shown = this.#shown;
+    const streams = shown !== null && shown.repo === of.repo && !sameQuery(shown.query, of.query) && of.total > 0;
+    const long = of.complete || of.total >= end || streams;
     if (long && this.#wanted(of).every((index) => index * BLOCK >= end)) this.#show(of);
   }
 

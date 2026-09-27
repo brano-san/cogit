@@ -2970,6 +2970,7 @@
     const { overview } = target;
     if (!overview) return;
     repoList.closed(target.root);
+    moduleMemory.setOpen(target.root, false);
     const wasActive = holdsPanels(overview, panelsNow());
     const last = wasActive && repository.openRepos.every((entry) => entry.repo === overview.repo);
     if (wasActive) {

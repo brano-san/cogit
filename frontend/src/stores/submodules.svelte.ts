@@ -7,7 +7,7 @@ class SubmoduleStore {
   /** Keyed by the path from the top repository down; `""` is the repository itself.
       Only the nodes somebody opened are in here: a repository with nine submodules,
       each with its own, would otherwise cost nine reads nobody asked for (R-110). */
-  children = $state.raw<ReadonlyMap<string, Submodule[]>>(new Map());
+  children = $state.raw<ReadonlyMap<string, readonly Submodule[]>>(new Map());
   /** The submodule the panels are currently showing, by key; null for the repository. */
   open = $state<string | null>(null);
 
@@ -59,14 +59,13 @@ class SubmoduleStore {
     this.#repo = repo;
     this.#root = root;
     this.open = null;
-    this.children = new Map();
-    const top = await listSubmodules(repo, "").catch(() => []);
-    if (generation !== this.#generation) return;
-    this.children = new Map([["", top]]);
-    for (const key of moduleMemory.expanded(root)) {
-      await this.#load(key);
+    this.children = moduleForest.trees.get(root) ?? new Map();
+    const read = new Map<string, readonly Submodule[]>();
+    for (const key of ["", ...moduleMemory.expanded(root)]) {
+      read.set(key, await listSubmodules(repo, key).catch(() => []));
       if (generation !== this.#generation) return;
     }
+    this.children = read;
   }
 
   /** Re-reads what is on screen. Every mutation lands here, so collapsing the tree each
@@ -76,7 +75,7 @@ class SubmoduleStore {
     if (repo === null) return;
     const generation = this.#generation;
     const ticket = ++this.#refreshes;
-    const read = new Map(
+    const read = new Map<string, readonly Submodule[]>(
       await Promise.all(
         ["", ...this.expanded].map(
           async (key) => [key, await listSubmodules(repo, key).catch(() => [])] as const,

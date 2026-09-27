@@ -381,12 +381,17 @@
   /* Dimmed: it is context for the name, not a thing to read on its own. */
   .badge {
     flex: 0 0 auto;
-    min-width: 12px;
-    width: auto;
-    padding: 0 1px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 2px;
     font-family: var(--font-mono);
+    font-size: 10px;
     font-weight: 600;
-    text-align: center;
+    line-height: 14px;
   }
 
   .row.added .badge {
@@ -425,8 +430,6 @@
      part of it is. */
   .badge.staged,
   .badge.partly {
-    width: 14px;
-    line-height: 14px;
     border-radius: var(--r-sm);
     outline: 1px solid currentColor;
     outline-offset: -1px;
