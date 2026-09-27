@@ -22,7 +22,9 @@
     striped,
     textX,
     toCommitRow,
+    toListRow,
     visibleRange,
+    workingTreeLane,
   } from "$lib/graph-geometry";
   import {
     COLUMN_WIDTH,
@@ -258,16 +260,25 @@
     });
   });
   const far = $derived(headFar?.key === headKey ? headFar : null);
+  const headIndex = $derived(headNear ?? far?.row ?? null);
+  /** HEAD under other commits: the header rows go right above it, not at the top. */
+  const wtAt = $derived(workingTreeRow && headIndex !== null ? headIndex : 0);
   const head = $derived(
     headNode(
-      headNear ?? far?.row ?? null,
+      headIndex,
       (row) => graph.rowAt(row)?.layout.lane ?? (row === far?.row ? far.lane : undefined),
       headerRows,
+      wtAt,
     ),
   );
-  /** The Working Tree row and the rebase rows start where HEAD's line is. */
+  /** The Working Tree row and the rebase rows start where HEAD's line is, or beside the
+      lines passing HEAD's row on their way down. */
   const headLane = $derived(head?.lane ?? null);
-  const headerX = $derived(rowTextX((headLane ?? 0) + 1, clipX));
+  const headerLane = $derived(
+    wtAt > 0 && headLane !== null ? workingTreeLane(headLane, graph.rowAt(wtAt)?.layout.segments ?? []) : headLane,
+  );
+  const headerX = $derived(rowTextX((headerLane ?? 0) + 1, clipX));
+  const commitEdge = (listRow: number) => (listRow <= wtAt ? listRow : Math.max(listRow - headerRows, wtAt));
 
   /** The window drives the queue: rows that scroll away stop being asked for. */
   $effect(() => {
@@ -320,13 +331,12 @@
   const empty = $derived(emptyHistory(!isEmptyQuery(graph.query), graph.visibleRefs));
 
   const visible = $derived.by(() => {
-    const from = Math.max(range.start, headerRows);
     const rows = [];
-    for (let listRow = from; listRow < range.end; listRow++) {
-      const commitRow = toCommitRow(listRow, headerRows);
+    for (let listRow = range.start; listRow < range.end; listRow++) {
+      const commitRow = toCommitRow(listRow, headerRows, wtAt);
       const entry = commitRow === null ? undefined : graph.rowAt(commitRow);
       if (!entry) continue;
-      const aboveRow = toCommitRow(listRow - 1, headerRows);
+      const aboveRow = toCommitRow(listRow - 1, headerRows, wtAt);
       const above = aboveRow === null ? undefined : graph.rowAt(aboveRow)?.commit.authorEmail;
       rows.push({ listRow, entry, avatar: avatarShown(avatarsChangedOnly, entry.commit.authorEmail, above) });
     }
@@ -350,7 +360,7 @@
 
   /** Only the rows on screen come over from Rust (R-193). */
   $effect(() => {
-    graph.show(Math.max(range.start - headerRows, 0), Math.max(range.end - headerRows, 0));
+    graph.show(commitEdge(range.start), commitEdge(range.end));
   });
 
   /** A filtered list is flat, not a graph (R-51): nothing to colour or fold along it. */
@@ -371,8 +381,8 @@
     graphOverlays.show({
       repo: walk?.repo ?? null,
       generation: walk?.generation ?? null,
-      start: Math.max(range.start - headerRows, 0),
-      end: Math.max(range.end - headerRows, 0),
+      start: commitEdge(range.start),
+      end: commitEdge(range.end),
       total: graph.total,
       complete: graph.complete,
       request: paint,
@@ -439,7 +449,7 @@
     void keyTarget(graph, selection.oid, event.key, graph.total, page).then((target) => {
       if (target === null) return;
       void graph.entry(target).then((row) => row && pick(id, row.commit.oid));
-      const offset = scrollRowIntoView(target + headerRows, scrollTop, viewportHeight, rowHeight);
+      const offset = scrollRowIntoView(toListRow(target, headerRows, wtAt), scrollTop, viewportHeight, rowHeight);
       if (offset !== null && scroller) scroller.scrollTop = offset;
     });
   }
@@ -466,7 +476,7 @@
     void graph.total;
     void graph.indexOf(wanted.oid).then((at) => {
       if (at === null || !scroller || graph.reveal !== wanted || revealed === wanted.request) return;
-      scroller.scrollTop = centreRow(at + headerRows, viewportHeight, rowHeight, listRows);
+      scroller.scrollTop = centreRow(toListRow(at, headerRows, wtAt), viewportHeight, rowHeight, listRows);
       revealed = wanted.request;
     });
   });
@@ -474,7 +484,7 @@
   function commitAt(clientY: number): string | null {
     if (!scroller || graph.stale) return null;
     const y = clientY - scroller.getBoundingClientRect().top;
-    return graphDropTarget(y, scroller.scrollTop, rowHeight, listRows, headerRows, (row) => graph.rowAt(row)?.commit.oid);
+    return graphDropTarget(y, scroller.scrollTop, rowHeight, listRows, headerRows, (row) => graph.rowAt(row)?.commit.oid, wtAt);
   }
 
   /** A commit dragged onto another (R-450): only from a commit row, never the scrollbar. */
@@ -507,8 +517,8 @@
     if (!hit) return;
     const repo = repository.current?.repo;
     if (!repo) return;
-    const commitRow = toCommitRow(hit.row, headerRows);
-    const oid = clickedCommit(hit.row, headerRows, (row) => graph.rowAt(row)?.commit.oid);
+    const commitRow = toCommitRow(hit.row, headerRows, wtAt);
+    const oid = clickedCommit(hit.row, headerRows, (row) => graph.rowAt(row)?.commit.oid, wtAt);
     if (oid === undefined) return;
     const layout = commitRow === null ? undefined : graph.rowAt(commitRow)?.layout;
     if (modes.coloring === "branch" && oid !== null && layout && commitRow !== null) {
@@ -527,7 +537,7 @@
     if (event.target instanceof Element && event.target.closest("button")) return;
     const box = scroller.getBoundingClientRect();
     const hit = hitTest(event.clientX - box.left, event.clientY - box.top, scrollTop, listRows);
-    const oid = hit ? clickedCommit(hit.row, headerRows, (row) => graph.rowAt(row)?.commit.oid) : undefined;
+    const oid = hit ? clickedCommit(hit.row, headerRows, (row) => graph.rowAt(row)?.commit.oid, wtAt) : undefined;
     if (oid) onactivate(oid);
   }
 
@@ -611,6 +621,8 @@
           height={viewportHeight}
           headRow={workingTreeRow ? (head?.listRow ?? null) : null}
           {headLane}
+          headerRow={wtAt}
+          {headerLane}
           {selectedRows}
           {hoverRow}
           focusLane={focus}
@@ -626,12 +638,12 @@
         style:--row-h="{rowHeight}px"
         style:--overlap-w="{COLUMN_WIDTH.overlap}px"
       >
-        {#if workingTreeRow && range.start === 0}
+        {#if workingTreeRow && range.start <= wtAt && wtAt < range.end}
           <button
             type="button"
             class="row header"
             class:selected={selection.oid === null && stashView.contents === null}
-            style:top="0px"
+            style:top="{wtAt * rowHeight}px"
             style:padding-left="{headerX}px"
             title="Show the working tree in Files and Diff"
             onclick={(event) => {
@@ -652,8 +664,8 @@
         {#each virtualRows as row, index (index)}
           <div
             class="row virtual {row.kind}"
-            class:striped={stripes && striped(HEADER_ROWS + index)}
-            style:top="{(HEADER_ROWS + index) * rowHeight}px"
+            class:striped={stripes && striped(wtAt + HEADER_ROWS + index)}
+            style:top="{(wtAt + HEADER_ROWS + index) * rowHeight}px"
             style:padding-left="{headerX}px"
           >
             <span class="node" aria-hidden="true">{row.kind === "onto" ? "▶" : "◌"}</span>
