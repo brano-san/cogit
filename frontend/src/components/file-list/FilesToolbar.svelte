@@ -418,6 +418,15 @@
   }
 
   /* A switch that is on keeps that look under the pointer: `[aria-pressed]` in app.css. */
+  .tool[aria-pressed="true"]:hover:not(:disabled) {
+    filter: brightness(1.25);
+    box-shadow: inset 0 0 0 1px currentColor;
+  }
+
+  .tool[aria-pressed="true"]:active:not(:disabled) {
+    filter: brightness(0.9);
+  }
+
   .tool:disabled,
   .tool.dead {
     opacity: 0.4;
@@ -433,6 +442,8 @@
 
   .menu-host {
     position: relative;
+    display: inline-flex;
+    align-items: center;
     flex: 0 0 auto;
   }
 
