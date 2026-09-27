@@ -69,11 +69,33 @@ describe("the first page", () => {
 
     await wizard.next();
 
-    expect(ipc.remoteBranches).toHaveBeenCalledWith("https://host/app.git");
+    expect(ipc.remoteBranches).toHaveBeenCalledWith("https://host/app.git", null);
     expect(wizard.page).toBe("selection");
     expect(wizard.branch).toBe("main");
     expect(wizard.branches[0]).toEqual(["main", "main (default)"]);
     expect(wizard.dirty).toBe(true);
+  });
+
+  it("asks for credentials when the server refused, and checks again with them", async () => {
+    backend.failure = {
+      message: "failed",
+      detail: { kind: "command", data: { stderr: "fatal: Cannot prompt because user interactivity has been disabled.", stdout: "" } },
+    };
+    const wizard = new CloneWizard();
+    await wizard.start("D:\\src");
+    wizard.setSource("https://host/private.git");
+    await wizard.next();
+    expect(wizard.needsLogin).toBe(true);
+
+    backend.failure = null;
+    wizard.username = "ann";
+    wizard.password = "tok";
+    await wizard.next();
+
+    expect(ipc.remoteBranches).toHaveBeenLastCalledWith("https://host/private.git", { username: "ann", password: "tok" });
+    expect(wizard.page).toBe("selection");
+    wizard.close();
+    expect(wizard.login).toBeNull();
   });
 
   it("stays on a failed check and offers to go on without it", async () => {

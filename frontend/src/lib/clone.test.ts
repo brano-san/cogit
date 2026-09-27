@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  authFailure,
   branchOptions,
   cloneRequest,
   destinationToAsk,
@@ -185,5 +186,20 @@ describe("running the clone", () => {
     expect(await runClone(request, deps)).toBeNull();
     expect(deps.report).toHaveBeenCalledWith(failure, "Could not clone the repository");
     expect(deps.open).not.toHaveBeenCalled();
+  });
+});
+
+describe("authFailure", () => {
+  it("tells a refused sign-in from other failures", () => {
+    for (const text of [
+      "fatal: Cannot prompt because user interactivity has been disabled.",
+      "fatal: could not read Username for 'https://host': terminal prompts disabled",
+      "remote: Invalid username or password.\nfatal: Authentication failed for 'https://host/a.git/'",
+      "fatal: unable to access 'https://host/a.git/': The requested URL returned error: 403",
+    ]) {
+      expect(authFailure(text)).toBe(true);
+    }
+    expect(authFailure("fatal: repository 'https://host/a.git/' not found")).toBe(false);
+    expect(authFailure("fatal: unable to access 'https://host/': Could not resolve host: host")).toBe(false);
   });
 });

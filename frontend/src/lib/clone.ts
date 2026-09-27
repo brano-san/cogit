@@ -155,6 +155,14 @@ export interface CloneRun {
 }
 
 /** The root it opened, or `null` when the clone failed or was cancelled. */
+/** Git's words when the server wanted credentials that nothing on this machine supplied. */
+const AUTH_FAILURE =
+  /authentication failed|could not read (username|password)|cannot prompt because|terminal prompts disabled|invalid username or password|access denied|\b(401|403)\b|unauthorized/i;
+
+export function authFailure(output: string): boolean {
+  return AUTH_FAILURE.test(output);
+}
+
 export async function runClone(request: CloneRequest, deps: CloneRun): Promise<string | null> {
   let root: string;
   try {

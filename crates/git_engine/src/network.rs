@@ -553,6 +553,26 @@ pub fn auth_config(url: &str, token: &str) -> Option<String> {
     ))
 }
 
+/// Typed into the Clone wizard: handed over in the environment, so neither the command
+/// line nor the journal ever holds it.
+pub(crate) fn login_env(url: &str, username: &str, password: &str) -> Vec<(String, String)> {
+    let Some(config) = auth_config(url, "") else {
+        return Vec::new();
+    };
+    let Some((key, _)) = config.split_once('=') else {
+        return Vec::new();
+    };
+    let value = format!(
+        "Authorization: Basic {}",
+        base64(format!("{username}:{password}").as_bytes())
+    );
+    vec![
+        ("GIT_CONFIG_COUNT".to_owned(), "1".to_owned()),
+        ("GIT_CONFIG_KEY_0".to_owned(), key.to_owned()),
+        ("GIT_CONFIG_VALUE_0".to_owned(), value),
+    ]
+}
+
 fn prefix(header: &Option<String>) -> Vec<&str> {
     match header {
         Some(value) => vec!["-c", value.as_str()],

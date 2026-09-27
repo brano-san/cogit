@@ -82,7 +82,7 @@ pub use blobs::{DiffAttributes, DiffContent, DiffSides, DiffSpec, MAX_HASHED_BYT
 pub use branches::{CheckoutTarget, RemoteDeletion, windows_forbidden};
 pub use bypass::Bypass;
 pub use cloning::{
-    CloneDestination, CloneRequest, RemoteBranches, clone_destination, clone_repository,
+    CloneDestination, CloneRequest, Login, RemoteBranches, clone_destination, clone_repository,
     remote_branches, repository_url_in,
 };
 pub use commit::{
@@ -108,7 +108,7 @@ pub use hook_run::HookRun;
 pub use hooks::{Hook, HookOverview, HookSource, HookState, is_hook_name};
 pub use housekeeping::MaintenanceTask;
 pub use interactive::{TodoAction, TodoEntry, render_todo, render_todo_paused};
-pub use lfs::{LfsLock, LfsOp, lfs_version, lfs_version_from};
+pub use lfs::{LfsFileState, LfsLock, LfsOp, lfs_version, lfs_version_from};
 pub use line_history::LineVersion;
 pub use listing::{
     BATCH, ContentMatch, MAX_SEARCH_BYTES, PREVIEW_CHARS, SearchRequest, SearchScope,
