@@ -1,6 +1,6 @@
 //! `git notes`: text attached to a commit from outside it, one namespace per `refs/notes/*`.
 
-use crate::RepoHandle;
+use crate::{RepoHandle, Result};
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
@@ -12,6 +12,17 @@ pub struct CommitNote {
 }
 
 impl RepoHandle {
+    /// Writes `refs/notes/commits`; blank text removes the note.
+    pub fn set_note(&self, rev: &str, text: &str) -> Result<()> {
+        let oid = self.resolve_commit(rev)?.to_string();
+        if text.trim().is_empty() {
+            self.run_git(&["notes", "remove", "--ignore-missing", &oid])?;
+        } else {
+            self.run_git_fed(&["notes", "add", "-f", "-F", "-", &oid], text.as_bytes())?;
+        }
+        Ok(())
+    }
+
     pub(crate) fn notes_of(&self, oid: gix::ObjectId) -> Vec<CommitNote> {
         let Ok(platform) = self.repo.references() else {
             return Vec::new();

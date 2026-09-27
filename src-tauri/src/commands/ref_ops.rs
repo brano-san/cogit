@@ -100,6 +100,25 @@ pub async fn rename_tag(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn set_note(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    rev: String,
+    text: String,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Other,
+        "set_note",
+        move || app_state.set_note(repo, &rev, &text),
+    )
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn rename_stash(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,

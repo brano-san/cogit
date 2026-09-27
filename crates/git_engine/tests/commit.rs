@@ -228,3 +228,18 @@ fn notes_from_every_namespace_reach_the_commit_details() {
         .collect();
     assert_eq!(notes, [("ci", "build 42"), ("commits", "reviewed")]);
 }
+
+#[test]
+fn set_note_writes_replaces_and_removes_the_note() {
+    let f = test_fixtures::linear(1).unwrap();
+    let repo = open(&f);
+    let notes = |repo: &RepoHandle| repo.commit_details("HEAD").unwrap().notes;
+
+    repo.set_note("HEAD", "first\nsecond").unwrap();
+    assert_eq!(notes(&repo)[0].text, "first\nsecond");
+    repo.set_note("HEAD", "replaced").unwrap();
+    assert_eq!(notes(&repo)[0].text, "replaced");
+    repo.set_note("HEAD", "  \n").unwrap();
+    assert!(notes(&repo).is_empty());
+    repo.set_note("HEAD", "").unwrap();
+}

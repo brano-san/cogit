@@ -49,3 +49,7 @@ export async function pushTo(
   channel.onmessage = onLine;
   return unwrap(await commands.pushTo(repo, remote, refspec, track, channel));
 }
+
+export async function setNote(repo: RepoId, rev: string, text: string) {
+  return unwrap(await commands.setNote(repo, rev, text));
+}
