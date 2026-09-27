@@ -176,6 +176,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::conflicts::resolve_conflict_text,
             commands::find_object,
             commands::branches::rename_branch,
+            commands::branches::branch_reflog,
+            commands::branches::restore_branch,
             commands::branches::set_upstream,
             commands::branches::delete_remote_branch,
             commands::undo_entry,

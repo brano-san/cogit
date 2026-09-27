@@ -12,6 +12,7 @@ class RefDialogs {
   upstream = $state.raw<{ branch: string; current: string | null } | null>(null);
   checkout = $state.raw<CheckoutOffer | null>(null);
   applyStash = $state.raw<{ index: number; message: string } | null>(null);
+  reflog = $state.raw<{ branch: string } | null>(null);
 
   close(): void {
     this.tag = null;
@@ -22,6 +23,7 @@ class RefDialogs {
     this.upstream = null;
     this.checkout = null;
     this.applyStash = null;
+    this.reflog = null;
   }
 }
 

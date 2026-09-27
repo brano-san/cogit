@@ -9,6 +9,7 @@
   import PushToDialog from "./PushToDialog.svelte";
   import ResetDialog from "./ResetDialog.svelte";
   import SetUpstreamDialog from "./SetUpstreamDialog.svelte";
+  import BranchReflogDialog from "./BranchReflogDialog.svelte";
   import {
     CogitError,
     cherryPick,
@@ -28,6 +29,8 @@
     renameBranch,
     revertCommits,
     setUpstream,
+    restoreBranch,
+    type ReflogEntry,
     type Branch,
     type CommitDetails,
     type ContextItem,
@@ -476,6 +479,9 @@
           refDialogs.upstream = { branch: at.ref.name, current: at.ref.upstream ?? null };
         }
         return;
+      case "reflog":
+        if (at.ref?.kind === "branch") refDialogs.reflog = { branch: at.ref.name };
+        return;
       case "stop-tracking":
         if (at.ref?.kind === "branch") {
           const branch = at.ref.name;
@@ -764,6 +770,23 @@
     await attempt("Could not set the upstream", () => setUpstream(id, dialog.branch, upstream));
   }
 
+  async function restoreFromReflog(entry: ReflogEntry) {
+    const id = repoId();
+    const dialog = refDialogs.reflog;
+    if (!id || !dialog) return;
+    const ok = await confirmation.ask({
+      title: "Restore Branch",
+      message:
+        `Move ${dialog.branch} to ${shortOid(entry.oid)} (${entry.selector})? ` +
+        "A checked-out branch is reset with --keep, which refuses to overwrite local changes. Undo moves it back.",
+      confirm: "Restore",
+      warning: true,
+    });
+    if (!ok) return;
+    refDialogs.reflog = null;
+    await attempt("Could not restore the branch", () => restoreBranch(id, dialog.branch, entry.oid));
+  }
+
   async function deleteTarget(id: RepoId, at: Target) {
     const ref = at.ref;
     if (!ref) return;
@@ -963,6 +986,18 @@
     onset={(upstream) => void saveUpstream(upstream)}
     onclose={() => (refDialogs.upstream = null)}
   />
+{/if}
+
+{#if refDialogs.reflog}
+  {@const reflogRepo = repoId()}
+  {#if reflogRepo}
+    <BranchReflogDialog
+      repo={reflogRepo}
+      branch={refDialogs.reflog.branch}
+      onrestore={(entry) => void restoreFromReflog(entry)}
+      onclose={() => (refDialogs.reflog = null)}
+    />
+  {/if}
 {/if}
 
 {#if refDialogs.reset}

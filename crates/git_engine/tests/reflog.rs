@@ -307,3 +307,21 @@ fn a_tip_whose_parent_a_shallow_clone_lacks_does_not_break_a_warm_cache() {
         .lost_commits_with(100, &mut cache)
         .unwrap();
 }
+
+#[test]
+fn a_branch_is_restored_to_a_target_its_reflog_remembers() {
+    let f = test_fixtures::linear(3).unwrap();
+    let old = f.oid("HEAD~2").unwrap();
+    let tip = f.oid("HEAD").unwrap();
+    f.git(&["branch", "side", &old]).unwrap();
+    f.git(&["branch", "-f", "side", &tip]).unwrap();
+    let repo = open(&f);
+
+    let entries = repo.reflog_for("side", 50).unwrap();
+    assert_eq!(entries[0].selector, "side@{0}");
+    assert_eq!(entries[1].oid, old);
+
+    let before = repo.restore_branch("side", &old).unwrap();
+    assert_eq!(before, tip);
+    assert_eq!(f.oid("side").unwrap(), old);
+}

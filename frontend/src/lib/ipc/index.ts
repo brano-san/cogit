@@ -43,6 +43,7 @@ import type {
 
 export type {
   Algorithm,
+  ReflogEntry,
   AppInfo,
   AutostashOutcome,
   DisplayInfo,
@@ -404,6 +405,14 @@ export async function deleteBranch(repo: RepoId, name: string, force: boolean) {
 
 export async function renameBranch(repo: RepoId, from: string, to: string, force: boolean) {
   return unwrap(await commands.renameBranch(repo, from, to, force));
+}
+
+export async function branchReflog(repo: RepoId, branch: string) {
+  return unwrap(await commands.branchReflog(repo, branch));
+}
+
+export async function restoreBranch(repo: RepoId, branch: string, oid: string) {
+  return unwrap(await commands.restoreBranch(repo, branch, oid));
 }
 
 /** `null` stops tracking: `git branch --unset-upstream`. */
