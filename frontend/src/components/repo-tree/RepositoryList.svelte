@@ -204,7 +204,7 @@
   ></span>
 {/snippet}
 
-{#snippet topDisclosure(root: string, owned: boolean)}
+{#snippet topDisclosure(root: string, owned: boolean, closed = false)}
   {@const open = owned ? !submodules.folded : moduleMemory.isOpen(root)}
   <Disclosure
     empty={owned ? submodules.top.length === 0 : !moduleForest.hasModules(root)}
@@ -213,6 +213,7 @@
     onclick={(event) => {
       event.stopPropagation();
       if (owned) submodules.foldTop();
+      else if (closed && !open) onreopen(root);
       else void moduleForest.toggleTop(root);
     }}
   />
@@ -449,7 +450,7 @@
               oncontext(listed, event.clientX, event.clientY);
             }}
           >
-            {@render topDisclosure(listed.root, false)}
+            {@render topDisclosure(listed.root, false, true)}
             {@render repoMarks(sync)}
             <span class="name truncate shrink-last">{listed.name}</span>
             {#if listed.pinned}<span class="pin" title="Pinned to the top of its group">⊤</span>{/if}
@@ -704,6 +705,8 @@
 
   .changes {
     flex: 0 0 6px;
+    align-self: center;
+    margin-right: 2px;
     width: 6px;
     height: 6px;
     border-radius: 50%;

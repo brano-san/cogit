@@ -263,12 +263,14 @@
   .wt-mark {
     flex: 0 0 auto;
     display: inline-flex;
+    align-self: stretch;
     align-items: center;
     color: var(--text-secondary);
     font-size: var(--fs-header);
   }
 
   .wt-dot {
+    flex: none;
     width: 6px;
     height: 6px;
     margin-right: var(--sp-2);

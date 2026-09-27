@@ -639,6 +639,18 @@ describe("another filter", () => {
     expect(graph.rowAt(0)?.commit.oid).toBe("m0");
   });
 
+  it("shows its first matches as they stream in and appends the rest below them", async () => {
+    await loaded(A, ids(100, "a"));
+
+    void graph.load(A, { ...graph.query, author: "x" });
+    await last().send(["m0", "m1"]);
+    expect(oids()).toEqual(["m0", "m1"]);
+    const first = graph.rowAt(0);
+    await last().send(["m2"]);
+    expect(oids()).toEqual(["m0", "m1", "m2"]);
+    expect(graph.rowAt(0)?.commit.oid).toBe(first?.commit.oid);
+  });
+
   it("keeps the place for a reload of the same filter", async () => {
     await loaded(A, ids(600, "a"));
     graph.show(500, 540);

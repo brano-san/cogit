@@ -456,7 +456,10 @@
     event.preventDefault();
     if (action.kind === "jump") jump(action.by);
     else if (action.kind === "layout") void diffStore.setLayout(mode === "split" ? "unified" : "split");
-    else if (action.kind === "find") openFind();
+    else if (action.kind === "find") {
+      if (find.showing) find.close();
+      else openFind();
+    }
     else if (action.kind === "investigate") startInvestigate();
     else find.close();
   }
@@ -1250,16 +1253,18 @@
     flex: var(--right-share, 0.5) 1 0;
   }
 
-  /* Where the other side has lines this one lacks: hatched, as VS Code does. 18 px rows
-     over a 45° stripe with a 6/√2 px period repeat every third of a row, so the stripes
-     run on unbroken from row to row. */
+  /* A fixed 18 px tile anchored to each cell's top-left: rows are 18 px, so stripes join
+     across rows, and the pattern never depends on the cell's size. */
   .sign.empty,
   .code.empty {
-    background: repeating-linear-gradient(
+    background: linear-gradient(
       -45deg,
-      var(--diff-filler) 0 1px,
-      transparent 1px 4.2426px
+      var(--diff-filler) 0 8%,
+      transparent 8% 50%,
+      var(--diff-filler) 50% 58%,
+      transparent 58%
     );
+    background-size: 18px 18px;
   }
 
   /* From the sign column's edge, so the stripes do not break where the code column starts. */
