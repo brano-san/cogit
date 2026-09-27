@@ -220,7 +220,10 @@
                   class:staged={file.indexState === "staged"}
                   class:partly={file.indexState === "partly"}
                   aria-label={fileStatusLabel(file) + indexNote(file.indexState)}
-                  title={fileStatusTooltip(file) + indexNote(file.indexState)}>{fileStatusBadge(file)}</span
+                  title={fileStatusTooltip(file) + indexNote(file.indexState)}
+                  >{#if file.status === "skipped"}<svg class="skip" viewBox="0 0 12 12" aria-hidden="true"
+                      ><path d="M1.5 6s1.75-3.5 4.5-3.5S10.5 6 10.5 6 8.75 9.5 6 9.5 1.5 6 1.5 6ZM2 1l8 10" /></svg
+                    >{:else}{fileStatusBadge(file)}{/if}</span
                 >
                 {#if remoteOps.lockOwner(file.path) !== undefined}
                   <span class="mode" title="Locked in Git LFS by {remoteOps.lockOwner(file.path)}: read-only for everyone else"
@@ -397,13 +400,23 @@
     align-items: center;
     justify-content: center;
     box-sizing: border-box;
-    min-width: 14px;
-    height: 14px;
-    padding: 0 2px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 3px;
+    border: 1px solid transparent;
     font-family: var(--font-mono);
     font-size: 10px;
     font-weight: 600;
-    line-height: 14px;
+    line-height: 1;
+  }
+
+  .skip {
+    width: 12px;
+    height: 12px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-linecap: round;
   }
 
   .row.added .badge {
@@ -443,12 +456,11 @@
   .badge.staged,
   .badge.partly {
     border-radius: var(--r-sm);
-    outline: 1px solid currentColor;
-    outline-offset: -1px;
+    border-color: currentColor;
   }
 
   .badge.partly {
-    outline-style: dashed;
+    border-style: dashed;
   }
 
   .row.conflicted .badge {
