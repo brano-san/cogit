@@ -758,10 +758,10 @@
           >
           {#if mode === "split"}
             <span class="gap"></span>
-            <span class="gutter"></span>
             <span class="num"></span>
             <span class="sign"></span>
             <span class="code mono side right" bind:clientWidth={rightWidth}></span>
+            <span class="gutter"></span>
           {/if}
         </div>
         {#if mode === "split"}
@@ -941,7 +941,6 @@
                   ></span
                 >
                 <span class="gap"></span>
-                {@render cellGutter(entry.pair.right)}
                 <span class="num">{entry.pair.right?.line ?? ""}</span>
                 <span
                   class="sign"
@@ -963,6 +962,7 @@
                       >{/each}</span
                   ></span
                 >
+                {@render cellGutter(entry.pair.right)}
                 {#if hoverRow === rowIndex}{@render blockActions(entry.block)}{/if}
               </div>
             {/if}
@@ -1279,6 +1279,7 @@
   /* Reserves the strip the ribbons are drawn over. Width must match `BAND_WIDTH`. */
   .gap {
     flex: 0 0 28px;
+    background: var(--surface-panel);
   }
 
   .band {
