@@ -1,148 +1,95 @@
 # Cogit
 
-Desktop Git client: Rust workspace + Tauri v2 + Svelte 5. `crates/` and `frontend/` have
-their own CLAUDE.md with area rules.
+Git client: Rust workspace + Tauri v2 + Svelte 5. `crates/`, `frontend/` have own CLAUDE.md.
 
-## Docs (`doc/`, Russian) — read before writing code
+## Docs (`doc/`, RU) — read before coding
 
-| File | Read when |
-|---|---|
-| `00-roadmap.md` | always first: modules, order, status |
-| `01-architecture.md` | always: crate boundaries, invariants INV-01…INV-12 |
-| `modules/M<N>-*.md` | working on module N |
-| `02-tech-stack.md` | touching a dependency |
-| `03-git-semantics.md` | any Git operation |
-| `04-ipc-contract.md` | changing a command, event or DTO |
-| `07-graph-rendering.md` | graph |
-| `08-diff-engine.md` | diff, staging patches, 3-way merge |
-| `11-keybindings.md` | shortcuts |
-| `12-risks.md` | deviating from the spec — record the decision here |
-| `13-distribution.md` | release builds, installers |
-| `14-profiling.md`, `15-benchmark.md` | speed: profile log; end-to-end benchmark and budgets |
-| `features/` | one file per shipped user-visible feature |
+Always: `00-roadmap.md` (modules, order, status), `01-architecture.md` (crate boundaries, INV-01…12). As needed: `modules/M<N>-*.md` module N; `02-tech-stack` deps; `03-git-semantics` any Git op; `04-ipc-contract` commands/events/DTOs; `07-graph-rendering` graph; `08-diff-engine` diff, patch staging, 3-way merge; `11-keybindings`; `12-risks` spec deviations (record here); `13-distribution` releases; `14-profiling`, `15-benchmark` speed; `features/` one file per shipped feature.
+Breaking an invariant → edit `01-architecture.md` with justification, no local exceptions.
 
-Breaking an invariant means editing `01-architecture.md` with a justification, never a
-local exception.
+## APIs
 
-## Verify APIs first
+gix, imara-diff, keyring, similar, Svelte 5, Tauri v2 broke APIs in 2025–26; training data is stale. Check docs.rs for the `Cargo.lock` version first. imara-diff 0.2 ≠ 0.1.
 
-gix, imara-diff, keyring, similar, Svelte 5 and Tauri v2 all broke their APIs in
-2025–2026, and training data shows the old ones. Before using an unfamiliar API, open
-docs.rs for the exact version in `Cargo.lock`. imara-diff 0.2 shares almost nothing
-with 0.1.
+## Task lists (RU, numbered/checklist, from manual testing)
 
-## Task lists
-
-Tasks arrive as a short numbered list or a Markdown checklist in Russian, written after
-manual testing. This file applies to them; the task text does not repeat it.
-
-- Reproduce first — the item may already be fixed.
-- An item that returns after an earlier fix: find the root cause, do not stack fixes.
-- Screenshots are not available; the task text describes them.
-- Keep the task's item numbers. Tick `[x]` only after checking in a running build and add
-  one line: `> Итог: <cause> → <change>`, `уже работало` or `не сделано: <reason>`.
-- «На твоё решение» / «обоснуй» → one line of reasoning in the report; a deviation from
-  the spec also goes to `12-risks.md`.
-- One commit per item where practical; map items to commits in the report, never `#N`
-  in a message (it links an unrelated issue).
+- Reproduce first; may be fixed already.
+- Recurring item → root cause, don't stack fixes.
+- No screenshots; text describes them.
+- Keep numbering. Tick `[x]` only after checking in a running build, add `> Итог: <cause> → <change>` | `уже работало` | `не сделано: <reason>`.
+- «На твоё решение»/«обоснуй» → one line of reasoning in report; spec deviation also → `12-risks.md`.
+- One commit per item where practical; map items→commits in report; never `#N` in messages.
 - Report: short, Russian, no recap.
 
 ## Architecture
 
-- Business logic lives in `crates/*`. `src-tauri` routes IPC, owns windows, wires plugins;
-  a command body is about ten lines.
+- Logic in `crates/*`; `src-tauri` = IPC routing, windows, plugins; command body ~10 lines.
 - Crates never depend on `tauri` (`specta` derives only).
-- Reads use gix; writes use the system `git`, which already handles hooks, credentials and
-  merge strategies. Only `git_engine` spawns `git`. Per-operation table:
-  `03-git-semantics.md`.
-- Never block: heavy work goes to `spawn_blocking` or rayon, never rayon inside an async
-  task. No `parking_lot` guard across `await`.
-- Over ~500 items: `tauri::ipc::Channel`, chunks of 100–200.
-- Syntax highlighting: Lezer in CodeMirror on the frontend. tree-sitter only for AST diff
-  and syntactic merge.
-- Graph lines: Canvas under a virtualized list, not SVG.
+- Reads: gix. Writes: system `git`, spawned only by `git_engine`. Table: `03-git-semantics.md`.
+- Heavy work → `spawn_blocking`/rayon; no rayon inside async; no `parking_lot` guard across `await`.
+- >~500 items → `tauri::ipc::Channel`, chunks 100–200.
+- Highlighting: Lezer/CodeMirror; tree-sitter only for AST diff, syntactic merge.
+- Graph lines: Canvas under virtualized list, not SVG.
 
 ## Performance
 
-- Nothing blocks the UI for more than 50 ms.
-- One operation queue per repository: writes in order, reads parallel and cancellable,
-  nothing dropped.
-- Send only what is visible; virtualize lists; deduplicate refresh cascades.
-- A speed change is measured with the benchmark before and after; no gain → revert.
+- UI never blocked >50 ms.
+- One op queue per repo: writes ordered, reads parallel + cancellable, nothing dropped.
+- Send only visible; virtualize; dedupe refresh cascades.
+- Speed change: benchmark before/after; no gain → revert.
 
-## Graph
+## Graph (authoritative; sync `07-graph-rendering.md` in same commit)
 
-- Lane 0 is the first-parent chain of HEAD (else `master`, then `main`): continuous, never
-  moves. Other lanes compact; a new lane goes right next to its commit's lane.
-- Lane changes are S-curves within one row; lines meet nodes at the center.
-- Monochrome by default: main line bright, the rest gray; branches ticked in Branches
-  in their own colors, from the tip down its first parents to the line it joins; history
-  the main line already has, merged or not, keeps its default color.
-- Color and emphasis are paint over the finished layout (`graph_engine::paint`); the
-  layout itself never changes for them.
-- This section is current. If `07-graph-rendering.md` disagrees, bring it in line in the
-  same commit.
+- Lane 0 = first-parent chain of HEAD (else `master`, then `main`): continuous, fixed. Others compact; new lane right next to its commit's lane.
+- Lane changes = S-curves within one row; lines meet node centers.
+- Monochrome default: main line bright, rest gray. Branches ticked in Branches get own color from tip down first parents to join point; history already on main line keeps default.
+- Color/emphasis = paint over finished layout (`graph_engine::paint`); never alters layout.
 
 ## Errors
 
-- Raw git output is never truncated, masked or replaced. Only exception: credentials in
-  URLs and auth headers are redacted.
-- Non-zero exit → `GitCommandError` with the command, exit code and both streams in full.
-  Capture both streams on success too — a successful push writes to stderr.
-- One notification queue for errors and warnings: errors first, nothing dropped, closing
-  an entry shows the next. Footer `Error` clears when no errors remain.
-- Normal repository states (uninitialized submodule, commit missing locally, detached
-  HEAD in a submodule) are not `Internal error`: say what happened, offer the fix.
+- Never truncate/mask/replace raw git output, except redacting credentials in URLs/auth headers.
+- Non-zero exit → `GitCommandError` (command, exit code, full stdout+stderr). Capture both on success too (push writes stderr).
+- One notification queue: errors first, nothing dropped, closing shows next. Footer `Error` clears when none left.
+- Normal repo states (uninit submodule, commit missing locally, detached HEAD in submodule) ≠ `Internal error`: explain, offer fix.
 
 ## Windows
 
-- Child windows (diff, blame, investigate): fill the client area, no main-window menu,
-  close on the button, `Esc` and `Ctrl+W`, theme background. They never affect the main
-  window.
-- Geometry is validated once, at startup. Never saved while maximized or minimized; never
-  moved in response to its own move events. Wayland cannot set a position.
-- Platform-specific actions (terminal, file manager, PowerShell, Git Shell, `Ctrl`/`⌘`)
-  go through one abstraction.
+- Child windows (diff, blame, investigate): fill client area, no main menu, close via button/`Esc`/`Ctrl+W`, theme bg, never affect main window.
+- Geometry validated once at startup; not saved while max/minimized; never moved on own move events. Wayland can't set position.
+- Platform-specific actions (terminal, file manager, PowerShell, Git Shell, `Ctrl`/`⌘`) via one abstraction.
 
 ## Commits
 
-Conventional Commits, scope = roadmap module: `fix(m1): handle a locked index without
-panicking`. One line, imperative, ≤72 chars, no period, no body, no trailers. Reasoning
-goes to `doc/`. Propose the name at the end of each step, before committing.
+Conventional Commits, scope = module: `fix(m1): handle a locked index without panicking`. One line, imperative, ≤72 chars, no period/body/trailers. Reasoning → `doc/`. Propose name at end of each step, before committing.
 
 ## Before committing
 
-- Once per clone: `git config core.hooksPath .githooks` (fmt, clippy, IPC bindings,
-  svelte-check — no tests).
-- In the same commit: module status in `00-roadmap.md`; `features/F-NNN-<slug>.md` plus
-  its row in `features/README.md` for a user-visible feature; spec deviations in
-  `12-risks.md`; IPC changes in `04-ipc-contract.md`; shortcuts in `11-keybindings.md`.
-- Before handing work over: the full suite, once, on an idle machine.
+- Once per clone: `git config core.hooksPath .githooks` (fmt, clippy, bindings, svelte-check; no tests).
+- Same commit: module status in `00-roadmap.md`; user-visible feature → `features/F-NNN-<slug>.md` + row in `features/README.md`; deviations → `12-risks.md`; IPC → `04-ipc-contract.md`; shortcuts → `11-keybindings.md`.
+- Before handover: full suite once, idle machine.
 
 ## Commands
 
 ```bash
-cargo check -p <crate>                          # fastest feedback
-cargo nextest run -p <crate> --test <name>      # while working: touched targets only
-cargo nextest run --workspace --exclude cogit   # full suite
-cargo test -p cogit --lib                       # tauri needs a manifest nextest lacks
+cargo check -p <crate>                         # fastest
+cargo nextest run -p <crate> --test <name>     # touched targets
+cargo nextest run --workspace --exclude cogit  # full suite
+cargo test -p cogit --lib                      # nextest lacks tauri manifest
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all
 cargo deny check
-cargo insta review                              # never accept snapshots blindly
-cargo run -p cogit --bin export-bindings        # after changing a command or DTO
-npm run tauri dev
-npm run tauri build
-npm --prefix frontend run check
-npm --prefix frontend run test
+cargo insta review                             # never accept blindly
+cargo run -p cogit --bin export-bindings       # after command/DTO change
+npm run tauri dev | npm run tauri build
+npm --prefix frontend run check | test
 npx vitest run <path>
 ```
-
 Once: `cargo install cargo-nextest --locked`.
 
 ## Language
 
-Code, comments, commits, UI strings, CLAUDE.md: English. `doc/` and task reports: Russian.
-Everything the user reads — the frontend, the native menu, errors and journal summaries
-from Rust — is spelled the American way (`initialize`, `color`, `license`, `canceled`);
-serde names, setting keys and command ids keep their spelling.
+English: code, comments, commits, UI, CLAUDE.md. Russian: `doc/`, reports. User-facing text (frontend, native menu, Rust errors/journal summaries) uses US spelling (`initialize`, `color`, `license`, `canceled`); serde names, setting keys, command ids unchanged.
+
+## Rules & Constraints
+- Think, reason, and respond strictly in English.
+- Be concise and direct to save tokens: avoid pleasantries, verbose explanations, and conversational filler.
