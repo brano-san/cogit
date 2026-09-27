@@ -334,9 +334,25 @@ fn refs_outside_branches_and_tags_are_listed_as_other_refs() {
     f.git(&["update-ref", "refs/notes/commits", &tip]).unwrap();
     f.git(&["stash", "list"]).unwrap();
 
-    let found = open(&f).other_refs().unwrap();
+    let mut found = open(&f).other_refs().unwrap();
+    found.retain(|other| other.full_name.starts_with("refs/"));
 
     assert_eq!(found.len(), 1);
     assert_eq!(found[0].full_name, "refs/pull/7/head");
     assert_eq!(found[0].oid, tip);
+}
+
+#[test]
+fn orig_head_after_a_reset_is_listed_last_among_other_refs() {
+    let f = test_fixtures::linear(2).unwrap();
+    let tip = f.oid("HEAD").unwrap();
+    f.git(&["reset", "--hard", "HEAD~1"]).unwrap();
+
+    let found = open(&f).other_refs().unwrap();
+
+    let last = found.last().unwrap();
+    assert_eq!(
+        (last.full_name.as_str(), last.oid.as_str()),
+        ("ORIG_HEAD", tip.as_str())
+    );
 }

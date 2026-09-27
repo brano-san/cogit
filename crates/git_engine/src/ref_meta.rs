@@ -66,6 +66,20 @@ impl RepoHandle {
             });
         }
         found.sort_by(|a, b| a.full_name.cmp(&b.full_name));
+        // Where the last reset, rebase or merge started from; AUTO_MERGE is a tree.
+        for name in ["ORIG_HEAD", "MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD"] {
+            let Ok(mut reference) = self.repo.find_reference(name) else {
+                continue;
+            };
+            if let Ok(id) = reference.peel_to_id()
+                && self.repo.find_commit(id.detach()).is_ok()
+            {
+                found.push(OtherRef {
+                    full_name: name.to_owned(),
+                    oid: id.to_string(),
+                });
+            }
+        }
         Ok(found)
     }
 
