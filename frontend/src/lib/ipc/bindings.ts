@@ -199,6 +199,7 @@ export const commands = {
 	fileRevisions: (repo: RepoId, path: string, rev: string) => typedError<CommitRow[], GitError>(__TAURI_INVOKE("file_revisions", { repo, path, rev })),
 	remoteUrl: (repo: RepoId, name: string) => typedError<string | null, GitError>(__TAURI_INVOKE("remote_url", { repo, name })),
 	refDates: (repo: RepoId) => typedError<RefDate[], GitError>(__TAURI_INVOKE("ref_dates", { repo })),
+	otherRefs: (repo: RepoId) => typedError<OtherRef[], GitError>(__TAURI_INVOKE("other_refs", { repo })),
 	addToGitignore: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("add_to_gitignore", { repo, paths })),
 	deleteUntracked: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("delete_untracked", { repo, paths })),
 	imageSides: (repo: RepoId, spec: DiffSpec, path: string) => typedError<[string | null, string | null], GitError>(__TAURI_INVOKE("image_sides", { repo, spec, path })),
@@ -1362,6 +1363,12 @@ export type OsInfo = {
 	kernel: string | null,
 	/**  The architecture Cogit was compiled for, which is the one that matters for a bug. */
 	arch: string,
+};
+
+/**  A ref outside branches and tags: `refs/pull/1/head`, `refs/changes/…`, a tool's own. */
+export type OtherRef = {
+	fullName: string,
+	oid: string,
 };
 
 export type Overlap = "none" | "slight" | "heavy" | "same";

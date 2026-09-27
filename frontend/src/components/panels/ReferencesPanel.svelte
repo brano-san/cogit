@@ -36,6 +36,10 @@
     if (repo === undefined || refs.sort.dates === "off") return;
     void refs.loadDates(repo);
   });
+  $effect(() => {
+    void [branches, tags];
+    if (repo !== undefined) void refs.loadOthers(repo);
+  });
 </script>
 
 {#if repository.current}

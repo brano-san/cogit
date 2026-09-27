@@ -121,7 +121,7 @@ pub use presets::{
 };
 pub use progress::{RebaseProgress, RebaseStep};
 pub use pulse::{RepoPulse, pulse};
-pub use ref_meta::RefDate;
+pub use ref_meta::{OtherRef, RefDate};
 pub use reflog::{Reachable, ReflogEntry};
 pub use remotes::RemoteInfo;
 pub use repo::{Branch, BranchKind, Head, RepoHandle, Tag};

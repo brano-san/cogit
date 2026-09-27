@@ -167,6 +167,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::file_revisions,
             commands::network::remote_url,
             commands::ref_dates,
+            commands::other_refs,
             commands::add_to_gitignore,
             commands::delete_untracked,
             commands::image_sides,

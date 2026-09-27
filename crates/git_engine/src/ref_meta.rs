@@ -16,7 +16,59 @@ pub struct RefDate {
     pub timestamp: i64,
 }
 
+/// A ref outside branches and tags: `refs/pull/1/head`, `refs/changes/…`, a tool's own.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct OtherRef {
+    pub full_name: String,
+    pub oid: String,
+}
+
+/// Shown by their own groups, or not refs a history view walks.
+const LISTED_ELSEWHERE: &[&str] = &[
+    "refs/heads/",
+    "refs/remotes/",
+    "refs/tags/",
+    "refs/stash",
+    "refs/notes/",
+    "refs/replace/",
+    "refs/bisect/",
+];
+
 impl RepoHandle {
+    /// Peeled to commits; a ref to a tree or a blob has no history to show.
+    pub fn other_refs(&self) -> Result<Vec<OtherRef>> {
+        let platform = self
+            .repo
+            .references()
+            .map_err(|err| GitError::Internal(format!("cannot read references: {err}")))?;
+        let refs = platform
+            .prefixed("refs/")
+            .map_err(|err| GitError::Internal(format!("cannot list references: {err}")))?;
+        let mut found = Vec::new();
+        for mut reference in refs.flatten() {
+            let full_name = reference.name().as_bstr().to_string();
+            if LISTED_ELSEWHERE
+                .iter()
+                .any(|prefix| full_name.starts_with(prefix))
+            {
+                continue;
+            }
+            let Ok(id) = reference.peel_to_id() else {
+                continue;
+            };
+            if self.repo.find_commit(id.detach()).is_err() {
+                continue;
+            }
+            found.push(OtherRef {
+                full_name,
+                oid: id.to_string(),
+            });
+        }
+        found.sort_by(|a, b| a.full_name.cmp(&b.full_name));
+        Ok(found)
+    }
+
     /// Written by Repository ▸ Settings ▸ Tag-Grouping; an empty value turns folders off.
     #[must_use]
     pub fn tag_group_separator(&self) -> String {

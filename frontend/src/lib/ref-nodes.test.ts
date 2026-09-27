@@ -799,3 +799,23 @@ describe("a node for every remote", () => {
     expect(nodes.some((node) => node.id === "remote-group:upstream")).toBe(false);
   });
 });
+
+describe("Other Refs (B1)", () => {
+  const others = [
+    { fullName: "refs/pull/1/head", oid: "a".repeat(40) },
+    { fullName: "refs/pull/2/head", oid: "b".repeat(40) },
+  ];
+
+  it("nests refs outside branches and tags under their own group", () => {
+    const rows = buildRefTree(input({ others }));
+    const at = rows.findIndex((row) => row.id === "group:other");
+    expect(rows[at]?.label).toBe("Other Refs (2)");
+    expect(rows.find((row) => row.id === "other:refs/pull/1/head")?.rev).toBe("refs/pull/1/head");
+    expect(rows.some((row) => row.id === "folder:other/pull")).toBe(true);
+  });
+
+  it("leaves them unticked by default", () => {
+    const visible = defaultVisible(buildRefTree(input({ others })));
+    expect([...visible].some((id) => id.startsWith("other:"))).toBe(false);
+  });
+});
