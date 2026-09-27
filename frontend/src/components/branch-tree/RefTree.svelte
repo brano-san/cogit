@@ -169,6 +169,9 @@
       title={node.branch?.name ?? node.tag?.name ?? node.detail ?? node.label}
       data-drag={node.branch && ondrop ? node.id : undefined}
       data-drop={node.branch && ondrop ? node.id : undefined}
+      ondblclick={(event) => {
+        if (!(event.target as Element).closest("input, .disclosure")) activate(node);
+      }}
       oncontextmenu={(event) => {
         if (!oncontext) return;
         event.preventDefault();
@@ -197,8 +200,7 @@
         type="button"
         class="label truncate shrink-last"
         class:current={node.current}
-        onclick={() => pick(node)}
-        ondblclick={() => activate(node)}>{node.label}</button
+        onclick={() => pick(node)}>{node.label}</button
       >
 
       {#if node.worktree}
