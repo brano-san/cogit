@@ -236,7 +236,7 @@ describe("branchesBranchMenu (#33)", () => {
     expect(shape(menu)).toEqual([
       "Check Out",
       "—",
-      "Reveal Commit",
+      "Reveal in Graph",
       "Compare with HEAD",
       "Compare with Selected Commit",
       "—",
@@ -333,7 +333,7 @@ describe("branchesTagMenu (#34)", () => {
     expect(shape(menu)).toEqual([
       "Check Out",
       "—",
-      "Reveal Commit",
+      "Reveal in Graph",
       "Compare with HEAD",
       "Compare with Selected Commit",
       "—",
@@ -363,7 +363,7 @@ describe("branchesTagMenu (#34)", () => {
 
   it("turns off what needs a commit on a tag of a tree", () => {
     const menu = branchesTagMenu(elsewhere, { ...rows, oid: null, annotated: true, untickable: "not a commit" });
-    for (const label of ["Check Out", "Reveal Commit", "Compare with HEAD", "Merge", "Reset", "Toggle"]) {
+    for (const label of ["Check Out", "Reveal in Graph", "Compare with HEAD", "Merge", "Reset", "Toggle"]) {
       expect(find(menu, label).enabled).toBe(false);
     }
     expect(find(menu, "Delete").enabled).toBe(true);
@@ -377,7 +377,7 @@ describe("branchesStashMenu (#35)", () => {
       "Apply Stash",
       "Pop Stash",
       "—",
-      "Reveal Commit",
+      "Reveal in Graph",
       "Compare with HEAD",
       "Compare with Selected Commit",
       "—",
