@@ -31,6 +31,7 @@
     /** A double click or Enter on a row that is not a folder. */
     onactivate?: (node: RefNode) => void;
     oncontext?: (node: RefNode, x: number, y: number) => void;
+    onhover?: (node: RefNode) => void;
     /** `x` and `y`: where the pointer was released, for the menu of what to do. */
     ondrop?: (source: string, target: Branch, x: number, y: number) => void;
   }
@@ -43,6 +44,7 @@
     onselect,
     onactivate,
     oncontext,
+    onhover,
     ondrop,
   }: Props = $props();
 
@@ -172,6 +174,7 @@
       ondblclick={(event) => {
         if (!(event.target as Element).closest("input, .disclosure")) activate(node);
       }}
+      onpointerenter={() => onhover?.(node)}
       oncontextmenu={(event) => {
         if (!oncontext) return;
         event.preventDefault();

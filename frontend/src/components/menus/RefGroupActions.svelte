@@ -11,6 +11,7 @@
     type RemoteInfo,
   } from "$lib/ipc/remotes";
   import { shortOid } from "$lib/format";
+  import { prefetcher } from "$lib/prefetch";
   import { branchNameProblem } from "$lib/names";
   import { splitUpstream } from "$lib/push-to";
   import {
@@ -72,6 +73,19 @@
     return node.remote !== undefined ? "nothing fetched from it yet" : "nothing here is drawn in the graph";
   }
 
+  const infos = prefetcher<RemoteInfo>();
+
+  function infoOf(id: RepoId, name: string): Promise<RemoteInfo> {
+    const scope = repository.current;
+    return scope ? infos.get(scope, name, () => remoteInfo(id, name)) : remoteInfo(id, name);
+  }
+
+  $effect(() => {
+    const id = repository.current?.repo;
+    if (!id) return;
+    for (const name of network.remotes) void infoOf(id, name).catch(() => {});
+  });
+
   export async function context(node: RefNode, x: number, y: number) {
     const id = repository.current?.repo;
     if (!id || !claims(node)) return;
@@ -83,12 +97,15 @@
       items = groupMenu(node, toggleBlocked(node));
     } else {
       const configured = network.remotes.includes(node.remote);
-      info = configured
-        ? await remoteInfo(id, node.remote).catch((err: unknown) => {
+      const scope = repository.current;
+      const ready = scope ? infos.peek(scope, node.remote) : undefined;
+      info = !configured
+        ? null
+        : (ready ??
+          (await infoOf(id, node.remote).catch((err: unknown) => {
             errors.report(err, "Could not read the remote");
             return null;
-          })
-        : null;
+          })));
       if (token !== asked) return;
       remote = remoteFacts(node.remote, configured, info, toggleBlocked(node));
       items = remoteMenu(remote);
