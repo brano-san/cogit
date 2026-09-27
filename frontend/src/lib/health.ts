@@ -27,6 +27,7 @@ export interface HealthAction {
 }
 
 export const FETCH_MODULES = "fetch-modules";
+export const TRUST_DIRECTORY = "trust-directory";
 
 export function placeOf(repoName: string, module: string): string {
   return module === "" ? repoName : `${repoName} [${module}]`;
@@ -38,6 +39,7 @@ const SEVERITY: Record<HealthIssue["kind"], number> = {
   danglingWorktree: 1,
   missingModuleCommit: 2,
   ignoreCaseMismatch: 3,
+  unsafeDirectory: -1,
 };
 
 function idOf(issue: HealthIssue): string {
@@ -48,6 +50,7 @@ function idOf(issue: HealthIssue): string {
     case "danglingWorktree":
       return `${issue.kind}:${issue.foreign ? "foreign" : "gone"}`;
     case "missingModuleCommit":
+    case "unsafeDirectory":
       return issue.kind;
   }
 }
@@ -61,6 +64,8 @@ function detailOf(issue: HealthIssue): string | undefined {
     case "danglingModule":
     case "danglingWorktree":
       return issue.target;
+    case "unsafeDirectory":
+      return issue.path;
   }
 }
 
@@ -69,10 +74,22 @@ const DOCS = {
   submodule: "https://git-scm.com/docs/git-submodule#Documentation/git-submodule.txt-absorbgitdirs",
   worktree: "https://git-scm.com/docs/git-worktree#Documentation/git-worktree.txt-repair",
   fetch: "https://git-scm.com/docs/git-fetch",
+  safeDirectory: "https://git-scm.com/docs/git-config#Documentation/git-config.txt-safedirectory",
 };
 
 function describe(issue: HealthIssue): Omit<HealthWarning, "id" | "places"> {
   switch (issue.kind) {
+    case "unsafeDirectory":
+      return {
+        title: "Git does not trust this repository's folder",
+        body:
+          "The folder is owned by another user and is not listed in safe.directory, so Git " +
+          "refuses to run in it (\"detected dubious ownership\"). Commits, fetches and every " +
+          "other command fail until the folder is trusted.",
+        docs: DOCS.safeDirectory,
+        fixes: [`git config --global --add safe.directory ${issue.path}`],
+        action: { id: TRUST_DIRECTORY, label: "Trust this folder", targets: [] },
+      };
     case "missingModuleCommit":
       return {
         title: "Submodule commit is not available locally",

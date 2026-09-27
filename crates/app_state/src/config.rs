@@ -54,4 +54,8 @@ impl AppState {
     ) -> Result<Vec<git_engine::HealthFinding>, git_engine::GitError> {
         Ok(self.handle(repo)?.health_report())
     }
+
+    pub fn trust_directory(&self, repo: RepoId) -> Result<(), git_engine::GitError> {
+        self.handle(repo)?.trust_directory()
+    }
 }

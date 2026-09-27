@@ -14,6 +14,16 @@ impl AppState {
         Ok(())
     }
 
+    pub fn remove_index_lock(&self, repo: RepoId) -> Result<(), git_engine::GitError> {
+        let mut system = sysinfo::System::new();
+        system.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+        let git_running = system.processes().values().any(|p| {
+            let name = p.name().to_string_lossy().to_ascii_lowercase();
+            name == "git" || name == "git.exe"
+        });
+        self.handle(repo)?.remove_index_lock(git_running)
+    }
+
     pub fn continue_operation(&self, repo: RepoId) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         self.handle(repo)?.continue_operation()

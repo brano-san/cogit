@@ -118,6 +118,7 @@ export const commands = {
 	undoLast: (repo: RepoId) => typedError<SafetyEntry, GitError>(__TAURI_INVOKE("undo_last", { repo })),
 	abortOperation: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("abort_operation", { repo })),
 	continueOperation: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("continue_operation", { repo })),
+	removeIndexLock: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("remove_index_lock", { repo })),
 	bisectStart: (repo: RepoId, bad: string, good: string | null) => typedError<null, GitError>(__TAURI_INVOKE("bisect_start", { repo, bad, good })),
 	/**  `rev` is HEAD when absent. */
 	bisectMark: (repo: RepoId, mark: BisectMark, rev: string | null) => typedError<null, GitError>(__TAURI_INVOKE("bisect_mark", { repo, mark, rev })),
@@ -346,6 +347,7 @@ export const commands = {
 	openSubmodule: (owner: RepoId, key: string) => typedError<RepoSummary, GitError>(__TAURI_INVOKE("open_submodule", { owner, key })),
 	/**  Run in the background after a repository opens; nothing in it changes the repository. */
 	repositoryHealth: (repo: RepoId) => typedError<HealthFinding[], GitError>(__TAURI_INVOKE("repository_health", { repo })),
+	trustDirectory: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("trust_directory", { repo })),
 	/**  Repository ▸ Edit Git Config. `repo` is only read for the repository scope. */
 	readGitConfig: (repo: number | null, scope: ConfigScope) => typedError<ConfigFile, GitError>(__TAURI_INVOKE("read_git_config", { repo, scope })),
 	/**  Written only after `git config --file` has read the text back without complaint. */
@@ -1091,7 +1093,9 @@ export type HealthIssue =
 /**  `configured` is what `core.ignoreCase` says, `actual` what the folder does. */
 { kind: "ignoreCaseMismatch"; configured: boolean; actual: boolean } | { kind: "danglingModule"; target: string; foreign: boolean } | { kind: "danglingWorktree"; name: string; target: string; foreign: boolean } | 
 /**  The parent records a commit the submodule's repository does not have. */
-{ kind: "missingModuleCommit"; commit: string };
+{ kind: "missingModuleCommit"; commit: string } | 
+/**  Owned by another user and not listed in `safe.directory`: the git CLI refuses it. */
+{ kind: "unsafeDirectory"; path: string };
 
 export type Hook = {
 	name: string,

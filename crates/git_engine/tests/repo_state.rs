@@ -143,3 +143,16 @@ fn a_rebase_by_the_apply_backend_still_reports_rebasing() {
 
     assert_eq!(open(&f).state().unwrap(), RepoState::Rebasing);
 }
+
+#[test]
+fn a_stale_index_lock_is_deleted_only_when_no_git_runs() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::write(f.git_dir().join("index.lock"), "").unwrap();
+    let repo = open(&f);
+
+    assert!(repo.remove_index_lock(true).is_err());
+    assert!(repo.index_lock().is_some());
+
+    repo.remove_index_lock(false).unwrap();
+    assert!(repo.index_lock().is_none());
+}

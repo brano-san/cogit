@@ -30,6 +30,7 @@ macro_rules! repo_command {
 repo_command!(abort_operation, Merge, "Aborting");
 repo_command!(continue_operation, Merge, "Continuing");
 repo_command!(skip_operation, Merge, "Skipping");
+repo_command!(remove_index_lock, Merge, "Deleting index.lock");
 
 #[tauri::command]
 #[specta::specta]

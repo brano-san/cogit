@@ -19,6 +19,7 @@
     markSkip: "Skip",
     resetBisect: "Reset",
     showFirstBad: "Show Commit",
+    deleteLock: "Delete Lock",
   };
 </script>
 

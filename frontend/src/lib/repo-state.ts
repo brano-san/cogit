@@ -12,7 +12,8 @@ export type BannerAction =
   | "markBad"
   | "markSkip"
   | "resetBisect"
-  | "showFirstBad";
+  | "showFirstBad"
+  | "deleteLock";
 
 export interface Banner {
   title: string;
@@ -87,7 +88,7 @@ export function stateBanner(
       title: "The index is locked",
       detail: `${indexLock} — another Git process may still be running. Delete it only once you are sure none is.`,
       severity: "error",
-      actions: [],
+      actions: ["deleteLock"],
     };
   }
 
@@ -155,6 +156,14 @@ export function bannerQuestion(
         `Abort the ${operation} in progress? The conflicts resolved so far and the steps ` +
         "already done are thrown away, and Undo cannot bring them back.",
       confirm: "Abort",
+      warning: true,
+    };
+  }
+  if (action === "deleteLock") {
+    return {
+      title: "Delete index.lock",
+      message: "Delete the lock file? If a Git process is still writing the index, deleting it can corrupt the index.",
+      confirm: "Delete",
       warning: true,
     };
   }

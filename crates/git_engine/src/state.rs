@@ -101,6 +101,20 @@ impl RepoHandle {
         lock.exists()
             .then(|| lock.to_string_lossy().replace('\\', "/"))
     }
+
+    /// Removes `index.lock` only when `git_running` says no git process could own it.
+    pub fn remove_index_lock(&self, git_running: bool) -> Result<()> {
+        if git_running {
+            return Err(crate::GitError::InvalidState(
+                "a git process is still running; wait for it to finish before deleting index.lock"
+                    .to_owned(),
+            ));
+        }
+        match std::fs::remove_file(self.git_dir().join("index.lock")) {
+            Err(err) if err.kind() != std::io::ErrorKind::NotFound => Err(err.into()),
+            _ => Ok(()),
+        }
+    }
 }
 
 #[cfg(test)]
