@@ -569,7 +569,10 @@ fn mergeable_lights_what_head_has_not_merged() {
     ]);
     let painted = Painted::new(&history, Some("m3"), &MERGEABLE);
 
-    assert_eq!(dimmed(&painted), vec![true, false, true, false, true, true]);
+    assert_eq!(
+        dimmed(&painted),
+        vec![false, false, true, false, true, true]
+    );
     for (row, s, style, _) in painted.segments() {
         let lit = !s.primary && (row == 1 || row == 2 || (row == 3 && s.span == Span::Top));
         assert_eq!(style & PAINT_DIM == 0, lit, "row {row}: {s:?}");
@@ -588,7 +591,7 @@ fn mergeable_dims_what_head_merged_already() {
     ]);
     let painted = Painted::new(&history, Some("m3"), &MERGEABLE);
 
-    assert_eq!(dimmed(&painted), vec![false, true, true, true, true, true]);
+    assert_eq!(dimmed(&painted), vec![false, false, true, true, true, true]);
 }
 
 #[test]
@@ -599,7 +602,7 @@ fn mergeable_outranks_ancestry() {
         ..MERGEABLE
     };
     let painted = Painted::new(&history, Some("m2"), &spec);
-    assert_eq!(dimmed(&painted), vec![true, false, true]);
+    assert_eq!(dimmed(&painted), vec![false, false, true]);
 }
 
 #[test]

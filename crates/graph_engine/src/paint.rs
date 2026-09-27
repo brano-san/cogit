@@ -333,10 +333,14 @@ fn ancestry(parents: &[Vec<Option<u32>>], chosen: u32, len: usize) -> Vec<u8> {
 
 /// The chosen commit and its ancestors the main line does not have yet.
 fn mergeable(rows: &[GraphRow], parents: &[Vec<Option<u32>>]) -> Vec<u8> {
-    main_history(rows, parents)
+    let mut kin: Vec<u8> = main_history(rows, parents)
         .into_iter()
         .map(|shared| if shared { 0 } else { CHOSEN })
-        .collect()
+        .collect();
+    if let Some(head) = rows.iter().position(|row| row.primary) {
+        kin[head] = CHOSEN;
+    }
+    kin
 }
 
 /// `parents`: per row, the rows of its parents as laid out, `None` when not listed;
