@@ -172,6 +172,8 @@
     setMenuState,
     rebaseOnto,
     skipOperation,
+    removeIndexLock,
+    trustDirectory,
     showRepository,
     type AppInfo,
     type Branch,
@@ -188,7 +190,7 @@
   import { diff } from "$stores/diff.svelte";
   import { errors } from "$stores/errors.svelte";
   import { notices } from "$stores/notices.svelte";
-  import { FETCH_MODULES } from "$lib/health";
+  import { FETCH_MODULES, TRUST_DIRECTORY } from "$lib/health";
   import { output } from "$stores/output.svelte";
   import { network } from "$stores/network.svelte";
   import { recovery } from "$stores/recovery.svelte";
@@ -1585,6 +1587,13 @@
   /** A warning's own button. Fetching is the one fix Cogit runs for the user: it changes
       nothing but the submodule's object database (R-179). */
   async function runNoticeAction(action: import("$lib/health").HealthAction) {
+    if (action.id === TRUST_DIRECTORY) {
+      const id = repository.current?.repo;
+      if (!id) return;
+      await trustDirectory(id).catch((err) => errors.report(err, "Could not trust the folder"));
+      await health.recheck();
+      return;
+    }
     const owner = submodules.owner;
     if (action.id !== FETCH_MODULES || !owner) return;
     for (const key of action.targets) {
@@ -1816,6 +1825,7 @@
       if (action === "abort") await abortOperation(id);
       if (action === "continue") await continueOperation(id);
       if (action === "skip") await skipOperation(id);
+      if (action === "deleteLock") await removeIndexLock(id);
       if (action === "createBranch") {
         const name = await prompt.ask({
           title: "Create Branch",

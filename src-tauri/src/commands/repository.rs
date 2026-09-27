@@ -263,3 +263,13 @@ pub async fn repository_health(
     let app_state = state.state.clone();
     blocking("repository_health", move || app_state.health(repo)).await
 }
+
+#[tauri::command]
+#[specta::specta]
+pub async fn trust_directory(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    blocking("trust_directory", move || app_state.trust_directory(repo)).await
+}

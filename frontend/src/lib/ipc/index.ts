@@ -585,6 +585,10 @@ export async function writeGitConfig(
 }
 
 /** The repository and every submodule below it; read-only apart from a probe file. */
+export async function trustDirectory(repo: RepoId) {
+  return unwrap(await commands.trustDirectory(repo));
+}
+
 export async function repositoryHealth(repo: RepoId) {
   return unwrap(await commands.repositoryHealth(repo));
 }
@@ -629,6 +633,10 @@ export async function revertCommits(repo: RepoId, commits: string[]) {
 
 export async function rebaseOnto(repo: RepoId, options: RebaseOptions) {
   return unwrap(await commands.rebase(repo, options));
+}
+
+export async function removeIndexLock(repo: RepoId) {
+  return unwrap(await commands.removeIndexLock(repo));
 }
 
 export async function skipOperation(repo: RepoId) {

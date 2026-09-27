@@ -28,6 +28,10 @@ pub enum HealthIssue {
     MissingModuleCommit {
         commit: String,
     },
+    /// Owned by another user and not listed in `safe.directory`: the git CLI refuses it.
+    UnsafeDirectory {
+        path: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
@@ -79,7 +83,17 @@ pub fn case_sensitive(dir: &Path) -> std::io::Result<bool> {
     Ok(sensitive)
 }
 
+fn safe_directory_path(root: &Path) -> String {
+    root.to_string_lossy().replace('\\', "/")
+}
+
 impl RepoHandle {
+    pub fn trust_directory(&self) -> crate::Result<()> {
+        let path = safe_directory_path(self.root());
+        self.run_git(&["config", "--global", "--add", "safe.directory", &path])?;
+        Ok(())
+    }
+
     #[must_use]
     pub fn health_report(&self) -> Vec<HealthFinding> {
         let mut found = Vec::new();
@@ -133,6 +147,11 @@ impl RepoHandle {
 
     fn own_health(&self) -> Vec<HealthIssue> {
         let mut issues = Vec::new();
+        if self.repo.git_dir_trust() == gix::sec::Trust::Reduced {
+            issues.push(HealthIssue::UnsafeDirectory {
+                path: safe_directory_path(self.root()),
+            });
+        }
         if let Some(issue) = self.ignore_case_issue() {
             issues.push(issue);
         }
