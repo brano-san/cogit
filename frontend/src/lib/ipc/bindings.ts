@@ -139,6 +139,7 @@ export const commands = {
 	tagMessage: (repo: RepoId, name: string) => typedError<string | null, GitError>(__TAURI_INVOKE("tag_message", { repo, name })),
 	renameTag: (repo: RepoId, from: string, to: string) => typedError<null, GitError>(__TAURI_INVOKE("rename_tag", { repo, from, to })),
 	renameStash: (repo: RepoId, index: number, message: string) => typedError<null, GitError>(__TAURI_INVOKE("rename_stash", { repo, index, message })),
+	setNote: (repo: RepoId, rev: string, text: string) => typedError<null, GitError>(__TAURI_INVOKE("set_note", { repo, rev, text })),
 	editAuthor: (repo: RepoId, rev: string, name: string, email: string) => typedError<null, GitError>(__TAURI_INVOKE("edit_author", { repo, rev, name, email })),
 	pushTo: (repo: RepoId, remote: string, refspec: string, track: boolean, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("push_to", { repo, remote, refspec, track, onProgress })),
 	remotes: (repo: RepoId) => typedError<string[], GitError>(__TAURI_INVOKE("remotes", { repo })),

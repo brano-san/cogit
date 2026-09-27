@@ -631,3 +631,29 @@ fn a_detached_head_is_its_own_mainline() {
     let tip = mainline_tip(&[("topic", "t1")], Some("deadbeef"));
     assert_eq!(tip.as_deref(), Some("deadbeef"));
 }
+
+#[test]
+fn a_three_parent_commit_fans_out_in_its_lower_half_and_each_line_joins_in_one_row() {
+    let rows = run(
+        &[
+            ("s", &["h", "i", "u"]),
+            ("i", &["h"]),
+            ("u", &[]),
+            ("h", &["g"]),
+            ("g", &[]),
+        ],
+        Some("h"),
+    );
+    assert_eq!(rows[0].kind, NodeKind::Merge);
+    assert_eq!(segs(&rows[0], Span::Bottom), vec![(1, 1), (1, 2), (1, 3)]);
+    assert!(segs(&rows[0], Span::Top).is_empty());
+    for row in &rows[1..3] {
+        assert!(
+            row.segments
+                .iter()
+                .all(|seg| seg.from == seg.to || seg.span == Span::Top),
+            "{row:?}"
+        );
+    }
+    assert_eq!(segs(&rows[3], Span::Top), vec![(1, 0), (2, 0)]);
+}
