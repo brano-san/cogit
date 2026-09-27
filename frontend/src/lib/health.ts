@@ -40,6 +40,7 @@ const SEVERITY: Record<HealthIssue["kind"], number> = {
   missingModuleCommit: 2,
   ignoreCaseMismatch: 3,
   unsafeDirectory: -1,
+  replacedHistory: 4,
 };
 
 function idOf(issue: HealthIssue): string {
@@ -51,6 +52,7 @@ function idOf(issue: HealthIssue): string {
       return `${issue.kind}:${issue.foreign ? "foreign" : "gone"}`;
     case "missingModuleCommit":
     case "unsafeDirectory":
+    case "replacedHistory":
       return issue.kind;
   }
 }
@@ -66,6 +68,8 @@ function detailOf(issue: HealthIssue): string | undefined {
       return issue.target;
     case "unsafeDirectory":
       return issue.path;
+    case "replacedHistory":
+      return `${issue.count} replacement(s)`;
   }
 }
 
@@ -74,11 +78,22 @@ const DOCS = {
   submodule: "https://git-scm.com/docs/git-submodule#Documentation/git-submodule.txt-absorbgitdirs",
   worktree: "https://git-scm.com/docs/git-worktree#Documentation/git-worktree.txt-repair",
   fetch: "https://git-scm.com/docs/git-fetch",
+  replace: "https://git-scm.com/docs/git-replace",
   safeDirectory: "https://git-scm.com/docs/git-config#Documentation/git-config.txt-safedirectory",
 };
 
 function describe(issue: HealthIssue): Omit<HealthWarning, "id" | "places"> {
   switch (issue.kind) {
+    case "replacedHistory":
+      return {
+        title: "Part of this repository's history is replaced",
+        body:
+          "refs/replace/ swaps some commits or objects for others, so the graph, diffs and " +
+          "blame show the replacement rather than what is stored. Pushes and clones do not " +
+          "carry replacements unless they are pushed explicitly.",
+        docs: DOCS.replace,
+        fixes: ["git replace --list", "git --no-replace-objects log"],
+      };
     case "unsafeDirectory":
       return {
         title: "Git does not trust this repository's folder",
