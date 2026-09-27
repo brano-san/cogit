@@ -1,7 +1,7 @@
 //! Repository ▸ Clone… (F-575).
 
 use super::blocking;
-use git_engine::{CloneDestination, CloneRequest, GitError, RemoteBranches};
+use git_engine::{CloneDestination, CloneRequest, GitError, Login, RemoteBranches};
 
 /// `git ls-remote` behind the first page's Next: nothing is written, nobody is asked.
 #[tauri::command]
@@ -9,10 +9,11 @@ use git_engine::{CloneDestination, CloneRequest, GitError, RemoteBranches};
 pub async fn remote_branches(
     state: tauri::State<'_, crate::AppContext>,
     source: String,
+    login: Option<Login>,
 ) -> Result<RemoteBranches, GitError> {
     let app_state = state.state.clone();
     blocking("remote_branches", move || {
-        app_state.remote_branches(&source)
+        app_state.remote_branches(&source, login.as_ref())
     })
     .await
 }
@@ -48,6 +49,7 @@ pub async fn clipboard_repository_url(app: tauri::AppHandle) -> Result<Option<St
 pub async fn clone_repository(
     state: tauri::State<'_, crate::AppContext>,
     request: CloneRequest,
+    login: Option<Login>,
     on_progress: tauri::ipc::Channel<String>,
 ) -> Result<String, GitError> {
     let app_state = state.state.clone();
@@ -57,7 +59,7 @@ pub async fn clone_repository(
     let host = app_state::host_of(&request.source).unwrap_or_else(|| "local".to_owned());
     let result = blocking("clone_repository", move || {
         super::network::with_progress("clone", &host, &on_progress, |on_line| {
-            app_state.clone_repository(&request, &stop, on_line)
+            app_state.clone_repository(&request, login.as_ref(), &stop, on_line)
         })
     })
     .await;

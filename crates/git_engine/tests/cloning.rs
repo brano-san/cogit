@@ -33,7 +33,7 @@ fn request(source: &str, target: &Path) -> CloneRequest {
 }
 
 fn clone(request: &CloneRequest) -> Result<PathBuf, GitError> {
-    clone_repository(request, None, &NetworkStop::default(), None, |_| {})
+    clone_repository(request, None, None, &NetworkStop::default(), None, |_| {})
 }
 
 fn git_in(dir: &Path, args: &[&str]) -> String {
@@ -62,7 +62,7 @@ fn tracking_refs(clone: &Path) -> Vec<String> {
 fn the_check_lists_every_branch_and_the_one_head_names() {
     let f = server();
 
-    let found = remote_branches(&source_of(&f), None, None).unwrap();
+    let found = remote_branches(&source_of(&f), None, None, None).unwrap();
 
     assert_eq!(found.default_branch.as_deref(), Some("main"));
     let heads: Vec<String> = git_in(f.path(), &["ls-remote", "--heads", &source_of(&f)])
@@ -80,7 +80,7 @@ fn the_check_lists_every_branch_and_the_one_head_names() {
 fn an_empty_repository_has_a_head_and_no_branch() {
     let f = test_fixtures::empty().unwrap();
 
-    let found = remote_branches(&source_of(&f), None, None).unwrap();
+    let found = remote_branches(&source_of(&f), None, None, None).unwrap();
 
     assert!(found.branches.is_empty(), "{found:?}");
 }
@@ -94,7 +94,7 @@ fn a_check_that_fails_says_what_git_said_and_is_journalled() {
         Arc::new(move |out: git_engine::GitOutput| journal.lock().unwrap().push(out.command))
     };
 
-    let err = remote_branches(&missing.to_string_lossy(), None, Some(&sink)).unwrap_err();
+    let err = remote_branches(&missing.to_string_lossy(), None, None, Some(&sink)).unwrap_err();
 
     let GitError::Command(failure) = err else {
         panic!("a refusal from git is a command error: {err:?}");
@@ -240,7 +240,7 @@ fn cancelled_clone(target: &Path) -> Result<PathBuf, GitError> {
     {
         let (stop, request) = (stop.clone(), request(&silent_server(), target));
         std::thread::spawn(move || {
-            let _ = done.send(clone_repository(&request, None, &stop, None, |_| {}));
+            let _ = done.send(clone_repository(&request, None, None, &stop, None, |_| {}));
         });
     }
     let started = Instant::now();

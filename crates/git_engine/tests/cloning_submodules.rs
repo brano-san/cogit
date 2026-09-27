@@ -25,7 +25,7 @@ fn a_clone_with_submodules_checks_them_out() {
         skip_larger_than_mb: None,
     };
 
-    clone_repository(&request, None, &NetworkStop::default(), None, |_| {}).unwrap();
+    clone_repository(&request, None, None, &NetworkStop::default(), None, |_| {}).unwrap();
 
     let out = test_fixtures::git_command_in(&target)
         .args(["submodule", "status"])

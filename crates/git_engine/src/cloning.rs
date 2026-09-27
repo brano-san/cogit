@@ -2,7 +2,7 @@
 //! the clone itself through the system git.
 
 use crate::network::{NetworkStop, SILENCE, Streamed, auth_config};
-use crate::pulse::{BATCH_SSH, QUIET, STALL_LIMITS};
+use crate::pulse::{BATCH_SSH, STALL_LIMITS};
 use crate::{CommandSink, GitCommandError, GitError, GitOutput, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -33,6 +33,37 @@ pub struct CloneRequest {
     pub skip_larger_than_mb: Option<u32>,
 }
 
+/// Asked for after git's own credential helper could not answer.
+#[derive(Clone, PartialEq, Eq, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct Login {
+    pub username: String,
+    pub password: String,
+}
+
+impl std::fmt::Debug for Login {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Login")
+            .field("username", &self.username)
+            .finish_non_exhaustive()
+    }
+}
+
+/// Git Credential Manager may open its window: the user asked for this. Only the terminal
+/// prompt stays off, as for every git Cogit starts.
+fn login_command(source: &str, login: Option<&Login>) -> Command {
+    let mut process = outside_any_repository();
+    process.env_remove("GCM_INTERACTIVE");
+    if let Some(login) = login {
+        process.envs(crate::network::login_env(
+            source,
+            &login.username,
+            &login.password,
+        ));
+    }
+    process
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum CloneDestination {
@@ -59,11 +90,11 @@ pub fn clone_destination(path: &Path) -> CloneDestination {
     }
 }
 
-/// Asked as the background check asks (R-353, R-354): nobody is prompted, a stored
-/// credential still answers, and nothing is written anywhere.
+/// Nothing is written anywhere; the credential helper may ask, the terminal never does.
 pub fn remote_branches(
     source: &str,
     token: Option<&str>,
+    login: Option<&Login>,
     journal: Option<&CommandSink>,
 ) -> Result<RemoteBranches> {
     let source = source.trim();
@@ -87,8 +118,8 @@ pub fn remote_branches(
     let command = crate::redact_command(&args);
     let started = std::time::Instant::now();
     tracing::info!(%command, "running git");
-    let mut process = outside_any_repository();
-    process.envs(QUIET.iter().copied()).args(&args);
+    let mut process = login_command(source, login);
+    process.args(&args);
     let output = crate::children::output(&mut process).map_err(crate::runner::not_started)?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     if output.status.success() {
@@ -133,6 +164,7 @@ fn listing(text: &str) -> RemoteBranches {
 pub fn clone_repository(
     request: &CloneRequest,
     token: Option<&str>,
+    login: Option<&Login>,
     stop: &NetworkStop,
     journal: Option<&CommandSink>,
     on_line: impl FnMut(&str),
@@ -159,7 +191,7 @@ pub fn clone_repository(
         header.as_deref(),
     );
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
-    let mut process = outside_any_repository();
+    let mut process = login_command(source, login);
     process.args(&args);
 
     let to = Streamed {
@@ -371,6 +403,48 @@ mod tests {
         });
         assert!(!args.iter().any(|arg| arg == "--also-filter-submodules"));
         assert!(!args.iter().any(|arg| arg == "--recurse-submodules"));
+    }
+
+    #[test]
+    fn a_login_reaches_git_through_the_environment_only() {
+        let login = Login {
+            username: "ann".to_owned(),
+            password: "s3cret".to_owned(),
+        };
+        let process = login_command("https://example.com/team/app.git", Some(&login));
+        let envs: Vec<(String, Option<String>)> = process
+            .get_envs()
+            .map(|(k, v)| {
+                (
+                    k.to_string_lossy().into_owned(),
+                    v.map(|v| v.to_string_lossy().into_owned()),
+                )
+            })
+            .collect();
+        let get = |key: &str| {
+            envs.iter()
+                .find(|(k, _)| k == key)
+                .and_then(|(_, v)| v.clone())
+        };
+        assert_eq!(get("GIT_TERMINAL_PROMPT").as_deref(), Some("0"));
+        assert!(
+            envs.iter()
+                .any(|(k, v)| k == "GCM_INTERACTIVE" && v.is_none())
+        );
+        assert_eq!(
+            get("GIT_CONFIG_KEY_0").as_deref(),
+            Some("http.https://example.com/.extraHeader")
+        );
+        assert_eq!(
+            get("GIT_CONFIG_VALUE_0").as_deref(),
+            Some("Authorization: Basic YW5uOnMzY3JldA==")
+        );
+        assert!(!format!("{login:?}").contains("s3cret"));
+        assert!(
+            process
+                .get_args()
+                .all(|arg| !arg.to_string_lossy().contains("s3cret"))
+        );
     }
 
     #[test]

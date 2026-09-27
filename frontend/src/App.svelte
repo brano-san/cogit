@@ -3305,10 +3305,11 @@
 
   /** Repository ▸ Clone…'s Finish: the clone runs in the footer, then opens as Open would. */
   async function startClone(request: CloneRequest) {
+    const login = cloneWizard.login;
     cloneWizard.close();
     await runClone(request, {
       run: (operation) => network.run(null, "Cloning", operation),
-      clone: cloneRepository,
+      clone: (wanted, onLine) => cloneRepository(wanted, login, onLine),
       open: async (root) => {
         opening = true;
         try {

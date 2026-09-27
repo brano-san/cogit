@@ -131,6 +131,7 @@ export const commands = {
 	stashDrop: (repo: RepoId, index: number) => typedError<null, GitError>(__TAURI_INVOKE("stash_drop", { repo, index })),
 	createTag: (repo: RepoId, request: TagRequest) => typedError<null, GitError>(__TAURI_INVOKE("create_tag", { repo, request })),
 	deleteTag: (repo: RepoId, name: string) => typedError<null, GitError>(__TAURI_INVOKE("delete_tag", { repo, name })),
+	deleteRemoteTag: (repo: RepoId, remote: string, name: string) => typedError<null, GitError>(__TAURI_INVOKE("delete_remote_tag", { repo, remote, name })),
 	resetTo: (repo: RepoId, rev: string, mode: ResetMode) => typedError<null, GitError>(__TAURI_INVOKE("reset_to", { repo, rev, mode })),
 	isAncestor: (repo: RepoId, ancestor: string, descendant: string) => typedError<boolean, GitError>(__TAURI_INVOKE("is_ancestor", { repo, ancestor, descendant })),
 	compareFiles: (repo: RepoId, from: string, to: string) => typedError<FileEntry[], GitError>(__TAURI_INVOKE("compare_files", { repo, from, to })),
@@ -225,6 +226,8 @@ export const commands = {
 	ignoreRules: (repo: RepoId, paths: string[]) => typedError<IgnoreRule[], GitError>(__TAURI_INVOKE("ignore_rules", { repo, paths })),
 	/**  Asks the LFS server: run on demand, never on a refresh. */
 	lfsLocks: (repo: RepoId) => typedError<LfsLock[], GitError>(__TAURI_INVOKE("lfs_locks", { repo })),
+	/**  The Files LFS column: `.gitattributes` and the local lock cache, no network. */
+	lfsFileStates: (repo: RepoId, paths: string[]) => typedError<LfsFileState[], GitError>(__TAURI_INVOKE("lfs_file_states", { repo, paths })),
 	commitSignature: (repo: RepoId, rev: string) => typedError<SignatureCheck, GitError>(__TAURI_INVOKE("commit_signature", { repo, rev })),
 	unportablePaths: (repo: RepoId, rev: string) => typedError<string[], GitError>(__TAURI_INVOKE("unportable_paths", { repo, rev })),
 	rerereStatus: (repo: RepoId) => typedError<RerereStatus, GitError>(__TAURI_INVOKE("rerere_status", { repo })),
@@ -391,11 +394,17 @@ export const commands = {
 	 */
 	scanForRepositories: (path: string, maxDepth: number, onFound: Channel<ScanChunk>) => typedError<number, GitError>(__TAURI_INVOKE("scan_for_repositories", { path, maxDepth, onFound })),
 	/**  `git ls-remote` behind the first page's Next: nothing is written, nobody is asked. */
-	remoteBranches: (source: string) => typedError<RemoteBranches, GitError>(__TAURI_INVOKE("remote_branches", { source })),
+	remoteBranches: (source: string, login: {
+	username: string,
+	password: string,
+} | null) => typedError<RemoteBranches, GitError>(__TAURI_INVOKE("remote_branches", { source, login })),
 	cloneDestination: (path: string) => typedError<CloneDestination, GitError>(__TAURI_INVOKE("clone_destination", { path })),
 	/**  Only a repository URL leaves the clipboard: the rest of it stays out of the page. */
 	clipboardRepositoryUrl: () => typedError<string | null, GitError>(__TAURI_INVOKE("clipboard_repository_url")),
-	cloneRepository: (request: CloneRequest, onProgress: Channel<string>) => typedError<string, GitError>(__TAURI_INVOKE("clone_repository", { request, onProgress })),
+	cloneRepository: (request: CloneRequest, login: {
+	username: string,
+	password: string,
+} | null, onProgress: Channel<string>) => typedError<string, GitError>(__TAURI_INVOKE("clone_repository", { request, login, onProgress })),
 	/**
 	 *  Reports only whether a token exists. Reading one back would put it in the webview,
 	 *  where every dependency could see it.
@@ -1231,6 +1240,13 @@ export type KeyBinding = {
 	defaultAccelerator: string | null,
 };
 
+/**  A file `.gitattributes` puts in Git LFS; `lock` is the owner from the local lock cache. */
+export type LfsFileState = {
+	path: string,
+	lockable: boolean,
+	lock: string | null,
+};
+
 export type LfsLock = {
 	path: string,
 	owner: string,
@@ -1265,6 +1281,12 @@ export type LineVersion = {
 	/**  Where the line stood in that version, from 1. */
 	line: number,
 	text: string,
+};
+
+/**  Asked for after git's own credential helper could not answer. */
+export type Login = {
+	username: string,
+	password: string,
 };
 
 /**  `segments[segment]` is one stub of a cut link; `oid` is the commit at its other end. */

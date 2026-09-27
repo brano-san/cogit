@@ -29,7 +29,7 @@ async fn a_clone_waits_in_a_lane_of_its_own_and_is_journalled() {
     let permit = state.enqueue_clone(&wanted.target).await;
     let queued = state.operations();
     let run = state.network_stop(permit.id());
-    let result = state.clone_repository(&wanted, &run.token(), |_| {});
+    let result = state.clone_repository(&wanted, None, &run.token(), |_| {});
     drop(run);
     permit.finish(result.is_ok());
 
@@ -48,7 +48,9 @@ fn the_check_lists_what_the_server_has() {
     let f = test_fixtures::branched().unwrap();
     let state = AppState::new();
 
-    let found = state.remote_branches(&f.path().to_string_lossy()).unwrap();
+    let found = state
+        .remote_branches(&f.path().to_string_lossy(), None)
+        .unwrap();
 
     assert_eq!(found.default_branch.as_deref(), Some("main"));
     assert_eq!(found.branches, ["dev", "main"]);
@@ -75,7 +77,7 @@ async fn the_footer_s_cancel_stops_a_clone() {
     {
         let (state, stop) = (Arc::clone(&state), run.token());
         std::thread::spawn(move || {
-            let _ = done.send(state.clone_repository(&wanted, &stop, |_| {}));
+            let _ = done.send(state.clone_repository(&wanted, None, &stop, |_| {}));
         });
     }
     let started = Instant::now();
