@@ -80,6 +80,7 @@ describe("remoteMenu", () => {
       "Copy URL",
       "—",
       "Set Depth…",
+      "Fetch Full History",
       "Properties…",
       "—",
       "Toggle",
@@ -88,7 +89,7 @@ describe("remoteMenu", () => {
   });
 
   it("deepens only a shallow clone", () => {
-    expect(off(remoteMenu(facts()))).toEqual(["Set Depth… (not a shallow clone)"]);
+    expect(off(remoteMenu(facts()))).toEqual(["Set Depth… (not a shallow clone)", "Fetch Full History (not a shallow clone)"]);
   });
 
   it("pushes and pulls only from a branch, and pulls only the remote it tracks", () => {
@@ -96,6 +97,7 @@ describe("remoteMenu", () => {
       "Push To… (HEAD is not on a branch)",
       "Pull (HEAD is not on a branch)",
       "Set Depth… (not a shallow clone)",
+      "Fetch Full History (not a shallow clone)",
     ]);
     const other = facts({ remote: "fork", head: { name: "main", upstream: "origin/main" } });
     expect(off(remoteMenu(other))).toContain("Pull (main tracks origin/main)");
@@ -111,6 +113,7 @@ describe("remoteMenu", () => {
       "Delete (not a configured remote)",
       "Copy URL (no URL)",
       "Set Depth… (not a configured remote)",
+      "Fetch Full History (not a configured remote)",
       "Properties… (not a configured remote)",
     ]);
   });

@@ -178,10 +178,21 @@ fn set_depth_refuses_a_full_clone_and_deepens_a_shallow_one() {
     shallow.fetch_depth("origin", 2, no_token, |_| {}).unwrap();
 
     assert_eq!(count(), 2);
+
+    shallow.fetch_depth("origin", 0, no_token, |_| {}).unwrap();
+
+    assert!(count() > 2);
+    assert!(
+        !RepoHandle::open(&clone)
+            .unwrap()
+            .remote_info("origin")
+            .unwrap()
+            .shallow
+    );
 }
 
 #[test]
-fn a_depth_of_nothing_is_refused_before_git_runs() {
+fn unshallowing_a_full_clone_is_refused_before_git_runs() {
     let f = test_fixtures::with_remote().unwrap();
     let err = open(&f)
         .fetch_depth("origin", 0, no_token, |_| {})

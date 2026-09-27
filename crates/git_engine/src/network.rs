@@ -139,7 +139,8 @@ impl RepoHandle {
     }
 
     /// Remote ▸ Set Depth: a shallow clone's branches of `remote`, `depth` commits deep —
-    /// deeper or shallower. A full clone is refused: `--depth` would make it shallow.
+    /// deeper or shallower; 0 fetches all of it (`--unshallow`). A full clone is refused:
+    /// `--depth` would make it shallow.
     pub fn fetch_depth(
         &self,
         remote: &str,
@@ -147,18 +148,17 @@ impl RepoHandle {
         token: impl FnOnce(&str) -> Option<String>,
         on_line: impl FnMut(&str),
     ) -> Result<()> {
-        if depth == 0 {
-            return Err(GitError::InvalidState(
-                "The depth is a number of commits, at least 1.".to_owned(),
-            ));
-        }
         if !self.repo.is_shallow() {
             return Err(GitError::InvalidState(
                 "The repository is not shallow: it has all of its history already.".to_owned(),
             ));
         }
         let header = self.auth_arg(remote, gix::remote::Direction::Fetch, token);
-        let depth = format!("--depth={depth}");
+        let depth = if depth == 0 {
+            "--unshallow".to_owned()
+        } else {
+            format!("--depth={depth}")
+        };
         let mut args = prefix(&header);
         args.extend(["fetch", "--progress", &depth, remote]);
         self.run_streaming(&args, on_line)
