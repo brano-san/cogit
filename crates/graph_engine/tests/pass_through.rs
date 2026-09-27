@@ -61,3 +61,16 @@ fn a_commit_left_out_with_no_parent_leaves_the_line_waiting() {
         rows[1]
     );
 }
+
+#[test]
+fn a_match_joins_its_nearest_match_through_several_commits_left_out() {
+    let mut cursor = LayoutCursor::with_mainline(Some("a".to_owned()));
+    let mut rows = push(vec![node("a", &["b"])], &mut cursor);
+    pass_through(&mut cursor, "b", Some("c"));
+    pass_through(&mut cursor, "c", Some("d"));
+    rows.extend(push(vec![node("d", &[])], &mut cursor));
+
+    assert_eq!(rows[1].lane, rows[0].lane);
+    assert_eq!(into_node(&rows[1]), 1, "a's line ends in d: {:?}", rows[1]);
+    assert!(rows.iter().flat_map(|r| &r.segments).all(|s| !s.arrow));
+}

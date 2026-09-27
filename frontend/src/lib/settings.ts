@@ -112,7 +112,7 @@ export const DEFAULT_SETTINGS: Settings = {
   graphCollapseMerged: false,
   graphSelectedRefsOnly: false,
   graphIncludeTracked: false,
-  graphWhileFiltering: false,
+  graphWhileFiltering: true,
   graphWorkingTreeAlways: true,
   graphFilterFields: [...DEFAULT_FILTER_FIELDS],
   graphFilterPatterns: [],
