@@ -49,8 +49,10 @@ export function rowPaint(overlay: GraphOverlay, row: number): RowPaint | undefin
 }
 
 export interface StrokeOptions {
-  /** The `Coloured branch lines` setting: a colour per lane where no branch has one. */
+  /** Varying Coloring: a colour per column where no branch has one. */
   colouredLanes: boolean;
+  /** Mergeable Coloring: what is not dimmed is drawn in the accent. */
+  accentLit?: boolean;
   /** Drawn on top and wider: the branch of the chosen commit (#26). */
   focusLane?: number | null;
 }
@@ -82,7 +84,9 @@ function stroke(
       ? branchToken(slot - 1)
       : focused && !primary
         ? "--graph-focus"
-        : options.colouredLanes
+        : options.accentLit && !dim
+          ? "--status-add"
+          : options.colouredLanes
           ? `--c-lane-${(laneColour % BRANCH_SLOTS) + 1}`
           : primary
             ? "--graph-main"
@@ -113,7 +117,7 @@ export function segmentStroke(
     paint?.segmentStyles[index] ?? 0,
     paint?.segmentLanes[index],
     segment.primary,
-    segment.color,
+    segment.from,
     GRAPH.lineWidth,
     options,
   );
@@ -122,7 +126,7 @@ export function segmentStroke(
 /** A ring keeps its stroke width; only its colour and faintness follow the paint. */
 export function nodeStroke(layout: GraphRow, paint: RowPaint | undefined, options: StrokeOptions): Stroke {
   return {
-    ...stroke(paint?.nodeStyle ?? 0, paint?.nodeLane, layout.primary, layout.color, GRAPH.ringStroke, options),
+    ...stroke(paint?.nodeStyle ?? 0, paint?.nodeLane, layout.primary, layout.lane, GRAPH.ringStroke, options),
     width: GRAPH.ringStroke,
   };
 }

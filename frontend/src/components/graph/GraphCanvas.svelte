@@ -85,7 +85,8 @@
     const token = (name: string) => styles.getPropertyValue(name).trim();
     const main = token("--graph-main");
     const line = token("--graph-line");
-    const options = { colouredLanes: settings.current.graphColoring === "varying", focusLane };
+    const coloring = settings.current.graphColoring;
+    const options = { colouredLanes: coloring === "varying", accentLit: coloring === "mergeable", focusLane };
     const colours = new Map<string, string>();
     const colour = (name: string) => {
       if (!colours.has(name)) colours.set(name, token(name) || line);

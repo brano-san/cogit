@@ -22,9 +22,12 @@ pub struct GraphPaintRequest {
     /// All but this commit's ancestors and descendants is dimmed.
     #[serde(default)]
     pub ancestry_of: Option<String>,
-    /// Mergeable Coloring: all but what merging this commit into HEAD would bring is dimmed.
+    /// Mergeable Coloring: HEAD's history is dimmed, what it has not merged stands out.
     #[serde(default)]
-    pub mergeable_of: Option<String>,
+    pub mergeable: bool,
+    /// Branch Coloring: merged-in lines are dimmed.
+    #[serde(default)]
+    pub dim_merges: bool,
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -103,10 +106,8 @@ impl PaintMemo {
                 .ancestry_of
                 .as_ref()
                 .and_then(|oid| self.index.get(oid).copied()),
-            mergeable_of: request
-                .mergeable_of
-                .as_ref()
-                .and_then(|oid| self.index.get(oid).copied()),
+            mergeable: request.mergeable,
+            dim_merges: request.dim_merges,
         };
         let watch = std::time::Instant::now();
         let row_of = |oid: &str| self.index.get(oid).copied();

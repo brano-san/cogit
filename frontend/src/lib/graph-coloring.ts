@@ -9,15 +9,15 @@ export const COLORING_LABELS: Record<GraphColoring, { label: string; hint: strin
   },
   branch: {
     label: "Branch Coloring",
-    hint: "The branch of the selected commit, or of the line clicked, is drawn in front.",
+    hint: "Every branch in the color of its name; merged-in lines dimmed.",
   },
   mergeable: {
     label: "Mergeable Coloring",
-    hint: "What merging the selected commit into HEAD would bring stands out; the rest is dimmed.",
+    hint: "What HEAD has not merged stands out; its history is dimmed.",
   },
   varying: {
     label: "Varying Coloring",
-    hint: "Every line in a color of its own.",
+    hint: "Every column in the next color of the palette.",
   },
 };
 
