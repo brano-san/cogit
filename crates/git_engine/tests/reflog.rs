@@ -325,3 +325,18 @@ fn a_branch_is_restored_to_a_target_its_reflog_remembers() {
     assert_eq!(before, tip);
     assert_eq!(f.oid("side").unwrap(), old);
 }
+
+#[test]
+fn refs_outside_branches_and_tags_are_listed_as_other_refs() {
+    let f = test_fixtures::linear(2).unwrap();
+    let tip = f.oid("HEAD").unwrap();
+    f.git(&["update-ref", "refs/pull/7/head", &tip]).unwrap();
+    f.git(&["update-ref", "refs/notes/commits", &tip]).unwrap();
+    f.git(&["stash", "list"]).unwrap();
+
+    let found = open(&f).other_refs().unwrap();
+
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].full_name, "refs/pull/7/head");
+    assert_eq!(found[0].oid, tip);
+}

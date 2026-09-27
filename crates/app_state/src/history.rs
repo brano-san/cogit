@@ -52,6 +52,13 @@ impl AppState {
         self.handle(repo)?.ref_dates()
     }
 
+    pub fn other_refs(
+        &self,
+        repo: RepoId,
+    ) -> Result<Vec<git_engine::OtherRef>, git_engine::GitError> {
+        self.handle(repo)?.other_refs()
+    }
+
     pub fn lost_commits(
         &self,
         repo: RepoId,

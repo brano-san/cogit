@@ -43,6 +43,7 @@ import type {
 
 export type {
   Algorithm,
+  OtherRef,
   ReflogEntry,
   AppInfo,
   AutostashOutcome,
@@ -658,6 +659,10 @@ export async function mergeInto(repo: RepoId, options: MergeOptions) {
 
 export async function remoteUrl(repo: RepoId, name: string) {
   return unwrap(await commands.remoteUrl(repo, name));
+}
+
+export async function otherRefs(repo: RepoId) {
+  return unwrap(await commands.otherRefs(repo));
 }
 
 export async function refDates(repo: RepoId) {

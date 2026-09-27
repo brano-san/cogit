@@ -1,7 +1,7 @@
 import { defaultVisible, type RefNode } from "$lib/ref-nodes";
 import { parseRefSort, type RefSort } from "$lib/ref-sort";
 import { recall, remember } from "$lib/session-memory";
-import { listRemotes, refDates, remoteUrl, type RepoId } from "$lib/ipc";
+import { listRemotes, otherRefs, refDates, remoteUrl, type OtherRef, type RepoId } from "$lib/ipc";
 
 /** Per repository, so ticking `master` in one does not change what another shows. */
 const STORAGE_KEY = "cogit.visible-refs.v2";
@@ -54,6 +54,18 @@ class RefsStore {
   sort = $state.raw<RefSort>(storedSort());
   /** Tip dates by full ref name, read only while the sort goes by date. */
   dates = $state.raw<ReadonlyMap<string, number>>(new Map());
+  others = $state.raw<OtherRef[]>([]);
+  #othersAsked = 0;
+
+  async loadOthers(repo: RepoId): Promise<void> {
+    const asked = ++this.#othersAsked;
+    try {
+      const found = await otherRefs(repo);
+      if (asked === this.#othersAsked) this.others = found;
+    } catch {
+      if (asked === this.#othersAsked) this.others = [];
+    }
+  }
 
   #root: string | null = null;
   #expanded = $state.raw<ReadonlySet<string>>(new Set());
@@ -166,6 +178,8 @@ class RefsStore {
     this.#foldable = new Set();
     this.urls = {};
     this.dates = new Map();
+    this.#othersAsked += 1;
+    this.others = [];
   }
 }
 

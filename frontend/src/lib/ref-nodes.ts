@@ -1,4 +1,4 @@
-import type { Branch, CommitRow, Head, StashEntry, Tag, WorktreeEntry } from "$lib/ipc";
+import type { Branch, CommitRow, Head, OtherRef, StashEntry, Tag, WorktreeEntry } from "$lib/ipc";
 import { shortDate, shortOid } from "$lib/format";
 import { compareDated, compareNames, DEFAULT_REF_SORT, type RefSort } from "$lib/ref-sort";
 import { upstreamGone, worktreeMarks, type WorktreeMark } from "$lib/worktree-list";
@@ -13,6 +13,7 @@ export type RefKind =
   | "remote"
   | "tag"
   | "stash"
+  | "other"
   | "lost";
 
 export interface RefNode {
@@ -45,6 +46,8 @@ export interface RefTreeInput {
   tags: readonly Tag[];
   stashes: readonly StashEntry[];
   lost: readonly CommitRow[];
+  /** `refs/pull/*` and the like; none are ticked until the user ticks them. */
+  others?: readonly OtherRef[];
   remoteUrls: Readonly<Record<string, string>>;
   /** The configured remotes: each has a heading, whether anything is fetched from it or not. */
   remotes?: readonly string[];
@@ -269,6 +272,21 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
   if (tags.length > 0) {
     group(rows, "group:tags", `Tags (${tags.length})`);
     nest(rows, tags, 1, nesting(TAG_OWNER, input.tagSeparator ?? "/"));
+  }
+
+  const others = (input.others ?? [])
+    .map<RefNode>((ref) => ({
+      id: `other:${ref.fullName}`,
+      kind: "other",
+      label: ref.fullName.replace(/^refs\//, ""),
+      depth: 1,
+      rev: ref.fullName,
+      oid: ref.oid,
+    }))
+    .filter((node) => matches(node, input.filter));
+  if (others.length > 0) {
+    group(rows, "group:other", `Other Refs (${others.length})`);
+    nest(rows, others, 1, nesting("other"));
   }
 
   const stashes = input.stashes

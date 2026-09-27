@@ -1308,6 +1308,7 @@
     tags: repo?.tags ?? [],
     stashes: stashes.entries,
     lost: recovery.lost,
+    others: refs.others,
     remoteUrls: refs.urls,
     remotes: network.remotes,
     tagSeparator: repo?.tagGroupSeparator,

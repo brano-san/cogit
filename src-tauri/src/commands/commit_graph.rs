@@ -129,6 +129,16 @@ pub async fn ref_dates(
     blocking("ref_dates", move || app_state.ref_dates(repo)).await
 }
 
+#[tauri::command]
+#[specta::specta]
+pub async fn other_refs(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<Vec<git_engine::OtherRef>, GitError> {
+    let app_state = state.state.clone();
+    blocking("other_refs", move || app_state.other_refs(repo)).await
+}
+
 /// `spawn_blocking` matters here: the engine fans out with rayon, which must never run on
 /// a Tokio worker (INV-01).
 #[tauri::command]
