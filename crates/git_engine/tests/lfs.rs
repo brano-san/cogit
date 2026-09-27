@@ -125,3 +125,21 @@ fn prune_runs_in_an_lfs_repository() {
 
     open(&f).lfs_op(&LfsOp::Prune).unwrap();
 }
+
+#[test]
+fn file_states_follow_gitattributes() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::write(
+        f.path().join(".gitattributes"),
+        "*.psd filter=lfs lockable\n*.bin filter=lfs\n",
+    )
+    .unwrap();
+    let paths = ["a.psd", "b.bin", "c.txt"].map(String::from);
+    let states = open(&f).lfs_file_states(&paths).unwrap();
+    let found: Vec<_> = states
+        .iter()
+        .map(|s| (s.path.as_str(), s.lockable))
+        .collect();
+    assert_eq!(found, [("a.psd", true), ("b.bin", false)]);
+    assert!(states.iter().all(|s| s.lock.is_none()));
+}

@@ -2,13 +2,20 @@ import type { FileEntry, FileStatus } from "$lib/ipc";
 import { fileName } from "$lib/files";
 
 /** The columns of the Files table (#33), in their order on screen. */
-export type ColumnKey = "name" | "type" | "change" | "path";
-export const COLUMN_KEYS: readonly ColumnKey[] = ["name", "type", "change", "path"];
-export const COLUMN_LABELS: Record<ColumnKey, string> = { name: "Name", type: "Type", change: "State", path: "Path" };
+export type ColumnKey = "name" | "type" | "extension" | "change" | "lfs" | "path";
+export const COLUMN_KEYS: readonly ColumnKey[] = ["name", "type", "extension", "change", "lfs", "path"];
+export const COLUMN_LABELS: Record<ColumnKey, string> = {
+  name: "Name",
+  type: "Type",
+  extension: "Extension",
+  change: "State",
+  lfs: "LFS",
+  path: "Path",
+};
 
 /** Every column but the name can be turned off in Customise View (#34). */
 export type FileColumns = Record<Exclude<ColumnKey, "name">, boolean>;
-export const DEFAULT_COLUMNS: FileColumns = { type: true, change: true, path: true };
+export const DEFAULT_COLUMNS: FileColumns = { type: true, extension: false, change: true, lfs: false, path: true };
 
 export interface FileSort {
   key: ColumnKey;
@@ -55,11 +62,27 @@ const BINARY_EXTENSIONS = new Set([
   ...["sqlite", "db", "mdb", "pftrace", "keystore", "p12", "pfx"],
 ]);
 
-export function isBinaryPath(path: string): boolean {
+/** Without the dot; `""` for a folder, a dotfile or a name with none. */
+export function extensionOf(path: string): string {
   const name = fileName(path);
   const dot = name.lastIndexOf(".");
-  if (dot <= 0 || path.endsWith("/")) return false;
-  return BINARY_EXTENSIONS.has(name.slice(dot + 1).toLowerCase());
+  return dot <= 0 || path.endsWith("/") ? "" : name.slice(dot + 1);
+}
+
+export function isBinaryPath(path: string): boolean {
+  return BINARY_EXTENSIONS.has(extensionOf(path).toLowerCase());
+}
+
+export interface LfsState {
+  lockable: boolean;
+  lock: string | null;
+}
+
+/** The LFS cell: blank for a file outside Git LFS. */
+export function lfsLabel(state: LfsState | undefined): string {
+  if (!state) return "";
+  if (state.lock !== null) return state.lock === "" ? "locked" : `locked by ${state.lock}`;
+  return state.lockable ? "lockable" : "LFS";
 }
 
 /** By the entry's mode first (R-180): a submodule is a repository whatever its name. */
@@ -81,21 +104,29 @@ export function directoryOf(path: string): string {
 
 /** The order of the list. In the tree the folders stay in path order and the sort works
     inside each of them, so the rows are grouped the way they are listed. */
-export function sortRows<F extends FileEntry>(files: readonly F[], sort: FileSort, directories: boolean): F[] {
+export function sortRows<F extends FileEntry>(
+  files: readonly F[],
+  sort: FileSort,
+  directories: boolean,
+  lfs: (path: string) => LfsState | undefined = () => undefined,
+): F[] {
   const keyed = files.map((file) => {
     const name = fileName(file.path);
     let rank = 0;
+    let text = "";
+    if (sort.key === "extension") text = extensionOf(file.path);
+    else if (sort.key === "lfs") text = lfsLabel(lfs(file.path));
     if (sort.key === "type") rank = TYPE_ORDER.indexOf(fileType(file));
     else if (sort.key === "change") rank = STATE_ORDER.indexOf(file.status);
     // The folder groupByDirectory puts the row under, so the order is the order of the rows.
     const folder = directories ? file.path.slice(0, file.path.lastIndexOf("/") + 1) : "";
-    return { file, name, rank, folder };
+    return { file, name, rank, text, folder };
   });
   const sign = sort.descending ? -1 : 1;
   keyed.sort((a, b) => {
     const folder = collator.compare(a.folder, b.folder);
     if (folder !== 0) return folder;
-    let order = a.rank - b.rank;
+    let order = a.rank - b.rank || collator.compare(a.text, b.text);
     if (order === 0 && sort.key !== "path") order = collator.compare(a.name, b.name);
     if (order === 0) order = collator.compare(a.file.path, b.file.path);
     return sign * order;
@@ -142,14 +173,18 @@ export type ColumnWidths = Record<ColumnKey, number>;
 export const DEFAULT_COLUMN_WIDTHS: ColumnWidths = {
   name: 180,
   type: 65,
+  extension: 70,
   change: 60,
+  lfs: 110,
   path: 260,
 };
 
 export const MIN_COLUMN_WIDTH: Record<ColumnKey, number> = {
   name: 70,
   type: 45,
+  extension: 45,
   change: 45,
+  lfs: 45,
   path: 80,
 };
 
