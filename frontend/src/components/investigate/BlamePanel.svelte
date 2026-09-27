@@ -3,7 +3,7 @@
   import Avatar from "$components/common/Avatar.svelte";
   import VirtualList from "$components/common/VirtualList.svelte";
   import OriginCard from "./OriginCard.svelte";
-  import { highlightLines, mergePieces } from "$lib/highlight";
+  import { highlightLines, loadLanguage, mergePieces } from "$lib/highlight";
   import {
     ageOf,
     commitOf,
@@ -26,8 +26,14 @@
 
   const ROW = 18;
   const tables = $derived(session.blame);
+  const language = $derived(languageOf(session.location.path));
+  let grammar = $state<string | null>(null);
+  $effect(() => {
+    const wanted = language;
+    void loadLanguage(wanted).then(() => (grammar = wanted));
+  });
   const tokens = $derived(
-    tables ? highlightLines(tables.lines.map((line) => line.text), languageOf(session.location.path)) : [],
+    tables && grammar === language ? highlightLines(tables.lines.map((line) => line.text), language) : [],
   );
   const own = $derived.by(() => {
     const indices = new Set<number>();

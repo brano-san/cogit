@@ -57,7 +57,7 @@
   } from "$lib/code-scroll";
   import ConfirmDialog from "$components/common/ConfirmDialog.svelte";
   import { eolChangeText, eolLabel, layoutTip, modeChangeText } from "$lib/diff-toolbar";
-  import { mergePieces, type Token } from "$lib/highlight";
+  import { loadLanguage, mergePieces, type Token } from "$lib/highlight";
   import { lineKey, toggleLine } from "$lib/selection";
   import { keepSelection } from "$lib/diff-selection";
   import { investigateTarget, openInvestigate } from "$lib/investigate/open";
@@ -130,13 +130,18 @@
 
   const hunks = $derived<Hunk[]>(diff.kind === "text" ? diff.hunks : []);
   const language = $derived(diff.kind === "text" ? diff.language : null);
+  let grammar = $state<string | null>(null);
+  $effect(() => {
+    const wanted = language;
+    void loadLanguage(wanted).then(() => (grammar = wanted));
+  });
 
   /** Parsed once per diff, per side: a block comment must survive the line it opened on. */
   const tokens = $derived(
     diffTokens(
       {
         hunks,
-        language,
+        language: grammar === language ? language : null,
         oldText: diff.kind === "text" ? diff.oldText : null,
         newText: diff.kind === "text" ? diff.newText : null,
       },

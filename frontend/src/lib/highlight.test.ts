@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { MAX_HIGHLIGHT_LINES, highlightLines, languageOf, mergePieces } from "./highlight";
+import { beforeAll, describe, expect, it } from "vitest";
+import { MAX_HIGHLIGHT_LINES, highlightLines, languageOf, loadLanguage, mergePieces } from "./highlight";
 
 function classesOf(tokens: { cls: string }[][], line: number): string[] {
   return (tokens[line] ?? []).map((t) => t.cls);
@@ -53,6 +53,14 @@ describe("highlightLines", () => {
     svelte: "<div>{name}</div>",
     vue: "<template><div>hi</div></template>",
   };
+
+  beforeAll(async () => {
+    for (const language of Object.keys(SAMPLES)) expect(await loadLanguage(language), language).toBe(true);
+  });
+
+  it("does not load a language it does not know", async () => {
+    expect(await loadLanguage("klingon")).toBe(false);
+  });
 
   for (const [language, code] of Object.entries(SAMPLES)) {
     it(`highlights ${language}`, () => {
@@ -135,10 +143,10 @@ describe("highlightLines", () => {
       expect(languageOf("script.pyi")).toBe("python");
       expect(languageOf("main.c")).toBe("c");
       expect(languageOf("main.h")).toBe("c");
-      expect(languageOf("main.cpp")).toBe("cpp");
+      expect(languageOf("main.cpp")).toBe("c++");
       expect(languageOf("main.java")).toBe("java");
       expect(languageOf("main.go")).toBe("go");
-      expect(languageOf("Program.cs")).toBe("csharp");
+      expect(languageOf("Program.cs")).toBe("c#");
       expect(languageOf("script.rb")).toBe("ruby");
       expect(languageOf("index.php")).toBe("php");
       expect(languageOf("Main.swift")).toBe("swift");
@@ -153,7 +161,7 @@ describe("highlightLines", () => {
       expect(languageOf("image.svg")).toBe("xml");
       expect(languageOf("index.html")).toBe("html");
       expect(languageOf("style.css")).toBe("css");
-      expect(languageOf("style.scss")).toBe("sass");
+      expect(languageOf("style.scss")).toBe("scss");
       expect(languageOf("style.sass")).toBe("sass");
       expect(languageOf("README.md")).toBe("markdown");
       expect(languageOf("App.svelte")).toBe("svelte");

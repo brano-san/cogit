@@ -1,35 +1,7 @@
 import { classHighlighter, highlightTree } from "@lezer/highlight";
 import type { Parser } from "@lezer/common";
-import { parser as cpp } from "@lezer/cpp";
-import { parser as css } from "@lezer/css";
-import { parser as html } from "@lezer/html";
-import { parser as javascript } from "@lezer/javascript";
-import { parser as json } from "@lezer/json";
-import { parser as python } from "@lezer/python";
-import { parser as rust } from "@lezer/rust";
-import { parser as java } from "@lezer/java";
-import { parser as yaml } from "@lezer/yaml";
-import { parser as xml } from "@lezer/xml";
-import { parser as markdown } from "@lezer/markdown";
-import { parser as php } from "@lezer/php";
-import { parser as sass } from "@lezer/sass";
-
-import { StreamLanguage, type StreamParser } from "@codemirror/language";
-import { csharp, dart, kotlin, scala } from "@codemirror/legacy-modes/mode/clike";
-import { cmake } from "@codemirror/legacy-modes/mode/cmake";
-import { dockerFile } from "@codemirror/legacy-modes/mode/dockerfile";
-import { go } from "@codemirror/legacy-modes/mode/go";
-import { groovy } from "@codemirror/legacy-modes/mode/groovy";
-import { haskell } from "@codemirror/legacy-modes/mode/haskell";
-import { lua } from "@codemirror/legacy-modes/mode/lua";
-import { perl } from "@codemirror/legacy-modes/mode/perl";
-import { powerShell } from "@codemirror/legacy-modes/mode/powershell";
-import { r } from "@codemirror/legacy-modes/mode/r";
-import { ruby } from "@codemirror/legacy-modes/mode/ruby";
-import { shell } from "@codemirror/legacy-modes/mode/shell";
-import { standardSQL } from "@codemirror/legacy-modes/mode/sql";
-import { swift } from "@codemirror/legacy-modes/mode/swift";
-import { toml } from "@codemirror/legacy-modes/mode/toml";
+import { LanguageDescription } from "@codemirror/language";
+import { languages } from "@codemirror/language-data";
 
 export interface Token {
   start: number;
@@ -39,132 +11,46 @@ export interface Token {
 
 export const MAX_HIGHLIGHT_LINES = 5000;
 
-const legacy = (mode: StreamParser<unknown>): Parser => StreamLanguage.define(mode).parser;
+const ALIASES: Record<string, string> = { svelte: "html" };
 
-const PARSERS: Record<string, Parser> = {
-  c: cpp,
-  cpp,
-  css,
-  html,
-  javascript,
-  json,
-  python,
-  rust,
-  typescript: javascript.configure({ dialect: "ts" }),
-  jsx: javascript.configure({ dialect: "jsx" }),
-  tsx: javascript.configure({ dialect: "ts jsx" }),
-  java,
-  yaml,
-  xml,
-  markdown,
-  php,
-  sass,
-  csharp: legacy(csharp),
-  go: legacy(go),
-  ruby: legacy(ruby),
-  shell: legacy(shell),
-  sql: legacy(standardSQL),
-  toml: legacy(toml),
-  kotlin: legacy(kotlin),
-  swift: legacy(swift),
-  cmake: legacy(cmake),
-  dockerfile: legacy(dockerFile),
-  lua: legacy(lua),
-  perl: legacy(perl),
-  r: legacy(r),
-  scala: legacy(scala),
-  dart: legacy(dart),
-  haskell: legacy(haskell),
-  groovy: legacy(groovy),
-  powershell: legacy(powerShell),
-  svelte: html,
-  vue: html,
-};
-
-const FILENAME_LANGUAGES: Record<string, string> = {
-  "CMakeLists.txt": "cmake",
-  Dockerfile: "dockerfile",
-};
-
-const EXTENSION_LANGUAGES: Record<string, string> = {
-  rs: "rust",
-  ts: "typescript",
-  tsx: "tsx",
-  js: "javascript",
-  mjs: "javascript",
-  cjs: "javascript",
-  jsx: "jsx",
-  py: "python",
+const EXTRA_EXTENSIONS: Record<string, string> = {
   pyi: "python",
-  c: "c",
-  h: "c",
-  cc: "cpp",
-  cpp: "cpp",
-  cxx: "cpp",
-  hpp: "cpp",
-  hxx: "cpp",
-  hh: "cpp",
-  java: "java",
-  go: "go",
-  cs: "csharp",
-  rb: "ruby",
-  php: "php",
-  swift: "swift",
-  kt: "kotlin",
-  kts: "kotlin",
-  sh: "shell",
-  bash: "shell",
   zsh: "shell",
-  sql: "sql",
-  json: "json",
-  yaml: "yaml",
-  yml: "yaml",
-  toml: "toml",
-  xml: "xml",
-  svg: "xml",
-  html: "html",
-  htm: "html",
-  css: "css",
-  scss: "sass",
-  sass: "sass",
-  md: "markdown",
-  markdown: "markdown",
-  svelte: "svelte",
-  vue: "vue",
-  cmake: "cmake",
   dockerfile: "dockerfile",
-  lua: "lua",
-  pl: "perl",
-  pm: "perl",
-  r: "r",
-  scala: "scala",
   sc: "scala",
-  dart: "dart",
-  hs: "haskell",
-  groovy: "groovy",
   gvy: "groovy",
-  gradle: "groovy",
-  ps1: "powershell",
-  psm1: "powershell",
-  psd1: "powershell",
+  svelte: "svelte",
 };
 
-/** The grammar name for a path among the ones the frontend bundles. */
+/** The grammar name for a path, as `@codemirror/language-data` knows it. */
 export function languageOf(path: string): string | null {
   const name = path.slice(Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")) + 1);
-  if (FILENAME_LANGUAGES[name]) {
-    return FILENAME_LANGUAGES[name];
-  }
   const dot = name.lastIndexOf(".");
-  if (dot <= 0) return null;
-  const ext = name.slice(dot + 1).toLowerCase();
-  return EXTENSION_LANGUAGES[ext] ?? null;
+  const ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
+  const found = LanguageDescription.matchFilename(languages, dot > 0 ? `${name.slice(0, dot)}.${ext}` : name);
+  return found ? found.name.toLowerCase() : (EXTRA_EXTENSIONS[ext] ?? null);
+}
+
+const parsers = new Map<string, Parser>();
+
+/** Fetches the grammar's chunk; `highlightLines` colours nothing for a language until it resolves. */
+export async function loadLanguage(language: string | null): Promise<boolean> {
+  if (!language) return false;
+  if (parsers.has(language)) return true;
+  const description = LanguageDescription.matchLanguageName(languages, ALIASES[language] ?? language, false);
+  if (!description) return false;
+  try {
+    parsers.set(language, (await description.load()).language.parser);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Parsed as one document so a comment spanning lines survives onto the next one. */
 export function highlightLines(lines: readonly string[], language: string | null): Token[][] {
   const empty = lines.map(() => [] as Token[]);
-  const parser = language ? PARSERS[language] : undefined;
+  const parser = language ? parsers.get(language) : undefined;
   if (!parser || lines.length === 0 || lines.length > MAX_HIGHLIGHT_LINES) return empty;
 
   const starts: number[] = [];

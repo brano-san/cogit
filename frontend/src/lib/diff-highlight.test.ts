@@ -1,8 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { cellTokens, diffTokens, rowTokens } from "./diff-highlight";
-import { MAX_HIGHLIGHT_LINES, highlightLines } from "./highlight";
+import { MAX_HIGHLIGHT_LINES, highlightLines, loadLanguage } from "./highlight";
 import type { DiffRow, Hunk } from "./ipc";
 import type { SideCell } from "./diff-rows";
+
+beforeAll(() => loadLanguage("rust"));
 
 const OLD = [
   "fn pointer(p: &P) -> D {",
