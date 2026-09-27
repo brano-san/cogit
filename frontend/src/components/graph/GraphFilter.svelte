@@ -43,7 +43,10 @@
     });
   });
 
+  let typing: ReturnType<typeof setTimeout> | undefined;
+
   function apply() {
+    clearTimeout(typing);
     const next = parseQuery(graphFilter.text, fields);
     if (!sameQuery(next, query)) onchange(next);
   }
@@ -54,8 +57,15 @@
   }
 
   function reset() {
+    clearTimeout(typing);
     graphFilter.text = "";
     if (active) onchange(parseQuery(""));
+  }
+
+  function oninput() {
+    clearTimeout(typing);
+    if (graphFilter.text === "" && active) reset();
+    else typing = setTimeout(apply, 150);
   }
 
   function onkeydown(event: KeyboardEvent) {
@@ -65,25 +75,39 @@
 </script>
 
 <div class="filter" class:active>
+  {#if active}
+    <span class="count tabular">{matches ?? 0}</span>
+  {/if}
   <div class="box">
     <FilterPatterns onpick={usePattern} />
     <input
-    type="search"
-    bind:value={graphFilter.text}
-    {onkeydown}
-    oninput={() => graphFilter.text === "" && active && reset()}
-    onblur={apply}
-    placeholder="Filter"
-    aria-label="Filter commits"
-    title="Looks for the text in the fields switched on under the field. author:, path:, oid:, since: and until: take a value of their own."
+      type="search"
+      bind:value={graphFilter.text}
+      {onkeydown}
+      {oninput}
+      onblur={apply}
+      placeholder="Filter"
+      aria-label="Filter commits"
+      title="Looks for the text in the fields switched on under the field. author:, path:, oid:, since: and until: take a value of their own."
     />
   </div>
   {#if active}
-    <span class="count tabular">{matches ?? 0}</span>
-    <button type="button" onmousedown={(event) => event.preventDefault()} onclick={reset} title="Clear filter (Esc)">✕</button>
-  {/if}
-  {#if graphFilter.text.trim() !== "" && !sameQuery(parseQuery(graphFilter.text, fields), query)}
-    <span class="hint">Enter</span>
+    <button
+      type="button"
+      class="clear"
+      onmousedown={(event) => event.preventDefault()}
+      onclick={reset}
+      title="Clear filter (Esc)"
+      aria-label="Clear filter"
+    >
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        <mask id="graph-filter-clear">
+          <rect width="16" height="16" fill="white" />
+          <path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="black" stroke-width="1.5" stroke-linecap="round" />
+        </mask>
+        <circle cx="8" cy="8" r="7" mask="url(#graph-filter-clear)" />
+      </svg>
+    </button>
   {/if}
 </div>
 
@@ -104,6 +128,11 @@
     border-radius: var(--r-sm);
   }
 
+  .box:focus-within {
+    outline: 1px solid var(--state-focus-ring);
+    outline-offset: -1px;
+  }
+
   input {
     flex: 1 1 auto;
     min-width: 0;
@@ -115,6 +144,10 @@
     font-size: var(--fs-dense);
   }
 
+  input:focus-visible {
+    outline: none;
+  }
+
   .filter.active .box {
     border-color: var(--status-ref);
   }
@@ -124,21 +157,24 @@
     font-size: 11px;
   }
 
-  .hint {
-    color: var(--text-secondary);
-    font-size: 10px;
-  }
-
-  button {
+  .clear {
+    display: inline-flex;
+    align-items: center;
     height: 16px;
-    padding: 0 var(--sp-2);
+    padding: 0;
     background: none;
     color: var(--text-secondary);
     border: 0;
     cursor: default;
   }
 
-  button:hover {
+  .clear:hover {
     color: var(--text-primary);
+  }
+
+  .clear svg {
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
   }
 </style>
