@@ -134,7 +134,7 @@
     line-height: 14px;
   }
 
-  /* Gives way after the branch labels, which shrink first (#12, R-331); the right columns
+  /* Gives way after the branch labels, which never shrink; the right columns
      never do, and past its room the graph area is cut instead. */
   .summary {
     flex: 1 1 auto;

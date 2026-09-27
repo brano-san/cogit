@@ -4,10 +4,6 @@
     in the middle, here. */
 const ELLIPSIS = "…";
 
-/** How many characters of the monospace font a ref label in the graph may take before its
-    middle goes: a width in CSS, so it is cut once, where the row squeezes it too. */
-export const REF_LABEL_MAX = 30;
-
 /** Cuts count characters, not UTF-16 units: half an emoji on each side of a cut draws as
     two replacement marks. */
 function length(text: string): number {
@@ -26,17 +22,6 @@ function charCut(text: string, max: number): string {
 /** `feature/14340…new_toolchain`: the start and the end that tells branches apart. */
 export function truncateMiddle(text: string, max: number): string {
   return length(text) <= max ? text : charCut(text, max);
-}
-
-/** The tail a squeezed ref label keeps whole; the lead gives way with an ellipsis in CSS,
-    which puts the cut in the middle at whatever width the row leaves it (#12). */
-const LABEL_TAIL = 10;
-
-export function middleCut(text: string): { lead: string; tail: string } {
-  const chars = Array.from(text);
-  const tail = Math.min(LABEL_TAIL, Math.floor(chars.length / 2));
-  const at = chars.length - tail;
-  return { lead: chars.slice(0, at).join(""), tail: chars.slice(at).join("") };
 }
 
 /** `C:\Users\brano\…\logs\cogit.log`: whole folders dropped from the middle to fit `max`. */
