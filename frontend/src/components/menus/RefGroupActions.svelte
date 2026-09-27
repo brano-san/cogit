@@ -168,6 +168,11 @@
         return copy(at.info?.url ?? "");
       case "set-depth":
         return setDepth(id, remote);
+      case "unshallow":
+        await attempt(`Could not fetch the full history of ${remote}`, () =>
+          network.run(id, "Fetching", (onLine) => fetchDepth(id, remote, 0, onLine)),
+        );
+        return afterFetch(id);
       case "properties":
         if (at.info) remoteDialogs.properties = at.info;
         return;

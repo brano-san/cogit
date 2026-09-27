@@ -68,6 +68,7 @@ export function remoteMenu(facts: RemoteFacts): ContextItem[] {
     offer(id("copy-url"), "Copy URL", facts.url ? null : "no URL"),
     SEPARATOR,
     offer(id("set-depth"), "Set Depth…", gone ?? (facts.shallow ? null : "not a shallow clone")),
+    offer(id("unshallow"), "Fetch Full History", gone ?? (facts.shallow ? null : "not a shallow clone")),
     offer(id("properties"), "Properties…", gone),
     SEPARATOR,
     offer(id("toggle"), "Toggle", facts.toggle),
