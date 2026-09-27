@@ -18,6 +18,7 @@
     createTag,
     deleteBranch,
     deleteRemoteBranch,
+    deleteRemoteTag,
     deleteTag,
     interactiveRebase,
     isPublished,
@@ -50,7 +51,7 @@
   } from "$lib/ipc/ref-ops";
   import { shortOid, type RefLabel } from "$lib/format";
   import type { RefNode } from "$lib/ref-nodes";
-  import { choosesRemote, menuPush, pushUpTo, splitUpstream, type PushSource } from "$lib/push-to";
+  import { choosesRemote, menuPush, pushUpTo, remoteCopy, splitUpstream, type PushSource } from "$lib/push-to";
   import {
     REF_MENU_PREFIX,
     branchesBranchMenu,
@@ -82,6 +83,7 @@
   import { branchRevision } from "$lib/toolbar";
   import { branchNameProblem, textProblem } from "$lib/names";
   import { commit } from "$stores/commit.svelte";
+  import { prefetcher } from "$lib/prefetch";
   import { compareView } from "$stores/compare-view.svelte";
   import { confirmation } from "$stores/confirm.svelte";
   import { autostashDialog } from "$stores/autostash-dialog.svelte";
@@ -163,11 +165,31 @@
     return repository.current?.repo ?? null;
   }
 
-  async function factsOf(
-    id: RepoId,
-    oid: string,
-    withPublished: boolean,
-  ): Promise<{ details: CommitDetails; facts: CommitFacts }> {
+  type Loaded = { details: CommitDetails; facts: CommitFacts };
+  const loadedFacts = prefetcher<Loaded>();
+
+  function factsKey(id: RepoId, oid: string, withPublished: boolean): string {
+    return `${id.valueOf()}|${oid}|${withPublished}|${network.remotes.length}`;
+  }
+
+  function factsReady(id: RepoId, oid: string, withPublished: boolean): Loaded | undefined {
+    const scope = repository.current;
+    return scope ? loadedFacts.peek(scope, factsKey(id, oid, withPublished)) : undefined;
+  }
+
+  function factsOf(id: RepoId, oid: string, withPublished: boolean): Promise<Loaded> {
+    const scope = repository.current;
+    const load = () => loadFacts(id, oid, withPublished);
+    return scope ? loadedFacts.get(scope, factsKey(id, oid, withPublished), load) : load();
+  }
+
+  $effect(() => {
+    const id = repoId();
+    const oid = commit.oid;
+    if (id && oid) void factsOf(id, oid, true).catch(() => {});
+  });
+
+  async function loadFacts(id: RepoId, oid: string, withPublished: boolean): Promise<Loaded> {
     const [details, onHead, published, protectedBy] = await Promise.all([
       commitDetails(id, oid),
       isAncestor(id, oid, "HEAD").catch(() => false),
@@ -229,7 +251,7 @@
     if (!id) return;
     const token = ++asked;
     try {
-      const { details, facts } = await factsOf(id, oid, true);
+      const { details, facts } = factsReady(id, oid, true) ?? (await factsOf(id, oid, true));
       if (token !== asked) return;
       const bisect = bisectCommitMenu(repository.current?.state, oid);
       await show({ ...blank(), oid, details, facts }, graphCommitMenu(facts, bisect), x, y);
@@ -251,7 +273,7 @@
     if (!found) return;
     const token = ++asked;
     try {
-      const { details, facts } = await factsOf(id, oid, true);
+      const { details, facts } = factsReady(id, oid, true) ?? (await factsOf(id, oid, true));
       if (token !== asked) return;
       await show({ ...blank(), ...found, oid, details, facts }, graphRefMenu(found.ref, facts), x, y);
     } catch (err) {
@@ -285,7 +307,9 @@
     const tag = found?.tag ?? undefined;
     const oid = found ? found.oid : (node.oid ?? null);
     try {
-      const loaded = oid ? await factsOf(id, oid, false) : null;
+      const loaded = oid
+        ? (factsReady(id, oid, false) ?? factsReady(id, oid, true) ?? (await factsOf(id, oid, false)))
+        : null;
       if (token !== asked) return;
       const facts = loaded?.facts ?? { ...NO_COMMIT, hasRemote: network.remotes.length > 0 };
       const at = { selected: commit.oid, oid, untickable: node.disabled ?? null };
@@ -808,15 +832,30 @@
       return;
     }
     const what = ref.kind === "tag" ? "tag" : "branch";
-    const go = await confirmation.ask({
+    const upstream =
+      repository.current?.branches.find((entry) => entry.kind === "local" && entry.name === ref.name)?.upstream ??
+      null;
+    const copy = remoteCopy(
+      { kind: ref.kind === "tag" ? "tag" : "branch", name: ref.name, upstream },
+      network.remotes,
+      network.primary,
+    );
+    const { yes, checked } = await confirmation.askWithOption({
       title: `Delete ${ref.kind === "tag" ? "Tag" : "Branch"}`,
       message: `Delete ${what} ${ref.name}? Undo can bring it back.`,
       confirm: "Delete",
       warning: true,
+      option: copy ? `Delete from remote '${copy.remote}'` : undefined,
     });
-    if (!go) return;
-    await attempt(`Could not delete the ${what}`, () =>
+    if (!yes) return;
+    const done = await attempt(`Could not delete the ${what}`, () =>
       ref.kind === "tag" ? deleteTag(id, ref.name) : deleteBranch(id, ref.name, false),
+    );
+    if (!done || !checked || !copy) return;
+    await attempt(`Could not delete the ${what} from ${copy.remote}`, () =>
+      ref.kind === "tag"
+        ? deleteRemoteTag(id, copy.remote, copy.name)
+        : deleteRemoteBranch(id, copy.remote, copy.name),
     );
   }
 
@@ -927,7 +966,8 @@
     message={confirmation.open.message}
     confirm={confirmation.open.confirm}
     warning={confirmation.open.warning}
-    onanswer={(yes) => confirmation.answer(yes)}
+    option={confirmation.open.option}
+    onanswer={(yes, checked) => confirmation.answer(yes, checked)}
   />
 {/if}
 
