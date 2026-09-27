@@ -5,18 +5,20 @@
   interface Props {
     oid: string;
     message: string;
+    title?: string;
+    allowEmpty?: boolean;
     onsave: (message: string) => void;
     onclose: () => void;
   }
 
-  let { oid, message, onsave, onclose }: Props = $props();
+  let { oid, message, title, allowEmpty = false, onsave, onclose }: Props = $props();
 
   // svelte-ignore state_referenced_locally
   let text = $state(message);
   let field: HTMLTextAreaElement | undefined = $state();
 
   const problem = $derived(
-    text.trim() === "" ? "Enter a message." : text.trim() === message.trim() ? "Nothing changed yet." : null,
+    text.trim() === "" && !allowEmpty ? "Enter a message." : text.trim() === message.trim() ? "Nothing changed yet." : null,
   );
 
   function submit() {
@@ -28,7 +30,7 @@
   });
 </script>
 
-<Dialog title="Edit Message of {shortOid(oid)}" {onclose} dirty={text.trim() !== message.trim()} width="min(600px, 92vw)">
+<Dialog title={title ?? `Edit Message of ${shortOid(oid)}`} {onclose} dirty={text.trim() !== message.trim()} width="min(600px, 92vw)">
   <textarea bind:this={field} bind:value={text} rows="10" aria-label="Commit message"></textarea>
 
   {#snippet footer()}

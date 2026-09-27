@@ -7,6 +7,7 @@
   import { settings } from "$stores/settings.svelte";
   import { commitSignature, type SignatureCheck } from "$lib/ipc";
   import { signatureLabel } from "$lib/signature";
+  import { refDialogs } from "$stores/ref-dialogs.svelte";
 
   /** What the Diff panel shows when there is no file to diff: the selected commit, or
       what to do next. Why a repository would not open is told once, in the notification
@@ -44,6 +45,17 @@
       <pre class="body">{note.text}</pre>
     {/each}
     <dl>
+      <dt>Note</dt>
+      <dd>
+        <button
+          type="button"
+          onclick={() =>
+            (refDialogs.note = {
+              oid: details.oid,
+              text: details.notes.find((note) => note.namespace === "commits")?.text ?? "",
+            })}>Add / Edit Note…</button
+        >
+      </dd>
       <dt>Commit</dt>
       <dd class="mono">{details.oid}</dd>
       <dt>Author</dt>
