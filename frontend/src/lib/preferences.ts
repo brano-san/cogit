@@ -241,6 +241,12 @@ export const CATEGORIES: Category[] = [
             hint: "Gravatar is asked for an MD5 of the address, never the address itself.",
             keywords: ["gravatar", "picture", "face", "network"],
           },
+          {
+            key: "graphAvatarsChangedOnly",
+            label: "Only if changed",
+            hint: "An avatar only on the topmost of consecutive commits by the same author.",
+            keywords: ["avatar", "gravatar", "repeat", "same", "author", "consecutive"],
+          },
         ],
       },
       {

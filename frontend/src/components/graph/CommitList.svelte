@@ -37,6 +37,7 @@
     type GraphColumn,
     type GraphDensity,
     type GraphTimeFormat,
+    avatarShown,
   } from "$lib/graph-row";
   import { measurer } from "$lib/timing";
   import { anchoredScrollTop } from "$lib/graph-anchor";
@@ -110,6 +111,7 @@
     timeFormat?: GraphTimeFormat;
     density?: GraphDensity;
     stripes?: boolean;
+    avatarsChangedOnly?: boolean;
     /** Links longer than this many rows are two stubs (R-330); 0 draws every link whole. */
     longLinkRows?: number;
   }
@@ -136,6 +138,7 @@
     timeFormat = GRAPH_TIME_FORMAT,
     density = GRAPH_DENSITY,
     stripes = GRAPH_STRIPES,
+    avatarsChangedOnly = false,
     longLinkRows = LONG_LINK_ROWS,
   }: Props = $props();
 
@@ -321,7 +324,10 @@
     for (let listRow = from; listRow < range.end; listRow++) {
       const commitRow = toCommitRow(listRow, headerRows);
       const entry = commitRow === null ? undefined : graph.rowAt(commitRow);
-      if (entry) rows.push({ listRow, entry });
+      if (!entry) continue;
+      const aboveRow = toCommitRow(listRow - 1, headerRows);
+      const above = aboveRow === null ? undefined : graph.rowAt(aboveRow)?.commit.authorEmail;
+      rows.push({ listRow, entry, avatar: avatarShown(avatarsChangedOnly, entry.commit.authorEmail, above) });
     }
     return rows;
   });
@@ -670,6 +676,7 @@
               folds={modes.collapseMerged && filterless}
               {cells}
               {timeFormat}
+              avatar={item.avatar}
               {now}
               {clipX}
               onrefmenu={onrefcontext && ((label, event) => refMenu(label, item.entry.commit.oid, event))}

@@ -91,6 +91,7 @@
     timeFormat={settings.current.graphTimeFormat}
     density={settings.current.graphDensity}
     stripes={settings.current.graphStripes}
+    avatarsChangedOnly={settings.current.graphAvatarsChangedOnly}
     longLinkRows={settings.current.graphLongLinkRows}
     highlightChecked={settings.current.graphHighlightChecked}
     firstParent={settings.current.graphFirstParent}

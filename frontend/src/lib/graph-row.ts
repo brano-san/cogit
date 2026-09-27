@@ -80,3 +80,8 @@ export function rightCells(columns: readonly GraphColumn[], overlap: boolean): (
   if (overlap && !columns.includes("time")) cells.unshift("overlap");
   return cells;
 }
+
+/** "Only if changed": a face only on the topmost row of a run by one author. */
+export function avatarShown(changedOnly: boolean, email: string, above: string | undefined): boolean {
+  return !changedOnly || above?.toLowerCase() !== email.toLowerCase();
+}
