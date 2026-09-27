@@ -169,10 +169,18 @@ fn a_branch_stops_where_it_meets_a_line_already_coloured() {
         .collect();
     let mut sorted = into_a1.clone();
     sorted.sort_unstable();
+    assert_eq!(sorted, vec![1], "a2 brings its colour into a1");
+    let b1_fork: Vec<u8> = painted
+        .segments()
+        .filter(|(row, s, _, _)| {
+            *row == 2 && s.span == Span::Bottom && s.from == painted.rows[2].lane
+        })
+        .map(|(_, _, style, _)| style)
+        .collect();
     assert_eq!(
-        sorted,
-        vec![1, 2],
-        "a2 and b1 each bring their colour into a1"
+        b1_fork,
+        vec![2],
+        "b1 forks off a1's trunk in its own colour"
     );
 }
 
@@ -195,7 +203,7 @@ fn a_branch_goes_on_through_a_line_nobody_ticked() {
         .map(|(_, _, style, _)| style)
         .collect();
     into_s1.sort_unstable();
-    assert_eq!(into_s1, vec![0, 4], "only b1's line into s1 is its colour");
+    assert_eq!(into_s1, vec![4], "s2 joined b1's trunk above s1");
     for (row, s, style, _) in painted.segments() {
         if row == 4 && s.span == Span::Bottom {
             assert_eq!(style, 4, "s1 goes on in b1's colour: {s:?}");
@@ -224,7 +232,7 @@ fn a_branch_stops_at_history_the_main_line_merged() {
         .map(|(_, _, style, _)| style)
         .collect();
     into_s1.sort_unstable();
-    assert_eq!(into_s1, vec![0, 4], "b1's line runs into s1 in its colour");
+    assert_eq!(into_s1, vec![4], "b1's line runs into s1 in its colour");
     for (row, s, style, _) in painted.segments() {
         if row == 4 && s.span == Span::Bottom {
             assert_eq!(style, 0, "s1 is the main line's history: {s:?}");

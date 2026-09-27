@@ -131,6 +131,16 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
         .iter()
         .position(|lane| lane.id == node_id)
         .unwrap_or(0);
+    let trunk = first.as_ref().and_then(|parent| {
+        cursor
+            .lanes
+            .iter()
+            .filter(|_| !cursor.lanes[node_index].primary)
+            .find(|lane| lane.id != node_id && lane.drawn && waits_for(lane, parent))
+            .map(|lane| lane.id)
+    });
+    let first = first.filter(|_| trunk.is_none());
+    leaving.extend(trunk);
     let continues = first.is_some();
     {
         let lane = &mut cursor.lanes[node_index];
@@ -211,7 +221,11 @@ fn place(node: &CommitNode, cursor: &mut LayoutCursor) -> GraphRow {
                 span: Span::Bottom,
                 // A side commit joining the main line is still a side line.
                 primary: on_main && id == node_id,
-                color: lane.color,
+                color: if trunk == Some(id) {
+                    cursor.lanes[node_index].color
+                } else {
+                    lane.color
+                },
                 arrow: false,
             });
         }

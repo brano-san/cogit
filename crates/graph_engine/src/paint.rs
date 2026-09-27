@@ -198,6 +198,11 @@ fn trace(
                     }
                 }
                 group
+            } else if !own_done && at(&below, s.to) != NONE {
+                own_done = true;
+                let group = trace.open(node_lane, r, true);
+                trace.groups[group as usize].end = first_parent(parents, r).unwrap_or(NONE);
+                group
             } else if !own_done {
                 own_done = true;
                 let group = trace.open(node_lane, r, true);
