@@ -19,7 +19,7 @@
   import Disclosure from "$components/common/Disclosure.svelte";
   import KindIcon, { type Kind } from "$components/common/KindIcon.svelte";
   import VirtualList from "$components/common/VirtualList.svelte";
-  import { directoryOf, fileType, gridColumns, TYPE_LABELS, type ColumnKey } from "$lib/file-columns";
+  import { directoryOf, extensionOf, fileType, gridColumns, lfsLabel, TYPE_LABELS, type ColumnKey } from "$lib/file-columns";
   import { fileName, fileStatusBadge, fileStatusLabel, fileStatusTooltip, indexNote } from "$lib/files";
   import { remoteOps } from "$stores/remote-ops.svelte";
   import type { ViewRow } from "$lib/file-view";
@@ -210,6 +210,9 @@
             {#if shows.has("type")}
               <span class="cell type truncate">{TYPE_LABELS[fileType(file)]}</span>
             {/if}
+            {#if shows.has("extension")}
+              <span class="cell truncate">{extensionOf(file.path)}</span>
+            {/if}
             {#if shows.has("change")}
               <span class="cell change">
                 <span
@@ -230,6 +233,9 @@
                   >
                 {/if}
               </span>
+            {/if}
+            {#if shows.has("lfs")}
+              <span class="cell truncate">{lfsLabel(remoteOps.lfsState(file.path))}</span>
             {/if}
             {#if shows.has("path")}
               <span class="cell dir truncate" title={absolutePath(file.path)}>{directoryOf(file.path)}</span>

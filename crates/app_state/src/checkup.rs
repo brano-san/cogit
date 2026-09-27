@@ -29,6 +29,14 @@ impl AppState {
         self.handle(repo)?.lfs_locks()
     }
 
+    pub fn lfs_file_states(
+        &self,
+        repo: RepoId,
+        paths: &[String],
+    ) -> Result<Vec<git_engine::LfsFileState>, GitError> {
+        self.handle(repo)?.lfs_file_states(paths)
+    }
+
     pub fn commit_signature(
         &self,
         repo: RepoId,

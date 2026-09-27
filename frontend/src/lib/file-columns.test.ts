@@ -7,6 +7,8 @@ import {
   columnItems,
   columnReason,
   directoryOf,
+  extensionOf,
+  lfsLabel,
   fileType,
   gridColumns,
   isBinaryPath,
@@ -124,7 +126,7 @@ describe("the path column", () => {
 describe("the columns shown", () => {
   it("shows all four by default, the name always", () => {
     expect(shownColumns(DEFAULT_COLUMNS, false)).toEqual(["name", "type", "change", "path"]);
-    expect(shownColumns({ type: false, change: false, path: false }, false)).toEqual(["name"]);
+    expect(shownColumns({ type: false, extension: false, change: false, lfs: false, path: false }, false)).toEqual(["name"]);
   });
 
   it("leaves the path to the folder rows of the tree", () => {
@@ -156,11 +158,13 @@ describe("the stored table settings", () => {
 // Customise View opened on nothing to customise: a switch under a column's name and a
 // Size that was always off (#34).
 describe("the columns in Customise View", () => {
-  it("lists the four columns, the name always on and not to be turned off", () => {
-    expect(columnItems({ type: false, change: true, path: true }, false)).toEqual([
+  it("lists the columns, the name always on and not to be turned off", () => {
+    expect(columnItems({ type: false, extension: false, change: true, lfs: true, path: true }, false)).toEqual([
       { key: "name", label: "Name", checked: true, reason: "The name is always shown" },
       { key: "type", label: "Type", checked: false, reason: null },
+      { key: "extension", label: "Extension", checked: false, reason: null },
       { key: "change", label: "State", checked: true, reason: null },
+      { key: "lfs", label: "LFS", checked: true, reason: null },
       { key: "path", label: "Path", checked: true, reason: null },
     ]);
   });
@@ -173,5 +177,48 @@ describe("the columns in Customise View", () => {
   it("turns one column over and leaves the others", () => {
     expect(toggleColumn(DEFAULT_COLUMNS, "type")).toEqual({ ...DEFAULT_COLUMNS, type: false });
     expect(toggleColumn(DEFAULT_COLUMNS, "name")).toEqual(DEFAULT_COLUMNS);
+  });
+});
+
+describe("the extension and LFS columns", () => {
+  it("shows the extension without its dot", () => {
+    expect(extensionOf("src/app.Test.ts")).toBe("ts");
+    expect(extensionOf(".gitignore")).toBe("");
+    expect(extensionOf("Makefile")).toBe("");
+    expect(extensionOf("dir.d/")).toBe("");
+  });
+
+  it("sorts by extension, then by name", () => {
+    const files = [entry("b.rs"), entry("a.ts"), entry("c.md"), entry("a.rs")];
+    expect(paths(sortRows(files, { key: "extension", descending: false }, false))).toEqual([
+      "c.md",
+      "a.rs",
+      "b.rs",
+      "a.ts",
+    ]);
+  });
+
+  it("names the lock, else whether the file can be locked", () => {
+    expect(lfsLabel(undefined)).toBe("");
+    expect(lfsLabel({ lockable: false, lock: null })).toBe("LFS");
+    expect(lfsLabel({ lockable: true, lock: null })).toBe("lockable");
+    expect(lfsLabel({ lockable: true, lock: "ann" })).toBe("locked by ann");
+    expect(lfsLabel({ lockable: true, lock: "" })).toBe("locked");
+  });
+
+  it("sorts by the LFS cell", () => {
+    const states = new Map([
+      ["a.psd", { lockable: true, lock: null }],
+      ["b.psd", { lockable: true, lock: "ann" }],
+    ]);
+    const sorted = sortRows([entry("b.psd"), entry("a.psd"), entry("c.txt")], { key: "lfs", descending: false }, false, (path) =>
+      states.get(path),
+    );
+    expect(paths(sorted)).toEqual(["c.txt", "a.psd", "b.psd"]);
+  });
+
+  it("are hidden by default", () => {
+    expect(DEFAULT_COLUMNS.extension).toBe(false);
+    expect(DEFAULT_COLUMNS.lfs).toBe(false);
   });
 });

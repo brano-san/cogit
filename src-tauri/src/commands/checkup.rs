@@ -63,6 +63,21 @@ pub async fn lfs_locks(
     blocking("lfs_locks", move || app_state.lfs_locks(repo)).await
 }
 
+/// The Files LFS column: `.gitattributes` and the local lock cache, no network.
+#[tauri::command]
+#[specta::specta]
+pub async fn lfs_file_states(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    paths: Vec<String>,
+) -> Result<Vec<git_engine::LfsFileState>, GitError> {
+    let app_state = state.state.clone();
+    blocking("lfs_file_states", move || {
+        app_state.lfs_file_states(repo, &paths)
+    })
+    .await
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn commit_signature(

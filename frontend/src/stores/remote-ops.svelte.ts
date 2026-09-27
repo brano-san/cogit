@@ -1,4 +1,5 @@
-import { lfsLocks, openSubmodule, type LfsLock, type RepoId } from "$lib/ipc";
+import type { LfsState } from "$lib/file-columns";
+import { lfsFileStates, lfsLocks, openSubmodule, type LfsLock, type RepoId } from "$lib/ipc";
 import { notices } from "$stores/notices.svelte";
 import {
   addSubmodule,
@@ -66,6 +67,23 @@ class RemoteOpsStore {
   lockOwner(path: string): string | undefined {
     const held = this.#locks;
     return held && held.repo === repository.current?.repo ? held.owners.get(path) : undefined;
+  }
+
+  /** The files in Git LFS, read once per refresh of the list; empty when that fails. */
+  #lfsFiles = $state.raw<{ repo: RepoId; states: ReadonlyMap<string, LfsState> } | null>(null);
+  #lfsAsked = 0;
+
+  lfsState(path: string): LfsState | undefined {
+    const held = this.#lfsFiles;
+    const state = held && held.repo === repository.current?.repo ? held.states.get(path) : undefined;
+    const owner = this.lockOwner(path);
+    return state && owner !== undefined ? { ...state, lock: owner } : state;
+  }
+
+  async readLfsFiles(repo: RepoId, paths: string[]): Promise<void> {
+    const asked = ++this.#lfsAsked;
+    const found = await lfsFileStates(repo, paths).catch(() => []);
+    if (asked === this.#lfsAsked) this.#lfsFiles = { repo, states: new Map(found.map((state) => [state.path, state])) };
   }
 
   async readLocks(repo: RepoId): Promise<LfsLock[]> {

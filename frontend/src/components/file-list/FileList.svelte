@@ -9,6 +9,8 @@
   import Caret from "$components/common/Caret.svelte";
   import { COLUMN_LABELS, DEFAULT_COLUMN_WIDTHS, gridColumns, nextSort, shownColumns, sortRows, type ColumnKey } from "$lib/file-columns";
   import { filesView } from "$stores/files-view.svelte";
+  import { remoteOps } from "$stores/remote-ops.svelte";
+  import { repository } from "$stores/repository.svelte";
   import {
     DEFAULT_VIEW,
     groupByDirectory,
@@ -183,7 +185,7 @@
     shownSections(sections).map((section) => {
       const index = sections.indexOf(section);
       const kept = visibleFiles(section.files, active).filter((file) => keepFile(file, pattern, hits));
-      const files = sortRows(kept, filesView.sort, active.directories);
+      const files = sortRows(kept, filesView.sort, active.directories, (path) => remoteOps.lfsState(path));
       const paths = files.map((file) => file.path);
       return {
         section,
@@ -204,6 +206,13 @@
 
   const layout = $derived(paneLayout(sections.length, groups.length, active.separateIndex));
   const columns = $derived(shownColumns(filesView.columns, active.directories));
+
+  $effect(() => {
+    const repo = repository.current?.repo;
+    if (!repo || !columns.includes("lfs")) return;
+    const paths = sections.flatMap((section) => section.files.map((file) => file.path));
+    untrack(() => void remoteOps.readLfsFiles(repo, paths));
+  });
 
   function sortLabel(key: ColumnKey): string {
     const sort = filesView.sort;

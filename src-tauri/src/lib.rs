@@ -190,6 +190,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::checkup::ignore_rules,
             commands::checkup::lfs_locks,
             commands::checkup::commit_signature,
+            commands::checkup::lfs_file_states,
             commands::checkup::unportable_paths,
             commands::checkup::rerere_status,
             commands::checkup::rerere_forget,

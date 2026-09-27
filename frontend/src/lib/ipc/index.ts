@@ -1052,6 +1052,10 @@ export async function lfsLocks(repo: RepoId) {
   return unwrap(await commands.lfsLocks(repo));
 }
 
+export async function lfsFileStates(repo: RepoId, paths: string[]) {
+  return unwrap(await commands.lfsFileStates(repo, paths));
+}
+
 export async function commitSignature(repo: RepoId, rev: string) {
   return unwrap(await commands.commitSignature(repo, rev));
 }
