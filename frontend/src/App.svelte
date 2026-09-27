@@ -1589,7 +1589,6 @@
         return;
       }
       if (repository.epoch !== epoch) return;
-      repoList.opened(owner.root);
       await submodules.own(owner.repo, owner.root);
       if (repository.epoch !== epoch) return;
       repository.keep(owner);
@@ -1611,7 +1610,6 @@
   async function updateForeignModule(top: string, row: import("$lib/module-tree").ModuleRow, init: boolean) {
     try {
       const owner = await openRepository(top);
-      repoList.opened(owner.root);
       // A nested module is updated by the submodule above it.
       const parent = row.parent === "" ? owner.repo : (await openSubmodule(owner.repo, row.parent)).repo;
       await updateSubmodule(parent, row.path, init);
@@ -2053,7 +2051,6 @@
       void health.check(opened.repo, opened.root, opened.name);
       session.setActive(opened.root);
       session.opened(opened.root);
-      repoList.opened(opened.root);
       if (restoreOid) {
         void commit.select(opened.repo, restoreOid);
         // Waits for the graph to reach it: the list opens at the top otherwise.
