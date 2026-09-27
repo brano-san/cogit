@@ -11,6 +11,7 @@
   import { graphFolds } from "$stores/graph-folds.svelte";
   import { graphOverlays } from "$stores/graph-overlay.svelte";
   import { overlap } from "$stores/overlap.svelte";
+  import { avatars } from "$stores/avatars.svelte";
 
   /** What a commit's row in the graph shows, inside the row the list positions. */
   interface Props {
@@ -20,6 +21,7 @@
     folds: boolean;
     cells: readonly (GraphColumn | "overlap")[];
     timeFormat: GraphTimeFormat;
+    avatar?: boolean;
     /** What relative times count from. */
     now: number;
     clipX: number;
@@ -36,6 +38,7 @@
     folds,
     cells,
     timeFormat,
+    avatar = true,
     now,
     clipX,
     onrefmenu,
@@ -74,7 +77,11 @@
   {#if cell === "author"}
     <span class="author truncate" style:max-width="{COLUMN_WIDTH.author}px">{entry.commit.authorName}</span>
   {:else if cell === "avatar"}
-    <Avatar name={entry.commit.authorName} email={entry.commit.authorEmail} />
+    {#if avatar}
+      <Avatar name={entry.commit.authorName} email={entry.commit.authorEmail} />
+    {:else if avatars.enabled}
+      <span class="no-avatar" style:width="{COLUMN_WIDTH.avatar}px"></span>
+    {/if}
   {:else if cell === "time"}
     <span
       class="date time tabular truncate"
@@ -118,6 +125,10 @@
 {/each}
 
 <style>
+  .no-avatar {
+    flex: none;
+  }
+
   .capsule.more {
     background: var(--surface-raised);
     color: var(--text-secondary);

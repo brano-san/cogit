@@ -53,6 +53,7 @@ export interface Settings {
   graphTimeFormat: GraphTimeFormat;
   graphDensity: GraphDensity;
   graphStripes: boolean;
+  graphAvatarsChangedOnly: boolean;
   /** A link longer than this many rows is drawn as two stubs; 0 draws every link whole. */
   graphLongLinkRows: number;
   graphHighlightChecked: boolean;
@@ -102,6 +103,7 @@ export const DEFAULT_SETTINGS: Settings = {
   graphTimeFormat: "date",
   graphDensity: "normal",
   graphStripes: true,
+  graphAvatarsChangedOnly: false,
   graphLongLinkRows: 40,
   graphHighlightChecked: true,
   graphColoring: "default",

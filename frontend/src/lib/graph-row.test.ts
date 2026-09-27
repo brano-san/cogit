@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { displayDate } from "./format";
 import { textX } from "./graph-geometry";
 import {
+  avatarShown,
   COLUMN_WIDTH,
   GRAPH_COLUMNS,
   graphClipX,
@@ -77,5 +78,19 @@ describe("graphTime", () => {
 
   it("writes for date what the list always showed", () => {
     expect(graphTime(noon, 0, now, "date")).toBe(displayDate(noon, 0, now, "smart"));
+  });
+});
+
+describe("avatarShown", () => {
+  const authors = ["a@x", "a@x", "B@x", "b@x", "a@x"];
+  const shown = (changedOnly: boolean) =>
+    authors.map((email, row) => avatarShown(changedOnly, email, authors[row - 1]));
+
+  it("keeps only the topmost face of a run by one author", () => {
+    expect(shown(true)).toEqual([true, false, true, false, true]);
+  });
+
+  it("shows every face while off", () => {
+    expect(shown(false)).toEqual([true, true, true, true, true]);
   });
 });
