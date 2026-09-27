@@ -308,3 +308,19 @@ fn the_probe_of_a_git_directory_writes_nothing() {
         assert!(!sensitive);
     }
 }
+
+#[test]
+fn replace_refs_are_reported_as_replaced_history() {
+    let f = test_fixtures::linear(2).unwrap();
+    let first = f.oid("HEAD~1").unwrap();
+    let second = f.oid("HEAD").unwrap();
+    f.git(&["replace", &first, &second]).unwrap();
+
+    let report = RepoHandle::open(f.path()).unwrap().health_report();
+
+    assert!(
+        report
+            .iter()
+            .any(|finding| finding.issue == HealthIssue::ReplacedHistory { count: 1 })
+    );
+}

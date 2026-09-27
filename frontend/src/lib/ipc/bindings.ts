@@ -1105,7 +1105,9 @@ export type HealthIssue =
 /**  The parent records a commit the submodule's repository does not have. */
 { kind: "missingModuleCommit"; commit: string } | 
 /**  Owned by another user and not listed in `safe.directory`: the git CLI refuses it. */
-{ kind: "unsafeDirectory"; path: string };
+{ kind: "unsafeDirectory"; path: string } | 
+/**  `refs/replace/*` swap objects: the history shown is not the one stored. */
+{ kind: "replacedHistory"; count: number };
 
 export type Hook = {
 	name: string,

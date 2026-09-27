@@ -32,6 +32,10 @@ pub enum HealthIssue {
     UnsafeDirectory {
         path: String,
     },
+    /// `refs/replace/*` swap objects: the history shown is not the one stored.
+    ReplacedHistory {
+        count: u32,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
@@ -154,6 +158,17 @@ impl RepoHandle {
         }
         if let Some(issue) = self.ignore_case_issue() {
             issues.push(issue);
+        }
+        let replaced = self
+            .repo
+            .references()
+            .ok()
+            .and_then(|platform| platform.prefixed("refs/replace/").ok().map(Iterator::count))
+            .unwrap_or(0);
+        if replaced > 0 {
+            issues.push(HealthIssue::ReplacedHistory {
+                count: u32::try_from(replaced).unwrap_or(u32::MAX),
+            });
         }
         issues.extend(self.worktree_issues());
         issues
