@@ -140,7 +140,7 @@ fn an_octopus_opens_its_new_lanes_right_of_the_node_in_parent_order() {
         m.segments
     );
     assert_eq!(rows[3].lane, 1, "b takes the first new column");
-    assert_eq!(rows[4].lane, 2, "c the second");
+    assert_eq!(rows[4].lane, 1, "c slides left once b has joined the trunk");
 }
 
 /// Requirement 5: on any history, column 0 is the first-parent chain of the primary ref,
@@ -336,7 +336,11 @@ fn the_width_of_a_row_counts_both_edges_and_the_node() {
         Some("m"),
     );
     assert_eq!(rows[0].width, 2, "the branch leaves in the lower half only");
-    assert_eq!(rows[3].width, 2, "and comes back in the upper half only");
+    assert_eq!(
+        rows[2].width, 2,
+        "and forks back into the trunk in the lower half"
+    );
+    assert_eq!(rows[3].width, 1);
 }
 
 #[test]
@@ -478,13 +482,14 @@ fn a_lane_leaving_the_column_of_the_next_node_turns_before_its_ring() {
 }
 
 #[test]
-fn a_commit_waited_for_by_several_lanes_is_one_node_where_they_meet() {
+fn a_branch_forks_off_the_trunk_below_its_last_commit_not_at_the_parent() {
     let rows = run(
         &[("m", &["a", "b"]), ("a", &["r"]), ("b", &["r"]), ("r", &[])],
         Some("m"),
     );
     assert_eq!(rows[3].lane, 0);
-    assert_eq!(segs(&rows[3], Span::Top), vec![(0, 0), (1, 0)]);
+    assert_eq!(segs(&rows[2], Span::Bottom), vec![(1, 0)]);
+    assert_eq!(segs(&rows[3], Span::Top), vec![(0, 0)]);
 }
 
 #[test]
@@ -633,7 +638,7 @@ fn a_detached_head_is_its_own_mainline() {
 }
 
 #[test]
-fn a_three_parent_commit_fans_out_in_its_lower_half_and_each_line_joins_in_one_row() {
+fn a_stash_is_three_nodes_each_forking_off_the_trunk_at_its_own_row() {
     let rows = run(
         &[
             ("s", &["h", "i", "u"]),
@@ -647,13 +652,37 @@ fn a_three_parent_commit_fans_out_in_its_lower_half_and_each_line_joins_in_one_r
     assert_eq!(rows[0].kind, NodeKind::Merge);
     assert_eq!(segs(&rows[0], Span::Bottom), vec![(1, 1), (1, 2), (1, 3)]);
     assert!(segs(&rows[0], Span::Top).is_empty());
-    for row in &rows[1..3] {
-        assert!(
-            row.segments
-                .iter()
-                .all(|seg| seg.from == seg.to || seg.span == Span::Top),
-            "{row:?}"
-        );
-    }
-    assert_eq!(segs(&rows[3], Span::Top), vec![(1, 0), (2, 0)]);
+    assert_eq!(rows.len(), 5);
+    assert!(
+        segs(&rows[1], Span::Bottom).contains(&(2, 1)),
+        "{:?}",
+        rows[1].segments
+    );
+    assert_eq!(rows[2].kind, NodeKind::Root);
+    assert_eq!(segs(&rows[3], Span::Top), vec![(1, 0)]);
+}
+
+#[test]
+fn branches_off_one_parent_join_the_trunk_at_their_own_rows() {
+    let rows = run(
+        &[
+            ("m", &["p"]),
+            ("a2", &["a1"]),
+            ("b1", &["p"]),
+            ("a1", &["p"]),
+            ("p", &[]),
+        ],
+        Some("m"),
+    );
+    assert!(
+        segs(&rows[2], Span::Bottom).contains(&(1, 0)),
+        "{:?}",
+        rows[2].segments
+    );
+    assert!(
+        segs(&rows[3], Span::Bottom).contains(&(1, 0)),
+        "{:?}",
+        rows[3].segments
+    );
+    assert_eq!(segs(&rows[4], Span::Top), vec![(0, 0)]);
 }

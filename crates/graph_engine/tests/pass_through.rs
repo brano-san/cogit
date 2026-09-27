@@ -42,7 +42,15 @@ fn a_merged_line_goes_on_through_the_commits_left_out() {
     rows.extend(push(vec![node("t", &["x"]), node("x", &[])], &mut cursor));
 
     assert_eq!(into_node(&rows[1]), 1, "the merge's second line ends in t");
-    assert_eq!(into_node(&rows[2]), 2, "m's and t's lines end in x");
+    assert!(
+        rows[1]
+            .segments
+            .iter()
+            .any(|s| s.span == Span::Bottom && s.from == rows[1].lane && s.to == 0),
+        "t forks off the main line: {:?}",
+        rows[1]
+    );
+    assert_eq!(into_node(&rows[2]), 1, "only the main line ends in x");
 }
 
 #[test]
