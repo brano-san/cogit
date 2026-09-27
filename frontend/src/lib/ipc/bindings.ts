@@ -1076,8 +1076,10 @@ export type GraphPaintRequest = {
 	tips?: PaintTip[],
 	/**  All but this commit's ancestors and descendants is dimmed. */
 	ancestryOf?: string | null,
-	/**  Mergeable Coloring: all but what merging this commit into HEAD would bring is dimmed. */
-	mergeableOf?: string | null,
+	/**  Mergeable Coloring: HEAD's history is dimmed, what it has not merged stands out. */
+	mergeable?: boolean,
+	/**  Branch Coloring: merged-in lines are dimmed. */
+	dimMerges?: boolean,
 };
 
 /**  How far the walk got. The rows themselves travel only when asked for, by window. */
