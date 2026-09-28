@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+env:
+  # .cargo/config.toml points at sccache, which CI runners do not have; rust-cache covers it.
+  RUSTC_WRAPPER: ""
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
