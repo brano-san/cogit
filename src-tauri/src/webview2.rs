@@ -1,4 +1,5 @@
-//! What the installed WebView2 runtime is, and which keys the window takes back from it.
+//! What the installed WebView2 runtime is, which keys the window takes back from it, and which
+//! browser behaviors it is stripped of.
 //!
 //! The runtime updates itself on the user's machine without asking anyone, so "which
 //! version was it" is the first question about any report that starts with "the interface
@@ -14,10 +15,12 @@ use webview2_com::AcceleratorKeyPressedEventHandler;
 use webview2_com::Microsoft::Web::WebView2::Win32::{
     COREWEBVIEW2_KEY_EVENT_KIND, COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN,
     COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN, GetAvailableCoreWebView2BrowserVersionString,
+    ICoreWebView2Settings3, ICoreWebView2Settings4, ICoreWebView2Settings5, ICoreWebView2Settings6,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetKeyState, VIRTUAL_KEY, VK_CONTROL, VK_MENU, VK_RMENU, VK_SHIFT,
 };
+use windows_core::Interface as _;
 use windows_core::{PCWSTR, PWSTR};
 
 use crate::accelerators::Modifiers;
@@ -37,6 +40,93 @@ pub fn browser_version() -> Option<String> {
 
     let text = webview2_com::take_pwstr(version);
     (!text.is_empty()).then_some(text)
+}
+
+/// Turns the webview from a browser into an application surface, once per window (main and
+/// every child). Host level, so it holds before any page script runs and cannot be undone by
+/// a page that fails to load: page-level `preventDefault` stays only as a second line.
+///
+/// Off: the browser accelerator keys (`Ctrl+F/P/S/U/J/H/R/N/T/W/O/D/G/L`, `F3/F5/F7/F12`,
+/// `Alt+Left/Right`, `Ctrl+Shift+I/R/…`: find, print, save, view-source, downloads, history,
+/// reload, new window, devtools, caret browsing, back/forward), the default context menu, page
+/// zoom (`Ctrl +/-/0`, `Ctrl+wheel`, pinch), swipe navigation, the status bar with link URLs,
+/// and password and form autofill. Developer tools stay available in debug builds only.
+///
+/// The accelerator switch does not stop `keydown` reaching the page, nor
+/// `AcceleratorKeyPressed`: the menu claims (`install_accelerators`) and the page's own key
+/// handlers keep working; only the browser's default action for the key is gone.
+///
+/// A setting an old runtime lacks is logged and skipped; the others still apply.
+pub fn harden<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>) {
+    let installed = window.with_webview(|platform| {
+        let core = match unsafe { platform.controller().CoreWebView2() } {
+            Ok(core) => core,
+            Err(err) => {
+                tracing::warn!(error = %err, "no CoreWebView2 to strip of browser behavior");
+                return;
+            }
+        };
+        let settings = match unsafe { core.Settings() } {
+            Ok(settings) => settings,
+            Err(err) => {
+                tracing::warn!(error = %err, "cannot read the WebView2 settings");
+                return;
+            }
+        };
+        let note = |name: &str, result: windows_core::Result<()>| {
+            if let Err(err) = result {
+                tracing::warn!(error = %err, setting = name, "cannot apply a WebView2 setting");
+            }
+        };
+
+        unsafe {
+            note(
+                "AreDefaultContextMenusEnabled",
+                settings.SetAreDefaultContextMenusEnabled(false),
+            );
+            note(
+                "IsZoomControlEnabled",
+                settings.SetIsZoomControlEnabled(false),
+            );
+            note("IsStatusBarEnabled", settings.SetIsStatusBarEnabled(false));
+            note(
+                "AreDevToolsEnabled",
+                settings.SetAreDevToolsEnabled(cfg!(debug_assertions)),
+            );
+        }
+        // Newer interfaces: each cast fails on a runtime that predates it.
+        if let Ok(s) = settings.cast::<ICoreWebView2Settings3>() {
+            note("AreBrowserAcceleratorKeysEnabled", unsafe {
+                s.SetAreBrowserAcceleratorKeysEnabled(false)
+            });
+        }
+        if let Ok(s) = settings.cast::<ICoreWebView2Settings4>() {
+            unsafe {
+                note(
+                    "IsPasswordAutosaveEnabled",
+                    s.SetIsPasswordAutosaveEnabled(false),
+                );
+                note(
+                    "IsGeneralAutofillEnabled",
+                    s.SetIsGeneralAutofillEnabled(false),
+                );
+            }
+        }
+        if let Ok(s) = settings.cast::<ICoreWebView2Settings5>() {
+            note("IsPinchZoomEnabled", unsafe {
+                s.SetIsPinchZoomEnabled(false)
+            });
+        }
+        if let Ok(s) = settings.cast::<ICoreWebView2Settings6>() {
+            note("IsSwipeNavigationEnabled", unsafe {
+                s.SetIsSwipeNavigationEnabled(false)
+            });
+        }
+    });
+
+    if let Err(err) = installed {
+        tracing::warn!(error = %err, "cannot reach the platform webview to strip browser behavior");
+    }
 }
 
 /// Gives the window its menu accelerators back (problem 3).

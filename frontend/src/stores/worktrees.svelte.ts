@@ -8,6 +8,8 @@ import {
   repairWorktree,
   unlockWorktree,
   worktreeChanges,
+  worktreeLeftover,
+  deleteWorktreeLeftover,
   worktreeHolding,
   type FileEntry,
   type RepoId,
@@ -84,6 +86,15 @@ class WorktreesStore {
 
   async unlock(path: string): Promise<void> {
     await this.#act((repo) => unlockWorktree(repo, path));
+  }
+
+  /** A folder git could not finish deleting after it dropped the registration. */
+  async leftover(path: string): Promise<boolean> {
+    return this.repo === null ? false : await worktreeLeftover(this.repo, path).catch(() => false);
+  }
+
+  async deleteLeftover(path: string): Promise<void> {
+    await this.#act((repo) => deleteWorktreeLeftover(repo, path));
   }
 
   async changes(path: string): Promise<FileEntry[]> {

@@ -190,3 +190,36 @@ pub async fn prune_worktrees(
     )
     .await
 }
+
+/// Whether a folder git failed to delete is still there, for the follow-up after Remove.
+#[tauri::command]
+#[specta::specta]
+pub async fn worktree_leftover(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    path: String,
+) -> Result<bool, GitError> {
+    let app_state = state.state.clone();
+    blocking("worktree_leftover", move || {
+        app_state.worktree_leftover(repo, &path)
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_worktree_leftover(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    path: String,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Worktree,
+        "delete_worktree_leftover",
+        move || app_state.delete_worktree_leftover(repo, &path),
+    )
+    .await
+}

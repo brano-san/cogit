@@ -58,7 +58,7 @@
 
   let field: HTMLTextAreaElement | undefined = $state();
 
-  // Local ▸ Commit… (Ctrl+Enter), Commit with Amend (Ctrl+Shift+Enter) and Ctrl+K reach the
+  // Local ▸ Commit… (Ctrl+Enter), Commit with Amend (Ctrl+Shift+Enter) and Go to the Commit Message reach the
   // box from anywhere in the window (11 §4).
   onDestroy(
     commitBox.attach({
@@ -89,6 +89,18 @@
     } catch {
       message = initialMessage(null, template);
     }
+  });
+
+  // The Commit window (Ctrl+K) keeps the same draft: what it writes or clears arrives here.
+  $effect(() => {
+    const key = draftKey;
+    const onstorage = (event: StorageEvent) => {
+      if (event.key !== key) return;
+      const next = initialMessage(event.newValue, template);
+      if (next !== message) message = next;
+    };
+    window.addEventListener("storage", onstorage);
+    return () => window.removeEventListener("storage", onstorage);
   });
 
   $effect(() => {

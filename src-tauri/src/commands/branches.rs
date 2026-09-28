@@ -229,3 +229,22 @@ pub async fn delete_tag(
     )
     .await
 }
+
+/// A folder of Branches: one queued step, each ref reported on its own.
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_refs(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    request: app_state::RefDeletion,
+) -> Result<app_state::RefDeletionReport, GitError> {
+    let app_state = state.state.clone();
+    mutating(
+        &state.state,
+        repo,
+        OperationKind::Branch,
+        "delete_refs",
+        move || app_state.delete_refs(repo, &request),
+    )
+    .await
+}

@@ -1020,6 +1020,7 @@
     message={confirmation.open.message}
     confirm={confirmation.open.confirm}
     warning={confirmation.open.warning}
+    items={confirmation.open.items}
     option={confirmation.open.option}
     onanswer={(yes, checked) => confirmation.answer(yes, checked)}
   />

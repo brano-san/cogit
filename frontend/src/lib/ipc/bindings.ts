@@ -163,7 +163,8 @@ export const commands = {
 	skipOperation: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("skip_operation", { repo })),
 	cherryPick: (repo: RepoId, commits: string[]) => typedError<null, GitError>(__TAURI_INVOKE("cherry_pick", { repo, commits })),
 	revert: (repo: RepoId, commits: string[]) => typedError<null, GitError>(__TAURI_INVOKE("revert", { repo, commits })),
-	lostCommits: (repo: RepoId, limit: number) => typedError<CommitRow[], GitError>(__TAURI_INVOKE("lost_commits", { repo, limit })),
+	/**  Every lost commit, newest first, in chunks; the answer is how many were sent. */
+	lostCommits: (repo: RepoId, onChunk: Channel<CommitRow[]>) => typedError<number, GitError>(__TAURI_INVOKE("lost_commits", { repo, onChunk })),
 	/**
 	 *  Each row not cached costs a `head`, a `branches` and a `status`, so it leaves the
 	 *  async workers that carry IPC.
@@ -257,6 +258,11 @@ export const commands = {
 	addWorktree: (repo: RepoId, path: string, branch: string, create: boolean, base: string | null) => typedError<null, GitError>(__TAURI_INVOKE("add_worktree", { repo, path, branch, create, base })),
 	removeWorktree: (repo: RepoId, path: string, force: boolean) => typedError<null, GitError>(__TAURI_INVOKE("remove_worktree", { repo, path, force })),
 	pruneWorktrees: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("prune_worktrees", { repo })),
+	/**  A folder of Branches: one queued step, each ref reported on its own. */
+	deleteRefs: (repo: RepoId, request: RefDeletion) => typedError<RefDeletionReport, GitError>(__TAURI_INVOKE("delete_refs", { repo, request })),
+	/**  Whether a folder git failed to delete is still there, for the follow-up after Remove. */
+	worktreeLeftover: (repo: RepoId, path: string) => typedError<boolean, GitError>(__TAURI_INVOKE("worktree_leftover", { repo, path })),
+	deleteWorktreeLeftover: (repo: RepoId, path: string) => typedError<null, GitError>(__TAURI_INVOKE("delete_worktree_leftover", { repo, path })),
 	/**  A worktree in the panels, not in the Repositories list (R-184). */
 	openWorktree: (owner: RepoId, path: string) => typedError<RepoSummary, GitError>(__TAURI_INVOKE("open_worktree", { owner, path })),
 	worktreeChanges: (repo: RepoId, path: string) => typedError<FileEntry[], GitError>(__TAURI_INVOKE("worktree_changes", { repo, path })),
@@ -448,6 +454,13 @@ export const commands = {
 	 *  rebuilds itself after a webview reload (T2.5).
 	 */
 	openCompareWindow: (url: string, title: string) => typedError<null, GitError>(__TAURI_INVOKE("open_compare_window", { url, title })),
+	/**  Building a window blocks, so it happens on the blocking pool (R-201). */
+	openCommitWindow: (repo: RepoId, root: string) => typedError<null, GitError>(__TAURI_INVOKE("open_commit_window", { repo, root })),
+	/**
+	 *  The last `limit` commits with their full messages, for "Select from Log" and the
+	 *  recent messages of the Commit window.
+	 */
+	recentCommits: (repo: RepoId, limit: number) => typedError<CommitDetails[], GitError>(__TAURI_INVOKE("recent_commits", { repo, limit })),
 	commitTemplate: (repo: RepoId) => typedError<string | null, GitError>(__TAURI_INVOKE("commit_template", { repo })),
 	stageMode: (repo: RepoId, path: string, executable: boolean) => typedError<null, GitError>(__TAURI_INVOKE("stage_mode", { repo, path, executable })),
 	listPresets: (repo: RepoId) => typedError<PresetStatus[], GitError>(__TAURI_INVOKE("list_presets", { repo })),
@@ -747,6 +760,7 @@ export type CommitRequest = {
 	message: string,
 	amend: boolean,
 	noVerify: boolean,
+	signoff?: boolean,
 	/**  Empty means everything staged; a list narrows the commit to those paths (T6.8). */
 	only?: string[],
 };
@@ -874,6 +888,11 @@ export type EolInfo = {
 	old: LineEnding,
 	new: LineEnding,
 	normalized: boolean,
+};
+
+export type FailedDeletion = {
+	name: string,
+	error: GitError,
 };
 
 export type FileChange = "added" | "modified" | "deleted" | "renamed" | "copied" | 
@@ -1539,6 +1558,25 @@ export type RefDate = {
 	timestamp: number,
 };
 
+export type RefDeletion = {
+	kind: RefDeletionKind,
+	/**  The remote of `RemoteBranch` names, which are written `origin/topic`. */
+	remote: string | null,
+	names: string[],
+	/**  Drops branches git calls not fully merged. */
+	force: boolean,
+};
+
+export type RefDeletionKind = "branch" | "remoteBranch" | "tag";
+
+export type RefDeletionReport = {
+	deleted: string[],
+	/**  Kept by git; repeating with `force` drops them. */
+	notFullyMerged: string[],
+	skipped: SkippedDeletion[],
+	failed: FailedDeletion[],
+};
+
 export type ReflogEntry = {
 	selector: string,
 	oid: string,
@@ -1781,6 +1819,11 @@ export type SignatureCheck = {
 	key: string,
 	/**  What gpg or ssh-keygen said, unaltered. */
 	raw: string,
+};
+
+export type SkippedDeletion = {
+	name: string,
+	reason: string,
 };
 
 export type SkippedRef = {

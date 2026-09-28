@@ -1,6 +1,7 @@
 <script lang="ts">
   import QueueNav from "$components/common/QueueNav.svelte";
   import type { HealthAction } from "$lib/health";
+  import { CopyFeedback } from "$lib/copy-feedback.svelte";
   import { splitLinks } from "$lib/links";
   import { placesShown } from "$lib/notices";
   import { notices } from "$stores/notices.svelte";
@@ -9,23 +10,24 @@
       window was the model — icon, `N of M`, arrows, close — and each entry brings its own
       buttons (doc/12-risks.md, R-178). */
   interface Props {
-    oncopy: (text: string) => void;
     onopenurl: (url: string) => void;
     onshowoutput: (record: number) => void;
     onaction: (action: HealthAction) => void;
   }
 
-  let { oncopy, onopenurl, onshowoutput, onaction }: Props = $props();
+  let { onopenurl, onshowoutput, onaction }: Props = $props();
 
   const notice = $derived(notices.current);
   /** The entry whose list of places was opened past the first few. */
   let expandedFor = $state<string | null>(null);
-  let copied = $state(false);
+  const reportCopy = new CopyFeedback();
+  /** One feedback per fix command, so only the button that was pressed changes. */
+  const fixCopies = new Map<string, CopyFeedback>();
 
-  function copy(text: string) {
-    oncopy(text);
-    copied = true;
-    setTimeout(() => (copied = false), 1500);
+  function fixCopy(fix: string): CopyFeedback {
+    let entry = fixCopies.get(fix);
+    if (!entry) fixCopies.set(fix, (entry = new CopyFeedback()));
+    return entry;
   }
 </script>
 
@@ -130,9 +132,12 @@
           To fix it, run {(notice.places?.length ?? 0) > 1 ? "in each one listed" : "there"}:
         </p>
         {#each notice.fixes as fix (fix)}
+          {@const feedback = fixCopy(fix)}
           <div class="fix">
             <code class="mono">{fix}</code>
-            <button type="button" class="btn" onclick={() => oncopy(fix)}>Copy</button>
+            <button type="button" class="btn" onclick={() => void feedback.copy(fix)}
+              >{feedback.label("Copy")}</button
+            >
           </div>
         {/each}
       {/if}
@@ -160,8 +165,8 @@
           >Ignore for this repository</button
         >
       {:else}
-        <button type="button" class="btn" onclick={() => copy(notice.report)}
-          >{copied ? "Copied" : "Copy"}</button
+        <button type="button" class="btn" onclick={() => void reportCopy.copy(notice.report)}
+          >{reportCopy.label("Copy")}</button
         >
       {/if}
     </footer>

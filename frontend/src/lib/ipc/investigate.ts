@@ -42,7 +42,7 @@ export interface BlameTables {
 
 /** Chunks may still be in flight when the command returns its count, so the promise
     settles on whichever of the two arrives last. */
-function collect<T, C>(
+export function collect<T, C>(
   start: (channel: Channel<C>) => Promise<Result<number>>,
   take: (chunk: C) => void,
   size: () => number,

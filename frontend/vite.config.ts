@@ -83,6 +83,7 @@ export default defineConfig({
         merge: resolve(fileURLToPath(new URL(".", import.meta.url)), "merge.html"),
         investigate: resolve(fileURLToPath(new URL(".", import.meta.url)), "investigate.html"),
         blame: resolve(fileURLToPath(new URL(".", import.meta.url)), "blame.html"),
+        commit: resolve(fileURLToPath(new URL(".", import.meta.url)), "commit.html"),
       },
     },
   },

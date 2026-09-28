@@ -12,6 +12,7 @@ fn request(message: &str) -> CommitRequest {
         message: message.to_owned(),
         amend: false,
         no_verify: false,
+        signoff: false,
         only: Vec::new(),
     }
 }
@@ -164,6 +165,7 @@ fn amend_replaces_the_previous_commit_instead_of_adding_one() {
             message: "commit 2, reworded".to_owned(),
             amend: true,
             no_verify: false,
+            signoff: false,
             only: Vec::new(),
         })
         .unwrap();
@@ -188,6 +190,7 @@ fn amend_can_add_staged_changes_to_the_previous_commit() {
             message: "commit 0".to_owned(),
             amend: true,
             no_verify: false,
+            signoff: false,
             only: Vec::new(),
         })
         .unwrap();
@@ -239,6 +242,7 @@ fn no_verify_skips_a_hook_that_would_reject_the_commit() {
             message: "allowed".to_owned(),
             amend: false,
             no_verify: true,
+            signoff: false,
             only: Vec::new(),
         })
         .unwrap();
@@ -258,6 +262,7 @@ fn committing_only_named_paths_leaves_the_rest_staged() {
         message: "only one".to_owned(),
         amend: false,
         no_verify: false,
+        signoff: false,
         only: vec!["one.txt".to_owned()],
     })
     .unwrap();
@@ -517,4 +522,44 @@ fn the_commit_itself_skips_the_maintenance_it_would_wait_for() {
         "{first}"
     );
     assert_eq!(packs_after(&f, std::time::Duration::from_secs(30)), 1);
+}
+
+#[test]
+fn signoff_appends_a_signed_off_by_trailer() {
+    let f = test_fixtures::linear(1).unwrap();
+    std::fs::write(f.path().join("fresh.txt"), "new\n").unwrap();
+    f.git(&["add", "--", "fresh.txt"]).unwrap();
+    let repo = open(&f);
+
+    let oid = repo
+        .commit(&CommitRequest {
+            signoff: true,
+            ..request("signed")
+        })
+        .unwrap();
+
+    let details = repo.commit_details(&oid).unwrap();
+    assert!(
+        details.trailers.iter().any(|t| t.key == "Signed-off-by"),
+        "{:?}",
+        details.trailers
+    );
+}
+
+#[test]
+fn recent_commits_lists_the_newest_messages_first_up_to_the_limit() {
+    let f = test_fixtures::linear(3).unwrap();
+    let repo = open(&f);
+
+    let recent = repo.recent_commits(2).unwrap();
+
+    assert_eq!(recent.len(), 2);
+    assert_eq!(recent[0].oid, f.oid("HEAD").unwrap());
+    assert_eq!(recent[1].oid, f.oid("HEAD~1").unwrap());
+}
+
+#[test]
+fn recent_commits_of_a_branch_with_no_commit_is_empty() {
+    let f = test_fixtures::empty().unwrap();
+    assert!(open(&f).recent_commits(10).unwrap().is_empty());
 }

@@ -1,4 +1,5 @@
 use crate::{CommitRow, GitError, RepoHandle, Result};
+use rayon::prelude::*;
 use serde::Serialize;
 use std::collections::HashSet;
 
@@ -10,6 +11,13 @@ pub struct Reachable {
     set: HashSet<gix::ObjectId>,
     counted: bool,
     recounts: u32,
+    /// Every object id already looked at, and the commits among them: a new call reads the
+    /// type of the ids it has not seen, not of all of them (R-622).
+    seen: HashSet<gix::ObjectId>,
+    commits: Vec<gix::ObjectId>,
+    listings: u32,
+    /// Set only when every timestamp it hashes is old enough to change on a write.
+    stamp: Option<u64>,
 }
 
 impl Reachable {
@@ -17,6 +25,12 @@ impl Reachable {
     #[must_use]
     pub fn recounts(&self) -> u32 {
         self.recounts
+    }
+
+    /// How many times the object ids were listed, rather than skipped as unchanged.
+    #[must_use]
+    pub fn listings(&self) -> u32 {
+        self.listings
     }
 }
 
@@ -114,8 +128,9 @@ impl RepoHandle {
         Ok(out)
     }
 
-    /// Commits the reflog remembers but no ref can reach — what a reset or a rebase left
-    /// behind. This is the only way back to them from inside the client.
+    /// Every commit no ref or worktree HEAD can reach, newest first: what a reset, a
+    /// rebase, a deleted branch or a dropped stash left behind. The reflog is not the
+    /// source: a commit no reflog remembers is just as lost (R-622).
     pub fn lost_commits(&self, limit: usize) -> Result<Vec<CommitRow>> {
         self.lost_commits_with(limit, &mut Reachable::default())
     }
@@ -123,17 +138,29 @@ impl RepoHandle {
     /// As `lost_commits`, reusing what `cache` knows about reachability.
     pub fn lost_commits_with(&self, limit: usize, cache: &mut Reachable) -> Result<Vec<CommitRow>> {
         self.update_reachable(cache)?;
-        let mut seen = HashSet::new();
-        let mut lost = Vec::new();
-        let mailmap = self.mailmap();
-
-        for entry in self.reflog(limit)? {
-            let known = gix::ObjectId::from_hex(entry.oid.as_bytes())
-                .is_ok_and(|id| cache.set.contains(&id));
-            if known || !seen.insert(entry.oid.clone()) {
+        let mut dated: Vec<(i64, gix::ObjectId)> = Vec::new();
+        self.scan_new_commits(cache)?;
+        for &id in &cache.commits {
+            if cache.set.contains(&id) {
                 continue;
             }
-            if let Ok(details) = self.commit_details_with(&entry.oid, &mailmap) {
+            let Ok(commit) = self.repo.find_commit(id) else {
+                continue;
+            };
+            let time = commit
+                .author()
+                .ok()
+                .and_then(|author| author.time().ok())
+                .map_or(0, |time| time.seconds);
+            dated.push((time, id));
+        }
+        dated.sort_unstable_by(|a, b| b.cmp(a));
+        dated.truncate(limit);
+
+        let mailmap = self.mailmap();
+        let mut lost = Vec::with_capacity(dated.len());
+        for (_, id) in dated {
+            if let Ok(details) = self.commit_details_with(&id.to_string(), &mailmap) {
                 lost.push(CommitRow {
                     oid: details.oid,
                     parents: details.parents,
@@ -193,27 +220,90 @@ impl RepoHandle {
         Ok(())
     }
 
-    /// What keeps a commit from being lost: the graph's tips, and every tag. The graph
-    /// itself does not walk from tags, so they are added here only.
+    /// What keeps a commit from being lost: every ref (branches, remotes, tags, `stash`,
+    /// notes, `refs/pull/*`…) and the HEAD of every worktree, detached ones included. Reflogs
+    /// do not keep a commit: they are how a lost one is found (R-622).
     fn keeping_tips(&self) -> Result<Vec<gix::ObjectId>> {
-        let mut tips = self.graph_tips()?;
+        let repo = self.repo.main_repo().unwrap_or_else(|_| self.repo.clone());
+        let mut tips = Vec::new();
+        let mut heads = vec![repo.clone()];
+        for proxy in repo.worktrees().unwrap_or_default() {
+            match proxy.into_repo_with_possibly_inaccessible_worktree() {
+                Ok(linked) => heads.push(linked),
+                Err(err) => {
+                    tracing::error!(error = ?err, context = "lost commits: unreadable worktree")
+                }
+            }
+        }
+        heads.push(self.repo.clone());
+        for head in heads {
+            if let Ok(id) = head.head_id() {
+                tips.push(id.detach());
+            }
+        }
         let platform = self
             .repo
             .references()
             .map_err(|err| GitError::Internal(format!("cannot read references: {err}")))?;
-        let tags = platform
-            .tags()
-            .map_err(|err| GitError::Internal(format!("cannot list tags: {err}")))?;
-        for mut tag in tags.flatten() {
+        for mut reference in platform
+            .all()
+            .map_err(|err| GitError::Internal(format!("cannot list references: {err}")))?
+            .flatten()
+        {
             // An annotated tag names a tag object; the commit is under it.
-            let Ok(id) = tag.peel_to_id() else { continue };
+            let Ok(id) = reference.peel_to_id() else {
+                continue;
+            };
             if self.repo.find_commit(id.detach()).is_ok() {
                 tips.push(id.detach());
             }
         }
+        // `stash@{n}` older than the top one is held by the stash reflog alone: the Stashes
+        // section lists it, so it is kept, not lost.
+        for line in self.reflog_of("refs/stash", usize::MAX)? {
+            tips.push(line.oid);
+        }
         tips.sort_unstable();
         tips.dedup();
         Ok(tips)
+    }
+
+    /// Commits in the object database, loose and packed alike, that `cache` has not seen.
+    /// The ids are listed again only when the object directories changed: any doubt
+    /// (alternates, unreadable directory, a timestamp too recent to tell) lists them.
+    fn scan_new_commits(&self, cache: &mut Reachable) -> Result<()> {
+        let stamp = self.object_store_stamp();
+        if stamp.is_some() && stamp == cache.stamp {
+            return Ok(());
+        }
+        cache.stamp = stamp;
+        cache.listings += 1;
+        let ids = self
+            .repo
+            .objects
+            .iter()
+            .map_err(|err| GitError::Internal(format!("cannot list objects: {err}")))?;
+        let fresh: Vec<gix::ObjectId> = ids.flatten().filter(|id| cache.seen.insert(*id)).collect();
+        let shared = self.repo.clone().into_sync();
+        let found: Vec<gix::ObjectId> = fresh
+            .par_chunks(2048)
+            .flat_map_iter(|chunk| {
+                let repo = shared.to_thread_local();
+                chunk
+                    .iter()
+                    .filter(|id| match repo.find_header(**id) {
+                        Ok(header) => header.kind() == gix::object::Kind::Commit,
+                        Err(err) => {
+                            tracing::error!(error = ?err, context = "lost commits: unreadable object header");
+                            false
+                        }
+                    })
+                    .copied()
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        cache.commits.extend(found);
+        Ok(())
     }
 
     fn parents_of(&self, id: gix::ObjectId) -> Result<Vec<gix::ObjectId>> {
@@ -241,5 +331,36 @@ impl RepoHandle {
             }
         }
         Ok(set)
+    }
+}
+
+impl RepoHandle {
+    /// A hash of the names and times of the `objects/xx` directories and the packs. A write
+    /// changes one of them; `None` when the store cannot be vouched for.
+    fn object_store_stamp(&self) -> Option<u64> {
+        use std::hash::{Hash as _, Hasher as _};
+        // Coarser than any filesystem's timestamps (FAT: 2 s).
+        const SETTLE: std::time::Duration = std::time::Duration::from_secs(2);
+        let root = self.repo.objects.store_ref().path().to_owned();
+        if root.join("info").join("alternates").exists() {
+            return None;
+        }
+        let now = std::time::SystemTime::now();
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        for dir in [root.clone(), root.join("pack")] {
+            let mut entries = Vec::new();
+            for entry in std::fs::read_dir(&dir).ok()? {
+                let entry = entry.ok()?;
+                let meta = entry.metadata().ok()?;
+                let modified = meta.modified().ok()?;
+                if now.duration_since(modified).is_ok_and(|age| age < SETTLE) {
+                    return None;
+                }
+                entries.push((entry.file_name(), modified, meta.len()));
+            }
+            entries.sort();
+            entries.hash(&mut hasher);
+        }
+        Some(hasher.finish())
     }
 }

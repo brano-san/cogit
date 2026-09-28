@@ -76,6 +76,14 @@ impl AppState {
         self.handle(repo)?.commit_template()
     }
 
+    pub fn recent_commits(
+        &self,
+        repo: RepoId,
+        limit: u32,
+    ) -> Result<Vec<git_engine::CommitDetails>, git_engine::GitError> {
+        self.handle(repo)?.recent_commits(limit as usize)
+    }
+
     /// Where the user's own presets live. Set once at startup from the app config dir.
     pub fn use_preset_dir(&self, dir: std::path::PathBuf) {
         *self.preset_dir.write() = Some(dir);

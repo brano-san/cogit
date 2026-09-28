@@ -96,15 +96,23 @@ pub async fn graph_overlay(
     .await
 }
 
+/// Every lost commit, newest first, in chunks; the answer is how many were sent.
 #[tauri::command]
 #[specta::specta]
 pub async fn lost_commits(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,
-    limit: u32,
-) -> Result<Vec<CommitRow>, GitError> {
+    on_chunk: tauri::ipc::Channel<Vec<CommitRow>>,
+) -> Result<u32, GitError> {
     let app_state = state.state.clone();
-    blocking("lost_commits", move || app_state.lost_commits(repo, limit)).await
+    let lost = blocking("lost_commits", move || {
+        app_state.lost_commits(repo, u32::MAX)
+    })
+    .await?;
+    for chunk in lost.chunks(DEFAULT_CHUNK_SIZE) {
+        let _ = on_chunk.send(chunk.to_vec());
+    }
+    Ok(u32::try_from(lost.len()).unwrap_or(u32::MAX))
 }
 
 #[tauri::command]

@@ -95,6 +95,23 @@ impl AppState {
         Ok(())
     }
 
+    pub fn worktree_leftover(
+        &self,
+        repo: RepoId,
+        path: &str,
+    ) -> Result<bool, git_engine::GitError> {
+        Ok(self.handle(repo)?.worktree_leftover(path))
+    }
+
+    pub fn delete_worktree_leftover(
+        &self,
+        repo: RepoId,
+        path: &str,
+    ) -> Result<(), git_engine::GitError> {
+        let _quiet = self.quiet(repo);
+        self.handle(repo)?.delete_worktree_leftover(path)
+    }
+
     pub fn prune_worktrees(&self, repo: RepoId) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
         self.handle(repo)?.prune_worktrees()

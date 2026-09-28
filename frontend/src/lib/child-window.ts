@@ -1,5 +1,6 @@
 import { closeThisWindow } from "$lib/ipc";
 import { suppressBrowserFind } from "$lib/browser-find";
+import { suppressBrowserNavigation } from "$lib/browser-navigation";
 import { suppressNativeMenu } from "$lib/native-menu";
 
 interface Keyed {
@@ -86,11 +87,13 @@ interface ChildGlobals {
 export function installChildWindow(win: Window): () => void {
   const stopMenu = suppressNativeMenu(win.document);
   const stopFind = suppressBrowserFind(win);
+  const stopNavigation = suppressBrowserNavigation(win);
   win.addEventListener("keydown", onWindowKey);
   (win as Window & ChildGlobals).__cogitMounted = true;
   return () => {
     stopMenu();
     stopFind();
+    stopNavigation();
     win.removeEventListener("keydown", onWindowKey);
   };
 }

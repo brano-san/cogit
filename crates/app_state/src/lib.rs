@@ -20,6 +20,7 @@ pub mod logging;
 mod network;
 mod presets;
 mod queue;
+mod ref_batch;
 mod ref_ops;
 mod remote_ops;
 mod remotes;
@@ -50,6 +51,10 @@ pub use journal::{CommandNotice, is_warning, record};
 pub use network::NetworkRun;
 pub use presets::PresetStatus;
 pub use queue::{Operation, OperationKind, OperationPermit, OperationPhase, Queue};
+pub use ref_batch::{
+    FailedDeletion, RefDeletion, RefDeletionKind, RefDeletionReport, SkippedDeletion,
+    split_deletable,
+};
 pub use registry::{OpenRepo, RepoRefs, RepoSummary, ScanHit};
 pub use rows::RepoOverview;
 pub use safety::{Recovery, SafetyEntry};

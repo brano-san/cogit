@@ -320,6 +320,7 @@ fn a_mutation_longer_than_the_quiet_window_does_not_echo_either() {
                 message: "slow hook".to_owned(),
                 amend: false,
                 no_verify: false,
+                signoff: false,
                 only: Vec::new(),
             },
         )
@@ -375,6 +376,7 @@ sleep 1
                 message: "slow after write".to_owned(),
                 amend: false,
                 no_verify: false,
+                signoff: false,
                 only: Vec::new(),
             },
         )
