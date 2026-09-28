@@ -94,7 +94,7 @@
   }
 
   li.chosen {
-    background: var(--surface-selected, var(--surface-raised));
+    background: var(--state-selected);
   }
 
   .sel {

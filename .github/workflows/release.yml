@@ -1,0 +1,182 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to (re)build, e.g. v1.2.3
+        required: true
+
+env:
+  # Single switch: "true" keeps a new release a draft until you publish it by hand.
+  RELEASE_DRAFT: "true"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.m.outputs.tag }}
+      version: ${{ steps.m.outputs.version }}
+      prerelease: ${{ steps.m.outputs.prerelease }}
+      bundles_windows: ${{ steps.m.outputs.bundles_windows }}
+    steps:
+      - id: m
+        shell: bash
+        run: |
+          tag="${{ inputs.tag || github.ref_name }}"
+          if ! [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::'$tag' is not a release tag (v1.2.3, v1.2.3-rc.1)"; exit 1
+          fi
+          version="${tag#v}"
+          pre=false; bundles=msi,nsis
+          if [[ "$version" == *-* ]]; then
+            pre=true
+            # WiX accepts only a numeric pre-release label (<= 65535): -beta.1 cannot go into an MSI.
+            [[ "${version#*-}" =~ ^[0-9]+$ ]] || bundles=nsis
+          fi
+          {
+            echo "tag=$tag"; echo "version=$version"
+            echo "prerelease=$pre"; echo "bundles_windows=$bundles"
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build (${{ matrix.name }})
+    needs: meta
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-x64
+            os: windows-latest
+            arch: x64
+          # - name: linux-x64    # add bundles and system libs first, see doc/RELEASING.md
+          #   os: ubuntu-22.04
+          #   arch: amd64
+          # - name: macos-arm64
+          #   os: macos-latest
+          #   arch: aarch64
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
+      ARCH: ${{ matrix.arch }}
+      BUNDLES: ${{ needs.meta.outputs.bundles_windows }}
+      # Optional secrets: with them empty the build is unsigned.
+      WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
+      WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_UPDATER_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_UPDATER_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ needs.meta.outputs.tag }}
+
+      - uses: ./.github/actions/setup
+
+      - name: Tag and manifests agree
+        shell: bash
+        run: node scripts/ci/check-version.mjs "$VERSION"
+
+      - name: Import the code-signing certificate
+        if: runner.os == 'Windows' && env.WINDOWS_CERT_BASE64 != ''
+        shell: pwsh
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP 'cogit.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERT_BASE64))
+          $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My `
+            -Password (ConvertTo-SecureString $env:WINDOWS_CERT_PASSWORD -AsPlainText -Force)
+          Remove-Item $pfx -Force
+          "CERT_THUMBPRINT=$($cert.Thumbprint)" >> $env:GITHUB_ENV
+
+      - name: Build installers
+        shell: bash
+        run: |
+          updater=false
+          [ -n "$TAURI_SIGNING_PRIVATE_KEY" ] && updater=true
+          conf="$RUNNER_TEMP/release.conf.json"
+          jq -n --argjson upd "$updater" --arg thumb "${CERT_THUMBPRINT:-}" '
+            {bundle: ({createUpdaterArtifacts: $upd} + (if $thumb == "" then {} else
+              {windows: {certificateThumbprint: $thumb, digestAlgorithm: "sha256",
+                         timestampUrl: "http://timestamp.digicert.com"}} end))}' > "$conf"
+          [ "$updater" = true ] || echo "::notice::No TAURI_UPDATER_KEY: updater signatures are skipped"
+          [ -n "${CERT_THUMBPRINT:-}" ] || echo "::notice::No WINDOWS_CERT_BASE64: installers are unsigned"
+          npm run tauri build -- --ci --bundles "$BUNDLES" --config "$(cygpath -m "$conf")"
+
+      - name: Collect and rename
+        shell: bash
+        run: |
+          mkdir -p dist
+          collect() {  # kind, extension, final name
+            [[ "$BUNDLES" == *"$1"* ]] || return 0
+            src=$(ls target/release/bundle/"$1"/*."$2" 2>/dev/null | head -n1 || true)
+            [ -n "$src" ] || { echo "::error::no .$2 produced in target/release/bundle/$1"; exit 1; }
+            cp "$src" "dist/$3"
+            if [ -f "$src.sig" ]; then cp "$src.sig" "dist/$3.sig"; fi
+          }
+          collect msi msi "Cogit_${VERSION}_${ARCH}.msi"
+          collect nsis exe "Cogit_${VERSION}_${ARCH}-setup.exe"
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.name }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: [meta, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ needs.meta.outputs.tag }}
+      VERSION: ${{ needs.meta.outputs.version }}
+      PRERELEASE: ${{ needs.meta.outputs.prerelease }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: installers-*
+          merge-multiple: true
+          path: dist
+
+      - name: Updater manifest and checksums
+        shell: bash
+        working-directory: dist
+        run: |
+          # latest.json is what the app's updater endpoint reads; it needs the updater signature.
+          sig=$(ls *-setup.exe.sig 2>/dev/null | head -n1 || true)
+          if [ -n "$sig" ]; then
+            jq -n --arg v "$VERSION" --arg d "$(date -u +%FT%TZ)" --arg s "$(cat "$sig")" \
+              --arg u "https://github.com/$GH_REPO/releases/download/$TAG/${sig%.sig}" \
+              '{version: $v, notes: "", pub_date: $d, platforms: {"windows-x86_64": {signature: $s, url: $u}}}' > latest.json
+          else
+            echo "::notice::No updater signature: latest.json is not published"
+          fi
+          sha256sum -- * > ../SHA256SUMS.txt
+          mv ../SHA256SUMS.txt .
+          cat SHA256SUMS.txt
+
+      - name: Create or update the release
+        shell: bash
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG exists: keeping its notes and state, replacing assets"
+          else
+            flags=(--verify-tag --title "Cogit $VERSION" --generate-notes)
+            [ "$PRERELEASE" = true ] && flags+=(--prerelease)
+            [ "$RELEASE_DRAFT" = true ] && flags+=(--draft)
+            gh release create "$TAG" "${flags[@]}"
+          fi
+          gh release upload "$TAG" dist/* --clobber

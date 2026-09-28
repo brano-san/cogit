@@ -847,7 +847,16 @@ mod remote_tests {
     fn lfs_sits_beside_submodule_and_subtree() {
         assert_eq!(
             outline(nested("LFS")),
-            ["Install", "Track…", "-", "Lock", "Unlock", "-", "Prune…"]
+            [
+                "Install",
+                "Track…",
+                "-",
+                "Lock",
+                "Unlock",
+                "Show Locks",
+                "-",
+                "Prune…"
+            ]
         );
         let titles: Vec<&str> = REMOTE
             .iter()
