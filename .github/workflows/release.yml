@@ -12,6 +12,8 @@ on:
 env:
   # Single switch: "true" keeps a new release a draft until you publish it by hand.
   RELEASE_DRAFT: "true"
+  # .cargo/config.toml points at sccache, which CI runners do not have; rust-cache covers it.
+  RUSTC_WRAPPER: ""
 
 permissions:
   contents: read
