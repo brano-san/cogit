@@ -6,6 +6,8 @@ const BLOCK = 128;
 const KEEP = 48;
 /** While the walk goes on a later row can recolour one on screen; asked again this often. */
 const REFRESH_MS = 300;
+/** Rows past each screen edge whose paint is asked for early: a fast scroll lands on paint. */
+const OVERSCAN = 256;
 
 export type FetchOverlay = (
   repo: RepoId,
@@ -115,7 +117,14 @@ export class GraphOverlayStore {
     if (!view?.request || view.repo === null || view.generation === null) return;
     const end = Math.min(view.end, view.total);
     let wait = Infinity;
-    for (let index = Math.floor(view.start / BLOCK); index * BLOCK < end; index++) {
+    const first = Math.floor(view.start / BLOCK);
+    const last = Math.ceil(end / BLOCK);
+    const missing = (from: number, to: number) => {
+      for (let index = Math.max(from, 0); index < to; index++)
+        if (!this.#blocks.has(index) && !this.#asking.has(index)) void this.#get(this.#key, view, index);
+    };
+    // The screen first, then what is around it (only if missing: the walk's refresh is for what is seen).
+    for (let index = first; index < last; index++) {
       const have = this.#blocks.get(index);
       if (this.#asking.has(index) || (have && have.total >= view.total)) continue;
       const since = this.#now() - (this.#asked.get(index) ?? -Infinity);
@@ -125,6 +134,9 @@ export class GraphOverlayStore {
       }
       void this.#get(this.#key, view, index);
     }
+    const near = Math.ceil(OVERSCAN / BLOCK);
+    missing(first - near, first);
+    missing(last, Math.min(last + near, Math.ceil(view.total / BLOCK)));
     if (wait !== Infinity) this.#timer = setTimeout(() => this.#fill(), wait);
     this.#evict(view);
   }

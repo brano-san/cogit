@@ -148,7 +148,10 @@ impl AppState {
         let mut deleted = Vec::with_capacity(names.len());
         for name in names {
             match self.delete_branch(repo, &name, false) {
-                Ok(()) => deleted.push(name),
+                Ok(git_engine::BranchDeletion::Deleted) => deleted.push(name),
+                Ok(git_engine::BranchDeletion::NotFullyMerged) => {
+                    tracing::warn!(branch = %name, "kept a branch that is not fully merged");
+                }
                 Err(err) => {
                     tracing::error!(error = ?err, branch = %name, context = "failed to delete a merged branch");
                 }

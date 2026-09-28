@@ -336,3 +336,12 @@ export function centreRow(
   const furthest = Math.max(totalRows * rowHeight - viewportHeight, 0);
   return Math.min(Math.max(wanted, 0), furthest);
 }
+
+/** The list row under a pointer, from the scroller's live offset (`y` is measured from the
+    top of its viewport). Not from the element under the pointer: rows are moved by a
+    transform that trails a fast scroll by a frame or more, the scroll offset does not. */
+export function listRowAt(y: number, scrollTop: number, rowHeight: number, listRows: number): number | null {
+  if (y < 0 || rowHeight <= 0) return null;
+  const row = Math.floor((y + scrollTop) / rowHeight);
+  return row < listRows ? row : null;
+}

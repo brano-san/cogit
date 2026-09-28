@@ -212,6 +212,15 @@
         >
       {/if}
 
+      {#if node.status}<span class="status">{node.status}</span>{/if}
+
+      {#if node.branch && node.kind === "local" && (node.branch.ahead > 0 || node.branch.behind > 0) && !node.detail}
+        <span class="track">
+          {#if node.branch.ahead > 0}<span class="up">↑{node.branch.ahead}</span>{/if}
+          {#if node.branch.behind > 0}<span class="down">↓{node.branch.behind}</span>{/if}
+        </span>
+      {/if}
+
       {#if node.detail}<span class="detail truncate shrink-first">{node.detail}</span>{/if}
     </div>
   {/each}
@@ -317,6 +326,30 @@
   .row.lost .label {
     color: var(--text-secondary);
     font-family: var(--font-mono);
+  }
+
+  .status {
+    flex: none;
+    color: var(--text-secondary);
+    font-size: 10px;
+    opacity: 0.8;
+  }
+
+  .track {
+    display: flex;
+    gap: var(--sp-3);
+    flex: none;
+    margin-left: auto;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .up {
+    color: var(--c-added);
+  }
+
+  .down {
+    color: var(--c-deleted);
   }
 
   .detail {

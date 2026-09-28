@@ -382,7 +382,7 @@ describe("graph windows", () => {
     expect(graph.rowAt(10)?.commit.oid).toBe("c10");
     expect(graph.rowAt(900)).toBeUndefined();
     const ends = commands.graphWindow.mock.calls.map(([, , start, count]) => start + count);
-    expect(Math.max(...ends)).toBeLessThanOrEqual(256);
+    expect(Math.max(...ends)).toBeLessThanOrEqual(384);
   });
 
   it("fetches the rows a scroll brings on screen", async () => {

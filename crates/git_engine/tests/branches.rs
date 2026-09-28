@@ -185,11 +185,16 @@ fn deleting_an_unmerged_branch_needs_force() {
     let f = test_fixtures::branched().unwrap();
     let repo = open(&f);
 
-    assert!(
-        repo.delete_branch("dev", false).is_err(),
+    assert_eq!(
+        repo.delete_branch("dev", false).unwrap(),
+        git_engine::BranchDeletion::NotFullyMerged,
         "losing commits must take an explicit force"
     );
-    repo.delete_branch("dev", true).unwrap();
+    assert!(names(&repo).contains(&"dev".to_owned()));
+    assert_eq!(
+        repo.delete_branch("dev", true).unwrap(),
+        git_engine::BranchDeletion::Deleted
+    );
     assert!(!names(&repo).contains(&"dev".to_owned()));
 }
 
@@ -203,6 +208,10 @@ fn the_current_branch_cannot_be_deleted() {
     };
 
     assert!(repo.delete_branch(&current, true).is_err());
+    assert!(
+        repo.delete_branch(&current, false).is_err(),
+        "only the not-merged refusal is softened"
+    );
 }
 
 #[test]

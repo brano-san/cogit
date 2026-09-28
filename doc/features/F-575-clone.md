@@ -22,8 +22,8 @@ Repository, Selection, Directory и те же флажки; мелкого кл�
       запись в Output; кнопка `Continue Without Check` ведёт дальше без списка веток (войти можно
       будет в окне Credential Manager во время самого клона). Правка адреса снимает отказ.
 - [ ] **Selection.** `Include submodules` и `Fetch all heads and tags` включены,
-      `Skip large files (partial clone)` выключен, рядом «Omit files larger than [1] MB» (активно
-      только с флажком). «Check out branch» — ветки сервера из ответа проверки, ветка его HEAD первой
+      `Skip large files (partial clone)` выключен, рядом «Omit files larger than [50] MB» (по умолчанию 50 MB; поле и значок (i)
+      с пояснением в подсказке видны только с флажком). «Check out branch» — ветки сервера из ответа проверки, ветка его HEAD первой
       с пометкой `(default)`; без проверки или у пустого репозитория список неактивен с причиной.
 - [ ] **Directory.** «Parent folder» (по умолчанию — папка, где лежит открытый репозиторий, иначе
       последний из недавних) с `Browse…`, «Folder name» (по умолчанию — из адреса, как у

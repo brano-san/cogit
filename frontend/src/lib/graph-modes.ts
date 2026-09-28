@@ -140,12 +140,14 @@ export function paintRequest(
   const painted = modes.highlightChecked || branch ? tips.map(({ oid, slot }) => ({ oid, slot })) : [];
   const ancestryOf = effective.ancestry ? selected : null;
   const mergeable = modes.coloring === "mergeable";
-  if (painted.length === 0 && !branch && !effective.collapseMerged && ancestryOf === null && !mergeable) return null;
+  const varying = modes.coloring === "varying";
+  if (painted.length === 0 && !branch && !effective.collapseMerged && ancestryOf === null && !mergeable && !varying) return null;
   return {
     tips: painted,
     ...(ancestryOf === null ? {} : { ancestryOf }),
     ...(mergeable ? { mergeable } : {}),
     ...(branch ? { dimMerges: true } : {}),
+    ...(varying ? { varying } : {}),
   };
 }
 

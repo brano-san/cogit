@@ -163,7 +163,7 @@ pub async fn delete_branch(
     repo: RepoId,
     name: String,
     force: bool,
-) -> Result<(), GitError> {
+) -> Result<git_engine::BranchDeletion, GitError> {
     let app_state = state.state.clone();
     mutating(
         &state.state,

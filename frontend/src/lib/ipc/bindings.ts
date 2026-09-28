@@ -82,7 +82,7 @@ export const commands = {
 	/**  Stash, check out, apply the stash: one operation of the lane (R-521, R-563). */
 	switchWithAutostash: (repo: RepoId, target: CheckoutTarget, message: string, dropAfterClean: boolean) => typedError<AutostashOutcome, GitError>(__TAURI_INVOKE("switch_with_autostash", { repo, target, message, dropAfterClean })),
 	createBranch: (repo: RepoId, name: string, start: string | null, switchTo: boolean) => typedError<null, GitError>(__TAURI_INVOKE("create_branch", { repo, name, start, switchTo })),
-	deleteBranch: (repo: RepoId, name: string, force: boolean) => typedError<null, GitError>(__TAURI_INVOKE("delete_branch", { repo, name, force })),
+	deleteBranch: (repo: RepoId, name: string, force: boolean) => typedError<BranchDeletion, GitError>(__TAURI_INVOKE("delete_branch", { repo, name, force })),
 	/**  In the blocking pool: the whole journal can be a hundred megabyte-sized entries. */
 	commandLog: () => __TAURI_INVOKE<GitOutput[]>("command_log"),
 	/**  One entry in full. The notice that opened the window carried only its summary. */
@@ -636,6 +636,11 @@ export type Branch = {
 	behind: number,
 };
 
+/**  What `git branch -d` came to. */
+export type BranchDeletion = "deleted" | 
+/**  Git kept the branch: its commits are not merged. Repeat with `force` to drop it. */
+"notFullyMerged";
+
 export type BranchKind = "local" | "remote";
 
 /**
@@ -1090,6 +1095,8 @@ export type GraphPaintRequest = {
 	mergeable?: boolean,
 	/**  Branch Coloring: merged-in lines are dimmed. */
 	dimMerges?: boolean,
+	/**  Varying Coloring: every branch in a colour of its own, kept through its merge. */
+	varying?: boolean,
 };
 
 /**  How far the walk got. The rows themselves travel only when asked for, by window. */

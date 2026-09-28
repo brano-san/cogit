@@ -19,6 +19,7 @@ import {
   setLaneWidth,
   visibleRange,
   HEADER_ROWS,
+  listRowAt,
   clickedCommit,
   headNode,
   keyTarget,
@@ -561,5 +562,18 @@ describe("Working Tree row above a HEAD that is not the first commit", () => {
     expect(workingTreeLane(1, [{ from: 0, span: "through" }])).toBe(1);
     expect(workingTreeLane(0, [{ from: 0, span: "top" }, { from: 1, span: "through" }])).toBe(2);
     expect(workingTreeLane(0, [{ from: 0, span: "top" }, { from: 2, span: "bottom" }])).toBe(1);
+  });
+});
+
+describe("listRowAt", () => {
+  it("follows the live scroll offset, not the row the element sits in", () => {
+    expect(listRowAt(30, 0, 24, 100)).toBe(1);
+    expect(listRowAt(30, 720, 24, 100)).toBe(31);
+  });
+
+  it("is nothing above the viewport, past the last row or with no row height", () => {
+    expect(listRowAt(-1, 0, 24, 10)).toBeNull();
+    expect(listRowAt(240, 0, 24, 10)).toBeNull();
+    expect(listRowAt(10, 0, 0, 10)).toBeNull();
   });
 });

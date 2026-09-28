@@ -38,7 +38,7 @@ export class CloneWizard {
   submodules = $state(true);
   allBranches = $state(true);
   skipLarge = $state(false);
-  limitMb = $state("1");
+  limitMb = $state("50");
   branch = $state<string | null>(null);
   parent = $state("");
   name = $state("");
@@ -60,7 +60,7 @@ export class CloneWizard {
     this.submodules = true;
     this.allBranches = true;
     this.skipLarge = false;
-    this.limitMb = "1";
+    this.limitMb = "50";
     this.branch = null;
     this.parent = parent;
     this.name = "";

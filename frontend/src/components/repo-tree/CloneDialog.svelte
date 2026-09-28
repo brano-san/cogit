@@ -121,20 +121,26 @@
           label="Skip large files (partial clone)"
           onchange={(on) => (wizard.skipLarge = on)}
         />
-        <label class="limit" class:disabled={!wizard.skipLarge}>
-          <span>Omit files larger than</span>
-          <input
-            type="text"
-            class="size"
-            inputmode="numeric"
-            value={wizard.limitMb}
-            disabled={!wizard.skipLarge}
-            title={wizard.skipLarge ? undefined : "Tick Skip large files first"}
-            oninput={(event) => (wizard.limitMb = event.currentTarget.value)}
-          />
-          <span>MB</span>
-        </label>
-        <span class="hint">The files being checked out are always downloaded; larger ones elsewhere in the history stay on the server until a command needs them.</span>
+        {#if wizard.skipLarge}
+          <label class="limit">
+            <span>Omit files larger than</span>
+            <input
+              type="text"
+              class="size"
+              inputmode="numeric"
+              value={wizard.limitMb}
+              oninput={(event) => (wizard.limitMb = event.currentTarget.value)}
+            />
+            <span>MB</span>
+            <span
+              class="info"
+              role="img"
+              aria-label="About omitted files"
+              title="The files being checked out are always downloaded; larger ones elsewhere in the history stay on the server until a command needs them."
+              >i</span
+            >
+          </label>
+        {/if}
       </div>
       <div class="field">
         <span>Check out branch</span>
@@ -257,8 +263,19 @@
     padding-left: var(--sp-7);
   }
 
-  .limit.disabled {
+  .info {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border: 1px solid var(--text-secondary);
+    border-radius: 50%;
     color: var(--text-secondary);
+    font-size: 10px;
+    font-style: italic;
+    font-weight: 700;
+    cursor: help;
   }
 
   .limit .size {
@@ -268,10 +285,6 @@
   .hint {
     color: var(--text-secondary);
     line-height: 1.45;
-  }
-
-  .nested .hint {
-    padding-left: var(--sp-7);
   }
 
   .failure {

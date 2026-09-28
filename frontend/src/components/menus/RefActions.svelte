@@ -880,6 +880,7 @@
       network.remotes,
       network.primary,
     );
+    let forceDeclined = false;
     const { yes, checked } = await confirmation.askWithOption({
       title: `Delete ${ref.kind === "tag" ? "Tag" : "Branch"}`,
       message: `Delete ${what} ${ref.name}? Undo can bring it back.`,
@@ -888,9 +889,22 @@
       option: copy ? `Delete from remote '${copy.remote}'` : undefined,
     });
     if (!yes) return;
-    const done = await attempt(`Could not delete the ${what}`, () =>
-      ref.kind === "tag" ? deleteTag(id, ref.name) : deleteBranch(id, ref.name, false),
-    );
+    let done = await attempt(`Could not delete the ${what}`, async () => {
+      if (ref.kind === "tag") return deleteTag(id, ref.name);
+      if ((await deleteBranch(id, ref.name, false)) === "deleted") return;
+      // Git kept it: the branch has commits nothing else reaches.
+      const force = await confirmation.ask({
+        title: "Branch Not Fully Merged",
+        message: `Branch '${ref.name}' is not fully merged into the current upstream/HEAD. Do you want to force delete it?`,
+        confirm: "Force Delete",
+      });
+      if (!force) {
+        forceDeclined = true;
+        return;
+      }
+      await deleteBranch(id, ref.name, true);
+    });
+    if (forceDeclined) done = false;
     if (!done || !checked || !copy) return;
     await attempt(`Could not delete the ${what} from ${copy.remote}`, () =>
       ref.kind === "tag"

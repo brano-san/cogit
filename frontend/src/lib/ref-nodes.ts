@@ -1,6 +1,7 @@
 import type { Branch, CommitRow, Head, OtherRef, StashEntry, Tag, WorktreeEntry } from "$lib/ipc";
 import { shortDate, shortOid } from "$lib/format";
 import { compareDated, compareNames, DEFAULT_REF_SORT, type RefSort } from "$lib/ref-sort";
+import { upstreamStatus } from "$lib/upstream-status";
 import { upstreamGone, worktreeMarks, type WorktreeMark } from "$lib/worktree-list";
 import { NO_FILTER_FOLDS, shownFolds, type FilterFolds } from "$lib/tree";
 
@@ -27,6 +28,8 @@ export interface RefNode {
   /** The checked-out branch. */
   current?: boolean;
   detail?: string;
+  /** Gray, next to the name: how a local branch stands against its upstream. */
+  status?: string;
   /** What the backend should walk from; absent on groups and folders. */
   rev?: string;
   oid?: string;
@@ -81,12 +84,14 @@ function stashDate(timestamp: number): string {
   return shortDate(timestamp, -new Date(timestamp * 1000).getTimezoneOffset());
 }
 
+function upstreamRemote(branch: Branch): string | null {
+  return branch.upstream === null ? null : (branch.upstream.split("/")[0] ?? branch.upstream);
+}
+
+/** Only a lost upstream is written out; the counts and status come from the branch. */
 function upstreamDetail(branch: Branch, branches: readonly Branch[]): string | undefined {
-  if (branch.upstream === null) return undefined;
-  const remote = branch.upstream.split("/")[0] ?? branch.upstream;
-  if (upstreamGone(branch, branches)) return `${remote}: gone`;
-  if (branch.ahead === 0 && branch.behind === 0) return `= ${remote}`;
-  return `↑${branch.ahead} ↓${branch.behind}`;
+  const remote = upstreamRemote(branch);
+  return remote !== null && upstreamGone(branch, branches) ? `${remote}: gone` : undefined;
 }
 
 interface Level {
@@ -206,6 +211,7 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
       depth: 1,
       current: branch.isHead || undefined,
       detail: upstreamDetail(branch, input.branches),
+      status: upstreamStatus(upstreamRemote(branch), branch.ahead, branch.behind),
       rev: branch.fullName,
       oid: branch.oid,
       branch,

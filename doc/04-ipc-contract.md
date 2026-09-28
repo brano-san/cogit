@@ -188,7 +188,7 @@ Blame открывается только отдельным окном (`blame.
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
 | `load_commits` | `repo, query: CommitQuery, onProgress: Channel<GraphProgress>` | `Vec<SkippedRef { name, reason }>` — отмеченные ссылки, не ставшие стартовой точкой; новый вызов останавливает предыдущий обход | M4 |
-| `graph_overlay` | `repo, generation, start, count, request: GraphPaintRequest { tips: [{ oid, slot }], ancestryOf?, mergeableOf? }` | `Option<GraphOverlay>` — стиль и полоса узла и каждого сегмента строк окна; `None`, если граф заменён | M4 |
+| `graph_overlay` | `repo, generation, start, count, request: GraphPaintRequest { tips: [{ oid, slot }], ancestryOf?, mergeable?, dimMerges?, varying? }` | `Option<GraphOverlay>` — стиль и полоса узла и каждого сегмента строк окна; `None`, если граф заменён | M4 |
 | `commit_details` | `repo, rev: String` | `CommitDetails` | M4 |
 | `commit_files` | `repo, rev: String` | `Vec<FileEntry>` | M6 |
 
@@ -451,7 +451,8 @@ snake_case и читаются на фронтенде как `undefined`.
 | `commit` | `repo, request: CommitRequest { message, amend, noVerify, only }` | `String` (oid); `only` пуст — всё проиндексированное, иначе только эти пути | M6 |
 | `checkout` | `repo, target: CheckoutTarget` | `()`; `branch` — `switch`, `commit` — `switch --detach`, `newBranch { name, start, track }` — `switch --create` с `--track`/`--no-track`, `fastForward { name, to }` — проверка предка, затем `switch -C <name> <oid>`; не перемотка — `InvalidState` (R-560) | M5 |
 | `switch_with_autostash` | `repo, target: CheckoutTarget, message, drop_after_clean` | `AutostashOutcome`: `restored` — изменения вернулись, stash удалён; `kept { clean }` — stash в списке на `stash@{0}` (конфликт или отказ применить — `clean: false`; выключен `drop_after_clean` — `true`). Одна операция полосы: `stash push --include-untracked` в `refs/cogit/backup`, checkout, `stash apply`. Отказ checkout — изменения возвращены (`apply --index`), ошибка — отказ (R-521, R-563) | M5 |
-| `create_branch` / `delete_branch` | `repo, ...` | `()` | M5 |
+| `create_branch` | `repo, name, start, switchTo` | `()` | M5 |
+| `delete_branch` | `repo, name, force` | `BranchDeletion`: `"deleted"` или `"notFullyMerged"` — `branch -d` отказал из-за несмерженных коммитов (это не ошибка, ветка цела); UI спрашивает «Force Delete» и повторяет с `force = true` (`branch -D`) | M5 |
 | `delete_remote_branch` | `repo, remote, branch` (`origin/topic` или `topic`) | `RemoteDeletion`: `"deleted"` — `push --delete` по полному имени; `"alreadyGone"` — на сервере ветки уже не было, удалена только устаревшая remote-tracking ссылка (R-480) | M5 |
 | `set_upstream` | `repo, branch, upstream: Option<String>` (`origin/main`) | `()` — `git branch --set-upstream-to <upstream> <branch>`, `null` — `git branch --unset-upstream <branch>`; в очереди записей. Зовут `Set Upstream…` и `Stop Tracking` меню ветки (F-130, R-505) | M5 |
 | `merge` / `rebase` / `cherry_pick` / `revert` | `repo, ...` | `()` | M5 |
