@@ -10,6 +10,20 @@ pub enum RemoteDeletion {
     AlreadyGone,
 }
 
+/// What `git branch -d` came to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum BranchDeletion {
+    Deleted,
+    /// Git kept the branch: its commits are not merged. Repeat with `force` to drop it.
+    NotFullyMerged,
+}
+
+/// Git's refusal: "error: the branch 'x' is not fully merged".
+fn is_not_fully_merged(stderr: &str) -> bool {
+    stderr.contains("is not fully merged")
+}
+
 #[derive(Debug, Clone, Deserialize, specta::Type)]
 #[serde(
     tag = "kind",
@@ -127,10 +141,18 @@ impl RepoHandle {
         self.run_git(&args).map(drop)
     }
 
-    pub fn delete_branch(&self, name: &str, force: bool) -> Result<()> {
+    /// `-d` refusing an unmerged branch is a question for the user, not a failure: it
+    /// comes back as `NotFullyMerged`, and the run stays in the journal with git's words.
+    pub fn delete_branch(&self, name: &str, force: bool) -> Result<BranchDeletion> {
         let name = require_name(name)?;
         let flag = if force { "-D" } else { "-d" };
-        self.run_git(&["branch", flag, "--", name]).map(drop)
+        match self.run_git(&["branch", flag, "--", name]) {
+            Ok(_) => Ok(BranchDeletion::Deleted),
+            Err(GitError::Command(err)) if !force && is_not_fully_merged(&err.stderr) => {
+                Ok(BranchDeletion::NotFullyMerged)
+            }
+            Err(err) => Err(err),
+        }
     }
 
     /// `git branch -m` moves HEAD with the branch, so a rename of the checked-out branch
@@ -265,5 +287,19 @@ mod forbidden_tests {
         for good in ["console", "COM0", "COM10", "file.txt", ".gitignore", "NULL"] {
             assert!(!windows_forbidden(good), "{good}");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_not_fully_merged;
+
+    #[test]
+    fn recognizes_the_unmerged_refusal_only() {
+        assert!(is_not_fully_merged(
+            "error: the branch 'dev' is not fully merged.
+hint: run 'git branch -D dev'"
+        ));
+        assert!(!is_not_fully_merged("error: branch 'dev' not found."));
     }
 }

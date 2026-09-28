@@ -67,8 +67,19 @@ describe("graph overlay", () => {
     await settle();
     store.show(view({ start: 101, end: 141 }));
     await settle();
-    expect(calls.map((c) => c.start)).toEqual([0, 128]);
+    expect(calls.map((c) => c.start).sort((a, b) => a - b)).toEqual([0, 128, 256, 384]);
     expect(store.paintAt(130)?.nodeStyle).toBe(130 % 16);
+  });
+
+  it("asks for the screen first, then the blocks around it, so a fast scroll finds paint in", async () => {
+    const { fetch, calls } = rust(() => 2000);
+    const store = new GraphOverlayStore(fetch);
+    store.show(view({ start: 640, end: 680, total: 2000 }));
+    await settle();
+    expect(calls[0]?.start).toBe(640 - (640 % 128));
+    expect(calls.map((c) => c.start).sort((a, b) => a - b)).toEqual([384, 512, 640, 768, 896]);
+    expect(store.paintAt(400)?.nodeStyle).toBe(400 % 16);
+    expect(store.paintAt(900)?.nodeStyle).toBe(900 % 16);
   });
 
   it("starts over for another walk or another request", async () => {
@@ -81,7 +92,7 @@ describe("graph overlay", () => {
     await settle();
     store.show(view({ generation: 2, request: { tips: [] } }));
     await settle();
-    expect(calls.map((c) => c.generation)).toEqual([1, 2, 2]);
+    expect(calls.filter((c) => c.start === 0).map((c) => c.generation)).toEqual([1, 2, 2]);
   });
 
   it("drops an answer for a walk that has been replaced meanwhile", async () => {
@@ -102,21 +113,21 @@ describe("graph overlay", () => {
       const store = new GraphOverlayStore(fetch, () => now);
       store.show(view({ total, complete: false }));
       await vi.advanceTimersByTimeAsync(0);
-      expect(calls).toHaveLength(1);
+      expect(calls.filter((c) => c.start === 0)).toHaveLength(1);
 
       total = 200;
       now = 100;
       store.show(view({ total, complete: false }));
       await vi.advanceTimersByTimeAsync(0);
-      expect(calls).toHaveLength(1);
+      expect(calls.filter((c) => c.start === 0)).toHaveLength(1);
 
       now = 300;
       await vi.advanceTimersByTimeAsync(200);
-      expect(calls).toHaveLength(2);
+      expect(calls.filter((c) => c.start === 0)).toHaveLength(2);
 
       store.show(view({ total, complete: true }));
       await vi.advanceTimersByTimeAsync(0);
-      expect(calls).toHaveLength(2);
+      expect(calls.filter((c) => c.start === 0)).toHaveLength(2);
     } finally {
       vi.useRealTimers();
     }
@@ -152,7 +163,7 @@ describe("a new request for the same walk", () => {
     expect(store.paintAt(3)?.nodeStyle).toBe(3);
     answer!();
     await settle();
-    expect(slow).toHaveBeenCalledTimes(2);
+    expect(slow.mock.calls.filter((call) => call[2] === 0)).toHaveLength(2);
 
     store.show(view({ generation: 2 }));
     expect(store.paintAt(3)).toBeUndefined();

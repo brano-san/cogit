@@ -554,6 +554,7 @@ const MERGEABLE: PaintSpec = PaintSpec {
     ancestry_of: None,
     mergeable: true,
     dim_merges: false,
+    varying: false,
 };
 
 fn dimmed(painted: &Painted) -> Vec<bool> {
@@ -638,4 +639,75 @@ fn dim_merges_dims_only_merged_in_lines() {
     }
     assert!(any);
     assert!(dimmed(&painted).iter().all(|d| !d));
+}
+
+const VARYING: PaintSpec = PaintSpec {
+    tips: Vec::new(),
+    ancestry_of: None,
+    mergeable: false,
+    dim_merges: false,
+    varying: true,
+};
+
+fn slots(styles: &[u8]) -> Vec<u8> {
+    styles.iter().map(|s| s & PAINT_SLOT).collect()
+}
+
+#[test]
+fn varying_gives_a_merged_branch_its_colour_through_the_merge() {
+    let history = nodes(&[
+        ("m3", &["m2", "f2"]),
+        ("f2", &["f1"]),
+        ("m2", &["m1"]),
+        ("f1", &["m1"]),
+        ("m1", &["m0"]),
+        ("m0", &[]),
+    ]);
+    let painted = Painted::new(&history, Some("m3"), &VARYING);
+
+    assert_eq!(slots(&painted.paint.node_style), vec![1, 2, 1, 2, 1, 1]);
+    for (row, s, style, _) in painted.segments() {
+        let expected = if s.primary { 1 } else { 2 };
+        assert_eq!(style & PAINT_SLOT, expected, "row {row}: {s:?}");
+    }
+}
+
+#[test]
+fn varying_gives_each_branch_one_colour_of_its_own() {
+    let history = nodes(&[
+        ("m2", &["m1"]),
+        ("a2", &["a1"]),
+        ("b1", &["m1"]),
+        ("a1", &["m1"]),
+        ("m1", &[]),
+    ]);
+    let painted = Painted::new(&history, Some("m2"), &VARYING);
+
+    assert_eq!(slots(&painted.paint.node_style), vec![1, 2, 3, 2, 1]);
+    assert!(painted.paint.node_style.iter().all(|s| s & PAINT_DIM == 0));
+}
+
+#[test]
+fn varying_keeps_the_colour_of_a_ticked_branch() {
+    let history = nodes(&[
+        ("m2", &["m1"]),
+        ("t1", &["m1"]),
+        ("f1", &["m1"]),
+        ("m1", &[]),
+    ]);
+    let spec = PaintSpec {
+        tips: vec![(1, 4)],
+        ..VARYING
+    };
+    let painted = Painted::new(&history, Some("m2"), &spec);
+    assert_eq!(slots(&painted.paint.node_style), vec![1, 5, 2, 1]);
+}
+
+#[test]
+fn varying_changes_no_layout() {
+    let history = nodes(&[("m2", &["m1", "f1"]), ("f1", &["m1"]), ("m1", &[])]);
+    let plain = Painted::new(&history, Some("m2"), &PaintSpec::default());
+    let varied = Painted::new(&history, Some("m2"), &VARYING);
+    assert_eq!(plain.rows, varied.rows);
+    assert_eq!(plain.paint.segment_lane, varied.paint.segment_lane);
 }

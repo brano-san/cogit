@@ -6,6 +6,7 @@ import {
   SPLIT_MIN,
   bandLeft,
   draggedShare,
+  ribbonEdges,
   ribbonPath,
   ribbonsNear,
   type Span,
@@ -80,6 +81,28 @@ describe("ribbonPath", () => {
     // Left edge from row 1 to the bottom of row 1; right edge rows 3 to 4.
     expect(path.startsWith("M 0 10 ")).toBe(true);
     expect(path).toContain("L 28 40");
+  });
+
+  it("leaves both boundaries horizontally, controls at the midpoint", () => {
+    const path = ribbonPath(span(1, 2, 5, 6), 10);
+
+    expect(path).toContain("M 0 10 C 14 10 14 50 28 50");
+    expect(path).toContain("C 14 70 14 30 0 30");
+  });
+
+  it("collapses a zero-height side to a point", () => {
+    // Pure insert: no rows on the left (bottom is one above top).
+    const path = ribbonPath(span(3, 2, 3, 5), 10);
+
+    expect(path.startsWith("M 0 30 C 14 30 14 30 28 30")).toBe(true);
+    expect(path).toContain("0 30 Z");
+  });
+
+  it("strokes only the two curves", () => {
+    const edges = ribbonEdges(span(1, 2, 5, 6), 10);
+
+    expect(edges).toBe("M 0 10 C 14 10 14 50 28 50 M 28 70 C 14 70 14 30 0 30");
+    expect(edges).not.toContain("L");
   });
 
   it("spans a whole block rather than a single line", () => {

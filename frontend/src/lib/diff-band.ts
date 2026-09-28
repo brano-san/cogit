@@ -52,12 +52,38 @@ export function ribbonsNear<T extends Span>(all: readonly T[], from: number, to:
 }
 
 /** A closed ribbon: down the left edge, across on a curve, back up the right edge. */
+function corners(c: Span, rowHeight: number) {
+  return {
+    a: c.fromTop * rowHeight,
+    b: (c.fromBottom + 1) * rowHeight,
+    x: c.toTop * rowHeight,
+    y: (c.toBottom + 1) * rowHeight,
+  };
+}
+
+/** Top edge (left to right) as a cubic whose controls sit at the horizontal midpoint, so
+    both ends leave horizontally and meet the columns without a kink. */
+function topCurve(a: number, x: number): string {
+  const bend = BAND_WIDTH / 2;
+  return `M 0 ${a} C ${bend} ${a} ${bend} ${x} ${BAND_WIDTH} ${x}`;
+}
+
+/** Bottom edge, right to left. A zero-height side (pure insert/delete) collapses its end
+    to a point, so the ribbon becomes a wedge. */
+function bottomCurve(y: number, b: number): string {
+  const bend = BAND_WIDTH / 2;
+  return `C ${bend} ${y} ${bend} ${b} 0 ${b}`;
+}
+
+/** A closed ribbon: down the left edge, across on a curve, back up the right edge. */
 export function ribbonPath(c: Span, rowHeight: number): string {
-  const w = BAND_WIDTH;
-  const bend = w / 2;
-  const a = c.fromTop * rowHeight;
-  const b = (c.fromBottom + 1) * rowHeight;
-  const x = c.toTop * rowHeight;
-  const y = (c.toBottom + 1) * rowHeight;
-  return `M 0 ${a} C ${bend} ${a} ${bend} ${x} ${w} ${x} L ${w} ${y} C ${bend} ${y} ${bend} ${b} 0 ${b} Z`;
+  const { a, b, x, y } = corners(c, rowHeight);
+  return `${topCurve(a, x)} L ${BAND_WIDTH} ${y} ${bottomCurve(y, b)} Z`;
+}
+
+/** Only the two curves, for a stroke: the vertical sides run along the columns' own edges
+    and stroking them would draw a line over the code. */
+export function ribbonEdges(c: Span, rowHeight: number): string {
+  const { a, b, x, y } = corners(c, rowHeight);
+  return `${topCurve(a, x)} M ${BAND_WIDTH} ${y} ${bottomCurve(y, b)}`;
 }

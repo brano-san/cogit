@@ -13,6 +13,7 @@
     HEADER_ROWS,
     centreRow,
     clickedCommit,
+    listRowAt,
     headNode,
     hitTest,
     keyTarget,
@@ -279,7 +280,10 @@
   const headerLane = $derived(
     wtAt > 0 && headLane !== null ? workingTreeLane(headLane, graph.rowAt(wtAt)?.layout.segments ?? []) : headLane,
   );
-  const headerX = $derived(rowTextX((headerLane ?? 0) + 1, clipX));
+  /** Right of every line drawn through the header rows: those of HEAD's row run up to them. */
+  const headerX = $derived(
+    rowTextX(Math.max((headerLane ?? 0) + 1, wtAt > 0 ? (graph.rowAt(wtAt)?.layout.width ?? 0) : 0), clipX),
+  );
   const commitEdge = (listRow: number) => (listRow <= wtAt ? listRow : Math.max(listRow - headerRows, wtAt));
 
   /** The window drives the queue: rows that scroll away stop being asked for. */
@@ -345,19 +349,38 @@
     return rows;
   });
 
-  /** Another repository's history opens at its top (R-300). */
+  /** The Working Tree row sits at the top, or right above HEAD when HEAD is further down. */
+  function showWorkingTreeRow() {
+    if (!scroller) return;
+    scroller.scrollTop = workingTreeRow ? centreRow(wtAt, viewportHeight, rowHeight, listRows) : 0;
+  }
+
+  /** Another repository's history opens on its Working Tree row, else at its top (R-300). The
+      row waits for HEAD to be located: until then it is taken to be at the top. */
+  let homing = $state(true);
+  let homeSeen = untrack(() => graph.home);
   $effect(() => {
-    void graph.home;
-    if (scroller) scroller.scrollTop = 0;
+    if (graph.home !== homeSeen) {
+      homeSeen = graph.home;
+      homing = true;
+    }
+    if (!homing || !scroller || viewportHeight <= 0) return;
+    if (graph.reveal) {
+      homing = false;
+      return;
+    }
+    if (workingTreeRow && headOid !== null && headIndex === null && !graph.complete) return;
+    showWorkingTreeRow();
+    homing = false;
   });
 
-  /** Home and Back to the Working Tree bring its row, the first one, on screen (F-562). */
+  /** Home and Back to the Working Tree bring its row on screen (F-562). */
   let topSeen = untrack(() => graphNav.top);
   $effect(() => {
     const asked = graphNav.top;
     if (asked === topSeen || !scroller) return;
     topSeen = asked;
-    scroller.scrollTop = 0;
+    showWorkingTreeRow();
   });
 
   /** Only the rows on screen come over from Rust (R-193). */
@@ -403,7 +426,6 @@
   const focus = $derived(focusLane(modes, selection.oid, selectedLane, lanePick, walkKey));
 
   const strokeOptions = $derived({
-    colouredLanes: false,
     branchOnly: modes.coloring === "branch",
     focusLane: focus,
   });
@@ -533,6 +555,29 @@
     else void pick(repo, oid);
   }
 
+  /** The row under the pointer by geometry, like click: the rows trail a fast scroll, so the
+      element under the pointer can be a few rows off the one the scroll offset points at. */
+  function oncontextmenu(event: MouseEvent) {
+    if (!scroller) return;
+    event.preventDefault();
+    if (graph.stale) return;
+    const y = event.clientY - scroller.getBoundingClientRect().top;
+    const row = listRowAt(y, scroller.scrollTop, rowHeight, listRows);
+    if (row === null) return;
+    const oid = clickedCommit(row, headerRows, (at) => graph.rowAt(at)?.commit.oid, wtAt);
+    if (oid === undefined) return;
+    if (oid === null) {
+      if (!onworktreecontext) return;
+      selection.showWorkingTree();
+      onworktreecontext(event.clientX, event.clientY);
+      return;
+    }
+    if (!oncontext) return;
+    const repo = repository.current?.repo;
+    if (repo !== undefined) void pick(repo, oid);
+    oncontext(oid, event.clientX, event.clientY);
+  }
+
   /** Anywhere on the commit's row, its lines included; a button in it answers for itself. */
   function ondblclick(event: MouseEvent) {
     if (!onactivate || !scroller || graph.stale) return;
@@ -607,6 +652,7 @@
     {onscroll}
     {onclick}
     {ondblclick}
+    {oncontextmenu}
     {onpointermove}
     onpointerleave={() => (hoverRow = null)}
     {onkeydown}
@@ -652,12 +698,6 @@
               event.stopPropagation();
               selection.showWorkingTree();
             }}
-            oncontextmenu={(event) => {
-              if (!onworktreecontext) return;
-              event.preventDefault();
-              selection.showWorkingTree();
-              onworktreecontext(event.clientX, event.clientY);
-            }}
           >
             <span class="summary truncate">{headerLabel}</span>
           </button>
@@ -690,14 +730,6 @@
             style:padding-left="{rowTextX(item.entry.layout.width, clipX)}px"
             role="listitem"
             onpointerenter={() => onhover?.(item.entry.commit.oid)}
-            oncontextmenu={(event) => {
-              if (!oncontext) return;
-              event.preventDefault();
-              if (graph.stale) return;
-              const repo = repository.current?.repo;
-              if (repo !== undefined) void pick(repo, item.entry.commit.oid);
-              oncontext(item.entry.commit.oid, event.clientX, event.clientY);
-            }}
           >
             {#if look?.tag}
               <span class="bisect-tag {look.dot ?? "testing"}">{look.tag}</span>

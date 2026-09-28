@@ -37,6 +37,7 @@
     bandLeft,
     clampShare,
     draggedShare,
+    ribbonEdges,
     ribbonPath,
     ribbonsNear,
   } from "$lib/diff-band";
@@ -809,6 +810,10 @@
                 <stop offset="0" style:stop-color="var(--c-deleted-bg)" />
                 <stop offset="1" style:stop-color="var(--c-added-bg)" />
               </linearGradient>
+              <linearGradient id="{uid}-edge">
+                <stop offset="0" style:stop-color="var(--c-deleted)" />
+                <stop offset="1" style:stop-color="var(--c-added)" />
+              </linearGradient>
             </defs>
             {#each ribbons as ribbon, i (i)}
               <path
@@ -817,6 +822,13 @@
                 style:fill={ribbon.kind === "change" && !ribbon.moved ? `url(#${uid}-change)` : undefined}
                 d={ribbonPath(ribbon, ROW_HEIGHT)}
               />
+              {#if !ribbon.moved}
+                <path
+                  class="edge {ribbon.kind}"
+                  style:stroke={ribbon.kind === "change" ? `url(#${uid}-edge)` : undefined}
+                  d={ribbonEdges(ribbon, ROW_HEIGHT)}
+                />
+              {/if}
             {/each}
           </svg>
         {/if}
@@ -1334,6 +1346,22 @@
 
   .ribbon.insert {
     fill: var(--c-added-bg);
+  }
+
+  /* A soft outline on the two curves only; the sides sit on the columns' own edges. */
+  .edge {
+    fill: none;
+    stroke-width: 1;
+    stroke-opacity: 0.55;
+    stroke-linecap: butt;
+  }
+
+  .edge.delete {
+    stroke: var(--c-deleted);
+  }
+
+  .edge.insert {
+    stroke: var(--c-added);
   }
 
   /* A move goes somewhere else in the file, so its ribbon is an outline, not a fill. */

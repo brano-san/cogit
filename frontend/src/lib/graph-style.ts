@@ -49,8 +49,6 @@ export function rowPaint(overlay: GraphOverlay, row: number): RowPaint | undefin
 }
 
 export interface StrokeOptions {
-  /** Varying Coloring: a colour per column where no branch has one. */
-  colouredLanes: boolean;
   /** Branch Coloring: all but `focusLane`, or the main line without one, is dimmed. */
   branchOnly?: boolean;
   /** Mergeable Coloring: what is not dimmed is drawn in the accent. */
@@ -71,13 +69,14 @@ export const LAYERS = 5;
 const LAYER = { dim: 0, grey: 1, colour: 2, main: 3, focus: 4 } as const;
 
 function stroke(
-  style: number,
+  painted: number | undefined,
   lane: number | undefined,
   primary: boolean,
-  laneColour: number,
   width: number,
   options: StrokeOptions,
 ): Stroke {
+  // Mergeable dims nearly all: a row whose paint is still on its way waits dimmed, not lit.
+  const style = painted ?? (options.accentLit ? DIM_BIT : 0);
   const slot = style & SLOT_BITS;
   const focused = options.focusLane != null && lane === options.focusLane;
   const outside = options.branchOnly === true && (options.focusLane != null ? !focused : !primary);
@@ -89,8 +88,6 @@ function stroke(
         ? "--graph-focus"
         : options.accentLit && !dim && !primary
           ? "--status-add"
-          : options.colouredLanes
-          ? `--c-lane-${(laneColour % BRANCH_SLOTS) + 1}`
           : primary
             ? "--graph-main"
             : "--graph-line";
@@ -117,10 +114,9 @@ export function segmentStroke(
   options: StrokeOptions,
 ): Stroke {
   return stroke(
-    paint?.segmentStyles[index] ?? 0,
+    paint?.segmentStyles[index] ?? (paint ? 0 : undefined),
     paint?.segmentLanes[index],
     segment.primary,
-    segment.from,
     GRAPH.lineWidth,
     options,
   );
@@ -129,7 +125,7 @@ export function segmentStroke(
 /** A ring keeps its stroke width; only its colour and faintness follow the paint. */
 export function nodeStroke(layout: GraphRow, paint: RowPaint | undefined, options: StrokeOptions): Stroke {
   return {
-    ...stroke(paint?.nodeStyle ?? 0, paint?.nodeLane, layout.primary, layout.lane, GRAPH.ringStroke, options),
+    ...stroke(paint?.nodeStyle, paint?.nodeLane, layout.primary, GRAPH.ringStroke, options),
     width: GRAPH.ringStroke,
   };
 }
@@ -142,7 +138,8 @@ export function opaqueInk(colour: string, alpha: number, background: string): st
 
 /** A commit whose ring is dimmed has its text grayed too. */
 export function rowFaded(layout: GraphRow, paint: RowPaint | undefined, options: StrokeOptions): boolean {
-  return nodeStroke(layout, paint, options).alpha < 1;
+  // Text does not wait dimmed with its ring: unpainted, it stays as it is until the paint says.
+  return nodeStroke(layout, paint, paint ? options : { ...options, accentLit: false }).alpha < 1;
 }
 
 /** The lane of the line at `column` in one half of a row, for a click on a line rather

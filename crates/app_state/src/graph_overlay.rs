@@ -28,6 +28,9 @@ pub struct GraphPaintRequest {
     /// Branch Coloring: merged-in lines are dimmed.
     #[serde(default)]
     pub dim_merges: bool,
+    /// Varying Coloring: every branch in a colour of its own, kept through its merge.
+    #[serde(default)]
+    pub varying: bool,
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -108,6 +111,7 @@ impl PaintMemo {
                 .and_then(|oid| self.index.get(oid).copied()),
             mergeable: request.mergeable,
             dim_merges: request.dim_merges,
+            varying: request.varying,
         };
         let watch = std::time::Instant::now();
         let row_of = |oid: &str| self.index.get(oid).copied();

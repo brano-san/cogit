@@ -35,7 +35,7 @@ const row = (primary: boolean): GraphRow => ({
   links: [],
 });
 
-const plain = { colouredLanes: false };
+const plain = {};
 
 describe("branchSlot", () => {
   it("is fixed by the name alone, so a branch keeps its colour between runs", () => {
@@ -97,37 +97,36 @@ describe("strokes", () => {
     expect(coloured.layer).toBeLessThan(segmentStroke(segment(true), 0, undefined, plain).layer);
   });
 
-  it("cycle the palette by column under Varying Coloring where no branch has one", () => {
-    const at = (from: number) => ({ ...segment(false), from });
-    expect(segmentStroke(at(3), 0, undefined, { colouredLanes: true }).token).toBe("--c-lane-4");
-    expect(segmentStroke(at(3 + BRANCH_SLOTS), 0, undefined, { colouredLanes: true }).token).toBe("--c-lane-4");
-    expect(segmentStroke(at(3), 0, painted, { colouredLanes: true }).token).toBe("--graph-branch-5");
-    expect(nodeStroke({ ...row(false), lane: 9 }, undefined, { colouredLanes: true }).token).toBe("--c-lane-2");
-  });
-
   it("dim all but the active branch under Branch Coloring, the main line without a selection", () => {
-    const branch = { colouredLanes: false, branchOnly: true, focusLane: 7 };
+    const branch = { branchOnly: true, focusLane: 7 };
     const paint = { nodeLane: 7, nodeStyle: 0, segmentLanes: [7, 2], segmentStyles: [0, 0] };
     expect(segmentStroke(segment(false), 0, paint, branch).alpha).toBe(1);
     expect(segmentStroke(segment(false), 1, paint, branch).alpha).toBe(DIM_ALPHA);
     expect(rowFaded(row(false), paint, branch)).toBe(false);
     expect(rowFaded(row(false), { ...paint, nodeLane: 2 }, branch)).toBe(true);
-    const head = { colouredLanes: false, branchOnly: true, focusLane: null };
+    const head = { branchOnly: true, focusLane: null };
     expect(rowFaded(row(true), undefined, head)).toBe(false);
     expect(rowFaded(row(false), undefined, head)).toBe(true);
   });
 
   it("fade the text of what Mergeable Coloring dims", () => {
     const dimmed = { nodeLane: 0, nodeStyle: 0x10, segmentLanes: [], segmentStyles: [] };
-    expect(rowFaded(row(true), dimmed, { colouredLanes: false, accentLit: true })).toBe(true);
-    expect(rowFaded(row(false), undefined, { colouredLanes: false, accentLit: true })).toBe(false);
+    expect(rowFaded(row(true), dimmed, { accentLit: true })).toBe(true);
+    expect(rowFaded(row(false), undefined, { accentLit: true })).toBe(false);
   });
 
   it("draw what is not dimmed in the accent under Mergeable Coloring", () => {
-    const mergeable = { colouredLanes: false, accentLit: true };
-    expect(segmentStroke(segment(false), 0, undefined, mergeable).token).toBe("--status-add");
+    const mergeable = { accentLit: true };
+    const lit = { nodeLane: 0, nodeStyle: 0, segmentLanes: [0], segmentStyles: [0] };
+    expect(segmentStroke(segment(false), 0, lit, mergeable).token).toBe("--status-add");
     const dimmed = { nodeLane: 0, nodeStyle: 0x10, segmentLanes: [0], segmentStyles: [0x10] };
     expect(segmentStroke(segment(false), 0, dimmed, mergeable)).toMatchObject({ token: "--graph-line", alpha: DIM_ALPHA });
+  });
+
+  it("wait dimmed, not lit, for paint still on its way under Mergeable Coloring", () => {
+    const mergeable = { accentLit: true };
+    expect(segmentStroke(segment(false), 0, undefined, mergeable)).toMatchObject({ token: "--graph-line", alpha: DIM_ALPHA });
+    expect(nodeStroke(row(false), undefined, mergeable).alpha).toBe(DIM_ALPHA);
   });
 
   it("keep a ring's width whatever its colour", () => {
@@ -144,7 +143,7 @@ describe("strokes", () => {
 
 describe("the branch of the chosen commit", () => {
   const paint = { nodeLane: 7, nodeStyle: 0, segmentLanes: [7, 2], segmentStyles: [0, 0] };
-  const focus = { colouredLanes: false, focusLane: 7 };
+  const focus = { focusLane: 7 };
 
   it("is drawn on top of everything and wider than the main line", () => {
     const focused = segmentStroke(segment(false), 0, paint, focus);

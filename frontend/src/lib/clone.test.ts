@@ -123,7 +123,7 @@ describe("the request Finish sends", () => {
     branch: "main",
     listing: { defaultBranch: "main", branches: ["dev", "main"] },
     skipLarge: false,
-    limitMb: "1",
+    limitMb: "50",
     parent: "D:\\src",
     name: " app ",
   };
@@ -154,7 +154,7 @@ describe("running the clone", () => {
     branch: null,
     listing: null,
     skipLarge: false,
-    limitMb: "1",
+    limitMb: "50",
     parent: "D:\\src",
     name: "app",
   });

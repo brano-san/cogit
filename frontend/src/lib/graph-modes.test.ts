@@ -131,6 +131,12 @@ describe("mergeable in the paint request", () => {
   });
 });
 
+describe("varying in the paint request", () => {
+  it("asks for a colour per branch, with no selection", () => {
+    expect(paintRequest({ ...GRAPH_MODE_DEFAULTS, coloring: "varying" }, [], null)).toEqual({ tips: [], varying: true });
+  });
+});
+
 describe("ancestry in the paint request", () => {
   const on = { ...GRAPH_MODE_DEFAULTS, ancestry: true };
 

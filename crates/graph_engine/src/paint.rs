@@ -20,6 +20,8 @@ pub struct PaintSpec {
     pub mergeable: bool,
     /// Branch Coloring: merged-in (not first-parent) lines are dimmed.
     pub dim_merges: bool,
+    /// Varying Coloring: every branch (a chain of first parents) gets a colour of its own.
+    pub varying: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -300,6 +302,38 @@ fn chains(rows: &[GraphRow], parents: &[Vec<Option<u32>>], tips: &[(u32, u8)]) -
     claimed
 }
 
+/// Palette slots Varying Coloring cycles through; the main line keeps the first.
+const VARYING_SLOTS: u8 = 8;
+
+/// Varying Coloring: what no tick claimed is coloured branch by branch. A row nothing above
+/// claimed is a tip; its first parents down to a claimed row are one branch, so a merged
+/// branch keeps its colour through the merge, the merge line taking it from the parent.
+fn varying(rows: &[GraphRow], parents: &[Vec<Option<u32>>], claimed: &mut [u8]) {
+    let mut next = 0_u8;
+    for tip in 0..rows.len() {
+        if claimed[tip] != 0 {
+            continue;
+        }
+        let mark = if rows[tip].primary {
+            1
+        } else {
+            next = next % (VARYING_SLOTS - 1) + 1;
+            next + 1
+        };
+        let mut at = Some(tip);
+        while let Some(commit) = at {
+            let Some(slot) = claimed.get_mut(commit) else {
+                break;
+            };
+            if *slot != 0 || (commit != tip && rows[commit].primary) {
+                break;
+            }
+            *slot = mark;
+            at = first_parent(parents, index(commit)).map(|p| p as usize);
+        }
+    }
+}
+
 const DESCENDANT: u8 = 1;
 const CHOSEN: u8 = 2;
 const ANCESTOR: u8 = 3;
@@ -358,7 +392,10 @@ pub fn paint(
     spec: &PaintSpec,
 ) -> Paint {
     let trace = trace(rows, parents, row_of);
-    let claimed = chains(rows, parents, &spec.tips);
+    let mut claimed = chains(rows, parents, &spec.tips);
+    if spec.varying {
+        varying(rows, parents, &mut claimed);
+    }
     let kin = match (spec.mergeable, spec.ancestry_of) {
         (true, _) => Some(mergeable(rows, parents)),
         (false, Some(chosen)) => Some(ancestry(parents, chosen, rows.len())),

@@ -107,11 +107,14 @@ describe("buildRefTree", () => {
     expect(nodes.find((node) => node.id === "local:topic")?.current).toBeUndefined();
   });
 
-  it("says a branch is level with its upstream", () => {
+  it("says nothing of a branch level with its upstream", () => {
     const nodes = buildRefTree(
       input({ branches: [branch("master", { upstream: "origin/master" }), tracking("origin/master")] }),
     );
-    expect(nodes.find((node) => node.id === "local:master")?.detail).toBe("= origin");
+    const node = nodes.find((n) => n.id === "local:master");
+    expect(node?.detail).toBeUndefined();
+    expect(node?.status).toBeUndefined();
+    expect(node?.branch?.ahead).toBe(0);
   });
 
   // Fetch prunes the remote-tracking branch, the config still names it: `[origin/x: gone]`.
@@ -120,10 +123,12 @@ describe("buildRefTree", () => {
     expect(nodes.find((node) => node.id === "local:feature")?.detail).toBe("origin: gone");
   });
 
-  it("counts divergence instead when there is any", () => {
+  it("keeps the counts and the gray status for divergence", () => {
     const diverged = branch("master", { upstream: "origin/master", ahead: 2, behind: 1 });
     const nodes = buildRefTree(input({ branches: [diverged, tracking("origin/master")] }));
-    expect(nodes.find((node) => node.id === "local:master")?.detail).toBe("↑2 ↓1");
+    const node = nodes.find((n) => n.id === "local:master");
+    expect(node?.detail).toBeUndefined();
+    expect(node?.status).toBe("><origin");
   });
 
   // F-040: the message and the date, as the stash list had them before the one tree (R-47).

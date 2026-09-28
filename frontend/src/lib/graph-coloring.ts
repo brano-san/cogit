@@ -17,7 +17,7 @@ export const COLORING_LABELS: Record<GraphColoring, { label: string; hint: strin
   },
   varying: {
     label: "Varying Coloring",
-    hint: "Every column in the next color of the palette.",
+    hint: "Every branch in a color of its own, kept after it is merged.",
   },
 };
 

@@ -91,7 +91,7 @@
     const main = token("--graph-main");
     const line = token("--graph-line");
     const coloring = settings.current.graphColoring;
-    const options = { colouredLanes: coloring === "varying", accentLit: coloring === "mergeable", branchOnly: coloring === "branch", focusLane };
+    const options = { accentLit: coloring === "mergeable", branchOnly: coloring === "branch", focusLane };
     const panel = token("--surface-panel");
     const colours = new Map<string, string>();
     const colour = (name: string) => {

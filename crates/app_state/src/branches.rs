@@ -67,14 +67,16 @@ impl AppState {
         repo: RepoId,
         name: &str,
         force: bool,
-    ) -> Result<(), git_engine::GitError> {
+    ) -> Result<git_engine::BranchDeletion, git_engine::GitError> {
         let _quiet = self.quiet(repo);
         let handle = self.handle(repo)?;
         let deleted = handle
             .branches_without_divergence()?
             .into_iter()
             .find(|branch| branch.name == name);
-        handle.delete_branch(name, force)?;
+        if handle.delete_branch(name, force)? == git_engine::BranchDeletion::NotFullyMerged {
+            return Ok(git_engine::BranchDeletion::NotFullyMerged);
+        }
 
         self.record(
             repo,
@@ -85,7 +87,7 @@ impl AppState {
                 upstream: branch.upstream,
             }),
         );
-        Ok(())
+        Ok(git_engine::BranchDeletion::Deleted)
     }
 
     pub fn create_tag(

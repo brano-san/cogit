@@ -17,9 +17,9 @@ import { isEmptyQuery, sameQuery } from "$lib/query";
 
 export type { GraphEntry };
 
-/** Rows per request. A screen is about forty; the next block is asked for early. */
+/** Rows per request. A screen is about forty; the next blocks are asked for early, two ahead of a fast scroll. */
 const BLOCK = 128;
-const AHEAD = 64;
+const AHEAD = 256;
 /** Blocks kept per graph; the ones farthest from the screen go first. */
 const KEEP = 48;
 
