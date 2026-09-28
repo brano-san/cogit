@@ -777,7 +777,7 @@
           <div
             class="divider"
             class:dragging={dragShare !== null}
-            style:left="{left}px"
+            style:left="{Math.round(left)}px"
             role="separator"
             tabindex="0"
             aria-label="Width of the old and the new side"
@@ -800,35 +800,41 @@
         {#if mode === "split" && ribbons.length > 0}
           <svg
             class="band"
-            style:left="{left}px"
+            style:left="{Math.round(left)}px"
             width={BAND_WIDTH}
             height={total * ROW_HEIGHT}
             aria-hidden="true"
           >
             <defs>
-              <linearGradient id="{uid}-change">
+              <linearGradient id="{uid}-change" gradientUnits="userSpaceOnUse" x1="0" x2={BAND_WIDTH} y1="0" y2="0">
                 <stop offset="0" style:stop-color="var(--c-deleted-bg)" />
                 <stop offset="1" style:stop-color="var(--c-added-bg)" />
               </linearGradient>
-              <linearGradient id="{uid}-edge">
-                <stop offset="0" style:stop-color="var(--c-deleted)" />
-                <stop offset="1" style:stop-color="var(--c-added)" />
+              <linearGradient id="{uid}-edge" gradientUnits="userSpaceOnUse" x1="0" x2={BAND_WIDTH} y1="0" y2="0">
+                <stop offset="0" style:stop-color="var(--edge-deleted)" />
+                <stop offset="1" style:stop-color="var(--edge-added)" />
               </linearGradient>
+              <pattern id="{uid}-moved" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                <line x1="0" y1="0" x2="0" y2="5" class="hatch" />
+              </pattern>
             </defs>
             {#each ribbons as ribbon, i (i)}
               <path
                 class="ribbon {ribbon.kind}"
                 class:moved={ribbon.moved}
-                style:fill={ribbon.kind === "change" && !ribbon.moved ? `url(#${uid}-change)` : undefined}
+                style:fill={ribbon.moved
+                  ? `url(#${uid}-moved)`
+                  : ribbon.kind === "change"
+                    ? `url(#${uid}-change)`
+                    : undefined}
                 d={ribbonPath(ribbon, ROW_HEIGHT)}
               />
-              {#if !ribbon.moved}
-                <path
-                  class="edge {ribbon.kind}"
-                  style:stroke={ribbon.kind === "change" ? `url(#${uid}-edge)` : undefined}
-                  d={ribbonEdges(ribbon, ROW_HEIGHT)}
-                />
-              {/if}
+              <path
+                class="edge {ribbon.kind}"
+                class:moved={ribbon.moved}
+                style:stroke={ribbon.kind === "change" && !ribbon.moved ? `url(#${uid}-edge)` : undefined}
+                d={ribbonEdges(ribbon, ROW_HEIGHT)}
+              />
             {/each}
           </svg>
         {/if}
@@ -1348,28 +1354,39 @@
     fill: var(--c-added-bg);
   }
 
-  /* A soft outline on the two curves only; the sides sit on the columns' own edges. */
+  /* The outline is opaque (blended into the panel, not alpha): a translucent stroke over
+     the fill's anti-aliased edge left a light fringe that read as white dots. */
+  .band {
+    --edge-deleted: color-mix(in srgb, var(--c-deleted) 55%, var(--surface-panel));
+    --edge-added: color-mix(in srgb, var(--c-added) 55%, var(--surface-panel));
+    --edge-moved: color-mix(in srgb, var(--status-stash) 70%, var(--surface-panel));
+  }
+
+  /* The two curves only; the sides sit on the columns' own edges. */
   .edge {
     fill: none;
     stroke-width: 1;
-    stroke-opacity: 0.55;
     stroke-linecap: butt;
   }
 
   .edge.delete {
-    stroke: var(--c-deleted);
+    stroke: var(--edge-deleted);
   }
 
   .edge.insert {
-    stroke: var(--c-added);
+    stroke: var(--edge-added);
   }
 
-  /* A move goes somewhere else in the file, so its ribbon is an outline, not a fill. */
-  .ribbon.moved {
-    fill: none;
+  /* A move goes somewhere else in the file: a hatched purple band with solid purple edges,
+     so it never reads as a plain fill like add/delete. */
+  .edge.moved {
+    stroke: var(--edge-moved);
+  }
+
+  .hatch {
     stroke: var(--status-stash);
-    stroke-width: 1.5;
-    stroke-dasharray: 4 3;
+    stroke-opacity: 0.35;
+    stroke-width: 1;
   }
 
   .word {

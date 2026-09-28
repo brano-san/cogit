@@ -265,6 +265,52 @@ impl RepoHandle {
         RepoHandle::open_exact(std::path::Path::new(path))
     }
 
+    /// Why this folder must not be deleted as a worktree's leftover, if it must not.
+    fn leftover_blocker(&self, path: &str) -> Result<Option<String>> {
+        let folder = std::path::Path::new(path);
+        if !folder.is_dir() {
+            return Ok(Some(format!("{path} is not a folder")));
+        }
+        let wanted = normalise(folder);
+        if self
+            .worktree_heads()?
+            .iter()
+            .any(|entry| entry.path == wanted)
+        {
+            return Ok(Some(format!(
+                "{path} is still a worktree of this repository"
+            )));
+        }
+        if folder.join(".git").is_dir() {
+            return Ok(Some(format!("{path} holds a Git repository")));
+        }
+        let real =
+            |p: &std::path::Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+        let target = real(folder);
+        let guarded = [
+            self.root().to_path_buf(),
+            self.main_root(),
+            self.repo.common_dir().to_path_buf(),
+        ];
+        if guarded.iter().any(|guard| real(guard).starts_with(&target)) {
+            return Ok(Some(format!("{path} is, or contains, this repository")));
+        }
+        Ok(None)
+    }
+
+    /// A folder git could not finish deleting after it dropped the worktree's record.
+    pub fn worktree_leftover(&self, path: &str) -> bool {
+        matches!(self.leftover_blocker(path), Ok(None))
+    }
+
+    pub fn delete_worktree_leftover(&self, path: &str) -> Result<()> {
+        if let Some(reason) = self.leftover_blocker(path)? {
+            return Err(GitError::InvalidState(reason));
+        }
+        std::fs::remove_dir_all(path)
+            .map_err(|err| GitError::Io(format!("cannot delete {path}: {err}")))
+    }
+
     pub fn remove_worktree(&self, path: &str, force: bool) -> Result<()> {
         let mut args = vec!["worktree", "remove"];
         if force {

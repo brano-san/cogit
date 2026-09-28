@@ -69,7 +69,7 @@
 | `Ctrl+Z` | `files` | **Discard** — откатить изменения отмеченных файлов (см. предупреждение ниже); ловит webview, не меню |
 | `Ctrl+Enter` | `global` | Commit — `Local ▸ Commit…`: показывает панель Commit Message, ставит в поле курсор и коммитит, если коммит готов (R-452) |
 | `Ctrl+Shift+Enter` | `global` | Commit --amend — то же с галочкой Amend; команда без пункта в меню (`OFF_THE_BAR`, `commit-amend`) |
-| `Ctrl+K` | `global` | Фокус на поле сообщения коммита; показывает панель, если она скрыта (`OFF_THE_BAR`, `commit-message`) |
+| `Ctrl+K` | `global` | Окно Commit (F-576): отдельное окно с файлами и сообщением (`OFF_THE_BAR`, `commit-window`). В нём `Ctrl+Enter` — Commit, `Esc` — Cancel. Фокус на поле панели — команда `commit-message` без клавиши |
 | `Space` | `files` | Отметить строку или снять отметку (множественный выбор, F-101); ставит в индекс `Ctrl+T` |
 | `Ctrl+A` | `files` | Выделить все файлы |
 
@@ -139,6 +139,9 @@ Investigate) клавиши diff действуют всегда. Правило
 Своей строки поиска у WebView2 нет ни в одном окне: `Ctrl+F`, `Ctrl+G`, `Ctrl+Shift+G`, `F3`,
 `Shift+F3`, на которые никто на странице не ответил (`Ctrl+F` вне панели Diff, над бинарным
 файлом), гасит `suppressBrowserFind` (`lib/browser-find.ts`, R-536).
+
+Браузерные клавиши WebView2 (`Ctrl+P/S/U/J/H/R/N/T`, `F5`, `F12`, `Ctrl+Shift+I`, `Alt+←/→`, масштаб `Ctrl +/-/0`/колесо)
+выключены на уровне хоста (`webview2::harden`, R-620); `keydown` на страницу доходит по-прежнему.
 
 Stage и Unstage выделенных строк — кнопки над diff, свёрнутый блок разворачивает щелчок: аккордов
 у них нет: на раскладках с AltGr сочетания `Ctrl+Alt` — это ввод символов, а не команды.

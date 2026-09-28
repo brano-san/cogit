@@ -128,6 +128,7 @@
               type="text"
               class="size"
               inputmode="numeric"
+              maxlength="5"
               value={wizard.limitMb}
               oninput={(event) => (wizard.limitMb = event.currentTarget.value)}
             />
@@ -261,6 +262,11 @@
     align-items: center;
     gap: var(--sp-3);
     padding-left: var(--sp-7);
+    white-space: nowrap;
+  }
+
+  .limit > * {
+    flex: none;
   }
 
   .info {
@@ -279,7 +285,8 @@
   }
 
   .limit .size {
-    width: 72px;
+    width: 6ch;
+    text-align: right;
   }
 
   .hint {

@@ -16,14 +16,15 @@ export function claimsNode(node: RefNode): boolean {
 }
 
 /** `toggle`: why the row's box cannot change, or null. */
-export function groupMenu(node: RefNode, toggle: string | null): ContextItem[] {
+export function groupMenu(node: RefNode, toggle: string | null, remove?: string | null): ContextItem[] {
   const own =
     node.id === "group:local"
       ? [offer(id("add-branch"), "Add Branch…", null)]
       : node.id === "group:tags"
         ? [offer(id("add-tag"), "Add Tag…", null)]
         : [];
-  return tidy([...own, SEPARATOR, offer(id("toggle"), "Toggle", toggle)]);
+  const del = remove === undefined ? [] : [offer(id("delete-refs"), "Delete", remove), SEPARATOR];
+  return tidy([...own, SEPARATOR, ...del, offer(id("toggle"), "Toggle", toggle)]);
 }
 
 export interface RemoteFacts {

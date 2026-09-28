@@ -6,6 +6,7 @@ pub mod bisect;
 pub mod branches;
 pub mod checkup;
 pub mod clone;
+pub mod commit_window;
 pub mod conflicts;
 pub mod desktop;
 pub mod file_ops;

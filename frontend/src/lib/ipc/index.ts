@@ -43,6 +43,9 @@ import type {
 } from "./bindings";
 
 export type {
+  RefDeletion,
+  RefDeletionKind,
+  RefDeletionReport,
   Algorithm,
   OtherRef,
   ReflogEntry,
@@ -636,9 +639,7 @@ export async function showRepository(repo: RepoId | null) {
   unwrap(await commands.showRepository(repo));
 }
 
-export async function lostCommits(repo: RepoId, limit = 100) {
-  return unwrap(await commands.lostCommits(repo, limit));
-}
+export { lostCommits } from "./lost";
 
 export async function cherryPick(repo: RepoId, commits: string[]) {
   return unwrap(await commands.cherryPick(repo, commits));
@@ -1052,12 +1053,12 @@ export async function ignoreRules(repo: RepoId, paths: string[]) {
   return unwrap(await commands.ignoreRules(repo, paths));
 }
 
-export async function lfsLocks(repo: RepoId) {
-  return unwrap(await commands.lfsLocks(repo));
-}
-
 export async function lfsFileStates(repo: RepoId, paths: string[]) {
   return unwrap(await commands.lfsFileStates(repo, paths));
+}
+
+export async function lfsLocks(repo: RepoId) {
+  return unwrap(await commands.lfsLocks(repo));
 }
 
 export async function commitSignature(repo: RepoId, rev: string) {
@@ -1078,4 +1079,26 @@ export async function rerereForget(repo: RepoId, paths: string[]) {
 
 export async function rangeDiff(repo: RepoId, before: string, after: string) {
   return unwrap(await commands.rangeDiff(repo, before, after));
+}
+
+export async function deleteRefs(repo: RepoId, request: import("./bindings").RefDeletion) {
+  return unwrap(await commands.deleteRefs(repo, request));
+}
+
+export async function worktreeLeftover(repo: RepoId, path: string) {
+  return unwrap(await commands.worktreeLeftover(repo, path));
+}
+
+export async function deleteWorktreeLeftover(repo: RepoId, path: string) {
+  return unwrap(await commands.deleteWorktreeLeftover(repo, path));
+}
+
+/** Ctrl+K: the Commit window for this repository. `root` keys the draft the inline Commit
+    Message panel shares with it. */
+export async function openCommitWindow(repo: RepoId, root: string) {
+  return unwrap(await commands.openCommitWindow(repo, root));
+}
+
+export async function recentCommits(repo: RepoId, limit: number) {
+  return unwrap(await commands.recentCommits(repo, limit));
 }

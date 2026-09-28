@@ -7,6 +7,8 @@ pub struct CommitRequest {
     pub message: String,
     pub amend: bool,
     pub no_verify: bool,
+    #[serde(default)]
+    pub signoff: bool,
     /// Empty means everything staged; a list narrows the commit to those paths (T6.8).
     #[serde(default)]
     pub only: Vec<String>,
@@ -33,6 +35,9 @@ impl RepoHandle {
         }
         if request.no_verify {
             args.push("--no-verify");
+        }
+        if request.signoff {
+            args.push("--signoff");
         }
         // `-m` takes the next argument verbatim, so a message starting with `--` is safe.
         args.push("-m");
@@ -154,5 +159,30 @@ impl RepoHandle {
             self.root().join(path)
         };
         Ok(std::fs::read_to_string(resolved).ok())
+    }
+}
+
+impl RepoHandle {
+    /// The newest commits reachable from HEAD, for picking an earlier message from; empty
+    /// before the first commit.
+    pub fn recent_commits(&self, limit: usize) -> Result<Vec<crate::CommitDetails>> {
+        if matches!(self.head()?, crate::Head::Unborn { .. }) {
+            return Ok(Vec::new());
+        }
+        let head = self
+            .repo
+            .head_id()
+            .map_err(|err| GitError::Internal(format!("cannot read HEAD: {err}")))?;
+        let mailmap = self.mailmap();
+        head.ancestors()
+            .all()
+            .map_err(|err| GitError::Internal(format!("cannot walk the history: {err}")))?
+            .take(limit)
+            .map(|step| {
+                let info = step
+                    .map_err(|err| GitError::Internal(format!("cannot walk the history: {err}")))?;
+                self.commit_details_with(&info.id.to_string(), &mailmap)
+            })
+            .collect()
     }
 }

@@ -1,6 +1,6 @@
 <script lang="ts">
   import RemotePropertiesDialog from "./RemotePropertiesDialog.svelte";
-  import { createBranch, popupContextMenu, type ContextItem, type RepoId } from "$lib/ipc";
+  import { createBranch, deleteRefs, popupContextMenu, type ContextItem, type RepoId } from "$lib/ipc";
   import {
     fetchDepth,
     fetchMore,
@@ -11,6 +11,7 @@
     type RemoteInfo,
   } from "$lib/ipc/remotes";
   import { shortOid } from "$lib/format";
+  import { deletionQuestion, folderDeletion } from "$lib/folder-delete";
   import { prefetcher } from "$lib/prefetch";
   import { branchNameProblem } from "$lib/names";
   import { splitUpstream } from "$lib/push-to";
@@ -94,7 +95,9 @@
     let remote: RemoteFacts | null = null;
     let info: RemoteInfo | null = null;
     if (node.remote === undefined) {
-      items = groupMenu(node, toggleBlocked(node));
+      const plan = node.kind === "folder" ? folderDeletion(tree, node) : null;
+      const blocked = plan === null ? "these refs cannot be deleted here" : plan.names.length === 0 ? "nothing here can be deleted" : null;
+      items = groupMenu(node, toggleBlocked(node), node.kind === "folder" ? blocked : undefined);
     } else {
       const configured = network.remotes.includes(node.remote);
       const scope = repository.current;
@@ -162,6 +165,8 @@
         return toggle(at.node);
       case "add-branch":
         return addBranch(id);
+      case "delete-refs":
+        return deleteFolder(id, at.node);
       case "add-tag":
         return addTag();
     }
@@ -194,6 +199,50 @@
         if (at.info) remoteDialogs.properties = at.info;
         return;
     }
+  }
+
+  async function deleteFolder(id: RepoId, node: RefNode) {
+    const plan = folderDeletion(tree, node);
+    if (!plan || plan.names.length === 0) return;
+    const go = await confirmation.ask({
+      title: "Delete Refs",
+      message: deletionQuestion(node.label, plan),
+      confirm: "Delete",
+      warning: true,
+      items: plan.names,
+    });
+    if (!go) return;
+    const request = { kind: plan.kind, remote: plan.remote, names: plan.names, force: false };
+    const failed: string[] = [];
+    let deleted = 0;
+    const run = async (again: typeof request): Promise<string[]> => {
+      try {
+        const report = await deleteRefs(id, again);
+        deleted += report.deleted.length;
+        for (const each of report.failed) {
+          errors.report(each.error, `Could not delete ${each.name}`);
+          failed.push(each.name);
+        }
+        return report.notFullyMerged;
+      } catch (err) {
+        errors.report(err, "Could not delete the refs");
+        return [];
+      }
+    };
+    const kept = await run(request);
+    if (kept.length > 0) {
+      const force = await confirmation.ask({
+        title: "Branches Not Fully Merged",
+        message: `${kept.length} of these branches ${kept.length === 1 ? "is" : "are"} not fully merged into the current upstream/HEAD. Do you want to force delete ${kept.length === 1 ? "it" : "them"}?`,
+        confirm: "Force Delete",
+        items: kept,
+      });
+      if (force) await run({ ...request, names: kept, force: true });
+    }
+    if (failed.length > 0) {
+      notices.inform("Some refs were not deleted", `${deleted} deleted, ${failed.length} failed: ${failed.join(", ")}.`);
+    }
+    await afterRefChange(id);
   }
 
   async function addBranch(id: RepoId) {

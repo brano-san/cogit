@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { writeText } from "@tauri-apps/plugin-clipboard-manager";
   import VirtualList from "$components/common/VirtualList.svelte";
+  import { CopyFeedback } from "$lib/copy-feedback.svelte";
   import { splitLinks } from "$lib/links";
   import { commandReport, repoNameOf } from "$lib/notices";
   import { findMatches, logLines } from "$lib/output-highlight";
@@ -39,7 +39,7 @@
   let finding = $state(false);
   let needle = $state("");
   let at = $state(0);
-  let copied = $state(false);
+  const feedback = new CopyFeedback();
   let findInput: HTMLInputElement | undefined = $state();
   let closer: HTMLButtonElement | undefined = $state();
   let frame: HTMLElement | undefined = $state();
@@ -98,9 +98,7 @@
 
   async function copy() {
     const picked = window.getSelection()?.toString() ?? "";
-    await writeText(picked !== "" && !allSelected ? picked : commandReport(entry));
-    copied = true;
-    setTimeout(() => (copied = false), 1500);
+    await feedback.copy(picked !== "" && !allSelected ? picked : commandReport(entry));
   }
 
   function resize(by: number) {
@@ -272,7 +270,7 @@
       {#if onretry}
         <button type="button" onclick={onretry}>Retry</button>
       {/if}
-      <button type="button" onclick={copy}>{copied ? "Copied" : "Copy output"}</button>
+      <button type="button" onclick={copy}>{feedback.label("Copy output")}</button>
       <button type="button" class="primary" onclick={() => output.close()}>Close</button>
     </footer>
 

@@ -11,7 +11,9 @@ vi.mock("$lib/ipc", () => {
       new Promise((resolve) => held.set([name, repo, ...rest].join(":"), resolve));
   return {
     listStashes: vi.fn(later("stashes")),
-    lostCommits: vi.fn(later("lost")),
+    lostCommits: vi.fn((repo: unknown, take: (rows: unknown[]) => void) =>
+      (later("lost")(repo) as Promise<unknown[]>).then(take),
+    ),
     listRemotes: vi.fn(later("remotes")),
     remoteUrl: vi.fn(later("url")),
     hasToken: vi.fn(async () => false),

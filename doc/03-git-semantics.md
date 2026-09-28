@@ -36,7 +36,7 @@
 | Правила `.gitignore` | фича `excludes` | Для фильтров `fs_watcher` |
 | Правила `.gitattributes` | фича `attributes` | Нормализация EOL, [INV-08](01-architecture.md#inv-08) |
 | Blame | фича `blame` | M8 |
-| Reflog (Lost Commits) | чтение `.git/logs/` | M5 |
+| Lost Commits | `gix`: все объекты-коммиты минус достижимые из любых ссылок и HEAD worktree ([R-622](12-risks.md)); reflog `refs/stash` удерживает | M5 |
 | `.gitmodules` | парсинг конфига | M3 |
 
 ### Мутации — системный `git` CLI

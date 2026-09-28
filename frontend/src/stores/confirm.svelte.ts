@@ -3,6 +3,8 @@ export interface ConfirmRequest {
   message: string;
   confirm: string;
   warning?: boolean;
+  /** Listed under the message in a scrollable box, with no cap: what is about to be deleted. */
+  items?: readonly string[];
   /** Label of an unchecked checkbox; its state comes back from `askWithOption`. */
   option?: string;
 }

@@ -23,7 +23,7 @@
     /** Description of what Undo would reverse, for the tooltip. */
     undoable?: string;
     /** Buttons and menu entries alike, keyed by id; `id:arg` entries go to `id`. */
-    handlers?: Partial<Record<string, (arg?: string) => void>>;
+    handlers?: Partial<Record<string, (arg?: string) => unknown>>;
     /** The selection and repository state the rules read (task #31). */
     facts: ToolbarFacts;
     layout?: readonly string[];
@@ -46,7 +46,7 @@
   /** The keys the tips show: the user's own from Preferences ▸ Keyboard (11 §12). */
   const keys = $derived(effective(settings.bindings, settings.keymap));
 
-  function handlerOf(id: string): ((arg?: string) => void) | undefined {
+  function handlerOf(id: string): ((arg?: string) => unknown) | undefined {
     const at = id.indexOf(":");
     return at < 0 ? handlers[id] : handlers[id.slice(0, at)];
   }
@@ -75,6 +75,7 @@
   );
 
   function openMenu(id: string, event: MouseEvent) {
+    if (busy.has(id)) return;
     if (open === id) {
       open = null;
       return;
@@ -150,10 +151,30 @@
     return () => observer.disconnect();
   });
 
-  function run(id: string) {
+  /** Buttons whose handler is still running: a spinner replaces the icon and a second
+      trigger (click, key, its own menu) is dropped until the promise settles. */
+  let busy = $state.raw<ReadonlySet<string>>(new Set());
+
+  function setBusy(id: string, on: boolean) {
+    const next = new Set(busy);
+    if (on) next.add(id);
+    else next.delete(id);
+    busy = next;
+  }
+
+  /** `owner` is the button the action belongs to: a menu entry busies its own button. */
+  function run(id: string, owner = id) {
+    if (busy.has(owner)) return;
     open = null;
     const at = id.indexOf(":");
-    handlerOf(id)?.(at < 0 ? undefined : id.slice(at + 1));
+    const result = handlerOf(id)?.(at < 0 ? undefined : id.slice(at + 1));
+    if (result instanceof Promise) {
+      setBusy(owner, true);
+      void result.then(
+        () => setBusy(owner, false),
+        () => setBusy(owner, false),
+      );
+    }
   }
 </script>
 
@@ -184,6 +205,8 @@
             class="slot"
             class:disabled
             class:pressed={open === action.id}
+            class:busy={busy.has(action.id)}
+            aria-busy={busy.has(action.id)}
             data-tip={tipOf(action)}
             data-tip-hint={shortcut}
             data-tip-below=""
@@ -195,9 +218,13 @@
               aria-label="{action.label}{shortcut ? ` (${shortcut})` : ''}"
               onclick={() => run(action.id)}
             >
-              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"
-                ><path d={action.icon} /></svg
-              >
+              {#if busy.has(action.id)}
+                <span class="spinner" aria-hidden="true"></span>
+              {:else}
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"
+                  ><path d={action.icon} /></svg
+                >
+              {/if}
             </button>
 
             {#if action.split}
@@ -251,7 +278,7 @@
             <button
               type="button"
               role="menuitem"
-              disabled={off(action)}
+              disabled={off(action) || busy.has(action.id)}
               title={tipOf(action)}
               onclick={() => run(action.id)}>{action.label}</button
             >
@@ -276,7 +303,7 @@
             role="menuitem"
             disabled={why(entry.id) !== undefined}
             title={why(entry.id) ?? entry.hint}
-            onclick={() => run(entry.id)}>{entry.label}</button
+            onclick={() => run(entry.id, open ?? entry.id)}>{entry.label}</button
           >
         {:else}
           <button
@@ -286,7 +313,7 @@
             aria-checked={entry.checked}
             disabled={why(entry.id) !== undefined}
             title={why(entry.id) ?? entry.hint}
-            onclick={() => run(entry.id)}
+            onclick={() => run(entry.id, open ?? entry.id)}
           >
             <span class="mark {entry.kind}" class:checked={entry.checked} aria-hidden="true"></span>
             {entry.label}
@@ -347,7 +374,47 @@
 
   /* One highlight for the whole button: the icon used to add a second one of its own. */
   .slot:hover:not(.disabled) {
+    background: var(--state-hover);
+  }
+
+  /* Pressed: while the pointer is down on either half of the button. */
+  .slot:active:not(.disabled) {
     background: var(--state-selected);
+  }
+
+  /* Keyboard focus rings the whole button, not the 24px icon half only. */
+  .slot:has(:focus-visible) {
+    outline: 1px solid var(--state-focus-ring);
+    outline-offset: -1px;
+  }
+
+  .slot :focus-visible {
+    outline: none;
+  }
+
+  .slot.busy button {
+    pointer-events: none;
+  }
+
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--divider);
+    border-top-color: var(--status-ref);
+    border-radius: 50%;
+    animation: spin 700ms linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .spinner {
+      animation-duration: 2s;
+    }
   }
 
   .quick,

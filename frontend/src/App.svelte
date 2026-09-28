@@ -41,6 +41,7 @@
   import CommandOutput from "$components/layout/CommandOutput.svelte";
   import { suppressNativeMenu } from "$lib/native-menu";
   import { suppressBrowserFind } from "$lib/browser-find";
+  import { suppressBrowserNavigation } from "$lib/browser-navigation";
   import { findModuleRow, isModulePath, onOpenModule } from "$lib/module-open";
   import { footerRepository, panelView } from "$lib/repo-phase";
   import { flushTrace, startTracing, timed, trace } from "$lib/trace";
@@ -170,6 +171,7 @@
     reportMemory,
     reportTiming,
     commitTemplate,
+    openCommitWindow,
     stageMode,
     openMergeWindow,
     openCompareWindow,
@@ -377,6 +379,7 @@
       // Nothing in a Git client is a web page (R-127), nor has the browser's find bar.
       suppressNativeMenu(document);
       suppressBrowserFind(window);
+      suppressBrowserNavigation(window);
       getAppInfo()
         .then((result) => (info = result))
         .catch((err) => errors.report(err, "Could not read the application info"));
@@ -666,6 +669,15 @@
         title: "Commit with Amend",
         unavailable: noRepo,
         run: () => void commitBox.commit(true),
+      },
+      {
+        id: "commit-window",
+        title: "Commit…",
+        unavailable: noRepo,
+        run: () => {
+          const current = repository.current;
+          if (current) void openCommitWindow(current.repo, current.root);
+        },
       },
       {
         id: "commit-message",
@@ -2776,10 +2788,53 @@
     const target = worktreeRemoval?.entry;
     worktreeRemoval = null;
     if (!target) return;
-    await worktrees
-      .remove(target.path, force)
-      .catch((err) => errors.report(err, "Could not remove the worktree"));
+    let failed = false;
+    await worktrees.remove(target.path, force).catch((err) => {
+      failed = true;
+      errors.report(err, "Could not remove the worktree");
+    });
     await safety.refresh();
+    if (failed) await offerAfterFailedRemoval(target, force);
+  }
+
+  /** The list was re-read from git, so it says what is left: git 2.51 drops the registration
+      before it deletes the folder, and a lock or a running program keeps the folder. */
+  async function offerAfterFailedRemoval(target: import("$lib/ipc").WorktreeEntry, forced: boolean) {
+    if (worktrees.entries.some((entry) => entry.path === target.path)) {
+      if (forced) return;
+      const yes = await confirmation.ask({
+        title: "Force Remove Worktree",
+        message: `Git could not remove ${target.name}, and it is still registered. Retry with --force? Uncommitted work is put in a stash first.`,
+        confirm: "Force Remove",
+        warning: true,
+      });
+      if (yes) await confirmWorktreeRemovalForced(target);
+      return;
+    }
+    if (!(await worktrees.leftover(target.path))) return;
+    const yes = await confirmation.ask({
+      title: "Delete Leftover Folder",
+      message:
+        `Git no longer lists ${target.name} but could not delete its folder, so part of it is still on disk ` +
+        "(something may be using it, such as a terminal or an editor; close it first). Delete what is left?",
+      confirm: "Delete Folder",
+      warning: true,
+      items: [target.path],
+    });
+    if (!yes) return;
+    await worktrees
+      .deleteLeftover(target.path)
+      .catch((err) => errors.report(err, "Could not delete the leftover folder"));
+  }
+
+  async function confirmWorktreeRemovalForced(target: import("$lib/ipc").WorktreeEntry) {
+    let failed = false;
+    await worktrees.remove(target.path, true).catch((err) => {
+      failed = true;
+      errors.report(err, "Could not remove the worktree");
+    });
+    await safety.refresh();
+    if (failed) await offerAfterFailedRemoval(target, true);
   }
 
   async function pruneWorktreesHere() {
@@ -3642,30 +3697,30 @@
     undoable={lastUndo?.description}
     handlers={repo
       ? {
-          undo: () => void undo(),
+          undo: () => undo(),
           stash: stashAll,
-          "stash-selection": () => void stashSelected(),
-          "quick-stash-all": () => void quickStashAll(),
-          "quick-stash-selection": () => void stashSelected(false),
-          "apply-stash": () => void applyNewestStash(),
+          "stash-selection": () => stashSelected(),
+          "quick-stash-all": () => quickStashAll(),
+          "quick-stash-selection": () => stashSelected(false),
+          "apply-stash": () => applyNewestStash(),
           tag: () => void refActions?.addTag(null),
           "push-to": () => refActions?.pushToCurrent(),
-          pull: () => void pullNow(),
-          push: () => void runNetwork("push"),
-          sync: () => void syncNow(),
+          pull: () => pullNow(),
+          push: () => runNetwork("push"),
+          sync: () => syncNow(),
           "sync-order": (order) =>
-            void syncNow(order === "pushThenPull" ? "pushThenPull" : "pullThenPush"),
-          "fetch-remote": (remote) => void fetchRemotes(remote ? [remote] : []),
-          "fetch-remotes": () => void fetchRemotes(network.remotes),
+            syncNow(order === "pushThenPull" ? "pushThenPull" : "pullThenPush"),
+          "fetch-remote": (remote) => fetchRemotes(remote ? [remote] : []),
+          "fetch-remotes": () => fetchRemotes(network.remotes),
           "pull-scope": (scope) =>
             void toolbar.set("pullScope", scope === "all" ? "all" : "current"),
           "delete-merged": () =>
             void toolbar.set("deleteMergedAfterPull", !toolbar.prefs.deleteMergedAfterPull),
-          stage: () => void stage(targetsOf("stage", toolbarFacts)),
-          unstage: () => void unstage(targetsOf("unstage", toolbarFacts)),
+          stage: () => stage(targetsOf("stage", toolbarFacts)),
+          unstage: () => unstage(targetsOf("unstage", toolbarFacts)),
           discard: () => void discardFromToolbar(targetsOf("discard", toolbarFacts)),
-          merge: () => void mergeSelected(),
-          rebase: () => void rebaseSelected(),
+          merge: () => mergeSelected(),
+          rebase: () => rebaseSelected(),
           "rebase-i": () => void openRebase(),
         }
       : {}}
@@ -4236,7 +4291,6 @@
   {/if}
 
   <Notifications
-    oncopy={(text) => void copyText(text)}
     onopenurl={(url) => void import("@tauri-apps/plugin-opener").then((opener) => opener.openUrl(url))}
     onshowoutput={(record) => void output.openRecord(record)}
     onaction={(action) => void runNoticeAction(action)}

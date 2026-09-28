@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { writeText } from "@tauri-apps/plugin-clipboard-manager";
   import Checkbox from "$components/common/Checkbox.svelte";
+  import { CopyFeedback } from "$lib/copy-feedback.svelte";
   import type { GitOutput } from "$lib/ipc";
   import { isFailure, isWarning, output } from "$stores/output.svelte";
 
@@ -21,6 +21,7 @@
       .join("\n");
   }
 
+  const feedback = new CopyFeedback();
   let panel: HTMLElement | undefined = $state();
 
   /** Only an Esc pressed inside it: one that closes a dialog or a search is not for it. */
@@ -37,8 +38,8 @@
     <span class="title">Output</span>
     <span class="problems"><Checkbox bind:checked={output.errorsOnly} label="Problems only" /></span>
     <span class="grow"></span>
-    <button type="button" onclick={() => void writeText(output.shownEntries.map(asText).join("\n\n"))}>
-      Copy log
+    <button type="button" onclick={() => void feedback.copy(output.shownEntries.map(asText).join("\n\n"))}>
+      {feedback.label("Copy log")}
     </button>
     <button type="button" onclick={() => void output.clear()}>Clear</button>
     <button type="button" onclick={() => (output.open = false)} title="Close (Esc)">✕</button>

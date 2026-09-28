@@ -103,7 +103,13 @@ pub fn open_with_menu<R: tauri::Runtime>(
         window.remove_menu()?;
     }
     #[cfg(windows)]
-    crate::webview2::install_child_accelerators(&window, accelerator_table(window.label(), menu));
+    {
+        crate::webview2::harden(&window);
+        crate::webview2::install_child_accelerators(
+            &window,
+            accelerator_table(window.label(), menu),
+        );
+    }
     window.show()
 }
 

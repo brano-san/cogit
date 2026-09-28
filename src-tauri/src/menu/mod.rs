@@ -219,7 +219,8 @@ const OFF_THE_BAR: &[(&str, &[Entry])] = &[
                 "Commit with Amend",
                 Some("CmdOrCtrl+Shift+Enter"),
             ),
-            Entry::Item("commit-message", "Commit Message", Some("CmdOrCtrl+K")),
+            Entry::Item("commit-window", "Commit Window", Some("CmdOrCtrl+K")),
+            Entry::Item("commit-message", "Commit Message", None),
         ],
     ),
 ];
@@ -688,7 +689,7 @@ mod nested_tests {
         let pairs = default_keymap_pairs();
         assert!(pairs.contains(&("commit", Some("CmdOrCtrl+Enter"))));
         assert!(pairs.contains(&("commit-amend", Some("CmdOrCtrl+Shift+Enter"))));
-        assert!(pairs.contains(&("commit-message", Some("CmdOrCtrl+K"))));
+        assert!(pairs.contains(&("commit-window", Some("CmdOrCtrl+K"))));
         let claimed = crate::accelerators::table(pairs, &HashMap::new());
         for keys in ["CmdOrCtrl+Enter", "CmdOrCtrl+Shift+Enter", "CmdOrCtrl+K"] {
             let chord = crate::accelerators::parse(keys).expect("parses");

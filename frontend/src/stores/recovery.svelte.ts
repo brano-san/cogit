@@ -8,8 +8,14 @@ class RecoveryStore {
 
   async refresh(repo: RepoId): Promise<void> {
     const generation = ++this.#generation;
-    const lost = await lostCommits(repo);
-    if (generation === this.#generation) this.lost = lost;
+    let rows: CommitRow[] = [];
+    await lostCommits(repo, (chunk) => {
+      if (generation !== this.#generation) return;
+      rows = [...rows, ...chunk];
+      this.lost = rows;
+    });
+    // An empty answer sends no chunk, so the old list would stay.
+    if (generation === this.#generation) this.lost = rows;
   }
 
   clear(): void {

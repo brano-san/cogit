@@ -100,6 +100,8 @@ pub enum GitError {
 | `worktree_changes` | `repo`, `path` | `Vec<FileEntry>` — незакоммиченное в этом ворктри, для подтверждения Remove | M3 |
 | `prune_worktrees` | `repo` | `()` — `git worktree prune`, все устаревшие | M3 |
 | `prune_worktree` | `repo`, `path` | `()` — одна регистрация; папка на месте — `InvalidState` | M3 |
+| `worktree_leftover` | `repo`, `path` | `bool` — папка есть, не зарегистрирована как worktree, не содержит репозиторий и не является/не содержит текущий репозиторий. После неудачного `remove_worktree`: git 2.51 сначала снимает регистрацию, потом удаляет папку и при блокировке (Windows: cwd терминала, открытый файл) оставляет остаток | M3 |
+| `delete_worktree_leftover` | `repo`, `path` | `()` — `remove_dir_all` остатка после подтверждения; те же проверки, иначе `InvalidState`; ошибка ОС — `Io` | M3 |
 | `repair_worktree` | `repo`, `path` — где папка теперь | `()` — `git worktree repair <path>`, затем `git update-index -q --unmerged --ignore-submodules --refresh` в починенном и в текущем worktree; в очереди с подписью `Repairing worktree <name>` | M3 |
 | `lock_worktree` / `unlock_worktree` | `repo`, `path`, `reason: Option<String>` (только lock) | `()` | M3 |
 
@@ -286,6 +288,7 @@ pub enum FileStatus { Added, Modified, Deleted, Renamed, Copied }
 | `list_stashes` | `repo` | `Vec<StashEntry>` | M5 |
 | `stash_contents` | `repo, index: usize` | `Vec<FileEntry>` | M5 |
 | `list_reflog` | `repo` | `Vec<ReflogEntry>` | M5 |
+| `lost_commits` | `repo, on_chunk: Channel<CommitRow[]>` | `number` (всего) — все коммиты, недостижимые ни из одной ссылки и HEAD worktree, новые первыми, чанками по 200 ([R-622](12-risks.md)) | M5 |
 | `ref_dates` | `repo` | `Vec<RefDate { fullName, timestamp }>` — дата вершины каждой ветки (локальной и remote) и тега в секундах Unix: у аннотированного тега — дата тега, иначе — committer-дата коммита; зовётся только при сортировке Branches по дате (#20) | M5 |
 
 ### Diff
@@ -448,11 +451,14 @@ snake_case и читаются на фронтенде как `undefined`.
 | `repo_refs` | `repo` | `RepoRefs { head, branches, tags, state, indexLock }` — то, что двигает коммит, без статуса, регистрации и наблюдателя; фронтенд вливает это в `RepoSummary` (R-316) | M6 |
 | `stage_hunk` | `repo, patch: String` | `()` | M6 |
 | `discard_paths` | `repo, paths` | `()` | M6 |
-| `commit` | `repo, request: CommitRequest { message, amend, noVerify, only }` | `String` (oid); `only` пуст — всё проиндексированное, иначе только эти пути | M6 |
+| `commit` | `repo, request: CommitRequest { message, amend, noVerify, signoff?, only }` | `String` (oid); `only` пуст — всё проиндексированное, иначе только эти пути; `signoff` — `--signoff` (F-576) | M6 |
+| `open_commit_window` | `repo, root` — `root` ключует черновик сообщения, общий с панелью Commit Message | `()`; отдельное окно `commit.html` (F-576) | M6 |
+| `recent_commits` | `repo, limit` | `Vec<CommitDetails>` от HEAD, новые сверху, с полными сообщениями; пусто до первого коммита (F-576) | M6 |
 | `checkout` | `repo, target: CheckoutTarget` | `()`; `branch` — `switch`, `commit` — `switch --detach`, `newBranch { name, start, track }` — `switch --create` с `--track`/`--no-track`, `fastForward { name, to }` — проверка предка, затем `switch -C <name> <oid>`; не перемотка — `InvalidState` (R-560) | M5 |
 | `switch_with_autostash` | `repo, target: CheckoutTarget, message, drop_after_clean` | `AutostashOutcome`: `restored` — изменения вернулись, stash удалён; `kept { clean }` — stash в списке на `stash@{0}` (конфликт или отказ применить — `clean: false`; выключен `drop_after_clean` — `true`). Одна операция полосы: `stash push --include-untracked` в `refs/cogit/backup`, checkout, `stash apply`. Отказ checkout — изменения возвращены (`apply --index`), ошибка — отказ (R-521, R-563) | M5 |
 | `create_branch` | `repo, name, start, switchTo` | `()` | M5 |
 | `delete_branch` | `repo, name, force` | `BranchDeletion`: `"deleted"` или `"notFullyMerged"` — `branch -d` отказал из-за несмерженных коммитов (это не ошибка, ветка цела); UI спрашивает «Force Delete» и повторяет с `force = true` (`branch -D`) | M5 |
+| `delete_refs` | `repo`, `request: RefDeletion { kind: branch\|remoteBranch\|tag, remote, names, force }` | `RefDeletionReport { deleted, notFullyMerged, skipped: [{name, reason}], failed: [{name, error: GitError}] }` — удаление папки в Branches одной операцией очереди (`Branch`). Ветки, выписанные в любом worktree (включая текущую), пропускаются с причиной; сбой одного ref не прерывает остальные, вывод git сохраняется в `error`; `notFullyMerged` — повтор с `force`. Каждый ref пишется в журнал как одиночное удаление | M5 |
 | `delete_remote_branch` | `repo, remote, branch` (`origin/topic` или `topic`) | `RemoteDeletion`: `"deleted"` — `push --delete` по полному имени; `"alreadyGone"` — на сервере ветки уже не было, удалена только устаревшая remote-tracking ссылка (R-480) | M5 |
 | `set_upstream` | `repo, branch, upstream: Option<String>` (`origin/main`) | `()` — `git branch --set-upstream-to <upstream> <branch>`, `null` — `git branch --unset-upstream <branch>`; в очереди записей. Зовут `Set Upstream…` и `Stop Tracking` меню ветки (F-130, R-505) | M5 |
 | `merge` / `rebase` / `cherry_pick` / `revert` | `repo, ...` | `()` | M5 |
@@ -633,7 +639,7 @@ gitlink нет ни в HEAD, ни в индексе (`recorded` пуст, в п�
 потока. Выбранный пункт контекстного меню возвращается тем же событием `menu-command`, что
 и строка меню.
 
-Команды окон (`open_compare_window`, `open_merge_window`, `open_blame_window`,
+Команды окон (`open_compare_window`, `open_merge_window`, `open_blame_window`, `open_commit_window`,
 `close_this_window`) — наоборот, **только асинхронные**: синхронная команда выполняется
 внутри обработчика WebView2, и `WebviewWindowBuilder::build()` там навсегда блокирует все
 окна ([R-201](12-risks.md#r-201--дочернее-окно-чёрное-окно-и-зависшее-главное-8--в)).

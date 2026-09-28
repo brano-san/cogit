@@ -86,8 +86,9 @@ class WorktreeStore {
     amend: boolean,
     noVerify: boolean,
     only: string[] = [],
+    signoff = false,
   ): Promise<void> {
-    await this.mutate(repo, () => createCommit(repo, { message, amend, noVerify, only }));
+    await this.mutate(repo, () => createCommit(repo, { message, amend, noVerify, only, signoff }));
   }
 
   clear(): void {

@@ -2,6 +2,7 @@ mod accelerators;
 mod blame_window;
 mod child_window;
 mod commands;
+mod commit_window;
 mod diagnostics;
 mod events;
 mod key_capture;
@@ -202,6 +203,9 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::worktrees::add_worktree,
             commands::worktrees::remove_worktree,
             commands::worktrees::prune_worktrees,
+            commands::branches::delete_refs,
+            commands::worktrees::worktree_leftover,
+            commands::worktrees::delete_worktree_leftover,
             commands::worktrees::open_worktree,
             commands::worktrees::worktree_changes,
             commands::worktrees::prune_worktree,
@@ -287,6 +291,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::hooks::bypass_log,
             commands::popup_context_menu,
             commands::open_compare_window,
+            commands::commit_window::open_commit_window,
+            commands::commit_window::recent_commits,
             commands::hooks::commit_template,
             commands::stage_mode,
             commands::presets::list_presets,
@@ -402,6 +408,8 @@ pub fn run() -> anyhow::Result<()> {
                 session_end::install(&window);
                 #[cfg(windows)]
                 webview2::install_accelerators(&window);
+                #[cfg(windows)]
+                webview2::harden(&window);
 
                 // Once, after the state plugin restored the saved geometry and before the
                 // window is shown. Never again: Windows moves and resizes the window
