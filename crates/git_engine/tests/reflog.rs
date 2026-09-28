@@ -554,8 +554,7 @@ fn a_new_pack_is_found_through_a_warm_cache() {
         .unwrap()
         .trim()
         .to_owned();
-    let packed = std::process::Command::new("git")
-        .current_dir(f.path())
+    let packed = test_fixtures::git_command_in(f.path())
         .args(["pack-objects", "-q", ".git/objects/pack/extra"])
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::null())

@@ -1,0 +1,37 @@
+name: Set up Cogit toolchains
+description: Rust (pinned by rust-toolchain.toml), Node, npm dependencies and build caches.
+inputs:
+  nextest:
+    description: Install cargo-nextest
+    default: "false"
+runs:
+  using: composite
+  steps:
+    - name: Check required tools
+      shell: bash
+      run: |
+        for t in git jq; do
+          command -v "$t" >/dev/null || { echo "::error::'$t' is missing on this runner"; exit 1; }
+        done
+        test -f rust-toolchain.toml || { echo "::error::rust-toolchain.toml not found: wrong checkout?"; exit 1; }
+
+    # Reads rust-toolchain.toml and caches ~/.cargo and target/ (Swatinem/rust-cache inside).
+    # rustflags is emptied: the action defaults to "-D warnings", clippy already enforces it.
+    - uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        rustflags: ""
+
+    - uses: taiki-e/install-action@v2
+      if: inputs.nextest == 'true'
+      with:
+        tool: cargo-nextest
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: npm
+        cache-dependency-path: package-lock.json
+
+    - name: Install npm dependencies
+      shell: bash
+      run: npm ci
