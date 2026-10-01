@@ -1,4 +1,4 @@
-use crate::{FileEntry, FileStatus, GitError, RepoHandle, Result};
+use crate::{ConflictKind, FileEntry, FileStatus, GitError, RepoHandle, Result};
 use gix::status::index_worktree::Item as WorktreeItem;
 use gix::status::plumbing::index_as_worktree::{Change as WorktreeChange, EntryStatus};
 use gix::status::{Item, UntrackedFiles};
@@ -41,6 +41,16 @@ impl RepoHandle {
     }
 
     pub fn worktree_files_with(&self, view: WorktreeView) -> Result<WorktreeFiles> {
+        self.files_with(view, false)
+    }
+
+    /// `skip_submodules` leaves a submodule's own status unread: the caller asks for it
+    /// apart, in parallel (the Remove Worktree scan, R-675).
+    pub(crate) fn files_with(
+        &self,
+        view: WorktreeView,
+        skip_submodules: bool,
+    ) -> Result<WorktreeFiles> {
         let mut files = WorktreeFiles::default();
         if self.repo.is_bare() {
             return Ok(files);
@@ -49,6 +59,12 @@ impl RepoHandle {
         let mut platform = self
             .status_platform()?
             .untracked_files(UntrackedFiles::Collapsed);
+        if skip_submodules {
+            platform = platform.index_worktree_submodules(gix::status::Submodule::Given {
+                ignore: gix::submodule::config::Ignore::All,
+                check_dirty: false,
+            });
+        }
         if view.ignored {
             platform = platform.index_worktree_options_mut(|options| {
                 if let Some(walk) = options.dirwalk_options.as_mut() {
@@ -76,6 +92,7 @@ impl RepoHandle {
                             entry_of(rela_path.to_string(), file_status, mode_of(found.mode));
                         row.mode_change = executable_bit_change(&status, found.mode);
                         row.submodule = submodule_change(&status);
+                        row.conflict = conflict_kind(&status);
                         files.unstaged.push(row);
                     }
                 }
@@ -160,6 +177,7 @@ fn entry_of(path: String, status: FileStatus, mode: crate::FileMode) -> FileEntr
         mode_change: None,
         similarity: None,
         submodule: None,
+        conflict: None,
     }
 }
 
@@ -229,6 +247,7 @@ fn staged_entry(change: &gix::diff::index::Change) -> FileEntry {
             mode_change: None,
             similarity: None,
             submodule: None,
+            conflict: None,
         },
     }
 }
@@ -261,6 +280,22 @@ fn worktree_status(status: &EntryStatus<(), gix::submodule::Status>) -> Option<F
         EntryStatus::IntentToAdd => Some(FileStatus::Added),
         EntryStatus::NeedsUpdate(_) => None,
     }
+}
+
+fn conflict_kind(status: &EntryStatus<(), gix::submodule::Status>) -> Option<ConflictKind> {
+    use gix::status::plumbing::index_as_worktree::Conflict as C;
+    let EntryStatus::Conflict { summary, .. } = status else {
+        return None;
+    };
+    Some(match summary {
+        C::BothModified => ConflictKind::BothModified,
+        C::BothAdded => ConflictKind::BothAdded,
+        C::BothDeleted => ConflictKind::BothDeleted,
+        C::DeletedByThem => ConflictKind::DeletedByThem,
+        C::DeletedByUs => ConflictKind::DeletedByUs,
+        C::AddedByUs => ConflictKind::AddedByUs,
+        C::AddedByThem => ConflictKind::AddedByThem,
+    })
 }
 
 fn submodule_change(

@@ -247,3 +247,18 @@ fn a_pulse_of_the_large_set_takes() {
         times[2]
     );
 }
+
+#[test]
+fn an_unresolved_merge_conflict_is_reported() {
+    let f = test_fixtures::conflicted().unwrap();
+    let found = pulse(f.path());
+    assert!(found.dirty && found.conflicted);
+}
+
+#[test]
+fn a_plain_change_is_not_a_conflict() {
+    let f = test_fixtures::linear(2).unwrap();
+    std::fs::write(f.path().join("file0.txt"), "a longer line than before\n").unwrap();
+    let found = pulse(f.path());
+    assert!(found.dirty && !found.conflicted);
+}

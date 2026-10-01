@@ -523,3 +523,68 @@ fn a_plain_file_row_has_no_submodule_state() {
     let files = open(&f).worktree_files().unwrap();
     assert!(files.unstaged.iter().all(|e| e.submodule.is_none()));
 }
+
+fn conflict_row(f: &test_fixtures::Fixture, path: &str) -> git_engine::FileEntry {
+    open(f)
+        .worktree_files()
+        .unwrap()
+        .unstaged
+        .into_iter()
+        .find(|e| e.path == path)
+        .unwrap()
+}
+
+#[test]
+fn both_modified_conflict_says_both_modified() {
+    let f = test_fixtures::conflicted().unwrap();
+    let row = conflict_row(&f, "conflict.txt");
+    assert_eq!(row.conflict, Some(git_engine::ConflictKind::BothModified));
+}
+
+#[test]
+fn a_file_deleted_by_us_says_deleted_by_us() {
+    let f = test_fixtures::empty().unwrap();
+    f.write_file("f.txt", "base\n").unwrap();
+    f.git(&["add", "--", "f.txt"]).unwrap();
+    f.commit_staged(10, "base").unwrap();
+    f.git(&["switch", "-c", "theirs"]).unwrap();
+    f.write_file("f.txt", "theirs\n").unwrap();
+    f.git(&["add", "--", "f.txt"]).unwrap();
+    f.commit_staged(11, "theirs").unwrap();
+    f.git(&["switch", "main"]).unwrap();
+    f.git(&["rm", "--", "f.txt"]).unwrap();
+    f.commit_staged(12, "ours deletes").unwrap();
+    let _ = f.git(&["merge", "theirs"]);
+    assert_eq!(
+        conflict_row(&f, "f.txt").conflict,
+        Some(git_engine::ConflictKind::DeletedByUs)
+    );
+}
+
+#[test]
+fn a_file_added_on_both_sides_says_both_added() {
+    let f = test_fixtures::empty().unwrap();
+    f.write_file("base.txt", "x\n").unwrap();
+    f.git(&["add", "--", "base.txt"]).unwrap();
+    f.commit_staged(10, "base").unwrap();
+    f.git(&["switch", "-c", "theirs"]).unwrap();
+    f.write_file("n.txt", "theirs\n").unwrap();
+    f.git(&["add", "--", "n.txt"]).unwrap();
+    f.commit_staged(11, "theirs").unwrap();
+    f.git(&["switch", "main"]).unwrap();
+    f.write_file("n.txt", "ours\n").unwrap();
+    f.git(&["add", "--", "n.txt"]).unwrap();
+    f.commit_staged(12, "ours").unwrap();
+    let _ = f.git(&["merge", "theirs"]);
+    assert_eq!(
+        conflict_row(&f, "n.txt").conflict,
+        Some(git_engine::ConflictKind::BothAdded)
+    );
+}
+
+#[test]
+fn a_plain_change_has_no_conflict_kind() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file("file0.txt", "changed\n").unwrap();
+    assert_eq!(conflict_row(&f, "file0.txt").conflict, None);
+}

@@ -8,6 +8,7 @@ const PULSE: RepoPulse = {
   tracked: true,
   ahead: 0,
   behind: 1,
+  conflicted: false,
   dirty: false,
 };
 

@@ -1,45 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { fileName, fileStatusBadge, fileStatusTooltip, matchesMask, statusBadge, statusLabel, statusTooltip } from "./files";
+import { fileName, matchesMask, submoduleTooltip } from "./files";
 
-describe("statusBadge", () => {
-  it("gives every status its own single letter", () => {
-    const badges = (
-      ["added", "modified", "deleted", "renamed", "copied", "untracked", "conflicted"] as const
-    ).map(statusBadge);
-    expect(badges).toEqual(["A", "M", "D", "R", "C", "?", "U"]);
-    expect(new Set(badges).size).toBe(badges.length);
-  });
-
-  it("spells the status out for assistive technology", () => {
-    expect(statusLabel("renamed")).toBe("Renamed");
-  });
-
-  it("explains every marker the list can show in its tooltip", () => {
-    expect(statusTooltip("modified")).toBe("Modified — changed since last commit");
-    expect(statusTooltip("untracked")).toBe("Untracked — not under version control");
-    expect(statusTooltip("conflicted")).toBe("Conflict — unmerged");
-    for (const status of ["unchanged", "ignored", "assumeUnchanged", "skipped"] as const) {
-      expect(statusTooltip(status)).toMatch(/^[A-Z]/);
-    }
-  });
-
-  it("shows RM for renamed files with modifications", () => {
-    expect(fileStatusBadge({ status: "renamed", similarity: 64 })).toBe("RM");
-    expect(fileStatusBadge({ status: "renamed", similarity: 100 })).toBe("R");
-    expect(fileStatusBadge({ status: "renamed", similarity: null })).toBe("R");
-    expect(fileStatusBadge({ status: "renamed", similarity: 100, indexState: "partly" })).toBe("RM");
-    expect(fileStatusBadge({ status: "modified" })).toBe("M");
-
-    expect(fileStatusTooltip({ status: "renamed", similarity: 64 })).toContain("Renamed and modified");
-    expect(fileStatusTooltip({ status: "renamed", similarity: 100 })).toBe("Renamed");
-  });
-
+describe("submoduleTooltip", () => {
   it("explains what staging a submodule records", () => {
-    const dirty = { status: "modified" as const, submodule: { newCommits: false, modified: true, untracked: true } };
-    expect(fileStatusTooltip(dirty)).toContain("modified files and untracked files inside");
-    expect(fileStatusTooltip(dirty)).toContain("Nothing to stage");
-    const moved = { status: "modified" as const, submodule: { newCommits: true, modified: true, untracked: false } };
-    expect(fileStatusTooltip(moved)).toContain("changes inside the submodule are not included");
+    const dirty = submoduleTooltip({ newCommits: false, modified: true, untracked: true });
+    expect(dirty).toContain("modified files and untracked files inside");
+    expect(dirty).toContain("Nothing to stage");
+    expect(submoduleTooltip({ newCommits: true, modified: true, untracked: false })).toContain(
+      "changes inside the submodule are not included",
+    );
   });
 });
 

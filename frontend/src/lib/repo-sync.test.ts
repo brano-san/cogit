@@ -9,6 +9,7 @@ import {
   syncTooltip,
   UNKNOWN_PULL,
 } from "./repo-sync";
+import { CONFLICTED_REPOSITORY } from "./repo-labels";
 import type { Branch, RepoOverview, RepoSummary } from "$lib/ipc";
 import type { RepoPulse } from "$lib/ipc/bindings";
 
@@ -32,6 +33,7 @@ const pulse = (over: Partial<RepoPulse> = {}): RepoPulse => ({
   ahead: 0,
   behind: 3,
   dirty: false,
+  conflicted: false,
   ...over,
 });
 
@@ -55,6 +57,7 @@ describe("the marks of a repository row", () => {
       remoteAhead: false,
       missing: false,
       branch: null,
+      conflicted: false,
     });
   });
 
@@ -111,6 +114,43 @@ describe("the marks of a repository row", () => {
   it("has no tooltip for a clean row in step with its upstream", () => {
     const sync = rowSync({ overview: null, owned: false, pulse: pulse({ behind: 0 }), fetchFailed: false });
     expect(syncTooltip(sync)).toBe("");
+  });
+});
+
+describe("conflicts on a row", () => {
+  it("reads one off screen from its pulse", () => {
+    const sync = rowSync({ overview: null, owned: false, pulse: pulse({ dirty: true, conflicted: true }), fetchFailed: false });
+    expect(sync.conflicted).toBe(true);
+  });
+
+  it("claims none for a row not read yet", () => {
+    expect(rowSync({ overview: null, owned: false, pulse: undefined, fetchFailed: false }).conflicted).toBe(false);
+  });
+
+  it("takes one from a submodule below, even when the row itself has none", () => {
+    const sync = rowSync({ overview: null, owned: false, pulse: pulse(), fetchFailed: false, conflictedBelow: true });
+    expect(sync.conflicted).toBe(true);
+  });
+
+  it("reads the row on screen from the status the panels keep fresh, and clears it on resolving", () => {
+    const status = (conflicted: number) =>
+      ({
+        repo: 1,
+        head: { kind: "branch", name: "main", oid: "a".repeat(40) },
+        branches: [],
+        status: { staged: 0, unstaged: 0, untracked: 0, conflicted },
+        state: { kind: "clean" },
+      }) as unknown as RepoSummary;
+    const base = overview({ repo: 1 as never });
+    const conflicted = freshOverview(base, status(2));
+    expect(rowSync({ overview: conflicted, owned: true, pulse: undefined, fetchFailed: false }).conflicted).toBe(true);
+    const resolved = freshOverview(base, status(0));
+    expect(rowSync({ overview: resolved, owned: true, pulse: undefined, fetchFailed: false }).conflicted).toBe(false);
+  });
+
+  it("outranks Modified: no changes tooltip, only the conflict", () => {
+    const sync = rowSync({ overview: null, owned: false, pulse: pulse({ behind: 0, dirty: true, conflicted: true }), fetchFailed: false });
+    expect(syncTooltip(sync)).toBe(CONFLICTED_REPOSITORY);
   });
 });
 
@@ -242,6 +282,6 @@ describe("the marks the panels hand to a row they let go of", () => {
       indexLock: null,
       tagGroupSeparator: "/",
     } as unknown as RepoSummary;
-    expect(summaryPulse(now)).toEqual({ missing: false, branch: "dev", tracked: true, ahead: 0, behind: 2, dirty: true });
+    expect(summaryPulse(now)).toEqual({ missing: false, branch: "dev", tracked: true, ahead: 0, behind: 2, dirty: true, conflicted: false });
   });
 });

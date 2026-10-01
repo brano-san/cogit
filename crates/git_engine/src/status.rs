@@ -76,6 +76,18 @@ impl RepoHandle {
         })
     }
 
+    /// Any unmerged index entry; the index is read, the working tree is not.
+    pub fn has_conflicts(&self) -> Result<bool> {
+        if self.repo.is_bare() {
+            return Ok(false);
+        }
+        let index = self.current_index()?;
+        Ok(index
+            .entries()
+            .iter()
+            .any(|entry| entry.flags.stage() != gix::index::entry::Stage::Unconflicted))
+    }
+
     /// `!status().is_clean()`, stopping at the first change instead of counting them all.
     pub fn has_changes(&self) -> Result<bool> {
         if self.repo.is_bare() {

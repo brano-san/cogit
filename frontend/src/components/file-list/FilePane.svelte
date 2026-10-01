@@ -17,10 +17,12 @@
 <script lang="ts">
   import { tick } from "svelte";
   import Disclosure from "$components/common/Disclosure.svelte";
-  import KindIcon, { type Kind } from "$components/common/KindIcon.svelte";
+  import FileStateIcon from "$components/common/FileStateIcon.svelte";
+  import KindIcon from "$components/common/KindIcon.svelte";
   import VirtualList from "$components/common/VirtualList.svelte";
   import { directoryOf, extensionOf, fileType, gridColumns, lfsLabel, TYPE_LABELS, type ColumnKey } from "$lib/file-columns";
-  import { fileName, fileStatusBadge, fileStatusLabel, fileStatusTooltip, indexNote } from "$lib/files";
+  import { fileState, sideOfRow, type StateSide } from "$lib/file-state";
+  import { fileName, indexNote } from "$lib/files";
   import { remoteOps } from "$stores/remote-ops.svelte";
   import type { ViewRow } from "$lib/file-view";
   import { LIST_ROW_HEIGHT, striped } from "$lib/graph-geometry";
@@ -41,6 +43,8 @@
     columns: readonly ColumnKey[];
     /** Grouped by directory: a file is one level in, under its folder row. */
     nested?: boolean;
+    /** Which comparison the rows come from; it decides what the State column calls a change. */
+    side?: StateSide;
     /** A click, or the arrows (11 §10): Shift extends the ticked range. */
     onclick: (path: string, event: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) => void;
     onmark: (path: string) => void;
@@ -57,18 +61,12 @@
     paths,
     columns,
     nested = false,
+    side = "worktree",
     onclick,
     onmark,
     onopen,
     oncontext,
   }: Props = $props();
-
-  /** By the entry's mode, 160000 and 120000, never by the name (R-180). */
-  function kindOf(file: FileEntry): Kind {
-    if (file.mode === "submodule") return "submodule";
-    if (file.mode === "symlink") return "symlink";
-    return file.path.endsWith("/") ? "directory" : "file";
-  }
 
   function absolutePath(relPath: string): string {
     const root = repository.current?.root;
@@ -187,6 +185,12 @@
               onclick(file.path, event);
             }}
             onkeydown={(event) => {
+              // Enter on a conflicted file is its double click: the Conflict Solver.
+              if (event.key === "Enter" && file.status === "conflicted" && onopen) {
+                event.preventDefault();
+                onopen(file.path);
+                return;
+              }
               if (event.key !== " ") return;
               event.preventDefault();
               onmark(file.path);
@@ -199,7 +203,14 @@
             }}
           >
             <span class="cell name">
-              <KindIcon kind={kindOf(file)} />
+              {#if file.path.endsWith("/") && file.mode !== "submodule"}
+                <KindIcon kind="directory" />
+              {:else}
+                <FileStateIcon
+                  base={file.mode === "submodule" ? "repository" : "page"}
+                  state={fileState(file, sideOfRow(file.indexState, side)).icon}
+                />
+              {/if}
               <span class="truncate shrink-last" title={absolutePath(file.path)}>{fileName(file.path)}</span>
               {#if file.oldPath}
                 <span class="from truncate shrink-first" title="from {file.oldPath}"
@@ -214,16 +225,12 @@
               <span class="cell truncate">{extensionOf(file.path)}</span>
             {/if}
             {#if shows.has("change")}
+              {@const state = fileState(file, sideOfRow(file.indexState, side))}
               <span class="cell change">
                 <span
-                  class="badge"
-                  class:staged={file.indexState === "staged"}
-                  class:partly={file.indexState === "partly"}
-                  aria-label={fileStatusLabel(file) + indexNote(file.indexState)}
-                  title={fileStatusTooltip(file) + indexNote(file.indexState)}
-                  >{#if file.status === "skipped"}<svg class="skip" viewBox="0 0 12 12" aria-hidden="true"
-                      ><path d="M1.5 6s1.75-3.5 4.5-3.5S10.5 6 10.5 6 8.75 9.5 6 9.5 1.5 6 1.5 6ZM2 1l8 10" /></svg
-                    >{:else}<span class="glyph">{fileStatusBadge(file)}</span>{/if}</span
+                  class="state truncate"
+                  class:danger={state.tone === "danger"}
+                  title={state.tooltip + indexNote(file.indexState)}>{state.text}</span
                 >
                 {#if remoteOps.lockOwner(file.path) !== undefined}
                   <span class="mode" title="Locked in Git LFS by {remoteOps.lockOwner(file.path)}: read-only for everyone else"
@@ -319,7 +326,7 @@
 
   .row.nested .cell.name {
     padding-left: calc(
-      var(--tree-base) + var(--tree-step) + (var(--disclosure-glyph) - var(--kind-icon)) / 2 - var(--sp-5)
+      var(--tree-base) + var(--tree-step) + (var(--disclosure-glyph) - var(--file-icon)) / 2 - var(--sp-5)
     );
   }
 
@@ -393,60 +400,15 @@
     opacity: 0.4;
   }
 
-  /* Dimmed: it is context for the name, not a thing to read on its own. */
-  .badge {
-    flex: 0 0 auto;
-    display: grid;
-    place-items: center;
-    box-sizing: border-box;
-    min-width: 16px;
-    height: 16px;
-    padding: 0 2px;
-    border: 1px solid transparent;
-    font-family: var(--font-mono);
-    font-size: 10px;
-    font-weight: 600;
-    line-height: 1;
+  .state {
+    flex: 0 1 auto;
+    min-width: 0;
+    color: var(--fg-secondary);
+    font-size: 11px;
   }
 
-  /* The box is centred on the letter's ink, not its line box: the em box sits off the caps by
-     a font-dependent amount, invisible without a frame and obvious inside the staged one. */
-  .glyph {
-    text-box: trim-both cap alphabetic;
-  }
-
-  .skip {
-    width: 12px;
-    height: 12px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.5;
-    stroke-linecap: round;
-  }
-
-  .row.added .badge {
-    color: var(--status-add);
-  }
-
-  .row.modified .badge {
-    color: var(--status-modify);
-  }
-
-  .row.deleted .badge {
-    color: var(--status-delete);
-  }
-
-  .row.renamed .badge,
-  .row.copied .badge {
-    color: var(--status-ref);
-  }
-
-  .row.untracked .badge,
-  .row.unchanged .badge,
-  .row.ignored .badge,
-  .row.assumeUnchanged .badge,
-  .row.skipped .badge {
-    color: var(--text-secondary);
+  .state.danger {
+    color: var(--status-danger);
   }
 
   .row.unchanged,
@@ -454,23 +416,6 @@
   .row.assumeUnchanged,
   .row.skipped {
     color: var(--text-secondary);
-  }
-
-  /* In the one working-tree list (#32): boxed, the change is in the index; a dashed box,
-     part of it is. */
-  .badge.staged,
-  .badge.partly {
-    border-radius: var(--r-sm);
-    border-color: currentColor;
-  }
-
-  .badge.partly {
-    border-style: dashed;
-  }
-
-  .row.conflicted .badge {
-    color: var(--status-delete);
-    background: var(--c-deleted-bg);
   }
 
   /* Not `.renamed`: that is also the status class of the row, which then took this style. */

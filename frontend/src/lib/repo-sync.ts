@@ -1,6 +1,6 @@
 import type { RepoOverview, RepoSummary } from "$lib/ipc";
 import type { RepoPulse } from "$lib/ipc/bindings";
-import { DIRTY_REPOSITORY, trackTooltip } from "$lib/repo-labels";
+import { CONFLICTED_REPOSITORY, DIRTY_REPOSITORY, trackTooltip } from "$lib/repo-labels";
 
 /** The marks of one row of the Repositories list (R-353). */
 export interface RowSync {
@@ -15,10 +15,12 @@ export interface RowSync {
   missing: boolean;
   /** HEAD's branch; `null` while detached or not read yet. */
   branch: string | null;
+  /** An unmerged file in it or in a submodule below it; outranks `dirty` (item 3 of 14). */
+  conflicted: boolean;
 }
 
 /** What a row's marks are read from: a list row, a pulse or what the panels show. */
-type Marks = Pick<RepoOverview, "dirty" | "ahead" | "behind" | "missing" | "branch">;
+type Marks = Pick<RepoOverview, "dirty" | "ahead" | "behind" | "missing" | "branch"> & { conflicted?: boolean };
 
 export interface RowSyncInput {
   overview: Marks | null;
@@ -27,6 +29,8 @@ export interface RowSyncInput {
   pulse: RepoPulse | undefined;
   fetchFailed: boolean;
   remoteAhead?: boolean;
+  /** A submodule below this row has a conflict (`conflictedTree`). */
+  conflictedBelow?: boolean;
 }
 
 /** The repository on screen from its full status; any other from its latest pulse, which
@@ -35,7 +39,17 @@ export function rowSync(input: RowSyncInput): RowSync {
   const { overview, owned, pulse, fetchFailed } = input;
   const remoteAhead = input.remoteAhead === true && !fetchFailed;
   const source = owned && overview ? overview : (pulse ?? overview);
-  const none = { dirty: null, ahead: 0, behind: 0, unknown: false, remoteAhead, missing: false, branch: null };
+  const below = input.conflictedBelow === true;
+  const none = {
+    dirty: null,
+    ahead: 0,
+    behind: 0,
+    unknown: false,
+    remoteAhead,
+    missing: false,
+    branch: null,
+    conflicted: below,
+  };
   if (!source) return { ...none, unknown: fetchFailed };
   if (source.missing) return { ...none, remoteAhead: false, missing: true };
   return {
@@ -46,10 +60,11 @@ export function rowSync(input: RowSyncInput): RowSync {
     remoteAhead,
     missing: false,
     branch: source.branch,
+    conflicted: source.conflicted === true || below,
   };
 }
 
-function summaryMarks(current: RepoSummary): Marks {
+function summaryMarks(current: RepoSummary): Marks & { conflicted: boolean } {
   const head = current.head.kind === "branch" ? current.head.name : null;
   const tracked = head === null ? undefined : current.branches.find((b) => b.kind === "local" && b.name === head);
   const { staged, unstaged, untracked, conflicted } = current.status;
@@ -58,13 +73,17 @@ function summaryMarks(current: RepoSummary): Marks {
     ahead: tracked?.ahead ?? 0,
     behind: tracked?.behind ?? 0,
     dirty: staged + unstaged + untracked + conflicted > 0,
+    conflicted: conflicted > 0,
     missing: false,
   };
 }
 
 /** The list is read again on open, fetch and the like; what the panels show is read after
     every write and every change on disk, so the row on screen takes its marks from that. */
-export function freshOverview(overview: RepoOverview, current: RepoSummary | null): RepoOverview {
+export function freshOverview(
+  overview: RepoOverview,
+  current: RepoSummary | null,
+): RepoOverview & { conflicted?: boolean } {
   if (!current || current.repo !== overview.repo) return overview;
   return { ...overview, ...summaryMarks(current), state: current.state };
 }
@@ -83,6 +102,7 @@ export interface ModuleSyncInput {
   pulse: RepoPulse | undefined;
   fetchFailed: boolean;
   remoteAhead?: boolean;
+  conflictedBelow?: boolean;
 }
 
 /** A submodule node, read like a list row: from the panels while they show it, from its
@@ -103,7 +123,8 @@ export const REMOTE_AHEAD = "The remote has commits not fetched yet. Pull to get
 
 export function syncTooltip(sync: RowSync): string {
   const parts: string[] = [];
-  if (sync.dirty) parts.push(DIRTY_REPOSITORY);
+  if (sync.conflicted) parts.push(CONFLICTED_REPOSITORY);
+  else if (sync.dirty) parts.push(DIRTY_REPOSITORY);
   const track = trackTooltip(sync.ahead, sync.behind);
   if (track) parts.push(track);
   if (sync.remoteAhead && sync.behind === 0) parts.push(REMOTE_AHEAD);

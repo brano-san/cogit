@@ -174,7 +174,7 @@ export const DEFAULT_COLUMN_WIDTHS: ColumnWidths = {
   name: 180,
   type: 65,
   extension: 70,
-  change: 60,
+  change: 130,
   lfs: 110,
   path: 260,
 };

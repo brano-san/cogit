@@ -41,6 +41,24 @@ export function pulsedRoots(top: string, rows: readonly ModuleRow[]): string[] {
   return rows.filter((row) => row.module.state !== "notInitialised").map((row) => moduleRoot(top, row.key));
 }
 
+/** Which nodes of a tree are in conflict, as `hit` says of each: `any` for the repository on top,
+    `above` for the nodes with a conflicted one somewhere below them. Conflicts inside a submodule
+    show on every repository up to the top. */
+export function conflictedTree(
+  rows: readonly ModuleRow[],
+  hit: (key: string) => boolean,
+): { any: boolean; above: Set<string> } {
+  const parents = new Map(rows.map((row) => [row.key, row.parent]));
+  const above = new Set<string>();
+  let any = false;
+  for (const row of rows) {
+    if (!hit(row.key)) continue;
+    any = true;
+    for (let up = row.parent; up !== "" && !above.has(up); up = parents.get(up) ?? "") above.add(up);
+  }
+  return { any, above };
+}
+
 export interface ShownPanels {
   current: string | null;
   moduleOwnerRoot: string | null;
