@@ -145,7 +145,7 @@
 <style>
   .errors {
     display: flex;
-    height: 100vh;
+    height: 100%;
     background: var(--surface-base);
     color: var(--text-primary);
     font-size: var(--fs-dense);

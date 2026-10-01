@@ -54,3 +54,18 @@ describe("submenu", () => {
     expect(submenu("r", "Resolve", [SEPARATOR]).enabled).toBe(false);
   });
 });
+
+describe("tidy at every depth", () => {
+  it("tidies the children of a submenu given as a plain row", () => {
+    const nested = { ...item("move", "Move To"), children: [SEPARATOR, item("a", "A"), SEPARATOR, SEPARATOR, item("b", "B"), SEPARATOR] };
+    const [row] = tidy([nested]);
+    expect(row!.children!.map((child) => (child.separator ? "-" : child.id))).toEqual(["a", "-", "b"]);
+  });
+
+  it("keeps a submenu that has nothing inside as a row that is off", () => {
+    const empty = { ...item("move", "Move To"), children: [SEPARATOR, SEPARATOR] };
+    const [row] = tidy([item("x", "X"), empty].slice(1));
+    expect(row!.enabled).toBe(false);
+    expect(row!.children).toEqual([]);
+  });
+});

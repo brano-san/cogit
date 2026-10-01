@@ -18,6 +18,8 @@ const MAIN_THREAD_ONLY: &[&str] = &[
     "clear_command_log",
     "safety_log",
     "popup_context_menu",
+    "window_chrome",
+    "menu_model",
     "merge_resolved",
 ];
 

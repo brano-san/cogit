@@ -28,6 +28,24 @@ const THEME: tauri::Theme = tauri::Theme::Dark;
 /// use by the other, and the build fails.
 static NEXT: AtomicU32 = AtomicU32::new(1);
 
+/// The menu each open window was built with, by label, for the bar the page draws.
+static MENUS: std::sync::Mutex<Vec<(String, &'static [Submenu])>> =
+    std::sync::Mutex::new(Vec::new());
+
+/// The menu of the window at `label`; empty for one without a bar.
+#[must_use]
+pub fn menu_of(label: &str) -> &'static [Submenu] {
+    MENUS
+        .lock()
+        .ok()
+        .and_then(|held| {
+            held.iter()
+                .find(|(name, _)| name == label)
+                .map(|(_, menu)| *menu)
+        })
+        .unwrap_or(&[])
+}
+
 #[must_use]
 pub fn is_main(label: &str) -> bool {
     label == MAIN
@@ -78,7 +96,7 @@ pub fn open_with_menu<R: tauri::Runtime>(
     url: String,
     title: String,
     shape: Shape,
-    menu: &[Submenu],
+    menu: &'static [Submenu],
 ) -> tauri::Result<()> {
     let label = format!("{kind}-{}", NEXT.fetch_add(1, Ordering::Relaxed));
     // Without a menu of its own the window inherits the application's. An empty one still
@@ -94,6 +112,10 @@ pub fn open_with_menu<R: tauri::Runtime>(
         .inner_size(shape.width, shape.height)
         .min_inner_size(shape.min_width, shape.min_height)
         .center();
+    let chrome = crate::window_chrome::of(app);
+    if chrome.custom_titlebar {
+        builder = builder.decorations(false);
+    }
     // WebView2 refuses a second environment on the same profile with other arguments.
     if let Some(args) = browser_args(&app.config().app.windows) {
         builder = builder.additional_browser_args(&args);
@@ -105,6 +127,8 @@ pub fn open_with_menu<R: tauri::Runtime>(
     }
     if menu.is_empty() {
         window.remove_menu()?;
+    } else if let Ok(mut held) = MENUS.lock() {
+        held.push((window.label().to_owned(), menu));
     }
     #[cfg(windows)]
     {
@@ -114,7 +138,12 @@ pub fn open_with_menu<R: tauri::Runtime>(
             accelerator_table(window.label(), menu),
         );
     }
-    window.show()
+    window.show()?;
+    // After `show`, which makes every widget of the window visible again.
+    if chrome.web_menus && !menu.is_empty() {
+        crate::window_chrome::hide_native_menu(&window);
+    }
+    Ok(())
 }
 
 fn build_menu<R: tauri::Runtime>(
@@ -158,7 +187,7 @@ pub fn accelerator_table(
     )
 }
 
-fn menu_id(label: &str, action: &str) -> String {
+pub(crate) fn menu_id(label: &str, action: &str) -> String {
     format!("{MENU_PREFIX}{label}:{action}")
 }
 

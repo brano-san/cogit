@@ -131,3 +131,30 @@ pub async fn focus_main_window(app: tauri::AppHandle) -> Result<(), GitError> {
         .and_then(|()| window.set_focus())
         .map_err(|err| GitError::Internal(format!("cannot focus the main window: {err}")))
 }
+
+/// Who draws the titlebar and the menus of this build: the page asks once at start.
+#[tauri::command]
+#[specta::specta]
+pub fn window_chrome(
+    chrome: tauri::State<'_, crate::window_chrome::WindowChrome>,
+) -> crate::window_chrome::WindowChrome {
+    *chrome
+}
+
+/// The bar the calling window draws itself, from the tables the native bar is built from.
+#[tauri::command]
+#[specta::specta]
+pub fn menu_model(
+    window: tauri::Window,
+    keymap: tauri::State<'_, crate::menu::Keymap>,
+    items: tauri::State<'_, crate::menu::MenuItems<tauri::Wry>>,
+) -> Vec<crate::menu::MenuNode> {
+    crate::menu::model_for(window.label(), &keymap, &items)
+}
+
+/// A click in the page's own menu: the path a native menu event takes.
+#[tauri::command]
+#[specta::specta]
+pub async fn menu_command(app: tauri::AppHandle, id: String) {
+    crate::dispatch_menu_command(&app, &id);
+}
