@@ -5,6 +5,7 @@ import {
   applyVariables,
   cssName,
   cssVariables,
+  isDarkTheme,
   isTheme,
   resolveTheme,
   validValue,
@@ -219,10 +220,21 @@ describe("applyVariables", () => {
     const root = { dataset: {} as Record<string, string | undefined>, style: { setProperty: (k: string, v: string) => (set[k] = v) } };
     applyVariables(root, "dark", cssVariables(THEME_FILES.dark.tokens));
     expect(root.dataset["theme"]).toBe("dark");
+    expect(set["color-scheme"]).toBe("dark");
     expect(set["--bg-app"]).toBe(THEME_FILES.dark.tokens["bg.app"]);
     applyVariables(root, "light", cssVariables(THEME_FILES.light.tokens));
     expect(root.dataset["theme"]).toBe("light");
     expect(set["--bg-app"]).toBe(THEME_FILES.light.tokens["bg.app"]);
+    expect(set["color-scheme"]).toBe("light");
+  });
+
+  it("tells dark themes from light ones by family, for GTK and color-scheme", () => {
+    expect(IDS.map((id) => [id, isDarkTheme(id)])).toEqual([
+      ["light", false],
+      ["lightGrey", false],
+      ["darkGrey", true],
+      ["dark", true],
+    ]);
   });
 
   it("knows its themes", () => {

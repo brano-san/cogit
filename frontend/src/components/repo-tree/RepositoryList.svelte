@@ -18,7 +18,6 @@
     splitModulePath,
     type ModuleRow,
   } from "$lib/module-tree";
-  import { idleMessage, panelView } from "$lib/repo-phase";
   import { STATE_TAG_HINT, repoStateTag } from "$lib/repo-state";
   import { submodules } from "$stores/submodules.svelte";
   import { moduleForest } from "$stores/module-forest.svelte";
@@ -371,10 +370,6 @@
     />
   {/if}
 
-  {#if rows.length === 0}
-    {@const idle = idleMessage(panelView(repository.phase))}
-    {#if idle}<p class="none">{idle}</p>{/if}
-  {:else}
     {#each rows as row, at (row.kind === "group" ? `g:${row.id}` : row.root)}
       {#if row.kind === "group"}
         <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -487,7 +482,6 @@
         {/if}
       {/if}
     {/each}
-  {/if}
 </div>
 
 <style>
@@ -587,15 +581,6 @@
 
   .tool:disabled {
     opacity: 0.4;
-  }
-
-  /* One line, the same shape every other empty panel uses. */
-  .none {
-    margin: 0;
-    padding: var(--sp-6) var(--sp-5);
-    text-align: center;
-    color: var(--text-secondary);
-    font-size: var(--fs-dense);
   }
 
 

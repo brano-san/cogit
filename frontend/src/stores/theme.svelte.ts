@@ -1,6 +1,7 @@
 import { readUserTheme } from "$lib/ipc";
+import { setNativeTheme } from "$lib/ipc/file-menus";
 import type { Theme } from "$lib/settings";
-import { applyVariables, cssVariables, isTheme, resolveTheme, THEME_CACHE_KEY } from "$lib/theme";
+import { applyVariables, cssVariables, isDarkTheme, isTheme, resolveTheme, THEME_CACHE_KEY } from "$lib/theme";
 import { resetTokenColors } from "$lib/theme-colors";
 import { trace } from "$lib/trace";
 
@@ -30,6 +31,10 @@ class ThemeStore {
     } catch {
       // No storage: the first paint of the next start is the default theme's.
     }
+    // GTK's file chooser and the like: dark for a dark family, whatever the system says.
+    void Promise.resolve()
+      .then(() => setNativeTheme(isDarkTheme(id)))
+      .catch(() => {});
     // Written, never read: this runs inside effects, and a read would make them depend on it.
     this.version = ++this.#swaps;
   }

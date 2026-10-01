@@ -128,9 +128,18 @@ export interface ThemeRoot {
 /** Inline custom properties on `:root`: a swap is these lines again, no reload. */
 export function applyVariables(root: ThemeRoot, theme: Theme, vars: Record<string, string>): void {
   root.dataset["theme"] = theme;
+  // The chosen theme, never the OS preference: native form controls, scrollbars and the
+  // default canvas of the web view (WebView2 and WebKitGTK alike) follow it.
+  root.style.setProperty("color-scheme", isDarkTheme(theme) ? "dark" : "light");
   for (const [name, value] of Object.entries(vars)) root.style.setProperty(name, value);
 }
 
 export function isTheme(value: unknown): value is Theme {
   return typeof value === "string" && Object.hasOwn(THEME_FILES, value);
+}
+
+/** Whether a theme is dark, for what the app does not draw itself: the native toolkit
+    (`GtkSettings` prefer-dark) and the web view's `color-scheme`. Family, not name. */
+export function isDarkTheme(theme: Theme, files: Record<Theme, ThemeFile> = THEME_FILES): boolean {
+  return files[theme].family === "dark";
 }

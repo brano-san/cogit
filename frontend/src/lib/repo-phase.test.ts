@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { footerRepository, idleMessage, panelView } from "./repo-phase";
+import { emptyStateVisible, footerRepository, panelView } from "./repo-phase";
 import { CogitError } from "$lib/ipc";
 
 const repo = { root: "C:/repos/one" } as never;
@@ -46,19 +46,24 @@ describe("panelView", () => {
   });
 });
 
+describe("the window's one empty state", () => {
+  it("is up when nothing is open, or an open failed with nothing to show", () => {
+    expect(emptyStateVisible({ kind: "closed" }, true)).toBe(true);
+    expect(emptyStateVisible({ kind: "failed", root: "a", error, repo: null }, true)).toBe(true);
+  });
+
+  it("never flashes while a repository opens or before the session is restored", () => {
+    expect(emptyStateVisible({ kind: "opening", root: "a", repo: null }, true)).toBe(false);
+    expect(emptyStateVisible({ kind: "closed" }, false)).toBe(false);
+  });
+
+  it("is down over an open repository", () => {
+    expect(emptyStateVisible({ kind: "open", repo }, true)).toBe(false);
+    expect(emptyStateVisible({ kind: "failed", root: "a", error, repo }, true)).toBe(false);
+  });
+});
+
 describe("the status of an open is said once, in the footer (#4)", () => {
-  it("leaves a panel blank while the first repository opens", () => {
-    expect(idleMessage("opening")).toBeUndefined();
-  });
-
-  it("still says when nothing is open", () => {
-    expect(idleMessage("start")).toBe("No repository open.");
-  });
-
-  it("has nothing to add over a panel's own content", () => {
-    expect(idleMessage("content")).toBeUndefined();
-  });
-
   it("names in the footer the folder being opened, not the status", () => {
     expect(footerRepository({ kind: "opening", root: "C:/repos/dtv_device/", repo: null })).toBe(
       "dtv_device",

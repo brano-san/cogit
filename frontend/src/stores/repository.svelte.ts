@@ -40,6 +40,13 @@ function asCogitError(err: unknown): CogitError {
 
 class RepositoryStore {
   phase = $state.raw<RepoPhase>({ kind: "closed" });
+  /** The session has been restored: before it, a closed phase is a start-up frame, not an
+      empty window, and the empty state stays down (emptyStateVisible). */
+  ready = $state(false);
+
+  markReady(): void {
+    this.ready = true;
+  }
   openRepos = $state.raw<RepoOverview[]>([]);
 
   readonly openTimeoutMs = OPEN_TIMEOUT_MS;

@@ -10,10 +10,11 @@ export function panelView(phase: RepoPhase): PanelView {
   return phase.kind === "opening" ? "opening" : "start";
 }
 
-/** What a panel body says when it has nothing of its own: the footer alone reports an open
-    in progress, so a panel stays blank meanwhile rather than repeat it (#4). */
-export function idleMessage(view: PanelView): string | undefined {
-  return view === "start" ? "No repository open." : undefined;
+/** The window's one empty state (StartScreen): up while nothing is open or opening, and not
+    before the session has been restored, when "nothing open" is only the first frame.
+    The panels say nothing of their own; the footer alone reports an open in progress (#4). */
+export function emptyStateVisible(phase: RepoPhase, ready: boolean): boolean {
+  return ready && panelView(phase) === "start";
 }
 
 /** The footer's repository slot: the name of what is open, or of what is being opened. */

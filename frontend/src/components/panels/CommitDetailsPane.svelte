@@ -2,7 +2,6 @@
   import Avatar from "$components/common/Avatar.svelte";
   import Button from "$components/common/Button.svelte";
   import { dateTooltip, shortOid } from "$lib/format";
-  import { idleMessage, panelView } from "$lib/repo-phase";
   import { commit } from "$stores/commit.svelte";
   import { repository } from "$stores/repository.svelte";
   import { settings } from "$stores/settings.svelte";
@@ -16,7 +15,6 @@
       context menu, not buttons here. */
 
   const repo = $derived(repository.current);
-  const view = $derived(panelView(repository.phase));
   const details = $derived(commit.details);
   const commitNote = $derived(details?.notes.find((note) => note.namespace === "commits")?.text.trim() ?? "");
 
@@ -104,8 +102,6 @@
       </dd>
     </dl>
     <p class="muted">Select a commit to see what it changed.</p>
-  {:else}
-    {#if idleMessage(view)}<p class="muted">{idleMessage(view)}</p>{/if}
   {/if}
 </div>
 
