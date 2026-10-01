@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EolInfo } from "./ipc/bindings";
-import { alignedButton, eolChangeText, eolLabel, layoutTip, modeChangeText, whitespaceButton } from "./diff-toolbar";
+import { alignedButton, bandAction, isAbsentFromBothSides, eolChangeText, eolLabel, layoutTip, modeChangeText, whitespaceButton } from "./diff-toolbar";
 
 function eol(old: EolInfo["old"], next: EolInfo["new"]): EolInfo {
   return { old, new: next, normalized: old !== next };
@@ -103,5 +103,37 @@ describe("alignedButton", () => {
     expect(off).toMatchObject({ pressed: false, next: "aligned" });
     expect(off.title).toContain("OFF: Compact");
     expect(off.title).toContain("Click for: Aligned 1:1");
+  });
+});
+
+describe("bandAction (item 2)", () => {
+  const actions = (kind: "workTreeVsIndex" | "indexVsHead" | "commit") => ({
+    stage: kind === "workTreeVsIndex",
+    unstage: kind === "indexVsHead",
+    discard: kind === "workTreeVsIndex",
+  });
+
+  it("discards from the working tree against the index", () => {
+    expect(bandAction(true, actions("workTreeVsIndex"))).toBe("discard");
+  });
+
+  it("offers nothing in the staged diff: Unstage lives on the hunks and in the toolbar", () => {
+    expect(bandAction(true, actions("indexVsHead"))).toBeNull();
+  });
+
+  it("offers nothing where nothing can be staged", () => {
+    expect(bandAction(false, actions("workTreeVsIndex"))).toBeNull();
+  });
+});
+
+describe("isAbsentFromBothSides", () => {
+  it("recognises the engine's message about a file that is gone from both sides", () => {
+    const text = "Invalid repository state: doc/a.md is absent from both sides of the diff";
+    expect(isAbsentFromBothSides({ message: text })).toBe(true);
+  });
+
+  it("does not take any other failure for it", () => {
+    expect(isAbsentFromBothSides({ message: "io error: access denied" })).toBe(false);
+    expect(isAbsentFromBothSides(null)).toBe(false);
   });
 });

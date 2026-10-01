@@ -98,6 +98,47 @@ describe("diff store", () => {
     expect(diff.path).toBeNull();
   });
 
+  describe("a file deleted from both sides (item 1)", () => {
+    const absent = {
+      status: "error" as const,
+      error: { kind: "invalidState", data: "doc/a.md is absent from both sides of the diff" },
+    };
+
+    it("is a calm state, not an error, and the diff is not asked for again", async () => {
+      await diff.load(REPO, SPEC, "doc/a.md");
+      commands.diffFile.mockResolvedValue(absent);
+
+      await diff.dropIfAffected(["doc/a.md"]);
+      commands.diffFile.mockClear();
+      await diff.refreshFromDisk();
+      await diff.reload();
+
+      expect(diff.gone).toBe(true);
+      expect(diff.error).toBeNull();
+      expect(diff.path).toBe("doc/a.md");
+      expect(commands.diffFile).not.toHaveBeenCalled();
+    });
+
+    it("reads the file again when the user opens it anew", async () => {
+      commands.diffFile.mockResolvedValue(absent);
+      await diff.load(REPO, SPEC, "doc/a.md");
+      expect(diff.shows(SPEC, "doc/a.md")).toBe(false);
+
+      commands.diffFile.mockResolvedValue(textDiff());
+      await diff.load(REPO, SPEC, "doc/a.md");
+
+      expect(diff.gone).toBe(false);
+    });
+
+    it("stays an error for a commit, where nothing was deleted from disk", async () => {
+      commands.diffFile.mockResolvedValue(absent);
+      await diff.load(REPO, { kind: "commitVsParent", oid: "abc" }, "doc/a.md");
+
+      expect(diff.gone).toBe(false);
+      expect(diff.error).not.toBeNull();
+    });
+  });
+
   it("does nothing when no diff is shown", async () => {
     await expect(diff.dropIfAffected(["a.txt"])).resolves.toBeUndefined();
     expect(diff.path).toBeNull();
