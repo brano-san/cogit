@@ -5,8 +5,16 @@ import type { TextFields } from "$lib/ipc/bindings";
 export const FILTER_FIELDS = ["author", "committer", "message", "refs", "id", "name", "content", "notes"] as const;
 export type FilterField = (typeof FILTER_FIELDS)[number];
 
-/** All but the two that read trees and files, which are slow on a long history, and Notes, opt-in. */
-export const DEFAULT_FILTER_FIELDS: readonly FilterField[] = ["author", "committer", "message", "refs", "id"];
+/** All but the two that read trees and files, which are slow on a long history. */
+export const DEFAULT_FILTER_FIELDS: readonly FilterField[] = ["author", "committer", "message", "refs", "id", "notes"];
+
+/** Fields that diff trees or read blobs for every commit searched (R-625). */
+export const SLOW_FIELDS: readonly FilterField[] = ["name", "content"];
+export function isSlowField(field: FilterField): boolean {
+  return SLOW_FIELDS.includes(field);
+}
+
+export const SLOW_FIELD_TIP = "May slow the search down considerably on large repositories.";
 
 export const FIELD_LABELS: Record<FilterField, { label: string; title: string }> = {
   author: { label: "Author", title: "The author's name or email" },

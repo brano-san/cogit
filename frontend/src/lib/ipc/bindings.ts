@@ -389,6 +389,11 @@ export const commands = {
 	 *  logger read it before there is a window to ask.
 	 */
 	readSettings: () => __TAURI_INVOKE<string>("read_settings"),
+	/**
+	 *  `user-theme.json` from the config directory: a partial theme laid over the chosen one.
+	 *  `{}` when there is none or it is damaged; the frontend validates the tokens.
+	 */
+	readUserTheme: () => __TAURI_INVOKE<string>("read_user_theme"),
 	writeSetting: (key: string, value: string) => typedError<null, GitError>(__TAURI_INVOKE("write_setting", { key, value })),
 	defaultKeymap: () => __TAURI_INVOKE<KeyBinding[]>("default_keymap"),
 	/**

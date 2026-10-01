@@ -1,3 +1,5 @@
+use rayon::prelude::*;
+
 use crate::graph_walk::{ByTime, CommitReader, CutParents, Reuse, WalkedHistory};
 use crate::text_search::TextMatch;
 use crate::topo::{LOOKAHEAD, in_date_order};
@@ -50,6 +52,10 @@ pub struct GraphView {
     /// Show Graph While Filtering: a filtered list keeps lines between its matches (R-575).
     pub filtered_graph: bool,
 }
+
+/// Commits a name or content search tests at once, and the share one thread takes (R-625).
+const SCAN_BATCH: usize = 1024;
+const SCAN_CHUNK: usize = 16;
 
 impl CommitQuery {
     #[must_use]
@@ -264,50 +270,98 @@ impl RepoHandle {
             std::sync::Arc::default()
         };
         let text = self.text_match(query);
+        let heavy = text.as_ref().is_some_and(TextMatch::is_heavy);
+        let shared = heavy.then(|| self.repo.clone().into_sync());
+        let mut walk = walk;
 
-        for (id, parents, time) in walk {
-            let row = if rows.text {
-                self.row_of(id, &parents, &mailmap)?
-            } else {
-                CommitRow {
-                    oid: id.to_string(),
-                    parents: parents.iter().map(ToString::to_string).collect(),
-                    summary: String::new(),
-                    author_name: String::new(),
-                    author_email: String::new(),
-                    timestamp: time,
-                    tz_offset_minutes: 0,
-                }
+        loop {
+            // Diffing trees costs far more than walking, so a batch of those is tested at
+            // once on every core; the rows still leave in walk order.
+            let batch: Vec<_> = walk
+                .by_ref()
+                .take(if heavy { SCAN_BATCH } else { 1 })
+                .collect();
+            if batch.is_empty() {
+                break;
+            }
+            let mut read = Vec::with_capacity(batch.len());
+            let mut failure = None;
+            for (id, parents, time) in batch {
+                let row = if rows.text {
+                    match self.row_of(id, &parents, &mailmap) {
+                        Ok(row) => row,
+                        Err(err) => {
+                            failure = Some(err);
+                            break;
+                        }
+                    }
+                } else {
+                    CommitRow {
+                        oid: id.to_string(),
+                        parents: parents.iter().map(ToString::to_string).collect(),
+                        summary: String::new(),
+                        author_name: String::new(),
+                        author_email: String::new(),
+                        timestamp: time,
+                        tz_offset_minutes: 0,
+                    }
+                };
+                read.push((id, parents, row));
+            }
+            let passes = |repo: &gix::Repository, id: gix::ObjectId, row: &CommitRow| {
+                query.matches_row(row)
+                    && text
+                        .as_ref()
+                        .is_none_or(|text| text.matches(repo, id, row, &mailmap))
             };
-            // The path last, because it costs two tree lookups per candidate.
-            let shown = query.matches_row(&row)
-                && text
-                    .as_ref()
-                    .is_none_or(|text| text.matches(self, id, &row, &mailmap))
-                && query
-                    .path
-                    .as_ref()
-                    .is_none_or(|path| self.touches(&id, path));
-            if !shown {
-                if let Some(passed) = rows.passed {
-                    passed.0.borrow_mut().push(Passed {
-                        before: chunk.len(),
-                        oid: row.oid,
-                        first_parent: row.parents.into_iter().next(),
-                    });
-                }
-                continue;
-            }
+            let hits: Vec<bool> = match &shared {
+                Some(shared) if read.len() > 1 => read
+                    .par_chunks(SCAN_CHUNK)
+                    .map(|part| {
+                        let repo = shared.to_thread_local();
+                        part.iter()
+                            .map(|(id, _, row)| passes(&repo, *id, row))
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>()
+                    .concat(),
+                _ => read
+                    .iter()
+                    .map(|(id, _, row)| passes(&self.repo, *id, row))
+                    .collect(),
+            };
 
-            if let Some(record) = rows.record.as_deref_mut() {
-                record.push(id, row.timestamp, parents);
-            }
-            chunk.push(row);
-            if chunk.len() >= chunk_size {
-                let full = std::mem::replace(&mut chunk, Vec::with_capacity(chunk_size));
-                if !on_chunk(full) {
-                    return Ok(());
+            for ((id, parents, row), hit) in read.into_iter().zip(hits) {
+                // The path last, because it costs two tree lookups per candidate.
+                let shown = hit
+                    && query
+                        .path
+                        .as_ref()
+                        .is_none_or(|path| self.touches(&id, path));
+                if !shown {
+                    if let Some(passed) = rows.passed {
+                        passed.0.borrow_mut().push(Passed {
+                            before: chunk.len(),
+                            oid: row.oid,
+                            first_parent: row.parents.into_iter().next(),
+                        });
+                    }
+                    continue;
                 }
+
+                if let Some(record) = rows.record.as_deref_mut() {
+                    record.push(id, row.timestamp, parents);
+                }
+                chunk.push(row);
+                if chunk.len() >= chunk_size {
+                    let full = std::mem::replace(&mut chunk, Vec::with_capacity(chunk_size));
+                    if !on_chunk(full) {
+                        return Ok(());
+                    }
+                }
+            }
+            if let Some(err) = failure {
+                return Err(err);
             }
         }
 
@@ -389,7 +443,7 @@ impl ShownBy<'_> {
             && self
                 .text
                 .as_ref()
-                .is_none_or(|text| text.matches(handle, id, &row, &self.mailmap))
+                .is_none_or(|text| text.matches(&handle.repo, id, &row, &self.mailmap))
             && self
                 .query
                 .path

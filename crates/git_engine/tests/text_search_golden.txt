@@ -1,0 +1,144 @@
+needle|author|
+needle|committer|
+needle|message|binary needle
+needle|refs|
+needle|id|
+needle|name|
+needle|content|readme tail
+needle|notes|
+needle|all|readme tail,binary needle
+STRASSE|author|
+STRASSE|committer|
+STRASSE|message|
+STRASSE|refs|
+STRASSE|id|
+STRASSE|name|
+STRASSE|content|
+STRASSE|notes|
+STRASSE|all|
+straße|author|
+straße|committer|
+straße|message|
+straße|refs|
+straße|id|
+straße|name|
+straße|content|merge side into master,unicode ÄRGER
+straße|notes|merge side into master
+straße|all|merge side into master,unicode ÄRGER
+ÄRGER|author|
+ÄRGER|committer|
+ÄRGER|message|unicode ÄRGER
+ÄRGER|refs|
+ÄRGER|id|
+ÄRGER|name|
+ÄRGER|content|
+ÄRGER|notes|
+ÄRGER|all|unicode ÄRGER
+ärger|author|
+ärger|committer|
+ärger|message|unicode ÄRGER
+ärger|refs|
+ärger|id|
+ärger|name|
+ärger|content|
+ärger|notes|
+ärger|all|unicode ÄRGER
+ünï|author|
+ünï|committer|
+ünï|message|
+ünï|refs|
+ünï|id|
+ünï|name|
+ünï|content|
+ünï|notes|
+ünï|all|
+fïle.txt|author|
+fïle.txt|committer|
+fïle.txt|message|
+fïle.txt|refs|
+fïle.txt|id|
+fïle.txt|name|merge side into master,unicode ÄRGER
+fïle.txt|content|
+fïle.txt|notes|
+fïle.txt|all|merge side into master,unicode ÄRGER
+src/|author|
+src/|committer|
+src/|message|
+src/|refs|
+src/|id|
+src/|name|move parser,drop the widget,add the third file,tune the parser
+src/|content|
+src/|notes|
+src/|all|move parser,drop the widget,add the third file,tune the parser
+lexer|author|
+lexer|committer|
+lexer|message|
+lexer|refs|
+lexer|id|
+lexer|name|move parser
+lexer|content|
+lexer|notes|
+lexer|all|move parser
+carol|author|
+carol|committer|tune the parser
+carol|message|
+carol|refs|
+carol|id|
+carol|name|
+carol|content|
+carol|notes|
+carol|all|tune the parser
+fixture|author|shuffle lines,move parser,drop the widget,merge side into master,readme tail,binary needle,unicode ÄRGER,touch the readme,add the third file,tune the parser,commit 0
+fixture|committer|shuffle lines,move parser,drop the widget,merge side into master,readme tail,binary needle,unicode ÄRGER,touch the readme,add the third file,commit 0
+fixture|message|
+fixture|refs|
+fixture|id|
+fixture|name|
+fixture|content|
+fixture|notes|
+fixture|all|shuffle lines,move parser,drop the widget,merge side into master,readme tail,binary needle,unicode ÄRGER,touch the readme,add the third file,tune the parser,commit 0
+rel/|author|
+rel/|committer|
+rel/|message|
+rel/|refs|shuffle lines
+rel/|id|
+rel/|name|
+rel/|content|
+rel/|notes|
+rel/|all|shuffle lines
+second line|author|
+second line|committer|
+second line|message|
+second line|refs|
+second line|id|
+second line|name|
+second line|content|commit 0
+second line|notes|
+second line|all|commit 0
+shuffle|author|
+shuffle|committer|
+shuffle|message|shuffle lines
+shuffle|refs|
+shuffle|id|
+shuffle|name|
+shuffle|content|
+shuffle|notes|
+shuffle|all|shuffle lines
+hello|author|
+hello|committer|
+hello|message|
+hello|refs|
+hello|id|
+hello|name|
+hello|content|touch the readme,commit 0
+hello|notes|
+hello|all|touch the readme,commit 0
+zzz|author|
+zzz|committer|
+zzz|message|
+zzz|refs|
+zzz|id|
+zzz|name|
+zzz|content|
+zzz|notes|
+zzz|all|

@@ -86,6 +86,7 @@ fn found(f: &Fixture, text: &str, fields: TextFields) -> Vec<String> {
 fn the_default_fields_are_all_but_name_and_content() {
     let fields = TextFields::default();
     assert!(fields.author && fields.committer && fields.message && fields.refs && fields.id);
+    assert!(fields.notes);
     assert!(!fields.name && !fields.content);
 }
 
@@ -227,11 +228,14 @@ fn note(f: &Fixture, reference: &str, rev: &str, text: &str) {
 }
 
 #[test]
-fn notes_are_off_by_default_and_do_not_change_plain_search() {
+fn notes_are_on_by_default() {
     let f = history();
     note(&f, "commits", "HEAD~2", "remember ostrich");
-    assert!(!TextFields::default().notes);
-    assert!(found(&f, "ostrich", TextFields::default()).is_empty());
+    assert!(TextFields::default().notes);
+    assert_eq!(
+        found(&f, "ostrich", TextFields::default()),
+        ["tune the parser"]
+    );
 }
 
 #[test]
@@ -267,4 +271,143 @@ fn a_repo_without_notes_matches_nothing_in_notes() {
         ..NONE
     };
     assert!(found(&f, "the", notes).is_empty());
+}
+
+/// Past one batch of the parallel scan: order and results are those of a one-by-one walk.
+#[test]
+fn a_long_history_matches_name_and_content_in_walk_order() {
+    let f = test_fixtures::linear(700).unwrap();
+    let name = TextFields { name: true, ..NONE };
+    let content = TextFields {
+        content: true,
+        ..NONE
+    };
+    let expected: Vec<String> = (0..700)
+        .rev()
+        .filter(|i| i.to_string().starts_with("69"))
+        .map(|i| format!("commit {i}"))
+        .collect();
+    assert_eq!(found(&f, "content 69", content), expected);
+    let expected: Vec<String> = (0..700)
+        .rev()
+        .filter(|i| format!("file{i}.txt").contains("file6"))
+        .map(|i| format!("commit {i}"))
+        .collect();
+    assert_eq!(found(&f, "file6", name), expected);
+    assert!(found(&f, "absent", name).is_empty());
+}
+
+#[test]
+fn a_long_history_stops_when_the_consumer_does() {
+    let f = test_fixtures::linear(700).unwrap();
+    let repo = RepoHandle::open(f.path()).unwrap();
+    let query = CommitQuery {
+        text: Some("content".to_owned()),
+        text_in: TextFields {
+            content: true,
+            ..NONE
+        },
+        ..CommitQuery::default()
+    };
+    let mut chunks = 0;
+    repo.search_commits(&query, 10, |_| {
+        chunks += 1;
+        false
+    })
+    .unwrap();
+    assert_eq!(chunks, 1);
+}
+
+/// \`history()\` plus a side branch merged back, a binary file, CRLF text, non-ASCII names and
+/// text, a deleted and a moved file.
+fn messy() -> Fixture {
+    let f = history();
+    f.git(&["checkout", "-q", "-b", "side"]).unwrap();
+    f.write_file("Ünï/Fïle.TXT", "ÄÖÜ Straße\r\nsecond\r\n")
+        .unwrap();
+    f.git(&["add", "--", "Ünï/Fïle.TXT"]).unwrap();
+    f.commit_staged(10, "unicode ÄRGER").unwrap();
+    std::fs::write(f.path().join("blob.bin"), b"\0needle in binary\n").unwrap();
+    f.git(&["add", "--", "blob.bin"]).unwrap();
+    f.commit_staged(11, "binary needle").unwrap();
+    f.git(&["checkout", "-q", "main"]).unwrap();
+    f.write_file("README.md", "hello there\nsecond line\nNEEDLE tail\n")
+        .unwrap();
+    f.git(&["add", "--", "README.md"]).unwrap();
+    f.commit_staged(12, "readme tail").unwrap();
+    f.merge(13, &["side"], "merge side into master").unwrap();
+    f.git(&["rm", "-q", "--", "src/widget.rs"]).unwrap();
+    f.commit_staged(14, "drop the widget").unwrap();
+    f.git(&["mv", "src/parser.rs", "src/lexer.rs"]).unwrap();
+    f.commit_staged(15, "move parser").unwrap();
+    f.write_file("README.md", "second line\nhello there\nNEEDLE tail\n")
+        .unwrap();
+    f.git(&["add", "--", "README.md"]).unwrap();
+    f.commit_staged(16, "shuffle lines").unwrap();
+    note(&f, "commits", "HEAD~3", "note about Straße");
+    f.git(&["tag", "-a", "-m", "annotated", "rel/1"]).unwrap();
+    f
+}
+
+#[test]
+fn a_messy_history_matches_as_it_always_did() {
+    let f = messy();
+    let one = |field: &str| TextFields {
+        author: field == "author",
+        committer: field == "committer",
+        message: field == "message",
+        refs: field == "refs",
+        id: field == "id",
+        name: field == "name",
+        content: field == "content",
+        notes: field == "notes",
+    };
+    let fields = [
+        "author",
+        "committer",
+        "message",
+        "refs",
+        "id",
+        "name",
+        "content",
+        "notes",
+    ];
+    let needles = [
+        "needle",
+        "STRASSE",
+        "straße",
+        "ÄRGER",
+        "ärger",
+        "ünï",
+        "fïle.txt",
+        "src/",
+        "lexer",
+        "carol",
+        "fixture",
+        "rel/",
+        "second line",
+        "shuffle",
+        "hello",
+        "zzz",
+    ];
+    let mut got = String::new();
+    for needle in needles {
+        for field in fields {
+            let rows = found(&f, needle, one(field));
+            got.push_str(&format!("{needle}|{field}|{}\n", rows.join(",")));
+        }
+        let all = TextFields {
+            name: true,
+            content: true,
+            ..TextFields::default()
+        };
+        got.push_str(&format!(
+            "{needle}|all|{}\n",
+            found(&f, needle, all).join(",")
+        ));
+    }
+    assert_eq!(
+        got,
+        include_str!("text_search_golden.txt").replace("\r\n", "\n")
+    );
 }
