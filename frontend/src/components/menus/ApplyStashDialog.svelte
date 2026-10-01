@@ -1,6 +1,10 @@
 <script lang="ts">
-  import Checkbox from "$components/common/Checkbox.svelte";
-  import Dialog from "$components/common/Dialog.svelte";
+  import ObjectCard, { type CardRow } from "$components/common/template/ObjectCard.svelte";
+  import OptionRow from "$components/common/template/OptionRow.svelte";
+  import TemplateDialog from "$components/common/template/TemplateDialog.svelte";
+  import { parseStashMessage } from "$lib/dialog-template";
+  import { dateTooltip, shortOid } from "$lib/format";
+  import { stashes } from "$stores/stashes.svelte";
 
   /** Apply Stash (item 40): a double click on a stash and the menu's Apply Stash. */
   interface Props {
@@ -13,61 +17,35 @@
   let { index, message, onapply, onclose }: Props = $props();
 
   let restoreIndex = $state(false);
+
+  const rows = $derived.by(() => {
+    const entry = stashes.entries.find((stash) => stash.index === index);
+    const parsed = parseStashMessage(message);
+    const list: CardRow[] = [{ label: "Stash", value: `stash@{${index}}`, mono: true }];
+    if (parsed.branch) list.push({ label: "Branch", value: parsed.branch, mono: true });
+    if (parsed.message) list.push({ label: "Message", value: parsed.message, clamp: 3 });
+    if (entry) {
+      list.push({ label: "Commit", value: shortOid(entry.oid), mono: true });
+      list.push({ label: "Date", value: dateTooltip(entry.timestamp, -new Date().getTimezoneOffset()), mono: true });
+    }
+    return list;
+  });
 </script>
 
-<Dialog title="Apply Stash" {onclose} onconfirm={() => onapply(true, restoreIndex)} width="min(500px, 92vw)">
-  <div class="form">
-    <p class="what">
-      Apply <span class="mono">{`stash@{${index}}`}</span>
-      {#if message}<span class="subject">{message}</span>{/if}
-      to the working tree.
-    </p>
-    <Checkbox
-      bind:checked={restoreIndex}
-      label="Restore Index"
-      title="Staged changes come back staged; git refuses when the index cannot be restored"
-    />
-    <p class="explanation">
-      Apply & Drop removes the stash only once it applied without conflicts; with conflicts it
-      stays in the list.
-    </p>
-  </div>
-
-  {#snippet footer()}
-    <span class="grow"></span>
-    <button type="button" class="btn" onclick={onclose}>Cancel</button>
-    <button type="button" class="btn" onclick={() => onapply(false, restoreIndex)}>Apply</button>
-    <button type="button" class="btn primary" data-autofocus onclick={() => onapply(true, restoreIndex)}
-      >Apply & Drop</button
-    >
-  {/snippet}
-</Dialog>
-
-<style>
-  .form {
-    display: flex;
-    flex-direction: column;
-    gap: var(--sp-5);
-    min-width: 0;
-    font-size: var(--fs-dense);
-  }
-
-  .what {
-    margin: 0;
-    overflow-wrap: anywhere;
-  }
-
-  .subject,
-  .explanation {
-    color: var(--text-secondary);
-  }
-
-  .explanation {
-    margin: 0;
-    line-height: 1.4;
-  }
-
-  .grow {
-    flex: 1 1 auto;
-  }
-</style>
+<TemplateDialog
+  title={`Apply stash@{${index}}`}
+  {onclose}
+  actions={[
+    { label: "Apply", onclick: () => onapply(false, restoreIndex) },
+    {
+      label: "Apply & Drop",
+      primary: true,
+      tip: "Removes the stash if it applied without conflicts",
+      onclick: () => onapply(true, restoreIndex),
+    },
+  ]}
+>
+  <p class="sub">Changes will be applied to the working tree</p>
+  <ObjectCard {rows} />
+  <OptionRow bind:checked={restoreIndex} label="Restore Index" hint="Also restore what was staged (--index)" />
+</TemplateDialog>
