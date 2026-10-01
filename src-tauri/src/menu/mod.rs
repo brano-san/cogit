@@ -274,6 +274,7 @@ pub fn default_keymap() -> Vec<KeyBinding> {
 /// Feeds the window-level accelerator table: one list decides what the bar shows and what
 /// the window claims, so the two cannot drift apart (problem 3).
 #[must_use]
+#[cfg_attr(not(windows), allow(dead_code))]
 pub fn default_keymap_pairs() -> Vec<(&'static str, Option<&'static str>)> {
     let mut rows = Vec::new();
     for (section, entries) in SECTIONS {
@@ -300,6 +301,7 @@ impl Keymap {
     }
 
     #[must_use]
+    #[cfg_attr(not(windows), allow(dead_code))]
     pub fn current(&self) -> HashMap<String, String> {
         self.snapshot()
     }

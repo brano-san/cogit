@@ -142,6 +142,7 @@ fn build_menu<R: tauri::Runtime>(
 /// The keys of this window's own menu, claimed ahead of WebView2 the way the main window's
 /// are: while the page has focus the menu's accelerators never fire otherwise.
 #[must_use]
+#[cfg_attr(not(windows), allow(dead_code))]
 pub fn accelerator_table(
     label: &str,
     menu: &[Submenu],

@@ -2,6 +2,9 @@
 //! its menu has before the page sees it (`webview2::install_accelerators`) and runs the
 //! command instead. While a shortcut is being recorded, it takes none.
 
+// Read only by the Windows accelerator hook.
+#![cfg_attr(not(windows), allow(dead_code))]
+
 use std::sync::atomic::{AtomicBool, Ordering};
 
 #[derive(Default)]
