@@ -7,6 +7,20 @@ inputs:
 runs:
   using: composite
   steps:
+    # Same package set as scripts/wsl/setup-linux.sh: Tauri v2 prerequisites, the clang + mold
+    # linker named in .cargo/config.toml, and a git new enough for the test fixtures (2.51+).
+    - name: Linux system packages
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo add-apt-repository -y ppa:git-core/ppa
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends git jq \
+          build-essential pkg-config clang mold patchelf \
+          libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev libsoup-3.0-dev libgtk-3-dev \
+          libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev \
+          libdbus-1-dev libsecret-1-dev
+
     - name: Check required tools
       shell: bash
       run: |
