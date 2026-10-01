@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allowsSelectAll, settle, step } from "./panel-focus";
+import { settle, step } from "./panel-focus";
 import { PANELS, type PanelId } from "./perspectives";
 
 const all = () => true;
@@ -49,17 +49,5 @@ describe("settle", () => {
 
   it("keeps the current panel when there is nowhere to go", () => {
     expect(settle("commit", () => false)).toBe("commit");
-  });
-});
-
-describe("allowsSelectAll", () => {
-  it("refuses the graph on purpose", () => {
-    expect(allowsSelectAll("graph")).toBe(false);
-  });
-
-  it("allows every other panel", () => {
-    for (const panel of PANELS.filter((p) => p !== "graph")) {
-      expect(allowsSelectAll(panel)).toBe(true);
-    }
   });
 });

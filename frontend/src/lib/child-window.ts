@@ -2,6 +2,7 @@ import { closeThisWindow } from "$lib/ipc";
 import { suppressBrowserFind } from "$lib/browser-find";
 import { suppressBrowserNavigation } from "$lib/browser-navigation";
 import { suppressNativeMenu } from "$lib/native-menu";
+import { installSelectAll } from "$lib/select-all";
 
 interface Keyed {
   key: string;
@@ -88,12 +89,14 @@ export function installChildWindow(win: Window): () => void {
   const stopMenu = suppressNativeMenu(win.document);
   const stopFind = suppressBrowserFind(win);
   const stopNavigation = suppressBrowserNavigation(win);
+  const stopSelectAll = installSelectAll(win, () => null);
   win.addEventListener("keydown", onWindowKey);
   (win as Window & ChildGlobals).__cogitMounted = true;
   return () => {
     stopMenu();
     stopFind();
     stopNavigation();
+    stopSelectAll();
     win.removeEventListener("keydown", onWindowKey);
   };
 }

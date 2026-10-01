@@ -27,6 +27,7 @@
     checking: boolean;
     ondrop: (source: string, target: string, x: number, y: number) => void;
     oncontext: (oid: string, x: number, y: number) => void;
+    ongroupcontext?: (oids: string[], x: number, y: number) => void;
     onhover?: (oid: string) => void;
     /** A merge, rebase or detached HEAD is said above the history, as SmartGit does (#22). */
     banner: Banner | null;
@@ -54,6 +55,7 @@
     checking,
     ondrop,
     oncontext,
+    ongroupcontext,
     onhover,
     banner,
     busy,
@@ -84,6 +86,7 @@
     rebase={progress}
     {ondrop}
     {oncontext}
+    {ongroupcontext}
     {onhover}
     {onworktreecontext}
     {onrefcontext}

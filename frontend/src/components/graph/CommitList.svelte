@@ -6,6 +6,9 @@
   import GraphCanvas from "$components/graph/GraphCanvas.svelte";
   import { refLabels, shortOid, type RefLabel } from "$lib/format";
   import { graphDropTarget } from "$lib/drop-target";
+  import { NO_ITEMS, clickItem, rightClickItem, selectEvery, single, type ItemSelection } from "$lib/item-selection";
+  import { firstOids, oidsBetween } from "$lib/graph-selection";
+  import { registerSelectAll } from "$lib/select-all";
   import { pointerDrag } from "$lib/pointer-drag";
   import { overlap } from "$stores/overlap.svelte";
   import {
@@ -86,6 +89,8 @@
         the pointer was released. */
     ondrop?: (source: string, target: string, x: number, y: number) => void;
     oncontext?: (oid: string, x: number, y: number) => void;
+    /** Right-click on one of several selected commits: the menu of the group. */
+    ongroupcontext?: (oids: string[], x: number, y: number) => void;
     onhover?: (oid: string) => void;
     onworktreecontext?: (x: number, y: number) => void;
     onrefcontext?: (label: RefLabel, oid: string, x: number, y: number) => void;
@@ -127,6 +132,7 @@
     rebase = null,
     ondrop,
     oncontext,
+    ongroupcontext,
     onhover,
     onworktreecontext,
     onrefcontext,
@@ -179,6 +185,39 @@
   const comparedFrom = $derived(compareView.showing(selection.oid) ? compareView.from : null);
 
   let over = $state<string | null>(null);
+
+  /** The commits picked with Ctrl and Shift. `selection.oid` is the one Files and Diff
+      show: the one clicked last, or the one an arrow key reached. */
+  let picks = $state.raw<ItemSelection>(NO_ITEMS);
+
+  // Anything that moves the shown commit by other means (a jump, a search, Reveal in Graph)
+  // starts a selection of its own.
+  $effect(() => {
+    const oid = selection.oid;
+    untrack(() => {
+      if (oid !== picks.cursor) picks = oid === null ? NO_ITEMS : single(oid);
+    });
+  });
+
+  $effect(() => registerSelectAll("graph", () => void selectEveryCommit()));
+
+  async function selectEveryCommit() {
+    const all = await firstOids(graph, graph.total);
+    if (all.length > 0) picks = selectEvery(picks, all);
+  }
+
+  /** Ctrl-click, Shift-click and Shift+arrow: the range is read off the rows between. */
+  async function pickWith(repo: RepoId, oid: string, modifiers: { ctrl: boolean; shift: boolean }) {
+    const from = picks.anchor ?? selection.oid;
+    const span = modifiers.shift && !modifiers.ctrl && from !== null ? await oidsBetween(graph, from, oid) : null;
+    picks = clickItem(
+      picks.ids.size === 0 && from !== null ? single(from) : picks,
+      oid,
+      span ?? [oid],
+      modifiers,
+    );
+    if (picks.ids.has(oid)) void pick(repo, oid);
+  }
 
   /** Answers "why did the panel below take so long?" in the log the user sends back. */
   const measure = measurer((label, ms, detail) => void reportTiming(label, ms, detail));
@@ -467,7 +506,7 @@
   /** Rows drawn selected: the selection and the other end of a comparison (#33). */
   const selectedRows = $derived(
     visible
-      .filter(({ entry }) => entry.commit.oid === selection.oid || entry.commit.oid === comparedFrom)
+      .filter(({ entry }) => picks.ids.has(entry.commit.oid) || entry.commit.oid === comparedFrom)
       .map(({ listRow }) => listRow),
   );
 
@@ -480,9 +519,14 @@
     if (nextRow(0, event.key, graph.total, page) === null) return;
 
     event.preventDefault();
-    void keyTarget(graph, selection.oid, event.key, graph.total, page).then((target) => {
+    void keyTarget(graph, picks.cursor ?? selection.oid, event.key, graph.total, page).then((target) => {
       if (target === null) return;
-      void graph.entry(target).then((row) => row && pick(id, row.commit.oid));
+      void graph.entry(target).then((row) => {
+        if (!row) return;
+        if (event.shiftKey) return pickWith(id, row.commit.oid, { ctrl: false, shift: true });
+        picks = single(row.commit.oid);
+        return pick(id, row.commit.oid);
+      });
       const offset = scrollRowIntoView(toListRow(target, headerRows, wtAt), scrollTop, viewportHeight, rowHeight);
       if (offset !== null && scroller) scroller.scrollTop = offset;
     });
@@ -560,6 +604,12 @@
       const lane = laneAt(layout, graphOverlays.paintAt(commitRow), hit.lane, upper);
       lanePick = lane === null ? null : { oid, lane, walk: walkKey };
     }
+    const ctrl = event.ctrlKey || event.metaKey;
+    if (oid !== null && (ctrl || event.shiftKey)) {
+      void pickWith(repo, oid, { ctrl, shift: event.shiftKey });
+      return;
+    }
+    if (oid !== null) picks = single(oid);
     // Clicking the selected commit again brings its details back into Diff (#7).
     if (oid !== null && oid === selection.oid) selection.showDetails();
     else void pick(repo, oid);
@@ -583,6 +633,14 @@
       return;
     }
     if (!oncontext) return;
+    // On one of several selected commits the menu is the group's; on any other, the
+    // selection becomes that commit.
+    const next = rightClickItem(picks, oid);
+    picks = next;
+    if (next.ids.size > 1 && ongroupcontext) {
+      ongroupcontext([...next.ids], event.clientX, event.clientY);
+      return;
+    }
     const repo = repository.current?.repo;
     if (repo !== undefined) void pick(repo, oid);
     oncontext(oid, event.clientX, event.clientY);
@@ -733,7 +791,7 @@
             class:striped={stripes && striped(item.listRow)}
             class:bisect-current={look?.row === "current"}
             class:bisect-found={look?.row === "found"}
-            class:selected={selection.oid === item.entry.commit.oid || comparedFrom === item.entry.commit.oid}
+            class:selected={picks.ids.has(item.entry.commit.oid) || comparedFrom === item.entry.commit.oid}
             class:over={over === item.entry.commit.oid}
             class:faded={faded.has(item.entry.commit.oid)}
             style:top="{item.listRow * rowHeight}px"
