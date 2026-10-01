@@ -223,17 +223,14 @@ fn a_message_that_looks_like_a_flag_is_not_parsed_as_one() {
 #[test]
 fn no_verify_skips_a_hook_that_would_reject_the_commit() {
     let f = test_fixtures::linear(1).unwrap();
-    let hooks = f.git_dir().join("hooks");
-    std::fs::create_dir_all(&hooks).unwrap();
-    std::fs::write(
-        hooks.join("pre-commit"),
-        "#!/bin/sh\necho refused by the hook >&2\nexit 1\n",
-    )
-    .unwrap();
-
     std::fs::write(f.path().join("fresh.txt"), "new\n").unwrap();
     f.git(&["add", "--", "fresh.txt"]).unwrap();
     let repo = open(&f);
+    repo.write_hook(
+        "pre-commit",
+        "#!/bin/sh\necho refused by the hook >&2\nexit 1\n",
+    )
+    .unwrap();
 
     assert!(repo.commit(&request("blocked")).is_err());
 
@@ -447,6 +444,8 @@ fn due_for_maintenance() -> test_fixtures::Fixture {
     let f = test_fixtures::linear(1).unwrap();
     f.git(&["config", "gc.auto", "6700"]).unwrap();
     f.git(&["config", "gc.autoPackLimit", "1"]).unwrap();
+    // Newer gits pick another auto strategy by default, and the pack limit is the gc one.
+    f.git(&["config", "maintenance.strategy", "gc"]).unwrap();
     f.git(&["config", "gc.autoDetach", "false"]).unwrap();
     f.git(&["config", "maintenance.autoDetach", "false"])
         .unwrap();
