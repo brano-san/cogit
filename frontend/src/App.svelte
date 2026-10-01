@@ -55,6 +55,17 @@
   import Toolbar from "$components/layout/Toolbar.svelte";
   import ScanDialog from "$components/repo-tree/ScanDialog.svelte";
   import CloneDialog from "$components/repo-tree/CloneDialog.svelte";
+  import WelcomeDialog from "$components/layout/WelcomeDialog.svelte";
+  import { welcome } from "$stores/welcome.svelte";
+  import {
+    folderPlan,
+    mruRows,
+    pathKey,
+    shouldShowAtStartup,
+    WELCOME_FORGET,
+    type WelcomeAction,
+  } from "$lib/welcome";
+  import { folderKind, initRepository } from "$lib/ipc/clone";
   import { cloneWizard } from "$stores/clone.svelte";
   import { parentFolder, runClone } from "$lib/clone";
   import { cloneRepository, type CloneRequest } from "$lib/ipc/clone";
@@ -83,7 +94,7 @@
   import { commitScope } from "$lib/commit-scope";
   import { activity, applyOperation, cancellable, trackCancellable } from "$lib/operations";
   import { measurer } from "$lib/timing";
-  import { refMenu } from "$lib/context-menu";
+  import { item as menuItem, refMenu } from "$lib/context-menu";
   import RefActions from "$components/menus/RefActions.svelte";
   import RefGroupActions from "$components/menus/RefGroupActions.svelte";
   import BisectActions from "$components/menus/BisectActions.svelte";
@@ -387,7 +398,7 @@
         .then((result) => (info = result))
         .catch((err) => errors.report(err, "Could not read the application info"));
       void remoteOps.detectLfs();
-      void settings.load().then(() => {
+      const settingsRead = settings.load().then(() => {
         diff.whitespace = settings.current.ignoreWhitespace;
         // Only after the settings are read: the tick is what permits the network call.
         if (settings.current.autoUpdate) void runUpdateCheck(true);
@@ -398,10 +409,23 @@
       void terminalChoices().then((found) => (terminals = found));
       const wanted = session.active;
       const remembered = wanted === null ? null : session.selected(wanted);
-      void timed("startup", "restore the session", () => repository.restore()).then(() => {
+      void timed("startup", "restore the session", () => repository.restore()).then(async () => {
         const back =
           repository.openRepos.find((entry) => entry.root === wanted) ?? repository.openRepos[0];
-        if (back) void activate(back.root, back.root === wanted ? remembered : null);
+        if (back) await activate(back.root, back.root === wanted ? remembered : null);
+        // The open has settled (Open or Failed) and the setting is read: now it is known
+        // whether the window would stay empty. Nothing waits on this; it only sets state.
+        await settingsRead.catch(() => {});
+        if (
+          shouldShowAtStartup({
+            enabled: settings.current.startupShowWelcome,
+            restoring: false,
+            openCount: repository.current ? 1 : 0,
+            phase: repository.phase.kind,
+          })
+        ) {
+          showWelcome();
+        }
       });
     });
   });
@@ -627,7 +651,13 @@
         id: "clone",
         title: "Clone Repository…",
         synonyms: ["git clone", "download a repository", "check out from a server"],
-        run: () => void cloneWizard.start(parentFolder(repository.current?.root ?? session.recent[0] ?? "")),
+        run: () => void openCloneWizard(),
+      },
+      {
+        id: "welcome",
+        title: "Welcome…",
+        synonyms: ["start", "recent repositories", "reopen", "new repository", "git init"],
+        run: () => showWelcome(),
       },
       { id: "fetch", title: "Fetch", unavailable: noRepo ?? noRemote, run: () => void runNetwork("fetch") },
       { id: "pull", title: "Pull", unavailable: reasonOf("pull", toolbarFacts), run: () => void pullNow() },
@@ -3380,10 +3410,88 @@
     }
   }
 
+  function openCloneWizard() {
+    return cloneWizard.start(parentFolder(repository.current?.root ?? session.recent[0] ?? ""));
+  }
+
+  /** The Welcome dialog (F-586): rows come from the same recent list the app keeps. */
+  const welcomeRows = $derived(mruRows(session.recent));
+  let welcomeTarget: string | null = null;
+
+  function showWelcome() {
+    welcome.show(welcomeRows.map((row) => row.path));
+  }
+
+  /** Every spelling of the path goes: the list shows one row for all of them. */
+  function forgetWelcomePath(path: string) {
+    const key = pathKey(path);
+    for (const spelling of session.recent.filter((entry) => pathKey(entry) === key)) {
+      session.forgetRecent(spelling);
+    }
+    welcome.listChanged(welcomeRows.length);
+  }
+
+  function forgetWelcomeTarget() {
+    const path = welcomeTarget;
+    welcomeTarget = null;
+    if (path !== null && welcome.open) forgetWelcomePath(path);
+  }
+
+  async function welcomeContext(path: string, x: number, y: number) {
+    welcomeTarget = path;
+    await popupContextMenu([menuItem(WELCOME_FORGET, "Remove from List", true, "Delete")], x, y).catch(() => {});
+  }
+
+  async function openFromWelcome(root: string) {
+    welcome.close();
+    opening = true;
+    try {
+      await activate(root);
+    } finally {
+      opening = false;
+    }
+  }
+
+  async function runWelcome(action: WelcomeAction) {
+    if (action.kind === "open") return openFromWelcome(action.path);
+    // Clone opens over the Welcome dialog: Cancel comes back to it, Finish closes it.
+    if (action.kind === "clone") return openCloneWizard();
+
+    const picked = await pickFolder("Add or Create Repository");
+    if (picked === null) return;
+    const kind = await folderKind(picked).catch((err) => {
+      errors.report(err, "Could not read the folder");
+      return null;
+    });
+    if (kind === null) return;
+    const plan = folderPlan(kind);
+    if (plan === "gone") {
+      notices.inform("Add or Create Repository", `${picked} is not a folder.`);
+      return;
+    }
+    let root = picked;
+    if (plan === "init") {
+      const go = await confirmation.ask({
+        title: "Initialize Repository",
+        message: `${picked} is not a Git repository. Run git init there and open it?`,
+        confirm: "Initialize",
+      });
+      if (!go) return;
+      try {
+        root = await initRepository(picked);
+      } catch (err) {
+        errors.report(err, "Could not initialize the repository");
+        return;
+      }
+    }
+    await openFromWelcome(root);
+  }
+
   /** Repository ▸ Clone…'s Finish: the clone runs in the footer, then opens as Open would. */
   async function startClone(request: CloneRequest) {
     const login = cloneWizard.login;
     cloneWizard.close();
+    welcome.close();
     await runClone(request, {
       run: (operation) => network.run(null, "Cloning", operation),
       clone: (wanted, onLine) => cloneRepository(wanted, login, onLine),
@@ -3634,6 +3742,8 @@
   $effect(() => {
     const pending = onMenuCommand((id) => {
       pushMenuState(true);
+      // The Welcome dialog is a modal, so its own menu answers before the modal check.
+      if (id === WELCOME_FORGET) return forgetWelcomeTarget();
       if (!menuCommandRuns(id, modals)) return;
       if (id === "toolbar-preferences") return openSettings("toolbar");
       if (refActions?.run(id)) return;
@@ -4413,6 +4523,19 @@
       changes={worktreeRemoval.changes}
       onremove={(force) => void confirmWorktreeRemoval(force)}
       onclose={() => (worktreeRemoval = null)}
+    />
+  {/if}
+
+  {#if welcome.open}
+    <WelcomeDialog
+      dialog={welcome}
+      rows={welcomeRows}
+      showAtStart={settings.current.startupShowWelcome}
+      onshowchange={(show) => void settings.set("startupShowWelcome", show)}
+      onrun={(action) => void runWelcome(action)}
+      onforget={forgetWelcomePath}
+      oncontext={(path, x, y) => void welcomeContext(path, x, y)}
+      onclose={() => welcome.close()}
     />
   {/if}
 

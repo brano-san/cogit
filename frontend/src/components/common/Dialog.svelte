@@ -18,6 +18,8 @@
     /** Called by Enter unless the focus is on a button, which then answers for itself. */
     onconfirm?: () => void;
     width?: string;
+    /** A background token for the panel, for a dialog that sits on the elevated surface. */
+    surface?: string;
     /** Fixed height, for a dialog whose content must not make it jump about. */
     height?: string;
     /** Content that draws its own edges: panes, lists with dividers. */
@@ -32,6 +34,7 @@
     onconfirm,
     dirty = false,
     width = "min(440px, 90vw)",
+    surface,
     height,
     flush = false,
     children,
@@ -126,6 +129,7 @@
   tabindex="-1"
   style:width
   style:height
+  style:background={surface}
   style:z-index={zIndex + 1}
 >
   <header>

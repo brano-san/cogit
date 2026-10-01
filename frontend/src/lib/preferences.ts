@@ -46,6 +46,17 @@ export const CATEGORIES: Category[] = [
     parent: "commands",
     groups: [
       {
+        title: "Starting",
+        fields: [
+          {
+            key: "startupShowWelcome",
+            label: "Show the Welcome dialog if no repository was opened",
+            hint: "Repository ▸ Welcome… opens it at any time.",
+            keywords: ["welcome", "start", "startup", "launch", "recent", "dialog"],
+          },
+        ],
+      },
+      {
         // Where the Exit dialog's "Don't show again" hint sends the user (R-169).
         title: "Exiting",
         fields: [

@@ -401,6 +401,14 @@
               <div class="row check">
                 <Checkbox checked={draft.detectMoves} onchange={(checked) => set("detectMoves", checked)} label={field.label} />
               </div>
+            {:else if field.key === "startupShowWelcome"}
+              <div class="row check">
+                <Checkbox
+                  checked={draft.startupShowWelcome}
+                  onchange={(checked) => set("startupShowWelcome", checked)}
+                  label={field.label}
+                />
+              </div>
             {:else if field.key === "confirmExit"}
               <div class="row check">
                 <Checkbox checked={draft.confirmExit} onchange={(checked) => set("confirmExit", checked)} label={field.label} />
