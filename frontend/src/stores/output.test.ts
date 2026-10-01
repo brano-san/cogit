@@ -21,6 +21,7 @@ const notice = (id: number, severity: Severity) => ({
   operation: "Push",
   severity,
   summary: `summary ${id}`,
+  stoppedOnConflicts: false,
 });
 
 const record = (id: number) => ({
@@ -35,6 +36,7 @@ const record = (id: number) => ({
   severity: "failure" as const,
   summary: "error: failed to push some refs",
   startedAtMs: 1,
+  stoppedOnConflicts: false,
 });
 
 describe("output store", () => {
@@ -47,12 +49,12 @@ describe("output store", () => {
   });
 
   // One window for everything that went wrong: the output window opens on request.
-  it("announces a failure in the notification window, not by opening itself", async () => {
+  it("announces a failure in the Errors window, not by opening itself", async () => {
     await output.notice(notice(7, "failure"));
 
     expect(output.shown).toBeNull();
-    expect(notices.current?.title).toBe("Push failed");
-    expect(notices.current?.record).toBe(7);
+    expect(notices.current).toBeUndefined();
+    expect(commands.commandOutcome).toHaveBeenCalledWith(7);
   });
 
   it("opens the record Show Output asks for, with the output the notice did not carry", async () => {

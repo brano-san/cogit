@@ -6,7 +6,9 @@
   import { findMatches, logLines } from "$lib/output-highlight";
   import { outputKey } from "$lib/output-keys";
   import { readKey, writeKey } from "$lib/settings-file";
+  import { startsDrag } from "$lib/error-window";
   import { clampBox, defaultBox, type Box } from "$lib/window-box";
+  import type { Snippet } from "svelte";
   import type { GitOutput } from "$lib/ipc";
   import { output } from "$stores/output.svelte";
 
@@ -16,9 +18,24 @@
     logPath: string;
     /** Absent when the operation is not one that can simply be run again. */
     onretry?: (() => void) | undefined;
+    /** Fills the window it is in instead of floating over the page: the Errors window. */
+    docked?: boolean;
+    /** Where ✕, Close and Esc go; the floating window closes itself in the output store. */
+    onclose?: (() => void) | undefined;
+    /** Title and accent when the record is not simply a failure ("Stash applied with conflicts"). */
+    heading?: string | undefined;
+    warned?: boolean | undefined;
+    /** Buttons of the caller, in the footer before Copy output. */
+    actions?: Snippet | undefined;
   }
 
-  let { entry, logPath, onretry }: Props = $props();
+  let { entry, logPath, onretry, docked = false, onclose, heading: given, warned: accent, actions }: Props =
+    $props();
+
+  function close() {
+    if (onclose) onclose();
+    else output.close();
+  }
 
   const SETTINGS_KEY = "outputWindow";
   const ROW = 18;
@@ -26,9 +43,12 @@
   const WRAP_MAX = 5_000;
 
   const lines = $derived(logLines(entry.stdout, entry.stderr));
-  const failed = $derived(entry.severity === "failure");
+  const failed = $derived(accent === undefined ? entry.severity === "failure" : !accent);
   const heading = $derived(
-    failed ? `${entry.operation} failed` : `${entry.operation} finished with warnings`,
+    given ??
+      (entry.severity === "failure"
+        ? `${entry.operation} failed`
+        : `${entry.operation} finished with warnings`),
   );
   const repoName = $derived(repoNameOf(entry.repo));
 
@@ -56,6 +76,7 @@
   }
 
   $effect(() => {
+    if (docked) return;
     void (async () => {
       const saved = await readKey<Box & { font?: number }>(SETTINGS_KEY);
       box = saved ? clampBox(saved, viewport()) : defaultBox(viewport());
@@ -73,7 +94,7 @@
 
   /** Pointer capture, not a document listener: a drag that leaves the window still ends. */
   function grab(event: PointerEvent, edge: "move" | "size") {
-    if (!box || event.button !== 0) return;
+    if (docked || !box || !startsDrag(event)) return;
     const start = { ...box, px: event.clientX, py: event.clientY };
     const target = event.currentTarget as HTMLElement;
     target.setPointerCapture(event.pointerId);
@@ -123,7 +144,8 @@
       return;
     }
     if (action === "close") {
-      output.close();
+      if (docked) event.preventDefault();
+      close();
       return;
     }
     event.preventDefault();
@@ -160,35 +182,39 @@
 <!-- On one line: the rows keep their whitespace, so a line break here would show. -->
 {#snippet linked(text: string)}{#if text.includes("://")}{#each splitLinks(text) as part, index (index)}{#if part.href}<a class="url" href={part.href} title={part.href} onclick={(event) => void openLink(event, part.href ?? "")}>{part.text}</a>{:else}{part.text}{/if}{/each}{:else}{text || " "}{/if}{/snippet}
 
-{#if box}
+{#if box || docked}
   <!-- Non-modal by choice: the reader compares the output against the graph and the
        files while it is up (doc/12-risks.md, R-89). -->
   <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
   <!-- Focusable, so a click in the output keeps its keys here and not on the page. -->
   <section
     bind:this={frame}
+    data-select-own
     class="window"
     class:warned={!failed}
+    class:docked
     role="dialog"
     tabindex="-1"
     aria-label={heading}
-    style:left="{box.x}px"
-    style:top="{box.y}px"
-    style:width="{box.w}px"
-    style:height="{box.h}px"
+    style:left={box ? `${box.x}px` : undefined}
+    style:top={box ? `${box.y}px` : undefined}
+    style:width={box ? `${box.w}px` : undefined}
+    style:height={box ? `${box.h}px` : undefined}
   >
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <header onpointerdown={(e) => grab(e, "move")}>
       <span class="dot" aria-hidden="true"></span>
-      <span class="title">{entry.operation} · {repoName}</span>
+      <span class="title">{docked ? heading : entry.operation} · {repoName}</span>
       <span class="grow"></span>
-      <button bind:this={closer} type="button" onclick={() => output.close()} title="Close (Esc)">
+      <button bind:this={closer} type="button" onclick={close} title="Close (Esc)">
         ✕
       </button>
     </header>
 
     <div class="body">
       <dl class="facts">
+        <dt>Repository</dt>
+        <dd class="mono" title={entry.repo}>{repoName}</dd>
         <dt>Command</dt>
         <dd class="mono">{entry.command}</dd>
         <dt>Exit code</dt>
@@ -267,15 +293,18 @@
       </button>
       <button type="button" onclick={() => void openLog()} title={logPath}>Open log</button>
       <span class="grow"></span>
+      {#if actions}<span class="extra">{@render actions()}</span>{/if}
       {#if onretry}
         <button type="button" onclick={onretry}>Retry</button>
       {/if}
       <button type="button" onclick={copy}>{feedback.label("Copy output")}</button>
-      <button type="button" class="primary" onclick={() => output.close()}>Close</button>
+      <button type="button" class="primary" onclick={close}>Close</button>
     </footer>
 
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="grip" onpointerdown={(e) => grab(e, "size")}></div>
+    {#if !docked}
+      <div class="grip" onpointerdown={(e) => grab(e, "size")}></div>
+    {/if}
   </section>
 {/if}
 
@@ -294,6 +323,21 @@
 
   .window.warned {
     border-color: var(--status-modify);
+  }
+
+  .window.docked {
+    position: relative;
+    z-index: auto;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .docked header {
+    cursor: default;
+    border-radius: 0;
   }
 
   header {
@@ -422,7 +466,12 @@
     overflow-wrap: anywhere;
   }
 
-  button:disabled {
+  .extra {
+    display: contents;
+  }
+
+  button:disabled,
+  .extra :global(button:disabled) {
     color: var(--text-secondary);
     border-color: transparent;
   }
@@ -467,7 +516,8 @@
     padding: var(--sp-4);
   }
 
-  button {
+  button,
+  .extra :global(button) {
     height: var(--h-button-sm);
     padding: 0 var(--sp-3);
     background: var(--surface-input);
@@ -478,12 +528,14 @@
     cursor: default;
   }
 
-  button:hover {
+  button:hover,
+  .extra :global(button:hover) {
     border-color: var(--status-ref);
   }
 
   button.on,
-  button.primary {
+  button.primary,
+  .extra :global(button.primary) {
     border-color: var(--status-ref);
   }
 

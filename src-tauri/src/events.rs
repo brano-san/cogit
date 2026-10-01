@@ -22,6 +22,15 @@ pub struct MergeResolved {
     pub path: String,
 }
 
+/// An external merge tool exited; the solver window and the main one both read it.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
+#[serde(rename_all = "camelCase")]
+pub struct MergeToolFinished {
+    pub repo: app_state::RepoId,
+    pub path: String,
+    pub outcome: app_state::MergeToolOutcome,
+}
+
 /// The Blame window asks the main one to select this commit and scroll the graph to it.
 /// The page emits it itself: nothing on this side has to happen in between.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
@@ -109,4 +118,63 @@ pub(crate) fn forward_repo_changes(app: tauri::AppHandle, state: &Arc<AppState>)
             }
         }
     });
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum ErrorKind {
+    /// The command failed.
+    Error,
+    /// The command stopped halfway on conflicts: the user has work to do, nothing is broken.
+    Warning,
+}
+
+/// One command that ended badly, as the Errors window lists it. The output itself stays in
+/// the journal (`command_outcome(id)`): the window fetches it when the entry is on screen.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ErrorEntry {
+    pub id: u32,
+    pub kind: ErrorKind,
+    pub title: String,
+    pub operation: String,
+    pub repo: String,
+    pub command: String,
+    pub summary: String,
+    /// The same failure again collapses into this entry rather than growing the list.
+    pub repeats: u32,
+}
+
+/// A page other than the main one hit a failed command: the main window owns the queue.
+/// The page emits it itself.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
+#[serde(rename_all = "camelCase")]
+pub struct ErrorReported(pub ErrorEntry);
+
+/// The whole queue, from the main window to the Errors window, on every change.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
+#[serde(rename_all = "camelCase")]
+pub struct ErrorQueue(pub Vec<ErrorEntry>);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum ErrorAction {
+    /// The window is listening: send the queue.
+    Ready,
+    /// The entry `id` is on screen.
+    Viewed,
+    /// Remove the entry `id`.
+    Dismiss,
+    /// The window closed; everything it listed is dismissed.
+    Closed,
+    /// Take the main window to the conflicted files of the entry `id`.
+    ShowConflicts,
+}
+
+/// From the Errors window to the main one.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
+#[serde(rename_all = "camelCase")]
+pub struct ErrorsAction {
+    pub action: ErrorAction,
+    pub id: Option<u32>,
 }
