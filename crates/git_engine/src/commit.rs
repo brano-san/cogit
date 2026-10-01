@@ -152,6 +152,23 @@ pub struct FileEntry {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[specta(optional)]
     pub submodule: Option<SubmoduleChange>,
+    /// Only on a conflicted row: which sides touched the path.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(optional)]
+    pub conflict: Option<ConflictKind>,
+}
+
+/// Git's unmerged XY pairs: `UU`, `AA`, `DD`, `UD`, `DU`, `AU`, `UA`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum ConflictKind {
+    BothModified,
+    BothAdded,
+    BothDeleted,
+    DeletedByThem,
+    DeletedByUs,
+    AddedByUs,
+    AddedByThem,
 }
 
 /// What a submodule row stands for. `git add` records only the commit (`new_commits`);
@@ -440,6 +457,7 @@ fn to_entry(change: &gix::object::tree::diff::Change<'_, '_, '_>) -> Option<File
         mode_change,
         similarity,
         submodule: None,
+        conflict: None,
     })
 }
 

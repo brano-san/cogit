@@ -5,10 +5,11 @@
   "windows": [
     "main",
     "compare-*",
-    "merge-*",
+    "solver-*",
     "blame-*",
     "investigate-*",
-    "commit-*"
+    "commit-*",
+    "errors-*"
   ],
   "permissions": [
     "core:default",

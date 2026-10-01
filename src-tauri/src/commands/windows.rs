@@ -92,3 +92,42 @@ pub async fn close_this_window(window: tauri::Window) -> Result<(), GitError> {
         .close()
         .map_err(|err| GitError::Internal(format!("cannot close the window: {err}")))
 }
+
+/// The page's taskbar signals, merged by `app_state::taskbar::resolve`. Main window only:
+/// a child window's call is ignored rather than painting the shared button.
+#[tauri::command]
+#[specta::specta]
+pub async fn set_taskbar_state(window: tauri::Window, signals: app_state::taskbar::TaskbarSignals) {
+    if window.label() != crate::child_window::MAIN {
+        return;
+    }
+    let shown = app_state::taskbar::resolve(&signals);
+    if let Err(err) = crate::taskbar::apply(&window, &shown) {
+        tracing::error!(error = ?err, context = "setting the taskbar state");
+    }
+}
+
+/// A failed command opens the Errors window, or shows the one that is open.
+#[tauri::command]
+#[specta::specta]
+pub async fn open_errors_window(app: tauri::AppHandle) -> Result<(), GitError> {
+    blocking("open_errors_window", move || {
+        crate::errors_window::reveal_or_open(&app)
+            .map_err(|err| GitError::Internal(format!("cannot open the Errors window: {err}")))
+    })
+    .await
+}
+
+/// `Show conflicts` in the Errors window: the main window comes forward.
+#[tauri::command]
+#[specta::specta]
+pub async fn focus_main_window(app: tauri::AppHandle) -> Result<(), GitError> {
+    use tauri::Manager as _;
+    let window = app
+        .get_webview_window(crate::child_window::MAIN)
+        .ok_or_else(|| GitError::Internal("the main window is gone".to_owned()))?;
+    window
+        .unminimize()
+        .and_then(|()| window.set_focus())
+        .map_err(|err| GitError::Internal(format!("cannot focus the main window: {err}")))
+}

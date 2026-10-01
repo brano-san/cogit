@@ -17,7 +17,9 @@ mod hooking;
 pub mod investigation;
 pub mod licences;
 pub mod logging;
+pub mod merge_tool;
 mod network;
+mod network_dialogs;
 mod presets;
 mod queue;
 mod ref_batch;
@@ -28,7 +30,9 @@ pub mod repo_rows;
 mod rewrite;
 mod safety;
 pub mod settings;
+mod solver;
 mod stashing;
+pub mod taskbar;
 pub mod terminal;
 mod watching;
 mod worktrees;
@@ -55,9 +59,11 @@ pub use ref_batch::{
     FailedDeletion, RefDeletion, RefDeletionKind, RefDeletionReport, SkippedDeletion,
     split_deletable,
 };
+pub use ref_ops::UndoRewrite;
 pub use registry::{OpenRepo, RepoRefs, RepoSummary, ScanHit};
 pub use rows::RepoOverview;
 pub use safety::{Recovery, SafetyEntry};
+pub use solver::{MAX_SOLVER_BYTES, MergeToolOutcome, SolverData};
 
 use journal::JOURNAL_CAPACITY;
 use parking_lot::RwLock;
@@ -210,6 +216,8 @@ pub struct AppState {
     handles: handles::HandleCache,
     /// The fetch, pull or push running as each queue operation, for `cancel_network`.
     network_runs: parking_lot::Mutex<HashMap<u32, git_engine::NetworkStop>>,
+    /// External merge tools running, one per conflicted file.
+    merge_tools: merge_tool::MergeTools,
 }
 
 impl std::fmt::Debug for AppState {
@@ -255,6 +263,7 @@ impl AppState {
             reachable: parking_lot::Mutex::new(HashMap::new()),
             handles: handles::HandleCache::default(),
             network_runs: parking_lot::Mutex::new(HashMap::new()),
+            merge_tools: merge_tool::MergeTools::default(),
         }
     }
 

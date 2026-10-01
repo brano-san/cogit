@@ -231,3 +231,25 @@ describe("applyVariables", () => {
     expect(isTheme(undefined)).toBe(false);
   });
 });
+
+describe("file icon tokens", () => {
+  const MIRRORS: Record<string, string> = {
+    "file.icon.page": "bg.editor",
+    "file.icon.stroke": "fg.muted",
+    "file.icon.modified.fill": "diff.del.line",
+    "file.icon.modified.stroke": "status.danger",
+    "file.icon.conflict.fill": "status.danger",
+    "file.icon.overlay.added": "status.info",
+    "file.icon.overlay.staged": "status.success",
+    "file.icon.overlay.removed": "status.danger",
+    "file.icon.overlay.renamed": "status.info",
+    "file.icon.overlay.glyph": "fg.onAccent",
+  };
+
+  // The schema cannot reference a token, so each theme holds a copy that must not drift.
+  it.each(IDS)("%s: every file.icon token equals the token it mirrors", (id) => {
+    const { tokens } = THEME_FILES[id];
+    const drift = Object.entries(MIRRORS).filter(([name, source]) => tokens[name] !== tokens[source]);
+    expect(drift).toEqual([]);
+  });
+});

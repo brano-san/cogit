@@ -4,6 +4,7 @@ mod child_window;
 mod commands;
 mod commit_window;
 mod diagnostics;
+mod errors_window;
 mod events;
 mod key_capture;
 mod logging;
@@ -16,6 +17,8 @@ mod renderer_failure;
 #[cfg(windows)]
 mod session_end;
 mod shutdown;
+mod solver_window;
+mod taskbar;
 #[cfg(windows)]
 mod webview2;
 mod webview_memory;
@@ -23,8 +26,8 @@ mod window_place;
 
 use app_state::AppState;
 pub use events::{
-    AvatarReady, CommandRecorded, MenuCommand, MergeResolved, OperationChanged, RepoChanged,
-    RevealCommit, SessionEnding,
+    AvatarReady, CommandRecorded, ErrorQueue, ErrorReported, ErrorsAction, MenuCommand,
+    MergeResolved, MergeToolFinished, OperationChanged, RepoChanged, RevealCommit, SessionEnding,
 };
 use specta_typescript::Typescript;
 use std::path::PathBuf;
@@ -61,6 +64,16 @@ fn use_git_from_settings(config_dir: &std::path::Path) {
     }
 }
 
+/// Temp copies of an earlier run's merge tool sides: a crash left them behind.
+fn sweep_merge_temp() {
+    const STALE: std::time::Duration = std::time::Duration::from_secs(24 * 60 * 60);
+    let removed =
+        app_state::merge_tool::sweep(&std::env::temp_dir(), STALE, std::time::SystemTime::now());
+    if removed > 0 {
+        tracing::info!(removed, "stale merge tool temp folders removed");
+    }
+}
+
 fn specta_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new()
         // What `graph_window` bytes decode to (R-194): no command returns it as JSON any more.
@@ -71,9 +84,13 @@ fn specta_builder() -> Builder<tauri::Wry> {
             OperationChanged,
             AvatarReady,
             MergeResolved,
+            MergeToolFinished,
             CommandRecorded,
             SessionEnding,
-            RevealCommit
+            RevealCommit,
+            ErrorReported,
+            ErrorQueue,
+            ErrorsAction
         ])
         .commands(collect_commands![
             commands::app_info,
@@ -107,6 +124,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::command_log,
             commands::command_outcome,
             commands::close_this_window,
+            commands::open_errors_window,
+            commands::focus_main_window,
             commands::command_problems,
             commands::clear_command_log,
             commands::safety_log,
@@ -126,6 +145,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::branches::delete_tag,
             commands::branches::delete_remote_tag,
             commands::ref_ops::reset_to,
+            commands::ref_ops::undo_rewrite,
+            commands::ref_ops::undo_rewrite_info,
             commands::ref_ops::is_ancestor,
             commands::ref_ops::compare_files,
             commands::ref_ops::tag_name_problem,
@@ -141,6 +162,14 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::network::fetch,
             commands::network::pull,
             commands::network::push,
+            commands::network::fetch_with,
+            commands::network::pull_with,
+            commands::network::push_with,
+            commands::network::push_notes,
+            commands::network::merge_notes,
+            commands::network::push_preview,
+            commands::network::network_defaults,
+            commands::network::save_network_defaults,
             commands::network::cancel_network,
             commands::remotes::remote_info,
             commands::remotes::rename_remote,
@@ -204,13 +233,16 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::worktrees::worktrees,
             commands::worktrees::worktree_holding,
             commands::worktrees::add_worktree,
+            commands::worktrees::check_revision,
+            commands::worktrees::check_branch_name,
+            commands::worktrees::worktree_folder_problem,
             commands::worktrees::remove_worktree,
             commands::worktrees::prune_worktrees,
             commands::branches::delete_refs,
             commands::worktrees::worktree_leftover,
             commands::worktrees::delete_worktree_leftover,
             commands::worktrees::open_worktree,
-            commands::worktrees::worktree_changes,
+            commands::worktrees::scan_worktree_removal,
             commands::worktrees::prune_worktree,
             commands::worktrees::repair_worktree,
             commands::worktrees::lock_worktree,
@@ -220,7 +252,12 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::flow::flow_start,
             commands::flow::flow_finish,
             commands::conflicts::merge_preview,
-            commands::conflicts::open_merge_window,
+            commands::conflicts::open_solver_window,
+            commands::conflicts::solver_data,
+            commands::conflicts::mark_conflict_resolved,
+            commands::conflicts::launch_merge_tool,
+            commands::conflicts::cancel_merge_tool,
+            commands::conflicts::merge_tools_running,
             commands::conflicts::merge_resolved,
             commands::protecting_refs,
             commands::presets::export_preset,
@@ -246,6 +283,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::file_ops::apply_commit_file,
             commands::file_ops::present_on_disk,
             commands::set_menu_state,
+            commands::set_taskbar_state,
             commands::report_timing,
             commands::report_memory,
             commands::log_from_frontend,
@@ -370,6 +408,7 @@ pub fn run() -> anyhow::Result<()> {
             logging::install_panic_hook(&log_dir);
             webview_memory::spawn(std::process::id());
             use_git_from_settings(&config_dir);
+            sweep_merge_temp();
 
             tracing::info!(
                 version = env!("CARGO_PKG_VERSION"),

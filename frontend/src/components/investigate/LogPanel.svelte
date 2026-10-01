@@ -1,4 +1,6 @@
 <script lang="ts">
+  import FileStateIcon from "$components/common/FileStateIcon.svelte";
+  import { fileState } from "$lib/file-state";
   import { shortOid } from "$lib/format";
   import {
     commitDetails,
@@ -21,14 +23,6 @@
   let details = $state.raw<CommitDetails | null>(null);
   let files = $state.raw<FileEntry[]>([]);
   let error = $state<string | null>(null);
-
-  const LETTER: Partial<Record<FileEntry["status"], string>> = {
-    added: "A",
-    modified: "M",
-    deleted: "D",
-    renamed: "R",
-    copied: "C",
-  };
 
   $effect(() => {
     const rev = session.location.rev;
@@ -77,6 +71,7 @@
     <header>Changed files <span class="muted tabular">{files.length}</span></header>
     <ul>
       {#each files as file (file.path)}
+        {@const state = fileState(file, "commit")}
         <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
         <li
           class:investigated={file.path === session.location.path}
@@ -84,9 +79,10 @@
           ondblclick={() =>
             void session.navigate({ path: file.path, rev: session.location.rev, line: null })}
         >
-          <span class="status {file.status}">{LETTER[file.status] ?? "·"}</span>
+          <FileStateIcon base={file.mode === "submodule" ? "repository" : "page"} state={state.icon} />
           <span class="mono truncate">{file.path}</span>
           {#if file.oldPath}<span class="muted truncate">from {file.oldPath}</span>{/if}
+          <span class="muted state truncate" title={state.tooltip}>{state.text}</span>
         </li>
       {/each}
     </ul>
@@ -175,17 +171,8 @@
     background: var(--state-selected);
   }
 
-  .status {
-    flex: 0 0 2ch;
-    font-family: var(--font-mono);
-    color: var(--status-modify);
-  }
-
-  .status.added {
-    color: var(--status-add);
-  }
-
-  .status.deleted {
-    color: var(--status-delete);
+  .state {
+    margin-left: auto;
+    padding-left: var(--sp-4);
   }
 </style>

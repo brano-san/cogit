@@ -24,10 +24,12 @@
     recentMessages,
     sortedFiles,
     splitPath,
+    stateSide,
     type CommitMode,
     type SortKey,
   } from "$lib/commit-window";
-  import { fileStatusBadge, fileStatusTooltip } from "$lib/files";
+  import FileStateIcon from "$components/common/FileStateIcon.svelte";
+  import { fileState } from "$lib/file-state";
   import { shortOid } from "$lib/format";
   import {
     closeThisWindow,
@@ -329,11 +331,15 @@
               onchange={(on) => tickAll(on ? files.map((file) => file.path) : [])}
             /></span
           >
-          {#each [["name", "Name"], ["directory", "Directory"]] as [key, title] (key)}
-            <button type="button" class="cell head-button" onclick={() => sortBy(key as SortKey)}>
-              {title}
-              {#if sortKey === key}<span class="arrow" class:flipped={!descending}><Caret /></span>{/if}
-            </button>
+          {#each [["name", "Name"], ["state", "State"], ["directory", "Directory"]] as [key, title] (key)}
+            {#if key === "state"}
+              <span class="cell head-button">{title}</span>
+            {:else}
+              <button type="button" class="cell head-button" onclick={() => sortBy(key as SortKey)}>
+                {title}
+                {#if sortKey === key}<span class="arrow" class:flipped={!descending}><Caret /></span>{/if}
+              </button>
+            {/if}
           {/each}
         </div>
         {#if rows.length === 0}
@@ -342,6 +348,7 @@
           <VirtualList items={rows} label="Files to commit">
             {#snippet row(file, at)}
               {@const parts = splitPath(file.path)}
+              {@const state = fileState(file, stateSide(mode, file.path, worktree.staged, worktree.unstaged))}
               <div class="row" style:top="{at * 24}px" class:on={ticked.has(file.path)}>
                 <span class="cell check"
                   ><Checkbox
@@ -351,9 +358,12 @@
                   /></span
                 >
                 <span class="cell name" title={file.path}>
-                  <span class="badge {file.status}" title={fileStatusTooltip(file)}>{fileStatusBadge(file)}</span>
+                  <FileStateIcon base={file.mode === "submodule" ? "repository" : "page"} state={state.icon} />
                   <span class="truncate">{parts.name}</span>
                 </span>
+                <span class="cell state truncate" class:danger={state.tone === "danger"} title={state.tooltip}
+                  >{state.text}</span
+                >
                 <span class="cell dir truncate" title={parts.directory}>{parts.directory}</span>
               </div>
             {/snippet}
@@ -585,7 +595,7 @@
   .thead,
   .row {
     display: grid;
-    grid-template-columns: 28px minmax(120px, 1fr) minmax(120px, 1.5fr);
+    grid-template-columns: 28px minmax(120px, 1fr) minmax(90px, 0.9fr) minmax(120px, 1.5fr);
     align-items: center;
     height: 24px;
   }
@@ -648,29 +658,13 @@
     white-space: nowrap;
   }
 
-  .badge {
-    flex: none;
-    width: 16px;
-    color: var(--text-secondary);
-    font-family: var(--font-mono);
+  .state {
+    color: var(--fg-secondary);
     font-size: 11px;
-    text-align: center;
   }
 
-  .badge.added,
-  .badge.untracked,
-  .badge.copied {
-    color: var(--status-add);
-  }
-
-  .badge.modified,
-  .badge.renamed {
-    color: var(--status-modify);
-  }
-
-  .badge.deleted,
-  .badge.conflicted {
-    color: var(--status-delete);
+  .state.danger {
+    color: var(--status-danger);
   }
 
   .empty,

@@ -48,6 +48,10 @@ pub struct GitOutput {
     /// frontend formats every other timestamp from a number already.
     #[specta(type = specta_typescript::Number)]
     pub started_at_ms: u64,
+    /// The command exited with 1 and left unmerged paths in the index: a stash, merge,
+    /// rebase, cherry-pick, revert, pull or am that went as far as it could and handed the
+    /// rest to the user. Set when the record is journaled, from the index.
+    pub stopped_on_conflicts: bool,
 }
 
 impl GitOutput {
@@ -88,6 +92,7 @@ impl GitOutput {
             stdout,
             stderr,
             duration_ms,
+            stopped_on_conflicts: false,
         }
     }
 }
@@ -211,8 +216,9 @@ impl RepoHandle {
         ))))
     }
 
-    pub(crate) fn journal_entry(&self, entry: GitOutput) {
+    pub(crate) fn journal_entry(&self, mut entry: GitOutput) {
         if let Some(sink) = self.journal() {
+            entry.stopped_on_conflicts = self.stopped_on_conflicts(&entry);
             sink(entry);
         }
     }
@@ -406,7 +412,7 @@ pub(crate) fn clear_inherited_git_vars(command: &mut Command) {
     }
 }
 
-fn base_command(root: &Path, reading: bool) -> Command {
+pub(crate) fn base_command(root: &Path, reading: bool) -> Command {
     let mut command = git_command();
     command.current_dir(root);
     // `--continue` opens an editor, and with no terminal it hangs forever (R-26).

@@ -71,6 +71,8 @@
   import { cloneRepository, type CloneRequest } from "$lib/ipc/clone";
   import PromptDialog from "$components/layout/PromptDialog.svelte";
   import StashDialogs from "$components/layout/StashDialogs.svelte";
+  import PullDialog from "$components/menus/PullDialog.svelte";
+  import PushDialog from "$components/menus/PushDialog.svelte";
   import RemoteOpsDialog from "$components/remote/RemoteOpsDialog.svelte";
   import RepoSettingsDialog from "$components/remote/RepoSettingsDialog.svelte";
   import { remoteCommands, submoduleScope } from "$lib/remote-menu";
@@ -79,9 +81,10 @@
   import IndexEditorDialog from "$components/file-list/IndexEditorDialog.svelte";
   import { openInvestigate } from "$lib/investigate/open";
   import WorktreesPanel from "$components/panels/WorktreesPanel.svelte";
+  import type { AddOrigin } from "$lib/worktree-add";
   import AddWorktreeDialog from "$components/repo-tree/AddWorktreeDialog.svelte";
   import RemoveWorktreeDialog from "$components/repo-tree/RemoveWorktreeDialog.svelte";
-  import { branchChoices, hasStale, othersToWatch, removable } from "$lib/worktree-list";
+  import { hasStale, othersToWatch, removable } from "$lib/worktree-list";
   import { fileFormat, shortOid } from "$lib/format";
   import { checkedIds, disabledIds, rememberCommand, type PaletteCommand } from "$lib/palette";
   import { reasonFor, type Context } from "$lib/availability";
@@ -89,7 +92,8 @@
   import { currentRemote, headRemote, remotePlan, syncSteps, type SyncOrder } from "$lib/toolbar-prefs";
   import { toolbar } from "$stores/toolbar.svelte";
   import { stashDialog } from "$stores/stash-dialog.svelte";
-  import { allowsSelectAll, settle, step } from "$lib/panel-focus";
+  import { settle, step } from "$lib/panel-focus";
+  import { installSelectAll, selectAllFromMenu } from "$lib/select-all";
   import { needsPush, pullRequestFor } from "$lib/pull-request";
   import { commitScope } from "$lib/commit-scope";
   import { activity, applyOperation, cancellable, trackCancellable } from "$lib/operations";
@@ -97,13 +101,15 @@
   import { item as menuItem, refMenu } from "$lib/context-menu";
   import RefActions from "$components/menus/RefActions.svelte";
   import RefGroupActions from "$components/menus/RefGroupActions.svelte";
+  import SelectionActions from "$components/menus/SelectionActions.svelte";
   import BisectActions from "$components/menus/BisectActions.svelte";
   import { bisectCommands } from "$lib/bisect";
   import { compareView } from "$stores/compare-view.svelte";
   import { confirmation } from "$stores/confirm.svelte";
+  import { undoRewriteQuestion } from "$lib/undo-rewrite";
+  import { undoRewrite, undoRewriteInfo } from "$lib/ipc/ref-ops";
   import { ON_MAC, effective, withShortcuts } from "$lib/keymap";
   import { menuCommandRuns, modals } from "$lib/modal-stack";
-  import { keyLetter } from "$lib/key-letter";
   import { commitBox } from "$stores/commit-box.svelte";
   import { commitFileMenu, shownRow, worktreeFileMenu } from "$lib/file-menu";
   import { fileName, runFileMenuCommand, type FileActions, type FileScope } from "$lib/file-actions";
@@ -124,6 +130,21 @@
   import { abortAction, bannerQuestion, stateBanner, type BannerAction } from "$lib/repo-state";
   import { runCheckout } from "$lib/checkout-flow";
   import { autostashDialog } from "$stores/autostash-dialog.svelte";
+  import { networkApi, networkDialog } from "$stores/network-dialog.svelte";
+  import { networkDefaults, saveNetworkDefaults } from "$lib/ipc/network-dialogs";
+  import {
+    EMPTY_DEFAULTS,
+    fetchOptionsOf,
+    mergeDefaults,
+    pullChoiceOf,
+    pullOptionsOf,
+    pushChoiceOf,
+    pushOptionsOf,
+    pushTargetOf,
+    type PullChoice,
+    type PushChoice,
+  } from "$lib/network-dialogs";
+  import { pullFlow, pushFlow, type FlowUi } from "$lib/network-flow";
   import { refActivation, type CheckoutRequest } from "$lib/ref-checkout";
   import { foundStep } from "$lib/found";
   import { revealRef } from "$lib/ref-reveal";
@@ -187,7 +208,7 @@
     commitTemplate,
     openCommitWindow,
     stageMode,
-    openMergeWindow,
+    openSolverWindow,
     openCompareWindow,
     popupContextMenu,
     resolveConflict,
@@ -200,6 +221,7 @@
     type AppInfo,
     type Branch,
     type RepoId,
+    type WorktreeBranch,
   } from "$lib/ipc";
   import { openBlame } from "$lib/blame-window";
   import { ShownRepository } from "$lib/shown-repository";
@@ -211,10 +233,12 @@
   import { worktrees } from "$stores/worktrees.svelte";
   import { diff } from "$stores/diff.svelte";
   import { errors } from "$stores/errors.svelte";
+  import { errorWindow } from "$stores/error-window.svelte";
   import { notices } from "$stores/notices.svelte";
   import { FETCH_MODULES, MAINTENANCE, RUN_GC, TRUST_DIRECTORY } from "$lib/health";
   import { hooksNote, pendingHooks } from "$lib/pending-hooks";
   import { output } from "$stores/output.svelte";
+  import { taskbar } from "$stores/taskbar.svelte";
   import { network } from "$stores/network.svelte";
   import { recovery } from "$stores/recovery.svelte";
   import { safety } from "$stores/safety.svelte";
@@ -266,6 +290,9 @@
     const landed = settle(focused, (panel) => layout.visible(panel));
     if (landed !== focused) focused = landed;
   });
+
+  // Ctrl+A goes to the panel in focus (the one with the underlined header); behind a modal, to nothing.
+  $effect(() => installSelectAll(window, () => (modals.any ? "modal" : focused)));
   let running = $state.raw<Map<number, string>>(new Map());
   /** Network operations whose git the footer's Cancel can stop, oldest first. */
   let networkOps = $state.raw<number[]>([]);
@@ -275,10 +302,8 @@
   let opening = $state(false);
   let scanOpen = $state(false);
   let addWorktreeOpen = $state(false);
-  let worktreeRemoval = $state.raw<{
-    entry: import("$lib/ipc").WorktreeEntry;
-    changes: import("$lib/ipc").FileEntry[] | null;
-  } | null>(null);
+  let addWorktreeOrigin = $state<AddOrigin>({ kind: "current" });
+  let worktreeRemoval = $state.raw<{ entry: import("$lib/ipc").WorktreeEntry } | null>(null);
   let markedFiles = $state.raw<string[]>([]);
   /** The same ticks by the title of the list they are in: Unstaged, Staged. */
   let markedBySection = $state.raw<Record<string, string[]>>({});
@@ -394,6 +419,7 @@
       suppressNativeMenu(document);
       suppressBrowserFind(window);
       suppressBrowserNavigation(window);
+      taskbar.start();
       getAppInfo()
         .then((result) => (info = result))
         .catch((err) => errors.report(err, "Could not read the application info"));
@@ -406,6 +432,7 @@
       void settings.loadBindings();
       void health.loadIgnored();
       void toolbar.load();
+      void networkDialog.load();
       void terminalChoices().then((found) => (terminals = found));
       const wanted = session.active;
       const remembered = wanted === null ? null : session.selected(wanted);
@@ -505,7 +532,7 @@
   $effect(() => errors.report(worktree.error, "Could not read the working tree"));
   $effect(() => errors.report(repository.error, "Could not load the repository"));
   $effect(() => errors.report(commit.error, "Could not load the commit"));
-  $effect(() => errors.report(diff.error, "Could not show the diff"));
+  $effect(() => errors.report(diff.error, "Could not show the diff", diff.path ?? undefined));
   $effect(() => errors.report(graph.error, "Could not load the graph"));
   $effect(() => errors.report(hooks.error, hooks.failure ?? "Could not read the hooks"));
   $effect(() => errors.report(compareView.error, "Could not compare the commits"));
@@ -660,8 +687,20 @@
         run: () => showWelcome(),
       },
       { id: "fetch", title: "Fetch", unavailable: noRepo ?? noRemote, run: () => void runNetwork("fetch") },
-      { id: "pull", title: "Pull", unavailable: reasonOf("pull", toolbarFacts), run: () => void pullNow() },
-      { id: "push", title: "Push", unavailable: reasonOf("push", toolbarFacts), run: () => void runNetwork("push") },
+      { id: "pull", title: "Pull…", unavailable: reasonOf("pull", toolbarFacts), run: () => void openPullDialog() },
+      {
+        id: "pull-defaults",
+        title: "Pull with Defaults",
+        unavailable: reasonOf("pull", toolbarFacts),
+        run: () => void pullNow(),
+      },
+      { id: "push", title: "Push…", unavailable: reasonOf("push", toolbarFacts), run: () => void openPushDialog() },
+      {
+        id: "push-defaults",
+        title: "Push with Defaults",
+        unavailable: reasonOf("push", toolbarFacts),
+        run: () => void runNetwork("push"),
+      },
       {
         id: "stash",
         title: "Stash All",
@@ -850,7 +889,7 @@
         title: "Add Worktree…",
         synonyms: ["worktree", "second checkout"],
         unavailable: noRepo,
-        run: () => (addWorktreeOpen = true),
+        run: () => openAddWorktree(),
       },
       {
         id: "worktree-remove",
@@ -871,6 +910,20 @@
         synonyms: ["worktree prune", "missing worktree"],
         unavailable: noRepo ?? (hasStale(worktrees.entries) ? undefined : "No worktree is missing"),
         run: () => void pruneWorktreesHere(),
+      },
+      {
+        id: "resolve-conflicts",
+        title: "Resolve Conflicts…",
+        synonyms: ["conflict solver", "merge", "3-way", "resolve", "conflicted"],
+        unavailable: noRepo ?? (conflicts.paths.length === 0 ? "No file is conflicted" : undefined),
+        run: () => openSolverAt(conflicts.path ?? conflicts.paths[0]),
+      },
+      {
+        id: "undo-rewrite",
+        title: "Undo Last Merge / Rebase / Reset…",
+        synonyms: ["ORIG_HEAD", "undo merge", "undo rebase", "undo reset"],
+        unavailable: noRepo,
+        run: () => void undoLastRewrite(),
       },
       {
         id: "range-diff",
@@ -1121,11 +1174,6 @@
         void discardFromToolbar(targetsOf("discard", toolbarFacts));
       }
       return;
-    }
-
-    // Select All belongs to the focused panel, and the graph declines it on purpose.
-    if ((event.ctrlKey || event.metaKey) && keyLetter(event) === "a" && !typing(event)) {
-      if (!allowsSelectAll(focused)) event.preventDefault();
     }
   }
 
@@ -1400,6 +1448,7 @@
     stashes: stashes.entries,
     lost: recovery.lost,
     others: refs.others,
+    showPseudoRefs: settings.current.refsShowPseudoRefs,
     remoteUrls: refs.urls,
     remotes: network.remotes,
     tagSeparator: repo?.tagGroupSeparator,
@@ -1802,6 +1851,31 @@
     await afterRefChange(id);
   }
 
+  /** ORIG_HEAD is where the last merge, rebase or reset started: a different action from the
+      journal's Undo, which reverses what Cogit itself recorded. */
+  async function undoLastRewrite() {
+    const id = repository.current?.repo;
+    if (!id) return;
+    try {
+      const question = undoRewriteQuestion(await undoRewriteInfo(id));
+      if ("refused" in question) {
+        await confirmation.ask({ title: "Undo Last Merge / Rebase / Reset", message: question.refused, confirm: "OK" });
+        return;
+      }
+      const go = await confirmation.ask({
+        title: "Undo Last Merge / Rebase / Reset",
+        message: question.message,
+        confirm: "Undo",
+        warning: question.warning,
+      });
+      if (!go) return;
+      await undoRewrite(id);
+    } catch (err) {
+      errors.report(err, "Could not undo the last merge, rebase or reset");
+    }
+    await afterRefChange(id);
+  }
+
   /** git range-diff ORIG_HEAD...HEAD: each commit before a rebase or amend next to what it became (E1). */
   async function showRangeDiff() {
     const id = repository.current?.repo;
@@ -1824,7 +1898,7 @@
   async function runNetwork(kind: "fetch" | "pull" | "push") {
     // One Pull everywhere: the remote HEAD tracks and the fast-forward setting (#26).
     if (kind === "pull") return pullNow();
-    if (kind === "push" && refActions?.pushNeedsDialog()) return refActions.pushToCurrent();
+    if (kind === "push" && refActions?.pushNeedsDialog()) return openPushDialog();
     const id = repository.current?.repo;
     const root = repository.current?.root;
     const remote = kind === "fetch" ? pullRemote : pushRemote;
@@ -1838,7 +1912,7 @@
       if (kind === "fetch") await network.fetch(id, remote);
       else {
         await announceHooks(id, "push");
-        await network.push(id, remote, false);
+        await pushWithDefaults(id, remote);
       }
     } catch (err) {
       errors.report(err, `Could not ${kind}`);
@@ -1872,7 +1946,7 @@
       });
       for (const step of plan) {
         if (step.kind === "fetch") await network.fetch(id, step.remote);
-        if (step.kind === "pull") await network.pull(id, step.remote, step.ffOnly);
+        if (step.kind === "pull") await pullWithDefaults(id, step.remote, step.ffOnly);
         if (step.kind === "deleteMerged") await deleteMergedBranches(id);
         if (step.kind === "push") await network.push(id, step.remote, false);
       }
@@ -1882,6 +1956,134 @@
       return;
     }
     if (steps.includes("pull")) repoPulse.fetched(root);
+    await afterRefChange(id);
+  }
+
+  const flowUi: FlowUi = {
+    ask: (request) => confirmation.ask(request),
+    report: (message, title) => errors.message(message, title),
+  };
+
+  /** What this repository remembers; a failed read means the plain defaults. */
+  async function defaultsOf(id: import("$lib/ipc").RepoId) {
+    return networkDefaults(id).catch((err) => {
+      errors.report(err, "Could not read the remembered Pull and Push options");
+      return EMPTY_DEFAULTS;
+    });
+  }
+
+  async function pullWithDefaults(id: import("$lib/ipc").RepoId, remote: string, ffOnly: boolean) {
+    const options = pullOptionsOf(pullChoiceOf(await defaultsOf(id)), ffOnly);
+    await pullFlow(networkApi, flowUi, id, remote, options);
+    successToast.show("Pull succeeded");
+  }
+
+  async function pushWithDefaults(id: import("$lib/ipc").RepoId, remote: string) {
+    const head = tracked;
+    if (!head) {
+      await network.push(id, remote, false);
+      return;
+    }
+    const target = pushTargetOf(head, network.remotes, network.primary);
+    const choice = pushChoiceOf(await defaultsOf(id), {
+      remote,
+      local: head.name,
+      branch: target.remote === remote ? target.branch : head.name,
+      hasUpstream: head.upstream !== null,
+    });
+    await pushFlow(networkApi, flowUi, id, pushOptionsOf(choice));
+    successToast.show("Push succeeded");
+  }
+
+  async function openPullDialog() {
+    const id = repository.current?.repo;
+    if (!id) return;
+    if (!pullRemote) {
+      errors.message("This repository has no remote.", "Could not pull");
+      return;
+    }
+    networkDialog.open = {
+      kind: "pull",
+      repo: id,
+      remote: pullRemote,
+      remotes: network.remotes,
+      ffOnly: settings.current.pullMode === "ffOnly",
+      defaults: await defaultsOf(id),
+    };
+  }
+
+  async function openPushDialog() {
+    const id = repository.current?.repo;
+    const head = tracked;
+    if (!id) return;
+    if (!head) {
+      errors.message("HEAD is not on a branch. Check out the branch you want to push.", "Could not push");
+      return;
+    }
+    const target = pushTargetOf(head, network.remotes, network.primary);
+    if (!target.remote) {
+      errors.message("This repository has no remote.", "Could not push");
+      return;
+    }
+    networkDialog.open = {
+      kind: "push",
+      repo: id,
+      remotes: network.remotes,
+      remote: target.remote,
+      branch: target.branch,
+      local: head.name,
+      upstream: head.upstream,
+      remoteBranches: (repository.current?.branches ?? []).filter((b) => b.kind === "remote").map((b) => b.name),
+      defaults: await defaultsOf(id),
+    };
+  }
+
+  /** The dialog is gone first, so the footer shows the run. */
+  async function runPullDialog(action: "pull" | "fetch", remote: string, choice: PullChoice, remember: boolean) {
+    const request = networkDialog.open;
+    const root = repository.current?.root;
+    if (request?.kind !== "pull" || !root) return;
+    networkDialog.close();
+    const id = request.repo;
+    const epoch = repository.epoch;
+    try {
+      if (remember) await saveNetworkDefaults(id, mergeDefaults(request.defaults, { pull: choice }));
+      if (action === "fetch") {
+        await pullFlow(networkApi, flowUi, id, remote, { fetchOnly: fetchOptionsOf(choice) });
+        successToast.show("Fetch succeeded");
+      } else {
+        await pullFlow(networkApi, flowUi, id, remote, pullOptionsOf(choice, request.ffOnly));
+        successToast.show("Pull succeeded");
+      }
+    } catch (err) {
+      errors.report(err, action === "pull" ? "Could not pull" : "Could not fetch");
+      if (repository.epoch === epoch) await afterMutation();
+      return;
+    }
+    repoPulse.fetched(root);
+    if (repository.epoch !== epoch) return;
+    await (action === "fetch" ? afterFetch(id) : afterRefChange(id));
+  }
+
+  async function runPushDialog(choice: PushChoice, remember: boolean) {
+    const request = networkDialog.open;
+    if (request?.kind !== "push") return;
+    networkDialog.close();
+    const id = request.repo;
+    const epoch = repository.epoch;
+    try {
+      if (remember) await saveNetworkDefaults(id, mergeDefaults(request.defaults, { push: choice }));
+      await announceHooks(id, "push");
+      await pushFlow(networkApi, flowUi, id, pushOptionsOf(choice));
+      successToast.show("Push succeeded");
+    } catch (err) {
+      errors.report(err, "Could not push");
+      if (repository.epoch === epoch) await afterMutation();
+      return;
+    } finally {
+      runningHooks = undefined;
+    }
+    if (repository.epoch !== epoch) return;
     await afterRefChange(id);
   }
 
@@ -1995,6 +2197,11 @@
       submodule has no lines to compare: it opens, as its row in Repositories does (R-537). */
   function openInWindow(path: string, spec = diff.spec) {
     const id = repository.current?.repo;
+    // A conflicted file has three sides: it opens in the Conflict Solver, not in a diff.
+    if (id && conflicts.paths.includes(path)) {
+      openSolverAt(path);
+      return;
+    }
     if (!id || !spec) return;
     if (isModulePath(path, [worktree.unstaged, worktree.staged, commit.files, compareView.files])) {
       void openModuleAt(path);
@@ -2002,6 +2209,16 @@
     }
     void openCompareWindow(compareUrl(id, path, spec), diffWindowTitle(path)).catch((err) =>
       errors.report(err, "Could not open the file window"),
+    );
+  }
+
+  /** The Conflict Solver for one file, a window of its own; `externalTool` also starts the
+      merge tool in it. */
+  function openSolverAt(path: string | undefined, externalTool = false) {
+    const id = repository.current?.repo;
+    if (!id || !path) return;
+    void openSolverWindow(id, path, externalTool).catch((err) =>
+      errors.report(err, "Could not open the Conflict Solver"),
     );
   }
 
@@ -2349,6 +2566,7 @@
   let refTarget = $state.raw<RefNode | null>(null);
   let refActions = $state<ReturnType<typeof RefActions>>();
   let refGroupActions = $state<ReturnType<typeof RefGroupActions>>();
+  let selectionActions = $state<ReturnType<typeof SelectionActions>>();
   let bisectActions = $state<ReturnType<typeof BisectActions>>();
   let fileTarget = $state.raw<FileScope | null>(null);
   let fileSection = $state<"worktree" | "index" | "commit">("worktree");
@@ -2467,6 +2685,8 @@
     compareWithWorkTree: (path, rev) => openInWindow(path, { kind: "commitVsWorkTree", oid: rev }),
     log: (path) => filterGraph({ ...graph.query, path }),
     blame: (path) => void blameOne(path),
+    solver: (path) => openSolverAt(path),
+    externalTool: (path) => openSolverAt(path, true),
     investigate: (path) => investigateFile(path),
     commit: (paths) => void commitFiles(paths),
     stash: (paths) => void stashPaths(paths),
@@ -2821,18 +3041,9 @@
     return false;
   }
 
-  /** The dialog lists what is uncommitted and asks separately for --force (R-184). */
-  async function removeWorktreeAt(entry: import("$lib/ipc").WorktreeEntry) {
-    worktreeRemoval = { entry, changes: null };
-    const changes = await worktrees.changes(entry.path).catch((err) => {
-      errors.report(err, "Could not read the worktree's changes");
-      return null;
-    });
-    if (changes === null) {
-      worktreeRemoval = null;
-      return;
-    }
-    if (worktreeRemoval?.entry.path === entry.path) worktreeRemoval = { entry, changes };
+  /** The dialog reads what is uncommitted itself and asks separately for --force (R-184). */
+  function removeWorktreeAt(entry: import("$lib/ipc").WorktreeEntry) {
+    worktreeRemoval = { entry };
   }
 
   async function confirmWorktreeRemoval(force: boolean) {
@@ -2929,16 +3140,25 @@
       .catch((err) => errors.report(err, "Could not repair the worktree"));
   }
 
-  async function addWorktreeFrom(request: {
-    folder: string;
-    branch: string;
-    create: boolean;
-    base: string | null;
-  }) {
+  /** A commit selected in the graph is the start; a menu on a branch or commit says its own. */
+  function openAddWorktree(origin?: AddOrigin) {
+    addWorktreeOrigin =
+      origin ?? (focused === "graph" && commit.oid ? { kind: "commit", oid: commit.oid } : { kind: "current" });
+    addWorktreeOpen = true;
+  }
+
+  async function addWorktreeFrom(request: { path: string; branch: WorktreeBranch; open: boolean }) {
     addWorktreeOpen = false;
-    await worktrees
-      .add(request.folder.replace(/\\/g, "/"), request.branch, request.create, request.base)
-      .catch((err) => errors.report(err, "Could not add the worktree"));
+    try {
+      await worktrees.add(request.path, request.branch);
+    } catch (err) {
+      errors.report(err, "Could not add the worktree");
+      return;
+    }
+    if (!request.open) return;
+    const wanted = request.path.toLowerCase();
+    const added = worktrees.entries.find((entry) => entry.path.toLowerCase() === wanted);
+    if (added) await openWorktreeRow(added);
   }
 
   /** Like a submodule: the panels switch to it, the Repositories tree stays (R-184). */
@@ -3718,6 +3938,29 @@
     }),
   );
 
+  /** The Errors window's Show conflicts: the first conflicted file of that repository opens
+      in the files panel's three-sided preview. */
+  async function showConflictsOf(root: string) {
+    const current = repository.current;
+    if (!current || current.root !== root) return;
+    await conflicts.refresh(current.repo);
+    const first = conflicts.paths[0];
+    if (first) await openWorktreeDiff(first);
+  }
+
+  // The Errors window sends its choices here; failed commands anywhere reach its queue.
+  $effect(() => {
+    const pending = errorWindow.own((root) => void showConflictsOf(root));
+    return () => void pending.then((stop) => stop());
+  });
+
+  // A warning about conflicts goes with the conflicts.
+  $effect(() => {
+    const root = repository.current?.root;
+    const none = conflicts.paths.length === 0;
+    if (root && none) untrack(() => errorWindow.conflictsResolved(root));
+  });
+
   // A warning is worth a glance, not a dismissal: every commit on Windows produces one
   // about line endings, and a toast that waits to be clicked becomes a second thing to
   // clean up after each commit.
@@ -3746,8 +3989,10 @@
       if (id === WELCOME_FORGET) return forgetWelcomeTarget();
       if (!menuCommandRuns(id, modals)) return;
       if (id === "toolbar-preferences") return openSettings("toolbar");
+      if (id === "select-all") return selectAllFromMenu();
       if (refActions?.run(id)) return;
       if (refGroupActions?.run(id)) return;
+      if (selectionActions?.run(id)) return;
       if (bisectActions?.run(id)) return;
       if (runGroupCommand(id)) return;
       if (runRepoCommand(id)) return;
@@ -3836,8 +4081,10 @@
           "apply-stash": () => applyNewestStash(),
           tag: () => void refActions?.addTag(null),
           "push-to": () => refActions?.pushToCurrent(),
-          pull: () => pullNow(),
-          push: () => runNetwork("push"),
+          pull: () => openPullDialog(),
+          push: () => openPushDialog(),
+          "pull-defaults": () => pullNow(),
+          "push-defaults": () => runNetwork("push"),
           sync: () => syncNow(),
           "sync-order": (order) =>
             syncNow(order === "pushThenPull" ? "pushThenPull" : "pullThenPush"),
@@ -3934,7 +4181,7 @@
         >
           {#snippet actions()}
             {#if repo}
-              <button type="button" class="panel-act" title="Add Worktree…" onclick={() => (addWorktreeOpen = true)}
+              <button type="button" class="panel-act" title="Add Worktree…" onclick={() => openAddWorktree()}
                 >Add…</button
               >
               <button
@@ -3953,7 +4200,7 @@
             oncontext={(entry, x, y) => void worktreeContext(entry, x, y)}
             onprune={(entry) => void pruneWorktreeAt(entry)}
             onrepair={(entry) => void repairWorktreeAt(entry)}
-            onadd={() => (addWorktreeOpen = true)}
+            onadd={() => openAddWorktree()}
           />
         </Panel>
       </div>
@@ -3998,6 +4245,7 @@
             onselect={selectRef}
             onactivate={activateRef}
             oncontext={(node, x, y) => void refContext(node, x, y)}
+            ongroupcontext={(nodes, x, y) => void selectionActions?.refsContext(nodes, x, y)}
             onhover={(node) => { refActions?.prefetchNode(node); }}
             ondrop={onBranchDrop}
           />
@@ -4073,6 +4321,7 @@
               {checking}
               ondrop={onCommitDrop}
               oncontext={(oid, x, y) => void commitContext(oid, x, y)}
+              ongroupcontext={(oids, x, y) => void selectionActions?.commitsContext(oids, x, y)}
               onhover={(oid) => refActions?.prefetch(oid)}
               {banner}
               busy={repository.busy}
@@ -4217,7 +4466,7 @@
             }}
             onpopoutmerge={() => {
               const id = repository.current?.repo;
-              if (id && conflicts.path) void openMergeWindow(id, conflicts.path);
+              if (id && conflicts.path) openSolverAt(conflicts.path);
             }}
             onresolveText={(text) => {
               const id = repository.current?.repo;
@@ -4291,9 +4540,12 @@
     {checkOut}
     {openSplit}
     {openRebase}
+    openAddWorktree={(origin) => openAddWorktree(origin)}
     rollbackTree={() => rollbackFiles([])}
   />
   <BisectActions bind:this={bisectActions} {afterRefChange} />
+
+  <SelectionActions bind:this={selectionActions} input={refTreeInput} {afterRefChange} {reloadGraph} />
 
   <RefGroupActions
     bind:this={refGroupActions}
@@ -4451,6 +4703,11 @@
   {/if}
 
   <StashDialogs />
+  {#if networkDialog.open?.kind === "pull"}
+    <PullDialog request={networkDialog.open} onrun={runPullDialog} onclose={() => networkDialog.close()} />
+  {:else if networkDialog.open?.kind === "push"}
+    <PushDialog request={networkDialog.open} onpush={runPushDialog} onclose={() => networkDialog.close()} />
+  {/if}
 
   {#if remoteOps.dialog}
     {#key remoteOps.dialog}
@@ -4506,8 +4763,12 @@
 
   {#if addWorktreeOpen && repo}
     <AddWorktreeDialog
-      choices={branchChoices(repo.branches, worktrees.entries)}
-      base={commit.oid ?? "HEAD"}
+      repo={repo.repo}
+      root={repo.root}
+      branches={repo.branches}
+      tags={repo.tags}
+      worktrees={worktrees.entries}
+      origin={addWorktreeOrigin}
       onbrowse={async () => {
         const picked = await openFolderDialog({ directory: true, title: "Folder for the new worktree" });
         return typeof picked === "string" ? picked : null;
@@ -4520,7 +4781,6 @@
   {#if worktreeRemoval}
     <RemoveWorktreeDialog
       entry={worktreeRemoval.entry}
-      changes={worktreeRemoval.changes}
       onremove={(force) => void confirmWorktreeRemoval(force)}
       onclose={() => (worktreeRemoval = null)}
     />
@@ -4593,7 +4853,7 @@
       networkProgress: network.progress ?? undefined,
       hooks: runningHooks,
       opening: repository.busy,
-      failed: notices.errorCount > 0,
+      failed: notices.errorCount + errorWindow.errorCount > 0,
     })}
     problems={output.problems}
     onproblems={() => output.toggle()}

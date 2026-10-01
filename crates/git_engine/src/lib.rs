@@ -37,6 +37,7 @@ mod maintenance;
 mod merging;
 mod module_ops;
 mod network;
+mod network_options;
 mod notes;
 mod operations;
 mod origin_search;
@@ -56,10 +57,12 @@ mod repo;
 mod repo_settings;
 mod rerere;
 mod reset;
+mod revision;
 mod runner;
 mod search;
 mod shared;
 mod side_modes;
+mod solver;
 mod staging;
 mod stash;
 mod stash_rename;
@@ -73,6 +76,7 @@ mod text_search;
 mod textconv;
 mod topo;
 mod worktree;
+mod worktree_scan;
 mod worktrees;
 
 pub use bisect::{BisectMark, BisectState, BisectTerms};
@@ -88,8 +92,8 @@ pub use cloning::{
     remote_branches, repository_url_in,
 };
 pub use commit::{
-    CommitDetails, DEFAULT_SIMILARITY, FileEntry, FileMode, FileStatus, Signature, SignatureCheck,
-    SubmoduleChange, Trailer,
+    CommitDetails, ConflictKind, DEFAULT_SIMILARITY, FileEntry, FileMode, FileStatus, Signature,
+    SignatureCheck, SubmoduleChange, Trailer,
 };
 pub use commit_write::CommitRequest;
 pub use config_file::{
@@ -121,6 +125,10 @@ pub use mailmap::Mailmap;
 pub use merging::MergeOptions;
 pub use module_ops::SubmoduleOp;
 pub use network::{NetworkStop, auth_config, auth_header, wants_auth};
+pub use network_options::{
+    FetchOptions, NetworkDefaults, NotesFetch, PullMethod, PullOptions, PushCommit, PushOptions,
+    PushOutcome, PushPreview, TagsMode,
+};
 pub use notes::CommitNote;
 pub use operations::RebaseOptions;
 pub use origin_search::{
@@ -141,11 +149,16 @@ pub use repo::{Branch, BranchKind, Head, RepoHandle, Tag};
 pub use repo_settings::{REPO_SETTING_KEYS, RepoSetting, RepoSettingChange};
 pub use rerere::RerereStatus;
 pub use reset::ResetMode;
+pub use revision::{CommitPreview, RevisionCheck};
 pub use runner::{
     CommandSink, GitOutput, git_version, gix_version, redact_command, use_git_program,
 };
 pub use search::{CommitQuery, GraphRows, GraphView, Passed, PassedCommits, ShownBy, SkippedRef};
 pub use shared::SharedRepo;
+pub use solver::{
+    ConflictContext, ConflictOperation, MergeToolConfig, marker_labels, merge_target,
+    merge_tool_from_listing,
+};
 pub use stash::{AutostashOutcome, StashContents, StashEntry, StashOptions};
 pub use state::RepoState;
 pub use status::{RepoStatus, WorkingState};
@@ -154,7 +167,8 @@ pub use subtrees::SubtreeOp;
 pub use tags::TagRequest;
 pub use text_search::TextFields;
 pub use worktree::{WorktreeFiles, WorktreeView};
-pub use worktrees::WorktreeEntry;
+pub use worktree_scan::{UnpushedInSubmodule, WorktreeScan, WorktreeSubmodules};
+pub use worktrees::{WorktreeBranch, WorktreeEntry, worktree_folder_problem};
 
 pub type Result<T> = std::result::Result<T, GitError>;
 

@@ -81,6 +81,17 @@ export const CATEGORIES: Category[] = [
         ],
       },
       {
+        title: "Branches",
+        fields: [
+          {
+            key: "refsShowPseudoRefs",
+            label: "Show ORIG_HEAD, MERGE_HEAD and other pseudo-refs in Other Refs",
+            hint: "Off: Other Refs lists only real refs under refs/. Repository ▸ Compare Before and After Rewrite and Undo Last Merge / Rebase / Reset use ORIG_HEAD either way.",
+            keywords: ["orig_head", "merge_head", "fetch_head", "cherry_pick_head", "rebase_head", "pseudo", "other refs", "refs"],
+          },
+        ],
+      },
+      {
         title: "Pull",
         fields: [
           {
@@ -116,6 +127,31 @@ export const CATEGORIES: Category[] = [
     groups: [{ title: "Hosting tokens", fields: [] }],
   },
   heading("ui", "User Interface"),
+  {
+    id: "notifications",
+    title: "Notifications",
+    parent: "ui",
+    groups: [
+      {
+        title: "Taskbar",
+        fields: [
+          {
+            key: "notificationsTaskbar",
+            label: "Show progress and alerts on the taskbar button",
+            hint: "A progress bar while fetch, push, pull or clone runs; a red or yellow ! for an error or a warning; a number when several results wait unseen. Clears when you come back.",
+            keywords: ["taskbar", "dock", "badge", "overlay", "progress", "notification", "windows"],
+          },
+          {
+            key: "notificationsTaskbarFlash",
+            label: "Flash the taskbar button while Cogit is in the background",
+            hint: "Only when another window has focus.",
+            keywords: ["flash", "blink", "attention", "taskbar", "notification"],
+            dependsOn: "notificationsTaskbar",
+          },
+        ],
+      },
+    ],
+  },
   {
     id: "theme",
     title: "Theme & Colors",
@@ -355,6 +391,30 @@ export const CATEGORIES: Category[] = [
             label: "Rows",
             hint: "Aligned keeps both sides on the same rows, with filler where one side has no lines. Compact shows each side's own lines, joined by curved connectors.",
             keywords: ["aligned", "compact", "filler", "1:1", "connector", "hatch"],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "mergetool",
+    title: "Merge Tool",
+    parent: "diffmerge",
+    groups: [
+      {
+        title: "External merge tool",
+        fields: [
+          {
+            key: "mergeExternalTool",
+            label: "Program",
+            hint: "Opened by Open in External Tool in the Conflict Solver and in the file menu. Empty: the tool named by merge.tool in the Git config.",
+            keywords: ["merge", "tool", "mergetool", "external", "meld", "kdiff3", "beyond compare", "vscode", "conflict", "solver"],
+          },
+          {
+            key: "mergeExternalToolArgs",
+            label: "Arguments",
+            hint: "{base} {ours} {theirs} are read-only copies of the three sides; the tool writes its answer to {result}, the working file. Quote what holds spaces. Empty: {base} {ours} {theirs} {result}.",
+            keywords: ["merge", "tool", "arguments", "placeholders", "base", "ours", "theirs", "result"],
           },
         ],
       },

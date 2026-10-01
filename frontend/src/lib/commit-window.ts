@@ -1,4 +1,5 @@
 import type { FileEntry } from "$lib/ipc";
+import type { StateSide } from "$lib/file-state";
 import { canCommit } from "$lib/commit-draft";
 
 /** Which files the window lists: what is staged, or every local change (staged or not). */
@@ -32,6 +33,19 @@ export function listedFiles(
   if (mode === "staged") return [...staged];
   const seen = new Set(staged.map((file) => file.path));
   return [...staged, ...unstaged.filter((file) => !seen.has(file.path))];
+}
+
+/** Which comparison a listed row's State is read from: the index in staged mode; in local
+    mode a file also changed on disk after staging reads as its unstaged side. */
+export function stateSide(
+  mode: CommitMode,
+  path: string,
+  staged: readonly FileEntry[],
+  unstaged: readonly FileEntry[],
+): StateSide {
+  if (mode === "staged") return "index";
+  const inIndex = staged.some((file) => file.path === path);
+  return inIndex && !unstaged.some((file) => file.path === path) ? "index" : "worktree";
 }
 
 export function splitPath(path: string): { name: string; directory: string } {

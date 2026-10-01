@@ -1,12 +1,15 @@
 <script lang="ts">
   import Disclosure from "$components/common/Disclosure.svelte";
+  import FileStateIcon from "$components/common/FileStateIcon.svelte";
   import KindIcon from "$components/common/KindIcon.svelte";
   import { EMPTY_SELECTION, markRow, type FileSelection } from "$lib/multi-select";
+  import { registerSelectAll } from "$lib/select-all";
   import { MISSING_REPOSITORY } from "$lib/repo-labels";
   import { canPull, freshOverview, moduleSync, rowSync, syncTooltip, type RowSync } from "$lib/repo-sync";
   import { repoPulse } from "$stores/repo-pulse.svelte";
   import { repoMenuRow } from "$stores/menu-row.svelte";
   import {
+    conflictedTree,
     mayExpand,
     moduleHint,
     moduleRoot,
@@ -130,6 +133,23 @@
     ),
   );
 
+  /** A submodule node read like a list row: from the panels while they show it, else from its pulse. */
+  const nodeSync = (root: string, owned: boolean, key: string, below = false) => {
+    const nodeRoot = moduleRoot(root, key);
+    return moduleSync({
+      shown: owned && submodules.open === key && worktrees.ownerRoot === null ? repository.current : null,
+      pulse: repoPulse.pulses.get(nodeRoot),
+      fetchFailed: repoPulse.unknown.has(nodeRoot),
+      remoteAhead: repoPulse.remoteAhead.has(nodeRoot),
+      conflictedBelow: below,
+    });
+  };
+
+  /** Conflicts inside the submodules showing under a repository reach it and every node on the
+      way: only nodes whose rows are read have a pulse, so a folded tree says nothing. */
+  const conflictsIn = (root: string, owned: boolean) =>
+    conflictedTree(moduleRowsOf(root, owned), (key) => nodeSync(root, owned, key).conflicted);
+
   $effect(() => repoPulse.watch(everyRoot, moduleRoots));
 
   $effect(() => {
@@ -149,6 +169,14 @@
     const moving = marked.paths.has(root) && marked.paths.size > 1 ? [...marked.paths] : [root];
     for (const each of moving) repoGroups.assign(each, group);
   }
+
+  // Ctrl+A marks every repository the list shows: the filter and folded groups count.
+  $effect(() =>
+    registerSelectAll("repositories", () => {
+      const shown = rows.flatMap((row) => (row.kind === "repo" ? [row.root] : []));
+      marked = { paths: new Set(shown), anchor: shown[0] ?? null };
+    }),
+  );
 
   let wrapper: HTMLDivElement | undefined = $state();
   const typing = new TypeAhead();
@@ -181,6 +209,7 @@
   {@const tip = syncTooltip(sync)}
   <span class="repo-icon">
     <KindIcon {kind} title={tip || undefined} />
+    {#if sync.conflicted}<FileStateIcon state="conflicted" overlayOnly label="Unresolved merge conflicts" />{/if}
     {#if sync.ahead > 0}
       <svg class="arrow push" viewBox="0 0 8 8" role="img" aria-label="Commits to push"
         ><path d="M4 7V1.5M1.5 4 4 1.5 6.5 4" /></svg
@@ -198,10 +227,10 @@
   </span>
   <span
     class="changes"
-    class:dirty={sync.dirty === true}
-    role={sync.dirty ? "img" : undefined}
-    title={sync.dirty ? tip : undefined}
-    aria-label={sync.dirty ? "Uncommitted changes" : undefined}
+    class:dirty={sync.dirty === true && !sync.conflicted}
+    role={sync.dirty && !sync.conflicted ? "img" : undefined}
+    title={sync.dirty && !sync.conflicted ? tip : undefined}
+    aria-label={sync.dirty && !sync.conflicted ? "Uncommitted changes" : undefined}
   ></span>
 {/snippet}
 
@@ -227,18 +256,13 @@
   {@const toggle = (node: ModuleRow) =>
     void (owned ? submodules.toggle(node) : moduleForest.toggle(root, node))}
   {@const open = (node: ModuleRow) => (owned ? onopenmodule(node) : onopenforeignmodule(root, node))}
+  {@const inside = conflictsIn(root, owned)}
   {#each moduleRowsOf(root, owned) as node, index (node.key)}
     {@const parts = splitModulePath(node.path)}
     {@const folder = parts.dir.replace(/[/\\]$/, "")}
     {@const hint = moduleHint(node.module)}
     {@const nodeRoot = moduleRoot(root, node.key)}
-    {@const sync = moduleSync({
-      shown:
-        owned && submodules.open === node.key && worktrees.ownerRoot === null ? repository.current : null,
-      pulse: repoPulse.pulses.get(nodeRoot),
-      fetchFailed: repoPulse.unknown.has(nodeRoot),
-      remoteAhead: repoPulse.remoteAhead.has(nodeRoot),
-    })}
+    {@const sync = nodeSync(root, owned, node.key, inside.above.has(node.key))}
     <div
       class="row module {node.module.state}"
       class:striped={striped(start + index, stripes)}
@@ -385,6 +409,7 @@
           pulse: repoPulse.pulses.get(row.root),
           fetchFailed: repoPulse.unknown.has(row.root),
           remoteAhead: repoPulse.remoteAhead.has(row.root),
+          conflictedBelow: conflictsIn(row.root, ownsTree(listed?.overview ?? null)).any,
         })}
         {#if listed && entry}
       <div

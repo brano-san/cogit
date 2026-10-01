@@ -227,3 +227,12 @@ describe("graphColoring", () => {
     expect("coloredLanes" in merge({ coloredLanes: true } as never)).toBe(false);
   });
 });
+
+describe("refsShowPseudoRefs", () => {
+  it("is off by default and kept when stored", () => {
+    expect(DEFAULT_SETTINGS.refsShowPseudoRefs).toBe(false);
+    expect(merge({}).refsShowPseudoRefs).toBe(false);
+    expect(merge({ refsShowPseudoRefs: true }).refsShowPseudoRefs).toBe(true);
+    expect(merge({ refsShowPseudoRefs: "yes" } as never).refsShowPseudoRefs).toBe(false);
+  });
+});

@@ -133,6 +133,46 @@
       "type": "color",
       "description": "File in conflict."
     },
+    "file.icon.page": {
+      "type": "color",
+      "description": "File icon: page fill (mirrors bg.editor)."
+    },
+    "file.icon.stroke": {
+      "type": "color",
+      "description": "File icon: page outline (mirrors fg.muted)."
+    },
+    "file.icon.modified.fill": {
+      "type": "color",
+      "description": "File icon: fill of a modified or removed page (mirrors diff.del.line)."
+    },
+    "file.icon.modified.stroke": {
+      "type": "color",
+      "description": "File icon: outline of a modified page (mirrors status.danger)."
+    },
+    "file.icon.conflict.fill": {
+      "type": "color",
+      "description": "File icon: fill of a conflicted page (mirrors status.danger)."
+    },
+    "file.icon.overlay.added": {
+      "type": "color",
+      "description": "File icon: added and untracked overlay (mirrors status.info)."
+    },
+    "file.icon.overlay.staged": {
+      "type": "color",
+      "description": "File icon: staged check overlay (mirrors status.success)."
+    },
+    "file.icon.overlay.removed": {
+      "type": "color",
+      "description": "File icon: removed overlay (mirrors status.danger)."
+    },
+    "file.icon.overlay.renamed": {
+      "type": "color",
+      "description": "File icon: renamed arrow overlay (mirrors status.info)."
+    },
+    "file.icon.overlay.glyph": {
+      "type": "color",
+      "description": "File icon: the + and ! drawn on a colored overlay (mirrors fg.onAccent)."
+    },
     "badge.merging.fg": {
       "type": "color",
       "description": "The merging state marker."

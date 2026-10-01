@@ -104,10 +104,11 @@ export default defineConfig({
       input: {
         main: resolve(fileURLToPath(new URL(".", import.meta.url)), "index.html"),
         compare: resolve(fileURLToPath(new URL(".", import.meta.url)), "compare.html"),
-        merge: resolve(fileURLToPath(new URL(".", import.meta.url)), "merge.html"),
+        solver: resolve(fileURLToPath(new URL(".", import.meta.url)), "solver.html"),
         investigate: resolve(fileURLToPath(new URL(".", import.meta.url)), "investigate.html"),
         blame: resolve(fileURLToPath(new URL(".", import.meta.url)), "blame.html"),
         commit: resolve(fileURLToPath(new URL(".", import.meta.url)), "commit.html"),
+        errors: resolve(fileURLToPath(new URL(".", import.meta.url)), "errors.html"),
       },
     },
   },

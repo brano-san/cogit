@@ -40,6 +40,10 @@ export interface Settings {
   pullMode: "ffOnly" | "merge";
   gitPath: string;
   terminal: string;
+  /** The external merge tool the Conflict Solver opens: a program, and its arguments with
+      {base} {ours} {theirs} {result}. Empty: git's `merge.tool`. */
+  mergeExternalTool: string;
+  mergeExternalToolArgs: string;
   logLevel: "error" | "warn" | "info" | "debug" | "trace";
   /** On by default: a face per row is what the commit list is read by, and the request
       carries a hash rather than the address (doc/12-risks.md, R-145). `ask` is what a
@@ -54,6 +58,12 @@ export interface Settings {
   confirmExit: boolean;
   /** The Checkout dialog for a local branch; its "Don't show again" turns it off (item 40). */
   confirmLocalCheckout: boolean;
+  /** Taskbar button: progress of long operations, the overlay badge for errors, warnings and unviewed events. */
+  notificationsTaskbar: boolean;
+  /** Blinking the taskbar button while the window is in the background; needs `notificationsTaskbar`. */
+  notificationsTaskbarFlash: boolean;
+  /** Branches ▸ Other Refs also lists ORIG_HEAD, MERGE_HEAD and the other pseudo-refs. */
+  refsShowPseudoRefs: boolean;
   /** The visible columns, left to right; a hidden one is simply absent. */
   graphColumns: GraphColumn[];
   /** The graph's time column only; `dateFormat` stays for Blame and commit details (R-370). */
@@ -104,12 +114,17 @@ export const DEFAULT_SETTINGS: Settings = {
   pullMode: "ffOnly",
   gitPath: "git",
   terminal: "system",
+  mergeExternalTool: "",
+  mergeExternalToolArgs: "",
   logLevel: "info",
   avatars: "gravatar",
   autoUpdate: false,
   startupShowWelcome: true,
   confirmExit: true,
   confirmLocalCheckout: true,
+  notificationsTaskbar: true,
+  notificationsTaskbarFlash: true,
+  refsShowPseudoRefs: false,
   graphColumns: ["author", "avatar", "time", "hash"],
   graphTimeFormat: "date",
   graphDensity: "normal",

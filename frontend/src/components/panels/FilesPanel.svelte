@@ -142,6 +142,7 @@
         },
         {
           title: "Index",
+          side: "index",
           files: parts.index,
           selected: diff.pathFor(stashView.spec("index")),
           onselect: (path) => onopenstash("index", path),
@@ -210,6 +211,7 @@
             },
             {
               title: "Staged",
+              side: "index",
               files: worktree.staged,
               hideWhenEmpty: true,
               selected: diff.pathFor({ kind: "indexVsHead" }),

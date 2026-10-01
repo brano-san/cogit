@@ -94,7 +94,14 @@ export function worktreeFileMenu(at: WorktreeFileTarget): ContextItem[] {
     submenu(
       "file-resolve",
       "Resolve",
-      [item("file-resolve-theirs", "Take Theirs"), item("file-resolve-ours", "Take Ours")],
+      [
+        offer("file-resolve-solver", "Resolve…", single),
+        SEPARATOR,
+        item("file-resolve-theirs", "Take Theirs"),
+        item("file-resolve-ours", "Take Ours"),
+        SEPARATOR,
+        offer("file-resolve-external", "Open in External Tool", single),
+      ],
       conflicted,
     ),
     SEPARATOR,

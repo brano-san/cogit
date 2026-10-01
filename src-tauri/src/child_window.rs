@@ -166,7 +166,7 @@ fn parse_menu_id(id: &str) -> Option<(&str, &str)> {
 }
 
 /// Actions are ids from our own tables (`[a-z-]`), so the debug form is valid JavaScript.
-fn menu_script(action: &str) -> String {
+pub(crate) fn menu_script(action: &str) -> String {
     format!(r#"window.dispatchEvent(new CustomEvent("cogit-menu", {{ detail: {action:?} }}))"#)
 }
 

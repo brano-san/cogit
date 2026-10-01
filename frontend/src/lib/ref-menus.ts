@@ -87,6 +87,7 @@ function commitActions(facts: CommitFacts, onRef: RefTarget | null): ContextItem
     SEPARATOR,
     offer(id("add-branch"), "Add Branch", null),
     offer(id("add-tag"), "Add Tag", null),
+    offer(id("add-worktree"), "Add Worktree…", null),
     offer(id("edit-note"), "Add / Edit Note…", null),
     SEPARATOR,
     offer(id("reset"), "Reset", facts.isHeadCommit ? "HEAD is already here" : null),

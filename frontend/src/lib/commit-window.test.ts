@@ -11,6 +11,7 @@ import {
   recentMessages,
   sortedFiles,
   splitPath,
+  stateSide,
 } from "./commit-window";
 
 const file = (path: string, status: FileEntry["status"] = "modified"): FileEntry => ({
@@ -40,6 +41,23 @@ describe("listedFiles", () => {
   });
   it("lists a partly staged file once in local mode", () => {
     expect(listedFiles("local", staged, unstaged).map((f) => f.path)).toEqual(["a.txt", "b.txt", "c.txt"]);
+  });
+});
+
+describe("stateSide", () => {
+  const staged = [file("a.txt"), file("b.txt")];
+  const unstaged = [file("b.txt"), file("c.txt", "untracked")];
+  it("reads the index side of everything in staged mode", () => {
+    expect(stateSide("staged", "a.txt", staged, unstaged)).toBe("index");
+  });
+  it("reads a file only in the index as staged in local mode", () => {
+    expect(stateSide("local", "a.txt", staged, unstaged)).toBe("index");
+  });
+  it("reads a partly staged file by what is left to stage", () => {
+    expect(stateSide("local", "b.txt", staged, unstaged)).toBe("worktree");
+  });
+  it("reads an unstaged file by the working tree", () => {
+    expect(stateSide("local", "c.txt", staged, unstaged)).toBe("worktree");
   });
 });
 
