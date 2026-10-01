@@ -202,6 +202,9 @@ fn outcome(log: &str, bad: &str) -> (Option<String>, Vec<String>) {
     let mut found = None;
     let mut candidates = Vec::new();
     for line in tail.into_iter().rev() {
+        // git 2.55 quotes the term (`# first 'bad' commit:`), older gits do not.
+        let line = line.replace('\'', "");
+        let line = line.as_str();
         if let Some(rest) = line.strip_prefix(&first) {
             found = bracketed_oid(rest);
         } else if let Some(oid) = line.strip_prefix(&possible).and_then(bracketed_oid) {
@@ -229,6 +232,17 @@ mod tests {
             "git bisect start 'HEAD' 'HEAD~7' '--'\n# bad: [{A}] c1\ngit bisect bad {A}\n# first bad commit: [{A}] c1\n"
         );
         assert_eq!(outcome(&log, "bad"), (Some(A.to_owned()), Vec::new()));
+    }
+
+    #[test]
+    fn terms_quoted_by_newer_git_are_read_too() {
+        let log = format!(
+            "git bisect skip {A}\n# possible first 'bad' commit: [{A}] c1\n# first 'bad' commit: [{B}] c3\n"
+        );
+        assert_eq!(
+            outcome(&log, "bad"),
+            (Some(B.to_owned()), vec![A.to_owned()])
+        );
     }
 
     #[test]
