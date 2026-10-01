@@ -358,3 +358,4 @@
 | F-576 | Окно Commit (Ctrl+K): файлы, сообщение, Amend, Signed-off-by, Commit & Push | [F-576-commit-window.md](F-576-commit-window.md) |
 | F-580 | Чередование строк в Files, Repositories, Branches и Worktrees | [F-580-list-row-stripes.md](F-580-list-row-stripes.md) |
 | F-585 | Diff на блочной модели: режимы Aligned (1:1, filler) и Compact, соединитель, `»`/`×` на своей полосе, подписи панелей | [F-585-diff-block-view.md](F-585-diff-block-view.md) |
+| F-586 | Welcome: открыть или создать репозиторий, клонировать, вернуться к недавним; показ при запуске без открытых репозиториев | [F-586-welcome-dialog.md](F-586-welcome-dialog.md) |

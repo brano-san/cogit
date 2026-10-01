@@ -48,6 +48,8 @@ export interface Settings {
   /** Off until ticked: nothing reaches the network unasked. Help ▸ Check for Updates…
       works either way. */
   autoUpdate: boolean;
+  /** The Welcome dialog at startup when no repository is open; Repository ▸ Welcome… always works. */
+  startupShowWelcome: boolean;
   /** The Exit dialog's "Don't show again" and this checkbox are the same value (R-151). */
   confirmExit: boolean;
   /** The Checkout dialog for a local branch; its "Don't show again" turns it off (item 40). */
@@ -105,6 +107,7 @@ export const DEFAULT_SETTINGS: Settings = {
   logLevel: "info",
   avatars: "gravatar",
   autoUpdate: false,
+  startupShowWelcome: true,
   confirmExit: true,
   confirmLocalCheckout: true,
   graphColumns: ["author", "avatar", "time", "hash"],
