@@ -43,7 +43,7 @@ describe("synchronized scroll", () => {
   });
 
   it("round-trips to the pixel in equal zones and in blocks that grow", () => {
-    for (let y = 0; y <= 130; y++) expect(toL(toR(y))).toBe(y);
+    for (let y = 0; y <= MAX_L - 10; y++) expect(toL(toR(y))).toBe(y);
   });
 
   it("round-trips within a couple of pixels when the block shrinks", () => {
@@ -60,7 +60,7 @@ describe("synchronized scroll", () => {
   });
 
   it("a pure insert holds the short side still; the next scroll jumps over it", () => {
-    const only = buildBlocks(entries([ctx(1, 1), ins(2), ins(3), ctx(2, 4)]));
+    const only = buildBlocks(entries([ctx(1, 1), ins(2), ins(3), ctx(2, 4), ...Array.from({ length: 12 }, (_, i) => ctx(3 + i, 5 + i))]));
     for (const y of [RH, RH + 9, 2 * RH, 3 * RH - 1]) {
       expect(mapRightScrollToLeft(only, view(0), view(y), RH)).toBe(RH);
     }
@@ -79,6 +79,40 @@ describe("synchronized scroll", () => {
     expect(mapRightScrollToLeft(m, view(0), view(MAX_R), RH)).toBe(MAX_L);
   });
 
+  // R-628 (a): a pane that reached its bottom pinned the other to ITS bottom at once, so the
+  // last pixel of scroll jumped the other pane by the whole difference in length and every
+  // connector on the last screen turned into a long diagonal. The pin now eases in over the
+  // last screenful of the source, and the jump is gone.
+  it("reaches the bottom of the other pane without a jump", () => {
+    // Twenty one-row insertions: the right pane is 20 rows longer by the end.
+    const r: DiffRow[] = [];
+    let o = 1;
+    let n = 1;
+    for (let k = 0; k < 20; k++) {
+      r.push(ctx(o++, n++), ctx(o++, n++), ins(n++));
+    }
+    for (let k = 0; k < 10; k++) r.push(ctx(o++, n++));
+    const tall = buildBlocks(entries(r));
+    const v = (y: number) => view(y, 90);
+    const maxL = (o - 1) * RH - 90;
+    const maxR = (n - 1) * RH - 90;
+    let last = mapLeftScrollToRight(tall, v(0), v(0), RH);
+    for (let y = 1; y <= maxL; y++) {
+      const t = mapLeftScrollToRight(tall, v(y), v(0), RH);
+      expect(t - last, "at " + y).toBeLessThanOrEqual(2 * RH);
+      expect(t).toBeGreaterThanOrEqual(last);
+      last = t;
+    }
+    expect(last).toBe(maxR);
+    let back = mapRightScrollToLeft(tall, v(0), v(0), RH);
+    for (let y = 1; y <= maxR; y++) {
+      const t = mapRightScrollToLeft(tall, v(0), v(y), RH);
+      expect(Math.abs(t - back), "at " + y).toBeLessThanOrEqual(2 * RH);
+      back = t;
+    }
+    expect(back).toBe(maxL);
+  });
+
   it("clamps a result past either end instead of overshooting", () => {
     expect(mapLeftScrollToRight(m, view(8 * RH), view(0), RH)).toBe(MAX_R);
   });
@@ -88,7 +122,7 @@ describe("synchronized scroll", () => {
       kind: "gap",
       gap: { oldFrom: 2, oldTo: 51, newFrom: 2, hidden: 50, loaded: true, up: true, down: true, context: null } as Gap,
     };
-    const tail = [del(52), ins(52), ins(53), ctx(53, 54)];
+    const tail = [del(52), ins(52), ins(53), ctx(53, 54), ...Array.from({ length: 12 }, (_, i) => ctx(54 + i, 55 + i))];
     const folded = buildBlocks([...entries([ctx(1, 1)]), gap, ...entries(tail)]);
     // left: c0 gap d2 c3 | right: c0 gap i2 i3 c4
     expect(mapLeftScrollToRight(folded, view(2 * RH), view(), RH)).toBe(2 * RH);

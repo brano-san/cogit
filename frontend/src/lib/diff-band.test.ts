@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  ACTION_LEFT_X,
+  ACTION_RIGHT_X,
   BAND_WIDTH,
+  curveFraction,
   NUM_WIDTH,
   SPLIT_MAX,
   SPLIT_MIN,
@@ -11,8 +14,9 @@ import {
   pathOf,
   type PaneView,
 } from "./diff-band";
+import { alignModel } from "./diff-aligned";
 import { buildBlocks } from "./diff-blocks";
-import type { FoldEntry } from "./diff-fold";
+import type { FoldEntry, Gap } from "./diff-fold";
 import type { DiffRow } from "./ipc";
 
 interface Span {
@@ -158,17 +162,76 @@ describe("block connectors", () => {
     expect(c!.path).toContain(`${BAND_WIDTH} 90`);
   });
 
-  it("anchors the button at the gutter center and the middle of the connector", () => {
+  it("puts » in the left part of the gutter and × in the right, each on the band at its x", () => {
     const [c] = blockConnectors(m, view(), view(), 18);
-    expect(c!.anchor).toEqual({ x: BAND_WIDTH / 2, y: Math.round((36 + 36 + 72 + 90) / 4) });
+    // The band spans [36, 72] at the left column and [36, 90] at the right: a button sits at
+    // the middle of what the band is where the button is, so the right one is lower.
+    expect(c!.anchor.left!).toBeGreaterThanOrEqual(36);
+    expect(c!.anchor.left!).toBeLessThan(c!.anchor.right!);
+    expect(c!.anchor.right!).toBeLessThanOrEqual(90);
+    expect(ACTION_LEFT_X).toBeLessThan(BAND_WIDTH / 2);
+    expect(ACTION_RIGHT_X).toBeGreaterThan(BAND_WIDTH / 2);
+  });
+
+  it("puts both buttons at one height on a level band", () => {
+    const a = model(ctx(1, 1), ins(2), ins(3), ctx(2, 4));
+    const v = view(0, 200);
+    const [c] = blockConnectors(alignModel(a), v, v, 18, 9);
+    expect(c!.anchor).toEqual({ left: 36, right: 36 });
   });
 
   it("clamps the anchor into the visible part when the block is partly off screen", () => {
     const [c] = blockConnectors(m, view(54, 60), view(54, 60), 18);
-    expect(c!.anchor!.y).toBeGreaterThanOrEqual(0);
-    expect(c!.anchor!.y).toBeLessThanOrEqual(60);
+    for (const y of [c!.anchor.left, c!.anchor.right]) {
+      expect(y!).toBeGreaterThanOrEqual(0);
+      expect(y!).toBeLessThanOrEqual(60);
+    }
     const [d] = blockConnectors(m, view(0, 50), view(0, 50), 18);
-    expect(d!.anchor!.y).toBeLessThanOrEqual(50);
+    expect(d!.anchor.right!).toBeLessThanOrEqual(50);
+  });
+
+  // R-628 (b): × hung at the bottom of the gutter, below all content. The old anchor was the
+  // mean of the band's two edges, clamped: a band slanting from the top of the screen to far
+  // below it averaged to a point nowhere on it and was pushed to the bottom edge.
+  it("draws no button where the band is not on screen, instead of pinning it to the edge", () => {
+    const m2 = model(ctx(1, 1), del(2), ctx(3, 2));
+    // Band from left [18, 36] (scrolled to -400: far above) to right [-82+18.. ] on screen.
+    const [c] = blockConnectors(m2, view(436, 300), view(-82, 300), 18, 9);
+    expect(c).toBeDefined();
+    expect(c!.anchor.left).toBeNull();
+    expect(c!.anchor.right).not.toBeNull();
+    // Entirely below the screen on one side and above on the other: crosses, buttons on it.
+    const [d] = blockConnectors(m2, view(-300, 200), view(400, 200), 18, 9);
+    for (const y of [d?.anchor.left, d?.anchor.right]) if (y != null) expect(y).toBeLessThanOrEqual(200 - 9);
+  });
+
+  // R-628 (a): a block with no lines on one side converges at that block's own insertion
+  // point of that pane, with the pane's own scroll, a fold counted as the one row it is.
+  it("converges an added block at its own insertion row, with a fold above counted as one row", () => {
+    const gap: FoldEntry = {
+      kind: "gap",
+      gap: { oldFrom: 1, oldTo: 400, newFrom: 1, hidden: 400, loaded: true, up: false, down: true, context: null } as Gap,
+    };
+    const rows = [
+      gap,
+      ...[ctx(401, 401), ctx(402, 402), ins(403), ins(404), ins(405), ctx(403, 406)].map((row): FoldEntry => ({ kind: "row", row, block: 0 })),
+    ];
+    const fm = buildBlocks(rows);
+    const [c] = blockConnectors(fm, view(0, 600), view(0, 600), 18);
+    // left: gap, c, c | insertion before row 3. right: gap, c, c, i, i, i
+    expect(c!.left).toEqual([54, 54]);
+    expect(c!.right).toEqual([54, 108]);
+    // Each pane's own scroll moves its own side only.
+    const [d] = blockConnectors(fm, view(18, 600), view(36, 600), 18);
+    expect(d!.left).toEqual([36, 36]);
+    expect(d!.right).toEqual([18, 72]);
+  });
+
+  it("evaluates the S-curve the way the path draws it", () => {
+    expect(curveFraction(0)).toBeCloseTo(0, 6);
+    expect(curveFraction(BAND_WIDTH)).toBeCloseTo(1, 6);
+    expect(curveFraction(BAND_WIDTH / 2)).toBeCloseTo(0.5, 6);
+    expect(curveFraction(ACTION_LEFT_X)).toBeCloseTo(1 - curveFraction(ACTION_RIGHT_X), 6);
   });
 
   it("joins a moved block's two ends however far apart they sit", () => {

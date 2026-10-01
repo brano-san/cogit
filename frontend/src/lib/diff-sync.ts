@@ -17,7 +17,8 @@ import type { BlockModel } from "./diff-blocks";
  * no `y` inside it: the other pane runs through the block while this one holds still at
  * the insertion point, and scrolling this pane past the point continues after the block.
  * The result is rounded once, and clamped to the target's scroll range; a source resting
- * on its bottom puts the target on its own bottom, so panes of different height end flush.
+ * on its bottom puts the target on its own bottom, so panes of different height end flush;
+ * over the source's last screenful the target is eased there, so the end is not a jump (R-628).
  */
 
 type Side = "left" | "right";
@@ -54,8 +55,16 @@ function sync(model: BlockModel, from: Side, source: PaneView, target: PaneView,
   const sourceRows = from === "left" ? model.left.length : model.right.length;
   const targetRows = from === "left" ? model.right.length : model.left.length;
   const max = maxScroll(target, targetRows, rh);
-  if (source.scrollTop > 0 && source.scrollTop >= maxScroll(source, sourceRows, rh)) return max;
-  const y = mapY(model, from, source.scrollTop - (source.top ?? 0), rh) + (target.top ?? 0);
+  const sourceMax = maxScroll(source, sourceRows, rh);
+  if (source.scrollTop > 0 && source.scrollTop >= sourceMax) return max;
+  const at = (top: number) => mapY(model, from, top - (source.top ?? 0), rh) + (target.top ?? 0);
+  let y = at(source.scrollTop);
+  // Over the last screenful of the source the target is eased by the gap between where the
+  // blocks would put it at the very end and its own bottom, so reaching the end does not jump
+  // it by the difference of the two lengths (and equal panes, with no gap, are left alone).
+  const zone = Math.min(source.viewport, sourceMax);
+  const into = source.scrollTop - (sourceMax - zone);
+  if (zone > 0 && into > 0) y += (max - at(sourceMax)) * (into / zone);
   return Math.min(Math.max(Math.round(y), 0), max);
 }
 

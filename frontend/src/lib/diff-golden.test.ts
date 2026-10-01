@@ -56,12 +56,15 @@ describe("algo_task.cpp: 1064-1068 against 1071-1079", () => {
     expect(model.right.every((r) => r.kind === "line")).toBe(true);
   });
 
-  it("draws one connector with one button, at the gutter center", () => {
+  it("draws one connector with one button pair, on the connector", () => {
     const view = { scrollTop: 0, viewport: 600 };
     const cs = blockConnectors(model, view, view, 18);
     expect(cs).toHaveLength(1);
     expect(cs[0]).toMatchObject({ left: [72, 162], right: [72, 234] });
-    expect(cs[0]!.anchor.x).toBe(21);
+    expect(cs[0]!.anchor.left).not.toBeNull();
+    expect(cs[0]!.anchor.right).not.toBeNull();
+    expect(cs[0]!.anchor.left!).toBeGreaterThanOrEqual(72);
+    expect(cs[0]!.anchor.right!).toBeLessThanOrEqual(234);
   });
 
   it("highlights the appended call and not the comment lines", () => {
