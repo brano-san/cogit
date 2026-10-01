@@ -50,6 +50,24 @@ cargo check -p git_engine
 cargo test --workspace
 ```
 
+## Linux / WSL
+
+Cogit runs on Linux, including WSL2 through WSLg. The window takes its icon from a
+launcher entry named `cogit`, so install one of:
+
+- the `.deb` package (`sudo apt install ./Cogit_*_amd64.deb`), which puts
+  `cogit.desktop` and the icons under `/usr/share`;
+- or, for a portable binary, `cogit --install-desktop-entry`. It writes
+  `~/.local/share/applications/cogit.desktop` (honoring `$XDG_DATA_HOME`) and the icons
+  under `~/.local/share/icons/hicolor`, pointing at the binary you ran.
+  `cogit --uninstall-desktop-entry` removes exactly those files.
+
+Under WSL, run `wsl --shutdown` from Windows after installing so that WSLg reloads its
+icons; otherwise the taskbar keeps the generic Linux penguin. Cogit then also appears in
+the Windows Start menu, in the folder of the distribution.
+
+`cogit --version` and `cogit --help` print and exit without opening a window.
+
 ## Repository layout
 
 ```
