@@ -10,6 +10,7 @@
   import { installChildWindow } from "$lib/child-window";
   import { compareLabel, diffWindowTitle, parseCompare, sideCaptions } from "$lib/compare-params";
   import { firstParent, handOverModule, loadCompare } from "$lib/compare-window";
+  import { closeThisWindow } from "$lib/ipc";
   import { diff } from "$stores/diff.svelte";
   import { followSettings } from "$lib/settings-sync";
   import { settings } from "$stores/settings.svelte";
@@ -70,6 +71,12 @@
     if (path) void runMutation(mutation, () => diff.stageLines(selected, reverse), [path], false);
   }
 
+  // The file is gone from both sides (Discard removed it): nothing left to compare, and the
+  // window stops asking for it. The note shows for the moment the close takes.
+  $effect(() => {
+    if (diff.gone) void closeThisWindow().catch(() => {});
+  });
+
   // A submodule has nothing to compare line by line: the main window opens it (R-537).
   let handedOver = false;
   $effect(() => {
@@ -92,7 +99,9 @@
       <span class="path truncate" title={sides?.tip}>{request.path}</span>
     </header>
 
-    {#if diff.error}
+    {#if diff.gone}
+      <p class="note">File deleted</p>
+    {:else if diff.error}
       <p class="note error">{diff.error.message}</p>
     {:else if diff.diff?.kind === "submodule"}
       <p class="note">{request.path} is a submodule: it opens in the main window.</p>

@@ -139,7 +139,7 @@ const CENTER_FRACTION = curveFraction(ACTION_CENTER_X);
 
 /** The center of what is on screen of a band that spans `[top, bottom]` there, kept half a
     button (`inset`) from the gutter's edges; `null` when none of it is on screen. */
-function visibleCenter(top: number, bottom: number, height: number, inset: number): number | null {
+export function visibleCenter(top: number, bottom: number, height: number, inset: number): number | null {
   if (bottom < 0 || top > height) return null;
   const lo = Math.max(top, inset);
   const hi = Math.min(bottom, height - inset);

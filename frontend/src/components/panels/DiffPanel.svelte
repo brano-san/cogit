@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Button from "$components/common/Button.svelte";
   import ConflictView from "$components/diff/ConflictView.svelte";
   import MergeView from "$components/diff/MergeView.svelte";
   import DiffView from "$components/diff/DiffView.svelte";
@@ -45,17 +46,16 @@
   {@const shown = conflicts.path}
   <p class="rerere" role="status">
     rerere resolved this file as the same conflict was resolved before. Check it, then mark it resolved.
-    <button type="button" onclick={() => conflicts.forget(shown)}>Forget Resolution</button>
+    <Button onclick={() => conflicts.forget(shown)}>Forget Resolution</Button>
   </p>
 {/if}
 {#if conflicts.path && conflicts.regions.length > 0}
   <MergeView
     path={conflicts.path}
     regions={conflicts.regions}
-    onsave={(text) => onresolveText(text)}
+    onresolve={(side) => onresolve(side)}
+    onsolver={onpopoutmerge}
     oncancel={() => conflicts.close()}
-    onpopout={onpopoutmerge}
-    onunsaved={(unsaved) => conflicts.markUnsaved(unsaved)}
     {active}
   />
 {:else if conflicts.path}
@@ -67,8 +67,11 @@
     binary={conflicts.binary}
     onresolve={(side) => onresolve(side)}
     onresolveText={(text) => onresolveText(text)}
+    onsolver={onpopoutmerge}
     onunsaved={(unsaved) => conflicts.markUnsaved(unsaved)}
   />
+{:else if diff.gone && diff.path}
+  <p class="gone detail">File deleted: {diff.path}</p>
 {:else if diff.error && diff.path}
   <p class="error detail">{diff.error.message}</p>
 {:else if diff.diff?.kind === "submodule" && diff.shownPath}
@@ -108,6 +111,10 @@
   .error {
     color: var(--status-delete);
     user-select: text;
+  }
+
+  .gone {
+    color: var(--text-secondary);
   }
 
   .detail {

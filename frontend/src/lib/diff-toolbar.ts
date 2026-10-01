@@ -106,3 +106,18 @@ export function alignedButton(layout: DiffLayout): {
       : "OFF: Compact. Each side shows only its own lines, joined by curved connectors.\nClick for: Aligned 1:1 (same rows on both sides, hatched filler).\nSide by side only; Unified is not affected.",
   };
 }
+
+/** What the » and × of the band do: only Discard, and only against the index. In the
+    staged diff Unstage is on the hunks and the toolbar; a Discard there would throw away
+    working-tree edits the diff does not show. */
+export function bandAction(
+  stageable: boolean,
+  actions: { discard: boolean },
+): "discard" | null {
+  return stageable && actions.discard ? "discard" : null;
+}
+
+/** The file is gone from both sides: deleted from disk with nothing in the index. */
+export function isAbsentFromBothSides(error: { message: string } | null): boolean {
+  return error !== null && error.message.includes("is absent from both sides of the diff");
+}

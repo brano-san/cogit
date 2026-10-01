@@ -14,6 +14,7 @@ import { discardSelection, stageSelection, type PatchRequest } from "$lib/ipc";
 import { expandedContext } from "$lib/diff-rows";
 import { splitSelection } from "$lib/selection";
 import { runMutation, type MutationContext } from "$lib/mutation";
+import { isAbsentFromBothSides } from "$lib/diff-toolbar";
 import { settings } from "./settings.svelte";
 
 const DEFAULT_CONTEXT = 3;
@@ -30,6 +31,9 @@ class DiffStore {
   diff = $state.raw<FileDiff | null>(null);
   loading = $state(false);
   error = $state<CogitError | null>(null);
+  /** The file is gone from both sides (deleted from disk, never in the index): a state of
+      its own, not a failure. Nothing re-reads it until the user opens it again. */
+  gone = $state(false);
   spec = $state.raw<DiffSpec | null>(null);
   /** Remembered per repository: the mode outlives switching between files. */
   whitespace = $state<Whitespace>("none");
@@ -90,7 +94,7 @@ class DiffStore {
 
   /** This file under this spec is on screen already, so clicking it again changes nothing. */
   shows(spec: DiffSpec, path: string): boolean {
-    return this.path === path && this.error === null && sameSpec(this.spec, spec);
+    return this.path === path && this.error === null && !this.gone && sameSpec(this.spec, spec);
   }
 
   /** The file asked for last, if it was asked for under `spec`: which list row is open. */
@@ -108,6 +112,7 @@ class DiffStore {
     this.path = path;
     this.spec = spec;
     this.error = null;
+    this.gone = false;
     this.loading = true;
 
     try {
@@ -127,7 +132,9 @@ class DiffStore {
       if (generation !== this.#generation) return;
       this.diff = null;
       this.#shown = null;
-      this.error = toCogitError(err);
+      const failure = toCogitError(err);
+      if (isAbsentFromBothSides(failure) && WORKING_SPECS.includes(spec.kind)) this.gone = true;
+      else this.error = failure;
     } finally {
       if (generation === this.#generation) this.loading = false;
     }
@@ -141,7 +148,7 @@ class DiffStore {
 
   /** Recomputes this file and nothing else: the panel keeps its scroll and selection. */
   async reload(): Promise<void> {
-    if (this.#repo === null || !this.spec || !this.path) return;
+    if (this.#repo === null || !this.spec || !this.path || this.gone) return;
     await this.load(this.#repo, this.spec, this.path);
   }
 
@@ -207,6 +214,8 @@ class DiffStore {
    */
   async dropIfAffected(paths: readonly string[]): Promise<void> {
     if (this.path === null || !paths.includes(this.path)) return;
+    // A mutation of this very file may have brought it back.
+    this.gone = false;
     await this.#rediff();
   }
 
@@ -221,6 +230,7 @@ class DiffStore {
 
   async #rediff(): Promise<void> {
     await this.reload();
+    if (this.gone) return;
     if (this.error !== null || this.diff === null || this.diff.kind === "unchanged") {
       this.clear();
     }
@@ -289,8 +299,11 @@ class DiffStore {
     this.images = [null, null];
     this.loading = false;
     this.error = null;
+    this.gone = false;
   }
 }
+
+const WORKING_SPECS: readonly DiffSpec["kind"][] = ["workTreeVsIndex", "indexVsHead", "commitVsWorkTree"];
 
 function sameSpec(a: DiffSpec | null, b: DiffSpec): boolean {
   if (a === null || a.kind !== b.kind) return false;

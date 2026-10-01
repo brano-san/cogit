@@ -56,6 +56,7 @@
   import ConfirmDialog from "$components/common/ConfirmDialog.svelte";
   import {
     alignedButton,
+    bandAction,
     eolChangeText,
     eolLabel,
     layoutTip,
@@ -65,7 +66,7 @@
   } from "$lib/diff-toolbar";
   import { loadLanguage, mergePieces } from "$lib/highlight";
   import { toggleLine } from "$lib/selection";
-  import { keepSelection } from "$lib/diff-selection";
+  import { discardsWholeNewFile, keepSelection } from "$lib/diff-selection";
   import { investigateTarget, openInvestigate } from "$lib/investigate/open";
   import { visibleRange } from "$lib/graph-geometry";
   import type { FileDiff, Hunk } from "$lib/ipc";
@@ -258,14 +259,12 @@
     event.preventDefault();
   }
 
-  /** What the band's » and × do: throw away in the working tree, unstage in the index. */
-  const bandActions = $derived(
-    !stageable ? null : diffStore.lineActions.discard ? "discard" : diffStore.lineActions.unstage ? "unstage" : null,
-  );
+  /** What the band's » and × do: throw away in the working tree. The staged diff has none
+      (Unstage is on its hunks and in the toolbar). */
+  const bandActions = $derived(bandAction(stageable, diffStore.lineActions));
 
   function bandAct(keys: readonly string[], label: string) {
-    if (bandActions === "discard") askDiscard(new Set(keys), label);
-    else onstage?.(new Set(keys), true);
+    askDiscard(new Set(keys), label);
   }
 
   /** The connectors of the blocks near the viewport, from both panes' live scroll (08 §12).
@@ -467,11 +466,12 @@
   }
 
   /** Which lines a Discard is about to throw away; `null` while nothing is pending. */
-  let pendingDiscard = $state.raw<{ keys: Set<string>; label: string; of: FileDiff } | null>(null);
+  let pendingDiscard = $state.raw<{ keys: Set<string>; label: string; of: FileDiff; wholeFile: boolean } | null>(null);
 
   function askDiscard(keys: Set<string>, label: string) {
     if (keys.size === 0) return;
-    pendingDiscard = { keys, label, of: diff };
+    const wholeFile = diff.kind === "text" && discardsWholeNewFile(diff, keys);
+    pendingDiscard = { keys, label, of: diff, wholeFile };
   }
 
   async function confirmDiscard() {
@@ -482,7 +482,7 @@
       await diffStore.discardLines(pending.keys, pending.of);
       selected = new Set();
     } catch (err) {
-      errors.report(err, "Could not discard the lines");
+      errors.report(err, "Could not discard the lines", path);
     }
   }
 
@@ -680,13 +680,14 @@
         disabled={!diffStore.lineActions.unstage}
         onclick={() => applyHunk(hunk, true)}>Unstage</button
       >
-      <button
-        type="button"
-        class="danger"
-        title="Throw this block away (always asks first)"
-        disabled={!diffStore.lineActions.discard}
-        onclick={() => askDiscard(hunkKeys(model, hunk), "this block")}>Discard</button
-      >
+      {#if diffStore.lineActions.discard}
+        <button
+          type="button"
+          class="danger"
+          title="Throw this block away (always asks first)"
+          onclick={() => askDiscard(hunkKeys(model, hunk), "this block")}>Discard</button
+        >
+      {/if}
     </span>
   {/if}
 {/snippet}
@@ -826,14 +827,16 @@
           disabled={selected.size === 0 || !diffStore.lineActions.unstage}
           onclick={() => apply(true)}>Unstage lines</button
         >
-        <button
-          type="button"
-          class="danger"
-          disabled={selected.size === 0 || !diffStore.lineActions.discard}
-          title="Throw the selected lines away (always asks first)"
-          onclick={() => askDiscard(new Set(selected), `${selected.size} selected lines`)}
-          >Discard lines</button
-        >
+        {#if diffStore.lineActions.discard}
+          <button
+            type="button"
+            class="danger"
+            disabled={selected.size === 0}
+            title="Throw the selected lines away (always asks first)"
+            onclick={() => askDiscard(new Set(selected), `${selected.size} selected lines`)}
+            >Discard lines</button
+          >
+        {/if}
       {/if}
     {/if}
     <!-- A file the mode hides entirely still needs the button that shows it (F-067). -->
@@ -888,7 +891,9 @@
   {#if pendingDiscard}
     <ConfirmDialog
       title="Discard lines"
-      message="Throw away {pendingDiscard.label} in {path}? Undo can put them back."
+      message={pendingDiscard.wholeFile
+        ? `Throw away every line of ${path}? The file will be deleted from disk. Undo can put it back.`
+        : `Throw away ${pendingDiscard.label} in ${path}? Undo can put them back.`}
       confirm="Discard"
       warning
       onanswer={(yes) => (yes ? void confirmDiscard() : (pendingDiscard = null))}
@@ -935,7 +940,7 @@
         : "An untracked folder: Git tracks none of its files yet. Stage it to add them all, or ignore it."}
     </p>
   {:else if mode === "unified"}
-    <div class="scroll" bind:this={unifiedEl} onscroll={onunified} {onwheel}>
+    <div class="scroll" data-select-text="diff" bind:this={unifiedEl} onscroll={onunified} {onwheel}>
       <div class="rows" style:height="{model.unified.length * ROW_HEIGHT}px" style:--shift="{shift}px">
         <div class="line ruler" aria-hidden="true">
           <span class="gutter"></span>
@@ -972,6 +977,7 @@
     <div class="panes" style:--shift="{shift}px" bind:clientWidth={rowsWidth}>
       <div
         class="pane left"
+        data-select-text="diff"
         style:flex-basis="{Math.round(left)}px"
         bind:this={leftEl}
         onscroll={() => onpane("left")}
@@ -1072,7 +1078,7 @@
           {/each}
         </div>
       </div>
-      <div class="pane right" bind:this={rightEl} onscroll={() => onpane("right")} {onwheel}>
+      <div class="pane right" data-select-text="diff" bind:this={rightEl} onscroll={() => onpane("right")} {onwheel}>
         <div class="rows" style:height="{model.right.length * ROW_HEIGHT}px">
           <div class="line ruler" aria-hidden="true">
             <span class="num"></span>
