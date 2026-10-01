@@ -15,11 +15,23 @@ export function eolChangeText(from: LineEnding, to: LineEnding): string {
 
 /** A new file has only its new ending, a deleted one only its old ending (#17). Told by
     the line counts: a hunk without context has an empty side in the middle of a file too. */
-export function eolLabel(eol: EolInfo, oldTotal: number, newTotal: number): { text: string; title: string } {
+export function eolLabel(
+  eol: EolInfo,
+  oldTotal: number,
+  newTotal: number,
+): { text: string; title: string; warn: boolean } {
   let text = `${ENDING[eol.old]} → ${ENDING[eol.new]}`;
   if (oldTotal === 0 && newTotal > 0) text = ENDING[eol.new];
   else if (newTotal === 0 && oldTotal > 0) text = ENDING[eol.old];
-  return { text, title: `Line endings: ${text}` };
+  // Both sides exist and end their lines differently: the change rewrites every line.
+  const warn = oldTotal > 0 && newTotal > 0 && eol.old !== eol.new;
+  return {
+    text,
+    warn,
+    title: warn
+      ? `The line endings of this file change (${text}).`
+      : `Line endings: ${text}`,
+  };
 }
 
 /** `100644 → 100755 (now executable)`: the modes as git prints them, and what the bit means. */

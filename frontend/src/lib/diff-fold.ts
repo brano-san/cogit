@@ -1,6 +1,4 @@
 import type { DiffRow, Hunk } from "./ipc/bindings";
-import { pairRows, type SidePair } from "./diff-rows";
-import { lineKey } from "./selection";
 
 /**
  * What the Diff panel draws instead of `@@` headers (#16): rows, and between them gaps
@@ -34,8 +32,6 @@ export interface Gap {
 }
 
 export type FoldEntry = { kind: "gap"; gap: Gap } | { kind: "row"; row: DiffRow; block: number };
-
-export type SplitEntry = { kind: "gap"; gap: Gap } | { kind: "pair"; pair: SidePair; block: number };
 
 export interface FoldInput {
   hunks: readonly Hunk[];
@@ -222,58 +218,8 @@ export function highlightedRows(
   return shown().flatMap((entry) => (entry.kind === "row" ? [entry.row] : []));
 }
 
-/** Side by side pairs each block on its own; a gap spans both halves. */
-export function splitRows(entries: readonly FoldEntry[]): SplitEntry[] {
-  const out: SplitEntry[] = [];
-  let rows: DiffRow[] = [];
-  let block = 0;
-  const flush = () => {
-    for (const pair of pairRows(rows)) out.push({ kind: "pair", pair, block });
-    rows = [];
-  };
-  for (const entry of entries) {
-    if (entry.kind === "gap") {
-      flush();
-      out.push(entry);
-    } else {
-      if (entry.block !== block) flush();
-      block = entry.block;
-      rows.push(entry.row);
-    }
-  }
-  flush();
-  return out;
-}
-
-/** The changed lines of one block, for its Stage, Unstage, Discard and Select. */
-export function blockKeys(entries: readonly FoldEntry[], block: number): Set<string> {
-  const keys = new Set<string>();
-  for (const entry of entries) {
-    if (entry.kind !== "row" || entry.block !== block) continue;
-    const key = lineKey(entry.row);
-    if (key) keys.add(key);
-  }
-  return keys;
-}
-
-/** Where each run of changed rows starts: what F6 and the arrows step between (#13). */
-export function changeStarts(changed: readonly boolean[]): number[] {
-  const starts: number[] = [];
-  changed.forEach((on, index) => {
-    if (on && !changed[index - 1]) starts.push(index);
-  });
-  return starts;
-}
-
 /** How long the change a jump lands on stays lit. Must match `.line.flash` in DiffView. */
 export const FLASH_MS = 600;
-
-/** Past the last row of the change starting at `start`: the rows a jump lights up. */
-export function changeEnd(changed: readonly boolean[], start: number): number {
-  let end = start;
-  while (changed[end]) end += 1;
-  return end;
-}
 
 /**
  * The change the view is on: the last one starting at or above `top + lead`, the row a

@@ -357,3 +357,4 @@
 | F-575 | Clone: мастер из трёх страниц | [F-575-clone.md](F-575-clone.md) |
 | F-576 | Окно Commit (Ctrl+K): файлы, сообщение, Amend, Signed-off-by, Commit & Push | [F-576-commit-window.md](F-576-commit-window.md) |
 | F-580 | Чередование строк в Files, Repositories, Branches и Worktrees | [F-580-list-row-stripes.md](F-580-list-row-stripes.md) |
+| F-585 | Diff на блочной модели: панели без filler, соединитель, одна пара кнопок на блок, подписи панелей | [F-585-diff-block-view.md](F-585-diff-block-view.md) |

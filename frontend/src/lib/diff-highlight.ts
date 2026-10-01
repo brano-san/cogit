@@ -1,5 +1,4 @@
 import { highlightedRows, type FoldEntry } from "./diff-fold";
-import type { SidePair } from "./diff-rows";
 import { MAX_HIGHLIGHT_LINES, highlightLines, type Token } from "./highlight";
 import type { DiffRow, Hunk } from "./ipc";
 
@@ -62,22 +61,29 @@ function sideLine(side: Side, line: number, text: string): Token[] | null {
   return side.tokens[index] ?? [];
 }
 
-export function rowTokens(tokens: DiffTokens, row: DiffRow): Token[] {
-  if (row.kind === "delete") return sideLine(tokens.old, row.old, row.text) ?? [];
-  if (row.kind === "insert") return sideLine(tokens.new, row.new, row.text) ?? [];
-  if (row.kind === "context") {
-    return sideLine(tokens.old, row.old, row.text) ?? sideLine(tokens.new, row.new, row.text) ?? [];
-  }
-  return [];
-}
-
-export function cellTokens(tokens: DiffTokens, pair: SidePair, side: "left" | "right"): Token[] {
-  const cell = pair[side];
-  if (!cell) return [];
-  if (cell.kind === "delete") return sideLine(tokens.old, cell.line, cell.text) ?? [];
-  if (cell.kind === "insert") return sideLine(tokens.new, cell.line, cell.text) ?? [];
-  const twin = side === "left" ? pair.right : pair.left;
+/** A line of a pane. `twin` is the same line's number on the other side, for an unchanged
+    line whose own side reads otherwise (whitespace ignored: both quote the old line). */
+export function paneTokens(
+  tokens: DiffTokens,
+  side: "left" | "right",
+  line: number,
+  text: string,
+  twin: number | null = null,
+): Token[] {
   const own = side === "left" ? tokens.old : tokens.new;
   const other = side === "left" ? tokens.new : tokens.old;
-  return sideLine(own, cell.line, cell.text) ?? (twin ? sideLine(other, twin.line, cell.text) : null) ?? [];
+  return sideLine(own, line, text) ?? (twin === null ? null : sideLine(other, twin, text)) ?? [];
+}
+
+export interface UnifiedLineRef {
+  type: "context" | "delete" | "insert";
+  old: number | null;
+  new: number | null;
+  text: string;
+}
+
+export function unifiedTokens(tokens: DiffTokens, row: UnifiedLineRef): Token[] {
+  const old = row.old === null ? null : sideLine(tokens.old, row.old, row.text);
+  const next = row.new === null ? null : sideLine(tokens.new, row.new, row.text);
+  return (row.type === "insert" ? next : (old ?? next)) ?? [];
 }

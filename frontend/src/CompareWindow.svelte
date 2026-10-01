@@ -8,7 +8,7 @@
   import { runMutation, type MutationContext } from "$lib/mutation";
   import { announceTreeChange } from "$lib/tree-sync";
   import { installChildWindow } from "$lib/child-window";
-  import { compareLabel, parseCompare } from "$lib/compare-params";
+  import { compareLabel, diffWindowTitle, parseCompare, sideCaptions } from "$lib/compare-params";
   import { firstParent, handOverModule, loadCompare } from "$lib/compare-window";
   import { diff } from "$stores/diff.svelte";
   import { followSettings } from "$lib/settings-sync";
@@ -38,10 +38,15 @@
   );
 
   const sides = $derived(request ? compareLabel(request.spec, parent) : null);
-  const title = $derived(request && sides ? `${request.path} — ${sides.text}` : "Compare");
+  const captions = $derived(request ? sideCaptions(request.spec, parent) : undefined);
+
+  /** The window's own title is the application and the file's name; the header has the path. */
+  const title = $derived(request ? diffWindowTitle(diff.shownPath ?? request.path) : "Cogit — Compare");
 
   $effect(() => {
-    document.title = `${title} — Cogit`;
+    document.title = title;
+    // The native title bar is not the page's `<title>`; outside the app (a browser) there is none.
+    void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow().setTitle(title)).catch(() => {});
   });
 
   /** Stage, Unstage and Discard here end like the Diff panel's: through `runMutation`, a
@@ -84,8 +89,7 @@
     </p>
   {:else}
     <header>
-      <span class="path truncate">{request.path}</span>
-      <span class="spec" title={sides?.tip}>{sides?.text}</span>
+      <span class="path truncate" title={sides?.tip}>{request.path}</span>
     </header>
 
     {#if diff.error}
@@ -106,6 +110,7 @@
         path={diff.shownPath}
         stageable={diff.stageable}
         showPath={false}
+        {captions}
         onstage={stageLines}
         whitespace={diff.whitespace}
         onwhitespace={(mode) => void diff.setWhitespace(request.repo, mode)}
@@ -141,11 +146,6 @@
     flex: 1 1 auto;
     min-width: 0;
     font-family: var(--font-mono);
-  }
-
-  .spec {
-    color: var(--text-secondary);
-    font-size: var(--fs-header);
   }
 
   .note {
