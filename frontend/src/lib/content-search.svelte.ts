@@ -1,7 +1,8 @@
 import { cancelOperation, searchFileContents } from "$lib/ipc";
-import type { FileEntry, RepoId, SearchChunk, SearchScope } from "$lib/ipc/bindings";
+import type { RepoId, SearchChunk, SearchScope } from "$lib/ipc/bindings";
 import { matches, type Pattern } from "./file-search";
-import type { FileView } from "./file-view";
+import type { StateSide } from "./file-state";
+import type { FileView, ListFile } from "./file-view";
 
 /** Longer than the diff find bar's pause: every search opens files on disk. */
 export const SETTLE_MS = 250;
@@ -32,11 +33,12 @@ function sameQuery(a: ContentQuery | null, b: ContentQuery | null): boolean {
 /** Searching contents replaces the name filter rather than adding to it (R-270). A new
     folder is one `dir/` row: it stays when a file inside it matches. */
 export function keepFile(
-  file: FileEntry,
+  file: ListFile,
   pattern: Pattern,
   hits: ReadonlyMap<string, number> | null,
+  side: StateSide = "worktree",
 ): boolean {
-  if (hits === null) return matches(file, pattern);
+  if (hits === null) return matches(file, pattern, side);
   if (hits.has(file.path)) return true;
   if (!file.path.endsWith("/")) return false;
   for (const path of hits.keys()) if (path.startsWith(file.path)) return true;

@@ -8,6 +8,7 @@ import {
   moduleRoot,
   moduleRows,
   moduleUpdate,
+  conflictedTree,
   pulsedRoots,
   shownRowRoot,
   splitModulePath,
@@ -333,6 +334,31 @@ describe("the folders the marks of a tree are read from", () => {
 
   it("leave out a module that is not checked out: there is no repository to read", () => {
     expect(pulsedRoots("E:/w/app", rows)).not.toContain("E:/w/app/docs");
+  });
+});
+
+describe("conflicts in a tree", () => {
+  const rows = moduleRows(
+    new Map([
+      ["", [mod("vendor/lib"), mod("docs")]],
+      ["vendor/lib", [mod("deep/inner")]],
+    ]),
+    new Set(["vendor/lib"]),
+  );
+  const keys = rows.map((row) => row.key);
+
+  it("is clean when no node is", () => {
+    expect(conflictedTree(rows, () => false)).toEqual({ any: false, above: new Set() });
+  });
+
+  it("marks every ancestor of a conflicted node and the top, not the node itself nor its siblings", () => {
+    const hit = (key: string) => key === "vendor/lib/deep/inner";
+    expect(keys).toContain("vendor/lib/deep/inner");
+    expect(conflictedTree(rows, hit)).toEqual({ any: true, above: new Set(["vendor/lib"]) });
+  });
+
+  it("a conflicted node marks only the top", () => {
+    expect(conflictedTree(rows, (key) => key === "docs")).toEqual({ any: true, above: new Set() });
   });
 });
 

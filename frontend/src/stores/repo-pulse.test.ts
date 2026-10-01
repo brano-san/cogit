@@ -305,7 +305,7 @@ describe("the row the panels let go of", () => {
     vi.useFakeTimers();
     vi.resetModules();
     const { repoPulse } = await import("./repo-pulse.svelte");
-    const shown = { missing: false, branch: "dev", tracked: true, ahead: 1, behind: 0, dirty: true };
+    const shown = { missing: false, branch: "dev", tracked: true, ahead: 1, behind: 0, dirty: true, conflicted: false };
     repoPulse.watch(["C:/repos/app/vendor/lib", "C:/repos/other"]);
     repoPulse.setOwned("C:/repos/app/vendor/lib", shown);
 
@@ -318,7 +318,7 @@ describe("the row the panels let go of", () => {
     vi.useFakeTimers();
     vi.resetModules();
     const { repoPulse } = await import("./repo-pulse.svelte");
-    const clean = { missing: false, branch: "dev", tracked: false, ahead: 0, behind: 0, dirty: false };
+    const clean = { missing: false, branch: "dev", tracked: false, ahead: 0, behind: 0, dirty: false, conflicted: false };
     repoPulse.watch(["C:/repos/one", "C:/repos/two"]);
     repoPulse.setOwned("C:/repos/one", clean);
     repoPulse.setOwned("C:/repos/one", { ...clean, dirty: true });
@@ -336,7 +336,7 @@ describe("a row removed from the list", () => {
   it("takes what was read of its submodule nodes with it", async () => {
     vi.resetModules();
     const { repoPulse } = await import("./repo-pulse.svelte");
-    const node = { missing: false, branch: null, tracked: false, ahead: 0, behind: 0, dirty: true };
+    const node = { missing: false, branch: null, tracked: false, ahead: 0, behind: 0, dirty: true, conflicted: false };
     repoPulse.pulses = new Map([
       ["C:/repos/app/vendor/lib", node],
       ["C:/repos/application", node],

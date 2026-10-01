@@ -13,4 +13,6 @@ export function trackTooltip(ahead: number, behind: number): string {
 export const MISSING_REPOSITORY =
   "Missing: this folder is no longer on disk. Close it here, or open it again from where it moved.";
 
+export const CONFLICTED_REPOSITORY = "Unresolved merge conflicts";
+
 export const DIRTY_REPOSITORY = "Uncommitted changes in the working tree";

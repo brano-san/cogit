@@ -1,5 +1,6 @@
-import type { FileEntry } from "./ipc/bindings";
-import { fileName, globToRegExp, statusLabel } from "./files";
+import { fileState, sideOfRow, type StateSide } from "./file-state";
+import { fileName, globToRegExp } from "./files";
+import type { ListFile } from "./file-view";
 
 /**
  * One field to search them all: the name, the path and the state at once, because a
@@ -38,14 +39,14 @@ export function compile(text: string, regex: boolean): Pattern {
 
 /** Everything the row shows, so the filter sees what the eye sees. Each part is tested on
     its own: joined, `$` would meet the state and `^` the name instead of the path. */
-export function haystack(file: FileEntry): string[] {
-  const parts = [fileName(file.path), file.path, statusLabel(file.status)];
+export function haystack(file: ListFile, side: StateSide = "worktree"): string[] {
+  const parts = [fileName(file.path), file.path, fileState(file, sideOfRow(file.indexState, side)).text];
   if (file.oldPath) parts.push(file.oldPath);
   return parts;
 }
 
-export function matches(file: FileEntry, pattern: Pattern): boolean {
+export function matches(file: ListFile, pattern: Pattern, side: StateSide = "worktree"): boolean {
   const test = pattern.test;
   if (test === null) return true;
-  return haystack(file).some((part) => test(part));
+  return haystack(file, side).some((part) => test(part));
 }

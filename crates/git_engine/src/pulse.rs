@@ -15,6 +15,8 @@ pub struct RepoPulse {
     pub behind: u32,
     /// `!status().is_clean()`: what the row on screen says, or the dot follows the selection.
     pub dirty: bool,
+    /// An unmerged path sits in the index: read from the index alone, no worktree scan.
+    pub conflicted: bool,
 }
 
 /// Never fails: a read that fails leaves its field at the answer that claims nothing.
@@ -34,6 +36,10 @@ pub fn pulse(root: &Path) -> RepoPulse {
     }
     found.dirty = handle.has_changes().unwrap_or_else(|err| {
         tracing::error!(error = ?err, context = "pulse: status");
+        false
+    });
+    found.conflicted = handle.has_conflicts().unwrap_or_else(|err| {
+        tracing::error!(error = ?err, context = "pulse: conflicts");
         false
     });
     tracing::debug!(

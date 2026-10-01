@@ -137,7 +137,7 @@ describe("the columns shown", () => {
   });
 
   it("formats pixel widths for grid columns", () => {
-    expect(gridColumns(["name", "type", "change", "path"])).toBe("180px 65px 60px 260px");
+    expect(gridColumns(["name", "type", "change", "path"])).toBe("180px 65px 130px 260px");
     expect(gridColumns(["name", "change"], { name: 200, change: 80 })).toBe("200px 80px");
   });
 });
