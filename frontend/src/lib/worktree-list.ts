@@ -1,6 +1,5 @@
 import { shortOid } from "$lib/format";
 import type { Branch, FileEntry, WorktreeEntry } from "$lib/ipc";
-import { branchNameProblem } from "$lib/names";
 
 export interface WorktreeTag {
   id: "main" | "locked" | "missing" | "dirty";
@@ -84,46 +83,6 @@ export function removalNeeds(
   const dirty = changes.length > 0;
   const submodules = entry.hasSubmodules;
   return { dirty, submodules, force: dirty || submodules };
-}
-
-export interface BranchChoice {
-  name: string;
-  /** Where the branch is checked out already; such a branch cannot go in a new worktree. */
-  heldBy: string | null;
-}
-
-export function branchChoices(
-  branches: readonly Branch[],
-  entries: readonly WorktreeEntry[],
-): BranchChoice[] {
-  const held = new Map(
-    entries.filter((entry) => entry.branch).map((entry) => [entry.branch as string, entry.path]),
-  );
-  return branches
-    .filter((branch) => branch.kind === "local")
-    .map((branch) => ({ name: branch.name, heldBy: held.get(branch.name) ?? null }));
-}
-
-/** Why the Add Worktree dialog cannot go ahead yet, or null when it can. */
-export function addProblem(input: {
-  folder: string;
-  create: boolean;
-  branch: string;
-  choices: readonly BranchChoice[];
-}): string | null {
-  if (input.folder.trim() === "") return "Choose a folder for the worktree.";
-  const name = input.branch.trim();
-  if (name === "") return input.create ? "Enter a name for the new branch." : "Choose a branch.";
-  const existing = input.choices.find((choice) => choice.name === name);
-  if (input.create) {
-    if (existing) return `${name} already exists; pick it under Existing branch.`;
-    return branchNameProblem(name, input.choices.map((choice) => choice.name));
-  }
-  if (!existing) return "Choose a branch.";
-  if (existing.heldBy) {
-    return `${name} is checked out in ${existing.heldBy}. Git keeps a branch in one worktree at a time.`;
-  }
-  return null;
 }
 
 /** `[origin/x: gone]`: the config still names the tracking branch, but a pruning fetch

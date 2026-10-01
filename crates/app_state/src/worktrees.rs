@@ -46,13 +46,26 @@ impl AppState {
         &self,
         repo: RepoId,
         path: &str,
-        branch: &str,
-        create: bool,
-        base: Option<&str>,
+        branch: &git_engine::WorktreeBranch,
     ) -> Result<(), git_engine::GitError> {
         let _quiet = self.quiet(repo);
-        self.handle(repo)?
-            .add_worktree_at(path, branch, create, base)
+        self.handle(repo)?.add_worktree_with(path, branch)
+    }
+
+    pub fn check_revision(
+        &self,
+        repo: RepoId,
+        rev: &str,
+    ) -> Result<git_engine::RevisionCheck, git_engine::GitError> {
+        self.handle(repo)?.check_revision(rev)
+    }
+
+    pub fn check_branch_name(
+        &self,
+        repo: RepoId,
+        name: &str,
+    ) -> Result<Option<String>, git_engine::GitError> {
+        self.handle(repo)?.check_branch_name(name)
     }
 
     /// `force` throws uncommitted work away, so it is stashed first and the journal
@@ -142,11 +155,11 @@ impl AppState {
         self.handle(repo)?.unlock_worktree(path)
     }
 
-    pub fn worktree_changes(
+    pub fn worktree_scan(
         &self,
         repo: RepoId,
         path: &str,
-    ) -> Result<Vec<git_engine::FileEntry>, git_engine::GitError> {
-        self.handle(repo)?.worktree_changes(path)
+    ) -> Result<git_engine::WorktreeScan, git_engine::GitError> {
+        self.handle(repo)?.worktree_scan(path)
     }
 }

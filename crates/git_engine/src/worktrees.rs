@@ -22,6 +22,45 @@ pub struct WorktreeEntry {
     pub has_submodules: bool,
 }
 
+/// What a new worktree checks out.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, Serialize, specta::Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum WorktreeBranch {
+    /// A new branch at `start` (HEAD when `None`); `track` follows `start`, a remote branch.
+    New {
+        name: String,
+        start: Option<String>,
+        track: bool,
+    },
+    Existing {
+        name: String,
+    },
+    Detached {
+        start: Option<String>,
+    },
+}
+
+impl WorktreeBranch {
+    /// `worktree add` takes the path last with `-b` and first otherwise.
+    fn add_args(&self, path: &str) -> Vec<String> {
+        let mut args: Vec<String> = ["worktree", "add"].map(str::to_owned).into();
+        match self {
+            Self::New { name, start, track } => {
+                // Git tracks a remote start point by default; the box decides instead.
+                args.push(if *track { "--track" } else { "--no-track" }.into());
+                args.extend(["-b".into(), name.clone(), path.into()]);
+                args.extend(start.clone());
+            }
+            Self::Existing { name } => args.extend([path.into(), name.clone()]),
+            Self::Detached { start } => {
+                args.extend(["--detach".into(), path.into()]);
+                args.extend(start.clone());
+            }
+        }
+        args
+    }
+}
+
 impl RepoHandle {
     pub fn worktrees(&self) -> Result<Vec<WorktreeEntry>> {
         self.listed(true)
@@ -137,7 +176,7 @@ impl RepoHandle {
         self.add_worktree_at(path, branch, create, None)
     }
 
-    /// `worktree add` takes the path last with `-b` and first otherwise; `base` defaults to HEAD.
+    /// `base` defaults to HEAD.
     pub fn add_worktree_at(
         &self,
         path: &str,
@@ -145,14 +184,23 @@ impl RepoHandle {
         create: bool,
         base: Option<&str>,
     ) -> Result<()> {
-        let mut args = if create {
-            vec!["worktree", "add", "-b", branch, path]
+        let branch = if create {
+            WorktreeBranch::New {
+                name: branch.to_owned(),
+                start: base.map(str::to_owned),
+                track: false,
+            }
         } else {
-            vec!["worktree", "add", path, branch]
+            WorktreeBranch::Existing {
+                name: branch.to_owned(),
+            }
         };
-        if let (true, Some(base)) = (create, base) {
-            args.push(base);
-        }
+        self.add_worktree_with(path, &branch)
+    }
+
+    pub fn add_worktree_with(&self, path: &str, branch: &WorktreeBranch) -> Result<()> {
+        let args = branch.add_args(path);
+        let args: Vec<&str> = args.iter().map(String::as_str).collect();
         self.run_git(&args).map(drop)
     }
 
@@ -251,7 +299,7 @@ impl RepoHandle {
         }
     }
 
-    fn linked_handle(&self, path: &str) -> Result<RepoHandle> {
+    pub(crate) fn linked_handle(&self, path: &str) -> Result<RepoHandle> {
         let wanted = normalise(std::path::Path::new(path));
         if !self
             .worktree_heads()?
@@ -425,4 +473,15 @@ fn unread(
 
 fn normalise(path: &std::path::Path) -> String {
     path.display().to_string().replace('\\', "/")
+}
+
+/// Git takes a folder that is missing or empty; the dialog asks before it runs `worktree add`.
+#[must_use]
+pub fn worktree_folder_problem(path: &std::path::Path) -> Option<String> {
+    let shown = normalise(path);
+    if path.is_file() {
+        return Some(format!("{shown} is a file"));
+    }
+    let occupied = std::fs::read_dir(path).is_ok_and(|mut entries| entries.next().is_some());
+    occupied.then(|| format!("{shown} is not empty"))
 }

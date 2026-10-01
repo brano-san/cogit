@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Branch, FileEntry, WorktreeEntry } from "$lib/ipc";
 import {
-  addProblem,
-  branchChoices,
   hasStale,
   othersToWatch,
   removable,
@@ -28,19 +26,6 @@ function entry(over: Partial<WorktreeEntry> = {}): WorktreeEntry {
     dirty: false,
     hasSubmodules: false,
     ...over,
-  };
-}
-
-function branch(name: string): Branch {
-  return {
-    name,
-    fullName: `refs/heads/${name}`,
-    kind: "local",
-    oid: OID,
-    isHead: false,
-    upstream: null, pushRemote: null, pushTarget: null,
-    ahead: 0,
-    behind: 0,
   };
 }
 
@@ -116,49 +101,6 @@ describe("the Remove Worktree dialog", () => {
 
   it("removes a clean worktree without submodules plainly", () => {
     expect(removalNeeds(entry(), [])).toEqual({ dirty: false, submodules: false, force: false });
-  });
-});
-
-describe("the Add Worktree dialog", () => {
-  const choices = branchChoices(
-    [branch("master"), branch("feature/14340_new_toolchain"), { ...branch("origin/x"), kind: "remote" }],
-    [
-      entry({ isMain: true, path: "E:/Work1/dtv_device", branch: "feature/14340_new_toolchain" }),
-      entry(),
-    ],
-  );
-
-  it("lists local branches and where each is taken", () => {
-    expect(choices).toEqual([
-      { name: "master", heldBy: "E:/Work1/dtv_device_master" },
-      { name: "feature/14340_new_toolchain", heldBy: "E:/Work1/dtv_device" },
-    ]);
-  });
-
-  it("refuses a branch another worktree holds, and says which", () => {
-    expect(addProblem({ folder: "E:/wt", create: false, branch: "master", choices })).toMatch(
-      /checked out in E:\/Work1\/dtv_device_master/,
-    );
-  });
-
-  it("needs a folder first", () => {
-    expect(addProblem({ folder: " ", create: true, branch: "x", choices })).toMatch(/folder/);
-  });
-
-  it("sends a new branch that already exists to the existing list", () => {
-    expect(addProblem({ folder: "E:/wt", create: true, branch: "master", choices })).toMatch(
-      /already exists/,
-    );
-  });
-
-  it("goes ahead with a fresh branch name", () => {
-    expect(addProblem({ folder: "E:/wt", create: true, branch: "spike", choices })).toBeNull();
-  });
-
-  it("refuses a new branch name Git refuses, as every branch dialog does", () => {
-    for (const branch of ["topic.lock", "-x", "a b", "a~1"]) {
-      expect(addProblem({ folder: "E:/wt", create: true, branch, choices }), branch).not.toBeNull();
-    }
   });
 });
 
