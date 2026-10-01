@@ -2,6 +2,7 @@
   import { untrack } from "svelte";
   import BlameView from "$components/diff/BlameView.svelte";
   import Select from "$components/common/Select.svelte";
+  import Button from "$components/common/Button.svelte";
   import TooltipLayer from "$components/common/TooltipLayer.svelte";
   import { installChildWindow, onMenuAction } from "$lib/child-window";
   import {
@@ -136,10 +137,10 @@
           <span class="muted tabular">line {blame.cursor + 1}</span>
           {#if blame.historyLoading}<span class="muted">reading…</span>{/if}
           <span class="spacer"></span>
-          <button
-            type="button"
+          <Button
             title="Hide (View ▸ History of Current Line)"
-            onclick={() => blame.toggleHistory()}>✕</button
+            aria-label="Hide history"
+            onclick={() => blame.toggleHistory()}>✕</Button
           >
         </div>
         {#if blame.historyError}

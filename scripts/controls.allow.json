@@ -1,0 +1,6 @@
+{
+  "_doc": "Raw controls the static audit cannot see a look for, one entry per file with the reason. Adding one needs a reason.",
+  "frontend/src/components/common/CopyButton.svelte": "Shared component; the caller passes the class that styles it (and the `Copy` text buttons are Button-like by that class).",
+  "frontend/src/components/graph/GraphOptions.svelte": "Menu items styled by the attribute selector [role^=menuitem]; the audit only reads class and tag selectors.",
+  "frontend/src/components/layout/KeymapEditor.svelte": "Search input mounted only inside SettingsPanel's Dialog, whose :global input rules style it."
+}
