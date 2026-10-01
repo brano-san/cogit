@@ -117,7 +117,7 @@ sysinfo = { version = "0.39", default-features = false, features = ["system"] }
 # WebView2 `ProcessFailed`, so the renderer dying never shows Edge's own error page.
 # Versions must match what tauri 2.11 already resolves, or the COM types are two
 # incompatible copies of themselves (R-88).
-webview2-com = "0.38"
+webview2-com = "0.39"
 # GtkSettings of the process: the native file chooser follows the Cogit theme (Linux only).
 # The version tauri 2.11 and wry already resolve, so no second GTK is built.
 gtk = "0.18"
