@@ -128,14 +128,15 @@ jobs:
             echo "PLAIN_CONF=$(native "$RUNNER_TEMP/plain.conf.json")"
           } >> "$GITHUB_ENV"
 
-      # The portable exe is built first and without the bundler: the bundler patches its bundle
-      # type (nsis/msi) into target/release/cogit.exe, and the in-app updater would then treat a
-      # portable copy as an installed one.
+      # The portable exe is built first, without the bundler and with the `portable` feature: the
+      # binary itself knows it is portable (data in Cogit-data beside it, no updater), so the zip
+      # needs no marker file. The bundler patches its bundle type (nsis/msi) into
+      # target/release/cogit.exe, so the installers are built after it, without the feature.
       - name: Build the portable executable (Windows)
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          npm run tauri build -- --ci --no-bundle --config "$PLAIN_CONF"
+          npm run tauri build -- --ci --no-bundle --features portable --config "$PLAIN_CONF"
           mkdir -p portable/Cogit
           cp target/release/cogit.exe portable/Cogit/cogit.exe
           cp LICENSE portable/Cogit/LICENSE
@@ -154,14 +155,30 @@ jobs:
           Set-Content -Path 'portable\Cogit\README.txt' -Encoding utf8 -Value @(
             'Cogit portable: run cogit.exe, nothing is installed.',
             'It needs the Microsoft Edge WebView2 Runtime (preinstalled on Windows 11).',
-            'Settings and logs are kept in %APPDATA%\Cogit and %LOCALAPPDATA%\Cogit.',
-            'Automatic updates are for the installed version only.')
+            'Settings, logs and the webview profile are kept in the Cogit-data folder created',
+            'next to cogit.exe; nothing is written to %APPDATA% or %LOCALAPPDATA%.',
+            'Keep the folder somewhere writable. To update, replace cogit.exe with the new one;',
+            'the portable version does not update itself.',
+            'Git credentials entered over HTTP are stored in Windows Credential Manager.')
           New-Item -ItemType Directory -Force dist | Out-Null
           Compress-Archive -Path 'portable\Cogit' -DestinationPath "dist\Cogit_$($env:VERSION)_$($env:ARCH)_portable.zip" -Force
 
       - name: Build installers and packages
         shell: bash
-        run: npm run tauri build -- --ci --bundles "$BUNDLES" --config "$RELEASE_CONF"
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then
+            npm run tauri build -- --ci --bundles "$BUNDLES" --config "$RELEASE_CONF"
+          else
+            npm run tauri build -- --ci --bundles deb --config "$RELEASE_CONF"
+          fi
+
+      # The AppImage is the portable Linux build, so it is a second build of the same code with
+      # the `portable` feature (data in Cogit-data next to the .AppImage; no in-app updater, hence
+      # no updater signature). The deb above stays a normal install.
+      - name: Build the portable AppImage (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: npm run tauri build -- --ci --bundles appimage --features portable --config "$PLAIN_CONF"
 
       - name: Collect and rename
         shell: bash
@@ -179,7 +196,7 @@ jobs:
             collect nsis exe "Cogit_${VERSION}_${ARCH}-setup.exe"
           else
             collect deb deb "Cogit_${VERSION}_${ARCH}.deb"
-            # The AppImage is the portable Linux build: one file, no installation.
+            # The AppImage is the portable Linux build (feature `portable`): one file, no installation.
             collect appimage AppImage "Cogit_${VERSION}_${ARCH}.AppImage"
             chmod +x "dist/Cogit_${VERSION}_${ARCH}.AppImage"
           fi
