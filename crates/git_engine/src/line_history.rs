@@ -43,10 +43,14 @@ impl RepoHandle {
         let range = format!("-L{line},{line}:{path}");
         let count = format!("-{}", limit.clamp(1, 1000));
         let output = self.read_git(&[
+            "-c",
+            "core.quotepath=off",
             "log",
             &range,
             &count,
             "--no-color",
+            "--src-prefix=a/",
+            "--dst-prefix=b/",
             &format!("--format={VERSION}%H%x09%aN%x09%aE%x09%at%x09%s"),
             rev,
         ])?;
@@ -198,6 +202,8 @@ pub(crate) fn path_of(line: &str) -> Option<String> {
             if rest == "/dev/null" {
                 continue;
             }
+            // git ends a name with a space by a tab, so patch readers can find its end.
+            let rest = rest.strip_suffix('\t').unwrap_or(rest);
             return Some(rest.strip_prefix(marker).unwrap_or(rest).to_owned());
         }
     }
@@ -213,6 +219,14 @@ mod tests {
         assert_eq!(hunk_start("@@ -2 +3 @@ fn main() {"), Some(3));
         assert_eq!(hunk_start("@@ -0,0 +1,220 @@"), Some(1));
         assert_eq!(hunk_start("+@@ looks like one"), None);
+    }
+
+    #[test]
+    fn a_name_with_a_space_loses_the_tab_git_ends_it_with() {
+        assert_eq!(
+            path_of("+++ b/with space.txt\t").as_deref(),
+            Some("with space.txt")
+        );
     }
 
     #[test]

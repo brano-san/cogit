@@ -197,3 +197,16 @@ fn a_long_history_of_a_wide_range_loses_no_step() {
 
     assert_eq!(steps.len(), usize::try_from(commits).unwrap());
 }
+
+#[test]
+fn the_path_of_a_step_is_the_file_itself_even_when_its_name_is_not_ascii() {
+    let f = test_fixtures::unicode_paths().unwrap();
+
+    let steps = open(&f).investigate("файл.txt", 1, 1, 10).unwrap();
+
+    assert!(!steps.is_empty());
+    assert!(
+        steps.iter().all(|step| step.path == "файл.txt"),
+        "{steps:?}"
+    );
+}
