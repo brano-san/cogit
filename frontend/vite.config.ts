@@ -96,7 +96,9 @@ export default defineConfig({
 
   build: {
     target: "esnext",
-    sourcemap: true,
+    // Tauri embeds every file of dist in the executable: source maps would add ~1.7 MB of
+    // brotli to a binary nobody debugs through them. `COGIT_SOURCEMAP=1` brings them back.
+    sourcemap: process.env.COGIT_SOURCEMAP === "1",
     outDir: "dist",
     emptyOutDir: true,
     rollupOptions: {
