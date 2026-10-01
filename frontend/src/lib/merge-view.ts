@@ -1,51 +1,38 @@
 import type { Origin, Region } from "$lib/ipc";
 
-export type Choice = "ours" | "theirs" | "both";
-
-/** Region index to the side the user picked. A conflict without an entry is undecided. */
-export type Choices = Record<number, Choice>;
-
+/** One row of the preview: the three panels share a row grid, so a conflict lines up in all
+    of them. Read-only: a conflict is decided in the Conflict Solver. */
 export interface MergeRow {
   region: number;
   conflict: boolean;
   origin: Origin | null;
-  base: string | null;
   ours: string | null;
-  theirs: string | null;
   result: string | null;
+  theirs: string | null;
 }
 
-function resolvedLines(region: Region, choice: Choice | undefined): string[] | null {
-  if (region.kind === "clean") return region.lines;
-  if (choice === "ours") return region.ours;
-  if (choice === "theirs") return region.theirs;
-  if (choice === "both") return [...region.ours, ...region.theirs];
-  return null;
-}
-
-function cell(lines: string[], at: number): string | null {
+function cell(lines: readonly string[], at: number): string | null {
   return lines[at] ?? null;
 }
 
-/** The four panels share one row grid, so a conflict lines up across all of them. */
-export function mergeRows(regions: readonly Region[], choices: Choices): MergeRow[] {
+/** The Result of the preview is what the merge made on its own; a conflict it could not
+    settle shows the base lines, marked as a conflict. */
+export function previewRows(regions: readonly Region[]): MergeRow[] {
   const rows: MergeRow[] = [];
   regions.forEach((region, index) => {
-    const result = resolvedLines(region, choices[index]);
-    const base = region.kind === "clean" ? region.lines : region.base;
+    const result = region.kind === "clean" ? region.lines : region.base;
     const ours = region.kind === "clean" ? region.lines : region.ours;
     const theirs = region.kind === "clean" ? region.lines : region.theirs;
-    const height = Math.max(1, base.length, ours.length, theirs.length, result?.length ?? 0);
+    const height = Math.max(1, ours.length, result.length, theirs.length);
 
     for (let at = 0; at < height; at++) {
       rows.push({
         region: index,
         conflict: region.kind === "conflict",
         origin: region.kind === "clean" ? region.origin : null,
-        base: cell(base, at),
         ours: cell(ours, at),
+        result: cell(result, at),
         theirs: cell(theirs, at),
-        result: result === null ? null : cell(result, at),
       });
     }
   });
@@ -64,67 +51,8 @@ export function conflictRows(rows: readonly MergeRow[]): number[] {
   return starts;
 }
 
-export function unresolvedCount(regions: readonly Region[], choices: Choices): number {
-  return regions.filter((region, index) => region.kind === "conflict" && !choices[index]).length;
-}
-
-/** The sides a conflict can take, in the order its buttons show them. */
-export const CHOICES: readonly Choice[] = ["theirs", "ours", "both"];
-
-/** Undecided again: the conflict counts as unresolved, and its result is empty. */
-export function clearChoice(choices: Choices, region: number): Choices {
-  const next = { ...choices };
-  delete next[region];
-  return next;
-}
-
-export function chooseAll(regions: readonly Region[], side: Choice): Choices {
-  const choices: Choices = {};
-  regions.forEach((region, index) => {
-    if (region.kind === "conflict") choices[index] = side;
-  });
-  return choices;
-}
-
-export function mergedText(regions: readonly Region[], choices: Choices): string {
-  const lines = regions.flatMap((region, index) => {
-    const resolved = resolvedLines(region, choices[index]);
-    if (resolved !== null) return resolved;
-    return region.kind === "conflict" ? region.base : [];
-  });
-  return lines.length === 0 ? "" : `${lines.join("\n")}\n`;
-}
-
-/** What the hand editor starts from: an undecided conflict keeps both sides between the
-    markers git writes, so editing by hand cannot drop either side without seeing it. */
-export function editableText(regions: readonly Region[], choices: Choices): string {
-  const lines = regions.flatMap((region, index) => {
-    const resolved = resolvedLines(region, choices[index]);
-    if (resolved !== null || region.kind !== "conflict") return resolved ?? [];
-    return [
-      "<<<<<<< ours",
-      ...region.ours,
-      "||||||| base",
-      ...region.base,
-      "=======",
-      ...region.theirs,
-      ">>>>>>> theirs",
-    ];
-  });
-  return lines.length === 0 ? "" : `${lines.join("\n")}\n`;
-}
-
-const MARKER = /^(<{7}|\|{7}|>{7})( |$)|^={7}$/m;
-
-/** Work that closing the window would throw away: a side picked, or the result edited. */
-export function unsavedResolution(choices: Choices, edited: string | null): boolean {
-  return edited !== null || Object.keys(choices).length > 0;
-}
-
-/** The panels save once every conflict has a side; hand-edited text once no marker is left. */
-export function canSave(regions: readonly Region[], choices: Choices, edited: string | null): boolean {
-  if (edited === null) return unresolvedCount(regions, choices) === 0;
-  return !MARKER.test(edited.replaceAll("\r\n", "\n"));
+export function conflictCount(regions: readonly Region[]): number {
+  return regions.filter((region) => region.kind === "conflict").length;
 }
 
 /** Regions the merge settled on its own. They are correct, and still worth a look. */
@@ -154,24 +82,9 @@ export function nextConflict(
   return [...at].reverse().find((row) => row < current) ?? at.at(-1) ?? null;
 }
 
-export type MergeKey = "save" | { step: 1 | -1 } | { take: Choice; all: boolean };
-
-const SIDE_KEYS: Record<string, Choice> = { Digit1: "theirs", Digit2: "both", Digit3: "ours" };
-
-/** The keys of the merge window (11 §9). Digits by where they sit: with Shift the layout
-    types `!` or `#` there. */
-export function mergeKey(press: { key: string; code?: string; ctrl: boolean; shift: boolean; alt: boolean }): MergeKey | null {
-  if (press.key === "F6" && !press.ctrl && !press.alt) return { step: press.shift ? -1 : 1 };
-  if (!press.ctrl || press.alt) return null;
-  if (!press.shift && (press.code === "KeyS" || press.key === "s")) return "save";
-  const take = SIDE_KEYS[press.code ?? ""];
-  return take ? { take, all: press.shift } : null;
-}
-
 /** F6 in the Diff panel of the main window, a merge on screen: the next or previous conflict
     while there is one that way, as a diff steps through its changes; past the last and
-    before the first it is the panel walk's (11 §7). The other merge keys stay the merge
-    window's: the native menu owns them here. */
+    before the first it is the panel walk's (11 §7). */
 export function panelConflictStep(
   press: { key: string; ctrl: boolean; shift: boolean; alt: boolean },
   conflicts: readonly number[],

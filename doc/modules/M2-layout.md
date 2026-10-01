@@ -43,7 +43,7 @@
 
 **DoD:** контекстное меню — нативное меню ОС, а не HTML-элемент.
 
-### T2.5 · Отдельное окно File Compare / 3-Way Merge
+### T2.5 · Отдельное окно File Compare / Conflict Solver
 - [x] Создание через `WebviewWindowBuilder`
 - [x] Параметры передаются в URL, не через глобальное состояние
 - [x] Общий `AppState` между окнами

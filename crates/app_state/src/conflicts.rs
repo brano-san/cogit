@@ -55,7 +55,7 @@ impl AppState {
         Ok(())
     }
 
-    fn record_resolution(
+    pub(crate) fn record_resolution(
         &self,
         repo: RepoId,
         description: String,

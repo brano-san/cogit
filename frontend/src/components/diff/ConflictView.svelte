@@ -10,11 +10,13 @@
     binary?: boolean;
     onresolve: (side: ConflictSide) => void;
     onresolveText: (text: string) => void;
+    /** Opens the Conflict Solver for this file. */
+    onsolver?: () => void;
     /** Whether a hand edit is open and not saved, whenever that changes. */
     onunsaved?: (unsaved: boolean) => void;
   }
 
-  let { path, base, ours, theirs, binary = false, onresolve, onresolveText, onunsaved }: Props = $props();
+  let { path, base, ours, theirs, binary = false, onresolve, onresolveText, onsolver, onunsaved }: Props = $props();
 
   let editing = $state(false);
   let draft = $state("");
@@ -47,6 +49,9 @@
       <button type="button" onclick={() => (editing = false)}>Cancel</button>
       <button type="button" onclick={save}>Save resolution</button>
     {:else}
+      {#if onsolver}
+        <button type="button" onclick={onsolver} title="Open the Conflict Solver for this file">Resolve…</button>
+      {/if}
       <button
         type="button"
         disabled={binary}
@@ -71,7 +76,7 @@
   {:else}
     <div class="columns">
       {#each sides as side (side.id)}
-        <div class="column">
+        <div class="column" data-select-text="diff">
           <div class="head">{side.label}</div>
           {#if side.text === null}
             <p class="message">Absent on this side.</p>

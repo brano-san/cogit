@@ -4,68 +4,42 @@
   import SidewaysScrollbar from "$components/common/SidewaysScrollbar.svelte";
   import { TRAILING_COLUMNS, clampOffset, maxOffset, textColumns, wheelSideways } from "$lib/code-scroll";
   import {
-    CHOICES,
     autoResolvedCount,
-    canSave,
-    chooseAll,
-    clearChoice,
+    conflictCount,
     conflictRows,
-    editableText,
-    mergeKey,
-    mergeRows,
-    mergedText,
     nextConflict,
     panelConflictStep,
+    previewRows,
     syntacticCount,
-    unresolvedCount,
-    unsavedResolution,
-    type Choice,
-    type Choices,
   } from "$lib/merge-view";
-  import type { Region } from "$lib/ipc";
+  import { conflictsLeftLabel } from "$lib/solver-model";
+  import type { ConflictSide, Region } from "$lib/ipc";
 
+  /** The preview of a conflicted file in the Diff panel: Ours, the merge's own Result, and
+      Theirs, none of them editable. Deciding is the Conflict Solver's job. */
   interface Props {
     path: string;
     regions: readonly Region[];
-    onsave: (text: string) => void;
+    onresolve: (side: ConflictSide) => void;
+    /** Opens the Conflict Solver for this file. */
+    onsolver: () => void;
     oncancel: () => void;
-    /** Absent in the window of its own, where there is nowhere to pop out to. */
-    onpopout?: () => void;
-    /** Only the separate window may take its keys (Ctrl+S, F6, Ctrl+1…3): in the main one
-        the native menu owns Ctrl+S for Stash All and Ctrl+1…7 for the panels, and an
-        accelerator cannot be preventDefault-ed from here. */
-    saveShortcut?: boolean;
-    /** Whether there are sides picked or edits not saved yet, whenever that changes. */
-    onunsaved?: (unsaved: boolean) => void;
-    /** In the main window: the Diff panel has the focus, so F6 steps through the conflicts. */
+    /** The Diff panel has the focus, so F6 steps through the conflicts. */
     active?: boolean;
   }
 
-  let {
-    path,
-    regions,
-    onsave,
-    oncancel,
-    onpopout,
-    saveShortcut = false,
-    onunsaved,
-    active = false,
-  }: Props = $props();
+  let { path, regions, onresolve, onsolver, oncancel, active = false }: Props = $props();
 
-  let choices = $state.raw<Choices>({});
-  let edited = $state<string | null>(null);
   let at = $state<number | null>(null);
 
-  const rows = $derived(mergeRows(regions, choices));
+  const rows = $derived(previewRows(regions));
   const conflicts = $derived(conflictRows(rows));
-  const left = $derived(unresolvedCount(regions, choices));
+  const left = $derived(conflictCount(regions));
   const auto = $derived(autoResolvedCount(regions));
   const parsed = $derived(syntacticCount(regions));
-  const text = $derived(edited ?? mergedText(regions, choices));
-  const saveable = $derived(canSave(regions, choices, edited));
   const current = $derived(at === null ? 0 : conflicts.indexOf(at) + 1);
 
-  /** The four columns move sideways together, as the two halves of a diff do (R-470). */
+  /** The three columns move sideways together, as the two halves of a diff do (R-470). */
   const PROBE = "0".repeat(100);
   let cellWidth = $state(0);
   let probeWidth = $state(0);
@@ -73,7 +47,7 @@
   const widest = $derived.by(() => {
     let most = 0;
     for (const row of rows) {
-      for (const text of [row.theirs, row.base, row.ours, row.result]) {
+      for (const text of [row.ours, row.result, row.theirs]) {
         if (text) most = Math.max(most, textColumns(text));
       }
     }
@@ -89,57 +63,13 @@
     sideways = clampOffset(shift + delta, sidewaysMax);
   }
 
-  function pick(region: number, side: Choice) {
-    choices = { ...choices, [region]: side };
-  }
-
   function step(direction: 1 | -1) {
     at = nextConflict(conflicts, at, direction);
   }
 
-  function save() {
-    if (saveable) onsave(text);
-  }
-
-  /** Read by the merge window before it closes (04 §7). */
-  export function unsaved(): boolean {
-    return unsavedResolution(choices, edited);
-  }
-
-  $effect(() => onunsaved?.(unsavedResolution(choices, edited)));
-
-  /** The conflict under the cursor, or the first one when none is. */
-  function take(side: Choice) {
-    const row = at ?? nextConflict(conflicts, null, 1);
-    const region = row === null ? undefined : rows[row]?.region;
-    if (region === undefined) return;
-    pick(region, side);
-    at = row;
-    step(1);
-  }
-
-  function onkeydown(event: KeyboardEvent) {
-    if (!saveShortcut || modals.any) return;
-    const action = mergeKey({
-      key: event.key,
-      code: event.code,
-      ctrl: event.ctrlKey || event.metaKey,
-      shift: event.shiftKey,
-      alt: event.altKey,
-    });
-    if (action === null) return;
-    event.preventDefault();
-    if (action === "save") save();
-    else if ("step" in action) step(action.step);
-    // Hand-edited text is the result now; a side picked would not show in it.
-    else if (edited !== null) return;
-    else if (action.all) choices = chooseAll(regions, action.take);
-    else take(action.take);
-  }
-
   /** In the capture phase, ahead of the main window's panel walk, as the diff's F6 is. */
   function onpanelkey(event: KeyboardEvent) {
-    if (saveShortcut || !active || modals.any) return;
+    if (!active || modals.any) return;
     const by = panelConflictStep(
       { key: event.key, ctrl: event.ctrlKey || event.metaKey, shift: event.shiftKey, alt: event.altKey },
       conflicts,
@@ -151,14 +81,12 @@
   }
 </script>
 
-<svelte:window {onkeydown} onkeydowncapture={onpanelkey} />
+<svelte:window onkeydowncapture={onpanelkey} />
 
 <div class="merge">
   <div class="bar">
     <span class="path mono truncate">{path}</span>
-    <span class="count" class:clean={left === 0}>
-      {left === 0 ? "all resolved" : `${left} unresolved`}
-    </span>
+    <span class="count" class:clean={left === 0}>{conflictsLeftLabel(left)}</span>
     {#if auto > 0}
       <span class="auto" title="Taken without asking; look before you commit">
         {auto} resolved automatically{parsed > 0 ? `, ${parsed} by the parser` : ""} — worth a look
@@ -166,102 +94,46 @@
     {/if}
     <span class="grow"></span>
     <span class="nav">
-      <button type="button" onclick={() => step(-1)} disabled={conflicts.length === 0}>↑</button>
+      <button type="button" onclick={() => step(-1)} disabled={conflicts.length === 0} title="Previous conflict (F6 / Shift+F6)">↑</button>
       <span class="tabular">{current}/{conflicts.length}</span>
-      <button type="button" onclick={() => step(1)} disabled={conflicts.length === 0}>↓</button>
+      <button type="button" onclick={() => step(1)} disabled={conflicts.length === 0} title="Next conflict">↓</button>
     </span>
-    <button type="button" onclick={() => (choices = chooseAll(regions, "ours"))}>
-      Take all ours
-    </button>
-    <button type="button" onclick={() => (choices = chooseAll(regions, "theirs"))}>
-      Take all theirs
-    </button>
-    {#if onpopout}
-      <button type="button" onclick={onpopout} title="Open in a window of its own">⧉</button>
-    {/if}
-    <button type="button" onclick={oncancel}>Cancel</button>
-    <button
-      type="button"
-      class="primary"
-      disabled={!saveable}
-      onclick={save}
-      title={saveShortcut ? "Ctrl+S" : "Write the resolution and stage the file"}
-    >
-      Save resolution
-    </button>
+    <button type="button" onclick={() => onresolve("ours")} title="Take the whole file as Ours has it">Take ours</button>
+    <button type="button" onclick={() => onresolve("theirs")} title="Take the whole file as Theirs has it">Take theirs</button>
+    <button type="button" class="primary" onclick={onsolver} title="Open the Conflict Solver for this file">Resolve…</button>
+    <button type="button" onclick={oncancel}>Close</button>
   </div>
 
   <div class="heads">
-    <span>Theirs</span>
-    <span>Base</span>
     <span>Ours</span>
     <span>Result</span>
+    <span>Theirs</span>
   </div>
 
-  {#if edited === null}
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="panes" style:--shift="{shift}px" {onwheel}>
-      <div class="line ruler" aria-hidden="true">
-        <span class="cell mono" bind:clientWidth={cellWidth}
-          ><span class="probe" bind:offsetWidth={probeWidth}>{PROBE}</span></span
-        >
-      </div>
-      <VirtualList items={rows} reveal={at} label="Merge">
-        {#snippet row(entry, index)}
-          <div
-            class="line"
-            class:conflict={entry.conflict}
-            class:auto={entry.origin !== null && entry.origin !== "unchanged"}
-            class:here={at !== null && entry.region === rows[at]?.region}
-            style:top="{index * 22}px"
-          >
-            <span class="cell mono"><span class="text">{entry.theirs ?? ""}</span></span>
-            <span class="cell mono"><span class="text">{entry.base ?? ""}</span></span>
-            <span class="cell mono"><span class="text">{entry.ours ?? ""}</span></span>
-            <span class="cell mono result"
-              ><span class="text">{entry.result ?? ""}</span
-              >{#if entry.conflict && conflicts.includes(index)}
-                {@const chosen = choices[entry.region]}
-                <!-- On every conflict, decided or not: a side picked by mistake is changed here. -->
-                <span class="take">
-                  {#each CHOICES as side (side)}
-                    <button
-                      type="button"
-                      class:active={chosen === side}
-                      aria-pressed={chosen === side}
-                      onclick={() => pick(entry.region, side)}>{side}</button
-                    >
-                  {/each}
-                  {#if chosen}
-                    <button
-                      type="button"
-                      title="Leave this conflict undecided"
-                      onclick={() => (choices = clearChoice(choices, entry.region))}>✕</button
-                    >
-                  {/if}
-                </span>
-              {/if}
-            </span>
-          </div>
-        {/snippet}
-      </VirtualList>
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="panes" style:--shift="{shift}px" {onwheel}>
+    <div class="line ruler" aria-hidden="true">
+      <span class="cell mono" bind:clientWidth={cellWidth}
+        ><span class="probe" bind:offsetWidth={probeWidth}>{PROBE}</span></span
+      >
     </div>
-    <SidewaysScrollbar offset={shift} max={sidewaysMax} onscroll={(offset) => (sideways = offset)} />
-  {:else}
-    <textarea bind:value={edited} spellcheck="false" aria-label="Resolved content"></textarea>
-  {/if}
-
-  <div class="foot">
-    {#if edited === null}
-      <button type="button" onclick={() => (edited = editableText(regions, choices))}>
-        Edit result by hand
-      </button>
-    {:else}
-      <button type="button" onclick={() => (edited = null)}>Back to the panels</button>
-      {#if !saveable}<span class="hint">Remove every conflict marker to save</span>{/if}
-      <button type="button" class="primary" disabled={!saveable} onclick={save}>Save resolution</button>
-    {/if}
+    <VirtualList items={rows} reveal={at} label="Merge preview">
+      {#snippet row(entry, index)}
+        <div
+          class="line"
+          class:conflict={entry.conflict}
+          class:auto={entry.origin !== null && entry.origin !== "unchanged"}
+          class:here={at !== null && entry.region === rows[at]?.region}
+          style:top="{index * 22}px"
+        >
+          <span class="cell mono"><span class="text">{entry.ours ?? ""}</span></span>
+          <span class="cell mono"><span class="text">{entry.result ?? ""}</span></span>
+          <span class="cell mono"><span class="text">{entry.theirs ?? ""}</span></span>
+        </div>
+      {/snippet}
+    </VirtualList>
   </div>
+  <SidewaysScrollbar offset={shift} max={sidewaysMax} onscroll={(offset) => (sideways = offset)} />
 </div>
 
 <style>
@@ -272,8 +144,7 @@
     min-height: 0;
   }
 
-  .bar,
-  .foot {
+  .bar {
     display: flex;
     align-items: center;
     gap: var(--sp-3);
@@ -282,11 +153,6 @@
     background: var(--surface-raised);
     border-bottom: 1px solid var(--divider);
     font-size: var(--fs-dense);
-  }
-
-  .foot {
-    border-bottom: 0;
-    border-top: 1px solid var(--divider);
   }
 
   .path {
@@ -299,10 +165,6 @@
 
   .count {
     color: var(--status-delete);
-  }
-
-  .hint {
-    color: var(--text-secondary);
   }
 
   .count.clean {
@@ -344,7 +206,7 @@
 
   .heads {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     flex: 0 0 auto;
     padding: 0 var(--sp-5);
     background: var(--surface-panel);
@@ -360,7 +222,7 @@
     left: 0;
     right: 0;
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: var(--sp-3);
     height: 22px;
     padding: 0 var(--sp-5);
@@ -369,7 +231,7 @@
   }
 
   .line.conflict {
-    background: var(--c-modified-bg);
+    background: var(--diff-changed-line);
   }
 
   .line.auto {
@@ -411,47 +273,5 @@
 
   .probe {
     display: inline-block;
-  }
-
-  .result {
-    position: relative;
-  }
-
-  /* Over the end of the result, where scrolling does not move it. */
-  .take {
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    display: flex;
-    align-items: center;
-    gap: var(--sp-2);
-    padding-left: var(--sp-2);
-    background: var(--surface-panel);
-  }
-
-  .take button {
-    height: 16px;
-    padding: 0 var(--sp-2);
-    font-size: 10px;
-  }
-
-  /* The side this conflict takes now; the others stay, to change it. */
-  .take button.active {
-    color: var(--status-ref);
-    border-color: var(--status-ref);
-  }
-
-  textarea {
-    flex: 1 1 auto;
-    min-height: 0;
-    margin: 0;
-    padding: var(--sp-3) var(--sp-5);
-    background: var(--surface-input);
-    color: var(--text-primary);
-    border: 0;
-    font-family: var(--font-mono);
-    font-size: var(--fs-code);
-    resize: none;
   }
 </style>

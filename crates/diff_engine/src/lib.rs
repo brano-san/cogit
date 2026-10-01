@@ -19,7 +19,9 @@ pub use eol::{EolInfo, LineEnding, detect_line_ending, normalize_line_endings};
 pub use headers::with_hunk_context;
 pub use images::{base64, data_url, image_mime};
 pub use language::{MAX_HIGHLIGHT_LINES, highlighted, language_for_path, merge_grammar_for_path};
-pub use merge::{Origin, Region, merge3, merge3_with_syntax};
+pub use merge::{
+    Origin, Region, SolverKind, SolverRegion, merge3, merge3_sides, merge3_with_syntax,
+};
 pub use moves::{MIN_MOVED_LINES, detect_moves, link_moves_across_files};
 pub use patch::{
     PatchError, PatchRequest, PatchShape, PatchSides, build_patch, carries_undecoded_bytes,
