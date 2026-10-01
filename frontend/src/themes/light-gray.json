@@ -71,6 +71,8 @@
     "diff.centerGutter.action.hover": "#1b1f24",
     "diff.connector.fill": "#d6dae0",
     "diff.connector.stroke": "#aeb4bc",
+    "diff.filler.bg": "#eceef1",
+    "diff.filler.hatch": "#e1e3e7",
     "diff.jumpFlash": "#acc5e5",
     "syntax.theme": "github-light",
     "search.hit": "#d2c5ab",

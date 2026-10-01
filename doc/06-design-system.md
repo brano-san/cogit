@@ -130,8 +130,17 @@
 
 `diff.add|del|move` × `line|word|gutter` (у `move` нет `gutter`), `diff.hunkHeader.bg|fg`,
 `diff.lineNumber`, `diff.centerGutter.bg|action|action.hover`, `diff.connector.fill|stroke`,
-`diff.jumpFlash`. Красный — удалено, зелёный — добавлено, фиолетовый — перемещено; единого
+`diff.filler.bg|hatch`, `diff.jumpFlash`. Красный — удалено, зелёный — добавлено, фиолетовый — перемещено; единого
 цвета «changed» нет (янтарные фон и маркеры убраны). Подробнее — §7.
+
+`diff.filler.bg|hatch` (R-628) — фон и линии штриховки filler-строк режима Aligned:
+
+| Токен | Light | Light gray | Dark gray | Dark |
+|---|---|---|---|---|
+| `diff.filler.bg` | `#fafbfc` | `#eceef1` | `#2a2c30` | `#181a1e` |
+| `diff.filler.hatch` | `#eceef1` | `#e1e3e7` | `#313338` | `#1f2226` |
+
+Контраст у них намеренно низкий (спокойная штриховка), проверка контраста для них не вводилась.
 
 ### Дополнительные токены (не из таблиц задания)
 
@@ -380,6 +389,7 @@ Branches), — проп `tri` с `triState` (R-158, [R-455](12-risks.md)).
 | Строка перемещена | `diff.move.line` | — |
 | Слово добавлено | `diff.add.word` | Радиус 2 px |
 | Слово удалено | `diff.del.word` | Радиус 2 px |
+| Filler-строка (Aligned) | `diff.filler.bg`, штриховка `diff.filler.hatch` | Тонкая диагональ 1 px, плитка 6 px; без номера, знака и текста (R-628) |
 | Плашка сворачивания | `--surface-raised` | Текст `--text-secondary`, по центру |
 | Маркер конфликта | `diff.del.line` | Левая полоса 2 px `--status-delete` |
 
