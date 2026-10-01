@@ -2,6 +2,17 @@
 
 use crate::{AppState, Recovery, RepoId, short};
 use git_engine::{GitError, ResetMode};
+use serde::Serialize;
+
+/// ORIG_HEAD against HEAD, for the confirmation before Undo Last Merge / Rebase / Reset.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct UndoRewrite {
+    pub orig: String,
+    pub head: String,
+    /// Staged or unstaged changes in tracked files.
+    pub dirty: bool,
+}
 
 impl AppState {
     /// A hard reset stashes the tracked changes it would destroy first, so Undo can bring
@@ -68,6 +79,41 @@ impl AppState {
             recovery,
         );
         Ok(())
+    }
+
+    /// What Undo Last Merge / Rebase / Reset would go back to; `None` while `ORIG_HEAD` is missing.
+    pub fn undo_rewrite_info(&self, repo: RepoId) -> Result<Option<UndoRewrite>, GitError> {
+        let handle = self.handle(repo)?;
+        let Some(orig) = handle.orig_head() else {
+            return Ok(None);
+        };
+        let head = match handle.head()? {
+            git_engine::Head::Branch { oid, .. } | git_engine::Head::Detached { oid } => oid,
+            git_engine::Head::Unborn { .. } => return Ok(None),
+        };
+        let status = handle.status()?;
+        Ok(Some(UndoRewrite {
+            orig,
+            head,
+            dirty: status.staged > 0 || status.unstaged > 0,
+        }))
+    }
+
+    /// `reset --keep ORIG_HEAD`: like `--merge` it moves the branch back, and unlike it keeps
+    /// staged changes too. Git refuses, changing nothing, when a file the move rewrites has
+    /// local changes.
+    pub fn undo_rewrite(&self, repo: RepoId) -> Result<(), GitError> {
+        let info = self.undo_rewrite_info(repo)?.ok_or_else(|| {
+            GitError::InvalidState(
+                "there is no merge, rebase or reset to undo: ORIG_HEAD is missing".to_owned(),
+            )
+        })?;
+        if info.orig == info.head {
+            return Err(GitError::InvalidState(
+                "ORIG_HEAD is where HEAD already is: there is nothing to undo".to_owned(),
+            ));
+        }
+        self.reset_to(repo, "ORIG_HEAD", ResetMode::Keep)
     }
 
     pub fn is_ancestor(

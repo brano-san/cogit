@@ -201,3 +201,34 @@ pub async fn push_to(
     )
     .await
 }
+
+#[tauri::command]
+#[specta::specta]
+pub async fn undo_rewrite_info(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<Option<app_state::UndoRewrite>, GitError> {
+    let app_state = state.state.clone();
+    blocking("undo_rewrite_info", move || {
+        app_state.undo_rewrite_info(repo)
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn undo_rewrite(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    super::mutating_titled(
+        &state.state,
+        repo,
+        OperationKind::Checkout,
+        "Undoing the last merge, rebase or reset",
+        "undo_rewrite",
+        move || app_state.undo_rewrite(repo),
+    )
+    .await
+}

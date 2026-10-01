@@ -819,6 +819,34 @@ describe("Other Refs (B1)", () => {
     expect(rows.some((row) => row.id === "folder:other/pull")).toBe(true);
   });
 
+  it("hides the pseudo-refs and the whole group when only they are left", () => {
+    const pseudo = ["ORIG_HEAD", "MERGE_HEAD", "CHERRY_PICK_HEAD", "REBASE_HEAD"].map((fullName) => ({
+      fullName,
+      oid: "c".repeat(40),
+    }));
+    const rows = buildRefTree(input({ others: pseudo }));
+    expect(rows.some((row) => row.id === "group:other")).toBe(false);
+
+    const mixed = buildRefTree(input({ others: [...others, ...pseudo] }));
+    expect(mixed.find((row) => row.id === "group:other")?.label).toBe("Other Refs (2)");
+    expect(mixed.some((row) => row.id === "other:ORIG_HEAD")).toBe(false);
+  });
+
+  it("lists notes and replace refs as real refs", () => {
+    const real = [
+      { fullName: "refs/notes/commits", oid: "a".repeat(40) },
+      { fullName: "refs/replace/abc", oid: "b".repeat(40) },
+    ];
+    const rows = buildRefTree(input({ others: real }));
+    expect(rows.find((row) => row.id === "group:other")?.label).toBe("Other Refs (2)");
+  });
+
+  it("brings the pseudo-refs back when the setting is on", () => {
+    const pseudo = [{ fullName: "ORIG_HEAD", oid: "c".repeat(40) }];
+    const rows = buildRefTree(input({ others: pseudo, showPseudoRefs: true }));
+    expect(rows.find((row) => row.id === "other:ORIG_HEAD")?.rev).toBe("ORIG_HEAD");
+  });
+
   it("leaves them unticked by default", () => {
     const visible = defaultVisible(buildRefTree(input({ others })));
     expect([...visible].some((id) => id.startsWith("other:"))).toBe(false);

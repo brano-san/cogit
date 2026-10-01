@@ -2,11 +2,21 @@ import { Channel } from "@tauri-apps/api/core";
 import { commands, type RepoId, type ResetMode } from "./bindings";
 import { unwrap } from "./index";
 
-export type { ResetMode } from "./bindings";
+export type { ResetMode, UndoRewrite } from "./bindings";
 
 /** The commands behind the graph and Branches context menus (doc/04-ipc-contract.md). */
 export async function resetTo(repo: RepoId, rev: string, mode: ResetMode) {
   return unwrap(await commands.resetTo(repo, rev, mode));
+}
+
+/** ORIG_HEAD against HEAD, or null while there is no ORIG_HEAD. */
+export async function undoRewriteInfo(repo: RepoId) {
+  return unwrap(await commands.undoRewriteInfo(repo));
+}
+
+/** Moves the branch back to ORIG_HEAD, keeping local changes. */
+export async function undoRewrite(repo: RepoId) {
+  return unwrap(await commands.undoRewrite(repo));
 }
 
 export async function isAncestor(repo: RepoId, ancestor: string, descendant: string) {

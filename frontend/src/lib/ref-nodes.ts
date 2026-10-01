@@ -51,6 +51,8 @@ export interface RefTreeInput {
   lost: readonly CommitRow[];
   /** `refs/pull/*` and the like; none are ticked until the user ticks them. */
   others?: readonly OtherRef[];
+  /** ORIG_HEAD, MERGE_HEAD…: off by default (`refs.showPseudoRefs`). */
+  showPseudoRefs?: boolean;
   remoteUrls: Readonly<Record<string, string>>;
   /** The configured remotes: each has a heading, whether anything is fetched from it or not. */
   remotes?: readonly string[];
@@ -169,6 +171,11 @@ function soleFolder(level: Level): [string, Level] | undefined {
   return level.folders.entries().next().value;
 }
 
+/** A name outside `refs/`: ORIG_HEAD, MERGE_HEAD, CHERRY_PICK_HEAD, REVERT_HEAD, REBASE_HEAD. */
+export function isPseudoRef(fullName: string): boolean {
+  return !fullName.startsWith("refs/");
+}
+
 function group(rows: RefNode[], id: string, label: string, detail?: string): void {
   rows.push({ id, kind: "group", label, depth: 0, detail, children: true });
 }
@@ -281,6 +288,7 @@ export function buildRefTree(input: RefTreeInput): RefNode[] {
   }
 
   const others = (input.others ?? [])
+    .filter((ref) => input.showPseudoRefs === true || !isPseudoRef(ref.fullName))
     .map<RefNode>((ref) => ({
       id: `other:${ref.fullName}`,
       kind: "other",
