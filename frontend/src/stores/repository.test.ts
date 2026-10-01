@@ -741,3 +741,14 @@ describe("reopening a closed repository", () => {
     expect(repository.openRepos.map((entry) => entry.root)).toEqual([root]);
   });
 });
+
+describe("the empty state waits for the restored session", () => {
+  it("stays down until the start-up has said whether anything opened", async () => {
+    const { emptyStateVisible } = await import("$lib/repo-phase");
+    expect(repository.ready).toBe(false);
+    expect(emptyStateVisible(repository.phase, repository.ready)).toBe(false);
+    repository.close();
+    repository.markReady();
+    expect(emptyStateVisible(repository.phase, repository.ready)).toBe(true);
+  });
+});

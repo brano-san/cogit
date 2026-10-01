@@ -6,7 +6,6 @@
   import { emptyText, filesPanelList, mergedSide, mergeIndex, stagedShown } from "$lib/files-panel";
   import type { FileView } from "$lib/file-view";
   import type { FileEntry } from "$lib/ipc";
-  import { idleMessage } from "$lib/repo-phase";
   import { commit } from "$stores/commit.svelte";
   import { commitTree } from "$stores/commit-tree.svelte";
   import { compareView } from "$stores/compare-view.svelte";
@@ -116,7 +115,7 @@
   /** Three different nothings, and the panel used to say the same thing for all of them. */
   const nothing = $derived(
     view !== "content"
-      ? (idleMessage(view) ?? "")
+      ? ""
       : commit.oid === null
         ? "Select a commit to see the files it changed."
         : emptyText({ settled: !commit.loading, failed: commit.error !== null }, "This commit changed no files."),

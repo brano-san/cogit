@@ -19,6 +19,13 @@ pub async fn desktop_info() -> Result<DesktopInfo, GitError> {
     blocking("desktop_info", || Ok(desktop::info())).await
 }
 
+/// The frontend's theme is dark or light; GTK dialogs follow it (Linux), a no-op elsewhere.
+#[tauri::command]
+#[specta::specta]
+pub async fn set_native_theme(app: tauri::AppHandle, dark: bool) {
+    crate::native_theme::apply(&app, dark);
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn open_path(path: String) -> Result<(), GitError> {

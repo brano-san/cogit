@@ -1,5 +1,4 @@
 <script lang="ts">
-  import StartScreen from "$components/layout/StartScreen.svelte";
   import CommitList from "$components/graph/CommitList.svelte";
   import GraphFilterFields from "$components/graph/GraphFilterFields.svelte";
   import PauseCheckBar from "$components/graph/PauseCheckBar.svelte";
@@ -14,12 +13,6 @@
   interface Props {
     /** Non-null while a rebase is in flight; its steps become rows of the list below. */
     progress: RebaseProgress | null;
-    /** Shown in place of the history while nothing is open (M3 T3.6). */
-    recent: readonly string[];
-    onopenrecent: (root: string) => void;
-    onforgetrecent: (root: string) => void;
-    onopen: () => void;
-    onscan: () => void;
     check: string;
     oncheck: (command: string) => void;
     onruncheck: () => void;
@@ -43,11 +36,6 @@
 
   let {
     progress,
-    recent,
-    onopenrecent,
-    onforgetrecent,
-    onopen,
-    onscan,
     check,
     oncheck,
     onruncheck,
@@ -71,7 +59,8 @@
 </script>
 
 {#if view === "opening"}
-  <!-- Blank on purpose: the footer is the one place an open in progress is reported (#4). -->
+  <!-- Blank on purpose: the footer is the one place an open in progress is reported (#4),
+     and the window's empty state (StartScreen) the one place that nothing is open. -->
 {:else if view === "content"}
   {#if banner}
     <StateBanner {banner} {busy} onaction={onbanneraction} />
@@ -108,13 +97,5 @@
     selectedRefsOnly={settings.current.graphSelectedRefsOnly}
     includeTracked={settings.current.graphIncludeTracked}
     workingTreeAlways={settings.current.graphWorkingTreeAlways}
-  />
-{:else}
-  <StartScreen
-    {recent}
-    {onopen}
-    {onscan}
-    onpick={onopenrecent}
-    onforget={onforgetrecent}
   />
 {/if}

@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import { idleMessage, type PanelView } from "$lib/repo-phase";
+  import type { PanelView } from "$lib/repo-phase";
   import { StaleDot } from "$lib/staleness";
 
   /** A titled work surface. Every panel in the grid uses this shell.
@@ -10,8 +10,8 @@
       from coming back — so the panel decides both (doc/12-risks.md, R-119). */
   interface Props {
     title: string;
-    /** What the repository is doing. Anything but `content` and the body is the message
-        below, with no count beside the title: there is nothing to have counted. */
+    /** What the repository is doing. Anything but `content` and the body is blank, with no count beside
+        the title: there is nothing to have counted. The window says why once (StartScreen). */
     view?: PanelView;
     /** Optional count shown next to the title, e.g. "Files (23)". Zero is not worth the
         parentheses: three panels showing "(0)" is three ways of saying nothing is here. */
@@ -41,7 +41,6 @@
   }: Props = $props();
 
   const ready = $derived(view === "content");
-  const message = $derived(ready ? undefined : idleMessage(view));
 
   let dotShown = $state(false);
   const dot = new StaleDot((shown) => (dotShown = shown));
@@ -63,9 +62,7 @@
   </header>
 
   <div class="panel-body">
-    {#if message}
-      <p class="panel-empty">{message}</p>
-    {:else if ready && children}
+    {#if ready && children}
       {@render children()}
     {/if}
   </div>
@@ -147,16 +144,5 @@
   .panel-body > :global(*) {
     flex: 1 1 auto;
     min-height: 0;
-  }
-
-  .panel-empty {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0;
-    padding: var(--sp-7) var(--sp-5);
-    text-align: center;
-    color: var(--text-secondary);
-    font-size: var(--fs-dense);
   }
 </style>
