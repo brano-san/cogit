@@ -2,7 +2,7 @@ import { Channel } from "@tauri-apps/api/core";
 import { commands } from "./bindings";
 import { unwrap } from "./index";
 
-export type { CloneDestination, CloneRequest, Login, RemoteBranches } from "./bindings";
+export type { CloneDestination, CloneRequest, FolderKind, Login, RemoteBranches } from "./bindings";
 import type { CloneRequest, Login } from "./bindings";
 
 /** Repository ▸ Clone… (F-575). The check behind Next: `git ls-remote`; the credential helper may ask. */
@@ -12,6 +12,16 @@ export async function remoteBranches(source: string, login: Login | null = null)
 
 export async function cloneDestination(path: string) {
   return unwrap(await commands.cloneDestination(path));
+}
+
+/** The Welcome dialog: what a folder is, without opening it. */
+export async function folderKind(path: string) {
+  return unwrap(await commands.folderKind(path));
+}
+
+/** `git init` in the folder (created if missing); the root to open. */
+export async function initRepository(path: string) {
+  return unwrap(await commands.initRepository(path));
 }
 
 /** The clipboard's text only when it is a repository URL, `null` otherwise. */
