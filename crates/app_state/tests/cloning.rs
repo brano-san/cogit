@@ -14,7 +14,7 @@ fn request(source: &str, target: &Path) -> CloneRequest {
         submodules: false,
         all_branches: true,
         branch: None,
-        skip_larger_than_mb: None,
+        skip_larger_than: None,
     }
 }
 

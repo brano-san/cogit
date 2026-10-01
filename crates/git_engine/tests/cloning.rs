@@ -28,7 +28,7 @@ fn request(source: &str, target: &Path) -> CloneRequest {
         submodules: true,
         all_branches: true,
         branch: None,
-        skip_larger_than_mb: None,
+        skip_larger_than: None,
     }
 }
 
@@ -173,7 +173,7 @@ fn skipping_large_files_makes_a_partial_clone() {
         source_of(&f).replace('\\', "/").trim_start_matches('/')
     );
     let partial = CloneRequest {
-        skip_larger_than_mb: Some(1),
+        skip_larger_than: Some("1m".to_owned()),
         ..request(&url, &target)
     };
 

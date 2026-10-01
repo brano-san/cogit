@@ -29,14 +29,40 @@ export function sourceProblem(source: string): string | null {
   return null;
 }
 
-export const LIMIT_MAX_MB = 1_000_000;
+/** Git's size suffixes: `k`, `m`, `g`, each 1024 times the one before. */
+export const LIMIT_UNITS = [
+  ["KB", "KB"],
+  ["MB", "MB"],
+  ["GB", "GB"],
+] as const;
+export type LimitUnit = (typeof LIMIT_UNITS)[number][0];
 
-export function limitProblem(skip: boolean, megabytes: string): string | null {
+/** The default of the partial clone: 1 MB. */
+export const DEFAULT_LIMIT = { value: "1", unit: "MB" as LimitUnit };
+export const LIMIT_MAX = 999_999;
+
+export function limitProblem(skip: boolean, value: string): string | null {
   if (!skip) return null;
-  const text = megabytes.trim();
-  const value = Number(text);
-  if (/^\d+$/.test(text) && value >= 1 && value <= LIMIT_MAX_MB) return null;
-  return "Enter the size limit in whole megabytes, 1 or more";
+  const text = value.trim();
+  if (text === "") return "Enter the size limit: a whole number, 1 or more";
+  if (!/^[0-9]+$/.test(text)) return "The size limit is a whole number, without a sign or a decimal point";
+  const number = Number(text);
+  if (number < 1) return "The size limit must be 1 or more";
+  if (number > LIMIT_MAX) return `The size limit cannot be more than ${LIMIT_MAX}`;
+  return null;
+}
+
+/** What `--filter=blob:limit=` takes: `1m`. `null` while the number is not valid. The one
+    conversion: the preview, the request and so the command all use it. */
+export function limitSpec(value: string, unit: LimitUnit): string | null {
+  if (limitProblem(true, value) !== null) return null;
+  return `${Number(value.trim())}${unit.charAt(0).toLowerCase()}`;
+}
+
+/** The argument as git will get it, shown under the field. */
+export function limitPreview(value: string, unit: LimitUnit): string {
+  const spec = limitSpec(value, unit);
+  return spec === null ? "--filter=blob:limit=…" : `--filter=blob:limit=${spec}`;
 }
 
 /** In the parent's own separator, so a Windows path stays one. */
@@ -123,7 +149,8 @@ export interface CloneChoices {
   /** `null` when the check was skipped: the server's HEAD decides. */
   listing: RemoteBranches | null;
   skipLarge: boolean;
-  limitMb: string;
+  limitValue: string;
+  limitUnit: LimitUnit;
   parent: string;
   name: string;
 }
@@ -141,7 +168,7 @@ export function cloneRequest(choices: CloneChoices): CloneRequest {
     submodules: choices.submodules,
     allBranches: choices.allBranches,
     branch,
-    skipLargerThanMb: choices.skipLarge ? Number(choices.limitMb.trim()) : null,
+    skipLargerThan: choices.skipLarge ? limitSpec(choices.limitValue, choices.limitUnit) : null,
   };
 }
 

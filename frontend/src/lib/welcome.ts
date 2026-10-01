@@ -124,10 +124,15 @@ export async function checkAvailability(
   await Promise.all(Array.from({ length: Math.min(concurrency, queue.length) }, lane));
 }
 
+/** Option 3 reopens a recent repository: with none it is disabled and nothing can select it. */
+export function isOptionDisabled(option: WelcomeOption, rowCount: number): boolean {
+  return option === 3 && rowCount === 0;
+}
+
 /** One line of stops: option 1, option 2, then each recent repository (option 3 is the
-    list; with an empty list it is a stop of its own). */
+    list; with an empty list it is no stop at all). */
 function stops(rowCount: number): number {
-  return rowCount > 0 ? 2 + rowCount : 3;
+  return 2 + rowCount;
 }
 
 export function moveSelection(sel: WelcomeSelection, dir: "up" | "down", rowCount: number): WelcomeSelection {
@@ -135,10 +140,11 @@ export function moveSelection(sel: WelcomeSelection, dir: "up" | "down", rowCoun
   const next = Math.min(Math.max(at + (dir === "down" ? 1 : -1), 0), stops(rowCount) - 1);
   if (next === 0) return { option: 1, row: sel.row };
   if (next === 1) return { option: 2, row: sel.row };
-  return { option: 3, row: rowCount > 0 ? next - 2 : null };
+  return { option: 3, row: next - 2 };
 }
 
 export function selectOption(sel: WelcomeSelection, option: WelcomeOption, rowCount: number): WelcomeSelection {
+  if (isOptionDisabled(option, rowCount)) return sel;
   if (option !== 3) return { option, row: sel.row };
   return { option, row: rowCount > 0 ? Math.min(sel.row ?? 0, rowCount - 1) : null };
 }

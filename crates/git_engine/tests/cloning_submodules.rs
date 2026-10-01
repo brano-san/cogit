@@ -22,7 +22,7 @@ fn a_clone_with_submodules_checks_them_out() {
         submodules: true,
         all_branches: true,
         branch: None,
-        skip_larger_than_mb: None,
+        skip_larger_than: None,
     };
 
     clone_repository(&request, None, None, &NetworkStop::default(), None, |_| {}).unwrap();
