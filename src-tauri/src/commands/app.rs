@@ -29,6 +29,8 @@ pub struct AppInfo {
     pub log_path: String,
     pub log_dir: String,
     pub settings_path: String,
+    /// The `Cogit-data` folder of the portable build; `None` in a normal one.
+    pub portable_dir: Option<String>,
     pub displays: Vec<app_state::environment::DisplayInfo>,
 }
 
@@ -71,6 +73,7 @@ pub async fn app_info(
                 .unwrap_or_default(),
             log_path: log_path.display().to_string(),
             settings_path: settings_path.display().to_string(),
+            portable_dir: portable::layout().map(|layout| layout.root().display().to_string()),
             displays,
         })
     })

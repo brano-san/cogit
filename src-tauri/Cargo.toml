@@ -27,6 +27,7 @@ diff_engine.workspace = true
 fs_watcher.workspace = true
 git_engine.workspace = true
 graph_engine.workspace = true
+portable.workspace = true
 
 tauri.workspace = true
 tauri-specta.workspace = true
@@ -57,6 +58,13 @@ gtk.workspace = true
 webview2-com.workspace = true
 windows.workspace = true
 windows-core.workspace = true
+
+[features]
+# The portable build: the data folder beside the binary, no updater, no legacy migration.
+portable = []
+
+[dev-dependencies]
+tempfile.workspace = true
 
 [lints]
 workspace = true

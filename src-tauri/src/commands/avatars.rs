@@ -50,11 +50,14 @@ pub async fn set_avatars(
         .await;
     }
 
-    let dir = app
-        .path()
-        .app_cache_dir()
-        .map_err(|err| GitError::Io(format!("no cache directory: {err}")))?
-        .join("avatars");
+    let cache = match portable::layout() {
+        Some(layout) => layout.cache(),
+        None => app
+            .path()
+            .app_cache_dir()
+            .map_err(|err| GitError::Io(format!("no cache directory: {err}")))?,
+    };
+    let dir = cache.join("avatars");
 
     blocking("set_avatars", move || {
         state

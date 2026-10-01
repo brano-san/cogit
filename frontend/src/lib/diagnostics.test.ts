@@ -36,6 +36,7 @@ const info: AppInfo = {
   logPath: "C:\\Users\\a\\logs\\cogit-2026-09-23_10-00-00.log",
   logDir: "C:\\Users\\a\\logs",
   settingsPath: "C:\\Users\\a\\Roaming\\settings.json",
+  portableDir: null,
   displays: [
     { name: "\\\\.\\DISPLAY1", width: 2560, height: 1440, scale: 1.5, primary: true },
     { name: null, width: 1920, height: 1080, scale: 1, primary: false },
@@ -115,6 +116,29 @@ describe("aboutGroups", () => {
     expect(row("Log folder")).toMatchObject({ value: info.logDir, path: true });
     expect(row("Settings file")).toMatchObject({ value: info.settingsPath, path: true });
     expect(row("OS").path).toBeUndefined();
+  });
+});
+
+describe("portable build", () => {
+  const portable = { ...info, portableDir: "D:\\Tools\\Cogit\\Cogit-data" };
+
+  it("names the data folder, to be revealed like the other paths", () => {
+    expect(row("Portable data", portable)).toMatchObject({ value: portable.portableDir, path: true });
+  });
+
+  it("says why there is no update check to run", () => {
+    expect(row("Updates", portable)).toMatchObject({ value: "Portable build: replace it to update" });
+    expect(row("Updates", portable).action).toBeUndefined();
+  });
+
+  it("shows neither in a normal build", () => {
+    const labels = aboutGroups(info, context).flatMap((group) => group.rows.map((r) => r.label));
+    expect(labels).not.toContain("Portable data");
+  });
+
+  it("puts the folder in the diagnostics", () => {
+    expect(diagnosticsText(portable, context)).toContain(`Portable data: ${portable.portableDir}`);
+    expect(diagnosticsText(info, context)).not.toContain("Portable data");
   });
 });
 
