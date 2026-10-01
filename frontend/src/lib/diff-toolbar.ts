@@ -1,4 +1,5 @@
 import type { EolInfo, LineEnding, Whitespace } from "./ipc/bindings";
+import type { DiffLayout } from "./settings";
 
 const ENDING: Record<LineEnding, string> = {
   lf: "LF",
@@ -85,3 +86,23 @@ export function whitespaceButton(mode: Whitespace): {
 
 /** The label of the mode that shows everything, for the hint under a whitespace-only diff. */
 export const WHITESPACE_SHOWN_LABEL = WHITESPACE.none.label;
+
+/** The Aligned toggle of the diff bar. Pressed = Aligned (1:1, filler where a side has no
+    lines); unpressed = Compact (each side its own rows, curved connectors). The tooltip says
+    which one is on and what a click switches to. Unified has neither (R-628). */
+export function alignedButton(layout: DiffLayout): {
+  label: string;
+  title: string;
+  pressed: boolean;
+  next: DiffLayout;
+} {
+  const aligned = layout === "aligned";
+  return {
+    label: "Aligned",
+    pressed: aligned,
+    next: aligned ? "compact" : "aligned",
+    title: aligned
+      ? "ON: Aligned 1:1. Both sides stay on the same rows; hatched filler where a side has no lines.\nClick for: Compact (each side its own lines, curved connectors)."
+      : "OFF: Compact. Each side shows only its own lines, joined by curved connectors.\nClick for: Aligned 1:1 (same rows on both sides, hatched filler).\nSide by side only; Unified is not affected.",
+  };
+}

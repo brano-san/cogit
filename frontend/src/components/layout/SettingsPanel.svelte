@@ -94,6 +94,11 @@
     ["all", "Ignore all whitespace"],
   ] as const;
 
+  const DIFF_LAYOUTS = [
+    ["aligned", "Aligned (1:1, filler where a side has no lines)"],
+    ["compact", "Compact (each side its own lines)"],
+  ] as const;
+
   const PULL_MODES = [
     ["ffOnly", "Refuse and let me decide"],
     ["merge", "Merge the remote branch in"],
@@ -338,6 +343,15 @@
                 <div class="options">
                   {#each WHITESPACE as [id, title] (id)}
                     <Radio name="ignoreWhitespace" checked={draft.ignoreWhitespace === id} onchange={() => set("ignoreWhitespace", id)} label={title} />
+                  {/each}
+                </div>
+              </div>
+            {:else if field.key === "diffLayout"}
+              <div class="row choice" role="radiogroup" aria-label={field.label}>
+                <span>{field.label}</span>
+                <div class="options">
+                  {#each DIFF_LAYOUTS as [id, title] (id)}
+                    <Radio name="diffLayout" checked={draft.diffLayout === id} onchange={() => set("diffLayout", id)} label={title} />
                   {/each}
                 </div>
               </div>

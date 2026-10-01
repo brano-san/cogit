@@ -339,6 +339,12 @@ export const CATEGORIES: Category[] = [
             hint: "The divider between the two columns sets it too.",
             keywords: ["split", "columns", "divider", "left", "right"],
           },
+          {
+            key: "diffLayout",
+            label: "Rows",
+            hint: "Aligned keeps both sides on the same rows, with filler where one side has no lines. Compact shows each side's own lines, joined by curved connectors.",
+            keywords: ["aligned", "compact", "filler", "1:1", "connector", "hatch"],
+          },
         ],
       },
     ],
