@@ -314,7 +314,7 @@ describe("the Pull menu", () => {
 
   it("lists Pull, the fetches with the current remote first, Fetch All, then the options", () => {
     expect(labels(menu())).toEqual([
-      "Pull",
+      "Pull with Defaults",
       "—",
       "Fetch 'origin' (current)",
       "Fetch 'beta'",
@@ -332,7 +332,7 @@ describe("the Pull menu", () => {
     const ids = menu({ remotes: ["upstream"], current: "upstream" })
       .filter((entry) => entry.kind === "item")
       .map((entry) => entry.id);
-    expect(ids).toEqual(["pull", "fetch-remote:upstream", "fetch-remotes"]);
+    expect(ids).toEqual(["pull-defaults", "fetch-remote:upstream", "fetch-remotes"]);
   });
 
   it("ticks the remembered choices", () => {
@@ -404,9 +404,9 @@ describe("the Stash menu", () => {
 });
 
 describe("the Push menu", () => {
-  it("offers Push and Push To…", () => {
+  it("offers Push with Defaults and Push To…", () => {
     expect(menuOf("push").map((entry) => (entry.kind === "separator" ? "—" : entry.id))).toEqual([
-      "push",
+      "push-defaults",
       "push-to",
     ]);
   });
@@ -478,5 +478,14 @@ describe("before the first commit and on a clean tree", () => {
   it("stashes nothing from a clean tree, wherever Stash All is asked for", () => {
     expect(reasonOf("stash", facts())).toBe("The working tree is clean");
     expect(reasonOf("stash", facts({ unstaged: ["a.txt"] }))).toBeUndefined();
+  });
+});
+
+describe("Pull and Push with defaults", () => {
+  it("run without a dialog and need a branch like the buttons", () => {
+    for (const id of ["pull-defaults", "push-defaults"]) {
+      expect(reasonOf(id, facts({ remote: true })), id).toBe("HEAD is not on a branch");
+      expect(reasonOf(id, facts({ remote: true, branch: true })), id).toBeUndefined();
+    }
   });
 });

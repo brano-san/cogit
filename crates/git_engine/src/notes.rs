@@ -67,7 +67,7 @@ impl RepoHandle {
         blobs
     }
 
-    fn collect_noted(
+    pub(crate) fn collect_noted(
         &self,
         tree: gix::Tree<'_>,
         prefix: &str,

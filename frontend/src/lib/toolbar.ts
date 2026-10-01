@@ -191,11 +191,11 @@ function pullMenu(context: MenuContext): MenuEntry[] {
   );
   return [
     item(
-      "pull",
-      "Pull",
+      "pull-defaults",
+      "Pull with Defaults",
       prefs.pullScope === "all"
-        ? "Fetch every remote, then merge from the current one"
-        : "Fetch the current remote, then merge",
+        ? "No dialog: fetch every remote, then integrate from the current one as remembered"
+        : "No dialog: fetch the current remote, then integrate as remembered",
     ),
     { kind: "separator" },
     ...fetches,
@@ -265,7 +265,7 @@ export function menuOf(id: string, context: MenuContext = NO_MENU_CONTEXT): Menu
       return pullMenu(context);
     case "push":
       return [
-        item("push", "Push", "The current branch to its upstream"),
+        item("push-defaults", "Push with Defaults", "No dialog: the current branch, with the options remembered for this repository"),
         item("push-to", "Push To…", "Choose the remote and the ref"),
       ];
     case "sync":
@@ -395,6 +395,8 @@ const RULES: Record<string, Rule> = {
   pull: needBranch,
   // A branch without an upstream is pushed with --set-upstream (R-414).
   push: needBranch,
+  "pull-defaults": needBranch,
+  "push-defaults": needBranch,
   "push-to": needBranch,
   sync: needUpstream,
   "fetch-remote": needRemote,
