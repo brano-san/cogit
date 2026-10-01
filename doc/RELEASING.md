@@ -47,6 +47,7 @@
 | `Cogit_<версия>_x64-setup.exe` | NSIS, установка в профиль пользователя, без прав администратора |
 | `Cogit_<версия>_x64_portable.zip` | Windows portable: папка `Cogit` с `cogit.exe`, `LICENSE`, `README.txt` (без маркерных файлов); ничего не устанавливается, нужен WebView2; данные в `Cogit-data` рядом с exe |
 | `Cogit_<версия>_amd64.deb` | Linux, пакет с ярлыком и иконками |
+| `Cogit_<версия>_aarch64.dmg` | macOS (Apple Silicon), экспериментальная сборка без подписи |
 | `Cogit_<версия>_amd64.AppImage` | Linux portable: один файл, без установки; данные в `Cogit-data` рядом с файлом; без автообновления |
 | `*.sig` | подпись автообновления (только если задан `TAURI_UPDATER_KEY`) |
 | `latest.json` | манифест, который читает автообновление приложения (тоже только с подписью) |
@@ -66,10 +67,15 @@
 - **AppImage — портативная Linux-сборка:** на раннере две сборки, сначала `--bundles deb` (обычная), потом
   `--bundles appimage --features portable` без артефактов апдейтера; поэтому `latest.json` не содержит
   `linux-x86_64`.
-- **Linux:** задание `linux-x64` помечено `experimental: true` — его сбой не блокирует
-  релиз, файлов Linux в нём просто не будет. После первого зелёного прогона поставьте
-  `false` в матрице `release.yml`. AppImage собирается с `APPIMAGE_EXTRACT_AND_RUN=1` и
-  `NO_STRIP=true` (на раннере нет FUSE, `strip` спотыкается о новые секции ELF).
+- **Linux** (`linux-x64`) — обычное задание: его сбой блокирует релиз. AppImage собирается с
+  `APPIMAGE_EXTRACT_AND_RUN=1` и `NO_STRIP=true` (на раннере нет FUSE, `strip` спотыкается о
+  новые секции ELF).
+- **macOS** (`macos-arm64`, Apple Silicon) — **`experimental: true`**: сбой не блокирует релиз,
+  `.dmg` в нём просто не будет. Сборка не подписана и не нотаризована, поэтому Gatekeeper при
+  первом запуске предупредит: открыть через правую кнопку ▸ Open или
+  `xattr -dr com.apple.quarantine /Applications/Cogit.app`. Автообновления на macOS нет
+  (собирается без артефактов апдейтера). Portable-сборки для macOS нет. Подпись и нотаризация —
+  отдельные секреты Apple, здесь не настроены.
 - **Описание релиза** пишется вручную; в `release.yml` нет `--generate-notes`, и файла
   `.github/release.yml` с категориями нет. Автогенерации не должно быть.
 
@@ -88,14 +94,11 @@
 `bundle.windows.certificateThumbprint`; Tauri подписывает `cogit.exe` и оба установщика,
 метка времени — DigiCert. Подпись кода и подпись автообновления — разные ключи.
 
-## Как добавить Linux и macOS
+## Как добавить ещё платформу
 
-1. В `ci.yml` и `release.yml` раскомментировать записи матрицы и указать `bundles`
-   (`deb,appimage` / `dmg`).
-2. Linux: шаг `apt-get install libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev
-   libayatana-appindicator3-dev patchelf` в `.github/actions/setup`.
-3. В `release.yml` `--bundles` и переименование сейчас рассчитаны на Windows (`msi`,
-   `nsis`): вынести список пакетов и имена в поля матрицы.
-4. macOS: подпись и нотаризация — отдельные секреты Apple, здесь не настроены.
-5. Часть WebView2-специфики (`webview2.rs`, `#[cfg(windows)]`) на других платформах
+1. Добавить запись в матрицу `release.yml` (и `ci.yml`): `os`, `arch`, `experimental`.
+2. Задать `bundles` в выражении `BUNDLES` и ветку в шагах «Build installers and packages» и
+   «Collect and rename».
+3. Для Linux на другой архитектуре — системные пакеты в `.github/actions/setup`.
+4. Часть WebView2-специфики (`webview2.rs`, `#[cfg(windows)]`) на других платформах
    не применяется, см. R-620 в [12-risks.md](12-risks.md).
