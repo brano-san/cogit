@@ -24,15 +24,17 @@ pub struct OtherRef {
     pub oid: String,
 }
 
-/// Shown by their own groups, or not refs a history view walks.
-const LISTED_ELSEWHERE: &[&str] = &[
-    "refs/heads/",
-    "refs/remotes/",
-    "refs/tags/",
-    "refs/stash",
-    "refs/notes/",
-    "refs/replace/",
-    "refs/bisect/",
+/// Shown by their own groups.
+const LISTED_ELSEWHERE: &[&str] = &["refs/heads/", "refs/remotes/", "refs/tags/", "refs/stash"];
+
+/// Not under `refs/`: where the last reset, rebase or merge started from. `FETCH_HEAD` is a
+/// list of lines, not a ref; `AUTO_MERGE` is a tree.
+const PSEUDO_REFS: [&str; 5] = [
+    "ORIG_HEAD",
+    "MERGE_HEAD",
+    "CHERRY_PICK_HEAD",
+    "REVERT_HEAD",
+    "REBASE_HEAD",
 ];
 
 impl RepoHandle {
@@ -66,8 +68,7 @@ impl RepoHandle {
             });
         }
         found.sort_by(|a, b| a.full_name.cmp(&b.full_name));
-        // Where the last reset, rebase or merge started from; AUTO_MERGE is a tree.
-        for name in ["ORIG_HEAD", "MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD"] {
+        for name in PSEUDO_REFS {
             let Ok(mut reference) = self.repo.find_reference(name) else {
                 continue;
             };
@@ -81,6 +82,15 @@ impl RepoHandle {
             }
         }
         Ok(found)
+    }
+
+    /// The commit `ORIG_HEAD` names, if there is one: what the last reset, rebase or merge left.
+    #[must_use]
+    pub fn orig_head(&self) -> Option<String> {
+        let mut reference = self.repo.find_reference("ORIG_HEAD").ok()?;
+        let id = reference.peel_to_id().ok()?.detach();
+        self.repo.find_commit(id).ok()?;
+        Some(id.to_string())
     }
 
     /// Written by Repository ▸ Settings ▸ Tag-Grouping; an empty value turns folders off.

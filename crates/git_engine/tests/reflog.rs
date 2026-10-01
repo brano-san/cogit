@@ -337,9 +337,39 @@ fn refs_outside_branches_and_tags_are_listed_as_other_refs() {
     let mut found = open(&f).other_refs().unwrap();
     found.retain(|other| other.full_name.starts_with("refs/"));
 
-    assert_eq!(found.len(), 1);
-    assert_eq!(found[0].full_name, "refs/pull/7/head");
-    assert_eq!(found[0].oid, tip);
+    let names: Vec<&str> = found.iter().map(|o| o.full_name.as_str()).collect();
+    assert_eq!(names, ["refs/notes/commits", "refs/pull/7/head"]);
+    assert_eq!(found[1].oid, tip);
+}
+
+#[test]
+fn standard_refs_and_the_stash_are_not_other_refs() {
+    let f = test_fixtures::branched().unwrap();
+    f.git(&["tag", "v1"]).unwrap();
+    std::fs::write(f.path().join("base.txt"), "changed\n").unwrap();
+    f.git(&["stash"]).unwrap();
+
+    let mut found = open(&f).other_refs().unwrap();
+    found.retain(|other| other.full_name.starts_with("refs/"));
+
+    assert!(found.is_empty(), "{found:?}");
+}
+
+#[test]
+fn rebase_head_is_listed_while_a_rebase_is_stopped() {
+    let f = test_fixtures::branched().unwrap();
+    f.git(&["checkout", "-q", "dev"]).unwrap();
+    std::fs::write(f.path().join("main-1.txt"), "dev clash\n").unwrap();
+    f.git(&["add", "."]).unwrap();
+    f.git(&["commit", "-q", "-m", "clash"]).unwrap();
+    assert!(f.git(&["rebase", "main"]).is_err());
+
+    let found = open(&f).other_refs().unwrap();
+
+    assert!(
+        found.iter().any(|o| o.full_name == "REBASE_HEAD"),
+        "{found:?}"
+    );
 }
 
 #[test]
