@@ -10,7 +10,8 @@ on:
         required: true
 
 env:
-  # Single switch: "true" keeps a new release a draft until you publish it by hand.
+  # Single switch: "true" keeps a new release a draft. Release notes are written by hand in the
+  # draft (nothing is generated), so leave this on, or the release goes out with an empty body.
   RELEASE_DRAFT: "true"
   # .cargo/config.toml points at sccache, which CI runners do not have; rust-cache covers it.
   RUSTC_WRAPPER: ""
@@ -55,6 +56,9 @@ jobs:
     needs: meta
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
+    # A job marked experimental may fail without blocking the release: its files are simply
+    # missing from it. Flip it to false after the first green run of that platform.
+    continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
       matrix:
@@ -62,16 +66,22 @@ jobs:
           - name: windows-x64
             os: windows-latest
             arch: x64
-          # - name: linux-x64    # add bundles and system libs first, see doc/RELEASING.md
-          #   os: ubuntu-22.04
-          #   arch: amd64
+            experimental: false
+          - name: linux-x64
+            os: ubuntu-24.04
+            arch: amd64
+            experimental: true
           # - name: macos-arm64
           #   os: macos-latest
           #   arch: aarch64
+          #   experimental: true
     env:
       VERSION: ${{ needs.meta.outputs.version }}
       ARCH: ${{ matrix.arch }}
-      BUNDLES: ${{ needs.meta.outputs.bundles_windows }}
+      BUNDLES: ${{ matrix.name == 'windows-x64' && needs.meta.outputs.bundles_windows || 'deb,appimage' }}
+      # linuxdeploy (AppImage): no FUSE on the runner, and strip chokes on newer ELF sections.
+      APPIMAGE_EXTRACT_AND_RUN: "1"
+      NO_STRIP: "true"
       # Optional secrets: with them empty the build is unsigned.
       WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
       WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
@@ -99,33 +109,80 @@ jobs:
           Remove-Item $pfx -Force
           "CERT_THUMBPRINT=$($cert.Thumbprint)" >> $env:GITHUB_ENV
 
-      - name: Build installers
+      - name: Write the build configs
         shell: bash
         run: |
           updater=false
           [ -n "$TAURI_SIGNING_PRIVATE_KEY" ] && updater=true
-          conf="$RUNNER_TEMP/release.conf.json"
+          [ "$updater" = true ] || echo "::notice::No TAURI_UPDATER_KEY: updater signatures are skipped"
+          [ -n "${CERT_THUMBPRINT:-}" ] || [ "$RUNNER_OS" != Windows ] || echo "::notice::No WINDOWS_CERT_BASE64: Windows files are unsigned"
+          # Full config for the installers/packages; the plain one for the portable exe (no bundler runs).
           jq -n --argjson upd "$updater" --arg thumb "${CERT_THUMBPRINT:-}" '
             {bundle: ({createUpdaterArtifacts: $upd} + (if $thumb == "" then {} else
               {windows: {certificateThumbprint: $thumb, digestAlgorithm: "sha256",
-                         timestampUrl: "http://timestamp.digicert.com"}} end))}' > "$conf"
-          [ "$updater" = true ] || echo "::notice::No TAURI_UPDATER_KEY: updater signatures are skipped"
-          [ -n "${CERT_THUMBPRINT:-}" ] || echo "::notice::No WINDOWS_CERT_BASE64: installers are unsigned"
-          npm run tauri build -- --ci --bundles "$BUNDLES" --config "$(cygpath -m "$conf")"
+                         timestampUrl: "http://timestamp.digicert.com"}} end))}' > "$RUNNER_TEMP/release.conf.json"
+          echo '{"bundle":{"createUpdaterArtifacts":false}}' > "$RUNNER_TEMP/plain.conf.json"
+          native() { cygpath -m "$1" 2>/dev/null || echo "$1"; }
+          {
+            echo "RELEASE_CONF=$(native "$RUNNER_TEMP/release.conf.json")"
+            echo "PLAIN_CONF=$(native "$RUNNER_TEMP/plain.conf.json")"
+          } >> "$GITHUB_ENV"
+
+      # The portable exe is built first and without the bundler: the bundler patches its bundle
+      # type (nsis/msi) into target/release/cogit.exe, and the in-app updater would then treat a
+      # portable copy as an installed one.
+      - name: Build the portable executable (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          npm run tauri build -- --ci --no-bundle --config "$PLAIN_CONF"
+          mkdir -p portable/Cogit
+          cp target/release/cogit.exe portable/Cogit/cogit.exe
+          cp LICENSE portable/Cogit/LICENSE
+
+      - name: Sign and zip the portable executable (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $exe = 'portable\Cogit\cogit.exe'
+          if ($env:CERT_THUMBPRINT) {
+            $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
+              Sort-Object FullName -Descending | Select-Object -First 1
+            & $signtool.FullName sign /sha1 $env:CERT_THUMBPRINT /fd sha256 /tr http://timestamp.digicert.com /td sha256 $exe
+            if ($LASTEXITCODE -ne 0) { throw "signtool failed with $LASTEXITCODE" }
+          }
+          Set-Content -Path 'portable\Cogit\README.txt' -Encoding utf8 -Value @(
+            'Cogit portable: run cogit.exe, nothing is installed.',
+            'It needs the Microsoft Edge WebView2 Runtime (preinstalled on Windows 11).',
+            'Settings and logs are kept in %APPDATA%\Cogit and %LOCALAPPDATA%\Cogit.',
+            'Automatic updates are for the installed version only.')
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Compress-Archive -Path 'portable\Cogit' -DestinationPath "dist\Cogit_$($env:VERSION)_$($env:ARCH)_portable.zip" -Force
+
+      - name: Build installers and packages
+        shell: bash
+        run: npm run tauri build -- --ci --bundles "$BUNDLES" --config "$RELEASE_CONF"
 
       - name: Collect and rename
         shell: bash
         run: |
           mkdir -p dist
-          collect() {  # kind, extension, final name
+          collect() {  # bundle kind, extension, final name
             [[ "$BUNDLES" == *"$1"* ]] || return 0
             src=$(ls target/release/bundle/"$1"/*."$2" 2>/dev/null | head -n1 || true)
             [ -n "$src" ] || { echo "::error::no .$2 produced in target/release/bundle/$1"; exit 1; }
             cp "$src" "dist/$3"
             if [ -f "$src.sig" ]; then cp "$src.sig" "dist/$3.sig"; fi
           }
-          collect msi msi "Cogit_${VERSION}_${ARCH}.msi"
-          collect nsis exe "Cogit_${VERSION}_${ARCH}-setup.exe"
+          if [ "$RUNNER_OS" = Windows ]; then
+            collect msi msi "Cogit_${VERSION}_${ARCH}.msi"
+            collect nsis exe "Cogit_${VERSION}_${ARCH}-setup.exe"
+          else
+            collect deb deb "Cogit_${VERSION}_${ARCH}.deb"
+            # The AppImage is the portable Linux build: one file, no installation.
+            collect appimage AppImage "Cogit_${VERSION}_${ARCH}.AppImage"
+            chmod +x "dist/Cogit_${VERSION}_${ARCH}.AppImage"
+          fi
           ls -l dist
 
       - uses: actions/upload-artifact@v4
@@ -157,12 +214,17 @@ jobs:
         shell: bash
         working-directory: dist
         run: |
-          # latest.json is what the app's updater endpoint reads; it needs the updater signature.
-          sig=$(ls *-setup.exe.sig 2>/dev/null | head -n1 || true)
-          if [ -n "$sig" ]; then
-            jq -n --arg v "$VERSION" --arg d "$(date -u +%FT%TZ)" --arg s "$(cat "$sig")" \
-              --arg u "https://github.com/$GH_REPO/releases/download/$TAG/${sig%.sig}" \
-              '{version: $v, notes: "", pub_date: $d, platforms: {"windows-x86_64": {signature: $s, url: $u}}}' > latest.json
+          # latest.json is what the app's updater endpoint reads; an entry needs its updater signature.
+          win=$(ls *-setup.exe.sig 2>/dev/null | head -n1 || true)
+          lin=$(ls *.AppImage.sig 2>/dev/null | head -n1 || true)
+          if [ -n "$win$lin" ]; then
+            base="https://github.com/$GH_REPO/releases/download/$TAG"
+            jq -n --arg v "$VERSION" --arg d "$(date -u +%FT%TZ)" \
+              --arg ws "$([ -n "$win" ] && cat "$win")" --arg wu "$base/${win%.sig}" \
+              --arg ls "$([ -n "$lin" ] && cat "$lin")" --arg lu "$base/${lin%.sig}" \
+              '{version: $v, notes: "", pub_date: $d, platforms:
+                 ((if $ws != "" then {"windows-x86_64": {signature: $ws, url: $wu}} else {} end) +
+                  (if $ls != "" then {"linux-x86_64": {signature: $ls, url: $lu}} else {} end))}' > latest.json
           else
             echo "::notice::No updater signature: latest.json is not published"
           fi
@@ -176,7 +238,8 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG exists: keeping its notes and state, replacing assets"
           else
-            flags=(--verify-tag --title "Cogit $VERSION" --generate-notes)
+            # No generated notes on purpose: the body stays empty until it is written by hand.
+            flags=(--verify-tag --title "Cogit $VERSION" --notes "")
             [ "$PRERELEASE" = true ] && flags+=(--prerelease)
             [ "$RELEASE_DRAFT" = true ] && flags+=(--draft)
             gh release create "$TAG" "${flags[@]}"
