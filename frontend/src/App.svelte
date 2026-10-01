@@ -1,7 +1,7 @@
 <script lang="ts">
   import { tick, untrack } from "svelte";
   import { open as openFolderDialog } from "@tauri-apps/plugin-dialog";
-  import { checkForUpdates, message, type UpdateOutcome } from "$lib/updates";
+  import { checkForUpdates, message, PORTABLE_UPDATE_NOTE, type UpdateOutcome } from "$lib/updates";
   import { leaveRepositoryDialogs } from "$lib/leaving";
   import { retryOf } from "$lib/retry";
   import { parseQuery } from "$lib/query";
@@ -362,6 +362,10 @@
   /** Help ▸ Check for Updates, and the start-up check when the setting is on. The
       plugin is loaded on demand: nobody pays for the updater until it is wanted. */
   async function runUpdateCheck(quiet = false): Promise<void> {
+    if (info?.portableDir) {
+      if (!quiet) notices.inform("Check for Updates", PORTABLE_UPDATE_NOTE);
+      return;
+    }
     const [{ check }, { relaunch }] = await Promise.all([
       import("@tauri-apps/plugin-updater"),
       import("@tauri-apps/plugin-process"),
@@ -422,13 +426,15 @@
       suppressBrowserFind(window);
       suppressBrowserNavigation(window);
       taskbar.start();
-      getAppInfo()
+      const infoRead = getAppInfo()
         .then((result) => (info = result))
         .catch((err) => errors.report(err, "Could not read the application info"));
       void remoteOps.detectLfs();
-      const settingsRead = settings.load().then(() => {
+      const settingsRead = settings.load().then(async () => {
         diff.whitespace = settings.current.ignoreWhitespace;
         // Only after the settings are read: the tick is what permits the network call.
+        // And after the info: a portable build never checks.
+        await infoRead;
         if (settings.current.autoUpdate) void runUpdateCheck(true);
       });
       void settings.loadBindings();

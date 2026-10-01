@@ -98,7 +98,9 @@ export function aboutGroups(info: AppInfo, context: Context): AboutGroup[] {
         { label: "Version", value: info.version },
         commitRow(info),
         { label: "Built", value: buildDate(info.builtAt) },
-        updateRow(context.update, info.repository),
+        info.portableDir
+          ? { label: "Updates", value: "Portable build: replace it to update" }
+          : updateRow(context.update, info.repository),
       ],
     },
     {
@@ -121,6 +123,9 @@ export function aboutGroups(info: AppInfo, context: Context): AboutGroup[] {
     {
       title: "Files",
       rows: [
+        ...(info.portableDir
+          ? [{ label: "Portable data", value: info.portableDir, path: true }]
+          : []),
         { label: "Log folder", value: info.logDir, path: true },
         { label: "Settings file", value: info.settingsPath, path: true },
       ],
@@ -161,6 +166,7 @@ export function diagnosticsText(info: AppInfo, context: Context): string {
     ["Log file", info.logPath],
     ["Settings file", info.settingsPath],
   );
+  if (info.portableDir) lines.push(["Portable data", info.portableDir]);
   return [
     ...lines.map(([key, value]) => `${key}: ${value}`),
     ...displayLines(info),

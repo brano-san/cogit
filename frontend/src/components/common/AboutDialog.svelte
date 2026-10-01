@@ -53,7 +53,8 @@
   }
 
   function folderHint(row: AboutRow): string {
-    return row.label === "Log folder" ? "Open log folder" : "Open settings folder";
+    if (row.label === "Log folder") return "Open log folder";
+    return row.label === "Portable data" ? "Open data folder" : "Open settings folder";
   }
 
   /** A click that ends a drag across the text is a selection, not a request to open. */

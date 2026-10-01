@@ -26,6 +26,10 @@ export function describe(found: UpdateHandle | null): UpdateOutcome {
   return { kind: "available", version: found.version, notes: found.body?.trim() ?? "" };
 }
 
+/** A portable copy never replaces itself: the user swaps the folder, the data stays. */
+export const PORTABLE_UPDATE_NOTE =
+  "This is the portable build of Cogit and it never updates itself. Download the new version from the releases page and replace this one; your settings stay in the Cogit-data folder beside it.";
+
 export function message(outcome: UpdateOutcome): string {
   switch (outcome.kind) {
     case "none":

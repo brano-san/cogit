@@ -120,6 +120,10 @@ pub fn open_with_menu<R: tauri::Runtime>(
     if let Some(args) = browser_args(&app.config().app.windows) {
         builder = builder.additional_browser_args(&args);
     }
+    // The profile is shared by every window: the main one is created with this folder too.
+    if let Some(layout) = portable::layout() {
+        builder = builder.data_directory(layout.local());
+    }
     let window = builder.build()?;
     // Not shown yet, so the move is invisible. `.center()` alone picks the primary monitor.
     if let Some(main) = tauri::Manager::get_webview_window(app, MAIN) {

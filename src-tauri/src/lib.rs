@@ -11,6 +11,9 @@ mod logging;
 mod menu;
 mod native_theme;
 mod operations;
+mod portable_mode;
+#[cfg_attr(not(feature = "portable"), allow(dead_code))]
+mod portable_window_state;
 mod profile;
 mod recycle_bin;
 #[cfg(windows)]
@@ -363,17 +366,24 @@ pub fn export_bindings() -> anyhow::Result<()> {
 }
 
 pub fn run() -> anyhow::Result<()> {
+    // First: the environment is read once by everything that follows (portable build only).
+    let portable = portable_mode::activate()?;
+
     // Before GTK starts: the Wayland app_id and the X11 WM_CLASS follow the program name,
     // and the shell matches them to `cogit.desktop` for the icon.
     #[cfg(target_os = "linux")]
     gtk::glib::set_prgname(Some(desktop_entry::APP_NAME));
 
-    // Before the webview exists: its profile lives in the folder being renamed.
-    let migrated =
+    // Before the webview exists: its profile lives in the folder being renamed. A portable
+    // build has no earlier install to carry over and touches no system folder.
+    let migrated = if portable.is_some() {
+        Vec::new()
+    } else {
         app_state::legacy_dirs::migrate_legacy_dirs(&app_state::legacy_dirs::app_folder_pairs(
             app_state::legacy_dirs::LEGACY_IDENTIFIER,
             app_state::legacy_dirs::IDENTIFIER,
-        ));
+        ))
+    };
 
     let specta_builder = specta_builder();
 
@@ -382,24 +392,34 @@ pub fn run() -> anyhow::Result<()> {
         eprintln_fallback(&format!("failed to export IPC bindings: {err}"));
     }
 
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_clipboard_manager::init())
-        .plugin(
-            // Without VISIBLE: the plugin would show the window as it is created, before
-            // `setup` settles its geometry and subscribes to its failures (R-113, R-118).
-            tauri_plugin_window_state::Builder::new()
-                .with_filter(child_window::is_main)
-                .with_state_flags(
-                    tauri_plugin_window_state::StateFlags::all()
-                        - tauri_plugin_window_state::StateFlags::VISIBLE
-                        // Decided by `window_chrome`, not remembered.
-                        - tauri_plugin_window_state::StateFlags::DECORATIONS,
-                )
-                .build(),
-        )
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_clipboard_manager::init());
+    // Both write to the system's folders (the plugin creates the config folder when it
+    // saves; an update replaces the installed binary): a portable build has its own.
+    if portable.is_none() {
+        builder = builder
+            .plugin(
+                // Without VISIBLE: the plugin would show the window as it is created, before
+                // `setup` settles its geometry and subscribes to its failures (R-113, R-118).
+                tauri_plugin_window_state::Builder::new()
+                    .with_filter(child_window::is_main)
+                    .with_state_flags(
+                        tauri_plugin_window_state::StateFlags::all()
+                            - tauri_plugin_window_state::StateFlags::VISIBLE
+                            // Decided by `window_chrome`, not remembered.
+                            - tauri_plugin_window_state::StateFlags::DECORATIONS,
+                    )
+                    .build(),
+            )
+            .plugin(tauri_plugin_updater::Builder::new().build());
+    }
+    let mut context = tauri::generate_context!();
+    if portable.is_some() {
+        portable_mode::hold_config_windows(&mut context);
+    }
+    builder
         .plugin(tauri_plugin_process::init())
         .on_window_event(|window, event| {
             // A child window closing is not the app closing (R-201).
@@ -424,8 +444,10 @@ pub fn run() -> anyhow::Result<()> {
         .setup(move |app| {
             #[cfg(target_os = "linux")]
             gtk::Window::set_default_icon_name(desktop_entry::APP_NAME);
-            let log_dir = app.path().app_log_dir()?;
-            let config_dir = app.path().app_config_dir()?;
+            let (log_dir, config_dir) = match portable {
+                Some(layout) => (layout.logs(), layout.config()),
+                None => (app.path().app_log_dir()?, app.path().app_config_dir()?),
+            };
             let (guard, log_path) = logging::init(&log_dir, &config_dir)?;
             logging::install_panic_hook(&log_dir);
             app_state::legacy_dirs::log_outcomes(&migrated);
@@ -435,6 +457,7 @@ pub fn run() -> anyhow::Result<()> {
 
             tracing::info!(
                 version = env!("CARGO_PKG_VERSION"),
+                portable = portable.map(|layout| layout.root().display().to_string()),
                 webview2 = webview2_version().as_deref().unwrap_or("unknown"),
                 build = if cfg!(debug_assertions) { "debug" } else { "release" },
                 log_dir = %log_dir.display(),
@@ -442,9 +465,7 @@ pub fn run() -> anyhow::Result<()> {
             );
 
             let state = Arc::new(AppState::new());
-            if let Ok(dir) = app.path().app_config_dir() {
-                state.use_preset_dir(dir.join("presets"));
-            }
+            state.use_preset_dir(config_dir.join("presets"));
             app.manage(AppContext {
                 state: Arc::clone(&state),
                 log_path,
@@ -468,6 +489,16 @@ pub fn run() -> anyhow::Result<()> {
             app.manage(keymap);
             app.manage(key_capture::KeyCapture::default());
             app.on_menu_event(|app, event| dispatch_menu_command(app, &event.id().0));
+
+            if let Some(layout) = portable {
+                portable_mode::create_config_windows(app, layout)?;
+                if let Some(window) = app.get_webview_window(child_window::MAIN) {
+                    portable_window_state::install(
+                        &window,
+                        layout.config().join(portable_window_state::FILE),
+                    );
+                }
+            }
 
             if let Some(window) = app.get_webview_window("main") {
                 // Subscribed before the window is shown: a renderer that dies during the first
@@ -497,7 +528,7 @@ pub fn run() -> anyhow::Result<()> {
             }
             Ok(())
         })
-        .build(tauri::generate_context!())?
+        .build(context)?
         .run(|app, event| {
             if matches!(event, tauri::RunEvent::ExitRequested { .. }) {
                 shutdown::exiting(app);
