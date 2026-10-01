@@ -1,13 +1,13 @@
 import {
   asCogitError,
-  commandNotice,
   errorNotice,
   pushError,
   queueOf,
   warningNotice,
   type Notice,
 } from "$lib/notices";
-import { commandOutcome, type CommandNotice } from "$lib/ipc";
+import type { CommandNotice } from "$lib/ipc";
+import { errorWindow } from "$stores/error-window.svelte";
 import { health } from "$stores/health.svelte";
 import { untrack } from "svelte";
 
@@ -19,7 +19,6 @@ class NoticeStore {
   #key = $state<string | null>(null);
   #index = $state(0);
   #seq = 0;
-  #loading = new Set<number>();
 
   get all(): Notice[] {
     return queueOf(this.#errors, health.warnings.map(warningNotice), this.#results);
@@ -47,6 +46,11 @@ class NoticeStore {
       const cogit = asCogitError(error);
       // The user stopped it; the journal's warning already says so.
       if (!cogit || cogit.detail.kind === "cancelled") return;
+      // A failed git command is the Errors window's, with its whole output (R-639).
+      if (cogit.detail.kind === "command") {
+        void errorWindow.command(cogit.detail.data);
+        return;
+      }
       this.#seq += 1;
       this.#queueError(errorNotice(cogit, title, this.#seq));
     });
@@ -74,19 +78,9 @@ class NoticeStore {
     this.report(new Error(text), title);
   }
 
-  /** A failed git command. It arrives twice — as the event and as the rejected call —
-      and is queued once. */
+  /** A failed git command goes to the Errors window, not to a toast. */
   async command(event: CommandNotice): Promise<void> {
-    const key = `command:${event.id}`;
-    const known = untrack(() => this.#errors.some((held) => held.key === key));
-    if (known || this.#loading.has(event.id)) return;
-
-    this.#loading.add(event.id);
-    const run = await commandOutcome(event.id).catch(() => null);
-    this.#loading.delete(event.id);
-    this.#queueError(
-      commandNotice(run ?? { ...event, command: "", exitCode: null, stdout: "", stderr: "" }),
-    );
+    await errorWindow.command(event);
   }
 
   step(delta: -1 | 1): void {

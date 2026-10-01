@@ -37,6 +37,7 @@ const failed = (id: number, summary?: string) => ({
   operation: "Push",
   severity: "failure" as const,
   summary: summary ?? "error: failed to push some refs",
+  stoppedOnConflicts: false,
 });
 
 const ignoreCase = { kind: "ignoreCaseMismatch", configured: false, actual: true } as const;
@@ -203,7 +204,7 @@ describe("the notification window", () => {
   });
 });
 
-describe("a failed git command in the notification window", () => {
+describe("a git command and the notification window", () => {
   beforeEach(async () => {
     notices.dismissAll();
     commands.commandOutcome.mockReset();
@@ -211,54 +212,11 @@ describe("a failed git command in the notification window", () => {
     await warn();
   });
 
-  it("is titled by the operation, with its output and a way to the output window", async () => {
+  it("sends a failed command to the Errors window and queues no toast", async () => {
     await notices.command(failed(7));
 
-    expect(notices.current?.title).toBe("Push failed");
-    expect(notices.current?.output).toContain("hint: Updates were rejected");
-    expect(notices.current?.record).toBe(7);
-  });
-
-  it("copies the command and the exit code with the output, like the output window", async () => {
-    await notices.command(failed(7));
-
-    const report = notices.current?.report ?? "";
-    expect(report).toContain("Command: git push origin master");
-    expect(report).toContain("Exit code: 1");
-    expect(report).toContain("hint: Updates were rejected");
-  });
-
-  it("counts the event and the rejected call as one failure", async () => {
-    const rejected = new CogitError({ kind: "command", data: run(7) });
-    await Promise.all([notices.command(failed(7)), errors.report(rejected, "Could not push")]);
-
-    expect(notices.all).toHaveLength(1);
-  });
-
-  it("counts a repeat instead of queueing it again", async () => {
-    await notices.command(failed(7));
-    await notices.command(failed(8));
-
-    expect(notices.all).toHaveLength(1);
-    expect(notices.current?.repeats).toBe(2);
-    expect(notices.current?.record).toBe(8);
-  });
-
-  it("keeps a failure whose record already rotated out of the journal", async () => {
-    commands.commandOutcome.mockResolvedValue(null);
-    await notices.command(failed(7));
-
-    expect(notices.current?.title).toBe("Push failed");
-    expect(notices.current?.body).toContain("failed to push");
-  });
-
-  it("points to the output window instead of holding a hook's thousand lines", async () => {
-    const long = Array.from({ length: 2000 }, (_, i) => `line ${i}`).join("\n");
-    commands.commandOutcome.mockResolvedValue({ ...run(7), stderr: long });
-    await notices.command(failed(7));
-
-    expect(notices.current?.output).toBeUndefined();
-    expect(notices.current?.outputLines).toBe(2000);
+    expect(notices.all).toHaveLength(0);
+    expect(notices.errorCount).toBe(0);
   });
 
   it("tells how an operation ended without counting it as an error", () => {

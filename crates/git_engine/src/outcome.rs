@@ -40,6 +40,41 @@ pub fn severity_of(exit_code: Option<i32>, stderr: &str) -> Severity {
     }
 }
 
+/// Commands that stop halfway on conflicts instead of failing: git exits 1 for them and
+/// leaves the unmerged paths to the user. Exit 128 is a refusal (`fatal:`), never this.
+#[must_use]
+pub fn stops_on_conflicts(command_line: &str, exit_code: Option<i32>) -> bool {
+    if exit_code != Some(1) {
+        return false;
+    }
+    let mut words = after_environment(command_line).split_whitespace();
+    let mut subcommand = None;
+    while let Some(word) = words.next() {
+        match word {
+            "git" => {}
+            "-c" | "--git-dir" | "--work-tree" => {
+                words.next();
+            }
+            _ if word.starts_with('-') => {}
+            _ => {
+                subcommand = Some(word);
+                break;
+            }
+        }
+    }
+    let rest: Vec<&str> = words.collect();
+    match subcommand {
+        Some("stash") => rest
+            .iter()
+            .find(|w| !w.starts_with('-'))
+            .is_some_and(|w| matches!(*w, "apply" | "pop")),
+        Some("merge" | "rebase" | "cherry-pick" | "revert" | "pull" | "am") => {
+            !rest.iter().any(|w| matches!(*w, "--abort" | "--quit"))
+        }
+        _ => false,
+    }
+}
+
 const MARKERS: &[&str] = &["error:", "fatal:", "failed to", "rejected", "! [rejected]"];
 const MAX_CHARS: usize = 160;
 const MAX_LINES: usize = 2;
