@@ -108,12 +108,22 @@ export const commands = {
 	 *  frontend formats every other timestamp from a number already.
 	 */
 	startedAtMs: number,
+	/**
+	 *  The command exited with 1 and left unmerged paths in the index: a stash, merge,
+	 *  rebase, cherry-pick, revert, pull or am that went as far as it could and handed the
+	 *  rest to the user. Set when the record is journaled, from the index.
+	 */
+	stoppedOnConflicts: boolean,
 } | null>("command_outcome", { id }),
 	/**
 	 *  Closes whichever window asked. In Rust rather than through `getCurrentWindow()`, which
 	 *  keeps the call out of the webview (R-86); off the main thread for the reason in R-201.
 	 */
 	closeThisWindow: () => typedError<null, GitError>(__TAURI_INVOKE("close_this_window")),
+	/**  A failed command opens the Errors window, or shows the one that is open. */
+	openErrorsWindow: () => typedError<null, GitError>(__TAURI_INVOKE("open_errors_window")),
+	/**  `Show conflicts` in the Errors window: the main window comes forward. */
+	focusMainWindow: () => typedError<null, GitError>(__TAURI_INVOKE("focus_main_window")),
 	commandProblems: () => __TAURI_INVOKE<number>("command_problems"),
 	clearCommandLog: () => __TAURI_INVOKE<void>("clear_command_log"),
 	safetyLog: () => __TAURI_INVOKE<SafetyEntry[]>("safety_log"),
@@ -135,6 +145,13 @@ export const commands = {
 	deleteTag: (repo: RepoId, name: string) => typedError<null, GitError>(__TAURI_INVOKE("delete_tag", { repo, name })),
 	deleteRemoteTag: (repo: RepoId, remote: string, name: string) => typedError<null, GitError>(__TAURI_INVOKE("delete_remote_tag", { repo, remote, name })),
 	resetTo: (repo: RepoId, rev: string, mode: ResetMode) => typedError<null, GitError>(__TAURI_INVOKE("reset_to", { repo, rev, mode })),
+	undoRewrite: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("undo_rewrite", { repo })),
+	undoRewriteInfo: (repo: RepoId) => typedError<{
+	orig: string,
+	head: string,
+	/**  Staged or unstaged changes in tracked files. */
+	dirty: boolean,
+} | null, GitError>(__TAURI_INVOKE("undo_rewrite_info", { repo })),
 	isAncestor: (repo: RepoId, ancestor: string, descendant: string) => typedError<boolean, GitError>(__TAURI_INVOKE("is_ancestor", { repo, ancestor, descendant })),
 	compareFiles: (repo: RepoId, from: string, to: string) => typedError<FileEntry_Serialize[], GitError>(__TAURI_INVOKE("compare_files", { repo, from, to })),
 	tagNameProblem: (repo: RepoId, name: string) => typedError<string | null, GitError>(__TAURI_INVOKE("tag_name_problem", { repo, name })),
@@ -150,6 +167,16 @@ export const commands = {
 	fetch: (repo: RepoId, remote: string, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("fetch", { repo, remote, onProgress })),
 	pull: (repo: RepoId, remote: string, ffOnly: boolean, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("pull", { repo, remote, ffOnly, onProgress })),
 	push: (repo: RepoId, remote: string, force: boolean, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("push", { repo, remote, force, onProgress })),
+	/**  Fetch Only of the Pull dialog; the answer names notes that diverged. */
+	fetchWith: (repo: RepoId, remote: string, options: FetchOptions, onProgress: Channel<string>) => typedError<NotesFetch, GitError>(__TAURI_INVOKE("fetch_with", { repo, remote, options, onProgress })),
+	pullWith: (repo: RepoId, remote: string, options: PullOptions, onProgress: Channel<string>) => typedError<NotesFetch, GitError>(__TAURI_INVOKE("pull_with", { repo, remote, options, onProgress })),
+	pushWith: (repo: RepoId, options: PushOptions, onProgress: Channel<string>) => typedError<PushOutcome, GitError>(__TAURI_INVOKE("push_with", { repo, options, onProgress })),
+	pushNotes: (repo: RepoId, remote: string, onProgress: Channel<string>) => typedError<PushOutcome, GitError>(__TAURI_INVOKE("push_notes", { repo, remote, onProgress })),
+	mergeNotes: (repo: RepoId, remote: string, namespace: string) => typedError<null, GitError>(__TAURI_INVOKE("merge_notes", { repo, remote, namespace })),
+	/**  The commits Push would send (the list capped at `limit`) and the notes the remote lacks. */
+	pushPreview: (repo: RepoId, local: string, remote: string, branch: string, limit: number) => typedError<PushPreview, GitError>(__TAURI_INVOKE("push_preview", { repo, local, remote, branch, limit })),
+	networkDefaults: (repo: RepoId) => typedError<NetworkDefaults, GitError>(__TAURI_INVOKE("network_defaults", { repo })),
+	saveNetworkDefaults: (repo: RepoId, defaults: NetworkDefaults) => typedError<null, GitError>(__TAURI_INVOKE("save_network_defaults", { repo, defaults })),
 	/**
 	 *  Stops the fetch, pull or push running as queue operation `operation`. `false` when
 	 *  there is nothing to stop. Off the main thread: stopping waits for `taskkill`.
@@ -259,7 +286,13 @@ export const commands = {
 	 */
 	hasSubmodules: boolean,
 } | null, GitError>(__TAURI_INVOKE("worktree_holding", { repo, branch })),
-	addWorktree: (repo: RepoId, path: string, branch: string, create: boolean, base: string | null) => typedError<null, GitError>(__TAURI_INVOKE("add_worktree", { repo, path, branch, create, base })),
+	addWorktree: (repo: RepoId, path: string, branch: WorktreeBranch) => typedError<null, GitError>(__TAURI_INVOKE("add_worktree", { repo, path, branch })),
+	/**  Whether text names a commit, with a preview of it; a "no" is data, not an error. */
+	checkRevision: (repo: RepoId, rev: string) => typedError<RevisionCheck, GitError>(__TAURI_INVOKE("check_revision", { repo, rev })),
+	/**  `None` when `git check-ref-format --branch` accepts the name, else git's complaint. */
+	checkBranchName: (repo: RepoId, name: string) => typedError<string | null, GitError>(__TAURI_INVOKE("check_branch_name", { repo, name })),
+	/**  Why a folder cannot take a new worktree (a file, not empty), or `None`. */
+	worktreeFolderProblem: (path: string) => typedError<string | null, GitError>(__TAURI_INVOKE("worktree_folder_problem", { path })),
 	removeWorktree: (repo: RepoId, path: string, force: boolean) => typedError<null, GitError>(__TAURI_INVOKE("remove_worktree", { repo, path, force })),
 	pruneWorktrees: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("prune_worktrees", { repo })),
 	/**  A folder of Branches: one queued step, each ref reported on its own. */
@@ -269,7 +302,8 @@ export const commands = {
 	deleteWorktreeLeftover: (repo: RepoId, path: string) => typedError<null, GitError>(__TAURI_INVOKE("delete_worktree_leftover", { repo, path })),
 	/**  A worktree in the panels, not in the Repositories list (R-184). */
 	openWorktree: (owner: RepoId, path: string) => typedError<RepoSummary, GitError>(__TAURI_INVOKE("open_worktree", { owner, path })),
-	worktreeChanges: (repo: RepoId, path: string) => typedError<FileEntry_Serialize[], GitError>(__TAURI_INVOKE("worktree_changes", { repo, path })),
+	/**  What removing a worktree would lose, read as three parallel reads (R-675). Cancellable. */
+	scanWorktreeRemoval: (repo: RepoId, path: string, onChunk: Channel<WorktreeScanChunk_Deserialize>) => typedError<null, GitError>(__TAURI_INVOKE("scan_worktree_removal", { repo, path, onChunk })),
 	pruneWorktree: (repo: RepoId, path: string) => typedError<null, GitError>(__TAURI_INVOKE("prune_worktree", { repo, path })),
 	repairWorktree: (repo: RepoId, path: string) => typedError<null, GitError>(__TAURI_INVOKE("repair_worktree", { repo, path })),
 	lockWorktree: (repo: RepoId, path: string, reason: string | null) => typedError<null, GitError>(__TAURI_INVOKE("lock_worktree", { repo, path, reason })),
@@ -280,9 +314,24 @@ export const commands = {
 	flowFinish: (repo: RepoId, kind: FlowKind, name: string, tag: string | null) => typedError<null, GitError>(__TAURI_INVOKE("flow_finish", { repo, kind, name, tag })),
 	/**  The three sides merged into regions, for the four-panel view (doc/08-diff-engine.md §8). */
 	mergePreview: (repo: RepoId, path: string) => typedError<Region[], GitError>(__TAURI_INVOKE("merge_preview", { repo, path })),
-	/**  A window of its own for one conflicted file, so the merge is not squeezed into a panel. */
-	openMergeWindow: (url: string, title: string) => typedError<null, GitError>(__TAURI_INVOKE("open_merge_window", { url, title })),
-	/**  Told by the merge window once it has written the resolution. */
+	/**
+	 *  The Conflict Solver for one file: a window of its own, or the one already open for it.
+	 *  `external_tool` has it start the merge tool as soon as it is up.
+	 */
+	openSolverWindow: (repo: RepoId, path: string, externalTool: boolean) => typedError<null, GitError>(__TAURI_INVOKE("open_solver_window", { repo, path, externalTool })),
+	/**  The three sides, merged by stretch, with the names of "ours" and "theirs". */
+	solverData: (repo: RepoId, path: string) => typedError<SolverData, GitError>(__TAURI_INVOKE("solver_data", { repo, path })),
+	/**  `git add` of a working file settled outside the solver (an external tool). */
+	markConflictResolved: (repo: RepoId, path: string) => typedError<null, GitError>(__TAURI_INVOKE("mark_conflict_resolved", { repo, path })),
+	/**
+	 *  Starts the external tool and returns at once; `MergeToolFinished` says how it ended.
+	 *  No program means git's `merge.tool`.
+	 */
+	launchMergeTool: (repo: RepoId, path: string, program: string, args: string) => typedError<null, GitError>(__TAURI_INVOKE("launch_merge_tool", { repo, path, program, args })),
+	cancelMergeTool: (repo: RepoId, path: string) => typedError<boolean, GitError>(__TAURI_INVOKE("cancel_merge_tool", { repo, path })),
+	/**  The files of `repo` an external tool is open on: a solver reloaded meanwhile stays locked. */
+	mergeToolsRunning: (repo: RepoId) => typedError<string[], GitError>(__TAURI_INVOKE("merge_tools_running", { repo })),
+	/**  Told by the solver window once it has written the resolution. */
 	mergeResolved: (repo: RepoId, path: string) => typedError<null, GitError>(__TAURI_INVOKE("merge_resolved", { repo, path })),
 	/**  The shared branches that already hold this commit; empty means it is safe to rewrite. */
 	protectingRefs: (repo: RepoId, rev: string) => typedError<string[], GitError>(__TAURI_INVOKE("protecting_refs", { repo, rev })),
@@ -334,6 +383,11 @@ export const commands = {
 	presentOnDisk: (repo: RepoId, paths: string[]) => typedError<string[], GitError>(__TAURI_INVOKE("present_on_disk", { repo, paths })),
 	/**  Not `async`: touching menu items off the main thread deadlocks on Windows. */
 	setMenuState: (disabled: string[], checked: string[]) => __TAURI_INVOKE<void>("set_menu_state", { disabled, checked }),
+	/**
+	 *  The page's taskbar signals, merged by `app_state::taskbar::resolve`. Main window only:
+	 *  a child window's call is ignored rather than painting the shared button.
+	 */
+	setTaskbarState: (signals: TaskbarSignals) => __TAURI_INVOKE<void>("set_taskbar_state", { signals }),
 	/**
 	 *  The webview's own clock: how long the user waited between an action and the screen
 	 *  showing its result. Only the backend half is visible from Rust.
@@ -498,8 +552,12 @@ export const commands = {
 export const events = {
 	avatarReady: makeEvent<AvatarReady>("avatar-ready"),
 	commandRecorded: makeEvent<CommandRecorded>("command-recorded"),
+	errorQueue: makeEvent<ErrorQueue>("error-queue"),
+	errorReported: makeEvent<ErrorReported>("error-reported"),
+	errorsAction: makeEvent<ErrorsAction>("errors-action"),
 	menuCommand: makeEvent<MenuCommand>("menu-command"),
 	mergeResolved: makeEvent<MergeResolved>("merge-resolved"),
+	mergeToolFinished: makeEvent<MergeToolFinished>("merge-tool-finished"),
 	operationChanged: makeEvent<OperationChanged>("operation-changed"),
 	repoChanged: makeEvent<RepoChanged>("repo-changed"),
 	revealCommit: makeEvent<RevealCommit>("reveal-commit"),
@@ -721,6 +779,8 @@ export type CommandNotice = {
 	operation: string,
 	severity: Severity,
 	summary: string,
+	/**  Exit 1 with unmerged paths left: partial success, not a failure. */
+	stoppedOnConflicts: boolean,
 };
 
 /**
@@ -749,6 +809,14 @@ export type CommitNote = {
 	/**  `commits` for `refs/notes/commits`. */
 	namespace: string,
 	text: string,
+};
+
+export type CommitPreview = {
+	oid: string,
+	shortOid: string,
+	subject: string,
+	/**  Author date, Unix seconds. */
+	date: number,
 };
 
 export type CommitQuery = {
@@ -805,6 +873,18 @@ export type ConfigProblem = {
 };
 
 export type ConfigScope = "repository" | "user";
+
+/**  Names for the two sides, as the solver's panel headers show them. */
+export type ConflictContext = {
+	operation: ConflictOperation,
+	ours: string,
+	theirs: string,
+};
+
+/**  Git's unmerged XY pairs: `UU`, `AA`, `DD`, `UD`, `DU`, `AU`, `UA`. */
+export type ConflictKind = "bothModified" | "bothAdded" | "bothDeleted" | "deletedByThem" | "deletedByUs" | "addedByUs" | "addedByThem";
+
+export type ConflictOperation = "merge" | "cherryPick" | "revert" | "rebase" | "stashApply" | "unknown";
 
 export type ConflictSide = "base" | "ours" | "theirs";
 
@@ -903,9 +983,64 @@ export type EolInfo = {
 	normalized: boolean,
 };
 
+export type ErrorAction = 
+/**  The window is listening: send the queue. */
+"ready" | 
+/**  The entry `id` is on screen. */
+"viewed" | 
+/**  Remove the entry `id`. */
+"dismiss" | 
+/**  The window closed; everything it listed is dismissed. */
+"closed" | 
+/**  Take the main window to the conflicted files of the entry `id`. */
+"showConflicts";
+
+/**
+ *  One command that ended badly, as the Errors window lists it. The output itself stays in
+ *  the journal (`command_outcome(id)`): the window fetches it when the entry is on screen.
+ */
+export type ErrorEntry = {
+	id: number,
+	kind: ErrorKind,
+	title: string,
+	operation: string,
+	repo: string,
+	command: string,
+	summary: string,
+	/**  The same failure again collapses into this entry rather than growing the list. */
+	repeats: number,
+};
+
+export type ErrorKind = 
+/**  The command failed. */
+"error" | 
+/**  The command stopped halfway on conflicts: the user has work to do, nothing is broken. */
+"warning";
+
+/**  The whole queue, from the main window to the Errors window, on every change. */
+export type ErrorQueue = ErrorEntry[];
+
+/**
+ *  A page other than the main one hit a failed command: the main window owns the queue.
+ *  The page emits it itself.
+ */
+export type ErrorReported = ErrorEntry;
+
+/**  From the Errors window to the main one. */
+export type ErrorsAction = {
+	action: ErrorAction,
+	id: number | null,
+};
+
 export type FailedDeletion = {
 	name: string,
 	error: GitError,
+};
+
+export type FetchOptions = {
+	/**  `--tags --force`: new tags, and existing ones moved to where the remote has them. */
+	tags: boolean,
+	notes: boolean,
 };
 
 export type FileChange = "added" | "modified" | "deleted" | "renamed" | "copied" | 
@@ -991,6 +1126,8 @@ export type FileEntry_Deserialize = {
 	similarity: number | null,
 	/**  Only on a worktree row of a submodule: what differs inside it. */
 	submodule?: SubmoduleChange | null,
+	/**  Only on a conflicted row: which sides touched the path. */
+	conflict?: ConflictKind | null,
 };
 
 export type FileEntry_Serialize = {
@@ -1008,6 +1145,8 @@ export type FileEntry_Serialize = {
 	similarity: number | null,
 	/**  Only on a worktree row of a submodule: what differs inside it. */
 	submodule?: SubmoduleChange | null,
+	/**  Only on a conflicted row: which sides touched the path. */
+	conflict?: ConflictKind | null,
 };
 
 export type FileMode = "plain" | "executable" | "symlink" | "submodule";
@@ -1031,6 +1170,12 @@ export type FileStatus = "added" | "modified" | "deleted" | "renamed" | "copied"
 "unchanged" | "ignored" | "assumeUnchanged" | "skipped" | 
 /**  Skip-worktree under `core.sparseCheckout` and absent on disk: hidden, not deleted. */
 "sparse";
+
+/**
+ *  `Short` blinks the button a few times (a background operation ended); `Persistent`
+ *  blinks until the window is focused (an error or a warning).
+ */
+export type Flash = "short" | "persistent";
 
 export type FlowBranch = {
 	kind: FlowKind,
@@ -1128,6 +1273,12 @@ export type GitOutput = {
 	 *  frontend formats every other timestamp from a number already.
 	 */
 	startedAtMs: number,
+	/**
+	 *  The command exited with 1 and left unmerged paths in the index: a stash, merge,
+	 *  rebase, cherry-pick, revert, pull or am that went as far as it could and handed the
+	 *  rest to the user. Set when the record is journaled, from the index.
+	 */
+	stoppedOnConflicts: boolean,
 };
 
 /**  What `git --version` said for a program chosen in Preferences. */
@@ -1388,6 +1539,20 @@ export type MergeResolved = {
 	path: string,
 };
 
+/**  An external merge tool exited; the solver window and the main one both read it. */
+export type MergeToolFinished = {
+	repo: RepoId,
+	path: string,
+	outcome: MergeToolOutcome,
+};
+
+export type MergeToolOutcome = {
+	exitCode: number | null,
+	canceled: boolean,
+	markersLeft: boolean,
+	conflicted: boolean,
+};
+
 /**  Why a submodule path is not a repository of its own. */
 export type ModuleProblem = { reason: "missing"; path: string } | { reason: "notInitialised"; path: string } | 
 /**  `foreign`: an absolute path in another operating system's form. */
@@ -1399,7 +1564,25 @@ export type ModuleProblem = { reason: "missing"; path: string } | { reason: "not
  */
 export type MoveScope = "withinFile" | "acrossFiles";
 
+/**  What a repository remembers for the two dialogs. Never `force_with_lease`. */
+export type NetworkDefaults = {
+	pullMethod: PullMethod,
+	pullTags: boolean,
+	pullNotes: boolean,
+	pushTags: TagsMode,
+	pushNotes: boolean,
+	/**  `None`: on while the branch has no upstream. */
+	pushSetUpstream: boolean | null,
+};
+
 export type NodeKind = "normal" | "merge" | "root" | "workingTree";
+
+/**  Namespaces fetched from a remote whose notes and the local ones both moved. */
+export type NotesFetch = {
+	remote: string,
+	/**  `refs/notes/<name>` names, as `git notes --ref` takes them without the prefix. */
+	diverged: string[],
+};
 
 /**  What the toolbar and the queue indicator are told, at every phase. */
 export type Operation = {
@@ -1577,6 +1760,51 @@ export type PreviousFile = {
 	path: string,
 };
 
+export type Progress = { kind: "indeterminate" } | { kind: "percent"; value: number };
+
+export type PullMethod = "merge" | "rebase";
+
+export type PullOptions = {
+	method: PullMethod,
+	/**  With `Merge`: refuse a merge commit (Preferences ▸ Pull). */
+	ffOnly: boolean,
+	fetch: FetchOptions,
+};
+
+export type PushCommit = {
+	oid: string,
+	summary: string,
+};
+
+export type PushOptions = {
+	remote: string,
+	local: string,
+	branch: string,
+	setUpstream: boolean,
+	tags: TagsMode,
+	notes: boolean,
+	forceWithLease: boolean,
+};
+
+export type PushOutcome = {
+	/**
+	 *  Git's own words when the remote refused the notes as non-fast-forward; the branch
+	 *  itself went through.
+	 */
+	notesRejected: string | null,
+};
+
+export type PushPreview = {
+	total: number,
+	commits: PushCommit[],
+	/**
+	 *  Local notes the remote lacks, from the notes last fetched from it; `None` while
+	 *  nothing was fetched to compare with.
+	 */
+	notesUnpushed: number | null,
+	hasLocalNotes: boolean,
+};
+
 export type RebaseOptions = {
 	onto: string,
 	autostash: boolean,
@@ -1719,6 +1947,8 @@ export type RepoPulse = {
 	behind: number,
 	/**  `!status().is_clean()`: what the row on screen says, or the dot follows the selection. */
 	dirty: boolean,
+	/**  An unmerged path sits in the index: read from the index alone, no worktree scan. */
+	conflicted: boolean,
 };
 
 /**  What a commit moves besides the counters: the refs and the operation state (R-316). */
@@ -1792,6 +2022,11 @@ export type ResetMode = "soft" | "mixed" | "hard" | "keep" | "merge";
 export type RevealCommit = {
 	repo: RepoId,
 	oid: string,
+};
+
+export type RevisionCheck = {
+	commit: CommitPreview | null,
+	problem: string | null,
 };
 
 /**
@@ -1874,6 +2109,42 @@ export type SkippedDeletion = {
 export type SkippedRef = {
 	name: string,
 	reason: string,
+};
+
+export type SolverData = {
+	context: ConflictContext,
+	binary: boolean,
+	tooLarge: boolean,
+	/**  Ours or theirs lacks the file: it was deleted there (modify/delete). */
+	missingOurs: boolean,
+	missingTheirs: boolean,
+	hasBase: boolean,
+	crlf: boolean,
+	/**
+	 *  LF-normalized text of the sides; `None` for a side without the file, and for every
+	 *  side of a binary or oversized file.
+	 */
+	base: string | null,
+	ours: string | null,
+	theirs: string | null,
+	regions: SolverRegion[],
+};
+
+export type SolverKind = "equal" | 
+/**  Only our side changed the stretch; the result has our lines. */
+"ours" | "theirs" | "both" | "syntactic" | "conflict";
+
+/**
+ *  One stretch of the file with what every side has there, for the Conflict Solver: it
+ *  aligns the panes by stretch, and "Base Changes" needs what each side did to the base.
+ */
+export type SolverRegion = {
+	kind: SolverKind,
+	base: string[],
+	ours: string[],
+	theirs: string[],
+	/**  What the merge puts there on its own; for a conflict, the base stretch (undecided). */
+	result: string[],
 };
 
 /**  The part of its row a segment covers: the upper half, the lower half or all of it. */
@@ -2023,6 +2294,23 @@ export type TagRequest = {
 	force: boolean,
 };
 
+export type TagsMode = "none" | 
+/**  `--follow-tags`: annotated tags that point at pushed commits. */
+"follow" | "all";
+
+/**  Everything the page knows; the host decides what wins. */
+export type TaskbarSignals = {
+	progress?: Progress | null,
+	/**  Failed commands still waiting in the notification window. */
+	errors?: number,
+	/**  Repository warnings (conflicts) still unresolved. */
+	warnings?: number,
+	/**  Events that ended while the window was in the background. */
+	unviewed?: number,
+	/**  Ask for attention now; honored only while the window is not focused. */
+	flash?: Flash | null,
+};
+
 export type TerminalChoice = {
 	id: string,
 	label: string,
@@ -2061,6 +2349,21 @@ export type Trailer = {
 	value: string,
 };
 
+/**  ORIG_HEAD against HEAD, for the confirmation before Undo Last Merge / Rebase / Reset. */
+export type UndoRewrite = {
+	orig: string,
+	head: string,
+	/**  Staged or unstaged changes in tracked files. */
+	dirty: boolean,
+};
+
+/**  Commits a submodule holds that no remote has: removing the worktree deletes the only copy. */
+export type UnpushedInSubmodule = {
+	path: string,
+	total: number,
+	commits: PushCommit[],
+};
+
 /**
  *  One line of the webview's log. `message` starts with the webview's own `+Nms`: a
  *  batch lands at once, so the file's timestamp is when it arrived, not when it was said.
@@ -2081,6 +2384,11 @@ export type WorkingState = {
 	/**  `index_lock`: the watcher's index refresh reads only this, and the banner follows it. */
 	indexLock: string | null,
 };
+
+/**  What a new worktree checks out. */
+export type WorktreeBranch = 
+/**  A new branch at `start` (HEAD when `None`); `track` follows `start`, a remote branch. */
+{ kind: "new"; name: string; start: string | null; track: boolean } | { kind: "existing"; name: string } | { kind: "detached"; start: string | null };
 
 /**  One checkout: the main one cannot be removed, a linked one can be locked or left behind. */
 export type WorktreeEntry = {
@@ -2121,6 +2429,43 @@ export type WorktreeFiles_Serialize = {
 	 *  "Changes not staged for commit" plus "Untracked files".
 	 */
 	unstaged: FileEntry_Serialize[],
+};
+
+/**
+ *  `Started` carries the id `cancel_operation` stops the scan by; each stage then answers
+ *  on its own, in whatever order they finish.
+ */
+export type WorktreeScanChunk = WorktreeScanChunk_Serialize | WorktreeScanChunk_Deserialize;
+
+/**
+ *  `Started` carries the id `cancel_operation` stops the scan by; each stage then answers
+ *  on its own, in whatever order they finish.
+ */
+export type WorktreeScanChunk_Deserialize = ({ kind: "started"; id: number }) & { cancelled?: never; error?: never; files?: never; found?: never; modules?: never; stage?: never } | ({ kind: "changes"; files: FileEntry_Deserialize[] }) & { cancelled?: never; error?: never; found?: never; id?: never; modules?: never; stage?: never } | ({ kind: "submodules"; modules: WorktreeSubmodules_Deserialize }) & { cancelled?: never; error?: never; files?: never; found?: never; id?: never; stage?: never } | ({ kind: "unpushed"; found: UnpushedInSubmodule[] }) & { cancelled?: never; error?: never; files?: never; id?: never; modules?: never; stage?: never } | ({ kind: "failed"; stage: WorktreeScanStage; error: GitError }) & { cancelled?: never; files?: never; found?: never; id?: never; modules?: never } | ({ kind: "done"; cancelled: boolean }) & { error?: never; files?: never; found?: never; id?: never; modules?: never; stage?: never };
+
+/**
+ *  `Started` carries the id `cancel_operation` stops the scan by; each stage then answers
+ *  on its own, in whatever order they finish.
+ */
+export type WorktreeScanChunk_Serialize = ({ kind: "started"; id: number }) & { cancelled?: never; error?: never; files?: never; found?: never; modules?: never; stage?: never } | ({ kind: "changes"; files: FileEntry_Serialize[] }) & { cancelled?: never; error?: never; found?: never; id?: never; modules?: never; stage?: never } | ({ kind: "submodules"; modules: WorktreeSubmodules_Serialize }) & { cancelled?: never; error?: never; files?: never; found?: never; id?: never; stage?: never } | ({ kind: "unpushed"; found: UnpushedInSubmodule[] }) & { cancelled?: never; error?: never; files?: never; id?: never; modules?: never; stage?: never } | ({ kind: "failed"; stage: WorktreeScanStage; error: GitError }) & { cancelled?: never; files?: never; found?: never; id?: never; modules?: never } | ({ kind: "done"; cancelled: boolean }) & { error?: never; files?: never; found?: never; id?: never; modules?: never; stage?: never };
+
+/**  The three stages of the Remove Worktree scan, which one chunk reports as it finishes. */
+export type WorktreeScanStage = "changes" | "submodules" | "unpushed";
+
+export type WorktreeSubmodules = WorktreeSubmodules_Serialize | WorktreeSubmodules_Deserialize;
+
+export type WorktreeSubmodules_Deserialize = {
+	/**  Every submodule checked out in the worktree: removing it deletes their repositories. */
+	paths: string[],
+	/**  The ones with something to lose in the parent's eyes, as rows of the changes list. */
+	changed: FileEntry_Deserialize[],
+};
+
+export type WorktreeSubmodules_Serialize = {
+	/**  Every submodule checked out in the worktree: removing it deletes their repositories. */
+	paths: string[],
+	/**  The ones with something to lose in the parent's eyes, as rows of the changes list. */
+	changed: FileEntry_Serialize[],
 };
 
 /**

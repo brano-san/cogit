@@ -79,9 +79,75 @@ fn edits(base: &str, side: &str) -> Vec<Edit> {
         .collect()
 }
 
+/// One stretch of the file with what every side has there, for the Conflict Solver: it
+/// aligns the panes by stretch, and "Base Changes" needs what each side did to the base.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SolverRegion {
+    pub kind: SolverKind,
+    pub base: Vec<String>,
+    pub ours: Vec<String>,
+    pub theirs: Vec<String>,
+    /// What the merge puts there on its own; for a conflict, the base stretch (undecided).
+    pub result: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum SolverKind {
+    Equal,
+    /// Only our side changed the stretch; the result has our lines.
+    Ours,
+    Theirs,
+    Both,
+    Syntactic,
+    Conflict,
+}
+
+struct Merged {
+    base: Vec<String>,
+    ours: Vec<String>,
+    theirs: Vec<String>,
+    region: Region,
+}
+
 #[must_use]
 pub fn merge3(base: &str, ours: &str, theirs: &str) -> Vec<Region> {
     merge3_with_syntax(base, ours, theirs, None)
+}
+
+#[must_use]
+pub fn merge3_sides(
+    base: &str,
+    ours: &str,
+    theirs: &str,
+    language: Option<&str>,
+) -> Vec<SolverRegion> {
+    merge_all(base, ours, theirs, language)
+        .into_iter()
+        .map(|merged| {
+            let (kind, result) = match merged.region {
+                Region::Conflict { base, .. } => (SolverKind::Conflict, base),
+                Region::Clean { lines, origin } => (
+                    match origin {
+                        Origin::Unchanged => SolverKind::Equal,
+                        Origin::Ours => SolverKind::Ours,
+                        Origin::Theirs => SolverKind::Theirs,
+                        Origin::Both => SolverKind::Both,
+                        Origin::Syntactic => SolverKind::Syntactic,
+                    },
+                    lines,
+                ),
+            };
+            SolverRegion {
+                kind,
+                base: merged.base,
+                ours: merged.ours,
+                theirs: merged.theirs,
+                result,
+            }
+        })
+        .collect()
 }
 
 /// The same merge, with one more rule: where the two sides changed different top-level
@@ -95,6 +161,13 @@ pub fn merge3_with_syntax(
     theirs: &str,
     language: Option<&str>,
 ) -> Vec<Region> {
+    merge_all(base, ours, theirs, language)
+        .into_iter()
+        .map(|merged| merged.region)
+        .collect()
+}
+
+fn merge_all(base: &str, ours: &str, theirs: &str, language: Option<&str>) -> Vec<Merged> {
     // Normalised once up front, or a CRLF base makes every line of an LF side a change.
     let base = normalize_line_endings(base);
     let ours = normalize_line_endings(ours);
@@ -105,7 +178,7 @@ pub fn merge3_with_syntax(
     let yours = edits(&base, &theirs);
     let nodes = language.and_then(|name| crate::syntax::top_level_nodes(&base, name));
 
-    let mut regions: Vec<Region> = Vec::new();
+    let mut regions: Vec<Merged> = Vec::new();
     let mut at = 0usize;
     let (mut i, mut j) = (0usize, 0usize);
 
@@ -148,7 +221,13 @@ pub fn merge3_with_syntax(
         let theirs_lines = apply(&base_lines, &yours[from_j..j], span.clone());
         let base_slice: Vec<String> = base_lines[span.clone()].to_vec();
 
-        let settled = resolve(base_slice, ours_lines, theirs_lines, i > from_i, j > from_j);
+        let settled = resolve(
+            base_slice.clone(),
+            ours_lines.clone(),
+            theirs_lines.clone(),
+            i > from_i,
+            j > from_j,
+        );
         let settled = match (settled, nodes.as_deref()) {
             (Region::Conflict { base, ours, theirs }, Some(nodes)) => crate::syntax::settle(
                 nodes,
@@ -165,15 +244,25 @@ pub fn merge3_with_syntax(
             }),
             (other, _) => other,
         };
-        regions.push(settled);
+        regions.push(Merged {
+            base: base_slice,
+            ours: ours_lines,
+            theirs: theirs_lines,
+            region: settled,
+        });
         at = end;
     }
 
     push_unchanged(&mut regions, &base_lines, at..base_lines.len());
     if regions.is_empty() {
-        regions.push(Region::Clean {
-            lines: Vec::new(),
-            origin: Origin::Unchanged,
+        regions.push(Merged {
+            base: Vec::new(),
+            ours: Vec::new(),
+            theirs: Vec::new(),
+            region: Region::Clean {
+                lines: Vec::new(),
+                origin: Origin::Unchanged,
+            },
         });
     }
     regions
@@ -226,12 +315,18 @@ pub(crate) fn apply(base: &[String], edits: &[Edit], span: Range<usize>) -> Vec<
     out
 }
 
-fn push_unchanged(regions: &mut Vec<Region>, base: &[String], span: Range<usize>) {
+fn push_unchanged(regions: &mut Vec<Merged>, base: &[String], span: Range<usize>) {
     if span.start >= span.end {
         return;
     }
-    regions.push(Region::Clean {
-        lines: base[span].to_vec(),
-        origin: Origin::Unchanged,
+    let lines = base[span].to_vec();
+    regions.push(Merged {
+        base: lines.clone(),
+        ours: lines.clone(),
+        theirs: lines.clone(),
+        region: Region::Clean {
+            lines,
+            origin: Origin::Unchanged,
+        },
     });
 }
