@@ -2,7 +2,7 @@
   import { tick } from "svelte";
   import Checkbox from "$components/common/Checkbox.svelte";
   import Dialog from "$components/common/Dialog.svelte";
-  import { isUnavailable, noteFor, okAction, type MruRow, type WelcomeAction, type WelcomeOption } from "$lib/welcome";
+  import { isOptionDisabled, isUnavailable, noteFor, okAction, type MruRow, type WelcomeAction, type WelcomeOption } from "$lib/welcome";
   import type { WelcomeDialog } from "$stores/welcome.svelte";
 
   /** Repository ▸ Welcome…, and the start of a session with nothing to restore (F-586). */
@@ -35,6 +35,7 @@
     { option: 2, label: "Clone existing repository", hint: "Download a repository from a URL." },
     { option: 3, label: "Reopen previously used repository" },
   ];
+  const NO_RECENT = "No repository has been opened yet.";
 
   /** The one element that holds the focus, as in a listbox: Tab leaves, the arrows walk. */
   function focusCurrent() {
@@ -62,6 +63,7 @@
   }
 
   function pickOption(option: WelcomeOption) {
+    if (isOptionDisabled(option, rows.length)) return;
     dialog.choose(option, rows.length);
     focusCurrent();
   }
@@ -92,13 +94,16 @@
     <div class="options" role="radiogroup" aria-labelledby="welcome-question">
       {#each OPTIONS as entry (entry.option)}
         {@const checked = selection.option === entry.option}
+        {@const disabled = isOptionDisabled(entry.option, rows.length)}
         <div class="option">
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <div
             class="choice"
             class:checked
+            class:disabled
             role="radio"
             aria-checked={checked}
+            aria-disabled={disabled}
             tabindex={stopOption(entry.option) ? 0 : -1}
             data-stop={stopOption(entry.option) ? "current" : undefined}
             data-autofocus={stopOption(entry.option) ? "" : undefined}
@@ -110,7 +115,11 @@
             <span class="dot" aria-hidden="true"></span>
             <span class="text">
               <span class="label">{entry.label}</span>
-              {#if entry.hint}<span class="hint">{entry.hint}</span>{/if}
+              {#if entry.option === 3 && disabled}
+                <span class="hint">{NO_RECENT}</span>
+              {:else if entry.hint}
+                <span class="hint">{entry.hint}</span>
+              {/if}
             </span>
           </div>
 
@@ -147,8 +156,6 @@
                   </div>
                 {/each}
               </div>
-            {:else}
-              <p class="empty">No repository has been opened yet.</p>
             {/if}
           {/if}
         </div>
@@ -176,6 +183,7 @@
 
 <style>
   .welcome {
+    flex: none;
     display: flex;
     flex-direction: column;
     gap: var(--sp-4);
@@ -218,8 +226,17 @@
     cursor: default;
   }
 
-  .choice:hover {
+  .choice:hover:not(.disabled) {
     background: var(--bg-hover);
+  }
+
+  .choice.disabled {
+    color: var(--fg-disabled);
+  }
+
+  .choice.disabled .dot {
+    background: transparent;
+    border-color: var(--fg-disabled);
   }
 
   .choice:focus-visible,
@@ -263,6 +280,7 @@
   .list {
     display: flex;
     flex-direction: column;
+    flex: none;
     max-height: 330px;
     margin-left: calc(var(--sp-4) + var(--checkbox-size) + var(--sp-4));
     overflow-y: auto;
@@ -313,8 +331,4 @@
     font-weight: 400;
   }
 
-  .empty {
-    margin: 0 0 0 calc(var(--sp-4) + var(--checkbox-size) + var(--sp-4));
-    color: var(--fg-muted);
-  }
 </style>

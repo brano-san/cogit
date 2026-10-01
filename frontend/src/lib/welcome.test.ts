@@ -14,6 +14,7 @@ import {
   shouldShowAtStartup,
   type Availability,
   type WelcomeSelection,
+  isOptionDisabled,
 } from "./welcome";
 
 describe("shouldShowAtStartup", () => {
@@ -161,9 +162,19 @@ describe("keyboard", () => {
     expect(moveSelection({ option: 1, row: null }, "up", 3).option).toBe(1);
   });
 
-  it("with no rows, option 3 is a stop of its own", () => {
-    expect(moveSelection({ option: 2, row: null }, "down", 0)).toEqual({ option: 3, row: null });
-    expect(moveSelection({ option: 3, row: null }, "down", 0)).toEqual({ option: 3, row: null });
+  it("with no rows, option 3 is not a stop: the arrows end at option 2", () => {
+    expect(moveSelection({ option: 1, row: null }, "down", 0)).toEqual({ option: 2, row: null });
+    expect(moveSelection({ option: 2, row: null }, "down", 0)).toEqual({ option: 2, row: null });
+    expect(moveSelection({ option: 2, row: null }, "up", 0)).toEqual({ option: 1, row: null });
+  });
+
+  it("with no rows, option 3 cannot be chosen", () => {
+    expect(selectOption({ option: 1, row: null }, 3, 0)).toEqual({ option: 1, row: null });
+    expect(selectOption({ option: 2, row: null }, 3, 0)).toEqual({ option: 2, row: null });
+    expect(isOptionDisabled(3, 0)).toBe(true);
+    expect(isOptionDisabled(3, 1)).toBe(false);
+    expect(isOptionDisabled(1, 0)).toBe(false);
+    expect(isOptionDisabled(2, 0)).toBe(false);
   });
 
   it("choosing option 3 lands on the row it left, or the first", () => {

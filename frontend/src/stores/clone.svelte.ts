@@ -1,4 +1,5 @@
 import {
+  DEFAULT_LIMIT,
   authFailure,
   branchOptions,
   cloneRequest,
@@ -9,6 +10,7 @@ import {
   sourceProblem,
   type ClonePage,
   type Destination,
+  type LimitUnit,
 } from "$lib/clone";
 import { toCogitError, type CogitError } from "$lib/ipc";
 import {
@@ -38,7 +40,8 @@ export class CloneWizard {
   submodules = $state(true);
   allBranches = $state(true);
   skipLarge = $state(false);
-  limitMb = $state("50");
+  limitValue = $state(DEFAULT_LIMIT.value);
+  limitUnit = $state<LimitUnit>(DEFAULT_LIMIT.unit);
   branch = $state<string | null>(null);
   parent = $state("");
   name = $state("");
@@ -60,7 +63,8 @@ export class CloneWizard {
     this.submodules = true;
     this.allBranches = true;
     this.skipLarge = false;
-    this.limitMb = "50";
+    this.limitValue = DEFAULT_LIMIT.value;
+    this.limitUnit = DEFAULT_LIMIT.unit;
     this.branch = null;
     this.parent = parent;
     this.name = "";
@@ -123,7 +127,7 @@ export class CloneWizard {
           (this.check.state === "checking" ? "Checking access to the repository…" : null)
         );
       case "selection":
-        return limitProblem(this.skipLarge, this.limitMb);
+        return limitProblem(this.skipLarge, this.limitValue);
       case "directory":
         return directoryProblem({ parent: this.parent, name: this.name, seen: this.seen });
     }
@@ -187,7 +191,8 @@ export class CloneWizard {
       branch: this.branch,
       listing: this.listing,
       skipLarge: this.skipLarge,
-      limitMb: this.limitMb,
+      limitValue: this.limitValue,
+      limitUnit: this.limitUnit,
       parent: this.parent,
       name: this.name,
     });

@@ -29,8 +29,9 @@ pub struct CloneRequest {
     pub all_branches: bool,
     /// `None` checks out what the server's HEAD names.
     pub branch: Option<String>,
-    /// A partial clone: files larger than this many megabytes stay on the server.
-    pub skip_larger_than_mb: Option<u32>,
+    /// A partial clone: files larger than this stay on the server. Git's own size
+    /// spelling, whole number and `k`, `m` or `g` (`1m`); anything else is refused.
+    pub skip_larger_than: Option<String>,
 }
 
 /// Asked for after git's own credential helper could not answer.
@@ -182,6 +183,15 @@ pub fn clone_repository(
             target.display()
         )));
     }
+    if let Some(limit) = request
+        .skip_larger_than
+        .as_deref()
+        .filter(|limit| !valid_size_limit(limit))
+    {
+        return Err(GitError::InvalidState(format!(
+            "the size limit of a partial clone is a whole number and k, m or g, not {limit}"
+        )));
+    }
     let before = clone_destination(&target);
     let header = token.and_then(|token| auth_config(source, token));
     let args = clone_args(
@@ -204,6 +214,18 @@ pub fn clone_repository(
         remove_leftovers(&target, before);
     }
     result.map(|()| target)
+}
+
+/// `1m`, `512k`, `2g`: digits (no leading zero) and one unit letter, as `blob:limit` takes it.
+fn valid_size_limit(limit: &str) -> bool {
+    let Some((unit, digits)) = limit.char_indices().last().map(|(at, c)| (c, &limit[..at])) else {
+        return false;
+    };
+    matches!(unit, 'k' | 'm' | 'g')
+        && !digits.is_empty()
+        && digits.len() <= 9
+        && !digits.starts_with('0')
+        && digits.bytes().all(|b| b.is_ascii_digit())
 }
 
 fn clone_args(
@@ -231,8 +253,8 @@ fn clone_args(
     {
         args.extend(["--branch".to_owned(), branch.to_owned()]);
     }
-    if let Some(megabytes) = request.skip_larger_than_mb {
-        args.push(format!("--filter=blob:limit={megabytes}m"));
+    if let Some(limit) = request.skip_larger_than.as_deref() {
+        args.push(format!("--filter=blob:limit={limit}"));
         if request.submodules {
             args.push("--also-filter-submodules".to_owned());
         }
@@ -352,7 +374,7 @@ mod tests {
             submodules: true,
             all_branches: true,
             branch: None,
-            skip_larger_than_mb: None,
+            skip_larger_than: None,
         }
     }
 
@@ -380,7 +402,7 @@ mod tests {
         let args = args_of(&CloneRequest {
             all_branches: false,
             branch: Some("release".to_owned()),
-            skip_larger_than_mb: Some(5),
+            skip_larger_than: Some("5m".to_owned()),
             ..request()
         });
         for wanted in [
@@ -395,10 +417,22 @@ mod tests {
     }
 
     #[test]
+    fn only_git_size_spellings_are_a_size_limit() {
+        for good in ["1m", "512k", "2g", "100m"] {
+            assert!(valid_size_limit(good), "{good}");
+        }
+        for bad in [
+            "", "m", "0m", "01m", "1", "1.5m", "1mb", "-1m", "1m --x", "1M ",
+        ] {
+            assert!(!valid_size_limit(bad), "{bad}");
+        }
+    }
+
+    #[test]
     fn a_partial_clone_without_submodules_filters_only_itself() {
         let args = args_of(&CloneRequest {
             submodules: false,
-            skip_larger_than_mb: Some(1),
+            skip_larger_than: Some("1m".to_owned()),
             ..request()
         });
         assert!(!args.iter().any(|arg| arg == "--also-filter-submodules"));

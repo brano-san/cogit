@@ -9,6 +9,9 @@ import {
   isUrl,
   joinPath,
   limitProblem,
+  limitSpec,
+  limitPreview,
+  DEFAULT_LIMIT,
   parentFolder,
   runClone,
   sourceProblem,
@@ -44,10 +47,34 @@ describe("the repository to clone", () => {
 });
 
 describe("the size limit of a partial clone", () => {
-  it("is whole megabytes from one, and asked only when ticked", () => {
+  it("is a whole number from one, and asked only when ticked", () => {
     expect(limitProblem(false, "")).toBeNull();
     expect(limitProblem(true, " 5 ")).toBeNull();
-    for (const bad of ["", "0", "1.5", "-2", "a"]) expect(limitProblem(true, bad), bad).not.toBeNull();
+    expect(limitProblem(true, "999999")).toBeNull();
+    for (const bad of ["", " ", "0", "1.5", "-2", "a", "1e3", "1000000", "+1"]) {
+      expect(limitProblem(true, bad), bad).not.toBeNull();
+    }
+  });
+
+  it("says what is wrong with the number", () => {
+    expect(limitProblem(true, "")).toMatch(/Enter/);
+    expect(limitProblem(true, "1.5")).toMatch(/whole number/);
+    expect(limitProblem(true, "0")).toMatch(/1 or more/);
+    expect(limitProblem(true, "9999999")).toMatch(/more than/);
+  });
+
+  it("defaults to 1 MB", () => {
+    expect(limitSpec(DEFAULT_LIMIT.value, DEFAULT_LIMIT.unit)).toBe("1m");
+  });
+
+  it("is written as git takes it, in the preview and in the request alike", () => {
+    expect(limitSpec("1", "MB")).toBe("1m");
+    expect(limitSpec(" 512 ", "KB")).toBe("512k");
+    expect(limitSpec("2", "GB")).toBe("2g");
+    expect(limitSpec("007", "MB")).toBe("7m");
+    expect(limitSpec("x", "MB")).toBeNull();
+    expect(limitPreview("1", "MB")).toBe("--filter=blob:limit=1m");
+    expect(limitPreview("", "MB")).toBe("--filter=blob:limit=…");
   });
 });
 
@@ -123,7 +150,8 @@ describe("the request Finish sends", () => {
     branch: "main",
     listing: { defaultBranch: "main", branches: ["dev", "main"] },
     skipLarge: false,
-    limitMb: "50",
+    limitValue: "1",
+    limitUnit: "MB",
     parent: "D:\\src",
     name: " app ",
   };
@@ -135,14 +163,15 @@ describe("the request Finish sends", () => {
       submodules: true,
       allBranches: true,
       branch: null,
-      skipLargerThanMb: null,
+      skipLargerThan: null,
     });
     expect(cloneRequest({ ...choices, branch: "dev" }).branch).toBe("dev");
     expect(cloneRequest({ ...choices, branch: "dev", listing: null }).branch).toBeNull();
   });
 
   it("carries the size limit only when files are skipped", () => {
-    expect(cloneRequest({ ...choices, skipLarge: true, limitMb: " 8 " }).skipLargerThanMb).toBe(8);
+    expect(cloneRequest({ ...choices, skipLarge: true, limitValue: " 8 " }).skipLargerThan).toBe("8m");
+    expect(cloneRequest({ ...choices, skipLarge: true, limitValue: "512", limitUnit: "KB" }).skipLargerThan).toBe("512k");
   });
 });
 
@@ -154,7 +183,8 @@ describe("running the clone", () => {
     branch: null,
     listing: null,
     skipLarge: false,
-    limitMb: "50",
+    limitValue: "1",
+    limitUnit: "MB",
     parent: "D:\\src",
     name: "app",
   });

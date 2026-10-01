@@ -3,7 +3,7 @@
   import Checkbox from "$components/common/Checkbox.svelte";
   import Dialog from "$components/common/Dialog.svelte";
   import Select from "$components/common/Select.svelte";
-  import { CLONE_PAGES, PAGE_TITLES, joinPath } from "$lib/clone";
+  import { CLONE_PAGES, LIMIT_UNITS, PAGE_TITLES, joinPath, limitPreview, limitProblem } from "$lib/clone";
   import type { CloneRequest } from "$lib/ipc/clone";
   import type { CloneWizard } from "$stores/clone.svelte";
 
@@ -19,6 +19,7 @@
 
   let form: HTMLDivElement | undefined = $state();
   const last = $derived(wizard.page === "directory");
+  const sizeProblem = $derived(limitProblem(true, wizard.limitValue));
 
   // The field that had the focus is gone with its page; the next page's first one takes it.
   $effect(() => {
@@ -121,26 +122,42 @@
           label="Skip large files (partial clone)"
           onchange={(on) => (wizard.skipLarge = on)}
         />
-        {#if wizard.skipLarge}
-          <label class="limit">
-            <span>Omit files larger than</span>
+        <div class="limit" class:off={!wizard.skipLarge}>
+          <label class="limit-line">
+            <span class="limit-label">Omit files larger than</span>
             <input
               type="text"
               class="size"
               inputmode="numeric"
-              maxlength="5"
-              value={wizard.limitMb}
-              oninput={(event) => (wizard.limitMb = event.currentTarget.value)}
+              maxlength="6"
+              aria-label="Size limit"
+              aria-invalid={sizeProblem !== null}
+              disabled={!wizard.skipLarge}
+              value={wizard.limitValue}
+              oninput={(event) => (wizard.limitValue = event.currentTarget.value)}
             />
-            <span>MB</span>
-            <span
-              class="info"
-              role="img"
-              aria-label="About omitted files"
-              title="The files being checked out are always downloaded; larger ones elsewhere in the history stay on the server until a command needs them."
-              >i</span
-            >
           </label>
+          <span class="unit">
+            <Select
+              value={wizard.limitUnit}
+              label="Size unit"
+              options={LIMIT_UNITS}
+              disabled={!wizard.skipLarge}
+              onchange={(next) => (wizard.limitUnit = next)}
+            />
+          </span>
+          <span
+            class="info"
+            role="img"
+            aria-label="About omitted files"
+            title="The files being checked out are always downloaded; larger ones elsewhere in the history stay on the server until a command needs them."
+            >i</span
+          >
+        </div>
+        {#if wizard.skipLarge && sizeProblem !== null}
+          <span class="limit-note problem-text" role="alert">{sizeProblem}</span>
+        {:else}
+          <span class="limit-note mono">{limitPreview(wizard.limitValue, wizard.limitUnit)}</span>
         {/if}
       </div>
       <div class="field">
@@ -259,17 +276,51 @@
 
   .limit {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: var(--sp-3);
+    min-width: 0;
     padding-left: var(--sp-7);
-    white-space: nowrap;
   }
 
-  .limit > * {
-    flex: none;
+  .limit.off .limit-label {
+    color: var(--fg-disabled);
+  }
+
+  .limit-line {
+    display: flex;
+    flex: 0 1 auto;
+    align-items: center;
+    gap: var(--sp-3);
+    min-width: 0;
+  }
+
+  .limit-label {
+    min-width: 0;
+  }
+
+  .unit {
+    display: inline-flex;
+    flex: 0 0 76px;
+    min-width: 0;
+  }
+
+  .unit :global(.select) {
+    width: 100%;
+  }
+
+  .limit-note {
+    margin-left: var(--sp-7);
+    color: var(--fg-muted);
+    overflow-wrap: anywhere;
+  }
+
+  .limit-note.problem-text {
+    color: var(--status-modify);
   }
 
   .info {
+    flex: none;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -285,7 +336,9 @@
   }
 
   .limit .size {
-    width: 6ch;
+    flex: 0 0 100px;
+    width: 100px;
+    min-width: 0;
     text-align: right;
   }
 
