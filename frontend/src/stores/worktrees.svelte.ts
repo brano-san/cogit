@@ -7,13 +7,16 @@ import {
   removeWorktree,
   repairWorktree,
   unlockWorktree,
-  worktreeChanges,
+  scanWorktreeRemoval,
+  cancelOperation,
+  toCogitError,
   worktreeLeftover,
   deleteWorktreeLeftover,
   worktreeHolding,
-  type FileEntry,
   type RepoId,
+  type WorktreeBranch,
   type WorktreeEntry,
+  type WorktreeScanChunk,
 } from "$lib/ipc";
 import { repoNameOf } from "$lib/notices";
 import { notices } from "$stores/notices.svelte";
@@ -58,8 +61,8 @@ class WorktreesStore {
     }
   }
 
-  async add(path: string, branch: string, create: boolean, base: string | null): Promise<void> {
-    await this.#act((repo) => addWorktree(repo, path, branch, create, base));
+  async add(path: string, branch: WorktreeBranch): Promise<void> {
+    await this.#act((repo) => addWorktree(repo, path, branch));
   }
 
   async remove(path: string, force: boolean): Promise<void> {
@@ -97,8 +100,29 @@ class WorktreesStore {
     await this.#act((repo) => deleteWorktreeLeftover(repo, path));
   }
 
-  async changes(path: string): Promise<FileEntry[]> {
-    return this.repo === null ? [] : await worktreeChanges(this.repo, path);
+  /** Reads what removing the worktree would lose; the stages arrive on `onChunk`. Returns the
+      function that stops the scan (the dialog closed): its answers are not wanted any more. */
+  scanRemoval(path: string, onChunk: (chunk: WorktreeScanChunk) => void): () => void {
+    const repo = this.repo;
+    if (repo === null) return () => {};
+    let id: number | null = null;
+    let stopped = false;
+    void scanWorktreeRemoval(repo, path, (chunk) => {
+      if (chunk.kind === "started") {
+        id = chunk.id;
+        if (stopped) void cancelOperation(chunk.id);
+      } else if (!stopped) onChunk(chunk);
+    }).catch((err) => {
+      if (stopped) return;
+      const error = toCogitError(err).detail;
+      for (const stage of ["changes", "submodules", "unpushed"] as const) {
+        onChunk({ kind: "failed", stage, error });
+      }
+    });
+    return () => {
+      stopped = true;
+      if (id !== null) void cancelOperation(id);
+    };
   }
 
   clear(): void {

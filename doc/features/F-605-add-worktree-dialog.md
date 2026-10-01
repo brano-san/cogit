@@ -1,0 +1,14 @@
+# F-605 · Диалог Add Worktree: режимы, выбор основы, превью команды
+
+Пересобран на шаблоне диалога (06 «Шаблон диалога»): `AddWorktreeDialog` поверх `TemplateDialog`, в футере — первая актуальная ошибка (`status`, `status.danger`), `Add` активна, только когда всё проверено.
+
+- **Порядок:** Branch (режим, имя, основа), затем Folder, `Open worktree after creation` (запоминается), строка команды.
+- **Режимы (radio):** `New branch` (`-b`), `Existing branch`, `Detached at commit` (`--detach`).
+- **New branch.** `Name` — проверка `git check-ref-format --branch` (с задержкой 200 мс, устаревшие ответы отбрасываются) и на существующую локальную ветку, ошибка под полем. `Based on` — `RevisionCombobox` (HEAD, Selected commit, Local/Remote branches, Tags или любой набранный текст). Под полем превью `fg.muted`: короткий хэш, первая строка сообщения, дата; не коммит — `status.danger`. Основа — remote-ветка: чекбокс `Track <remote>/<branch>` (`--track`, по умолчанию включён; выключен — `--no-track`).
+- **Existing branch.** Комбобокс локальных и remote-веток (`free={false}`). Ветка, выложенная в другом worktree (в том числе в основном), неактивна с `Checked out in <путь>`. Remote-ветка создаёт локальную tracking-ветку (`-b <имя без remote> --track`); если локальная с таким именем уже есть — remote-пункт неактивен.
+- **Основа по умолчанию (откуда открыт диалог):** коммит в графе (панель Graph в фокусе, коммит выбран) или пункт `Add Worktree…` контекстного меню коммита — `Selected commit`; пункт меню ветки (Branches или метка в графе) — эта ветка; палитра, кнопка панели Worktrees — текущая ветка (`HEAD`, если HEAD отсоединён).
+- **Folder.** Подставляется `<папка репозитория>-<имя ветки>` рядом с репозиторием (`/` и недопустимые символы → `-`; для Detached — короткий хэш или имя ревизии) и следует за именем, пока пользователь не правил поле руками (Browse тоже считается правкой; очистка поля возвращает автоподстановку). Проверка: папки нет или она пуста (`worktree_folder_problem`).
+- **Строка команды** (моноширинная `fg.muted`, переносится, выделяется) зеркалит `WorktreeBranch::add_args`: `git worktree add --track -b feature/x ../dtv_device-feature-x origin/master`; соседняя папка — `../<имя>`, `--no-track` показывается только при remote-основе.
+- **Open worktree after creation:** после `add_worktree` панели переключаются на новую папку (`openWorktreeRow`).
+
+Логика — чистые функции `lib/worktree-add.ts` (`suggestFolder`, `folderLabel`, `addRequest`, `commandPreview`, `addProblem`, `defaultBase`) и `lib/revision-options.ts`, тесты рядом. Rust: `git_engine::{WorktreeBranch, RepoHandle::add_worktree_with, check_revision, check_branch_name, worktree_folder_problem}`, тесты `crates/git_engine/tests/worktree_add.rs` (remote → tracking, `--no-track`, detached, существующая ветка, занятое имя, непустая папка, проверки без записи в журнал).
