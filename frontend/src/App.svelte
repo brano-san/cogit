@@ -105,7 +105,7 @@
   import { rowSync, summaryPulse } from "$lib/repo-sync";
   import { removalQuestion, UNGROUPED } from "$lib/repo-groups";
   import { repoList } from "$stores/repo-list.svelte";
-  import { compareUrl } from "$lib/compare-params";
+  import { compareUrl, diffWindowTitle } from "$lib/compare-params";
   import { dropActions, type DropAction, type DragPayload } from "$lib/drop-target";
   import { moveEntry, planPublished } from "$lib/rebase-plan";
   import { splitRequest } from "$lib/split-off";
@@ -1970,7 +1970,7 @@
       void openModuleAt(path);
       return;
     }
-    void openCompareWindow(compareUrl(id, path, spec), `${path} — Cogit`).catch((err) =>
+    void openCompareWindow(compareUrl(id, path, spec), diffWindowTitle(path)).catch((err) =>
       errors.report(err, "Could not open the file window"),
     );
   }
@@ -3929,6 +3929,7 @@
         >
           <Panel
             title="Graph &amp; History"
+            surface="editor"
             active={focused === "graph"}
             view={panelState}
             count={graph.total}
@@ -4086,7 +4087,7 @@
       <div class="pane grow" role="region"
         aria-label={PANEL_TITLES.diff}
         onpointerdown={() => (focused = "diff")}>
-        <Panel title="Diff" active={focused === "diff"} view={panelState} stale={stale.has("diff")}>
+        <Panel title="Diff" surface="editor" active={focused === "diff"} view={panelState} stale={stale.has("diff")}>
           <DiffPanel
             active={focused === "diff"}
             oninitsubmodule={(path) => void initSubmoduleAt(path)}
@@ -4545,7 +4546,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: color-mix(in srgb, var(--surface-base) 78%, transparent);
+    background: var(--surface-base);
+    opacity: 0.85;
     border: 2px dashed var(--status-ref);
     color: var(--text-primary);
     font-size: var(--fs-ui);

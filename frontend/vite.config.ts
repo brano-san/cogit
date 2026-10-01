@@ -5,6 +5,7 @@ import { fileURLToPath, URL } from "node:url";
 import { resolve } from "node:path";
 import fs from "node:fs";
 import { createRequire } from "node:module";
+import { THEME_CACHE_KEY } from "./src/lib/theme-cache";
 import {
   THIRD_PARTY_FILE,
   bundledRoots,
@@ -14,6 +15,29 @@ import {
 } from "./src/lib/third-party";
 
 const DEV_PORT = 1420;
+
+// Before the page has a stylesheet or a script: the last theme's background and text, so a
+// window never opens white and a failed script is still readable. Read from themes/, so no
+// color literal lives here.
+function bootTheme(): Plugin {
+  return {
+    name: "cogit-boot-theme",
+    transformIndexHtml() {
+      const themes = { light: "light", lightGrey: "light-gray", darkGrey: "dark-gray", dark: "dark" };
+      const css = Object.entries(themes)
+        .map(([id, file]) => {
+          const { tokens } = JSON.parse(fs.readFileSync(fileURLToPath(new URL(`./src/themes/${file}.json`, import.meta.url)), "utf8"));
+          return `:root[data-theme="${id}"]{--boot-bg:${tokens["bg.app"]};--boot-fg:${tokens["fg.primary"]}}`;
+        })
+        .join("");
+      const script = `try{var t=localStorage.getItem("${THEME_CACHE_KEY}");if(t)document.documentElement.dataset.theme=t}catch(e){}`;
+      return [
+        { tag: "style", children: css, injectTo: "head" },
+        { tag: "script", children: script, injectTo: "head" },
+      ];
+    },
+  };
+}
 
 function thirdPartyLicences(): Plugin {
   return {
@@ -44,7 +68,7 @@ const svelteVersion = JSON.parse(
 ).version as string;
 
 export default defineConfig({
-  plugins: [svelte(), thirdPartyLicences()],
+  plugins: [svelte(), thirdPartyLicences(), bootTheme()],
 
   define: {
     __SVELTE_VERSION__: JSON.stringify(svelteVersion),

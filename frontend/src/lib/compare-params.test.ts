@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareLabel, compareUrl, parseCompare } from "./compare-params";
+import { compareLabel, compareUrl, diffWindowTitle, parseCompare, sideCaptions } from "./compare-params";
 
 describe("compareUrl and parseCompare", () => {
   it("round-trips a commit comparison", () => {
@@ -100,5 +100,28 @@ describe("compareLabel", () => {
     expect(compareLabel({ kind: "commitVsCommit", a: oid, b: other }).tip).toBe(
       "Commit 0123456 on the left, commit fedcba9 on the right",
     );
+  });
+});
+
+describe("sideCaptions and diffWindowTitle", () => {
+  const oid = "0123456789abcdef0123456789abcdef01234567";
+  const other = "fedcba9876543210fedcba9876543210fedcba98";
+
+  it("names what each pane holds", () => {
+    expect(sideCaptions({ kind: "workTreeVsIndex" })).toEqual({ left: "Index", right: "Working tree" });
+    expect(sideCaptions({ kind: "indexVsHead" })).toEqual({ left: "HEAD", right: "Index" });
+    expect(sideCaptions({ kind: "commitVsWorkTree", oid })).toEqual({ left: "0123456", right: "Working tree" });
+    expect(sideCaptions({ kind: "commitVsCommit", a: oid, b: other })).toEqual({ left: "0123456", right: "fedcba9" });
+  });
+
+  it("names a commit's parent by its short id, or says there is none", () => {
+    expect(sideCaptions({ kind: "commitVsParent", oid }, other)).toEqual({ left: "fedcba9", right: "0123456" });
+    expect(sideCaptions({ kind: "commitVsParent", oid }, null).left).toBe("No parent");
+    expect(sideCaptions({ kind: "commitVsParent", oid }).left).toBe("Parent");
+  });
+
+  it("titles the window by the file's name only", () => {
+    expect(diffWindowTitle("src/logic/src/algo_task.cpp")).toBe("Cogit — algo_task.cpp");
+    expect(diffWindowTitle("README.md")).toBe("Cogit — README.md");
   });
 });

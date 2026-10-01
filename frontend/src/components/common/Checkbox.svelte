@@ -108,7 +108,7 @@
   .native:indeterminate + .box {
     background: var(--status-ref);
     border-color: var(--status-ref);
-    color: var(--surface-base);
+    color: var(--fg-on-accent);
   }
 
   .native:focus-visible + .box {

@@ -59,7 +59,7 @@ describe("following another window", () => {
   });
 
   it("reads the file afresh and recolours the window", async () => {
-    const root = { dataset: {} as Record<string, string> };
+    const root = { dataset: {} as Record<string, string>, style: { setProperty: () => {} } };
     vi.stubGlobal("document", { documentElement: root });
     await settings.load();
     stored.set("settings", { theme: "light" });

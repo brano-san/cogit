@@ -1,135 +1,15 @@
 /*
- * Cogit design tokens. Single source of truth: doc/06-design-system.md.
- *
- * Two layers: primitives (the palette) and semantics (the role). Components use only
- * the semantic layer, because a role survives a palette change and `--c-bg-hover` does not.
- * A literal colour inside a component is a review blocker.
+ * Cogit design tokens. Colors live in themes/*.json (one file per theme, schema in
+ * themes/tokens.schema.json) and reach :root as custom properties through lib/theme.ts;
+ * aliases.css keeps the older names working. This file holds what does not change with
+ * the theme: type, spacing, sizes, radii and motion. Single source of truth for the rules:
+ * doc/06-design-system.md. A color literal anywhere under src/ outside themes/ fails
+ * scripts/check-colors.mjs.
  */
 
+@import "./aliases.css";
+
 :root {
-  /* ---- primitives: surfaces ---- */
-  --c-bg-window: #0f1115;
-  --c-bg-panel: #16191f;
-  --c-bg-elevated: #1a1e26;
-  --c-bg-hover: #1e222b;
-  --c-bg-active: #242b38;
-  --c-bg-inset: #0c0e12;
-  --c-bg-chrome: #121418;
-  /* Every second row of a long list, over the panel: barely there, as SmartGit draws it. */
-  --c-row-stripe: rgba(255, 255, 255, 0.03);
-
-  /* ---- primitives: borders ---- */
-  --c-border: #262b35;
-  --c-border-strong: #323945;
-  --c-border-chrome: #000000;
-
-  /* ---- primitives: text ---- */
-  --c-text: #e6edf3;
-  --c-text-muted: #8b949e;
-  --c-text-code: #d1d7e0;
-  --c-text-inverse: #0f1115;
-  --c-link: #58a6ff;
-
-  /* ---- primitives: git status accents ---- */
-  --c-added: #22c55e;
-  --c-modified: #f59e0b;
-  --c-deleted: #ef4444;
-  --c-branch: #38bdf8;
-  --c-stash: #a855f7;
-  --c-tag: #eab308;
-
-  --c-added-bg: rgba(34, 197, 94, 0.12);
-  --c-modified-bg: rgba(245, 158, 11, 0.12);
-  --c-deleted-bg: rgba(239, 68, 68, 0.12);
-  --c-branch-bg: rgba(56, 189, 248, 0.12);
-  --c-stash-bg: rgba(168, 85, 247, 0.12);
-  --c-tag-bg: rgba(234, 179, 8, 0.12);
-
-  /* ---- primitives: graph lanes (distinguishable under common colour blindness) ---- */
-  --c-lane-1: #38bdf8;
-  --c-lane-2: #22c55e;
-  --c-lane-3: #f59e0b;
-  --c-lane-4: #a855f7;
-  --c-lane-5: #ec4899;
-  --c-lane-6: #14b8a6;
-  --c-lane-7: #eab308;
-  --c-lane-8: #f97316;
-
-  /* ---- semantic layer: the only tokens components may use ---- */
-  --surface-base: var(--c-bg-window);
-  --surface-panel: var(--c-bg-panel);
-  --surface-raised: var(--c-bg-elevated);
-  --surface-input: var(--c-bg-inset);
-  --state-hover: var(--c-bg-hover);
-  --state-selected: var(--c-bg-active);
-  --row-stripe: var(--c-row-stripe);
-  --state-focus-ring: var(--c-branch);
-  /* A switch that is on (`aria-pressed`): the one look every switch has, hovered or not. */
-  --state-pressed: var(--c-bg-active);
-  --state-pressed-text: var(--c-branch);
-
-  --divider: var(--c-border);
-  /* The rail between two panels. Darker than either in both themes, so the blocks
-     read as blocks and the handle is somewhere you can see before you reach for it. */
-  --splitter-track: var(--c-border);
-  --splitter-active: var(--status-ref);
-  --field-border: var(--c-border-strong);
-
-  /* The window chrome — toolbar and status bar — reads as one frame around the work. */
-  --titlebar-bg: var(--c-bg-chrome);
-  --titlebar-border: var(--c-border-chrome);
-
-  --text-primary: var(--c-text);
-  --text-secondary: var(--c-text-muted);
-  --text-code: var(--c-text-code);
-
-  --status-add: var(--c-added);
-  --status-modify: var(--c-modified);
-  --status-delete: var(--c-deleted);
-  --status-ref: var(--c-branch);
-  /* Every link in the app, anchor or button, reads this one token (R-172). */
-  --link: var(--c-link);
-  /* The graph: the main line in the foreground colour, every other line one grey. */
-  --graph-main: var(--text-primary);
-  --graph-line: var(--text-secondary);
-  /* Branches ticked in Branches, each in its own colour (#11). Every theme keeps them at
-     3:1 or more against the panel and the selected row (graph-palette.test.ts). */
-  --graph-branch-1: var(--c-lane-1);
-  --graph-branch-2: var(--c-lane-2);
-  --graph-branch-3: var(--c-lane-3);
-  --graph-branch-4: var(--c-lane-4);
-  --graph-branch-5: var(--c-lane-5);
-  --graph-branch-6: var(--c-lane-6);
-  --graph-branch-7: var(--c-lane-7);
-  --graph-branch-8: var(--c-lane-8);
-  /* The branch of the chosen commit, where it has no colour of its own. */
-  --graph-focus: var(--status-ref);
-  /* Bisect (F-566): dots of good, bad and skipped commits over the ring, tints of the rows
-     under test and found. From the status colours, so every theme has them. */
-  --graph-bisect-good: var(--status-add);
-  --graph-bisect-bad: var(--status-delete);
-  --graph-bisect-skip: var(--text-secondary);
-  --graph-bisect-current: var(--c-modified-bg);
-  --graph-bisect-found: var(--c-deleted-bg);
-  --status-stash: var(--c-stash);
-  /* Moved and renamed code is blue in every theme (the diff's palette: yellow modified,
-     green added, red deleted, blue moved). */
-  --status-move: var(--c-branch);
-  --c-moved-bg: color-mix(in srgb, var(--status-move) 12%, transparent);
-  --status-tag: var(--c-tag);
-  /* Where a repository stands: its row in Repositories, the worktree label in Branches
-     (R-353). Changes are a warning colour; being ahead is the user's own work. */
-  --indicator-changes: var(--status-modify);
-  --indicator-synced: var(--status-add);
-  /* Push is work of one's own not yet out, as the changes dot is; pull is new work in (R-548). */
-  --indicator-push: var(--indicator-changes);
-  --indicator-pull: var(--status-add);
-  --indicator-unknown: var(--text-secondary);
-  /* Diff side by side: the stripes where the other side has lines this one lacks (R-533). */
-  --diff-filler: color-mix(in srgb, var(--c-text-muted) 30%, transparent);
-  /* The change F6 or an arrow landed on, lit for a moment (F-541). */
-  --diff-jump-flash: color-mix(in srgb, var(--c-branch) 35%, transparent);
-
   /* ---- typography ---- */
   --font-ui: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", Consolas, "SF Mono", ui-monospace, monospace;
@@ -204,133 +84,11 @@
   --r-md: 4px;
   --r-lg: 6px;
 
-  --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.45);
-  --shadow-dialog: 0 12px 40px rgba(0, 0, 0, 0.55);
-  /* Behind a dialog: dark enough to push the window back, light enough to read it. */
-  --scrim: rgba(0, 0, 0, 0.35);
-  --text-on-accent: #ffffff;
-  --c-add-soft: rgba(90, 160, 110, 0.14);
-  --c-neutral-soft: rgba(255, 255, 255, 0.14);
-  --c-search-hit: rgba(220, 180, 60, 0.3);
-  --c-search-current: rgba(240, 200, 70, 0.75);
-  --c-search-ink: #1a1a1a;
-
   /* ---- motion: anything over 150ms feels like lag in a developer tool ---- */
   --t-fast: 80ms;
   --t-medium: 120ms;
   --t-dialog: 140ms;
   --ease-out: cubic-bezier(0.2, 0, 0, 1);
-}
-
-/* Only the primitives change: every component reads the semantic layer above. Light grey
-   starts from light and darkens the surfaces; dark grey starts from dark and lightens them. */
-:root[data-theme="light"],
-:root[data-theme="lightGrey"] {
-  --c-bg-window: #ffffff;
-  --c-bg-panel: #f6f8fa;
-  --c-bg-elevated: #eef1f5;
-  --c-bg-hover: #eaeef2;
-  --c-bg-active: #dde3ea;
-  --c-bg-inset: #ffffff;
-  --c-bg-chrome: #e8eaed;
-  --c-row-stripe: rgba(255, 255, 255, 0.6);
-
-  --c-border: #d8dee4;
-  --c-border-strong: #bcc4cc;
-  --c-border-chrome: #c2c8cf;
-
-  --c-text: #1f2328;
-  --c-text-muted: #59636e;
-  --c-text-code: #24292f;
-  --c-text-inverse: #ffffff;
-  --c-link: #0969da;
-
-  --c-added: #1a7f37;
-  --c-modified: #9a6700;
-  --c-deleted: #cf222e;
-  --c-branch: #0969da;
-  --c-stash: #8250df;
-  --c-tag: #855d00;
-
-  --c-added-bg: rgba(26, 127, 55, 0.1);
-  --c-modified-bg: rgba(154, 103, 0, 0.12);
-  --c-deleted-bg: rgba(207, 34, 46, 0.1);
-  --c-branch-bg: rgba(9, 105, 218, 0.1);
-  --c-stash-bg: rgba(130, 80, 223, 0.1);
-  --c-tag-bg: rgba(133, 93, 0, 0.1);
-
-  --c-lane-1: #0969da;
-  --c-lane-2: #1a7f37;
-  --c-lane-3: #bc4c00;
-  --c-lane-4: #8250df;
-  --c-lane-5: #bf3989;
-  --c-lane-6: #0f766e;
-  --c-lane-7: #9a6700;
-  --c-lane-8: #a40e26;
-
-  --shadow-popover: 0 8px 24px rgba(31, 35, 40, 0.15);
-  --splitter-track: #d8dee4;
-  --shadow-dialog: 0 12px 40px rgba(31, 35, 40, 0.25);
-  --scrim: rgba(31, 35, 40, 0.25);
-  --text-on-accent: #ffffff;
-  --c-add-soft: rgba(26, 127, 55, 0.12);
-  --c-neutral-soft: rgba(31, 35, 40, 0.08);
-  --c-search-hit: rgba(214, 160, 20, 0.3);
-  --c-search-current: rgba(214, 160, 20, 0.65);
-  --c-search-ink: #1a1a1a;
-}
-
-/* Accents one step darker than light: the grey panel takes contrast away from them. */
-:root[data-theme="lightGrey"] {
-  --c-bg-window: #d9dce1;
-  --c-bg-panel: #e6e8ec;
-  --c-bg-elevated: #dde0e5;
-  --c-bg-hover: #d6dae0;
-  --c-bg-active: #c8cfd8;
-  --c-bg-inset: #f2f3f5;
-  --c-bg-chrome: #d2d5db;
-  --c-row-stripe: rgba(255, 255, 255, 0.35);
-
-  --c-border: #c4c9d0;
-  --c-border-strong: #a9b0b9;
-  --c-border-chrome: #b5bbc3;
-  --splitter-track: #c4c9d0;
-
-  --c-text-muted: #515a65;
-  --c-link: #0858b8;
-
-  --c-added: #16702f;
-  --c-modified: #845800;
-  --c-deleted: #b91c28;
-  --c-branch: #0858b8;
-  --c-stash: #7042c9;
-}
-
-/* Red and violet a step lighter than dark: on a grey panel the dark ones fall below 4.5:1,
-   and the violet and pink branch colours below 3:1 on a selected row. */
-:root[data-theme="darkGrey"] {
-  --c-bg-window: #25272c;
-  --c-bg-panel: #2d3036;
-  --c-bg-elevated: #33363d;
-  --c-bg-hover: #383c44;
-  --c-bg-active: #414754;
-  --c-bg-inset: #212328;
-  --c-bg-chrome: #282a2f;
-  --c-row-stripe: rgba(255, 255, 255, 0.035);
-
-  --c-border: #3d414a;
-  --c-border-strong: #4b505a;
-  --c-border-chrome: #1b1c20;
-
-  --c-text: #e3e6ea;
-  --c-text-muted: #a0a7b1;
-  --c-text-code: #d6dbe1;
-  --c-text-inverse: #25272c;
-
-  --c-deleted: #f87171;
-  --c-stash: #c084fc;
-  --c-lane-4: #c084fc;
-  --c-lane-5: #f472b6;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -379,7 +137,7 @@ body {
 /* Keyboard focus must always be visible; `outline: none` makes the app unusable
    without a mouse. */
 :focus-visible {
-  outline: 1px solid var(--state-focus-ring);
+  outline: 2px solid var(--focus-ring);
   outline-offset: -1px;
 }
 
@@ -399,6 +157,7 @@ body {
 [aria-pressed="true"]:not(:disabled) {
   background: var(--state-pressed) !important;
   color: var(--state-pressed-text) !important;
+  border-color: var(--toggle-on-border) !important;
 }
 
 a {
@@ -464,7 +223,7 @@ input.tick-box {
   background: var(--surface-input);
   border: 1px solid var(--field-border);
   border-radius: var(--r-sm);
-  color: var(--surface-base);
+  color: var(--fg-on-accent);
   transition:
     background var(--t-fast) var(--ease-out),
     border-color var(--t-fast) var(--ease-out);
@@ -520,24 +279,24 @@ input.tick-box:disabled {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--c-border-strong);
+  background: var(--scrollbar-thumb);
   border: 2px solid transparent;
   background-clip: content-box;
   border-radius: 5px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-secondary);
+  background: var(--fg-muted);
   background-clip: content-box;
 }
 
 /* Lezer token classes. Colour only — a background here would fight the diff fill (T7.6). */
 .tok-keyword {
-  color: var(--c-lane-5, #c792ea);
+  color: var(--c-lane-5);
 }
 
 .tok-string {
-  color: var(--c-lane-3, #c3e88d);
+  color: var(--c-lane-3);
 }
 
 .tok-comment {
@@ -548,19 +307,19 @@ input.tick-box:disabled {
 .tok-number,
 .tok-bool,
 .tok-atom {
-  color: var(--c-lane-6, #f78c6c);
+  color: var(--c-lane-6);
 }
 
 .tok-typeName,
 .tok-className,
 .tok-namespace {
-  color: var(--c-lane-2, #ffcb6b);
+  color: var(--c-lane-2);
 }
 
 .tok-macroName {
-  color: var(--c-lane-1, #82aaff);
+  color: var(--c-lane-1);
 }
 
 .tok-propertyName {
-  color: var(--c-lane-4, #89ddff);
+  color: var(--c-lane-4);
 }

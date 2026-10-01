@@ -1,7 +1,7 @@
 // clippy.toml's allow-unwrap-in-tests does not reach helpers beside `#[test]` fns.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use app_state::settings::{read_document, write_key};
+use app_state::settings::{read_document, read_user_theme, write_key};
 use serde_json::json;
 
 fn dir() -> tempfile::TempDir {
@@ -180,4 +180,31 @@ fn plain_git_or_nothing_means_the_one_on_path() {
     )
     .unwrap();
     assert_eq!(app_state::settings::read_git_program(dir.path()), None);
+}
+
+#[test]
+fn a_missing_user_theme_reads_as_an_empty_object() {
+    assert_eq!(read_user_theme(dir().path()), "{}");
+}
+
+#[test]
+fn a_user_theme_reads_back_as_it_was_written() {
+    let home = dir();
+    std::fs::write(
+        home.path().join("user-theme.json"),
+        "\u{feff}{\"tokens\": {\"accent\": \"#ff0000\"}}",
+    )
+    .unwrap();
+
+    let read: serde_json::Value = serde_json::from_str(&read_user_theme(home.path())).unwrap();
+    assert_eq!(read["tokens"]["accent"], json!("#ff0000"));
+}
+
+#[test]
+fn a_malformed_or_non_object_user_theme_is_ignored() {
+    let home = dir();
+    for text in ["{ nope", "[1, 2]", "\"accent\"", ""] {
+        std::fs::write(home.path().join("user-theme.json"), text).unwrap();
+        assert_eq!(read_user_theme(home.path()), "{}", "{text:?}");
+    }
 }

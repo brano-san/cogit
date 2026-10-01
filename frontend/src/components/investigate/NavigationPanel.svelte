@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tokenColor } from "$lib/theme-colors";
   import { shortOid } from "$lib/format";
   import VirtualList from "$components/common/VirtualList.svelte";
   import { dateOf, shortAuthor } from "$lib/investigate/blame";
@@ -30,8 +31,7 @@
   const reveal = $derived(session.selectedItem >= 0 ? session.selectedItem : null);
 
   function color(lane: number): string {
-    const style = getComputedStyle(document.documentElement);
-    return style.getPropertyValue(`--c-lane-${(lane % 8) + 1}`).trim() || "#888";
+    return tokenColor(`--graph-lane-${lane % 8}`);
   }
 
   function draw(canvas: HTMLCanvasElement, { row, width, hollow }: Drawn) {
@@ -44,7 +44,7 @@
     context.scale(ratio, ratio);
     const { node, lines } = segmentsOf(row, LANE, ROW);
     context.lineWidth = 1.5;
-    context.strokeStyle = getComputedStyle(canvas).getPropertyValue("--graph-line").trim() || "#888";
+    context.strokeStyle = tokenColor("--graph-line");
     for (const [from, to] of lines) {
       context.beginPath();
       context.moveTo(from[0], from[1]);

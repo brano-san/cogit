@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { SCHEMA, cssName } from "./theme";
 
 /** A misspelt token is not an error anywhere: the declaration is dropped and the element
     quietly loses its spacing or its colour. Two dialogs shipped that way (R-152). */
@@ -20,7 +21,12 @@ function declared(text: string): Set<string> {
 }
 
 describe("design tokens", () => {
-  const global = declared(readFileSync(join(SRC, "app.css"), "utf8"));
+  // Colors come from the theme files at run time, aliases from aliases.css, the rest from app.css.
+  const global = new Set([
+    ...declared(readFileSync(join(SRC, "app.css"), "utf8")),
+    ...declared(readFileSync(join(SRC, "aliases.css"), "utf8")),
+    ...Object.keys(SCHEMA).map(cssName),
+  ]);
 
   it("uses no custom property that is declared nowhere", () => {
     const missing: string[] = [];
@@ -35,6 +41,12 @@ describe("design tokens", () => {
       }
     }
     expect([...new Set(missing)]).toEqual([]);
+  });
+
+  it("does not alias a name that a token already has", () => {
+    const tokens = new Set(Object.keys(SCHEMA).map(cssName));
+    const doubled = [...declared(readFileSync(join(SRC, "aliases.css"), "utf8"))].filter((name) => tokens.has(name));
+    expect(doubled).toEqual([]);
   });
 
   // The LFS download link and "Use inherited" took the branch colour: one link in About,

@@ -61,27 +61,27 @@
   }
 
   .head {
-    color: var(--c-bg-window);
-    background: var(--status-ref);
-    border-color: var(--status-ref);
+    color: var(--badge-head-fg);
+    background: var(--badge-head-bg);
+    border-color: var(--badge-head-bg);
   }
 
   .local {
-    color: var(--status-ref);
-    background: var(--c-branch-bg);
-    border-color: var(--status-ref);
+    color: var(--badge-branch-fg);
+    background: var(--badge-branch-bg);
+    border-color: var(--badge-branch-fg);
   }
 
   .remote {
-    color: var(--text-secondary);
-    background: transparent;
+    color: var(--badge-remote-fg);
+    background: var(--badge-remote-bg);
     border-color: var(--field-border);
   }
 
   .tag {
-    color: var(--status-tag);
-    background: var(--c-tag-bg);
-    border-color: var(--status-tag);
+    color: var(--badge-tag-fg);
+    background: var(--badge-tag-bg);
+    border-color: var(--badge-tag-fg);
   }
 
   .stash {
@@ -98,8 +98,8 @@
   .prefix,
   .eq {
     flex: none;
-    color: var(--text-secondary);
-    background: var(--surface-raised);
+    color: var(--badge-remote-fg);
+    background: var(--badge-remote-bg);
   }
 
   .prefix {

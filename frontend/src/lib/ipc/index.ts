@@ -809,6 +809,11 @@ export async function readSettings(): Promise<string> {
   return await commands.readSettings();
 }
 
+/** `user-theme.json` as JSON text; `{}` when there is none. */
+export async function readUserTheme(): Promise<string> {
+  return await commands.readUserTheme();
+}
+
 export async function writeSetting(key: string, value: string): Promise<null> {
   return unwrap(await commands.writeSetting(key, value));
 }

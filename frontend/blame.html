@@ -11,8 +11,8 @@
       body {
         height: 100%;
         margin: 0;
-        background: #0f1115;
-        color: #c9d1d9;
+        background: var(--boot-bg);
+        color: var(--boot-fg);
         font: 13px/1.5 "Segoe UI", system-ui, sans-serif;
       }
       #failed {
@@ -21,7 +21,8 @@
         white-space: pre-wrap;
       }
       #failed code {
-        color: #f0857d;
+        color: inherit;
+        font-weight: 700;
       }
     </style>
   </head>

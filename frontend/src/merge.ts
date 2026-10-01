@@ -1,6 +1,6 @@
 import { mount } from "svelte";
 import MergeWindow from "./MergeWindow.svelte";
-import "./app.css";
+import "./boot";
 
 const target = document.getElementById("app");
 if (!target) {

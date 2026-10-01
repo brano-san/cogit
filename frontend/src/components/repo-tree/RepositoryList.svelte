@@ -511,7 +511,7 @@
   }
 
   .row.holds-worktree {
-    box-shadow: inset 2px 0 0 var(--status-ref);
+    box-shadow: inset 2px 0 0 var(--selected-bar);
   }
 
   .row.module.diverged .hint,
@@ -597,7 +597,7 @@
   /* A bar as well as a tint: two greys apart is not something everyone can see. */
   .row.selected {
     background: var(--state-selected);
-    box-shadow: inset 2px 0 0 var(--status-ref);
+    box-shadow: inset 2px 0 0 var(--selected-bar);
   }
 
   /* The row a context menu is open on: a ring inside the row, over any selection bar and
@@ -627,7 +627,7 @@
   }
 
   .row.marked {
-    box-shadow: inset 2px 0 0 var(--status-ref);
+    box-shadow: inset 2px 0 0 var(--selected-bar);
   }
 
   .row.missing .name {

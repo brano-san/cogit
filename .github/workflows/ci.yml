@@ -52,6 +52,9 @@ jobs:
       - name: Type-check the frontend
         run: npm --prefix frontend run check
 
+      - name: No color literals outside the theme files
+        run: npm --prefix frontend run check:colors
+
       - name: Rust tests
         run: |
           cargo nextest run --workspace --exclude cogit

@@ -10,7 +10,7 @@
     type ColumnRow,
   } from "$lib/graph-columns";
   import { blockedModes, GRAPH_MODES, type GraphMode } from "$lib/graph-mode-conflicts";
-  import { FIELD_LABELS, FILTER_FIELDS, toggled } from "$lib/filter-fields";
+  import { FIELD_LABELS, FILTER_FIELDS, isSlowField, SLOW_FIELD_TIP, toggled } from "$lib/filter-fields";
   import { COLORING_LABELS, GRAPH_COLORINGS } from "$lib/graph-coloring";
   import { GRAPH_SWITCHES, type GraphSwitch } from "$lib/graph-options";
   import { forget } from "$lib/filter-patterns";
@@ -166,12 +166,15 @@
     <span>{field.label}</span>
     <div class="options" role="group" aria-label={field.label}>
       {#each FILTER_FIELDS as each (each)}
-        <span title={FIELD_LABELS[each].title}>
+        <span class="fieldchoice" title={FIELD_LABELS[each].title}>
           <Checkbox
             checked={value.graphFilterFields.includes(each)}
             label={FIELD_LABELS[each].label}
             onchange={() => onset("graphFilterFields", toggled(value.graphFilterFields, each))}
           />
+          {#if isSlowField(each)}<button type="button" class="star" aria-label={SLOW_FIELD_TIP} data-tip={SLOW_FIELD_TIP}
+              >*</button
+            >{/if}
         </span>
       {/each}
     </div>
@@ -226,6 +229,21 @@
 {/if}
 
 <style>
+  .fieldchoice {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .star {
+    margin-left: var(--sp-2);
+    padding: 0;
+    background: none;
+    border: 0;
+    color: var(--text-secondary);
+    font: inherit;
+    cursor: help;
+  }
+
   .row {
     display: grid;
     grid-template-columns: 200px minmax(0, 1fr);

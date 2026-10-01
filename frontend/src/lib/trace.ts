@@ -17,7 +17,7 @@ export interface TraceLine {
 export const TRACE_BATCH_LINES = 32;
 export const TRACE_BATCH_MS = 0;
 
-type Level = "info" | "error";
+type Level = "info" | "warn" | "error";
 
 let origin = 0;
 let pending: WebviewLogLine[] = [];

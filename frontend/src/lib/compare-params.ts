@@ -1,4 +1,5 @@
 import { shortOid } from "./format";
+import { fileName } from "./files";
 import type { DiffSpec, RepoId } from "./ipc";
 
 export interface CompareRequest {
@@ -93,4 +94,34 @@ function specOf(kind: string, params: URLSearchParams): DiffSpec | null {
     default:
       return null;
   }
+}
+
+export interface SideCaptions {
+  left: string;
+  right: string;
+}
+
+/** What each pane of the diff holds, as the caption above it. `parent` as for `compareLabel`:
+    `undefined` until read, `null` for a root commit. */
+export function sideCaptions(spec: DiffSpec, parent?: string | null): SideCaptions {
+  switch (spec.kind) {
+    case "workTreeVsIndex":
+      return { left: "Index", right: "Working tree" };
+    case "indexVsHead":
+      return { left: "HEAD", right: "Index" };
+    case "commitVsParent":
+      return {
+        left: parent === null ? "No parent" : parent === undefined ? "Parent" : shortOid(parent),
+        right: shortOid(spec.oid),
+      };
+    case "commitVsWorkTree":
+      return { left: shortOid(spec.oid), right: "Working tree" };
+    case "commitVsCommit":
+      return { left: shortOid(spec.a), right: shortOid(spec.b) };
+  }
+}
+
+/** The window's title: the application and the file's name; the full path is in its header. */
+export function diffWindowTitle(path: string): string {
+  return `Cogit — ${fileName(path)}`;
 }

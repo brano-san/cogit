@@ -137,7 +137,7 @@
   }
 
   .row.current {
-    box-shadow: inset 2px 0 0 var(--status-ref);
+    box-shadow: inset 2px 0 0 var(--selected-bar);
   }
 
   .row.current .name {

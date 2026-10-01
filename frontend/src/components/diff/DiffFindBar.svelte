@@ -87,7 +87,7 @@
   /* Nothing found: a tint, not an error — the user is still typing (#12). */
   .find input.missing {
     border-color: var(--status-delete);
-    background: color-mix(in srgb, var(--status-delete) 14%, var(--surface-input));
+    background: var(--diff-del-line);
   }
 
   .find button {

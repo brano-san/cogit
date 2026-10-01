@@ -6,6 +6,7 @@ import { DEFAULT_DIFF_OPTIONS, type DiffOptions } from "$lib/ipc";
 import { mergeKeymap, type Keymap } from "$lib/keymap";
 import { defaultKeymap, setKeymap } from "$lib/ipc";
 import { DEFAULT_SETTINGS, merge, type Settings } from "$lib/settings";
+import { themeStore } from "$stores/theme.svelte";
 
 const KEY = "settings";
 const KEYMAP_KEY = "keymap";
@@ -47,6 +48,7 @@ class SettingsStore {
       this.current = { ...DEFAULT_SETTINGS };
     }
     this.#apply();
+    await themeStore.loadUser();
   }
 
   /** Another window wrote the file (`followSettings`): read it from disk, not the copy. */
@@ -106,9 +108,7 @@ class SettingsStore {
   /** The two settings that live outside the reactive graph: CSS and canvas geometry. */
   #apply(): void {
     setLaneWidth(this.current.laneWidth);
-    if (typeof document !== "undefined") {
-      document.documentElement.dataset.theme = this.current.theme;
-    }
+    themeStore.apply(this.current.theme);
   }
 }
 

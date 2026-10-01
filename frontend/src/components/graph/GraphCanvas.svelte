@@ -9,6 +9,8 @@
     segmentCurve,
     textX,
   } from "$lib/graph-geometry";
+  import { tokenColor } from "$lib/theme-colors";
+  import { themeStore } from "$stores/theme.svelte";
   import { LAYERS, nodeStroke, opaqueInk, segmentStroke, type RowPaint } from "$lib/graph-style";
   import { canvasBox, drawsNow, type CanvasBox } from "$lib/canvas-frame";
   import { settings } from "$stores/settings.svelte";
@@ -86,13 +88,12 @@
     context.imageSmoothingEnabled = true;
     context.lineCap = "round";
 
-    const styles = getComputedStyle(document.documentElement);
-    const token = (name: string) => styles.getPropertyValue(name).trim();
+    const token = tokenColor;
     const main = token("--graph-main");
     const line = token("--graph-line");
     const coloring = settings.current.graphColoring;
     const options = { accentLit: coloring === "mergeable", branchOnly: coloring === "branch", focusLane };
-    const panel = token("--surface-panel");
+    const panel = token("--bg-editor");
     const colours = new Map<string, string>();
     const colour = (name: string) => {
       if (!colours.has(name)) colours.set(name, token(name) || line);
@@ -204,7 +205,7 @@
     // Theme, lane width and colour change the picture without changing the data.
     void [rows, scrollTop, width, height, dpr, headRow, headLane, headerRow, headerLane, selectedRows, hoverRow, focusLane];
     void [clipX, stripes, rowHeight];
-    void [settings.current.theme, settings.current.laneWidth, settings.current.graphColoring];
+    void [themeStore.version, settings.current.theme, settings.current.laneWidth, settings.current.graphColoring];
     if (drawsNow(drawnBox, canvasBox(width, height, dpr))) {
       cancelAnimationFrame(frame);
       draw();

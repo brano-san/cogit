@@ -343,13 +343,13 @@
   }
 
   .row.marked {
-    box-shadow: inset 2px 0 0 var(--status-ref);
+    box-shadow: inset 2px 0 0 var(--selected-bar);
   }
 
   /* A bar as well as a tint: two greys apart is not something everyone can see. */
   .row.selected {
     background: var(--state-selected);
-    box-shadow: inset 2px 0 0 var(--status-ref);
+    box-shadow: inset 2px 0 0 var(--selected-bar);
   }
 
   .folder {

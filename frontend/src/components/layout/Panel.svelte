@@ -22,6 +22,8 @@
     stale?: boolean;
     /** The panel the keyboard is talking to; its header says so (issue 15). */
     active?: boolean;
+    /** The work surface of the graph and the diff is the editor tone, not the panel one. */
+    surface?: "panel" | "editor";
     /** The count is still growing: an ellipsis after it, nothing in the body (R-301). */
     busy?: boolean;
   }
@@ -35,6 +37,7 @@
     stale = false,
     active = false,
     busy = false,
+    surface = "panel",
   }: Props = $props();
 
   const ready = $derived(view === "content");
@@ -46,7 +49,7 @@
   $effect(() => () => dot.dispose());
 </script>
 
-<section class="panel" aria-busy={view === "opening"}>
+<section class="panel" class:editor={surface === "editor"} class:active aria-busy={view === "opening"}>
   <header class="panel-header" class:active>
     <h2 class="panel-title">
       {title}{#if ready && count}&nbsp;({count}{#if busy}<span title="Loading the rest">…</span>{/if}){/if}
@@ -83,8 +86,18 @@
     min-width: 0;
     min-height: 0;
     background: var(--surface-panel);
+    /* A selected row is the stronger blue only while its panel has the keyboard. */
+    --state-selected: var(--bg-selected-inactive);
     border: 1px solid var(--divider);
     overflow: hidden;
+  }
+
+  .panel.active {
+    --state-selected: var(--bg-selected);
+  }
+
+  .panel.editor {
+    background: var(--surface-editor);
   }
 
   .panel-header {
@@ -96,23 +109,13 @@
     height: var(--h-panel-hdr);
     flex: 0 0 var(--h-panel-hdr);
     padding: 0 var(--sp-5);
-    background: var(--surface-raised);
+    background: var(--surface-base);
     border-bottom: 1px solid var(--divider);
   }
 
+  /* The panel that has the keyboard: a 2px line under its header, over the border. */
   .panel-header.active {
-    background: var(--state-selected);
-  }
-
-  /* Over the bottom border too, so it runs on into the bar of a selected first row. */
-  .panel-header.active::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    bottom: -1px;
-    left: 0;
-    width: 2px;
-    background: var(--status-ref);
+    box-shadow: inset 0 -2px 0 var(--panel-active-header);
   }
 
   .panel-header.active .panel-title {
