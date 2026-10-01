@@ -103,9 +103,44 @@ export interface BlockConnector {
       paint every fill first, then every outline. */
   path: string;
   edges: string;
-  /** Where the block's one action set goes: the exact horizontal center of the gutter, and
-      the vertical center of the part of the connector that is on screen. */
-  anchor: { x: number; y: number };
+  /** Where the block's two buttons go (R-628): » in the left part of the gutter, × in the
+      right part (`ACTION_LEFT_X`, `ACTION_RIGHT_X`), each at the vertical center of the part of
+      the band that is on screen *at its own x*, so it sits on its connector however the band
+      slants. `null`: the band is not on screen there, no button. */
+  anchor: { left: number | null; right: number | null };
+}
+
+/** Horizontal centers of the two buttons: the middles of the gutter's halves. */
+export const ACTION_LEFT_X = BAND_WIDTH / 4;
+export const ACTION_RIGHT_X = (BAND_WIDTH * 3) / 4;
+
+/** How far along the S-curve of the band (0 at the left column, 1 at the right) the point at
+    `x` is. The curve's controls sit at the horizontal midpoint, so
+    x(t) = 1.5·W·t(1−t) + W·t³ and y = from + (to − from)·(3t² − 2t³). */
+export function curveFraction(x: number): number {
+  const w = BAND_WIDTH;
+  let lo = 0;
+  let hi = 1;
+  for (let i = 0; i < 30; i++) {
+    const t = (lo + hi) / 2;
+    if (1.5 * w * t * (1 - t) + w * t ** 3 < x) lo = t;
+    else hi = t;
+  }
+  const t = (lo + hi) / 2;
+  return 3 * t * t - 2 * t * t * t;
+}
+
+const LEFT_FRACTION = curveFraction(ACTION_LEFT_X);
+const RIGHT_FRACTION = curveFraction(ACTION_RIGHT_X);
+
+/** The center of what is on screen of a band that spans `[top, bottom]` there, kept half a
+    button (`inset`) from the gutter's edges; `null` when none of it is on screen. */
+function visibleCenter(top: number, bottom: number, height: number, inset: number): number | null {
+  if (bottom < 0 || top > height) return null;
+  const lo = Math.max(top, inset);
+  const hi = Math.min(bottom, height - inset);
+  const mid = lo <= hi ? (lo + hi) / 2 : Math.min(Math.max((top + bottom) / 2, inset), height - inset);
+  return Math.round(mid);
 }
 
 /** y of a pane row boundary in the gutter: the same row sits at the same y as in the pane. */
@@ -123,12 +158,10 @@ function connectorOf(
   inset: number,
 ): BlockConnector | null {
   if (Math.min(l[0], r[0]) > height || Math.max(l[1], r[1]) < 0) return null;
-  // At the gutter's center the band spans the average of its two edges.
-  const top = (l[0] + r[0]) / 2;
-  const bottom = (l[1] + r[1]) / 2;
-  const lo = Math.max(top, inset);
-  const hi = Math.min(bottom, height - inset);
-  const mid = lo <= hi ? (lo + hi) / 2 : Math.min(Math.max((top + bottom) / 2, inset), height - inset);
+  // At `x` the band spans the edges blended by the curve there.
+  const at = (f: number) => {
+    return visibleCenter(l[0] + (r[0] - l[0]) * f, l[1] + (r[1] - l[1]) * f, height, inset);
+  };
   return {
     block: block.id,
     kind,
@@ -137,7 +170,7 @@ function connectorOf(
     right: r,
     path: pathOf(l[0], l[1], r[0], r[1]),
     edges: edgesOf(l[0], l[1], r[0], r[1]),
-    anchor: { x: BAND_WIDTH / 2, y: Math.round(mid) },
+    anchor: { left: at(LEFT_FRACTION), right: at(RIGHT_FRACTION) },
   };
 }
 
