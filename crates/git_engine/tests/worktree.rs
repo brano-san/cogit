@@ -555,6 +555,8 @@ fn a_file_deleted_by_us_says_deleted_by_us() {
     f.git(&["rm", "--", "f.txt"]).unwrap();
     f.commit_staged(12, "ours deletes").unwrap();
     let _ = f.git(&["merge", "theirs"]);
+    let rows = open(&f).worktree_files().unwrap().unstaged;
+    assert_eq!(rows.len(), 1, "the conflict is listed once: {rows:?}");
     assert_eq!(
         conflict_row(&f, "f.txt").conflict,
         Some(git_engine::ConflictKind::DeletedByUs)
