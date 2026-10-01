@@ -6,12 +6,12 @@ describe("parseQuery", () => {
   it("looks for bare words in the fields the switches pick", () => {
     expect(parseQuery("fix the parser")).toMatchObject({
       text: "fix the parser",
-      textIn: textFields(["author", "committer", "message", "refs", "id"]),
+      textIn: textFields(["author", "committer", "message", "refs", "id", "notes"]),
       message: null,
     });
     expect(parseQuery("fix", ["content"]).textIn).toEqual(textFields(["content"]));
     expect(parseQuery("fix", ["notes"]).textIn?.notes).toBe(true);
-    expect(parseQuery("fix").textIn?.notes).toBe(false);
+    expect(parseQuery("fix").textIn?.notes).toBe(true);
   });
 
   it("returns an empty query for blank input", () => {
