@@ -36,7 +36,7 @@ node scripts/oom/make-repo.mjs C:/Temp/oom-repo 100000
 npm run tauri -- dev --config src-tauri/tauri.debug.conf.json
 ```
 
-Лог прогона тогда лежит в `%LOCALAPPDATA%\dev.branosan.cogit-oomtest\logs\cogit.log`.
+Лог прогона тогда лежит в `%LOCALAPPDATA%\Cogit-oomtest\logs\cogit.log`.
 
 **3. Внешний сэмплер** — по pid приложения (`cogit.exe` из `target/debug`):
 

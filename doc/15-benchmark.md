@@ -30,7 +30,7 @@ node scripts/bench/compare.mjs target/bench/results/baseline.json target/bench/r
 
 **Сборка.** `src-tauri/tauri.bench.conf.json` — оверлей конфига Tauri: тот же `release`, то же
 окно 1600×1000, но открыт `--remote-debugging-port=9333` и свой `identifier`
-(`dev.branosan.cogit-bench`), поэтому настройки, сессия и лог не смешиваются с обычной
+(`Cogit-bench`), поэтому настройки, сессия и лог не смешиваются с обычной
 установкой. Сборка идёт в `target/bench`, релиз продукта не затирается. Оверлей Tauri —
 JSON Merge Patch: массив `windows` заменяется целиком, поэтому окно в нём описано полностью.
 

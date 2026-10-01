@@ -5,7 +5,7 @@ import { connect, pageTarget, sleep } from "./cdp.mjs";
 import { PAGE } from "./page.mjs";
 
 export const PORT = 9333;
-export const IDENTIFIER = "dev.branosan.cogit-bench";
+export const IDENTIFIER = "Cogit-bench";
 export const EXE = resolve("target/bench/release/cogit.exe");
 export const CONFIG_DIR = join(process.env.APPDATA ?? "", IDENTIFIER);
 export const DATA_DIR = join(process.env.LOCALAPPDATA ?? "", IDENTIFIER);

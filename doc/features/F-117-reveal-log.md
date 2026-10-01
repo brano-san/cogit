@@ -2,4 +2,4 @@
 
 `Help ▸ Open Log Folder` (в палитре команд — `Reveal Log File`) открывает папку логов в
 проводнике с выделенным файлом текущего запуска; в Tools пункта больше нет. Проверить: пункт
-открывает `%LOCALAPPDATA%\dev.branosan.cogit\logs\`, выделен самый свежий `cogit-<запуск>.log`.
+открывает `%LOCALAPPDATA%\Cogit\logs\`, выделен самый свежий `cogit-<запуск>.log`.

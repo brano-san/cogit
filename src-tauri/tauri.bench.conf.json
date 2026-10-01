@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "identifier": "dev.branosan.cogit-bench",
+  "identifier": "Cogit-bench",
   "app": {
     "windows": [
       {
