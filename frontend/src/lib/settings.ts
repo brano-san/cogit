@@ -13,6 +13,8 @@ export const THEMES = [
   ["dark", "Dark"],
 ] as const;
 
+export type DiffLayout = "aligned" | "compact";
+
 export type Theme = (typeof THEMES)[number][0];
 
 /** The commit list's optional columns; the subject and the ref capsules always show. */
@@ -31,6 +33,9 @@ export interface Settings {
   detectMoves: boolean;
   /** Side by side: the left code column's share of the width both get (R-535). */
   diffSplit: number;
+  /** Side by side: `aligned` keeps both sides on the same rows (filler where one has no lines),
+      `compact` is SmartGit's own rows per side with curved connectors (08 §12.2). */
+  diffLayout: DiffLayout;
   laneWidth: number;
   pullMode: "ffOnly" | "merge";
   gitPath: string;
@@ -92,6 +97,7 @@ export const DEFAULT_SETTINGS: Settings = {
   wordDiff: true,
   detectMoves: true,
   diffSplit: 0.5,
+  diffLayout: "aligned",
   laneWidth: LANE_WIDTH.default,
   pullMode: "ffOnly",
   gitPath: "git",
@@ -131,6 +137,7 @@ const ENUMS: Partial<Record<keyof Settings, readonly string[]>> = {
   dateFormat: ["smart", "relative", "both"],
   algorithm: ["histogram", "myers"],
   ignoreWhitespace: ["none", "trailing", "all"],
+  diffLayout: ["aligned", "compact"],
   pullMode: ["ffOnly", "merge"],
   logLevel: ["error", "warn", "info", "debug", "trace"],
   avatars: ["ask", "gravatar", "off"],

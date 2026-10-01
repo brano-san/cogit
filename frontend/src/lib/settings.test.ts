@@ -38,6 +38,12 @@ describe("merge", () => {
     expect(merge({ diffSplit: 3 }).diffSplit).toBe(0.8);
   });
 
+  it("lays side by side out aligned unless asked for compact", () => {
+    expect(merge({}).diffLayout).toBe("aligned");
+    expect(merge({ diffLayout: "compact" }).diffLayout).toBe("compact");
+    expect(merge({ diffLayout: "sideways" } as never).diffLayout).toBe("aligned");
+  });
+
   it("clamps the lane width to something drawable", () => {
     expect(merge({ laneWidth: 1 }).laneWidth).toBeGreaterThanOrEqual(8);
     expect(merge({ laneWidth: 500 }).laneWidth).toBeLessThanOrEqual(48);

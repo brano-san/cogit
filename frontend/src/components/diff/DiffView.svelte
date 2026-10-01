@@ -16,8 +16,11 @@
     type PaneRow,
     type UnifiedLine,
   } from "$lib/diff-blocks";
+  import { alignModel } from "$lib/diff-aligned";
   import { DiffSearch } from "$lib/diff-search.svelte";
   import {
+    ACTION_LEFT_X,
+    ACTION_RIGHT_X,
     BAND_WIDTH,
     GUTTER_WIDTH,
     NUM_WIDTH,
@@ -50,7 +53,15 @@
     wheelSideways,
   } from "$lib/code-scroll";
   import ConfirmDialog from "$components/common/ConfirmDialog.svelte";
-  import { eolChangeText, eolLabel, layoutTip, modeChangeText, whitespaceButton, WHITESPACE_SHOWN_LABEL } from "$lib/diff-toolbar";
+  import {
+    alignedButton,
+    eolChangeText,
+    eolLabel,
+    layoutTip,
+    modeChangeText,
+    whitespaceButton,
+    WHITESPACE_SHOWN_LABEL,
+  } from "$lib/diff-toolbar";
   import { loadLanguage, mergePieces } from "$lib/highlight";
   import { toggleLine } from "$lib/selection";
   import { keepSelection } from "$lib/diff-selection";
@@ -111,6 +122,9 @@
   const ACT_HEIGHT = 18;
 
   const mode = $derived(diffStore.layout);
+  /** Side by side only: both sides on the same rows, or each side's own (08 §12.2). */
+  const sideLayout = $derived(settings.current.diffLayout);
+  const alignedTool = $derived(alignedButton(sideLayout));
   let findBar: ReturnType<typeof DiffFindBar> | undefined = $state();
   let unifiedEl: HTMLDivElement | undefined = $state();
   let leftEl: HTMLDivElement | undefined = $state();
@@ -150,8 +164,10 @@
 
   /** Whether a change of indentation alone is marked: only while it is not ignored. */
   const indent = $derived(wsButton.indent);
-  /** The one model both layouts draw (08 §12): blocks, each pane's own rows, the unified rows. */
-  const model = $derived(buildBlocks(entries, { indent }));
+  /** The blocks of the file (08 §12): each pane's own rows, the unified rows. */
+  const base = $derived(buildBlocks(entries, { indent }));
+  /** What is drawn: side by side aligned it is the same blocks on shared rows, with filler. */
+  const model = $derived(mode === "split" && sideLayout === "aligned" ? alignModel(base) : base);
 
   /** Parsed once per diff, per side: a block comment must survive the line it opened on. */
   const tokens = $derived(
@@ -401,7 +417,7 @@
   /** The hunk a fold row opens onto, for the Stage, Unstage and Discard it carries. */
   function hunkBelow(rows: readonly { kind: string; block: number }[], index: number): number | null {
     const next = rows[index + 1];
-    return next && next.kind === "line" ? model.blocks[next.block]!.hunk : null;
+    return next && next.kind !== "gap" ? model.blocks[next.block]!.hunk : null;
   }
 
   /** Ctrl+click opens every fold at once; a fold whose lines are not here asks for them. */
@@ -522,19 +538,26 @@
     void diffStore.loadPreferences();
   });
 
+  // The geometry of the band is read from the panes' scroll and size, so both are re-read
+  // whenever either pane is resized: a window or a divider drag clamps scrollTop without the
+  // band hearing of it otherwise (R-628 c).
   $effect(() => {
-    const el = unifiedEl ?? leftEl;
-    if (!el) return;
-    const observer = new ResizeObserver(([entry]) => {
-      if (entry) viewportHeight = entry.contentRect.height;
+    const els = [unifiedEl, leftEl, rightEl].filter((el): el is HTMLDivElement => !!el);
+    if (els.length === 0) return;
+    const observer = new ResizeObserver(() => {
+      viewportHeight = (unifiedEl ?? leftEl)?.clientHeight ?? 0;
+      if (leftEl) lTop = leftEl.scrollTop;
+      if (rightEl) rTop = rightEl.scrollTop;
+      if (unifiedEl) uTop = unifiedEl.scrollTop;
     });
-    observer.observe(el);
+    for (const el of els) observer.observe(el);
     return () => observer.disconnect();
   });
 
   // Another layout is another set of scrollers, each starting at the top.
   $effect(() => {
     void mode;
+    void sideLayout;
     untrack(() => {
       uTop = lTop = rTop = 0;
       current = -1;
@@ -704,6 +727,10 @@
       <div class="line" style:top="{index * ROW_HEIGHT}px">
         {@render fold(row.gap, hunkBelow(rows, index), side)}
       </div>
+    {:else if row.kind === "filler"}
+      <div class="line" style:top="{index * ROW_HEIGHT}px" aria-hidden="true">
+        <span class="filler"></span>
+      </div>
     {:else}
       {@const tone = toneOf(row.blockKind, side === "left")}
       {@const picked = row.key !== null && selected.has(row.key)}
@@ -833,6 +860,14 @@
         onclick={() => diffStore.setShowMoves(!diffStore.showMoves)}
       >
         Moves
+      </button>
+      <button
+        type="button"
+        aria-pressed={alignedTool.pressed}
+        title={alignedTool.title}
+        onclick={() => settings.set("diffLayout", alignedTool.next)}
+      >
+        {alignedTool.label}
       </button>
       <button
         type="button"
@@ -988,29 +1023,31 @@
         <div class="band-ui">
           {#each links as link (link.block + ":" + link.kind + ":" + link.moveId)}
             {@const block = model.blocks[link.block]!}
-            {#if link.kind !== "moved" && bandActions && (block.keys.deletes.length > 0 || block.keys.inserts.length > 0)}
-              <div class="bandacts" style:left="{link.anchor.x}px" style:top="{link.anchor.y}px">
-                {#if block.keys.deletes.length > 0}
-                  <button
-                    type="button"
-                    class="bandact"
-                    title={bandActions === "discard"
-                      ? "Restore these deleted lines in the working tree (asks first)"
-                      : "Unstage the deletion of these lines"}
-                    onclick={() => bandAct(block.keys.deletes, "the deletion of these lines")}>»</button
-                  >
-                {/if}
-                {#if block.keys.inserts.length > 0}
-                  <button
-                    type="button"
-                    class="bandact"
-                    title={bandActions === "discard"
-                      ? "Remove these added lines from the working tree (asks first)"
-                      : "Unstage these added lines"}
-                    onclick={() => bandAct(block.keys.inserts, "these added lines")}>×</button
-                  >
-                {/if}
-              </div>
+            {#if link.kind !== "moved" && bandActions}
+              {#if block.keys.deletes.length > 0 && link.anchor.left !== null}
+                <button
+                  type="button"
+                  class="bandact"
+                  style:left="{ACTION_LEFT_X}px"
+                  style:top="{link.anchor.left}px"
+                  title={bandActions === "discard"
+                    ? "Restore these deleted lines in the working tree (asks first)"
+                    : "Unstage the deletion of these lines"}
+                  onclick={() => bandAct(block.keys.deletes, "the deletion of these lines")}>»</button
+                >
+              {/if}
+              {#if block.keys.inserts.length > 0 && link.anchor.right !== null}
+                <button
+                  type="button"
+                  class="bandact"
+                  style:left="{ACTION_RIGHT_X}px"
+                  style:top="{link.anchor.right}px"
+                  title={bandActions === "discard"
+                    ? "Remove these added lines from the working tree (asks first)"
+                    : "Unstage these added lines"}
+                  onclick={() => bandAct(block.keys.inserts, "these added lines")}>×</button
+                >
+              {/if}
             {/if}
           {/each}
         </div>
@@ -1365,6 +1402,24 @@
     background: var(--diff-move-line);
   }
 
+  /* Aligned: the row opposite a side with no line there. Thin diagonal hatching on a calm
+     ground; the tile is 6 px and a row 18, so the lines run on across rows without a seam.
+     Not text: never selected, copied or searched. */
+  .filler {
+    flex: 1 1 auto;
+    background-color: var(--diff-filler-bg);
+    background-image: linear-gradient(
+      45deg,
+      transparent calc(50% - 0.5px),
+      var(--diff-filler-hatch) calc(50% - 0.5px),
+      var(--diff-filler-hatch) calc(50% + 0.5px),
+      transparent calc(50% + 0.5px)
+    );
+    background-size: 6px 6px;
+    user-select: none;
+    pointer-events: none;
+  }
+
   /* The band: the divider, the connectors over it, the buttons over those. Its width must
      match `BAND_WIDTH`. */
   .band {
@@ -1437,14 +1492,11 @@
     pointer-events: none;
   }
 
-  /* One set per block, centred on the gutter and on the part of its connector on screen. */
-  .bandacts {
-    position: absolute;
-    display: flex;
-    transform: translate(-50%, -50%);
-  }
-
+  /* » in the left half of the gutter, × in the right: each centred on its x and on the part of
+     its block's connector that is on screen there (blockConnectors, R-628). */
   .bandact {
+    position: absolute;
+    transform: translate(-50%, -50%);
     width: 14px;
     height: 18px;
     padding: 0;

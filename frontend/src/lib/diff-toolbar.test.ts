@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EolInfo } from "./ipc/bindings";
-import { eolChangeText, eolLabel, layoutTip, modeChangeText, whitespaceButton } from "./diff-toolbar";
+import { alignedButton, eolChangeText, eolLabel, layoutTip, modeChangeText, whitespaceButton } from "./diff-toolbar";
 
 function eol(old: EolInfo["old"], next: EolInfo["new"]): EolInfo {
   return { old, new: next, normalized: old !== next };
@@ -90,5 +90,18 @@ describe("whitespaceButton (R-626)", () => {
     expect(whitespaceButton("trailing").next).toBe("all");
     expect(whitespaceButton("all").next).toBe("none");
     expect(whitespaceButton("all").title).toMatch(/Click for: Whitespace: shown/);
+  });
+});
+
+describe("alignedButton", () => {
+  it("is pressed while the sides are aligned, and says what is on and what a click does", () => {
+    const on = alignedButton("aligned");
+    expect(on).toMatchObject({ label: "Aligned", pressed: true, next: "compact" });
+    expect(on.title).toContain("ON: Aligned 1:1");
+    expect(on.title).toContain("Click for: Compact");
+    const off = alignedButton("compact");
+    expect(off).toMatchObject({ pressed: false, next: "aligned" });
+    expect(off.title).toContain("OFF: Compact");
+    expect(off.title).toContain("Click for: Aligned 1:1");
   });
 });
