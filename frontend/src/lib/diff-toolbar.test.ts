@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EolInfo } from "./ipc/bindings";
-import { eolChangeText, eolLabel, layoutTip, modeChangeText } from "./diff-toolbar";
+import { eolChangeText, eolLabel, layoutTip, modeChangeText, whitespaceButton } from "./diff-toolbar";
 
 function eol(old: EolInfo["old"], next: EolInfo["new"]): EolInfo {
   return { old, new: next, normalized: old !== next };
@@ -75,5 +75,20 @@ describe("layoutTip (#14)", () => {
     expect(layoutTip("unified")).toBe(
       "Switch to the side-by-side view: old and new versions in two columns (Ctrl+Shift+D)\nRemembered between runs",
     );
+  });
+});
+
+describe("whitespaceButton (R-626)", () => {
+  it("is pressed only while something is ignored, and marks indentation otherwise", () => {
+    expect(whitespaceButton("none")).toMatchObject({ pressed: false, indent: true });
+    expect(whitespaceButton("trailing")).toMatchObject({ pressed: true, indent: true });
+    expect(whitespaceButton("all")).toMatchObject({ pressed: true, indent: false });
+  });
+
+  it("cycles through all modes and names the next one in the tooltip", () => {
+    expect(whitespaceButton("none").next).toBe("trailing");
+    expect(whitespaceButton("trailing").next).toBe("all");
+    expect(whitespaceButton("all").next).toBe("none");
+    expect(whitespaceButton("all").title).toMatch(/Click for: Whitespace: shown/);
   });
 });

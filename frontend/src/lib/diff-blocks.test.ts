@@ -133,3 +133,15 @@ describe("hunks and changes", () => {
     expect(changes(model)).toHaveLength(1);
   });
 });
+
+describe("indentation-only change (R-626)", () => {
+  const entries = rows(del(1, "  foo(x);"), ins(1, "    foo(x);"));
+  it("is marked in both panes while whitespace is shown, not otherwise", () => {
+    const on = buildBlocks(entries, { indent: true });
+    expect(on.blocks[0]!.kind).toBe("changed");
+    expect((on.left[0] as { inline: unknown }).inline).toEqual([[0, 2]]);
+    expect((on.right[0] as { inline: unknown }).inline).toEqual([[0, 4]]);
+    const off = buildBlocks(entries, { indent: false });
+    expect((off.right[0] as { inline: unknown }).inline).toEqual([]);
+  });
+});

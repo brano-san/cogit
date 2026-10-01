@@ -50,7 +50,7 @@
     wheelSideways,
   } from "$lib/code-scroll";
   import ConfirmDialog from "$components/common/ConfirmDialog.svelte";
-  import { eolChangeText, eolLabel, layoutTip, modeChangeText } from "$lib/diff-toolbar";
+  import { eolChangeText, eolLabel, layoutTip, modeChangeText, whitespaceButton, WHITESPACE_SHOWN_LABEL } from "$lib/diff-toolbar";
   import { loadLanguage, mergePieces } from "$lib/highlight";
   import { toggleLine } from "$lib/selection";
   import { keepSelection } from "$lib/diff-selection";
@@ -99,8 +99,7 @@
   /** Converted lines are not the file's bytes: a patch built from them would not apply. */
   const stageable = $derived(stageableFile && !(diff.kind === "text" && diff.converted));
 
-  const WHITESPACE_LABEL = { none: "Whitespace", trailing: "Trailing ws", all: "Ignore ws" };
-  const WHITESPACE_NEXT = { none: "trailing", trailing: "all", all: "none" } as const;
+  const wsButton = $derived(whitespaceButton(whitespace));
 
   let selected = $state<Set<string>>(new Set());
 
@@ -149,8 +148,8 @@
       : [],
   );
 
-  /** Whether a change of indentation alone is marked: only while the whitespace is shown. */
-  const indent = $derived(whitespace === "none");
+  /** Whether a change of indentation alone is marked: only while it is not ignored. */
+  const indent = $derived(wsButton.indent);
   /** The one model both layouts draw (08 §12): blocks, each pane's own rows, the unified rows. */
   const model = $derived(buildBlocks(entries, { indent }));
 
@@ -809,10 +808,10 @@
     {#if onwhitespace && (diff.kind === "text" || diff.kind === "whitespaceOnly")}
       <button
         type="button"
-        aria-pressed={whitespace !== "none"}
-        title="Off → trailing → all"
-        onclick={() => onwhitespace(WHITESPACE_NEXT[whitespace])}
-        >{WHITESPACE_LABEL[whitespace]}</button
+        aria-pressed={wsButton.pressed}
+        title={wsButton.title}
+        onclick={() => onwhitespace(wsButton.next)}
+        >{wsButton.label}</button
       >
     {/if}
     {#if diff.kind === "text"}
@@ -874,9 +873,9 @@
     </p>
   {:else if diff.kind === "whitespaceOnly"}
     <p class="message warn">
-      Only whitespace changed, and {WHITESPACE_LABEL[whitespace]} hides it.
+      Only whitespace changed, and {wsButton.label} hides it.
       {onwhitespace
-        ? `Click ${WHITESPACE_LABEL[whitespace]} in the bar above until it reads ${WHITESPACE_LABEL.none} to see the diff.`
+        ? `Click ${wsButton.label} in the bar above until it reads ${WHITESPACE_SHOWN_LABEL} to see the diff.`
         : "Choose Show every change in Preferences ▸ Diff View ▸ Whitespace to see the diff."}
     </p>
   {:else if diff.kind === "eolOnly"}

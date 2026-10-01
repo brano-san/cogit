@@ -1,4 +1,4 @@
-import type { EolInfo, LineEnding } from "./ipc/bindings";
+import type { EolInfo, LineEnding, Whitespace } from "./ipc/bindings";
 
 const ENDING: Record<LineEnding, string> = {
   lf: "LF",
@@ -50,3 +50,38 @@ export function layoutTip(current: "split" | "unified"): string {
       : "Switch to the side-by-side view: old and new versions in two columns";
   return `${action} (Ctrl+Shift+D)\nRemembered between runs`;
 }
+
+const WHITESPACE: Record<
+  Whitespace,
+  { label: string; what: string; next: Whitespace }
+> = {
+  none: { label: "Whitespace: shown", what: "Every whitespace difference is shown", next: "trailing" },
+  trailing: {
+    label: "Ignore trailing ws",
+    what: "Whitespace at the end of lines is ignored",
+    next: "all",
+  },
+  all: { label: "Ignore all ws", what: "All whitespace differences are ignored", next: "none" },
+};
+
+/** The whitespace button of the diff bar: pressed while some whitespace is ignored. The
+    indentation of a line is marked inline (`diff.*.word`) while it is not ignored (R-626). */
+export function whitespaceButton(mode: Whitespace): {
+  label: string;
+  title: string;
+  pressed: boolean;
+  next: Whitespace;
+  indent: boolean;
+} {
+  const { label, what, next } = WHITESPACE[mode];
+  return {
+    label,
+    title: `${what}.\nClick for: ${WHITESPACE[next].label}`,
+    pressed: mode !== "none",
+    next,
+    indent: mode !== "all",
+  };
+}
+
+/** The label of the mode that shows everything, for the hint under a whitespace-only diff. */
+export const WHITESPACE_SHOWN_LABEL = WHITESPACE.none.label;
