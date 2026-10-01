@@ -6,6 +6,7 @@ import {
   pairPicked,
   pairRows,
   connectors,
+  ribbonKeys,
   searchRows,
   stepHit,
 } from "./diff-rows";
@@ -211,7 +212,7 @@ describe("stepping through search hits", () => {
 
 describe("connectors between the two columns", () => {
   function cell(kind: "delete" | "insert" | "context", moveId: number | null = null) {
-    return { kind, line: 1, text: "x", inline: [], moved: moveId !== null, moveId, noNewline: false };
+    return { kind, line: 1, text: "x", inline: [], moved: moveId !== null, moveId, noNewline: false, modified: false };
   }
   const ctx = () => ({ left: cell("context"), right: cell("context") });
   const header = () => null;
@@ -370,5 +371,49 @@ describe("picking lines side by side", () => {
     expect(pairPicked(pair!, new Set(["d:3"]))).toBe(true);
     expect(pairPicked(pair!, new Set(["i:3"]))).toBe(false);
     expect(pairPicked(same!, new Set(["d:5"]))).toBe(false);
+  });
+});
+
+describe("ribbon discard keys and badge", () => {
+  const cell = (kind: "delete" | "insert" | "context", line: number) => ({
+    kind, line, text: "x", inline: [], moved: false, moveId: null, noNewline: false, modified: false,
+  });
+  const rows = [
+    { left: cell("context", 1), right: cell("context", 1) },
+    { left: cell("delete", 2), right: cell("insert", 2) },
+    { left: cell("delete", 3), right: null },
+    null,
+  ];
+
+  it("collects the deleted lines of the left and the added lines of the right", () => {
+    const [c] = connectors(rows.slice(0, 2));
+    expect(ribbonKeys(rows, c!)).toEqual({ deletes: new Set(["d:2"]), inserts: new Set(["i:2"]) });
+  });
+
+  it("skips folds and context", () => {
+    const keys = ribbonKeys(rows, { fromTop: 0, fromBottom: 3, toTop: 0, toBottom: 3, moved: false, kind: "change" });
+    expect([...keys.deletes]).toEqual(["d:2", "d:3"]);
+    expect([...keys.inserts]).toEqual(["i:2"]);
+  });
+
+});
+
+// A rewritten line was painted red on the left and green on the right, as a deletion plus an
+// addition. It is one fact: the line faces a line on the other side.
+describe("modified lines", () => {
+  const del = (old: number): DiffRow => ({ kind: "delete", old, text: "a", inline: [], moved: false, noNewline: false });
+  const ins = (next: number): DiffRow => ({ kind: "insert", new: next, text: "b", inline: [], moved: false, noNewline: false });
+
+  it("marks both sides of a deletion facing an insertion", () => {
+    const [pair] = pairRows([del(1), ins(1)]);
+    expect([pair?.left?.modified, pair?.right?.modified]).toEqual([true, true]);
+  });
+
+  it("leaves a pure deletion, a pure insertion and the overhang of a longer side alone", () => {
+    expect(pairRows([del(1)])[0]?.left?.modified).toBe(false);
+    expect(pairRows([ins(1)])[0]?.right?.modified).toBe(false);
+    const pairs = pairRows([del(1), del(2), ins(1)]);
+    expect(pairs[0]?.left?.modified).toBe(true);
+    expect(pairs[1]?.left?.modified).toBe(false);
   });
 });

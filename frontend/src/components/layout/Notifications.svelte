@@ -1,7 +1,7 @@
 <script lang="ts">
   import QueueNav from "$components/common/QueueNav.svelte";
   import type { HealthAction } from "$lib/health";
-  import { CopyFeedback } from "$lib/copy-feedback.svelte";
+  import CopyButton from "$components/common/CopyButton.svelte";
   import { splitLinks } from "$lib/links";
   import { placesShown } from "$lib/notices";
   import { notices } from "$stores/notices.svelte";
@@ -20,15 +20,6 @@
   const notice = $derived(notices.current);
   /** The entry whose list of places was opened past the first few. */
   let expandedFor = $state<string | null>(null);
-  const reportCopy = new CopyFeedback();
-  /** One feedback per fix command, so only the button that was pressed changes. */
-  const fixCopies = new Map<string, CopyFeedback>();
-
-  function fixCopy(fix: string): CopyFeedback {
-    let entry = fixCopies.get(fix);
-    if (!entry) fixCopies.set(fix, (entry = new CopyFeedback()));
-    return entry;
-  }
 </script>
 
 {#if notice}
@@ -132,12 +123,9 @@
           To fix it, run {(notice.places?.length ?? 0) > 1 ? "in each one listed" : "there"}:
         </p>
         {#each notice.fixes as fix (fix)}
-          {@const feedback = fixCopy(fix)}
           <div class="fix">
             <code class="mono">{fix}</code>
-            <button type="button" class="btn" onclick={() => void feedback.copy(fix)}
-              >{feedback.label("Copy")}</button
-            >
+            <CopyButton class="btn" text={fix} />
           </div>
         {/each}
       {/if}
@@ -165,9 +153,7 @@
           >Ignore for this repository</button
         >
       {:else}
-        <button type="button" class="btn" onclick={() => void reportCopy.copy(notice.report)}
-          >{reportCopy.label("Copy")}</button
-        >
+        <CopyButton class="btn" text={notice.report} />
       {/if}
     </footer>
   </section>
@@ -372,7 +358,7 @@
     flex: 1 1 auto;
   }
 
-  .btn {
+  .notice :global(.btn) {
     height: var(--h-button-sm);
     padding: 0 var(--sp-4);
     background: var(--surface-input);
@@ -384,7 +370,7 @@
     cursor: default;
   }
 
-  .btn:hover {
+  .notice :global(.btn:hover) {
     border-color: var(--status-ref);
   }
 </style>

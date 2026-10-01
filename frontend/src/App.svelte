@@ -30,6 +30,8 @@
   import ExitDialog from "$components/common/ExitDialog.svelte";
   import ConfigEditor from "$components/common/ConfigEditor.svelte";
   import Notifications from "$components/layout/Notifications.svelte";
+  import SuccessToast from "$components/layout/SuccessToast.svelte";
+  import { successToast } from "$stores/success-toast.svelte";
   import TooltipLayer from "$components/common/TooltipLayer.svelte";
   import { exitRows, type ExitAction } from "$lib/exit";
   import { exitFlow } from "$stores/exit.svelte";
@@ -43,6 +45,7 @@
   import { suppressBrowserFind } from "$lib/browser-find";
   import { suppressBrowserNavigation } from "$lib/browser-navigation";
   import { findModuleRow, isModulePath, onOpenModule } from "$lib/module-open";
+  import { onTreeChange } from "$lib/tree-sync";
   import { footerRepository, panelView } from "$lib/repo-phase";
   import { flushTrace, startTracing, timed, trace } from "$lib/trace";
   import OutputPanel from "$components/layout/OutputPanel.svelte";
@@ -1665,8 +1668,17 @@
       if (!id) return;
       const go = await confirmation.ask({ title: action.label.replace("…", ""), message: maintenance.question, confirm: "Run" });
       if (!go) return;
-      await runMaintenance(id, maintenance.task).catch((err) => errors.report(err, "Maintenance failed"));
+      try {
+        await runMaintenance(id, maintenance.task);
+      } catch (err) {
+        errors.report(err, "Maintenance failed");
+        await health.recheck();
+        return;
+      }
+      successToast.show(maintenance.done);
       await health.recheck();
+      // Fixed: the warning is gone with the recheck; if the recheck could not run, close it.
+      if (notices.current?.action?.id === action.id) notices.dismiss();
       return;
     }
     if (action.id === TRUST_DIRECTORY) {
@@ -1980,6 +1992,15 @@
   $effect(() =>
     onOpenModule((request) => {
       if (repository.current?.repo.valueOf() === request.repo.valueOf()) void openModuleAt(request.path);
+    }),
+  );
+
+  // A compare window staged, unstaged or discarded lines: read the lists again.
+  $effect(() =>
+    onTreeChange((change) => {
+      if (repository.current?.repo.valueOf() === change.repo.valueOf()) {
+        void afterWorkingTreeChange([change.path]);
+      }
     }),
   );
 
@@ -4290,6 +4311,7 @@
     />
   {/if}
 
+  <SuccessToast />
   <Notifications
     onopenurl={(url) => void import("@tauri-apps/plugin-opener").then((opener) => opener.openUrl(url))}
     onshowoutput={(record) => void output.openRecord(record)}

@@ -47,6 +47,7 @@ const cell = (kind: SideCell["kind"], line: number, value: string): SideCell => 
   moved: false,
   moveId: null,
   noNewline: false,
+  modified: false,
 });
 
 describe("diffTokens", () => {

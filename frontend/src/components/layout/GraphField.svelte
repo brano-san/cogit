@@ -212,8 +212,8 @@
       <output>{value.graphLongLinkRows === 0 ? "never" : `${value.graphLongLinkRows} rows`}</output>
     </span>
   </label>
-{:else if field.key === "graphStripes" || field.key === "graphHighlightChecked" || (GRAPH_SWITCHES as readonly string[]).includes(field.key) || (GRAPH_MODES as readonly string[]).includes(field.key)}
-  {@const key = field.key as "graphStripes" | "graphHighlightChecked" | GraphSwitch | GraphMode}
+{:else if field.key === "graphStripes" || field.key === "graphShowNotes" || field.key === "graphHighlightChecked" || (GRAPH_SWITCHES as readonly string[]).includes(field.key) || (GRAPH_MODES as readonly string[]).includes(field.key)}
+  {@const key = field.key as "graphStripes" | "graphShowNotes" | "graphHighlightChecked" | GraphSwitch | GraphMode}
   <div class="row check">
     <Checkbox
       checked={value[key]}

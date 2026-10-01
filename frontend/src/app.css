@@ -112,6 +112,10 @@
   --graph-bisect-current: var(--c-modified-bg);
   --graph-bisect-found: var(--c-deleted-bg);
   --status-stash: var(--c-stash);
+  /* Moved and renamed code is blue in every theme (the diff's palette: yellow modified,
+     green added, red deleted, blue moved). */
+  --status-move: var(--c-branch);
+  --c-moved-bg: color-mix(in srgb, var(--status-move) 12%, transparent);
   --status-tag: var(--c-tag);
   /* Where a repository stands: its row in Repositories, the worktree label in Branches
      (R-353). Changes are a warning colour; being ahead is the user's own work. */

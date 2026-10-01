@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { errors } from "$stores/errors.svelte";
   import { diffKey } from "$lib/diff-keys";
   import { modals } from "$lib/modal-stack";
   import { untrack } from "svelte";
@@ -6,6 +7,7 @@
     cellKey,
     connectors,
     pairPicked,
+    ribbonKeys,
     type ConnectorRow,
     type SearchRow,
     type SideCell,
@@ -102,7 +104,7 @@
   /** Converted lines are not the file's bytes: a patch built from them would not apply. */
   const stageable = $derived(stageableFile && !(diff.kind === "text" && diff.converted));
 
-  /** Names the band's gradient apart from another diff's in the same document. */
+  /** Names the band's hatch pattern apart from another diff's in the same document. */
   const uid = $props.id();
 
   const WHITESPACE_LABEL = { none: "Whitespace", trailing: "Trailing ws", all: "Ignore ws" };
@@ -249,11 +251,24 @@
 
   /** Computed once per diff. Scrolling only filters it — walking every row on each frame
       would cost the 60 FPS the product promises. */
+  const connectorRows = $derived<ConnectorRow[]>(
+    mode === "split" ? split.map((entry) => (entry.kind === "pair" ? entry.pair : null)) : [],
+  );
+
   const allRibbons = $derived.by(() => {
     if (mode !== "split") return [];
-    const rows: ConnectorRow[] = split.map((entry) => (entry.kind === "pair" ? entry.pair : null));
-    return connectors(rows);
+    return connectors(connectorRows);
   });
+
+  /** What the bridge's » and ✕ do: throw away in the working tree, unstage in the index. */
+  const bandActions = $derived(
+    !stageable ? null : diffStore.lineActions.discard ? "discard" : diffStore.lineActions.unstage ? "unstage" : null,
+  );
+
+  function bandAct(keys: Set<string>, label: string) {
+    if (bandActions === "discard") askDiscard(new Set(keys), label);
+    else onstage?.(new Set(keys), true);
+  }
 
   const ribbons = $derived(
     ribbonsNear(allRibbons, range.start - BUFFER_ROWS, range.end + BUFFER_ROWS),
@@ -398,12 +413,10 @@
   }
 
   /** Which lines a Discard is about to throw away; `null` while nothing is pending. */
-  let pendingDiscard = $state<{ keys: Set<string>; label: string; of: FileDiff } | null>(null);
-  let discardError = $state<string | null>(null);
+  let pendingDiscard = $state.raw<{ keys: Set<string>; label: string; of: FileDiff } | null>(null);
 
   function askDiscard(keys: Set<string>, label: string) {
     if (keys.size === 0) return;
-    discardError = null;
     pendingDiscard = { keys, label, of: diff };
   }
 
@@ -415,7 +428,7 @@
       await diffStore.discardLines(pending.keys, pending.of);
       selected = new Set();
     } catch (err) {
-      discardError = err instanceof Error ? err.message : String(err);
+      errors.report(err, "Could not discard the lines");
     }
   }
 
@@ -495,7 +508,6 @@
     selected = new Set();
     revealed = [];
     pendingDiscard = null;
-    discardError = null;
     sideways = 0;
     flash = null;
     if (scroller) scroller.scrollTop = 0;
@@ -697,12 +709,6 @@
       onanswer={(yes) => (yes ? void confirmDiscard() : (pendingDiscard = null))}
     />
   {/if}
-  {#if discardError}
-    <div class="confirm">
-      <span class="grow warn">{discardError}</span>
-      <button type="button" onclick={() => (discardError = null)}>Dismiss</button>
-    </div>
-  {/if}
 
   {#if find.showing && diff.kind === "text"}
     <DiffFindBar bind:this={findBar} {find} reveal={revealHit} />
@@ -750,8 +756,7 @@
         class="rows"
         style:height="{total * ROW_HEIGHT}px"
         style:--shift="{shift}px"
-        style:--left-share={share}
-        style:--right-share={1 - share}
+        style:--left-w="{Math.max(Math.round(left) - sideWidth, 0)}px"
         bind:clientWidth={rowsWidth}
       >
         <div class="line ruler" aria-hidden="true">
@@ -806,14 +811,6 @@
             aria-hidden="true"
           >
             <defs>
-              <linearGradient id="{uid}-change" gradientUnits="userSpaceOnUse" x1="0" x2={BAND_WIDTH} y1="0" y2="0">
-                <stop offset="0" style:stop-color="var(--c-deleted-bg)" />
-                <stop offset="1" style:stop-color="var(--c-added-bg)" />
-              </linearGradient>
-              <linearGradient id="{uid}-edge" gradientUnits="userSpaceOnUse" x1="0" x2={BAND_WIDTH} y1="0" y2="0">
-                <stop offset="0" style:stop-color="var(--edge-deleted)" />
-                <stop offset="1" style:stop-color="var(--edge-added)" />
-              </linearGradient>
               <pattern id="{uid}-moved" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
                 <line x1="0" y1="0" x2="0" y2="5" class="hatch" />
               </pattern>
@@ -822,21 +819,43 @@
               <path
                 class="ribbon {ribbon.kind}"
                 class:moved={ribbon.moved}
-                style:fill={ribbon.moved
-                  ? `url(#${uid}-moved)`
-                  : ribbon.kind === "change"
-                    ? `url(#${uid}-change)`
-                    : undefined}
+                style:fill={ribbon.moved ? `url(#${uid}-moved)` : undefined}
                 d={ribbonPath(ribbon, ROW_HEIGHT)}
               />
               <path
                 class="edge {ribbon.kind}"
                 class:moved={ribbon.moved}
-                style:stroke={ribbon.kind === "change" && !ribbon.moved ? `url(#${uid}-edge)` : undefined}
                 d={ribbonEdges(ribbon, ROW_HEIGHT)}
               />
             {/each}
           </svg>
+          <div class="band-ui" style:left="{Math.round(left)}px" style:height="{total * ROW_HEIGHT}px">
+            {#each ribbons as ribbon, i (i)}
+              {@const keys = ribbon.moved ? null : ribbonKeys(connectorRows, ribbon)}
+              {#if keys && keys.deletes.size > 0 && bandActions}
+                <button
+                  type="button"
+                  class="bandact del"
+                  style:top="{ribbon.fromTop * ROW_HEIGHT}px"
+                  title={bandActions === "discard"
+                    ? "Restore these deleted lines in the working tree (asks first)"
+                    : "Unstage the deletion of these lines"}
+                  onclick={() => bandAct(keys.deletes, "the deletion of these lines")}>»</button
+                >
+              {/if}
+              {#if keys && keys.inserts.size > 0 && bandActions}
+                <button
+                  type="button"
+                  class="bandact add"
+                  style:top="{ribbon.toTop * ROW_HEIGHT}px"
+                  title={bandActions === "discard"
+                    ? "Remove these added lines from the working tree (asks first)"
+                    : "Unstage these added lines"}
+                  onclick={() => bandAct(keys.inserts, "these added lines")}>✕</button
+                >
+              {/if}
+            {/each}
+          </div>
         {/if}
         {#if mode === "unified"}
           {#each unified.slice(range.start, range.end) as entry, index (range.start + index)}
@@ -946,12 +965,14 @@
                 <span
                   class="sign"
                   class:del={entry.pair.left?.kind === "delete"}
+                  class:mod={entry.pair.left?.modified}
                   class:empty={!entry.pair.left}
                   class:moved={entry.pair.left?.moved}>{sign(entry.pair.left)}</span
                 >
                 <span
                   class="code mono side left"
                   class:del={entry.pair.left?.kind === "delete"}
+                  class:mod={entry.pair.left?.modified}
                   class:empty={!entry.pair.left}
                   class:moved={entry.pair.left?.moved}
                   ><span class="text"
@@ -968,12 +989,14 @@
                 <span
                   class="sign"
                   class:add={entry.pair.right?.kind === "insert"}
+                  class:mod={entry.pair.right?.modified}
                   class:empty={!entry.pair.right}
                   class:moved={entry.pair.right?.moved}>{sign(entry.pair.right)}</span
                 >
                 <span
                   class="code mono side right"
                   class:add={entry.pair.right?.kind === "insert"}
+                  class:mod={entry.pair.right?.modified}
                   class:empty={!entry.pair.right}
                   class:moved={entry.pair.right?.moved}
                   ><span class="text"
@@ -1176,29 +1199,6 @@
   button.danger:hover {
     border-color: var(--status-delete);
   }
-
-  .confirm {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-3);
-    flex: 0 0 auto;
-    padding: var(--sp-3) var(--sp-4);
-    border-bottom: 1px solid var(--divider);
-    background: var(--surface-raised);
-    font-size: var(--fs-dense);
-  }
-
-  .confirm button {
-    height: var(--h-button-sm);
-    padding: 0 var(--sp-3);
-    background: var(--surface-input);
-    color: var(--text-primary);
-    border: 1px solid var(--field-border);
-    border-radius: var(--r-sm);
-    font-size: var(--fs-dense);
-    cursor: default;
-  }
-
   .grow {
     flex: 1 1 auto;
   }
@@ -1266,18 +1266,26 @@
     color: var(--status-add);
   }
 
-  .sign.moved {
-    background: var(--c-stash-bg);
-    color: var(--status-stash);
+  /* A rewritten line is yellow on both sides; after `del`/`add` so it wins, before `moved`. */
+  .sign.mod {
+    background: var(--c-modified-bg);
+    color: var(--status-modify);
   }
 
-  /* Each code column grows by its share from nothing, so the two split exactly as set. */
+  .sign.moved {
+    background: var(--c-moved-bg);
+    color: var(--status-move);
+  }
+
+  /* The left column is a whole number of pixels (the band, divider and gap are placed at
+     the same rounded edge), the right one takes what is left: at 125% or 150% scaling a
+     fractional share left a seam between the band and the code. */
   .side.left {
-    flex: var(--left-share, 0.5) 1 0;
+    flex: 0 0 var(--left-w, 50%);
   }
 
   .side.right {
-    flex: var(--right-share, 0.5) 1 0;
+    flex: 1 1 0;
   }
 
   /* A fixed 18 px tile anchored to each cell's top-left: rows are 18 px, so stripes join
@@ -1301,7 +1309,7 @@
 
   /* Reserves the strip the ribbons are drawn over. Width must match `BAND_WIDTH`. */
   .gap {
-    flex: 0 0 28px;
+    flex: 0 0 42px;
     background: var(--surface-panel);
   }
 
@@ -1319,7 +1327,7 @@
     top: 0;
     bottom: 0;
     z-index: 1;
-    width: 28px;
+    width: 42px;
     cursor: col-resize;
     outline: none;
   }
@@ -1354,12 +1362,17 @@
     fill: var(--c-added-bg);
   }
 
+  .ribbon.change {
+    fill: var(--c-modified-bg);
+  }
+
   /* The outline is opaque (blended into the panel, not alpha): a translucent stroke over
      the fill's anti-aliased edge left a light fringe that read as white dots. */
   .band {
     --edge-deleted: color-mix(in srgb, var(--c-deleted) 55%, var(--surface-panel));
     --edge-added: color-mix(in srgb, var(--c-added) 55%, var(--surface-panel));
-    --edge-moved: color-mix(in srgb, var(--status-stash) 70%, var(--surface-panel));
+    --edge-modified: color-mix(in srgb, var(--c-modified) 55%, var(--surface-panel));
+    --edge-moved: color-mix(in srgb, var(--status-move) 70%, var(--surface-panel));
   }
 
   /* The two curves only; the sides sit on the columns' own edges. */
@@ -1377,14 +1390,59 @@
     stroke: var(--edge-added);
   }
 
-  /* A move goes somewhere else in the file: a hatched purple band with solid purple edges,
+  .edge.change {
+    stroke: var(--edge-modified);
+  }
+
+  .band-ui {
+    position: absolute;
+    top: 0;
+    z-index: 3;
+    width: 42px;
+    pointer-events: none;
+  }
+
+  .bandact {
+    position: absolute;
+    height: 18px;
+    width: 14px;
+    line-height: 18px;
+    text-align: center;
+    font-size: 10px;
+    font-weight: 700;
+  }
+
+  .bandact {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    pointer-events: auto;
+    cursor: pointer;
+    font-size: 12px;
+  }
+
+  .bandact.del {
+    left: 0;
+    color: var(--status-delete);
+  }
+
+  .bandact.add {
+    left: 28px;
+    color: var(--status-add);
+  }
+
+  .bandact:hover {
+    background: var(--c-neutral-soft);
+  }
+
+  /* A move goes somewhere else in the file: a hatched blue band with solid blue edges,
      so it never reads as a plain fill like add/delete. */
   .edge.moved {
     stroke: var(--edge-moved);
   }
 
   .hatch {
-    stroke: var(--status-stash);
+    stroke: var(--status-move);
     stroke-opacity: 0.35;
     stroke-width: 1;
   }
@@ -1430,15 +1488,28 @@
     color: var(--status-add);
   }
 
+  .code.mod {
+    background: var(--c-modified-bg);
+    color: var(--status-modify);
+  }
+
+  .code.mod .word {
+    background: color-mix(in srgb, var(--c-modified) 45%, transparent);
+  }
+
+  .code.mod .word:not([class*="tok-"]) {
+    color: var(--text-primary);
+  }
+
   /* A moved block is one fact, not a deletion plus an addition (T7.9). A moved row is
      `del` or `add` as well, so this comes after them and wins at the same specificity. */
   .code.moved {
-    background: var(--c-stash-bg);
-    color: var(--status-stash);
+    background: var(--c-moved-bg);
+    color: var(--status-move);
   }
 
   .code.moved .word {
-    background: color-mix(in srgb, var(--status-stash) 30%, transparent);
+    background: color-mix(in srgb, var(--status-move) 30%, transparent);
   }
 
   /* Where @@ used to be: one band across both halves, saying what is hidden (#16). */

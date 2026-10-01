@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FileEntry } from "$lib/ipc";
-import { emptyText, filesPanelList, mergedSide, mergeIndex, stagedShown, type FilesPanelInput } from "./files-panel";
+import { emptyText, filesPanelList, mergedSide, mergeIndex, selectAllKeys, stagedShown, type FilesPanelInput } from "./files-panel";
 
 const base: FilesPanelInput = {
   content: true,
@@ -100,5 +100,17 @@ describe("the working tree as one list", () => {
     expect(stagedShown([["a.txt", "b.txt"]], false, staged)).toEqual(["b.txt"]);
     expect(stagedShown([["a.txt"], ["b.txt", "c.txt"]], true, staged)).toEqual(["b.txt", "c.txt"]);
     expect(stagedShown([["a.txt"]], true, staged)).toEqual([]);
+  });
+});
+
+describe("selectAllKeys", () => {
+  const panes = [["0:a", "0:b"], ["1:a", "1:c"]];
+  it("stays in the touched pane", () => {
+    expect(selectAllKeys(panes, 1, new Set(["0:a"]))).toEqual(["1:a", "1:c"]);
+  });
+  it("falls back to the pane holding a tick, then the first", () => {
+    expect(selectAllKeys(panes, null, new Set(["1:c"]))).toEqual(["1:a", "1:c"]);
+    expect(selectAllKeys(panes, null, new Set())).toEqual(["0:a", "0:b"]);
+    expect(selectAllKeys([], null, new Set())).toEqual([]);
   });
 });

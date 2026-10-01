@@ -10,6 +10,8 @@ export const commands = {
 	 *  the main thread that a plain command runs on.
 	 */
 	appInfo: () => typedError<AppInfo, GitError>(__TAURI_INVOKE("app_info")),
+	/**  Preferences ▸ Git executable: runs `<path> --version` with a timeout, off the main thread. */
+	probeGit: (path: string) => typedError<GitProbe, GitError>(__TAURI_INVOKE("probe_git", { path })),
 	/**
 	 *  Help ▸ About ▸ Third-party licences. `frontend` is the list the Vite build shipped
 	 *  beside the page; the dev server has none.
@@ -62,9 +64,9 @@ export const commands = {
 	 */
 	openInvestigateWindow: (url: string, title: string) => typedError<null, GitError>(__TAURI_INVOKE("open_investigate_window", { url, title })),
 	commitDetails: (repo: RepoId, rev: string) => typedError<CommitDetails, GitError>(__TAURI_INVOKE("commit_details", { repo, rev })),
-	commitFiles: (repo: RepoId, rev: string) => typedError<FileEntry[], GitError>(__TAURI_INVOKE("commit_files", { repo, rev })),
+	commitFiles: (repo: RepoId, rev: string) => typedError<FileEntry_Serialize[], GitError>(__TAURI_INVOKE("commit_files", { repo, rev })),
 	diffFile: (repo: RepoId, spec: DiffSpec, path: string, options: DiffOptions) => typedError<FileDiff, GitError>(__TAURI_INVOKE("diff_file", { repo, spec, path, options })),
-	worktreeFiles: (repo: RepoId, view: WorktreeView) => typedError<WorktreeFiles, GitError>(__TAURI_INVOKE("worktree_files", { repo, view })),
+	worktreeFiles: (repo: RepoId, view: WorktreeView) => typedError<WorktreeFiles_Serialize, GitError>(__TAURI_INVOKE("worktree_files", { repo, view })),
 	/**  The counters and the conflicted paths from one read, for the refresh after a mutation. */
 	workingState: (repo: RepoId) => typedError<WorkingState, GitError>(__TAURI_INVOKE("working_state", { repo })),
 	/**  Refs and state without reopening the repository, for the refresh after a commit. */
@@ -134,11 +136,13 @@ export const commands = {
 	deleteRemoteTag: (repo: RepoId, remote: string, name: string) => typedError<null, GitError>(__TAURI_INVOKE("delete_remote_tag", { repo, remote, name })),
 	resetTo: (repo: RepoId, rev: string, mode: ResetMode) => typedError<null, GitError>(__TAURI_INVOKE("reset_to", { repo, rev, mode })),
 	isAncestor: (repo: RepoId, ancestor: string, descendant: string) => typedError<boolean, GitError>(__TAURI_INVOKE("is_ancestor", { repo, ancestor, descendant })),
-	compareFiles: (repo: RepoId, from: string, to: string) => typedError<FileEntry[], GitError>(__TAURI_INVOKE("compare_files", { repo, from, to })),
+	compareFiles: (repo: RepoId, from: string, to: string) => typedError<FileEntry_Serialize[], GitError>(__TAURI_INVOKE("compare_files", { repo, from, to })),
 	tagNameProblem: (repo: RepoId, name: string) => typedError<string | null, GitError>(__TAURI_INVOKE("tag_name_problem", { repo, name })),
 	tagMessage: (repo: RepoId, name: string) => typedError<string | null, GitError>(__TAURI_INVOKE("tag_message", { repo, name })),
 	renameTag: (repo: RepoId, from: string, to: string) => typedError<null, GitError>(__TAURI_INVOKE("rename_tag", { repo, from, to })),
 	renameStash: (repo: RepoId, index: number, message: string) => typedError<null, GitError>(__TAURI_INVOKE("rename_stash", { repo, index, message })),
+	notedCommits: (repo: RepoId) => typedError<string[], GitError>(__TAURI_INVOKE("noted_commits", { repo })),
+	commitNotes: (repo: RepoId, rev: string) => typedError<CommitNote[], GitError>(__TAURI_INVOKE("commit_notes", { repo, rev })),
 	setNote: (repo: RepoId, rev: string, text: string) => typedError<null, GitError>(__TAURI_INVOKE("set_note", { repo, rev, text })),
 	editAuthor: (repo: RepoId, rev: string, name: string, email: string) => typedError<null, GitError>(__TAURI_INVOKE("edit_author", { repo, rev, name, email })),
 	pushTo: (repo: RepoId, remote: string, refspec: string, track: boolean, onProgress: Channel<string>) => typedError<null, GitError>(__TAURI_INVOKE("push_to", { repo, remote, refspec, track, onProgress })),
@@ -219,7 +223,7 @@ export const commands = {
 	/**  Any entry from the journal, not only the newest (T5.7). */
 	undoEntry: (repo: RepoId, id: number) => typedError<SafetyEntry, GitError>(__TAURI_INVOKE("undo_entry", { repo, id })),
 	/**  The three parts of a stash, read without applying it (T5.2). */
-	stashContents: (repo: RepoId, index: number) => typedError<StashContents, GitError>(__TAURI_INVOKE("stash_contents", { repo, index })),
+	stashContents: (repo: RepoId, index: number) => typedError<StashContents_Serialize, GitError>(__TAURI_INVOKE("stash_contents", { repo, index })),
 	stashSelection: (repo: RepoId, paths: string[], message: string) => typedError<null, GitError>(__TAURI_INVOKE("stash_selection", { repo, paths, message })),
 	runCheck: (repo: RepoId, command: string) => typedError<HookRun, GitError>(__TAURI_INVOKE("run_check", { repo, command })),
 	/**  Asked for by the user after a confirmation; gc and commit-graph only write objects. */
@@ -265,7 +269,7 @@ export const commands = {
 	deleteWorktreeLeftover: (repo: RepoId, path: string) => typedError<null, GitError>(__TAURI_INVOKE("delete_worktree_leftover", { repo, path })),
 	/**  A worktree in the panels, not in the Repositories list (R-184). */
 	openWorktree: (owner: RepoId, path: string) => typedError<RepoSummary, GitError>(__TAURI_INVOKE("open_worktree", { owner, path })),
-	worktreeChanges: (repo: RepoId, path: string) => typedError<FileEntry[], GitError>(__TAURI_INVOKE("worktree_changes", { repo, path })),
+	worktreeChanges: (repo: RepoId, path: string) => typedError<FileEntry_Serialize[], GitError>(__TAURI_INVOKE("worktree_changes", { repo, path })),
 	pruneWorktree: (repo: RepoId, path: string) => typedError<null, GitError>(__TAURI_INVOKE("prune_worktree", { repo, path })),
 	repairWorktree: (repo: RepoId, path: string) => typedError<null, GitError>(__TAURI_INVOKE("repair_worktree", { repo, path })),
 	lockWorktree: (repo: RepoId, path: string, reason: string | null) => typedError<null, GitError>(__TAURI_INVOKE("lock_worktree", { repo, path, reason })),
@@ -961,7 +965,9 @@ export type FileDiffEntry = {
 	diff: FileDiff,
 };
 
-export type FileEntry = {
+export type FileEntry = FileEntry_Serialize | FileEntry_Deserialize;
+
+export type FileEntry_Deserialize = {
 	path: string,
 	oldPath: string | null,
 	status: FileStatus,
@@ -974,6 +980,25 @@ export type FileEntry = {
 	modeChange: FileMode | null,
 	/**  Percent, only for a rename or a copy. */
 	similarity: number | null,
+	/**  Only on a worktree row of a submodule: what differs inside it. */
+	submodule?: SubmoduleChange | null,
+};
+
+export type FileEntry_Serialize = {
+	path: string,
+	oldPath: string | null,
+	status: FileStatus,
+	/**
+	 *  What the entry is. A changed submodule is drawn with the submodule icon, the same
+	 *  one the Repositories panel uses, not as a file (doc/12-risks.md, R-143).
+	 */
+	mode: FileMode,
+	/**  The new mode, only when it differs from the old one. */
+	modeChange: FileMode | null,
+	/**  Percent, only for a rename or a copy. */
+	similarity: number | null,
+	/**  Only on a worktree row of a submodule: what differs inside it. */
+	submodule?: SubmoduleChange | null,
 };
 
 export type FileMode = "plain" | "executable" | "symlink" | "submodule";
@@ -1090,6 +1115,13 @@ export type GitOutput = {
 	 *  frontend formats every other timestamp from a number already.
 	 */
 	startedAtMs: number,
+};
+
+/**  What `git --version` said for a program chosen in Preferences. */
+export type GitProbe = {
+	valid: boolean,
+	version: string | null,
+	error: string | null,
 };
 
 export type GraphOverlay = {
@@ -1838,10 +1870,31 @@ export type Span = "top" | "bottom" | "through";
  *  The three things `git stash` puts away, each readable without touching the working tree.
  *  A stash is a commit: `^1` is HEAD at the time, `^2` the index, `^3` the untracked files.
  */
-export type StashContents = {
-	worktree: FileEntry[],
-	index: FileEntry[],
-	untracked: FileEntry[],
+export type StashContents = StashContents_Serialize | StashContents_Deserialize;
+
+/**
+ *  The three things `git stash` puts away, each readable without touching the working tree.
+ *  A stash is a commit: `^1` is HEAD at the time, `^2` the index, `^3` the untracked files.
+ */
+export type StashContents_Deserialize = {
+	worktree: FileEntry_Deserialize[],
+	index: FileEntry_Deserialize[],
+	untracked: FileEntry_Deserialize[],
+	/**  Revisions the caller hands back to `diff_file` as `CommitVsCommit`. */
+	base: string,
+	worktreeRev: string,
+	indexRev: string,
+	untrackedRev: string | null,
+};
+
+/**
+ *  The three things `git stash` puts away, each readable without touching the working tree.
+ *  A stash is a commit: `^1` is HEAD at the time, `^2` the index, `^3` the untracked files.
+ */
+export type StashContents_Serialize = {
+	worktree: FileEntry_Serialize[],
+	index: FileEntry_Serialize[],
+	untracked: FileEntry_Serialize[],
 	/**  Revisions the caller hands back to `diff_file` as `CommitVsCommit`. */
 	base: string,
 	worktreeRev: string,
@@ -1896,6 +1949,16 @@ export type Submodule = {
 	update: string | null,
 	/**  A `./` or `../` URL resolved against the parent's remote, as git clones it. */
 	resolvedUrl: string | null,
+};
+
+/**
+ *  What a submodule row stands for. `git add` records only the commit (`new_commits`);
+ *  `modified` and `untracked` are edits inside the submodule that no parent commit can hold.
+ */
+export type SubmoduleChange = {
+	newCommits: boolean,
+	modified: boolean,
+	untracked: boolean,
 };
 
 export type SubmoduleOp = "initialize" | "synchronize" | 
@@ -1968,6 +2031,8 @@ export type TextFields = {
 	name?: boolean,
 	/**  Lines the commit added or removed against its first parent. */
 	content?: boolean,
+	/**  Git Notes of the commit, in every `refs/notes/*` namespace. */
+	notes?: boolean,
 };
 
 export type TodoAction = "pick" | "reword" | "edit" | "squash" | "fixup" | "drop";
@@ -2025,13 +2090,24 @@ export type WorktreeEntry = {
 	hasSubmodules: boolean,
 };
 
-export type WorktreeFiles = {
-	staged: FileEntry[],
+export type WorktreeFiles = WorktreeFiles_Serialize | WorktreeFiles_Deserialize;
+
+export type WorktreeFiles_Deserialize = {
+	staged: FileEntry_Deserialize[],
 	/**
 	 *  Unstaged edits, untracked files and conflicts share one section, as in Git's own
 	 *  "Changes not staged for commit" plus "Untracked files".
 	 */
-	unstaged: FileEntry[],
+	unstaged: FileEntry_Deserialize[],
+};
+
+export type WorktreeFiles_Serialize = {
+	staged: FileEntry_Serialize[],
+	/**
+	 *  Unstaged edits, untracked files and conflicts share one section, as in Git's own
+	 *  "Changes not staged for commit" plus "Untracked files".
+	 */
+	unstaged: FileEntry_Serialize[],
 };
 
 /**

@@ -68,6 +68,13 @@ class ModuleForest {
     this.trees = trees;
   }
 
+  /** The panels let go of `root`: what they had read, branch and commit labels included,
+      stays as its list entry instead of falling back to the bare outline. */
+  keep(root: string, children: Children): void {
+    this.#asked.add(root);
+    this.trees = new Map(this.trees).set(root, children);
+  }
+
   async #loadExpanded(root: string): Promise<void> {
     for (const key of moduleMemory.expanded(root)) await this.#load(root, key, false);
   }

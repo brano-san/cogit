@@ -148,6 +148,20 @@ pub struct FileEntry {
     pub mode_change: Option<FileMode>,
     /// Percent, only for a rename or a copy.
     pub similarity: Option<u32>,
+    /// Only on a worktree row of a submodule: what differs inside it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(optional)]
+    pub submodule: Option<SubmoduleChange>,
+}
+
+/// What a submodule row stands for. `git add` records only the commit (`new_commits`);
+/// `modified` and `untracked` are edits inside the submodule that no parent commit can hold.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SubmoduleChange {
+    pub new_commits: bool,
+    pub modified: bool,
+    pub untracked: bool,
 }
 
 /// Git's own default: below this the two sides are an add and a delete, not a rename.
@@ -425,6 +439,7 @@ fn to_entry(change: &gix::object::tree::diff::Change<'_, '_, '_>) -> Option<File
         mode,
         mode_change,
         similarity,
+        submodule: None,
     })
 }
 

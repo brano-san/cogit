@@ -53,3 +53,12 @@ export async function pushTo(
 export async function setNote(repo: RepoId, rev: string, text: string) {
   return unwrap(await commands.setNote(repo, rev, text));
 }
+
+/** Every commit with a git note, in one call (never one per row). */
+export async function notedCommits(repo: RepoId) {
+  return unwrap(await commands.notedCommits(repo));
+}
+
+export async function commitNotes(repo: RepoId, rev: string) {
+  return unwrap(await commands.commitNotes(repo, rev));
+}

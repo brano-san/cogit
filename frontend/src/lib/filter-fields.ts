@@ -2,10 +2,10 @@ import type { TextFields } from "$lib/ipc/bindings";
 
 /** The switches under the graph filter, in the order they show: where the typed text is
     looked for (F-560). */
-export const FILTER_FIELDS = ["author", "committer", "message", "refs", "id", "name", "content"] as const;
+export const FILTER_FIELDS = ["author", "committer", "message", "refs", "id", "name", "content", "notes"] as const;
 export type FilterField = (typeof FILTER_FIELDS)[number];
 
-/** All but the two that read trees and files, which are slow on a long history. */
+/** All but the two that read trees and files, which are slow on a long history, and Notes, opt-in. */
 export const DEFAULT_FILTER_FIELDS: readonly FilterField[] = ["author", "committer", "message", "refs", "id"];
 
 export const FIELD_LABELS: Record<FilterField, { label: string; title: string }> = {
@@ -22,6 +22,7 @@ export const FIELD_LABELS: Record<FilterField, { label: string; title: string }>
     label: "Content",
     title: "Lines the commit added or removed. Reads every changed file: the slowest.",
   },
+  notes: { label: "Notes", title: "Git Notes attached to the commit, in every notes namespace" },
 };
 
 /** Known fields only, each once, in the switches' order: a field a newer version added

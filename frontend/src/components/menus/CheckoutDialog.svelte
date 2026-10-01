@@ -46,6 +46,19 @@
       <p class="what">Check out <span class="mono">{offer.source}</span></p>
       <fieldset>
         <legend class="caption">How</legend>
+        {#if offer.local}
+          <Radio
+            name="checkout-choice"
+            checked={choice === "local"}
+            disabled={offer.local.blocked !== null}
+            onchange={() => (choice = "local")}
+          >
+            <span class="text">
+              <span class="label">{offer.local.label}</span>
+              <span class="explanation">{offer.local.blocked ?? offer.local.explanation}</span>
+            </span>
+          </Radio>
+        {/if}
         {#if offer.create}
           <Radio name="checkout-choice" checked={choice === "create"} onchange={() => (choice = "create")}>
             <span class="label">Create local branch</span>
@@ -86,19 +99,6 @@
                 {offer.detach.blocked ??
                   `HEAD is detached at ${shortOid(offer.detach.oid)}: commits made there belong to no branch until you add one.`}
               </span>
-            </span>
-          </Radio>
-        {/if}
-        {#if offer.local}
-          <Radio
-            name="checkout-choice"
-            checked={choice === "local"}
-            disabled={offer.local.blocked !== null}
-            onchange={() => (choice = "local")}
-          >
-            <span class="text">
-              <span class="label">{offer.local.label}</span>
-              <span class="explanation">{offer.local.blocked ?? offer.local.explanation}</span>
             </span>
           </Radio>
         {/if}

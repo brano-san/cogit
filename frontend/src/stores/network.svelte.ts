@@ -11,6 +11,7 @@ import {
   type RepoId,
 } from "$lib/ipc";
 import { notices } from "$stores/notices.svelte";
+import { successToast } from "$stores/success-toast.svelte";
 
 /** `repo` is `null` for a clone: the repository does not exist until it ends. */
 type Running = { id: number; repo: RepoId | null; label: string; progress: string | null };
@@ -91,14 +92,17 @@ class NetworkStore {
 
   async fetch(repo: RepoId, remote: string): Promise<void> {
     await this.run(repo, "Fetching", (onLine) => fetchRemote(repo, remote, onLine));
+    successToast.show("Fetch succeeded");
   }
 
   async pull(repo: RepoId, remote: string, ffOnly: boolean): Promise<void> {
     await this.run(repo, "Pulling", (onLine) => pullRemote(repo, remote, ffOnly, onLine));
+    successToast.show("Pull succeeded");
   }
 
   async push(repo: RepoId, remote: string, force: boolean): Promise<void> {
     await this.run(repo, "Pushing", (onLine) => pushRemote(repo, remote, force, onLine));
+    successToast.show("Push succeeded");
   }
 
   async run<T>(

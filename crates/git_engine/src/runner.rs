@@ -383,7 +383,11 @@ pub(crate) fn not_started(err: std::io::Error) -> GitError {
 
 /// What every `git` Cogit starts has, inside a repository or not.
 pub(crate) fn git_command() -> Command {
-    let mut command = Command::new(git_program());
+    command_for(git_program())
+}
+
+pub(crate) fn command_for(program: &Path) -> Command {
+    let mut command = Command::new(program);
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt as _;

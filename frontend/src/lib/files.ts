@@ -23,6 +23,7 @@ export interface StatusFile {
   status: FileStatus;
   similarity?: number | null;
   indexState?: "staged" | "partly";
+  submodule?: { newCommits: boolean; modified: boolean; untracked: boolean } | null;
 }
 
 export function isRenamedModified(file: StatusFile): boolean {
@@ -72,6 +73,7 @@ export function statusTooltip(status: FileStatus): string {
 }
 
 export function fileStatusTooltip(file: StatusFile): string {
+  if (file.submodule) return submoduleTooltip(file.submodule);
   if (isRenamedModified(file)) {
     return "Renamed and modified — changed since last commit";
   }
@@ -104,4 +106,17 @@ export function matchesMask(path: string, mask: string): boolean {
 export function globToRegExp(pattern: string): RegExp {
   const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`^${escaped.replace(/\*/g, ".*").replace(/\?/g, ".")}$`);
+}
+
+/** `git add` records the submodule's current commit only; edits inside it never go with it. */
+export function submoduleTooltip(change: NonNullable<StatusFile["submodule"]>): string {
+  const inside = [change.modified && "modified files", change.untracked && "untracked files"].filter(Boolean);
+  const parts = [
+    change.newCommits ? "checked-out commit differs from the one the parent records" : null,
+    inside.length ? `${inside.join(" and ")} inside` : null,
+  ].filter(Boolean);
+  const note = change.newCommits
+    ? "Staging records the submodule's current commit; changes inside the submodule are not included."
+    : "Nothing to stage: the recorded commit is unchanged, and changes inside the submodule cannot be staged from here. Commit them in the submodule.";
+  return `Submodule — ${parts.join("; ")}. ${note}`;
 }

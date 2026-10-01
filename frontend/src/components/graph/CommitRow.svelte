@@ -12,6 +12,8 @@
   import { graphOverlays } from "$stores/graph-overlay.svelte";
   import { overlap } from "$stores/overlap.svelte";
   import { avatars } from "$stores/avatars.svelte";
+  import { notedCommitsStore } from "$stores/noted-commits.svelte";
+  import { settings } from "$stores/settings.svelte";
 
   /** What a commit's row in the graph shows, inside the row the list positions. */
   interface Props {
@@ -72,6 +74,22 @@
 {#if refs.hidden.length > 0}
   <span class="capsule more" title={refs.hidden.map((l) => l.text).join("\n")}>+{refs.hidden.length}</span>
 {/if}
+{#if settings.current.graphShowNotes && notedCommitsStore.has(entry.commit.oid)}
+  <span
+    class="note-icon"
+    role="img"
+    aria-label="Git note"
+    data-tip={notedCommitsStore.texts.get(entry.commit.oid) ?? ""}
+    onpointerenter={() => void notedCommitsStore.load(entry.commit.oid)}
+  >
+    <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M9 2H3.5v12h6" />
+      <path d="M3.5 2h5.5" />
+      <path d="M5.5 5.5h2.5M5.5 8h1.5" />
+      <path d="M13.6 5.4l-5 5-.6 2.2 2.2-.6 5-5z" />
+    </svg>
+  </span>
+{/if}
 <span class="summary truncate">{entry.commit.summary}</span>
 {#each cells as cell (cell)}
   {#if cell === "author"}
@@ -127,6 +145,17 @@
 <style>
   .no-avatar {
     flex: none;
+  }
+
+  .note-icon {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    color: var(--text-secondary);
+  }
+
+  .note-icon:hover {
+    color: var(--text-primary);
   }
 
   .capsule.more {

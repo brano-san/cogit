@@ -49,7 +49,7 @@ export function mergeIndex(unstaged: readonly FileEntry[], staged: readonly File
     }
     inIndex.delete(file.path);
     const base = file.status === "modified" ? indexed : file;
-    rows.push({ ...base, modeChange: file.modeChange ?? indexed.modeChange, indexState: "partly" });
+    rows.push({ ...base, modeChange: file.modeChange ?? indexed.modeChange, submodule: file.submodule, indexState: "partly" });
   }
   for (const file of inIndex.values()) rows.push({ ...file, indexState: "staged" });
   return rows;
@@ -70,4 +70,12 @@ export function stagedShown(
   if (separate) return [...(shown[1] ?? [])];
   const inIndex = new Set(staged.map((file) => file.path));
   return (shown[0] ?? []).filter((path) => inIndex.has(path));
+}
+
+/** Ctrl+A ticks the rows of one pane only: the one last touched, else the one holding a
+    tick, else the first. `groupKeys` are the row keys of each shown pane. */
+export function selectAllKeys(groupKeys: readonly (readonly string[])[], touched: number | null, marked: ReadonlySet<string>): string[] {
+  const held = groupKeys.findIndex((keys) => keys.some((key) => marked.has(key)));
+  const at = touched !== null && touched < groupKeys.length ? touched : held >= 0 ? held : 0;
+  return [...(groupKeys[at] ?? [])];
 }

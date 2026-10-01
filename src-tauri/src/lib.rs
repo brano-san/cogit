@@ -77,6 +77,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
         ])
         .commands(collect_commands![
             commands::app_info,
+            commands::probe_git,
             commands::open_third_party_licences,
             commands::open_repository,
             commands::reread_repository,
@@ -131,6 +132,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::ref_ops::tag_message,
             commands::ref_ops::rename_tag,
             commands::ref_ops::rename_stash,
+            commands::ref_ops::noted_commits,
+            commands::ref_ops::commit_notes,
             commands::ref_ops::set_note,
             commands::ref_ops::edit_author,
             commands::ref_ops::push_to,

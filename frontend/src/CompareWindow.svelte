@@ -3,6 +3,10 @@
   import DiffView from "$components/diff/DiffView.svelte";
   import ImageDiff from "$components/diff/ImageDiff.svelte";
   import TooltipLayer from "$components/common/TooltipLayer.svelte";
+  import Notifications from "$components/layout/Notifications.svelte";
+  import { errors } from "$stores/errors.svelte";
+  import { runMutation, type MutationContext } from "$lib/mutation";
+  import { announceTreeChange } from "$lib/tree-sync";
   import { installChildWindow } from "$lib/child-window";
   import { compareLabel, parseCompare } from "$lib/compare-params";
   import { firstParent, handOverModule, loadCompare } from "$lib/compare-window";
@@ -40,6 +44,27 @@
     document.title = `${title} — Cogit`;
   });
 
+  /** Stage, Unstage and Discard here end like the Diff panel's: through `runMutation`, a
+      failure goes to the notification queue with git's own words, and on success the diff
+      is read again and the main window reads its lists (its watcher is quiet after our own
+      writes). */
+  const mutation: MutationContext = {
+    repo: () => request?.repo ?? null,
+    epoch: () => 0,
+    report: (err) => errors.report(err, "Could not change the working tree"),
+    loadWorktree: async () => {},
+    after: async (paths) => {
+      await diff.reload();
+      if (request) await announceTreeChange({ repo: request.repo, path: paths[0] ?? request.path });
+    },
+  };
+  diff.useMutation(mutation);
+
+  function stageLines(selected: ReadonlySet<string>, reverse: boolean) {
+    const path = diff.shownPath;
+    if (path) void runMutation(mutation, () => diff.stageLines(selected, reverse), [path], false);
+  }
+
   // A submodule has nothing to compare line by line: the main window opens it (R-537).
   let handedOver = false;
   $effect(() => {
@@ -50,6 +75,7 @@
 </script>
 
 <TooltipLayer />
+<Notifications onopenurl={() => {}} onshowoutput={() => {}} onaction={() => {}} />
 
 <div class="window">
   {#if !request}
@@ -78,9 +104,9 @@
       <DiffView
         diff={diff.diff}
         path={diff.shownPath}
-        stageable={false}
+        stageable={diff.stageable}
         showPath={false}
-        onstage={() => {}}
+        onstage={stageLines}
         whitespace={diff.whitespace}
         onwhitespace={(mode) => void diff.setWhitespace(request.repo, mode)}
       />

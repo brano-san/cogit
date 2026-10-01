@@ -385,3 +385,141 @@ fn an_intent_to_add_file_is_an_addition_waiting_to_be_staged() {
     );
     assert!(paths(&files.staged).is_empty(), "{:?}", files.staged);
 }
+
+fn inside_submodule(f: &test_fixtures::Fixture, edit: impl FnOnce(&std::path::Path)) {
+    let module = f.path().join("vendor/lib");
+    f.git(&["-C", "vendor/lib", "config", "user.name", "t"])
+        .unwrap();
+    edit(&module);
+}
+
+#[test]
+fn a_submodule_with_a_modified_tracked_file_is_listed_modified() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let tracked = f.git(&["-C", "vendor/lib", "ls-files"]).unwrap();
+    let tracked = tracked.lines().next().unwrap().to_owned();
+    inside_submodule(&f, |m| std::fs::write(m.join(&tracked), "dirty\n").unwrap());
+
+    let files = open(&f).worktree_files().unwrap();
+
+    let row = files
+        .unstaged
+        .iter()
+        .find(|e| e.path == "vendor/lib")
+        .unwrap();
+    assert_eq!(row.status, FileStatus::Modified);
+    assert_eq!(row.mode, git_engine::FileMode::Submodule);
+}
+
+#[test]
+fn a_submodule_with_only_untracked_files_is_listed_modified() {
+    let f = test_fixtures::with_submodule().unwrap();
+    inside_submodule(&f, |m| std::fs::write(m.join("new.txt"), "x\n").unwrap());
+
+    let files = open(&f).worktree_files().unwrap();
+
+    assert_eq!(
+        status_of(&files, "unstaged", "vendor/lib"),
+        &FileStatus::Modified
+    );
+}
+
+#[test]
+fn a_submodule_with_a_new_commit_is_listed_modified() {
+    let f = test_fixtures::with_submodule().unwrap();
+    f.git(&[
+        "-C",
+        "vendor/lib",
+        "-c",
+        "user.name=t",
+        "-c",
+        "user.email=t@t",
+        "commit",
+        "--allow-empty",
+        "-m",
+        "x",
+    ])
+    .unwrap();
+
+    let files = open(&f).worktree_files().unwrap();
+
+    assert_eq!(
+        status_of(&files, "unstaged", "vendor/lib"),
+        &FileStatus::Modified
+    );
+}
+
+#[test]
+fn staging_a_dirty_submodule_records_its_commit_and_unstaging_reverts_it() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let tracked = f.git(&["-C", "vendor/lib", "ls-files"]).unwrap();
+    let tracked = tracked.lines().next().unwrap().to_owned();
+    inside_submodule(&f, |m| std::fs::write(m.join(&tracked), "dirty\n").unwrap());
+    let repo = open(&f);
+
+    repo.stage(&["vendor/lib".to_owned()]).unwrap();
+    repo.unstage(&["vendor/lib".to_owned()]).unwrap();
+
+    let files = repo.worktree_files().unwrap();
+    assert!(files.staged.is_empty(), "{:?}", files.staged);
+}
+
+fn submodule_row(f: &test_fixtures::Fixture) -> git_engine::FileEntry {
+    let files = open(f).worktree_files().unwrap();
+    files
+        .unstaged
+        .into_iter()
+        .find(|e| e.path == "vendor/lib")
+        .unwrap()
+}
+
+#[test]
+fn a_dirty_submodule_row_says_what_changed_inside() {
+    let f = test_fixtures::with_submodule().unwrap();
+    let tracked = f.git(&["-C", "vendor/lib", "ls-files"]).unwrap();
+    let tracked = tracked.lines().next().unwrap().to_owned();
+    inside_submodule(&f, |m| std::fs::write(m.join(&tracked), "dirty\n").unwrap());
+    let change = submodule_row(&f).submodule.unwrap();
+    assert!(
+        change.modified && !change.untracked && !change.new_commits,
+        "{change:?}"
+    );
+
+    inside_submodule(&f, |m| std::fs::write(m.join("new.txt"), "x\n").unwrap());
+    let change = submodule_row(&f).submodule.unwrap();
+    assert!(
+        change.modified && change.untracked && !change.new_commits,
+        "{change:?}"
+    );
+}
+
+#[test]
+fn a_submodule_row_with_a_moved_commit_says_so() {
+    let f = test_fixtures::with_submodule().unwrap();
+    f.git(&[
+        "-C",
+        "vendor/lib",
+        "-c",
+        "user.name=t",
+        "-c",
+        "user.email=t@t",
+        "commit",
+        "--allow-empty",
+        "-m",
+        "x",
+    ])
+    .unwrap();
+    let change = submodule_row(&f).submodule.unwrap();
+    assert!(
+        change.new_commits && !change.modified && !change.untracked,
+        "{change:?}"
+    );
+}
+
+#[test]
+fn a_plain_file_row_has_no_submodule_state() {
+    let f = test_fixtures::linear(1).unwrap();
+    f.write_file("a.txt", "x\n").unwrap();
+    let files = open(&f).worktree_files().unwrap();
+    assert!(files.unstaged.iter().all(|e| e.submodule.is_none()));
+}

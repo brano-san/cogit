@@ -135,6 +135,11 @@
   .text {
     white-space: pre-line;
     overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 14;
+    line-clamp: 14;
+    overflow: hidden;
   }
 
   .hint {

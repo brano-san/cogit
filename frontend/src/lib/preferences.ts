@@ -44,7 +44,6 @@ export const CATEGORIES: Category[] = [
     id: "git",
     title: "General",
     parent: "commands",
-    note: "*) Changing the Git executable takes effect after a restart.",
     groups: [
       {
         // Where the Exit dialog's "Don't show again" hint sends the user (R-169).
@@ -91,7 +90,7 @@ export const CATEGORIES: Category[] = [
         fields: [
           {
             key: "gitPath",
-            label: "Git executable *",
+            label: "Git executable",
             hint: "Leave as `git` to use the one on PATH.",
             keywords: ["binary", "path", "executable"],
           },
@@ -143,6 +142,12 @@ export const CATEGORIES: Category[] = [
             label: "Alternate row background",
             hint: "Also in Files, Repositories, Branches and Worktrees.",
             keywords: ["stripes", "zebra", "banded", "lists", "files", "repositories", "branches", "worktrees"],
+          },
+          {
+            key: "graphShowNotes",
+            label: "Show Git Notes",
+            hint: "A note icon on commits that have a note; hover it to read the note.",
+            keywords: ["notes", "annotation", "comment", "refs/notes", "icon"],
           },
         ],
       },
@@ -222,7 +227,7 @@ export const CATEGORIES: Category[] = [
             key: "graphFilterFields",
             label: "Look for the filter text in",
             hint: "The switches under the Graph filter. Name and Content read the changed files, so they are slower.",
-            keywords: ["search", "filter", "author", "committer", "message", "refs", "id", "name", "content", "find"],
+            keywords: ["search", "filter", "author", "committer", "message", "refs", "id", "name", "content", "notes", "find"],
           },
           {
             key: "graphFilterPatterns",
@@ -362,7 +367,6 @@ export const CATEGORIES: Category[] = [
     id: "cli",
     title: "CLI & Terminal",
     parent: "tools",
-    note: "*) The log level takes effect after a restart.",
     groups: [
       {
         title: "Terminal",
@@ -379,7 +383,7 @@ export const CATEGORIES: Category[] = [
         fields: [
           {
             key: "logLevel",
-            label: "Log level *",
+            label: "Log level",
             hint: "Profiling always writes at info, whatever this says.",
             keywords: ["debug", "trace", "diagnostics", "profiling"],
           },

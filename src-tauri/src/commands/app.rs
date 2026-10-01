@@ -208,3 +208,16 @@ pub fn report_memory(sample: crate::profile::RendererMemory) {
 pub fn closing_ping() {
     crate::shutdown::answered();
 }
+
+/// Preferences ▸ Git executable: runs `<path> --version` with a timeout, off the main thread.
+#[tauri::command]
+#[specta::specta]
+pub async fn probe_git(path: String) -> Result<git_engine::GitProbe, GitError> {
+    blocking("probe_git", move || {
+        Ok(git_engine::probe_git(
+            &path,
+            std::time::Duration::from_secs(5),
+        ))
+    })
+    .await
+}

@@ -53,6 +53,8 @@ export interface Settings {
   graphTimeFormat: GraphTimeFormat;
   graphDensity: GraphDensity;
   graphStripes: boolean;
+  /** A note icon on commits that have a git note; hover shows the note. */
+  graphShowNotes: boolean;
   graphAvatarsChangedOnly: boolean;
   /** A link longer than this many rows is drawn as two stubs; 0 draws every link whole. */
   graphLongLinkRows: number;
@@ -103,6 +105,7 @@ export const DEFAULT_SETTINGS: Settings = {
   graphTimeFormat: "date",
   graphDensity: "normal",
   graphStripes: true,
+  graphShowNotes: true,
   graphAvatarsChangedOnly: false,
   graphLongLinkRows: 40,
   graphHighlightChecked: true,
