@@ -105,6 +105,8 @@ fn a_file_whose_mode_stayed_has_no_mark() {
 fn an_unstaged_mode_change_is_marked_on_its_row() {
     use std::os::unix::fs::PermissionsExt as _;
     let f = test_fixtures::linear(1).unwrap();
+    // The fixtures run with `core.filemode = false`, as on Windows; a chmod counts only here.
+    f.git(&["config", "core.filemode", "true"]).unwrap();
     f.write_file("script.sh", "#!/bin/sh\necho one\n").unwrap();
     f.git(&["add", "--", "script.sh"]).unwrap();
     f.commit_staged(1, "add a script").unwrap();
