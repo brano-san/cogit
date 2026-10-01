@@ -1,0 +1,107 @@
+import { setTaskbarState, type Flash, type TaskbarSignals } from "$lib/ipc";
+import { signalsFor } from "$lib/taskbar";
+import { network } from "$stores/network.svelte";
+import { notices } from "$stores/notices.svelte";
+import { settings } from "$stores/settings.svelte";
+import { untrack } from "svelte";
+
+/** How something ended while nobody was looking. Any store may report one with `event`. */
+export type TaskbarEvent = "success" | "error" | "warning";
+
+/** The taskbar button's state, derived from what the page already knows: the network
+    operations, the notification queue and the window's focus. The host merges and paints
+    it (`set_taskbar_state`); this only reports. */
+class TaskbarStore {
+  focused = $state(true);
+  #unviewed = $state(0);
+  #flash = $state<Flash | null>(null);
+  #sent = "";
+
+  get unviewed(): number {
+    return this.#unviewed;
+  }
+
+  /** Counts and flashes only while the window is in the background: in front, the user
+      sees the result themselves. An error or a warning blinks until focus, a success briefly. */
+  event(kind: TaskbarEvent): void {
+    if (this.focused) return;
+    this.#unviewed += 1;
+    this.#flash = kind === "success" && this.#flash !== "persistent" ? "short" : "persistent";
+  }
+
+  /** The window got focus: whatever piled up is seen. */
+  viewed(): void {
+    this.#unviewed = 0;
+    this.#flash = null;
+  }
+
+  setFocused(focused: boolean): void {
+    this.focused = focused;
+    if (focused) this.viewed();
+  }
+
+  /** Call once from the main window; returns the cleanup. */
+  start(): () => void {
+    this.focused = document.hasFocus();
+    const onFocus = () => this.setFocused(true);
+    const onBlur = () => this.setFocused(false);
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("blur", onBlur);
+
+    const stop = $effect.root(() => {
+      let runningBefore = false;
+      $effect(() => {
+        const running = network.running !== null;
+        if (runningBefore && !running) untrack(() => this.event("success"));
+        runningBefore = running;
+      });
+
+      let seen = new Set<string>();
+      $effect(() => {
+        const queue = notices.all;
+        untrack(() => {
+          for (const notice of queue) {
+            if (seen.has(notice.key)) continue;
+            if (notice.severity === "error") this.event("error");
+            else if (notice.severity === "warning") this.event("warning");
+          }
+        });
+        seen = new Set(queue.map((notice) => notice.key));
+      });
+
+      $effect(() => {
+        const queue = notices.all;
+        const signals = signalsFor({
+          enabled: settings.current.notificationsTaskbar,
+          flashEnabled: settings.current.notificationsTaskbarFlash,
+          running: network.running !== null,
+          line: network.progress,
+          errors: queue.filter((notice) => notice.severity === "error").length,
+          warnings: queue.filter((notice) => notice.severity === "warning").length,
+          unviewed: this.#unviewed,
+          flash: this.#flash,
+        });
+        untrack(() => this.#send(signals));
+      });
+    });
+
+    return () => {
+      stop();
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("blur", onBlur);
+    };
+  }
+
+  /** A flash is a one-off request; the state itself is sent only when it changed. */
+  #send(signals: TaskbarSignals): void {
+    const key = JSON.stringify(signals);
+    if (key === this.#sent && !signals.flash) return;
+    this.#sent = key;
+    void setTaskbarState(signals).catch(() => {
+      // No taskbar to paint (a browser, a headless run): nothing to report.
+    });
+    if (this.#flash !== null) this.#flash = null;
+  }
+}
+
+export const taskbar = new TaskbarStore();
