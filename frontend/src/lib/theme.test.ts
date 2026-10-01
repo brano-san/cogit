@@ -60,6 +60,20 @@ describe("theme files", () => {
     }
   });
 
+  it.each(IDS)("%s: muted text 4.5:1 on app, panel and editor; primary and secondary on every surface; line numbers 3:1", (id) => {
+    const { tokens } = THEME_FILES[id];
+    const all = ["bg.app", "bg.panel", "bg.editor", "bg.elevated", "bg.input", "bg.hover", "bg.selected", "bg.selectedInactive"];
+    const bad: string[] = [];
+    const check = (fg: string, bg: string, min: number) => {
+      const ratio = contrast(tokens[fg]!, tokens[bg]!);
+      if (ratio < min) bad.push(`${fg} on ${bg}: ${ratio.toFixed(2)} < ${min}`);
+    };
+    for (const bg of ["bg.editor", "bg.panel", "bg.app"]) check("fg.muted", bg, 4.5);
+    for (const fg of ["fg.primary", "fg.secondary"]) for (const bg of all) check(fg, bg, 4.5);
+    check("diff.lineNumber", "bg.editor", 3);
+    expect(bad).toEqual([]);
+  });
+
   it.each(IDS)("%s: secondary text, search ink and text on accent read at 4.5:1", (id) => {
     const { tokens } = THEME_FILES[id];
     expect(contrast(tokens["fg.secondary"]!, tokens["bg.panel"]!)).toBeGreaterThanOrEqual(4.5);

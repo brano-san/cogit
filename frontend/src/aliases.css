@@ -52,7 +52,7 @@
 
   /* ---- graph ---- */
   --graph-main: var(--fg-primary);
-  --graph-line: var(--fg-secondary);
+  --graph-line: var(--graph-lane-neutral);
   --graph-branch-1: var(--graph-lane-0);
   --graph-branch-2: var(--graph-lane-1);
   --graph-branch-3: var(--graph-lane-2);
