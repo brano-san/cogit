@@ -104,10 +104,21 @@
     min-height: 0;
   }
 
+  /* Narrow window: the three versions stack, each tall enough to read. */
+  @media (max-width: 700px) {
+    .panes {
+      grid-template-columns: minmax(0, 1fr);
+      grid-auto-rows: minmax(200px, 1fr);
+      overflow-y: auto;
+    }
+  }
+
   header {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: var(--sp-3);
+    min-width: 0;
     min-height: 26px;
     font-size: var(--fs-dense);
   }
