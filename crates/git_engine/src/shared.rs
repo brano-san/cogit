@@ -15,6 +15,7 @@ use std::time::SystemTime;
 pub struct SharedRepo {
     template: gix::ThreadSafeRepository,
     stamps: Vec<(PathBuf, Option<Stamp>)>,
+    packed_refs: std::sync::Mutex<Option<Stamp>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,7 +65,12 @@ impl SharedRepo {
                 (path, now)
             })
             .collect();
-        Ok(Self { template, stamps })
+        let packed_refs = std::sync::Mutex::new(stamp(&template.refs.packed_refs_path()));
+        Ok(Self {
+            template,
+            stamps,
+            packed_refs,
+        })
     }
 
     /// False once a config file it read has changed, appeared or gone — or the repository
@@ -76,11 +82,35 @@ impl SharedRepo {
 
     /// A handle with an object store of its own, so the packs it maps are let go with it.
     pub fn handle(&self) -> Result<RepoHandle> {
+        self.refresh_packed_refs();
         let mut sync = self.template.clone();
         let store = gix::odb::Store::try_from(&*self.template.objects)
             .map_err(|err| GitError::Internal(format!("cannot open the object store: {err}")))?;
         sync.objects = gix::features::threading::OwnShared::new(store);
         Ok(RepoHandle::from_repo(sync.to_thread_local()))
+    }
+}
+
+impl SharedRepo {
+    /// gix keeps the `packed-refs` it read until the file has a strictly newer mtime, so a
+    /// rewrite within one tick of the file system clock went unseen (as for the index, R-481).
+    /// A changed size or time is a reason to read it anew; the size catches the same tick.
+    fn refresh_packed_refs(&self) {
+        let now = stamp(&self.template.refs.packed_refs_path());
+        let mut seen = self
+            .packed_refs
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if *seen == now {
+            return;
+        }
+        *seen = now;
+        // Gone, gix drops its copy by itself.
+        if now.is_some()
+            && let Err(error) = self.template.refs.force_refresh_packed_buffer()
+        {
+            tracing::error!(?error, context = "rereading packed-refs");
+        }
     }
 }
 
