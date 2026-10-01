@@ -599,6 +599,8 @@ export type AppInfo = {
 	logPath: string,
 	logDir: string,
 	settingsPath: string,
+	/**  The `Cogit-data` folder of the portable build; `None` in a normal one. */
+	portableDir: string | null,
 	displays: DisplayInfo[],
 };
 
