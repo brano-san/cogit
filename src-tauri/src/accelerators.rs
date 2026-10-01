@@ -10,6 +10,9 @@
 //!
 //! This module is the decision, with no Windows API in it, so the rule can be tested.
 
+// The rule is plain logic so it can be tested anywhere; only the Windows webview calls it.
+#![cfg_attr(not(windows), allow(dead_code))]
+
 use std::collections::HashMap;
 
 /// A pressed combination, reduced to what a menu accelerator can express.
