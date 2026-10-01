@@ -71,11 +71,8 @@ describe.each(Object.keys(THEMES))("branch colours in the %s theme", (name) => {
 
   it("are told apart from each other and from the grey of an unticked line", () => {
     for (const [i, a] of slots.entries()) {
-      // The theme files' eighth lane (graph.lane.7) is a neutral grey by design (doc/12-risks.md),
-      // so only the seven hues are held apart from the grey of an unticked line.
-      if (i < BRANCH_SLOTS - 1) {
-        expect(distance(colour(a), colour("--graph-line")), `${a} against grey`).toBeGreaterThanOrEqual(20);
-      }
+      expect(distance(colour(a), colour("--graph-line")), `${a} against grey`).toBeGreaterThanOrEqual(25);
+      expect(colour(a), `${a} is the neutral`).not.toBe(colour("--graph-line"));
       for (const b of slots.slice(i + 1)) {
         expect(distance(colour(a), colour(b)), `${a} against ${b}`).toBeGreaterThanOrEqual(15);
       }

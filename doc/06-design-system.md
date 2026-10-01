@@ -113,7 +113,7 @@
 
 ### Текст и акцент
 
-`fg.primary`, `fg.secondary` (подписи, заголовки панелей), `fg.muted` (даты, хеши, пути),
+`fg.primary`, `fg.secondary` (подписи, заголовки панелей), `fg.muted` (даты, хеши, пути; ≥ 4,5:1 на `bg.editor`, `bg.panel`, `bg.app` — на `bg.elevated`, `bg.hover`, `bg.selected` вместо него `fg.secondary`; тест `theme.test.ts`),
 `fg.disabled`, `accent` / `accent.hover` (ссылки, фокус, галочки), `fg.onAccent` (текст на
 заливке акцентом), `focus.ring` (контур фокуса, alpha), `toggle.on.bg|fg|border` (включённый
 переключатель: фон, текст, рамка).
@@ -122,8 +122,8 @@
 
 `status.success|warning|danger|info` (файлы A / M / D / R, `dirty`, ошибки),
 `status.move`, `status.stash`, `file.untracked`, `file.conflict`, `badge.merging.fg`,
-`badge.head|branch|remote|tag|warning` (`.bg` / `.fg`), `graph.lane.0…7`.
-Дорожки и цвета отмеченных веток (`--graph-branch-1…8` = `graph.lane.0…7`) держатся не ниже 3:1 к
+`badge.head|branch|remote|tag|warning` (`.bg` / `.fg`), `graph.lane.0…7`, `graph.lane.neutral`.
+`graph.lane.neutral` — единственный цвет линий и узлов неотмеченных веток (`--graph-line`); `graph.lane.0…7` только для отмеченных веток. Главная линия — `fg.primary` (`--graph-main`). Дорожки и цвета отмеченных веток (`--graph-branch-1…8` = `graph.lane.0…7`) держатся не ниже 3:1 к
 `bg.panel` и `bg.selected` (`graph-palette.test.ts`).
 
 ### Diff
@@ -172,7 +172,7 @@
 --status-tag          → --badge-tag-fg
 
 --graph-main          → --fg-primary
---graph-line          → --fg-secondary
+--graph-line          → --graph-lane-neutral
 --graph-branch-N      → --graph-lane-(N-1)   N = 1…8, цвета отмеченных веток
 --graph-focus         → --accent             ветка выбранного коммита без своего цвета
 --graph-bisect-good   → --status-success     точка хорошего коммита bisect (F-566)
