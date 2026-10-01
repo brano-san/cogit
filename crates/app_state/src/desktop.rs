@@ -329,6 +329,7 @@ fn command_for(launch: &Launch, cwd: Option<&Path>) -> std::process::Command {
     if let Some(dir) = cwd {
         command.current_dir(dir);
     }
+    portable::restore_child_env(&mut command);
     command
         .stdin(Stdio::null())
         .stdout(Stdio::null())

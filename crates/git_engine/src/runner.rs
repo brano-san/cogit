@@ -410,6 +410,9 @@ pub(crate) fn clear_inherited_git_vars(command: &mut Command) {
     for variable in INHERITED_GIT_VARS {
         command.env_remove(variable);
     }
+    // A portable build redirects the config folders for itself; git, ssh and the hooks
+    // read the user's own.
+    portable::restore_child_env(command);
 }
 
 pub(crate) fn base_command(root: &Path, reading: bool) -> Command {

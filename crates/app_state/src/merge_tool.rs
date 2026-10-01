@@ -376,6 +376,7 @@ fn spawn(command: &ToolCommand, cwd: &Path) -> io::Result<Child> {
     cmd.args(&command.args)
         .current_dir(cwd)
         .stdin(Stdio::null());
+    portable::restore_child_env(&mut cmd);
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
