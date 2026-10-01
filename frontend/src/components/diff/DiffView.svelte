@@ -19,6 +19,7 @@
   import { alignModel } from "$lib/diff-aligned";
   import { DiffSearch } from "$lib/diff-search.svelte";
   import {
+    ACTION_CENTER_X,
     ACTION_LEFT_X,
     ACTION_RIGHT_X,
     BAND_WIDTH,
@@ -621,11 +622,15 @@
 
   // --- what a row looks like ---
 
-  type Tone = "del" | "add" | "move" | "";
+  type Tone = "del" | "add" | "changed" | "move" | "";
 
-  /** Colors go by meaning: red is what is gone, green what is new, violet what moved. */
-  function toneOf(kind: BlockKind, deleting: boolean): Tone {
-    return kind === "equal" ? "" : kind === "moved" ? "move" : deleting ? "del" : "add";
+  /** Colors go by meaning: red is what is gone, green what is new, violet what moved. Side by
+      side (`joint`) a changed block is orange on both sides, every line of it; unified keeps its
+      lines apart, red and green. */
+  function toneOf(kind: BlockKind, deleting: boolean, joint = false): Tone {
+    if (kind === "equal") return "";
+    if (kind === "moved") return "move";
+    return kind === "changed" && joint ? "changed" : deleting ? "del" : "add";
   }
 
   function paneLine(side: PaneSide, row: PaneLine) {
@@ -732,7 +737,7 @@
         <span class="filler"></span>
       </div>
     {:else}
-      {@const tone = toneOf(row.blockKind, side === "left")}
+      {@const tone = toneOf(row.blockKind, side === "left", true)}
       {@const picked = row.key !== null && selected.has(row.key)}
       <div
         class="line"
@@ -1024,29 +1029,44 @@
           {#each links as link (link.block + ":" + link.kind + ":" + link.moveId)}
             {@const block = model.blocks[link.block]!}
             {#if link.kind !== "moved" && bandActions}
-              {#if block.keys.deletes.length > 0 && link.anchor.left !== null}
-                <button
-                  type="button"
-                  class="bandact"
-                  style:left="{ACTION_LEFT_X}px"
-                  style:top="{link.anchor.left}px"
-                  title={bandActions === "discard"
-                    ? "Restore these deleted lines in the working tree (asks first)"
-                    : "Unstage the deletion of these lines"}
-                  onclick={() => bandAct(block.keys.deletes, "the deletion of these lines")}>»</button
-                >
-              {/if}
-              {#if block.keys.inserts.length > 0 && link.anchor.right !== null}
-                <button
-                  type="button"
-                  class="bandact"
-                  style:left="{ACTION_RIGHT_X}px"
-                  style:top="{link.anchor.right}px"
-                  title={bandActions === "discard"
-                    ? "Remove these added lines from the working tree (asks first)"
-                    : "Unstage these added lines"}
-                  onclick={() => bandAct(block.keys.inserts, "these added lines")}>×</button
-                >
+              {#if link.kind === "changed"}
+                {#if link.anchor.center !== null}
+                  <button
+                    type="button"
+                    class="bandact"
+                    style:left="{ACTION_CENTER_X}px"
+                    style:top="{link.anchor.center}px"
+                    title={bandActions === "discard"
+                      ? "Revert the whole block: restore its deleted lines and remove its added lines (asks first)"
+                      : "Unstage the whole block: its deleted and its added lines"}
+                    onclick={() => bandAct([...block.keys.deletes, ...block.keys.inserts], "the whole changed block (its deleted and its added lines)")}>»</button
+                  >
+                {/if}
+              {:else}
+                {#if block.keys.deletes.length > 0 && link.anchor.left !== null}
+                  <button
+                    type="button"
+                    class="bandact"
+                    style:left="{ACTION_LEFT_X}px"
+                    style:top="{link.anchor.left}px"
+                    title={bandActions === "discard"
+                      ? "Restore these deleted lines in the working tree (asks first)"
+                      : "Unstage the deletion of these lines"}
+                    onclick={() => bandAct(block.keys.deletes, "the deletion of these lines")}>»</button
+                  >
+                {/if}
+                {#if block.keys.inserts.length > 0 && link.anchor.right !== null}
+                  <button
+                    type="button"
+                    class="bandact"
+                    style:left="{ACTION_RIGHT_X}px"
+                    style:top="{link.anchor.right}px"
+                    title={bandActions === "discard"
+                      ? "Remove these added lines from the working tree (asks first)"
+                      : "Unstage these added lines"}
+                    onclick={() => bandAct(block.keys.inserts, "these added lines")}>×</button
+                  >
+                {/if}
               {/if}
             {/if}
           {/each}
@@ -1385,6 +1405,11 @@
     background: var(--diff-add-gutter);
   }
 
+  .num.changed,
+  .sign.changed {
+    background: var(--diff-changed-gutter);
+  }
+
   .num.move,
   .sign.move {
     background: var(--diff-move-line);
@@ -1396,6 +1421,10 @@
 
   .code.add {
     background: var(--diff-add-line);
+  }
+
+  .code.changed {
+    background: var(--diff-changed-line);
   }
 
   .code.move {
@@ -1476,6 +1505,15 @@
     shape-rendering: geometricPrecision;
   }
 
+  /* A changed block is orange like its lines (R-629): the fill is the line tone, the outline the word tone. */
+  .fill.changed {
+    fill: var(--diff-changed-line);
+  }
+
+  .edge.changed {
+    stroke: var(--diff-changed-word);
+  }
+
   /* A move goes somewhere else in the file: it keeps the violet of its lines. */
   .fill.moved {
     fill: var(--diff-move-line);
@@ -1492,7 +1530,7 @@
     pointer-events: none;
   }
 
-  /* » in the left half of the gutter, × in the right: each centred on its x and on the part of
+  /* » in the left half of the gutter, × in the right (a changed block: one » in the middle): each centred on its x and on the part of
      its block's connector that is on screen there (blockConnectors, R-628). */
   .bandact {
     position: absolute;
@@ -1515,18 +1553,24 @@
     color: var(--diff-center-gutter-action-hover);
   }
 
+  /* The marked word is plain primary text on its own background: the syntax colour (.tok-*)
+     is off inside a highlighted fragment, so the word reads at 4.5:1 in every theme. */
   .word {
     border-radius: 2px;
     font-weight: 600;
+    color: var(--fg-primary);
   }
 
-  /* The changed word is marked over the syntax colour, never instead of it (R-530). */
   .code.del .word {
     background: var(--diff-del-word);
   }
 
   .code.add .word {
     background: var(--diff-add-word);
+  }
+
+  .code.changed .word {
+    background: var(--diff-changed-word);
   }
 
   .code.move .word {

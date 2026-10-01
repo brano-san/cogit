@@ -103,16 +103,19 @@ export interface BlockConnector {
       paint every fill first, then every outline. */
   path: string;
   edges: string;
-  /** Where the block's two buttons go (R-628): » in the left part of the gutter, × in the
+  /** Where the block's buttons go (R-628): » in the left part of the gutter, × in the
       right part (`ACTION_LEFT_X`, `ACTION_RIGHT_X`), each at the vertical center of the part of
       the band that is on screen *at its own x*, so it sits on its connector however the band
-      slants. `null`: the band is not on screen there, no button. */
-  anchor: { left: number | null; right: number | null };
+      slants. A `changed` block has one » for the whole block, in the middle (`center`,
+      `ACTION_CENTER_X`; R-629). `null`: the band is not on screen there, no button. */
+  anchor: { left: number | null; right: number | null; center: number | null };
 }
 
 /** Horizontal centers of the two buttons: the middles of the gutter's halves. */
 export const ACTION_LEFT_X = BAND_WIDTH / 4;
 export const ACTION_RIGHT_X = (BAND_WIDTH * 3) / 4;
+/** The lone » of a changed block: the middle of the gutter. */
+export const ACTION_CENTER_X = BAND_WIDTH / 2;
 
 /** How far along the S-curve of the band (0 at the left column, 1 at the right) the point at
     `x` is. The curve's controls sit at the horizontal midpoint, so
@@ -132,6 +135,7 @@ export function curveFraction(x: number): number {
 
 const LEFT_FRACTION = curveFraction(ACTION_LEFT_X);
 const RIGHT_FRACTION = curveFraction(ACTION_RIGHT_X);
+const CENTER_FRACTION = curveFraction(ACTION_CENTER_X);
 
 /** The center of what is on screen of a band that spans `[top, bottom]` there, kept half a
     button (`inset`) from the gutter's edges; `null` when none of it is on screen. */
@@ -170,7 +174,7 @@ function connectorOf(
     right: r,
     path: pathOf(l[0], l[1], r[0], r[1]),
     edges: edgesOf(l[0], l[1], r[0], r[1]),
-    anchor: { left: at(LEFT_FRACTION), right: at(RIGHT_FRACTION) },
+    anchor: { left: at(LEFT_FRACTION), right: at(RIGHT_FRACTION), center: at(CENTER_FRACTION) },
   };
 }
 

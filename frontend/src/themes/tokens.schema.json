@@ -237,6 +237,18 @@
       "type": "color",
       "description": "Gutter of a deleted line."
     },
+    "diff.changed.line": {
+      "type": "color",
+      "description": "Changed block (both sides, split view): line background."
+    },
+    "diff.changed.word": {
+      "type": "color",
+      "description": "Changed block: changed word (inline) background."
+    },
+    "diff.changed.gutter": {
+      "type": "color",
+      "description": "Changed block: gutter (number and sign) of a line."
+    },
     "diff.move.line": {
       "type": "color",
       "description": "Moved line background."

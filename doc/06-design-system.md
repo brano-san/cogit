@@ -128,10 +128,18 @@
 
 ### Diff
 
-`diff.add|del|move` × `line|word|gutter` (у `move` нет `gutter`), `diff.hunkHeader.bg|fg`,
+`diff.add|del|changed|move` × `line|word|gutter` (у `move` нет `gutter`), `diff.hunkHeader.bg|fg`,
 `diff.lineNumber`, `diff.centerGutter.bg|action|action.hover`, `diff.connector.fill|stroke`,
 `diff.filler.bg|hatch`, `diff.jumpFlash`. Красный — удалено, зелёный — добавлено, фиолетовый — перемещено; единого
-цвета «changed» нет (янтарные фон и маркеры убраны). Подробнее — §7.
+оранжевый — `changed`-блок side-by-side на обеих сторонах (R-629; в unified не используется). Подробнее — §7.
+
+`diff.changed.line|word|gutter` (R-629) — цвета `changed`-блока в side-by-side:
+
+| Токен | Light | Light gray | Dark gray | Dark |
+|---|---|---|---|---|
+| `diff.changed.line` | `#fff5e0` | `#f3e6c8` | `#3d3424` | `#2b2414` |
+| `diff.changed.word` | `#ffd99a` | `#ecc77f` | `#7a5a1e` | `#6b4c12` |
+| `diff.changed.gutter` | `#ffe7b8` | `#ead5a6` | `#4a3e28` | `#352b17` |
 
 `diff.filler.bg|hatch` (R-628) — фон и линии штриховки filler-строк режима Aligned:
 
@@ -386,9 +394,11 @@ Branches), — проп `tri` с `triState` (R-158, [R-455](12-risks.md)).
 |---|---|---|
 | Строка добавлена | `diff.add.line`, жёлоб `diff.add.gutter` | Метка `+` в жёлобе цветом `--status-add` |
 | Строка удалена | `diff.del.line`, жёлоб `diff.del.gutter` | Метка `−` цветом `--status-delete` |
+| Строка `changed`-блока (side-by-side) | `diff.changed.line`, жёлоб `diff.changed.gutter` | Обе стороны, все строки блока (R-629) |
 | Строка перемещена | `diff.move.line` | — |
 | Слово добавлено | `diff.add.word` | Радиус 2 px |
 | Слово удалено | `diff.del.word` | Радиус 2 px |
+| Слово в `changed`-блоке | `diff.changed.word` | Обе стороны, радиус 2 px |
 | Filler-строка (Aligned) | `diff.filler.bg`, штриховка `diff.filler.hatch` | Тонкая диагональ 1 px, плитка 6 px; без номера, знака и текста (R-628) |
 | Плашка сворачивания | `--surface-raised` | Текст `--text-secondary`, по центру |
 | Маркер конфликта | `diff.del.line` | Левая полоса 2 px `--status-delete` |
