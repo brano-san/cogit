@@ -211,11 +211,15 @@ impl RepoHandle {
         let range = format!("{from},{to}:{path}");
         let count = format!("-{}", limit.clamp(1, 1000));
         let output = self.read_git(&[
+            "-c",
+            "core.quotepath=off",
             "log",
             "-L",
             &range,
             &count,
             "--no-color",
+            "--src-prefix=a/",
+            "--dst-prefix=b/",
             &format!("--format={STEP}%H%x09%aN%x09%aE%x09%at%x09%s"),
         ])?;
 
