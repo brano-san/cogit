@@ -55,6 +55,8 @@
   --disclosure-side: var(--sp-3);
   --menu-caret: 9px;
   --kind-icon: 14px;
+  /* File and repository state icons: drawn on the 16 px grid so 1 px strokes stay sharp. */
+  --file-icon: 16px;
   /* Push and pull on the corners of a Repositories icon: at 7 px they were hard to see (R-547). */
   --sync-arrow: 10px;
   /* Icon buttons in panel bars: read at a glance, a size below the main toolbar's 22px. */
@@ -128,6 +130,12 @@ body {
   height: 100%;
 }
 
+/* Lists and bars are chrome: never part of a selection, whatever a child sets. Text a user
+   may copy opts in on its own element (`user-select: text`). */
+:where([role="tree"], [role="listbox"], [role="toolbar"], [role="tablist"], [role="menu"]) {
+  user-select: none;
+}
+
 /* A row being dragged (lib/pointer-drag.ts): the cursor says so wherever it goes. */
 :root.pointer-dragging,
 :root.pointer-dragging * {
@@ -158,6 +166,55 @@ body {
   background: var(--state-pressed) !important;
   color: var(--state-pressed-text) !important;
   border-color: var(--toggle-on-border) !important;
+}
+
+/* Controls guard (doc/06 "Controls"): no form control keeps the platform's look. At zero
+   specificity every control starts bare - no box, no fill, inherited font - so one nobody
+   styled shows up at once as plain text; the shared Button / Checkbox / Radio / Select /
+   Input and each component's own class give it a look. `range` keeps its own track below,
+   `file` has no component. `controls.test.ts` greps for raw controls with no look. */
+:where(button, input, select, textarea, progress, meter) {
+  appearance: none;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+}
+
+:where(button, select, textarea, progress, meter, input:not([type="range"], [type="checkbox"], [type="radio"])) {
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+
+/* The slider: a thin track and a round thumb, tokens only. */
+input[type="range"] {
+  height: var(--h-button-sm);
+  background: transparent;
+  cursor: default;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  background: var(--field-border);
+  border-radius: 2px;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -4px;
+  background: var(--status-ref);
+  border: 0;
+  border-radius: 50%;
+}
+
+input[type="range"]:hover:not(:disabled)::-webkit-slider-thumb {
+  filter: brightness(1.15);
+}
+
+input[type="range"]:disabled {
+  opacity: 0.5;
 }
 
 a {

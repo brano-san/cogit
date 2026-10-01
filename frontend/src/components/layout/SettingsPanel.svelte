@@ -163,6 +163,17 @@
     gitChecker.check(picked);
   }
 
+  async function browseMergeTool() {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const picked = await open({
+      title: "Select Merge Tool",
+      multiple: false,
+      directory: false,
+      filters: ON_WINDOWS ? [{ name: "Programs", extensions: ["exe", "cmd", "bat"] }] : undefined,
+    });
+    if (typeof picked === "string") set("mergeExternalTool", picked);
+  }
+
   function set<K extends keyof Settings>(key: K, next: Settings[K]) {
     draft = { ...draft, [key]: next };
     onapply(draft, draftKeys);
@@ -328,6 +339,32 @@
                   <span class="verdict">{describeCheck(gitCheck)}</span>
                 {/if}
               </div>
+            {:else if field.key === "mergeExternalTool"}
+              <div class="row">
+                {@render caption(field)}
+                <div class="path">
+                  <input
+                    type="text"
+                    class="text"
+                    aria-label={field.label}
+                    value={draft.mergeExternalTool}
+                    oninput={(e) => set("mergeExternalTool", e.currentTarget.value)}
+                  />
+                  <button type="button" class="btn browse" title="Browse…" aria-label="Browse for the merge tool" onclick={browseMergeTool}>...</button>
+                </div>
+              </div>
+            {:else if field.key === "mergeExternalToolArgs"}
+              <div class="row">
+                {@render caption(field)}
+                <input
+                  type="text"
+                  class="text"
+                  aria-label={field.label}
+                  placeholder={'"{base}" "{ours}" "{theirs}" "{result}"'}
+                  value={draft.mergeExternalToolArgs}
+                  oninput={(e) => set("mergeExternalToolArgs", e.currentTarget.value)}
+                />
+              </div>
             {:else if field.key === "algorithm"}
               <div class="row choice" role="radiogroup" aria-label={field.label}>
                 <span>{field.label}</span>
@@ -421,6 +458,14 @@
                   label={field.label}
                 />
               </div>
+            {:else if field.key === "refsShowPseudoRefs"}
+              <div class="row check">
+                <Checkbox
+                  checked={draft.refsShowPseudoRefs}
+                  onchange={(checked) => set("refsShowPseudoRefs", checked)}
+                  label={field.label}
+                />
+              </div>
             {:else if field.key === "suppressions"}
               {@const choices = suppressedChoices(draft.confirmExit, ignored, draft.confirmLocalCheckout)}
               <p class="row">{field.label}</p>
@@ -448,6 +493,14 @@
                   {/each}
                 </ul>
               {/if}
+            {:else if field.key === "notificationsTaskbar"}
+              <div class="row check">
+                <Checkbox checked={draft.notificationsTaskbar} onchange={(checked) => set("notificationsTaskbar", checked)} label={field.label} />
+              </div>
+            {:else if field.key === "notificationsTaskbarFlash"}
+              <div class="row check nested">
+                <Checkbox checked={draft.notificationsTaskbarFlash} disabled={disabledBy(draft, field.dependsOn)} onchange={(checked) => set("notificationsTaskbarFlash", checked)} label={field.label} />
+              </div>
             {:else if field.key === "autoUpdate"}
               <div class="row check">
                 <Checkbox checked={draft.autoUpdate} onchange={(checked) => set("autoUpdate", checked)} label={field.label} />

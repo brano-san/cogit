@@ -95,9 +95,12 @@ pub enum GitError {
 | `list_submodules` | `repo: RepoId` | `Vec<Submodule>` | M3 |
 | `worktrees` | `repo: RepoId` | `Vec<WorktreeEntry { path, name, branch, head, isMain, isCurrent, locked, missing, dirty, hasSubmodules }>`; `hasSubmodules` — в linked-ворктри выписаны submodules, git удалит его только с `--force` (R-434); из linked-ворктри основной — всё равно основной (R-184); у `missing` ветка и HEAD читаются из записи `.git/worktrees/<id>/HEAD` (R-241) | M3 |
 | `open_worktree` | `owner: RepoId`, `path` — существующий ворктри владельца | `RepoSummary`, в списке Repositories не появляется; чужая папка — `InvalidState` | M3 |
-| `add_worktree` | `repo`, `path`, `branch`, `create`, `base: Option<String>` — откуда новая ветка, по умолчанию HEAD | `()` | M3 |
+| `add_worktree` | `repo`, `path`, `branch: WorktreeBranch` — `{kind:"new", name, start: Option<String>, track}` / `{kind:"existing", name}` / `{kind:"detached", start: Option<String>}`; `start` по умолчанию HEAD, `track` ставит `--track`, иначе `--no-track` | `()`; ошибка git — `GitCommandError` целиком | M3 |
+| `check_revision` | `repo`, `rev` | `RevisionCheck { commit: Option<CommitPreview { oid, shortOid, subject, date }>, problem: Option<String> }`; `rev-parse --verify <rev>^{commit}`; «не коммит» — `problem`, не ошибка, в журнал не пишется (проверка на каждый ввод) | M3 |
+| `check_branch_name` | `repo`, `name` | `Option<String>` — `None`, если `git check-ref-format --branch` принял имя, иначе его текст; в журнал не пишется | M3 |
+| `worktree_folder_problem` | `path` | `Option<String>` — файл или непустая папка не принимают worktree; нет папки или пустая — `None` | M3 |
 | `remove_worktree` | `repo`, `path`, `force` | `()`; при `force` изменения сначала в stash, в журнале — Undo (INV-12) | M3 |
-| `worktree_changes` | `repo`, `path` | `Vec<FileEntry>` — незакоммиченное в этом ворктри, для подтверждения Remove | M3 |
+| `scan_worktree_removal` | `repo`, `path`, `onChunk: Channel<WorktreeScanChunk>` | `()`; чанки: `started {id}` (для `cancel_operation`), по одному на этап в порядке готовности — `changes {files}` (без submodules), `submodules {modules: {paths, changed}}`, `unpushed {found: [{path, total, commits: [{oid, summary}]}]}`, либо `failed {stage, error}`; в конце `done {cancelled}`. Три этапа параллельно, каждый логируется (R-675) | M3 |
 | `prune_worktrees` | `repo` | `()` — `git worktree prune`, все устаревшие | M3 |
 | `prune_worktree` | `repo`, `path` | `()` — одна регистрация; папка на месте — `InvalidState` | M3 |
 | `worktree_leftover` | `repo`, `path` | `bool` — папка есть, не зарегистрирована как worktree, не содержит репозиторий и не является/не содержит текущий репозиторий. После неудачного `remove_worktree`: git 2.51 сначала снимает регистрацию, потом удаляет папку и при блокировке (Windows: cwd терминала, открытый файл) оставляет остаток | M3 |
@@ -120,19 +123,52 @@ pub enum GitError {
 Обход хука (`--no-verify`) идёт в журнал обычной записью `GitOutput` с кодом 0 и строкой
 на `stderr`: панель Output помечает такие как предупреждения.
 
-### Слияние (M7, M2)
+### Слияние и Conflict Solver (M7, M2, F-625)
 
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
-| `merge_preview` | `repo, path` | `Vec<Region>` | M7 |
-| `open_merge_window` | `url, title` | `()` | M2 |
+| `merge_preview` | `repo, path` | `Vec<Region>` | M7 (только панель предпросмотра) |
+| `solver_data` | `repo, path` | `SolverData` | M7 |
+| `open_solver_window` | `repo, path, external_tool` | `()` | M2 |
+| `mark_conflict_resolved` | `repo, path` | `()` | M7 |
+| `launch_merge_tool` | `repo, path, program, args` | `()` | M7 |
+| `cancel_merge_tool` | `repo, path` | `bool` | M7 |
+| `merge_tools_running` | `repo` | `Vec<String>` | M7 |
 | `merge_resolved` | `repo, path` | `()` | M2 |
 
-Окно слияния — второй входной файл `merge.html`, как и окно сравнения: параметры идут в
-URL, чтобы окно пережило перезагрузку вебвью. Записав результат, оно зовёт
-`merge_resolved`, а тот шлёт событие `merge-resolved` всем окнам; главное закрывает
-панель конфликта, если в ней открыт тот же `path` (слияние другого файла с выбранными
-сторонами остаётся), и перечитывает состояние.
+**Conflict Solver** — окно `Cogit — Conflict Solver — <path>`, входной файл `solver.html`, метка
+`solver-N` (`capabilities/default.json`: `solver-*`), без меню (`child_window::open`), на мониторе
+главного окна. Параметры — в URL (`solver.html?repo=1&path=…[&tool=1]`): окно переживает перезагрузку
+вебвью. `open_solver_window` на файл, у которого окно уже есть (`solver_window::is_window_for` по
+`repo` и `path` адреса окна), выводит его вперёд вместо второго; с `external_tool` ему шлётся
+`cogit-menu` `external-tool`, новому — `&tool=1`.
+
+`solver_data` отдаёт всё, что окну нужно за одно чтение: `context` (`operation` ∈ merge, cherryPick,
+revert, rebase, stashApply, unknown; `ours`, `theirs` — подписи сторон), флаги `binary`,
+`tooLarge` (любая сторона > 4 МиБ, `MAX_SOLVER_BYTES`), `missingOurs`, `missingTheirs`, `hasBase`,
+`crlf` (преобладающее окончание файла), тексты сторон (LF; для бинарного и слишком большого файла и
+для отсутствующей стороны — `null`) и `regions: Vec<SolverRegion>` — трёхстороннее слияние по
+участкам (`{ kind: equal|ours|theirs|both|syntactic|conflict, base, ours, theirs, result }`, строки
+без переводов; у конфликта `result` — строки base, «ещё не решено»). Пусто, если у файла нет одной из
+сторон или он не сливается. Подписи сторон выводятся из состояния репозитория
+(`MERGE_HEAD`/`MERGE_MSG`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`, `REBASE_HEAD` и `rebase-merge/onto`) или, для
+`git stash apply`, у которого следов нет, — из меток маркеров в рабочем файле (`Stashed changes`).
+
+`mark_conflict_resolved` — `git add -- <path>` рабочего файла как он есть (его уже поправил внешний
+инструмент); файл до этого сохраняется для Undo (INV-12), запись «Mark <path> resolved» — в журнале
+безопасности. Операция в очереди репозитория (`OperationKind::Merge`), как и `resolve_conflict*`.
+
+`launch_merge_tool` возвращается сразу, как инструмент запущен; **не** операция очереди — иначе она
+держала бы очередь репозитория, пока открыт инструмент. `program` пуст — берётся `merge.tool` из
+Git (`mergetool.<tool>.cmd|path` и таблица meld, kdiff3, vscode, bc/bc3, p4merge, winmerge). Конец
+инструмента — событие `merge-tool-finished` (`{ repo, path, outcome: { exitCode, canceled,
+markersLeft, conflicted } }`) всем окнам; временные файлы к этому моменту уже удалены. Ошибка запуска
+(нет программы, неизвестный плейсхолдер, не сказано, какой инструмент) — `InvalidState` со словами
+причины.
+
+`merge_resolved` Solver зовёт, записав результат или отметив файл разрешённым; он шлёт событие
+`merge-resolved` всем окнам, главное закрывает панель конфликта, если в ней открыт тот же `path`,
+и перечитывает состояние.
 
 Конфликт, у которого хоть одна сторона бинарная (NUL в первых 8000 байт) или не UTF-8,
 текстом не сливается: `merge_preview` отказывает `InvalidState`, `conflict_text` несёт
@@ -271,7 +307,11 @@ pub struct FileEntry {
     pub old_path: Option<String>, // заполнен только для Renamed и Copied
     pub status: FileStatus,
     pub submodule: Option<SubmoduleChange>, // только строка ворктри-сабмодуля; опущено, если None
+    pub conflict: Option<ConflictKind>,     // только Conflicted: какие стороны тронули путь; опущено, если None
 }
+
+// Пары XY незамёрженных путей git: UU, AA, DD, UD, DU, AU, UA.
+pub enum ConflictKind { BothModified, BothAdded, BothDeleted, DeletedByThem, DeletedByUs, AddedByUs, AddedByThem }
 
 // `git add` фиксирует лишь коммит сабмодуля (new_commits); modified/untracked — правки внутри,
 // в родителя они не попадают, поэтому «только грязный» сабмодуль stage не меняет.
@@ -458,6 +498,8 @@ snake_case и читаются на фронтенде как `undefined`.
 | `discard_paths` | `repo, paths` | `()` | M6 |
 | `commit` | `repo, request: CommitRequest { message, amend, noVerify, signoff?, only }` | `String` (oid); `only` пуст — всё проиндексированное, иначе только эти пути; `signoff` — `--signoff` (F-576) | M6 |
 | `open_commit_window` | `repo, root` — `root` ключует черновик сообщения, общий с панелью Commit Message | `()`; отдельное окно `commit.html` (F-576) | M6 |
+| `open_errors_window` | — | `()`; окно `errors.html` с меткой `errors-N`: открывает, а если оно уже открыто — показывает, не отнимая фокус. Асинхронная (R-645) | M3 |
+| `focus_main_window` | — | `()`; `Show conflicts` выводит главное окно на передний план (R-645) | M3 |
 | `recent_commits` | `repo, limit` | `Vec<CommitDetails>` от HEAD, новые сверху, с полными сообщениями; пусто до первого коммита (F-576) | M6 |
 | `checkout` | `repo, target: CheckoutTarget` | `()`; `branch` — `switch`, `commit` — `switch --detach`, `newBranch { name, start, track }` — `switch --create` с `--track`/`--no-track`, `fastForward { name, to }` — проверка предка, затем `switch -C <name> <oid>`; не перемотка — `InvalidState` (R-560) | M5 |
 | `switch_with_autostash` | `repo, target: CheckoutTarget, message, drop_after_clean` | `AutostashOutcome`: `restored` — изменения вернулись, stash удалён; `kept { clean }` — stash в списке на `stash@{0}` (конфликт или отказ применить — `clean: false`; выключен `drop_after_clean` — `true`). Одна операция полосы: `stash push --include-untracked` в `refs/cogit/backup`, checkout, `stash apply`. Отказ checkout — изменения возвращены (`apply --index`), ошибка — отказ (R-521, R-563) | M5 |
@@ -484,7 +526,7 @@ snake_case и читаются на фронтенде как `undefined`.
 | `search_file_contents` | `repo`, `query`, `is_regex`, `scope`, `Channel<SearchChunk>` | `()` | M6 |
 | `list_submodules` | `repo`, `parent` (пусто — верхний уровень) | `Vec<Submodule>` | M3 |
 | `submodule_outline` | `root` — папка репозитория из списка, открытого или закрытого; `parent` — ключ узла от верха (пусто — верхний уровень) | `Vec<Submodule>` из `.gitmodules` и gitlink-записей HEAD (нет в HEAD — индекса): `state` — `notInitialised` или `unread`, `checkedOut`, `branch`, `subject` пусты, `nested` — проверка файла; сабмодули не открываются (R-352) | M3 |
-| `repo_pulse` | `root` — папка строки списка или узла submodule (`<корень верха>/<ключ>`, R-542) | `RepoPulse { missing, branch, tracked, ahead, behind, dirty }`: ahead/behind — по локальной remote-tracking ссылке HEAD через gix; `dirty` — `!status().is_clean()`, тот же статус, что у открытия (staged, unstaged с submodules, неотслеживаемые, конфликты), с выходом на первом изменении (R-540). Открытый, но не наблюдаемый репозиторий: пульс, противоречащий снимку его строки, сбрасывает снимок — следующий `repositories` читает строку заново (R-351) | M3 |
+| `repo_pulse` | `root` — папка строки списка или узла submodule (`<корень верха>/<ключ>`, R-542) | `RepoPulse { missing, branch, tracked, ahead, behind, dirty, conflicted }`: `conflicted` — в индексе есть запись со stage ≠ 0 (читается только индекс, без рабочего дерева; R-650); ahead/behind — по локальной remote-tracking ссылке HEAD через gix; `dirty` — `!status().is_clean()`, тот же статус, что у открытия (staged, unstaged с submodules, неотслеживаемые, конфликты), с выходом на первом изменении (R-540). Открытый, но не наблюдаемый репозиторий: пульс, противоречащий снимку его строки, сбрасывает снимок — следующий `repositories` читает строку заново (R-351) | M3 |
 | `pull_probe` | `root` | `Option<bool>`: `true` — вершина upstream-ветки HEAD на сервере (`git ls-remote --heads`, без записи) не содержится в HEAD; `null` — нет upstream или ветки на сервере, или у remote upstream выключена фоновая проверка (`remote.<имя>.cogitBackgroundFetch=false`, R-554); ошибка — «неизвестно», в лог (R-354) | M3 |
 | `open_submodule` | `owner: RepoId`, `key` — путь узла от владельца дерева | `RepoSummary`; отказ — `GitError::ModuleUnavailable(ModuleProblem)` | M3 |
 | `repository_health` | `repo` | `Vec<HealthFinding { module, issue }>` — репозиторий и все подмодули; `issue`: `ignoreCaseMismatch`, `danglingModule`, `danglingWorktree`, `missingModuleCommit { commit }` (R-179) | M3 |
@@ -558,6 +600,13 @@ gitlink нет ни в HEAD, ни в индексе (`recorded` пуст, в п�
 | `set_remote_properties` | `repo, name, url, backgroundFetch` | `()` — пишет только изменившееся: `git remote set-url` (URL с `-` в начале — `InvalidState`), `git config remote.<имя>.cogitBackgroundFetch false` или его снятие | M5 |
 | `fetch_more` | `repo, remote, onProgress: Channel<String>` | `bool` — `git fetch --progress --tags <remote> +refs/heads/*:refs/remotes/<remote>/*`, мимо refspec remote; `false` — ни одна ссылка `refs/remotes/<remote>/` и `refs/tags/` не появилась и не сдвинулась (R-553) | M5 |
 | `fetch_depth` | `repo, remote, depth: u32, onProgress` | `()` — `git fetch --progress --depth=<n> <remote>`; `depth` 0 и полный (не shallow) клон — `InvalidState` до запуска git | M5 |
+| `fetch_with` | `repo, remote, options: FetchOptions { tags, notes }, onProgress: Channel<String>` | `NotesFetch { remote, diverged: string[] }` — Fetch Only диалога Pull (F-610); notes идут первыми, `diverged` — namespace, которые разошлись и не тронуты | M1 |
+| `pull_with` | `repo, remote, options: PullOptions { method: merge\|rebase, ffOnly, fetch: FetchOptions }, onProgress` | `NotesFetch`; ветка без upstream — только fetch (R-552); запись в журнал отката как у `pull`; конфликт — ошибка, как у `pull` | M1 |
+| `push_with` | `repo, options: PushOptions { remote, local, branch, setUpstream, tags: none\|follow\|all, notes, forceWithLease }, onProgress` | `PushOutcome { notesRejected: string \| null }` — ветка, затем notes; non-fast-forward на notes — не ошибка, а слова git в `notesRejected` | M1 |
+| `push_notes` | `repo, remote, onProgress` | `PushOutcome` — только `refs/notes/*`, без force; повтор после Fetch notes и merge | M1 |
+| `merge_notes` | `repo, remote, namespace` | `()` — `git notes merge` с `refs/notes-remote/<remote>/<namespace>`; конфликт — `merge --abort` и `GitCommandError` | M1 |
+| `push_preview` | `repo, local, remote, branch, limit` | `PushPreview { total, commits: {oid, summary}[], notesUnpushed: number \| null, hasLocalNotes }` — коммиты `local` вне ветки remote (нет её — вне всех веток remote); `notesUnpushed` `null`, пока notes remote не получены | M1 |
+| `network_defaults` / `save_network_defaults` | `repo` / `repo, defaults: NetworkDefaults` | локальный конфиг репозитория: `cogit.pullMethod`, `pullTags`, `pullNotes`, `pushTags`, `pushNotes`, `pushSetUpstream` | M1 |
 
 ### Remote ▸ Submodule, Subtree, LFS и Repository ▸ Settings (#42, #45, #46)
 
@@ -593,6 +642,7 @@ gitlink нет ни в HEAD, ни в индексе (`recorded` пуст, в п�
 | `open_in_explorer` / `open_in_terminal` | `path` | `()` | M3 |
 | `capture_keys` | `on: bool` | `()`: пока Preferences ▸ Keyboard записывает сочетание, окно не забирает у страницы ни одной клавиши меню (на Windows — перехватчик WebView2), иначе занятое сочетание запускало свою команду и не записывалось | M2 |
 | `set_menu_state` | `disabled: Vec<String>, checked: Vec<String>` — полное состояние строки меню | `()`; фронтенд шлёт последнее состояние в конце задачи и не шлёт уже показанное (R-322) | M2 |
+| `set_taskbar_state` | `signals: TaskbarSignals` — `progress` (`indeterminate` или `percent`), `errors`, `warnings`, `unviewed`, `flash` (`short` или `persistent`); сливает `app_state::taskbar::resolve` (error > warning > progress) | `()`; только главное окно, `async` (R-638) | M2 |
 | `report_memory` | `RendererMemory { usedHeapKib, totalHeapKib, limitKib, domNodes, listeners, caches }` | `()` | — |
 | `log_from_frontend` | `lines: WebviewLogLine[] { level, message, context }` | `()`: строки вебвью в `cogit.log` пачкой, по одной записи `tracing` на строку (R-321) | — |
 
@@ -648,7 +698,7 @@ gitlink нет ни в HEAD, ни в индексе (`recorded` пуст, в п�
 потока. Выбранный пункт контекстного меню возвращается тем же событием `menu-command`, что
 и строка меню.
 
-Команды окон (`open_compare_window`, `open_merge_window`, `open_blame_window`, `open_commit_window`,
+Команды окон (`open_compare_window`, `open_solver_window`, `open_blame_window`, `open_commit_window`, `open_errors_window`,
 `close_this_window`) — наоборот, **только асинхронные**: синхронная команда выполняется
 внутри обработчика WebView2, и `WebviewWindowBuilder::build()` там навсегда блокирует все
 окна ([R-201](12-risks.md#r-201--дочернее-окно-чёрное-окно-и-зависшее-главное-8--в)).
@@ -694,6 +744,8 @@ skipped[], current, firstBad, candidates[], terms { bad, good } }`: `start` — 
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
 | `reset_to` | `repo, rev, mode: soft\|mixed\|hard\|keep\|merge` | `()` | M5 |
+| `undo_rewrite_info` | `repo` | `Option<UndoRewrite { orig, head, dirty }>` — `None`, пока нет `ORIG_HEAD`; для диалога подтверждения | M5 |
+| `undo_rewrite` | `repo` | `()` — `reset --keep ORIG_HEAD` в очереди репозитория и в журнале; отказ с объяснением без `ORIG_HEAD` или если он равен HEAD (R-631) | M5 |
 | `is_ancestor` | `repo, ancestor, descendant` | `bool` | M4 |
 | `compare_files` | `repo, from, to` | `Vec<FileEntry>` | M5 |
 | `tag_name_problem` | `repo, name` | `Option<String>` | M5 |
@@ -816,10 +868,14 @@ expanded, filteredGraph? }` — какие из
 | Событие | Payload | Когда |
 |---|---|---|
 | `repo-changed` | `{ repo: RepoId, kind: ChangeKind }` | `fs_watcher` заметил изменение — только в репозитории, который показывают панели (`show_repository`, R-351) |
-| `command-recorded` | `CommandNotice` | Команда git записана в журнал — для панели Output и уведомлений |
+| `command-recorded` | `CommandNotice { id, repo, operation, severity, summary, stoppedOnConflicts }` | Команда git записана в журнал — для панели Output и уведомлений. `stoppedOnConflicts` — код выхода 1, команда из {stash apply/pop, merge, rebase, cherry-pick, revert, pull, am} и в индексе остались unmerged-записи (`RepoHandle::stopped_on_conflicts`, R-645); то же поле в `GitOutput` |
 | `avatar-ready` | `{ email: String }` | Картинка автора скачана |
-| `merge-resolved` | `{ repo: RepoId, path: String, … }` | Окно 3-way merge сохранило разрешение |
+| `merge-resolved` | `{ repo: RepoId, path: String, … }` | Conflict Solver сохранил разрешение или отметил файл разрешённым |
+| `merge-tool-finished` | `{ repo: RepoId, path: String, outcome: MergeToolOutcome }` | Внешний merge tool завершился (или был отменён); читает окно Solver этого файла (F-625) |
 | `reveal-commit` | `{ repo: RepoId, oid: String }` | Окно Blame просит главное выбрать коммит строки и прокрутить к нему граф; шлёт сама страница (`events.revealCommit.emit`), команды нет (R-437) |
+| `error-reported` | `ErrorEntry { id, kind: error\|warning, title, operation, repo, command, summary, repeats }` | Страница, не главная (окно Commit), сообщает о сбое команды: очередь ведёт главное окно. Шлёт сама страница, команды нет (R-645) |
+| `error-queue` | `ErrorEntry[]` | Вся очередь окна Errors целиком, главное окно → Errors, при каждом изменении и по `ready` (R-645) |
+| `errors-action` | `{ action: ready\|viewed\|dismiss\|closed\|showConflicts, id: Option<u32> }` | Окно Errors → главное: готово слушать, запись на экране, убрать запись, окно закрыто (всё убрано), перейти к конфликтам записи. Шлёт сама страница (R-645) |
 | `menu-command` | `String` (id команды палитры) | Выбран пункт нативного меню |
 | `operation-changed` | `{ id, repo, kind, label, phase, success }` | Операция встала в очередь, началась или закончилась |
 | `session-ending` | `{ reason: String }` | Windows хочет завершить сеанс, а в очереди есть операции; сеанс удержан (R-168) |
@@ -865,16 +921,18 @@ type Operation = {
 типа и страницей не слушается.
 UI обновляет **только** соответствующую панель — не перезагружает всё.
 
-## 7. Окно File Compare / 3-Way Merge
+## 7. Окно File Compare / Conflict Solver
 
-Отдельное `WebviewWindow`, создаётся через `WebviewWindowBuilder`.
+Отдельное `WebviewWindow`, создаётся через `WebviewWindowBuilder`. Окно слияния — Conflict Solver
+(`solver.html`, F-625); прежнее четырёхколоночное окно `merge.html` убрано.
 
 - Параметры передаются через URL-запрос (`?repo=1&path=src/a.cpp&mode=merge`), а не через
   глобальное состояние — окно должно переживать перезагрузку.
 - Окно вызывает те же команды, что и главное; `AppState` общий на приложение.
 - Результат разрешения конфликта возвращается событием `merge-resolved`, главное окно
   обновляет список файлов.
-- Закрытие окна с несохранёнными правками требует подтверждения.
+- Закрытие окна с несохранёнными правками спрашивает: Solver — Save / Discard / Cancel, пока работает
+  внешний инструмент — подтверждение, что он будет завершён.
 
 Окно Investigate открывается командой `open_investigate_window(url, title)` через
 `child_window::open_with_menu` внутри `blocking(...)`, с меткой `investigate-N`

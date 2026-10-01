@@ -205,6 +205,14 @@ impl RepoHandle {
         Ok(kept)
     }
 
+    /// Whether a finished command stopped halfway on conflicts: it is one of those that do,
+    /// exited 1, and the index now holds unmerged entries. Read from the index, not the
+    /// output, so a localized git or a reworded message cannot change the answer.
+    pub(crate) fn stopped_on_conflicts(&self, entry: &crate::GitOutput) -> bool {
+        crate::outcome::stops_on_conflicts(&entry.command, entry.exit_code)
+            && self.unmerged_paths().is_ok_and(|paths| !paths.is_empty())
+    }
+
     /// Read by `gix`, which costs no process: the common case has none.
     fn unmerged_paths(&self) -> Result<Vec<String>> {
         let index = self.current_index()?;

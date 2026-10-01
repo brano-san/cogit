@@ -2,6 +2,7 @@
   import { keyLetter } from "$lib/key-letter";
   import { modals } from "$lib/modal-stack";
   import { selectAllKeys } from "$lib/files-panel";
+  import { registerSelectAll } from "$lib/select-all";
   import { untrack } from "svelte";
   import FilesToolbar from "./FilesToolbar.svelte";
   import { contentQuery, keepFile, type ContentSearch } from "$lib/content-search.svelte";
@@ -39,6 +40,7 @@
   import FilePane, { type PaneAction } from "$components/file-list/FilePane.svelte";
   import Splitter from "$components/layout/Splitter.svelte";
   import type { FileEntry } from "$lib/ipc";
+  import type { StateSide } from "$lib/file-state";
 
   interface Action {
     label: string;
@@ -61,6 +63,9 @@
         a partly staged file is in two sections, and only one of them shows it. */
     selected?: string | null;
     hideWhenEmpty?: boolean;
+    /** The comparison the rows come from (State column); a worktree list defaults to its
+        working-tree side, any other list to a commit's. */
+    side?: StateSide;
   }
 
   interface Props {
@@ -127,20 +132,24 @@
   let touched = $state<number | null>(null);
   let bar: ReturnType<typeof FilesToolbar> | undefined = $state();
 
+  const sideOf = (section: Section): StateSide => section.side ?? (context === "worktree" ? "worktree" : "commit");
+
   function onkeydown(event: KeyboardEvent) {
     if (!activePanel || modals.any) return;
-    // Ctrl+A ticks every file shown (11 §4); in a field it selects the text.
-    if ((event.ctrlKey || event.metaKey) && event.code === "KeyA" && !typingIn(event.target)) {
-      event.preventDefault();
-      const keys = selectAllKeys(groups.map((group) => group.keys), groups.findIndex((group) => group.index === touched), marked.paths);
-      marked = { paths: new Set(keys), anchor: keys[0] ?? null };
-      return;
-    }
     if ((event.ctrlKey || event.metaKey) && keyLetter(event) === "f") {
       event.preventDefault();
       bar?.focus();
     }
   }
+
+  // Ctrl+A ticks every file shown, in one pane (11 §4); the window-wide handler calls this.
+  $effect(() => {
+    if (!activePanel) return;
+    return registerSelectAll("files", () => {
+      const keys = selectAllKeys(groups.map((group) => group.keys), groups.findIndex((group) => group.index === touched), marked.paths);
+      marked = { paths: new Set(keys), anchor: keys[0] ?? null };
+    });
+  });
 
   $effect(() => {
     onmask?.(mask);
@@ -188,7 +197,7 @@
   const groups = $derived(
     shownSections(sections).map((section) => {
       const index = sections.indexOf(section);
-      const kept = visibleFiles(section.files, active).filter((file) => keepFile(file, pattern, hits));
+      const kept = visibleFiles(section.files, active).filter((file) => keepFile(file, pattern, hits, sideOf(section)));
       const files = sortRows(kept, filesView.sort, active.directories, (path) => remoteOps.lfsState(path));
       const paths = files.map((file) => file.path);
       return {
@@ -311,10 +320,6 @@
     return contents?.busy ? "" : "No file in this list contains the text.";
   }
 
-  function typingIn(target: EventTarget | null): boolean {
-    return target instanceof HTMLTextAreaElement || (target instanceof HTMLInputElement && target.type !== "checkbox");
-  }
-
   function mark(group: Group, path: string) {
     touched = group.index;
     marked = applyClick(marked, rowKey(group.index, path), group.keys, { ctrl: true, shift: false });
@@ -400,6 +405,7 @@
                 actions={scoped(group, group.section.actions ?? [])}
                 {columns}
                 nested={active.directories}
+                side={sideOf(group.section)}
                 selected={selectedIn(group)}
                 marked={marks.bySection.get(group.index) ?? NO_MARKS}
                 onclick={(path, event) => clicked(group, path, event)}
@@ -422,6 +428,7 @@
                   actions={scoped(group, group.section.actions ?? [])}
                   {columns}
                   nested={active.directories}
+                  side={sideOf(group.section)}
                   selected={selectedIn(group)}
                   marked={marks.bySection.get(group.index) ?? NO_MARKS}
                   onclick={(path, event) => clicked(group, path, event)}

@@ -359,3 +359,13 @@
 | F-580 | Чередование строк в Files, Repositories, Branches и Worktrees | [F-580-list-row-stripes.md](F-580-list-row-stripes.md) |
 | F-585 | Diff на блочной модели: режимы Aligned (1:1, filler) и Compact, соединитель, `»`/`×` на своей полосе, подписи панелей | [F-585-diff-block-view.md](F-585-diff-block-view.md) |
 | F-586 | Welcome: открыть или создать репозиторий, клонировать, вернуться к недавним; показ при запуске без открытых репозиториев | [F-586-welcome-dialog.md](F-586-welcome-dialog.md) |
+| F-587 | Other Refs без псевдо-refs (настройка `refsShowPseudoRefs`) и Undo Last Merge / Rebase / Reset через `ORIG_HEAD` | [F-587-pseudo-refs-and-undo-rewrite.md](F-587-pseudo-refs-and-undo-rewrite.md) |
+| F-590 | Индикация на панели задач: прогресс, ошибка, предупреждение, мигание, число | [F-590-taskbar-indication.md](F-590-taskbar-indication.md) |
+| F-595 | Ошибки команд в отдельном окне: полный вывод, список с переключением, «Stash applied with conflicts» и `Show conflicts` | [F-595-errors-window.md](F-595-errors-window.md) |
+| F-600 | Состояние файла словами в колонке State, иконки 16×16 по состояниям, конфликт на иконке репозитория | [F-600-file-state-text-and-icons.md](F-600-file-state-text-and-icons.md) |
+| F-605 | Add Worktree: New/Existing/Detached, RevisionCombobox, превью основы и команды, автоподстановка папки | [F-605-add-worktree-dialog.md](F-605-add-worktree-dialog.md) |
+| F-610 | Диалоги Pull и Push: теги, notes с безопасным слиянием, lease, `Pull/Push with Defaults`, настройки по репозиторию | [F-610-pull-push-dialogs.md](F-610-pull-push-dialogs.md) |
+| F-615 | Выделение нескольких коммитов и веток (Click / Ctrl / Shift / Shift+стрелки), меню группы, глобальный Ctrl+A по активной панели | [F-615-multi-select-and-select-all.md](F-615-multi-select-and-select-all.md) |
+| F-620 | Remove Worktree: три параллельных этапа проверки, список изменений, неотправленные коммиты submodules, danger-callout | [F-620-remove-worktree-dialog.md](F-620-remove-worktree-dialog.md) |
+| F-625 | Conflict Solver: Ours / Result / Theirs, Base Changes, действия на участок, раскладки, изменён/удалён, внешний merge tool | [F-625-conflict-solver.md](F-625-conflict-solver.md) |
+| F-630 | Общий Button (Add/Edit Note…), защита от нестилизованных контролов, тест controls.test.ts | [F-630-controls-guard.md](F-630-controls-guard.md) |

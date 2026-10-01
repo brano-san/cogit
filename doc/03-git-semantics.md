@@ -59,11 +59,13 @@
 | Cherry-pick / Revert | `git cherry-pick` / `git revert` |
 | Stash | `git stash push/apply/pop/drop/show` |
 | Fetch / Pull / Push | `git fetch --prune`; `git pull --prune` с `--ff-only` или `--no-rebase` — по Preferences ▸ Pull, явный выбор перекрывает `pull.rebase`; `git push` (`--force-with-lease`; у ветки без upstream — `--set-upstream <remote> HEAD`, R-414) |
+| Диалоги Pull / Push (F-610) | Pull: `git pull --progress --prune [--tags --force] (--rebase\|--ff-only\|--no-rebase) <remote>`; Fetch Only: `git fetch --progress --prune [--tags --force] <remote>`. Push: `git push --progress [--set-upstream] [--follow-tags\|--tags] [--force-with-lease --force-if-includes] <remote> refs/heads/<local>:refs/heads/<ветка>` (lease всегда с `--force-if-includes`, как у forced push тулбара). Notes: `git fetch --progress <remote> +refs/notes/*:refs/notes-remote/<remote>/*` (чужие notes рядом, не поверх), далее `git update-ref refs/notes/<ns> <новый> [<старый>]` только вперёд; расхождение — `git notes --ref refs/notes/<ns> merge refs/notes-remote/<remote>/<ns>` по подтверждению, при отказе `merge --abort`; отправка — отдельным `git push <remote> refs/notes/*:refs/notes/*` без force после ветки, затем `git update-ref refs/notes-remote/<remote>/<ns>`. Настройки — `git config --local cogit.pull*/cogit.push*`. Число и список коммитов к отправке, число неотправленных notes — gix, без запуска git |
 | Clone | `git clone --progress` с `--recurse-submodules`, `--single-branch`, `--branch`, `--filter=blob:limit=<N>m` по флажкам мастера, во временной папке; до него — `git ls-remote --symref` без запросов (R-600, R-601) |
 | Теги | `git tag` |
 | Сабмодули | `git submodule update/init/sync` |
-| Worktree | `git worktree add/list/remove/prune` |
-| Reset | `git reset --soft/--mixed/--hard` |
+| Worktree | `git worktree add/list/remove/prune`. Add: `[--track|--no-track] -b <имя> <путь> [<старт>]` (новая ветка; флаг ставится всегда: git сам отслеживает remote-старт, галка решает вместо него), `<путь> <ветка>` (существующая), `--detach <путь> [<старт>]`; remote-ветка в режиме Existing = новая ветка с `--track` от неё. Проверки диалога без записи в журнал и без уведомления об ошибке (ответ «нет» — данные): `rev-parse --verify --quiet <rev>^{commit}` + `show -s` (хэш, тема, дата), `check-ref-format --branch <имя>`; папка — пуста или отсутствует (`worktree_folder_problem`). «Ветка занята в другом worktree» — из списка worktree (HEAD каждой записи), как в Checkout (F-605) |
+| Conflict Solver (F-625) | Сторона целиком: `git checkout-index -f --stage=N -- <path>` и `git add`; сторона, удалившая файл, — `git rm -q`. Текст: запись файла, `git add`, удаление и повторная `checkout-index` (чтобы применились `eol` и smudge-фильтры). «Отметить разрешённым» после внешнего инструмента — `git add -- <path>` без записи. Имена сторон: файлы `MERGE_HEAD`, `MERGE_MSG`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`, `REBASE_HEAD`, `rebase-merge/onto`, `git log -1 --format=%s`, `git for-each-ref --points-at`; для `stash apply` — метки маркеров рабочего файла. Внешний инструмент: `git config --list -z` (не `--get`: отсутствующий ключ — код 1 и запись об ошибке в журнале) |
+| Reset | `git reset --soft/--mixed/--hard`; Undo Last Merge / Rebase / Reset — `git reset --keep ORIG_HEAD` (R-631) |
 | Bisect | `git bisect start <bad> [<good>] --`, `git bisect <good|bad|skip> [<id>]` (слова — из `BISECT_TERMS`), `git bisect reset`; состояние читается из `BISECT_*` и `refs/bisect/*` (§4) |
 
 ### Пограничные случаи
@@ -208,6 +210,34 @@ URL в выводе кликабельны — именно там `git` отд�
 
 **Требование [INV-07](01-architecture.md#inv-07):** каждое из этих состояний должно быть
 покрыто тестом с фикстурой. Клиент, который падает на detached HEAD, бесполезен.
+
+### Колонка State в списках файлов
+
+Движок отдаёт один `FileStatus` на запись и сам список (staged / unstaged), поэтому слово выбирает
+пара «статус + сторона» (`file-state.ts`, `fileState(file, side)`): `index` — список Staged и
+секция Index у stash, `worktree` — Unstaged и единый список, `commit` — коммит, сравнение, остальное
+у stash.
+
+| Статус движка | worktree | index | commit |
+|---|---|---|---|
+| `Untracked` | Untracked | — | — |
+| `Modified` | Modified | Staged | Modified |
+| `Modified` + `mode_change` symlink/submodule | Type changed | Type changed | Type changed |
+| `Added` (в worktree — `git add -N`) | Added | Added | Added |
+| `Deleted` | Missing | Removed | Removed |
+| `Renamed` / `Copied` | Renamed / Copied | Renamed / Copied | Renamed / Copied |
+| `Ignored` | Ignored | — | — |
+| `Conflicted` + `ConflictKind` (UU, AA, DD, UD, DU, AU, UA) | Conflicted (both modified / both added / both deleted / deleted by them / deleted by us / added by us / added by them) | — | — |
+| submodule (`submodule` у строки worktree) | Modified (new commits) / Modified (dirty) / Modified (new commits, dirty) | Staged | — |
+| `Unchanged`, `AssumeUnchanged`, `Skipped`, `Sparse` | Unchanged, Assume unchanged, Skipped, Outside sparse checkout | то же | то же |
+
+Единый список рабочего дерева (#32, `mergeIndex`): строка только из индекса читается по стороне
+`index`; частично застейдженная — по `worktree`, то есть по тому, что осталось застейджить
+(`MM` → Modified, `AM` → Added, `RM` → Renamed); в tooltip добавляется «partly staged». В окне
+Commit: режим Staged — всё `index`; Local — файл только в индексе `index`, иначе `worktree`.
+Conflicted окрашен `status.danger`, остальные — `fg.secondary`. Ограничение: смена типа
+«обычный файл → symlink/gitlink» распознаётся по новому режиму; обратные смены движок не отдаёт
+(R-650).
 
 ## 5. Нормализация окончаний строк
 

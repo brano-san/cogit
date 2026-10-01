@@ -78,8 +78,27 @@ describe("worktreeFileMenu", () => {
     const conflicted = worktreeFileMenu({ ...MODIFIED, statuses: ["conflicted"] });
     const resolve = find(conflicted, "file-resolve");
     expect(resolve?.enabled).toBe(true);
-    expect(resolve?.children?.map((child) => child.label)).toEqual(["Take Theirs", "Take Ours"]);
+    expect(resolve?.children?.filter((child) => !child.separator).map((child) => child.label)).toEqual([
+      "Resolve…",
+      "Take Theirs",
+      "Take Ours",
+      "Open in External Tool",
+    ]);
     expect(on(worktreeFileMenu(MODIFIED), "file-resolve")).toBe(false);
+  });
+
+  it("opens the Conflict Solver and the external tool for one conflicted file, and only that", () => {
+    const inside = (menu: ContextItem[], id: string) =>
+      find(menu, "file-resolve")?.children?.find((child) => child.id === id);
+    const one = worktreeFileMenu({ ...MODIFIED, statuses: ["conflicted"] });
+    expect(inside(one, "file-resolve-solver")?.label).toBe("Resolve…");
+    expect(inside(one, "file-resolve-solver")?.enabled).toBe(true);
+    expect(inside(one, "file-resolve-external")?.enabled).toBe(true);
+    const many = worktreeFileMenu({ ...MODIFIED, statuses: ["conflicted", "conflicted"] });
+    expect(inside(many, "file-resolve-solver")?.enabled).toBe(false);
+    expect(inside(many, "file-resolve-solver")?.label).toBe("Resolve… (one file only)");
+    expect(inside(many, "file-resolve-external")?.enabled).toBe(false);
+    expect(find(worktreeFileMenu(MODIFIED), "file-resolve")?.enabled).toBe(false);
   });
 
   it("ignores only untracked files and removes only tracked ones", () => {

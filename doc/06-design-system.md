@@ -126,6 +126,28 @@
 `graph.lane.neutral` — единственный цвет линий и узлов неотмеченных веток (`--graph-line`); `graph.lane.0…7` только для отмеченных веток. Главная линия — `fg.primary` (`--graph-main`). Дорожки и цвета отмеченных веток (`--graph-branch-1…8` = `graph.lane.0…7`) держатся не ниже 3:1 к
 `bg.panel` и `bg.selected` (`graph-palette.test.ts`).
 
+### Иконки файлов
+
+`file.icon.page|stroke|modified.fill|modified.stroke|conflict.fill|overlay.added|overlay.staged|overlay.removed|overlay.renamed|overlay.glyph`
+(R-650) — цвета `FileStateIcon`: страница или репозиторий 16×16 и оверлей 8×8. Схема не умеет
+ссылаться на токены, поэтому в каждой теме лежит копия hex того токена, который он повторяет;
+`theme.test.ts` проверяет равенство.
+
+| Токен | Повторяет |
+|---|---|
+| `file.icon.page` | `bg.editor` |
+| `file.icon.stroke` | `fg.muted` |
+| `file.icon.modified.fill` | `diff.del.line` |
+| `file.icon.modified.stroke` | `status.danger` |
+| `file.icon.conflict.fill` | `status.danger` |
+| `file.icon.overlay.added` | `status.info` |
+| `file.icon.overlay.staged` | `status.success` |
+| `file.icon.overlay.removed` | `status.danger` |
+| `file.icon.overlay.renamed` | `status.info` |
+| `file.icon.overlay.glyph` | `fg.onAccent` (белые `+` и `!` в светлых темах, тёмные в тёмных) |
+
+Контур Ignored — `fg.disabled` (без своего токена), Missing — пунктир `file.icon.stroke`.
+
 ### Diff
 
 `diff.add|del|changed|move` × `line|word|gutter` (у `move` нет `gutter`), `diff.hunkHeader.bg|fg`,
@@ -369,6 +391,83 @@ Branches), — проп `tri` с `triState` (R-158, [R-455](12-risks.md)).
 В списках на сотни строк — лёгкая галочка: класс `tick-box` на самом `<input type="checkbox">`
 (`appearance: none`, без компонента, подписи и SVG), тот же рисунок и цвета, `mixed` — тот же
 `triState`; размер — `--tick-box-size` на элементе списка (в Branches — 12 px).
+
+### Контролы и защита от «родных» элементов
+
+Кнопки — общий `components/common/Button.svelte` (`variant`: default / primary / danger;
+`size`: `sm` = `--h-button-sm` для панелей и строк метаданных, `md` = `--h-button` для
+подвала диалога). Остальное — `Checkbox`, `Radio`, `Select`, `RevisionCombobox` (длинные
+имена, полное имя в подсказке), текстовые поля — `<input>` с общими правилами `Dialog`.
+Ползунок `range` оформлен глобально в `app.css` токенами.
+
+Защита: в `app.css` (нулевая специфичность) у `button, input, select, textarea, progress,
+meter` стоит `appearance: none`, нет рамки, фона и отступов, шрифт и цвет наследуются:
+неоформленный контрол виден сразу как голый текст. Тест `lib/controls.test.ts`
+(`scripts/audit-controls.mjs`) читает все `.svelte`: сырой `<button>`, `<input>`, `<select>`,
+`<textarea>`, которому ничто не задаёт вид, и `<select>` / checkbox / radio вне своих
+компонентов — ошибка. Исключения — `scripts/controls.allow.json`, с причиной.
+
+### Шаблон диалога
+
+Подтверждающие диалоги (Apply Stash, Pull/Push, Add/Remove Worktree) собираются из
+`components/common/template/`, поверх общего `Dialog` (закрытие ✕, `Esc` = Cancel, `Enter` =
+primary). Своей вёрстки диалога не пишем.
+
+- `TemplateDialog` — оболочка: ширина `min(520px, 94vw)`, отступ 16 px (`inset` у `Dialog`), 12 px
+  между блоками, поверхность `bg.elevated`, высота по содержимому. Граница-разделитель только над
+  футером (внутри тела границ между блоками нет). Props: `title`, `onclose`, `actions:
+  DialogAction[]`, `destructive?`. `Enter` вызывает `onclick` действия с `primary: true`
+  (кроме случая, когда фокус на кнопке — тогда она нажимается сама).
+- `<p class="sub">` в теле — подзаголовок `fg.secondary`.
+- `ObjectCard` (`rows: {label, value, mono?, clamp?}[]`) — карточка `bg.panel`, подписи
+  `fg.secondary`, значения переносятся по символам и не обрезаются по ширине; `mono` — моноширинный
+  `fg.muted` (ref, хэш, путь, дата); `clamp: N` — до N строк с `…`, полный текст в tooltip
+  (только если текст реально обрезан), `\n` в значении сохраняется.
+- `Callout` (`kind: "warning" | "danger"`, текст в children) — иконка + текст, фон
+  `badge.warning.bg` (danger — `status.danger` 16 % на `bg.elevated`), полоса слева 3 px
+  `status.warning` / `status.danger`. `danger` — для потери данных.
+- `OptionRow` (`label`, `hint?`, `kind: "checkbox" | "radio"`, `checked` (bindable),
+  `name`, `disabled`, `onchange`) — короткая подпись и подсказка `fg.muted` под ней; под капотом
+  общие `Checkbox` / `Radio`, подпись переносится.
+- `DialogFooter` — используется `TemplateDialog`, отдельно нужен только диалогам на голом
+  `Dialog`: `Cancel`, затем `actions` слева направо, primary крайняя справа; все кнопки
+  `--h-button`. `DialogAction`: `{label, onclick, primary?, tip?, disabled?}`; `tip` — tooltip.
+- Фокус по умолчанию (`initialFocus` в `lib/dialog-template.ts`): на primary; при
+  `destructive` primary красится `.btn.danger` (`status.danger`), а фокус стартует на `Cancel` —
+  `Enter` не должен быть способом потерять данные.
+
+```svelte
+<TemplateDialog title="Remove worktree" destructive {onclose}
+  actions={[{ label: "Remove", primary: true, onclick: remove }]}>
+  <p class="sub">The folder and its checkout are deleted</p>
+  <ObjectCard rows={[{ label: "Path", value: path, mono: true }]} />
+  <Callout kind="danger">Uncommitted changes will be lost.</Callout>
+  <OptionRow bind:checked={force} label="Force" hint="Remove even if the tree is dirty" />
+</TemplateDialog>
+```
+
+Эталон — `menus/ApplyStashDialog.svelte`. Логика (`initialFocus`, `isClamped`, `parseStashMessage`)
+покрыта `lib/dialog-template.test.ts`.
+
+### RevisionCombobox
+
+`components/common/RevisionCombobox.svelte` — общий выбор ревизии (Add Worktree; дальше Create Branch, Reset to, Compare with).
+Поле ввода + попап: группы `Local branches`, `Remote branches`, `Tags` (по алфавиту), сверху без заголовка `HEAD` и
+`Selected commit` (значение — полный id, в поле показывается «Selected commit», курсивом). Любой набранный текст
+принимается как ревизия (ветка, тег, короткий/полный хэш, `HEAD~2`); проверку и превью коммита делает диалог
+(`check_revision`), компонент их не знает.
+
+- Props: `value` (`$bindable`), `options: RevisionOption[]` (`{value, label, display?, group, hint?, disabled?, reason?}`, строит
+  `revisionOptions({branches, tags, selectedCommit, special, held, localTwins})` из `lib/revision-options.ts`), `label`,
+  `placeholder?`, `free?` (по умолчанию `true`; `false` — текст только ищет, значением может быть лишь опция),
+  `disabled?`, `onchange?`.
+- Клавиатура: `↑`/`↓` (пропускают disabled), `Enter` выбирает, `Esc` закрывает попап (диалог под ним не закрывается),
+  `Tab` закрывает. Фокус остаётся в поле (`aria-activedescendant`).
+- Попап — портал в `<body>`, `position: fixed`, ширина поля, позиция `placePopup` (`lib/popup-place.ts`): не обрезается
+  краем диалога, переворачивается вверх, прокручивается в пределах окна; `z-index` выше диалогов.
+- Тысячи ссылок: рисуется не больше 200 строк (`filterRevisions`), остаток — строка «N more; keep typing to narrow the
+  list»; поиск без учёта регистра по любой части имени. Длинное имя режется посередине (`truncateMiddle`), полное — в tooltip.
+- Опция `disabled` показывает `reason` справа (`Checked out in <путь>`, `Local branch x exists; pick it instead`).
 
 ### Заголовок панели
 

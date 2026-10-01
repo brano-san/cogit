@@ -28,6 +28,10 @@ export interface FileActions {
   indexEditor(path: string): void;
   move(path: string): void;
   resolve(paths: string[], side: "ours" | "theirs"): void;
+  /** The Conflict Solver window for one conflicted file. */
+  solver(path: string): void;
+  /** The external merge tool on one conflicted file, through the solver window. */
+  externalTool(path: string): void;
   ignore(paths: string[]): void;
   /** `.git/info/exclude`: ignored in this clone, never committed. */
   ignoreLocally(paths: string[]): void;
@@ -138,6 +142,12 @@ export function runFileMenuCommand(
       return true;
     case "file-resolve-ours":
       actions.resolve(paths, "ours");
+      return true;
+    case "file-resolve-solver":
+      actions.solver(path);
+      return true;
+    case "file-resolve-external":
+      actions.externalTool(path);
       return true;
     case "file-ignore":
       actions.ignore(paths);

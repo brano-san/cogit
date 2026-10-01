@@ -28,6 +28,8 @@ function spyActions(): FileActions {
     "indexEditor",
     "move",
     "resolve",
+    "solver",
+    "externalTool",
     "ignore",
     "discard",
     "remove",
@@ -88,6 +90,14 @@ describe("runFileMenuCommand", () => {
     const actions = spyActions();
     runFileMenuCommand("file-resolve-theirs", SCOPE, actions, WINDOWS);
     expect(actions.resolve).toHaveBeenCalledWith(["src/a.ts", "b.txt"], "theirs");
+  });
+
+  it("opens the Conflict Solver and the external tool on the clicked file", () => {
+    const actions = spyActions();
+    expect(runFileMenuCommand("file-resolve-solver", SCOPE, actions, WINDOWS)).toBe(true);
+    expect(runFileMenuCommand("file-resolve-external", SCOPE, actions, WINDOWS)).toBe(true);
+    expect(actions.solver).toHaveBeenCalledWith("src/a.ts");
+    expect(actions.externalTool).toHaveBeenCalledWith("src/a.ts");
   });
 
   it("cherry-picks forward and reverts backward, with the rename source", () => {

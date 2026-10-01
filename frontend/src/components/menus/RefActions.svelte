@@ -77,6 +77,7 @@
     type NodeTarget,
   } from "$lib/ref-checkout";
   import { worktreeMarks } from "$lib/worktree-list";
+  import type { AddOrigin } from "$lib/worktree-add";
   import { publishedOrAssume } from "$lib/published";
   import { resetChoice } from "$lib/reset-modes";
   import { baseBefore, fullMessage, modifyPlan, rewordPlan, squashPlan } from "$lib/rewrite-plans";
@@ -119,6 +120,8 @@
     /** Open App's dialogs for the selected commit. */
     openSplit: () => Promise<void>;
     openRebase: () => Promise<void>;
+    /** App's Add Worktree dialog, started from this commit or branch. */
+    openAddWorktree: (origin: AddOrigin) => void;
     rollbackTree: () => Promise<void>;
   }
 
@@ -130,6 +133,7 @@
     checkOut,
     openSplit,
     openRebase,
+    openAddWorktree,
     rollbackTree,
   }: Props = $props();
 
@@ -501,6 +505,14 @@
         return addBranch(id, at);
       case "add-tag":
         return addTag(oid);
+      case "add-worktree":
+        return openAddWorktree(
+          at.ref && (at.ref.kind === "branch" || at.ref.kind === "remote")
+            ? { kind: "branch", name: at.ref.name }
+            : oid
+              ? { kind: "commit", oid }
+              : { kind: "current" },
+        );
       case "edit-note":
         if (oid) {
           await attempt(

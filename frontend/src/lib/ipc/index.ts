@@ -2,10 +2,12 @@ import { decodeBase64Window } from "$lib/graph-wire";
 import { Channel } from "@tauri-apps/api/core";
 
 import { commands, events } from "./bindings";
+import type { WorktreeBranch } from "./bindings";
 import { counted } from "$lib/listener-count";
-import { mergeUrl } from "$lib/merge-params";
 import type {
   Author,
+  ErrorAction,
+  ErrorEntry,
   AvatarReady,
   CheckoutTarget,
   CommitQuery,
@@ -23,8 +25,10 @@ import type {
   GraphProgress,
   MergeOptions,
   MergeResolved,
+  MergeToolFinished,
   ModuleProblem,
   CommandNotice,
+  TaskbarSignals,
   RevealCommit,
   OperationChanged,
   PatchRequest,
@@ -36,6 +40,7 @@ import type {
   ScanChunk,
   SearchChunk,
   SearchScope,
+  WorktreeScanChunk,
   WorktreeView,
   StashOptions,
   TagRequest,
@@ -43,6 +48,12 @@ import type {
 } from "./bindings";
 
 export type {
+  ErrorAction,
+  ErrorEntry,
+  ErrorKind,
+  Flash,
+  Progress,
+  TaskbarSignals,
   RefDeletion,
   RefDeletionKind,
   RefDeletionReport,
@@ -120,6 +131,13 @@ export type {
   LineVersion,
   MergeOptions,
   MergeResolved,
+  MergeToolFinished,
+  MergeToolOutcome,
+  ConflictContext,
+  ConflictOperation,
+  SolverData,
+  SolverKind,
+  SolverRegion,
   OperationChanged,
   Origin,
   RevealCommit,
@@ -140,6 +158,11 @@ export type {
   SearchScope,
   StashContents,
   WorktreeEntry,
+  WorktreeBranch,
+  WorktreeScanChunk,
+  WorktreeSubmodules,
+  UnpushedInSubmodule,
+  RevisionCheck,
   RepoChanged,
   RepoId,
   RepoOverview,
@@ -448,6 +471,41 @@ export async function commandLog() {
   return await commands.commandLog();
 }
 
+/** The Errors window: opened, or shown when it already is. */
+export async function openErrorsWindow() {
+  return unwrap(await commands.openErrorsWindow());
+}
+
+export async function focusMainWindow() {
+  return unwrap(await commands.focusMainWindow());
+}
+
+/** A page that is not the main one reports a failed command; the main window queues it. */
+export async function reportErrorEntry(entry: ErrorEntry) {
+  await events.errorReported.emit(entry);
+}
+
+export async function onErrorReported(handler: (entry: ErrorEntry) => void) {
+  return await counted(events.errorReported.listen((event) => handler(event.payload)));
+}
+
+/** The whole queue, main window to the Errors window. */
+export async function publishErrorQueue(entries: ErrorEntry[]) {
+  await events.errorQueue.emit(entries);
+}
+
+export async function onErrorQueue(handler: (entries: ErrorEntry[]) => void) {
+  return await counted(events.errorQueue.listen((event) => handler(event.payload)));
+}
+
+export async function sendErrorsAction(action: ErrorAction, id: number | null = null) {
+  await events.errorsAction.emit({ action, id });
+}
+
+export async function onErrorsAction(handler: (action: ErrorAction, id: number | null) => void) {
+  return await counted(events.errorsAction.listen((event) => handler(event.payload.action, event.payload.id)));
+}
+
 /** One record in full. A notice carries its summary; this is where the output lives. */
 export async function commandOutcome(id: number) {
   return await commands.commandOutcome(id);
@@ -475,14 +533,16 @@ export async function worktreeHolding(repo: RepoId, branch: string) {
   return unwrap(await commands.worktreeHolding(repo, branch));
 }
 
-export async function addWorktree(
-  repo: RepoId,
-  path: string,
-  branch: string,
-  create: boolean,
-  base: string | null = null,
-) {
-  return unwrap(await commands.addWorktree(repo, path, branch, create, base));
+export async function addWorktree(repo: RepoId, path: string, branch: WorktreeBranch) {
+  return unwrap(await commands.addWorktree(repo, path, branch));
+}
+
+export async function checkRevision(repo: RepoId, rev: string) {
+  return unwrap(await commands.checkRevision(repo, rev));
+}
+
+export async function checkBranchName(repo: RepoId, name: string) {
+  return unwrap(await commands.checkBranchName(repo, name));
 }
 
 export async function removeWorktree(repo: RepoId, path: string, force: boolean) {
@@ -497,8 +557,16 @@ export async function openWorktree(owner: RepoId, path: string) {
   return unwrap(await commands.openWorktree(owner, path));
 }
 
-export async function worktreeChanges(repo: RepoId, path: string) {
-  return unwrap(await commands.worktreeChanges(repo, path));
+/** The three stages answer on the channel as they finish; the first chunk carries the id
+    `cancelOperation` stops the scan by. */
+export async function scanWorktreeRemoval(
+  repo: RepoId,
+  path: string,
+  onChunk: (chunk: WorktreeScanChunk) => void,
+) {
+  const channel = new Channel<WorktreeScanChunk>();
+  channel.onmessage = onChunk;
+  return unwrap(await commands.scanWorktreeRemoval(repo, path, channel));
 }
 
 export async function pruneWorktree(repo: RepoId, path: string) {
@@ -936,12 +1004,38 @@ export async function flowFinish(
   return unwrap(await commands.flowFinish(repo, kind, name, tag));
 }
 
-/** Opens one conflicted file in a window of its own. */
-export async function openMergeWindow(repo: RepoId, path: string) {
-  return unwrap(await commands.openMergeWindow(mergeUrl(repo, path), `${path} — Cogit`));
+/** The Conflict Solver for one file; `externalTool` starts the merge tool on it as it opens. */
+export async function openSolverWindow(repo: RepoId, path: string, externalTool = false) {
+  return unwrap(await commands.openSolverWindow(repo, path, externalTool));
 }
 
-/** Told by the merge window once the resolution is written. */
+export async function solverData(repo: RepoId, path: string) {
+  return unwrap(await commands.solverData(repo, path));
+}
+
+/** `git add` of a working file settled outside the solver. */
+export async function markConflictResolved(repo: RepoId, path: string) {
+  return unwrap(await commands.markConflictResolved(repo, path));
+}
+
+/** Empty `program`: git's `merge.tool`. Returns once the tool is running. */
+export async function launchMergeTool(repo: RepoId, path: string, program: string, args: string) {
+  return unwrap(await commands.launchMergeTool(repo, path, program, args));
+}
+
+export async function cancelMergeTool(repo: RepoId, path: string) {
+  return unwrap(await commands.cancelMergeTool(repo, path));
+}
+
+export async function mergeToolsRunning(repo: RepoId) {
+  return unwrap(await commands.mergeToolsRunning(repo));
+}
+
+export async function onMergeToolFinished(handler: (event: MergeToolFinished) => void) {
+  return await counted(events.mergeToolFinished.listen((event) => handler(event.payload)));
+}
+
+/** Told by the solver window once the resolution is written. */
 export async function mergeResolved(repo: RepoId, path: string) {
   return unwrap(await commands.mergeResolved(repo, path));
 }
@@ -1110,4 +1204,12 @@ export async function openCommitWindow(repo: RepoId, root: string) {
 
 export async function recentCommits(repo: RepoId, limit: number) {
   return unwrap(await commands.recentCommits(repo, limit));
+}
+
+export async function setTaskbarState(signals: TaskbarSignals) {
+  return await commands.setTaskbarState(signals);
+}
+
+export async function worktreeFolderProblem(path: string) {
+  return unwrap(await commands.worktreeFolderProblem(path));
 }

@@ -29,6 +29,7 @@ const REPOSITORY: &[Entry] = &[
     Entry::Item("worktree-remove", "Remove Worktree…", None),
     Entry::Item("worktree-prune", "Prune Obsolete Worktrees…", None),
     Entry::Separator,
+    Entry::Item("undo-rewrite", "Undo Last Merge / Rebase / Reset…", None),
     Entry::Item("range-diff", "Compare Before and After Rewrite", None),
     Entry::Item("maintenance-gc", "Run Maintenance (gc)…", None),
     Entry::Separator,
@@ -127,6 +128,7 @@ const LOCAL: &[Entry] = &[
     Entry::Item("journal", "Safety Journal…", None),
     Entry::Item("abort", "Abort Operation In Progress", None),
     Entry::Separator,
+    Entry::Item("resolve-conflicts", "Resolve Conflicts…", None),
     Entry::Separator,
     Entry::Item("flow-init", "Git-Flow: Set Up", None),
     Entry::Item("flow-feature", "Git-Flow: Start Feature…", None),
@@ -488,7 +490,9 @@ pub fn build<R: Runtime>(
         .cut()
         .copy()
         .paste()
-        .select_all()
+        // Not the predefined item: its Ctrl+A accelerator is taken by the menu and selects the
+        // whole document before the page can answer. This one has no key; the page owns Ctrl+A.
+        .item(&MenuItem::with_id(app, "select-all", "Select All", true, None::<&str>)?)
         .separator();
     let edit = fill(app, clipboard, EDIT, overrides, &mut collected)?.build()?;
     let window = SubmenuBuilder::new(app, "Window")

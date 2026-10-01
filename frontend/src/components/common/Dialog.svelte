@@ -24,6 +24,8 @@
     height?: string;
     /** Content that draws its own edges: panes, lists with dividers. */
     flush?: boolean;
+    /** Side padding of the title bar, body and footer (default `--sp-5`). */
+    inset?: string;
     children: Snippet;
     footer?: Snippet;
   }
@@ -37,6 +39,7 @@
     surface,
     height,
     flush = false,
+    inset,
     children,
     footer,
   }: Props = $props();
@@ -130,6 +133,7 @@
   style:width
   style:height
   style:background={surface}
+  style:--dialog-inset={inset}
   style:z-index={zIndex + 1}
 >
   <header>
@@ -290,6 +294,7 @@
   }
 
   .dialog :global(.btn.primary),
+  .dialog :global(.btn.danger),
   .dialog :global(.btn.warning) {
     background: var(--status-ref);
     border-color: var(--status-ref);
@@ -302,12 +307,19 @@
     border-color: var(--status-modify);
   }
 
+  .dialog :global(.btn.danger) {
+    background: var(--status-danger);
+    border-color: var(--status-danger);
+  }
+
   .dialog :global(.btn.primary:hover:not(:disabled)),
+  .dialog :global(.btn.danger:hover:not(:disabled)),
   .dialog :global(.btn.warning:hover:not(:disabled)) {
     filter: brightness(1.1);
   }
 
   .dialog :global(.btn.primary:disabled),
+  .dialog :global(.btn.danger:disabled),
   .dialog :global(.btn.warning:disabled) {
     background: var(--surface-input);
     border-color: var(--field-border);
