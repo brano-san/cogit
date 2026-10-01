@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { truncateMiddle, truncatePath } from "./truncate";
 
-const LOG = "C:\\Users\\brano\\AppData\\Local\\dev.branosan.cogit\\logs\\cogit.log";
+const LOG = "C:\\Users\\brano\\AppData\\Local\\Cogit\\logs\\cogit.log";
 
 describe("truncatePath", () => {
   it("leaves a path that fits alone", () => {
@@ -10,11 +10,11 @@ describe("truncatePath", () => {
   });
 
   it("cuts whole folders out of the middle, keeping the start and the file name", () => {
-    expect(truncatePath(LOG, 31)).toBe("C:\\Users\\brano\\…\\logs\\cogit.log");
+    expect(truncatePath(LOG, 31)).toBe("C:\\Users\\…\\Cogit\\logs\\cogit.log");
   });
 
   it("takes folders from the file's end and the root's end in turn while they fit", () => {
-    expect(truncatePath(LOG, 40)).toBe("C:\\…\\dev.branosan.cogit\\logs\\cogit.log");
+    expect(truncatePath(LOG, 40)).toBe("C:\\Users\\…\\Local\\Cogit\\logs\\cogit.log");
   });
 
   it("never exceeds the budget", () => {
@@ -24,8 +24,8 @@ describe("truncatePath", () => {
   });
 
   it("works on forward slashes, keeping the root", () => {
-    const path = "/home/brano/.config/dev.branosan.cogit/settings.json";
-    expect(truncatePath(path, 30)).toBe("/home/brano/…/settings.json");
+    const path = "/home/brano/.config/Cogit/settings.json";
+    expect(truncatePath(path, 30)).toBe("/home/…/Cogit/settings.json");
   });
 
   it("keeps the leading slashes of a UNC path together", () => {

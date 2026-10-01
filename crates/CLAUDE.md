@@ -23,7 +23,7 @@
   Never inside tight loops.
 - One file per run `cogit-<start>.log`, `….2.log` past 10 MB, at most 10 files,
   non-blocking. Keep `WorkerGuard` alive for the whole process or the tail is lost.
-  Windows folder: `%LOCALAPPDATA%\dev.branosan.cogit\logs\`.
+  Windows folder: `%LOCALAPPDATA%\Cogit\logs\`.
 
 ## Git
 

@@ -15,6 +15,7 @@ pub mod graph_wire;
 mod handles;
 mod hooking;
 pub mod investigation;
+pub mod legacy_dirs;
 pub mod licences;
 pub mod logging;
 pub mod merge_tool;
