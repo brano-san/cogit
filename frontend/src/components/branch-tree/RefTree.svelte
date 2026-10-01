@@ -16,6 +16,10 @@
   import { refActivation } from "$lib/ref-checkout";
   import { TypeAhead, findTyped, listKey, pageRows, pressOf, typedChar } from "$lib/list-keys";
   import { NO_FILTER_FOLDS, flatten, toggleFilterFold } from "$lib/tree";
+  import { NO_ITEMS, clickItem, extendItems, keepShown, rightClickItem, selectEvery, single } from "$lib/item-selection";
+  import { selectedNodes, toggleSelected } from "$lib/ref-selection";
+  import { registerSelectAll } from "$lib/select-all";
+  import { untrack } from "svelte";
   import { triState } from "$lib/tri-state-box";
   import { worktreeMarkTooltip } from "$lib/worktree-list";
   import type { Branch } from "$lib/ipc";
@@ -31,6 +35,8 @@
     /** A double click or Enter on a row that is not a folder. */
     onactivate?: (node: RefNode) => void;
     oncontext?: (node: RefNode, x: number, y: number) => void;
+    /** Right-click on one of several selected rows: the menu of the whole selection, in tree order. */
+    ongroupcontext?: (nodes: RefNode[], x: number, y: number) => void;
     onhover?: (node: RefNode) => void;
     /** `x` and `y`: where the pointer was released, for the menu of what to do. */
     ondrop?: (source: string, target: Branch, x: number, y: number) => void;
@@ -44,12 +50,16 @@
     onselect,
     onactivate,
     oncontext,
+    ongroupcontext,
     onhover,
     ondrop,
   }: Props = $props();
 
   let over = $state<string | null>(null);
-  let active = $state<string | null>(null);
+  /** Click, Ctrl+click, Shift+click, Shift+arrows, Ctrl+A: the model Graph shares. */
+  let sel = $state.raw(NO_ITEMS);
+  /** The row the keys move from: the cursor of the selection. */
+  const active = $derived(sel.cursor);
   /** Folders folded while a filter is typed; the stored folds are left alone (R-485). */
   let filterFolds = $state.raw(NO_FILTER_FOLDS);
 
@@ -76,10 +86,45 @@
     else oncollapse(id);
   }
 
+  const order = $derived(nodes.map((node) => node.id));
+
+  // A filter, a fold or a reload takes rows away; they leave the selection with them.
+  $effect(() => {
+    const shown = order;
+    untrack(() => {
+      const kept = keepShown(sel, shown);
+      if (kept !== sel) sel = kept;
+    });
+  });
+
+  $effect(() => registerSelectAll("refs", () => (sel = selectEvery(sel, order))));
+
+  /** A plain pick selects the ref and centres the graph on its tip. */
   function pick(node: RefNode) {
-    active = node.id;
+    sel = single(node.id);
     if (node.branch) onselect?.(node);
     else if (node.rev) onselect?.(node);
+  }
+
+  function rowClick(node: RefNode, event: MouseEvent) {
+    if ((event.target as Element).closest("input, .disclosure")) return;
+    const ctrl = event.ctrlKey || event.metaKey;
+    if (ctrl || event.shiftKey) sel = clickItem(sel, node.id, order, { ctrl, shift: event.shiftKey });
+    else pick(node);
+  }
+
+  function rowContext(node: RefNode, event: MouseEvent) {
+    event.preventDefault();
+    sel = rightClickItem(sel, node.id);
+    const group = sel.ids.size > 1 ? selectedNodes(nodes, sel.ids) : [];
+    if (group.length > 1 && ongroupcontext) ongroupcontext(group, event.clientX, event.clientY);
+    else oncontext?.(node, event.clientX, event.clientY);
+  }
+
+  /** Space: the boxes of every selected row, as one. */
+  function toggleSelection() {
+    const rows = selectedNodes(nodes, sel.ids);
+    if (rows.length > 0) onvisible(toggleSelected(tree, rows.map((row) => row.id), visible));
   }
 
   function dropped(source: string, target: string, x: number, y: number) {
@@ -100,10 +145,11 @@
     else onactivate?.(node);
   }
 
-  function goTo(index: number) {
+  function goTo(index: number, extend = false) {
     const node = nodes[index];
     if (!node) return;
-    pick(node);
+    if (extend) sel = extendItems(sel, order, index - (active === null ? index : order.indexOf(active)));
+    else pick(node);
     treeEl?.querySelector<HTMLElement>(`[data-node="${CSS.escape(node.id)}"]`)?.focus();
   }
 
@@ -134,11 +180,16 @@
       goTo(to);
       return;
     }
+    if (event.key === " " && !onControl && !press.ctrl && !press.alt) {
+      event.preventDefault();
+      toggleSelection();
+      return;
+    }
     const row = treeEl?.querySelector<HTMLElement>(".row");
     const action = listKey(press, at, nodes.length, pageRows(treeEl?.parentElement, row?.offsetHeight ?? 22));
     if (action === null || (action.kind === "activate" && onControl)) return;
     event.preventDefault();
-    if (action.kind === "move") goTo(action.to);
+    if (action.kind === "move") goTo(action.to, action.extend);
     else if (at === null) return;
     else if (action.kind === "fold") fold(at, action.open);
     else if (nodes[at]) activate(nodes[at]);
@@ -150,6 +201,7 @@
 <div
   class="tree tree-rows key-list"
   role="tree"
+  aria-multiselectable="true"
   aria-label="References"
   bind:this={treeEl}
   use:pointerDrag={branchDrag}
@@ -157,28 +209,29 @@
 >
   {#each nodes as node, at (node.id)}
     {@const tick = ticks.get(node.id)}
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div
       class="row {node.kind}"
       class:striped={striped(at, stripes)}
-      class:selected={active === node.id}
+      class:selected={sel.ids.has(node.id)}
       class:over={over === node.id}
       style:padding-left="calc(var(--tree-base) + {node.depth} * var(--tree-step))"
       role="treeitem"
-      aria-selected={active === node.id}
+      aria-selected={sel.ids.has(node.id)}
       aria-expanded={foldable(node) ? node.open === true : undefined}
       tabindex="-1"
       data-node={node.id}
       title={node.branch?.name ?? node.tag?.name ?? node.detail ?? node.label}
       data-drag={node.branch && ondrop ? node.id : undefined}
       data-drop={node.branch && ondrop ? node.id : undefined}
+      onclick={(event) => rowClick(node, event)}
       ondblclick={(event) => {
         if (!(event.target as Element).closest("input, .disclosure")) activate(node);
       }}
       onpointerenter={() => onhover?.(node)}
       oncontextmenu={(event) => {
         if (!oncontext) return;
-        event.preventDefault();
-        oncontext(node, event.clientX, event.clientY);
+        rowContext(node, event);
       }}
     >
       <Disclosure
@@ -202,8 +255,7 @@
       <button
         type="button"
         class="label truncate shrink-last"
-        class:current={node.current}
-        onclick={() => pick(node)}>{node.label}</button
+        class:current={node.current}>{node.label}</button
       >
 
       {#if node.worktree}

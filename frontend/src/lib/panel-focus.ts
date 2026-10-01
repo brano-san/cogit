@@ -26,12 +26,3 @@ export function settle(current: PanelId, visible: (panel: PanelId) => boolean): 
   if (visible(current)) return current;
   return PANELS.find(visible) ?? current;
 }
-
-/**
- * Select All is per-panel, and the graph is the one place it is refused: a repository
- * with fifty thousand commits would select every one of them, which helps nobody and
- * costs a long freeze. SmartGit refuses it there too.
- */
-export function allowsSelectAll(panel: PanelId): boolean {
-  return panel !== "graph";
-}

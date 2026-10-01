@@ -1,6 +1,6 @@
 <script lang="ts">
   import RemotePropertiesDialog from "./RemotePropertiesDialog.svelte";
-  import { createBranch, deleteRefs, popupContextMenu, type ContextItem, type RepoId } from "$lib/ipc";
+  import { createBranch, popupContextMenu, type ContextItem, type RepoId } from "$lib/ipc";
   import {
     fetchDepth,
     fetchMore,
@@ -12,6 +12,8 @@
   } from "$lib/ipc/remotes";
   import { shortOid } from "$lib/format";
   import { deletionQuestion, folderDeletion } from "$lib/folder-delete";
+  import { appDeleteHost } from "$lib/ref-delete-host";
+  import { runDeletion } from "$lib/ref-delete-run";
   import { prefetcher } from "$lib/prefetch";
   import { branchNameProblem } from "$lib/names";
   import { splitUpstream } from "$lib/push-to";
@@ -212,33 +214,10 @@
       items: plan.names,
     });
     if (!go) return;
-    const request = { kind: plan.kind, remote: plan.remote, names: plan.names, force: false };
-    const failed: string[] = [];
-    let deleted = 0;
-    const run = async (again: typeof request): Promise<string[]> => {
-      try {
-        const report = await deleteRefs(id, again);
-        deleted += report.deleted.length;
-        for (const each of report.failed) {
-          errors.report(each.error, `Could not delete ${each.name}`);
-          failed.push(each.name);
-        }
-        return report.notFullyMerged;
-      } catch (err) {
-        errors.report(err, "Could not delete the refs");
-        return [];
-      }
-    };
-    const kept = await run(request);
-    if (kept.length > 0) {
-      const force = await confirmation.ask({
-        title: "Branches Not Fully Merged",
-        message: `${kept.length} of these branches ${kept.length === 1 ? "is" : "are"} not fully merged into the current upstream/HEAD. Do you want to force delete ${kept.length === 1 ? "it" : "them"}?`,
-        confirm: "Force Delete",
-        items: kept,
-      });
-      if (force) await run({ ...request, names: kept, force: true });
-    }
+    const { deleted, failed } = await runDeletion(
+      { kind: plan.kind, remote: plan.remote, names: plan.names, force: false },
+      appDeleteHost(id),
+    );
     if (failed.length > 0) {
       notices.inform("Some refs were not deleted", `${deleted} deleted, ${failed.length} failed: ${failed.join(", ")}.`);
     }
