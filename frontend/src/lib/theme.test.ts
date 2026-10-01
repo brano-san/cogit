@@ -74,6 +74,32 @@ describe("theme files", () => {
     expect(bad).toEqual([]);
   });
 
+  // Diff text on its highlight backgrounds. Inside a marked word (*.word) the syntax colours are
+  // off and the text is fg.primary (DiffView .word); on the line background (*.line) the syntax
+  // colours stay: fg.secondary for comments, graph.lane.0…5 for the rest (app.css .tok-*).
+  const WORDS = ["diff.changed.word", "diff.add.word", "diff.del.word"];
+  // add.line and del.line are not asserted: their syntax pairs fail on light and light gray (R-629).
+  const LINES = ["diff.changed.line"];
+  const ratios = (id: Theme, fgs: string[], bgs: string[]) => {
+    const { tokens } = THEME_FILES[id];
+    const bad: string[] = [];
+    for (const fg of fgs)
+      for (const bg of bgs) {
+        const ratio = contrast(tokens[fg]!, tokens[bg]!);
+        if (ratio < 4.5) bad.push(`${fg} on ${bg}: ${ratio.toFixed(2)}`);
+      }
+    return bad;
+  };
+
+  it.each(IDS)("%s: primary text reads at 4.5:1 on the changed, added and deleted word backgrounds", (id) => {
+    expect(ratios(id, ["fg.primary"], WORDS)).toEqual([]);
+  });
+
+  it.each(IDS)("%s: primary, secondary and syntax colors read at 4.5:1 on the diff line backgrounds", (id) => {
+    const syntax = [0, 1, 2, 3, 4, 5].map((n) => `graph.lane.${n}`);
+    expect(ratios(id, ["fg.primary", "fg.secondary", ...syntax], LINES)).toEqual([]);
+  });
+
   it.each(IDS)("%s: secondary text, search ink and text on accent read at 4.5:1", (id) => {
     const { tokens } = THEME_FILES[id];
     expect(contrast(tokens["fg.secondary"]!, tokens["bg.panel"]!)).toBeGreaterThanOrEqual(4.5);

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  ACTION_CENTER_X,
   ACTION_LEFT_X,
   ACTION_RIGHT_X,
   BAND_WIDTH,
@@ -173,11 +174,21 @@ describe("block connectors", () => {
     expect(ACTION_RIGHT_X).toBeGreaterThan(BAND_WIDTH / 2);
   });
 
+  // R-629: a changed block has one » for the whole block, in the middle of the gutter.
+  it("puts the lone » of a block between the two, on the band at the middle", () => {
+    const [c] = blockConnectors(m, view(), view(), 18);
+    expect(ACTION_CENTER_X).toBe(BAND_WIDTH / 2);
+    expect(c!.anchor.center!).toBeGreaterThanOrEqual(c!.anchor.left!);
+    expect(c!.anchor.center!).toBeLessThanOrEqual(c!.anchor.right!);
+    // Halfway along the S-curve: the mean of the two edges' midpoints (36..72 and 36..90).
+    expect(Math.abs(c!.anchor.center! - 58.5)).toBeLessThanOrEqual(1);
+  });
+
   it("puts both buttons at one height on a level band", () => {
     const a = model(ctx(1, 1), ins(2), ins(3), ctx(2, 4));
     const v = view(0, 200);
     const [c] = blockConnectors(alignModel(a), v, v, 18, 9);
-    expect(c!.anchor).toEqual({ left: 36, right: 36 });
+    expect(c!.anchor).toEqual({ left: 36, right: 36, center: 36 });
   });
 
   it("clamps the anchor into the visible part when the block is partly off screen", () => {
