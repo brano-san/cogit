@@ -3,30 +3,19 @@
   import { diffKey } from "$lib/diff-keys";
   import { modals } from "$lib/modal-stack";
   import { untrack } from "svelte";
+  import type { SearchRow } from "$lib/diff-rows";
+  import { diffTokens, paneTokens, unifiedTokens } from "$lib/diff-highlight";
+  import { FLASH_MS, changeAt, foldDiff, navState, revealRange, type Gap, type LineRange } from "$lib/diff-fold";
   import {
-    cellKey,
-    connectors,
-    pairPicked,
-    ribbonKeys,
-    type ConnectorRow,
-    type SearchRow,
-    type SideCell,
-    type SidePair,
-  } from "$lib/diff-rows";
-  import { cellTokens, diffTokens, rowTokens } from "$lib/diff-highlight";
-  import {
-    blockKeys,
-    FLASH_MS,
-    changeAt,
-    changeEnd,
-    changeStarts,
-    foldDiff,
-    navState,
-    revealRange,
-    splitRows,
-    type Gap,
-    type LineRange,
-  } from "$lib/diff-fold";
+    buildBlocks,
+    changeRow,
+    changes,
+    hunkKeys,
+    type BlockKind,
+    type PaneLine,
+    type PaneRow,
+    type UnifiedLine,
+  } from "$lib/diff-blocks";
   import { DiffSearch } from "$lib/diff-search.svelte";
   import {
     BAND_WIDTH,
@@ -37,12 +26,14 @@
     SPLIT_MIN,
     SPLIT_STEP,
     bandLeft,
+    blockConnectors,
     clampShare,
     draggedShare,
-    ribbonEdges,
-    ribbonPath,
-    ribbonsNear,
+    type PaneView,
   } from "$lib/diff-band";
+  import { mapLeftScrollToRight, mapRightScrollToLeft, wheelScroll } from "$lib/diff-sync";
+  import { ScrollGuard, type PaneSide } from "$lib/diff-scroll-guard";
+  import { sideCaptions, type SideCaptions } from "$lib/compare-params";
   import { settings } from "$stores/settings.svelte";
   import DiffFindBar from "./DiffFindBar.svelte";
   import FileSummary from "./FileSummary.svelte";
@@ -60,12 +51,12 @@
   } from "$lib/code-scroll";
   import ConfirmDialog from "$components/common/ConfirmDialog.svelte";
   import { eolChangeText, eolLabel, layoutTip, modeChangeText } from "$lib/diff-toolbar";
-  import { loadLanguage, mergePieces, type Token } from "$lib/highlight";
-  import { lineKey, toggleLine } from "$lib/selection";
+  import { loadLanguage, mergePieces } from "$lib/highlight";
+  import { toggleLine } from "$lib/selection";
   import { keepSelection } from "$lib/diff-selection";
   import { investigateTarget, openInvestigate } from "$lib/investigate/open";
   import { visibleRange } from "$lib/graph-geometry";
-  import type { DiffRow, FileDiff, Hunk } from "$lib/ipc";
+  import type { FileDiff, Hunk } from "$lib/ipc";
   // The panel above belongs to `master` and cannot grow props for the branch's own view
   // preferences, so the view reads them from the branch's own store.
   import { diff as diffStore } from "$stores/diff.svelte";
@@ -86,6 +77,9 @@
     active?: boolean;
     /** Off where the file is named already: the compare window's title and header. */
     showPath?: boolean;
+    /** What the panes hold, above each; from the diff's spec when the host knows no better
+        (the compare window knows the parent commit's id). */
+    captions?: SideCaptions;
   }
 
   let {
@@ -99,13 +93,11 @@
     onexpand,
     active = true,
     showPath = true,
+    captions,
   }: Props = $props();
 
   /** Converted lines are not the file's bytes: a patch built from them would not apply. */
   const stageable = $derived(stageableFile && !(diff.kind === "text" && diff.converted));
-
-  /** Names the band's hatch pattern apart from another diff's in the same document. */
-  const uid = $props.id();
 
   const WHITESPACE_LABEL = { none: "Whitespace", trailing: "Trailing ws", all: "Ignore ws" };
   const WHITESPACE_NEXT = { none: "trailing", trailing: "all", all: "none" } as const;
@@ -116,11 +108,19 @@
   const BUFFER_ROWS = 12;
   /** Rows of context a jump leaves above the change it lands on. */
   const LEAD = 3;
+  /** The height of a button in the gutter: its anchor keeps half of it clear of the edges. */
+  const ACT_HEIGHT = 18;
 
   const mode = $derived(diffStore.layout);
   let findBar: ReturnType<typeof DiffFindBar> | undefined = $state();
-  let scroller: HTMLDivElement | undefined = $state();
-  let scrollTop = $state(0);
+  let unifiedEl: HTMLDivElement | undefined = $state();
+  let leftEl: HTMLDivElement | undefined = $state();
+  let rightEl: HTMLDivElement | undefined = $state();
+  /** Each scroller's own position. Side by side the panes differ: the lines of a change
+      are fewer on one side, and `diff-sync` maps one onto the other. */
+  let uTop = $state(0);
+  let lTop = $state(0);
+  let rTop = $state(0);
   let viewportHeight = $state(0);
   /** The change the arrows and F6 step from; `-1` above the first one (#13). */
   let current = $state(-1);
@@ -128,8 +128,6 @@
   let jumping = false;
   /** Lines the user opened out of the folds, by old line number (#16). */
   let revealed = $state<LineRange[]>([]);
-  /** The row under the pointer, which carries its block's Stage, Unstage and Discard. */
-  let hoverRow = $state<number | null>(null);
 
   const hunks = $derived<Hunk[]>(diff.kind === "text" ? diff.hunks : []);
   const language = $derived(diff.kind === "text" ? diff.language : null);
@@ -139,24 +137,7 @@
     void loadLanguage(wanted).then(() => (grammar = wanted));
   });
 
-  /** Parsed once per diff, per side: a block comment must survive the line it opened on. */
-  const tokens = $derived(
-    diffTokens(
-      {
-        hunks,
-        language: grammar === language ? language : null,
-        oldText: diff.kind === "text" ? diff.oldText : null,
-        newText: diff.kind === "text" ? diff.newText : null,
-      },
-      () => unified,
-    ),
-  );
-
-  function tokensFor(row: DiffRow): Token[] {
-    return rowTokens(tokens, row);
-  }
-
-  const unified = $derived(
+  const entries = $derived(
     diff.kind === "text"
       ? foldDiff({
           hunks,
@@ -167,41 +148,53 @@
         })
       : [],
   );
-  const split = $derived(splitRows(unified));
 
-  const total = $derived(mode === "unified" ? unified.length : split.length);
-  const range = $derived(
-    visibleRange(scrollTop, viewportHeight, ROW_HEIGHT, total, BUFFER_ROWS),
+  /** Whether a change of indentation alone is marked: only while the whitespace is shown. */
+  const indent = $derived(whitespace === "none");
+  /** The one model both layouts draw (08 §12): blocks, each pane's own rows, the unified rows. */
+  const model = $derived(buildBlocks(entries, { indent }));
+
+  /** Parsed once per diff, per side: a block comment must survive the line it opened on. */
+  const tokens = $derived(
+    diffTokens(
+      {
+        hunks,
+        language: grammar === language ? language : null,
+        oldText: diff.kind === "text" ? diff.oldText : null,
+        newText: diff.kind === "text" ? diff.newText : null,
+      },
+      () => entries,
+    ),
   );
 
-  const changed = $derived(
-    mode === "unified"
-      ? unified.map((entry) => entry.kind === "row" && lineKey(entry.row) !== null)
-      : split.map(
-          (entry) =>
-            entry.kind === "pair" &&
-            (entry.pair.left?.kind === "delete" || entry.pair.right?.kind === "insert"),
-        ),
-  );
-  const starts = $derived(changeStarts(changed));
+  const unifiedRange = $derived(visibleRange(uTop, viewportHeight, ROW_HEIGHT, model.unified.length, BUFFER_ROWS));
+  const leftRange = $derived(visibleRange(lTop, viewportHeight, ROW_HEIGHT, model.left.length, BUFFER_ROWS));
+  const rightRange = $derived(visibleRange(rTop, viewportHeight, ROW_HEIGHT, model.right.length, BUFFER_ROWS));
+
+  const changeList = $derived(changes(model));
+  /** Where each change starts in the list a jump scrolls: the left pane, or the unified one. */
+  const starts = $derived(changeList.map((change) => changeRow(model, change, mode === "unified")));
   const nav = $derived(navState(starts.length, current));
+  const navTop = $derived(mode === "unified" ? uTop : lTop);
 
-  /** The rows of the change a jump landed on, lit briefly so the eye finds them (F-541). */
+  /** The blocks of the change a jump landed on, lit briefly so the eye finds them (F-541). */
   let flash = $state<{ from: number; to: number } | null>(null);
   let flashTimer: ReturnType<typeof setTimeout> | undefined;
 
-  function flashChange(start: number) {
+  function flashChange(index: number) {
+    const change = changeList[index];
+    if (!change) return;
     clearTimeout(flashTimer);
     flash = null;
     // A frame without the class, so the same rows lit again start their fade over.
     requestAnimationFrame(() => {
-      flash = { from: start, to: changeEnd(changed, start) };
+      flash = { ...change };
       flashTimer = setTimeout(() => (flash = null), FLASH_MS);
     });
   }
 
-  function flashed(index: number): boolean {
-    return flash !== null && index >= flash.from && index < flash.to;
+  function flashed(row: { block: number; blockKind: BlockKind }): boolean {
+    return flash !== null && row.blockKind !== "equal" && row.block >= flash.from && row.block <= flash.to;
   }
 
   let rowsWidth = $state(0);
@@ -249,42 +242,42 @@
     event.preventDefault();
   }
 
-  /** Computed once per diff. Scrolling only filters it — walking every row on each frame
-      would cost the 60 FPS the product promises. */
-  const connectorRows = $derived<ConnectorRow[]>(
-    mode === "split" ? split.map((entry) => (entry.kind === "pair" ? entry.pair : null)) : [],
-  );
-
-  const allRibbons = $derived.by(() => {
-    if (mode !== "split") return [];
-    return connectors(connectorRows);
-  });
-
-  /** What the bridge's » and ✕ do: throw away in the working tree, unstage in the index. */
+  /** What the band's » and × do: throw away in the working tree, unstage in the index. */
   const bandActions = $derived(
     !stageable ? null : diffStore.lineActions.discard ? "discard" : diffStore.lineActions.unstage ? "unstage" : null,
   );
 
-  function bandAct(keys: Set<string>, label: string) {
+  function bandAct(keys: readonly string[], label: string) {
     if (bandActions === "discard") askDiscard(new Set(keys), label);
     else onstage?.(new Set(keys), true);
   }
 
-  const ribbons = $derived(
-    ribbonsNear(allRibbons, range.start - BUFFER_ROWS, range.end + BUFFER_ROWS),
+  /** The connectors of the blocks near the viewport, from both panes' live scroll (08 §12).
+      The scroll events that move `lTop` and `rTop` are once a frame and the state is read by
+      the same flush that moves the rows, so the band and the rows share a frame. */
+  const links = $derived(
+    mode === "split"
+      ? blockConnectors(
+          model,
+          { scrollTop: lTop, viewport: viewportHeight },
+          { scrollTop: rTop, viewport: viewportHeight },
+          ROW_HEIGHT,
+          ACT_HEIGHT / 2,
+        )
+      : [],
   );
 
-  /** Only code is searchable: a hit on a fold would scroll to nothing useful. */
+  /** Only code is searchable: a hit on a fold would scroll to nothing useful. Side by side
+      a row index is a row of that side's own pane. */
   const searchTexts = $derived.by<SearchRow[]>(() => {
     if (mode === "unified") {
-      return unified.map((entry) => {
-        if (entry.kind !== "row") return [null, null];
-        return [entry.row.text, null];
-      });
+      return model.unified.map((row) => [row.kind === "line" ? row.text : null, null]);
     }
-    return split.map((entry) =>
-      entry.kind === "pair" ? [entry.pair.left?.text ?? null, entry.pair.right?.text ?? null] : [null, null],
-    );
+    const text = (row: PaneRow | undefined) => (row?.kind === "line" ? row.text : null);
+    return Array.from({ length: Math.max(model.left.length, model.right.length) }, (_, i) => [
+      text(model.left[i]),
+      text(model.right[i]),
+    ]);
   });
 
   const find = new DiffSearch(() => searchTexts);
@@ -302,16 +295,14 @@
 
   /** The widest line of each side: side by side, each column scrolls within its own width. */
   const widest = $derived.by(() => {
-    let old = 0;
-    let next = 0;
-    for (const entry of unified) {
-      if (entry.kind !== "row") continue;
-      const row = entry.row;
-      const columns = textColumns(row.text) + (row.noNewline ? NO_NEWLINE_COLUMNS : 0);
-      if (row.kind !== "insert") old = Math.max(old, columns);
-      if (row.kind !== "delete") next = Math.max(next, columns);
-    }
-    return { old: old + TRAILING_COLUMNS, new: next + TRAILING_COLUMNS };
+    const columns = (rows: PaneRow[]) => {
+      let most = 0;
+      for (const row of rows) {
+        if (row.kind === "line") most = Math.max(most, textColumns(row.text) + (row.noNewline ? NO_NEWLINE_COLUMNS : 0));
+      }
+      return most + TRAILING_COLUMNS;
+    };
+    return { old: columns(model.left), new: columns(model.right) };
   });
   const sidewaysMax = $derived(
     mode === "split"
@@ -320,16 +311,74 @@
   );
   const shift = $derived(clampOffset(sideways, sidewaysMax));
 
-  function scrollToRow(index: number) {
-    if (!scroller) return;
-    scroller.scrollTop = Math.max(index * ROW_HEIGHT - Math.floor(viewportHeight / 2), 0);
+  const paneEl = (side: PaneSide) => (side === "left" ? leftEl : rightEl);
+
+  // --- synchronized scrolling: either pane drives the other through `diff-sync` ---
+
+  const guard = new ScrollGuard();
+
+  function viewOf(el: HTMLElement): PaneView {
+    return { scrollTop: el.scrollTop, viewport: el.clientHeight };
+  }
+
+  /** Brings the other pane to where `from` is. The write is remembered, so the scroll event
+      it raises is not mapped back. */
+  function sync(from: PaneSide) {
+    if (!leftEl || !rightEl) return;
+    const l = viewOf(leftEl);
+    const r = viewOf(rightEl);
+    const target = from === "left" ? mapLeftScrollToRight(model, l, r, ROW_HEIGHT) : mapRightScrollToLeft(model, l, r, ROW_HEIGHT);
+    const other: PaneSide = from === "left" ? "right" : "left";
+    const el = paneEl(other)!;
+    if (guard.write(other, el.scrollTop, target)) el.scrollTop = target;
+    lTop = leftEl.scrollTop;
+    rTop = rightEl.scrollTop;
+  }
+
+  function onpane(side: PaneSide) {
+    const el = paneEl(side);
+    if (!el) return;
+    if (side === "left") lTop = el.scrollTop;
+    else rTop = el.scrollTop;
+    if (guard.echo(side, el.scrollTop)) return;
+    sync(side);
+    if (jumping) jumping = false;
+    else settle();
+  }
+
+  /** The wheel over the gutter: one delta, both panes (each stops at its own end). */
+  function onbandwheel(event: WheelEvent) {
+    if (!leftEl || !rightEl) return;
+    event.preventDefault();
+    const side = wheelSideways(event, ROW_HEIGHT, viewportHeight);
+    if (side !== 0) {
+      if (sidewaysMax > 0) sideways = clampOffset(shift + side, sidewaysMax);
+      return;
+    }
+    const scale = event.deltaMode === 1 ? ROW_HEIGHT : event.deltaMode === 2 ? viewportHeight : 1;
+    const next = wheelScroll(model, viewOf(leftEl), viewOf(rightEl), event.deltaY * scale, ROW_HEIGHT);
+    for (const [side, el, top] of [
+      ["left", leftEl, next.left],
+      ["right", rightEl, next.right],
+    ] as const) {
+      if (guard.write(side, el.scrollTop, top)) el.scrollTop = top;
+    }
+    lTop = leftEl.scrollTop;
+    rTop = rightEl.scrollTop;
+  }
+
+  /** The row index to centre in the pane that holds it; the other pane follows. */
+  function scrollToRow(index: number, side: PaneSide = "left") {
+    const el = mode === "unified" ? unifiedEl : paneEl(side);
+    if (!el) return;
+    el.scrollTop = Math.max(index * ROW_HEIGHT - Math.floor(viewportHeight / 2), 0);
   }
 
   /** Down to the hit the counter points at, and sideways when it is past an edge. */
   function revealHit() {
     const hit = find.current;
     if (!hit) return;
-    scrollToRow(hit.index);
+    scrollToRow(hit.index, hit.side);
     const text = searchTexts[hit.index]?.[hit.side === "left" ? 0 : 1];
     if (text === null || text === undefined || charWidth === 0) return;
     const from = textColumns(text.slice(0, hit.from)) * charWidth;
@@ -350,10 +399,10 @@
     queueMicrotask(() => findBar?.focus());
   }
 
-  /** The block a fold row opens onto, for the Stage, Unstage and Discard it carries. */
-  function blockBelow(index: number): number | null {
-    const next = mode === "unified" ? unified[index + 1] : split[index + 1];
-    return next && next.kind !== "gap" ? next.block : null;
+  /** The hunk a fold row opens onto, for the Stage, Unstage and Discard it carries. */
+  function hunkBelow(rows: readonly { kind: string; block: number }[], index: number): number | null {
+    const next = rows[index + 1];
+    return next && next.kind === "line" ? model.blocks[next.block]!.hunk : null;
   }
 
   /** Ctrl+click opens every fold at once; a fold whose lines are not here asks for them. */
@@ -365,24 +414,13 @@
     else if (diffStore.repo !== null) void diffStore.expand(diffStore.repo, true);
   }
 
-  function sign(cell: SideCell | null): string {
-    if (!cell) return "";
-    return cell.kind === "delete" ? "−" : cell.kind === "insert" ? "+" : "";
-  }
-
   /** Selecting works on any diff: a commit cannot be staged, but it can be investigated. */
-  function pick(row: DiffRow) {
-    const key = lineKey(row);
+  function pick(key: string | null) {
     if (key) selected = toggleLine(selected, key);
   }
 
-  function pickCell(cell: SideCell | null) {
-    const key = cellKey(cell);
-    if (key) selected = toggleLine(selected, key);
-  }
-
-  function pickBlock(block: number) {
-    const keys = blockKeys(unified, block);
+  function pickHunk(hunk: number) {
+    const keys = hunkKeys(model, hunk);
     const all = [...keys].every((key) => selected.has(key));
     const next = new Set(selected);
     for (const key of keys) {
@@ -398,9 +436,9 @@
     selected = new Set();
   }
 
-  /** Stage, Unstage and Discard act on one block without disturbing the line selection. */
-  function applyBlock(block: number, reverse: boolean) {
-    onstage?.(blockKeys(unified, block), reverse);
+  /** Stage, Unstage and Discard act on one hunk without disturbing the line selection. */
+  function applyHunk(hunk: number, reverse: boolean) {
+    onstage?.(hunkKeys(model, hunk), reverse);
   }
 
   /** Opens the Investigate window (#15), on the selected line when there is one. */
@@ -432,31 +470,26 @@
     }
   }
 
-  function cells(pair: SidePair, index: number, side: "left" | "right") {
-    const cell = pair[side];
-    if (!cell) return [];
-    return mergePieces(cell.text, cellTokens(tokens, pair, side), cell.inline, find.spansFor(index, side));
-  }
-
   function settle() {
-    const top = Math.floor(scrollTop / ROW_HEIGHT);
-    const bottom = Math.floor((scrollTop + viewportHeight) / ROW_HEIGHT) - 1;
+    const top = Math.floor(navTop / ROW_HEIGHT);
+    const bottom = Math.floor((navTop + viewportHeight) / ROW_HEIGHT) - 1;
     current = changeAt(starts, top, bottom, LEAD);
   }
 
   function jump(delta: number) {
     const target = current + delta;
-    if (!scroller || target < 0 || target >= starts.length) return;
-    const before = scroller.scrollTop;
-    scroller.scrollTop = Math.max((starts[target] ?? 0) - LEAD, 0) * ROW_HEIGHT;
-    jumping = scroller.scrollTop !== before;
+    const el = mode === "unified" ? unifiedEl : leftEl;
+    if (!el || target < 0 || target >= starts.length) return;
+    const before = el.scrollTop;
+    el.scrollTop = Math.max((starts[target] ?? 0) - LEAD, 0) * ROW_HEIGHT;
+    jumping = el.scrollTop !== before;
     current = target;
-    flashChange(starts[target] ?? 0);
+    flashChange(target);
   }
 
-  function onscroll() {
-    if (!scroller) return;
-    scrollTop = scroller.scrollTop;
+  function onunified() {
+    if (!unifiedEl) return;
+    uTop = unifiedEl.scrollTop;
     if (jumping) jumping = false;
     else settle();
   }
@@ -491,12 +524,33 @@
   });
 
   $effect(() => {
-    if (!scroller) return;
+    const el = unifiedEl ?? leftEl;
+    if (!el) return;
     const observer = new ResizeObserver(([entry]) => {
       if (entry) viewportHeight = entry.contentRect.height;
     });
-    observer.observe(scroller);
+    observer.observe(el);
     return () => observer.disconnect();
+  });
+
+  // Another layout is another set of scrollers, each starting at the top.
+  $effect(() => {
+    void mode;
+    untrack(() => {
+      uTop = lTop = rTop = 0;
+      current = -1;
+    });
+  });
+
+  // A new model (a fold opened, another whitespace mode) moves every anchor after it: the
+  // right pane is put back where the left one is.
+  $effect(() => {
+    void model;
+    void leftEl;
+    void rightEl;
+    untrack(() => {
+      if (mode === "split") sync("left");
+    });
   });
 
   // Lines are chosen by number in one diff: another file, or the same file on the other
@@ -510,7 +564,7 @@
     pendingDiscard = null;
     sideways = 0;
     flash = null;
-    if (scroller) scroller.scrollTop = 0;
+    for (const el of [unifiedEl, leftEl, rightEl]) if (el) el.scrollTop = 0;
   });
 
   $effect(() => () => clearTimeout(flashTimer));
@@ -542,80 +596,168 @@
       revealHit();
     });
   });
+
+  // --- what a row looks like ---
+
+  type Tone = "del" | "add" | "move" | "";
+
+  /** Colors go by meaning: red is what is gone, green what is new, violet what moved. */
+  function toneOf(kind: BlockKind, deleting: boolean): Tone {
+    return kind === "equal" ? "" : kind === "moved" ? "move" : deleting ? "del" : "add";
+  }
+
+  function paneLine(side: PaneSide, row: PaneLine) {
+    const block = model.blocks[row.block]!;
+    // An unchanged line quotes the old text on both sides; its twin has the other number.
+    const twin =
+      row.blockKind === "equal"
+        ? side === "left"
+          ? block.rightStart + row.line - block.leftStart
+          : block.leftStart + row.line - block.rightStart
+        : null;
+    return paneTokens(tokens, side, row.line, row.text, twin);
+  }
+
+  const captionsShown = $derived(captions ?? (diffStore.spec ? sideCaptions(diffStore.spec) : null));
 </script>
 
 <svelte:window onkeydowncapture={onkeydown} />
 
-
-{#snippet cellGutter(cell: SideCell | null)}
-  {@const key = cellKey(cell)}
+{#snippet gutterCell(key: string | null)}
   <span
     class="gutter"
     class:picked={key !== null && selected.has(key)}
     role="button"
     tabindex="-1"
-    onclick={() => pickCell(cell)}
-    onkeydown={(e) => e.key === "Enter" && pickCell(cell)}
+    onclick={() => pick(key)}
+    onkeydown={(e) => e.key === "Enter" && pick(key)}
     >{stageable && key !== null ? (selected.has(key) ? "■" : "□") : ""}</span
   >
 {/snippet}
 
-{#snippet blockActions(block: number)}
+{#snippet hunkActions(hunk: number)}
   {#if stageable}
     <span class="acts">
-      <button type="button" title="Select every changed line of this block" onclick={() => pickBlock(block)}
+      <button type="button" title="Select every changed line of this block" onclick={() => pickHunk(hunk)}
         >Select</button
       >
       <button
         type="button"
         title="Stage this block"
         disabled={!diffStore.lineActions.stage}
-        onclick={() => applyBlock(block, false)}>Stage</button
+        onclick={() => applyHunk(hunk, false)}>Stage</button
       >
       <button
         type="button"
         title="Unstage this block"
         disabled={!diffStore.lineActions.unstage}
-        onclick={() => applyBlock(block, true)}>Unstage</button
+        onclick={() => applyHunk(hunk, true)}>Unstage</button
       >
       <button
         type="button"
         class="danger"
         title="Throw this block away (always asks first)"
         disabled={!diffStore.lineActions.discard}
-        onclick={() => askDiscard(blockKeys(unified, block), "this block")}>Discard</button
+        onclick={() => askDiscard(hunkKeys(model, hunk), "this block")}>Discard</button
       >
     </span>
   {/if}
 {/snippet}
 
-{#snippet fold(gap: Gap, index: number)}
-  {@const below = blockBelow(index)}
+<!-- A fold takes one row of the same height as a line of code (R-626): the anchors of the
+     blocks after it stay on the row grid. Unified and the left pane carry the controls; the
+     right pane's strip carries the hunk's actions, where its header used to put them. -->
+{#snippet fold(gap: Gap, hunk: number | null, role: "both" | "left" | "right")}
   <div class="fold" role="group" aria-label="{gap.hidden} lines hidden">
-    {#if gap.up}
+    {#if role !== "right"}
+      {#if gap.up}
+        <button
+          type="button"
+          class="arrow"
+          title="Show 20 more lines above the change below (Ctrl+click: every hidden line)"
+          onclick={(event) => openGap(gap, "up", event)}>▲</button
+        >
+      {/if}
       <button
         type="button"
-        class="arrow"
-        title="Show 20 more lines above the change below (Ctrl+click: every hidden line)"
-        onclick={(event) => openGap(gap, "up", event)}>▲</button
+        class="count"
+        title="Show all {gap.hidden} hidden lines (Ctrl+click: every hidden line in the file)"
+        onclick={(event) => openGap(gap, "all", event)}>{gap.hidden} lines hidden · show</button
       >
+      {#if gap.down}
+        <button
+          type="button"
+          class="arrow"
+          title="Show 20 more lines below the change above (Ctrl+click: every hidden line)"
+          onclick={(event) => openGap(gap, "down", event)}>▼</button
+        >
+      {/if}
+      {#if gap.context}<span class="where truncate">{gap.context}</span>{/if}
     {/if}
-    <button
-      type="button"
-      class="count"
-      title="Show all {gap.hidden} hidden lines (Ctrl+click: every hidden line in the file)"
-      onclick={(event) => openGap(gap, "all", event)}>{gap.hidden} lines hidden · show</button
+    {#if role !== "left" && hunk !== null}{@render hunkActions(hunk)}{/if}
+  </div>
+{/snippet}
+
+{#snippet pane(side: PaneSide, rows: PaneRow[], range: { start: number; end: number })}
+  {#each rows.slice(range.start, range.end) as row, k (range.start + k)}
+    {@const index = range.start + k}
+    {#if row.kind === "gap"}
+      <div class="line" style:top="{index * ROW_HEIGHT}px">
+        {@render fold(row.gap, hunkBelow(rows, index), side)}
+      </div>
+    {:else}
+      {@const tone = toneOf(row.blockKind, side === "left")}
+      {@const picked = row.key !== null && selected.has(row.key)}
+      <div
+        class="line"
+        class:staging={stageable && picked}
+        class:marked={!stageable && picked}
+        class:flash={flashed(row)}
+        style:top="{index * ROW_HEIGHT}px"
+      >
+        {#if side === "left"}{@render gutterCell(row.key)}{/if}
+        <span class="num {tone}">{row.line}</span>
+        <span class="sign {tone}">{tone === "" ? "" : side === "left" ? "−" : "+"}</span>
+        <span class="code mono {tone}"
+          ><span class="text"
+            >{#each mergePieces(row.text, paneLine(side, row), row.inline, find.spansFor(index, side)) as piece, i (i)}<span
+                class={piece.cls}
+                class:word={piece.changed}
+                class:hit={piece.hit}
+                class:current={find.isCurrent(index, side, piece.start)}>{piece.text}</span
+              >{/each}</span
+          ></span
+        >
+        {#if side === "right"}{@render gutterCell(row.key)}{/if}
+      </div>
+    {/if}
+  {/each}
+{/snippet}
+
+{#snippet unifiedRow(row: UnifiedLine, index: number)}
+  {@const tone = toneOf(row.blockKind, row.type === "delete")}
+  {@const picked = row.key !== null && selected.has(row.key)}
+  <div
+    class="line"
+    class:staging={stageable && picked}
+    class:marked={!stageable && picked}
+    class:flash={flashed(row)}
+    style:top="{index * ROW_HEIGHT}px"
+  >
+    {@render gutterCell(row.key)}
+    <span class="num {tone}">{row.old ?? ""}</span>
+    <span class="num {tone}">{row.new ?? ""}</span>
+    <span class="sign {tone}">{row.type === "delete" ? "−" : row.type === "insert" ? "+" : ""}</span>
+    <span class="code mono {tone}"
+      ><span class="text"
+        >{#each mergePieces(row.text, unifiedTokens(tokens, row), row.inline, find.spansFor(index, "left")) as piece, i (i)}<span
+            class={piece.cls}
+            class:word={piece.changed}
+            class:hit={piece.hit}
+            class:current={find.isCurrent(index, "left", piece.start)}>{piece.text}</span
+          >{/each}</span
+      ></span
     >
-    {#if gap.down}
-      <button
-        type="button"
-        class="arrow"
-        title="Show 20 more lines below the change above (Ctrl+click: every hidden line)"
-        onclick={(event) => openGap(gap, "down", event)}>▼</button
-      >
-    {/if}
-    {#if gap.context}<span class="where truncate">{gap.context}</span>{/if}
-    {#if below !== null}{@render blockActions(below)}{/if}
   </div>
 {/snippet}
 
@@ -624,7 +766,11 @@
     {#if showPath}<span class="path mono truncate">{path}</span>{:else}<span class="grow"></span>{/if}
     {#if diff.kind === "text"}
       {@const eol = eolLabel(diff.eol, diff.oldTotal, diff.newTotal)}
-      <span class="eol" title={eol.title}>{eol.text}</span>
+      {#if eol.warn}
+        <span class="badge-warning" title={eol.title}>{eol.text}</span>
+      {:else}
+        <span class="eol" title={eol.title}>{eol.text}</span>
+      {/if}
       {#if diff.lossyEncoding}<span class="warn">not valid UTF-8</span>{/if}
       {#if diff.converted}<span class="warn" title="Shown converted; stage or discard the file whole">{diff.converted}</span>{/if}
       <button type="button" disabled={!nav.prev} onclick={() => jump(-1)} title="Previous change (Shift+F6)"
@@ -633,7 +779,7 @@
       <button type="button" disabled={!nav.next} onclick={() => jump(1)} title="Next change (F6)">▼</button>
       <button
         type="button"
-        class:active={find.showing}
+        aria-pressed={find.showing}
         title="Search the lines shown in this diff (Ctrl+F); open the folds to search the whole file"
         onclick={() => (find.showing ? find.close() : openFind())}>Find</button
       >
@@ -663,7 +809,7 @@
     {#if onwhitespace && (diff.kind === "text" || diff.kind === "whitespaceOnly")}
       <button
         type="button"
-        class:active={whitespace !== "none"}
+        aria-pressed={whitespace !== "none"}
         title="Off → trailing → all"
         onclick={() => onwhitespace(WHITESPACE_NEXT[whitespace])}
         >{WHITESPACE_LABEL[whitespace]}</button
@@ -683,19 +829,19 @@
       >
       <button
         type="button"
-        class:active={!diffStore.showMoves}
-        title="Show a moved block as an ordinary deletion plus addition"
+        aria-pressed={diffStore.showMoves}
+        title="Show a moved block as one move; off: as an ordinary deletion plus addition"
         onclick={() => diffStore.setShowMoves(!diffStore.showMoves)}
       >
-        {diffStore.showMoves ? "Moves" : "No moves"}
+        Moves
       </button>
       <button
         type="button"
-        class="mode"
+        aria-pressed={mode === "unified"}
         title={layoutTip(mode)}
         onclick={() => diffStore.setLayout(mode === "split" ? "unified" : "split")}
       >
-        {mode === "split" ? "Unified" : "Side by side"}
+        Unified
       </button>
     {/if}
   </div>
@@ -749,271 +895,137 @@
         ? "A repository nested inside this one, not a submodule: Git tracks none of its files. Add it as a submodule or ignore it."
         : "An untracked folder: Git tracks none of its files yet. Stage it to add them all, or ignore it."}
     </p>
-  {:else}
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="scroll" bind:this={scroller} {onscroll} {onwheel} onmouseleave={() => (hoverRow = null)}>
-      <div
-        class="rows"
-        style:height="{total * ROW_HEIGHT}px"
-        style:--shift="{shift}px"
-        style:--left-w="{Math.max(Math.round(left) - sideWidth, 0)}px"
-        bind:clientWidth={rowsWidth}
-      >
+  {:else if mode === "unified"}
+    <div class="scroll" bind:this={unifiedEl} onscroll={onunified} {onwheel}>
+      <div class="rows" style:height="{model.unified.length * ROW_HEIGHT}px" style:--shift="{shift}px">
         <div class="line ruler" aria-hidden="true">
           <span class="gutter"></span>
           <span class="num"></span>
-          {#if mode === "unified"}<span class="num"></span>{/if}
+          <span class="num"></span>
           <span class="sign" bind:offsetWidth={signWidth}></span>
-          <span class="code mono" class:side={mode === "split"} class:left={mode === "split"} bind:clientWidth={codeWidth}
+          <span class="code mono" bind:clientWidth={codeWidth}
             ><span class="probe" bind:offsetWidth={probeWidth}>{PROBE}</span></span
           >
-          {#if mode === "split"}
-            <span class="gap"></span>
-            <span class="num"></span>
-            <span class="sign"></span>
-            <span class="code mono side right" bind:clientWidth={rightWidth}></span>
-            <span class="gutter"></span>
-          {/if}
         </div>
-        {#if mode === "split"}
-          <!-- The band between the columns is the divider: drag it, or arrows while focused. -->
-          <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-          <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-          <div
-            class="divider"
-            class:dragging={dragShare !== null}
-            style:left="{Math.round(left)}px"
-            role="separator"
-            tabindex="0"
-            aria-label="Width of the old and the new side"
-            aria-orientation="vertical"
-            aria-valuenow={Math.round(share * 100)}
-            aria-valuemin={Math.round(SPLIT_MIN * 100)}
-            aria-valuemax={Math.round(SPLIT_MAX * 100)}
-            title="Drag to change the width of the two sides; double-click for an even split"
-            onpointerdown={ondividerdown}
-            onpointermove={ondividermove}
-            onpointerup={ondividerup}
-            onlostpointercapture={() => {
-              dragFrom = null;
-              dragShare = null;
-            }}
-            onkeydown={ondividerkey}
-            ondblclick={() => saveShare(SPLIT_EVEN)}
-          ></div>
-        {/if}
-        {#if mode === "split" && ribbons.length > 0}
-          <svg
-            class="band"
-            style:left="{Math.round(left)}px"
-            width={BAND_WIDTH}
-            height={total * ROW_HEIGHT}
-            aria-hidden="true"
-          >
-            <defs>
-              <pattern id="{uid}-moved" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-                <line x1="0" y1="0" x2="0" y2="5" class="hatch" />
-              </pattern>
-            </defs>
-            {#each ribbons as ribbon, i (i)}
-              <path
-                class="ribbon {ribbon.kind}"
-                class:moved={ribbon.moved}
-                style:fill={ribbon.moved ? `url(#${uid}-moved)` : undefined}
-                d={ribbonPath(ribbon, ROW_HEIGHT)}
-              />
-              <path
-                class="edge {ribbon.kind}"
-                class:moved={ribbon.moved}
-                d={ribbonEdges(ribbon, ROW_HEIGHT)}
-              />
-            {/each}
-          </svg>
-          <div class="band-ui" style:left="{Math.round(left)}px" style:height="{total * ROW_HEIGHT}px">
-            {#each ribbons as ribbon, i (i)}
-              {@const keys = ribbon.moved ? null : ribbonKeys(connectorRows, ribbon)}
-              {#if keys && keys.deletes.size > 0 && bandActions}
-                <button
-                  type="button"
-                  class="bandact del"
-                  style:top="{ribbon.fromTop * ROW_HEIGHT}px"
-                  title={bandActions === "discard"
-                    ? "Restore these deleted lines in the working tree (asks first)"
-                    : "Unstage the deletion of these lines"}
-                  onclick={() => bandAct(keys.deletes, "the deletion of these lines")}>»</button
-                >
-              {/if}
-              {#if keys && keys.inserts.size > 0 && bandActions}
-                <button
-                  type="button"
-                  class="bandact add"
-                  style:top="{ribbon.toTop * ROW_HEIGHT}px"
-                  title={bandActions === "discard"
-                    ? "Remove these added lines from the working tree (asks first)"
-                    : "Unstage these added lines"}
-                  onclick={() => bandAct(keys.inserts, "these added lines")}>✕</button
-                >
-              {/if}
-            {/each}
+        {#each model.unified.slice(unifiedRange.start, unifiedRange.end) as row, k (unifiedRange.start + k)}
+          {@const index = unifiedRange.start + k}
+          {#if row.kind === "gap"}
+            <div class="line" style:top="{index * ROW_HEIGHT}px">
+              {@render fold(row.gap, hunkBelow(model.unified, index), "both")}
+            </div>
+          {:else}
+            {@render unifiedRow(row, index)}
+          {/if}
+        {/each}
+      </div>
+    </div>
+    <SidewaysScrollbar offset={shift} max={sidewaysMax} onscroll={(offset) => (sideways = offset)} />
+  {:else}
+    {#if captionsShown}
+      <div class="captions">
+        <span class="caption" style:flex-basis="{Math.round(left)}px" title={captionsShown.left}
+          >{captionsShown.left}</span
+        >
+        <span class="caption-gap"></span>
+        <span class="caption grow" title={captionsShown.right}>{captionsShown.right}</span>
+      </div>
+    {/if}
+    <div class="panes" style:--shift="{shift}px" bind:clientWidth={rowsWidth}>
+      <div
+        class="pane left"
+        style:flex-basis="{Math.round(left)}px"
+        bind:this={leftEl}
+        onscroll={() => onpane("left")}
+        {onwheel}
+      >
+        <div class="rows" style:height="{model.left.length * ROW_HEIGHT}px">
+          <div class="line ruler" aria-hidden="true">
+            <span class="gutter"></span>
+            <span class="num"></span>
+            <span class="sign" bind:offsetWidth={signWidth}></span>
+            <span class="code mono" bind:clientWidth={codeWidth}
+              ><span class="probe" bind:offsetWidth={probeWidth}>{PROBE}</span></span
+            >
           </div>
-        {/if}
-        {#if mode === "unified"}
-          {#each unified.slice(range.start, range.end) as entry, index (range.start + index)}
-            {@const rowIndex = range.start + index}
-            {#if entry.kind === "gap"}
-              <div class="line" style:top="{rowIndex * ROW_HEIGHT}px">
-                {@render fold(entry.gap, rowIndex)}
-              </div>
-            {:else}
-              {@const key = lineKey(entry.row)}
-              <!-- svelte-ignore a11y_no_static_element_interactions -->
-              <div
-                class="line"
-                class:staging={stageable && key !== null && selected.has(key)}
-                class:flash={flashed(rowIndex)}
-                class:marked={!stageable && key !== null && selected.has(key)}
-                style:top="{rowIndex * ROW_HEIGHT}px"
-                onmouseenter={() => (hoverRow = rowIndex)}
-              >
-                {#if entry.row.kind === "context"}
-                  <span class="gutter"></span>
-                  <span class="num">{entry.row.old}</span>
-                  <span class="num">{entry.row.new}</span>
-                  <span class="sign"></span>
-                  <span class="code mono"
-                    ><span class="text"
-                      >{#each mergePieces(entry.row.text, tokensFor(entry.row), [], find.spansFor(rowIndex, "left")) as piece, i (i)}<span
-                          class={piece.cls}
-                          class:hit={piece.hit}
-                          class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
-                        >{/each}</span
-                    ></span
-                  >
-                {:else if entry.row.kind === "delete"}
-                  {@const row = entry.row}
-                  <span
-                    class="gutter"
-                    class:picked={selected.has("d:" + row.old)}
-                    role="button"
-                    tabindex="-1"
-                    onclick={() => pick(row)}
-                    onkeydown={(e) => e.key === "Enter" && pick(row)}
-                    >{stageable ? (selected.has("d:" + row.old) ? "■" : "□") : ""}</span
-                  >
-                  <span class="num">{row.old}</span>
-                  <span class="num"></span>
-                  <span class="sign del" class:moved={row.moved}>−</span>
-                  <span class="code mono del" class:moved={row.moved}
-                    ><span class="text"
-                      >{#each mergePieces(row.text, tokensFor(row), row.inline, find.spansFor(rowIndex, "left")) as piece, i (i)}<span
-                          class="{piece.cls}"
-                          class:word={piece.changed}
-                          class:hit={piece.hit}
-                          class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
-                        >{/each}</span
-                    ></span
-                  >
-                {:else if entry.row.kind === "insert"}
-                  {@const row = entry.row}
-                  <span
-                    class="gutter"
-                    class:picked={selected.has("i:" + row.new)}
-                    role="button"
-                    tabindex="-1"
-                    onclick={() => pick(row)}
-                    onkeydown={(e) => e.key === "Enter" && pick(row)}
-                    >{stageable ? (selected.has("i:" + row.new) ? "■" : "□") : ""}</span
-                  >
-                  <span class="num"></span>
-                  <span class="num">{row.new}</span>
-                  <span class="sign add" class:moved={row.moved}>+</span>
-                  <span class="code mono add" class:moved={row.moved}
-                    ><span class="text"
-                      >{#each mergePieces(row.text, tokensFor(row), row.inline, find.spansFor(rowIndex, "left")) as piece, i (i)}<span
-                          class="{piece.cls}"
-                          class:word={piece.changed}
-                          class:hit={piece.hit}
-                          class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
-                        >{/each}</span
-                    ></span
+          {@render pane("left", model.left, leftRange)}
+        </div>
+      </div>
+      <!-- The band between the panes is the divider (drag it, or arrows while focused), the
+           connectors of the blocks are drawn over it, and one action set per block over those. -->
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="band" onwheel={onbandwheel}>
+        <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+        <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+        <div
+          class="divider"
+          class:dragging={dragShare !== null}
+          role="separator"
+          tabindex="0"
+          aria-label="Width of the old and the new side"
+          aria-orientation="vertical"
+          aria-valuenow={Math.round(share * 100)}
+          aria-valuemin={Math.round(SPLIT_MIN * 100)}
+          aria-valuemax={Math.round(SPLIT_MAX * 100)}
+          title="Drag to change the width of the two sides; double-click for an even split"
+          onpointerdown={ondividerdown}
+          onpointermove={ondividermove}
+          onpointerup={ondividerup}
+          onlostpointercapture={() => {
+            dragFrom = null;
+            dragShare = null;
+          }}
+          onkeydown={ondividerkey}
+          ondblclick={() => saveShare(SPLIT_EVEN)}
+        ></div>
+        <svg class="connectors" width={BAND_WIDTH} height={viewportHeight} aria-hidden="true">
+          {#each links as link (link.block + ":" + link.kind + ":" + link.moveId)}
+            <path class="fill {link.kind}" d={link.path} />
+          {/each}
+          <!-- Outlines after every fill, so a neighbor's fill never covers them. -->
+          {#each links as link (link.block + ":" + link.kind + ":" + link.moveId)}
+            <path class="edge {link.kind}" d={link.edges} />
+          {/each}
+        </svg>
+        <div class="band-ui">
+          {#each links as link (link.block + ":" + link.kind + ":" + link.moveId)}
+            {@const block = model.blocks[link.block]!}
+            {#if link.kind !== "moved" && bandActions && (block.keys.deletes.length > 0 || block.keys.inserts.length > 0)}
+              <div class="bandacts" style:left="{link.anchor.x}px" style:top="{link.anchor.y}px">
+                {#if block.keys.deletes.length > 0}
+                  <button
+                    type="button"
+                    class="bandact"
+                    title={bandActions === "discard"
+                      ? "Restore these deleted lines in the working tree (asks first)"
+                      : "Unstage the deletion of these lines"}
+                    onclick={() => bandAct(block.keys.deletes, "the deletion of these lines")}>»</button
                   >
                 {/if}
-                {#if hoverRow === rowIndex}{@render blockActions(entry.block)}{/if}
+                {#if block.keys.inserts.length > 0}
+                  <button
+                    type="button"
+                    class="bandact"
+                    title={bandActions === "discard"
+                      ? "Remove these added lines from the working tree (asks first)"
+                      : "Unstage these added lines"}
+                    onclick={() => bandAct(block.keys.inserts, "these added lines")}>×</button
+                  >
+                {/if}
               </div>
             {/if}
           {/each}
-        {:else}
-          {#each split.slice(range.start, range.end) as entry, index (range.start + index)}
-            {@const rowIndex = range.start + index}
-            {#if entry.kind === "gap"}
-              <div class="line" style:top="{rowIndex * ROW_HEIGHT}px">
-                {@render fold(entry.gap, rowIndex)}
-              </div>
-            {:else}
-              {@const picked = pairPicked(entry.pair, selected)}
-              <!-- svelte-ignore a11y_no_static_element_interactions -->
-              <div
-                class="line"
-                class:staging={stageable && picked}
-                class:flash={flashed(rowIndex)}
-                class:marked={!stageable && picked}
-                style:top="{rowIndex * ROW_HEIGHT}px"
-                onmouseenter={() => (hoverRow = rowIndex)}
-              >
-                {@render cellGutter(entry.pair.left)}
-                <span class="num">{entry.pair.left?.line ?? ""}</span>
-                <span
-                  class="sign"
-                  class:del={entry.pair.left?.kind === "delete"}
-                  class:mod={entry.pair.left?.modified}
-                  class:empty={!entry.pair.left}
-                  class:moved={entry.pair.left?.moved}>{sign(entry.pair.left)}</span
-                >
-                <span
-                  class="code mono side left"
-                  class:del={entry.pair.left?.kind === "delete"}
-                  class:mod={entry.pair.left?.modified}
-                  class:empty={!entry.pair.left}
-                  class:moved={entry.pair.left?.moved}
-                  ><span class="text"
-                    >{#each cells(entry.pair, rowIndex, "left") as piece, i (i)}<span
-                        class="{piece.cls}"
-                        class:word={piece.changed}
-                        class:hit={piece.hit}
-                        class:current={find.isCurrent(rowIndex, "left", piece.start)}>{piece.text}</span
-                      >{/each}</span
-                  ></span
-                >
-                <span class="gap"></span>
-                <span class="num">{entry.pair.right?.line ?? ""}</span>
-                <span
-                  class="sign"
-                  class:add={entry.pair.right?.kind === "insert"}
-                  class:mod={entry.pair.right?.modified}
-                  class:empty={!entry.pair.right}
-                  class:moved={entry.pair.right?.moved}>{sign(entry.pair.right)}</span
-                >
-                <span
-                  class="code mono side right"
-                  class:add={entry.pair.right?.kind === "insert"}
-                  class:mod={entry.pair.right?.modified}
-                  class:empty={!entry.pair.right}
-                  class:moved={entry.pair.right?.moved}
-                  ><span class="text"
-                    >{#each cells(entry.pair, rowIndex, "right") as piece, i (i)}<span
-                        class="{piece.cls}"
-                        class:word={piece.changed}
-                        class:hit={piece.hit}
-                        class:current={find.isCurrent(rowIndex, "right", piece.start)}>{piece.text}</span
-                      >{/each}</span
-                  ></span
-                >
-                {@render cellGutter(entry.pair.right)}
-                {#if hoverRow === rowIndex}{@render blockActions(entry.block)}{/if}
-              </div>
-            {/if}
-          {/each}
-        {/if}
+        </div>
+      </div>
+      <div class="pane right" bind:this={rightEl} onscroll={() => onpane("right")} {onwheel}>
+        <div class="rows" style:height="{model.right.length * ROW_HEIGHT}px">
+          <div class="line ruler" aria-hidden="true">
+            <span class="num"></span>
+            <span class="sign"></span>
+            <span class="code mono" bind:clientWidth={rightWidth}></span>
+            <span class="gutter"></span>
+          </div>
+          {@render pane("right", model.right, rightRange)}
+        </div>
       </div>
     </div>
     <SidewaysScrollbar offset={shift} max={sidewaysMax} onscroll={(offset) => (sideways = offset)} />
@@ -1036,8 +1048,8 @@
     flex: 0 0 auto;
     min-height: 32px;
     padding: var(--sp-2) var(--sp-4);
-    background: var(--surface-raised);
-    border-bottom: 1px solid var(--divider);
+    background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border);
     font-size: var(--fs-dense);
   }
 
@@ -1047,33 +1059,39 @@
   }
 
   .eol {
-    color: var(--text-secondary);
+    color: var(--fg-secondary);
     font-size: 11px;
   }
 
+  /* A change that needs a word of explanation, not a control: the tooltip says what it is. */
+  .badge-warning {
+    padding: 0 var(--sp-3);
+    background: var(--badge-warning-bg);
+    color: var(--badge-warning-fg);
+    border-radius: var(--r-sm);
+    font-size: 11px;
+    line-height: 16px;
+    cursor: default;
+  }
+
   .warn {
-    color: var(--status-modify);
+    color: var(--status-warning);
     font-size: 11px;
   }
 
   .bar button {
     height: var(--h-button-sm);
     padding: 0 var(--sp-3);
-    background: var(--surface-input);
-    color: var(--text-primary);
-    border: 1px solid var(--field-border);
+    background: var(--bg-input);
+    color: var(--fg-primary);
+    border: 1px solid var(--border-strong);
     border-radius: var(--r-sm);
     font-size: var(--fs-dense);
     cursor: default;
   }
 
-  .bar button.active {
-    color: var(--status-modify);
-    border-color: var(--status-modify);
-  }
-
   .bar button:hover:not(:disabled) {
-    background: var(--state-hover);
+    background: var(--bg-hover);
   }
 
   /* 06 §6: a control that cannot act says so, and does not light up under the pointer. */
@@ -1082,17 +1100,79 @@
     opacity: 0.4;
   }
 
-  /* Sideways the code moves by `--shift`, under the scrollbar below the rows (R-470). */
+  /* Unified: one scroller. Sideways the code moves by `--shift`, under the scrollbar below
+     the rows (R-470). */
   .scroll {
     position: relative;
     flex: 1 1 auto;
     min-height: 0;
     overflow-x: hidden;
     overflow-y: auto;
+    background: var(--bg-editor);
   }
 
   .rows {
     position: relative;
+  }
+
+  /* The name of what each pane holds, above it: the panes' own widths, so each sits over its pane. */
+  .captions {
+    display: flex;
+    flex: 0 0 auto;
+    height: 22px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    color: var(--fg-secondary);
+    font-size: var(--fs-header);
+    line-height: 21px;
+  }
+
+  .caption {
+    flex: 0 0 auto;
+    min-width: 0;
+    padding: 0 var(--sp-4);
+    box-sizing: border-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+  }
+
+  .caption.grow {
+    flex: 1 1 0;
+  }
+
+  .caption-gap {
+    flex: 0 0 42px;
+    border-inline: 1px solid var(--border);
+  }
+
+  /* Side by side: two scrollers, kept level by `diff-sync`. Only the right one shows its bar. */
+  .panes {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    background: var(--bg-editor);
+  }
+
+  .pane {
+    min-width: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .pane.left {
+    flex: 0 0 auto;
+    scrollbar-width: none;
+  }
+
+  .pane.left::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pane.right {
+    flex: 1 1 0;
   }
 
   .line {
@@ -1110,26 +1190,35 @@
   .gutter {
     flex: 0 0 auto;
     width: 14px;
-    color: var(--text-secondary);
+    color: var(--fg-secondary);
     font-size: 9px;
     text-align: center;
     cursor: default;
   }
 
   .gutter.picked {
-    color: var(--status-add);
+    color: var(--status-success);
   }
 
-  /* What the next Stage or Unstage will act on, marked on the row and not just in the
-     14-pixel gutter, so the user can see the extent of it at a glance (T6.7). */
+  /* What the next Stage or Unstage will act on: the selected-row look, on the row and not
+     just in the 14-pixel gutter, so the extent of it reads at a glance (T6.7). */
   .line.staging {
-    background: var(--c-add-soft);
-    box-shadow: inset 2px 0 0 var(--status-add);
+    box-shadow: inset 2px 0 0 var(--selected-bar);
+  }
+
+  .line.staging .gutter,
+  .line.staging .num {
+    background: var(--bg-selected);
   }
 
   /* A read-only diff can still be selected, for Investigate; it just stages nothing. */
   .line.marked {
-    box-shadow: inset 2px 0 0 var(--status-ref);
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
+
+  .line.marked .gutter,
+  .line.marked .num {
+    background: var(--bg-selected-inactive);
   }
 
   /* Over the row's own fills, fading out in `FLASH_MS`; with reduced motion it just stays
@@ -1166,22 +1255,12 @@
     padding-right: var(--sp-3);
   }
 
-  /* On a code row the buttons float over the end of the line instead of pushing it. */
-  .line > .acts {
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    padding-left: var(--sp-3);
-    background: var(--surface-panel);
-  }
-
   .acts button {
     height: 14px;
     padding: 0 var(--sp-2);
-    background: var(--surface-input);
-    color: var(--text-secondary);
-    border: 1px solid var(--field-border);
+    background: var(--bg-input);
+    color: var(--fg-secondary);
+    border: 1px solid var(--border-strong);
     border-radius: var(--r-sm);
     font-size: 9px;
     line-height: 12px;
@@ -1189,22 +1268,23 @@
   }
 
   .acts button:hover:not(:disabled) {
-    color: var(--text-primary);
+    color: var(--fg-primary);
   }
 
   button.danger {
-    color: var(--status-delete);
+    color: var(--status-danger);
   }
 
   button.danger:hover {
-    border-color: var(--status-delete);
+    border-color: var(--status-danger);
   }
+
   .grow {
     flex: 1 1 auto;
   }
 
   .picked {
-    color: var(--status-add);
+    color: var(--status-success);
     font-size: 10px;
   }
 
@@ -1212,7 +1292,7 @@
     flex: 0 0 auto;
     width: 44px;
     padding-right: var(--sp-3);
-    color: var(--text-secondary);
+    color: var(--diff-line-number);
     font-family: var(--font-mono);
     font-size: 10px;
     text-align: right;
@@ -1224,6 +1304,7 @@
     min-width: 0;
     overflow: hidden;
     user-select: text;
+    color: var(--fg-primary);
   }
 
   /* One offset for every column: side by side, both halves move together. */
@@ -1250,84 +1331,55 @@
     width: 3.5ch;
     padding-left: 0.5ch;
     box-sizing: border-box;
-    color: var(--text-secondary);
+    color: var(--fg-secondary);
     font-family: var(--font-mono);
     font-size: var(--fs-code);
     user-select: none;
   }
 
+  /* Red is what is gone, green what is new, violet what moved: by the block's meaning, the
+     same on both layouts. Numbers and signs sit on the gutter shade of their line. */
+  .num.del,
   .sign.del {
-    background: var(--c-deleted-bg);
-    color: var(--status-delete);
+    background: var(--diff-del-gutter);
   }
 
+  .num.add,
   .sign.add {
-    background: var(--c-added-bg);
-    color: var(--status-add);
+    background: var(--diff-add-gutter);
   }
 
-  /* A rewritten line is yellow on both sides; after `del`/`add` so it wins, before `moved`. */
-  .sign.mod {
-    background: var(--c-modified-bg);
-    color: var(--status-modify);
+  .num.move,
+  .sign.move {
+    background: var(--diff-move-line);
   }
 
-  .sign.moved {
-    background: var(--c-moved-bg);
-    color: var(--status-move);
+  .code.del {
+    background: var(--diff-del-line);
   }
 
-  /* The left column is a whole number of pixels (the band, divider and gap are placed at
-     the same rounded edge), the right one takes what is left: at 125% or 150% scaling a
-     fractional share left a seam between the band and the code. */
-  .side.left {
-    flex: 0 0 var(--left-w, 50%);
+  .code.add {
+    background: var(--diff-add-line);
   }
 
-  .side.right {
-    flex: 1 1 0;
+  .code.move {
+    background: var(--diff-move-line);
   }
 
-  /* A fixed 18 px tile anchored to each cell's top-left: rows are 18 px, so stripes join
-     across rows, and the pattern never depends on the cell's size. */
-  .sign.empty,
-  .code.empty {
-    background: linear-gradient(
-      -45deg,
-      var(--diff-filler) 0 8%,
-      transparent 8% 50%,
-      var(--diff-filler) 50% 58%,
-      transparent 58%
-    );
-    background-size: 18px 18px;
-  }
-
-  /* From the sign column's edge, so the stripes do not break where the code column starts. */
-  .code.empty {
-    background-position: -3.5ch 0;
-  }
-
-  /* Reserves the strip the ribbons are drawn over. Width must match `BAND_WIDTH`. */
-  .gap {
-    flex: 0 0 42px;
-    background: var(--surface-panel);
-  }
-
+  /* The band: the divider, the connectors over it, the buttons over those. Its width must
+     match `BAND_WIDTH`. */
   .band {
-    position: absolute;
-    top: 0;
-    z-index: 2;
-    pointer-events: none;
+    position: relative;
+    flex: 0 0 42px;
+    background: var(--diff-center-gutter-bg);
   }
 
-  /* The panel divider's look (R-500): a hairline that lights under the pointer. Here the
-     whole band is the grab zone, above the rows, and the ribbons are drawn over the line. */
+  /* The panel divider's look (R-500): a hairline that lights under the pointer. The whole
+     band is the grab zone. */
   .divider {
     position: absolute;
-    top: 0;
-    bottom: 0;
+    inset: 0;
     z-index: 1;
-    width: 42px;
     cursor: col-resize;
     outline: none;
   }
@@ -1348,171 +1400,100 @@
     background: var(--splitter-active);
   }
 
-  /* The band carries each row's own fill across (R-532); a changed pair fades from one
-     side's to the other's. */
-  .ribbon {
+  .connectors {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  .fill {
+    fill: var(--diff-connector-fill);
     stroke: none;
   }
 
-  .ribbon.delete {
-    fill: var(--c-deleted-bg);
-  }
-
-  .ribbon.insert {
-    fill: var(--c-added-bg);
-  }
-
-  .ribbon.change {
-    fill: var(--c-modified-bg);
-  }
-
-  /* The outline is opaque (blended into the panel, not alpha): a translucent stroke over
-     the fill's anti-aliased edge left a light fringe that read as white dots. */
-  .band {
-    --edge-deleted: color-mix(in srgb, var(--c-deleted) 55%, var(--surface-panel));
-    --edge-added: color-mix(in srgb, var(--c-added) 55%, var(--surface-panel));
-    --edge-modified: color-mix(in srgb, var(--c-modified) 55%, var(--surface-panel));
-    --edge-moved: color-mix(in srgb, var(--status-move) 70%, var(--surface-panel));
-  }
-
-  /* The two curves only; the sides sit on the columns' own edges. */
+  /* The outline: one pixel, the two curves only; the sides sit on the panes' own edges. */
   .edge {
     fill: none;
+    stroke: var(--diff-connector-stroke);
     stroke-width: 1;
     stroke-linecap: butt;
+    shape-rendering: geometricPrecision;
   }
 
-  .edge.delete {
-    stroke: var(--edge-deleted);
+  /* A move goes somewhere else in the file: it keeps the violet of its lines. */
+  .fill.moved {
+    fill: var(--diff-move-line);
   }
 
-  .edge.insert {
-    stroke: var(--edge-added);
-  }
-
-  .edge.change {
-    stroke: var(--edge-modified);
+  .edge.moved {
+    stroke: var(--diff-move-word);
   }
 
   .band-ui {
     position: absolute;
-    top: 0;
+    inset: 0;
     z-index: 3;
-    width: 42px;
     pointer-events: none;
   }
 
-  .bandact {
+  /* One set per block, centred on the gutter and on the part of its connector on screen. */
+  .bandacts {
     position: absolute;
-    height: 18px;
-    width: 14px;
-    line-height: 18px;
-    text-align: center;
-    font-size: 10px;
-    font-weight: 700;
+    display: flex;
+    transform: translate(-50%, -50%);
   }
 
   .bandact {
+    width: 14px;
+    height: 18px;
     padding: 0;
     border: 0;
     background: transparent;
+    color: var(--diff-center-gutter-action);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
     pointer-events: auto;
     cursor: pointer;
-    font-size: 12px;
-  }
-
-  .bandact.del {
-    left: 0;
-    color: var(--status-delete);
-  }
-
-  .bandact.add {
-    left: 28px;
-    color: var(--status-add);
   }
 
   .bandact:hover {
-    background: var(--c-neutral-soft);
-  }
-
-  /* A move goes somewhere else in the file: a hatched blue band with solid blue edges,
-     so it never reads as a plain fill like add/delete. */
-  .edge.moved {
-    stroke: var(--edge-moved);
-  }
-
-  .hatch {
-    stroke: var(--status-move);
-    stroke-opacity: 0.35;
-    stroke-width: 1;
+    color: var(--diff-center-gutter-action-hover);
   }
 
   .word {
     border-radius: 2px;
-    background: var(--c-neutral-soft);
     font-weight: 600;
   }
 
   /* The changed word is marked over the syntax colour, never instead of it (R-530). */
   .code.del .word {
-    background: color-mix(in srgb, var(--c-deleted) 45%, transparent);
+    background: var(--diff-del-word);
   }
 
   .code.add .word {
-    background: color-mix(in srgb, var(--c-added) 45%, transparent);
+    background: var(--diff-add-word);
   }
 
-  .code.del .word:not([class*="tok-"]),
-  .code.add .word:not([class*="tok-"]) {
-    color: var(--text-primary);
+  .code.move .word {
+    background: var(--diff-move-word);
   }
 
   /* Every match is marked; the one the counter points at is the bright one. */
   .hit {
     border-radius: 2px;
-    background: var(--c-search-hit);
+    background: var(--search-hit);
   }
 
   .hit.current {
-    background: var(--c-search-current);
-    color: var(--c-search-ink);
+    background: var(--search-current);
+    color: var(--search-ink);
   }
 
-  .code.del {
-    background: var(--c-deleted-bg);
-    color: var(--status-delete);
-  }
-
-  .code.add {
-    background: var(--c-added-bg);
-    color: var(--status-add);
-  }
-
-  .code.mod {
-    background: var(--c-modified-bg);
-    color: var(--status-modify);
-  }
-
-  .code.mod .word {
-    background: color-mix(in srgb, var(--c-modified) 45%, transparent);
-  }
-
-  .code.mod .word:not([class*="tok-"]) {
-    color: var(--text-primary);
-  }
-
-  /* A moved block is one fact, not a deletion plus an addition (T7.9). A moved row is
-     `del` or `add` as well, so this comes after them and wins at the same specificity. */
-  .code.moved {
-    background: var(--c-moved-bg);
-    color: var(--status-move);
-  }
-
-  .code.moved .word {
-    background: color-mix(in srgb, var(--status-move) 30%, transparent);
-  }
-
-  /* Where @@ used to be: one band across both halves, saying what is hidden (#16). */
+  /* One band in each pane, saying what is hidden (#16). */
   .fold {
     display: flex;
     align-items: center;
@@ -1520,11 +1501,11 @@
     flex: 1 1 auto;
     min-width: 0;
     padding-left: var(--sp-4);
-    background: var(--surface-raised);
+    background: var(--diff-hunk-header-bg);
     box-shadow:
-      inset 0 1px 0 var(--divider),
-      inset 0 -1px 0 var(--divider);
-    color: var(--text-secondary);
+      inset 0 1px 0 var(--border),
+      inset 0 -1px 0 var(--border);
+    color: var(--diff-hunk-header-fg);
     font-family: var(--font-ui);
     font-size: var(--fs-header);
   }
@@ -1536,15 +1517,15 @@
     background: none;
     border: 0;
     border-radius: var(--r-sm);
-    color: var(--text-secondary);
+    color: var(--diff-hunk-header-fg);
     font: inherit;
     line-height: 14px;
     cursor: default;
   }
 
   .fold > button:hover {
-    background: var(--state-hover);
-    color: var(--text-primary);
+    background: var(--bg-hover);
+    color: var(--fg-primary);
   }
 
   .fold .arrow {
@@ -1554,27 +1535,18 @@
   .where {
     min-width: 0;
     margin-left: var(--sp-3);
-    color: var(--text-secondary);
+    color: var(--diff-hunk-header-fg);
     font-family: var(--font-mono);
-    opacity: 0.8;
-  }
-
-  /* What `git diff` prints under the line; here at its end, and never copied with it. */
-  .eof {
-    margin-left: 1ch;
-    color: var(--text-secondary);
-    font-style: italic;
-    user-select: none;
   }
 
   .message.warn {
-    color: var(--status-modify);
+    color: var(--status-warning);
   }
 
   .message {
     margin: 0;
     padding: var(--sp-5);
     font-size: var(--fs-dense);
-    color: var(--text-secondary);
+    color: var(--fg-secondary);
   }
 </style>

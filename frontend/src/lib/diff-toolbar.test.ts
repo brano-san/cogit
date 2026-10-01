@@ -7,10 +7,19 @@ function eol(old: EolInfo["old"], next: EolInfo["new"]): EolInfo {
 }
 
 describe("eolLabel (#17)", () => {
+  it("warns, and explains, only when both sides exist and the endings differ", () => {
+    const changed = eolLabel(eol("lf", "crlf"), 10, 10);
+    expect(changed.warn).toBe(true);
+    expect(changed.title).toMatch(/line endings of this file change/);
+    expect(eolLabel(eol("lf", "lf"), 10, 10).warn).toBe(false);
+    expect(eolLabel(eol("none", "crlf"), 0, 10).warn).toBe(false);
+  });
+
   it("names both sides in capitals", () => {
     expect(eolLabel(eol("lf", "lf"), 10, 11)).toEqual({
       text: "LF → LF",
       title: "Line endings: LF → LF",
+      warn: false,
     });
     expect(eolLabel(eol("crlf", "lf"), 10, 11).text).toBe("CRLF → LF");
   });
@@ -19,6 +28,7 @@ describe("eolLabel (#17)", () => {
     expect(eolLabel(eol("none", "lf"), 0, 12)).toEqual({
       text: "LF",
       title: "Line endings: LF",
+      warn: false,
     });
   });
 
@@ -26,6 +36,7 @@ describe("eolLabel (#17)", () => {
     expect(eolLabel(eol("crlf", "none"), 12, 0)).toEqual({
       text: "CRLF",
       title: "Line endings: CRLF",
+      warn: false,
     });
   });
 

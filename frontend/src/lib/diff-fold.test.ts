@@ -1,15 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { DiffRow, Hunk } from "./ipc/bindings";
 import {
-  blockKeys,
   changeAt,
-  changeEnd,
-  changeStarts,
   foldDiff,
   highlightedRows,
   navState,
   revealRange,
-  splitRows,
   type FoldEntry,
   type Gap,
 } from "./diff-fold";
@@ -243,46 +239,7 @@ describe("revealRange", () => {
   });
 });
 
-describe("splitRows", () => {
-  it("pairs each block on its own and keeps the gaps full width", () => {
-    const first = hunk([...context(1, 3), d(4), i(4), ...context(5, 7)]);
-    const second = hunk([...context(20, 22), d(23), ...context(24, 26, -1)]);
-    const entries = foldDiff({ ...BASE, hunks: [first, second], oldTotal: 26, newTotal: 25 });
-
-    const split = splitRows(entries);
-
-    expect(split.map((e) => (e.kind === "gap" ? "gap" : e.block))).toEqual([
-      0, 0, 0, 0, 0, 0, 0, "gap", 1, 1, 1, 1, 1, 1, 1,
-    ]);
-    const changed = split.find((e) => e.kind === "pair" && e.pair.left?.kind === "delete");
-    expect(changed?.kind === "pair" && changed.pair.right?.kind).toBe("insert");
-  });
-});
-
-describe("blockKeys", () => {
-  it("collects the changed lines of one block for its Stage, Unstage and Discard", () => {
-    const first = hunk([...context(1, 3), d(4), i(4), ...context(5, 7)]);
-    const second = hunk([...context(20, 22), d(23), ...context(24, 26, -1)]);
-    const entries = foldDiff({ ...BASE, hunks: [first, second], oldTotal: 26, newTotal: 25 });
-
-    expect(blockKeys(entries, 0)).toEqual(new Set(["d:4", "i:4"]));
-    expect(blockKeys(entries, 1)).toEqual(new Set(["d:23"]));
-  });
-});
-
 describe("change navigation (#13)", () => {
-  it("finds where each run of changed rows starts", () => {
-    expect(changeStarts([false, true, true, false, false, true, false, true])).toEqual([1, 5, 7]);
-  });
-
-  it("finds where the change a jump lands on ends, for its flash", () => {
-    const changed = [false, true, true, false, false, true, false, true];
-    expect(changeEnd(changed, 1)).toBe(3);
-    expect(changeEnd(changed, 5)).toBe(6);
-    expect(changeEnd(changed, 7)).toBe(8);
-    expect(changeEnd(changed, 3)).toBe(3);
-  });
-
   it("is on the last change at or above the anchor row", () => {
     expect(changeAt([4, 30, 80], 27, 60, 3)).toBe(1);
     expect(changeAt([4, 30, 80], 26, 60, 3)).toBe(0);
