@@ -325,3 +325,61 @@ dpkg-deb -c target/release/bundle/deb/*.deb | grep -E 'applications|icons'
 ```
 
 У AppImage в Tauri 2 опции `desktopTemplate` нет: внутри лежит стандартная запись (`Icon=cogit`, `Exec=cogit`, без `StartupWMClass`), класс окна `cogit` совпадает с её именем и `Exec`. Для WSLg его запускают как portable: `--install-desktop-entry` ставит запись с `Exec`, равным `$APPIMAGE` (сам файл образа, а не временная точка монтирования).
+
+## 11. Portable-сборка (feature `portable`)
+
+Portable — отдельная сборка того же кода, а не режим, который приложение определяет на лету: в `src-tauri/Cargo.toml` есть cargo-feature `portable` (по умолчанию выключен). Бинарник, собранный с ним, **знает**, что он portable; установщики и пакеты (NSIS, MSI, deb) собираются без feature и ведут себя как раньше. Ни маркерного файла, ни переменной окружения, ни флага командной строки нет. Сборка: `npm run tauri build -- --no-bundle --features portable` (CLI Tauri v2: `-f, --features`).
+
+| Платформа | Артефакт | Как собирается (`release.yml`) |
+|---|---|---|
+| Windows | `Cogit_<версия>_x64_portable.zip`: `Cogit/cogit.exe`, `LICENSE`, `README.txt` | первым шагом, `--no-bundle --features portable`; потом установщики **без** feature (cargo пересобирает `cogit`, так и задумано) |
+| Linux | `Cogit_<версия>_amd64.AppImage` | вторая сборка на Linux-раннере: после `--bundles deb` идёт `--bundles appimage --features portable --config plain` (без артефактов апдейтера, поэтому `latest.json` больше не содержит запись `linux-x86_64`) |
+
+### Где лежат данные
+
+Корень данных — папка **`Cogit-data`** рядом с бинарником (`crates/portable`, чистая функция `binary_folder`). Рядом означает: настоящая папка файла после разворачивания симлинков (у Windows снимается префикс `\\?\`). У AppImage исполняемый файл живёт в read-only точке монтирования squashfs, поэтому берётся папка файла `.AppImage` из `$APPIMAGE`; если переменной нет (кто-то запустил «голый» portable-бинарник), — папка самого исполняемого файла.
+
+| Подпапка | Что внутри | Чем задаётся |
+|---|---|---|
+| `config/` | `settings.json`, `presets/`, `.window-state.json` (тот же формат, что у `tauri-plugin-window-state`) | явный путь: `AppContext.config_dir`, `portable_window_state` |
+| `local/` | профиль WebView2 / WebKitGTK (`localStorage`, cookies, кэш движка); на Linux ещё `XDG_DATA_HOME` | `data_directory` **каждого** окна (главное создаётся в `setup` из конфига с `create: false`, дочерние — в `child_window.rs`): один профиль на все окна, как и раньше |
+| `logs/` | `cogit-<время>.log`, `panic.log` | явный путь в `logging::init` |
+| `tmp/` | временные копии сторон внешнего merge tool (`cogit-merge/…`), `cogit-view`, список лицензий, скретч-файлы git | `TEMP`/`TMP` (Windows) или `TMPDIR` (Linux) процесса |
+| `cache/` | кэш аватаров (`cache/avatars`); на Linux `XDG_CACHE_HOME` | явный путь + `XDG_CACHE_HOME` |
+
+### Как перенаправляется запись
+
+Сначала проверялась идея «выставить `APPDATA`/`LOCALAPPDATA` и XDG-переменные в начале `run()`». На Windows она **не работает**: `dirs` 6.0 и Tauri 2.11 спрашивают у оболочки известные папки (`SHGetKnownFolderPath`) и переменные `APPDATA`/`LOCALAPPDATA` игнорируют; настроить абсолютный путь профиля WebView2 для окна из `tauri.conf.json` нельзя (Tauri принимает там только относительный). Поэтому:
+
+- **Windows:** явные пути для каждого писателя (таблица выше) + `TEMP`/`TMP` процесса → `tmp/`. `tauri-plugin-window-state` в portable не подключается: он при сохранении делает `create_dir_all(app_config_dir())` — пустая папка в `%APPDATA%` всё равно была бы системной записью; вместо него `portable_window_state` (тот же формат файла, плюс проверка достижимости от `window_place`).
+- **Linux:** то же самое явное и ещё XDG: `XDG_CONFIG_HOME`→`config`, `XDG_DATA_HOME`→`local`, `XDG_CACHE_HOME`→`cache`, `XDG_STATE_HOME`→`local/state`, `TMPDIR`→`tmp`, чтобы GLib, WebKitGTK, GTK (недавние файлы, диалог выбора файла) и `dirs` писали в `Cogit-data`. К `XDG_CONFIG_DIRS` и `XDG_DATA_DIRS` спереди дописываются настоящие домашние папки пользователя: темы, ассоциации файлов и `.desktop`-файлы продолжают находиться на чтение.
+- **Переменные ставятся один раз**, самым первым действием `run()` (процесс однопоточный, `set_var` небезопасен в многопоточном; единственный `unsafe` вынесен в `portable::set_var`).
+
+**Что видят дочерние процессы.** git, ssh, credential helper'ы, хуки, внешний merge tool, терминал, файловый менеджер и `xdg-open` должны вести себя как при обычном запуске, поэтому исходные значения XDG-переменных (или их отсутствие) сохраняются до подмены и возвращаются в окружение каждого запускаемого процесса: `git_engine::runner::clear_inherited_git_vars` (единственный путь сборки команд git, хуков и их оболочек), `app_state::merge_tool::spawn`, `app_state::desktop::command_for`. Функция `portable::redirect` чистая и покрыта тестами. **Исключение — временная папка:** `TEMP`/`TMP`/`TMPDIR` дети видят перенаправленными, иначе скретч-файлы git оказались бы в системной временной папке, то есть это те самые записи, которых пользователь не хочет. На Windows других переменных не подменяется, так что детям возвращать нечего. Процессы, которые запускает плагин opener из JS (`openUrl`, `revealItemInDir`), окружение не восстанавливают (хука нет): на Windows это `ShellExecute` и Проводник, на Linux `xdg-open`, которому хватает дописанных `XDG_*_DIRS`.
+
+### Что portable не делает
+
+- **Миграция старых папок** (`legacy_dirs`) пропускается целиком.
+- **Автообновление отключено:** плагин updater не регистрируется, `Check for Updates` объясняет, как обновиться (заменить файл), проверка при запуске не выполняется, в About строка `Updates` пишет `Portable build: replace it to update`.
+- **Не доступна для записи папка** (read-only носитель, нет прав): запуск **прерывается** (`portable::Error::NotWritable`, сообщение в stderr, код выхода 1), без окна сообщения. Откат на системные папки или на временную папку не делается — portable не должен молча писать в систему. Папки создаются при первом запуске; проверяется запись пробным файлом, повторный запуск ничего не ломает.
+- **`--install-desktop-entry`** работает как раньше и пишет в `~/.local/share`: это явное действие пользователя.
+
+### Решение для пользователя: токены HTTP
+
+Токены HTTP хранит `keyring` — это Windows Credential Manager / Secret Service, то есть **системное хранилище**, и portable-режим их не трогает: молча класть секреты в обычный файл нельзя. Альтернатива (не сделана): шифрованный файл рядом с бинарником с парольной фразой пользователя (Argon2 + XChaCha20-Poly1305, фраза спрашивается при первом обращении). Минус: ещё один диалог и забытая фраза означает потерю токенов. Решение за пользователем, см. [R-698](12-risks.md).
+
+### Неустранимые записи вне папки
+
+Приложение их не контролирует; список честный, а не «ноль записей»:
+
+- Windows: рантайм WebView2 (Evergreen) ведёт своё состояние в `HKCU`/`ProgramData` и обновляется сам; Windows пишет для окна AppUserModelID и записи списка переходов панели задач, `Recent` для открытых документов, Defender/SmartScreen добавляют `Zone.Identifier` к скачанному exe; Credential Manager (см. выше); `cogit.exe`, запущенный из `%TEMP%` архиватором, лежит там, где его распаковали.
+- Linux: AppImage-рантайм сам монтирует образ в `/tmp/.mount_*`; GTK-диалог выбора файла может записать в `dconf` через `gsettings`, если демон его доступен (файл `dconf` лежит вне `XDG_*`).
+- Оба: то, что делает git по настройкам пользователя (глобальный конфиг, `credential.helper`, ssh-ключи в `~/.ssh`) — см. выше, дети видят обычное окружение.
+
+### Как проверить вручную (приложение при разработке не запускалось)
+
+Автоматически проверено: чистые функции (`crates/portable`, тесты на временной «папке бинарника» проверяют, что ни один путь вне `Cogit-data` не возвращается и ничего вне неё не создаётся), окружение детей на уровне `Command`. **Трассировки настоящего приложения нет**, её нужно сделать самому:
+
+- Windows: Process Monitor (Sysinternals), фильтры `Process Name` is `cogit.exe`, затем отдельно `msedgewebview2.exe` (дети `cogit.exe`: правило `Parent PID`), `Operation` is `WriteFile`/`CreateFile` с правом записи/`RegSetValue`/`RegCreateKey`, `Path` not begins with путь к `Cogit-data`. Всё, что осталось, сверить с разделом выше.
+- Linux: `strace -f -e trace=openat,mkdir,rename,unlink -o /tmp/cogit.trace ./Cogit.AppImage`, затем `grep -E 'O_WRONLY|O_RDWR|O_CREAT|mkdir' /tmp/cogit.trace | grep -v '<папка Cogit-data>'`; для живой картины `inotifywait -m -r ~/.config ~/.local/share ~/.cache /tmp` во время работы приложения. Запись в `/tmp/.mount_*` и `/dev/shm` ожидаема.
+- В обоих случаях открыть About: строка `Portable data` показывает папку и открывает её.

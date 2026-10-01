@@ -632,7 +632,7 @@ gitlink нет ни в HEAD, ни в индексе (`recorded` пуст, в п�
 
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
-| `app_info` | — | `Result<AppInfo { version, debug_build, commit, dirty, built_at, repository, os: OsInfo, renderer, git, rustc, tauri, git_library, log_path, log_dir, settings_path, displays: DisplayInfo[] }>`; async, вне главного потока (R-175) | M0, M2 |
+| `app_info` | — | `Result<AppInfo { version, debug_build, commit, dirty, built_at, repository, os: OsInfo, renderer, git, rustc, tauri, git_library, log_path, log_dir, settings_path, portable_dir: Option<String>, displays: DisplayInfo[] }>` (`portable_dir` — папка `Cogit-data` portable-сборки, F-660); async, вне главного потока (R-175) | M0, M2 |
 | `probe_git` | `path: String` | `Result<GitProbe { valid, version?, error? }>`; `<path> --version` с таймаутом 5 с, пустой путь = `git` из PATH; недоступный бинарник — `valid: false` с причиной, не ошибка | M2 |
 | `open_third_party_licences` | `frontend: string \| null` | `Result<()>`: пишет список лицензий (крейты из `build.rs` + пакеты из сборки Vite) во временный файл и открывает его системой (R-173) | M2 |
 | `read_settings` | — | `String` — весь документ настроек как текст JSON | M8 |

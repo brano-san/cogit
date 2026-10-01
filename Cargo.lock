@@ -83,6 +83,7 @@ dependencies = [
  "graph_engine",
  "keyring",
  "parking_lot",
+ "portable",
  "serde",
  "serde_json",
  "specta",
@@ -689,6 +690,7 @@ dependencies = [
  "graph_engine",
  "gtk",
  "parking_lot",
+ "portable",
  "serde",
  "serde_json",
  "specta",
@@ -703,6 +705,7 @@ dependencies = [
  "tauri-plugin-updater",
  "tauri-plugin-window-state",
  "tauri-specta",
+ "tempfile",
  "tokio",
  "tracing",
  "tracing-appender",
@@ -1857,6 +1860,7 @@ dependencies = [
  "gix",
  "globset",
  "ignore",
+ "portable",
  "rayon",
  "regex",
  "serde",
@@ -4550,6 +4554,14 @@ dependencies = [
  "pin-project-lite",
  "rustix",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "portable"
+version = "0.1.0"
+dependencies = [
+ "tempfile",
+ "thiserror 2.0.20",
 ]
 
 [[package]]

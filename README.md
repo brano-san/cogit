@@ -68,6 +68,23 @@ the Windows Start menu, in the folder of the distribution.
 
 `cogit --version` and `cogit --help` print and exit without opening a window.
 
+## Portable build
+
+The Windows `Cogit_<version>_x64_portable.zip` and the Linux `.AppImage` are a separate
+build of the same code (cargo feature `portable`; `npm run tauri build -- --no-bundle
+--features portable`). There is no marker file and no switch at run time: the binary knows
+it is portable.
+
+- Everything Cogit writes lives in a `Cogit-data` folder beside the binary (beside the
+  `.AppImage` file for an AppImage): `config/` (settings, window state), `local/` (webview
+  profile), `logs/`, `tmp/`, `cache/`. Keep it on a writable disk: if the folder cannot be
+  written, Cogit exits with an error on stderr instead of writing anywhere else.
+- It never updates itself; replace the file to update. Settings stay in `Cogit-data`.
+- git, ssh and credential helpers see your normal environment. HTTP tokens still go to the
+  system keyring (Credential Manager / Secret Service). A few writes outside the folder
+  are not Cogit's to control (the WebView2 runtime, the Windows jump list and
+  `Zone.Identifier`); see `doc/13-distribution.md` section 11.
+
 ## Repository layout
 
 ```

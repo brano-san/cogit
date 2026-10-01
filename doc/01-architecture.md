@@ -83,6 +83,9 @@
 - **Зависит от:** `notify`, `notify-debouncer-mini`. `.gitignore` не читается — см. INV-06.
 - **Ограничения:** [INV-06](#inv-06).
 
+### `portable`
+- **Что:** portable-сборка (cargo-feature `portable` пакета `cogit`): папка `Cogit-data` рядом с бинарником, перенаправление `TEMP`/`XDG_*`, возврат исходного окружения дочерним процессам. Чистые функции, без Tauri; от него зависят `git_engine` и `app_state` (только `restore_child_env`). См. [13-distribution.md](13-distribution.md) §11, R-698.
+
 ### `app_state`
 - **Что:** реестр открытых репозиториев, группы/виртуальные папки, шина событий, доступ к keyring.
 - **Как:** `AppState` лежит в `src-tauri` внутри `AppContext` (с путями лога и конфига), который
