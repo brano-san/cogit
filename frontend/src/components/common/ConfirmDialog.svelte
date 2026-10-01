@@ -1,5 +1,6 @@
 <script lang="ts">
   import Dialog from "$components/common/Dialog.svelte";
+  import Checkbox from "$components/common/Checkbox.svelte";
 
   interface Props {
     title: string;
@@ -28,7 +29,7 @@
     </ul>
   {/if}
   {#if option}
-    <label class="option"><input type="checkbox" bind:checked /> {option}</label>
+    <div class="option"><Checkbox bind:checked label={option} /></div>
   {/if}
 
   {#snippet footer()}

@@ -1,5 +1,6 @@
 <script lang="ts">
   import Avatar from "$components/common/Avatar.svelte";
+  import Button from "$components/common/Button.svelte";
   import { dateTooltip, shortOid } from "$lib/format";
   import { idleMessage, panelView } from "$lib/repo-phase";
   import { commit } from "$stores/commit.svelte";
@@ -17,6 +18,7 @@
   const repo = $derived(repository.current);
   const view = $derived(panelView(repository.phase));
   const details = $derived(commit.details);
+  const commitNote = $derived(details?.notes.find((note) => note.namespace === "commits")?.text.trim() ?? "");
 
   /** Checked on request: gpg or ssh-keygen may be slow, or ask for nothing but still spawn. */
   let signature = $state<{ oid: string; check: SignatureCheck } | null>(null);
@@ -34,7 +36,7 @@
   }
 </script>
 
-<div class="detail">
+<div class="detail" data-select-text="diff">
   {#if commit.error}
     <p class="error">{commit.error.message}</p>
   {:else if details}
@@ -46,15 +48,12 @@
     {/each}
     <dl>
       <dt>Note</dt>
-      <dd>
-        <button
-          type="button"
-          onclick={() =>
-            (refDialogs.note = {
-              oid: details.oid,
-              text: details.notes.find((note) => note.namespace === "commits")?.text ?? "",
-            })}>Add / Edit Note…</button
+      <dd class="note-row">
+        <Button
+          onclick={() => (refDialogs.note = { oid: details.oid, text: commitNote })}
+          >{commitNote ? "Edit Note…" : "Add Note…"}</Button
         >
+        {#if commitNote}<span class="note-text" title={commitNote}>{commitNote}</span>{/if}
       </dd>
       <dt>Commit</dt>
       <dd class="mono">{details.oid}</dd>
@@ -78,7 +77,7 @@
           {#if signature?.oid === details.oid}
             <span title={signature.check.raw}>{signatureLabel(signature.check)}</span>
           {:else}
-            <button type="button" disabled={checking} onclick={() => verify(details.oid)}>Verify</button>
+            <Button disabled={checking} onclick={() => verify(details.oid)}>Verify</Button>
           {/if}
         </dd>
       {/if}
@@ -111,6 +110,19 @@
 </div>
 
 <style>
+  .note-row {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .note-text {
+    margin-left: var(--sp-3);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .author {
     display: flex;
     align-items: center;
