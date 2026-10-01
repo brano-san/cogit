@@ -137,7 +137,7 @@
   style:z-index={zIndex + 1}
 >
   <header>
-    <h2>{title}</h2>
+    <h2 {title}>{title}</h2>
     <button type="button" class="close" onclick={() => requestClose("button")} aria-label="Close" title="Close (Esc)">
       <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M1 1 9 9M9 1 1 9" /></svg>
     </button>
@@ -179,7 +179,8 @@
     transform: translate(-50%, -50%);
     display: flex;
     flex-direction: column;
-    max-height: 88vh;
+    max-width: 90vw;
+    max-height: 90vh;
     background: var(--surface-panel);
     border: 1px solid var(--field-border);
     border-radius: var(--r-md);
@@ -204,7 +205,11 @@
   }
 
   h2 {
+    min-width: 0;
     margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-size: var(--fs-ui);
     font-weight: 600;
   }
@@ -248,7 +253,17 @@
     flex: 1 1 auto;
     min-height: 0;
     padding: var(--sp-6) var(--dialog-inset);
-    overflow: auto;
+    /* Never a horizontal scrollbar: a row wraps or truncates, it does not push the edge.
+       The body scrolls vertically; the title bar and the footer stay where they are. */
+    overflow-x: hidden;
+    overflow-y: auto;
+    /* A long unbroken name (a path, a branch) wraps inside its row instead of widening it. */
+    overflow-wrap: anywhere;
+  }
+
+  .body > :global(*) {
+    min-width: 0;
+    max-width: 100%;
   }
 
   .body.flush {
@@ -261,6 +276,8 @@
     justify-content: flex-end;
     gap: var(--sp-4);
     flex: 0 0 auto;
+    flex-wrap: wrap;
+    min-width: 0;
     padding: var(--sp-5) var(--dialog-inset);
     border-top: 1px solid var(--divider);
   }
@@ -331,6 +348,8 @@
   .dialog :global(input[type="search"]),
   .dialog :global(input[type="password"]) {
     width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
     height: var(--h-input);
     padding: 0 var(--sp-4);
     background: var(--surface-input);
@@ -339,6 +358,11 @@
     border-radius: var(--r-sm);
     font: inherit;
     font-size: var(--fs-dense);
+  }
+
+  .dialog :global(input:disabled) {
+    color: var(--fg-disabled);
+    opacity: 0.6;
   }
 
   .dialog :global(input[type="checkbox"]:not(.native)),
