@@ -1,6 +1,6 @@
 import { mount } from "svelte";
 import CommitWindow from "./CommitWindow.svelte";
-import "./app.css";
+import "./boot";
 
 const target = document.getElementById("app");
 if (!target) {

@@ -1,0 +1,8 @@
+# Color literals that cannot be a token. One per line: `path :: text on the line  # why`.
+# Empty on purpose: every case so far was a token. Adding a line needs a reason.
+
+# Temporary: the diff view's old word highlights, until the block-model rewrite uses diff.*.word.
+frontend/src/components/diff/DiffView.svelte :: color-mix(in srgb, var(--c-deleted) 45%, transparent)   # remove with the rewrite
+frontend/src/components/diff/DiffView.svelte :: color-mix(in srgb, var(--c-added) 45%, transparent)   # remove with the rewrite
+frontend/src/components/diff/DiffView.svelte :: color-mix(in srgb, var(--c-modified) 45%, transparent)   # remove with the rewrite
+frontend/src/components/diff/DiffView.svelte :: color-mix(in srgb, var(--status-move) 30%, transparent)   # remove with the rewrite

@@ -1,6 +1,6 @@
 import { mount } from "svelte";
 import CompareWindow from "./CompareWindow.svelte";
-import "./app.css";
+import "./boot";
 
 const target = document.getElementById("app");
 if (!target) {

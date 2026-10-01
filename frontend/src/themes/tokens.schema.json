@@ -1,0 +1,305 @@
+{
+  "description": "Every color token of a Cogit theme. A dotted name becomes a CSS custom property: dots turn into dashes and camelCase segments are kebab-cased (bg.selectedInactive -> --bg-selected-inactive). Types: color (solid #rrggbb), color-alpha (#rrggbb or #rrggbbaa), string (not a CSS variable).",
+  "tokens": {
+    "bg.app": {
+      "type": "color",
+      "description": "Window chrome: toolbar, menus, status bar, panel headers."
+    },
+    "bg.panel": {
+      "type": "color",
+      "description": "Sidebars and lists: repositories, branches, files, details."
+    },
+    "bg.editor": {
+      "type": "color",
+      "description": "Main work surface: the commit graph and the diff."
+    },
+    "bg.elevated": {
+      "type": "color",
+      "description": "Popups, dropdowns, tooltips, dialogs, toasts."
+    },
+    "bg.input": {
+      "type": "color",
+      "description": "Text fields, selects and checkboxes."
+    },
+    "bg.hover": {
+      "type": "color",
+      "description": "A row or a button under the pointer."
+    },
+    "bg.selected": {
+      "type": "color",
+      "description": "The selected row of the active panel."
+    },
+    "bg.selectedInactive": {
+      "type": "color",
+      "description": "The selected row of a panel that does not have the keyboard."
+    },
+    "bg.rowStripe": {
+      "type": "color",
+      "description": "Every second row of a long list over bg.editor. Extra token."
+    },
+    "selected.bar": {
+      "type": "color",
+      "description": "The 2px bar at the left edge of a selected row."
+    },
+    "border": {
+      "type": "color",
+      "description": "Dividers and outlines."
+    },
+    "border.strong": {
+      "type": "color",
+      "description": "Field borders, the window frame and splitter hover."
+    },
+    "panel.activeHeader": {
+      "type": "color",
+      "description": "Underline of the header of the panel that has the keyboard."
+    },
+    "scrollbar.thumb": {
+      "type": "color",
+      "description": "Scrollbar thumb."
+    },
+    "fg.primary": {
+      "type": "color",
+      "description": "Main text."
+    },
+    "fg.secondary": {
+      "type": "color",
+      "description": "Secondary text: labels, captions, panel titles."
+    },
+    "fg.muted": {
+      "type": "color",
+      "description": "Dates, hashes, paths."
+    },
+    "fg.disabled": {
+      "type": "color",
+      "description": "Disabled text and icons."
+    },
+    "accent": {
+      "type": "color",
+      "description": "Accent: links, focus, primary actions, checked boxes."
+    },
+    "accent.hover": {
+      "type": "color",
+      "description": "Accent under the pointer."
+    },
+    "fg.onAccent": {
+      "type": "color",
+      "description": "Text and glyphs on a solid accent or status background."
+    },
+    "focus.ring": {
+      "type": "color-alpha",
+      "description": "Keyboard focus outline. The only token that may carry alpha."
+    },
+    "toggle.on.bg": {
+      "type": "color",
+      "description": "A switched-on toggle button: background."
+    },
+    "toggle.on.fg": {
+      "type": "color",
+      "description": "A switched-on toggle button: text."
+    },
+    "toggle.on.border": {
+      "type": "color",
+      "description": "A switched-on toggle button: border."
+    },
+    "status.success": {
+      "type": "color",
+      "description": "Success, added file (A), synced."
+    },
+    "status.warning": {
+      "type": "color",
+      "description": "Warning, modified file (M), uncommitted changes."
+    },
+    "status.danger": {
+      "type": "color",
+      "description": "Error, deleted file (D), Discard."
+    },
+    "status.info": {
+      "type": "color",
+      "description": "Information, renamed file (R)."
+    },
+    "status.move": {
+      "type": "color",
+      "description": "Moved code and renamed paths: violet, as the diff's moved color. Extra token."
+    },
+    "status.stash": {
+      "type": "color",
+      "description": "Stash entries. Extra token."
+    },
+    "file.untracked": {
+      "type": "color",
+      "description": "Untracked file."
+    },
+    "file.conflict": {
+      "type": "color",
+      "description": "File in conflict."
+    },
+    "badge.merging.fg": {
+      "type": "color",
+      "description": "The merging state marker."
+    },
+    "graph.lane.0": {
+      "type": "color",
+      "description": "Graph lane color 0."
+    },
+    "graph.lane.1": {
+      "type": "color",
+      "description": "Graph lane color 1."
+    },
+    "graph.lane.2": {
+      "type": "color",
+      "description": "Graph lane color 2."
+    },
+    "graph.lane.3": {
+      "type": "color",
+      "description": "Graph lane color 3."
+    },
+    "graph.lane.4": {
+      "type": "color",
+      "description": "Graph lane color 4."
+    },
+    "graph.lane.5": {
+      "type": "color",
+      "description": "Graph lane color 5."
+    },
+    "graph.lane.6": {
+      "type": "color",
+      "description": "Graph lane color 6."
+    },
+    "graph.lane.7": {
+      "type": "color",
+      "description": "Graph lane color 7."
+    },
+    "badge.head.bg": {
+      "type": "color",
+      "description": "The HEAD badge: background."
+    },
+    "badge.head.fg": {
+      "type": "color",
+      "description": "The HEAD badge: text."
+    },
+    "badge.branch.bg": {
+      "type": "color",
+      "description": "A branch badge: background."
+    },
+    "badge.branch.fg": {
+      "type": "color",
+      "description": "A branch badge: text."
+    },
+    "badge.remote.bg": {
+      "type": "color",
+      "description": "A remote-branch badge: background."
+    },
+    "badge.remote.fg": {
+      "type": "color",
+      "description": "A remote-branch badge: text."
+    },
+    "badge.tag.bg": {
+      "type": "color",
+      "description": "A tag badge: background."
+    },
+    "badge.tag.fg": {
+      "type": "color",
+      "description": "A tag badge: text."
+    },
+    "badge.warning.bg": {
+      "type": "color",
+      "description": "A warning badge, e.g. LF to CRLF: background."
+    },
+    "badge.warning.fg": {
+      "type": "color",
+      "description": "A warning badge, e.g. LF to CRLF: text."
+    },
+    "diff.add.line": {
+      "type": "color",
+      "description": "Added line background."
+    },
+    "diff.add.word": {
+      "type": "color",
+      "description": "Added word (inline) background."
+    },
+    "diff.add.gutter": {
+      "type": "color",
+      "description": "Gutter of an added line."
+    },
+    "diff.del.line": {
+      "type": "color",
+      "description": "Deleted line background."
+    },
+    "diff.del.word": {
+      "type": "color",
+      "description": "Deleted word (inline) background."
+    },
+    "diff.del.gutter": {
+      "type": "color",
+      "description": "Gutter of a deleted line."
+    },
+    "diff.move.line": {
+      "type": "color",
+      "description": "Moved line background."
+    },
+    "diff.move.word": {
+      "type": "color",
+      "description": "Moved word (inline) background."
+    },
+    "diff.hunkHeader.bg": {
+      "type": "color",
+      "description": "Hunk header background."
+    },
+    "diff.hunkHeader.fg": {
+      "type": "color",
+      "description": "Hunk header text."
+    },
+    "diff.lineNumber": {
+      "type": "color",
+      "description": "Line numbers."
+    },
+    "diff.centerGutter.bg": {
+      "type": "color",
+      "description": "Center gutter background."
+    },
+    "diff.centerGutter.action": {
+      "type": "color",
+      "description": "Center gutter action buttons."
+    },
+    "diff.centerGutter.action.hover": {
+      "type": "color",
+      "description": "Center gutter action buttons under the pointer."
+    },
+    "diff.connector.fill": {
+      "type": "color",
+      "description": "Block connector band fill."
+    },
+    "diff.connector.stroke": {
+      "type": "color",
+      "description": "Block connector band edge."
+    },
+    "diff.jumpFlash": {
+      "type": "color",
+      "description": "The change F6 or an arrow landed on, lit for a moment. Extra token."
+    },
+    "syntax.theme": {
+      "type": "string",
+      "description": "Name of the syntax theme. Reserved: Shiki is not wired in yet, highlighting is Lezer."
+    },
+    "search.hit": {
+      "type": "color",
+      "description": "A text-search match. Extra token."
+    },
+    "search.current": {
+      "type": "color",
+      "description": "The current text-search match. Extra token."
+    },
+    "search.ink": {
+      "type": "color",
+      "description": "Text on search.current. Extra token."
+    },
+    "overlay.scrim": {
+      "type": "color",
+      "description": "Color behind a modal dialog, drawn at --scrim-opacity. Extra token."
+    },
+    "shadow.color": {
+      "type": "color",
+      "description": "Popup and dialog shadow; solid, the blur fades it. Extra token."
+    }
+  }
+}

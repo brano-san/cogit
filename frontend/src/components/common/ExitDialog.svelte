@@ -134,13 +134,13 @@
 
   .icon .glyph {
     fill: none;
-    stroke: var(--surface-base);
+    stroke: var(--fg-on-accent);
     stroke-width: 2.4;
     stroke-linecap: round;
   }
 
   .icon .dot {
-    fill: var(--surface-base);
+    fill: var(--fg-on-accent);
     stroke: none;
   }
 

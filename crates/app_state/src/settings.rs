@@ -29,6 +29,32 @@ pub fn read_document(config_dir: &Path) -> Value {
     }
 }
 
+const USER_THEME_FILE: &str = "user-theme.json";
+
+/// `user-theme.json` beside the settings, as JSON text: a JSON object, or `{}` when the
+/// file is absent, unreadable or not an object. It is the user's own, written by hand or
+/// by a future settings screen, so a damaged one is warned about and ignored, never fatal.
+#[must_use]
+pub fn read_user_theme(config_dir: &Path) -> String {
+    let path = config_dir.join(USER_THEME_FILE);
+    let text = match std::fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return "{}".into(),
+        Err(err) => {
+            tracing::warn!(?path, error = ?err, "user-theme.json cannot be read; ignored");
+            return "{}".into();
+        }
+    };
+    let json = text.strip_prefix('\u{feff}').unwrap_or(&text);
+    match serde_json::from_str::<Value>(json) {
+        Ok(value @ Value::Object(_)) => value.to_string(),
+        _ => {
+            tracing::warn!(?path, "user-theme.json is not a JSON object; ignored");
+            "{}".into()
+        }
+    }
+}
+
 /// Preferences ▸ Git executable, read before the first git runs. Empty or plain `git`
 /// is the one on PATH.
 #[must_use]

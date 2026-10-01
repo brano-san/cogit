@@ -1,0 +1,120 @@
+/*
+ * Aliases: the names components were written against, pointed at the theme tokens
+ * (themes/*.json, applied to :root by lib/theme.ts). No color literal belongs here, and no
+ * alpha: a role that needs a tint points at a token that is that tint, solid, per theme.
+ *
+ * New code uses the token names (`var(--bg-panel)`, `var(--status-danger)`); an alias is for
+ * a name already in use. A token is never aliased under a second name for its own sake.
+ */
+
+:root {
+  /* ---- surfaces ---- */
+  --surface-base: var(--bg-app);
+  --surface-panel: var(--bg-panel);
+  --surface-editor: var(--bg-editor);
+  --surface-raised: var(--bg-elevated);
+  --surface-input: var(--bg-input);
+  --state-hover: var(--bg-hover);
+  --state-selected: var(--bg-selected);
+  --row-stripe: var(--bg-row-stripe);
+  --state-focus-ring: var(--accent);
+  /* A switch that is on (`aria-pressed`): the one look every switch has, hovered or not. */
+  --state-pressed: var(--toggle-on-bg);
+  --state-pressed-text: var(--toggle-on-fg);
+
+  --divider: var(--border);
+  --splitter-track: var(--border);
+  --splitter-active: var(--accent);
+  --field-border: var(--border-strong);
+  --titlebar-bg: var(--bg-app);
+  --titlebar-border: var(--border-strong);
+
+  /* ---- text ---- */
+  --text-primary: var(--fg-primary);
+  --text-secondary: var(--fg-secondary);
+  --text-muted: var(--fg-muted);
+  --text-disabled: var(--fg-disabled);
+  --text-code: var(--fg-primary);
+  --text-on-accent: var(--fg-on-accent);
+  --link: var(--accent);
+
+  /* ---- status ---- */
+  --status-add: var(--status-success);
+  --status-modify: var(--status-warning);
+  --status-delete: var(--status-danger);
+  --status-ref: var(--accent);
+  --status-tag: var(--badge-tag-fg);
+  --indicator-changes: var(--status-warning);
+  --indicator-synced: var(--status-success);
+  --indicator-push: var(--status-warning);
+  --indicator-pull: var(--status-success);
+  --indicator-unknown: var(--fg-secondary);
+
+  /* ---- graph ---- */
+  --graph-main: var(--fg-primary);
+  --graph-line: var(--fg-secondary);
+  --graph-branch-1: var(--graph-lane-0);
+  --graph-branch-2: var(--graph-lane-1);
+  --graph-branch-3: var(--graph-lane-2);
+  --graph-branch-4: var(--graph-lane-3);
+  --graph-branch-5: var(--graph-lane-4);
+  --graph-branch-6: var(--graph-lane-5);
+  --graph-branch-7: var(--graph-lane-6);
+  --graph-branch-8: var(--graph-lane-7);
+  --graph-focus: var(--accent);
+  --graph-bisect-good: var(--status-success);
+  --graph-bisect-bad: var(--status-danger);
+  --graph-bisect-skip: var(--fg-secondary);
+  --graph-bisect-current: var(--badge-warning-bg);
+  --graph-bisect-found: var(--diff-del-line);
+
+  /* ---- overlays: a solid color, drawn at an opacity ---- */
+  --scrim: var(--overlay-scrim);
+  --scrim-opacity: 0.35;
+  --shadow-popover: 0 8px 24px var(--shadow-color);
+  --shadow-dialog: 0 12px 40px var(--shadow-color);
+
+  /* ---- the old primitive names (`--c-*`), still read by components and the diff view ---- */
+  --c-bg-window: var(--bg-app);
+  --c-bg-panel: var(--bg-panel);
+  --c-bg-elevated: var(--bg-elevated);
+  --c-bg-hover: var(--bg-hover);
+  --c-bg-active: var(--bg-selected);
+  --c-bg-inset: var(--bg-input);
+  --c-bg-chrome: var(--bg-app);
+  --c-row-stripe: var(--bg-row-stripe);
+  --c-border: var(--border);
+  --c-border-strong: var(--border-strong);
+  --c-border-chrome: var(--border-strong);
+  --c-text: var(--fg-primary);
+  --c-text-muted: var(--fg-secondary);
+  --c-text-code: var(--fg-primary);
+  --c-link: var(--accent);
+  --c-added: var(--status-success);
+  --c-modified: var(--status-warning);
+  --c-deleted: var(--status-danger);
+  --c-branch: var(--accent);
+  --c-stash: var(--status-stash);
+  --c-tag: var(--badge-tag-fg);
+  --c-added-bg: var(--diff-add-line);
+  --c-modified-bg: var(--badge-warning-bg);
+  --c-deleted-bg: var(--diff-del-line);
+  --c-branch-bg: var(--badge-branch-bg);
+  --c-stash-bg: var(--diff-move-line);
+  --c-tag-bg: var(--badge-tag-bg);
+  --c-moved-bg: var(--diff-move-line);
+  --c-lane-1: var(--graph-lane-0);
+  --c-lane-2: var(--graph-lane-1);
+  --c-lane-3: var(--graph-lane-2);
+  --c-lane-4: var(--graph-lane-3);
+  --c-lane-5: var(--graph-lane-4);
+  --c-lane-6: var(--graph-lane-5);
+  --c-lane-7: var(--graph-lane-6);
+  --c-lane-8: var(--graph-lane-7);
+  --c-add-soft: var(--diff-add-line);
+  --c-neutral-soft: var(--bg-hover);
+  --c-search-hit: var(--search-hit);
+  --c-search-current: var(--search-current);
+  --c-search-ink: var(--search-ink);
+
+}

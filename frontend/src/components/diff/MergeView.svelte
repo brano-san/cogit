@@ -334,7 +334,7 @@
 
   button.primary {
     background: var(--status-ref);
-    color: var(--c-bg-window);
+    color: var(--fg-on-accent);
     border-color: var(--status-ref);
   }
 

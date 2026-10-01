@@ -194,7 +194,7 @@
   }
 
   .line.bad {
-    background: color-mix(in srgb, var(--status-delete) 18%, transparent);
+    background: var(--diff-del-line);
   }
 
   textarea {
@@ -215,7 +215,7 @@
   }
 
   textarea::selection {
-    background: color-mix(in srgb, var(--status-ref) 35%, transparent);
+    background: var(--bg-selected);
     color: transparent;
   }
 

@@ -224,7 +224,7 @@
 
   .tab.active {
     background: var(--state-selected);
-    box-shadow: inset 2px 0 0 var(--status-ref);
+    box-shadow: inset 2px 0 0 var(--selected-bar);
   }
 
   .content {

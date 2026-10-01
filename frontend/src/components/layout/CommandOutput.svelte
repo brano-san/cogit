@@ -451,12 +451,12 @@
   }
 
   .ln.cursor {
-    background: var(--status-ref);
-    color: var(--surface-panel);
+    background: var(--accent);
+    color: var(--fg-on-accent);
   }
 
   .picked .ln {
-    background: color-mix(in srgb, var(--status-ref) 22%, transparent);
+    background: var(--bg-selected);
   }
 
   footer {

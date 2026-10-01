@@ -111,6 +111,7 @@
     inset: 0;
     z-index: 20;
     background: var(--scrim);
+    opacity: var(--scrim-opacity);
   }
 
   .palette {

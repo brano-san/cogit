@@ -1,6 +1,6 @@
 import { mount } from "svelte";
 import InvestigateWindow from "./InvestigateWindow.svelte";
-import "./app.css";
+import "./boot";
 
 const target = document.getElementById("app");
 if (!target) {

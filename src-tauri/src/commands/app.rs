@@ -135,6 +135,20 @@ pub async fn read_settings(app: tauri::AppHandle) -> String {
     .await
 }
 
+/// `user-theme.json` from the config directory: a partial theme laid over the chosen one.
+/// `{}` when there is none or it is damaged; the frontend validates the tokens.
+#[tauri::command]
+#[specta::specta]
+pub async fn read_user_theme(app: tauri::AppHandle) -> String {
+    let dir = tauri::Manager::state::<crate::AppContext>(&app)
+        .config_dir
+        .clone();
+    blocking_or_default("read_user_theme", move || {
+        app_state::settings::read_user_theme(&dir)
+    })
+    .await
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn write_setting(

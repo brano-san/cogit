@@ -160,6 +160,7 @@
     position: absolute;
     inset: 0;
     background: var(--scrim);
+    opacity: var(--scrim-opacity);
   }
 
   .dialog {
@@ -288,7 +289,7 @@
   .dialog :global(.btn.warning) {
     background: var(--status-ref);
     border-color: var(--status-ref);
-    color: var(--surface-base);
+    color: var(--fg-on-accent);
     font-weight: 600;
   }
 

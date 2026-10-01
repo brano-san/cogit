@@ -264,6 +264,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::cancel_operation,
             commands::list_operations,
             commands::read_settings,
+            commands::read_user_theme,
             commands::write_setting,
             commands::default_keymap,
             commands::set_keymap,

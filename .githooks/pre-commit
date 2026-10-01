@@ -62,7 +62,7 @@ fi
 STAGED_LINES=$(printf '%s\n' "${STAGED[@]}")
 has() { grep -qE "$1" <<<"$STAGED_LINES"; }
 if has '\.rs$|Cargo\.(toml|lock)$';     then RUST=1; else RUST=0; fi
-if has '^frontend/.*\.(ts|js|svelte)$'; then WEB=1;  else WEB=0;  fi
+if has '^frontend/.*\.(ts|js|svelte|css|html|json)$'; then WEB=1;  else WEB=0;  fi
 
 # --- may we rewrite files? ---------------------------------------------------
 # A file that is staged *and* dirty in the worktree was partially staged with
@@ -142,6 +142,9 @@ fi
 # --- frontend ----------------------------------------------------------------
 if [ "$WEB" = "1" ]; then
   need npm
+  say "color literals"
+  npm --prefix frontend run --silent check:colors || fail "color literal outside frontend/src/themes/ (doc/06-design-system.md)"
+
   say "svelte-check"
   npm --prefix frontend run --silent check || fail "type check failed"
 

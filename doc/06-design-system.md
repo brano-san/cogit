@@ -1,142 +1,200 @@
 # Cogit — Дизайн-система
 
-> Источник истины для всех визуальных решений. Реализация — `frontend/src/app.css`.
+> Источник истины для всех визуальных решений. Цвета — `frontend/src/themes/`, остальное — `frontend/src/app.css`.
 > Раскладка и поведение — [05-ui-layout.md](05-ui-layout.md).
 
 ## 1. Правила
 
-1. **Ни одного цвета в коде компонента.** Только `var(--...)`. Захардкоженный `#hex`
-   в `.svelte` — повод отклонить ревью.
-2. **Двухслойные токены:** примитивы (палитра) → семантика (роль). Компоненты используют
-   только семантический слой, потому что роль переживает смену палитры, а `--gray-700` — нет.
+1. **Ни одного цвета в коде компонента.** Только `var(--...)`. Литерал (`#hex`, `rgb()`, `hsl()`,
+   именованный цвет в цветовом свойстве, `color-mix` с `transparent`) вне `frontend/src/themes/`
+   ломает `npm --prefix frontend run check:colors` (pre-commit и CI).
+2. **Цвета — это токены тем.** Один JSON на тему, имена по смыслу (`badge.tag.bg`), не по оттенку.
+   Компоненты читают токены или алиасы из `aliases.css`; о теме они не знают.
 3. **Четыре темы** — Light, Light gray, Dark gray, Dark (`data-theme` = `light`,
-   `lightGrey`, `darkGrey`, `dark`; #24, R-234). Тема меняет только примитивы, компоненты
-   читают семантический слой и о теме не знают.
-4. **Шкалы, а не произвольные числа.** Отступы — из шкалы 4 px, размеры шрифтов — из шкалы типографики.
+   `lightGrey`, `darkGrey`, `dark`; #24, R-234). Файлы `light.json`, `light-gray.json`,
+   `dark-gray.json`, `dark.json`.
+4. **Сплошные цвета.** Никаких alpha-наложений: каждый оттенок задан под каждую тему отдельно.
+   Исключение одно — `focus.ring`. Затемнение за модальным окном — сплошной `overlay.scrim`,
+   рисуемый с `opacity: var(--scrim-opacity)`; тень — сплошной `shadow.color`, размытие само
+   сводит его на нет.
+5. **Шкалы, а не произвольные числа.** Отступы — из шкалы 4 px, размеры шрифтов — из шкалы типографики.
 
-## 2. Примитивы
+## 2. Токены цвета
+
+### Архитектура
+
+| Что | Где |
+|---|---|
+| Список токенов с типом и описанием | `frontend/src/themes/tokens.schema.json` |
+| Значения | `themes/light.json`, `light-gray.json`, `dark-gray.json`, `dark.json`: `{ name, family, tokens }` |
+| Загрузчик | `lib/theme.ts` (чистые функции), `stores/theme.svelte.ts` (применение), `lib/theme-colors.ts` (кэш цветов для canvas) |
+| Старые имена | `frontend/src/aliases.css` — `--surface-*`, `--state-*`, `--text-*`, `--status-*`, `--c-*` указывают на токены |
+| Не цвет | `app.css`: шрифты, отступы, высоты, радиусы, движение |
+| Охрана | `scripts/check-colors.mjs`, исключения — `scripts/check-colors.allow` (пустой по замыслу) |
+
+Имя токена — путь через точки. Токен становится CSS-переменной на `:root`: точки превращаются в
+дефисы, camelCase-сегменты переводятся в kebab-case:
+`diff.add.word` → `--diff-add-word`, `bg.selectedInactive` → `--bg-selected-inactive`,
+`fg.onAccent` → `--fg-on-accent`, `graph.lane.3` → `--graph-lane-3`. Правило одно и проверяется
+тестом (`theme.test.ts`: два токена не могут дать одну переменную).
+
+Типы в схеме: `color` — сплошной `#rrggbb`; `color-alpha` — `#rrggbb` или `#rrggbbaa` (только
+`focus.ring`); `string` — не переменная CSS. `syntax.theme` — имя синтаксической темы,
+**зарезервировано**: Shiki не подключён, подсветка — Lezer, поле пока ничего не читает.
+
+### Как грузится тема
+
+1. До первой отрисовки: Vite-плагин `cogit-boot-theme` кладёт в `<head>` каждого окна
+   `--boot-bg`/`--boot-fg` четырёх тем (значения читает из `themes/*.json`) и крошечный
+   скрипт, ставящий `data-theme` из `localStorage` (`cogit.theme`). Окно не открывается белым.
+2. `src/boot.ts` (первый импорт каждого окна) вызывает `bootTheme()`: применяет тему прошлого
+   запуска — все токены становятся inline-свойствами `:root` до монтирования.
+3. `settings.load()` читает файл настроек, `themeStore.apply(theme)` ставит выбранную тему,
+   `themeStore.loadUser()` читает `user-theme.json` и накладывает его.
+4. Смена темы — те же `setProperty` на `:root`, без перезагрузки. Дочерние окна
+   (diff, blame, investigate, merge, commit) получают её как раньше: `followSettings` →
+   `settings.reload()` → `apply`.
+5. Canvas (граф, навигация investigate) не читает `var()`: `tokenColor('--graph-line')` спрашивает
+   `getComputedStyle` один раз на смену темы и кэширует; `themeStore.version` перерисовывает холст.
+
+### Валидация и fallback
+
+`resolveTheme` проверяет каждый токен схемы. Отсутствующий или невалидный токен — предупреждение
+(`warn` в `cogit.log`, контекст `theme`, один раз на текст) и значение из базовой темы того же
+семейства: `light`, `lightGrey` → `light`; `dark`, `darkGrey` → `dark`. Если и базовая его не
+имеет, переменная остаётся незаданной.
+
+### user-theme.json
+
+Необязательный файл `user-theme.json` в каталоге конфигурации приложения (там же, где
+`settings.json`; Windows: `%APPDATA%\dev.branosan.cogit\`). Формат:
+
+```json
+{ "tokens": { "accent": "#e5484d", "bg.editor": "#101216" } }
+```
+
+Накладывается поверх выбранной темы, любой из четырёх; ключи, которых нет, берутся из темы.
+Неизвестный токен, невалидное значение (не `#rrggbb`, alpha вне `focus.ring`) и неверная форма
+файла — предупреждение в лог и игнорирование, приложение стартует. Читает файл команда
+`read_user_theme` (логика — `app_state::settings::read_user_theme`). UI пока нет: будущий экран
+настроек будет писать в этот файл.
+
+### Как добавить новый цвет
+
+1. Добавить токен в `themes/tokens.schema.json`: имя по смыслу, `type`, описание.
+2. Добавить значение во **все четыре** файла тем (`light`, `light-gray`, `dark-gray`, `dark`).
+   Сплошной `#rrggbb`; серые темы подбираются отдельно, не как «светлая с прозрачностью».
+   Тест `theme.test.ts` падает, если ключи файлов и схемы расходятся.
+3. Нужно ли старое имя компонентам? Только тогда — алиас в `aliases.css`. Новому коду алиас не нужен.
+4. Использовать как `var(--<имя>)` (имя — по правилу выше). Для canvas — `tokenColor('--<имя>')`.
+5. `npm --prefix frontend run check:colors` и `npx vitest run` (`design-tokens.test.ts` ловит
+   необъявленные переменные, `theme.test.ts` — валидность и контраст).
 
 ### Поверхности
 
-| Токен | Значение | Применение |
-|---|---|---|
-| `--c-bg-window` | `#0f1115` | Подложка окна, зазоры между панелями |
-| `--c-bg-panel` | `#16191f` | Фон рабочих панелей |
-| `--c-bg-elevated` | `#1a1e26` | Тулбар, шапки панелей, всплывающие поверхности |
-| `--c-bg-hover` | `#1e222b` | Наведение на строку |
-| `--c-bg-active` | `#242b38` | Выбранная строка |
-| `--c-bg-inset` | `#0c0e12` | Поля ввода, блоки терминального вывода |
-| `--c-row-stripe` | `rgba(255, 255, 255, 0.03)` (светлая тема `0.6`) | Каждая вторая строка графа, Files, Repositories, Branches и Worktrees поверх фона панели, роль `--row-stripe` |
+| Токен | Применение |
+|---|---|
+| `bg.app` | Хром: тулбар, меню, статус-бар, шапки панелей, подложка окна |
+| `bg.panel` | Сайдбары и списки: Repositories, Worktrees, Branches, Files, детали коммита |
+| `bg.editor` | Рабочая поверхность: граф и diff (`<Panel surface="editor">`). Самая светлая в светлых темах |
+| `bg.elevated` | Попапы, дропдауны, тултипы, диалоги, тосты |
+| `bg.input` | Поля ввода, чекбоксы, блоки вывода |
+| `bg.hover` | Наведение |
+| `bg.selected` / `bg.selectedInactive` | Выбранная строка панели с клавиатурой / без неё |
+| `selected.bar` | Полоса 2 px слева у выбранной строки |
+| `panel.activeHeader` | Подчёркивание шапки активной панели (2 px) |
+| `bg.rowStripe` | Каждая вторая строка графа поверх `bg.editor` |
+| `border`, `border.strong` | Разделители (1 px) / границы полей, рамка окна |
+| `scrollbar.thumb` | Ползунок прокрутки |
 
-### Границы
+Выбранная строка — `--state-selected` (`bg.selected`) и полоса `--selected-bar`. `Panel` без
+фокуса переопределяет `--state-selected` на `bg.selectedInactive`, поэтому строки внутри
+панели не знают о фокусе.
 
-| Токен | Значение | Применение |
-|---|---|---|
-| `--c-border` | `#262b35` | Сплиттеры, разделители, рамки — **всегда 1 px** |
-| `--c-border-strong` | `#323945` | Границы полей ввода, обводка активных элементов |
+### Текст и акцент
 
-### Текст
+`fg.primary`, `fg.secondary` (подписи, заголовки панелей), `fg.muted` (даты, хеши, пути),
+`fg.disabled`, `accent` / `accent.hover` (ссылки, фокус, галочки), `fg.onAccent` (текст на
+заливке акцентом), `focus.ring` (контур фокуса, alpha), `toggle.on.bg|fg|border` (включённый
+переключатель: фон, текст, рамка).
 
-| Токен | Значение | Применение |
-|---|---|---|
-| `--c-text` | `#e6edf3` | Основной текст |
-| `--c-text-muted` | `#7d8590` | Хеши, даты, пути, подписи |
-| `--c-text-code` | `#d1d7e0` | Текст в редакторах и моноширинных блоках |
-| `--c-text-inverse` | `#0f1115` | Текст на заливке акцентным цветом |
-| `--c-link` | `#58a6ff` (светлая тема `#0969da`) | Ссылки — единственный источник их цвета |
+### Статусы, файлы, бейджи, граф
 
-### Акценты статусов Git
+`status.success|warning|danger|info` (файлы A / M / D / R, `dirty`, ошибки),
+`status.move`, `status.stash`, `file.untracked`, `file.conflict`, `badge.merging.fg`,
+`badge.head|branch|remote|tag|warning` (`.bg` / `.fg`), `graph.lane.0…7`.
+Дорожки и цвета отмеченных веток (`--graph-branch-1…8` = `graph.lane.0…7`) держатся не ниже 3:1 к
+`bg.panel` и `bg.selected` (`graph-palette.test.ts`).
 
-| Токен | Значение | Фон строки | Роль |
-|---|---|---|---|
-| `--c-added` | `#22c55e` | `rgba(34, 197, 94, 0.12)` | Added / Staged |
-| `--c-modified` | `#f59e0b` | `rgba(245, 158, 11, 0.12)` | Modified / внимание |
-| `--c-deleted` | `#ef4444` | `rgba(239, 68, 68, 0.12)` | Deleted / ошибка |
-| `--c-branch` | `#38bdf8` | `rgba(56, 189, 248, 0.12)` | Ветки, выделение, фокус |
-| `--c-stash` | `#a855f7` | `rgba(168, 85, 247, 0.12)` | Стэши |
-| `--c-tag` | `#eab308` (светлая тема `#855d00`) | `rgba(234, 179, 8, 0.12)` | Теги |
+### Diff
 
-Контраст к `--c-bg-panel` у всех пяти акцентов выше 4.5:1 — их можно использовать как цвет текста,
-а не только как заливку.
+`diff.add|del|move` × `line|word|gutter` (у `move` нет `gutter`), `diff.hunkHeader.bg|fg`,
+`diff.lineNumber`, `diff.centerGutter.bg|action|action.hover`, `diff.connector.fill|stroke`,
+`diff.jumpFlash`. Красный — удалено, зелёный — добавлено, фиолетовый — перемещено; единого
+цвета «changed» нет (янтарные фон и маркеры убраны). Подробнее — §7.
 
-### Цвета дорожек графа
+### Дополнительные токены (не из таблиц задания)
 
-Восемь цветов, циклически назначаемых веткам. Подобраны различимыми при дейтеранопии
-и протанопии — при работе с графом это не косметика, а читаемость.
+Введены, потому что интерфейсу нужен цвет, которого нет в спецификации; значения выведены из
+палитры спецификации (смешение двух её цветов), см. `12-risks.md`:
+`bg.rowStripe`, `status.move`, `status.stash`, `diff.jumpFlash`, `search.hit`,
+`search.current`, `search.ink`, `overlay.scrim`, `shadow.color`.
 
-```
---c-lane-1: #38bdf8   голубой
---c-lane-2: #22c55e   зелёный
---c-lane-3: #f59e0b   янтарный
---c-lane-4: #a855f7   фиолетовый
---c-lane-5: #ec4899   розовый
---c-lane-6: #14b8a6   бирюзовый
---c-lane-7: #eab308   жёлтый
---c-lane-8: #f97316   оранжевый
-```
+### Алиасы (`aliases.css`)
 
-Назначение цвета дорожке **стабильно** между перерисовками — см. [07-graph-rendering.md](07-graph-rendering.md).
-Те же восемь — цвета отмеченных в Branches веток (`--graph-branch-1…8`, слот — по имени
-ветки). Каждая тема держит их не ниже 3:1 к `--c-bg-panel` и `--c-bg-active`; в тёмно-серой
-фиолетовый и розовый светлее (`#c084fc`, `#f472b6`). Проверяет `graph-palette.test.ts`.
-
-### Темы
-
-Тёмная — значения `:root`. Светлая переопределяет все примитивы. Светло-серая берёт светлую и
-темнит поверхности и границы (`--c-bg-panel` `#e6e8ec`), а акценты делает на шаг темнее,
-чтобы на сером фоне контраст оставался выше 4.5:1. Тёмно-серая берёт тёмную и светлит
-поверхности (`--c-bg-panel` `#2d3036`), красный и фиолетовый — на шаг светлее по той же
-причине. Полоса строк графа и списков `--c-row-stripe` задана в каждой теме.
-
-## 3. Семантический слой
-
-Компоненты используют только эти токены.
+Старые имена остаются, но указывают на токены; новый код пишет имя токена.
 
 ```css
---surface-base        → --c-bg-window
---surface-panel       → --c-bg-panel
---surface-raised      → --c-bg-elevated
---surface-input       → --c-bg-inset
---state-hover         → --c-bg-hover
---state-selected      → --c-bg-active
---state-focus-ring    → --c-branch
---state-pressed       → --c-bg-active    включённый переключатель (`aria-pressed`)
---state-pressed-text  → --c-branch
+--surface-base        → --bg-app
+--surface-panel       → --bg-panel
+--surface-editor      → --bg-editor
+--surface-raised      → --bg-elevated
+--surface-input       → --bg-input
+--state-hover         → --bg-hover
+--state-selected      → --bg-selected        (в Panel без фокуса — --bg-selected-inactive)
+--state-focus-ring    → --accent
+--state-pressed       → --toggle-on-bg       включённый переключатель (`aria-pressed`)
+--state-pressed-text  → --toggle-on-fg
 
---divider             → --c-border
---field-border        → --c-border-strong
+--divider             → --border
+--field-border        → --border-strong
 
---text-primary        → --c-text
---text-secondary      → --c-text-muted
---text-code           → --c-text-code
---link                → --c-link
+--text-primary        → --fg-primary
+--text-secondary      → --fg-secondary
+--text-muted          → --fg-muted
+--text-code           → --fg-primary
+--link                → --accent
 
---status-add          → --c-added
---status-modify       → --c-modified
---status-delete       → --c-deleted
---status-ref          → --c-branch
---status-stash        → --c-stash
---status-tag          → --c-tag
+--status-add          → --status-success
+--status-modify       → --status-warning
+--status-delete       → --status-danger
+--status-ref          → --accent
+--status-tag          → --badge-tag-fg
 
---graph-main          → --text-primary
---graph-line          → --text-secondary
---graph-branch-N      → --c-lane-N        N = 1…8, цвета отмеченных веток
---graph-focus         → --status-ref      ветка выбранного коммита без своего цвета
---graph-bisect-good   → --status-add      точка хорошего коммита bisect (F-566)
---graph-bisect-bad    → --status-delete   точка плохого и первого плохого
---graph-bisect-skip   → --text-secondary  точка пропущенного
---graph-bisect-current → --c-modified-bg  фон строки коммита на проверке, полоса слева — --status-modify
---graph-bisect-found  → --c-deleted-bg    фон строки первого плохого (и кандидатов, когда остались пропущенные)
+--graph-main          → --fg-primary
+--graph-line          → --fg-secondary
+--graph-branch-N      → --graph-lane-(N-1)   N = 1…8, цвета отмеченных веток
+--graph-focus         → --accent             ветка выбранного коммита без своего цвета
+--graph-bisect-good   → --status-success     точка хорошего коммита bisect (F-566)
+--graph-bisect-bad    → --status-danger      точка плохого и первого плохого
+--graph-bisect-skip   → --fg-secondary       точка пропущенного
+--graph-bisect-current → --badge-warning-bg  фон строки коммита на проверке
+--graph-bisect-found  → --diff-del-line      фон строки первого плохого
 
---indicator-changes   → --status-modify    незакоммиченные изменения (Repositories, метка worktree)
---indicator-synced    → --status-add       чисто и всё запушено (метка worktree)
---indicator-push      → --indicator-changes стрелка «есть что пушить» — оранжевая, как точка (R-548)
---indicator-pull      → --status-add       стрелка «есть что забрать» — зелёная
---indicator-unknown   → --text-secondary   fetch не удался, про pull неизвестно
+--indicator-changes   → --status-warning     незакоммиченные изменения (Repositories, метка worktree)
+--indicator-synced    → --status-success     чисто и всё запушено
+--indicator-push      → --status-warning     «есть что пушить» (R-548)
+--indicator-pull      → --status-success     «есть что забрать»
+--indicator-unknown   → --fg-secondary       fetch не удался
 
---diff-filler         → --c-text-muted 30 %   штриховка там, где у другой стороны строки есть, а у этой нет
---diff-jump-flash     → --c-branch 35 %       вспышка изменения, к которому перешли (F6, ▲ / ▼)
+--scrim               → --overlay-scrim      рисуется с opacity: var(--scrim-opacity)
+--shadow-popover/-dialog                     0 8px 24px / 0 12px 40px, цвет --shadow-color
+--c-*                                        прежние примитивы (`--c-bg-panel`, `--c-added-bg`…) → токены
 ```
+
+`--c-*-bg` теперь сплошные: `--c-added-bg` → `diff.add.line`, `--c-deleted-bg` → `diff.del.line`,
+`--c-modified-bg` → `badge.warning.bg`, `--c-branch-bg` → `badge.branch.bg`,
+`--c-tag-bg` → `badge.tag.bg`, `--c-stash-bg`, `--c-moved-bg` → `diff.move.line`.
 
 ## 4. Типографика
 
@@ -190,7 +248,7 @@
 ### Тени
 
 Одна тень на всё приложение, только для всплывающих поверхностей:
-`--shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.45)`.
+`--shadow-popover: 0 8px 24px var(--shadow-color)`; у диалога — `--shadow-dialog` (12 / 40). Цвет — сплошной токен `shadow.color`.
 Тени на панелях и кнопках не используются — разделение делают границы 1 px.
 
 ## 6. Компоненты
@@ -219,8 +277,8 @@ menu            строка, на которой открыто контекс�
 контейнер, ни уже выбранная строка рамку фокуса не рисуют; кнопки и поля внутри строки —
 рисуют, как везде.
 
-Индикатор выбора — **полоса, а не только цвет фона**: различие фона `#1e222b` и `#242b38`
-слишком мало, чтобы быть единственным сигналом.
+Индикатор выбора — **полоса, а не только цвет фона**: различие фона `bg.hover` и `bg.selected`
+слишком мало (полоса — `selected.bar`), чтобы быть единственным сигналом.
 
 ### Таблица Files
 
@@ -234,7 +292,7 @@ menu            строка, на которой открыто контекс�
 ### Статус-бейдж файла
 
 Квадрат 16×16, радиус `--r-sm`, моноширинная буква по центру, цвет по статусу,
-фон — соответствующий `rgba(...)`.
+фон — сплошной токен темы (`diff.add.line`, `badge.warning.bg`, …).
 
 | Статус | Буква | Цвет |
 |---|---|---|
@@ -249,14 +307,14 @@ menu            строка, на которой открыто контекс�
 ### Ref-капсула
 
 Высота 16 px, радиус `--r-md`, padding `0 --sp-3`, шрифт моноширинный 11 px,
-граница 1 px цветом роли, фон — `rgba` того же цвета 12%.
+граница 1 px цветом роли, фон и текст — токены `badge.<вид>.bg` / `.fg` (head, branch, remote, tag).
 
 | Тип | Цвет | Пример |
 |---|---|---|
 | Локальная ветка | `--status-ref` | `dev` |
 | HEAD | `--status-ref`, насыщенный фон | `HEAD → dev` |
 | Удалённая ветка | `--status-ref` приглушённый | `origin/master` |
-| Ветка и её upstream на одном коммите | блок remote `--text-secondary` на `--surface-raised`, `=`, блок ветки — цветом ветки или HEAD | `origin=dev` |
+| Ветка и её upstream на одном коммите | блок remote `badge.remote.fg` на `badge.remote.bg`, `=`, блок ветки — цветом ветки или HEAD | `origin=dev` |
 | Тег | `--status-tag` | `v1.2.0` |
 | Stash | `--status-stash`; узел в графе — квадрат того же цвета | `stash@{0}` |
 
@@ -297,7 +355,7 @@ Branches), — проп `tri` с `triState` (R-158, [R-455](12-risks.md)).
 
 ### Заголовок панели
 
-Высота `--h-panel-hdr`, фон `--surface-raised`, нижняя граница 1 px `--divider`.
+Высота `--h-panel-hdr`, фон `--surface-base` (`bg.app`), нижняя граница 1 px `--divider`. Активная панель (с клавиатурой) — подчёркивание 2 px `panel.activeHeader`.
 Слева — название в стиле «заголовок панели», справа — фильтр и действия панели.
 
 ### Блок терминального вывода
@@ -317,13 +375,13 @@ Branches), — проп `tri` с `triState` (R-158, [R-455](12-risks.md)).
 
 | Что | Фон | Дополнительно |
 |---|---|---|
-| Строка добавлена | `rgba(34, 197, 94, 0.12)` | Метка `+` в жёлобе цветом `--status-add` |
-| Строка удалена | `rgba(239, 68, 68, 0.12)` | Метка `−` цветом `--status-delete` |
-| Строка изменена | `rgba(245, 158, 11, 0.10)` | — |
-| Слово добавлено | `rgba(34, 197, 94, 0.28)` | Радиус 2 px |
-| Слово удалено | `rgba(239, 68, 68, 0.28)` | Радиус 2 px |
+| Строка добавлена | `diff.add.line`, жёлоб `diff.add.gutter` | Метка `+` в жёлобе цветом `--status-add` |
+| Строка удалена | `diff.del.line`, жёлоб `diff.del.gutter` | Метка `−` цветом `--status-delete` |
+| Строка перемещена | `diff.move.line` | — |
+| Слово добавлено | `diff.add.word` | Радиус 2 px |
+| Слово удалено | `diff.del.word` | Радиус 2 px |
 | Плашка сворачивания | `--surface-raised` | Текст `--text-secondary`, по центру |
-| Маркер конфликта | `rgba(239, 68, 68, 0.18)` | Левая полоса 2 px `--status-delete` |
+| Маркер конфликта | `diff.del.line` | Левая полоса 2 px `--status-delete` |
 
 Подсветка синтаксиса накладывается **поверх** фона diff и не должна им перебиваться:
 тема Lezer настраивается с прозрачным фоном.

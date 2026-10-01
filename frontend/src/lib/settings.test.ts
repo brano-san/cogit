@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { THEME_FILES } from "./theme";
 import { DEFAULT_SETTINGS, THEMES, merge, needsRestart } from "./settings";
 import { GRAPH, LANE_WIDTH, setLaneWidth } from "./graph-geometry";
 
@@ -94,11 +93,8 @@ describe("themes", () => {
     for (const [id] of THEMES) expect(merge({ theme: id }).theme).toBe(id);
   });
 
-  it("gives every theme but the default its own palette in app.css", () => {
-    const css = readFileSync(join(__dirname, "..", "app.css"), "utf8");
-    for (const [id] of THEMES.filter(([id]) => id !== DEFAULT_SETTINGS.theme)) {
-      expect(css).toContain(`:root[data-theme="${id}"]`);
-    }
+  it("gives every theme its own file in themes/", () => {
+    expect(Object.keys(THEME_FILES)).toEqual(THEMES.map(([id]) => id));
   });
 });
 
@@ -185,7 +181,7 @@ describe("graph display settings (#23)", () => {
 
 describe("graphFilterFields", () => {
   it("defaults to every switch but Name and Content", () => {
-    expect(DEFAULT_SETTINGS.graphFilterFields).toEqual(["author", "committer", "message", "refs", "id"]);
+    expect(DEFAULT_SETTINGS.graphFilterFields).toEqual(["author", "committer", "message", "refs", "id", "notes"]);
   });
 
   it("keeps the switches a file saved, known ones only", () => {

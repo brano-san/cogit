@@ -255,6 +255,7 @@
 
   .row.selected {
     background: var(--state-selected);
+    box-shadow: inset 2px 0 0 var(--selected-bar);
   }
 
   .row.over {
