@@ -192,3 +192,164 @@ pub async fn forget_token(
     })
     .await
 }
+
+/// Fetch Only of the Pull dialog; the answer names notes that diverged.
+#[tauri::command]
+#[specta::specta]
+pub async fn fetch_with(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    remote: String,
+    options: git_engine::FetchOptions,
+    on_progress: tauri::ipc::Channel<String>,
+) -> Result<git_engine::NotesFetch, GitError> {
+    let app_state = state.state.clone();
+    networking(
+        &state.state,
+        repo,
+        OperationKind::Fetch,
+        "fetch_with",
+        move |stop| {
+            with_progress("fetch", &remote, &on_progress, |on_line| {
+                app_state.fetch_with(repo, &remote, options, &stop, on_line)
+            })
+        },
+    )
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn pull_with(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    remote: String,
+    options: git_engine::PullOptions,
+    on_progress: tauri::ipc::Channel<String>,
+) -> Result<git_engine::NotesFetch, GitError> {
+    let app_state = state.state.clone();
+    networking(
+        &state.state,
+        repo,
+        OperationKind::Pull,
+        "pull_with",
+        move |stop| {
+            with_progress("pull", &remote, &on_progress, |on_line| {
+                app_state.pull_with(repo, &remote, options, &stop, on_line)
+            })
+        },
+    )
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn push_with(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    options: git_engine::PushOptions,
+    on_progress: tauri::ipc::Channel<String>,
+) -> Result<git_engine::PushOutcome, GitError> {
+    let app_state = state.state.clone();
+    networking(
+        &state.state,
+        repo,
+        OperationKind::Push,
+        "push_with",
+        move |stop| {
+            let remote = options.remote.clone();
+            with_progress("push", &remote, &on_progress, |on_line| {
+                app_state.push_with(repo, &options, &stop, on_line)
+            })
+        },
+    )
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn push_notes(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    remote: String,
+    on_progress: tauri::ipc::Channel<String>,
+) -> Result<git_engine::PushOutcome, GitError> {
+    let app_state = state.state.clone();
+    networking(
+        &state.state,
+        repo,
+        OperationKind::Push,
+        "push_notes",
+        move |stop| {
+            with_progress("push", &remote, &on_progress, |on_line| {
+                app_state.push_notes(repo, &remote, &stop, on_line)
+            })
+        },
+    )
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn merge_notes(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    remote: String,
+    namespace: String,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    super::mutating(
+        &state.state,
+        repo,
+        OperationKind::Other,
+        "merge_notes",
+        move || app_state.merge_notes(repo, &remote, &namespace),
+    )
+    .await
+}
+
+/// The commits Push would send (the list capped at `limit`) and the notes the remote lacks.
+#[tauri::command]
+#[specta::specta]
+pub async fn push_preview(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    local: String,
+    remote: String,
+    branch: String,
+    limit: u32,
+) -> Result<git_engine::PushPreview, GitError> {
+    let app_state = state.state.clone();
+    blocking("push_preview", move || {
+        app_state.push_preview(repo, &local, &remote, &branch, limit as usize)
+    })
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn network_defaults(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<git_engine::NetworkDefaults, GitError> {
+    let app_state = state.state.clone();
+    blocking("network_defaults", move || app_state.network_defaults(repo)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn save_network_defaults(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    defaults: git_engine::NetworkDefaults,
+) -> Result<(), GitError> {
+    let app_state = state.state.clone();
+    super::mutating(
+        &state.state,
+        repo,
+        OperationKind::Other,
+        "save_network_defaults",
+        move || app_state.save_network_defaults(repo, &defaults),
+    )
+    .await
+}

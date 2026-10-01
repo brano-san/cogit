@@ -165,7 +165,7 @@ impl RepoHandle {
     }
 
     /// Names and targets of the refs under `prefixes`, sorted; unreadable ones are left out.
-    fn ref_tips(&self, prefixes: &[&str]) -> Vec<(String, String)> {
+    pub(crate) fn ref_tips(&self, prefixes: &[&str]) -> Vec<(String, String)> {
         let Ok(platform) = self.repo.references() else {
             return Vec::new();
         };
@@ -272,7 +272,7 @@ impl RepoHandle {
     }
 
     /// The token of the URL this direction contacts, not of the push URL for all (R-410).
-    fn auth_arg(
+    pub(crate) fn auth_arg(
         &self,
         remote: &str,
         direction: gix::remote::Direction,
@@ -282,7 +282,7 @@ impl RepoHandle {
         auth_config(&url, &token(&url)?)
     }
 
-    fn run_streaming(&self, args: &[&str], on_line: impl FnMut(&str)) -> Result<()> {
+    pub(crate) fn run_streaming(&self, args: &[&str], on_line: impl FnMut(&str)) -> Result<()> {
         self.run_streaming_within(args, on_line, SILENCE)
     }
 
