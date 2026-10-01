@@ -682,10 +682,12 @@ dependencies = [
  "anyhow",
  "app_state",
  "build_info",
+ "desktop_entry",
  "diff_engine",
  "fs_watcher",
  "git_engine",
  "graph_engine",
+ "gtk",
  "parking_lot",
  "serde",
  "serde_json",
@@ -1115,6 +1117,13 @@ dependencies = [
  "quote",
  "rustc_version",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "desktop_entry"
+version = "0.1.0"
+dependencies = [
+ "tempfile",
 ]
 
 [[package]]

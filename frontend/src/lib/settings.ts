@@ -23,6 +23,11 @@ export type GraphColumn = (typeof GRAPH_COLUMNS)[number];
 export type GraphTimeFormat = "relative" | "date" | "dateTime";
 export type GraphDensity = "compact" | "normal" | "comfortable";
 
+/** Who draws the menu bar, the drop-downs, the context menus: the page (`on`), the platform
+    (`off`), or the platform's own choice (`auto`: the page on Linux, the platform on Windows
+    and macOS). A window with no decorations of its own gets the page's titlebar either way. */
+export type WebMenus = "auto" | "on" | "off";
+
 export interface Settings {
   theme: Theme;
   dateFormat: DateMode;
@@ -49,6 +54,8 @@ export interface Settings {
       carries a hash rather than the address (doc/12-risks.md, R-145). `ask` is what a
       settings file written before that default said. */
   avatars: "ask" | "gravatar" | "off";
+  /** Menus and context menus drawn by the page; the titlebar follows the window's decorations. Read at start. */
+  uiWebMenus: WebMenus;
   /** Off until ticked: nothing reaches the network unasked. Help ▸ Check for Updates…
       works either way. */
   autoUpdate: boolean;
@@ -118,6 +125,7 @@ export const DEFAULT_SETTINGS: Settings = {
   mergeExternalToolArgs: "",
   logLevel: "info",
   avatars: "gravatar",
+  uiWebMenus: "auto",
   autoUpdate: false,
   startupShowWelcome: true,
   confirmExit: true,
@@ -148,7 +156,7 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 /** Read once at startup, so changing them needs a restart to take effect. */
-const RESTART_REQUIRED: readonly (keyof Settings)[] = ["logLevel", "gitPath"];
+const RESTART_REQUIRED: readonly (keyof Settings)[] = ["logLevel", "gitPath", "uiWebMenus"];
 
 const ENUMS: Partial<Record<keyof Settings, readonly string[]>> = {
   theme: THEMES.map(([id]) => id),
@@ -159,6 +167,7 @@ const ENUMS: Partial<Record<keyof Settings, readonly string[]>> = {
   pullMode: ["ffOnly", "merge"],
   logLevel: ["error", "warn", "info", "debug", "trace"],
   avatars: ["ask", "gravatar", "off"],
+  uiWebMenus: ["auto", "on", "off"],
   graphTimeFormat: ["relative", "date", "dateTime"],
   graphDensity: ["compact", "normal", "comfortable"],
   graphColoring: GRAPH_COLORINGS,

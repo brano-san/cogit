@@ -118,6 +118,9 @@ sysinfo = { version = "0.39", default-features = false, features = ["system"] }
 # Versions must match what tauri 2.11 already resolves, or the COM types are two
 # incompatible copies of themselves (R-88).
 webview2-com = "0.38"
+# GtkSettings of the process: the native file chooser follows the Cogit theme (Linux only).
+# The version tauri 2.11 and wry already resolve, so no second GTK is built.
+gtk = "0.18"
 windows-core = "0.61"
 # `GetKeyState`: the accelerator event says which key, never which modifiers. The rest
 # holds a shutdown while operations run: a window subclass and the block reason (R-168).
@@ -139,6 +142,7 @@ tempfile = "3.27"
 app_state = { path = "crates/app_state" }
 avatars = { path = "crates/avatars" }
 build_info = { path = "crates/build_info" }
+desktop_entry = { path = "crates/desktop_entry" }
 diff_engine = { path = "crates/diff_engine" }
 fs_watcher = { path = "crates/fs_watcher" }
 git_engine = { path = "crates/git_engine" }
