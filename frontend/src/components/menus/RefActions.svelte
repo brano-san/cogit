@@ -83,6 +83,7 @@
   import { tagRequest } from "$lib/tag-dialog";
   import { branchRevision } from "$lib/toolbar";
   import { branchNameProblem, textProblem } from "$lib/names";
+  import { notedCommitsStore } from "$stores/noted-commits.svelte";
   import { commit } from "$stores/commit.svelte";
   import { prefetcher } from "$lib/prefetch";
   import { compareView } from "$stores/compare-view.svelte";
@@ -720,6 +721,7 @@
     refDialogs.note = null;
     if (!id || !dialog) return;
     await attempt("Could not save the note", () => setNote(id, dialog.oid, text));
+    await notedCommitsStore.refresh(id);
     if (commit.oid === dialog.oid) await commit.select(id, dialog.oid);
   }
 

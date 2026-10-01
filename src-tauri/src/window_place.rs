@@ -200,6 +200,52 @@ pub fn recentre<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>) {
     let _ = window.set_position(tauri::PhysicalPosition::new(now.x, now.y));
 }
 
+/// The middle of `screen`, shrunk to fit it: where a new window opens when it must land on
+/// a given monitor.
+#[must_use]
+pub fn centred_on(size: (i32, i32), screen: Rect) -> Rect {
+    place(
+        Rect {
+            x: i32::MIN / 2,
+            y: i32::MIN / 2,
+            w: size.0,
+            h: size.1,
+        },
+        &[],
+        screen,
+    )
+}
+
+/// Puts a window that is not shown yet in the middle of the monitor `anchor` is on (the
+/// main window), so a child never opens on another screen. Silent where the platform
+/// cannot position windows (Wayland) or the anchor has no monitor: the window stays where
+/// the toolkit centred it. Never moves `anchor`.
+pub fn centre_on_monitor_of<R: tauri::Runtime>(
+    window: &tauri::WebviewWindow<R>,
+    anchor: &tauri::WebviewWindow<R>,
+) {
+    let Some(screen) = anchor
+        .current_monitor()
+        .ok()
+        .flatten()
+        .as_ref()
+        .map(Rect::from)
+    else {
+        return;
+    };
+    let Ok(size) = window.outer_size() else {
+        return;
+    };
+    let now = centred_on(
+        (
+            i32::try_from(size.width).unwrap_or(i32::MAX),
+            i32::try_from(size.height).unwrap_or(i32::MAX),
+        ),
+        screen,
+    );
+    let _ = window.set_position(tauri::PhysicalPosition::new(now.x, now.y));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -219,6 +265,18 @@ mod tests {
 
     fn window(x: i32, y: i32, w: i32, h: i32) -> Rect {
         Rect { x, y, w, h }
+    }
+
+    #[test]
+    fn a_new_window_is_centred_on_the_monitor_it_is_told_to_use() {
+        let at = centred_on((1000, 800), SECOND);
+        assert_eq!((at.x, at.y, at.w, at.h), (1920 + 780, 300, 1000, 800));
+    }
+
+    #[test]
+    fn a_window_larger_than_the_monitor_is_shrunk_to_it() {
+        let at = centred_on((3000, 2000), LAPTOP);
+        assert_eq!((at.x, at.y, at.w, at.h), (0, 0, 1920, 1040));
     }
 
     #[test]

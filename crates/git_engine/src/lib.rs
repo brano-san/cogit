@@ -18,6 +18,7 @@ mod file_log;
 mod file_ops;
 mod find;
 mod flow;
+mod git_probe;
 mod gitlink;
 mod graph_walk;
 mod health;
@@ -87,7 +88,7 @@ pub use cloning::{
 };
 pub use commit::{
     CommitDetails, DEFAULT_SIMILARITY, FileEntry, FileMode, FileStatus, Signature, SignatureCheck,
-    Trailer,
+    SubmoduleChange, Trailer,
 };
 pub use commit_write::CommitRequest;
 pub use config_file::{
@@ -100,6 +101,7 @@ pub use file_log::{FileChange, FileRevision};
 pub use file_ops::{IgnoreRule, IndexEditorSides, IndexFlag};
 pub use find::{Found, FoundKind};
 pub use flow::{FlowBranch, FlowConfig, FlowKind, FlowStatus};
+pub use git_probe::{GitProbe, parse_git_version, probe_git};
 pub use gitlink::{ModuleProblem, is_foreign_path};
 pub use graph_walk::{CutParents, Reuse, WalkedHistory};
 pub use health::{HealthFinding, HealthIssue, case_sensitive};

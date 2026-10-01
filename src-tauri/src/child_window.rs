@@ -99,6 +99,10 @@ pub fn open_with_menu<R: tauri::Runtime>(
         builder = builder.additional_browser_args(&args);
     }
     let window = builder.build()?;
+    // Not shown yet, so the move is invisible. `.center()` alone picks the primary monitor.
+    if let Some(main) = tauri::Manager::get_webview_window(app, MAIN) {
+        crate::window_place::centre_on_monitor_of(&window, &main);
+    }
     if menu.is_empty() {
         window.remove_menu()?;
     }

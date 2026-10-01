@@ -108,6 +108,7 @@ describe("graph display settings (#23)", () => {
     expect(DEFAULT_SETTINGS.graphTimeFormat).toBe("date");
     expect(DEFAULT_SETTINGS.graphDensity).toBe("normal");
     expect(DEFAULT_SETTINGS.graphStripes).toBe(true);
+    expect(DEFAULT_SETTINGS.graphShowNotes).toBe(true);
     expect(DEFAULT_SETTINGS.graphHighlightChecked).toBe(true);
     expect(DEFAULT_SETTINGS.graphLongLinkRows).toBe(40);
   });
@@ -144,12 +145,14 @@ describe("graph display settings (#23)", () => {
       graphTimeFormat: "iso",
       graphDensity: "huge",
       graphStripes: "yes",
+      graphShowNotes: 0,
       graphFirstParent: 1,
       graphColumns: "author",
     } as never);
     expect(merged.graphTimeFormat).toBe(DEFAULT_SETTINGS.graphTimeFormat);
     expect(merged.graphDensity).toBe(DEFAULT_SETTINGS.graphDensity);
     expect(merged.graphStripes).toBe(DEFAULT_SETTINGS.graphStripes);
+    expect(merged.graphShowNotes).toBe(DEFAULT_SETTINGS.graphShowNotes);
     expect(merged.graphFirstParent).toBe(DEFAULT_SETTINGS.graphFirstParent);
     expect(merged.graphColumns).toEqual(DEFAULT_SETTINGS.graphColumns);
   });
@@ -190,6 +193,7 @@ describe("graphFilterFields", () => {
       "id",
       "content",
     ]);
+    expect(merge({ graphFilterFields: ["notes", "id"] } as never).graphFilterFields).toEqual(["id", "notes"]);
     expect(merge({ graphFilterFields: "id" } as never).graphFilterFields).toEqual(DEFAULT_SETTINGS.graphFilterFields);
   });
 

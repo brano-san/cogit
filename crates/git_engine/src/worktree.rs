@@ -75,6 +75,7 @@ impl RepoHandle {
                         let mut row =
                             entry_of(rela_path.to_string(), file_status, mode_of(found.mode));
                         row.mode_change = executable_bit_change(&status, found.mode);
+                        row.submodule = submodule_change(&status);
                         files.unstaged.push(row);
                     }
                 }
@@ -158,6 +159,7 @@ fn entry_of(path: String, status: FileStatus, mode: crate::FileMode) -> FileEntr
         mode,
         mode_change: None,
         similarity: None,
+        submodule: None,
     }
 }
 
@@ -226,6 +228,7 @@ fn staged_entry(change: &gix::diff::index::Change) -> FileEntry {
             mode: mode_of(*entry_mode),
             mode_change: None,
             similarity: None,
+            submodule: None,
         },
     }
 }
@@ -258,4 +261,25 @@ fn worktree_status(status: &EntryStatus<(), gix::submodule::Status>) -> Option<F
         EntryStatus::IntentToAdd => Some(FileStatus::Added),
         EntryStatus::NeedsUpdate(_) => None,
     }
+}
+
+fn submodule_change(
+    status: &EntryStatus<(), gix::submodule::Status>,
+) -> Option<crate::SubmoduleChange> {
+    let EntryStatus::Change(WorktreeChange::SubmoduleModification(inner)) = status else {
+        return None;
+    };
+    let mut change = crate::SubmoduleChange {
+        new_commits: inner.checked_out_head_id != inner.index_id,
+        ..Default::default()
+    };
+    for item in inner.changes.iter().flatten() {
+        match item {
+            Item::IndexWorktree(WorktreeItem::DirectoryContents { entry, .. }) => {
+                change.untracked |= matches!(entry.status, gix::dir::entry::Status::Untracked);
+            }
+            _ => change.modified = true,
+        }
+    }
+    Some(change)
 }

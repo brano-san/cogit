@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import Dialog from "$components/common/Dialog.svelte";
   import Checkbox from "$components/common/Checkbox.svelte";
   import Radio from "$components/common/Radio.svelte";
@@ -13,7 +14,10 @@
     restoreKeys,
   } from "$lib/preferences";
   import type { TreeNode } from "$lib/tree";
-  import { needsRestart, DEFAULT_SETTINGS, THEMES, type Settings } from "$lib/settings";
+  import { needsRestart, THEMES, type Settings } from "$lib/settings";
+  import { isSetting, type Field } from "$lib/preferences";
+  import { createGitChecker, describeCheck, ON_WINDOWS, type GitCheck } from "$lib/git-check";
+  import { probeGit } from "$lib/ipc";
   import type { Keymap } from "$lib/keymap";
   import type { KeyBinding } from "$lib/ipc";
   import KeymapEditor from "$components/layout/KeymapEditor.svelte";
@@ -131,14 +135,28 @@
     })),
   );
   const current = $derived(CATEGORIES.find((category) => category.id === active));
-  const restarts = $derived(
-    (Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]).some(
-      (key) => draft[key] !== value[key] && needsRestart(key),
-    ),
-  );
-  const note = $derived(
-    restarts ? "*) Some changes take effect after a restart." : (current?.note ?? ""),
-  );
+  const note = $derived(current?.note ?? "");
+
+  let gitCheck = $state.raw<GitCheck>({ state: "idle" });
+  const gitChecker = createGitChecker(probeGit, (next) => (gitCheck = next));
+  $effect(() => {
+    gitChecker.check(untrack(() => draft.gitPath));
+    return () => gitChecker.dispose();
+  });
+
+  async function browseGit() {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    // An extension filter cannot match the extensionless `git` of Unix, so only Windows gets one.
+    const picked = await open({
+      title: "Select Git Executable",
+      multiple: false,
+      directory: false,
+      filters: ON_WINDOWS ? [{ name: "Git (git.exe)", extensions: ["exe"] }] : undefined,
+    });
+    if (typeof picked !== "string") return;
+    set("gitPath", picked);
+    gitChecker.check(picked);
+  }
 
   function set<K extends keyof Settings>(key: K, next: Settings[K]) {
     draft = { ...draft, [key]: next };
@@ -282,15 +300,29 @@
                 </span>
               </label>
             {:else if field.key === "gitPath"}
-              <label class="row">
-                <span>{field.label}</span>
-                <input
-                  type="text"
-                  class="text"
-                  value={draft.gitPath}
-                  oninput={(e) => set("gitPath", e.currentTarget.value)}
-                />
-              </label>
+              <div class="row">
+                {@render caption(field)}
+                <div class="path">
+                  <input
+                    type="text"
+                    class="text"
+                    aria-label={field.label}
+                    value={draft.gitPath}
+                    oninput={(e) => {
+                      set("gitPath", e.currentTarget.value);
+                      gitChecker.check(e.currentTarget.value);
+                    }}
+                  />
+                  <button type="button" class="btn browse" title="Browse…" aria-label="Browse for the Git executable" onclick={browseGit}>...</button>
+                </div>
+                {#if gitCheck.state === "ok"}
+                  <span class="verdict ok"><span aria-hidden="true">✓</span> {describeCheck(gitCheck)}</span>
+                {:else if gitCheck.state === "bad"}
+                  <button type="button" class="verdict bad" data-tip={gitCheck.reason}><span aria-hidden="true">✗</span> Not a working Git</button>
+                {:else if gitCheck.state === "checking"}
+                  <span class="verdict">{describeCheck(gitCheck)}</span>
+                {/if}
+              </div>
             {:else if field.key === "algorithm"}
               <div class="row choice" role="radiogroup" aria-label={field.label}>
                 <span>{field.label}</span>
@@ -414,7 +446,7 @@
               </div>
             {:else if field.key === "logLevel"}
               <div class="row">
-                <span>{field.label}</span>
+                {@render caption(field)}
                 <Select
                   value={draft.logLevel}
                   options={LOG_LEVELS.map((level) => [level, level] as const)}
@@ -502,6 +534,17 @@
   {/snippet}
 </Dialog>
 
+{#snippet caption(field: Field)}
+  <span
+    >{field.label}{#if isSetting(field.key) && needsRestart(field.key)}<button
+        type="button"
+        class="star"
+        aria-label="Takes effect after a restart."
+        data-tip="Takes effect after a restart.">*</button
+      >{/if}</span
+  >
+{/snippet}
+
 <style>
   .suppressed {
     display: flex;
@@ -559,7 +602,7 @@
     align-items: center;
     gap: var(--sp-2);
     width: 100%;
-    height: var(--h-row);
+    height: 100%;
     padding-right: var(--sp-4);
     background: none;
     border: 0;
@@ -688,13 +731,62 @@
   }
 
   .hint {
-    margin: 0 0 var(--sp-4) 200px;
+    margin: 0 0 var(--sp-4) var(--sp-7);
     color: var(--text-secondary);
     font-size: 11px;
   }
 
   .hint.wide {
     margin-left: 0;
+  }
+
+  .path {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+  }
+
+  .path .text {
+    flex: 1 1 0;
+  }
+
+  .browse {
+    flex: 0 0 auto;
+  }
+
+  /* Second grid row of the settings row, under the input, never beside the label. */
+  .row > .verdict {
+    grid-column: 2;
+    justify-self: start;
+    width: auto;
+  }
+
+  .verdict {
+    color: var(--text-secondary);
+    font-size: var(--fs-header);
+  }
+
+  .verdict.ok {
+    color: var(--status-add);
+  }
+
+  .verdict.bad {
+    color: var(--status-delete);
+  }
+
+  .star,
+  .verdict.bad {
+    padding: 0;
+    background: none;
+    border: 0;
+    font: inherit;
+    text-align: left;
+  }
+
+  .star {
+    margin-left: var(--sp-2);
+    color: var(--text-secondary);
+    cursor: help;
   }
 
   .stored {

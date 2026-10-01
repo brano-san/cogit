@@ -10,6 +10,8 @@ describe("parseQuery", () => {
       message: null,
     });
     expect(parseQuery("fix", ["content"]).textIn).toEqual(textFields(["content"]));
+    expect(parseQuery("fix", ["notes"]).textIn?.notes).toBe(true);
+    expect(parseQuery("fix").textIn?.notes).toBe(false);
   });
 
   it("returns an empty query for blank input", () => {

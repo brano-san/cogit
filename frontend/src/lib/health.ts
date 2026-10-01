@@ -33,18 +33,21 @@ export const WRITE_COMMIT_GRAPH = "write-commit-graph";
 export const CLEAR_GC_LOCK = "clear-gc-lock";
 
 /** The confirmation a maintenance button asks before it runs (E2). */
-export const MAINTENANCE: Record<string, { task: "gc" | "commitGraph" | "clearGcLock"; question: string }> = {
+export const MAINTENANCE: Record<string, { task: "gc" | "commitGraph" | "clearGcLock"; question: string; done: string }> = {
   [RUN_GC]: {
     task: "gc",
     question: "Run git gc? It packs loose objects and prunes unreachable ones older than two weeks; it can take a while on a large repository.",
+    done: "Garbage collection finished",
   },
   [WRITE_COMMIT_GRAPH]: {
     task: "commitGraph",
     question: "Write the commit-graph file? It only adds an index that speeds up history walks.",
+    done: "Commit-graph generated successfully",
   },
   [CLEAR_GC_LOCK]: {
     task: "clearGcLock",
     question: "Remove gc.pid? Do this only if no git gc is running for this repository.",
+    done: "gc.pid removed",
   },
 };
 

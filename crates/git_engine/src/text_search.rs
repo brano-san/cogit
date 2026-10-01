@@ -25,6 +25,8 @@ pub struct TextFields {
     pub name: bool,
     /// Lines the commit added or removed against its first parent.
     pub content: bool,
+    /// Git Notes of the commit, in every `refs/notes/*` namespace.
+    pub notes: bool,
 }
 
 impl Default for TextFields {
@@ -37,6 +39,7 @@ impl Default for TextFields {
             id: true,
             name: false,
             content: false,
+            notes: false,
         }
     }
 }
@@ -50,6 +53,7 @@ pub(crate) struct TextMatch {
     needle: String,
     fields: TextFields,
     refs: HashMap<gix::ObjectId, Vec<String>>,
+    notes: HashMap<gix::ObjectId, Vec<gix::ObjectId>>,
 }
 
 fn lower(text: &str) -> String {
@@ -67,10 +71,16 @@ impl RepoHandle {
         } else {
             HashMap::new()
         };
+        let notes = if query.text_in.notes {
+            self.note_blobs()
+        } else {
+            HashMap::new()
+        };
         Some(TextMatch {
             needle,
             fields: query.text_in,
             refs,
+            notes,
         })
     }
 
@@ -119,6 +129,18 @@ impl TextMatch {
                 .refs
                 .get(&id)
                 .is_some_and(|names| names.iter().any(|name| name.contains(needle)))
+        {
+            return true;
+        }
+        if fields.notes
+            && self.notes.get(&id).is_some_and(|blobs| {
+                blobs.iter().any(|blob| {
+                    handle
+                        .repo
+                        .find_blob(*blob)
+                        .is_ok_and(|blob| has(&blob.data.to_str_lossy()))
+                })
+            })
         {
             return true;
         }

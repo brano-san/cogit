@@ -37,3 +37,16 @@ it("keeps the outline on screen while the owned tree is read", async () => {
   await owning;
   expect(submodules.rows.map((row) => row.key)).toEqual(["lib"]);
 });
+
+it("keeps a repository's read labels for its list row and for coming back", async () => {
+  const { listSubmodules } = await import("$lib/ipc");
+  const labeled = { ...mod("lib"), state: "inSync" as const, branch: "main" };
+  vi.mocked(listSubmodules).mockImplementation(async () => [labeled]);
+  await submodules.own("a" as unknown as RepoId, "/keep-a");
+  await submodules.own("b" as unknown as RepoId, "/keep-b");
+  expect(moduleForest.trees.get("/keep-a")?.get("")?.[0]?.branch).toBe("main");
+  // Returning while the read fails must not blank the labels.
+  vi.mocked(listSubmodules).mockImplementation(async () => Promise.reject(new Error("busy")));
+  await submodules.own("a" as unknown as RepoId, "/keep-a");
+  expect(submodules.top[0]?.branch).toBe("main");
+});

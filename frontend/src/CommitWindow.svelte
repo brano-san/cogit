@@ -41,6 +41,7 @@
   import { pushTo } from "$lib/ipc/ref-ops";
   import { publishedOrAssume } from "$lib/published";
   import { menuPush } from "$lib/push-to";
+  import { placePopup, type Box, type Placed } from "$lib/popup-place";
   import { followSettings } from "$lib/settings-sync";
   import { notices } from "$stores/notices.svelte";
   import { settings } from "$stores/settings.svelte";
@@ -70,7 +71,25 @@
   let picking = $state(false);
   let chosen = $state<string | null>(null);
   let pending = $state<string | null>(null);
-  let menuAt = $state<{ x: number; y: number } | null>(null);
+  let menuAt = $state<Box | null>(null);
+  let placed = $state<Placed | null>(null);
+
+  /** Moves the node to <body>, out of any clipping or stacking ancestor. */
+  function portal(node: HTMLElement) {
+    document.body.appendChild(node);
+    return { destroy: () => node.remove() };
+  }
+
+  /** The menu is measured once it is in <body>, then placed inside the window. */
+  function place(node: HTMLElement) {
+    if (menuAt) {
+      placed = placePopup(menuAt, { width: node.offsetWidth, height: node.scrollHeight + 2 }, {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    }
+    return { destroy: () => (placed = null) };
+  }
   let field: HTMLTextAreaElement | undefined = $state();
   let loaded = $state(false);
 
@@ -193,7 +212,7 @@
 
   function openMenu(event: MouseEvent) {
     const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    menuAt = { x: box.right, y: box.bottom + 2 };
+    menuAt = box;
     pending = readDraft();
   }
 
@@ -269,7 +288,7 @@
     settings.formatDate(details.author.timestamp, details.author.tzOffsetMinutes);
 </script>
 
-<svelte:window {onkeydown} />
+<svelte:window {onkeydown} onresize={() => (menuAt = null)} />
 
 <TooltipLayer />
 
@@ -383,8 +402,17 @@
 
   {#if menuAt}
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-    <div class="backdrop" onclick={() => (menuAt = null)}></div>
-    <div class="menu" role="menu" style:right="{window.innerWidth - menuAt.x}px" style:top="{menuAt.y}px">
+    <div class="backdrop" use:portal onclick={() => (menuAt = null)}></div>
+    <div
+      class="menu"
+      role="menu"
+      use:portal
+      use:place
+      style:visibility={placed ? "visible" : "hidden"}
+      style:left="{placed?.left ?? 0}px"
+      style:top="{placed?.top ?? 0}px"
+      style:max-height="{placed?.maxHeight ?? 0}px"
+    >
       <button
         type="button"
         role="menuitem"
@@ -740,7 +768,6 @@
     flex-direction: column;
     min-width: 260px;
     max-width: 420px;
-    max-height: 60vh;
     overflow: auto;
     padding: var(--sp-2) 0;
     background: var(--surface-raised);

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { keyLetter } from "$lib/key-letter";
   import { modals } from "$lib/modal-stack";
+  import { selectAllKeys } from "$lib/files-panel";
   import { untrack } from "svelte";
   import FilesToolbar from "./FilesToolbar.svelte";
   import { contentQuery, keepFile, type ContentSearch } from "$lib/content-search.svelte";
@@ -122,6 +123,8 @@
   /** Keyed by section and path (`rowKey`), not by path alone. */
   let marked = $state.raw<FileSelection>(EMPTY_SELECTION);
   let mask = $state("");
+  /** The section last clicked or focused: Ctrl+A stays inside it. */
+  let touched = $state<number | null>(null);
   let bar: ReturnType<typeof FilesToolbar> | undefined = $state();
 
   function onkeydown(event: KeyboardEvent) {
@@ -129,7 +132,8 @@
     // Ctrl+A ticks every file shown (11 §4); in a field it selects the text.
     if ((event.ctrlKey || event.metaKey) && event.code === "KeyA" && !typingIn(event.target)) {
       event.preventDefault();
-      marked = { paths: new Set(order), anchor: order[0] ?? null };
+      const keys = selectAllKeys(groups.map((group) => group.keys), groups.findIndex((group) => group.index === touched), marked.paths);
+      marked = { paths: new Set(keys), anchor: keys[0] ?? null };
       return;
     }
     if ((event.ctrlKey || event.metaKey) && keyLetter(event) === "f") {
@@ -275,6 +279,7 @@
   }
 
   function clicked(group: Group, path: string, event: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) {
+    touched = group.index;
     marked = applyClick(marked, rowKey(group.index, path), group.keys, {
       ctrl: event.ctrlKey || event.metaKey,
       shift: event.shiftKey,
@@ -284,6 +289,7 @@
   }
 
   function rightClicked(group: Group, path: string, event: MouseEvent) {
+    touched = group.index;
     if (!marked.paths.has(rowKey(group.index, path)) && selectedIn(group) !== path) {
       clicked(group, path, { ctrlKey: false, metaKey: false, shiftKey: false });
     }
@@ -310,6 +316,7 @@
   }
 
   function mark(group: Group, path: string) {
+    touched = group.index;
     marked = applyClick(marked, rowKey(group.index, path), group.keys, { ctrl: true, shift: false });
   }
 </script>
@@ -381,7 +388,11 @@
                 onreset={() => onsplitreset?.()}
               />
             {/if}
-            <div class="slot" style:flex={index === 0 && groups.length > 1 ? `0 0 ${split * 100}%` : "1 1 auto"}>
+            <div
+              class="slot"
+              style:flex={index === 0 && groups.length > 1 ? `0 0 ${split * 100}%` : "1 1 auto"}
+              onfocusin={() => (touched = group.index)}
+            >
               <FilePane
                 rows={group.rows}
                 title={group.section.title}
@@ -403,7 +414,7 @@
         <div class="panes">
           {#each groups as group, index (group.section.title ?? index)}
             {#if group.files.length > 0}
-              <div class="slot grow">
+              <div class="slot grow" onfocusin={() => (touched = group.index)}>
                 <FilePane
                   rows={group.rows}
                   title={layout.titled ? group.section.title : undefined}

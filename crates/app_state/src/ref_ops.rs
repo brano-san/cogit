@@ -129,6 +129,18 @@ impl AppState {
         Ok(())
     }
 
+    pub fn noted_commits(&self, repo: RepoId) -> Result<Vec<String>, GitError> {
+        Ok(self.handle(repo)?.noted_commits())
+    }
+
+    pub fn commit_notes(
+        &self,
+        repo: RepoId,
+        rev: &str,
+    ) -> Result<Vec<git_engine::CommitNote>, GitError> {
+        self.handle(repo)?.commit_notes(rev)
+    }
+
     pub fn set_note(&self, repo: RepoId, rev: &str, text: &str) -> Result<(), GitError> {
         self.handle(repo)?.set_note(rev, text)
     }

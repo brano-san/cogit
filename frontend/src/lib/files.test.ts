@@ -33,6 +33,14 @@ describe("statusBadge", () => {
     expect(fileStatusTooltip({ status: "renamed", similarity: 64 })).toContain("Renamed and modified");
     expect(fileStatusTooltip({ status: "renamed", similarity: 100 })).toBe("Renamed");
   });
+
+  it("explains what staging a submodule records", () => {
+    const dirty = { status: "modified" as const, submodule: { newCommits: false, modified: true, untracked: true } };
+    expect(fileStatusTooltip(dirty)).toContain("modified files and untracked files inside");
+    expect(fileStatusTooltip(dirty)).toContain("Nothing to stage");
+    const moved = { status: "modified" as const, submodule: { newCommits: true, modified: true, untracked: false } };
+    expect(fileStatusTooltip(moved)).toContain("changes inside the submodule are not included");
+  });
 });
 
 describe("fileName", () => {

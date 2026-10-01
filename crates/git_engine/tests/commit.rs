@@ -243,3 +243,57 @@ fn set_note_writes_replaces_and_removes_the_note() {
     assert!(notes(&repo).is_empty());
     repo.set_note("HEAD", "").unwrap();
 }
+
+#[test]
+fn noted_commits_lists_every_namespace_once_and_none_without_notes() {
+    let f = test_fixtures::linear(3).unwrap();
+    let repo = open(&f);
+    assert!(repo.noted_commits().is_empty());
+
+    let head = f.oid("HEAD").unwrap();
+    let first = f.oid("HEAD~2").unwrap();
+    f.git(&["notes", "add", "-m", "a", "HEAD"]).unwrap();
+    f.git(&["notes", "--ref", "ci", "add", "-m", "b", "HEAD"])
+        .unwrap();
+    f.git(&["notes", "add", "-m", "c", "HEAD~2"]).unwrap();
+
+    let mut noted = open(&f).noted_commits();
+    noted.sort();
+    let mut expected = vec![head, first];
+    expected.sort();
+    assert_eq!(noted, expected);
+}
+
+fn mktree(f: &test_fixtures::Fixture, entries: &str) -> String {
+    use std::io::Write;
+    use std::process::Stdio;
+    let mut child = test_fixtures::git_command_in(f.path())
+        .arg("mktree")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(entries.as_bytes())
+        .unwrap();
+    let out = child.wait_with_output().unwrap();
+    String::from_utf8(out.stdout).unwrap().trim().to_owned()
+}
+
+#[test]
+fn noted_commits_reads_fanned_out_notes_trees() {
+    let f = test_fixtures::linear(1).unwrap();
+    let head = f.oid("HEAD").unwrap();
+    f.git(&["notes", "add", "-m", "x", "HEAD"]).unwrap();
+    let note = f.oid(&format!("refs/notes/commits:{head}")).unwrap();
+    let inner = mktree(&f, &format!("100644 blob {note}\t{}\n", &head[2..]));
+    let outer = mktree(&f, &format!("040000 tree {inner}\t{}\n", &head[..2]));
+    let commit = f.git(&["commit-tree", &outer, "-m", "fan"]).unwrap();
+    f.git(&["update-ref", "refs/notes/commits", commit.trim()])
+        .unwrap();
+
+    assert_eq!(open(&f).noted_commits(), vec![head]);
+}

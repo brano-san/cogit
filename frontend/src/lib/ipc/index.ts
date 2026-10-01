@@ -218,6 +218,10 @@ export function describeModuleProblem(problem: ModuleProblem): string {
   }
 }
 
+export async function probeGit(path: string) {
+  return unwrap(await commands.probeGit(path));
+}
+
 export async function getAppInfo() {
   return unwrap(await commands.appInfo());
 }

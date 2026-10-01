@@ -14,6 +14,7 @@ const NONE: TextFields = TextFields {
     id: false,
     name: false,
     content: false,
+    notes: false,
 };
 
 /// Four commits, newest last: the second has another committer and a body, the third a
@@ -217,4 +218,53 @@ fn a_commit_is_shown_by_the_text_it_matches() {
     };
     assert!(repo.shown_by(&query, f.oid("HEAD~2").unwrap().trim()));
     assert!(!repo.shown_by(&query, f.oid("HEAD").unwrap().trim()));
+}
+
+fn note(f: &Fixture, reference: &str, rev: &str, text: &str) {
+    let oid = f.oid(rev).unwrap();
+    f.git(&["notes", "--ref", reference, "add", "-m", text, oid.trim()])
+        .unwrap();
+}
+
+#[test]
+fn notes_are_off_by_default_and_do_not_change_plain_search() {
+    let f = history();
+    note(&f, "commits", "HEAD~2", "remember ostrich");
+    assert!(!TextFields::default().notes);
+    assert!(found(&f, "ostrich", TextFields::default()).is_empty());
+}
+
+#[test]
+fn notes_match_in_any_namespace_ignoring_case() {
+    let f = history();
+    note(&f, "commits", "HEAD~2", "remember Ostrich");
+    note(&f, "review", "HEAD", "needs QUUXX work");
+    let notes = TextFields {
+        notes: true,
+        ..NONE
+    };
+    assert_eq!(found(&f, "ostrich", notes), ["tune the parser"]);
+    assert_eq!(found(&f, "quuxx", notes), ["touch the readme"]);
+    assert!(found(&f, "absent", notes).is_empty());
+}
+
+#[test]
+fn notes_do_not_match_when_the_switch_is_off() {
+    let f = history();
+    note(&f, "review", "HEAD", "needs QUUXX work");
+    let message = TextFields {
+        message: true,
+        ..NONE
+    };
+    assert!(found(&f, "quuxx", message).is_empty());
+}
+
+#[test]
+fn a_repo_without_notes_matches_nothing_in_notes() {
+    let f = history();
+    let notes = TextFields {
+        notes: true,
+        ..NONE
+    };
+    assert!(found(&f, "the", notes).is_empty());
 }

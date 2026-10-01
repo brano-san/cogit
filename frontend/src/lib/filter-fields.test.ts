@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_FILTER_FIELDS, FILTER_FIELDS, knownFields, textFields, toggled } from "./filter-fields";
 
 describe("filter fields", () => {
-  it("switch on all but Name and Content by default", () => {
+  it("switch on all but Name, Content and Notes by default", () => {
     expect(DEFAULT_FILTER_FIELDS).toEqual(["author", "committer", "message", "refs", "id"]);
   });
 
   it("show in the order of the switches row", () => {
-    expect(FILTER_FIELDS).toEqual(["author", "committer", "message", "refs", "id", "name", "content"]);
+    expect(FILTER_FIELDS).toEqual(["author", "committer", "message", "refs", "id", "name", "content", "notes"]);
   });
 
   it("become the fields Rust searches, every one said", () => {
@@ -19,7 +19,9 @@ describe("filter fields", () => {
       id: false,
       name: false,
       content: true,
+      notes: false,
     });
+    expect(textFields(["notes"]).notes).toBe(true);
   });
 
   it("toggle one field and keep the order", () => {

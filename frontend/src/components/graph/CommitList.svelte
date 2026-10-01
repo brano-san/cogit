@@ -65,6 +65,8 @@
   } from "$lib/graph-modes";
   import type { GraphColoring } from "$lib/graph-coloring";
   import { graphFolds } from "$stores/graph-folds.svelte";
+  import { notedCommitsStore } from "$stores/noted-commits.svelte";
+  import { settings } from "$stores/settings.svelte";
   import { graphNav } from "$stores/graph-nav.svelte";
   import { laneAt, rowFaded } from "$lib/graph-style";
   import { selectedLabels, withTracked } from "$lib/selected-refs";
@@ -160,6 +162,14 @@
     effectiveModes({ highlightChecked, firstParent, coloring, ancestry, collapseMerged, filteredGraph }),
   );
   $effect(() => graphFolds.forRepo(repository.current?.repo ?? null));
+
+  /** One call per graph load (also after a note is saved: the graph reloads), none while off. */
+  $effect(() => {
+    const repo = graph.walk?.repo;
+    void graph.walk?.generation;
+    if (repo === undefined || !settings.current.graphShowNotes) return notedCommitsStore.clear();
+    untrack(() => void notedCommitsStore.refresh(repo));
+  });
   $effect(() => {
     const view = graphView(modes, graphFolds.expanded);
     untrack(() => graph.setView(view));

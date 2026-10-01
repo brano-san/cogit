@@ -3,7 +3,7 @@
     every one of these is arithmetic that can be checked without a browser. */
 
 /** Width of the strip the ribbons are drawn over. Must match `.band` in DiffView.svelte. */
-export const BAND_WIDTH = 28;
+export const BAND_WIDTH = 42;
 /** The line-number gutter of one side. */
 export const NUM_WIDTH = 44;
 /** The selection gutter before it. Must match `.gutter` in DiffView.svelte. */

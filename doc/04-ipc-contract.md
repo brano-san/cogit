@@ -207,7 +207,7 @@ pub struct CommitQuery {
     pub until: Option<i64>,
     pub path: Option<String>,
     pub text: Option<String>,        // свободный текст фильтра, ищется в полях text_in (F-560)
-    pub text_in: TextFields,         // author, committer, message, refs, id, name, content
+    pub text_in: TextFields,         // author, committer, message, refs, id, name, content, notes
     pub visible_refs: Option<Vec<String>>, // отмеченное в панели References
     pub view: GraphView,             // режимы графа: first_parent, collapse_merged (#26)
     pub long_link_rows: Option<u32>, // не фильтр: связи длиннее — обрубками (R-330)
@@ -217,7 +217,7 @@ pub struct CommitQuery {
 Условия объединяются по **И**. `text` совпадает, если его подстрока (регистр не важен) есть хотя
 бы в одном включённом поле `text_in`: автор или коммиттер (имя, e-mail, через mailmap), всё
 сообщение с телом, имя ветки или тега на коммите, начало OID, имена изменённых файлов (с `/` в
-тексте — пути целиком), строки, которые коммит добавил или убрал (R-573). Без `text` поля
+тексте — пути целиком), строки, которые коммит добавил или убрал (R-573), текст Git Notes коммита из любого `refs/notes/*` (`notes`, по умолчанию выкл.; блобы заметок читаются лениво, только у кандидатов). Без `text` поля
 `text_in` ничего не фильтруют: `filters_rows()` и `is_empty()` их не видят. Фильтр по пути сравнивает запись дерева с первым
 родителем — так же, как `git log -- path` до отслеживания переименований, — и проверяется
 последним, потому что стоит два обращения к дереву на каждого кандидата.
@@ -270,7 +270,12 @@ pub struct FileEntry {
     pub path: String,             // относительно корня, всегда через `/`
     pub old_path: Option<String>, // заполнен только для Renamed и Copied
     pub status: FileStatus,
+    pub submodule: Option<SubmoduleChange>, // только строка ворктри-сабмодуля; опущено, если None
 }
+
+// `git add` фиксирует лишь коммит сабмодуля (new_commits); modified/untracked — правки внутри,
+// в родителя они не попадают, поэтому «только грязный» сабмодуль stage не меняет.
+pub struct SubmoduleChange { pub new_commits: bool, pub modified: bool, pub untracked: bool }
 
 pub enum FileStatus { Added, Modified, Deleted, Renamed, Copied }
 ```
@@ -577,6 +582,7 @@ gitlink нет ни в HEAD, ни в индексе (`recorded` пуст, в п�
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
 | `app_info` | — | `Result<AppInfo { version, debug_build, commit, dirty, built_at, repository, os: OsInfo, renderer, git, rustc, tauri, git_library, log_path, log_dir, settings_path, displays: DisplayInfo[] }>`; async, вне главного потока (R-175) | M0, M2 |
+| `probe_git` | `path: String` | `Result<GitProbe { valid, version?, error? }>`; `<path> --version` с таймаутом 5 с, пустой путь = `git` из PATH; недоступный бинарник — `valid: false` с причиной, не ошибка | M2 |
 | `open_third_party_licences` | `frontend: string \| null` | `Result<()>`: пишет список лицензий (крейты из `build.rs` + пакеты из сборки Vite) во временный файл и открывает его системой (R-173) | M2 |
 | `read_settings` | — | `String` — весь документ настроек как текст JSON | M8 |
 | `write_setting` | `key`, `value` (текст JSON) | `()` | M8 |
@@ -692,6 +698,8 @@ skipped[], current, firstBad, candidates[], terms { bad, good } }`: `start` — 
 | `rename_tag` | `repo, from, to` | `()` | M5 |
 | `rename_stash` | `repo, index, message` | `()` | M5 |
 | `edit_author` | `repo, rev, name, email` | `()` | M12 |
+| `noted_commits` | `repo` | `Vec<String>` — коммиты с заметкой в любом `refs/notes/*`, одним вызовом, без чтения текста; граф зовёт раз на загрузку | M4 |
+| `commit_notes` | `repo, rev` | `Vec<CommitNote { namespace, text }>` — текст заметок одного коммита, по наведению на значок | M4 |
 | `push_to` | `repo, remote, refspec, track: bool, onProgress: Channel<String>` | `()`; `track` — `--set-upstream`: отправленная локальная ветка отслеживает то, чем стала на remote (R-550) | M1 |
 
 `reset_to` с `hard` на грязном дереве сначала кладёт отслеживаемые правки в stash и

@@ -12,6 +12,9 @@ export interface SideCell {
   moveId: number | null;
   /** The file ends on this line without a newline (`\ No newline at end of file`). */
   noNewline: boolean;
+  /** A deletion with an insertion facing it: the line was rewritten, not removed or added.
+      Painted in the modified color on both sides. */
+  modified: boolean;
 }
 
 export interface SidePair {
@@ -28,6 +31,9 @@ export function pairRows(rows: readonly DiffRow[]): SidePair[] {
   const flushBlock = () => {
     const height = Math.max(deletes.length, inserts.length);
     for (let i = 0; i < height; i++) {
+      const left = deletes[i];
+      const right = inserts[i];
+      if (left && right) left.modified = right.modified = true;
       pairs.push({ left: deletes[i] ?? null, right: inserts[i] ?? null });
     }
     deletes = [];
@@ -47,6 +53,7 @@ export function pairRows(rows: readonly DiffRow[]): SidePair[] {
           moved: row.moved ?? false,
           moveId: row.moveId ?? null,
           noNewline: row.noNewline ?? false,
+          modified: false,
         });
         break;
       case "insert":
@@ -58,6 +65,7 @@ export function pairRows(rows: readonly DiffRow[]): SidePair[] {
           moved: row.moved ?? false,
           moveId: row.moveId ?? null,
           noNewline: row.noNewline ?? false,
+          modified: false,
         });
         break;
       case "context": {
@@ -70,6 +78,7 @@ export function pairRows(rows: readonly DiffRow[]): SidePair[] {
           moved: false,
           moveId: null,
           noNewline: row.noNewline ?? false,
+          modified: false,
         };
         pairs.push({
           left: { ...cell, line: row.old },
@@ -231,4 +240,21 @@ const WHOLE_FILE = 100_000;
 
 export function expandedContext(current: number, whole: boolean): number {
   return whole ? WHOLE_FILE : current + EXPAND_BY;
+}
+
+/** The lines a ribbon covers, as the keys the line actions take: deletions on the left,
+    insertions on the right. */
+export function ribbonKeys(
+  rows: readonly ConnectorRow[],
+  c: Connector,
+): { deletes: Set<string>; inserts: Set<string> } {
+  const deletes = new Set<string>();
+  const inserts = new Set<string>();
+  const add = (into: Set<string>, cell: SideCell | null | undefined) => {
+    const key = cellKey(cell ?? null);
+    if (key) into.add(key);
+  };
+  for (let i = c.fromTop; i <= c.fromBottom; i++) add(deletes, rows[i]?.left);
+  for (let i = c.toTop; i <= c.toBottom; i++) add(inserts, rows[i]?.right);
+  return { deletes, inserts };
 }

@@ -100,6 +100,27 @@ pub async fn rename_tag(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn noted_commits(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+) -> Result<Vec<String>, GitError> {
+    let app_state = state.state.clone();
+    blocking("noted_commits", move || app_state.noted_commits(repo)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn commit_notes(
+    state: tauri::State<'_, crate::AppContext>,
+    repo: RepoId,
+    rev: String,
+) -> Result<Vec<git_engine::CommitNote>, GitError> {
+    let app_state = state.state.clone();
+    blocking("commit_notes", move || app_state.commit_notes(repo, &rev)).await
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn set_note(
     state: tauri::State<'_, crate::AppContext>,
     repo: RepoId,

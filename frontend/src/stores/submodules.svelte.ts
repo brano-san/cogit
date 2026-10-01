@@ -62,7 +62,8 @@ class SubmoduleStore {
     this.children = moduleForest.trees.get(root) ?? new Map();
     const read = new Map<string, readonly Submodule[]>();
     for (const key of ["", ...moduleMemory.expanded(root)]) {
-      read.set(key, await listSubmodules(repo, key).catch(() => []));
+      // A failed read keeps what the list already knew of the node.
+      read.set(key, await listSubmodules(repo, key).catch(() => this.children.get(key) ?? []));
       if (generation !== this.#generation) return;
     }
     this.children = read;
@@ -78,7 +79,7 @@ class SubmoduleStore {
     const read = new Map<string, readonly Submodule[]>(
       await Promise.all(
         ["", ...this.expanded].map(
-          async (key) => [key, await listSubmodules(repo, key).catch(() => [])] as const,
+          async (key) => [key, await listSubmodules(repo, key).catch(() => this.children.get(key) ?? [])] as const,
         ),
       ),
     );
@@ -114,10 +115,13 @@ class SubmoduleStore {
     await this.refresh();
   }
 
-  /** The light tree read before the panels owned a repository may be stale by the time
-      they let go of it. */
+  /** What the panels read is handed to the list when they let go: the light tree read
+      before is poorer (no branches or commits). */
   #handOver(next: string | null): void {
-    if (this.#root !== null && this.#root !== next) moduleForest.forget(this.#root);
+    if (this.#root === null || this.#root === next) return;
+    // Kept per repository, so coming back (or looking at its list row) still has the labels.
+    if (this.children.has("")) moduleForest.keep(this.#root, this.children);
+    else moduleForest.forget(this.#root);
   }
 
   clear(): void {
