@@ -7,6 +7,7 @@ import { mergeKeymap, type Keymap } from "$lib/keymap";
 import { defaultKeymap, setKeymap } from "$lib/ipc";
 import { DEFAULT_SETTINGS, merge, type Settings } from "$lib/settings";
 import { themeStore } from "$stores/theme.svelte";
+import { webMenus } from "$stores/web-menus.svelte";
 
 const KEY = "settings";
 const KEYMAP_KEY = "keymap";
@@ -82,6 +83,7 @@ class SettingsStore {
     this.keymap = next;
     try {
       await setKeymap(next);
+      await webMenus.reloadModel();
     } catch {
       // The stored map still wins on the next start, so the change is not lost.
     }

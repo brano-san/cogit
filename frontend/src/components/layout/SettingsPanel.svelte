@@ -105,6 +105,11 @@
   ] as const;
 
   const LOG_LEVELS = ["error", "warn", "info", "debug", "trace"] as const;
+  const WEB_MENUS = [
+    ["auto", "Automatic"],
+    ["on", "Always"],
+    ["off", "Never"],
+  ] as const;
 
   const AVATARS = [
     ["gravatar", "Show them, from Gravatar"],
@@ -519,6 +524,16 @@
                   onchange={(next) => set("terminal", next)}
                 />
               </div>
+            {:else if field.key === "uiWebMenus"}
+              <div class="row">
+                {@render caption(field)}
+                <Select
+                  value={draft.uiWebMenus}
+                  options={WEB_MENUS}
+                  label={field.label}
+                  onchange={(next) => set("uiWebMenus", next)}
+                />
+              </div>
             {:else if field.key === "logLevel"}
               <div class="row">
                 {@render caption(field)}
@@ -649,8 +664,9 @@
   nav {
     display: flex;
     flex-direction: column;
-    flex: 0 0 248px;
+    flex: 0 0 clamp(172px, 36%, 248px);
     min-height: 0;
+    overflow: hidden;
     border-right: 1px solid var(--divider);
   }
 
@@ -666,10 +682,16 @@
     font-size: var(--fs-dense);
   }
 
+  /* The shared field is 100% wide; with its margins it would push the pane out. */
+  nav input.search {
+    width: calc(100% - 2 * var(--sp-4));
+  }
+
   .tree {
     flex: 1 1 auto;
     min-height: 0;
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   .nav-row {
@@ -709,8 +731,11 @@
     flex: 1 1 auto;
     min-width: 0;
     padding: var(--sp-5) var(--sp-6);
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    container-type: inline-size;
   }
+
 
   h3 {
     margin: 0 0 var(--sp-5);
@@ -791,6 +816,13 @@
     display: flex;
     align-items: center;
     gap: var(--sp-4);
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .slider :global(input[type="range"]) {
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .text {
@@ -892,5 +924,17 @@
   .row:has(:global(input:disabled)) {
     color: var(--text-secondary);
     opacity: 0.6;
+  }
+
+  /* A narrow window: label above its control instead of a second column that cannot fit. */
+  @container (max-width: 440px) {
+    .row {
+      grid-template-columns: minmax(0, 1fr);
+      align-items: start;
+    }
+
+    .row > .verdict {
+      grid-column: 1;
+    }
   }
 </style>

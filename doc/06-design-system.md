@@ -67,7 +67,7 @@
 ### user-theme.json
 
 Необязательный файл `user-theme.json` в каталоге конфигурации приложения (там же, где
-`settings.json`; Windows: `%APPDATA%\dev.branosan.cogit\`). Формат:
+`settings.json`; Windows: `%APPDATA%\Cogit\`). Формат:
 
 ```json
 { "tokens": { "accent": "#e5484d", "bg.editor": "#101216" } }
@@ -239,18 +239,28 @@
 
 | Роль | Семейство | Размер | Высота строки | Насыщенность |
 |---|---|---|---|---|
-| UI обычный | Inter, system-ui, sans-serif | 13 px | 20 px | 400 |
+| UI обычный | `--font-ui` (стек ниже) | 13 px | 20 px | 400 |
 | UI плотный (списки) | то же | 12 px | 18 px | 400 |
 | Заголовок панели | то же | 11 px | 16 px | 600, `letter-spacing: 0.04em`, uppercase |
-| Код и хеши | JetBrains Mono, Consolas, monospace | 12.5 px | 18 px | 400 |
+| Код и хеши | `--font-mono` (стек ниже) | 12.5 px | 18 px | 400 |
 | Diff-редактор | то же | 12.5 px | 18 px | 400 |
 | Статус-бар | Inter | 11.5 px | 16 px | 400 |
 
-Шрифты **встраиваются** в приложение (`frontend/src/assets/fonts/`), а не подгружаются с CDN:
-десктопное приложение обязано работать офлайн, и мигание подстановки шрифта недопустимо.
+Стеки заданы в `app.css` двумя переменными, Windows-выбор первым:
+
+- `--font-ui`: Inter, "Segoe UI", system-ui, -apple-system, "Noto Sans", Cantarell, Ubuntu, "DejaVu Sans", "Liberation Sans", sans-serif;
+- `--font-mono`: "JetBrains Mono", Consolas, "Cascadia Mono", "SF Mono", "Fira Code", "Noto Sans Mono", "DejaVu Sans Mono", "Liberation Mono", ui-monospace, monospace.
+
+Шрифты **не встраиваются** (R-692): в WSL-дистрибутиве Ubuntu 24.04 есть DejaVu Sans / Sans Mono, Noto Sans Mono и Ubuntu, стек их находит. Геометрия строк (`ROW_HEIGHT`, `--lh-*`) задана в пикселях и от гарнитуры не зависит; ширину текста измеряют по `getComputedStyle(node).font` самого узла (`truncate.ts`), то есть по активному стеку.
 
 Числовые колонки (даты, счётчики, номера строк) — `font-variant-numeric: tabular-nums`,
 иначе цифры «пляшут» при обновлении.
+
+### Нативная тема и `color-scheme` (Linux, WebKitGTK)
+
+- `applyVariables` ставит на `:root` `color-scheme: dark|light` по **семейству** выбранной темы (`isDarkTheme`); тот же `color-scheme` пишет в `<head>` boot-плагин vite (до первого кадра). Нативные поля, скроллбары и холст WebView2 и WebKitGTK следуют выбору в Cogit. `@media (prefers-color-scheme)` в коде нет, режима «как в системе» нет: ОС тему не перекрывает. Появится «auto» — читать `matchMedia` только при его выборе.
+- Под WSLg нет десктопной среды, GTK берёт светлую Adwaita. Тема store после каждого `apply` вызывает команду `set_native_theme(dark)`; на Linux она в главном потоке GTK ставит `GtkSettings:gtk-application-prefer-dark-theme` (`src-tauri/src/native_theme.rs`), на других платформах ничего не делает. `gtk-theme-name` не трогаем.
+- После веб-меню и собственного titlebar нативными остаются: диалоги выбора файла/папки (плагин dialog, GTK FileChooser) и системные уведомления. Диалоги следуют предпочтению dark/light; их цвета — Adwaita(-dark), а не токены Cogit.
 
 ## 5. Шкалы
 
@@ -399,6 +409,22 @@ Branches), — проп `tri` с `triState` (R-158, [R-455](12-risks.md)).
 подвала диалога). Остальное — `Checkbox`, `Radio`, `Select`, `RevisionCombobox` (длинные
 имена, полное имя в подсказке), текстовые поля — `<input>` с общими правилами `Dialog`.
 Ползунок `range` оформлен глобально в `app.css` токенами.
+
+### Размеры и переполнение диалогов
+
+Правила общего `Dialog` (действуют для всех диалогов, своей вёрстки оболочки не пишем):
+
+- `max-width: 90vw`, `max-height: 90vh`; заголовок обрезается `…` с tooltip.
+- Тело: `overflow-x: hidden`, `overflow-y: auto`, `overflow-wrap: anywhere` (длинный путь или имя ветки
+  переносится, а не растягивает строку); прямые потомки `min-width: 0; max-width: 100%`. Горизонтальный
+  скролл в диалоге запрещён.
+- Заголовок и футер вне прокрутки: видны всегда; футер `flex-wrap`, кнопки не уходят за край.
+- Строки внутри диалога — flex/grid с `min-width: 0` (`minmax(0, 1fr)`); ни один контрол не шире
+  родителя (текстовые поля `max-width: 100%`, `box-sizing: border-box`); колонки сворачиваются в одну
+  при узкой ширине (контейнер-запрос в Preferences, `@media` в Index Editor).
+- Проверка: `lib/dialog-layout.test.ts` (правила `Dialog.svelte`); проход всех диалогов с длинным
+  содержимым при ширине 480 / 800 / 1280 px и масштабе 100 / 125 / 150 % (эмуляция: CSS-ширина = ширина
+  / масштаб) — `scrollWidth > clientWidth` не допускается ни у тела, ни у вложенных блоков.
 
 Защита: в `app.css` (нулевая специфичность) у `button, input, select, textarea, progress,
 meter` стоит `appearance: none`, нет рамки, фона и отступов, шрифт и цвет наследуются:

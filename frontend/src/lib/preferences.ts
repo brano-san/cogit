@@ -470,6 +470,24 @@ export const CATEGORIES: Category[] = [
   },
   heading("advanced", "Advanced"),
   {
+    id: "window",
+    title: "Window",
+    parent: "advanced",
+    groups: [
+      {
+        title: "Menus",
+        fields: [
+          {
+            key: "uiWebMenus",
+            label: "Draw menus in the window",
+            hint: "Automatic: Cogit draws them on Linux and leaves them to the system on Windows and macOS. A window with no frame of its own always gets Cogit's title bar.",
+            keywords: ["menu", "titlebar", "title bar", "native", "gtk", "linux", "wsl", "context", "decorations"],
+          },
+        ],
+      },
+    ],
+  },
+  {
     id: "updates",
     title: "Updates",
     parent: "advanced",

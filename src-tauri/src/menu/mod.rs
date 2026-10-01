@@ -8,7 +8,9 @@ use tauri::menu::{
 use tauri::{AppHandle, Manager as _, Runtime};
 
 mod context;
+mod model;
 pub use context::{ContextItem, ContextMenu, popup};
+pub use model::{Flags, MenuNode, app_menu, child_menu};
 
 /// Item ids are the palette command ids: one place decides what an action is called and
 /// when it is available, and both the menu and the palette read it.
@@ -369,9 +371,20 @@ fn leaves(entries: &'static [Entry]) -> Vec<&'static Entry> {
 pub struct MenuItems<R: Runtime> {
     items: Mutex<HashMap<String, MenuItem<R>>>,
     checks: Mutex<HashMap<String, CheckMenuItem<R>>>,
+    /// What `apply` was last given, so the bar drawn by the page starts from it after a reload.
+    shown: Mutex<(Vec<String>, Vec<String>)>,
 }
 
 impl<R: Runtime> MenuItems<R> {
+    /// The last `(disabled, checked)` ids `apply` was given.
+    #[must_use]
+    pub fn shown(&self) -> (Vec<String>, Vec<String>) {
+        self.shown
+            .lock()
+            .map(|held| held.clone())
+            .unwrap_or_default()
+    }
+
     /// A rebuilt bar has new items; the old handles point at nothing the user can see.
     fn replace(&self, collected: Collected<R>) {
         if let Ok(mut items) = self.items.lock() {
@@ -383,6 +396,9 @@ impl<R: Runtime> MenuItems<R> {
     }
 
     pub fn apply(&self, disabled: &[String], checked: &[String]) {
+        if let Ok(mut held) = self.shown.lock() {
+            *held = (disabled.to_vec(), checked.to_vec());
+        }
         if let Ok(items) = self.items.lock() {
             for (id, item) in items.iter() {
                 report(id, item.set_enabled(!disabled.contains(id)));
@@ -536,6 +552,7 @@ impl<R: Runtime> From<Collected<R>> for MenuItems<R> {
         Self {
             items: Mutex::new(collected.items),
             checks: Mutex::new(collected.checks),
+            shown: Mutex::default(),
         }
     }
 }
@@ -563,7 +580,30 @@ pub fn rebuild<R: Runtime>(
         }
     }
     items.replace(collected);
+    // A rebuilt bar is visible again; the page that draws the bar has to stay the only one.
+    if app
+        .try_state::<crate::window_chrome::WindowChrome>()
+        .is_some_and(|chrome| chrome.web_menus)
+        && let Some(main) = app.get_webview_window(crate::child_window::MAIN)
+    {
+        crate::window_chrome::hide_native_menu(&main);
+    }
     Ok(())
+}
+
+/// The bar the window at `label` shows: the application's for the main one, the window's
+/// own for a child that has one.
+#[must_use]
+pub fn model_for<R: Runtime>(label: &str, keymap: &Keymap, items: &MenuItems<R>) -> Vec<MenuNode> {
+    if crate::child_window::is_main(label) {
+        let (disabled, checked) = items.shown();
+        let flags = Flags {
+            disabled: &disabled,
+            checked: &checked,
+        };
+        return app_menu(&keymap.snapshot(), flags);
+    }
+    child_menu(label, crate::child_window::menu_of(label))
 }
 
 /// Drops separators that separate nothing: repeated ones, and one at either end. A menu

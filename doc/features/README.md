@@ -369,3 +369,6 @@
 | F-620 | Remove Worktree: три параллельных этапа проверки, список изменений, неотправленные коммиты submodules, danger-callout | [F-620-remove-worktree-dialog.md](F-620-remove-worktree-dialog.md) |
 | F-625 | Conflict Solver: Ours / Result / Theirs, Base Changes, действия на участок, раскладки, изменён/удалён, внешний merge tool | [F-625-conflict-solver.md](F-625-conflict-solver.md) |
 | F-630 | Общий Button (Add/Edit Note…), защита от нестилизованных контролов, тест controls.test.ts | [F-630-controls-guard.md](F-630-controls-guard.md) |
+| F-635 | Одно центральное пустое состояние окна (Open… / Clone… / Welcome…), панели без текста; `color-scheme` и GTK prefer-dark по теме Cogit; явные стеки шрифтов | [F-635-empty-state-native-theme.md](F-635-empty-state-native-theme.md) |
+| F-640 | Иконка Cogit под Linux / WSLg: `cogit.desktop`, набор hicolor, `--install-desktop-entry`, `.deb` | [F-640-linux-desktop-entry.md](F-640-linux-desktop-entry.md) |
+| F-650 | Заголовок окна, меню-бар и контекстные меню в веб-слое (`uiWebMenus`; Linux по умолчанию): перетаскивание, maximize, захваты краёв, Alt/F10, подменю | [F-650-web-menus-titlebar.md](F-650-web-menus-titlebar.md) |

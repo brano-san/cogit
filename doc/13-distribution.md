@@ -301,3 +301,27 @@ msiexec /x Cogit_0.1.0_x64_en-US.msi /qn
 которым Cogit был поставлен. Для MSI-развёртывания по политике автообновление лучше
 оставить выключенным и обновлять централизованно: иначе приложение и политика будут
 спорить за одну и ту же установку.
+
+## 10. Linux: пакет, иконка, WSLg
+
+Окно под WSLg получает иконку приложения только если оболочка находит запись `cogit.desktop`
+с `Icon=cogit` и окно сообщает класс, который запись называет. Иначе WSLg рисует на панели
+задач Windows пингвина.
+
+| Что | Как |
+|---|---|
+| Класс окна | `g_set_prgname("cogit")` в `run()` до запуска GTK: Wayland `app_id` и X11 `WM_CLASS` берутся из имени программы, а не из `identifier` (`identifier`, `Cogit`; Tauri отдаёт его `GApplication` только при `enableGTKAppId`, по умолчанию выключено — R-696) |
+| Иконка окна | иконка по умолчанию Tauri (первый `.png` в `bundle.icon` — теперь `128x128@2x.png`, 256 px) уходит в `_NET_WM_ICON` всем окнам; `gtk::Window::set_default_icon_name("cogit")` добавляет имя из темы |
+| `.deb` | `bundle.linux.deb.files` кладёт готовую `src-tauri/linux/cogit.desktop` (`StartupWMClass=cogit`, `Icon=cogit`) в `/usr/share/applications`, `hicolor/{16…256}` и `scalable/cogit.svg` — в `/usr/share/icons`. Бандлер сам пишет `Cogit.desktop` (по `productName`); `desktopTemplate` = `linux/Cogit-alias.desktop` прячет его через `NoDisplay=true` ([R-693](12-risks.md)) |
+| Portable | `cogit --install-desktop-entry` / `--uninstall-desktop-entry` ([F-640](features/F-640-linux-desktop-entry.md)): те же файлы в `~/.local/share` |
+| Исходники иконок | `src-tauri/icons/linux/hicolor`: SVG нарисован заново по `icon.png` (векторного оригинала в репозитории нет), PNG отрисованы из него `rsvg-convert`; вшиты в бинарник через `include_bytes!` |
+
+После установки под WSL выполнить `wsl --shutdown` в Windows: WSLg читает иконки при запуске
+дистрибутива. Запись попадает и в меню Пуск, в папку дистрибутива.
+
+```bash
+npm run tauri build -- --ci --bundles deb --config '{"bundle":{"createUpdaterArtifacts":false}}'
+dpkg-deb -c target/release/bundle/deb/*.deb | grep -E 'applications|icons'
+```
+
+У AppImage в Tauri 2 опции `desktopTemplate` нет: внутри лежит стандартная запись (`Icon=cogit`, `Exec=cogit`, без `StartupWMClass`), класс окна `cogit` совпадает с её именем и `Exec`. Для WSLg его запускают как portable: `--install-desktop-entry` ставит запись с `Exec`, равным `$APPIMAGE` (сам файл образа, а не временная точка монтирования).

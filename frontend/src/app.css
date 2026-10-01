@@ -11,8 +11,13 @@
 
 :root {
   /* ---- typography ---- */
-  --font-ui: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
-  --font-mono: "JetBrains Mono", Consolas, "SF Mono", ui-monospace, monospace;
+  /* Windows choices first, then macOS, then what a Linux distribution (WSLg included) has.
+     Nothing is bundled (doc/12-risks.md): every width the UI measures reads the computed
+     font of its own node, so the stack in use is the stack measured. */
+  --font-ui: Inter, "Segoe UI", system-ui, -apple-system, "Noto Sans", Cantarell, Ubuntu,
+    "DejaVu Sans", "Liberation Sans", sans-serif;
+  --font-mono: "JetBrains Mono", Consolas, "Cascadia Mono", "SF Mono", "Fira Code",
+    "Noto Sans Mono", "DejaVu Sans Mono", "Liberation Mono", ui-monospace, monospace;
 
   --fs-ui: 13px;
   --fs-dense: 12px;

@@ -26,8 +26,8 @@ function bootTheme(): Plugin {
       const themes = { light: "light", lightGrey: "light-gray", darkGrey: "dark-gray", dark: "dark" };
       const css = Object.entries(themes)
         .map(([id, file]) => {
-          const { tokens } = JSON.parse(fs.readFileSync(fileURLToPath(new URL(`./src/themes/${file}.json`, import.meta.url)), "utf8"));
-          return `:root[data-theme="${id}"]{--boot-bg:${tokens["bg.app"]};--boot-fg:${tokens["fg.primary"]}}`;
+          const { tokens, family } = JSON.parse(fs.readFileSync(fileURLToPath(new URL(`./src/themes/${file}.json`, import.meta.url)), "utf8"));
+          return `:root[data-theme="${id}"]{color-scheme:${family};--boot-bg:${tokens["bg.app"]};--boot-fg:${tokens["fg.primary"]}}`;
         })
         .join("");
       const script = `try{var t=localStorage.getItem("${THEME_CACHE_KEY}");if(t)document.documentElement.dataset.theme=t}catch(e){}`;

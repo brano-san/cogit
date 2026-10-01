@@ -22,6 +22,7 @@ serde_json.workspace = true
 
 [dependencies]
 app_state.workspace = true
+desktop_entry.workspace = true
 diff_engine.workspace = true
 fs_watcher.workspace = true
 git_engine.workspace = true
@@ -48,6 +49,9 @@ tokio.workspace = true
 tracing.workspace = true
 tracing-appender.workspace = true
 tracing-subscriber.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 webview2-com.workspace = true

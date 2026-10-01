@@ -236,3 +236,16 @@ describe("refsShowPseudoRefs", () => {
     expect(merge({ refsShowPseudoRefs: "yes" } as never).refsShowPseudoRefs).toBe(false);
   });
 });
+
+describe("uiWebMenus", () => {
+  it("follows the platform until chosen, and needs a restart (decorations are fixed at window creation)", () => {
+    expect(DEFAULT_SETTINGS.uiWebMenus).toBe("auto");
+    expect(needsRestart("uiWebMenus")).toBe(true);
+  });
+
+  it("keeps a stored choice and refuses an unknown one", () => {
+    expect(merge({ uiWebMenus: "on" }).uiWebMenus).toBe("on");
+    expect(merge({ uiWebMenus: "off" }).uiWebMenus).toBe("off");
+    expect(merge({ uiWebMenus: "sometimes" } as never).uiWebMenus).toBe("auto");
+  });
+});

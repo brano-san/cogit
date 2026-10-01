@@ -538,7 +538,7 @@ snake_case и читаются на фронтенде как `undefined`.
 | `folder_kind` | `path` | `FolderKind`: `repository` (путь внутри рабочего дерева репозитория, как его находит Open) \| `plain` \| `missing` \| `file`. Ничего не пишет; зовёт Welcome (F-586) для списка недавних и для выбранной папки; сеть не нужна, зависший путь держит только поток пула | M3 |
 | `init_repository` | `path` | `String` — тот же путь после `git init -- <path>` (папка создаётся, если её нет). Запись через системный git; вывод — в журнал, отказ — `GitError::Command` с полным выводом. Репозиторий открывает фронтенд (`open_repository`) | M3 |
 | `clipboard_repository_url` | — | `Option<String>` — текст буфера обмена, только если это ссылка на репозиторий (`git_engine::repository_url_in`); остальной текст в страницу не попадает, права на чтение буфера у окон нет (R-600) | M3 |
-| `clone_repository` | `request: CloneRequest { source, target, submodules, allBranches, branch: Option<String>, skipLargerThanMb: Option<u32> }`, `onProgress: Channel<String>` | `String` — корень нового репозитория; открывает его фронтенд (`open_repository`, как Open). Операция очереди `kind: "clone"`, `repo: null`, в своей полосе по папке назначения; `git clone --progress [--recurse-submodules] [--single-branch] [--branch] [--filter=blob:limit=<N>m [--also-filter-submodules]] -- <source> <target>` (R-601); `cancel_network` останавливает и убирает созданное клоном (R-602) | M3 |
+| `clone_repository` | `request: CloneRequest { source, target, submodules, allBranches, branch: Option<String>, skipLargerThan: Option<String> }`, `onProgress: Channel<String>` | `String` — корень нового репозитория; открывает его фронтенд (`open_repository`, как Open). Операция очереди `kind: "clone"`, `repo: null`, в своей полосе по папке назначения; `git clone --progress [--recurse-submodules] [--single-branch] [--branch] [--filter=blob:limit=<N>{k|m|g} [--also-filter-submodules]] -- <source> <target>` (R-601); `cancel_network` останавливает и убирает созданное клоном (R-602) | M3 |
 | `cancel_operation` | `id` | `bool` — `false`, если уже закончилась | — |
 | `cancel_network` | `operation: u32` — `id` из `Operation` (`operation-changed`, `list_operations`) | `bool`: `true` — git остановлен, вызов `fetch` / `pull` / `push` / `push_to` / `clone_repository` этой операции отклоняется с `GitError::Cancelled`, полоса очереди свободна, в журнале — предупреждение «Cancelled by the user»; `false` — отменять нечего: операция закончилась, ещё ждёт в очереди, не сетевая (`kind` не `fetch` / `pull` / `push` / `clone`) или уже отменена (R-506) | M1 |
 | `list_operations` | — | `Vec<Operation>` — всё, что в очереди и в работе | — |
@@ -681,6 +681,9 @@ gitlink нет ни в HEAD, ни в индексе (`recorded` пуст, в п�
 | `overlap_window` | `repo, base, window: Vec<String>` | `Vec<OverlapRow>` | M13 |
 | `bypass_log` | `repo` | `Vec<Bypass>` | M10 |
 | `popup_context_menu` | `items: Vec<ContextItem { id, label, enabled, separator, accelerator, children? }>, x, y`; непустой `children` делает строку подменю (`Move To ▸`), лишние разделители убираются на любой глубине | `()` | M2 |
+| `menu_model` | — (окно — вызывающее) | `Vec<MenuNode { id, label, separator, accelerator, enabled, checked, children }>`: меню окна из тех же таблиц, что и нативное (главное — приложения, дочернее — своё), клавиши — действующей раскладки; синхронная, чтение из памяти | M2 |
+| `menu_command` | `id` | `()` — тот же путь, что у события нативного меню (`dispatch_menu_command`): `child:` окна, Copy Diagnostics, Reset Window Position, иначе событие `menu-command` | M2 |
+| `window_chrome` | — | `WindowChrome { webMenus, customTitlebar }`: кто рисует меню и заголовок — страница или система (настройка `uiWebMenus`: `auto`/`on`/`off`) | M2 |
 | `open_compare_window` | `url, title` | `()` | M2 |
 | `commit_template` | `repo` | `Option<String>` | M6 |
 | `stage_mode` | `repo, path, executable` | `()` | M6 |
@@ -695,7 +698,8 @@ gitlink нет ни в HEAD, ни в индексе (`recorded` пуст, в п�
 блобом: `--chmod` перечитал бы файл и затянул в индекс ещё и правки содержимого.
 
 `popup_context_menu` — **синхронная** команда: меню на Windows показывается из главного
-потока. Выбранный пункт контекстного меню возвращается тем же событием `menu-command`, что
+потока. При `uiWebMenus` (Linux по умолчанию) фронтенд её не зовёт: `popupContextMenu` сам
+открывает меню страницы без обращения к IPC, выбранный id уходит в `menu_command`. Выбранный пункт контекстного меню возвращается тем же событием `menu-command`, что
 и строка меню.
 
 Команды окон (`open_compare_window`, `open_solver_window`, `open_blame_window`, `open_commit_window`, `open_errors_window`,
@@ -770,6 +774,7 @@ git commit --amend --author`, как `reword`. `push_to` — один refspec: P
 | Команда | Вход | Выход | Модуль |
 |---|---|---|---|
 | `desktop_info` | — | `DesktopInfo { fileManager, windowsShells, gitShell: string \| null, separator }` — что умеет эта платформа | M3 |
+| `set_native_theme` | `dark: bool` | `()` — GTK prefer-dark на Linux (главный поток), на остальных платформах без действия | M3 |
 | `open_path` | `path` (абсолютный, `/`) | `()` — папка открывается сама, файл — связанной программой | M3 |
 | `reveal_path` | `path` | `()` — родительская папка с выделенным элементом | M3 |
 | `open_power_shell` / `open_git_shell` | `path` | `()`; только Windows, Git Bash ищется сам (R-261) | M3 |

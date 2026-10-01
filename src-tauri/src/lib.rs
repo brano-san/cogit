@@ -9,6 +9,7 @@ mod events;
 mod key_capture;
 mod logging;
 mod menu;
+mod native_theme;
 mod operations;
 mod profile;
 mod recycle_bin;
@@ -22,6 +23,7 @@ mod taskbar;
 #[cfg(windows)]
 mod webview2;
 mod webview_memory;
+mod window_chrome;
 mod window_place;
 
 use app_state::AppState;
@@ -268,6 +270,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::terminal_choices,
             commands::open_in_terminal,
             commands::desktop::desktop_info,
+            commands::desktop::set_native_theme,
             commands::desktop::open_path,
             commands::desktop::reveal_path,
             commands::desktop::open_power_shell,
@@ -334,6 +337,9 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::overlap_window,
             commands::hooks::bypass_log,
             commands::popup_context_menu,
+            commands::menu_model,
+            commands::menu_command,
+            commands::window_chrome,
             commands::open_compare_window,
             commands::commit_window::open_commit_window,
             commands::commit_window::recent_commits,
@@ -357,6 +363,18 @@ pub fn export_bindings() -> anyhow::Result<()> {
 }
 
 pub fn run() -> anyhow::Result<()> {
+    // Before GTK starts: the Wayland app_id and the X11 WM_CLASS follow the program name,
+    // and the shell matches them to `cogit.desktop` for the icon.
+    #[cfg(target_os = "linux")]
+    gtk::glib::set_prgname(Some(desktop_entry::APP_NAME));
+
+    // Before the webview exists: its profile lives in the folder being renamed.
+    let migrated =
+        app_state::legacy_dirs::migrate_legacy_dirs(&app_state::legacy_dirs::app_folder_pairs(
+            app_state::legacy_dirs::LEGACY_IDENTIFIER,
+            app_state::legacy_dirs::IDENTIFIER,
+        ));
+
     let specta_builder = specta_builder();
 
     #[cfg(debug_assertions)]
@@ -375,7 +393,9 @@ pub fn run() -> anyhow::Result<()> {
                 .with_filter(child_window::is_main)
                 .with_state_flags(
                     tauri_plugin_window_state::StateFlags::all()
-                        - tauri_plugin_window_state::StateFlags::VISIBLE,
+                        - tauri_plugin_window_state::StateFlags::VISIBLE
+                        // Decided by `window_chrome`, not remembered.
+                        - tauri_plugin_window_state::StateFlags::DECORATIONS,
                 )
                 .build(),
         )
@@ -402,10 +422,13 @@ pub fn run() -> anyhow::Result<()> {
         })
         .invoke_handler(specta_builder.invoke_handler())
         .setup(move |app| {
+            #[cfg(target_os = "linux")]
+            gtk::Window::set_default_icon_name(desktop_entry::APP_NAME);
             let log_dir = app.path().app_log_dir()?;
             let config_dir = app.path().app_config_dir()?;
             let (guard, log_path) = logging::init(&log_dir, &config_dir)?;
             logging::install_panic_hook(&log_dir);
+            app_state::legacy_dirs::log_outcomes(&migrated);
             webview_memory::spawn(std::process::id());
             use_git_from_settings(&config_dir);
             sweep_merge_temp();
@@ -433,6 +456,8 @@ pub fn run() -> anyhow::Result<()> {
             specta_builder.mount_events(app);
             events::forward_repo_changes(app.handle().clone(), &state);
 
+            let chrome = window_chrome::stored(&config_dir);
+            app.manage(chrome);
             app.manage(menu::ContextMenu::<tauri::Wry>::default());
             let stored = menu::stored_keymap(&config_dir);
             let (menu, collected) = menu::build(app.handle(), &stored)?;
@@ -461,7 +486,14 @@ pub fn run() -> anyhow::Result<()> {
                 // itself for maximize, snap and minimize, and correcting it afterwards is
                 // a fight the window loses (doc/12-risks.md, R-118).
                 window_place::settle(&window);
+                if chrome.custom_titlebar {
+                    window.set_decorations(false)?;
+                }
                 window.show()?;
+                // After `show`, which makes every widget of the window visible again.
+                if chrome.web_menus {
+                    window_chrome::hide_native_menu(&window);
+                }
             }
             Ok(())
         })

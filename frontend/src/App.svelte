@@ -46,7 +46,8 @@
   import { suppressBrowserNavigation } from "$lib/browser-navigation";
   import { findModuleRow, isModulePath, onOpenModule } from "$lib/module-open";
   import { onTreeChange } from "$lib/tree-sync";
-  import { footerRepository, panelView } from "$lib/repo-phase";
+  import { emptyStateVisible, footerRepository, panelView } from "$lib/repo-phase";
+  import StartScreen from "$components/layout/StartScreen.svelte";
   import { flushTrace, startTracing, timed, trace } from "$lib/trace";
   import OutputPanel from "$components/layout/OutputPanel.svelte";
   import StateBanner from "$components/layout/StateBanner.svelte";
@@ -57,6 +58,7 @@
   import CloneDialog from "$components/repo-tree/CloneDialog.svelte";
   import WelcomeDialog from "$components/layout/WelcomeDialog.svelte";
   import { welcome } from "$stores/welcome.svelte";
+  import { webMenus } from "$stores/web-menus.svelte";
   import {
     folderPlan,
     mruRows,
@@ -439,7 +441,12 @@
       void timed("startup", "restore the session", () => repository.restore()).then(async () => {
         const back =
           repository.openRepos.find((entry) => entry.root === wanted) ?? repository.openRepos[0];
-        if (back) await activate(back.root, back.root === wanted ? remembered : null);
+        try {
+          if (back) await activate(back.root, back.root === wanted ? remembered : null);
+        } finally {
+          // Only now is "nothing open" the answer rather than the first frame.
+          repository.markReady();
+        }
         // The open has settled (Open or Failed) and the setting is read: now it is known
         // whether the window would stay empty. Nothing waits on this; it only sets state.
         await settingsRead.catch(() => {});
@@ -4027,7 +4034,11 @@
     );
   });
 
-  const sendMenuState = menuStatePusher((disabled, checked) => setMenuState(disabled, checked));
+  // The bar the page draws reads the same state the native one is given.
+  const sendMenuState = menuStatePusher((disabled, checked) => {
+    webMenus.pushState(disabled, checked);
+    return setMenuState(disabled, checked);
+  });
 
   /** A rebuilt bar starts with every tick cleared, so this runs again after a keymap save;
       and after a menu command, since muda flips a clicked tick on its own. */
@@ -4109,6 +4120,13 @@
   {/if}
 
   <div class="workspace" bind:clientWidth={workspaceWidth}>
+    {#if emptyStateVisible(repository.phase, repository.ready)}
+      <StartScreen
+        onopen={() => void pickRepository()}
+        onclone={() => void openCloneWizard()}
+        onwelcome={() => showWelcome()}
+      />
+    {/if}
     {#if leftColumn}
     <div
       class="left-column"
@@ -4308,11 +4326,6 @@
               <p class="graph-skipped" role="status">{describeSkipped(graph.skipped)}</p>
             {/if}
             <GraphPanel
-              recent={session.recent}
-              onopenrecent={(path) => void activate(path)}
-              onforgetrecent={(path) => session.forgetRecent(path)}
-              onopen={pickRepository}
-              onscan={() => (scanOpen = true)}
               {progress}
               check={checkCommand}
               oncheck={(command) => (checkCommand = command)}
@@ -4938,6 +4951,7 @@
   }
 
   .workspace {
+    position: relative;
     display: flex;
     flex: 1 1 auto;
     min-height: 0;
