@@ -71,6 +71,8 @@
     "diff.centerGutter.action.hover": "#e3e5e8",
     "diff.connector.fill": "#3a3d44",
     "diff.connector.stroke": "#555961",
+    "diff.filler.bg": "#2a2c30",
+    "diff.filler.hatch": "#313338",
     "diff.jumpFlash": "#364d69",
     "syntax.theme": "one-dark-pro",
     "search.hit": "#5f5338",

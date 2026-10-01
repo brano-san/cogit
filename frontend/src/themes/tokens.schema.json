@@ -277,6 +277,14 @@
       "type": "color",
       "description": "Block connector band edge."
     },
+    "diff.filler.bg": {
+      "type": "color",
+      "description": "Aligned layout: filler row opposite a side with no line there."
+    },
+    "diff.filler.hatch": {
+      "type": "color",
+      "description": "Aligned layout: the diagonal hatching lines of a filler row."
+    },
     "diff.jumpFlash": {
       "type": "color",
       "description": "The change F6 or an arrow landed on, lit for a moment. Extra token."
