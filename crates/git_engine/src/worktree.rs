@@ -114,6 +114,18 @@ impl RepoHandle {
             }
         }
 
+        // The dirwalk can also report the file a conflict left in the tree as untracked
+        // (seen on Linux when one side deleted it); git lists only the conflict.
+        let conflicted: BTreeSet<String> = files
+            .unstaged
+            .iter()
+            .filter(|file| file.status == FileStatus::Conflicted)
+            .map(|file| file.path.clone())
+            .collect();
+        files.unstaged.retain(|file| {
+            file.status != FileStatus::Untracked || !conflicted.contains(&file.path)
+        });
+
         if view.unchanged || view.assume_unchanged || view.skipped {
             self.add_index_entries(&mut files, view)?;
         }
