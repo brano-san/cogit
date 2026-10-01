@@ -1,0 +1,15 @@
+[package]
+name = "desktop_entry"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Freedesktop launcher entry and icons for the Linux build: text, paths, install and uninstall."
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

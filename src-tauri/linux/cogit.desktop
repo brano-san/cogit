@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Cogit
+Comment=Blazing-fast Git GUI client for power users
+Exec=cogit %U
+Icon=cogit
+Terminal=false
+StartupWMClass=cogit
+Categories=Development;RevisionControl;
+StartupNotify=true
