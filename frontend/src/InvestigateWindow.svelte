@@ -264,7 +264,7 @@
   .window {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: 100%;
     background: var(--surface-base);
     color: var(--text-primary);
     font-family: var(--font-ui);

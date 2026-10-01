@@ -19,13 +19,26 @@ export function offer(
     : item(id, `${label} (${blocked})`, false, accelerator);
 }
 
-/** Drops separators that separate nothing — leading, trailing and doubled ones — so a menu
-    can be written as a flat list and each row can switch itself off (the same rule
-    `menu::tidy` applies in Rust, R-133). Every context menu goes through it. */
-export function tidy(entries: readonly ContextItem[]): ContextItem[] {
-  const kept: ContextItem[] = [];
+/** What `tidy` reads of a row; a `ContextItem` and the menu bar model both are one. */
+interface Tidyable {
+  separator?: boolean;
+  enabled: boolean;
+  children?: readonly unknown[];
+}
+
+/** Drops separators that separate nothing — leading, trailing and doubled ones — at every
+    depth, so a menu can be written as a flat list and each row can switch itself off (the
+    same rule `menu::tidy` and `tidy_items` apply in Rust, R-133). A submenu left with
+    nothing inside stays as a row that is off. Every context menu goes through it. */
+export function tidy<T extends Tidyable>(entries: readonly T[]): T[] {
+  const kept: T[] = [];
   for (const entry of entries) {
     if (entry.separator && (kept.length === 0 || kept[kept.length - 1]!.separator)) continue;
+    if (entry.children && entry.children.length > 0) {
+      const inside = tidy(entry.children as Tidyable[]);
+      kept.push({ ...entry, children: inside, enabled: entry.enabled && inside.length > 0 });
+      continue;
+    }
     kept.push(entry);
   }
   while (kept.length > 0 && kept[kept.length - 1]!.separator) kept.pop();

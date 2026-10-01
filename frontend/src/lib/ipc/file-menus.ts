@@ -84,3 +84,8 @@ export async function applyCommitFile(
 export async function presentOnDisk(repo: RepoId, paths: string[]) {
   return unwrap(await commands.presentOnDisk(repo, paths));
 }
+
+/** Native leftovers (GTK file chooser) follow the Cogit theme; a no-op outside Linux. */
+export async function setNativeTheme(dark: boolean) {
+  await commands.setNativeTheme(dark);
+}
