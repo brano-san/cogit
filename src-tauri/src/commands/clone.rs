@@ -1,7 +1,7 @@
 //! Repository ▸ Clone… (F-575).
 
 use super::blocking;
-use git_engine::{CloneDestination, CloneRequest, GitError, Login, RemoteBranches};
+use git_engine::{CloneDestination, CloneRequest, FolderKind, GitError, Login, RemoteBranches};
 
 /// `git ls-remote` behind the first page's Next: nothing is written, nobody is asked.
 #[tauri::command]
@@ -25,6 +25,31 @@ pub async fn clone_destination(path: String) -> Result<CloneDestination, GitErro
         Ok(git_engine::clone_destination(std::path::Path::new(&path)))
     })
     .await
+}
+
+/// What a picked folder is, for the Welcome dialog and its list of recent repositories.
+#[tauri::command]
+#[specta::specta]
+pub async fn folder_kind(path: String) -> Result<FolderKind, GitError> {
+    blocking("folder_kind", move || {
+        Ok(git_engine::folder_kind(std::path::Path::new(&path)))
+    })
+    .await
+}
+
+/// `git init` in the folder (created if missing); the new root, for the frontend to open.
+#[tauri::command]
+#[specta::specta]
+pub async fn init_repository(
+    state: tauri::State<'_, crate::AppContext>,
+    path: String,
+) -> Result<String, GitError> {
+    let app_state = state.state.clone();
+    blocking("init_repository", move || {
+        app_state.init_repository(std::path::Path::new(&path))
+    })
+    .await
+    .map(|root| root.to_string_lossy().into_owned())
 }
 
 /// Only a repository URL leaves the clipboard: the rest of it stays out of the page.

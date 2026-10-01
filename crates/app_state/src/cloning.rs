@@ -33,6 +33,10 @@ impl AppState {
         git_engine::clone_repository(request, token.as_deref(), login, stop, Some(&sink), on_line)
     }
 
+    pub fn init_repository(&self, path: &std::path::Path) -> Result<PathBuf, GitError> {
+        git_engine::init_repository(path, Some(&self.unowned_sink()))
+    }
+
     /// Into the journal like any run, with no watcher to quieten: no repository yet.
     fn unowned_sink(&self) -> git_engine::CommandSink {
         let journal = Arc::clone(&self.journal);

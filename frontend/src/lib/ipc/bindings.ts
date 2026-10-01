@@ -415,6 +415,10 @@ export const commands = {
 	password: string,
 } | null) => typedError<RemoteBranches, GitError>(__TAURI_INVOKE("remote_branches", { source, login })),
 	cloneDestination: (path: string) => typedError<CloneDestination, GitError>(__TAURI_INVOKE("clone_destination", { path })),
+	/**  What a picked folder is, for the Welcome dialog and its list of recent repositories. */
+	folderKind: (path: string) => typedError<FolderKind, GitError>(__TAURI_INVOKE("folder_kind", { path })),
+	/**  `git init` in the folder (created if missing); the new root, for the frontend to open. */
+	initRepository: (path: string) => typedError<string, GitError>(__TAURI_INVOKE("init_repository", { path })),
 	/**  Only a repository URL leaves the clipboard: the rest of it stays out of the page. */
 	clipboardRepositoryUrl: () => typedError<string | null, GitError>(__TAURI_INVOKE("clipboard_repository_url")),
 	cloneRepository: (request: CloneRequest, login: {
@@ -1057,6 +1061,10 @@ export type Fold = {
 	row: number,
 	hidden: number,
 };
+
+export type FolderKind = 
+/**  Inside a repository's working tree, as Open Repository finds it. */
+"repository" | "plain" | "missing" | "file";
 
 export type Found = {
 	kind: FoundKind,
