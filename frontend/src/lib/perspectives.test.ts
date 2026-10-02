@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  worktreesHeightAfterDrag,
   capFraction,
   DEFAULT_LAYOUT,
   floorFraction,
@@ -168,6 +169,22 @@ describe("floorFraction", () => {
   });
 });
 
+describe("Worktrees height", () => {
+  it("is a share of the left column, so resizing Branches does not move it", () => {
+    const column = 1000;
+    const px = (fractions: { worktreesHeight: number }) => fractions.worktreesHeight * column;
+    const before = { ...DEFAULT_LAYOUT };
+    const after = { ...DEFAULT_LAYOUT, repositories: 0.3 };
+    expect(px(after)).toBe(px(before));
+  });
+
+  it("shrinks when the splitter goes down and stops at its minimum", () => {
+    expect(worktreesHeightAfterDrag(0.25, 0.05, 1000, 98)).toBeCloseTo(0.2);
+    expect(worktreesHeightAfterDrag(0.25, 0.9, 1000, 98)).toBeCloseTo(0.12);
+    expect(worktreesHeightAfterDrag(0.25, -0.9, 1000, 98)).toBeCloseTo(0.88);
+  });
+});
+
 describe("the Worktrees panel", () => {
   it("is a panel of its own, shown in Main and hidden in Review", () => {
     expect(PANELS).toContain("worktrees");
@@ -179,6 +196,6 @@ describe("the Worktrees panel", () => {
     const stored = { main: { fractions: { graph: 0.5 }, hidden: ["diff"] } };
     const merged = mergePerspectives(stored as never).main;
     expect(merged.hidden).toEqual(["diff"]);
-    expect(merged.fractions.worktrees).toBe(DEFAULT_LAYOUT.worktrees);
+    expect(merged.fractions.worktreesHeight).toBe(DEFAULT_LAYOUT.worktreesHeight);
   });
 });

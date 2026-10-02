@@ -154,7 +154,7 @@
   import { foundStep } from "$lib/found";
   import { revealRef } from "$lib/ref-reveal";
   import { applyPreferences, type ApplyHost } from "$lib/preferences-apply";
-  import { capFraction, floorFraction, PANELS, type PanelId } from "$lib/perspectives";
+  import { capFraction, floorFraction, PANELS, worktreesHeightAfterDrag, type PanelId } from "$lib/perspectives";
   import { graphPanelMinWidth } from "$lib/graph-panel";
   import { closeStep, holdsPanels, reopenClick, repoClick } from "$lib/repo-click";
   import { ModuleInitialiser, moduleClick } from "$lib/module-init";
@@ -490,7 +490,7 @@
   let filesColumnHeight = $state(0);
   /** `--worktrees-panel-min` plus the splitter. */
   const WORKTREES_MIN_PX = 98;
-  let reposColumnHeight = $state(0);
+  let leftColumnHeight = $state(0);
   const graphMin = graphPanelMinWidth();
   let graphPane = $state<HTMLDivElement | null>(null);
   let topRowWidth = $state(0);
@@ -4154,6 +4154,7 @@
     {#if leftColumn}
     <div
       class="left-column"
+      bind:clientHeight={leftColumnHeight}
       style:flex={shown.diff || topRow ? `0 1 ${fractions.leftColumn * 100}%` : "1 1 auto"}
     >
       {#if reposColumn}
@@ -4161,13 +4162,10 @@
         class="repos-column"
         class:grow={!shown.refs}
         style:flex={shown.refs ? `0 0 ${fractions.repositories * 100}%` : undefined}
-        bind:clientHeight={reposColumnHeight}
       >
       {#if shown.repositories}
       <div
-        class="pane"
-        class:grow={!shown.worktrees}
-        style:flex={shown.worktrees ? `0 1 ${fractions.worktrees * 100}%` : undefined}
+        class="pane grow"
         role="region"
         aria-label={PANEL_TITLES.repositories}
         onpointerdown={() => (focused = "repositories")}
@@ -4201,16 +4199,21 @@
       {#if shown.repositories && shown.worktrees}
       <Splitter
         direction="horizontal"
-        value={fractions.worktrees}
+        value={1 - fractions.worktreesHeight}
         label="Resize worktrees panel"
         onchange={(d) =>
-          layout.set("worktrees", capFraction(fractions.worktrees + d, reposColumnHeight, WORKTREES_MIN_PX))}
-        onreset={() => layout.resetOne("worktrees")}
+          layout.set(
+            "worktreesHeight",
+            worktreesHeightAfterDrag(fractions.worktreesHeight, d, leftColumnHeight, WORKTREES_MIN_PX),
+          )}
+        onreset={() => layout.resetOne("worktreesHeight")}
       />
       {/if}
       {#if shown.worktrees}
       <div
-        class="pane grow worktrees-pane"
+        class="pane worktrees-pane"
+        class:grow={!shown.repositories}
+        style:flex={shown.repositories ? `0 1 ${fractions.worktreesHeight * leftColumnHeight}px` : undefined}
         role="region"
         aria-label={PANEL_TITLES.worktrees}
         onpointerdown={() => (focused = "worktrees")}

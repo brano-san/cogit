@@ -11,8 +11,9 @@ export interface LayoutFractions {
   filesSplit: number;
   /** Height the Files panel keeps when the Commit Message panel sits under it. */
   commitBox: number;
-  /** The same for Repositories over the Worktrees panel. */
-  worktrees: number;
+  /** Height of the Worktrees panel as a share of the whole left column, not of the
+      Repositories column: resizing Branches moves Repositories and leaves Worktrees alone. */
+  worktreesHeight: number;
 }
 
 export const DEFAULT_LAYOUT: LayoutFractions = {
@@ -22,7 +23,7 @@ export const DEFAULT_LAYOUT: LayoutFractions = {
   graph: 0.68,
   filesSplit: 0.55,
   commitBox: 0.68,
-  worktrees: 0.62,
+  worktreesHeight: 0.25,
 };
 
 export function clampFraction(value: number): number {
@@ -34,6 +35,18 @@ export function capFraction(value: number, containerPx: number, reservedPx: numb
   const clamped = clampFraction(value);
   if (containerPx <= 0) return clamped;
   return Math.max(MIN_FRACTION, Math.min(clamped, 1 - reservedPx / containerPx));
+}
+
+/** Dragging the Repositories/Worktrees splitter down by `delta` shrinks Worktrees. Its
+    height is a share of the whole left column, so each pane keeps `minPx` and nothing
+    that resizes Branches reaches it. */
+export function worktreesHeightAfterDrag(
+  current: number,
+  delta: number,
+  columnPx: number,
+  minPx: number,
+): number {
+  return floorFraction(capFraction(current - delta, columnPx, minPx), columnPx, minPx);
 }
 
 /** The panel before the splitter keeps `minPx`, so dragging past it leaves no dead zone. */
