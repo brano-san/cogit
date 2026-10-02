@@ -517,3 +517,18 @@ fn a_bisect_step_in_a_linked_worktree_is_heard() {
     }
     assert!(seen.iter().any(|c| c.kind == ChangeKind::Head), "{seen:?}");
 }
+
+// inotify reports every open; our own refresh reading HEAD re-triggered itself forever.
+#[test]
+fn reading_head_is_not_a_change() {
+    let harness = start();
+
+    for _ in 0..20 {
+        std::fs::read_to_string(harness.root.join(".git/HEAD")).unwrap();
+        std::fs::read_to_string(harness.root.join(".git/index")).unwrap();
+    }
+
+    let seen = collect(&harness);
+    assert!(seen.is_empty(), "a read is not a change, got {seen:?}");
+    still_hears(&harness);
+}

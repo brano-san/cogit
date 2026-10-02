@@ -2,12 +2,13 @@ use crate::{
     ChangeKind, DEBOUNCE_MS, RepoChanged, WatchError, classify_git_path, is_excluded,
     is_nested_git_noise,
 };
-use notify::RecursiveMode;
-use notify_debouncer_mini::{DebounceEventResult, Debouncer, new_debouncer};
+use notify::event::{AccessKind, AccessMode};
+use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 /// Our own writes arrive one debounce after the command finished, so the window has to
@@ -18,8 +19,8 @@ pub struct RepoWatcher {
     paused: Arc<AtomicBool>,
     quiet_until: Arc<Mutex<Option<Instant>>>,
     held: Arc<AtomicUsize>,
-    /// Dropping the debouncer stops the background thread, so it has to be held.
-    _debouncer: Debouncer<notify::RecommendedWatcher>,
+    /// Dropping the watcher closes the channel, which ends the debounce thread.
+    _watcher: RecommendedWatcher,
 }
 
 impl RepoWatcher {
@@ -43,28 +44,21 @@ impl RepoWatcher {
             held: Arc::clone(&held),
         };
 
-        let mut debouncer = new_debouncer(
-            Duration::from_millis(DEBOUNCE_MS),
-            move |result: DebounceEventResult| {
-                let events = match result {
-                    Ok(events) => events,
-                    Err(error) => {
-                        // An overflowed ReadDirectoryChangesW buffer lands here: changes
-                        // were missed, and the panels are stale until the next event.
-                        tracing::warn!(?error, "the file watcher lost events");
-                        return;
-                    }
-                };
-                let paths: Vec<PathBuf> = events.into_iter().map(|event| event.path).collect();
-                for change in route.coalesce(&paths) {
-                    on_change(change);
-                }
-            },
-        )
+        let (tx, rx) = mpsc::channel::<notify::Result<Event>>();
+        let mut debouncer = notify::recommended_watcher(move |event| {
+            let _ = tx.send(event);
+        })
         .map_err(|source| WatchError::Start {
             path: root.display().to_string(),
             source,
         })?;
+        std::thread::Builder::new()
+            .name("fs-watcher-debounce".into())
+            .spawn(move || debounce(&rx, &route, &on_change))
+            .map_err(|error| WatchError::Start {
+                path: root.display().to_string(),
+                source: notify::Error::io(error),
+            })?;
 
         // The INV-06 noise is filtered when routing, not by narrowing the watch.
         watch(&mut debouncer, root, RecursiveMode::Recursive)?;
@@ -108,7 +102,7 @@ impl RepoWatcher {
             paused,
             quiet_until,
             held,
-            _debouncer: debouncer,
+            _watcher: debouncer,
         })
     }
 
@@ -148,6 +142,53 @@ impl std::fmt::Debug for RepoWatcher {
         f.debug_struct("RepoWatcher")
             .field("paused", &self.paused.load(Ordering::Relaxed))
             .finish()
+    }
+}
+
+/// One window per burst: the first event opens it, everything within `DEBOUNCE_MS` joins it.
+///
+/// Our own thin debounce because `notify-debouncer-mini` drops the event kind. notify asks
+/// inotify for `IN_OPEN`, so every refresh reading `.git/HEAD` re-triggered itself forever
+/// on Linux; only events that change something are kept.
+fn debounce(
+    rx: &mpsc::Receiver<notify::Result<Event>>,
+    route: &Route,
+    on_change: &impl Fn(RepoChanged),
+) {
+    let window = Duration::from_millis(DEBOUNCE_MS);
+    while let Ok(first) = rx.recv() {
+        let deadline = Instant::now() + window;
+        let mut paths: Vec<PathBuf> = Vec::new();
+        let mut next = Some(first);
+        while let Some(received) = next {
+            match received {
+                Ok(event) if changes_something(&event.kind) => {
+                    for path in event.paths {
+                        if !paths.contains(&path) {
+                            paths.push(path);
+                        }
+                    }
+                }
+                Ok(_) => {}
+                // An overflowed ReadDirectoryChangesW buffer lands here: changes were
+                // missed, and the panels are stale until the next event.
+                Err(error) => tracing::warn!(?error, "the file watcher lost events"),
+            }
+            next = rx
+                .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+                .ok();
+        }
+        for change in route.coalesce(&paths) {
+            on_change(change);
+        }
+    }
+}
+
+/// Opens and reads are not changes; a finished write is.
+fn changes_something(kind: &EventKind) -> bool {
+    match kind {
+        EventKind::Access(access) => *access == AccessKind::Close(AccessMode::Write),
+        _ => true,
     }
 }
 
@@ -261,12 +302,11 @@ fn to_slash(path: &Path) -> String {
 }
 
 fn watch(
-    debouncer: &mut Debouncer<notify::RecommendedWatcher>,
+    debouncer: &mut RecommendedWatcher,
     path: &Path,
     mode: RecursiveMode,
 ) -> Result<(), WatchError> {
     debouncer
-        .watcher()
         .watch(path, mode)
         .map_err(|source| WatchError::Start {
             path: path.display().to_string(),

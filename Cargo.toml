@@ -92,7 +92,6 @@ tree-sitter-typescript = "0.23"
 notify = "8.2"
 # Keep default features: they select the macOS backend. `crossbeam-channel` is the
 # bridge to the rayon/OS-thread side described in doc/01-architecture.md section 3.
-notify-debouncer-mini = { version = "0.7", features = ["crossbeam-channel"] }
 ignore = "0.4"
 # Already in the tree through `ignore`; used for the protected-branch patterns.
 globset = "0.4"

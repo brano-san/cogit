@@ -10,7 +10,6 @@ description = "Debounced, filtered filesystem watching for Git repositories."
 
 [dependencies]
 notify.workspace = true
-notify-debouncer-mini.workspace = true
 thiserror.workspace = true
 serde.workspace = true
 specta.workspace = true
