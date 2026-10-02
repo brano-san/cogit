@@ -25,10 +25,13 @@
 
 <style>
   /* Over the workspace, but only the card takes the pointer: a repository listed in the
-     Repositories panel behind the layer stays clickable. */
+     Repositories panel behind the layer stays clickable. The layer comes first in the DOM, so
+     without a z-index the positioned panel headers and splitters (z-index 1–2) paint over the
+     card; 5 is above them and below menus, dialogs and the command output (20+). */
   .layer {
     position: absolute;
     inset: 0;
+    z-index: 5;
     display: flex;
     align-items: center;
     justify-content: center;
