@@ -25,7 +25,7 @@ fn entry(f: &test_fixtures::Fixture, path: &str) -> git_engine::WorktreeEntry {
 #[test]
 fn a_remote_start_point_makes_a_tracking_branch() {
     let f = test_fixtures::with_remote().unwrap();
-    let aux = tempfile::tempdir().unwrap();
+    let aux = test_fixtures::tempdir().unwrap();
     let path = folder(&aux, "feat-wt");
 
     open(&f)
@@ -50,7 +50,7 @@ fn a_remote_start_point_makes_a_tracking_branch() {
 #[test]
 fn a_new_branch_without_tracking_has_no_upstream() {
     let f = test_fixtures::with_remote().unwrap();
-    let aux = tempfile::tempdir().unwrap();
+    let aux = test_fixtures::tempdir().unwrap();
     let path = folder(&aux, "plain-wt");
 
     open(&f)
@@ -71,7 +71,7 @@ fn a_new_branch_without_tracking_has_no_upstream() {
 fn detached_puts_head_on_the_commit_without_a_branch() {
     let f = test_fixtures::linear(3).unwrap();
     let first = f.oid("HEAD~2").unwrap();
-    let aux = tempfile::tempdir().unwrap();
+    let aux = test_fixtures::tempdir().unwrap();
     let path = folder(&aux, "detached-wt");
 
     open(&f)
@@ -92,7 +92,7 @@ fn detached_puts_head_on_the_commit_without_a_branch() {
 fn an_existing_branch_is_checked_out_as_it_is() {
     let f = test_fixtures::linear(2).unwrap();
     f.git(&["branch", "spare"]).unwrap();
-    let aux = tempfile::tempdir().unwrap();
+    let aux = test_fixtures::tempdir().unwrap();
     let path = folder(&aux, "spare-wt");
 
     open(&f)
@@ -111,7 +111,7 @@ fn an_existing_branch_is_checked_out_as_it_is() {
 fn a_taken_branch_name_is_refused_with_gits_own_words() {
     let f = test_fixtures::linear(2).unwrap();
     f.git(&["branch", "taken"]).unwrap();
-    let aux = tempfile::tempdir().unwrap();
+    let aux = test_fixtures::tempdir().unwrap();
     let path = folder(&aux, "clash-wt");
 
     let err = open(&f)
@@ -132,7 +132,7 @@ fn a_taken_branch_name_is_refused_with_gits_own_words() {
 #[test]
 fn a_folder_with_files_in_it_is_refused() {
     let f = test_fixtures::linear(2).unwrap();
-    let aux = tempfile::tempdir().unwrap();
+    let aux = test_fixtures::tempdir().unwrap();
     let path = folder(&aux, "busy");
     std::fs::create_dir(&path).unwrap();
     std::fs::write(std::path::Path::new(&path).join("keep.txt"), "mine").unwrap();
@@ -228,7 +228,7 @@ fn branch_names_are_checked_by_git() {
 
 #[test]
 fn a_folder_that_is_missing_or_empty_can_take_a_worktree() {
-    let aux = tempfile::tempdir().unwrap();
+    let aux = test_fixtures::tempdir().unwrap();
     let empty = aux.path().join("empty");
     std::fs::create_dir(&empty).unwrap();
 
@@ -241,7 +241,7 @@ fn a_folder_that_is_missing_or_empty_can_take_a_worktree() {
 
 #[test]
 fn a_folder_with_files_or_a_file_cannot() {
-    let aux = tempfile::tempdir().unwrap();
+    let aux = test_fixtures::tempdir().unwrap();
     let busy = aux.path().join("busy");
     std::fs::create_dir(&busy).unwrap();
     std::fs::write(busy.join("a.txt"), "x").unwrap();

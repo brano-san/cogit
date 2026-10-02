@@ -372,7 +372,7 @@ mod worktrees {
     #[test]
     fn locked_detached_and_stale_worktrees_match_worktree_list_porcelain() {
         let f = test_fixtures::linear(3).unwrap();
-        let aux = tempfile::TempDir::new().unwrap();
+        let aux = test_fixtures::tempdir().unwrap();
         let at = |rel: &str| aux.path().join(rel);
 
         add(&f, &at("a/a-one"), &["-b", "one"]);
@@ -397,7 +397,7 @@ mod worktrees {
     #[test]
     fn linked_worktrees_come_in_path_order_not_record_order() {
         let f = test_fixtures::linear(2).unwrap();
-        let aux = tempfile::TempDir::new().unwrap();
+        let aux = test_fixtures::tempdir().unwrap();
         add(&f, &aux.path().join("b/one"), &["-b", "one"]);
         add(&f, &aux.path().join("a/two"), &["-b", "two"]);
         add(&f, &aux.path().join("C/three"), &["-b", "three"]);
@@ -426,7 +426,7 @@ mod worktrees {
     #[test]
     fn a_bare_main_repository_is_listed_by_its_own_folder() {
         let f = test_fixtures::bare().unwrap();
-        let aux = tempfile::TempDir::new().unwrap();
+        let aux = test_fixtures::tempdir().unwrap();
         add(&f, &aux.path().join("checkout"), &["-b", "checkout"]);
         add(&f, &aux.path().join("loose"), &["--detach"]);
 

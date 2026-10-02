@@ -471,8 +471,15 @@ fn unread(
     }
 }
 
+/// The folder as git spells it: git lists worktrees by real path, so a symlink or a
+/// Windows 8.3 name (`RUNNER~1`) would never equal its own entry.
 fn normalise(path: &std::path::Path) -> String {
-    path.display().to_string().replace('\\', "/")
+    let real = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let shown = real.display().to_string().replace('\\', "/");
+    match shown.strip_prefix("//?/") {
+        Some(plain) if plain.as_bytes().get(1) == Some(&b':') => plain.to_owned(),
+        _ => shown,
+    }
 }
 
 /// Git takes a folder that is missing or empty; the dialog asks before it runs `worktree add`.

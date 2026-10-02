@@ -21,6 +21,36 @@ pub enum FixtureError {
 
 pub type Result<T> = std::result::Result<T, FixtureError>;
 
+/// A temporary folder under the real path of the temp dir: git lists folders by real path,
+/// and a runner's `RUNNER~1` (8.3) or a symlinked temp dir is a second spelling of it.
+pub fn tempdir() -> std::io::Result<TempDir> {
+    let base = std::env::temp_dir();
+    let real = std::fs::canonicalize(&base).unwrap_or(base);
+    let shown = real.to_string_lossy();
+    let plain = match shown.strip_prefix(r"\\?\") {
+        Some(rest) if rest.as_bytes().get(1) == Some(&b':') => PathBuf::from(rest),
+        _ => real,
+    };
+    TempDir::new_in(plain)
+}
+
+/// A wall-clock budget as slow, shared CI runners can meet it: times 6 when `CI` is set,
+/// times `COGIT_TEST_SLACK` when that is a number. Locally it stays as written.
+#[must_use]
+pub fn scaled(budget: std::time::Duration) -> std::time::Duration {
+    let factor = std::env::var("COGIT_TEST_SLACK")
+        .ok()
+        .and_then(|value| value.parse::<u32>().ok())
+        .unwrap_or_else(|| {
+            if std::env::var_os("CI").is_some() {
+                6
+            } else {
+                1
+            }
+        });
+    budget * factor
+}
+
 #[derive(Debug)]
 pub struct Fixture {
     dir: TempDir,
@@ -29,7 +59,7 @@ pub struct Fixture {
 
 impl Fixture {
     pub fn init() -> Result<Self> {
-        let dir = TempDir::new()?;
+        let dir = tempdir()?;
         let fixture = Self {
             dir,
             _aux: Vec::new(),
@@ -233,7 +263,7 @@ pub fn empty() -> Result<Fixture> {
 
 pub fn bare() -> Result<Fixture> {
     let source = linear(3)?;
-    let dir = TempDir::new()?;
+    let dir = tempdir()?;
     let src = source.path().to_string_lossy().into_owned();
     run_git(dir.path(), &["clone", "--bare", "--", &src, "."], None)?;
     Ok(Fixture {
@@ -302,7 +332,7 @@ pub fn unicode_paths() -> Result<Fixture> {
 pub fn with_remote() -> Result<Fixture> {
     let mut f = linear(2)?;
     // Beside the repository, not in it: inside, they were untracked files of its own.
-    let aux = TempDir::new()?;
+    let aux = tempdir()?;
     let remote = aux.path().join("origin.git");
     run_git(
         f.path(),
@@ -527,7 +557,7 @@ pub fn with_submodule() -> Result<Fixture> {
 
 pub fn with_worktree() -> Result<Fixture> {
     let mut f = linear(3)?;
-    let aux = TempDir::new()?;
+    let aux = tempdir()?;
     let target = aux
         .path()
         .join("linked")

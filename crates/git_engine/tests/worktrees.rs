@@ -121,7 +121,7 @@ fn a_dirty_worktree_is_told_apart_from_a_clean_one() {
 fn adding_a_worktree_puts_a_branch_in_it() {
     let f = test_fixtures::linear(2).unwrap();
     // A folder of this test's own: a shared one outlives a failed run and fails the next.
-    let outside = tempfile::tempdir().unwrap();
+    let outside = test_fixtures::tempdir().unwrap();
     let path = outside
         .path()
         .join("added-wt")
@@ -264,7 +264,7 @@ fn a_worktree_can_be_locked_with_a_reason_and_unlocked_again() {
 #[test]
 fn pruning_one_missing_worktree_leaves_the_other_registrations_alone() {
     let f = test_fixtures::with_worktree().unwrap();
-    let aux = tempfile::tempdir().unwrap();
+    let aux = test_fixtures::tempdir().unwrap();
     let second = slashed(&aux.path().join("second"));
     open(&f).add_worktree(&second, "second", true).unwrap();
     let first = linked(&f).path;
@@ -302,7 +302,7 @@ fn pruning_a_worktree_whose_folder_is_still_there_is_refused() {
 fn a_moved_worktree_is_found_again_by_repairing_it_with_its_new_folder() {
     let f = test_fixtures::with_worktree().unwrap();
     let old = linked(&f).path;
-    let aux = tempfile::tempdir().unwrap();
+    let aux = test_fixtures::tempdir().unwrap();
     let moved = aux.path().join("moved");
     std::fs::rename(&old, &moved).unwrap();
     assert!(linked(&f).missing);
@@ -335,7 +335,7 @@ fn copy_tree(from: &std::path::Path, to: &std::path::Path) {
 fn repairing_a_worktree_moved_to_another_disk_leaves_its_index_fresh() {
     let f = test_fixtures::with_worktree().unwrap();
     let old = linked(&f).path;
-    let aux = tempfile::tempdir().unwrap();
+    let aux = test_fixtures::tempdir().unwrap();
     let moved = aux.path().join("moved");
     // A fresh checkout is racy — written in the second its index was — and git reads such
     // files whatever their stat says. Backdated, the copies differ from the index by
@@ -393,7 +393,7 @@ fn a_worktree_registered_from_another_system_is_repaired_with_its_real_folder() 
 fn a_new_worktree_can_start_its_branch_at_a_chosen_commit() {
     let f = test_fixtures::linear(3).unwrap();
     let first = f.oid("HEAD~2").unwrap();
-    let aux = tempfile::tempdir().unwrap();
+    let aux = test_fixtures::tempdir().unwrap();
     let path = slashed(&aux.path().join("from-first"));
 
     open(&f)
@@ -461,7 +461,7 @@ fn a_missing_worktree_still_names_the_branch_it_holds() {
 #[test]
 fn a_worktree_of_a_bare_repository_lists_the_bare_one_as_main() {
     let bare = test_fixtures::bare().unwrap();
-    let place = tempfile::tempdir().unwrap();
+    let place = test_fixtures::tempdir().unwrap();
     let linked = place.path().join("wt");
     bare.git(&[
         "worktree",
@@ -489,7 +489,7 @@ fn a_worktree_of_a_bare_repository_lists_the_bare_one_as_main() {
 /// --init` inside it leaves it.
 fn worktree_with_a_submodule() -> (test_fixtures::Fixture, tempfile::TempDir, String) {
     let f = test_fixtures::with_submodule().unwrap();
-    let aux = tempfile::TempDir::new().unwrap();
+    let aux = test_fixtures::tempdir().unwrap();
     let path = slashed(&aux.path().join("modules-wt"));
     f.git(&["worktree", "add", "-b", "modules-wt", &path])
         .unwrap();
@@ -592,7 +592,7 @@ fn the_list_without_changes_names_what_the_full_one_names() {
 #[test]
 fn the_list_without_changes_reads_the_branch_of_a_bare_main_one() {
     let bare = test_fixtures::bare().unwrap();
-    let place = tempfile::tempdir().unwrap();
+    let place = test_fixtures::tempdir().unwrap();
     let linked = place.path().join("wt");
     bare.git(&[
         "worktree",
@@ -612,4 +612,22 @@ fn the_list_without_changes_reads_the_branch_of_a_bare_main_one() {
         branches(repo.worktree_heads().unwrap()),
         branches(repo.worktrees().unwrap())
     );
+}
+
+/// Git lists worktrees by their real paths (a Windows 8.3 folder name is a second spelling
+/// of the same kind), so the folder a repository was opened by must be read the same way.
+#[cfg(unix)]
+#[test]
+fn a_repository_opened_through_a_symlink_is_listed_by_its_real_path() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let aux = test_fixtures::tempdir().unwrap();
+    let link = aux.path().join("link");
+    std::os::unix::fs::symlink(f.path(), &link).unwrap();
+
+    let found = RepoHandle::open(&link).unwrap().worktrees().unwrap();
+
+    let real = slashed(&std::fs::canonicalize(f.path()).unwrap());
+    let main = found.iter().find(|entry| entry.is_main).unwrap();
+    assert_eq!(main.path, real);
+    assert!(main.is_current, "{found:?}");
 }
