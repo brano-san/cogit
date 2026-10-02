@@ -34,6 +34,9 @@ runs:
     - uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
         rustflags: ""
+        # Bump to drop a poisoned cache: a restored target/ whose rlibs were pruned makes clippy
+        # report "can't find crate" for crates cargo thinks are fresh.
+        cache-key: v2
 
     - uses: taiki-e/install-action@v2
       if: inputs.nextest == 'true'
