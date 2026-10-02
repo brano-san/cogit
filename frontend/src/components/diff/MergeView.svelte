@@ -95,14 +95,14 @@
     {/if}
     <span class="grow"></span>
     <span class="nav">
-      <button type="button" onclick={() => step(-1)} disabled={conflicts.length === 0} title="Previous conflict (F6 / Shift+F6)">↑</button>
+      <button type="button" class="btn sm" onclick={() => step(-1)} disabled={conflicts.length === 0} title="Previous conflict (F6 / Shift+F6)">↑</button>
       <span class="tabular">{current}/{conflicts.length}</span>
-      <button type="button" onclick={() => step(1)} disabled={conflicts.length === 0} title="Next conflict">↓</button>
+      <button type="button" class="btn sm" onclick={() => step(1)} disabled={conflicts.length === 0} title="Next conflict">↓</button>
     </span>
-    <button type="button" onclick={() => onresolve("ours")} title="Take the whole file as Ours has it">Take ours</button>
-    <button type="button" onclick={() => onresolve("theirs")} title="Take the whole file as Theirs has it">Take theirs</button>
-    <button type="button" class="primary" onclick={onsolver} title="Open the Conflict Solver for this file">Resolve…</button>
-    <button type="button" onclick={oncancel}>Close</button>
+    <button type="button" class="btn sm" onclick={() => onresolve("ours")} title="Take the whole file as Ours has it">Take ours</button>
+    <button type="button" class="btn sm" onclick={() => onresolve("theirs")} title="Take the whole file as Theirs has it">Take theirs</button>
+    <button type="button" class="btn sm primary" onclick={onsolver} title="Open the Conflict Solver for this file">Resolve…</button>
+    <button type="button" class="btn sm" onclick={oncancel}>Close</button>
   </div>
 
   <div class="heads">
@@ -182,27 +182,6 @@
     align-items: center;
     gap: var(--sp-2);
     color: var(--text-secondary);
-  }
-
-  button {
-    height: var(--h-button-sm);
-    padding: 0 var(--sp-3);
-    background: var(--surface-input);
-    color: var(--text-primary);
-    border: 1px solid var(--field-border);
-    border-radius: var(--r-sm);
-    font-size: var(--fs-dense);
-    cursor: default;
-  }
-
-  button.primary {
-    background: var(--status-ref);
-    color: var(--fg-on-accent);
-    border-color: var(--status-ref);
-  }
-
-  button:disabled {
-    opacity: 0.5;
   }
 
   .heads {

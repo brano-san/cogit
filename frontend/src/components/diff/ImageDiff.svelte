@@ -24,7 +24,7 @@
     <span class="sizes tabular">{imageSizes(oldSize, newSize, before, after)}</span>
     <span class="grow"></span>
     {#each [["side", "Side by side"], ["swipe", "Swipe"], ["onion", "Onion skin"]] as [id, label] (id)}
-      <button type="button" class:active={mode === id} onclick={() => (mode = id as Mode)}>
+      <button type="button" class="btn sm" class:active={mode === id} onclick={() => (mode = id as Mode)}>
         {label}
       </button>
     {/each}
@@ -92,18 +92,7 @@
     flex: 1 1 auto;
   }
 
-  .bar button {
-    height: var(--h-button-sm);
-    padding: 0 var(--sp-3);
-    background: var(--surface-input);
-    color: var(--text-primary);
-    border: 1px solid var(--field-border);
-    border-radius: var(--r-sm);
-    font-size: var(--fs-dense);
-    cursor: default;
-  }
-
-  .bar button.active {
+  .active {
     border-color: var(--status-ref);
     color: var(--status-ref);
   }

@@ -48,17 +48,19 @@
   </span>
   <button
     type="button"
+    class="btn sm"
     disabled={find.hits.length === 0}
     title="Previous match (Shift+Enter)"
     onclick={() => find.go(-1, reveal)}>▲</button
   >
   <button
     type="button"
+    class="btn sm"
     disabled={find.hits.length === 0}
     title="Next match (Enter)"
     onclick={() => find.go(1, reveal)}>▼</button
   >
-  <button type="button" title="Close (Escape)" onclick={() => find.close()}>✕</button>
+  <button type="button" class="btn sm" title="Close (Escape)" onclick={() => find.close()}>✕</button>
 </div>
 
 <style>
@@ -88,21 +90,6 @@
   .find input.missing {
     border-color: var(--status-delete);
     background: var(--diff-del-line);
-  }
-
-  .find button {
-    height: var(--h-button-sm);
-    padding: 0 var(--sp-3);
-    background: var(--surface-input);
-    color: var(--text-primary);
-    border: 1px solid var(--field-border);
-    border-radius: var(--r-sm);
-    font-size: var(--fs-dense);
-    cursor: default;
-  }
-
-  .find button:disabled {
-    color: var(--text-secondary);
   }
 
   .count {

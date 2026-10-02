@@ -46,25 +46,28 @@
     <span class="warn">conflicted</span>
     <span class="grow"></span>
     {#if editing}
-      <button type="button" onclick={() => (editing = false)}>Cancel</button>
-      <button type="button" onclick={save}>Save resolution</button>
+      <button type="button" class="btn sm" onclick={() => (editing = false)}>Cancel</button>
+      <button type="button" class="btn sm" onclick={save}>Save resolution</button>
     {:else}
       {#if onsolver}
-        <button type="button" onclick={onsolver} title="Open the Conflict Solver for this file">Resolve…</button>
+        <button type="button" class="btn sm" onclick={onsolver} title="Open the Conflict Solver for this file">Resolve…</button>
       {/if}
       <button
         type="button"
+        class="btn sm"
         disabled={binary}
         title={binary ? "Binary or not UTF-8: take one side whole" : undefined}
         onclick={() => startEditing(ours)}>Edit by hand</button
       >
       <button
         type="button"
+        class="btn sm"
         title={ours === null ? "Ours deleted the file: taking it deletes the file" : undefined}
         onclick={() => onresolve("ours")}>{ours === null ? "Take ours (delete)" : "Take ours"}</button
       >
       <button
         type="button"
+        class="btn sm"
         title={theirs === null ? "Theirs deleted the file: taking it deletes the file" : undefined}
         onclick={() => onresolve("theirs")}>{theirs === null ? "Take theirs (delete)" : "Take theirs"}</button
       >
@@ -123,25 +126,6 @@
 
   .grow {
     flex: 1 1 auto;
-  }
-
-  .bar button {
-    height: var(--h-button-sm);
-    padding: 0 var(--sp-3);
-    background: var(--surface-input);
-    color: var(--text-primary);
-    border: 1px solid var(--field-border);
-    border-radius: var(--r-sm);
-    font-size: var(--fs-dense);
-    cursor: default;
-  }
-
-  .bar button:disabled {
-    opacity: 0.45;
-  }
-
-  .bar button:not(:disabled):hover {
-    border-color: var(--status-ref);
   }
 
   .columns {

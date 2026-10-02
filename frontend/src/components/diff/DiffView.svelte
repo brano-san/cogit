@@ -806,12 +806,13 @@
       {/if}
       {#if diff.lossyEncoding}<span class="warn">not valid UTF-8</span>{/if}
       {#if diff.converted}<span class="warn" title="Shown converted; stage or discard the file whole">{diff.converted}</span>{/if}
-      <button type="button" disabled={!nav.prev} onclick={() => jump(-1)} title="Previous change (Shift+F6)"
+      <button type="button" class="btn sm" disabled={!nav.prev} onclick={() => jump(-1)} title="Previous change (Shift+F6)"
         >▲</button
       >
-      <button type="button" disabled={!nav.next} onclick={() => jump(1)} title="Next change (F6)">▼</button>
+      <button type="button" class="btn sm" disabled={!nav.next} onclick={() => jump(1)} title="Next change (F6)">▼</button>
       <button
         type="button"
+        class="btn sm"
         aria-pressed={find.showing}
         title="Search the lines shown in this diff (Ctrl+F); open the folds to search the whole file"
         onclick={() => (find.showing ? find.close() : openFind())}>Find</button
@@ -820,18 +821,20 @@
         <span class="picked tabular">{selected.size ? `${selected.size} selected` : ""}</span>
         <button
           type="button"
+          class="btn sm"
           disabled={selected.size === 0 || !diffStore.lineActions.stage}
           onclick={() => apply(false)}>Stage lines</button
         >
         <button
           type="button"
+          class="btn sm"
           disabled={selected.size === 0 || !diffStore.lineActions.unstage}
           onclick={() => apply(true)}>Unstage lines</button
         >
         {#if diffStore.lineActions.discard}
           <button
             type="button"
-            class="danger"
+            class="btn sm danger"
             disabled={selected.size === 0}
             title="Throw the selected lines away (always asks first)"
             onclick={() => askDiscard(new Set(selected), `${selected.size} selected lines`)}
@@ -844,6 +847,7 @@
     {#if onwhitespace && (diff.kind === "text" || diff.kind === "whitespaceOnly")}
       <button
         type="button"
+        class="btn sm"
         aria-pressed={wsButton.pressed}
         title={wsButton.title}
         onclick={() => onwhitespace(wsButton.next)}
@@ -852,18 +856,20 @@
     {/if}
     {#if diff.kind === "text"}
       {#if onblame}
-        <button type="button" title="Annotate every line with its commit" onclick={() => onblame()}
+        <button type="button" class="btn sm" title="Annotate every line with its commit" onclick={() => onblame()}
           >Blame</button
         >
       {/if}
       <button
         type="button"
+        class="btn sm"
         disabled={diffStore.repo === null}
         title="Trace where the lines came from, starting at the selected one (Ctrl+Alt+Shift+L)"
         onclick={startInvestigate}>Investigate</button
       >
       <button
         type="button"
+        class="btn sm"
         aria-pressed={diffStore.showMoves}
         title="Show a moved block as one move; off: as an ordinary deletion plus addition"
         onclick={() => diffStore.setShowMoves(!diffStore.showMoves)}
@@ -872,6 +878,7 @@
       </button>
       <button
         type="button"
+        class="btn sm"
         aria-pressed={alignedTool.pressed}
         title={alignedTool.title}
         onclick={() => settings.set("diffLayout", alignedTool.next)}
@@ -880,6 +887,7 @@
       </button>
       <button
         type="button"
+        class="btn sm"
         aria-pressed={mode === "unified"}
         title={layoutTip(mode)}
         onclick={() => diffStore.setLayout(mode === "split" ? "unified" : "split")}
@@ -1142,23 +1150,7 @@
     font-size: 11px;
   }
 
-  .bar button {
-    height: var(--h-button-sm);
-    padding: 0 var(--sp-3);
-    background: var(--bg-input);
-    color: var(--fg-primary);
-    border: 1px solid var(--border-strong);
-    border-radius: var(--r-sm);
-    font-size: var(--fs-dense);
-    cursor: default;
-  }
-
-  .bar button:hover:not(:disabled) {
-    background: var(--bg-hover);
-  }
-
   /* 06 §6: a control that cannot act says so, and does not light up under the pointer. */
-  .bar button:disabled,
   .acts button:disabled {
     opacity: 0.4;
   }
@@ -1334,11 +1326,11 @@
     color: var(--fg-primary);
   }
 
-  button.danger {
+  .acts button.danger {
     color: var(--status-danger);
   }
 
-  button.danger:hover {
+  .acts button.danger:hover {
     border-color: var(--status-danger);
   }
 

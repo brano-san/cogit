@@ -528,7 +528,7 @@
     {#if toolRunning}
       <div class="banner" role="status">
         <span>Waiting for external tool…</span>
-        <button type="button" onclick={() => void cancelTool()}>Cancel</button>
+        <button type="button" class="btn sm" onclick={() => void cancelTool()}>Cancel</button>
       </div>
     {/if}
     {#if saveFailed}
@@ -682,17 +682,6 @@
     font-family: var(--font-mono);
     white-space: pre-wrap;
     user-select: text;
-  }
-
-  .banner button {
-    height: var(--h-button-sm);
-    padding: 0 var(--sp-3);
-    background: var(--bg-input);
-    color: var(--fg-primary);
-    border: 1px solid var(--border-strong);
-    border-radius: var(--r-sm);
-    font-size: var(--fs-dense);
-    cursor: default;
   }
 
   .panes {

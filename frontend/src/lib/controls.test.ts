@@ -7,7 +7,7 @@ import { OWNERS, audit } from "../../../scripts/audit-controls.mjs";
 /** The guard against native-looking controls (doc/06 "Controls"). It greps every .svelte
     file for raw `<button>` / `<input>` / `<select>` / `<textarea>` and fails when nothing
     gives one a look: no class or tag rule in the file's own <style>, no global rule
-    (`.btn` in a Dialog, `.tick-box`, range, text inputs in a Dialog). A new control that
+    (`.btn`, `.tick-box`, range, text inputs in a Dialog). A new control that
     should be the shared Button / Checkbox / Radio / Select fails here instead of reaching
     the screen as a bare element. */
 interface Found {
@@ -41,5 +41,44 @@ describe("raw controls", () => {
   it("every allowlist entry still points at a file", () => {
     const missing = Object.keys(allow).filter((key) => key !== "_doc" && !fs.existsSync(path.join(root, key)));
     expect(missing).toEqual([]);
+  });
+});
+
+/** The small panel button is `class="btn sm"` (app.css), not a local copy of its box: copies
+    drifted apart, each with its own disabled look. The files below predate the rule; one that
+    switches to `.btn sm` leaves the list, a new copy fails here. */
+const OLD_COPIES = new Set([
+  "components/common/QueueNav.svelte",
+  "components/investigate/OriginCard.svelte",
+  "components/layout/KeymapEditor.svelte", // the key-capture field, mono
+  "components/layout/Notifications.svelte",
+  "components/layout/StateBanner.svelte",
+  "components/repo-tree/RepositoryList.svelte", // the filter field, an input
+  "components/repo-tree/WorktreeList.svelte",
+  "components/solver/SolverWholeFile.svelte",
+]);
+
+describe("small buttons", () => {
+  it("no component draws its own panel button", () => {
+    const dir = path.join(root, "frontend/src/components");
+    const copies: string[] = [];
+    for (const file of fs.readdirSync(dir, { recursive: true, encoding: "utf8" })) {
+      if (!file.endsWith(".svelte")) continue;
+      const rel = `components/${file.replaceAll("\\", "/")}`;
+      const style = /<style[^>]*>([\s\S]*?)<\/style>/.exec(fs.readFileSync(path.join(dir, file), "utf8"))?.[1] ?? "";
+      for (const [, selector = "", body = ""] of style.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+        const copy = /height:\s*var\(--h-button-sm\)/.test(body) && /background:\s*var\(--(surface|bg)-input\)/.test(body);
+        if (copy && !/\binput\b/.test(selector) && !OLD_COPIES.has(rel)) copies.push(`${rel}: ${selector.trim()}`);
+      }
+    }
+    expect(copies).toEqual([]);
+  });
+
+  it("every old copy is still one", () => {
+    const gone = [...OLD_COPIES].filter((rel) => {
+      const src = fs.readFileSync(path.join(root, "frontend/src", rel), "utf8");
+      return !/height:\s*var\(--h-button-sm\)/.test(src);
+    });
+    expect(gone).toEqual([]);
   });
 });

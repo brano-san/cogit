@@ -55,6 +55,7 @@
       {#each LAYOUTS as entry (entry.id)}
         <button
           type="button"
+          class="btn sm"
           aria-pressed={layout === entry.id}
           disabled={locked}
           title="Show {entry.label}"
@@ -64,50 +65,53 @@
     </div>
     <button
       type="button"
+      class="btn sm"
       aria-pressed={baseChanges}
       disabled={locked}
       title="Color Ours and Theirs by what each changed in the base; off: by where they differ from each other"
       onclick={() => onbase(!baseChanges)}>Base Changes</button
     >
     <div class="group" role="group" aria-label="Changes">
-      <button type="button" disabled={locked || !hasChanges} title="Previous change (Shift+F6)" onclick={() => onstep("change", -1)}>↑ Change</button>
-      <button type="button" disabled={locked || !hasChanges} title="Next change (F6)" onclick={() => onstep("change", 1)}>↓ Change</button>
+      <button type="button" class="btn sm" disabled={locked || !hasChanges} title="Previous change (Shift+F6)" onclick={() => onstep("change", -1)}>↑ Change</button>
+      <button type="button" class="btn sm" disabled={locked || !hasChanges} title="Next change (F6)" onclick={() => onstep("change", 1)}>↓ Change</button>
     </div>
     <div class="group" role="group" aria-label="Conflicts">
-      <button type="button" disabled={locked || !hasConflicts} title="Previous conflict (Shift+F7)" onclick={() => onstep("conflict", -1)}>↑ Conflict</button>
-      <button type="button" disabled={locked || !hasConflicts} title="Next conflict (F7)" onclick={() => onstep("conflict", 1)}>↓ Conflict</button>
+      <button type="button" class="btn sm" disabled={locked || !hasConflicts} title="Previous conflict (Shift+F7)" onclick={() => onstep("conflict", -1)}>↑ Conflict</button>
+      <button type="button" class="btn sm" disabled={locked || !hasConflicts} title="Next conflict (F7)" onclick={() => onstep("conflict", 1)}>↓ Conflict</button>
     </div>
     <span class="count" class:clean={!hasConflicts} role="status">{conflictsLabel}</span>
     <div class="group" role="group" aria-label="Take">
-      <button type="button" disabled={locked || !canTake} title="Take Ours for the current change (Ctrl+1)" onclick={() => ontake("ours")}>Take Ours</button>
-      <button type="button" disabled={locked || !canTake} title="Take Theirs for the current change (Ctrl+2)" onclick={() => ontake("theirs")}>Take Theirs</button>
-      <button type="button" disabled={locked || !canTake} title="Ours, then Theirs (Ctrl+3)" onclick={() => ontake("oursTheirs")}>Ours + Theirs</button>
-      <button type="button" disabled={locked || !canTake} title="Theirs, then Ours (Ctrl+4)" onclick={() => ontake("theirsOurs")}>Theirs + Ours</button>
+      <button type="button" class="btn sm" disabled={locked || !canTake} title="Take Ours for the current change (Ctrl+1)" onclick={() => ontake("ours")}>Take Ours</button>
+      <button type="button" class="btn sm" disabled={locked || !canTake} title="Take Theirs for the current change (Ctrl+2)" onclick={() => ontake("theirs")}>Take Theirs</button>
+      <button type="button" class="btn sm" disabled={locked || !canTake} title="Ours, then Theirs (Ctrl+3)" onclick={() => ontake("oursTheirs")}>Ours + Theirs</button>
+      <button type="button" class="btn sm" disabled={locked || !canTake} title="Theirs, then Ours (Ctrl+4)" onclick={() => ontake("theirsOurs")}>Theirs + Ours</button>
     </div>
   {/if}
   {#if deleted}
     <div class="group" role="group" aria-label="File">
       <button
         type="button"
+        class="btn sm"
         disabled={locked || deleted.ours}
         title={deleted.ours ? "Ours deleted this file" : "Keep the file as Ours has it, and stage it"}
         onclick={() => onkeep("ours")}>Keep file (ours)</button
       >
       <button
         type="button"
+        class="btn sm"
         disabled={locked || deleted.theirs}
         title={deleted.theirs ? "Theirs deleted this file" : "Keep the file as Theirs has it, and stage it"}
         onclick={() => onkeep("theirs")}>Keep file (theirs)</button
       >
-      <button type="button" class="danger" disabled={locked} title="Delete the file and stage the deletion" onclick={ondelete}>Delete file</button>
+      <button type="button" class="btn sm danger" disabled={locked} title="Delete the file and stage the deletion" onclick={ondelete}>Delete file</button>
     </div>
   {/if}
   <span class="grow"></span>
-  <button type="button" disabled={locked} title="Run the merge tool set in Preferences or in the Git config on this file" onclick={onexternal}>Open in external tool</button>
+  <button type="button" class="btn sm" disabled={locked} title="Run the merge tool set in Preferences or in the Git config on this file" onclick={onexternal}>Open in external tool</button>
   {#if merged || deleted}
     <button
       type="button"
-      class="primary"
+      class="btn sm primary"
       disabled={locked || saving}
       title="Write the Result and stage the file (Ctrl+S)"
       onclick={onsave}>Save</button
@@ -139,39 +143,9 @@
     flex: 1 1 auto;
   }
 
-  button {
-    height: var(--h-button-sm);
-    padding: 0 var(--sp-3);
-    background: var(--bg-input);
-    color: var(--fg-primary);
-    border: 1px solid var(--border-strong);
-    border-radius: var(--r-sm);
-    font-size: var(--fs-dense);
-    cursor: default;
-  }
-
-  button:hover:not(:disabled) {
-    background: var(--bg-hover);
-  }
-
   button[aria-pressed="true"] {
     background: var(--state-pressed);
     color: var(--state-pressed-text);
-  }
-
-  button:disabled {
-    opacity: 0.4;
-  }
-
-  button.primary {
-    background: var(--status-ref);
-    border-color: var(--status-ref);
-    color: var(--fg-on-accent);
-  }
-
-  button.danger {
-    border-color: var(--status-danger);
-    color: var(--status-danger);
   }
 
   .count {

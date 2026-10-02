@@ -27,11 +27,11 @@
     <span class="title">Output</span>
     <span class="problems"><Checkbox bind:checked={output.errorsOnly} label="Problems only" /></span>
     <span class="grow"></span>
-    <button type="button" onclick={() => void feedback.copy(commandLogText(output.errorsOnly))}>
+    <button type="button" class="btn sm" onclick={() => void feedback.copy(commandLogText(output.errorsOnly))}>
       {feedback.label("Copy log")}
     </button>
-    <button type="button" onclick={() => void output.clear()}>Clear</button>
-    <button type="button" onclick={() => (output.open = false)} title="Close (Esc)">✕</button>
+    <button type="button" class="btn sm" onclick={() => void output.clear()}>Clear</button>
+    <button type="button" class="btn sm" onclick={() => (output.open = false)} title="Close (Esc)">✕</button>
   </header>
 
   {#if output.shownEntries.length === 0}
@@ -94,17 +94,6 @@
 
   .grow {
     flex: 1 1 auto;
-  }
-
-  header button {
-    height: var(--h-button-sm);
-    padding: 0 var(--sp-3);
-    background: var(--surface-input);
-    color: var(--text-primary);
-    border: 1px solid var(--field-border);
-    border-radius: var(--r-sm);
-    font-size: var(--fs-dense);
-    cursor: default;
   }
 
   .list {

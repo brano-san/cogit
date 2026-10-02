@@ -207,7 +207,7 @@
       <span class="dot" aria-hidden="true"></span>
       <span class="title">{docked ? heading : entry.operation} · {repoName}</span>
       <span class="grow"></span>
-      <button bind:this={closer} type="button" onclick={close} title="Close (Esc)">
+      <button bind:this={closer} type="button" class="btn sm" onclick={close} title="Close (Esc)">
         ✕
       </button>
     </header>
@@ -239,9 +239,9 @@
           <span class="count tabular">
             {hits.length === 0 ? (needle === "" ? "" : "no matches") : `${(at % hits.length) + 1} of ${hits.length}`}
           </span>
-          <button type="button" onclick={() => step(-1)} title="Previous (Shift+Enter)">↑</button>
-          <button type="button" onclick={() => step(1)} title="Next (Enter)">↓</button>
-          <button type="button" onclick={() => ((finding = false), (needle = ""))}>✕</button>
+          <button type="button" class="btn sm" onclick={() => step(-1)} title="Previous (Shift+Enter)">↑</button>
+          <button type="button" class="btn sm" onclick={() => step(1)} title="Next (Enter)">↓</button>
+          <button type="button" class="btn sm" onclick={() => ((finding = false), (needle = ""))}>✕</button>
         </div>
       {/if}
 
@@ -282,6 +282,7 @@
     <footer>
       <button
         type="button"
+        class="btn sm"
         onclick={() => (wrap = !wrap)}
         class:on={wrap}
         aria-pressed={wrap}
@@ -292,14 +293,14 @@
       >
         Wrap lines
       </button>
-      <button type="button" onclick={() => void openLog()} title={logPath}>Open log</button>
+      <button type="button" class="btn sm" onclick={() => void openLog()} title={logPath}>Open log</button>
       <span class="grow"></span>
       {#if actions}<span class="extra">{@render actions()}</span>{/if}
       {#if onretry}
-        <button type="button" onclick={onretry}>Retry</button>
+        <button type="button" class="btn sm" onclick={onretry}>Retry</button>
       {/if}
-      <button type="button" onclick={copy}>{feedback.label("Copy output")}</button>
-      <button type="button" class="primary" onclick={close}>Close</button>
+      <button type="button" class="btn sm" onclick={copy}>{feedback.label("Copy output")}</button>
+      <button type="button" class="btn sm primary" onclick={close}>Close</button>
     </footer>
 
     <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -471,12 +472,6 @@
     display: contents;
   }
 
-  button:disabled,
-  .extra :global(button:disabled) {
-    color: var(--text-secondary);
-    border-color: transparent;
-  }
-
   .ln.error {
     color: var(--status-delete);
   }
@@ -517,26 +512,7 @@
     padding: var(--sp-4);
   }
 
-  button,
-  .extra :global(button) {
-    height: var(--h-button-sm);
-    padding: 0 var(--sp-3);
-    background: var(--surface-input);
-    color: var(--text-primary);
-    border: 1px solid var(--field-border);
-    border-radius: var(--r-sm);
-    font-size: var(--fs-dense);
-    cursor: default;
-  }
-
-  button:hover,
-  .extra :global(button:hover) {
-    border-color: var(--status-ref);
-  }
-
-  button.on,
-  button.primary,
-  .extra :global(button.primary) {
+  .on {
     border-color: var(--status-ref);
   }
 
