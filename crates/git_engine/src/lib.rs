@@ -107,7 +107,9 @@ pub use file_log::{FileChange, FileRevision};
 pub use file_ops::{IgnoreRule, IndexEditorSides, IndexFlag};
 pub use find::{Found, FoundKind};
 pub use flow::{FlowBranch, FlowConfig, FlowKind, FlowStatus};
-pub use git_candidates::{GitCandidate, MIN_GIT, find_git_candidates, is_below_min_git};
+pub use git_candidates::{
+    GitCandidate, MIN_GIT, find_git_candidates, git_for_windows_install, is_below_min_git,
+};
 pub use git_probe::{GitProbe, parse_git_version, probe_git};
 pub use gitlink::{ModuleProblem, is_foreign_path};
 pub use graph_walk::{CutParents, Reuse, WalkedHistory};

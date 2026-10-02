@@ -165,26 +165,7 @@ impl Lookup for System {
     }
 
     fn install_path(&self, machine_wide: bool) -> Option<PathBuf> {
-        if !cfg!(windows) {
-            return None;
-        }
-        let hive = if machine_wide { "HKLM" } else { "HKCU" };
-        let mut command = std::process::Command::new("reg");
-        command
-            .args([
-                "query",
-                &format!(r"{hive}\SOFTWARE\GitForWindows"),
-                "/v",
-                "InstallPath",
-            ])
-            .stdin(std::process::Stdio::null());
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt as _;
-            command.creation_flags(crate::runner::CREATE_NO_WINDOW);
-        }
-        let output = command.output().ok().filter(|out| out.status.success())?;
-        install_path_from_reg(&String::from_utf8_lossy(&output.stdout))
+        git_for_windows_install(machine_wide)
     }
 
     // Case-folded as well: Windows paths are, and one file must not be two entries.
@@ -198,12 +179,27 @@ impl Lookup for System {
     }
 }
 
-/// The value of `InstallPath    REG_SZ    C:\Program Files\Git`.
-fn install_path_from_reg(output: &str) -> Option<PathBuf> {
-    let line = output.lines().find(|line| line.contains("InstallPath"))?;
-    let (_, value) = line.split_once("REG_SZ")?;
-    let value = value.trim();
-    (!value.is_empty()).then(|| PathBuf::from(value))
+/// `InstallPath` the Git for Windows installer records under `HKLM` or `HKCU`.
+#[cfg(windows)]
+#[must_use]
+pub fn git_for_windows_install(machine_wide: bool) -> Option<PathBuf> {
+    let hive = if machine_wide {
+        windows_registry::LOCAL_MACHINE
+    } else {
+        windows_registry::CURRENT_USER
+    };
+    let path = hive
+        .open(r"SOFTWARE\GitForWindows")
+        .ok()?
+        .get_string("InstallPath")
+        .ok()?;
+    (!path.is_empty()).then(|| PathBuf::from(path))
+}
+
+#[cfg(not(windows))]
+#[must_use]
+pub fn git_for_windows_install(_machine_wide: bool) -> Option<PathBuf> {
+    None
 }
 
 /// Every working git in the usual places. Runs the programs: call it off the UI thread.
@@ -366,13 +362,14 @@ mod tests {
         assert!(!is_below_min_git("garbage"));
     }
 
+    #[cfg(windows)]
     #[test]
-    fn the_install_path_is_read_from_reg_output() {
-        let out = "\r\nHKEY_LOCAL_MACHINE\\SOFTWARE\\GitForWindows\r\n    InstallPath    REG_SZ    C:\\Program Files\\Git\r\n\r\n";
-        assert_eq!(
-            install_path_from_reg(out),
-            Some(PathBuf::from(r"C:\Program Files\Git"))
-        );
-        assert_eq!(install_path_from_reg("nothing"), None);
+    fn an_installer_record_names_a_folder_with_cmd_git() {
+        for machine_wide in [true, false] {
+            if let Some(root) = git_for_windows_install(machine_wide) {
+                let git = root.join("cmd").join("git.exe");
+                assert!(git.is_file(), "{}", git.display());
+            }
+        }
     }
 }

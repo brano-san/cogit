@@ -216,27 +216,13 @@ pub fn find_git_bash() -> Option<PathBuf> {
         .map(PathBuf::from)
         .chain(std::env::var_os("LOCALAPPDATA").map(|dir| PathBuf::from(dir).join("Programs")))
         .collect();
-    git_bash_candidates(&installer_records(), git.as_deref(), &program_dirs)
+    let installs: Vec<PathBuf> = [true, false]
+        .into_iter()
+        .filter_map(git_engine::git_for_windows_install)
+        .collect();
+    git_bash_candidates(&installs, git.as_deref(), &program_dirs)
         .into_iter()
         .find(|path| path.is_file())
-}
-
-#[cfg(windows)]
-fn installer_records() -> Vec<PathBuf> {
-    [
-        windows_registry::LOCAL_MACHINE,
-        windows_registry::CURRENT_USER,
-    ]
-    .into_iter()
-    .filter_map(|hive| hive.open(r"SOFTWARE\GitForWindows").ok())
-    .filter_map(|key| key.get_string("InstallPath").ok())
-    .map(PathBuf::from)
-    .collect()
-}
-
-#[cfg(not(windows))]
-fn installer_records() -> Vec<PathBuf> {
-    Vec::new()
 }
 
 /// For `SHFileOperationW`: absolute, NUL after each, NUL at the end. A missing path is

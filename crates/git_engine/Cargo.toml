@@ -27,6 +27,9 @@ specta.workspace = true
 # Type-level only: `Number` overrides an i64 field to a plain TypeScript number.
 specta-typescript.workspace = true
 
+[target.'cfg(windows)'.dependencies]
+windows-registry.workspace = true
+
 [dev-dependencies]
 test_fixtures.workspace = true
 tempfile.workspace = true
