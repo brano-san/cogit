@@ -2,8 +2,8 @@
   import Button from "$components/common/Button.svelte";
   import Callout from "$components/common/template/Callout.svelte";
   import TemplateDialog from "$components/common/template/TemplateDialog.svelte";
-  import { ON_WINDOWS } from "$lib/git-check";
-  import { GIT_DOWNLOAD_URL, WHY_GIT, installHint, oldGitText, osOf } from "$lib/git-missing";
+  import { GIT_DOWNLOAD_URL, WHY_GIT, installHint, oldGitText } from "$lib/git-missing";
+  import { ON_WINDOWS, OS } from "$lib/platform";
   import type { GitMissingStore } from "$stores/git-missing.svelte";
 
   /** The missing-git dialog (R-700): why, what was found, and the three ways out. */
@@ -14,7 +14,7 @@
   let { store }: Props = $props();
 
   const dialog = $derived(store.open);
-  const hint = installHint(osOf(typeof navigator === "undefined" ? "" : navigator.platform));
+  const hint = installHint(OS);
 
   async function browse() {
     const { open } = await import("@tauri-apps/plugin-dialog");

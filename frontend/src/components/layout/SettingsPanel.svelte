@@ -16,7 +16,8 @@
   import type { TreeNode } from "$lib/tree";
   import { needsRestart, THEMES, type Settings } from "$lib/settings";
   import { isSetting, type Field } from "$lib/preferences";
-  import { createGitChecker, describeCheck, ON_WINDOWS, type GitCheck } from "$lib/git-check";
+  import { createGitChecker, describeCheck, type GitCheck } from "$lib/git-check";
+  import { ON_WINDOWS } from "$lib/platform";
   import { probeGit } from "$lib/ipc";
   import type { Keymap } from "$lib/keymap";
   import type { KeyBinding } from "$lib/ipc";

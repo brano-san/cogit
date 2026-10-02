@@ -147,9 +147,6 @@ export function prettyKeys(keys: string, onMac: boolean): string {
   return keys.replace("CmdOrCtrl", onMac ? "Cmd" : "Ctrl");
 }
 
-/** `CmdOrCtrl` means ⌘ here. */
-export const ON_MAC = typeof navigator !== "undefined" && navigator.platform.startsWith("Mac");
-
 /** The keys a command runs by, as its menu item shows them: the user's own from
     Preferences ▸ Keyboard over the shipped ones, Cmd or Ctrl by platform; `undefined` for a
     command without keys. The palette and the toolbar's tips read them here, not from

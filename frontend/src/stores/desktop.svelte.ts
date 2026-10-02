@@ -1,6 +1,13 @@
 import { desktopInfo, type DesktopInfo } from "$lib/ipc/file-menus";
+import { OS } from "$lib/platform";
 
-const GUESS: DesktopInfo = { fileManager: "Explorer", windowsShells: false, gitShell: null, separator: "/" };
+/** Until `desktop_info` answers: the names `Platform::file_manager` gives, the separator by OS. */
+const GUESS: DesktopInfo = {
+  fileManager: { windows: "Explorer", mac: "Finder", linux: "File Manager" }[OS],
+  windowsShells: false,
+  gitShell: null,
+  separator: OS === "windows" ? "\\" : "/",
+};
 
 /** What the desktop can do here (#36): asked once, since Git Bash does not move. */
 class DesktopStore {

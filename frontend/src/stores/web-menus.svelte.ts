@@ -1,5 +1,5 @@
 import { commands, type ContextItem, type MenuNode, type WindowChrome } from "$lib/ipc/bindings";
-import { ON_MAC } from "$lib/keymap";
+import { ON_MAC } from "$lib/platform";
 import type { MenuRow } from "$lib/menu-nav";
 import type { FrameState } from "$lib/titlebar";
 import { windowControl } from "$lib/window-control";

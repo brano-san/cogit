@@ -113,7 +113,8 @@
   import { confirmation } from "$stores/confirm.svelte";
   import { undoRewriteQuestion } from "$lib/undo-rewrite";
   import { undoRewrite, undoRewriteInfo } from "$lib/ipc/ref-ops";
-  import { ON_MAC, effective, withShortcuts } from "$lib/keymap";
+  import { effective, withShortcuts } from "$lib/keymap";
+  import { binName, ON_MAC, OS } from "$lib/platform";
   import { menuCommandRuns, modals } from "$lib/modal-stack";
   import { commitBox } from "$stores/commit-box.svelte";
   import { commitFileMenu, shownRow, worktreeFileMenu } from "$lib/file-menu";
@@ -1375,7 +1376,7 @@
     const id = repository.current?.repo;
     if (!id || paths.length === 0) return;
     const what = paths.length === 1 ? paths[0] : `${paths.length} files`;
-    const bin = (await desktop.load()).windowsShells ? "the Recycle Bin" : "the Trash";
+    const bin = `the ${binName(OS)}`;
     const confirmed = await confirmation.ask({
       title: "Delete",
       message: listedMessage(`Move ${what} to ${bin}?`, paths),

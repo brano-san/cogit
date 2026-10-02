@@ -61,5 +61,3 @@ export function createGitChecker(
     },
   };
 }
-
-export const ON_WINDOWS = typeof navigator !== "undefined" && navigator.platform.startsWith("Win");

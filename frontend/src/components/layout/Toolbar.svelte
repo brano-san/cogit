@@ -1,7 +1,8 @@
 <script lang="ts">
   import { tick } from "svelte";
   import Caret from "$components/common/Caret.svelte";
-  import { ON_MAC, effective } from "$lib/keymap";
+  import { effective } from "$lib/keymap";
+  import { ON_MAC } from "$lib/platform";
   import { menuKey } from "$lib/menu-keys";
   import {
     DEFAULT_LAYOUT,

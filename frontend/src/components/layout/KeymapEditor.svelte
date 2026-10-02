@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { ON_MAC, claimable, conflicts, effective, prettyKeys, recordKeys, type Keymap } from "$lib/keymap";
+  import { claimable, conflicts, effective, prettyKeys, recordKeys, type Keymap } from "$lib/keymap";
+  import { ON_MAC } from "$lib/platform";
   import { captureKeys, type KeyBinding } from "$lib/ipc";
 
   interface Props {
