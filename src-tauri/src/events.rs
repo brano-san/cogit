@@ -69,16 +69,7 @@ pub struct CommandRecorded(pub app_state::CommandNotice);
 /// read the same stream, one message per phase (P1.4).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
 #[serde(rename_all = "camelCase")]
-pub struct OperationChanged {
-    pub id: u32,
-    pub label: String,
-    /// `None` until the phase is `done`.
-    pub success: Option<bool>,
-    /// `None` for work that belongs to no repository in particular.
-    pub repo: Option<app_state::RepoId>,
-    pub kind: app_state::OperationKind,
-    pub phase: app_state::OperationPhase,
-}
+pub struct OperationChanged(pub app_state::Operation);
 
 /// The watcher runs on its own thread, so events cross into the webview here.
 pub(crate) fn forward_repo_changes(app: tauri::AppHandle, state: &Arc<AppState>) {
@@ -104,15 +95,7 @@ pub(crate) fn forward_repo_changes(app: tauri::AppHandle, state: &Arc<AppState>)
                     {
                         crate::session_end::release(&app);
                     }
-                    let _ = OperationChanged {
-                        id: operation.id,
-                        label: operation.label,
-                        success: operation.success,
-                        repo: operation.repo,
-                        kind: operation.kind,
-                        phase: operation.phase,
-                    }
-                    .emit(&app);
+                    let _ = OperationChanged(operation).emit(&app);
                 }
                 _ => {}
             }
@@ -177,4 +160,26 @@ pub enum ErrorAction {
 pub struct ErrorsAction {
     pub action: ErrorAction,
     pub id: Option<u32>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The page reads `operation-changed` and `list_operations` as one type.
+    #[test]
+    fn an_operation_event_is_the_operation_itself() {
+        let operation = app_state::Operation {
+            id: 7,
+            repo: Some(app_state::RepoId(1)),
+            kind: app_state::OperationKind::Fetch,
+            label: "Fetching".to_owned(),
+            phase: app_state::OperationPhase::Done,
+            success: Some(true),
+        };
+        assert_eq!(
+            serde_json::to_value(OperationChanged(operation.clone())).unwrap(),
+            serde_json::to_value(operation).unwrap()
+        );
+    }
 }

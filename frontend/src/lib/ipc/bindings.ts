@@ -1641,16 +1641,7 @@ export type Operation = {
  *  Mirrors `app_state::AppEvent::Operation`: the toolbar spinner and the queue indicator
  *  read the same stream, one message per phase (P1.4).
  */
-export type OperationChanged = {
-	id: number,
-	label: string,
-	/**  `None` until the phase is `done`. */
-	success: boolean | null,
-	/**  `None` for work that belongs to no repository in particular. */
-	repo: RepoId | null,
-	kind: OperationKind,
-	phase: OperationPhase,
-};
+export type OperationChanged = Operation;
 
 export type OperationKind = "fetch" | "pull" | "push" | "commit" | "checkout" | "branch" | "merge" | "rebase" | "stage" | "discard" | "stash" | "tag" | "worktree" | "submodule" | "undo" | 
 /**  In a lane of its own: the repository does not exist until it ends. */
