@@ -1,7 +1,7 @@
 //! The Welcome dialog: what a picked folder is, and `git init` for one that is not a
 //! repository (writes go through the system git).
 
-use crate::{CommandSink, GitCommandError, GitError, GitOutput, RepoHandle, Result};
+use crate::{CommandSink, GitOutput, RepoHandle, Result};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
@@ -39,22 +39,13 @@ pub fn init_repository(path: &Path, journal: Option<&CommandSink>) -> Result<Pat
     let mut process = crate::runner::git_command();
     process.current_dir(std::env::temp_dir()).args(args);
     let output = crate::children::output(&mut process).map_err(crate::runner::not_started)?;
-    let record = GitOutput::record(
-        path,
-        command,
-        output.status.code(),
-        &String::from_utf8_lossy(&output.stdout),
-        &String::from_utf8_lossy(&output.stderr),
-        crate::runner::elapsed_ms(started),
-    );
+    let record = GitOutput::from_process(path, command, &output, started);
     if let Some(sink) = journal {
         sink(record.clone());
     }
     if output.status.success() {
         Ok(path.to_path_buf())
     } else {
-        Err(GitError::Command(Box::new(GitCommandError::from_output(
-            record,
-        ))))
+        Err(record.into())
     }
 }

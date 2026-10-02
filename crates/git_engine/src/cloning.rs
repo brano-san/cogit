@@ -3,7 +3,7 @@
 
 use crate::network::{NetworkStop, SILENCE, Streamed, auth_config};
 use crate::pulse::{BATCH_SSH, STALL_LIMITS};
-use crate::{CommandSink, GitCommandError, GitError, GitOutput, Result};
+use crate::{CommandSink, GitError, GitOutput, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -122,25 +122,20 @@ pub fn remote_branches(
     let mut process = login_command(source, login);
     process.args(&args);
     let output = crate::children::output(&mut process).map_err(crate::runner::not_started)?;
-    let stdout = String::from_utf8_lossy(&output.stdout);
     if output.status.success() {
         tracing::info!(%command, elapsed_ms = crate::runner::elapsed_ms(started), "git finished");
-        return Ok(listing(&stdout));
+        return Ok(listing(&String::from_utf8_lossy(&output.stdout)));
     }
-    let record = GitOutput::record(
+    let record = GitOutput::from_process(
         Path::new(&crate::runner::redact_url(source)),
         command,
-        output.status.code(),
-        &stdout,
-        &String::from_utf8_lossy(&output.stderr),
-        crate::runner::elapsed_ms(started),
+        &output,
+        started,
     );
     if let Some(sink) = journal {
         sink(record.clone());
     }
-    Err(GitError::Command(Box::new(GitCommandError::from_output(
-        record,
-    ))))
+    Err(record.into())
 }
 
 fn listing(text: &str) -> RemoteBranches {

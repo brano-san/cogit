@@ -44,6 +44,12 @@ impl From<GitCommandError> for GitError {
     }
 }
 
+impl From<crate::GitOutput> for GitError {
+    fn from(output: crate::GitOutput) -> Self {
+        GitCommandError::from_output(output).into()
+    }
+}
+
 #[derive(Debug, thiserror::Error, Serialize, specta::Type)]
 #[serde(tag = "kind", content = "data", rename_all = "camelCase")]
 pub enum GitError {

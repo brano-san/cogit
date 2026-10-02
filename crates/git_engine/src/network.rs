@@ -1,4 +1,4 @@
-use crate::{GitCommandError, GitError, GitOutput, RepoHandle, Result};
+use crate::{GitError, GitOutput, RepoHandle, Result};
 use std::io::Read as _;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -324,9 +324,7 @@ impl Streamed<'_> {
         if self.cancelled() {
             return Err(GitError::Cancelled(out.command));
         }
-        Err(GitError::Command(Box::new(GitCommandError::from_output(
-            out,
-        ))))
+        Err(out.into())
     }
 
     /// Delivered as it appears, not after the process exits.

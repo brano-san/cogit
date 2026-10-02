@@ -1,5 +1,5 @@
 use crate::RepoHandle;
-use crate::runner::{GitOutput, elapsed_ms, redact_command};
+use crate::runner::{GitOutput, redact_command};
 
 impl RepoHandle {
     /// Whether git would have run `maintenance run --auto` at the end of a commit.
@@ -38,15 +38,12 @@ impl RepoHandle {
         if output.status.success() && output.stdout.is_empty() && output.stderr.is_empty() {
             return;
         }
-        let record = GitOutput::record(
+        self.journal_entry(GitOutput::from_process(
             self.root(),
             redact_command(&args),
-            output.status.code(),
-            &String::from_utf8_lossy(&output.stdout),
-            &String::from_utf8_lossy(&output.stderr),
-            elapsed_ms(started),
-        );
-        self.journal_entry(record);
+            &output,
+            started,
+        ));
     }
 }
 

@@ -1,7 +1,7 @@
-use crate::{GitCommandError, GitError, RepoHandle, Result};
+use crate::{GitError, RepoHandle, Result};
 use serde::Serialize;
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Output};
 use std::sync::Arc;
 
 pub type CommandSink = Arc<dyn Fn(GitOutput) + Send + Sync>;
@@ -95,6 +95,23 @@ impl GitOutput {
             stopped_on_conflicts: false,
         }
     }
+
+    /// `record` of a process that ran to its end.
+    pub(crate) fn from_process(
+        repo: &Path,
+        command: String,
+        output: &Output,
+        started: std::time::Instant,
+    ) -> Self {
+        Self::record(
+            repo,
+            command,
+            output.status.code(),
+            &String::from_utf8_lossy(&output.stdout),
+            &String::from_utf8_lossy(&output.stderr),
+            elapsed_ms(started),
+        )
+    }
 }
 
 /// The log file keeps what the window cannot show, and it is written here rather than at
@@ -140,29 +157,7 @@ impl RepoHandle {
     /// Standard output as bytes, for paths the user picked: a patch of a Latin-1 file must
     /// survive the round trip.
     pub(crate) fn run_git_bytes_literal(&self, args: &[&str]) -> Result<Vec<u8>> {
-        let started = std::time::Instant::now();
-        let mut process = base_command(self.root(), true);
-        for (key, value) in LITERAL {
-            process.env(key, value);
-        }
-        process.args(args);
-        let output = crate::children::output(&mut process).map_err(not_started)?;
-        if output.status.success() {
-            return Ok(output.stdout);
-        }
-        let result = GitOutput::record(
-            self.root(),
-            redact_command(args),
-            output.status.code(),
-            &String::from_utf8_lossy(&output.stdout),
-            &String::from_utf8_lossy(&output.stderr),
-            elapsed_ms(started),
-        );
-        // As `read_git` does: the error names this record, so the journal must have it.
-        self.journal_entry(result.clone());
-        Err(GitError::Command(Box::new(GitCommandError::from_output(
-            result,
-        ))))
+        self.read_bytes_with(args, LITERAL)
     }
 
     pub(crate) fn run_git_fed(&self, args: &[&str], input: &[u8]) -> Result<GitOutput> {
@@ -188,6 +183,11 @@ impl RepoHandle {
     }
 
     pub(crate) fn read_git_with(&self, args: &[&str], env: &[(&str, &str)]) -> Result<String> {
+        let stdout = self.read_bytes_with(args, env)?;
+        Ok(String::from_utf8_lossy(&stdout).into_owned())
+    }
+
+    fn read_bytes_with(&self, args: &[&str], env: &[(&str, &str)]) -> Result<Vec<u8>> {
         let command = redact_command(args);
         let started = std::time::Instant::now();
         let mut process = base_command(self.root(), true);
@@ -200,20 +200,12 @@ impl RepoHandle {
         tracing::debug!(%command, bytes = output.stdout.len(), duration_ms, "git read");
 
         if output.status.success() {
-            return Ok(String::from_utf8_lossy(&output.stdout).into_owned());
+            return Ok(output.stdout);
         }
-        let result = GitOutput::record(
-            self.root(),
-            command,
-            output.status.code(),
-            &String::from_utf8_lossy(&output.stdout),
-            &String::from_utf8_lossy(&output.stderr),
-            duration_ms,
-        );
+        let result = GitOutput::from_process(self.root(), command, &output, started);
+        // The error names this record, so the journal must have it.
         self.journal_entry(result.clone());
-        Err(GitError::Command(Box::new(GitCommandError::from_output(
-            result,
-        ))))
+        Err(result.into())
     }
 
     pub(crate) fn journal_entry(&self, mut entry: GitOutput) {
@@ -301,24 +293,14 @@ impl RepoHandle {
         }
         .map_err(not_started)?;
 
-        let duration_ms = elapsed_ms(started);
-        let result = GitOutput::record(
-            self.root(),
-            command,
-            output.status.code(),
-            &String::from_utf8_lossy(&output.stdout),
-            &String::from_utf8_lossy(&output.stderr),
-            duration_ms,
-        );
+        let result = GitOutput::from_process(self.root(), command, &output, started);
 
         self.journal_entry(result.clone());
 
         if output.status.success() {
             return Ok(result);
         }
-        Err(GitError::Command(Box::new(GitCommandError::from_output(
-            result,
-        ))))
+        Err(result.into())
     }
 }
 
