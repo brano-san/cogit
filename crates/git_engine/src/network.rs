@@ -295,17 +295,18 @@ impl RepoHandle {
         let to = Streamed {
             root: self.root(),
             stop: self.stop.as_ref(),
-            journal: self.journal(),
+            journal: &|entry| self.journal_entry(entry),
         };
         to.run(self.base_git(args), args, on_line, silence)
     }
 }
 
 /// Where a streamed run is filed and what can end it: a clone has no repository yet.
+/// In a repository the journal is `journal_entry`, which marks a pull stopped on conflicts.
 pub(crate) struct Streamed<'a> {
     pub root: &'a std::path::Path,
     pub stop: Option<&'a NetworkStop>,
-    pub journal: Option<&'a crate::CommandSink>,
+    pub journal: &'a dyn Fn(GitOutput),
 }
 
 impl Streamed<'_> {
@@ -412,9 +413,7 @@ impl Streamed<'_> {
             );
             tracing::warn!(command = %result.command, silence_s = silence.as_secs(), "stopped a silent network command");
         }
-        if let Some(sink) = self.journal {
-            sink(result.clone());
-        }
+        (self.journal)(result.clone());
         Ok(result)
     }
 

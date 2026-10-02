@@ -102,6 +102,25 @@ fn a_cherry_pick_and_a_rebase_that_stop_are_marked() {
     assert!(last(&log).stopped_on_conflicts);
 }
 
+// A streamed run wrote to the journal itself, past the check, so a pull that stopped on
+// conflicts was listed as a failed one.
+#[test]
+fn a_pull_that_stops_on_conflicts_is_marked() {
+    let f = two_sides();
+    let me = f.path().to_string_lossy().into_owned();
+    f.git(&["remote", "add", "origin", &me]).unwrap();
+    f.git(&["fetch", "origin"]).unwrap();
+    f.git(&["branch", "--set-upstream-to=origin/theirs"])
+        .unwrap();
+    let (repo, log) = journaled(&f);
+
+    assert!(repo.pull("origin", false, |_| None, |_| {}).is_err());
+
+    let entry = last(&log);
+    assert_eq!(entry.exit_code, Some(1), "{entry:?}");
+    assert!(entry.stopped_on_conflicts);
+}
+
 #[test]
 fn only_the_commands_that_stop_halfway_are_candidates() {
     use git_engine::outcome::stops_on_conflicts as stops;

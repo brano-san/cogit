@@ -207,7 +207,11 @@ pub fn clone_repository(
     let to = Streamed {
         root: &target,
         stop: Some(stop),
-        journal,
+        journal: &|entry| {
+            if let Some(sink) = journal {
+                sink(entry);
+            }
+        },
     };
     let result = to.run(process, &args, on_line, SILENCE);
     if matches!(result, Err(GitError::Cancelled(_))) {
