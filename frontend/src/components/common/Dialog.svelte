@@ -282,68 +282,6 @@
     border-top: 1px solid var(--divider);
   }
 
-  /* Opt-in, by class, never by element: `.dialog :global(button)` outweighed every
-     component's own button rules and boxed them all (doc/12-risks.md, R-125). */
-  .dialog :global(.btn) {
-    height: var(--h-button);
-    padding: 0 var(--sp-5);
-    background: var(--surface-input);
-    color: var(--text-primary);
-    border: 1px solid var(--field-border);
-    border-radius: var(--r-sm);
-    font: inherit;
-    font-size: var(--fs-dense);
-    cursor: default;
-  }
-
-  .dialog :global(.btn:hover:not(:disabled)) {
-    border-color: var(--state-focus-ring);
-  }
-
-  .dialog :global(.btn:focus) {
-    outline: 1px solid var(--state-focus-ring);
-    outline-offset: 1px;
-  }
-
-  .dialog :global(.btn:disabled) {
-    color: var(--text-secondary);
-    opacity: 0.6;
-  }
-
-  .dialog :global(.btn.primary),
-  .dialog :global(.btn.danger),
-  .dialog :global(.btn.warning) {
-    background: var(--status-ref);
-    border-color: var(--status-ref);
-    color: var(--fg-on-accent);
-    font-weight: 600;
-  }
-
-  .dialog :global(.btn.warning) {
-    background: var(--status-modify);
-    border-color: var(--status-modify);
-  }
-
-  .dialog :global(.btn.danger) {
-    background: var(--status-danger);
-    border-color: var(--status-danger);
-  }
-
-  .dialog :global(.btn.primary:hover:not(:disabled)),
-  .dialog :global(.btn.danger:hover:not(:disabled)),
-  .dialog :global(.btn.warning:hover:not(:disabled)) {
-    filter: brightness(1.1);
-  }
-
-  .dialog :global(.btn.primary:disabled),
-  .dialog :global(.btn.danger:disabled),
-  .dialog :global(.btn.warning:disabled) {
-    background: var(--surface-input);
-    border-color: var(--field-border);
-    color: var(--text-secondary);
-    font-weight: 400;
-  }
-
   .dialog :global(input[type="text"]),
   .dialog :global(input[type="search"]),
   .dialog :global(input[type="password"]) {

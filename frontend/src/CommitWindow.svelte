@@ -718,7 +718,6 @@
     background: var(--surface-panel);
   }
 
-  button.primary,
   .buttons button,
   .select {
     height: 24px;
@@ -737,7 +736,7 @@
     gap: var(--sp-3);
   }
 
-  button.primary {
+  .buttons button.primary {
     border-color: var(--status-ref);
   }
 

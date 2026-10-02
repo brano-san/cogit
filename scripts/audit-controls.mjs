@@ -58,7 +58,7 @@ export function audit(root) {
         [...classes].some((c) => GLOBAL_CLASSES.has(c) || selectors.some((s) => s.includes("." + c))) ||
         selectors.some((s) => tagSel.test(s.trim()) || tagSel.test(s)) ||
         /\bid="/.test(attrs) && selectors.some((s) => /#[\w-]+/.test(s));
-      // `.btn` is global only inside a Dialog (Dialog.svelte :global) and Notifications.
+      // `.btn` is the global push button in app.css.
       const btnGlobal = classes.has("btn");
       found.push({ file: path.relative(root, file).replaceAll("\\", "/"), line, tag, type, classes: [...classes], styled: styled || btnGlobal, btnGlobal });
     }

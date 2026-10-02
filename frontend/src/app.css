@@ -191,6 +191,97 @@ body {
   border: 0;
 }
 
+/* The app's push button (Button.svelte, dialogs, panel bars): `.btn` fits a dialog footer
+   (`--h-button`), `.btn.sm` a panel bar or a metadata row (`--h-button-sm`). By class, never
+   by element: a tag rule outweighed every component's own button rules (R-125). A
+   component's own class still wins over these, so it can add a state such as `.active`. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  flex: 0 0 auto;
+  height: var(--h-button);
+  padding: 0 var(--sp-5);
+  background: var(--surface-input);
+  color: var(--text-primary);
+  border: 1px solid var(--field-border);
+  border-radius: var(--r-sm);
+  font: inherit;
+  font-size: var(--fs-dense);
+  white-space: nowrap;
+  cursor: default;
+}
+
+.btn.sm {
+  height: var(--h-button-sm);
+  padding: 0 var(--sp-3);
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--state-focus-ring);
+}
+
+.btn:focus-visible {
+  outline: 1px solid var(--state-focus-ring);
+  outline-offset: 1px;
+}
+
+/* 06 §6: a control that cannot act says so, and does not light up under the pointer. */
+.btn:disabled {
+  color: var(--text-secondary);
+  opacity: 0.6;
+}
+
+.btn.primary,
+.btn.danger,
+.btn.warning {
+  background: var(--status-ref);
+  border-color: var(--status-ref);
+  color: var(--fg-on-accent);
+  font-weight: 600;
+}
+
+.btn.warning {
+  background: var(--status-modify);
+  border-color: var(--status-modify);
+}
+
+.btn.danger {
+  background: var(--status-danger);
+  border-color: var(--status-danger);
+}
+
+.btn.primary:hover:not(:disabled),
+.btn.danger:hover:not(:disabled),
+.btn.warning:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+/* In a dense bar a destructive action is red text, outlined red under the pointer: a red
+   slab among a dozen small buttons shouts louder than the action (Discard lines, Delete
+   file). Before the disabled rule, which has to win over it. */
+.btn.sm.danger {
+  background: var(--surface-input);
+  border-color: var(--field-border);
+  color: var(--status-danger);
+  font-weight: 400;
+}
+
+.btn.sm.danger:hover:not(:disabled) {
+  border-color: var(--status-danger);
+  filter: none;
+}
+
+.btn.primary:disabled,
+.btn.danger:disabled,
+.btn.warning:disabled {
+  background: var(--surface-input);
+  border-color: var(--field-border);
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
 /* The slider: a thin track and a round thumb, tokens only. */
 input[type="range"] {
   height: var(--h-button-sm);
