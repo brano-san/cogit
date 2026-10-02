@@ -673,10 +673,21 @@
 
   /* The arrows reach past the icon's right edge; the margin keeps them off the dot. */
   .repo-icon {
+    /* Larger than the 14 px of other kinds: the state badge is a quarter of its box and
+       at 8 px a conflict's circle and exclamation mark ran together. 22 px of badge box
+       gives an 11 px badge; the row (--h-row-dense) still holds the 18 px icon. */
+    --kind-icon: 18px;
+    --file-icon: 22px;
+    --sync-arrow: 12px;
     position: relative;
     display: inline-flex;
     flex: none;
-    margin-right: 2px;
+    margin-right: 3px;
+  }
+
+  /* The badge is scaled by 1.375, off the pixel grid its crisp edges were drawn for. */
+  .repo-icon :global(.icon) {
+    shape-rendering: geometricPrecision;
   }
 
   /* On the corners, with a halo of the panel colour, so they sit on the icon's edge
