@@ -10,7 +10,7 @@ use git_engine::{
     SkippedRef, WalkedHistory,
 };
 use graph_engine::GraphRow;
-use parking_lot::{Mutex, RwLock};
+use parking_lot::{Mutex, RwLock, RwLockWriteGuard};
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -259,6 +259,33 @@ impl Graph {
             base: self.base.as_ref().map(|base| base.generation),
             kept: self.kept,
         }
+    }
+
+    /// Shown again as `generation`; the texts it drops are for the caller to free off the lock.
+    fn reissue(
+        &mut self,
+        generation: u32,
+        used: u64,
+        mailmap: &Arc<Mailmap>,
+    ) -> (GraphProgress, Option<Arc<Mutex<Texts>>>) {
+        let mut progress = GraphProgress {
+            generation,
+            total: self.total(),
+            is_last: true,
+            base: Some(self.shown.generation),
+            kept: self.total(),
+        };
+        // `.mailmap` changed: the layout stands, the names are read again.
+        let mut renamed = None;
+        if let Some(texts) = &self.shown.texts
+            && !Arc::ptr_eq(&texts.lock().mailmap, mailmap)
+        {
+            renamed = self.shown.texts.replace(Texts::new(Arc::clone(mailmap)));
+            progress.kept = 0;
+        }
+        self.shown.generation = generation;
+        self.used = used;
+        (progress, renamed)
     }
 }
 
@@ -527,32 +554,10 @@ impl AppState {
                     list = Some(std::mem::replace(graph, *unfiltered));
                 }
                 if graph.answers(query, refs, &mailmap) {
-                    let mut progress = GraphProgress {
-                        generation,
-                        total: graph.total(),
-                        is_last: true,
-                        base: Some(graph.shown.generation),
-                        kept: graph.total(),
-                    };
-                    // `.mailmap` changed: the layout stands, the names are read again.
-                    let mut renamed = None;
-                    if let Some(texts) = &graph.shown.texts
-                        && !Arc::ptr_eq(&texts.lock().mailmap, &mailmap)
-                    {
-                        renamed = graph.shown.texts.replace(Texts::new(Arc::clone(&mailmap)));
-                        progress.kept = 0;
-                    }
-                    graph.shown.generation = generation;
-                    graph.used = used;
+                    let (progress, renamed) = graph.reissue(generation, used, &mailmap);
                     let skipped = graph.skipped.clone();
                     let prefill = prefill_of(&graph.shown, &walks, Arc::downgrade(&self.graph));
-                    let evicted = cache.trim(repo);
-                    drop(cache);
-                    drop((renamed, list));
-                    if !evicted.is_empty() {
-                        release(evicted);
-                    }
-                    self.prefill(repo, prefill);
+                    self.settle(cache, repo, prefill, (renamed, list));
                     tracing::info!(
                         repo = repo.0,
                         rows = progress.total,
@@ -650,7 +655,18 @@ impl AppState {
             on_progress(progress)
         };
         let skipped = crate::graph_layout::lay_out(&handle, query, chunk_size, rows, on_chunk)?;
+        Ok(self.finish_walk(repo, generation, skipped, record, source.is_some(), started))
+    }
 
+    fn finish_walk(
+        &self,
+        repo: RepoId,
+        generation: u32,
+        skipped: Vec<SkippedRef>,
+        record: WalkedHistory,
+        copied: bool,
+        started: std::time::Instant,
+    ) -> Vec<SkippedRef> {
         let mut cache = self.graph.write();
         let walks = Arc::clone(&cache.walks);
         let mut prefill = None;
@@ -666,19 +682,31 @@ impl AppState {
                     repo = repo.0,
                     rows = graph.total(),
                     kept = graph.kept,
-                    copied = source.is_some(),
+                    copied,
                     elapsed_ms = started.elapsed().as_millis(),
                     "commit graph laid out"
                 );
             }
         }
+        self.settle(cache, repo, prefill, ());
+        skipped
+    }
+
+    /// Trims the cache; `gone` and the evicted graphs are freed after the guard, taken by value.
+    fn settle<T>(
+        &self,
+        mut cache: RwLockWriteGuard<'_, GraphCache>,
+        repo: RepoId,
+        prefill: Option<Prefill>,
+        gone: T,
+    ) {
         let evicted = cache.trim(repo);
         drop(cache);
+        drop(gone);
         if !evicted.is_empty() {
             release(evicted);
         }
         self.prefill(repo, prefill);
-        Ok(skipped)
     }
 
     /// Reads the text of every row the graph has none for yet, top first, on a thread of
