@@ -6,6 +6,7 @@ mod commit_window;
 mod diagnostics;
 mod errors_window;
 mod events;
+mod investigate_window;
 mod key_capture;
 mod logging;
 mod menu;

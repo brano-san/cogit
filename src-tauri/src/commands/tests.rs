@@ -100,7 +100,12 @@ fn all_commands() -> Vec<Command> {
 /// no window gets an IPC answer again (#8, doc/12-risks.md R-201).
 #[test]
 fn a_window_is_never_opened_or_closed_on_the_main_thread() {
-    const WINDOW_WORK: &[&str] = &["child_window::", "WebviewWindowBuilder", "window.close()"];
+    const WINDOW_WORK: &[&str] = &[
+        "child_window::",
+        "reveal_or_open(",
+        "WebviewWindowBuilder",
+        "window.close()",
+    ];
 
     let stuck: Vec<String> = all_commands()
         .into_iter()
@@ -126,6 +131,8 @@ fn the_body_parser_sees_the_window_commands() {
     };
     assert!(body_of("open_compare_window").contains("child_window::open"));
     assert!(body_of("close_this_window").contains("window.close()"));
+    assert!(body_of("open_solver_window").contains("reveal_or_open("));
+    assert!(body_of("open_errors_window").contains("reveal_or_open("));
 }
 
 #[test]
@@ -139,6 +146,23 @@ fn a_synchronous_window_command_would_be_caught() {
     assert_eq!(found.len(), 1);
     assert!(!found[0].off_thread);
     assert!(found[0].body.contains("child_window::"));
+}
+
+#[test]
+fn a_synchronous_reveal_or_open_command_would_be_caught() {
+    let source = format!(
+        "#[tauri::command]
+#[specta::specta]
+pub fn open_it(app: AppHandle) {{
+    crate::errors_window::{}(&app);
+}}
+",
+        "reveal_or_open"
+    );
+    let found = commands_in(&source);
+    assert_eq!(found.len(), 1);
+    assert!(!found[0].off_thread);
+    assert!(found[0].body.contains("reveal_or_open("));
 }
 
 // Toggling the exec bit while a commit held index.lock failed with "index.lock exists",

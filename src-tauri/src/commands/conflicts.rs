@@ -77,36 +77,7 @@ pub async fn open_solver_window(
     external_tool: bool,
 ) -> Result<(), GitError> {
     blocking("open_solver_window", move || {
-        use tauri::Manager as _;
-        for (label, window) in app.webview_windows() {
-            let shown = window
-                .url()
-                .is_ok_and(|url| crate::solver_window::is_window_for(&url, repo.0, &path));
-            if label.starts_with("solver-") && shown {
-                let focused = window.unminimize().and_then(|()| window.set_focus());
-                let asked = if external_tool {
-                    window.eval(crate::child_window::menu_script("external-tool"))
-                } else {
-                    Ok(())
-                };
-                return focused
-                    .and(asked)
-                    .map_err(|err| GitError::Internal(format!("cannot focus the solver: {err}")));
-            }
-        }
-        crate::child_window::open(
-            &app,
-            "solver",
-            crate::solver_window::url(repo.0, &path, external_tool),
-            crate::solver_window::title(&path),
-            crate::child_window::Shape {
-                width: 1360.0,
-                height: 800.0,
-                min_width: 900.0,
-                min_height: 520.0,
-            },
-        )
-        .map_err(|err| GitError::Internal(format!("cannot open the Conflict Solver: {err}")))
+        crate::solver_window::reveal_or_open(&app, repo.0, &path, external_tool)
     })
     .await
 }

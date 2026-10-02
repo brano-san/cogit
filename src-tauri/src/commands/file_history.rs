@@ -51,12 +51,7 @@ pub async fn open_blame_window(
             "blame",
             crate::blame_window::url(repo.0, &path, &oid),
             crate::blame_window::title(&path, &oid),
-            crate::child_window::Shape {
-                width: 1100.0,
-                height: 800.0,
-                min_width: 700.0,
-                min_height: 450.0,
-            },
+            crate::blame_window::SHAPE,
             crate::blame_window::MENU,
         )
         .map_err(|err| GitError::Internal(format!("cannot open the blame window: {err}")))

@@ -252,7 +252,7 @@ mod tests {
     // the page had focus, so Ctrl+2, Alt+Left or F1 in Investigate did nothing.
     #[test]
     fn a_child_windows_menu_keys_are_claimed_for_that_window() {
-        let table = accelerator_table("investigate-3", crate::commands::investigate::MENU);
+        let table = accelerator_table("investigate-3", crate::investigate_window::MENU);
         let claimed = |keys: &str| {
             let chord = crate::accelerators::parse(keys).expect("parses");
             table.get(&chord).cloned()

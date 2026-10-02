@@ -298,7 +298,7 @@ mod tests {
 
     #[test]
     fn a_child_windows_ids_name_the_window() {
-        let menu = child_menu("investigate-3", crate::commands::investigate::MENU);
+        let menu = child_menu("investigate-3", crate::investigate_window::MENU);
         let close = find(&menu, "child:investigate-3:close");
         assert_eq!(close.accelerator.as_deref(), Some("CmdOrCtrl+W"));
     }

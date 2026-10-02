@@ -1,7 +1,16 @@
 //! The Commit window: the files to commit and the message, in a window of its own.
 
+use crate::child_window::Shape;
+
 /// SmartGit's dialog title.
 pub const TITLE: &str = "Commit";
+
+pub const SHAPE: Shape = Shape {
+    width: 760.0,
+    height: 720.0,
+    min_width: 560.0,
+    min_height: 560.0,
+};
 
 /// In the URL rather than in shared state: the window rebuilds itself after a webview
 /// reload (T2.5). `root` keys the message draft the inline Commit Message panel shares.

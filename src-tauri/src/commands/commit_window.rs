@@ -19,12 +19,7 @@ pub async fn open_commit_window(
             "commit",
             crate::commit_window::url(repo.0, &root),
             crate::commit_window::TITLE.to_owned(),
-            crate::child_window::Shape {
-                width: 760.0,
-                height: 720.0,
-                min_width: 560.0,
-                min_height: 560.0,
-            },
+            crate::commit_window::SHAPE,
         )
         .map_err(|err| GitError::Internal(format!("cannot open the Commit window: {err}")))
     })

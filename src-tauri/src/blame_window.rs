@@ -1,6 +1,13 @@
 //! The Blame window: one file at one commit, in a window of its own (#10).
 
-use crate::child_window::{CLOSE, Item, Submenu};
+use crate::child_window::{CLOSE, Item, Shape, Submenu};
+
+pub const SHAPE: Shape = Shape {
+    width: 1100.0,
+    height: 800.0,
+    min_width: 700.0,
+    min_height: 450.0,
+};
 
 /// Minimal on purpose: what applies to this one window, nothing of the main one.
 pub const MENU: &[Submenu] = &[
