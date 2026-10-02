@@ -1,5 +1,6 @@
 <script lang="ts">
   import { modals } from "$lib/modal-stack";
+  import { ON_MAC, primary } from "$lib/platform";
   import VirtualList from "$components/common/VirtualList.svelte";
   import SidewaysScrollbar from "$components/common/SidewaysScrollbar.svelte";
   import { TRAILING_COLUMNS, clampOffset, maxOffset, textColumns, wheelSideways } from "$lib/code-scroll";
@@ -71,7 +72,7 @@
   function onpanelkey(event: KeyboardEvent) {
     if (!active || modals.any) return;
     const by = panelConflictStep(
-      { key: event.key, ctrl: event.ctrlKey || event.metaKey, shift: event.shiftKey, alt: event.altKey },
+      { key: event.key, ctrl: primary(event, ON_MAC), shift: event.shiftKey, alt: event.altKey },
       conflicts,
       at,
     );

@@ -2,6 +2,7 @@
   import { errors } from "$stores/errors.svelte";
   import { diffKey } from "$lib/diff-keys";
   import { modals } from "$lib/modal-stack";
+  import { ON_MAC, primary } from "$lib/platform";
   import { untrack } from "svelte";
   import type { SearchRow } from "$lib/diff-rows";
   import { diffTokens, paneTokens, unifiedTokens } from "$lib/diff-highlight";
@@ -422,7 +423,7 @@
 
   /** Ctrl+click opens every fold at once; a fold whose lines are not here asks for them. */
   function openGap(gap: Gap, how: "up" | "down" | "all", event: MouseEvent) {
-    const whole = event.ctrlKey || event.metaKey;
+    const whole = primary(event, ON_MAC);
     revealed = [...revealed, whole ? { from: 1, to: Number.MAX_SAFE_INTEGER } : revealRange(gap, how)];
     if (gap.loaded) return;
     if (onexpand) onexpand(true);
@@ -518,7 +519,7 @@
     const press = {
       key: event.key,
       code: event.code,
-      ctrl: event.ctrlKey || event.metaKey,
+      ctrl: primary(event, ON_MAC),
       shift: event.shiftKey,
       alt: event.altKey,
     };

@@ -10,6 +10,7 @@
   import { firstOids, oidsBetween } from "$lib/graph-selection";
   import { registerSelectAll } from "$lib/select-all";
   import { pointerDrag } from "$lib/pointer-drag";
+  import { ON_MAC, primary } from "$lib/platform";
   import { overlap } from "$stores/overlap.svelte";
   import {
     GRAPH,
@@ -604,7 +605,7 @@
       const lane = laneAt(layout, graphOverlays.paintAt(commitRow), hit.lane, upper);
       lanePick = lane === null ? null : { oid, lane, walk: walkKey };
     }
-    const ctrl = event.ctrlKey || event.metaKey;
+    const ctrl = primary(event, ON_MAC);
     if (oid !== null && (ctrl || event.shiftKey)) {
       void pickWith(repo, oid, { ctrl, shift: event.shiftKey });
       return;

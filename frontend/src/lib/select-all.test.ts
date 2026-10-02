@@ -50,15 +50,20 @@ describe("decideSelectAll", () => {
 describe("isSelectAllKey", () => {
   const press = { key: "a", code: "KeyA", ctrlKey: true, metaKey: false, shiftKey: false, altKey: false };
 
-  it("takes Ctrl+A and Cmd+A by place, so a Russian layout counts", () => {
-    expect(isSelectAllKey(press)).toBe(true);
-    expect(isSelectAllKey({ ...press, ctrlKey: false, metaKey: true })).toBe(true);
-    expect(isSelectAllKey({ ...press, key: "ф" })).toBe(true);
+  it("takes Ctrl+A and, on a Mac, Cmd+A by place, so a Russian layout counts", () => {
+    expect(isSelectAllKey(press, false)).toBe(true);
+    expect(isSelectAllKey({ ...press, ctrlKey: false, metaKey: true }, true)).toBe(true);
+    expect(isSelectAllKey({ ...press, key: "ф" }, false)).toBe(true);
   });
 
   it("refuses other chords", () => {
-    expect(isSelectAllKey({ ...press, ctrlKey: false })).toBe(false);
-    expect(isSelectAllKey({ ...press, shiftKey: true })).toBe(false);
-    expect(isSelectAllKey({ ...press, code: "KeyB", key: "b" })).toBe(false);
+    expect(isSelectAllKey({ ...press, ctrlKey: false }, false)).toBe(false);
+    expect(isSelectAllKey({ ...press, shiftKey: true }, false)).toBe(false);
+    expect(isSelectAllKey({ ...press, code: "KeyB", key: "b" }, false)).toBe(false);
+  });
+
+  it("refuses Win+A off a Mac and Ctrl+A on one", () => {
+    expect(isSelectAllKey({ ...press, ctrlKey: false, metaKey: true }, false)).toBe(false);
+    expect(isSelectAllKey(press, true)).toBe(false);
   });
 });

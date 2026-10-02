@@ -114,7 +114,7 @@
   import { undoRewriteQuestion } from "$lib/undo-rewrite";
   import { undoRewrite, undoRewriteInfo } from "$lib/ipc/ref-ops";
   import { effective, withShortcuts } from "$lib/keymap";
-  import { binName, ON_MAC, OS } from "$lib/platform";
+  import { binName, ON_MAC, OS, primary } from "$lib/platform";
   import { menuCommandRuns, modals } from "$lib/modal-stack";
   import { commitBox } from "$stores/commit-box.svelte";
   import { commitFileMenu, shownRow, worktreeFileMenu } from "$lib/file-menu";
@@ -1196,7 +1196,7 @@
     }
 
     // Discard is Ctrl+Z in Files alone; everywhere else Ctrl+Z is the field's undo (11 §4).
-    if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.code === "KeyZ") {
+    if (primary(event, ON_MAC) && !event.shiftKey && !event.altKey && event.code === "KeyZ") {
       if (focused === "files" && !typing(event)) {
         event.preventDefault();
         void discardFromToolbar(targetsOf("discard", toolbarFacts));

@@ -1,4 +1,5 @@
 import { keyLetter } from "$lib/key-letter";
+import { ON_MAC, primary } from "$lib/platform";
 
 interface Press {
   key: string;
@@ -11,8 +12,8 @@ interface Press {
 
 /** `Ctrl+F`, `Ctrl+G`, `Ctrl+Shift+G`, `F3` and `Shift+F3`: WebView2 opens its own find bar
     on these unless the page claims them. */
-export function isBrowserFind(press: Press): boolean {
-  const ctrl = press.ctrlKey || press.metaKey;
+export function isBrowserFind(press: Press, onMac: boolean): boolean {
+  const ctrl = primary(press, onMac);
   if (press.key === "F3") return !ctrl && !press.altKey;
   const letter = keyLetter(press);
   return ctrl && !press.altKey && (letter === "f" || letter === "g");
@@ -24,7 +25,7 @@ export function isBrowserFind(press: Press): boolean {
     took the key has already marked it handled. */
 export function suppressBrowserFind(target: Window): () => void {
   const onkey = (event: KeyboardEvent) => {
-    if (!event.defaultPrevented && isBrowserFind(event)) event.preventDefault();
+    if (!event.defaultPrevented && isBrowserFind(event, ON_MAC)) event.preventDefault();
   };
   target.addEventListener("keydown", onkey);
   return () => target.removeEventListener("keydown", onkey);

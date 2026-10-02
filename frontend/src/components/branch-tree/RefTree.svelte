@@ -15,6 +15,7 @@
   import { pointerDrag } from "$lib/pointer-drag";
   import { refActivation } from "$lib/ref-checkout";
   import { TypeAhead, findTyped, listKey, pageRows, pressOf, typedChar } from "$lib/list-keys";
+  import { ON_MAC, primary } from "$lib/platform";
   import { NO_FILTER_FOLDS, flatten, toggleFilterFold } from "$lib/tree";
   import { NO_ITEMS, clickItem, extendItems, keepShown, rightClickItem, selectEvery, single } from "$lib/item-selection";
   import { selectedNodes, toggleSelected } from "$lib/ref-selection";
@@ -108,7 +109,7 @@
 
   function rowClick(node: RefNode, event: MouseEvent) {
     if ((event.target as Element).closest("input, .disclosure")) return;
-    const ctrl = event.ctrlKey || event.metaKey;
+    const ctrl = primary(event, ON_MAC);
     if (ctrl || event.shiftKey) sel = clickItem(sel, node.id, order, { ctrl, shift: event.shiftKey });
     else pick(node);
   }
@@ -169,7 +170,7 @@
   /** 11 §10. The fold triangle and the tick box keep their own Enter and Space. */
   function onkeydown(event: KeyboardEvent) {
     const onControl = event.target instanceof HTMLElement && event.target.closest("button:not(.label), input");
-    const press = pressOf(event);
+    const press = pressOf(event, ON_MAC);
     const found = nodes.findIndex((node) => node.id === active);
     const at = found === -1 ? null : found;
     const char = typedChar(press);

@@ -2,6 +2,7 @@ import { closeThisWindow } from "$lib/ipc";
 import { suppressBrowserFind } from "$lib/browser-find";
 import { suppressBrowserNavigation } from "$lib/browser-navigation";
 import { suppressNativeMenu } from "$lib/native-menu";
+import { ON_MAC, primary } from "$lib/platform";
 import { installSelectAll } from "$lib/select-all";
 
 interface Keyed {
@@ -14,20 +15,20 @@ interface Keyed {
 
 /** `Esc` and `Ctrl+W` close a window that holds one file. `Ctrl+W` is the main window's
     "close repository", but a compare or merge window has no repository to close. */
-export function closesWindow(event: Keyed): boolean {
+export function closesWindow(event: Keyed, onMac: boolean): boolean {
   if (event.key === "Escape") return true;
-  return (event.ctrlKey || event.metaKey) && (event.code === "KeyW" || event.key.toLowerCase() === "w");
+  return primary(event, onMac) && (event.code === "KeyW" || event.key.toLowerCase() === "w");
 }
 
 /** `Esc` waits for the rest of the page: an open find bar inside the window takes it
     first and marks it handled. `Ctrl+W` means nothing to anything inside. */
-export function whenCloses(event: Keyed): "now" | "unless-handled" | null {
-  if (!closesWindow(event)) return null;
+export function whenCloses(event: Keyed, onMac: boolean): "now" | "unless-handled" | null {
+  if (!closesWindow(event, onMac)) return null;
   return event.key === "Escape" ? "unless-handled" : "now";
 }
 
 export function onWindowKey(event: KeyboardEvent): void {
-  const when = whenCloses(event);
+  const when = whenCloses(event, ON_MAC);
   if (when === "now") {
     event.preventDefault();
     void closeThisWindow();

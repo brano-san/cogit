@@ -1,4 +1,5 @@
 import type { KeyBinding } from "$lib/ipc/bindings";
+import { foreign, primary } from "$lib/platform";
 
 /** Command id to accelerator. An empty string means the user removed the key. */
 export type Keymap = Record<string, string>;
@@ -123,11 +124,9 @@ export function recordKeys(press: KeyPress, onMac: boolean): Recorded | null {
 
   // AltGr arrives as Ctrl and Alt and types a character; the window lets it through.
   const altGr = press.getModifierState?.("AltGraph") ?? false;
-  // CmdOrCtrl is ⌘ on a Mac and Ctrl elsewhere; the other one is in no accelerator.
-  const primary = onMac ? press.metaKey : press.ctrlKey;
-  const foreign = onMac ? press.ctrlKey : press.metaKey;
+  const foreignHeld = foreign(press, onMac);
   const parts: string[] = [];
-  if (primary && !altGr) parts.push("CmdOrCtrl");
+  if (primary(press, onMac) && !altGr) parts.push("CmdOrCtrl");
   if (press.altKey && !altGr) parts.push("Alt");
   if (press.shiftKey) parts.push("Shift");
 
@@ -135,9 +134,9 @@ export function recordKeys(press: KeyPress, onMac: boolean): Recorded | null {
   const named = placed ?? SHOWN[press.key] ?? (press.key.length === 1 ? press.key.toUpperCase() : press.key);
   const keys = [...parts, named].join("+");
 
-  const extra = altGr ? "AltGr+" : foreign ? (onMac ? "Ctrl+" : "Win+") : "";
+  const extra = altGr ? "AltGr+" : foreignHeld ? (onMac ? "Ctrl+" : "Win+") : "";
   const shown = extra + prettyKeys(keys, onMac);
-  if (altGr || foreign || placed === null || !claimable(keys)) return { refused: `${shown} cannot be used here` };
+  if (altGr || foreignHeld || placed === null || !claimable(keys)) return { refused: `${shown} cannot be used here` };
   const reserved = RESERVED[keys];
   return reserved ? { refused: `${shown} ${reserved}` } : { keys };
 }

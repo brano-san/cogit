@@ -4,6 +4,7 @@
   import { commitBox } from "$stores/commit-box.svelte";
   import { amends, canCommit, draftToSave, initialMessage, messageAfterCommit } from "$lib/commit-draft";
   import { SUBJECT_HARD, SUBJECT_SOFT, subjectOf, subjectState } from "$lib/commit-message";
+  import { ON_MAC, primary } from "$lib/platform";
 
   interface Props {
     /** What the button will actually commit, given the active filter (T6.8). */
@@ -75,7 +76,7 @@
   );
 
   function onkeydown(event: KeyboardEvent) {
-    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+    if (event.key === "Enter" && primary(event, ON_MAC)) {
       event.preventDefault();
       void submit();
     }

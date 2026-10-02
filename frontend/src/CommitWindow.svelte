@@ -41,6 +41,7 @@
     type CommitDetails,
   } from "$lib/ipc";
   import { pushTo } from "$lib/ipc/ref-ops";
+  import { ON_MAC, primary } from "$lib/platform";
   import { publishedOrAssume } from "$lib/published";
   import { menuPush } from "$lib/push-to";
   import { placePopup, type Box, type Placed } from "$lib/popup-place";
@@ -277,7 +278,7 @@
 
   function onkeydown(event: KeyboardEvent) {
     if (asking || picking) return;
-    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+    if (event.key === "Enter" && primary(event, ON_MAC)) {
       event.preventDefault();
       void start(false);
     } else if (event.key === "Escape" && menuAt) {

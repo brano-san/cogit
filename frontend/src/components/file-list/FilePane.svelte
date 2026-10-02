@@ -31,6 +31,7 @@
   import { repository } from "$stores/repository.svelte";
   import { filesView } from "$stores/files-view.svelte";
   import { TypeAhead, findTyped, listKey, pageRows, pressOf, typedChar } from "$lib/list-keys";
+  import { ON_MAC } from "$lib/platform";
   import { settings } from "$stores/settings.svelte";
 
   interface Props {
@@ -120,7 +121,7 @@
 
   /** Enter is the focused row's own click, and a pane has nothing to fold. */
   function onkeydown(event: KeyboardEvent) {
-    const press = pressOf(event);
+    const press = pressOf(event, ON_MAC);
     const from = cursor !== null && files.some((file) => file.path === cursor) ? cursor : selected;
     const found = files.findIndex((file) => file.path === from);
     const at = found === -1 ? null : found;

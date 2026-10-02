@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TypeAhead, findTyped, listKey, typedChar } from "./list-keys";
+import { TypeAhead, findTyped, listKey, pressOf, typedChar } from "./list-keys";
 
 const press = (key: string, mods: { ctrl?: boolean; shift?: boolean; alt?: boolean } = {}) => ({
   key,
@@ -40,6 +40,18 @@ describe("listKey", () => {
     expect(listKey(press("ArrowDown", { alt: true }), 1, 10, 5)).toBeNull();
     expect(listKey(press("ArrowDown"), null, 0, 5)).toBeNull();
     expect(listKey(press("a"), 1, 10, 5)).toBeNull();
+  });
+});
+
+describe("pressOf", () => {
+  const event = (mods: { ctrlKey?: boolean; metaKey?: boolean }) =>
+    ({ key: "ArrowDown", ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, ...mods }) as KeyboardEvent;
+
+  it("reads Ctrl as the chord off a Mac and Cmd on one, never the other key", () => {
+    expect(pressOf(event({ ctrlKey: true }), false).ctrl).toBe(true);
+    expect(pressOf(event({ metaKey: true }), false).ctrl).toBe(false);
+    expect(pressOf(event({ metaKey: true }), true).ctrl).toBe(true);
+    expect(pressOf(event({ ctrlKey: true }), true).ctrl).toBe(false);
   });
 });
 

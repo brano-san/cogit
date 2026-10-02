@@ -26,6 +26,7 @@
   import { closeGuard, installChildWindow, onMenuAction } from "$lib/child-window";
   import { failureText } from "$lib/merge-params";
   import { modals } from "$lib/modal-stack";
+  import { ON_MAC, primary } from "$lib/platform";
   import { followSettings } from "$lib/settings-sync";
   import { SolverEditors, languageExtension, type PaneName, type Snapshot } from "$lib/solver-editor";
   import {
@@ -462,7 +463,7 @@
     const action = solverKey({
       key: event.key,
       code: event.code,
-      ctrl: event.ctrlKey || event.metaKey,
+      ctrl: primary(event, ON_MAC),
       shift: event.shiftKey,
       alt: event.altKey,
     });

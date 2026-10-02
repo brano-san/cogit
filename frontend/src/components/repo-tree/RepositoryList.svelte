@@ -36,6 +36,7 @@
   import { TypeAhead, moveFocus } from "$lib/list-keys";
   import { untrack } from "svelte";
   import { moduleTitle } from "$lib/module-tree";
+  import { ON_MAC, primary } from "$lib/platform";
 
   interface Props {
     /** Only the folder dialog changes the label; selecting a repository must not (R-35). */
@@ -423,11 +424,9 @@
         tabindex="0"
         title={entry.root}
         onclick={(event) => {
-          marked = markRow(marked, entry.root, order, {
-            ctrl: event.ctrlKey || event.metaKey,
-            shift: event.shiftKey,
-          });
-          if (!event.ctrlKey && !event.metaKey && !event.shiftKey) onselect(entry);
+          const ctrl = primary(event, ON_MAC);
+          marked = markRow(marked, entry.root, order, { ctrl, shift: event.shiftKey });
+          if (!ctrl && !event.shiftKey) onselect(entry);
         }}
         onkeydown={(event) => event.key === "Enter" && onselect(entry)}
         oncontextmenu={(event) => {

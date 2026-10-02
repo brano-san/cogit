@@ -1,4 +1,5 @@
 import { nextRow } from "$lib/graph-geometry";
+import { ON_MAC, primary } from "$lib/platform";
 
 /** The keyboard of every list panel (11 §10), the graph's `nextRow` included. */
 export type ListKey =
@@ -13,8 +14,8 @@ export interface ListPress {
   alt: boolean;
 }
 
-export function pressOf(event: KeyboardEvent): ListPress {
-  return { key: event.key, ctrl: event.ctrlKey || event.metaKey, shift: event.shiftKey, alt: event.altKey };
+export function pressOf(event: KeyboardEvent, onMac: boolean): ListPress {
+  return { key: event.key, ctrl: primary(event, onMac), shift: event.shiftKey, alt: event.altKey };
 }
 
 export function listKey(press: ListPress, at: number | null, count: number, page: number): ListKey | null {
@@ -78,7 +79,7 @@ export function moveFocus(container: HTMLElement, event: KeyboardEvent, typing: 
   const rows = [...container.querySelectorAll<HTMLElement>("[data-key-row]")];
   const found = rows.findIndex((row) => row.contains(document.activeElement));
   const at = found === -1 ? null : found;
-  const press = pressOf(event);
+  const press = pressOf(event, ON_MAC);
   const char = typedChar(press);
   let to: number | null = null;
   if (char !== null) {

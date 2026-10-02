@@ -9,49 +9,55 @@ const key = (k: string, mods: { ctrlKey?: boolean; metaKey?: boolean } = {}) => 
 
 describe("closesWindow", () => {
   it("closes on Escape", () => {
-    expect(closesWindow(key("Escape"))).toBe(true);
+    expect(closesWindow(key("Escape"), false)).toBe(true);
+    expect(closesWindow(key("Escape"), true)).toBe(true);
   });
 
   it("closes on Ctrl+W", () => {
-    expect(closesWindow(key("w", { ctrlKey: true }))).toBe(true);
+    expect(closesWindow(key("w", { ctrlKey: true }), false)).toBe(true);
   });
 
-  it("closes on Cmd+W, for the day this runs on a Mac", () => {
-    expect(closesWindow(key("w", { metaKey: true }))).toBe(true);
+  it("closes on Cmd+W on a Mac", () => {
+    expect(closesWindow(key("w", { metaKey: true }), true)).toBe(true);
+  });
+
+  it("leaves Win+W off a Mac and Ctrl+W on one alone: neither is the platform's own", () => {
+    expect(closesWindow(key("w", { metaKey: true }), false)).toBe(false);
+    expect(closesWindow(key("w", { ctrlKey: true }), true)).toBe(false);
   });
 
   it("does not care which case the layout reports", () => {
-    expect(closesWindow(key("W", { ctrlKey: true }))).toBe(true);
+    expect(closesWindow(key("W", { ctrlKey: true }), false)).toBe(true);
   });
 
   // The key was read as the character the layout types: on a Russian keyboard Ctrl+W
   // is "ц", and the compare and merge windows, which have no menu to catch it, stayed open.
   it("closes on Ctrl+W whatever the keyboard layout types there", () => {
-    expect(closesWindow({ ...key("ц", { ctrlKey: true }), code: "KeyW" })).toBe(true);
+    expect(closesWindow({ ...key("ц", { ctrlKey: true }), code: "KeyW" }, false)).toBe(true);
   });
 
   it("leaves a bare W alone, which is a letter somebody is typing", () => {
-    expect(closesWindow(key("w"))).toBe(false);
+    expect(closesWindow(key("w"), false)).toBe(false);
   });
 
   it("leaves everything else alone", () => {
-    expect(closesWindow(key("Enter"))).toBe(false);
-    expect(closesWindow(key("f", { ctrlKey: true }))).toBe(false);
+    expect(closesWindow(key("Enter"), false)).toBe(false);
+    expect(closesWindow(key("f", { ctrlKey: true }), false)).toBe(false);
   });
 });
 
 describe("whenCloses", () => {
   it("closes on Ctrl+W straight away: nothing inside the window wants it", () => {
-    expect(whenCloses(key("w", { ctrlKey: true }))).toBe("now");
+    expect(whenCloses(key("w", { ctrlKey: true }), false)).toBe("now");
   });
 
   it("lets an open find bar take Escape first", () => {
-    expect(whenCloses(key("Escape"))).toBe("unless-handled");
+    expect(whenCloses(key("Escape"), false)).toBe("unless-handled");
   });
 
   it("has nothing to do with other keys", () => {
-    expect(whenCloses(key("Tab"))).toBeNull();
-    expect(whenCloses(key("F6"))).toBeNull();
+    expect(whenCloses(key("Tab"), false)).toBeNull();
+    expect(whenCloses(key("F6"), false)).toBeNull();
   });
 });
 

@@ -5,6 +5,7 @@
   import { commandReport, repoNameOf } from "$lib/notices";
   import { findMatches, logLines } from "$lib/output-highlight";
   import { outputKey } from "$lib/output-keys";
+  import { ON_MAC, primary } from "$lib/platform";
   import { readKey, writeKey } from "$lib/settings-file";
   import { startsDrag } from "$lib/error-window";
   import { clampBox, defaultBox, type Box } from "$lib/window-box";
@@ -131,7 +132,7 @@
     const action = outputKey({
       key: event.key,
       code: event.code,
-      ctrl: event.ctrlKey || event.metaKey,
+      ctrl: primary(event, ON_MAC),
       inside: frame !== undefined && event.target instanceof Node && frame.contains(event.target),
       handled: event.defaultPrevented,
       finding,

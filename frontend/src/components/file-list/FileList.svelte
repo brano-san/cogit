@@ -1,6 +1,7 @@
 <script lang="ts">
   import { keyLetter } from "$lib/key-letter";
   import { modals } from "$lib/modal-stack";
+  import { ON_MAC, primary } from "$lib/platform";
   import { selectAllKeys } from "$lib/files-panel";
   import { registerSelectAll } from "$lib/select-all";
   import { untrack } from "svelte";
@@ -136,7 +137,7 @@
 
   function onkeydown(event: KeyboardEvent) {
     if (!activePanel || modals.any) return;
-    if ((event.ctrlKey || event.metaKey) && keyLetter(event) === "f") {
+    if (primary(event, ON_MAC) && keyLetter(event) === "f") {
       event.preventDefault();
       bar?.focus();
     }
@@ -289,11 +290,9 @@
 
   function clicked(group: Group, path: string, event: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) {
     touched = group.index;
-    marked = applyClick(marked, rowKey(group.index, path), group.keys, {
-      ctrl: event.ctrlKey || event.metaKey,
-      shift: event.shiftKey,
-    });
-    if (event.ctrlKey || event.metaKey || event.shiftKey) return;
+    const ctrl = primary(event, ON_MAC);
+    marked = applyClick(marked, rowKey(group.index, path), group.keys, { ctrl, shift: event.shiftKey });
+    if (ctrl || event.shiftKey) return;
     (group.section.onselect ?? onselect)?.(path);
   }
 

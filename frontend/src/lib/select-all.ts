@@ -1,15 +1,12 @@
 import { keyLetter } from "./key-letter";
+import { ON_MAC, primary, type Modifiers } from "./platform";
 
 /** Ctrl+A / Cmd+A, with nothing else held. */
-export function isSelectAllKey(event: {
-  key: string;
-  code?: string;
-  ctrlKey: boolean;
-  metaKey: boolean;
-  shiftKey: boolean;
-  altKey: boolean;
-}): boolean {
-  return (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && keyLetter(event) === "a";
+export function isSelectAllKey(
+  event: Modifiers & { key: string; code?: string; shiftKey: boolean; altKey: boolean },
+  onMac: boolean,
+): boolean {
+  return primary(event, onMac) && !event.shiftKey && !event.altKey && keyLetter(event) === "a";
 }
 
 export interface SelectAllContext {
@@ -117,7 +114,7 @@ export function installSelectAll(win: Window, active: () => string | null): () =
     touched = regionOf(event.target as Node | null);
   };
   const keydown = (event: KeyboardEvent) => {
-    if (event.defaultPrevented || !isSelectAllKey(event)) return;
+    if (event.defaultPrevented || !isSelectAllKey(event, ON_MAC)) return;
     answer(event.target, event);
   };
   const menu = () => answer(win.document.activeElement);

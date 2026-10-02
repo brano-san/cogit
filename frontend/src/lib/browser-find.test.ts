@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { isBrowserFind, suppressBrowserFind } from "./browser-find";
+import { ON_MAC } from "./platform";
 
 const press = (key: string, ctrl = false, shift = false, alt = false, code?: string) => ({
   key,
@@ -10,24 +11,33 @@ const press = (key: string, ctrl = false, shift = false, alt = false, code?: str
   altKey: alt,
 });
 
+/** Ctrl, or ⌘ when the tests run on a Mac: what `suppressBrowserFind` reads as Ctrl. */
+const primaryPress = (key: string) => ({ ...press(key), ctrlKey: !ON_MAC, metaKey: ON_MAC });
+
 describe("isBrowserFind", () => {
   it("knows the keys the webview opens its own find bar on", () => {
-    expect(isBrowserFind(press("f", true))).toBe(true);
-    expect(isBrowserFind(press("F3"))).toBe(true);
-    expect(isBrowserFind(press("F3", false, true))).toBe(true);
-    expect(isBrowserFind(press("g", true))).toBe(true);
-    expect(isBrowserFind(press("G", true, true))).toBe(true);
+    expect(isBrowserFind(press("f", true), false)).toBe(true);
+    expect(isBrowserFind(press("F3"), false)).toBe(true);
+    expect(isBrowserFind(press("F3", false, true), false)).toBe(true);
+    expect(isBrowserFind(press("g", true), false)).toBe(true);
+    expect(isBrowserFind(press("G", true, true), false)).toBe(true);
   });
 
   it("reads the key where F sits on another layout", () => {
-    expect(isBrowserFind(press("а", true, false, false, "KeyF"))).toBe(true);
+    expect(isBrowserFind(press("а", true, false, false, "KeyF"), false)).toBe(true);
   });
 
   it("leaves every other key alone", () => {
-    expect(isBrowserFind(press("f"))).toBe(false);
-    expect(isBrowserFind(press("f", true, false, true))).toBe(false);
-    expect(isBrowserFind(press("F6"))).toBe(false);
-    expect(isBrowserFind(press("c", true))).toBe(false);
+    expect(isBrowserFind(press("f"), false)).toBe(false);
+    expect(isBrowserFind(press("f", true, false, true), false)).toBe(false);
+    expect(isBrowserFind(press("F6"), false)).toBe(false);
+    expect(isBrowserFind(press("c", true), false)).toBe(false);
+  });
+
+  it("reads Win+F as no find off a Mac, and ⌘F as one on it", () => {
+    expect(isBrowserFind({ ...press("f"), metaKey: true }, false)).toBe(false);
+    expect(isBrowserFind({ ...press("f"), metaKey: true }, true)).toBe(true);
+    expect(isBrowserFind(press("f", true), true)).toBe(false);
   });
 });
 
@@ -55,14 +65,14 @@ describe("suppressBrowserFind", () => {
     const { win, fire } = fakeWindow();
     suppressBrowserFind(win);
 
-    expect(fire(press("f", true)).preventDefault).toHaveBeenCalled();
-    expect(fire(press("x", true)).preventDefault).not.toHaveBeenCalled();
+    expect(fire(primaryPress("f")).preventDefault).toHaveBeenCalled();
+    expect(fire(primaryPress("x")).preventDefault).not.toHaveBeenCalled();
   });
 
   it("leaves a key the page already answered as it is", () => {
     const { win, fire } = fakeWindow();
     suppressBrowserFind(win);
 
-    expect(fire(press("f", true), true).preventDefault).not.toHaveBeenCalled();
+    expect(fire(primaryPress("f"), true).preventDefault).not.toHaveBeenCalled();
   });
 });
