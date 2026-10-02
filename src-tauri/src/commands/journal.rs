@@ -16,11 +16,8 @@ pub async fn list_operations(
 /// Stops a running read. `false` when it had already finished.
 #[tauri::command]
 #[specta::specta]
-pub fn cancel_operation(
-    cancellations: tauri::State<'_, std::sync::Arc<crate::operations::Cancellations>>,
-    id: u32,
-) -> bool {
-    let stopped = cancellations.cancel(id);
+pub fn cancel_operation(state: tauri::State<'_, crate::AppContext>, id: u32) -> bool {
+    let stopped = state.state.cancel_read(id);
     tracing::debug!(id, stopped, "cancel requested");
     stopped
 }

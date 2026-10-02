@@ -98,23 +98,21 @@ pub async fn investigate_blame(
 #[specta::specta]
 pub async fn origin_candidates(
     state: tauri::State<'_, crate::AppContext>,
-    cancellations: tauri::State<'_, std::sync::Arc<crate::operations::Cancellations>>,
     repo: RepoId,
     query: OriginQuery,
     on_event: tauri::ipc::Channel<OriginEvent>,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    let cancellations = std::sync::Arc::clone(&cancellations);
-    let (id, cancel) = cancellations.start();
-    let _ = on_event.send(OriginEvent::Started { id });
+    let run = state.state.start_read();
+    let _ = on_event.send(OriginEvent::Started { id: run.id() });
 
     let started = std::time::Instant::now();
-    let token = cancel.clone();
+    let token = run.token();
     let found = blocking("origin_candidates", move || {
         app_state.origin_candidates(repo, &query, &|| token.is_cancelled())
     })
     .await;
-    cancellations.finish(id);
+    drop(run);
 
     let event = match found? {
         Some(report) => {

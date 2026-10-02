@@ -172,7 +172,6 @@ pub enum SearchChunk {
 #[specta::specta]
 pub async fn search_file_contents(
     state: tauri::State<'_, crate::AppContext>,
-    cancellations: tauri::State<'_, std::sync::Arc<crate::operations::Cancellations>>,
     repo: RepoId,
     query: String,
     is_regex: bool,
@@ -180,10 +179,10 @@ pub async fn search_file_contents(
     on_chunk: tauri::ipc::Channel<SearchChunk>,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    let cancellations = std::sync::Arc::clone(&cancellations);
 
-    let (id, cancel) = cancellations.start();
-    let _ = on_chunk.send(SearchChunk::Started { id });
+    let run = state.state.start_read();
+    let cancel = run.token();
+    let _ = on_chunk.send(SearchChunk::Started { id: run.id() });
 
     let token = cancel.clone();
     let channel = on_chunk.clone();
@@ -203,7 +202,7 @@ pub async fn search_file_contents(
     })
     .await;
 
-    cancellations.finish(id);
+    drop(run);
     let total = counted?;
 
     let _ = on_chunk.send(SearchChunk::Done {

@@ -14,6 +14,8 @@ use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 use parking_lot::Mutex;
 
+use crate::AppState;
+
 /// What a running read watches to know it should stop.
 #[derive(Debug, Clone, Default)]
 pub struct Cancel(Arc<AtomicBool>);
@@ -31,7 +33,7 @@ impl Cancel {
 
 /// Every read that can still be told to stop.
 #[derive(Debug, Default)]
-pub struct Cancellations {
+pub(crate) struct Cancellations {
     running: Mutex<HashMap<u32, Cancel>>,
     next: AtomicU32,
 }
@@ -76,6 +78,52 @@ impl Cancellations {
             cancel.stop();
         }
         held.len()
+    }
+}
+
+/// A read `cancel_read` can stop until this is dropped.
+#[derive(Debug)]
+pub struct ReadRun<'a> {
+    registry: &'a Cancellations,
+    id: u32,
+    cancel: Cancel,
+}
+
+impl ReadRun<'_> {
+    #[must_use]
+    pub fn id(&self) -> u32 {
+        self.id
+    }
+
+    #[must_use]
+    pub fn token(&self) -> Cancel {
+        self.cancel.clone()
+    }
+}
+
+impl Drop for ReadRun<'_> {
+    fn drop(&mut self) {
+        self.registry.finish(self.id);
+    }
+}
+
+impl AppState {
+    #[must_use]
+    pub fn start_read(&self) -> ReadRun<'_> {
+        let (id, cancel) = self.reads.start();
+        ReadRun {
+            registry: &self.reads,
+            id,
+            cancel,
+        }
+    }
+
+    pub fn cancel_read(&self, id: u32) -> bool {
+        self.reads.cancel(id)
+    }
+
+    pub fn cancel_all_reads(&self) -> usize {
+        self.reads.cancel_all()
     }
 }
 
@@ -150,5 +198,17 @@ mod tests {
 
         assert!(one.is_cancelled());
         assert!(!two.is_cancelled(), "only the read that was named stops");
+    }
+
+    #[test]
+    fn a_dropped_read_can_no_longer_be_cancelled() {
+        let state = AppState::new();
+        let run = state.start_read();
+        let id = run.id();
+        assert!(state.cancel_read(id), "a running read is found by its id");
+
+        drop(run);
+        assert!(!state.cancel_read(id));
+        assert_eq!(state.cancel_all_reads(), 0);
     }
 }

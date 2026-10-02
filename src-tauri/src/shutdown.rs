@@ -123,9 +123,8 @@ async fn until_the_writes_are_done(app: &tauri::AppHandle) {
 pub fn exiting(app: &tauri::AppHandle) {
     use tauri::Manager as _;
 
-    if let Some(cancellations) = app.try_state::<std::sync::Arc<crate::operations::Cancellations>>()
-    {
-        let stopped = cancellations.cancel_all();
+    if let Some(context) = app.try_state::<crate::AppContext>() {
+        let stopped = context.state.cancel_all_reads();
         if stopped > 0 {
             tracing::debug!(stopped, "cancelled the reads still running");
         }

@@ -134,15 +134,14 @@ pub enum WorktreeScanChunk {
 #[specta::specta]
 pub async fn scan_worktree_removal(
     state: tauri::State<'_, crate::AppContext>,
-    cancellations: tauri::State<'_, std::sync::Arc<crate::operations::Cancellations>>,
     repo: RepoId,
     path: String,
     on_chunk: tauri::ipc::Channel<WorktreeScanChunk>,
 ) -> Result<(), GitError> {
     let app_state = state.state.clone();
-    let cancellations = std::sync::Arc::clone(&cancellations);
-    let (id, cancel) = cancellations.start();
-    let _ = on_chunk.send(WorktreeScanChunk::Started { id });
+    let run = state.state.start_read();
+    let cancel = run.token();
+    let _ = on_chunk.send(WorktreeScanChunk::Started { id: run.id() });
 
     let token = cancel.clone();
     let channel = on_chunk.clone();
@@ -192,7 +191,7 @@ pub async fn scan_worktree_removal(
     })
     .await;
 
-    cancellations.finish(id);
+    drop(run);
     done?;
     let _ = on_chunk.send(WorktreeScanChunk::Done {
         cancelled: cancel.is_cancelled(),

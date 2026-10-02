@@ -10,7 +10,6 @@ mod key_capture;
 mod logging;
 mod menu;
 mod native_theme;
-mod operations;
 mod portable_mode;
 #[cfg_attr(not(feature = "portable"), allow(dead_code))]
 mod portable_window_state;
@@ -482,7 +481,6 @@ pub fn run() -> anyhow::Result<()> {
                 config_dir: config_dir.clone(),
             });
             app.manage(logging::LogGuard::new(guard));
-            app.manage(Arc::new(operations::Cancellations::default()));
 
             specta_builder.mount_events(app);
             events::forward_repo_changes(app.handle().clone(), &state);

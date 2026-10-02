@@ -23,6 +23,7 @@ mod network;
 mod network_dialogs;
 mod presets;
 mod queue;
+mod reads;
 mod ref_batch;
 mod ref_ops;
 mod remote_ops;
@@ -56,6 +57,7 @@ pub use journal::{CommandNotice, is_warning, record};
 pub use network::NetworkRun;
 pub use presets::PresetStatus;
 pub use queue::{Operation, OperationKind, OperationPermit, OperationPhase, Queue};
+pub use reads::{Cancel, ReadRun};
 pub use ref_batch::{
     FailedDeletion, RefDeletion, RefDeletionKind, RefDeletionReport, SkippedDeletion,
     split_deletable,
@@ -217,6 +219,8 @@ pub struct AppState {
     handles: handles::HandleCache,
     /// The fetch, pull or push running as each queue operation, for `cancel_network`.
     network_runs: parking_lot::Mutex<HashMap<u32, git_engine::NetworkStop>>,
+    /// The reads `cancel_read` can still stop.
+    reads: reads::Cancellations,
     /// External merge tools running, one per conflicted file.
     merge_tools: merge_tool::MergeTools,
 }
@@ -264,6 +268,7 @@ impl AppState {
             reachable: parking_lot::Mutex::new(HashMap::new()),
             handles: handles::HandleCache::default(),
             network_runs: parking_lot::Mutex::new(HashMap::new()),
+            reads: reads::Cancellations::default(),
             merge_tools: merge_tool::MergeTools::default(),
         }
     }

@@ -60,7 +60,6 @@ pub enum ScanChunk {
 #[specta::specta]
 pub async fn scan_for_repositories(
     state: tauri::State<'_, crate::AppContext>,
-    cancellations: tauri::State<'_, std::sync::Arc<crate::operations::Cancellations>>,
     path: String,
     max_depth: u32,
     on_found: tauri::ipc::Channel<ScanChunk>,
@@ -68,9 +67,9 @@ pub async fn scan_for_repositories(
     let app_state = state.state.clone();
     let path = PathBuf::from(path);
     let depth = max_depth.clamp(1, 12) as usize;
-    let cancellations = std::sync::Arc::clone(&cancellations);
-    let (id, cancel) = cancellations.start();
-    let _ = on_found.send(ScanChunk::Started { id });
+    let run = state.state.start_read();
+    let cancel = run.token();
+    let _ = on_found.send(ScanChunk::Started { id: run.id() });
 
     let found = blocking("scan_for_repositories", move || {
         let mut found = 0_u32;
@@ -86,7 +85,7 @@ pub async fn scan_for_repositories(
         Ok(found)
     })
     .await;
-    cancellations.finish(id);
+    drop(run);
     found
 }
 
