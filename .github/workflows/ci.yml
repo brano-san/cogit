@@ -29,7 +29,7 @@ jobs:
             os: windows-latest
             bundles: msi,nsis
           - name: linux-x64
-            os: ubuntu-24.04
+            os: ubuntu-22.04   # oldest supported: a build links to the glibc of its runner (24.04 = 2.39 breaks 22.04)
             bundles: deb
           # Add macOS here with its bundle list, see doc/RELEASING.md.
           # - name: macos-arm64

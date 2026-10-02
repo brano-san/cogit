@@ -68,7 +68,7 @@ jobs:
             arch: x64
             experimental: false
           - name: linux-x64
-            os: ubuntu-24.04
+            os: ubuntu-22.04   # oldest supported: a build links to the glibc of its runner (24.04 = 2.39 breaks 22.04)
             arch: amd64
             experimental: false
           # Apple Silicon only, unsigned and not notarized: Gatekeeper asks for a manual open.
