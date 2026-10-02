@@ -43,6 +43,10 @@ struct Command {
     off_thread: bool,
     /// Lines joined, so that a chained call reads as one.
     body: String,
+    /// Lines from the signature to the closing brace at column 0.
+    lines: usize,
+    /// `body` cut at that brace: no helper or doc comment after the command.
+    own: String,
 }
 
 /// Every command in `source` with its body: everything up to the next attribute.
@@ -50,8 +54,9 @@ fn commands_in(source: &str) -> Vec<Command> {
     let mut found: Vec<Command> = Vec::new();
     let mut armed: Option<bool> = None;
     let mut open = false;
-    for line in source.lines() {
-        let line = line.trim_start();
+    let mut counting = false;
+    for raw in source.lines() {
+        let line = raw.trim_start();
         if let Some(rest) = line.strip_prefix("#[tauri::command") {
             armed = Some(rest.starts_with("(async)"));
             open = false;
@@ -71,11 +76,19 @@ fn commands_in(source: &str) -> Vec<Command> {
                 name: name_of(rest),
                 off_thread: is_async || marked_async,
                 body: String::new(),
+                lines: 1,
+                own: rest.to_owned(),
             });
             armed = None;
             open = true;
+            counting = true;
         } else if open && let Some(command) = found.last_mut() {
             command.body.push_str(line);
+            if counting {
+                command.lines += 1;
+                command.own.push_str(line);
+                counting = raw != "}";
+            }
         }
     }
     found
@@ -307,6 +320,109 @@ fn the_journal_and_the_settings_are_read_in_the_blocking_pool() {
     })
     .collect();
     assert!(inline.is_empty(), "these run on an IPC worker: {inline:?}");
+}
+
+/// Repository commands allowed more than one call into `AppState` or a longer body than
+/// INV-09's "get the state, call one method, map the error".
+const ORCHESTRATING: &[(&str, &str)] = &[
+    (
+        "commit",
+        "maintenance after a commit is its own queued step",
+    ),
+    (
+        "load_commits",
+        "the generation is taken before the walk leaves the IPC worker",
+    ),
+    (
+        "close_repository",
+        "the overviews drop the closed repository too",
+    ),
+    ("search_file_contents", "frames the matches into a channel"),
+    ("origin_candidates", "frames the candidates into a channel"),
+    (
+        "scan_worktree_removal",
+        "frames the scan into a cancellable channel",
+    ),
+    ("investigate_blame", "frames the report into a channel"),
+    (
+        "launch_merge_tool",
+        "announces the tool's end as an app event",
+    ),
+];
+
+const THIN_LINES: usize = 30;
+
+/// Distinct `AppState` methods a body calls, by the two names commands give it.
+fn state_calls(body: &str) -> std::collections::BTreeSet<&str> {
+    ["app_state.", "state.state."]
+        .iter()
+        .flat_map(|receiver| {
+            body.match_indices(receiver)
+                .map(|(at, _)| &body[at + receiver.len()..])
+        })
+        .filter_map(|rest| {
+            let end = rest.find(|c: char| !(c.is_alphanumeric() || c == '_'))?;
+            rest[end..].starts_with('(').then(|| &rest[..end])
+        })
+        .filter(|method| !method.is_empty() && *method != "clone")
+        .collect()
+}
+
+fn repo_scoped(command: &Command) -> bool {
+    command.own.contains("repo: RepoId") || command.own.contains("owner: RepoId")
+}
+
+fn fat(command: &Command) -> bool {
+    repo_scoped(command) && (state_calls(&command.own).len() > 1 || command.lines > THIN_LINES)
+}
+
+#[test]
+fn repo_commands_stay_thin() {
+    let fat: Vec<String> = all_commands()
+        .into_iter()
+        .filter(fat)
+        .filter(|command| !ORCHESTRATING.iter().any(|(name, _)| *name == command.name))
+        .map(|command| {
+            let calls = state_calls(&command.own);
+            format!(
+                "{} ({} lines, calls {calls:?})",
+                command.name, command.lines
+            )
+        })
+        .collect();
+
+    assert!(
+        fat.is_empty(),
+        "INV-09: a repository command gets the state, calls one method and maps the error; \
+         move the rest into a crate or justify it in ORCHESTRATING: {fat:?}"
+    );
+}
+
+#[test]
+fn the_orchestrating_list_has_no_leftovers() {
+    let all = all_commands();
+    let thin: Vec<&str> = ORCHESTRATING
+        .iter()
+        .map(|(name, _)| *name)
+        .filter(|name| {
+            !all.iter()
+                .any(|command| command.name == *name && fat(command))
+        })
+        .collect();
+
+    assert!(thin.is_empty(), "thin now or gone, drop them: {thin:?}");
+}
+
+#[test]
+fn the_thin_check_counts_calls_and_lines() {
+    let source = "#[tauri::command]\npub async fn two(\n    repo: RepoId,\n) {\n    let app_state = state.state.clone();\n    app_state.open(repo);\n    state.state.close(repo);\n}\n";
+    let found = commands_in(source);
+    assert_eq!(found[0].lines, 7);
+    assert!(fat(&found[0]));
+    assert_eq!(
+        state_calls(&found[0].own).into_iter().collect::<Vec<_>>(),
+        ["close", "open"]
+    );
 }
 
 #[test]
