@@ -86,9 +86,6 @@
   import IndexEditorDialog from "$components/file-list/IndexEditorDialog.svelte";
   import { openInvestigate } from "$lib/investigate/open";
   import WorktreesPanel from "$components/panels/WorktreesPanel.svelte";
-  import type { AddOrigin } from "$lib/worktree-add";
-  import AddWorktreeDialog from "$components/repo-tree/AddWorktreeDialog.svelte";
-  import RemoveWorktreeDialog from "$components/repo-tree/RemoveWorktreeDialog.svelte";
   import { hasStale, othersToWatch, removable } from "$lib/worktree-list";
   import { fileFormat, shortOid } from "$lib/format";
   import { checkedIds, disabledIds, rememberCommand, type PaletteCommand } from "$lib/palette";
@@ -108,6 +105,7 @@
   import RefGroupActions from "$components/menus/RefGroupActions.svelte";
   import SelectionActions from "$components/menus/SelectionActions.svelte";
   import BisectActions from "$components/menus/BisectActions.svelte";
+  import WorktreeActions from "$components/menus/WorktreeActions.svelte";
   import { bisectCommands } from "$lib/bisect";
   import { appCommands, PANEL_TITLES, type AppCommandActions } from "$lib/app-commands";
   import { compareView } from "$stores/compare-view.svelte";
@@ -162,7 +160,6 @@
   import { ModuleInitialiser, moduleClick } from "$lib/module-init";
   import { moduleRoot, shownRowRoot, updateModule } from "$lib/module-tree";
   import { moduleForest } from "$stores/module-forest.svelte";
-  import { parseWorktreeCommand, worktreeMenu } from "$lib/worktree-menu";
   import { answerMergeResolved } from "$lib/merge-save";
   import { browserSources, start as startMemoryProbe } from "$lib/mem-probe";
   import { liveListeners } from "$lib/listener-count";
@@ -231,7 +228,6 @@
     type AppInfo,
     type Branch,
     type RepoId,
-    type WorktreeBranch,
   } from "$lib/ipc";
   import { openBlame } from "$lib/blame-window";
   import { ShownRepository } from "$lib/shown-repository";
@@ -307,9 +303,6 @@
   let lastUpdate = $state.raw<UpdateOutcome | null>(null);
   let opening = $state(false);
   let scanOpen = $state(false);
-  let addWorktreeOpen = $state(false);
-  let addWorktreeOrigin = $state<AddOrigin>({ kind: "current" });
-  let worktreeRemoval = $state.raw<{ entry: import("$lib/ipc").WorktreeEntry } | null>(null);
   let markedFiles = $state.raw<string[]>([]);
   /** The same ticks by the title of the list they are in: Unstaged, Staged. */
   let markedBySection = $state.raw<Record<string, string[]>>({});
@@ -737,12 +730,12 @@
     "perspective-main": () => layout.switch("main"),
     "perspective-review": () => layout.switch("review"),
     "maximize-panel": () => layout.toggleMaximized(focused),
-    "worktree-add": () => openAddWorktree(),
+    "worktree-add": () => worktreeActions?.openAdd(),
     "worktree-remove": () => {
       const entry = worktrees.current;
-      if (removable(entry)) void removeWorktreeAt(entry);
+      if (removable(entry)) worktreeActions?.remove(entry);
     },
-    "worktree-prune": () => void pruneWorktreesHere(),
+    "worktree-prune": () => void worktreeActions?.pruneAll(),
     "resolve-conflicts": () => openSolverAt(conflicts.path ?? conflicts.paths[0]),
     "undo-rewrite": () => void undoLastRewrite(),
     "range-diff": () => void showRangeDiff(),
@@ -2314,6 +2307,7 @@
   let refGroupActions = $state<ReturnType<typeof RefGroupActions>>();
   let selectionActions = $state<ReturnType<typeof SelectionActions>>();
   let bisectActions = $state<ReturnType<typeof BisectActions>>();
+  let worktreeActions = $state<ReturnType<typeof WorktreeActions>>();
   let fileTarget = $state.raw<FileScope | null>(null);
   let fileSection = $state<"worktree" | "index" | "commit">("worktree");
   let aboutOpen = $state(false);
@@ -2555,8 +2549,6 @@
       indexEditing = null;
       removingFiles = null;
       dropMenu = null;
-      worktreeRemoval = null;
-      addWorktreeOpen = false;
       repoSettingsOpen = false;
       rebaseOpen = false;
       split = null;
@@ -2787,126 +2779,6 @@
     return false;
   }
 
-  /** The dialog reads what is uncommitted itself and asks separately for --force (R-184). */
-  function removeWorktreeAt(entry: import("$lib/ipc").WorktreeEntry) {
-    worktreeRemoval = { entry };
-  }
-
-  async function confirmWorktreeRemoval(force: boolean) {
-    const target = worktreeRemoval?.entry;
-    worktreeRemoval = null;
-    if (!target) return;
-    let failed = false;
-    await worktrees.remove(target.path, force).catch((err) => {
-      failed = true;
-      errors.report(err, "Could not remove the worktree");
-    });
-    await safety.refresh();
-    if (failed) await offerAfterFailedRemoval(target, force);
-  }
-
-  /** The list was re-read from git, so it says what is left: git 2.51 drops the registration
-      before it deletes the folder, and a lock or a running program keeps the folder. */
-  async function offerAfterFailedRemoval(target: import("$lib/ipc").WorktreeEntry, forced: boolean) {
-    if (worktrees.entries.some((entry) => entry.path === target.path)) {
-      if (forced) return;
-      const yes = await confirmation.ask({
-        title: "Force Remove Worktree",
-        message: `Git could not remove ${target.name}, and it is still registered. Retry with --force? Uncommitted work is put in a stash first.`,
-        confirm: "Force Remove",
-        warning: true,
-      });
-      if (yes) await confirmWorktreeRemovalForced(target);
-      return;
-    }
-    if (!(await worktrees.leftover(target.path))) return;
-    const yes = await confirmation.ask({
-      title: "Delete Leftover Folder",
-      message:
-        `Git no longer lists ${target.name} but could not delete its folder, so part of it is still on disk ` +
-        "(something may be using it, such as a terminal or an editor; close it first). Delete what is left?",
-      confirm: "Delete Folder",
-      warning: true,
-      items: [target.path],
-    });
-    if (!yes) return;
-    await worktrees
-      .deleteLeftover(target.path)
-      .catch((err) => errors.report(err, "Could not delete the leftover folder"));
-  }
-
-  async function confirmWorktreeRemovalForced(target: import("$lib/ipc").WorktreeEntry) {
-    let failed = false;
-    await worktrees.remove(target.path, true).catch((err) => {
-      failed = true;
-      errors.report(err, "Could not remove the worktree");
-    });
-    await safety.refresh();
-    if (failed) await offerAfterFailedRemoval(target, true);
-  }
-
-  async function pruneWorktreesHere() {
-    const stale = worktrees.entries.filter((entry) => entry.missing);
-    if (stale.length === 0) return;
-    const names = stale.map((entry) => entry.name).join(", ");
-    const confirmed = await confirmation.ask({
-      title: "Prune Obsolete Worktrees",
-      message:
-        `Forget ${stale.length === 1 ? "the missing worktree" : `${stale.length} missing worktrees`} (${names})? ` +
-        "Only Git's registration is removed; nothing on disk is touched. Locked ones are kept.",
-      confirm: "Prune",
-    });
-    if (!confirmed) return;
-    await worktrees.prune().catch((err) => errors.report(err, "Could not prune worktrees"));
-  }
-
-  async function pruneWorktreeAt(entry: import("$lib/ipc").WorktreeEntry) {
-    const confirmed = await confirmation.ask({
-      title: "Prune Worktree",
-      message:
-        `Forget the worktree ${entry.name} at ${entry.path}? ` +
-        "Only Git's registration of it is removed; nothing on disk is touched.",
-      confirm: "Prune",
-    });
-    if (!confirmed) return;
-    await worktrees
-      .pruneOne(entry.path)
-      .catch((err) => errors.report(err, "Could not prune the worktree"));
-  }
-
-  /** Repair cannot guess where a folder went: the new place is asked for first. */
-  async function repairWorktreeAt(entry: import("$lib/ipc").WorktreeEntry) {
-    const picked = await openFolderDialog({
-      directory: true,
-      title: `Locate the folder of worktree ${entry.name}`,
-    });
-    if (typeof picked !== "string") return;
-    await worktrees
-      .repair(picked.replace(/\\/g, "/"))
-      .catch((err) => errors.report(err, "Could not repair the worktree"));
-  }
-
-  /** A commit selected in the graph is the start; a menu on a branch or commit says its own. */
-  function openAddWorktree(origin?: AddOrigin) {
-    addWorktreeOrigin =
-      origin ?? (focused === "graph" && commit.oid ? { kind: "commit", oid: commit.oid } : { kind: "current" });
-    addWorktreeOpen = true;
-  }
-
-  async function addWorktreeFrom(request: { path: string; branch: WorktreeBranch; open: boolean }) {
-    addWorktreeOpen = false;
-    try {
-      await worktrees.add(request.path, request.branch);
-    } catch (err) {
-      errors.report(err, "Could not add the worktree");
-      return;
-    }
-    if (!request.open) return;
-    const wanted = request.path.toLowerCase();
-    const added = worktrees.entries.find((entry) => entry.path.toLowerCase() === wanted);
-    if (added) await openWorktreeRow(added);
-  }
-
   /** Like a submodule: the panels switch to it, the Repositories tree stays (R-184). */
   async function openWorktreeRow(entry: import("$lib/ipc").WorktreeEntry) {
     const owner = worktrees.repo;
@@ -2934,51 +2806,6 @@
     void refs.loadUrls(opened.repo);
     void worktrees.refresh(opened.repo);
     await afterMutation();
-  }
-
-  /** The row the menu was opened on, until its choice comes back as a menu command. */
-  let worktreeTarget = $state.raw<import("$lib/ipc").WorktreeEntry | null>(null);
-
-  async function worktreeContext(entry: import("$lib/ipc").WorktreeEntry, x: number, y: number) {
-    worktreeTarget = entry;
-    await popupContextMenu(worktreeMenu(entry), x, y).catch(() => {});
-  }
-
-  /** Returns true when the id belonged to a Worktrees row's menu and was handled here. */
-  function runWorktreeCommand(id: string): boolean {
-    const entry = worktreeTarget;
-    const command = parseWorktreeCommand(id);
-    if (!entry || !command) return false;
-    const failed = (what: string) => (err: unknown) => errors.report(err, `Could not ${what} the worktree`);
-    switch (command) {
-      case "open":
-        void openWorktreeRow(entry);
-        break;
-      case "copy":
-        void copyText(entry.path);
-        break;
-      case "remove":
-        void removeWorktreeAt(entry);
-        break;
-      case "prune":
-        void pruneWorktreeAt(entry);
-        break;
-      case "repair":
-        void repairWorktreeAt(entry);
-        break;
-      case "lock":
-        void worktrees.lock(entry.path, null).catch(failed("lock"));
-        break;
-      case "unlock":
-        void worktrees.unlock(entry.path).catch(failed("unlock"));
-        break;
-      case "reveal":
-        void import("@tauri-apps/plugin-opener").then(({ revealItemInDir }) =>
-          revealItemInDir(entry.path).catch(failed("reveal")),
-        );
-        break;
-    }
-    return true;
   }
 
   /** A row of the Repositories list, open or closed (#36). */
@@ -3742,7 +3569,7 @@
       if (bisectActions?.run(id)) return;
       if (runGroupCommand(id)) return;
       if (runRepoCommand(id)) return;
-      if (runWorktreeCommand(id)) return;
+      if (worktreeActions?.run(id)) return;
       if (runFileCommand(id)) return;
       if (runRefCommand(id)) return;
       const command = palette.find((entry) => entry.id === id);
@@ -3941,7 +3768,7 @@
         >
           {#snippet actions()}
             {#if repo}
-              <button type="button" class="panel-act" title="Add Worktree…" onclick={() => openAddWorktree()}
+              <button type="button" class="panel-act" title="Add Worktree…" onclick={() => worktreeActions?.openAdd()}
                 >Add…</button
               >
               <button
@@ -3951,16 +3778,16 @@
                 title={hasStale(worktrees.entries)
                   ? "Forget every worktree whose folder is gone"
                   : "No worktree is missing"}
-                onclick={() => void pruneWorktreesHere()}>Prune All</button
+                onclick={() => void worktreeActions?.pruneAll()}>Prune All</button
               >
             {/if}
           {/snippet}
           <WorktreesPanel
             onopen={(entry) => void openWorktreeRow(entry)}
-            oncontext={(entry, x, y) => void worktreeContext(entry, x, y)}
-            onprune={(entry) => void pruneWorktreeAt(entry)}
-            onrepair={(entry) => void repairWorktreeAt(entry)}
-            onadd={() => openAddWorktree()}
+            oncontext={(entry, x, y) => void worktreeActions?.context(entry, x, y)}
+            onprune={(entry) => void worktreeActions?.prune(entry)}
+            onrepair={(entry) => void worktreeActions?.repair(entry)}
+            onadd={() => worktreeActions?.openAdd()}
           />
         </Panel>
       </div>
@@ -4295,7 +4122,7 @@
     {checkOut}
     {openSplit}
     {openRebase}
-    openAddWorktree={(origin) => openAddWorktree(origin)}
+    openAddWorktree={(origin) => worktreeActions?.openAdd(origin)}
     rollbackTree={() => rollbackFiles([])}
   />
   <BisectActions bind:this={bisectActions} {afterRefChange} />
@@ -4517,30 +4344,12 @@
     />
   {/if}
 
-  {#if addWorktreeOpen && repo}
-    <AddWorktreeDialog
-      repo={repo.repo}
-      root={repo.root}
-      branches={repo.branches}
-      tags={repo.tags}
-      worktrees={worktrees.entries}
-      origin={addWorktreeOrigin}
-      onbrowse={async () => {
-        const picked = await openFolderDialog({ directory: true, title: "Folder for the new worktree" });
-        return typeof picked === "string" ? picked : null;
-      }}
-      onadd={(request) => void addWorktreeFrom(request)}
-      onclose={() => (addWorktreeOpen = false)}
-    />
-  {/if}
-
-  {#if worktreeRemoval}
-    <RemoveWorktreeDialog
-      entry={worktreeRemoval.entry}
-      onremove={(force) => void confirmWorktreeRemoval(force)}
-      onclose={() => (worktreeRemoval = null)}
-    />
-  {/if}
+  <WorktreeActions
+    bind:this={worktreeActions}
+    openRow={openWorktreeRow}
+    {copyText}
+    graphFocused={focused === "graph"}
+  />
 
   {#if welcome.open}
     <WelcomeDialog
