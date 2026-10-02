@@ -89,7 +89,10 @@ class Bar extends GutterMarker {
 }
 const BAR = new Bar();
 
-const theme = EditorView.theme({
+/** The page sets `user-select: none` on the body; WebKitGTK carries it into the contenteditable
+    editors, where the text of all three panes then does not paint (gutters, outside the
+    editable, still do). Selecting and copying is wanted here, so the editor opts back in. */
+export const themeSpec = {
   "&": {
     height: "100%",
     backgroundColor: "var(--bg-editor)",
@@ -102,7 +105,7 @@ const theme = EditorView.theme({
     lineHeight: `${LINE_HEIGHT}px`,
     overscrollBehavior: "contain",
   },
-  ".cm-content": { padding: "0", caretColor: "var(--fg-primary)" },
+  ".cm-content": { padding: "0", caretColor: "var(--fg-primary)", userSelect: "text", WebkitUserSelect: "text" },
   ".cm-line": { height: `${LINE_HEIGHT}px`, lineHeight: `${LINE_HEIGHT}px`, padding: "0 6px" },
   ".cm-gutters": {
     backgroundColor: "var(--bg-editor)",
@@ -131,7 +134,9 @@ const theme = EditorView.theme({
   ".sv-bar": { width: "4px" },
   ".sv-bar .cm-gutterElement": { padding: "0", width: "4px" },
   ".sv-bar-on": { backgroundColor: "var(--status-danger)" },
-});
+};
+
+const theme = EditorView.theme(themeSpec);
 
 const hunksFacet = Facet.define<readonly Hunk[], readonly Hunk[]>({ combine: (all) => all[0] ?? [] });
 
