@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildBlocks, changeRow, changes, hunkKeys } from "./diff-blocks";
 import type { FoldEntry, Gap } from "./diff-fold";
 import type { DiffRow } from "./ipc";
+import { budget } from "./perf-budget";
 
 const ctx = (old: number, nw: number, text = `c${old}`): DiffRow => ({ kind: "context", old, new: nw, text });
 const del = (old: number, text = `d${old}`, extra: Partial<Extract<DiffRow, { kind: "delete" }>> = {}): DiffRow => ({
@@ -96,7 +97,7 @@ describe("blocks", () => {
     for (let i = 1; i <= 200_000; i++) list.push(i % 50 === 0 ? del(i) : ctx(i, i));
     const t0 = performance.now();
     const m = buildBlocks(list.map((row): FoldEntry => ({ kind: "row", row, block: 0 })));
-    expect(performance.now() - t0).toBeLessThan(300);
+    expect(performance.now() - t0).toBeLessThan(budget(300));
     expect(m.blocks.length).toBeGreaterThan(7000);
   });
 });

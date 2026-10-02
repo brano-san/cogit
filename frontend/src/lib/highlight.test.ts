@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { MAX_HIGHLIGHT_LINES, highlightLines, languageOf, loadLanguage, mergePieces } from "./highlight";
+import { budget } from "./perf-budget";
 
 function classesOf(tokens: { cls: string }[][], line: number): string[] {
   return (tokens[line] ?? []).map((t) => t.cls);
@@ -258,7 +259,7 @@ describe("mergePieces on a minified line", () => {
   it("cuts a 300 KB line in one pass", () => {
     const started = performance.now();
     mergePieces(line, tokens, [[10, 20]], [[100, 104]]);
-    expect(performance.now() - started).toBeLessThan(1000);
+    expect(performance.now() - started).toBeLessThan(budget(1000));
   });
 
   it("keeps the changed words and the hits of a line too long to colour", () => {

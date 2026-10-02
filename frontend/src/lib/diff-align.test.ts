@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MAX_CELLS, SIMILARITY_THRESHOLD, alignLines, similarity } from "./diff-align";
+import { budget } from "./perf-budget";
 
 const rows = (pairs: ReturnType<typeof alignLines>) => pairs.map(([l, r]) => `${l ?? "-"}:${r ?? "-"}`).join(" ");
 
@@ -77,6 +78,6 @@ describe("alignLines", () => {
       Array.from({ length: k }, (_, i) => `${tag}(${Array.from({ length: 60 }, (_, t) => `arg${(i + t) % 13}`).join(", ")});`);
     const start = performance.now();
     alignLines(long("f", 100), long("g", 100));
-    expect(performance.now() - start).toBeLessThan(50);
+    expect(performance.now() - start).toBeLessThan(budget(50));
   });
 });

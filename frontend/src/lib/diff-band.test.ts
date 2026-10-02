@@ -19,6 +19,7 @@ import { alignModel } from "./diff-aligned";
 import { buildBlocks } from "./diff-blocks";
 import type { FoldEntry, Gap } from "./diff-fold";
 import type { DiffRow } from "./ipc";
+import { budget } from "./perf-budget";
 
 interface Span {
   fromTop: number;
@@ -262,6 +263,6 @@ describe("block connectors", () => {
     const big = model(...rows.slice(0, 60_000));
     const t0 = performance.now();
     for (let i = 0; i < 100; i++) blockConnectors(big, view(18 * 30_000, 600), view(18 * 30_000, 600), 18);
-    expect(performance.now() - t0).toBeLessThan(100);
+    expect(performance.now() - t0).toBeLessThan(budget(100));
   });
 });

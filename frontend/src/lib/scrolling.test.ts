@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Segment } from "$lib/ipc";
 import { GRAPH, segmentCurve, visibleRange } from "./graph-geometry";
+import { budget } from "./perf-budget";
 
 /** Per-frame cost only: it must not grow with history size. Real FPS is not measured.
     Segments belong to their row, so a frame touches the rows on screen and nothing else. */
@@ -35,7 +36,7 @@ describe("scrolling a 50 000 row history", () => {
     const elapsed = performance.now() - started;
 
     expect(curves).toBeLessThan((rowsOnScreen + 30) * 2);
-    expect(elapsed).toBeLessThan(FRAME_BUDGET_MS);
+    expect(elapsed).toBeLessThan(budget(FRAME_BUDGET_MS));
   });
 
   it("renders a bounded number of rows however far down the user scrolls", () => {

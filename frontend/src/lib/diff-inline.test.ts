@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { blockInline, tokenize } from "./diff-inline";
+import { budget } from "./perf-budget";
 
 const slice = (line: string, ranges: [number, number][]) => ranges.map(([a, b]) => line.slice(a, b));
 
@@ -72,7 +73,7 @@ describe("blockInline", () => {
     const other = lines.map((l) => l.replace("compute", "calc"));
     const t0 = performance.now();
     expect(blockInline(lines, other)).toBeNull();
-    expect(performance.now() - t0).toBeLessThan(50);
+    expect(performance.now() - t0).toBeLessThan(budget(50));
   });
 
   it("stays fast on a block under the cap with scattered edits", () => {
@@ -80,7 +81,7 @@ describe("blockInline", () => {
     const other = lines.map((l, i) => (i % 7 === 0 ? l.replace("compute", "calc") : l));
     const t0 = performance.now();
     const out = blockInline(lines, other)!;
-    expect(performance.now() - t0).toBeLessThan(50);
+    expect(performance.now() - t0).toBeLessThan(budget(50));
     expect(slice(other[0]!, out.right[0]!)).toEqual(["calc"]);
     expect(out.right[1]).toEqual([]);
   });
