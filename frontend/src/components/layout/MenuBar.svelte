@@ -124,12 +124,17 @@
     cursor: default;
   }
 
-  .title:hover {
-    background: var(--bg-hover);
+  /* Not --bg-hover: on the bar it is barely a shade off the titlebar in the dark themes, which
+     read as no hover at all on Linux. The drop-down rows use the same highlight. */
+  .title:hover,
+  .title:focus-visible {
+    background: var(--bg-selected);
+    outline: 0;
   }
 
   /* The open title and its drop-down are one surface. */
-  .title.open {
+  .title.open,
+  .title.open:hover {
     background: var(--bg-elevated);
   }
 
