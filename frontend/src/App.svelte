@@ -76,8 +76,6 @@
   import GitMissingDialog from "$components/layout/GitMissingDialog.svelte";
   import { GitMissingStore } from "$stores/git-missing.svelte";
   import { gitReasonOf } from "$lib/git-missing";
-  import PullDialog from "$components/menus/PullDialog.svelte";
-  import PushDialog from "$components/menus/PushDialog.svelte";
   import RemoteOpsDialog from "$components/remote/RemoteOpsDialog.svelte";
   import RepoSettingsDialog from "$components/remote/RepoSettingsDialog.svelte";
   import { remoteCommands, submoduleScope } from "$lib/remote-menu";
@@ -91,7 +89,6 @@
   import { checkedIds, disabledIds, rememberCommand, type PaletteCommand } from "$lib/palette";
   import type { Context } from "$lib/availability";
   import { localRevision, reasonOf, refAt, splitMarked, targetsOf, type MenuContext, type ToolbarFacts } from "$lib/toolbar";
-  import { currentRemote, headRemote, remotePlan, syncSteps, type SyncOrder } from "$lib/toolbar-prefs";
   import { toolbar } from "$stores/toolbar.svelte";
   import { stashDialog } from "$stores/stash-dialog.svelte";
   import { settle, step } from "$lib/panel-focus";
@@ -106,6 +103,7 @@
   import SelectionActions from "$components/menus/SelectionActions.svelte";
   import BisectActions from "$components/menus/BisectActions.svelte";
   import WorktreeActions from "$components/menus/WorktreeActions.svelte";
+  import NetworkActions from "$components/menus/NetworkActions.svelte";
   import { bisectCommands } from "$lib/bisect";
   import { appCommands, PANEL_TITLES, type AppCommandActions } from "$lib/app-commands";
   import { compareView } from "$stores/compare-view.svelte";
@@ -122,8 +120,7 @@
   import * as fileMenus from "$lib/ipc/file-menus";
   import { desktop } from "$stores/desktop.svelte";
   import { groupChoices, parseRepoCommand, repoMenu } from "$lib/repo-menu";
-  import { fetchAllTargets, listedName, listedRepos, type ListedRepo } from "$lib/repo-list";
-  import { eachAtMost, FETCH_ALL_LANES } from "$lib/fetch-all";
+  import { listedName, listedRepos, type ListedRepo } from "$lib/repo-list";
   import { rowSync, summaryPulse } from "$lib/repo-sync";
   import { removalQuestion, UNGROUPED } from "$lib/repo-groups";
   import { repoList } from "$stores/repo-list.svelte";
@@ -135,21 +132,8 @@
   import { abortAction, bannerQuestion, stateBanner, type BannerAction } from "$lib/repo-state";
   import { runCheckout } from "$lib/checkout-flow";
   import { autostashDialog } from "$stores/autostash-dialog.svelte";
-  import { networkApi, networkDialog } from "$stores/network-dialog.svelte";
-  import { networkDefaults, saveNetworkDefaults } from "$lib/ipc/network-dialogs";
-  import {
-    EMPTY_DEFAULTS,
-    fetchOptionsOf,
-    mergeDefaults,
-    pullChoiceOf,
-    pullOptionsOf,
-    pushChoiceOf,
-    pushOptionsOf,
-    pushTargetOf,
-    type PullChoice,
-    type PushChoice,
-  } from "$lib/network-dialogs";
-  import { pullFlow, pushFlow, type FlowUi } from "$lib/network-flow";
+  import { networkDialog } from "$stores/network-dialog.svelte";
+  import { trackedRemote } from "$lib/network-runs";
   import { refActivation, type CheckoutRequest } from "$lib/ref-checkout";
   import { foundStep } from "$lib/found";
   import { revealRef } from "$lib/ref-reveal";
@@ -181,7 +165,6 @@
     closeThisWindow,
     interactiveRebase,
     isPublished,
-    deleteMergedBranches,
     protectingRefs,
     rebaseProgress,
     rebaseTodo,
@@ -192,8 +175,6 @@
     mergeInto,
     stashSelection,
     fetchRemote,
-    listRemotes,
-    repoRefs,
     onMenuCommand,
     openInTerminal,
     runCheck,
@@ -325,7 +306,6 @@
   let checkVerdict = $state.raw<import("$lib/ipc").HookRun | null>(null);
   let checking = $state(false);
   let markedRepos = $state.raw<string[]>([]);
-  let bulk = $state.raw<import("$lib/operations").BulkProgress | undefined>(undefined);
   let journalOpen = $state(false);
   let journalBusy = $state(false);
   let paletteOpen = $state(false);
@@ -656,15 +636,10 @@
     undo: lastUndo !== null,
   });
 
-  const pullRemote = $derived(currentRemote(tracked?.upstream, network.remotes));
-  /** branch.<name>.pushRemote, else remote.pushDefault, as git itself pushes (D2). */
-  const pushRemote = $derived(
-    tracked?.pushRemote && network.remotes.includes(tracked.pushRemote) ? tracked.pushRemote : network.primary,
-  );
-
+  let networkActions = $state<ReturnType<typeof NetworkActions>>();
   const toolbarMenus = $derived<MenuContext>({
     remotes: network.remotes,
-    current: pullRemote,
+    current: networkActions?.currentPullRemote() ?? null,
     prefs: toolbar.prefs,
   });
 
@@ -673,7 +648,7 @@
   const remoteActions = remoteOps.actions({
     files: () => pickedFiles,
     changed: afterRefChange,
-    synchronize: () => void syncNow(),
+    synchronize: () => void networkActions?.syncNow(),
     repoSettings: () => (repoSettingsOpen = true),
   });
 
@@ -685,11 +660,11 @@
     open: () => void pickRepository(),
     clone: () => void openCloneWizard(),
     welcome: () => showWelcome(),
-    fetch: () => void runNetwork("fetch"),
-    pull: () => openPullDialog(),
-    "pull-defaults": () => pullNow(),
-    push: () => openPushDialog(),
-    "push-defaults": () => runNetwork("push"),
+    fetch: () => void networkActions?.run("fetch"),
+    pull: () => networkActions?.openPull(),
+    "pull-defaults": () => networkActions?.pullNow(),
+    push: () => networkActions?.openPush(),
+    "push-defaults": () => networkActions?.run("push"),
     stash: stashAll,
     "stash-selection": () => stashSelected(),
     tag: () => void refActions?.addTag(null),
@@ -767,7 +742,7 @@
       journalOpen = true;
       void safety.refresh();
     },
-    "fetch-all": () => void fetchAll(),
+    "fetch-all": () => void networkActions?.fetchAll(markedRepos),
     "reveal-log": () => void revealLog(),
     "copy-pr": () => {
       if (prUrl) void import("@tauri-apps/plugin-clipboard-manager").then((m) => m.writeText(prUrl));
@@ -832,7 +807,7 @@
         confirm: "Push and Open",
       });
       if (!push) return;
-      await runNetwork("push");
+      await networkActions?.run("push");
     }
     const { openUrl } = await import("@tauri-apps/plugin-opener");
     await openUrl(url);
@@ -1634,225 +1609,6 @@
     runningHooks = hooksNote(pendingHooks(overview, stage));
   }
 
-  async function runNetwork(kind: "fetch" | "pull" | "push") {
-    // One Pull everywhere: the remote HEAD tracks and the fast-forward setting (#26).
-    if (kind === "pull") return pullNow();
-    if (kind === "push" && refActions?.pushNeedsDialog()) return openPushDialog();
-    const id = repository.current?.repo;
-    const root = repository.current?.root;
-    const remote = kind === "fetch" ? pullRemote : pushRemote;
-    if (!id || !root) return;
-    if (!remote) {
-      errors.message("This repository has no remote.", `Could not ${kind}`);
-      return;
-    }
-    const epoch = repository.epoch;
-    try {
-      if (kind === "fetch") await network.fetch(id, remote);
-      else {
-        await announceHooks(id, "push");
-        await pushWithDefaults(id, remote);
-      }
-    } catch (err) {
-      errors.report(err, `Could not ${kind}`);
-      if (repository.epoch === epoch) await afterMutation();
-      return;
-    } finally {
-      runningHooks = undefined;
-    }
-    if (kind === "fetch") repoPulse.fetched(root);
-    if (repository.epoch !== epoch) return;
-    await (kind === "fetch" ? afterFetch(id) : afterRefChange(id));
-  }
-
-  /** Pull as the toolbar's own choices say: which remotes to fetch first, whether to delete
-      merged branches afterwards, and the fast-forward setting from Preferences (#26). Each
-      step waits for the one before; the first failure stops the rest. */
-  async function runRemoteSteps(steps: readonly ("pull" | "push")[], failure: string) {
-    const id = repository.current?.repo;
-    const root = repository.current?.root;
-    if (!id || !root) return;
-    const epoch = repository.epoch;
-    try {
-      const plan = remotePlan(steps, {
-        remotes: network.remotes,
-        pullRemote,
-        pushRemote,
-        scope: toolbar.prefs.pullScope,
-        ffOnly: settings.current.pullMode === "ffOnly",
-        deleteMerged: toolbar.prefs.deleteMergedAfterPull,
-        branch: tracked,
-      });
-      for (const step of plan) {
-        if (step.kind === "fetch") await network.fetch(id, step.remote);
-        if (step.kind === "pull") await pullWithDefaults(id, step.remote, step.ffOnly);
-        if (step.kind === "deleteMerged") await deleteMergedBranches(id);
-        if (step.kind === "push") await network.push(id, step.remote, false);
-      }
-    } catch (err) {
-      errors.report(err, failure);
-      if (repository.epoch === epoch) await afterMutation();
-      return;
-    }
-    if (steps.includes("pull")) repoPulse.fetched(root);
-    await afterRefChange(id);
-  }
-
-  const flowUi: FlowUi = {
-    ask: (request) => confirmation.ask(request),
-    report: (message, title) => errors.message(message, title),
-  };
-
-  /** What this repository remembers; a failed read means the plain defaults. */
-  async function defaultsOf(id: import("$lib/ipc").RepoId) {
-    return networkDefaults(id).catch((err) => {
-      errors.report(err, "Could not read the remembered Pull and Push options");
-      return EMPTY_DEFAULTS;
-    });
-  }
-
-  async function pullWithDefaults(id: import("$lib/ipc").RepoId, remote: string, ffOnly: boolean) {
-    const options = pullOptionsOf(pullChoiceOf(await defaultsOf(id)), ffOnly);
-    await pullFlow(networkApi, flowUi, id, remote, options);
-    successToast.show("Pull succeeded");
-  }
-
-  async function pushWithDefaults(id: import("$lib/ipc").RepoId, remote: string) {
-    const head = tracked;
-    if (!head) {
-      await network.push(id, remote, false);
-      return;
-    }
-    const target = pushTargetOf(head, network.remotes, network.primary);
-    const choice = pushChoiceOf(await defaultsOf(id), {
-      remote,
-      local: head.name,
-      branch: target.remote === remote ? target.branch : head.name,
-      hasUpstream: head.upstream !== null,
-    });
-    await pushFlow(networkApi, flowUi, id, pushOptionsOf(choice));
-    successToast.show("Push succeeded");
-  }
-
-  async function openPullDialog() {
-    const id = repository.current?.repo;
-    if (!id) return;
-    if (!pullRemote) {
-      errors.message("This repository has no remote.", "Could not pull");
-      return;
-    }
-    networkDialog.open = {
-      kind: "pull",
-      repo: id,
-      remote: pullRemote,
-      remotes: network.remotes,
-      ffOnly: settings.current.pullMode === "ffOnly",
-      defaults: await defaultsOf(id),
-    };
-  }
-
-  async function openPushDialog() {
-    const id = repository.current?.repo;
-    const head = tracked;
-    if (!id) return;
-    if (!head) {
-      errors.message("HEAD is not on a branch. Check out the branch you want to push.", "Could not push");
-      return;
-    }
-    const target = pushTargetOf(head, network.remotes, network.primary);
-    if (!target.remote) {
-      errors.message("This repository has no remote.", "Could not push");
-      return;
-    }
-    networkDialog.open = {
-      kind: "push",
-      repo: id,
-      remotes: network.remotes,
-      remote: target.remote,
-      branch: target.branch,
-      local: head.name,
-      upstream: head.upstream,
-      remoteBranches: (repository.current?.branches ?? []).filter((b) => b.kind === "remote").map((b) => b.name),
-      defaults: await defaultsOf(id),
-    };
-  }
-
-  /** The dialog is gone first, so the footer shows the run. */
-  async function runPullDialog(action: "pull" | "fetch", remote: string, choice: PullChoice, remember: boolean) {
-    const request = networkDialog.open;
-    const root = repository.current?.root;
-    if (request?.kind !== "pull" || !root) return;
-    networkDialog.close();
-    const id = request.repo;
-    const epoch = repository.epoch;
-    try {
-      if (remember) await saveNetworkDefaults(id, mergeDefaults(request.defaults, { pull: choice }));
-      if (action === "fetch") {
-        await pullFlow(networkApi, flowUi, id, remote, { fetchOnly: fetchOptionsOf(choice) });
-        successToast.show("Fetch succeeded");
-      } else {
-        await pullFlow(networkApi, flowUi, id, remote, pullOptionsOf(choice, request.ffOnly));
-        successToast.show("Pull succeeded");
-      }
-    } catch (err) {
-      errors.report(err, action === "pull" ? "Could not pull" : "Could not fetch");
-      if (repository.epoch === epoch) await afterMutation();
-      return;
-    }
-    repoPulse.fetched(root);
-    if (repository.epoch !== epoch) return;
-    await (action === "fetch" ? afterFetch(id) : afterRefChange(id));
-  }
-
-  async function runPushDialog(choice: PushChoice, remember: boolean) {
-    const request = networkDialog.open;
-    if (request?.kind !== "push") return;
-    networkDialog.close();
-    const id = request.repo;
-    const epoch = repository.epoch;
-    try {
-      if (remember) await saveNetworkDefaults(id, mergeDefaults(request.defaults, { push: choice }));
-      await announceHooks(id, "push");
-      await pushFlow(networkApi, flowUi, id, pushOptionsOf(choice));
-      successToast.show("Push succeeded");
-    } catch (err) {
-      errors.report(err, "Could not push");
-      if (repository.epoch === epoch) await afterMutation();
-      return;
-    } finally {
-      runningHooks = undefined;
-    }
-    if (repository.epoch !== epoch) return;
-    await afterRefChange(id);
-  }
-
-  function pullNow() {
-    return runRemoteSteps(["pull"], "Could not pull");
-  }
-
-  /** Sync ▸ an order: runs it, and the Sync button runs it from then on (#27). */
-  function syncNow(order: SyncOrder = toolbar.prefs.syncOrder) {
-    if (order !== toolbar.prefs.syncOrder) void toolbar.set("syncOrder", order);
-    return runRemoteSteps(syncSteps(order), "Could not sync");
-  }
-
-  /** One failure does not stop the other remotes. */
-  async function fetchRemotes(names: readonly string[]) {
-    const id = repository.current?.repo;
-    const root = repository.current?.root;
-    if (!id || !root) return;
-    const upstream = pullRemote;
-    for (const remote of names) {
-      try {
-        await network.fetch(id, remote);
-        if (remote === upstream) repoPulse.fetched(root);
-      } catch (err) {
-        errors.report(err, `Could not fetch ${remote}`);
-      }
-    }
-    await afterFetch(id);
-  }
-
   /** The Stash dialog: a name and Stash All, + Keep Index or + Keep Working Tree (#29). */
   async function stashAll() {
     const id = repository.current?.repo;
@@ -2601,49 +2357,6 @@
   }
 
 
-  /** One failure must not stop the rest: the point of Fetch All is not doing it by hand. */
-  async function fetchAll() {
-    const targets = fetchAllTargets(markedRepos, repository.openRepos);
-    if (targets.length === 0) return;
-
-    const watch = measure("fetch-all");
-    let failed = 0;
-    let done = 0;
-    bulk = { label: "Fetching", done: 0, total: targets.length };
-
-    await eachAtMost(targets, FETCH_ALL_LANES, async (entry) => {
-      try {
-        const remote = await trackedRemote(entry.repo);
-        if (remote) {
-          await fetchRemote(entry.repo, remote, () => {});
-          repoPulse.fetched(entry.root);
-        }
-      } catch (err) {
-        failed += 1;
-        errors.report(err, "Could not fetch");
-      }
-      done += 1;
-      bulk = { label: "Fetching", done, total: targets.length, failed };
-    });
-
-    bulk = undefined;
-    watch.stop(`${targets.length} repositories, ${failed} failed`);
-    await repository.refreshList();
-    // The panels reload only when they show one of those fetched, and keep their selection.
-    const shown = repository.current?.repo;
-    if (shown && targets.some((entry) => entry.repo === shown)) await afterFetch(shown);
-  }
-
-  /** For a repository the panels may not show: the remote its HEAD branch tracks, else
-      `origin`, else the first — what Pull in the toolbar uses for the one on screen. */
-  async function trackedRemote(id: import("$lib/ipc").RepoId): Promise<string | null> {
-    const [names, refs] = await Promise.all([
-      listRemotes(id).catch(() => [] as string[]),
-      repoRefs(id).catch(() => null),
-    ]);
-    return refs ? headRemote(refs, names) : currentRemote(null, names);
-  }
-
   /** The verdict is information. Nothing is aborted, continued or skipped on its account. */
   async function runPauseCheck() {
     const id = repo?.repo;
@@ -2931,7 +2644,7 @@
         return true;
       case "repo-pull":
       case "repo-push":
-        void syncListed(target, command.id === "repo-pull" ? "pull" : "push");
+        void networkActions?.syncListed(target, command.id === "repo-pull" ? "pull" : "push");
         return true;
       case "repo-update":
         if (target.kind === "submodule") {
@@ -2997,39 +2710,6 @@
     const next = repository.openRepos[0];
     if (next) await activate(next.root);
     else if (!last) graph.clear();
-  }
-
-  /** Pull or push the row's repository without bringing it to the front. */
-  async function syncListed(target: RepoMenuSubject, kind: "pull" | "push") {
-    if (target.kind === "repository" && isActive(target.overview)) {
-      await runNetwork(kind);
-      return;
-    }
-    const id =
-      target.kind === "repository"
-        ? (target.overview?.repo ?? null)
-        : ((await openedModule(target.row.key))?.repo ?? null);
-    if (id === null) return;
-    // As the toolbar does for the one on screen: pull from the tracked remote, push to
-    // origin (a fork's upstream is rarely writable).
-    const remote =
-      kind === "pull"
-        ? await trackedRemote(id)
-        : currentRemote(null, await listRemotes(id).catch(() => [] as string[]));
-    if (!remote) {
-      errors.message("This repository has no remote.", `Could not ${kind}`);
-      return;
-    }
-    try {
-      if (kind === "pull") {
-        await network.pull(id, remote, settings.current.pullMode === "ffOnly");
-        if (target.kind === "repository") repoPulse.fetched(target.root);
-      } else await network.push(id, remote, false);
-    } catch (err) {
-      errors.report(err, `Could not ${kind}`);
-    }
-    await repository.refreshList();
-    if (target.kind === "repository") repoPulse.changed(target.root);
   }
 
   async function renameListed(root: string, overview: import("$lib/ipc").RepoOverview | null) {
@@ -3450,7 +3130,7 @@
       running.size > 0 ||
       repository.busy ||
       network.running !== null ||
-      bulk !== undefined ||
+      networkActions?.bulkProgress() !== undefined ||
       graph.loading,
   );
   $effect(() =>
@@ -3550,7 +3230,7 @@
     if (kind === null) return undefined;
     return () => {
       output.close();
-      void runNetwork(kind);
+      void networkActions?.run(kind);
     };
   }
 
@@ -3662,11 +3342,11 @@
           push: actions.push,
           "pull-defaults": actions["pull-defaults"],
           "push-defaults": actions["push-defaults"],
-          sync: () => syncNow(),
+          sync: () => networkActions?.syncNow(),
           "sync-order": (order) =>
-            syncNow(order === "pushThenPull" ? "pushThenPull" : "pullThenPush"),
-          "fetch-remote": (remote) => fetchRemotes(remote ? [remote] : []),
-          "fetch-remotes": () => fetchRemotes(network.remotes),
+            networkActions?.syncNow(order === "pushThenPull" ? "pushThenPull" : "pullThenPush"),
+          "fetch-remote": (remote) => networkActions?.fetchRemotes(remote ? [remote] : []),
+          "fetch-remotes": () => networkActions?.fetchRemotes(network.remotes),
           "pull-scope": (scope) =>
             void toolbar.set("pullScope", scope === "all" ? "all" : "current"),
           "delete-merged": () =>
@@ -4286,12 +3966,17 @@
 
   <StashDialogs />
   <GitMissingDialog store={gitMissing} />
-  {#if networkDialog.open?.kind === "pull"}
-    <PullDialog request={networkDialog.open} onrun={runPullDialog} onclose={() => networkDialog.close()} />
-  {:else if networkDialog.open?.kind === "push"}
-    <PushDialog request={networkDialog.open} onpush={runPushDialog} onclose={() => networkDialog.close()} />
-  {/if}
-
+  <NetworkActions
+    bind:this={networkActions}
+    {tracked}
+    afterMutation={() => afterMutation()}
+    {afterFetch}
+    {afterRefChange}
+    pushNeedsDialog={() => refActions?.pushNeedsDialog() ?? false}
+    {openedModule}
+    {announceHooks}
+    hooksDone={() => (runningHooks = undefined)}
+  />
   {#if remoteOps.dialog}
     {#key remoteOps.dialog}
       <RemoteOpsDialog
@@ -4413,7 +4098,7 @@
     {...fileFormat(diff.diff)}
     activity={activity({
       operations: running,
-      bulk,
+      bulk: networkActions?.bulkProgress(),
       network: network.running ?? undefined,
       networkProgress: network.progress ?? undefined,
       hooks: runningHooks,
