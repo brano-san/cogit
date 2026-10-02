@@ -455,22 +455,14 @@ fn redact_arg(arg: &str) -> String {
     redact_url(arg)
 }
 
-/// `scheme://user:secret@host`, and over HTTP `scheme://token@host` too — GitHub's form
-/// of a token. An SSH user (`ssh://git@host`) is no secret; a refspec also carries colons.
+/// A URL argument with its credentials hidden; a refspec also carries colons, but no `://`.
 pub(crate) fn redact_url(arg: &str) -> String {
-    let Some((scheme, rest)) = arg.split_once("://") else {
-        return arg.to_owned();
-    };
-    // The host follows the last `@` before the path: a password may contain one.
-    let (authority, path) = rest.split_at(rest.find('/').unwrap_or(rest.len()));
-    let Some((credentials, host)) = authority.rsplit_once('@') else {
-        return arg.to_owned();
-    };
-    match credentials.split_once(':') {
-        Some((user, _)) => format!("{scheme}://{user}:{HIDDEN}@{host}{path}"),
-        None if crate::output_text::is_http(scheme) => format!("{scheme}://{HIDDEN}@{host}{path}"),
-        None => arg.to_owned(),
-    }
+    arg.split_once("://")
+        .and_then(|(scheme, rest)| {
+            crate::output_text::redact_authority(scheme, rest, HIDDEN)
+                .map(|safe| format!("{scheme}://{safe}"))
+        })
+        .unwrap_or_else(|| arg.to_owned())
 }
 
 /// Which `git` the writes actually go through. Run outside any repository, so it answers

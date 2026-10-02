@@ -83,9 +83,22 @@ fn redact_line(line: &str) -> String {
 
 /// Whether the scheme (or what ends in it, `url=https`) is HTTP, where a user alone before
 /// the host is a token.
-pub(crate) fn is_http(scheme: &str) -> bool {
+fn is_http(scheme: &str) -> bool {
     let lower = scheme.to_ascii_lowercase();
     lower.ends_with("http") || lower.ends_with("https")
+}
+
+/// What follows `scheme://`, its password (over HTTP also a lone token, GitHub's form) as
+/// `hidden`; an SSH user is no secret. One rule for command lines and output (INV-05).
+pub(crate) fn redact_authority(scheme: &str, address: &str, hidden: &str) -> Option<String> {
+    // The host follows the last `@` before the path: a password may contain one.
+    let (authority, path) = address.split_at(address.find('/').unwrap_or(address.len()));
+    let (credentials, host) = authority.rsplit_once('@')?;
+    match credentials.split_once(':') {
+        Some((user, _)) => Some(format!("{user}:{hidden}@{host}{path}")),
+        None if is_http(scheme) => Some(format!("{hidden}@{host}{path}")),
+        None => None,
+    }
 }
 
 /// `scheme://user:secret@host` and `http(s)://token@host`, anywhere in the line.
@@ -99,18 +112,9 @@ fn redact_urls(line: &str) -> String {
             .find(|c: char| c.is_whitespace() || c == '"' || c == '\'')
             .unwrap_or(tail.len());
         let (address, after) = tail.split_at(end);
-        // The host follows the last `@` before the path: a password may contain one.
-        let (authority, path) = address.split_at(address.find('/').unwrap_or(address.len()));
 
         out.push_str(before);
-        let http = is_http(&before[..before.len() - 3]);
-        match authority
-            .rsplit_once('@')
-            .and_then(|(creds, host)| match creds.split_once(':') {
-                Some((user, _)) => Some(format!("{user}:{HIDDEN}@{host}{path}")),
-                None if http => Some(format!("{HIDDEN}@{host}{path}")),
-                None => None,
-            }) {
+        match redact_authority(&before[..at], address, HIDDEN) {
             Some(safe) => out.push_str(&safe),
             None => out.push_str(address),
         }
@@ -243,4 +247,33 @@ fn by_bytes(text: &str) -> Option<String> {
 #[must_use]
 pub fn shown(text: &str) -> String {
     trim(&normalise(text))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::redact_authority;
+
+    #[test]
+    fn redact_authority_hides_only_secrets() {
+        let cases = [
+            ("https", "user:pw@host/o/r.git", Some("user:#@host/o/r.git")),
+            ("https", "ghp_token@host/o/r.git", Some("#@host/o/r.git")),
+            ("url=http", "token@host", Some("#@host")),
+            ("ssh", "git@host/o/r.git", None),
+            (
+                "https",
+                "user:p@ss@host/o/r.git",
+                Some("user:#@host/o/r.git"),
+            ),
+            ("https", "host/o/r.git", None),
+            ("https", "host/a@b", None),
+        ];
+        for (scheme, address, expected) in cases {
+            assert_eq!(
+                redact_authority(scheme, address, "#").as_deref(),
+                expected,
+                "{scheme}://{address}"
+            );
+        }
+    }
 }
