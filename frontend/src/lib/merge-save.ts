@@ -3,7 +3,7 @@ import { failureText } from "./merge-params";
 
 export interface SaveSteps {
   resolve: () => Promise<unknown>;
-  /** `merge_resolved`: the event that tells the main window. */
+  /** `merge-resolved`: the event that tells the main window. */
   announce: () => Promise<unknown>;
   /** The window may close now without asking about unsaved picks. */
   saved: () => void;

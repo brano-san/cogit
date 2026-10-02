@@ -15,6 +15,7 @@ pub struct RepoChanged {
 }
 
 /// A conflicted file was resolved in its own window; the main one refreshes on it.
+/// The page emits it itself, like `RevealCommit`.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
 #[serde(rename_all = "camelCase")]
 pub struct MergeResolved {

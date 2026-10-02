@@ -178,17 +178,6 @@ pub async fn merge_tools_running(
     .await
 }
 
-/// Told by the solver window once it has written the resolution.
-#[tauri::command]
-#[specta::specta]
-pub fn merge_resolved(app: tauri::AppHandle, repo: RepoId, path: String) -> Result<(), GitError> {
-    use tauri_specta::Event as _;
-
-    crate::MergeResolved { repo, path }
-        .emit(&app)
-        .map_err(|err| GitError::Internal(format!("cannot announce the resolution: {err}")))
-}
-
 /// The three sides merged into regions, for the four-panel view (doc/08-diff-engine.md §8).
 #[tauri::command]
 #[specta::specta]

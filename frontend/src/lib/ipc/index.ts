@@ -1044,9 +1044,10 @@ export async function onMergeToolFinished(handler: (event: MergeToolFinished) =>
   return await counted(events.mergeToolFinished.listen((event) => handler(event.payload)));
 }
 
-/** Told by the solver window once the resolution is written. */
+/** Told by the solver window once the resolution is written. The page emits it itself:
+    nothing on the backend has to happen in between. */
 export async function mergeResolved(repo: RepoId, path: string) {
-  return unwrap(await commands.mergeResolved(repo, path));
+  await events.mergeResolved.emit({ repo, path });
 }
 
 export async function onMergeResolved(handler: (event: MergeResolved) => void) {

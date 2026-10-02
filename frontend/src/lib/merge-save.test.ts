@@ -1,6 +1,23 @@
 import { describe, expect, it, vi } from "vitest";
 import { answerMergeResolved, saveResolution, type SaveSteps } from "./merge-save";
 
+const events = vi.hoisted(() => {
+  type Heard = (event: { payload: unknown }) => void;
+  const heard: Heard[] = [];
+  return {
+    mergeResolved: {
+      emit: vi.fn(async (payload: unknown) => heard.forEach((cb) => cb({ payload }))),
+      listen: vi.fn(async (cb: Heard) => {
+        heard.push(cb);
+        return () => {};
+      }),
+    },
+  };
+});
+vi.mock("@tauri-apps/api/core", () => ({ Channel: class {} }));
+// No commands: the solver's announcement goes out without a backend round trip.
+vi.mock("$lib/ipc/bindings", () => ({ commands: {}, events }));
+
 function steps(over: Partial<SaveSteps> = {}): { steps: SaveSteps; order: string[] } {
   const order: string[] = [];
   const step = (name: string) => vi.fn(async () => void order.push(name));
@@ -60,5 +77,19 @@ describe("the main window hearing of it", () => {
 
     expect(resolvedElsewhere).not.toHaveBeenCalled();
     expect(reload).not.toHaveBeenCalled();
+  });
+
+  it("hears the solver window's own event", async () => {
+    const { mergeResolved, onMergeResolved } = await import("$lib/ipc");
+    const resolvedElsewhere = vi.fn();
+    const reload = vi.fn(async () => {});
+    await onMergeResolved((event) =>
+      void answerMergeResolved(event, { shown: () => 1, resolvedElsewhere, reload }),
+    );
+
+    await mergeResolved(1, "a.txt");
+
+    expect(events.mergeResolved.emit).toHaveBeenCalledWith({ repo: 1, path: "a.txt" });
+    expect(resolvedElsewhere).toHaveBeenCalledWith("a.txt");
   });
 });

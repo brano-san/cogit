@@ -264,7 +264,6 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::conflicts::launch_merge_tool,
             commands::conflicts::cancel_merge_tool,
             commands::conflicts::merge_tools_running,
-            commands::conflicts::merge_resolved,
             commands::protecting_refs,
             commands::presets::export_preset,
             commands::presets::remove_preset,

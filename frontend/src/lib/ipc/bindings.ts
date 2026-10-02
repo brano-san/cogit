@@ -336,8 +336,6 @@ export const commands = {
 	cancelMergeTool: (repo: RepoId, path: string) => typedError<boolean, GitError>(__TAURI_INVOKE("cancel_merge_tool", { repo, path })),
 	/**  The files of `repo` an external tool is open on: a solver reloaded meanwhile stays locked. */
 	mergeToolsRunning: (repo: RepoId) => typedError<string[], GitError>(__TAURI_INVOKE("merge_tools_running", { repo })),
-	/**  Told by the solver window once it has written the resolution. */
-	mergeResolved: (repo: RepoId, path: string) => typedError<null, GitError>(__TAURI_INVOKE("merge_resolved", { repo, path })),
 	/**  The shared branches that already hold this commit; empty means it is safe to rewrite. */
 	protectingRefs: (repo: RepoId, rev: string) => typedError<string[], GitError>(__TAURI_INVOKE("protecting_refs", { repo, rev })),
 	/**  Saves the hook as it stands as a preset, so the next repository gets it in one click. */
@@ -1574,7 +1572,10 @@ export type MergeOptions = {
 	message: string | null,
 };
 
-/**  A conflicted file was resolved in its own window; the main one refreshes on it. */
+/**
+ *  A conflicted file was resolved in its own window; the main one refreshes on it.
+ *  The page emits it itself, like `RevealCommit`.
+ */
 export type MergeResolved = {
 	repo: RepoId,
 	path: string,
