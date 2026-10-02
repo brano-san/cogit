@@ -8,13 +8,14 @@
     actions: readonly DialogAction[];
     /** The primary action destroys data: it is `status.danger` and the focus starts on Cancel. */
     destructive?: boolean;
+    cancelLabel?: string;
   }
 
-  let { oncancel, actions, destructive = false }: Props = $props();
+  let { oncancel, actions, destructive = false, cancelLabel = "Cancel" }: Props = $props();
   const focus = $derived(initialFocus(destructive, actions));
 </script>
 
-<button type="button" class="btn" data-autofocus={focus === "cancel" || undefined} onclick={oncancel}>Cancel</button>
+<button type="button" class="btn" data-autofocus={focus === "cancel" || undefined} onclick={oncancel}>{cancelLabel}</button>
 {#each actions as action, i (action.label)}
   <button
     type="button"

@@ -366,30 +366,40 @@ pub(crate) fn elapsed_ms(started: std::time::Instant) -> u32 {
 #[cfg(windows)]
 pub(crate) const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-/// Preferences ▸ Git executable, set once at startup; until then, the `git` on PATH.
-static GIT_PROGRAM: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+/// Preferences ▸ Git executable; until it is set, the `git` on PATH.
+static GIT_PROGRAM: std::sync::RwLock<Option<std::path::PathBuf>> = std::sync::RwLock::new(None);
 
-/// The git every command runs from now on. Once per process: a later call is ignored.
+/// The git every command started from now on runs: at startup, and again when the user
+/// points to one while Cogit is open (R-700). A command already running keeps its own.
 pub fn use_git_program(program: std::path::PathBuf) {
-    if let Err(ignored) = GIT_PROGRAM.set(program) {
-        tracing::warn!(program = %ignored.display(), "the git program is set already");
+    match GIT_PROGRAM.write() {
+        Ok(mut held) => *held = Some(program),
+        Err(poisoned) => *poisoned.into_inner() = Some(program),
     }
 }
 
-fn git_program() -> &'static Path {
-    GIT_PROGRAM
-        .get()
-        .map_or_else(|| Path::new("git"), std::path::PathBuf::as_path)
+fn git_program() -> std::path::PathBuf {
+    let held = GIT_PROGRAM.read().map_or_else(
+        |poisoned| poisoned.into_inner().clone(),
+        |held| held.clone(),
+    );
+    held.unwrap_or_else(|| std::path::PathBuf::from("git"))
 }
 
-/// A git that does not start says which one: set in Preferences, it may not exist.
+/// A git that does not start says which one: set in Preferences, it may not exist. One
+/// that is not there at all is its own error, so the window can offer to find one.
 pub(crate) fn not_started(err: std::io::Error) -> GitError {
-    GitError::Io(format!("cannot run {}: {err}", git_program().display()))
+    let said = format!("cannot run {}: {err}", git_program().display());
+    if err.kind() == std::io::ErrorKind::NotFound {
+        GitError::GitNotFound(said)
+    } else {
+        GitError::Io(said)
+    }
 }
 
 /// What every `git` Cogit starts has, inside a repository or not.
 pub(crate) fn git_command() -> Command {
-    command_for(git_program())
+    command_for(&git_program())
 }
 
 pub(crate) fn command_for(program: &Path) -> Command {

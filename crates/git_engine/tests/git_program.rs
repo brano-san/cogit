@@ -21,4 +21,14 @@ fn the_git_set_at_startup_is_the_one_every_command_runs() {
         "{refused}"
     );
     assert!(git_engine::git_version().is_err());
+    assert!(matches!(
+        git_engine::RepoHandle::open(f.path())
+            .unwrap()
+            .run_git(&["status"]),
+        Err(git_engine::GitError::GitNotFound(_))
+    ));
+
+    // Pointing to another git while the app runs takes effect for the next command.
+    git_engine::use_git_program("git".into());
+    assert!(git_engine::git_version().is_ok());
 }

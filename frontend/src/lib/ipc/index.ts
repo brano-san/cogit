@@ -5,6 +5,7 @@ import { commands, events } from "./bindings";
 import type { WorktreeBranch } from "./bindings";
 import { counted } from "$lib/listener-count";
 import { webMenus } from "$stores/web-menus.svelte";
+import { GIT_NOT_FOUND_HINT } from "$lib/git-missing";
 import type {
   Author,
   ErrorAction,
@@ -213,6 +214,9 @@ function describeError(error: GitError): string {
       return error.data;
     case "io":
       return `I/O error: ${error.data}`;
+    case "gitNotFound":
+      return `${error.data}
+${GIT_NOT_FOUND_HINT}`;
     case "internal":
       return `Internal error: ${error.data}`;
     case "moduleUnavailable":
@@ -240,6 +244,14 @@ export function describeModuleProblem(problem: ModuleProblem): string {
     case "notARepository":
       return `Not a Git repository: ${problem.path}: ${problem.detail}`;
   }
+}
+
+export async function findGitCandidates() {
+  return unwrap(await commands.findGitCandidates());
+}
+
+export async function useGit(path: string) {
+  await commands.useGit(path);
 }
 
 export async function probeGit(path: string) {

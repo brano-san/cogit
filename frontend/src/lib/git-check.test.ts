@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createGitChecker, describeCheck, type GitCheck, type Probe } from "./git-check";
 
-const ok = (version: string): Probe => ({ valid: true, version, error: null });
+const ok = (version: string): Probe => ({ valid: true, version, error: null, olderThan: null });
 
 describe("createGitChecker", () => {
   beforeEach(() => vi.useFakeTimers());
@@ -41,7 +41,7 @@ describe("createGitChecker", () => {
   it("reports a failed probe and a rejected call as bad", async () => {
     const probe = vi
       .fn<(path: string) => Promise<Probe>>()
-      .mockResolvedValueOnce({ valid: false, version: null, error: "cannot run x" })
+      .mockResolvedValueOnce({ valid: false, version: null, error: "cannot run x", olderThan: null })
       .mockRejectedValueOnce(new Error("ipc down"));
     const seen: GitCheck[] = [];
     const checker = createGitChecker(probe, (c) => seen.push(c), 1);

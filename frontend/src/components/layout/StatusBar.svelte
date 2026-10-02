@@ -18,6 +18,9 @@
     /** Commands that failed or printed something on stderr; opens the Output panel. */
     problems?: number;
     onproblems?: () => void;
+    /** No working git: writes will fail. Opens the dialog that finds one. */
+    gitMissing?: boolean;
+    ongitmissing?: () => void;
     /** Present while a fetch, pull or push runs: stops its git (R-506). */
     oncancel?: () => void;
   }
@@ -35,6 +38,8 @@
     activity,
     problems = 0,
     onproblems,
+    gitMissing = false,
+    ongitmissing,
     oncancel,
   }: Props = $props();
 </script>
@@ -50,6 +55,13 @@
         /></svg
       >
       <span class="tabular">{problems}</span>
+    </button>
+    <span class="divider" aria-hidden="true"></span>
+  {/if}
+
+  {#if gitMissing}
+    <button type="button" class="foot-button problems" onclick={() => ongitmissing?.()} title="Git was not found: Cogit cannot change repositories. Click to fix.">
+      Git not found
     </button>
     <span class="divider" aria-hidden="true"></span>
   {/if}

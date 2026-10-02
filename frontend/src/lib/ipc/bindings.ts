@@ -12,6 +12,13 @@ export const commands = {
 	appInfo: () => typedError<AppInfo, GitError>(__TAURI_INVOKE("app_info")),
 	/**  Preferences ▸ Git executable: runs `<path> --version` with a timeout, off the main thread. */
 	probeGit: (path: string) => typedError<GitProbe, GitError>(__TAURI_INVOKE("probe_git", { path })),
+	/**  The usual places git lives that are not on PATH, each one that runs. */
+	findGitCandidates: () => typedError<GitCandidate[], GitError>(__TAURI_INVOKE("find_git_candidates")),
+	/**
+	 *  Runs git from `path` (empty: the one on PATH) from the next command on, so a git
+	 *  chosen in the missing-git dialog needs no restart.
+	 */
+	useGit: (path: string) => __TAURI_INVOKE<void>("use_git", { path }),
 	/**
 	 *  Help ▸ About ▸ Third-party licences. `frontend` is the list the Vite build shipped
 	 *  beside the page; the dev server has none.
@@ -1233,6 +1240,11 @@ export type Found = {
 
 export type FoundKind = "branch" | "tag" | "commit" | "file";
 
+export type GitCandidate = {
+	path: string,
+	version: string,
+};
+
 export type GitCommandError = {
 	/**  The journal entry this came from, so the window can offer the full record. */
 	id: number,
@@ -1255,7 +1267,9 @@ export type GitError =
  *  Boxed: it carries both streams, and an unboxed variant makes every `Result` in
  *  the crate as wide as the largest failure it could ever hold.
  */
-{ kind: "command"; data: GitCommandError } | { kind: "repoNotFound"; data: string } | { kind: "invalidState"; data: string } | { kind: "io"; data: string } | { kind: "internal"; data: string } | 
+{ kind: "command"; data: GitCommandError } | { kind: "repoNotFound"; data: string } | { kind: "invalidState"; data: string } | { kind: "io"; data: string } | 
+/**  The program to run is not there: no git on PATH, or the one set in Preferences is gone. */
+{ kind: "gitNotFound"; data: string } | { kind: "internal"; data: string } | 
 /**  A submodule that cannot be opened, with the reason rather than "not a repository". */
 { kind: "moduleUnavailable"; data: ModuleProblem } | 
 /**  Git refused a config file's text; nothing was written. */
@@ -1299,6 +1313,8 @@ export type GitProbe = {
 	valid: boolean,
 	version: string | null,
 	error: string | null,
+	/**  `2.45` when the version works but is older than `MIN_GIT`: a warning, not a refusal. */
+	olderThan: string | null,
 };
 
 export type GraphOverlay = {

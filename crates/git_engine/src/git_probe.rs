@@ -11,6 +11,8 @@ pub struct GitProbe {
     pub valid: bool,
     pub version: Option<String>,
     pub error: Option<String>,
+    /// `2.45` when the version works but is older than `MIN_GIT`: a warning, not a refusal.
+    pub older_than: Option<String>,
 }
 
 impl GitProbe {
@@ -19,6 +21,7 @@ impl GitProbe {
             valid: false,
             version: None,
             error: Some(error),
+            older_than: None,
         }
     }
 }
@@ -79,6 +82,13 @@ pub fn probe_git(program: &str, timeout: Duration) -> GitProbe {
     match parse_git_version(&stdout) {
         Some(version) if output.status.success() => GitProbe {
             valid: true,
+            older_than: crate::git_candidates::is_below_min_git(&version).then(|| {
+                format!(
+                    "{}.{}",
+                    crate::git_candidates::MIN_GIT.0,
+                    crate::git_candidates::MIN_GIT.1
+                )
+            }),
             version: Some(version),
             error: None,
         },

@@ -238,3 +238,26 @@ pub async fn probe_git(path: String) -> Result<git_engine::GitProbe, GitError> {
     })
     .await
 }
+
+/// The usual places git lives that are not on PATH, each one that runs.
+#[tauri::command]
+#[specta::specta]
+pub async fn find_git_candidates() -> Result<Vec<git_engine::GitCandidate>, GitError> {
+    blocking("find_git_candidates", || {
+        Ok(git_engine::find_git_candidates())
+    })
+    .await
+}
+
+/// Runs git from `path` (empty: the one on PATH) from the next command on, so a git
+/// chosen in the missing-git dialog needs no restart.
+#[tauri::command]
+#[specta::specta]
+pub fn use_git(path: String) {
+    let path = path.trim();
+    git_engine::use_git_program(std::path::PathBuf::from(if path.is_empty() {
+        "git"
+    } else {
+        path
+    }));
+}

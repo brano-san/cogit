@@ -63,7 +63,7 @@ fn git_release() -> Option<(u32, u32)> {
 }
 
 /// `git version 2.51.0.windows.1` → (2, 51).
-fn release_of(line: &str) -> Option<(u32, u32)> {
+pub(crate) fn release_of(line: &str) -> Option<(u32, u32)> {
     let mut numbers = line
         .strip_prefix("git version ")?
         .split(|c: char| !c.is_ascii_digit())

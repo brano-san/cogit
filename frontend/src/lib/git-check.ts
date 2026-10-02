@@ -3,6 +3,8 @@ export interface Probe {
   valid: boolean;
   version: string | null;
   error: string | null;
+  /** The minimum, when this git works but is older than it. */
+  olderThan: string | null;
 }
 
 export type GitCheck =

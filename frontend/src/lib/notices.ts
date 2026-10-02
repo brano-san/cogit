@@ -1,5 +1,5 @@
 import { CogitError, type GitCommandError, type GitError, type GitOutput } from "$lib/ipc";
-import type { HealthAction, HealthPlace, HealthWarning } from "$lib/health";
+import { FIX_GIT, type HealthAction, type HealthPlace, type HealthWarning } from "$lib/health";
 import { logLines } from "$lib/output-highlight";
 
 /** `info` is how an operation the user started ended; it never counts as an error. */
@@ -84,7 +84,7 @@ export function asCogitError(value: unknown): CogitError | null {
 /** `title` says what did not work — the operation, never "Cogit stopped" (R-178). */
 export function errorNotice(error: CogitError, title: string, seq: number): Notice {
   if (error.detail.kind === "command") return commandNotice(error.detail.data);
-  return {
+  const notice: Notice = {
     key: `error:${seq}`,
     severity: "error",
     title,
@@ -92,6 +92,8 @@ export function errorNotice(error: CogitError, title: string, seq: number): Noti
     report: `${title}\n${error.message}`,
     repeats: 1,
   };
+  if (error.detail.kind === "gitNotFound") notice.action = { id: FIX_GIT, label: "Fix…", targets: [] };
+  return notice;
 }
 
 export function warningNotice(warning: HealthWarning): Notice {

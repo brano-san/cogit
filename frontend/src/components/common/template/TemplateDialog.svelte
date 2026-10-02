@@ -14,10 +14,12 @@
     destructive?: boolean;
     /** The first thing wrong with the form, shown left of the buttons in `status.danger`. */
     status?: string | null;
+    /** For a dialog whose way out is not a cancel: `Continue without git`. */
+    cancelLabel?: string;
     children: Snippet;
   }
 
-  let { title, onclose, actions, destructive = false, status = null, children }: Props = $props();
+  let { title, onclose, actions, destructive = false, status = null, cancelLabel = "Cancel", children }: Props = $props();
 </script>
 
 <Dialog
@@ -32,7 +34,7 @@
 
   {#snippet footer()}
     {#if status}<span class="status" role="alert">{status}</span>{/if}
-    <DialogFooter oncancel={onclose} {actions} {destructive} />
+    <DialogFooter oncancel={onclose} {actions} {destructive} {cancelLabel} />
   {/snippet}
 </Dialog>
 

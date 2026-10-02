@@ -73,6 +73,9 @@
   import { cloneRepository, type CloneRequest } from "$lib/ipc/clone";
   import PromptDialog from "$components/layout/PromptDialog.svelte";
   import StashDialogs from "$components/layout/StashDialogs.svelte";
+  import GitMissingDialog from "$components/layout/GitMissingDialog.svelte";
+  import { GitMissingStore } from "$stores/git-missing.svelte";
+  import { gitReasonOf } from "$lib/git-missing";
   import PullDialog from "$components/menus/PullDialog.svelte";
   import PushDialog from "$components/menus/PushDialog.svelte";
   import RemoteOpsDialog from "$components/remote/RemoteOpsDialog.svelte";
@@ -220,6 +223,9 @@
     removeIndexLock,
     trustDirectory,
     showRepository,
+    probeGit,
+    findGitCandidates,
+    useGit,
     type AppInfo,
     type Branch,
     type RepoId,
@@ -237,7 +243,7 @@
   import { errors } from "$stores/errors.svelte";
   import { errorWindow } from "$stores/error-window.svelte";
   import { notices } from "$stores/notices.svelte";
-  import { FETCH_MODULES, MAINTENANCE, RUN_GC, TRUST_DIRECTORY } from "$lib/health";
+  import { FETCH_MODULES, FIX_GIT, MAINTENANCE, RUN_GC, TRUST_DIRECTORY } from "$lib/health";
   import { hooksNote, pendingHooks } from "$lib/pending-hooks";
   import { output } from "$stores/output.svelte";
   import { taskbar } from "$stores/taskbar.svelte";
@@ -298,6 +304,12 @@
   let running = $state.raw<Map<number, string>>(new Map());
   /** Network operations whose git the footer's Cancel can stop, oldest first. */
   let networkOps = $state.raw<number[]>([]);
+  const gitMissing = new GitMissingStore({
+    probe: probeGit,
+    candidates: findGitCandidates,
+    apply: useGit,
+    save: (path) => settings.set("gitPath", path),
+  });
   let info = $state<AppInfo | null>(null);
   /** The last update check this session, for the line in About. */
   let lastUpdate = $state.raw<UpdateOutcome | null>(null);
@@ -434,6 +446,8 @@
         diff.whitespace = settings.current.ignoreWhitespace;
         // Only after the settings are read: the tick is what permits the network call.
         // And after the info: a portable build never checks.
+        // Off the critical path: the probe has its own 5 s timeout and nothing waits for it.
+        void gitMissing.check(settings.current.gitPath);
         await infoRead;
         if (settings.current.autoUpdate) void runUpdateCheck(true);
       });
@@ -1754,6 +1768,10 @@
   /** A warning's own button. Fetching is the one fix Cogit runs for the user: it changes
       nothing but the submodule's object database (R-179). */
   async function runNoticeAction(action: import("$lib/health").HealthAction) {
+    if (action.id === FIX_GIT) {
+      gitMissing.reopen(gitReasonOf(notices.current?.body ?? ""));
+      return;
+    }
     const maintenance = MAINTENANCE[action.id];
     if (maintenance) {
       const id = repository.current?.repo;
@@ -4722,6 +4740,7 @@
   {/if}
 
   <StashDialogs />
+  <GitMissingDialog store={gitMissing} />
   {#if networkDialog.open?.kind === "pull"}
     <PullDialog request={networkDialog.open} onrun={runPullDialog} onclose={() => networkDialog.close()} />
   {:else if networkDialog.open?.kind === "push"}
@@ -4876,6 +4895,8 @@
     })}
     problems={output.problems}
     onproblems={() => output.toggle()}
+    gitMissing={gitMissing.missing}
+    ongitmissing={() => gitMissing.reopen(null)}
     oncancel={networkOps.length > 0 ? cancelNetworkOperation : undefined}
   />
 

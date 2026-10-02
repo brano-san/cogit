@@ -100,6 +100,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
         .commands(collect_commands![
             commands::app_info,
             commands::probe_git,
+            commands::find_git_candidates,
+            commands::use_git,
             commands::open_third_party_licences,
             commands::open_repository,
             commands::reread_repository,

@@ -61,6 +61,10 @@ pub enum GitError {
     #[error("io error: {0}")]
     Io(String),
 
+    /// The program to run is not there: no git on PATH, or the one set in Preferences is gone.
+    #[error("git was not found: {0}")]
+    GitNotFound(String),
+
     #[error("internal error: {0}")]
     Internal(String),
 

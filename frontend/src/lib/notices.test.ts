@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@tauri-apps/api/core", () => ({ Channel: class {} }));
 vi.mock("$lib/ipc/bindings", () => ({ commands: {}, events: {} }));
 
-const { placesShown, PLACES_SHOWN, pushError } = await import("./notices");
+const { placesShown, PLACES_SHOWN, pushError, errorNotice } = await import("./notices");
+const { CogitError } = await import("$lib/ipc");
 
 const places = (count: number) =>
   Array.from({ length: count }, (_, i) => ({ label: `dtv_device [import/m${i}]` }));
@@ -50,5 +51,18 @@ describe("pushError", () => {
     const next = pushError(queue, error("command:8", "rejected", 8));
     expect(next.map((notice) => notice.key)).toEqual(["command:8", "command:1"]);
     expect(next[0]?.repeats).toBe(2);
+  });
+});
+
+describe("errorNotice for a git that did not start", () => {
+  it("keeps git's words, adds the hint and offers Fix…", () => {
+    const notice = errorNotice(
+      new CogitError({ kind: "gitNotFound", data: "cannot run git: os error 2" }),
+      "Commit failed",
+      1,
+    );
+    expect(notice.body).toContain("cannot run git: os error 2");
+    expect(notice.body).toContain("Fix…");
+    expect(notice.action).toEqual({ id: "fix-git", label: "Fix…", targets: [] });
   });
 });

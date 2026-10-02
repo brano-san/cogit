@@ -26,6 +26,8 @@ export interface HealthAction {
   targets: string[];
 }
 
+/** The notice of a git that could not start: reopens the missing-git dialog. */
+export const FIX_GIT = "fix-git";
 export const FETCH_MODULES = "fetch-modules";
 export const TRUST_DIRECTORY = "trust-directory";
 export const RUN_GC = "run-gc";
