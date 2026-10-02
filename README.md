@@ -86,6 +86,29 @@ Under WSL, run `wsl --shutdown` from Windows after installing so that WSLg reloa
 icons; otherwise the taskbar keeps the generic Linux penguin. Cogit then also appears in
 the Windows Start menu, in the folder of the distribution.
 
+### Linux requirements
+
+Cogit needs glibc 2.35 or newer (the release is built on Ubuntu 22.04) and these runtime
+libraries. A missing one is reported by the dynamic loader before Cogit starts (for example
+`libwebkit2gtk-4.1.so.0: cannot open shared object file`); Cogit cannot show its own message
+for that, so install them first:
+
+```sh
+# Debian / Ubuntu
+sudo apt install libwebkit2gtk-4.1-0 libgtk-3-0 libayatana-appindicator3-1 librsvg2-2 \
+  libsoup-3.0-0 libjavascriptcoregtk-4.1-0 libssl3 libdbus-1-3 libsecret-1-0 libxdo3 git
+# Fedora
+sudo dnf install webkit2gtk4.1 gtk3 libappindicator-gtk3 librsvg2 libsoup3 openssl \
+  dbus-libs libsecret xdotool git
+# Arch
+sudo pacman -S webkit2gtk-4.1 gtk3 libayatana-appindicator librsvg libsoup3 openssl \
+  libsecret xdotool git
+```
+
+The `.deb` pulls these in itself. Without `git`, Cogit starts and offers to find or install
+one. On Windows a missing WebView2 Runtime is reported in a message box with the download
+link.
+
 `cogit --version` and `cogit --help` print and exit without opening a window.
 
 ## Portable build

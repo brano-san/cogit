@@ -25,6 +25,7 @@ mod solver_window;
 mod taskbar;
 #[cfg(windows)]
 mod webview2;
+mod webview2_check;
 mod webview_memory;
 mod window_chrome;
 mod window_place;
@@ -370,6 +371,10 @@ pub fn export_bindings() -> anyhow::Result<()> {
 pub fn run() -> anyhow::Result<()> {
     // First: the environment is read once by everything that follows (portable build only).
     let portable = portable_mode::activate()?;
+
+    // Before the builder: without the runtime no window can exist, so the user is told here.
+    #[cfg(windows)]
+    webview2_check::require();
 
     // Before GTK starts: the Wayland app_id and the X11 WM_CLASS follow the program name,
     // and the shell matches them to `cogit.desktop` for the icon.
