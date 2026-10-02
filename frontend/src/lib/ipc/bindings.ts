@@ -18,7 +18,7 @@ export const commands = {
 	 *  Runs git from `path` (empty: the one on PATH) from the next command on, so a git
 	 *  chosen in the missing-git dialog needs no restart.
 	 */
-	useGit: (path: string) => __TAURI_INVOKE<void>("use_git", { path }),
+	useGit: (path: string) => typedError<null, GitError>(__TAURI_INVOKE("use_git", { path })),
 	/**
 	 *  Help ▸ About ▸ Third-party licences. `frontend` is the list the Vite build shipped
 	 *  beside the page; the dev server has none.

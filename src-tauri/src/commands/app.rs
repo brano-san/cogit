@@ -253,11 +253,15 @@ pub async fn find_git_candidates() -> Result<Vec<git_engine::GitCandidate>, GitE
 /// chosen in the missing-git dialog needs no restart.
 #[tauri::command]
 #[specta::specta]
-pub fn use_git(path: String) {
-    let path = path.trim();
-    git_engine::use_git_program(std::path::PathBuf::from(if path.is_empty() {
-        "git"
-    } else {
-        path
-    }));
+pub async fn use_git(path: String) -> Result<(), GitError> {
+    blocking("use_git", move || {
+        let path = path.trim();
+        git_engine::use_git_program(std::path::PathBuf::from(if path.is_empty() {
+            "git"
+        } else {
+            path
+        }));
+        Ok(())
+    })
+    .await
 }

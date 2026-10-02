@@ -251,7 +251,7 @@ export async function findGitCandidates() {
 }
 
 export async function useGit(path: string) {
-  await commands.useGit(path);
+  unwrap(await commands.useGit(path));
 }
 
 export async function probeGit(path: string) {
