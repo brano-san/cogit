@@ -54,18 +54,25 @@ jobs:
       - name: No color literals outside the theme files
         run: npm --prefix frontend run check:colors
 
-      # Failures are also printed as annotations: the job log needs admin rights to download,
-      # the annotations of a public repository do not.
+      # A failure is also printed as ONE annotation with every failed test and its panic
+      # message: the job log needs admin rights to download, the annotations of a public
+      # repository do not, and a step shows only 10 of them.
       - name: Rust tests
         shell: bash
         run: |
-          status=0
-          cargo nextest run --workspace --exclude cogit --no-fail-fast 2>&1 | tee nextest.log || status=${PIPESTATUS[0]}
-          sed 's/\x1b\[[0-9;]*m//g' nextest.log > nextest.plain.log
-          grep -E '^\s+(FAIL|SIGABRT|SIGSEGV|TIMEOUT|LEAK) \[' nextest.plain.log | sort -u | while read -r line; do echo "::error::$line"; done
-          grep -E -A1 'panicked at' nextest.plain.log | grep -v '^--' | head -40 | while read -r line; do echo "::error::$line"; done
-          [ "$status" -eq 0 ] || exit "$status"
-          cargo test -p cogit --lib
+          set +e
+          cargo nextest run --workspace --exclude cogit --no-fail-fast 2>&1 | tee nextest.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            bash .github/scripts/annotate-failures.sh nextest.log "Rust test failures"
+            exit "$status"
+          fi
+          cargo test -p cogit --lib 2>&1 | tee cogit-lib.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            bash .github/scripts/annotate-failures.sh cogit-lib.log "cogit lib test failures"
+            exit "$status"
+          fi
 
       - name: Frontend tests
         run: npm --prefix frontend run test -- --reporter=default --reporter=github-actions
