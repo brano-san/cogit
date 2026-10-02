@@ -42,7 +42,7 @@ pub async fn load_commits(
     Ok(skipped)
 }
 
-/// Columns of the rows (`app_state::graph_wire`) in base64: one string for the
+/// Columns of the rows in base64 (`AppState::graph_window_wire`): one string for the
 /// `postMessage` transport to carry, not a JSON array of numbers (R-192, R-194). Empty
 /// once a newer graph replaced `generation`, as the answer would be for other rows.
 #[tauri::command]
@@ -57,11 +57,7 @@ pub async fn graph_window(
     let app_state = state.state.clone();
     // Blocking: a window with texts nobody read yet reads up to `count` commits from disk.
     blocking("graph_window", move || {
-        let window = app_state.graph_window(repo, generation, start, count);
-        let bytes = window
-            .map(|w| app_state::graph_wire::encode(&w))
-            .unwrap_or_default();
-        Ok(diff_engine::base64(&bytes))
+        Ok(app_state.graph_window_wire(repo, generation, start, count))
     })
     .await
 }

@@ -773,6 +773,23 @@ impl AppState {
         })
     }
 
+    /// [`Self::graph_window`] in the wire format (`graph_wire`) as base64: one string for
+    /// the `postMessage` transport (R-192, R-194). Empty once a newer graph replaced it.
+    #[must_use]
+    pub fn graph_window_wire(
+        &self,
+        repo: RepoId,
+        generation: u32,
+        start: u32,
+        count: u32,
+    ) -> String {
+        let window = self.graph_window(repo, generation, start, count);
+        let bytes = window
+            .map(|w| crate::graph_wire::encode(&w))
+            .unwrap_or_default();
+        diff_engine::base64(&bytes)
+    }
+
     /// The row of `oid` in graph `generation`. A scan: fifty thousand comparisons are well
     /// under a millisecond, and an index would cost every load instead of the rare lookup.
     #[must_use]

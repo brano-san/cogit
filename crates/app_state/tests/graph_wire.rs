@@ -1,8 +1,8 @@
 // clippy.toml's allow-unwrap-in-tests does not reach helpers beside `#[test]` fns.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use app_state::{GraphWindow, graph_wire};
-use git_engine::CommitRow;
+use app_state::{AppState, GraphWindow, graph_wire};
+use git_engine::{CommitQuery, CommitRow};
 use graph_engine::{GraphRow, LongLink, NodeKind, Segment, Span};
 
 /// The same bytes are decoded by `frontend/src/lib/graph-wire.test.ts`.
@@ -105,6 +105,30 @@ fn the_buffer_is_as_long_as_its_columns() {
         bytes.len(),
         32 + columns + segments * (2 + 2 + 1 + 1) + links * (2 + 40) + text
     );
+}
+
+#[test]
+fn the_wire_window_is_the_encoded_window_in_base64() {
+    let f = test_fixtures::linear(6).unwrap();
+    let state = AppState::new();
+    let repo = state.open_repository(f.path()).unwrap().repo;
+    let build = |state: &AppState| {
+        let generation = state.begin_graph();
+        state
+            .build_graph(repo, &CommitQuery::default(), generation, 100, |_| true)
+            .unwrap();
+        generation
+    };
+    let old = build(&state);
+    let newest = build(&state);
+
+    let window = state.graph_window(repo, newest, 1, 4).unwrap();
+    assert_eq!(
+        state.graph_window_wire(repo, newest, 1, 4),
+        diff_engine::base64(&graph_wire::encode(&window))
+    );
+    assert!(state.graph_window(repo, old, 0, 4).is_none());
+    assert_eq!(state.graph_window_wire(repo, old, 0, 4), "");
 }
 
 #[test]

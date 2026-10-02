@@ -36,7 +36,7 @@ export const commands = {
 	 */
 	loadCommits: (repo: RepoId, query: CommitQuery, onProgress: Channel<GraphProgress>) => typedError<SkippedRef[], GitError>(__TAURI_INVOKE("load_commits", { repo, query, onProgress })),
 	/**
-	 *  Columns of the rows (`app_state::graph_wire`) in base64: one string for the
+	 *  Columns of the rows in base64 (`AppState::graph_window_wire`): one string for the
 	 *  `postMessage` transport to carry, not a JSON array of numbers (R-192, R-194). Empty
 	 *  once a newer graph replaced `generation`, as the answer would be for other rows.
 	 */
