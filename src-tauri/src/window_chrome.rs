@@ -62,6 +62,40 @@ pub fn hide_native_menu<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>) {
     if let Err(err) = window.hide_menu() {
         tracing::warn!(error = %err, "cannot hide the native menu bar");
     }
+    #[cfg(target_os = "linux")]
+    keep_gtk_menubar_hidden(window);
+}
+
+/// GTK shows a hidden widget again whenever the window is shown (`show_all`): the window is
+/// created invisible and shown later, so `hide_menu` alone leaves a second menu bar above the
+/// page's own. `no_show_all` makes the bar skip every later `show_all`; its accelerators keep
+/// working, they belong to the window's accelerator group, not to the visible widget.
+#[cfg(target_os = "linux")]
+fn keep_gtk_menubar_hidden<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>) {
+    use gtk::glib::object::{Cast, ObjectExt};
+    use gtk::prelude::{BinExt, ContainerExt, WidgetExt};
+
+    fn walk(widget: &gtk::Widget) {
+        if widget.is::<gtk::MenuBar>() {
+            widget.set_no_show_all(true);
+            widget.hide();
+            return;
+        }
+        if let Some(container) = widget.downcast_ref::<gtk::Container>() {
+            for child in container.children() {
+                walk(&child);
+            }
+        }
+    }
+
+    let handle = window.clone();
+    if let Err(err) = window.run_on_main_thread(move || {
+        if let Some(child) = handle.gtk_window().ok().and_then(|window| window.child()) {
+            walk(&child);
+        }
+    }) {
+        tracing::warn!(error = %err, "cannot reach the GTK window to hide its menu bar");
+    }
 }
 
 #[cfg(test)]
