@@ -256,10 +256,7 @@ impl RepoHandle {
         self.repo
             .config_snapshot()
             .string(format!("remote.{remote}.url").as_str())
-            .map_or_else(
-                || self.root().to_string_lossy().replace('\\', "/"),
-                |url| url.to_string(),
-            )
+            .map_or_else(|| crate::slash_path(self.root()), |url| url.to_string())
     }
 
     /// `init` also registers the submodule in `.git/config`, which a plain update skips.

@@ -176,3 +176,28 @@ pub type Result<T> = std::result::Result<T, GitError>;
 
 pub use apply::PatchTarget;
 pub use find::InvestigationStep;
+
+/// A path as it crosses IPC: `/` on every platform.
+#[must_use]
+pub fn slash_path(path: &std::path::Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::slash_path;
+    use std::path::Path;
+
+    #[test]
+    fn every_backslash_becomes_a_slash_and_nothing_else_changes() {
+        let cases = [
+            (r"C:\Users\Аня\repo", "C:/Users/Аня/repo"),
+            (r"\\?\C:\x", "//?/C:/x"),
+            (r"\\?\UNC\srv\share", "//?/UNC/srv/share"),
+            ("/home/ann/repo", "/home/ann/repo"),
+        ];
+        for (path, shown) in cases {
+            assert_eq!(slash_path(Path::new(path)), shown);
+        }
+    }
+}

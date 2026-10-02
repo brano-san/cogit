@@ -83,7 +83,7 @@ impl AppState {
             |name| name.to_string_lossy().into_owned(),
         );
         // As `worktree_heads()` writes paths.
-        let wanted = path.replace('\\', "/");
+        let wanted = git_engine::slash_path(std::path::Path::new(path));
         let checkout = handle
             .worktree_heads()?
             .into_iter()

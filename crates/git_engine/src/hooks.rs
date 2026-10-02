@@ -256,7 +256,7 @@ impl RepoHandle {
             .collect();
 
         Ok(HookOverview {
-            active_dir: dir.to_string_lossy().replace('\\', "/"),
+            active_dir: crate::slash_path(&dir),
             source,
             configured_path: self.configured_hooks_path(),
             available_path: self.available_hooks_path(),

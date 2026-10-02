@@ -73,7 +73,7 @@ impl AppState {
         let options = git_engine::discover::ScanOptions { max_depth };
         git_engine::discover::scan_cancellable(root, &options, cancelled, |found| {
             on_found(ScanHit {
-                root: found.path.to_string_lossy().replace('\\', "/"),
+                root: git_engine::slash_path(&found.path),
                 name: found.name,
                 bare: found.bare,
                 already_open: self.find_by_root(&found.path).is_some(),
@@ -183,7 +183,7 @@ impl AppState {
 
         Ok(RepoSummary {
             repo: id,
-            root: root.to_string_lossy().replace('\\', "/"),
+            root: git_engine::slash_path(&root),
             name,
             is_bare: handle.is_bare(),
             head,

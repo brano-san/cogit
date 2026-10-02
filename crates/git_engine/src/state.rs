@@ -98,8 +98,7 @@ impl RepoHandle {
     #[must_use]
     pub fn index_lock(&self) -> Option<String> {
         let lock = self.git_dir().join("index.lock");
-        lock.exists()
-            .then(|| lock.to_string_lossy().replace('\\', "/"))
+        lock.exists().then(|| crate::slash_path(&lock))
     }
 
     /// Removes `index.lock` only when `git_running` says no git process could own it.

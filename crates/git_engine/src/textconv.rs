@@ -35,7 +35,7 @@ impl RepoHandle {
         file.write_all(bytes)?;
         file.flush()?;
         let alias = format!("alias.cogit-textconv=!{command}");
-        let target = file.path().to_string_lossy().replace('\\', "/");
+        let target = crate::slash_path(file.path());
         let mut process = self.base_git(&["-c", &alias, "cogit-textconv", &target]);
         let output = crate::children::output(&mut process)?;
         if !output.status.success() {

@@ -38,14 +38,14 @@ pub fn status_for(preset: Preset, root: &Path, user: bool) -> PresetStatus {
             .tool
             .as_ref()
             .and_then(git_engine::find_tool)
-            .map(|path| path.to_string_lossy().replace(char::from(92), "/")),
+            .map(|path| git_engine::slash_path(&path)),
         searched: preset
             .tool
             .as_ref()
             .map(git_engine::tool_search_places)
             .unwrap_or_default()
             .into_iter()
-            .map(|place| place.replace(char::from(92), "/"))
+            .map(|place| git_engine::slash_path(Path::new(&place)))
             .collect(),
         tool: preset.tool.as_ref().map(|tool| tool.command.clone()),
         install_hint: preset.tool.as_ref().map(|tool| tool.install_hint.clone()),

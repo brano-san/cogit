@@ -96,7 +96,7 @@ impl RepoHandle {
                 Ok(path) if full => self.describe(path, false, locked, &here),
                 Ok(path) => self.outline(path, false, locked, &here, proxy.git_dir()),
                 Err(_) => WorktreeEntry {
-                    path: proxy.git_dir().display().to_string().replace('\\', "/"),
+                    path: crate::slash_path(proxy.git_dir()),
                     name: proxy.id().to_string(),
                     branch: None,
                     head: String::new(),
@@ -474,12 +474,7 @@ fn unread(
 /// The folder as git spells it: git lists worktrees by real path, so a symlink or a
 /// Windows 8.3 name (`RUNNER~1`) would never equal its own entry.
 fn normalise(path: &std::path::Path) -> String {
-    let real = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-    let shown = real.display().to_string().replace('\\', "/");
-    match shown.strip_prefix("//?/") {
-        Some(plain) if plain.as_bytes().get(1) == Some(&b':') => plain.to_owned(),
-        _ => shown,
-    }
+    crate::slash_path(&portable::real_path(path))
 }
 
 /// Git takes a folder that is missing or empty; the dialog asks before it runs `worktree add`.

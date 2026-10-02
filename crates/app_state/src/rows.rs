@@ -84,7 +84,7 @@ impl AppState {
         let mut row = RepoOverview {
             repo: open.id,
             name: open.display_name.clone(),
-            root: open.root.to_string_lossy().replace('\\', "/"),
+            root: git_engine::slash_path(&open.root),
             branch: None,
             ahead: 0,
             behind: 0,

@@ -88,7 +88,7 @@ pub fn read_config(path: &Path) -> Result<ConfigFile> {
     };
     let crlf = raw.as_deref().is_some_and(|text| text.contains("\r\n"));
     Ok(ConfigFile {
-        path: path.to_string_lossy().replace('\\', "/"),
+        path: crate::slash_path(path),
         text: raw.as_deref().unwrap_or_default().replace("\r\n", "\n"),
         crlf,
         exists: raw.is_some(),

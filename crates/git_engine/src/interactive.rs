@@ -270,10 +270,7 @@ impl RepoHandle {
 
         // Git runs the sequence editor through a shell with the todo path appended, so
         // copying our file over it is all the "editing" that is needed.
-        let editor = format!(
-            "cp {}",
-            shell_quote(&todo.to_string_lossy().replace('\\', "/"))
-        );
+        let editor = format!("cp {}", shell_quote(&crate::slash_path(&todo)));
         let result =
             self.run_git_with_env(&["rebase", "-i", base], &[("GIT_SEQUENCE_EDITOR", &editor)]);
         let _ = std::fs::remove_file(&todo);

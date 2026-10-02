@@ -120,13 +120,9 @@ pub fn case_sensitive(dir: &Path) -> std::io::Result<bool> {
     Ok(sensitive)
 }
 
-fn safe_directory_path(root: &Path) -> String {
-    root.to_string_lossy().replace('\\', "/")
-}
-
 impl RepoHandle {
     pub fn trust_directory(&self) -> crate::Result<()> {
-        let path = safe_directory_path(self.root());
+        let path = crate::slash_path(self.root());
         self.run_git(&["config", "--global", "--add", "safe.directory", &path])?;
         Ok(())
     }
@@ -186,7 +182,7 @@ impl RepoHandle {
         let mut issues = Vec::new();
         if self.repo.git_dir_trust() == gix::sec::Trust::Reduced {
             issues.push(HealthIssue::UnsafeDirectory {
-                path: safe_directory_path(self.root()),
+                path: crate::slash_path(self.root()),
             });
         }
         if let Some(issue) = self.ignore_case_issue() {

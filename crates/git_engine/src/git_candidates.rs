@@ -189,13 +189,11 @@ impl Lookup for System {
 
     // Case-folded as well: Windows paths are, and one file must not be two entries.
     fn canonical(&self, path: &Path) -> PathBuf {
-        let real = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-        let text = real.to_string_lossy().into_owned();
-        let plain = text.strip_prefix(r"\\?\").unwrap_or(&text);
+        let real = portable::real_path(path);
         if cfg!(windows) {
-            PathBuf::from(plain.to_lowercase())
+            PathBuf::from(real.to_string_lossy().to_lowercase())
         } else {
-            PathBuf::from(plain)
+            real
         }
     }
 }

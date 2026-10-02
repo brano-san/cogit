@@ -109,22 +109,28 @@ pub fn binary_folder(exe: &Path, appimage: Option<&Path>) -> Option<PathBuf> {
 }
 
 /// `\\?\C:\x` becomes `C:\x`: the prefix `canonicalize` adds on Windows is not welcome to
-/// every consumer of the path (WebView2's profile folder among them). UNC forms stay.
+/// every consumer of the path (WebView2's profile folder among them). UNC and device forms
+/// stay: without the prefix they name something else.
 #[must_use]
 pub fn strip_verbatim(path: &Path) -> PathBuf {
     let text = path.to_string_lossy();
     match text.strip_prefix(r"\\?\") {
-        Some(rest) if !rest.starts_with("UNC\\") => PathBuf::from(rest),
+        Some(rest) if rest.as_bytes().get(1) == Some(&b':') => PathBuf::from(rest),
         _ => path.to_path_buf(),
     }
 }
 
+/// `canonicalize` without the verbatim prefix; a path it cannot resolve stays as given.
+#[must_use]
+pub fn real_path(path: &Path) -> PathBuf {
+    strip_verbatim(&path.canonicalize().unwrap_or_else(|_| path.to_path_buf()))
+}
+
 /// The real folder of this process's binary, symlinks followed.
 pub fn locate() -> Result<PathBuf, Error> {
-    let real = |path: PathBuf| strip_verbatim(&path.canonicalize().unwrap_or(path));
     let exe = std::env::current_exe().map_err(|err| Error::NoBinaryFolder(err.to_string()))?;
-    let appimage = std::env::var_os("APPIMAGE").map(PathBuf::from).map(real);
-    binary_folder(&real(exe), appimage.as_deref())
+    let appimage = std::env::var_os("APPIMAGE").map(|path| real_path(Path::new(&path)));
+    binary_folder(&real_path(&exe), appimage.as_deref())
         .ok_or_else(|| Error::NoBinaryFolder("the executable has no parent folder".into()))
 }
 

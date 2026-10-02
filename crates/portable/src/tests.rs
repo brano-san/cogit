@@ -74,6 +74,27 @@ fn the_verbatim_prefix_is_dropped_but_unc_stays() {
         strip_verbatim(Path::new("/opt/cogit")),
         PathBuf::from("/opt/cogit")
     );
+    assert_eq!(
+        strip_verbatim(Path::new(r"C:\Users\Cogit")),
+        PathBuf::from(r"C:\Users\Cogit")
+    );
+    let device = r"\\?\Volume{0b6c2a51-0000-0000-0000-100000000000}\Cogit";
+    assert_eq!(strip_verbatim(Path::new(device)), PathBuf::from(device));
+}
+
+#[test]
+fn a_real_path_is_resolved_and_an_unresolvable_one_kept_without_the_prefix() {
+    let dir = tempfile::tempdir().unwrap();
+    let real = real_path(dir.path());
+    assert!(!real.to_string_lossy().starts_with(r"\\?\"), "{real:?}");
+    assert_eq!(real, strip_verbatim(&dir.path().canonicalize().unwrap()));
+
+    let missing = dir.path().join("missing");
+    assert_eq!(real_path(&missing), missing);
+    assert_eq!(
+        real_path(Path::new(r"\\?\C:\cogit-missing\x")),
+        PathBuf::from(r"C:\cogit-missing\x")
+    );
 }
 
 #[cfg(unix)]
