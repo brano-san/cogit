@@ -45,8 +45,20 @@ jobs:
       - name: Format
         run: cargo fmt --all --check
 
+      # The first errors, in order, as one annotation: the log needs admin rights, and a step
+      # shows only 10 annotations, which on a cascade of "can't find crate" hides the cause.
       - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        shell: bash
+        run: |
+          set +e
+          cargo clippy --workspace --all-targets -- -D warnings 2>&1 | tee clippy.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            sed 's/\x1b\[[0-9;]*m//g' clippy.log | grep -E -B2 -A12 '^error|linking with|ld:|mold' | head -150 > clippy.errors
+            msg=$(awk 'BEGIN { ORS = "%0A" } { gsub(/%/, "%25"); gsub(/\r/, "%0D"); print }' clippy.errors | head -c 60000)
+            echo "::error title=Clippy::$msg"
+            exit "$status"
+          fi
 
       - name: Type-check the frontend
         run: npm --prefix frontend run check
