@@ -92,7 +92,7 @@
   import { hasStale, othersToWatch, removable } from "$lib/worktree-list";
   import { fileFormat, shortOid } from "$lib/format";
   import { checkedIds, disabledIds, rememberCommand, type PaletteCommand } from "$lib/palette";
-  import { reasonFor, type Context } from "$lib/availability";
+  import type { Context } from "$lib/availability";
   import { localRevision, reasonOf, refAt, splitMarked, targetsOf, type MenuContext, type ToolbarFacts } from "$lib/toolbar";
   import { currentRemote, headRemote, remotePlan, syncSteps, type SyncOrder } from "$lib/toolbar-prefs";
   import { toolbar } from "$stores/toolbar.svelte";
@@ -109,6 +109,7 @@
   import SelectionActions from "$components/menus/SelectionActions.svelte";
   import BisectActions from "$components/menus/BisectActions.svelte";
   import { bisectCommands } from "$lib/bisect";
+  import { appCommands, PANEL_TITLES, type AppCommandActions } from "$lib/app-commands";
   import { compareView } from "$stores/compare-view.svelte";
   import { confirmation } from "$stores/confirm.svelte";
   import { undoRewriteQuestion } from "$lib/undo-rewrite";
@@ -279,16 +280,6 @@
   import { stashView } from "$stores/stash-view.svelte";
   import { buildRefTree, visibleTips, type RefNode } from "$lib/ref-nodes";
   import { withTracked } from "$lib/selected-refs";
-
-  const PANEL_TITLES: Record<PanelId, string> = {
-    repositories: "Repositories",
-    refs: "References",
-    graph: "Graph",
-    files: "Files",
-    commit: "Commit Message",
-    diff: "Diff",
-    worktrees: "Worktrees",
-  };
 
   const measure = measurer((label, ms, detail) => void reportTiming(label, ms, detail));
 
@@ -696,420 +687,143 @@
   /** The palette shows each command's keys as the menu has them (11 §12, rule 5). */
   const menuKeys = $derived(effective(settings.bindings, settings.keymap));
 
-  const palette = $derived.by<PaletteCommand[]>(() => {
-    const noRepo = reasonFor({ repository: true }, commands);
-    const noRemote = reasonFor({ remote: true }, commands);
+  /** One action per command id: the palette, the native menu and the toolbar run these. */
+  const actions: AppCommandActions = {
+    open: () => void pickRepository(),
+    clone: () => void openCloneWizard(),
+    welcome: () => showWelcome(),
+    fetch: () => void runNetwork("fetch"),
+    pull: () => openPullDialog(),
+    "pull-defaults": () => pullNow(),
+    push: () => openPushDialog(),
+    "push-defaults": () => runNetwork("push"),
+    stash: stashAll,
+    "stash-selection": () => stashSelected(),
+    tag: () => void refActions?.addTag(null),
+    stage: () => stage(targetsOf("stage", toolbarFacts)),
+    unstage: () => unstage(targetsOf("unstage", toolbarFacts)),
+    commit: () => void commitBox.commit(),
+    "commit-amend": () => void commitBox.commit(true),
+    "commit-window": () => {
+      const current = repository.current;
+      if (current) void openCommitWindow(current.repo, current.root);
+    },
+    "commit-message": () => void commitBox.focus(),
+    undo: () => undo(),
+    output: () => output.toggle(),
+    "copy-path": () => void copyText(diff.path ?? ""),
+    "copy-branch": () => void copyText(tracked?.name ?? ""),
+    "copy-sha": () => void copyText(commit.oid ?? ""),
+    "rebase-i": () => void openRebase(),
+    "flow-init": () => void runFlow(() => flow.init(repo!.repo)),
+    flowStart: (kind) => askFlowStart(kind),
+    "flow-finish": () => askFlowFinish(),
+    "split-off": () => void openSplit(),
+    rollback: () => void rollbackFiles([]),
+    close: () => void closeCurrent(),
+    refresh: () => void repository.refresh(),
+    branch: () => void runBannerAction("createBranch"),
+    "reset-layout": () => layout.reset(),
+    overlap: () => overlap.toggle(),
+    avatars: () =>
+      void settings.apply({
+        ...settings.current,
+        avatars: settings.current.avatars === "gravatar" ? "off" : "gravatar",
+      }),
+    hooks: () => {
+      const id = repository.current?.repo;
+      if (id) void hooks.show(id);
+    },
+    "perspective-main": () => layout.switch("main"),
+    "perspective-review": () => layout.switch("review"),
+    "maximize-panel": () => layout.toggleMaximized(focused),
+    "worktree-add": () => openAddWorktree(),
+    "worktree-remove": () => {
+      const entry = worktrees.current;
+      if (removable(entry)) void removeWorktreeAt(entry);
+    },
+    "worktree-prune": () => void pruneWorktreesHere(),
+    "resolve-conflicts": () => openSolverAt(conflicts.path ?? conflicts.paths[0]),
+    "undo-rewrite": () => void undoLastRewrite(),
+    "range-diff": () => void showRangeDiff(),
+    "maintenance-gc": () => void runNoticeAction({ id: RUN_GC, label: "Run gc…", targets: [] }),
+    togglePanel: (panel) => layout.togglePanel(panel),
+    palette: () => {
+      if (commit.oid) void learnProtection(commit.oid);
+      paletteOpen = true;
+    },
+    "check-updates": () => void runUpdateCheck(),
+    "edit-config-repository": () => void openConfig("repository"),
+    "edit-config-user": () => void openConfig("user"),
+    exit: () => {
+      // No window is being closed by hand, so the dialog must not say one is.
+      exitFlow.fromCommand();
+      // Closed in Rust (R-86): the webview is not allowed `window.close`, and the refusal
+      // was silent — Exit from the menu, Alt+X and the palette did nothing (R-190).
+      void closeThisWindow().catch(() => exitFlow.takeSource());
+    },
+    about: () => (aboutOpen = info !== null),
+    settings: () => openSettings(),
+    find: () => (finderOpen = true),
+    pr: () => void openPullRequest(),
+    scan: () => {
+      scanOpen = true;
+      void browseForScan();
+    },
+    journal: () => {
+      journalOpen = true;
+      void safety.refresh();
+    },
+    "fetch-all": () => void fetchAll(),
+    "reveal-log": () => void revealLog(),
+    "copy-pr": () => {
+      if (prUrl) void import("@tauri-apps/plugin-clipboard-manager").then((m) => m.writeText(prUrl));
+    },
+    blame: () => void showBlame(),
+    abort: () => {
+      const action = abortAction(banner);
+      if (action) void runBannerAction(action);
+    },
+  };
 
-    return [
-      { id: "open", title: "Open Repository…", run: () => void pickRepository() },
+  const palette = $derived<PaletteCommand[]>([
+    ...appCommands(
       {
-        id: "clone",
-        title: "Clone Repository…",
-        synonyms: ["git clone", "download a repository", "check out from a server"],
-        run: () => void openCloneWizard(),
+        context: commands,
+        toolbar: toolbarFacts,
+        lastUndo: lastUndo !== null,
+        diffPath: diff.path,
+        branch: tracked !== undefined,
+        commitOid: commit.oid,
+        flow: { initialised: flow.status.initialised, current: Boolean(flow.current) },
+        protectedBy,
+        worktrees: { removable: removable(worktrees.current), stale: hasStale(worktrees.entries) },
+        conflicts: conflicts.paths.length,
+        prReason,
+        logPath: Boolean(info?.logPath),
+        banner,
+        openCount: repository.openRepos.length,
       },
+      actions,
+    ),
+    ...bisectCommands(repo?.state, (action) => bisectActions?.command(action)),
+    ...remoteCommands(
       {
-        id: "welcome",
-        title: "Welcome…",
-        synonyms: ["start", "recent repositories", "reopen", "new repository", "git init"],
-        run: () => showWelcome(),
+        repository: repo !== null,
+        remote: Boolean(network.primary),
+        changes: worktree.total > 0,
+        submodules: submoduleScope({
+          children: submodules.children,
+          open: submodules.open,
+          selected: pickedFiles,
+        }).choices.length,
+        lfs: remoteOps.lfs,
+        files: pickedFiles,
+        syncBlocked: reasonOf("sync", toolbarFacts),
       },
-      { id: "fetch", title: "Fetch", unavailable: noRepo ?? noRemote, run: () => void runNetwork("fetch") },
-      { id: "pull", title: "Pull…", unavailable: reasonOf("pull", toolbarFacts), run: () => void openPullDialog() },
-      {
-        id: "pull-defaults",
-        title: "Pull with Defaults",
-        unavailable: reasonOf("pull", toolbarFacts),
-        run: () => void pullNow(),
-      },
-      { id: "push", title: "Push…", unavailable: reasonOf("push", toolbarFacts), run: () => void openPushDialog() },
-      {
-        id: "push-defaults",
-        title: "Push with Defaults",
-        unavailable: reasonOf("push", toolbarFacts),
-        run: () => void runNetwork("push"),
-      },
-      {
-        id: "stash",
-        title: "Stash All",
-        synonyms: ["shelve"],
-        unavailable: reasonOf("stash", toolbarFacts),
-        run: stashAll,
-      },
-      {
-        id: "stash-selection",
-        title: "Stash Selection",
-        synonyms: ["shelve some"],
-        // The ticks may be a commit's files now; only the working tree's can be stashed.
-        unavailable: noRepo ?? reasonOf("stash-selection", toolbarFacts),
-        run: () => void stashSelected(),
-      },
-      { id: "tag", title: "Create Tag", unavailable: reasonOf("tag", toolbarFacts), run: () => void refActions?.addTag(null) },
-      {
-        id: "stage",
-        title: "Stage",
-        unavailable: reasonOf("stage", toolbarFacts),
-        run: () => void stage(targetsOf("stage", toolbarFacts)),
-      },
-      {
-        id: "unstage",
-        title: "Unstage",
-        unavailable: reasonOf("unstage", toolbarFacts),
-        run: () => void unstage(targetsOf("unstage", toolbarFacts)),
-      },
-      // The box decides whether it can commit: with Amend ticked nothing has to be staged.
-      {
-        id: "commit",
-        title: "Commit Staged",
-        unavailable: noRepo,
-        run: () => void commitBox.commit(),
-      },
-      {
-        id: "commit-amend",
-        title: "Commit with Amend",
-        unavailable: noRepo,
-        run: () => void commitBox.commit(true),
-      },
-      {
-        id: "commit-window",
-        title: "Commit…",
-        unavailable: noRepo,
-        run: () => {
-          const current = repository.current;
-          if (current) void openCommitWindow(current.repo, current.root);
-        },
-      },
-      {
-        id: "commit-message",
-        title: "Go to the Commit Message",
-        unavailable: noRepo,
-        run: () => void commitBox.focus(),
-      },
-      {
-        id: "undo",
-        title: "Undo Last Operation",
-        unavailable: lastUndo ? undefined : "Nothing to undo",
-        run: () => void undo(),
-      },
-      { id: "output", title: "Toggle Output Panel", run: () => output.toggle() },
-      {
-        id: "copy-path",
-        title: "Copy the File Path",
-        unavailable: diff.path ? undefined : "No file is open in the Diff panel",
-        run: () => void copyText(diff.path ?? ""),
-      },
-      {
-        id: "copy-branch",
-        title: "Copy the Branch Name",
-        unavailable: tracked ? undefined : "HEAD is not on a branch",
-        run: () => void copyText(tracked?.name ?? ""),
-      },
-      {
-        id: "copy-sha",
-        title: "Copy the Commit SHA",
-        unavailable: commit.oid ? undefined : "Select a commit first",
-        run: () => void copyText(commit.oid ?? ""),
-      },
-      {
-        id: "rebase-i",
-        title: "Rebase Commits After This One…",
-        synonyms: ["interactive rebase", "squash", "reorder"],
-        unavailable: commit.oid ? undefined : "Select a commit first",
-        run: () => void openRebase(),
-      },
-      {
-        id: "flow-init",
-        title: "Git-Flow: Set Up",
-        synonyms: ["gitflow", "develop branch"],
-        unavailable: noRepo ?? (flow.status.initialised ? "Already set up" : undefined),
-        run: () => void runFlow(() => flow.init(repo!.repo)),
-      },
-      ...(["feature", "release", "hotfix"] as const).map((kind) => ({
-        id: `flow-${kind}`,
-        title: `Git-Flow: Start ${kind[0]?.toUpperCase()}${kind.slice(1)}…`,
-        synonyms: ["gitflow", kind],
-        unavailable: noRepo ?? (flow.status.initialised ? undefined : "Set up Git-Flow first"),
-        run: () => askFlowStart(kind),
-      })),
-      {
-        id: "flow-finish",
-        title: "Git-Flow: Finish This Branch…",
-        synonyms: ["gitflow", "merge back"],
-        unavailable: flow.current ? undefined : "Not on a Git-Flow branch",
-        run: () => askFlowFinish(),
-      },
-      {
-        id: "split-off",
-        title: "Split Off Files…",
-        synonyms: ["split commit", "surgery"],
-        unavailable: !commit.oid
-          ? "Select a commit first"
-          : protectedBy.length > 0
-            ? `Already on ${protectedBy.join(", ")}`
-            : undefined,
-        run: () => void openSplit(),
-      },
-      {
-        id: "rollback",
-        title: "Roll Back Tree To This Commit",
-        synonyms: ["restore", "revert files"],
-        unavailable: commit.oid ? undefined : "Select a commit first",
-        run: () => void rollbackFiles([]),
-      },
-      {
-        id: "close",
-        title: "Close Repository",
-        unavailable: noRepo,
-        run: () => void closeCurrent(),
-      },
-      { id: "refresh", title: "Refresh", unavailable: noRepo, run: () => void repository.refresh() },
-      {
-        id: "branch",
-        title: "New Branch…",
-        unavailable: noRepo,
-        run: () => void runBannerAction("createBranch"),
-      },
-      { id: "reset-layout", title: "Reset Perspective", run: () => layout.reset() },
-      {
-        id: "overlap",
-        title: "Toggle Commit Overlap Column",
-        synonyms: ["who else touched", "conflict risk"],
-        run: () => overlap.toggle(),
-      },
-      {
-        id: "avatars",
-        title: "Toggle Author Avatars",
-        synonyms: ["gravatar", "pictures", "faces"],
-        run: () =>
-          void settings.apply({
-            ...settings.current,
-            avatars: settings.current.avatars === "gravatar" ? "off" : "gravatar",
-          }),
-      },
-      {
-        id: "hooks",
-        title: "Manage Hooks…",
-        synonyms: ["pre-commit", "git hooks"],
-        unavailable: noRepo,
-        run: () => {
-          const id = repository.current?.repo;
-          if (id) void hooks.show(id);
-        },
-      },
-      {
-        id: "perspective-main",
-        title: "Perspective: Main",
-        run: () => layout.switch("main"),
-      },
-      {
-        id: "perspective-review",
-        title: "Perspective: Review",
-        run: () => layout.switch("review"),
-      },
-      {
-        id: "maximize-panel",
-        title: "Maximize Panel",
-        synonyms: ["zoom", "full screen panel"],
-        run: () => layout.toggleMaximized(focused),
-      },
-      {
-        id: "worktree-add",
-        title: "Add Worktree…",
-        synonyms: ["worktree", "second checkout"],
-        unavailable: noRepo,
-        run: () => openAddWorktree(),
-      },
-      {
-        id: "worktree-remove",
-        title: "Remove Worktree…",
-        unavailable:
-          noRepo ??
-          (removable(worktrees.current)
-            ? undefined
-            : "Select a worktree other than the main one in the Worktrees panel"),
-        run: () => {
-          const entry = worktrees.current;
-          if (removable(entry)) void removeWorktreeAt(entry);
-        },
-      },
-      {
-        id: "worktree-prune",
-        title: "Prune Obsolete Worktrees…",
-        synonyms: ["worktree prune", "missing worktree"],
-        unavailable: noRepo ?? (hasStale(worktrees.entries) ? undefined : "No worktree is missing"),
-        run: () => void pruneWorktreesHere(),
-      },
-      {
-        id: "resolve-conflicts",
-        title: "Resolve Conflicts…",
-        synonyms: ["conflict solver", "merge", "3-way", "resolve", "conflicted"],
-        unavailable: noRepo ?? (conflicts.paths.length === 0 ? "No file is conflicted" : undefined),
-        run: () => openSolverAt(conflicts.path ?? conflicts.paths[0]),
-      },
-      {
-        id: "undo-rewrite",
-        title: "Undo Last Merge / Rebase / Reset…",
-        synonyms: ["ORIG_HEAD", "undo merge", "undo rebase", "undo reset"],
-        unavailable: noRepo,
-        run: () => void undoLastRewrite(),
-      },
-      {
-        id: "range-diff",
-        title: "Compare Before and After Rewrite",
-        synonyms: ["range-diff", "rebase", "ORIG_HEAD"],
-        unavailable: noRepo,
-        run: () => void showRangeDiff(),
-      },
-      {
-        id: "maintenance-gc",
-        title: "Run Maintenance (gc)…",
-        synonyms: ["gc", "garbage collect", "housekeeping", "repack"],
-        unavailable: noRepo,
-        run: () => void runNoticeAction({ id: RUN_GC, label: "Run gc…", targets: [] }),
-      },
-      ...PANELS.map((panel) => ({
-        id: `panel-${panel}`,
-        title: `Toggle ${PANEL_TITLES[panel]} Panel`,
-        run: () => layout.togglePanel(panel),
-      })),
-      {
-        id: "palette",
-        title: "Find Command",
-        run: () => {
-          if (commit.oid) void learnProtection(commit.oid);
-          paletteOpen = true;
-        },
-      },
-      {
-        id: "check-updates",
-        title: "Check for Updates",
-        run: () => void runUpdateCheck(),
-      },
-      {
-        id: "edit-config-repository",
-        title: "Edit Git Config: Repository",
-        synonyms: ["config", ".git/config", "settings", "remote"],
-        unavailable: noRepo,
-        run: () => void openConfig("repository"),
-      },
-      {
-        id: "edit-config-user",
-        title: "Edit Git Config: User",
-        synonyms: ["config", "gitconfig", "global", "user.name", "email"],
-        run: () => void openConfig("user"),
-      },
-      {
-        id: "exit",
-        title: "Exit",
-        synonyms: ["quit", "close"],
-        run: () => {
-          // No window is being closed by hand, so the dialog must not say one is.
-          exitFlow.fromCommand();
-          // Closed in Rust (R-86): the webview is not allowed `window.close`, and the refusal
-          // was silent — Exit from the menu, Alt+X and the palette did nothing (R-190).
-          void closeThisWindow().catch(() => exitFlow.takeSource());
-        },
-      },
-      {
-        id: "about",
-        title: "About Cogit",
-        run: () => (aboutOpen = info !== null),
-      },
-      {
-        id: "settings",
-        title: "Preferences",
-        synonyms: ["settings", "options", "customize toolbar", "toolbar buttons"],
-        run: () => openSettings(),
-      },
-      {
-        id: "find",
-        title: "Find Object",
-        synonyms: ["goto", "jump"],
-        unavailable: noRepo,
-        run: () => (finderOpen = true),
-      },
-      {
-        id: "pr",
-        title: "Create Pull Request",
-        synonyms: ["merge request", "pr", "mr"],
-        unavailable: prReason,
-        run: () => void openPullRequest(),
-      },
-      {
-        id: "scan",
-        title: "Scan Folder for Repositories",
-        synonyms: ["discover", "find repositories", "import"],
-        run: () => {
-          scanOpen = true;
-          void browseForScan();
-        },
-      },
-      {
-        id: "journal",
-        title: "Safety Journal",
-        synonyms: ["undo history", "recover", "what did I just do"],
-        unavailable: noRepo,
-        run: () => {
-          journalOpen = true;
-          void safety.refresh();
-        },
-      },
-      {
-        id: "fetch-all",
-        title: "Fetch All",
-        synonyms: ["update every repository"],
-        unavailable: repository.openRepos.length > 0 ? undefined : "No repository is open",
-        run: () => void fetchAll(),
-      },
-      {
-        id: "reveal-log",
-        title: "Reveal Log File",
-        synonyms: ["profiling", "diagnostics", "performance"],
-        unavailable: info?.logPath ? undefined : "The log path is not known yet",
-        run: () => void revealLog(),
-      },
-      {
-        id: "copy-pr",
-        title: "Copy Pull Request Link",
-        unavailable: prReason,
-        run: () => {
-          if (prUrl) void import("@tauri-apps/plugin-clipboard-manager").then((m) => m.writeText(prUrl));
-        },
-      },
-      {
-        id: "blame",
-        title: "Blame This File",
-        unavailable: diff.path ? undefined : "No file is open in the Diff panel",
-        run: () => void showBlame(),
-      },
-      {
-        id: "abort",
-        title: "Abort Operation In Progress",
-        unavailable: abortAction(banner) ? undefined : "Nothing is in progress",
-        run: () => {
-          const action = abortAction(banner);
-          if (action) void runBannerAction(action);
-        },
-      },
-      ...bisectCommands(repo?.state, (action) => bisectActions?.command(action)),
-      ...remoteCommands(
-        {
-          repository: repo !== null,
-          remote: Boolean(network.primary),
-          changes: worktree.total > 0,
-          submodules: submoduleScope({
-            children: submodules.children,
-            open: submodules.open,
-            selected: pickedFiles,
-          }).choices.length,
-          lfs: remoteOps.lfs,
-          files: pickedFiles,
-          syncBlocked: reasonOf("sync", toolbarFacts),
-        },
-        remoteActions,
-      ),
-    ];
-  });
+      remoteActions,
+    ),
+  ]);
 
   async function openPullRequest() {
     const url = prUrl;
@@ -4109,18 +3823,18 @@
     undoable={lastUndo?.description}
     handlers={repo
       ? {
-          undo: () => undo(),
-          stash: stashAll,
-          "stash-selection": () => stashSelected(),
+          undo: actions.undo,
+          stash: actions.stash,
+          "stash-selection": actions["stash-selection"],
           "quick-stash-all": () => quickStashAll(),
           "quick-stash-selection": () => stashSelected(false),
           "apply-stash": () => applyNewestStash(),
-          tag: () => void refActions?.addTag(null),
+          tag: actions.tag,
           "push-to": () => refActions?.pushToCurrent(),
-          pull: () => openPullDialog(),
-          push: () => openPushDialog(),
-          "pull-defaults": () => pullNow(),
-          "push-defaults": () => runNetwork("push"),
+          pull: actions.pull,
+          push: actions.push,
+          "pull-defaults": actions["pull-defaults"],
+          "push-defaults": actions["push-defaults"],
           sync: () => syncNow(),
           "sync-order": (order) =>
             syncNow(order === "pushThenPull" ? "pushThenPull" : "pullThenPush"),
@@ -4130,12 +3844,12 @@
             void toolbar.set("pullScope", scope === "all" ? "all" : "current"),
           "delete-merged": () =>
             void toolbar.set("deleteMergedAfterPull", !toolbar.prefs.deleteMergedAfterPull),
-          stage: () => stage(targetsOf("stage", toolbarFacts)),
-          unstage: () => unstage(targetsOf("unstage", toolbarFacts)),
+          stage: actions.stage,
+          unstage: actions.unstage,
           discard: () => void discardFromToolbar(targetsOf("discard", toolbarFacts)),
           merge: () => mergeSelected(),
           rebase: () => rebaseSelected(),
-          "rebase-i": () => void openRebase(),
+          "rebase-i": actions["rebase-i"],
         }
       : {}}
   />
