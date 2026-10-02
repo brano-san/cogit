@@ -105,21 +105,6 @@ impl AppState {
         self.handle(repo)?.add_to_gitignore(paths)
     }
 
-    pub fn delete_untracked(
-        &self,
-        repo: RepoId,
-        paths: &[String],
-    ) -> Result<(), git_engine::GitError> {
-        let _quiet = self.quiet(repo);
-        self.handle(repo)?.delete_untracked(paths)?;
-        self.record(
-            repo,
-            format!("Delete {} untracked path(s)", paths.len()),
-            Recovery::None,
-        );
-        Ok(())
-    }
-
     pub fn stage_mode(
         &self,
         repo: RepoId,

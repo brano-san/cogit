@@ -618,10 +618,6 @@ export async function undoEntry(repo: RepoId, id: number) {
   return unwrap(await commands.undoEntry(repo, id));
 }
 
-export async function undoLast(repo: RepoId) {
-  return unwrap(await commands.undoLast(repo));
-}
-
 export async function findObject(repo: RepoId, query: string, limit = 25) {
   return unwrap(await commands.findObject(repo, query, limit));
 }

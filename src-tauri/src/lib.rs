@@ -137,7 +137,6 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::command_problems,
             commands::clear_command_log,
             commands::safety_log,
-            commands::undo_last,
             commands::abort_operation,
             commands::continue_operation,
             commands::remove_index_lock,
@@ -212,7 +211,6 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::ref_dates,
             commands::other_refs,
             commands::add_to_gitignore,
-            commands::delete_untracked,
             commands::image_sides,
             commands::conflicts::conflicted_paths,
             commands::conflicts::conflict_text,
@@ -354,7 +352,6 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::presets::list_presets,
             commands::presets::install_preset,
             commands::diff_files,
-            commands::file_before,
             commands::investigate,
             commands::discard_selection
         ])

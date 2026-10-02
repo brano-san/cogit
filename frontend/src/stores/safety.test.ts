@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("$lib/ipc", () => ({ safetyLog: vi.fn(), undoEntry: vi.fn(), undoLast: vi.fn() }));
+vi.mock("$lib/ipc", () => ({ safetyLog: vi.fn(), undoEntry: vi.fn() }));
 
 const { safety } = await import("./safety.svelte");
 
@@ -41,7 +41,6 @@ describe("Undo in the toolbar", () => {
     await safety.undoShown(A);
 
     expect(ipc.undoEntry).toHaveBeenCalledWith(A, 7);
-    expect(ipc.undoLast).not.toHaveBeenCalled();
   });
 
   it("undoes once for a second click while the first is on its way", async () => {

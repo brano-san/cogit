@@ -81,23 +81,3 @@ pub async fn undo_entry(
     tracing::info!(repo = repo.0, entry = %entry.description, "operation undone");
     Ok(entry)
 }
-
-#[tauri::command]
-#[specta::specta]
-pub async fn undo_last(
-    state: tauri::State<'_, crate::AppContext>,
-    repo: RepoId,
-) -> Result<SafetyEntry, GitError> {
-    let app_state = state.state.clone();
-    let entry = mutating(
-        &state.state,
-        repo,
-        OperationKind::Undo,
-        "undo_last",
-        move || app_state.undo_last(repo),
-    )
-    .await?;
-
-    tracing::info!(repo = repo.0, entry = %entry.description, "operation undone");
-    Ok(entry)
-}

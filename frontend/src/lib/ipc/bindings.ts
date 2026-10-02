@@ -134,7 +134,6 @@ export const commands = {
 	commandProblems: () => __TAURI_INVOKE<number>("command_problems"),
 	clearCommandLog: () => __TAURI_INVOKE<void>("clear_command_log"),
 	safetyLog: () => __TAURI_INVOKE<SafetyEntry[]>("safety_log"),
-	undoLast: (repo: RepoId) => typedError<SafetyEntry, GitError>(__TAURI_INVOKE("undo_last", { repo })),
 	abortOperation: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("abort_operation", { repo })),
 	continueOperation: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("continue_operation", { repo })),
 	removeIndexLock: (repo: RepoId) => typedError<null, GitError>(__TAURI_INVOKE("remove_index_lock", { repo })),
@@ -242,7 +241,6 @@ export const commands = {
 	refDates: (repo: RepoId) => typedError<RefDate[], GitError>(__TAURI_INVOKE("ref_dates", { repo })),
 	otherRefs: (repo: RepoId) => typedError<OtherRef[], GitError>(__TAURI_INVOKE("other_refs", { repo })),
 	addToGitignore: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("add_to_gitignore", { repo, paths })),
-	deleteUntracked: (repo: RepoId, paths: string[]) => typedError<null, GitError>(__TAURI_INVOKE("delete_untracked", { repo, paths })),
 	imageSides: (repo: RepoId, spec: DiffSpec, path: string) => typedError<[string | null, string | null], GitError>(__TAURI_INVOKE("image_sides", { repo, spec, path })),
 	conflictedPaths: (repo: RepoId) => typedError<string[], GitError>(__TAURI_INVOKE("conflicted_paths", { repo })),
 	conflictText: (repo: RepoId, path: string) => typedError<ConflictText, GitError>(__TAURI_INVOKE("conflict_text", { repo, path })),
@@ -549,8 +547,6 @@ export const commands = {
 	installPreset: (repo: RepoId, id: string) => typedError<null, GitError>(__TAURI_INVOKE("install_preset", { repo, id })),
 	/**  Every file of a commit in one round trip, diffed in parallel (doc/08-diff-engine.md §9). */
 	diffFiles: (repo: RepoId, spec: DiffSpec, paths: string[], options: DiffOptions, request: number) => typedError<DiffBatch, GitError>(__TAURI_INVOKE("diff_files", { repo, spec, paths, options, request })),
-	/**  The file as it was before a commit. `None` means there was no such file to open. */
-	fileBefore: (repo: RepoId, oid: string, path: string) => typedError<string | null, GitError>(__TAURI_INVOKE("file_before", { repo, oid, path })),
 	/**
 	 *  The history of one fragment: every commit that changed it, newest first, with the diff
 	 *  of each edit and the path the file had at the time.

@@ -66,7 +66,6 @@ pub async fn stage_all(
 path_command!(unstage_paths, unstage_paths, Stage);
 path_command!(discard_paths, discard_paths, Discard);
 path_command!(add_to_gitignore, add_to_gitignore, Stage);
-path_command!(delete_untracked, delete_untracked, Discard);
 
 #[tauri::command]
 #[specta::specta]

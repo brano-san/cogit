@@ -129,22 +129,6 @@ pub async fn image_sides(
     .await
 }
 
-/// The file as it was before a commit. `None` means there was no such file to open.
-#[tauri::command]
-#[specta::specta]
-pub async fn file_before(
-    state: tauri::State<'_, crate::AppContext>,
-    repo: RepoId,
-    oid: String,
-    path: String,
-) -> Result<Option<String>, GitError> {
-    let app_state = state.state.clone();
-    blocking("file_before", move || {
-        app_state.file_before(repo, &oid, &path)
-    })
-    .await
-}
-
 /// What travels up the channel while a content search runs.
 ///
 /// `Started` comes first and carries the id, so the panel can cancel a search long before
