@@ -61,8 +61,10 @@ jobs:
         shell: bash
         run: |
           set +e
-          cargo nextest run --workspace --exclude cogit --no-fail-fast 2>&1 | tee nextest.log
+          cargo nextest run --profile ci --workspace --exclude cogit --no-fail-fast 2>&1 | tee nextest.log
           status=${PIPESTATUS[0]}
+          # A test that passed only on a retry: visible, not red.
+          sed 's/\x1b\[[0-9;]*m//g' nextest.log | grep -E '^\s+FLAKY ' | sort -u | while read -r line; do echo "::warning::$line"; done
           if [ "$status" -ne 0 ]; then
             bash .github/scripts/annotate-failures.sh nextest.log "Rust test failures"
             exit "$status"
