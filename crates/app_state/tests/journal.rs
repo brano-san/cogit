@@ -164,6 +164,92 @@ fn one_entry_can_be_fetched_by_its_number() {
     assert_eq!(state.command_outcome(wanted).unwrap().id, wanted);
 }
 
+fn ran(
+    command: &str,
+    exit_code: Option<i32>,
+    stdout: &str,
+    stderr: &str,
+    ms: u32,
+) -> git_engine::GitOutput {
+    git_engine::GitOutput::record(
+        std::path::Path::new("."),
+        command.to_owned(),
+        exit_code,
+        stdout,
+        stderr,
+        ms,
+    )
+}
+
+fn journal_of(
+    entries: Vec<git_engine::GitOutput>,
+) -> std::collections::VecDeque<git_engine::GitOutput> {
+    let mut log = std::collections::VecDeque::new();
+    for entry in entries {
+        app_state::record(&mut log, 100, entry);
+    }
+    log
+}
+
+#[test]
+fn the_rows_are_newest_first_and_flag_warnings_like_the_full_entries() {
+    let log = journal_of(vec![
+        ran(
+            "git switch topic",
+            Some(0),
+            "",
+            "Switched to branch 'topic'",
+            1,
+        ),
+        ran("git status", Some(0), "On branch master", "", 1),
+        ran(
+            "git add gone.txt",
+            Some(1),
+            "",
+            "fatal: pathspec did not match",
+            1,
+        ),
+    ]);
+
+    let rows = app_state::command_rows(&log);
+
+    let ids: Vec<u32> = rows.iter().map(|row| row.id).collect();
+    let newest_first: Vec<u32> = log.iter().rev().map(|entry| entry.id).collect();
+    assert_eq!(ids, newest_first);
+    let warned: Vec<bool> = rows.iter().map(|row| row.warned).collect();
+    assert_eq!(warned, [false, false, true]);
+    let expected: Vec<bool> = log.iter().rev().map(app_state::is_warning).collect();
+    assert_eq!(warned, expected);
+}
+
+/// What the panel's Copy log put on the clipboard when it built the text itself.
+#[test]
+fn the_log_text_reads_as_the_terminal_would_have_shown_it() {
+    let log = journal_of(vec![
+        ran("git status", Some(0), "On branch master", "", 5),
+        ran(
+            "git switch topic",
+            Some(0),
+            "",
+            "Switched to branch 'topic'",
+            7,
+        ),
+        ran("git push", None, "  \n", "fatal: no remote", 9),
+    ]);
+
+    assert_eq!(
+        app_state::command_log_text(&log, false),
+        "$ git push\nexit ? in 9 ms\nfatal: no remote\n\n\
+         $ git switch topic\nexit 0 in 7 ms\nSwitched to branch 'topic'\n\n\
+         $ git status\nexit 0 in 5 ms\nOn branch master"
+    );
+    assert_eq!(
+        app_state::command_log_text(&log, true),
+        "$ git push\nexit ? in 9 ms\nfatal: no remote\n\n\
+         $ git switch topic\nexit 0 in 7 ms\nSwitched to branch 'topic'"
+    );
+}
+
 /// The window is opened from a notice that outlives the entry it points at; asking for
 /// one that has already rotated out of the ring must read as "gone", not as a failure.
 #[test]

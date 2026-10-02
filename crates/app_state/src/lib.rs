@@ -53,7 +53,7 @@ pub use credentials::{
     KeyringStore, MemoryStore, SecretError, SecretStore, host_of, platform_store,
 };
 pub use graph_cache::{GraphProgress, GraphWindow, PROGRESS_EVERY, throttled};
-pub use journal::{CommandNotice, is_warning, record};
+pub use journal::{CommandNotice, CommandRow, command_log_text, command_rows, is_warning, record};
 pub use network::NetworkRun;
 pub use presets::PresetStatus;
 pub use queue::{Operation, OperationKind, OperationPermit, OperationPhase, Queue};

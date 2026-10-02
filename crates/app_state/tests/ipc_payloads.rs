@@ -54,6 +54,30 @@ fn check(name: &str, entries: usize, (bytes, took): (usize, Duration)) -> Result
     }
 }
 
+/// The Output panel rereads its list on every recorded command while it is open; a full
+/// journal is a hundred entries of up to a megabyte each, none of it shown in the list.
+#[test]
+fn the_output_list_leaves_what_each_command_printed_behind() {
+    let printed = "x".repeat(1 << 20);
+    let mut log = std::collections::VecDeque::new();
+    for n in 0..100 {
+        let entry = git_engine::GitOutput::record(
+            std::path::Path::new("."),
+            format!("git fetch origin branch-{n}"),
+            Some(0),
+            &printed,
+            "",
+            1,
+        );
+        app_state::record(&mut log, 100, entry);
+    }
+
+    let rows = app_state::command_rows(&log);
+    let bytes = serde_json::to_string(&rows).unwrap().len();
+    assert_eq!(rows.len(), 100);
+    assert!(bytes < 100 << 10, "{} KiB for the list", bytes >> 10);
+}
+
 #[test]
 fn ten_thousand_entries_in_one_answer_stay_within_a_frame_budget() {
     let f = test_fixtures::wide(ENTRIES).unwrap();

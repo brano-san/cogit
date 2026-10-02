@@ -134,6 +134,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::branches::create_branch,
             commands::branches::delete_branch,
             commands::command_log,
+            commands::command_log_text,
             commands::command_outcome,
             commands::close_this_window,
             commands::open_errors_window,

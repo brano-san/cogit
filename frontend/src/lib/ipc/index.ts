@@ -91,6 +91,7 @@ export type {
   CommitQuery,
   CommitRequest,
   CommandNotice,
+  CommandRow,
   CommitRow,
   ConflictSide,
   Author,
@@ -484,6 +485,10 @@ export async function onRepoChanged(handler: (change: RepoChanged) => void) {
 
 export async function commandLog() {
   return await commands.commandLog();
+}
+
+export async function commandLogText(errorsOnly: boolean) {
+  return await commands.commandLogText(errorsOnly);
 }
 
 /** The Errors window: opened, or shown when it already is. */

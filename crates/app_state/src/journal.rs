@@ -31,6 +31,36 @@ impl From<&git_engine::GitOutput> for CommandNotice {
     }
 }
 
+/// The Output panel's list, reread on every command: what ran, not what it printed.
+#[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct CommandRow {
+    pub id: u32,
+    pub repo: String,
+    pub operation: String,
+    pub command: String,
+    pub exit_code: Option<i32>,
+    pub duration_ms: u32,
+    #[specta(type = specta_typescript::Number)]
+    pub started_at_ms: u64,
+    pub warned: bool,
+}
+
+impl From<&git_engine::GitOutput> for CommandRow {
+    fn from(entry: &git_engine::GitOutput) -> Self {
+        Self {
+            id: entry.id,
+            repo: entry.repo.clone(),
+            operation: entry.operation.clone(),
+            command: entry.command.clone(),
+            exit_code: entry.exit_code,
+            duration_ms: entry.duration_ms,
+            started_at_ms: entry.started_at_ms,
+            warned: is_warning(entry),
+        }
+    }
+}
+
 /// The Output panel is a recent history, not an audit log; the cap keeps a long session
 /// from holding every byte Git ever printed.
 pub(crate) const JOURNAL_CAPACITY: usize = 100;
@@ -40,6 +70,47 @@ pub(crate) const JOURNAL_CAPACITY: usize = 100;
 #[must_use]
 pub fn is_warning(entry: &git_engine::GitOutput) -> bool {
     entry.exit_code == Some(0) && !entry.stderr.trim().is_empty()
+}
+
+fn is_problem(entry: &git_engine::GitOutput) -> bool {
+    entry.exit_code != Some(0) || is_warning(entry)
+}
+
+/// The journal's rows, newest first like `command_log`.
+#[must_use]
+pub fn command_rows(log: &std::collections::VecDeque<git_engine::GitOutput>) -> Vec<CommandRow> {
+    log.iter().rev().map(CommandRow::from).collect()
+}
+
+/// Copy log: newest first, each entry as a terminal would have shown it.
+#[must_use]
+pub fn command_log_text(
+    log: &std::collections::VecDeque<git_engine::GitOutput>,
+    errors_only: bool,
+) -> String {
+    log.iter()
+        .rev()
+        .filter(|entry| !errors_only || is_problem(entry))
+        .map(entry_text)
+        .collect::<Vec<_>>()
+        .join("\n\n")
+}
+
+fn entry_text(entry: &git_engine::GitOutput) -> String {
+    let exit = entry
+        .exit_code
+        .map_or_else(|| "?".to_owned(), |code| code.to_string());
+    let mut text = format!(
+        "$ {}\nexit {exit} in {} ms",
+        entry.command, entry.duration_ms
+    );
+    for stream in [&entry.stdout, &entry.stderr] {
+        if !stream.trim().is_empty() {
+            text.push('\n');
+            text.push_str(stream);
+        }
+    }
+    text
 }
 
 /// The journal is a ring: the oldest entry makes room for the newest. Free-standing so the
@@ -62,6 +133,16 @@ impl AppState {
         self.journal.read().iter().rev().cloned().collect()
     }
 
+    #[must_use]
+    pub fn command_rows(&self) -> Vec<CommandRow> {
+        command_rows(&self.journal.read())
+    }
+
+    #[must_use]
+    pub fn command_log_text(&self, errors_only: bool) -> String {
+        command_log_text(&self.journal.read(), errors_only)
+    }
+
     /// One entry of the journal, by the number a notice carried. `None` once the ring
     /// has moved past it.
     #[must_use]
@@ -81,7 +162,7 @@ impl AppState {
             .journal
             .read()
             .iter()
-            .filter(|entry| entry.exit_code != Some(0) || is_warning(entry))
+            .filter(|entry| is_problem(entry))
             .count();
         u32::try_from(count).unwrap_or(u32::MAX)
     }

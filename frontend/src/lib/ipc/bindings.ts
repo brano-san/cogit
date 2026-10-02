@@ -92,8 +92,10 @@ export const commands = {
 	switchWithAutostash: (repo: RepoId, target: CheckoutTarget, message: string, dropAfterClean: boolean) => typedError<AutostashOutcome, GitError>(__TAURI_INVOKE("switch_with_autostash", { repo, target, message, dropAfterClean })),
 	createBranch: (repo: RepoId, name: string, start: string | null, switchTo: boolean) => typedError<null, GitError>(__TAURI_INVOKE("create_branch", { repo, name, start, switchTo })),
 	deleteBranch: (repo: RepoId, name: string, force: boolean) => typedError<BranchDeletion, GitError>(__TAURI_INVOKE("delete_branch", { repo, name, force })),
-	/**  In the blocking pool: the whole journal can be a hundred megabyte-sized entries. */
-	commandLog: () => __TAURI_INVOKE<GitOutput[]>("command_log"),
+	/**  In the blocking pool: the rows are copied under the lock of a journal of megabyte entries. */
+	commandLog: () => __TAURI_INVOKE<CommandRow[]>("command_log"),
+	/**  Copy log: every entry with its output, as text. */
+	commandLogText: (errorsOnly: boolean) => __TAURI_INVOKE<string>("command_log_text", { errorsOnly }),
 	/**  One entry in full. The notice that opened the window carried only its summary. */
 	commandOutcome: (id: number) => __TAURI_INVOKE<{
 	/**  Numbered so a window, a toast and a history row can all name the same run. */
@@ -805,6 +807,18 @@ export type CommandNotice = {
  *  output itself stays in the journal until somebody asks to read it.
  */
 export type CommandRecorded = CommandNotice;
+
+/**  The Output panel's list, reread on every command: what ran, not what it printed. */
+export type CommandRow = {
+	id: number,
+	repo: string,
+	operation: string,
+	command: string,
+	exitCode: number | null,
+	durationMs: number,
+	startedAtMs: number,
+	warned: boolean,
+};
 
 export type CommitDetails = {
 	oid: string,

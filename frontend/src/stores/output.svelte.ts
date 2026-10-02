@@ -4,22 +4,20 @@ import {
   commandOutcome,
   commandProblems,
   type CommandNotice,
+  type CommandRow,
   type GitOutput,
 } from "$lib/ipc";
 import { notices } from "$stores/notices.svelte";
 
-export function isWarning(entry: GitOutput): boolean {
-  return entry.exitCode === 0 && entry.stderr.trim() !== "";
-}
-
-export function isFailure(entry: GitOutput): boolean {
+export function isFailure(entry: CommandRow): boolean {
   return entry.exitCode !== 0;
 }
 
 class OutputStore {
   open = $state(false);
   errorsOnly = $state(false);
-  entries = $state.raw<GitOutput[]>([]);
+  /** Rows only: what a command printed is fetched by `openRecord` when it is shown. */
+  entries = $state.raw<CommandRow[]>([]);
 
   problems = $state(0);
 
@@ -41,9 +39,9 @@ class OutputStore {
     if (asked === this.#countRead) this.problems = problems;
   }
 
-  get shownEntries(): GitOutput[] {
+  get shownEntries(): CommandRow[] {
     return this.errorsOnly
-      ? this.entries.filter((e) => isFailure(e) || isWarning(e))
+      ? this.entries.filter((e) => isFailure(e) || e.warned)
       : this.entries;
   }
 

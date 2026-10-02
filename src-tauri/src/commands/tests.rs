@@ -295,6 +295,7 @@ fn the_journal_and_the_settings_are_read_in_the_blocking_pool() {
     let all = all_commands();
     let inline: Vec<&str> = [
         "command_log",
+        "command_log_text",
         "command_outcome",
         "read_settings",
         "write_setting",

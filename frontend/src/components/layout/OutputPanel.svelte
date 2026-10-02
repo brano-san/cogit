@@ -1,24 +1,13 @@
 <script lang="ts">
   import Checkbox from "$components/common/Checkbox.svelte";
   import { CopyFeedback } from "$lib/copy-feedback.svelte";
-  import type { GitOutput } from "$lib/ipc";
-  import { isFailure, isWarning, output } from "$stores/output.svelte";
+  import { commandLogText, type CommandRow } from "$lib/ipc";
+  import { isFailure, output } from "$stores/output.svelte";
 
   const clock = new Intl.DateTimeFormat(undefined, { timeStyle: "medium" });
 
-  function repoName(entry: GitOutput): string {
+  function repoName(entry: CommandRow): string {
     return entry.repo.replace(/[/\\]+$/, "").split(/[/\\]/).pop() ?? entry.repo;
-  }
-
-  function asText(entry: GitOutput): string {
-    return [
-      `$ ${entry.command}`,
-      `exit ${entry.exitCode ?? "?"} in ${entry.durationMs} ms`,
-      entry.stdout,
-      entry.stderr,
-    ]
-      .filter((part) => part.trim() !== "")
-      .join("\n");
   }
 
   const feedback = new CopyFeedback();
@@ -38,7 +27,7 @@
     <span class="title">Output</span>
     <span class="problems"><Checkbox bind:checked={output.errorsOnly} label="Problems only" /></span>
     <span class="grow"></span>
-    <button type="button" onclick={() => void feedback.copy(output.shownEntries.map(asText).join("\n\n"))}>
+    <button type="button" onclick={() => void commandLogText(output.errorsOnly).then((text) => feedback.copy(text))}>
       {feedback.label("Copy log")}
     </button>
     <button type="button" onclick={() => void output.clear()}>Clear</button>
@@ -50,12 +39,12 @@
   {:else}
     <div class="list">
       {#each output.shownEntries as entry (entry.id)}
-        <div class="entry" class:failed={isFailure(entry)} class:warned={isWarning(entry)}>
+        <div class="entry" class:failed={isFailure(entry)} class:warned={entry.warned}>
           <button
             type="button"
             class="line"
             title="Show the output of this command"
-            onclick={() => output.show(entry)}
+            onclick={() => void output.openRecord(entry.id)}
           >
             <span class="when tabular">{clock.format(entry.startedAtMs)}</span>
             <span class="what">{entry.operation}</span>

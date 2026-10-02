@@ -1,7 +1,7 @@
 //! What ran and what runs: the command journal, the safety journal with Undo, the queue.
 
 use super::{blocking_or_default, mutating};
-use app_state::{OperationKind, RepoId, SafetyEntry};
+use app_state::{CommandRow, OperationKind, RepoId, SafetyEntry};
 use git_engine::{GitError, GitOutput};
 
 /// Everything queued or running, for a panel that has just been opened again (P1.5).
@@ -22,14 +22,27 @@ pub fn cancel_operation(state: tauri::State<'_, crate::AppContext>, id: u32) -> 
     stopped
 }
 
-/// In the blocking pool: the whole journal can be a hundred megabyte-sized entries.
+/// In the blocking pool: the rows are copied under the lock of a journal of megabyte entries.
 #[tauri::command]
 #[specta::specta]
-pub async fn command_log(app: tauri::AppHandle) -> Vec<GitOutput> {
+pub async fn command_log(app: tauri::AppHandle) -> Vec<CommandRow> {
     let state = tauri::Manager::state::<crate::AppContext>(&app)
         .state
         .clone();
-    blocking_or_default("command_log", move || state.command_log()).await
+    blocking_or_default("command_log", move || state.command_rows()).await
+}
+
+/// Copy log: every entry with its output, as text.
+#[tauri::command]
+#[specta::specta]
+pub async fn command_log_text(app: tauri::AppHandle, errors_only: bool) -> String {
+    let state = tauri::Manager::state::<crate::AppContext>(&app)
+        .state
+        .clone();
+    blocking_or_default("command_log_text", move || {
+        state.command_log_text(errors_only)
+    })
+    .await
 }
 
 /// One entry in full. The notice that opened the window carried only its summary.

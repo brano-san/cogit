@@ -39,6 +39,17 @@ const record = (id: number) => ({
   stoppedOnConflicts: false,
 });
 
+const row = (id: number, exitCode: number | null = 0, warned = false) => ({
+  id,
+  repo: "C:/repos/cogit",
+  operation: "Push",
+  command: "git push origin master",
+  exitCode,
+  durationMs: 12,
+  startedAtMs: 1,
+  warned,
+});
+
 describe("output store", () => {
   beforeEach(() => {
     commands.commandOutcome.mockReset();
@@ -125,7 +136,7 @@ describe("output store answers", () => {
 
     const refreshing = output.refresh();
     await output.clear();
-    read.resolve([record(1)]);
+    read.resolve([row(1)]);
     await refreshing;
 
     expect(output.entries).toEqual([]);
@@ -138,12 +149,23 @@ describe("output store answers", () => {
 
     const first = output.refresh();
     const second = output.refresh();
-    newer.resolve([record(2), record(1)]);
+    newer.resolve([row(2), row(1)]);
     await second;
-    older.resolve([record(1)]);
+    older.resolve([row(1)]);
     await first;
 
     expect(output.entries.map((entry) => entry.id)).toEqual([2, 1]);
+  });
+
+  it("keeps failures and the rows flagged as warnings when only problems are shown", async () => {
+    commands.commandLog.mockResolvedValueOnce([row(4), row(3, 0, true), row(2, 1), row(1, null)]);
+    await output.refresh();
+
+    output.errorsOnly = true;
+    const shown = output.shownEntries.map((entry) => entry.id);
+    output.errorsOnly = false;
+
+    expect(shown).toEqual([3, 2, 1]);
   });
 
   it("drops a problem count begun before Clear", async () => {
