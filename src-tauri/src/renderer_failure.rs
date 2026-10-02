@@ -12,7 +12,7 @@
 // is the documented exception, and it holds no Git logic of its own.
 #![allow(unsafe_code)]
 
-use tauri::{Emitter as _, Manager as _};
+use tauri::Manager as _;
 use tauri_plugin_dialog::{DialogExt as _, MessageDialogButtons, MessageDialogKind};
 use webview2_com::Microsoft::Web::WebView2::Win32::{
     COREWEBVIEW2_PROCESS_FAILED_KIND, COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED,
@@ -167,6 +167,9 @@ pub fn install(window: &tauri::WebviewWindow) {
 
 /// Writes the record, then asks the user what to do about it.
 fn announce(app: &tauri::AppHandle, failure: &Failure, uptime: std::time::Duration) {
+    // The renderer is gone, so nothing in the page can report this: the record has to be
+    // written from here. In a debug build the host-side sampler's figures are in the same
+    // log under `kind=procmem`; a release build has none.
     tracing::error!(
         kind = failure.kind,
         reason = failure.reason,
@@ -175,11 +178,6 @@ fn announce(app: &tauri::AppHandle, failure: &Failure, uptime: std::time::Durati
         uptime_s = uptime.as_secs(),
         "the webview lost a process"
     );
-
-    // The renderer is gone, so nothing in the page can report this: the record has to be
-    // written from here. In a debug build the host-side sampler's figures are in the same
-    // log under `kind=procmem`; a release build has none.
-    let _ = app.emit("renderer-failed", failure.kind);
 
     // Everything below has to leave this callback first. It runs inside the COM event
     // dispatch on the UI thread, and a dialog opened from there never reaches the screen.
