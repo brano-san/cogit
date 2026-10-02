@@ -83,7 +83,7 @@ async fn the_footer_s_cancel_stops_a_clone() {
     let started = Instant::now();
     while git_engine::children::running() == 0 {
         assert!(
-            started.elapsed() < Duration::from_secs(20),
+            started.elapsed() < test_fixtures::scaled(Duration::from_secs(20)),
             "git never started"
         );
         std::thread::sleep(Duration::from_millis(20));

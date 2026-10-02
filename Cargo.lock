@@ -328,6 +328,7 @@ dependencies = [
  "serde_json",
  "specta",
  "tempfile",
+ "test_fixtures",
  "thiserror 2.0.20",
  "tracing",
  "ureq",
@@ -476,6 +477,7 @@ name = "build_info"
 version = "0.1.0"
 dependencies = [
  "serde_json",
+ "test_fixtures",
 ]
 
 [[package]]
@@ -1140,6 +1142,7 @@ dependencies = [
  "similar 3.2.0",
  "specta",
  "specta-typescript",
+ "test_fixtures",
  "tree-sitter",
  "tree-sitter-cpp",
  "tree-sitter-typescript",
@@ -1570,6 +1573,7 @@ dependencies = [
  "serde",
  "specta",
  "tempfile",
+ "test_fixtures",
  "thiserror 2.0.20",
  "tracing",
 ]

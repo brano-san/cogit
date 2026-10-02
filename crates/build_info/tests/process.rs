@@ -38,5 +38,5 @@ fn a_command_that_hangs_is_stopped_at_the_deadline() {
     let started = Instant::now();
     let err = output_within(command, Duration::from_millis(300)).unwrap_err();
     assert_eq!(err.kind(), std::io::ErrorKind::TimedOut);
-    assert!(started.elapsed() < Duration::from_secs(20));
+    assert!(started.elapsed() < test_fixtures::scaled(Duration::from_secs(20)));
 }

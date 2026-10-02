@@ -174,7 +174,8 @@ fn a_mutation_does_not_make_the_watcher_report_our_own_writes() {
     let mut events = state.subscribe();
     std::fs::write(f.path().join("file0.txt"), "edited by us\n").unwrap();
     // The control: a watcher that never started would keep quiet through the rest too.
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    let deadline =
+        std::time::Instant::now() + test_fixtures::scaled(std::time::Duration::from_secs(5));
     let heard = loop {
         match events.try_recv() {
             Ok(app_state::AppEvent::RepoChanged { .. }) => break true,

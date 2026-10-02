@@ -226,9 +226,12 @@ async fn the_session_end_counts_what_waits_behind_it() {
 #[tokio::test]
 async fn an_empty_queue_is_idle_at_once() {
     let (state, _) = opened();
-    tokio::time::timeout(Duration::from_secs(1), state.until_idle())
-        .await
-        .unwrap();
+    tokio::time::timeout(
+        test_fixtures::scaled(Duration::from_secs(1)),
+        state.until_idle(),
+    )
+    .await
+    .unwrap();
 }
 
 // The close watchdog exited two seconds after a silent page with a rebase running, and
@@ -261,7 +264,7 @@ async fn idle_waits_for_the_operation_running_and_the_one_behind_it() {
 
     go.send(()).unwrap();
     behind.await.unwrap();
-    tokio::time::timeout(Duration::from_secs(5), idle)
+    tokio::time::timeout(test_fixtures::scaled(Duration::from_secs(5)), idle)
         .await
         .unwrap()
         .unwrap();

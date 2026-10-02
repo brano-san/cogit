@@ -20,6 +20,7 @@ specta.workspace = true
 specta-typescript.workspace = true
 
 [dev-dependencies]
+test_fixtures.workspace = true
 insta.workspace = true
 
 [lints]

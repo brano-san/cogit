@@ -283,7 +283,7 @@ fn a_thousand_commit_window_is_computed_inside_the_budget() {
     );
     assert_eq!(rows.len(), window.len());
     assert!(
-        elapsed.as_millis() < 600,
+        elapsed < test_fixtures::scaled(std::time::Duration::from_millis(600)),
         "overlap for {} commits took {} ms",
         window.len(),
         elapsed.as_millis()

@@ -42,7 +42,7 @@ async fn a_cancelled_fetch_ends_journalled_and_frees_the_lane() {
     let started = Instant::now();
     while git_engine::children::running() == 0 {
         assert!(
-            started.elapsed() < Duration::from_secs(20),
+            started.elapsed() < test_fixtures::scaled(Duration::from_secs(20)),
             "git never started"
         );
         std::thread::sleep(Duration::from_millis(20));

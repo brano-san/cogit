@@ -147,7 +147,8 @@ fn the_cache_budget_counts_the_paint_kept_with_a_graph() {
     let repo = state.open_repository(f.path()).unwrap().repo;
     let generation = build(&state, repo);
     // The texts read ahead count as well; they have to be in before the rows are measured.
-    let until = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    let until =
+        std::time::Instant::now() + test_fixtures::scaled(std::time::Duration::from_secs(20));
     while state.graph_texts_read(repo) < 4 && std::time::Instant::now() < until {
         std::thread::sleep(std::time::Duration::from_millis(20));
     }

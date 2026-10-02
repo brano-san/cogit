@@ -11,7 +11,7 @@ fn exiting_stops_the_git_tree_that_runs_and_refuses_the_next() {
 
     while children::running() == 0 {
         assert!(
-            started.elapsed() < Duration::from_secs(10),
+            started.elapsed() < test_fixtures::scaled(Duration::from_secs(10)),
             "git never started"
         );
         std::thread::sleep(Duration::from_millis(20));

@@ -53,7 +53,11 @@ fn opening_a_repository_is_not_showing_it() {
 
     state.show_repository(Some(repo));
     std::fs::write(a.path().join("file0.txt"), "shown now\n").unwrap();
-    assert!(heard(&mut events, repo, Duration::from_secs(5)));
+    assert!(heard(
+        &mut events,
+        repo,
+        test_fixtures::scaled(Duration::from_secs(5))
+    ));
 }
 
 #[test]
@@ -71,7 +75,11 @@ fn a_repository_left_for_another_is_not_watched() {
     assert!(!heard(&mut events, first, SETTLE));
 
     std::fs::write(b.path().join("new.txt"), "b is shown\n").unwrap();
-    assert!(heard(&mut events, second, Duration::from_secs(5)));
+    assert!(heard(
+        &mut events,
+        second,
+        test_fixtures::scaled(Duration::from_secs(5))
+    ));
     assert!(state.get(first).is_some(), "left, not closed");
 }
 
@@ -158,7 +166,11 @@ fn coming_back_sees_what_changed_while_it_was_not_watched() {
 
     let mut events = state.subscribe();
     std::fs::write(a.path().join("file1.txt"), "watched again\n").unwrap();
-    assert!(heard(&mut events, repo, Duration::from_secs(5)));
+    assert!(heard(
+        &mut events,
+        repo,
+        test_fixtures::scaled(Duration::from_secs(5))
+    ));
 }
 
 // With no watcher nothing tells the row of a repository left behind that it went stale;

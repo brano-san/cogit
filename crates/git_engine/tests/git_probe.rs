@@ -23,7 +23,7 @@ fn version_keeps_the_numbers_and_drops_the_vendor_suffix() {
 
 #[test]
 fn the_git_on_path_is_valid() {
-    let probe = probe_git("git", WAIT);
+    let probe = probe_git("git", test_fixtures::scaled(WAIT));
     assert!(probe.valid, "{probe:?}");
     assert!(
         probe
@@ -35,12 +35,12 @@ fn the_git_on_path_is_valid() {
 
 #[test]
 fn an_empty_path_means_the_git_on_path() {
-    assert!(probe_git("  ", WAIT).valid);
+    assert!(probe_git("  ", test_fixtures::scaled(WAIT)).valid);
 }
 
 #[test]
 fn a_missing_binary_is_invalid_and_says_why() {
-    let probe = probe_git("definitely/not/a/git-binary", WAIT);
+    let probe = probe_git("definitely/not/a/git-binary", test_fixtures::scaled(WAIT));
     assert!(!probe.valid);
     assert_eq!(probe.version, None);
     assert!(probe.error.is_some_and(|e| e.contains("definitely")));

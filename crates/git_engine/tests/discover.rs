@@ -163,7 +163,7 @@ fn a_broad_tree_is_scanned_inside_the_budget() {
 
     assert_eq!(count, 200);
     assert!(
-        elapsed < std::time::Duration::from_millis(1500),
+        elapsed < test_fixtures::scaled(std::time::Duration::from_millis(1500)),
         "scanning 1000 folders took {elapsed:?}"
     );
 }

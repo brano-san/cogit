@@ -314,7 +314,7 @@ fn one_enormous_line_does_not_hang_the_engine() {
 
     assert_eq!(hunks(&diff).len(), 1);
     assert!(
-        elapsed < std::time::Duration::from_secs(2),
+        elapsed < test_fixtures::scaled(std::time::Duration::from_secs(2)),
         "minified JS must not stall the engine, took {elapsed:?}"
     );
 }
@@ -553,7 +553,7 @@ fn a_rewritten_enormous_line_does_not_hang_the_word_diff() {
 
     assert_eq!(hunks(&diff).len(), 1);
     assert!(
-        elapsed < std::time::Duration::from_secs(5),
+        elapsed < test_fixtures::scaled(std::time::Duration::from_secs(5)),
         "the word diff must give up in time, took {elapsed:?}"
     );
 }

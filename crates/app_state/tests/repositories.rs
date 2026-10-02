@@ -97,7 +97,8 @@ fn closing_stops_watching_it() {
     let mut events = state.subscribe();
     // The control: a watcher that never started would keep quiet after closing too.
     std::fs::write(f.path().join("file0.txt"), "changed while open\n").unwrap();
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    let deadline =
+        std::time::Instant::now() + test_fixtures::scaled(std::time::Duration::from_secs(5));
     let heard = loop {
         match events.try_recv() {
             Ok(app_state::AppEvent::RepoChanged { .. }) => break true,

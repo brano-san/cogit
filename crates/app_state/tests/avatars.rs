@@ -210,7 +210,7 @@ struct Slow(std::sync::mpsc::Sender<()>);
 impl avatars::Source for Slow {
     fn get(&self, _email: &str) -> avatars::Fetched {
         let _ = self.0.send(());
-        std::thread::sleep(std::time::Duration::from_secs(2));
+        std::thread::sleep(test_fixtures::scaled(std::time::Duration::from_secs(2)));
         avatars::Fetched::Missing
     }
 }
@@ -240,7 +240,7 @@ fn turning_avatars_off_does_not_stall_the_readers() {
 
     assert_eq!(rows[0].initials, "AL");
     assert!(
-        waited < std::time::Duration::from_secs(1),
+        waited < test_fixtures::scaled(std::time::Duration::from_secs(1)),
         "waited {waited:?}"
     );
 }

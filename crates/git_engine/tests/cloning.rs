@@ -246,7 +246,7 @@ fn cancelled_clone(target: &Path) -> Result<PathBuf, GitError> {
     let started = Instant::now();
     while !target.join(".git").exists() {
         assert!(
-            started.elapsed() < Duration::from_secs(20),
+            started.elapsed() < test_fixtures::scaled(Duration::from_secs(20)),
             "git never made the folder"
         );
         std::thread::sleep(Duration::from_millis(20));

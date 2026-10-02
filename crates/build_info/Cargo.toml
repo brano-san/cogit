@@ -11,5 +11,8 @@ description = "What src-tauri/build.rs stamps into the binary: the third-party c
 [dependencies]
 serde_json.workspace = true
 
+[dev-dependencies]
+test_fixtures.workspace = true
+
 [lints]
 workspace = true

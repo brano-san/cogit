@@ -15,6 +15,7 @@ use std::time::{Duration, Instant};
 const COMMITS: i64 = 10_000;
 
 fn report(label: &str, elapsed: Duration, budget: Duration) {
+    let budget = test_fixtures::scaled(budget);
     println!(
         "{label:<34} {:>7} ms   (budget {} ms)",
         elapsed.as_millis(),
@@ -220,7 +221,7 @@ fn fifty_thousand_commits_with_a_commit_graph_are_laid_out_in_the_budget() {
     let cold = Instant::now();
     state.graph_window(repo, generation, 40_000, 128).unwrap();
     let cold = cold.elapsed();
-    let until = Instant::now() + Duration::from_secs(20);
+    let until = Instant::now() + test_fixtures::scaled(Duration::from_secs(20));
     while state.graph_texts_read(repo) < 50_000 && Instant::now() < until {
         std::thread::sleep(Duration::from_millis(10));
     }
@@ -247,7 +248,8 @@ fn fifty_thousand_commits_with_a_commit_graph_are_laid_out_in_the_budget() {
     );
     println!("50k: a far window, texts unread {:>7} us", cold.as_micros());
     println!("50k: a far window, read ahead   {:>7} us", warm.as_micros());
-    assert!(warm < Duration::from_millis(100) && cold < Duration::from_millis(100));
+    let limit = test_fixtures::scaled(Duration::from_millis(100));
+    assert!(warm < limit && cold < limit);
 }
 
 /// Ticking a ref re-lays the graph from the rows the last walk read (R-301).

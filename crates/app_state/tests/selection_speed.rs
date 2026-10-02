@@ -24,7 +24,7 @@ fn selecting_a_commit_in_a_broad_tree_answers_within_the_budget() {
     assert_eq!(details.summary, "touch one file");
     assert_eq!(files.len(), 1);
     assert!(
-        elapsed < Duration::from_millis(120),
+        elapsed < test_fixtures::scaled(Duration::from_millis(120)),
         "selecting a commit took {elapsed:?}"
     );
 }

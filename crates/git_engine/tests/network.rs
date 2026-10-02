@@ -651,7 +651,7 @@ fn a_fetch_asked_to_stop_ends_as_cancelled() {
     });
     while git_engine::children::running() == 0 {
         assert!(
-            started.elapsed() < std::time::Duration::from_secs(20),
+            started.elapsed() < test_fixtures::scaled(std::time::Duration::from_secs(20)),
             "git never started"
         );
         std::thread::sleep(std::time::Duration::from_millis(20));

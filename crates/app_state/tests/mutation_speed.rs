@@ -10,6 +10,7 @@ use app_state::AppState;
 use std::time::{Duration, Instant};
 
 fn report(label: &str, elapsed: Duration, budget: Duration) {
+    let budget = test_fixtures::scaled(budget);
     println!(
         "{label:<26} {:>6} ms   (budget {} ms)",
         elapsed.as_millis(),

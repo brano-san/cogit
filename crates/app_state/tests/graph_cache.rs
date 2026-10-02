@@ -252,7 +252,8 @@ fn a_new_mailmap_walks_an_author_filter_again() {
 }
 
 fn texts_reach(state: &AppState, repo: RepoId, rows: usize) -> bool {
-    let until = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    let until =
+        std::time::Instant::now() + test_fixtures::scaled(std::time::Duration::from_secs(20));
     while std::time::Instant::now() < until {
         if state.graph_texts_read(repo) >= rows {
             return true;
@@ -296,7 +297,8 @@ fn a_rebuilt_graph_keeps_the_texts_read_for_the_last_one() {
 
 /// Whether graph `generation` of `repo` leaves the cache within a while.
 fn evicted_soon(state: &AppState, repo: RepoId, generation: u32) -> bool {
-    let until = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    let until =
+        std::time::Instant::now() + test_fixtures::scaled(std::time::Duration::from_secs(20));
     while std::time::Instant::now() < until {
         if state.graph_window(repo, generation, 0, 1).is_none() {
             return true;

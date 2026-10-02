@@ -19,6 +19,7 @@ thiserror.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
+test_fixtures.workspace = true
 tempfile.workspace = true
 
 [lints]

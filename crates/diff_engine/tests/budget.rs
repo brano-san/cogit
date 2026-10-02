@@ -56,7 +56,7 @@ fn a_five_thousand_line_file_diffs_inside_the_budget() {
     );
     assert_eq!(hunks(&diff), 50);
     assert!(
-        elapsed.as_millis() < 50,
+        elapsed < test_fixtures::scaled(std::time::Duration::from_millis(50)),
         "5 000 lines took {} ms, budget is 50 ms",
         elapsed.as_millis()
     );
@@ -77,7 +77,7 @@ fn a_hundred_thousand_line_file_diffs_inside_the_budget() {
     );
     assert_eq!(hunks(&diff), 1_000);
     assert!(
-        elapsed.as_millis() < 1_000,
+        elapsed < test_fixtures::scaled(std::time::Duration::from_millis(1_000)),
         "100 000 lines took {} ms, budget is 1000 ms",
         elapsed.as_millis()
     );
@@ -137,7 +137,7 @@ fn a_commit_of_five_hundred_files_diffs_inside_the_budget() {
     assert_eq!(out.len(), 500);
     assert_eq!(hunks(&out[0].diff), 2);
     assert!(
-        elapsed.as_millis() < 2_000,
+        elapsed < test_fixtures::scaled(std::time::Duration::from_millis(2_000)),
         "500 files took {} ms, budget is 2000 ms",
         elapsed.as_millis()
     );

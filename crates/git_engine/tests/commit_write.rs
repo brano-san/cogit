@@ -487,7 +487,13 @@ fn auto_maintenance_still_runs_after_a_commit() {
     repo.commit(&request("add fresh.txt")).unwrap();
     repo.maintain_after_commit();
 
-    assert_eq!(packs_after(&f, std::time::Duration::from_secs(30)), 1);
+    assert_eq!(
+        packs_after(
+            &f,
+            test_fixtures::scaled(std::time::Duration::from_secs(30))
+        ),
+        1
+    );
 }
 
 #[test]
@@ -520,7 +526,13 @@ fn the_commit_itself_skips_the_maintenance_it_would_wait_for() {
         first.starts_with("git -c maintenance.auto=false commit "),
         "{first}"
     );
-    assert_eq!(packs_after(&f, std::time::Duration::from_secs(30)), 1);
+    assert_eq!(
+        packs_after(
+            &f,
+            test_fixtures::scaled(std::time::Duration::from_secs(30))
+        ),
+        1
+    );
 }
 
 #[test]

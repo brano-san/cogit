@@ -7,6 +7,10 @@ use std::time::Duration;
 
 const SETTLE: Duration = Duration::from_millis(600);
 
+fn settle() -> Duration {
+    test_fixtures::scaled(SETTLE)
+}
+
 struct Harness {
     _dir: tempfile::TempDir,
     watcher: RepoWatcher,
@@ -43,7 +47,7 @@ fn start() -> Harness {
 
 fn collect(harness: &Harness) -> Vec<RepoChanged> {
     let mut seen = Vec::new();
-    while let Ok(change) = harness.events.recv_timeout(SETTLE) {
+    while let Ok(change) = harness.events.recv_timeout(settle()) {
         seen.push(change);
     }
     seen
@@ -279,7 +283,7 @@ fn a_hundred_files_at_once_do_not_become_a_hundred_events() {
     let mut seen = Vec::new();
     let mut windows = 0;
     let mut last: Option<std::time::Instant> = None;
-    while let Ok(change) = harness.events.recv_timeout(SETTLE) {
+    while let Ok(change) = harness.events.recv_timeout(settle()) {
         let now = std::time::Instant::now();
         if last.is_none_or(|before| now - before > Duration::from_millis(20)) {
             windows += 1;
@@ -327,7 +331,7 @@ fn a_linked_worktree_hears_about_refs_in_the_common_directory() {
     .unwrap();
 
     let mut seen = Vec::new();
-    while let Ok(change) = events.recv_timeout(SETTLE) {
+    while let Ok(change) = events.recv_timeout(settle()) {
         seen.push(change);
     }
     assert!(seen.iter().any(|c| c.kind == ChangeKind::Refs), "{seen:?}");
@@ -357,7 +361,7 @@ fn a_hook_edited_in_a_git_directory_outside_the_root_is_heard() {
     std::fs::write(git_dir.join("hooks/pre-commit"), "#!/bin/sh\n").unwrap();
 
     let mut seen = Vec::new();
-    while let Ok(change) = events.recv_timeout(SETTLE) {
+    while let Ok(change) = events.recv_timeout(settle()) {
         seen.push(change);
     }
     assert!(seen.iter().any(|c| c.kind == ChangeKind::Hooks), "{seen:?}");
@@ -508,7 +512,7 @@ fn a_bisect_step_in_a_linked_worktree_is_heard() {
     .unwrap();
 
     let mut seen = Vec::new();
-    while let Ok(change) = events.recv_timeout(SETTLE) {
+    while let Ok(change) = events.recv_timeout(settle()) {
         seen.push(change);
     }
     assert!(seen.iter().any(|c| c.kind == ChangeKind::Head), "{seen:?}");

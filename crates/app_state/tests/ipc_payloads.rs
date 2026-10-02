@@ -47,7 +47,7 @@ fn check(name: &str, entries: usize, (bytes, took): (usize, Duration)) -> Result
         bytes / 1024,
         took.as_secs_f64() * 1000.0
     );
-    if took >= FRAME || bytes > MOST_BYTES {
+    if took >= test_fixtures::scaled(FRAME) || bytes > MOST_BYTES {
         Err(line)
     } else {
         Ok(line)

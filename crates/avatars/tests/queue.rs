@@ -83,7 +83,9 @@ fn a_found_picture_lands_in_the_cache_and_is_announced() {
     );
     queue.request(&["ada@example.com".to_string()]);
 
-    assert!(until(Duration::from_secs(5), || !ready.lock().is_empty()));
+    assert!(until(test_fixtures::scaled(Duration::from_secs(5)), || {
+        !ready.lock().is_empty()
+    }));
     assert_eq!(ready.lock().as_slice(), ["ada@example.com"]);
     assert!(matches!(cache.lookup("ada@example.com"), Lookup::Hit(_)));
 }
@@ -100,9 +102,10 @@ fn a_missing_picture_is_remembered_as_missing() {
     );
     queue.request(&["nobody@example.com".to_string()]);
 
-    assert!(until(Duration::from_secs(5), || cache
-        .lookup("nobody@example.com")
-        == Lookup::Missing));
+    assert!(until(
+        test_fixtures::scaled(Duration::from_secs(5)),
+        || cache.lookup("nobody@example.com") == Lookup::Missing
+    ));
 }
 
 #[test]
@@ -237,7 +240,10 @@ fn a_second_failure_becomes_a_miss_rather_than_an_endless_retry() {
 #[test]
 fn asking_for_a_window_does_not_block_the_caller() {
     let dir = tempfile::tempdir().unwrap();
-    let source = Recording::slow(|_| Fetched::Missing, Duration::from_millis(200));
+    let source = Recording::slow(
+        |_| Fetched::Missing,
+        test_fixtures::scaled(Duration::from_millis(200)),
+    );
     let queue = Queue::new(cache(&dir), source, |_: &str| {});
 
     let window: Vec<String> = (0..40).map(|n| format!("author{n}@example.com")).collect();
@@ -245,7 +251,7 @@ fn asking_for_a_window_does_not_block_the_caller() {
     queue.request(&window);
 
     assert!(
-        start.elapsed() < Duration::from_millis(100),
+        start.elapsed() < test_fixtures::scaled(Duration::from_millis(100)),
         "{:?}",
         start.elapsed()
     );
