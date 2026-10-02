@@ -41,6 +41,32 @@ pub struct RevealCommit {
     pub oid: String,
 }
 
+/// A window wrote the settings file; the others read it again (R-518). The payload is the
+/// writer's mark, so it skips its own. The page emits it itself.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
+#[tauri_specta(event_name = "cogit://settings-changed")]
+pub struct SettingsChanged(pub String);
+
+/// A compare window was opened on a submodule: the main one opens it instead (R-537).
+/// The page emits it itself.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
+#[serde(rename_all = "camelCase")]
+#[tauri_specta(event_name = "cogit://open-module")]
+pub struct OpenModule {
+    pub repo: app_state::RepoId,
+    pub path: String,
+}
+
+/// A compare window staged, unstaged or discarded lines: the main one reads its lists again,
+/// because the watcher is quiet after our own writes. The page emits it itself.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
+#[serde(rename_all = "camelCase")]
+#[tauri_specta(event_name = "cogit://tree-changed")]
+pub struct TreeChanged {
+    pub repo: app_state::RepoId,
+    pub path: String,
+}
+
 /// A native menu item was chosen. The payload is the palette command id, so the frontend
 /// runs the same code path the palette would.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]

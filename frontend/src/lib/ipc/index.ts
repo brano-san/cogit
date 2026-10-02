@@ -135,6 +135,7 @@ export type {
   MergeResolved,
   MergeToolFinished,
   MergeToolOutcome,
+  OpenModule,
   ConflictContext,
   ConflictOperation,
   SolverData,
@@ -181,6 +182,7 @@ export type {
   TagRequest,
   TodoAction,
   TodoEntry,
+  TreeChanged,
   Whitespace,
   WorktreeFiles,
 } from "./bindings";

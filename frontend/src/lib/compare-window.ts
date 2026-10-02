@@ -1,6 +1,6 @@
 import type { CompareRequest } from "$lib/compare-params";
-import { closeThisWindow, commitDetails, type DiffSpec, type RepoId, type Whitespace } from "$lib/ipc";
-import { askToOpenModule, type ModuleRequest } from "$lib/module-open";
+import { closeThisWindow, commitDetails, type DiffSpec, type OpenModule, type RepoId, type Whitespace } from "$lib/ipc";
+import { askToOpenModule } from "$lib/module-open";
 
 export interface CompareLoad {
   settings: { load(): Promise<void>; current: { ignoreWhitespace: Whitespace } };
@@ -32,7 +32,7 @@ export async function firstParent(
 /** A submodule has no lines to compare: the main window opens it, and this one goes (R-537). */
 export async function handOverModule(
   request: CompareRequest,
-  ask: (request: ModuleRequest) => Promise<void> = askToOpenModule,
+  ask: (request: OpenModule) => Promise<void> = askToOpenModule,
   close: () => Promise<unknown> = closeThisWindow,
 ): Promise<void> {
   await ask({ repo: request.repo, path: request.path });

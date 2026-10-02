@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import type { FileEntry, Submodule } from "$lib/ipc";
-import { OPEN_MODULE, askToOpenModule, findModuleRow, isModulePath, onOpenModule } from "./module-open";
+import type { FileEntry, OpenModule, Submodule } from "$lib/ipc";
+import { askToOpenModule, findModuleRow, isModulePath, onOpenModule } from "./module-open";
+import type { Listen } from "./settings-sync";
 
 const file = (path: string, mode: FileEntry["mode"] = "plain"): FileEntry => ({
   path,
@@ -52,25 +53,27 @@ describe("findModuleRow", () => {
 
 describe("askToOpenModule and onOpenModule", () => {
   it("carry the repository and the path from the compare window to the main one", async () => {
-    const emit = vi.fn(async () => {});
-    await askToOpenModule({ repo: 3, path: "vendor/lib" }, emit);
-
-    expect(emit).toHaveBeenCalledWith(OPEN_MODULE, { repo: 3, path: "vendor/lib" });
-  });
-
-  it("hands on only a well-formed request", async () => {
-    let deliver: (event: { payload: unknown }) => void = () => {};
-    const listen = vi.fn(async (_: string, handler: (event: { payload: unknown }) => void) => {
+    let deliver: (event: { payload: OpenModule }) => void = () => {};
+    const listen: Listen<OpenModule> = async (handler) => {
       deliver = handler;
       return () => {};
-    });
-    const seen: unknown[] = [];
+    };
+    const seen: OpenModule[] = [];
     onOpenModule((request) => seen.push(request), listen);
     await Promise.resolve();
 
-    deliver({ payload: { repo: 3, path: "vendor/lib" } });
-    deliver({ payload: "nonsense" });
+    await askToOpenModule({ repo: 3, path: "vendor/lib" }, async (payload) => deliver({ payload }));
 
     expect(seen).toEqual([{ repo: 3, path: "vendor/lib" }]);
+  });
+
+  it("stops listening when undone, even before the listener was in place", async () => {
+    const unlisten = vi.fn();
+    const handler = vi.fn();
+    onOpenModule(handler, async () => unlisten)();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(unlisten).toHaveBeenCalledOnce();
   });
 });

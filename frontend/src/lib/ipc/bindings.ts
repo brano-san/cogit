@@ -560,6 +560,9 @@ export const commands = {
 /** Events */
 export const events = {
 	avatarReady: makeEvent<AvatarReady>("avatar-ready"),
+	cogitOpenModule: makeEvent<OpenModule>("cogit://open-module"),
+	cogitSettingsChanged: makeEvent<SettingsChanged>("cogit://settings-changed"),
+	cogitTreeChanged: makeEvent<TreeChanged>("cogit://tree-changed"),
 	commandRecorded: makeEvent<CommandRecorded>("command-recorded"),
 	errorQueue: makeEvent<ErrorQueue>("error-queue"),
 	errorReported: makeEvent<ErrorReported>("error-reported"),
@@ -1626,6 +1629,15 @@ export type NotesFetch = {
 	diverged: string[],
 };
 
+/**
+ *  A compare window was opened on a submodule: the main one opens it instead (R-537).
+ *  The page emits it itself.
+ */
+export type OpenModule = {
+	repo: RepoId,
+	path: string,
+};
+
 /**  What the toolbar and the queue indicator are told, at every phase. */
 export type Operation = {
 	id: number,
@@ -2116,6 +2128,12 @@ export type SessionEnding = {
 	reason: string,
 };
 
+/**
+ *  A window wrote the settings file; the others read it again (R-518). The payload is the
+ *  writer's mark, so it skips its own. The page emits it itself.
+ */
+export type SettingsChanged = string;
+
 export type Severity = "success" | "warning" | "failure";
 
 export type Signature = {
@@ -2380,6 +2398,15 @@ export type TodoEntry = {
 export type Trailer = {
 	key: string,
 	value: string,
+};
+
+/**
+ *  A compare window staged, unstaged or discarded lines: the main one reads its lists again,
+ *  because the watcher is quiet after our own writes. The page emits it itself.
+ */
+export type TreeChanged = {
+	repo: RepoId,
+	path: string,
 };
 
 /**  ORIG_HEAD against HEAD, for the confirmation before Undo Last Merge / Rebase / Reset. */

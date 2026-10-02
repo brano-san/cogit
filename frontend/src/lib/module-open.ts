@@ -1,42 +1,22 @@
-import { emit as tauriEmit, listen as tauriListen } from "@tauri-apps/api/event";
-import type { FileEntry, RepoId, Submodule } from "$lib/ipc";
+import { events } from "$lib/ipc/bindings";
+import type { FileEntry, OpenModule, Submodule } from "$lib/ipc";
 import { moduleKey, type ModuleRow } from "$lib/module-tree";
-import type { Emit, Listen } from "$lib/settings-sync";
+import { listenUntilUndone, type Emit, type Listen } from "$lib/settings-sync";
 
-/** A compare window asked for a submodule: the main window opens it instead (R-537). Not
-    declared in Rust, like `cogit://settings-changed` (R-518): only pages send and hear it. */
-export const OPEN_MODULE = "cogit://open-module";
-
-export interface ModuleRequest {
-  repo: RepoId;
-  path: string;
-}
-
-export async function askToOpenModule(request: ModuleRequest, emit: Emit = tauriEmit): Promise<void> {
-  await emit(OPEN_MODULE, request);
-}
-
-function isRequest(payload: unknown): payload is ModuleRequest {
-  const request = payload as Partial<ModuleRequest> | null;
-  return typeof request?.repo === "number" && typeof request.path === "string";
+/** A compare window asked for a submodule: the main window opens it instead (R-537). */
+export async function askToOpenModule(
+  request: OpenModule,
+  emit: Emit<OpenModule> = events.cogitOpenModule.emit,
+): Promise<void> {
+  await emit(request);
 }
 
 /** For the main window. Returns the undo, which also holds before the listener is in place. */
-export function onOpenModule(handler: (request: ModuleRequest) => void, listen: Listen = tauriListen): () => void {
-  let stopped = false;
-  let stop: (() => void) | null = null;
-  void listen(OPEN_MODULE, (event) => {
-    if (!stopped && isRequest(event.payload)) handler(event.payload);
-  })
-    .then((unlisten) => {
-      if (stopped) unlisten();
-      else stop = unlisten;
-    })
-    .catch(() => {});
-  return () => {
-    stopped = true;
-    stop?.();
-  };
+export function onOpenModule(
+  handler: (request: OpenModule) => void,
+  listen: Listen<OpenModule> = events.cogitOpenModule.listen,
+): () => void {
+  return listenUntilUndone(listen, handler);
 }
 
 /** Whether `path` is a submodule in any of the file lists on show: a gitlink has no lines

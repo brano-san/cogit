@@ -1,23 +1,27 @@
 import { describe, expect, it, vi } from "vitest";
-import { announceTreeChange, onTreeChange, TREE_CHANGED } from "./tree-sync";
+import type { TreeChanged } from "$lib/ipc";
+import type { Listen } from "./settings-sync";
+import { announceTreeChange, onTreeChange } from "./tree-sync";
 
 describe("tree-sync", () => {
   it("announces the repository and the file", async () => {
-    const emit = vi.fn(async () => {});
-    await announceTreeChange({ repo: 1 as never, path: "a.txt" }, emit);
-    expect(emit).toHaveBeenCalledWith(TREE_CHANGED, { repo: 1, path: "a.txt" });
+    const emit = vi.fn(async (_: TreeChanged) => {});
+    await announceTreeChange({ repo: 1, path: "a.txt" }, emit);
+    expect(emit).toHaveBeenCalledWith({ repo: 1, path: "a.txt" });
   });
 
-  it("hands valid changes to the handler and ignores junk", async () => {
-    let send: (event: { payload: unknown }) => void = () => {};
-    const handler = vi.fn();
-    onTreeChange(handler, async (_name, h) => {
+  it("hands the change to the handler until undone", async () => {
+    let send: (event: { payload: TreeChanged }) => void = () => {};
+    const listen: Listen<TreeChanged> = async (h) => {
       send = h;
       return () => {};
-    });
+    };
+    const handler = vi.fn();
+    const undo = onTreeChange(handler, listen);
     await Promise.resolve();
     send({ payload: { repo: 2, path: "b" } });
-    send({ payload: "nope" });
-    expect(handler).toHaveBeenCalledOnce();
+    undo();
+    send({ payload: { repo: 2, path: "c" } });
+    expect(handler).toHaveBeenCalledExactlyOnceWith({ repo: 2, path: "b" });
   });
 });
