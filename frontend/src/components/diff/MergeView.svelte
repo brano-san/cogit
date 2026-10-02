@@ -217,13 +217,16 @@
     letter-spacing: 0.04em;
   }
 
+  .heads span {
+    padding-left: var(--sp-3);
+  }
+
   .line {
     position: absolute;
     left: 0;
     right: 0;
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: var(--sp-3);
     height: 22px;
     padding: 0 var(--sp-5);
     font-size: var(--fs-code);
@@ -258,7 +261,14 @@
     white-space: pre;
   }
 
+  /* Column separators: the same divider as the bars, on the heads and on every row. */
+  .cell + .cell,
+  .heads span + span {
+    border-left: 1px solid var(--divider);
+  }
+
   .text {
+    padding-left: var(--sp-3);
     display: inline-block;
     vertical-align: top;
     transform: translateX(calc(-1 * var(--shift, 0px)));
