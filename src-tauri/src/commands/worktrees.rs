@@ -1,7 +1,7 @@
 //! Linked worktrees: list, add, open, prune, repair, lock, remove (M3).
 
 use super::{blocking, mutating, mutating_titled};
-use app_state::{OperationKind, RepoId, RepoSummary};
+use app_state::{OperationKind, RepoId, RepoSummary, WorktreeScanChunk};
 use git_engine::GitError;
 
 #[tauri::command]
@@ -94,41 +94,6 @@ pub async fn open_worktree(
     .await
 }
 
-/// The three stages of the Remove Worktree scan, which one chunk reports as it finishes.
-#[derive(Debug, Clone, Copy, serde::Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub enum WorktreeScanStage {
-    Changes,
-    Submodules,
-    Unpushed,
-}
-
-/// `Started` carries the id `cancel_operation` stops the scan by; each stage then answers
-/// on its own, in whatever order they finish.
-#[derive(Debug, serde::Serialize, specta::Type)]
-#[serde(rename_all = "camelCase", tag = "kind")]
-pub enum WorktreeScanChunk {
-    Started {
-        id: u32,
-    },
-    Changes {
-        files: Vec<git_engine::FileEntry>,
-    },
-    Submodules {
-        modules: git_engine::WorktreeSubmodules,
-    },
-    Unpushed {
-        found: Vec<git_engine::UnpushedInSubmodule>,
-    },
-    Failed {
-        stage: WorktreeScanStage,
-        error: GitError,
-    },
-    Done {
-        cancelled: bool,
-    },
-}
-
 /// What removing a worktree would lose, read as three parallel reads (R-675). Cancellable.
 #[tauri::command]
 #[specta::specta]
@@ -146,48 +111,14 @@ pub async fn scan_worktree_removal(
     let token = cancel.clone();
     let channel = on_chunk.clone();
     let done = blocking("scan_worktree_removal", move || {
-        let stop = token.clone();
-        let scan = app_state
-            .worktree_scan(repo, &path)?
-            .stopping_on(move || stop.is_cancelled());
-        let started = std::time::Instant::now();
-        let send = |stage: WorktreeScanStage, answer: Result<WorktreeScanChunk, GitError>| {
-            tracing::info!(
-                ?stage,
-                elapsed = ?started.elapsed(),
-                ok = answer.is_ok(),
-                "worktree removal scan stage"
-            );
-            if !token.is_cancelled() {
-                let _ = channel.send(
-                    answer.unwrap_or_else(|error| WorktreeScanChunk::Failed { stage, error }),
-                );
-            }
-        };
-        // `spawn_blocking` already is a thread of its own: plain scoped threads, no rayon.
-        std::thread::scope(|scope| {
-            let (send, scan) = (&send, &scan);
-            scope.spawn(move || {
-                let answer = scan
-                    .changes()
-                    .map(|files| WorktreeScanChunk::Changes { files });
-                send(WorktreeScanStage::Changes, answer);
-            });
-            scope.spawn(move || {
-                let answer = scan
-                    .submodules()
-                    .map(|modules| WorktreeScanChunk::Submodules { modules });
-                send(WorktreeScanStage::Submodules, answer);
-            });
-            scope.spawn(move || {
-                let answer = scan
-                    .unpushed()
-                    .map(|found| WorktreeScanChunk::Unpushed { found });
-                send(WorktreeScanStage::Unpushed, answer);
-            });
-        });
-        tracing::info!(elapsed = ?started.elapsed(), "worktree removal scan finished");
-        Ok(())
+        app_state.scan_worktree_removal(
+            repo,
+            &path,
+            move || token.is_cancelled(),
+            |chunk| {
+                let _ = channel.send(chunk);
+            },
+        )
     })
     .await;
 

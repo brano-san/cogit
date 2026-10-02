@@ -183,3 +183,63 @@ fn a_scan_names_its_finds_with_forward_slashes_as_every_other_path_over_ipc() {
 
     assert!(roots.contains(&path), "{roots:?}");
 }
+
+fn removal_scan(state: &AppState, repo: RepoId, path: &str, stop: bool) -> Vec<String> {
+    let kinds = std::sync::Mutex::new(Vec::new());
+    state
+        .scan_worktree_removal(
+            repo,
+            path,
+            move || stop,
+            |chunk| {
+                let kind = serde_json::to_value(&chunk).unwrap()["kind"].clone();
+                kinds
+                    .lock()
+                    .unwrap()
+                    .push(kind.as_str().unwrap().to_owned());
+            },
+        )
+        .unwrap();
+    let mut kinds = kinds.into_inner().unwrap();
+    kinds.sort();
+    kinds
+}
+
+#[test]
+fn a_removal_scan_answers_once_per_stage() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let (state, owner) = open(&f);
+    let path = linked(&state, owner).path;
+
+    assert_eq!(
+        removal_scan(&state, owner, &path, false),
+        ["changes", "submodules", "unpushed"]
+    );
+}
+
+#[test]
+fn a_stopped_removal_scan_sends_no_stage() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let (state, owner) = open(&f);
+    let path = linked(&state, owner).path;
+
+    assert!(removal_scan(&state, owner, &path, true).is_empty());
+}
+
+#[test]
+fn a_removal_scan_of_a_folder_that_is_no_worktree_fails_before_any_stage() {
+    let f = test_fixtures::with_worktree().unwrap();
+    let other = test_fixtures::linear(1).unwrap();
+    let (state, owner) = open(&f);
+    let sent = std::sync::atomic::AtomicBool::new(false);
+
+    let refused = state.scan_worktree_removal(
+        owner,
+        &other.path().to_string_lossy().replace('\\', "/"),
+        || false,
+        |_| sent.store(true, std::sync::atomic::Ordering::Relaxed),
+    );
+
+    assert!(refused.is_err());
+    assert!(!sent.into_inner());
+}

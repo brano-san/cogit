@@ -155,11 +155,90 @@ impl AppState {
         self.handle(repo)?.unlock_worktree(path)
     }
 
-    pub fn worktree_scan(
+    /// What removing a worktree would lose, read as three parallel reads (R-675). Each
+    /// stage `send`s one chunk as it finishes, in whatever order; nothing after `stop`.
+    pub fn scan_worktree_removal(
         &self,
         repo: RepoId,
         path: &str,
-    ) -> Result<git_engine::WorktreeScan, git_engine::GitError> {
-        self.handle(repo)?.worktree_scan(path)
+        stop: impl Fn() -> bool + Send + Sync + Clone + 'static,
+        send: impl Fn(WorktreeScanChunk) + Sync,
+    ) -> Result<(), git_engine::GitError> {
+        let scan = self
+            .handle(repo)?
+            .worktree_scan(path)?
+            .stopping_on(stop.clone());
+        let started = std::time::Instant::now();
+        let send = |stage: WorktreeScanStage,
+                    answer: Result<WorktreeScanChunk, git_engine::GitError>| {
+            tracing::info!(
+                ?stage,
+                elapsed = ?started.elapsed(),
+                ok = answer.is_ok(),
+                "worktree removal scan stage"
+            );
+            if !stop() {
+                send(answer.unwrap_or_else(|error| WorktreeScanChunk::Failed { stage, error }));
+            }
+        };
+        // Called from `spawn_blocking`, a thread of its own: plain scoped threads, no rayon.
+        std::thread::scope(|scope| {
+            let (send, scan) = (&send, &scan);
+            scope.spawn(move || {
+                let answer = scan
+                    .changes()
+                    .map(|files| WorktreeScanChunk::Changes { files });
+                send(WorktreeScanStage::Changes, answer);
+            });
+            scope.spawn(move || {
+                let answer = scan
+                    .submodules()
+                    .map(|modules| WorktreeScanChunk::Submodules { modules });
+                send(WorktreeScanStage::Submodules, answer);
+            });
+            scope.spawn(move || {
+                let answer = scan
+                    .unpushed()
+                    .map(|found| WorktreeScanChunk::Unpushed { found });
+                send(WorktreeScanStage::Unpushed, answer);
+            });
+        });
+        tracing::info!(elapsed = ?started.elapsed(), "worktree removal scan finished");
+        Ok(())
     }
+}
+
+/// The three stages of the Remove Worktree scan, which one chunk reports as it finishes.
+#[derive(Debug, Clone, Copy, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum WorktreeScanStage {
+    Changes,
+    Submodules,
+    Unpushed,
+}
+
+/// `Started` carries the id `cancel_operation` stops the scan by; each stage then answers
+/// on its own, in whatever order they finish.
+#[derive(Debug, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase", tag = "kind")]
+pub enum WorktreeScanChunk {
+    Started {
+        id: u32,
+    },
+    Changes {
+        files: Vec<git_engine::FileEntry>,
+    },
+    Submodules {
+        modules: git_engine::WorktreeSubmodules,
+    },
+    Unpushed {
+        found: Vec<git_engine::UnpushedInSubmodule>,
+    },
+    Failed {
+        stage: WorktreeScanStage,
+        error: git_engine::GitError,
+    },
+    Done {
+        cancelled: bool,
+    },
 }

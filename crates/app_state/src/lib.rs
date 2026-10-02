@@ -67,6 +67,7 @@ pub use registry::{OpenRepo, RepoRefs, RepoSummary, ScanHit};
 pub use rows::RepoOverview;
 pub use safety::{Recovery, SafetyEntry};
 pub use solver::{MAX_SOLVER_BYTES, MergeToolOutcome, SolverData};
+pub use worktrees::{WorktreeScanChunk, WorktreeScanStage};
 
 use journal::JOURNAL_CAPACITY;
 use parking_lot::RwLock;
