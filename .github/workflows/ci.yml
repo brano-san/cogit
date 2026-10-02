@@ -51,7 +51,9 @@ jobs:
         shell: bash
         run: |
           set +e
-          cargo clippy --workspace --all-targets -- -D warnings 2>&1 | tee clippy.log
+          # Indented on screen: the rustc problem matcher would otherwise spend the 10 annotations
+          # of the step on the cascade, before the one below.
+          cargo clippy --workspace --all-targets -- -D warnings 2>&1 | tee clippy.log | sed 's/^/  /'
           status=${PIPESTATUS[0]}
           if [ "$status" -ne 0 ]; then
             sed 's/\x1b\[[0-9;]*m//g' clippy.log | grep -E -B2 -A12 '^error|linking with|ld:|mold' | head -150 > clippy.errors
