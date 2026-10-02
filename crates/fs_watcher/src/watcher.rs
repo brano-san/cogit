@@ -219,6 +219,8 @@ impl Route {
             });
             for change in std::iter::once(change).chain(mailmap) {
                 if !batch.iter().any(|seen| seen.kind == change.kind) {
+                    // The first path per kind per batch: a refresh that feeds itself shows here.
+                    tracing::info!(kind = ?change.kind, path = %path.display(), "watched path changed");
                     batch.push(change);
                 }
             }
