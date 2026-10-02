@@ -7,6 +7,7 @@ use app_state::desktop::{
     Platform, file_uri, git_shell_command, native_path, open_command, power_shell_command,
     reveal_command, trash_command,
 };
+use app_state::terminal::{Terminal, launch_for};
 use std::path::{Path, PathBuf};
 
 const REPO: &str = "D:/work/my repo";
@@ -90,6 +91,11 @@ fn powershell_exists_only_on_windows_and_is_started_in_a_console_of_its_own() {
     // `start` gives it a console and working handles; the relaying cmd stays invisible.
     assert_eq!(shell.args, ["/C", "start", "", "powershell.exe", "-NoExit"]);
     assert!(shell.hidden);
+    // One launch with Open in Terminal ▸ PowerShell, not a copy of it.
+    assert_eq!(
+        shell,
+        launch_for(Platform::Windows, Terminal::PowerShell, REPO, None)
+    );
     assert!(power_shell_command(Platform::Linux).is_none());
     assert!(power_shell_command(Platform::MacOs).is_none());
 }

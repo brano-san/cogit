@@ -66,11 +66,10 @@ pub struct DesktopInfo {
 }
 
 #[must_use]
-pub fn info() -> DesktopInfo {
-    let platform = Platform::current();
+pub fn info(platform: Platform) -> DesktopInfo {
     DesktopInfo {
         file_manager: platform.file_manager().to_owned(),
-        windows_shells: power_shell_command(platform).is_some(),
+        windows_shells: platform == Platform::Windows,
         git_shell: find_git_bash().map(|path| path.to_string_lossy().into_owned()),
         separator: if platform == Platform::Windows {
             "\\"
@@ -155,13 +154,11 @@ pub fn file_uri(path: &str) -> String {
     uri
 }
 
-/// Through `start`: a GUI process has no console or standard handles to pass on.
+/// The terminal's PowerShell; it inherits the folder, so no path is needed.
 #[must_use]
 pub fn power_shell_command(platform: Platform) -> Option<Launch> {
-    (platform == Platform::Windows).then(|| Launch {
-        hidden: true,
-        ..Launch::plain("cmd.exe", &["/C", "start", "", "powershell.exe", "-NoExit"])
-    })
+    use crate::terminal::{Terminal, launch_for};
+    (platform == Platform::Windows).then(|| launch_for(platform, Terminal::PowerShell, "", None))
 }
 
 #[must_use]

@@ -1,13 +1,15 @@
 //! Opening a terminal at a repository; `app_state::terminal` chooses the program.
 
 use super::blocking;
+use app_state::desktop::{self, Platform};
+use app_state::terminal::{Terminal, choices, launch_for};
 use git_engine::GitError;
 
 /// The terminals this platform can offer, for the settings dropdown.
 #[tauri::command]
 #[specta::specta]
 pub fn terminal_choices() -> Vec<TerminalChoice> {
-    app_state::terminal::choices()
+    choices(Platform::current())
         .into_iter()
         .map(|kind| TerminalChoice {
             id: kind.id().to_owned(),
@@ -28,11 +30,15 @@ pub struct TerminalChoice {
 #[tauri::command]
 #[specta::specta]
 pub async fn open_in_terminal(path: String, terminal: String) -> Result<(), GitError> {
-    let kind = app_state::terminal::Terminal::from_id(&terminal).unwrap_or_default();
-    let launch = app_state::terminal::launch_for(kind, &path);
-
     blocking("open_in_terminal", move || {
-        app_state::desktop::spawn(&launch, Some(std::path::Path::new(&path)))
+        let platform = Platform::current();
+        let kind = Terminal::from_id(platform, &terminal).unwrap_or_default();
+        // Registry and disk: looked up only for the one choice that needs it.
+        let git_bash = (kind == Terminal::GitBash)
+            .then(desktop::find_git_bash)
+            .flatten();
+        let launch = launch_for(platform, kind, &path, git_bash.as_deref());
+        desktop::spawn(&launch, Some(std::path::Path::new(&path)))
             .map_err(|err| GitError::Io(format!("cannot start {}: {err}", launch.program)))
     })
     .await

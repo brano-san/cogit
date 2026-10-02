@@ -16,7 +16,7 @@ fn start(label: &'static str, launch: Launch, cwd: Option<String>) -> Result<(),
 #[tauri::command]
 #[specta::specta]
 pub async fn desktop_info() -> Result<DesktopInfo, GitError> {
-    blocking("desktop_info", || Ok(desktop::info())).await
+    blocking("desktop_info", || Ok(desktop::info(Platform::current()))).await
 }
 
 /// The frontend's theme is dark or light; GTK dialogs follow it (Linux), a no-op elsewhere.
