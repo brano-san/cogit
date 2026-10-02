@@ -446,6 +446,17 @@ describe("segmentCurve", () => {
     expect({ x: into.x2, y: into.y2 }).toEqual(nodeCentre(1, 7, 0));
   });
 
+  it("leaves the node from its centre, as a line into it arrives at its centre", () => {
+    const out = segmentCurve({ from: 1, to: 3, span: "bottom" }, 7, 0);
+    const into = segmentCurve({ from: 3, to: 1, span: "top" }, 7, 0);
+    const centre = nodeCentre(1, 7, 0);
+    expect({ x: out.x1, y: out.y1 }).toEqual(centre);
+    expect({ x: into.x2, y: into.y2 }).toEqual(centre);
+    // Mirror images: the same S, one half a row either side of the centre.
+    expect(out.y2 - out.y1).toBe(centre.y - into.y1);
+    expect(out.x2 - out.x1).toBe(into.x1 - into.x2);
+  });
+
   it("ends a row where the next one starts, so a lane runs on without a gap", () => {
     const leaving = segmentCurve({ from: 0, to: 2, span: "bottom" }, 3, 0);
     const next = segmentCurve({ from: 2, to: 2, span: "through" }, 4, 0);
