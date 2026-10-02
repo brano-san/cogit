@@ -2,8 +2,30 @@
 
 Blazing-fast, SmartGit-inspired Git GUI client for power users. Built with Rust, Tauri v2 and Svelte 5.
 
+[![CI](https://github.com/brano-san/cogit/actions/workflows/ci.yml/badge.svg)](https://github.com/brano-san/cogit/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/brano-san/cogit?include_prereleases&sort=semver)](https://github.com/brano-san/cogit/releases)
+[![License: MIT](https://img.shields.io/github/license/brano-san/cogit)](LICENSE)
+
+![Windows 10 | 11](https://img.shields.io/badge/Windows-10%20%7C%2011-brightgreen?logo=windows&logoColor=white)
+![Ubuntu 22.04+](https://img.shields.io/badge/Ubuntu-22.04%2B-brightgreen?logo=ubuntu&logoColor=white)
+![Debian 12+](https://img.shields.io/badge/Debian-12%2B-brightgreen?logo=debian&logoColor=white)
+![macOS experimental](https://img.shields.io/badge/macOS-experimental-yellow?logo=apple&logoColor=white)
+![Git 2.45+](https://img.shields.io/badge/Git-2.45%2B-brightgreen?logo=git&logoColor=white)
+
 > **Status: early development.** The application shell runs; Git functionality is being
-> built module by module. See [`doc/00-roadmap.md`](doc/00-roadmap.md) for the plan.
+> built module by module.
+
+## Supported platforms
+
+| Platform | Status | Needs |
+|---|---|---|
+| Windows 10 / 11 (x64) | installer (`.msi`, `-setup.exe`) and portable `.zip` | Microsoft Edge WebView2 Runtime (preinstalled on Windows 11; the installers fetch it if missing) |
+| Ubuntu 22.04+ / Debian 12+ (x86_64) | `.deb` and portable `.AppImage` | `libwebkit2gtk-4.1`, GTK 3, glibc 2.35+ |
+| macOS (Apple Silicon) | experimental `.dmg`, unsigned | Gatekeeper asks for a manual open |
+
+Every platform also needs the system `git` (2.45 or newer): reading history works without
+it, but every write (commit, checkout, merge, push) runs `git`. Cogit explains how to point
+it at your `git` if it is not in `PATH`.
 
 ## What it aims to be
 
@@ -29,13 +51,11 @@ Tauri, so they test in seconds without a GUI. `src-tauri/` is a thin routing lay
 `frontend/` is a Svelte 5 SPA. Reads use `gix`; writes go through the system `git`, which
 already handles hooks, credentials and merge strategies correctly.
 
-Details: [`doc/01-architecture.md`](doc/01-architecture.md).
 
 ## Building
 
-Requires Rust 1.98+, Node 22.12+, Git 2.40+, and a C++ toolchain
-(MSVC on Windows). Full setup including LLVM and sccache:
-[`doc/10-toolchain-setup.md`](doc/10-toolchain-setup.md).
+Requires Rust 1.98+, Node 22.12+, Git 2.45+, and a C++ toolchain
+(MSVC on Windows; `scripts/wsl/setup-linux.sh` installs everything on Ubuntu 22.04+).
 
 ```bash
 npm install
@@ -83,7 +103,7 @@ it is portable.
 - git, ssh and credential helpers see your normal environment. HTTP tokens still go to the
   system keyring (Credential Manager / Secret Service). A few writes outside the folder
   are not Cogit's to control (the WebView2 runtime, the Windows jump list and
-  `Zone.Identifier`); see `doc/13-distribution.md` section 11.
+  `Zone.Identifier`).
 
 ## Repository layout
 
@@ -97,14 +117,12 @@ crates/          business logic, no Tauri dependency
   test_fixtures/   generated temporary repositories for tests
 src-tauri/       IPC routing, windows, plugins
 frontend/        Svelte 5 + Vite + CodeMirror 6
-doc/             specifications and module plans (Russian)
 ```
 
 ## Contributing
 
 Read [`CLAUDE.md`](CLAUDE.md) first — it holds the architectural rules, the error-handling
-policy and the testing approach. The invariants it references are defined in
-[`doc/01-architecture.md`](doc/01-architecture.md).
+policy and the testing approach. 
 
 ## License
 
