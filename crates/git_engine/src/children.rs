@@ -26,6 +26,12 @@ pub(crate) fn spawn(command: &mut Command) -> std::io::Result<(Child, Tracked)> 
     if STOPPING.load(Ordering::SeqCst) {
         return Err(exiting());
     }
+    // Its own group, so that `stop_tree` reaches what git starts (`sh -c`, ssh, helpers).
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt as _;
+        command.process_group(0);
+    }
     let child = command.spawn()?;
     let late = {
         let mut running = RUNNING.lock().unwrap_or_else(PoisonError::into_inner);
@@ -119,7 +125,7 @@ pub(crate) fn stop_tree(pid: u32) -> std::io::Result<()> {
 #[cfg(not(windows))]
 pub(crate) fn stop_tree(pid: u32) -> std::io::Result<()> {
     let status = Command::new("kill")
-        .args(["-TERM", &pid.to_string()])
+        .args(["-TERM", "--", &format!("-{pid}")])
         .status()?;
     if status.success() {
         Ok(())

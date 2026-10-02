@@ -16,6 +16,8 @@ fn exiting_stops_the_git_tree_that_runs_and_refuses_the_next() {
         );
         std::thread::sleep(Duration::from_millis(20));
     }
+    // The whole tree is up only after git has started `sh` and `sh` has started `sleep`.
+    std::thread::sleep(Duration::from_millis(500));
     assert!(children::stop_all() >= 1);
 
     let result = sleeper.join().unwrap();
