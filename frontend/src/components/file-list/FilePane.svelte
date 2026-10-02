@@ -23,6 +23,8 @@
   import { directoryOf, extensionOf, fileType, gridColumns, lfsLabel, TYPE_LABELS, type ColumnKey } from "$lib/file-columns";
   import { fileState, sideOfRow, type StateSide } from "$lib/file-state";
   import { fileName, indexNote } from "$lib/files";
+  import { copiedText } from "$lib/file-actions";
+  import { desktop } from "$stores/desktop.svelte";
   import { remoteOps } from "$stores/remote-ops.svelte";
   import type { ViewRow } from "$lib/file-view";
   import { LIST_ROW_HEIGHT, striped } from "$lib/graph-geometry";
@@ -68,13 +70,11 @@
     oncontext,
   }: Props = $props();
 
+  /** The tooltip shows what Copy Path copies. */
   function absolutePath(relPath: string): string {
     const root = repository.current?.root;
     if (!root) return relPath;
-    const sep = root.includes("\\") ? "\\" : "/";
-    const cleanRoot = root.replace(/[/\\]+$/, "");
-    const cleanRel = sep === "\\" ? relPath.replaceAll("/", "\\") : relPath;
-    return `${cleanRoot}${sep}${cleanRel}`;
+    return copiedText("path", [relPath], { root, separator: desktop.info.separator });
   }
 
   const template = $derived(gridColumns(columns, filesView.widths));
